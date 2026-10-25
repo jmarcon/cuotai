@@ -20,10 +20,7 @@ fn event(kind: EventKind, account: &str, threshold: Option<u8>) -> Event {
         provider: Provider::Claude,
         accounts: Vec::new(),
         parent: None,
-        metric: Some(MetricRef {
-            label: "Sessão (5h)".into(),
-            window: Some(MetricWindow::Window5h),
-        }),
+        metric: Some(MetricRef::new("Sessão (5h)", Some(MetricWindow::Window5h))),
         current: Values {
             threshold,
             used: Some(91.0),

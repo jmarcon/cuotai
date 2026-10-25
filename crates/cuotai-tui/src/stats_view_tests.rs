@@ -117,10 +117,7 @@ fn fixture() -> Fixture {
         account_name: alpha.name.clone(),
         provider: alpha.provider,
         accounts: Vec::new(),
-        metric: Some(MetricRef {
-            label: "5h".into(),
-            window: None,
-        }),
+        metric: Some(MetricRef::new("5h", None)),
         current: Values::default(),
         previous: None,
         sample: false,

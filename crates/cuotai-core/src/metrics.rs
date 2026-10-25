@@ -363,6 +363,8 @@ pub struct Binding {
     /// Position in `Report::metrics`.
     pub index: usize,
     pub label: String,
+    /// PRD 0034 RF2: display text of `label` (English `fallback`).
+    pub label_text: Localized,
     pub window: Option<MetricWindow>,
     /// Consumed fraction in `[0.0, 1.0]`; `1.0` when exhausted.
     pub used_ratio: f64,
@@ -393,6 +395,7 @@ pub fn binding_where(report: &Report, keep: impl Fn(usize) -> bool) -> Option<Bi
     Some(Binding {
         index: candidate.index,
         label: metric.label.clone(),
+        label_text: crate::metric_text::metric_text(&metric.label),
         window: metric.window,
         used_ratio: 1.0 - candidate.ratio,
         remaining: metric.limit.unwrap_or_default() * candidate.ratio,
@@ -1065,6 +1068,7 @@ mod tests {
         let blocked = |resets| Binding {
             index: 0,
             label: "Opus".into(),
+            label_text: crate::metric_text::metric_text("Opus"),
             window: None,
             used_ratio: 1.0,
             remaining: 0.0,

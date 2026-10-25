@@ -281,13 +281,16 @@
       "required": ["label", "used", "limit", "remaining", "unit", "kind", "window", "period", "resets_at"],
       "properties": {
         "label": { "type": "string" },
+        "label_text": { "$ref": "#/$defs/Localized", "description": "Display text of label (PRD 0034 RF2): English fallback, the catalog id is metric.label.*; label stays the stable identifier." },
         "used": { "type": ["number", "null"] },
         "limit": { "type": ["number", "null"] },
         "remaining": { "type": ["number", "null"] },
         "unit": { "type": "string" },
+        "unit_text": { "$ref": "#/$defs/Localized", "description": "Display text of unit (PRD 0034 RF2); unit stays the identifier." },
         "kind": { "anyOf": [{ "enum": ["quota", "rate_limit", "balance", "credits", "spend", "usage"] }, { "type": "string" }] },
         "window": { "anyOf": [{ "type": "null" }, { "enum": ["window_5h", "daily", "weekly", "monthly", "other"] }, { "type": "string" }] },
         "period": { "type": ["string", "null"] },
+        "period_text": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Localized" }], "description": "Display text of period (PRD 0034 RF2); null with period." },
         "resets_at": { "type": ["string", "null"], "format": "date-time" },
         "billing": { "anyOf": [{ "enum": ["overage"] }, { "type": "string" }], "description": "Present only on paid extra usage (billed on top of the plan); absent means included in the plan." },
         "scope": {
@@ -307,13 +310,16 @@
       "required": ["label", "used", "limit", "remaining", "unit", "kind", "window", "period", "resets_at", "expired"],
       "properties": {
         "label": { "type": "string" },
+        "label_text": { "$ref": "#/$defs/Localized", "description": "Display text of label (PRD 0034 RF2): English fallback, the catalog id is metric.label.*; label stays the stable identifier." },
         "used": { "type": ["number", "null"] },
         "limit": { "type": ["number", "null"] },
         "remaining": { "type": ["number", "null"] },
         "unit": { "type": "string" },
+        "unit_text": { "$ref": "#/$defs/Localized", "description": "Display text of unit (PRD 0034 RF2); unit stays the identifier." },
         "kind": { "anyOf": [{ "enum": ["quota", "rate_limit", "balance", "credits", "spend", "usage"] }, { "type": "string" }] },
         "window": { "anyOf": [{ "type": "null" }, { "enum": ["window_5h", "daily", "weekly", "monthly", "other"] }, { "type": "string" }] },
         "period": { "type": ["string", "null"] },
+        "period_text": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Localized" }], "description": "Display text of period (PRD 0034 RF2); null with period." },
         "resets_at": { "type": ["string", "null"], "format": "date-time" },
         "expired": { "type": "boolean", "description": "The window renewed after the reading; used, limit and remaining are then null (PRD 0033 RF2)." },
         "renewed_waiting": { "type": "object", "description": "Localized text of an expired metric." }
@@ -334,6 +340,7 @@
       "properties": {
         "index": { "type": "integer", "minimum": 0, "description": "Position in report.metrics." },
         "label": { "type": "string" },
+        "label_text": { "$ref": "#/$defs/Localized", "description": "Display text of label (PRD 0034 RF2): English fallback, the catalog id is metric.label.*; label stays the stable identifier." },
         "window": { "anyOf": [{ "type": "null" }, { "enum": ["window_5h", "daily", "weekly", "monthly", "other"] }, { "type": "string" }] },
         "used_ratio": { "type": "number", "minimum": 0 },
         "remaining": { "type": "number" },

@@ -216,11 +216,13 @@ impl Rule {
         let usage = |used: f64| Values {
             metrics: vec![MetricReading {
                 label: SAMPLE_METRIC.into(),
+                label_text: crate::metric_text::metric_text(SAMPLE_METRIC),
                 window: Some(MetricWindow::Window5h),
                 used: Some(used),
                 limit: Some(100.0),
                 remaining: Some(100.0 - used),
                 unit: "%".into(),
+                unit_text: crate::metric_text::metric_text("%"),
                 used_ratio: Some(used / 100.0),
                 resets_at,
             }],
@@ -328,10 +330,8 @@ impl Rule {
             provider,
             accounts: Vec::new(),
             parent: None,
-            metric: about_metric.then(|| MetricRef {
-                label: SAMPLE_METRIC.into(),
-                window: Some(MetricWindow::Window5h),
-            }),
+            metric: about_metric
+                .then(|| MetricRef::new(SAMPLE_METRIC, Some(MetricWindow::Window5h))),
             current,
             previous: Some(previous),
             sample: true,

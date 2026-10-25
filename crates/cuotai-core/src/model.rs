@@ -797,7 +797,7 @@ pub enum MetricWindow {
 
 /// A missing value means unknown, not zero. Currency units use ISO codes.
 /// Values are for monitoring, not financial settlement.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Metric {
     pub label: String,
     pub used: Option<f64>,
@@ -815,6 +815,41 @@ pub struct Metric {
     /// than the whole account.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scope: Option<Scope>,
+}
+
+/// PRD 0034 RF2: `label`, `unit` and `period` stay the adapters' raw
+/// identifiers; the serialized form adds `label_text`, `unit_text` and
+/// `period_text` (a [`Localized`](crate::text::Localized) with an English
+/// `fallback`) for display. They are ignored when read back.
+impl Serialize for Metric {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use crate::metric_text::metric_text;
+        use serde::ser::SerializeStruct;
+        let mut out = serializer.serialize_struct("Metric", 14)?;
+        out.serialize_field("label", &self.label)?;
+        out.serialize_field("label_text", &metric_text(&self.label))?;
+        out.serialize_field("used", &self.used)?;
+        out.serialize_field("limit", &self.limit)?;
+        out.serialize_field("remaining", &self.remaining)?;
+        out.serialize_field("unit", &self.unit)?;
+        out.serialize_field("unit_text", &metric_text(&self.unit))?;
+        out.serialize_field("kind", &self.kind)?;
+        out.serialize_field("window", &self.window)?;
+        out.serialize_field("period", &self.period)?;
+        let period_text = self.period.as_deref().map(metric_text);
+        out.serialize_field("period_text", &period_text)?;
+        out.serialize_field("resets_at", &self.resets_at)?;
+        if self.billing.is_included() {
+            out.skip_field("billing")?;
+        } else {
+            out.serialize_field("billing", &self.billing)?;
+        }
+        match &self.scope {
+            Some(scope) => out.serialize_field("scope", scope)?,
+            None => out.skip_field("scope")?,
+        }
+        out.end()
+    }
 }
 
 /// Whether a metric is covered by the plan or is paid extra usage (overage).
@@ -1114,6 +1149,37 @@ mod tests {
                 "{provider:?}"
             );
         }
+    }
+
+    /// PRD 0034 RF2: the raw identifiers stay; the display texts are added
+    /// (English fallback, localizable) and are ignored when read back.
+    #[test]
+    fn metric_json_adds_display_texts_and_keeps_the_identifiers() {
+        let mut metric = Metric::usage(
+            "Créditos do plano",
+            3.0,
+            "créditos",
+            MetricKind::Quota,
+            Some(MetricWindow::Monthly),
+        );
+        metric.period = Some("ciclo de cobrança".into());
+        let mut json = serde_json::to_value(&metric).unwrap();
+        assert_eq!(json["label"], "Créditos do plano");
+        assert_eq!(json["unit"], "créditos");
+        assert_eq!(json["period"], "ciclo de cobrança");
+        assert_eq!(json["label_text"]["id"], "metric.label.plan_credits");
+        assert_eq!(json["label_text"]["fallback"], "Plan credits");
+        assert_eq!(json["unit_text"]["fallback"], "credits");
+        assert_eq!(json["period_text"]["fallback"], "billing cycle");
+        let back: Metric = serde_json::from_value(json.clone()).unwrap();
+        assert_eq!(back.label, metric.label);
+        crate::text::localize_json_fallbacks(&mut json, "pt-BR");
+        assert_eq!(json["label_text"]["fallback"], "Créditos do plano");
+        // An unknown label comes back verbatim; no period is null.
+        let plain = serde_json::to_value(Metric::usage("gpt-5", 1.0, "%", MetricKind::Usage, None))
+            .unwrap();
+        assert_eq!(plain["label_text"]["fallback"], "gpt-5");
+        assert!(plain["period_text"].is_null());
     }
 
     #[test]

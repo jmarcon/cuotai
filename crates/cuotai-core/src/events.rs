@@ -30,6 +30,7 @@ use crate::alerts::{
 };
 use crate::export::v1::AccountExport;
 use crate::incidents::IncidentState;
+use crate::metric_text::metric_text;
 use crate::metrics::{self, Binding, BindingReason, MetricState};
 use crate::overage::{self, OverageExport, OverageState};
 use crate::pace::PaceSource;
@@ -368,6 +369,8 @@ fn usage_text(metrics: &[MetricReading]) -> String {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct MetricRef {
     pub label: String,
+    /// PRD 0034 RF2: display text of `label` (English `fallback`).
+    pub label_text: Localized,
     pub window: Option<MetricWindow>,
 }
 
@@ -390,6 +393,9 @@ pub struct Values {
     pub remaining: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unit: Option<String>,
+    /// PRD 0034 RF2: display text of `unit` (English `fallback`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unit_text: Option<Localized>,
     /// Consumed fraction of the cap, `0.0..=1.0`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub used_ratio: Option<f64>,
@@ -438,25 +444,43 @@ pub struct Values {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct MetricReading {
     pub label: String,
+    /// PRD 0034 RF2: display text of `label` (English `fallback`).
+    pub label_text: Localized,
     pub window: Option<MetricWindow>,
     pub used: Option<f64>,
     pub limit: Option<f64>,
     pub remaining: Option<f64>,
     pub unit: String,
+    /// PRD 0034 RF2: display text of `unit` (English `fallback`).
+    pub unit_text: Localized,
     /// Consumed fraction of the cap; `null` without a usable cap.
     pub used_ratio: Option<f64>,
     pub resets_at: Option<DateTime<Utc>>,
+}
+
+impl MetricRef {
+    /// A reference to the metric `label` (its display text is derived).
+    pub fn new(label: impl Into<String>, window: Option<MetricWindow>) -> Self {
+        let label = label.into();
+        Self {
+            label_text: metric_text(&label),
+            label,
+            window,
+        }
+    }
 }
 
 impl MetricReading {
     fn of(metric: &Metric) -> Self {
         Self {
             label: metric.label.clone(),
+            label_text: metric_text(&metric.label),
             window: metric.window,
             used: finite(metric.used),
             limit: finite(metric.limit),
             remaining: finite(metric.remaining),
             unit: metric.unit.clone(),
+            unit_text: metric_text(&metric.unit),
             used_ratio: used_ratio(metric),
             resets_at: metric.resets_at,
         }
@@ -487,6 +511,7 @@ impl Values {
             limit: finite(metric.limit),
             remaining: finite(metric.remaining),
             unit: Some(metric.unit.clone()),
+            unit_text: Some(metric_text(&metric.unit)),
             used_ratio: used_ratio(metric),
             resets_at: metric.resets_at,
             ..Self::default()
@@ -793,10 +818,7 @@ impl EventState {
         for reset in resets::passed(&last, report) {
             let current = find(report, &reset.label).unwrap_or_default();
             let previous = find(&last, &reset.label);
-            let metric = MetricRef {
-                label: reset.label,
-                window: Some(reset.window),
-            };
+            let metric = MetricRef::new(reset.label, Some(reset.window));
             out.push(EventKind::QuotaReset, Some(metric), current, previous);
         }
         // PRD 0036 RF7.3: an aggregator adds its pool transitions; its
@@ -824,10 +846,7 @@ impl EventState {
                     let Some(projection) = alert.projection else {
                         continue;
                     };
-                    let metric = MetricRef {
-                        label: alert.label.clone(),
-                        window: alert.window,
-                    };
+                    let metric = MetricRef::new(alert.label.clone(), alert.window);
                     let current = Values {
                         projected_at: Some(projection.projected_at),
                         resets_at: alert.resets_at,
@@ -871,10 +890,7 @@ impl EventState {
                 }
                 AlertKind::PoolRecovered => EventKind::PoolRecovered,
             };
-            let metric = MetricRef {
-                label: alert.label.clone(),
-                window: alert.window,
-            };
+            let metric = MetricRef::new(alert.label.clone(), alert.window);
             out.push(kind, Some(metric), current, find(&last, &alert.label));
         }
         alerts.update(report, prefs, &crossed, now);
@@ -899,10 +915,7 @@ impl EventState {
         for (label, window, resets_at) in track.reset_soon(report, *reset_lead, now) {
             let mut current = find(report, &label).unwrap_or_default();
             current.resets_at = Some(resets_at);
-            let metric = MetricRef {
-                label,
-                window: Some(window),
-            };
+            let metric = MetricRef::new(label, Some(window));
             out.push(EventKind::QuotaResetSoon, Some(metric), current, None);
         }
         if let Some(binding) = out.next.binding.as_ref() {
@@ -911,10 +924,7 @@ impl EventState {
                 Some(before) if !blocked(before) && blocked(binding) => {
                     let mut current = find(report, &binding.label).unwrap_or_default();
                     current.blocked_until = binding.blocked_until;
-                    let metric = MetricRef {
-                        label: binding.label.clone(),
-                        window: binding.window,
-                    };
+                    let metric = MetricRef::new(binding.label.clone(), binding.window);
                     let previous = find(&last, &binding.label);
                     out.push(EventKind::AccountBlocked, Some(metric), current, previous);
                 }
@@ -922,10 +932,7 @@ impl EventState {
                     let current = find(report, &before.label).unwrap_or_default();
                     let mut previous = find(&last, &before.label).unwrap_or_default();
                     previous.blocked_until = before.blocked_until;
-                    let metric = MetricRef {
-                        label: before.label.clone(),
-                        window: before.window,
-                    };
+                    let metric = MetricRef::new(before.label.clone(), before.window);
                     out.push(
                         EventKind::AccountUnblocked,
                         Some(metric),

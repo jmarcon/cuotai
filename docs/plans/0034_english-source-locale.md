@@ -185,7 +185,16 @@ At each step: `cargo fmt`, `clippy -D warnings`, workspace and desktop tests, an
 
 | Topic | Decision |
 |---|---|
-| Metric labels, units and periods | `Metric::label`/`unit`/`period` keep the adapters' strings: they are part of the metric identity in the history (`history::metric_key`), the reset ledger, the journal digests and the `metrics = [...]` alert selectors, so changing them would orphan existing users' history and rules. Front ends render them through the core's `metric_text::metric_text` (exact texts and `{slot}` templates mapped to `metric.*` ids with English fallbacks; pt-BR = the adapter text, unchanged). Changing the raw values in `--json`/`export::v1` needs a history/alert migration and is left to an owner decision. |
+| Metric labels, units and periods | `Metric::label`/`unit`/`period` keep the adapters' strings: they are part of the metric identity in the history (`history::metric_key`), the reset ledger, the journal digests and the `metrics = [...]` alert selectors, so changing them would orphan existing users' history and rules. Front ends render them through the core's `metric_text::metric_text` (exact texts and `{slot}` templates mapped to `metric.*` ids with English fallbacks; pt-BR = the adapter text, unchanged). Changing the raw values in `--json`/`export::v1` needs a history/alert migration and is left to an owner decision (decided on 2026-10-25, next table). |
 | TUI catalogs | Separate from the core catalogs (`crates/cuotai-tui/locales`), English in code; the pt-BR texts are the previous literals byte for byte. |
 | Login events | `LoginEvent::{Prompt,Progress,CodeRejected,Failed}` gain an optional `Localized` next to the English text; the desktop (lane O3) should render it when present. |
 | Detection consent (0027 RF6.5) | The TUI detection prompt now names folders, environment variables (presence only) and the local 9router check on 127.0.0.1, in all catalogs. |
+
+### Owner decision: display texts beside the raw metric identifiers (2026-10-25)
+
+| Topic | Decision |
+|---|---|
+| Raw values stay | `label`, `unit` and `period` of a metric (and `binding.label`, the events' `metric.label`/`unit`) keep the adapters' strings, so the history `metric_key`, the reset ledger, the journal digests and the alert `metrics` selectors do not change. No migration. |
+| New fields | Additive `label_text`, `unit_text` and `period_text` (a `Localized`: `metric.*` id, English `fallback`; `period_text` is `null` with `period`) on every metric of `--json`, `export::v1` (`report.metrics`, `last_good.metrics`), `/v1/*`; `label_text` on `binding`; `label_text` on the events' `metric` and `metrics[]`, `unit_text` on `metrics[]` and `current`/`previous`. Pattern: the existing `Localized` sidecars (`notes_l10n`). `--fallback-locale`/`CUOTAI_FALLBACK_LOCALE` render their `fallback`, like every other `Localized`. |
+| Schema | `docs/export-v1.schema.json` describes them (not required); `schema` stays 1; the reference example is regenerated. `Metric` deserialization ignores them. |
+| Tests | Every label, unit and period of the adapter fixtures (`label_snapshot`) maps to a `metric.*` id and renders without Portuguese in English; model, event and export tests cover the shape and the pt-BR rendering. |

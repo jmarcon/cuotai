@@ -279,10 +279,7 @@ mod tests {
             accounts: Vec::new(),
             provider: Provider::Claude,
             parent: None,
-            metric: Some(MetricRef {
-                label: "Semanal".into(),
-                window: Some(MetricWindow::Weekly),
-            }),
+            metric: Some(MetricRef::new("Semanal", Some(MetricWindow::Weekly))),
             current: Values {
                 threshold: Some(90),
                 ..Values::default()

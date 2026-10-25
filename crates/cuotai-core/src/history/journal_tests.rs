@@ -14,10 +14,7 @@ fn event(account: &Account, kind: EventKind, minutes: i64) -> Event {
         account_name: account.name.clone(),
         provider: account.provider,
         accounts: Vec::new(),
-        metric: Some(MetricRef {
-            label: "5h".into(),
-            window: None,
-        }),
+        metric: Some(MetricRef::new("5h", None)),
         current: Values {
             threshold: Some(90),
             used_ratio: Some(0.9),
@@ -166,10 +163,7 @@ fn a_connection_event_keeps_its_aggregator_and_travels_in_the_csv() {
     let mut sub = event(router, EventKind::QuotaExhausted, 0);
     sub.account_id = format!("{}/c1", router.state_key());
     sub.parent = Some(router.key());
-    sub.metric = Some(MetricRef {
-        label: "=big, \"x\"".into(),
-        window: None,
-    });
+    sub.metric = Some(MetricRef::new("=big, \"x\"", None));
     assert_eq!(history.journal_record(&[sub]), Ok(1));
 
     let entries = history.journal(.., &accounts, 20).unwrap();

@@ -2,6 +2,7 @@ use super::*;
 use crate::config_file::ConfigIdentity;
 use crate::export::v1::{Export, Options};
 use crate::incidents::{Incident, ProviderStatus};
+use crate::metric_text::metric_text;
 use crate::overage::OverageState;
 use crate::refresh::RefreshCycle;
 use crate::text::{params, Localized, ParamValue};
@@ -563,6 +564,8 @@ fn payloads_carry_the_common_fields_values_and_previous() {
     let mut watch = Watch::new();
     watch.read(0, ready(50.0));
     let crossed = watch.read(2, ready(80.0));
+    let label_text = serde_json::to_value(metric_text(LABEL)).unwrap();
+    let unit_text = serde_json::to_value(metric_text("%")).unwrap();
     assert_eq!(
         serde_json::to_value(&crossed[0]).unwrap(),
         json!({
@@ -573,12 +576,13 @@ fn payloads_carry_the_common_fields_values_and_previous() {
             "account_id": sk("claude:Work"),
             "account_name": "Work",
             "provider": "claude",
-            "metric": { "label": LABEL, "window": "window_5h" },
+            "metric": { "label": LABEL, "label_text": label_text, "window": "window_5h" },
             "current": {
                 "threshold": 75,
                 "used": 80.0,
                 "limit": 100.0,
                 "unit": "%",
+                "unit_text": unit_text,
                 "used_ratio": 0.8,
                 "resets_at": "2026-10-20T12:20:00Z"
             },
@@ -586,6 +590,7 @@ fn payloads_carry_the_common_fields_values_and_previous() {
                 "used": 50.0,
                 "limit": 100.0,
                 "unit": "%",
+                "unit_text": unit_text,
                 "used_ratio": 0.5,
                 "resets_at": "2026-10-20T12:20:00Z"
             }
@@ -700,11 +705,13 @@ fn no_payload_carries_credentials_urls_or_raw_messages() {
 fn every_summary_reads_in_each_catalog() {
     let reading = MetricReading {
         label: LABEL.into(),
+        label_text: metric_text(LABEL),
         window: Some(MetricWindow::Window5h),
         used: Some(42.0),
         limit: Some(100.0),
         remaining: Some(58.0),
         unit: "%".into(),
+        unit_text: metric_text("%"),
         used_ratio: Some(0.42),
         resets_at: None,
     };
@@ -719,10 +726,7 @@ fn every_summary_reads_in_each_catalog() {
             provider: Provider::Claude,
             accounts: Vec::new(),
             parent: None,
-            metric: Some(MetricRef {
-                label: LABEL.into(),
-                window: Some(MetricWindow::Window5h),
-            }),
+            metric: Some(MetricRef::new(LABEL, Some(MetricWindow::Window5h))),
             current: Values {
                 threshold: Some(90),
                 category: Some(FailureCategory::Timeout),

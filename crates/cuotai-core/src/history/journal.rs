@@ -245,10 +245,9 @@ impl HistoryStore {
                 account_name: String::new(),
                 provider: Provider::ALL[0],
                 accounts: Vec::new(),
-                metric: metric_label.clone().map(|label| MetricRef {
-                    label,
-                    window: None,
-                }),
+                metric: metric_label
+                    .clone()
+                    .map(|label| MetricRef::new(label, None)),
                 current: current.clone(),
                 previous: None,
                 sample: false,

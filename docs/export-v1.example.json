@@ -20,46 +20,82 @@
         "metrics": [
           {
             "label": "Sessão (5h)",
+            "label_text": {
+              "id": "metric.verbatim",
+              "fallback": "Sessão (5h)"
+            },
             "used": 30.0,
             "limit": 100.0,
             "remaining": null,
             "unit": "%",
+            "unit_text": {
+              "id": "metric.verbatim",
+              "fallback": "%"
+            },
             "kind": "quota",
             "window": "window_5h",
             "period": null,
+            "period_text": null,
             "resets_at": "2026-10-20T14:00:00Z"
           },
           {
             "label": "Semana",
+            "label_text": {
+              "id": "metric.verbatim",
+              "fallback": "Semana"
+            },
             "used": 80.0,
             "limit": 100.0,
             "remaining": null,
             "unit": "%",
+            "unit_text": {
+              "id": "metric.verbatim",
+              "fallback": "%"
+            },
             "kind": "quota",
             "window": "weekly",
             "period": null,
+            "period_text": null,
             "resets_at": "2026-10-22T12:00:00Z"
           },
           {
             "label": "Créditos extras",
+            "label_text": {
+              "id": "metric.verbatim",
+              "fallback": "Créditos extras"
+            },
             "used": null,
             "limit": null,
             "remaining": null,
             "unit": "USD",
+            "unit_text": {
+              "id": "metric.verbatim",
+              "fallback": "USD"
+            },
             "kind": "credits",
             "window": null,
             "period": null,
+            "period_text": null,
             "resets_at": null
           },
           {
             "label": "Uso extra — utilizado",
+            "label_text": {
+              "id": "metric.verbatim",
+              "fallback": "Uso extra — utilizado"
+            },
             "used": 12.5,
             "limit": 50.0,
             "remaining": 37.5,
             "unit": "unid. provedor",
+            "unit_text": {
+              "id": "metric.verbatim",
+              "fallback": "unid. provedor"
+            },
             "kind": "quota",
             "window": "monthly",
             "period": null,
+            "period_text": null,
             "resets_at": null,
             "billing": "overage"
           }
@@ -76,6 +112,10 @@
       "binding": {
         "index": 1,
         "label": "Semana",
+        "label_text": {
+          "id": "metric.verbatim",
+          "fallback": "Semana"
+        },
         "window": "weekly",
         "used_ratio": 0.8,
         "remaining": 20.0,
@@ -204,13 +244,25 @@
         "metrics": [
           {
             "label": "Gasto do mês",
+            "label_text": {
+              "id": "metric.verbatim",
+              "fallback": "Gasto do mês"
+            },
             "used": 12.5,
             "limit": null,
             "remaining": null,
             "unit": "USD",
+            "unit_text": {
+              "id": "metric.verbatim",
+              "fallback": "USD"
+            },
             "kind": "spend",
             "window": "monthly",
             "period": "2026-10",
+            "period_text": {
+              "id": "metric.verbatim",
+              "fallback": "2026-10"
+            },
             "resets_at": null,
             "expired": false
           }

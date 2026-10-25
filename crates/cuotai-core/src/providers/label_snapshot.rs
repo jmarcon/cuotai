@@ -74,3 +74,33 @@ fn metric_identities_match_the_snapshot() {
          `CUOTAI_REGENERATE_DOCS=1 cargo test -p cuotai-core label_snapshot` and commit the result."
     );
 }
+
+/// PRD 0034 RF2: every label, unit and period a fixture produces has a
+/// display text; none is a Portuguese adapter text left unmapped, so the
+/// English rendering (the default of `label_text`/`unit_text`/`period_text`)
+/// carries no Portuguese.
+#[test]
+fn every_fixture_text_has_an_english_display_text() {
+    use crate::metric_text::metric_text;
+    use crate::text::portuguese_markers;
+    let mut problems = Vec::new();
+    for (adapter, metrics) in fixtures() {
+        for metric in metrics {
+            let texts = [
+                Some(&metric.label),
+                Some(&metric.unit),
+                metric.period.as_ref(),
+            ];
+            for raw in texts.into_iter().flatten() {
+                let text = metric_text(raw);
+                let english = text.resolve("en");
+                if text.id == "metric.verbatim" && !portuguese_markers(raw).is_empty() {
+                    problems.push(format!("{adapter}: {raw:?} has no metric.* id"));
+                } else if !portuguese_markers(&english).is_empty() {
+                    problems.push(format!("{adapter}: {raw:?} -> {english:?} is Portuguese"));
+                }
+            }
+        }
+    }
+    assert!(problems.is_empty(), "{problems:#?}");
+}
