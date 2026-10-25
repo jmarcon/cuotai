@@ -31,9 +31,9 @@ export function quietSummary(q) {
 export function quietHtml(q) {
   return subRow({ key: "quiet", label: te("settings.quiet.title"), desc: quietSummary(q) })
     + subpage("quiet", te("settings.quiet.title"),
-      row({ key: "quiet-on", label: te("settings.quiet.on"), info: te("settings.quiet.help"), kw: "quiet", control: (x) => sw("quiet-on", q.enabled, x) })
-      + row({ key: "quiet-digest", label: te("settings.quiet.digest"), dep: true, info: te("settings.quiet.digestHelp"), kw: "quiet", control: (x) => sw("quiet-digest", q.digest, x) })
-      + `<h5>${te("settings.quiet.days")}</h5><div data-quiet-days>${quietDaysHtml(q)}</div>`);
+      `<section class="set-sec">${row({ key: "quiet-on", label: te("settings.quiet.on"), info: te("settings.quiet.help"), kw: "quiet", control: (x) => sw("quiet-on", q.enabled, x) })}
+      ${row({ key: "quiet-digest", label: te("settings.quiet.digest"), dep: true, info: te("settings.quiet.digestHelp"), kw: "quiet", control: (x) => sw("quiet-digest", q.digest, x) })}</section>
+      <section class="set-sec"><div data-quiet-days>${quietDaysHtml(q)}</div></section>`);
 }
 
 /** The weekday rows: the sub-page's body, drawn again after every change. */
@@ -48,8 +48,8 @@ export function quietDaysHtml(q) {
         <button type="button" class="icon" data-q-remove title="${te("settings.quiet.remove", { day: name, index: i + 1 })}" aria-label="${te("settings.quiet.remove", { day: name, index: i + 1 })}">${icon("trash")}</button></div>`;
     }).join("")
     : `<span class="hint">${te("settings.quiet.none")}</span>`);
-  return `<p class="hint">${te("settings.quiet.overnight")}</p>
-    <div class="dlg-actions left"><button type="button" class="btn" data-quiet-same title="${te("settings.quiet.sameHelp")}">${te("settings.quiet.same")}</button></div>
+  return `${row({ key: "quiet-same-row", label: te("settings.quiet.days"), info: te("settings.quiet.overnight"), kw: "quiet",
+    control: () => `<button type="button" class="btn sm" data-quiet-same title="${te("settings.quiet.sameHelp")}">${te("settings.quiet.same")}</button>` })}
     ${DAYS.map((day) => {
     const list = q.days[day] ?? [];
     return row({ key: `quiet-${day}`, label: dayName(day), kw: "quiet",

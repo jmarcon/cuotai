@@ -76,6 +76,15 @@ assert.match(convertedText(10, plans.display), /55\.00/);
 assert.equal(convertedText(null, plans.display), null);
 assert.equal(convertedText(10, null), null);
 
+// Settings: a USD plan converted with the typed rate is an estimate, marked with ≈; a plan already in the
+// second currency is shown as typed, with no mark.
+await lib.costSetPlan(account.id, 20, "USD", null);
+await i18n.setLocale("en-US");
+const converted = costHtml(await lib.costStatus(), await lib.costPrices(), await lib.costPlans());
+assert.match(converted, /≈ 110 BRL at your rate/);
+await lib.costSetPlan(account.id, 550, "BRL", null);
+assert.ok(!costHtml(await lib.costStatus(), await lib.costPrices(), await lib.costPlans()).includes("at your rate"));
+
 // Refusals come from the core as its own texts.
 await assert.rejects(lib.costSetPlan(account.id, 0, "USD", null), /invalid_plan/);
 await assert.rejects(lib.costSetPlan(account.id, 10, "US", null), /invalid_plan/);

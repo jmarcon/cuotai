@@ -63,27 +63,32 @@ export function costHtml(cv, prices, plans = null) {
  *  price, a currency and a cycle day are validated together by the core. */
 function plansHtml(plans) {
   if (!plans) return "";
+  const d = plans.display;
+  // The second currency is a rate typed by the person: an amount converted with it is an estimate (honest-data mark ≈).
+  const converted = (p) => (d && p?.currency === "USD" && p.price > 0
+    ? ` · ${te("settings.cost.plan.converted", { amount: fmtNumber(p.price * d.rate, 2), code: d.code })}` : "");
   const field = (id, label, attrs, unit = "") => `<span class="set-num"><input id="${esc(id)}" aria-label="${esc(label)}" ${attrs} />${unit ? `<span class="set-unit">${unit}</span>` : ""}</span>`;
   const accounts = plans.accounts.map((a) => {
     const p = a.plan;
     return row({ key: `cost-plan-${esc(a.id)}`, kw: "cost-plan", attrs: `data-cost-plan-row="${esc(a.id)}"`, msg: `cost-plan-${esc(a.id)}-msg`,
       label: te("settings.cost.plan.label", { name: a.name, source: a.label }),
-      desc: p ? te("settings.cost.plan.current", { price: fmtNumber(p.price, 2), currency: p.currency, day: p.cycle_day ?? 1 }) : te("settings.cost.plan.none"),
+      desc: p ? `${te("settings.cost.plan.current", { price: fmtNumber(p.price, 2), currency: p.currency, day: p.cycle_day ?? 1 })}${converted(p)}` : te("settings.cost.plan.none"),
       info: te("settings.cost.plan.help"),
-      control: () => `${field(`cost-plan-price-${a.id}`, t("settings.cost.plan.price"), `type="number" inputmode="decimal" min="0" step="0.01" value="${p ? esc(p.price) : ""}" data-cost-plan-price`)}
+      control: () => buttons(`<button class="btn sm primary" data-cost-plan-save="${esc(a.id)}">${te("settings.apply")}</button>${p ? `<button class="btn sm" data-cost-plan-clear="${esc(a.id)}">${te("settings.cost.plan.clear")}</button>` : ""}`),
+      body: `<div class="set-fields">${field(`cost-plan-price-${a.id}`, t("settings.cost.plan.price"), `type="number" inputmode="decimal" min="0" step="0.01" value="${p ? esc(p.price) : ""}" data-cost-plan-price`)}
         ${field(`cost-plan-cur-${a.id}`, t("settings.cost.plan.currency"), `type="text" maxlength="3" autocomplete="off" spellcheck="false" placeholder="USD" value="${p ? esc(p.currency) : ""}" data-cost-plan-currency`)}
-        ${field(`cost-plan-day-${a.id}`, t("settings.cost.plan.day"), `type="number" inputmode="numeric" min="1" max="28" step="1" placeholder="1" value="${p?.cycle_day ? esc(p.cycle_day) : ""}" data-cost-plan-day`, te("settings.cost.plan.dayUnit"))}
-        ${buttons(`<button class="btn sm primary" data-cost-plan-save="${esc(a.id)}">${te("settings.apply")}</button>${p ? `<button class="btn sm" data-cost-plan-clear="${esc(a.id)}">${te("settings.cost.plan.clear")}</button>` : ""}`)}` });
+        ${field(`cost-plan-day-${a.id}`, t("settings.cost.plan.day"), `type="number" inputmode="numeric" min="1" max="28" step="1" placeholder="1" value="${p?.cycle_day ? esc(p.cycle_day) : ""}" data-cost-plan-day`, te("settings.cost.plan.dayUnit"))}</div>` });
   }).join("");
-  const d = plans.display;
   const display = row({ key: "cost-display", kw: "cost-display", msg: "cost-display-msg", label: te("settings.cost.display.label"),
     desc: d ? `${te("settings.cost.display.current", { rate: fmtNumber(d.rate, 4), code: d.code, days: d.age_days })}${d.stale ? ` ${te("settings.cost.display.stale")}` : ""}` : te("settings.cost.display.none"),
     info: te("settings.cost.display.help"),
-    control: () => `${field("cost-display-code", t("settings.cost.display.code"), `type="text" maxlength="3" autocomplete="off" spellcheck="false" placeholder="BRL" value="${d ? esc(d.code) : ""}" data-cost-display-code`)}
-      ${field("cost-display-rate", t("settings.cost.display.rate"), `type="number" inputmode="decimal" min="0" step="any" value="${d ? esc(d.rate) : ""}" data-cost-display-rate`, "USD = 1")}
-      ${buttons(`<button class="btn sm primary" data-cost-display-save>${te("settings.apply")}</button>${d ? `<button class="btn sm" data-cost-display-clear>${te("settings.cost.plan.clear")}</button>` : ""}`)}` });
+    control: () => buttons(`<button class="btn sm primary" data-cost-display-save>${te("settings.apply")}</button>${d ? `<button class="btn sm" data-cost-display-clear>${te("settings.cost.plan.clear")}</button>` : ""}`),
+    body: `<div class="set-fields">${field("cost-display-code", t("settings.cost.display.code"), `type="text" maxlength="3" autocomplete="off" spellcheck="false" placeholder="BRL" value="${d ? esc(d.code) : ""}" data-cost-display-code`)}
+      ${field("cost-display-rate", t("settings.cost.display.rate"), `type="number" inputmode="decimal" min="0" step="any" value="${d ? esc(d.rate) : ""}" data-cost-display-rate`, "USD = 1")}</div>` });
   return `${subRow({ key: "cost-plans", label: te("settings.cost.plans") })}
-    ${subpage("cost-plans", te("settings.cost.plans"), `<p class="hint">${te("settings.cost.plan.help")}</p>${accounts}${display}`)}`;
+    ${subpage("cost-plans", te("settings.cost.plans"), `<p class="hint">${te("settings.cost.plan.help")}</p>
+      <section class="set-sec">${accounts || `<p class="hint">${te("settings.cost.plan.none")}</p>`}</section>
+      <section class="set-sec">${display}</section>`)}`;
 }
 
 /** RF3/RF4.1: the prices the estimate uses, with each table's date and source and the state of pricing.json. */

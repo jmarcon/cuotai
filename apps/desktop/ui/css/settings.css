@@ -122,6 +122,13 @@
 .set-nav-grouplabel[aria-expanded="true"] .set-nav-chev {
   transform: rotate(90deg);
 }
+/* Fields of a row that sit under its label (plan price, currency, start day): wrap instead of squeezing the label. */
+.set-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
 .set-nav-item svg.i.set-nav-rail {
   display: none;
 }
@@ -598,6 +605,11 @@
 }
 .set-content[data-sub] .set-sec > h3 {
   display: none;
+}
+/* The sections a sub-page draws for itself are cards again (the page's own group stays transparent). */
+.set-content[data-sub] .set-subpage .set-sec {
+  border: var(--border-w) solid var(--border);
+  background: var(--surface);
 }
 .set-subpage {
   display: flex;

@@ -702,6 +702,7 @@
   "settings.cost.plan.label": "Preço do plano: {name} ({source})",
   "settings.cost.plan.help": "O que você paga pela assinatura desta conta, digitado por você e guardado só neste computador. É comparado com a estimativa a preços de API; não é uma recomendação.",
   "settings.cost.plan.none": "Sem preço de plano.",
+  "settings.cost.plan.converted": "≈ {amount} {code} pela sua cotação",
   "settings.cost.plan.current": "{price} {currency} por ciclo, começando no dia {day}.",
   "settings.cost.plan.price": "Preço do plano",
   "settings.cost.plan.currency": "Código da moeda, por exemplo BRL",

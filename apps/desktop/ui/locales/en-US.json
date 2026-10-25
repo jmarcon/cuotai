@@ -695,6 +695,7 @@
   "settings.cost.plan.label": "Plan price: {name} ({source})",
   "settings.cost.plan.help": "What you pay for the subscription behind this account, typed by you and kept on this computer. It is compared with the estimate at API prices; it is not a recommendation.",
   "settings.cost.plan.none": "No plan price.",
+  "settings.cost.plan.converted": "≈ {amount} {code} at your rate",
   "settings.cost.plan.current": "{price} {currency} per cycle, starting on day {day}.",
   "settings.cost.plan.price": "Plan price",
   "settings.cost.plan.currency": "Currency code, for example USD",

@@ -49,3 +49,8 @@
 70-stats.dracula-light	tray.html	380	600	dracula	light	en-US	[data-open-stats]
 01-tray-stats	tray.html	380	600	dracula	dark	en-US	[data-open-stats]
 40b-extensions-controls	index.html	1200	900	dracula	dark	en-US	[data-extensions]	cuotai.demoExtras=1
+07d-first-run	index.html?first-run	1200	820	dracula	dark	en-US
+07e-whats-new	settings.html?page=about	860	700	dracula	dark	en-US	[data-whats-new]
+50-settings-alerts-quiet	settings.html?page=alerts	860	900	dracula	dark	en-US	[data-open-sub="quiet"]|#quiet-on|[data-quiet-same]
+50-settings-cost	settings.html?page=cost	860	900	dracula	dark	en-US
+50-settings-cost-plans	settings.html?page=cost	860	900	dracula	dark	en-US	[data-open-sub="cost-plans"]

@@ -695,6 +695,7 @@
   "settings.cost.plan.label": "Precio del plan: {name} ({source})",
   "settings.cost.plan.help": "Lo que pagas por la suscripción de esta cuenta, escrito por ti y guardado solo en este equipo. Se compara con la estimación a precios de API; no es una recomendación.",
   "settings.cost.plan.none": "Sin precio de plan.",
+  "settings.cost.plan.converted": "≈ {amount} {code} a su tipo",
   "settings.cost.plan.current": "{price} {currency} por ciclo, a partir del día {day}.",
   "settings.cost.plan.price": "Precio del plan",
   "settings.cost.plan.currency": "Código de moneda, por ejemplo EUR",
