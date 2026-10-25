@@ -11,7 +11,7 @@ import {
   fmtNext, ALERTS, ageHtml, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isBindingMetric, isBlocked, isDesktop, isStaleReading, level, logo, wordmark,
   moveAccount, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
   currentSort, initOrderSync, staleView, configChangedOnDisk, reloadConfig, configLabel, errText, otherConfigNotice, otherConfigBanner, dismissOtherConfig, returnText, splitRecharging,
-  cardPace, paceHtml, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, incidentHtml, bindStatusLinks, costUsage,
+  cardPace, paceHtml, paceLineLabel, renewedText, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, incidentHtml, bindStatusLinks, costUsage,
   openSettingsWindow, bindSettingsShortcut, onSettingsChanged,
 } from "./lib.js";
 import { patch } from "./util.js";
@@ -82,6 +82,7 @@ function summaryHtml(r) {
       <div class="balance ${s.m.state === "exhausted" ? "bad" : ""}">${esc(s.text)}</div></div>`;
   }
   if (s.kind === "hidden") return `<p class="sum-note dim">${te("card.allHidden")}</p>`;
+  if (s.kind === "renewed") return `<p class="sum-note" data-renewed-waiting>${icon("clock")}<span>${esc(renewedText(s.m))}</span></p>`;
   return `<p class="sum-note">${esc(causeText(r))}</p>`;
 }
 
@@ -148,7 +149,7 @@ const pasteSessionHtml = (r) => r.paste_session
 /** PRD 0007 RF3.2: one short pace line for the core's most restrictive metric that has one ("Week: 8 points…"). */
 function paceLine(r) {
   const m = cardPace(r);
-  return m ? paceHtml(m.pace, { label: t(`card.binding.${m.window}`) }) : "";
+  return m ? paceHtml(m.pace, { label: paceLineLabel(r, m) }) : "";
 }
 
 /** Conta ainda sem relatório ("Aguardando"): esqueleto com shimmer até os dados chegarem (RF2.3). */

@@ -277,6 +277,8 @@
   "freshness.stale": "Stale",
   "age.measuredAt": "Measured: {time}",
   "age.clockAdjusted": "the system clock was adjusted",
+  "metric.renewedWaiting": "Renewed at {time}; waiting for a reading",
+  "freshness.data_as_of": "data as of {time}",
   "tray.tooltip": "Cuotai · oldest reading: {account}, {age}",
   "settings.order.title": "Account order",
   "settings.order.binding": "Most restrictive first",

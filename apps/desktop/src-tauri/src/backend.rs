@@ -343,6 +343,11 @@ pub struct MetricView {
     /// PRD 0008 RF3.2/RF3.4: while usage alerts are on and the metric can
     /// alert, whether it is muted in the details and has an active alert.
     alert: Option<MetricAlertView>,
+    /// PRD 0033 RF2.1: the window of this preserved or restored metric
+    /// renewed after the reading, so it carries no value; the UI says
+    /// "Renewed at 14:30; waiting for a reading" in the viewer's local time.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    expired: bool,
 }
 
 #[derive(Serialize, Clone)]
@@ -456,6 +461,10 @@ pub struct ReportView {
     /// SES-01: the core offers "Paste a new session" (the vault session
     /// was rejected or is gone) on the card and in the details.
     paste_session: bool,
+    /// PRD 0033 RF3.2: the provider-stated time of the data, only when it
+    /// lags `checked_at` by more than 15 minutes ("data as of 06:00").
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data_as_of: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 /// The core's provider status plus its state's text.
@@ -556,10 +565,17 @@ pub struct LastGoodView {
     metrics: Vec<MetricView>,
 }
 
-fn last_good_view(report: &Report) -> LastGoodView {
+fn last_good_view(report: &Report, now: chrono::DateTime<chrono::Utc>) -> LastGoodView {
     LastGoodView {
         checked_at: report.checked_at,
-        metrics: report.metrics.iter().map(metric_view).collect(),
+        metrics: report
+            .metrics
+            .iter()
+            .map(|metric| MetricView {
+                expired: metric.is_expired(now),
+                ..metric_view(metric)
+            })
+            .collect(),
     }
 }
 
@@ -604,6 +620,7 @@ fn metric_view(metric: &Metric) -> MetricView {
         state: classify_metric(metric),
         pace: None,
         alert: None,
+        expired: false,
     }
 }
 
@@ -668,6 +685,7 @@ fn report_view(
         incident: None,
         session_expiry: user_session::report_expiry(report, now),
         paste_session: user_session::offers_new_paste(report),
+        data_as_of: cuotai_core::freshness::lagging_as_of(report),
     }
 }
 
@@ -884,7 +902,11 @@ impl Inner {
                     }
                     (None, None) => return None,
                 };
-                view.last_good = last_good.map(last_good_view);
+                // PRD 0033 RF2.1: windows renewed since the reading collapse.
+                let now_utc = chrono::Utc::now();
+                view.last_good = last_good
+                    .map(|report| report.collapse_expired(now_utc))
+                    .map(|report| last_good_view(&report, now_utc));
                 view.notify = self.notices.account_on(&view.account_key);
                 view.incident = incident_view(&statuses, view.provider);
                 Some(view)
@@ -4109,6 +4131,44 @@ pub fn visible_keys(
 mod tests {
     use super::*;
     use cuotai_core::Account;
+
+    /// PRD 0033 RF2.1: a preserved metric whose window renewed reaches the
+    /// UI collapsed and flagged `expired`, so it says "Renewed at ..." in
+    /// local time instead of showing an exhausted value.
+    #[test]
+    fn last_good_view_flags_and_collapses_a_renewed_window() {
+        use cuotai_core::{MetricKind, MetricWindow};
+        let now = chrono::Utc::now();
+        let metric = |label: &str, resets_in: i64| Metric {
+            label: label.into(),
+            used: Some(100.0),
+            limit: Some(100.0),
+            remaining: Some(0.0),
+            unit: "%".into(),
+            kind: MetricKind::Quota,
+            window: Some(MetricWindow::Weekly),
+            period: None,
+            resets_at: Some(now + chrono::Duration::hours(resets_in)),
+        };
+        let report = Report {
+            account: "a".into(),
+            provider: Provider::Claude,
+            checked_at: now - chrono::Duration::hours(4),
+            status: Status::Ready,
+            metrics: vec![metric("Week", -1), metric("5h", 2)],
+            notes: Vec::new(),
+            notes_l10n: Vec::new(),
+            source: String::new(),
+            session_expires_at: None,
+            as_of: None,
+        };
+        let view =
+            serde_json::to_value(last_good_view(&report.collapse_expired(now), now)).unwrap();
+        assert_eq!(view["metrics"][0]["expired"], true);
+        assert!(view["metrics"][0]["used"].is_null());
+        assert!(view["metrics"][1].get("expired").is_none());
+        assert_eq!(view["metrics"][1]["used"], 100.0);
+    }
 
     #[test]
     fn global_interval_change_keeps_reports_and_reschedules_deadlines() {

@@ -2,8 +2,8 @@
 // Critério único: percentual DISPONÍVEL, barra = disponível, quantidade = usado / limite; métricas sem limite viram texto.
 import { currentLocale, t, te, tl } from "./i18n.js";
 import {
-  STALE, accessHtml, ageHtml, bindingChipText, causeText, errText, esc, fmtAmount, fmtReset, getView, icon, incidentDetailHtml, isBindingMetric, isMetricHidden, isStaleReading, level, loadModels, metricAlertHtml, metricKey, modelState, noteText,
-  paceHtml, paceOf, remainingPct, reportKey, restNotes, staleView, statusLabel, syncModels, textualMetric,
+  STALE, accessHtml, ageHtml, bindingChipText, causeText, errText, esc, fmtAmount, fmtReset, getView, icon, incidentDetailHtml, isBindingMetric, isMetricHidden, isRenewedWaiting, isStaleReading, level, loadModels, metricAlertHtml, metricKey, modelState, noteText,
+  paceHtml, paceOf, remainingPct, renewedText, reportKey, restNotes, staleView, statusLabel, syncModels, textualMetric,
 } from "./lib.js";
 
 /** `eye`: the quota's hide/show button and, PRD 0008 RF3.2, its usage alert mute (dialog only). */
@@ -16,7 +16,10 @@ export function metricCardHtml(r, m, { eye = false } = {}) {
   const pace = paceOf(m);
   // PRD 0007 RF3.2: the bar shows what is available, so the uniform-pace mark sits at the expected available share.
   const mark = pace ? `<i class="pace-mark" style="left:${(1 - pace.expected_used_fraction) * 100}%" title="${te("metric.pace.expected", { pct: Math.round(pace.expected_used_fraction * 100) })}"></i>` : "";
-  const gauge = text != null
+  const renewed = isRenewedWaiting(m);
+  const gauge = renewed
+    ? `<p class="sub" data-renewed-waiting>${icon("clock")} ${esc(renewedText(m))}</p>`
+    : text != null
     ? `<div class="balance ${m.state === "exhausted" ? "bad" : ""}">${esc(text)}</div>`
     : `<div class="gauge"><div class="bar ${lv}"><span style="width:${pct ?? 0}%"></span></div>${mark}</div>`;
   // PRD 0009 RF2.2: the core's binding metric gets a highlight and a chip; every other metric stays listed.
@@ -33,7 +36,7 @@ export function metricCardHtml(r, m, { eye = false } = {}) {
     </div>
     ${gauge}
     ${pace ? paceHtml(pace, { expected: true }) : ""}
-    ${reset ? `<div class="resets">${te("metric.resetsAt", { when: reset })}</div>` : ""}
+    ${reset && !renewed ? `<div class="resets">${te("metric.resetsAt", { when: reset })}</div>` : ""}
   </div>`;
 }
 

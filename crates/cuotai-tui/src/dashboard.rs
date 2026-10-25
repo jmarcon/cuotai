@@ -7,7 +7,9 @@
 //! or stored here.
 
 use crate::motion::{eighth_bar, Anim};
-use crate::ui::{age_text, local_time, metric_text, resolve_l10n, safe, tui_locale};
+use crate::ui::{
+    age_text, data_as_of_suffix, local_time, metric_text, resolve_l10n, safe, tui_locale,
+};
 use chrono::{DateTime, Local, Utc};
 use cuotai_core::access;
 use cuotai_core::cost::{self, CostSummary, SourceCost};
@@ -1105,7 +1107,11 @@ fn render_card(
             ));
             report.map(|report| {
                 Span::styled(
-                    age_text(report.checked_at, view.now),
+                    format!(
+                        "{}{}",
+                        age_text(report.checked_at, view.now),
+                        data_as_of_suffix(report)
+                    ),
                     Style::default().fg(MUTED),
                 )
             })
@@ -1706,10 +1712,11 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
         ),
         Span::styled(
             format!(
-                "   ·   consultado {} ({} · {} local)",
+                "   ·   consultado {} ({} · {} local){}",
                 age_text(report.checked_at, now),
                 report.checked_at.format("%H:%M:%S UTC"),
                 report.checked_at.with_timezone(&Local).format("%H:%M:%S"),
+                data_as_of_suffix(report),
             ),
             Style::default().fg(MUTED),
         ),
@@ -1839,11 +1846,15 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
             // PRD 0007 RF4: one pace line per metric, labelled a linear
             // estimate; it wraps at small widths.
             if let Some(pace) = &row.pace {
+                // PRD 0033 RF4.2: the line names its metric unless the
+                // "limitante" mark beside the heading already does.
+                let is_limit = limit.as_ref().is_some_and(|limit| limit.index == index);
+                let label = if is_limit { "" } else { row.label.as_str() };
                 lines.push(Line::from(vec![
                     Span::raw("  "),
                     pace_icon(pace),
                     Span::styled(
-                        pace_text(pace, tui_locale(), local_time),
+                        pace::labelled(&safe(label), &pace_text(pace, tui_locale(), local_time)),
                         Style::default().fg(MUTED),
                     ),
                     Span::styled(
@@ -3360,13 +3371,16 @@ mod tests {
     fn details_show_one_pace_line_per_eligible_metric_only() {
         let text = render_rows(&paced(), true).join("\n");
         assert!(text.contains(
-            "↓ 20 pontos de reserva · dura até a renovação   ·   esperado 60% usado · estimativa linear"
+            "↓ Sessao: 20 pontos de reserva · dura até a renovação   ·   esperado 60% usado · estimativa linear"
         ));
         let ahead = format!(
             "↑ 6 pontos acima do ritmo · acaba às {}, 11h 10m antes da renovação",
             local_time(at_min(0) + chrono::Duration::seconds(67_745))
         );
+        // PRD 0033 RF4.2: the 5-hour line names its metric; the binding
+        // week (marked "limitante") does not repeat its own label.
         assert!(text.contains(&ahead), "{text}");
+        assert!(!text.contains("Semana: 6 pontos"), "{text}");
         assert!(text.contains("esperado 82% usado"));
         // Freshly opened and `other` windows invent nothing.
         assert_eq!(text.matches("estimativa linear").count(), 2);
@@ -3382,7 +3396,7 @@ mod tests {
         // 7 minutes later the reading is still fresh: the stage is the one
         // at `checked_at` (20 points), not at the wall clock (22 points).
         let fresh = render_at(&paced(), &[], &[], true, at_min(7)).join("\n");
-        assert!(fresh.contains("↓ 20 pontos de reserva"), "{fresh}");
+        assert!(fresh.contains("↓ Sessao: 20 pontos de reserva"), "{fresh}");
         assert!(fresh.contains("esperado 60% usado"), "{fresh}");
         let card = render_at(&paced(), &[], &[], false, at_min(7)).join("\n");
         assert!(card.contains("↓ Sessao:"), "{card}");

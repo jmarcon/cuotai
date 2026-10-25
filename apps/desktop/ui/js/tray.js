@@ -6,7 +6,7 @@ import { easeOut, motionMs } from "./motion.js";
 import {
   bindThemeSwitch, brand, createStore, esc, icon, initTheme, isDesktop, level,
   logo, noteText, openMainWindow, disabledAccounts, onDisabledChange, quitApp, reportKey, statusLabel, langMenuHtml, sortReports, sortMenuHtml, initOrderSync, openSettingsWindow, bindSettingsShortcut, onSettingsChanged,
-  bindingPct, bindingChipText, blockedText, ALERTS, ageHtml, ageText, alertOf, windowsOf, onHiddenChange, cardPace, paceHtml, paceText, nextNoticeText,
+  bindingPct, bindingChipText, blockedText, ALERTS, ageHtml, ageText, alertOf, windowsOf, onHiddenChange, cardPace, paceHtml, paceText, paceLabelOf, nextNoticeText,
   incidentBadge, incidentHtml, bindStatusLinks, wordmark,
 } from "./lib.js";
 import { initUpdates, onUpdateState } from "./updater.js";
@@ -96,7 +96,7 @@ const te2 = (key, vars) => t(key, vars);
 /** PRD 0007 RF3.3: "Week: lasts until the reset" / "Week: runs out at 16:40, 2h 10m before the reset". */
 const trayPace = (r, draw) => {
   const m = cardPace(r);
-  return m ? draw(m.pace, t(`card.binding.${m.window}`)) : "";
+  return m ? draw(m.pace, paceLabelOf(m)) : "";
 };
 
 const short = (s, n = 90) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);

@@ -277,6 +277,8 @@
   "freshness.stale": "Obsoleto",
   "age.measuredAt": "Misurato: {time}",
   "age.clockAdjusted": "l'orologio di sistema è stato modificato",
+  "metric.renewedWaiting": "Rinnovata alle {time}; in attesa di una lettura",
+  "freshness.data_as_of": "dati delle {time}",
   "tray.tooltip": "Cuotai · lettura più vecchia: {account}, {age}",
   "settings.order.title": "Ordine degli account",
   "settings.order.binding": "Prima il più restrittivo",

@@ -923,11 +923,12 @@ fn summary_lines(
 /// PRD 0010 RF5.2: `--once` account heading with the measurement age.
 fn report_heading(report: &Report, now: DateTime<Utc>) -> String {
     format!(
-        "{} / {} — {} · consultado {}",
+        "{} / {} — {} · consultado {}{}",
         ui::safe(&report.account),
         report.provider.label(),
         report.status.label(),
-        ui::age_text(report.checked_at, now)
+        ui::age_text(report.checked_at, now),
+        ui::data_as_of_suffix(report)
     )
 }
 

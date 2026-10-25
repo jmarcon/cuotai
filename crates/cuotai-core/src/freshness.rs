@@ -142,7 +142,10 @@ mod tests {
         assert_eq!(data_age(&report, at(10_000)), None);
         assert_eq!(lagging_as_of(&report), None);
         report.as_of = Some(at(10_000 - 600));
-        assert_eq!(data_age(&report, at(10_060)), Some(Duration::from_secs(660)));
+        assert_eq!(
+            data_age(&report, at(10_060)),
+            Some(Duration::from_secs(660))
+        );
         assert_eq!(lagging_as_of(&report), None, "10 minutes is not lag");
         report.as_of = Some(at(10_000 - 7_200));
         assert_eq!(lagging_as_of(&report), Some(at(10_000 - 7_200)));

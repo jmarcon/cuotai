@@ -2935,7 +2935,22 @@ pub(crate) fn age_text(
     }
 }
 
+/// PRD 0033 RF3.2: " · dados de 06:00" when the provider states that its
+/// data lags the query by more than 15 minutes; empty otherwise.
+pub(crate) fn data_as_of_suffix(report: &cuotai_core::Report) -> String {
+    cuotai_core::freshness::lagging_as_of(report)
+        .map(|at| format!(" · dados de {}", local_time(at)))
+        .unwrap_or_default()
+}
+
 pub(crate) fn metric_text(metric: &Metric) -> String {
+    // PRD 0033 RF2.1: a window that renewed carries no value; say so in the
+    // viewer's local time.
+    if metric.is_collapsed(chrono::Utc::now()) {
+        if let Some(text) = metric.renewed_waiting_at(local_time) {
+            return text.resolve(tui_locale());
+        }
+    }
     let number = |value: Option<f64>| {
         value
             .map(|n| format!("{n:.2}"))
@@ -2956,6 +2971,57 @@ mod tests {
     use super::*;
     use crate::Provider;
     use std::collections::BTreeMap;
+
+    #[test]
+    fn collapsed_metric_says_when_it_renewed_in_local_time() {
+        let resets_at = chrono::Utc::now() - chrono::Duration::hours(3);
+        let metric = Metric {
+            label: "Week".into(),
+            used: None,
+            limit: None,
+            remaining: None,
+            unit: "%".into(),
+            kind: cuotai_core::MetricKind::Quota,
+            window: Some(cuotai_core::MetricWindow::Weekly),
+            period: None,
+            resets_at: Some(resets_at),
+        };
+        let text = metric_text(&metric);
+        assert!(text.contains(&local_time(resets_at)), "{text}");
+        assert!(text.contains("aguardando leitura"), "{text}");
+        // A metric with a value keeps its figures.
+        let live = Metric {
+            used: Some(10.0),
+            ..metric
+        };
+        assert!(metric_text(&live).starts_with("10.00 %"));
+    }
+
+    #[test]
+    fn data_time_is_named_only_when_it_lags_the_query() {
+        let checked_at = chrono::Utc::now();
+        let mut report = cuotai_core::Report {
+            account: "a".into(),
+            provider: Provider::OpenAiApi,
+            checked_at,
+            status: cuotai_core::Status::Ready,
+            metrics: Vec::new(),
+            notes: Vec::new(),
+            notes_l10n: Vec::new(),
+            source: String::new(),
+            session_expires_at: None,
+            as_of: None,
+        };
+        assert_eq!(data_as_of_suffix(&report), "");
+        report.as_of = Some(checked_at - chrono::Duration::minutes(5));
+        assert_eq!(data_as_of_suffix(&report), "");
+        let old = checked_at - chrono::Duration::hours(6);
+        report.as_of = Some(old);
+        assert_eq!(
+            data_as_of_suffix(&report),
+            format!(" · dados de {}", local_time(old))
+        );
+    }
 
     #[test]
     fn locale_uses_supported_system_language_or_english_fallback() {

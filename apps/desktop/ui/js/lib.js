@@ -397,6 +397,19 @@ export function fmtReset(iso) {
   if (d.toDateString() === new Date().toDateString()) return t("time.today", { time });
   return `${d.toLocaleDateString(currentLocale(), { day: "2-digit", month: "short" })}, ${time}`;
 }
+/** Clock time of `iso` in the viewer's local zone, with the day when it is not today ("14:30", "24 Oct, 14:30"). */
+export function fmtClock(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const time = d.toLocaleTimeString(currentLocale(), { hour: "2-digit", minute: "2-digit" });
+  if (d.toDateString() === new Date().toDateString()) return time;
+  return `${d.toLocaleDateString(currentLocale(), { day: "2-digit", month: "short" })}, ${time}`;
+}
+/** PRD 0033 RF2.1: a preserved or restored metric whose window renewed; the core sends it without values. */
+export const isRenewedWaiting = (m) => m.expired === true;
+/** "Renewed at 14:30; waiting for a reading", in the viewer's local time. */
+export const renewedText = (m) => t("metric.renewedWaiting", { time: fmtClock(m.resets_at) ?? "—" });
 export const statusLabel = (status) => t(`status.${status}`);
 /** Quotas que definem o resumo e a ordenação da conta: sem a janela curta de rate limit (não é a cota do
  *  plano) e sem as que o usuário ocultou. */
@@ -449,7 +462,10 @@ const freshnessOf = (r) => (isStaleReading(r) ? "stale" : r.status === "ready" ?
 /** Plain text: "Stale · 42 min ago", "Fresh · 3 min ago", or just the age. */
 export const ageText = (r) => {
   const f = freshnessOf(r);
-  return f ? `${t(`freshness.${f}`)} · ${fmtAge(shownAt(r))}` : fmtAge(shownAt(r));
+  const age = f ? `${t(`freshness.${f}`)} · ${fmtAge(shownAt(r))}` : fmtAge(shownAt(r));
+  // PRD 0033 RF3.2: the provider states its data is older than the query ("data as of 06:00").
+  const asOf = !isStaleReading(r) && r.data_as_of ? fmtClock(r.data_as_of) : null;
+  return asOf ? `${age} · ${t("freshness.data_as_of", { time: asOf })}` : age;
 };
 const FRESHNESS_ICON = { fresh: "check", aging: "clock", stale: "warn" };
 /** Age chip with the freshness icon and text (never color alone); the absolute time is in the tooltip. */
@@ -1582,6 +1598,10 @@ export const paceShown = () => showPace;
 export const setShowPace = async (on) => { await call("set_show_pace", { show: on }); applyPace(on); };
 /** The core's pace of `m` (never estimated here); null when the core has none or the user hid pace. */
 export const paceOf = (m) => (showPace ? m.pace ?? null : null);
+/** PRD 0033 RF4.1: the name of `m`'s window, for the pace line ("Week", "5h"); windows the UI does not name use the metric label. */
+export const paceLabelOf = (m) => (m.window && m.window !== "other" ? t(`card.binding.${m.window}`) : m.label);
+/** PRD 0033 RF4.1: the pace line names its metric unless the binding chip next to it already says the same. */
+export const paceLineLabel = (r, m) => (r.status === "ready" && r.binding && isBindingMetric(r, m) ? "" : paceLabelOf(m));
 /** PRD 0007 RF3.2: the card's metric — the core's most restrictive metric with a pace, unless the user hid it. */
 export const cardPace = (r) => {
   const m = r.status === "ready" && r.pace_index != null ? r.metrics[r.pace_index] : null;
@@ -1621,6 +1641,8 @@ export function summaryOf(r) {
   if (measured.length) return { kind: "bar", m: measured[0].m, pct: measured[0].pct };
   const text = quotas.map((m) => ({ m, text: textualMetric(m) })).find((x) => x.text != null);
   if (text) return { kind: "text", m: text.m, text: text.text };
+  const renewed = quotas.filter(isRenewedWaiting).sort((a, b) => when(a) - when(b))[0];
+  if (renewed) return { kind: "renewed", m: renewed };
   const planAll = r.metrics.filter((m) => m.kind !== "rate_limit");
   return { kind: planAll.length && !quotas.length ? "hidden" : "none" };
 }

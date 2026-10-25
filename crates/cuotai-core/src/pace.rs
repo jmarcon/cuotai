@@ -75,6 +75,17 @@ pub struct Pace {
     pub lasts_until_reset: bool,
 }
 
+/// PRD 0033 RF4.1: a pace line text that names its metric ("Week: 8
+/// points under pace"). A front end omits the label when the binding chip
+/// beside the line already names the same metric.
+pub fn labelled(label: &str, text: &str) -> String {
+    if label.is_empty() {
+        text.to_owned()
+    } else {
+        format!("{label}: {text}")
+    }
+}
+
 const BAND_POINTS: f64 = 5.0;
 /// Below this expected share [`Pace::delta_ratio`] is undefined.
 const MIN_RATIO_EXPECTED: f64 = 0.10;
@@ -520,6 +531,15 @@ impl Pace {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn labelled_text_names_the_metric_or_stays_bare() {
+        assert_eq!(
+            labelled("5h", "8 points in reserve"),
+            "5h: 8 points in reserve"
+        );
+        assert_eq!(labelled("", "8 points in reserve"), "8 points in reserve");
+    }
+
     use super::*;
     use crate::model::MetricKind;
     use chrono::TimeZone;

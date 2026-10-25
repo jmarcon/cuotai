@@ -697,10 +697,28 @@ impl Metric {
         }
     }
 
-    /// The `metric.renewed_waiting` text of an expired metric.
+    /// The metric is [`Self::collapsed`] by now: its window renewed and it
+    /// carries no value (PRD 0033 RF2.1).
+    pub fn is_collapsed(&self, now: DateTime<Utc>) -> bool {
+        self.is_expired(now)
+            && self.used.is_none()
+            && self.limit.is_none()
+            && self.remaining.is_none()
+    }
+
+    /// The `metric.renewed_waiting` text of an expired metric, with the
+    /// renewal time in UTC (the machine-readable export).
     pub fn renewed_waiting(&self) -> Option<crate::text::Localized> {
-        let at = self.resets_at?;
-        let time = at.format("%H:%M UTC").to_string();
+        self.renewed_waiting_at(|at| at.format("%H:%M UTC").to_string())
+    }
+
+    /// [`Self::renewed_waiting`] with the renewal time formatted by the
+    /// front end, normally in the viewer's local time.
+    pub fn renewed_waiting_at(
+        &self,
+        time: impl FnOnce(DateTime<Utc>) -> String,
+    ) -> Option<crate::text::Localized> {
+        let time = time(self.resets_at?);
         Some(crate::text::Localized::with_params(
             "metric.renewed_waiting",
             crate::text::params([("time", crate::text::ParamValue::from(time.clone()))]),

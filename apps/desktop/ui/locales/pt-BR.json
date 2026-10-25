@@ -283,6 +283,8 @@
   "freshness.stale": "Desatualizada",
   "age.measuredAt": "Medida: {time}",
   "age.clockAdjusted": "o relógio do sistema foi ajustado",
+  "metric.renewedWaiting": "Renovada às {time}; aguardando leitura",
+  "freshness.data_as_of": "dados de {time}",
   "tray.tooltip": "Cuotai · leitura mais antiga: {account}, {age}",
   "settings.order.title": "Ordem das contas",
   "settings.order.binding": "Mais restritiva primeiro",
