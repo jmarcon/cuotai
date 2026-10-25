@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0026 |
-| Status | Proposed |
+| Status | In progress |
 | Owner | `cuotai-core` (`stats`, `resets::timeline`, event journal in the history store), desktop and TUI |
 | Consumers | `apps/desktop` (Stats view, tray popover timeline), `crates/cuotai-tui` (stats screen, `--stats`, `--timeline`), PRD 0025 (popover) |
 | Depends on | PRD 0006 (RF1–RF4: `HistoryStore`, `windows`, retention, erase); PRD 0013 (RF1: `events::diff`) and PRD 0029 (stable account identity) for RF3 |
@@ -17,8 +17,8 @@
 
 | RF | Version | Delivery |
 |---|---|---|
-| RF1 | — | Proposed. |
-| RF2 | — | Proposed. |
+| RF1 | vNEXT | Core `stats::summarize` (hits, average peak, daily peaks, coverage, retention note). RF1.5 "extra spent" waits for PRD 0023 RF1/RF3. |
+| RF2 | vNEXT | Core `resets::timeline` (lanes, later, unknown, share level). |
 | RF3 | — | Proposed. |
 | RF4 | — | Proposed. |
 | RF5 | — | Proposed. |

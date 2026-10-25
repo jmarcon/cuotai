@@ -1280,5 +1280,7 @@
   "catalog.hint.cloud_metered": "Credenciales de nube · se cobra por consulta",
   "catalog.hint.cloud": "Credenciales de nube",
   "catalog.hint.local_cli": "Usa la CLI {cli}",
-  "catalog.hint.web_session": "Pega una sesión web"
+  "catalog.hint.web_session": "Pega una sesión web",
+  "stats.history_kept": "Historial guardado {days} días en este dispositivo",
+  "stats.not_enough": "Historial insuficiente"
 }

@@ -1280,5 +1280,7 @@
   "catalog.hint.cloud_metered": "Cloud credentials · billed per query",
   "catalog.hint.cloud": "Cloud credentials",
   "catalog.hint.local_cli": "Uses the {cli} CLI",
-  "catalog.hint.web_session": "Paste a web session"
+  "catalog.hint.web_session": "Paste a web session",
+  "stats.history_kept": "History kept {days} days on this device",
+  "stats.not_enough": "Not enough history"
 }

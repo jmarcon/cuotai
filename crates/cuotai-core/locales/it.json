@@ -1280,5 +1280,7 @@
   "catalog.hint.cloud_metered": "Credenziali cloud · addebito per query",
   "catalog.hint.cloud": "Credenziali cloud",
   "catalog.hint.local_cli": "Usa la CLI {cli}",
-  "catalog.hint.web_session": "Incolla una sessione web"
+  "catalog.hint.web_session": "Incolla una sessione web",
+  "stats.history_kept": "Cronologia conservata per {days} giorni su questo dispositivo",
+  "stats.not_enough": "Cronologia insufficiente"
 }

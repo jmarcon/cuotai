@@ -851,6 +851,15 @@ impl HistoryStore {
         Ok(samples)
     }
 
+    /// [`Self::bounds`] for a read that must not create the store: `None`
+    /// when the file does not exist yet.
+    pub(crate) fn recorded_bounds(&self) -> Result<Option<Bounds>, HistoryError> {
+        if self.open_existing()?.is_none() {
+            return Ok(None);
+        }
+        self.bounds()
+    }
+
     /// First and last sample times of this configuration; `None` when empty.
     pub fn bounds(&self) -> Result<Option<Bounds>, HistoryError> {
         let db = self.open()?;

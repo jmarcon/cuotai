@@ -7,6 +7,9 @@
 //! ([`Ledger`]) and the window for a notice that came late, so a reset is
 //! notified once even across restarts, suspension or clock changes.
 
+mod timeline;
+pub use timeline::{timeline, AccountView, Lane, ShareLevel, Timeline, TimelineRange};
+
 use crate::alerts::AlertState;
 use crate::metrics::{classify_metric, window_param, MetricState};
 use crate::model::{Account, Config, Metric, MetricKind, MetricWindow, Report};
