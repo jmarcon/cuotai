@@ -34,6 +34,13 @@ assert.equal(clash.get("claude::Work Acme"), "WA");
 assert.notEqual(clash.get("claude::Work Apex"), "WA", "collision gets another letter");
 assert.match(c.tileHtml("claude", 32, "WO"), /class="mono-badge"[^>]*aria-hidden="true">WO</);
 assert.doesNotMatch(c.tileHtml("claude", 32, ""), /mono-badge/);
+// DS-CMP-MONO-4: the user override (the view's `monogram`, at most two characters, upper-cased) wins, shows on a
+// provider's only account too, and the derived letters of its siblings avoid it
+const over = c.monograms([{ ...report({ account: "work@example.com", index: 0 }), monogram: "so" }, report({ account: "Some Other", index: 1 }), { ...report({ provider: "kimi", account: "ops", index: 2 }), monogram: " x9z " }]);
+assert.equal(over.get("claude::work@example.com"), "SO");
+assert.notEqual(over.get("claude::Some Other"), "SO", "a derived monogram never repeats the override");
+assert.equal(over.get("kimi::ops"), "X9", "an override shows on a single account, clipped to two characters");
+assert.equal(c.monogramOverride({ monogram: "  " }), "");
 
 // RF4.1: one status line with the binding label and the absolute reset at the right
 assert.match(html, /<span class="stl"[^>]*><span class="stl-l"><svg class="ring pct bad"[^>]*>.*<span class="lbl bad">Running low<\/span><\/span><span class="rst"/);

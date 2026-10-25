@@ -120,7 +120,15 @@ export function worstState(reports) {
 
 // ---------- DS-CMP-MONO: account monograms ----------
 const fold = (s) => s.normalize("NFKD").replace(/[̀-ͯ]/g, "");
-/** Monogram letters for every account of a provider with more than one configured account (MONO-1..3). */
+/** DS-CMP-MONO-4: the user's monogram override of a report (the view's `monogram`, from `desktop.json`): at most two
+ *  characters, upper-cased; "" when there is none. */
+export function monogramOverride(r) {
+  const raw = typeof r?.monogram === "string" ? r.monogram.trim() : "";
+  return [...raw].slice(0, 2).join("").toLocaleUpperCase();
+}
+/** Monogram letters for every account of a provider with more than one configured account (MONO-1..3); a user
+ *  override (MONO-4) always wins and is shown even on a provider's only account, since the user asked for it. The
+ *  derived letters of the provider's other accounts avoid it. */
 export function monograms(reports) {
   const byProvider = new Map();
   for (const r of [...reports].sort((a, b) => a.index - b.index)) {
@@ -130,8 +138,9 @@ export function monograms(reports) {
   const out = new Map();
   for (const list of byProvider.values()) {
     if (list.length < 2) continue;
-    const used = new Set();
+    const used = new Set(list.map(monogramOverride).filter(Boolean));
     for (const r of list) {
+      if (monogramOverride(r)) continue;
       const label = fold(String(r.account ?? "")).replace(/@.*$/, "").trim();
       const words = label.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
       const letters = [...(words.join(""))].map((c) => c.toUpperCase());
@@ -146,6 +155,7 @@ export function monograms(reports) {
       out.set(reportKey(r), mono);
     }
   }
+  for (const r of reports) if (monogramOverride(r)) out.set(reportKey(r), monogramOverride(r));
   return out;
 }
 /** Provider tile with the monogram badge on its bottom-right corner (decorative, `aria-hidden`). */
