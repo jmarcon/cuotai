@@ -111,6 +111,7 @@ The table is generated: a core test compares it with `access::describe` and fail
 | `antigravity` | default | Undocumented | Subscription session | — | Account | reference [`antigravity-weekly.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/antigravity-weekly.js) | 2026-10-20 |
 | `kimchi` | default | Undocumented | Inference key | — | Account | reference [`status.ts`](https://github.com/getkimchi/kimchi/blob/36cc0406339a50f5ced984266d0306fb8a150408/src/extensions/billing/status.ts) | 2026-10-20 |
 | `eleven_labs` | default | Official | Inference key | — | Account | [documentation](https://elevenlabs.io/docs/api-reference/user/subscription/get) | 2026-10-23 |
+| `nine_router` | default | Undocumented | Aggregator login | — | Instance | reference [`dashboardGuard.js`](https://github.com/decolua/9router/blob/f39d8f07481ae8518e93175f0ecaaafa61573c6c/src/dashboardGuard.js) | 2026-10-25 |
 
 Billed per query (`metered`): `aws_bedrock`.
 <!-- access-matrix:end -->
@@ -174,6 +175,7 @@ The account pickers (desktop and TUI) list providers from `cuotai_core::account_
 | Antigravity | `antigravity` | `credential` | API key | Coding tool | google | Account access token |
 | Kimchi | `kimchi` | — | API key | API platform | — | API key |
 | ElevenLabs | `eleven_labs` | — | API key | API platform | eleven labs, 11labs | API key |
+| 9router | `nine_router` | — | API key | Router | 9router, nine router, router, aggregator | Dashboard password (optional) |
 <!-- catalog-table:end -->
 
 ## Option applicability by authentication
@@ -369,6 +371,7 @@ Evidence of each listing (PRD 0028 RF10.1), generated from `models::evidence` an
 | `antigravity` | any | verified live | [reference](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/antigravity-weekly.js) | 2026-10-20 |
 | `kimchi` | any | none: `Unsupported` | — | — |
 | `eleven_labs` | any | none: `Unsupported` | — | — |
+| `nine_router` | any | none: `Unsupported` | — | — |
 <!-- models-matrix:end -->
 
 ## Public incident source registry

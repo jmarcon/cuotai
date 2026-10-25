@@ -479,9 +479,15 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
     if args.list_providers {
         for provider in Provider::ALL {
             println!(
-                "{:<20} {}",
+                "{:<20} {}{}",
                 serde_json::to_value(provider)?.as_str().unwrap_or_default(),
-                provider.label()
+                provider.label(),
+                // PRD 0036 RF9.2: an aggregator relays several upstreams.
+                if provider.is_aggregator() {
+                    " (aggregator)"
+                } else {
+                    ""
+                }
             );
         }
         return Ok(0);
@@ -786,6 +792,7 @@ fn report_text(
             out += &format!("    Ritmo: {text} (estimativa linear)\n");
         }
     }
+    out += &sub_reports_text(report, locale, &at);
     for (idx, fallback_text) in report.notes.iter().enumerate() {
         let text = report
             .notes_l10n
@@ -796,6 +803,76 @@ fn report_text(
     }
     if !report.source.is_empty() {
         out += &format!("  Fonte: {}\n", ui::safe(&report.source));
+    }
+    out
+}
+
+/// PRD 0036 RF9.3: the block of an aggregator account, indented under its
+/// line: one line per pool ("Claude · 2 de 3 disponíveis"), then every
+/// connection with its status and metrics. Empty for any other account.
+fn sub_reports_text(
+    report: &Report,
+    locale: &str,
+    at: &impl Fn(DateTime<Utc>) -> String,
+) -> String {
+    if report.sub_reports.is_empty() {
+        return String::new();
+    }
+    let mut out = String::new();
+    for pool in cuotai_core::aggregators::pools(report) {
+        out += &format!("  Pool: {}\n", ui::safe(&pool.summary().resolve(locale)));
+    }
+    for sub in &report.sub_reports {
+        let name = sub.provider.map_or_else(
+            || sub.upstream.clone(),
+            |provider| provider.label().to_string(),
+        );
+        let mut flags = Vec::new();
+        if sub.enabled_upstream == Some(false) {
+            flags.push("desligada no 9router".to_string());
+        }
+        if sub.duplicate_of.is_some() {
+            flags.push("também monitorada diretamente".to_string());
+        }
+        if let Some(plan) = &sub.plan {
+            flags.push(format!("plano {}", ui::safe(plan)));
+        }
+        let flags = if flags.is_empty() {
+            String::new()
+        } else {
+            format!(" [{}]", flags.join("; "))
+        };
+        out += &format!(
+            "  • {} · {} — {}{}\n",
+            ui::safe(&name),
+            ui::safe(&sub.label),
+            sub.status.label(),
+            flags
+        );
+        for metric in &sub.metrics {
+            out += &format!(
+                "      {}: {}\n",
+                ui::safe(&metric.label),
+                ui::metric_text(metric)
+            );
+            if let Some(reset) = metric.resets_at {
+                out += &format!("        Renova: {}\n", at(reset));
+            }
+        }
+        if sub.status != cuotai_core::Status::Ready {
+            // The reason a connection has no reading; the two standing
+            // caveats ("cached", "zero") are shown in the details instead.
+            let reason = |note: &&cuotai_core::text::Localized| {
+                let id = note.id.as_ref();
+                id.starts_with("query.")
+                    || (id.starts_with("note.nine_router.")
+                        && !id.ends_with("cached")
+                        && !id.ends_with("zero_caveat"))
+            };
+            if let Some(note) = sub.notes_l10n.iter().find(reason) {
+                out += &format!("      {}\n", ui::safe(&note.resolve(locale)));
+            }
+        }
     }
     out
 }
@@ -1044,6 +1121,7 @@ mod tests {
             notes_l10n: Vec::new(),
             source: String::new(),
             session_expires_at: None,
+            sub_reports: Vec::new(),
         }
     }
 
@@ -1144,6 +1222,61 @@ mod tests {
         assert_eq!(
             report_heading(&report, now),
             "Work / Claude — Rate limit · consultado há 2 min"
+        );
+    }
+
+    /// PRD 0036 RF9.3: an aggregator account prints its pools and every
+    /// connection indented under it; any other account prints nothing extra.
+    #[test]
+    fn once_prints_the_pools_and_connections_of_an_aggregator() {
+        let now = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+        let sub = |id: &str, upstream: &str, provider, status, metrics: Vec<Metric>| {
+            cuotai_core::SubReport {
+                id: id.into(),
+                upstream: upstream.into(),
+                provider,
+                label: format!("conn-{id}"),
+                status,
+                metrics,
+                notes_l10n: Vec::new(),
+                checked_at: now,
+                as_of: None,
+                enabled_upstream: Some(true),
+                duplicate_of: None,
+                plan: None,
+                via: None,
+            }
+        };
+        let mut router = report("home", Status::Ready, Vec::new());
+        router.provider = Provider::NineRouter;
+        router.sub_reports = vec![
+            sub(
+                "a",
+                "claude",
+                Some(Provider::Claude),
+                Status::Ready,
+                vec![quota(MetricWindow::Weekly, 40.0, None)],
+            ),
+            sub("b", "glm", None, Status::Unsupported, Vec::new()),
+        ];
+        let at = |t: DateTime<Utc>| t.format("%H:%M").to_string();
+        let text = report_text(&router, &[], None, FIVE_MIN, now, "en-US", at);
+        assert!(
+            text.contains("  Pool: Claude · 1 of 1 available\n"),
+            "{text}"
+        );
+        assert!(
+            text.contains("  • Claude · conn-a — Atualizado\n"),
+            "{text}"
+        );
+        assert!(text.contains("      Weekly: 40.00 % / 100.00\n"), "{text}");
+        // An upstream Cuotai does not know shows its slug.
+        assert!(text.contains("  • glm · conn-b — Indisponível\n"), "{text}");
+        // Other accounts are unchanged.
+        let plain = report("Work", Status::Ready, Vec::new());
+        assert_eq!(
+            report_text(&plain, &[], None, FIVE_MIN, now, "en-US", at),
+            "\nWork / Claude — Atualizado · consultado agora\n"
         );
     }
 

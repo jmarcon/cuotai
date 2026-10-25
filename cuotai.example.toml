@@ -277,3 +277,15 @@ provider = "eleven_labs"
 credential_env = "ELEVENLABS_API_KEY"
 # Optional data-residency endpoint: default, us, eu, in or sg.
 # params = { region = "eu" }
+
+# 9router: the quotas of the connections you already added in your own
+# instance (an aggregator: each connection shows as a sub-account). Leave
+# credential_env out when the instance's dashboard login is off.
+[[accounts]]
+name = "9router"
+provider = "nine_router"
+# credential_env = "NINEROUTER_PASSWORD"   # name of the variable holding the dashboard password
+params = { base_url = "http://127.0.0.1:20128" }
+# Optional keys of params: include = "claude,codex,github" (only these 9router
+# providers) and exclude = "glm" (hide these). Outside this machine use
+# https://; plain http on a private network also needs allow_private_http = "true".

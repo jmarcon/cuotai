@@ -5,6 +5,7 @@ pub mod about;
 pub mod access;
 pub mod account_edit;
 pub mod account_id;
+pub mod aggregators;
 pub mod alerts;
 pub mod catalog;
 pub mod changelog;
@@ -108,6 +109,8 @@ pub enum ConfigError {
     Extension,
     #[error("params.region da conta ElevenLabs deve ser default, us, eu, in ou sg.")]
     Region,
+    #[error("params.base_url da conta 9router deve ser http(s)://host[:porta][/prefixo], sem usuário, consulta ou fragmento; HTTP só vale em loopback ou, com allow_private_http, em rede privada.")]
+    BaseUrl,
 }
 
 fn metered_refresh_floor_error(
@@ -212,6 +215,11 @@ impl Config {
                 .is_none()
             {
                 return Err(ConfigError::Region);
+            }
+            if account.provider == Provider::NineRouter
+                && providers::nine_router::account_base(account).is_err()
+            {
+                return Err(ConfigError::BaseUrl);
             }
             if account.provider == Provider::Extension
                 && (account
@@ -681,6 +689,23 @@ impl Monitor {
         report
     }
 
+    /// PRD 0036 RF2.2: tests a 9router connection before it is saved:
+    /// health, version, login (when a password is set) and the connection
+    /// list. Read-only; nothing is stored. The outcome carries one sentence
+    /// and never a body, URL or token.
+    pub async fn test_nine_router(&self, account: &Account) -> aggregators::AggregatorTest {
+        let outcome = self
+            .with_access(
+                account,
+                async |account: &Account, ctx: &providers::Context<'_>| {
+                    Ok(providers::nine_router::test_connection(account, ctx).await)
+                },
+            )
+            .await
+            .unwrap_or(aggregators::TestOutcome::Unreachable);
+        aggregators::AggregatorTest::new(outcome)
+    }
+
     /// PRD 0016 RF2.1: one read-only query of `account` (a draft the wizard
     /// has not saved yet, or an edited one) with the pasted `sessions` in
     /// place of the vault ones. Nothing is stored nor recorded in the
@@ -708,6 +733,7 @@ impl Monitor {
                 notes_l10n,
                 source: String::new(),
                 session_expires_at: None,
+                sub_reports: Vec::new(),
             };
         }
         self.query_report(account, sessions).await
@@ -748,6 +774,7 @@ impl Monitor {
                         .extension_id()
                         .map_or_else(String::new, |id| format!("extension:{id}")),
                     session_expires_at: None,
+                    sub_reports: Vec::new(),
                 }
             };
             let Some(manager) = &self.extensions else {
@@ -775,13 +802,14 @@ impl Monitor {
             )
             .await;
         let mut diagnostic = None;
-        let (status, metrics, mut notes, mut notes_l10n, source) = match result {
+        let (status, metrics, mut notes, mut notes_l10n, source, sub_reports) = match result {
             Ok(data) => (
                 Status::Ready,
                 data.metrics,
                 data.notes,
                 data.notes_l10n,
                 data.source,
+                data.sub_reports,
             ),
             Err(error) => {
                 let mut notes = crate::text::Notes::one(error.note);
@@ -795,7 +823,14 @@ impl Monitor {
                     notes.extend(incidents::failure_notes(error.status, state));
                 }
                 let (plain, l10n) = notes.finish();
-                (error.status, Vec::new(), plain, l10n, String::new())
+                (
+                    error.status,
+                    Vec::new(),
+                    plain,
+                    l10n,
+                    String::new(),
+                    Vec::new(),
+                )
             }
         };
         if let Some(note) = account.metered_interval_note() {
@@ -814,6 +849,7 @@ impl Monitor {
             notes_l10n,
             source,
             session_expires_at,
+            sub_reports,
         }
     }
 
@@ -846,7 +882,12 @@ impl Monitor {
             .acquire()
             .await
             .expect("monitor query semaphore stays open");
-        let timeout = Duration::from_secs(self.config.timeout_seconds);
+        let mut timeout = Duration::from_secs(self.config.timeout_seconds);
+        if account.provider.is_aggregator() {
+            // PRD 0036 RF4.1: one deadline for the whole instance (discovery
+            // plus every connection), longer than a single-request account.
+            timeout = timeout.max(Duration::from_secs(60));
+        }
         let fetch = async {
             let access = match &account.oauth {
                 // MiMo's native login yields an inference key, never the cookie
@@ -1033,6 +1074,7 @@ impl Monitor {
             Provider::Antigravity => providers::antigravity::fetch(account, ctx).await,
             Provider::Kimchi => providers::kimchi::fetch(account, ctx).await,
             Provider::ElevenLabs => providers::eleven_labs::fetch(account, ctx).await,
+            Provider::NineRouter => providers::nine_router::fetch(account, ctx).await,
             Provider::Extension => {
                 unreachable!("extension dispatch is handled before provider dispatch")
             }
@@ -1921,6 +1963,7 @@ credential_env = "OPENAI_ADMIN_KEY"
                         notes_l10n: Vec::new(),
                         source: String::new(),
                         session_expires_at: None,
+                        sub_reports: Vec::new(),
                     },
                     crate::Report {
                         account_id: None,
@@ -1934,6 +1977,7 @@ credential_env = "OPENAI_ADMIN_KEY"
                         notes_l10n: Vec::new(),
                         source: String::new(),
                         session_expires_at: None,
+                        sub_reports: Vec::new(),
                     },
                 ],
             }),

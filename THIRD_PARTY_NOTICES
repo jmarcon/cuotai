@@ -12,6 +12,11 @@ src/lib/oauth/providers/*.js, native authentication helpers and token refresh
 services. Cuotai does not incorporate the 9router inference proxy, password
 proxy, automatic credential extraction or token/credit-reset operations.
 
+The `nine_router` provider (crates/cuotai-core/src/providers/nine_router.rs)
+calls a user's own 9router instance through its management routes as observed
+at revision f39d8f07481ae8518e93175f0ecaaafa61573c6c; no 9router code is
+incorporated for it.
+
 MIT License
 
 Copyright (c) 2024-2026 decolua and contributors

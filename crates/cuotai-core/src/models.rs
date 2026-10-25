@@ -360,6 +360,10 @@ fn contract(account: &Account) -> Result<(Localized, ModelEvidence), Localized> 
             "models.unsupported",
             "a ElevenLabs não oferece catálogo de modelos para consulta de quota; nenhuma requisição é feita.",
         ),
+        Provider::NineRouter => reason(
+            "models.unsupported",
+            "o 9router é monitorado pelas quotas das conexões dele; nenhuma lista de modelos é consultada.",
+        ),
         Provider::AlibabaCloud => reason(
             "models.unsupported",
             "a credencial é uma AccessKey de faturamento e o Alibaba Cloud não tem endpoint de modelos para ela.",
@@ -1358,6 +1362,7 @@ credential_env = "ALIBABA_CLOUD_ACCESS_KEY_ID"
             Kimchi,
             Copilot,
             ElevenLabs,
+            NineRouter,
         ];
         let server = MockServer::start().await;
         let dir = tempfile::tempdir().unwrap();

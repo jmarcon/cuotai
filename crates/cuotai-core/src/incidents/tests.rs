@@ -60,6 +60,7 @@ fn every_provider_has_a_verified_scope_or_an_explicit_none() {
         (Antigravity, None),
         (Kimchi, None),
         (ElevenLabs, None),
+        (NineRouter, None),
     ];
     assert_eq!(cases.map(|(p, _)| p), Provider::ALL);
     for (provider, fixture) in cases {

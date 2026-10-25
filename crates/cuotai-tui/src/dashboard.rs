@@ -2099,6 +2099,7 @@ mod tests {
             notes_l10n: Vec::new(),
             source: String::new(),
             session_expires_at: None,
+            sub_reports: Vec::new(),
         }
     }
 
@@ -2149,6 +2150,7 @@ mod tests {
                 notes_l10n: Vec::new(),
                 source: "extension:quota".into(),
                 session_expires_at: None,
+                sub_reports: Vec::new(),
             };
             let expected_metric = metric_text(&report.metrics[0]);
             let screen = crate::dashboard::render_for_test(

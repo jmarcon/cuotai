@@ -402,6 +402,14 @@ impl<'a> Scrub<'a> {
             self.localized(note);
         }
         report.source = self.text(&report.source);
+        // PRD 0036: a connection label may be derived from an e-mail; the
+        // same redaction as the account's own texts applies to it.
+        for sub in &mut report.sub_reports {
+            sub.label = self.text(&sub.label);
+            for note in &mut sub.notes_l10n {
+                self.localized(note);
+            }
+        }
         report
     }
 
@@ -588,6 +596,7 @@ mod tests {
             notes_l10n: Vec::new(),
             source: String::new(),
             session_expires_at: None,
+            sub_reports: Vec::new(),
         }
     }
 

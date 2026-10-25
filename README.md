@@ -131,13 +131,14 @@ See all of them, in both modes, and learn how to add your own in [`docs/themes.m
 
 ## Supported services
 
-Cuotai ships **37 integrations**. For what each one reads, the credential it needs and its limitations, see [`docs/providers.md`](docs/providers.md).
+Cuotai ships **38 integrations**. For what each one reads, the credential it needs and its limitations, see [`docs/providers.md`](docs/providers.md).
 
 | Category | Services |
 |---|---|
 | **Assistants and subscriptions** | Claude, OpenAI Codex / ChatGPT, GitHub Copilot, Cursor (personal and Teams), Windsurf, Kiro / AWS, Antigravity, Cline, Zed, CodeBuddy, Qoder, OpenCode Go |
 | **CLIs and coding plans** | Gemini CLI, Grok CLI / xAI, Kimi Coding and API, MiniMax Token / Coding Plan, Alibaba Coding Plan, Alibaba Token Plan / Qwen Cloud, Xiaomi MiMo, Ollama Cloud, Qwen Code |
 | **Cloud billing and admin APIs** | OpenAI Admin API, Anthropic Admin API, Google Gemini API Monitoring, Google Vertex AI, AWS Bedrock Cost Explorer, Azure OpenAI Cost Management, Alibaba Cloud BSS, Mistral Admin, Perplexity Computer Analytics, Kimchi, Groq, ElevenLabs |
+| **Aggregators** | 9router (the quotas of the connections inside your own instance) |
 | **Additional catalog** | Alibaba Model Studio, Cloudflare AI, NVIDIA NIM, Poolside |
 
 Some providers expose usage only through interfaces the vendor does not document, and a few cost money per query (AWS Cost Explorer). Cuotai labels every account **Official**, **Undocumented**, **Derived** or **Unavailable** so you know how much to trust each reading, and `docs/providers.md` keeps the limitations in writing.

@@ -277,6 +277,7 @@ pub const fn source(provider: Provider) -> Option<StatusSource> {
         | Provider::Antigravity
         | Provider::Kimchi
         | Provider::ElevenLabs
+        | Provider::NineRouter
         | Provider::Extension => return None,
     })
 }

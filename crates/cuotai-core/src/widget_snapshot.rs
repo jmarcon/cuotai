@@ -338,6 +338,7 @@ fn binding_of(
         notes_l10n: Vec::new(),
         source: String::new(),
         session_expires_at: None,
+        sub_reports: Vec::new(),
     };
     metrics::binding(&report)
 }
@@ -445,6 +446,7 @@ mod tests {
             notes_l10n: Vec::new(),
             source: "https://user:secret@example.com/usage?q=1".into(),
             session_expires_at: None,
+            sub_reports: Vec::new(),
         }
     }
 

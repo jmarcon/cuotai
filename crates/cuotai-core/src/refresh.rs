@@ -1041,6 +1041,7 @@ mod tests {
             notes_l10n: Vec::new(),
             source: String::new(),
             session_expires_at: None,
+            sub_reports: Vec::new(),
         }
     }
 
@@ -1652,6 +1653,7 @@ mod tests {
             notes_l10n: Vec::new(),
             source: String::new(),
             session_expires_at: None,
+            sub_reports: Vec::new(),
         }
     }
 

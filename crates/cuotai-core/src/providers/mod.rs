@@ -12,6 +12,7 @@ pub(crate) mod eleven_labs;
 pub(crate) mod inference;
 pub(crate) mod kimchi;
 pub(crate) mod mimo_platform;
+pub(crate) mod nine_router;
 pub(crate) mod router_accounts;
 pub(crate) mod router_existing;
 pub(crate) mod router_grok;
@@ -44,6 +45,9 @@ pub(crate) struct Data {
     pub notes: Vec<String>,
     pub notes_l10n: Vec<Localized>,
     pub source: String,
+    /// PRD 0036: the sub-accounts an aggregator relays; empty for every
+    /// ordinary provider.
+    pub sub_reports: Vec<crate::SubReport>,
 }
 
 impl Data {
@@ -54,6 +58,7 @@ impl Data {
             notes,
             notes_l10n,
             source: source.into(),
+            sub_reports: Vec::new(),
         }
     }
 }

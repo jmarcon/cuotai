@@ -42,6 +42,8 @@ pub enum Provider {
     Antigravity,
     Kimchi,
     ElevenLabs,
+    /// PRD 0036: a user's own 9router instance (an aggregator).
+    NineRouter,
     /// A locally installed script extension. Dynamic identity lives in
     /// `Account::params["extension_id"]`; this variant is intentionally not
     /// part of [`Provider::ALL`], so a blank extension is never offered or
@@ -50,7 +52,7 @@ pub enum Provider {
 }
 
 impl Provider {
-    pub const ALL: [Self; 37] = [
+    pub const ALL: [Self; 38] = [
         Self::OpenAiApi,
         Self::AnthropicApi,
         Self::ChatGpt,
@@ -88,6 +90,7 @@ impl Provider {
         Self::Antigravity,
         Self::Kimchi,
         Self::ElevenLabs,
+        Self::NineRouter,
     ];
 
     pub fn label(self) -> &'static str {
@@ -129,6 +132,7 @@ impl Provider {
             Self::Antigravity => "Antigravity",
             Self::Kimchi => "Kimchi",
             Self::ElevenLabs => "ElevenLabs",
+            Self::NineRouter => "9router",
             Self::Extension => "Extension",
         }
     }
@@ -143,6 +147,16 @@ impl Provider {
     pub fn is_metered(self) -> bool {
         matches!(self, Self::AwsBedrock)
     }
+
+    /// PRD 0036 RF1.1: true for providers that hold credentials for several
+    /// upstream providers and relay their readings (today only 9router).
+    pub fn is_aggregator(self) -> bool {
+        matches!(self, Self::NineRouter)
+    }
+
+    /// PRD 0036 RF4.1: an aggregator account cannot be polled faster than
+    /// this: every refresh makes the instance query its upstreams.
+    pub const AGGREGATOR_MIN_REFRESH_SECONDS: u64 = 120;
 
     /// Default polling interval for a metered account without an override.
     pub const METERED_DEFAULT_REFRESH_SECONDS: u64 = 3600;
@@ -198,6 +212,7 @@ impl Provider {
             Self::Antigravity => "antigravity",
             Self::Kimchi => "kimchi",
             Self::ElevenLabs => "eleven_labs",
+            Self::NineRouter => "nine_router",
             Self::Extension => "extension",
         }
     }
@@ -207,7 +222,7 @@ impl Provider {
     /// [`Provider::ALL`]: consumers that parse or route a provider name
     /// (hooks rules, CLI arguments, saved payloads) must accept it, while
     /// the account creation catalog keeps offering only real providers.
-    pub const VARIANTS: [Self; 38] = [
+    pub const VARIANTS: [Self; 39] = [
         Self::OpenAiApi,
         Self::AnthropicApi,
         Self::ChatGpt,
@@ -245,6 +260,7 @@ impl Provider {
         Self::Antigravity,
         Self::Kimchi,
         Self::ElevenLabs,
+        Self::NineRouter,
         Self::Extension,
     ];
 
@@ -337,6 +353,12 @@ impl Account {
     /// their one-hour default when no override exists, and accepted overrides
     /// below the effective floor are raised to that floor.
     pub fn effective_refresh_seconds(&self, global_refresh_seconds: u64) -> u64 {
+        if self.provider.is_aggregator() {
+            return self
+                .refresh_seconds
+                .unwrap_or(global_refresh_seconds)
+                .max(Provider::AGGREGATOR_MIN_REFRESH_SECONDS);
+        }
         if !self.provider.is_metered() {
             return self.refresh_seconds.unwrap_or(global_refresh_seconds);
         }
@@ -751,6 +773,51 @@ pub struct Report {
     /// interface (paths and types only). Not serialized in the legacy JSON.
     #[serde(skip)]
     pub diagnostic: Option<crate::diagnostic::Diagnostic>,
+    /// PRD 0036 RF1.2: the readings of the sub-accounts an aggregator
+    /// account relays (one per upstream connection it holds). Additive and
+    /// skipped when empty, so every other report serializes as before.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sub_reports: Vec<SubReport>,
+}
+
+/// PRD 0036 RF1.2: one upstream connection of an aggregator instance. It
+/// never carries a credential, a connection UUID, an email or a response
+/// body: `id` is a hash and the label comes from the aggregator's masked
+/// display name.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubReport {
+    /// Stable, opaque id of the connection (a truncated hash).
+    pub id: String,
+    /// The aggregator's own provider slug, verbatim (for example
+    /// `"gemini-cli"`).
+    pub upstream: String,
+    /// The mapped Cuotai provider; `None` for an upstream Cuotai does not
+    /// know.
+    #[serde(default)]
+    pub provider: Option<Provider>,
+    pub label: String,
+    pub status: Status,
+    #[serde(default)]
+    pub metrics: Vec<Metric>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub notes_l10n: Vec<crate::text::Localized>,
+    pub checked_at: DateTime<Utc>,
+    /// When the upstream measured the reading, if the aggregator says so;
+    /// 9router exposes no age, so it is `None` there.
+    #[serde(default)]
+    pub as_of: Option<DateTime<Utc>>,
+    /// The aggregator's own on/off flag for the connection.
+    #[serde(default)]
+    pub enabled_upstream: Option<bool>,
+    /// Account key of the direct account this connection duplicates.
+    #[serde(default)]
+    pub duplicate_of: Option<String>,
+    /// Plan name the aggregator reports, when it does.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plan: Option<String>,
+    /// Public file that defines the upstream reading in the aggregator.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub via: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -826,6 +893,7 @@ mod tests {
             notes_l10n: Vec::new(),
             source: String::new(),
             session_expires_at: None,
+            sub_reports: Vec::new(),
         };
         let json = serde_json::to_value(&report).unwrap();
         assert!(json.get("notes_l10n").is_none(), "empty sidecar must skip");

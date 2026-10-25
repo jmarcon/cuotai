@@ -51,6 +51,7 @@ body:
         - antigravity
         - kimchi
         - eleven_labs
+        - nine_router
         # providers:end
     validations:
       required: true

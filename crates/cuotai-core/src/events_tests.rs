@@ -119,6 +119,7 @@ impl Watch {
             notes_l10n,
             source: self.source.clone(),
             session_expires_at: None,
+            sub_reports: Vec::new(),
         };
         let token = self.cycle.begin(0).unwrap();
         self.cycle
@@ -438,6 +439,7 @@ fn failures_are_classified_by_status_and_note_id() {
         notes_l10n: vec![Localized::fixed(id, "x")],
         source: String::new(),
         session_expires_at: None,
+        sub_reports: Vec::new(),
     };
     use FailureCategory as C;
     let cases = [

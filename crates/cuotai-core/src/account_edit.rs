@@ -76,6 +76,7 @@ pub fn default_env(provider: Provider) -> &'static str {
         Provider::Antigravity => "ANTIGRAVITY_ACCESS_TOKEN",
         Provider::Kimchi => "KIMCHI_API_KEY",
         Provider::ElevenLabs => "ELEVENLABS_API_KEY",
+        Provider::NineRouter => "NINEROUTER_PASSWORD",
         Provider::Extension => "",
     }
 }
@@ -142,6 +143,7 @@ fn credential_help_text(provider: Provider) -> &'static str {
         Provider::Antigravity => "Sessão Google do Antigravity, distinta da API key Gemini. Pressione Tab para login nativo; o projeto Code Assist e as janelas de quota serão consultados automaticamente.",
         Provider::Kimchi => "KIMCHI_API_KEY da conta Kimchi; consulta créditos e orçamentos em llm.kimchi.dev, sem geração.",
         Provider::ElevenLabs => "Use uma chave de API da ElevenLabs. Restrinja-a à permissão que lê a assinatura da conta (ela não precisa de acesso a text-to-speech) e, se usar vários workspaces, escolha a chave do workspace que quer acompanhar. O Cuotai guarda apenas o nome da variável.",
+        Provider::NineRouter => "Deixe vazio quando o login do painel do 9router está desligado. Com senha, informe apenas o NOME da variável que a guarda; o valor nunca entra no TOML. Ler o uso pode fazer o 9router renovar os logins que ele guarda.",
         _ => "API key/PAT: informe apenas o nome da variável exportada. A chave de geração pode não permitir consultar consumo; confira a limitação do relatório.",
     }
 }
@@ -242,6 +244,7 @@ pub fn managed_keys(provider: Provider) -> &'static [&'static str] {
         Provider::Qoder => &["region", "credential_type"],
         Provider::Kiro => &["auth_method", "profile_arn", "region"],
         Provider::CodeBuddy | Provider::ElevenLabs => &["region"],
+        Provider::NineRouter => &["base_url", "allow_private_http", "include", "exclude"],
         Provider::Zed => &["user_id", "system_id"],
         Provider::Antigravity => &["project_id"],
         Provider::AlibabaModelStudio => &["region"],
@@ -1370,6 +1373,36 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
         ],
         true,
     )];
+    const NINE_ROUTER: [FieldDescriptor; 4] = [
+        FieldDescriptor::text(
+            "base_url",
+            "Endereço do 9router",
+            "Padrão http://127.0.0.1:20128. Use http(s)://host[:porta][/prefixo], sem usuário, consulta ou fragmento. Fora desta máquina é preciso HTTPS.",
+            false,
+        ),
+        FieldDescriptor::choice(
+            "allow_private_http",
+            "Conexão sem criptografia na rede privada",
+            "Só vale para endereços de rede privada (192.168.x.x, 10.x.x.x, Tailscale, .local). Não = exige HTTPS fora desta máquina.",
+            &[
+                ChoiceOptionDescriptor::new("false", "Não (padrão)"),
+                ChoiceOptionDescriptor::new("true", "Sim, na minha rede privada"),
+            ],
+            true,
+        ),
+        FieldDescriptor::text(
+            "include",
+            "Só estes provedores (opcional)",
+            "Lista separada por vírgula de provedores do 9router (ex.: claude,codex,github). Vazio mostra todos.",
+            false,
+        ),
+        FieldDescriptor::text(
+            "exclude",
+            "Ocultar provedores (opcional)",
+            "Lista separada por vírgula de provedores do 9router a ocultar.",
+            false,
+        ),
+    ];
     const ZED: [FieldDescriptor; 2] = [
         FieldDescriptor::text(
             "user_id",
@@ -1512,6 +1545,7 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
         Provider::Kiro => &KIRO,
         Provider::CodeBuddy => &CODEBUDDY,
         Provider::Zed => &ZED,
+        Provider::NineRouter => &NINE_ROUTER,
         Provider::XiaomiMimo => &XIAOMI_MIMO,
         Provider::Antigravity => &ANTIGRAVITY,
         Provider::ElevenLabs => &ELEVEN_LABS,
@@ -1674,6 +1708,10 @@ pub fn resolve_credential_env(
         return Ok(None);
     }
     let trimmed = credential_text.trim();
+    if trimmed.is_empty() && provider == Provider::NineRouter {
+        // PRD 0036 RF2.1: "No password (login disabled on the instance)".
+        return Ok(None);
+    }
     if trimmed.is_empty() {
         return Err(crate::text::Localized::fixed(
             "edit_error.env_required",
@@ -2010,6 +2048,10 @@ pub fn stored_credential(account: &Account) -> String {
             .get("cli_profile")
             .cloned()
             .unwrap_or_default(),
+        // A 9router account without a password stays without one.
+        CredentialKind::EnvVar if provider == Provider::NineRouter => {
+            account.credential_env.clone().unwrap_or_default()
+        }
         CredentialKind::EnvVar => account
             .credential_env
             .clone()

@@ -550,6 +550,7 @@ const brands = {
   alibaba_model_studio: B("Alibaba Model Studio", "#ff6a00", "Al"), alibaba_coding_plan: B("Alibaba Coding Plan", "#ff6a00", "Al"),
   alibaba_token_plan: B("Alibaba Token Plan", "#ff6a00", "Al"), alibaba_cloud: B("Alibaba Cloud", "#ff6a00", "Al"),
   antigravity: B("Antigravity", "#7c6cf0", "Ag"), kimchi: B("Kimchi", "#ef4444", "Km"),
+  nine_router: B("9router", "#0ea5e9", "9r"),
   extension: B("Extension", "#8b5cf6", "Ex"),
 };
 export const brand = (p) => brands[p] ?? B(p, "#888888");

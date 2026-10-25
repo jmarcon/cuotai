@@ -405,6 +405,7 @@ mod tests {
             source: "test".into(),
             session_expires_at: None,
             diagnostic: None,
+            sub_reports: Vec::new(),
         };
         let snapshot = Snapshot {
             started_at: at,

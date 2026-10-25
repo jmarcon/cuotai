@@ -73,13 +73,23 @@ pub fn classify_report(report: Option<&Report>) -> AccountClass {
     let Some(report) = report else {
         return AccountClass::Unmeasured;
     };
-    if report.status != Status::Ready {
+    // PRD 0036 RF1.5: an aggregator is classified by its pool.
+    if report.provider.is_aggregator() {
+        return crate::aggregators::pool_class(report);
+    }
+    classify_parts(report.status, &report.metrics)
+}
+
+/// [`classify_report`] over the parts that matter, so a sub-account
+/// (PRD 0036) is classified with the very rules of a direct account.
+pub(crate) fn classify_parts(status: Status, metrics: &[Metric]) -> AccountClass {
+    if status != Status::Ready {
         return AccountClass::Unmeasured;
     }
-    if report.metrics.is_empty() {
+    if metrics.is_empty() {
         return AccountClass::Unmeasured;
     }
-    let has_quota = report.metrics.iter().any(|metric| {
+    let has_quota = metrics.iter().any(|metric| {
         metric.billing == Billing::Included
             && metric.scope.is_none()
             && metric
@@ -92,7 +102,7 @@ pub fn classify_report(report: Option<&Report>) -> AccountClass {
     // account only when no account-wide limit exists and all of them are.
     let mut scoped_total = 0usize;
     let mut scoped_exhausted = 0usize;
-    for metric in &report.metrics {
+    for metric in metrics {
         // Paid extra usage never classifies the account by itself.
         if metric.billing == Billing::Overage {
             continue;
@@ -529,6 +539,7 @@ mod tests {
             notes_l10n: Vec::new(),
             source: String::new(),
             session_expires_at: None,
+            sub_reports: Vec::new(),
         }
     }
 

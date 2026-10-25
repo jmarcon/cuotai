@@ -4130,6 +4130,7 @@ mod tests {
                 source: "teste".into(),
                 session_expires_at: None,
                 diagnostic: None,
+                sub_reports: Vec::new(),
             })
             .collect();
         let snapshot = cuotai_core::Snapshot {
@@ -4188,6 +4189,7 @@ mod tests {
             source: "teste".into(),
             session_expires_at: None,
             diagnostic: None,
+            sub_reports: Vec::new(),
         }
     }
 

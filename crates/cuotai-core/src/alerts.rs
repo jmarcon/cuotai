@@ -1275,6 +1275,7 @@ mod tests {
             notes_l10n: Vec::new(),
             source: String::new(),
             session_expires_at: None,
+            sub_reports: Vec::new(),
         }
     }
 
@@ -1991,6 +1992,7 @@ mod tests {
         let mut state = AlertState::default();
         let expiring = |at| Report {
             session_expires_at: Some(at),
+            sub_reports: Vec::new(),
             ..report("Work", t0(), Vec::new())
         };
         let soon = t0() + TimeDelta::days(2) + mins(30);

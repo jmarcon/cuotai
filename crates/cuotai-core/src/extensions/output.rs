@@ -121,6 +121,7 @@ impl Checked {
             notes_l10n,
             source: self.source,
             session_expires_at: None,
+            sub_reports: Vec::new(),
         }
     }
 }

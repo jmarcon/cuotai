@@ -103,6 +103,9 @@ pub enum Credential {
     CloudIdentity,
     LocalCli,
     UserSession,
+    /// PRD 0036: the dashboard password of a self-hosted aggregator (or
+    /// none, when the instance has login disabled).
+    AggregatorLogin,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -113,6 +116,8 @@ pub enum Scope {
     /// A bill for every product of the cloud account (Alibaba Cloud).
     WholeCloud,
     Product,
+    /// PRD 0036: every upstream connection held by one aggregator instance.
+    Instance,
 }
 
 /// Public source of the classification: never an authenticated URL.
@@ -204,6 +209,7 @@ impl Credential {
             Self::CloudIdentity => "cloud_identity",
             Self::LocalCli => "local_cli",
             Self::UserSession => "user_session",
+            Self::AggregatorLogin => "aggregator_login",
         }
     }
 
@@ -216,6 +222,7 @@ impl Credential {
             Self::CloudIdentity => "Identidade de nuvem",
             Self::LocalCli => "CLI local",
             Self::UserSession => "Sessão do usuário",
+            Self::AggregatorLogin => "Login do agregador",
         };
         Localized::fixed(format!("access.credential.{}", self.slug()), pt)
     }
@@ -228,6 +235,7 @@ impl Credential {
             Self::CloudIdentity => "Usa uma identidade de nuvem (token OAuth, perfil de CLI ou AccessKey) com permissão de leitura de cobrança ou monitoramento.",
             Self::LocalCli => "Usa um perfil já autenticado do CLI do fornecedor instalado nesta máquina.",
             Self::UserSession => "Precisa de uma sessão web que você cola no assistente da conta (guardada no cofre do sistema) ou exporta numa variável; ela expira e nunca é importada automaticamente.",
+            Self::AggregatorLogin => "Usa a senha do painel da sua instância (ou nenhuma, se o login estiver desligado nela); as credenciais dos provedores nunca saem da instância.",
         };
         Localized::fixed(format!("access.credential_hint.{}", self.slug()), pt)
     }
@@ -241,6 +249,7 @@ impl Scope {
             Self::Organization => ("organization", "Organização"),
             Self::WholeCloud => ("whole_cloud", "Nuvem inteira"),
             Self::Product => ("product", "Produto"),
+            Self::Instance => ("instance", "Instância"),
         };
         Localized::fixed(format!("access.scope.{slug}"), pt)
     }
@@ -589,6 +598,9 @@ pub(crate) fn classify(
                 doc("https://elevenlabs.io/docs/api-reference/user/subscription/get"),
                 "eleven_labs", "Créditos usados, limite do plano e próxima renovação pelo endpoint documentado de assinatura da ElevenLabs, mais uso extra quando habilitado.")
         },
+        Provider::NineRouter => entry(Undocumented, AggregatorLogin, Scope::Instance,
+            Evidence::Reference("https://github.com/decolua/9router/blob/f39d8f07481ae8518e93175f0ecaaafa61573c6c/src/dashboardGuard.js"),
+            "nine_router", "Quotas das conexões que você já adicionou na sua instância do 9router, lidas pelas rotas internas de gerenciamento dela."),
         Provider::Extension => entry(Extension, LocalCli, Scope::Account,
             doc("https://github.com/jmarcon/cuotai/blob/main/docs/extensions.md"),
             "extension", "Uso informado por uma extensão local aprovada pelo usuário."),
@@ -597,6 +609,12 @@ pub(crate) fn classify(
         access.credential_hint = Localized::fixed(
             "access.credential_hint.extension",
             "Recebe somente as variáveis de ambiente pedidas no manifesto e aprovadas pelo usuário.",
+        );
+    }
+    if provider == Provider::NineRouter {
+        access.risk = Localized::fixed(
+            "access.risk.nine_router",
+            "Interface interna do 9router, sem documentação; ler o uso pode fazer o 9router renovar os logins dos provedores que ele guarda.",
         );
     }
     access.metered = provider.is_metered();
@@ -665,6 +683,7 @@ mod tests {
             notes_l10n,
             source: String::new(),
             session_expires_at: None,
+            sub_reports: Vec::new(),
         }
     }
 
@@ -730,7 +749,7 @@ mod tests {
     #[test]
     fn classification_table_covers_every_provider_and_mode() {
         use Provider::*;
-        let base: [(Provider, Level, Credential); 37] = [
+        let base: [(Provider, Level, Credential); 38] = [
             (OpenAiApi, Official, C::AdminKey),
             (AnthropicApi, Official, C::AdminKey),
             (ChatGpt, Undocumented, C::SubscriptionSession),
@@ -768,6 +787,7 @@ mod tests {
             (Antigravity, Undocumented, C::SubscriptionSession),
             (Kimchi, Undocumented, C::InferenceKey),
             (ElevenLabs, Official, C::InferenceKey),
+            (NineRouter, Undocumented, C::AggregatorLogin),
         ];
         let mut seen: Vec<_> = base.iter().map(|row| row.0).collect();
         seen.dedup();

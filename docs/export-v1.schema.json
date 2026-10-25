@@ -93,7 +93,27 @@
         "metrics": { "type": "array", "items": { "$ref": "#/$defs/Metric" } },
         "notes": { "type": "array", "items": { "type": "string" }, "description": "Portuguese texts, redacted." },
         "notes_l10n": { "type": "array", "items": { "$ref": "#/$defs/Localized" }, "description": "Same length and order as notes; absent when empty." },
-        "source": { "type": "string", "description": "Public endpoint or reference contract, redacted; may be empty." }
+        "source": { "type": "string", "description": "Public endpoint or reference contract, redacted; may be empty." },
+        "sub_reports": { "type": "array", "items": { "$ref": "#/$defs/SubReport" }, "description": "Aggregator accounts only (PRD 0036): one entry per upstream connection; absent when empty." }
+      }
+    },
+    "SubReport": {
+      "type": "object",
+      "required": ["id", "upstream", "provider", "label", "status", "metrics", "checked_at", "as_of", "enabled_upstream", "duplicate_of"],
+      "properties": {
+        "id": { "type": "string", "description": "Opaque, stable id of the connection (a truncated hash, never the aggregator's own id)." },
+        "upstream": { "type": "string", "description": "The aggregator's provider slug, verbatim." },
+        "provider": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Provider" }], "description": "The mapped Cuotai provider; null for an upstream Cuotai does not know." },
+        "label": { "type": "string", "description": "Connection name as the aggregator masks it; an e-mail is redacted unless identity is included." },
+        "status": { "enum": ["ready", "needs_configuration", "unsupported", "authentication_error", "rate_limited", "error"] },
+        "metrics": { "type": "array", "items": { "$ref": "#/$defs/Metric" } },
+        "notes_l10n": { "type": "array", "items": { "$ref": "#/$defs/Localized" } },
+        "checked_at": { "type": "string", "format": "date-time" },
+        "as_of": { "type": ["string", "null"], "format": "date-time" },
+        "enabled_upstream": { "type": ["boolean", "null"], "description": "The aggregator's own on/off flag." },
+        "duplicate_of": { "type": ["string", "null"] },
+        "plan": { "type": "string" },
+        "via": { "type": "string", "description": "Public file that defines the upstream reading in the aggregator." }
       }
     },
     "Metric": {

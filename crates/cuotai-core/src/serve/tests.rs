@@ -46,6 +46,7 @@ fn report(account: &Account, status: Status) -> Report {
         notes_l10n: Vec::new(),
         source: String::new(),
         session_expires_at: None,
+        sub_reports: Vec::new(),
     }
 }
 
