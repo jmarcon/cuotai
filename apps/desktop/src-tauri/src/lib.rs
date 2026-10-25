@@ -780,9 +780,14 @@ async fn set_alert_options(
     thresholds: Vec<u8>,
     exhaustion: bool,
     recovery: bool,
+    overage: Option<bool>,
 ) -> Result<(), String> {
     b.update_notices(&app, |n| {
-        let alerts = n.alerts().with_choices(&thresholds, exhaustion, recovery)?;
+        let mut alerts = n.alerts().with_choices(&thresholds, exhaustion, recovery)?;
+        // PRD 0023 RF7.4: the extra-usage notices (absent keeps the saved value).
+        if let Some(overage) = overage {
+            alerts.overage = overage;
+        }
         n.set_alerts(alerts)
     })
     .await

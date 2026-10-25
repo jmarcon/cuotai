@@ -161,7 +161,7 @@ export const sendTestNotification = (title, body) => call("send_test_notificatio
 // PRD 0008 RF3: usage alerts (desktop.json; the backend judges each reading and sends them). `setAlertsEnabled` asks
 // the same system permission as reset notices and resolves to `granted`, `denied`, `prompt` or `off`.
 export const setAlertsEnabled = (on) => call("set_alerts_enabled", { on });
-export const setAlertOptions = (thresholds, exhaustion, recovery) => call("set_alert_options", { thresholds, exhaustion, recovery });
+export const setAlertOptions = (thresholds, exhaustion, recovery, overage) => call("set_alert_options", { thresholds, exhaustion, recovery, overage });
 export const setMetricAlert = (accountKey, label, on) => call("set_metric_alert", { accountKey, label, on });
 // PRD 0011 RF4.3: public provider status queries (desktop.json, off by default; the backend asks the core).
 export const setStatusEnabled = (on) => call("set_status_enabled", { on });
@@ -1113,7 +1113,7 @@ const demoSessionNotice = (state) => state && { level: dl("access.credential.use
     : dl("user_session.warning_env", "Esta é uma sessão de login completa. O Cuotai a lê de uma variável de ambiente e a usa só para consultar este serviço; mova-a para o cofre do sistema no assistente da conta.") };
 const demoSettings = { custom: null, config: null, generation: 1, historyRecording: true, historyEpoch: 0, historyErased: new Set(), sessionMigrated: new Set(), sessionForgotten: new Set(),
   notify: { enabled: false, lead_minutes: 0, when: "used", include_other: false, off_accounts: [] },
-  alerts: { enabled: false, thresholds: [75, 90], exhaustion: true, recovery: true, muted: {} }, statusQueries: DEMO_STATUS != null,
+  alerts: { enabled: false, thresholds: [75, 90], exhaustion: true, recovery: true, overage: true, muted: {} }, statusQueries: DEMO_STATUS != null,
   serve: { enabled: DEMO_SERVE_TAKEN, port: 6738, allow_browsers: false, secret: null },
   widgets: { enabled: DEMO_WIDGETS, include_identity: false, max_accounts: 6, written: false } };
 const demoPermission = (on) => (!on ? "off" : new URLSearchParams(location.search).has("notify-denied") ? "denied" : "granted");
@@ -1631,9 +1631,10 @@ const demo = {
     demoSettings.alerts.enabled = permission === "granted";
     return permission;
   },
-  set_alert_options: async ({ thresholds, exhaustion, recovery }) => {
+  set_alert_options: async ({ thresholds, exhaustion, recovery, overage }) => {
     if (!thresholds.every((t) => Number.isInteger(t) && t >= 10 && t <= 99)) throw "invalid_threshold";
     Object.assign(demoSettings.alerts, { thresholds: [...new Set(thresholds)].sort((a, b) => a - b), exhaustion, recovery });
+    if (overage != null) demoSettings.alerts.overage = overage;
   },
   set_metric_alert: async ({ accountKey, label, on }) => {
     const muted = (demoSettings.alerts.muted[accountKey] ?? []).filter((l) => l !== label);

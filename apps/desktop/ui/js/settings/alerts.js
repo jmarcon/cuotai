@@ -25,7 +25,9 @@ export function html({ settings: s }) {
           <button class="btn sm" type="button" data-alert-add>${te("settings.alerts.add")}</button></div>` })
     + disc("alerts-more", te("settings.alerts.more"),
       row({ key: "exhaustion", label: te("settings.alerts.exhaustion"), dep: true, control: (x) => sw("alerts-exhaustion", a.exhaustion, x) })
-      + row({ key: "recovery", label: te("settings.alerts.recovery"), dep: true, control: (x) => sw("alerts-recovery", a.recovery, x) }))
+      + row({ key: "recovery", label: te("settings.alerts.recovery"), dep: true, control: (x) => sw("alerts-recovery", a.recovery, x) })
+      // PRD 0023 RF7.4: paid extra usage starting (and, with exhaustion, its budget running out).
+      + row({ key: "overage", label: te("settings.alerts.overage"), dep: true, info: te("settings.alerts.overageHelp"), control: (x) => sw("alerts-overage", a.overage !== false, x) }))
     + row({ key: "test", label: te("settings.notify.test"), info: te("settings.notify.accounts"), msg: "notify-msg", msgRole: "status",
       control: () => buttons(`<button class="btn" data-notify-test aria-labelledby="test-label" ${n.enabled || a.enabled ? "" : "disabled"}>${icon("bell")}</button>`) }), "data-notify");
 }
@@ -45,7 +47,7 @@ export function bind(root, ctx) {
   const other = root.querySelector("#notify-other");
   const deps = () => {
     for (const el of [lead, other, ...when.querySelectorAll("button")]) el.disabled = !on.checked;
-    for (const el of root.querySelectorAll("#alert-new, [data-alert-add], #alert-chips button, #alerts-exhaustion, #alerts-recovery")) el.disabled = !alertsOn.checked;
+    for (const el of root.querySelectorAll("#alert-new, [data-alert-add], #alert-chips button, #alerts-exhaustion, #alerts-recovery, #alerts-overage")) el.disabled = !alertsOn.checked;
   };
   const toggle = (box, enable, key) => async () => {
     const want = box.checked;
@@ -94,7 +96,8 @@ function bindAlertOptions(root, ctx, s, deps) {
   const input = root.querySelector("#alert-new");
   const exhaustion = root.querySelector("#alerts-exhaustion");
   const recovery = root.querySelector("#alerts-recovery");
-  const saved = { thresholds: [...s.alerts.thresholds], exhaustion: exhaustion.checked, recovery: recovery.checked };
+  const overage = root.querySelector("#alerts-overage");
+  const saved = { thresholds: [...s.alerts.thresholds], exhaustion: exhaustion.checked, recovery: recovery.checked, overage: overage.checked };
   const draw = () => {
     chips.innerHTML = saved.thresholds.map((v) => {
       const label = t("settings.alerts.remove", { pct: v });
@@ -104,14 +107,14 @@ function bindAlertOptions(root, ctx, s, deps) {
   };
   const save = async (thresholds, el) => {
     try {
-      await setAlertOptions(thresholds, exhaustion.checked, recovery.checked);
-      Object.assign(saved, { thresholds: [...new Set(thresholds)].sort((x, y) => x - y), exhaustion: exhaustion.checked, recovery: recovery.checked });
+      await setAlertOptions(thresholds, exhaustion.checked, recovery.checked, overage.checked);
+      Object.assign(saved, { thresholds: [...new Set(thresholds)].sort((x, y) => x - y), exhaustion: exhaustion.checked, recovery: recovery.checked, overage: overage.checked });
       rowError(el, "");
       toast();
       ctx.changed("alerts");
       return true;
     } catch (x) {
-      exhaustion.checked = saved.exhaustion; recovery.checked = saved.recovery;
+      exhaustion.checked = saved.exhaustion; recovery.checked = saved.recovery; overage.checked = saved.overage;
       rowError(el, errorText(x));
       return false;
     } finally { draw(); }
@@ -130,5 +133,6 @@ function bindAlertOptions(root, ctx, s, deps) {
   input.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); add(); } };
   exhaustion.onchange = () => save(saved.thresholds, exhaustion);
   recovery.onchange = () => save(saved.thresholds, recovery);
+  overage.onchange = () => save(saved.thresholds, overage);
   draw();
 }
