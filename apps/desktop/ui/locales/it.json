@@ -591,6 +591,8 @@
   "settings.hooks.event.usage_updated": "l'utilizzo è cambiato (al massimo ogni 10 min)",
   "settings.hooks.event.overage_started": "l'uso extra a pagamento è iniziato (una volta per ciclo)",
   "settings.hooks.event.overage_ended": "l'uso extra a pagamento è terminato",
+  "settings.hooks.event.session_expiring": "una sessione incollata sta per scadere",
+  "settings.hooks.event.quota_reset_soon": "una finestra di quota si rinnova a breve",
   "settings.cost.title": "Costo locale",
   "settings.cost.help": "Stima, solo su questo computer, i token usati dai tuoi strumenti da riga di comando, a partire dai loro log locali. Disattivato per impostazione predefinita: ogni fonte mostra prima esattamente cosa leggerà e chiede conferma. Il contenuto delle conversazioni non viene mai letto.",
   "settings.cost.read": "Leggi log di {source}",

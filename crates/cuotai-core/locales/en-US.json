@@ -1087,6 +1087,8 @@
   "events.summary.auth_required": "Authentication required",
   "events.summary.provider_incident": "Provider status: {state}",
   "events.summary.usage_updated": "Usage updated: {usage}",
+  "events.summary.session_expiring": "Session expires in {days} day(s)",
+  "events.summary.quota_reset_soon": "{metric}: quota resets soon",
   "watch.error.interval_range": "The watch interval must be between {min} and {max} seconds; smaller values are rejected, not adjusted.",
   "watch.error.unknown_event": "Unknown event: \"{name}\". Valid events: {known}.",
   "changelog.category.added": "Added",

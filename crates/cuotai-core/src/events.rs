@@ -84,11 +84,15 @@ pub enum EventKind {
     /// PRD 0023 RF5: an active extra usage went back to armed or disabled,
     /// or a new billing cycle started with nothing spent.
     OverageEnded,
+    /// PRD 0031 RF7.1: an account's pasted session nears its expiry date.
+    SessionExpiring,
+    /// PRD 0031 RF7.2: a quota window resets within the reset lead.
+    QuotaResetSoon,
 }
 
 impl EventKind {
     /// Every event, in the documented order.
-    pub const ALL: [Self; 14] = [
+    pub const ALL: [Self; 16] = [
         Self::QuotaThresholdCrossed,
         Self::QuotaExhausted,
         Self::QuotaRecovered,
@@ -103,6 +107,8 @@ impl EventKind {
         Self::UsageUpdated,
         Self::OverageStarted,
         Self::OverageEnded,
+        Self::SessionExpiring,
+        Self::QuotaResetSoon,
     ];
 
     /// The stable name, as serialized in the payload's `event`.
@@ -122,6 +128,8 @@ impl EventKind {
             Self::UsageUpdated => "usage_updated",
             Self::OverageStarted => "overage_started",
             Self::OverageEnded => "overage_ended",
+            Self::SessionExpiring => "session_expiring",
+            Self::QuotaResetSoon => "quota_reset_soon",
         }
     }
 
@@ -313,6 +321,11 @@ impl Event {
                 ),
             },
             EventKind::OverageEnded => Localized::fixed(id, "Uso extra terminou"),
+            EventKind::SessionExpiring => {
+                let days = u64::from(self.current.days_left.unwrap_or_default());
+                Localized::with_param(id, "days", days, format!("Sessão expira em {days} dia(s)"))
+            }
+            EventKind::QuotaResetSoon => with_metric(format!("{metric}: janela renova em breve")),
             EventKind::UsageUpdated => {
                 let usage = usage_text(&self.current.metrics);
                 let pt = format!("Uso atualizado: {usage}");
@@ -393,6 +406,12 @@ pub struct Values {
     pub source: Option<PaceSource>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub incident: Option<IncidentState>,
+    /// `session_expiring`: when the pasted session ends (never its value).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<DateTime<Utc>>,
+    /// `session_expiring`: whole days left at the observation, from 0.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub days_left: Option<u32>,
     /// Every metric of the reading, for `usage_updated`.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub metrics: Vec<MetricReading>,
@@ -500,7 +519,12 @@ pub struct EventState {
     accounts: BTreeMap<String, Track>,
     /// PRD 0031 RF8.1: per provider status source, not per account.
     incidents: BTreeMap<String, IncidentTrack>,
+    /// PRD 0031 RF7.2: how long before `resets_at` `quota_reset_soon` fires.
+    reset_lead: TimeDelta,
 }
+
+/// Default for [`EventState::with_reset_lead`] (`--reset-lead`, minutes).
+pub const DEFAULT_RESET_LEAD: TimeDelta = TimeDelta::minutes(15);
 
 /// What `provider_incident` last reported for one provider status source.
 #[derive(Debug, Clone)]
@@ -523,6 +547,9 @@ struct Track {
     ready: Option<Report>,
     binding: Option<Binding>,
     usage: Option<Usage>,
+    /// Window instances `quota_reset_soon` already reported (label and
+    /// `resets_at`, compared within [`resets::DRIFT_TOLERANCE`]).
+    soon: Vec<(String, DateTime<Utc>)>,
 }
 
 #[derive(Debug, Clone)]
@@ -569,7 +596,16 @@ impl EventState {
             alerts: AlertState::default(),
             accounts: BTreeMap::new(),
             incidents: BTreeMap::new(),
+            reset_lead: DEFAULT_RESET_LEAD,
         }
+    }
+
+    /// Fire `quota_reset_soon` this long before a window resets (default
+    /// [`DEFAULT_RESET_LEAD`]). A zero lead turns the event off: a window
+    /// is never reported once its reset is due.
+    pub fn with_reset_lead(mut self, lead: TimeDelta) -> Self {
+        self.reset_lead = lead.max(TimeDelta::zero());
+        self
     }
 
     /// Forget every account whose id ([`AccountExport::id`]) is not in
@@ -685,6 +721,7 @@ impl EventState {
             prefs,
             alerts,
             accounts,
+            reset_lead,
             ..
         } = self;
         let now = out.now;
@@ -696,9 +733,11 @@ impl EventState {
                 ready: None,
                 binding: None,
                 usage: None,
+                soon: Vec::new(),
             };
             if report.status == Status::Ready {
                 track.baseline(report, out.next.binding.as_ref(), prefs, alerts, now);
+                track.reset_soon(report, *reset_lead, now);
             }
             accounts.insert(out.next.id.clone(), track);
             return;
@@ -735,6 +774,8 @@ impl EventState {
         }
         let Some(last) = track.ready.take() else {
             track.baseline(report, out.next.binding.as_ref(), prefs, alerts, now);
+            // A restart inside the lead reports nothing for those windows.
+            track.reset_soon(report, *reset_lead, now);
             return;
         };
         let find = |report: &'_ Report, label: &str| {
@@ -788,8 +829,16 @@ impl EventState {
                     );
                     continue;
                 }
-                // PRD 0016 RF3.2: a notice of its own, not a quota event.
-                AlertKind::SessionExpiring => continue,
+                // PRD 0031 RF7.1: the session's expiry, never its value.
+                AlertKind::SessionExpiring => {
+                    let current = Values {
+                        expires_at: alert.resets_at,
+                        days_left: Some(u32::from(alert.threshold)),
+                        ..Values::default()
+                    };
+                    out.push(EventKind::SessionExpiring, None, current, None);
+                    continue;
+                }
                 AlertKind::OverageStarted => {
                     out.push(
                         EventKind::OverageStarted,
@@ -826,6 +875,15 @@ impl EventState {
                     Values::overage(&last),
                 );
             }
+        }
+        for (label, window, resets_at) in track.reset_soon(report, *reset_lead, now) {
+            let mut current = find(report, &label).unwrap_or_default();
+            current.resets_at = Some(resets_at);
+            let metric = MetricRef {
+                label,
+                window: Some(window),
+            };
+            out.push(EventKind::QuotaResetSoon, Some(metric), current, None);
         }
         if let Some(binding) = out.next.binding.as_ref() {
             let blocked = |binding: &Binding| binding.reason == BindingReason::Exhausted;
@@ -941,6 +999,36 @@ impl EventState {
 impl Track {
     /// The first `Ready` reading: what later ones are compared with. An
     /// exhaustion it holds counts as reported, so its recovery is.
+    /// The eligible windows of `report` whose reset is within `lead` and
+    /// not yet reported, remembered as reported (PRD 0031 RF7.2).
+    fn reset_soon(
+        &mut self,
+        report: &Report,
+        lead: TimeDelta,
+        now: DateTime<Utc>,
+    ) -> Vec<(String, MetricWindow, DateTime<Utc>)> {
+        self.soon
+            .retain(|(_, at)| *at > now - resets::DRIFT_TOLERANCE);
+        let prefs = resets::Prefs::default();
+        let mut due = Vec::new();
+        for metric in &report.metrics {
+            let Some(window) = resets::eligible(metric, now, &prefs) else {
+                continue;
+            };
+            if window.resets_at - lead > now {
+                continue;
+            }
+            let seen = self.soon.iter().any(|(label, at)| {
+                *label == window.label && (*at - window.resets_at).abs() <= resets::DRIFT_TOLERANCE
+            });
+            if !seen {
+                self.soon.push((window.label.clone(), window.resets_at));
+                due.push((window.label, window.window, window.resets_at));
+            }
+        }
+        due
+    }
+
     fn baseline(
         &mut self,
         report: &Report,

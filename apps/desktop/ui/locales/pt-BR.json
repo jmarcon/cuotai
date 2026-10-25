@@ -598,6 +598,8 @@
   "settings.hooks.event.usage_updated": "o uso mudou (no máximo a cada 10 min)",
   "settings.hooks.event.overage_started": "o uso extra pago começou (uma vez por ciclo de cobrança)",
   "settings.hooks.event.overage_ended": "o uso extra pago terminou",
+  "settings.hooks.event.session_expiring": "uma sessão colada está perto de expirar",
+  "settings.hooks.event.quota_reset_soon": "uma janela de cota renova em breve",
   "settings.cost.title": "Custo local",
   "settings.cost.help": "Estima, só neste computador, os tokens que suas ferramentas de linha de comando usaram, a partir dos logs locais delas. Desligado por padrão: cada fonte mostra antes exatamente o que vai ler e pede confirmação. O conteúdo das conversas nunca é lido.",
   "settings.cost.read": "Ler logs do {source}",

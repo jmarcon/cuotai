@@ -1000,7 +1000,7 @@ function demoWidgetsView() {
 // to what the screen needs; nothing runs in the browser: a test logs a made-up successful run after a moment.
 // `?hooks=changed` starts with the hooks on and a rule changed since its confirmation (the main-window banner).
 const DEMO_HOOK_EVENTS = ["quota_threshold_crossed", "quota_exhausted", "quota_recovered", "quota_reset", "account_blocked",
-  "account_unblocked", "refresh_failed", "refresh_recovered", "auth_required", "provider_incident", "usage_updated", "overage_started", "overage_ended"];
+  "account_unblocked", "refresh_failed", "refresh_recovered", "auth_required", "provider_incident", "usage_updated", "overage_started", "overage_ended", "session_expiring", "quota_reset_soon"];
 const DEMO_HOOKS_CHANGED = new URLSearchParams(location.search).get("hooks") === "changed";
 const demoHooks = { enabled: DEMO_HOOKS_CHANGED, path: "~/.config/cuotai/hooks.toml (demo)", revision: null, confirmed: null, runs: [],
   rules: DEMO_HOOKS_CHANGED ? [{ name: "sound", events: ["quota_exhausted"], command: ["/usr/bin/afplay", "/System/Library/Sounds/Glass.aiff"] }] : null };

@@ -94,6 +94,7 @@ struct Watch {
     prev: AccountExport,
     statuses: Vec<ProviderStatus>,
     source: String,
+    session_expires_at: Option<DateTime<Utc>>,
 }
 
 impl Watch {
@@ -116,10 +117,13 @@ impl Watch {
         Self {
             config,
             cycle,
-            state: EventState::default(),
+            // `quota_reset_soon` has its own tests; the sequences below
+            // read windows minutes from their end.
+            state: EventState::default().with_reset_lead(TimeDelta::zero()),
             prev,
             statuses: Vec::new(),
             source: String::new(),
+            session_expires_at: None,
         }
     }
 
@@ -140,7 +144,7 @@ impl Watch {
             notes: notes_l10n.iter().map(|n| n.fallback.to_string()).collect(),
             notes_l10n,
             source: self.source.clone(),
-            session_expires_at: None,
+            session_expires_at: self.session_expires_at,
             sub_reports: Vec::new(),
             as_of: None,
             overage_hint: None,
@@ -665,7 +669,7 @@ fn no_payload_carries_credentials_urls_or_raw_messages() {
             OverageStarted,
             OverageEnded,
         ]),
-        "every event kind is covered"
+        "every event kind is covered (the PRD 0031 RF7 ones have their own tests)"
     );
     for event in &events {
         let text = serde_json::to_string(event).unwrap();
@@ -960,4 +964,90 @@ fn a_steep_recent_pace_projects_exhaustion_once() {
         EventKind::from_name("quota_exhaustion_projected"),
         Some(QuotaExhaustionProjected)
     );
+}
+
+/// PRD 0031 RF7.1: `session_expiring` once per account and expiry date,
+/// with the date and the days left, never the session itself.
+#[test]
+fn a_session_nearing_its_expiry_fires_once_per_expiry_date() {
+    let mut watch = Watch::new();
+    watch.session_expires_at = Some(t0() + TimeDelta::days(10));
+    assert!(transitions(&watch.read(0, ready(10.0))).is_empty());
+    assert!(transitions(&watch.read(2, ready(10.0))).is_empty(), "still far");
+
+    let near = t0() + TimeDelta::days(2) + TimeDelta::hours(1);
+    watch.session_expires_at = Some(near);
+    let events = watch.read(4, ready(10.0));
+    assert_eq!(transitions(&events), [SessionExpiring]);
+    assert_eq!(events[0].current.expires_at, Some(near));
+    assert_eq!(events[0].current.days_left, Some(2));
+    assert!(events[0].metric.is_none() && events[0].previous.is_none());
+    let json = serde_json::to_value(&events[0]).unwrap();
+    assert_eq!(json["event"], "session_expiring");
+    assert_eq!(json["current"]["days_left"], 2);
+
+    assert!(transitions(&watch.read(6, ready(10.0))).is_empty(), "same date");
+    watch.session_expires_at = Some(t0() + TimeDelta::days(1));
+    assert_eq!(
+        transitions(&watch.read(8, ready(10.0))),
+        [SessionExpiring],
+        "a pasted session with a new date is noticed again"
+    );
+}
+
+/// RF7.1: a restart that already sees a near expiry is a baseline, not a
+/// repeat.
+#[test]
+fn a_restarted_engine_does_not_repeat_a_near_expiry() {
+    let mut watch = Watch::new();
+    watch.session_expires_at = Some(t0() + TimeDelta::days(1));
+    assert!(transitions(&watch.read(0, ready(10.0))).is_empty());
+    assert!(transitions(&watch.read(2, ready(10.0))).is_empty());
+}
+
+/// PRD 0031 RF7.2: `quota_reset_soon` once per window instance inside the
+/// lead, naming the window and its reset.
+#[test]
+fn a_window_about_to_reset_fires_once_per_instance() {
+    let mut watch = Watch::new();
+    watch.state = EventState::default().with_reset_lead(TimeDelta::minutes(15));
+    // The window ends at minute 20; the lead opens at minute 5.
+    assert!(transitions(&watch.read(0, ready(30.0))).is_empty(), "baseline");
+    assert!(transitions(&watch.read(3, ready(30.0))).is_empty(), "outside the lead");
+    let events = watch.read(6, ready(30.0));
+    assert_eq!(transitions(&events), [QuotaResetSoon]);
+    assert_eq!(events[0].current.resets_at, Some(first_window()));
+    let metric = events[0].metric.as_ref().unwrap();
+    assert_eq!(metric.label, LABEL);
+    assert_eq!(metric.window, Some(MetricWindow::Window5h));
+    assert!(transitions(&watch.read(9, ready(30.0))).is_empty(), "once per instance");
+    // A drifting `resets_at` is the same instance.
+    let drift = Reading::Ready(vec![quota(30.0, first_window() + TimeDelta::minutes(1))]);
+    assert!(transitions(&watch.read(12, drift)).is_empty());
+    assert_eq!(transitions(&watch.read(25, renewed(0.0))), [QuotaReset]);
+    // The next window opens its own lead.
+    assert!(transitions(&watch.read(30, renewed(0.0))).is_empty());
+    let late = 20 + 5 * 60 - 10;
+    assert_eq!(transitions(&watch.read(late, renewed(5.0))), [QuotaResetSoon]);
+}
+
+/// RF7.2: a restart inside the lead and an idle quota report nothing.
+#[test]
+fn reset_soon_ignores_a_restart_inside_the_lead_and_idle_quotas() {
+    let mut watch = Watch::new();
+    watch.state = EventState::default().with_reset_lead(TimeDelta::minutes(15));
+    assert!(transitions(&watch.read(10, ready(30.0))).is_empty(), "baseline inside the lead");
+    assert!(transitions(&watch.read(12, ready(30.0))).is_empty(), "not repeated");
+
+    let mut idle = Watch::new();
+    idle.state = EventState::default().with_reset_lead(TimeDelta::minutes(15));
+    idle.read(0, ready(0.0));
+    assert!(transitions(&idle.read(10, ready(0.0))).is_empty(), "nothing consumed");
+}
+
+#[test]
+fn the_new_events_are_known_by_name() {
+    assert_eq!(EventKind::from_name("session_expiring"), Some(SessionExpiring));
+    assert_eq!(EventKind::from_name("quota_reset_soon"), Some(QuotaResetSoon));
+    assert_eq!(EventKind::ALL.len(), 13);
 }

@@ -241,6 +241,21 @@ impl Rule {
                     (false, armed, active)
                 }
             }
+            EventKind::SessionExpiring => {
+                let current = Values {
+                    expires_at: Some(now + chrono::TimeDelta::days(3)),
+                    days_left: Some(3),
+                    ..Values::default()
+                };
+                (false, current, Values::default())
+            }
+            EventKind::QuotaResetSoon => {
+                let current = Values {
+                    resets_at: Some(now + chrono::TimeDelta::minutes(10)),
+                    ..quota(60.0)
+                };
+                (true, current, quota(60.0))
+            }
         };
         Event {
             schema: SCHEMA,

@@ -334,6 +334,10 @@ struct Args {
     /// terminal: erro). Sem --jsonl, o stdout fica vazio.
     #[arg(long, requires = "watch")]
     hooks: bool,
+    /// Com --watch, quantos MINUTOS antes de a janela de uma cota renovar o
+    /// evento quota_reset_soon dispara (padrão 15; 0 desliga o evento).
+    #[arg(long, value_name = "MIN", requires = "watch", default_value_t = 15)]
+    reset_lead: u32,
     /// Lista as fontes de custo local (Claude Code, Codex CLI): se estão
     /// ligadas, os diretórios exatos que leem (ou leriam) e o que o índice
     /// já segue; não lê logs. Com --json, em JSON. Tudo desligado por padrão.
@@ -725,6 +729,7 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
                 jsonl: args.jsonl,
                 hooks,
                 projected_lead: lead(args.projected_lead.as_deref()),
+                reset_lead: args.reset_lead,
             });
             // PRD 0015 RF4.3: the server publishes `local_cost`, kept
             // current by the background scan while it runs.

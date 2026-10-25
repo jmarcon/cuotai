@@ -1087,6 +1087,8 @@
   "events.summary.auth_required": "Autenticación necesaria",
   "events.summary.provider_incident": "Estado del proveedor: {state}",
   "events.summary.usage_updated": "Uso actualizado: {usage}",
+  "events.summary.session_expiring": "La sesión caduca en {days} día(s)",
+  "events.summary.quota_reset_soon": "{metric}: la cuota se renueva pronto",
   "watch.error.interval_range": "El intervalo del watch debe estar entre {min} y {max} segundos; los valores menores se rechazan, no se ajustan.",
   "watch.error.unknown_event": "Evento desconocido: \"{name}\". Eventos válidos: {known}.",
   "changelog.category.added": "Añadido",

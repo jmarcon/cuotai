@@ -463,7 +463,7 @@ impl Ledger {
     }
 }
 
-fn eligible(metric: &Metric, now: DateTime<Utc>, prefs: &Prefs) -> Option<ResetMetric> {
+pub(crate) fn eligible(metric: &Metric, now: DateTime<Utc>, prefs: &Prefs) -> Option<ResetMetric> {
     let resets_at = metric.resets_at.filter(|at| *at > now)?;
     let window = metric.window.filter(|window| match window {
         MetricWindow::Other => prefs.include_other,

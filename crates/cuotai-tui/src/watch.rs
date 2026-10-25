@@ -43,6 +43,9 @@ pub(crate) struct WatchArgs {
     /// PRD 0024 RF5.1: `--projected-lead` of `quota_exhaustion_projected`
     /// (the core's 60 minutes without it).
     pub projected_lead: Option<Lead>,
+    /// `--reset-lead`: minutes before a window resets that
+    /// `quota_reset_soon` fires (0 turns it off).
+    pub reset_lead: u32,
 }
 
 pub(crate) struct Watch {
@@ -59,7 +62,8 @@ impl Watch {
                 match args.projected_lead {
                     Some(lead) => EventState::default().with_projected_lead(lead),
                     None => EventState::default(),
-                },
+                }
+                .with_reset_lead(chrono::TimeDelta::minutes(i64::from(args.reset_lead))),
                 args.events,
             ),
             jsonl: args.jsonl,
