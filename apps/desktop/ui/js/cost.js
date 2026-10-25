@@ -100,11 +100,24 @@ function chartHtml(sc, summary) {
     peak: priced ? fmtUsd(value(peak)) : t("cost.tokens", { amount: fmtTokens(value(peak)) }),
     day: date(peak.day),
   });
-  const bars = days.map((d) => `<span class="lc-bar${d.cost == null && sum(d.tokens) ? " unknown" : ""}" style="height:${top ? Math.max((value(d) / top) * 100, value(d) ? 2 : 0).toFixed(1) : 0}%" title="${esc(`${date(d.day)}: ${shown(d)}`)}"></span>`).join("");
+  // DS-CHT-3/-5: neutral bars, today in the accent and labelled; a day with use but no price is a hatched bar at its
+  // token-proportional height; a day with real zero use is a 1 px baseline tick.
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`; // local day, like the core's buckets
+  const tokenTop = Math.max(...days.map((d) => sum(d.tokens)), 0);
+  const height = (d) => {
+    if (priced && d.cost == null && sum(d.tokens)) return tokenTop ? (sum(d.tokens) / tokenTop) * 100 : 0;
+    return top ? Math.max((value(d) / top) * 100, value(d) ? 2 : 0) : 0;
+  };
+  const bars = days.map((d) => {
+    const cls = [d.cost == null && sum(d.tokens) ? "unknown" : "", !value(d) && !(d.cost == null && sum(d.tokens)) ? "zero" : "", d.day === today ? "today" : ""].filter(Boolean).join(" ");
+    const tip = `${d.day === today ? `${t("cost.today")} · ` : ""}${date(d.day)}: ${d.cost == null && sum(d.tokens) ? t("cost.unknown") : shown(d)}`;
+    return `<span class="lc-bar${cls ? ` ${cls}` : ""}" style="height:${height(d).toFixed(1)}%" title="${esc(tip)}"></span>`;
+  }).join("");
   const rows = days.map((d) => `<tr><th scope="row">${esc(date(d.day))}</th><td title="${esc(breakdown(d.tokens))}">${esc(fmtTokens(sum(d.tokens)))}</td><td>${esc(String(d.requests))}</td><td>${esc(costText(d))}</td></tr>`).join("");
   return `<figure class="lc-chart"><figcaption>${te("cost.detail.byDay", { period: tl(summary.span.label) })}</figcaption>
     <div class="lc-bars" role="img" aria-label="${esc(label)}">${bars}</div>
-    <div class="lc-axis sub" aria-hidden="true"><span>${esc(date(days[0].day))}</span><span>${esc(date(days.at(-1).day))}</span></div>
+    <div class="lc-axis sub" aria-hidden="true"><span>${esc(date(days[0].day))}</span><span class="${days.at(-1).day === today ? "today" : ""}">${days.at(-1).day === today ? te("cost.today") : esc(date(days.at(-1).day))}</span></div>
     <details class="lc-table" ${tableOpen ? "open" : ""}><summary>${te("cost.detail.table")}</summary>
       <table><caption class="sr-only">${esc(label)}</caption><thead><tr><th scope="col">${te("cost.col.day")}</th><th scope="col">${te("cost.col.tokens")}</th>
         <th scope="col">${te("cost.col.requests")}</th><th scope="col">${te("cost.col.cost")}</th></tr></thead><tbody>${rows}</tbody></table></details></figure>`;

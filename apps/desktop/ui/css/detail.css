@@ -335,26 +335,24 @@
 }
 .history-ranges {
   display: inline-flex;
-  border: 1px solid var(--border);
+  padding: var(--space-0);
   border-radius: var(--radius-sm);
-  overflow: hidden;
+  background: var(--surface-2);
 }
 .history-ranges button {
-  padding: var(--space-1) var(--space-3);
+  height: 24px;
+  padding: 0 var(--space-3);
   border: 0;
-  background: var(--btn-bg);
-  color: var(--btn-fg);
-  font: inherit;
-  font-size: var(--text-sm);
+  border-radius: max(var(--radius-xs), calc(var(--radius-sm) - 2px));
+  background: transparent;
+  color: var(--fg-muted);
+  font: var(--text-sm) var(--font-mono), var(--font-script);
   cursor: pointer;
 }
-.history-ranges button + button {
-  border-left: 1px solid var(--border);
-}
 .history-ranges button[aria-pressed="true"] {
-  background: var(--accent);
-  color: var(--accent-fg);
-  font-weight: 650;
+  background: var(--surface);
+  color: var(--fg);
+  font-weight: 600;
 }
 .history-ranges button:focus-visible {
   outline: 2px solid var(--accent);
@@ -426,7 +424,7 @@
   justify-content: space-between;
   gap: var(--space-2);
   margin-top: var(--space-0);
-  font-size: var(--text-micro);
+  font: var(--text-micro) var(--font-mono), var(--font-script);
 }
 .hist-key {
   display: inline-flex;
@@ -436,18 +434,12 @@
 .hist-key i {
   height: 10px;
 }
-/* Entrance once per answer; `--motion-slow` is 0 with reduced motion (app option or `prefers-reduced-motion`). */
-.hist-enter .hist-area,
-.hist-enter .hist-line {
-  animation: hist-in var(--motion-slow) var(--ease-out) both;
-}
-@keyframes hist-in {
-  from {
-    clip-path: inset(0 100% 0 0);
-  }
-  to {
-    clip-path: inset(0 0 0 0);
-  }
+/* DS-CHT-4: percent axes have dashed gridlines at 50 and 100 only */
+.hist-grid {
+  fill: none;
+  stroke: var(--border);
+  stroke-dasharray: 3 3;
+  vector-effect: non-scaling-stroke;
 }
 
 /* PRD 0003 RF3.2: the account's bell (card and details); pressed = notices on. */
@@ -663,17 +655,28 @@
 .lc-bar {
   flex: 1;
   min-width: 2px;
+  min-height: 1px;
   border-radius: var(--radius-xs) var(--radius-xs) 0 0;
+  background: var(--chart-neutral);
+}
+.lc-bar.today {
   background: var(--accent);
 }
 .lc-bar.unknown {
-  background: var(--track);
+  background: var(--hatch), color-mix(in srgb, var(--track) 40%, transparent);
+}
+.lc-bar.zero {
+  border-radius: 0;
+  background: var(--fg-muted);
 }
 .lc-axis {
   display: flex;
   justify-content: space-between;
   margin: var(--space-0) 0 0;
-  font-size: var(--text-micro);
+  font: var(--text-micro) var(--font-mono), var(--font-script);
+}
+.lc-axis .today {
+  color: var(--accent);
 }
 .lc-table summary {
   margin: calc(var(--space-1) + var(--space-0)) 0 0;

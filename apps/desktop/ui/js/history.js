@@ -57,7 +57,7 @@ function metricHtml(m, view) {
   return `<figure class="hist-metric">
     <figcaption><span class="hist-label">${esc(m.label)}</span><span class="sub">${esc(summary(m))}</span></figcaption>
     <div class="hist-chart" aria-hidden="true">
-      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" focusable="false"><path class="hist-area" d="${area}"/><path class="hist-line" d="${line}"/></svg>
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" focusable="false">${m.unit === "%" ? `<path class="hist-grid" d="M0,0H${W}M0,${H / 2}H${W}"/>` : ""}<path class="hist-area" d="${area}"/><path class="hist-line" d="${line}"/></svg>
       ${m.chart.resets.map((r) => `<i class="hist-reset" style="left:${pct(r.x)}" title="${te("trend.reset", { when: when(r.at) })}"></i>`).join("")}
       ${end ? `<i class="hist-end" style="left:${pct(end.x)};top:${pct(1 - end.y)}"></i>` : ""}
     </div>
@@ -93,14 +93,10 @@ export function mountHistory({ key, index, generation, stamp }) {
     status.textContent = loading && !view ? t("trend.loading")
       : error ?? (view && !view.metrics.length ? `${t(`trend.empty.${range}`)} ${off || t("trend.emptyHelp")}` : off);
   }
-  /** Draws the answer once (the motion tokens make the entrance instant with reduced motion); a redraw of the dialog
-   *  that only moves this section never replays it. */
+  /** Draws the answer at once: charts have no entrance (PRD 0022 RF11.4, DS-CHT-2). */
   function paint() {
     showStatus();
     body.innerHTML = error || !view ? "" : view.metrics.map((m) => metricHtml(m, view)).join("");
-    if (!body.childElementCount) return;
-    body.classList.add("hist-enter");
-    body.addEventListener("animationend", () => body.classList.remove("hist-enter"), { once: true });
   }
 
   async function load() {
