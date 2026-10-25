@@ -87,7 +87,7 @@
 .fig b.bad { color: var(--bad); }
 .fig b.warn { color: var(--warn); }
 .fig b.accent { color: var(--accent); }
-.fig b.word {
+.fig.wordfig b {
   font-size: var(--text-base);
   font-weight: 600;
   line-height: 22px;
@@ -197,8 +197,37 @@ svg.i.sg { width: 12px; height: 12px; }
 .xline.info { color: var(--info); }
 .xline.muted { color: var(--fg-muted); }
 
-/* ---- DS-CMP-BADGE-2: status chip ---- */
-.chip {
+/* ---- DS-CMP-BADGE-2: status chips (`.mini` of the cards, chips on tray rows) ---- */
+.mini {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 20px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, currentColor 16%, transparent);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.mini svg.i { width: 14px; height: 14px; }
+.mini.good { color: var(--good); }
+.mini.warn { color: var(--warn); }
+.mini.bad { color: var(--bad); }
+.mini.info { color: var(--info); }
+.mini.accent { color: var(--accent); }
+.mini.muted { color: var(--fg-muted); }
+.row-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.row-chips .mini-t {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.schip {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
@@ -211,12 +240,12 @@ svg.i.sg { width: 12px; height: 12px; }
   font-weight: 600;
   white-space: nowrap;
 }
-.chip.good { color: var(--good); }
-.chip.warn { color: var(--warn); }
-.chip.bad { color: var(--bad); }
-.chip.info { color: var(--info); }
-.chip.accent { color: var(--accent); }
-.chip svg.i { width: 14px; height: 14px; }
+.schip.good { color: var(--good); }
+.schip.warn { color: var(--warn); }
+.schip.bad { color: var(--bad); }
+.schip.info { color: var(--info); }
+.schip.accent { color: var(--accent); }
+.schip svg.i { width: 14px; height: 14px; }
 
 /* ---- DS-CMP-CALL: callout ---- */
 .call {
@@ -246,8 +275,181 @@ svg.i.sg { width: 12px; height: 12px; }
 .call.warning { background: color-mix(in srgb, var(--c) 6%, var(--surface)); }
 .call b { color: var(--c); font-weight: 600; }
 
+/* ---- DS-CMP-BTN: buttons (the main window's .btn rules in main.css/dialog.css build on these) ---- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--space-1) + var(--space-0));
+  height: 30px;
+  padding: 0 var(--space-3);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  white-space: nowrap;
+}
+.btn:hover:not(:disabled) { background: var(--surface-2); }
+.btn.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 600;
+}
+.btn.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 92%, var(--fg)); }
+.btn.outline { background: transparent; color: var(--fg); }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--fg); }
+.btn.sm { height: 26px; font-size: var(--text-md); }
+.btn.outline:hover:not(:disabled) { background: var(--surface-2); }
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--space-1) + var(--space-0));
+  min-height: 26px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg);
+  font-size: var(--text-md);
+  white-space: nowrap;
+}
+.link:hover:not(:disabled) { background: var(--surface-2); }
+.link svg.i { width: 16px; height: 16px; }
+/* DS-CMP-KEY-1: keycap hint */
+kbd {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 var(--space-1);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-xs);
+  color: var(--fg-muted);
+  font: var(--text-micro) var(--font-mono), var(--font-script);
+}
+
+/* ---- PRD 0022 RF12.3: the static change marker beside a changed figure ---- */
+.chg {
+  flex: none;
+  align-self: center;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+}
+
+/* ---- DS-CMP-TAB: filter tabs ---- */
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-0);
+  min-width: 0;
+}
+.tab {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 28px;
+  min-width: 32px;
+  padding: 0 var(--space-1);
+  border: var(--border-w) solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: var(--text-base);
+}
+.tab.badged {
+  min-width: 36px;
+}
+.tab.all {
+  gap: calc(var(--space-1) + var(--space-0));
+  padding: 0 var(--space-2);
+  color: var(--fg);
+  font-weight: 500;
+}
+.tab:hover {
+  background: var(--surface-2);
+}
+.tab[aria-selected="true"] {
+  border-color: var(--border);
+  background: var(--surface-2);
+  color: var(--fg);
+}
+.tab .cnt {
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+.tab .tw {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--space-0);
+}
+/* DS-CMP-TAB-2: the state badge sits outside the tile, top right, 2 px apart; it never covers the logo */
+.tab .tst {
+  display: grid;
+  place-items: center;
+  width: 10px;
+  height: 10px;
+  margin-top: -3px;
+}
+.tab .tst svg.i.sg {
+  width: 10px;
+  height: 10px;
+}
+.tab-more {
+  position: relative;
+}
+.tab-more .menu {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  right: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  max-height: 360px;
+  overflow-y: auto;
+  padding: var(--space-1);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.tab-more .menu[hidden] {
+  display: none;
+}
+.tab-more .menu button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 30px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg);
+  text-align: left;
+}
+.tab-more .menu button span {
+  flex: 1;
+}
+.tab-more .menu button[aria-checked="true"] {
+  font-weight: 600;
+}
+.tab-more .menu button:hover {
+  background: var(--surface-2);
+}
+
 /* ---- DS-A11Y-1: one focus ring ---- */
 :where(button, [tabindex], a, input, select, textarea, summary):focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
+}
+/* the dialog itself is not a control: its first control shows the ring */
+dialog:focus-visible {
+  outline: none;
 }

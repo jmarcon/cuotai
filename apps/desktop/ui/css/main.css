@@ -94,23 +94,85 @@
   opacity: 0.55;
 }
 /* PRD 0008 RF3.4: a card with an active usage alert; `.exhausted` keeps its own look. */
-.card.usage-alert {
-  border-color: var(--warn);
-  box-shadow: var(--shadow-card), inset 0 3px 0 var(--warn);
+/* PRD 0022 RF3.5 (DS-TOK-BRD-3): one state stripe at most, critical > warning */
+.card.stripe-bad {
+  box-shadow: var(--shadow-card), inset 3px 0 0 var(--bad);
 }
-/* PRD 0004 RF2.4: elevação sutil no hover/foco (os temas com sombra própria, como Win98 e Tron, mantêm a deles) */
-.card {
-  transition: transform var(--motion-fast) var(--ease-out), box-shadow var(--motion-fast) var(--ease-out);
+.card.stripe-warn {
+  box-shadow: var(--shadow-card), inset 3px 0 0 var(--warn);
 }
-.card:hover,
-.card:focus-within {
-  transform: scale(1.01);
-  box-shadow: var(--shadow), 0 6px 18px color-mix(in srgb, var(--fg) 12%, transparent);
+.card .summary > .stl {
+  margin-top: var(--space-2);
 }
-/* RF2.1: a cor do nível transita (PRD 0022 RF12: only color, at --motion-fast) */
-.win-pct,
-.sum-bar .big {
-  transition: color var(--motion-fast) var(--ease-out);
+.win .fig,
+.sum-bar .fig,
+.sum-none .fig {
+  margin: var(--space-0) 0 calc(var(--space-1) + var(--space-0));
+}
+.win .fig b {
+  font-size: var(--text-figure);
+}
+.sum-bar .fig.big b {
+  font-size: var(--text-hero);
+  line-height: 1;
+}
+.win .fig.wordfig b,
+.sum-bar .fig.wordfig b {
+  font-size: var(--text-lg);
+  line-height: 1.6;
+}
+.win .reset,
+.sum-top .reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-mono), var(--font-script);
+}
+.win .reset svg.i,
+.sum-top .reset svg.i {
+  width: 12px;
+  height: 12px;
+}
+/* PRD 0022 RF3.5: the local cost folded into one disclosure row marked as an estimate */
+.cost-fold {
+  margin-top: var(--space-2);
+  border-top: var(--border-w) solid var(--border);
+}
+.cost-fold > summary {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--space-1) + var(--space-0));
+  min-height: 32px;
+  color: var(--fg-muted);
+  font-size: var(--text-md);
+  cursor: pointer;
+  list-style: none;
+}
+.cost-fold > summary::-webkit-details-marker {
+  display: none;
+}
+.cost-fold > summary::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  margin-left: auto;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+}
+.cost-fold[open] > summary::after {
+  transform: rotate(-135deg);
+}
+.cost-fold > summary svg.i {
+  width: 14px;
+  height: 14px;
+}
+.card-foot .btn.sm {
+  height: 26px;
+  font-size: var(--text-md);
+}
+.card-foot .chg {
+  margin-right: var(--space-1);
 }
 /* RF2.3: conta "Aguardando" — esqueleto com shimmer (só transform; para com a janela escondida e com
    movimento reduzido/desligado, onde --motion-spin é 0) */

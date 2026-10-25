@@ -199,13 +199,17 @@ pub fn dismiss_detected(kind: &str) -> Result<(), &'static str> {
 /// step again to every profile.
 pub const ONBOARDING_VERSION: u64 = 1;
 
-/// PRD 0025 RF4.3: how the tray popover lists the accounts.
+/// PRD 0025 RF4.3 with PRD 0022 RF8.1 (DS-CMP-SHELL-5): the tray view, one
+/// preference. The list is the default; the ring grid ("grid" before PRD
+/// 0022, still read as `Rings`) and the compact list are alternatives.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PopoverView {
     #[default]
-    Grid,
     List,
+    #[serde(alias = "grid")]
+    Rings,
+    Compact,
 }
 
 /// PRD 0025 RF2.2: the menu-bar preferences of this device. `accounts`
@@ -1327,6 +1331,13 @@ mod tests {
         assert!(!read_back.colored);
         assert_eq!(read_back.accounts, Some(vec!["acc_a".to_owned()]));
         assert_eq!(read_back.popover_view, Some(PopoverView::List));
+        // PRD 0022 RF8.1: the 0025 "grid" is the ring grid; the default is the list.
+        let grid = TrayPrefs::from_value(&serde_json::json!({ "popover_view": "grid" }));
+        assert_eq!(grid.popover_view, Some(PopoverView::Rings));
+        let compact = TrayPrefs::from_value(&serde_json::json!({ "popover_view": "compact" }));
+        assert_eq!(compact.popover_view, Some(PopoverView::Compact));
+        assert_eq!(PopoverView::default(), PopoverView::List);
+        assert_eq!(serde_json::to_value(PopoverView::Rings).unwrap(), "rings");
     }
 
     #[test]

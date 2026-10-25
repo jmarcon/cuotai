@@ -1026,5 +1026,10 @@
   "tray.empty": "No accounts yet",
   "tray.filterEmpty": "No account matches this filter.",
   "tray.showAll": "Show all",
-  "row.expand": "{name}: {state}"
+  "row.expand": "{name}: {state}",
+  "live.changed": "{account}: {value}, was {was}",
+  "live.was": "Was {value} before the last refresh",
+  "account.reorderKeys": "Drag to reorder, or press Alt+↑ or Alt+↓",
+  "cost.fold": "Local cost",
+  "cost.estimateChip": "estimate"
 }

@@ -1026,5 +1026,10 @@
   "tray.empty": "Ancora nessun account",
   "tray.filterEmpty": "Nessun account corrisponde a questo filtro.",
   "tray.showAll": "Mostra tutti",
-  "row.expand": "{name}: {state}"
+  "row.expand": "{name}: {state}",
+  "live.changed": "{account}: {value}, era {was}",
+  "live.was": "Era {value} prima dell'ultimo aggiornamento",
+  "account.reorderKeys": "Trascina per riordinare, oppure premi Alt+↑ o Alt+↓",
+  "cost.fold": "Costo locale",
+  "cost.estimateChip": "stima"
 }

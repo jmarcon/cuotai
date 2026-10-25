@@ -1,3 +1,4 @@
+/* Tray popover (PRD 0022; docs/design-system.md DS-CMP-SHELL, HEAD, TAB, ROW, FOOT). */
 html,
 body {
   background: transparent;
@@ -11,194 +12,172 @@ body {
   background: var(--bg);
   overflow: hidden;
 }
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---- header: the filter tabs only (DS-CMP-HEAD-2) ---- */
 .pop-head {
   display: flex;
+  flex: none;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  height: 48px;
+  padding: 0 var(--space-3);
+  border-bottom: var(--border-w) solid var(--border);
   background: var(--surface);
-  border-bottom: 1px solid var(--border);
 }
-.pop-head .back {
-  margin-left: calc(-1 * var(--space-2));
-}
-.pop-title {
-  flex: 1;
+.pop-head h1 {
   min-width: 0;
-}
-.pop-title h1 {
+  overflow: hidden;
   font-size: var(--text-lg);
   font-weight: 650;
-}
-.brand-link {
-  display: inline-flex;
-  align-items: center;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-.brand-link.wordmark {
-  align-items: baseline;
-}
-.brand-link:hover {
-  opacity: 0.8;
-}
-.brand-link:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
-  border-radius: var(--radius-sm);
-}
-.alerts {
-  display: flex;
-  flex: 1 1 0;
-  min-width: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1);
-}
-.alert-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  height: 28px;
-  padding: 0 var(--space-2);
-  border-radius: var(--radius-pill);
-  background: color-mix(in srgb, currentColor 16%, transparent);
-  font-size: var(--text-sm);
-  cursor: help;
-}
-.alert-chip b {
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-.alert-chip svg.i {
-  width: 16px;
-  height: 16px;
-}
-.alert-chip:focus-visible {
-  outline: 2px solid currentColor;
-  outline-offset: 1px;
-}
-.alert-chip.good {
-  color: var(--good);
-}
-.alert-chip.warn {
-  color: var(--warn);
-}
-.alert-chip.bad {
-  color: var(--bad);
-}
-.alert-chip.info {
-  color: var(--info);
-}
-.alert-chip.accent {
-  color: var(--accent);
-}
-.alert-chip.muted {
-  color: var(--fg-muted);
-}
-.pop-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: var(--space-3);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-.empty {
-  padding: calc(var(--space-8) + var(--space-2)) 0;
-  text-align: center;
-  color: var(--fg-muted);
-}
-
-.row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  width: 100%;
-  padding: var(--space-3) var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  text-align: left;
-}
-.row:hover {
-  background: var(--surface-2);
-}
-.row-main {
-  flex: 1;
-  min-width: 0;
-}
-.row-top {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-.row-sub {
-  margin-bottom: calc(var(--space-1) + var(--space-0));
-  overflow: hidden;
+  line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--fg-muted);
-  font-size: var(--text-sm);
 }
-.chev {
-  color: var(--fg-muted);
+.pop-head .back {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  margin-left: calc(-1 * var(--space-1));
+}
+.pop-head .wordmark.sm {
+  flex: none;
+  font-size: var(--text-md);
+  font-weight: 650;
+}
+/* ---- body ---- */
+.pop-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.pop-body > * {
+  min-width: 0;
 }
 
-
-.pop-foot {
+/* ---- DS-CMP-ROW: hairline-separated rows; an expanded row gets a surface ---- */
+.row {
+  flex: none;
+  border-bottom: var(--border-w) solid var(--border);
+}
+.rh {
   display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-3);
-  border-top: 1px solid var(--border);
-  background: var(--surface);
-}
-.foot-actions {
-  display: flex;
-  flex: 0 0 auto;
-  gap: var(--space-0);
-}
-.pop-head .lang-menu {
-  min-width: 200px;
-}
-.link {
-  display: inline-flex;
-  align-items: center;
-  gap: calc(var(--space-1) + var(--space-0));
-  padding: var(--space-1) var(--space-2);
+  min-width: 0;
+  align-items: flex-start;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3);
   border: 0;
-  border-radius: var(--radius-sm);
   background: transparent;
-  font-weight: 600;
+  color: var(--fg);
+  text-align: left;
 }
-.link:hover {
+.rh:hover {
   background: var(--surface-2);
 }
-.link.quit {
-  color: var(--bad);
+.rh:focus-visible {
+  outline-offset: -2px;
+}
+.rc {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: calc(var(--space-1) + var(--space-0));
+  min-width: 0;
+}
+.r1 {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.r1 .nm {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: 22px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.r1 .ac {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  line-height: 22px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.r1 .fig {
+  margin-left: auto;
+}
+.r1 .chg {
+  margin-left: auto;
+}
+.r1 .chg + .fig {
+  margin-left: 0;
+}
+.r1 > svg.chev {
+  flex: none;
+  align-self: center;
+  width: 16px;
+  height: 16px;
+  margin-left: calc(-1 * var(--space-1));
+  color: var(--fg-muted);
+}
+.rm {
+  display: block;
+  margin: var(--space-0) 0;
+}
+.row.open {
+  margin: var(--space-1) var(--space-2);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  overflow: hidden;
+}
+.row.open .rh:hover {
+  background: transparent;
+}
+.rb {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 0 var(--space-3) var(--space-3);
+  user-select: text;
+}
+.acts {
+  display: flex;
+  gap: var(--space-1);
+  margin-left: calc(-1 * var(--space-2));
 }
 
-/* donuts */
+/* ---- Rings view (DS-CMP-SHELL-5, DS-CMP-RING) ---- */
 .tiles {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-2);
+  padding: var(--space-3);
 }
 .tile {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-1);
+  gap: calc(var(--space-1) + var(--space-0));
   min-width: 0;
-  padding: var(--space-3) calc(var(--space-1) + var(--space-0)) var(--space-2);
+  padding: var(--space-3) var(--space-1) var(--space-2);
   border: var(--border-w) solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface);
+  color: var(--fg);
   text-align: center;
 }
 .tile:hover {
@@ -206,43 +185,31 @@ body {
 }
 .donut {
   position: relative;
+  display: grid;
+  place-items: center;
   width: 64px;
   height: 64px;
 }
-.donut svg {
-  width: 100%;
-  height: 100%;
-  transform: rotate(-90deg);
-}
-.donut circle {
-  fill: none;
-  stroke-width: 7;
-}
-.donut .trk {
-  stroke: var(--track);
-}
-.donut .arc {
-  stroke: currentColor;
-  stroke-linecap: round;
-  transition: stroke-dasharray var(--motion-slow) var(--ease-out);
-}
-.donut .center {
+.donut svg.ring {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
-  font-size: var(--text-lg);
+}
+.donut .center {
+  position: relative;
+  font-size: var(--text-base);
   font-weight: 700;
-  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.donut .center .wordc {
+  font-size: var(--text-micro);
 }
 .donut .center svg.i {
   width: 22px;
   height: 22px;
 }
-.donut.info { color: var(--info); }
-.donut.accent { color: var(--accent); }
-.donut.muted,
-.donut.unknown { color: var(--fg-muted); }
+.donut.stale .center {
+  opacity: 0.5;
+}
 .tile-name {
   display: flex;
   align-items: center;
@@ -258,70 +225,160 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.tile-name .logo {
-  flex: none;
-}
-.tile-acct {
+.tile-st {
+  display: flex;
+  align-items: center;
+  gap: var(--space-0);
   max-width: 100%;
-  overflow: hidden;
-  color: var(--fg-muted);
   font-size: var(--text-micro);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.tile-st span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- Compact view (RF8.1): one 44 px line per account ---- */
+.crow {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  height: 44px;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-bottom: var(--border-w) solid var(--border);
+  background: transparent;
+  color: var(--fg);
+  text-align: left;
+}
+.crow:hover {
+  background: var(--surface-2);
+}
+.crow .nm {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.crow .cb {
+  flex: none;
+  width: 72px;
+}
+.crow .fig {
+  min-width: 56px;
+}
+.crow .fig b {
+  font-size: var(--text-base);
+}
+.crow > svg.chev {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--fg-muted);
+}
 
-/* PRD 0003 RF3.4: the next reset notice, above the footer. */
+/* ---- empty, loading ---- */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-8);
+  color: var(--fg-muted);
+  text-align: center;
+}
+.empty-state > svg.i {
+  width: 22px;
+  height: 22px;
+}
+.empty-state p {
+  color: var(--fg);
+}
+/* DS-CMP-STATE-2: static skeleton, no shimmer */
+.skeleton-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4);
+}
+.sk-row {
+  display: block;
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background: var(--track);
+}
+.pop-body > .call {
+  margin: var(--space-3);
+}
+
+/* ---- notice above the footer (DS-CMP-FOOT-4) ---- */
 .pop-notice {
   display: flex;
+  flex: none;
   align-items: center;
   gap: calc(var(--space-1) + var(--space-0));
   margin: 0;
-  padding: calc(var(--space-1) + var(--space-0)) var(--space-3);
-  border-top: 1px solid var(--border);
-  font-size: var(--text-sm);
+  padding: var(--space-1) var(--space-3);
+  border-top: var(--border-w) solid var(--border);
+  background: var(--surface);
   color: var(--fg-muted);
+  font-size: var(--text-sm);
 }
-.pop-notice .i { width: 14px; height: 14px; color: var(--accent); flex: 0 0 auto; }
-.pop-notice span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pop-notice > svg.i {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--accent);
+}
+.pop-notice.bad,
+.pop-notice.bad > svg.i {
+  color: var(--bad);
+}
+.pop-notice span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pop-notice .link {
+  min-width: 0;
+  padding: 0;
+}
 
-/* PRD 0008 RF3.4: an account with an active usage alert (the exhausted tone stays as it is). */
-.row.usage-alert,
-.tile.usage-alert {
-  box-shadow: inset 3px 0 0 var(--warn);
-}
-.row-alert {
+/* ---- footer (DS-CMP-FOOT-1..3) ---- */
+.pop-foot {
   display: flex;
+  flex: none;
   align-items: center;
   gap: var(--space-1);
-  font-size: var(--text-micro);
-  color: var(--warn);
+  height: 44px;
+  padding: 0 var(--space-2);
+  border-top: var(--border-w) solid var(--border);
+  background: var(--surface);
 }
-.row-alert .i { width: 12px; height: 12px; flex: 0 0 auto; }
-.row-alert span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-/* PRD 0011 RF4.2: a provider incident on a row (one line) and on a tile (a bottom stripe in its tone). */
-.row .incident-line {
-  margin: var(--space-0) 0 0;
-  font-size: var(--text-micro);
+.pop-foot .icon {
+  width: 28px;
+  height: 28px;
 }
-.row .incident-line svg.i { width: 12px; height: 12px; }
-.row .incident-line .incident-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tile.incident.bad { box-shadow: inset 0 -3px 0 var(--bad); }
-.tile.incident.warn { box-shadow: inset 0 -3px 0 var(--warn); }
-.tile.incident.info { box-shadow: inset 0 -3px 0 var(--info); }
-.tile.incident.muted { box-shadow: inset 0 -3px 0 var(--fg-muted); }
-.tile.usage-alert.incident.bad { box-shadow: inset 3px 0 0 var(--warn), inset 0 -3px 0 var(--bad); }
-.tile.usage-alert.incident.warn { box-shadow: inset 3px 0 0 var(--warn), inset 0 -3px 0 var(--warn); }
-
+.foot-age {
+  color: var(--fg-muted);
+  font: var(--text-sm) var(--font-mono), var(--font-script);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 /* PRD 0025 RF2.3 (DS-CMP-LIST-3): the accounts left out of the menu bar, under an inset muted label. */
 .pop-sub {
   margin: var(--space-2) var(--space-1) var(--space-1);
   color: var(--fg-muted);
-  font-size: var(--text-sm, 12px);
+  font-size: var(--text-sm);
 }
 /* PRD 0036 RF8.3: the grouped aggregator row of "All" expands in place (DS-CMP-NAV-2); RF8.1/RF8.2: the 9router view. */
 .agg-row .row .chev {
-  transition: transform var(--motion-base, 150ms) ease;
+  transition: transform var(--motion-fast) var(--ease-out);
 }
 .agg-row.open .row .chev {
   transform: rotate(90deg);

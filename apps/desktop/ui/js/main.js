@@ -14,12 +14,15 @@ import {
   fmtNext, ALERTS, overageChipHtml, overageLineHtml, ageHtml, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isBindingMetric, isBlocked, isDesktop, isStaleReading, level, logo, wordmark,
   moveAccount, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
   currentSort, initOrderSync, staleView, configChangedOnDisk, reloadConfig, configLabel, errText, otherConfigNotice, otherConfigBanner, dismissOtherConfig, returnText, splitRecharging,
-  bestChipHtml, cardPace, forecastChipHtml, paceHtml, paceLineLabel, renewedText, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, setPoolAlerts, openAggregatorDashboard, incidentHtml, bindStatusLinks, costUsage, costPlans,
+  accountLabel, isRecharging, resetsText, bestChipHtml, cardPace, forecastChipHtml, renewedText, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, setPoolAlerts, openAggregatorDashboard, incidentHtml, bindStatusLinks, costUsage, paceHtml, paceLineLabel, costPlans,
   openSettingsWindow, bindSettingsShortcut, onSettingsChanged,
 } from "./lib.js";
 import { patch } from "./util.js";
 import { connectionChips, groupsOf, instanceHeadHtml, isAggregator, poolLineHtml, withConnections } from "./aggregator.js";
-import { expectedLeft, meterHtml } from "./components.js";
+import {
+  accountState, announceChanges, changeMarkHtml, clearChange, expectedLeft, figureHtml, fitStatusLines, fmtAt, meterHtml, monograms,
+  repeatedProviders, statusLineHtml, tileHtml, trackChanges,
+} from "./components.js";
 import * as motion from "./motion.js";
 
 await boot();
@@ -50,55 +53,68 @@ async function loadLocalCost() {
 const openCostSettings = () => openSettingsWindow({ page: "cost" });
 const costContext = { summary: () => localCost, onSettings: openCostSettings };
 
-/** Uma janela do card (5h ou semanal). Sem a janela, o espaço continua lá, vazio, para o card manter o tamanho. */
 /** PRD 0022 RF2: the card's continuous meter; `stale` draws the preserved reading (no pace mark). */
 const cardMeter = (m, pct, stale) =>
   meterHtml(pct, { state: stale ? "stale" : m.state === "exhausted" ? "exhausted" : "fresh", expected: expectedLeft(m) });
+/** The reset of a window: the absolute time with the returns glyph, the countdown in the tooltip (DS-MSG-8). */
+const resetHtml = (m) => {
+  const at = fmtAt(m.resets_at);
+  const full = resetsText(m);
+  return at ? `<span class="reset" title="${esc(full ?? "")}">${icon("returns")}${esc(at)}</span>` : `<span class="reset">${full ? esc(full) : `<em>${te("quota.na")}</em>`}</span>`;
+};
+/** One window of the card (5 h or weekly), as a figure block (DS-CMP-ROW-1b: the unit word below the figure,
+ *  left-aligned in the column) over its meter. A missing window keeps its slot with "—" (DS-CMP-CARD-2). */
 function windowSlot(r, name, w, stale = false) {
   const label = te(`card.window.${name}`);
   if (!w) {
     return `<div class="win none" aria-label="${label}"><div class="win-top"><span class="win-name">${label}</span></div>
-      <div class="win-pct dim">—</div>${meterHtml(null, { state: "unknown" })}</div>`;
+      ${figureHtml("—", "", { cls: "left" })}${meterHtml(null, { state: "unknown" })}</div>`;
   }
-  const lv = level(w.pct);
-  const reset = resetsText(w.m);
   const binding = isBindingMetric(r, w.m) ? " binding" : "";
-  return `<div class="win${binding}" title="${esc(w.m.label)}"><div class="win-top"><span class="win-name">${label}</span>
-      <span class="reset">${reset ? esc(reset) : `<em>${te("quota.na")}</em>`}</span></div>
-    <div class="win-pct ${lv}" data-pct="${Math.round(w.pct)}">${Math.round(w.pct)}%</div>
+  const exhausted = w.m.state === "exhausted";
+  return `<div class="win${binding}" title="${esc(w.m.label)}"><div class="win-top"><span class="win-name">${label}</span>${resetHtml(w.m)}</div>
+    ${exhausted ? figureHtml(t("metric.exhausted"), "", { role: "bad", cls: "left wordfig", dim: stale }) : figureHtml(`${Math.round(w.pct)}%`, t("card.available"), { cls: "left", dim: stale })}
     ${cardMeter(w.m, w.pct, stale)}
     <div class="sum-amount">${esc(fmtAmount(w.m))}</div></div>`;
 }
 
-/** Corpo do resumo: janelas de 5h e semanal (a maioria dos provedores); sem nenhuma delas, a quota mais apertada
- *  (ou o texto de uma métrica sem limite, ou o motivo de não haver). */
+/** Summary: the 5 h and weekly windows (most providers); without them, the tightest quota (or the text of an
+ *  uncapped metric, a renewed window waiting for its reading, or the reason there is none). */
 function summaryHtml(r, stale = false) {
   const win = windowsOf(r);
   if (win.h5 || win.week) return `<div class="wins">${windowSlot(r, "h5", win.h5, stale)}${windowSlot(r, "week", win.week, stale)}</div>`;
   const s = summaryOf(r);
   if (s.kind === "bar") {
-    const lv = level(s.pct);
-    const reset = resetsText(s.m);
+    const exhausted = s.m.state === "exhausted";
     return `<div class="sum-bar${isBindingMetric(r, s.m) ? " binding" : ""}">
-      <b class="big ${lv}" data-pct="${Math.round(s.pct)}">${Math.round(s.pct)}%<small>${te("card.available")}</small></b>
+      ${exhausted ? figureHtml(t("metric.exhausted"), "", { role: "bad", cls: "left wordfig big", dim: stale }) : figureHtml(`${Math.round(s.pct)}%`, t("card.available"), { cls: "left big", dim: stale })}
       <div class="sum-meter">
-        <div class="sum-top"><span class="lt" title="${esc(s.m.label)}">${esc(s.m.label)}</span><span class="reset">${reset ? esc(reset) : `<em>${te("quota.na")}</em>`}</span></div>
+        <div class="sum-top"><span class="lt" title="${esc(s.m.label)}">${esc(s.m.label)}</span>${resetHtml(s.m)}</div>
         ${cardMeter(s.m, s.pct, stale)}
         <div class="sum-amount">${esc(fmtAmount(s.m))}</div>
       </div></div>`;
   }
   if (s.kind === "text") {
-    const reset = resetsText(s.m);
     return `<div class="sum-text">
-      <div class="sum-top"><span class="lt" title="${esc(s.m.label)}">${esc(s.m.label)}</span><span class="reset">${reset ? esc(reset) : ""}</span></div>
+      <div class="sum-top"><span class="lt" title="${esc(s.m.label)}">${esc(s.m.label)}</span>${s.m.resets_at ? resetHtml(s.m) : ""}</div>
       <div class="balance ${s.m.state === "exhausted" ? "bad" : ""}">${esc(s.text)}</div></div>`;
   }
   if (s.kind === "hidden") return `<p class="sum-note dim">${te("card.allHidden")}</p>`;
   if (s.kind === "renewed") return `<p class="sum-note" data-renewed-waiting>${icon("clock")}<span>${esc(renewedText(s.m))}</span></p>`;
-  return `<p class="sum-note">${esc(causeText(r))}</p>`;
+  return `<div class="sum-none">${figureHtml("—", "", { cls: "left" })}${meterHtml(null, { state: "unknown" })}<p class="sum-note">${esc(causeText(r))}</p></div>`;
 }
 
-function card(r, position, ordered, recharging = false, { connection = false } = {}) {
+/** PRD 0022 RF3.5 (DS-TOK-BRD-3): one state stripe at most: critical > warning. */
+const stripeOf = (r, alert) => (alert?.tone === "bad" || isRecharging(r) ? "stripe-bad" : r.usage_alerts?.length ? "stripe-warn" : "");
+
+/** The pace forecast and the best-account advice (PRD 0024) as chips under the status line. */
+function adviceChips(r) {
+  const m = cardPace(r);
+  const html = (m ? forecastChipHtml(m) : "") + bestChipHtml(r);
+  return html ? `<div class="card-chips">${html}</div>` : "";
+}
+
+function card(r, ctx, recharging = false, { connection = false } = {}) {
   const index = r.index;
   const key = reportKey(r);
   // PRD 0036 RF8.4: a 9router connection has no switch of its own (it belongs to 9router), no reordering, and is
@@ -108,62 +124,65 @@ function card(r, position, ordered, recharging = false, { connection = false } =
   // PRD 0010 RF3.2: a failure with a preserved reading draws the old metrics, dimmed and still, plus the cause.
   const stale = isStaleReading(r);
   const n = (stale ? r.last_good.metrics : r.metrics).length;
-  const custom = !connection && currentSort() === "custom" && !filterText.trim(); // com filtro, os vizinhos visíveis não são os da ordem real
-  const reorderButtons = custom ? [[-1, "↑"], [1, "↓"]].map(([delta, symbol]) => {
-    const target = ordered[position + delta];
-    const label = `${te("account.reorder")} ${symbol}`;
-    return `<button class="icon move" title="${esc(label)}" aria-label="${esc(label)}" data-move-from="${index}" data-move-to="${target?.index ?? index}" ${!target || reorderPending ? "disabled" : ""}>${symbol}</button>`;
-  }).join("") : "";
-  // Próxima consulta desta conta (contagem regressiva atualizada a cada segundo, sem redesenhar a tela).
-  const nextChip = isBusy
-    ? `<span class="next"><span class="nt">${te("card.refreshing")}</span></span>`
-    : r.next_refresh_at_ms
-      ? `<span class="next" data-next-at="${r.next_refresh_at_ms}" title="${te("card.nextRefresh", { time: fmtNext(r.next_refresh_at_ms) })}">${icon("clock")}<span class="nt">${esc(fmtNext(r.next_refresh_at_ms))}</span></span>`
-      : "";
+  const custom = !connection && currentSort() === "custom" && !filterText.trim(); // with a filter, the visible neighbors are not the real order
   const alert = alertOf(r);
   const rate = rateLimitOf(r);
-  const rateChip = rate != null && level(rate) !== "good"
-    ? `<span class="mini ${level(rate)}" title="${te("card.rateLimit", { pct: Math.round(rate) })}">${icon("gauge")}${Math.round(rate)}%</span>` : "";
   // PRD 0032 RF8.2: a level crossed while Cuotai was closed (no notice was sent); gone once the details are opened.
   const missedLevel = Math.max(0, ...r.metrics.map((m) => m.alert?.missed ?? 0));
-  const missedChip = missedLevel ? `<span class="mini info" data-missed-chip title="${te("alerts.missed", { percent: missedLevel })}">${icon("clock")}<span class="mini-t">${te("alerts.missedChip")}</span></span>` : "";
-  const alertChip = alert ? `<span class="mini ${alert.tone}" title="${esc(alert.label(r))}">${icon(alert.icon)}<span class="mini-t">${esc(alert.label(r))}</span></span>` : "";
-  // PRD 0009 RF2.2: the core's binding window next to the state ("Week · 100%"); an emphasis, the other metrics stay.
-  const bindingTitle = blockedText(r) ?? t("card.binding.title");
-  const bindingChip = r.status === "ready" && r.binding
-    ? `<span class="mini binding ${isBlocked(r) ? "bad" : level(100 - r.binding.used_ratio * 100)}" data-binding-chip title="${esc(bindingTitle)}" aria-label="${esc(`${bindingTitle}: ${bindingChipText(r)}`)}">${esc(bindingChipText(r))}</span>` : "";
-  // PRD 0016 RF3.2: the core's "expires in N days" of the web session the query used (only the date is known).
-  const expiry = r.session_expiry;
-  const expiryChip = expiry
-    ? `<span class="mini ${expiry.soon ? "warn" : ""}" data-session-expiry title="${esc(tl(expiry.label))}">${icon("clock")}<span class="mini-t">${esc(tl(expiry.label))}</span></span>` : "";
-  // PRD 0008 RF3.4: an active usage alert highlights the card; the exhausted state keeps its own class.
-  return `<section class="card ${on ? "" : "off"} ${alert?.id === "exhausted" ? "exhausted" : ""} ${r.usage_alerts?.length ? "usage-alert" : ""}" data-card="${esc(key)}">
+  // DS-CMP-CARD-3: at most four chips in the foot; the rest lives in the details dialog.
+  const chips = [
+    connection ? connectionChips(r) : "",
+    recharging ? `<span class="mini bad" data-return>${icon("clock")}<span class="mini-t">${esc(returnText(r))}</span></span>` : "",
+    stale ? "" : overageChipHtml(r),
+    missedLevel ? `<span class="mini info" data-missed-chip title="${te("alerts.missed", { percent: missedLevel })}">${icon("clock")}<span class="mini-t">${te("alerts.missedChip")}</span></span>` : "",
+    r.session_expiry ? `<span class="mini ${r.session_expiry.soon ? "warn" : ""}" data-session-expiry title="${esc(tl(r.session_expiry.label))}">${icon("clock")}<span class="mini-t">${esc(tl(r.session_expiry.label))}</span></span>` : "",
+    rate != null && level(rate) !== "good" ? `<span class="mini ${level(rate)}" title="${te("card.rateLimit", { pct: Math.round(rate) })}">${icon("gauge")}${Math.round(rate)}%</span>` : "",
+    (r.status === "ready" && r.freshness !== "fresh") || stale ? ageHtml(r) : "",
+    isBusy ? `<span class="next"><span class="nt">${te("card.refreshing")}</span></span>` : "",
+  ].filter(Boolean);
+  const counts = [n ? `<span class="count">${te("quota.count", { count: n })}</span>` : "",
+    r.model_count != null ? `<span class="count">${r.model_count ? te("card.modelCount", { count: r.model_count }) : te("card.noModels")}</span>` : ""].filter(Boolean);
+  const foot = [...counts, ...chips].slice(0, 4 + counts.length).join("");
+  // DS-CMP-ROW-1/CARD-1: with several accounts of a provider the account label is the title, the provider below.
+  const repeated = ctx.repeated.has(r.provider);
+  const title = repeated ? accountLabel(r) : brand(r.provider).label;
+  const sub = repeated ? brand(r.provider).label : accountLabel(r);
+  const st = accountState(r);
+  const refreshName = isBusy ? te("tray.refreshing") : te("common.refresh");
+  return `<section class="card ${on ? "" : "off"} ${alert?.id === "exhausted" ? "exhausted" : ""} ${stripeOf(r, alert)}" data-card="${esc(key)}">
     <div class="card-head">
-      ${custom ? `<button class="icon grip" draggable="${!reorderPending}" data-grip="${esc(key)}" title="${te("account.reorder")}" aria-label="${te("account.reorder")}">${icon("grip")}</button>` : ""}
-      ${logo(r.provider)}
-      <div class="who"><h2 title="${esc(brand(r.provider).label)}">${esc(brand(r.provider).label)}</h2><p title="${esc(r.account)}">${esc(r.account)}</p></div>
+      ${custom ? `<button class="icon grip" draggable="${!reorderPending}" data-grip="${esc(key)}" title="${te("account.reorderKeys")}" aria-label="${te("account.reorder")}" aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown">${icon("grip")}</button>` : ""}
+      ${tileHtml(r.provider, 40, ctx.monos.get(key) ?? "")}
+      <div class="who"><h2 title="${esc(title)}">${esc(title)}</h2>${sub ? `<p title="${esc(sub)}">${esc(sub)}</p>` : ""}</div>
       <div class="actions">
-        ${connection ? "" : `<button class="icon" title="${te("common.refresh")}" data-refresh="${index}" ${!on || isBusy ? "disabled" : ""}>${icon("refresh", isBusy ? "spin" : "")}</button>`}
+        ${connection ? "" : `<button class="icon" title="${refreshName}" aria-label="${refreshName}" data-refresh="${index}" ${!on || isBusy ? "disabled" : ""} ${isBusy ? 'aria-busy="true"' : ""}>${icon("refresh", isBusy ? "spin" : "")}</button>`}
         ${bellHtml(store.view, r)}
-        <button class="icon" title="${te("card.details")}" aria-label="${te("card.details")}" data-details="${esc(key)}">${icon("search")}</button>
-        ${connection ? "" : `<button class="switch ${on ? "on" : ""}" role="switch" aria-checked="${on}" title="${te(on ? "account.disable" : "account.enable")}" data-toggle="${esc(key)}"><span></span></button>`}
+        ${connection ? "" : `<button class="switch ${on ? "on" : ""}" role="switch" aria-checked="${on}" aria-label="${te(on ? "account.disable" : "account.enable")}" title="${te(on ? "account.disable" : "account.enable")}" data-toggle="${esc(key)}"><span></span></button>`}
       </div>
     </div>
     <div class="summary">${stale
       ? `<div class="stale-reading">${summaryHtml(staleView(r), true)}</div><p class="sum-note cause">${icon("warn")}<span>${esc(causeText(r))}</span></p>`
-      : summaryHtml(r)}${pasteSessionHtml(r)}${paceLine(r)}${stale ? "" : overageLineHtml(r)}${incidentHtml(r)}${accessHtml(r)}${costCardHtml(sourceFor(localCost, r.provider), localCost)}</div>
-    <div class="card-foot">
-      ${connection ? connectionChips(r) : ""}${n ? `<span class="count">${te("quota.count", { count: n })}</span>` : ""}${r.model_count != null ? `<span class="count">${r.model_count ? te("card.modelCount", { count: r.model_count }) : te("card.noModels")}</span>` : ""}${rateChip}${alertChip}${missedChip}${bindingChip}${stale ? "" : overageChipHtml(r)}${expiryChip}${recharging ? `<span class="mini bad" data-return>${icon("clock")}<span class="mini-t">${esc(returnText(r))}</span></span>` : ""}${ageHtml(r)}${nextChip}
-      <span class="grow"></span>${reorderButtons ? `<span class="moves">${reorderButtons}</span>` : ""}
+      : summaryHtml(r)}${pasteSessionHtml(r)}${statusLineHtml(r, st)}${adviceChips(r)}${stale ? "" : overageLineHtml(r)}${incidentHtml(r)}${accessHtml(r)}${costFoldHtml(r)}</div>
+    <div class="card-foot">${foot}<span class="grow"></span>
+      ${changeMarkHtml(key)}<button class="btn ghost sm" data-details="${esc(key)}">${te("card.details")}</button>
     </div>
   </section>`;
+}
+
+/** PRD 0022 RF3.5: the account's local cost folded into one disclosure row marked as an estimate. */
+const costOpen = new Set();
+function costFoldHtml(r) {
+  const html = costCardHtml(sourceFor(localCost, r.provider), localCost);
+  if (!html) return "";
+  const key = reportKey(r);
+  return `<details class="cost-fold" data-cost-fold="${esc(key)}" ${costOpen.has(key) ? "open" : ""}><summary>${icon("dollar")}<span>${te("cost.fold")}</span><span class="schip">${te("cost.estimateChip")}</span></summary>${html}</details>`;
 }
 
 /** PRD 0036 RF8.4: one section per aggregator below the direct accounts: the instance's header (micro label, hint,
  *  refresh, bell, details and "Open dashboard"), its state when the instance failed, then the connection cards
  *  grouped by upstream under each pool's core sentence. A filter that does not match the instance keeps only the
  *  matching connections. */
-function aggregatorSection(r) {
+function aggregatorSection(r, ctx) {
   const key = reportKey(r);
   const isBusy = busy(r.index);
   const q = norm(filterText.trim());
@@ -185,19 +204,13 @@ function aggregatorSection(r) {
     ${groups.length ? "" : `<p class="sum-note dim">${te("agg.none")}</p>`}
     ${groups.map((g) => `<div class="agg-group" data-upstream="${esc(g.upstream)}">
       ${g.pool ? poolLineHtml(g.pool) : `<p class="agg-pool">${esc(g.name)}</p>`}
-      <div class="grid">${g.items.map((c, position) => card(c, position, g.items, false, { connection: true })).join("")}</div></div>`).join("")}
+      <div class="grid">${g.items.map((c) => card(c, ctx, false, { connection: true })).join("")}</div></div>`).join("")}
   </section>`;
 }
 
 /** SES-01: the core says the account's vault session was rejected: the cause line gets its one recovery action. */
 const pasteSessionHtml = (r) => r.paste_session
   ? `<button type="button" class="btn" data-paste-session="${r.index}">${icon("edit")}<span>${te("card.pasteSession")}</span></button>` : "";
-
-/** PRD 0007 RF3.2: one short pace line for the core's most restrictive metric that has one ("Week: 8 points…"). */
-function paceLine(r) {
-  const m = cardPace(r);
-  return (m ? paceHtml(m.pace, { label: paceLineLabel(r, m) }) + forecastChipHtml(m) : "") + bestChipHtml(r);
-}
 
 /** Conta ainda sem relatório ("Aguardando"): esqueleto com shimmer até os dados chegarem (RF2.3). */
 const skeleton = (index) => `<section class="card skeleton" data-card="skeleton:${index}" aria-busy="true">
@@ -208,9 +221,9 @@ const skeleton = (index) => `<section class="card skeleton" data-card="skeleton:
 // PRD 0010 RF4.1: exhausted or blocked accounts in a native, keyboard-operable <details>; the open state survives
 // `patch` because it is rendered from here and updated by the `toggle` listener.
 let rechargingOpen = true;
-const rechargingGroup = (list) => `<details class="recharging" data-recharging ${rechargingOpen ? "open" : ""}>
+const rechargingGroup = (list, ctx) => `<details class="recharging" data-recharging ${rechargingOpen ? "open" : ""}>
     <summary>${icon("battery")}<span>${te("group.recharging")}</span><span class="count">${list.length}</span></summary>
-    <div class="grid">${list.map((r, position) => card(r, position, list, true)).join("")}</div></details>`;
+    <div class="grid">${list.map((r) => card(r, ctx, true)).join("")}</div></details>`;
 
 // Filtro por texto (nome do provedor, da conta, e-mail): sem acentos e sem diferenciar maiúsculas.
 let filterText = "";
@@ -381,6 +394,8 @@ function render() {
   // "Aguardando": contas da configuração que ainda não têm relatório (só antes da primeira resposta de cada uma).
   const have = new Set(reports.map((r) => r.index));
   const waiting = view && !filterText.trim() ? [...Array(view.account_count).keys()].filter((i) => !have.has(i)) : [];
+  trackChanges(view);
+  const ctx = { repeated: repeatedProviders(reports.filter((r) => !disabled.has(reportKey(r)) && !isAggregator(r))), monos: monograms(reports) };
   const prev = motion.before(root);
   const statsPage = page === "stats" && !!view?.loaded;
   const hostFocus = statsPage ? [statsMount?.focused(), timelineMount?.focused()] : [];
@@ -420,9 +435,9 @@ function render() {
     ${statsPage ? `<main class="stats-page" data-stats-page>
       <div class="stats-back"><button type="button" class="btn" data-stats-back>${icon("back")}<span>${te("stats.back")}</span></button></div>
       <div data-timeline-slot></div><div data-stats-slot></div></main>`
-    : `<main class="grid">${rest.map((report, position) => card(report, position, rest)).join("")}${waiting.map(skeleton).join("")}${solo.map((s) => costSoloCardHtml(s, localCost)).join("")}</main>
-    ${recharging.length ? rechargingGroup(recharging) : ""}
-    ${aggregators.map(aggregatorSection).join("")}`}</div>`);
+    : `<main class="grid">${rest.map((report) => card(report, ctx)).join("")}${waiting.map(skeleton).join("")}${solo.map((s) => costSoloCardHtml(s, localCost)).join("")}</main>
+    ${recharging.length ? rechargingGroup(recharging, ctx) : ""}
+    ${aggregators.map((r) => aggregatorSection(r, ctx)).join("")}`}</div>`);
   if (statsPage) {
     // The mounts survive the redraw: patch drops them from the slots, so they are put back (with their focus).
     timelineMount.update(view);
@@ -431,6 +446,8 @@ function render() {
     statsMount.attach(root.querySelector("[data-stats-slot]"), hostFocus[0]);
   }
   motion.after(root, prev);
+  fitStatusLines(root);
+  announceChanges();
 }
 
 root.addEventListener("click", (e) => {
@@ -464,6 +481,7 @@ root.addEventListener("click", (e) => {
   const costDetails = t.closest("[data-cost-details]");
   if (costDetails) return openCostDetails(costDetails.dataset.costDetails, costContext, costDetails.closest("[data-card]"));
   const det = t.closest("[data-details]");
+  if (det) clearChange(det.dataset.details);
   if (det) return openDetails(det.dataset.details, detailsContext, det.closest("[data-card]"));
   const bell = t.closest("[data-bell]");
   if (bell) return toggleBell(bell.dataset.bell, bell.dataset.bellOn !== "true");
@@ -551,7 +569,11 @@ root.addEventListener("input", (e) => {
 root.addEventListener("keydown", (e) => {
   if (e.target.id === "filter" && e.key === "Escape" && filterText) { e.preventDefault(); filterText = ""; render(); }
 });
-root.addEventListener("toggle", (e) => { if (e.target.matches?.("[data-recharging]")) rechargingOpen = e.target.open; }, true);
+root.addEventListener("toggle", (e) => {
+  if (e.target.matches?.("[data-recharging]")) rechargingOpen = e.target.open;
+  const fold = e.target.dataset?.costFold;
+  if (fold) e.target.open ? costOpen.add(fold) : costOpen.delete(fold);
+}, true);
 // Esc leaves the Stats view (DS-CMP-STATS-1), unless a dialog or a field has it.
 addEventListener("keydown", (e) => {
   if (e.key !== "Escape" || page !== "stats" || e.defaultPrevented || document.querySelector("dialog[open]")) return;

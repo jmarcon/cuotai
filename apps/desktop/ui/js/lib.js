@@ -1103,7 +1103,7 @@ const demoView = () => {
     status: { enabled: demoSettings.statusQueries, domains: [...new Set(demoReports.map((r) => DEMO_STATUS_HOSTS[r.provider]).filter(Boolean))],
       outage: reports.some((r) => ["partial_outage", "major_outage"].includes(r.incident?.state)) },
     serve: demoServeView(), hooks: { state: demoHooks.enabled ? demoHooksView().state : "off" },
-    tray: { style: demoSettings.tray.style, selected: demoTraySelection().map((a) => a.key), popover_view: demoSettings.tray.popover_view ?? "grid" } };
+    tray: { style: demoSettings.tray.style, selected: demoTraySelection().map((a) => a.key), popover_view: demoSettings.tray.popover_view ?? "list" } };
 };
 // ponytail: a rough demo of the core's `tray::summary` (PRD 0025 RF1); the app always asks the core.
 const demoTrayAccounts = () => demoReports.map((r) => {
@@ -1767,6 +1767,7 @@ const demo = {
   tray_accounts: async () => demoTrayAccounts(),
   set_tray_prefs: async ({ style, colored, accounts, popoverView: popover_view }) => {
     if (!["meters", "logos_percent", "tightest_percent", "icon_only"].includes(style)) throw "invalid_tray_style";
+    if (popover_view != null && !["list", "rings", "compact", "grid"].includes(popover_view)) throw "invalid_popover_view";
     demoSettings.tray = { style, colored, accounts: accounts ?? null, popover_view: popover_view ?? null };
   },
   set_advanced_open: async ({ open }) => { demoSettings.advancedOpen = open; },
@@ -2049,6 +2050,44 @@ let groupRecharging = get(GROUP_KEY, "off") === "on";
 export const groupingRecharging = () => groupRecharging;
 export const setGroupRecharging = (on) => { groupRecharging = on; setPreference("group_recharging", !!on).catch(() => {}); };
 /** [others, recharging] in the order already chosen; with grouping off, everything stays in the first list. */
+// PRD 0022 RF8.1 (DS-CMP-SHELL-5) with PRD 0025 RF4.3: the tray view is ONE preference, `tray.popover_view` in
+// desktop.json: "list" (the default), "rings" or "compact". The 0025 value "grid" is the ring grid, so it reads as
+// "rings"; the copy an older version kept in localStorage ("donut" or "list") moves there once.
+const TRAY_VIEW_KEY = "cuotai.trayView";
+export const TRAY_VIEWS = ["list", "rings", "compact"];
+export const trayViewOf = (v) => (v === "grid" || v === "donut" ? "rings" : TRAY_VIEWS.includes(v) ? v : "list");
+let trayView = "list";
+const trayViewListeners = new Set();
+export const trayViewPref = () => trayView;
+export const onTrayViewChange = (cb) => trayViewListeners.add(cb);
+function followTrayView(v) {
+  const next = trayViewOf(v);
+  if (next === trayView) return;
+  trayView = next;
+  trayViewListeners.forEach((f) => f());
+}
+/** Saves the view with the rest of the menu-bar preferences (one `set_tray_prefs`, which tells every window). */
+export async function setTrayView(v) {
+  if (!TRAY_VIEWS.includes(v)) return;
+  const s = await getSettings();
+  const tray = s.tray ?? {};
+  await setTrayPrefs({ style: tray.style ?? "tightest_percent", colored: !!tray.colored, accounts: tray.accounts ?? null, popoverView: v });
+  followTrayView(v);
+  if (!isDesktop) emitSettingsChanged("tray");
+}
+/** Reads the stored view (running the one-time localStorage move) and follows later changes from any window. */
+export async function initTrayView() {
+  let legacy = null;
+  try { legacy = localStorage.getItem(TRAY_VIEW_KEY); } catch {}
+  try {
+    const s = await getSettings();
+    if (s.tray?.popover_view) followTrayView(s.tray.popover_view);
+    else if (legacy) await setTrayView(legacy === "list" ? "list" : "rings");
+    try { localStorage.removeItem(TRAY_VIEW_KEY); } catch {}
+  } catch {}
+  if (isDesktop) T.event.listen("tray-prefs-changed", (e) => followTrayView(e.payload?.popover_view));
+  onSettingsChanged((key) => { if (key === "tray" || !key) getSettings().then((s) => followTrayView(s.tray?.popover_view), () => {}); });
+}
 export const splitRecharging = (list) => (groupRecharging ? [list.filter((r) => !isRecharging(r)), list.filter(isRecharging)] : [list, []]);
 // PRD 0007 RF3.4: consumption pace, on by default; `desktop.json` is the source, localStorage mirrors it for windows.
 const PACE_KEY = "cuotai.pace";

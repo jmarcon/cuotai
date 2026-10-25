@@ -5,7 +5,7 @@
 // the core (`tl`) or from the UI catalogs.
 import { t, te, tl } from "./i18n.js";
 import {
-  ALERTS, bindingPct, blockedText, brand, esc, fmtAge, icon, incidentBadge, isBlocked, isStaleReading, level, logo, paceOf, reportKey,
+  ALERTS, bindingPct, brand, esc, fmtAge, icon, incidentBadge, isBlocked, isStaleReading, level, logo, paceOf, reportKey,
   shownAt, staleView, statusLabel, summaryOf,
 } from "./lib.js";
 import { currentLocale } from "./i18n.js";
@@ -191,7 +191,7 @@ export function statusParts(r, st = accountState(r)) {
   } else if (st.kind === "status") {
     label = statusLabel(r.status);
   } else if (st.kind === "exhausted") {
-    label = blockedText(r) ? t("metric.exhausted") : t("tray.cat.exhausted");
+    label = t("tray.cat.exhausted"); // the figure already reads "Exhausted"; the reset carries the return time
     role = "bad";
     reset = isBlocked(r) ? r.binding.blocked_until : binding?.resets_at ?? null;
   } else if (pace) {
@@ -221,7 +221,7 @@ export function statusLineHtml(r, st = accountState(r), { glyph = true } = {}) {
   const lbl = p.label ? `<span class="lbl ${p.role}">${esc(p.label)}</span>` : "";
   const det = p.detail ? `<span class="det">· ${esc(p.detail)}</span>` : "";
   const rst = p.reset ? `<span class="rst" title="${esc(p.resetFull)}">${icon("returns")}<span>${esc(p.reset)}</span></span>` : "";
-  return `<div class="stl" title="${esc(p.full)}"><span class="stl-l">${glyph ? stateGlyph(st) : ""}${lbl}${det}</span>${rst}</div>`;
+  return `<span class="stl" title="${esc(p.full)}"><span class="stl-l">${glyph ? stateGlyph(st) : ""}${lbl}${det}</span>${rst}</span>`;
 }
 
 /**
@@ -257,6 +257,178 @@ export function fitStatusLines(root) {
   }
 }
 
-/** Visually hidden live region (DS-A11Y-3): one per window, polite. */
-export const liveRegionHtml = () => `<div class="sr-only" role="status" aria-live="polite" data-live></div>`;
+
+// ---------- PRD 0022 RF12.3 / RF13.4: the static change marker and the polite announcement ----------
+// A refresh is identified by the view's `finished_at`. When a figure or level changed against the previous
+// refresh, the account gets a static marker (an accent dot beside the figure, the previous value in its tooltip)
+// until the next refresh or until the user opens it, and the window's live region announces the changes once.
+let seenRefresh = null;
+let previous = new Map(); // key → { pct, role, name }
+const changes = new Map(); // key → previous { pct, role, name }
+let pendingAnnouncement = "";
+const snapshot = (reports) => new Map(reports.map((r) => {
+  const st = accountState(r);
+  return [reportKey(r), { pct: st.pct == null ? null : Math.round(st.pct), role: st.role, name: figureOf(r, st).fig, label: r.account }];
+}));
+/** Compares this view with the previous completed refresh; call before rendering. */
+export function trackChanges(view) {
+  if (!view?.finished_at || view.finished_at === seenRefresh) return;
+  const now = snapshot(view.reports ?? []);
+  changes.clear();
+  const lines = [];
+  if (seenRefresh != null) {
+    for (const [key, cur] of now) {
+      const old = previous.get(key);
+      if (!old || (old.pct === cur.pct && old.role === cur.role && old.name === cur.name)) continue;
+      changes.set(key, old);
+      const r = view.reports.find((x) => reportKey(x) === key);
+      const was = old.pct != null ? `${old.pct}%` : old.name;
+      const value = cur.pct != null ? t("meter.left", { pct: cur.pct }) : cur.name;
+      lines.push(t("live.changed", { account: `${brand(r.provider).label} · ${r.account}`, value, was }));
+    }
+  }
+  pendingAnnouncement = lines.join(". ");
+  seenRefresh = view.finished_at;
+  previous = now;
+}
+/** The previous value when `key` changed in the last refresh (and was not opened since), else null. */
+export const changeOf = (key) => changes.get(key) ?? null;
+export const clearChange = (key) => changes.delete(key);
+/** The marker beside a changed figure (decorative; the change is in the live region and the tooltip). */
+export const changeMarkHtml = (key) => {
+  const old = changeOf(key);
+  if (!old) return "";
+  const was = old.pct != null ? `${old.pct}%` : old.name;
+  return `<i class="chg" aria-hidden="true" title="${esc(t("live.was", { value: was }))}"></i>`;
+};
+/** The window's one polite live region, outside the re-rendered root so assistive technology keeps it. */
+function liveRegion() {
+  let live = document.getElementById?.("cuotai-live");
+  if (!live && document.body?.append) {
+    live = document.createElement("div");
+    live.id = "cuotai-live";
+    live.className = "sr-only";
+    live.setAttribute("role", "status");
+    live.setAttribute("aria-live", "polite");
+    document.body.append(live);
+  }
+  return live;
+}
+/** Writes the pending announcement into the window's live region once per refresh (DS-A11Y-3). */
+export function announceChanges() {
+  if (!pendingAnnouncement) return;
+  const live = liveRegion();
+  if (!live) return;
+  live.textContent = pendingAnnouncement;
+  pendingAnnouncement = "";
+}
 export { te };
+
+// ---------- DS-CMP-TAB: filter tabs (tray header and main topbar) ----------
+/** The tightest binding share among the listed accounts (exhausted counts as 0), or null. */
+export function worstShare(reports) {
+  let min = null;
+  for (const r of reports) {
+    const st = accountState(r);
+    if (st.kind === "pct" || st.kind === "exhausted") min = min == null ? st.pct : Math.min(min, st.pct);
+  }
+  return min;
+}
+
+/** Filter tabs (DS-CMP-TAB-1..5): "All" with the tightest ring and the count, then one icon tab per provider. */
+export function filterTabsHtml(reports, { selected: filter = "all", moreOpen = false, maxTabs = 6 } = {}) {
+  const providers = [];
+  for (const r of reports) if (!providers.includes(r.provider)) providers.push(r.provider);
+  const ring = worstShare(reports);
+  const allName = ring == null ? t("tabs.allAriaNoPct", { count: reports.length }) : t("tabs.allAria", { count: reports.length, pct: Math.round(ring) });
+  const tab = (id, inner, name, extra = "") =>
+    `<button class="tab${extra}" role="tab" data-tab="${esc(id)}" aria-selected="${filter === id}" tabindex="${filter === id ? 0 : -1}" aria-label="${esc(name)}" title="${esc(name)}">${inner}</button>`;
+  const all = tab("all", `${ringHtml(ring == null ? "unknown" : "pct", ring, 16)}<span>${te("tabs.all")}</span><span class="cnt">${reports.length}</span>`, allName, " all");
+  const providerTab = (p) => {
+    const list = reports.filter((r) => r.provider === p);
+    const attention = list.filter((r) => needsAttention(r));
+    const worst = attention.length ? worstState(attention) : null;
+    let name = t("tabs.provider", { provider: brand(p).label, count: list.length });
+    if (worst) name = t("tabs.attention", { name, state: statusParts(attention.find((r) => accountState(r).kind === worst.kind) ?? attention[0]).label });
+    const badge = worst ? `<i class="tst" aria-hidden="true">${stateGlyph(worst, 10)}</i>` : "";
+    return tab(p, `<span class="tw">${tileHtml(p, 20)}${badge}</span>${list.length > 1 ? `<span class="cnt">${list.length}</span>` : ""}`, name, badge ? " badged" : "");
+  };
+  const overflow = providers.length > maxTabs + 1;
+  const shown = overflow ? providers.slice(0, maxTabs) : providers;
+  const rest = overflow ? providers.slice(maxTabs) : [];
+  const restSelected = rest.includes(filter);
+  const more = rest.length ? `<span class="tab-more">
+      <button class="tab" data-more aria-haspopup="menu" aria-expanded="${moreOpen}" aria-selected="${restSelected}" aria-label="${te("tabs.more")}" title="${te("tabs.more")}">${restSelected ? tileHtml(filter, 20) : icon("more")}</button>
+      <span class="menu" role="menu" ${moreOpen ? "" : "hidden"}>${rest.map((p) => `<button role="menuitemradio" aria-checked="${filter === p}" data-tab="${esc(p)}">${tileHtml(p, 16)}<span>${esc(brand(p).label)}</span>${filter === p ? icon("tick") : ""}</button>`).join("")}</span>
+    </span>` : "";
+  return `<div class="tabs" role="tablist" aria-label="${te("tabs.label")}">${all}${shown.map(providerTab).join("")}${more}</div>`;
+}
+
+// ---------- DS-CMP-ROW: the account row (tray list, previews) ----------
+/** The figure of an account (DS-CMP-ROW-1a/-2): neutral "22%" with "left" below; a word in its role otherwise. */
+export function figureOf(r, st = accountState(r)) {
+  if (st.kind === "status") return { fig: statusLabel(r.status), unit: "", role: st.role, word: true };
+  if (st.kind === "exhausted") return { fig: t("metric.exhausted"), unit: "", role: "bad", word: true };
+  if (st.pct != null) return { fig: `${Math.round(st.pct)}%`, unit: t("card.available"), role: "", dim: st.kind === "stale" };
+  const s = summaryOf(r);
+  if (s.kind === "text") return { fig: s.text, unit: "", role: "", word: true };
+  return { fig: "—", unit: "", role: "" };
+}
+const INCIDENT_ROLE = { bad: "bad", warn: "warn", info: "info", muted: "muted" };
+/** DS-CMP-ROW-4: at most one extra line: provider incident > aging age > active usage alert (a stale reading
+ *  already says "Stale · age" on its status line). A fresh age is never repeated per row. */
+export function extraLineHtml(r, st = accountState(r)) {
+  const inc = incidentBadge(r);
+  if (inc) return `<span class="xline ${INCIDENT_ROLE[inc.tone] ?? "muted"}" title="${esc(inc.text)}">${icon(inc.glyph)}<span>${esc(inc.text)}</span></span>`;
+  if (!st.stale && r.status === "ready" && r.freshness === "aging") {
+    const text = `${t("freshness.aging")} · ${fmtAge(shownAt(r))}`;
+    return `<span class="xline warn" data-age>${icon("clock")}<span>${esc(text)}</span></span>`;
+  }
+  if (r.usage_alerts?.length) {
+    const a = ALERTS.find((c) => c.id === "usage");
+    return `<span class="xline warn">${icon("bell")}<span>${esc(a.label(r))}</span></span>`;
+  }
+  return "";
+}
+/** Accessible name of a row (DS-CMP-RING-5): "Claude Code, work, 22% left, Ahead of pace, resets 19:30". */
+export function rowName(r, st = accountState(r)) {
+  const f = figureOf(r, st), p = statusParts(r, st);
+  const value = f.unit ? t("meter.left", { pct: Math.round(st.pct) }) : f.fig;
+  return [brand(r.provider).label, r.account, value, p.label !== f.fig ? p.label : "", p.detail, p.resetFull].filter(Boolean).join(", ");
+}
+/** The row's meter with its accessible value text (DS-CMP-MTR-9); none for a failed query without a reading. */
+export function accountMeterHtml(r, st = accountState(r), { thin = false } = {}) {
+  if (st.kind === "status") return "";
+  const binding = r.status === "ready" && r.binding ? r.metrics[r.binding.index] : null;
+  const p = statusParts(r, st);
+  return meterHtml(st.pct, {
+    thin,
+    state: st.kind === "stale" ? "stale" : st.kind === "exhausted" ? "exhausted" : st.pct == null ? "unknown" : "fresh",
+    expected: st.kind === "pct" ? expectedLeft(binding) : null,
+    text: st.pct == null ? t("meter.noData") : p.full ? t("meter.valuetext", { pct: Math.round(st.pct), status: p.full }) : "",
+  });
+}
+/**
+ * One account row (DS-CMP-ROW-1..7). `title`/`sub`: the title line (the account label is the title when the provider
+ * has several accounts); `mono`: monogram; `open`: expanded body HTML (accordion) or null; `chips`: the row's
+ * feature chips (extra usage, best account, a 9router connection's state), on one wrapping line.
+ */
+export function rowHtml(r, { title, sub = "", mono = "", open = null, key = reportKey(r), chips = "" } = {}) {
+  const st = accountState(r);
+  const f = figureOf(r, st);
+  const meter = accountMeterHtml(r, st);
+  const name = rowName(r, st);
+  return `<article class="row${open != null ? " open" : ""}" data-row="${esc(key)}">
+    <button class="rh" data-open="${esc(key)}" aria-expanded="${open != null}" aria-label="${esc(name)}" title="${esc(name)}">
+      ${tileHtml(r.provider, 32, mono)}
+      <span class="rc">
+        <span class="r1"><span class="nm">${esc(title)}</span>${sub ? `<span class="ac">${esc(sub)}</span>` : ""}${changeMarkHtml(key)}${figureHtml(f.fig, f.unit, { role: f.role, dim: f.dim, cls: f.word ? "wordfig" : "" })}${icon(open != null ? "chevDown" : "chev", "chev")}</span>
+        ${meter ? `<span class="rm">${meter}</span>` : ""}
+        ${statusLineHtml(r, st)}
+        ${extraLineHtml(r, st)}
+        ${chips ? `<span class="row-chips">${chips}</span>` : ""}
+      </span>
+    </button>
+    ${open != null ? `<div class="rb">${open}</div>` : ""}
+  </article>`;
+}
