@@ -377,10 +377,19 @@ export function worstShare(reports) {
   return min;
 }
 
-/** Filter tabs (DS-CMP-TAB-1..5): "All" with the tightest ring and the count, then one icon tab per provider. */
-export function filterTabsHtml(reports, { selected: filter = "all", moreOpen = false, maxTabs = 6 } = {}) {
+/** The filter id of an aggregator's own tab (PRD 0036 RF8.1): never a provider id. */
+export const aggregatorTabId = (r) => `agg:${reportKey(r)}`;
+/** Whether report `r` is in filter `filter` of the tabs ("all", a provider, or an aggregator's own tab). */
+export const inTabFilter = (r, filter, aggregatorTabs = false) => filter === "all"
+  || (filter.startsWith("agg:") ? aggregatorTabId(r) === filter : r.provider === filter && !(aggregatorTabs && r.aggregator));
+
+/** Filter tabs (DS-CMP-TAB-1..5): "All" with the tightest ring and the count, then one icon tab per provider and,
+ *  with `aggregatorTabs` (PRD 0036 RF8.1), one tab per aggregator account after them: its tile, the pool's ring and
+ *  the connection count. An aggregator's connections add no tab of their upstream providers. */
+export function filterTabsHtml(reports, { selected: filter = "all", moreOpen = false, maxTabs = 6, aggregatorTabs = false } = {}) {
   const providers = [];
-  for (const r of reports) if (!providers.includes(r.provider)) providers.push(r.provider);
+  for (const r of reports) if (!(aggregatorTabs && r.aggregator) && !providers.includes(r.provider)) providers.push(r.provider);
+  const aggs = aggregatorTabs ? reports.filter((r) => r.aggregator) : [];
   const ring = worstShare(reports);
   const allName = ring == null ? t("tabs.allAriaNoPct", { count: reports.length }) : t("tabs.allAria", { count: reports.length, pct: Math.round(ring) });
   const tab = (id, inner, name, extra = "") =>
@@ -395,15 +404,23 @@ export function filterTabsHtml(reports, { selected: filter = "all", moreOpen = f
     const badge = worst ? `<i class="tst" aria-hidden="true">${stateGlyph(worst, 10)}</i>` : "";
     return tab(p, `<span class="tw">${tileHtml(p, 20)}${badge}</span>${list.length > 1 ? `<span class="cnt">${list.length}</span>` : ""}`, name, badge ? " badged" : "");
   };
-  const overflow = providers.length > maxTabs + 1;
-  const shown = overflow ? providers.slice(0, maxTabs) : providers;
-  const rest = overflow ? providers.slice(maxTabs) : [];
-  const restSelected = rest.includes(filter);
+  const aggTab = (r) => {
+    const a = r.aggregator;
+    const pct = r.status === "ready" && a.total ? (a.available / a.total) * 100 : null;
+    const name = [brand(r.provider).label, r.account, t("agg.connections", { count: a.connections }), ...(a.pools ?? []).map((p) => tl(p.summary))].join(", ");
+    return tab(aggregatorTabId(r), `<span class="tw">${tileHtml(r.provider, 20)}<i class="tst" aria-hidden="true">${ringHtml(pct == null ? "unknown" : "pct", pct, 10)}</i></span><span class="cnt">${a.connections}</span>`, name, " badged agg");
+  };
+  const entries = [...providers.map((p) => ({ id: p, provider: p, label: brand(p).label, html: () => providerTab(p) })),
+    ...aggs.map((r) => ({ id: aggregatorTabId(r), provider: r.provider, label: `${brand(r.provider).label} · ${r.account}`, html: () => aggTab(r) }))];
+  const overflow = entries.length > maxTabs + 1;
+  const shown = overflow ? entries.slice(0, maxTabs) : entries;
+  const rest = overflow ? entries.slice(maxTabs) : [];
+  const restSel = rest.find((e) => e.id === filter);
   const more = rest.length ? `<span class="tab-more" role="presentation">
-      <button class="tab" role="tab" data-more aria-haspopup="menu" aria-expanded="${moreOpen}" aria-selected="${restSelected}" tabindex="${restSelected ? 0 : -1}" aria-label="${te("tabs.more")}" title="${te("tabs.more")}">${restSelected ? tileHtml(filter, 20) : icon("more")}</button>
-      <span class="menu" role="menu" ${moreOpen ? "" : "hidden"}>${rest.map((p) => `<button role="menuitemradio" aria-checked="${filter === p}" data-tab="${esc(p)}">${tileHtml(p, 16)}<span>${esc(brand(p).label)}</span>${filter === p ? icon("tick") : ""}</button>`).join("")}</span>
+      <button class="tab" role="tab" data-more aria-haspopup="menu" aria-expanded="${moreOpen}" aria-selected="${!!restSel}" tabindex="${restSel ? 0 : -1}" aria-label="${te("tabs.more")}" title="${te("tabs.more")}">${restSel ? tileHtml(restSel.provider, 20) : icon("more")}</button>
+      <span class="menu" role="menu" ${moreOpen ? "" : "hidden"}>${rest.map((e) => `<button role="menuitemradio" aria-checked="${filter === e.id}" data-tab="${esc(e.id)}">${tileHtml(e.provider, 16)}<span>${esc(e.label)}</span>${filter === e.id ? icon("tick") : ""}</button>`).join("")}</span>
     </span>` : "";
-  return `<div class="tabs" role="tablist" aria-label="${te("tabs.label")}">${all}${shown.map(providerTab).join("")}${more}</div>`;
+  return `<div class="tabs" role="tablist" aria-label="${te("tabs.label")}">${all}${shown.map((e) => e.html()).join("")}${more}</div>`;
 }
 
 // ---------- DS-CMP-ROW: the account row (tray list, previews) ----------

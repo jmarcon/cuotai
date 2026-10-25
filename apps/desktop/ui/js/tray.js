@@ -17,12 +17,12 @@ import {
   errText, isDesktop,
 } from "./lib.js";
 import {
-  accountMeterHtml, accountState, announceChanges, clearChange, figureHtml, figureOf, filterTabsHtml, fitStatusLines, meterHtml, monograms,
+  accountMeterHtml, accountState, announceChanges, clearChange, figureHtml, figureOf, filterTabsHtml, fitStatusLines, inTabFilter, meterHtml, monograms,
   repeatedProviders, ringHtml, rowHtml, rowName, stateGlyph, statusParts, tileHtml, trackChanges,
 } from "./components.js";
 import {
   accessibleName, aggregatorsInAll, activeConnection, connectionChips, connectionInfoHtml, connectionsOf, groupsOf, instanceHeadHtml,
-  handleConnectionAction, isAggregator, isConnection, onAggregatorModeChange, poolFigure, poolLineHtml, poolPct, statusLine, withConnections,
+  handleConnectionAction, isAggregator, isConnection, onAggregatorModeChange, poolFigure, poolLineHtml, poolPct, statusLine, warningChipsHtml, withConnections,
 } from "./aggregator.js";
 import { initUpdates, onUpdateState } from "./updater.js";
 import { initRowLayout } from "./density.js";
@@ -141,6 +141,7 @@ function aggregatorRow(r, view) {
         <span class="r1"><span class="nm">${esc(brand(r.provider).label)}</span><span class="ac">${esc(r.account)}</span>${failed ? figureHtml(statusLabel(r.status), "", { role: "bad", cls: "wordfig" }) : figureHtml(poolFigure(r), t("agg.available"))}${icon(open ? "chevDown" : "chev", "chev")}</span>
         ${failed ? "" : `<span class="rm">${meterHtml(pct, { role: level(pct), text: `${poolFigure(r)} ${t("agg.available")}` })}</span>`}
         <span class="stl" title="${esc(line.text)}"><span class="stl-l"><span class="lbl ${role}">${esc(line.text)}</span></span></span>
+        ${warningChipsHtml(r) ? `<span class="row-chips">${warningChipsHtml(r)}</span>` : ""}
       </span>
     </button>
     ${open ? `<div class="rb agg-body">${groupsHtml(r, view)}
@@ -163,6 +164,7 @@ function aggregatorViewHtml(r, view) {
   return `<div class="agg-view" aria-label="${esc(accessibleName(r))}">
     <div class="agg-head">${instanceHeadHtml(r, 24)}
       ${r.aggregator.dashboard ? `<button class="link" data-agg-dashboard="${r.index}">${icon("window")}<span>${te("agg.openDashboard")}</span></button>` : ""}</div>
+    ${warningChipsHtml(r) ? `<p class="agg-chips">${warningChipsHtml(r)}</p>` : ""}
     ${r.status !== "ready" ? `<div class="call critical">${icon("alert")}<div>${esc(noteText(r, 0) || statusLabel(r.status))}</div></div>` : ""}
     ${groupsHtml(r, view)}
   </div>`;
@@ -233,8 +235,9 @@ const openBody = (r) => isConnection(r)
 function render() {
   const { view, error } = store;
   const all = sortReports(view?.reports ?? []).filter((r) => !disabled.has(reportKey(r)));
-  if (filter !== "all" && !all.some((r) => r.provider === filter)) filter = "all";
-  const reports = filter === "all" ? all : all.filter((r) => r.provider === filter);
+  // PRD 0036 RF8.1: each aggregator has its own tab (`agg:<key>`); a provider tab never lists an aggregator.
+  if (filter !== "all" && !all.some((r) => inTabFilter(r, filter, true))) filter = "all";
+  const reports = all.filter((r) => inTabFilter(r, filter, true));
   trackChanges(view);
   const ctx = context(view);
   // PRD 0036 RF8: a connection or an aggregator can be opened too (their own keys).
@@ -266,6 +269,8 @@ function render() {
     body = `<div class="empty-state">${icon("plus")}<p>${te("tray.empty")}</p><button class="btn primary" data-open-main>${te("common.add")}</button></div>`;
   } else if (drill) body = isAggregator(cur) ? aggregatorViewHtml(cur, view) : row(cur, ctx, openBody(cur));
   else if (showStats) body = `<div data-stats-slot></div>`;
+  // PRD 0036 RF8.1: an aggregator's own tab shows its instance view (pools and connections), whatever "All" does.
+  else if (filter.startsWith("agg:") && reports[0]) body = aggregatorViewHtml(reports[0], view);
   else body = `${listOf(inBar)}${rest.length ? notInHtml() + listOf(rest) : ""}${reports.length ? `<div data-timeline-slot></div>` : ""}`;
   syncTrayMenu(view);
   // DS-CMP-HEAD-2 and PRD 0022 RF7.3: the overview header holds only the filter tabs (no logotype); a drill-in
@@ -276,7 +281,7 @@ function render() {
     ? `<header class="pop-head drill"><button class="icon back" data-back aria-label="${te("common.back")}" title="${te("common.back")}">${icon("back")}</button>
         <h1>${esc(drillTitle)}</h1><span class="grow"></span>
         ${showStats ? `<span data-stats-scope-slot></span>` : `<span class="wordmark sm">${wordmark()}</span>`}<kbd aria-hidden="true">esc</kbd></header>`
-    : `<header class="pop-head">${all.length ? filterTabsHtml(all, { selected: filter, moreOpen, maxTabs: tabFit }) : `<h1 class="wordmark">${wordmark()}</h1>`}</header>`;
+    : `<header class="pop-head">${all.length ? filterTabsHtml(all, { selected: filter, moreOpen, maxTabs: tabFit, aggregatorTabs: true }) : `<h1 class="wordmark">${wordmark()}</h1>`}</header>`;
   root.innerHTML = `<div class="pop">${header}
     <div class="pop-body">${body}</div>
     ${noticeHtml(view, error)}${footerHtml(view, showStats)}</div>`;

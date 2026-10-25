@@ -81,6 +81,17 @@ export function connectionChips(c, { via = false } = {}) {
   return chips.join("");
 }
 
+/** PRD 0036 RF2.3/RF2.4: the aggregator's standing warnings (no password on a non-loopback instance, unencrypted
+ *  private-network HTTP) as persistent chips, most severe first. The texts are the core's; text and icon, never
+ *  color alone. Empty when the backend sends none. */
+export function warningChipsHtml(r) {
+  const w = r?.connection_warnings;
+  if (!w) return "";
+  const chip = (flag, id, fallback, glyph) => `<span class="mini warn" data-conn-warning="${flag}">${icon(glyph)}<span class="mini-t">${esc(tl({ id, params: {}, fallback }))}</span></span>`;
+  return [w.exposed ? chip("exposed", "aggregators.chip.exposed", "No password", "warn") : "",
+    w.private_http ? chip("private_http", "aggregators.chip.private_http", "Unencrypted", "warn") : ""].join("");
+}
+
 /** One pool line ("Claude · 2 of 3 available") for lists and the details. */
 export const poolLineHtml = (p) => {
   const out = p.total > 0 && p.exhausted === p.total;
@@ -142,6 +153,7 @@ export function instanceInfoHtml(r) {
   ];
   return `<div class="agg-info" data-instance-info>
     <dl>${rows.map(([dt, dd]) => `<dt>${dt}</dt><dd>${dd}</dd>`).join("")}</dl>
+    ${warningChipsHtml(r) ? `<p class="agg-chips" data-instance-warnings>${warningChipsHtml(r)}</p>` : ""}
     ${a.pools.length ? `<h3 class="agg-micro">${te("agg.pools")}</h3>${a.pools.map(poolLineHtml).join("")}` : ""}
     <label class="check"><input type="checkbox" data-pool-each="${esc(r.account_key)}" ${a.alert_each ? "checked" : ""} /> ${te("agg.alertEach")}</label>
     <p class="hint">${te("agg.alertEachHelp")}</p>

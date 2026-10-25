@@ -1113,6 +1113,8 @@ if (new URLSearchParams(location.search).get("aggregator") !== "off") {
   ];
   demoReports.push({ ...dr("home", "nine_router", [], ["2 of 4 9router connections with usage.", "9router 0.5.109."]),
     class: "available", connections: conns,
+    // PRD 0036 RF2.3/RF2.4: `?aggwarn` shows both standing warnings (the demo instance itself is loopback).
+    ...(new URLSearchParams(location.search).has("aggwarn") ? { connection_warnings: { exposed: true, private_http: true } } : {}),
     aggregator: { kind: "9router", version: "0.5.109", host: "127.0.0.1:20128", available: 1, total: 3, connections: conns.length,
       pools: [
         { upstream: "claude", provider: "claude", available: 1, exhausted: 1, total: 2, returns_at: null,

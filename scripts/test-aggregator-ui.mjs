@@ -95,6 +95,37 @@ for (const { code } of i18n.LOCALES) {
   console.log(`${code}: ${line.text} · ${agg.poolFigure(router)} ${i18n.t("agg.available")}`);
 }
 
+// PRD 0036 RF2.3/RF2.4: the standing warnings are persistent chips with the core's texts, most severe first;
+// none without `connection_warnings`, and the details list them too.
+assert.equal(agg.warningChipsHtml(router), "", "no warnings, no chips");
+const warned = { ...router, connection_warnings: { exposed: true, private_http: true } };
+const chipTexts = { "en-US": ["No password", "Unencrypted"], es: ["Sin contraseña", "Sin cifrado"], it: ["Senza password", "Non cifrato"], "pt-BR": ["Sem senha", "Sem criptografia"] };
+for (const { code } of i18n.LOCALES) {
+  await i18n.setLocale(code);
+  const html = agg.warningChipsHtml(warned);
+  const [exposed, http] = chipTexts[code];
+  assert.ok(html.indexOf(exposed) >= 0 && html.indexOf(exposed) < html.indexOf(http), `${code}: ${html}`);
+  assert.ok(!/aggregators\.chip/.test(html), `${code}: untranslated chip`);
+  assert.ok(agg.instanceInfoHtml(warned).includes("data-instance-warnings"), `${code}: details warnings`);
+}
+assert.ok(!agg.warningChipsHtml({ ...router, connection_warnings: { exposed: false, private_http: true } }).includes('data-conn-warning="exposed"'));
+await i18n.setLocale("en-US");
+
+// PRD 0036 RF8.1: with aggregator tabs each aggregator has its own tab after the provider tabs (its tile, pool ring
+// and connection count, named like the grouped row); it adds no provider tab of its own or of its upstreams.
+const comp = await import("../apps/desktop/ui/js/components.js");
+const tabs = comp.filterTabsHtml(view.reports, { aggregatorTabs: true, maxTabs: 99 });
+const aggId = comp.aggregatorTabId(router);
+assert.ok(tabs.includes(`data-tab="${aggId}"`), "the aggregator has its own tab");
+assert.ok(!tabs.includes('data-tab="nine_router"'), "no provider tab for the aggregator");
+assert.ok(tabs.indexOf(`data-tab="${aggId}"`) > tabs.lastIndexOf('data-tab="claude"'), "after the provider tabs");
+assert.ok(tabs.includes(`<span class="cnt">${router.aggregator.connections}</span></button>`), "connection count");
+assert.ok(comp.filterTabsHtml(view.reports).includes('data-tab="nine_router"'), "without the option, the old provider tab");
+assert.deepEqual(view.reports.filter((r) => comp.inTabFilter(r, aggId, true)), [router]);
+assert.ok(!view.reports.filter((r) => comp.inTabFilter(r, "nine_router", true)).length, "a provider tab never lists it");
+const overflowTabs = comp.filterTabsHtml(view.reports, { aggregatorTabs: true, maxTabs: 2, moreOpen: true, selected: aggId });
+assert.match(overflowTabs, new RegExp(`role="menuitemradio" aria-checked="true" data-tab="${aggId}"`), "overflow lists it in More");
+
 // RF8.3: the "All" choice is per device and falls back to grouped.
 assert.equal(agg.aggregatorsInAll(), "grouped");
 agg.setAggregatorsInAll("listed");

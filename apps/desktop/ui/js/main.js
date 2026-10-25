@@ -20,7 +20,7 @@ import {
 } from "./lib.js";
 import { patch } from "./util.js";
 import { initRowLayout } from "./density.js";
-import { connectionChips, groupsOf, handleConnectionAction, instanceHeadHtml, isAggregator, poolLineHtml, withConnections } from "./aggregator.js";
+import { connectionChips, groupsOf, handleConnectionAction, instanceHeadHtml, isAggregator, poolLineHtml, warningChipsHtml, withConnections } from "./aggregator.js";
 import {
   accountState, announceChanges, filterTabsHtml, changeMarkHtml, clearChange, expectedLeft, figureHtml, fitStatusLines, fmtAt, meterHtml, monograms,
   repeatedProviders, statusLineHtml, tileHtml, trackChanges,
@@ -214,7 +214,7 @@ function aggregatorSection(r, ctx) {
         ${r.aggregator.dashboard ? `<button class="link" data-agg-dashboard="${r.index}">${icon("window")}<span>${te("agg.openDashboard")}</span></button>` : ""}
       </div>
     </header>
-    <div class="agg-meta">${ageHtml(r)}${failed ? `<p class="sum-note cause">${icon("warn")}<span>${esc(causeText(r))}</span></p>` : ""}</div>
+    <div class="agg-meta">${ageHtml(r)}${warningChipsHtml(r) ? `<p class="agg-chips">${warningChipsHtml(r)}</p>` : ""}${failed ? `<p class="sum-note cause">${icon("warn")}<span>${esc(causeText(r))}</span></p>` : ""}</div>
     ${groups.length ? "" : `<p class="sum-note dim">${te("agg.none")}</p>`}
     ${groups.map((g) => `<div class="agg-group" data-upstream="${esc(g.upstream)}">
       ${g.pool ? poolLineHtml(g.pool) : `<p class="agg-pool">${esc(g.name)}</p>`}

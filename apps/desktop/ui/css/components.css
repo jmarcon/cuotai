@@ -218,12 +218,13 @@ svg.i.sg { width: 12px; height: 12px; }
 .mini.info { color: var(--info); }
 .mini.accent { color: var(--accent); }
 .mini.muted { color: var(--fg-muted); }
-.row-chips {
+.row-chips, .agg-chips {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
   min-width: 0;
 }
+.agg-chips { margin: 0; }
 .row-chips .mini-t {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -435,8 +436,11 @@ kbd {
   color: var(--fg);
   text-align: left;
 }
-.tab-more .menu button span {
+.tab-more .menu button > span:last-of-type {
   flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .tab-more .menu button[aria-checked="true"] {
   font-weight: 600;
