@@ -37,7 +37,9 @@ function openFullStats() {
 let statsMount = null, timelineMount = null;
 const statsHost = () => (statsMount ??= mountStats({ compact: true, onOpenFull: openFullStats }));
 // Selecting a lane opens that account's details in the popover.
-const timelineHost = () => (timelineMount ??= mountTimeline({ compact: true, onSelect: (key) => { selected = key; statsOpen = false; render(); } }));
+// PRD 0025 RF2.3: the popover's timeline follows the menu-bar selection (every account in Auto).
+let timelineOnly = null;
+const timelineHost = () => (timelineMount ??= mountTimeline({ compact: true, only: () => timelineOnly, onSelect: (key) => { selected = key; statsOpen = false; render(); } }));
 let models = null; // seção de modelos da conta aberta no popover; sobrevive aos redesenhos
 
 function row(r, { via = false } = {}) {
@@ -315,7 +317,10 @@ function render() {
     statsHost().update(view);
     statsMount.attach(statsSlot, statsFocus);
   } else if (timelineSlot) {
+    const { inBar, rest } = splitByMenuBar(reports, view);
+    timelineOnly = rest.length ? new Set(inBar.map((r) => r.index)) : null;
     timelineHost().update(view);
+    timelineMount.refilter();
     timelineMount.attach(timelineSlot, timelineFocus);
   }
   animateRings(prev);

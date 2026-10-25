@@ -71,6 +71,9 @@ fn quota(used: f64, resets: DateTime<Utc>) -> Metric {
 
 fn report(config: &Config, used: f64, resets: DateTime<Utc>) -> Report {
     Report {
+        as_of: Default::default(),
+        overage_hint: Default::default(),
+        sub_reports: Vec::new(),
         diagnostic: Default::default(),
         account_id: Some(config.accounts[0].id()),
         account: "alpha".into(),
@@ -105,6 +108,7 @@ fn fixture() -> Fixture {
             .unwrap();
     }
     let event = Event {
+        parent: Default::default(),
         schema: cuotai_core::events::SCHEMA,
         event: EventKind::QuotaExhausted,
         occurred_at: at(19, 10),

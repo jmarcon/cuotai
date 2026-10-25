@@ -54,7 +54,7 @@ function chartHtml(tl) {
 /** The section: loads from the core on mount, on a range change and whenever `update` sees a newer view; an answer
  *  for another generation is discarded. The host calls `update(view)` on every render and `attach(slot)` after it.
  *  `onSelect(key, report)` runs when a lane is chosen (the host focuses that account). */
-export function mountTimeline({ onSelect = () => {}, compact = false } = {}) {
+export function mountTimeline({ onSelect = () => {}, compact = false, only = () => null } = {}) {
   const id = `tl-${++uid}`;
   const el = document.createElement("section");
   el.className = `timeline${compact ? " compact" : ""}`;
@@ -72,7 +72,11 @@ export function mountTimeline({ onSelect = () => {}, compact = false } = {}) {
   function paint() {
     for (const b of el.querySelectorAll("[data-timeline-range]")) b.setAttribute("aria-pressed", String(b.dataset.timelineRange === range));
     status.textContent = error ?? (!data ? t("stats.loading") : "");
-    body.innerHTML = !data || error ? "" : `${chartHtml(data)}${textGroup("timeline.later", data.later, data, true)}${textGroup("timeline.unknown", data.unknown, data, false)}`;
+    // PRD 0025 RF2.3: a host may keep only some accounts (the popover follows the menu-bar selection).
+    const keep = only();
+    const pick = (lanes) => (keep ? lanes.filter((l) => keep.has(l.account_index)) : lanes);
+    const shown = data && { ...data, lanes: pick(data.lanes), later: pick(data.later), unknown: pick(data.unknown) };
+    body.innerHTML = !data || error ? "" : `${chartHtml(shown)}${textGroup("timeline.later", shown.later, shown, true)}${textGroup("timeline.unknown", shown.unknown, shown, false)}`;
   }
   async function load() {
     const e = ++epoch;
@@ -119,6 +123,8 @@ export function mountTimeline({ onSelect = () => {}, compact = false } = {}) {
   paint();
   return {
     el, update,
+    /** Repaints with the host's current `only` filter (no new query). */
+    refilter: paint,
     focused: () => (el.contains(document.activeElement) ? document.activeElement : null),
     attach(slot, focus) { if (slot && el.parentNode !== slot) slot.append(el); focus?.focus?.(); },
     dispose() { epoch++; el.remove(); },

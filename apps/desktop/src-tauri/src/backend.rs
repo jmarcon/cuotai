@@ -6765,6 +6765,7 @@ mod tests {
                 .unwrap();
         }
         let event = |account: &cuotai_core::Account, kind| cuotai_core::events::Event {
+            parent: Default::default(),
             schema: cuotai_core::events::SCHEMA,
             event: kind,
             occurred_at: now - chrono::Duration::hours(2),

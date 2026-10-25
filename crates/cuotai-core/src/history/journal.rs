@@ -212,6 +212,7 @@ impl HistoryStore {
                 ..Values::default()
             };
             let event = Event {
+                parent: Default::default(),
                 schema: crate::events::SCHEMA,
                 event: kind,
                 occurred_at,

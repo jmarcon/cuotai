@@ -5,6 +5,7 @@ use chrono::TimeDelta;
 
 fn event(account: &Account, kind: EventKind, minutes: i64) -> Event {
     Event {
+        parent: Default::default(),
         schema: crate::events::SCHEMA,
         event: kind,
         occurred_at: t0() + TimeDelta::minutes(minutes),

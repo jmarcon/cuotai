@@ -1087,6 +1087,26 @@ credential_env = "GROQ_KEY_BETA"
             )
             .unwrap();
         assert_eq!(billing, 1, "v1 files gain the billing column");
+        // PRD 0026 RF3 and PRD 0029 RF2.2: the same upgrade adds the event
+        // journal (version 4) and the unversioned id aliases.
+        for table in ["journal", "aliases"] {
+            let found: i64 = raw(&empty)
+                .query_row(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?1",
+                    [table],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            assert_eq!(found, 1, "an upgraded file has the {table} table");
+        }
+        // A 0.80.0 file (version 2) upgrades the same way.
+        let shipped = dir.path().join("v080.sqlite3");
+        migrate(&mut raw(&shipped), &MIGRATIONS[..2]).unwrap();
+        assert_eq!(version(&shipped), 2);
+        store(&shipped, "one")
+            .record(alpha, t0(), &[quota("5h", Some(10.0), Some(100.0))])
+            .unwrap();
+        assert_eq!(version(&shipped), MIGRATIONS.len() as i64);
         let indexed: i64 = raw(&empty)
             .query_row(
                 "SELECT COUNT(*) FROM sqlite_master WHERE name = 'samples_by_age'",
