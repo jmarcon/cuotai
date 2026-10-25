@@ -942,5 +942,9 @@
   "settings.kw.pace-unit": "ritmo desvio percentual pontos acima reserva",
   "settings.pace.points": "Pontos",
   "settings.pace.percent": "Percentual",
-  "settings.error.invalid_pace_unit": "Escolha pontos ou percentual."
+  "settings.error.invalid_pace_unit": "Escolha pontos ou percentual.",
+  "advice.show": "Mostrar {name}",
+  "settings.advice.show": "Mostrar a melhor conta",
+  "settings.advice.help": "Onde as contas compartilham um grupo (ou um provedor), a que tem mais folga agora aparece como \"Melhor agora\". Só uma sugestão: o Cuotai nunca troca de conta nem altera sua configuração.",
+  "settings.advice.keywords": "melhor conta grupo comparar trocar folga"
 }

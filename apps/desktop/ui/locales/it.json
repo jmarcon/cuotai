@@ -935,5 +935,9 @@
   "settings.kw.pace-unit": "ritmo scostamento percentuale punti sopra riserva",
   "settings.pace.points": "Punti",
   "settings.pace.percent": "Percentuale",
-  "settings.error.invalid_pace_unit": "Scegli punti o percentuale."
+  "settings.error.invalid_pace_unit": "Scegli punti o percentuale.",
+  "advice.show": "Mostra {name}",
+  "settings.advice.show": "Mostra l'account migliore",
+  "settings.advice.help": "Dove gli account condividono un gruppo (o un provider), quello con più margine ora è indicato come \"Migliore ora\". Solo un consiglio: Cuotai non cambia mai account né modifica la configurazione.",
+  "settings.advice.keywords": "account migliore gruppo confrontare cambiare margine"
 }

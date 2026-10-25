@@ -8,7 +8,7 @@ import { easeOut, motionMs } from "./motion.js";
 import {
   accountLabel, bindThemeSwitch, brand, createStore, esc, icon, initTheme, isDesktop, level,
   logo, noteText, openMainWindow, openAggregatorDashboard, disabledAccounts, onDisabledChange, quitApp, reportKey, statusLabel, langMenuHtml, sortReports, sortMenuHtml, initOrderSync, openSettingsWindow, bindSettingsShortcut, onSettingsChanged,
-  bindingPct, bindingChipText, blockedText, ALERTS, ageHtml, ageText, alertOf, windowsOf, onHiddenChange, cardPace, paceHtml, paceText, paceLabelOf, nextNoticeText,
+  bindingPct, bindingChipText, blockedText, ALERTS, ageHtml, ageText, alertOf, windowsOf, onHiddenChange, bestChipHtml, cardPace, paceHtml, paceText, paceLabelOf, nextNoticeText,
   incidentBadge, incidentHtml, bindStatusLinks, wordmark, overageChipHtml, billingOverage, getSettings, setTrayPrefs,
 } from "./lib.js";
 import { initUpdates, onUpdateState } from "./updater.js";
@@ -58,7 +58,7 @@ function row(r, { via = false } = {}) {
       <div class="row-age">${ageHtml(r)}</div>
       ${overageChipHtml(r)}
       ${incidentHtml(r, { link: false })}
-      ${trayPace(r, (p, label) => paceHtml(p, { label, short: true }))}
+      ${trayPace(r, (p, label) => paceHtml(p, { label, short: true }))}${bestChipHtml(r)}
       <div class="bar thin ${lv}"><span style="width:${pct ?? 0}%"></span></div>
     </div>${icon("chev", "chev")}</button>`;
 }
@@ -284,7 +284,7 @@ function render() {
   const body = cur
     ? isAggregator(cur) ? aggregatorViewHtml(cur)
       : isConnection(cur) ? `${detailHtml(cur)}${connectionInfoHtml(cur, cur.index)}`
-        : `${detailHtml(cur)}<div data-models-slot></div>`
+        : `${detailHtml(cur, { action: true })}<div data-models-slot></div>`
     : showStats ? `<div data-stats-slot></div>`
     : `${listOf(inBar)}${rest.length ? notInHtml() + listOf(rest) : ""}${reports.length ? `<div data-timeline-slot></div>` : ""}`;
   syncTrayMenu(view);
@@ -339,6 +339,11 @@ root.addEventListener("click", (e) => {
   if (dashboard) return openAggregatorDashboard(Number(dashboard.dataset.aggDashboard)).catch(() => {});
   const open = t.closest("[data-open]");
   if (open) { selected = open.dataset.open; return render(); }
+  // PRD 0024 RF7.3: the advice in an account's details points at the best account of its group.
+  const show = t.closest("[data-show-account]");
+  if (show) {
+    const target = store.view?.reports?.find((x) => x.index === Number(show.dataset.showAccount));
+    if (target) { selected = reportKey(target); return render(); }
   if (t.closest("[data-back]")) { selected = null; statsOpen = false; return render(); }
   if (t.closest("[data-open-stats]")) { selected = null; statsOpen = !statsOpen; return render(); }
   if (t.closest("[data-view]")) { trayView = trayView === "donut" ? "list" : "donut"; saveTrayView(trayView); return render(); }

@@ -1,7 +1,7 @@
 // Menu do clique direito no ícone da bandeja: texto simples, uma linha por conta ("nome: % disponível").
 // As linhas seguem a mesma ordem e os mesmos filtros do popover; o shell só monta o menu nativo.
-import { t } from "./i18n.js";
-import { ageText, bindingPct, blockedText, brand, disabledAccounts, nextNoticeText, reportKey, setTrayMenu, shownAt, sortReports, statusLabel } from "./lib.js";
+import { t, tl } from "./i18n.js";
+import { adviceShown, ageText, bindingPct, blockedText, brand, disabledAccounts, nextNoticeText, reportKey, setTrayMenu, shownAt, sortReports, statusLabel } from "./lib.js";
 import { updateState } from "./updater.js";
 
 let last = "";
@@ -51,6 +51,13 @@ export function trayTooltip(reports) {
   return t("tray.tooltip", { account: bounded, age });
 }
 
+/** PRD 0024 RF7.3: "Best now: Claude (Personal)" for the tooltip, when a group has a best account on screen. */
+export function trayBest(reports) {
+  if (!adviceShown()) return null;
+  const best = shownReports(reports).find((r) => r.best_now);
+  return best ? `${tl(best.best_now)}: ${brand(best.provider).label} (${best.account})` : null;
+}
+
 /** Envia o menu ao shell quando algo mudou (dados, ordem, idioma, contas desativadas ou quotas ocultas). */
 export function syncTrayMenu(view) {
   if (!view) return;
@@ -61,6 +68,7 @@ export function syncTrayMenu(view) {
     settings: t("settings.title"),
     quit: t("common.quit"),
     tooltip: trayTooltip(view.reports ?? []),
+    best: trayBest(view.reports ?? []),
     // PRD 0003 RF3.4: a line above the accounts and a second tooltip line.
     notice: nextNoticeText(view),
     // PRD 0018 RF2.2: the update line above everything, while one is pending.

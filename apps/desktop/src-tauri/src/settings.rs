@@ -33,6 +33,10 @@ struct Stored {
     /// = points. Read leniently ([`pace_unit_of`]): anything else is points.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pace: Option<serde_json::Value>,
+    /// Best-account advice (PRD 0024 RF7.5): `{"enabled": false}`; absent =
+    /// on (it only shows where a group has two or more accounts).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    advice: Option<serde_json::Value>,
     /// Days of measurement history kept (PRD 0006 RF4.1, 7 to 365); absent
     /// = the core default (90). A value out of range reads as the default.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1303,6 +1307,25 @@ pub fn save_show_pace(show: bool) -> Result<(), &'static str> {
     update(&file, |s| s.show_pace = (!show).then_some(false))
 }
 
+/// PRD 0024 RF7.5: whether the best account is shown (on unless the file
+/// says `advice.enabled = false`).
+fn advice_of(stored: &Stored) -> bool {
+    stored
+        .advice
+        .as_ref()
+        .and_then(|advice| advice["enabled"].as_bool())
+        != Some(false)
+}
+
+/// PRD 0024 RF7.5: show (the default, removes the key) or hide the best
+/// account. Error: `unwritable`.
+pub fn save_advice_enabled(enabled: bool) -> Result<(), &'static str> {
+    let file = settings_file().ok_or("unwritable")?;
+    update(&file, |s| {
+        s.advice = (!enabled).then(|| serde_json::json!({ "enabled": false }))
+    })
+}
+
 /// PRD 0024 RF1.3: how pace deviations read, "points" (the default) or
 /// "percent".
 fn pace_unit_of(stored: &Stored) -> &'static str {
@@ -1323,8 +1346,8 @@ pub fn save_pace_unit(unit: &str) -> Result<(), &'static str> {
     let unit = PaceUnit::parse(unit).ok_or("invalid_pace_unit")?;
     let file = settings_file().ok_or("unwritable")?;
     update(&file, |s| {
-        s.pace = (unit == PaceUnit::Percent)
-            .then(|| serde_json::json!({ "deviation_unit": "percent" }))
+        s.pace =
+            (unit == PaceUnit::Percent).then(|| serde_json::json!({ "deviation_unit": "percent" }))
     })
 }
 
@@ -1387,6 +1410,8 @@ pub struct SettingsView {
     local_storage_migrated: bool,
     /// PRD 0024 RF1.3: `points` or `percent`.
     pace_unit: &'static str,
+    /// PRD 0024 RF7.5: show the best account of each group (on by default).
+    advice_enabled: bool,
     /// Days of measurement history kept, and the accepted range.
     history_days: u16,
     history_days_min: u16,
@@ -1450,6 +1475,7 @@ pub fn view() -> SettingsView {
         locale: stored.locale.clone().filter(|l| valid_locale(l)),
         local_storage_migrated: migrated_of(&stored),
         pace_unit: pace_unit_of(&stored),
+        advice_enabled: advice_of(&stored),
         history_days: retention_of(&stored).keep_days(),
         history_days_min: Retention::MIN_DAYS,
         history_days_max: Retention::MAX_DAYS,
@@ -2184,14 +2210,40 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let file = dir.path().join("desktop.json");
         assert_eq!(pace_unit_of(&read(&file)), "points");
-        fs::write(&file, r#"{"motion":"off","pace":{"deviation_unit":"percent"}}"#).unwrap();
+        fs::write(
+            &file,
+            r#"{"motion":"off","pace":{"deviation_unit":"percent"}}"#,
+        )
+        .unwrap();
         assert_eq!(pace_unit_of(&read(&file)), "percent");
-        for bad in [r#"{"deviation_unit":"loud"}"#, r#"7"#, r#"{"deviation_unit":3}"#] {
+        for bad in [
+            r#"{"deviation_unit":"loud"}"#,
+            r#"7"#,
+            r#"{"deviation_unit":3}"#,
+        ] {
             fs::write(&file, format!(r#"{{"motion":"off","pace":{bad}}}"#)).unwrap();
             assert_eq!(pace_unit_of(&read(&file)), "points", "{bad}");
             assert_eq!(motion_of(&read(&file)), "off");
         }
         assert_eq!(PaceUnit::parse("percent"), Some(PaceUnit::Percent));
         assert_eq!(PaceUnit::parse("%"), None);
+    }
+
+    /// PRD 0024 RF7.5: on unless the file says otherwise.
+    #[test]
+    fn the_best_account_is_shown_unless_turned_off() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        assert!(advice_of(&read(&file)));
+        fs::write(&file, r#"{"advice":{"enabled":false}}"#).unwrap();
+        assert!(!advice_of(&read(&file)));
+        for odd in [
+            r#"{"advice":{"enabled":"no"}}"#,
+            r#"{"advice":7}"#,
+            r#"{"advice":{}}"#,
+        ] {
+            fs::write(&file, odd).unwrap();
+            assert!(advice_of(&read(&file)), "{odd}");
+        }
     }
 }

@@ -14,7 +14,7 @@ import {
   fmtNext, ALERTS, overageChipHtml, overageLineHtml, ageHtml, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isBindingMetric, isBlocked, isDesktop, isStaleReading, level, logo, wordmark,
   moveAccount, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
   currentSort, initOrderSync, staleView, configChangedOnDisk, reloadConfig, configLabel, errText, otherConfigNotice, otherConfigBanner, dismissOtherConfig, returnText, splitRecharging,
-  cardPace, forecastChipHtml, paceHtml, paceLineLabel, renewedText, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, setPoolAlerts, openAggregatorDashboard, incidentHtml, bindStatusLinks, costUsage,
+  bestChipHtml, cardPace, forecastChipHtml, paceHtml, paceLineLabel, renewedText, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, setPoolAlerts, openAggregatorDashboard, incidentHtml, bindStatusLinks, costUsage,
   openSettingsWindow, bindSettingsShortcut, onSettingsChanged,
 } from "./lib.js";
 import { patch } from "./util.js";
@@ -185,7 +185,7 @@ const pasteSessionHtml = (r) => r.paste_session
 /** PRD 0007 RF3.2: one short pace line for the core's most restrictive metric that has one ("Week: 8 points…"). */
 function paceLine(r) {
   const m = cardPace(r);
-  return m ? paceHtml(m.pace, { label: paceLineLabel(r, m) }) + forecastChipHtml(m) : "";
+  return (m ? paceHtml(m.pace, { label: paceLineLabel(r, m) }) + forecastChipHtml(m) : "") + bestChipHtml(r);
 }
 
 /** Conta ainda sem relatório ("Aguardando"): esqueleto com shimmer até os dados chegarem (RF2.3). */
@@ -293,6 +293,14 @@ const pasteSession = (index) => openAccountDialog(index, { onSaved, pasteSession
 const detailsContext = {
   // PRD 0036 RF8.5: a connection's details are found by its own key.
   reports: () => withConnections(store.view?.reports ?? []),
+  // PRD 0024 RF7.3: focus the card of the best account; nothing else changes.
+  onShowAccount: (index) => {
+    const target = (store.view?.reports ?? []).find((x) => x.index === index);
+    const card = target && document.querySelector(`[data-card="${CSS.escape(reportKey(target))}"]`);
+    card?.scrollIntoView({ block: "center", behavior: "smooth" });
+    card?.setAttribute("tabindex", "-1");
+    card?.focus({ preventScroll: true });
+  },
   generation: () => store.view?.generation ?? 0,
   historyEpoch: () => store.view?.history_epoch ?? 0,
   onEdit: editAccount,

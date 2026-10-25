@@ -755,3 +755,13 @@
   text-transform: uppercase;
   color: var(--fg-muted);
 }
+/* PRD 0024 RF7.3: the best account of a group; the check icon and the words carry it, not color alone. */
+.mini.best-now {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--good);
+}
+.call .btn {
+  margin-left: auto;
+  flex: none;
+}

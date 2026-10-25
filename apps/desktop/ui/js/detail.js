@@ -3,7 +3,7 @@
 import { currentLocale, t, te, tl } from "./i18n.js";
 import {
   STALE, accessHtml, ageHtml, bindingChipText, causeText, errText, esc, fmtAmount, fmtReset, getView, icon, incidentDetailHtml, isBindingMetric, isMetricHidden, isRenewedWaiting, isStaleReading, level, loadModels, metricAlertHtml, metricKey, modelState, noteText,
-  fmtMetricExtra, forecastHtml, isOverage, overageDetailHtml, paceHtml, paceOf, remainingPct, renewedText, reportKey, restNotes, staleView, statusLabel, syncModels, textualMetric,
+  adviceHtml, fmtMetricExtra, forecastHtml, isOverage, overageDetailHtml, paceHtml, paceOf, remainingPct, renewedText, reportKey, restNotes, staleView, statusLabel, syncModels, textualMetric,
 } from "./lib.js";
 
 /** `eye`: the quota's hide/show button and, PRD 0008 RF3.2, its usage alert mute (dialog only). */
@@ -47,9 +47,9 @@ export function metricCardHtml(r, m, { eye = false } = {}) {
  *  with a preserved reading lists the old metrics dimmed under the cause of the failure. PRD 0005 RF4: the core's
  *  access level and summary follow the age, and its explanation, when there is one, is the cause. PRD 0011 RF4.1:
  *  the provider's public status follows, while status queries are on. */
-export function detailHtml(r, { eye = false } = {}) {
+export function detailHtml(r, { eye = false, action = eye } = {}) {
   const notes = r.notes.map((_, index) => noteText(r, index));
-  const head = `<div class="det-age">${ageHtml(r)}</div>${accessHtml(r)}${incidentDetailHtml(r)}`;
+  const head = `<div class="det-age">${ageHtml(r)}</div>${accessHtml(r)}${incidentDetailHtml(r)}${adviceHtml(r, { action })}`;
   const rest = restNotes(r).map((n) => `<p class="note">${esc(n)}</p>`).join("");
   if (isStaleReading(r)) {
     const s = staleView(r);

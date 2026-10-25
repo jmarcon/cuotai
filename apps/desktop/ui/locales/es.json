@@ -935,5 +935,9 @@
   "settings.kw.pace-unit": "ritmo desviación porcentaje puntos por encima reserva",
   "settings.pace.points": "Puntos",
   "settings.pace.percent": "Porcentaje",
-  "settings.error.invalid_pace_unit": "Elige puntos o porcentaje."
+  "settings.error.invalid_pace_unit": "Elige puntos o porcentaje.",
+  "advice.show": "Mostrar {name}",
+  "settings.advice.show": "Mostrar la mejor cuenta",
+  "settings.advice.help": "Donde las cuentas comparten un grupo (o un proveedor), la que tiene más margen ahora aparece como \"Mejor ahora\". Solo un consejo: Cuotai nunca cambia de cuenta ni modifica tu configuración.",
+  "settings.advice.keywords": "mejor cuenta grupo comparar cambiar margen"
 }

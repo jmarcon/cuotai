@@ -12,7 +12,7 @@ use cuotai_core::{
         visible_field_indices, AccountDraft, CredentialKind, DraftField, DraftValue,
         FieldDescriptorKind, FieldVisibility,
     },
-    alerts,
+    advice, alerts,
     config_file::{ConfigFile, Discovery, Locations, PathSource, ResolvedPath},
     export::v1::{Export, Options as ExportOptions},
     freshness::{assess, clock_adjusted, Freshness},
@@ -372,6 +372,8 @@ pub struct ForecastView {
     callout: cuotai_core::text::Localized,
     /// The outlook chip: "Runs out at 18:53".
     chip: cuotai_core::pace::Chip,
+    /// The projected time, local ("18:53"), for the advice of the group.
+    at: String,
 }
 
 fn forecast_view(
@@ -385,6 +387,7 @@ fn forecast_view(
     Some(ForecastView {
         callout: alerts::forecast_text(&metric.label, &pace, now, &chrono::Local)?,
         chip: pace.outlook_chip(local_at)?,
+        at: local_at(pace.projected_exhaustion_at?),
     })
 }
 
@@ -534,6 +537,16 @@ pub struct ReportView {
     /// PRD 0036 RF8: what a connection view adds; absent for accounts.
     #[serde(skip_serializing_if = "Option::is_none")]
     connection: Option<ConnectionView>,
+    /// PRD 0024 RF7.1: the account's group of comparable accounts: its
+    /// `group` value and, when the configuration names it, its display name.
+    group: Option<String>,
+    group_label: Option<String>,
+    /// PRD 0024 RF7.3: the core's "Best now" chip text, only on the best
+    /// account of a group with two or more candidates. Advisory.
+    best_now: Option<cuotai_core::text::Localized>,
+    /// PRD 0024 RF7.3: while this account is exhausted or projected to run
+    /// out, what the best account of its group has left.
+    advice: Option<AdviceView>,
 }
 
 /// The core's overage reading plus its texts, so no surface composes them.
@@ -609,6 +622,17 @@ pub struct ConnectionView {
     duplicate_of: Option<String>,
     plan: Option<String>,
     via: Option<String>,
+}
+
+/// PRD 0024 RF7.3: "Work runs out ≈18:53 · Personal has 64% left", and the
+/// card the only action ("Show Personal") focuses. Information only.
+#[derive(Serialize, Clone)]
+pub struct AdviceView {
+    text: cuotai_core::text::Localized,
+    /// `ReportView::index` of the best account.
+    best_index: usize,
+    /// Its name, for the "Show {name}" action.
+    best_name: String,
 }
 
 /// The core's provider status plus its state's text.
@@ -909,6 +933,10 @@ fn report_view(
         connections: Vec::new(),
         aggregator: None,
         connection: None,
+        group: account.group.clone(),
+        group_label: advice::group_label(config, account).map(str::to_owned),
+        best_now: None,
+        advice: None,
     }
 }
 
@@ -1041,6 +1069,61 @@ fn pending_view(
         pending: true,
         identity: account_identity(&config.accounts[index], Status::Error),
         ..view
+    }
+}
+
+/// PRD 0024 RF7.3: mark the best account of each group of comparable
+/// accounts and, on the others that are exhausted or projected to run out,
+/// say what the best one has left. Reads only the cycle's current readings;
+/// nothing is written anywhere.
+fn mark_best(
+    reports: &mut [ReportView],
+    config: &Config,
+    readings: &[Option<Report>],
+    now: chrono::DateTime<chrono::Utc>,
+) {
+    let views = advice::views(
+        config,
+        |index| readings.get(index).and_then(Option::as_ref),
+        |_| true,
+        now,
+    );
+    for best in advice::best(&views, now) {
+        let Some(target) = reports.iter().find(|r| r.index == best.best) else {
+            continue;
+        };
+        let (best_name, left) = (
+            target.account.clone(),
+            best.candidate(best.best).map_or(0.0, |c| c.remaining),
+        );
+        for candidate in &best.ranked {
+            let Some(view) = reports.iter_mut().find(|r| r.index == candidate.index) else {
+                continue;
+            };
+            if candidate.index == best.best {
+                view.best_now = Some(advice::best_chip());
+                continue;
+            }
+            let runs_out = view
+                .metrics
+                .iter()
+                .find_map(|metric| metric.forecast.as_ref())
+                .map(|forecast| forecast.at.clone());
+            let exhausted = view.class == AccountClass::Exhausted;
+            if !exhausted && runs_out.is_none() {
+                continue;
+            }
+            view.advice = Some(AdviceView {
+                text: advice::switch_text(
+                    &view.account,
+                    &best_name,
+                    left,
+                    runs_out.as_deref().filter(|_| !exhausted),
+                ),
+                best_index: best.best,
+                best_name: best_name.clone(),
+            });
+        }
     }
 }
 
@@ -1326,6 +1409,8 @@ impl Inner {
                 Some(view)
             })
             .collect();
+        let mut reports = reports;
+        mark_best(&mut reports, &l.file.config, &slot_reports, clock);
         let tray_accounts = reports
             .iter()
             .map(|v| tray_account(v, l.cycle.last_good_report(v.index)))
@@ -5759,8 +5844,7 @@ mod tests {
             .unwrap()
             .starts_with("pace.chip."));
         assert_ne!(
-            pace["chips"]["points"]["text"]["id"],
-            pace["chips"]["percent"]["text"]["id"],
+            pace["chips"]["points"]["text"]["id"], pace["chips"]["percent"]["text"]["id"],
             "the percent form names the comparison"
         );
         let pair = &view["metrics"][0]["resets_label"];
@@ -5773,6 +5857,58 @@ mod tests {
         let view =
             serde_json::to_value(report_view(0, &past, &config, None, None, 0, &[])).unwrap();
         assert!(view["metrics"][0]["resets_label"].is_null());
+    }
+
+    /// PRD 0024 RF7.3: the best account of a group carries the core's chip;
+    /// an exhausted one says what the best has left; nothing else is added.
+    #[test]
+    fn view_marks_the_best_account_and_advises_an_exhausted_one() {
+        use cuotai_core::MetricWindow::Window5h;
+        let mut accounts = vec![plain_account("a"), plain_account("b"), plain_account("c")];
+        for account in &mut accounts {
+            account.group = Some("coding".into());
+        }
+        let config = Config {
+            accounts,
+            groups: vec![cuotai_core::GroupDef {
+                id: "coding".into(),
+                label: Some("Coding".into()),
+                order: None,
+            }],
+            ..Config::default()
+        };
+        let now = chrono::Utc::now();
+        let reading = |name: &str, used: f64| Report {
+            checked_at: now - chrono::Duration::minutes(1),
+            ..ready(name, vec![quota("5h", used, Window5h, 3)])
+        };
+        let readings = vec![
+            Some(reading("a", 100.0)),
+            Some(reading("b", 40.0)),
+            Some(reading("c", 70.0)),
+        ];
+        let mut views: Vec<ReportView> = readings
+            .iter()
+            .enumerate()
+            .map(|(i, r)| report_view(i, r.as_ref().unwrap(), &config, None, None, 0, &[]))
+            .collect();
+        mark_best(&mut views, &config, &readings, now);
+        let json = serde_json::to_value(&views).unwrap();
+        assert_eq!(json[0]["group"], "coding");
+        assert_eq!(json[0]["group_label"], "Coding");
+        assert!(json[0]["best_now"].is_null());
+        assert_eq!(json[1]["best_now"]["id"], "advice.best");
+        assert!(json[2]["best_now"].is_null());
+        // Exhausted: "a is exhausted · b has 60% left"; the others (no
+        // forecast, not exhausted) get nothing.
+        assert_eq!(json[0]["advice"]["text"]["id"], "advice.switch.exhausted");
+        assert_eq!(json[0]["advice"]["text"]["params"]["pct"], "60");
+        assert_eq!(json[0]["advice"]["best_index"], 1);
+        assert!(json[1]["advice"].is_null() && json[2]["advice"].is_null());
+        // Without a second candidate nobody is marked.
+        let mut alone = vec![views.remove(0)];
+        mark_best(&mut alone, &config, &readings[..1], now);
+        assert!(serde_json::to_value(&alone).unwrap()[0]["best_now"].is_null());
     }
 
     /// PRD 0005 RF4: each report carries its account's access descriptor,

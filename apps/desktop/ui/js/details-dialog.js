@@ -88,6 +88,9 @@ export function openDetails(key, context, from = null) {
       if (t.closest("[data-report]")) { const rep = r(); if (rep) openReportProblem(rep.index, ctx.generation()); return; }
       // PRD 0015 RF4.1: a source that is off points to Settings → Local cost.
       if (t.closest("[data-cost-settings]")) { dlg.close(); return ctx.onSettings(); }
+      // PRD 0024 RF7.3: the only action of the advice focuses the other account's card.
+      const show = t.closest("[data-show-account]");
+      if (show) { dlg.close(); return ctx.onShowAccount?.(Number(show.dataset.showAccount)); }
       const bell = t.closest("[data-bell]");
       if (bell) return ctx.onBell(bell.dataset.bell, bell.dataset.bellOn !== "true");
       // PRD 0008 RF3.2: mute or unmute one metric's usage alerts.

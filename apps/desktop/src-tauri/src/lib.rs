@@ -431,6 +431,10 @@ struct TrayMenuPayload {
     /// the main window, where the notice lives.
     #[serde(default)]
     update: Option<String>,
+    /// PRD 0024 RF7.3: "Best now: Claude (Personal)" for the tooltip, when a
+    /// group of comparable accounts has one. Advisory.
+    #[serde(default)]
+    best: Option<String>,
 }
 
 /// Remove controles, apara e limita o tamanho de uma linha de menu.
@@ -738,6 +742,13 @@ fn set_show_pace(show: bool) -> Result<(), String> {
 #[tauri::command]
 fn set_pace_unit(unit: String) -> Result<(), String> {
     settings::save_pace_unit(&unit).map_err(str::to_owned)
+}
+
+/// PRD 0024 RF7.5: show or hide the best account of each group. Error:
+/// `unwritable`.
+#[tauri::command]
+fn set_advice_enabled(enabled: bool) -> Result<(), String> {
+    settings::save_advice_enabled(enabled).map_err(str::to_owned)
 }
 
 /// PRD 0006 RF4.1: days of measurement history kept on this device (7 to
@@ -1689,18 +1700,19 @@ mod macos_popover {
     }
 }
 
-/// The icon tooltip, plus the next reset notice on a second line.
+/// The icon tooltip, plus the next reset notice and the best account now
+/// (PRD 0024 RF7.3) on further lines.
 fn tray_tooltip(p: &TrayMenuPayload) -> String {
-    let tooltip = clean_menu_line(&p.tooltip);
-    match p
-        .notice
-        .as_deref()
+    let mut tooltip = clean_menu_line(&p.tooltip);
+    for extra in [p.notice.as_deref(), p.best.as_deref()]
+        .into_iter()
+        .flatten()
         .map(clean_menu_line)
-        .filter(|n| !n.is_empty())
+        .filter(|line| !line.is_empty())
     {
-        Some(notice) => format!("{tooltip}\n{notice}"),
-        None => tooltip,
+        tooltip = format!("{tooltip}\n{extra}");
     }
+    tooltip
 }
 
 /// The tray icon before the first state arrives (PRD 0025 RF3 redraws it).
@@ -1814,6 +1826,7 @@ pub fn run() {
             set_preference,
             migrate_local_storage,
             set_pace_unit,
+            set_advice_enabled,
             set_history_days,
             history_export,
             history_erase,
@@ -1907,6 +1920,7 @@ pub fn run() {
                 tooltip: "Cuotai".into(),
                 notice: None,
                 update: None,
+                best: None,
             };
             if let (Some(tray), Ok(menu)) = (
                 app.tray_by_id("cuotai"),
@@ -1957,6 +1971,30 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
+    /// PRD 0024 RF7.3: the tooltip lists the next notice and the best
+    /// account on their own lines, skipping blank ones.
+    #[test]
+    fn the_tooltip_adds_the_notice_and_the_best_account_on_their_own_lines() {
+        let payload = |notice: Option<&str>, best: Option<&str>| super::TrayMenuPayload {
+            lines: vec![],
+            empty: String::new(),
+            open: String::new(),
+            settings: String::new(),
+            quit: String::new(),
+            tooltip: "Cuotai".into(),
+            notice: notice.map(str::to_owned),
+            update: None,
+            best: best.map(str::to_owned),
+        };
+        let both = super::tray_tooltip(&payload(Some("Next: 14:30"), Some("Best now: Claude")));
+        assert_eq!(both, "Cuotai\nNext: 14:30\nBest now: Claude");
+        assert_eq!(super::tray_tooltip(&payload(None, Some(" "))), "Cuotai");
+        assert_eq!(
+            super::tray_tooltip(&payload(None, Some("Best now: A"))),
+            "Cuotai\nBest now: A"
+        );
+    }
+
     #[cfg(target_os = "macos")]
     #[test]
     fn macos_popover_joins_full_screen_spaces() {

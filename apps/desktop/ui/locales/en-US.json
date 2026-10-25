@@ -935,5 +935,9 @@
   "settings.kw.pace-unit": "pace deviation percent points ahead reserve",
   "settings.pace.points": "Points",
   "settings.pace.percent": "Percent",
-  "settings.error.invalid_pace_unit": "Choose points or percent."
+  "settings.error.invalid_pace_unit": "Choose points or percent.",
+  "advice.show": "Show {name}",
+  "settings.advice.show": "Show the best account",
+  "settings.advice.help": "Where accounts share a group (or a provider), the one with the most room right now is marked \"Best now\". Advice only: Cuotai never switches accounts or changes your configuration.",
+  "settings.advice.keywords": "best account group compare switch headroom"
 }

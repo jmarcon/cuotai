@@ -1690,6 +1690,7 @@ const demo = {
   set_advanced_open: async ({ open }) => { demoSettings.advancedOpen = open; },
   first_run_turn_on: async () => { demoSettings.alerts.enabled = true; demoSettings.alerts.overage = true; demoSettings.onboarding = 1; return "granted"; },
   first_run_record: async ({ again }) => { demoSettings.onboarding = again ? 0 : 1; },
+  set_advice_enabled: async () => {},
   set_pace_unit: async ({ unit }) => { if (!["points", "percent"].includes(unit)) throw "invalid_pace_unit"; },
   set_history_days: async ({ days }) => { if (!(Number.isInteger(days) && days >= 7 && days <= 365)) throw "invalid_history_days"; demoSettings.historyDays = days; },
   // ponytail: the browser demo has no history file; fixed counts let the export and erase flows be driven, and an
@@ -1948,6 +1949,26 @@ const PACE_UNIT_KEY = "cuotai.pace.unit";
 let paceUnitNow = get(PACE_UNIT_KEY, "points") === "percent" ? "percent" : "points";
 const applyPaceUnit = (unit) => { paceUnitNow = unit === "percent" ? "percent" : "points"; put(PACE_UNIT_KEY, paceUnitNow); };
 export const paceUnit = () => paceUnitNow;
+// PRD 0024 RF7.5: the best account of each group of comparable accounts (on unless turned off).
+const ADVICE_KEY = "cuotai.advice";
+let adviceNow = get(ADVICE_KEY, "on") !== "off";
+const applyAdvice = (on) => { adviceNow = on !== false; put(ADVICE_KEY, adviceNow ? "on" : "off"); };
+export const adviceShown = () => adviceNow;
+export const setAdviceEnabled = async (on) => { await call("set_advice_enabled", { enabled: on }); applyAdvice(on); await emitSettingsChanged("advice_enabled"); };
+/** PRD 0024 RF7.3: the "Best now" chip of the best account in its group, from the core's text; empty otherwise. */
+export function bestChipHtml(r) {
+  if (!adviceNow || !r.best_now) return "";
+  const text = tl(r.best_now);
+  const group = r.group_label ? ` · ${r.group_label}` : "";
+  return `<span class="mini best-now" title="${esc(text + group)}" aria-label="${esc(text + group)}">${icon("check")}<span class="mini-t">${esc(text)}</span></span>`;
+}
+/** PRD 0024 RF7.3: what the best account of the group has left while this one runs out, with the one action (focus
+ *  the other card). `action` is false where there is no card to focus. */
+export function adviceHtml(r, { action = true } = {}) {
+  if (!adviceNow || !r.advice) return "";
+  const show = action ? `<button type="button" class="btn sm ghost" data-show-account="${r.advice.best_index}">${te("advice.show", { name: esc(r.advice.best_name) })}</button>` : "";
+  return `<p class="call" role="note">${icon("info")}<span>${esc(tl(r.advice.text))}</span>${show}</p>`;
+}
 export const setPaceUnit = async (unit) => { await call("set_pace_unit", { unit }); applyPaceUnit(unit); await emitSettingsChanged("pace_unit"); };
 export const setShowPace = async (on) => { await call("set_show_pace", { show: on }); applyPace(on); };
 /** The core's pace of `m` (never estimated here); null when the core has none or the user hid pace. */
@@ -1991,7 +2012,7 @@ export function forecastChipHtml(m) {
 }
 export function initOrderSync(onChange) {
   onPreferencesChanged((changed) => {
-    if (["sort", "group_recharging", "show_pace", "pace_unit"].some((k) => changed.has(k))) onChange();
+    if (["sort", "group_recharging", "show_pace", "pace_unit", "advice_enabled"].some((k) => changed.has(k))) onChange();
   });
 }
 
@@ -2010,6 +2031,8 @@ async function applyPreferences(s, { boot = false } = {}) {
   if (was.pace !== showPace) changed.add("show_pace");
   // PRD 0024 RF1.3: the pace unit follows desktop.json like the other preferences (RF7.2).
   if (["points", "percent"].includes(s.pace_unit) && s.pace_unit !== paceUnitNow) { applyPaceUnit(s.pace_unit); changed.add("pace_unit"); }
+  // PRD 0024 RF7.5: the best-account advice, the same way.
+  if (typeof s.advice_enabled === "boolean" && s.advice_enabled !== adviceNow) { applyAdvice(s.advice_enabled); changed.add("advice_enabled"); }
   for (const [key, value] of [["theme", theme.id], ["theme_mode", theme.mode], ["sort", sortMode], ["group_recharging", groupRecharging], ["aggregators_in_all", aggMode]]) mirrorPreference(key, value);
   if (s.locale && boot) mirrorPreference("locale", s.locale); // the language loads right after: it picks the mirror up
   else if (s.locale && s.locale !== currentLocale()) { await setLocale(s.locale); changed.add("locale"); }
