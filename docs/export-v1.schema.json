@@ -341,7 +341,8 @@
         "input": { "type": "integer", "minimum": 0, "description": "Without the cached and cache-written parts." },
         "output": { "type": "integer", "minimum": 0 },
         "cache_read": { "type": "integer", "minimum": 0 },
-        "cache_write": { "type": "integer", "minimum": 0 }
+        "cache_write": { "type": "integer", "minimum": 0 },
+        "cache_write_1h": { "type": "integer", "minimum": 0, "description": "Claude 1-hour cache writes (PRD 0030 RF5); cache_write holds the 5-minute ones." }
       }
     },
     "Rates": {
@@ -352,7 +353,8 @@
         "input": { "type": "number", "minimum": 0 },
         "output": { "type": "number", "minimum": 0 },
         "cache_read": { "type": "number", "minimum": 0 },
-        "cache_write": { "type": "number", "minimum": 0 }
+        "cache_write": { "type": "number", "minimum": 0 },
+        "cache_write_1h": { "type": "number", "minimum": 0, "description": "Absent when the table has no 1-hour price." }
       }
     }
   }

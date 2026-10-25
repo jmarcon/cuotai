@@ -79,16 +79,23 @@ impl Serialize for Usd {
 }
 
 /// The cost of `tokens` at `rates`.
-fn cost(tokens: &Tokens, rates: &Rates) -> Usd {
+fn cost(tokens: &Tokens, rates: &Rates) -> Option<Usd> {
+    // PRD 0030 RF5.3: never price 1-hour writes at the 5-minute rate.
+    let one_hour = match (tokens.cache_write_1h, rates.cache_write_1h) {
+        (0, _) => 0,
+        (count, Some(rate)) => u128::from(count) * u128::from(rate.micros_per_million()),
+        (_, None) => return None,
+    };
     let part = |count: u64, rate: super::prices::Rate| {
         u128::from(count) * u128::from(rate.micros_per_million())
     };
-    Usd {
-        pico: part(tokens.input, rates.input)
+    Some(Usd {
+        pico: one_hour
+            + part(tokens.input, rates.input)
             + part(tokens.output, rates.output)
             + part(tokens.cache_read, rates.cache_read)
             + part(tokens.cache_write, rates.cache_write),
-    }
+    })
 }
 
 /// One model's share of an [`Estimate`].
@@ -168,7 +175,7 @@ pub fn estimate(usage: &[DailyUsage], prices: &Prices) -> Estimate {
             let price = prices.price(model);
             let model_cost = price
                 .as_ref()
-                .map(|price| cost(&model_tokens, &price.rates));
+                .and_then(|price| cost(&model_tokens, &price.rates));
             tokens.add(&model_tokens);
             requests = requests.saturating_add(model_requests);
             match (&price, model_cost) {
@@ -232,6 +239,7 @@ mod tests {
                 output,
                 cache_read,
                 cache_write,
+                cache_write_1h: 0,
             },
             requests,
             sessions: 1,
@@ -473,5 +481,28 @@ mod tests {
             notice.resolve("es"),
             "Estimación a precios de API, no es un cargo; importes en USD."
         );
+    }
+
+    /// PRD 0030 RF5.3: 1-hour writes use their own rate; without one the
+    /// model's cost is unknown, never the 5-minute price.
+    #[test]
+    fn one_hour_writes_use_their_rate_or_make_the_cost_unknown() {
+        let hour = |model: &str| {
+            let mut row = usage(SourceId::ClaudeCode, 20, model, [0, 0, 0, 0], 1);
+            row.tokens.cache_write_1h = 1_000_000;
+            row
+        };
+        let priced = Prices::with_tables(
+            table(
+                r#"{"effective": "2026-10-01", "models": {
+                    "claude-sonnet-4-5": {"input": 3, "output": 15, "cache_read": 0.3, "cache_write": 3.75, "cache_write_1h": 6}}}"#,
+            ),
+            None,
+        );
+        let with_rate = estimate(&[hour("claude-sonnet-4-5")], &priced);
+        assert_eq!(with_rate.models[0].cost.unwrap().to_string(), "$6.00");
+        let without = estimate(&[hour("claude-sonnet-4-5")], &prices(None));
+        assert!(without.models[0].cost.is_none());
+        assert!(without.total.is_none());
     }
 }

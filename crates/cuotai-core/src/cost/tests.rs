@@ -186,7 +186,8 @@ fn growth_is_read_incrementally_and_a_rescan_changes_nothing() {
             input: 30,
             output: 20,
             cache_read: 200,
-            cache_write: 10
+            cache_write: 10,
+            cache_write_1h: 0,
         }
     );
     assert_eq!(usage[0].sessions, 1);
@@ -265,7 +266,8 @@ fn an_archived_codex_rollout_is_counted_once() {
             input: 180,
             output: 50,
             cache_read: 20,
-            cache_write: 0
+            cache_write: 0,
+            cache_write_1h: 0,
         }
     );
     let archived = f.codex_log("archived_sessions");
@@ -788,4 +790,71 @@ fn choosing_other_directories_turns_the_source_off_and_erases_it() {
         "the duplicate is dropped and ~/ is expanded"
     );
     assert!(saved.disclosure(SourceId::ClaudeCode, &f.env).custom);
+}
+
+/// PRD 0030 RF5.1: a line with the split counts prices 1-hour writes apart;
+/// RF7.2: a streamed message counts its highest output once.
+fn claude_split_line(n: u32, output: u64, five: u64, hour: u64) -> String {
+    format!(
+        r#"{{"sessionId":"s","message":{{"id":"msg_{n}","model":"claude-sonnet-4-5-20250929","usage":{{"input_tokens":1,"output_tokens":{output},"cache_read_input_tokens":0,"cache_creation_input_tokens":{},"cache_creation":{{"ephemeral_5m_input_tokens":{five},"ephemeral_1h_input_tokens":{hour}}}}}}},"requestId":"req_{n}","timestamp":"2025-10-02T08:00:00.000Z"}}"#,
+        five + hour
+    ) + "\n"
+}
+
+#[test]
+fn one_hour_cache_writes_are_kept_apart() {
+    let f = fixture();
+    f.enable(SourceId::ClaudeCode);
+    write(
+        &f.claude_log("s1"),
+        &(claude_split_line(1, 5, 100, 40) + &claude_line(2, 1, 2)),
+    );
+    f.scan();
+    let tokens = f.usage()[0].tokens;
+    assert_eq!((tokens.cache_write, tokens.cache_write_1h), (105, 40));
+}
+
+#[test]
+fn streamed_repeats_apply_only_the_growth() {
+    let f = fixture();
+    f.enable(SourceId::ClaudeCode);
+    let log = f.claude_log("s1");
+    write(
+        &log,
+        &(claude_split_line(7, 3, 0, 0) + &claude_split_line(7, 3, 0, 0)),
+    );
+    f.scan();
+    append(
+        &log,
+        &(claude_split_line(7, 1880, 0, 0) + &claude_split_line(7, 40, 0, 0)),
+    );
+    f.scan();
+    let usage = f.usage();
+    assert_eq!(usage[0].tokens.output, 1880);
+    assert_eq!(usage[0].requests, 1);
+}
+
+#[test]
+fn schema_one_is_migrated_and_claude_is_read_again() {
+    let f = fixture();
+    f.enable(SourceId::ClaudeCode);
+    let log = f.claude_log("s1");
+    write(&log, &claude_split_line(1, 5, 100, 40));
+    let path = f.scanner.index().path().to_path_buf();
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    {
+        let db = rusqlite::Connection::open(&path).unwrap();
+        db.execute_batch(super::index::MIGRATIONS[0]).unwrap();
+        db.pragma_update(None, "user_version", 1).unwrap();
+        db.execute(
+            "INSERT INTO usage VALUES ('claude_code','2025-10-02','m','x',9,9,9,9,1)",
+            [],
+        )
+        .unwrap();
+    }
+    f.scan();
+    let usage = f.usage();
+    assert_eq!(usage.len(), 1, "{usage:?}");
+    assert_eq!(usage[0].tokens.cache_write_1h, 40);
+    assert_eq!(usage[0].requests, 1);
 }

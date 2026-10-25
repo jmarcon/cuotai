@@ -92,6 +92,7 @@ impl Usage {
             output: self.output_tokens,
             cache_read: self.cached_input_tokens,
             cache_write: self.cache_write_input_tokens,
+            cache_write_1h: 0,
         }
     }
 
@@ -244,7 +245,8 @@ mod tests {
                 input: 200,
                 output: 300,
                 cache_read: 1000,
-                cache_write: 0
+                cache_write: 0,
+                cache_write_1h: 0,
             }
         );
         assert_eq!(

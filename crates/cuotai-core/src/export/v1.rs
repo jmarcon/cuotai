@@ -595,6 +595,7 @@ mod tests {
                 output,
                 cache_read,
                 cache_write,
+                cache_write_1h: 0,
             },
             requests,
             sessions: 1,
@@ -612,6 +613,7 @@ mod tests {
                         output: rate(15.0),
                         cache_read: rate(0.3),
                         cache_write: rate(3.75),
+                        cache_write_1h: None,
                     },
                 )]
                 .into(),

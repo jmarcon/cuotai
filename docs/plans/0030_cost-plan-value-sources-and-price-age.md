@@ -21,9 +21,9 @@
 | RF2 | — | Proposed. |
 | RF3 | — | Proposed. |
 | RF4 | — | Proposed. |
-| RF5 | — | Proposed. |
+| RF5 | vNEXT | RF5.1–RF5.3 delivered: the Claude parser splits `cache_creation.ephemeral_5m/1h_input_tokens` (`Tokens::cache_write_1h`), migration 2 adds `usage.cache_write_1h` and forgets Claude files so the next scan corrects history once, price tables accept an optional `cache_write_1h` (built-in Claude rows at 2x input) and a model without it has an unknown cost for 1-hour tokens. Desktop and TUI token breakdown displays of the new field remain. |
 | RF6 | — | Proposed. |
-| RF7 | — | Proposed. |
+| RF7 | vNEXT | RF7.1 evidence: in 19,918 local assistant lines, 507 of 9,525 `message.id`+`requestId` keys repeat with differing `output_tokens` (for example 3, 3, 1880): first-wins kept partial counts. RF7.2 delivered: `seen` keeps the accepted line's counts and a later line applies only the growth. |
 | RF8 | — | Proposed. |
 
 ## 1. Context

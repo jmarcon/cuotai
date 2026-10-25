@@ -8,7 +8,8 @@
 //! <https://ccusage.com/guide/claude/>). An assistant line carries
 //! `timestamp`, `sessionId`, `requestId` and `message.{id, model, usage}`
 //! with `input_tokens`, `output_tokens`, `cache_creation_input_tokens` and
-//! `cache_read_input_tokens`; `message.content`, `cwd` and every other
+//! `cache_read_input_tokens` (and `cache_creation.ephemeral_{5m,1h}_input_tokens`
+//! when present); `message.content`, `cwd` and every other
 //! field are never deserialized into a value.
 
 use super::source::{anonymous, instant, is_object, listed_dirs, model_name, under_home, Entry};
@@ -52,6 +53,17 @@ struct Usage {
     cache_creation_input_tokens: u64,
     #[serde(default)]
     cache_read_input_tokens: u64,
+    #[serde(default)]
+    cache_creation: Option<CacheCreation>,
+}
+
+/// PRD 0030 RF5.1: the cache writes split by lifetime.
+#[derive(Deserialize)]
+struct CacheCreation {
+    #[serde(default)]
+    ephemeral_5m_input_tokens: u64,
+    #[serde(default)]
+    ephemeral_1h_input_tokens: u64,
 }
 
 /// Claude Code's placeholder model of locally generated messages.
@@ -103,11 +115,20 @@ impl Source for ClaudeCode {
         if message.model.as_deref() == Some(SYNTHETIC) {
             return Line::Skip;
         }
+        // A line with only the total counts it all as 5-minute writes.
+        let (cache_write, cache_write_1h) = match &usage.cache_creation {
+            Some(split) => (
+                split.ephemeral_5m_input_tokens,
+                split.ephemeral_1h_input_tokens,
+            ),
+            None => (usage.cache_creation_input_tokens, 0),
+        };
         let tokens = Tokens {
             input: usage.input_tokens,
             output: usage.output_tokens,
             cache_read: usage.cache_read_input_tokens,
-            cache_write: usage.cache_creation_input_tokens,
+            cache_write,
+            cache_write_1h,
         };
         let (Some(at), Some(model)) = (
             record.timestamp.as_deref().and_then(instant),
@@ -164,7 +185,8 @@ mod tests {
                 input: 12,
                 output: 56,
                 cache_read: 4000,
-                cache_write: 300
+                cache_write: 300,
+                cache_write_1h: 0
             }
         );
         assert_eq!(entry.session, anonymous(SourceId::ClaudeCode, "s-1"));

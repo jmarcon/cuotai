@@ -590,6 +590,7 @@ mod tests {
                         output: zero,
                         cache_read: zero,
                         cache_write: zero,
+                        cache_write_1h: None,
                     },
                 )]
                 .into(),

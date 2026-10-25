@@ -126,13 +126,17 @@ impl SourceId {
 
 /// Token counts of one request or of an aggregate. `input` excludes the
 /// cached part (`cache_read`) and the part written to the cache
-/// (`cache_write`), so the four never overlap.
+/// (`cache_write`, `cache_write_1h`), so they never overlap.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Tokens {
     pub input: u64,
     pub output: u64,
     pub cache_read: u64,
     pub cache_write: u64,
+    /// PRD 0030 RF5: Claude's 1-hour cache writes, apart from the 5-minute
+    /// writes in `cache_write` (they cost more).
+    #[serde(default)]
+    pub cache_write_1h: u64,
 }
 
 impl Tokens {
@@ -141,6 +145,7 @@ impl Tokens {
             .saturating_add(self.output)
             .saturating_add(self.cache_read)
             .saturating_add(self.cache_write)
+            .saturating_add(self.cache_write_1h)
     }
 
     pub fn add(&mut self, other: &Tokens) {
@@ -148,6 +153,7 @@ impl Tokens {
         self.output = self.output.saturating_add(other.output);
         self.cache_read = self.cache_read.saturating_add(other.cache_read);
         self.cache_write = self.cache_write.saturating_add(other.cache_write);
+        self.cache_write_1h = self.cache_write_1h.saturating_add(other.cache_write_1h);
     }
 }
 

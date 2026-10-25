@@ -362,14 +362,16 @@
               "input": 31000,
               "output": 2100,
               "cache_read": 200000,
-              "cache_write": 10000
+              "cache_write": 10000,
+              "cache_write_1h": 0
             },
             "requests": 10,
             "unknown_tokens": {
               "input": 1000,
               "output": 100,
               "cache_read": 0,
-              "cache_write": 0
+              "cache_write": 0,
+              "cache_write_1h": 0
             },
             "unknown_share": 0.004524886877828055,
             "models": [
@@ -379,7 +381,8 @@
                   "input": 1000,
                   "output": 100,
                   "cache_read": 0,
-                  "cache_write": 0
+                  "cache_write": 0,
+                  "cache_write_1h": 0
                 },
                 "requests": 1,
                 "cost": null,
@@ -391,7 +394,8 @@
                   "input": 30000,
                   "output": 2000,
                   "cache_read": 200000,
-                  "cache_write": 10000
+                  "cache_write": 10000,
+                  "cache_write_1h": 0
                 },
                 "requests": 9,
                 "cost": 0.2175,
@@ -426,14 +430,16 @@
               "input": 120000,
               "output": 8000,
               "cache_read": 900000,
-              "cache_write": 40000
+              "cache_write": 40000,
+              "cache_write_1h": 0
             },
             "requests": 42,
             "unknown_tokens": {
               "input": 0,
               "output": 0,
               "cache_read": 0,
-              "cache_write": 0
+              "cache_write": 0,
+              "cache_write_1h": 0
             },
             "unknown_share": 0.0,
             "models": [
@@ -443,7 +449,8 @@
                   "input": 120000,
                   "output": 8000,
                   "cache_read": 900000,
-                  "cache_write": 40000
+                  "cache_write": 40000,
+                  "cache_write_1h": 0
                 },
                 "requests": 42,
                 "cost": 0.9,
@@ -478,14 +485,16 @@
               "input": 151000,
               "output": 10100,
               "cache_read": 1100000,
-              "cache_write": 50000
+              "cache_write": 50000,
+              "cache_write_1h": 0
             },
             "requests": 52,
             "unknown_tokens": {
               "input": 1000,
               "output": 100,
               "cache_read": 0,
-              "cache_write": 0
+              "cache_write": 0,
+              "cache_write_1h": 0
             },
             "unknown_share": 0.0008389901609335672,
             "models": [
@@ -495,7 +504,8 @@
                   "input": 1000,
                   "output": 100,
                   "cache_read": 0,
-                  "cache_write": 0
+                  "cache_write": 0,
+                  "cache_write_1h": 0
                 },
                 "requests": 1,
                 "cost": null,
@@ -507,7 +517,8 @@
                   "input": 150000,
                   "output": 10000,
                   "cache_read": 1100000,
-                  "cache_write": 50000
+                  "cache_write": 50000,
+                  "cache_write_1h": 0
                 },
                 "requests": 51,
                 "cost": 1.1175,
@@ -542,7 +553,8 @@
                 "input": 0,
                 "output": 0,
                 "cache_read": 0,
-                "cache_write": 0
+                "cache_write": 0,
+                "cache_write_1h": 0
               },
               "requests": 0,
               "cost": 0.0,
@@ -550,7 +562,8 @@
                 "input": 0,
                 "output": 0,
                 "cache_read": 0,
-                "cache_write": 0
+                "cache_write": 0,
+                "cache_write_1h": 0
               }
             },
             {
@@ -559,7 +572,8 @@
                 "input": 120000,
                 "output": 8000,
                 "cache_read": 900000,
-                "cache_write": 40000
+                "cache_write": 40000,
+                "cache_write_1h": 0
               },
               "requests": 42,
               "cost": 0.9,
@@ -567,7 +581,8 @@
                 "input": 0,
                 "output": 0,
                 "cache_read": 0,
-                "cache_write": 0
+                "cache_write": 0,
+                "cache_write_1h": 0
               }
             },
             {
@@ -576,7 +591,8 @@
                 "input": 31000,
                 "output": 2100,
                 "cache_read": 200000,
-                "cache_write": 10000
+                "cache_write": 10000,
+                "cache_write_1h": 0
               },
               "requests": 10,
               "cost": 0.2175,
@@ -584,7 +600,8 @@
                 "input": 1000,
                 "output": 100,
                 "cache_read": 0,
-                "cache_write": 0
+                "cache_write": 0,
+                "cache_write_1h": 0
               }
             }
           ]
@@ -614,14 +631,16 @@
         "input": 151000,
         "output": 10100,
         "cache_read": 1100000,
-        "cache_write": 50000
+        "cache_write": 50000,
+        "cache_write_1h": 0
       },
       "requests": 52,
       "unknown_tokens": {
         "input": 1000,
         "output": 100,
         "cache_read": 0,
-        "cache_write": 0
+        "cache_write": 0,
+        "cache_write_1h": 0
       },
       "unknown_share": 0.0008389901609335672,
       "models": [
@@ -631,7 +650,8 @@
             "input": 1000,
             "output": 100,
             "cache_read": 0,
-            "cache_write": 0
+            "cache_write": 0,
+            "cache_write_1h": 0
           },
           "requests": 1,
           "cost": null,
@@ -643,7 +663,8 @@
             "input": 150000,
             "output": 10000,
             "cache_read": 1100000,
-            "cache_write": 50000
+            "cache_write": 50000,
+            "cache_write_1h": 0
           },
           "requests": 51,
           "cost": 1.1175,

@@ -83,6 +83,11 @@ pub struct Rates {
     pub output: Rate,
     pub cache_read: Rate,
     pub cache_write: Rate,
+    /// PRD 0030 RF5.3: Claude's 1-hour write price. `None`: the table has
+    /// none, and 1-hour tokens of the model are priced as unknown, never
+    /// at the 5-minute rate.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_write_1h: Option<Rate>,
 }
 
 /// A price table: per model (lower case) its [`Rates`], the date the
@@ -115,6 +120,8 @@ struct RawRates {
     output: f64,
     cache_read: f64,
     cache_write: f64,
+    #[serde(default)]
+    cache_write_1h: Option<f64>,
 }
 
 /// Why `pricing.json` was not used. The whole file is then ignored and
@@ -238,6 +245,10 @@ impl PriceTable {
                 output: rate("output", raw.output)?,
                 cache_read: rate("cache_read", raw.cache_read)?,
                 cache_write: rate("cache_write", raw.cache_write)?,
+                cache_write_1h: raw
+                    .cache_write_1h
+                    .map(|usd| rate("cache_write_1h", usd))
+                    .transpose()?,
             };
             if models.insert(model.clone(), rates).is_some() {
                 return Err(PricingError::Duplicate { model });

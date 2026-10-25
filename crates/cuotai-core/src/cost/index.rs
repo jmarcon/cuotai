@@ -25,7 +25,8 @@ const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 /// Forward migrations: entry `n` takes `PRAGMA user_version` from `n` to
 /// `n + 1`. Append new steps, never edit a shipped one. Days are local
 /// `YYYY-MM-DD`; times are UTC unix milliseconds.
-const MIGRATIONS: [&str; 1] = ["CREATE TABLE usage (
+pub(super) const MIGRATIONS: [&str; 2] = [
+    "CREATE TABLE usage (
     source TEXT NOT NULL,
     day TEXT NOT NULL,
     model TEXT NOT NULL,
@@ -67,7 +68,23 @@ CREATE TABLE files (
     invalid INTEGER NOT NULL,
     read_at INTEGER NOT NULL,
     PRIMARY KEY (source, file)
-) WITHOUT ROWID;"];
+) WITHOUT ROWID;",
+    // PRD 0030 RF5.2: 1-hour cache writes. Claude files are forgotten so the
+    // next scan re-reads them once and corrects the history.
+    "ALTER TABLE usage ADD COLUMN cache_write_1h INTEGER NOT NULL DEFAULT 0;
+DELETE FROM usage WHERE source = 'claude_code';
+DELETE FROM sessions WHERE source = 'claude_code';
+DELETE FROM seen WHERE source = 'claude_code';
+DELETE FROM files WHERE source = 'claude_code';
+-- PRD 0030 RF7.2: a seen key keeps the counts of the line it accepted, so a
+-- later streaming line with higher counts applies the difference.
+ALTER TABLE seen ADD COLUMN model TEXT NOT NULL DEFAULT '';
+ALTER TABLE seen ADD COLUMN input INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE seen ADD COLUMN output INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE seen ADD COLUMN cache_read INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE seen ADD COLUMN cache_write INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE seen ADD COLUMN cache_write_1h INTEGER NOT NULL DEFAULT 0;",
+];
 
 /// Tables whose rows all derive from the logs.
 const TABLES: [&str; 4] = ["usage", "sessions", "seen", "files"];
@@ -173,7 +190,10 @@ impl CostIndex {
         db.busy_timeout(BUSY_TIMEOUT)?;
         wal(&db)?;
         db.pragma_update(None, "secure_delete", true)?;
-        migrate(&mut db, &MIGRATIONS).map_err(|_| CostError::Storage)?;
+        migrate(&mut db, &MIGRATIONS).map_err(|e| {
+            eprintln!("MIG {e:?}");
+            CostError::Storage
+        })?;
         Ok(db)
     }
 
@@ -262,17 +282,34 @@ impl CostIndex {
         let mut done = Committed::default();
         {
             let mut seen = tx.prepare_cached(
-                "INSERT OR IGNORE INTO seen (source, key, file, day) VALUES (?1, ?2, ?3, ?4)",
+                "INSERT OR IGNORE INTO seen (source, key, file, day, model, input, output,
+                     cache_read, cache_write, cache_write_1h)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            )?;
+            let mut known = tx.prepare_cached(
+                "SELECT file, day, model, input, output, cache_read, cache_write, cache_write_1h
+                 FROM seen WHERE source = ?1 AND key = ?2",
+            )?;
+            let mut grow = tx.prepare_cached(
+                "UPDATE usage SET input = input + ?5, output = output + ?6,
+                     cache_read = cache_read + ?7, cache_write = cache_write + ?8,
+                     cache_write_1h = cache_write_1h + ?9
+                 WHERE source = ?1 AND day = ?2 AND model = ?3 AND file = ?4",
+            )?;
+            let mut remember = tx.prepare_cached(
+                "UPDATE seen SET input = ?3, output = ?4, cache_read = ?5, cache_write = ?6,
+                     cache_write_1h = ?7 WHERE source = ?1 AND key = ?2",
             )?;
             let mut usage = tx.prepare_cached(
                 "INSERT INTO usage (source, day, model, file, input, output, cache_read,
-                     cache_write, requests)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 1)
+                     cache_write, cache_write_1h, requests)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 1)
                  ON CONFLICT (source, day, model, file) DO UPDATE SET
                      input = input + excluded.input,
                      output = output + excluded.output,
                      cache_read = cache_read + excluded.cache_read,
                      cache_write = cache_write + excluded.cache_write,
+                     cache_write_1h = cache_write_1h + excluded.cache_write_1h,
                      requests = requests + 1",
             )?;
             let mut sessions = tx.prepare_cached(
@@ -282,8 +319,81 @@ impl CostIndex {
             for (day, entry) in &chunk.entries {
                 let day = day_text(*day);
                 if let Some(key) = &entry.dedup {
-                    if seen.execute(params![source, key, chunk.file, day])? == 0 {
+                    let t = entry.tokens;
+                    let fields = [
+                        t.input,
+                        t.output,
+                        t.cache_read,
+                        t.cache_write,
+                        t.cache_write_1h,
+                    ];
+                    let inserted = seen.execute(params![
+                        source,
+                        key,
+                        chunk.file,
+                        day,
+                        entry.model,
+                        stored(fields[0]),
+                        stored(fields[1]),
+                        stored(fields[2]),
+                        stored(fields[3]),
+                        stored(fields[4]),
+                    ])?;
+                    if inserted == 0 {
                         done.duplicates += 1;
+                        // PRD 0030 RF7.2: a streamed message repeats with
+                        // growing counts; the first line holds a partial
+                        // output. Apply only what grew, to the row of the
+                        // line that was accepted; rows without stored
+                        // counts (empty model) stay plain duplicates.
+                        let old = known
+                            .query_row(params![source, key], |row| {
+                                Ok((
+                                    row.get::<_, String>(0)?,
+                                    row.get::<_, String>(1)?,
+                                    row.get::<_, String>(2)?,
+                                    [
+                                        count(row.get(3)?),
+                                        count(row.get(4)?),
+                                        count(row.get(5)?),
+                                        count(row.get(6)?),
+                                        count(row.get(7)?),
+                                    ],
+                                ))
+                            })
+                            .optional()?;
+                        if let Some((file, old_day, model, kept)) = old {
+                            if !model.is_empty() {
+                                let gain = std::array::from_fn::<u64, 5, _>(|i| {
+                                    fields[i].saturating_sub(kept[i])
+                                });
+                                if gain.iter().any(|g| *g > 0) {
+                                    grow.execute(params![
+                                        source,
+                                        old_day,
+                                        model,
+                                        file,
+                                        stored(gain[0]),
+                                        stored(gain[1]),
+                                        stored(gain[2]),
+                                        stored(gain[3]),
+                                        stored(gain[4]),
+                                    ])?;
+                                    let top = std::array::from_fn::<u64, 5, _>(|i| {
+                                        fields[i].max(kept[i])
+                                    });
+                                    remember.execute(params![
+                                        source,
+                                        key,
+                                        stored(top[0]),
+                                        stored(top[1]),
+                                        stored(top[2]),
+                                        stored(top[3]),
+                                        stored(top[4]),
+                                    ])?;
+                                }
+                            }
+                        }
                         continue;
                     }
                 }
@@ -297,6 +407,7 @@ impl CostIndex {
                     stored(t.output),
                     stored(t.cache_read),
                     stored(t.cache_write),
+                    stored(t.cache_write_1h),
                 ])?;
                 if !entry.session.is_empty() {
                     sessions.execute(params![
@@ -347,6 +458,7 @@ impl CostIndex {
         let mut query = db.prepare(
             "SELECT u.source, u.day, u.model, SUM(u.input), SUM(u.output), SUM(u.cache_read),
                  SUM(u.cache_write), SUM(u.requests),
+                 SUM(u.cache_write_1h),
                  (SELECT COUNT(*) FROM sessions s
                   WHERE s.source = u.source AND s.day = u.day AND s.model = u.model)
              FROM usage u
@@ -368,9 +480,10 @@ impl CostIndex {
                         output: count(row.get(4)?),
                         cache_read: count(row.get(5)?),
                         cache_write: count(row.get(6)?),
+                        cache_write_1h: count(row.get(8)?),
                     },
                     count(row.get(7)?),
-                    count(row.get(8)?),
+                    count(row.get(9)?),
                 ))
             },
         )?;
