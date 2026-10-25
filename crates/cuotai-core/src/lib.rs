@@ -95,6 +95,8 @@ pub enum ConfigError {
     Session,
     #[error("Conta de extensão sem um extension_id válido, com o id de outra extensão repetido ou com campos de credencial incompatíveis.")]
     Extension,
+    #[error("params.region da conta ElevenLabs deve ser default, us, eu, in ou sg.")]
+    Region,
 }
 
 fn metered_refresh_floor_error(
@@ -178,6 +180,14 @@ impl Config {
                 if !session.is_valid(account.provider) {
                     return Err(ConfigError::Session);
                 }
+            }
+            if account.provider == Provider::ElevenLabs
+                && providers::eleven_labs::base_for_region(
+                    account.params.get("region").map(String::as_str),
+                )
+                .is_none()
+            {
+                return Err(ConfigError::Region);
             }
             if account.provider == Provider::Extension
                 && (account
@@ -963,6 +973,7 @@ impl Monitor {
             Provider::AlibabaCloud => providers::alibaba_billing::fetch(account, ctx).await,
             Provider::Antigravity => providers::antigravity::fetch(account, ctx).await,
             Provider::Kimchi => providers::kimchi::fetch(account, ctx).await,
+            Provider::ElevenLabs => providers::eleven_labs::fetch(account, ctx).await,
             Provider::Extension => {
                 unreachable!("extension dispatch is handled before provider dispatch")
             }

@@ -59,6 +59,7 @@ fn every_provider_has_a_verified_scope_or_an_explicit_none() {
         (AlibabaCloud, None),
         (Antigravity, None),
         (Kimchi, None),
+        (ElevenLabs, None),
     ];
     assert_eq!(cases.map(|(p, _)| p), Provider::ALL);
     for (provider, fixture) in cases {

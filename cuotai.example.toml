@@ -270,3 +270,10 @@ credential_env = "ANTIGRAVITY_ACCESS_TOKEN"
 name = "Kimchi"
 provider = "kimchi"
 credential_env = "KIMCHI_API_KEY"
+
+[[accounts]]
+name = "ElevenLabs"
+provider = "eleven_labs"
+credential_env = "ELEVENLABS_API_KEY"
+# Optional data-residency endpoint: default, us, eu, in or sg.
+# params = { region = "eu" }

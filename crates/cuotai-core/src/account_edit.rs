@@ -69,6 +69,7 @@ pub fn default_env(provider: Provider) -> &'static str {
         Provider::AlibabaCloud => "ALIBABA_CLOUD_ACCESS_KEY_ID",
         Provider::Antigravity => "ANTIGRAVITY_ACCESS_TOKEN",
         Provider::Kimchi => "KIMCHI_API_KEY",
+        Provider::ElevenLabs => "ELEVENLABS_API_KEY",
         Provider::Extension => "",
     }
 }
@@ -134,6 +135,7 @@ fn credential_help_text(provider: Provider) -> &'static str {
         Provider::AlibabaCloud => "Informe o NOME da variável com AccessKey ID da conta RAM de faturamento. Em Parâmetros informe a variável AccessKey Secret; os valores nunca entram no TOML.",
         Provider::Antigravity => "Sessão Google do Antigravity, distinta da API key Gemini. Pressione Tab para login nativo; o projeto Code Assist e as janelas de quota serão consultados automaticamente.",
         Provider::Kimchi => "KIMCHI_API_KEY da conta Kimchi; consulta créditos e orçamentos em llm.kimchi.dev, sem geração.",
+        Provider::ElevenLabs => "Use uma chave de API da ElevenLabs. Restrinja-a à permissão que lê a assinatura da conta (ela não precisa de acesso a text-to-speech) e, se usar vários workspaces, escolha a chave do workspace que quer acompanhar. O Cuotai guarda apenas o nome da variável.",
         _ => "API key/PAT: informe apenas o nome da variável exportada. A chave de geração pode não permitir consultar consumo; confira a limitação do relatório.",
     }
 }
@@ -233,7 +235,7 @@ pub fn managed_keys(provider: Provider) -> &'static [&'static str] {
         Provider::GeminiAi => &["product", "session_env", "project_id"],
         Provider::Qoder => &["region", "credential_type"],
         Provider::Kiro => &["auth_method", "profile_arn", "region"],
-        Provider::CodeBuddy => &["region"],
+        Provider::CodeBuddy | Provider::ElevenLabs => &["region"],
         Provider::Zed => &["user_id", "system_id"],
         Provider::Antigravity => &["project_id"],
         Provider::AlibabaModelStudio => &["region"],
@@ -1349,6 +1351,19 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
         ],
         true,
     )];
+    const ELEVEN_LABS: [FieldDescriptor; 1] = [FieldDescriptor::choice(
+        "region",
+        "Região dos dados",
+        "default (padrão): api.elevenlabs.io. us, eu, in e sg: endpoints de residência de dados; use o da região da conta.",
+        &[
+            ChoiceOptionDescriptor::new("default", "Padrão (api.elevenlabs.io)"),
+            ChoiceOptionDescriptor::new("us", "Estados Unidos (api.us.elevenlabs.io)"),
+            ChoiceOptionDescriptor::new("eu", "União Europeia (residência de dados)"),
+            ChoiceOptionDescriptor::new("in", "Índia (residência de dados)"),
+            ChoiceOptionDescriptor::new("sg", "Singapura (residência de dados)"),
+        ],
+        true,
+    )];
     const ZED: [FieldDescriptor; 2] = [
         FieldDescriptor::text(
             "user_id",
@@ -1493,6 +1508,7 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
         Provider::Zed => &ZED,
         Provider::XiaomiMimo => &XIAOMI_MIMO,
         Provider::Antigravity => &ANTIGRAVITY,
+        Provider::ElevenLabs => &ELEVEN_LABS,
         Provider::AlibabaModelStudio => &ALIBABA_MODEL_STUDIO,
         Provider::AlibabaCodingPlan => &ALIBABA_CODING_PLAN,
         Provider::AlibabaTokenPlan => &ALIBABA_TOKEN_PLAN,

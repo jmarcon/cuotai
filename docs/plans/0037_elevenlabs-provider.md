@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0037 |
-| Status | Proposed |
+| Status | Partially implemented (RF8, RF11 pending) |
 | Owner | `cuotai-core` (model, adapter, access descriptor, account fields, incident registry), desktop and TUI (generic rendering only) |
 | Consumers | `apps/desktop` (cards, details, tray, account dialog), `crates/cuotai-tui` (cards, details, `--once`, wizard), `export::v1` and `--watch` consumers |
 | Depends on | PRD 0005 RF1 (`access::describe`, the exhaustive classification) |
@@ -17,16 +17,16 @@
 
 | RF | Version | Delivery |
 |---|---|---|
-| RF1 | — | Proposed. |
-| RF2 | — | Proposed. |
-| RF3 | — | Proposed. |
-| RF4 | — | Proposed. |
-| RF5 | — | Proposed. |
-| RF6 | — | Proposed. |
-| RF7 | — | Proposed. |
-| RF8 | — | Proposed. |
-| RF9 | — | Proposed. |
-| RF10 | — | Proposed. |
+| RF1 | vNEXT | Provider variant, dispatch, adapter and region allow-list (`Config::validate` rejects free-form regions). |
+| RF2 | vNEXT | Access descriptor (`Official`, `verified_on` 2026-10-23), catalogs and regenerated matrix. The PRD 0027 catalog entry waits for that PRD. |
+| RF3 | vNEXT | Delivered. |
+| RF4 | vNEXT | Delivered. |
+| RF5 | vNEXT | Extra-credits and cost metrics ship as `Usage`/`Spend`; `Billing::Overage` and `overage::assess` states wait for PRD 0023. |
+| RF6 | vNEXT | Delivered. |
+| RF7 | vNEXT | Delivered. |
+| RF8 | — | Pending: the provider is registered as `None` in the incident registry until a stable per-region *Other APIs* component id is verified with a real read. |
+| RF9 | vNEXT | Adapter contract tests; the multi-sub-page incident fixtures belong to RF8. |
+| RF10 | vNEXT | Delivered. |
 | RF11 | — | Proposed (owner account available; the owner runs the procedure). |
 
 ## 1. Context
