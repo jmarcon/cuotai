@@ -326,6 +326,30 @@ struct Args {
     /// um preço.
     #[arg(long, value_name = "MODELO", num_args = 1.., requires = "cost_prices")]
     template: Vec<String>,
+    /// Guarda o preço do plano de uma conta (digitado por você, só neste
+    /// computador): CONTA é provedor:nome (ex.: claude:pessoal), PREÇO o
+    /// valor, MOEDA o código de três letras e DIA (1 a 28, padrão 1) o
+    /// início do ciclo. Compara a estimativa a preços de API com o plano.
+    #[arg(
+        long,
+        value_names = ["CONTA", "PREÇO", "MOEDA", "DIA"],
+        num_args = 3..=4,
+        group = "cost_action"
+    )]
+    cost_plan: Option<Vec<String>>,
+    /// Remove o preço do plano de CONTA (provedor:nome).
+    #[arg(long, value_name = "CONTA", group = "cost_action")]
+    cost_plan_clear: Option<String>,
+    /// Segunda moeda só para exibir: `--cost-currency BRL 5.42` (1 USD =
+    /// 5,42 BRL, taxa digitada por você, nunca baixada) ou
+    /// `--cost-currency off`. Os totais continuam em USD.
+    #[arg(
+        long,
+        value_names = ["MOEDA", "TAXA"],
+        num_args = 1..=2,
+        group = "cost_action"
+    )]
+    cost_currency: Option<Vec<String>>,
     /// Mostra o custo estimado a preços de API do uso local das fontes
     /// ligadas: hoje, ontem e o período salvo (ou os últimos --days N
     /// dias), por modelo e por dia, depois de ler em primeiro plano o que
@@ -377,6 +401,25 @@ fn cost_action(args: &mut Args) -> Option<cost::CostAction> {
     }
     if args.cost_scan {
         return Some(CostAction::Scan);
+    }
+    if let Some(values) = args.cost_plan.take() {
+        let mut values = values.into_iter();
+        return Some(CostAction::Plan {
+            account: values.next().unwrap_or_default(),
+            price: values.next().unwrap_or_default(),
+            currency: values.next().unwrap_or_default(),
+            cycle_day: values.next(),
+        });
+    }
+    if let Some(account) = args.cost_plan_clear.take() {
+        return Some(CostAction::PlanClear(account));
+    }
+    if let Some(values) = args.cost_currency.take() {
+        let mut values = values.into_iter();
+        return Some(CostAction::Currency {
+            code: values.next().unwrap_or_default(),
+            rate: values.next(),
+        });
     }
     if args.cost_prices {
         return Some(if args.template.is_empty() {

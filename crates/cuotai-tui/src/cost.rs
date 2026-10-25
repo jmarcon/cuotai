@@ -13,6 +13,7 @@ use cuotai_core::cost::{
     self, CostIndex, CostSummary, CostWorker, Env, Limits, Period, PriceOrigin, Prices,
     PricingFile, Retention, ScanReport, Scanner, SettingsStore, SourceId, SourceState, Span,
 };
+use cuotai_core::{Account, Provider};
 use std::io::{self, BufRead, IsTerminal, Write};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -28,6 +29,20 @@ pub(crate) enum CostAction {
     Erase,
     Scan,
     Prices,
+    /// PRD 0030 RF1.1 `--cost-plan ACCOUNT PRICE CURRENCY [DAY]`.
+    Plan {
+        account: String,
+        price: String,
+        currency: String,
+        cycle_day: Option<String>,
+    },
+    /// `--cost-plan-clear ACCOUNT`.
+    PlanClear(String),
+    /// PRD 0030 RF6.3 `--cost-currency CODE RATE` / `off`.
+    Currency {
+        code: String,
+        rate: Option<String>,
+    },
     /// PRD 0030 RF4.2 `--cost-prices --template MODEL…`.
     PricesTemplate(Vec<String>),
     /// RF4.2 `--cost [--days N]`.
@@ -192,6 +207,59 @@ pub(crate) fn run(action: CostAction, json: bool, locale: &str) -> Result<u8, St
             write!(stdout, "{text}").map_err(io_error)?;
             Ok(code)
         }
+        CostAction::Plan {
+            account,
+            price,
+            currency,
+            cycle_day,
+        } => {
+            let number = |text: &str| text.trim().replace(',', ".").parse::<f64>();
+            let plan = number(&price)
+                .map_err(|_| cost::CostError::InvalidPlan)
+                .and_then(|price| {
+                    let day = cycle_day
+                        .as_deref()
+                        .map(|day| day.trim().parse::<u8>())
+                        .transpose()
+                        .map_err(|_| cost::CostError::InvalidPlan)?;
+                    cost::PlanSetting::new(price, &currency, day)
+                })
+                .map_err(l10n)?;
+            settings.set_plan(&account, Some(plan)).map_err(l10n)?;
+            writeln!(stdout, "Plano de {account} salvo neste computador.").map_err(io_error)?;
+            Ok(0)
+        }
+        CostAction::PlanClear(account) => {
+            settings.set_plan(&account, None).map_err(l10n)?;
+            writeln!(stdout, "Plano de {account} removido.").map_err(io_error)?;
+            Ok(0)
+        }
+        CostAction::Currency { code, rate } => {
+            if code.eq_ignore_ascii_case("off") && rate.is_none() {
+                settings.set_display_currency(None).map_err(l10n)?;
+                writeln!(stdout, "Segunda moeda desligada; só USD.").map_err(io_error)?;
+                return Ok(0);
+            }
+            let today = chrono::Local::now().date_naive();
+            let rate = rate
+                .ok_or(cost::CostError::InvalidRate)
+                .and_then(|rate| {
+                    rate.trim()
+                        .replace(',', ".")
+                        .parse::<f64>()
+                        .map_err(|_| cost::CostError::InvalidRate)
+                })
+                .and_then(|rate| cost::DisplayCurrency::new(&code, rate, today))
+                .map_err(l10n)?;
+            let line = format!("1 USD = {} {}", rate.rate, rate.code);
+            settings.set_display_currency(Some(rate)).map_err(l10n)?;
+            writeln!(
+                stdout,
+                "Segunda moeda salva: {line} (só exibição; os totais seguem em USD)."
+            )
+            .map_err(io_error)?;
+            Ok(0)
+        }
         CostAction::PricesTemplate(models) => {
             let today = chrono::Local::now().date_naive();
             let text = cuotai_core::cost::PriceTable::template(&models, today)
@@ -225,7 +293,17 @@ pub(crate) fn run(action: CostAction, json: bool, locale: &str) -> Result<u8, St
                 serde_json::to_writer_pretty(&mut stdout, &summary).map_err(|e| e.to_string())?;
                 writeln!(stdout).map_err(io_error)?;
             } else {
-                write!(stdout, "{}", usage_text(&summary, locale)).map_err(io_error)?;
+                let saved = scanner.settings().load().unwrap_or_default();
+                let accounts = planned_accounts(&saved.plans);
+                let plans = scanner
+                    .plan_values(&pricing, &accounts, now)
+                    .unwrap_or_default();
+                write!(
+                    stdout,
+                    "{}",
+                    usage_text(&summary, saved.display_currency.as_ref(), &plans, locale)
+                )
+                .map_err(io_error)?;
             }
             Ok(scan_code(&report))
         }
@@ -254,6 +332,26 @@ pub(crate) fn run(action: CostAction, json: bool, locale: &str) -> Result<u8, St
             Ok(0)
         }
     }
+}
+
+/// The accounts the saved plans name (`provider:name`), enough for
+/// [`cost::plan_values`]; plans of extension accounts are not matched.
+fn planned_accounts(plans: &std::collections::BTreeMap<String, cost::PlanSetting>) -> Vec<Account> {
+    plans
+        .keys()
+        .filter_map(|key| {
+            let (provider, name) = key.split_once(':')?;
+            Some(Account {
+                name: name.to_owned(),
+                provider: Provider::from_slug(provider)?,
+                credential_env: None,
+                oauth: None,
+                session: None,
+                params: Default::default(),
+                refresh_seconds: None,
+            })
+        })
+        .collect()
 }
 
 /// RF1.1: show the disclosure of `source` reading `paths` (the defaults
@@ -535,7 +633,12 @@ pub(crate) fn source_rows(
 /// RF4.2 `--cost` in text: the span with its days, the notice, an ignored
 /// `pricing.json`, then each source's rows (a source that is off, a single
 /// line) and how to turn one on when none is.
-fn usage_text(summary: &CostSummary, locale: &str) -> String {
+fn usage_text(
+    summary: &CostSummary,
+    display: Option<&cost::DisplayCurrency>,
+    plans: &[cost::PlanValue],
+    locale: &str,
+) -> String {
     let span = &summary.span;
     let range = match span.first_day {
         Some(first) => format!("{first} → {}", span.last_day),
@@ -564,6 +667,20 @@ fn usage_text(summary: &CostSummary, locale: &str) -> String {
                 Row::Item => "    ",
             };
             out += &format!("{indent}{}\n", crate::ui::safe(&text.resolve(locale)));
+        }
+    }
+    if let (Some(display), Some(total)) = (display, summary.total.total) {
+        let today = summary.span.last_day;
+        out += &format!(
+            "\n{}: {}\n",
+            summary.span.label.resolve(locale),
+            display.text(total, today).resolve(locale)
+        );
+    }
+    if !plans.is_empty() {
+        out.push('\n');
+        for plan in plans {
+            out += &format!("{}\n", crate::ui::safe(&plan.text.resolve(locale)));
         }
     }
     if !summary.any_on() {

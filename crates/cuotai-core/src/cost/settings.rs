@@ -4,6 +4,7 @@
 //! directories chosen instead of the defaults, plus the period shown and
 //! the index retention. Everything is off until a source is consented.
 
+use super::plan::{DisplayCurrency, PlanSetting};
 use super::source::expand_home;
 use super::{CostError, Period, Retention, SourceId};
 use crate::hooks::write_atomically;
@@ -74,7 +75,7 @@ pub struct SourceSettings {
 }
 
 /// The cost preferences of this computer.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CostSettings {
     #[serde(default)]
     pub sources: BTreeMap<SourceId, SourceSettings>,
@@ -82,6 +83,13 @@ pub struct CostSettings {
     pub period: Period,
     #[serde(default = "default_retention")]
     pub retention_days: u32,
+    /// PRD 0030 RF1.1: what the person pays, by account key
+    /// (`provider:name`). Typed by the person, never in the TOML.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub plans: BTreeMap<String, PlanSetting>,
+    /// PRD 0030 RF6.1: a second currency at a rate the person typed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display_currency: Option<DisplayCurrency>,
 }
 
 fn default_retention() -> u32 {
@@ -94,6 +102,8 @@ impl Default for CostSettings {
             sources: BTreeMap::new(),
             period: Period::default(),
             retention_days: Retention::DEFAULT_DAYS,
+            plans: BTreeMap::new(),
+            display_currency: None,
         }
     }
 }
@@ -356,6 +366,33 @@ impl SettingsStore {
     pub fn set_period(&self, period: Period) -> Result<CostSettings, CostError> {
         self.update(|settings| {
             settings.period = period;
+            Ok(())
+        })
+    }
+
+    /// PRD 0030 RF1.1: save (or, with `None`, remove) the plan of the
+    /// account `key` (`provider:name`).
+    pub fn set_plan(
+        &self,
+        key: &str,
+        plan: Option<PlanSetting>,
+    ) -> Result<CostSettings, CostError> {
+        self.update(|settings| {
+            match plan {
+                Some(plan) => settings.plans.insert(key.to_owned(), plan),
+                None => settings.plans.remove(key),
+            };
+            Ok(())
+        })
+    }
+
+    /// PRD 0030 RF6.1: save (or, with `None`, remove) the display currency.
+    pub fn set_display_currency(
+        &self,
+        display: Option<DisplayCurrency>,
+    ) -> Result<CostSettings, CostError> {
+        self.update(|settings| {
+            settings.display_currency = display;
             Ok(())
         })
     }

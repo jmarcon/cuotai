@@ -424,6 +424,33 @@ fn breakdown(
 }
 
 impl Scanner {
+    /// PRD 0030 RF1: the plan values of `accounts` at `now`, over the
+    /// index and the saved plans. Reads no log.
+    pub fn plan_values(
+        &self,
+        pricing: &PricingFile,
+        accounts: &[crate::Account],
+        now: DateTime<Utc>,
+    ) -> Result<Vec<super::PlanValue>, CostError> {
+        let settings = self.settings().load()?;
+        let today = self.zone().day(now);
+        let enabled = settings.enabled_sources(self.env());
+        let Some(first) = super::earliest_cycle(today, &settings.plans, accounts, &enabled) else {
+            return Ok(Vec::new());
+        };
+        let usage = self.index().usage(None, Some(first), today)?;
+        let (prices, _) = Prices::with_user_file(pricing);
+        Ok(super::plan_values(&super::PlanInput {
+            today,
+            plans: &settings.plans,
+            accounts,
+            enabled: &enabled,
+            usage: &usage,
+            prices: &prices,
+            display: settings.display_currency.as_ref(),
+        }))
+    }
+
     /// RF4: the summary at `now` of `span` (the saved period when `None`)
     /// over the index, the prices in effect (the embedded table under
     /// `pricing`) and `last`, this process's last scan. Reads no log.

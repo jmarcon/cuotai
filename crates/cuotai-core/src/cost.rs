@@ -36,6 +36,7 @@ mod claude;
 mod codex;
 mod estimate;
 mod index;
+mod plan;
 mod prices;
 mod scan;
 mod settings;
@@ -46,6 +47,10 @@ mod worker;
 
 pub use estimate::{estimate, estimate_notice, Estimate, ModelEstimate, Usd};
 pub use index::{CostIndex, DailyUsage, Indexed};
+pub use plan::{
+    cycle_start, earliest_cycle, plan_values, DisplayCurrency, PlanAmount, PlanInput, PlanSetting,
+    PlanValue, MAX_CYCLE_DAY, RATE_STALE_DAYS,
+};
 pub use prices::{
     pricing_ignored, Price, PriceOrigin, PriceRow, PriceTable, Prices, PricingError, PricingFile,
     Rate, Rates, TableInfo, CURRENCY, PRICE_AGE_NOTICE_DAYS,
@@ -295,6 +300,14 @@ pub enum CostError {
     /// A chosen directory that is neither absolute nor under `~/`.
     #[error("Use um diretório absoluto ou que comece com ~/.")]
     RelativePath,
+    /// PRD 0030 RF1.1: a plan price, currency or cycle day out of bounds.
+    #[error(
+        "Plano inválido: preço maior que zero, moeda de três letras e dia do ciclo de 1 a 28."
+    )]
+    InvalidPlan,
+    /// PRD 0030 RF6.1: a rate or currency code out of bounds.
+    #[error("Câmbio inválido: moeda de três letras diferente de USD e taxa maior que zero.")]
+    InvalidRate,
 }
 
 impl CostError {
@@ -322,6 +335,8 @@ impl CostError {
                 self.to_string(),
             ),
             Self::RelativePath => Localized::fixed("cost.error.relative_path", self.to_string()),
+            Self::InvalidPlan => Localized::fixed("cost.error.invalid_plan", self.to_string()),
+            Self::InvalidRate => Localized::fixed("cost.error.invalid_rate", self.to_string()),
         }
     }
 }
