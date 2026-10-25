@@ -394,10 +394,7 @@ pub fn drafts(
                     account,
                     report,
                     last_good_age: None,
-                    incident_active: crate::incidents::incident_active(
-                        statuses,
-                        account.provider,
-                    ),
+                    incident_active: crate::incidents::incident_active(statuses, account.provider),
                 },
                 app,
                 drift.category,
@@ -480,7 +477,17 @@ pub fn analyze(
     skipped: &[String],
     app: &AppInfo,
 ) -> Outcome {
-    analyze_with(previous, accounts, reports, &[], &[], &[], date, skipped, app)
+    analyze_with(
+        previous,
+        accounts,
+        reports,
+        &[],
+        &[],
+        &[],
+        date,
+        skipped,
+        app,
+    )
 }
 
 /// [`analyze`] with the response fingerprints of `Monitor::refresh_with_shapes`

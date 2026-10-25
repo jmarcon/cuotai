@@ -516,7 +516,10 @@ mod tests {
             };
             assert!(text.contains("127.0.0.1"), "{locale}");
             assert!(text.contains("9router"), "{locale}");
-            assert!(text.contains("env") || text.contains("ambient") || text.contains("entorno"), "{locale}");
+            assert!(
+                text.contains("env") || text.contains("ambient") || text.contains("entorno"),
+                "{locale}"
+            );
         }
     }
 
