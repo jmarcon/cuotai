@@ -682,7 +682,7 @@ Shared with the TUI and the menu bar. The shapes come from the TUI's pace vocabu
 
 - **DS-CMP-DIAG-1** A failing account whose provider response changed shows a **diagnostic block** in its details: a neutral callout titled "What changed", the core's sentence ("The provider changed `five_hour.utilization` (number → string)"), up to eight field paths in `--font-mono`, and the note "Values are never recorded". It is selectable text, never a raw body.
 - **DS-CMP-RPT-1** **Report a problem** (failing account details and About) opens a dialog (`--dialog-md`): title, a read-only preview of the exact issue text in a scrollable mono box (max 240 px), the line "Nothing is sent by Cuotai; GitHub opens with this text", and actions Copy (secondary) and Open on GitHub (primary, last).
-- **DS-CMP-VER-1** "Verified N months ago" is a muted status chip (relative months, absolute date in the tooltip) on the access line of details; when the core flags the evidence as old it takes the warning role and the text "Not verified since {date}" (DS-MSG-8 date-only format).
+- **DS-CMP-VER-1** "Verified N months ago" is a muted status chip (relative months, absolute date in the tooltip) on the access line of details; when the core flags the evidence as old it takes the warning role and the text "Not verified since {date}" (DS-MSG-8 date-only format). **Not rendered:** by the owner decision of 2026-10-25 no app surface shows integration status (level, summary or verification age); the access line and this chip stay out of the details, and the age lives in `docs/providers.md`.
 
 ## 5. Charts
 

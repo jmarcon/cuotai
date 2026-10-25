@@ -2,7 +2,8 @@
 // Browser-free UI smoke: the provider picker, the cards and the details
 // render no integration-status label (Official, Undocumented, Derived,
 // Unavailable) in any built-in locale; that transparency lives in
-// docs/providers.md. The picker receives the core's `pickable` flag instead.
+// docs/providers.md. The picker receives the core's `pickable` flag instead,
+// and the details show no "verified N months ago" chip either.
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -65,6 +66,10 @@ const report = (level, withSession) => ({
     reason: null,
     explanation: null,
     session: withSession ? session : null,
+    // PRD 0028 RF6.2 data the core still sends; the details never show it.
+    verified_on: "2026-01-02",
+    verification: { id: "access.verified_months", params: { months: 9 }, fallback: "Verificada há 9 meses." },
+    verification_stale: true,
   },
 });
 
@@ -82,7 +87,15 @@ for (const { code } of i18n.LOCALES) {
   const labels = LEVELS.map((level) => i18n.tl({ id: `access.level.${level}`, params: {}, fallback: level }));
   for (const level of LEVELS) {
     for (const withSession of [false, true]) {
-      const html = lib.accessHtml(report(level, withSession));
+      const r = report(level, withSession);
+      // The details call it with `full`; the cards without. Neither renders status.
+      for (const html of [lib.accessHtml(r), lib.accessHtml(r, { full: true })]) {
+        assert.ok(!html.includes("data-verified"), `${code}/${level}: verified chip rendered`);
+        assert.ok(!html.includes(i18n.tl(r.access.verification)), `${code}/${level}: verification text rendered`);
+        assert.ok(!html.includes(i18n.tl(r.access.summary)), `${code}/${level}: access summary rendered`);
+        assert.ok(!html.includes("2026-01-02"), `${code}/${level}: verification date rendered`);
+      }
+      const html = lib.accessHtml(r, { full: true });
       for (const label of labels) {
         assert.ok(!html.includes(label), `${code}/${level}: access label "${label}" rendered: ${html}`);
       }
