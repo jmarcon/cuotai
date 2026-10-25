@@ -87,7 +87,7 @@ struct AccountWidgetEntryView: View {
     var body: some View {
         if let account = entry.accounts.first {
             VStack(alignment: .leading, spacing: 3) {
-                WidgetHeader(title: account.name)
+                WidgetHeader(title: Text(verbatim: account.name))
                 AccountRowView(account: account, compact: family != .systemLarge)
                 Spacer(minLength: 0)
                 if let pace = account.metrics.first?.pace {
@@ -117,12 +117,12 @@ struct AccountWidgetEntryView: View {
 struct PaceLine: View {
     let pace: WidgetAccount.Metric.Pace
 
-    private var stage: String {
+    private var stage: Text {
         switch pace.stage {
-        case "exhausted": return "Runs out before the reset"
-        case "reserve": return "In reserve"
-        case "ahead": return "Ahead of the average"
-        default: return "Following the average"
+        case "exhausted": return Text("Runs out before the reset")
+        case "reserve": return Text("In reserve")
+        case "ahead": return Text("Ahead of the average")
+        default: return Text("Following the average")
         }
     }
 
@@ -132,7 +132,9 @@ struct PaceLine: View {
                   : pace.tone == "warn" ? "exclamationmark.triangle"
                   : pace.tone == "good" ? "checkmark" : "clock")
                 .font(.caption2)
-            Text("\(stage) · \(abs(Int(pace.deltaPoints.rounded()))) points \(pace.deltaPoints < 0 ? "in reserve" : "ahead")")
+            (stage + (pace.deltaPoints < 0
+                 ? Text(" · \(abs(Int(pace.deltaPoints.rounded()))) points in reserve")
+                 : Text(" · \(abs(Int(pace.deltaPoints.rounded()))) points ahead")))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)

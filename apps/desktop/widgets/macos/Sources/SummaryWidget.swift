@@ -56,7 +56,7 @@ struct SummaryWidgetEntryView: View {
         switch family {
         case .systemSmall:
             VStack(alignment: .leading, spacing: 2) {
-                WidgetHeader(title: "Summary")
+                WidgetHeader(title: Text("Summary"))
                 if let account = entry.accounts.first {
                     AccountRowView(account: account, compact: true)
                 }
@@ -68,7 +68,7 @@ struct SummaryWidgetEntryView: View {
             }
         case .systemMedium:
             VStack(alignment: .leading, spacing: 4) {
-                WidgetHeader(title: "Summary")
+                WidgetHeader(title: Text("Summary"))
                 HStack(alignment: .top, spacing: 10) {
                     ForEach(entry.accounts.prefix(2)) { account in
                         AccountRowView(account: account, compact: true)
@@ -80,7 +80,7 @@ struct SummaryWidgetEntryView: View {
             }
         default:
             VStack(alignment: .leading, spacing: 6) {
-                WidgetHeader(title: "Summary")
+                WidgetHeader(title: Text("Summary"))
                 ForEach(entry.accounts.prefix(5)) { account in
                     AccountRowView(account: account)
                 }

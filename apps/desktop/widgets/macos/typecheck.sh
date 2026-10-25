@@ -14,7 +14,15 @@ here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 target=${1:-arm64-apple-macosx14.0}
 sdk=$(xcrun --sdk macosx --show-sdk-path)
 
-exec swiftc -typecheck -parse-as-library \
+# RF3.4: the string catalog must compile for the four languages.
+cat_out=$(mktemp -d)
+trap 'rm -rf "$cat_out"' EXIT
+xcrun xcstringstool compile -o "$cat_out" "$here/Localizable.xcstrings"
+for l in pt-BR es it; do
+    [ -f "$cat_out/$l.lproj/Localizable.strings" ] || { echo "missing $l strings" >&2; exit 1; }
+done
+
+swiftc -typecheck -parse-as-library \
     -sdk "$sdk" \
     -target "$target" \
     "$here"/Sources/*.swift

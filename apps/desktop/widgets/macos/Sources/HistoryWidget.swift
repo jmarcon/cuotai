@@ -51,7 +51,7 @@ struct HistoryWidgetEntryView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            WidgetHeader(title: entry.account?.name ?? "History")
+            WidgetHeader(title: entry.account.map { Text(verbatim: $0.name) } ?? Text("History"))
             if let account = entry.account, !entry.points.isEmpty {
                 Text("\(account.binding?.label ?? account.name) · last \(spanLabel)")
                     .font(.caption2)
@@ -66,8 +66,10 @@ struct HistoryWidgetEntryView: View {
                 VStack(spacing: 4) {
                     Image(systemName: "chart.xyaxis.line")
                         .font(.title3)
-                    Text(entry.snapshot == nil ? "Open Cuotai to get started." : "No history yet")
-                        .font(.caption)
+                    Group {
+                        if entry.snapshot == nil { Text("Open Cuotai to get started.") } else { Text("No history yet") }
+                    }
+                    .font(.caption)
                     if entry.snapshot != nil {
                         Text("Turn on the measurement history in Cuotai Settings to fill this chart.")
                             .font(.caption2)

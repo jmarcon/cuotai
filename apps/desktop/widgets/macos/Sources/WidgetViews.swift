@@ -67,7 +67,7 @@ struct AccountRowView: View {
                     .monospacedDigit()
                     .foregroundStyle(headlineColor)
                 if let binding = account.binding {
-                    Text(binding.isExhausted ? "Exhausted" : binding.label)
+                    Group { if binding.isExhausted { Text("Exhausted") } else { Text(binding.label) } }
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -89,10 +89,11 @@ struct AccountRowView: View {
     /// VoiceOver (RF3.4): the same facts, said, never colour alone.
     private var accessibilityLabel: String {
         if account.isUnavailable {
-            return "\(account.name). Unavailable"
+            return String(localized: "\(account.name). Unavailable")
         }
-        let freshnessText = account.isStale ? "Stale" : "Current"
-        return "\(account.name). \(percent) percent used. \(freshnessText)."
+        return account.isStale
+            ? String(localized: "\(account.name). \(percent) percent used. Stale.")
+            : String(localized: "\(account.name). \(percent) percent used. Current.")
     }
 
     private var headlineColor: Color {
@@ -175,7 +176,7 @@ struct MeasurementAge: View {
 
 /// The headline of a widget family, for VoiceOver and for the lock screen.
 struct WidgetHeader: View {
-    let title: String
+    let title: Text
 
     var body: some View {
         HStack(spacing: 4) {
@@ -185,7 +186,7 @@ struct WidgetHeader: View {
             Text("·")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
-            Text(title)
+            title
                 .font(.caption2)
                 .foregroundStyle(.secondary)
             Spacer(minLength: 0)

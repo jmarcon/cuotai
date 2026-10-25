@@ -62,6 +62,10 @@ mkdir -p "$appex/Contents/MacOS" "$appex/Contents/Resources"
 # shellcheck disable=SC2086 # the slice list is word-split on purpose
 lipo -create $slices -output "$appex/Contents/MacOS/$name"
 
+# PRD 0014 RF3.4: the string catalog (en source, pt-BR, es, it) compiles to
+# one <lang>.lproj/Localizable.strings per language in the extension.
+xcrun xcstringstool compile -o "$appex/Contents/Resources" "$here/Localizable.xcstrings"
+
 sed -e "s/@VERSION@/$version/g" "$here/Info.plist" > "$appex/Contents/Info.plist"
 plutil -lint "$appex/Contents/Info.plist" >/dev/null
 
