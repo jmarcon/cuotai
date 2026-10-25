@@ -139,8 +139,7 @@ pub const NEW_PROVIDER_ISSUE: &str =
 
 /// PRD 0017 RF5: the guide the Extensions dialog links ("How extensions work");
 /// `EXTENSIONS_GUIDE_URL` in `js/lib.js`.
-pub const EXTENSIONS_GUIDE: &str =
-    "https://github.com/jmarcon/cuotai/blob/main/docs/extensions.md";
+pub const EXTENSIONS_GUIDE: &str = "https://github.com/jmarcon/cuotai/blob/main/docs/extensions.md";
 
 /// PRD 0017 RF5: opens the folder discovery reads extensions from (created on
 /// demand) in the system file manager. The path is the core's, never the UI's.
