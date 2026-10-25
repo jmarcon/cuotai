@@ -102,7 +102,10 @@ Structured texts emitted by the core carry `Localized { id, params, fallback }`:
   on text**: `t()` and `tl()` look the id up in the catalog.
 - The TUI resolves the core's `Localized` values through `Localized::resolve` in the
   active locale (`CUOTAI_LANG`, default `pt-BR`); Ratatui's own captions
-  (shortcuts, frames, ...) are the TUI's own texts (PRD 0034 RF2).
+  (shortcuts, frames, ...) are the TUI's own texts (PRD 0034 RF2): English in
+  code through `l10n::tr`/`trf`, translated in `crates/cuotai-tui/locales/`.
+  Metric labels, units and periods stay the adapters' strings (they key the
+  history and alert rules) and are rendered through `metric_text::metric_text`.
 - `Report.notes` holds the English `fallback` of each note;
   `Report.notes_l10n` accompanies the notes in the same order with
   structured ids and parameters (never containing tokens). Adding a
