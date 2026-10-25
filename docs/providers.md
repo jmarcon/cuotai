@@ -116,6 +116,12 @@ The table is generated: a core test compares it with `access::describe` and fail
 Billed per query (`metered`): `aws_bedrock`.
 <!-- access-matrix:end -->
 
+### Paid extra usage (overage)
+
+The **Overage** column says whether the interface reports consumption that the provider bills on top of the plan: **reported in money** (Cursor on-demand, Kiro overage charges), **reported in provider units** (Claude extra usage, Grok on-demand credits) or **not reported**. Cuotai lists that amount apart from the plan limits (`billing: "overage"` in `--json` and `export::v1`): it is never the binding limit, has no pace and raises no threshold alert; it has its own state per account (`disabled`, `armed`, `active`, `cap_reached`, `unknown`) and one "extra usage started" notice per billing cycle. A missing amount is shown as unknown, never as zero, and a cap of zero means the provider's on-demand is off. Cuotai never changes a provider's billing settings.
+
+**Claude units caveat.** The Claude interface does not document the unit of `used_credits` and `monthly_limit`. The account is billed in US dollars, but whether the API returns dollars or cents is still to be checked against the amount the Claude web console shows (PRD 0023 RF2.6, an owner smoke), so Cuotai keeps the value as provider units and shows no `$` sign until that check is recorded here.
+
 ## Provider catalog and search
 
 The account pickers (desktop and TUI) list providers from `cuotai_core::account_edit::catalog` (PRD 0027): one entry per provider and connection mode, grouped by **sign-in method**. The one-line hint is derived from the access descriptor, not written per provider; the native-login mode is the recommended one when a provider has it. `account_edit::search` ranks the same entries (case- and accent-insensitive; display name, identifier, aliases, then category, sign-in method and hint), so typing `codex` finds ChatGPT / Codex in both editors. The category is a search term only.

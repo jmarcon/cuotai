@@ -18,14 +18,14 @@
 | RF | Version | Delivery |
 |---|---|---|
 | RF1 | vNEXT | `Billing`, `metrics::is_plan_limit`, and the Claude, Grok, Kiro and Cursor overage metrics out of binding, class, pace, alerts and reset notices; extension `billing`. |
-| RF2 | vNEXT (partial) | Adapter normalization and fixtures (RF2.1 without the overage state, RF2.2 to RF2.5). Open: the USD conversion pending the RF2.6 scale check, the overage state (RF3) and the RF2.7 docs column. |
-| RF3 | — | Proposed. |
-| RF4 | — | Proposed. |
-| RF5 | — | Proposed. |
-| RF6 | — | Proposed. |
-| RF7 | — | Proposed. |
-| RF8 | — | Proposed. |
-| RF9 | — | Proposed. |
+| RF2 | vNEXT (partial) | Adapter normalization and fixtures (RF2.1 to RF2.5), Cursor limit 0 and Grok cap 0 read as `disabled`, and the generated Overage column of the providers matrix (RF2.7). Open: the USD conversion pending the RF2.6 scale check (an owner smoke). |
+| RF3 | vNEXT | `overage::assess` (state, amount, cap, unit or currency, cycle end, `items`), the `overage.*` texts in the four languages including the combined "Limit hit · on extra" summary, `Report::overage_hint` for providers that state the setting without a metric. |
+| RF4 | vNEXT | `AlertKind::OverageStarted` and `OverageCapReached`, once per billing cycle with persisted marks, the first-reading rule, the `AlertPrefs::overage` preference stored as `alerts.overage` in `desktop.json`, and the notice texts. Open: the Settings → Alerts row (RF7.4). |
+| RF5 | vNEXT (partial) | `overage_started` and `overage_ended` events with the overage fields, accepted by `--events` and `hooks.toml`; the no-leak test covers them. Open: the `--watch --jsonl` binary test with a fake provider (the existing fake CLI cannot report overage). |
+| RF6 | vNEXT | `export::v1` `overage` object, `access.overage`, the widget snapshot object (overage kept out of the bars), JSON Schema and reference regenerated. |
+| RF7 | vNEXT (partial) | Card chip and textual row, details section, tray chip and tooltip, overage metrics as textual figures, the four-language UI smoke. Open: the Settings → Alerts switch (RF7.4) and the hook editor's explanatory copy, which belong to the Settings lane. |
+| RF8 | vNEXT | TUI card line, details section, `--once` line and `--notify` banner. |
+| RF9 | vNEXT (partial) | `docs/providers.md` (Overage column, units caveat), `docs/events.md`, `docs/export-v1.md`, `docs/widgets.md`, `docs/tui.md`, `docs/gui-features.md` and `README.md`. The RF2.6 scale record waits for the owner smoke. |
 | RF10 | vNEXT | `Scope`, `metrics::limits_account`, scoped exhaustion in binding and class, Antigravity per-model and Claude Opus/Sonnet weekly scopes, extension `scope`, export schema. Open: the PRD 0010, 0024, 0025 and 0026 consumers that do not exist yet. (Added 2026-10-23: `Metric::scope`, review item MET-01). |
 
 ## 1. Context
