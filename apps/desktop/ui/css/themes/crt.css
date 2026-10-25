@@ -14,6 +14,7 @@
   --bad: #ff5a4d;
   --info: #4fd6c4;
   --track: #123a18;
+  --hatch: none; /* DS-CMP-HON-1: a plain dim track instead of the pattern */
   --font-ui: ui-monospace, "SF Mono", Menlo, Consolas, "Courier New", monospace;
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Courier New", monospace;
   --radius-lg: 14px;
@@ -43,6 +44,7 @@
   --bad: #a8281c;
   --info: #1d6a63;
   --track: #d8cfae;
+  --hatch: none; /* DS-CMP-HON-1: a plain dim track instead of the pattern */
   --font-ui: ui-monospace, "SF Mono", Menlo, Consolas, "Courier New", monospace;
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Courier New", monospace;
   --radius-lg: 14px;

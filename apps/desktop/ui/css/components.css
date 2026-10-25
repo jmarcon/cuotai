@@ -1,0 +1,253 @@
+/* PRD 0022 shared components (docs/design-system.md section 4), drawn from tokens and color roles only. */
+
+/* ---- role helpers ---- */
+.lbl.good, .sg.good { color: var(--good); }
+.lbl.warn, .sg.warn { color: var(--warn); }
+.lbl.bad, .sg.bad { color: var(--bad); }
+.lbl.info, .sg.info { color: var(--info); }
+.lbl.accent, .sg.accent { color: var(--accent); }
+.lbl.muted, .lbl.unknown, .sg.muted, .sg.unknown { color: var(--fg-muted); }
+.lbl.fg { color: var(--fg); }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---- DS-CMP-MTR: one continuous bar, pace corridor on 6 px bars, tick on 4 px bars ---- */
+.mtr {
+  position: relative;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--track);
+  --fill: var(--good);
+}
+.mtr.thin { height: 4px; }
+.mtr.good { --fill: var(--good); }
+.mtr.warn { --fill: var(--warn); }
+.mtr.bad { --fill: var(--bad); }
+.mtr.info { --fill: var(--info); }
+.mtr.unknown { --fill: var(--fg-muted); }
+.mtr .mf {
+  display: block;
+  height: 100%;
+  min-width: 6px; /* DS-CMP-MTR-3: a fill narrower than the bar's height is a dot, never invisible */
+  border-radius: inherit;
+  background: var(--fill);
+}
+.mtr.thin .mf { min-width: 4px; }
+/* DS-CMP-HON-1: unknown = hatched 40 % track, "—" in the text */
+.mtr.none {
+  background: var(--hatch), color-mix(in srgb, var(--track) 40%, transparent);
+}
+/* DS-CMP-HON-3: stale = 50 % and a dotted outline */
+.mtr.stale {
+  opacity: 0.5;
+  outline: var(--border-w) dotted var(--fg-muted);
+  outline-offset: var(--space-0);
+}
+/* DS-CMP-MTR-6: a borderless translucent band, at most 2 px taller than the bar, never interactive */
+.mtr .pm {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  min-width: 4px;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--fg) 28%, transparent);
+  pointer-events: none;
+}
+/* DS-CMP-MTR-6a: 2 px tick on 4 px bars */
+.mtr .pm.tick {
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  min-width: 0;
+  margin-left: -1px;
+  background: var(--fg);
+}
+
+/* ---- DS-CMP-ROW-1b: figure block ---- */
+.fig {
+  display: inline-flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.fig b {
+  color: var(--fg); /* DS-CMP-ROW-1a: neutral figures */
+  font-size: var(--text-xl);
+  font-weight: 700;
+  line-height: 1.1;
+}
+.fig b.bad { color: var(--bad); }
+.fig b.warn { color: var(--warn); }
+.fig b.accent { color: var(--accent); }
+.fig b.word {
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: 22px;
+}
+.fig small {
+  color: var(--fg-muted);
+  font-size: var(--text-2xs);
+  font-weight: 400;
+  line-height: 1.1;
+}
+.fig.left { align-items: flex-start; }
+.fig.stale b { opacity: 0.5; }
+
+/* ---- DS-CMP-RING-6: the static C-ring glyph ---- */
+svg.ring { flex: none; vertical-align: -2px; }
+svg.ring .rt { stroke: var(--track); }
+svg.ring .ra { stroke: var(--fill, var(--good)); }
+svg.ring.good { --fill: var(--good); }
+svg.ring.warn { --fill: var(--warn); }
+svg.ring.bad { --fill: var(--bad); }
+svg.ring.exhausted .rt { stroke: color-mix(in srgb, var(--bad) 55%, transparent); }
+svg.ring.unknown g { opacity: 0.4; }
+svg.ring.stale g { opacity: 0.5; stroke-dasharray: 0.1 4.2; }
+svg.i.sg { width: 12px; height: 12px; }
+
+/* ---- DS-CMP-MONO: account monogram on the tile corner ---- */
+.tile-wrap {
+  position: relative;
+  display: inline-block;
+  flex: none;
+}
+.mono-badge {
+  position: absolute;
+  right: calc(-1 * var(--space-1));
+  bottom: calc(-1 * var(--space-1));
+  display: inline-flex;
+  align-items: center;
+  padding: 0 3px;
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--fg);
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* ---- DS-CMP-STL: one-line status line ---- */
+.stl {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  height: 20px;
+  font-size: var(--text-sm);
+  line-height: 1.35;
+  white-space: nowrap;
+}
+.stl-l {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  gap: calc(var(--space-1) + var(--space-0));
+  min-width: 0;
+  overflow: hidden;
+}
+.stl .lbl {
+  flex: none;
+  font-weight: 600;
+}
+.stl.truncated .lbl {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stl .det {
+  flex: none;
+  color: var(--fg-muted);
+}
+.stl .det[hidden] { display: none; }
+.stl .rst {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+  color: var(--fg-muted);
+  font: var(--text-sm) var(--font-mono), var(--font-script);
+  font-variant-numeric: tabular-nums;
+}
+.stl .rst svg.i { width: 12px; height: 12px; }
+/* the single extra line under the status line (DS-CMP-ROW-4) */
+.xline {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--space-1) + var(--space-0));
+  min-width: 0;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.xline span { overflow: hidden; text-overflow: ellipsis; }
+.xline svg.i { width: 14px; height: 14px; flex: none; }
+.xline.good { color: var(--good); }
+.xline.warn { color: var(--warn); }
+.xline.bad { color: var(--bad); }
+.xline.info { color: var(--info); }
+.xline.muted { color: var(--fg-muted); }
+
+/* ---- DS-CMP-BADGE-2: status chip ---- */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 20px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, currentColor 16%, transparent);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.chip.good { color: var(--good); }
+.chip.warn { color: var(--warn); }
+.chip.bad { color: var(--bad); }
+.chip.info { color: var(--info); }
+.chip.accent { color: var(--accent); }
+.chip svg.i { width: 14px; height: 14px; }
+
+/* ---- DS-CMP-CALL: callout ---- */
+.call {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--fg);
+  font-size: var(--text-md);
+  line-height: 1.4;
+  --c: var(--fg-muted);
+}
+.call > svg.i { flex: none; width: 16px; height: 16px; margin-top: 1px; color: var(--c); }
+.call.info { --c: var(--info); }
+.call.warning { --c: var(--warn); }
+.call.critical { --c: var(--bad); }
+.call.accent { --c: var(--accent); }
+.call.info,
+.call.warning,
+.call.critical,
+.call.accent {
+  border-color: color-mix(in srgb, var(--c) 60%, transparent);
+  background: color-mix(in srgb, var(--c) 8%, var(--surface));
+}
+.call.warning { background: color-mix(in srgb, var(--c) 6%, var(--surface)); }
+.call b { color: var(--c); font-weight: 600; }
+
+/* ---- DS-A11Y-1: one focus ring ---- */
+:where(button, [tabindex], a, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}

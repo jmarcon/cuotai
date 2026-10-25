@@ -148,12 +148,6 @@ body {
 .chev {
   color: var(--fg-muted);
 }
-.bar {
-  height: 6px;
-}
-.bar.thin {
-  height: 4px;
-}
 
 
 .pop-foot {

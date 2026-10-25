@@ -16,6 +16,7 @@ import {
   accessibleName, aggregatorsInAll, activeConnection, connectionChips, connectionInfoHtml, connectionsOf, groupsOf, instanceHeadHtml,
   isAggregator, isConnection, onAggregatorModeChange, poolFigure, poolLineHtml, poolPct, statusLine, withConnections,
 } from "./aggregator.js";
+import { expectedLeft, meterHtml } from "./components.js";
 import { trayUpdateLine } from "./tray-menu.js";
 
 await boot();
@@ -59,7 +60,7 @@ function row(r, { via = false } = {}) {
       ${overageChipHtml(r)}
       ${incidentHtml(r, { link: false })}
       ${trayPace(r, (p, label) => paceHtml(p, { label, short: true }))}${bestChipHtml(r)}
-      <div class="bar thin ${lv}"><span style="width:${pct ?? 0}%"></span></div>
+      ${meterHtml(pct, { state: r.status !== "ready" ? "unknown" : blocked ? "exhausted" : "fresh", expected: r.binding ? expectedLeft(r.metrics[r.binding.index]) : null })}
     </div>${icon("chev", "chev")}</button>`;
 }
 

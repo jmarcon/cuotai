@@ -19,6 +19,7 @@ import {
 } from "./lib.js";
 import { patch } from "./util.js";
 import { connectionChips, groupsOf, instanceHeadHtml, isAggregator, poolLineHtml, withConnections } from "./aggregator.js";
+import { expectedLeft, meterHtml } from "./components.js";
 import * as motion from "./motion.js";
 
 await boot();
@@ -50,11 +51,14 @@ const openCostSettings = () => openSettingsWindow({ page: "cost" });
 const costContext = { summary: () => localCost, onSettings: openCostSettings };
 
 /** Uma janela do card (5h ou semanal). Sem a janela, o espaço continua lá, vazio, para o card manter o tamanho. */
-function windowSlot(r, name, w) {
+/** PRD 0022 RF2: the card's continuous meter; `stale` draws the preserved reading (no pace mark). */
+const cardMeter = (m, pct, stale) =>
+  meterHtml(pct, { state: stale ? "stale" : m.state === "exhausted" ? "exhausted" : "fresh", expected: expectedLeft(m) });
+function windowSlot(r, name, w, stale = false) {
   const label = te(`card.window.${name}`);
   if (!w) {
     return `<div class="win none" aria-label="${label}"><div class="win-top"><span class="win-name">${label}</span></div>
-      <div class="win-pct dim">—</div><div class="bar"><span style="width:0"></span></div></div>`;
+      <div class="win-pct dim">—</div>${meterHtml(null, { state: "unknown" })}</div>`;
   }
   const lv = level(w.pct);
   const reset = resetsText(w.m);
@@ -62,15 +66,15 @@ function windowSlot(r, name, w) {
   return `<div class="win${binding}" title="${esc(w.m.label)}"><div class="win-top"><span class="win-name">${label}</span>
       <span class="reset">${reset ? esc(reset) : `<em>${te("quota.na")}</em>`}</span></div>
     <div class="win-pct ${lv}" data-pct="${Math.round(w.pct)}">${Math.round(w.pct)}%</div>
-    <div class="bar ${lv}"><span style="width:${w.pct}%"></span></div>
+    ${cardMeter(w.m, w.pct, stale)}
     <div class="sum-amount">${esc(fmtAmount(w.m))}</div></div>`;
 }
 
 /** Corpo do resumo: janelas de 5h e semanal (a maioria dos provedores); sem nenhuma delas, a quota mais apertada
  *  (ou o texto de uma métrica sem limite, ou o motivo de não haver). */
-function summaryHtml(r) {
+function summaryHtml(r, stale = false) {
   const win = windowsOf(r);
-  if (win.h5 || win.week) return `<div class="wins">${windowSlot(r, "h5", win.h5)}${windowSlot(r, "week", win.week)}</div>`;
+  if (win.h5 || win.week) return `<div class="wins">${windowSlot(r, "h5", win.h5, stale)}${windowSlot(r, "week", win.week, stale)}</div>`;
   const s = summaryOf(r);
   if (s.kind === "bar") {
     const lv = level(s.pct);
@@ -79,7 +83,7 @@ function summaryHtml(r) {
       <b class="big ${lv}" data-pct="${Math.round(s.pct)}">${Math.round(s.pct)}%<small>${te("card.available")}</small></b>
       <div class="sum-meter">
         <div class="sum-top"><span class="lt" title="${esc(s.m.label)}">${esc(s.m.label)}</span><span class="reset">${reset ? esc(reset) : `<em>${te("quota.na")}</em>`}</span></div>
-        <div class="bar ${lv}"><span style="width:${s.pct}%"></span></div>
+        ${cardMeter(s.m, s.pct, stale)}
         <div class="sum-amount">${esc(fmtAmount(s.m))}</div>
       </div></div>`;
   }
@@ -146,7 +150,7 @@ function card(r, position, ordered, recharging = false, { connection = false } =
       </div>
     </div>
     <div class="summary">${stale
-      ? `<div class="stale-reading">${summaryHtml(staleView(r))}</div><p class="sum-note cause">${icon("warn")}<span>${esc(causeText(r))}</span></p>`
+      ? `<div class="stale-reading">${summaryHtml(staleView(r), true)}</div><p class="sum-note cause">${icon("warn")}<span>${esc(causeText(r))}</span></p>`
       : summaryHtml(r)}${pasteSessionHtml(r)}${paceLine(r)}${stale ? "" : overageLineHtml(r)}${incidentHtml(r)}${accessHtml(r)}${costCardHtml(sourceFor(localCost, r.provider), localCost)}</div>
     <div class="card-foot">
       ${connection ? connectionChips(r) : ""}${n ? `<span class="count">${te("quota.count", { count: n })}</span>` : ""}${r.model_count != null ? `<span class="count">${r.model_count ? te("card.modelCount", { count: r.model_count }) : te("card.noModels")}</span>` : ""}${rateChip}${alertChip}${missedChip}${bindingChip}${stale ? "" : overageChipHtml(r)}${expiryChip}${recharging ? `<span class="mini bad" data-return>${icon("clock")}<span class="mini-t">${esc(returnText(r))}</span></span>` : ""}${ageHtml(r)}${nextChip}

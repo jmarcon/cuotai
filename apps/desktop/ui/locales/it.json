@@ -1006,5 +1006,25 @@
   "settings.hooks.quietHelp": "Gli eventi dentro un intervallo di silenzio saltano questa regola; il flusso di watch non viene mai trattenuto.",
   "alerts.missed": "Ha superato il {percent}% mentre Cuotai era chiuso",
   "alerts.missedChip": "Superato a app chiusa",
-  "settings.quiet.summary.off": "Disattivate"
+  "settings.quiet.summary.off": "Disattivate",
+  "meter.noData": "Nessun dato",
+  "meter.left": "{pct}% disponibile",
+  "meter.valuetext": "{pct}% disponibile, {status}",
+  "stl.resets": "Si azzera {time}",
+  "tabs.label": "Filtra account",
+  "tabs.all": "Tutti",
+  "tabs.allAria": "Tutti gli account, {count}, il più stretto con {pct}% disponibile",
+  "tabs.allAriaNoPct": "Tutti gli account, {count}",
+  "tabs.provider": {
+    "one": "{provider}, {count} account",
+    "other": "{provider}, {count} account"
+  },
+  "tabs.attention": "{name}, richiede attenzione: {state}",
+  "tabs.more": "Altri provider",
+  "tray.footer.age": "Ultimo aggiornamento {age}",
+  "tray.refreshing": "Aggiornamento…",
+  "tray.empty": "Ancora nessun account",
+  "tray.filterEmpty": "Nessun account corrisponde a questo filtro.",
+  "tray.showAll": "Mostra tutti",
+  "row.expand": "{name}: {state}"
 }

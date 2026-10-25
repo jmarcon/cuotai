@@ -14,6 +14,7 @@
   --bad: #c00000;
   --info: #0a3da8;
   --track: #d4d0c8;
+  --hatch: none; /* DS-CMP-HON-1: a plain dim track instead of the pattern */
   --font-ui: Tahoma, "Segoe UI", Verdana, sans-serif;
   --font-mono: "Lucida Console", Consolas, monospace;
   --radius-lg: 8px;
@@ -49,6 +50,7 @@
   --bad: #ff6b5e;
   --info: #6cb4ff;
   --track: #1a2030;
+  --hatch: none; /* DS-CMP-HON-1: a plain dim track instead of the pattern */
   --font-ui: Tahoma, "Segoe UI", Verdana, sans-serif;
   --font-mono: "Lucida Console", Consolas, monospace;
   --radius-lg: 8px;

@@ -1013,5 +1013,25 @@
   "settings.hooks.quietHelp": "Eventos dentro de um intervalo de silêncio pulam esta regra; o fluxo do watch nunca é segurado.",
   "alerts.missed": "Passou de {percent}% com o Cuotai fechado",
   "alerts.missedChip": "Cruzado com o app fechado",
-  "settings.quiet.summary.off": "Desligado"
+  "settings.quiet.summary.off": "Desligado",
+  "meter.noData": "Sem dados",
+  "meter.left": "{pct}% disponível",
+  "meter.valuetext": "{pct}% disponível, {status}",
+  "stl.resets": "Renova {time}",
+  "tabs.label": "Filtrar contas",
+  "tabs.all": "Todas",
+  "tabs.allAria": "Todas as contas, {count}, a mais apertada com {pct}% disponível",
+  "tabs.allAriaNoPct": "Todas as contas, {count}",
+  "tabs.provider": {
+    "one": "{provider}, {count} conta",
+    "other": "{provider}, {count} contas"
+  },
+  "tabs.attention": "{name}, requer atenção: {state}",
+  "tabs.more": "Mais provedores",
+  "tray.footer.age": "Última atualização {age}",
+  "tray.refreshing": "Atualizando…",
+  "tray.empty": "Nenhuma conta ainda",
+  "tray.filterEmpty": "Nenhuma conta corresponde a este filtro.",
+  "tray.showAll": "Mostrar todas",
+  "row.expand": "{name}: {state}"
 }

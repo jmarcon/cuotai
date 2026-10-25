@@ -1006,5 +1006,25 @@
   "settings.hooks.quietHelp": "Events inside a quiet interval skip this rule; the watch stream is never held.",
   "alerts.missed": "Passed {percent}% while Cuotai was closed",
   "alerts.missedChip": "Crossed while closed",
-  "settings.quiet.summary.off": "Off"
+  "settings.quiet.summary.off": "Off",
+  "meter.noData": "No data",
+  "meter.left": "{pct}% left",
+  "meter.valuetext": "{pct}% left, {status}",
+  "stl.resets": "Resets {time}",
+  "tabs.label": "Filter accounts",
+  "tabs.all": "All",
+  "tabs.allAria": "All accounts, {count}, tightest {pct}% left",
+  "tabs.allAriaNoPct": "All accounts, {count}",
+  "tabs.provider": {
+    "one": "{provider}, {count} account",
+    "other": "{provider}, {count} accounts"
+  },
+  "tabs.attention": "{name}, needs attention: {state}",
+  "tabs.more": "More providers",
+  "tray.footer.age": "Last refresh {age}",
+  "tray.refreshing": "Refreshing…",
+  "tray.empty": "No accounts yet",
+  "tray.filterEmpty": "No account matches this filter.",
+  "tray.showAll": "Show all",
+  "row.expand": "{name}: {state}"
 }

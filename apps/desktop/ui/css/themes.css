@@ -213,23 +213,6 @@ p {
   }
 }
 
-/* progresso */
-.bar {
-  height: 4px;
-  border-radius: var(--radius-pill);
-  background: var(--track);
-  overflow: hidden;
-}
-.bar > span {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: currentColor;
-  transition: width var(--motion-slow) var(--ease-out);
-}
-.bar.thin {
-  height: 3px;
-}
 .good {
   color: var(--good);
 }

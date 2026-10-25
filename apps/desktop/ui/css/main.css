@@ -107,8 +107,7 @@
   transform: scale(1.01);
   box-shadow: var(--shadow), 0 6px 18px color-mix(in srgb, var(--fg) 12%, transparent);
 }
-/* RF2.1: a cor do nível transita junto com a barra (`.bar > span` usa currentColor) */
-.bar,
+/* RF2.1: a cor do nível transita (PRD 0022 RF12: only color, at --motion-fast) */
 .win-pct,
 .sum-bar .big {
   transition: color var(--motion-fast) var(--ease-out);
@@ -442,9 +441,6 @@
   color: var(--fg-muted);
   white-space: nowrap;
 }
-.sum-meter .bar {
-  height: 6px;
-}
 .sum-amount {
   margin-top: var(--space-1);
   color: var(--fg-muted);
@@ -546,12 +542,6 @@
 .win-pct.dim {
   color: var(--fg-muted);
   opacity: 0.5;
-}
-.win .bar {
-  height: 6px;
-}
-.win.none .bar {
-  opacity: 0.4;
 }
 .win .sum-amount {
   margin-top: var(--space-1);

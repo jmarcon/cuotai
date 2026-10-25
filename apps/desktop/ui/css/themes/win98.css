@@ -14,6 +14,7 @@
   --bad: #a00000;
   --info: #00508c;
   --track: #dfdfdf;
+  --hatch: none; /* DS-CMP-HON-1: a plain dim track instead of the pattern */
   --font-ui: "MS Sans Serif", "Microsoft Sans Serif", Tahoma, Arial, sans-serif;
   --font-mono: "Fixedsys", "Lucida Console", "Courier New", monospace;
   --radius-lg: 0px;
@@ -50,6 +51,7 @@
   --bad: #ff5555;
   --info: #00ffff;
   --track: #000000;
+  --hatch: none; /* DS-CMP-HON-1: a plain dim track instead of the pattern */
   --font-ui: "MS Sans Serif", "Microsoft Sans Serif", Tahoma, Arial, sans-serif;
   --font-mono: "Fixedsys", "Lucida Console", "Courier New", monospace;
   --radius-lg: 0px;

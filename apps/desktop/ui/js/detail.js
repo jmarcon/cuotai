@@ -5,9 +5,10 @@ import {
   STALE, accessHtml, ageHtml, bindingChipText, causeText, errText, esc, fmtAmount, fmtReset, getView, icon, incidentDetailHtml, isBindingMetric, isMetricHidden, isRenewedWaiting, isStaleReading, level, loadModels, metricAlertHtml, metricKey, modelState, noteText,
   adviceHtml, fmtMetricExtra, forecastHtml, isOverage, overageDetailHtml, paceHtml, paceOf, remainingPct, renewedText, reportKey, restNotes, staleView, statusLabel, syncModels, textualMetric,
 } from "./lib.js";
+import { expectedLeft, meterHtml } from "./components.js";
 
 /** `eye`: the quota's hide/show button and, PRD 0008 RF3.2, its usage alert mute (dialog only). */
-export function metricCardHtml(r, m, { eye = false } = {}) {
+export function metricCardHtml(r, m, { eye = false, stale = false } = {}) {
   const pct = remainingPct(m);
   const lv = level(pct);
   // PRD 0023: paid extra usage is a textual figure, never a meter that implies "left".
@@ -16,14 +17,18 @@ export function metricCardHtml(r, m, { eye = false } = {}) {
   const reset = fmtReset(m.resets_at);
   const hid = isMetricHidden(r, m);
   const pace = paceOf(m);
-  // PRD 0007 RF3.2: the bar shows what is available, so the uniform-pace mark sits at the expected available share.
-  const mark = pace ? `<i class="pace-mark" style="left:${(1 - pace.expected_used_fraction) * 100}%" title="${te("metric.pace.expected", { pct: Math.round(pace.expected_used_fraction * 100) })}"></i>` : "";
+  // PRD 0022 RF2 (DS-CMP-MTR): one continuous bar of the remaining share; the pace corridor sits at the expected
+  // remaining share (PRD 0007 RF3.2) and is absent on stale, unknown and exhausted meters.
+  const state = stale ? "stale" : m.state === "exhausted" ? "exhausted" : pct == null ? "unknown" : "fresh";
+  const valueText = pct == null ? t("meter.noData")
+    : pace ? t("meter.valuetext", { pct: Math.round(pct), status: [tl(pace.label), t("metric.pace.expected", { pct: Math.round(pace.expected_used_fraction * 100) })].join(", ") })
+      : t("meter.left", { pct: Math.round(pct) });
   const renewed = isRenewedWaiting(m);
   const gauge = renewed
     ? `<p class="sub" data-renewed-waiting>${icon("clock")} ${esc(renewedText(m))}</p>`
     : text != null
     ? `<div class="balance ${m.state === "exhausted" && !extra ? "bad" : ""}">${esc(text)}</div>`
-    : `<div class="gauge"><div class="bar ${lv}"><span style="width:${pct ?? 0}%"></span></div>${mark}</div>`;
+    : `<div class="gauge" title="${pace ? te("card.pace.estimate") : ""}">${meterHtml(pct, { state, expected: expectedLeft(m), text: valueText })}</div>`;
   // PRD 0009 RF2.2: the core's binding metric gets a highlight and a chip; every other metric stays listed.
   const binding = isBindingMetric(r, m);
   // PRD 0008 RF3.4: a metric with an active usage alert is highlighted too.
@@ -56,7 +61,7 @@ export function detailHtml(r, { eye = false, action = eye } = {}) {
     const s = staleView(r);
     const metrics = eye ? s.metrics : s.metrics.filter((m) => !isMetricHidden(s, m));
     return `<div class="detail">${head}<p class="cause">${icon("warn")}<span>${esc(causeText(r))}</span></p>
-      <div class="detail stale-reading">${metrics.map((m) => metricCardHtml(s, m, { eye })).join("")}</div>${rest}</div>`;
+      <div class="detail stale-reading">${metrics.map((m) => metricCardHtml(s, m, { eye, stale: true })).join("")}</div>${rest}</div>`;
   }
   if (!r.metrics.length)
     return `<div class="detail">${head}<div class="metric"><p class="sub">${esc(causeText(r))}</p></div>${rest}</div>`;

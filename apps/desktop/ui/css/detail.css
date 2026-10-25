@@ -46,9 +46,6 @@
 .metric .pct {
   font-size: var(--text-xl);
 }
-.metric .bar {
-  height: 6px;
-}
 .metric.muted {
   opacity: 0.45;
 }
@@ -100,12 +97,10 @@
   color: var(--warn);
   font-weight: 600;
 }
-/* RF3.2: the preserved reading is dimmed and still (no bar transition) */
-.stale-reading {
+/* PRD 0010 RF3.2, DS-CMP-HON-3: the preserved reading's figures are dimmed; its meters carry the stale
+   treatment themselves (50 % and a dotted outline) and nothing moves. */
+.stale-reading :is(.pct, .win-pct, .big, .fig, .balance) {
   opacity: 0.5;
-}
-.stale-reading .bar > span {
-  transition: none;
 }
 /* `.sum-note.cause`: main.css (loaded later) styles `.sum-note` as a clamped muted box */
 .cause,
@@ -143,16 +138,6 @@
 /* PRD 0007 RF3.2: the uniform-pace mark sits on the bar row only, so it never covers text at any width */
 .gauge {
   position: relative;
-}
-.pace-mark {
-  position: absolute;
-  top: -3px;
-  bottom: -3px;
-  width: 2px;
-  border-radius: 1px;
-  background: var(--fg);
-  transform: translateX(-50%);
-  pointer-events: none;
 }
 .pace-line {
   display: flex;
