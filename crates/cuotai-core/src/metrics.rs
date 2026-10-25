@@ -128,6 +128,9 @@ pub(crate) fn classify_parts(status: Status, metrics: &[Metric]) -> AccountClass
         if !has_finite_signal(metric) {
             continue;
         }
+        // A `Usage` counter is shown, never a reason to mark the account
+        // exhausted (PRD 0038 RF4.2: an exhausted `:free` counter on a paid key).
+        let exhausts = metric.kind != MetricKind::Usage;
         // `used = 0, limit = 0` with no remaining value is a sentinel for
         // unknown — never classify as exhausted or available from it alone.
         let has_unknown_zero_cap =
@@ -141,7 +144,8 @@ pub(crate) fn classify_parts(status: Status, metrics: &[Metric]) -> AccountClass
             if !remaining.is_finite() {
                 continue;
             }
-            if remaining <= 0.0
+            if exhausts
+                && remaining <= 0.0
                 && (!has_quota
                     || metric
                         .limit
@@ -154,7 +158,7 @@ pub(crate) fn classify_parts(status: Status, metrics: &[Metric]) -> AccountClass
             if !used.is_finite() || !limit.is_finite() {
                 continue;
             }
-            if limit > 0.0 && used >= limit {
+            if exhausts && limit > 0.0 && used >= limit {
                 return AccountClass::Exhausted;
             }
         }

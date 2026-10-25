@@ -52,6 +52,7 @@ body:
         - kimchi
         - eleven_labs
         - nine_router
+        - open_router
         # providers:end
     validations:
       required: true

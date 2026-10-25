@@ -77,6 +77,7 @@ pub fn default_env(provider: Provider) -> &'static str {
         Provider::Kimchi => "KIMCHI_API_KEY",
         Provider::ElevenLabs => "ELEVENLABS_API_KEY",
         Provider::NineRouter => "NINEROUTER_PASSWORD",
+        Provider::OpenRouter => "OPENROUTER_API_KEY",
         Provider::Extension => "",
     }
 }
@@ -144,6 +145,7 @@ fn credential_help_text(provider: Provider) -> &'static str {
         Provider::Kimchi => "KIMCHI_API_KEY da conta Kimchi; consulta créditos e orçamentos em llm.kimchi.dev, sem geração.",
         Provider::ElevenLabs => "Use uma chave de API da ElevenLabs. Restrinja-a à permissão que lê a assinatura da conta (ela não precisa de acesso a text-to-speech) e, se usar vários workspaces, escolha a chave do workspace que quer acompanhar. O Cuotai guarda apenas o nome da variável.",
         Provider::NineRouter => "Deixe vazio quando o login do painel do 9router está desligado. Com senha, informe apenas o NOME da variável que a guarda; o valor nunca entra no TOML. Ler o uso pode fazer o 9router renovar os logins que ele guarda.",
+        Provider::OpenRouter => "Visão padrão: chave de inferência da OpenRouter (OPENROUTER_API_KEY); mostra apenas os números dessa chave. Saldo da conta: chave de GERENCIAMENTO (OPENROUTER_MANAGEMENT_KEY), que não faz chamadas de inferência; crie-a em openrouter.ai/settings/management-keys.",
         _ => "API key/PAT: informe apenas o nome da variável exportada. A chave de geração pode não permitir consultar consumo; confira a limitação do relatório.",
     }
 }
@@ -252,6 +254,7 @@ pub fn managed_keys(provider: Provider) -> &'static [&'static str] {
             "tls_ca_file",
             "tls_pin_sha256",
         ],
+        Provider::OpenRouter => &["product", "breakdown", "low_balance"],
         Provider::Zed => &["user_id", "system_id"],
         Provider::Antigravity => &["project_id"],
         Provider::AlibabaModelStudio => &["region"],
@@ -353,6 +356,16 @@ pub fn validate_param(
                 Err(L10n::fixed(
                     "edit_error.param.identifier",
                     "Identificador inválido: use letras, números, hífen ou sublinhado.",
+                ))
+            }
+        }
+        "low_balance" => {
+            if crate::providers::open_router::parse_threshold(value).is_some() {
+                Ok(())
+            } else {
+                Err(L10n::fixed(
+                    "edit_error.param.low_balance",
+                    "Informe um número maior ou igual a zero.",
                 ))
             }
         }
@@ -1047,6 +1060,9 @@ pub fn visible_field_indices(provider: Provider, visibility: &FieldVisibility<'_
                 }
                 "project_id" if provider == Provider::GeminiAi => cli_product,
                 "token_env" if provider == Provider::Kimi => selection("product") == 1,
+                "breakdown" | "low_balance" if provider == Provider::OpenRouter => {
+                    selection("product") == 1
+                }
                 "team_id" | "management_key_env" if provider == Provider::Grok => !cli_product,
                 _ => true,
             };
@@ -1441,6 +1457,35 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
             false,
         ),
     ];
+    const OPEN_ROUTER: [FieldDescriptor; 3] = [
+        FieldDescriptor::choice(
+            "product",
+            "Produto",
+            "key (padrão): limite, gasto e requisições gratuitas da chave de inferência. account: saldo de créditos da conta com uma chave de gerenciamento.",
+            &[
+                ChoiceOptionDescriptor::new("key", "Limites da chave (padrão)"),
+                ChoiceOptionDescriptor::new("account", "Saldo da conta (chave de gerenciamento)"),
+            ],
+            true,
+        ),
+        FieldDescriptor::choice(
+            "breakdown",
+            "Gasto por origem (opcional)",
+            "Somente com saldo da conta: soma o gasto dos últimos 30 dias concluídos por provedor de origem ou por modelo, com uma consulta extra por dia.",
+            &[
+                ChoiceOptionDescriptor::new("off", "Desligado (padrão)"),
+                ChoiceOptionDescriptor::new("provider", "Por provedor de origem"),
+                ChoiceOptionDescriptor::new("model", "Por modelo"),
+            ],
+            true,
+        ),
+        FieldDescriptor::text(
+            "low_balance",
+            "Aviso de saldo baixo (opcional)",
+            "Somente com saldo da conta: mostra um aviso quando o saldo de créditos fica igual ou abaixo deste valor. Vazio usa 5; 0 desliga.",
+            false,
+        ),
+    ];
     const ZED: [FieldDescriptor; 2] = [
         FieldDescriptor::text(
             "user_id",
@@ -1587,6 +1632,7 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
         Provider::XiaomiMimo => &XIAOMI_MIMO,
         Provider::Antigravity => &ANTIGRAVITY,
         Provider::ElevenLabs => &ELEVEN_LABS,
+        Provider::OpenRouter => &OPEN_ROUTER,
         Provider::AlibabaModelStudio => &ALIBABA_MODEL_STUDIO,
         Provider::AlibabaCodingPlan => &ALIBABA_CODING_PLAN,
         Provider::AlibabaTokenPlan => &ALIBABA_TOKEN_PLAN,

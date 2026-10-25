@@ -44,6 +44,7 @@ pub enum Provider {
     ElevenLabs,
     /// PRD 0036: a user's own 9router instance (an aggregator).
     NineRouter,
+    OpenRouter,
     /// A locally installed script extension. Dynamic identity lives in
     /// `Account::params["extension_id"]`; this variant is intentionally not
     /// part of [`Provider::ALL`], so a blank extension is never offered or
@@ -91,6 +92,7 @@ impl Provider {
         Self::Kimchi,
         Self::ElevenLabs,
         Self::NineRouter,
+        Self::OpenRouter,
     ];
 
     pub fn label(self) -> &'static str {
@@ -133,6 +135,7 @@ impl Provider {
             Self::Kimchi => "Kimchi",
             Self::ElevenLabs => "ElevenLabs",
             Self::NineRouter => "9router",
+            Self::OpenRouter => "OpenRouter",
             Self::Extension => "Extension",
         }
     }
@@ -213,6 +216,7 @@ impl Provider {
             Self::Kimchi => "kimchi",
             Self::ElevenLabs => "eleven_labs",
             Self::NineRouter => "nine_router",
+            Self::OpenRouter => "open_router",
             Self::Extension => "extension",
         }
     }
@@ -261,6 +265,7 @@ impl Provider {
         Self::Kimchi,
         Self::ElevenLabs,
         Self::NineRouter,
+        Self::OpenRouter,
         Self::Extension,
     ];
 

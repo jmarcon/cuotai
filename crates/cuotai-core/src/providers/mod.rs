@@ -14,6 +14,7 @@ pub(crate) mod kimchi;
 pub(crate) mod mimo_platform;
 pub(crate) mod nine_router;
 pub(crate) mod nine_router_tls;
+pub(crate) mod open_router;
 pub(crate) mod router_accounts;
 pub(crate) mod router_existing;
 pub(crate) mod router_grok;

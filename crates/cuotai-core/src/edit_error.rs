@@ -207,6 +207,7 @@ pub fn config_error_note(error: &crate::ConfigError) -> Localized {
         crate::ConfigError::Extension => "edit_error.config_extension",
         crate::ConfigError::Region => "edit_error.config_region",
         crate::ConfigError::Group => "edit_error.config_group",
+        crate::ConfigError::OpenRouter => "edit_error.config_open_router",
         crate::ConfigError::MeteredRefreshFloor { .. } | crate::ConfigError::AccountIds { .. } => {
             unreachable!()
         }
@@ -314,6 +315,10 @@ mod tests {
             (crate::ConfigError::Region, "edit_error.config_region"),
             (crate::ConfigError::BaseUrl, "edit_error.config_base_url"),
             (crate::ConfigError::Tls, "edit_error.config_tls"),
+            (
+                crate::ConfigError::OpenRouter,
+                "edit_error.config_open_router",
+            ),
         ] {
             let note = config_error_note(&error);
             assert_eq!(note.id, id);

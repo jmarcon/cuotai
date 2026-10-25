@@ -356,6 +356,15 @@ fn contract(account: &Account) -> Result<(Localized, ModelEvidence), Localized> 
         | Provider::XiaomiMimo
         | Provider::Qoder
         | Provider::AlibabaTokenPlan => no_evidence(),
+        Provider::OpenRouter if product("account") => reason(
+            "models.unsupported",
+            "uma chave de gerenciamento não é documentada para listar modelos; use uma chave de inferência (produto key).",
+        ),
+        Provider::OpenRouter => live(
+            "GET /api/v1/models",
+            false,
+            documented("https://openrouter.ai/docs/api/api-reference/models/get-models"),
+        ),
         Provider::ElevenLabs => reason(
             "models.unsupported",
             "a ElevenLabs não oferece catálogo de modelos para consulta de quota; nenhuma requisição é feita.",
@@ -989,6 +998,9 @@ impl Monitor {
                     providers::catalog::XAI_BASE,
                 )
                 .await
+            }
+            Provider::OpenRouter => {
+                providers::open_router::models(account, ctx, providers::open_router::BASE).await
             }
             Provider::Cline => {
                 providers::catalog::cline_models(account, ctx, providers::catalog::CLINE_BASE).await

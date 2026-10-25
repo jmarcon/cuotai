@@ -309,3 +309,18 @@ params = { base_url = "http://127.0.0.1:20128" }
 # A self-signed HTTPS instance: tls_ca_file = "/path/to/ca.pem" (the CA that
 # signed it) or tls_pin_sha256 = "AB:CD:…" (its certificate's SHA-256, offered
 # by Test connection for you to confirm); never both.
+
+# OpenRouter, default view: limit, spend and free-model requests of an
+# inference key (this key's numbers, not the account balance).
+[[accounts]]
+name = "OpenRouter key"
+provider = "open_router"
+credential_env = "OPENROUTER_API_KEY"
+
+# OpenRouter account balance needs a MANAGEMENT key (it cannot make inference
+# calls but it manages keys; prefer the system vault).
+# [[accounts]]
+# name = "OpenRouter balance"
+# provider = "open_router"
+# credential_env = "OPENROUTER_MANAGEMENT_KEY"
+# params = { product = "account" }  # optional: breakdown = "provider" | "model", low_balance = "5"

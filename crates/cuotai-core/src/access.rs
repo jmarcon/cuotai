@@ -52,6 +52,8 @@ const VERIFIED: &[(&str, &str)] = &[
     ("ollama_cloud", "2026-10-20"),
     ("open_ai_api", "2026-10-20"),
     ("open_code_go", "2026-10-20"),
+    ("open_router", "2026-10-23"),
+    ("open_router_account", "2026-10-23"),
     ("perplexity", "2026-10-20"),
     ("perplexity_computer", "2026-10-20"),
     ("poolside", "2026-10-20"),
@@ -630,6 +632,36 @@ pub(crate) fn classify(
         Provider::NineRouter => entry(Undocumented, AggregatorLogin, Scope::Instance,
             Evidence::Reference("https://github.com/decolua/9router/blob/f39d8f07481ae8518e93175f0ecaaafa61573c6c/src/dashboardGuard.js"),
             "nine_router", "Quotas das conexões que você já adicionou na sua instância do 9router, lidas pelas rotas internas de gerenciamento dela."),
+        Provider::OpenRouter => {
+            let account = param("product", "account");
+            let mut access = if account {
+                entry(Official, AdminKey, Scope::Account,
+                    doc("https://openrouter.ai/docs/api/api-reference/credits/get-credits"),
+                    "open_router_account", "Saldo de créditos e gasto opcional por provedor de origem pelos endpoints documentados de gerenciamento da OpenRouter.")
+            } else {
+                entry(Official, InferenceKey, Scope::Account,
+                    doc("https://openrouter.ai/docs/api/api-reference/api-keys/get-current-key"),
+                    "open_router", "Limite da chave, gasto por período e contador de requisições gratuitas pelo endpoint documentado da chave da OpenRouter.")
+            };
+            access.credential_hint = if account {
+                Localized::fixed(
+                    "access.credential_hint.open_router_account",
+                    "Precisa de uma chave de gerenciamento da OpenRouter, que não faz chamadas de inferência; a visão padrão usa a chave de inferência.",
+                )
+            } else {
+                Localized::fixed(
+                    "access.credential_hint.open_router",
+                    "Usa uma chave de inferência da OpenRouter e mostra apenas os números dessa chave, não o saldo da conta.",
+                )
+            };
+            if account {
+                access.risk = Localized::fixed(
+                    "access.risk.open_router_management_key",
+                    "Uma chave de gerenciamento também cria e apaga chaves, então é mais poderosa que a de inferência: guarde-a no cofre do sistema, não num perfil de shell compartilhado.",
+                );
+            }
+            access
+        }
         Provider::Extension => entry(Extension, LocalCli, Scope::Account,
             doc("https://github.com/jmarcon/cuotai/blob/main/docs/extensions.md"),
             "extension", "Uso informado por uma extensão local aprovada pelo usuário."),
@@ -745,8 +777,9 @@ mod tests {
 
     /// The default account plus every param that may switch the queried
     /// interface; the native login is walked separately.
-    const MODES: [&[(&str, &str)]; 9] = [
+    const MODES: [&[(&str, &str)]; 10] = [
         &[],
+        &[("product", "account")],
         &[("product", "cli")],
         &[("product", "coding")],
         &[("product", "computer")],
@@ -828,6 +861,7 @@ mod tests {
             (Kimchi, Undocumented, C::InferenceKey),
             (ElevenLabs, Official, C::InferenceKey),
             (NineRouter, Undocumented, C::AggregatorLogin),
+            (OpenRouter, Official, C::InferenceKey),
         ];
         let mut seen: Vec<_> = base.iter().map(|row| row.0).collect();
         seen.dedup();
@@ -850,7 +884,7 @@ mod tests {
             Credential,
             &'static str,
         );
-        let modes: [Mode; 18] = [
+        let modes: [Mode; 19] = [
             (
                 Cursor,
                 &[("query_mode", "personal")],
@@ -972,6 +1006,14 @@ mod tests {
                 "perplexity_computer",
             ),
             (Cline, &[], true, Official, C::SubscriptionSession, "cline"),
+            (
+                OpenRouter,
+                &[("product", "account")],
+                false,
+                Official,
+                C::AdminKey,
+                "open_router_account",
+            ),
             (
                 AlibabaCodingPlan,
                 &[("session_env", "X")],

@@ -447,7 +447,7 @@ PROVIDERS                                Connects locally
 
 ### 4.12 Search field (`SRCH`)
 
-- **DS-CMP-SRCH-1** Height 32 px, `--radius-sm`, `--input-bg`, hairline; leading search icon 14 px muted; placeholder names what is searched and how many ("Search 37 providers"); a clear button appears when non-empty.
+- **DS-CMP-SRCH-1** Height 32 px, `--radius-sm`, `--input-bg`, hairline; leading search icon 14 px muted; placeholder names what is searched and how many ("Search 38 providers"); a clear button appears when non-empty.
 - **DS-CMP-SRCH-2** Matching ignores case and accents (today's `norm()`). `Esc` clears a non-empty field, then blurs; `/` focuses the main window filter; `↓` moves into results.
 - **DS-CMP-SRCH-3** No results: one muted line with the query ("No provider matches 'xyz'").
 

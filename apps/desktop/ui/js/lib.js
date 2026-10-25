@@ -719,6 +719,7 @@ const brands = {
   alibaba_token_plan: B("Alibaba Token Plan", "#ff6a00", "Al"), alibaba_cloud: B("Alibaba Cloud", "#ff6a00", "Al"),
   antigravity: B("Antigravity", "#7c6cf0", "Ag"), kimchi: B("Kimchi", "#ef4444", "Km"),
   nine_router: B("9router", "#0ea5e9", "9r"),
+  open_router: B("OpenRouter", "#6467f2", "OR"),
   extension: B("Extension", "#8b5cf6", "Ex"),
 };
 export const brand = (p) => brands[p] ?? B(p, "#888888");
@@ -2170,7 +2171,7 @@ const dl = (id, fallback) => ({ id, params: {}, fallback });
 const DEMO_LEVELS = {
   derived: ["gemini_api", "vertex_ai", "groq"],
   unavailable: ["qwen", "perplexity", "cloudflare_ai", "gemini_ai", "nvidia_nim", "poolside", "alibaba_model_studio"],
-  official: ["open_ai_api", "anthropic_api", "aws_bedrock", "azure_open_ai", "cursor", "copilot", "windsurf", "kimi", "mistral", "grok", "cline", "alibaba_cloud"],
+  official: ["open_ai_api", "anthropic_api", "aws_bedrock", "azure_open_ai", "cursor", "copilot", "windsurf", "kimi", "mistral", "grok", "cline", "alibaba_cloud", "open_router"],
 };
 // Providers without a usage query in any mode (`access::has_usage_query`, demo only): left out of the picker.
 const demoPickerEntry = (id, b) => ({ provider: id, label: b.label, mode: null, method: "api_key",

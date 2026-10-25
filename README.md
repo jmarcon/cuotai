@@ -35,7 +35,7 @@ It is made for developers, teams and heavy users of coding assistants and AI API
 
 **What you get**
 
-- **Every limit in one window.** One card per account with the 5-hour, weekly and monthly windows, rate limits, balances and spend, each with its reset time. Supports **38 services**, including Claude, ChatGPT / Codex, GitHub Copilot, Cursor, Gemini, Kiro, Windsurf, OpenAI and Anthropic admin APIs, AWS Bedrock, Azure OpenAI and many more ([full list](#supported-services)).
+- **Every limit in one window.** One card per account with the 5-hour, weekly and monthly windows, rate limits, balances and spend, each with its reset time. Supports **39 services**, including Claude, ChatGPT / Codex, GitHub Copilot, Cursor, Gemini, Kiro, Windsurf, OpenAI and Anthropic admin APIs, AWS Bedrock, Azure OpenAI and many more ([full list](#supported-services)).
 - **Paid extra usage.** When an account keeps working past its plan and bills the excess (Claude extra usage, Cursor and Grok on-demand, Kiro overage), Cuotai shows what you have spent so far apart from the plan limits and notifies you once per billing cycle when it starts. It only reads; it never changes billing settings.
 - **Pace and "runs out" warnings.** Cuotai compares what you used so far with a steady pace until the reset and tells you when you are on track ("8 points in reserve") or will run out early ("runs out at 16:40, 2h 10m before the reset").
 - **Alerts that matter.** Optional system notifications when a quota resets, crosses a threshold you choose, runs out or has slack again, and an optional warning 15, 30 or 60 minutes before the recent pace would use the whole quota. That warning is a linear estimate from recent readings, never from an average or a single reading, and is off until you turn it on. Nothing is sent to anyone: the app just tells you. Set **quiet hours** per weekday and everything but an exhausted quota waits for one summary when they end; texts leave account names out by default, so a locked screen reveals nothing; and the app and `cuotai --notify` never announce the same event twice.
@@ -135,13 +135,13 @@ See all of them, in both modes, and learn how to add your own in [`docs/themes.m
 
 ## Supported services
 
-Cuotai ships **38 integrations**. For what each one reads, the credential it needs and its limitations, see [`docs/providers.md`](docs/providers.md).
+Cuotai ships **39 integrations**. For what each one reads, the credential it needs and its limitations, see [`docs/providers.md`](docs/providers.md).
 
 | Category | Services |
 |---|---|
 | **Assistants and subscriptions** | Claude, OpenAI Codex / ChatGPT, GitHub Copilot, Cursor (personal and Teams), Windsurf, Kiro / AWS, Antigravity, Cline, Zed, CodeBuddy, Qoder, OpenCode Go |
 | **CLIs and coding plans** | Gemini CLI, Grok CLI / xAI, Kimi Coding and API, MiniMax Token / Coding Plan, Alibaba Coding Plan, Alibaba Token Plan / Qwen Cloud, Xiaomi MiMo, Ollama Cloud, Qwen Code |
-| **Cloud billing and admin APIs** | OpenAI Admin API, Anthropic Admin API, Google Gemini API Monitoring, Google Vertex AI, AWS Bedrock Cost Explorer, Azure OpenAI Cost Management, Alibaba Cloud BSS, Mistral Admin, Perplexity Computer Analytics, Kimchi, Groq, ElevenLabs |
+| **Cloud billing and admin APIs** | OpenAI Admin API, Anthropic Admin API, Google Gemini API Monitoring, Google Vertex AI, AWS Bedrock Cost Explorer, Azure OpenAI Cost Management, Alibaba Cloud BSS, Mistral Admin, Perplexity Computer Analytics, Kimchi, Groq, ElevenLabs, OpenRouter |
 | **Aggregators** | 9router (the quotas of the connections inside your own instance) |
 | **Additional catalog** | Alibaba Model Studio, Cloudflare AI, NVIDIA NIM, Poolside |
 

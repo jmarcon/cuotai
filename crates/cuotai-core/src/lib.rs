@@ -125,6 +125,8 @@ pub enum ConfigError {
     /// or a `[[groups]]` table with an invalid or repeated id.
     #[error("O grupo de uma conta e o id de cada [[groups]] devem ter de 1 a 32 letras minúsculas, números, - ou _, e os ids de [[groups]] não podem se repetir.")]
     Group,
+    #[error("params.product da conta OpenRouter deve ser key ou account, e params.breakdown (somente com account) off, provider ou model.")]
+    OpenRouter,
 }
 
 fn metered_refresh_floor_error(
@@ -258,6 +260,11 @@ impl Config {
                 if providers::nine_router_tls::mode(account, &base).is_err() {
                     return Err(ConfigError::Tls);
                 }
+            }
+            if account.provider == Provider::OpenRouter
+                && !providers::open_router::params_valid(&account.params)
+            {
+                return Err(ConfigError::OpenRouter);
             }
             if account.provider == Provider::Extension
                 && (account
@@ -1163,6 +1170,7 @@ impl Monitor {
             Provider::Kimchi => providers::kimchi::fetch(account, ctx).await,
             Provider::ElevenLabs => providers::eleven_labs::fetch(account, ctx).await,
             Provider::NineRouter => providers::nine_router::fetch(account, ctx).await,
+            Provider::OpenRouter => providers::open_router::fetch(account, ctx).await,
             Provider::Extension => {
                 unreachable!("extension dispatch is handled before provider dispatch")
             }
