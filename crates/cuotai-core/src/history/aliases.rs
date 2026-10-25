@@ -61,7 +61,7 @@ mod tests {
 
     fn put(db: &Connection, key: &str, at: i64, used: f64) {
         db.execute(
-            "INSERT OR IGNORE INTO series VALUES ('c', 'a', ?1, 'label', 0, 1, NULL)",
+            "INSERT OR IGNORE INTO series VALUES ('c', 'a', ?1, 'label', 0, 1, NULL, 'included')",
             [key],
         )
         .unwrap();

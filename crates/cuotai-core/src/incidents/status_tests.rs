@@ -1020,6 +1020,7 @@ async fn a_scoped_component_the_page_no_longer_lists_is_reported_by_name() {
         .await;
     let url: &'static str = Box::leak(format!("{}/summary.json", server.uri()).into_boxed_str());
     let source = StatusSource {
+        subpage: Default::default(),
         format: Format::StatuspageV2,
         url,
         scope: SCOPE,
