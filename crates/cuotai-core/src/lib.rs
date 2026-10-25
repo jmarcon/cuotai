@@ -36,6 +36,7 @@ pub mod resets;
 #[cfg(feature = "serve")]
 pub mod serve;
 pub mod stats;
+pub mod support;
 pub mod text;
 mod transport;
 pub mod user_session;

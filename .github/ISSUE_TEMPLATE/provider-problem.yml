@@ -13,6 +13,7 @@ body:
       label: Provider
       description: A value from `cuotai --list-providers`.
       options:
+        # providers:start (generated from Provider::ALL; do not edit by hand)
         - open_ai_api
         - anthropic_api
         - chat_gpt
@@ -50,6 +51,7 @@ body:
         - antigravity
         - kimchi
         - eleven_labs
+        # providers:end
     validations:
       required: true
   - type: input
@@ -59,6 +61,26 @@ body:
       description: Output of `cuotai --version`, or the version shown in About.
     validations:
       required: true
+  - type: input
+    id: mode
+    attributes:
+      label: Connection mode
+      description: Prefilled by "Report a problem" (for example native_login or environment_variable).
+  - type: input
+    id: category
+    attributes:
+      label: Failure category
+      description: Prefilled by "Report a problem" (for example schema_changed or auth_required).
+  - type: textarea
+    id: paths
+    attributes:
+      label: Drifted fields
+      description: JSON paths and types that no longer match, as shown by "Report a problem". Paths and types only, never values.
+  - type: textarea
+    id: shape_diff
+    attributes:
+      label: Shape difference
+      description: Optional. What changed in the response shape (field names and types only, never values).
   - type: dropdown
     id: interface
     attributes:
