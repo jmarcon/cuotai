@@ -1366,8 +1366,68 @@ fn next_notice_view(
     }
 }
 
+/// The recorded points a view reads for a reading: account index, its
+/// metrics and the instant the lookback ends at (see
+/// [`Monitor::recent_points`]).
+type RecentReader<'a> = dyn Fn(usize, &[Metric], chrono::DateTime<chrono::Utc>) -> Vec<Vec<Point>> + 'a;
+
+/// A [`RecentReader`] over `monitor` that reads each (account, instant) pair
+/// once: one emit builds the view, the hooks' export and the journal's pace
+/// table from the same readings, and every read opens the history file.
+struct RecentMemo<'a> {
+    monitor: Option<&'a Monitor>,
+    seen: std::cell::RefCell<RecentSeen>,
+}
+
+/// (account index, lookback end in unix ms, metric count) → the points read.
+type RecentSeen = std::collections::HashMap<(usize, i64, usize), Vec<Vec<Point>>>;
+
+impl<'a> RecentMemo<'a> {
+    fn new(monitor: Option<&'a Monitor>) -> Self {
+        Self {
+            monitor,
+            seen: Default::default(),
+        }
+    }
+
+    fn read(
+        &self,
+        index: usize,
+        metrics: &[Metric],
+        at: chrono::DateTime<chrono::Utc>,
+    ) -> Vec<Vec<Point>> {
+        let key = (index, at.timestamp_millis(), metrics.len());
+        if let Some(points) = self.seen.borrow().get(&key) {
+            return points.clone();
+        }
+        let points = self.monitor.map_or_else(
+            || vec![Vec::new(); metrics.len()],
+            |monitor| monitor.recent_points(index, metrics, at),
+        );
+        self.seen.borrow_mut().insert(key, points.clone());
+        points
+    }
+}
+
 impl Inner {
+    /// A reader straight from the loaded monitor (no memo).
+    fn recent_points(
+        &self,
+        index: usize,
+        metrics: &[Metric],
+        at: chrono::DateTime<chrono::Utc>,
+    ) -> Vec<Vec<Point>> {
+        match &self.loaded {
+            Some(l) => l.monitor.recent_points(index, metrics, at),
+            None => vec![Vec::new(); metrics.len()],
+        }
+    }
+
     fn view(&self) -> View {
+        self.view_with(&|index, metrics, at| self.recent_points(index, metrics, at))
+    }
+
+    fn view_with(&self, recent: &RecentReader<'_>) -> View {
         let Some(l) = &self.loaded else {
             return View {
                 config_path: None,
@@ -1437,9 +1497,7 @@ impl Inner {
                 let mut view = match (slot, last_good) {
                     (Some(report), _) => {
                         // PRD 0024 FIX-11: the lookback ends at the reading, like its pace.
-                        let recent = l
-                            .monitor
-                            .recent_points(i, &report.metrics, report.checked_at);
+                        let recent = recent(i, &report.metrics, report.checked_at);
                         let mut view =
                             report_view(i, report, &l.file.config, next, models, ranks[i], &recent);
                         self.mark_usage_alerts(&mut view, report);
@@ -1568,9 +1626,10 @@ impl Inner {
     /// PRD 0013 RF4: what the hooks watch: the `hooks.toml` beside the
     /// loaded TOML and the `export::v1` of the live cycle at `now` (the
     /// same state the app shows; no query).
-    fn hooks_input(
+    fn hooks_input_with(
         &self,
         now: chrono::DateTime<chrono::Utc>,
+        recent: &RecentReader<'_>,
     ) -> Option<(PathBuf, Export, PaceTable)> {
         let l = self.loaded.as_ref()?;
         let export = Export::from_cycle_with_history(
@@ -1580,7 +1639,7 @@ impl Inner {
             &l.monitor.incident_statuses(),
             now,
             ExportOptions::default(),
-            |index, metrics, at| l.monitor.recent_points(index, metrics, at),
+            |index, metrics, at| recent(index, metrics, at),
         );
         // PRD 0024 RF5: the pace input of each account's reading, so the
         // hooks can see a projected exhaustion (no query; the history only).
@@ -1593,8 +1652,7 @@ impl Inner {
                 let source = config.accounts.get(account.index)?;
                 Some((
                     Duration::from_secs(source.effective_refresh_seconds(config.refresh_seconds)),
-                    l.monitor
-                        .recent_points(account.index, &report.metrics, report.checked_at),
+                    recent(account.index, &report.metrics, report.checked_at),
                 ))
             })
             .collect();
@@ -1886,22 +1944,28 @@ impl Backend {
             if self.serving.load(Ordering::Relaxed) {
                 self.feed.publish(g.feed());
             }
-            let watched = self
-                .hooks_on
-                .load(Ordering::Relaxed)
-                .then(|| g.hooks_input(chrono::Utc::now()))
-                .flatten();
+            // The view, the hooks' export and the journal's pace table read
+            // the same recorded points: one read per reading for all three,
+            // and one `hooks_input` shared by the hooks and the journal.
+            let memo = RecentMemo::new(g.loaded.as_ref().map(|l| &*l.monitor));
+            let recent = |index: usize, metrics: &[Metric], at| memo.read(index, metrics, at);
+            let hooks_on = self.hooks_on.load(Ordering::Relaxed);
             // PRD 0026 RF3.2: the journal sees the state while history records.
-            let journaled = g
+            let journal_store = g
                 .loaded
                 .as_ref()
                 .filter(|l| l.monitor.history_recording())
-                .and_then(|l| l.monitor.history())
-                .and_then(|store| {
-                    g.hooks_input(chrono::Utc::now())
-                        .map(|(_, export, table)| (store, export, table))
-                });
-            (g.view(), watched, journaled)
+                .and_then(|l| l.monitor.history());
+            let input = (hooks_on || journal_store.is_some())
+                .then(|| g.hooks_input_with(chrono::Utc::now(), &recent))
+                .flatten();
+            let journaled = journal_store.and_then(|store| {
+                input
+                    .as_ref()
+                    .map(|(_, export, table)| (store, export.clone(), table.clone()))
+            });
+            let watched = hooks_on.then_some(input).flatten();
+            (g.view_with(&recent), watched, journaled)
         };
         if let Some((store, export, table)) = journaled {
             // PRD 0024 RF5: the journal sees projected exhaustions too.
