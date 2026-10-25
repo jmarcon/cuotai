@@ -4619,7 +4619,11 @@ pub fn providers() -> Vec<ProviderInfo> {
 #[derive(Serialize)]
 pub struct PickerEntry {
     provider: Provider,
-    label: &'static str,
+    label: String,
+    /// PRD 0027 RF1.3: the extension id of an "Extension: {name}" tile;
+    /// choosing it opens the extension's consent flow, never a form.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    extension: Option<String>,
     /// `auth_mode` the tile opens (`None`: the provider's only mode).
     mode: Option<&'static str>,
     method: cuotai_core::account_edit::SignInMethod,
@@ -4634,7 +4638,8 @@ impl From<cuotai_core::account_edit::CatalogEntry> for PickerEntry {
     fn from(entry: cuotai_core::account_edit::CatalogEntry) -> Self {
         Self {
             provider: entry.provider,
-            label: entry.provider.label(),
+            label: entry.provider.label().to_owned(),
+            extension: entry.extension,
             mode: entry.mode,
             method: entry.method,
             method_label: entry.method.label(),
@@ -4646,12 +4651,49 @@ impl From<cuotai_core::account_edit::CatalogEntry> for PickerEntry {
 }
 
 /// PRD 0027 RF2/RF3: the picker's results for `query`, ranked and grouped
-/// by the core.
-pub fn search_providers(query: &str, locale: &str) -> Vec<PickerEntry> {
-    account_edit::picker_search(query, locale)
+/// by the core, with (RF1.3) the discovered extensions that can still be
+/// added, labelled "Extension: {name}" in `locale`.
+fn search_providers_with(
+    query: &str,
+    locale: &str,
+    extensions: &[cuotai_core::extensions::CatalogEntry],
+) -> Vec<PickerEntry> {
+    account_edit::picker_search_with_extensions(query, locale, extensions)
         .into_iter()
-        .map(|m| m.entry.into())
+        .map(|m| {
+            let name = m
+                .entry
+                .extension
+                .is_some()
+                .then(|| m.entry.display_name.resolve(locale));
+            let mut entry = PickerEntry::from(m.entry);
+            if let Some(name) = name {
+                entry.label = name;
+            }
+            entry
+        })
         .collect()
+}
+
+impl Backend {
+    /// PRD 0027 RF1.3: the picker's results with the extensions of the
+    /// loaded configuration's manager.
+    pub async fn search_providers(&self, query: &str, locale: &str) -> Vec<PickerEntry> {
+        self.ensure_loaded().await;
+        let extensions = {
+            let g = self.inner.lock().await;
+            g.loaded
+                .as_ref()
+                .and_then(|loaded| {
+                    loaded
+                        .monitor
+                        .extension_manager()
+                        .map(|manager| manager.picker_entries(&loaded.file.config))
+                })
+                .unwrap_or_default()
+        };
+        search_providers_with(query, locale, &extensions)
+    }
 }
 
 /// PRD 0027 RF5.1: every way to connect `provider`, recommended first.
@@ -5286,6 +5328,30 @@ pub fn tray_view() -> TrayView {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// PRD 0027 RF1.3: a discovered extension is an "Extension: {name}"
+    /// tile carrying its id, resolved in the picker's locale.
+    #[test]
+    fn the_picker_lists_discovered_extensions_by_name() {
+        let entry = cuotai_core::extensions::CatalogEntry {
+            id: "team-quota".into(),
+            label: cuotai_core::text::Localized::with_param(
+                "extensions.catalog.label",
+                "name",
+                "Team",
+                "Extensão: Team",
+            ),
+            level: cuotai_core::access::Level::Extension,
+            warning: cuotai_core::text::Localized::fixed("access.risk.extension", "x"),
+            hint: cuotai_core::text::Localized::fixed("extensions.catalog.hint_none", "x"),
+        };
+        let tiles = search_providers_with("team", "en-US", &[entry]);
+        let value = serde_json::to_value(&tiles[0]).unwrap();
+        assert_eq!(value["extension"], "team-quota");
+        assert_eq!(value["label"], "Extension: Team");
+        let builtin = search_providers_with("codex", "en-US", &[]);
+        assert!(serde_json::to_value(&builtin[0]).unwrap()["extension"].is_null());
+    }
     use cuotai_core::Account;
 
     /// PRD 0033 RF2.1: a preserved metric whose window renewed reaches the

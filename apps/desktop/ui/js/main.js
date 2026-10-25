@@ -273,7 +273,8 @@ const onSaved = (result) => {
   // PRD 0025 RF6.1: after the first account is saved (once its dialog has closed), the first-run step.
   setTimeout(() => getView().then((v) => maybeShowFirstRun(v, updateState())).catch(() => {}), 400);
 };
-const openExtensionManager = () => openExtensionsDialog({
+const openExtensionManager = (consentFor = null) => openExtensionsDialog({
+  consentFor,
   onChanged: () => isDesktop || store.reload(),
   onRemove: (index, label) =>
     confirmDelete(index, label, {
@@ -450,7 +451,7 @@ root.addEventListener("click", (e) => {
   if (all) { motion.spinOnce(all.querySelector("svg")); return store.refresh(); }
   if (t.closest("[data-stats-toggle]")) return setPage(page === "stats" ? "grid" : "stats");
   if (t.closest("[data-stats-back]")) return setPage("grid");
-  if (t.closest("[data-add]")) return openAccountDialog(null, { onSaved });
+  if (t.closest("[data-add]")) return openAccountDialog(null, { onSaved, onExtension: (id) => openExtensionManager(id) });
   const paste = t.closest("[data-paste-session]");
   if (paste) return pasteSession(Number(paste.dataset.pasteSession));
   const settings = t.closest("[data-settings]");

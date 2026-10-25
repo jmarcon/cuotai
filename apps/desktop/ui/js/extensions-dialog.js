@@ -15,7 +15,7 @@ const el = (tag, cls, text) => {
   return node;
 };
 
-export async function openExtensionsDialog({ onChanged = () => {}, onRemove = () => {} } = {}) {
+export async function openExtensionsDialog({ onChanged = () => {}, onRemove = () => {}, consentFor = null } = {}) {
   const dlg = el("dialog", "dlg extensions-dlg");
   const header = el("header", "dlg-head");
   header.append(el("h2", "", t("extensions.title")));
@@ -239,4 +239,6 @@ export async function openExtensionsDialog({ onChanged = () => {}, onRemove = ()
   }
 
   await load();
+  // PRD 0027 RF1.3: chosen from the Add-account picker: review it at once.
+  if (consentFor) await consent(consentFor);
 }

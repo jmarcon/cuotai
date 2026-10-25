@@ -72,6 +72,9 @@ pub(crate) enum Action {
     /// The wizard stays open; the user can edit the draft and retry
     /// the save.
     ConflictDismiss,
+    /// PRD 0027 RF1.3: the person chose a discovered extension in the
+    /// picker; its consent flow lives in the extension manager.
+    OpenExtension(String),
     /// RF5.1: open the Models section of an already-configured account,
     /// chosen explicitly in the provider step (index into the base config).
     Models {
@@ -295,6 +298,11 @@ pub(crate) struct Wizard {
     /// filter. An empty filter groups the entries by sign-in method.
     picker_entries: Vec<edit::CatalogEntry>,
     filter: String,
+    /// PRD 0027 RF1.3: the discovered extensions the picker offers (only
+    /// when adding an account).
+    extensions: Vec<cuotai_core::extensions::CatalogEntry>,
+    /// The extension entry chosen by the last `advance`.
+    open_extension: Option<String>,
     /// PRD 0027 RF6/RF7: sources found by the consented presence check,
     /// and the consent line of the offer the person chose (shown on the
     /// credential step before the existing flow reads anything).
@@ -370,11 +378,25 @@ pub(crate) struct Wizard {
 }
 
 impl Wizard {
+    /// PRD 0027 RF1.3: offer `entries` (discovered extensions that can
+    /// still be added) in the picker of a new account.
+    pub(crate) fn with_extensions(
+        mut self,
+        entries: Vec<cuotai_core::extensions::CatalogEntry>,
+    ) -> Self {
+        if self.editing.is_none() {
+            self.extensions = entries;
+            self.picker_entries = picker_entries(&self.filter, None, &self.extensions);
+            self.picker = self.picker_entries.iter().map(|e| e.provider).collect();
+        }
+        self
+    }
+
     pub(crate) fn new(config: &Config, editing: Option<usize>) -> Self {
         let existing = editing.and_then(|i| config.accounts.get(i));
         let provider = existing.map(|a| a.provider).unwrap_or(Provider::OpenAiApi);
         // Core decides which providers the picker offers and their order.
-        let picker_entries = picker_entries("", existing.map(|a| a.provider));
+        let picker_entries = picker_entries("", existing.map(|a| a.provider), &[]);
         let picker: Vec<Provider> = picker_entries.iter().map(|e| e.provider).collect();
         let provider_sel = picker.iter().position(|p| *p == provider).unwrap_or(0);
         let name = existing.map(|a| a.name.clone()).unwrap_or_default();
@@ -410,6 +432,8 @@ impl Wizard {
             picker,
             picker_entries,
             filter: String::new(),
+            extensions: Vec::new(),
+            open_extension: None,
             detected: Vec::new(),
             offer_consent: None,
             detect_consent: session_consent(),
@@ -692,7 +716,8 @@ impl Wizard {
 
     /// RF4.1: recompute the picker for the current filter.
     fn refilter(&mut self) {
-        self.picker_entries = picker_entries(&self.filter, self.editing_provider());
+        self.picker_entries =
+            picker_entries(&self.filter, self.editing_provider(), &self.extensions);
         self.picker = self.picker_entries.iter().map(|e| e.provider).collect();
         self.provider_sel = if self.filter.is_empty() {
             self.picker
@@ -850,6 +875,10 @@ impl Wizard {
                 let Some(entry) = self.picker_entries.get(self.provider_sel).cloned() else {
                     return;
                 };
+                if let Some(id) = entry.extension {
+                    self.open_extension = Some(id);
+                    return;
+                }
                 let selected = entry.provider;
                 let offer = self
                     .editing
@@ -1441,6 +1470,9 @@ impl Wizard {
                     Ok(()) => {
                         self.error = None;
                         self.advance();
+                        if let Some(id) = self.open_extension.take() {
+                            return Action::OpenExtension(id);
+                        }
                     }
                     Err(message) => self.error = Some(message),
                 }
@@ -2731,10 +2763,13 @@ impl Wizard {
                         Style::default()
                     };
                     // Clean names only: how each integration works lives in the docs.
-                    let mut spans = vec![Span::styled(
-                        format!("{marker}{}", entry.provider.label()),
-                        style,
-                    )];
+                    // PRD 0027 RF1.3: an extension shows "Extension: {name}".
+                    let label = if entry.extension.is_some() {
+                        crate::ui::safe(&crate::ui::resolve_l10n(&entry.display_name)).into_owned()
+                    } else {
+                        entry.provider.label().to_owned()
+                    };
+                    let mut spans = vec![Span::styled(format!("{marker}{label}"), style)];
                     if self.detected_for(entry.provider).is_some() {
                         spans.push(Span::styled(
                             "  · encontrado neste dispositivo",
@@ -3151,11 +3186,16 @@ enum PickerRow {
 
 /// RF4.1: the picker's entries for `filter` from the core search; the
 /// provider of the account being edited stays listed with an empty filter.
-fn picker_entries(filter: &str, current: Option<Provider>) -> Vec<edit::CatalogEntry> {
-    let mut entries: Vec<_> = edit::picker_search(filter, crate::ui::tui_locale())
-        .into_iter()
-        .map(|m| m.entry)
-        .collect();
+fn picker_entries(
+    filter: &str,
+    current: Option<Provider>,
+    extensions: &[cuotai_core::extensions::CatalogEntry],
+) -> Vec<edit::CatalogEntry> {
+    let mut entries: Vec<_> =
+        edit::picker_search_with_extensions(filter, crate::ui::tui_locale(), extensions)
+            .into_iter()
+            .map(|m| m.entry)
+            .collect();
     if let Some(current) = current {
         if filter.trim().is_empty() && !entries.iter().any(|e| e.provider == current) {
             entries.extend(
@@ -3535,6 +3575,33 @@ mod tests {
 
     /// The provider picker offers clean names only, grouped by sign-in method, and
     /// leaves out providers without any usage query (core decides).
+    /// PRD 0027 RF1.3: a discovered extension is an "Extension: {name}"
+    /// entry of the new-account picker; choosing it opens its consent flow
+    /// instead of a form.
+    #[test]
+    fn an_extension_entry_opens_the_extension_flow() {
+        let entry = cuotai_core::extensions::CatalogEntry {
+            id: "team-quota".into(),
+            label: cuotai_core::text::Localized::with_param(
+                "extensions.catalog.label",
+                "name",
+                "Team",
+                "Extensão: Team",
+            ),
+            level: cuotai_core::access::Level::Extension,
+            warning: cuotai_core::text::Localized::fixed("access.risk.extension", "x"),
+            hint: cuotai_core::text::Localized::fixed("extensions.catalog.hint_none", "x"),
+        };
+        let mut wiz = Wizard::new(&Config::default(), None).with_extensions(vec![entry]);
+        for c in "team".chars() {
+            wiz.handle(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
+        }
+        assert!(matches!(
+            wiz.handle(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+            Action::OpenExtension(id) if id == "team-quota"
+        ));
+    }
+
     #[test]
     fn the_provider_picker_shows_clean_names_without_access_labels() {
         use ratatui::{backend::TestBackend, Terminal};

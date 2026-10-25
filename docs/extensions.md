@@ -204,6 +204,8 @@ The disclosure lists each secret by name, variable and description. After you ap
 
 ## Enable, test, disable and remove
 
+- **Add account:** every valid extension that is not yet an account (and does not declare `overrides`) is also listed in the Add-account picker of both frontends as "Extension: {name}", under the Extension sign-in method, with the first line of its `description` as the hint; search finds it by name or id. Choosing it opens the extension's disclosure instead of a form.
+
 - **TUI:** press `x` on the dashboard, select an extension, then use `e` (enable), `t` (test), `d` (disable), or `x`/Delete (normal account removal). `e` on an extension account's card opens this screen instead of the account wizard, which has no form for a dynamic extension.
 - **Desktop:** open **Extensions** from the main toolbar and use Enable, Test, Disable, or Remove account. Editing an extension account from a card opens this screen too.
 - **CLI check:** `cuotai --extension-check <id>` displays the disclosure and asks for confirmation when approval is absent or stale; add `--json` for the normalized result after approval.

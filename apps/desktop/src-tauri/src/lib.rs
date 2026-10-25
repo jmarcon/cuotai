@@ -54,8 +54,12 @@ fn list_providers() -> Vec<ProviderInfo> {
 
 /// PRD 0027 RF3.1: the Add-account picker's results, from the core search.
 #[tauri::command]
-fn search_providers(query: String, locale: String) -> Vec<backend::PickerEntry> {
-    backend::search_providers(&query, &locale)
+async fn search_providers(
+    b: Shared<'_>,
+    query: String,
+    locale: String,
+) -> Result<Vec<backend::PickerEntry>, String> {
+    Ok(b.search_providers(&query, &locale).await)
 }
 
 /// PRD 0027 RF5.1: every way to connect a provider, recommended first.

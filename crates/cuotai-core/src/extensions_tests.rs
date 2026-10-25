@@ -585,6 +585,8 @@ fn the_catalog_offers_each_valid_extension_with_the_extension_level_and_warning(
         "Runs a local program; review the code before enabling."
     );
     assert_eq!(entry.level.label().resolve("en-US"), "Extension");
+    // PRD 0027 RF1.3: its own hint, from the description.
+    assert_eq!(entry.hint.resolve("en-US"), "Balance of my LLM proxy.");
     let json = serde_json::to_value(entry).unwrap();
     assert_eq!(json["level"], "extension");
 }

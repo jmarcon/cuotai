@@ -21,7 +21,7 @@ function open(html) {
   return dlg;
 }
 
-export async function openAccountDialog(index = null, { onSaved = () => {}, pasteSession = false } = {}) {
+export async function openAccountDialog(index = null, { onSaved = () => {}, pasteSession = false, onExtension = null } = {}) {
   // RF4: cheap external-change detection. If the file on disk
   // changed since the last view render, give the user a chance to
   // reload BEFORE they spend time editing the now-stale draft.
@@ -1052,6 +1052,13 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     ? schema.credential_kind !== "none"
     : modes().some((m) => m.id === mode && !m.unavailable_reason));
   async function choose(entry, found) {
+    // PRD 0027 RF1.3: an "Extension: {name}" tile has no form; its consent
+    // flow lives in the Extensions dialog.
+    if (entry.extension) {
+      dlg.close();
+      onExtension?.(entry.extension);
+      return;
+    }
     provider = entry.provider;
     schema = await formSchema(provider);
     catalogModes = await providerModes(provider).catch(() => []);

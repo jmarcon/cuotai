@@ -1206,6 +1206,8 @@
   "note.alibaba_plans.vault_session_query": "Quota queried with the web session kept in the system vault.",
   "note.alibaba_plans.token_plan_vault_session_query": "Quota queried with the web session kept in the system vault; QWEN_API_KEY is not sent.",
   "extensions.catalog.label": "Extension: {name}",
+  "extensions.catalog.hint": "{description}",
+  "extensions.catalog.hint_none": "Local program you review and approve",
   "extensions.error.no_manifest": "The folder has no manifest.toml.",
   "extensions.error.too_large": "The manifest.toml is larger than {max} KiB.",
   "extensions.error.unreadable": "The manifest.toml could not be read as UTF-8 text.",

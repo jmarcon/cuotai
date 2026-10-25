@@ -1206,6 +1206,8 @@
   "note.alibaba_plans.vault_session_query": "Cuota consultada con la sesión web guardada en la bóveda del sistema.",
   "note.alibaba_plans.token_plan_vault_session_query": "Cuota consultada con la sesión web guardada en la bóveda del sistema; QWEN_API_KEY no se envía.",
   "extensions.catalog.label": "Extensión: {name}",
+  "extensions.catalog.hint": "{description}",
+  "extensions.catalog.hint_none": "Programa local que usted revisa y aprueba",
   "extensions.error.no_manifest": "La carpeta no tiene un manifest.toml.",
   "extensions.error.too_large": "El manifest.toml supera {max} KiB.",
   "extensions.error.unreadable": "No se pudo leer el manifest.toml como texto UTF-8.",

@@ -182,7 +182,14 @@ pub struct CatalogEntry {
     /// The level's warning (`access.risk.extension`): it runs a local
     /// program whose code the user should review before enabling it.
     pub warning: Localized,
+    /// PRD 0027 RF1.3: the entry's own one-line hint: the first line of the
+    /// manifest's `description` (`extensions.catalog.hint`), or
+    /// `extensions.catalog.hint_none` without one.
+    pub hint: Localized,
 }
+
+/// The longest catalog hint taken from a description, in characters.
+const CATALOG_HINT_MAX_CHARS: usize = 120;
 
 /// What [`discover`] found, in the folders' name order.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
@@ -211,8 +218,34 @@ impl Discovery {
                 ),
                 level: Level::Extension,
                 warning: Level::Extension.risk(),
+                hint: catalog_hint(manifest.description.as_deref()),
             })
             .collect()
+    }
+}
+
+/// PRD 0027 RF1.3: the first line of `description`, shortened, as the
+/// catalog hint.
+fn catalog_hint(description: Option<&str>) -> Localized {
+    let line =
+        description.and_then(|text| text.lines().map(str::trim).find(|line| !line.is_empty()));
+    match line {
+        Some(line) => {
+            let mut short: String = line.chars().take(CATALOG_HINT_MAX_CHARS).collect();
+            if line.chars().count() > CATALOG_HINT_MAX_CHARS {
+                short.push('…');
+            }
+            Localized::with_param(
+                "extensions.catalog.hint",
+                "description",
+                short.as_str(),
+                short.clone(),
+            )
+        }
+        None => Localized::fixed(
+            "extensions.catalog.hint_none",
+            "Programa local que você revisa e aprova",
+        ),
     }
 }
 

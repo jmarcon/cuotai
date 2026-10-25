@@ -129,6 +129,30 @@ pub struct CatalogEntry {
     pub local_import: Option<LocalSource>,
     /// The mode a provider opens with (RF5.1): exactly one per provider.
     pub recommended: bool,
+    /// RF1.3: the extension id of an `Extension` entry (PRD 0017
+    /// discovery); absent for built-in providers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extension: Option<String>,
+}
+
+/// RF1.3: a discovered extension as a catalog entry: "Extension: {name}"
+/// under the Extension sign-in method and category, with its own hint.
+pub fn extension_entry(entry: &crate::extensions::CatalogEntry) -> CatalogEntry {
+    CatalogEntry {
+        provider: Provider::Extension,
+        mode: None,
+        display_name: entry.label.clone(),
+        aliases: &[],
+        method: SignInMethod::Extension,
+        category: Category::Extension,
+        hint: entry.hint.clone(),
+        level: entry.level,
+        metered: false,
+        native_login: false,
+        local_import: None,
+        recommended: true,
+        extension: Some(entry.id.clone()),
+    }
 }
 
 /// One search result; `score` is the core's ranking, higher first.
@@ -367,6 +391,7 @@ fn entry_for(provider: Provider, native_login: bool, multi: bool) -> CatalogEntr
             .then_some(LocalSource::CursorDatabase),
         // RF5.1: native login first; otherwise the only (credential) mode.
         recommended: native_login || !native_login_available(provider),
+        extension: None,
     }
 }
 
@@ -489,7 +514,7 @@ impl Fields {
     fn of(entry: &CatalogEntry, locale: &str) -> Self {
         Self {
             name: texts(&entry.display_name, locale),
-            slug: fold(entry.provider.slug()),
+            slug: fold(entry.extension.as_deref().unwrap_or(entry.provider.slug())),
             aliases: entry.aliases.iter().map(|alias| fold(alias)).collect(),
             category: texts(&entry.category.label(), locale),
             method: texts(&entry.method.label(), locale),
@@ -531,7 +556,26 @@ impl Fields {
 /// order. An empty query returns the whole catalog grouped by sign-in method
 /// (RF2.2); a query that matches nothing returns an empty list.
 pub fn search(query: &str, locale: &str) -> Vec<CatalogMatch> {
-    let entries = &*CATALOG;
+    search_in(&CATALOG, query, locale)
+}
+
+/// RF1.3/RF2: [`search`] over the catalog plus the discovered extensions'
+/// entries ([`extension_entry`]), which rank and group like any other
+/// entry (under the Extension method, after the built-in methods).
+pub fn search_with_extensions(
+    query: &str,
+    locale: &str,
+    extensions: &[crate::extensions::CatalogEntry],
+) -> Vec<CatalogMatch> {
+    if extensions.is_empty() {
+        return search(query, locale);
+    }
+    let mut entries = CATALOG.clone();
+    entries.extend(extensions.iter().map(extension_entry));
+    search_in(&entries, query, locale)
+}
+
+fn search_in(entries: &[CatalogEntry], query: &str, locale: &str) -> Vec<CatalogMatch> {
     let folded = fold(query);
     if folded.is_empty() {
         let mut grouped: Vec<CatalogMatch> = entries
@@ -576,10 +620,11 @@ pub fn search(query: &str, locale: &str) -> Vec<CatalogMatch> {
     }
     let mut kept: Vec<(usize, u32)> = Vec::new();
     for &(index, score, mode_specific) in &hits {
-        let provider = entries[index].provider;
+        // One result per provider; each extension is its own "provider".
+        let identity = |i: usize| (entries[i].provider, entries[i].extension.as_deref());
         let names_mode = hits
             .iter()
-            .any(|(i, _, specific)| entries[*i].provider == provider && *specific);
+            .any(|(i, _, specific)| identity(*i) == identity(index) && *specific);
         let keep = if names_mode {
             mode_specific
         } else {
@@ -640,6 +685,69 @@ mod tests {
             .into_iter()
             .map(|m| m.entry.provider.slug())
             .collect()
+    }
+
+    fn discovered(id: &str, name: &str) -> crate::extensions::CatalogEntry {
+        crate::extensions::CatalogEntry {
+            id: id.into(),
+            label: Localized::with_param(
+                "extensions.catalog.label",
+                "name",
+                name,
+                format!("Extensão: {name}"),
+            ),
+            level: Level::Extension,
+            warning: Level::Extension.risk(),
+            hint: Localized::with_param(
+                "extensions.catalog.hint",
+                "description",
+                "Team quota",
+                "Team quota",
+            ),
+        }
+    }
+
+    /// PRD 0027 RF1.3: discovered extensions are `Extension` entries named
+    /// "Extension: {name}" with their own hint, one result each, grouped
+    /// last with an empty query and found by name or id.
+    #[test]
+    fn extension_entries_join_the_catalog_and_its_search() {
+        let found = [
+            discovered("team-quota", "Team"),
+            discovered("proxy", "Proxy"),
+        ];
+        let all = search_with_extensions("", "en-US", &found);
+        assert_eq!(all.len(), CATALOG.len() + 2);
+        let tail: Vec<_> = all[all.len() - 2..]
+            .iter()
+            .map(|m| m.entry.extension.clone())
+            .collect();
+        assert_eq!(tail, [Some("team-quota".into()), Some("proxy".into())]);
+        let entry = &all.last().unwrap().entry;
+        assert_eq!(entry.method, SignInMethod::Extension);
+        assert_eq!(entry.display_name.resolve("en-US"), "Extension: Proxy");
+        assert_eq!(entry.hint.resolve("en-US"), "Team quota");
+        assert!(entry.recommended);
+
+        let hits = search_with_extensions("proxy", "en-US", &found);
+        assert_eq!(hits[0].entry.extension.as_deref(), Some("proxy"));
+        let both = search_with_extensions("extension", "en-US", &found);
+        assert_eq!(
+            both.iter().filter(|m| m.entry.extension.is_some()).count(),
+            2,
+            "one result per extension, never collapsed into one"
+        );
+        assert_eq!(
+            search_with_extensions("team quota", "it", &found)[0]
+                .entry
+                .extension
+                .as_deref(),
+            Some("team-quota")
+        );
+        assert_eq!(
+            search_with_extensions("codex", "en-US", &found),
+            search("codex", "en-US")
+        );
     }
 
     #[test]

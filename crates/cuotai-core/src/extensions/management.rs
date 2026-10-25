@@ -592,6 +592,28 @@ impl Manager {
         }))
     }
 
+    /// PRD 0027 RF1.3: the discovered extensions the Add-account picker may
+    /// offer: valid, not yet an account of `config`, and not an override
+    /// extension (which adds no account of its own).
+    pub fn picker_entries(&self, config: &Config) -> Vec<CatalogEntry> {
+        let discovery = discover(&self.root);
+        let taken: BTreeSet<&str> = config
+            .accounts
+            .iter()
+            .filter_map(Account::extension_id)
+            .collect();
+        discovery
+            .catalog()
+            .into_iter()
+            .filter(|entry| {
+                !taken.contains(entry.id.as_str())
+                    && discovery
+                        .get(&entry.id)
+                        .is_some_and(|manifest| manifest.overrides.is_none())
+            })
+            .collect()
+    }
+
     /// RF5.3: what the user must see before approving, plus the opaque
     /// handle [`Self::enable`] will only accept for exactly these files.
     pub fn disclosure(&self, id: &str) -> Result<Disclosure, Localized> {

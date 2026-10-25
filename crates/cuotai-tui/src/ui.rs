@@ -721,6 +721,23 @@ pub async fn run(
                         active.clear_conflict();
                     }
                 }
+                Action::OpenExtension(id) => {
+                    wizard = None;
+                    authorized = None;
+                    if let Some(manager) = monitor.extension_manager() {
+                        let mut view = ExtensionsView::new(manager.list(&file.config))
+                            .focused(Some(id.as_str()));
+                        // The consent screen opens at once: choosing the
+                        // entry is the request to enable it.
+                        match manager.disclosure(&id) {
+                            Ok(disclosure) => {
+                                view.show_disclosure(disclosure.lines, disclosure.candidate)
+                            }
+                            Err(note) => view.set_message(resolve_l10n(&note), true),
+                        }
+                        extensions = Some(view);
+                    }
+                }
                 Action::Models { index } => {
                     // Only an account still saved at `index` (the wizard base
                     // may predate a reload) is ever queried.
@@ -941,7 +958,13 @@ pub async fn run(
                                 job.abort();
                             }
                             account_refresh.abort_all();
-                            wizard = Some(Wizard::new(&file.config, editing));
+                            let entries = monitor
+                                .extension_manager()
+                                .map(|manager| manager.picker_entries(&file.config))
+                                .unwrap_or_default();
+                            wizard = Some(
+                                Wizard::new(&file.config, editing).with_extensions(entries),
+                            );
                             authorized = None;
                         }
                     }

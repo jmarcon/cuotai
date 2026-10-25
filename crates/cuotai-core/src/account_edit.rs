@@ -2163,11 +2163,23 @@ pub fn picker_providers(current: Option<Provider>) -> Vec<Provider> {
 /// core's grouping by sign-in method (one entry per provider, its
 /// recommended mode); a non-empty query keeps the core's ranking.
 pub fn picker_search(query: &str, locale: &str) -> Vec<CatalogMatch> {
+    picker_search_with_extensions(query, locale, &[])
+}
+
+/// PRD 0027 RF1.3: [`picker_search`] with the discovered extensions that can
+/// still be added (`extensions::management::Manager::picker_entries`), each
+/// as an "Extension: {name}" entry; choosing one opens the extension's
+/// consent flow, never a form.
+pub fn picker_search_with_extensions(
+    query: &str,
+    locale: &str,
+    extensions: &[crate::extensions::CatalogEntry],
+) -> Vec<CatalogMatch> {
     let offered = picker_providers(None);
     let empty = query.trim().is_empty();
-    search(query, locale)
+    crate::catalog::search_with_extensions(query, locale, extensions)
         .into_iter()
-        .filter(|m| offered.contains(&m.entry.provider))
+        .filter(|m| m.entry.extension.is_some() || offered.contains(&m.entry.provider))
         .filter(|m| !empty || m.entry.recommended)
         .collect()
 }
