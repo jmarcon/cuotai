@@ -6,6 +6,7 @@ Thank you for wanting to help. Cuotai is a **read-only** monitor for AI-provider
 
 - For small fixes, open a pull request directly.
 - For anything larger (a new provider, a feature, a behavior change), open an issue first. The project roadmap is in [`docs/plans/`](docs/plans/), indexed by [`0000_control.md`](docs/plans/0000_control.md). If your idea already has a plan, cite the PRD number and requirements (for example, `PRD 0006 RF2`).
+- Questions and bug reports go through the channels in [`SUPPORT.md`](SUPPORT.md).
 - Do not report vulnerabilities in public issues: see [`SECURITY.md`](SECURITY.md).
 
 ## Setup

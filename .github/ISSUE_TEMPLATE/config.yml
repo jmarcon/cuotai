@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Ask a question (Discussions)
+    url: https://github.com/jmarcon/cuotai/discussions
+    about: Questions and setups go to Discussions. Read SUPPORT.md in the repository for where to ask and what to expect.
   - name: Report a vulnerability (private)
     url: https://github.com/jmarcon/cuotai/security/advisories/new
     about: Vulnerabilities do not go in public issues. Use private reporting and never include real credentials.

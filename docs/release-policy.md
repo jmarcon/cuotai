@@ -52,6 +52,8 @@ did not change.
 
 ## Support policy (RF6.1)
 
+Where to ask and the response targets are in [`SUPPORT.md`](../SUPPORT.md).
+
 Only the **latest stable** release is supported. Fixes and security
 patches ship as the next release from `main`; there are no backport
 branches for older minors. Release candidates (`vX.Y.Z-rc.N`) are

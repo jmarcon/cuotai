@@ -152,6 +152,7 @@ Some providers expose usage only through interfaces the vendor does not document
 Cuotai is a one-person, open-source project and every bit of help counts. Support happens on GitHub:
 
 - **Star the repository** so more people find it.
+- **Get help.** [`SUPPORT.md`](SUPPORT.md) says where to ask and what response to expect.
 - **Report a bug or ask for something** in [Issues](https://github.com/jmarcon/cuotai/issues). There are templates for bugs, provider problems and **new provider requests** (tell us which service you need and what its usage page or API looks like). Use [private reporting](SECURITY.md) for security issues, and never paste a real key or token.
 - **Translate or improve a language.** The interface is available in Portuguese, English, Spanish and Italian, and you can add another language as a single JSON file ([how](apps/desktop/ui/locales/README.md)). Proofreading an existing language is welcome too.
 - **Contribute a theme, a fix or a provider.** Read [`CONTRIBUTING.md`](CONTRIBUTING.md) first.

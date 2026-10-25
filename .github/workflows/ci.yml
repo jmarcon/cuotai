@@ -51,7 +51,7 @@ jobs:
   # `release-preflight` job; it is also true whenever the diff is undecidable.
   # Documentation is an allow-list of paths that no build, test or shipped
   # artifact reads:
-  #   - README.md, CONTRIBUTING.md, SECURITY.md, AGENTS.md, apps/desktop/README.md
+  #   - README.md, CONTRIBUTING.md, SECURITY.md, SUPPORT.md, AGENTS.md, apps/desktop/README.md
   #   - docs/**/*.md and docs/assets/** (screenshots)
   #   - .github/ISSUE_TEMPLATE/** and .github/*.md
   # Deliberately code, although they look like documentation:
@@ -130,7 +130,7 @@ jobs:
                 total=$((total + 1))
                 case "$file" in
                   docs/providers.md) kind=code ;;
-                  README.md | CONTRIBUTING.md | SECURITY.md | AGENTS.md | apps/desktop/README.md) kind=docs ;;
+                  README.md | CONTRIBUTING.md | SECURITY.md | SUPPORT.md | AGENTS.md | apps/desktop/README.md) kind=docs ;;
                   docs/*.md | docs/assets/* | .github/ISSUE_TEMPLATE/* | .github/*.md) kind=docs ;;
                   *) kind=code ;;
                 esac
