@@ -49,7 +49,8 @@ credential_env = "GOOGLE_CLOUD_ACCESS_TOKEN"
 [[accounts]]
 name = "AWS Bedrock"
 provider = "aws_bedrock"
-# Requires AWS CLI v2. WARNING: Cost Explorer charges per query.
+# Requires AWS CLI v2. WARNING: Cost Explorer charges per query. Without refresh_seconds this account
+# is queried once an hour (minimum 900 s); every window or command shares that one request.
 # params = { profile = "your-profile" }
 # Model catalog (on demand only, no Cost Explorer): the profile's default region,
 # or params = { profile = "your-profile", region = "us-east-1" }; requires bedrock:ListFoundationModels.

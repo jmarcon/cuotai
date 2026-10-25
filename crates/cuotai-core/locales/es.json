@@ -3,7 +3,7 @@
     "name": "Español"
   },
   "access.confirm_unavailable": "{reason} La cuenta se guardará, pero mostrará este motivo en lugar de números.",
-  "access.cost_advisory": "Proveedor cobrado por consulta: cada ciclo consulta y genera un cobro. El intervalo mínimo configurado es 300s; los valores menores son rechazados por la validación del core. Mantenga un intervalo alto (ej. 3600s) para reducir el costo. Las actualizaciones manuales siguen siendo explícitas.",
+  "access.cost_advisory": "Proveedor cobrado por consulta: aproximadamente una solicitud a Cost Explorer por consulta. Sin intervalo, Cuotai consulta una vez por hora; el mínimo efectivo es de 15 minutos (los intervalos de 5 a 14 minutos se elevan a 15 y los menores se rechazan). Varias ventanas o comandos comparten una solicitud por intervalo. Las actualizaciones manuales siguen siendo explícitas.",
   "access.credential.admin_key": "Clave de administrador",
   "access.credential.cloud_identity": "Identidad de nube",
   "access.credential.inference_key": "Clave de inferencia",

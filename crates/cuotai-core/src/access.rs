@@ -319,10 +319,11 @@ impl UsageAccess {
         self.metered.then(|| {
             Localized::fixed(
                 "access.cost_advisory",
-                "Provedor cobrado por consulta: cada ciclo consulta e gera cobrança. \
-                 O intervalo mínimo configurado é 300s; valores menores são rejeitados \
-                 pela validação do core. Mantenha um intervalo alto (ex.: 3600s) \
-                 para reduzir custo. Atualizações manuais continuam explícitas.",
+                "Provedor cobrado por consulta: cerca de uma requisição ao Cost Explorer \
+                 por consulta. Sem intervalo, o Cuotai consulta uma vez por hora; o mínimo \
+                 efetivo é de 15 minutos (intervalos de 5 a 14 minutos sobem para 15 e \
+                 valores menores são rejeitados). Várias janelas ou comandos compartilham \
+                 uma requisição por intervalo. Atualizações manuais continuam explícitas.",
             )
         })
     }

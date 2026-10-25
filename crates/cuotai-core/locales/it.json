@@ -3,7 +3,7 @@
     "name": "Italiano"
   },
   "access.confirm_unavailable": "{reason} L'account verrà salvato, ma mostrerà questo motivo invece dei numeri.",
-  "access.cost_advisory": "Il provider fattura per query: ogni ciclo effettua una query e comporta un addebito. L'intervallo minimo configurabile è 300s; valori inferiori vengono rifiutati dalla validazione del core. Mantieni un intervallo lungo (es. 3600s) per ridurre il costo. Gli aggiornamenti manuali restano espliciti.",
+  "access.cost_advisory": "Il provider fattura per query: circa una richiesta a Cost Explorer per query. Senza intervallo Cuotai interroga una volta all'ora; il minimo effettivo è 15 minuti (gli intervalli da 5 a 14 minuti vengono portati a 15, quelli inferiori vengono rifiutati). Più finestre o comandi condividono una richiesta per intervallo. Gli aggiornamenti manuali restano espliciti.",
   "access.credential.admin_key": "Chiave admin",
   "access.credential.cloud_identity": "Identità cloud",
   "access.credential.inference_key": "Chiave di inferenza",
