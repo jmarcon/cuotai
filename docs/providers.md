@@ -115,6 +115,66 @@ The table is generated: a core test compares it with `access::describe` and fail
 Billed per query (`metered`): `aws_bedrock`.
 <!-- access-matrix:end -->
 
+## Provider catalog and search
+
+The account pickers (desktop and TUI) list providers from `cuotai_core::account_edit::catalog` (PRD 0027): one entry per provider and connection mode, grouped by **sign-in method**. The one-line hint is derived from the access descriptor, not written per provider; the native-login mode is the recommended one when a provider has it. `account_edit::search` ranks the same entries (case- and accent-insensitive; display name, identifier, aliases, then category, sign-in method and hint), so typing `codex` finds ChatGPT / Codex in both editors. The category is a search term only.
+
+<!-- catalog-table:start (generated from account_edit::catalog; do not edit by hand) -->
+| Display name | Identifier | Mode | Sign-in method | Category | Aliases | Hint |
+|---|---|---|---|---|---|---|
+| OpenAI API | `open_ai_api` | — | API key | API platform | openai, gpt | Admin API key |
+| Anthropic API | `anthropic_api` | — | API key | API platform | claude api | Admin API key |
+| ChatGPT / Codex | `chat_gpt` | `oauth` | Browser sign-in | Subscription | codex, openai, chatgpt, gpt | Sign in with your browser |
+| ChatGPT / Codex | `chat_gpt` | `credential` | API key | Subscription | codex, openai, chatgpt, gpt | Account access token |
+| Claude | `claude` | `oauth` | Browser sign-in | Subscription | anthropic, claude code, claude.ai | Sign in with your browser |
+| Claude | `claude` | `credential` | API key | Subscription | anthropic, claude code, claude.ai | Account access token |
+| Gemini (Cloud Monitoring) | `gemini_api` | — | Cloud profile | Cloud | google, gcp, cloud monitoring | Cloud credentials |
+| Vertex AI | `vertex_ai` | — | Cloud profile | Cloud | google, gcp, vertex | Cloud credentials |
+| AWS Bedrock | `aws_bedrock` | — | Cloud profile | Cloud | aws, amazon, bedrock | Cloud credentials · billed per query |
+| Azure OpenAI | `azure_open_ai` | — | Cloud profile | Cloud | microsoft, azure, openai | Cloud credentials |
+| Cursor | `cursor` | `oauth` | Browser sign-in | Coding tool | cursor ai | Sign in with your browser |
+| Cursor | `cursor` | `credential` | API key | Coding tool | cursor ai | Admin API key |
+| GitHub Copilot | `copilot` | `oauth` | Browser sign-in | Coding tool | github, gh, github copilot | Sign in with your browser |
+| GitHub Copilot | `copilot` | `credential` | API key | Coding tool | github, gh, github copilot | Admin API key |
+| Windsurf | `windsurf` | — | API key | Coding tool | codeium | Admin API key |
+| Minimax.io | `mini_max` | — | API key | API platform | minimax | API key |
+| Kimi | `kimi` | `oauth` | Browser sign-in | API platform | moonshot | Sign in with your browser |
+| Kimi | `kimi` | `credential` | API key | API platform | moonshot | API key |
+| Qwen | `qwen` | `oauth` | Browser sign-in | API platform | qwen code, dashscope, alibaba | Sign in with your browser |
+| Qwen | `qwen` | `credential` | API key | API platform | qwen code, dashscope, alibaba | API key |
+| Groq | `groq` | — | API key | API platform | — | API key |
+| Perplexity | `perplexity` | — | API key | API platform | sonar | API key |
+| Mistral | `mistral` | — | API key | API platform | le chat | Admin API key |
+| Cloudflare AI | `cloudflare_ai` | — | API key | API platform | workers ai, cloudflare | API key |
+| Ollama Cloud | `ollama_cloud` | — | API key | API platform | ollama | API key |
+| Xiaomi MIMO | `xiaomi_mimo` | `oauth` | Web session | API platform | mimo, xiaomi | Paste a web session |
+| Xiaomi MIMO | `xiaomi_mimo` | `credential` | Web session | API platform | mimo, xiaomi | Paste a web session |
+| Opencode Go | `open_code_go` | — | API key | Coding tool | opencode, open code | API key |
+| Qoder | `qoder` | `oauth` | Browser sign-in | Coding tool | — | Sign in with your browser |
+| Qoder | `qoder` | `credential` | API key | Coding tool | — | Account access token |
+| Gemini AI (API key) | `gemini_ai` | `oauth` | Browser sign-in | API platform | gemini cli, google, ai studio | Sign in with your browser |
+| Gemini AI (API key) | `gemini_ai` | `credential` | API key | API platform | gemini cli, google, ai studio | API key |
+| Grok (xAI) | `grok` | `oauth` | Browser sign-in | API platform | xai, x.ai, grok cli | Sign in with your browser |
+| Grok (xAI) | `grok` | `credential` | API key | API platform | xai, x.ai, grok cli | Admin API key |
+| NVidia NIM | `nvidia_nim` | — | API key | API platform | nvidia, nim | API key |
+| Poolside | `poolside` | — | API key | API platform | — | API key |
+| Kiro (AWS) | `kiro` | `oauth` | Browser sign-in | Coding tool | codewhisperer | Sign in with your browser |
+| Kiro (AWS) | `kiro` | `credential` | API key | Coding tool | codewhisperer | Account access token |
+| Cline | `cline` | `oauth` | Browser sign-in | Coding tool | — | Sign in with your browser |
+| Cline | `cline` | `credential` | API key | Coding tool | — | API key |
+| CodeBuddy | `code_buddy` | `oauth` | Browser sign-in | Coding tool | tencent | Sign in with your browser |
+| CodeBuddy | `code_buddy` | `credential` | API key | Coding tool | tencent | Account access token |
+| Zed | `zed` | `oauth` | Browser sign-in | Coding tool | — | Sign in with your browser |
+| Zed | `zed` | `credential` | API key | Coding tool | — | Account access token |
+| Alibaba Model Studio / DashScope | `alibaba_model_studio` | — | API key | API platform | dashscope, model studio, alibaba | API key |
+| Alibaba Coding Plan | `alibaba_coding_plan` | — | API key | Coding tool | bailian, alibaba, coding plan | API key |
+| Alibaba Token Plan (Qwen Cloud) | `alibaba_token_plan` | — | Local credentials | Coding tool | qwen cloud, alibaba | Uses the bl CLI |
+| Alibaba Cloud — billing | `alibaba_cloud` | — | Cloud profile | Cloud | aliyun, alibaba | Cloud credentials |
+| Antigravity | `antigravity` | `oauth` | Browser sign-in | Coding tool | google | Sign in with your browser |
+| Antigravity | `antigravity` | `credential` | API key | Coding tool | google | Account access token |
+| Kimchi | `kimchi` | — | API key | API platform | — | API key |
+<!-- catalog-table:end -->
+
 ## Option applicability by authentication
 
 The identifiers below are machine values. `credential` means the provider's manual/variable credential; `oauth` means native login. An option with no restriction proven by the adapter stays available for every type the provider offers. The core is the source of this table: the TUI and the desktop app receive the filtered list and the option's full index, with no provider-specific rules.

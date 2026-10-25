@@ -5,6 +5,7 @@ pub mod about;
 pub mod access;
 pub mod account_edit;
 pub mod alerts;
+pub mod catalog;
 pub mod changelog;
 pub mod config_file;
 pub mod cost;
