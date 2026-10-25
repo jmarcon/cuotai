@@ -173,6 +173,7 @@ The account pickers (desktop and TUI) list providers from `cuotai_core::account_
 | Antigravity | `antigravity` | `oauth` | Browser sign-in | Coding tool | google | Sign in with your browser |
 | Antigravity | `antigravity` | `credential` | API key | Coding tool | google | Account access token |
 | Kimchi | `kimchi` | — | API key | API platform | — | API key |
+| ElevenLabs | `eleven_labs` | — | API key | API platform | eleven labs, 11labs | API key |
 <!-- catalog-table:end -->
 
 ## Option applicability by authentication

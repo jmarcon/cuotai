@@ -178,6 +178,7 @@ fn aliases(provider: Provider) -> &'static [&'static str] {
         Provider::AlibabaCloud => &["aliyun", "alibaba"],
         Provider::Antigravity => &["google"],
         Provider::Kimchi => &[],
+        Provider::ElevenLabs => &["eleven labs", "11labs"],
         Provider::Extension => &[],
     }
 }
@@ -202,7 +203,8 @@ fn category(provider: Provider) -> Category {
         | Provider::NvidiaNim
         | Provider::Poolside
         | Provider::AlibabaModelStudio
-        | Provider::Kimchi => Category::ApiPlatform,
+        | Provider::Kimchi
+        | Provider::ElevenLabs => Category::ApiPlatform,
         Provider::GeminiApi
         | Provider::VertexAi
         | Provider::AwsBedrock
