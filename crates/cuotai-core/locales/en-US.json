@@ -356,6 +356,7 @@
   "hooks.confirm.rule": "{index}. {name}",
   "hooks.confirm.timeout": "time limit: {seconds} s",
   "hooks.error.account": "Rule \"{name}\" has an empty account filter.",
+  "hooks.error.account_id": "Rule \"{name}\" has an account_id that is not a valid account id (like acc_0123456789ab, shown by cuotai --json-v1).",
   "hooks.error.command": "The command of rule \"{name}\" must be a list of arguments whose first item is an absolute path or a name looked up in PATH, such as [\"/path/script\", \"--flag\"].",
   "hooks.error.changed": "hooks.toml changed since it was shown; review the rules again.",
   "hooks.error.consent_storage": "Could not record the hooks confirmation in the local data directory.",

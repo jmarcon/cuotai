@@ -73,6 +73,7 @@ timeout_seconds = 60
                 events: vec![EventKind::QuotaExhausted, EventKind::QuotaThresholdCrossed],
                 provider: Some(Provider::Claude),
                 account: Some("Work".into()),
+                account_id: None,
                 min_threshold: Some(90),
                 command: vec!["afplay".into(), "Glass.aiff".into()],
                 timeout_seconds: DEFAULT_TIMEOUT_SECONDS,
@@ -82,6 +83,7 @@ timeout_seconds = 60
                 events: vec![EventKind::RefreshFailed],
                 provider: None,
                 account: None,
+                account_id: None,
                 min_threshold: None,
                 command: vec!["logger".into(), "-t".into(), "cuotai".into()],
                 timeout_seconds: 60,
@@ -107,6 +109,7 @@ fn invalid_files_are_rejected_with_their_reason() {
         ),
         (rule("env = { TOKEN = \"x\" }"), "hooks.error.toml"),
         (rule("timeout_seconds = 61"), "hooks.error.timeout"),
+        (rule("account_id = \"Not An Id\""), "hooks.error.account_id"),
         (rule("timeout_seconds = 0"), "hooks.error.timeout"),
         (rule("min_threshold = 0"), "hooks.error.min_threshold"),
         (rule("min_threshold = 101"), "hooks.error.min_threshold"),
@@ -305,6 +308,7 @@ fn every_message_reads_in_each_catalog() {
         "[[hooks]]\nname = \"a\"\nevents = [\"x\"]\ncommand = [\"true\"]\n",
         "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\nprovider = \"x\"\ncommand = [\"true\"]\n",
         "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\naccount = \"\"\ncommand = [\"true\"]\n",
+        "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\naccount_id = \"X\"\ncommand = [\"true\"]\n",
         "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\nmin_threshold = 0\ncommand = [\"true\"]\n",
         "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\ncommand = []\n",
         "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\ncommand = [\"true\"]\ntimeout_seconds = 0\n",
@@ -767,6 +771,7 @@ pwd -P > "$out/pwd"
         assert_eq!(vars["LANG"], "en_US.UTF-8");
         assert_eq!(vars["CUOTAI_EVENT"], "quota_exhausted");
         assert_eq!(vars["CUOTAI_ACCOUNT"], account);
+        assert_eq!(vars["CUOTAI_ACCOUNT_ID"], "acc_test00000000");
         assert_eq!(vars["CUOTAI_PROVIDER"], "claude");
         assert_eq!(vars["CUOTAI_METRIC"], "Sessão (5h)");
         // What `sh` itself adds (PWD, SHLVL, `_`) is no inheritance.
@@ -1054,4 +1059,21 @@ rm '{running}/'$$
         tokio::time::sleep(Duration::from_millis(200)).await;
         assert!(!other.exists(), "only the named rule ran");
     }
+}
+
+/// PRD 0029 RF4.3: `account_id` filters by the stable id, which a rename
+/// does not change, and the sample event of such a rule passes it.
+#[test]
+fn a_rule_can_filter_by_account_id() {
+    let hooks = hooks(
+        "[[hooks]]\nname = \"id\"\nevents = [\"quota_exhausted\"]\naccount_id = \"acc_test00000000\"\ncommand = [\"true\"]\n",
+    );
+    let rule = &hooks.rules()[0];
+    assert_eq!(rule.account_id.as_deref(), Some("acc_test00000000"));
+    assert!(rule.matches(&event(EventKind::QuotaExhausted, "Renamed", None)));
+    let mut other = event(EventKind::QuotaExhausted, "Renamed", None);
+    other.account_id = "acc_other0000000".into();
+    assert!(!rule.matches(&other));
+    let now = Utc.with_ymd_and_hms(2026, 10, 20, 12, 0, 0).unwrap();
+    assert!(rule.matches(&rule.sample(now)));
 }

@@ -356,6 +356,7 @@
   "hooks.confirm.rule": "{index}. {name}",
   "hooks.confirm.timeout": "límite de tiempo: {seconds} s",
   "hooks.error.account": "La regla \"{name}\" tiene un filtro account vacío.",
+  "hooks.error.account_id": "La regla \"{name}\" tiene un account_id que no es un id de cuenta válido (como acc_0123456789ab, visible en cuotai --json-v1).",
   "hooks.error.command": "El command de la regla \"{name}\" debe ser una lista de argumentos cuyo primer elemento sea una ruta absoluta o un nombre buscado en el PATH, como [\"/ruta/script\", \"--opcion\"].",
   "hooks.error.changed": "hooks.toml cambió desde que se mostró; revise las reglas de nuevo.",
   "hooks.error.consent_storage": "No se pudo registrar la confirmación de los hooks en el directorio de datos local.",

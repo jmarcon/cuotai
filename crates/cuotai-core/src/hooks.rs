@@ -91,6 +91,9 @@ pub struct Rule {
     pub provider: Option<Provider>,
     /// Only events of the account with this name.
     pub account: Option<String>,
+    /// PRD 0029 RF4.3: only events of the account with this stable id
+    /// (survives renames; display names are not unique across providers).
+    pub account_id: Option<String>,
     /// Only threshold crossings at or above this percentage (events without
     /// a threshold are not filtered by it).
     pub min_threshold: Option<u8>,
@@ -111,6 +114,10 @@ impl Rule {
                 .account
                 .as_ref()
                 .is_none_or(|account| *account == event.account_name)
+            && self
+                .account_id
+                .as_ref()
+                .is_none_or(|id| *id == event.account_id)
             && self.min_threshold.is_none_or(|min| {
                 event
                     .current
@@ -262,7 +269,10 @@ impl Rule {
             event: kind,
             occurred_at: now,
             account_key: format!("{}:{account_name}", provider.slug()),
-            account_id: "acc_sample000000".into(),
+            account_id: self
+                .account_id
+                .clone()
+                .unwrap_or_else(|| "acc_sample000000".into()),
             account_name,
             provider,
             accounts: Vec::new(),
@@ -301,6 +311,8 @@ pub struct RuleDraft {
     pub provider: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub account: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub account_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub min_threshold: Option<i64>,
     pub command: Vec<String>,
@@ -418,6 +430,9 @@ impl Hooks {
             }
             if let Some(account) = &rule.account {
                 filters.push(format!("account = {}", quoted(account)));
+            }
+            if let Some(id) = &rule.account_id {
+                filters.push(format!("account_id = {}", quoted(id)));
             }
             if let Some(min) = rule.min_threshold {
                 filters.push(format!("min_threshold = {min}"));
@@ -756,6 +771,23 @@ fn validate(index: usize, raw: RuleDraft) -> Result<Rule, Localized> {
             format!("A regra \"{name}\" tem um filtro account vazio."),
         ));
     }
+    let account_id = match &raw.account_id {
+        None => None,
+        Some(id) => Some(
+            crate::AccountId::parse(id.trim())
+                .map(|id| id.as_str().to_owned())
+                .ok_or_else(|| {
+                    rule_error(
+                        "hooks.error.account_id",
+                        &name,
+                        format!(
+                            "O account_id da regra \"{name}\" não é um id de conta válido \
+                             (como acc_0123456789ab, visto em cuotai --json-v1)."
+                        ),
+                    )
+                })?,
+        ),
+    };
     let min_threshold = match raw.min_threshold {
         None => None,
         Some(min) => Some(
@@ -806,6 +838,7 @@ fn validate(index: usize, raw: RuleDraft) -> Result<Rule, Localized> {
         events,
         provider,
         account: raw.account,
+        account_id,
         min_threshold,
         command: raw.command,
         timeout_seconds,
@@ -1284,6 +1317,7 @@ impl Runner {
         let vars: Arc<[(&'static str, String)]> = Arc::new([
             ("CUOTAI_EVENT", event.event.name().to_owned()),
             ("CUOTAI_ACCOUNT", event.account_name.clone()),
+            ("CUOTAI_ACCOUNT_ID", event.account_id.clone()),
             ("CUOTAI_PROVIDER", event.provider.slug().to_owned()),
             (
                 "CUOTAI_METRIC",

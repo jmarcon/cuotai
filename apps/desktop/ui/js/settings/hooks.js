@@ -46,6 +46,7 @@ export function hooksHtml(hv, drafts, dirty) {
 /** One rule of the editor: name, events (payload names with a label) and the command, one field per argument. */
 function ruleHtml(hv, d, i, dirty) {
   const kept = [d.provider != null && `provider = ${JSON.stringify(d.provider)}`, d.account != null && `account = ${JSON.stringify(d.account)}`,
+    d.account_id != null && `account_id = ${JSON.stringify(d.account_id)}`,
     d.min_threshold != null && `min_threshold = ${d.min_threshold}`, d.timeout_seconds != null && `timeout_seconds = ${d.timeout_seconds}`].filter(Boolean);
   const testable = !dirty && hv.state === "on" && hv.running.includes(d.name);
   return `<fieldset class="hook-rule" data-rule="${i}">

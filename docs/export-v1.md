@@ -51,7 +51,8 @@ println!("{}", serde_json::to_string(&export)?);
 | `index` | integer | Position in the configuration. |
 | `id` | string | Stable account id (PRD 0029): `acc_` plus 12 lowercase base32 characters, or a hand-written `[a-z0-9_-]{4,40}`. It survives renames, reordering and parameter edits; prefer it to `key`. |
 | `key` | string | Legacy identity `<provider slug>:<name>` (`claude:Work`). It survives reordering; a rename gives a new key, so prefer `id`. Kept unchanged for compatibility. |
-| `name`, `provider` | string | Account name and provider slug ([`providers.md`](providers.md)). |
+| `name`, `provider` | string | Display name and provider slug ([`providers.md`](providers.md)). `name` is the configured name, or the provider's name for an unnamed account (PRD 0029); it is never empty and not unique across providers. |
+| `named` | boolean | Whether `name` was configured; `false` when it is the provider's name. |
 | `email` | string or `null` | Only when the producer includes identity; `null` when the e-mail is unknown. Absent by default. |
 | `class` | `available` / `exhausted` / `unmeasured` | Classification of `report` (`unmeasured` without a report or when it failed). |
 | `report` | object or `null` | The current report (`account`, `provider`, `checked_at`, `status`, `metrics`, `notes`, `notes_l10n`, `source`, and, only when the provider states the time of its data, `as_of`), the same shape as in `--json`, after redaction. `null` until the account has a report (first query or an edit pending). |

@@ -356,6 +356,7 @@
   "hooks.confirm.rule": "{index}. {name}",
   "hooks.confirm.timeout": "limite di tempo: {seconds} s",
   "hooks.error.account": "La regola \"{name}\" ha un filtro account vuoto.",
+  "hooks.error.account_id": "La regola \"{name}\" ha un account_id che non è un id di account valido (come acc_0123456789ab, visibile in cuotai --json-v1).",
   "hooks.error.command": "Il comando della regola \"{name}\" deve essere un elenco di argomenti il cui primo elemento è un percorso assoluto o un nome cercato nel PATH, ad esempio [\"/path/script\", \"--flag\"].",
   "hooks.error.changed": "hooks.toml è cambiato dopo essere stato mostrato; rivedi di nuovo le regole.",
   "hooks.error.consent_storage": "Impossibile registrare la conferma degli hook nella directory dati locale.",
