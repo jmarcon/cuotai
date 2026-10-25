@@ -193,7 +193,7 @@ impl Category {
     }
 
     /// Stable localization id of the category label (`changelog.category.*`),
-    /// present in the core `en-US`/`es` catalogs (PRD 0019 RF7.7).
+    /// present in the core catalogs (PRD 0019 RF7.7).
     pub fn l10n_id(self) -> &'static str {
         match self {
             Category::Added => "changelog.category.added",
@@ -205,28 +205,29 @@ impl Category {
         }
     }
 
-    /// Portuguese label (the `Localized` fallback for `l10n_id`).
-    pub fn fallback_pt(self) -> &'static str {
+    /// English label (the `Localized` fallback for `l10n_id`).
+    pub fn fallback(self) -> &'static str {
         match self {
-            Category::Added => "Adicionado",
-            Category::Changed => "Alterado",
-            Category::Fixed => "Corrigido",
-            Category::Security => "Segurança",
-            Category::Deprecated => "Obsoleto",
-            Category::Removed => "Removido",
+            Category::Added => "Added",
+            Category::Changed => "Changed",
+            Category::Fixed => "Fixed",
+            Category::Security => "Security",
+            Category::Deprecated => "Deprecated",
+            Category::Removed => "Removed",
         }
     }
 }
 
-/// Localization id (in the core `en-US`/`es` catalogs) of the note stating
+/// Localization id (in the core catalogs) of the note stating
 /// that the entries stay in English (PRD 0019 RF7.7).
 pub const ENTRIES_LANGUAGE_ID: &str = "changelog.entries_language";
-/// Portuguese fallback of [`ENTRIES_LANGUAGE_ID`].
-pub const ENTRIES_LANGUAGE_PT: &str = "As entradas são mantidas em inglês, o idioma do changelog.";
+/// English fallback of [`ENTRIES_LANGUAGE_ID`].
+pub const ENTRIES_LANGUAGE_FALLBACK: &str =
+    "The entries stay in English, the language of the changelog.";
 /// Localization id of the What's new screen title.
 pub const TITLE_ID: &str = "changelog.title";
-/// Portuguese fallback of [`TITLE_ID`].
-pub const TITLE_PT: &str = "Novidades";
+/// English fallback of [`TITLE_ID`].
+pub const TITLE_FALLBACK: &str = "What's new";
 
 /// One `- ` entry: the full sentence, plus the traceability data extracted
 /// from its trailing parentheses (RF7.2).

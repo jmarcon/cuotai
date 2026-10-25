@@ -236,7 +236,7 @@ fn the_disclosure_is_deterministic_and_complete() {
     let joined = text.join("\n");
     assert!(joined.contains("proxy"), "{joined}");
     assert!(joined.contains("Proxy balance 1.2.0"), "{joined}");
-    assert!(joined.contains(r#"comando: ["./run.sh"]"#), "{joined}");
+    assert!(joined.contains(r#"command: ["./run.sh"]"#), "{joined}");
     assert!(
         joined.contains(&manifest.dir.display().to_string()),
         "{joined}"
@@ -244,7 +244,7 @@ fn the_disclosure_is_deterministic_and_complete() {
     assert!(joined.contains("PROXY_TOKEN, PROXY_URL"), "{joined}");
     assert!(joined.contains("300 s"), "{joined}");
     assert!(joined.contains("15 s"), "{joined}");
-    assert!(joined.contains("revise o código"), "{joined}");
+    assert!(joined.contains("review the code"), "{joined}");
 
     let quiet = MANIFEST
         .replace("env = [\"PROXY_TOKEN\", \"PROXY_URL\"]\n", "")
@@ -258,7 +258,7 @@ fn the_disclosure_is_deterministic_and_complete() {
         .collect();
     assert!(
         text.iter()
-            .any(|line| line.contains("não pede nenhuma variável")),
+            .any(|line| line.contains("asks for no environment variable")),
         "{text:?}"
     );
 }

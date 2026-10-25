@@ -245,7 +245,7 @@ pub fn format_amount(value: f64, unit: &str, currency: Option<&str>) -> ParamVal
             "overage.amount.provider_units",
             "value",
             plain_number(value),
-            format!("{} unid. provedor", plain_number(value)),
+            "{value} provider units",
         )),
         None if unit.is_empty() => ParamValue::Text(plain_number(value)),
         None => ParamValue::Text(format!("{} {unit}", plain_number(value))),
@@ -284,7 +284,7 @@ impl Overage {
         (self.currency.is_none() && self.unit == PROVIDER_UNIT && self.spent.is_some()).then(|| {
             Localized::fixed(
                 "overage.units_caveat",
-                "Valores em unidades do provedor, não em dinheiro.",
+                "Amounts are in provider units, not money.",
             )
         })
     }
@@ -294,18 +294,16 @@ impl Overage {
     pub fn text(&self) -> Localized {
         match (self.state, self.amount()) {
             (OverageState::Active, Some(amount)) => {
-                on_extra("overage.on_extra", amount, "No extra")
+                on_extra("overage.on_extra", amount, "On extra · {amount}")
             }
             (OverageState::CapReached, _) => {
-                Localized::fixed("overage.cap_reached", "Orçamento extra esgotado")
+                Localized::fixed("overage.cap_reached", "Extra budget used up")
             }
             (OverageState::Armed, _) => {
-                Localized::fixed("overage.armed", "Uso extra ligado · nada gasto")
+                Localized::fixed("overage.armed", "Extra usage on · nothing spent")
             }
-            (OverageState::Disabled, _) => {
-                Localized::fixed("overage.disabled", "Uso extra desligado")
-            }
-            _ => Localized::fixed("overage.unknown", "Valor do uso extra desconhecido"),
+            (OverageState::Disabled, _) => Localized::fixed("overage.disabled", "Extra usage off"),
+            _ => Localized::fixed("overage.unknown", "Extra usage amount unknown"),
         }
     }
 
@@ -317,7 +315,7 @@ impl Overage {
             (true, Some(amount)) => on_extra(
                 "overage.limit_hit_on_extra",
                 amount,
-                "Limite atingido · no extra",
+                "Limit hit · on extra {amount}",
             ),
             _ => self.text(),
         }
@@ -336,37 +334,18 @@ impl Overage {
             .collect::<Vec<_>>()
             .join(", ");
         match (self.state.is_billing(), self.amount(), models.is_empty()) {
-            (true, Some(amount), false) => {
-                let plain = match &amount {
-                    ParamValue::Text(t) => t.clone(),
-                    ParamValue::L10n(l) => l.fallback.to_string(),
-                };
-                Localized::with_params(
-                    "overage.scope_limit_hit_on_extra",
-                    params([("model", models.as_str().into()), ("amount", amount)]),
-                    format!("{models} no limite · no extra {plain}"),
-                )
-            }
+            (true, Some(amount), false) => Localized::with_params(
+                "overage.scope_limit_hit_on_extra",
+                params([("model", models.as_str().into()), ("amount", amount)]),
+                "{model} limit hit · on extra {amount}",
+            ),
             _ => self.text(),
         }
     }
 }
 
-fn on_extra(id: &'static str, amount: ParamValue, pt_prefix: &str) -> Localized {
-    let plain = match &amount {
-        ParamValue::Text(t) => t.clone(),
-        ParamValue::L10n(l) => l.fallback.to_string(),
-    };
-    let sep = if id == "overage.on_extra" {
-        " · "
-    } else {
-        " "
-    };
-    Localized::with_params(
-        id,
-        params([("amount", amount)]),
-        format!("{pt_prefix}{sep}{plain}"),
-    )
+fn on_extra(id: &'static str, amount: ParamValue, template: &'static str) -> Localized {
+    Localized::with_params(id, params([("amount", amount)]), template)
 }
 
 #[cfg(test)]
@@ -504,7 +483,7 @@ mod tests {
         let active = assess(&report(vec![spend("a", Some(6.25), None, "USD")], None)).unwrap();
         let text = active.summary_with_scope_hit(&blocks);
         assert_eq!(text.id, "overage.scope_limit_hit_on_extra");
-        assert_eq!(text.fallback, "Opus no limite · no extra $6.25");
+        assert_eq!(text.resolve("pt-BR"), "Opus no limite · no extra $6.25");
         assert_eq!(text.resolve("en-US"), "Opus limit hit · on extra $6.25");
         assert_eq!(
             text.resolve("es"),
@@ -562,12 +541,12 @@ mod tests {
         ))
         .unwrap();
         let t = active.text();
-        assert_eq!(t.fallback, "No extra · $6.25");
+        assert_eq!(t.resolve("pt-BR"), "No extra · $6.25");
         assert_eq!(t.resolve("en-US"), "On extra · $6.25");
         assert_eq!(t.resolve("es"), "En extra · $6.25");
         assert_eq!(t.resolve("it"), "Extra in uso · $6.25");
         let s = active.summary_with_limit_hit();
-        assert_eq!(s.fallback, "Limite atingido · no extra $6.25");
+        assert_eq!(s.resolve("pt-BR"), "Limite atingido · no extra $6.25");
         assert_eq!(s.resolve("en-US"), "Limit hit · on extra $6.25");
         assert_eq!(s.resolve("es"), "Límite alcanzado · en extra $6.25");
         assert_eq!(s.resolve("it"), "Limite raggiunto · in extra $6.25");
@@ -588,7 +567,7 @@ mod tests {
             let o = assess(&report(vec![metric], None)).unwrap();
             let text = o.text();
             assert_eq!(text.id, id);
-            for locale in ["en-US", "es", "it"] {
+            for locale in ["pt-BR", "es", "it"] {
                 assert_ne!(text.resolve(locale), text.fallback, "{id} in {locale}");
             }
         }

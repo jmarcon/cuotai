@@ -81,19 +81,17 @@ async fn fetch_at_base(
         notes.push_params(
             "note.cursor_personal.imported_device",
             params([("device_id", ParamValue::from(device.to_string()))]),
-            format!(
-                "Sessão importada do Cursor IDE (device_id {device}); nenhuma senha é armazenada."
-            ),
+            "Session imported from the Cursor IDE (device_id {device_id}); no password is stored.",
         );
     } else {
         notes.push(
             "note.cursor_personal.imported_manual_token",
-            "Sessão importada do Cursor IDE (token manual); nenhuma senha é armazenada.",
+            "Session imported from the Cursor IDE (manual token); no password is stored.",
         );
     }
     notes.push(
         "note.cursor_personal.personal_endpoint",
-        "Endpoint pessoal cursor.com/api/usage-summary; não é a Admin API de equipe.",
+        "Personal cursor.com/api/usage-summary endpoint; not the team Admin API.",
     );
 
     let summary: UsageSummary = json(
@@ -116,14 +114,14 @@ async fn fetch_at_base(
             notes.push_params(
                 "note.cursor_personal.account_email",
                 params([("email", ParamValue::from(email.to_string()))]),
-                format!("Conta: {email}"),
+                "Account: {email}.",
             );
         }
         if let Some(name) = info.name.as_deref().filter(|s| !s.trim().is_empty()) {
             notes.push_params(
                 "note.cursor_personal.user_name",
                 params([("name", ParamValue::from(name.to_string()))]),
-                format!("Usuário: {name}"),
+                "User: {name}.",
             );
         }
         if let Some(membership) = summary
@@ -134,7 +132,7 @@ async fn fetch_at_base(
             notes.push_params(
                 "note.cursor_personal.membership",
                 params([("membership", ParamValue::from(membership.to_string()))]),
-                format!("Plano Cursor: {membership}"),
+                "Cursor plan: {membership}.",
             );
         }
     } else if let Some(membership) = summary
@@ -145,7 +143,7 @@ async fn fetch_at_base(
         notes.push_params(
             "note.cursor_personal.membership",
             params([("membership", ParamValue::from(membership.to_string()))]),
-            format!("Plano Cursor: {membership}"),
+            "Cursor plan: {membership}.",
         );
     }
 
@@ -175,7 +173,7 @@ async fn fetch_at_base(
     if metrics.is_empty() {
         notes.push(
             "note.cursor_personal.no_numeric_usage",
-            "Nenhum bloco numérico retornado pela API pessoal; ausente não significa ilimitado.",
+            "No numeric block returned by the personal API; absent does not mean unlimited.",
         );
     }
 
@@ -205,7 +203,7 @@ fn build_session_cookie(
     if trimmed.is_empty() {
         return Err(QueryError::config(
             "query.cursor_personal.missing_token",
-            "Token do Cursor ausente; importe via assistente ou defina CURSOR_ACCESS_TOKEN.",
+            "Missing Cursor token; import via the assistant or set CURSOR_ACCESS_TOKEN.",
         ));
     }
     if let Some(rest) = trimmed
@@ -216,7 +214,7 @@ fn build_session_cookie(
         if value.is_empty() {
             return Err(QueryError::config(
                 "query.cursor_personal.empty_cookie",
-                "Cookie WorkosCursorSessionToken vazio; importe a sessão do Cursor novamente.",
+                "WorkosCursorSessionToken cookie is empty; re-import the Cursor session.",
             ));
         }
         return Ok(format!("{SESSION_COOKIE}={value}"));
@@ -225,7 +223,7 @@ fn build_session_cookie(
         if user_id.is_empty() || jwt.is_empty() {
             return Err(QueryError::config(
                 "query.cursor_personal.empty_user_token_prefix",
-                "Prefixo userID::token do Cursor vazio; verifique o valor importado.",
+                "userID::token prefix is empty; check the imported value.",
             ));
         }
         let user_id = url_encode_user_id(user_id);
@@ -242,7 +240,7 @@ fn build_session_cookie(
             .ok_or_else(|| {
                 QueryError::config(
                     "query.cursor_personal.jwt_missing_subject",
-                    "Token JWT do Cursor sem claim `sub`; importe a sessão a partir do IDE para preencher o user id.",
+                    "Cursor JWT without `sub` claim; import the session from the IDE to fill the user id.",
                 )
             })?;
         let user_id = url_encode_user_id(&user_id);
@@ -250,7 +248,7 @@ fn build_session_cookie(
     }
     Err(QueryError::config(
         "query.cursor_personal.invalid_token_format",
-        "Formato do token do Cursor inválido; informe um JWT, `userID::JWT` ou `WorkosCursorSessionToken=...`.",
+        "Invalid Cursor token format; supply a JWT, `userID::JWT` or `WorkosCursorSessionToken=...`.",
     ))
 }
 

@@ -201,7 +201,7 @@ pub(super) async fn begin(
         }
         _ => Err(OAuthError::Configuration(crate::text::Localized::fixed(
             "oauth_error.device.provider_no_device_flow",
-            "Este provedor não usa fluxo de código de dispositivo.",
+            "This provider does not use a device-code flow.",
         ))),
     }
 }
@@ -322,7 +322,7 @@ fn classify_error(code: &str) -> OAuthError {
         "invalid_client" | "incorrect_client_credentials" | "unauthorized_client" => {
             OAuthError::Configuration(crate::text::Localized::fixed(
                 "oauth_error.device.client_registration_refused",
-                "Registro do cliente recusado pelo provedor; refaça o login.",
+                "Client registration refused by the provider; sign in again.",
             ))
         }
         _ => OAuthError::InvalidResponse,
@@ -820,7 +820,7 @@ fn kiro_options(config: &OAuthConfig) -> Result<(String, String, String), OAuthE
     if !valid_aws_region(&region) {
         return Err(OAuthError::Configuration(crate::text::Localized::fixed(
             "oauth_error.kiro.invalid_aws_region",
-            "Região AWS inválida para o login Kiro.",
+            "Invalid AWS region for the Kiro login.",
         )));
     }
     let start_url = config
@@ -833,7 +833,7 @@ fn kiro_options(config: &OAuthConfig) -> Result<(String, String, String), OAuthE
     let parsed = url::Url::parse(&start_url).map_err(|_| {
         OAuthError::Configuration(crate::text::Localized::fixed(
             "oauth_error.kiro.identity_center_url_invalid",
-            "URL inicial do Identity Center inválida.",
+            "Invalid Identity Center start URL.",
         ))
     })?;
     let host_ok = parsed
@@ -850,7 +850,7 @@ fn kiro_options(config: &OAuthConfig) -> Result<(String, String, String), OAuthE
     {
         return Err(OAuthError::Configuration(crate::text::Localized::fixed(
             "oauth_error.kiro.identity_center_url_https",
-            "URL inicial do Identity Center deve ser HTTPS no domínio awsapps.com.",
+            "The Identity Center start URL must be HTTPS on the awsapps.com domain.",
         )));
     }
     let auth_method = match config.options.get("auth_method").map(|m| m.trim()) {
@@ -859,7 +859,7 @@ fn kiro_options(config: &OAuthConfig) -> Result<(String, String, String), OAuthE
         Some(_) => {
             return Err(OAuthError::Configuration(crate::text::Localized::fixed(
                 "oauth_error.kiro.invalid_auth_method",
-                "auth_method inválido para o login Kiro (use builder-id ou idc).",
+                "Invalid auth_method for the Kiro login (use builder-id or idc).",
             )));
         }
         None => "builder-id".to_string(),

@@ -408,7 +408,7 @@ impl Hooks {
         if drafts.is_empty() {
             return Err(Localized::fixed(
                 "hooks.error.empty",
-                "hooks.toml não tem nenhuma regra [[hooks]].",
+                "hooks.toml has no [[hooks]] rule.",
             ));
         }
         let mut rules: Vec<Rule> = Vec::with_capacity(drafts.len());
@@ -420,7 +420,7 @@ impl Hooks {
                     "hooks.error.duplicate",
                     "name",
                     name.as_str(),
-                    format!("Há mais de uma regra chamada \"{name}\"."),
+                    "More than one rule is named \"{name}\".",
                 ));
             }
             rules.push(rule);
@@ -454,10 +454,7 @@ impl Hooks {
             "hooks.confirm.header",
             "path",
             path.as_str(),
-            format!(
-                "Os hooks de {path} executam estes comandos quando os eventos indicados \
-                 acontecem:"
-            ),
+            "The hooks in {path} run these commands when the listed events happen:",
         )];
         for (index, rule) in self.rules.iter().enumerate() {
             let index = index + 1;
@@ -465,7 +462,7 @@ impl Hooks {
             lines.push(Localized::with_params(
                 "hooks.confirm.rule",
                 params([("index", index.into()), ("name", name.into())]),
-                format!("{index}. {name}"),
+                "{index}. {name}",
             ));
             let events = rule
                 .events
@@ -477,7 +474,7 @@ impl Hooks {
                 "hooks.confirm.events",
                 "events",
                 events.as_str(),
-                format!("eventos: {events}"),
+                "events: {events}",
             ));
             let mut filters = Vec::new();
             if let Some(provider) = rule.provider {
@@ -501,21 +498,21 @@ impl Hooks {
                     "hooks.confirm.filters",
                     "filters",
                     filters.as_str(),
-                    format!("filtros: {filters}"),
+                    "filters: {filters}",
                 ));
             }
             lines.push(Localized::with_param(
                 "hooks.confirm.timeout",
                 "seconds",
                 rule.timeout_seconds,
-                format!("limite de tempo: {} s", rule.timeout_seconds),
+                "time limit: {seconds} s",
             ));
             let command = serde_json::to_string(&rule.command).unwrap_or_default();
             lines.push(Localized::with_param(
                 "hooks.confirm.command",
                 "command",
                 command.as_str(),
-                format!("comando: {command}"),
+                "command: {command}",
             ));
         }
         lines
@@ -538,11 +535,7 @@ fn parse(text: &str) -> Result<Vec<RuleDraft>, Localized> {
                 "hooks.error.toml",
                 "line",
                 line,
-                format!(
-                    "hooks.toml inválido na linha {line}: cada [[hooks]] aceita name, events, \
-                     provider, account, min_threshold, command (lista de argumentos), \
-                     timeout_seconds e quiet."
-                ),
+                "Invalid hooks.toml at line {line}: each [[hooks]] accepts name, events, provider, account, min_threshold, command (a list of arguments), timeout_seconds and quiet.",
             )
         })
 }
@@ -567,7 +560,7 @@ impl Document {
                 "hooks.error.unreadable",
                 "path",
                 shown.as_str(),
-                format!("Não foi possível ler {shown} (arquivo de texto UTF-8)."),
+                "Could not read {path} (a UTF-8 text file).",
             )
         };
         let (revision, text) = match std::fs::read(path) {
@@ -581,7 +574,7 @@ impl Document {
                         "hooks.error.missing",
                         "path",
                         shown.as_str(),
-                        format!("Nenhum arquivo de hooks em {shown}."),
+                        "No hooks file at {path}.",
                     )),
                 };
             }
@@ -735,7 +728,7 @@ pub(crate) fn write_atomically(path: &Path, bytes: &[u8]) -> io::Result<()> {
 pub fn changed() -> Localized {
     Localized::fixed(
         "hooks.error.changed",
-        "O hooks.toml mudou desde que foi exibido; revise as regras de novo.",
+        "hooks.toml changed since it was shown; review the rules again.",
     )
 }
 
@@ -745,7 +738,7 @@ fn unwritable(path: &Path) -> Localized {
         "hooks.error.unwritable",
         "path",
         path.as_str(),
-        format!("Não foi possível gravar {path}."),
+        "Could not write {path}.",
     )
 }
 
@@ -753,7 +746,7 @@ fn quoted(text: &str) -> String {
     serde_json::to_string(text).unwrap_or_default()
 }
 
-fn rule_error(id: &'static str, name: &str, fallback: String) -> Localized {
+fn rule_error(id: &'static str, name: &str, fallback: &'static str) -> Localized {
     Localized::with_param(id, "name", name, fallback)
 }
 
@@ -766,17 +759,14 @@ fn validate(index: usize, raw: RuleDraft) -> Result<Rule, Localized> {
         return Err(Localized::with_params(
             "hooks.error.name",
             params([("index", index.into()), ("max", NAME_MAX_CHARS.into())]),
-            format!(
-                "A regra {index} precisa de um name de 1 a {NAME_MAX_CHARS} caracteres, sem \
-                 caracteres de controle."
-            ),
+            "Rule {index} needs a name of 1 to {max} characters, without control characters.",
         ));
     }
     if raw.events.is_empty() {
         return Err(rule_error(
             "hooks.error.no_events",
             &name,
-            format!("A regra \"{name}\" não lista nenhum evento."),
+            "Rule \"{name}\" lists no event.",
         ));
     }
     let mut events = Vec::with_capacity(raw.events.len());
@@ -790,10 +780,7 @@ fn validate(index: usize, raw: RuleDraft) -> Result<Rule, Localized> {
                     ("event", event.as_str().into()),
                     ("known", known.as_str().into()),
                 ]),
-                format!(
-                    "A regra \"{name}\" cita o evento desconhecido \"{event}\". Eventos \
-                     válidos: {known}."
-                ),
+                "Rule \"{name}\" names the unknown event \"{event}\". Valid events: {known}.",
             ));
         };
         if !events.contains(&kind) {
@@ -811,10 +798,7 @@ fn validate(index: usize, raw: RuleDraft) -> Result<Rule, Localized> {
                     ("name", name.as_str().into()),
                     ("provider", slug.as_str().into()),
                 ]),
-                format!(
-                    "A regra \"{name}\" filtra pelo provedor desconhecido \"{slug}\" \
-                     (use o identificador, como em cuotai --list-providers)."
-                ),
+                "Rule \"{name}\" filters by the unknown provider \"{provider}\" (use the identifier, as in cuotai --list-providers).",
             )
         })?),
     };
@@ -826,7 +810,7 @@ fn validate(index: usize, raw: RuleDraft) -> Result<Rule, Localized> {
         return Err(rule_error(
             "hooks.error.account",
             &name,
-            format!("A regra \"{name}\" tem um filtro account vazio."),
+            "Rule \"{name}\" has an empty account filter.",
         ));
     }
     let account_id = match &raw.account_id {
@@ -838,10 +822,7 @@ fn validate(index: usize, raw: RuleDraft) -> Result<Rule, Localized> {
                     rule_error(
                         "hooks.error.account_id",
                         &name,
-                        format!(
-                            "O account_id da regra \"{name}\" não é um id de conta válido \
-                             (como acc_0123456789ab, visto em cuotai --json-v1)."
-                        ),
+                        "Rule \"{name}\" has an account_id that is not a valid account id (like acc_0123456789ab, shown by cuotai --json-v1).",
                     )
                 })?,
         ),
@@ -856,7 +837,7 @@ fn validate(index: usize, raw: RuleDraft) -> Result<Rule, Localized> {
                     rule_error(
                         "hooks.error.min_threshold",
                         &name,
-                        format!("O min_threshold da regra \"{name}\" deve ficar entre 1 e 100."),
+                        "The min_threshold of rule \"{name}\" must be between 1 and 100.",
                     )
                 })?,
         ),
@@ -865,11 +846,7 @@ fn validate(index: usize, raw: RuleDraft) -> Result<Rule, Localized> {
         return Err(rule_error(
             "hooks.error.command",
             &name,
-            format!(
-                "O command da regra \"{name}\" deve ser uma lista de argumentos cujo primeiro \
-                 item é um caminho absoluto ou um nome procurado no PATH, como \
-                 [\"/caminho/script\", \"--opcao\"]."
-            ),
+            "The command of rule \"{name}\" must be a list of arguments whose first item is an absolute path or a name looked up in PATH, such as [\"/path/script\", \"--flag\"].",
         ));
     }
     let timeout_seconds = match raw.timeout_seconds {
@@ -884,10 +861,7 @@ fn validate(index: usize, raw: RuleDraft) -> Result<Rule, Localized> {
                         ("name", name.as_str().into()),
                         ("max", MAX_TIMEOUT_SECONDS.into()),
                     ]),
-                    format!(
-                        "O timeout_seconds da regra \"{name}\" deve ficar entre 1 e \
-                         {MAX_TIMEOUT_SECONDS}."
-                    ),
+                    "The timeout_seconds of rule \"{name}\" must be between 1 and {max}.",
                 )
             })?,
     };
@@ -897,7 +871,7 @@ fn validate(index: usize, raw: RuleDraft) -> Result<Rule, Localized> {
             rule_error(
                 "hooks.error.quiet",
                 &name,
-                format!("O quiet da regra \"{name}\" deve ser \"run\" ou \"skip\"."),
+                "The quiet of rule \"{name}\" must be \"run\" or \"skip\".",
             )
         })?,
     };
@@ -945,7 +919,7 @@ pub struct Consent {
 
 /// The word that confirms the listing ([`Hooks::listing`]) in a terminal.
 pub fn confirm_answer() -> Localized {
-    Localized::fixed("hooks.confirm.answer", "sim")
+    Localized::fixed("hooks.confirm.answer", "yes")
 }
 
 /// The question after the listing, asking for [`confirm_answer`].
@@ -954,10 +928,7 @@ pub fn confirm_question(answer: &str) -> Localized {
         "hooks.confirm.question",
         "answer",
         answer,
-        format!(
-            "Para executá-los com o --watch, digite \"{answer}\" e Enter (qualquer outra \
-             resposta recusa):"
-        ),
+        "To run them with --watch, type \"{answer}\" and press Enter (any other answer declines):",
     )
 }
 
@@ -969,11 +940,7 @@ pub fn not_confirmed(hooks: &Hooks) -> Localized {
         "hooks.error.not_confirmed",
         "path",
         path.as_str(),
-        format!(
-            "Os hooks de {path} ainda não foram confirmados, ou mudaram desde a confirmação; \
-             revise e confirme os comandos num terminal com cuotai --watch --hooks ou em \
-             Configurações → Integração do app desktop."
-        ),
+        "The hooks in {path} were not confirmed yet, or changed since they were confirmed; review and confirm their commands in a terminal with cuotai --watch --hooks or in the desktop app's Settings → Integration.",
     )
 }
 
@@ -981,7 +948,7 @@ pub fn not_confirmed(hooks: &Hooks) -> Localized {
 pub fn declined() -> Localized {
     Localized::fixed(
         "hooks.error.declined",
-        "Hooks não confirmados; nada foi executado.",
+        "Hooks not confirmed; nothing was run.",
     )
 }
 
@@ -991,9 +958,7 @@ pub fn dropped(count: usize) -> Localized {
         "hooks.warning.dropped",
         "count",
         count,
-        format!(
-            "Fila de hooks cheia: {count} execução(ões) pendente(s) mais antiga(s) descartada(s)."
-        ),
+        "Hooks queue full: {count} oldest pending run(s) dropped.",
     )
 }
 
@@ -1004,7 +969,7 @@ pub fn log_unwritable(path: &Path) -> Localized {
         "hooks.warning.log",
         "path",
         path.as_str(),
-        format!("Não foi possível gravar o registro de execuções dos hooks em {path}."),
+        "Could not write the hooks run log at {path}.",
     )
 }
 
@@ -1071,7 +1036,7 @@ impl Consent {
 pub fn consent_storage() -> Localized {
     Localized::fixed(
         "hooks.error.consent_storage",
-        "Não foi possível registrar a confirmação dos hooks no diretório de dados local.",
+        "Could not record the hooks confirmation in the local data directory.",
     )
 }
 
@@ -1161,7 +1126,7 @@ impl LoggedRun {
             (Outcome::Exited, Some(0)) => Localized::with_params(
                 "hooks.run.succeeded",
                 common(),
-                format!("{rule} ({event}): concluído em {ms} ms"),
+                "{rule} ({event}): done in {ms} ms",
             ),
             (Outcome::Exited, code) => {
                 let code = code.map_or_else(String::new, |code| code.to_string());
@@ -1170,23 +1135,23 @@ impl LoggedRun {
                 Localized::with_params(
                     "hooks.run.failed",
                     values,
-                    format!("{rule} ({event}): saiu com o código {code} após {ms} ms"),
+                    "{rule} ({event}): exited with code {code} after {ms} ms",
                 )
             }
             (Outcome::Terminated, _) => Localized::with_params(
                 "hooks.run.terminated",
                 common(),
-                format!("{rule} ({event}): encerrado sem código de saída após {ms} ms"),
+                "{rule} ({event}): ended without an exit code after {ms} ms",
             ),
             (Outcome::TimedOut, _) => Localized::with_params(
                 "hooks.run.timed_out",
                 common(),
-                format!("{rule} ({event}): excedeu o limite de tempo e foi encerrado após {ms} ms"),
+                "{rule} ({event}): ran out of time and was stopped after {ms} ms",
             ),
             (Outcome::NotStarted, _) => Localized::with_params(
                 "hooks.run.not_started",
                 common(),
-                format!("{rule} ({event}): o comando não pôde ser iniciado"),
+                "{rule} ({event}): the command could not be started",
             ),
         }
     }

@@ -57,10 +57,7 @@ impl HistoryStatus {
             return Some(Localized::with_params(
                 "history.warning.ceiling",
                 params([("max", max.into()), ("removed", ceiling.removed.into())]),
-                format!(
-                    "O histórico passou de {max} MiB: as {} medições mais antigas foram apagadas.",
-                    ceiling.removed
-                ),
+                "The history went over {max} MiB: its {removed} oldest measurements were deleted.",
             ));
         }
         (self.dropped > 0).then(|| {
@@ -68,10 +65,7 @@ impl HistoryStatus {
                 "history.warning.dropped",
                 "count",
                 self.dropped,
-                format!(
-                    "{} leituras não entraram no histórico: o disco demorou a responder.",
-                    self.dropped
-                ),
+                "{count} readings did not enter the history: the disk was slow to answer.",
             )
         })
     }
@@ -444,7 +438,7 @@ mod tests {
         );
         for warning in [ceiling.warning(), dropped.warning(), status.warning()] {
             let warning = warning.unwrap();
-            for locale in ["en-US", "es", "it"] {
+            for locale in ["pt-BR", "es", "it"] {
                 let catalog = crate::text::core_catalog(locale).unwrap();
                 assert!(
                     catalog.contains_key(&*warning.id),

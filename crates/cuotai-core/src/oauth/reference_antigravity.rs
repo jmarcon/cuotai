@@ -513,7 +513,7 @@ fn ensure_provider(provider: Provider) -> Result<(), OAuthError> {
     } else {
         Err(OAuthError::Configuration(crate::text::Localized::fixed(
             "oauth_error.antigravity.exclusive_flow",
-            "Este fluxo OAuth é exclusivo do Antigravity.",
+            "This OAuth flow is exclusive to Antigravity.",
         )))
     }
 }

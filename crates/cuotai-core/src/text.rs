@@ -5,19 +5,22 @@
 //! Each user-facing string travels as a [`Localized`]: a **stable
 //! identifier** (e.g. `field.kiro.auth_method.label`, `edit_error.duplicate_name`,
 //! `note.kimchi.budget_404`, `login.oauth.cursor.label`), structured
-//! **parameters**, and the Portuguese text as the **default value**
-//! (`fallback`). Frontends resolve the id in their own catalog and render
-//! `fallback` (with parameters interpolated) when the id is unknown — so
+//! **parameters**, and the English text as the **default value**
+//! (`fallback`, PRD 0034). Constructors take the English template and
+//! interpolate the parameters into `fallback`. Frontends resolve the id in
+//! their own catalog and render `fallback` when the id is unknown — so
 //! adding a language means adding a catalog, and no frontend ever matches
-//! on the Portuguese wording.
+//! on the wording.
 //!
-//! The core **owns the catalogs** for every id it emits:
-//! [`core_catalog`] returns the static `BTreeMap` for a given locale and
-//! [`Localized::resolve`] substitutes `{name}` placeholders, recursing
-//! into nested [`Localized`] values. pt-* never consults a catalog (the
-//! fallback text is authoritative); unknown locales fall back to
-//! `en-US`; unknown keys in a current language fall back to `en-US`
-//! then to `fallback`.
+//! The core **owns the catalogs** for every id it emits
+//! (`locales/{pt-BR,es,it}.json`): [`core_catalog`] returns the static
+//! `BTreeMap` for a given locale and [`Localized::resolve`] substitutes
+//! `{name}` placeholders, recursing into nested [`Localized`] values.
+//! Resolution is exact locale → same language (`pt-PT` → pt-BR, `es-AR` →
+//! es) → the English `fallback`; en-US and unknown locales render the
+//! fallback. New texts are written in English first and added to every
+//! catalog; the core tests fail on a missing id, a renamed placeholder or
+//! a Portuguese marker in an English fallback ([`portuguese_markers`]).
 //!
 //! Security invariant (unchanged): parameters carry only non-secret data —
 //! env-var NAMES, param keys, HTTP status codes, provider/status slugs,
@@ -87,7 +90,7 @@ pub fn params<const N: usize>(items: [(&str, ParamValue); N]) -> BTreeMap<String
     items.into_iter().map(|(k, v)| (k.to_string(), v)).collect()
 }
 
-/// One localizable text: stable id + structured params + Portuguese default.
+/// One localizable text: stable id + structured params + English default.
 ///
 /// `id` naming is dotted and stable: `field.<provider>.<key>.label`,
 /// `native.<provider>.<key>.label`, `login.<provider>.<mode_id>.{label,help,...}`,
@@ -100,17 +103,20 @@ pub struct Localized {
     pub id: Cow<'static, str>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub params: BTreeMap<String, ParamValue>,
-    /// Portuguese default text, already interpolated. Frontends render this
-    /// verbatim when the id is absent from their catalog (or always, when
-    /// the locale is a pt-* variant).
+    /// English default text, already interpolated. Frontends render this
+    /// verbatim when the id is absent from their catalog (or always, for
+    /// en-US).
     pub fallback: Cow<'static, str>,
 }
 
 impl Localized {
-    /// A fixed text without parameters. `fallback` accepts both `&'static str`
-    /// and owned `String` (e.g. formatted error messages).
+    /// A fixed English text without parameters. `fallback` accepts both
+    /// `&'static str` and owned `String` (e.g. formatted error messages).
+    #[track_caller]
     pub fn fixed(id: impl Into<Cow<'static, str>>, fallback: impl Into<String>) -> Self {
         let fallback: String = fallback.into();
+        #[cfg(test)]
+        assert_english(&fallback);
         Self {
             id: id.into(),
             params: BTreeMap::new(),
@@ -118,14 +124,23 @@ impl Localized {
         }
     }
 
-    /// A text with structured parameters. `fallback` is the Portuguese
-    /// rendering with the values already interpolated.
+    /// A text with structured parameters. `fallback` is the English template;
+    /// its `{name}` placeholders are interpolated with `params` (nested
+    /// [`Localized`] values in English).
+    #[track_caller]
     pub fn with_params(
         id: impl Into<Cow<'static, str>>,
         params: BTreeMap<String, ParamValue>,
         fallback: impl Into<String>,
     ) -> Self {
         let fallback: String = fallback.into();
+        #[cfg(test)]
+        assert_english(&fallback);
+        let fallback = if params.is_empty() {
+            fallback
+        } else {
+            substitute(&fallback, &params, Locale::EnUs)
+        };
         Self {
             id: id.into(),
             params,
@@ -134,6 +149,7 @@ impl Localized {
     }
 
     /// Convenience for the common single-parameter case.
+    #[track_caller]
     pub fn with_param(
         id: impl Into<Cow<'static, str>>,
         key: &str,
@@ -147,36 +163,48 @@ impl Localized {
         )
     }
 
-    /// The Portuguese default text (what pre-RF8 callers received).
+    /// The English default text (`fallback`).
     pub fn text(&self) -> &str {
         &self.fallback
     }
 
-    /// Render this message against `locale`. Lookup order:
-    /// 1. pt-* → embedded `fallback` (no catalog consulted).
-    /// 2. locale catalog → current language (es-AR falls back to es).
-    /// 3. en-US catalog (for unknown locales and missing keys).
-    /// 4. embedded `fallback`.
+    /// Render this message against `locale`. Lookup order (PRD 0034 RF1.3):
+    /// 1. the catalog of the locale's language (`pt-*` → pt-BR, `es-AR` → es);
+    /// 2. the embedded English `fallback`, already interpolated (en-US,
+    ///    unknown locales and ids missing from the catalog).
     ///
-    /// `{name}` placeholders are substituted with the matching entry in
-    /// `params`; missing keys are left verbatim. Nested [`Localized`]
-    /// parameters are recursively resolved against the same locale.
+    /// `{name}` placeholders of a catalog template are substituted with the
+    /// matching entry in `params`; missing keys are left verbatim. Nested
+    /// [`Localized`] parameters are recursively resolved against the same
+    /// locale.
     pub fn resolve(&self, locale: &str) -> String {
         let resolved = Locale::resolve(locale);
-        let template = match resolved {
-            Locale::Pt => None,
-            Locale::EnUs => core_catalog_en_us().get(&*self.id).cloned(),
-            Locale::Es => core_catalog_es()
-                .get(&*self.id)
-                .cloned()
-                .or_else(|| core_catalog_en_us().get(&*self.id).cloned()),
-            Locale::It => core_catalog_it()
-                .get(&*self.id)
-                .cloned()
-                .or_else(|| core_catalog_en_us().get(&*self.id).cloned()),
-        };
-        let template = template.unwrap_or_else(|| self.fallback.to_string());
-        substitute(&template, &self.params, resolved)
+        match catalog_for(resolved).and_then(|catalog| catalog.get(&*self.id)) {
+            Some(template) => substitute(template, &self.params, resolved),
+            None => self.fallback.to_string(),
+        }
+    }
+
+    /// PRD 0034 RF5.2: this text with its `fallback` (and the fallbacks of
+    /// nested parameters) rendered in `locale`, for consumers that display
+    /// `fallback` verbatim. Ids and params are unchanged.
+    pub fn with_fallback_locale(&self, locale: &str) -> Localized {
+        let params = self
+            .params
+            .iter()
+            .map(|(key, value)| {
+                let value = match value {
+                    ParamValue::L10n(note) => ParamValue::l10n(note.with_fallback_locale(locale)),
+                    text => text.clone(),
+                };
+                (key.clone(), value)
+            })
+            .collect();
+        Localized {
+            id: self.id.clone(),
+            params,
+            fallback: Cow::Owned(self.resolve(locale)),
+        }
     }
 }
 
@@ -217,7 +245,7 @@ pub fn provider_l10n(provider: crate::Provider) -> Localized {
 /// What's new screen (PRD 0019 RF7.7). The entry text itself stays in
 /// English, the changelog's language.
 pub fn changelog_category_l10n(category: crate::changelog::Category) -> Localized {
-    Localized::fixed(category.l10n_id(), category.fallback_pt())
+    Localized::fixed(category.l10n_id(), category.fallback())
 }
 
 /// `changelog.entries_language` — the note stating that the entries stay in
@@ -225,13 +253,13 @@ pub fn changelog_category_l10n(category: crate::changelog::Category) -> Localize
 pub fn changelog_entries_language_l10n() -> Localized {
     Localized::fixed(
         crate::changelog::ENTRIES_LANGUAGE_ID,
-        crate::changelog::ENTRIES_LANGUAGE_PT,
+        crate::changelog::ENTRIES_LANGUAGE_FALLBACK,
     )
 }
 
 /// `changelog.title` — the What's new screen title.
 pub fn changelog_title_l10n() -> Localized {
-    Localized::fixed(crate::changelog::TITLE_ID, crate::changelog::TITLE_PT)
+    Localized::fixed(crate::changelog::TITLE_ID, crate::changelog::TITLE_FALLBACK)
 }
 
 /// PRD 0024 RF1.4: a span as the core words it, so the TUI and the desktop
@@ -245,23 +273,23 @@ pub fn duration(span: chrono::TimeDelta) -> Localized {
         // Rounded up; 59 min 30 s still reads "59 min", never "60 min".
         let minutes = ((secs + 59) / 60).min(59);
         let m = minutes.to_string();
-        return Localized::with_param("text.duration.minutes", "m", m.as_str(), format!("{m} min"));
+        return Localized::with_param("text.duration.minutes", "m", m.as_str(), "{m} min");
     }
     let minutes = secs / 60;
     let (days, hours, mins) = (minutes / 1_440, minutes / 60 % 24, minutes % 60);
     let (d, h, m) = (days.to_string(), hours.to_string(), mins.to_string());
     match (days, hours, mins) {
-        (0, _, 0) => Localized::with_param("text.duration.hours", "h", h.as_str(), format!("{h}h")),
+        (0, _, 0) => Localized::with_param("text.duration.hours", "h", h.as_str(), "{h}h"),
         (0, _, _) => Localized::with_params(
             "text.duration.hours_minutes",
             params([("h", h.as_str().into()), ("m", m.as_str().into())]),
-            format!("{h}h {m}m"),
+            "{h}h {m}m",
         ),
-        (_, 0, _) => Localized::with_param("text.duration.days", "d", d.as_str(), format!("{d}d")),
+        (_, 0, _) => Localized::with_param("text.duration.days", "d", d.as_str(), "{d}d"),
         _ => Localized::with_params(
             "text.duration.days_hours",
             params([("d", d.as_str().into()), ("h", h.as_str().into())]),
-            format!("{d}d {h}h"),
+            "{d}d {h}h",
         ),
     }
 }
@@ -270,25 +298,23 @@ pub fn duration(span: chrono::TimeDelta) -> Localized {
 /// [`duration`]), or "now" for a span under one second.
 pub fn countdown(span: chrono::TimeDelta) -> Localized {
     if span.num_seconds() < 1 {
-        return Localized::fixed("text.countdown.now", "agora");
+        return Localized::fixed("text.countdown.now", "now");
     }
-    let duration = duration(span);
-    let fallback = format!("em {}", duration.fallback);
     Localized::with_params(
         "text.countdown",
-        params([("duration", duration.into())]),
-        fallback,
+        params([("duration", duration(span).into())]),
+        "in {duration}",
     )
 }
 
 // ---------------------------------------------------------------------------
 // Core catalogs: parsed lazily from `include_str!` so the binary only pays
-// for the JSON once and never blocks startup. The en-US/es/it maps share
+// for the JSON once and never blocks startup. The pt-BR/es/it maps share
 // the same key set; equality of key sets is asserted by a unit test.
 // ---------------------------------------------------------------------------
 
-/// Available core locale buckets. pt-* never loads a catalog because the
-/// embedded Portuguese fallback is authoritative for that variant.
+/// Available core locale buckets. en-US has no catalog: the embedded
+/// English `fallback` is the source text (PRD 0034 RF1).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Locale {
     Pt,
@@ -299,8 +325,8 @@ pub enum Locale {
 
 impl Locale {
     /// Mirror the desktop `i18n.js#pickLocale` precedence:
-    /// exact match → language base (`es-AR` → `es`, `it-IT` → `it`) → `pt-*` → `en-US`
-    /// for any other locale (so unknown languages still get a translation).
+    /// exact match → language base (`es-AR` → `es`, `it-IT` → `it`, `pt-*` → pt-BR)
+    /// → `en-US`, the English fallback, for any other locale.
     pub fn resolve(locale: &str) -> Locale {
         let lower = locale.to_ascii_lowercase();
         if lower == "en-us" || lower == "en" {
@@ -328,7 +354,7 @@ fn parse_catalog(raw: &'static str) -> BTreeMap<String, String> {
     // `id → template` map; serde_json can't decode both shapes with the
     // same target type, so we ignore `_meta` after a structural check.
     let value: serde_json::Value = serde_json::from_str(raw)
-        .expect("cuotai-core locale JSON must be valid; check locales/{en-US,es,it}.json");
+        .expect("cuotai-core locale JSON must be valid; check locales/{pt-BR,es,it}.json");
     let mut map = BTreeMap::new();
     if let serde_json::Value::Object(object) = value {
         for (key, val) in object {
@@ -348,10 +374,10 @@ fn parse_catalog(raw: &'static str) -> BTreeMap<String, String> {
     map
 }
 
-fn core_catalog_en_us() -> &'static BTreeMap<String, String> {
-    static EN: LazyLock<BTreeMap<String, String>> =
-        LazyLock::new(|| parse_catalog(include_str!("../locales/en-US.json")));
-    &EN
+fn core_catalog_pt_br() -> &'static BTreeMap<String, String> {
+    static PT: LazyLock<BTreeMap<String, String>> =
+        LazyLock::new(|| parse_catalog(include_str!("../locales/pt-BR.json")));
+    &PT
 }
 
 fn core_catalog_es() -> &'static BTreeMap<String, String> {
@@ -366,16 +392,20 @@ fn core_catalog_it() -> &'static BTreeMap<String, String> {
     &IT
 }
 
-/// Lookup the core catalog for `locale`. Returns `None` for pt-* (the
-/// caller should use `Localized::fallback`); otherwise returns the static
-/// map for the resolved language (en-US fallback when a key is absent).
-pub fn core_catalog(locale: &str) -> Option<&'static BTreeMap<String, String>> {
-    match Locale::resolve(locale) {
-        Locale::Pt => None,
-        Locale::EnUs => Some(core_catalog_en_us()),
+fn catalog_for(locale: Locale) -> Option<&'static BTreeMap<String, String>> {
+    match locale {
+        Locale::Pt => Some(core_catalog_pt_br()),
+        Locale::EnUs => None,
         Locale::Es => Some(core_catalog_es()),
         Locale::It => Some(core_catalog_it()),
     }
+}
+
+/// Lookup the core catalog for `locale`: the static map of the resolved
+/// language (`pt-*` → pt-BR, `es-*` → es, `it-*` → it). Returns `None` for
+/// en-US and unknown locales, whose text is `Localized::fallback` itself.
+pub fn core_catalog(locale: &str) -> Option<&'static BTreeMap<String, String>> {
+    catalog_for(Locale::resolve(locale))
 }
 
 /// Substitute every `{name}` placeholder in `template` against `params`.
@@ -448,7 +478,7 @@ impl Localized {
     }
 }
 
-/// Accumulator for report notes: providers push the Portuguese text once
+/// Accumulator for report notes: providers push the English text once
 /// together with its stable id and parameters; [`Notes::finish`] splits the
 /// legacy `Vec<String>` (fallbacks, unchanged ordering) from the structured
 /// `Vec<Localized>` sidecar. This keeps `Report.notes` and the Snapshot/CLI
@@ -473,23 +503,20 @@ impl Notes {
     }
 
     /// Push a fixed note (no parameters).
+    #[track_caller]
     pub fn push(&mut self, id: &'static str, text: impl Into<String>) {
-        let text = text.into();
-        self.l10n.push(Localized::fixed(id, text.clone()));
-        self.texts.push(text);
+        self.push_note(Localized::fixed(id, text));
     }
 
     /// Push a note with structured parameters.
+    #[track_caller]
     pub fn push_params(
         &mut self,
         id: &'static str,
         params: BTreeMap<String, ParamValue>,
         text: impl Into<String>,
     ) {
-        let text = text.into();
-        self.l10n
-            .push(Localized::with_params(id, params, text.clone()));
-        self.texts.push(text);
+        self.push_note(Localized::with_params(id, params, text));
     }
 
     /// Push an already-built [`Localized`] (e.g. a forwarded error note).
@@ -507,7 +534,7 @@ impl Notes {
         self.texts.is_empty()
     }
 
-    /// Split into the legacy parallel vectors: `(plain PT texts, l10n)`.
+    /// Split into the legacy parallel vectors: `(plain English texts, l10n)`.
     /// Both have the same length and ordering.
     pub(crate) fn finish(self) -> (Vec<String>, Vec<Localized>) {
         (self.texts, self.l10n)
@@ -530,6 +557,109 @@ impl FromIterator<Localized> for Notes {
     }
 }
 
+/// PRD 0034 RF5.2: the environment variable that names the language of the
+/// `fallback` texts in `--json`, `--json-v1`, `--serve` and `--watch --jsonl`.
+pub const FALLBACK_LOCALE_ENV: &str = "CUOTAI_FALLBACK_LOCALE";
+
+/// PRD 0034 RF5.2: the language in which machine-readable output renders its
+/// `fallback` texts for consumers that display them verbatim: `flag`, else
+/// [`FALLBACK_LOCALE_ENV`]. `None` keeps the English fallbacks: nothing set,
+/// an empty value, en-US or a language without a core catalog.
+pub fn fallback_locale(flag: Option<&str>) -> Option<String> {
+    let chosen = match flag {
+        Some(flag) => flag.to_owned(),
+        None => std::env::var(FALLBACK_LOCALE_ENV).ok()?,
+    };
+    let chosen = chosen.trim();
+    (!chosen.is_empty() && core_catalog(chosen).is_some()).then(|| chosen.to_owned())
+}
+
+/// PRD 0034 RF5.2: render, in `locale`, the `fallback` of every
+/// [`Localized`] (an object with string `id` and `fallback`) of a JSON
+/// document, nested ones included, and copy each `notes_l10n` fallback into
+/// the parallel plain `notes` entry. Ids, params and the shape are unchanged.
+pub fn localize_json_fallbacks(value: &mut serde_json::Value, locale: &str) {
+    use serde_json::Value;
+    match value {
+        Value::Array(items) => {
+            for item in items {
+                localize_json_fallbacks(item, locale);
+            }
+        }
+        Value::Object(map) => {
+            let localized = matches!(map.get("id"), Some(Value::String(_)))
+                && matches!(map.get("fallback"), Some(Value::String(_)));
+            if localized {
+                if let Ok(note) = serde_json::from_value::<Localized>(Value::Object(map.clone())) {
+                    map.insert("fallback".to_owned(), Value::String(note.resolve(locale)));
+                }
+            }
+            for item in map.values_mut() {
+                localize_json_fallbacks(item, locale);
+            }
+            let texts: Option<Vec<Value>> = match map.get("notes_l10n") {
+                Some(Value::Array(notes)) => notes
+                    .iter()
+                    .map(|note| note.get("fallback").cloned())
+                    .collect(),
+                _ => None,
+            };
+            if let (Some(texts), Some(Value::Array(notes))) = (texts, map.get_mut("notes")) {
+                if texts.len() == notes.len() {
+                    *notes = texts;
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+/// PRD 0034 RF4.2: the Portuguese markers found in `text` (characters
+/// `ã`, `õ`, `ç` and a short list of stop words), so a test can prove an
+/// English text carries none. Proper names that contain a marker belong in
+/// [`PORTUGUESE_MARKER_ALLOWED`].
+pub fn portuguese_markers(text: &str) -> Vec<&'static str> {
+    const CHARS: [(&str, [char; 2]); 3] = [("ã", ['ã', 'Ã']), ("õ", ['õ', 'Õ']), ("ç", ['ç', 'Ç'])];
+    const WORDS: [&str; 5] = ["não", "já", "está", "conta", "cota"];
+    let mut cleaned = text.to_string();
+    for allowed in PORTUGUESE_MARKER_ALLOWED {
+        cleaned = cleaned.replace(allowed, "");
+    }
+    let mut found: Vec<(usize, &'static str)> = Vec::new();
+    for (name, chars) in CHARS {
+        if let Some(at) = cleaned.find(|c| chars.contains(&c)) {
+            found.push((at, name));
+        }
+    }
+    let lower = cleaned.to_lowercase();
+    let words: Vec<&str> = lower
+        .split(|c: char| !(c.is_alphanumeric()))
+        .filter(|word| !word.is_empty())
+        .collect();
+    for word in WORDS {
+        if let Some(at) = words.iter().position(|w| *w == word) {
+            found.push((usize::MAX / 2 + at, word));
+        }
+    }
+    found.sort_by_key(|(at, _)| *at);
+    found.into_iter().map(|(_, name)| name).collect()
+}
+
+/// Proper names a Portuguese-marker check must not flag.
+pub const PORTUGUESE_MARKER_ALLOWED: [&str; 0] = [];
+
+/// PRD 0034 RF4.2: in the core's own tests every `Localized` built in the
+/// core must have an English fallback template.
+#[cfg(test)]
+#[track_caller]
+fn assert_english(template: &str) {
+    let markers = portuguese_markers(template);
+    assert!(
+        markers.is_empty(),
+        "Portuguese marker(s) {markers:?} in an English fallback: {template:?}"
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -537,7 +667,7 @@ mod tests {
 
     /// Every id the descriptor APIs emit for any provider must be translated
     /// in every shipped catalog; otherwise that frontend locale silently
-    /// shows the Portuguese fallback.
+    /// shows the English fallback.
     #[test]
     fn every_descriptor_id_is_translated_in_every_catalog() {
         use crate::account_edit::{self as edit, FieldDescriptorKind};
@@ -649,7 +779,7 @@ mod tests {
                 }
             }
         }
-        for locale in ["en-US", "es", "it"] {
+        for locale in ["pt-BR", "es", "it"] {
             let catalog = core_catalog(locale).expect("shipped catalog");
             let missing: BTreeSet<_> = ids
                 .iter()
@@ -726,9 +856,14 @@ mod tests {
             "note.inference.perplexity_member_filter",
             "email",
             "alice@example.com",
-            "Filtrado por membro da organização: alice@example.com.",
+            "Filtered by organisation member: {email}.",
         );
-        // en-US catalog carries the same id with the {email} placeholder.
+        // The English template is interpolated into the fallback, which is
+        // what en-US renders.
+        assert_eq!(
+            note.fallback,
+            "Filtered by organisation member: alice@example.com."
+        );
         let en = note.resolve("en-US");
         assert_eq!(en, "Filtered by organisation member: alice@example.com.");
         let es = note.resolve("es");
@@ -736,10 +871,10 @@ mod tests {
             es,
             "Filtrado por miembro de la organización: alice@example.com."
         );
-        // pt-BR never consults a catalog.
+        // pt-BR resolves the id in its catalog.
         let pt = note.resolve("pt-BR");
         assert_eq!(pt, "Filtrado por membro da organização: alice@example.com.");
-        // Unknown locale falls back to en-US.
+        // An unknown locale renders the English fallback.
         let fr = note.resolve("fr-FR");
         assert_eq!(fr, "Filtered by organisation member: alice@example.com.");
     }
@@ -755,12 +890,12 @@ mod tests {
     #[test]
     fn resolve_recurses_into_nested_localized() {
         // Embedded provider/status fragments should translate in the
-        // current locale, not parrot the Portuguese label.
+        // current locale, not parrot the English label.
         let note = Localized::with_param(
             "note.test.with_provider",
             "provider",
             provider_l10n(crate::Provider::AnthropicApi),
-            "Conta do provedor {provider} falhou.",
+            "Account of provider {provider} failed.",
         );
         let en = note.resolve("en-US");
         assert!(en.contains("Anthropic API"), "got: {en}");
@@ -771,21 +906,128 @@ mod tests {
     }
 
     #[test]
-    fn catalog_keys_match_between_en_es_and_it() {
-        let en = parse_catalog(include_str!("../locales/en-US.json"));
-        let es = parse_catalog(include_str!("../locales/es.json"));
-        let it = parse_catalog(include_str!("../locales/it.json"));
-        let en_keys: BTreeSet<&str> = en.keys().map(String::as_str).collect();
-        let es_keys: BTreeSet<&str> = es.keys().map(String::as_str).collect();
-        let it_keys: BTreeSet<&str> = it.keys().map(String::as_str).collect();
-        let only_en: Vec<&&str> = en_keys.difference(&es_keys).collect();
-        let only_es: Vec<&&str> = es_keys.difference(&en_keys).collect();
-        let missing_it: Vec<&&str> = en_keys.difference(&it_keys).collect();
-        let extra_it: Vec<&&str> = it_keys.difference(&en_keys).collect();
-        assert!(only_en.is_empty(), "en-only keys: {only_en:?}");
-        assert!(only_es.is_empty(), "es-only keys: {only_es:?}");
-        assert!(missing_it.is_empty(), "it-missing keys: {missing_it:?}");
-        assert!(extra_it.is_empty(), "it-only keys: {extra_it:?}");
+    fn catalog_keys_match_between_pt_es_and_it() {
+        // PRD 0034 RF4.1: every shipped catalog carries the same ids.
+        let pt = core_catalog("pt-BR").expect("pt-BR catalog");
+        let pt_keys: BTreeSet<&str> = pt.keys().map(String::as_str).collect();
+        for locale in ["es", "it"] {
+            let catalog = core_catalog(locale).expect("shipped catalog");
+            let keys: BTreeSet<&str> = catalog.keys().map(String::as_str).collect();
+            let missing: Vec<&&str> = pt_keys.difference(&keys).collect();
+            let extra: Vec<&&str> = keys.difference(&pt_keys).collect();
+            assert!(missing.is_empty(), "{locale} lacks {missing:?}");
+            assert!(extra.is_empty(), "{locale} has ids pt-BR lacks: {extra:?}");
+        }
+        assert!(core_catalog("en-US").is_none(), "English is the fallback");
+    }
+
+    /// PRD 0034 RF4.1: a translation keeps every placeholder of the others,
+    /// so renaming one in a single catalog fails here.
+    #[test]
+    fn catalog_placeholders_match_between_catalogs() {
+        fn names(template: &str) -> BTreeSet<&str> {
+            let mut out = BTreeSet::new();
+            let mut rest = template;
+            while let Some(start) = rest.find('{') {
+                rest = &rest[start + 1..];
+                let Some(end) = rest.find('}') else { break };
+                let name = &rest[..end];
+                if !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+                    out.insert(name);
+                }
+                rest = &rest[end + 1..];
+            }
+            out
+        }
+        // Literal braces that are not parameters (a path or an example).
+        const LITERAL: [&str; 4] = [
+            "edit_error.param.resource_id",
+            "field.azure_open_ai.resource_id.help",
+            "note.coding.personal_balance_only",
+            "query.cloud.invalid_azure_resource_id",
+        ];
+        let pt = core_catalog("pt-BR").expect("pt-BR catalog");
+        let mut mismatched = Vec::new();
+        for locale in ["es", "it"] {
+            let catalog = core_catalog(locale).expect("shipped catalog");
+            for (id, template) in pt {
+                if LITERAL.contains(&id.as_str()) {
+                    continue;
+                }
+                if let Some(other) = catalog.get(id) {
+                    if names(template) != names(other) {
+                        mismatched.push(format!("{locale} {id}"));
+                    }
+                }
+            }
+        }
+        assert!(mismatched.is_empty(), "placeholders differ: {mismatched:?}");
+    }
+
+    /// PRD 0034 RF5.2: the fallback locale renders every `fallback`, nested
+    /// ones and the plain `notes` included, leaving ids and params alone.
+    #[test]
+    fn json_fallbacks_render_in_the_fallback_locale() {
+        let nested = Localized::with_param(
+            "binding.blocked",
+            "window",
+            Localized::fixed("metric_window.weekly", "weekly"),
+            "blocked by the {window} window; return time unknown",
+        );
+        let mut json = serde_json::json!({
+            "notes": [nested.fallback.clone(), "kept"],
+            "notes_l10n": [nested.clone(), {"id": "unknown.id", "fallback": "kept"}],
+            "label": Localized::fixed("status.ready", "Up to date"),
+            "other": {"id": "not-a-text"},
+        });
+        let original = json.clone();
+        localize_json_fallbacks(&mut json, "pt-BR");
+        let pt = "bloqueada pela janela semanal; horário de retorno desconhecido";
+        assert_eq!(json["notes_l10n"][0]["fallback"], pt);
+        assert_eq!(
+            json["notes_l10n"][0]["params"]["window"]["fallback"],
+            "semanal"
+        );
+        assert_eq!(
+            json["notes_l10n"][0]["params"]["window"]["id"],
+            "metric_window.weekly"
+        );
+        assert_eq!(json["notes"], serde_json::json!([pt, "kept"]));
+        assert_eq!(json["label"]["fallback"], "Atualizado");
+        assert_eq!(json["other"], original["other"]);
+        let mut english = original.clone();
+        localize_json_fallbacks(&mut english, "en-US");
+        assert_eq!(english, original, "English is already the fallback");
+
+        assert_eq!(fallback_locale(Some("pt-BR")).as_deref(), Some("pt-BR"));
+        assert_eq!(fallback_locale(Some(" es ")).as_deref(), Some("es"));
+        assert_eq!(fallback_locale(Some("en-US")), None);
+        assert_eq!(fallback_locale(Some("fr")), None);
+        assert_eq!(fallback_locale(Some("")), None);
+    }
+
+    /// PRD 0034 RF4.2: the detector flags Portuguese markers and lets
+    /// English and proper names through.
+    #[test]
+    fn the_portuguese_detector_catches_a_seeded_fallback() {
+        assert_eq!(
+            portuguese_markers("Não foi possível ler a cota da conta."),
+            ["ã", "não", "cota", "conta"]
+        );
+        assert_eq!(
+            portuguese_markers("A sessão já está ativa."),
+            ["ã", "já", "está"]
+        );
+        assert_eq!(portuguese_markers("Configuração"), ["ç", "ã"]);
+        assert!(portuguese_markers("Could not read the account quota.").is_empty());
+        assert!(portuguese_markers("{provider}: {count} usage alerts").is_empty());
+        let seeded = std::panic::catch_unwind(|| {
+            Localized::fixed("test.seeded", "A cota da conta não foi lida.")
+        });
+        assert!(
+            seeded.is_err(),
+            "a Portuguese fallback must not be accepted"
+        );
     }
 
     /// Regression for the smoke bug: `OAuthError::l10n()` emits a
@@ -817,7 +1059,7 @@ mod tests {
             es.contains("client_id ausente"),
             "es must keep the detail value: got {es:?}"
         );
-        // pt-BR keeps the Portuguese fallback (no catalog consulted).
+        // pt-BR resolves the id in its catalog.
         let pt = note.resolve("pt-BR");
         assert_eq!(pt, "Configuração OAuth: client_id ausente");
     }

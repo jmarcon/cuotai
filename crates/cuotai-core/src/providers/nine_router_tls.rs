@@ -139,13 +139,13 @@ pub(crate) fn client(mode: &TlsMode, timeout: Duration) -> Result<Option<OwnClie
             let certificates = reqwest::Certificate::from_pem_bundle(&pem).map_err(|_| {
                 config_error(
                     "query.nine_router.ca_file",
-                    "O arquivo de CA do 9router não pôde ser lido como PEM.",
+                    "The 9router CA file could not be read as PEM.",
                 )
             })?;
             if certificates.is_empty() {
                 return Err(config_error(
                     "query.nine_router.ca_file",
-                    "O arquivo de CA do 9router não pôde ser lido como PEM.",
+                    "The 9router CA file could not be read as PEM.",
                 ));
             }
             let mut builder = builder(timeout);
@@ -176,7 +176,7 @@ fn read_ca(path: &Path) -> Result<Vec<u8>, QueryError> {
     let unreadable = || {
         config_error(
             "query.nine_router.ca_file",
-            "O arquivo de CA do 9router não pôde ser lido como PEM.",
+            "The 9router CA file could not be read as PEM.",
         )
     };
     let metadata = std::fs::metadata(path).map_err(|_| unreadable())?;
@@ -203,7 +203,7 @@ pub(crate) fn changed() -> QueryError {
         status: Status::AuthenticationError,
         note: Localized::fixed(
             CHANGED_NOTE,
-            "O certificado da instância do 9router mudou; confira-o e teste a conexão de novo antes de confiar nele.",
+            "The 9router instance's certificate changed; check it and test the connection again before trusting it.",
         ),
     }
 }

@@ -97,7 +97,7 @@ impl Diagnostic {
         let Some(first) = drift.paths.first() else {
             return Localized::fixed(
                 "diagnostic.schema_drift_unknown",
-                "O provedor mudou o formato da resposta.",
+                "The provider changed the response format.",
             );
         };
         Localized::with_params(
@@ -107,10 +107,7 @@ impl Diagnostic {
                 ("expected", ParamValue::from(first.expected.clone())),
                 ("found", ParamValue::from(first.found.clone())),
             ]),
-            format!(
-                "O provedor mudou `{}` ({} → {}).",
-                first.path, first.expected, first.found
-            ),
+            "The provider changed `{path}` ({expected} → {found}).",
         )
     }
 }

@@ -4,13 +4,13 @@
 //
 // RF8 — resolutor `tl()`: textos entregues pelo core (campos, avisos, erros
 // de edição, notas de relatório, login modes/options/registration) viajam
-// como `{ id, params, fallback }` onde `fallback` é o texto em português.
+// como `{ id, params, fallback }` onde `fallback` é o texto em inglês.
 // O desktop resolve `id` no catálogo corrente e usa `fallback` quando a
 // chave está ausente. Parâmetros podem ser strings ou um `Localized`
 // aninhado, resolvido recursivamente para que rótulos de
 // status/provedor embarcados nas notas também sejam traduzidos.
 //
-// O catálogo do core (crates/cuotai-core/locales/{en-US,es,it}.json) é carregado
+// O catálogo do core (crates/cuotai-core/locales/{pt-BR,es,it}.json) é carregado
 // pelo comando Tauri `core_catalog(locale)` e mesclado sob o catálogo de UI:
 // as chaves do core têm prioridade para os ids que o core emite; chaves de
 // UI apenas permanecem no JSON local. Pacotes de idioma do usuário podem
@@ -72,7 +72,7 @@ async function loadCore(code) {
   const T = window.__TAURI__;
   if (!T || !T.core?.invoke) {
     // Browser demo served from the repository root (PRD 0022 RF18.2): read the core's catalog file directly.
-    // Portuguese is the core's built-in fallback and has no file. Absent (any other host): no core texts.
+    // English is the core's built-in fallback and has no file. Absent (any other host): no core texts.
     let data = {};
     try {
       const res = await fetch(`../../../crates/cuotai-core/locales/${code}.json`);

@@ -463,8 +463,8 @@ fn load_user_content() -> Result<user_content::UserContent, String> {
 /// RF8: ship the core-owned locale catalog (`crates/cuotai-core/locales/*.json`)
 /// to the desktop frontend so it can resolve every id the core emits without
 /// shipping those strings itself. `locale` follows the same precedence as
-/// `cuotai_core::text::Locale::resolve`; pt-* returns an empty catalog so
-/// the frontend falls back to the Portuguese `fallback` text embedded in
+/// `cuotai_core::text::Locale::resolve`; en-US returns an empty catalog so
+/// the frontend falls back to the English `fallback` text embedded in
 /// each `Localized`.
 #[tauri::command]
 fn core_catalog(locale: String) -> std::collections::BTreeMap<String, String> {

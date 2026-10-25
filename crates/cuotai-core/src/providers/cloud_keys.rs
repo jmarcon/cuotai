@@ -95,7 +95,7 @@ pub(crate) async fn fetch(account: &Account, _ctx: &Context<'_>) -> Result<Data,
                 "provider",
                 ParamValue::from(crate::text::provider_l10n(other)),
             )]),
-            format!("{} é consultado por outro adaptador.", other.label()),
+            "{provider} is handled by another adapter.",
         )),
     }
 }
@@ -105,9 +105,7 @@ fn cloudflare_unsupported() -> QueryError {
     QueryError::unsupported_params(
         "query.cloudflare.unsupported",
         params([("source", ParamValue::from(source))]),
-        format!(
-            "Cloudflare Workers AI não expõe rota pública de leitura de uso/cota por chave de API. A contabilidade de Neurons é exibida apenas no painel (https://dash.cloudflare.com/?to=/:account/ai/workers-ai). O dataset GraphQL público `workersInvocationsAdaptive` agrega invocações genéricas do Worker (requests, errors, cpuTime) e não expõe Neurons nem custo por modelo, portanto não pode ser apresentado como consumo de Workers AI. Para métricas de IA roteada via AI Gateway, utilize um adaptador dedicado; este provedor refere-se apenas a Workers AI direto. Fonte: {source}."
-        ),
+        "Cloudflare Workers AI does not expose a public per-API-key usage/quota read route. Neuron accounting is only shown in the dashboard (https://dash.cloudflare.com/?to=/:account/ai/workers-ai). The public GraphQL dataset `workersInvocationsAdaptive` aggregates generic Worker invocations (requests, errors, cpuTime) and exposes neither Neurons nor per-model cost, so it cannot be presented as Workers AI consumption. For AI metrics routed through AI Gateway, use a dedicated adapter; this provider covers direct Workers AI only. Source: {source}.",
     )
 }
 
@@ -116,9 +114,7 @@ fn gemini_unsupported() -> QueryError {
     QueryError::unsupported_params(
         "query.gemini_ai.unsupported",
         params([("source", ParamValue::from(source))]),
-        format!(
-            "Gemini AI (chave de API do AI Studio, `generativelanguage.googleapis.com`) não expõe endpoint público de uso ou cota residual. Os valores são exibidos apenas no painel AI Studio (https://aistudio.google.com/rate-limit). Para consulta programática, registre a mesma conta via OAuth em 'Gemini (Cloud Monitoring)' (monitoring.timeSeries.list sobre `serviceruntime.googleapis.com/quota/limit` e `quota/rate/net_usage`). Fonte: {source}."
-        ),
+        "Gemini AI (AI Studio API key, `generativelanguage.googleapis.com`) does not expose a public usage or residual quota endpoint. Values are only shown in the AI Studio dashboard (https://aistudio.google.com/rate-limit). For programmatic query, register the same account via OAuth in 'Gemini (Cloud Monitoring)' (monitoring.timeSeries.list over `serviceruntime.googleapis.com/quota/limit` and `quota/rate/net_usage`). Source: {source}.",
     )
 }
 

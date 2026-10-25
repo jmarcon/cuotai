@@ -36,10 +36,7 @@ pub fn with_interval(config: &Config, seconds: u64) -> Result<Config, Localized>
                 ("min", ParamValue::from(MIN_INTERVAL_SECONDS)),
                 ("max", ParamValue::from(MAX_REFRESH_SECONDS)),
             ]),
-            format!(
-                "O intervalo do watch deve ficar entre {MIN_INTERVAL_SECONDS} e \
-                 {MAX_REFRESH_SECONDS} segundos; valores menores são recusados, não ajustados."
-            ),
+            "The watch interval must be between {min} and {max} seconds; smaller values are rejected, not adjusted.",
         ));
     }
     let mut config = config.clone();
@@ -73,7 +70,7 @@ pub fn parse_events<'a>(
                         ("name", ParamValue::from(name)),
                         ("known", ParamValue::from(known.as_str())),
                     ]),
-                    format!("Evento desconhecido: \"{name}\". Eventos válidos: {known}."),
+                    "Unknown event: \"{name}\". Valid events: {known}.",
                 )
             })
         })

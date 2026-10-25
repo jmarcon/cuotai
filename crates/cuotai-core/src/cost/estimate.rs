@@ -150,7 +150,7 @@ impl Estimate {
 pub fn estimate_notice() -> Localized {
     Localized::fixed(
         "cost.estimate.notice",
-        "Estimativa a preços de API, não é uma cobrança; valores em USD.",
+        "Estimate at API prices, not a charge; amounts in USD.",
     )
 }
 

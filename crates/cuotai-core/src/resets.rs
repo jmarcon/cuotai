@@ -139,7 +139,6 @@ impl ResetEvent {
     /// neither the account name nor the metric labels.
     pub fn notice_with(&self, account: &Account, now: DateTime<Utc>, private: bool) -> Notice {
         let provider = provider_l10n(account.provider);
-        let provider_pt = account.provider.label();
         // Distinct windows in reset order; an `other` window is its label.
         let mut windows: Vec<(crate::text::ParamValue, String)> = Vec::new();
         for metric in &self.metrics {
@@ -154,24 +153,24 @@ impl ResetEvent {
         let count = self.metrics.len();
         let single = (windows.len() == 1).then(|| windows.remove(0));
         let title = match (single, ahead > TimeDelta::zero()) {
-            (Some((window, pt)), false) => Localized::with_params(
+            (Some((window, _)), false) => Localized::with_params(
                 "resets.title.reset",
                 params([("provider", provider.into()), ("window", window)]),
-                format!("{provider_pt}: cota {pt} renovada"),
+                "{provider}: {window} quota reset",
             ),
-            (Some((window, pt)), true) => Localized::with_params(
+            (Some((window, _)), true) => Localized::with_params(
                 "resets.title.soon",
                 params([
                     ("provider", provider.into()),
                     ("window", window),
                     ("minutes", minutes.into()),
                 ]),
-                format!("{provider_pt}: cota {pt} renova em {minutes} min"),
+                "{provider}: {window} quota resets in {minutes} min",
             ),
             (_, false) => Localized::with_params(
                 "resets.title.reset_many",
                 params([("provider", provider.into()), ("count", count.into())]),
-                format!("{provider_pt}: {count} cotas renovadas"),
+                "{provider}: {count} quotas reset",
             ),
             (_, true) => Localized::with_params(
                 "resets.title.soon_many",
@@ -180,7 +179,7 @@ impl ResetEvent {
                     ("count", count.into()),
                     ("minutes", minutes.into()),
                 ]),
-                format!("{provider_pt}: {count} cotas renovam em {minutes} min"),
+                "{provider}: {count} quotas reset in {minutes} min",
             ),
         };
         if private {
@@ -188,7 +187,7 @@ impl ResetEvent {
                 title,
                 body: Localized::fixed(
                     "resets.body.private",
-                    "Pelo horário informado pelo provedor; o novo saldo aparece na próxima atualização.",
+                    "Per the time the provider reported; the new balance shows on the next refresh.",
                 ),
             };
         }
@@ -204,10 +203,7 @@ impl ResetEvent {
                 ("account", account.name.as_str().into()),
                 ("metrics", labels.as_str().into()),
             ]),
-            format!(
-                "{}: {labels}. Pelo horário informado pelo provedor; o novo saldo aparece na próxima atualização.",
-                account.name
-            ),
+            "{account}: {metrics}. Per the time the provider reported; the new balance shows on the next refresh.",
         );
         Notice { title, body }
     }
@@ -678,8 +674,8 @@ pub(crate) fn eligible(metric: &Metric, now: DateTime<Utc>, prefs: &Prefs) -> Op
 /// caller; `None` (an unknown return) reads "Return unknown", never a time.
 pub fn returns_chip(at: Option<&str>) -> crate::pace::Chip {
     let text = match at {
-        Some(at) => Localized::with_param("resets.chip.returns", "at", at, format!("Volta {at}")),
-        None => Localized::fixed("resets.chip.return_unknown", "Retorno incerto"),
+        Some(at) => Localized::with_param("resets.chip.returns", "at", at, "Returns {at}"),
+        None => Localized::fixed("resets.chip.return_unknown", "Return unknown"),
     };
     crate::pace::Chip {
         glyph: crate::pace::GLYPH_RETURNS,
@@ -694,11 +690,10 @@ pub fn returns_chip(at: Option<&str>) -> crate::pace::Chip {
 /// [`crate::text::countdown`] of the time left.
 pub fn pair_label(at: &str, left: TimeDelta) -> Localized {
     let countdown = crate::text::countdown(left);
-    let fallback = format!("Renova {at} · {}", countdown.fallback);
     Localized::with_params(
         "resets.pair",
         params([("at", at.into()), ("in", countdown.into())]),
-        fallback,
+        "Resets {at} · {in}",
     )
 }
 

@@ -120,7 +120,7 @@ pub(super) async fn begin(
                 "oauth_error.flows.provider_no_oauth",
                 "provider",
                 crate::text::provider_l10n(other),
-                format!("{} não oferece suporte a login OAuth", other.label()),
+                "{provider} does not support OAuth login.",
             ),
         )),
     }
@@ -168,7 +168,7 @@ pub(super) async fn refresh(
                 "oauth_error.flows.provider_no_oauth",
                 "provider",
                 crate::text::provider_l10n(other),
-                format!("{} não oferece suporte a login OAuth", other.label()),
+                "{provider} does not support OAuth login.",
             ),
         )),
     }
@@ -182,7 +182,7 @@ fn require_client_id(config: &OAuthConfig) -> Result<(), OAuthError> {
     if config.client_id.trim().is_empty() {
         return Err(OAuthError::Configuration(crate::text::Localized::fixed(
             "oauth_error.flows.client_id_required",
-            "client_id OAuth é obrigatório; registre seu próprio aplicativo OAuth no provedor",
+            "OAuth client_id is required; register your own OAuth app with the provider.",
         )));
     }
     Ok(())
@@ -205,7 +205,7 @@ fn resolve_tenant(config: &OAuthConfig) -> Result<String, OAuthError> {
     if !valid {
         return Err(OAuthError::Configuration(crate::text::Localized::fixed(
             "oauth_error.flows.invalid_azure_tenant",
-            "locatário do Azure inválido; use um GUID de locatário, um domínio ou `organizations`",
+            "Invalid Azure tenant; use a tenant GUID, a domain, or `organizations`.",
         )));
     }
     Ok(tenant.to_owned())

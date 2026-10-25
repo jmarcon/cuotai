@@ -171,7 +171,7 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
                 "provider",
                 ParamValue::L10n(Box::new(crate::text::provider_l10n(other))),
             )]),
-            format!("{} é consultado por outro adaptador.", other.label()),
+            "{provider} is handled by another adapter.",
         )),
     }
 }
@@ -191,7 +191,7 @@ pub(crate) async fn models(
     let no_catalog = || {
         QueryError::unsupported(
             "query.antigravity.no_model_catalog",
-            "A sessão Antigravity não retornou catálogo em fetchAvailableModels (plano gratuito ou resposta sem modelos).",
+            "The Antigravity session returned no catalog in fetchAvailableModels (free plan or response without models).",
         )
     };
     if is_free_tier_from(paid_tier_id.as_deref()) {
@@ -253,15 +253,10 @@ async fn fetch_antigravity_at(
             (discovered_project, discovered_paid_tier)
         }
         Err(error) => {
-            let fallback = error.note.fallback.clone().into_owned();
             notes.push_params(
                 "note.antigravity.load_code_assist_unavailable",
                 params([("error", ParamValue::L10n(Box::new(error.note.clone())))]),
-                format!(
-                    "PARCIAL: loadCodeAssist (descoberta de project_id/tier) indisponível ({}); \
-                     project_id não foi descoberto.",
-                    fallback
-                ),
+                "PARTIAL: loadCodeAssist (project_id/tier discovery) unavailable ({error}); project_id was not discovered.",
             );
             (None, None)
         }
@@ -277,7 +272,7 @@ async fn fetch_antigravity_at(
         if manual != discovered {
             notes.push(
                 "note.antigravity.project_override",
-                "params.project_id sobrescreveu o project_id descoberto em loadCodeAssist.",
+                "params.project_id overrode the project_id discovered by loadCodeAssist.",
             );
         }
     }
@@ -299,16 +294,11 @@ async fn fetch_antigravity_at(
                 fetched_models = Some(data);
             }
             Err(error) => {
-                let fallback = error.note.fallback.clone().into_owned();
-                model_failure = Some(fallback.clone());
+                model_failure = Some(error.note.fallback.clone().into_owned());
                 notes.push_params(
                     "note.antigravity.models_unavailable",
                     params([("error", ParamValue::L10n(Box::new(error.note.clone())))]),
-                    format!(
-                        "PARCIAL: fetchAvailableModels (modelos) indisponível ({}); \
-                         apenas o resumo exibido.",
-                        fallback
-                    ),
+                    "PARTIAL: fetchAvailableModels (models) unavailable ({error}); only the summary is shown.",
                 );
             }
         }
@@ -329,16 +319,11 @@ async fn fetch_antigravity_at(
             parsed_weekly = parse_weekly_summary(&summary);
         }
         Err(error) => {
-            let fallback = error.note.fallback.clone().into_owned();
-            weekly_failure = Some(fallback.clone());
+            weekly_failure = Some(error.note.fallback.clone().into_owned());
             notes.push_params(
                 "note.antigravity.summary_unavailable",
                 params([("error", ParamValue::L10n(Box::new(error.note.clone())))]),
-                format!(
-                    "PARCIAL: retrieveUserQuotaSummary (resumo semanal/5h) indisponível ({}); \
-                     apenas modelos exibidos.",
-                    fallback
-                ),
+                "PARTIAL: retrieveUserQuotaSummary (weekly/5h summary) unavailable ({error}); only models are shown.",
             );
         }
     }
@@ -353,15 +338,15 @@ async fn fetch_antigravity_at(
     if quotas.is_empty() && parsed_weekly.is_empty() {
         let mut detail = Vec::new();
         if let Some(msg) = model_failure {
-            detail.push(format!("modelos (fetchAvailableModels): {msg}"));
+            detail.push(format!("models (fetchAvailableModels): {msg}"));
         }
         if let Some(msg) = weekly_failure {
-            detail.push(format!("resumo (retrieveUserQuotaSummary): {msg}"));
+            detail.push(format!("summary (retrieveUserQuotaSummary): {msg}"));
         }
         let summary = if detail.is_empty() {
-            "Antigravity não retornou quotas materialmente utilizáveis.".to_string()
+            "Antigravity returned no materially usable quotas.".to_string()
         } else {
-            format!("Antigravity sem dados: {}.", detail.join("; "))
+            format!("Antigravity returned no data: {}.", detail.join("; "))
         };
         return Err(QueryError {
             diagnostic: None,
@@ -369,8 +354,8 @@ async fn fetch_antigravity_at(
             note: Localized::with_param(
                 "note.antigravity.fatal_summary",
                 "summary",
-                summary.clone(),
                 summary,
+                "{summary}",
             ),
         });
     }
@@ -1874,7 +1859,7 @@ mod tests {
         assert!(
             data.notes
                 .iter()
-                .any(|n| n.contains("PARCIAL") && n.contains("modelos")),
+                .any(|n| n.contains("PARTIAL") && n.contains("models")),
             "expected note about modelos"
         );
     }
@@ -1920,7 +1905,7 @@ mod tests {
         assert!(
             data.notes
                 .iter()
-                .any(|n| n.contains("PARCIAL") && n.contains("resumo")),
+                .any(|n| n.contains("PARTIAL") && n.contains("summary")),
             "expected note about resumo"
         );
     }
@@ -1960,7 +1945,7 @@ mod tests {
 
         let msg = err.note.fallback;
         assert!(
-            msg.contains("modelos") && msg.contains("resumo"),
+            msg.contains("models") && msg.contains("summary"),
             "erro deve distinguir modelos vs resumo: {msg}"
         );
     }
@@ -1993,7 +1978,7 @@ mod tests {
         .await
         .unwrap_err();
         let msg = err.note.fallback;
-        assert!(msg.contains("resumo"), "free sem weekly: {msg}");
+        assert!(msg.contains("summary"), "free sem weekly: {msg}");
     }
 
     // ── fetch: erros e fallbacks ────────────────────────────────────

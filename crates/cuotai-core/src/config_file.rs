@@ -205,7 +205,7 @@ impl ConfigFile {
         match fs::read(&path) {
             Ok(bytes) => {
                 let text = std::str::from_utf8(&bytes).map_err(|_| {
-                    validation(None, "edit_error.config_not_utf8", "arquivo nao e UTF-8")
+                    validation(None, "edit_error.config_not_utf8", "The file is not UTF-8.")
                 })?;
                 // ConfigError messages are fixed strings and never echo the body.
                 // Preserve the field/account detail of the metered compatibility
@@ -221,7 +221,7 @@ impl ConfigFile {
                         validation(
                             None,
                             "edit_error.config_toml_invalid",
-                            "arquivo TOML invalido",
+                            "The file is not valid TOML.",
                         )
                     }
                 })?;
@@ -399,13 +399,13 @@ impl ConfigFile {
         match fs::read(&self.path) {
             Ok(bytes) => {
                 let text = std::str::from_utf8(&bytes).map_err(|_| {
-                    validation(None, "edit_error.config_not_utf8", "arquivo nao e UTF-8")
+                    validation(None, "edit_error.config_not_utf8", "The file is not UTF-8.")
                 })?;
                 let mut config = Config::from_toml(text).map_err(|_| {
                     validation(
                         None,
                         "edit_error.config_toml_invalid",
-                        "arquivo TOML invalido",
+                        "The file is not valid TOML.",
                     )
                 })?;
                 config.resolve_ids(ConfigIdentity::of_path(&self.path).ok().as_ref());
@@ -515,28 +515,28 @@ fn render(config: &Config, previous: Option<&[u8]>) -> Result<Vec<u8>, EditError
         validation(
             None,
             "edit_error.config_toml_invalid",
-            "documento gerado invalido",
+            "The file is not valid TOML.",
         )
     })?;
     let want = toml::to_string(config).map_err(|_| {
         validation(
             None,
             "edit_error.config_serialize",
-            "falha ao serializar configuracao",
+            "Could not serialise the configuration.",
         )
     })?;
     let got = toml::to_string(&parsed).map_err(|_| {
         validation(
             None,
             "edit_error.config_serialize",
-            "falha ao serializar configuracao",
+            "Could not serialise the configuration.",
         )
     })?;
     if want != got {
         return Err(validation(
             None,
             "edit_error.config_roundtrip",
-            "documento gerado diverge da configuracao",
+            "The rendered document diverges from the configuration.",
         ));
     }
     Ok(text.into_bytes())
@@ -549,7 +549,7 @@ fn serialize_fresh(config: &Config) -> Result<String, EditError> {
             validation(
                 None,
                 "edit_error.config_serialize",
-                "falha ao serializar configuracao",
+                "Could not serialise the configuration.",
             )
         })
 }
@@ -638,7 +638,7 @@ fn update_groups(
                 validation(
                     Some("groups"),
                     "edit_error.config_serialize",
-                    "falha ao serializar grupo",
+                    "Could not serialise the configuration.",
                 )
             })?
             .into_table();
@@ -663,7 +663,7 @@ fn update_accounts(
         validation(
             Some("accounts"),
             "edit_error.config_accounts_shape",
-            "chave 'accounts' existente nao e uma lista de tabelas",
+            "Existing 'accounts' key is not a list of tables.",
         )
     })?;
     // A pure move has the same account identities in a new order. Move the
@@ -723,7 +723,7 @@ fn update_accounts(
                 validation(
                     Some("accounts"),
                     "edit_error.config_serialize",
-                    "falha ao serializar conta",
+                    "Could not serialise the configuration.",
                 )
             })?;
             let mut table = toml_edit::Table::new();
@@ -746,7 +746,7 @@ fn edit_account(table: &mut toml_edit::Table, account: &Account) -> Result<(), E
         validation(
             Some("accounts"),
             "edit_error.config_serialize",
-            "falha ao serializar conta",
+            "Could not serialise the configuration.",
         )
     })?;
     for (key, item) in doc.iter() {
@@ -1251,7 +1251,7 @@ provider = "open_ai_api"
         let err = file.save(config(vec![])).unwrap_err();
         assert!(err.is_conflict(), "expected Conflict, got {err:?}");
         let display = err.message();
-        assert!(display.contains("recarregue"), "{display}");
+        assert!(display.contains("reload"), "{display}");
         assert_eq!(
             fs::read_to_string(&path).unwrap(),
             "refresh_seconds = 100\nconcurrency = 4\ntimeout_seconds = 30\naccounts = []\n"

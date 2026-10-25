@@ -201,24 +201,19 @@ impl Disclosure {
                 "cost.disclosure.purpose",
                 "source",
                 label,
-                format!(
-                    "Para estimar, só neste computador, os tokens e o custo a preços de API do \
-                     uso do {label} por dia e por modelo."
-                ),
+                "To estimate, on this computer only, the tokens and the cost at API prices of your {source} usage per day and per model.",
             ),
             extracted: Localized::fixed(
                 "cost.disclosure.extracted",
-                "Só números são extraídos: o horário, o modelo, as contagens de tokens (entrada, \
-                 saída, leitura e gravação de cache) e um resumo anônimo da sessão.",
+                "Only numbers are extracted: the time, the model, the token counts (input, output, cache read and cache write) and an anonymous digest of the session.",
             ),
             never: Localized::fixed(
                 "cost.disclosure.never",
-                "O conteúdo das conversas, prompts, respostas, nomes de arquivos e caminhos de \
-                 projetos nunca é lido para o índice, gravado nem exibido. Nada sai do computador.",
+                "Conversation content, prompts, answers, file names and project paths are never read into the index, stored or shown. Nothing leaves this computer.",
             ),
             off: Localized::fixed(
                 "cost.disclosure.off",
-                "Desligar a fonte interrompe qualquer leitura e apaga tudo o que foi derivado dela.",
+                "Turning the source off stops every read and erases everything derived from it.",
             ),
             digest: digest(&identity),
             directories,
@@ -234,14 +229,14 @@ impl Disclosure {
                 "cost.disclosure.header",
                 "source",
                 self.label,
-                format!("Ligar a leitura dos logs locais do {}.", self.label),
+                "Turn on reading the local logs of {source}.",
             ),
             self.purpose.clone(),
             Localized::with_param(
                 "cost.disclosure.directories",
                 "pattern",
                 self.pattern,
-                format!("Lê apenas os arquivos {} destes diretórios:", self.pattern),
+                "It reads only the {pattern} files of these directories:",
             ),
         ];
         lines.extend(self.directories.iter().map(|dir| {
@@ -249,7 +244,7 @@ impl Disclosure {
             Localized::with_params(
                 "cost.disclosure.directory",
                 params([("path", dir.as_str().into())]),
-                dir.clone(),
+                "{path}",
             )
         }));
         lines.extend([self.extracted.clone(), self.never.clone(), self.off.clone()]);

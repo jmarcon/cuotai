@@ -5,7 +5,7 @@
 //! and from I/O failures (disk full, permission, broken symlink).
 //!
 //! RF8: every error also carries a [`Localized`] note — a stable id plus
-//! structured parameters, with the Portuguese message as the fallback —
+//! structured parameters, with the English message as the fallback —
 //! so a frontend translates via its catalog (`edit_error.duplicate_name`,
 //! `edit_error.conflict`, …) instead of matching on the wording.
 //!
@@ -21,14 +21,14 @@ use std::path::PathBuf;
 ///
 /// Variants are mutually exclusive so a UI can branch on the cause
 /// without parsing text. The `Display` impl produces the same fixed
-/// Portuguese message in every locale; frontends that translate use
+/// English message in every locale; frontends that translate use
 /// [`EditError::l10n`] and never the string.
 #[derive(Debug, thiserror::Error)]
 pub enum EditError {
     /// The proposed configuration violates a schema rule. `field`
     /// points at the offending schema field name when known (and is
     /// `None` for document-wide rules); `note` carries the stable id,
-    /// parameters and the Portuguese fallback describing the cause.
+    /// parameters and the English fallback describing the cause.
     #[error("{note}")]
     Validation {
         field: Option<&'static str>,
@@ -39,14 +39,14 @@ pub enum EditError {
     /// (external edit, unexpected creation, deletion, or rename). The
     /// in-memory `ConfigFile` is unchanged and the caller may `reload`
     /// before retrying.
-    #[error("arquivo {path} mudou desde o carregamento; recarregue antes de salvar.")]
+    #[error("The file {path} changed since it was loaded; reload before saving.")]
     Conflict { path: PathBuf },
 
     /// Filesystem failure (read, write, rename, fsync, permission,
     /// missing parent directory, broken symlink). The `path` is the
     /// file the operation was attempting to read or write; the cause
     /// is the raw I/O error.
-    #[error("falha em {path}: {source}")]
+    #[error("I/O failure at {path}: {source}.")]
     Io {
         path: PathBuf,
         #[source]
@@ -93,7 +93,7 @@ impl EditError {
     }
 
     /// RF8 structured form of the error: stable id + parameters +
-    /// Portuguese fallback. Never carries user input, token material,
+    /// English fallback. Never carries user input, token material,
     /// or TOML body — only the `path` (for I/O and conflict) and fixed
     /// descriptions.
     pub fn l10n(&self) -> Localized {
@@ -103,7 +103,7 @@ impl EditError {
                 "edit_error.conflict",
                 "path",
                 path.display().to_string(),
-                self.to_string(),
+                "The file {path} changed since it was loaded; reload before saving.",
             ),
             EditError::Io { path, source } => Localized::with_params(
                 "edit_error.io",
@@ -111,12 +111,12 @@ impl EditError {
                     ("path", ParamValue::from(path.display().to_string())),
                     ("detail", ParamValue::from(source.to_string())),
                 ]),
-                self.to_string(),
+                "I/O failure at {path}: {detail}.",
             ),
         }
     }
 
-    /// Convert to a stable user-facing message (the Portuguese fallback).
+    /// Convert to a stable user-facing message (the English fallback).
     /// The string never carries user input, token material, or TOML body.
     pub fn message(&self) -> String {
         self.to_string()
@@ -163,7 +163,7 @@ pub fn index_out_of_range(index: usize, count: usize) -> EditError {
                 ("index", ParamValue::from(index)),
                 ("count", ParamValue::from(count)),
             ]),
-            format!("Índice {index} fora de alcance ({count})."),
+            "Index {index} out of range ({count}).",
         ),
     }
 }
@@ -185,7 +185,7 @@ pub fn config_error_note(error: &crate::ConfigError) -> Localized {
                 ("account", ParamValue::from(account.clone())),
                 ("minimum", ParamValue::from(*minimum)),
             ]),
-            error.to_string(),
+            "The {field} field for account {account} must be >= {minimum} for providers billed per query.",
         );
     }
 
@@ -193,7 +193,7 @@ pub fn config_error_note(error: &crate::ConfigError) -> Localized {
         return Localized::with_params(
             "edit_error.config_account_ids",
             params([("field", ParamValue::from(field.clone()))]),
-            error.to_string(),
+            "The field {field} repeats another account's id (a copied [[accounts]] block is the usual cause); delete the duplicated id line.",
         );
     }
 
@@ -228,7 +228,7 @@ pub(crate) fn toml_int_in_range(label: &'static str, value: u64) -> Result<(), E
                 "edit_error.toml_int_range",
                 "label",
                 label,
-                "valores numericos grandes demais para TOML",
+                "{label} is too large for the TOML i64 range.",
             ),
         });
     }
@@ -280,7 +280,7 @@ mod tests {
             note.params.get("index"),
             Some(&ParamValue::Text("7".into()))
         );
-        assert_eq!(note.fallback, "Índice 7 fora de alcance (3).");
+        assert_eq!(note.fallback, "Index 7 out of range (3).");
 
         let conflict = EditError::Conflict {
             path: PathBuf::from("/tmp/cuotai.toml"),

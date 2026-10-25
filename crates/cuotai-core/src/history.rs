@@ -48,10 +48,10 @@ use std::time::Duration;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum HistoryError {
-    #[error("Falha ao ler ou gravar o histórico local de medições.")]
+    #[error("Could not read or write the local measurement history.")]
     Storage,
     /// The export destination refused the data (RF4.4).
-    #[error("Falha ao gravar a exportação do histórico.")]
+    #[error("Could not write the history export.")]
     Export,
 }
 

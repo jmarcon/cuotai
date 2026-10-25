@@ -198,7 +198,7 @@ impl LoginOption {
         let value = value.trim();
         // RF8: the offending field's label travels as a nested `Localized`
         // param (`{field}`) so it translates with the message instead of
-        // baking the Portuguese label into an English sentence.
+        // baking the English label into a translated sentence.
         let field = crate::text::ParamValue::from(self.label.clone());
         if value.is_empty() {
             if self.required {
@@ -207,7 +207,7 @@ impl LoginOption {
                         "oauth_error.login.field_required",
                         "field",
                         field,
-                        format!("{} é obrigatório.", self.label.fallback),
+                        "{field} is required.",
                     ),
                 ));
             }
@@ -219,10 +219,7 @@ impl LoginOption {
                     "oauth_error.login.field_invalid_chars",
                     "field",
                     field,
-                    format!(
-                        "{} contém caracteres inválidos ou é longo demais.",
-                        self.label.fallback
-                    ),
+                    "{field} contains invalid characters or is too long.",
                 ),
             ));
         }
@@ -233,7 +230,7 @@ impl LoginOption {
                         "oauth_error.login.field_unknown_choice",
                         "field",
                         field,
-                        format!("{} não contém uma opção reconhecida.", self.label.fallback),
+                        "{field} does not contain a recognised option.",
                     ),
                 ));
             }
@@ -256,7 +253,7 @@ impl LoginOption {
                     "oauth_error.login.field_invalid_value",
                     "field",
                     field,
-                    format!("{} tem um valor inválido.", self.label.fallback),
+                    "{field} has an invalid value.",
                 ),
             ))
         }
@@ -336,8 +333,8 @@ fn registration_options(provider: Provider) -> Vec<LoginOption> {
     let client_id = LoginOption::text(
         &client_id_prefix,
         "client_id",
-        "Client ID do app",
-        "Do SEU aplicativo registrado; o Cuotai não tem app próprio.",
+        "OAuth client ID",
+        "From YOUR registered app; Cuotai has no app of its own.",
     )
     .required()
     .validation(LoginOptionValidation::ClientId);
@@ -348,8 +345,8 @@ fn registration_options(provider: Provider) -> Vec<LoginOption> {
             LoginOption::text(
                 &tenant_prefix,
                 "tenant",
-                "Tenant (opcional)",
-                "Vazio usa \"organizations\" (contas em qualquer organização).",
+                "Tenant (optional)",
+                "Empty uses \"organizations\" (accounts in any organisation).",
             )
             .validation(LoginOptionValidation::Tenant),
         ]
@@ -360,8 +357,8 @@ fn registration_options(provider: Provider) -> Vec<LoginOption> {
             LoginOption::text(
                 &secret_prefix,
                 "client_secret_env",
-                "Variável do client secret (opcional)",
-                "Apenas o NOME da variável exportada com o secret; nunca o valor.",
+                "Client secret variable (optional)",
+                "Only the NAME of the exported variable holding the secret; never the value.",
             )
             .validation(LoginOptionValidation::EnvName),
         ]
@@ -373,21 +370,21 @@ fn oauth_help(provider: Provider) -> String {
         return account_edit::oauth_registration_help(provider).to_string();
     }
     match provider {
-        Provider::Cursor => "Importa a sessão pessoal do Cursor instalado neste computador. Não inicia OAuth: faça login no aplicativo Cursor primeiro. Somente após confirmar, accessToken e machine ID serão lidos do SQLite local em modo somente leitura. Tokens não serão exibidos; a cópia só será salva no cofre na revisão final.".into(),
-        Provider::Qwen => "Fluxo EXPERIMENTAL baseado no cliente nativo. Qwen Code: OAuth gratuito descontinuado em 15/04/2026; a tentativa pode ser recusada e login não garante quota disponível. Nenhuma senha ou token é digitada no Cuotai.".into(),
-        Provider::Claude => "Fluxo EXPERIMENTAL baseado no cliente nativo. O provedor pode restringir este fluxo a clientes próprios; se recusado, use a variável de ambiente. Nenhuma senha ou token é digitada no Cuotai.".into(),
-        Provider::OpenRouter => "Fluxo OAuth PKCE documentado pela OpenRouter. O consentimento acontece no navegador e a OpenRouter devolve uma chave de inferência guardada no cofre do sistema; ela mostra os números da chave, não o saldo da conta (use uma chave de gerenciamento para isso). Nenhuma senha é digitada no Cuotai.".into(),
-        Provider::XiaomiMimo => "O código autoriza uma chave de inferência, não a sessão do console. Saldo e Token Plan usam platform_session_env; quota semanal do Desktop usa session_env. Nenhuma senha é digitada no Cuotai.".into(),
-        _ => "Fluxo EXPERIMENTAL baseado no cliente nativo do provedor (interface interna, sem suporte oficial; pode falhar ou ser restringido a qualquer momento). O consentimento acontece no navegador/código de dispositivo; nenhuma senha ou token é digitada no Cuotai.".into(),
+        Provider::Cursor => "Imports the personal Cursor session from this computer's local install. Does not start OAuth: log into the Cursor app first. After confirmation, accessToken and machine ID are read from the local SQLite in read-only mode. Tokens are never displayed; the copy is saved to the vault only at the final review.".into(),
+        Provider::Qwen => "EXPERIMENTAL flow based on the native client. Qwen Code: free OAuth discontinued on 15/04/2026; the attempt may be rejected and login does not guarantee an available quota. No password or token is typed into Cuotai.".into(),
+        Provider::Claude => "EXPERIMENTAL flow based on the native client. The provider may restrict this flow to its own clients; if refused, use the environment variable. No password or token is typed into Cuotai.".into(),
+        Provider::OpenRouter => "OpenRouter's documented OAuth PKCE flow. Consent happens in the browser and OpenRouter returns an inference key kept in the system vault; it shows that key's numbers, not the account balance (use a management key for that). No password is typed into Cuotai.".into(),
+        Provider::XiaomiMimo => "The code authorises an inference key, not the console session. Balance and Token Plan use platform_session_env; the weekly Desktop quota uses session_env. No password is typed into Cuotai.".into(),
+        _ => "EXPERIMENTAL flow based on the provider's native client (internal interface, without official support; may fail or be restricted at any time). Consent happens in the browser/device-code; no password or token is typed into Cuotai.".into(),
     }
 }
 
 fn oauth_completion_notice(provider: Provider) -> String {
     match provider {
-        Provider::Cursor => "Sessão Cursor importada em memória. Revise e grave para persistir no cofre.".into(),
-        Provider::OpenRouter => "Login autorizado; a chave de inferência da OpenRouter foi guardada no cofre do sistema.".into(),
-        Provider::XiaomiMimo => "Chave MiMo autorizada. Para consultar saldo/plano, configure platform_session_env com a sessão web; não repita o código.".into(),
-        _ => "Login autorizado; parâmetros da conta preenchidos automaticamente.".into(),
+        Provider::Cursor => "Cursor session imported in memory. Review and save to persist in the vault.".into(),
+        Provider::OpenRouter => "Login authorised; the OpenRouter inference key was saved in the system vault.".into(),
+        Provider::XiaomiMimo => "MiMo key authorised. To query the balance/plan, set platform_session_env with the web session; do not re-enter the code.".into(),
+        _ => "Login authorised; account parameters filled in automatically.".into(),
     }
 }
 
@@ -408,11 +405,11 @@ pub fn login_modes(provider: Provider) -> ProviderLogin {
                 ),
                 help: crate::text::Localized::fixed(
                     format!("{mode_prefix}.help"),
-                    "Executa `aws sso login --use-device-code` no perfil informado; o token fica no cache da própria AWS CLI, fora do cofre do Cuotai. Configure o perfil antes com `aws configure sso`; o Cost Explorer cobra por consulta.".to_string(),
+                    "Runs \"aws sso login --use-device-code\" using the supplied profile; the token is cached by the AWS CLI itself, outside the Cuotai vault. Configure the profile beforehand with \"aws configure sso\"; Cost Explorer charges per query.".to_string(),
                 ),
                 completion_notice: crate::text::Localized::fixed(
                     format!("{mode_prefix}.completion_notice"),
-                    "Login SSO do AWS CLI concluído.".to_string(),
+                    "AWS CLI SSO login completed.".to_string(),
                 ),
                 credential_store: LoginCredentialStore::External,
                 account_binding: LoginAccountBinding::Credential {
@@ -422,8 +419,8 @@ pub fn login_modes(provider: Provider) -> ProviderLogin {
                 options: vec![LoginOption::text(
                     &option_prefix,
                     "profile",
-                    "Perfil AWS",
-                    "Perfil SSO configurado previamente via `aws configure sso`.",
+                    "AWS profile",
+                    "Profile configured previously via \"aws configure sso\".",
                 )
                 .required()],
                 unavailable_reason: None,
@@ -439,15 +436,15 @@ pub fn login_modes(provider: Provider) -> ProviderLogin {
                 id,
                 label: crate::text::Localized::fixed(
                     format!("{mode_prefix}.label"),
-                    "Console Bailian (`bl`)".to_string(),
+                    "Bailian console (bl)".to_string(),
                 ),
                 help: crate::text::Localized::fixed(
                     format!("{mode_prefix}.help"),
-                    "Executa `bl auth login --console` em um perfil dedicado do `bl`; o login fica no cofre local do `bl`, fora do cofre do Cuotai. Cancelar não desfaz o que o `bl` gravou. `params.session_env` continua um override opcional de Cookie; `QWEN_API_KEY` autentica apenas inferência e não é enviada à consulta de quota.".to_string(),
+                    "Runs \"bl auth login --console\" on a dedicated bl profile; the login lives in bl's local store, outside the Cuotai vault. Cancelling does not undo what bl recorded. params.session_env remains an optional Cookie override; QWEN_API_KEY only authenticates inference and is not sent to the quota query.".to_string(),
                 ),
                 completion_notice: crate::text::Localized::fixed(
                     format!("{mode_prefix}.completion_notice"),
-                    "Login `bl auth login --console` concluído no perfil dedicado.".to_string(),
+                    "bl auth login --console completed on the dedicated profile.".to_string(),
                 ),
                 credential_store: LoginCredentialStore::External,
                 account_binding: LoginAccountBinding::CliProfile {
@@ -459,17 +456,17 @@ pub fn login_modes(provider: Provider) -> ProviderLogin {
                         key: "console_site".to_string(),
                         label: crate::text::Localized::fixed(
                             format!("{site_prefix}.label"),
-                            "Site do console".to_string(),
+                            "Console site".to_string(),
                         ),
                         help: crate::text::Localized::fixed(
                             format!("{site_prefix}.help"),
-                            "Site do Token Plan atendido pelo `bl --console-site`.".to_string(),
+                            "Token Plan site served by \"bl --console-site\".".to_string(),
                         ),
                         choices: Some(vec![LoginChoice {
                             value: "international".to_string(),
                             label: crate::text::Localized::fixed(
                                 format!("{site_prefix}.option.international"),
-                                "Internacional".to_string(),
+                                "International".to_string(),
                             ),
                             auth_modes: None,
                             unavailable_reason: None,
@@ -480,8 +477,8 @@ pub fn login_modes(provider: Provider) -> ProviderLogin {
                     LoginOption::text(
                         &profile_prefix,
                         "profile",
-                        "Perfil dedicado do `bl` (opcional)",
-                        "Perfil (`--config`) onde o `bl` grava o login; vazio gera um perfil isolado.",
+                        "Dedicated bl profile (optional)",
+                        "Profile (--config) where bl stores the login; empty generates an isolated profile.",
                     )
                     .validation(LoginOptionValidation::CliProfile),
                 ],
@@ -494,11 +491,11 @@ pub fn login_modes(provider: Provider) -> ProviderLogin {
             let mode_prefix = format!("login.{slug}.{id}");
             let registration = registration_options(provider);
             let label_text = if provider == Provider::Cursor {
-                "Importar sessão Cursor".to_string()
-            } else if registration.is_empty() {
-                "Login nativo no navegador".to_string()
+                "Import Cursor session".to_string()
+            } else if provider == Provider::OpenRouter {
+                "Sign in with OpenRouter".to_string()
             } else {
-                "Login OAuth com aplicativo próprio".to_string()
+                "Native browser login".to_string()
             };
             modes.push(LoginMode {
                 id,
@@ -657,7 +654,7 @@ pub fn account_login_inputs(
     let mode = login_mode(provider, mode_id).ok_or_else(|| {
         OAuthError::Configuration(crate::text::Localized::fixed(
             "oauth_error.login.mode_not_offered",
-            "Modo de login não oferecido para este provedor.",
+            "Login mode not offered for this provider.",
         ))
     })?;
     let value = |option: &str| {
@@ -674,7 +671,7 @@ pub fn account_login_inputs(
             if credential.is_empty() {
                 return Err(OAuthError::Configuration(crate::text::Localized::fixed(
                     "oauth_error.login.profile_required_before_save",
-                    "Informe o perfil configurado antes de salvar.",
+                    "Supply the configured profile before saving.",
                 )));
             }
             Ok((credential, None))
@@ -692,7 +689,7 @@ pub fn account_login_inputs(
                 if login_completed {
                     return Err(OAuthError::Configuration(crate::text::Localized::fixed(
                         "oauth_error.login.dedicated_profile_missing",
-                        "O login concluído não informou o perfil dedicado.",
+                        "The completed login did not report the dedicated profile.",
                     )));
                 }
                 account_edit::ensure_cli_profile(&mut params)
@@ -700,7 +697,7 @@ pub fn account_login_inputs(
                 if !account_edit::is_valid_cli_profile(&profile) {
                     return Err(OAuthError::Configuration(crate::text::Localized::fixed(
                         "oauth_error.login.invalid_bl_profile",
-                        "Perfil do `bl` inválido; use letras, números, '-' ou '_', até 32 caracteres.",
+                        "Invalid `bl` profile; use letters, digits, '-' or '_', up to 32 characters.",
                     )));
                 }
                 profile
@@ -823,7 +820,7 @@ pub fn start_login(
     let mode = login_mode(provider, &request.mode).ok_or_else(|| {
         OAuthError::Configuration(crate::text::Localized::fixed(
             "oauth_error.login.mode_not_offered",
-            "Modo de login não oferecido para este provedor.",
+            "Login mode not offered for this provider.",
         ))
     })?;
     if let Some(reason) = &mode.unavailable_reason {
@@ -831,8 +828,8 @@ pub fn start_login(
             crate::text::Localized::with_param(
                 "oauth_error.login.mode_unavailable",
                 "reason",
-                reason.fallback.clone().into_owned(),
-                reason.fallback.clone().into_owned(),
+                reason.clone(),
+                "Login mode unavailable: {reason}",
             ),
         ));
     }
@@ -846,7 +843,7 @@ pub fn start_login(
         )),
         _ => Err(OAuthError::Configuration(crate::text::Localized::fixed(
             "oauth_error.login.unknown_mode",
-            "Modo de login desconhecido.",
+            "Unknown login mode.",
         ))),
     }
 }
@@ -860,7 +857,7 @@ fn validate_request(mode: &LoginMode, request: &LoginRequest) -> Result<(), OAut
             .ok_or_else(|| {
                 OAuthError::Configuration(crate::text::Localized::fixed(
                     "oauth_error.login.unknown_option",
-                    "Opção de login desconhecida para este modo.",
+                    "Unknown login option for this mode.",
                 ))
             })?;
         option.validate(value)?;
@@ -878,7 +875,7 @@ fn validate_request(mode: &LoginMode, request: &LoginRequest) -> Result<(), OAut
             .ok_or_else(|| {
                 OAuthError::Configuration(crate::text::Localized::fixed(
                     "oauth_error.login.unknown_registration_field",
-                    "Campo de registro desconhecido para este modo.",
+                    "Unknown registration field for this mode.",
                 ))
             })?;
         option.validate(value)?;
@@ -1079,7 +1076,7 @@ async fn run_aws_sso(
     let profile = profile.filter(|p| !p.trim().is_empty()).ok_or_else(|| {
         OAuthError::Configuration(crate::text::Localized::fixed(
             "oauth_error.login.aws_profile_required",
-            "Informe o perfil AWS configurado via `aws configure sso`.",
+            "Supply the AWS profile configured via `aws configure sso`.",
         ))
     })?;
     let _ = events
@@ -1386,7 +1383,7 @@ impl CredentialCommit {
         match session.delete_by_key(previous).await {
             Ok(()) => LoginCommitOutcome::Saved,
             Err(_) => LoginCommitOutcome::SavedWithCleanupFailure(CleanupFailure {
-                message: "Configuração e nova credencial salvas; a credencial anterior permanece no cofre porque não foi possível removê-la.".into(),
+                message: "The configuration and the new credential were saved; the replaced credential remains in the vault because it could not be removed.".into(),
             }),
         }
     }
@@ -1486,7 +1483,7 @@ mod tests {
             true,
         )
         .unwrap_err();
-        assert!(error.to_string().contains("perfil dedicado"));
+        assert!(error.to_string().contains("dedicated profile"));
     }
 
     use crate::config_file::ConfigFile;

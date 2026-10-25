@@ -75,7 +75,7 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
                 "provider",
                 ParamValue::from(crate::text::provider_l10n(other)),
             )]),
-            format!("{} é consultado por outro adaptador.", other.label()),
+            "{provider} is handled by another adapter.",
         )),
     }
 }
@@ -315,17 +315,17 @@ async fn chatgpt(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
     let mut notes = Notes::new();
     notes.push(
         "note.subscriptions.chatgpt_codex.endpoint",
-        "Interface interna do Codex CLI (não documentada); pode mudar sem aviso.",
+        "Codex CLI internal interface (undocumented); may change without notice.",
     );
     notes.push(
         "note.subscriptions.chatgpt_codex.coverage",
-        "Cobre as janelas do Codex/agente; a cota de mensagens do chat web do ChatGPT não é exposta por endpoint legível.",
+        "Covers Codex/agent windows; the web chat message quota of ChatGPT is not exposed by a readable endpoint.",
     );
     if let Some(plan) = body.plan_type {
         notes.push_params(
             "note.subscriptions.chatgpt_codex.plan",
             params([("plan", ParamValue::from(plan.clone()))]),
-            format!("Plano: {plan}"),
+            "Plan: {plan}.",
         );
     }
     if let Some(rl) = body.rate_limit {
@@ -350,7 +350,7 @@ async fn chatgpt(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
         if credits.unlimited == Some(true) {
             notes.push(
                 "note.subscriptions.chatgpt_codex.unlimited_credits",
-                "Créditos Codex ilimitados.",
+                "Codex credits unlimited.",
             );
         } else if let Some(balance) = credits.balance {
             let value: f64 = balance.trim().parse().map_err(|_| QueryError::schema())?;
@@ -368,7 +368,7 @@ async fn chatgpt(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
         } else if credits.has_credits == Some(false) {
             notes.push(
                 "note.subscriptions.chatgpt_codex.no_extra_credits",
-                "Sem créditos Codex adicionais.",
+                "No additional Codex credits.",
             );
         }
     }
@@ -496,11 +496,11 @@ async fn claude(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data
     let mut notes = Notes::new();
     notes.push(
         "note.subscriptions.anthropic_session.endpoint",
-        "Endpoint no host oficial api.anthropic.com, evidenciado por clientes de código aberto da comunidade; sem documentação oficial, pode mudar sem aviso.",
+        "Official api.anthropic.com endpoint, evidenced by open-source community clients; not officially documented, may change without notice.",
     );
     notes.push(
         "note.subscriptions.anthropic_session.coverage",
-        "Utilização em percentual da janela; limites absolutos não são divulgados.",
+        "Utilisation is a percentage of the window; absolute limits are not disclosed.",
     );
     require_metrics(Data::new(
         metrics,
@@ -582,14 +582,14 @@ async fn cursor(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data
     let mut notes = Notes::new();
     notes.push(
         "note.subscriptions.cursor_admin.endpoint",
-        "Admin API oficial; requer chave de administrador de equipe (planos Teams/Enterprise).",
+        "Official Admin API; requires a team administrator key (Teams/Enterprise plans).",
     );
     if let Some(start) = cycle_start.and_then(epoch_millis) {
         let start = start.to_rfc3339();
         notes.push_params(
             "note.subscriptions.cursor_admin.cycle_start",
             params([("start", ParamValue::from(start.clone()))]),
-            format!("Ciclo de cobrança iniciado em {start}."),
+            "Billing cycle started on {start}.",
         );
     }
     let mut demanda = Metric::usage(
@@ -612,7 +612,7 @@ async fn cursor(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data
     } else {
         notes.push(
             "note.subscriptions.cursor_admin.unknown_total",
-            "Gasto total desconhecido: overallSpendCents ausente em algum membro.",
+            "Total spend unknown: overallSpendCents is missing for some member.",
         );
         None
     };
@@ -663,7 +663,7 @@ fn slug(value: &str) -> Result<&str, QueryError> {
     } else {
         Err(QueryError::config(
             "query.subscriptions.invalid_slug",
-            "Identificador de usuário/organização inválido.",
+            "Invalid user/organization identifier.",
         ))
     }
 }
@@ -694,7 +694,7 @@ async fn copilot(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
             Some(_) => {
                 return Err(QueryError::config(
                     "query.subscriptions.copilot_billing",
-                    "params.billing deve ser \"premium_requests\" ou \"ai_credits\"",
+                    "params.billing must be \"premium_requests\" or \"ai_credits\"",
                 ));
             }
         };
@@ -707,7 +707,7 @@ async fn copilot(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
             let login = slug(&me.login).map_err(|_| QueryError::schema())?;
             notes.push(
                 "note.subscriptions.copilot_user.personal_scope",
-                "Cobrança pessoal do usuário autenticado.",
+                "Personal billing of the authenticated user.",
             );
             format!("{base}/users/{login}/settings/billing/{product_path}/usage")
         }
@@ -715,14 +715,14 @@ async fn copilot(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
             let org = slug(param(account, "org")?)?;
             notes.push(
                 "note.subscriptions.copilot_user.organization_scope",
-                "Cobrança da organização (requer admin da organização).",
+                "Organisation billing (requires organisation admin).",
             );
             format!("{base}/organizations/{org}/settings/billing/{product_path}/usage")
         }
         Some(_) => {
             return Err(QueryError::config(
                 "query.subscriptions.copilot_mode",
-                "params.mode deve ser \"user\" ou \"org\"",
+                "params.mode must be \"user\" or \"org\"",
             ));
         }
     };
@@ -763,7 +763,7 @@ async fn copilot(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
     cost.period = Some(format!("{year}-{month}"));
     notes.push(
         "note.subscriptions.copilot_user.coverage",
-        "API oficial de cobrança do GitHub; o limite mensal incluído no plano não é exposto pela API.",
+        "Official GitHub billing API; the monthly limit included in the plan is not exposed by the API.",
     );
     Ok(Data::new(
         vec![usage, cost],
@@ -822,7 +822,7 @@ async fn windsurf(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Da
     let mut notes = Notes::new();
     notes.push(
         "note.subscriptions.windsurf.endpoint",
-        "API oficial Enterprise (chave de serviço com Billing Read / Teams Read-Only); planos sem acesso recebem erro de autenticação.",
+        "Official Enterprise API (service key with Billing Read / Teams Read-Only); plans without access receive an authentication error.",
     );
     notes.push_params(
         "note.subscriptions.windsurf.allocation",
@@ -830,7 +830,7 @@ async fn windsurf(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Da
             ("per_seat", ParamValue::from(per_seat.to_string())),
             ("seats", ParamValue::from(seats.to_string())),
         ]),
-        format!("Alocação de créditos de prompt: {per_seat} por assento × {seats} assentos; é uma alocação da equipe, não uma cota rígida por usuário."),
+        "Prompt credit allocation: {per_seat} per seat × {seats} seats; this is a team allocation, not a hard per-user quota.",
     );
 
     // Soma de créditos por usuário no ciclo corrente (UserPageAnalytics não é paginado;
@@ -865,7 +865,7 @@ async fn windsurf(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Da
     } else {
         notes.push(
             "note.subscriptions.windsurf.missing_cycle",
-            "Período do ciclo ausente na resposta; total de créditos de prompt não calculado.",
+            "Cycle period missing in the response; total prompt credits not calculated.",
         );
     }
     metrics.push(Metric {
@@ -904,7 +904,7 @@ async fn windsurf(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Da
     ));
     notes.push(
         "note.subscriptions.windsurf.balance_semantics",
-        "Uso de prompt pode incluir créditos adicionais; não inferimos saldo do conjunto. addOnCreditsAvailable é a alocação informada para o ciclo, não um saldo vitalício; o restante permanece desconhecido.",
+        "Prompt usage may include additional credits; we do not infer balance from the set. addOnCreditsAvailable is the cycle allocation, not a lifetime balance; the remainder remains unknown.",
     );
 
     require_metrics(Data::new(

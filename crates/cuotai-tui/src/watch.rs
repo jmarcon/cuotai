@@ -46,11 +46,14 @@ pub(crate) struct WatchArgs {
     /// `--reset-lead`: minutes before a window resets that
     /// `quota_reset_soon` fires (0 turns it off).
     pub reset_lead: u32,
+    /// PRD 0034 RF5.2: the language of the `fallback` texts of `--jsonl`.
+    pub fallback_locale: Option<String>,
 }
 
 pub(crate) struct Watch {
     watcher: Watcher,
     jsonl: bool,
+    fallback_locale: Option<String>,
     hooks: Option<Runner>,
     /// PRD 0032 RF5.1: the desktop's quiet hours, which a hook rule with
     /// `quiet = "skip"` honours (the stream itself is never held).
@@ -73,6 +76,7 @@ impl Watch {
                 args.events,
             ),
             jsonl: args.jsonl,
+            fallback_locale: args.fallback_locale,
             with_hooks: args.hooks.is_some(),
             hooks: args.hooks.map(start_hooks),
             quiet: cuotai_core::notify_prefs::Source::open(),
@@ -124,7 +128,8 @@ impl Watch {
         if self.with_hooks && !self.jsonl {
             return Ok(true);
         }
-        match write_events(&mut io::stdout().lock(), &events, self.jsonl, locale) {
+        let jsonl = self.jsonl.then_some(self.fallback_locale.as_deref());
+        match write_events(&mut io::stdout().lock(), &events, jsonl, locale) {
             Ok(()) => Ok(true),
             Err(error) if error.kind() == io::ErrorKind::BrokenPipe => Ok(false),
             Err(error) => Err(error),
@@ -209,15 +214,21 @@ fn confirm(
 }
 
 /// One line per event, flushed after each.
+/// `jsonl`: NDJSON, with the `fallback` texts in that language (English
+/// without one), instead of readable lines.
 fn write_events(
     out: &mut impl Write,
     events: &[Event],
-    jsonl: bool,
+    jsonl: Option<Option<&str>>,
     locale: &str,
 ) -> io::Result<()> {
     for event in events {
-        if jsonl {
-            serde_json::to_writer(&mut *out, event)?;
+        if let Some(fallback_locale) = jsonl {
+            let mut value = serde_json::to_value(event)?;
+            if let Some(fallback_locale) = fallback_locale {
+                cuotai_core::text::localize_json_fallbacks(&mut value, fallback_locale);
+            }
+            serde_json::to_writer(&mut *out, &value)?;
             writeln!(out)?;
         } else {
             writeln!(out, "{}", summary_line(event, locale))?;
@@ -284,7 +295,7 @@ mod tests {
             event(EventKind::QuotaExhausted, "Line\nbreak"),
         ];
         let mut out = Vec::new();
-        write_events(&mut out, &events, true, "en-US").unwrap();
+        write_events(&mut out, &events, Some(None), "en-US").unwrap();
         let text = String::from_utf8(out).unwrap();
         let lines: Vec<&str> = text.lines().collect();
         assert_eq!(lines.len(), 2, "{text}");
@@ -306,7 +317,7 @@ mod tests {
         write_events(
             &mut out,
             &[event(EventKind::QuotaThresholdCrossed, "Wo\x1brk")],
-            false,
+            None,
             "en-US",
         )
         .unwrap();

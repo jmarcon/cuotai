@@ -760,7 +760,7 @@ fn failure_notes_by_status_and_incident_state() {
     let (texts, _) = failure_notes(Status::Error, I::MajorOutage).finish();
     assert_eq!(
         texts,
-        ["O provedor informa um incidente em andamento; a falha pode não ser da sua conta."]
+        ["The provider reports an ongoing incident; the failure may not be from your account."]
     );
 }
 

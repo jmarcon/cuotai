@@ -114,16 +114,13 @@ impl StatsSummary {
         Localized::with_params(
             "stats.history_kept",
             params([("days", self.retention_days.into())]),
-            format!(
-                "Histórico mantido por {} dias neste dispositivo",
-                self.retention_days
-            ),
+            "History kept {days} days on this device",
         )
     }
 
     /// Shown instead of figures when [`Coverage::NotEnough`].
     pub fn not_enough() -> Localized {
-        Localized::fixed("stats.not_enough", "Histórico insuficiente")
+        Localized::fixed("stats.not_enough", "Not enough history")
     }
 }
 

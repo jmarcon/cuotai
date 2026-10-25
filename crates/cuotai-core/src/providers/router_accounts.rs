@@ -28,7 +28,7 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
                     return Err(QueryError::config_params(
                         "query.router_accounts.invalid_qoder_region",
                         params([("region", ParamValue::from(other.to_string()))]),
-                        format!("params.region '{other}' inválido; use intl ou cn."),
+                        "params.region '{region}' invalid; use intl or cn.",
                     ))
                 }
             };
@@ -37,7 +37,7 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
         Provider::OllamaCloud => ollama(account, ctx, "https://ollama.com", Utc::now()).await,
         _ => Err(QueryError::unsupported(
             "query.router_accounts.provider_not_supported",
-            "Provedor sem consulta neste adapter.",
+            "Provider has no query in this adapter.",
         )),
     }
 }
@@ -138,7 +138,7 @@ async fn qoder(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data,
             return Err(QueryError::config_params(
                 "query.router_accounts.invalid_qoder_credential_type",
                 params([("type", ParamValue::from(other.to_string()))]),
-                format!("params.credential_type '{other}' inválido; use auto, pat ou bearer."),
+                "params.credential_type '{type}' invalid; use auto, pat or bearer.",
             ))
         }
     };
@@ -188,16 +188,16 @@ async fn qoder(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data,
     let mut notes = Notes::new();
     notes.push(
         "note.router_accounts.qoder_internal_endpoint",
-        "Endpoint interno /api/v2/quota/usage observado no 9router; não oficial e sujeito a mudanças.",
+        "Internal /api/v2/quota/usage endpoint observed in 9router; unofficial and subject to change.",
     );
     notes.push(
         "note.router_accounts.qoder_missing_fields_unknown",
-        "Diferente do 9router, campos ausentes ficam desconhecidos em vez de zero.",
+        "Missing fields remain unknown (9router does not always return absolute entitlement numbers).",
     );
     if exchanged {
         notes.push(
             "note.router_accounts.qoder_pat_exchange",
-            "PAT (pt-...) trocado por job token efêmero via /api/v1/jobToken/exchange; nada é armazenado.",
+            "PAT (pt-...) exchanged for an ephemeral job token via /api/v1/jobToken/exchange; nothing is stored.",
         );
     }
     if let Some(percent) = usage.total_usage_percentage {
@@ -205,13 +205,13 @@ async fn qoder(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data,
         notes.push_params(
             "note.router_accounts.qoder_total_usage",
             params([("percent", ParamValue::from(percent.to_string()))]),
-            format!("Uso total reportado pelo provedor: {percent}%."),
+            "Total usage reported by the provider: {percent}%.",
         );
     }
     if usage.is_quota_exceeded == Some(true) {
         notes.push(
             "note.router_accounts.qoder_quota_exceeded",
-            "O provedor sinaliza quota excedida.",
+            "The provider signals quota exceeded.",
         );
     }
     Ok(Data::new(
@@ -350,12 +350,12 @@ async fn ollama(
     let mut notes = Notes::new();
     notes.push(
         "note.router_accounts.ollama_internal_endpoint",
-        "Endpoint interno /api/usage observado no 9router; não oficial e sujeito a mudanças.",
+        "Internal /api/usage endpoint observed in 9router; unofficial and subject to change.",
     );
     if plan.is_empty() {
         notes.push(
             "note.router_accounts.ollama_plan_unknown",
-            "Plano desconhecido: a consulta de metadados da conta falhou (fail-open).",
+            "Plan unknown: account metadata query failed (fail-open).",
         );
     } else {
         let mut chars = plan.chars();
@@ -367,7 +367,7 @@ async fn ollama(
         notes.push_params(
             "note.router_accounts.ollama_plan",
             params([("plan", ParamValue::from(label.clone()))]),
-            format!("Plano: {label}"),
+            "Plan: {plan}.",
         );
     }
     let monthly_reset = if plan.eq_ignore_ascii_case("free") {
@@ -456,7 +456,7 @@ async fn ollama(
             if !usage_metrics.is_empty() {
                 notes.push(
                     "note.router_accounts.ollama_usage_report",
-                    "O Ollama não expõe mais, pela API, os percentuais de sessão, semana e mês do plano; aqui aparece o uso do período. Os limites estão em ollama.com/settings/usage.",
+                    "Ollama no longer exposes the plan's session, weekly and monthly percentages through the API; this shows usage for the period. The limits are at ollama.com/settings/usage.",
                 );
                 return Ok(Data::new(
                     usage_metrics,
@@ -471,12 +471,12 @@ async fn ollama(
     }
     notes.push(
         "note.router_accounts.ollama_usage_ratio",
-        "usage é uma razão 0..1 do limite (1.0 = esgotado), exibida como percentual; não há contagem absoluta de requisições.",
+        "`usage` is a 0..1 ratio of the limit (1.0 = exhausted), shown as a percentage; there is no absolute request count.",
     );
     if monthly_reset.is_some() {
         notes.push(
             "note.router_accounts.ollama_monthly_reset_estimated",
-            "Renovação mensal estimada pelo aniversário de cadastro, como no 9router; /api/usage não fornece timestamp de renovação.",
+            "Monthly renewal estimated by account anniversary, as in 9router; /api/usage does not return a renewal timestamp.",
         );
     }
     Ok(Data::new(
@@ -745,7 +745,7 @@ mod tests {
             );
         }
         assert!(
-            data.notes.iter().any(|n| n.contains("não expõe mais")),
+            data.notes.iter().any(|n| n.contains("no longer exposes")),
             "the usage-only note is missing"
         );
     }

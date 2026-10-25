@@ -129,25 +129,23 @@ impl Run {
         let note = match (self.outcome, self.exit_code) {
             (Outcome::Revoked, _) => Localized::fixed(
                 REVOKED_NOTE,
-                "A aprovação da extensão foi revogada antes de a execução começar; nada foi \
-                 executado.",
+                "The extension's approval was revoked before the run started; nothing was run.",
             ),
             (Outcome::Changed, _) => Localized::fixed(
                 CHANGED_NOTE,
-                "Um arquivo da pasta da extensão mudou desde a aprovação; ela não foi \
-                 executada.",
+                "A file of the extension's folder changed since the approval; it was not run.",
             ),
             (Outcome::NotStarted, _) => Localized::fixed(
                 NOT_STARTED_NOTE,
-                "O programa da extensão não pôde ser iniciado.",
+                "The extension's program could not be started.",
             ),
             (Outcome::Terminated, _) => Localized::fixed(
                 TERMINATED_NOTE,
-                "A execução da extensão terminou sem código de saída.",
+                "The extension's run ended without an exit code.",
             ),
             (Outcome::TimedOut, _) => Localized::fixed(
                 TIMED_OUT_NOTE,
-                "A extensão excedeu o seu limite de tempo e foi encerrada.",
+                "The extension ran out of its time limit and was terminated.",
             ),
             (Outcome::Exited, code) => {
                 let code = code.map_or_else(|| "?".to_string(), |code| code.to_string());
@@ -155,7 +153,7 @@ impl Run {
                     FAILED_NOTE,
                     "code",
                     code.as_str(),
-                    format!("A extensão saiu com o código {code}."),
+                    "The extension exited with code {code}.",
                 )
             }
         };

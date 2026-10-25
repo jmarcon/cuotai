@@ -96,20 +96,20 @@ fn is_hex(value: &str) -> bool {
 
 fn text(page: CallbackPage, title: bool, locale: &str) -> String {
     let (id, pt) = match (page, title) {
-        (CallbackPage::Success, true) => ("oauth.page.success.title", "Autorização recebida"),
+        (CallbackPage::Success, true) => ("oauth.page.success.title", "Authorization received"),
         (CallbackPage::Success, false) => (
             "oauth.page.success.body",
-            "Você pode fechar esta janela e voltar ao Cuotai.",
+            "You can close this window and go back to Cuotai.",
         ),
-        (CallbackPage::Denied, true) => ("oauth.page.denied.title", "Autorização negada"),
+        (CallbackPage::Denied, true) => ("oauth.page.denied.title", "Authorization denied"),
         (CallbackPage::Denied, false) => (
             "oauth.page.denied.body",
-            "Nada foi conectado. Você pode fechar esta janela e tentar novamente no Cuotai.",
+            "Nothing was connected. You can close this window and try again in Cuotai.",
         ),
-        (CallbackPage::Failed, true) => ("oauth.page.failed.title", "Não foi possível concluir"),
+        (CallbackPage::Failed, true) => ("oauth.page.failed.title", "Could not complete"),
         (CallbackPage::Failed, false) => (
             "oauth.page.failed.body",
-            "Feche esta janela e inicie o login novamente no Cuotai.",
+            "Close this window and start the sign-in again in Cuotai.",
         ),
     };
     Localized::fixed(id, pt).resolve(locale)

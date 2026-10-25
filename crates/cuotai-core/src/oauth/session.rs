@@ -198,11 +198,15 @@ impl OAuthSession {
         let guard = Arc::clone(&self.refresh_lock).lock_owned().await;
         let store = Arc::clone(&self.store);
         let load_key = key.clone();
-        let token = tokio::task::spawn_blocking(move || store.load(&load_key)).await
+        let token = tokio::task::spawn_blocking(move || store.load(&load_key))
+            .await
             .map_err(|_| storage_error())??
-            .ok_or_else(|| OAuthError::Configuration(crate::text::Localized::fixed(
-            "oauth_error.session.login_not_found", "Login não encontrado no armazenamento seguro. Abra o wizard e autentique novamente.",
-        )))?;
+            .ok_or_else(|| {
+                OAuthError::Configuration(crate::text::Localized::fixed(
+                    "oauth_error.session.login_not_found",
+                    "Login not found in the secure store. Open the wizard and authenticate again.",
+                ))
+            })?;
         if token
             .expires_at
             .is_none_or(|expiry| expiry > Utc::now() + chrono::Duration::seconds(60))
@@ -294,7 +298,7 @@ impl ClientSecretLookup {
                     .ok_or_else(|| {
                         OAuthError::Configuration(crate::text::Localized::fixed(
                             "oauth_error.session.client_secret_env_missing",
-                            "Variável do client secret ausente; exporte-a antes de iniciar o aplicativo.",
+                            "Client secret variable is missing; export it before starting the app.",
                         ))
                     })
             })
@@ -310,7 +314,7 @@ impl ClientSecretLookup {
 pub(crate) fn storage_error() -> OAuthError {
     OAuthError::Storage(crate::text::Localized::fixed(
         "oauth_error.session.vault_operation_failed",
-        "Falha na operação com o cofre do sistema.",
+        "Operation with the system vault failed.",
     ))
 }
 

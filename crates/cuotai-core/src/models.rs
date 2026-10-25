@@ -89,11 +89,11 @@ impl ModelState {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum ModelError {
-    #[error("Conta inexistente nesta configuração.")]
+    #[error("Account does not exist in this configuration.")]
     InvalidIndex,
-    #[error("Cache de modelos não configurado para esta configuração.")]
+    #[error("Model cache not configured for this configuration.")]
     NoCache,
-    #[error("Falha ao ler ou gravar o cache de modelos; nenhum resultado foi salvo.")]
+    #[error("Could not read or write the model cache; no result was saved.")]
     Storage,
 }
 
@@ -179,88 +179,89 @@ fn contract(account: &Account) -> Result<(Localized, ModelEvidence), Localized> 
     let provider_param = || params([("provider", provider_l10n(provider).into())]);
     // Live query; `undocumented` marks interfaces the vendor does not document for this credential.
     let live = |endpoint: &'static str, undocumented: bool, evidence: ModelEvidence| {
-        let (id, tail) = if undocumented {
+        let (id, template) = if undocumented {
             (
                 "models.source.undocumented",
-                "interface não documentada para essa credencial, pode mudar sem aviso",
+                "{provider} {endpoint} with the account credential (interface not documented for this credential, may change without notice); does not prove price or current availability either.",
             )
         } else {
-            ("models.source.live", "não comprova permissão de inferência")
+            (
+                "models.source.live",
+                "{provider} {endpoint} with the account credential (does not prove inference permission); does not prove price or current availability either.",
+            )
         };
         let mut values = provider_param();
         values.insert("endpoint".into(), ParamValue::from(endpoint));
-        Ok((
-            Localized::with_params(
-                id,
-                values,
-                format!(
-                    "{} {endpoint} com a credencial da conta ({tail}); também não comprova preço nem disponibilidade atual.",
-                    provider.label()
-                ),
-            ),
-            evidence,
-        ))
+        Ok((Localized::with_params(id, values, template), evidence))
     };
-    let reason = |id: &'static str, text: &str| {
+    // `models.unsupported` names the reason as a nested
+    // `models.unsupported.reason.<slug>` text.
+    let reason = |slug: &'static str, text: &'static str| {
+        let mut values = provider_param();
+        values.insert(
+            "reason".into(),
+            Localized::fixed(format!("models.unsupported.reason.{slug}"), text).into(),
+        );
         Err(Localized::with_params(
-            id,
-            provider_param(),
-            format!("{}: {text} Nenhuma consulta é feita.", provider.label()),
+            "models.unsupported",
+            values,
+            "{provider}: {reason} No query is made.",
         ))
     };
     let no_evidence = || {
-        reason(
+        Err(Localized::with_params(
             "models.unsupported_no_evidence",
-            "a interface que lista os modelos não é documentada nem foi verificada com uma conta real para esta credencial.",
-        )
+            provider_param(),
+            "{provider}: the interface that lists models is neither documented nor verified against a real account for this credential. No query is made.",
+        ))
     };
     match provider {
         Provider::Groq => source(
             "models.source.groq",
-            "Groq GET /openai/v1/models com a chave da conta; não comprova permissão de inferência, preço ou disponibilidade atual.",
+            "Groq GET /openai/v1/models with the account key; does not prove inference permission, price or current availability.",
             documented("https://console.groq.com/docs/api-reference#models-list"),
         ),
         Provider::AwsBedrock => source(
             "models.source.aws_bedrock",
-            "AWS CLI bedrock list-foundation-models no perfil da conta, em params.region ou na região padrão do perfil; não usa Cost Explorer nem comprova acesso ao modelo.",
+            "AWS CLI bedrock list-foundation-models on the account profile, in params.region or the profile default region; does not use Cost Explorer nor prove model access.",
             documented("https://docs.aws.amazon.com/cli/latest/reference/bedrock/list-foundation-models.html"),
         ),
         Provider::Antigravity => source(
             "models.source.antigravity",
-            "Antigravity fetchAvailableModels com a sessão da conta (planos pagos); não comprova quota, preço ou disponibilidade atual.",
+            "Antigravity fetchAvailableModels with the account session (paid plans); does not prove quota, price or current availability.",
             verified_live(),
         ),
         Provider::Poolside => source(
             "models.source.poolside",
-            "Poolside GET /v1/models com a chave da conta; não comprova permissão de inferência, preço ou disponibilidade atual.",
+            "Poolside GET /v1/models with the account key; does not prove inference permission, price or current availability.",
             documented("https://docs.poolside.ai/"),
         ),
         Provider::Claude => source(
             "models.source.claude",
-            "Claude GET /v1/models com o token OAuth da assinatura (interface não documentada para esse token); não comprova quota, preço ou disponibilidade atual.",
+            "Claude GET /v1/models with the subscription OAuth token (interface undocumented for this token); does not prove quota, price or current availability.",
             verified_live(),
         ),
         Provider::ChatGpt => source(
             "models.source.chat_gpt",
-            "Codex GET /codex/models com o token da sessão ChatGPT (interface interna do Codex CLI, não documentada); não comprova quota, preço ou disponibilidade atual.",
+            "Codex GET /codex/models with the ChatGPT session token (internal, undocumented Codex CLI interface); does not prove quota, price or current availability.",
             verified_live(),
         ),
         Provider::GeminiAi if account.oauth.is_none() && !product("cli") => source(
             "models.source.gemini_ai",
-            "Gemini API models.list paginado com a chave AI Studio da conta; não comprova quota, preço ou disponibilidade atual.",
+            "Gemini API models.list, paginated, with the account AI Studio key; does not prove quota, price or current availability.",
             documented("https://ai.google.dev/api/models#method:-models.list"),
         ),
         Provider::GeminiAi => no_evidence(),
         Provider::Kimi if account.oauth.is_none() && !product("coding") => source(
             "models.source.kimi",
-            "Kimi GET /v1/models (api.moonshot.ai) com a chave da conta; não comprova permissão de inferência, preço ou disponibilidade atual.",
+            "Kimi GET /v1/models (api.moonshot.ai) with the account key; does not prove inference permission, price or current availability.",
             documented("https://platform.kimi.ai/docs"),
         ),
         Provider::Kimi => live("GET /coding/v1/models", true, verified_live()),
         Provider::AlibabaModelStudio if providers::alibaba_plans::model_studio_lists(account) => {
             source(
                 "models.source.alibaba_model_studio",
-                "Model Studio GET /api/v1/models (Singapura) paginado com a chave da conta; não comprova permissão de inferência, preço ou disponibilidade atual.",
+                "Model Studio GET /api/v1/models (Singapore), paginated, with the account key; does not prove inference permission, price or current availability.",
                 documented("https://www.alibabacloud.com/help/en/model-studio/"),
             )
         }
@@ -357,8 +358,8 @@ fn contract(account: &Account) -> Result<(Localized, ModelEvidence), Localized> 
         | Provider::Qoder
         | Provider::AlibabaTokenPlan => no_evidence(),
         Provider::OpenRouter if product("account") => reason(
-            "models.unsupported",
-            "uma chave de gerenciamento não é documentada para listar modelos; use uma chave de inferência (produto key).",
+            "management_key",
+            "a management key is not documented for listing models; use an inference key (product key).",
         ),
         Provider::OpenRouter => live(
             "GET /api/v1/models",
@@ -366,24 +367,24 @@ fn contract(account: &Account) -> Result<(Localized, ModelEvidence), Localized> 
             documented("https://openrouter.ai/docs/api/api-reference/models/get-models"),
         ),
         Provider::ElevenLabs => reason(
-            "models.unsupported",
-            "a ElevenLabs não oferece catálogo de modelos para consulta de quota; nenhuma requisição é feita.",
+            "eleven_labs",
+            "ElevenLabs offers no model catalog for quota queries; no request is made.",
         ),
         Provider::LiteLlm => reason(
-            "models.unsupported",
-            "o LiteLLM é monitorado pelos orçamentos por provedor; nenhuma lista de modelos é consultada.",
+            "litellm",
+            "LiteLLM is monitored through its per-provider budgets; no model list is queried.",
         ),
         Provider::NineRouter => reason(
-            "models.unsupported",
-            "o 9router é monitorado pelas quotas das conexões dele; nenhuma lista de modelos é consultada.",
+            "nine_router",
+            "9router is monitored through the quotas of its connections; no model list is queried.",
         ),
         Provider::AlibabaCloud => reason(
-            "models.unsupported",
-            "a credencial é uma AccessKey de faturamento e o Alibaba Cloud não tem endpoint de modelos para ela.",
+            "alibaba_cloud",
+            "the credential is a billing AccessKey and Alibaba Cloud has no models endpoint for it.",
         ),
         Provider::Extension => reason(
-            "models.unsupported",
-            "extensões informam métricas, não um catálogo de modelos.",
+            "extension",
+            "extensions report metrics, not a model catalog.",
         ),
     }
 }
@@ -403,12 +404,12 @@ pub(crate) fn claim_note(live: bool) -> Localized {
     if live {
         Localized::fixed(
             "models.fetching",
-            "Consulta de modelos em andamento nesta ou em outra janela; o último catálogo continua pesquisável.",
+            "Model query in progress in this or another window; the last catalog stays searchable.",
         )
     } else {
         Localized::fixed(
             "models.interrupted",
-            "A última consulta de modelos foi interrompida antes de concluir; nada parcial foi salvo. Sincronize para tentar de novo.",
+            "The last model query was interrupted before finishing; nothing partial was saved. Sync to try again.",
         )
     }
 }

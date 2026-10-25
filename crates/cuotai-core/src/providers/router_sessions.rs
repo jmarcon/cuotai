@@ -61,13 +61,13 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
             other => Err(QueryError::config_params(
                 "query.router_sessions.codebuddy_region",
                 params([("region", ParamValue::from(other))]),
-                format!("params.region desconhecido: {other}. Use cn ou intl."),
+                "params.region unknown: {region}. Use cn or intl.",
             )),
         },
         Provider::Zed => zed(account, ctx, ZED_CLOUD).await,
         _ => Err(QueryError::unsupported(
             "query.router_sessions.unsupported_provider",
-            "Provedor sem consulta neste adapter.",
+            "Provider has no query in this adapter.",
         )),
     }
 }
@@ -193,7 +193,7 @@ fn kiro_native_host<'a>(
     let invalid = || {
         QueryError::config(
             "query.router_sessions.kiro_profile_arn",
-            "params.profile_arn não é um ARN de perfil CodeWhisperer válido (arn:aws:codewhisperer:<região>:<conta>:profile/<id>).",
+            "params.profile_arn is not a valid CodeWhisperer profile ARN (arn:aws:codewhisperer:<region>:<account>:profile/<id>).",
         )
     };
     if arn.chars().any(|c| c.is_whitespace() || c.is_control()) {
@@ -215,9 +215,7 @@ fn kiro_native_host<'a>(
         region => Err(QueryError::config_params(
             "query.router_sessions.kiro_profile_region",
             params([("region", ParamValue::from(region))]),
-            format!(
-                "params.profile_arn usa a região {region}, sem host conhecido. Regiões suportadas: us-east-1, eu-central-1."
-            ),
+            "params.profile_arn uses region {region}, with no known host. Supported regions: us-east-1, eu-central-1.",
         )),
     }
 }
@@ -241,9 +239,7 @@ async fn kiro(
             return Err(QueryError::config_params(
                 "query.router_sessions.kiro_auth_method",
                 params([("auth_method", ParamValue::from(other))]),
-                format!(
-                    "params.auth_method desconhecido: {other}. Use builder-id, idc, google, github, import, api_key ou external_idp."
-                ),
+                "params.auth_method unknown: {auth_method}. Use builder-id, idc, google, github, import, api_key or external_idp.",
             ));
         }
     }
@@ -380,7 +376,7 @@ async fn kiro(
             status: Status::AuthenticationError,
             note: Localized::fixed(
                 "query.router_sessions.kiro_authentication",
-                "API de quota do Kiro rejeitou o token (HTTP 401/403). Renove a sessão no Kiro e atualize a credencial.",
+                "Kiro quota API rejected the token (HTTP 401/403). Renew the Kiro session and update the credential.",
             ),
         })
     } else if let Some(code) = last_status {
@@ -390,7 +386,7 @@ async fn kiro(
             note: Localized::with_params(
                 "query.router_sessions.kiro_http",
                 params([("code", ParamValue::from(code))]),
-                format!("Consulta de quota do Kiro retornou HTTP {code}."),
+                "Kiro quota query returned HTTP {code}.",
             ),
         })
     } else if saw_transport {
@@ -428,11 +424,11 @@ fn kiro_data(body: Value) -> Result<Data, QueryError> {
     notes.push_params(
         "note.router_sessions.kiro.plan",
         params([("plan", ParamValue::from(plan.clone()))]),
-        format!("Plano: {plan}"),
+        "Plan: {plan}.",
     );
     notes.push(
         "note.router_sessions.kiro.endpoint",
-        "Endpoint interno getUsageLimits (CodeWhisperer/Amazon Q, us-east-1) observado no 9router; não documentado e sujeito a mudanças.",
+        "Internal get-user-resource endpoint observed in 9router; not documented and subject to change.",
     );
     let mut saw_overage_amount = false;
     let empty = Vec::new();
@@ -492,7 +488,7 @@ fn kiro_data(body: Value) -> Result<Data, QueryError> {
                 notes.push_params(
                     "note.router_sessions.kiro.overage_missing_cap",
                     params([("resource", ParamValue::from(resource.clone()))]),
-                    format!("Excedente habilitado para {resource}, mas a API não informou o teto."),
+                    "Overage enabled for {resource}, but the API did not return the cap.",
                 );
             }
             let currency = breakdown
@@ -528,9 +524,7 @@ fn kiro_data(body: Value) -> Result<Data, QueryError> {
                             ("currency", ParamValue::from(currency)),
                             ("rate", ParamValue::from(rate.to_string())),
                         ]),
-                        format!(
-                            "Excedente {resource}: {charges} {currency} cobrados ({rate} {currency} por crédito)."
-                        ),
+                        "Overage {resource}: {charges} {currency} charged ({rate} {currency} per credit).",
                     ),
                     None => notes.push_params(
                         "note.router_sessions.kiro.overage_charge",
@@ -539,7 +533,7 @@ fn kiro_data(body: Value) -> Result<Data, QueryError> {
                             ("charges", ParamValue::from(charges.to_string())),
                             ("currency", ParamValue::from(currency)),
                         ]),
-                        format!("Excedente {resource}: {charges} {currency} cobrados."),
+                        "Overage {resource}: {charges} {currency} charged.",
                     ),
                 }
             }
@@ -555,9 +549,7 @@ fn kiro_data(body: Value) -> Result<Data, QueryError> {
             notes.push_params(
                 "note.router_sessions.kiro.bonuses",
                 params([("resource", ParamValue::from(resource.clone()))]),
-                format!(
-                    "{resource}: bônus ativos somados ao uso; o consumo do plano não é separável e pode exceder o limite do plano."
-                ),
+                "{resource}: active bonuses added to usage; plan consumption is not separable and may exceed the plan limit.",
             );
         }
         if let Some(trial) = breakdown.get("freeTrialInfo") {
@@ -578,7 +570,7 @@ fn kiro_data(body: Value) -> Result<Data, QueryError> {
     if metrics.is_empty() {
         notes.push(
             "note.router_sessions.kiro.empty",
-            "Nenhuma quota numérica retornada; ausente não significa ilimitado.",
+            "No numeric quota returned; absent does not mean unlimited.",
         );
     }
     let overage_hint = overage_status.map(|enabled| match (enabled, saw_overage_amount) {
@@ -631,7 +623,7 @@ async fn codebuddy(
             note: Localized::with_params(
                 "query.router_sessions.codebuddy_code",
                 params([("code", ParamValue::from(code.to_string()))]),
-                format!("Quota CodeBuddy retornou código {code}."),
+                "CodeBuddy quota returned code {code}.",
             ),
         });
     }
@@ -722,28 +714,28 @@ async fn codebuddy(
     notes.push_params(
         "note.router_sessions.codebuddy.plan",
         params([("plan", ParamValue::from(plan.clone()))]),
-        format!("Plano: {plan}"),
+        "Plan: {plan}.",
     );
     notes.push(
         "note.router_sessions.codebuddy.endpoint",
-        "Endpoint interno de billing get-user-resource observado no 9router; não documentado e sujeito a mudanças.",
+        "Internal billing get-user-resource endpoint observed in 9router; not documented and subject to change.",
     );
     if !refills.is_empty() {
         notes.push(
             "note.router_sessions.codebuddy.refill_packs",
-            "Pacotes Monthly/Weekly/Daily renovam em resets_at (próxima recarga do ciclo).",
+            "Monthly/Weekly/Daily packs renew at resets_at (next cycle reload).",
         );
     }
     if !bonuses.is_empty() {
         notes.push(
             "note.router_sessions.codebuddy.bonus_packs",
-            "Bonus Pack são créditos únicos: expiram em resets_at sem renovação.",
+            "Bonus Packs are one-time credits: they expire at resets_at without renewal.",
         );
     }
     if metrics.is_empty() {
         notes.push(
             "note.router_sessions.codebuddy.empty",
-            "Nenhum pacote de crédito encontrado na resposta.",
+            "No credit pack found in the response.",
         );
     }
     Ok(Data::new(metrics, notes, format!("{REF}codebuddy-cn.js")))
@@ -856,11 +848,11 @@ fn zed_data(user: &Value) -> Data {
     notes.push_params(
         "note.router_sessions.zed.plan",
         params([("plan", ParamValue::from(label.clone()))]),
-        format!("Plano: {label}"),
+        "Plan: {plan}.",
     );
     notes.push(
         "note.router_sessions.zed.endpoint",
-        "Endpoint interno /client/users/me (cloud.zed.dev) com Authorization \"<user_id> <token>\", observado no 9router; não documentado e sujeito a mudanças.",
+        "Internal /client/users/me endpoint (cloud.zed.dev) with Authorization \"<user_id> <token>\", observed in 9router; not documented and subject to change.",
     );
     let usage = plan.get("usage").cloned().unwrap_or(Value::Null);
     if let Some(bucket) = usage
@@ -885,7 +877,7 @@ fn zed_data(user: &Value) -> Data {
                 });
                 notes.push(
                     "note.router_sessions.zed.edit_predictions_unlimited",
-                    "Edit Predictions: ilimitado conforme resposta do provedor.",
+                    "Edit Predictions: unlimited per the provider response.",
                 );
             }
             ZedLimit::Limited(total) => {
@@ -947,7 +939,7 @@ billing: Default::default(), scope: None,
                 });
                 notes.push(
                     "note.router_sessions.zed.hosted_requests_unlimited",
-                    "Hosted Model Requests: ilimitado conforme resposta do provedor.",
+                    "Hosted Model Requests: unlimited per the provider response.",
                 );
             }
             ZedLimit::Limited(total) if total > 0.0 => {
@@ -968,7 +960,7 @@ billing: Default::default(), scope: None,
             // not a request quota — surface a note instead of a fake zero cap.
             _ => notes.push(
                 "note.router_sessions.zed.hosted_models_token_billing",
-                "Modelos hospedados são cobrados por token (não por requisição); o gasto por token está em dashboard.zed.dev.",
+                "Hosted models are billed per token (not per request); the per-token spend is in dashboard.zed.dev.",
             ),
         }
     }
@@ -978,13 +970,13 @@ billing: Default::default(), scope: None,
     ) {
         notes.push(
             "note.router_sessions.zed.overdue_invoices",
-            "Conta Zed com faturas vencidas; o uso pode estar bloqueado até a regularização.",
+            "Zed account with overdue invoices; usage may be blocked until regularisation.",
         );
     }
     if metrics.is_empty() {
         notes.push(
             "note.router_sessions.zed.empty",
-            "Nenhuma quota numérica retornada; ausente não significa ilimitado.",
+            "No numeric quota returned; absent does not mean unlimited.",
         );
     }
     Data::new(metrics, notes, format!("{REF}zed.js"))
@@ -1519,7 +1511,7 @@ mod tests {
         assert_eq!(data.metrics.len(), 1);
         assert_eq!(data.metrics[0].used, Some(550.5));
         assert_eq!(data.metrics[0].remaining, Some(-50.5));
-        assert!(data.notes.iter().any(|n| n.contains("bônus")));
+        assert!(data.notes.iter().any(|n| n.contains("bonuses")));
     }
 
     #[tokio::test]
@@ -1551,7 +1543,7 @@ mod tests {
         .await
         .unwrap_err();
         assert_eq!(error.status, Status::Error);
-        assert!(error.note.fallback.contains("tempo limite"));
+        assert!(error.note.fallback.contains("timeout"));
         assert!(!error.note.fallback.contains("test-token"));
     }
 
@@ -1828,7 +1820,7 @@ mod tests {
             "2026-07-15T00:00:00+00:00"
         );
         assert!(data.notes.iter().any(|n| n.contains("基础体验包")));
-        assert!(data.notes.iter().any(|n| n.contains("sem renovação")));
+        assert!(data.notes.iter().any(|n| n.contains("without renewal")));
     }
 
     #[tokio::test]
@@ -1986,7 +1978,7 @@ mod tests {
             metric.resets_at.unwrap().to_rfc3339(),
             "2026-08-01T00:00:00+00:00"
         );
-        assert!(data.notes.iter().any(|n| n.contains("ilimitado")));
+        assert!(data.notes.iter().any(|n| n.contains("unlimited")));
     }
 
     #[tokio::test]
@@ -2058,7 +2050,7 @@ mod tests {
         .await
         .unwrap();
         assert!(data.notes.iter().any(|n| n.contains("Trial active")));
-        assert!(data.notes.iter().any(|n| n.contains("faturas vencidas")));
+        assert!(data.notes.iter().any(|n| n.contains("overdue invoices")));
     }
 
     #[tokio::test]

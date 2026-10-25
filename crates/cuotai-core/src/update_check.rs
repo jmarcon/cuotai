@@ -188,7 +188,7 @@ pub fn notice(latest: Version, source: InstallSource) -> Localized {
                 ("version", version),
                 ("command", ParamValue::from(command.to_string())),
             ]),
-            format!("Cuotai {latest} está disponível: {command}"),
+            "Cuotai {version} is available: {command}",
         ),
         None => Localized::with_params(
             "update.notice_download",
@@ -196,7 +196,7 @@ pub fn notice(latest: Version, source: InstallSource) -> Localized {
                 ("version", version),
                 ("url", ParamValue::from(RELEASES_URL.to_string())),
             ]),
-            format!("Cuotai {latest} está disponível: {RELEASES_URL}"),
+            "Cuotai {version} is available: {url}",
         ),
     }
 }

@@ -138,18 +138,15 @@ pub enum ExtensionState {
 impl ExtensionState {
     pub fn label(self) -> Localized {
         match self {
-            Self::Disabled => Localized::fixed("extensions.state.disabled", "Precisa de aprovação"),
-            Self::Enabled => Localized::fixed("extensions.state.enabled", "Ativada"),
-            Self::Changed => Localized::fixed(
-                "extensions.state.changed",
-                "Alterada — requer nova aprovação",
-            ),
-            Self::Missing => {
-                Localized::fixed("extensions.state.missing", "Arquivos não encontrados")
+            Self::Disabled => Localized::fixed("extensions.state.disabled", "Needs approval"),
+            Self::Enabled => Localized::fixed("extensions.state.enabled", "Enabled"),
+            Self::Changed => {
+                Localized::fixed("extensions.state.changed", "Changed — approval required")
             }
+            Self::Missing => Localized::fixed("extensions.state.missing", "Files missing"),
             Self::Invalid => Localized::fixed(
                 "extensions.state.invalid",
-                "Manifesto inválido — nada pode ser ativado",
+                "Invalid manifest — nothing can be enabled",
             ),
         }
     }
@@ -465,8 +462,10 @@ impl Manager {
             reasons
                 .entry(key)
                 .and_modify(|existing| {
-                    let both = format!("{}; {}", existing.fallback, rejected.reason.fallback);
-                    *existing = Localized::fixed("extensions.error.rejected_many", both);
+                    *existing = Localized::fixed(
+                        "extensions.error.rejected_many",
+                        "More than one folder claims this id; none of them can be enabled.",
+                    );
                 })
                 .or_insert_with(|| rejected.reason.clone());
         }
@@ -563,9 +562,12 @@ impl Manager {
         } else {
             updated.params.remove(EXTENSION_OVERRIDE_PARAM);
         }
-        config
-            .upsert_account(updated, Some(index))
-            .map_err(|error| Localized::fixed("extensions.action.account_invalid", error.message()))
+        config.upsert_account(updated, Some(index)).map_err(|_| {
+            Localized::fixed(
+                "extensions.action.account_invalid",
+                "The extension account could not be created.",
+            )
+        })
     }
 
     /// PRD 0028 RF7.2: the reading of the override extension `id` for an
@@ -588,7 +590,7 @@ impl Manager {
             "extensions.override.active",
             "name",
             name.as_str(),
-            format!("Lido pela extensão {name} no lugar da integração embutida."),
+            "Read by the extension {name} instead of the built-in integration.",
         );
         let result = self.run_approved(id, approved, store).await;
         Some(result.map(|mut checked| {
@@ -696,10 +698,7 @@ impl Manager {
                         "extensions.action.enabled_override",
                         "id",
                         id.as_str(),
-                        format!(
-                            "Extensão {id} ativada; escolha em quais contas ela substitui a \
-                             integração embutida."
-                        ),
+                        "Extension {id} enabled; choose the accounts where it replaces the built-in integration.",
                     ),
                     account: None,
                 },
@@ -711,8 +710,11 @@ impl Manager {
             .iter()
             .position(|account| account.extension_id() == Some(&id));
         let account = extension_account(&manifest, config, editing);
-        let updated = config.upsert_account(account, editing).map_err(|error| {
-            Localized::fixed("extensions.action.account_invalid", error.message())
+        let updated = config.upsert_account(account, editing).map_err(|_| {
+            Localized::fixed(
+                "extensions.action.account_invalid",
+                "The extension account could not be created.",
+            )
         })?;
         let rollback = self.commit(&snapshot)?;
         let index = editing.unwrap_or_else(|| updated.accounts.len() - 1);
@@ -730,7 +732,7 @@ impl Manager {
                     "extensions.action.enabled",
                     "id",
                     id.as_str(),
-                    format!("Extensão {id} ativada e conta criada."),
+                    "Extension {id} enabled and account created.",
                 ),
                 account: Some(identity),
             },
@@ -748,7 +750,7 @@ impl Manager {
                 "extensions.action.disabled",
                 "id",
                 id,
-                format!("Extensão {id} desativada; a aprovação foi revogada."),
+                "Extension {id} disabled; approval was revoked.",
             ),
             account: None,
         })
@@ -904,7 +906,7 @@ impl Manager {
                 "extensions.action.secret_saved",
                 "name",
                 name,
-                format!("Segredo {name} guardado no cofre do sistema."),
+                "Secret {name} saved in the system vault.",
             ),
             account: None,
         })
@@ -1163,10 +1165,7 @@ fn missing_secret(id: &str, name: &str) -> Localized {
     Localized::with_params(
         "extensions.action.secret_missing",
         crate::text::params([("id", id.into()), ("name", name.into())]),
-        format!(
-            "A extensão {id} precisa do segredo {name}; informe-o na tela de extensões. \
-             Nenhum programa foi executado."
-        ),
+        "The extension {id} needs the secret {name}; enter it on the extensions screen. No program was run.",
     )
 }
 
@@ -1174,7 +1173,7 @@ fn unknown_secret(id: &str, name: &str) -> Localized {
     Localized::with_params(
         "extensions.action.secret_unknown",
         crate::text::params([("id", id.into()), ("name", name.into())]),
-        format!("A extensão {id} não declara o segredo {name}."),
+        "The extension {id} does not declare the secret {name}.",
     )
 }
 
@@ -1183,14 +1182,14 @@ fn empty_secret(name: &str) -> Localized {
         "extensions.action.secret_empty",
         "name",
         name,
-        format!("Informe um valor para o segredo {name}."),
+        "Enter a value for the secret {name}.",
     )
 }
 
 fn secret_storage() -> Localized {
     Localized::fixed(
         "extensions.action.secret_storage",
-        "Não foi possível acessar o cofre do sistema para os segredos da extensão.",
+        "The system vault could not be reached for the extension's secrets.",
     )
 }
 
@@ -1198,17 +1197,14 @@ fn not_an_override(id: &str, provider: Provider) -> Localized {
     Localized::with_params(
         "extensions.action.not_an_override",
         crate::text::params([("id", id.into()), ("provider", provider.label().into())]),
-        format!(
-            "A extensão {id} não substitui a integração {}.",
-            provider.label()
-        ),
+        "The extension {id} does not replace the {provider} integration.",
     )
 }
 
 fn invalid_account() -> Localized {
     Localized::fixed(
         "extensions.action.invalid_account",
-        "A conta de extensão não tem uma identidade válida.",
+        "The extension account has no valid identity.",
     )
 }
 
@@ -1217,7 +1213,7 @@ fn invalid_account() -> Localized {
 fn expired_candidate() -> Localized {
     Localized::fixed(
         "extensions.action.candidate_expired",
-        "Esta confirmação não vale mais; revise a extensão de novo antes de aprová-la.",
+        "This confirmation is no longer valid; review the extension again before approving it.",
     )
 }
 
@@ -1226,7 +1222,7 @@ pub(crate) fn missing(id: &str) -> Localized {
         "extensions.action.missing",
         "id",
         id,
-        format!("A extensão {id} não foi encontrada; nenhum programa foi executado."),
+        "The extension {id} was not found; no program was run.",
     )
 }
 
@@ -1235,7 +1231,7 @@ fn changed(id: &str) -> Localized {
         "extensions.action.changed",
         "id",
         id,
-        format!("A extensão {id} mudou desde a aprovação; nenhum programa foi executado."),
+        "The extension {id} changed since approval; no program was run.",
     )
 }
 

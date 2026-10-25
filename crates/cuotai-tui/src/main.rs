@@ -441,6 +441,12 @@ struct Args {
     /// evento quota_reset_soon dispara (padrão 15; 0 desliga o evento).
     #[arg(long, value_name = "MIN", requires = "watch", default_value_t = 15)]
     reset_lead: u32,
+    /// Renders the `fallback` texts (and the plain `notes`) of --json,
+    /// --json-v1, --serve and --watch --jsonl in this language (pt-BR, es or
+    /// it) for consumers that show them verbatim; also
+    /// CUOTAI_FALLBACK_LOCALE. Without it they are English.
+    #[arg(long, value_name = "LOCALE")]
+    fallback_locale: Option<String>,
     /// Lista as fontes de custo local (Claude Code, Codex CLI): se estão
     /// ligadas, os diretórios exatos que leem (ou leriam) e o que o índice
     /// já segue; não lê logs. Com --json, em JSON. Tudo desligado por padrão.
@@ -882,6 +888,10 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         return report_problem::run(&file.config, &name, session).await;
     }
     if args.once || args.json || args.json_v1 || args.serve || args.watch || args.status_line {
+        let fallback_locale = fallback_locale_of(
+            args.fallback_locale.as_deref(),
+            args.json || args.json_v1 || args.serve || args.watch,
+        )?;
         // PRD 0013 RF2.1: `--interval` holds for this run only.
         let config = match args.interval {
             Some(seconds) => cuotai_core::watch::with_interval(&file.config, seconds)
@@ -902,6 +912,7 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
                 token_file: args.token_file,
                 no_token: args.no_token,
                 stats: args.serve_stats,
+                fallback_locale: fallback_locale.clone(),
             });
             let watch = args.watch.then_some(watch::WatchArgs {
                 events,
@@ -909,6 +920,7 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
                 hooks,
                 projected_lead: lead(args.projected_lead.as_deref()),
                 reset_lead: args.reset_lead,
+                fallback_locale: fallback_locale.clone(),
             });
             // PRD 0015 RF4.3: the server publishes `local_cost`, kept
             // current by the background scan while it runs.
@@ -972,7 +984,10 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         }
         if args.json {
             let mut stdout = io::stdout().lock();
-            serde_json::to_writer_pretty(&mut stdout, &snapshot)?;
+            serde_json::to_writer_pretty(
+                &mut stdout,
+                &localized(serde_json::to_value(&snapshot)?, &fallback_locale),
+            )?;
             writeln!(stdout)?;
         } else if args.json_v1 {
             let export = single_export(
@@ -987,7 +1002,10 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
             )
             .with_local_cost(local_cost.and_then(|job| job.join().ok()).flatten());
             let mut stdout = io::stdout().lock();
-            serde_json::to_writer_pretty(&mut stdout, &export)?;
+            serde_json::to_writer_pretty(
+                &mut stdout,
+                &localized(serde_json::to_value(&export)?, &fallback_locale),
+            )?;
             writeln!(stdout)?;
         } else {
             let now = Utc::now();
@@ -1198,7 +1216,7 @@ fn sub_reports_text(
             "  • {} · {} — {}{}\n",
             ui::safe(&name),
             ui::safe(&sub.label),
-            sub.status.label(),
+            ui::status_label(sub.status),
             flags
         );
         for metric in &sub.metrics {
@@ -1261,7 +1279,7 @@ fn summary_lines(
             None if report.status == Status::Ready => {
                 dashboard::class_label(dashboard::classification(Some(report))).to_string()
             }
-            None => report.status.label().to_string(),
+            None => ui::status_label(report.status),
         };
         out.push_str(&format!(
             "{}  {}\n",
@@ -1272,13 +1290,44 @@ fn summary_lines(
     out
 }
 
+/// PRD 0034 RF5.2: the language of the `fallback` texts of the machine
+/// outputs, from `--fallback-locale` or `CUOTAI_FALLBACK_LOCALE` (`None`:
+/// English). The flag needs one of those outputs and a shipped catalog.
+fn fallback_locale_of(flag: Option<&str>, machine: bool) -> Result<Option<String>, String> {
+    let Some(flag) = flag else {
+        return Ok(cuotai_core::text::fallback_locale(None));
+    };
+    if !machine {
+        return Err("--fallback-locale needs --json, --json-v1, --serve or --watch.".into());
+    }
+    match cuotai_core::text::fallback_locale(Some(flag)) {
+        Some(locale) => Ok(Some(locale)),
+        None if cuotai_core::text::Locale::resolve(flag) == cuotai_core::text::Locale::EnUs
+            && flag.to_ascii_lowercase().starts_with("en") =>
+        {
+            Ok(None)
+        }
+        None => Err(format!(
+            "--fallback-locale {flag:?} is not supported; use pt-BR, es, it or en-US."
+        )),
+    }
+}
+
+/// `json` with its `fallback` texts in `locale` (unchanged without one).
+fn localized(mut json: serde_json::Value, locale: &Option<String>) -> serde_json::Value {
+    if let Some(locale) = locale {
+        cuotai_core::text::localize_json_fallbacks(&mut json, locale);
+    }
+    json
+}
+
 /// PRD 0010 RF5.2: `--once` account heading with the measurement age.
 fn report_heading(report: &Report, now: DateTime<Utc>) -> String {
     format!(
         "{} / {} — {} · consultado {}{}",
         ui::safe(&report.display_name()),
         report.provider.label(),
-        report.status.label(),
+        ui::status_label(report.status),
         ui::age_text(report.checked_at, now),
         ui::data_as_of_suffix(report)
     )
@@ -1863,13 +1912,10 @@ mod tests {
         let at = |t: DateTime<Utc>| t.format("%H:%M").to_string();
         let mut failed = report("Work", Status::Error, Vec::new());
         for note in [
-            Localized::fixed(
-                "query.transport",
-                "Falha de rede ou tempo limite na consulta.",
-            ),
+            Localized::fixed("query.transport", "Network failure or query timeout."),
             Localized::fixed(
                 "note.incident.ongoing",
-                "O provedor informa um incidente em andamento; a falha pode não ser da sua conta.",
+                "The provider reports an ongoing incident; the failure may not be from your account.",
             ),
         ] {
             failed.notes.push(note.fallback.to_string());

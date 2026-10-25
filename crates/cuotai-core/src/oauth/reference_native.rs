@@ -314,7 +314,7 @@ async fn begin_zed(
     .map_err(|_| {
         OAuthError::Configuration(crate::text::Localized::fixed(
             "oauth_error.native.local_key_generation_failed",
-            "Falha ao gerar a chave local de login.",
+            "Failed to generate the local login key.",
         ))
     })?;
 
@@ -324,7 +324,7 @@ async fn begin_zed(
         .map_err(|_| {
             OAuthError::Configuration(crate::text::Localized::fixed(
                 "oauth_error.native.local_key_generation_failed",
-                "Falha ao gerar a chave local de login.",
+                "Failed to generate the local login key.",
             ))
         })?;
     // Padded base64url of the PKCS#1 DER public key (reference: b64urlPadded).
@@ -343,7 +343,7 @@ async fn begin_zed(
     ensure_trusted_url(&url, auth_hosts, require_https).map_err(|_| {
         OAuthError::Configuration(crate::text::Localized::fixed(
             "oauth_error.native.invalid_login_endpoint",
-            "Endpoint de login do provedor inválido.",
+            "Invalid provider login endpoint.",
         ))
     })?;
 
@@ -616,7 +616,7 @@ async fn begin_qoder(
     ensure_trusted_url(&url, auth_hosts, require_https).map_err(|_| {
         OAuthError::Configuration(crate::text::Localized::fixed(
             "oauth_error.native.invalid_login_endpoint",
-            "Endpoint de login do provedor inválido.",
+            "Invalid provider login endpoint.",
         ))
     })?;
 

@@ -133,14 +133,14 @@ async fn path_is_file(path: &Path) -> bool {
 fn not_found_error() -> OAuthError {
     OAuthError::Configuration(crate::text::Localized::fixed(
         "oauth_error.cursor.database_not_found",
-        "Banco de dados do Cursor não encontrado; abra o Cursor, faça login e confirme o caminho do state.vscdb no assistente.",
+        "Cursor database not found; open Cursor, sign in, and confirm the state.vscdb path in the wizard.",
     ))
 }
 
 fn join_error() -> OAuthError {
     OAuthError::Configuration(crate::text::Localized::fixed(
         "oauth_error.cursor.database_read_failed",
-        "Não foi possível ler o banco de dados do Cursor em segundo plano; tente novamente.",
+        "Could not read the Cursor database in the background; try again.",
     ))
 }
 
@@ -154,7 +154,7 @@ fn read_token_from(path: &Path, default_was_stable: bool) -> Result<OAuthToken, 
     .map_err(|_| {
         OAuthError::Configuration(crate::text::Localized::fixed(
             "oauth_error.cursor.database_open_failed",
-            "Não foi possível abrir o banco de dados do Cursor; confirme o caminho do state.vscdb e tente novamente.",
+            "Could not open the Cursor database; confirm the state.vscdb path and try again.",
         ))
     })?;
     conn.busy_timeout(std::time::Duration::from_secs(2))
@@ -178,13 +178,13 @@ fn read_token_from(path: &Path, default_was_stable: bool) -> Result<OAuthToken, 
         None if default_was_stable => {
             return Err(OAuthError::Configuration(crate::text::Localized::fixed(
                 "oauth_error.cursor.stable_no_session",
-                "Cursor estável instalado mas sem sessão; faça login no IDE ou informe o caminho do state.vscdb explicitamente.",
+                "Cursor is installed but has no session; sign in to the IDE or supply the state.vscdb path explicitly.",
             )))
         }
         None => {
             return Err(OAuthError::Configuration(crate::text::Localized::fixed(
                 "oauth_error.cursor.no_access_token",
-                "Nenhum token de acesso encontrado no Cursor; faça login no IDE ou informe um caminho explícito do state.vscdb.",
+                "No access token found in Cursor; sign in to the IDE or supply an explicit state.vscdb path.",
             )))
         }
     };
@@ -193,7 +193,7 @@ fn read_token_from(path: &Path, default_was_stable: bool) -> Result<OAuthToken, 
         None => {
             return Err(OAuthError::Configuration(crate::text::Localized::fixed(
                 "oauth_error.cursor.machine_id_missing",
-                "Identificador de máquina do Cursor ausente; faça login novamente no IDE ou informe um caminho de state.vscdb válido.",
+                "Cursor machine id is missing; sign in again to the IDE or supply a valid state.vscdb path.",
             )))
         }
     };
@@ -204,7 +204,7 @@ fn read_token_from(path: &Path, default_was_stable: bool) -> Result<OAuthToken, 
     if token.len() < 50 {
         return Err(OAuthError::Configuration(crate::text::Localized::fixed(
             "oauth_error.cursor.token_unexpected_format",
-            "Token do Cursor em formato inesperado; refaça o login no IDE e tente novamente.",
+            "Cursor token in an unexpected format; sign in again to the IDE and try again.",
         )));
     }
     // The reference service names the machine id "UUID-like" but the
@@ -276,19 +276,19 @@ fn clean_value(input: &str, max_len: usize) -> Result<String, OAuthError> {
     if trimmed.is_empty() {
         return Err(OAuthError::Configuration(crate::text::Localized::fixed(
             "oauth_error.cursor.field_value_missing",
-            "Valor de campo ausente no banco de dados do Cursor.",
+            "Field value missing in the Cursor database.",
         )));
     }
     if trimmed.chars().any(char::is_control) {
         return Err(OAuthError::Configuration(crate::text::Localized::fixed(
             "oauth_error.cursor.field_invalid_chars",
-            "Valor de campo contém caracteres inválidos no banco de dados do Cursor.",
+            "Field value contains invalid characters in the Cursor database.",
         )));
     }
     if trimmed.len() > max_len {
         return Err(OAuthError::Configuration(crate::text::Localized::fixed(
             "oauth_error.cursor.field_too_long",
-            "Valor de campo excede o limite esperado no banco de dados do Cursor.",
+            "Field value exceeds the expected limit in the Cursor database.",
         )));
     }
     Ok(trimmed.to_string())
@@ -297,7 +297,7 @@ fn clean_value(input: &str, max_len: usize) -> Result<String, OAuthError> {
 fn storage_unavailable() -> OAuthError {
     OAuthError::Configuration(crate::text::Localized::fixed(
         "oauth_error.cursor.database_unreadable",
-        "Banco de dados do Cursor ilegível; verifique se o IDE está fechado e se o arquivo é acessível.",
+        "Cursor database unreadable; check the IDE is closed and the file is accessible.",
     ))
 }
 

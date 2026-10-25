@@ -51,7 +51,7 @@ fn records_edge_events_newest_first_without_usage_updates() {
     );
     assert_eq!(entries[1].account.as_deref(), Some(alpha.name.as_str()));
     assert_eq!(entries[1].threshold, Some(90));
-    assert_eq!(entries[1].summary.text(), "5h: 90% usado");
+    assert_eq!(entries[1].summary.text(), "5h: 90% used");
     assert_eq!(history.journal(.., &accounts, 1).unwrap().len(), 1);
 }
 
@@ -85,7 +85,7 @@ fn two_writers_do_not_duplicate_and_a_rename_keeps_the_journal() {
     let others = &accounts[1..];
     let entries = first.journal(.., others, 20).unwrap();
     assert!(entries.iter().all(|e| e.account.is_none()));
-    assert_eq!(removed_account().text(), "Conta removida");
+    assert_eq!(removed_account().text(), "Removed account");
 }
 
 #[test]

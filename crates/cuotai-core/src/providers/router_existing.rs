@@ -16,7 +16,7 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
         Provider::GeminiAi => gemini_cli(account, ctx, "https://cloudcode-pa.googleapis.com").await,
         _ => Err(QueryError::unsupported(
             "query.router_existing.unsupported_provider",
-            "Provedor sem consulta neste adapter.",
+            "Provider has no query in this adapter.",
         )),
     }
 }
@@ -74,14 +74,13 @@ async fn copilot(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
     let mut notes = Notes::new();
     notes.push(
         "note.router_existing.copilot_internal_endpoint",
-        "Endpoint interno copilot_internal/user, como no 9router; requer token GitHub da conta (não o token de inferência copilotToken). Sujeito a mudanças e restrições do provedor.",
+        "Internal copilot_internal/user endpoint, as in 9router; requires the account's GitHub token (not the inference copilotToken). Subject to change and provider restrictions.",
     );
     if let Some(plan) = response.copilot_plan {
-        let fallback = format!("Plano: {plan}");
         notes.push_params(
             "note.router_existing.copilot_plan",
             params([("plan", ParamValue::from(plan))]),
-            fallback,
+            "Plan: {plan}.",
         );
     }
     let mut metrics = Vec::new();
@@ -89,11 +88,10 @@ async fn copilot(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
         let resets_at = reset(response.quota_reset_date.as_deref())?;
         for (name, quota) in snapshots {
             if quota.unlimited == Some(true) {
-                let fallback = format!("{name}: ilimitado conforme resposta do provedor.");
                 notes.push_params(
                     "note.router_existing.copilot_unlimited_quota",
                     params([("name", ParamValue::from(name))]),
-                    fallback,
+                    "{name}: unlimited per the provider response.",
                 );
                 continue;
             }
@@ -153,7 +151,7 @@ async fn copilot(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
     if metrics.is_empty() {
         notes.push(
             "note.router_existing.copilot_no_numeric_quota",
-            "Nenhuma quota numérica retornada; ausente não significa ilimitado.",
+            "No numeric quota returned; absent does not mean unlimited.",
         );
     }
     Ok(Data::new(metrics, notes, format!("{REF}github.js")))
@@ -186,7 +184,7 @@ async fn gemini_cli(account: &Account, ctx: &Context<'_>, base: &str) -> Result<
             QueryError::config_params(
                 "query.router_existing.missing_gemini_session",
                 params([("env", ParamValue::from(env.to_string()))]),
-                format!("Token OAuth Gemini CLI ausente em {env}. GEMINI_API_KEY não autentica Code Assist; configure params.session_env."),
+                "Missing Gemini CLI OAuth token in {env}. GEMINI_API_KEY does not authenticate Code Assist; configure params.session_env.",
             )
         })?;
     let project = match account
@@ -218,7 +216,7 @@ async fn gemini_cli(account: &Account, ctx: &Context<'_>, base: &str) -> Result<
                 .ok_or_else(|| {
                     QueryError::config(
                         "query.router_existing.missing_gemini_project",
-                        "Gemini CLI não retornou projeto Code Assist; configure params.project_id.",
+                        "Gemini CLI did not return a Code Assist project; configure params.project_id.",
                     )
                 })?
         }
@@ -261,11 +259,11 @@ async fn gemini_cli(account: &Account, ctx: &Context<'_>, base: &str) -> Result<
     let mut notes = Notes::new();
     notes.push(
         "note.router_existing.gemini_code_assist_quota",
-        "Quota Gemini CLI/Code Assist, NÃO quota da API key AI Studio. Endpoint interno usado pelo 9router.",
+        "Gemini CLI/Code Assist quota, NOT the AI Studio API key quota. Internal endpoint used by 9router.",
     );
     notes.push(
         "note.router_existing.gemini_normalized_percentage",
-        "remainingFraction é apresentado em percentual; o total normalizado 1000 do 9router não é um limite real de requisições.",
+        "`remainingFraction` is reported as a percentage; the normalised 1000 total from 9router is not a real request cap.",
     );
     Ok(Data::new(metrics, notes, format!("{REF}google.js")))
 }

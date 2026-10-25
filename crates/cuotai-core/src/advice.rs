@@ -208,7 +208,7 @@ pub fn group_label<'a>(config: &'a Config, account: &'a Account) -> Option<&'a s
 
 /// The "Best now" chip (`advice.best`).
 pub fn best_chip() -> Localized {
-    Localized::fixed("advice.best", "Melhor agora")
+    Localized::fixed("advice.best", "Best now")
 }
 
 /// RF7.3: what the details of an account that runs out add about the best
@@ -229,7 +229,7 @@ pub fn switch_text(from: &str, to: &str, left: f64, runs_out_at: Option<&str>) -
                 ("to", to.into()),
                 ("pct", pct.as_str().into()),
             ]),
-            format!("{from} acaba ≈{at} · {to} tem {pct}% sobrando"),
+            "{from} runs out ≈{at} · {to} has {pct}% left",
         ),
         None => Localized::with_params(
             "advice.switch.exhausted",
@@ -238,7 +238,7 @@ pub fn switch_text(from: &str, to: &str, left: f64, runs_out_at: Option<&str>) -
                 ("to", to.into()),
                 ("pct", pct.as_str().into()),
             ]),
-            format!("{from} esgotou · {to} tem {pct}% sobrando"),
+            "{from} is exhausted · {to} has {pct}% left",
         ),
     }
 }

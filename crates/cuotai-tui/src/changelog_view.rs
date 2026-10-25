@@ -352,13 +352,10 @@ fn series_overlaps(series: &str, first: &str, last: &str) -> bool {
 /// internal build (`changelog.pre_release_note` in the core catalogs).
 fn pre_release_note(wanted: &str, history: &PreRelease, locale: &str) -> String {
     let range = history.range();
-    let fallback = format!(
-        "A versão \"{wanted}\" foi uma build interna e nunca foi publicada. Suas mudanças estão resumidas no histórico de pré-lançamento ({range})."
-    );
     cuotai_core::text::Localized::with_params(
         "changelog.pre_release_note",
         cuotai_core::text::params([("wanted", wanted.into()), ("range", range.into())]),
-        fallback,
+        "Version \"{wanted}\" was an internal build and was never published. Its changes are summarized in the pre-release history ({range}).",
     )
     .resolve(locale)
 }
@@ -375,12 +372,10 @@ fn unknown_version(wanted: &str, locale: &str) -> String {
         .chain(changelog.pre_release.iter().map(PreRelease::range))
         .collect::<Vec<_>>()
         .join(", ");
-    let fallback =
-        format!("A versão \"{wanted}\" não está no changelog; versões conhecidas: {known}.");
     cuotai_core::text::Localized::with_params(
         "changelog.unknown_version",
         cuotai_core::text::params([("wanted", wanted.into()), ("known", known.into())]),
-        fallback,
+        "Version \"{wanted}\" is not in the changelog. Known versions: {known}.",
     )
     .resolve(locale)
 }

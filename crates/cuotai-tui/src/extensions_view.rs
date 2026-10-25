@@ -551,7 +551,12 @@ mod tests {
                 remove: account,
             },
             last_run: None,
-            error: Some(Localized::fixed("extensions.run.failed", "falhou")),
+            error: Some(Localized::with_param(
+                "extensions.run.failed",
+                "code",
+                "3",
+                "The extension exited with code {code}.",
+            )),
             catalog: None,
             account: account.then(|| AccountIdentity {
                 index: 0,
@@ -606,7 +611,10 @@ mod tests {
         }
         assert!(screen.contains("descricao de pendente"), "{screen}");
         assert!(screen.contains("Última execução"), "{screen}");
-        assert!(screen.contains("falhou"), "the last error shows: {screen}");
+        assert!(
+            screen.contains("A extensão saiu com o código 3."),
+            "the last error shows: {screen}"
+        );
     }
 
     /// RF5.9: the disclosure is only approvable after it was shown, and

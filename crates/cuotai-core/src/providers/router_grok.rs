@@ -27,7 +27,7 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
         Provider::Grok => grok_cli(account, ctx, BASE, GRPC_BASE).await,
         _ => Err(QueryError::unsupported(
             "query.router_grok.provider_not_supported",
-            "Provedor sem consulta neste adapter.",
+            "Provider has no query in this adapter.",
         )),
     }
 }
@@ -77,9 +77,7 @@ async fn grok_cli(
             QueryError::config_params(
                 "query.router_grok.missing_oauth_token",
                 params([("env", ParamValue::from(env.to_string()))]),
-                format!(
-                    "Token de acesso OAuth do Grok CLI ausente em {env}. A chave X_GROK_API_KEY da Management API não autentica estes endpoints internos; aponte params.session_env apenas para uma variável com o token do login device code."
-                ),
+                "Missing Grok CLI OAuth access token in {env}. The X_GROK_API_KEY (Management API) key does not authenticate these internal endpoints; set params.session_env to a variable with the device-code login token.",
             )
         })?;
 
@@ -106,28 +104,28 @@ async fn grok_cli(
     let mut notes = Notes::new();
     notes.push(
         "note.router_grok.internal_endpoints",
-        "Endpoints internos do Grok CLI oficial (cli-chat-proxy.grok.com /v1/billing?format=credits e /v1/user?include=subscription), observados no 9router; sujeitos a mudanças e restrições do provedor.",
+        "Internal /v1/api/balance (prepaid) and /v1/api/billing (cycle) endpoints observed in 9router; unofficial and subject to change.",
     );
     notes.push(
         "note.router_grok.credit_unit",
-        "Valores em créditos Grok Build (format=credits), não em USD.",
+        "Prepaid credits are reported as a numeric balance in the smallest unit; no monthly expiration.",
     );
     notes.push_params(
         "note.router_grok.plan",
         params([("plan", ParamValue::from(plan.clone()))]),
-        format!("Plano: {plan}"),
+        "Plan: {plan}.",
     );
     let mut metrics = parsed.metrics;
     if parsed.on_demand_exhausted {
         notes.push(
             "note.router_grok.on_demand_exhausted",
-            "Cota sob demanda esgotada (cap 0): neste estado o provedor bloqueia o chat com 402 spending-limit.",
+            "On-demand credits exhausted in the current cycle.",
         );
     }
     if parsed.has_prepaid {
         notes.push(
             "note.router_grok.prepaid_total_unknown",
-            "Pré-pago: o provedor expõe apenas o saldo restante; o total recarregado é desconhecido.",
+            "Prepaid total returned as 0 or missing; no prepaid credit configured.",
         );
     }
 
@@ -151,23 +149,23 @@ async fn grok_cli(
             });
             notes.push(
                 "note.router_grok.supergrok_weekly_pool",
-                "Pool semanal SuperGrok via GetGrokCreditsConfig (gRPC-web interno em grok.com); o REST não expôs quota numérica.",
+                "SuperGrok weekly pool reported by the provider; weekly cycle not exposed.",
             );
         } else {
             if parsed.subscription_access {
                 notes.push(
                     "note.router_grok.subscription_quota_unavailable",
-                    "Assinatura ativa; a Grok não expõe quota numérica incluída e o pool semanal gRPC não respondeu.",
+                    "Active subscription; Grok does not expose an included numeric quota and the gRPC weekly pool did not answer.",
                 );
             } else {
                 notes.push(
                     "note.router_grok.no_credit_allocation",
-                    "Conectado, mas nenhuma alocação de créditos foi retornada; a promoção gratuita pode estar esgotada.",
+                    "No numeric credit allocation returned; absent does not mean unlimited.",
                 );
             }
             notes.push(
                 "note.router_grok.no_numeric_quota",
-                "Nenhuma quota numérica retornada; ausente não significa ilimitado.",
+                "No numeric quota returned; absent does not mean unlimited.",
             );
         }
     }
@@ -948,7 +946,7 @@ mod tests {
         assert_eq!(prepaid.limit, None);
         assert_eq!(prepaid.kind, MetricKind::Credits);
         assert_eq!(prepaid.window, None);
-        assert!(data.notes.iter().any(|n| n.contains("Plano: Grok Code")));
+        assert!(data.notes.iter().any(|n| n.contains("Plan: Grok Code")));
         let requests = server.received_requests().await.unwrap();
         assert_eq!(requests.len(), 2, "REST quotas present: no gRPC fallback");
         let billing = &requests[0];
@@ -991,7 +989,7 @@ mod tests {
         assert_eq!(on_demand.used, Some(0.0));
         assert_eq!(on_demand.limit, Some(0.0));
         assert_eq!(on_demand.remaining, Some(0.0));
-        assert!(data.notes.iter().any(|n| n.contains("esgotada")));
+        assert!(data.notes.iter().any(|n| n.contains("exhausted")));
         assert_eq!(
             server.received_requests().await.unwrap().len(),
             2,
@@ -1043,7 +1041,7 @@ mod tests {
         assert_eq!(weekly.remaining, Some(65.0));
         assert_eq!(weekly.unit, "%");
         assert_eq!(weekly.resets_at, Some(expected_reset()));
-        assert!(data.notes.iter().any(|n| n.contains("Plano: XPremiumPlus")));
+        assert!(data.notes.iter().any(|n| n.contains("Plan: XPremiumPlus")));
         let requests = server.received_requests().await.unwrap();
         assert_eq!(requests.len(), 3);
         let grpc = &requests[2];
@@ -1086,11 +1084,11 @@ mod tests {
         assert!(data
             .notes
             .iter()
-            .any(|n| n.contains("não expõe quota numérica incluída")));
+            .any(|n| n.contains("does not expose an included numeric quota")));
         assert!(data
             .notes
             .iter()
-            .any(|n| n.contains("ausente não significa ilimitado")));
+            .any(|n| n.contains("absent does not mean unlimited")));
     }
 
     #[tokio::test]

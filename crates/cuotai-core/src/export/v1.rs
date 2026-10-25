@@ -1441,7 +1441,7 @@ mod tests {
             Localized::with_params(
                 "query.http",
                 params([("code", ParamValue::from(503u16))]),
-                "Consulta retornou HTTP 503. Verifique acesso e permissões.",
+                "Query returned HTTP 503. Check access and permissions.",
             ),
         );
         finish(&mut cycle, 1, failed);
@@ -1453,7 +1453,7 @@ mod tests {
                 "query.missing_credential",
                 "name",
                 "GROQ_API_KEY",
-                "Credencial ausente: GROQ_API_KEY",
+                "Missing credential: GROQ_API_KEY",
             ),
         );
         finish(&mut cycle, 2, missing);
@@ -1853,13 +1853,13 @@ mod tests {
                             "query.missing_credential",
                             "name",
                             "my_private_key",
-                            "Credencial ausente: my_private_key",
+                            "Missing credential: my_private_key",
                         )),
                     ),
                 ]),
                 format!(
-                    "Token ausente em GEMINI_SESSION (my_private_key); GEMINI_API_KEY não \
-                     autentica leaky@example.com. Veja https://api.example.com/x?access_token={TOKEN}."
+                    "Missing token in GEMINI_SESSION (my_private_key); GEMINI_API_KEY does not \
+                     authenticate leaky@example.com. See https://api.example.com/x?access_token={TOKEN}."
                 ),
             ),
         );
@@ -1871,7 +1871,7 @@ mod tests {
                 "note.cursor_personal.account_email",
                 "email",
                 "owner.name+cuotai@corp.example.com",
-                "Conta: owner.name+cuotai@corp.example.com",
+                "Account: owner.name+cuotai@corp.example.com.",
             ),
         );
         finish(&mut cycle, 0, failed);
@@ -1907,7 +1907,7 @@ mod tests {
         assert!(report["notes"][0]
             .as_str()
             .unwrap()
-            .contains("Veja https://api.example.com/x."));
+            .contains("See https://api.example.com/x."));
     }
 
     #[test]
@@ -1986,6 +1986,47 @@ mod tests {
         let mut errors = Vec::new();
         validate(&schema, &schema, &broken, "$", &mut errors);
         assert_eq!(errors.len(), 3, "{errors:#?}");
+    }
+
+    /// PRD 0034 RF5: the export's `fallback` texts are English, and
+    /// `CUOTAI_FALLBACK_LOCALE=pt-BR` renders them (and the plain `notes`) in
+    /// Portuguese with the same ids, params and schema.
+    #[test]
+    fn fallbacks_are_english_and_render_in_the_fallback_locale() {
+        let schema: Value =
+            serde_json::from_str(&std::fs::read_to_string(doc_path(SCHEMA_DOC)).unwrap())
+                .expect("docs/export-v1.schema.json is JSON");
+        let (config, cycle) = reference();
+        let english = export(&config, &cycle, Options::default());
+        let report = &english["accounts"][1]["report"];
+        assert_eq!(
+            report["notes"][0],
+            "Query returned HTTP 503. Check access and permissions."
+        );
+        assert_eq!(report["notes"][0], report["notes_l10n"][0]["fallback"]);
+        let mut portuguese = english.clone();
+        crate::text::localize_json_fallbacks(&mut portuguese, "pt-BR");
+        let report = &portuguese["accounts"][1]["report"];
+        assert_eq!(
+            report["notes"][0],
+            "Consulta retornou HTTP 503. Verifique acesso e permissões."
+        );
+        assert_eq!(report["notes"][0], report["notes_l10n"][0]["fallback"]);
+        assert_eq!(
+            report["notes_l10n"][0]["params"],
+            english["accounts"][1]["report"]["notes_l10n"][0]["params"]
+        );
+        assert_eq!(
+            portuguese["accounts"][0]["access"]["summary"]["id"],
+            english["accounts"][0]["access"]["summary"]["id"]
+        );
+        assert_ne!(
+            portuguese["accounts"][0]["access"]["summary"]["fallback"],
+            english["accounts"][0]["access"]["summary"]["fallback"]
+        );
+        let mut errors = Vec::new();
+        validate(&schema, &schema, &portuguese, "$", &mut errors);
+        assert!(errors.is_empty(), "{errors:#?}");
     }
 
     /// PRD 0031 RF5.2: every enum of the schema is open (`anyOf` the known

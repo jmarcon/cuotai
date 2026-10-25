@@ -82,12 +82,12 @@ impl IncidentState {
     /// as healthy.
     pub fn label(self) -> Localized {
         let pt = match self {
-            Self::Operational => "Operacional",
-            Self::Degraded => "Desempenho degradado",
-            Self::PartialOutage => "Interrupção parcial",
-            Self::MajorOutage => "Interrupção grave",
-            Self::Maintenance => "Em manutenção",
-            Self::Unknown => "Status desconhecido",
+            Self::Operational => "Operational",
+            Self::Degraded => "Degraded performance",
+            Self::PartialOutage => "Partial outage",
+            Self::MajorOutage => "Major outage",
+            Self::Maintenance => "Under maintenance",
+            Self::Unknown => "Status unknown",
         };
         Localized::fixed(format!("incident.state.{}", self.slug()), pt)
     }
@@ -534,12 +534,12 @@ pub(crate) fn failure_notes(status: Status, state: IncidentState) -> Notes {
     }
     notes.push(
         "note.incident.ongoing",
-        "O provedor informa um incidente em andamento; a falha pode não ser da sua conta.",
+        "The provider reports an ongoing incident; the failure may not be from your account.",
     );
     if status == Status::AuthenticationError {
         notes.push(
             "note.incident.auth_wait",
-            "Enquanto o incidente durar, considere aguardar antes de autenticar de novo; reautenticar continua disponível.",
+            "While the incident lasts, consider waiting before signing in again; reauthenticating is still available.",
         );
     }
     notes

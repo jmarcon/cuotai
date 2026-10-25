@@ -623,17 +623,14 @@ pub fn disclosure(manifest: &Manifest) -> Vec<Localized> {
             ("id", manifest.id.as_str().into()),
             ("name", name.as_str().into()),
         ]),
-        format!(
-            "A extensão {} ({name}) executa um programa local com os seus poderes de usuário:",
-            manifest.id
-        ),
+        "The extension {id} ({name}) runs a local program with your user's powers:",
     )];
     let command = serde_json::to_string(&manifest.command).unwrap_or_default();
     lines.push(Localized::with_param(
         "extensions.consent.command",
         "command",
         command.as_str(),
-        format!("comando: {command}"),
+        "command: {command}",
     ));
     // FIX-04: a script names the interpreter the kernel will start; the
     // user approves that program too.
@@ -642,7 +639,7 @@ pub fn disclosure(manifest: &Manifest) -> Vec<Localized> {
             "extensions.consent.interpreter",
             "interpreter",
             interpreter.as_str(),
-            format!("interpretador (linha #! do programa): {interpreter}"),
+            "interpreter (the program's #! line): {interpreter}",
         ));
     }
     let dir = manifest.dir.display().to_string();
@@ -650,12 +647,12 @@ pub fn disclosure(manifest: &Manifest) -> Vec<Localized> {
         "extensions.consent.directory",
         "dir",
         dir.as_str(),
-        format!("pasta: {dir}"),
+        "directory: {dir}",
     ));
     if manifest.env.is_empty() {
         lines.push(Localized::fixed(
             "extensions.consent.env_none",
-            "não pede nenhuma variável de ambiente",
+            "it asks for no environment variable",
         ));
     } else {
         let env = manifest.env.join(", ");
@@ -663,7 +660,7 @@ pub fn disclosure(manifest: &Manifest) -> Vec<Localized> {
             "extensions.consent.env",
             "env",
             env.as_str(),
-            format!("variáveis de ambiente pedidas: {env}"),
+            "environment variables it asks for: {env}",
         ));
     }
     // PRD 0028 RF7.4: each secret by name, variable and description; the
@@ -676,10 +673,7 @@ pub fn disclosure(manifest: &Manifest) -> Vec<Localized> {
                 ("env", secret.env.as_str().into()),
                 ("description", secret.description.as_str().into()),
             ]),
-            format!(
-                "segredo {} (variável {}), guardado no cofre do sistema: {}",
-                secret.name, secret.env, secret.description
-            ),
+            "secret {name} (variable {env}), kept in the system vault: {description}",
         ));
     }
     lines.push(Localized::with_params(
@@ -688,23 +682,18 @@ pub fn disclosure(manifest: &Manifest) -> Vec<Localized> {
             ("seconds", manifest.interval_seconds.into()),
             ("timeout", manifest.timeout_seconds.into()),
         ]),
-        format!(
-            "executa a cada {} s, com limite de {} s por execução",
-            manifest.interval_seconds, manifest.timeout_seconds
-        ),
+        "it runs every {seconds} s, with a {timeout} s limit each time",
     ));
     lines.push(Localized::fixed(
         "extensions.consent.risk",
-        "O Cuotai entrega somente os valores das variáveis pedidas que ele próprio herdou; \
-         não entrega o cofre nem credenciais de outras contas e não restringe a rede nem os \
-         arquivos: revise o código antes de aprovar.",
+        "Cuotai passes only the requested values it inherited; it passes neither vault data nor other accounts' credentials and restricts neither network nor files: review the code before approving it.",
     ));
     lines
 }
 
 /// The word that approves the disclosure in a terminal.
 pub fn confirm_answer() -> Localized {
-    Localized::fixed("extensions.consent.answer", "sim")
+    Localized::fixed("extensions.consent.answer", "yes")
 }
 
 /// The question after the disclosure, asking for [`confirm_answer`].
@@ -713,10 +702,7 @@ pub fn confirm_question(answer: &str) -> Localized {
         "extensions.consent.question",
         "answer",
         answer,
-        format!(
-            "Para aprovar exatamente esta extensão como ela está agora, digite \"{answer}\" e \
-             pressione Enter (qualquer outra resposta recusa):"
-        ),
+        "To approve exactly this extension as it is now, type \"{answer}\" and press Enter (any other answer declines):",
     )
 }
 
@@ -724,7 +710,7 @@ pub fn confirm_question(answer: &str) -> Localized {
 pub fn declined() -> Localized {
     Localized::fixed(
         "extensions.consent.declined",
-        "Extensão não aprovada; ela não foi executada.",
+        "Extension not approved; it was not run.",
     )
 }
 
@@ -735,10 +721,7 @@ pub fn not_approved(id: &str) -> Localized {
         "extensions.consent.not_approved",
         "id",
         id,
-        format!(
-            "A extensão {id} ainda não foi aprovada, ou um arquivo da sua pasta mudou desde a \
-             aprovação; revise e aprove em um terminal com cuotai --extension-check {id}."
-        ),
+        "The extension {id} was not approved yet, or a file of its folder changed since the approval; review and approve it in a terminal with cuotai --extension-check {id}.",
     )
 }
 
@@ -748,7 +731,7 @@ pub(crate) fn snapshot_changed(id: &str) -> Localized {
         "extensions.action.changed",
         "id",
         id,
-        format!("A extensão {id} mudou desde a aprovação; nenhum programa foi executado."),
+        "The extension {id} changed since approval; no program was run.",
     )
 }
 
@@ -759,10 +742,7 @@ pub(crate) fn rollback_conflict(id: &str) -> Localized {
         "extensions.action.rollback_conflict",
         "id",
         id,
-        format!(
-            "A aprovação da extensão {id} mudou de novo; a operação foi desfeita até aqui, \
-             mas a aprovação mais recente foi mantida."
-        ),
+        "The extension {id} was approved again after this step; the operation was undone, but the newer approval was kept.",
     )
 }
 
@@ -771,7 +751,7 @@ pub(crate) fn rollback_conflict(id: &str) -> Localized {
 pub fn consent_storage() -> Localized {
     Localized::fixed(
         "extensions.consent.storage",
-        "Não foi possível registrar a aprovação da extensão no diretório de dados local.",
+        "Could not record the extension's approval in the local data directory.",
     )
 }
 

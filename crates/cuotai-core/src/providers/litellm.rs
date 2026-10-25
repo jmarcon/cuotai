@@ -163,15 +163,15 @@ fn base_error(error: BaseUrlError) -> QueryError {
     let (id, text) = match error {
         BaseUrlError::Malformed => (
             "query.litellm.base_url",
-            "Endereço base do LiteLLM inválido: informe http(s)://host[:porta][/prefixo].",
+            "Invalid LiteLLM base address: enter http(s)://host[:port][/prefix].",
         ),
         BaseUrlError::Forbidden => (
             "query.litellm.base_url_forbidden",
-            "O endereço base do LiteLLM não pode conter usuário, senha, consulta ou fragmento.",
+            "The LiteLLM base address cannot contain a user, password, query or fragment.",
         ),
         BaseUrlError::Insecure => (
             "query.litellm.base_url_insecure",
-            "Fora desta máquina o LiteLLM exige HTTPS (HTTP só em rede privada, com a opção explícita). Nada foi enviado.",
+            "Outside this machine LiteLLM requires HTTPS (HTTP only on a private network, with the explicit option). Nothing was sent.",
         ),
     };
     QueryError::config(id, text)
@@ -214,12 +214,12 @@ pub(crate) async fn fetch_at(
     notes.push_params(
         "note.litellm.summary",
         params([("total", ParamValue::from(sub_reports.len() as u64))]),
-        format!("{} provedores com orçamento no LiteLLM.", sub_reports.len()),
+        "{total} providers with a budget in LiteLLM.",
     );
     if sub_reports.is_empty() {
         notes.push(
             "note.litellm.no_budgets",
-            "O LiteLLM não tem orçamentos por provedor (provider_budget_config); nada para mostrar.",
+            "LiteLLM has no per-provider budgets (provider_budget_config); nothing to show.",
         );
     }
     let mut data = Data::new(Vec::new(), notes, "LiteLLM: provider/budgets");

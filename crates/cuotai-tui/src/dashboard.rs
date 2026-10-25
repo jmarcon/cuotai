@@ -1467,7 +1467,7 @@ fn render_card(
         separator(),
         match report {
             Some(report) => Span::styled(
-                report.status.label(),
+                crate::ui::status_label(report.status),
                 Style::default().fg(status_color(report.status)),
             ),
             None => Span::styled("Aguardando", Style::default().fg(MUTED)),
@@ -2163,7 +2163,7 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
             Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
         ),
         Span::styled(
-            report.status.label(),
+            crate::ui::status_label(report.status),
             Style::default()
                 .fg(status_color(report.status))
                 .add_modifier(Modifier::BOLD),

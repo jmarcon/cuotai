@@ -321,15 +321,12 @@ fn item_label(view: &AccountView, at: &dyn Fn(DateTime<Utc>) -> String) -> Local
             Localized::with_params(
                 "tray.item.exhausted_until",
                 params([("name", name.into()), ("at", at.as_str().into())]),
-                format!("{name} esgotada, volta às {at}"),
+                "{name} exhausted, returns {at}",
             )
         }
-        (true, _, None) => Localized::with_param(
-            "tray.item.exhausted",
-            "name",
-            name,
-            format!("{name} esgotada"),
-        ),
+        (true, _, None) => {
+            Localized::with_param("tray.item.exhausted", "name", name, "{name} exhausted")
+        }
         (false, Some(r), Some(when)) => {
             let (pct, at) = (percent(r), at(when));
             Localized::with_params(
@@ -339,7 +336,7 @@ fn item_label(view: &AccountView, at: &dyn Fn(DateTime<Utc>) -> String) -> Local
                     ("pct", pct.as_str().into()),
                     ("at", at.as_str().into()),
                 ]),
-                format!("{name} {pct} restante, renova às {at}"),
+                "{name} {pct} left, resets {at}",
             )
         }
         (false, Some(r), None) => {
@@ -347,46 +344,39 @@ fn item_label(view: &AccountView, at: &dyn Fn(DateTime<Utc>) -> String) -> Local
             Localized::with_params(
                 "tray.item.left",
                 params([("name", name.into()), ("pct", pct.as_str().into())]),
-                format!("{name} {pct} restante"),
+                "{name} {pct} left",
             )
         }
-        (false, None, _) => Localized::with_param(
-            "tray.item.unknown",
-            "name",
-            name,
-            format!("{name} sem dados"),
-        ),
+        (false, None, _) => {
+            Localized::with_param("tray.item.unknown", "name", name, "{name}: no data")
+        }
     };
     let mut label = base;
     if view.stale && view.remaining.is_some() {
-        label = wrap("tray.item.stale", label, |t| {
-            format!("{t} (leitura antiga)")
-        });
+        label = wrap("tray.item.stale", label, "{item} (old reading)");
     }
     if view.alert {
-        label = wrap("tray.item.alert", label, |t| format!("{t}, alerta ativo"));
+        label = wrap("tray.item.alert", label, "{item}, alert active");
     }
     if view.on_extra {
-        label = wrap("tray.item.extra", label, |t| format!("{t}, em uso extra"));
+        label = wrap("tray.item.extra", label, "{item}, using extra usage");
     }
     label
 }
 
-fn wrap(id: &'static str, inner: Localized, fallback: impl FnOnce(&str) -> String) -> Localized {
-    let text = fallback(inner.text());
-    Localized::with_params(id, params([("item", ParamValue::l10n(inner))]), text)
+fn wrap(id: &'static str, inner: Localized, template: &'static str) -> Localized {
+    Localized::with_params(id, params([("item", ParamValue::l10n(inner))]), template)
 }
 
 fn join(labels: Vec<Localized>) -> Option<Localized> {
     labels.into_iter().rev().reduce(|rest, first| {
-        let text = format!("{}; {}", first.text(), rest.text());
         Localized::with_params(
             "tray.join",
             params([
                 ("first", ParamValue::l10n(first)),
                 ("rest", ParamValue::l10n(rest)),
             ]),
-            text,
+            "{first}; {rest}",
         )
     })
 }
@@ -482,16 +472,14 @@ pub fn summary(
     };
     let items: Vec<TrayItem> = shown.iter().map(|v| item(v)).collect();
     let mut label = join(label_views.iter().map(|v| item_label(v, at)).collect())
-        .unwrap_or_else(|| Localized::fixed("tray.empty", "Nenhuma conta na barra de menus"));
+        .unwrap_or_else(|| Localized::fixed("tray.empty", "No accounts in the menu bar"));
     if badge == Badge::Outage {
-        label = wrap("tray.outage", label, |t| {
-            format!("{t}; incidente no provedor")
-        });
+        label = wrap("tray.outage", label, "{item}; provider incident");
     }
     let tooltip = Localized::with_params(
         "tray.tooltip",
         params([("label", ParamValue::l10n(label.clone()))]),
-        format!("Cuotai — {}", label.text()),
+        "Cuotai — {label}",
     );
     TraySummary {
         style,

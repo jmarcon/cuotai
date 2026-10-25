@@ -2,7 +2,7 @@
 //! credentials: reliability level, credential class, plan requirement,
 //! scope, per-query cost and evidence. Front ends render the descriptor and
 //! never branch on [`Provider`]. Texts are `access.*` ids in the core
-//! catalogs (Portuguese fallback). The descriptor serializes with
+//! catalogs (English fallback). The descriptor serializes with
 //! snake_case enums and `{ kind, url }` evidence, the shape `export::v1`
 //! (PRD 0012) embeds as `access` per account (RF4.3).
 
@@ -191,9 +191,9 @@ impl OverageReporting {
     /// `access.overage.*`: short label for the docs matrix and details.
     pub fn label(self) -> Localized {
         let (slug, pt) = match self {
-            Self::Money => ("money", "Informado em dinheiro"),
-            Self::ProviderUnits => ("provider_units", "Informado em unidades do provedor"),
-            Self::NotReported => ("not_reported", "Não informado"),
+            Self::Money => ("money", "Reported in money"),
+            Self::ProviderUnits => ("provider_units", "Reported in provider units"),
+            Self::NotReported => ("not_reported", "Not reported"),
         };
         Localized::fixed(format!("access.overage.{slug}"), pt)
     }
@@ -213,11 +213,11 @@ impl Level {
     /// `access.level.*`: short label for pickers and cards.
     pub fn label(self) -> Localized {
         let pt = match self {
-            Self::Official => "Oficial",
-            Self::Undocumented => "Não documentada",
-            Self::Derived => "Derivada",
-            Self::Unavailable => "Indisponível",
-            Self::Extension => "Extensão",
+            Self::Official => "Official",
+            Self::Undocumented => "Undocumented",
+            Self::Derived => "Derived",
+            Self::Unavailable => "Unavailable",
+            Self::Extension => "Extension",
         };
         Localized::fixed(format!("access.level.{}", self.slug()), pt)
     }
@@ -225,11 +225,11 @@ impl Level {
     /// `access.risk.*`: what the level means for the reading's trust.
     pub(crate) fn risk(self) -> Localized {
         let pt = match self {
-            Self::Official => "Interface documentada pelo fornecedor para esta credencial; não garante permissão na sua conta.",
-            Self::Undocumented => "Interface interna, não documentada pelo fornecedor; pode mudar sem aviso.",
-            Self::Derived => "O uso é inferido de outra fonte (métricas ou cabeçalhos de rate limit); não é um saldo e pode atrasar.",
-            Self::Unavailable => "Não há consulta de uso para esta credencial; a conta mostra o motivo em vez de números.",
-            Self::Extension => "Executa um programa local; revise o código antes de ativar.",
+            Self::Official => "Interface documented by the vendor for this credential; it does not guarantee permission on your account.",
+            Self::Undocumented => "Internal interface the vendor does not document; it may change without notice.",
+            Self::Derived => "Usage is inferred from another source (metrics or rate-limit headers); it is not a balance and may lag.",
+            Self::Unavailable => "There is no usage query for this credential; the account shows the reason instead of numbers.",
+            Self::Extension => "Runs a local program; review the code before enabling.",
         };
         Localized::fixed(format!("access.risk.{}", self.slug()), pt)
     }
@@ -251,26 +251,26 @@ impl Credential {
     /// `access.credential.*`: credential class label.
     pub fn label(self) -> Localized {
         let pt = match self {
-            Self::InferenceKey => "Chave de inferência",
-            Self::AdminKey => "Chave de administrador",
-            Self::SubscriptionSession => "Sessão da assinatura",
-            Self::CloudIdentity => "Identidade de nuvem",
-            Self::LocalCli => "CLI local",
-            Self::UserSession => "Sessão do usuário",
-            Self::AggregatorLogin => "Login do agregador",
+            Self::InferenceKey => "Inference key",
+            Self::AdminKey => "Admin key",
+            Self::SubscriptionSession => "Subscription session",
+            Self::CloudIdentity => "Cloud identity",
+            Self::LocalCli => "Local CLI",
+            Self::UserSession => "User session",
+            Self::AggregatorLogin => "Aggregator login",
         };
         Localized::fixed(format!("access.credential.{}", self.slug()), pt)
     }
 
     fn hint(self) -> Localized {
         let pt = match self {
-            Self::InferenceKey => "Usa a chave de API da conta; nenhuma resposta é gerada.",
-            Self::AdminKey => "Precisa de uma chave de administrador ou de cobrança, não da chave de inferência.",
-            Self::SubscriptionSession => "Usa a sessão da assinatura (login nativo ou o token dela), não uma chave de API da plataforma.",
-            Self::CloudIdentity => "Usa uma identidade de nuvem (token OAuth, perfil de CLI ou AccessKey) com permissão de leitura de cobrança ou monitoramento.",
-            Self::LocalCli => "Usa um perfil já autenticado do CLI do fornecedor instalado nesta máquina.",
-            Self::UserSession => "Precisa de uma sessão web que você cola no assistente da conta (guardada no cofre do sistema) ou exporta numa variável; ela expira e nunca é importada automaticamente.",
-            Self::AggregatorLogin => "Usa a senha do painel da sua instância (ou nenhuma, se o login estiver desligado nela); as credenciais dos provedores nunca saem da instância.",
+            Self::InferenceKey => "Uses the account's API key; no response is generated.",
+            Self::AdminKey => "Needs an admin or billing key, not the inference key.",
+            Self::SubscriptionSession => "Uses the subscription session (native login or its token), not a platform API key.",
+            Self::CloudIdentity => "Uses a cloud identity (OAuth token, CLI profile or AccessKey) allowed to read billing or monitoring.",
+            Self::LocalCli => "Uses an already signed-in profile of the vendor's CLI installed on this machine.",
+            Self::UserSession => "Needs a web session you paste in the account wizard (kept in the system vault) or export in a variable; it expires and is never imported automatically.",
+            Self::AggregatorLogin => "Uses the dashboard password of your own instance (or none, when login is off on it); the providers' credentials never leave the instance.",
         };
         Localized::fixed(format!("access.credential_hint.{}", self.slug()), pt)
     }
@@ -280,11 +280,11 @@ impl Scope {
     /// `access.scope.*`: what the number covers.
     pub fn label(self) -> Localized {
         let (slug, pt) = match self {
-            Self::Account => ("account", "Conta"),
-            Self::Organization => ("organization", "Organização"),
-            Self::WholeCloud => ("whole_cloud", "Nuvem inteira"),
-            Self::Product => ("product", "Produto"),
-            Self::Instance => ("instance", "Instância"),
+            Self::Account => ("account", "Account"),
+            Self::Organization => ("organization", "Organization"),
+            Self::WholeCloud => ("whole_cloud", "Whole cloud"),
+            Self::Product => ("product", "Product"),
+            Self::Instance => ("instance", "Instance"),
         };
         Localized::fixed(format!("access.scope.{slug}"), pt)
     }
@@ -294,7 +294,7 @@ impl Scope {
 fn subscription_token_risk() -> Localized {
     Localized::fixed(
         "access.risk.subscription_token",
-        "O token pertence ao cliente oficial do fornecedor; usá-lo em outra ferramenta pode contrariar os termos do fornecedor.",
+        "The token belongs to the vendor's own client; using it from another tool may go against the vendor's terms.",
     )
 }
 
@@ -348,14 +348,14 @@ impl UsageAccess {
     /// override answered (PRD 0028 RF7.3).
     pub fn label(&self) -> Localized {
         if self.overrides.is_some() {
-            Localized::fixed("access.level.extension_override", "Extensão (substituição)")
+            Localized::fixed("access.level.extension_override", "Extension (override)")
         } else {
             self.level.label()
         }
     }
 
-    fn requires(mut self, plan: &str, pt: &str) -> Self {
-        self.plan_requirement = Some(Localized::fixed(format!("access.plan.{plan}"), pt));
+    fn requires(mut self, plan: &str, label: &str) -> Self {
+        self.plan_requirement = Some(Localized::fixed(format!("access.plan.{plan}"), label));
         self
     }
 
@@ -365,11 +365,7 @@ impl UsageAccess {
         self.metered.then(|| {
             Localized::fixed(
                 "access.cost_advisory",
-                "Provedor cobrado por consulta: cerca de uma requisição ao Cost Explorer \
-                 por consulta. Sem intervalo, o Cuotai consulta uma vez por hora; o mínimo \
-                 efetivo é de 15 minutos (intervalos de 5 a 14 minutos sobem para 15 e \
-                 valores menores são rejeitados). Várias janelas ou comandos compartilham \
-                 uma requisição por intervalo. Atualizações manuais continuam explícitas.",
+                "Provider is billed per query: about one Cost Explorer request per query. Without an interval Cuotai queries once an hour; the effective minimum is 15 minutes (intervals of 5 to 14 minutes are raised to 15, lower values are rejected). Several windows or commands share one request per interval. Manual refreshes remain explicit.",
             )
         })
     }
@@ -381,8 +377,12 @@ impl UsageAccess {
     pub fn notes(&self) -> Vec<Localized> {
         let mut notes = vec![self.credential_hint.clone()];
         notes.extend(self.plan_requirement.clone().map(|plan| {
-            let pt = format!("Requer o plano {}.", plan.fallback);
-            Localized::with_param("access.requires_plan", "plan", plan, pt)
+            Localized::with_param(
+                "access.requires_plan",
+                "plan",
+                plan,
+                "Requires the {plan} plan.",
+            )
         }));
         notes.extend(self.reason.clone());
         notes
@@ -397,7 +397,7 @@ impl UsageAccess {
                 "access.verification_stale",
                 "date",
                 self.verified_on,
-                format!("Não verificada desde {}.", self.verified_on),
+                "Not verified since {date}.",
             );
         };
         let days = (today - date).num_days().max(0);
@@ -406,18 +406,18 @@ impl UsageAccess {
                 "access.verification_stale",
                 "date",
                 self.verified_on,
-                format!("Não verificada desde {}.", self.verified_on),
+                "Not verified since {date}.",
             );
         }
         let months = days / 30;
         match months {
-            0 => Localized::fixed("access.verified_recent", "Verificada neste mês."),
-            1 => Localized::fixed("access.verified_month", "Verificada há 1 mês."),
+            0 => Localized::fixed("access.verified_recent", "Verified this month."),
+            1 => Localized::fixed("access.verified_month", "Verified 1 month ago."),
             months => Localized::with_param(
                 "access.verified_months",
                 "months",
                 months as u64,
-                format!("Verificada há {months} meses."),
+                "Verified {months} months ago.",
             ),
         }
     }
@@ -427,11 +427,12 @@ impl UsageAccess {
     /// other level.
     pub fn save_confirmation(&self) -> Option<Localized> {
         self.reason.clone().map(|reason| {
-            let pt = format!(
-                "{} A conta será gravada, mas mostrará este motivo em vez de números.",
-                reason.fallback
-            );
-            Localized::with_param("access.confirm_unavailable", "reason", reason, pt)
+            Localized::with_param(
+                "access.confirm_unavailable",
+                "reason",
+                reason,
+                "{reason} The account will be saved, but it will show this reason instead of numbers.",
+            )
         })
     }
 
@@ -459,10 +460,7 @@ impl UsageAccess {
                     "access.interface_changed",
                     "evidence",
                     evidence,
-                    format!(
-                        "A resposta não segue a interface interna conhecida: ela pode ter \
-                         mudado sem aviso. Contrato de referência: {evidence}"
-                    ),
+                    "The response does not follow the known internal interface: it may have changed without notice. Reference contract: {evidence}",
                 ))
             }
             Level::Official | Level::Derived | Level::Undocumented | Level::Extension => None,
@@ -529,189 +527,189 @@ pub(crate) fn classify(
     let mut access = match provider {
         Provider::OpenAiApi => entry(Official, AdminKey, Scope::Organization,
             doc("https://developers.openai.com/api/reference/resources/admin/subresources/organization"),
-            "open_ai_api", "Custos e uso da organização pela Admin API da OpenAI."),
+            "open_ai_api", "Organization costs and usage through the OpenAI Admin API."),
         Provider::AnthropicApi => entry(Official, AdminKey, Scope::Organization,
             doc("https://platform.claude.com/docs/en/manage-claude/usage-cost-api"),
-            "anthropic_api", "Custos e uso da organização pela Usage and Cost Admin API da Anthropic."),
+            "anthropic_api", "Organization cost and usage through Anthropic's Usage and Cost Admin API."),
         Provider::ChatGpt => entry(Undocumented, SubscriptionSession, Scope::Account,
             Evidence::Reference("https://github.com/openai/codex/blob/main/codex-rs/backend-client/src/client/rate_limit_resets.rs"),
-            "chat_gpt", "Janelas de limite do Codex pela interface interna do Codex CLI."),
+            "chat_gpt", "Codex limit windows through the Codex CLI's internal interface."),
         Provider::Claude => entry(Undocumented, SubscriptionSession, Scope::Account, router!("claude.js"),
-            "claude", "Janelas de uso do plano Claude pela interface interna usada pelos clientes oficiais."),
+            "claude", "Claude plan usage windows through the internal interface the official clients use."),
         Provider::GeminiApi => entry(Derived, CloudIdentity, Scope::Product,
             doc("https://cloud.google.com/monitoring/api/metrics_gcp_p_z"),
-            "gemini_api", "Limites e consumo recente da Gemini API lidos nas métricas do Cloud Monitoring."),
+            "gemini_api", "Gemini API limits and recent consumption read from Cloud Monitoring metrics."),
         Provider::VertexAi => entry(Derived, CloudIdentity, Scope::Product,
             doc("https://cloud.google.com/monitoring/api/metrics_gcp_p_z"),
-            "vertex_ai", "Limites e consumo recente da Vertex AI lidos nas métricas do Cloud Monitoring."),
+            "vertex_ai", "Vertex AI limits and recent consumption read from Cloud Monitoring metrics."),
         Provider::AwsBedrock => entry(Official, CloudIdentity, Scope::Product,
             doc("https://docs.aws.amazon.com/cli/latest/reference/ce/get-cost-and-usage.html"),
-            "aws_bedrock", "Custo do mês do Amazon Bedrock pelo Cost Explorer; cada consulta é cobrada."),
+            "aws_bedrock", "Amazon Bedrock month cost through Cost Explorer; every query is billed."),
         Provider::AzureOpenAi => entry(Official, CloudIdentity, Scope::Product,
             doc("https://learn.microsoft.com/en-us/rest/api/cost-management/query/usage?view=rest-cost-management-2025-03-01"),
-            "azure_open_ai", "Custo do mês do recurso escolhido pelo Azure Cost Management."),
+            "azure_open_ai", "Month cost of the chosen resource through Azure Cost Management."),
         Provider::Cursor if oauth || param("query_mode", "personal") => entry(Undocumented, SubscriptionSession, Scope::Account,
             Evidence::Reference("https://github.com/steipete/CodexBar/blob/main/Sources/CodexBarCore/Providers/Cursor/CursorStatusProbe.swift"),
-            "cursor_personal", "Resumo da assinatura pessoal do Cursor pela interface interna do site."),
+            "cursor_personal", "Personal Cursor subscription summary through the site's internal interface."),
         Provider::Cursor => entry(Official, AdminKey, Scope::Organization,
             doc("https://cursor.com/docs/account/teams/admin-api"),
-            "cursor_teams", "Gasto da equipe no ciclo pela Admin API do Cursor.")
-            .requires("teams_enterprise", "Teams ou Enterprise"),
+            "cursor_teams", "Team spend in the cycle through Cursor's Admin API.")
+            .requires("teams_enterprise", "Teams or Enterprise"),
         Provider::Copilot if oauth || param("query_mode", "quota") => entry(Undocumented, SubscriptionSession, Scope::Account,
-            router!("github.js"), "copilot_quota", "Quota pessoal de interações do Copilot pela interface interna do GitHub."),
+            router!("github.js"), "copilot_quota", "Personal Copilot interaction quota through GitHub's internal interface."),
         Provider::Copilot => entry(Official, AdminKey,
             if param("mode", "org") { Scope::Organization } else { Scope::Account },
             doc("https://docs.github.com/en/rest/billing/usage"),
-            "copilot_billing", "Uso e custo cobrados do Copilot pela API de billing do GitHub."),
+            "copilot_billing", "Billed Copilot usage and cost through GitHub's billing API."),
         Provider::Windsurf => enterprise(entry(Official, AdminKey, Scope::Organization,
             doc("https://docs.windsurf.com/windsurf/accounts/api-reference/get-team-credit-balance"),
-            "windsurf", "Créditos da equipe no ciclo pela API de contas do Windsurf.")),
+            "windsurf", "Team credits in the cycle through Windsurf's accounts API.")),
         Provider::MiniMax => entry(Undocumented, InferenceKey, Scope::Account, router!("minimax.js"),
-            "mini_max", "Janelas do Token/Coding Plan do MiniMax pelos endpoints usados pelo 9router."),
+            "mini_max", "MiniMax Token/Coding Plan windows through the endpoints 9router uses."),
         Provider::Kimi if oauth || param("product", "coding") => entry(Undocumented,
             if oauth { SubscriptionSession } else { InferenceKey }, Scope::Account, router!("kimi.js"),
-            "kimi_coding", "Quota semanal e rate limit do Kimi Coding pela interface interna da assinatura."),
+            "kimi_coding", "Kimi Coding weekly quota and rate limit through the subscription's internal interface."),
         Provider::Kimi => entry(Official, InferenceKey, Scope::Account,
             doc("https://platform.kimi.ai/docs/api/balance.md"),
-            "kimi", "Saldo da plataforma internacional do Kimi pelo endpoint de saldo documentado."),
+            "kimi", "Kimi international platform balance through the documented balance endpoint."),
         Provider::Qwen if oauth => unavailable(SubscriptionSession,
             doc("https://qwenlm.github.io/qwen-code-docs/en/users/configuration/auth/"),
             "qwen_oauth",
-            "Sessão Qwen Code OAuth.",
-            "Não há endpoint de quota confirmado para a sessão Qwen Code; o plano OAuth gratuito foi descontinuado."),
+            "Qwen Code OAuth session.",
+            "No quota endpoint is confirmed for the Qwen Code session; the free OAuth plan was discontinued."),
         Provider::Qwen => unavailable(InferenceKey,
             doc("https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-dashscope"), "qwen",
-            "Chave DashScope do Qwen.", "A chave DashScope só autentica inferência; não há consulta pública de quota para ela."),
+            "Qwen DashScope key.", "The DashScope key only authenticates inference; there is no public quota query for it."),
         Provider::Groq => entry(Derived, InferenceKey, Scope::Organization,
             doc("https://console.groq.com/docs/rate-limits"),
-            "groq", "Rate limits da organização lidos nos cabeçalhos x-ratelimit-* da listagem de modelos."),
+            "groq", "Organization rate limits read from the x-ratelimit-* headers of the model listing."),
         Provider::Perplexity if params.get("product").is_some_and(|v| v.eq_ignore_ascii_case("computer")) => enterprise(entry(Official, AdminKey, Scope::Organization,
             doc("https://docs.perplexity.ai/docs/admin/computer-analytics-api.md"),
-            "perplexity_computer", "Créditos da organização pela Analytics API do Perplexity Computer.")),
+            "perplexity_computer", "Organization credits through the Perplexity Computer Analytics API.")),
         Provider::Perplexity => unavailable(InferenceKey,
             doc("https://docs.perplexity.ai/docs/admin/computer-analytics-api.md"), "perplexity",
-            "Chave da API Sonar do Perplexity.",
-            "A API Sonar não tem consulta pública de saldo ou uso por chave; o Perplexity Computer usa a Analytics API (product = computer)."),
+            "Perplexity Sonar API key.",
+            "The Sonar API has no public balance or usage query per key; Perplexity Computer uses the Analytics API (product = computer)."),
         Provider::Mistral => enterprise(entry(Official, AdminKey, Scope::Organization,
             doc("https://docs.mistral.ai/admin/admin-api/usage-metrics.md"),
-            "mistral", "Limite de gasto da organização pela Admin API da Mistral.")),
+            "mistral", "Organization spend limit through Mistral's Admin API.")),
         Provider::CloudflareAi => unavailable(InferenceKey,
             doc("https://developers.cloudflare.com/workers-ai/platform/pricing/"), "cloudflare_ai",
-            "Chave do Cloudflare Workers AI.",
-            "O consumo de Neurons do Workers AI só aparece no painel; não há consulta pública por chave."),
+            "Cloudflare Workers AI key.",
+            "Workers AI Neuron usage is only shown in the dashboard; there is no public query per key."),
         Provider::OllamaCloud => entry(Undocumented, InferenceKey, Scope::Account, router!("misc.js"),
-            "ollama_cloud", "Relatório de uso do Ollama Cloud pela interface interna usada pelo 9router."),
+            "ollama_cloud", "Ollama Cloud usage report through the internal interface 9router uses."),
         Provider::XiaomiMimo => entry(Undocumented, UserSession, Scope::Account, router!("xiaomi-mimo.js"),
-            "xiaomi_mimo", "Quota semanal ou saldo do Xiaomi MiMo com o cookie de sessão da conta."),
+            "xiaomi_mimo", "Xiaomi MiMo weekly quota or balance with the account's session cookie."),
         Provider::OpenCodeGo => entry(Undocumented, InferenceKey, Scope::Account, router!("opencode-go.js"),
-            "open_code_go", "Percentuais contínuo, semanal e mensal do OpenCode Go pela interface interna de uso."),
+            "open_code_go", "OpenCode Go rolling, weekly and monthly percentages through the internal usage interface."),
         Provider::Qoder => entry(Undocumented, SubscriptionSession, Scope::Account, router!("misc.js"),
-            "qoder", "Quota do Qoder pela troca do PAT por token de job e a interface interna de uso."),
+            "qoder", "Qoder quota by exchanging the PAT for a job token and the internal usage interface."),
         Provider::GeminiAi if oauth || param("product", "cli") => entry(Undocumented, SubscriptionSession, Scope::Account,
-            router!("google.js"), "gemini_ai_cli", "Quota do Gemini CLI pela interface interna do Code Assist."),
+            router!("google.js"), "gemini_ai_cli", "Gemini CLI quota through the internal Code Assist interface."),
         Provider::GeminiAi => unavailable(InferenceKey,
             doc("https://ai.google.dev/gemini-api/docs/rate-limits"), "gemini_ai",
-            "Chave de API do AI Studio.",
-            "A chave do AI Studio não tem consulta pública de uso ou cota restante; use Gemini (Cloud Monitoring) ou o Gemini CLI."),
+            "AI Studio API key.",
+            "The AI Studio key has no public usage or remaining-quota query; use Gemini (Cloud Monitoring) or the Gemini CLI."),
         Provider::Grok if oauth || param("product", "cli") => entry(Undocumented, SubscriptionSession, Scope::Account,
-            router!("grok-cli.js"), "grok_cli", "Créditos e pool SuperGrok pela interface interna do Grok CLI."),
+            router!("grok-cli.js"), "grok_cli", "Credits and SuperGrok pool through the Grok CLI's internal interface."),
         Provider::Grok => entry(Official, AdminKey, Scope::Organization,
             doc("https://docs.x.ai/developers/rest-api-reference/management/billing.md"),
-            "grok", "Saldo pré-pago e fatura prevista da equipe pela Management API da xAI."),
+            "grok", "Team prepaid balance and invoice preview through the xAI Management API."),
         Provider::NvidiaNim => unavailable(InferenceKey,
             doc("https://docs.api.nvidia.com/nim/reference/llm-apis"), "nvidia_nim",
-            "Chave de inferência do NVIDIA NIM.",
-            "A cobrança fica na conta NVIDIA Cloud; não há consulta pública de saldo por chave de inferência."),
+            "NVIDIA NIM inference key.",
+            "Billing lives in the NVIDIA Cloud account; there is no public balance query per inference key."),
         Provider::Poolside => unavailable(InferenceKey,
             doc("https://docs.poolside.ai/api/overview.md"), "poolside",
-            "Chave de inferência do Poolside.",
-            "O endpoint de uso conhecido exige um token de administrador da plataforma, não a chave de inferência."),
+            "Poolside inference key.",
+            "The known usage endpoint needs a platform admin token, not the inference key."),
         Provider::Kiro => entry(Undocumented, SubscriptionSession, Scope::Account, router!("kiro.js"),
-            "kiro", "Créditos do Kiro pela interface interna getUsageLimits."),
+            "kiro", "Kiro credits through the internal getUsageLimits interface."),
         Provider::Cline => entry(Official, if oauth { SubscriptionSession } else { InferenceKey },
             if set("organization_id") { Scope::Organization } else { Scope::Account },
             doc("https://docs.cline.bot/enterprise-solutions/api-reference.md"),
-            "cline", "Saldo de créditos pessoal ou da organização pela API de contas do Cline."),
+            "cline", "Personal or organization credit balance through Cline's account API."),
         Provider::CodeBuddy => entry(Undocumented, SubscriptionSession, Scope::Account, router!("codebuddy-cn.js"),
-            "code_buddy", "Recursos e pacotes do CodeBuddy pela interface interna de billing."),
+            "code_buddy", "CodeBuddy resources and packages through the internal billing interface."),
         Provider::Zed => entry(Undocumented, SubscriptionSession, Scope::Account, router!("zed.js"),
-            "zed", "Uso do plano Zed pela interface interna do cliente."),
+            "zed", "Zed plan usage through the client's internal interface."),
         Provider::AlibabaModelStudio => unavailable(InferenceKey,
             doc("https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-dashscope"), "alibaba_model_studio",
-            "Chave de inferência do Model Studio.",
-            "A chave de inferência do Model Studio não dá acesso a uma consulta pública de saldo ou quota."),
+            "Model Studio inference key.",
+            "The Model Studio inference key gives no access to a public balance or quota query."),
         Provider::AlibabaCodingPlan => entry(Undocumented,
             if set("session_env") { UserSession } else { InferenceKey }, Scope::Account,
             Evidence::Reference("https://github.com/steipete/CodexBar/blob/main/Sources/CodexBarCore/Providers/Alibaba/AlibabaCodingPlanUsageFetcher.swift"),
-            "alibaba_coding_plan", "Uso de 5 h, semana e mês do Coding Plan pelo RPC interno do console."),
+            "alibaba_coding_plan", "5 h, weekly and monthly Coding Plan usage through the console's internal RPC."),
         Provider::AlibabaTokenPlan => entry(Undocumented,
             if set("session_env") { UserSession } else { LocalCli }, Scope::Account,
             Evidence::Reference("https://github.com/modelstudioai/cli/blob/main/packages/commands/src/commands/usage/token-plan.ts"),
-            "alibaba_token_plan", "Quota de 5 h e semana do Token Plan pelo CLI oficial ou pelo console do Qwen Cloud."),
+            "alibaba_token_plan", "5 h and weekly Token Plan quota through the official CLI or the Qwen Cloud console."),
         Provider::AlibabaCloud => entry(Official, CloudIdentity, Scope::WholeCloud,
             doc("https://www.alibabacloud.com/help/en/user-center/developer-reference/api-bssopenapi-2017-12-14-queryaccountbalance"),
-            "alibaba_cloud", "Saldo e fatura de todos os produtos da conta Alibaba Cloud pela BSS OpenAPI."),
+            "alibaba_cloud", "Balance and bill of every product of the Alibaba Cloud account through the BSS OpenAPI."),
         Provider::Antigravity => entry(Undocumented, SubscriptionSession, Scope::Account, router!("antigravity-weekly.js"),
-            "antigravity", "Quotas por modelo, sessão e semana do Antigravity pela interface interna do Code Assist."),
+            "antigravity", "Antigravity per-model, session and weekly quotas through the internal Code Assist interface."),
         Provider::Kimchi => entry(Undocumented, InferenceKey, Scope::Account,
             Evidence::Reference("https://github.com/getkimchi/kimchi/blob/36cc0406339a50f5ced984266d0306fb8a150408/src/extensions/billing/status.ts"),
-            "kimchi", "Saldo em USD e orçamentos do Kimchi pelo contrato do cliente oficial."),
+            "kimchi", "Kimchi USD balance and budgets through the official client's contract."),
         Provider::ElevenLabs => UsageAccess {
             verified_on: "2026-10-23",
             ..entry(Official, InferenceKey, Scope::Account,
                 doc("https://elevenlabs.io/docs/api-reference/user/subscription/get"),
-                "eleven_labs", "Créditos usados, limite do plano e próxima renovação pelo endpoint documentado de assinatura da ElevenLabs, mais uso extra quando habilitado.")
+                "eleven_labs", "Reads credits used, plan limit and next reset from the documented ElevenLabs subscription endpoint, plus extra usage when enabled.")
         },
         Provider::NineRouter => entry(Undocumented, AggregatorLogin, Scope::Instance,
             Evidence::Reference("https://github.com/decolua/9router/blob/f39d8f07481ae8518e93175f0ecaaafa61573c6c/src/dashboardGuard.js"),
-            "nine_router", "Quotas das conexões que você já adicionou na sua instância do 9router, lidas pelas rotas internas de gerenciamento dela."),
+            "nine_router", "Quotas of the connections you already added in your own 9router instance, read through its internal management routes."),
         Provider::OpenRouter => {
             let account = param("product", "account");
             let mut access = if account {
                 entry(Official, AdminKey, Scope::Account,
                     doc("https://openrouter.ai/docs/api/api-reference/credits/get-credits"),
-                    "open_router_account", "Saldo de créditos e gasto opcional por provedor de origem pelos endpoints documentados de gerenciamento da OpenRouter.")
+                    "open_router_account", "Credit balance and optional spend by upstream provider through the documented OpenRouter management endpoints.")
             } else {
                 entry(Official, InferenceKey, Scope::Account,
                     doc("https://openrouter.ai/docs/api/api-reference/api-keys/get-current-key"),
-                    "open_router", "Limite da chave, gasto por período e contador de requisições gratuitas pelo endpoint documentado da chave da OpenRouter.")
+                    "open_router", "Key limit, spend by period and the free-model request counter through the documented OpenRouter key endpoint.")
             };
             access.credential_hint = if account {
                 Localized::fixed(
                     "access.credential_hint.open_router_account",
-                    "Precisa de uma chave de gerenciamento da OpenRouter, que não faz chamadas de inferência; a visão padrão usa a chave de inferência.",
+                    "Needs an OpenRouter management key, which cannot make inference calls; the default view uses the inference key.",
                 )
             } else {
                 Localized::fixed(
                     "access.credential_hint.open_router",
-                    "Usa uma chave de inferência da OpenRouter e mostra apenas os números dessa chave, não o saldo da conta.",
+                    "Uses an OpenRouter inference key and shows only that key's numbers, not the account balance.",
                 )
             };
             if account {
                 access.risk = Localized::fixed(
                     "access.risk.open_router_management_key",
-                    "Uma chave de gerenciamento também cria e apaga chaves, então é mais poderosa que a de inferência: guarde-a no cofre do sistema, não num perfil de shell compartilhado.",
+                    "A management key can also create and delete keys, so it is more powerful than an inference key: keep it in the system vault, not in a shared shell profile.",
                 );
             }
             access
         }
         Provider::LiteLlm => entry(Official, AdminKey, Scope::Instance,
             doc("https://docs.litellm.ai/docs/proxy/provider_budget_routing"),
-            "litellm", "Orçamento e gasto em USD por provedor do seu proxy LiteLLM, pela rota documentada de orçamentos por provedor."),
+            "litellm", "USD budget and spend per provider of your LiteLLM proxy, through its documented provider budget route."),
         Provider::Extension => entry(Extension, LocalCli, Scope::Account,
             doc("https://github.com/jmarcon/cuotai/blob/main/docs/extensions.md"),
-            "extension", "Uso informado por uma extensão local aprovada pelo usuário."),
+            "extension", "Usage reported by a user-approved local extension."),
     };
     if provider == Provider::Extension {
         access.credential_hint = Localized::fixed(
             "access.credential_hint.extension",
-            "Recebe somente as variáveis de ambiente pedidas no manifesto e aprovadas pelo usuário.",
+            "Receives only the environment variables requested in the manifest and approved by the user.",
         );
     }
     if provider == Provider::NineRouter {
         access.risk = Localized::fixed(
             "access.risk.nine_router",
-            "Interface interna do 9router, sem documentação; ler o uso pode fazer o 9router renovar os logins dos provedores que ele guarda.",
+            "Internal, undocumented 9router interface; reading usage can make 9router renew the sign-ins of the providers it holds.",
         );
     }
     access.metered = provider.is_metered();
@@ -1202,7 +1200,7 @@ mod tests {
             ]);
             texts.extend(access.plan_requirement);
         }
-        for locale in ["en-US", "es", "it"] {
+        for locale in ["pt-BR", "es", "it"] {
             let catalog = crate::text::core_catalog(locale).expect("shipped catalog");
             let missing: BTreeSet<_> = texts
                 .iter()

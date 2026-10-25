@@ -86,7 +86,7 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
     if account.provider != Provider::AlibabaCloud {
         return Err(QueryError::unsupported(
             "query.alibaba_billing.unsupported_provider",
-            "Provedor não atendido pelo adaptador de faturamento Alibaba Cloud.",
+            "Provider not handled by the Alibaba Cloud billing adapter.",
         ));
     }
     let access_key_id = secret(account, ctx, DEFAULT_AK_ENV)?;
@@ -104,7 +104,7 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
             QueryError::config_params(
                 "query.alibaba_billing.missing_secret",
                 l10n_params([("env", ParamValue::from(secret_env.to_string()))]),
-                format!("Credencial ausente: {secret_env}"),
+                "Missing credential: {env}.",
             )
         })?;
     let security_token = match account
@@ -122,11 +122,7 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
                     QueryError::config_params(
                         "query.alibaba_billing.missing_security_token",
                         l10n_params([("env", ParamValue::from(env.to_string()))]),
-                        format!(
-                            "params.security_token_env referencia {env} mas a variável está ausente ou vazia. \
-                             Use STS apenas se estiver rotacionando AccessKey temporariamente; para AccessKey \
-                             permanente, remova params.security_token_env."
-                        ),
+                        "params.security_token_env references {env} but the variable is missing or empty. Use STS only if you are temporarily rotating the AccessKey; for a permanent AccessKey, remove params.security_token_env.",
                     )
                 })?,
         ),
@@ -177,9 +173,7 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
     } else {
         notes.push(
             "note.alibaba_billing.bill_not_requested",
-            "Fatura mensal não consultada: configure params.billing_cycle no formato YYYY-MM \
-             para somar o PreTaxAmount do mês. A BSS OpenAPI agrega todos os produtos da \
-             conta mestra; sem filtro explícito, não inferimos escopo \"apenas IA\".",
+            "Monthly bill not queried: configure params.billing_cycle in YYYY-MM to add up the PreTaxAmount for the month. The BSS OpenAPI aggregates every product of the master account; without an explicit filter, we do not infer an 'AI only' scope.",
         );
     }
 
@@ -188,7 +182,7 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
         notes,
         format!(
             "{PRODUCT} {VERSION} — QueryAccountBalance/QueryBill (HMAC-SHA1 RPC v1) \
-             endpoint {endpoint}. Documentação: \
+             endpoint {endpoint}. Documentation: \
              https://www.alibabacloud.com/help/en/finance/account-management/latest/api-bill-overview"
         ),
     ))
@@ -209,7 +203,7 @@ fn region_for(account: &Account) -> Result<&'static str, QueryError> {
         other => Err(QueryError::config_params(
             "query.alibaba_billing.invalid_region",
             l10n_params([("region", ParamValue::from(other.to_string()))]),
-            format!("params.region inválido ({other:?}); use \"intl\" ou \"cn\"."),
+            "params.region invalid ({region}); use \"intl\" or \"cn\".",
         )),
     }
 }
@@ -232,7 +226,7 @@ fn billing_cycle(account: &Account) -> Result<Option<String>, QueryError> {
     if trimmed.len() != 7 || trimmed.as_bytes()[4] != b'-' {
         return Err(QueryError::config(
             "query.alibaba_billing.invalid_billing_cycle_format",
-            "params.billing_cycle deve estar no formato YYYY-MM (ex.: 2026-09).",
+            "params.billing_cycle must be in the YYYY-MM format (e.g. 2026-09).",
         ));
     }
     let (y, m) = trimmed.split_at(4);
@@ -240,19 +234,19 @@ fn billing_cycle(account: &Account) -> Result<Option<String>, QueryError> {
     if !y.bytes().all(|b| b.is_ascii_digit()) || !month.bytes().all(|b| b.is_ascii_digit()) {
         return Err(QueryError::config(
             "query.alibaba_billing.invalid_billing_cycle_format",
-            "params.billing_cycle deve estar no formato YYYY-MM (ex.: 2026-09).",
+            "params.billing_cycle must be in the YYYY-MM format (e.g. 2026-09).",
         ));
     }
     let month_num: u32 = month.parse().map_err(|_| {
         QueryError::config(
             "query.alibaba_billing.invalid_billing_cycle_month",
-            "params.billing_cycle mês inválido.",
+            "params.billing_cycle month is invalid.",
         )
     })?;
     if !(1..=12).contains(&month_num) {
         return Err(QueryError::config(
             "query.alibaba_billing.billing_cycle_month_out_of_range",
-            "params.billing_cycle mês deve estar entre 01 e 12.",
+            "params.billing_cycle month must be between 01 and 12.",
         ));
     }
     Ok(Some(trimmed.to_string()))
@@ -511,21 +505,15 @@ async fn fetch_balance(
             ("product", ParamValue::from(PRODUCT)),
             ("version", ParamValue::from(VERSION)),
         ]),
-        format!(
-            "Endpoint fixo BSS OpenAPI {endpoint} (produto BssOpenApi, versão {VERSION}). \
-             Assinatura RPC v1 HMAC-SHA1: AccessKeyId e Signature trafegam no form-body \
-             da requisição; AccessKeySecret nunca sai do cliente."
-        ),
+        "Fixed BSS OpenAPI endpoint {endpoint} (BssOpenApi product, version {version}). RPC v1 HMAC-SHA1 signing: AccessKeyId and Signature travel in the request form body; the AccessKeySecret never leaves the client.",
     );
     notes.push(
         "note.alibaba_billing.decimal_currency",
-        "Campos monetários retornam como string decimal; moeda é a do cash account (CNY por padrão para conta mestra mainland).",
+        "Monetary fields come back as decimal strings; the currency is the cash account's (CNY by default for a mainland master account).",
     );
     notes.push(
         "note.alibaba_billing.balance_field_semantics",
-        "AvailableAmount = saldo disponível total (cash + credit + voucher + coupons). \
-         AvailableCashAmount = apenas dinheiro vivo. CreditAmount = limite total de crédito Alibaba \
-         (inclui Mybank como subset).",
+        "AvailableAmount = total available balance (cash + credit + voucher + coupons). AvailableCashAmount = cash only. CreditAmount = total Alibaba credit limit (includes Mybank as a subset).",
     );
     match (
         currency.as_deref(),
@@ -540,7 +528,7 @@ async fn fetch_balance(
                     ("account_id", ParamValue::from(id.to_string())),
                     ("billing_cycle", ParamValue::from(cycle.to_string())),
                 ]),
-                format!("Moeda: {c}. AccountID: {id}. BillingCycle corrente: {cycle}."),
+                "Currency: {currency}. AccountID: {account_id}. Current BillingCycle: {billing_cycle}.",
             );
         }
         (Some(c), Some(id), None) => {
@@ -550,7 +538,7 @@ async fn fetch_balance(
                     ("currency", ParamValue::from(c.to_string())),
                     ("account_id", ParamValue::from(id.to_string())),
                 ]),
-                format!("Moeda: {c}. AccountID: {id}."),
+                "Currency: {currency}. AccountID: {account_id}.",
             );
         }
         (Some(c), None, Some(cycle)) => {
@@ -560,13 +548,13 @@ async fn fetch_balance(
                     ("currency", ParamValue::from(c.to_string())),
                     ("billing_cycle", ParamValue::from(cycle.to_string())),
                 ]),
-                format!("Moeda: {c}. BillingCycle corrente: {cycle}."),
+                "Currency: {currency}. Current BillingCycle: {billing_cycle}.",
             );
         }
         (Some(c), None, None) => notes.push_params(
             "note.alibaba_billing.balance_metadata_currency",
             l10n_params([("currency", ParamValue::from(c.to_string()))]),
-            format!("Moeda: {c}."),
+            "Currency: {currency}.",
         ),
         (None, Some(id), Some(cycle)) => {
             notes.push_params(
@@ -575,19 +563,19 @@ async fn fetch_balance(
                     ("account_id", ParamValue::from(id.to_string())),
                     ("billing_cycle", ParamValue::from(cycle.to_string())),
                 ]),
-                format!("AccountID: {id}. BillingCycle corrente: {cycle}."),
+                "AccountID: {account_id}. Current BillingCycle: {billing_cycle}.",
             );
         }
         (None, Some(id), None) => notes.push_params(
             "note.alibaba_billing.balance_metadata_account",
             l10n_params([("account_id", ParamValue::from(id.to_string()))]),
-            format!("AccountID: {id}."),
+            "AccountID: {account_id}.",
         ),
         (None, None, Some(cycle)) => {
             notes.push_params(
                 "note.alibaba_billing.balance_metadata_cycle",
                 l10n_params([("billing_cycle", ParamValue::from(cycle.to_string()))]),
-                format!("BillingCycle corrente: {cycle}."),
+                "Current BillingCycle: {billing_cycle}.",
             );
         }
         (None, None, None) => {}
@@ -596,12 +584,12 @@ async fn fetch_balance(
         notes.push_params(
             "note.alibaba_billing.mybank_credit",
             l10n_params([("amount", ParamValue::from(m.to_string()))]),
-            format!("MybankCreditAmount: {} (subset do CreditAmount).", m),
+            "MybankCreditAmount: {amount} (subset of CreditAmount).",
         );
     } else {
         notes.push(
             "note.alibaba_billing.mybank_credit_missing",
-            "MybankCreditAmount não retornado pela BSS.",
+            "MybankCreditAmount not returned by the BSS.",
         );
     }
     let (notes, notes_l10n) = notes.finish();
@@ -838,21 +826,12 @@ async fn fetch_bill(
             ("total", ParamValue::from(declared as u64)),
             ("billing_cycle", ParamValue::from(billing_cycle.to_string())),
         ]),
-        format!(
-            "QueryBill paginou {} linhas em até {} páginas (TotalCount = {declared}). \
-             A BSS agrega todos os produtos da conta mestra no ciclo {billing_cycle}; \
-             não há dimensão \"apenas Model Studio\" — para separar IA, \
-             abra a fatura detalhada em usercenter2.aliyun.com.",
-            items_seen,
-            pages_walked + 1,
-        ),
+        "QueryBill paged {items} lines across up to {pages} pages (TotalCount = {total}). The BSS aggregates every product of the master account in cycle {billing_cycle}; there is no \"Model Studio only\" dimension — to separate AI, open the detailed bill at usercenter2.aliyun.com.",
     );
     if declared == 0 {
         notes.push(
             "note.alibaba_billing.bill_no_lines",
-            "A consulta não retornou linhas: a BSS não emite linhas de \
-             cobrança para o ciclo informado (ciclo pode estar em apuração \
-             ou a conta pode não ter movimento).",
+            "The query returned no lines: the BSS does not emit billing lines for the supplied cycle (the cycle may still be settling or the account has no activity).",
         );
     }
 
@@ -908,10 +887,7 @@ fn business_error(code: &str) -> QueryError {
         note: Localized::with_params(
             "query.alibaba_billing.business_error",
             l10n_params([("code", ParamValue::from(code.to_string()))]),
-            format!(
-                "BSS OpenAPI respondeu Code={code}. Verifique permissão BSS Read no \
-                 AccessKey da conta mestra."
-            ),
+            "BSS OpenAPI responded Code={code}. Check the BSS Read permission on the account's RAM role.",
         ),
     }
 }
@@ -1441,7 +1417,7 @@ mod tests {
         assert_eq!(metric.period.as_deref(), Some("ciclo 2026-09"));
         assert_eq!(metric.kind, MetricKind::Spend);
         assert_eq!(metric.window, Some(MetricWindow::Monthly));
-        assert!(report.notes[0].contains("1 linhas"));
+        assert!(report.notes[0].contains("1 lines"));
     }
 
     #[tokio::test]

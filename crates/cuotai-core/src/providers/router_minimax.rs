@@ -51,7 +51,7 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
         other => Err(QueryError::unsupported_params(
             "query.router_minimax.provider_handled_elsewhere",
             params([("provider", ParamValue::from(provider_l10n(other)))]),
-            format!("{} é consultado por outro adaptador.", other.label()),
+            "{provider} is handled by another adapter.",
         )),
     }
 }
@@ -362,7 +362,7 @@ async fn query_endpoint(ctx: &Context<'_>, key: &str, url: &str) -> Result<Data,
             status: Status::AuthenticationError,
             note: Localized::fixed(
                 "query.router_minimax.invalid_key",
-                "Chave MiniMax inválida ou inativa. Use uma chave ativa de Token/Coding Plan.",
+                "MiniMax key invalid or inactive. Use an active Token/Coding Plan key.",
             ),
         }));
     }
@@ -376,7 +376,7 @@ async fn query_endpoint(ctx: &Context<'_>, key: &str, url: &str) -> Result<Data,
                 note: Localized::with_params(
                     "query.router_minimax.rate_limited",
                     params([("code", ParamValue::from(code))]),
-                    "MiniMax limitou a consulta de uso (HTTP 429).",
+                    "MiniMax rate-limited the usage query (HTTP 429).",
                 ),
             }
         } else {
@@ -386,7 +386,7 @@ async fn query_endpoint(ctx: &Context<'_>, key: &str, url: &str) -> Result<Data,
                 note: Localized::with_params(
                     "query.router_minimax.http",
                     params([("code", ParamValue::from(code))]),
-                    format!("MiniMax conectado. Endpoint de uso respondeu HTTP {code}."),
+                    "MiniMax query returned HTTP {code}.",
                 ),
             }
         };
@@ -401,7 +401,7 @@ async fn query_endpoint(ctx: &Context<'_>, key: &str, url: &str) -> Result<Data,
             note: Localized::with_params(
                 "query.router_minimax.quota_error",
                 params([("code", ParamValue::from(code.to_string()))]),
-                format!("MiniMax respondeu erro de quota (código {code})."),
+                "MiniMax responded with quota error (code {code}).",
             ),
         }));
     }
@@ -414,7 +414,7 @@ async fn query_endpoint(ctx: &Context<'_>, key: &str, url: &str) -> Result<Data,
     if quota_models.is_empty() {
         return Err(Failure::fatal(QueryError::unsupported(
             "query.router_minimax.no_quota_data",
-            "MiniMax conectado. Nenhum dado de cota foi retornado.",
+            "MiniMax connected. No quota data was returned.",
         )));
     }
 
@@ -453,7 +453,7 @@ async fn query_endpoint(ctx: &Context<'_>, key: &str, url: &str) -> Result<Data,
     if metrics.is_empty() {
         return Err(Failure::fatal(QueryError::unsupported(
             "query.router_minimax.quota_unextractable",
-            "MiniMax conectado. Não foi possível extrair o uso de cota da resposta.",
+            "MiniMax connected. Could not extract quota usage from the response.",
         )));
     }
 
@@ -466,15 +466,11 @@ async fn query_endpoint(ctx: &Context<'_>, key: &str, url: &str) -> Result<Data,
     notes.push_params(
         "note.router_minimax.read_only_endpoint",
         params([("endpoint", ParamValue::from(endpoint))]),
-        format!(
-            "Consulta GET somente leitura em {endpoint}. Em /token_plan/remains os contadores \
-             *_usage_count são consumidos; em /coding_plan/remains são restantes."
-        ),
+        "Read-only GET query at {endpoint}. In /token_plan/remains the *_usage_count counters are consumed; in /coding_plan/remains they are remaining.",
     );
     notes.push(
         "note.router_minimax.percent_only_buckets",
-        "Baldes M-series (\"MiniMax-M*\" em respostas antigas, \"general\" nas novas) publicam \
-         apenas o percentual restante; exibidos como %, sem total de requisições.",
+        "MiniMax responded only with the plan percentage; `percent` is the USED fraction (0..1).",
     );
     // Capture the first reset timestamp the adapter actually derived so the
     // catalog template's `{reset_at}` placeholder resolves to a concrete
@@ -482,14 +478,11 @@ async fn query_endpoint(ctx: &Context<'_>, key: &str, url: &str) -> Result<Data,
     let first_reset = metrics.iter().find_map(|m| m.resets_at);
     let reset_text = first_reset
         .map(|t| t.to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
-        .unwrap_or_else(|| "epoch não disponível".to_string());
+        .unwrap_or_else(|| "epoch not available".to_string());
     notes.push_params(
         "note.router_minimax.reset_source",
         params([("reset_at", ParamValue::from(reset_text.clone()))]),
-        format!(
-            "resets_at: {reset_text}; calculado de remains_time (ms) quando presente, \
-             caso contrário end_time (epoch s/ms ou ISO 8601)."
-        ),
+        "Reset timestamp: {reset_at}; reported by the provider without timezone offset.",
     );
     Ok(Data::new(metrics, notes, REF))
 }
@@ -835,7 +828,7 @@ mod tests {
             .await
             .unwrap_err();
         assert!(matches!(err.status, Status::AuthenticationError));
-        assert!(err.note.fallback.contains("inválida ou inativa"));
+        assert!(err.note.fallback.contains("invalid or inactive"));
     }
 
     // base_resp.status_code 1004 ⇒ AuthenticationError, sem corpo cru.
@@ -904,7 +897,7 @@ mod tests {
             .await
             .unwrap_err();
         assert!(matches!(err.status, Status::Unsupported));
-        assert!(err.note.fallback.contains("Nenhum dado de cota"));
+        assert!(err.note.fallback.contains("No quota data"));
     }
 
     // 500 transitório em ambos os endpoints esgota o fallback e devolve o

@@ -589,7 +589,7 @@ export function fmtExtra(value, unit, currency) {
   }
   if (unit === "unid. provedor") {
     const n = fmtNumber(value);
-    return tl({ id: "overage.amount.provider_units", params: { value: n }, fallback: `${n} unid. provedor` });
+    return tl({ id: "overage.amount.provider_units", params: { value: n }, fallback: `${n} provider units` });
   }
   return `${fmtNumber(value)}${unit ? ` ${unit}` : ""}`;
 }
@@ -1028,15 +1028,15 @@ const demoReports = [
         state: "available", ratio: null, uncapped: true, no_cap: false }]),
     class: "exhausted", model_count: 1, plan: "Max",
     overage: { state: "active", spent: 6.25, unit: "USD", currency: "USD", cap: 50, cycle_ends_at: h(300),
-      text: { id: "overage.on_extra", params: { amount: "$6.25" }, fallback: "No extra · $6.25" },
-      summary: { id: "overage.limit_hit_on_extra", params: { amount: "$6.25" }, fallback: "Limite atingido · no extra $6.25" }, caveat: null } },
+      text: { id: "overage.on_extra", params: { amount: "$6.25" }, fallback: "On extra · $6.25" },
+      summary: { id: "overage.limit_hit_on_extra", params: { amount: "$6.25" }, fallback: "Limit hit · on extra $6.25" }, caveat: null } },
   // PRD 0010 RF3 fixtures: an aging reading (10 min against 300 s) and a failure that kept its last valid reading.
   { ...dr("alex@example.com", "chat_gpt", [dm("5h", 6, 100, 67.6, "quota", "window_5h", "%")]), checked_at: ago(10), freshness: "aging", plan: "Plus" },
   { ...dr("octo-dev", "copilot", [dm("chat", 0, 0, 2.6, "quota", "other"), dm("Premium requests", 7026, 7000, 2.6, "quota", "other")]), class: "exhausted" },
   { ...dr("Personal", "groq", [], ["Groq connected. No rate-limit data reported for this key yet."]), model_count: 4 },
   // PRD 0023 RF10.3 demo: the video model is at its limit (the core's `scope_blocks`); the account keeps its quota.
   { ...dr("Personal", "mini_max", [dm("M-series (5h)", 6, 100, 2.6, "quota", "window_5h"), dm("M-series (7d)", 60, 100, 98.6, "quota", "weekly"), dm("Video (5h)", 0, 100, 2.6, "quota", "window_5h")]),
-    scope_blocks: [{ index: 2, label: "Video", resets_at: h(2.6), text: { id: "metrics.scope_blocked", params: { model: "Video", at: new Date(h(2.6)).toTimeString().slice(0, 5) }, fallback: `Video no limite até ${new Date(h(2.6)).toTimeString().slice(0, 5)}` } }] },
+    scope_blocks: [{ index: 2, label: "Video", resets_at: h(2.6), text: { id: "metrics.scope_blocked", params: { model: "Video", at: new Date(h(2.6)).toTimeString().slice(0, 5) }, fallback: `Video at its limit until ${new Date(h(2.6)).toTimeString().slice(0, 5)}` } }] },
   dr("Account 2", "code_buddy", [dm("Monthly", 0, 100, 757, "quota", "monthly"), dm("Bonus Pack 1", 0, 250, 62, "quota", null)]),
   dr("Account 1", "kimi", [dm("Weekly", 100, 100, 109, "quota", "weekly"), dm("Ratelimit", 0, 100, 4.8, "rate_limit", "other")]),
   dr("Personal", "ollama_cloud", [dm("Monthly", 0, 100, 248, "quota", "monthly")]),
@@ -1053,7 +1053,7 @@ const demoReports = [
   // PRD 0005 RF4.2 fixtures: an Unavailable provider (no query) and an Undocumented one whose response broke the schema.
   drn("Work", "poolside", [], demoNote("poolside", "Poolside não publica endpoint de uso/saldo por chave."), "unsupported"),
   { ...dr("Personal", "zed", [], ["Resposta incompatível com a interface de consulta; nenhum valor foi estimado."], "error"),
-    notes_l10n: [{ id: "query.schema", params: {}, fallback: "Resposta incompatível com a interface de consulta; nenhum valor foi estimado." }] },
+    notes_l10n: [{ id: "query.schema", params: {}, fallback: "Response is incompatible with the query interface; no value was estimated." }] },
   // PRD 0010 RF2.3 fixture: just opened, no answer yet; the reading recorded 3 h ago shows as stale.
   { ...dr("Restored", "chat_gpt", []), pending: true, class: "unmeasured", checked_at: ago(180),
     last_good: { checked_at: ago(180), metrics: [dm("5h", 30, 100, 2, "quota", "window_5h", "%")] } },
@@ -1061,7 +1061,7 @@ const demoReports = [
   // RF3.2: its pasted session expires in 2 days (the card warns).
   { ...dr("Personal", "xiaomi_mimo", [dm("Weekly", 6, 100, 96, "quota", "weekly", "%")]),
     session_expiry: { expires_at: new Date(Date.now() + 2.5 * 86400000).toISOString(), days: 2, soon: true,
-      label: { id: "user_session.expiry.days", params: { days: 2 }, fallback: "Sessão expira em 2 dias." } } },
+      label: { id: "user_session.expiry.days", params: { days: 2 }, fallback: "Session expires in 2 days." } } },
 ];
 // PRD 0036 RF8 demo: a local 9router instance with four connections (two Claude, one of them exhausted; a Codex one
 // off in 9router; an unmapped GLM one whose query failed). `?aggregator=off` leaves it out.
@@ -1085,9 +1085,9 @@ if (new URLSearchParams(location.search).get("aggregator") !== "off") {
     aggregator: { kind: "9router", version: "0.5.109", host: "127.0.0.1:20128", available: 1, total: 3, connections: conns.length,
       pools: [
         { upstream: "claude", provider: "claude", available: 1, exhausted: 1, total: 2, returns_at: null,
-          summary: { id: "pool.available", params: { upstream: "Claude", available: "1", total: "2" }, fallback: "Claude · 1 de 2 disponíveis" } },
+          summary: { id: "pool.available", params: { upstream: "Claude", available: "1", total: "2" }, fallback: "Claude · 1 of 2 available" } },
         { upstream: "glm", provider: null, available: 0, exhausted: 0, total: 1, returns_at: null,
-          summary: { id: "pool.unmeasured", params: { upstream: "glm", total: "1" }, fallback: "glm · 1 conexões sem uso conhecido" } },
+          summary: { id: "pool.unmeasured", params: { upstream: "glm", total: "1" }, fallback: "glm · 1 connections with unknown usage" } },
       ],
       alert_each: false, dashboard: true } });
 }
@@ -1095,8 +1095,8 @@ if (new URLSearchParams(location.search).get("aggregator") !== "off") {
 // PRD 0027 RF6.4: the native-login detections of the core table (Kimi CLI, Grok CLI, Zed) for the demo picker.
 export const DEMO_NATIVE_DETECT = [["claude", "claude_cli", "Claude Code", "Claude Code"], ["chat_gpt", "codex_cli", "Codex CLI", "OpenAI Codex"], ["kimi", "kimi_cli", "Kimi Code CLI", "Kimi"], ["grok", "grok_cli", "Grok CLI", "Grok (xAI)"], ["zed", "zed", "Zed", "Zed"]];
 const DEMO_SESSION_SLOT = { slot: "platform_session_env",
-  label: { id: "user_session.slot.xiaomi_mimo.platform_session_env", params: {}, fallback: "Sessão web de platform.xiaomimimo.com (saldo e Token Plan)" },
-  instructions: { id: "user_session.instructions", params: { site: "platform.xiaomimimo.com" }, fallback: "Entre em platform.xiaomimimo.com no navegador. Nas ferramentas do desenvolvedor (F12), aba Rede, recarregue a página, escolha uma requisição a platform.xiaomimimo.com e copie o cabeçalho Cookie ou use \"Copiar como cURL\"; a tabela de cookies da aba Aplicativo também serve. Só os cookies desta sessão são guardados; o resto do texto colado é descartado." },
+  label: { id: "user_session.slot.xiaomi_mimo.platform_session_env", params: {}, fallback: "platform.xiaomimimo.com web session (balance and Token Plan)" },
+  instructions: { id: "user_session.instructions", params: { site: "platform.xiaomimimo.com" }, fallback: "Sign in to platform.xiaomimimo.com in your browser. In the developer tools (F12), Network tab, reload the page, pick a request to platform.xiaomimimo.com and copy its Cookie header or use \"Copy as cURL\"; the cookie table of the Application tab works too. Only this session's cookies are kept; the rest of the pasted text is discarded." },
   hosts: ["platform.xiaomimimo.com"] };
 // ponytail: fixed demo fixtures name their core-selected metric and rank explicitly; add a mocked backend when
 // the browser demo needs dynamic reports. This keeps binding choice rules out of the interface.
@@ -1118,14 +1118,14 @@ const demoBinding = (r) => {
 const hhmm = (iso) => new Date(iso).toLocaleTimeString(currentLocale(), { hour: "2-digit", minute: "2-digit" });
 const dp = (stage, tone, expected, used, resetH, runsOutH = null) => {
   const delta = (used - expected) * 100, points = String(Math.round(Math.abs(delta)));
-  const label = { reserve: { id: "pace.reserve", params: { delta: points }, fallback: `${points} pontos de reserva` },
-    on_pace: { id: "pace.on_pace", fallback: "No ritmo" }, ahead: { id: "pace.ahead", params: { delta: points }, fallback: `${points} pontos acima do ritmo` },
-    exhausted: { id: "pace.exhausted", fallback: "Limite atingido até a renovação" } }[stage];
+  const label = { reserve: { id: "pace.reserve", params: { delta: points }, fallback: `${points} points in reserve` },
+    on_pace: { id: "pace.on_pace", fallback: "On pace" }, ahead: { id: "pace.ahead", params: { delta: points }, fallback: `${points} points above the pace` },
+    exhausted: { id: "pace.exhausted", fallback: "Limit reached until the reset" } }[stage];
   const at = runsOutH == null ? null : h(runsOutH);
   const margin = runsOutH == null ? "" : legacyCountdown(h(resetH - runsOutH)).replace(/^(\d+d \d+h) \d+m$/, "$1");
   const outlook = stage === "exhausted" ? null : at
-    ? { id: "pace.runs_out_at", params: { at: hhmm(at), margin }, fallback: `acaba às ${hhmm(at)}, ${margin} antes da renovação` }
-    : { id: "pace.lasts_until_reset", fallback: "dura até a renovação" };
+    ? { id: "pace.runs_out_at", params: { at: hhmm(at), margin }, fallback: `runs out at ${hhmm(at)}, ${margin} before the reset` }
+    : { id: "pace.lasts_until_reset", fallback: "lasts until the reset" };
   // PRD 0024 RF1: the core's stage chip in both units, as `PaceView.chips` carries it (demo values).
   const pct = String(Math.min(999, Math.round((Math.abs(used - expected) / Math.max(expected, 0.01)) * 100)));
   const chip = (glyph, id, params, compact) => ({ glyph, text: { id, params, fallback: id }, compact, hint: null });
@@ -1150,8 +1150,8 @@ const demoForecast = (m, pace) => {
   const at = demoAt(pace.projected_exhaustion_at);
   const margin = legacyCountdown(new Date(new Date(m.resets_at).getTime() - new Date(pace.projected_exhaustion_at).getTime() + Date.now()).toISOString())?.replace(/^(\d+d \d+h) \d+m$/, "$1") ?? "";
   return { at,
-    callout: { id: "alerts.body.projected", params: { metric: m.label, at, margin }, fallback: `No ritmo atual ${m.label} acaba ≈${at}, ${margin} antes da renovação` },
-    chip: { glyph: "↑", text: { id: "pace.chip.runs_out", params: { at }, fallback: `Acaba às ≈${at}` }, compact: `≈${at}`, hint: null } };
+    callout: { id: "alerts.body.projected", params: { metric: m.label, at, margin }, fallback: `At this rate ${m.label} runs out ≈${at}, ${margin} before the reset` },
+    chip: { glyph: "↑", text: { id: "pace.chip.runs_out", params: { at }, fallback: `Runs out ≈${at}` }, compact: `≈${at}`, hint: null } };
 };
 // report index → [pace_index, { metric index: pace }]; windows that just opened (or not yet) have none, as in the core.
 const DEMO_PACES = new Map([
@@ -1176,7 +1176,7 @@ const demoView = () => {
   const reports = demoReports.map((r, index) => {
     const [paceIndex = null, paces = {}] = r.status === "ready" ? DEMO_PACES.get(r) ?? [] : [];
     const notify = !demoSettings.notify.off_accounts.includes(demoKey(r));
-    const metrics = r.metrics.map((m, i) => ({ ...m, pace: paces[i] ?? null, forecast: demoForecast(m, paces[i]), resets_label: m.resets_at && legacyCountdown(m.resets_at) ? { id: "resets.pair", params: { at: demoAt(m.resets_at), in: t("quota.resetsIn", { time: legacyCountdown(m.resets_at) }) }, fallback: `Renova ${demoAt(m.resets_at)}` } : null, alert: demoMetricAlert(r, m, notify) }));
+    const metrics = r.metrics.map((m, i) => ({ ...m, pace: paces[i] ?? null, forecast: demoForecast(m, paces[i]), resets_label: m.resets_at && legacyCountdown(m.resets_at) ? { id: "resets.pair", params: { at: demoAt(m.resets_at), in: t("quota.resetsIn", { time: legacyCountdown(m.resets_at) }) }, fallback: `Resets ${demoAt(m.resets_at)}` } : null, alert: demoMetricAlert(r, m, notify) }));
     const incident = demoIncident(r);
     // RF3 mirror: a failed query during an incident gains the core's note, its status unchanged.
     const note = incident && r.status !== "ready" && ["degraded", "partial_outage", "major_outage"].includes(incident.state) && DEMO_INCIDENT_NOTE;
@@ -1197,7 +1197,7 @@ const demoView = () => {
     started_at: now, finished_at: now, reports, busy: [], error: null, generation: demoSettings.generation,
     // `?history-warning` shows the size-ceiling warning (PRD 0006 RF4.3) the core would send.
     history_warning: new URLSearchParams(location.search).has("history-warning")
-      ? { id: "history.warning.ceiling", params: { max: "64", removed: "1200" }, fallback: "O histórico passou de 64 MiB: as 1200 medições mais antigas foram apagadas." }
+      ? { id: "history.warning.ceiling", params: { max: "64", removed: "1200" }, fallback: "The history went over 64 MiB: its 1200 oldest measurements were deleted." }
       : null,
     history_epoch: demoSettings.historyEpoch,
     notify: { enabled: demoSettings.notify.enabled, next: demoNextNotice(reports), alerts: demoSettings.alerts.enabled },
@@ -1237,9 +1237,9 @@ function demoServeView() {
   const state = !s.enabled ? "off" : taken ? "error" : "on";
   return { state, enabled: s.enabled, port: s.port, allow_browsers: s.allow_browsers, token: s.secret != null, stats: !!s.stats,
     url: state === "on" ? `http://127.0.0.1:${s.port}` : null,
-    error: taken ? { id: "serve.error.port_taken", params: { port: s.port }, fallback: `A porta ${s.port} está em uso; escolha outra porta para o servidor local.` } : null,
+    error: taken ? { id: "serve.error.port_taken", params: { port: s.port }, fallback: `Port ${s.port} is in use; choose another port for the local server.` } : null,
     cuotai_on_port: taken, default_port: 6738, port_min: 1024, port_max: 65535,
-    browsers_warning: { id: "serve.allow_browsers.warning", params: {}, fallback: "Com navegadores permitidos, qualquer página aberta no navegador pode ler seu uso no servidor local (com token, qualquer página que o conheça). Ative só se uma página sua precisa desses dados." } };
+    browsers_warning: { id: "serve.allow_browsers.warning", params: {}, fallback: "With browsers allowed, any page open in your browser can read your usage from the local server (with a token, any page that knows it). Turn it on only if a page of yours needs this data." } };
 }
 // ponytail: demo mirror of the widget snapshot (PRD 0014 RF4.1); nothing is written in the browser. `?widgets`
 // starts with publishing on, so the file path and the macOS prerequisites are visible as in the app.
@@ -1312,7 +1312,7 @@ const DEMO_INCIDENTS = {
   kimi: ["maintenance", "Scheduled database maintenance", "https://status.moonshot.cn/incidents/demo4", 0.5],
   grok: ["unknown"],
 };
-const DEMO_INCIDENT_NOTE = { id: "note.incident.ongoing", params: {}, fallback: "O provedor informa um incidente em andamento; a falha pode não ser da sua conta." };
+const DEMO_INCIDENT_NOTE = { id: "note.incident.ongoing", params: {}, fallback: "The provider reports an ongoing incident; the failure may not be from your account." };
 function demoIncident(r) {
   const host = DEMO_STATUS_HOSTS[r.provider];
   if (!demoSettings.statusQueries || !host) return null;
@@ -1354,10 +1354,10 @@ function demoNextNotice(reports) {
 const DEMO_ROUTER = "https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/";
 function demoAccess(r) {
   const level = demoLevelOf(r.provider);
-  const reason = level === "unavailable" ? dlx(`access.reason.${r.provider}`, "demo.access.reason", "Não há consulta pública de uso para esta credencial (demo).") : null;
+  const reason = level === "unavailable" ? dlx(`access.reason.${r.provider}`, "demo.access.reason", "No public usage query for this credential (demo).") : null;
   const url = level === "undocumented" ? `${DEMO_ROUTER}${r.provider}.js` : "https://example.com/docs (demo)";
   const changed = level === "undocumented" && r.status === "error" && r.notes_l10n?.some((n) => n.id === "query.schema")
-    ? { id: "access.interface_changed", params: { evidence: url }, fallback: `A resposta não segue a interface interna conhecida: ela pode ter mudado sem aviso. Contrato de referência: ${url}` }
+    ? { id: "access.interface_changed", params: { evidence: url }, fallback: `The response does not follow the known internal interface: it may have changed without notice. Reference contract: ${url}` }
     : null;
   return { level, label: demoLevel(level), summary: dlx(`access.summary.${r.provider}`, "demo.access.summary", "Consulta de uso de demonstração."), reason,
     evidence: { kind: level === "undocumented" ? "reference" : "documentation", url },
@@ -1367,10 +1367,10 @@ function demoAccess(r) {
 // from the vault until it is forgotten; the card mirrors `user_session::notice`.
 const demoSessionState = (r) => r.provider !== "xiaomi_mimo" || demoSettings.sessionForgotten.has(r) ? null
   : demoSettings.sessionMigrated.has(r) ? "vault" : "env";
-const demoSessionNotice = (state) => state && { level: dl("access.credential.user_session", "Sessão do usuário"),
+const demoSessionNotice = (state) => state && { level: dl("access.credential.user_session", "User session"),
   warning: state === "vault"
-    ? dl("user_session.warning", "Esta é uma sessão de login completa. O Cuotai a guarda no cofre do sistema e a usa só para consultar este serviço.")
-    : dl("user_session.warning_env", "Esta é uma sessão de login completa. O Cuotai a lê de uma variável de ambiente e a usa só para consultar este serviço; mova-a para o cofre do sistema no assistente da conta.") };
+    ? dl("user_session.warning", "This is a full login session. Cuotai stores it in the system vault and uses it only to query this service.")
+    : dl("user_session.warning_env", "This is a full login session. Cuotai reads it from an environment variable and uses it only to query this service; move it to the system vault in the account wizard.") };
 const demoSettings = { tray: { style: "tightest_percent", colored: false, accounts: null, popover_view: null }, advancedOpen: false,
   // `?first-run` shows the first-run step (PRD 0025 RF6) in the demo.
   onboarding: new URLSearchParams(location.search).has("first-run") ? 0 : 1,
@@ -1385,7 +1385,7 @@ const demoPermission = (on) => (!on ? "off" : new URLSearchParams(location.searc
 // nenhum catálogo inventado é exibido como real.
 const demoModels = async ({ index, generation }) => {
   if (generation !== demoSettings.generation) throw STALE;
-  if (!demoReports[index]) throw JSON.stringify({ id: "models.error.invalid_index", params: {}, fallback: "Conta inexistente nesta configuração." });
+  if (!demoReports[index]) throw JSON.stringify({ id: "models.error.invalid_index", params: {}, fallback: "Account does not exist in this configuration." });
   return { state: "unsupported", reason: { id: "models.demo", params: {}, fallback: "Demonstração no navegador: o catálogo de modelos só é consultado no app desktop." } };
 };
 // ponytail: demo mirror of `HistoryStore::account_history` + `MetricHistory::{trend, chart}` over synthetic samples:
@@ -1442,7 +1442,7 @@ function demoWindows(points, limit) {
 const demoHistory = async ({ index, generation, range, metricKey }) => {
   if (generation !== demoSettings.generation) throw STALE;
   const r = demoReports[index];
-  if (!r) throw JSON.stringify({ id: "models.error.invalid_index", params: {}, fallback: "Conta inexistente nesta configuração." });
+  if (!r) throw JSON.stringify({ id: "models.error.invalid_index", params: {}, fallback: "Account does not exist in this configuration." });
   const to = Date.now(), from = to - SPANS[range] * DAY_MS;
   const erased = demoSettings.historyErased.has("all") || demoSettings.historyErased.has(index);
   const metrics = erased ? [] : (r.metrics.length ? r.metrics : r.last_good?.metrics ?? []).map((m, i) => {
@@ -1458,10 +1458,10 @@ const demoHistory = async ({ index, generation, range, metricKey }) => {
 };
 // ponytail: demo mirror of `stats::summarize` and `resets::timeline` over the synthetic history above (the wave of
 // `demoWave`, a day missing 5 to 6 days ago) and the demo view's binding metrics. The app reads the real files.
-const demoRemoved = { id: "journal.removed_account", params: {}, fallback: "Conta removida" };
+const demoRemoved = { id: "journal.removed_account", params: {}, fallback: "Removed account" };
 const demoStats = async ({ range, account, generation }) => {
   if (generation !== demoSettings.generation) throw STALE;
-  if (account != null && !demoReports[account]) throw JSON.stringify({ id: "models.error.invalid_index", params: {}, fallback: "Conta inexistente nesta configuração." });
+  if (account != null && !demoReports[account]) throw JSON.stringify({ id: "models.error.invalid_index", params: {}, fallback: "Account does not exist in this configuration." });
   const days = range === "days30" ? 30 : 7;
   const erased = demoSettings.historyErased.has("all");
   const indexes = account != null ? [account] : demoReports.map((_, i) => i).filter((i) => demoReports[i].metrics.some((m) => m.limit));
@@ -1483,17 +1483,17 @@ const demoStats = async ({ range, account, generation }) => {
   const averages = accounts.map((a) => a.average_peak).filter((x) => x != null);
   const now = Date.now(), at = (hoursAgo) => new Date(now - hoursAgo * 36e5).toISOString();
   const events = erased ? [] : [
-    { occurred_at: at(2), kind: "quota_threshold_crossed", account: demoReports[0].account, summary: { id: "events.summary.quota_threshold_crossed", params: { metric: "Gemini (5h)", threshold: 90 }, fallback: "Gemini (5h): 90% usado" } },
-    { occurred_at: at(4), kind: "quota_threshold_crossed", account: "work@example.com", parent: demoReports[0].account, is_connection: true, summary: { id: "events.summary.quota_threshold_crossed", params: { metric: "weekly (7d)", threshold: 80 }, fallback: "weekly (7d): 80% usado" } },
-    { occurred_at: at(7), kind: "quota_reset", account: demoReports[1].account, summary: { id: "events.summary.quota_reset", params: { metric: "session (5h)" }, fallback: "session (5h): janela renovada" } },
-    { occurred_at: at(30), kind: "quota_exhausted", account: demoReports[1].account, summary: { id: "events.summary.quota_exhausted", params: { metric: "weekly (7d)" }, fallback: "weekly (7d): cota esgotada" } },
-    { occurred_at: at(55), kind: "refresh_failed", account: null, summary: { id: "events.summary.refresh_failed", params: { category: { id: "events.category.provider_error", params: {}, fallback: "erro do provedor" } }, fallback: "Falha na consulta: erro do provedor" } },
+    { occurred_at: at(2), kind: "quota_threshold_crossed", account: demoReports[0].account, summary: { id: "events.summary.quota_threshold_crossed", params: { metric: "Gemini (5h)", threshold: 90 }, fallback: "Gemini (5h): 90% used" } },
+    { occurred_at: at(4), kind: "quota_threshold_crossed", account: "work@example.com", parent: demoReports[0].account, is_connection: true, summary: { id: "events.summary.quota_threshold_crossed", params: { metric: "weekly (7d)", threshold: 80 }, fallback: "weekly (7d): 80% used" } },
+    { occurred_at: at(7), kind: "quota_reset", account: demoReports[1].account, summary: { id: "events.summary.quota_reset", params: { metric: "session (5h)" }, fallback: "session (5h): window reset" } },
+    { occurred_at: at(30), kind: "quota_exhausted", account: demoReports[1].account, summary: { id: "events.summary.quota_exhausted", params: { metric: "weekly (7d)" }, fallback: "weekly (7d): quota exhausted" } },
+    { occurred_at: at(55), kind: "refresh_failed", account: null, summary: { id: "events.summary.refresh_failed", params: { category: { id: "events.category.provider_error", params: {}, fallback: "provider error" } }, fallback: "Refresh failed: provider error" } },
   ].filter((e) => account == null || e.account === demoReports[account].account);
   return { summary: { range, hits: accounts.reduce((a, x) => a + x.hits, 0), average_peak: averages.length ? averages.reduce((a, x) => a + x, 0) / averages.length : null,
       accounts, extra_spent: account == null && !erased ? [{ unit: "USD", amount: 6.25 }] : null, daily: dailyAll, unknown_limits: 0,
       retention_days: 90, first_sample_at: at(24 * 10), coverage: withData < 2 ? { kind: "not_enough" } : withData === days ? { kind: "full" } : { kind: "partial", days_with_data: withData } },
-    indexes, history_kept: { id: "stats.history_kept", params: { days: 90 }, fallback: "Histórico mantido por 90 dias neste dispositivo" },
-    not_enough: { id: "stats.not_enough", params: {}, fallback: "Histórico insuficiente" }, removed_account: demoRemoved, events, recording: demoSettings.historyRecording };
+    indexes, history_kept: { id: "stats.history_kept", params: { days: 90 }, fallback: "History kept 90 days on this device" },
+    not_enough: { id: "stats.not_enough", params: {}, fallback: "Not enough history" }, removed_account: demoRemoved, events, recording: demoSettings.historyRecording };
 };
 const demoTimeline = async ({ range, generation }) => {
   if (generation !== demoSettings.generation) throw STALE;
@@ -1513,7 +1513,7 @@ const demoTimeline = async ({ range, generation }) => {
 // off (erasing what was derived), the chosen directories, the period, the retention, the background scan's last
 // summary and the RF4 summary (synthetic days and models; one model without a price). `?cost-paused` plays a computer
 // in energy-saving mode and `?cost-noaccess` a Claude Code directory the system refuses. Core texts keep their
-// Portuguese fallback here (no core catalog in the demo).
+// English fallback here (the core's source language).
 const DEMO_COST = {
   claude_code: { label: "Claude Code", pattern: "**/*.jsonl", dirs: ["/Users/demo/.config/claude/projects", "/Users/demo/.claude/projects"], files: 12,
     providers: ["claude"], models: { "claude-sonnet-4-5-20250929": { entry: "claude-sonnet-4-5", input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }, "claude-haiku-5-5": null } },
@@ -1605,7 +1605,7 @@ const demoCostUsage = () => {
     const state = id === "claude_code" && noAccess ? "no_access" : "ready";
     const note = state === "no_access"
       ? demoL10n("cost.view.no_access", { source: s.label }, `${s.label}: sem acesso aos diretórios dos logs; nada foi contornado. Os números são os que o índice já tinha.`)
-      : period.models.length ? null : demoL10n("cost.view.empty", { source: s.label, period: periodLabel }, `${s.label}: nenhum uso nos logs lidos (${periodLabel.fallback}).`);
+      : period.models.length ? null : demoL10n("cost.view.empty", { source: s.label, period: periodLabel }, `${s.label}: no usage in the logs read (${periodLabel.fallback}).`);
     return { ...base, state, note, usage: { today: demoEstimate(rowsOf(0)), yesterday: demoEstimate(rowsOf(1)), period, days: period.models.length ? days : [] } };
   });
   const label = demoL10n(`cost.period.${demoCost.period}`, {}, DEMO_PERIODS[demoCost.period]);
@@ -1727,12 +1727,12 @@ const demo = {
   },
   provider_modes: async ({ provider }) => [demoPickerEntry(provider, brand(provider))],
   detect_sources: async () => (demoSettings.detect.enabled ? [{ provider: "cursor", kind: "cursor_app", mode: "oauth",
-    hint: { id: "detect.hint", params: { tool: "Cursor" }, fallback: "Cursor está instalado neste dispositivo" },
-    consent: { id: "detect.consent.cursor_import", params: {}, fallback: "O Cuotai vai ler uma vez o token de login do banco local do Cursor." } },
+    hint: { id: "detect.hint", params: { tool: "Cursor" }, fallback: "Cursor is installed on this device" },
+    consent: { id: "detect.consent.cursor_import", params: {}, fallback: "Cuotai will read the sign-in token from Cursor's local database once, to query your usage. It is stored in your system's credential vault." } },
     ...DEMO_NATIVE_DETECT.map(([provider, kind, tool, name]) => ({ provider, kind, mode: "oauth",
-      hint: { id: "detect.hint", params: { tool }, fallback: `${tool} está instalado neste dispositivo` },
+      hint: { id: "detect.hint", params: { tool }, fallback: `${tool} is installed on this device` },
       consent: { id: "detect.consent.native_login", params: { provider: name, tool },
-        fallback: `O Cuotai vai abrir o login de ${name}; nada é lido da pasta de ${tool}.` } }))]
+        fallback: `Cuotai will open the ${name} sign-in; nothing is read from ${tool}'s folder.` } }))]
     .filter((d) => !demoSettings.detect.dismissed.includes(d.kind)) : []),
   set_detect_enabled: async ({ on }) => { demoSettings.detect.enabled = on; },
   dismiss_detected: async ({ kind }) => { demoSettings.detect.dismissed.push(kind); },
@@ -1744,13 +1744,13 @@ const demo = {
   // ponytail: demo mirror of `access` for the browser (default modes only, generic pt summary); the app asks the core.
   draft_access: async ({ provider }) => {
     const level = demoLevelOf(provider);
-    const reason = level === "unavailable" ? dlx(`access.reason.${provider}`, "demo.access.reason", "Não há consulta pública de uso para esta credencial (demo).") : null;
+    const reason = level === "unavailable" ? dlx(`access.reason.${provider}`, "demo.access.reason", "No public usage query for this credential (demo).") : null;
     return {
       level: demoLevel(level),
       summary: dlx(`access.summary.${provider}`, "demo.access.summary", "Consulta de uso de demonstração."),
       notes: [dlx(`access.credential_hint.${level === "official" ? "admin_key" : "inference_key"}`, "demo.access.credential_hint", "Credencial da consulta (demo)."), ...(reason ? [reason] : [])],
       cost_advisory: provider === "aws_bedrock" ? dlx("access.cost_advisory", "demo.access.cost_advisory", "Provedor cobrado por consulta (demo).") : null,
-      save_confirmation: reason && { id: "access.confirm_unavailable", params: { reason }, fallback: `${reason.fallback} A conta será gravada, mas mostrará este motivo em vez de números.` },
+      save_confirmation: reason && { id: "access.confirm_unavailable", params: { reason }, fallback: `${reason.fallback} The account will be saved, but it will show this reason instead of numbers.` },
     };
   },
   form_schema: async ({ provider }) => provider === "kiro" ? demoKiroSchema() : ({ credential_kind: "env", default_env: "DEMO_API_KEY",
@@ -1783,14 +1783,14 @@ const demo = {
     const r = demoReports[index];
     const state = demoSessionState(r);
     const sessionOffer = state === "env";
-    const label = { id: "user_session.slot.xiaomi_mimo.platform_session_env", params: {}, fallback: "Sessão web de platform.xiaomimimo.com (saldo e Token Plan)" };
+    const label = { id: "user_session.slot.xiaomi_mimo.platform_session_env", params: {}, fallback: "platform.xiaomimimo.com web session (balance and Token Plan)" };
     const hosts = ["platform.xiaomimimo.com"];
     return { name: r.account, provider: r.provider, credential: "DEMO_API_KEY",
       interval: "", group: "", uses_oauth: false, native_login: false, auth_mode: "credential", auth_options: {}, auth_registration: {}, fields: [{ key: "project_id", text: "", choice: null }, { key: "mode", text: null, choice: 0 }],
       session_slots: state === "vault" ? ["platform_session_env"] : [],
       session_migration: sessionOffer ? [{ slot: "platform_session_env", env: "MIMO_COOKIE", label, hosts,
         consent: { id: "user_session.migrate.consent", params: { label, env: "MIMO_COOKIE", hosts: hosts.join(", ") },
-          fallback: `${label.fallback}: copiar o valor de MIMO_COOKIE para o cofre do sistema e tirar MIMO_COOKIE do TOML. A sessão só é enviada a ${hosts.join(", ")}; a variável continua no seu ambiente até você removê-la.` } }] : [] };
+          fallback: `${label.fallback}: copy the value of MIMO_COOKIE into the system vault and remove MIMO_COOKIE from the TOML. The session is only sent to ${hosts.join(", ")}; the variable stays in your environment until you remove it.` } }] : [] };
   },
   migrate_session: async ({ index }) => {
     demoSettings.sessionMigrated.add(demoReports[index]);
@@ -1809,19 +1809,19 @@ const demo = {
   preview_session: async ({ paste }) => {
     const names = paste.replace(/^cookie:/i, "").split(";").map((p) => p.split("=")[0].trim()).filter(Boolean);
     const kept = ["api-platform_serviceToken", "userId"].filter((n) => names.includes(n));
-    if (kept.length < 2) throw JSON.stringify({ id: "user_session.paste.missing", params: { names: "api-platform_serviceToken, userId" }, fallback: "Faltam cookies desta sessão: api-platform_serviceToken, userId." });
+    if (kept.length < 2) throw JSON.stringify({ id: "user_session.paste.missing", params: { names: "api-platform_serviceToken, userId" }, fallback: "This session's cookies are missing: api-platform_serviceToken, userId." });
     const discarded = names.length - kept.length;
-    const expiry = { id: "user_session.expiry.unknown", params: {}, fallback: "Validade desconhecida." };
-    return { kept, discarded, expiry: null, summary: { id: "user_session.paste.summary", params: { kept: kept.join(", "), discarded, expiry }, fallback: `Guardados: ${kept.join(", ")}. Descartados: ${discarded}. Validade desconhecida.` } };
+    const expiry = { id: "user_session.expiry.unknown", params: {}, fallback: "Validity unknown." };
+    return { kept, discarded, expiry: null, summary: { id: "user_session.paste.summary", params: { kept: kept.join(", "), discarded, expiry }, fallback: `Kept: ${kept.join(", ")}. Discarded: ${discarded}. Validity unknown.` } };
   },
   open_aggregator_dashboard: async () => {},
   // PRD 0036 RF2.2: the demo instance answers like a local 9router with three connections.
   test_aggregator: async ({ input }) => {
     const base = (input.fields ?? []).find((f) => f.key === "base_url")?.text ?? "";
     if (base && !/^https?:\/\//.test(base)) {
-      return { ok: false, message: { id: "test.nine_router.unreachable", params: {}, fallback: "Não foi possível acessar o endereço informado." } };
+      return { ok: false, message: { id: "test.nine_router.unreachable", params: {}, fallback: "The address could not be reached." } };
     }
-    return { ok: true, message: { id: "test.nine_router.connected", params: { connections: 3, version: "0.5.109" }, fallback: "9router 0.5.109: 3 conexões com uso encontradas." } };
+    return { ok: true, message: { id: "test.nine_router.connected", params: { connections: 3, version: "0.5.109" }, fallback: "9router 0.5.109: 3 connections with usage found." } };
   },
   test_session: async ({ input }) => {
     await demo.preview_session({ paste: input.sessions?.[0]?.paste ?? "" });
@@ -1831,10 +1831,10 @@ const demo = {
     window.__lastSaveRequest = input;
     // PRD 0029 RF3: the core rule — a name is needed only beside another account of the provider.
     const others = demoReports.filter((x, i) => i !== input.index && x.provider === input.provider);
-    if (!input.name.trim() && others.length) throw JSON.stringify({ id: "edit_error.name_required_same_provider", params: { provider: { id: `provider.${input.provider}`, params: {}, fallback: input.provider } }, fallback: "Dê um nome a esta conta: você tem outra conta do provedor." });
+    if (!input.name.trim() && others.length) throw JSON.stringify({ id: "edit_error.name_required_same_provider", params: { provider: { id: `provider.${input.provider}`, params: {}, fallback: input.provider } }, fallback: "Name this account: you have another account of the provider." });
     const peer = input.index == null ? others.find((x) => !x.account.trim()) : null;
     if (peer) {
-      if (!input.peerName?.trim()) throw JSON.stringify({ id: "edit_error.name_required", field: "peer_name", params: {}, fallback: "Informe um nome para a conta." });
+      if (!input.peerName?.trim()) throw JSON.stringify({ id: "edit_error.name_required", field: "peer_name", params: {}, fallback: "Set a name for the account." });
       peer.account = input.peerName.trim();
     }
     const r = dr(input.name.trim(), input.provider, [dm("Exemplo", 10, 100, 5, "quota", null)]);
@@ -1863,7 +1863,7 @@ const demo = {
     return { outcome: !oauth ? "removed" : purge ? "purged" : "kept", other_account: null, message: null };
   },
   set_refresh_seconds: async ({ seconds }) => {
-    if (seconds < 30) throw JSON.stringify({ id: "edit_error.config_bounds", params: {}, fallback: "refresh_seconds deve ser >= 30." });
+    if (seconds < 30) throw JSON.stringify({ id: "edit_error.config_bounds", params: {}, fallback: "refresh_seconds must be >= 30." });
     demoSettings.refresh = seconds;
     demoSettings.generation++;
   },
@@ -1940,7 +1940,7 @@ const demo = {
   delete_widget_data: async () => { demoSettings.widgets.written = false; },
   revoke_serve_token: async () => { demoSettings.serve.secret = null; return demoServeView(); },
   copy_serve_token: async () => {
-    if (demoSettings.serve.secret == null) throw JSON.stringify({ id: "serve.error.token_missing", params: {}, fallback: "O token do servidor local não está mais no cofre do sistema; gere um novo ou revogue o token." });
+    if (demoSettings.serve.secret == null) throw JSON.stringify({ id: "serve.error.token_missing", params: {}, fallback: "The local server token is no longer in the system vault; generate a new one or revoke the token." });
     return demoSettings.serve.secret;
   },
   cost_status: async () => demoCostView(),
@@ -2141,11 +2141,11 @@ const demo = {
   // Demonstração: amostra do histórico (no app, o core entrega o changelog embutido).
   whats_new: async () => ({
     current: "demo",
-    title: { id: "changelog.title", params: {}, fallback: "Novidades" },
-    entries_language: { id: "changelog.entries_language", params: {}, fallback: "As entradas são mantidas em inglês, o idioma do changelog." },
+    title: { id: "changelog.title", params: {}, fallback: "What's new" },
+    entries_language: { id: "changelog.entries_language", params: {}, fallback: "The entries stay in English, the language of the changelog." },
     releases: [
       { version: "demo", date: "2026-10-25", current: true, paragraphs: [], categories: [
-        { label: { id: "changelog.category.added", params: {}, fallback: "Adicionado" }, entries: ["Sample entry for the What's new screen in the browser demo."] },
+        { label: { id: "changelog.category.added", params: {}, fallback: "Added" }, entries: ["Sample entry for the What's new screen in the browser demo."] },
       ] },
     ],
     history: null,
@@ -2458,16 +2458,16 @@ const DEMO_GATEWAYS = ["nine_router", "litellm"];
 // Providers the core classes as browser sign-in (a native login exists), shown first in the demo picker.
 const DEMO_BROWSER = ["claude", "chat_gpt", "cursor", "copilot", "antigravity", "windsurf", "kimi", "grok", "kiro", "zed"];
 const demoPickerEntry = (id, b) => ({ provider: id, label: b.label, mode: null, ...(DEMO_GATEWAYS.includes(id)
-    ? { method: "self_hosted_gateway", method_label: { id: "catalog.method.self_hosted_gateway", params: {}, fallback: "Gateway auto-hospedado" } }
+    ? { method: "self_hosted_gateway", method_label: { id: "catalog.method.self_hosted_gateway", params: {}, fallback: "Self-hosted gateway" } }
     : DEMO_BROWSER.includes(id)
-      ? { method: "browser_sign_in", method_label: { id: "catalog.method.browser_sign_in", params: {}, fallback: "Entrar pelo navegador" } }
-      : { method: "api_key", method_label: { id: "catalog.method.api_key", params: {}, fallback: "Chave de API" } }),
-  hint: DEMO_BROWSER.includes(id) ? { id: "catalog.hint.browser_sign_in", params: {}, fallback: "Entre pelo navegador" }
-    : { id: "catalog.hint.api_key", params: {}, fallback: "Chave de API" }, metered: id === "aws_bedrock", recommended: true });
+      ? { method: "browser_sign_in", method_label: { id: "catalog.method.browser_sign_in", params: {}, fallback: "Sign in with the browser" } }
+      : { method: "api_key", method_label: { id: "catalog.method.api_key", params: {}, fallback: "API key" } }),
+  hint: DEMO_BROWSER.includes(id) ? { id: "catalog.hint.browser_sign_in", params: {}, fallback: "Sign in with the browser" }
+    : { id: "catalog.hint.api_key", params: {}, fallback: "API key" }, metered: id === "aws_bedrock", recommended: true });
 const DEMO_METHOD_ORDER = ["browser_sign_in", "api_key", "self_hosted_gateway"];
 const DEMO_NO_QUERY = ["qwen", "cloudflare_ai", "nvidia_nim", "poolside", "alibaba_model_studio"];
 const demoLevelOf = (provider) => Object.keys(DEMO_LEVELS).find((level) => DEMO_LEVELS[level].includes(provider)) ?? "undocumented";
-const demoLevel = (level) => dl(`access.level.${level}`, { official: "Oficial", undocumented: "Não documentada", derived: "Derivada", unavailable: "Indisponível" }[level]);
+const demoLevel = (level) => dl(`access.level.${level}`, { official: "Official", undocumented: "Undocumented", derived: "Derived", unavailable: "Unavailable" }[level]);
 function demoKiroSchema() {
   const opts = (key, items) => items.map(([value, label], index) => ({ id: `${key}.${value}`, index, value, label: dl(`${key}.${value}`, label) }));
   return {

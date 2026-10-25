@@ -192,8 +192,9 @@ fn session_pastes(provider: Provider) -> Vec<SessionPaste> {
 
 struct Field {
     key: &'static str,
-    label: &'static str,
-    help: &'static str,
+    /// The descriptor label and help resolved in the TUI locale.
+    label: String,
+    help: String,
     required: bool,
     kind: FieldKind,
 }
@@ -209,7 +210,7 @@ enum FieldKind {
 }
 
 impl Field {
-    fn text(key: &'static str, label: &'static str, help: &'static str, required: bool) -> Self {
+    fn text(key: &'static str, label: String, help: String, required: bool) -> Self {
         Self {
             key,
             label,
@@ -220,8 +221,8 @@ impl Field {
     }
     fn choice(
         key: &'static str,
-        label: &'static str,
-        help: &'static str,
+        label: String,
+        help: String,
         options: Vec<edit::FieldOption>,
         selected: usize,
     ) -> Self {
@@ -423,7 +424,7 @@ impl Wizard {
         let notice = (!notices.is_empty()).then(|| {
             notices
                 .iter()
-                .map(|notice| notice.text())
+                .map(crate::ui::resolve_l10n)
                 .collect::<Vec<_>>()
                 .join("\n")
         });
@@ -909,7 +910,7 @@ impl Wizard {
                     self.notice = (!notices.is_empty()).then(|| {
                         notices
                             .iter()
-                            .map(|notice| notice.text())
+                            .map(crate::ui::resolve_l10n)
                             .collect::<Vec<_>>()
                             .join("\n")
                     });
@@ -1093,7 +1094,7 @@ impl Wizard {
         self.notice = (!notices.is_empty()).then(|| {
             notices
                 .iter()
-                .map(|notice| notice.text())
+                .map(crate::ui::resolve_l10n)
                 .collect::<Vec<_>>()
                 .join("\n")
         });
@@ -1205,7 +1206,7 @@ impl Wizard {
         if self.login_idx + 1 < self.login_rows() {
             if let Some(field) = self.login_fields.get(self.login_idx) {
                 if let Err(error) = field.option.validate(&field.value()) {
-                    self.error = Some(error.to_string());
+                    self.error = Some(crate::ui::resolve_l10n(&error.l10n()));
                     return Action::Continue;
                 }
             }
@@ -1230,7 +1231,7 @@ impl Wizard {
         };
         for field in &self.login_fields {
             if let Err(error) = field.option.validate(&field.value()) {
-                self.error = Some(error.to_string());
+                self.error = Some(crate::ui::resolve_l10n(&error.l10n()));
                 return Action::Continue;
             }
         }
@@ -1259,7 +1260,7 @@ impl Wizard {
             result,
             self.external_login_params.is_some(),
         )
-        .map_err(|error| error.to_string())
+        .map_err(|error| crate::ui::resolve_l10n(&error.l10n()))
     }
 
     pub(crate) fn login_finished(&mut self, config: OAuthConfig, params: BTreeMap<String, String>) {
@@ -1281,7 +1282,7 @@ impl Wizard {
         self.error = None;
         self.notice = Some(
             self.selected_mode()
-                .map(|mode| mode.completion_notice.to_string())
+                .map(|mode| crate::ui::resolve_l10n(&mode.completion_notice))
                 .unwrap_or_else(|| "Login autorizado.".into()),
         );
         if self.step == Step::Credential {
@@ -1294,7 +1295,7 @@ impl Wizard {
         self.error = None;
         self.notice = Some(
             self.selected_mode()
-                .map(|mode| mode.completion_notice.to_string())
+                .map(|mode| crate::ui::resolve_l10n(&mode.completion_notice))
                 .unwrap_or_else(|| "Login concluído.".into()),
         );
         if self.step == Step::Credential {
@@ -1832,10 +1833,7 @@ impl Wizard {
                     let value = value.trim();
                     if value.is_empty() {
                         if descriptor.map(|d| d.required).unwrap_or(false) {
-                            return Err(format!(
-                                "{} é obrigatório.",
-                                descriptor.map(|d| d.label).unwrap_or(field.label)
-                            ));
+                            return Err(format!("{} é obrigatório.", field.label));
                         }
                         return Ok(()); // opcional em branco é removido só ao salvar
                     }
@@ -1846,7 +1844,7 @@ impl Wizard {
                         }
                     }
                     return edit::validate_param(field.key, value, &known)
-                        .map_err(|note| note.to_string());
+                        .map_err(|note| crate::ui::resolve_l10n(&note));
                 }
                 Ok(())
             }
@@ -1866,15 +1864,14 @@ impl Wizard {
             }
             _ => Ok(()),
         };
-        result.map_err(|note| note.to_string())
+        result.map_err(|note| crate::ui::resolve_l10n(&note))
     }
 
     fn parse_interval(&self) -> Result<Option<u64>, cuotai_core::text::Localized> {
         // Delegates the parsing rules to the core account-edit module so the
         // bounds stay in sync with `Config::validate`. The wizard contributes
-        // only the user-typed text. The TUI renders the Portuguese fallback
-        // directly; the RF8 structured note (stable id + params) is unused
-        // here but exposed by the core for the desktop catalog resolution.
+        // only the user-typed text; the TUI resolves the core's structured
+        // note (stable id + params) in its locale.
         edit::parse_refresh_seconds(&self.interval)
     }
 
@@ -2192,13 +2189,13 @@ impl Wizard {
             Some(peer) => self
                 .base
                 .rename_account(peer, &self.peer_name)
-                .map_err(|e| e.to_string())?,
+                .map_err(|e| crate::ui::resolve_l10n(&e.l10n()))?,
             None => self.base.clone(),
         };
-        let account =
-            edit::build_account(&draft, &base, self.editing).map_err(|e| e.to_string())?;
+        let account = edit::build_account(&draft, &base, self.editing)
+            .map_err(|e| crate::ui::resolve_l10n(&e.l10n()))?;
         base.upsert_account(account, self.editing)
-            .map_err(|e| e.to_string())
+            .map_err(|e| crate::ui::resolve_l10n(&e.l10n()))
     }
 
     fn summary_lines(&self, path: &Path) -> Vec<Line<'static>> {
@@ -2222,7 +2219,7 @@ impl Wizard {
             edit::switched_oauth_notice(&self.base, &after, index)
         }) {
             lines.push(Line::from(Span::styled(
-                note.text().to_owned(),
+                crate::ui::resolve_l10n(&note),
                 Style::default().fg(DRACULA_YELLOW),
             )));
         }
@@ -2243,7 +2240,7 @@ impl Wizard {
                 };
             lines.push(Line::from(vec![
                 Span::styled("Autenticação: ", dim),
-                Span::raw(mode.label.to_string()),
+                Span::raw(crate::ui::resolve_l10n(&mode.label)),
                 Span::raw("  "),
                 Span::styled(status, Style::default().fg(color)),
             ]));
@@ -2848,7 +2845,7 @@ impl Wizard {
                 } else {
                     " "
                 },
-                mode.label
+                crate::ui::resolve_l10n(&mode.label)
             )));
         }
         // RF5.1: the other ways to connect, each with its core hint.
@@ -2866,7 +2863,7 @@ impl Wizard {
         lines.push(Line::default());
         if let Some(mode) = self.selected_mode() {
             lines.push(Line::from(Span::styled(
-                mode.help.to_string(),
+                crate::ui::resolve_l10n(&mode.help),
                 Style::default().fg(DRACULA_COMMENT),
             )));
             lines.push(Line::default());
@@ -2886,21 +2883,21 @@ impl Wizard {
                         .choices
                         .as_ref()
                         .and_then(|choices| choices.get(*selected))
-                        .map(|choice| choice.label.to_string())
+                        .map(|choice| crate::ui::resolve_l10n(&choice.label))
                         .unwrap_or_default(),
                 };
                 lines.push(Line::from(Span::styled(
                     format!(
                         "{}{}: {}",
                         if current { "▶ " } else { "  " },
-                        field.option.label,
+                        crate::ui::resolve_l10n(&field.option.label),
                         value
                     ),
                     style,
                 )));
                 if current {
                     lines.push(Line::from(Span::styled(
-                        format!("    {}", field.option.help),
+                        format!("    {}", crate::ui::resolve_l10n(&field.option.help)),
                         Style::default().fg(DRACULA_COMMENT),
                     )));
                 }
@@ -3021,7 +3018,10 @@ impl Wizard {
             let value = match &field.kind {
                 FieldKind::Text(v) => crate::ui::safe(v).into_owned(),
                 FieldKind::Choice { options, selected } => {
-                    format!("< {} >", options[*selected].label)
+                    format!(
+                        "< {} >",
+                        option_label(self.provider, field.key, &options[*selected])
+                    )
                 }
             };
             lines.push(Line::from(Span::styled(
@@ -3347,6 +3347,31 @@ fn default_fields(
     (fields, notices)
 }
 
+/// The label and help of a core field descriptor in the TUI locale.
+fn descriptor_texts(provider: Provider, descriptor: &edit::FieldDescriptor) -> (String, String) {
+    let resolve = |id: String, fallback: &'static str| {
+        crate::ui::resolve_l10n(&cuotai_core::text::Localized::fixed(id, fallback))
+    };
+    (
+        resolve(
+            edit::field_label_id(provider, descriptor.key),
+            descriptor.label,
+        ),
+        resolve(
+            edit::field_help_id(provider, descriptor.key),
+            descriptor.help,
+        ),
+    )
+}
+
+/// A choice option's label in the TUI locale.
+fn option_label(provider: Provider, key: &str, option: &edit::FieldOption) -> String {
+    crate::ui::resolve_l10n(&cuotai_core::text::Localized::fixed(
+        edit::field_option_id(provider, key, option.value),
+        option.label,
+    ))
+}
+
 fn descriptor_to_field(
     provider: Provider,
     descriptor: &edit::FieldDescriptor,
@@ -3356,12 +3381,8 @@ fn descriptor_to_field(
     let existing_value = existing.and_then(|account| account.params.get(descriptor.key));
     match descriptor.kind {
         edit::FieldDescriptorKind::Text => {
-            let mut field = Field::text(
-                descriptor.key,
-                descriptor.label,
-                descriptor.help,
-                descriptor.required,
-            );
+            let (label, help) = descriptor_texts(provider, descriptor);
+            let mut field = Field::text(descriptor.key, label, help, descriptor.required);
             if let Some(value) = existing_value {
                 field.kind = FieldKind::Text(value.clone());
             }
@@ -3383,13 +3404,10 @@ fn descriptor_to_field(
                 .position(|option| option.index == resolved.option.index)
                 .expect("resolved choice belongs to the filtered option list");
             (
-                Field::choice(
-                    descriptor.key,
-                    descriptor.label,
-                    descriptor.help,
-                    mode_options.options,
-                    selected,
-                ),
+                {
+                    let (label, help) = descriptor_texts(provider, descriptor);
+                    Field::choice(descriptor.key, label, help, mode_options.options, selected)
+                },
                 resolved.notice,
             )
         }

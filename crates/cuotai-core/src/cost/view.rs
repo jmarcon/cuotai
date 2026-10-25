@@ -59,7 +59,7 @@ impl Span {
                 "cost.span.days",
                 "days",
                 u64::from(days),
-                format!("Últimos {days} dias"),
+                "Last {days} days",
             ),
         }
     }
@@ -227,7 +227,7 @@ pub fn prices_age_text(days: u32) -> Localized {
         "cost.prices.age",
         "days",
         u64::from(days),
-        format!("Preços de {days} dias atrás"),
+        "Prices from {days} days ago",
     )
 }
 
@@ -238,7 +238,7 @@ pub fn unpriced_text(models: &[String]) -> Localized {
         "cost.prices.unpriced",
         "models",
         list.as_str(),
-        format!("Sem preço para: {list}"),
+        "No price for: {models}",
     )
 }
 
@@ -344,36 +344,27 @@ fn source_cost(
                 ("source", label.into()),
                 ("period", ParamValue::l10n(input.span.label())),
             ]),
-            format!(
-                "{label}: nenhum uso nos logs lidos ({}).",
-                input.span.label().fallback
-            ),
+            "{source}: no usage in the logs read ({period}).",
         )),
         CostState::Ready | CostState::Off => None,
         CostState::Partial => Some(Localized::with_param(
             "cost.view.partial",
             "source",
             label,
-            format!("{label}: a leitura dos logs ainda não terminou; os números podem crescer."),
+            "{source}: reading the logs has not finished yet; the numbers may still grow.",
         )),
         CostState::NoLogs => Some(no_logs_text(label)),
         CostState::NoAccess => Some(Localized::with_param(
             "cost.view.no_access",
             "source",
             label,
-            format!(
-                "{label}: sem acesso aos diretórios dos logs; nada foi contornado. Os números são \
-                 os que o índice já tinha."
-            ),
+            "{source}: no access to the log directories; nothing was worked around. The numbers are what the index already held.",
         )),
         CostState::NotRead => Some(Localized::with_param(
             "cost.view.not_read",
             "source",
             label,
-            format!(
-                "{label}: os logs ainda não foram lidos nesta execução; os números são os que o \
-                 índice já tinha."
-            ),
+            "{source}: the logs were not read yet in this run; the numbers are what the index already held.",
         )),
     };
     let days = breakdown(
@@ -522,23 +513,18 @@ pub fn usage_line(
     unknown: &Tokens,
 ) -> Localized {
     let label = label.into();
-    let shown = |value: &ParamValue| match value {
-        ParamValue::Text(text) => text.clone(),
-        ParamValue::L10n(text) => text.fallback.to_string(),
-    };
-    let fallback_label = shown(&label);
     let count = compact_tokens(tokens.total());
     let hidden = compact_tokens(unknown.total());
     match cost {
         _ if tokens.total() == 0 => Localized::with_params(
             "cost.line.none",
             params([("label", label)]),
-            format!("{fallback_label}: sem uso"),
+            "{label}: no usage",
         ),
         None => Localized::with_params(
             "cost.line.unknown",
             params([("label", label), ("tokens", count.as_str().into())]),
-            format!("{fallback_label}: {count} tokens · custo desconhecido"),
+            "{label}: {tokens} tokens · unknown cost",
         ),
         Some(cost) if unknown.total() > 0 => Localized::with_params(
             "cost.line.partial",
@@ -548,9 +534,7 @@ pub fn usage_line(
                 ("cost", cost.to_string().into()),
                 ("unknown", hidden.as_str().into()),
             ]),
-            format!(
-                "{fallback_label}: {count} tokens · {cost} + custo desconhecido de {hidden} tokens"
-            ),
+            "{label}: {tokens} tokens · {cost} + unknown cost of {unknown} tokens",
         ),
         Some(cost) => Localized::with_params(
             "cost.line.priced",
@@ -559,7 +543,7 @@ pub fn usage_line(
                 ("tokens", count.as_str().into()),
                 ("cost", cost.to_string().into()),
             ]),
-            format!("{fallback_label}: {count} tokens · {cost}"),
+            "{label}: {tokens} tokens · {cost}",
         ),
     }
 }
@@ -585,7 +569,7 @@ impl ModelEstimate {
 
 /// "Yesterday", beside [`Period::Today`]'s label.
 pub fn yesterday_label() -> Localized {
-    Localized::fixed("cost.view.yesterday", "Ontem")
+    Localized::fixed("cost.view.yesterday", "Yesterday")
 }
 
 /// The heading of a source's section: "Local usage of Claude Code on this
@@ -596,7 +580,7 @@ pub fn heading(source: SourceId) -> Localized {
         "cost.view.heading",
         "source",
         label,
-        format!("Uso local do {label} neste computador"),
+        "Local usage of {source} on this computer",
     )
 }
 
@@ -605,21 +589,20 @@ pub fn by_model_heading(span: &SpanView) -> Localized {
     Localized::with_params(
         "cost.view.by_model",
         params([("period", ParamValue::l10n(span.label.clone()))]),
-        format!("Por modelo ({})", span.label.fallback),
+        "By model ({period})",
     )
 }
 
 /// The heading of the breakdown by day.
 pub fn by_day_heading() -> Localized {
-    Localized::fixed("cost.view.by_day", "Por dia")
+    Localized::fixed("cost.view.by_day", "By day")
 }
 
 /// How to turn a source on from a terminal.
 pub fn enable_hint() -> Localized {
     Localized::fixed(
         "cost.view.enable_hint",
-        "Para ligar uma fonte: cuotai --cost-sources mostra o que cada uma lê e cuotai \
-         --cost-enable FONTE pede a confirmação.",
+        "To turn a source on: cuotai --cost-sources shows what each one reads and cuotai --cost-enable SOURCE asks for the confirmation.",
     )
 }
 
@@ -769,7 +752,7 @@ mod tests {
         assert!(at(59).prices_age.is_none());
         assert_eq!(
             at(60).prices_age.unwrap().fallback,
-            "Preços de 60 dias atrás"
+            "Prices from 60 days ago"
         );
         let old = at(400);
         assert_eq!(old.prices_age_days, Some(400));
@@ -790,7 +773,7 @@ mod tests {
         assert_eq!(s.unpriced_models, ["another", "mine", "mystery"]);
         assert_eq!(
             s.unpriced.unwrap().fallback,
-            "Sem preço para: another, mine, mystery"
+            "No price for: another, mine, mystery"
         );
         let none = summary(Span::Period(Period::Today), &[], &[], None);
         assert!(none.unpriced.is_none() && none.prices_age_days.is_none());

@@ -144,12 +144,12 @@ impl DisplayCurrency {
         let (id, fallback) = if ask {
             (
                 "cost.display.line_stale",
-                format!("≈ {amount} no seu câmbio (definido há {days} dias); atualize o câmbio"),
+                "≈ {amount} at your rate (set {days} days ago); update your rate",
             )
         } else {
             (
                 "cost.display.line",
-                format!("≈ {amount} no seu câmbio (definido há {days} dias)"),
+                "≈ {amount} at your rate (set {days} days ago)",
             )
         };
         Localized::with_params(
@@ -378,15 +378,10 @@ fn plan_text(
             "cost.plan.combined",
             "source",
             label,
-            format!("Contas do {label}"),
+            "{source} accounts",
         ))
     } else {
         label.into()
-    };
-    let source_fallback = if combined {
-        format!("Contas do {label}")
-    } else {
-        label.to_owned()
     };
     let plans_text = plans
         .iter()
@@ -397,9 +392,7 @@ fn plan_text(
         return Localized::with_params(
             "cost.plan.unknown",
             params([("source", source), ("plans", plans_text.as_str().into())]),
-            format!(
-                "{source_fallback}: custo a preços de API desconhecido (modelos sem preço) · plano {plans_text}"
-            ),
+            "{source}: cost at API prices unknown (models without a price) · plan {plans}",
         );
     };
     let amount = if partial {
@@ -407,15 +400,10 @@ fn plan_text(
             "cost.plan.partial",
             "amount",
             estimate.to_string(),
-            format!("{estimate}, sem os modelos sem preço"),
+            "{amount}, without the models that have no price",
         ))
     } else {
         estimate.to_string().as_str().into()
-    };
-    let amount_fallback = if partial {
-        format!("{estimate}, sem os modelos sem preço")
-    } else {
-        estimate.to_string()
     };
     let base = params([
         ("source", source),
@@ -433,18 +421,17 @@ fn plan_text(
                     "cost.plan.ratio"
                 },
                 all,
-                format!(
-                    "{source_fallback}: ≈ {amount_fallback} a preços de API (estimativa) · plano {plans_text} · ≈ {ratio:.1}× o preço do plano{}",
-                    if at_your_rate { ", no seu câmbio" } else { "" }
-                ),
+                if at_your_rate {
+                    "{source}: ≈ {estimate} at API prices (estimate) · plan {plans} · ≈ {ratio}× the plan price, at your rate"
+                } else {
+                    "{source}: ≈ {estimate} at API prices (estimate) · plan {plans} · ≈ {ratio}× the plan price"
+                },
             )
         }
         None => Localized::with_params(
             "cost.plan.side",
             base,
-            format!(
-                "{source_fallback}: ≈ {amount_fallback} a preços de API (estimativa) · plano {plans_text}"
-            ),
+            "{source}: ≈ {estimate} at API prices (estimate) · plan {plans}",
         ),
     }
 }
@@ -554,7 +541,7 @@ mod tests {
         assert_eq!(v[0].estimate.unwrap().as_usd(), 150.0, "September is out");
         assert_eq!(v[0].ratio, Some(1.5));
         assert_eq!(v[0].text.id, "cost.plan.ratio");
-        assert!(v[0].text.fallback.contains("estimativa"));
+        assert!(v[0].text.fallback.contains("estimate"));
     }
 
     #[test]
@@ -609,7 +596,7 @@ mod tests {
         assert_eq!(v[0].accounts, ["a", "b"]);
         assert_eq!(v[0].plans.len(), 1);
         assert_eq!(v[0].plans[0].price, 200.0);
-        assert!(v[0].text.fallback.starts_with("Contas do Claude Code"));
+        assert!(v[0].text.fallback.starts_with("Claude Code accounts"));
     }
 
     /// PRD 0029 RF2: a plan saved under the account id applies, and so does
@@ -738,7 +725,7 @@ mod tests {
         let fresh = rate.text(usd, day(10, 20));
         assert_eq!(fresh.id, "cost.display.line");
         assert!(fresh.fallback.contains("BRL 1149.04"), "{}", fresh.fallback);
-        assert!(fresh.fallback.contains("12 dias"));
+        assert!(fresh.fallback.contains("12 days"));
         let old = rate.text(usd, day(11, 20));
         assert_eq!(old.id, "cost.display.line_stale");
         assert_eq!(rate.age_days(day(10, 1)), 0);

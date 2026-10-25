@@ -66,14 +66,7 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
                 ("dashscope_docs", ParamValue::from(QWEN_DASHSCOPE_DOCS_URL)),
                 ("billing_docs", ParamValue::from(QWEN_BILLING_DOCS_URL)),
             ]),
-            format!(
-                "Qwen / Alibaba DashScope Model Studio (QWEN_API_KEY) não concede acesso ao \
-                 saldo de cobrança da conta. A chave autoriza apenas inferência via \
-                 /api/v1/services/aigc/...; o saldo Alibaba Cloud requer \
-                 QueryAccountBalance (Financial Management API), autenticada com \
-                 AccessKey ID/Secret da conta mestre. Fontes primárias: {} e {}",
-                QWEN_DASHSCOPE_DOCS_URL, QWEN_BILLING_DOCS_URL
-            ),
+            "Qwen / Alibaba DashScope Model Studio (QWEN_API_KEY) does not grant access to the account's billing balance. The key only authorises inference via /api/v1/services/aigc/...; the Alibaba Cloud balance requires QueryAccountBalance (Financial Management API), authenticated with the master account's AccessKey ID/Secret. Primary sources: {dashscope_docs} and {billing_docs}",
         )),
         other => Err(QueryError::unsupported_params(
             "query.asia.other_provider",
@@ -81,7 +74,7 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
                 "provider",
                 ParamValue::from(crate::text::provider_l10n(other)),
             )]),
-            format!("{} é consultado por outro adaptador.", other.label()),
+            "{provider} is handled by another adapter.",
         )),
     }
 }
@@ -120,10 +113,7 @@ fn minimax_check_base(resp: &MinimaxBaseResp) -> Result<(), QueryError> {
             note: Localized::with_params(
                 "query.minimax.balance_status",
                 params([("code", ParamValue::from(resp.status_code.to_string()))]),
-                format!(
-                    "MiniMax respondeu base_resp.status_code={} na verificação de saldo.",
-                    resp.status_code
-                ),
+                "MiniMax responded base_resp.status_code={code} on the balance probe.",
             ),
         })
     }
@@ -168,24 +158,24 @@ async fn minimax_balance_at(
     notes.push_params(
         "note.minimax.balance_endpoint",
         params([("endpoint", ParamValue::from(MINIMAX_ACCOUNT_BALANCE_URL))]),
-        format!(
-            "Chave pay-as-you-go (sk-api-…): consulta do saldo da conta em {}.",
-            MINIMAX_ACCOUNT_BALANCE_URL
-        ),
+        "Pay-as-you-go key (sk-api-…): account balance query at {endpoint}.",
     );
     notes.push(
         "note.minimax.currency_undocumented",
-        "A moeda retornada por /account/query_balance não é documentada explicitamente; o rótulo é neutro (—) para não inferir a unidade.",
+        "The currency returned by /account/query_balance is not explicitly documented; the label stays neutral (—) so the unit is not inferred.",
     );
-    let alert = if resp.balance_alert_switch {
-        "ativado"
+    let state = if resp.balance_alert_switch {
+        Localized::fixed("note.minimax.balance_alert.on", "on")
     } else {
-        "desativado"
+        Localized::fixed("note.minimax.balance_alert.off", "off")
     };
     notes.push_params(
         "note.minimax.balance_alert",
-        params([("enabled", ParamValue::from(resp.balance_alert_switch))]),
-        format!("Alerta de saldo: {alert}."),
+        params([
+            ("enabled", ParamValue::from(resp.balance_alert_switch)),
+            ("state", state.into()),
+        ]),
+        "Balance alert: {state}.",
     );
     Ok(Data::new(
         vec![
@@ -338,15 +328,15 @@ async fn kimi_at(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
     let mut notes = Notes::new();
     notes.push(
         "note.kimi.platform_key_scope",
-        "A chave da plataforma.kimi.ai é independente da plataforma.kimi.com (assinatura Kimi Code/Membership); usar a chave em outro endpoint retorna 401.",
+        "kimi.com / kimi.ai platform key is independent of the kimi.com membership quota; use the key on the platform endpoint.",
     );
     notes.push(
         "note.kimi.balance_semantics",
-        "Valores em USD por documentação oficial; cash_balance pode ser negativo (dívida) — voucher não.",
+        "Cash balance may be negative (debt); voucher balance is always non-negative.",
     );
     notes.push(
         "note.kimi.no_membership_quota_endpoint",
-        "Sem endpoint público de cota Kimi Code/Membership com esta chave; a consulta de uso da assinatura fica restrita ao console e ao CLI proprietario.",
+        "Without this key there is no public endpoint for the Kimi Code/Membership quota with this key; subscription usage remains restricted to the console and the proprietary CLI.",
     );
     Ok(Data::new(metrics, notes, KIMI_BALANCE_URL))
 }
@@ -459,7 +449,7 @@ mod tests {
         for index in [2, 3] {
             assert_eq!(data.metrics[index].kind, MetricKind::Credits);
         }
-        assert!(data.notes.iter().any(|n| n.contains("ativado")));
+        assert!(data.notes.iter().any(|n| n == "Balance alert: on."));
         assert_eq!(data.source, MINIMAX_ACCOUNT_BALANCE_URL);
     }
 

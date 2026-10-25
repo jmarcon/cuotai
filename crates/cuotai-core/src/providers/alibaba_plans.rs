@@ -146,7 +146,7 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
                 "provider",
                 ParamValue::L10n(Box::new(crate::text::provider_l10n(other))),
             )]),
-            format!("{} é consultado por outro adaptador.", other.label()),
+            "{provider} is handled by another adapter.",
         )),
     }
 }
@@ -173,7 +173,7 @@ fn parse_region(account: &Account) -> Result<Region, QueryError> {
         other => Err(QueryError::config_params(
             "query.alibaba_plans.invalid_region",
             params([("region", ParamValue::from(other.to_string()))]),
-            format!("params.region '{other}' inválido para Alibaba; use 'intl' (padrão) ou 'cn'."),
+            "params.region '{region}' invalid for Alibaba; use 'intl' (default) or 'cn'.",
         )),
     }
 }
@@ -218,22 +218,7 @@ async fn alibaba_model_studio(account: &Account, ctx: &Context<'_>) -> Result<Da
             ("dashscope_docs", ParamValue::from(DASHSCOPE_INFERENCE_DOCS)),
             ("billing_docs", ParamValue::from(ALIBABA_CLOUD_BILL_DOCS)),
         ]),
-        format!(
-            "Alibaba Model Studio / DashScope (DASHSCOPE_API_KEY ou QWEN_API_KEY) não concede \
-             acesso a endpoint público de saldo ou cota de billing. A chave de inferência \
-             (sk-…) autoriza apenas POST em {infer_base} e rotas OpenAI/Anthropic compatíveis; \
-             o saldo real da conta Alibaba Cloud requer AccessKey ID/Secret da conta mestre \
-             via QueryAccountBalance (Financial Management API) e é tratado pelo adaptador \
-             AlibabaCloud. Os limites da camada gratuita e o consumo do Model Studio estão \
-             disponíveis apenas no painel autenticado: camada gratuita em {free_quota_url} \
-             e uso detalhado em {usage_url}. Fontes primárias: {dashscope_docs} (inferência) \
-             e {billing_docs} (saldo da conta).",
-            infer_base = infer_base(region),
-            free_quota_url = free_quota_url,
-            usage_url = usage_url,
-            dashscope_docs = DASHSCOPE_INFERENCE_DOCS,
-            billing_docs = ALIBABA_CLOUD_BILL_DOCS,
-        ),
+        "Alibaba Model Studio / DashScope (DASHSCOPE_API_KEY or QWEN_API_KEY) does not grant access to a public balance or billing quota endpoint. The inference key (sk-…) only authorises POST to {infer_base} and OpenAI/Anthropic-compatible routes; the real Alibaba Cloud account balance requires the master account's AccessKey ID/Secret via QueryAccountBalance (Financial Management API) and is handled by the AlibabaCloud adapter. The free-tier limits and Model Studio consumption are only available in the authenticated console: free tier at {free_quota_url} and detailed usage at {usage_url}. Primary sources: {dashscope_docs} (inference) and {billing_docs} (account balance).",
     ))
 }
 
@@ -331,17 +316,17 @@ fn http_error(code: reqwest::StatusCode, session: bool) -> QueryError {
         (true, 401 | 403) => Localized::with_params(
             "query.alibaba_plans.session_http_auth",
             params([("code", ParamValue::from(code.as_u16()))]),
-            "Sessão Alibaba expirada ou sem acesso ao Coding Plan; renove params.session_env.",
+            "Alibaba Coding Plan authentication failed: refresh the API key or session cookie.",
         ),
         (false, 401 | 403) => Localized::with_params(
             "query.alibaba_plans.api_key_http_auth",
             params([("code", ParamValue::from(code.as_u16()))]),
-            "Alibaba recusou a API key configurada para o Coding Plan.",
+            "Alibaba Coding Plan authentication failed: refresh the API key.",
         ),
         (_, code) => Localized::with_params(
             "query.alibaba_plans.coding_plan_http",
             params([("code", ParamValue::from(code))]),
-            format!("Consulta Alibaba Coding Plan retornou HTTP {code}."),
+            "Alibaba Coding Plan returned an HTTP {code} error.",
         ),
     };
     QueryError {
@@ -384,15 +369,13 @@ fn login_required(session: bool) -> QueryError {
             status: Status::AuthenticationError,
             note: Localized::fixed(
                 "query.alibaba_plans.console_login_required",
-                "Alibaba solicitou novo login no console; renove o cookie em params.session_env.",
+                "The API key did not surface the Coding Plan quota for this account/region; configure params.session_env with a session cookie from the Alibaba console.",
             ),
         }
     } else {
         QueryError::config(
             "query.alibaba_plans.api_key_requires_session",
-            "A API key não disponibilizou a cota do Coding Plan nesta conta/região; \
-             cole a sessão do console Alibaba no assistente da conta (ou configure \
-             params.session_env com a variável que contém o Cookie).",
+            "The API key did not surface the Coding Plan quota for this account/region; paste the Alibaba console session in the account wizard (or set params.session_env to the variable holding the cookie).",
         )
     }
 }
@@ -706,7 +689,7 @@ fn parse_coding_plan_payload(
                 status: Status::Error,
                 note: Localized::fixed(
                     "query.alibaba_plans.rpc_quota",
-                    "Alibaba Coding Plan retornou erro no RPC de quota.",
+                    "Alibaba Coding Plan returned an error in the quota RPC.",
                 ),
             });
         }
@@ -799,21 +782,21 @@ fn parse_coding_plan_payload(
         notes.push_params(
             "note.alibaba_plans.plan",
             params([("plan", ParamValue::from(plan_name.clone()))]),
-            format!("Plano: {plan_name}."),
+            "Plan: {plan}.",
         );
     }
     match via {
         QueriedWith::Vault => notes.push(
             "note.alibaba_plans.vault_session_query",
-            "Quota consultada com a sessão web guardada no cofre do sistema.",
+            "Quota queried with the web session kept in the system vault.",
         ),
         QueriedWith::Variable => notes.push(
             "note.alibaba_plans.session_query",
-            "Quota consultada com a sessão indicada por params.session_env.",
+            "Quota queried with the session indicated by params.session_env.",
         ),
         QueriedWith::ApiKey => notes.push(
             "note.alibaba_plans.api_key_query",
-            "Quota consultada com a API key indicada por credential_env.",
+            "Quota queried with the API key indicated by credential_env.",
         ),
     }
     Ok(Data::new(metrics, notes, coding_plan_dashboard(region)))
@@ -1071,7 +1054,7 @@ fn token_plan_metrics(
             status: Status::AuthenticationError,
             note: Localized::fixed(
                 "query.alibaba_plans.token_plan_session_expired",
-                "Sessão Alibaba Token Plan expirada; renove params.session_env.",
+                "Alibaba Token Plan session expired; renew params.session_env.",
             ),
         });
     }
@@ -1330,7 +1313,7 @@ async fn token_plan_send(
                     ("api", ParamValue::from(api.to_string())),
                     ("code", ParamValue::from(code.as_u16())),
                 ]),
-                format!("Token Plan {api} retornou HTTP {}.", code.as_u16()),
+                "Token Plan {api} returned HTTP {code}.",
             ),
         });
     }
@@ -1396,7 +1379,7 @@ async fn token_plan_at(
     if parse_region(account)? != Region::Intl {
         return Err(QueryError::unsupported(
             "query.alibaba_plans.token_plan_intl_only",
-            "Qwen Cloud Token Plan requer região intl (Singapura).",
+            "Qwen Cloud Token Plan requires the intl (Singapore) region.",
         ));
     }
     if let Some(session) = super::web_session(account, ctx, "session_env")? {
@@ -1411,7 +1394,7 @@ async fn token_plan_at(
         Some(profile) => token_plan_via_cli(ctx, profile).await,
         None => Err(QueryError::config(
             "query.alibaba_plans.token_plan_auth_method_required",
-            "Cole a sessão do Qwen Cloud no assistente da conta, ou configure params.session_env (variável com o cookie) ou params.cli_profile (CLI oficial) para o Qwen Cloud Token Plan.",
+            "Paste the Qwen Cloud session in the account wizard, or configure params.session_env (variable with the cookie) or params.cli_profile (official CLI) for the Qwen Cloud Token Plan.",
         )),
     }
 }
@@ -1440,7 +1423,7 @@ async fn token_plan_with_session(
             status: Status::AuthenticationError,
             note: Localized::fixed(
                 "query.alibaba_plans.qwen_cloud_session_invalid",
-                "Sessão Qwen Cloud inválida; renove params.session_env.",
+                "Invalid Qwen Cloud session; renew params.session_env.",
             ),
         });
     }
@@ -1453,7 +1436,7 @@ async fn token_plan_with_session(
             status: Status::AuthenticationError,
             note: Localized::fixed(
                 "query.alibaba_plans.qwen_cloud_missing_sec_token",
-                "Sessão Qwen Cloud sem sec_token; renove params.session_env.",
+                "Qwen Cloud session without sec_token; renew params.session_env.",
             ),
         })?;
     let session = TokenPlanSession {
@@ -1475,18 +1458,18 @@ async fn token_plan_with_session(
     if web.vault {
         notes.push(
             "note.alibaba_plans.token_plan_vault_session_query",
-            "Quota consultada com a sessão web guardada no cofre do sistema; QWEN_API_KEY não é enviada.",
+            "Quota queried with the web session kept in the system vault; QWEN_API_KEY is not sent.",
         );
     } else {
         notes.push(
             "note.alibaba_plans.token_plan_session_query",
-            "Quota consultada com a sessão indicada por params.session_env; QWEN_API_KEY não é enviada.",
+            "Quota queried with the session indicated by params.session_env; QWEN_API_KEY is not sent.",
         );
     }
     if quota == TokenPlanQuotaTotals::default() {
         notes.push(
             "note.alibaba_plans.token_plan_metadata_unavailable",
-            "Metadata Qwen Cloud (subscription/quota-config) indisponível; relatório mostra apenas percentuais.",
+            "Qwen Cloud metadata (subscription/quota-config) unavailable; the report shows percentages only.",
         );
     }
     Ok(Data::new(metrics, notes, dashboard))
@@ -1541,7 +1524,7 @@ fn token_plan_cli_metrics(payload: Value) -> Result<Vec<Metric>, QueryError> {
             status: Status::AuthenticationError,
             note: Localized::fixed(
                 "query.alibaba_plans.token_plan_cli_session_expired",
-                "Sessão Alibaba Token Plan expirada; renove com `bl auth login --console --console-site international --config <perfil>`.",
+                "Alibaba Token Plan session expired; renew with `bl auth login --console --console-site international --config <profile>`.",
             ),
         });
     }
@@ -1606,7 +1589,7 @@ async fn token_plan_via_cli(ctx: &Context<'_>, profile: &str) -> Result<Data, Qu
     if !is_safe_cli_profile(profile) {
         return Err(QueryError::config(
             "query.alibaba_plans.invalid_cli_profile",
-            "params.cli_profile inválido: use letras, números, '-' ou '_' (até 32 caracteres).",
+            "The `bl` profile name is invalid: letters, digits, '-' or '_', up to 32 characters.",
         ));
     }
     run_token_plan_cli(ctx, "bl", profile).await
@@ -1639,7 +1622,7 @@ async fn run_token_plan_cli(
         if err.kind() == std::io::ErrorKind::NotFound {
             QueryError::config(
                 "query.alibaba_plans.cli_not_found",
-                "CLI `bl` não encontrada no PATH; instale a CLI oficial ou use params.session_env com cookie direto.",
+                "`bl` (Bailian CLI) not found. Install the CLI and try again.",
             )
         } else {
             QueryError::transport()
@@ -1664,11 +1647,11 @@ async fn run_token_plan_cli(
         let note = match status {
             Status::AuthenticationError => Localized::fixed(
                 "query.alibaba_plans.cli_auth",
-                "Sessão do `bl` ausente ou expirada; execute `bl auth login --console --console-site international --config <perfil>` usando params.cli_profile.",
+                "`bl auth login --console` exited with an error. Check the CLI and try again.",
             ),
             _ => Localized::fixed(
                 "query.alibaba_plans.cli_failure",
-                "CLI `bl` falhou ao consultar Token Plan; verifique o perfil configurado em params.cli_profile.",
+                "Could not start `bl auth login --console`.",
             ),
         };
         return Err(QueryError {
@@ -1694,13 +1677,13 @@ async fn run_token_plan_cli(
         notes.push_params(
             "note.alibaba_plans.cli_quota_unknown",
             profile_param,
-            format!("CLI `bl` consultou o perfil '{profile}', mas não informou limites de 5h ou semana; quota desconhecida. Verifique no console Token Plan."),
+            "CLI `bl` queried profile '{profile}' but did not report 5h or weekly limits; quota unknown. Check the Token Plan console.",
         );
     } else {
         notes.push_params(
             "note.alibaba_plans.cli_query",
             profile_param,
-            format!("Quota consultada via CLI `bl` com o perfil '{profile}'; janelas ausentes permanecem desconhecidas. QWEN_API_KEY não é usada."),
+            "Quota queried via CLI `bl` with profile '{profile}'; missing windows remain unknown. QWEN_API_KEY is not used.",
         );
     }
     Ok(Data::new(metrics, notes, TOKEN_PLAN_DASHBOARD))
@@ -2077,7 +2060,7 @@ mod tests {
         assert_eq!(metric(&data, "Coding Plan: 5h").used, Some(4.0));
         assert_eq!(metric(&data, "Coding Plan: semanal").used, Some(5.0));
         assert_eq!(metric(&data, "Coding Plan: mensal").used, Some(6.0));
-        assert!(data.notes.iter().any(|note| note == "Plano: Active."));
+        assert!(data.notes.iter().any(|note| note == "Plan: Active."));
     }
 
     #[tokio::test]
@@ -2340,7 +2323,7 @@ mod tests {
         let err = fetch(&acc, &ctx).await.unwrap_err();
         assert!(matches!(err.status, Status::Unsupported));
         assert!(err.note.fallback.contains("Qwen"));
-        assert!(err.note.fallback.contains("outro adaptador"));
+        assert!(err.note.fallback.contains("another adapter"));
     }
     #[test]
     fn token_plan_janelas_independentes_e_sem_quota_inventada() {
@@ -2531,7 +2514,7 @@ mod tests {
         assert_eq!(data.metrics[0].limit, Some(100.0));
         assert_eq!(data.metrics[0].unit, "%");
         assert!(
-            data.notes.iter().any(|note| note.contains("Metadata")),
+            data.notes.iter().any(|note| note.contains("metadata")),
             "anotação deve indicar metadata indisponível: {:?}",
             data.notes
         );
@@ -2745,10 +2728,7 @@ mod tests {
             .await
             .unwrap();
         assert!(data.metrics.is_empty());
-        assert!(data
-            .notes
-            .iter()
-            .any(|note| note.contains("quota desconhecida")));
+        assert!(data.notes.iter().any(|note| note.contains("quota unknown")));
         assert!(data.notes.iter().all(|note| !note.contains("{}")));
     }
     #[cfg(unix)]
@@ -2771,7 +2751,7 @@ mod tests {
             let path = bin.to_string_lossy();
             let err = run_token_plan_cli(&ctx, &path, "demo").await.unwrap_err();
             assert_eq!(err.status, Status::Error, "body {body:?}");
-            assert!(err.note.fallback.contains("incompatível"), "body {body:?}");
+            assert!(err.note.fallback.contains("incompatible"), "body {body:?}");
             if !body.is_empty() {
                 assert!(!err.note.fallback.contains(body));
             }

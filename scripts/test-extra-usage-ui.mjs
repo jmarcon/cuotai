@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 const root = new URL("../", import.meta.url);
 const read = async (relative) => JSON.parse(await readFile(fileURLToPath(new URL(relative, root)), "utf8"));
 const storage = new Map();
-const coreFiles = { "en-US": "en-US", es: "es", it: "it" }; // pt-* uses the Portuguese fallback of each text
+const coreFiles = { "pt-BR": "pt-BR", es: "es", it: "it" }; // en-US uses the English fallback of each text
 globalThis.window = {
   __TAURI__: {
     core: {
@@ -53,31 +53,31 @@ const money = { unit: "USD", currency: "USD", cycle_ends_at: cycle };
 const cases = {
   active: report({
     state: "active", spent: 6.25, cap: 50, ...money,
-    text: text("overage.on_extra", "No extra · $6.25", { amount: "$6.25" }),
-    summary: text("overage.on_extra", "No extra · $6.25", { amount: "$6.25" }), caveat: null,
+    text: text("overage.on_extra", "On extra · $6.25", { amount: "$6.25" }),
+    summary: text("overage.on_extra", "On extra · $6.25", { amount: "$6.25" }), caveat: null,
   }),
   capped: report({
     state: "cap_reached", spent: 50, cap: 50, ...money,
-    text: text("overage.cap_reached", "Orçamento extra esgotado"),
-    summary: text("overage.limit_hit_on_extra", "Limite atingido · no extra $50.00", { amount: "$50.00" }), caveat: null,
+    text: text("overage.cap_reached", "Extra budget used up"),
+    summary: text("overage.limit_hit_on_extra", "Limit hit · on extra $50.00", { amount: "$50.00" }), caveat: null,
   }, [meter, extraMetric({ used: 50 })]),
   unknown: report({
     state: "unknown", spent: null, cap: 50, unit: "USD", currency: "USD", cycle_ends_at: null,
-    text: text("overage.unknown", "Valor do uso extra desconhecido"), summary: text("overage.unknown", "Valor do uso extra desconhecido"), caveat: null,
+    text: text("overage.unknown", "Extra usage amount unknown"), summary: text("overage.unknown", "Extra usage amount unknown"), caveat: null,
   }, [meter, extraMetric({ used: null })]),
   armed: report({
     state: "armed", spent: 0, cap: 50, ...money,
-    text: text("overage.armed", "Uso extra ligado · nada gasto"), summary: text("overage.armed", "Uso extra ligado · nada gasto"), caveat: null,
+    text: text("overage.armed", "Extra usage on · nothing spent"), summary: text("overage.armed", "Extra usage on · nothing spent"), caveat: null,
   }, [meter, extraMetric({ used: 0 })]),
   disabled: report({
     state: "disabled", spent: null, cap: null, unit: null, currency: null, cycle_ends_at: null,
-    text: text("overage.disabled", "Uso extra desligado"), summary: text("overage.disabled", "Uso extra desligado"), caveat: null,
+    text: text("overage.disabled", "Extra usage off"), summary: text("overage.disabled", "Extra usage off"), caveat: null,
   }, [meter]),
   units: report({
     state: "active", spent: 12.5, cap: 50, unit: "unid. provedor", currency: null, cycle_ends_at: cycle,
-    text: text("overage.on_extra", "No extra · 12.5 unid. provedor", { amount: text("overage.amount.provider_units", "12.5 unid. provedor", { value: "12.5" }) }),
-    summary: text("overage.on_extra", "No extra · 12.5 unid. provedor", { amount: text("overage.amount.provider_units", "12.5 unid. provedor", { value: "12.5" }) }),
-    caveat: text("overage.units_caveat", "Valores em unidades do provedor, não em dinheiro."),
+    text: text("overage.on_extra", "On extra · 12.5 provider units", { amount: text("overage.amount.provider_units", "12.5 provider units", { value: "12.5" }) }),
+    summary: text("overage.on_extra", "On extra · 12.5 provider units", { amount: text("overage.amount.provider_units", "12.5 provider units", { value: "12.5" }) }),
+    caveat: text("overage.units_caveat", "Amounts are in provider units, not money."),
   }, [meter, extraMetric({ unit: "unid. provedor", kind: "quota", used: 12.5 })]),
 };
 

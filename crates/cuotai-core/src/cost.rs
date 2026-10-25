@@ -228,11 +228,11 @@ impl Period {
 
     pub fn label(self) -> Localized {
         let (id, text) = match self {
-            Self::Today => ("cost.period.today", "Hoje"),
-            Self::Last7Days => ("cost.period.last_7_days", "Últimos 7 dias"),
-            Self::Last30Days => ("cost.period.last_30_days", "Últimos 30 dias"),
-            Self::CurrentMonth => ("cost.period.current_month", "Mês atual"),
-            Self::All => ("cost.period.all", "Tudo o que está disponível"),
+            Self::Today => ("cost.period.today", "Today"),
+            Self::Last7Days => ("cost.period.last_7_days", "Last 7 days"),
+            Self::Last30Days => ("cost.period.last_30_days", "Last 30 days"),
+            Self::CurrentMonth => ("cost.period.current_month", "Current month"),
+            Self::All => ("cost.period.all", "Everything available"),
         };
         Localized::fixed(id, text)
     }
@@ -294,31 +294,31 @@ impl DayZone {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum CostError {
     /// The index could not be opened, read or written.
-    #[error("Falha ao ler ou gravar o índice local de custo.")]
+    #[error("Could not read or write the local cost index.")]
     Storage,
     /// The cost preferences could not be read or written.
-    #[error("Falha ao ler ou gravar as preferências de custo local.")]
+    #[error("Could not read or write the local cost preferences.")]
     Settings,
-    #[error("A retenção do índice de custo vai de 7 a 730 dias.")]
+    #[error("The cost index retention ranges from 7 to 730 days.")]
     RetentionBounds,
     /// The directories of a source changed since its disclosure was shown.
     #[error(
-        "Os diretórios desta fonte mudaram desde que foram exibidos; revise e confirme de novo."
+        "The directories of this source changed since they were shown; review and confirm again."
     )]
     ConsentChanged,
     /// `cuotai --cost --days` out of bounds.
-    #[error("O número de dias vai de 1 a 730.")]
+    #[error("The number of days ranges from 1 to 730.")]
     DaysBounds,
     /// A chosen directory that is neither absolute nor under `~/`.
-    #[error("Use um diretório absoluto ou que comece com ~/.")]
+    #[error("Use a directory that is absolute or starts with ~/.")]
     RelativePath,
     /// PRD 0030 RF1.1: a plan price, currency or cycle day out of bounds.
     #[error(
-        "Plano inválido: preço maior que zero, moeda de três letras e dia do ciclo de 1 a 28."
+        "Invalid plan: a price above zero, a three-letter currency and a cycle day from 1 to 28."
     )]
     InvalidPlan,
     /// PRD 0030 RF6.1: a rate or currency code out of bounds.
-    #[error("Câmbio inválido: moeda de três letras diferente de USD e taxa maior que zero.")]
+    #[error("Invalid rate: a three-letter currency other than USD and a rate above zero.")]
     InvalidRate,
 }
 
@@ -333,7 +333,7 @@ impl CostError {
                     ("min", Retention::MIN_DAYS.to_string().into()),
                     ("max", Retention::MAX_DAYS.to_string().into()),
                 ]),
-                self.to_string(),
+                "The cost index retention ranges from {min} to {max} days.",
             ),
             Self::ConsentChanged => {
                 Localized::fixed("cost.error.consent_changed", self.to_string())
@@ -344,7 +344,7 @@ impl CostError {
                     ("min", 1u64.into()),
                     ("max", u64::from(Span::MAX_DAYS).into()),
                 ]),
-                self.to_string(),
+                "The number of days ranges from {min} to {max}.",
             ),
             Self::RelativePath => Localized::fixed("cost.error.relative_path", self.to_string()),
             Self::InvalidPlan => Localized::fixed("cost.error.invalid_plan", self.to_string()),
@@ -365,13 +365,13 @@ pub fn unknown_source(name: &str) -> Localized {
     Localized::with_params(
         "cost.error.unknown_source",
         params([("name", name.into()), ("known", known.as_str().into())]),
-        format!("Fonte de custo local desconhecida: {name}. Fontes: {known}."),
+        "Unknown local cost source: {name}. Sources: {known}.",
     )
 }
 
 /// The word that accepts a [`Disclosure`] in a terminal.
 pub fn confirm_answer() -> Localized {
-    Localized::fixed("cost.confirm.answer", "sim")
+    Localized::fixed("cost.confirm.answer", "yes")
 }
 
 /// The question after the disclosure, asking for [`confirm_answer`].
@@ -380,7 +380,7 @@ pub fn confirm_question(answer: &str) -> Localized {
         "cost.confirm.question",
         "answer",
         answer,
-        format!("Para ligar, digite \"{answer}\" e Enter (qualquer outra resposta recusa):"),
+        "To turn it on, type \"{answer}\" and press Enter (any other answer declines):",
     )
 }
 
@@ -388,7 +388,7 @@ pub fn confirm_question(answer: &str) -> Localized {
 pub fn declined() -> Localized {
     Localized::fixed(
         "cost.error.declined",
-        "Fonte não ligada; nenhum log foi lido.",
+        "Source not turned on; no log was read.",
     )
 }
 
@@ -396,7 +396,7 @@ pub fn declined() -> Localized {
 pub fn needs_terminal() -> Localized {
     Localized::fixed(
         "cost.error.needs_terminal",
-        "Ligar uma fonte de custo local exige confirmação num terminal interativo.",
+        "Turning a local cost source on needs a confirmation in an interactive terminal.",
     )
 }
 
@@ -456,10 +456,7 @@ pub fn enabled_text(source: SourceId) -> Localized {
         "cost.enabled",
         "source",
         label,
-        format!(
-            "{label} ligado. Os logs são lidos em segundo plano enquanto a TUI ou o app desktop \
-             estão abertos, ou agora com cuotai --cost-scan."
-        ),
+        "{source} turned on. The logs are read in the background while the TUI or the desktop app is open, or now with cuotai --cost-scan.",
     )
 }
 
@@ -469,7 +466,7 @@ pub fn disabled_text(source: SourceId, removed: usize) -> Localized {
     Localized::with_params(
         "cost.disabled",
         params([("source", label.into()), ("removed", removed.into())]),
-        format!("{label} desligado; {removed} registro(s) derivado(s) apagado(s)."),
+        "{source} turned off; {removed} derived record(s) erased.",
     )
 }
 
@@ -479,7 +476,7 @@ pub fn erased_text(removed: usize) -> Localized {
         "cost.erased",
         "removed",
         removed,
-        format!("Índice de custo local apagado: {removed} registro(s)."),
+        "Local cost index erased: {removed} record(s).",
     )
 }
 
@@ -489,7 +486,7 @@ pub fn unknown_period(name: &str) -> Localized {
     Localized::with_params(
         "cost.error.unknown_period",
         params([("name", name.into()), ("known", known.as_str().into())]),
-        format!("Período desconhecido: {name}. Períodos: {known}."),
+        "Unknown period: {name}. Periods: {known}.",
     )
 }
 

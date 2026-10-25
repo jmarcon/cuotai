@@ -126,7 +126,7 @@ pub(super) async fn begin(
     if provider != Provider::Qwen {
         return Err(OAuthError::Configuration(crate::text::Localized::fixed(
             "oauth_error.qwen.provider_no_native_flow",
-            "Este provedor não usa o fluxo nativo Qwen Code.",
+            "This provider does not use the Qwen Code native flow.",
         )));
     }
     let client_id = client_id_or_default(config);

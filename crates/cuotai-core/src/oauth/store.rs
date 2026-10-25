@@ -34,7 +34,7 @@ pub(crate) fn development_store(
     {
         let _ = path;
         Err(OAuthError::Configuration(crate::text::Localized::fixed(
-            "oauth_error.store.sqlite_dev_only", "SQLite de credenciais é permitido apenas em builds de desenvolvimento; release exige o cofre do sistema.",
+            "oauth_error.store.sqlite_dev_only", "Credential SQLite is allowed only in development builds; release requires the system vault.",
         )))
     }
 }
@@ -74,7 +74,7 @@ fn validate_id(id: &str) -> Result<&str, OAuthError> {
     } else {
         Err(OAuthError::Configuration(crate::text::Localized::fixed(
             "oauth_error.store.invalid_credential_id",
-            "Identificador de credencial OAuth ausente ou inválido; vincule a conta novamente no assistente",
+            "OAuth credential id is missing or invalid; relink the account in the wizard.",
         )))
     }
 }
@@ -85,7 +85,7 @@ fn encode(token: &OAuthToken) -> Result<String, OAuthError> {
     serde_json::to_string(token).map_err(|_| {
         OAuthError::Storage(crate::text::Localized::fixed(
             "oauth_error.store.token_encode_failed",
-            "Falha ao codificar o token OAuth",
+            "Failed to encode the OAuth token.",
         ))
     })
 }
@@ -96,7 +96,7 @@ fn decode(raw: &str) -> Result<OAuthToken, OAuthError> {
     serde_json::from_str(raw).map_err(|_| {
         OAuthError::Storage(crate::text::Localized::fixed(
             "oauth_error.store.token_unreadable",
-            "Token OAuth armazenado ilegível; entre novamente para revincular a conta",
+            "Stored OAuth token is unreadable; sign in again to relink the account.",
         ))
     })
 }
@@ -139,21 +139,21 @@ fn storage_error() -> OAuthError {
     {
         OAuthError::Storage(crate::text::Localized::fixed(
             "oauth_error.store.macos_keychain_unavailable",
-            "O Keychain do macOS está indisponível ou o acesso foi negado; desbloqueie o keychain de login e tente novamente",
+            "macOS Keychain is unavailable or access was denied; unlock the login keychain and try again.",
         ))
     }
     #[cfg(target_os = "windows")]
     {
         OAuthError::Storage(crate::text::Localized::fixed(
             "oauth_error.store.windows_credential_manager_unavailable",
-            "O Gerenciador de Credenciais do Windows está indisponível; verifique se o serviço está em execução e tente novamente",
+            "Windows Credential Manager is unavailable; check the service is running and try again.",
         ))
     }
     #[cfg(target_os = "linux")]
     {
         OAuthError::Storage(crate::text::Localized::fixed(
             "oauth_error.store.linux_secret_service_unavailable",
-            "Nenhum provedor Secret Service disponível; inicie o GNOME Keyring ou KWallet (com sessão D-Bus) e tente novamente",
+            "No Secret Service provider available; start GNOME Keyring or KWallet (with a D-Bus session) and try again.",
         ))
     }
 }

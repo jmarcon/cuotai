@@ -222,6 +222,36 @@ async fn routes_serve_the_export_as_json_without_caching() {
     }
 }
 
+/// PRD 0034 RF5.2: the answers carry English fallbacks, and the server's
+/// fallback locale renders them in that language with the same ids.
+#[tokio::test]
+async fn the_fallback_locale_renders_the_answers_fallbacks() {
+    let english = start(ServeConfig::default(), fixture_source()).await;
+    let english = json(get(&english, "/v1/snapshot").await).await;
+    let summary = &english["accounts"][0]["access"]["summary"];
+    assert_eq!(summary["id"], "access.summary.claude");
+    assert_eq!(
+        summary["fallback"],
+        "Claude plan usage windows through the internal interface the official clients use."
+    );
+    let portuguese = start(
+        ServeConfig {
+            fallback_locale: Some("pt-BR".into()),
+            ..ServeConfig::default()
+        },
+        fixture_source(),
+    )
+    .await;
+    let portuguese = json(get(&portuguese, "/v1/snapshot").await).await;
+    let summary = &portuguese["accounts"][0]["access"]["summary"];
+    assert_eq!(summary["id"], "access.summary.claude");
+    assert_eq!(
+        summary["fallback"],
+        "Janelas de uso do plano Claude pela interface interna usada pelos clientes oficiais."
+    );
+    assert_eq!(portuguese["schema"], english["schema"]);
+}
+
 #[tokio::test]
 async fn only_get_is_allowed() {
     let server = start(ServeConfig::default(), fixture_source()).await;
@@ -1103,7 +1133,7 @@ fn errors_and_warning_are_translated() {
         ServeError::TokenFile.l10n(),
         no_token_warning(),
     ];
-    for locale in ["en-US", "es", "it"] {
+    for locale in ["pt-BR", "es", "it"] {
         let catalog = core_catalog(locale).unwrap();
         for text in &texts {
             assert!(
@@ -1118,14 +1148,14 @@ fn errors_and_warning_are_translated() {
         "Ports 6738 to 6747 are in use; choose another port for the local server."
     );
     assert!(texts[0].resolve("es").contains("192.0.2.10"));
-    assert!(texts[2].text().contains("6738 a 6747"));
+    assert!(texts[2].resolve("pt-BR").contains("6738 a 6747"));
     // Only the requested port was tried: no "6738 to 6738".
     assert_eq!(
         texts[8].resolve("en-US"),
         "Port 6738 is in use; choose another port for the local server."
     );
     assert_eq!(
-        texts[8].text(),
+        texts[8].resolve("pt-BR"),
         "A porta 6738 está em uso; escolha outra porta para o servidor local."
     );
 }

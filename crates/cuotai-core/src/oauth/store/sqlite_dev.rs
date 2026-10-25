@@ -7,7 +7,7 @@ pub(super) struct SqliteDevStore(Mutex<Connection>);
 
 fn error() -> OAuthError {
     OAuthError::Storage(crate::text::Localized::fixed(
-            "oauth_error.store.sqlite_dev_unavailable", "SQLite de desenvolvimento indisponível. Use um arquivo privado em diretório existente, sem links simbólicos; no Unix, permissões 0600. Nenhum fallback ao Keychain foi feito.",
+            "oauth_error.store.sqlite_dev_unavailable", "Development SQLite unavailable. Use a private file in an existing directory, with no symlinks; on Unix, 0600 permissions. No fallback to the Keychain was made.",
         ))
 }
 

@@ -43,8 +43,6 @@ const PLATFORM_ORIGIN: &str = "https://platform.xiaomimimo.com";
 /// UA de navegador, como o CodexBar envia; o backend espera sessão web real.
 const PLATFORM_UA: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
 
-const REF_NOTE: &str = "Rotas do console web não documentadas publicamente (referência: CodexBar MIT, MiMoUsageFetcher.swift); podem mudar sem aviso.";
-
 /// Consulta saldo e plano de tokens com o cookie da sessão web da plataforma
 /// (já conferido contra o descritor por `super::web_session`).
 pub(crate) async fn fetch(ctx: &Context<'_>, base: &str, cookie: &str) -> Result<Data, QueryError> {
@@ -105,7 +103,7 @@ async fn get(
                 note: Localized::with_params(
                     "query.mimo_platform.session_expired_http",
                     params([("code", ParamValue::from(s))]),
-                    "Xiaomi MiMo (plataforma): sessão web expirada. Entre em platform.xiaomimimo.com no navegador e exporte o cookie novamente.",
+                    "Xiaomi MiMo (platform): web session expired. Sign in to platform.xiaomimimo.com in the browser and re-export the cookie.",
                 ),
             });
         }
@@ -116,7 +114,7 @@ async fn get(
                 note: Localized::with_params(
                     "query.mimo_platform.session_rejected_http",
                     params([("code", ParamValue::from(s))]),
-                    "Xiaomi MiMo (plataforma): cookie de sessão recusado (HTTP 403).",
+                    "Xiaomi MiMo (platform): session cookie rejected (HTTP 403).",
                 ),
             });
         }
@@ -127,7 +125,7 @@ async fn get(
                 note: Localized::with_params(
                     "query.mimo_platform.http",
                     params([("code", ParamValue::from(s))]),
-                    format!("Consulta retornou HTTP {s}. Verifique acesso e permissões."),
+                    "Query returned HTTP {code}. Check access and permissions.",
                 ),
             });
         }
@@ -137,12 +135,13 @@ async fn get(
     match body.get("code").and_then(|c| c.as_i64()) {
         Some(0) => Ok(Some(body)),
         // O envelope também sinaliza sessão no corpo (CodexBar trata igual).
-        Some(code @ (401 | 403)) => Err(QueryError { diagnostic: None,
+        Some(code @ (401 | 403)) => Err(QueryError {
+            diagnostic: None,
             status: Status::AuthenticationError,
             note: Localized::with_params(
                 "query.mimo_platform.session_invalid_envelope",
                 params([("code", ParamValue::from(code.to_string()))]),
-                "Xiaomi MiMo (plataforma): sessão web expirada ou inválida. Exporte o cookie novamente.",
+                "Xiaomi MiMo (platform): web session expired or invalid. Re-export the cookie.",
             ),
         }),
         // Endpoint complementar sem assinatura/permissão: degrada para nota.
@@ -174,7 +173,7 @@ fn build_data(
             notes.push_params(
                 "note.mimo_platform.token_plan",
                 params([("plan", ParamValue::from(plan.to_string()))]),
-                format!("Plano de tokens: {plan}."),
+                "Token plan: {plan}.",
             );
         }
     }
@@ -185,7 +184,7 @@ fn build_data(
     {
         notes.push(
             "note.mimo_platform.token_plan_expired",
-            "O plano de tokens está expirado.",
+            "The token plan is expired.",
         );
     }
 
@@ -247,21 +246,21 @@ fn build_data(
                 });
                 notes.push(
                     "note.mimo_platform.percentage_only",
-                    "A API retornou apenas o percentual do plano; `percent` é a fração USADA (0–1).",
+                    "API returned only the plan percentage; `percent` is the USED fraction (0–1).",
                 );
             } else {
                 // monthUsage malformado: endpoint complementar — degrada para
                 // nota e preserva o saldo, nunca zera a consulta inteira.
                 notes.push(
                     "note.mimo_platform.month_usage_unusable",
-                    "Plano de tokens retornou monthUsage sem valores utilizáveis; nenhuma quota foi estimada.",
+                    "Token plan returned monthUsage without usable values; no quota was estimated.",
                 );
             }
         }
         None => {
             notes.push(
                 "note.mimo_platform.token_plan_unavailable",
-                "Plano de tokens não retornado (sem assinatura Token Plan ou endpoint indisponível); nenhuma quota foi estimada.",
+                "Token plan not returned (no Token Plan subscription or endpoint unavailable); no quota was estimated.",
             );
         }
     }
@@ -298,17 +297,23 @@ fn build_data(
         period: Some("saldo atual".into()),
         resets_at: None,
     });
-    for (key, label) in [("cashBalance", "pago"), ("giftBalance", "bonificado")] {
+    for key in ["cashBalance", "giftBalance"] {
         if let Some(v) = balance_data.get(key).and_then(|v| {
             v.as_str()
                 .and_then(|s| s.trim().parse::<f64>().ok())
                 .or_else(|| v.as_f64())
         }) {
             if v.is_finite() {
-                let id = match key {
-                    "cashBalance" => "note.mimo_platform.cash_balance",
-                    "giftBalance" => "note.mimo_platform.gift_balance",
-                    _ => unreachable!("chave de saldo controlada pelo adaptador"),
+                let (id, template) = match key {
+                    "cashBalance" => (
+                        "note.mimo_platform.cash_balance",
+                        "Cash balance: {amount} {currency}.",
+                    ),
+                    "giftBalance" => (
+                        "note.mimo_platform.gift_balance",
+                        "Gift balance: {amount} {currency}.",
+                    ),
+                    _ => unreachable!("balance key controlled by the adapter"),
                 };
                 notes.push_params(
                     id,
@@ -316,7 +321,7 @@ fn build_data(
                         ("amount", ParamValue::from(v.to_string())),
                         ("currency", ParamValue::from(currency.to_string())),
                     ]),
-                    format!("Saldo {label}: {v} {currency}."),
+                    template,
                 );
             }
         }
@@ -325,7 +330,7 @@ fn build_data(
     notes.push_params(
         "note.mimo_platform.console_api_reference",
         params([("base", ParamValue::from(base.to_string()))]),
-        format!("Fonte: {base}. {REF_NOTE}"),
+        "Source: {base}. Web console routes are not publicly documented (reference: CodexBar MIT, MiMoUsageFetcher.swift); they may change without notice.",
     );
     Ok(Data::new(metrics, notes, base))
 }
@@ -446,7 +451,7 @@ mod tests {
         assert_eq!(saldo.kind, MetricKind::Balance);
         assert_eq!(saldo.window, None);
         assert!(data.notes.iter().any(|n| n.contains("mimo-pro")));
-        assert!(data.notes.iter().any(|n| n.contains("bonificado")));
+        assert!(data.notes.iter().any(|n| n.contains("Gift balance")));
     }
 
     #[tokio::test]
@@ -461,7 +466,7 @@ mod tests {
             .await
             .expect_err("401");
         assert_eq!(err.status, Status::AuthenticationError);
-        assert!(err.note.fallback.contains("expirada"));
+        assert!(err.note.fallback.contains("expired"));
     }
 
     #[tokio::test]
@@ -497,7 +502,7 @@ mod tests {
         assert_eq!(data.metrics.len(), 1);
         assert_eq!(data.metrics[0].label, "Saldo da plataforma");
         assert_eq!(data.metrics[0].remaining, Some(0.0));
-        assert!(data.notes.iter().any(|n| n.contains("não retornado")));
+        assert!(data.notes.iter().any(|n| n.contains("not returned")));
     }
 
     #[tokio::test]
@@ -582,7 +587,7 @@ mod tests {
         assert!(data
             .notes
             .iter()
-            .any(|n| n.contains("sem valores utilizáveis")));
+            .any(|n| n.contains("without usable values")));
     }
 
     #[tokio::test]

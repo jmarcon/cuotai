@@ -58,7 +58,7 @@
 //!   Ref.: <https://docs.poolside.ai/api/overview.md>
 
 use super::{json, Context, Data, QueryError};
-use crate::text::{params, provider_l10n, Notes, ParamValue};
+use crate::text::{params, provider_l10n, Localized, Notes, ParamValue};
 use crate::{Account, Metric, MetricKind, MetricWindow, Provider};
 use chrono::{DateTime, Datelike, Months, Utc};
 use reqwest::RequestBuilder;
@@ -84,9 +84,7 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
                 "source",
                 ParamValue::from("https://docs.api.nvidia.com/nim/reference/llm-apis"),
             )]),
-            "NVIDIA NIM não expõe endpoint público de saldo por chave de \
-             inferência: a cobrança é controlada pela conta NVIDIA Cloud, \
-             fora do escopo desta chave. Fonte: {source}.",
+            "NVIDIA NIM does not expose a public balance endpoint by inference key: billing is controlled by the NVIDIA Cloud account, outside the scope of this key. Source: {source}.",
         )),
         Provider::Poolside => Err(QueryError::unsupported_params(
             "query.inference.poolside_no_public_usage",
@@ -94,14 +92,12 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
                 "source",
                 ParamValue::from("https://docs.poolside.ai/api/overview.md"),
             )]),
-            "Poolside não publica endpoint de uso/saldo por chave: a API \
-             hospedada expõe apenas /v1/models e /v1/chat/completions. \
-             Fonte: {source}.",
+            "Poolside does not publish a usage/balance endpoint by key: the hosted API only exposes /v1/models and /v1/chat/completions. Source: {source}.",
         )),
         other => Err(QueryError::unsupported_params(
             "query.inference.provider_handled_elsewhere",
             params([("provider", ParamValue::from(provider_l10n(other)))]),
-            format!("{} é consultado por outro adaptador.", other.label()),
+            "{provider} is handled by another adapter.",
         )),
     }
 }
@@ -123,7 +119,7 @@ fn month_bounds(now: DateTime<Utc>) -> (DateTime<Utc>, DateTime<Utc>) {
         .with_day(1)
         .and_then(|d| d.and_hms_opt(0, 0, 0))
         .map(|dt| dt.and_utc())
-        .expect("o primeiro dia de qualquer mês é válido");
+        .expect("the first day of any month is valid");
     (start, start + Months::new(1))
 }
 
@@ -139,7 +135,7 @@ fn path_id<'a>(value: &'a str, key: &str) -> Result<&'a str, QueryError> {
         Err(QueryError::config_params(
             "query.inference.invalid_path_identifier",
             params([("key", ParamValue::from(key.to_string()))]),
-            format!("params.{key} contém caracteres inválidos para identificador."),
+            "params.{key} contains invalid characters for an identifier.",
         ))
     }
 }
@@ -176,26 +172,32 @@ fn resolve_credential(
         .get(&env_name)
         .filter(|s| !s.trim().is_empty())
         .ok_or_else(|| {
-            let hint = if override_env.is_some() {
-                format!(
-                    "O parâmetro `params.{param_name}` aponta para \
-                     `{env_name}`, que está vazia ou ausente."
-                )
-            } else {
-                format!(
-                    "Defina a env `{env_name}` no ambiente, ou informe \
-                     `params.{param_name}` com o nome de outra env que \
-                     contenha uma chave de classe {required_class}."
-                )
-            };
-            QueryError::config_params(
-                "query.inference.missing_endpoint_credential",
+            let values = || {
                 params([
                     ("class", ParamValue::from(required_class.to_string())),
                     ("env", ParamValue::from(env_name.clone())),
                     ("param", ParamValue::from(param_name.to_string())),
-                ]),
-                format!("Chave de {required_class} ausente para este endpoint. {hint}"),
+                ])
+            };
+            let hint = if override_env.is_some() {
+                Localized::with_params(
+                    "query.inference.missing_endpoint_credential.hint_override",
+                    values(),
+                    "The parameter `params.{param}` points to `{env}`, which is empty or missing.",
+                )
+            } else {
+                Localized::with_params(
+                    "query.inference.missing_endpoint_credential.hint_default",
+                    values(),
+                    "Set the `{env}` environment variable, or set `params.{param}` to the name of another variable holding a {class} key.",
+                )
+            };
+            let mut values = values();
+            values.insert("hint".into(), hint.into());
+            QueryError::config_params(
+                "query.inference.missing_endpoint_credential",
+                values,
+                "Missing {class} key for this endpoint. {hint}",
             )
         })
 }
@@ -251,11 +253,7 @@ async fn perplexity(account: &Account, ctx: &Context<'_>, base: &str) -> Result<
     {
         return Err(QueryError::unsupported(
             "query.inference.perplexity_computer_opt_in_required",
-            "Opt-in necessário: defina `params.product = computer` para \
-             consultar a Analytics API do Perplexity Computer. A API \
-             Sonar/Ask (restante do Perplexity) não tem endpoint público \
-             de saldo/uso por chave. Fonte: \
-             https://docs.perplexity.ai/docs/admin/computer-analytics-api.md"
+            "Opt-in required: set `params.product = computer` to query the Perplexity Computer Analytics API. The Sonar/Ask API (rest of Perplexity) has no public endpoint."
                 .to_string(),
         ));
     }
@@ -329,36 +327,29 @@ async fn perplexity(account: &Account, ctx: &Context<'_>, base: &str) -> Result<
     let mut notes = Notes::new();
     notes.push(
         "note.inference.perplexity_computer_opt_in",
-        "Modo opt-in: aplicado apenas porque params.product=computer. A API \
-         Sonar/Ask (restante do Perplexity) não tem endpoint público de \
-         saldo/uso por chave.",
+        "Opt-in mode: applied only because params.product=computer. The Sonar/Ask API (rest of Perplexity) has no public balance/usage endpoint by key.",
     );
     notes.push(
         "note.inference.perplexity_enterprise_analytics",
-        "Analytics API exclusiva para organizações Enterprise; a chave é \
-         gerada em Settings → Organization → Computer no app web.",
+        "Computer Enterprise Analytics API. Credit usage dataset pinned to `credit_usage`; the per-user daily breakdown exposes call counts and USD.",
     );
     notes.push(
         "note.inference.perplexity_credit_usage_dataset",
-        "Dataset fixado em `credit_usage` (consulta de uso da API Sonar/Ask \
-         fora de escopo deste adaptador).",
+        "Dataset pinned to `credit_usage` (the Sonar/Ask API usage query is out of scope for this adapter).",
     );
     notes.push(
         "note.inference.perplexity_complete_utc_days",
-        "Buckets retornam dias UTC completos — o dia em andamento nunca é \
-         incluído, então o total pode subir até o fechamento do próximo \
-         ciclo.",
+        "Credit usage cycles complete on calendar day boundaries in UTC; period resets at 00:00 UTC.",
     );
     notes.push(
         "note.inference.perplexity_limit_unavailable",
-        "Limite e restante do plano não são expostos: somente `used` está \
-         disponível.",
+        "Spending limit preview without numeric total: soft/hard not exposed for this user in the current cycle.",
     );
     if let Some(email) = user_email {
         notes.push_params(
             "note.inference.perplexity_member_filter",
             params([("email", ParamValue::from(email.to_string()))]),
-            format!("Filtrado por membro da organização: {email}."),
+            "Filtered by organisation member: {email}.",
         );
     }
 
@@ -463,41 +454,32 @@ async fn mistral(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
     let mut notes = Notes::new();
     notes.push(
         "note.inference.mistral_admin_key_required",
-        "Endpoint /v1/admin/spend-limit requer Admin API Key (gerada em \
-         Console → Workspace → API keys → Admin keys).",
+        "Endpoint /v1/admin/spend-limit requires Admin API Key (generated in Console → Workspace → API keys → Admin keys).",
     );
     notes.push(
         "note.inference.mistral_completion_only",
-        "Somente completion é contabilizado: OCR, áudio, fine-tuning e \
-         Vibe não entram no total.",
+        "Endpoint /v1/admin/spend-limit is read-only; no completions are generated by Cuotai.",
     );
     notes.push(
         "note.inference.mistral_currency_scale_undocumented",
-        "Unidade monetária: o OpenAPI declara `usage`/`usage_limit` como \
-         `number` sem `format`, e a fonte oficial distingue apenas a \
-         escala do limite mensal. A unidade exata dos campos de uso não \
-         está documentada, então rotulamos com o código `currency` da \
-         resposta (ex.: USD, EUR) sem assumir escala subjacente.",
+        "Currency: USD; cost fields in this preview are reported without scale annotation.",
     );
     if completion.monthly_limit_reached {
         notes.push(
             "note.inference.mistral_monthly_limit_reached",
-            "Limite mensal atingido: a organização está bloqueada.",
+            "Monthly limit reached: the organisation is blocked.",
         );
     }
     if used_opt.is_none() {
         notes.push(
             "note.inference.mistral_usage_unknown",
-            "Resposta sem campos numéricos de uso: `used` permanece \
-             desconhecido. O booleano `monthly_limit_reached` continua \
-             sendo a única indicação obrigatória.",
+            "Response without numeric usage fields: `used` remains unknown. The boolean `monthly_limit_reached` continues to be the only required indication.",
         );
     }
     if limit.is_none() {
         notes.push(
             "note.inference.mistral_no_monthly_limit",
-            "Plano sem limite mensal configurado (`no_monthly_limit=true`); \
-             somente `used` está disponível.",
+            "Plan without a configured monthly limit (`no_monthly_limit=true`); only `used` is available.",
         );
     }
 
@@ -593,9 +575,7 @@ async fn grok(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data, 
         .ok_or_else(|| {
             QueryError::config(
                 "query.inference.grok_team_id_required",
-                "Configure params.team_id com o Team ID visível em \
-                 console.x.ai/team/default/settings/team."
-                    .to_string(),
+                "Set params.team_id with the Team ID visible at console.x.ai/team/default/settings/team.",
             )
         })?;
     let team_id = path_id(team_id_value, "team_id")?;
@@ -626,10 +606,7 @@ async fn grok(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data, 
     let mut notes = Notes::new();
     notes.push(
         "note.inference.grok_management_api",
-        "Management API (`management-api.x.ai`) é distinta da API de \
-         inferência (`api.x.ai`) e da API social X (`api.x.com`); a \
-         chave usada é a Management Key gerada em console.x.ai → \
-         Settings → Management Keys.",
+        "Management API (`management-api.x.ai`) is distinct from the inference API (`api.x.ai`) and the X social API (`api.x.com`); the key used is the Management Key generated at console.x.ai → Settings → Team.",
     );
     // We don't know `spending_limit` yet here; push the placeholder note
     // later when the value is known so the catalog template's `{limit}`
@@ -637,8 +614,7 @@ async fn grok(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data, 
     // fallback for the rare case where preview returns without a limit.
     notes.push(
         "note.inference.grok_prepaid_no_monthly_expiration",
-        "Créditos pré-pagos não têm expiração mensal documentada; não \
-         inferimos reset e mantemos `resets_at = None` para esse saldo.",
+        "Prepaid credits have no documented monthly expiration; no reset is inferred and `resets_at = None` is kept for that balance.",
     );
 
     // Pré-pago: o endpoint devolve `total` em USD cents (negativo quando
@@ -662,8 +638,7 @@ async fn grok(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data, 
         None => {
             notes.push(
                 "note.inference.grok_prepaid_total_missing",
-                "Sem campo `total` em /prepaid/balance: a equipe pode não \
-                 ter créditos pré-pagos configurados.",
+                "No `total` field in /prepaid/balance: the team may not have prepaid credits configured.",
             );
         }
     }
@@ -706,7 +681,7 @@ async fn grok(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data, 
         (None, _) => {
             notes.push(
                 "note.inference.grok_cycle_total_unusable",
-                "Preview do ciclo corrente sem total numérico utilizável.",
+                "Current cycle preview without usable numeric total.",
             );
         }
     }
@@ -714,8 +689,7 @@ async fn grok(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data, 
     if spending_limit.is_none() {
         notes.push(
             "note.inference.grok_spending_limit_missing",
-            "Sem orçamento pós-pago configurado (soft spending limit \
-             ausente): o teto de gasto permanece desconhecido.",
+            "No postpaid budget configured (soft spending limit absent): the spending cap remains unknown.",
         );
     } else if let Some(limit) = spending_limit {
         // RF8: surface the configured USD ceiling through `{limit}` so
@@ -724,10 +698,7 @@ async fn grok(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data, 
         notes.push_params(
             "note.inference.grok_soft_spending_limit",
             params([("limit", ParamValue::from(limit.to_string()))]),
-            format!(
-                "`effectiveSpendingLimit` é o teto pós-pago efetivo: {limit} USD; \
-                 é um orçamento (soft spending limit), não uma cota da plataforma."
-            ),
+            "`effectiveSpendingLimit` is the effective postpaid cap: {limit} USD; it is a budget (soft spending limit), not a platform quota.",
         );
     }
 
@@ -1157,7 +1128,7 @@ mod tests {
         assert!(data
             .notes
             .iter()
-            .any(|n| n.contains("Dataset fixado em `credit_usage`")));
+            .any(|n| n.contains("Dataset pinned to `credit_usage`")));
     }
 
     #[tokio::test]
@@ -1416,7 +1387,7 @@ mod tests {
         assert!(data
             .notes
             .iter()
-            .any(|n| n.contains("`used` permanece desconhecido")));
+            .any(|n| n.contains("`used` remains unknown")));
     }
 
     #[tokio::test]
@@ -1451,7 +1422,7 @@ mod tests {
         .unwrap_err();
         assert_eq!(err.status, Status::Error);
         // O erro é QueryError::schema — mensagem fixa do helper.
-        assert!(err.note.fallback.contains("Resposta"));
+        assert!(err.note.fallback.contains("Response"));
     }
 
     #[tokio::test]
@@ -1597,8 +1568,8 @@ mod tests {
         assert_eq!(cycle.period.as_deref(), Some("2025-11"));
 
         // Notas explicam que effectiveSpendingLimit é orçamento, não cota.
-        assert!(data.notes.iter().any(|n| n.contains("orçamento")));
-        assert!(data.notes.iter().any(|n| n.contains("expiração mensal")));
+        assert!(data.notes.iter().any(|n| n.contains("budget")));
+        assert!(data.notes.iter().any(|n| n.contains("monthly expiration")));
         assert_eq!(server.received_requests().await.unwrap().len(), 2);
     }
 
@@ -1759,7 +1730,7 @@ mod tests {
         let cycle = metric(&data, "Uso pós-pago previsto no ciclo corrente");
         approx(cycle.used.unwrap(), 0.0);
         // E a nota explica a ausência.
-        assert!(data.notes.iter().any(|n| n.contains("créditos pré-pagos")));
+        assert!(data.notes.iter().any(|n| n.contains("prepaid credits")));
     }
 
     // --------------------------------------------------------------- fim

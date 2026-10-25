@@ -39,7 +39,7 @@ pub(crate) struct Context<'a> {
     pub timeout: Duration,
 }
 
-/// Result of a provider fetch. `notes` is the legacy Portuguese text vector
+/// Result of a provider fetch. `notes` is the legacy English text vector
 /// (preserved for [`crate::Report::notes`] and the CLI JSON); `notes_l10n`
 /// is the parallel [`crate::text::Localized`] sidecar the desktop resolves
 /// via its catalog. The two have the same length and order — providers use
@@ -95,7 +95,7 @@ pub(crate) const TRANSPORT_NOTE: &str = "query.transport";
 pub(crate) const TIMEOUT_NOTE: &str = "query.timeout";
 
 /// RF8 structured error: a [`Status`] plus a [`Localized`] note the
-/// frontend translates via the stable id. The Portuguese fallback is what
+/// frontend translates via the stable id. The English fallback is what
 /// pre-RF8 callers used to receive as `message`.
 #[derive(Debug)]
 pub(crate) struct QueryError {
@@ -150,7 +150,7 @@ impl QueryError {
             status: Status::Error,
             note: Localized::fixed(
                 SCHEMA_NOTE,
-                "Resposta incompatível com a interface de consulta; nenhum valor foi estimado.",
+                "Response is incompatible with the query interface; no value was estimated.",
             ),
         }
     }
@@ -180,7 +180,7 @@ impl QueryError {
         Self {
             diagnostic: None,
             status: Status::Error,
-            note: Localized::fixed(TRANSPORT_NOTE, "Falha de rede ou tempo limite na consulta."),
+            note: Localized::fixed(TRANSPORT_NOTE, "Network failure or query timeout."),
         }
     }
     /// The account deadline (or the HTTP client's) ran out before an answer.
@@ -188,7 +188,7 @@ impl QueryError {
         Self {
             diagnostic: None,
             status: Status::Error,
-            note: Localized::fixed(TIMEOUT_NOTE, "Tempo limite da consulta esgotado."),
+            note: Localized::fixed(TIMEOUT_NOTE, "The query timed out."),
         }
     }
     /// Attach a provider's `Retry-After` (whole seconds) to this error so the
@@ -211,7 +211,7 @@ impl QueryError {
             status: Status::Error,
             note: Localized::fixed(
                 "query.insecure_transport",
-                "Endpoint recusado: credenciais só trafegam por HTTPS. Nada foi enviado.",
+                "Endpoint refused: credentials are only sent over HTTPS. Nothing was sent.",
             ),
         }
     }
@@ -252,7 +252,7 @@ pub(crate) async fn send_session(
             status: Status::Error,
             note: Localized::fixed(
                 "query.session_host_refused",
-                "Endereço recusado: a sessão só é enviada por HTTPS aos hosts declarados para ela. Nada foi enviado.",
+                "Address refused: the session is only sent over HTTPS to the hosts declared for it. Nothing was sent.",
             ),
         });
     }
@@ -268,7 +268,7 @@ pub(crate) async fn send_session(
             status: Status::AuthenticationError,
             note: Localized::fixed(
                 "query.session_redirected",
-                "O serviço redirecionou a consulta (sessão expirada ou revogada); o redirecionamento não foi seguido.",
+                "The service redirected the query (session expired or revoked); the redirect was not followed.",
             ),
         });
     }
@@ -332,7 +332,7 @@ pub(crate) fn web_session(
             "query.session.missing_cookies",
             "names",
             names.as_str(),
-            format!("A sessão guardada no cofre do sistema não tem os cookies {names}; cole uma nova no assistente da conta."),
+            "The session kept in the system vault lacks the cookies {names}; paste a new one in the account wizard.",
         )
     } else {
         Localized::with_params(
@@ -342,7 +342,7 @@ pub(crate) fn web_session(
                 ("name", ParamValue::from(name.to_string())),
                 ("slot", ParamValue::from(slot)),
             ]),
-            format!("A sessão da variável {name} (params.{slot}) não tem os cookies {names}; exporte-a de novo ou cole a sessão no assistente da conta."),
+            "The session in the variable {name} (params.{slot}) lacks the cookies {names}; export it again or paste the session in the account wizard.",
         )
     };
     Err(QueryError {
@@ -364,7 +364,7 @@ fn session_unset(name: &str, slot: &str, vault: bool) -> QueryError {
                 ("name", ParamValue::from(name.to_string())),
                 ("slot", ParamValue::from(slot.to_string())),
             ]),
-            format!("Sessão ausente: a variável {name} (params.{slot}) não está definida; defina-a ou cole a sessão no assistente da conta."),
+            "Session missing: the variable {name} (params.{slot}) is not set; set it or paste the session in the account wizard.",
         )
     };
     QueryError {
@@ -387,7 +387,7 @@ pub(crate) fn secret(
             QueryError::config_params(
                 "query.missing_credential",
                 params([("name", ParamValue::from(name.to_string()))]),
-                format!("Credencial ausente: {name}"),
+                "Missing credential: {name}.",
             )
         })
 }
@@ -402,7 +402,7 @@ pub(crate) fn param<'a>(account: &'a Account, key: &str) -> Result<&'a str, Quer
             QueryError::config_params(
                 "query.missing_param",
                 params([("key", ParamValue::from(key.to_string()))]),
-                format!("Configure params.{key}"),
+                "Set params.{key}.",
             )
         })
 }
@@ -422,10 +422,7 @@ pub(crate) async fn json<T: DeserializeOwned>(request: RequestBuilder) -> Result
             note: Localized::with_params(
                 "query.http",
                 params([("code", ParamValue::from(code.as_u16()))]),
-                format!(
-                    "Consulta retornou HTTP {}. Verifique acesso e permissões.",
-                    code.as_u16()
-                ),
+                "Query returned HTTP {code}. Check access and permissions.",
             ),
         });
     }
@@ -540,7 +537,7 @@ where
         status: Status::Error,
         note: Localized::fixed(
             "query.models.page_limit",
-            "A listagem de modelos excedeu o limite de páginas; nada foi salvo.",
+            "The model listing exceeded the page limit; nothing was saved.",
         ),
     })
 }

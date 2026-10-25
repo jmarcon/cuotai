@@ -91,7 +91,7 @@ pub struct JournalEntry {
 
 /// "Removed account": what stands for an account that left the configuration.
 pub fn removed_account() -> Localized {
-    Localized::fixed("journal.removed_account", "Conta removida")
+    Localized::fixed("journal.removed_account", "Removed account")
 }
 
 fn failure_category(name: &str) -> Option<FailureCategory> {

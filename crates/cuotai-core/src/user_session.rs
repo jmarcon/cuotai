@@ -102,7 +102,7 @@ pub struct SessionDescriptor {
     jwt_expiry: bool,
     /// Where the user signs in to copy the session, for [`Self::instructions`].
     pub site: &'static str,
-    /// `user_session.slot.*` id and Portuguese fallback of [`Self::label`].
+    /// `user_session.slot.*` id and English fallback of [`Self::label`].
     #[serde(skip)]
     label: (&'static str, &'static str),
 }
@@ -122,16 +122,14 @@ impl SessionDescriptor {
                 "user_session.instructions.secret",
                 "site",
                 site,
-                format!("Cole o valor de {site}. Ele fica só no cofre do sistema e só é enviado ao endereço desta conta; o TOML guarda apenas a referência."),
+                "Paste the {site} value. It stays only in the system vault and is sent only to this account's address; the TOML keeps just the reference.",
             );
         }
         Localized::with_param(
             "user_session.instructions",
             "site",
             site,
-            format!(
-                "Entre em {site} no navegador. Nas ferramentas do desenvolvedor (F12), aba Rede, recarregue a página, escolha uma requisição a {site} e copie o cabeçalho Cookie ou use \"Copiar como cURL\"; a tabela de cookies da aba Aplicativo também serve. Só os cookies desta sessão são guardados; o resto do texto colado é descartado."
-            ),
+            "Sign in to {site} in your browser. In the developer tools (F12), Network tab, reload the page, pick a request to {site} and copy its Cookie header or use \"Copy as cURL\"; the cookie table of the Application tab works too. Only this session's cookies are kept; the rest of the pasted text is discarded.",
         )
     }
 }
@@ -186,7 +184,7 @@ const XIAOMI_ACCOUNT: SessionDescriptor = SessionDescriptor {
     site: "xiaomimimo.com",
     label: (
         "user_session.slot.xiaomi_mimo.session_env",
-        "Sessão da conta Xiaomi (quota semanal do MiMo Desktop)",
+        "Xiaomi account session (MiMo Desktop weekly quota)",
     ),
 };
 
@@ -201,7 +199,7 @@ const XIAOMI_PLATFORM: SessionDescriptor = SessionDescriptor {
     site: "platform.xiaomimimo.com",
     label: (
         "user_session.slot.xiaomi_mimo.platform_session_env",
-        "Sessão web de platform.xiaomimimo.com (saldo e Token Plan)",
+        "platform.xiaomimimo.com web session (balance and Token Plan)",
     ),
 };
 
@@ -221,7 +219,7 @@ const ALIBABA_CODING_PLAN: SessionDescriptor = SessionDescriptor {
     site: "bailian.console.aliyun.com / modelstudio.console.alibabacloud.com",
     label: (
         "user_session.slot.alibaba_coding_plan.session_env",
-        "Sessão do console Alibaba (Coding Plan)",
+        "Alibaba console session (Coding Plan)",
     ),
 };
 
@@ -236,7 +234,7 @@ const ALIBABA_TOKEN_PLAN: SessionDescriptor = SessionDescriptor {
     site: "home.qwencloud.com",
     label: (
         "user_session.slot.alibaba_token_plan.session_env",
-        "Sessão do console Qwen Cloud (Token Plan)",
+        "Qwen Cloud console session (Token Plan)",
     ),
 };
 
@@ -251,7 +249,7 @@ const NINE_ROUTER_PASSWORD: SessionDescriptor = SessionDescriptor {
     site: "9router",
     label: (
         "user_session.slot.nine_router.credential_env",
-        "Senha do painel do 9router (guardada no cofre do sistema)",
+        "9router dashboard password (kept in the system vault)",
     ),
 };
 
@@ -267,7 +265,7 @@ const NINE_ROUTER_SSO: SessionDescriptor = SessionDescriptor {
     site: "9router",
     label: (
         "user_session.slot.nine_router.auth_session_env",
-        "Sessão do painel do 9router (cookie auth_token, para instâncias só com SSO)",
+        "9router dashboard session (auth_token cookie, for SSO-only instances)",
     ),
 };
 
@@ -282,7 +280,7 @@ const LITELLM_KEY: SessionDescriptor = SessionDescriptor {
     site: "LiteLLM",
     label: (
         "user_session.slot.litellm.credential_env",
-        "Chave mestra ou virtual do LiteLLM (guardada no cofre do sistema)",
+        "LiteLLM master or virtual key (kept in the system vault)",
     ),
 };
 
@@ -412,14 +410,14 @@ fn token(value: String, expires_at: Option<DateTime<Utc>>) -> OAuthToken {
 pub(crate) fn not_found() -> Localized {
     Localized::fixed(
         "user_session.not_found",
-        "Sessão não encontrada no cofre do sistema; informe a sessão novamente no assistente da conta.",
+        "Session not found in the system vault; enter the session again in the account wizard.",
     )
 }
 
 fn invalid_reference() -> Localized {
     Localized::fixed(
         "user_session.invalid_reference",
-        "Referência de sessão inválida em [accounts.session]; informe a sessão novamente no assistente da conta.",
+        "Invalid session reference in [accounts.session]; enter the session again in the account wizard.",
     )
 }
 
@@ -427,7 +425,7 @@ fn invalid_reference() -> Localized {
 pub(crate) fn rejected() -> Localized {
     Localized::fixed(
         "user_session.rejected",
-        "Sessão expirada ou revogada; cole uma nova no assistente da conta.",
+        "Session expired or revoked; paste a new one in the account wizard.",
     )
 }
 
@@ -512,7 +510,7 @@ pub struct MigrationCandidate {
 pub fn migrated_notice() -> Localized {
     Localized::fixed(
         "user_session.migrate.done",
-        "Sessão movida para o cofre do sistema; o TOML guarda só a referência. Remova a variável do seu ambiente quando quiser.",
+        "Session moved to the system vault; the TOML keeps only the reference. Remove the variable from your environment whenever you like.",
     )
 }
 
@@ -559,10 +557,7 @@ pub fn migration_candidates(account: &Account) -> Vec<MigrationCandidate> {
                     ("env", ParamValue::from(env.to_string())),
                     ("hosts", ParamValue::from(hosts.clone())),
                 ]),
-                format!(
-                    "{}: copiar o valor de {env} para o cofre do sistema e tirar {env} do TOML. A sessão só é enviada a {hosts}; a variável continua no seu ambiente até você removê-la.",
-                    label.fallback
-                ),
+                "{label}: copy the value of {env} into the system vault and remove {env} from the TOML. The session is only sent to {hosts}; the variable stays in your environment until you remove it.",
             );
             Some(MigrationCandidate {
                 slot: descriptor.slot,
@@ -601,7 +596,7 @@ impl StagedSession {
 fn no_account() -> Localized {
     Localized::fixed(
         "user_session.migrate.no_account",
-        "Conta inexistente; reabra o assistente.",
+        "Account not found; reopen the wizard.",
     )
 }
 
@@ -620,7 +615,7 @@ pub async fn stage_migration(
     if candidates.is_empty() {
         return Err(Localized::fixed(
             "user_session.migrate.nothing",
-            "Esta conta não referencia nenhuma sessão em variável de ambiente.",
+            "This account references no session in an environment variable.",
         ));
     }
     let mut values = Vec::with_capacity(candidates.len());
@@ -633,10 +628,7 @@ pub async fn stage_migration(
                 Localized::with_params(
                     "user_session.migrate.env_missing",
                     params([("name", ParamValue::from(candidate.env.clone()))]),
-                    format!(
-                        "A variável {} está ausente ou vazia neste processo; exporte-a antes de migrar.",
-                        candidate.env
-                    ),
+                    "The variable {name} is unset or empty in this process; export it before migrating.",
                 )
             })?;
         // SES-02: only the descriptor's cookies reach the vault, never the
@@ -858,17 +850,13 @@ pub fn clear_for_save(
     if check == SessionCheck::Passed || (check == SessionCheck::Unreachable && save_anyway) {
         return Ok(SaveClearance { _private: () });
     }
-    let cause = test_cause(report);
-    let fallback = cause.fallback.to_string();
-    let cause = params([("cause", ParamValue::from(cause))]);
+    let cause = params([("cause", ParamValue::from(test_cause(report)))]);
     Err(if check == SessionCheck::Unreachable {
         SaveRefused {
             note: Localized::with_params(
                 "user_session.save.unreachable",
                 cause,
-                format!(
-                    "Não foi possível testar a sessão ({fallback}); nada foi salvo. Escolha \"Salvar mesmo assim\" para guardá-la sem teste, ou tente de novo."
-                ),
+                "The session could not be tested ({cause}); nothing was saved. Choose \"Save anyway\" to keep it untested, or try again.",
             ),
             save_anyway: true,
         }
@@ -877,9 +865,7 @@ pub fn clear_for_save(
             note: Localized::with_params(
                 "user_session.save.rejected",
                 cause,
-                format!(
-                    "O teste da sessão falhou ({fallback}); nada foi salvo. Cole uma sessão válida e tente de novo."
-                ),
+                "The session test failed ({cause}); nothing was saved. Paste a valid session and try again.",
             ),
             save_anyway: false,
         }
@@ -966,7 +952,7 @@ pub async fn test_pasted(
 pub fn untested() -> Localized {
     Localized::fixed(
         "user_session.save.untested",
-        "Teste a sessão colada antes de salvá-la; nada foi salvo.",
+        "Test the pasted session before saving it; nothing was saved.",
     )
 }
 
@@ -1042,12 +1028,8 @@ impl ReducedSession {
         let kept = self.kept.join(", ");
         let validity = match self.expires_at {
             Some(at) => expiry(at, now).label,
-            None => Localized::fixed("user_session.expiry.unknown", "Validade desconhecida."),
+            None => Localized::fixed("user_session.expiry.unknown", "Validity unknown."),
         };
-        let fallback = format!(
-            "Guardados: {kept}. Descartados: {}. {}",
-            self.discarded, validity.fallback
-        );
         Localized::with_params(
             "user_session.paste.summary",
             params([
@@ -1055,7 +1037,7 @@ impl ReducedSession {
                 ("discarded", ParamValue::from(self.discarded)),
                 ("expiry", ParamValue::from(validity)),
             ]),
-            fallback,
+            "Kept: {kept}. Discarded: {discarded}. {expiry}",
         )
     }
 }
@@ -1312,7 +1294,7 @@ fn paste_pairs(paste: &str) -> Vec<Pair> {
     pairs
 }
 
-fn paste_error(id: &'static str, name: &str, fallback: String) -> Localized {
+fn paste_error(id: &'static str, name: &str, fallback: &'static str) -> Localized {
     Localized::with_param(id, "name", name, fallback)
 }
 
@@ -1320,7 +1302,7 @@ fn duplicate(name: &str) -> Localized {
     paste_error(
         "user_session.paste.duplicate",
         name,
-        format!("O cookie {name} aparece mais de uma vez com valores diferentes; copie de uma única requisição."),
+        "The cookie {name} appears more than once with different values; copy from a single request.",
     )
 }
 
@@ -1368,7 +1350,7 @@ pub fn reduce(
     if pairs.is_empty() {
         return Err(Localized::fixed(
             "user_session.paste.empty",
-            "Nenhum cookie no texto colado; copie o cabeçalho Cookie, a requisição como cURL ou a tabela de cookies.",
+            "No cookie in the pasted text; copy the Cookie header, the request as cURL or the cookie table.",
         ));
     }
     let accepted: Vec<&'static str> = descriptor
@@ -1433,7 +1415,7 @@ pub fn reduce(
                             ("name", ParamValue::from(*name)),
                             ("part", ParamValue::from(expected)),
                         ]),
-                        format!("O cookie {name} veio em partes e falta a parte {expected}; copie todas as partes."),
+                        "The cookie {name} came in parts and part {part} is missing; copy every part.",
                     ));
                 }
                 let pair = single_value(&pairs, indices, name)?;
@@ -1448,7 +1430,7 @@ pub fn reduce(
             return Err(paste_error(
                 "user_session.paste.invalid_value",
                 name,
-                format!("O valor do cookie {name} está vazio ou tem caracteres inválidos; copie-o novamente."),
+                "The value of the cookie {name} is empty or has invalid characters; copy it again.",
             ));
         }
         if !reduced.cookie.is_empty() {
@@ -1475,7 +1457,7 @@ pub fn reduce(
             "user_session.paste.missing",
             "names",
             names.as_str(),
-            format!("Faltam cookies desta sessão: {names}."),
+            "This session's cookies are missing: {names}.",
         ));
     }
     if reduced.kept.is_empty() {
@@ -1484,7 +1466,7 @@ pub fn reduce(
             "user_session.paste.none_accepted",
             "names",
             names.as_str(),
-            format!("Nenhum cookie desta sessão no texto colado; ela usa: {names}."),
+            "No cookie of this session in the pasted text; it uses: {names}.",
         ));
     }
     if descriptor.jwt_expiry && reduced.expires_at.is_none() {
@@ -1503,7 +1485,7 @@ pub fn reduce(
             "user_session.paste.expired",
             "date",
             date.as_str(),
-            format!("Esta sessão expirou em {date}; entre de novo no site e cole uma nova."),
+            "This session expired on {date}; sign in to the site again and paste a new one.",
         ));
     }
     Ok(reduced)
@@ -1536,7 +1518,7 @@ fn reduce_secret(
         wipe(&mut value);
         return Err(Localized::fixed(
             "user_session.paste.secret_invalid",
-            "O valor colado está vazio, longo demais ou tem caracteres inválidos; copie-o novamente.",
+            "The pasted value is empty, too long or has invalid characters; copy it again.",
         ));
     }
     Ok(ReducedSession {
@@ -1577,20 +1559,20 @@ pub fn expiry(expires_at: DateTime<Utc>, now: DateTime<Utc>) -> SessionExpiry {
     let left = expires_at - now;
     let days = left.num_days();
     let label = if left <= TimeDelta::zero() {
-        Localized::fixed("user_session.expiry.expired", "Sessão expirada.")
+        Localized::fixed("user_session.expiry.expired", "Session expired.")
     } else if days == 0 {
         Localized::fixed(
             "user_session.expiry.hours",
-            "Sessão expira em menos de um dia.",
+            "Session expires in less than a day.",
         )
     } else if days == 1 {
-        Localized::fixed("user_session.expiry.one_day", "Sessão expira em 1 dia.")
+        Localized::fixed("user_session.expiry.one_day", "Session expires in 1 day.")
     } else {
         Localized::with_param(
             "user_session.expiry.days",
             "days",
             ParamValue::from(days as u64),
-            format!("Sessão expira em {days} dias."),
+            "Session expires in {days} days.",
         )
     };
     SessionExpiry {
@@ -1621,7 +1603,7 @@ pub struct SessionNotice {
 fn vault_warning() -> Localized {
     Localized::fixed(
         "user_session.warning",
-        "Esta é uma sessão de login completa. O Cuotai a guarda no cofre do sistema e a usa só para consultar este serviço.",
+        "This is a full login session. Cuotai stores it in the system vault and uses it only to query this service.",
     )
 }
 
@@ -1656,7 +1638,7 @@ pub fn notice(account: &Account) -> Option<SessionNotice> {
         .then(|| {
             notice_with(Localized::fixed(
                 "user_session.warning_env",
-                "Esta é uma sessão de login completa. O Cuotai a lê de uma variável de ambiente e a usa só para consultar este serviço; mova-a para o cofre do sistema no assistente da conta.",
+                "This is a full login session. Cuotai reads it from an environment variable and uses it only to query this service; move it to the system vault in the account wizard.",
             ))
         })
 }
@@ -1665,7 +1647,7 @@ pub fn notice(account: &Account) -> Option<SessionNotice> {
 pub fn forgotten_notice() -> Localized {
     Localized::fixed(
         "user_session.forget.done",
-        "Sessão esquecida: a entrada do cofre do sistema foi apagada e o TOML não guarda mais a referência.",
+        "Session forgotten: the system vault entry was deleted and the TOML no longer keeps the reference.",
     )
 }
 
@@ -1683,7 +1665,7 @@ pub async fn stage_forget(
     let session = account.session.as_ref().ok_or_else(|| {
         Localized::fixed(
             "user_session.forget.nothing",
-            "Esta conta não guarda nenhuma sessão no cofre do sistema.",
+            "This account keeps no session in the system vault.",
         )
     })?;
     let mut updated = config.clone();

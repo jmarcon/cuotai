@@ -32,17 +32,19 @@ pub fn default_url() -> String {
 /// answer's body or more of the address than the user typed.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ClientError {
-    #[error("Endereço do servidor local inválido: use http://127.0.0.1:PORTA.")]
+    #[error("Invalid local server address: use http://127.0.0.1:PORT.")]
     InvalidUrl,
-    #[error("O servidor local só é lido em loopback (127.0.0.1, ::1 ou localhost).")]
+    #[error("The local server is only read over loopback (127.0.0.1, ::1 or localhost).")]
     NotLoopback,
-    #[error("O servidor local não respondeu; ele está rodando (cuotai --serve)?")]
+    #[error("The local server did not answer; is it running (cuotai --serve)?")]
     Unreachable,
-    #[error("O servidor local recusou o token (use --token-file com o mesmo arquivo do --serve).")]
+    #[error(
+        "The local server refused the token (use --token-file with the same file as --serve)."
+    )]
     Unauthorized,
-    #[error("O servidor local ainda não tem leituras; tente de novo em instantes.")]
+    #[error("The local server has no readings yet; try again in a moment.")]
     NotReady,
-    #[error("A resposta do servidor local não é um /v1/limits compatível.")]
+    #[error("The local server's answer is not a compatible /v1/limits.")]
     Incompatible,
 }
 

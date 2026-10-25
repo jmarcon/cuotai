@@ -302,27 +302,27 @@ fn texts(entry: &DetectEntry) -> (Localized, Localized) {
         "detect.hint",
         "tool",
         tool,
-        format!("{tool} está instalado neste dispositivo"),
+        "{tool} is installed on this device",
     );
     let consent = match entry.flow {
         Flow::CursorImport => Localized::fixed(
             "detect.consent.cursor_import",
-            "O Cuotai vai ler uma vez o token de login do banco local do Cursor, para consultar seu uso. Ele fica guardado no cofre de credenciais do sistema.",
+            "Cuotai will read the sign-in token from Cursor's local database once, to query your usage. It is stored in your system's credential vault.",
         ),
         Flow::NativeLogin => Localized::with_params(
             "detect.consent.native_login",
             crate::text::params([("provider", provider.into()), ("tool", tool.into())]),
-            format!("O Cuotai vai abrir o login de {provider}; nada é lido da pasta do {tool}."),
+            "Cuotai will open the {provider} sign-in; nothing is read from {tool}'s folder.",
         ),
         Flow::AwsProfile => Localized::fixed(
             "detect.consent.aws_profile",
-            "O Cuotai vai ler só os nomes dos perfis em ~/.aws/config quando você escolher o perfil; nenhuma chave é lida.",
+            "Cuotai will read only the profile names in ~/.aws/config when you choose the profile; no key is read.",
         ),
         Flow::KeyStep => Localized::with_param(
             "detect.consent.key_step",
             "tool",
             tool,
-            format!("Cole sua chave; o Cuotai não lê nada da pasta do {tool}."),
+            "Paste your key; Cuotai reads nothing from {tool}'s folder.",
         ),
     };
     (hint, consent)
@@ -375,13 +375,13 @@ pub fn local_sources(home: &Path, os: Os, env: &dyn Env, configured: &[Provider]
                 "detect.hint.env",
                 "variable",
                 variable,
-                format!("{variable} está definida neste ambiente"),
+                "{variable} is set in this environment",
             ),
             consent: Localized::with_param(
                 "detect.consent.env",
                 "variable",
                 variable,
-                format!("A conta guardará só o nome {variable}; o valor nunca é lido nem gravado."),
+                "The account will keep only the name {variable}; the value is never read or saved.",
             ),
         });
     }
@@ -426,11 +426,11 @@ async fn probe_nine_router_at(base: &str, configured: &[Provider]) -> Option<Det
         mode: None,
         hint: Localized::fixed(
             "detect.hint.nine_router_local",
-            "Encontrado neste dispositivo: o 9router responde em 127.0.0.1:20128",
+            "Found on this device: 9router answers on 127.0.0.1:20128",
         ),
         consent: Localized::fixed(
             "detect.consent.nine_router_local",
-            "O endereço http://127.0.0.1:20128 já vem preenchido. Só a rota pública de saúde do 9router foi consultada; nada foi lido dele.",
+            "The address http://127.0.0.1:20128 is filled in. Only 9router's public health route was asked; nothing was read from it.",
         ),
     })
 }

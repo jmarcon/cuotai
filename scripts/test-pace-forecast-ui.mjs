@@ -77,30 +77,30 @@ const metric = {
     stage: "ahead",
     tone: "warn",
     expected_used_fraction: 0.5,
-    label: text("pace.ahead", { delta: "10" }, "10 pontos acima do ritmo"),
+    label: text("pace.ahead", { delta: "10" }, "10 points above the pace"),
     outlook: null,
     chips: {
-      points: { glyph: "↑", text: text("pace.chip.ahead", { d: "10" }, "10 pts acima") },
-      percent: { glyph: "↑", text: text("pace.chip.ahead_pct", { p: "20" }, "20% mais rápido que o ritmo") },
+      points: { glyph: "↑", text: text("pace.chip.ahead", { d: "10" }, "10 pts ahead") },
+      percent: { glyph: "↑", text: text("pace.chip.ahead_pct", { p: "20" }, "20% faster than pace") },
     },
   },
   forecast: {
     callout: text("alerts.body.projected", { metric: "Session (5h)", at: "18:53", margin: minutes(37) },
-      "Neste ritmo Session (5h) acaba ≈18:53, 37 min antes da renovação"),
-    chip: { glyph: "↑", text: text("pace.chip.runs_out", { at: "18:53" }, "Acaba ≈18:53") },
+      "At this rate Session (5h) runs out ≈18:53, 37 min before the reset"),
+    chip: { glyph: "↑", text: text("pace.chip.runs_out", { at: "18:53" }, "Runs out ≈18:53") },
     at: "18:53",
   },
   resets_label: text("resets.pair", {
     at: "19:30",
-    in: text("text.countdown", { duration: text("text.duration.hours_minutes", { h: "1", m: "35" }, "1h 35m") }, "em 1h 35m"),
-  }, "Renova 19:30 · em 1h 35m"),
+    in: text("text.countdown", { duration: text("text.duration.hours_minutes", { h: "1", m: "35" }, "1h 35m") }, "in 1h 35m"),
+  }, "Resets 19:30 · in 1h 35m"),
 };
 const report = { provider: "open_ai_api", account: "work", binding: null, metrics: [metric], index: 0, status: "ready" };
 const account = (name, extra) => ({ ...report, account: name, ...extra });
 
 const expected = {
   "pt-BR": {
-    points: "10 pts acima", percent: "20% mais rápido que o ritmo",
+    points: "10 pts acima", percent: "20% acima do ritmo",
     callout: "Neste ritmo Session (5h) acaba ≈18:53, 37 min antes da renovação", chip: "Acaba ≈18:53",
     reset: "Renova 19:30 · em 1h 35m", best: "Melhor agora",
     advice: "Work esgotou · Personal tem 64% sobrando",
@@ -142,12 +142,12 @@ for (const { code } of i18n.LOCALES) {
   // No forecast, no callout.
   assert.ok(!metricCardHtml(report, { ...metric, forecast: null }).includes('class="call'), `${code}: stray callout`);
   // RF7.3: the best chip and the advice with its one action.
-  const best = account("Personal", { best_now: text("advice.best", {}, "Melhor agora"), group_label: "Coding" });
+  const best = account("Personal", { best_now: text("advice.best", {}, "Best now"), group_label: "Coding" });
   assert.ok(points.bestChipHtml(best).includes(want.best), `${code}: best chip`);
   assert.equal(points.bestChipHtml(account("Work", {})), "", `${code}: a non-best account has no chip`);
   const advised = account("Work", {
     advice: {
-      text: text("advice.switch.exhausted", { from: "Work", to: "Personal", pct: "64" }, "Work esgotou · Personal tem 64% sobrando"),
+      text: text("advice.switch.exhausted", { from: "Work", to: "Personal", pct: "64" }, "Work is exhausted · Personal has 64% left"),
       best_index: 1,
       best_name: "Personal",
     },

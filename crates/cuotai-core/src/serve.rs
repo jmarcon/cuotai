@@ -299,6 +299,10 @@ pub struct ServeConfig {
     /// a token, refuses a non-loopback bind and is rate limited
     /// ([`STATS_PER_MINUTE`]).
     pub stats: bool,
+    /// PRD 0034 RF5.2: render the `fallback` texts of the answers in this
+    /// language (`--fallback-locale`, `CUOTAI_FALLBACK_LOCALE`); English
+    /// without it.
+    pub fallback_locale: Option<String>,
     pub bounds: Bounds,
     pub access_log: Option<AccessLog>,
 }
@@ -313,6 +317,7 @@ impl Default for ServeConfig {
             token: None,
             allow_browsers: false,
             stats: false,
+            fallback_locale: None,
             bounds: Bounds::default(),
             access_log: None,
         }
@@ -329,6 +334,7 @@ impl fmt::Debug for ServeConfig {
             .field("token", &self.token)
             .field("allow_browsers", &self.allow_browsers)
             .field("stats", &self.stats)
+            .field("fallback_locale", &self.fallback_locale)
             .field("bounds", &self.bounds)
             .field("access_log", &self.access_log.is_some())
             .finish()
@@ -356,34 +362,34 @@ impl ServeConfig {
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ServeError {
     #[error(
-        "O servidor local só escuta em loopback (127.0.0.1 ou ::1); o endereço {addr} exige a opção explícita para fora do loopback."
+        "The local server only listens on loopback (127.0.0.1 or ::1); the address {addr} needs the explicit non-loopback option."
     )]
     NonLoopback { addr: IpAddr },
-    #[error("Um endereço fora do loopback exige um token de acesso ao servidor local.")]
+    #[error("A non-loopback address needs an access token for the local server.")]
     TokenRequired,
     /// `first == last` when only the requested port was tried.
     #[error("{}", port_in_use_text(*.first, *.last))]
     PortInUse { first: u16, last: u16 },
-    #[error("Não foi possível abrir a porta {port} do servidor local.")]
+    #[error("Could not open port {port} for the local server.")]
     Bind { port: u16 },
     #[error(
-        "Token do servidor local inválido: use de 16 a 512 caracteres, sem espaços (letras, números e - . _ ~ + /)."
+        "Invalid local server token: use 16 to 512 characters without spaces (letters, digits and - . _ ~ + /)."
     )]
     InvalidToken,
-    #[error("O cofre do sistema está indisponível ou negou acesso ao token do servidor local.")]
+    #[error("The system vault is unavailable or denied access to the local server token.")]
     Vault,
-    #[error("O gerador aleatório do sistema está indisponível; o token não foi criado.")]
+    #[error("The system random generator is unavailable; the token was not created.")]
     Random,
     /// A front end expected its stored token and the vault has none.
     #[error(
-        "O token do servidor local não está mais no cofre do sistema; gere um novo ou revogue o token."
+        "The local server token is no longer in the system vault; generate a new one or revoke the token."
     )]
     TokenMissing,
     /// INT-04: the token file could not be read, created or trusted (not a
     /// regular file, another user's, or not a token). Never names the path
     /// nor echoes the content.
     #[error(
-        "Não foi possível ler ou criar o arquivo de token do servidor local (ele deve ser um arquivo comum seu, com um único token)."
+        "The local server's token file could not be read or created (it must be a regular file of yours holding a single token)."
     )]
     TokenFile,
 }
@@ -465,9 +471,7 @@ pub fn resolve_token(
                     "serve.token.default_file",
                     "path",
                     path.as_str(),
-                    format!(
-                        "Token de acesso em {path} (somente o seu usuário o lê): envie-o como Authorization: Bearer; --no-token desliga."
-                    ),
+                    "Access token in {path} (only your user can read it): send it as Authorization: Bearer; --no-token turns it off.",
                 )],
             })
         }
@@ -477,7 +481,7 @@ pub fn resolve_token(
             if token_file_exposed(path) {
                 notices.push(Localized::fixed(
                     "serve.token.file_exposed",
-                    "Atenção: o arquivo de token pode ser lido por outros usuários deste computador; restrinja-o com chmod 600.",
+                    "Warning: other users of this computer can read the token file; restrict it with chmod 600.",
                 ));
             }
             Ok(ResolvedToken {
@@ -497,17 +501,15 @@ pub fn resolve_token(
 pub fn no_token_warning() -> Localized {
     Localized::fixed(
         "serve.token.none_warning",
-        "Atenção: sem token, qualquer usuário ou programa deste computador pode ler o seu uso no servidor local (somente páginas web e outros computadores continuam recusados).",
+        "Warning: without a token, any user or program on this computer can read your usage from the local server (only web pages and other computers are still refused).",
     )
 }
 
 fn port_in_use_text(first: u16, last: u16) -> String {
     if first == last {
-        format!("A porta {first} está em uso; escolha outra porta para o servidor local.")
+        format!("Port {first} is in use; choose another port for the local server.")
     } else {
-        format!(
-            "As portas {first} a {last} estão em uso; escolha outra porta para o servidor local."
-        )
+        format!("Ports {first} to {last} are in use; choose another port for the local server.")
     }
 }
 
@@ -516,7 +518,7 @@ fn port_in_use_text(first: u16, last: u16) -> String {
 pub fn allow_browsers_warning() -> Localized {
     Localized::fixed(
         "serve.allow_browsers.warning",
-        "Com navegadores permitidos, qualquer página aberta no navegador pode ler seu uso no servidor local (com token, qualquer página que o conheça). Ative só se uma página sua precisa desses dados.",
+        "With browsers allowed, any page open in your browser can read your usage from the local server (with a token, any page that knows it). Turn it on only if a page of yours needs this data.",
     )
 }
 
@@ -1047,8 +1049,13 @@ impl State {
         }
     }
 
-    /// RF3.3: what every answer carries in "allow browsers" mode.
+    /// RF3.3: what every answer carries in "allow browsers" mode, and the
+    /// fallback texts in the chosen language (PRD 0034 RF5.2).
     fn finish(&self, response: Response, snapshot: &Snapshot) -> Response {
+        let response = match &snapshot.config.fallback_locale {
+            Some(locale) if response.status == 200 => response.localize_fallbacks(locale),
+            _ => response,
+        };
         if snapshot.config.allow_browsers {
             response.header("Access-Control-Allow-Origin", "*")
         } else {

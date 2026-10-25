@@ -41,10 +41,10 @@ pub async fn login(profile: &str, events: Sender<String>) -> Result<(), OAuthErr
         .spawn()
         .map_err(|e| match e.kind() {
             ErrorKind::NotFound => OAuthError::Configuration(crate::text::Localized::fixed(
-            "oauth_error.aws.cli_not_found", "AWS CLI (aws) não encontrada. Instale a AWS CLI v2 e configure o perfil com `aws configure sso`.",
+            "oauth_error.aws.cli_not_found", "AWS CLI (aws) not found. Install AWS CLI v2 and configure the profile with `aws configure sso`.",
         )),
             _ => OAuthError::Configuration(crate::text::Localized::fixed(
-            "oauth_error.aws.cli_start_failed", "Não foi possível iniciar a AWS CLI.",
+            "oauth_error.aws.cli_start_failed", "Could not start the AWS CLI.",
         )),
         })?;
 
@@ -66,10 +66,10 @@ pub async fn login(profile: &str, events: Sender<String>) -> Result<(), OAuthErr
     match timed {
         Ok(Ok(status)) if status.success() => Ok(()),
         Ok(Ok(_)) => Err(OAuthError::Configuration(crate::text::Localized::fixed(
-            "oauth_error.aws.sso_login_incomplete", "Login SSO não concluído. Verifique a configuração SSO do perfil (`aws configure sso`) e tente novamente.",
+            "oauth_error.aws.sso_login_incomplete", "SSO login did not complete. Check the profile SSO configuration (`aws configure sso`) and try again.",
         ))),
         Ok(Err(_)) => Err(OAuthError::Configuration(crate::text::Localized::fixed(
-            "oauth_error.aws.cli_wait_failed", "Falha ao aguardar a AWS CLI.",
+            "oauth_error.aws.cli_wait_failed", "Failed while waiting for the AWS CLI.",
         ))),
         Err(_) => {
             // Past the device sign-in budget: reap the child before returning.
@@ -90,7 +90,7 @@ fn validate_profile(profile: &str) -> Result<(), OAuthError> {
     } else {
         Err(OAuthError::Configuration(crate::text::Localized::fixed(
             "oauth_error.aws.invalid_profile_name",
-            "Nome de perfil AWS inválido.",
+            "Invalid AWS profile name.",
         )))
     }
 }

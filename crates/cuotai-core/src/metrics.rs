@@ -87,15 +87,18 @@ impl ScopeBlock {
         match self.resets_at {
             Some(until) => {
                 let at = at(until);
-                let fallback = format!("{} no limite até {at}", self.label);
                 let params = params([("model", self.label.as_str().into()), ("at", at.into())]);
-                Localized::with_params("metrics.scope_blocked", params, fallback)
+                Localized::with_params(
+                    "metrics.scope_blocked",
+                    params,
+                    "{model} at its limit until {at}",
+                )
             }
             None => Localized::with_param(
                 "metrics.scope_blocked_unknown",
                 "model",
                 self.label.as_str(),
-                format!("{} no limite", self.label),
+                "{model} at its limit",
             ),
         }
     }
@@ -545,38 +548,45 @@ impl Binding {
     /// `binding.tightest`). `at` formats `blocked_until` in the caller's
     /// clock and style (e.g. local `HH:MM`).
     pub fn summary(&self, at: impl FnOnce(DateTime<Utc>) -> String) -> Localized {
-        let (window, window_pt) = window_param(self.window, &self.label);
+        let (window, _) = window_param(self.window, &self.label);
         match (self.reason, self.blocked_until) {
             (BindingReason::Exhausted, Some(until)) => {
                 let at = at(until);
-                let fallback = format!("bloqueada até {at} pela janela {window_pt}");
                 let params = params([("at", at.into()), ("window", window)]);
-                Localized::with_params("binding.blocked_until", params, fallback)
+                Localized::with_params(
+                    "binding.blocked_until",
+                    params,
+                    "blocked until {at} by the {window} window",
+                )
             }
             (BindingReason::Exhausted, None) => Localized::with_param(
                 "binding.blocked",
                 "window",
                 window,
-                format!("bloqueada pela janela {window_pt}; horário de retorno desconhecido"),
+                "blocked by the {window} window; return time unknown",
             ),
             (BindingReason::Tightest, _) => {
                 let used = format!("{:.0}", self.used_ratio * 100.0);
-                let fallback = format!("mais restritiva: janela {window_pt} em {used}%");
                 let params = params([("window", window), ("used", used.into())]);
-                Localized::with_params("binding.tightest", params, fallback)
+                Localized::with_params(
+                    "binding.tightest",
+                    params,
+                    "most restrictive: {window} window at {used}%",
+                )
             }
         }
     }
 }
 
 /// Known windows travel as `metric_window.*`; others use the metric label.
-/// Returns the parameter and its Portuguese rendering.
+/// Returns the parameter and its English rendering (used to tell windows
+/// apart).
 pub(crate) fn window_param(window: Option<MetricWindow>, label: &str) -> (ParamValue, String) {
     let (id, pt) = match window {
-        Some(MetricWindow::Window5h) => ("metric_window.window_5h", "de 5 horas"),
-        Some(MetricWindow::Daily) => ("metric_window.daily", "diária"),
-        Some(MetricWindow::Weekly) => ("metric_window.weekly", "semanal"),
-        Some(MetricWindow::Monthly) => ("metric_window.monthly", "mensal"),
+        Some(MetricWindow::Window5h) => ("metric_window.window_5h", "5-hour"),
+        Some(MetricWindow::Daily) => ("metric_window.daily", "daily"),
+        Some(MetricWindow::Weekly) => ("metric_window.weekly", "weekly"),
+        Some(MetricWindow::Monthly) => ("metric_window.monthly", "monthly"),
         Some(MetricWindow::Other) | None => return (label.into(), label.to_string()),
     };
     (ParamValue::l10n(Localized::fixed(id, pt)), pt.to_string())
@@ -1076,7 +1086,7 @@ mod tests {
             .iter()
             .map(|b| b.summary(|t| t.format("%H:%M").to_string()))
             .collect();
-        for locale in ["en-US", "es", "it"] {
+        for locale in ["pt-BR", "es", "it"] {
             let catalog = crate::text::core_catalog(locale).unwrap();
             for text in &texts {
                 let nested = text.params.values().filter_map(|v| match v {
@@ -1093,7 +1103,7 @@ mod tests {
             "blocked until 14:30 by the Opus window"
         );
         assert_eq!(
-            texts[1].fallback,
+            texts[1].resolve("pt-BR"),
             "bloqueada pela janela Opus; horário de retorno desconhecido"
         );
         assert_eq!(
@@ -1104,7 +1114,10 @@ mod tests {
             texts[4].resolve("es"),
             "más restrictiva: ventana semanal al 62%"
         );
-        assert_eq!(texts[4].fallback, "mais restritiva: janela semanal em 62%");
+        assert_eq!(
+            texts[4].resolve("pt-BR"),
+            "mais restritiva: janela semanal em 62%"
+        );
     }
 
     fn pq(label: &str, used: f64, limit: f64) -> Metric {

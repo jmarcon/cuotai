@@ -137,26 +137,26 @@ struct RawRates {
 /// only the embedded table prices the estimate.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum PricingError {
-    #[error("Não foi possível ler o pricing.json.")]
+    #[error("Could not read pricing.json.")]
     Unreadable,
     /// Not JSON, a missing or misspelled field, or a value of the wrong
     /// type (an `effective` that is not `YYYY-MM-DD` included).
-    #[error("pricing.json inválido na linha {line}, coluna {column}.")]
+    #[error("Invalid pricing.json at line {line}, column {column}.")]
     Syntax { line: usize, column: usize },
-    #[error("O pricing.json só aceita preços em USD.")]
+    #[error("pricing.json only accepts prices in USD.")]
     Currency,
-    #[error("O pricing.json tem uma fonte (source) com mais de 300 caracteres ou caracteres de controle.")]
+    #[error("pricing.json has a source longer than 300 characters or with control characters.")]
     Source,
     /// A model name that is not one as logs write it (or `unknown`, the
     /// name of usage without a model).
     #[error(
-        "O pricing.json tem um nome de modelo inválido: use 1 a 96 letras, dígitos ou .-_:/@+ (e não \"unknown\")."
+        "pricing.json has an invalid model name: use 1 to 96 letters, digits or .-_:/@+ (and not \"unknown\")."
     )]
     Model,
-    #[error("O pricing.json repete o modelo {model}.")]
+    #[error("pricing.json repeats the model {model}.")]
     Duplicate { model: String },
     #[error(
-        "Preço inválido em {model} ({field}): use um número de 0 a 10000 dólares por milhão de tokens, com até seis casas decimais."
+        "Invalid price for {model} ({field}): use a number from 0 to 10000 dollars per million tokens, with up to six decimals."
     )]
     Rate { model: String, field: &'static str },
 }
@@ -199,7 +199,7 @@ pub fn pricing_ignored(error: &PricingError) -> Localized {
         "cost.pricing.ignored",
         "error",
         reason.clone(),
-        format!("{reason} Só a tabela embutida é usada até o arquivo ser corrigido."),
+        "{error} Only the embedded table is used until the file is fixed.",
     )
 }
 

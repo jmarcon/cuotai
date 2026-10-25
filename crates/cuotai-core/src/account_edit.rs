@@ -87,7 +87,7 @@ pub fn default_env(provider: Provider) -> &'static str {
 /// Provider-specific help shown next to the credential field.
 ///
 /// RF8: the returned [`Localized`] carries the stable id
-/// `credential_help.<provider-slug>`; the Portuguese text is the fallback
+/// `credential_help.<provider-slug>`; the English text is the fallback
 /// rendered when a frontend catalog lacks the id.
 pub fn credential_help(provider: Provider) -> crate::text::Localized {
     crate::text::Localized::fixed(
@@ -96,60 +96,60 @@ pub fn credential_help(provider: Provider) -> crate::text::Localized {
     )
 }
 
-/// Portuguese default wording for [`credential_help`].
+/// English default wording for [`credential_help`].
 fn credential_help_text(provider: Provider) -> &'static str {
     match provider {
         Provider::OpenAiApi => {
-            "Chave de ADMINISTRAÇÃO da organização (Admin API), não uma chave de projeto comum."
+            "Organization ADMINISTRATION key (Admin API), not a regular project key."
         }
         Provider::AnthropicApi => {
-            "Chave de administração (sk-ant-admin01-...) da Usage & Cost Admin API."
+            "Administration key (sk-ant-admin01-...) for the Usage & Cost Admin API."
         }
         Provider::ChatGpt => {
-            "Use o ACCESS token OAuth (não o refresh token nem o ID token). Interface interna do Codex: cobre as janelas do agente, NÃO a quota do chat web; pode mudar sem aviso."
+            "Use the OAuth ACCESS token (not the refresh or ID token). Codex internal interface: covers agent windows, NOT the web chat quota; subject to change without notice."
         }
         Provider::Claude => {
-            "Token OAuth de acesso. Interface não documentada oficialmente, sujeita a mudanças."
+            "OAuth access token. Interface is not officially documented, subject to change."
         }
         Provider::GeminiApi | Provider::VertexAi => {
-            "Access token OAuth do Google Cloud (ex.: gcloud auth application-default print-access-token)."
+            "Google Cloud OAuth access token (e.g. `gcloud auth application-default print-access-token`)."
         }
-        Provider::AzureOpenAi => "Access token Azure com permissão de leitura de custos.",
+        Provider::AzureOpenAi => "Azure access token with cost-read permission.",
         Provider::Cursor => {
-            "Admin API Teams/Enterprise: variável CURSOR_ADMIN_API_KEY. Para a conta pessoal, pressione Tab e confirme importar a sessão do Cursor local. Não abre OAuth nem lê tokens sem confirmação."
+            "Teams/Enterprise Admin API: variable CURSOR_ADMIN_API_KEY. For personal accounts, press Tab and confirm to import the local Cursor session. Never opens OAuth or reads tokens without confirmation."
         }
         Provider::Copilot => {
-            "Token GitHub da CONTA, nunca o copilotToken de inferência. Cobrança (padrão): PAT clássico. Quota pessoal (opt-in): token GitHub com acesso ao endpoint interno; OAuth/PAT aceito depende do provedor."
+            "GitHub token of the ACCOUNT, never the internal copilotToken. Billing (default): classic PAT. Personal quota (opt-in): GitHub token with access to the internal endpoint; OAuth/PAT accepted depends on the provider."
         }
         Provider::Windsurf => {
-            "Requer Enterprise com permissões Billing Read e Teams Read-Only."
+            "Requires Enterprise with Billing Read and Teams Read-Only permissions."
         }
         Provider::AwsBedrock => "",
-        Provider::Mistral => "A consulta de consumo exige Admin API Key, não chave de geração. Use MISTRAL_API_KEY com a chave administrativa ou configure admin_key_env nos parâmetros.",
-        Provider::Grok => "Token de acesso xAI da equipe (Management API ou CLI). Padrão Management API: Management Key + Team ID. Opt-in cli: token de sessão do Grok CLI. Não confundir com chave da API social X.",
-        Provider::Perplexity => "PERPLEXITY_API_KEY é mantida. Sonar não expõe saldo por essa chave; Computer Enterprise Analytics é uma consulta distinta, opcional nos parâmetros.",
-        Provider::GeminiAi => "Padrão: chave Gemini/AI Studio — esta chave NÃO consulta quota (use Gemini CLI/CodeAssist nos parâmetros). Opt-in cli: token de sessão do Gemini CLI.",
-        Provider::Cline => "Chave da Cline API ou token de conta (CLINE_API_KEY). Consulta saldo Cline; BYOK deve ser acompanhado no provedor da chave. Organização opcional nos parâmetros.",
-        Provider::Kimi => "KIMI_API_KEY (Moonshot/Kimi). Padrão: saldo da conta internacional. Opt-in coding: aceita a chave de plataforma OU um access token OAuth (informe o nome em token_env); a chave tem precedência.",
-        Provider::Qoder => "QODER_API_KEY aceita PAT (pt-..., trocado por job token) ou um token Bearer/job já existente (jt-.../device). Escolha o tipo de credencial nos parâmetros.",
-        Provider::OpenCodeGo => "OPENCODE_GO_API_KEY da conta; a própria chave do usuário autentica a consulta interna.",
-        Provider::Groq => "GROQ_API_KEY da conta; a própria chave do usuário autentica a consulta interna.",
-        Provider::OllamaCloud => "OLLAMA_CLOUD_API_KEY da conta (Bearer); uso em GET ollama.com/api/usage e plano em POST /api/me. Não é necessário importar cookies.",
-        Provider::XiaomiMimo => "Saldo/Token Plan: cole a sessão web de platform.xiaomimimo.com no assistente da conta (cofre do sistema) ou nomeie a variável em platform_session_env. O código nativo entrega chave de inferência, não cookie. A sessão da conta Xiaomi (session_env) é separada: quota semanal do MiMo Desktop.",
-        Provider::Kiro => "Access token Kiro/CodeWhisperer (não refresh token). Com variável: auth_method google, github, import, api_key ou external_idp. Builder ID e Identity Center exigem login nativo para renovação.",
-        Provider::CodeBuddy => "Access token de sessão do CodeBuddy (cn: copilot.tencent.com; intl: www.codebuddy.ai).",
-        Provider::Zed => "ZED_ACCESS_TOKEN (cloud access token do fluxo de login nativo zed.dev). Informe também o user_id numérico — é enviado como `Authorization: <user_id> <token>`.",
-        Provider::AlibabaModelStudio => "API key Alibaba Model Studio/DashScope. Pode apontar para QWEN_API_KEY. Selecione a região correspondente à conta; não é login OAuth Qwen Code.",
-        Provider::AlibabaCodingPlan => "Chave da assinatura Alibaba Coding Plan (normalmente sk-sp-). Selecione China ou internacional; é diferente de uma API key padrão DashScope.",
-        Provider::AlibabaTokenPlan => "A quota Token Plan consulta, por padrão, o perfil dedicado do `bl` (`params.cli_profile`, configurado pelo F2). A sessão de home.qwencloud.com, colada no assistente da conta (cofre do sistema) ou numa variável em `params.session_env`, tem precedência quando existe. QWEN_API_KEY autentica apenas inferência e não é enviada à consulta.",
-        Provider::AlibabaCloud => "Informe o NOME da variável com AccessKey ID da conta RAM de faturamento. Em Parâmetros informe a variável AccessKey Secret; os valores nunca entram no TOML.",
-        Provider::Antigravity => "Sessão Google do Antigravity, distinta da API key Gemini. Pressione Tab para login nativo; o projeto Code Assist e as janelas de quota serão consultados automaticamente.",
-        Provider::Kimchi => "KIMCHI_API_KEY da conta Kimchi; consulta créditos e orçamentos em llm.kimchi.dev, sem geração.",
-        Provider::ElevenLabs => "Use uma chave de API da ElevenLabs. Restrinja-a à permissão que lê a assinatura da conta (ela não precisa de acesso a text-to-speech) e, se usar vários workspaces, escolha a chave do workspace que quer acompanhar. O Cuotai guarda apenas o nome da variável.",
-        Provider::LiteLlm => "Chave mestra ou virtual do seu proxy LiteLLM: informe apenas o NOME da variável que a guarda; o valor nunca entra no TOML. Só a rota de orçamentos por provedor é lida.",
-        Provider::NineRouter => "Deixe vazio quando o login do painel do 9router está desligado. Com senha, informe apenas o NOME da variável que a guarda; o valor nunca entra no TOML. Ler o uso pode fazer o 9router renovar os logins que ele guarda.",
-        Provider::OpenRouter => "Visão padrão: chave de inferência da OpenRouter (OPENROUTER_API_KEY); mostra apenas os números dessa chave. Saldo da conta: chave de GERENCIAMENTO (OPENROUTER_MANAGEMENT_KEY), que não faz chamadas de inferência; crie-a em openrouter.ai/settings/management-keys.",
-        _ => "API key/PAT: informe apenas o nome da variável exportada. A chave de geração pode não permitir consultar consumo; confira a limitação do relatório.",
+        Provider::Mistral => "Consumption query requires Admin API Key, not a generation key. Use MISTRAL_API_KEY with the admin key or set admin_key_env in the parameters.",
+        Provider::Grok => "xAI team access token (Management API or CLI). Management API default: Management Key + Team ID. CLI opt-in: Grok CLI session token. Do not confuse with the X social API key.",
+        Provider::Perplexity => "PERPLEXITY_API_KEY is kept. Sonar does not expose balance with this key; Computer Enterprise Analytics is a separate query, opt-in via parameters.",
+        Provider::GeminiAi => "Default: Gemini/AI Studio key — this key does NOT query quota (use Gemini CLI/CodeAssist in parameters). CLI opt-in: Gemini CLI session token.",
+        Provider::Cline => "Cline API key or account token (CLINE_API_KEY). Queries Cline balance; BYOK must be tracked at the key's provider. Optional organization in parameters.",
+        Provider::Kimi => "KIMI_API_KEY (Moonshot/Kimi). Default: international account balance. Coding opt-in: accepts the platform key OR an OAuth access token (set the variable name in token_env); the key has priority.",
+        Provider::Qoder => "QODER_API_KEY accepts PAT (pt-..., exchanged for a job token) or an existing Bearer/job token (jt-.../device). Choose the credential type in parameters.",
+        Provider::OpenCodeGo => "OPENCODE_GO_API_KEY of the account; the user's own key authenticates the internal query.",
+        Provider::Groq => "GROQ_API_KEY of the account; the user's own key authenticates the internal query.",
+        Provider::OllamaCloud => "OLLAMA_CLOUD_API_KEY of the account (Bearer); usage in GET ollama.com/api/usage and plan in POST /api/me. No cookie import required.",
+        Provider::XiaomiMimo => "Balance/Token Plan: paste the platform.xiaomimimo.com web session in the account wizard (system vault) or name the variable in platform_session_env. The native code returns an inference key, not a cookie. The Xiaomi account session (session_env) is separate: weekly MiMo Desktop quota.",
+        Provider::Kiro => "Kiro/CodeWhisperer access token (not refresh token). Environment credentials support google (default), github, import, api_key and external_idp. AWS Builder ID and IAM Identity Center are available through native login.",
+        Provider::CodeBuddy => "CodeBuddy session access token (cn: copilot.tencent.com; intl: www.codebuddy.ai).",
+        Provider::Zed => "ZED_ACCESS_TOKEN (cloud access token of the zed.dev native login flow). Also set the numeric user_id — it is sent as `Authorization: <user_id> <token>`.",
+        Provider::AlibabaModelStudio => "Alibaba Model Studio/DashScope API key. Can point to QWEN_API_KEY. Select the region matching your account; not a Qwen Code OAuth login.",
+        Provider::AlibabaCodingPlan => "Alibaba Coding Plan subscription key (usually sk-sp-). Select China or international; different from a standard DashScope API key.",
+        Provider::AlibabaTokenPlan => "The Token Plan quota queries, by default, the dedicated `bl` profile (`params.cli_profile`, configured by F2). The home.qwencloud.com session, pasted in the account wizard (system vault) or held in a variable named by `params.session_env`, takes precedence when present. QWEN_API_KEY authenticates only inference and is not sent to the query.",
+        Provider::AlibabaCloud => "Set the NAME of the variable holding the AccessKey ID of the billing RAM account. In Parameters set the AccessKey Secret variable; the values are never written into TOML.",
+        Provider::Antigravity => "Antigravity Google session, distinct from the Gemini API key. Press Tab for native login; the Code Assist project and quota windows are queried automatically.",
+        Provider::Kimchi => "KIMCHI_API_KEY of the Kimchi account; queries credits and budgets at llm.kimchi.dev, no generation.",
+        Provider::ElevenLabs => "Use an ElevenLabs API key. Restrict it to the permission that reads the account's subscription (it does not need text-to-speech access) and, if you use several workspaces, pick the key of the workspace you want to watch. Cuotai stores only the variable name.",
+        Provider::LiteLlm => "Master or virtual key of your LiteLLM proxy: enter only the NAME of the variable that holds it; the value never goes into the TOML. Only the per-provider budget route is read.",
+        Provider::NineRouter => "Leave empty when the 9router dashboard login is off. With a password, enter only the NAME of the variable that holds it; the value never goes into TOML. Reading usage can make 9router renew the sign-ins it holds.",
+        Provider::OpenRouter => "Default view: an OpenRouter inference key (OPENROUTER_API_KEY); it shows only that key's numbers. Account balance: a MANAGEMENT key (OPENROUTER_MANAGEMENT_KEY), which cannot make inference calls; create it at openrouter.ai/settings/management-keys.",
+        _ => "API key/PAT: enter only the name of the exported variable. The generation key may not allow querying consumption; check the report limitation.",
     }
 }
 
@@ -164,16 +164,16 @@ pub fn oauth_registration_help(provider: Provider) -> crate::text::Localized {
     )
 }
 
-/// Portuguese default wording for [`oauth_registration_help`].
+/// English default wording for [`oauth_registration_help`].
 fn oauth_registration_help_text(provider: Provider) -> &'static str {
     match provider {
         Provider::GeminiApi | Provider::VertexAi => {
-            "Registre um client ID de app Desktop em https://console.cloud.google.com/apis/credentials (tela de consentimento OAuth + cliente Desktop; o login usa PKCE com loopback local)."
+            "Register a Desktop app client ID at https://console.cloud.google.com/apis/credentials (OAuth consent screen + Desktop client; the login uses PKCE with local loopback)."
         }
         Provider::AzureOpenAi => {
-            "Registre um app público em https://portal.azure.com > Microsoft Entra > Registros de aplicativo, habilite o fluxo de código de dispositivo e conceda permissão delegada de gerenciamento/leitura do Azure."
+            "Register a public app at https://portal.azure.com > Microsoft Entra > App registrations, enable the device-code flow, and grant the delegated Azure management/read permission."
         }
-        _ => "Registre um aplicativo OAuth próprio no provedor e informe o client ID.",
+        _ => "Register your own OAuth app with the provider and supply the client ID.",
     }
 }
 
@@ -189,14 +189,16 @@ pub fn oauth_unsupported_reason(provider: Provider) -> Option<crate::text::Local
     })
 }
 
-/// Portuguese default wording for [`oauth_unsupported_reason`].
+/// English default wording for [`oauth_unsupported_reason`].
 fn oauth_unsupported_reason_text(provider: Provider) -> Option<&'static str> {
     match provider {
-        Provider::OpenAiApi => Some("a Admin API da OpenAI aceita apenas chaves de administração."),
+        Provider::OpenAiApi => Some("the OpenAI Admin API only accepts administration keys."),
         Provider::AnthropicApi => {
-            Some("a Usage & Cost Admin API aceita apenas chaves de administração.")
+            Some("the Usage & Cost Admin API only accepts administration keys.")
         }
-        Provider::Windsurf => Some("o Windsurf exige service key Enterprise; não há fluxo OAuth."),
+        Provider::Windsurf => {
+            Some("Windsurf requires an Enterprise service key; no OAuth flow available.")
+        }
         _ => None,
     }
 }
@@ -331,7 +333,7 @@ pub fn strip_managed_keys(provider: Provider, params: &mut BTreeMap<String, Stri
 /// draft.
 ///
 /// RF8: errors are [`Localized`] with stable `edit_error.param.*` ids; the
-/// Portuguese wording is the fallback and never echoes the typed value.
+/// English wording is the fallback and never echoes the typed value.
 pub fn validate_param(
     key: &str,
     value: &str,
@@ -347,7 +349,7 @@ pub fn validate_param(
             } else {
                 Err(L10n::fixed(
                     "edit_error.param.billing_cycle",
-                    "Informe o ciclo no formato YYYY-MM.",
+                    "Use the YYYY-MM format for the cycle.",
                 ))
             }
         }
@@ -357,7 +359,7 @@ pub fn validate_param(
             } else {
                 Err(L10n::fixed(
                     "edit_error.param.env_name",
-                    "Informe apenas o nome da variável de ambiente, nunca o valor.",
+                    "Set the environment variable name only, never its value.",
                 ))
             }
         }
@@ -371,7 +373,7 @@ pub fn validate_param(
             } else {
                 Err(L10n::fixed(
                     "edit_error.param.identifier",
-                    "Identificador inválido: use letras, números, hífen ou sublinhado.",
+                    "Invalid identifier: use letters, numbers, hyphen or underscore.",
                 ))
             }
         }
@@ -381,7 +383,7 @@ pub fn validate_param(
             } else {
                 Err(L10n::fixed(
                     "edit_error.param.low_balance",
-                    "Informe um número maior ou igual a zero.",
+                    "Enter a number greater than or equal to zero.",
                 ))
             }
         }
@@ -395,7 +397,7 @@ pub fn validate_param(
             } else {
                 Err(L10n::fixed(
                     "edit_error.param.system_id",
-                    "System ID inválido: use letras, números, hífen ou sublinhado.",
+                    "Invalid System ID: use letters, numbers, hyphen or underscore.",
                 ))
             }
         }
@@ -406,7 +408,7 @@ pub fn validate_param(
             {
                 Ok(())
             } else {
-                Err(L10n::fixed("edit_error.param.email", "E-mail inválido."))
+                Err(L10n::fixed("edit_error.param.email", "Invalid email."))
             }
         }
         "profile_arn" => {
@@ -420,7 +422,7 @@ pub fn validate_param(
             } else {
                 Err(L10n::fixed(
                     "edit_error.param.profile_arn",
-                    "ARN inválido: deve começar com \"arn:\" e usar apenas caracteres AWS.",
+                    "Invalid ARN: must start with \"arn:\" and use only AWS characters.",
                 ))
             }
         }
@@ -430,7 +432,7 @@ pub fn validate_param(
             } else {
                 Err(L10n::fixed(
                     "edit_error.param.product",
-                    "Use computer para Computer Analytics, ou deixe vazio para Perplexity/Sonar.",
+                    "Use computer for Computer Analytics, or leave empty for Perplexity/Sonar.",
                 ))
             }
         }
@@ -445,9 +447,7 @@ pub fn validate_param(
                     "edit_error.param.resource_id_chars",
                     "key",
                     key,
-                    format!(
-                        "params.{key} contém caracteres inválidos para identificador de recurso."
-                    ),
+                    "params.{key} contains invalid characters for a resource identifier.",
                 ))
             }
         }
@@ -475,7 +475,7 @@ pub fn validate_param(
                         ("rg", ParamValue::from("{rg}".to_string())),
                         ("sub", ParamValue::from("{sub}".to_string())),
                     ]),
-                    "resource_id deve ser o ID ARM completo dentro da assinatura informada: /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.CognitiveServices/accounts/{nome}.",
+                    "{name} must be the full ARM ID inside the supplied subscription: /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.CognitiveServices/accounts/{account}.",
                 ))
             }
         }
@@ -485,7 +485,7 @@ pub fn validate_param(
             } else {
                 Err(L10n::fixed(
                     "edit_error.param.org",
-                    "Organização inválida: use apenas letras, números e hífens.",
+                    "Invalid organization: use only letters, numbers and hyphens.",
                 ))
             }
         }
@@ -503,7 +503,7 @@ pub fn parse_refresh_seconds(text: &str) -> Result<Option<u64>, crate::text::Loc
         return Ok(None);
     }
     let seconds: u64 = trimmed.parse().map_err(|_| {
-        crate::text::Localized::fixed("edit_error.interval_invalid", "Intervalo inválido.")
+        crate::text::Localized::fixed("edit_error.interval_invalid", "Invalid interval.")
     })?;
     if !(MIN_REFRESH_SECONDS..=MAX_REFRESH_SECONDS).contains(&seconds) {
         return Err(crate::text::Localized::with_params(
@@ -512,9 +512,7 @@ pub fn parse_refresh_seconds(text: &str) -> Result<Option<u64>, crate::text::Loc
                 ("min", crate::text::ParamValue::from(MIN_REFRESH_SECONDS)),
                 ("max", crate::text::ParamValue::from(MAX_REFRESH_SECONDS)),
             ]),
-            format!(
-                "Intervalo deve ficar entre {MIN_REFRESH_SECONDS} e {MAX_REFRESH_SECONDS} segundos."
-            ),
+            "Interval must be between {min} and {max} seconds.",
         ));
     }
     Ok(Some(seconds))
@@ -533,7 +531,7 @@ pub fn parse_group(text: &str) -> Result<Option<String>, crate::text::Localized>
             "edit_error.group_invalid",
             "max",
             crate::model::GROUP_MAX_LEN.to_string().as_str(),
-            "O grupo deve ter de 1 a 32 letras minúsculas, números, - ou _.",
+            "The group must be 1 to {max} lowercase letters, digits, - or _.",
         ));
     }
     Ok(Some(trimmed.to_owned()))
@@ -575,7 +573,7 @@ pub const AUTH_MODE_CREDENTIAL: &str = "credential";
 
 /// One machine value and label in a choice field. `auth_modes = None` means
 /// the option applies to every authentication type. A restricted option also
-/// carries the Portuguese fallback for its localizable unavailability reason.
+/// carries the English fallback for its localizable unavailability reason.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ChoiceOptionDescriptor {
     pub value: &'static str,
@@ -721,7 +719,7 @@ impl FieldDescriptor {
 // RF8: stable text ids for the descriptor schema. Ids are derived from the
 // provider slug and the descriptor key — both stable, non-textual data — so
 // a frontend resolves `field.<provider>.<key>.label` in its catalog and
-// falls back to the Portuguese `label`/`help` when the id is missing.
+// falls back to the English `label`/`help` when the id is missing.
 // ---------------------------------------------------------------------------
 
 /// Stable id of a field label: `field.<provider>.<key>.label`.
@@ -782,7 +780,7 @@ fn required_field_note(provider: Provider, descriptor: &FieldDescriptor) -> crat
         "edit_error.field_required",
         "label",
         field_label_note(provider, descriptor),
-        format!("{} é obrigatório.", descriptor.label),
+        "{label} is required.",
     )
 }
 
@@ -792,7 +790,7 @@ fn field_note(
     provider: Provider,
     descriptor: &FieldDescriptor,
     id: &'static str,
-    fallback: String,
+    fallback: &'static str,
 ) -> crate::text::Localized {
     crate::text::Localized::with_param(
         id,
@@ -830,14 +828,11 @@ fn option_label_note(
 /// substitution notices. Unknown ids use a generic, non-echoing label.
 pub fn auth_mode_label(auth_mode: &str) -> crate::text::Localized {
     let (id, fallback) = match auth_mode {
-        AUTH_MODE_CREDENTIAL => ("auth_mode.credential.label", "Credencial manual"),
-        "oauth" => ("auth_mode.oauth.label", "Login nativo"),
-        "aws_sso" => ("auth_mode.aws_sso.label", "AWS SSO"),
-        "bailian_console" => ("auth_mode.bailian_console.label", "Console Bailian"),
-        _ => (
-            "auth_mode.unknown.label",
-            "Tipo de autenticação desconhecido",
-        ),
+        AUTH_MODE_CREDENTIAL => ("auth_mode.credential.label", "Environment credential"),
+        "oauth" => ("auth_mode.oauth.label", "Native login"),
+        "aws_sso" => ("auth_mode.aws_sso.label", "AWS SSO profile"),
+        "bailian_console" => ("auth_mode.bailian_console.label", "Bailian console"),
+        _ => ("auth_mode.unknown.label", "Unknown authentication mode"),
     };
     crate::text::Localized::fixed(id, fallback)
 }
@@ -853,7 +848,7 @@ pub fn field_option_unavailability(
     option.auth_modes?;
     let fallback = option
         .unavailable_reason
-        .unwrap_or("Esta opção não está disponível para o tipo de autenticação selecionado.");
+        .unwrap_or("This option is not available for the selected authentication type.");
     Some(crate::text::Localized::fixed(
         field_option_unavailable_id(provider, key, value),
         fallback,
@@ -919,13 +914,7 @@ fn option_not_valid_for_auth_mode_note(
             ("auth_mode", auth_mode_label(auth_mode).into()),
             ("reason", reason.clone().into()),
         ]),
-        format!(
-            "{}: a opção {} não é válida com {}. {}",
-            descriptor.label,
-            option.label,
-            auth_mode_label(auth_mode).fallback,
-            reason.fallback
-        ),
+        "{value} is not valid for {field} with {auth_mode}: {reason}.",
     )
 }
 
@@ -968,14 +957,7 @@ pub fn resolve_field_choice(
                 ("auth_mode", auth_mode_label(auth_mode).into()),
                 ("reason", reason.clone().into()),
             ]),
-            format!(
-                "{}: {} não está disponível com {}; substituído por {}. {}",
-                descriptor.label,
-                previous.label,
-                auth_mode_label(auth_mode).fallback,
-                replacement.label,
-                reason.fallback
-            ),
+            "{value} is unavailable for {field} with {auth_mode}. Selected {replacement}. {reason}",
         ))
     });
     Some(FieldChoiceResolution {
@@ -1103,236 +1085,236 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
     const OPENAI_API: [FieldDescriptor; 2] = [
         FieldDescriptor::text(
             "project_ids",
-            "IDs de projetos",
-            "Opcional; lista separada por vírgula para filtrar custos e uso.",
+            "Project IDs",
+            "Optional; comma-separated list to filter cost and usage.",
             false,
         ),
         FieldDescriptor::text(
             "models",
-            "Modelos",
-            "Opcional; lista separada por vírgula para filtrar o uso.",
+            "Models",
+            "Optional; comma-separated list to filter usage.",
             false,
         ),
     ];
     const ANTHROPIC_API: [FieldDescriptor; 2] = [
         FieldDescriptor::text(
             "workspace_ids",
-            "IDs de workspaces",
-            "Opcional; lista separada por vírgula para filtrar custos e uso.",
+            "Workspace IDs",
+            "Optional; comma-separated list to filter cost and usage.",
             false,
         ),
         FieldDescriptor::text(
             "models",
-            "Modelos",
-            "Opcional; lista separada por vírgula para filtrar o uso.",
+            "Models",
+            "Optional; comma-separated list to filter usage.",
             false,
         ),
     ];
     const CHATGPT: [FieldDescriptor; 1] = [FieldDescriptor::text(
         "account_id",
-        "ID da conta",
-        "Opcional; cabeçalho chatgpt-account-id para conta de equipe.",
+        "Account ID",
+        "Optional; chatgpt-account-id header for team accounts.",
         false,
     )];
     const EMPTY: [FieldDescriptor; 0] = [];
     const GEMINI_CLOUD: [FieldDescriptor; 1] = [FieldDescriptor::text(
         "project_id",
-        "ID do projeto GCP",
-        "Obrigatório; letras, números e - _ . :",
+        "GCP project ID",
+        "Required; letters, numbers and - _ . :",
         true,
     )];
     const AZURE: [FieldDescriptor; 2] = [
         FieldDescriptor::text(
             "subscription_id",
-            "ID da assinatura",
-            "Obrigatório; assinatura Azure dona do recurso.",
+            "Subscription ID",
+            "Required; Azure subscription owning the resource.",
             true,
         ),
         FieldDescriptor::text(
             "resource_id",
-            "ID ARM do recurso",
-            "Obrigatório; caminho completo /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.CognitiveServices/accounts/{nome}.",
+            "Resource ARM ID",
+            "Required; full path /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.CognitiveServices/accounts/{name}.",
             true,
         ),
     ];
     const COPILOT: [FieldDescriptor; 4] = [
         FieldDescriptor::choice(
             "query_mode",
-            "Modo de consulta",
-            "billing (padrão): APIs de cobrança documentadas. quota: quota pessoal (interface interna; exige token OAuth/PAT do GitHub, NÃO o copilotToken interno).",
+            "Query mode",
+            "billing (default): documented billing APIs. quota: personal quota (internal interface; requires GitHub OAuth/PAT token, NOT the internal copilotToken).",
             &[
-                ChoiceOptionDescriptor::new("billing", "Cobrança documentada (padrão)"),
+                ChoiceOptionDescriptor::new("billing", "Documented billing (default)"),
                 ChoiceOptionDescriptor::new(
                     "quota",
-                    "Quota pessoal (opt-in, interface interna)",
+                    "Personal quota (opt-in, internal interface)",
                 ),
             ],
             true,
         ),
         FieldDescriptor::choice(
             "mode",
-            "Escopo",
-            "user: cobrança pessoal; org: cobrança da organização (requer admin). Sem efeito no modo quota.",
+            "Scope",
+            "user: personal billing; org: organization billing (requires admin). No effect in quota mode.",
             &[
                 ChoiceOptionDescriptor::new(
                     "user",
-                    "Cobrança pessoal do usuário autenticado",
+                    "Personal billing of the authenticated user",
                 ),
                 ChoiceOptionDescriptor::new(
                     "org",
-                    "Cobrança da organização (requer admin)",
+                    "Organization billing (requires admin)",
                 ),
             ],
             true,
         ),
         FieldDescriptor::text(
             "org",
-            "Organização",
-            "Obrigatório no modo org; slug da organização (letras, números e hífens).",
+            "Organization",
+            "Required in org mode; organization slug (letters, numbers and hyphens).",
             true,
         ),
         FieldDescriptor::choice(
             "billing",
-            "Produto",
-            "premium_requests (padrão) ou ai_credits.",
+            "Product",
+            "premium_requests (default) or ai_credits.",
             &[
-                ChoiceOptionDescriptor::new("premium_requests", "Solicitações premium"),
-                ChoiceOptionDescriptor::new("ai_credits", "Créditos de IA"),
+                ChoiceOptionDescriptor::new("premium_requests", "Premium requests"),
+                ChoiceOptionDescriptor::new("ai_credits", "AI credits"),
             ],
             true,
         ),
     ];
     const MISTRAL: [FieldDescriptor; 1] = [FieldDescriptor::text(
         "admin_key_env",
-        "Variável administrativa alternativa",
-        "Opcional: nome da variável com Admin API Key. Vazio usa a variável da etapa Credencial, que deve conter chave administrativa.",
+        "Alternative admin variable",
+        "Optional: name of the variable holding the Admin API Key. Empty uses the Credential step variable, which must contain the admin key.",
         false,
     )];
     const KIMI: [FieldDescriptor; 2] = [
         FieldDescriptor::choice(
             "product",
-            "Produto",
-            "Padrão: saldo da conta internacional Kimi/Moonshot. coding: opt-in para a quota do plano Kimi for Coding (interface interna, sujeita a mudanças).",
+            "Product",
+            "Default: Kimi/Moonshot international account balance. coding: opt-in to the Kimi for Coding plan quota (internal interface, subject to change).",
             &[
                 ChoiceOptionDescriptor::new(
                     "default",
-                    "Saldo da conta internacional (padrão)",
+                    "International account balance (default)",
                 ),
                 ChoiceOptionDescriptor::new(
                     "coding",
-                    "Kimi for Coding — quota do plano (opt-in, interno)",
+                    "Kimi for Coding — plan quota (opt-in, internal)",
                 ),
             ],
             true,
         ),
         FieldDescriptor::text(
             "token_env",
-            "Variável do token OAuth (opcional)",
-            "Opcional; nome da variável com access token OAuth Kimi. Usado somente se a chave da etapa Credencial estiver ausente; a API key tem precedência, como no 9router.",
+            "OAuth token variable (optional)",
+            "Optional; name of the variable holding the Kimi OAuth access token. Used only if the Credential step key is absent; the API key has priority, as in 9router.",
             false,
         ),
     ];
     const GROK: [FieldDescriptor; 6] = [
         FieldDescriptor::choice(
             "product",
-            "Produto",
-            "Padrão: Management API xAI (saldo/cobrança, exige Team ID). cli: opt-in para a quota do Grok CLI (interface interna) com token de sessão.",
+            "Product",
+            "Default: xAI Management API (balance/billing, requires Team ID). cli: opt-in to the Grok CLI quota (internal interface) with session token.",
             &[
-                ChoiceOptionDescriptor::new("management", "Management API (padrão)"),
-                ChoiceOptionDescriptor::new("cli", "Grok CLI (opt-in, interface interna)"),
+                ChoiceOptionDescriptor::new("management", "Management API (default)"),
+                ChoiceOptionDescriptor::new("cli", "Grok CLI (opt-in, internal interface)"),
             ],
             true,
         ),
         FieldDescriptor::text(
             "session_env",
-            "Variável do token de sessão",
-            "Nome (não valor) da variável com o access token do Grok CLI; o padrão é GROK_CLI_ACCESS_TOKEN — informe outro nome apenas se necessário. Usado somente no produto cli.",
+            "Session token variable",
+            "Name (not value) of the variable holding the Grok CLI access token; the default is GROK_CLI_ACCESS_TOKEN — set a different name only if necessary. Used only in the cli product.",
             false,
         ),
         FieldDescriptor::text(
             "email",
-            "E-mail (opcional)",
-            "Opcional no produto cli; enviado como cabeçalho x-email.",
+            "Email (optional)",
+            "Optional in the cli product; sent as the x-email header.",
             false,
         ),
         FieldDescriptor::text(
             "user_id",
-            "User ID (opcional)",
-            "Opcional no produto cli; enviado como cabeçalho x-userid.",
+            "User ID (optional)",
+            "Optional in the cli product; sent as the x-userid header.",
             false,
         ),
         FieldDescriptor::text(
             "team_id",
-            "Team ID xAI",
-            "Obrigatório na Management API, disponível nas configurações da equipe xAI.",
+            "xAI Team ID",
+            "Required in the Management API; available in the xAI team settings.",
             true,
         ),
         FieldDescriptor::text(
             "management_key_env",
-            "Variável de Management Key alternativa",
-            "Opcional: nome da variável com Management Key, não o valor. Vazio usa a variável da etapa Credencial.",
+            "Alternative Management Key variable",
+            "Optional: name of the variable holding the Management Key, not the value. Empty uses the Credential step variable.",
             false,
         ),
     ];
     const PERPLEXITY: [FieldDescriptor; 2] = [
         FieldDescriptor::text(
             "product",
-            "Produto (opcional)",
-            "Digite computer somente para Computer Enterprise Analytics. Vazio mantém Perplexity/Sonar com limitação explícita.",
+            "Product (optional)",
+            "Type computer only for Computer Enterprise Analytics. Empty keeps Perplexity/Sonar with explicit limitation.",
             false,
         ),
         FieldDescriptor::text(
             "analytics_key_env",
-            "Variável Analytics alternativa",
-            "Opcional: variável com chave Computer Analytics. Não consulta consumo Sonar.",
+            "Alternative Analytics variable",
+            "Optional: variable with Computer Analytics key. Does not query Sonar usage.",
             false,
         ),
     ];
     const CLINE: [FieldDescriptor; 1] = [FieldDescriptor::text(
         "organization_id",
-        "Organização Cline (opcional)",
-        "Vazio consulta a conta pessoal. Informe o ID da organização para consultar seu saldo, com a permissão correspondente.",
+        "Cline organization (optional)",
+        "Empty queries the personal account. Set the organization ID to query its balance, with the corresponding permission.",
         false,
     )];
     const GEMINI_AI: [FieldDescriptor; 3] = [
         FieldDescriptor::choice(
             "product",
-            "Produto",
-            "A chave de API Gemini/AI Studio NÃO tem consulta de quota. cli: opt-in para a quota do Gemini CLI (CodeAssist, interface interna) com token de sessão.",
+            "Product",
+            "The Gemini/AI Studio API key does NOT query quota. cli: opt-in to the Gemini CLI (CodeAssist, internal interface) quota with session token.",
             &[
                 ChoiceOptionDescriptor::new(
                     "default",
-                    "Chave de API (sem consulta de quota)",
+                    "API key (no quota query)",
                 ),
                 ChoiceOptionDescriptor::new(
                     "cli",
-                    "Gemini CLI / CodeAssist (opt-in, interno)",
+                    "Gemini CLI / CodeAssist (opt-in, internal)",
                 ),
             ],
             true,
         ),
         FieldDescriptor::text(
             "session_env",
-            "Variável do token de sessão",
-            "Nome (não valor) da variável com o access token do Gemini CLI; o padrão é GEMINI_CLI_ACCESS_TOKEN — informe outro nome apenas se necessário. Usado somente no produto cli.",
+            "Session token variable",
+            "Name (not value) of the variable holding the Gemini CLI access token; the default is GEMINI_CLI_ACCESS_TOKEN — set a different name only if necessary. Used only in the cli product.",
             false,
         ),
         FieldDescriptor::text(
             "project_id",
-            "ID do projeto GCP (opcional)",
-            "Opcional no produto cli; projeto CodeAssist. Vazio tenta resolução automática.",
+            "GCP project ID (optional)",
+            "Optional in the cli product; CodeAssist project. Empty tries automatic resolution.",
             false,
         ),
     ];
     const QODER: [FieldDescriptor; 2] = [
         FieldDescriptor::choice(
             "region",
-            "Região",
-            "intl (padrão): openapi.qoder.sh. cn: openapi.qoder.com.cn.",
+            "Region",
+            "intl (default): openapi.qoder.sh. cn: openapi.qoder.com.cn.",
             &[
                 ChoiceOptionDescriptor::new(
                     "intl",
-                    "Internacional (openapi.qoder.sh)",
+                    "International (openapi.qoder.sh)",
                 ),
                 ChoiceOptionDescriptor::new("cn", "China (openapi.qoder.com.cn)"),
             ],
@@ -1340,12 +1322,12 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
         ),
         FieldDescriptor::choice(
             "credential_type",
-            "Tipo de credencial",
-            "auto (padrão): detecta o prefixo pt-. pat: Personal Access Token (trocado por job token). bearer: token Bearer/job já existente.",
+            "Credential type",
+            "auto (default): detects the pt- prefix. pat: Personal Access Token (exchanged for a job token). bearer: existing Bearer/job token.",
             &[
-                ChoiceOptionDescriptor::new("auto", "Automático (detecta pt-)"),
+                ChoiceOptionDescriptor::new("auto", "Automatic (detects pt-)"),
                 ChoiceOptionDescriptor::new("pat", "Personal Access Token"),
-                ChoiceOptionDescriptor::new("bearer", "Bearer/job token existente"),
+                ChoiceOptionDescriptor::new("bearer", "Existing Bearer/job token"),
             ],
             true,
         ),
@@ -1353,325 +1335,325 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
     const KIRO: [FieldDescriptor; 2] = [
         FieldDescriptor::choice(
             "auth_method",
-            "Método de autenticação",
-            "No login nativo: builder-id (padrão) ou idc. Com credencial manual: google (padrão para novas contas), github, import, api_key ou external_idp.",
+            "Authentication method",
+            "Access-token source. Environment credential: google (default), github, import, api_key or external_idp. Native login: builder-id or idc.",
             &[
                 ChoiceOptionDescriptor::for_auth_modes(
                     "builder-id",
                     "AWS Builder ID",
                     &["oauth"],
-                    "O Cuotai não renova tokens curtos de Builder ID recebidos por variável de ambiente; use o login nativo.",
+                    "AWS Builder ID is available only through native login.",
                 ),
                 ChoiceOptionDescriptor::for_auth_modes(
                     "idc",
                     "IAM Identity Center",
                     &["oauth"],
-                    "O Cuotai não renova tokens curtos do Identity Center recebidos por variável de ambiente; use o login nativo.",
+                    "IAM Identity Center is available only through native login.",
                 ),
                 ChoiceOptionDescriptor::for_auth_modes(
                     "google",
-                    "Google",
+                    "Google (default for environment credentials)",
                     &[AUTH_MODE_CREDENTIAL],
-                    "O login nativo do Kiro aceita somente AWS Builder ID ou IAM Identity Center.",
+                    "Google tokens are available only with an environment credential.",
                 ),
                 ChoiceOptionDescriptor::for_auth_modes(
                     "github",
                     "GitHub",
                     &[AUTH_MODE_CREDENTIAL],
-                    "O login nativo do Kiro aceita somente AWS Builder ID ou IAM Identity Center.",
+                    "GitHub tokens are available only with an environment credential.",
                 ),
                 ChoiceOptionDescriptor::for_auth_modes(
                     "import",
-                    "Importado",
+                    "Imported",
                     &[AUTH_MODE_CREDENTIAL],
-                    "O login nativo do Kiro aceita somente AWS Builder ID ou IAM Identity Center.",
+                    "Imported tokens are available only with an environment credential.",
                 ),
                 ChoiceOptionDescriptor::for_auth_modes(
                     "api_key",
                     "API key",
                     &[AUTH_MODE_CREDENTIAL],
-                    "O login nativo do Kiro aceita somente AWS Builder ID ou IAM Identity Center.",
+                    "API keys are available only with an environment credential.",
                 ),
                 ChoiceOptionDescriptor::for_auth_modes(
                     "external_idp",
-                    "IdP externo",
+                    "External IdP",
                     &[AUTH_MODE_CREDENTIAL],
-                    "O login nativo do Kiro aceita somente AWS Builder ID ou IAM Identity Center.",
+                    "External IdP tokens are available only with an environment credential.",
                 ),
             ],
             true,
         ),
         FieldDescriptor::text(
             "profile_arn",
-            "ARN do perfil CodeWhisperer (opcional)",
-            "Perfil da sua conta; opcional no fluxo legado. Permite consultar créditos atuais no endpoint regional. Nunca use ARN de outra conta.",
+            "CodeWhisperer profile ARN (optional)",
+            "Profile of your account; optional in the legacy flow. Lets the regional endpoint query current credits. Never use an ARN from another account.",
             false,
         ),
     ];
     const CODEBUDDY: [FieldDescriptor; 1] = [FieldDescriptor::choice(
         "region",
-        "Região",
-        "cn (padrão): copilot.tencent.com (cabeçalhos CLI). intl: www.codebuddy.ai (cabeçalhos IDE).",
+        "Region",
+        "cn (default): copilot.tencent.com (CLI headers). intl: www.codebuddy.ai (IDE headers).",
         &[
             ChoiceOptionDescriptor::new("cn", "China (copilot.tencent.com)"),
-            ChoiceOptionDescriptor::new("intl", "Internacional (www.codebuddy.ai)"),
+            ChoiceOptionDescriptor::new("intl", "International (www.codebuddy.ai)"),
         ],
         true,
     )];
     const ELEVEN_LABS: [FieldDescriptor; 1] = [FieldDescriptor::choice(
         "region",
-        "Região dos dados",
-        "default (padrão): api.elevenlabs.io. us, eu, in e sg: endpoints de residência de dados; use o da região da conta.",
+        "Data region",
+        "default (default): api.elevenlabs.io. us, eu, in and sg: data-residency endpoints; use the one of the account's region.",
         &[
-            ChoiceOptionDescriptor::new("default", "Padrão (api.elevenlabs.io)"),
-            ChoiceOptionDescriptor::new("us", "Estados Unidos (api.us.elevenlabs.io)"),
-            ChoiceOptionDescriptor::new("eu", "União Europeia (residência de dados)"),
-            ChoiceOptionDescriptor::new("in", "Índia (residência de dados)"),
-            ChoiceOptionDescriptor::new("sg", "Singapura (residência de dados)"),
+            ChoiceOptionDescriptor::new("default", "Default (api.elevenlabs.io)"),
+            ChoiceOptionDescriptor::new("us", "United States (api.us.elevenlabs.io)"),
+            ChoiceOptionDescriptor::new("eu", "European Union (data residency)"),
+            ChoiceOptionDescriptor::new("in", "India (data residency)"),
+            ChoiceOptionDescriptor::new("sg", "Singapore (data residency)"),
         ],
         true,
     )];
     const NINE_ROUTER: [FieldDescriptor; 9] = [
         FieldDescriptor::text(
             "base_url",
-            "Endereço do 9router",
-            "Padrão http://127.0.0.1:20128. Use http(s)://host[:porta][/prefixo], sem usuário, consulta ou fragmento. Fora desta máquina é preciso HTTPS.",
+            "9router address",
+            "Default http://127.0.0.1:20128. Use http(s)://host[:port][/prefix], without user, query or fragment. Outside this machine HTTPS is required.",
             false,
         ),
         FieldDescriptor::choice(
             "allow_private_http",
-            "Conexão sem criptografia na rede privada",
-            "Só vale para endereços de rede privada (192.168.x.x, 10.x.x.x, Tailscale, .local). Não = exige HTTPS fora desta máquina.",
+            "Unencrypted connection on the private network",
+            "Only applies to private network addresses (192.168.x.x, 10.x.x.x, Tailscale, .local). No = HTTPS is required outside this machine.",
             &[
-                ChoiceOptionDescriptor::new("false", "Não (padrão)"),
-                ChoiceOptionDescriptor::new("true", "Sim, na minha rede privada"),
+                ChoiceOptionDescriptor::new("false", "No (default)"),
+                ChoiceOptionDescriptor::new("true", "Yes, on my private network"),
             ],
             true,
         ),
         FieldDescriptor::text(
             "include",
-            "Só estes provedores (opcional)",
-            "Lista separada por vírgula de provedores do 9router (ex.: claude,codex,github). Vazio mostra todos.",
+            "Only these providers (optional)",
+            "Comma-separated 9router providers (for example claude,codex,github). Empty shows all.",
             false,
         ),
         FieldDescriptor::text(
             "exclude",
-            "Ocultar provedores (opcional)",
-            "Lista separada por vírgula de provedores do 9router a ocultar.",
+            "Hide providers (optional)",
+            "Comma-separated 9router providers to hide.",
             false,
         ),
         FieldDescriptor::text(
             "hidden",
-            "Conexões ocultas (opcional)",
-            "Lista separada por vírgula dos identificadores das conexões a ocultar (o identificador aparece nos detalhes da conexão). Uma conexão oculta não é consultada.",
+            "Hidden connections (optional)",
+            "Comma-separated ids of the connections to hide (the id is in the connection details). A hidden connection is not queried.",
             false,
         ),
         FieldDescriptor::choice(
             "dedup",
-            "Conexões que repetem uma conta direta",
-            "Uma conexão com o mesmo provedor e o mesmo e-mail de uma conta direta é a mesma conta: a conta direta prevalece e a conexão fica só na seção do 9router.",
+            "Connections that repeat a direct account",
+            "A connection with the same provider and e-mail as a direct account is the same account: the direct account wins and the connection stays only in the 9router section.",
             &[
-                ChoiceOptionDescriptor::new("auto", "Mostrar só a conta direta (padrão)"),
-                ChoiceOptionDescriptor::new("off", "Mostrar as duas"),
+                ChoiceOptionDescriptor::new("auto", "Show only the direct account (default)"),
+                ChoiceOptionDescriptor::new("off", "Show both"),
             ],
             true,
         ),
         FieldDescriptor::text(
             "show_both",
-            "Mostrar nos dois lugares (opcional)",
-            "Lista separada por vírgula dos identificadores das conexões repetidas que continuam aparecendo também fora da seção do 9router.",
+            "Show in both places (optional)",
+            "Comma-separated ids of the repeated connections that still appear outside the 9router section.",
             false,
         ),
         FieldDescriptor::text(
             "tls_ca_file",
-            "Arquivo de CA (opcional, HTTPS)",
-            "Caminho de um PEM com a CA que assinou o certificado da instância. Os certificados do sistema continuam valendo.",
+            "CA file (optional, HTTPS)",
+            "Path to a PEM with the CA that signed the instance's certificate. The system's certificates still apply.",
             false,
         ),
         FieldDescriptor::text(
             "tls_pin_sha256",
-            "Certificado fixado (opcional, HTTPS)",
-            "Impressão digital SHA-256 do certificado da instância, para um certificado autoassinado. O teste de conexão a mostra para você confirmar; não use com arquivo de CA.",
+            "Pinned certificate (optional, HTTPS)",
+            "SHA-256 fingerprint of the instance's certificate, for a self-signed certificate. The connection test shows it for you to confirm; do not use it with a CA file.",
             false,
         ),
     ];
     const OPEN_ROUTER: [FieldDescriptor; 3] = [
         FieldDescriptor::choice(
             "product",
-            "Produto",
-            "key (padrão): limite, gasto e requisições gratuitas da chave de inferência. account: saldo de créditos da conta com uma chave de gerenciamento.",
+            "Product",
+            "key (default): limit, spend and free requests of the inference key. account: credit balance of the account with a management key.",
             &[
-                ChoiceOptionDescriptor::new("key", "Limites da chave (padrão)"),
-                ChoiceOptionDescriptor::new("account", "Saldo da conta (chave de gerenciamento)"),
+                ChoiceOptionDescriptor::new("key", "Key limits (default)"),
+                ChoiceOptionDescriptor::new("account", "Account balance (management key)"),
             ],
             true,
         ),
         FieldDescriptor::choice(
             "breakdown",
-            "Gasto por origem (opcional)",
-            "Somente com saldo da conta: soma o gasto dos últimos 30 dias concluídos por provedor de origem ou por modelo, com uma consulta extra por dia.",
+            "Spend by origin (optional)",
+            "Account balance only: sums the last 30 completed days of spend by upstream provider or by model, with one extra query per day.",
             &[
-                ChoiceOptionDescriptor::new("off", "Desligado (padrão)"),
-                ChoiceOptionDescriptor::new("provider", "Por provedor de origem"),
-                ChoiceOptionDescriptor::new("model", "Por modelo"),
+                ChoiceOptionDescriptor::new("off", "Off (default)"),
+                ChoiceOptionDescriptor::new("provider", "By upstream provider"),
+                ChoiceOptionDescriptor::new("model", "By model"),
             ],
             true,
         ),
         FieldDescriptor::text(
             "low_balance",
-            "Aviso de saldo baixo (opcional)",
-            "Somente com saldo da conta: mostra um aviso quando o saldo de créditos fica igual ou abaixo deste valor. Vazio usa 5; 0 desliga.",
+            "Low-balance notice (optional)",
+            "Account balance only: shows a notice when the credit balance is at or below this value. Empty uses 5; 0 turns it off.",
             false,
         ),
     ];
     const LITELLM: [FieldDescriptor; 5] = [
         FieldDescriptor::text(
             "base_url",
-            "Endereço do LiteLLM",
-            "Padrão http://127.0.0.1:4000. Use http(s)://host[:porta][/prefixo], sem usuário, consulta ou fragmento. Fora desta máquina é preciso HTTPS.",
+            "LiteLLM address",
+            "Default http://127.0.0.1:4000. Use http(s)://host[:port][/prefix], without user, query or fragment. Outside this machine HTTPS is required.",
             false,
         ),
         FieldDescriptor::choice(
             "allow_private_http",
-            "Conexão sem criptografia na rede privada",
-            "Só vale para endereços de rede privada (192.168.x.x, 10.x.x.x, Tailscale, .local). Não = exige HTTPS fora desta máquina.",
+            "Unencrypted connection on the private network",
+            "Only applies to private network addresses (192.168.x.x, 10.x.x.x, Tailscale, .local). No = HTTPS is required outside this machine.",
             &[
-                ChoiceOptionDescriptor::new("false", "Não (padrão)"),
-                ChoiceOptionDescriptor::new("true", "Sim, na minha rede privada"),
+                ChoiceOptionDescriptor::new("false", "No (default)"),
+                ChoiceOptionDescriptor::new("true", "Yes, on my private network"),
             ],
             true,
         ),
         FieldDescriptor::text(
             "hidden",
-            "Provedores ocultos (opcional)",
-            "Lista separada por vírgula dos identificadores dos provedores a ocultar (o identificador aparece nos detalhes).",
+            "Hidden providers (optional)",
+            "Comma-separated ids of the providers to hide (the id is in the details).",
             false,
         ),
         FieldDescriptor::choice(
             "dedup",
-            "Provedores que repetem uma conta direta",
-            "O LiteLLM não informa e-mails, então nenhum provedor é tomado por uma conta direta; a opção existe para manter a mesma regra das outras centrais.",
+            "Providers that repeat a direct account",
+            "LiteLLM reports no e-mails, so no provider is taken for a direct account; the option keeps the same rule as the other gateways.",
             &[
-                ChoiceOptionDescriptor::new("auto", "Mostrar só a conta direta (padrão)"),
-                ChoiceOptionDescriptor::new("off", "Mostrar as duas"),
+                ChoiceOptionDescriptor::new("auto", "Show only the direct account (default)"),
+                ChoiceOptionDescriptor::new("off", "Show both"),
             ],
             true,
         ),
         FieldDescriptor::text(
             "show_both",
-            "Mostrar nos dois lugares (opcional)",
-            "Lista separada por vírgula dos identificadores que continuam aparecendo também fora da seção do LiteLLM.",
+            "Show in both places (optional)",
+            "Comma-separated ids that still appear outside the LiteLLM section.",
             false,
         ),
     ];
     const ZED: [FieldDescriptor; 2] = [
         FieldDescriptor::text(
             "user_id",
-            "ID numérico do usuário Zed",
-            "Obrigatório; enviado como \"Authorization: <user_id> <access_token>\".",
+            "Zed numeric user ID",
+            "Required; sent as \"Authorization: <user_id> <access_token>\".",
             true,
         ),
         FieldDescriptor::text(
             "system_id",
-            "System ID (opcional)",
-            "Opcional; enviado como cabeçalho x-zed-system-id quando definido.",
+            "System ID (optional)",
+            "Optional; sent as the x-zed-system-id header when set.",
             false,
         ),
     ];
     const XIAOMI_MIMO: [FieldDescriptor; 3] = [
         FieldDescriptor::text(
             "platform_session_env",
-            "Variável da sessão da plataforma (opcional)",
-            "Alternativa à sessão colada no assistente da conta (cofre do sistema): nome da variável com o Cookie de platform.xiaomimimo.com (api-platform_serviceToken e userId). Lê saldo/plano mensal; não cole cookies neste campo.",
+            "Platform session variable (optional)",
+            "Alternative to the session pasted in the account wizard (system vault): name of the variable with the platform.xiaomimimo.com cookie (api-platform_serviceToken and userId). Reads balance/monthly plan; do not paste cookies here.",
             false,
         ),
         FieldDescriptor::text(
             "session_env",
-            "Variável do cookie de sessão (opcional)",
-            "Alternativa à sessão colada no assistente da conta (cofre do sistema): nome da variável com o cookie de sessão da conta Xiaomi (ex.: serviceToken=...), nunca o valor. Tem prioridade sobre a credencial principal.",
+            "Session cookie variable (optional)",
+            "Alternative to the session pasted in the account wizard (system vault): name of the variable with the Xiaomi account session cookie (e.g. serviceToken=...), never the value. Has priority over the main credential.",
             false,
         ),
         FieldDescriptor::choice(
             "region",
-            "Região",
-            "Região do serviço MiMo: sgp (padrão), cn, ams, ru ou in.",
+            "Region",
+            "MiMo service region: sgp (default), cn, ams, ru or in.",
             &[
-                ChoiceOptionDescriptor::new("sgp", "Singapura (padrão)"),
+                ChoiceOptionDescriptor::new("sgp", "Singapore (default)"),
                 ChoiceOptionDescriptor::new("cn", "China"),
-                ChoiceOptionDescriptor::new("ams", "Amsterdã"),
-                ChoiceOptionDescriptor::new("ru", "Rússia"),
-                ChoiceOptionDescriptor::new("in", "Índia"),
+                ChoiceOptionDescriptor::new("ams", "Amsterdam"),
+                ChoiceOptionDescriptor::new("ru", "Russia"),
+                ChoiceOptionDescriptor::new("in", "India"),
             ],
             true,
         ),
     ];
     const ANTIGRAVITY: [FieldDescriptor; 1] = [FieldDescriptor::text(
         "project_id",
-        "Projeto Code Assist (opcional)",
-        "Vazio tenta obter o projeto pela sessão Antigravity. Não é obrigatório informar o projeto usado por uma API key Gemini.",
+        "Code Assist project (optional)",
+        "Empty tries to obtain the project from the Antigravity session. Not required when using a Gemini API key.",
         false,
     )];
     const ALIBABA_MODEL_STUDIO: [FieldDescriptor; 1] = [FieldDescriptor::choice(
         "region",
-        "Região Alibaba",
-        "Use a região onde sua conta/chave foi criada; China e internacional possuem endpoints distintos.",
+        "Alibaba region",
+        "Use the region where your account/key was created; China and international have distinct endpoints.",
         &[
-            ChoiceOptionDescriptor::new("intl", "Internacional"),
-            ChoiceOptionDescriptor::new("cn", "China continental"),
+            ChoiceOptionDescriptor::new("intl", "International"),
+            ChoiceOptionDescriptor::new("cn", "Mainland China"),
         ],
         true,
     )];
     const ALIBABA_CODING_PLAN: [FieldDescriptor; 2] = [
         FieldDescriptor::choice(
             "region",
-            "Região Alibaba",
-            "Use a região da assinatura; a credencial não será enviada automaticamente para outra região.",
+            "Alibaba region",
+            "Use the region of the subscription; the credential is not sent automatically to another region.",
             &[
-                ChoiceOptionDescriptor::new("intl", "Internacional"),
-                ChoiceOptionDescriptor::new("cn", "China continental"),
+                ChoiceOptionDescriptor::new("intl", "International"),
+                ChoiceOptionDescriptor::new("cn", "Mainland China"),
             ],
             true,
         ),
         FieldDescriptor::text(
             "session_env",
-            "Variável da sessão Alibaba (opcional)",
-            "Se a API exigir login no console, cole a sessão no assistente da conta (cofre do sistema) ou informe aqui o NOME da variável contendo o Cookie da sua sessão. Substitui a API key na consulta; nunca cole o cookie aqui.",
+            "Alibaba session variable (optional)",
+            "If the API requires console login, paste the session in the account wizard (system vault) or set here the NAME of the variable holding your session cookie. Replaces the API key in the query; never paste the cookie here.",
             false,
         ),
     ];
     const ALIBABA_TOKEN_PLAN: [FieldDescriptor; 1] = [FieldDescriptor::text(
         "session_env",
-        "Variável do Cookie Qwen Cloud (opcional)",
-        "Vazio = quota pela sessão colada no assistente da conta (cofre do sistema) ou, sem ela, pelo perfil dedicado do `bl` (`params.cli_profile`). Se preferir uma variável, informe o NOME da variável contendo o Cookie de home.qwencloud.com; nunca cole o Cookie aqui.",
+        "Qwen Cloud cookie variable (optional)",
+        "Empty = quota through the session pasted in the account wizard (system vault) or, without one, the dedicated `bl` profile (`params.cli_profile`). If you prefer a variable, set the NAME of the variable holding the home.qwencloud.com cookie; never paste the cookie here.",
         false,
     )];
     const ALIBABA_CLOUD: [FieldDescriptor; 4] = [
         FieldDescriptor::choice(
             "region",
-            "Conta de faturamento",
-            "Internacional ou China continental; corresponde à conta de cobrança Alibaba.",
+            "Billing account",
+            "International or Mainland China; corresponds to the Alibaba billing account.",
             &[
-                ChoiceOptionDescriptor::new("intl", "Internacional"),
-                ChoiceOptionDescriptor::new("cn", "China continental"),
+                ChoiceOptionDescriptor::new("intl", "International"),
+                ChoiceOptionDescriptor::new("cn", "Mainland China"),
             ],
             true,
         ),
         FieldDescriptor::text(
             "secret_env",
-            "Variável AccessKey Secret",
-            "Opcional: padrão ALIBABA_CLOUD_ACCESS_KEY_SECRET. Informe apenas o nome da variável, nunca o segredo.",
+            "AccessKey Secret variable",
+            "Optional: default ALIBABA_CLOUD_ACCESS_KEY_SECRET. Set the variable name only, never the secret.",
             false,
         ),
         FieldDescriptor::text(
             "security_token_env",
-            "Variável STS Security Token (opcional)",
-            "Somente para credenciais temporárias STS; deixe vazio para AccessKey permanente.",
+            "STS Security Token variable (optional)",
+            "Only for temporary STS credentials; leave empty for permanent AccessKey.",
             false,
         ),
         FieldDescriptor::text(
             "billing_cycle",
-            "Fatura mensal (opcional)",
-            "YYYY-MM, por exemplo 2026-09. Vazio consulta apenas saldo. Fatura agrega todos os produtos da conta cloud, não somente AI.",
+            "Monthly bill (optional)",
+            "YYYY-MM, e.g. 2026-09. Empty queries only the balance. The bill aggregates all cloud products, not only AI.",
             false,
         ),
     ];
@@ -1744,21 +1726,21 @@ fn native_shared_field_keys(provider: Provider) -> &'static [&'static str] {
 fn native_only_option_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
     const CURSOR: [FieldDescriptor; 1] = [FieldDescriptor::text(
         "database_path",
-        "Banco local Cursor (opcional)",
-        "Caminho completo de state.vscdb; vazio usa Cursor instalado. Nunca informe o token neste campo.",
+        "Cursor local database (optional)",
+        "Full path to state.vscdb; empty uses the installed Cursor. Never paste the token here.",
         false,
     )];
     const KIRO: [FieldDescriptor; 2] = [
         FieldDescriptor::text(
             "region",
-            "Região (opcional)",
-            "Região AWS do Identity Center (ex.: us-east-1); vazio usa o padrão do fluxo.",
+            "Region (optional)",
+            "AWS region of the Identity Center (e.g. us-east-1); empty uses the flow default.",
             false,
         ),
         FieldDescriptor::text(
             "start_url",
-            "URL de início IDC (opcional)",
-            "URL do portal IAM Identity Center; usada apenas no método idc.",
+            "IDC start URL (optional)",
+            "URL of the IAM Identity Center portal; used only in the idc method.",
             false,
         ),
     ];
@@ -1852,10 +1834,7 @@ pub fn validate_name(
                 "edit_error.name_required_same_provider",
                 "provider",
                 crate::text::provider_l10n(provider),
-                format!(
-                    "Dê um nome a esta conta: você tem outra conta {}.",
-                    provider.label()
-                ),
+                "Name this account: you have another {provider} account.",
             ));
         }
         return Ok(String::new());
@@ -1868,7 +1847,7 @@ pub fn validate_name(
     if collision {
         return Err(crate::text::Localized::fixed(
             "edit_error.duplicate_name",
-            "Já existe uma conta com esse nome.",
+            "An account with this name already exists.",
         ));
     }
     Ok(trimmed.to_string())
@@ -1926,13 +1905,13 @@ pub fn resolve_credential_env(
     if trimmed.is_empty() {
         return Err(crate::text::Localized::fixed(
             "edit_error.env_required",
-            "Informe o NOME da variável de ambiente com a credencial.",
+            "Set the NAME of the environment variable holding the credential.",
         ));
     }
     if !valid_env_name(trimmed) {
         return Err(crate::text::Localized::fixed(
             "edit_error.env_invalid",
-            "Nome de variável inválido ([A-Za-z_][A-Za-z0-9_]*). Não cole o token: informe apenas o nome da variável exportada.",
+            "Invalid variable name ([A-Za-z_][A-Za-z0-9_]*). Do not paste the token: set the name of the exported variable only.",
         ));
     }
     Ok(Some(trimmed.to_string()))
@@ -1955,7 +1934,7 @@ pub fn resolve_oauth(
     }
     Err(crate::text::Localized::fixed(
         "edit_error.oauth_required",
-        "Faça o login OAuth (Enter em \"Iniciar login\") antes de gravar, ou volte à variável de ambiente com Tab.",
+        "Run OAuth login (Enter on \"Start login\") before saving, or switch back to an environment variable with Tab.",
     ))
 }
 
@@ -1971,7 +1950,7 @@ fn selected_choice_option<'a>(
             provider,
             descriptor,
             "edit_error.choice_invalid",
-            format!("Seleção inválida para {}.", descriptor.label),
+            "Invalid selection for {label}.",
         ));
     };
     if !option.applies_to(auth_mode) {
@@ -2045,7 +2024,7 @@ pub fn apply_draft_fields(
                             provider,
                             descriptor,
                             "edit_error.choice_invalid",
-                            format!("Seleção inválida para {}.", descriptor.label),
+                            "Invalid selection for {label}.",
                         )
                     })?;
                 write_choice(
@@ -2086,10 +2065,7 @@ pub fn apply_draft_fields(
                     provider,
                     descriptor,
                     "edit_error.field_expected_text",
-                    format!(
-                        "Campo {} enviado como escolha, mas o esquema espera texto.",
-                        descriptor.label
-                    ),
+                    "Field {label} sent as a choice, but the schema expects text.",
                 ));
             }
             (FieldDescriptorKind::Choice(_), DraftValue::Text(_)) => {
@@ -2097,10 +2073,7 @@ pub fn apply_draft_fields(
                     provider,
                     descriptor,
                     "edit_error.field_expected_choice",
-                    format!(
-                        "Campo {} enviado como texto, mas o esquema espera uma escolha.",
-                        descriptor.label
-                    ),
+                    "Field {label} sent as text, but the schema expects a choice.",
                 ));
             }
         }
@@ -2157,7 +2130,7 @@ fn validate_account_choice_params(
                 provider,
                 descriptor,
                 "edit_error.choice_invalid",
-                format!("Seleção inválida para {}.", descriptor.label),
+                "Invalid selection for {label}.",
             ));
         };
         if !option.applies_to(auth_mode) {
@@ -2178,7 +2151,7 @@ pub fn apply_aws_profile(
     if provider == Provider::AwsBedrock && credential_text.trim().is_empty() {
         return Err(crate::text::Localized::fixed(
             "edit_error.aws_profile_required",
-            "Informe o perfil AWS (AWS CLI v2).",
+            "Set the AWS profile (AWS CLI v2).",
         ));
     }
     Ok(())
@@ -2496,7 +2469,7 @@ pub fn build_account(
 /// [`crate::edit_error::EditError::Validation`]. The `field` points at the
 /// schema name (`"name"`, `"credential"`, ...) so a UI can highlight the
 /// offending widget without parsing the message; the note carries the
-/// stable RF8 id, structured params and the Portuguese fallback. Messages
+/// stable RF8 id, structured params and the English fallback. Messages
 /// never echo user input.
 fn build_account_field_error(
     field: &'static str,
@@ -2570,7 +2543,7 @@ impl Config {
                 "peer_name",
                 crate::text::Localized::fixed(
                     "edit_error.name_required",
-                    "Informe um nome para a conta.",
+                    "Set a name for the account.",
                 ),
             ));
         }
@@ -2639,7 +2612,7 @@ pub enum RemoveOutcome {
     /// remains in the vault (the safer of the two outcomes: a stray
     /// TOML entry would force the user to re-link from scratch). The
     /// `vault_error` is an RF8 [`crate::text::Localized`] note the frontend
-    /// translates via its catalog (the Portuguese fallback is what pre-RF8
+    /// translates via its catalog (the English fallback is what pre-RF8
     /// callers received as a fixed string); it never carries token material.
     /// The retained `account` is the recovery primitive the UI uses to
     /// retry via [`purge_credential`] against the current config.
@@ -2689,9 +2662,9 @@ pub struct RemovedAccount {
 /// UUID, which is not secret).
 #[derive(Debug, thiserror::Error)]
 pub enum RemoveError {
-    #[error("Índice {0} fora de alcance.")]
+    #[error("Index {0} out of range.")]
     Index(usize),
-    #[error("Falha ao salvar a configuração: {0}")]
+    #[error("Failed to save the configuration: {0}.")]
     Save(crate::edit_error::EditError),
     /// The account has an OAuth config but it is structurally invalid
     /// (e.g. malformed `credential_id`, empty `client_id`). The core
@@ -2702,40 +2675,50 @@ pub enum RemoveError {
     /// reporting success is also wrong (the credential is in limbo).
     /// The caller MUST surface this to the user; the TOML was NOT
     /// saved.
-    #[error(
-        "Configuração OAuth inválida; não é possível garantir a remoção completa. Detalhes: {0}"
-    )]
+    #[error("Invalid OAuth configuration; cannot guarantee the full removal. Details: {0}.")]
     InvalidOAuth(String),
     /// FIX-06: the account keeps a web session in the vault
     /// (`[accounts.session]`, PRD 0016) and the vault refused to delete
     /// it. Nothing changed: the TOML was not saved and any session already
     /// deleted was put back. Carries the vault's note, never a value.
     #[error(
-        "Não foi possível apagar do cofre do sistema a sessão web desta conta, então a conta não foi removida: {}",
+        "The web session of this account could not be deleted from the system vault, so the account was not removed: {}",
         .0.fallback
     )]
     Session(crate::text::Localized),
 }
 
 impl KeptReason {
-    /// RF8 structured note: stable id + parameters + Portuguese fallback.
+    /// RF8 structured note: stable id + parameters + English fallback.
     /// Desktop localizes via the id; the TUI uses the fallback verbatim.
     pub fn l10n(&self) -> crate::text::Localized {
         match self {
             KeptReason::Declined => crate::text::Localized::fixed(
                 "remove.kept.declined",
-                "Você optou por manter a credencial no cofre do sistema.",
+                "You opted to keep the credential in the system vault.",
             ),
             KeptReason::SharedWith { other_account } => crate::text::Localized::with_param(
                 "remove.kept.shared",
                 "name",
                 other_account.clone(),
-                format!(
-                    "A credencial foi mantida porque a conta \"{other_account}\" ainda a usa; \
-                     apagá-la quebraria a sobrevivente."
-                ),
+                "The credential was kept because the account \"{name}\" still uses it; deleting it would break the survivor.",
             ),
         }
+    }
+}
+
+/// Detail of [`RemoveError::InvalidOAuth`] raised when the vault key cannot
+/// be derived (`remove_error.invalid_oauth.detail`).
+const INVALID_OAUTH_DETAIL: &str = "Invalid OAuth configuration; cannot guarantee the full removal. Remove the entry from the system vault by hand if you want to be sure it is cleaned up.";
+
+/// The known detail travels as a nested localizable text; any other detail
+/// is plain text.
+fn invalid_oauth_detail(detail: &str) -> crate::text::ParamValue {
+    if detail == INVALID_OAUTH_DETAIL {
+        crate::text::Localized::fixed("remove_error.invalid_oauth.detail", INVALID_OAUTH_DETAIL)
+            .into()
+    } else {
+        detail.into()
     }
 }
 
@@ -2748,25 +2731,25 @@ impl RemoveError {
                 "remove_error.index",
                 "index",
                 *index,
-                self.to_string(),
+                "Index {index} out of range.",
             ),
             RemoveError::Save(inner) => crate::text::Localized::with_param(
                 "remove_error.save",
                 "detail",
                 inner.l10n(),
-                self.to_string(),
+                "Failed to save the configuration: {detail}.",
             ),
             RemoveError::InvalidOAuth(detail) => crate::text::Localized::with_param(
                 "remove_error.invalid_oauth",
                 "detail",
-                detail.clone(),
-                self.to_string(),
+                invalid_oauth_detail(detail),
+                "Invalid OAuth configuration; cannot guarantee the full removal. Details: {detail}.",
             ),
             RemoveError::Session(note) => crate::text::Localized::with_param(
                 "remove_error.session",
                 "detail",
                 note.clone(),
-                self.to_string(),
+                "The web session of this account could not be deleted from the system vault, so the account was not removed: {detail}",
             ),
         }
     }
@@ -2870,12 +2853,7 @@ pub async fn remove_account_save_only(
         Some(cfg) => match crate::oauth::session::storage_key(target.provider, cfg) {
             Ok(key) => Some(key),
             Err(_) => {
-                return Err(RemoveError::InvalidOAuth(
-                    "Configuração OAuth inválida; não é possível garantir a \
-                     remoção completa. Remova a entrada manualmente do cofre \
-                     do sistema se quiser garantir a limpeza."
-                        .into(),
-                ));
+                return Err(RemoveError::InvalidOAuth(INVALID_OAUTH_DETAIL.into()));
             }
         },
     };
@@ -3010,7 +2988,7 @@ pub async fn purge_credential(
             // variant name and therefore hints at the OAuth shape).
             return Err(crate::text::Localized::fixed(
                 "remove_error.purge_invalid_oauth",
-                "Configuração OAuth inválida; não é possível apagar o cofre.",
+                "Invalid OAuth configuration; the vault cannot be purged.",
             ));
         }
     };
@@ -3021,7 +2999,7 @@ pub async fn purge_credential(
     if shared {
         return Err(crate::text::Localized::fixed(
             "remove_error.purge_shared",
-            "Outra conta ainda usa esta credencial; não é possível apagar o cofre sem quebrar a sobrevivente.",
+            "Another account still uses this credential; the vault cannot be purged without breaking the survivor.",
         ));
     }
     match session.logout(provider, oauth).await {
@@ -3067,10 +3045,7 @@ pub fn switched_oauth_notice(
         "edit_notice.provider_switch_oauth",
         "provider",
         crate::text::provider_l10n(provider),
-        format!(
-            "Ao gravar, a credencial OAuth da conta {} é apagada do cofre.",
-            provider.label()
-        ),
+        "When you save, the OAuth credential of the {provider} account is deleted from the vault.",
     ))
 }
 
@@ -3377,7 +3352,7 @@ mod tests {
         let err = config.upsert_account(edited, Some(1)).unwrap_err();
         assert!(err.is_validation(), "expected Validation, got {err:?}");
         assert_eq!(err.field(), Some("name"));
-        assert_eq!(err.message(), "Já existe uma conta com esse nome.");
+        assert_eq!(err.message(), "An account with this name already exists.");
         assert_eq!(err.l10n().id, "edit_error.duplicate_name");
 
         let mut own = config.accounts[1].clone();
@@ -3477,7 +3452,7 @@ mod tests {
         assert!(err.is_validation(), "expected Validation, got {err:?}");
         assert_eq!(err.field(), Some("oauth"));
         assert!(
-            err.message().contains("login OAuth"),
+            err.message().contains("OAuth login"),
             "unexpected error: {err}"
         );
         assert_eq!(err.l10n().id, "edit_error.oauth_required");
@@ -3801,7 +3776,7 @@ mod tests {
         assert!(err.is_validation(), "expected Validation, got {err:?}");
         assert_eq!(err.field(), Some("params"));
         assert!(
-            err.message().contains("obrigatório"),
+            err.message().contains("is required"),
             "unexpected error: {err}"
         );
         assert_eq!(err.l10n().id, "edit_error.field_required");
@@ -4323,7 +4298,7 @@ mod tests {
         assert!(err.is_validation(), "expected Validation, got {err:?}");
         assert_eq!(err.field(), Some("params"));
         assert!(
-            err.message().contains("Seleção inválida"),
+            err.message().contains("Invalid selection"),
             "unexpected error: {err}"
         );
         assert_eq!(err.l10n().id, "edit_error.choice_invalid");
@@ -4571,7 +4546,7 @@ mod tests {
             !err.text().contains("OpenAI"),
             "message echoed the name: {err}"
         );
-        assert_eq!(err.text(), "Já existe uma conta com esse nome.");
+        assert_eq!(err.text(), "An account with this name already exists.");
         assert_eq!(err.id, "edit_error.duplicate_name");
 
         // Tabs and newlines must not slip past the generic message either.
@@ -4604,7 +4579,7 @@ mod tests {
         let err = config.upsert_account(sneaky, None).unwrap_err();
         let msg = err.message();
         assert!(!msg.contains("oPeNaI"), "message echoed the name: {msg}");
-        assert_eq!(msg, "Já existe uma conta com esse nome.");
+        assert_eq!(msg, "An account with this name already exists.");
     }
 
     // -------------------------------------------------------------------

@@ -83,7 +83,7 @@ impl Default for Retention {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum RetentionError {
-    #[error("A retenção do histórico vai de 7 a 365 dias.")]
+    #[error("History retention ranges from 7 to 365 days.")]
     Bounds,
 }
 
@@ -95,7 +95,7 @@ impl RetentionError {
                 ("min", Retention::MIN_DAYS.into()),
                 ("max", Retention::MAX_DAYS.into()),
             ]),
-            self.to_string(),
+            "History retention ranges from {min} to {max} days.",
         )
     }
 }

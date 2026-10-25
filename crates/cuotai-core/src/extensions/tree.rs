@@ -57,19 +57,15 @@ impl Refused {
         match self {
             Self::Unreadable => Localized::fixed(
                 "extensions.error.tree_unreadable",
-                "Não foi possível ler todos os arquivos da pasta da extensão.",
+                "Not every file of the extension's folder could be read.",
             ),
             Self::Escapes => Localized::fixed(
                 "extensions.error.tree_escapes",
-                "A pasta da extensão tem um link simbólico que leva para fora dela (ou para \
-                 nada) ou um arquivo que não é comum, pasta nem link; o Cuotai não aprova o \
-                 que não consegue conferir.",
+                "The extension's folder holds a symbolic link that leads out of it (or nowhere), or a file that is not a regular file, folder or link; Cuotai does not approve what it cannot check.",
             ),
             Self::Exposed => Localized::fixed(
                 "extensions.error.tree_exposed",
-                "A pasta da extensão, ou algo dentro dela, pode ser alterada por outros \
-                 usuários (gravável pelo grupo ou por todos, ou de outro dono); corrija com \
-                 chmod -R go-w e chown.",
+                "The extension's folder, or something in it, can be changed by other users (writable by the group or by everyone, or owned by someone else); fix it with chmod -R go-w and chown.",
             ),
             Self::TooLarge => Localized::with_params(
                 "extensions.error.tree_too_large",
@@ -78,11 +74,7 @@ impl Refused {
                     ("mib", (MAX_BYTES / (1024 * 1024)).into()),
                     ("depth", MAX_DEPTH.into()),
                 ]),
-                format!(
-                    "A pasta da extensão passa de {MAX_ENTRIES} entradas, {} MiB ou {MAX_DEPTH} \
-                     níveis de pastas.",
-                    MAX_BYTES / (1024 * 1024)
-                ),
+                "The extension's folder exceeds {entries} entries, {mib} MiB or {depth} levels of folders.",
             ),
         }
     }

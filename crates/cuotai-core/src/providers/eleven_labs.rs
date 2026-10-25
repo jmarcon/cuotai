@@ -44,7 +44,7 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
         base_for_region(account.params.get("region").map(String::as_str)).ok_or_else(|| {
             QueryError::config(
                 "query.eleven_labs.region",
-                "Região inválida: use default, us, eu, in ou sg em params.region.",
+                "Invalid region: use default, us, eu, in or sg in params.region.",
             )
         })?;
     eleven_labs_at(account, ctx, base).await
@@ -107,24 +107,24 @@ fn classify_http(code: u16, detail: Option<&str>) -> QueryError {
         401 => failure(
             Status::AuthenticationError,
             "note.eleven_labs.key_rejected",
-            "A ElevenLabs recusou a chave de API; confira ou recrie a chave e o nome da variável.",
+            "ElevenLabs rejected the API key; check or recreate the key and the variable name.",
         ),
         403 => match detail {
             Some("workspace_access_denied") => failure(
                 Status::AuthenticationError,
                 "note.eleven_labs.workspace_denied",
-                "A chave não tem acesso ao workspace; use a chave do workspace que quer acompanhar.",
+                "The key has no access to the workspace; use the key of the workspace you want to watch.",
             ),
             _ => failure(
                 Status::AuthenticationError,
                 "note.eleven_labs.scope_missing",
-                "A chave é válida, mas talvez não leia a assinatura; confira a restrição da chave (e, no Enterprise, a lista de IPs ou o workspace).",
+                "The key is valid but may not read the subscription; check its restriction (and, for Enterprise, its IP allow-list or workspace).",
             ),
         },
         429 => failure(
             Status::RateLimited,
             "note.eleven_labs.rate_limited",
-            "A ElevenLabs limitou as consultas; o intervalo será ampliado automaticamente.",
+            "ElevenLabs rate-limited the queries; the interval will be increased automatically.",
         ),
         422 => QueryError::schema(),
         _ => QueryError {
@@ -132,7 +132,7 @@ fn classify_http(code: u16, detail: Option<&str>) -> QueryError {
             note: Localized::with_params(
                 "query.http",
                 params([("code", ParamValue::from(code))]),
-                format!("Consulta retornou HTTP {code}. Verifique acesso e permissões."),
+                "Query returned HTTP {code}. Check access and permissions.",
             ),
             diagnostic: None,
         },
@@ -210,7 +210,7 @@ fn parse(value: &Value, source: String) -> Result<Data, QueryError> {
     let mut notes = Notes::new();
     notes.push(
         "note.eleven_labs.source",
-        "Lido por GET /v1/user/subscription com a chave de API; a consulta não gera áudio.",
+        "Read with GET /v1/user/subscription using the API key; the query does not generate audio.",
     );
     if let Some(tier) = body
         .get("tier")
@@ -220,13 +220,13 @@ fn parse(value: &Value, source: String) -> Result<Data, QueryError> {
         notes.push_params(
             "note.eleven_labs.tier",
             params([("tier", ParamValue::from(tier.to_string()))]),
-            format!("Plano reportado pela ElevenLabs: {tier}."),
+            "Plan reported by ElevenLabs: {tier}.",
         );
     }
     if limit.is_none() {
         notes.push(
             "note.eleven_labs.limit_missing",
-            "A ElevenLabs não informou o limite de créditos; apenas o consumo é exibido.",
+            "ElevenLabs did not report the credit limit; only consumption is shown.",
         );
     }
 
@@ -251,7 +251,7 @@ fn parse(value: &Value, source: String) -> Result<Data, QueryError> {
             state = Some(Extension::Disabled);
             notes.push(
                 "note.eleven_labs.overage_inconsistent",
-                "A ElevenLabs informou um teto de uso extra, mas não permite estender o limite; o uso extra foi tratado como desativado.",
+                "ElevenLabs reported an extra-usage cap but does not allow extending the limit; extra usage was treated as disabled.",
             );
         }
     }
@@ -261,7 +261,7 @@ fn parse(value: &Value, source: String) -> Result<Data, QueryError> {
         if cap.is_none() {
             notes.push(
                 "note.eleven_labs.overage_unlimited",
-                "O uso extra não tem teto de créditos.",
+                "Extra usage has no credit cap.",
             );
         }
         metrics.push(
@@ -316,7 +316,7 @@ fn parse(value: &Value, source: String) -> Result<Data, QueryError> {
             (Some(_), Some(_)) => {}
             _ if overage.get("amount").is_some_and(|v| !v.is_null()) => notes.push(
                 "note.eleven_labs.overage_amount_unreadable",
-                "A ElevenLabs informou um valor de uso extra ilegível; o custo foi omitido.",
+                "ElevenLabs reported an unreadable extra-usage amount; the cost was omitted.",
             ),
             _ => {}
         }
@@ -326,22 +326,22 @@ fn parse(value: &Value, source: String) -> Result<Data, QueryError> {
     match body.get("status").and_then(Value::as_str) {
         Some("past_due") => notes.push(
             "note.eleven_labs.status.past_due",
-            "A assinatura da ElevenLabs está com pagamento em atraso; os créditos exibidos podem não estar mais disponíveis.",
+            "The ElevenLabs subscription is past due; the credits shown may no longer be usable.",
         ),
         Some("incomplete") => notes.push(
             "note.eleven_labs.status.incomplete",
-            "A assinatura da ElevenLabs está incompleta; os créditos exibidos podem não estar mais disponíveis.",
+            "The ElevenLabs subscription is incomplete; the credits shown may no longer be usable.",
         ),
         Some("free_disabled") => notes.push(
             "note.eleven_labs.status.free_disabled",
-            "O plano gratuito da ElevenLabs está desativado; os créditos exibidos podem não estar mais disponíveis.",
+            "The ElevenLabs free plan is disabled; the credits shown may no longer be usable.",
         ),
         _ => {}
     }
     if body.get("has_open_invoices") == Some(&Value::Bool(true)) {
         notes.push(
             "note.eleven_labs.open_invoices",
-            "A ElevenLabs informa faturas em aberto.",
+            "ElevenLabs reports open invoices.",
         );
     }
     for (label, used_key, limit_key) in [
@@ -373,7 +373,7 @@ fn parse(value: &Value, source: String) -> Result<Data, QueryError> {
     }
     notes.push(
         "note.eleven_labs.payg_not_reported",
-        "Saldo Pay As You Go: não informado por este endpoint.",
+        "Pay As You Go balance: not reported by this endpoint.",
     );
 
     Ok(Data::new(metrics, notes, source))

@@ -116,7 +116,7 @@ async fn open_router_at(
     if !params_valid(&account.params) {
         return Err(QueryError::config(
             "query.open_router.params",
-            "Parâmetros inválidos: params.product deve ser key ou account e params.breakdown (somente com account) off, provider ou model.",
+            "Invalid parameters: params.product must be key or account and params.breakdown (account only) off, provider or model.",
         ));
     }
     let product = product_of(&account.params).unwrap_or(Product::Key);
@@ -152,12 +152,12 @@ async fn open_router_at(
                         data.metrics.extend(metrics);
                         notes.push(
                             "note.open_router.activity_window",
-                            "O gasto por origem cobre apenas dias UTC concluídos e é atualizado depois da meia-noite UTC.",
+                            "Spend by origin covers completed UTC days only and updates after midnight UTC.",
                         );
                     }
                     None => notes.push(
                         "note.open_router.activity_failed",
-                        "O gasto por origem está indisponível agora; o saldo continua correto.",
+                        "Spend by origin is unavailable right now; the balance is still correct.",
                     ),
                 }
                 let (texts, l10n) = notes.finish();
@@ -225,34 +225,34 @@ fn classify_http(code: u16, product: Product, expired: bool) -> QueryError {
         401 if expired => failure(
             Status::AuthenticationError,
             "query.open_router.key_expired",
-            "A chave da OpenRouter expirou; crie uma nova chave em openrouter.ai/settings/keys.",
+            "The OpenRouter key expired; create a new one at openrouter.ai/settings/keys.",
         ),
         401 => failure(
             Status::AuthenticationError,
             "query.open_router.auth",
-            "A OpenRouter recusou a chave: ausente, inválida ou expirada.",
+            "OpenRouter rejected the key: missing, invalid or expired.",
         ),
         403 if product == Product::Account => failure(
             Status::AuthenticationError,
             "query.open_router.management_key_required",
-            "Esta operação exige uma chave de gerenciamento; crie uma em openrouter.ai/settings/management-keys ou use a visão padrão da chave.",
+            "This operation needs a management key; create one at openrouter.ai/settings/management-keys or use the default key view.",
         ),
         403 => failure(
             Status::AuthenticationError,
             "query.open_router.auth",
-            "A OpenRouter recusou a chave: ausente, inválida ou expirada.",
+            "OpenRouter rejected the key: missing, invalid or expired.",
         ),
         429 => failure(
             Status::RateLimited,
             "query.open_router.rate_limited",
-            "A OpenRouter limitou as consultas; a próxima atualização tenta de novo.",
+            "OpenRouter rate-limited the queries; the next refresh tries again.",
         ),
         _ => QueryError {
             status: Status::Error,
             note: Localized::with_params(
                 "query.http",
                 params([("code", ParamValue::from(code))]),
-                format!("Consulta retornou HTTP {code}. Verifique acesso e permissões."),
+                "Query returned HTTP {code}. Check access and permissions.",
             ),
             diagnostic: None,
         },
@@ -438,12 +438,12 @@ fn parse_key(value: &Value, now: DateTime<Utc>, source: String) -> Result<Data, 
     let mut notes = Notes::new();
     notes.push(
         "note.open_router.key_scope",
-        "Estes números descrevem esta chave, não o saldo da conta; use o produto account para o saldo.",
+        "These numbers describe this key, not the account balance; use the account product for the balance.",
     );
     if data.get("is_management_key") == Some(&Value::Bool(true)) {
         notes.push(
             "note.open_router.management_key_view",
-            "Esta é uma chave de gerenciamento: ela não faz chamadas de inferência.",
+            "This is a management key: it cannot make inference calls.",
         );
     }
 
@@ -513,7 +513,7 @@ fn parse_key(value: &Value, now: DateTime<Utc>, source: String) -> Result<Data, 
         notes.push_params(
             "note.open_router.effective_budget",
             params([("scope", ParamValue::from(scope.clone()))]),
-            format!("O orçamento que bloqueia as requisições primeiro é o de escopo {scope}."),
+            "The budget that blocks requests first is the one with scope {scope}.",
         );
     }
 
@@ -563,13 +563,13 @@ fn parse_key(value: &Value, now: DateTime<Utc>, source: String) -> Result<Data, 
     if byok {
         notes.push(
             "note.open_router.byok",
-            "BYOK é gasto nas suas próprias chaves de origem, não em créditos da OpenRouter; uma taxa de 5% além da franquia do plano sai dos créditos e a API não a informa.",
+            "BYOK is spend on your own upstream keys, not OpenRouter credits; a 5% fee beyond the plan's free allowance comes out of credits and the API does not report it.",
         );
     }
     if data.get("include_byok_in_limit") == Some(&Value::Bool(true)) {
         notes.push(
             "note.open_router.byok_in_limit",
-            "O gasto BYOK conta para o limite desta chave.",
+            "BYOK spend counts toward this key's limit.",
         );
     }
 
@@ -605,7 +605,7 @@ fn parse_key(value: &Value, now: DateTime<Utc>, source: String) -> Result<Data, 
                 });
                 notes.push(
                     "note.open_router.free_tier",
-                    "Modelos :free permitem 50 ou 1000 requisições por dia conforme os créditos já comprados (a faixa segue o total comprado, não is_free_tier) e 20 por minuto, que a API não informa.",
+                    "Free models allow 50 or 1000 requests per day depending on credits ever purchased (the tier follows the purchased total, not is_free_tier) and 20 per minute, which the API does not report.",
                 );
             }
         }
@@ -638,9 +638,7 @@ fn low_balance_note(data: &mut Data, threshold: f64) {
         notes.push_params(
             "note.open_router.low_balance",
             params([("threshold", ParamValue::from(format!("{threshold}")))]),
-            format!(
-                "O saldo de créditos está igual ou abaixo do limite de saldo baixo de {threshold}."
-            ),
+            "The credit balance is at or below the low-balance threshold of {threshold}.",
         );
         let (texts, l10n) = notes.finish();
         data.notes.extend(texts);
@@ -660,7 +658,7 @@ fn parse_credits(value: &Value, source: String) -> Result<Data, QueryError> {
     let mut notes = Notes::new();
     notes.push(
         "note.open_router.credits_unit",
-        "Saldo = total_credits − total_usage como a OpenRouter informa; o endpoint documenta apenas \"créditos\", então nenhuma moeda é assumida.",
+        "Balance = total_credits - total_usage as OpenRouter reports it; the endpoint documents only \"credits\", so no currency is assumed.",
     );
     // RF5.1: a negative balance is kept; no gauge, because `total_credits` is
     // cumulative over the account's lifetime.

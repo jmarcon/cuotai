@@ -577,7 +577,7 @@ fn the_catalog_offers_each_valid_extension_with_the_extension_level_and_warning(
     let entry = &catalog[0];
     assert_eq!(entry.id, "proxy");
     assert_eq!(entry.level, Level::Extension);
-    assert_eq!(entry.label.text(), "Extensão: Proxy balance");
+    assert_eq!(entry.label.text(), "Extension: Proxy balance");
     assert_eq!(entry.label.resolve("en-US"), "Extension: Proxy balance");
     assert_eq!(entry.label.resolve("es"), "Extensión: Proxy balance");
     assert_eq!(
@@ -647,7 +647,7 @@ fn every_rejection_and_catalog_text_is_translated() {
     );
     let ids: BTreeSet<&str> = texts.iter().map(|text| &*text.id).collect();
     assert_eq!(ids.len(), if cfg!(unix) { 23 } else { 22 }, "{ids:?}");
-    for locale in ["en-US", "es", "it"] {
+    for locale in ["pt-BR", "es", "it"] {
         let catalog = crate::text::core_catalog(locale).unwrap();
         let missing: Vec<_> = ids
             .iter()

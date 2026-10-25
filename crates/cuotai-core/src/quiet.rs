@@ -317,11 +317,10 @@ where
             if private {
                 return Some(single.title);
             }
-            let fallback = format!("{}: {}", single.title.fallback, single.body.fallback);
             Some(Localized::with_params(
                 "quiet.digest.line",
                 params([("title", single.title.into()), ("body", single.body.into())]),
-                fallback,
+                "{title}: {body}",
             ))
         })
         .collect::<Option<Vec<_>>>()?;
@@ -337,28 +336,26 @@ where
     }
     let more = shown.count();
     if more > 0 {
-        let fallback = format!("e mais {more}");
         body = join(
             body,
-            Localized::with_param("quiet.digest.more", "count", more, fallback),
+            Localized::with_param("quiet.digest.more", "count", more, "and {count} more"),
         );
     }
     Some(Notice {
         title: Localized::with_params(
             "quiet.digest.title",
             params([("count", count.into())]),
-            format!("Cuotai: {count} alertas de uso retidos no horário de silêncio"),
+            "Cuotai: {count} usage alerts held during quiet hours",
         ),
         body,
     })
 }
 
 fn join(first: Localized, rest: Localized) -> Localized {
-    let fallback = format!("{}\n{}", first.fallback, rest.fallback);
     Localized::with_params(
         "quiet.digest.join",
         params([("first", first.into()), ("rest", rest.into())]),
-        fallback,
+        "{first}\n{rest}",
     )
 }
 

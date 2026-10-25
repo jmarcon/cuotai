@@ -103,7 +103,7 @@ pub(crate) async fn begin(
     if provider != Provider::XiaomiMimo {
         return Err(OAuthError::Configuration(crate::text::Localized::fixed(
             "oauth_error.xiaomi.provider_no_native_flow",
-            "Este provedor não usa o fluxo nativo Xiaomi MiMo.",
+            "This provider does not use the Xiaomi MiMo native flow.",
         )));
     }
 

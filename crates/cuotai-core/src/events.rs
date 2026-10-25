@@ -209,13 +209,13 @@ impl FailureCategory {
     /// `events.category.<name>`: a short description for people.
     pub fn label(self) -> Localized {
         let pt = match self {
-            Self::Timeout => "tempo esgotado",
-            Self::Offline => "provedor inacessível",
-            Self::AuthRequired => "autenticação necessária",
-            Self::RateLimited => "limite de consultas",
-            Self::SchemaChanged => "resposta em formato desconhecido",
-            Self::InvalidOutput => "saída da extensão fora do contrato",
-            Self::ProviderError => "erro do provedor",
+            Self::Timeout => "timed out",
+            Self::Offline => "provider unreachable",
+            Self::AuthRequired => "authentication required",
+            Self::RateLimited => "query rate limited",
+            Self::SchemaChanged => "answer in an unknown format",
+            Self::InvalidOutput => "extension output outside the contract",
+            Self::ProviderError => "provider error",
         };
         Localized::fixed(format!("events.category.{}", self.name()), pt)
     }
@@ -267,8 +267,9 @@ impl Event {
             .as_ref()
             .map_or_else(String::new, |metric| metric.label.clone());
         let id = format!("events.summary.{}", self.event.name());
-        let with_metric =
-            |pt: String| Localized::with_param(id.clone(), "metric", metric.as_str(), pt);
+        let with_metric = |template: &'static str| {
+            Localized::with_param(id.clone(), "metric", metric.as_str(), template)
+        };
         match self.event {
             EventKind::QuotaThresholdCrossed => {
                 let threshold = self.current.threshold.unwrap_or_default();
@@ -278,36 +279,34 @@ impl Event {
                         ("metric", ParamValue::from(metric.as_str())),
                         ("threshold", ParamValue::from(u64::from(threshold))),
                     ]),
-                    format!("{metric}: {threshold}% usado"),
+                    "{metric}: {threshold}% used",
                 )
             }
-            EventKind::QuotaExhausted => with_metric(format!("{metric}: cota esgotada")),
-            EventKind::QuotaRecovered => with_metric(format!("{metric}: cota disponível de novo")),
-            EventKind::QuotaReset => with_metric(format!("{metric}: janela renovada")),
+            EventKind::QuotaExhausted => with_metric("{metric}: quota exhausted"),
+            EventKind::QuotaRecovered => with_metric("{metric}: quota available again"),
+            EventKind::QuotaReset => with_metric("{metric}: window reset"),
             EventKind::QuotaExhaustionProjected => {
-                with_metric(format!("{metric}: pode acabar antes da renovação"))
+                with_metric("{metric}: may run out before the reset")
             }
-            EventKind::AccountBlocked => with_metric(format!("Conta bloqueada por {metric}")),
-            EventKind::AccountUnblocked => with_metric(format!("Conta desbloqueada ({metric})")),
+            EventKind::AccountBlocked => with_metric("Account blocked by {metric}"),
+            EventKind::AccountUnblocked => with_metric("Account unblocked ({metric})"),
             EventKind::RefreshFailed => {
                 let category = self
                     .current
                     .category
                     .unwrap_or(FailureCategory::ProviderError)
                     .label();
-                let pt = format!("Falha na consulta: {}", category.text());
-                Localized::with_param(id, "category", category, pt)
+                Localized::with_param(id, "category", category, "Refresh failed: {category}")
             }
-            EventKind::RefreshRecovered => Localized::fixed(id, "Consulta voltou a funcionar"),
-            EventKind::AuthRequired => Localized::fixed(id, "Autenticação necessária"),
+            EventKind::RefreshRecovered => Localized::fixed(id, "Refresh working again"),
+            EventKind::AuthRequired => Localized::fixed(id, "Authentication required"),
             EventKind::ProviderIncident => {
                 let state = self
                     .current
                     .incident
                     .unwrap_or(IncidentState::Unknown)
                     .label();
-                let pt = format!("Status do provedor: {}", state.text());
-                Localized::with_param(id, "state", state, pt)
+                Localized::with_param(id, "state", state, "Provider status: {state}")
             }
             EventKind::OverageStarted => match self.current.spent.map(|spent| {
                 overage::format_amount(
@@ -317,35 +316,25 @@ impl Event {
                 )
             }) {
                 Some(amount) => {
-                    let plain = match &amount {
-                        ParamValue::Text(text) => text.clone(),
-                        ParamValue::L10n(text) => text.fallback.to_string(),
-                    };
-                    Localized::with_param(
-                        id,
-                        "amount",
-                        amount,
-                        format!("Uso extra iniciado: {plain}"),
-                    )
+                    Localized::with_param(id, "amount", amount, "Extra usage started: {amount}")
                 }
                 None => Localized::fixed(
                     "events.summary.overage_started_unknown",
-                    "Uso extra iniciado",
+                    "Extra usage started",
                 ),
             },
-            EventKind::OverageEnded => Localized::fixed(id, "Uso extra terminou"),
+            EventKind::OverageEnded => Localized::fixed(id, "Extra usage ended"),
             EventKind::SessionExpiring => {
                 let days = u64::from(self.current.days_left.unwrap_or_default());
-                Localized::with_param(id, "days", days, format!("Sessão expira em {days} dia(s)"))
+                Localized::with_param(id, "days", days, "Session expires in {days} day(s)")
             }
-            EventKind::QuotaResetSoon => with_metric(format!("{metric}: janela renova em breve")),
+            EventKind::QuotaResetSoon => with_metric("{metric}: quota resets soon"),
             EventKind::UsageUpdated => {
                 let usage = usage_text(&self.current.metrics);
-                let pt = format!("Uso atualizado: {usage}");
-                Localized::with_param(id, "usage", usage, pt)
+                Localized::with_param(id, "usage", usage, "Usage updated: {usage}")
             }
-            EventKind::PoolExhausted => with_metric(format!("{metric}: todas as contas esgotadas")),
-            EventKind::PoolRecovered => with_metric(format!("{metric}: conta disponível de novo")),
+            EventKind::PoolExhausted => with_metric("{metric}: all accounts exhausted"),
+            EventKind::PoolRecovered => with_metric("{metric}: an account is available again"),
         }
     }
 }

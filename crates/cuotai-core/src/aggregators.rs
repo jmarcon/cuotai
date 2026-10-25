@@ -466,13 +466,13 @@ impl Pool {
                         ("upstream", ParamValue::from(name.clone())),
                         ("at", ParamValue::from(at.to_rfc3339())),
                     ]),
-                    format!("{name} · todas esgotadas · volta em {}", at.to_rfc3339()),
+                    "{upstream} · all exhausted · returns {at}",
                 ),
                 None => Localized::with_param(
                     "pool.exhausted",
                     "upstream",
                     name.as_str(),
-                    format!("{name} · todas esgotadas"),
+                    "{upstream} · all exhausted",
                 ),
             };
         }
@@ -483,7 +483,7 @@ impl Pool {
                     ("upstream", ParamValue::from(name.clone())),
                     ("total", ParamValue::from(self.total.to_string())),
                 ]),
-                format!("{name} · {} conexões sem uso conhecido", self.total),
+                "{upstream} · {total} connections with unknown usage",
             );
         }
         Localized::with_params(
@@ -493,7 +493,7 @@ impl Pool {
                 ("available", ParamValue::from(self.available.to_string())),
                 ("total", ParamValue::from(self.total.to_string())),
             ]),
-            format!("{name} · {} de {} disponíveis", self.available, self.total),
+            "{upstream} · {available} of {total} available",
         )
     }
 }
@@ -979,7 +979,7 @@ mod tests {
         assert_eq!(pools[0].upstream, "claude");
         assert_eq!((pools[0].available, pools[0].total), (2, 3));
         assert_eq!(pools[0].summary().id, "pool.available");
-        assert_eq!(pools[0].summary().fallback, "Claude · 2 de 3 disponíveis");
+        assert_eq!(pools[0].summary().fallback, "Claude · 2 of 3 available");
         // An upstream Cuotai does not know keeps the verbatim slug.
         assert_eq!(pools[1].name(), "glm");
     }

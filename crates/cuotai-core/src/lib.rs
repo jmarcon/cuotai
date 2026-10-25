@@ -86,14 +86,14 @@ impl Credentials for EnvironmentCredentials {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
-    #[error("Configuração TOML inválida; confira os campos e tipos no exemplo.")]
+    #[error("Invalid TOML document; check the fields and types in the example.")]
     Parse,
     #[error(
-        "refresh_seconds deve ser >= 30, concurrency entre 1 e 32 e timeout_seconds entre 1 e 300."
+        "refresh_seconds must be >= 30, concurrency between 1 and 32 and timeout_seconds between 1 and 300."
     )]
     Bounds,
     #[error(
-        "O campo {field} da conta {account} deve ser >= {minimum} para provedores cobrados por consulta."
+        "The {field} field for account {account} must be >= {minimum} for providers billed per query."
     )]
     MeteredRefreshFloor {
         field: String,
@@ -101,33 +101,35 @@ pub enum ConfigError {
         minimum: u64,
     },
     #[error(
-        "Nomes de conta informados precisam ser únicos; uma conta sem nome só é válida quando é a única do provedor."
+        "Configured account names must be unique; an unnamed account is valid only when it is the provider's only account."
     )]
     AccountNames,
     /// PRD 0029 RF1.2: two accounts share an `id`.
     #[error(
-        "O campo {field} repete o id de outra conta (um bloco [[accounts]] copiado é a causa usual); apague a linha id duplicada."
+        "The field {field} repeats another account's id (a copied [[accounts]] block is the usual cause); delete the duplicated id line."
     )]
     AccountIds { field: String },
-    #[error("Não foi possível inicializar o cliente HTTPS.")]
+    #[error("Invalid configuration; could not initialise the HTTPS client.")]
     Client,
-    #[error("Configuração OAuth inválida ou combinada com credential_env; confira o registro do aplicativo.")]
+    #[error(
+        "Invalid OAuth configuration or combined with credential_env; check the app registration."
+    )]
     OAuth,
-    #[error("Referência de sessão inválida ou repetida em [accounts.session]; informe a sessão novamente no assistente da conta.")]
+    #[error("Invalid or repeated session reference in [accounts.session]; enter the session again in the account wizard.")]
     Session,
-    #[error("Conta de extensão sem um extension_id válido, com o id de outra extensão repetido ou com campos de credencial incompatíveis.")]
+    #[error("The extension account has no valid extension_id, repeats another extension's id, or has incompatible credential fields.")]
     Extension,
-    #[error("params.region da conta ElevenLabs deve ser default, us, eu, in ou sg.")]
+    #[error("The ElevenLabs account's params.region must be default, us, eu, in or sg.")]
     Region,
-    #[error("params.base_url da conta 9router deve ser http(s)://host[:porta][/prefixo], sem usuário, consulta ou fragmento; HTTP só vale em loopback ou, com allow_private_http, em rede privada.")]
+    #[error("The 9router base_url must be http(s)://host[:port][/prefix] without user, query or fragment; HTTP is only valid on loopback or, with allow_private_http, on a private network.")]
     BaseUrl,
-    #[error("Conta 9router com TLS inválido: tls_pin_sha256 deve ter 64 dígitos hexadecimais, e tls_ca_file e tls_pin_sha256 não podem ser usados juntos nem sem HTTPS.")]
+    #[error("Invalid TLS for the 9router account: tls_pin_sha256 must have 64 hexadecimal digits, and tls_ca_file and tls_pin_sha256 cannot be used together or without HTTPS.")]
     Tls,
     /// PRD 0024 RF7.1: a `group` that is not a slug of at most 32 characters,
     /// or a `[[groups]]` table with an invalid or repeated id.
-    #[error("O grupo de uma conta e o id de cada [[groups]] devem ter de 1 a 32 letras minúsculas, números, - ou _, e os ids de [[groups]] não podem se repetir.")]
+    #[error("An account group and each [[groups]] id must be 1 to 32 lowercase letters, digits, - or _, and the [[groups]] ids cannot repeat.")]
     Group,
-    #[error("params.product da conta OpenRouter deve ser key ou account, e params.breakdown (somente com account) off, provider ou model.")]
+    #[error("The OpenRouter account's params.product must be key or account, and params.breakdown (account only) off, provider or model.")]
     OpenRouter,
 }
 
@@ -1350,7 +1352,7 @@ impl Monitor {
             | Provider::Windsurf => providers::subscriptions::fetch(account, ctx).await,
             Provider::Qwen if account.oauth.is_some() => Err(providers::QueryError::unsupported(
                 "query.qwen_oauth_unsupported",
-                "Qwen Code OAuth: sessão autenticada, mas não há endpoint de quota confirmado. O plano OAuth gratuito foi descontinuado pelo provedor em 15/04/2026; não consultamos DashScope com este token.",
+                "Qwen Code OAuth: authenticated session, but no quota endpoint confirmed. The free OAuth plan was discontinued by the provider on 15/04/2026; we do not query DashScope with this token.",
             )),
             Provider::MiniMax | Provider::Kimi | Provider::Qwen => {
                 providers::asia::fetch(account, ctx).await

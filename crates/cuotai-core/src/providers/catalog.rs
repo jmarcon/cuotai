@@ -140,7 +140,7 @@ pub(crate) async fn grok_models(
                 QueryError::config_params(
                     "query.missing_credential",
                     params([("name", ParamValue::from(env.clone()))]),
-                    format!("Credencial ausente: {env}"),
+                    "Missing credential: {name}.",
                 )
             })?;
         let request = super::router_grok::grok_headers(

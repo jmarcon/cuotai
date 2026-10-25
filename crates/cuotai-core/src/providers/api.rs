@@ -44,7 +44,7 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
                 "provider",
                 ParamValue::from(crate::text::provider_l10n(other)),
             )]),
-            format!("{} é consultado por outro adaptador.", other.label()),
+            "{provider} is handled by another adapter.",
         )),
     }
 }
@@ -248,26 +248,26 @@ async fn openai(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data
     let mut notes = Notes::new();
     notes.push(
         "note.openai_api.admin_key_required",
-        "Requer chave de administração da organização (Admin API key); chaves comuns de projeto não têm acesso.",
+        "Requires an organization ADMINISTRATION key (Admin API); regular project keys do not have access.",
     );
     notes.push(
         "note.openai_api.monthly_costs_and_completion_tokens",
-        "Custos são valores acumulados no mês (UTC); tokens cobrem apenas completions (embeddings, imagens e áudio não incluídos).",
+        "Costs are month-to-date values in UTC; tokens only cover completions (embeddings, images and audio are not included).",
     );
     notes.push(
         "note.openai_api.no_quota_endpoint",
-        "Sem endpoint oficial de saldo/crédito restante: limite e restante permanecem desconhecidos.",
+        "No public balance/credit endpoint: limit and remaining remain unknown.",
     );
     if costs.is_empty() {
         notes.push(
             "note.openai_api.no_current_month_costs",
-            "Nenhum custo registrado no mês corrente.",
+            "No costs recorded in the current month.",
         );
     }
     if !models.is_empty() {
         notes.push(
             "note.openai_api.model_filter_tokens_only",
-            "O filtro de modelos aplica-se apenas aos tokens; custos continuam cobrindo todos os modelos.",
+            "The model filter applies only to tokens; costs continue to cover all models.",
         );
     }
     for (currency, total) in costs {
@@ -430,30 +430,30 @@ async fn anthropic(account: &Account, ctx: &Context<'_>, base: &str) -> Result<D
     let mut notes = Notes::new();
     notes.push(
         "note.anthropic_api.admin_key_required",
-        "Requer Admin API key (sk-ant-admin01-...) ou chave sem escopo de workspace; chaves de workspace não funcionam.",
+        "Requires Admin API key (sk-ant-admin01-...) or unscoped key; workspace keys do not work.",
     );
     notes.push(
         "note.anthropic_api.cost_conversion",
-        "Custos vêm em centavos USD (menor unidade) e são convertidos para dólares; Priority Tier não consta no cost_report.",
+        "Costs come in USD cents (minor unit) and are converted to dollars; Priority Tier is not in the cost_report.",
     );
     notes.push(
         "note.anthropic_api.message_tokens",
-        "Tokens cobrem mensagens (entrada inclui cache de leitura e escrita).",
+        "Tokens cover messages (input includes read and write cache).",
     );
     notes.push(
         "note.anthropic_api.no_quota_endpoint",
-        "Sem endpoint oficial de saldo/crédito restante: limite e restante permanecem desconhecidos.",
+        "No public balance/credit endpoint: limit and remaining remain unknown.",
     );
     if !saw_cost {
         notes.push(
             "note.anthropic_api.no_current_month_costs",
-            "Nenhum custo registrado no mês corrente.",
+            "No costs recorded in the current month.",
         );
     }
     if !models.is_empty() {
         notes.push(
             "note.anthropic_api.model_filter_tokens_only",
-            "O filtro de modelos aplica-se apenas aos tokens; custos continuam cobrindo todos os modelos.",
+            "The model filter applies only to tokens; costs continue to cover all models.",
         );
     }
     if saw_cost {

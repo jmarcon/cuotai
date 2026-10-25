@@ -93,7 +93,7 @@ async fn cline(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data,
         if !is_safe_org_id(org) {
             return Err(QueryError::config(
                 "query.coding.invalid_organization_id",
-                "params.organization_id deve conter apenas letras, dígitos, _ e -.",
+                "params.organization_id must contain only letters, digits, _ and -.",
             ));
         }
         let org_balance_path = format!("/api/v1/organizations/{org}/balance");
@@ -109,10 +109,7 @@ async fn cline(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data,
         let mut notes = Notes::new();
         notes.push(
             "note.coding.organization_balance_only",
-            "Cline org não tem endpoint público de uso \
-             agregado por organização sem memberId. Apenas \
-             saldo exposto; para histórico, use o painel \
-             autenticado em app.cline.bot.",
+            "Cline org has no public usage endpoint aggregated by organization without memberId. Only balance is shown; for history, use the authenticated panel at app.cline.bot.",
         );
         Ok(Data::new(
             metrics,
@@ -147,17 +144,8 @@ async fn cline(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data,
         let mut notes = Notes::new();
         notes.push_params(
             "note.coding.personal_balance_only",
-            params([]),
-            format!(
-                "Bearer CLINE_API_KEY (criada em app.cline.bot → Settings → \
-                 API Keys) serve para /api/v1/users/me e para {balance_path}. \
-                 O endpoint /api/v1/users/{{uid}}/usages não é consultado: \
-                 o cliente open-source do Cline (repo cline/cline) não \
-                 documenta contrato de janela, e qualquer agregação \
-                 nomearia somas parciais como histórico completo. Saldo é \
-                 a única métrica de quota. Para histórico, use o painel \
-                 autenticado em app.cline.bot."
-            ),
+            params([("balance_path", crate::text::ParamValue::from(balance_path.as_str()))]),
+            "Bearer CLINE_API_KEY (created at app.cline.bot → Settings → API Keys) is used for /api/v1/users/me and for {balance_path}. The endpoint /api/v1/users/{uid}/usages is not queried: the open-source Cline client (repo cline/cline) documents no window contract, and any aggregation would present partial sums as full history. Balance is the only quota metric. For history, use the authenticated dashboard at app.cline.bot.",
         );
         Ok(Data::new(metrics, notes, format!("{base}{balance_path}")))
     }

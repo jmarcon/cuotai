@@ -5538,7 +5538,7 @@ mod tests {
                 "extensions.catalog.label",
                 "name",
                 "Team",
-                "Extensão: Team",
+                "Extension: {name}",
             ),
             level: cuotai_core::access::Level::Extension,
             warning: cuotai_core::text::Localized::fixed("access.risk.extension", "x"),
@@ -6713,7 +6713,7 @@ mod tests {
                     .message
                     .as_deref()
                     .unwrap_or_default()
-                    .contains("shared"),
+                    .contains("survivor"),
             "refusal message must mention the survivor: {:?}",
             refused.message,
         );

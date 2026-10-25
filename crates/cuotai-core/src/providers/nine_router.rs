@@ -234,15 +234,15 @@ fn base_error(error: BaseUrlError) -> QueryError {
     let (id, text) = match error {
         BaseUrlError::Malformed => (
             "query.nine_router.base_url",
-            "Endereço base do 9router inválido: informe http(s)://host[:porta][/prefixo].",
+            "Invalid 9router base address: enter http(s)://host[:port][/prefix].",
         ),
         BaseUrlError::Forbidden => (
             "query.nine_router.base_url_forbidden",
-            "O endereço base do 9router não pode conter usuário, senha, consulta ou fragmento.",
+            "The 9router base address cannot contain a user, password, query or fragment.",
         ),
         BaseUrlError::Insecure => (
             "query.nine_router.base_url_insecure",
-            "Fora desta máquina o 9router exige HTTPS (HTTP só em rede privada, com a opção explícita). Nada foi enviado.",
+            "Outside this machine 9router requires HTTPS (HTTP only on a private network, with the explicit option). Nothing was sent.",
         ),
     };
     QueryError::config(id, text)
@@ -732,7 +732,7 @@ impl<'a> Instance<'a> {
                 let note = Localized::with_params(
                     "query.nine_router.locked",
                     params([("seconds", ParamValue::from(wait as u64))]),
-                    format!("Muitas tentativas de login no 9router; aguarde {wait} s antes de tentar de novo."),
+                    "Too many 9router login attempts; wait {seconds} s before trying again.",
                 );
                 sessions.insert(
                     key,
@@ -752,7 +752,7 @@ impl<'a> Instance<'a> {
             401 => {
                 let note = Localized::fixed(
                     "query.nine_router.password_wrong",
-                    "Senha do painel do 9router recusada.",
+                    "The 9router dashboard password was refused.",
                 );
                 sessions.insert(
                     key,
@@ -774,7 +774,7 @@ impl<'a> Instance<'a> {
                 status: Status::AuthenticationError,
                 note: Localized::fixed(
                     "query.nine_router.login_refused",
-                    "O 9router não aceita login por senha por aqui (SSO ativo ou acesso bloqueado pelo túnel).",
+                    "9router does not accept password login here (SSO is on or the tunnel blocks access).",
                 ),
             }),
             _ => Err(http_error(code)),
@@ -793,7 +793,7 @@ fn http_error(code: u16) -> QueryError {
         note: Localized::with_params(
             "query.http",
             params([("code", ParamValue::from(code))]),
-            format!("Consulta retornou HTTP {code}. Verifique acesso e permissões."),
+            "Query returned HTTP {code}. Check access and permissions.",
         ),
     }
 }
@@ -812,7 +812,7 @@ fn check_status(response: &Response) -> Result<(), QueryError> {
             status: Status::AuthenticationError,
             note: Localized::fixed(
                 "query.nine_router.redirected",
-                "O 9router redirecionou a consulta para o login; informe a senha do painel.",
+                "9router redirected the request to its login; enter the dashboard password.",
             ),
         });
     }
@@ -822,7 +822,7 @@ fn check_status(response: &Response) -> Result<(), QueryError> {
             status: Status::AuthenticationError,
             note: Localized::fixed(
                 "query.nine_router.unauthorized",
-                "O 9router recusou o acesso: informe a senha do painel.",
+                "9router refused access: enter the dashboard password.",
             ),
         });
     }
@@ -850,7 +850,7 @@ fn password_of(account: &Account, ctx: &Context<'_>) -> Result<Option<String>, Q
             QueryError::config_params(
                 "query.missing_credential",
                 params([("name", ParamValue::from(name.to_string()))]),
-                format!("Credencial ausente: {name}"),
+                "Missing credential: {name}.",
             )
         })
 }
@@ -958,11 +958,11 @@ fn sub_notes(extra: Option<Localized>) -> Vec<Localized> {
     let mut notes = vec![
         Localized::fixed(
             "note.nine_router.cached",
-            "O 9router pode mostrar uma leitura em cache; a idade dela não é informada.",
+            "9router may show a cached reading; its age is not reported.",
         ),
         Localized::fixed(
             "note.nine_router.zero_caveat",
-            "Valores como normalizados pelo 9router; um valor ausente pode aparecer como 0.",
+            "Values as normalized by 9router; a missing value may show as 0.",
         ),
     ];
     notes.extend(extra);
@@ -1062,14 +1062,14 @@ async fn read_usage(
             status: Status::AuthenticationError,
             note: Localized::fixed(
                 "note.nine_router.reconnect",
-                "Reconecte esta conta no 9router.",
+                "Reconnect this account in 9router.",
             ),
         }),
         Ok(UsageOutcome::Message {
             auth_expired: false,
         }) => failed(QueryError::unsupported(
             "note.nine_router.no_usage",
-            "O 9router não tem uso para esta conexão.",
+            "9router has no usage for this connection.",
         )),
         Err(error) => failed(error),
     }
@@ -1094,10 +1094,7 @@ async fn read_one(
             Status::Unsupported,
             Vec::new(),
             None,
-            Some(Localized::fixed(
-                "note.nine_router.off",
-                "Desligada no 9router.",
-            )),
+            Some(Localized::fixed("note.nine_router.off", "Off in 9router.")),
         );
         return (ordinal, report);
     }
@@ -1128,7 +1125,7 @@ fn usage_error(error: QueryError) -> QueryError {
             status: Status::AuthenticationError,
             note: Localized::fixed(
                 "note.nine_router.reconnect",
-                "Reconecte esta conta no 9router.",
+                "Reconnect this account in 9router.",
             ),
         },
         _ => {
@@ -1142,7 +1139,7 @@ fn usage_error(error: QueryError) -> QueryError {
                     status: Status::Error,
                     note: Localized::fixed(
                         "note.nine_router.gone",
-                        "A conexão não existe mais no 9router.",
+                        "The connection no longer exists in 9router.",
                     ),
                 }
             } else {
@@ -1269,34 +1266,31 @@ pub(crate) async fn fetch_at(
             ("ready", ParamValue::from(ready as u64)),
             ("total", ParamValue::from(sub_reports.len() as u64)),
         ]),
-        format!(
-            "{ready} de {} conexões do 9router com uso.",
-            sub_reports.len()
-        ),
+        "{ready} of {total} 9router connections with usage.",
     );
     if let Some(version) = best_effort_version(&instance, token.as_deref()).await {
         notes.push_params(
             "note.nine_router.version",
             params([("version", ParamValue::from(version.clone()))]),
-            format!("9router {version}."),
+            "9router {version}.",
         );
     }
     if truncated {
         notes.push(
             "note.nine_router.truncated",
-            "O 9router tem mais conexões do que o limite lido (1000); as demais foram omitidas.",
+            "9router has more connections than the limit read (1000); the rest were left out.",
         );
     }
     if password.is_none() && !sso && !base_is_loopback(&instance.base) {
         notes.push(
             "note.nine_router.exposed",
-            "Esta instância do 9router responde a consultas de gerenciamento sem senha. Qualquer pessoa que a alcance pode ler e alterar as conexões dela.",
+            "This 9router instance answers management requests without a password. Anyone who can reach it can read and change its connections.",
         );
     }
     if instance.base.scheme() == "http" && !base_is_loopback(&instance.base) && allow_private {
         notes.push(
             "note.nine_router.private_http",
-            "Conexão sem criptografia na rede privada, por escolha sua.",
+            "Unencrypted connection on the private network, by your choice.",
         );
     }
     let mut data = Data::new(
@@ -1368,18 +1362,18 @@ pub(crate) fn litellm_outcome_text(outcome: &TestOutcome) -> Option<Localized> {
             "test.litellm.connected",
             "providers",
             *connections as u64,
-            format!("LiteLLM: {connections} provedores com orçamento encontrados."),
+            "LiteLLM: {providers} providers with a budget found.",
         ),
         TestOutcome::NotNineRouter => Localized::fixed(
             "test.litellm.not_litellm",
-            "O endereço responde, mas não parece ser um proxy LiteLLM (sem /provider/budgets).",
+            "The address answers but does not look like a LiteLLM proxy (no /provider/budgets).",
         ),
         TestOutcome::PasswordWrong => {
-            Localized::fixed("test.litellm.key_wrong", "Chave do LiteLLM recusada.")
+            Localized::fixed("test.litellm.key_wrong", "The LiteLLM key was refused.")
         }
         TestOutcome::PasswordRequired => Localized::fixed(
             "test.litellm.key_required",
-            "Informe a chave mestra ou uma chave virtual do LiteLLM.",
+            "Enter the LiteLLM master key or a virtual key.",
         ),
         _ => return None,
     })
@@ -1399,50 +1393,50 @@ pub(crate) fn outcome_text(outcome: &TestOutcome) -> Localized {
                     ("connections", ParamValue::from(*connections as u64)),
                     ("version", ParamValue::from(version.clone())),
                 ]),
-                format!("9router {version}: {connections} conexões com uso encontradas."),
+                "9router {version}: {connections} connections with usage found.",
             )
         }
         TestOutcome::NotNineRouter => Localized::fixed(
             "test.nine_router.not_nine_router",
-            "O endereço responde, mas não parece ser um 9router.",
+            "The address answers but does not look like a 9router.",
         ),
         TestOutcome::PasswordWrong => Localized::fixed(
             "query.nine_router.password_wrong",
-            "Senha do painel do 9router recusada.",
+            "The 9router dashboard password was refused.",
         ),
         TestOutcome::LockedOut { seconds } => Localized::with_params(
             "query.nine_router.locked",
             params([("seconds", ParamValue::from(*seconds))]),
-            format!("Muitas tentativas de login no 9router; aguarde {seconds} s antes de tentar de novo."),
+            "Too many 9router login attempts; wait {seconds} s before trying again.",
         ),
         TestOutcome::LoginRefused => Localized::fixed(
             "query.nine_router.login_refused",
-            "O 9router não aceita login por senha por aqui (SSO ativo ou acesso bloqueado pelo túnel).",
+            "9router does not accept password login here (SSO is on or the tunnel blocks access).",
         ),
         TestOutcome::PasswordRequired => Localized::fixed(
             "test.nine_router.password_required",
-            "Esta instância exige a senha do painel; escolha \"Senha do painel\".",
+            "This instance requires the dashboard password; choose \"Dashboard password\".",
         ),
         TestOutcome::SessionRejected => crate::user_session::rejected(),
         TestOutcome::Unreachable => Localized::fixed(
             "test.nine_router.unreachable",
-            "Não foi possível alcançar o endereço informado.",
+            "The address could not be reached.",
         ),
         TestOutcome::UntrustedCertificate { fingerprint } => Localized::with_param(
             "test.nine_router.untrusted_certificate",
             "fingerprint",
             fingerprint.as_str(),
-            format!("O certificado da instância não é confiável para este computador. Impressão digital SHA-256: {fingerprint}. Confira-a no servidor antes de confiar nela."),
+            "This computer does not trust the instance's certificate. SHA-256 fingerprint: {fingerprint}. Check it on the server before trusting it.",
         ),
         TestOutcome::CertificateChanged { fingerprint } => Localized::with_param(
             "test.nine_router.certificate_changed",
             "fingerprint",
             fingerprint.as_str(),
-            format!("O certificado da instância mudou e não corresponde ao fixado. Nova impressão digital SHA-256: {fingerprint}. Confira-a no servidor antes de confiar nela."),
+            "The instance's certificate changed and no longer matches the pinned one. New SHA-256 fingerprint: {fingerprint}. Check it on the server before trusting it.",
         ),
         TestOutcome::CaFileUnreadable => Localized::fixed(
             "query.nine_router.ca_file",
-            "O arquivo de CA do 9router não pôde ser lido como PEM.",
+            "The 9router CA file could not be read as PEM.",
         ),
     }
 }
@@ -1481,11 +1475,11 @@ fn tls_error(error: tls::TlsError) -> QueryError {
     match error {
         tls::TlsError::PinFormat => QueryError::config(
             "query.nine_router.pin_format",
-            "A impressão digital do certificado do 9router deve ter 64 dígitos hexadecimais (SHA-256).",
+            "The 9router certificate fingerprint must have 64 hexadecimal digits (SHA-256).",
         ),
         tls::TlsError::Conflict => QueryError::config(
             "query.nine_router.tls_conflict",
-            "Use um arquivo de CA ou uma impressão digital fixada, não os dois, e só com HTTPS.",
+            "Use a CA file or a pinned fingerprint, not both, and only with HTTPS.",
         ),
     }
 }

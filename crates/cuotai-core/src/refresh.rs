@@ -138,10 +138,10 @@ pub enum Edit {
 /// reordering the rest of the file.
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum EditError {
-    #[error("Índice {0} fora de alcance.")]
+    #[error("Index {0} out of range.")]
     Index(usize),
     #[error(
-        "A nova configuração não corresponde à operação declarada; edições não devem reordenar nem alterar outras contas."
+        "The new configuration does not match the declared operation; edits must not reorder or alter other accounts."
     )]
     UnexpectedDiff,
 }

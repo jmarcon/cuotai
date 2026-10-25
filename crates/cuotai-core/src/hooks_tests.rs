@@ -370,7 +370,7 @@ fn every_message_reads_in_each_catalog() {
     }];
     messages.push(Document::save(&blocked.join("hooks.toml"), None, valid).unwrap_err());
     let ids: BTreeSet<&str> = messages.iter().map(|message| &*message.id).collect();
-    let catalog: BTreeSet<&str> = crate::text::core_catalog("en-US")
+    let catalog: BTreeSet<&str> = crate::text::core_catalog("pt-BR")
         .unwrap()
         .keys()
         .map(String::as_str)
@@ -379,7 +379,7 @@ fn every_message_reads_in_each_catalog() {
     assert_eq!(ids, catalog, "every hooks message is exercised");
     for message in &messages {
         assert!(!message.fallback.contains('{'), "{message:?}");
-        for locale in ["en-US", "es", "it"] {
+        for locale in ["pt-BR", "es", "it"] {
             let text = message.resolve(locale);
             assert!(!text.contains('{'), "{text}");
             // Spanish shares some words with Portuguese ("eventos").

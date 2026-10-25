@@ -93,7 +93,7 @@ const expected = {
 };
 
 const coreCatalog = JSON.parse(await readFile(
-  fileURLToPath(new URL("crates/cuotai-core/locales/en-US.json", root)),
+  fileURLToPath(new URL("crates/cuotai-core/locales/pt-BR.json", root)),
   "utf8",
 ));
 const coreKeys = new Set(Object.keys(coreCatalog));

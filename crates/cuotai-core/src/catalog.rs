@@ -58,13 +58,13 @@ impl SignInMethod {
     /// Group label (`catalog.method.<slug>`).
     pub fn label(self) -> Localized {
         let fallback = match self {
-            Self::BrowserSignIn => "Entrar pelo navegador",
-            Self::LocalCredentials => "Credenciais locais",
-            Self::ApiKey => "Chave de API",
-            Self::CloudProfile => "Perfil de nuvem",
-            Self::WebSession => "Sessão web",
-            Self::SelfHostedGateway => "Gateway auto-hospedado",
-            Self::Extension => "Extensão",
+            Self::BrowserSignIn => "Browser sign-in",
+            Self::LocalCredentials => "Local credentials",
+            Self::ApiKey => "API key",
+            Self::CloudProfile => "Cloud profile",
+            Self::WebSession => "Web session",
+            Self::SelfHostedGateway => "Self-hosted gateway",
+            Self::Extension => "Extension",
         };
         Localized::fixed(format!("catalog.method.{}", self.slug()), fallback)
     }
@@ -97,12 +97,12 @@ impl Category {
     /// Category name (`catalog.category.<slug>`).
     pub fn label(self) -> Localized {
         let fallback = match self {
-            Self::Subscription => "Assinatura",
-            Self::ApiPlatform => "Plataforma de API",
-            Self::Cloud => "Nuvem",
-            Self::CodingTool => "Ferramenta de código",
-            Self::Router => "Roteador",
-            Self::Extension => "Extensão",
+            Self::Subscription => "Subscription",
+            Self::ApiPlatform => "API platform",
+            Self::Cloud => "Cloud",
+            Self::CodingTool => "Coding tool",
+            Self::Router => "Router",
+            Self::Extension => "Extension",
         };
         Localized::fixed(format!("catalog.category.{}", self.slug()), fallback)
     }
@@ -331,56 +331,48 @@ fn credential_method(
     let hint =
         |slug: &str, fallback: &str| Localized::fixed(format!("catalog.hint.{slug}"), fallback);
     if level == Level::Extension {
-        return (SignInMethod::Extension, hint("extension", "Extensão local"));
+        return (
+            SignInMethod::Extension,
+            hint("extension", "Local extension"),
+        );
     }
     match credential {
         Credential::InferenceKey if native_login => (
             SignInMethod::BrowserSignIn,
-            hint("browser_sign_in", "Entre pelo navegador"),
+            hint("browser_sign_in", "Sign in with your browser"),
         ),
-        Credential::InferenceKey => (SignInMethod::ApiKey, hint("api_key", "Chave de API")),
-        Credential::AdminKey => (
-            SignInMethod::ApiKey,
-            hint("admin_key", "Chave de API de administração"),
-        ),
+        Credential::InferenceKey => (SignInMethod::ApiKey, hint("api_key", "API key")),
+        Credential::AdminKey => (SignInMethod::ApiKey, hint("admin_key", "Admin API key")),
         Credential::SubscriptionSession if native_login => (
             SignInMethod::BrowserSignIn,
-            hint("browser_sign_in", "Entre pelo navegador"),
+            hint("browser_sign_in", "Sign in with your browser"),
         ),
         Credential::SubscriptionSession => (
             SignInMethod::ApiKey,
-            hint("access_token", "Token de acesso da conta"),
+            hint("access_token", "Account access token"),
         ),
         Credential::CloudIdentity if metered => (
             SignInMethod::CloudProfile,
-            hint(
-                "cloud_metered",
-                "Credenciais de nuvem · cobrado por consulta",
-            ),
+            hint("cloud_metered", "Cloud credentials · billed per query"),
         ),
         Credential::CloudIdentity => (
             SignInMethod::CloudProfile,
-            hint("cloud", "Credenciais de nuvem"),
+            hint("cloud", "Cloud credentials"),
         ),
         Credential::LocalCli => {
             let cli = cli_name(provider);
             (
                 SignInMethod::LocalCredentials,
-                Localized::with_param(
-                    "catalog.hint.local_cli",
-                    "cli",
-                    cli,
-                    format!("Usa a CLI {cli}"),
-                ),
+                Localized::with_param("catalog.hint.local_cli", "cli", cli, "Uses the {cli} CLI"),
             )
         }
         Credential::UserSession => (
             SignInMethod::WebSession,
-            hint("web_session", "Cole uma sessão web"),
+            hint("web_session", "Paste a web session"),
         ),
         Credential::AggregatorLogin => (
             SignInMethod::ApiKey,
-            hint("aggregator_login", "Senha do painel (opcional)"),
+            hint("aggregator_login", "Dashboard password (optional)"),
         ),
     }
 }
@@ -716,7 +708,7 @@ mod tests {
                 "extensions.catalog.label",
                 "name",
                 name,
-                format!("Extensão: {name}"),
+                "Extension: {name}",
             ),
             level: Level::Extension,
             warning: Level::Extension.risk(),
@@ -849,7 +841,7 @@ mod tests {
         let claude_token = find(Provider::Claude, false);
         assert_eq!(claude_token.method, SignInMethod::ApiKey);
         assert_eq!(hint(&claude_token), "Account access token");
-        // The Portuguese fallback is the embedded text.
+        // The English fallback is the embedded text.
         assert_eq!(groq.hint.resolve("pt-BR"), "Chave de API");
     }
 
@@ -874,7 +866,7 @@ mod tests {
         ] {
             ids.push(category.label().id.to_string());
         }
-        for locale in ["en-US", "es", "it"] {
+        for locale in ["pt-BR", "es", "it"] {
             let map = core_catalog(locale).unwrap();
             for id in &ids {
                 assert!(map.contains_key(id), "{locale}: missing {id}");

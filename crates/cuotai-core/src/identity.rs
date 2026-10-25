@@ -69,11 +69,11 @@ pub fn account_identity(account: &Account, status: Status) -> AccountIdentity {
     if account.oauth.is_some() && status == Status::Ready {
         identity.badges.push(Badge {
             tone: BadgeTone::Good,
-            text: Localized::fixed("identity.session_active", "sessão ativa"),
+            text: Localized::fixed("identity.session_active", "session active"),
         });
     }
     identity.copy = param("profile_arn").map(|value| CopyValue {
-        label: Localized::fixed("identity.profile_arn", "ARN do perfil"),
+        label: Localized::fixed("identity.profile_arn", "Profile ARN"),
         value: value.to_owned(),
     });
     identity
@@ -107,12 +107,7 @@ fn value_label(provider: Provider, key: &str, value: &str) -> Localized {
             return Localized::fixed(id, option.label);
         }
     }
-    Localized::with_param(
-        "identity.value",
-        "value",
-        value.to_owned(),
-        value.to_owned(),
-    )
+    Localized::with_param("identity.value", "value", value.to_owned(), "{value}")
 }
 
 #[cfg(test)]

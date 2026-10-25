@@ -126,15 +126,15 @@
         "verified_on": "2026-10-20",
         "summary": {
           "id": "access.summary.claude",
-          "fallback": "Janelas de uso do plano Claude pela interface interna usada pelos clientes oficiais."
+          "fallback": "Claude plan usage windows through the internal interface the official clients use."
         },
         "credential_hint": {
           "id": "access.credential_hint.subscription_session",
-          "fallback": "Usa a sessão da assinatura (login nativo ou o token dela), não uma chave de API da plataforma."
+          "fallback": "Uses the subscription session (native login or its token), not a platform API key."
         },
         "risk": {
           "id": "access.risk.undocumented",
-          "fallback": "Interface interna, não documentada pelo fornecedor; pode mudar sem aviso."
+          "fallback": "Internal interface the vendor does not document; it may change without notice."
         },
         "reason": null,
         "overage": "provider_units"
@@ -151,7 +151,7 @@
         "state": "partial_outage",
         "label": {
           "id": "incident.state.partial_outage",
-          "fallback": "Interrupção parcial"
+          "fallback": "Partial outage"
         },
         "event": {
           "title": "Elevated errors on Claude Code",
@@ -180,7 +180,7 @@
         "status": "error",
         "metrics": [],
         "notes": [
-          "Consulta retornou HTTP 503. Verifique acesso e permissões."
+          "Query returned HTTP 503. Check access and permissions."
         ],
         "notes_l10n": [
           {
@@ -188,7 +188,7 @@
             "params": {
               "code": "503"
             },
-            "fallback": "Consulta retornou HTTP 503. Verifique acesso e permissões."
+            "fallback": "Query returned HTTP 503. Check access and permissions."
           }
         ],
         "source": ""
@@ -231,15 +231,15 @@
         "verified_on": "2026-10-20",
         "summary": {
           "id": "access.summary.open_ai_api",
-          "fallback": "Custos e uso da organização pela Admin API da OpenAI."
+          "fallback": "Organization costs and usage through the OpenAI Admin API."
         },
         "credential_hint": {
           "id": "access.credential_hint.admin_key",
-          "fallback": "Precisa de uma chave de administrador ou de cobrança, não da chave de inferência."
+          "fallback": "Needs an admin or billing key, not the inference key."
         },
         "risk": {
           "id": "access.risk.official",
-          "fallback": "Interface documentada pelo fornecedor para esta credencial; não garante permissão na sua conta."
+          "fallback": "Interface documented by the vendor for this credential; it does not guarantee permission on your account."
         },
         "reason": null,
         "overage": "not_reported"
@@ -267,7 +267,7 @@
         "status": "needs_configuration",
         "metrics": [],
         "notes": [
-          "Credencial ausente: [redacted]"
+          "Missing credential: [redacted]"
         ],
         "notes_l10n": [
           {
@@ -275,7 +275,7 @@
             "params": {
               "name": "[redacted]"
             },
-            "fallback": "Credencial ausente: [redacted]"
+            "fallback": "Missing credential: [redacted]"
           }
         ],
         "source": ""
@@ -301,15 +301,15 @@
         "verified_on": "2026-10-20",
         "summary": {
           "id": "access.summary.groq",
-          "fallback": "Rate limits da organização lidos nos cabeçalhos x-ratelimit-* da listagem de modelos."
+          "fallback": "Organization rate limits read from the x-ratelimit-* headers of the model listing."
         },
         "credential_hint": {
           "id": "access.credential_hint.inference_key",
-          "fallback": "Usa a chave de API da conta; nenhuma resposta é gerada."
+          "fallback": "Uses the account's API key; no response is generated."
         },
         "risk": {
           "id": "access.risk.derived",
-          "fallback": "O uso é inferido de outra fonte (métricas ou cabeçalhos de rate limit); não é um saldo e pode atrasar."
+          "fallback": "Usage is inferred from another source (metrics or rate-limit headers); it is not a balance and may lag."
         },
         "reason": null,
         "overage": "not_reported"
@@ -323,7 +323,7 @@
         "state": "unknown",
         "label": {
           "id": "incident.state.unknown",
-          "fallback": "Status desconhecido"
+          "fallback": "Status unknown"
         },
         "event": null,
         "page_url": "https://groqstatus.com/",
@@ -363,15 +363,15 @@
         "verified_on": "2026-10-20",
         "summary": {
           "id": "access.summary.kimi",
-          "fallback": "Saldo da plataforma internacional do Kimi pelo endpoint de saldo documentado."
+          "fallback": "Kimi international platform balance through the documented balance endpoint."
         },
         "credential_hint": {
           "id": "access.credential_hint.inference_key",
-          "fallback": "Usa a chave de API da conta; nenhuma resposta é gerada."
+          "fallback": "Uses the account's API key; no response is generated."
         },
         "risk": {
           "id": "access.risk.official",
-          "fallback": "Interface documentada pelo fornecedor para esta credencial; não garante permissão na sua conta."
+          "fallback": "Interface documented by the vendor for this credential; it does not guarantee permission on your account."
         },
         "reason": null,
         "overage": "not_reported"
@@ -385,7 +385,7 @@
     "currency": "USD",
     "notice": {
       "id": "cost.estimate.notice",
-      "fallback": "Estimativa a preços de API, não é uma cobrança; valores em USD."
+      "fallback": "Estimate at API prices, not a charge; amounts in USD."
     },
     "span": {
       "period": null,
@@ -395,7 +395,7 @@
         "params": {
           "days": "3"
         },
-        "fallback": "Últimos 3 dias"
+        "fallback": "Last 3 days"
       },
       "first_day": "2026-10-18",
       "last_day": "2026-10-20"
@@ -475,7 +475,7 @@
             ],
             "notice": {
               "id": "cost.estimate.notice",
-              "fallback": "Estimativa a preços de API, não é uma cobrança; valores em USD."
+              "fallback": "Estimate at API prices, not a charge; amounts in USD."
             }
           },
           "yesterday": {
@@ -530,7 +530,7 @@
             ],
             "notice": {
               "id": "cost.estimate.notice",
-              "fallback": "Estimativa a preços de API, não é uma cobrança; valores em USD."
+              "fallback": "Estimate at API prices, not a charge; amounts in USD."
             }
           },
           "period": {
@@ -598,7 +598,7 @@
             ],
             "notice": {
               "id": "cost.estimate.notice",
-              "fallback": "Estimativa a preços de API, não é uma cobrança; valores em USD."
+              "fallback": "Estimate at API prices, not a charge; amounts in USD."
             }
           },
           "days": [
@@ -674,7 +674,7 @@
           "params": {
             "source": "Codex CLI"
           },
-          "fallback": "Codex CLI: desligado; nada é lido."
+          "fallback": "Codex CLI: off; nothing is read."
         },
         "usage": null
       },
@@ -690,7 +690,7 @@
           "params": {
             "source": "Gemini CLI"
           },
-          "fallback": "Gemini CLI: desligado; nada é lido."
+          "fallback": "Gemini CLI: off; nothing is read."
         },
         "usage": null
       }
@@ -760,7 +760,7 @@
       ],
       "notice": {
         "id": "cost.estimate.notice",
-        "fallback": "Estimativa a preços de API, não é uma cobrança; valores em USD."
+        "fallback": "Estimate at API prices, not a charge; amounts in USD."
       }
     },
     "pricing_error": null,
@@ -775,7 +775,7 @@
       "params": {
         "models": "claude-mystery-9"
       },
-      "fallback": "Sem preço para: claude-mystery-9"
+      "fallback": "No price for: claude-mystery-9"
     }
   }
 }

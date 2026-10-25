@@ -158,19 +158,19 @@ fn read(stdout: &[u8]) -> Result<Reading, Vec<Localized>> {
             "extensions.output.too_large",
             "max",
             MAX_BYTES / 1024,
-            format!("A saída da extensão passa de {} KiB.", MAX_BYTES / 1024),
+            "The extension's output is larger than {max} KiB.",
         )]);
     }
     let Ok(text) = std::str::from_utf8(stdout) else {
         return Err(vec![Localized::fixed(
             "extensions.output.not_utf8",
-            "A saída da extensão não é texto UTF-8.",
+            "The extension's output is not UTF-8 text.",
         )]);
     };
     if text.trim().is_empty() {
         return Err(vec![Localized::fixed(
             "extensions.output.empty",
-            "A extensão não imprimiu nada na saída padrão.",
+            "The extension printed nothing to standard output.",
         )]);
     }
     let value: Value = serde_json::from_str(text).map_err(|error| {
@@ -178,16 +178,13 @@ fn read(stdout: &[u8]) -> Result<Reading, Vec<Localized>> {
         vec![Localized::with_params(
             "extensions.output.json",
             params([("line", line.into()), ("column", column.into())]),
-            format!(
-                "A saída da extensão não é um JSON válido (linha {line}, coluna {column}); \
-                 NaN e Infinity não são números JSON."
-            ),
+            "The extension's output is not valid JSON (line {line}, column {column}); NaN and Infinity are not JSON numbers.",
         )]
     })?;
     let Value::Object(object) = value else {
         return Err(vec![Localized::fixed(
             "extensions.output.not_object",
-            "A saída da extensão deve ser um único objeto JSON.",
+            "The extension's output must be a single JSON object.",
         )]);
     };
     // A newer contract may change any field: nothing else is read.
@@ -196,7 +193,7 @@ fn read(stdout: &[u8]) -> Result<Reading, Vec<Localized>> {
             "extensions.output.schema",
             "schema",
             SCHEMA.to_string(),
-            format!("A saída da extensão precisa de \"schema\": {SCHEMA}."),
+            "The extension's output needs \"schema\": {schema}.",
         )]);
     }
     let mut check = Violations::default();
@@ -213,7 +210,7 @@ fn read(stdout: &[u8]) -> Result<Reading, Vec<Localized>> {
     };
     let notes = notes
         .into_iter()
-        .map(|text| Localized::with_param("extensions.output.note", "text", text.clone(), text))
+        .map(|text| Localized::with_param("extensions.output.note", "text", text, "{text}"))
         .collect();
     if status == Status::Ready {
         return Ok((Status::Ready, metrics, notes));
@@ -223,7 +220,7 @@ fn read(stdout: &[u8]) -> Result<Reading, Vec<Localized>> {
         "extensions.output.failed",
         "status",
         name.as_str(),
-        format!("A extensão informou o status {name}; nenhum valor foi usado."),
+        "The extension reported the status {status}; no value was used.",
     )];
     all.extend(notes);
     Ok((Status::Error, Vec::new(), all))
@@ -383,10 +380,7 @@ impl Violations {
                     ("field", path.as_str().into()),
                     ("max", UNIT_MAX_CHARS.into()),
                 ]),
-                format!(
-                    "O campo {path} deve ser um texto de até {UNIT_MAX_CHARS} caracteres, sem \
-                     caracteres de controle."
-                ),
+                "The field {field} must be a string of up to {max} characters, without control characters.",
             )),
         }
     }
@@ -426,7 +420,7 @@ impl Violations {
                 ("field", path.as_str().into()),
                 ("values", values.as_str().into()),
             ]),
-            format!("O campo {path} deve ser um destes: {values}."),
+            "The field {field} must be one of: {values}.",
         ))
     }
 
@@ -435,7 +429,7 @@ impl Violations {
             "extensions.output.missing",
             "field",
             path.as_str(),
-            format!("Falta o campo {path}."),
+            "The field {field} is missing.",
         ))
     }
 
@@ -467,30 +461,28 @@ enum Shape {
 /// `extensions.output.<shape>`: the field at `path` does not have the
 /// expected shape.
 fn field(shape: Shape, path: String) -> Localized {
-    let (id, pt) = match shape {
-        Shape::List => ("list", format!("O campo {path} deve ser uma lista.")),
-        Shape::Object => ("object", format!("O item {path} deve ser um objeto.")),
-        Shape::Text => ("text", format!("O campo {path} deve ser um texto.")),
+    let (id, template) = match shape {
+        Shape::List => ("list", "The field {field} must be a list."),
+        Shape::Object => ("object", "The item {field} must be an object."),
+        Shape::Text => ("text", "The field {field} must be a string."),
         Shape::Empty => (
             "empty_text",
-            format!("O campo {path} fica vazio sem a marcação."),
+            "The field {field} is empty once its markup is removed.",
         ),
         Shape::Number => (
             "number",
-            format!("O campo {path} deve ser um número finito ou null."),
+            "The field {field} must be a finite number or null.",
         ),
         Shape::Date => (
             "date",
-            format!(
-                "O campo {path} deve ser uma data RFC 3339, como 2026-10-21T12:00:00Z, ou null."
-            ),
+            "The field {field} must be an RFC 3339 date, such as 2026-10-21T12:00:00Z, or null.",
         ),
     };
     Localized::with_param(
         format!("extensions.output.{id}"),
         "field",
         path.as_str(),
-        pt,
+        template,
     )
 }
 
@@ -498,7 +490,7 @@ fn too_many(path: &'static str, max: usize) -> Localized {
     Localized::with_params(
         "extensions.output.too_many",
         params([("field", path.into()), ("max", max.into())]),
-        format!("O campo {path} aceita no máximo {max} itens."),
+        "The field {field} accepts at most {max} items.",
     )
 }
 
@@ -509,10 +501,7 @@ fn invalid(count: usize) -> Localized {
             ("schema", SCHEMA.to_string().into()),
             ("count", count.into()),
         ]),
-        format!(
-            "A saída da extensão não segue o contrato (schema {SCHEMA}): {count} problema(s); \
-             nenhum valor foi usado."
-        ),
+        "The extension's output does not follow the contract (schema {schema}): {count} problem(s); no value was used.",
     )
 }
 

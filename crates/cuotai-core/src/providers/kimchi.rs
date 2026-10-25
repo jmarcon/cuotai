@@ -51,7 +51,7 @@ async fn kimchi_at(account: &Account, ctx: &Context<'_>, base: &str) -> Result<D
     if credits.serverless == Some(false) {
         return Err(QueryError::unsupported(
             "note.kimchi.byo_self_hosted",
-            "A chave Kimchi pertence a uma instalação BYO/self-hosted sem saldo de inferência gerenciado; /v1/credits respondeu serverless=false.",
+            "The Kimchi key belongs to a BYO/self-hosted install with no managed inference balance; /v1/credits responded serverless=false.",
         ));
     }
 
@@ -78,20 +78,17 @@ async fn kimchi_at(account: &Account, ctx: &Context<'_>, base: &str) -> Result<D
             Ok(budget_metrics) => metrics.extend(budget_metrics),
             Err(_) => notes.push(
                 "note.kimchi.budget_contract_mismatch",
-                "Kimchi retornou o saldo, mas a resposta de /v1/budget não correspondeu ao contrato oficial; os orçamentos foram omitidos.",
+                "Kimchi returned the balance, but the /v1/budget response did not match the official contract; the budgets were omitted.",
             ),
         },
         Ok(None) => notes.push(
             "note.kimchi.budget_404",
-            "O proxy Kimchi respondeu 404 em /v1/budget (compatível com proxies antigos); somente o saldo de créditos foi exibido.",
+            "Kimchi proxy returned 404 on /v1/budget (compatible with older proxies); only the credits balance is shown.",
         ),
         Err(error) => notes.push_params(
             "note.kimchi.budget_unavailable",
             params([("status", ParamValue::L10n(Box::new(crate::text::status_l10n(error.status))))]),
-            format!(
-                "Saldo de créditos atualizado; orçamento indisponível nesta atualização ({}).",
-                error.status.label()
-            ),
+            "Credits balance updated; budget unavailable in this refresh ({status}).",
         ),
     }
 
@@ -139,26 +136,26 @@ fn credits_notes(credits: &Credits) -> Notes {
     let mut notes = Notes::new();
     notes.push(
         "note.kimchi.credits_source",
-        "Saldo real lido por GET /v1/credits com Bearer KIMCHI_API_KEY; a consulta não gera tokens.",
+        "Real balance read via GET /v1/credits with Bearer KIMCHI_API_KEY; the query does not generate tokens.",
     );
     if let Some(tier) = credits.tier.as_deref() {
         notes.push_params(
             "note.kimchi.tier",
             params([("tier", ParamValue::from(tier.to_string()))]),
-            format!("Plano reportado pelo Kimchi: {tier}."),
+            "Plan reported by Kimchi: {tier}.",
         );
     }
     if let Some(status) = credits.billing_status.as_deref() {
         notes.push_params(
             "note.kimchi.billing_status",
             params([("status", ParamValue::from(status.to_string()))]),
-            format!("Estado de faturamento reportado pelo Kimchi: {status}."),
+            "Billing status reported by Kimchi: {status}.",
         );
     }
     if credits.has_credits == Some(false) {
         notes.push(
             "note.kimchi.no_credits",
-            "Kimchi reportou has_credits=false; novas inferências podem estar bloqueadas ou restritas.",
+            "Kimchi reported has_credits=false; new inferences may be blocked or restricted.",
         );
     }
     notes
@@ -192,10 +189,7 @@ async fn fetch_budget(
             note: Localized::with_params(
                 "query.kimchi.budget_http",
                 params([("code", ParamValue::from(code.as_u16()))]),
-                format!(
-                    "Consulta de orçamento retornou HTTP {}. Verifique acesso e permissões.",
-                    code.as_u16()
-                ),
+                "Budget query returned HTTP {code}. Check access and permissions.",
             ),
         });
     }
@@ -662,10 +656,7 @@ mod tests {
 
         assert_eq!(data.metrics.len(), 1);
         assert_eq!(data.metrics[0].remaining, Some(7.5));
-        assert!(data
-            .notes
-            .iter()
-            .any(|note| note.contains("não correspondeu")));
+        assert!(data.notes.iter().any(|note| note.contains("did not match")));
     }
 
     #[test]

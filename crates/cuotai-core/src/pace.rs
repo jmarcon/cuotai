@@ -323,21 +323,21 @@ impl Pace {
                     "pace.reserve",
                     "delta",
                     delta.as_str(),
-                    format!("{delta} pontos de reserva"),
+                    "{delta} points in reserve",
                 )
             }
-            PaceStage::OnPace => Localized::fixed("pace.on_pace", "No ritmo"),
+            PaceStage::OnPace => Localized::fixed("pace.on_pace", "On pace"),
             PaceStage::Ahead => {
                 let delta = format!("{:.0}", self.delta_points.abs());
                 Localized::with_param(
                     "pace.ahead",
                     "delta",
                     delta.as_str(),
-                    format!("{delta} pontos acima do ritmo"),
+                    "{delta} points above the pace",
                 )
             }
             PaceStage::Exhausted => {
-                Localized::fixed("pace.exhausted", "Limite atingido até a renovação")
+                Localized::fixed("pace.exhausted", "Limit reached until the reset")
             }
         }
     }
@@ -353,14 +353,17 @@ impl Pace {
         if self.lasts_until_reset {
             return Some(Localized::fixed(
                 "pace.lasts_until_reset",
-                "dura até a renovação",
+                "lasts until the reset",
             ));
         }
         let when = self.projected_exhaustion_at?;
         let (at, margin) = (at(when), margin(self.resets_at - when));
-        let fallback = format!("acaba às {at}, {margin} antes da renovação");
         let params = params([("at", at.into()), ("margin", margin.into())]);
-        Some(Localized::with_params("pace.runs_out_at", params, fallback))
+        Some(Localized::with_params(
+            "pace.runs_out_at",
+            params,
+            "runs out at {at}, {margin} before the reset",
+        ))
     }
 }
 
@@ -426,14 +429,14 @@ impl Pace {
         if self.stage == PaceStage::Exhausted {
             return Chip {
                 glyph: GLYPH_EXHAUSTED,
-                text: Localized::fixed("pace.chip.exhausted", "Esgotado"),
+                text: Localized::fixed("pace.chip.exhausted", "Exhausted"),
                 compact: None,
                 hint: None,
             };
         }
         let on_pace = || Chip {
             glyph: GLYPH_ON_PACE,
-            text: Localized::fixed("pace.chip.on_pace", "No ritmo"),
+            text: Localized::fixed("pace.chip.on_pace", "On pace"),
             compact: None,
             hint: None,
         };
@@ -447,16 +450,12 @@ impl Pace {
                     }
                     let p = format!("{percent:.0}");
                     let (glyph, id, fallback) = if ratio > 0.0 {
-                        (
-                            GLYPH_AHEAD,
-                            "pace.chip.ahead_pct",
-                            format!("{p}% acima do ritmo"),
-                        )
+                        (GLYPH_AHEAD, "pace.chip.ahead_pct", "{p}% faster than pace")
                     } else {
                         (
                             GLYPH_RESERVE,
                             "pace.chip.reserve_pct",
-                            format!("{p}% abaixo do ritmo"),
+                            "{p}% slower than pace",
                         )
                     };
                     return Chip {
@@ -469,7 +468,7 @@ impl Pace {
                 None => {
                     hint = Some(Localized::fixed(
                         "pace.chip.too_early",
-                        "Cedo demais na janela para um percentual",
+                        "Too early in the window for a percentage",
                     ));
                 }
             }
@@ -480,13 +479,9 @@ impl Pace {
         }
         let d = format!("{points:.0}");
         let (glyph, id, fallback) = if self.delta_points > 0.0 {
-            (GLYPH_AHEAD, "pace.chip.ahead", format!("{d} pts acima"))
+            (GLYPH_AHEAD, "pace.chip.ahead", "{d} pts ahead")
         } else {
-            (
-                GLYPH_RESERVE,
-                "pace.chip.reserve",
-                format!("{d} pts de reserva"),
-            )
+            (GLYPH_RESERVE, "pace.chip.reserve", "{d} pts in reserve")
         };
         Chip {
             glyph,
@@ -513,7 +508,7 @@ impl Pace {
                         "pace.chip.runs_out",
                         "at",
                         at.as_str(),
-                        format!("Acaba ≈{at}"),
+                        "Runs out ≈{at}",
                     ),
                     compact: Some(format!("≈{at}")),
                     hint: None,
@@ -521,7 +516,7 @@ impl Pace {
             }
             None => Some(Chip {
                 glyph: GLYPH_RESERVE,
-                text: Localized::fixed("pace.chip.lasts", "Dura até renovar"),
+                text: Localized::fixed("pace.chip.lasts", "Lasts to reset"),
                 compact: None,
                 hint: None,
             }),
@@ -898,7 +893,7 @@ mod tests {
             .collect::<Vec<_>>();
         let ids: std::collections::BTreeSet<&str> = texts.iter().map(|t| &*t.id).collect();
         assert_eq!(ids.len(), 6, "{ids:?}");
-        for locale in ["en-US", "es", "it"] {
+        for locale in ["pt-BR", "es", "it"] {
             let catalog = crate::text::core_catalog(locale).unwrap();
             for text in &texts {
                 assert!(

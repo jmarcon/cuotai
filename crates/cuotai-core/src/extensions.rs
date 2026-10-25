@@ -12,7 +12,7 @@
 //! becomes either a valid [`Manifest`] or a [`Rejected`] entry with its
 //! localized reason (`extensions.error.*`), so one bad manifest never stops
 //! the others nor anything else from loading. [`Discovery::catalog`] gives
-//! the account types the editors offer ("Extensão: {name}", the
+//! the account types the editors offer ("Extension: {name}", the
 //! [`Level::Extension`] access level and its warning).
 //!
 //! RF2: [`output::check`] reads what one run printed against the output
@@ -175,7 +175,7 @@ pub struct Rejected {
 pub struct CatalogEntry {
     /// The extension's `id`.
     pub id: String,
-    /// `extensions.catalog.label`: "Extensão: {name}".
+    /// `extensions.catalog.label`: "Extension: {name}".
     pub label: Localized,
     /// Always [`Level::Extension`].
     pub level: Level,
@@ -214,7 +214,7 @@ impl Discovery {
                     "extensions.catalog.label",
                     "name",
                     manifest.name.as_str(),
-                    format!("Extensão: {}", manifest.name),
+                    "Extension: {name}",
                 ),
                 level: Level::Extension,
                 warning: Level::Extension.risk(),
@@ -239,12 +239,12 @@ fn catalog_hint(description: Option<&str>) -> Localized {
                 "extensions.catalog.hint",
                 "description",
                 short.as_str(),
-                short.clone(),
+                "{description}",
             )
         }
         None => Localized::fixed(
             "extensions.catalog.hint_none",
-            "Programa local que você revisa e aprova",
+            "Local program you review and approve",
         ),
     }
 }
@@ -346,7 +346,7 @@ fn read_manifest(path: &Path) -> Result<String, Localized> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             return Err(Localized::fixed(
                 "extensions.error.no_manifest",
-                "A pasta não tem um manifest.toml.",
+                "The folder has no manifest.toml.",
             ))
         }
         _ => return Err(manifest_unreadable()),
@@ -361,10 +361,7 @@ fn read_manifest(path: &Path) -> Result<String, Localized> {
             "extensions.error.too_large",
             "max",
             MANIFEST_MAX_BYTES / 1024,
-            format!(
-                "O manifest.toml passa de {} KiB.",
-                MANIFEST_MAX_BYTES / 1024
-            ),
+            "The manifest.toml is larger than {max} KiB.",
         ));
     }
     String::from_utf8(bytes).map_err(|_| manifest_unreadable())
@@ -429,10 +426,7 @@ fn validate(dir: &Path, raw: RawManifest, source: &str) -> Result<Manifest, Loca
             "extensions.error.id",
             "max",
             ID_MAX_CHARS,
-            format!(
-                "O id deve ser um slug de 1 a {ID_MAX_CHARS} caracteres: letras minúsculas, \
-                 dígitos, \"-\" e \"_\", começando por letra ou dígito."
-            ),
+            "The id must be a slug of 1 to {max} characters: lowercase letters, digits, \"-\" and \"_\", starting with a letter or a digit.",
         ));
     }
     let name = single_line("name", &raw.name, NAME_MAX_CHARS)?;
@@ -445,7 +439,7 @@ fn validate(dir: &Path, raw: RawManifest, source: &str) -> Result<Manifest, Loca
                 "extensions.error.interval",
                 "min",
                 MIN_INTERVAL_SECONDS,
-                format!("O interval_seconds deve ser de pelo menos {MIN_INTERVAL_SECONDS}."),
+                "The interval_seconds must be at least {min}.",
             )
         })?;
     let timeout_seconds = match raw.timeout_seconds {
@@ -458,7 +452,7 @@ fn validate(dir: &Path, raw: RawManifest, source: &str) -> Result<Manifest, Loca
                     "extensions.error.timeout",
                     "max",
                     MAX_TIMEOUT_SECONDS,
-                    format!("O timeout_seconds deve ficar entre 1 e {MAX_TIMEOUT_SECONDS}."),
+                    "The timeout_seconds must be between 1 and {max}.",
                 )
             })?,
     };
@@ -489,11 +483,7 @@ fn validate(dir: &Path, raw: RawManifest, source: &str) -> Result<Manifest, Loca
                         "extensions.error.overrides",
                         "provider",
                         quoted(&slug),
-                        format!(
-                            "O overrides {} não é o identificador de uma integração embutida \
-                             (veja cuotai --list-providers).",
-                            quoted(&slug)
-                        ),
+                        "The overrides {provider} is not the identifier of a built-in integration (see cuotai --list-providers).",
                     )
                 })
         })
@@ -555,7 +545,7 @@ fn valid_homepage(text: &str) -> Result<String, Localized> {
         Some(_) => Ok(text.to_owned()),
         None => Err(Localized::fixed(
             "extensions.error.homepage",
-            "O homepage deve ser um endereço http(s) sem usuário nem senha.",
+            "The homepage must be an http(s) address without a user name or password.",
         )),
     }
 }
@@ -577,11 +567,7 @@ fn valid_env(names: Vec<String>) -> Result<Vec<String>, Localized> {
                 "extensions.error.env_name",
                 "name",
                 quoted(&name),
-                format!(
-                    "O env lista {}, que não é um nome de variável de ambiente (letras, \
-                     dígitos e \"_\", sem começar por dígito).",
-                    quoted(&name)
-                ),
+                "The env lists {name}, which is not an environment variable name (letters, digits and \"_\", not starting with a digit).",
             ));
         }
         if !env.contains(&name) {
@@ -593,7 +579,7 @@ fn valid_env(names: Vec<String>) -> Result<Vec<String>, Localized> {
             "extensions.error.env_count",
             "max",
             ENV_MAX_NAMES,
-            format!("O env aceita no máximo {ENV_MAX_NAMES} nomes."),
+            "The env accepts at most {max} names.",
         ));
     }
     Ok(env)
@@ -608,7 +594,7 @@ fn valid_secrets(raw: Vec<RawSecret>, env: &[String]) -> Result<Vec<Secret>, Loc
             "extensions.error.secrets_count",
             "max",
             SECRETS_MAX,
-            format!("O manifest.toml declara no máximo {SECRETS_MAX} secrets."),
+            "The manifest.toml declares at most {max} secrets.",
         ));
     }
     let mut secrets: Vec<Secret> = Vec::with_capacity(raw.len());
@@ -634,10 +620,9 @@ fn valid_secrets(raw: Vec<RawSecret>, env: &[String]) -> Result<Vec<Secret>, Loc
                 "name",
                 quoted(&secret.name),
                 format!(
-                    "O secret {} precisa de um name único (letras minúsculas, dígitos e \"_\", \
-                     até {SECRET_NAME_MAX_CHARS}) e de um env próprio, fora de env e de PATH, \
-                     HOME, LANG e SystemRoot.",
-                    quoted(&secret.name)
+                    "The secret {{name}} needs a unique name (lowercase letters, digits and \"_\", \
+                     up to {SECRET_NAME_MAX_CHARS}) and its own env, outside env and PATH, HOME, \
+                     LANG and SystemRoot."
                 ),
             ));
         }
@@ -681,11 +666,7 @@ fn interpreted_program(suffix: String) -> Localized {
         "extensions.error.interpreted",
         "suffix",
         suffix.as_str(),
-        format!(
-            "O programa do command termina em .{} e seria interpretado por um shell; \
-             use um executável como command[0].",
-            suffix
-        ),
+        "The command's program ends in .{suffix} and would be parsed by a command interpreter; command[0] must be an executable file.",
     )
 }
 
@@ -741,10 +722,7 @@ fn resolve_program(dir: &Path, command: &[String]) -> Result<(PathBuf, PathBuf),
                 "extensions.error.not_executable",
                 "program",
                 quoted(program),
-                format!(
-                    "O programa {} do command não é executável (chmod +x).",
-                    quoted(program)
-                ),
+                "The command's program {program} is not executable (chmod +x).",
             ));
         }
     }
@@ -766,17 +744,14 @@ fn toml_error(text: &str, error: &toml::de::Error) -> Localized {
     Localized::with_params(
         "extensions.error.toml",
         params([("line", line.into()), ("keys", keys.as_str().into())]),
-        format!(
-            "manifest.toml inválido na linha {line}: ele aceita {keys}, com command e env como \
-             listas de textos e os números como inteiros."
-        ),
+        "Invalid manifest.toml on line {line}: it accepts {keys}, with command and env as lists of strings and the numbers as integers.",
     )
 }
 
 fn min_cuotai_format() -> Localized {
     Localized::fixed(
         "extensions.error.min_cuotai",
-        "O min_cuotai deve ser uma versão X.Y.Z, como \"0.81.0\".",
+        "The min_cuotai must be an X.Y.Z version, such as \"0.81.0\".",
     )
 }
 
@@ -787,10 +762,7 @@ fn newer_cuotai(required: &str) -> Localized {
             ("required", required.into()),
             ("current", CUOTAI_VERSION.into()),
         ]),
-        format!(
-            "Esta extensão precisa do Cuotai {required} ou mais recente; esta é a versão \
-             {CUOTAI_VERSION}."
-        ),
+        "This extension needs Cuotai {required} or newer; this is version {current}.",
     )
 }
 
@@ -799,7 +771,7 @@ fn missing_schema() -> Localized {
         "extensions.error.schema_missing",
         "schema",
         SCHEMA.to_string(),
-        format!("O manifest.toml precisa de schema = {SCHEMA}."),
+        "The manifest.toml needs schema = {schema}.",
     )
 }
 
@@ -810,10 +782,7 @@ fn unsupported_schema(schema: i64) -> Localized {
             ("schema", schema.to_string().into()),
             ("supported", SCHEMA.to_string().into()),
         ]),
-        format!(
-            "O manifest.toml usa o schema {schema}; esta versão do Cuotai lê apenas o schema \
-             {SCHEMA}."
-        ),
+        "The manifest.toml uses schema {schema}; this version of Cuotai reads only schema {supported}.",
     )
 }
 
@@ -825,10 +794,7 @@ fn unknown_field(key: &str) -> Localized {
             ("field", quoted(key).into()),
             ("keys", keys.as_str().into()),
         ]),
-        format!(
-            "O manifest.toml tem o campo desconhecido {}; os campos aceitos são {keys}.",
-            quoted(key)
-        ),
+        "The manifest.toml has the unknown field {field}; the accepted fields are {keys}.",
     )
 }
 
@@ -836,23 +802,21 @@ fn field_text(field: &'static str, max: usize) -> Localized {
     Localized::with_params(
         "extensions.error.text",
         params([("field", field.into()), ("max", max.into())]),
-        format!("O {field} deve ter de 1 a {max} caracteres, sem caracteres de controle."),
+        "The {field} must have 1 to {max} characters, without control characters.",
     )
 }
 
 fn command_shape() -> Localized {
     Localized::fixed(
         "extensions.error.command",
-        "O command deve ser uma lista de argumentos cujo primeiro item é o programa, \
-         relativo à pasta da extensão, como [\"./run.sh\", \"--opcao\"].",
+        "The command must be a list of arguments whose first item is the program, relative to the extension's folder, such as [\"./run.sh\", \"--option\"].",
     )
 }
 
 fn command_outside() -> Localized {
     Localized::fixed(
         "extensions.error.command_outside",
-        "O programa do command deve ficar dentro da pasta da extensão: um caminho relativo, \
-         sem \"..\", que não leve para fora dela.",
+        "The command's program must stay inside the extension's folder: a relative path, without \"..\", that does not lead out of it.",
     )
 }
 
@@ -861,10 +825,7 @@ fn program_missing(program: &str) -> Localized {
         "extensions.error.program_missing",
         "program",
         quoted(program),
-        format!(
-            "O programa {} do command não é um arquivo da pasta da extensão.",
-            quoted(program)
-        ),
+        "The command's program {program} is not a file of the extension's folder.",
     )
 }
 
@@ -873,14 +834,14 @@ fn duplicate_id(id: &str) -> Localized {
         "extensions.error.duplicate_id",
         "id",
         id,
-        format!("Mais de uma extensão usa o id \"{id}\"; nenhuma delas é carregada."),
+        "More than one extension uses the id \"{id}\"; none of them is loaded.",
     )
 }
 
 fn manifest_unreadable() -> Localized {
     Localized::fixed(
         "extensions.error.unreadable",
-        "Não foi possível ler o manifest.toml como texto UTF-8.",
+        "The manifest.toml could not be read as UTF-8 text.",
     )
 }
 
@@ -890,7 +851,7 @@ fn directory_unreadable(root: &Path) -> Localized {
         "extensions.error.directory",
         "path",
         path.as_str(),
-        format!("Não foi possível listar o diretório de extensões {path}."),
+        "Could not list the extensions directory {path}.",
     )
 }
 

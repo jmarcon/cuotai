@@ -163,7 +163,7 @@ impl SourceScan {
                 Localized::with_params(
                     "cost.scan.no_access",
                     params([("source", label.into()), ("paths", paths.as_str().into())]),
-                    format!("{label}: sem acesso aos diretórios ({paths}); nada foi contornado."),
+                    "{source}: no access to the directories ({paths}); nothing was worked around.",
                 )
             }
             SourceState::Ready => Localized::with_params(
@@ -179,17 +179,9 @@ impl SourceScan {
                     ("invalid", self.invalid.into()),
                 ]),
                 if self.complete {
-                    format!(
-                        "{label}: {} log(s); {} requisição(ões) nova(s); {} linha(s) inválida(s) \
-                         ignorada(s).",
-                        self.files, self.requests, self.invalid
-                    )
+                    "{source}: {files} log(s); {requests} new request(s); {invalid} invalid line(s) ignored."
                 } else {
-                    format!(
-                        "{label}: {} log(s); {} requisição(ões) nova(s); {} linha(s) inválida(s) \
-                         ignorada(s); a leitura continua no próximo ciclo.",
-                        self.files, self.requests, self.invalid
-                    )
+                    "{source}: {files} log(s); {requests} new request(s); {invalid} invalid line(s) ignored; reading continues in the next cycle."
                 },
             ),
         }
@@ -202,7 +194,7 @@ pub(crate) fn off_text(label: &str) -> Localized {
         "cost.scan.off",
         "source",
         label,
-        format!("{label}: desligado; nada é lido."),
+        "{source}: off; nothing is read.",
     )
 }
 
@@ -212,7 +204,7 @@ pub(crate) fn no_logs_text(label: &str) -> Localized {
         "cost.scan.no_logs",
         "source",
         label,
-        format!("{label}: nenhum log encontrado nos diretórios."),
+        "{source}: no log found in the directories.",
     )
 }
 

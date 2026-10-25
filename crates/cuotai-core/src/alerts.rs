@@ -56,7 +56,7 @@ const EPSILON: f64 = 1e-9;
 
 /// A threshold outside [`THRESHOLD_RANGE`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-#[error("o limite de alerta deve estar entre 10% e 99% de consumo (recebido: {0}%)")]
+#[error("the alert threshold must be between 10% and 99% of consumption (received: {0}%)")]
 pub struct ThresholdError(pub u8);
 
 /// What the user wants to be alerted about.
@@ -1607,9 +1607,7 @@ where
             Some(single(account, &events[0], now, tz, private))
         }
         [(account, events)] => {
-            let provider_pt = account.provider.label();
             let items = join(events.iter().map(|event| item(event, now, tz)))?;
-            let body = format!("{}: {}", account.name, items.fallback);
             let body_l10n = if private {
                 details_private()
             } else {
@@ -1619,7 +1617,7 @@ where
                         ("account", account.name.as_str().into()),
                         ("items", items.into()),
                     ]),
-                    body.clone(),
+                    "{account}: {items}",
                 )
             };
             Some(Notice {
@@ -1629,7 +1627,7 @@ where
                         ("provider", provider_l10n(account.provider).into()),
                         ("count", count.into()),
                     ]),
-                    format!("{provider_pt}: {count} alertas de uso"),
+                    "{provider}: {count} usage alerts",
                 ),
                 body: body_l10n,
             })
@@ -1640,12 +1638,6 @@ where
             } else {
                 join(groups.iter().filter_map(|(account, events)| {
                     let items = join(events.iter().map(|event| item(event, now, tz)))?;
-                    let fallback = format!(
-                        "{} {}: {}",
-                        account.provider.label(),
-                        account.name,
-                        items.fallback
-                    );
                     Some(Localized::with_params(
                         "alerts.item.account",
                         params([
@@ -1653,7 +1645,7 @@ where
                             ("account", account.name.as_str().into()),
                             ("items", items.into()),
                         ]),
-                        fallback,
+                        "{provider} {account}: {items}",
                     ))
                 }))
             }?;
@@ -1661,7 +1653,7 @@ where
                 title: Localized::with_params(
                     "alerts.title.accounts",
                     params([("count", count.into())]),
-                    format!("Cuotai: {count} alertas de uso"),
+                    "Cuotai: {count} usage alerts",
                 ),
                 body,
             })
@@ -1693,14 +1685,14 @@ where
                 "alerts.title.session_expiring",
                 "provider",
                 provider,
-                format!("{}: sessão expira em breve", account.provider.label()),
+                "{provider}: session expires soon",
             ),
             body: if private {
                 Localized::with_param(
                     "alerts.body.session_expiring.private",
                     "at",
                     at.as_str(),
-                    format!("A sessão expira {at}."),
+                    "The session expires {at}.",
                 )
             } else {
                 Localized::with_params(
@@ -1709,10 +1701,7 @@ where
                         ("account", account.name.as_str().into()),
                         ("at", at.as_str().into()),
                     ]),
-                    format!(
-                        "{}: a sessão expira {at}; cole uma nova no assistente da conta.",
-                        account.name
-                    ),
+                    "{account}: the session expires {at}; paste a new one in the account wizard.",
                 )
             },
         };
@@ -1732,7 +1721,6 @@ where
     ) {
         return pool_notice(account, event, now, tz);
     }
-    let provider_pt = account.provider.label();
     let percent = event.threshold.to_string();
     let label = event.label.as_str();
     let known_window = matches!(
@@ -1744,7 +1732,7 @@ where
                 | MetricWindow::Monthly
         )
     );
-    let (window, window_pt) = window_param(event.window, label);
+    let (window, _) = window_param(event.window, label);
     let title = match (event.kind, known_window) {
         (AlertKind::Threshold, true) => Localized::with_params(
             "alerts.title.threshold",
@@ -1753,7 +1741,7 @@ where
                 ("percent", percent.as_str().into()),
                 ("window", window),
             ]),
-            format!("{provider_pt}: {percent}% da janela {window_pt} usada"),
+            "{provider}: {percent}% of the {window} window used",
         ),
         (AlertKind::Threshold, false) => Localized::with_params(
             "alerts.title.threshold_metric",
@@ -1762,27 +1750,27 @@ where
                 ("percent", percent.as_str().into()),
                 ("metric", label.into()),
             ]),
-            format!("{provider_pt}: {percent}% usado em {label}"),
+            "{provider}: {percent}% of {metric} used",
         ),
         (AlertKind::Exhausted, true) => Localized::with_params(
             "alerts.title.exhausted",
             params([("provider", provider.into()), ("window", window)]),
-            format!("{provider_pt}: cota {window_pt} esgotada"),
+            "{provider}: {window} quota exhausted",
         ),
         (AlertKind::Exhausted, false) => Localized::with_params(
             "alerts.title.exhausted_metric",
             params([("provider", provider.into()), ("metric", label.into())]),
-            format!("{provider_pt}: limite de {label} atingido"),
+            "{provider}: {metric} limit reached",
         ),
         (AlertKind::Recovered, true) => Localized::with_params(
             "alerts.title.recovered",
             params([("provider", provider.into()), ("window", window)]),
-            format!("{provider_pt}: cota {window_pt} disponível de novo"),
+            "{provider}: {window} quota available again",
         ),
         (AlertKind::Recovered, false) => Localized::with_params(
             "alerts.title.recovered_metric",
             params([("provider", provider.into()), ("metric", label.into())]),
-            format!("{provider_pt}: {label} disponível de novo"),
+            "{provider}: {metric} available again",
         ),
         // Returned above (a projection always carries its `projection`).
         (AlertKind::SessionExpiring | AlertKind::ProjectedExhaustion, _) => Localized::with_params(
@@ -1792,7 +1780,7 @@ where
                 ("percent", percent.as_str().into()),
                 ("metric", label.into()),
             ]),
-            format!("{provider_pt}: {percent}% usado em {label}"),
+            "{provider}: {percent}% of {metric} used",
         ),
         (AlertKind::PoolExhausted | AlertKind::PoolRecovered, _) => {
             unreachable!("pool notices return early")
@@ -1806,7 +1794,7 @@ where
             "alerts.body.private",
             "at",
             local_time(at, now, tz),
-            format!("Renova {}", local_time(at, now, tz)),
+            "Resets {at}",
         ),
         None if private => details_private(),
         Some(at) => {
@@ -1818,7 +1806,7 @@ where
                     ("metric", label.into()),
                     ("at", at.as_str().into()),
                 ]),
-                format!("{}: {label} · renova {at}", account.name),
+                "{account}: {metric} · resets {at}",
             )
         }
         None => Localized::with_params(
@@ -1827,7 +1815,7 @@ where
                 ("account", account.name.as_str().into()),
                 ("metric", label.into()),
             ]),
-            format!("{}: {label}", account.name),
+            "{account}: {metric}",
         ),
     };
     Notice { title, body }
@@ -1851,22 +1839,18 @@ where
     let label = event.label.as_str();
     let at = local_time(projection.projected_at, now, tz);
     let margin = crate::text::duration(TimeDelta::seconds(projection.margin_seconds));
-    let margin_pt = margin.fallback.to_string();
     if private {
         return Notice {
             title: Localized::with_param(
                 "alerts.title.projected.private",
                 "provider",
                 provider_l10n(account.provider),
-                format!(
-                    "{}: pode acabar antes da renovação",
-                    account.provider.label()
-                ),
+                "{provider}: may run out before the reset",
             ),
             body: Localized::with_params(
                 "alerts.body.projected.private",
                 params([("at", at.as_str().into()), ("margin", margin.into())]),
-                format!("Neste ritmo acaba ≈{at}, {margin_pt} antes da renovação"),
+                "At this rate it runs out ≈{at}, {margin} before the reset",
             ),
         };
     }
@@ -1877,11 +1861,7 @@ where
                 ("provider", provider_l10n(account.provider).into()),
                 ("account", account.name.as_str().into()),
             ]),
-            format!(
-                "{} · {}: pode acabar antes da renovação",
-                account.provider.label(),
-                account.name
-            ),
+            "{provider} · {account}: may run out before the reset",
         ),
         body: projected_body(
             label,
@@ -1902,30 +1882,26 @@ where
     Tz::Offset: Display,
 {
     let provider = provider_l10n(account.provider);
-    let provider_pt = account.provider.label();
     let title = match (
         event.kind,
         event.overage.as_ref().and_then(OverageExport::amount),
     ) {
-        (AlertKind::OverageStarted, Some(amount)) => {
-            let plain = amount_plain(&amount);
-            Localized::with_params(
-                "alerts.title.overage_started",
-                params([("provider", provider.into()), ("amount", amount)]),
-                format!("{provider_pt}: uso extra iniciado · {plain} até agora"),
-            )
-        }
+        (AlertKind::OverageStarted, Some(amount)) => Localized::with_params(
+            "alerts.title.overage_started",
+            params([("provider", provider.into()), ("amount", amount)]),
+            "{provider}: extra usage started · {amount} so far",
+        ),
         (AlertKind::OverageStarted, None) => Localized::with_param(
             "alerts.title.overage_started_unknown",
             "provider",
             provider,
-            format!("{provider_pt}: uso extra iniciado"),
+            "{provider}: extra usage started",
         ),
         _ => Localized::with_param(
             "alerts.title.overage_cap",
             "provider",
             provider,
-            format!("{provider_pt}: orçamento extra esgotado"),
+            "{provider}: extra usage budget used up",
         ),
     };
     let body = match event.resets_at {
@@ -1937,14 +1913,14 @@ where
                     ("account", account.name.as_str().into()),
                     ("at", at.as_str().into()),
                 ]),
-                format!("{} · o ciclo de cobrança termina em {at}", account.name),
+                "{account} · billing cycle ends {at}",
             )
         }
         None => Localized::with_param(
             "alerts.body.overage_no_cycle",
             "account",
             account.name.as_str(),
-            account.name.clone(),
+            "{account}",
         ),
     };
     Notice { title, body }
@@ -1958,19 +1934,18 @@ where
     Tz::Offset: Display,
 {
     let provider = provider_l10n(account.provider);
-    let provider_pt = account.provider.label();
     let pool = event.label.as_str();
     let title = if event.kind == AlertKind::PoolExhausted {
         Localized::with_params(
             "alerts.title.pool_exhausted",
             params([("provider", provider.into()), ("pool", pool.into())]),
-            format!("{provider_pt} · {pool}: todas as contas esgotadas"),
+            "{provider} · {pool}: all accounts exhausted",
         )
     } else {
         Localized::with_params(
             "alerts.title.pool_recovered",
             params([("provider", provider.into()), ("pool", pool.into())]),
-            format!("{provider_pt} · {pool}: conta disponível de novo"),
+            "{provider} · {pool}: an account is available again",
         )
     };
     let body = match event
@@ -1985,24 +1960,17 @@ where
                     ("account", account.name.as_str().into()),
                     ("at", at.as_str().into()),
                 ]),
-                format!("{}: uma conta volta {at}", account.name),
+                "{account}: one returns {at}",
             )
         }
         None => Localized::with_param(
             "alerts.body.pool",
             "account",
             account.name.as_str(),
-            account.name.clone(),
+            "{account}",
         ),
     };
     Notice { title, body }
-}
-
-fn amount_plain(amount: &crate::text::ParamValue) -> String {
-    match amount {
-        crate::text::ParamValue::Text(text) => text.clone(),
-        crate::text::ParamValue::L10n(text) => text.fallback.to_string(),
-    }
 }
 
 /// PRD 0024 RF4.3 (DS-CMP-CALL-3): the in-app forecast of `metric_label`,
@@ -2042,7 +2010,6 @@ where
 {
     let at = local_time(projected_at, now, tz);
     let margin = crate::text::duration(margin);
-    let margin_pt = margin.fallback.to_string();
     Localized::with_params(
         "alerts.body.projected",
         params([
@@ -2050,17 +2017,14 @@ where
             ("at", at.as_str().into()),
             ("margin", margin.into()),
         ]),
-        format!("Neste ritmo {label} acaba ≈{at}, {margin_pt} antes da renovação"),
+        "At this rate {metric} runs out ≈{at}, {margin} before the reset",
     )
 }
 
 /// PRD 0032 RF7: the body of a private notice with nothing to say beyond
 /// its title.
 fn details_private() -> Localized {
-    Localized::fixed(
-        "alerts.body.details.private",
-        "Abra o Cuotai para ver os detalhes.",
-    )
+    Localized::fixed("alerts.body.details.private", "Open Cuotai for details.")
 }
 
 /// "Session (5h) 90%", "… at the limit", "… available again", "… runs
@@ -2079,22 +2043,22 @@ where
                 ("metric", label.into()),
                 ("percent", percent.as_str().into()),
             ]),
-            format!("{label} {percent}%"),
+            "{metric} {percent}%",
         ),
         AlertKind::Exhausted => Localized::with_param(
             "alerts.item.exhausted",
             "metric",
             label,
-            format!("{label} no limite"),
+            "{metric} at the limit",
         ),
         AlertKind::Recovered => Localized::with_param(
             "alerts.item.recovered",
             "metric",
             label,
-            format!("{label} disponível de novo"),
+            "{metric} available again",
         ),
         AlertKind::SessionExpiring => {
-            Localized::fixed("alerts.item.session_expiring", "sessão expira em breve")
+            Localized::fixed("alerts.item.session_expiring", "session expires soon")
         }
         AlertKind::ProjectedExhaustion => {
             let at = event
@@ -2104,35 +2068,32 @@ where
             Localized::with_params(
                 "alerts.item.projected",
                 params([("metric", label.into()), ("at", at.as_str().into())]),
-                format!("{label} acaba ≈{at}"),
+                "{metric} runs out ≈{at}",
             )
         }
         AlertKind::OverageStarted => match event.overage.as_ref().and_then(OverageExport::amount) {
-            Some(amount) => {
-                let plain = amount_plain(&amount);
-                Localized::with_param(
-                    "alerts.item.overage_started",
-                    "amount",
-                    amount,
-                    format!("uso extra iniciado · {plain}"),
-                )
-            }
-            None => Localized::fixed("alerts.item.overage_started_unknown", "uso extra iniciado"),
+            Some(amount) => Localized::with_param(
+                "alerts.item.overage_started",
+                "amount",
+                amount,
+                "extra usage started · {amount}",
+            ),
+            None => Localized::fixed("alerts.item.overage_started_unknown", "extra usage started"),
         },
         AlertKind::OverageCapReached => {
-            Localized::fixed("alerts.item.overage_cap", "orçamento extra esgotado")
+            Localized::fixed("alerts.item.overage_cap", "extra budget used up")
         }
         AlertKind::PoolExhausted => Localized::with_param(
             "alerts.item.pool_exhausted",
             "pool",
             label,
-            format!("{label}: todas esgotadas"),
+            "{pool}: all exhausted",
         ),
         AlertKind::PoolRecovered => Localized::with_param(
             "alerts.item.pool_recovered",
             "pool",
             label,
-            format!("{label} disponível de novo"),
+            "{pool} available again",
         ),
     }
 }
@@ -2141,11 +2102,10 @@ where
 fn join(mut items: impl Iterator<Item = Localized>) -> Option<Localized> {
     let first = items.next()?;
     Some(items.fold(first, |first, rest| {
-        let fallback = format!("{}; {}", first.fallback, rest.fallback);
         Localized::with_params(
             "alerts.join",
             params([("first", first.into()), ("rest", rest.into())]),
-            fallback,
+            "{first}; {rest}",
         )
     }))
 }
@@ -2624,7 +2584,7 @@ mod tests {
         let started = notice(&[(&work, events)], next.checked_at, &Utc).unwrap();
         assert_eq!(
             started.title.fallback,
-            "Claude: uso extra iniciado · $0.40 até agora"
+            "Claude: extra usage started · $0.40 so far"
         );
         assert_eq!(
             started.title.resolve("en-US"),

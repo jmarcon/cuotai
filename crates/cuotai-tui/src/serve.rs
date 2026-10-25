@@ -40,6 +40,8 @@ pub(crate) struct ServeArgs {
     pub no_token: bool,
     /// `--serve-stats`: also serve `/v1/stats` (PRD 0031 RF11; needs a token).
     pub stats: bool,
+    /// PRD 0034 RF5.2: `--fallback-locale` / `CUOTAI_FALLBACK_LOCALE`.
+    pub fallback_locale: Option<String>,
 }
 
 /// INT-04: the bearer token every request must carry — `--token-file`'s,
@@ -182,6 +184,7 @@ fn serve_config(args: &ServeArgs, token: Option<Token>) -> ServeConfig {
         port_fallback: false,
         token,
         stats: args.stats,
+        fallback_locale: args.fallback_locale.clone(),
         access_log: Some(access_log),
         ..ServeConfig::default()
     }

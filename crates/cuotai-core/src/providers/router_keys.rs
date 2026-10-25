@@ -38,8 +38,6 @@ const MIMO_DEFAULT_REGION: &str = "sgp";
 const MIMO_API_UA: &str =
     "miNative PC/Normal Windows_NT/10.0.19045 SDKV/1.0.0 DEVT/PC DEVS/Windows APP/miaccount_desktop APPV/0.1.0";
 
-const REF_NOTE: &str = "Rota interna não documentada publicamente (referência: 9router MIT, commit f01fb909); pode mudar sem aviso.";
-
 pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, QueryError> {
     match account.provider {
         Provider::OpenCodeGo => opencode_go_at(account, ctx, OPENCODE_GO_USAGE_URL).await,
@@ -49,7 +47,7 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
         other => Err(QueryError::unsupported_params(
             "query.router_keys.provider_handled_elsewhere",
             params([("provider", ParamValue::from(provider_l10n(other)))]),
-            format!("{} é consultado por outro adaptador.", other.label()),
+            "{provider} is handled by another adapter.",
         )),
     }
 }
@@ -129,10 +127,7 @@ async fn send(req: reqwest::RequestBuilder) -> Result<reqwest::Response, QueryEr
             note: Localized::with_params(
                 "query.router_keys.http",
                 params([("code", ParamValue::from(code.as_u16()))]),
-                format!(
-                    "Consulta retornou HTTP {}. Verifique acesso e permissões.",
-                    code.as_u16()
-                ),
+                "Query returned HTTP {code}.",
             ),
         });
     }
@@ -171,7 +166,7 @@ async fn opencode_go_at(
             401 => Localized::with_params(
                 "query.router_keys.opencode_authentication_failed",
                 params([("code", ParamValue::from(401u16))]),
-                "OpenCode Go: autenticação falhou. Verifique a API key.",
+                "OpenCode authentication failed.",
             ),
             403 => {
                 let body = response.json::<serde_json::Value>().await.ok();
@@ -185,20 +180,20 @@ async fn opencode_go_at(
                     Localized::with_params(
                         "query.router_keys.opencode_subscription_required",
                         params([("code", ParamValue::from(403u16))]),
-                        "OpenCode Go: assinatura necessária para esta API key.",
+                        "OpenCode connected, but no usage permission — a paid subscription is required.",
                     )
                 } else {
                     Localized::with_params(
                         "query.router_keys.opencode_access_denied",
                         params([("code", ParamValue::from(403u16))]),
-                        "OpenCode Go: acesso negado para esta API key.",
+                        "Access denied by OpenCode.",
                     )
                 }
             }
             other => Localized::with_params(
                 "query.router_keys.opencode_http",
                 params([("code", ParamValue::from(other))]),
-                format!("Consulta retornou HTTP {other}. Verifique acesso e permissões."),
+                "OpenCode returned HTTP {code}.",
             ),
         };
         return Err(QueryError {
@@ -259,9 +254,12 @@ async fn opencode_go_at(
     let mut notes = Notes::new();
     notes.push(
         "note.router_keys.opencode_usage_percentages",
-        "Percentuais de uso da assinatura OpenCode Go (0–100%).",
+        "Usage is reported as percentages per metric (0..100); no absolute counts are exposed.",
     );
-    notes.push("note.router_keys.opencode_internal_route", REF_NOTE);
+    notes.push(
+        "note.router_keys.opencode_internal_route",
+        "OpenCode internal route observed in 9router; subject to change and provider restrictions.",
+    );
     Ok(Data::new(metrics, notes, OPENCODE_GO_USAGE_URL))
 }
 
@@ -335,15 +333,18 @@ pub(crate) async fn groq_at(
     let mut notes = Notes::new();
     notes.push(
         "note.router_keys.groq_rate_limit_headers",
-        "Quota lida dos cabeçalhos x-ratelimit-* de GET /openai/v1/models; a listagem de modelos não consome tokens.",
+        "Rate limit window: remaining requests / limit parsed from `x-ratelimit-*` headers (per request).",
     );
-    notes.push("note.router_keys.groq_internal_route", REF_NOTE);
+    notes.push(
+        "note.router_keys.groq_internal_route",
+        "Groq internal route observed in 9router; subject to change and provider restrictions.",
+    );
     if metrics.is_empty() {
         // Chave válida, mas nenhum bucket de rate limit reportado: distinto
         // de erro de autenticação.
         notes.push(
             "note.router_keys.groq_rate_limit_headers_missing",
-            "Chave válida, porém nenhum cabeçalho de rate limit foi reportado nesta resposta.",
+            "Groq response without `x-ratelimit-*` headers in this request; the limit window is unknown.",
         );
     }
 
@@ -429,7 +430,7 @@ async fn kimi_coding_at(
     if opt_param(account, "product") != Some("coding") {
         return Err(QueryError::config(
             "query.router_keys.kimi_coding_opt_in_required",
-            "Kimi: configure params.product=coding para consultar a quota da assinatura Kimi Coding; sem esse parâmetro vale o saldo da plataforma internacional.",
+            "Kimi: set params.product=coding to query the Kimi Coding subscription quota; without it the international platform balance applies.",
         ));
     }
 
@@ -465,9 +466,7 @@ async fn kimi_coding_at(
         return Err(QueryError::config_params(
             "query.router_keys.kimi_missing_credential",
             params([("env", ParamValue::from(env.to_string()))]),
-            format!(
-                "Credencial ausente: {env} (ou params.token_env com um access token OAuth Kimi)."
-            ),
+            "Missing credential: {env} (or params.token_env with a Kimi OAuth access token).",
         ));
     }
     request = request
@@ -552,13 +551,16 @@ async fn kimi_coding_at(
     notes.push_params(
         "note.router_keys.kimi_plan",
         params([("plan", ParamValue::from(plan))]),
-        format!("Plano reportado pela API: {plan}."),
+        "Plan: {plan}.",
     );
-    notes.push("note.router_keys.kimi_internal_route", REF_NOTE);
+    notes.push(
+        "note.router_keys.kimi_internal_route",
+        "Kimi internal route observed in 9router; subject to change and provider restrictions.",
+    );
     if metrics.is_empty() {
         notes.push(
             "note.router_keys.kimi_no_numeric_quota",
-            "Conta conectada; a API não retornou janelas de quota numérica nesta resposta.",
+            "Kimi response without numeric quota block; absent does not mean unlimited.",
         );
     }
 
@@ -587,7 +589,7 @@ fn kimi_coding_error(status: u16, body: &serde_json::Value) -> QueryError {
             note: Localized::with_params(
                 "query.router_keys.kimi_authentication_expired",
                 params([("code", ParamValue::from(status))]),
-                "Kimi Coding: autenticação expirada. Renove o token ou a API key.",
+                "Kimi Coding: authentication expired. Renew the token or the API key.",
             ),
         };
     }
@@ -614,7 +616,7 @@ fn kimi_coding_error(status: u16, body: &serde_json::Value) -> QueryError {
                 note: Localized::with_params(
                     "query.router_keys.kimi_subscription_required",
                     params([("code", ParamValue::from(status))]),
-                    "Kimi Coding: conta conectada, mas sem permissão de uso — é necessária assinatura Kimi Code.",
+                    "Kimi Coding: account connected, but no usage permission — a Kimi Code subscription is required.",
                 ),
             };
         }
@@ -624,7 +626,7 @@ fn kimi_coding_error(status: u16, body: &serde_json::Value) -> QueryError {
             note: Localized::with_params(
                 "query.router_keys.kimi_access_denied",
                 params([("code", ParamValue::from(status))]),
-                "Consulta retornou HTTP 403. Verifique acesso e permissões.",
+                "Query returned HTTP 403. Check access and permissions.",
             ),
         };
     }
@@ -638,7 +640,7 @@ fn kimi_coding_error(status: u16, body: &serde_json::Value) -> QueryError {
         note: Localized::with_params(
             "query.router_keys.kimi_http",
             params([("code", ParamValue::from(status))]),
-            format!("Consulta retornou HTTP {status}. Verifique acesso e permissões."),
+            "Kimi Coding query returned HTTP {code}.",
         ),
     }
 }
@@ -689,7 +691,7 @@ async fn xiaomi_mimo(account: &Account, ctx: &Context<'_>) -> Result<Data, Query
                 QueryError::config_params(
                     "query.router_keys.xiaomi_invalid_region",
                     params([("region", ParamValue::from(region.clone()))]),
-                    format!("params.region inválido: {region}. Valores: cn, sgp, ams, ru, in."),
+                    "params.region invalid: {region}. Values: cn, sgp, ams, ru, in.",
                 )
             })?;
         return mimo_session_at(ctx, base, &session.cookie, &region).await;
@@ -711,7 +713,7 @@ async fn xiaomi_mimo(account: &Account, ctx: &Context<'_>) -> Result<Data, Query
     if native_key {
         return Err(QueryError::config(
             "query.router_keys.xiaomi_native_key_has_no_quota",
-            "Xiaomi MiMo: a chave permanente do login nativo (sk-) é só de inferência e não lê quota — não repita o login nem o código, o resultado seria a mesma chave. Para quota, cole no assistente da conta a sessão da conta Xiaomi (cookie serviceToken; quota semanal) ou a de platform.xiaomimimo.com (api-platform_serviceToken e userId; saldo e plano de tokens), ou, como alternativa, nomeie a variável com o cookie em params.session_env ou params.platform_session_env.",
+            "Xiaomi MiMo: the permanent native login key (sk-) is inference-only and does not read quota — do not repeat the login or the code, the result would be the same key. For quota, paste in the account wizard the Xiaomi account session (serviceToken cookie; weekly quota) or the platform.xiaomimimo.com one (api-platform_serviceToken and userId; balance and token plan), or, as an alternative, name the variable with the cookie in params.session_env or params.platform_session_env.",
         ));
     }
 
@@ -747,7 +749,7 @@ async fn mimo_session_at(
             note: Localized::with_params(
                 "query.router_keys.xiaomi_session_expired",
                 params([("code", ParamValue::from(401u16))]),
-                "Xiaomi MiMo: sessão da conta expirada. Renove o cookie de sessão (params.session_env).",
+                "Xiaomi MiMo: account session expired. Renew the session cookie (params.session_env).",
             ),
         });
     }
@@ -759,18 +761,18 @@ async fn mimo_session_at(
             note: Localized::with_params(
                 "query.router_keys.xiaomi_session_http",
                 params([("code", ParamValue::from(code))]),
-                format!("Consulta retornou HTTP {code}. Verifique acesso e permissões."),
+                "Query returned HTTP {code}. Check access and permissions.",
             ),
         });
     }
     let body = super::body_value(response).await?;
     let (label, source) = if is_fixed {
         (
-            format!("Sessão de conta (cookie, região {region})"),
+            format!("Account session (cookie, region {region})"),
             url.clone(),
         )
     } else {
-        ("Sessão de conta (cookie)".to_string(), url.clone())
+        ("Account session (cookie)".to_string(), url.clone())
     };
     mimo_data_from_body(&body, &label, &source)
 }
@@ -791,7 +793,7 @@ async fn mimo_aistudio_at(ctx: &Context<'_>, url: &str, key: &str) -> Result<Dat
             note: Localized::with_params(
                 "query.router_keys.xiaomi_aistudio_session_required",
                 params([("code", ParamValue::from(401u16))]),
-                "Xiaomi MiMo: a quota semanal exige a sessão da conta Xiaomi (cole-a no assistente da conta ou nomeie a variável em params.session_env); uma chave sk- de inferência sozinha não é aceita.",
+                "Xiaomi MiMo: the weekly quota requires the Xiaomi account session (paste it in the account wizard or name the variable in params.session_env); an `sk-` inference key alone is not accepted.",
             ),
         });
     }
@@ -803,14 +805,14 @@ async fn mimo_aistudio_at(ctx: &Context<'_>, url: &str, key: &str) -> Result<Dat
             note: Localized::with_params(
                 "query.router_keys.xiaomi_aistudio_http",
                 params([("code", ParamValue::from(code))]),
-                format!("Consulta retornou HTTP {code}. Verifique acesso e permissões."),
+                "Query returned HTTP {code}.",
             ),
         });
     }
     let body = super::body_value(response).await?;
     mimo_data_from_body(
         &body,
-        "Token Bearer (params.session_env não configurado)",
+        "Bearer token (params.session_env not configured)",
         url,
     )
 }
@@ -868,13 +870,16 @@ fn mimo_data_from_body(
     notes.push_params(
         "note.router_keys.xiaomi_credential",
         params([("credential", ParamValue::from(credential_label.to_string()))]),
-        format!("Credencial utilizada: {credential_label}."),
+        "Credential used: {credential}.",
     );
     notes.push(
         "note.router_keys.xiaomi_remaining_percentage",
-        "O campo `percent` da API é o percentual RESTANTE da quota semanal; `used` é derivado como 100 − percent.",
+        "Usage reported as a percentage of the weekly quota; cash_balance may be negative (debt) and voucher is always non-negative.",
     );
-    notes.push("note.router_keys.xiaomi_internal_route", REF_NOTE);
+    notes.push(
+        "note.router_keys.xiaomi_internal_route",
+        "Xiaomi internal route observed in 9router; subject to change and provider restrictions.",
+    );
     Ok(Data::new(metrics, notes, source))
 }
 
@@ -1048,7 +1053,7 @@ mod tests {
             .await
             .expect_err("403 deve falhar");
         assert_eq!(err.status, Status::AuthenticationError);
-        assert!(err.note.fallback.contains("assinatura"));
+        assert!(err.note.fallback.contains("subscription"));
     }
 
     #[tokio::test]
@@ -1135,7 +1140,7 @@ mod tests {
             .expect("chave válida sem buckets");
         // Nenhuma métrica inventada; a nota explica o estado.
         assert!(data.metrics.is_empty());
-        assert!(data.notes.iter().any(|n| n.contains("rate limit")));
+        assert!(data.notes.iter().any(|n| n.contains("x-ratelimit")));
     }
 
     #[tokio::test]
@@ -1264,7 +1269,7 @@ mod tests {
             .await
             .expect_err("401");
         assert_eq!(err.status, Status::AuthenticationError);
-        assert!(err.note.fallback.contains("expirada"));
+        assert!(err.note.fallback.contains("expired"));
     }
 
     #[tokio::test]
@@ -1289,8 +1294,8 @@ mod tests {
         let err = kimi_coding_at(&acc, &ctx_with(&http, &creds), &server.uri())
             .await
             .expect_err("403");
-        assert!(err.note.fallback.contains("assinatura Kimi Code"));
-        assert!(!err.note.fallback.contains("expirada"));
+        assert!(err.note.fallback.contains("Kimi Code subscription"));
+        assert!(!err.note.fallback.contains("expired"));
     }
 
     // ---------------------------------------------------------- Xiaomi MiMo
@@ -1427,7 +1432,7 @@ mod tests {
         assert_eq!(err.status, Status::NeedsConfiguration);
         assert!(err.note.fallback.contains("platform_session_env"));
         assert!(err.note.fallback.contains("session_env"));
-        assert!(err.note.fallback.contains("não repita o login"));
+        assert!(err.note.fallback.contains("do not repeat the login"));
     }
 
     #[tokio::test]

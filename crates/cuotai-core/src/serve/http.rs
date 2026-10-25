@@ -147,6 +147,17 @@ impl Response {
         }
     }
 
+    /// PRD 0034 RF5.2: a JSON body with its `fallback` texts in `locale`.
+    pub fn localize_fallbacks(mut self, locale: &str) -> Self {
+        if let Ok(mut value) = serde_json::from_slice::<serde_json::Value>(&self.body) {
+            crate::text::localize_json_fallbacks(&mut value, locale);
+            if let Ok(body) = serde_json::to_vec(&value) {
+                self.body = body;
+            }
+        }
+        self
+    }
+
     pub fn header(mut self, name: &'static str, value: impl Into<String>) -> Self {
         self.headers.push((name, value.into()));
         self

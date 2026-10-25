@@ -33,13 +33,13 @@ fn validate_console_site(site: &str) -> Result<(), OAuthError> {
     if !BAILIAN_ALLOWED_SITES.contains(&trimmed) {
         return Err(OAuthError::Configuration(crate::text::Localized::fixed(
             "oauth_error.bailian.unknown_console_site",
-            "Site de console desconhecido. Valores aceitos: international.",
+            "Unknown console site. Accepted values: international.",
         )));
     }
     if trimmed.starts_with('-') || trimmed.chars().any(char::is_control) {
         return Err(OAuthError::Configuration(crate::text::Localized::fixed(
             "oauth_error.bailian.invalid_console_site",
-            "Site do console inválido.",
+            "Invalid console site.",
         )));
     }
     Ok(())
@@ -55,19 +55,19 @@ fn validate_cli_profile(name: &str) -> Result<(), OAuthError> {
     if trimmed.is_empty() {
         return Err(OAuthError::Configuration(crate::text::Localized::fixed(
             "oauth_error.bailian.profile_blank",
-            "Perfil do `bl` em branco; impossível iniciar o login isolado.",
+            "The `bl` profile is blank; cannot start the isolated login.",
         )));
     }
     if trimmed.len() > 32 {
         return Err(OAuthError::Configuration(crate::text::Localized::fixed(
             "oauth_error.bailian.profile_too_long",
-            "Perfil do `bl` excede 32 caracteres.",
+            "The `bl` profile exceeds 32 characters.",
         )));
     }
     if trimmed.starts_with('-') {
         return Err(OAuthError::Configuration(crate::text::Localized::fixed(
             "oauth_error.bailian.profile_leading_hyphen",
-            "Perfil do `bl` não pode começar com '-'.",
+            "The `bl` profile cannot start with '-'.",
         )));
     }
     if !trimmed
@@ -76,7 +76,7 @@ fn validate_cli_profile(name: &str) -> Result<(), OAuthError> {
     {
         return Err(OAuthError::Configuration(crate::text::Localized::fixed(
             "oauth_error.bailian.profile_invalid_chars",
-            "Perfil do `bl` aceita apenas letras, dígitos, '-' e '_'.",
+            "The `bl` profile accepts only letters, digits, `-` and `_`.",
         )));
     }
     Ok(())
@@ -114,12 +114,12 @@ pub(crate) async fn console_login(console_site: &str, profile: &str) -> Result<(
             std::io::ErrorKind::NotFound => {
                 OAuthError::Configuration(crate::text::Localized::fixed(
                     "oauth_error.bailian.cli_not_found",
-                    "`bl` (Bailian CLI) não encontrado. Instale a CLI e tente novamente.",
+                    "`bl` (Bailian CLI) not found. Install the CLI and try again.",
                 ))
             }
             _ => OAuthError::Configuration(crate::text::Localized::fixed(
                 "oauth_error.bailian.cli_start_failed",
-                "Não foi possível iniciar o `bl auth login --console`.",
+                "Could not start `bl auth login --console`.",
             )),
         })?;
 
@@ -137,11 +137,11 @@ pub(crate) async fn console_login(console_site: &str, profile: &str) -> Result<(
         Ok(Ok(status)) if status.success() => Ok(()),
         Ok(Ok(_)) => Err(OAuthError::Configuration(crate::text::Localized::fixed(
             "oauth_error.bailian.console_login_failed",
-            "`bl auth login --console` saiu com erro. Verifique a CLI e tente novamente.",
+            "`bl auth login --console` exited with an error. Check the CLI and try again.",
         ))),
         Ok(Err(_)) => Err(OAuthError::Configuration(crate::text::Localized::fixed(
             "oauth_error.bailian.cli_wait_failed",
-            "Falha ao aguardar o `bl`.",
+            "Failed while waiting for `bl`.",
         ))),
         Err(_) => {
             // Tempo esgotado: mata o filho antes de devolver erro.

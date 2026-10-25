@@ -192,10 +192,7 @@ impl Endpoints {
                         "oauth_error.browser.provider_no_oauth",
                         "provider",
                         crate::text::provider_l10n(other),
-                        format!(
-                            "{} não oferece suporte a login OAuth por navegador",
-                            other.label()
-                        ),
+                        "{provider} does not support browser OAuth login.",
                     ),
                 ))
             }
@@ -308,9 +305,7 @@ async fn begin_with(
                 "oauth_error.browser.local_port_in_use",
                 "port",
                 port,
-                format!(
-                    "A porta local {port} exigida por este login está em uso; aguarde o login em andamento terminar."
-                ),
+                "The local port {port} required by this login is in use; wait for the login in progress to finish.",
             )),
             None => OAuthError::Network,
         })?;
@@ -458,10 +453,7 @@ async fn begin_with(
                     "oauth_error.browser.provider_no_oauth",
                     "provider",
                     crate::text::provider_l10n(other),
-                    format!(
-                        "{} não oferece suporte a login OAuth por navegador",
-                        other.label()
-                    ),
+                    "{provider} does not support browser OAuth login.",
                 ),
             ))
         }
@@ -936,10 +928,7 @@ async fn refresh_with(
                 "oauth_error.browser.provider_no_oauth",
                 "provider",
                 crate::text::provider_l10n(other),
-                format!(
-                    "{} não oferece suporte a login OAuth por navegador",
-                    other.label()
-                ),
+                "{provider} does not support browser OAuth login.",
             ),
         )),
     }

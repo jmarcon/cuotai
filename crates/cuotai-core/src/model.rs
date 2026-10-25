@@ -134,7 +134,7 @@ impl Provider {
             Self::AlibabaModelStudio => "Alibaba Model Studio / DashScope",
             Self::AlibabaCodingPlan => "Alibaba Coding Plan",
             Self::AlibabaTokenPlan => "Alibaba Token Plan (Qwen Cloud)",
-            Self::AlibabaCloud => "Alibaba Cloud — faturamento",
+            Self::AlibabaCloud => "Alibaba Cloud — billing",
             Self::Antigravity => "Antigravity",
             Self::Kimchi => "Kimchi",
             Self::ElevenLabs => "ElevenLabs",
@@ -438,10 +438,7 @@ impl Account {
                     crate::text::ParamValue::from(Provider::METERED_MIN_REFRESH_SECONDS),
                 ),
             ]),
-            format!(
-                "O intervalo configurado de {configured} s foi elevado para {} s porque o provedor é cobrado por consulta.",
-                Provider::METERED_MIN_REFRESH_SECONDS
-            ),
+            "The configured {configured} s interval was raised to {effective} s because this provider bills per query.",
         ))
     }
 
@@ -718,12 +715,12 @@ pub enum Status {
 impl Status {
     pub fn label(self) -> &'static str {
         match self {
-            Self::Ready => "Atualizado",
-            Self::NeedsConfiguration => "Configurar",
-            Self::Unsupported => "Indisponível",
-            Self::AuthenticationError => "Autenticação",
-            Self::RateLimited => "Rate limit",
-            Self::Error => "Erro",
+            Self::Ready => "Up to date",
+            Self::NeedsConfiguration => "Needs setup",
+            Self::Unsupported => "Unavailable",
+            Self::AuthenticationError => "Authentication",
+            Self::RateLimited => "Rate limited",
+            Self::Error => "Error",
         }
     }
 }
@@ -865,7 +862,7 @@ impl Metric {
         Some(crate::text::Localized::with_params(
             "metric.renewed_waiting",
             crate::text::params([("time", crate::text::ParamValue::from(time.clone()))]),
-            format!("Renovada às {time}; aguardando leitura."),
+            "Renewed at {time}; waiting for a reading.",
         ))
     }
 
@@ -920,7 +917,7 @@ pub struct Report {
     /// each entry carrying the stable id and parameters of the note at the
     /// same index. Additive and skipped when empty so the legacy
     /// Snapshot/CLI JSON stays byte-compatible; frontends resolve the id in
-    /// their catalog and render the Portuguese `fallback` when it is
+    /// their catalog and render the English `fallback` when it is
     /// missing.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub notes_l10n: Vec<crate::text::Localized>,

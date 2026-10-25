@@ -520,7 +520,7 @@ pub async fn run(
                         }
                         Err(error) => {
                             if let Some(active) = &mut wizard {
-                                active.set_error(error.to_string());
+                                active.set_error(resolve_l10n(&error.l10n()));
                             }
                         }
                     }
@@ -2346,7 +2346,12 @@ fn apply_edit_to_config(
     .map_err(|e| {
         cuotai_core::edit_error::validation_note(
             None,
-            cuotai_core::text::Localized::fixed("edit_error.refresh_cycle_diff", e.to_string()),
+            cuotai_core::text::Localized::with_param(
+                "edit_error.refresh_cycle_diff",
+                "detail",
+                e.to_string(),
+                "The new account layout was rejected by the refresh cycle diff guard: {detail}.",
+            ),
         )
     })?;
     // 2) Build the new monitor BEFORE touching disk. `Monitor::with_config`
@@ -2357,7 +2362,12 @@ fn apply_edit_to_config(
     let new_monitor = monitor.with_config(config.clone()).map_err(|e| {
         cuotai_core::edit_error::validation_note(
             None,
-            cuotai_core::text::Localized::fixed("edit_error.monitor_with_config", e.to_string()),
+            cuotai_core::text::Localized::with_param(
+                "edit_error.monitor_with_config",
+                "detail",
+                cuotai_core::edit_error::config_error_note(&e),
+                "The new account configuration is invalid: {detail}.",
+            ),
         )
     })?;
     let new_monitor = Arc::new(new_monitor);
@@ -2439,9 +2449,11 @@ fn move_account_in_config(
         .map_err(|error| {
             cuotai_core::edit_error::validation_note(
                 None,
-                cuotai_core::text::Localized::fixed(
+                cuotai_core::text::Localized::with_param(
                     "edit_error.refresh_cycle_move",
+                    "detail",
                     error.to_string(),
+                    "The reorder was rejected by the refresh cycle: {detail}.",
                 ),
             )
         })?;
@@ -2449,9 +2461,11 @@ fn move_account_in_config(
     let new_monitor = monitor.with_config(config.clone()).map_err(|error| {
         cuotai_core::edit_error::validation_note(
             None,
-            cuotai_core::text::Localized::fixed(
+            cuotai_core::text::Localized::with_param(
                 "edit_error.monitor_with_config_move",
-                error.to_string(),
+                "detail",
+                cuotai_core::edit_error::config_error_note(&error),
+                "The reordered configuration is invalid: {detail}.",
             ),
         )
     })?;
@@ -2586,7 +2600,7 @@ fn deletion_result_text(index: usize, outcome: &RemoveOutcome) -> (String, Strin
             format!(
                 "Conta #{} removida do TOML, mas a credencial NÃO pôde ser apagada do cofre.\n\nMotivo: {}\n\nA credencial continua no cofre. Pressione r para tentar de novo agora.",
                 index,
-                safe(&vault_error.to_string()),
+                safe(&resolve_l10n(vault_error)),
             ),
             "r tenta apagar a credencial agora • Enter/Esc fecha".into(),
         ),
@@ -3373,6 +3387,11 @@ fn tui_locale_for(preferred: Option<&str>, system: Option<&str>) -> String {
         Some(cuotai_core::text::Locale::EnUs) | None => "en-US",
     }
     .to_string()
+}
+
+/// The label of a report status in the TUI locale (`status.<slug>`).
+pub(crate) fn status_label(status: cuotai_core::Status) -> String {
+    resolve_l10n(&cuotai_core::text::status_l10n(status))
 }
 
 /// Resolve a [`cuotai_core::text::Localized`] for the TUI locale.

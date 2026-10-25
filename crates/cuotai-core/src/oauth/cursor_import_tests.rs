@@ -192,7 +192,7 @@ async fn missing_machine_id_is_actionable_error() {
     match err {
         OAuthError::Configuration(msg) => {
             let fb = msg.fallback.to_lowercase();
-            assert!(fb.contains("máquina") || fb.contains("login"));
+            assert!(fb.contains("machine") || fb.contains("sign in"));
         }
         other => panic!("expected Configuration error, got {:?}", other),
     }
