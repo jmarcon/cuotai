@@ -111,6 +111,13 @@ static LIBRARIES: &[Library] = &[
         &[Tui],
     ),
     lib(
+        "clap_complete",
+        "MIT OR Apache-2.0",
+        "https://github.com/clap-rs/clap",
+        Role::Runtime,
+        &[Tui],
+    ),
+    lib(
         "crossterm",
         "MIT",
         "https://github.com/crossterm-rs/crossterm",
