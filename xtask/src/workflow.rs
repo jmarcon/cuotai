@@ -625,6 +625,27 @@ fn check_release_policy(jobs: &Mapping) -> Res<()> {
         return err("release jobs drifted from the bounded RF2/RF5 policy");
     }
 
+    let homebrew = mapping(
+        need(jobs, "channel-homebrew", "release jobs")?,
+        "job channel-homebrew",
+    )?;
+    let audit_step = steps(homebrew)?
+        .into_iter()
+        .find(|step| {
+            scalar(step, "name")
+                .is_some_and(|name| name.starts_with("Audit and install test against"))
+        })
+        .map_or_else(|| err("channel-homebrew has no audit step"), Ok)?;
+    let audit_env = audit_step
+        .get(Value::String("env".into()))
+        .and_then(Value::as_mapping);
+    let token = audit_env.and_then(|env| scalar(env, "HOMEBREW_GITHUB_API_TOKEN"));
+    if token != Some("${{ github.token }}") {
+        return err(
+            "channel-homebrew audit step must set HOMEBREW_GITHUB_API_TOKEN to github.token (brew audit --online hits the unauthenticated API rate limit)",
+        );
+    }
+
     let prerequisites = mapping(
         need(jobs, "release-prerequisites", "release jobs")?,
         "job release-prerequisites",
@@ -1134,6 +1155,17 @@ mod tests {
         assert!(check_text(Path::new("release.yml"), RELEASE_WORKFLOW).is_ok());
         assert!(check_text(Path::new("external-rules.yml"), EXTERNAL_RULES_WORKFLOW).is_ok());
         assert!(check_text(Path::new("codeql.yml"), CODEQL_WORKFLOW).is_ok());
+    }
+
+    #[test]
+    fn rejects_homebrew_audit_without_api_token() {
+        let unsafe_workflow = RELEASE_WORKFLOW.replacen(
+            "HOMEBREW_GITHUB_API_TOKEN: ${{ github.token }}",
+            "HOMEBREW_UNUSED: \"1\"",
+            1,
+        );
+        assert_ne!(unsafe_workflow, RELEASE_WORKFLOW);
+        assert!(check_text(Path::new("release.yml"), &unsafe_workflow).is_err());
     }
 
     #[test]

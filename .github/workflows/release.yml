@@ -1323,6 +1323,9 @@ jobs:
       - name: Audit and install test against a temporary local tap (tag runs)
         env:
           HOMEBREW_NO_AUTO_UPDATE: "1"
+          # brew audit --online calls the GitHub API; unauthenticated calls hit the
+          # shared runner rate limit (v0.80.0). The read-only job token is enough.
+          HOMEBREW_GITHUB_API_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           tap_dir="$RUNNER_TEMP/tap"
