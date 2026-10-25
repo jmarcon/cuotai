@@ -11,6 +11,7 @@
 /// release jobs).
 #[path = "../../crates/cuotai-core/src/changelog.rs"]
 pub mod changelog;
+pub mod access;
 pub mod changelog_gate;
 pub mod check;
 pub mod commits;

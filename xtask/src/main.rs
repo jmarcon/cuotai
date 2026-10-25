@@ -86,6 +86,12 @@ SUBCOMMANDS:
     --repo PATH             repository root (default: .)
     --date YYYY-MM-DD       section date (default: today, UTC)
 
+  access-staleness    Warn about stale access evidence (PRD 0028 RF6.2)
+    --repo PATH             repository root (default: .)
+    --days N                warn past N days (default: 90)
+    --fail-after N          also fail past N days (the non-required job; e.g. 180)
+    --today YYYY-MM-DD      date to compare against (default: today, UTC)
+
   release prepare     Compute the next version and write the release (PRD 0039 RF4)
     --repo PATH             repository root (default: .)
     --version X.Y.Z         override the computed version (RF3.4)
@@ -150,6 +156,7 @@ fn run(args: &[String]) -> Res<()> {
         "changelog-check" => changelog_check(&opts),
         "changelog-gate" => changelog_gate(&opts),
         "changelog-draft" => changelog_draft(&opts),
+        "access-staleness" => access_staleness(&opts),
         "package-manifests" => package_manifests(&opts),
         "workflow-check" => workflow_check(&opts),
         "external-rules-check" => external_rules_check(&opts),
@@ -411,6 +418,27 @@ fn changelog_draft(opts: &Opts) -> Res<()> {
         .get("date")
         .unwrap_or_else(xtask::release::prepare::today_utc);
     print!("{}", xtask::release::prepare::draft(&repo, &date)?);
+    Ok(())
+}
+
+fn access_staleness(opts: &Opts) -> Res<()> {
+    let repo = opts.path("repo").unwrap_or_else(|| PathBuf::from("."));
+    let number = |key: &str| -> Res<Option<i64>> {
+        opts.get(key)
+            .map(|v| {
+                v.parse::<i64>()
+                    .map_err(|_| Error::Msg(format!("--{key} needs a number of days")))
+            })
+            .transpose()
+    };
+    let today = opts
+        .get("today")
+        .unwrap_or_else(xtask::release::prepare::today_utc);
+    let days = number("days")?.unwrap_or(90);
+    print!(
+        "{}",
+        xtask::access::run(&repo, &today, days, number("fail-after")?)?
+    );
     Ok(())
 }
 
