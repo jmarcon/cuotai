@@ -50,6 +50,9 @@ cargo run -p cuotai-tui -- --cost-enable claude_code [--cost-path DIR]   # shows
 cargo run -p cuotai-tui -- --cost-scan [--json]
 cargo run -p cuotai-tui -- --cost [--days N] [--json]                # estimated cost: today, yesterday, the period, by model and by day
 cargo run -p cuotai-tui -- --cost-prices [--json]                   # prices of the estimate, your pricing.json over the embedded table
+cargo run -p cuotai-tui -- --cost-prices --template MODEL [MODEL…]  # pricing.json fragment with null prices to fill in
+cargo run -p cuotai-tui -- --cost-plan claude:personal 100 USD [DAY]  # what you pay (local only); --cost-plan-clear ACCOUNT
+cargo run -p cuotai-tui -- --cost-currency BRL 5.42                  # display-only second currency; --cost-currency off
 cargo install --path crates/cuotai-tui --locked
 ```
 

@@ -17,14 +17,14 @@
 
 | RF | Version | Delivery |
 |---|---|---|
-| RF1 | — | Proposed. |
-| RF2 | — | Proposed. |
-| RF3 | — | Proposed. |
-| RF4 | — | Proposed. |
-| RF5 | vNEXT | RF5.1–RF5.3 delivered: the Claude parser splits `cache_creation.ephemeral_5m/1h_input_tokens` (`Tokens::cache_write_1h`), migration 2 adds `usage.cache_write_1h` and forgets Claude files so the next scan corrects history once, price tables accept an optional `cache_write_1h` (built-in Claude rows at 2x input) and a model without it has an unknown cost for 1-hour tokens. Desktop and TUI token breakdown displays of the new field remain. |
-| RF6 | — | Proposed. |
-| RF7 | vNEXT | RF7.1 evidence: in 19,918 local assistant lines, 507 of 9,525 `message.id`+`requestId` keys repeat with differing `output_tokens` (for example 3, 3, 1880): first-wins kept partial counts. RF7.2 delivered: `seen` keeps the accepted line's counts and a later line applies only the growth. |
-| RF8 | — | Proposed. |
+| RF1 | vNEXT | Core and CLI delivered with the legacy account key (`provider:name`; PRD 0029 RF1 is not in yet): `plans` in `cost/settings.json`, `cost::plan_values` (cycle day, same-currency ratio, "at your rate", one combined line per source, no cross-currency sum), `Scanner::plan_values`, `--cost-plan`, `--cost-plan-clear` and the lines in `--cost`. Remaining: the desktop plan inputs and line, the TUI panel line, and moving the key to the account `id`. |
+| RF2 | — | Not delivered: each source needs its public format reference confirmed first (owner decision per source). |
+| RF3 | vNEXT | `PriceTable::age`, `CostSummary` `prices_effective`/`prices_age_days`/`prices_age` (text from 60 days), shown in `--cost`, `--cost-prices`, the TUI details and the desktop details; additive in `export::v1`. |
+| RF4 | vNEXT | `unpriced_models`/`unpriced` in the summary, shown in `--cost`, the TUI details and the desktop details; `--cost-prices --template`. |
+| RF5 | vNEXT | RF5.1–RF5.3 delivered: the Claude parser splits `cache_creation.ephemeral_5m/1h_input_tokens` (`Tokens::cache_write_1h`), migration 2 adds `usage.cache_write_1h` and forgets Claude files so the next scan corrects history once, price tables accept an optional `cache_write_1h` (built-in Claude rows at 2x input) and a model without it has an unknown cost for 1-hour tokens. Desktop (tooltip and totals) and TUI (`--cost-prices` column) show the new field. |
+| RF6 | vNEXT | Core and CLI delivered: `display_currency` in the settings, `DisplayCurrency::text` ("at your rate", age, update after 30 days), `--cost-currency CODE RATE` / `off`, shown under the total in `--cost`; the export stays USD-only. Remaining: the desktop Settings → Local cost input and the amount lines on the desktop and TUI cards. |
+| RF7 | vNEXT | RF7.1 evidence (fixture `tests/fixtures/cost/claude_streamed_numbers.jsonl`, finding in the `claude.rs` module doc): in 19,918 local assistant lines, 507 of 9,525 `message.id`+`requestId` keys repeat with differing `output_tokens` (for example 3, 3, 1880): first-wins kept partial counts. RF7.2 delivered: `seen` keeps the accepted line's counts and a later line applies only the growth. |
+| RF8 | vNEXT | README, `docs/advanced.md`, `docs/tui.md`, `docs/export-v1.md` and `docs/architecture.md` updated for what is delivered. |
 
 ## 1. Context
 
