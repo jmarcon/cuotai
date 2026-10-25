@@ -728,5 +728,14 @@
   "update.error.insecure_endpoint": "La dirección de comprobación no es HTTPS; se rechazó la comprobación.",
   "update.error.unconfigured": "Esta copia no se compiló con el canal de actualización.",
   "update.error.other": "La actualización falló. Puedes descargarla manualmente.",
-  "about.updateState": "actualización: {state}"
+  "about.updateState": "actualización: {state}",
+  "report.action": "Informar de un problema",
+  "report.title": "Informar de un problema",
+  "report.preview": "Texto del informe del problema",
+  "report.nothingSent": "Cuotai no envía nada; GitHub se abre con este texto.",
+  "report.tooLong": "Este informe es demasiado largo para un enlace: cópialo y pégalo en una nueva issue.",
+  "report.copy": "Copiar",
+  "report.copied": "Copiado",
+  "report.copyFailed": "No se pudo copiar el texto.",
+  "report.open": "Abrir en GitHub"
 }

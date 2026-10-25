@@ -273,6 +273,17 @@ async fn model_state(b: Shared<'_>, index: usize, generation: u64) -> Result<Mod
         .await
 }
 
+/// PRD 0028 RF2.3: the secret-free problem report of account `index`, or of the
+/// application alone when `index` is absent (About). Nothing is sent.
+#[tauri::command]
+async fn report_problem(
+    b: Shared<'_>,
+    index: Option<usize>,
+    generation: u64,
+) -> Result<backend::ProblemDraft, String> {
+    b.report_problem(index, generation).await
+}
+
 /// First explicit opening: queries only when nothing is recorded.
 #[tauri::command]
 async fn load_models(b: Shared<'_>, index: usize, generation: u64) -> Result<ModelState, String> {
@@ -1554,6 +1565,7 @@ pub fn run() {
             about_info,
             whats_new,
             open_external,
+            report_problem,
             config_changed_on_disk,
             login_start,
             login_submit_code,

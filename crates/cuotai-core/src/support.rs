@@ -116,6 +116,40 @@ pub fn canary_draft(
     build(view, app, Some((category, shape_diff)))
 }
 
+/// Whether `url` opens this project's issue form: what a front end may hand
+/// to the system browser for a problem report (never an arbitrary address).
+pub fn is_issue_url(url: &str) -> bool {
+    let prefix = format!("{REPOSITORY}/issues/new?");
+    url.len() <= MAX_URL_CHARS * 4
+        && url.starts_with(&prefix)
+        && !url.chars().any(|c| c.is_control() || c.is_whitespace())
+}
+
+/// The draft of a problem that is not tied to an account (About): only the
+/// application facts, with the issue form opened for the rest.
+pub fn app_draft(app: &AppInfo) -> IssueDraft {
+    let version = plain(&app.version);
+    let os = plain(&app.os);
+    let arch = plain(&app.arch);
+    let channel = plain(&app.install_channel);
+    let title = "[Provider] ".to_string();
+    let body = format!(
+        "## Problem report\n\n- Cuotai version: {version}\n- OS and architecture: {os} {arch}\n- Install channel: {channel}\n\nNo account name, e-mail, organization, credential, URL or response value is included.\n"
+    );
+    let mut query = url::form_urlencoded::Serializer::new(String::new());
+    query.append_pair("template", TEMPLATE);
+    query.append_pair("version", &version);
+    query.append_pair("context", &body);
+    let url = format!("{REPOSITORY}/issues/new?{}", query.finish());
+    let copy_only = url.chars().count() > MAX_URL_CHARS;
+    IssueDraft {
+        title,
+        body,
+        url,
+        copy_only,
+    }
+}
+
 /// Keep a canary shape diff to plain, bounded single-line text.
 fn plain_diff(diff: &str) -> String {
     diff.chars()
@@ -284,6 +318,22 @@ mod tests {
     #[allow(dead_code)]
     struct Window {
         utilization: f64,
+    }
+
+    #[test]
+    fn issue_urls_are_only_this_projects_form() {
+        let draft = app_draft(&app());
+        assert!(is_issue_url(&draft.url));
+        assert!(!draft.body.contains("SEEDED"));
+        for url in [
+            "https://github.com/other/repo/issues/new?x=1",
+            "https://github.com/jmarcon/cuotai/issues/new?x=1 y",
+            "https://github.com/jmarcon/cuotai/pulls",
+            "javascript:alert(1)",
+            "",
+        ] {
+            assert!(!is_issue_url(url), "{url}");
+        }
     }
 
     #[test]

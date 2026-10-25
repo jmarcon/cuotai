@@ -3,6 +3,7 @@ import { t, te } from "../i18n.js";
 import { esc } from "../lib.js";
 import { openLibraries } from "../about-dialog.js";
 import { openWhatsNew } from "../whats-new-dialog.js";
+import { openReportProblem } from "../report-dialog.js";
 import { bindUpdates, onUpdateState, updatesSectionHtml } from "../updater.js";
 import { group } from "./common.js";
 import { buttons, row } from "./rows.js";
@@ -11,7 +12,7 @@ export function html({ settings: s, update }) {
   return group("about", te("settings.about"),
     row({ key: "version", label: `Cuotai ${esc(s.version)}`,
       desc: `${te("about.license", { license: "MIT" })} · ${te("about.updateState", { state: t("update.state." + (update?.phase ?? "idle"), { version: update?.version ?? "" }) })}`,
-      control: () => buttons(`<button class="btn sm" data-libraries>${te("about.libraries")}</button><button class="btn sm" data-whats-new>${te("about.whatsNew")}</button>`) }))
+      control: () => buttons(`<button class="btn sm" data-libraries>${te("about.libraries")}</button><button class="btn sm" data-whats-new>${te("about.whatsNew")}</button><button class="btn sm" data-report-problem>${te("report.action")}</button>`) }))
     // PRD 0018 RF3.1 / PRD 0022 RF17.4: the updater owns its whole group, heading included (anchor `[data-updates]`).
     + updatesSectionHtml(update);
 }
@@ -22,6 +23,7 @@ const shownState = (s) => JSON.stringify([s?.phase, s?.version, s?.enabled, s?.a
 export function bind(root, ctx) {
   root.querySelector("[data-libraries]").onclick = () => openLibraries();
   root.querySelector("[data-whats-new]").onclick = () => openWhatsNew();
+  root.querySelector("[data-report-problem]").onclick = () => openReportProblem(null, 0);
   // PRD 0018 RF3.1: updater controls use the state fetched for this page; a change made elsewhere (the main
   // window's banner, the consent question, the daily check) redraws the page while it is shown.
   bindUpdates(root.querySelector("[data-update-body]"));

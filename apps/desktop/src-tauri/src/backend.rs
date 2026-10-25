@@ -545,14 +545,22 @@ pub struct ReportAccess {
     label: cuotai_core::text::Localized,
     explanation: Option<cuotai_core::text::Localized>,
     session: Option<user_session::SessionNotice>,
+    /// PRD 0028 RF6.2 (DS-CMP-VER-1): "Verified N months ago" or, when the
+    /// evidence is old, "Not verified since {date}". Shown in the details
+    /// only, never in the add-account flow.
+    verification: cuotai_core::text::Localized,
+    verification_stale: bool,
 }
 
 fn report_access(account: &cuotai_core::Account, report: &Report) -> ReportAccess {
     let descriptor = cuotai_core::access::describe(account);
+    let verification = descriptor.verification(chrono::Utc::now().date_naive());
     ReportAccess {
         label: descriptor.level.label(),
         explanation: descriptor.explain(report),
         session: user_session::notice(account),
+        verification_stale: verification.id == "access.verification_stale",
+        verification,
         descriptor,
     }
 }
@@ -3349,6 +3357,63 @@ impl Backend {
         }
         state.map_err(|e| l10n_to_json(&e.l10n()))
     }
+
+    /// PRD 0028 RF2.3: the secret-free problem report of account `index`
+    /// (`None`: the application facts only, from About). Pure and local:
+    /// nothing is queried or sent. A result for another `generation` fails
+    /// with [`STALE`].
+    pub async fn report_problem(
+        &self,
+        index: Option<usize>,
+        generation: u64,
+    ) -> Result<ProblemDraft, String> {
+        use cuotai_core::support::{app_draft, issue_draft, AccountView, AppInfo};
+        let app = AppInfo::current(crate::updater::detect().as_str());
+        let draft = match index {
+            None => app_draft(&app),
+            Some(index) => {
+                let g = self.inner.lock().await;
+                let l = g.loaded.as_ref().ok_or("Configuração não carregada.")?;
+                if l.generation != generation {
+                    return Err(STALE.into());
+                }
+                let account = l.file.config.accounts.get(index).ok_or(STALE)?;
+                let report = match l.cycle.snapshot() {
+                    Some(snapshot) => snapshot.reports.get(index).cloned(),
+                    None => l.cycle.account_report(index).cloned(),
+                }
+                .ok_or(STALE)?;
+                let last_good_age = l
+                    .cycle
+                    .last_good_report(index)
+                    .and_then(|good| (chrono::Utc::now() - good.checked_at).to_std().ok());
+                issue_draft(
+                    &AccountView {
+                        account,
+                        report: &report,
+                        last_good_age,
+                        incident_active: None,
+                    },
+                    &app,
+                )
+            }
+        };
+        Ok(ProblemDraft {
+            title: draft.title,
+            body: draft.body,
+            url: draft.url,
+            copy_only: draft.copy_only,
+        })
+    }
+}
+
+/// The problem report the dialog previews (PRD 0028 RF2.3, DS-CMP-RPT-1).
+#[derive(Serialize, Clone)]
+pub struct ProblemDraft {
+    title: String,
+    body: String,
+    url: String,
+    copy_only: bool,
 }
 
 /// Erro estável dos comandos de modelos: a configuração mudou desde a view da UI.
@@ -4663,6 +4728,11 @@ mod tests {
         };
         let pool = view(0);
         assert_eq!(pool["access"]["level"], "unavailable");
+        // PRD 0028 RF6.2: the details' "Verified N months ago" chip is the core's text.
+        assert!(pool["access"]["verification"]["id"]
+            .as_str()
+            .is_some_and(|id| id.starts_with("access.verif")));
+        assert!(pool["access"]["verification_stale"].is_boolean());
         assert_eq!(pool["access"]["label"]["id"], "access.level.unavailable");
         assert_eq!(pool["access"]["summary"]["id"], "access.summary.poolside");
         assert_eq!(pool["access"]["explanation"], pool["access"]["reason"]);

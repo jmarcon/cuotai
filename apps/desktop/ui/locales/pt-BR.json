@@ -735,5 +735,14 @@
   "update.error.insecure_endpoint": "O endereço de verificação não é HTTPS; a verificação foi recusada.",
   "update.error.unconfigured": "Esta cópia não foi compilada com o canal de atualização.",
   "update.error.other": "A atualização falhou. Você pode baixar manualmente.",
-  "about.updateState": "atualização: {state}"
+  "about.updateState": "atualização: {state}",
+  "report.action": "Relatar um problema",
+  "report.title": "Relatar um problema",
+  "report.preview": "Texto do relato do problema",
+  "report.nothingSent": "O Cuotai não envia nada; o GitHub abre com este texto.",
+  "report.tooLong": "Este relato é longo demais para um link: copie e cole em uma nova issue.",
+  "report.copy": "Copiar",
+  "report.copied": "Copiado",
+  "report.copyFailed": "Não foi possível copiar o texto.",
+  "report.open": "Abrir no GitHub"
 }

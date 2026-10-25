@@ -5,6 +5,7 @@ import { detailHtml, mountModels } from "./detail.js";
 import { costDetailHtml, sourceFor } from "./cost.js";
 import { mountHistory } from "./history.js";
 import { showDialog } from "./motion.js";
+import { openReportProblem } from "./report-dialog.js";
 
 let dlg = null;
 let currentKey = null;
@@ -47,7 +48,7 @@ function render() {
     ${id.copy ? `<div class="copy-row"><button class="chip" data-copy="${esc(id.copy.value)}" title="${te("common.copyLabel", { label: tl(id.copy.label) })}">${icon("copy")}<code>${esc(id.copy.value)}</code></button></div>` : ""}
     ${r.paste_session ? `<div class="dlg-actions"><button type="button" class="btn" data-paste-session>${icon("edit")}<span>${te("card.pasteSession")}</span></button></div>` : ""}
     <div class="det-body">${detailHtml(r, { eye: true })}${localCostHtml(r)}<div data-history-slot></div><div data-models-slot></div></div>
-    <div class="dlg-actions"><button class="btn primary" data-close>${te("common.close")}</button></div>
+    <div class="dlg-actions">${r.status !== "ready" ? `<button class="btn" data-report>${te("report.action")}</button>` : ""}<button class="btn primary" data-close>${te("common.close")}</button></div>
   </div>`;
   history.attach(dlg);
   models.attach(dlg, focus);
@@ -66,6 +67,8 @@ export function openDetails(key, context, from = null) {
       const t = e.target;
       const r = () => ctx.reports().find((x) => reportKey(x) === currentKey);
       if (t.closest("[data-close]")) return dlg.close();
+      // PRD 0028 RF2.3: the failing account's secret-free problem report, previewed before anything opens.
+      if (t.closest("[data-report]")) { const rep = r(); if (rep) openReportProblem(rep.index, ctx.generation()); return; }
       // PRD 0015 RF4.1: a source that is off points to Settings → Local cost.
       if (t.closest("[data-cost-settings]")) { dlg.close(); return ctx.onSettings(); }
       const bell = t.closest("[data-bell]");

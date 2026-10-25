@@ -256,6 +256,7 @@ export const aboutInfo = () => call("about_info");
 /** PRD 0019 RF7.7: o histórico do changelog já analisado pelo core (sem rede). */
 export const whatsNew = () => call("whats_new");
 /** Abre no navegador um repositório da lista do "Sobre" (o shell recusa qualquer outro endereço). */
+export const reportProblem = (index, generation) => call("report_problem", { index: index ?? null, generation });
 export const openExternal = (url) => (isDesktop ? call("open_external", { url }) : Promise.resolve(window.open(url, "_blank", "noopener,noreferrer")));
 /** PRD 0020 RF1.3: every entry point opens (or focuses) the one Settings window, optionally on a page of its
  *  sidebar and an anchor inside it (`{ page: "cost", anchor: "cost-sources" }`). The browser demo opens
@@ -1595,6 +1596,13 @@ const demo = {
     history: null,
   }),
   // Demonstração: amostra da lista real (no app, a lista completa vem do core).
+  // Demonstração: o texto do relato é do core; aqui, um exemplo sem dado algum.
+  report_problem: async ({ index }) => ({
+    title: "[Provider] claude: schema_changed",
+    body: `## Provider problem report\n\n- Cuotai version: demo\n- Provider: \`claude\`${index == null ? "" : "\n- Failure category: \`schema_changed\`"}\n`,
+    url: "https://github.com/jmarcon/cuotai/issues/new?template=provider-problem.yml",
+    copy_only: false,
+  }),
   about_info: async () => ({
     name: "Cuotai", version: "demo", license: "MIT", repository: "https://github.com/jmarcon/cuotai",
     libraries: [

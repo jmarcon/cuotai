@@ -728,5 +728,14 @@
   "update.error.insecure_endpoint": "The check address is not HTTPS; the check was refused.",
   "update.error.unconfigured": "This copy was not built with the update channel.",
   "update.error.other": "The update failed. You can download it manually.",
-  "about.updateState": "update: {state}"
+  "about.updateState": "update: {state}",
+  "report.action": "Report a problem",
+  "report.title": "Report a problem",
+  "report.preview": "Text of the problem report",
+  "report.nothingSent": "Nothing is sent by Cuotai; GitHub opens with this text.",
+  "report.tooLong": "This report is too long for a link: copy it and paste it into a new issue.",
+  "report.copy": "Copy",
+  "report.copied": "Copied",
+  "report.copyFailed": "Could not copy the text.",
+  "report.open": "Open on GitHub"
 }
