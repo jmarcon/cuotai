@@ -766,7 +766,7 @@ impl HistoryStore {
         };
         let mut query = db.prepare_cached(
             "SELECT s.metric_key, s.label, x.taken_at, x.used, x.\"limit\", x.remaining,
-                    x.unit, x.kind, x.\"window\", x.resets_at
+                    x.unit, x.kind, x.\"window\", x.resets_at, s.billing
              FROM series s JOIN samples x
                ON x.config_key = s.config_key AND x.account_digest = s.account_digest
               AND x.metric_key = s.metric_key
@@ -791,7 +791,7 @@ impl HistoryStore {
                         key: row.get(0)?,
                         taken_at: instant(row.get(2)?)?,
                         metric: Metric {
-                            billing: Default::default(),
+                            billing: untag(row.get(10)?)?,
                             scope: None,
                             label: row.get(1)?,
                             used: finite(row.get(3)?),

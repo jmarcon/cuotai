@@ -697,6 +697,13 @@ credential_env = "GROQ_KEY_BETA"
         let get = |unit: &str| spent.iter().find(|e| e.unit == unit).unwrap().amount;
         assert!((get("USD") - 9.5).abs() < 1e-9, "7.5 + 2.0");
         assert_eq!(get("EUR"), 4.0);
+        // A restored reading keeps the overage mark, so the binding metric
+        // never picks it.
+        let stored = history.latest(beta).unwrap().unwrap();
+        assert!(stored
+            .metrics
+            .iter()
+            .all(|m| m.metric.billing == Billing::Overage));
         // The 7-day range only sees the second cycle's samples.
         let week = summary(&history, StatsRange::Days7, at(20, 12));
         let usd = week.extra_spent.unwrap();
