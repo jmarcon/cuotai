@@ -2454,6 +2454,10 @@ pub struct RemovedAccount {
     pub provider: Provider,
     pub oauth: Option<OAuthConfig>,
     pub storage_key: Option<String>,
+    /// PRD 0029 RF5.3: the account's stored web sessions
+    /// (`[accounts.session]`) were deleted from the vault with it, reported
+    /// apart from the OAuth credential.
+    pub sessions_removed: bool,
 }
 
 /// Pre-save failures: the TOML was not touched, the vault was not
@@ -2677,6 +2681,9 @@ pub async fn remove_account_save_only(
     let staged_sessions = crate::user_session::stage_dropped(session, &prev, &updated, None)
         .await
         .map_err(RemoveError::Session)?;
+    let sessions_removed = staged_sessions
+        .as_ref()
+        .is_some_and(|staged| staged.entries() > 0);
     if let Err(error) = file.save(updated.clone()) {
         if let Some(staged) = staged_sessions {
             let _ = crate::user_session::rollback(session, staged).await;
@@ -2689,12 +2696,14 @@ pub async fn remove_account_save_only(
         provider: target.provider,
         oauth: target.oauth.clone(),
         storage_key: target_key.clone(),
+        sessions_removed,
     };
     if target_key.is_none() {
         return Ok(StagedRemoval::RemovedNoCredential(RemovedAccount {
             provider: target.provider,
             oauth: target.oauth.clone(),
             storage_key: None,
+            sessions_removed,
         }));
     }
     if !purge_credentials {
@@ -2798,6 +2807,69 @@ pub async fn purge_credential(
         Ok(()) => Ok(()),
         Err(error) => Err(error.l10n_for_purge()),
     }
+}
+
+/// PRD 0029 RF5.2: the OAuth credential the account at `index` leaves
+/// behind when an edit switches its provider: its provider and OAuth
+/// configuration when `before` had one there, `after` holds an account of
+/// another provider at `index`, and no account of `after` uses that vault
+/// key. Front ends show it before saving ([`switched_oauth_notice`]) and
+/// purge it with [`purge_switched_oauth`] after a successful save.
+pub fn switched_oauth(
+    before: &Config,
+    after: &Config,
+    index: usize,
+) -> Option<(Provider, OAuthConfig)> {
+    let old = before.accounts.get(index)?;
+    let new = after.accounts.get(index)?;
+    if old.provider == new.provider {
+        return None;
+    }
+    let key = account_storage_key(old)?;
+    let shared = after
+        .accounts
+        .iter()
+        .any(|account| account_storage_key(account).as_ref() == Some(&key));
+    let oauth = old.oauth.clone()?;
+    (!shared).then_some((old.provider, oauth))
+}
+
+/// PRD 0029 RF5.2: what a provider switch will delete, for the form to say
+/// before saving. `None` when the switch deletes nothing.
+pub fn switched_oauth_notice(
+    before: &Config,
+    after: &Config,
+    index: usize,
+) -> Option<crate::text::Localized> {
+    let (provider, _) = switched_oauth(before, after, index)?;
+    Some(crate::text::Localized::with_param(
+        "edit_notice.provider_switch_oauth",
+        "provider",
+        crate::text::provider_l10n(provider),
+        format!(
+            "Ao gravar, a credencial OAuth da conta {} é apagada do cofre.",
+            provider.label()
+        ),
+    ))
+}
+
+/// PRD 0029 RF5.2: after `after` was saved over `before`, delete the OAuth
+/// token the account at `index` left behind by switching provider (see
+/// [`switched_oauth`]). Returns whether a token was deleted; a failure is
+/// non-fatal for the edit (the configuration is already saved) and never
+/// carries the token.
+pub async fn purge_switched_oauth(
+    session: &crate::oauth::OAuthSession,
+    before: &Config,
+    after: &Config,
+    index: usize,
+) -> Result<bool, crate::text::Localized> {
+    let Some((provider, oauth)) = switched_oauth(before, after, index) else {
+        return Ok(false);
+    };
+    purge_credential(session, after, provider, &oauth)
+        .await
+        .map(|()| true)
 }
 
 /// Return the effective vault key for `account`, or `None` when the
@@ -4359,6 +4431,32 @@ mod tests {
         let mut file = ConfigFile::load(Some(path), false).unwrap();
         file.save(config).unwrap();
         (dir, file)
+    }
+
+    /// PRD 0029 RF5.2: a provider switch purges the old OAuth token only
+    /// when the saved configuration no longer uses it.
+    #[tokio::test]
+    async fn a_provider_switch_purges_the_old_token_after_the_save() {
+        let store = Arc::new(MemoryStore::default());
+        let session = OAuthSession::new(store.clone(), no_secrets()).unwrap();
+        let before = config_with(vec![oauth_account("a", Provider::ChatGpt)]);
+        let oauth = before.accounts[0].oauth.clone().unwrap();
+        let key = save_token(&store, Provider::ChatGpt, &oauth).await;
+        let after = config_with(vec![env_account_simple("a", Provider::OpenAiApi)]);
+        // Same provider: nothing to purge.
+        assert!(switched_oauth(&before, &before, 0).is_none());
+        assert!(switched_oauth_notice(&before, &after, 0).is_some());
+        // A survivor that shares the key keeps it.
+        let mut shared = after.clone();
+        shared.accounts.push(oauth_account("b", Provider::ChatGpt));
+        assert!(!purge_switched_oauth(&session, &before, &shared, 0)
+            .await
+            .unwrap());
+        assert!(store.entries.lock().contains_key(&key));
+        assert!(purge_switched_oauth(&session, &before, &after, 0)
+            .await
+            .unwrap());
+        assert!(!store.entries.lock().contains_key(&key));
     }
 
     #[tokio::test]

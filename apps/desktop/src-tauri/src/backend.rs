@@ -2552,6 +2552,13 @@ impl Backend {
         // when applicable, runs without blocking other backend
         // commands.
         let (staged, session, post_save_config) = staged;
+        let sessions_removed = match &staged {
+            account_edit::StagedRemoval::RemovedNoCredential(account)
+            | account_edit::StagedRemoval::Kept { account, .. }
+            | account_edit::StagedRemoval::ReadyForPurge { account, .. } => {
+                account.sessions_removed
+            }
+        };
         let (result, pending_recovery) = match staged {
             account_edit::StagedRemoval::RemovedNoCredential(_) => {
                 (DeleteResult::new("removed"), None)
@@ -2564,6 +2571,7 @@ impl Backend {
                         outcome: "kept_shared",
                         other_account: Some(other_account),
                         message: None,
+                        sessions_removed: false,
                         recovery_handle: None,
                     },
                 };
@@ -2597,12 +2605,17 @@ impl Backend {
                             outcome: "partial_failure",
                             other_account: None,
                             message: Some(vault_error.to_string()),
+                            sessions_removed: false,
                             recovery_handle: Some(handle.clone()),
                         },
                         Some((handle, account)),
                     )
                 }
             },
+        };
+        let result = DeleteResult {
+            sessions_removed,
+            ..result
         };
         // Re-acquire the mutex briefly to register the recovery
         // handle. The handle MUST NOT survive a config replacement
@@ -2694,6 +2707,7 @@ impl Backend {
                     outcome: "partial_failure",
                     other_account: None,
                     message: Some(vault_error.to_string()),
+                    sessions_removed: false,
                     recovery_handle: Some(handle.to_string()),
                 })
             }
@@ -4168,6 +4182,9 @@ pub struct DeleteResult {
     outcome: &'static str,
     other_account: Option<String>,
     message: Option<String>,
+    /// PRD 0029 RF5.3: the account's stored web sessions were deleted with
+    /// it (reported apart from the OAuth credential).
+    sessions_removed: bool,
     /// RF3 handle round-tripped to `retry_purge`. Present when the
     /// credential is still in the vault (`kept`, `kept_shared`,
     /// `partial_failure`) and the UI should offer a retry button.
@@ -4182,6 +4199,7 @@ impl DeleteResult {
             outcome,
             other_account: None,
             message: None,
+            sessions_removed: false,
             recovery_handle: None,
         }
     }
@@ -5101,6 +5119,7 @@ mod tests {
                         provider: Provider::ChatGpt,
                         oauth: Some(oauth.clone()),
                         storage_key: Some(key.clone()),
+                        sessions_removed: false,
                     },
                 });
         }
@@ -6052,6 +6071,7 @@ mod tests {
                     provider: Provider::ChatGpt,
                     oauth: Some(oauth_config_for(Provider::ChatGpt)),
                     storage_key: Some("stale-key".into()),
+                    sessions_removed: false,
                 },
             });
             if !l.tokens.is_empty() {

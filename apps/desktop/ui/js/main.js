@@ -193,10 +193,13 @@ function otherBannerHtml() {
 function onDeleted(result) {
   if (!result) return;
   const retry = result.recovery_handle ? { handle: result.recovery_handle } : null;
-  if (result.outcome === "purged") setNotice("ok", t("delete.purged"));
-  else if (result.outcome === "kept") setNotice("ok", t("delete.kept"), retry);
-  else if (result.outcome === "kept_shared") setNotice("ok", t("delete.keptShared", { other: result.other_account ?? "" }), retry);
-  else if (result.outcome === "partial_failure") setNotice("bad", t("delete.partial", { message: result.message ?? "" }), retry);
+  // PRD 0029 RF5.3: the stored web session is reported apart from the OAuth credential.
+  const session = result.sessions_removed ? ` ${t("delete.sessionToo")}` : "";
+  if (result.outcome === "removed" && result.sessions_removed) setNotice("ok", t("delete.session"));
+  else if (result.outcome === "purged") setNotice("ok", t("delete.purged") + session);
+  else if (result.outcome === "kept") setNotice("ok", t("delete.kept") + session, retry);
+  else if (result.outcome === "kept_shared") setNotice("ok", t("delete.keptShared", { other: result.other_account ?? "" }) + session, retry);
+  else if (result.outcome === "partial_failure") setNotice("bad", t("delete.partial", { message: result.message ?? "" }) + session, retry);
 }
 
 // Botão "Tentar de novo" do aviso RF3. Reusa `onDeleted` para re-render

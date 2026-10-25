@@ -461,6 +461,12 @@ pub struct StagedSession {
 }
 
 impl StagedSession {
+    /// PRD 0029 RF5.3: how many vault entries this stage wrote or deleted;
+    /// for [`stage_dropped`] without a paste, the sessions it deleted.
+    pub fn entries(&self) -> usize {
+        self.written.len()
+    }
+
     /// The configuration to persist: the account references the vault and
     /// no longer names a variable for the stored slots.
     pub fn config(&self) -> &Config {

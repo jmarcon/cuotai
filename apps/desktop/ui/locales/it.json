@@ -425,6 +425,8 @@
   "dialog.deleteVaultKeep": "Rimuovi e mantieni nel vault",
   "dialog.deleteVaultPurge": "Rimuovi ed elimina dal vault",
   "delete.purged": "Account rimosso e credenziale eliminata dal vault.",
+  "delete.session": "Account rimosso e la sua sessione salvata eliminata dal vault.",
+  "delete.sessionToo": "Anche la sessione web salvata è stata eliminata.",
   "delete.kept": "Account rimosso; la credenziale resta nel vault.",
   "delete.keptShared": "Account rimosso; la credenziale è stata mantenuta perché la usa anche l'account {other}.",
   "delete.partial": "Account rimosso dal file, ma la sua credenziale NON è stata eliminata dal vault: {message}",

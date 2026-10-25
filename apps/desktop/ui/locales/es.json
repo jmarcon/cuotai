@@ -425,6 +425,8 @@
   "dialog.deleteVaultKeep": "Eliminar y conservar en el almacén",
   "dialog.deleteVaultPurge": "Eliminar y borrar del almacén",
   "delete.purged": "Cuenta eliminada y credencial borrada del almacén.",
+  "delete.session": "Cuenta eliminada y su sesión guardada borrada del almacén.",
+  "delete.sessionToo": "Su sesión web guardada también se borró.",
   "delete.kept": "Cuenta eliminada; la credencial permanece en el almacén.",
   "delete.keptShared": "Cuenta eliminada; la credencial se conservó porque la cuenta {other} también la usa.",
   "delete.partial": "Cuenta eliminada del archivo, pero la credencial NO se borró del almacén: {message}",

@@ -1106,9 +1106,15 @@ async fn removing_an_account_deletes_its_vault_session() {
     let outcome = crate::account_edit::remove_account(&mut file, &oauth, 0, false)
         .await
         .unwrap();
+    // PRD 0029 RF5.3: the deleted session is reported on its own.
     assert!(matches!(
         outcome,
-        crate::account_edit::RemoveOutcome::RemovedNoCredential(_)
+        crate::account_edit::RemoveOutcome::RemovedNoCredential(
+            crate::account_edit::RemovedAccount {
+                sessions_removed: true,
+                ..
+            }
+        )
     ));
     assert_eq!(
         store.values(),

@@ -1403,5 +1403,7 @@
   "events.summary.overage_started": "Extra usage started: {amount}",
   "events.summary.overage_started_unknown": "Extra usage started",
   "events.summary.overage_ended": "Extra usage ended",
-  "overage.units_caveat": "Amounts are in provider units, not money."
+  "overage.units_caveat": "Amounts are in provider units, not money.",
+  "edit_notice.provider_switch_oauth": "When you save, the OAuth credential of the {provider} account is deleted from the vault.",
+  "edit_error.config_extension": "The extension account has no valid extension_id, repeats another extension's id, or has incompatible credential fields."
 }

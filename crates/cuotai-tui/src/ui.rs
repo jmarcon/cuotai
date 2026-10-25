@@ -534,6 +534,7 @@ pub async fn run(
                                     .as_ref()
                                     .and_then(|w| w.editing_identity_borrowed())
                                     .map(|(p, n)| (p, n.to_string()));
+                                let before = file.config.clone();
                                 match apply_edit_to_config(
                                     &mut file,
                                     &monitor,
@@ -572,6 +573,21 @@ pub async fn run(
                                         monitor = new_monitor;
                                         wizard = None;
                                         authorized = None;
+                                        // PRD 0029 RF5.2: a provider switch leaves
+                                        // the old OAuth token unused; it goes only
+                                        // now, after the save.
+                                        if let Some(index) = edit {
+                                            if let Err(note) = account_edit::purge_switched_oauth(
+                                                session.as_ref(),
+                                                &before,
+                                                &file.config,
+                                                index,
+                                            )
+                                            .await
+                                            {
+                                                state.error = Some(resolve_l10n(&note));
+                                            }
+                                        }
                                         // The touched slot is pending. Fire a single
                                         // per-account refresh immediately so the
                                         // dashboard does not wait for the new
@@ -2255,6 +2271,26 @@ fn render_deletion(state_: &DeletionState, file: &ConfigFile) -> (&'static str, 
 }
 
 fn render_deletion_result(index: usize, outcome: &RemoveOutcome) -> (String, String) {
+    // PRD 0029 RF5.3: the stored web session is reported apart from the
+    // OAuth credential.
+    let account = match outcome {
+        RemoveOutcome::RemovedNoCredential(account)
+        | RemoveOutcome::RemovedFromVault(account)
+        | RemoveOutcome::CredentialKept { account, .. }
+        | RemoveOutcome::PartialFailure { account, .. } => account,
+    };
+    let (body, footer) = deletion_result_text(index, outcome);
+    if account.sessions_removed {
+        (
+            format!("{body}\n\nA sessão web guardada no cofre também foi apagada."),
+            footer,
+        )
+    } else {
+        (body, footer)
+    }
+}
+
+fn deletion_result_text(index: usize, outcome: &RemoveOutcome) -> (String, String) {
     match outcome {
         RemoveOutcome::RemovedNoCredential(_) => (
             format!(
@@ -3031,6 +3067,24 @@ mod tests {
     use super::*;
     use crate::Provider;
     use std::collections::BTreeMap;
+
+    /// PRD 0029 RF5.3: the removal message names the stored session apart
+    /// from the OAuth credential.
+    #[test]
+    fn the_removal_message_names_the_deleted_session() {
+        let removed = |sessions_removed| RemovedAccount {
+            provider: Provider::XiaomiMimo,
+            oauth: None,
+            storage_key: None,
+            sessions_removed,
+        };
+        let (body, _) =
+            render_deletion_result(0, &RemoveOutcome::RemovedNoCredential(removed(true)));
+        assert!(body.contains("sessão web"), "{body}");
+        let (body, _) =
+            render_deletion_result(0, &RemoveOutcome::RemovedNoCredential(removed(false)));
+        assert!(!body.contains("sessão web"), "{body}");
+    }
 
     #[test]
     fn collapsed_metric_says_when_it_renewed_in_local_time() {

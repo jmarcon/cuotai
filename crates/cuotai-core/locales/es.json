@@ -1403,5 +1403,7 @@
   "events.summary.overage_started": "Empezó el uso extra: {amount}",
   "events.summary.overage_started_unknown": "Empezó el uso extra",
   "events.summary.overage_ended": "Terminó el uso extra",
-  "overage.units_caveat": "Los importes están en unidades del proveedor, no en dinero."
+  "overage.units_caveat": "Los importes están en unidades del proveedor, no en dinero.",
+  "edit_notice.provider_switch_oauth": "Al guardar, la credencial OAuth de la cuenta de {provider} se borra del almacén.",
+  "edit_error.config_extension": "La cuenta de extensión no tiene un extension_id válido, repite el id de otra extensión o contiene campos de credencial incompatibles."
 }

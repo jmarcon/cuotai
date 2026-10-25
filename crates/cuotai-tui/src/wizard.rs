@@ -1889,6 +1889,16 @@ impl Wizard {
                 Span::raw(self.provider.label()),
             ]),
         ];
+        // PRD 0029 RF5.2: say what a provider switch deletes before saving.
+        if let Some(note) = self.editing.and_then(|index| {
+            let after = self.build_config().ok()?;
+            edit::switched_oauth_notice(&self.base, &after, index)
+        }) {
+            lines.push(Line::from(Span::styled(
+                note.text().to_owned(),
+                Style::default().fg(DRACULA_YELLOW),
+            )));
+        }
         if self.peer().is_some() {
             lines.push(Line::from(vec![
                 Span::styled("Conta existente renomeada para: ", dim),
