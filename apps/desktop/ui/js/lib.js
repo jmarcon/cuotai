@@ -119,8 +119,28 @@ export const setUserDir = (path) => call("set_user_dir", { path });
 export const MOTIONS = ["system", "always", "reduced", "off"];
 const applyMotion = (m) => { m = MOTIONS.includes(m) ? m : "system"; document.documentElement.dataset.motion = m; put("cuotai.motion", m); };
 export const setMotion = async (motion) => { await call("set_motion", { motion }); applyMotion(motion); };
-/** Resyncs the mirrors from `desktop.json` when each window boots; on failure, keeps the mirrored values. */
-export const syncSettings = () => getSettings().then((s) => { applyMotion(s.motion); applyPace(s.show_pace); }, () => {});
+/** PRD 0020 RF7.2: `desktop.json` is the single source of theme, mode, language, animations, account order and
+ *  grouping (and pace). `localStorage` only mirrors them so the <head> script can paint before the first IPC answer;
+ *  no window listens to `storage` events for them any more. */
+export const setPreference = async (key, value) => { await call("set_preference", { key, value }); mirrorPreference(key, value); };
+const MIRROR_KEYS = { theme: "cuotai.theme", theme_mode: "cuotai.themeMode", sort: "cuotai.sort", group_recharging: "cuotai.group-recharging", motion: "cuotai.motion", locale: "cuotai.locale" };
+const mirrorPreference = (key, value) => { if (MIRROR_KEYS[key]) put(MIRROR_KEYS[key], key === "group_recharging" ? (value ? "on" : "off") : String(value)); };
+/** The values the pre-RF7.2 versions kept in `localStorage`, for the one-time migration. */
+const legacyLocalValues = () => {
+  const out = {};
+  for (const [key, k] of Object.entries(MIRROR_KEYS)) { const v = get(k, ""); if (v) out[key] = v; }
+  if (!out.theme && get("cuotai.darkTheme", "")) out.theme = get("cuotai.darkTheme", ""); // the oldest key
+  return out;
+};
+/** Reads `desktop.json` (running the one-time `localStorage` migration first), applies what differs here and
+ *  returns the set of changed keys. `boot`: before the language loads, so only the mirror of the language moves. */
+export async function syncPreferences({ boot = false } = {}) {
+  try {
+    let s = await getSettings();
+    if (s.local_storage_migrated === false) s = await call("migrate_local_storage", { values: legacyLocalValues() });
+    return await applyPreferences(s, { boot });
+  } catch { return new Set(); }
+}
 export const openUserDir = () => call("open_user_dir");
 // PRD 0006 RF4: measurement history retention (desktop.json), export and erasure; the core does the work.
 export const setHistoryDays = (days) => call("set_history_days", { days });
@@ -257,10 +277,21 @@ export function bindSettingsShortcut(open = () => openSettingsWindow()) {
   });
 }
 /** PRD 0020 RF7.1 (minimum for RF1): the Settings window says what it changed; the other windows repaint as the
- *  old in-window dialog made them do. Preferences mirrored in localStorage also reach them by `storage` events. */
+ *  old in-window dialog made them do. Preference changes carry their key (RF7.2). */
 export const SETTINGS_CHANGED = "settings-changed";
-export const emitSettingsChanged = (key = "") => (isDesktop ? T.event.emit(SETTINGS_CHANGED, { key }).catch(() => {}) : Promise.resolve());
-export const onSettingsChanged = (cb) => (isDesktop ? T.event.listen(SETTINGS_CHANGED, (e) => cb(e.payload?.key ?? "")) : Promise.resolve(() => {}));
+// In the browser demo the windows share one origin, so a BroadcastChannel stands in for the shell's event.
+const demoChannel = () => { try { return new BroadcastChannel("cuotai-settings-changed"); } catch { return null; } };
+export const emitSettingsChanged = (key = "") => {
+  if (isDesktop) return T.event.emit(SETTINGS_CHANGED, { key }).catch(() => {});
+  const ch = demoChannel(); ch?.postMessage({ key }); ch?.close();
+  return Promise.resolve();
+};
+export const onSettingsChanged = (cb) => {
+  if (isDesktop) return T.event.listen(SETTINGS_CHANGED, (e) => cb(e.payload?.key ?? ""));
+  const ch = demoChannel();
+  if (ch) ch.onmessage = (e) => cb(e.data?.key ?? "");
+  return Promise.resolve(() => ch?.close());
+};
 /** Seletor nativo de pasta (plugin de diálogo do Tauri). */
 export async function pickFolder(defaultPath) {
   if (isDesktop && T.dialog) return T.dialog.open({ directory: true, multiple: false, defaultPath: defaultPath || undefined });
@@ -637,13 +668,11 @@ document.addEventListener?.("cuotai:locale", reportCallbackStyle);
 applyTheme();
 export function initTheme(onChange = () => {}) {
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { applyTheme(); onChange(); });
-  addEventListener("storage", (e) => {
-    if (e.key === "cuotai.themeMode" && e.newValue) theme.mode = e.newValue;
-    else if (e.key === "cuotai.theme" && e.newValue) theme.id = e.newValue;
-    else if (e.key === "cuotai.locale" && e.newValue) { setLocale(e.newValue).then(onChange); return; }
-    else if (e.key === "cuotai.motion" && e.newValue) { document.documentElement.dataset.motion = e.newValue; return; }
-    else return;
-    applyTheme(); onChange();
+  // RF7.1/RF7.2: another window changed a preference; `desktop.json` says what, no `storage` events.
+  onPreferencesChanged((changed) => {
+    if (!["theme", "theme_mode", "locale", "motion"].some((k) => changed.has(k))) return;
+    applyTheme();
+    onChange();
   });
 }
 const groupLabel = (g) => (GROUP_ORDER.includes(g) ? t(`theme.group.${g}`) : g);
@@ -685,11 +714,11 @@ export function bindThemeSwitch(root, rerender) {
   root.addEventListener("click", (e) => {
     const b = e.target.closest("[data-theme-mode]");
     if (!b || b.disabled) return;
-    theme.mode = b.dataset.themeMode; put("cuotai.themeMode", theme.mode); crossFade(() => { applyTheme(); return rerender(); });
+    theme.mode = b.dataset.themeMode; setPreference("theme_mode", theme.mode).catch(() => {}); crossFade(() => { applyTheme(); return rerender(); });
   });
   root.addEventListener("change", async (e) => {
     if (e.target.matches("[data-theme-id]")) {
-      theme.id = themeById(e.target.value).id; put("cuotai.theme", theme.id); crossFade(() => { applyTheme(); return rerender(); });
+      theme.id = themeById(e.target.value).id; setPreference("theme", theme.id).catch(() => {}); crossFade(() => { applyTheme(); return rerender(); });
     }
   });
   root.addEventListener("click", async (e) => {
@@ -1360,12 +1389,20 @@ const demo = {
   model_support: async () => ({ supported: false, text: { id: "models.demo", params: {}, fallback: "Demonstração no navegador: o catálogo de modelos só é consultado no app desktop." } }),
   config_changed_on_disk: async () => false,
   get_settings: async () => ({ user_dir: demoSettings.custom ?? "~/.config/cuotai", default_dir: "~/.config/cuotai", custom_dir: demoSettings.custom, env_locked: false, config_file: demoSettings.config, config_env_locked: false, motion: get("cuotai.motion", "system"), show_pace: get(PACE_KEY, "on") !== "off",
+    theme: get("cuotai.theme", "") || null, theme_mode: get("cuotai.themeMode", "system"), sort: get(SORT_KEY, "custom"), group_recharging: get(GROUP_KEY, "off") === "on", locale: get("cuotai.locale", "") || null, local_storage_migrated: true,
     history_days: demoSettings.historyDays ?? 90, history_days_min: 7, history_days_max: 365, history_recording: demoSettings.historyRecording, status_queries: demoSettings.statusQueries,
     notify: { ...demoSettings.notify }, notify_leads: [0, 5, 15, 60], notify_whens: ["used", "exhausted", "always"],
     alerts: structuredClone(demoSettings.alerts), alert_min: 10, alert_max: 99, version: "demo" }),
   set_user_dir: async ({ path }) => { demoSettings.custom = path ?? null; },
   set_motion: async ({ motion }) => { if (!MOTIONS.includes(motion)) throw "invalid_motion"; },
   set_show_pace: async () => {},
+  set_preference: async ({ key, value }) => {
+    const ok = { theme: typeof value === "string" && /^[\w.-]{1,64}$/.test(value), theme_mode: THEME_MODE_IDS.includes(value), sort: SORT_MODES.includes(value), group_recharging: typeof value === "boolean" };
+    if (!ok[key]) throw "invalid_preference";
+    mirrorPreference(key, value);
+    await emitSettingsChanged(key);
+  },
+  migrate_local_storage: async () => demo.get_settings(),
   set_history_days: async ({ days }) => { if (!(Number.isInteger(days) && days >= 7 && days <= 365)) throw "invalid_history_days"; demoSettings.historyDays = days; },
   // ponytail: the browser demo has no history file; fixed counts let the export and erase flows be driven, and an
   // erased account (or everything) leaves the synthetic history of `account_history`.
@@ -1582,12 +1619,12 @@ const SORT_KEY = "cuotai.sort";
 export const SORT_MODES = ["custom", "binding", "reset-asc", "reset-desc", "pct-asc", "pct-desc"];
 let sortMode = SORT_MODES.includes(get(SORT_KEY, "custom")) ? get(SORT_KEY, "custom") : "custom";
 export const currentSort = () => sortMode;
-export const setSort = (mode) => { if (SORT_MODES.includes(mode)) { sortMode = mode; put(SORT_KEY, mode); } };
+export const setSort = (mode) => { if (SORT_MODES.includes(mode)) { sortMode = mode; setPreference("sort", mode).catch(() => {}); } };
 // PRD 0010 RF4.2: optional "Recharging" group, off by default; display only, the TOML order is never rewritten.
 const GROUP_KEY = "cuotai.group-recharging";
 let groupRecharging = get(GROUP_KEY, "off") === "on";
 export const groupingRecharging = () => groupRecharging;
-export const setGroupRecharging = (on) => { groupRecharging = on; put(GROUP_KEY, on ? "on" : "off"); };
+export const setGroupRecharging = (on) => { groupRecharging = on; setPreference("group_recharging", !!on).catch(() => {}); };
 /** [others, recharging] in the order already chosen; with grouping off, everything stays in the first list. */
 export const splitRecharging = (list) => (groupRecharging ? [list.filter((r) => !isRecharging(r)), list.filter(isRecharging)] : [list, []]);
 // PRD 0007 RF3.4: consumption pace, on by default; `desktop.json` is the source, localStorage mirrors it for windows.
@@ -1622,12 +1659,41 @@ export function paceHtml(p, opts) {
   return `<p class="pace-line" data-pace="${esc(p.stage)}" title="${esc(`${text}. ${t("card.pace.estimate")}`)}">${icon(PACE_ICON[p.tone] ?? "clock", p.tone)}<span>${esc(text)}</span></p>`;
 }
 export function initOrderSync(onChange) {
-  addEventListener("storage", (e) => {
-    if (e.key === SORT_KEY && SORT_MODES.includes(e.newValue)) sortMode = e.newValue;
-    else if (e.key === GROUP_KEY) groupRecharging = e.newValue === "on";
-    else if (e.key === PACE_KEY) showPace = e.newValue !== "off";
-    else return;
-    onChange();
+  onPreferencesChanged((changed) => {
+    if (["sort", "group_recharging", "show_pace"].some((k) => changed.has(k))) onChange();
+  });
+}
+
+/** Applies a `get_settings` answer to this window's state; resolves to the keys whose value changed here. */
+async function applyPreferences(s, { boot = false } = {}) {
+  const changed = new Set();
+  const was = { motion: document.documentElement.dataset.motion || "system", pace: showPace };
+  if (s.theme && s.theme !== theme.id) { theme.id = s.theme; changed.add("theme"); }
+  if (THEME_MODE_IDS.includes(s.theme_mode) && s.theme_mode !== theme.mode) { theme.mode = s.theme_mode; changed.add("theme_mode"); }
+  if (SORT_MODES.includes(s.sort) && s.sort !== sortMode) { sortMode = s.sort; changed.add("sort"); }
+  if (typeof s.group_recharging === "boolean" && s.group_recharging !== groupRecharging) { groupRecharging = s.group_recharging; changed.add("group_recharging"); }
+  applyMotion(s.motion);
+  if (was.motion !== (s.motion || "system")) changed.add("motion");
+  applyPace(s.show_pace);
+  if (was.pace !== showPace) changed.add("show_pace");
+  for (const [key, value] of [["theme", theme.id], ["theme_mode", theme.mode], ["sort", sortMode], ["group_recharging", groupRecharging]]) mirrorPreference(key, value);
+  if (s.locale && s.locale !== currentLocale()) {
+    if (boot) mirrorPreference("locale", s.locale);
+    else { await setLocale(s.locale); changed.add("locale"); }
+  }
+  return changed;
+}
+const THEME_MODE_IDS = ["system", "light", "dark"];
+const prefListeners = new Set();
+let prefHooked = false;
+/** Calls `cb(changedKeys)` when another window (or the shell) changed a preference that differs from this one's. */
+function onPreferencesChanged(cb) {
+  prefListeners.add(cb);
+  if (prefHooked) return;
+  prefHooked = true;
+  onSettingsChanged(async () => {
+    const changed = await syncPreferences();
+    if (changed.size) prefListeners.forEach((f) => f(changed));
   });
 }
 

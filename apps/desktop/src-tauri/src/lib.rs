@@ -509,6 +509,29 @@ fn set_motion(motion: String) -> Result<(), String> {
     settings::save_motion(&motion).map_err(str::to_owned)
 }
 
+/// PRD 0020 RF7.2: one of `theme`, `theme_mode`, `sort`, `group_recharging`, saved in
+/// `desktop.json`, the single source; every window hears the `settings-changed` event
+/// (RF7.1) and re-reads. Errors: `invalid_preference`, `unwritable`.
+#[tauri::command]
+fn set_preference(app: AppHandle, key: String, value: serde_json::Value) -> Result<(), String> {
+    settings::save_preference(&key, &value).map_err(str::to_owned)?;
+    let _ = app.emit("settings-changed", serde_json::json!({ "key": key }));
+    Ok(())
+}
+
+/// PRD 0020 RF7.2: the one-time copy of the old `localStorage` values (keys `theme`,
+/// `theme_mode`, `sort`, `group_recharging`, `motion`, `locale`); returns the settings.
+#[tauri::command]
+fn migrate_local_storage(
+    app: AppHandle,
+    values: BTreeMap<String, String>,
+) -> Result<settings::SettingsView, String> {
+    if settings::migrate_local_storage(&values).map_err(str::to_owned)? {
+        let _ = app.emit("settings-changed", serde_json::json!({ "key": "" }));
+    }
+    Ok(settings::view())
+}
+
 /// PRD 0007 RF3.4: show or hide the consumption pace. Error: `unwritable`.
 #[tauri::command]
 fn set_show_pace(show: bool) -> Result<(), String> {
@@ -804,7 +827,12 @@ async fn set_account_notify(
 /// backend sends. Errors: `invalid_locale`, `unwritable`.
 #[tauri::command]
 async fn set_locale(app: AppHandle, b: Shared<'_>, locale: String) -> Result<(), String> {
-    b.update_notices(&app, |n| n.set_locale(&locale)).await
+    let differs = settings::settings_path().is_none_or(|f| settings::locale_differs(&f, &locale));
+    b.update_notices(&app, |n| n.set_locale(&locale)).await?;
+    if differs {
+        let _ = app.emit("settings-changed", serde_json::json!({ "key": "locale" }));
+    }
+    Ok(())
 }
 
 /// The browser page after a sign-in callback follows the interface language
@@ -1533,6 +1561,8 @@ pub fn run() {
             open_user_dir,
             set_motion,
             set_show_pace,
+            set_preference,
+            migrate_local_storage,
             set_history_days,
             history_export,
             history_erase,

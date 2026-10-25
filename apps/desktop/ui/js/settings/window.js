@@ -138,7 +138,7 @@ const applyTarget = (target) => (target?.page || target?.anchor
   ? go(target.page, { anchor: target.anchor, focusTitle: !target.anchor })
   : null);
 
-// Theme, mode and language (with cross-fade) repaint the whole window; the other windows follow by `storage` events.
+// Theme, mode and language (with cross-fade) repaint the whole window; the other windows follow the shell event.
 const repaintAll = () => { syncTitle(); paintNav(); return paintPage(); };
 bindThemeSwitch(root, repaintAll);
 initTheme(repaintAll);

@@ -16,7 +16,7 @@ export function html({ settings: s }) {
 }
 
 /** Theme, mode and language go through the shell's shared switch (`bindThemeSwitch`, with cross-fade); they are
- *  mirrored in localStorage, so the other windows follow them through `storage` events. Animations save on change
+ *  saved in desktop.json by the shell, which tells the other windows (RF7). Animations save on change
  *  (RF4.1); a refused value goes back to the saved one with the reason in its row (RF4.3). */
 export function bind(root, ctx) {
   const motion = root.querySelector("#motion");

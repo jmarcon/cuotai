@@ -25,8 +25,8 @@ export function html({ settings: s, view }) {
 
 export function bind(root, ctx) {
   // PRD 0009 RF2.3: display-only ordering; the manual order (TOML, shared with the TUI) is never rewritten.
-  root.querySelector("#order-binding").onchange = (e) => { setSort(e.target.checked ? "binding" : "custom"); toast(); ctx.changed("sort"); };
-  root.querySelector("#group-recharging").onchange = (e) => { setGroupRecharging(e.target.checked); toast(); ctx.changed("group_recharging"); };
+  root.querySelector("#order-binding").onchange = (e) => { setSort(e.target.checked ? "binding" : "custom"); toast(); };
+  root.querySelector("#group-recharging").onchange = (e) => { setGroupRecharging(e.target.checked); toast(); };
   // PRD 0007 RF3.4: saved in desktop.json; on failure the switch goes back to the saved value.
   root.querySelector("#show-pace").onchange = (e) => setShowPace(e.target.checked).then(
     () => { rowError(e.target, ""); toast(); ctx.changed("show_pace"); },

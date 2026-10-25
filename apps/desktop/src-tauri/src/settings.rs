@@ -76,6 +76,22 @@ struct Stored {
     /// "center it again" and never invalidates the other fields.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     settings_window: Option<serde_json::Value>,
+    /// Theme id (PRD 0020 RF7.2); absent = the interface default. Free text on
+    /// read: user themes only exist after the interface loads them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    theme: Option<String>,
+    /// Light/dark choice (PRD 0020 RF7.2); absent = `system`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    theme_mode: Option<String>,
+    /// Account display order (PRD 0020 RF7.2); absent = `custom`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sort: Option<String>,
+    /// The "Recharging" group (PRD 0020 RF7.2); absent = off. Only `true` is stored.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    group_recharging: Option<bool>,
+    /// One-time migrations already done, e.g. `{"local_storage": 1}` (PRD 0020 RF7.2).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    migrations: Option<serde_json::Value>,
 }
 
 /// PRD 0018 RF2.6/RF3.3: the update-check preferences of this device.
@@ -834,6 +850,139 @@ pub fn save_motion(motion: &str) -> Result<(), &'static str> {
     })
 }
 
+/// Account orders the dashboard offers, in the order the interface lists them.
+pub const SORTS: [&str; 6] = [
+    "custom",
+    "binding",
+    "reset-asc",
+    "reset-desc",
+    "pct-asc",
+    "pct-desc",
+];
+const THEME_MODES: [&str; 3] = ["system", "light", "dark"];
+
+fn valid_theme_id(id: &str) -> bool {
+    (1..=64).contains(&id.len())
+        && id
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.'))
+}
+
+/// BCP 47-ish tag, the same shape the pages accept before first paint.
+fn valid_locale(code: &str) -> bool {
+    let mut parts = code.split('-');
+    let ok_first = parts
+        .next()
+        .is_some_and(|p| (2..=3).contains(&p.len()) && p.bytes().all(|b| b.is_ascii_alphabetic()));
+    code.len() <= 35
+        && ok_first
+        && parts.all(|p| (2..=8).contains(&p.len()) && p.bytes().all(|b| b.is_ascii_alphanumeric()))
+}
+
+/// Stores one of the interface preferences that live here since PRD 0020 RF7.2;
+/// the defaults remove the key. Error: `invalid_preference`.
+fn apply_preference(
+    s: &mut Stored,
+    key: &str,
+    value: &serde_json::Value,
+) -> Result<(), &'static str> {
+    let text = value.as_str();
+    match key {
+        "theme" => match text {
+            Some(v) if valid_theme_id(v) => s.theme = Some(v.to_owned()),
+            _ => return Err("invalid_preference"),
+        },
+        "theme_mode" => match text {
+            Some(v) if THEME_MODES.contains(&v) => {
+                s.theme_mode = (v != "system").then(|| v.to_owned())
+            }
+            _ => return Err("invalid_preference"),
+        },
+        "sort" => match text {
+            Some(v) if SORTS.contains(&v) => s.sort = (v != "custom").then(|| v.to_owned()),
+            _ => return Err("invalid_preference"),
+        },
+        "group_recharging" => match value.as_bool() {
+            Some(on) => s.group_recharging = on.then_some(true),
+            None => return Err("invalid_preference"),
+        },
+        _ => return Err("invalid_preference"),
+    }
+    Ok(())
+}
+
+/// Saves one interface preference (`theme`, `theme_mode`, `sort`, `group_recharging`).
+pub fn save_preference(key: &str, value: &serde_json::Value) -> Result<(), &'static str> {
+    let file = settings_file().ok_or("unwritable")?;
+    apply_preference(&mut Stored::default(), key, value)?;
+    update(&file, |s| {
+        let _ = apply_preference(s, key, value);
+    })
+}
+
+fn migrated_of(stored: &Stored) -> bool {
+    stored
+        .migrations
+        .as_ref()
+        .and_then(|m| m.get("local_storage"))
+        .and_then(serde_json::Value::as_u64)
+        == Some(1)
+}
+
+/// One-time copy of the old per-window `localStorage` preferences (PRD 0020
+/// RF7.2): a key is taken only when this file has no value for it, an invalid
+/// value is dropped, and the migration is recorded either way.
+fn migrate_local(s: &mut Stored, old: &BTreeMap<String, String>) {
+    if migrated_of(s) {
+        return;
+    }
+    let text = |k: &str| serde_json::Value::String(old.get(k).cloned().unwrap_or_default());
+    if s.theme.is_none() {
+        let _ = apply_preference(s, "theme", &text("theme"));
+    }
+    if s.theme_mode.is_none() {
+        let _ = apply_preference(s, "theme_mode", &text("theme_mode"));
+    }
+    if s.sort.is_none() {
+        let _ = apply_preference(s, "sort", &text("sort"));
+    }
+    if s.group_recharging.is_none() && old.get("group_recharging").map(String::as_str) == Some("on")
+    {
+        s.group_recharging = Some(true);
+    }
+    if s.motion.is_none() {
+        if let Some(m) = old.get("motion").filter(|m| MOTIONS.contains(&m.as_str())) {
+            s.motion = (m != "system").then(|| m.clone());
+        }
+    }
+    if s.locale.is_none() {
+        if let Some(l) = old.get("locale").filter(|l| valid_locale(l)) {
+            s.locale = Some(l.clone());
+        }
+    }
+    let mut m = match s.migrations.take() {
+        Some(serde_json::Value::Object(m)) => m,
+        _ => serde_json::Map::new(),
+    };
+    m.insert("local_storage".into(), 1.into());
+    s.migrations = Some(serde_json::Value::Object(m));
+}
+
+/// Runs the migration of [`migrate_local`] once; `true` when it ran now.
+pub fn migrate_local_storage(old: &BTreeMap<String, String>) -> Result<bool, &'static str> {
+    let file = settings_file().ok_or("unwritable")?;
+    if migrated_of(&read(&file)) {
+        return Ok(false);
+    }
+    update(&file, |s| migrate_local(s, old))?;
+    Ok(true)
+}
+
+/// Whether `locale` differs from the language stored in `file`.
+pub fn locale_differs(file: &Path, locale: &str) -> bool {
+    read(file).locale.as_deref() != Some(locale)
+}
+
 /// Shows or hides the consumption pace; `true` (the default) removes the key.
 pub fn save_show_pace(show: bool) -> Result<(), &'static str> {
     let file = settings_file().ok_or("unwritable")?;
@@ -887,6 +1036,14 @@ pub struct SettingsView {
     motion: &'static str,
     /// Consumption pace on cards, details and tray (on by default).
     show_pace: bool,
+    /// PRD 0020 RF7.2: theme id, light/dark mode, account order, the "Recharging" group, the
+    /// interface language and whether the `localStorage` migration already ran.
+    theme: Option<String>,
+    theme_mode: &'static str,
+    sort: &'static str,
+    group_recharging: bool,
+    locale: Option<String>,
+    local_storage_migrated: bool,
     /// Days of measurement history kept, and the accepted range.
     history_days: u16,
     history_days_min: u16,
@@ -924,6 +1081,18 @@ pub fn view() -> SettingsView {
             .is_some(),
         motion: motion_of(&stored),
         show_pace: stored.show_pace != Some(false),
+        theme: stored.theme.clone().filter(|t| valid_theme_id(t)),
+        theme_mode: THEME_MODES
+            .into_iter()
+            .find(|m| stored.theme_mode.as_deref() == Some(m))
+            .unwrap_or("system"),
+        sort: SORTS
+            .into_iter()
+            .find(|m| stored.sort.as_deref() == Some(m))
+            .unwrap_or("custom"),
+        group_recharging: stored.group_recharging == Some(true),
+        locale: stored.locale.clone().filter(|l| valid_locale(l)),
+        local_storage_migrated: migrated_of(&stored),
         history_days: retention_of(&stored).keep_days(),
         history_days_min: Retention::MIN_DAYS,
         history_days_max: Retention::MAX_DAYS,
@@ -993,6 +1162,106 @@ mod tests {
         let stored = read(&file);
         assert_eq!(stored.user_dir.as_deref(), Some("/u"));
         assert_eq!(stored.config_file, None);
+    }
+
+    #[test]
+    fn preferences_validate_store_and_drop_defaults() {
+        let mut s = Stored::default();
+        assert_eq!(apply_preference(&mut s, "theme", &"win98".into()), Ok(()));
+        assert_eq!(
+            apply_preference(&mut s, "theme", &"a b".into()),
+            Err("invalid_preference")
+        );
+        assert_eq!(
+            apply_preference(&mut s, "theme_mode", &"dark".into()),
+            Ok(())
+        );
+        assert_eq!(
+            apply_preference(&mut s, "theme_mode", &"neon".into()),
+            Err("invalid_preference")
+        );
+        assert_eq!(apply_preference(&mut s, "sort", &"pct-asc".into()), Ok(()));
+        assert_eq!(
+            apply_preference(&mut s, "sort", &"x".into()),
+            Err("invalid_preference")
+        );
+        assert_eq!(
+            apply_preference(&mut s, "group_recharging", &true.into()),
+            Ok(())
+        );
+        assert_eq!(
+            apply_preference(&mut s, "group_recharging", &"on".into()),
+            Err("invalid_preference")
+        );
+        assert_eq!(
+            apply_preference(&mut s, "nope", &true.into()),
+            Err("invalid_preference")
+        );
+        assert_eq!(
+            (
+                s.theme.as_deref(),
+                s.theme_mode.as_deref(),
+                s.sort.as_deref()
+            ),
+            (Some("win98"), Some("dark"), Some("pct-asc"))
+        );
+        assert_eq!(s.group_recharging, Some(true));
+        apply_preference(&mut s, "theme_mode", &"system".into()).unwrap();
+        apply_preference(&mut s, "sort", &"custom".into()).unwrap();
+        apply_preference(&mut s, "group_recharging", &false.into()).unwrap();
+        assert_eq!(
+            (s.theme_mode, s.sort, s.group_recharging),
+            (None, None, None)
+        );
+    }
+
+    #[test]
+    fn local_storage_migration_fills_gaps_once_and_keeps_existing_values() {
+        let old: BTreeMap<String, String> = [
+            ("theme", "nord"),
+            ("theme_mode", "light"),
+            ("sort", "bogus"),
+            ("group_recharging", "on"),
+            ("motion", "off"),
+            ("locale", "es"),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_owned(), v.to_owned()))
+        .collect();
+        let mut s = Stored {
+            theme: Some("win98".into()),
+            migrations: Some(serde_json::json!({"other": 2})),
+            ..Stored::default()
+        };
+        migrate_local(&mut s, &old);
+        assert_eq!(
+            s.theme.as_deref(),
+            Some("win98"),
+            "a value already in desktop.json wins"
+        );
+        assert_eq!(s.theme_mode.as_deref(), Some("light"));
+        assert_eq!(s.sort, None, "invalid values are dropped");
+        assert_eq!(s.group_recharging, Some(true));
+        assert_eq!(
+            (s.motion.as_deref(), s.locale.as_deref()),
+            (Some("off"), Some("es"))
+        );
+        assert!(migrated_of(&s));
+        assert_eq!(s.migrations.as_ref().unwrap()["other"], 2);
+        let again: BTreeMap<String, String> = [("theme_mode".to_owned(), "dark".to_owned())].into();
+        migrate_local(&mut s, &again);
+        assert_eq!(s.theme_mode.as_deref(), Some("light"), "runs once");
+    }
+
+    #[test]
+    fn locale_tags_are_checked() {
+        assert!(valid_locale("pt-BR") && valid_locale("es") && valid_locale("zh-Hant-TW"));
+        assert!(
+            !valid_locale("")
+                && !valid_locale("x")
+                && !valid_locale("en_US")
+                && !valid_locale("en-")
+        );
     }
 
     #[test]
