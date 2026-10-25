@@ -69,7 +69,12 @@ pub async fn run(
             account: &config.accounts[index],
             report: &report,
             last_good_age: None,
-            incident_active: None,
+            // Status queries are off in this one-shot path unless enabled
+            // elsewhere; the helper then reports "unknown".
+            incident_active: cuotai_core::incidents::incident_active(
+                &monitor.incident_statuses(),
+                config.accounts[index].provider,
+            ),
         },
         &app_info(),
     );

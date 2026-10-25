@@ -381,6 +381,7 @@ pub fn drafts(
     drifts: &[Drift],
     accounts: &[Account],
     reports: &[Report],
+    statuses: &[crate::incidents::ProviderStatus],
     app: &AppInfo,
 ) -> Vec<IssueDraft> {
     drifts
@@ -393,7 +394,10 @@ pub fn drafts(
                     account,
                     report,
                     last_good_age: None,
-                    incident_active: None,
+                    incident_active: crate::incidents::incident_active(
+                        statuses,
+                        account.provider,
+                    ),
                 },
                 app,
                 drift.category,
@@ -476,7 +480,7 @@ pub fn analyze(
     skipped: &[String],
     app: &AppInfo,
 ) -> Outcome {
-    analyze_with(previous, accounts, reports, &[], &[], date, skipped, app)
+    analyze_with(previous, accounts, reports, &[], &[], &[], date, skipped, app)
 }
 
 /// [`analyze`] with the response fingerprints of `Monitor::refresh_with_shapes`
@@ -489,6 +493,7 @@ pub fn analyze_with(
     reports: &[Report],
     responses: &[Option<ResponseShape>],
     status_missing: &[(crate::Provider, Vec<&'static str>)],
+    statuses: &[crate::incidents::ProviderStatus],
     date: &str,
     skipped: &[String],
     app: &AppInfo,
@@ -497,7 +502,7 @@ pub fn analyze_with(
     let mut drifts = previous.map_or_else(Vec::new, |previous| detect(previous, &run, &firsts));
     drifts.extend(status_drifts(accounts, status_missing));
     let evidence = evidence(&run, &drifts);
-    let drafts = drafts(&drifts, accounts, reports, app);
+    let drafts = drafts(&drifts, accounts, reports, statuses, app);
     let markdown = markdown(&run, &drifts, &evidence, skipped, previous.is_none());
     Outcome {
         run,
@@ -686,6 +691,7 @@ mod tests {
             &reports,
             &[],
             &[(Provider::OpenAiApi, vec!["Responses"])],
+            &[],
             "2026-10-25",
             &[],
             &app(),
@@ -745,10 +751,50 @@ mod tests {
         let ev = evidence(&now, &drifts);
         assert_eq!(ev.len(), 1);
         assert_eq!(ev[0].provider, "open_ai_api");
-        let made = drafts(&drifts, &accounts, &now_reports, &app());
+        let made = drafts(&drifts, &accounts, &now_reports, &[], &app());
         assert_eq!(made.len(), 1);
         assert!(made[0].title.contains("canary schema_changed"));
         assert!(made[0].url.contains("shape_diff="));
+    }
+
+    #[test]
+    fn drafts_state_the_provider_incident_from_the_statuses() {
+        use crate::incidents::{incident_active, IncidentState, ProviderStatus};
+        let status = |provider, state| ProviderStatus {
+            provider,
+            state,
+            incident: None,
+            page_url: "https://status.example.com".into(),
+            read_at: None,
+            stale: false,
+            expired: false,
+        };
+        let statuses = [
+            status(Provider::OpenAiApi, IncidentState::PartialOutage),
+            status(Provider::Claude, IncidentState::Unknown),
+        ];
+        assert_eq!(incident_active(&statuses, Provider::OpenAiApi), Some(true));
+        assert_eq!(incident_active(&statuses, Provider::Claude), None);
+        assert_eq!(incident_active(&statuses, Provider::Groq), None);
+        assert_eq!(
+            incident_active(
+                &[status(Provider::OpenAiApi, IncidentState::Operational)],
+                Provider::OpenAiApi
+            ),
+            Some(false)
+        );
+        let accounts = [account(Provider::OpenAiApi)];
+        let (before, _) = run(
+            &accounts,
+            &[report(&accounts[0], Status::Ready, &["month"])],
+        );
+        let reports = [report(&accounts[0], Status::Ready, &["day"])];
+        let (now, firsts) = run(&accounts, &reports);
+        let drifts = detect(&before, &now, &firsts);
+        let made = drafts(&drifts, &accounts, &reports, &statuses, &app());
+        assert!(made[0].body.contains("Provider incident active: yes"));
+        let made = drafts(&drifts, &accounts, &reports, &[], &app());
+        assert!(!made[0].body.contains("Provider incident active: yes"));
     }
 
     #[test]
@@ -790,7 +836,7 @@ mod tests {
             serde_json::to_string(&now).unwrap(),
             markdown(&now, &drifts, &ev, &[], false),
             serde_json::to_string(&ev).unwrap(),
-            drafts(&drifts, &accounts, &reports, &app())
+            drafts(&drifts, &accounts, &reports, &[], &app())
                 .iter()
                 .map(|d| format!("{}{}{}", d.title, d.body, d.url))
                 .collect::<String>()

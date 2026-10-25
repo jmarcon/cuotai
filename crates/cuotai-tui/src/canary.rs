@@ -72,12 +72,21 @@ pub async fn run(
     } else {
         Vec::new()
     };
+    // PRD 0028 RF2.2: the drafts state whether an incident is active, from
+    // the same consented status queries.
+    let statuses = if args.status {
+        monitor.incidents().set_enabled(true);
+        monitor.refresh_incidents().await
+    } else {
+        Vec::new()
+    };
     let outcome = canary::analyze_with(
         previous.as_ref(),
         &config.accounts,
         &snapshot.reports,
         &responses,
         &status_missing,
+        &statuses,
         &date,
         &skipped,
         &app,

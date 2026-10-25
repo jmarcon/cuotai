@@ -20,6 +20,18 @@ pub use status::{
 
 use crate::Provider;
 
+/// PRD 0028 RF2.2: whether a provider incident is active for `provider`,
+/// from the statuses a frontend already holds (no network). `None` when the
+/// provider has no reading (status queries off, no verified source) or the
+/// reading is `Unknown`, so a draft never claims "no" without evidence.
+pub fn incident_active(statuses: &[ProviderStatus], provider: Provider) -> Option<bool> {
+    let status = statuses.iter().find(|status| status.provider == provider)?;
+    match status.state {
+        IncidentState::Unknown => None,
+        state => Some(state.is_incident()),
+    }
+}
+
 /// Wire format, including the dialect needed to interpret a non-Statuspage feed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Format {

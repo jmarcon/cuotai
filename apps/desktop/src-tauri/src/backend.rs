@@ -4549,7 +4549,10 @@ impl Backend {
                         account,
                         report: &report,
                         last_good_age,
-                        incident_active: None,
+                        incident_active: cuotai_core::incidents::incident_active(
+                            &l.monitor.incident_statuses(),
+                            account.provider,
+                        ),
                     },
                     &app,
                 )

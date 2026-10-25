@@ -1090,7 +1090,10 @@ pub async fn run(
                                     account,
                                     report,
                                     last_good_age: None,
-                                    incident_active: None,
+                                    incident_active: cuotai_core::incidents::incident_active(
+                                        &state.incidents,
+                                        account.provider,
+                                    ),
                                 },
                                 &crate::report_problem::app_info(),
                             );
