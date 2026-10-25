@@ -1068,5 +1068,6 @@
   "settings.theme.desc": "Solo cambian los colores.",
   "settings.motion.desc": "Sistema sigue el movimiento reducido.",
   "settings.lang.desc": "También en la bandeja.",
-  "settings.mode.label": "Modo"
+  "settings.mode.label": "Modo",
+  "dialog.picker.searchCount": "Buscar entre {count} proveedores"
 }

@@ -51,11 +51,9 @@ export function mountPicker(root, { onChoose, detected = () => [], onDismiss = (
     const hint = tl(entry.hint);
     return `<div role="option" class="pick" id="pick-${i}" data-i="${i}" aria-selected="${i === active}">
       ${logo(entry.provider, 32)}
-      <span class="pick-text"><b>${esc(entry.label)}</b>
-        <small class="pick-method">${esc(method)}</small>
-        ${hint !== method ? `<small class="pick-hint">${esc(hint)}</small>` : ""}
-        <span class="pick-chips">${entryChips(entry, found)}${found
+      <span class="pick-text"><span class="pick-name"><b>${esc(entry.label)}</b><span class="pick-chips">${entryChips(entry, found)}${found
           ? `<button type="button" class="link-btn" data-dismiss="${esc(found.kind)}">${te("dialog.detect.dismiss")}</button>` : ""}</span></span>
+        <small class="pick-method">${esc(method)}${hint !== method ? ` · <span class="pick-hint">${esc(hint)}</span>` : ""}</small></span>
       <span class="btn outline sm pick-connect" aria-hidden="true">${te("dialog.picker.connect")}</span>
     </div>`;
   };
@@ -100,6 +98,8 @@ export function mountPicker(root, { onChoose, detected = () => [], onDismiss = (
     const result = await searchProviders(input.value, currentLocale());
     if (mine !== seq) return; // a newer keystroke won
     entries = result;
+    // Mockup 31: the empty search names how many providers it covers.
+    if (!input.value.trim()) input.placeholder = t("dialog.picker.searchCount", { count: result.length });
     active = 0;
     paint();
   }

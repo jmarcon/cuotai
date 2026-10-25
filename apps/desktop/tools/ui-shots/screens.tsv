@@ -28,3 +28,11 @@
 50-settings-general	settings.html?page=general	860	640	dracula	dark	en-US
 50-settings-dashboard	settings.html?page=dashboard	860	640	dracula	dark	en-US
 50-settings-alerts	settings.html?page=alerts	860	900	dracula	dark	en-US
+07c-report-problem	settings.html?page=about	860	640	dracula	dark	en-US	[data-report-problem]
+13-main-update-available	index.html	1200	820	dracula	dark	en-US
+31-account-add-catalog	index.html	1200	820	dracula	dark	en-US	[data-add]
+50-settings-menubar	settings.html?page=menubar	860	640	dracula	dark	en-US
+50-settings-advanced	settings.html?page=integrations	860	800	dracula	dark	en-US
+50-settings-general-language	settings.html?page=general	860	640	dracula	dark	en-US	[data-lang-toggle]
+70-stats	index.html	1200	820	dracula	dark	en-US	[data-stats-toggle]
+01-tray-stats	tray.html	380	600	dracula	dark	en-US	[data-open-stats]

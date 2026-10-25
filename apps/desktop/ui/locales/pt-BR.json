@@ -1075,5 +1075,6 @@
   "settings.theme.desc": "Só cores; layout igual.",
   "settings.motion.desc": "Sistema segue o movimento reduzido.",
   "settings.lang.desc": "Vale também para a bandeja.",
-  "settings.mode.label": "Modo"
+  "settings.mode.label": "Modo",
+  "dialog.picker.searchCount": "Buscar entre {count} provedores"
 }

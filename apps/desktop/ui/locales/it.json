@@ -1068,5 +1068,6 @@
   "settings.theme.desc": "Solo i colori; il layout resta uguale.",
   "settings.motion.desc": "Sistema segue il movimento ridotto.",
   "settings.lang.desc": "Vale anche per il vassoio.",
-  "settings.mode.label": "Modalità"
+  "settings.mode.label": "Modalità",
+  "dialog.picker.searchCount": "Cerca tra {count} provider"
 }

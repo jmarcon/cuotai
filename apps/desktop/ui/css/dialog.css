@@ -751,22 +751,39 @@ dialog.dlg.dlg-catalog {
   text-decoration: underline;
   cursor: pointer;
 }
-/* DS-CMP-CAT-1: a 96 px tile grid at 560 px and above, only for the grouped catalog; results stay a list. */
-@container (min-width: 560px) {
-  .picker-list.is-grouped .pick-items {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: calc(var(--space-1) + var(--space-0));
-  }
-  .picker-list.is-grouped .pick {
-    flex-direction: column;
-    align-items: flex-start;
-    min-height: 96px;
-    border: 1px solid var(--border);
-  }
-  .picker-list.is-grouped .pick-connect {
-    margin-top: auto;
-  }
+/* Mockup 31 (PRD 0022): the grouped catalog is one hairline-divided card per sign-in method, with a micro
+   label and the core's hint on the right; search results stay a plain list. */
+.picker-list.is-grouped .pick-group-label {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: var(--space-3) var(--space-1) var(--space-1);
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.pick-group-hint {
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.picker-list.is-grouped .pick-items {
+  gap: 0;
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.picker-list.is-grouped .pick {
+  border-radius: 0;
+}
+.picker-list.is-grouped .pick + .pick {
+  border-top: var(--border-w) solid var(--border);
+}
+.pick-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
 }
 .picker-empty {
   display: flex;
@@ -849,4 +866,7 @@ dialog.dlg.dlg-catalog {
   font: var(--text-sm) var(--font-mono), var(--font-script);
   overflow-wrap: anywhere;
   user-select: all;
+}
+.picker-search input {
+  padding-left: calc(var(--space-6, 24px) + var(--space-2));
 }

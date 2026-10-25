@@ -4,7 +4,8 @@
 // expression to evaluate. No network beyond 127.0.0.1, no credential, no app file is edited: the browser demo
 // answers every command with its own fixtures (`demo` in apps/desktop/ui/js/lib.js, example.com identities).
 import { spawn } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,9 +17,18 @@ const CHROMES = {
   win32: ["C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"],
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/** A port the OS reports free right now, so parallel runs never share a server (UI_SHOTS_PORT pins one). */
+const freePort = () => new Promise((res, rej) => {
+  const s = createServer();
+  s.once("error", rej);
+  s.listen(0, "127.0.0.1", () => { const { port } = s.address(); s.close(() => res(port)); });
+});
 
 /** Starts the server and the browser; returns `{ open, shot, evaluate, click, close }`. */
-export async function launch({ port = Number(process.env.UI_SHOTS_PORT ?? 8862), cdp = Number(process.env.UI_SHOTS_CDP ?? 9462) } = {}) {
+export async function launch({ port, cdp } = {}) {
+  port ??= process.env.UI_SHOTS_PORT ? Number(process.env.UI_SHOTS_PORT) : await freePort();
+  // Chrome picks its own DevTools port (0) and writes it to DevToolsActivePort in the fresh profile.
+  cdp ??= process.env.UI_SHOTS_CDP ? Number(process.env.UI_SHOTS_CDP) : 0;
   const python = process.platform === "win32" ? "python" : "python3";
   const server = spawn(python, ["-m", "http.server", String(port), "--bind", "127.0.0.1", "--directory", ROOT], { stdio: "ignore" });
   const profile = mkdtempSync(join(tmpdir(), "cuotai-ui-shots-"));
@@ -28,6 +38,11 @@ export async function launch({ port = Number(process.env.UI_SHOTS_PORT ?? 8862),
   const stop = () => { server.kill(); chrome.kill(); try { rmSync(profile, { recursive: true, force: true }); } catch {} };
   process.on("exit", stop);
 
+  for (let i = 0; i < 80 && !cdp; i++) {
+    const file = join(profile, "DevToolsActivePort");
+    if (existsSync(file)) cdp = Number(readFileSync(file, "utf8").split("\n")[0]) || 0;
+    if (!cdp) await sleep(100);
+  }
   let targets = [];
   for (let i = 0; i < 80 && !targets.some((t) => t.type === "page"); i++) {
     try { targets = await (await fetch(`http://127.0.0.1:${cdp}/json/list`)).json(); } catch {}
