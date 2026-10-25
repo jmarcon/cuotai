@@ -569,6 +569,17 @@ impl AggregatorTest {
         Self { outcome, message }
     }
 
+    /// The test result of `outcome` for an instance of `provider`: a
+    /// LiteLLM proxy gets its own sentences, never the 9router ones.
+    pub fn for_provider(provider: crate::Provider, outcome: TestOutcome) -> Self {
+        if provider == crate::Provider::LiteLlm {
+            if let Some(message) = crate::providers::nine_router::litellm_outcome_text(&outcome) {
+                return Self { outcome, message };
+            }
+        }
+        Self::new(outcome)
+    }
+
     /// True when the instance is reachable and authorized.
     pub fn is_ok(&self) -> bool {
         matches!(self.outcome, TestOutcome::Connected { .. })
@@ -590,6 +601,33 @@ impl AggregatorTest {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn litellm_test_sentences_never_name_nine_router() {
+        for outcome in [
+            TestOutcome::Connected {
+                version: None,
+                connections: 3,
+            },
+            TestOutcome::NotNineRouter,
+            TestOutcome::PasswordWrong,
+            TestOutcome::PasswordRequired,
+            TestOutcome::Unreachable,
+        ] {
+            let test = AggregatorTest::for_provider(crate::Provider::LiteLlm, outcome);
+            assert!(
+                !test.message.id.contains("nine_router")
+                    || test.message.id == "test.nine_router.unreachable",
+                "{}",
+                test.message.id
+            );
+            assert!(
+                !test.message.fallback.contains("9router"),
+                "{}",
+                test.message.fallback
+            );
+        }
+    }
     use crate::model::MetricKind;
     use chrono::TimeZone;
 

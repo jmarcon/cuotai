@@ -941,7 +941,7 @@ impl Monitor {
             )
             .await
             .unwrap_or(aggregators::TestOutcome::Unreachable);
-        aggregators::AggregatorTest::new(outcome)
+        aggregators::AggregatorTest::for_provider(account.provider, outcome)
     }
 
     /// PRD 0016 RF2.1: one read-only query of `account` (a draft the wizard

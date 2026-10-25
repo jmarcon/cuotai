@@ -1328,6 +1328,31 @@ pub enum TestOutcome {
     CaFileUnreadable,
 }
 
+/// PRD 0036 RF10.3: the sentence of a LiteLLM proxy test, which never
+/// names 9router; `None` for the outcomes whose 9router text is generic.
+pub(crate) fn litellm_outcome_text(outcome: &TestOutcome) -> Option<Localized> {
+    Some(match outcome {
+        TestOutcome::Connected { connections, .. } => Localized::with_param(
+            "test.litellm.connected",
+            "providers",
+            *connections as u64,
+            format!("LiteLLM: {connections} provedores com orçamento encontrados."),
+        ),
+        TestOutcome::NotNineRouter => Localized::fixed(
+            "test.litellm.not_litellm",
+            "O endereço responde, mas não parece ser um proxy LiteLLM (sem /provider/budgets).",
+        ),
+        TestOutcome::PasswordWrong => {
+            Localized::fixed("test.litellm.key_wrong", "Chave do LiteLLM recusada.")
+        }
+        TestOutcome::PasswordRequired => Localized::fixed(
+            "test.litellm.key_required",
+            "Informe a chave mestra ou uma chave virtual do LiteLLM.",
+        ),
+        _ => return None,
+    })
+}
+
 /// The localized sentence of an outcome (no URL, no body).
 pub(crate) fn outcome_text(outcome: &TestOutcome) -> Localized {
     match outcome {
