@@ -4490,6 +4490,18 @@ mod tests {
             .params
             .insert("extension_id".into(), "acme".into());
         assert_eq!(extension.display_name(), "acme");
+        // The manifest display name comes before the id; a blank one or a
+        // configured name keeps the usual order.
+        assert_eq!(
+            extension.display_name_with(Some("Acme Usage")),
+            "Acme Usage"
+        );
+        assert_eq!(extension.display_name_with(Some("  ")), "acme");
+        assert_eq!(extension.display_name_with(None), "acme");
+        assert_eq!(named.display_name_with(Some("Acme Usage")), "Work");
+        assert_eq!(unnamed.display_name_with(Some("Acme Usage")), "Claude");
+        let discovery = crate::extensions::Discovery::default();
+        assert_eq!(discovery.account_name(&extension), "acme");
     }
 
     #[test]

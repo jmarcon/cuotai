@@ -204,6 +204,17 @@ impl Discovery {
         self.extensions.iter().find(|manifest| manifest.id == id)
     }
 
+    /// PRD 0029 RF3.4: the name shown for `account`: its configured name,
+    /// else (for an extension account) the manifest display name of its
+    /// extension when it is installed, else the extension id.
+    pub fn account_name<'a>(&'a self, account: &'a crate::Account) -> std::borrow::Cow<'a, str> {
+        let manifest = account
+            .extension_id()
+            .and_then(|id| self.get(id))
+            .map(|manifest| manifest.name.as_str());
+        account.display_name_with(manifest)
+    }
+
     /// RF1.3: one account type per valid extension.
     pub fn catalog(&self) -> Vec<CatalogEntry> {
         self.extensions

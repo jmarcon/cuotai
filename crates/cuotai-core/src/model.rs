@@ -489,6 +489,26 @@ impl Account {
         display_name(&self.name, self.provider, self.extension_id())
     }
 
+    /// [`Self::display_name`] with the extension's manifest display name
+    /// (PRD 0029 RF3.4): an unnamed extension account shows `manifest_name`
+    /// when it is not blank, and its extension id only without one.
+    /// [`crate::extensions::Discovery::account_name`] looks it up.
+    pub fn display_name_with<'a>(
+        &'a self,
+        manifest_name: Option<&'a str>,
+    ) -> std::borrow::Cow<'a, str> {
+        match manifest_name.map(str::trim) {
+            Some(manifest)
+                if !manifest.is_empty()
+                    && !self.named()
+                    && self.provider == Provider::Extension =>
+            {
+                manifest.into()
+            }
+            _ => self.display_name(),
+        }
+    }
+
     /// PRD 0029 RF4.1: whether the account has a configured name.
     pub fn named(&self) -> bool {
         !self.name.trim().is_empty()
