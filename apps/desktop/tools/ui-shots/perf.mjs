@@ -2,8 +2,10 @@
 // PRD 0020 RNF (performance) and PRD 0022 (render budget): two probes against the real UI in the browser demo.
 //   * Settings open time: from the start of the navigation to the first Settings page rendered (sidebar and the
 //     first row present), budget 300 ms (PRD 0020 RNF: "opens in under 300 ms on the reference machine").
-//   * Render time: from an interaction (expanding an account, opening Stats) to the next presented frame,
-//     budget 16 ms (one frame at 60 Hz).
+//   * Render time: the main-thread work of an interaction (expanding an account, opening Stats): the click handler,
+//     its render and the forced style and layout of the new DOM, budget 16 ms (it must fit in one frame at 60 Hz).
+//     The time to the next presented frame is printed beside it; it adds the wait for the display's vsync (0 to
+//     16.7 ms, whatever the work), so it cannot be held to a one-frame budget and stays informational.
 // A browser demo on a CI runner is slower and noisier than the reference machine, so each probe takes the median of
 // several runs and the script is advisory by default: it prints the numbers and exits 0 unless `--strict` is given.
 // Usage: node apps/desktop/tools/ui-shots/perf.mjs [--json] [--strict] [--runs N] [--open-budget MS] [--frame-budget MS]
@@ -33,9 +35,10 @@ try {
   }
   results.push({ probe: "settings-open", unit: "ms", budget: OPEN_BUDGET, runs: openTimes.map((t) => Math.round(t)), median: openTimes.length ? Math.round(median(openTimes)) : null });
 
-  // Render time: interaction to the next presented frame (two rAFs: the first runs before paint, the second after it).
+  // Render time: the click, its render and a forced style + layout (the work), then the next presented frame (two
+  // rAFs: the first runs before paint, the second after it; informational, it includes the vsync wait).
   const frame = async (name, page, w, h, selector) => {
-    const times = [];
+    const times = [], frames = [];
     for (let i = 0; i < RUNS; i++) {
       await ui.open(page, { w, h, scale: 1, motion: "reduce" });
       const t = await ui.evaluate(`new Promise((res) => {
@@ -43,11 +46,14 @@ try {
         if (!el) return res(null);
         const t0 = performance.now();
         el.click();
-        requestAnimationFrame(() => requestAnimationFrame(() => res(performance.now() - t0)));
+        document.body.getBoundingClientRect();
+        const work = performance.now() - t0;
+        requestAnimationFrame(() => requestAnimationFrame(() => res([work, performance.now() - t0])));
       })`);
-      if (typeof t === "number") times.push(t);
+      if (Array.isArray(t)) { times.push(t[0]); frames.push(t[1]); }
     }
-    results.push({ probe: name, unit: "ms", budget: FRAME_BUDGET, runs: times.map((t) => Math.round(t * 10) / 10), median: times.length ? Math.round(median(times) * 10) / 10 : null });
+    const r1 = (x) => Math.round(x * 10) / 10;
+    results.push({ probe: name, unit: "ms", budget: FRAME_BUDGET, runs: times.map(r1), median: times.length ? r1(median(times)) : null, frame_median: frames.length ? r1(median(frames)) : null });
   };
   await frame("tray-expand-account", "tray.html", 380, 600, "[data-open]");
   await frame("tray-open-stats", "tray.html", 380, 600, "[data-open-stats]");
@@ -58,7 +64,7 @@ let over = 0;
 for (const r of results) {
   const bad = r.median == null || r.median > r.budget;
   if (bad) over++;
-  if (!json) console.log(`${bad ? "OVER" : "ok  "} ${r.probe}: median ${r.median} ${r.unit} (budget ${r.budget}; runs ${r.runs.join(", ")})`);
+  if (!json) console.log(`${bad ? "OVER" : "ok  "} ${r.probe}: median ${r.median} ${r.unit} (budget ${r.budget}; runs ${r.runs.join(", ")})${r.frame_median != null ? `; next frame ${r.frame_median} ms` : ""}`);
 }
 if (json) console.log(JSON.stringify(results, null, 1));
 console.error(`ui-shots perf: ${over} probe(s) over budget${strict ? "" : " (advisory)"}`);

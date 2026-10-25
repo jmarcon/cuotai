@@ -17,7 +17,7 @@ repository root.
 | `node apps/desktop/tools/ui-shots/locale-smoke.mjs [locale …]` | PRD 0034 RF7: renders the tray, the main window, the Settings pages and the dialogs in en-US, es and it with the core catalogs; exits 1 on any Portuguese word, or on a catalog key shown instead of its text |
 | `node apps/desktop/tools/ui-shots/check.mjs --zoom [locale …]` | The 200 % zoom pass (PRD 0020 RNF): the same overflow check on the main window at 640 × 410 and four Settings pages at 640 × 360, the CSS viewports a 1280-wide screen leaves at 200 % |
 | `node apps/desktop/tools/ui-shots/a11y.mjs [--json] [--all]` | axe-core (pinned 4.10.2 from cdnjs, SHA-256 verified before it runs) over the tray, main window and four Settings pages, light and dark; fails on serious/critical violations (`--all`: every impact; `color-contrast` stays advisory, `contrast_gate.py` owns contrast); exit 3 when axe could not be fetched |
-| `node apps/desktop/tools/ui-shots/perf.mjs [--strict] [--runs N]` | Median of several runs: Settings open time (budget 300 ms, PRD 0020 RNF) and interaction-to-frame time in the tray (budget 16 ms); advisory unless `--strict` |
+| `node apps/desktop/tools/ui-shots/perf.mjs [--strict] [--runs N]` | Median of several runs: Settings open time (budget 300 ms, PRD 0020 RNF) and interaction work time in the tray (click, render and layout; budget 16 ms; the next-frame time is informational); advisory unless `--strict` |
 | `node apps/desktop/tools/ui-shots/keyboard.mjs` | PRD 0032: drives Settings › Alerts › Quiet hours with the keyboard only (Tab, Shift+Tab, Enter, Space, typed digits): open the sub-page, switch on, add, type a time, remove, repeat on every day, reach the three-interval limit; exits 1 on the first step that needs a mouse |
 | `node apps/desktop/tools/ui-shots/check.mjs --selftest` | Forces a long string into a tray figure and passes only if the check catches it |
 
@@ -43,8 +43,7 @@ taller than one line, and a horizontal scroll. What may truncate by design (DS-M
 labels and names, the status label after its fitting, account names in the Stats rows, one-line notices and access lines, the
 Settings sidebar labels in its icon-rail width) is listed as allowed in `ALLOWED`.
 
-CI (`ui-checks` job, macOS): the overflow check, the 200 % zoom pass and the selftest block; the axe pass and the
-timing probes are advisory (`continue-on-error`) because they depend on a CDN download and on runner speed. At the
-time of writing the axe pass reports real findings on the tray and the main window (`aria-meter-name`,
-`aria-required-attr` on meters without values, `aria-required-children` on `.tabs`, `aria-allowed-attr` on the
-`data-more` button) that need a product UI change; the Settings pages are clean.
+CI (`ui-checks` job, macOS): the overflow check, the 200 % zoom pass, the selftest and the axe pass block (an axe-core
+download failure, exit 3, is only a warning), and so do the timing probes (`--strict`): they time the main-thread work
+of an interaction (click, render, forced layout), a few milliseconds against the 16 ms budget, and print the time to
+the next presented frame (which includes the vsync wait) only for information. The tray, the main window and the Settings pages report no serious or critical violation.

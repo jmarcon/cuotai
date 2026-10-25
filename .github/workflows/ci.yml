@@ -388,11 +388,17 @@ jobs:
         run: node apps/desktop/tools/ui-shots/locale-smoke.mjs
       - name: Quiet-hours editor works from the keyboard (PRD 0032)
         run: node apps/desktop/tools/ui-shots/keyboard.mjs
-      - name: Accessibility pass (axe-core, advisory)
-        continue-on-error: true
-        run: node apps/desktop/tools/ui-shots/a11y.mjs
-      - name: Settings open time and render time (advisory)
-        continue-on-error: true
+      # Blocking on serious/critical violations; exit 3 (axe-core could not be fetched from the CDN or failed its
+      # checksum) is reported as a warning rather than failing the run on a network hiccup.
+      - name: Accessibility pass (axe-core)
+        run: |
+          set +e
+          node apps/desktop/tools/ui-shots/a11y.mjs
+          code=$?
+          if [ "$code" -eq 3 ]; then echo "::warning::axe-core unavailable; accessibility pass not run"; exit 0; fi
+          exit "$code"
+      # Strict: the interaction probes time the main-thread work (well under the 16 ms frame), not the vsync wait.
+      - name: Settings open time and render time
         run: node apps/desktop/tools/ui-shots/perf.mjs --strict
 
   # Dependency licenses, advisories and sources (PRD 0019, RF1.3). cargo-deny
