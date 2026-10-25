@@ -988,7 +988,10 @@ impl EventState {
             return;
         };
         let state = incident.state;
-        let source = format!("{}|{}", out.next.provider.slug(), incident.page_url);
+        // One status per provider (a regional provider reports the worst
+        // of its sub-pages, whose page URL may change with it): the track
+        // is keyed by the provider alone, so a region flip is no new source.
+        let source = out.next.provider.slug().to_owned();
         let Some(track) = self.incidents.get_mut(&source) else {
             self.incidents.insert(
                 source,
