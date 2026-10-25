@@ -569,6 +569,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let store = SettingsStore::at(dir.path().join("cost/settings.json"));
         let account = crate::Account {
+            group: Default::default(),
             id: None,
             name: "Work".into(),
             provider: crate::Provider::Claude,
