@@ -296,3 +296,122 @@ fn the_digest_keeps_the_newest_state_of_each_metric() {
     assert_eq!(digest.len(), 1);
     assert_eq!(digest[0].threshold, 90);
 }
+
+fn account(name: &str) -> Account {
+    Account {
+        id: None,
+        name: name.into(),
+        provider: Provider::Claude,
+        ..Account::default()
+    }
+}
+
+#[test]
+fn private_texts_carry_no_account_name_in_any_language() {
+    let secret = account("Secret Corp");
+    let reading = report(t0(), quota(92.0, Some(window())));
+    let one = event_of(&reading, AlertKind::Threshold, 90);
+    let exhausted = event_of(&reading, AlertKind::Exhausted, 100);
+    let none_reset = AlertEvent {
+        resets_at: None,
+        ..one.clone()
+    };
+    let expiring = AlertEvent {
+        kind: AlertKind::SessionExpiring,
+        label: String::new(),
+        ..one.clone()
+    };
+    let projected = AlertEvent {
+        kind: AlertKind::ProjectedExhaustion,
+        threshold: 0,
+        projection: Some(Projection {
+            projected_at: t0() + mins(40),
+            lead_minutes: 60,
+            margin_seconds: 3600,
+            source: PaceSource::Recent,
+        }),
+        ..one.clone()
+    };
+    let cases: Vec<Vec<AlertEvent>> = vec![
+        vec![one.clone()],
+        vec![exhausted.clone()],
+        vec![none_reset],
+        vec![expiring],
+        vec![projected],
+        vec![one.clone(), exhausted.clone()],
+    ];
+    let mut with_names = 0;
+    for events in cases {
+        let public = notice_with(&[(&secret, events.clone())], t0(), &Utc, false).unwrap();
+        let private = notice_with(&[(&secret, events.clone())], t0(), &Utc, true).unwrap();
+        for locale in ["en-US", "es", "it", "pt-BR"] {
+            let text = format!(
+                "{} | {}",
+                private.title.resolve(locale),
+                private.body.resolve(locale)
+            );
+            assert!(!text.contains("Secret"), "{locale}: {text}");
+            assert!(!text.contains("Session (5h)"), "{locale}: {text}");
+            assert!(!text.contains('{'), "{locale}: {text}");
+        }
+        let text = format!(
+            "{} | {}",
+            public.title.resolve("en-US"),
+            public.body.resolve("en-US")
+        );
+        with_names += usize::from(text.contains("Secret"));
+    }
+    assert!(with_names >= 5, "the public texts still name the account");
+    // Two accounts.
+    let other = account("Other Co");
+    let two = notice_with(
+        &[(&secret, vec![one.clone()]), (&other, vec![one.clone()])],
+        t0(),
+        &Utc,
+        true,
+    )
+    .unwrap();
+    let text = format!(
+        "{} {}",
+        two.title.resolve("en-US"),
+        two.body.resolve("en-US")
+    );
+    assert!(
+        !text.contains("Secret") && !text.contains("Other"),
+        "{text}"
+    );
+}
+
+#[test]
+fn private_reset_notices_carry_no_account_or_metric_names() {
+    use crate::resets::{ResetEvent, ResetMetric};
+    let secret = account("Secret Corp");
+    let event = ResetEvent {
+        account_index: 0,
+        account_key: "k".into(),
+        metrics: vec![ResetMetric {
+            label: "Session (5h)".into(),
+            window: MetricWindow::Window5h,
+            resets_at: t0(),
+        }],
+        resets_at: t0(),
+        notify_at: t0(),
+    };
+    assert!(event
+        .notice(&secret, t0())
+        .body
+        .resolve("en-US")
+        .contains("Secret"));
+    let private = event.notice_with(&secret, t0(), true);
+    for locale in ["en-US", "es", "it", "pt-BR"] {
+        let text = format!(
+            "{} {}",
+            private.title.resolve(locale),
+            private.body.resolve(locale)
+        );
+        assert!(
+            !text.contains("Secret") && !text.contains("Session"),
+            "{locale}: {text}"
+        );
+    }
+}

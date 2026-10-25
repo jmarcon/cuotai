@@ -7,7 +7,9 @@
 //! ([`Ledger`]) and the window for a notice that came late, so a reset is
 //! notified once even across restarts, suspension or clock changes.
 
+mod lock;
 mod timeline;
+pub use lock::{lock_path, LedgerLock};
 pub use timeline::{
     timeline, timeline_of_config, AccountView, Lane, ShareLevel, Timeline, TimelineRange,
 };
@@ -128,6 +130,12 @@ impl ResetEvent {
     /// says the time is the provider's and the balance comes on the next
     /// refresh.
     pub fn notice(&self, account: &Account, now: DateTime<Utc>) -> Notice {
+        self.notice_with(account, now, false)
+    }
+
+    /// [`Self::notice`], and with `private` on (PRD 0032 RF7) a body with
+    /// neither the account name nor the metric labels.
+    pub fn notice_with(&self, account: &Account, now: DateTime<Utc>, private: bool) -> Notice {
         let provider = provider_l10n(account.provider);
         let provider_pt = account.provider.label();
         // Distinct windows in reset order; an `other` window is its label.
@@ -173,6 +181,15 @@ impl ResetEvent {
                 format!("{provider_pt}: {count} cotas renovam em {minutes} min"),
             ),
         };
+        if private {
+            return Notice {
+                title,
+                body: Localized::fixed(
+                    "resets.body.private",
+                    "Pelo horário informado pelo provedor; o novo saldo aparece na próxima atualização.",
+                ),
+            };
+        }
         let labels = self
             .metrics
             .iter()
@@ -362,6 +379,9 @@ struct Notified {
     digest: String,
     resets_at: DateTime<Utc>,
     at: DateTime<Utc>,
+    /// PRD 0032 RF3.2: dropped by quiet hours, never sent.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    skipped: bool,
 }
 
 impl Ledger {
@@ -370,12 +390,19 @@ impl Ledger {
         dirs::data_local_dir().map(|dir| dir.join("cuotai").join("notified.json"))
     }
 
-    /// A missing or unreadable file is an empty ledger.
+    /// A missing file is an empty ledger. A file that cannot be parsed is
+    /// set aside as `notified.json.corrupt` and read as empty, so the next
+    /// save recreates it (PRD 0032 §6).
     pub fn load(path: &Path) -> Self {
-        std::fs::read(path)
-            .ok()
-            .and_then(|bytes| serde_json::from_slice(&bytes).ok())
-            .unwrap_or_default()
+        let Ok(bytes) = std::fs::read(path) else {
+            return Self::default();
+        };
+        serde_json::from_slice(&bytes).unwrap_or_else(|_| {
+            let mut aside = path.as_os_str().to_owned();
+            aside.push(".corrupt");
+            let _ = std::fs::rename(path, aside);
+            Self::default()
+        })
     }
 
     /// Atomic write (temporary file + rename), readable by its owner only
@@ -407,7 +434,158 @@ impl Ledger {
                 digest: key.digest(),
                 resets_at: key.resets_at,
                 at: now,
+                skipped: false,
             });
+        }
+    }
+
+    /// PRD 0032 RF3.2: remember every metric of `event` as dropped by
+    /// quiet hours, so it is never sent at the end of the window.
+    pub fn record_skipped(&mut self, event: &ResetEvent, now: DateTime<Utc>) {
+        for key in event.keys() {
+            self.notified.push(Notified {
+                digest: key.digest(),
+                resets_at: key.resets_at,
+                at: now,
+                skipped: true,
+            });
+        }
+    }
+
+    /// PRD 0032 RF4.2: run `change` on the ledger **as it is on disk** while
+    /// holding `notified.lock`, then write it back: the process re-reads
+    /// what another one recorded, records its own and releases the lock
+    /// before anything is delivered. The in-memory first-reading set is
+    /// kept. When the lock cannot be taken the change still applies, to the
+    /// freshest copy (a rare duplicate is the worst case).
+    pub fn claim<R>(&mut self, path: &Path, change: impl FnOnce(&mut Ledger) -> R) -> R {
+        let _lock = LedgerLock::acquire(path);
+        let mut fresh = Self::load(path);
+        fresh.alerts.keep_session_of(&self.alerts);
+        *self = fresh;
+        let result = change(self);
+        // A failed write only risks repeating a notice after a restart.
+        let _ = self.save(path);
+        result
+    }
+
+    /// PRD 0032 RF4: re-read the ledger from `path` (no lock: writes are
+    /// atomic renames), keeping the in-memory first-reading set. Call it
+    /// when the file's modification time changed.
+    pub fn reload(&mut self, path: &Path) {
+        let mut fresh = Self::load(path);
+        fresh.alerts.keep_session_of(&self.alerts);
+        *self = fresh;
+    }
+
+    /// PRD 0032 RF4: remember `next` and claim the usage alerts `events` it
+    /// deserves (judged on a possibly stale copy): the ones another process
+    /// already notified are dropped, the rest recorded as notified (the
+    /// `deferred` ones, held by quiet hours until their instant, as
+    /// deferred) and returned for delivery. Nothing is locked or written
+    /// when the reading changes no mark and carries no event. With no
+    /// `path` the in-memory state is the truth.
+    pub fn claim_alerts(
+        &mut self,
+        path: Option<&Path>,
+        next: &Report,
+        prefs: &crate::alerts::AlertPrefs,
+        events: Vec<crate::alerts::AlertEvent>,
+        deferred: Vec<(crate::alerts::AlertEvent, DateTime<Utc>)>,
+        now: DateTime<Utc>,
+    ) -> Vec<crate::alerts::AlertEvent> {
+        let mut probe = self.alerts.clone();
+        let changed = probe.update_with(next, prefs, &events, &deferred, now);
+        let Some(path) = path.filter(|_| changed || !events.is_empty() || !deferred.is_empty())
+        else {
+            self.alerts = probe;
+            return events;
+        };
+        self.claim(path, |ledger| {
+            let events: Vec<_> = events
+                .into_iter()
+                .filter(|event| !ledger.alerts.notified(event))
+                .collect();
+            let deferred: Vec<_> = deferred
+                .into_iter()
+                .filter(|(event, _)| {
+                    !ledger.alerts.notified(event) && !ledger.alerts.deferred(event)
+                })
+                .collect();
+            ledger
+                .alerts
+                .update_with(next, prefs, &events, &deferred, now);
+            events
+        })
+    }
+
+    /// PRD 0032 RF3.3 and RF4.3: settle the crossings deferred until `now`
+    /// or before ([`AlertState::take_deferred`]) under the lock, so only
+    /// one process sends the digest. Nothing is locked while no crossing
+    /// waits.
+    pub fn claim_digest<'r>(
+        &mut self,
+        path: Option<&Path>,
+        reports: impl IntoIterator<Item = &'r Report>,
+        prefs: &crate::alerts::AlertPrefs,
+        digest: bool,
+        now: DateTime<Utc>,
+    ) -> Vec<crate::alerts::AlertEvent> {
+        if self.alerts.next_deferred().is_none_or(|due| due > now) {
+            return Vec::new();
+        }
+        let reports: Vec<&Report> = reports.into_iter().collect();
+        match path {
+            Some(path) => self.claim(path, |ledger| {
+                ledger
+                    .alerts
+                    .take_deferred(reports.iter().copied(), prefs, digest, now)
+            }),
+            None => self
+                .alerts
+                .take_deferred(reports.iter().copied(), prefs, digest, now),
+        }
+    }
+
+    /// PRD 0032 RF4: claim the reset notices in `due` (from a plan made on
+    /// a possibly stale copy): the metrics another process already recorded
+    /// are dropped, the rest recorded (`skipped` ones as dropped by quiet
+    /// hours) and returned for delivery. With no `path` (tests, no data
+    /// dir) the in-memory ledger is the truth.
+    pub fn claim_resets(
+        &mut self,
+        path: Option<&Path>,
+        due: Vec<ResetEvent>,
+        skipped: Vec<ResetEvent>,
+        now: DateTime<Utc>,
+    ) -> Vec<ResetEvent> {
+        let apply = |ledger: &mut Ledger| {
+            let mut kept = Vec::new();
+            for mut event in due {
+                let account = event.account_key.clone();
+                event.metrics.retain(|metric| {
+                    !ledger.notified(&key_digest(&account, &metric.label), metric.resets_at)
+                });
+                if let Some(first) = event.metrics.first() {
+                    event.resets_at = first.resets_at;
+                    ledger.record(&event, now);
+                    kept.push(event);
+                }
+            }
+            for mut event in skipped {
+                let account = event.account_key.clone();
+                event.metrics.retain(|metric| {
+                    !ledger.notified(&key_digest(&account, &metric.label), metric.resets_at)
+                });
+                if !event.metrics.is_empty() {
+                    ledger.record_skipped(&event, now);
+                }
+            }
+            kept
+        };
+        match path {
+            Some(path) => self.claim(path, apply),
+            None => apply(self),
         }
     }
 
@@ -1028,3 +1206,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "resets_claim_tests.rs"]
+mod claim_tests;

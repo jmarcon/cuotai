@@ -1447,5 +1447,15 @@
   "edit_error.group_invalid": "Il gruppo deve avere da 1 a {max} lettere minuscole, cifre, - o _.",
   "advice.best": "Migliore ora",
   "advice.switch": "{from} si esaurisce ≈{at} · {to} ha il {pct}% disponibile",
-  "advice.switch.exhausted": "{from} è esaurito · {to} ha il {pct}% disponibile"
+  "advice.switch.exhausted": "{from} è esaurito · {to} ha il {pct}% disponibile",
+  "alerts.body.private": "Si rinnova {at}",
+  "alerts.body.details.private": "Apri Cuotai per i dettagli.",
+  "alerts.body.session_expiring.private": "La sessione scade {at}.",
+  "alerts.title.projected.private": "{provider}: potrebbe esaurirsi prima del rinnovo",
+  "alerts.body.projected.private": "A questo ritmo finisce ≈{at}, {margin} prima del rinnovo",
+  "resets.body.private": "Secondo l'orario riportato dal provider; il nuovo saldo compare al prossimo aggiornamento.",
+  "quiet.digest.title": "Cuotai: {count} avvisi di utilizzo trattenuti durante le ore di silenzio",
+  "quiet.digest.join": "{first}\n{rest}",
+  "quiet.digest.more": "e altri {count}",
+  "quiet.digest.line": "{title}: {body}"
 }

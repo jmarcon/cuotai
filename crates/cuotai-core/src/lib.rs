@@ -31,12 +31,14 @@ mod metered_record;
 pub mod metrics;
 mod model;
 pub mod models;
+pub mod notify_prefs;
 pub mod oauth;
 pub mod overage;
 pub mod pace;
 mod private_fs;
 mod process_tree;
 mod providers;
+pub mod quiet;
 pub mod refresh;
 pub mod resets;
 #[cfg(feature = "serve")]

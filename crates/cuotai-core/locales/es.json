@@ -1447,5 +1447,15 @@
   "edit_error.group_invalid": "El grupo debe tener de 1 a {max} letras minúsculas, números, - o _.",
   "advice.best": "Mejor ahora",
   "advice.switch": "{from} se agota ≈{at} · {to} tiene {pct}% disponible",
-  "advice.switch.exhausted": "{from} está agotada · {to} tiene {pct}% disponible"
+  "advice.switch.exhausted": "{from} está agotada · {to} tiene {pct}% disponible",
+  "alerts.body.private": "Se reinicia {at}",
+  "alerts.body.details.private": "Abre Cuotai para ver los detalles.",
+  "alerts.body.session_expiring.private": "La sesión caduca {at}.",
+  "alerts.title.projected.private": "{provider}: puede agotarse antes del reinicio",
+  "alerts.body.projected.private": "A este ritmo se agota ≈{at}, {margin} antes del reinicio",
+  "resets.body.private": "Según la hora informada por el proveedor; el nuevo saldo aparece en la próxima actualización.",
+  "quiet.digest.title": "Cuotai: {count} alertas de uso retenidas durante las horas de silencio",
+  "quiet.digest.join": "{first}\n{rest}",
+  "quiet.digest.more": "y {count} más",
+  "quiet.digest.line": "{title}: {body}"
 }

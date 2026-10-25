@@ -1447,5 +1447,15 @@
   "edit_error.group_invalid": "The group must be 1 to {max} lowercase letters, digits, - or _.",
   "advice.best": "Best now",
   "advice.switch": "{from} runs out ≈{at} · {to} has {pct}% left",
-  "advice.switch.exhausted": "{from} is exhausted · {to} has {pct}% left"
+  "advice.switch.exhausted": "{from} is exhausted · {to} has {pct}% left",
+  "alerts.body.private": "Resets {at}",
+  "alerts.body.details.private": "Open Cuotai for details.",
+  "alerts.body.session_expiring.private": "The session expires {at}.",
+  "alerts.title.projected.private": "{provider}: may run out before the reset",
+  "alerts.body.projected.private": "At this rate it runs out ≈{at}, {margin} before the reset",
+  "resets.body.private": "Per the time the provider reported; the new balance shows on the next refresh.",
+  "quiet.digest.title": "Cuotai: {count} usage alerts held during quiet hours",
+  "quiet.digest.join": "{first}\n{rest}",
+  "quiet.digest.more": "and {count} more",
+  "quiet.digest.line": "{title}: {body}"
 }

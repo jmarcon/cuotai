@@ -1107,6 +1107,59 @@ impl AlertState {
         changed
     }
 
+    /// PRD 0032 RF4.2: carry the per-process first-reading set of `other`
+    /// over to this freshly loaded state.
+    pub(crate) fn keep_session_of(&mut self, other: &AlertState) {
+        self.seen = other.seen.clone();
+    }
+
+    /// PRD 0032 RF4: whether the level (or recovery, session expiry or
+    /// projection) `event` stands for was already notified in its window
+    /// instance, possibly by another process.
+    pub fn notified(&self, event: &AlertEvent) -> bool {
+        let account = account_digest(&event.account_key);
+        match event.kind {
+            AlertKind::SessionExpiring => self.marks.iter().any(|mark| {
+                mark.account == account
+                    && mark.kind == AlertKind::SessionExpiring
+                    && mark.resets_at == event.resets_at
+                    && mark.notified
+            }),
+            AlertKind::ProjectedExhaustion => self.marks.iter().any(|mark| {
+                mark.metric == key_digest(&event.account_key, &event.label)
+                    && mark.kind == AlertKind::ProjectedExhaustion
+                    && mark.notified
+                    && same_instance(mark.resets_at, event.resets_at)
+            }),
+            AlertKind::Recovered => self.marks.iter().any(|mark| {
+                mark.metric == key_digest(&event.account_key, &event.label)
+                    && mark.kind == AlertKind::Recovered
+                    && mark.notified
+                    && same_instance(mark.resets_at, event.resets_at)
+            }),
+            AlertKind::Threshold | AlertKind::Exhausted => self.marks.iter().any(|mark| {
+                mark.metric == key_digest(&event.account_key, &event.label)
+                    && mark.kind.is_level()
+                    && !mark.lapsed
+                    && mark.threshold >= event.threshold
+                    && mark.notified
+                    && same_instance(mark.resets_at, event.resets_at)
+            }),
+        }
+    }
+
+    /// PRD 0032 RF4.2: whether a crossing like `event` already waits for the
+    /// digest (another process deferred it).
+    pub fn deferred(&self, event: &AlertEvent) -> bool {
+        self.marks.iter().any(|mark| {
+            mark.deferred_until.is_some()
+                && mark.metric == key_digest(&event.account_key, &event.label)
+                && mark.kind == event.kind
+                && mark.threshold == event.threshold
+                && same_instance(mark.resets_at, event.resets_at)
+        })
+    }
+
     /// PRD 0032 RF3.2: some crossing waits for the digest.
     pub fn has_deferred(&self) -> bool {
         self.marks.iter().any(|mark| mark.deferred_until.is_some())
@@ -1475,6 +1528,24 @@ where
     Tz: TimeZone,
     Tz::Offset: Display,
 {
+    notice_with(groups, now, tz, false)
+}
+
+/// [`notice`], and with `private` on (PRD 0032 RF7: lock-screen-safe
+/// texts) no account name, metric label or value beyond the percentage in
+/// the body: the title keeps the provider and the window, the body says
+/// when the quota resets or to open Cuotai for the details. The
+/// notification click still opens the right account.
+pub fn notice_with<Tz>(
+    groups: &[(&Account, Vec<AlertEvent>)],
+    now: DateTime<Utc>,
+    tz: &Tz,
+    private: bool,
+) -> Option<Notice>
+where
+    Tz: TimeZone,
+    Tz::Offset: Display,
+{
     let groups: Vec<&(&Account, Vec<AlertEvent>)> = groups
         .iter()
         .filter(|(_, events)| !events.is_empty())
@@ -1482,11 +1553,25 @@ where
     let count: usize = groups.iter().map(|(_, events)| events.len()).sum();
     match groups.as_slice() {
         [] => None,
-        [(account, events)] if events.len() == 1 => Some(single(account, &events[0], now, tz)),
+        [(account, events)] if events.len() == 1 => {
+            Some(single(account, &events[0], now, tz, private))
+        }
         [(account, events)] => {
             let provider_pt = account.provider.label();
             let items = join(events.iter().map(|event| item(event, now, tz)))?;
             let body = format!("{}: {}", account.name, items.fallback);
+            let body_l10n = if private {
+                details_private()
+            } else {
+                Localized::with_params(
+                    "alerts.body.many",
+                    params([
+                        ("account", account.name.as_str().into()),
+                        ("items", items.into()),
+                    ]),
+                    body.clone(),
+                )
+            };
             Some(Notice {
                 title: Localized::with_params(
                     "alerts.title.many",
@@ -1496,35 +1581,32 @@ where
                     ]),
                     format!("{provider_pt}: {count} alertas de uso"),
                 ),
-                body: Localized::with_params(
-                    "alerts.body.many",
-                    params([
-                        ("account", account.name.as_str().into()),
-                        ("items", items.into()),
-                    ]),
-                    body,
-                ),
+                body: body_l10n,
             })
         }
         _ => {
-            let body = join(groups.iter().filter_map(|(account, events)| {
-                let items = join(events.iter().map(|event| item(event, now, tz)))?;
-                let fallback = format!(
-                    "{} {}: {}",
-                    account.provider.label(),
-                    account.name,
-                    items.fallback
-                );
-                Some(Localized::with_params(
-                    "alerts.item.account",
-                    params([
-                        ("provider", provider_l10n(account.provider).into()),
-                        ("account", account.name.as_str().into()),
-                        ("items", items.into()),
-                    ]),
-                    fallback,
-                ))
-            }))?;
+            let body = if private {
+                Some(details_private())
+            } else {
+                join(groups.iter().filter_map(|(account, events)| {
+                    let items = join(events.iter().map(|event| item(event, now, tz)))?;
+                    let fallback = format!(
+                        "{} {}: {}",
+                        account.provider.label(),
+                        account.name,
+                        items.fallback
+                    );
+                    Some(Localized::with_params(
+                        "alerts.item.account",
+                        params([
+                            ("provider", provider_l10n(account.provider).into()),
+                            ("account", account.name.as_str().into()),
+                            ("items", items.into()),
+                        ]),
+                        fallback,
+                    ))
+                }))
+            }?;
             Some(Notice {
                 title: Localized::with_params(
                     "alerts.title.accounts",
@@ -1539,7 +1621,13 @@ where
 
 /// One event: the title names the window (or the metric when it has no
 /// known window), the body the account, the metric and the reset.
-fn single<Tz>(account: &Account, event: &AlertEvent, now: DateTime<Utc>, tz: &Tz) -> Notice
+fn single<Tz>(
+    account: &Account,
+    event: &AlertEvent,
+    now: DateTime<Utc>,
+    tz: &Tz,
+    private: bool,
+) -> Notice
 where
     Tz: TimeZone,
     Tz::Offset: Display,
@@ -1557,21 +1645,30 @@ where
                 provider,
                 format!("{}: sessão expira em breve", account.provider.label()),
             ),
-            body: Localized::with_params(
-                "alerts.body.session_expiring",
-                params([
-                    ("account", account.name.as_str().into()),
-                    ("at", at.as_str().into()),
-                ]),
-                format!(
-                    "{}: a sessão expira {at}; cole uma nova no assistente da conta.",
-                    account.name
-                ),
-            ),
+            body: if private {
+                Localized::with_param(
+                    "alerts.body.session_expiring.private",
+                    "at",
+                    at.as_str(),
+                    format!("A sessão expira {at}."),
+                )
+            } else {
+                Localized::with_params(
+                    "alerts.body.session_expiring",
+                    params([
+                        ("account", account.name.as_str().into()),
+                        ("at", at.as_str().into()),
+                    ]),
+                    format!(
+                        "{}: a sessão expira {at}; cole uma nova no assistente da conta.",
+                        account.name
+                    ),
+                )
+            },
         };
     }
     if let (AlertKind::ProjectedExhaustion, Some(projection)) = (event.kind, event.projection) {
-        return projected_notice(account, event, projection, now, tz);
+        return projected_notice(account, event, projection, now, tz, private);
     }
     if matches!(
         event.kind,
@@ -1655,6 +1752,13 @@ where
         }
     };
     let body = match event.resets_at {
+        Some(at) if private => Localized::with_param(
+            "alerts.body.private",
+            "at",
+            local_time(at, now, tz),
+            format!("Renova {}", local_time(at, now, tz)),
+        ),
+        None if private => details_private(),
         Some(at) => {
             let at = local_time(at, now, tz);
             Localized::with_params(
@@ -1688,12 +1792,34 @@ fn projected_notice<Tz>(
     projection: Projection,
     now: DateTime<Utc>,
     tz: &Tz,
+    private: bool,
 ) -> Notice
 where
     Tz: TimeZone,
     Tz::Offset: Display,
 {
     let label = event.label.as_str();
+    let at = local_time(projection.projected_at, now, tz);
+    let margin = crate::text::duration(TimeDelta::seconds(projection.margin_seconds));
+    let margin_pt = margin.fallback.to_string();
+    if private {
+        return Notice {
+            title: Localized::with_param(
+                "alerts.title.projected.private",
+                "provider",
+                provider_l10n(account.provider),
+                format!(
+                    "{}: pode acabar antes da renovação",
+                    account.provider.label()
+                ),
+            ),
+            body: Localized::with_params(
+                "alerts.body.projected.private",
+                params([("at", at.as_str().into()), ("margin", margin.into())]),
+                format!("Neste ritmo acaba ≈{at}, {margin_pt} antes da renovação"),
+            ),
+        };
+    }
     Notice {
         title: Localized::with_params(
             "alerts.title.projected",
@@ -1875,6 +2001,15 @@ where
             ("margin", margin.into()),
         ]),
         format!("Neste ritmo {label} acaba ≈{at}, {margin_pt} antes da renovação"),
+    )
+}
+
+/// PRD 0032 RF7: the body of a private notice with nothing to say beyond
+/// its title.
+fn details_private() -> Localized {
+    Localized::fixed(
+        "alerts.body.details.private",
+        "Abra o Cuotai para ver os detalhes.",
     )
 }
 
