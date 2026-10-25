@@ -1249,6 +1249,8 @@
   "pace.on_pace": "No ritmo",
   "pace.reserve": "{delta} pontos de reserva",
   "pace.runs_out_at": "acaba às {at}, {margin} antes da renovação",
+  "aggregators.chip.exposed": "Sem senha",
+  "aggregators.chip.private_http": "Sem criptografia",
   "pool.available": "{upstream} · {available} de {total} disponíveis",
   "pool.exhausted": "{upstream} · todas esgotadas",
   "pool.exhausted_returns": "{upstream} · todas esgotadas · volta em {at}",

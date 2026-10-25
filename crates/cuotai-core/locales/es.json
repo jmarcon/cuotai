@@ -1488,6 +1488,8 @@
   "test.nine_router.not_nine_router": "La dirección responde, pero no parece un 9router.",
   "test.nine_router.password_required": "Esta instancia exige la contraseña del panel; elige \"Contraseña del panel\".",
   "test.nine_router.unreachable": "No se pudo alcanzar la dirección indicada.",
+  "aggregators.chip.exposed": "Sin contraseña",
+  "aggregators.chip.private_http": "Sin cifrado",
   "pool.available": "{upstream} · {available} de {total} disponibles",
   "pool.exhausted": "{upstream} · todas agotadas",
   "pool.exhausted_returns": "{upstream} · todas agotadas · vuelve {at}",

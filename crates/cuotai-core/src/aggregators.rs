@@ -13,6 +13,48 @@ use chrono::{DateTime, Utc};
 
 pub use crate::providers::nine_router::TestOutcome;
 
+/// PRD 0036 RF2.3/RF2.4: the standing warnings of an aggregator instance,
+/// for a persistent chip on the account (the details keep the full note).
+/// Read from the report's notes, so a failed reading carries none.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize)]
+pub struct ConnectionWarnings {
+    /// RF2.4: a non-loopback instance answers management requests without
+    /// a password.
+    pub exposed: bool,
+    /// RF2.3: unencrypted `http` on the private network, by the user's
+    /// choice (`allow_private_http`).
+    pub private_http: bool,
+}
+
+impl ConnectionWarnings {
+    pub fn of(report: &Report) -> Self {
+        let has = |id: &str| report.notes_l10n.iter().any(|note| note.id == id);
+        Self {
+            exposed: has("note.nine_router.exposed"),
+            private_http: has("note.nine_router.private_http"),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        !self.exposed && !self.private_http
+    }
+
+    /// The short chip texts, most severe first.
+    pub fn chips(&self) -> Vec<Localized> {
+        let mut chips = Vec::new();
+        if self.exposed {
+            chips.push(Localized::fixed("aggregators.chip.exposed", "No password"));
+        }
+        if self.private_http {
+            chips.push(Localized::fixed(
+                "aggregators.chip.private_http",
+                "Unencrypted",
+            ));
+        }
+        chips
+    }
+}
+
 /// One thing the engines can evaluate: a direct account or a sub-account of
 /// an aggregator (PRD 0036 RF1.4). Binding, pace, alerts, resets and
 /// freshness read units, so none of them learns about nesting.
@@ -601,6 +643,51 @@ impl AggregatorTest {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// PRD 0036 RF2.3/RF2.4: the chips follow the instance's standing notes.
+    #[test]
+    fn connection_warnings_follow_the_exposure_and_private_http_notes() {
+        let mut report = Report {
+            account: "Router".into(),
+            provider: Provider::NineRouter,
+            checked_at: Utc::now(),
+            status: Status::Ready,
+            metrics: Vec::new(),
+            notes: Vec::new(),
+            notes_l10n: Vec::new(),
+            source: String::new(),
+            session_expires_at: None,
+            overage_hint: None,
+            sub_reports: Vec::new(),
+            account_id: None,
+            as_of: None,
+            diagnostic: None,
+        };
+        assert!(ConnectionWarnings::of(&report).is_empty());
+        assert!(ConnectionWarnings::of(&report).chips().is_empty());
+        report.notes_l10n = vec![
+            Localized::fixed("note.nine_router.private_http", "Unencrypted."),
+            Localized::fixed("note.nine_router.exposed", "No password."),
+        ];
+        let warnings = ConnectionWarnings::of(&report);
+        assert_eq!(
+            warnings,
+            ConnectionWarnings {
+                exposed: true,
+                private_http: true
+            }
+        );
+        let ids: Vec<_> = warnings.chips().iter().map(|c| c.id.to_string()).collect();
+        assert_eq!(
+            ids,
+            ["aggregators.chip.exposed", "aggregators.chip.private_http"]
+        );
+        for chip in warnings.chips() {
+            for locale in ["pt-BR", "es", "it"] {
+                assert_ne!(chip.resolve(locale), chip.text(), "{locale}");
+            }
+        }
+    }
 
     #[test]
     fn litellm_test_sentences_never_name_nine_router() {

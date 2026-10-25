@@ -529,6 +529,11 @@ pub struct ReportView {
     /// SES-01: the core offers "Paste a new session" (the vault session
     /// was rejected or is gone) on the card and in the details.
     paste_session: bool,
+    /// PRD 0036 RF2.3/RF2.4: an aggregator's standing warnings (no password
+    /// on a non-loopback instance, unencrypted private-network HTTP) for a
+    /// persistent chip; absent when there is none.
+    #[serde(skip_serializing_if = "cuotai_core::aggregators::ConnectionWarnings::is_empty")]
+    connection_warnings: cuotai_core::aggregators::ConnectionWarnings,
     /// PRD 0033 RF3.2: the provider-stated time of the data, only when it
     /// lags `checked_at` by more than 15 minutes ("data as of 06:00").
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1004,6 +1009,7 @@ fn report_view(
         incident: None,
         session_expiry: user_session::report_expiry(report, now),
         paste_session: user_session::offers_new_paste(report),
+        connection_warnings: cuotai_core::aggregators::ConnectionWarnings::of(report),
         data_as_of: cuotai_core::freshness::lagging_as_of(report),
         overage: overage_view(report),
         connections: Vec::new(),

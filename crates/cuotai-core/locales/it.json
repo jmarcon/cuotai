@@ -1488,6 +1488,8 @@
   "test.nine_router.not_nine_router": "L'indirizzo risponde, ma non sembra un 9router.",
   "test.nine_router.password_required": "Questa istanza richiede la password del pannello; scegli \"Password del pannello\".",
   "test.nine_router.unreachable": "Impossibile raggiungere l'indirizzo indicato.",
+  "aggregators.chip.exposed": "Senza password",
+  "aggregators.chip.private_http": "Non cifrato",
   "pool.available": "{upstream} · {available} di {total} disponibili",
   "pool.exhausted": "{upstream} · tutte esaurite",
   "pool.exhausted_returns": "{upstream} · tutte esaurite · torna {at}",
