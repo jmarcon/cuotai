@@ -82,6 +82,7 @@ Open Cuotai, press **Add account**, pick a provider and either sign in with your
 | **Pace and warnings** | Whether you will make it to the reset, as an estimate. |
 | **Notifications and alerts** | Opt-in system notices for resets, thresholds (75% and 90% by default), exhaustion and recovery, with a test button. |
 | **History** | Area charts of each metric over 24 hours, 7 days or 30 days, with export to CSV or JSON. |
+| **Statistics and limits coming back** | A Stats view (limit hits, average peak, extra spent, peak per day, recent events) and a "limits come back" timeline, from the history stored on your computer; `S` and `--stats`/`--timeline`/`--events-log` in the terminal. |
 | **Local cost** | Opt-in token and estimated API-price cost for Claude Code and Codex CLI, from local logs only. Optionally compares the estimate with the plan price you type and shows a second currency at a rate you type; both are estimates at API prices, never a charge, and never leave your computer. |
 | **Provider status** | Opt-in badge when a provider reports an incident, so you know a failure may not be your account. |
 | **Themes and languages** | 15 themes in dark and light, custom themes, four languages. |

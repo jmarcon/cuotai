@@ -176,6 +176,15 @@ A failed reading carries only its category, never the provider's message, URL or
 | `invalid_output` | A script extension's output broke its output contract (PRD 0017 RF2). |
 | `provider_error` | Any other failure, including an HTTP error status and a provider that does not offer the query. |
 
+## The event journal (PRD 0026 RF3)
+
+Every front end that records the measurement history also keeps a journal of the events above, so "what happened recently" survives the state that produced it. The desktop app, the interactive TUI and `--watch`/`--serve` run the same engine over the cycle they already run and append each real transition to a `journal` table of `history.sqlite3`, while recording is on (Settings → Data & privacy, or the history switch); the first reading of each account is the baseline and writes nothing. `usage_updated` is never journaled (it is a throttle signal, not an event), and neither is a made-up sample event.
+
+- **What a row stores:** the time, the event name, a digest of the account's stable id (so renaming an account keeps its entries), the metric label, the threshold, the used share, the reset time, the failure category and the provider incident state. Never a message, note, URL, e-mail or token; the table has no column for them. A test writes every kind with credentials and addresses in the readings and checks none reaches the file.
+- **No duplicates:** a unique index on (account, event, metric, minute) lets two processes on one profile write the same transition once.
+- **Retention and erasure follow the history:** entries are pruned at the history retention (7 to 365 days), removed with "Erase this account's history" or "Erase all history", and written to the JSON history export in its own `journal` section.
+- **Reading it:** `cuotai --events-log [--days N] [--json]`, the `S` screen of the dashboard and the "Recent events" list of the desktop Stats view. An entry of an account no longer in the configuration reads "Removed account".
+
 ## Privacy
 
 Payloads carry no credentials, credential variable names, e-mails, URLs (neither the query's nor the status page's), provider notes, incident titles or raw error messages. A test feeds readings full of them through every event kind and checks that none reaches a payload.
