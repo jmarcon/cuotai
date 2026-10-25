@@ -118,6 +118,50 @@
   height: 16px;
   margin-top: var(--space-0);
 }
+/* Mockup 13: the update banner is a compact callout: neutral hairline, release date quiet, notes as a disclosure. */
+.banner[data-update-banner][data-update="available"] {
+  align-items: center;
+  margin-block: var(--space-2) 0;
+  padding: var(--space-2) var(--space-4);
+  border-color: color-mix(in srgb, var(--c) 25%, var(--border));
+  border-radius: var(--radius-lg);
+}
+.banner[data-update-banner][data-update="available"] > svg.i {
+  align-self: flex-start;
+  margin-top: var(--space-1);
+}
+.banner-main .hint::first-letter {
+  text-transform: uppercase;
+}
+.update-notes > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  list-style: none;
+  cursor: pointer;
+}
+.update-notes > summary::-webkit-details-marker {
+  display: none;
+}
+.update-notes > summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.update-notes .upd-chev {
+  width: 14px;
+  height: 14px;
+  transition: transform var(--motion-fast) var(--ease-out);
+}
+.update-notes[open] .upd-chev {
+  transform: rotate(90deg);
+}
+.update-notes > p {
+  margin: var(--space-1) 0 0;
+}
+:root[data-motion="off"] .update-notes .upd-chev,
+:root[data-motion="reduced"] .update-notes .upd-chev {
+  transition: none;
+}
 .banner-main {
   flex: 1;
   min-width: 200px;

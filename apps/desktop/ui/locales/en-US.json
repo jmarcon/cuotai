@@ -851,6 +851,7 @@
   "about.updateState": "update: {state}",
   "report.action": "Report a problem",
   "report.title": "Report a problem",
+  "report.intro": "This text will be opened as a GitHub issue",
   "report.preview": "Text of the problem report",
   "report.nothingSent": "Nothing is sent by Cuotai; GitHub opens with this text.",
   "report.tooLong": "This report is too long for a link: copy it and paste it into a new issue.",

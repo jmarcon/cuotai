@@ -851,6 +851,7 @@
   "about.updateState": "actualización: {state}",
   "report.action": "Informar de un problema",
   "report.title": "Informar de un problema",
+  "report.intro": "Este texto se abrirá como una incidencia en GitHub",
   "report.preview": "Texto del informe del problema",
   "report.nothingSent": "Cuotai no envía nada; GitHub se abre con este texto.",
   "report.tooLong": "Este informe es demasiado largo para un enlace: cópialo y pégalo en una nueva issue.",

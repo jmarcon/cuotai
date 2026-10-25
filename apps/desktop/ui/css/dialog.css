@@ -967,3 +967,63 @@ dialog.dlg.dlg-catalog {
 .picker-search input {
   padding-left: calc(var(--space-6, 24px) + var(--space-2));
 }
+
+/* Mockups 31 / 07c (DS-CMP-DLG): header with × close, body, hairline footer with right-aligned actions. */
+dialog.dlg.dlg-shell {
+  max-height: min(calc(100dvh - 32px), 640px);
+}
+dialog.dlg.dlg-shell[open],
+dialog.dlg.dlg-shell:popover-open {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.dlg-shell-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+}
+.dlg-shell-head h2 {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-xl);
+  overflow-wrap: anywhere;
+}
+.dlg-shell-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 0;
+  padding: var(--space-2) var(--space-5) var(--space-4);
+  overflow-y: auto;
+  user-select: text;
+}
+.dlg-shell-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  border-top: var(--border-w) solid var(--border);
+}
+.dlg-shell-foot > .dlg-actions {
+  flex: 1;
+}
+.dlg-shell-foot .hint,
+.dlg-shell-foot .err {
+  margin-inline-end: auto;
+}
+.dlg-shell-foot .btn svg.i {
+  width: 14px;
+  height: 14px;
+}
+.dlg-shell-body .report-preview {
+  max-height: none;
+}
+.dlg-shell-body .wn-scroll {
+  max-height: none;
+  overflow: visible;
+}

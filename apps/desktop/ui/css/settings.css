@@ -106,6 +106,40 @@
 .set-nav-toggle[aria-expanded="true"] .set-nav-chev {
   transform: rotate(90deg);
 }
+/* Mockup 50-*: Advanced is a collapsible group label (chevron first, small caps), not a page entry. */
+.set-nav-grouplabel {
+  gap: var(--space-2);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.set-nav-grouplabel .set-nav-chev {
+  margin-inline-start: 0;
+  transform: rotate(0deg);
+}
+.set-nav-grouplabel[aria-expanded="true"] .set-nav-chev {
+  transform: rotate(90deg);
+}
+.set-nav-item svg.i.set-nav-rail {
+  display: none;
+}
+.set-search-hint {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  padding: 0 var(--space-1);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--fg-muted);
+  font: var(--text-xs, 11px) var(--font-mono), var(--font-script);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.set-search:focus-within .set-search-hint {
+  display: none;
+}
 .set-nav-sub .set-nav-item {
   padding-inline-start: var(--space-8);
 }
@@ -656,8 +690,12 @@
     justify-content: center;
     padding-inline: 0;
   }
-  .set-nav-toggle .set-nav-chev {
+  .set-nav-toggle .set-nav-chev,
+  .set-search-hint {
     display: none;
+  }
+  .set-nav-item svg.i.set-nav-rail {
+    display: block;
   }
   .set-nav-sub .set-nav-item {
     padding-inline-start: 0;

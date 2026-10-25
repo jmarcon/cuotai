@@ -121,7 +121,7 @@ const availableHtml = (s) => {
   const releaseDate = fmtDate(s.date);
   return `<div class="banner info" role="status" data-update-banner data-update="available">
   ${icon("download")}<div class="banner-main"><b>${te("update.available", { version: s.version })}</b>${releaseDate ? `<span class="hint">${te("update.date", { date: releaseDate })}</span>` : ""}
-  <details class="update-notes"><summary>${te("update.notes")}</summary>${esc(s.notes ?? "")}</details></div>
+  <details class="update-notes"><summary>${icon("chev", "upd-chev")}${te("update.notes")}</summary><p>${esc(s.notes ?? "")}</p></details></div>
   <div class="banner-acts">
     <button class="btn ghost" data-update-later>${te("update.later")}</button>
     <button class="btn primary" data-update-now>${te("update.now")}</button>

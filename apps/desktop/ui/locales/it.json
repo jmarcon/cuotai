@@ -851,6 +851,7 @@
   "update.error.other": "L'aggiornamento non è riuscito. Puoi scaricarlo manualmente.",
   "report.action": "Segnala un problema",
   "report.title": "Segnala un problema",
+  "report.intro": "Questo testo verrà aperto come issue su GitHub",
   "report.preview": "Testo della segnalazione",
   "report.nothingSent": "Cuotai non invia nulla; GitHub si apre con questo testo.",
   "report.tooLong": "La segnalazione è troppo lunga per un link: copiala e incollala in una nuova issue.",

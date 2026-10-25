@@ -13,7 +13,7 @@ export const ADVANCED = "advanced";
 /** `sections`: the groups the page shows, in order; each one is a former section of the old dialog (or part of
  *  one, see LEGACY_SECTIONS) and also an anchor (`#set-<section>`) that links can land on. */
 export const PAGES = [
-  { id: "general", icon: "settings", label: "settings.page.general", load: () => import("./general.js"), sections: ["appearance", "language"] },
+  { id: "general", icon: "sliders", label: "settings.page.general", load: () => import("./general.js"), sections: ["appearance", "language"] },
   { id: "dashboard", icon: "grid", label: "settings.page.dashboard", load: () => import("./dashboard.js"), sections: ["accounts", "order", "display", "refresh"] },
   { id: "menubar", icon: "window", label: "settings.page.menubar", load: () => import("./menubar.js"), sections: ["menubar-style", "menubar-accounts"] },
   { id: "alerts", icon: "bell", label: "settings.page.alerts", load: () => import("./alerts.js"), sections: ["notify"] },
@@ -163,8 +163,8 @@ export function sidebarHtml(current, advancedOpen) {
   return `${selectHtml(current)}<nav class="set-nav" aria-label="${te("settings.nav.label")}">
     <ul class="set-nav-list">${top.map((p) => entryHtml(p, current)).join("")}</ul>
     <div class="set-nav-group">
-      <button type="button" class="set-nav-item set-nav-toggle" data-advanced-toggle aria-expanded="${advancedOpen}" aria-controls="set-nav-advanced">
-        ${icon("wrench")}<span>${te("settings.page.advanced")}</span>${icon("chev", "set-nav-chev")}</button>
+      <button type="button" class="set-nav-item set-nav-toggle set-nav-grouplabel" data-advanced-toggle aria-expanded="${advancedOpen}" aria-controls="set-nav-advanced">
+        ${icon("chev", "set-nav-chev")}${icon("wrench", "set-nav-rail")}<span>${te("settings.page.advanced")}</span></button>
       <ul class="set-nav-list set-nav-sub" id="set-nav-advanced">${advanced.map((p) => entryHtml(p, current)).join("")}</ul>
     </div>
     <ul class="set-nav-list set-nav-bottom">${bottom.map((p) => entryHtml(p, current)).join("")}</ul>

@@ -45,7 +45,7 @@ function paintFrame() {
   root.innerHTML = `<div class="set-window">
     <aside class="set-side"><div class="set-titlebar" data-tauri-drag-region></div>
       <div class="set-search" role="search">${icon("search")}<input type="search" id="set-search" data-search autocomplete="off" spellcheck="false"
-        placeholder="${te("settings.search.placeholder")}" aria-label="${te("settings.search.label")}" aria-controls="set-body" /></div>
+        placeholder="${te("settings.search.placeholder")}" aria-label="${te("settings.search.label")}" aria-controls="set-body" /><kbd class="set-search-hint" aria-hidden="true">${/Mac/i.test(navigator.platform || navigator.userAgent || "") ? "\u2318F" : "Ctrl+F"}</kbd></div>
       <div data-nav></div></aside>
     <div class="set-main"><div class="set-titlebar" data-tauri-drag-region></div>
       <main class="set-content" id="set-body" data-page-body aria-labelledby="set-page-title"></main></div>
