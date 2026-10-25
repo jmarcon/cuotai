@@ -599,7 +599,24 @@ export function applyTheme() {
   const root = document.documentElement;
   root.dataset.theme = t.id;
   root.dataset.mode = effectiveMode(t, theme.mode, systemDark());
+  reportCallbackStyle();
 }
+/** The browser page shown after a sign-in callback uses the active theme's roles and the interface language. */
+function reportCallbackStyle() {
+  const invoke = window.__TAURI__?.core?.invoke;
+  if (!invoke) return;
+  const defer = typeof requestAnimationFrame === "function" ? requestAnimationFrame : (f) => setTimeout(f, 0);
+  defer(() => {
+    try {
+      const root = document.documentElement;
+      const cs = getComputedStyle(root);
+      const role = (n) => cs.getPropertyValue(n).trim();
+      const colors = { bg: role("--bg"), surface: role("--surface"), border: role("--border"), fg: role("--fg"), fg_muted: role("--fg-muted"), bad: role("--bad") };
+      invoke("set_callback_style", { locale: root.lang || "pt-BR", scheme: root.dataset.mode === "light" ? "light" : "dark", colors }).catch(() => {});
+    } catch {}
+  });
+}
+document.addEventListener?.("cuotai:locale", reportCallbackStyle);
 applyTheme();
 export function initTheme(onChange = () => {}) {
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { applyTheme(); onChange(); });
@@ -1502,6 +1519,7 @@ const demo = {
     demoSettings.notify.off_accounts = on ? off : [...off, accountKey];
   },
   set_locale: async () => {},
+  set_callback_style: async () => {},
   send_test_notification: async ({ title, body }) => {
     if (!demoSettings.notify.enabled && !demoSettings.alerts.enabled) throw "notify_off";
     window.__lastTestNotification = { title, body };

@@ -1231,5 +1231,11 @@
   "extensions.state.changed": "Modificata — approvazione richiesta",
   "extensions.state.missing": "File mancanti",
   "extensions.state.invalid": "Manifest non valido — nulla può essere abilitato",
-  "edit_error.config_extension": "L'account dell'estensione non ha un extension_id valido, ripete l'id di un'altra estensione o ha campi di credenziale incompatibili."
+  "edit_error.config_extension": "L'account dell'estensione non ha un extension_id valido, ripete l'id di un'altra estensione o ha campi di credenziale incompatibili.",
+  "oauth.page.success.title": "Autorizzazione ricevuta",
+  "oauth.page.success.body": "Puoi chiudere questa finestra e tornare a Cuotai.",
+  "oauth.page.denied.title": "Autorizzazione negata",
+  "oauth.page.denied.body": "Non è stato collegato nulla. Puoi chiudere questa finestra e riprovare in Cuotai.",
+  "oauth.page.failed.title": "Impossibile completare",
+  "oauth.page.failed.body": "Chiudi questa finestra e avvia di nuovo l'accesso in Cuotai."
 }

@@ -304,15 +304,21 @@ impl PendingLogin {
                     let payload = match decrypt_callback(&self.secret, &encrypted) {
                         Ok(payload) => payload,
                         Err(error) => {
-                            respond(&mut stream, "400 Bad Request", "Autorização inválida.").await;
+                            respond(
+                                &mut stream,
+                                "400 Bad Request",
+                                &super::callback_page::render(
+                                    super::callback_page::CallbackPage::Failed,
+                                ),
+                            )
+                            .await;
                             return Err(error);
                         }
                     };
                     respond(
                         &mut stream,
                         "200 OK",
-                        "<!doctype html><html><body><p>Autorização recebida. \
-                         Você pode fechar esta janela e voltar ao Cuotai.</p></body></html>",
+                        &super::callback_page::render(super::callback_page::CallbackPage::Success),
                     )
                     .await;
                     return Ok(payload);
@@ -321,8 +327,7 @@ impl PendingLogin {
                     respond(
                         &mut stream,
                         "200 OK",
-                        "<!doctype html><html><body><p>A autorização foi negada. \
-                         Você pode fechar esta janela.</p></body></html>",
+                        &super::callback_page::render(super::callback_page::CallbackPage::Denied),
                     )
                     .await;
                     return Err(OAuthError::Denied);
@@ -332,8 +337,7 @@ impl PendingLogin {
                     respond(
                         &mut stream,
                         "400 Bad Request",
-                        "<!doctype html><html><body><p>Não foi possível concluir \
-                         a autorização. Feche esta janela e tente novamente.</p></body></html>",
+                        &super::callback_page::render(super::callback_page::CallbackPage::Failed),
                     )
                     .await;
                     return Err(OAuthError::InvalidResponse);

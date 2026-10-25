@@ -140,6 +140,7 @@ export async function setLocale(code) {
 /** PRD 0003 RF2.2: the backend sends reset notices in the language chosen here (saved in desktop.json). */
 function reportLocale(code) {
   window.__TAURI__?.core?.invoke("set_locale", { locale: code }).catch(() => {});
+  document.dispatchEvent?.(new Event("cuotai:locale")); // the sign-in page follows the language too
 }
 
 function lookup(key) {

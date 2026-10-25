@@ -425,8 +425,7 @@ impl ZedLogin {
                     respond(
                         &mut stream,
                         "200 OK",
-                        "<!doctype html><html><body><p>Autorização recebida. \
-                         Você pode fechar esta janela e voltar ao Cuotai.</p></body></html>",
+                        &super::callback_page::render(super::callback_page::CallbackPage::Success),
                     )
                     .await;
                     return Ok(callback);

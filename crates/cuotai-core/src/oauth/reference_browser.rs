@@ -613,8 +613,7 @@ impl LoopbackLogin {
                     respond(
                         &mut stream,
                         "200 OK",
-                        "<!doctype html><html><body><p>Autorização recebida. \
-                         Você pode fechar esta janela e voltar ao Cuotai.</p></body></html>",
+                        &super::callback_page::render(super::callback_page::CallbackPage::Success),
                     )
                     .await;
                     return Ok(callback);
@@ -623,14 +622,18 @@ impl LoopbackLogin {
                     respond(
                         &mut stream,
                         "200 OK",
-                        "<!doctype html><html><body><p>A autorização foi negada. \
-                         Você pode fechar esta janela.</p></body></html>",
+                        &super::callback_page::render(super::callback_page::CallbackPage::Denied),
                     )
                     .await;
                     return Err(OAuthError::Denied);
                 }
                 LoopbackOutcome::Failed(error) => {
-                    respond(&mut stream, "400 Bad Request", "").await;
+                    respond(
+                        &mut stream,
+                        "400 Bad Request",
+                        &super::callback_page::render(super::callback_page::CallbackPage::Failed),
+                    )
+                    .await;
                     return Err(error);
                 }
                 LoopbackOutcome::Ignored => {

@@ -1231,5 +1231,11 @@
   "extensions.state.changed": "Cambió — requiere aprobación",
   "extensions.state.missing": "Faltan archivos",
   "extensions.state.invalid": "Manifiesto inválido — nada se puede activar",
-  "edit_error.config_extension": "La cuenta de extensión no tiene un extension_id válido, repite el id de otra extensión o contiene campos de credencial incompatibles."
+  "edit_error.config_extension": "La cuenta de extensión no tiene un extension_id válido, repite el id de otra extensión o contiene campos de credencial incompatibles.",
+  "oauth.page.success.title": "Autorización recibida",
+  "oauth.page.success.body": "Puedes cerrar esta ventana y volver a Cuotai.",
+  "oauth.page.denied.title": "Autorización denegada",
+  "oauth.page.denied.body": "No se conectó nada. Puedes cerrar esta ventana e intentarlo de nuevo en Cuotai.",
+  "oauth.page.failed.title": "No se pudo completar",
+  "oauth.page.failed.body": "Cierra esta ventana e inicia sesión de nuevo en Cuotai."
 }

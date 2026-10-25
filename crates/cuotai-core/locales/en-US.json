@@ -1231,5 +1231,11 @@
   "extensions.state.changed": "Changed — approval required",
   "extensions.state.missing": "Files missing",
   "extensions.state.invalid": "Invalid manifest — nothing can be enabled",
-  "edit_error.config_extension": "The extension account has no valid extension_id, repeats another extension's id, or has incompatible credential fields."
+  "edit_error.config_extension": "The extension account has no valid extension_id, repeats another extension's id, or has incompatible credential fields.",
+  "oauth.page.success.title": "Authorization received",
+  "oauth.page.success.body": "You can close this window and go back to Cuotai.",
+  "oauth.page.denied.title": "Authorization denied",
+  "oauth.page.denied.body": "Nothing was connected. You can close this window and try again in Cuotai.",
+  "oauth.page.failed.title": "Could not complete",
+  "oauth.page.failed.body": "Close this window and start the sign-in again in Cuotai."
 }
