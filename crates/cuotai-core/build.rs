@@ -31,7 +31,12 @@ fn main() {
     let in_workspace = root.join("Cargo.toml").is_file()
         && root.join("crates/cuotai-core/Cargo.toml").is_file()
         && root.join(".git").exists();
-    let describe = if in_workspace {
+    // A shallow clone (the release workflows' `fetch-depth: 1` checkouts)
+    // has no tag history: `--always` would print a bare hash and a release
+    // binary would read "dev <hash>". Such a build shows the plain version.
+    let shallow = in_workspace
+        && git(&root, &["rev-parse", "--is-shallow-repository"]).as_deref() == Some("true");
+    let describe = if in_workspace && !shallow {
         git(
             &root,
             &["describe", "--tags", "--long", "--dirty", "--always"],

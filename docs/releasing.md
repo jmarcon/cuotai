@@ -110,9 +110,11 @@ The version moves only when a release is prepared, so a build of `main` after
 line show `0.80.0 (dev abc1234)` for a build that is not exactly at a tag
 (`, modified` when the working tree had uncommitted edits). A build exactly at
 `v0.80.0` or `v0.80.0-rc.N`, a crates.io build and a source archive without
-Git show the plain `0.80.0`. The suffix is display-only: the updater, What's
-new and `export::v1` compare `CARGO_PKG_VERSION`, and the release workflows
-need no change (their checkouts have no tag history to describe).
+Git show the plain `0.80.0`, and so does a build from a **shallow** clone (the
+release workflows' `fetch-depth: 1` checkouts have no tag history, so
+`build.rs` records nothing rather than a bare hash). The suffix is
+display-only: the updater, What's new and `export::v1` compare
+`CARGO_PKG_VERSION`.
 
 ## Artifact smoke tests (RF6)
 
