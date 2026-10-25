@@ -333,6 +333,12 @@ pub async fn run(
                 chrono::Utc::now(),
                 notify::osc9_supported(|key| std::env::var(key).ok()),
             )
+            // PRD 0032 RF1.2 and RF4.1: the desktop's preferences and the
+            // shared ledger.
+            .shared(
+                cuotai_core::notify_prefs::Source::open(),
+                cuotai_core::resets::SharedLedger::open_default(),
+            )
             .with_projected(projected)
         }),
         incidents: Vec::new(),

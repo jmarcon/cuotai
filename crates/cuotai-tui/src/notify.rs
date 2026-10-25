@@ -6,20 +6,25 @@
 //! evaluator) and writes the texts; here they become a header banner, the
 //! terminal bell (`BEL`) and, only on terminals known to show it, an OSC 9
 //! notification, so an unknown sequence never reaches (and dirties)
-//! another screen. Nothing persists: what was notified lives for the
-//! session, and a reset that passed before the TUI opened is never
-//! announced. No provider is queried for a notice.
+//! another screen. Preferences come from the desktop's `desktop.json` (the
+//! recommended defaults when it does not exist) and what was notified is
+//! shared with the desktop through `notified.json` (PRD 0032), so one
+//! event is announced once per profile; quiet hours hold what they must. A
+//! reset that passed before the TUI opened is never announced. No provider
+//! is queried for a notice.
 
 use crate::ui::{local_time, safe};
 use chrono::{DateTime, TimeDelta, Utc};
 use cuotai_core::{
     aggregators,
     alerts::{
-        self, AlertEvent, AlertPrefs, AlertState, Lead, PaceInput, PoolAlerts, NOTICE_SPACING,
+        self, AlertEvent, AlertKind, AlertPrefs, Lead, PaceInput, PoolAlerts, NOTICE_SPACING,
     },
+    notify_prefs::{self, Loaded},
     pace::Point,
+    quiet::{self, Decision, QuietWindow, Subject},
     refresh::{Generation, RefreshCycle},
-    resets::{self, Ledger, Prefs},
+    resets::{self, SharedLedger},
     Account, Config, Report, Snapshot,
 };
 use std::time::{Duration, Instant};
@@ -33,48 +38,97 @@ const BANNER_KEEP: TimeDelta = TimeDelta::hours(1);
 const BEL: u8 = 0x07;
 
 pub(crate) struct Notices {
-    /// The planner's defaults: at the reset, only if used, no `other`.
-    prefs: Prefs,
-    /// What this session already notified (or skipped); never saved.
-    ledger: Ledger,
-    /// PRD 0008 RF4: usage alerts on with the core defaults (75% and 90%,
-    /// exhaustion and recovery, nothing muted).
-    alert_prefs: AlertPrefs,
-    /// What the usage alerts saw this session; never saved.
-    alerts: AlertState,
+    /// PRD 0032 RF1.2: the shared preferences file, followed for changes;
+    /// `None` keeps `loaded` as it is (tests).
+    source: Option<notify_prefs::Source>,
+    /// The preferences in force: reset planner, thresholds, mutes, bells,
+    /// quiet hours and private texts. `--notify` itself is the consent, so
+    /// both kinds are on whatever the desktop's switches say.
+    loaded: Loaded,
+    /// PRD 0024 RF3.4: `--notify-projected` for this session only.
+    projected: Option<Lead>,
+    /// Notified resets and the usage alert state, shared through
+    /// `notified.json` with the desktop and other terminals (PRD 0032 RF4).
+    ledger: SharedLedger,
     /// Alerts judged on a refresh, waiting for the next pass.
     pending: Vec<AlertEvent>,
+    /// PRD 0032 RF3.1: projections held by quiet hours (they are not saved
+    /// as marks: a restart judges them afresh).
+    held_projected: Vec<AlertEvent>,
+    /// PRD 0032 RF3.3: the digest's alerts waiting for the spacing.
+    digest_pending: Vec<AlertEvent>,
     /// When the last usage alert went out ([`NOTICE_SPACING`]).
     last_alert: Option<DateTime<Utc>>,
     started: DateTime<Utc>,
     osc9: bool,
     /// When the last notice went out and its header line.
     banner: Option<(DateTime<Utc>, String)>,
+    /// The time zone of the quiet hours; `None` is the system's. Tests set
+    /// a fixed offset.
+    zone: Option<chrono::FixedOffset>,
 }
 
 impl Notices {
-    /// A session opened at `started`; `osc9` from [`osc9_supported`].
+    /// A session opened at `started` with the recommended preferences, an
+    /// in-memory ledger and public texts; `osc9` from [`osc9_supported`].
     pub(crate) fn new(started: DateTime<Utc>, osc9: bool) -> Self {
-        let mut alert_prefs = AlertPrefs::default();
-        alert_prefs.enabled = true;
+        let mut loaded = Loaded::absent();
+        loaded.notify.private = false;
         Self {
-            prefs: Prefs::default(),
-            ledger: Ledger::default(),
-            alert_prefs,
-            alerts: AlertState::default(),
+            source: None,
+            loaded,
+            projected: None,
+            ledger: SharedLedger::in_memory(),
             pending: Vec::new(),
+            held_projected: Vec::new(),
+            digest_pending: Vec::new(),
             last_alert: None,
             started,
             osc9,
             banner: None,
+            zone: None,
         }
+    }
+
+    /// PRD 0032 RF1.2 and RF4.1: follow the desktop's `desktop.json` and
+    /// share `notified.json` with it (`source` and `ledger` from their
+    /// default locations in the application).
+    pub(crate) fn shared(mut self, source: notify_prefs::Source, ledger: SharedLedger) -> Self {
+        self.loaded = source.loaded().clone();
+        self.source = Some(source);
+        self.ledger = ledger;
+        self
     }
 
     /// PRD 0024 RF3.4: `--notify-projected`: warn `lead` before a projected
     /// exhaustion, for this session only. `--notify` alone never does.
     pub(crate) fn with_projected(mut self, lead: Option<Lead>) -> Self {
-        self.alert_prefs.projected = lead;
+        self.projected = lead;
         self
+    }
+
+    /// The usage alert preferences: the shared ones, always on.
+    fn alert_prefs(&self) -> AlertPrefs {
+        let mut prefs = self.loaded.evaluator();
+        prefs.enabled = true;
+        prefs.projected = self.projected;
+        prefs
+    }
+
+    /// Re-read the preferences when the file changed.
+    fn refresh_prefs(&mut self) {
+        if let Some(source) = &mut self.source {
+            if source.refresh() {
+                self.loaded = source.loaded().clone();
+            }
+        }
+    }
+
+    fn window(&self, now: DateTime<Utc>) -> Option<QuietWindow> {
+        match &self.zone {
+            Some(zone) => quiet::window_at(&self.loaded.quiet, now, zone),
+            None => quiet::window_at(&self.loaded.quiet, now, &chrono::Local),
+        }
     }
 
     /// PRD 0008 RF4: the usage alerts `next` deserves after `prev`, the
@@ -97,8 +151,8 @@ impl Notices {
         alerts::evaluate_units(
             prev,
             next,
-            &self.alert_prefs,
-            &self.alerts,
+            &self.alert_prefs(),
+            self.ledger.alerts(),
             now,
             PoolAlerts::WholePool,
             input.as_ref(),
@@ -108,6 +162,9 @@ impl Notices {
     /// Remember `next`, the reading the cycle applied, and queue the
     /// `events` [`Self::assess`] gave for it for the next pass. A queued
     /// projection that `next` voids (PRD 0024 RF2.4) is dropped first.
+    /// Under the ledger lock (PRD 0032 RF4) the events another process
+    /// already notified are dropped; what quiet hours hold (all but
+    /// exhaustion, RF3) is saved as deferred for the digest.
     fn record(
         &mut self,
         next: &Report,
@@ -115,8 +172,8 @@ impl Notices {
         now: DateTime<Utc>,
         pace: Option<&(Duration, Vec<Vec<Point>>)>,
     ) {
-        self.alerts
-            .update_units(next, &self.alert_prefs, &events, now);
+        self.refresh_prefs();
+        self.ledger.sync();
         if let Some((interval, recent)) = pace {
             let input = PaceInput {
                 interval: *interval,
@@ -124,25 +181,57 @@ impl Notices {
             };
             self.pending
                 .retain(|event| !alerts::cancels(event, next, &input, now));
+            self.held_projected
+                .retain(|event| !alerts::cancels(event, next, &input, now));
         }
-        self.pending.extend(events);
+        let window = self.window(now);
+        let (mut deliver, mut deferred) = (Vec::new(), Vec::new());
+        for event in events {
+            match quiet::decide(Subject::Alert(&event), window) {
+                Decision::Deliver => deliver.push(event),
+                Decision::Defer(_) if event.kind == AlertKind::ProjectedExhaustion => {
+                    let same = |other: &AlertEvent| {
+                        other.account_key == event.account_key && other.label == event.label
+                    };
+                    if !self.held_projected.iter().any(same) {
+                        self.held_projected.push(event);
+                    }
+                }
+                Decision::Defer(until) => deferred.push((event, until)),
+                Decision::Drop => {}
+            }
+        }
+        let prefs = self.alert_prefs();
+        let sent = self
+            .ledger
+            .claim_alerts(next, &prefs, deliver, deferred, now);
+        self.pending.extend(sent);
     }
 
     /// Forget the usage alerts of accounts no longer in `config` (after a
     /// save), so one added back later starts afresh.
     pub(crate) fn keep_accounts(&mut self, config: &Config) {
         let keys: Vec<String> = config.accounts.iter().map(Account::state_key).collect();
-        self.pending
-            .retain(|event| keys.contains(&event.account_key));
-        self.alerts.retain_accounts(keys.iter().map(String::as_str));
+        let kept = |event: &AlertEvent| keys.contains(&event.account_key);
+        self.pending.retain(kept);
+        self.held_projected.retain(kept);
+        self.digest_pending.retain(kept);
+        self.ledger.mutate(|ledger| {
+            ledger
+                .alerts_mut()
+                .retain_accounts(keys.iter().map(String::as_str))
+        });
     }
 
     /// One pass at `now` over `readings` (one per `config.accounts`): the
-    /// resets due and the pending usage alerts become the banner and the
-    /// bytes to write to the terminal, one OSC 9 per notice when supported
-    /// and then a single `BEL`; empty when nothing is due. Each reset is
-    /// announced once per session; usage alerts go out at most once per
-    /// [`NOTICE_SPACING`], the ones arriving sooner wait for the next.
+    /// resets due, the digest that closes quiet hours and the pending usage
+    /// alerts become the banner and the bytes to write to the terminal, one
+    /// OSC 9 per notice when supported and then a single `BEL`; empty when
+    /// nothing is due. Each reset is announced once per profile; usage
+    /// alerts go out at most once per [`NOTICE_SPACING`], the ones arriving
+    /// sooner wait for the next. During quiet hours (PRD 0032) nothing is
+    /// written but an exhaustion: resets wait or are dropped, the rest
+    /// comes back as one digest when the window ends.
     pub(crate) fn tick(
         &mut self,
         config: &Config,
@@ -150,8 +239,11 @@ impl Notices {
         now: DateTime<Utc>,
         locale: &str,
     ) -> Vec<u8> {
-        self.ledger.prune(now);
-        self.alerts.prune(now);
+        self.refresh_prefs();
+        self.ledger.sync();
+        self.ledger.mutate(|ledger| ledger.prune(now));
+        let window = self.window(now);
+        let prefs = self.loaded.planner();
         // PRD 0036 RF1.4: the connections of an aggregator have resets of
         // their own, planned as accounts after the configured ones.
         let expanded = aggregators::expand(config, readings);
@@ -159,16 +251,14 @@ impl Notices {
             &expanded.config,
             expanded.readings(),
             now,
-            &self.prefs,
+            &prefs,
             &self.ledger,
         );
-        let mut out = Vec::new();
-        let mut lines = Vec::new();
+        let (mut deliver, mut skipped) = (Vec::new(), Vec::new());
         for mut event in plan.due {
-            self.ledger.record(&event, now);
             // A reset whose notice time came before the session opened
             // (a reading restored from the history) is not this session's.
-            let (lead, started) = (self.prefs.lead, self.started);
+            let (lead, started) = (prefs.lead, self.started);
             event
                 .metrics
                 .retain(|metric| metric.resets_at - lead >= started);
@@ -177,22 +267,51 @@ impl Notices {
             };
             event.resets_at = first.resets_at;
             event.notify_at = event.resets_at - lead;
+            let subject = Subject::Reset {
+                resets_at: event.resets_at,
+            };
+            match quiet::decide(subject, window) {
+                Decision::Deliver => deliver.push(event),
+                Decision::Drop => skipped.push(event),
+                Decision::Defer(_) => {}
+            }
+        }
+        let private = self.loaded.notify.private;
+        let mut out = Vec::new();
+        let mut lines = Vec::new();
+        for event in self.ledger.claim_resets(deliver, skipped, now) {
             let account = expanded.display(event.account_index);
             let notice = event.notice(account, now);
-            let title = notice.title.resolve(locale);
             lines.push(format!(
                 "{} ({})",
-                safe(&title),
+                safe(&notice.title.resolve(locale)),
                 safe(&account.display_name())
             ));
             if self.osc9 {
+                let shown = event.notice_with(account, now, private);
                 osc9(
                     &mut out,
-                    &format!("{title} — {}", notice.body.resolve(locale)),
+                    &format!(
+                        "{} — {}",
+                        shown.title.resolve(locale),
+                        shown.body.resolve(locale)
+                    ),
                 );
             }
         }
-        self.deliver_alerts(&expanded, now, locale, &mut out, &mut lines);
+        if window.is_none() {
+            self.release_held(readings, now);
+            let alert_prefs = self.alert_prefs();
+            let events = self.ledger.claim_digest(
+                expanded.readings().into_iter().flatten(),
+                &alert_prefs,
+                self.loaded.quiet.digest,
+                now,
+            );
+            self.digest_pending.extend(events);
+        }
+        self.deliver_digest(&expanded.config, now, locale, &mut out, &mut lines);
+        self.deliver_alerts(&expanded, now, window, locale, &mut out, &mut lines);
         if lines.is_empty() {
             return out;
         }
@@ -201,27 +320,102 @@ impl Notices {
         out
     }
 
-    /// The pending usage alerts, unless [`NOTICE_SPACING`] still holds
-    /// them: one line (and OSC 9) per account, in configuration order,
-    /// with the core text ("Claude: 90% of the 5-hour window used —
-    /// Work: Session (5h) · resets 14:30"). Alerts of accounts no longer
-    /// configured are dropped.
-    fn deliver_alerts(
+    /// PRD 0032 RF3.1: the projections quiet hours held are judged by the
+    /// account's latest reading and recorded as notified (so the evaluator
+    /// does not raise them again) before they join the queue.
+    fn release_held(&mut self, readings: &[Option<&Report>], now: DateTime<Utc>) {
+        let prefs = self.alert_prefs();
+        for event in std::mem::take(&mut self.held_projected) {
+            let Some(reading) = readings
+                .iter()
+                .flatten()
+                .find(|report| report.state_key() == event.account_key)
+            else {
+                continue;
+            };
+            let sent = self
+                .ledger
+                .claim_alerts(reading, &prefs, vec![event], Vec::new(), now);
+            self.pending.extend(sent);
+        }
+    }
+
+    /// PRD 0032 RF3.3/RF3.4: the digest of what still holds when quiet
+    /// hours end: one notice, subject to [`NOTICE_SPACING`].
+    fn deliver_digest(
         &mut self,
-        expanded: &aggregators::Expanded,
+        config: &Config,
         now: DateTime<Utc>,
         locale: &str,
         out: &mut Vec<u8>,
         lines: &mut Vec<String>,
     ) {
-        if self.pending.is_empty()
+        let keys: Vec<String> = config.accounts.iter().map(Account::state_key).collect();
+        self.digest_pending
+            .retain(|event| keys.contains(&event.account_key));
+        if self.digest_pending.is_empty()
             || self
                 .last_alert
                 .is_some_and(|last| now < last + NOTICE_SPACING)
         {
             return;
         }
-        let mut pending = std::mem::take(&mut self.pending);
+        let mut pending = std::mem::take(&mut self.digest_pending);
+        let mut groups = Vec::new();
+        for (account, key) in config.accounts.iter().zip(&keys) {
+            let (mine, rest): (Vec<_>, Vec<_>) = pending
+                .into_iter()
+                .partition(|event| event.account_key == *key);
+            pending = rest;
+            if !mine.is_empty() {
+                groups.push((account, mine));
+            }
+        }
+        let private = self.loaded.notify.private;
+        let notice = match &self.zone {
+            Some(zone) => quiet::digest(&groups, now, zone, private),
+            None => quiet::digest(&groups, now, &chrono::Local, private),
+        };
+        let Some(notice) = notice else {
+            return;
+        };
+        let title = notice.title.resolve(locale);
+        lines.push(safe(&title).into_owned());
+        if self.osc9 {
+            osc9(out, &format!("{title} — {}", notice.body.resolve(locale)));
+        }
+        self.last_alert = Some(now);
+    }
+
+    /// The pending usage alerts, unless [`NOTICE_SPACING`] still holds
+    /// them: one line (and OSC 9) per account, in configuration order,
+    /// with the core text ("Claude: 90% of the 5-hour window used —
+    /// Work: Session (5h) · resets 14:30"). Alerts of accounts no longer
+    /// configured are dropped, and the ones quiet hours hold stay queued.
+    fn deliver_alerts(
+        &mut self,
+        expanded: &aggregators::Expanded,
+        now: DateTime<Utc>,
+        window: Option<QuietWindow>,
+        locale: &str,
+        out: &mut Vec<u8>,
+        lines: &mut Vec<String>,
+    ) {
+        let (mut pending, held): (Vec<_>, Vec<_>) = std::mem::take(&mut self.pending)
+            .into_iter()
+            .partition(|event| quiet::decide(Subject::Alert(event), window) == Decision::Deliver);
+        self.pending = held;
+        if pending.is_empty() {
+            return;
+        }
+        if self
+            .last_alert
+            .is_some_and(|last| now < last + NOTICE_SPACING)
+        {
+            self.pending.append(&mut pending);
+            return;
+        }
+        let private = self.loaded.notify.private;
         for (index, account) in expanded.config.accounts.iter().enumerate() {
             let key = account.state_key();
             let account = expanded.display(index);
@@ -229,7 +423,8 @@ impl Notices {
                 .into_iter()
                 .partition(|event| event.account_key == key);
             pending = rest;
-            let Some(notice) = alerts::notice(&[(account, mine)], now, &chrono::Local) else {
+            let groups = [(account, mine)];
+            let Some(notice) = alerts::notice(&groups, now, &chrono::Local) else {
                 continue;
             };
             let text = format!(
@@ -239,7 +434,16 @@ impl Notices {
             );
             lines.push(safe(&text).into_owned());
             if self.osc9 {
-                osc9(out, &text);
+                let shown =
+                    alerts::notice_with(&groups, now, &chrono::Local, private).unwrap_or(notice);
+                osc9(
+                    out,
+                    &format!(
+                        "{} — {}",
+                        shown.title.resolve(locale),
+                        shown.body.resolve(locale)
+                    ),
+                );
             }
             self.last_alert = Some(now);
         }
@@ -248,7 +452,7 @@ impl Notices {
     /// Whether projected exhaustion is on (`--notify-projected`), so the
     /// recent points are read only then.
     fn projecting(&self) -> bool {
-        self.alert_prefs.projected.is_some()
+        self.projected.is_some()
     }
 
     /// The header line of the last notice, for [`BANNER_KEEP`].
@@ -779,3 +983,7 @@ mod tests {
         assert_eq!(notices.banner(later), None);
     }
 }
+
+#[cfg(test)]
+#[path = "notify_policy_tests.rs"]
+mod policy_tests;
