@@ -25,17 +25,21 @@ pub enum SignInMethod {
     ApiKey,
     CloudProfile,
     WebSession,
+    /// A gateway the person runs (9router, LiteLLM proxy): Cuotai reads
+    /// the instance, never the upstream providers' credentials.
+    SelfHostedGateway,
     Extension,
 }
 
 impl SignInMethod {
     /// Display order of the groups (RF1.1).
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::BrowserSignIn,
         Self::LocalCredentials,
         Self::ApiKey,
         Self::CloudProfile,
         Self::WebSession,
+        Self::SelfHostedGateway,
         Self::Extension,
     ];
 
@@ -46,6 +50,7 @@ impl SignInMethod {
             Self::ApiKey => "api_key",
             Self::CloudProfile => "cloud_profile",
             Self::WebSession => "web_session",
+            Self::SelfHostedGateway => "self_hosted_gateway",
             Self::Extension => "extension",
         }
     }
@@ -58,6 +63,7 @@ impl SignInMethod {
             Self::ApiKey => "Chave de API",
             Self::CloudProfile => "Perfil de nuvem",
             Self::WebSession => "Sessão web",
+            Self::SelfHostedGateway => "Gateway auto-hospedado",
             Self::Extension => "Extensão",
         };
         Localized::fixed(format!("catalog.method.{}", self.slug()), fallback)
@@ -300,6 +306,22 @@ fn cli_name(provider: Provider) -> &'static str {
 /// and whether it is the native-login mode. The only table of overrides is
 /// [`cli_name`]; nothing is written per provider.
 fn method_and_hint(
+    provider: Provider,
+    credential: Credential,
+    level: Level,
+    metered: bool,
+    native_login: bool,
+) -> (SignInMethod, Localized) {
+    let (method, hint) = credential_method(provider, credential, level, metered, native_login);
+    // PRD 0036 RF10: aggregators (9router, LiteLLM proxy) form their own
+    // "Self-hosted gateway" group whatever their credential class.
+    if provider.is_aggregator() {
+        return (SignInMethod::SelfHostedGateway, hint);
+    }
+    (method, hint)
+}
+
+fn credential_method(
     provider: Provider,
     credential: Credential,
     level: Level,
@@ -773,6 +795,21 @@ mod tests {
             }
         }
         assert!(entries.iter().all(|e| e.provider != Provider::Extension));
+    }
+
+    #[test]
+    fn aggregators_form_the_self_hosted_gateway_group() {
+        for provider in [Provider::NineRouter, Provider::LiteLlm] {
+            let access = access::classify(provider, false, &BTreeMap::new());
+            let (method, _) = method_and_hint(
+                provider,
+                access.credential,
+                access.level,
+                access.metered,
+                false,
+            );
+            assert_eq!(method, SignInMethod::SelfHostedGateway, "{provider:?}");
+        }
     }
 
     #[test]

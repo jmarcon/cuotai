@@ -185,10 +185,10 @@ The account pickers (desktop and TUI) list providers from `cuotai_core::account_
 | Antigravity | `antigravity` | `credential` | API key | Coding tool | google | Account access token |
 | Kimchi | `kimchi` | — | API key | API platform | — | API key |
 | ElevenLabs | `eleven_labs` | — | API key | API platform | eleven labs, 11labs | API key |
-| 9router | `nine_router` | — | API key | Router | 9router, nine router, router, aggregator | Dashboard password (optional) |
+| 9router | `nine_router` | — | Self-hosted gateway | Router | 9router, nine router, router, aggregator | Dashboard password (optional) |
 | OpenRouter | `open_router` | `oauth` | Browser sign-in | Router | openrouter, open router, router, or | Sign in with your browser |
 | OpenRouter | `open_router` | `credential` | API key | Router | openrouter, open router, router, or | API key |
-| LiteLLM proxy | `litellm` | — | API key | Router | litellm, lite llm, proxy, gateway, aggregator | Admin API key |
+| LiteLLM proxy | `litellm` | — | Self-hosted gateway | Router | litellm, lite llm, proxy, gateway, aggregator | Admin API key |
 <!-- catalog-table:end -->
 
 ## Option applicability by authentication

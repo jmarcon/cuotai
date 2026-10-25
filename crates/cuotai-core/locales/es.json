@@ -1378,6 +1378,7 @@
   "catalog.method.api_key": "Clave de API",
   "catalog.method.cloud_profile": "Perfil de nube",
   "catalog.method.web_session": "Sesión web",
+  "catalog.method.self_hosted_gateway": "Gateway autoalojado",
   "catalog.method.extension": "Extensión",
   "catalog.category.subscription": "Suscripción",
   "catalog.category.api_platform": "Plataforma de API",
