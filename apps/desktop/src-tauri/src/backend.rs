@@ -2916,10 +2916,14 @@ impl Backend {
             let prev = loaded.file.config.clone();
             // RF5.3: the approval binds to the disclosed snapshot, so a file
             // changed in between fails here instead of running unseen.
-            let enabled = manager
+            let cuotai_core::extensions::management::EnableResult {
+                action,
+                config,
+                consent_rollback,
+            } = manager
                 .enable(candidate, true, &prev)
                 .map_err(|note| l10n_to_json(&note))?;
-            let id = enabled.action.id.clone();
+            let id = action.id.clone();
             // Approval and configuration persistence are one action: core knows
             // exactly what its approval step changed and restores that when
             // persistence loses. A rollback that itself fails (a newer
@@ -2927,42 +2931,36 @@ impl Backend {
             // error, never swallowed.
             // PRD 0028 RF7.1: an override extension creates no account; only
             // the approval changed, and it is already committed.
-            if enabled.action.account.is_none() {
+            if action.account.is_none() {
                 manager.confirm_commit(&id);
                 drop(g);
                 self.emit(app).await;
-                return Ok(enabled.action);
+                return Ok(action);
             }
-            let mut consent_rollback = Some(enabled.consent_rollback);
-            let index = enabled
-                .action
+            let index = action
                 .account
                 .as_ref()
                 .map(|account| account.index)
                 .ok_or("extension_account_missing")?;
             let mut cycle = loaded.cycle.clone();
             if let Err(error) =
-                cycle.apply_edit(&prev, &enabled.config, Edit::Upsert(index), Instant::now())
+                cycle.apply_edit(&prev, &config, Edit::Upsert(index), Instant::now())
             {
-                let rollback = manager.rollback(consent_rollback.take().unwrap());
+                let rollback = manager.rollback(consent_rollback);
                 return Err(rollback_with(
                     &rollback,
                     refresh_edit_error(&error, prev.accounts.len()),
                 ));
             }
-            let monitor = match loaded
-                .monitor
-                .with_config(enabled.config.clone())
-                .map(Arc::new)
-            {
+            let monitor = match loaded.monitor.with_config(config.clone()).map(Arc::new) {
                 Ok(monitor) => monitor,
                 Err(error) => {
-                    let rollback = manager.rollback(consent_rollback.take().unwrap());
+                    let rollback = manager.rollback(consent_rollback);
                     return Err(rollback_with(&rollback, config_error_note(&error)));
                 }
             };
-            if let Err(error) = loaded.file.save(enabled.config) {
-                let rollback = manager.rollback(consent_rollback.take().unwrap());
+            if let Err(error) = loaded.file.save(config) {
+                let rollback = manager.rollback(consent_rollback);
                 return Err(rollback_edit(&rollback, error));
             }
             // Persistence succeeded: only now does the newly approved
@@ -2977,7 +2975,7 @@ impl Backend {
             }
             loaded.generation += 1;
             *generation = loaded.generation;
-            (enabled.action, index)
+            (action, index)
         };
         self.emit(app).await;
         self.refresh_account(app, index).await?;
