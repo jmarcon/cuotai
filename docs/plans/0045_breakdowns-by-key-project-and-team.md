@@ -149,5 +149,5 @@ At each step: `cargo fmt`, `clippy -D warnings`, workspace and desktop tests; a 
 
 ### Owner decisions (2026-10-25)
 
-- **TOML tolerance for `breakdown` ships in the current release: yes.** Accepted and ignored before this PRD ships, so the delivering version is downgrade-safe; a separate lane delivers the tolerance.
+- **TOML tolerance for `breakdown` ships in the current release: yes.** Accepted and ignored before this PRD ships, so the delivering version is downgrade-safe; delivered in vNEXT (the account table accepts and ignores the key).
 - Scheduled for the next version, not this release.

@@ -535,7 +535,7 @@ Recorded on 2026-10-23 (review item PROC-03). The 2026-10-21 decisions come from
 | 2026-10-25 | PRDs 0040–0046 are planned for the next version, not this release. | 0040–0046 |
 | 2026-10-25 | The Add account dialog preselects the `claude_code` mode when Claude Code is detected. | 0040, 0027 |
 | 2026-10-25 | Built-in notification channels go ahead with consent: off by default, URLs in the system vault, private texts honoured. | 0044, 0032 |
-| 2026-10-25 | The TOML tolerance for `budgets`, `floors` and `breakdown` ships in this release, so the next one is downgrade-safe. | 0041, 0045, 0029 RF0 |
+| 2026-10-25 | The TOML tolerance for `budgets`, `floors` and `breakdown` ships in this release, so the next one is downgrade-safe (delivered in vNEXT: the account table accepts and ignores the three keys). | 0041, 0045, 0029 RF0 |
 
 ## 7. Market parity map (2026-10-22, updated 2026-10-23)
 
