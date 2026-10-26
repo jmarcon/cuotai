@@ -89,7 +89,7 @@ pub(crate) async fn run(
 }
 
 fn confirmation_matches(input: &str, answer: &str) -> bool {
-    input.trim().to_lowercase() == answer.to_lowercase()
+    cuotai_core::text::answer_matches(input, answer)
 }
 
 /// The `--extension-check` JSON: how the run ended and the checked

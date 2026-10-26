@@ -506,7 +506,7 @@ fn enable(
     out.flush().map_err(io_error)?;
     let mut typed = String::new();
     input.read_line(&mut typed).map_err(io_error)?;
-    if typed.trim().to_lowercase() != answer.to_lowercase() {
+    if !cuotai_core::text::answer_matches(&typed, &answer) {
         return Err(cost::declined().resolve(locale));
     }
     settings

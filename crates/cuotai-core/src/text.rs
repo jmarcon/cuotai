@@ -352,7 +352,7 @@ pub fn countdown(span: chrono::TimeDelta) -> Localized {
 mod fold;
 pub mod parity;
 mod registry;
-pub use fold::fold;
+pub use fold::{answer_matches, fold};
 pub use registry::{
     locale_row, normalize, plural_category, source_locale, Direction, LocaleRow, LocaleStatus,
     PluralRule, LOCALES,

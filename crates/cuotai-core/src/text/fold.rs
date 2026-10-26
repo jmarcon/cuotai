@@ -58,9 +58,24 @@ pub fn fold(text: &str) -> String {
     out
 }
 
+/// PRD 0035 RF11.7: whether a typed consent answer matches the catalog's
+/// word ("yes", "sim", "हाँ"): trimmed, case-insensitive, and with the
+/// Devanagari nasal marks taken as one, since Hindi writes "yes" both as
+/// हाँ (candrabindu) and हां (anusvara) and keyboards differ.
+pub fn answer_matches(typed: &str, answer: &str) -> bool {
+    let norm = |text: &str| -> String {
+        text.trim()
+            .to_lowercase()
+            .chars()
+            .map(|c| if c == '\u{901}' { '\u{902}' } else { c })
+            .collect()
+    };
+    norm(typed) == norm(answer)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::fold;
+    use super::{answer_matches, fold};
 
     #[test]
     fn fold_matches_the_desktop_examples() {
@@ -96,5 +111,14 @@ mod tests {
         assert_eq!(fold("ỉ"), "i");
         assert_eq!(fold("Ợ"), "o");
         assert_eq!(fold("ự"), "u");
+    }
+
+    #[test]
+    fn a_consent_answer_accepts_both_hindi_spellings_of_yes() {
+        assert!(answer_matches(" हाँ\n", "हां"));
+        assert!(answer_matches("हां", "हाँ"));
+        assert!(answer_matches("YES", "yes"));
+        assert!(!answer_matches("हा", "हां"));
+        assert!(!answer_matches("no", "yes"));
     }
 }
