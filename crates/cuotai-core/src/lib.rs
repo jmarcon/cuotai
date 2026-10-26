@@ -654,6 +654,47 @@ impl Monitor {
             })
     }
 
+    /// [`Monitor::recent_points`] for several readings `(index, metrics,
+    /// now)` at once, in their order, over one store connection: a front
+    /// end that shows every account reads the history once per refresh. An
+    /// unknown index yields empty lists.
+    pub fn recent_points_many(
+        &self,
+        readings: &[(usize, &[Metric], chrono::DateTime<Utc>)],
+    ) -> Vec<Vec<Vec<pace::Point>>> {
+        let none = || {
+            readings
+                .iter()
+                .map(|(_, metrics, _)| vec![Vec::new(); metrics.len()])
+                .collect()
+        };
+        let Some(recorder) = &self.history else {
+            return none();
+        };
+        let known: Vec<(&Account, &[Metric], chrono::DateTime<Utc>)> = readings
+            .iter()
+            .filter_map(|(index, metrics, now)| {
+                Some((self.config.accounts.get(*index)?, *metrics, *now))
+            })
+            .collect();
+        let mut found = match recorder.store().recent_many(&known) {
+            Ok(found) => found.into_iter(),
+            Err(error) => {
+                recorder.note_error(error);
+                return none();
+            }
+        };
+        readings
+            .iter()
+            .map(
+                |(index, metrics, _)| match self.config.accounts.get(*index) {
+                    Some(_) => found.next().unwrap_or_default(),
+                    None => vec![Vec::new(); metrics.len()],
+                },
+            )
+            .collect()
+    }
+
     /// PRD 0006 RF6: every recorded metric of account `index` within
     /// `range` ([`history::HistoryStore::account_history`]). Empty without
     /// history or for an unknown index; a storage failure is returned and

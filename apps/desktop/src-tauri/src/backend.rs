@@ -1388,11 +1388,16 @@ struct RecentMemo<'a> {
 /// (account index, lookback end in unix ms, metric count) → the points read.
 type RecentSeen = std::collections::HashMap<(usize, i64, usize), Vec<Vec<Point>>>;
 
+/// One reading to prefetch: account index, its metrics, the lookback end.
+type RecentWanted = (usize, Vec<Metric>, chrono::DateTime<chrono::Utc>);
+
 impl<'a> RecentMemo<'a> {
-    fn new(monitor: Option<&'a Monitor>) -> Self {
+    /// A memo primed with `seen`, the readings [`Backend::prefetch_recent`]
+    /// read in one pass off the lock; anything else is read on demand.
+    fn with(monitor: Option<&'a Monitor>, seen: RecentSeen) -> Self {
         Self {
             monitor,
-            seen: Default::default(),
+            seen: std::cell::RefCell::new(seen),
         }
     }
 
@@ -1416,6 +1421,28 @@ impl<'a> RecentMemo<'a> {
 }
 
 impl Inner {
+    /// The readings [`Self::view_with`] asks the history for (each slot's
+    /// report at its own time) and, with `export_at`, those
+    /// [`Self::hooks_input_with`] adds (the same reports at that instant),
+    /// with the monitor to read them from. Cheap: it clones metrics only.
+    fn recent_wanted(
+        &self,
+        export_at: Option<chrono::DateTime<chrono::Utc>>,
+    ) -> Option<(Arc<Monitor>, Vec<RecentWanted>)> {
+        let l = self.loaded.as_ref()?;
+        let mut wanted = Vec::new();
+        for index in 0..l.cycle.len() {
+            let Some(report) = l.cycle.account_report(index) else {
+                continue;
+            };
+            wanted.push((index, report.metrics.clone(), report.checked_at));
+            if let Some(at) = export_at {
+                wanted.push((index, report.metrics.clone(), at));
+            }
+        }
+        Some((Arc::clone(&l.monitor), wanted))
+    }
+
     /// A reader straight from the loaded monitor (no memo).
     fn recent_points(
         &self,
@@ -1947,18 +1974,27 @@ impl Backend {
     /// state (PRD 0013 RF4) and the widget snapshot is marked for its own
     /// task (PRD 0014 RF1.4, which writes without waiting for anybody).
     async fn emit(&self, app: &AppHandle) {
+        // The view, the hooks' export and the journal's pace table read the
+        // same recorded points: one pass over one history connection off the
+        // runtime and before the lock, then one read per reading for all
+        // three, and one `hooks_input` shared by the hooks and the journal.
+        let hooks_on = self.hooks_on.load(Ordering::Relaxed);
+        let now = chrono::Utc::now();
+        let wants_input = hooks_on || {
+            let g = self.inner.lock().await;
+            g.loaded
+                .as_ref()
+                .is_some_and(|l| l.monitor.history_recording() && l.monitor.history().is_some())
+        };
+        let seen = self.prefetch_recent(wants_input.then_some(now)).await;
         let (mut view, watched, journaled) = {
             let g = self.inner.lock().await;
             // PRD 0012 RF5.1: the local server serves this same state.
             if self.serving.load(Ordering::Relaxed) {
                 self.feed.publish(g.feed());
             }
-            // The view, the hooks' export and the journal's pace table read
-            // the same recorded points: one read per reading for all three,
-            // and one `hooks_input` shared by the hooks and the journal.
-            let memo = RecentMemo::new(g.loaded.as_ref().map(|l| &*l.monitor));
+            let memo = RecentMemo::with(g.loaded.as_ref().map(|l| &*l.monitor), seen);
             let recent = |index: usize, metrics: &[Metric], at| memo.read(index, metrics, at);
-            let hooks_on = self.hooks_on.load(Ordering::Relaxed);
             // PRD 0026 RF3.2: the journal sees the state while history records.
             let journal_store = g
                 .loaded
@@ -1966,7 +2002,7 @@ impl Backend {
                 .filter(|l| l.monitor.history_recording())
                 .and_then(|l| l.monitor.history());
             let input = (hooks_on || journal_store.is_some())
-                .then(|| g.hooks_input_with(chrono::Utc::now(), &recent))
+                .then(|| g.hooks_input_with(now, &recent))
                 .flatten();
             let journaled = journal_store.and_then(|store| {
                 input
@@ -2534,7 +2570,43 @@ impl Backend {
 
     pub async fn view(&self) -> View {
         self.ensure_loaded().await;
-        self.inner.lock().await.view()
+        let seen = self.prefetch_recent(None).await;
+        let g = self.inner.lock().await;
+        let memo = RecentMemo::with(g.loaded.as_ref().map(|l| &*l.monitor), seen);
+        g.view_with(&|index, metrics, at| memo.read(index, metrics, at))
+    }
+
+    /// The recorded points the next view (and, with `export_at`, the hooks
+    /// input) will ask for, read in one pass over one history connection
+    /// off the async runtime and outside the state lock. A reading the
+    /// state gains in between is read on demand by the memo.
+    async fn prefetch_recent(
+        &self,
+        export_at: Option<chrono::DateTime<chrono::Utc>>,
+    ) -> RecentSeen {
+        let wanted = self.inner.lock().await.recent_wanted(export_at);
+        let Some((monitor, wanted)) = wanted else {
+            return RecentSeen::default();
+        };
+        if wanted.is_empty() {
+            return RecentSeen::default();
+        }
+        tauri::async_runtime::spawn_blocking(move || {
+            let readings: Vec<(usize, &[Metric], chrono::DateTime<chrono::Utc>)> = wanted
+                .iter()
+                .map(|(index, metrics, at)| (*index, metrics.as_slice(), *at))
+                .collect();
+            let found = monitor.recent_points_many(&readings);
+            wanted
+                .iter()
+                .zip(found)
+                .map(|((index, metrics, at), points)| {
+                    ((*index, at.timestamp_millis(), metrics.len()), points)
+                })
+                .collect()
+        })
+        .await
+        .unwrap_or_default()
     }
 
     /// RF4 reload path: re-read the config from disk and replace the
