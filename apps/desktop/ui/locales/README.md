@@ -68,6 +68,83 @@ reverse). A row whose script is not Latin or Cyrillic also needs its
 artwork in `js/flags.js`; tests check both. A right-to-left row fails a test
 until a PRD covers mirroring.
 
+## Glossary
+
+PRD 0035 RF11.4. One term per concept across the core, TUI and desktop
+catalogs of a language. The table records the term each catalog uses today
+(read from the catalogs; en-US is the source). A draft or a pull request
+that touches a catalog uses these terms; a reviewer who wants a different
+term changes it here and in all three catalogs of that language in the same
+pull request.
+
+Never translate: Cuotai, provider and product names, plan names as the
+provider spells them, model ids, `CUOTAI_*` and other environment-variable
+names, CLI flags, file names, TOML keys, and the words `OAuth`, `API`,
+`token`, `URL`, `JSON`, `TOML`, `CLI` and `TUI` where the language uses
+them in English. Placeholders such as `{account}` are never translated,
+including the literal ones inside the Azure ARM path
+(`.../accounts/{account}` and `.../accounts/{name}`).
+
+| Language | account | provider | quota | reset | pace | fresh / aging / stale | credential vault | usage alerts | refresh | sign in |
+|---|---|---|---|---|---|---|---|---|---|---|
+| en-US | account | provider | quota | reset | pace (On pace) | Fresh / Aging / Stale | credential vault | Usage alerts | Refresh | Sign in |
+| pt-BR | conta | provedor | quota (cota in some texts) | reiniciar / renovar | ritmo (No ritmo) | Recente / Envelhecendo / Desatualizada | cofre de credenciais | Alertas de uso | Atualizar | Entrar |
+| es | cuenta | proveedor | cuota | reiniciar | ritmo (Al ritmo) | Reciente / Envejeciendo / Desactualizada | almacén de credenciales | Alertas de uso | Actualizar | Iniciar sesión |
+| it | account | provider | quota | azzerarsi | ritmo (In linea) | Aggiornato / In invecchiamento / Obsoleto | vault delle credenziali | Avvisi di utilizzo | Aggiorna | Accedi |
+| zh-CN | 账户 | 提供商 | 额度 | 重置 | 节奏 (符合节奏) | 最新 / 较旧 / 过期 | 凭据保险库 (系统保险库) | 用量提醒 | 刷新 | 登录 |
+| fr | compte | fournisseur | quota | réinitialisation (se réinitialise) | rythme (Au rythme) | Récent / Vieillissant / Obsolète | coffre d’identifiants (coffre du système) | Alertes d’utilisation | Actualiser | Se connecter |
+| de | Konto | Anbieter | Kontingent | Zurücksetzung | Tempo (Im Tempo) | Aktuell / Älter werdend / Veraltet | Tresor für Zugangsdaten | Nutzungswarnungen | Aktualisieren | Anmelden |
+| ja | アカウント | プロバイダー | クォータ | リセット | ペース (ペースどおり) | 最新 / やや古い / 古い | 認証情報の保管庫 (システムの保管庫) | 使用量アラート | 更新 | サインイン |
+| ru | учётная запись | провайдер | квота | сброс | темп (В темпе) | Актуально / Стареет / Устарело | хранилище учётных данных | Оповещения об использовании | Обновить | Войти |
+| ko | 계정 | 제공업체 | 할당량 | 초기화 | 페이스 (페이스 유지) | 최신 / 조금 오래됨 / 오래됨 | 자격 증명 보관소 (시스템 보관소) | 사용량 알림 | 새로 고침 | 로그인 |
+| hi-IN | खाता | प्रदाता | कोटा | रीसेट | गति (गति पर) | ताज़ा / पुराना होता / पुराना | क्रेडेंशियल वॉल्ट (सिस्टम वॉल्ट) | उपयोग अलर्ट | रीफ़्रेश | साइन इन |
+| id-ID | akun | penyedia | kuota | reset | laju (Sesuai laju) | Baru / Mulai usang / Usang | brankas kredensial | Peringatan penggunaan | Segarkan | Masuk |
+| tr | hesap | sağlayıcı | kota | sıfırlanma | hız (Hızında) | Güncel / Eskiyor / Eski | kimlik bilgisi kasası | Kullanım uyarıları | Yenile | Oturum aç |
+| vi | tài khoản | nhà cung cấp | hạn mức | đặt lại | nhịp độ (Đúng nhịp độ) | Mới / Cũ dần / Cũ | kho thông tin xác thực | Cảnh báo sử dụng | Làm mới | Đăng nhập |
+
+The zh-CN, fr, ja, ko and hi-IN rows were machine-reviewed on 2026-10-25
+(the catalogs record it in `_meta.machine_reviewed`); the other rows are
+read as the catalogs stand and await their own review. Every catalog of the
+ten new languages keeps `_meta.status` "machine-translated, needs native
+review" until a native reviewer signs the critical strings (RF11.2).
+
+### Register
+
+| Language | Register | Notes |
+|---|---|---|
+| en-US | neutral, second person "you" | source |
+| pt-BR | informal "você" | |
+| es | informal "tú" | precedent for tone |
+| it | informal "tu" | precedent for tone |
+| zh-CN | no pronoun by default; 您 only in error, consent, privacy and warning texts | help and labels drop 您 (自定价格表, not 您的价格表) |
+| fr | "vous", imperative in the vous form | French spacing before `:` `;` `?` |
+| de | "Sie" | |
+| ja | です/ます | no あなた; use 現在のユーザー for "your user" |
+| ru | "вы" | |
+| ko | 합쇼체 (-ㅂ니다/-습니다), polite imperative -세요 | the catalogs use 합쇼체 consistently; no 해요체 sentences |
+| hi-IN | आप, imperative in the -एँ/-ें form | never तुम or तू |
+| id-ID | "Anda" | |
+| tr | "siz" | |
+| vi | "bạn" | |
+
+### Review checklist
+
+Used by reviewers and by every pull request that touches a catalog (RF11.7):
+
+- placeholders intact and in a natural order; the typed consent answers
+  (`*.confirm.answer`, `*.consent.answer`) are easy to type;
+- no brand, provider or product name translated;
+- the glossary terms above and the register of the language;
+- critical texts (RF11.3) say what happened and what to do, without blame,
+  and mean what the English source says: compare with the English fallback
+  in the code or with `en-US.json`, never with another translation;
+- units and numbers outside the sentence; no markup and no exclamation
+  marks; sentence case where the language has case;
+- lengths within the budgets of RF9.3;
+- for ja, zh-CN and ko, no machine-translation artifacts (wrong Han word,
+  mixed-width punctuation);
+- the native reviewer signs in the pull request.
+
 ## User-provided languages
 
 Place a single `<config directory>/cuotai/locales/<code>.json` file and restart
