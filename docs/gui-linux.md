@@ -9,7 +9,7 @@ A walkthrough of the Cuotai desktop app on Linux: installing it, adding accounts
 
 ## Install
 
-Cuotai is pre-release: the first packaged release is not published yet, so check [`installing.md`](installing.md#channel-status) for what is live. When it is:
+Cuotai 0.80.0 is on [GitHub Releases](https://github.com/jmarcon/cuotai/releases); the package-manager channels are not live yet, so check [`installing.md`](installing.md#channel-status) for what is available:
 
 - **Debian, Ubuntu and derivatives:** download `Cuotai_<version>_amd64.deb` from [GitHub Releases](https://github.com/jmarcon/cuotai/releases) and run `sudo apt install ./Cuotai_<version>_amd64.deb`; apt installs the libraries the package declares.
 - **Fedora and derivatives:** download `Cuotai_<version>_amd64.rpm` and run `sudo dnf install ./Cuotai_<version>_amd64.rpm`.
@@ -89,7 +89,7 @@ Notices come while the window is hidden in the tray, but not after you Quit. The
 
 ## Themes and languages
 
-**Settings › General** has the theme picker, the light/dark/system switch and the animation setting. All [15 themes](themes.md) work in both modes, including an Ubuntu look. The language list (Portuguese, English, Spanish, Italian) is on the same page.
+**Settings › General** has the theme picker, the light/dark/system switch and the animation setting. All [15 themes](themes.md) work in both modes, including an Ubuntu look. The language list (14 languages, each with its flag and its own name) is on the same page.
 
 ## Launch at login
 

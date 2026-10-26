@@ -9,7 +9,7 @@ A walkthrough of the Cuotai desktop app on macOS: installing it, the first launc
 
 ## Install
 
-Cuotai is pre-release: the first packaged release is not published yet, so check [`installing.md`](installing.md#channel-status) for what is live. When it is:
+Cuotai 0.80.0 is on [GitHub Releases](https://github.com/jmarcon/cuotai/releases); the package-manager channels are not live yet, so check [`installing.md`](installing.md#channel-status) for what is available:
 
 - **Homebrew:** `brew install --cask jmarcon/cuotai/cuotai` (planned, not live yet).
 - **Direct download:** the `Cuotai_<version>_universal.dmg` from [GitHub Releases](https://github.com/jmarcon/cuotai/releases). It is one universal build for Apple silicon and Intel. Open the disk image and drag **Cuotai** to **Applications**. [Verify the download](installing.md#verify-your-download) first if you like.
@@ -94,7 +94,7 @@ Notices come while the window is hidden in the menu bar, but not after you Quit.
 
 ## Themes and languages
 
-**Settings › General** has the theme picker, the light/dark/system switch and the animation setting. All [15 themes](themes.md) work in both modes. The language list (Portuguese, English, Spanish, Italian) is on the same page; the app follows your system language the first time.
+**Settings › General** has the theme picker, the light/dark/system switch and the animation setting. All [15 themes](themes.md) work in both modes. The language list (14 languages, each with its flag and its own name) is on the same page; the app follows your system language the first time.
 
 ## Launch at login
 

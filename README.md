@@ -43,24 +43,26 @@ It is made for developers, teams and heavy users of coding assistants and AI API
 - **Which account has room right now.** Put accounts that can replace each other in a group (`group = "coding"`) and Cuotai marks the best one, as advice only: it never switches accounts for you.
 - **History and local cost.** Charts of how each quota moved over the last 24 hours, 7 days or 30 days, and an optional estimate of what your Claude Code, Codex CLI and Gemini CLI token use would cost at API prices, read from your own local logs.
 - **Private by design.** Cuotai is read-only and spends no tokens: it only asks your providers for quota and billing numbers, never for an AI answer. Sign-ins and tokens are kept in your operating system's vault (macOS Keychain, Windows Credential Manager, Linux Secret Service), your settings file never contains a secret, and there is no Cuotai account or cloud service in the middle.
-- **Runs where you work.** Windows, macOS and Linux, with a tray or menu-bar popover for a quick look. A terminal dashboard and a command line for scripts are included.
-- **Yours to shape.** 15 built-in themes (dark and light), your own themes, and an interface in Portuguese, English, Spanish and Italian.
+- **Your own gateways too.** Point Cuotai at a self-hosted 9router or LiteLLM proxy and it shows every connection inside it as a card of its own, grouped by upstream provider, and warns when a whole pool runs out.
+- **Runs where you work.** Windows, macOS and Linux, with a tray or menu-bar popover for a quick look (the menu-bar title can show your tightest limit). A terminal dashboard and a command line for scripts are included.
+- **Scriptable.** `cuotai --json`, an opt-in read-only local HTTP server, events and hooks with `--watch`, status-bar recipes (Waybar, SketchyBar, tmux, i3bar), shell completions and executable extensions for services Cuotai does not know yet.
+- **Yours to shape.** 15 built-in themes (dark and light), your own themes, and an interface in 14 languages: English, Portuguese, Spanish, Italian, German, French, Russian, Turkish, Japanese, Korean, Simplified Chinese, Hindi, Indonesian and Vietnamese. Ten of them are machine-drafted and waiting for native proofreading, which is marked in their language files.
 - **Free and open source**, under the MIT or Apache-2.0 license.
 
 ## Install
 
-> **Status.** Cuotai is pre-release: the first packaged release has not been published yet, so the package-manager commands below are prepared but **not live**. Until the first release, build it from source ([build guide](docs/building.md)). Nothing here claims a channel is available before it is.
+> **Status.** Cuotai 0.80.0 is published on [GitHub Releases](https://github.com/jmarcon/cuotai/releases): the macOS `.dmg` is signed and notarized, the Windows installers are **not code-signed yet** (SmartScreen will warn), and the Linux packages and the terminal archives are covered by the signed `SHA256SUMS`. The package-manager commands below are prepared but **not live yet**; until they are, download from Releases or build from source ([build guide](docs/building.md)). Nothing here claims a channel is available before it is.
 
 | System | Package manager (planned) | Direct download | Works today |
 |---|---|---|---|
-| **macOS** (Apple silicon and Intel) | Homebrew: `brew install --cask jmarcon/cuotai/cuotai` (coming soon) | `.dmg` from [Releases](https://github.com/jmarcon/cuotai/releases) (first release pending) | [Build from source](docs/building.md#desktop-app-tauri) |
-| **Windows** (x64; ARM64 optional) | winget: `winget install Cuotai.Cuotai` (coming soon) | `.exe` or `.msi` installer from [Releases](https://github.com/jmarcon/cuotai/releases) (first release pending) | [Build from source](docs/building.md#desktop-app-tauri) |
-| **Linux** (x64; ARM64 optional) | AUR: `yay -S cuotai-bin` (coming soon) | `.deb`, `.rpm` or `.AppImage` from [Releases](https://github.com/jmarcon/cuotai/releases) (first release pending) | [Build from source](docs/building.md#desktop-app-tauri) |
-| **Any system, terminal only** | `cargo install cuotai-tui --locked` or `cargo binstall cuotai-tui` (coming soon, once the crates are published) | CLI archive from [Releases](https://github.com/jmarcon/cuotai/releases) (first release pending) | `cargo install --git https://github.com/jmarcon/cuotai cuotai-tui --locked` |
+| **macOS** (Apple silicon and Intel) | Homebrew: `brew install --cask jmarcon/cuotai/cuotai` (coming soon) | `.dmg` from [Releases](https://github.com/jmarcon/cuotai/releases) | [Download from Releases](https://github.com/jmarcon/cuotai/releases) or [build from source](docs/building.md#desktop-app-tauri) |
+| **Windows** (x64; ARM64 optional) | winget: `winget install Cuotai.Cuotai` (coming soon) | `.exe` or `.msi` installer from [Releases](https://github.com/jmarcon/cuotai/releases) | [Download from Releases](https://github.com/jmarcon/cuotai/releases) or [build from source](docs/building.md#desktop-app-tauri) |
+| **Linux** (x64; ARM64 optional) | AUR: `yay -S cuotai-bin` (coming soon) | `.deb`, `.rpm` or `.AppImage` from [Releases](https://github.com/jmarcon/cuotai/releases) | [Download from Releases](https://github.com/jmarcon/cuotai/releases) or [build from source](docs/building.md#desktop-app-tauri) |
+| **Any system, terminal only** | `cargo install cuotai-tui --locked` or `cargo binstall cuotai-tui` (coming soon, once the crates are published) | CLI archive from [Releases](https://github.com/jmarcon/cuotai/releases) | The archive, or `cargo install --git https://github.com/jmarcon/cuotai cuotai-tui --locked` |
 
 Also coming soon: Homebrew (`brew install jmarcon/cuotai/cuotai`) and Scoop (`scoop bucket add cuotai && scoop install cuotai`) for the terminal version. The full channel status, with how each one is checked, is in [`docs/installing.md`](docs/installing.md).
 
-**Good to know once builds are published**
+**Good to know**
 
 - **macOS.** Builds that are not notarized by Apple are blocked the first time you open them: open **System Settings → Privacy & Security** and choose **Open Anyway** (older macOS versions: Control-click the app, choose **Open**, then confirm). Each release's notes say whether its macOS build is signed and notarized ([details](docs/gui-macos.md#first-launch-and-gatekeeper)).
 - **Windows.** Installers that are not code-signed trigger a SmartScreen "unknown publisher" warning: choose **More info**, then **Run anyway**. Each release's notes say whether the build is signed ([details](docs/gui-windows.md#first-launch-and-smartscreen)).
@@ -79,7 +81,7 @@ Open Cuotai, press **Add account**, pick a provider and either sign in with your
 | Feature | What it does |
 |---|---|
 | **Dashboard** | One card per account, ordered the way you like (drag to reorder, or "most restrictive first"), highlighting the limit that blocks you right now and how old each reading is. |
-| **Tray or menu bar** | Left click opens a popover with quota rings or a list; right click opens a quick menu. Closing the window keeps Cuotai running in the tray. |
+| **Tray or menu bar** | Left click opens a popover with quota rings or a list; right click opens a quick menu. Closing the window keeps Cuotai running in the tray. The menu-bar title can show your tightest limit, one figure per account, small meters or just the icon, for the accounts you choose. |
 | **Account details** | Every window with its bar, reset time and pace mark; hide or mute single quotas; browse the provider's model catalog. |
 | **Pace and warnings** | Whether you will make it to the reset, as an estimate, in points or in percent, with a forecast and an opt-in "warn before running out". |
 | **Best account** | The account of a group with the most room right now, marked "Best now". |
@@ -88,7 +90,7 @@ Open Cuotai, press **Add account**, pick a provider and either sign in with your
 | **Statistics and limits coming back** | A Stats view (limit hits, average peak, extra spent, peak per day, recent events) and a "limits come back" timeline, from the history stored on your computer; `S` and `--stats`/`--timeline`/`--events-log` in the terminal. |
 | **Local cost** | Opt-in token and estimated API-price cost for Claude Code, Codex CLI and Gemini CLI, from local logs only. Optionally compares the estimate with the plan price you type and shows a second currency at a rate you type; both are estimates at API prices, never a charge, and never leave your computer. |
 | **Provider status** | Opt-in badge when a provider reports an incident, so you know a failure may not be your account. |
-| **Themes and languages** | 15 themes in dark and light, custom themes, four languages. |
+| **Themes and languages** | 15 themes in dark and light, custom themes, 14 languages. |
 | **Updates** | An optional daily check that sends only the version, system and architecture. |
 
 <div align="center">
@@ -110,7 +112,7 @@ Prefer to stay in the terminal? The same engine powers an interactive dashboard 
 
 <div align="center">
   <img src="docs/assets/screenshots/tui-dashboard.png" alt="The Cuotai terminal dashboard showing six demo accounts" width="100%" />
-  <p><em>The terminal dashboard with demo accounts. Its on-screen captions are in Portuguese; the guide quotes them with English glosses.</em></p>
+  <p><em>The terminal dashboard with demo accounts, captured with the Portuguese interface. The terminal follows your system language or `CUOTAI_LANG`; the guide shows the English captions.</em></p>
 </div>
 
 Keyboard shortcuts, the account wizard, filters, the command line and its exit codes are in the [terminal guide](docs/tui.md); scripting recipes (`--json`, `--serve`, `--watch`, hooks, history and cost commands) are in [advanced usage](docs/advanced.md).
@@ -143,7 +145,7 @@ Cuotai ships **40 integrations**. For what each one reads, the credential it nee
 | **Assistants and subscriptions** | Claude, OpenAI Codex / ChatGPT, GitHub Copilot, Cursor (personal and Teams), Windsurf, Kiro / AWS, Antigravity, Cline, Zed, CodeBuddy, Qoder, OpenCode Go |
 | **CLIs and coding plans** | Gemini CLI, Grok CLI / xAI, Kimi Coding and API, MiniMax Token / Coding Plan, Alibaba Coding Plan, Alibaba Token Plan / Qwen Cloud, Xiaomi MiMo, Ollama Cloud, Qwen Code |
 | **Cloud billing and admin APIs** | OpenAI Admin API, Anthropic Admin API, Google Gemini API Monitoring, Google Vertex AI, AWS Bedrock Cost Explorer, Azure OpenAI Cost Management, Alibaba Cloud BSS, Mistral Admin, Perplexity Computer Analytics, Kimchi, Groq, ElevenLabs, OpenRouter |
-| **Aggregators** | 9router (the quotas of the connections inside your own instance) |
+| **Aggregators** | 9router and LiteLLM proxy (the quotas or budgets of the connections inside your own instance) |
 | **Additional catalog** | Alibaba Model Studio, Cloudflare AI, NVIDIA NIM, Poolside |
 
 Some providers expose usage only through interfaces the vendor does not document, and a few cost money per query (AWS Cost Explorer). Cuotai labels every account **Official**, **Undocumented**, **Derived** or **Unavailable** so you know how much to trust each reading, and `docs/providers.md` keeps the limitations in writing.
@@ -155,7 +157,7 @@ Cuotai is a one-person, open-source project and every bit of help counts. Suppor
 - **Star the repository** so more people find it.
 - **Get help.** [`SUPPORT.md`](SUPPORT.md) says where to ask and what response to expect.
 - **Report a bug or ask for something** in [Issues](https://github.com/jmarcon/cuotai/issues). There are templates for bugs, provider problems and **new provider requests** (tell us which service you need and what its usage page or API looks like). Use [private reporting](SECURITY.md) for security issues, and never paste a real key or token.
-- **Translate or improve a language.** The interface is available in Portuguese, English, Spanish and Italian, and you can add another language as a single JSON file ([how](apps/desktop/ui/locales/README.md)). English is the source language: every text is written in English first and translated from it. Proofreading an existing language is welcome too.
+- **Translate or improve a language.** The interface is available in 14 languages, and you can add another one as a single JSON file ([how](apps/desktop/ui/locales/README.md)). English is the source language: every text is written in English first and translated from it. Ten languages are machine drafts, so a native speaker's proofreading is the most useful help you can give.
 - **Contribute a theme, a fix or a provider.** Read [`CONTRIBUTING.md`](CONTRIBUTING.md) first.
 - **Tell others** if it saved you from hitting a limit mid-task.
 

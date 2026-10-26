@@ -16,7 +16,7 @@ Accounts live in a TOML file; the desktop app and the terminal dashboard edit it
 Run these without opening the interactive interface (`cuotai` is the installed binary; from a source checkout use `cargo run -p cuotai-tui --` instead):
 
 ```sh
-# List the 36 available providers
+# List the 40 available providers
 cuotai --list-providers
 
 # Human-readable summary in the terminal (single run)
@@ -48,7 +48,7 @@ cuotai --config cuotai.toml --watch --jsonl | jq -c 'select(.event == "quota_exh
 cuotai --config cuotai.toml --history "Personal Codex" --history-days 30
 ```
 
-`--once`, `--json` and `--json-v1` exit `0` when every account is ready, `2` when an account failed or lacks configuration, and `1` for local errors.
+`--once`, `--json` and `--json-v1` exit `0` when every account is ready, `2` when an account failed or lacks configuration, and `1` for local errors. `--serve` and `--watch` exit `0` when a signal stops them (`SIGINT`/`SIGTERM`, Ctrl+C or Ctrl+Break), whatever the accounts' state; only with `--strict-exit` do they exit `2`, when no account had a ready reading until shutdown (`--serve`) or an account's latest reading had failed (`--watch`); `1` is a local error.
 
 ## JSON output and the export contract
 
@@ -113,8 +113,8 @@ Then the interactive TUI and `--once`, when run on a terminal, read the same sig
 | Variable | Effect |
 |---|---|
 | `CUOTAI_CONFIG` | Accounts file to use (terminal and desktop). |
-| `CUOTAI_LANG` | Locale for the texts delivered by the core in the terminal (`en-US`, `es`, `it`, `pt-BR`...). |
-| `CUOTAI_FALLBACK_LOCALE` | Language of the localized `fallback` texts and plain `notes` in `--json`, `--json-v1`, `--serve` and `--watch --jsonl` (`pt-BR`, `es` or `it`; English without it). Same as `--fallback-locale`. |
+| `CUOTAI_LANG` | Language of the terminal interface and of the core's texts (any of the 14 interface languages: `en-US`, `pt-BR`, `es`, `it`, `de`, `fr`, `ja`, `zh-CN`...; system forms such as `pt_BR.UTF-8` are normalized). Without it the system language is used, and English when that is not one of them. |
+| `CUOTAI_FALLBACK_LOCALE` | Language of the localized `fallback` texts and plain `notes` in `--json`, `--json-v1`, `--serve` and `--watch --jsonl` (the code of any core catalog, such as `pt-BR`, `es`, `it` or `de`; English without it). Same as `--fallback-locale`. |
 | `CUOTAI_PACE_UNIT` | `points` (default) or `percent`: how the terminal shows the pace deviation (`--pace-unit` wins). |
 | `CUOTAI_STATUS=1` | Show providers' public status in the terminal and `--once` / `--json` (`--no-status` always wins). |
 | `CUOTAI_NO_ANIMATIONS=1`, `CUOTAI_ANIMATIONS=1` | Turn terminal animations off or back on (see [`tui.md`](tui.md#animations)). |

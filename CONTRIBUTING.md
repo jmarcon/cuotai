@@ -51,14 +51,14 @@ cargo deny --manifest-path apps/desktop/src-tauri/Cargo.toml --config deny.toml 
 
 GitHub code scanning (the CodeQL workflow `.github/workflows/codeql.yml`) can be reproduced locally with `sh scripts/codeql-local.sh` (needs the [CodeQL CLI](https://github.com/github/codeql-action/releases); `--swift` is opt-in, macOS-only and needs full Xcode; exit 3 means findings).
 
-User-visible changes also need a smoke test of the affected interface (the TUI with `--once`, `--json` or the screen concerned; the desktop app running, in all three languages when you add text).
+User-visible changes also need a smoke test of the affected interface (the TUI with `--once`, `--json` or the screen concerned; the desktop app running, in English and at least one other language when you add text).
 
 ## Project principles
 
 - **Read-only, no spend:** never send inference requests or any operation that burns credits to measure a limit.
 - **Secrets stay out of everything:** `cuotai.toml` holds only environment-variable **names** or vault references. Credentials never go into TOML, snapshots, events, logs, error messages, tests or screenshots.
 - **Honest errors:** classify missing configuration, authentication, rate limits, network failures and incompatible schemas. Never expose a response body, an authenticated URL or a token. A missing value is never turned into zero.
-- **Business rules live in the core:** `cuotai-core` decides validation, forms, refresh scheduling, queries and persistence. The TUI and the desktop app only present. Structured core texts use `Localized`: write the English text as the `fallback` in the code, then add the id to the `pt-BR`, `es` and `it` catalogs in `crates/cuotai-core/locales/` with the same `{placeholder}` names. The core tests fail on a missing id, a renamed placeholder or Portuguese in an English fallback.
+- **Business rules live in the core:** `cuotai-core` decides validation, forms, refresh scheduling, queries and persistence. The TUI and the desktop app only present. Structured core texts use `Localized`: write the English text as the `fallback` in the code, then add the id to every catalog in `crates/cuotai-core/locales/` (`pt-BR`, `es`, `it` and the ten other languages) with the same `{placeholder}` names; a draft for a language you cannot write is fine, and native reviewers refine it later (see [`apps/desktop/ui/locales/README.md`](apps/desktop/ui/locales/README.md)). The core tests fail on a missing id, a renamed placeholder or Portuguese in an English fallback.
 - **Undocumented interfaces:** state the limitation in `docs/providers.md` and prefer failing clearly over guessing.
 - **Desktop UI follows the design system:** changes to `apps/desktop/ui` use the components, tokens, chart types, wording and motion rules of [`docs/design-system.md`](docs/design-system.md) and pass its PR checklist.
 
@@ -103,7 +103,7 @@ rehearsal are documented in [`docs/releasing.md`](docs/releasing.md); the versio
 
 ## Documentation language
 
-The README and all documentation are written in **English**, as is usual for open-source repositories. The product itself stays multilingual: UI strings live in the English source and the Portuguese, Spanish and Italian catalogs.
+The README and all documentation are written in **English**, as is usual for open-source repositories. The product itself stays multilingual: UI strings live in the English source and in the catalogs of the other 13 languages (14 in all).
 
 ## License of contributions
 

@@ -9,7 +9,7 @@ A walkthrough of the Cuotai desktop app on Windows: installing it, the first lau
 
 ## Install
 
-Cuotai is pre-release: the first packaged release is not published yet, so check [`installing.md`](installing.md#channel-status) for what is live. When it is:
+Cuotai 0.80.0 is on [GitHub Releases](https://github.com/jmarcon/cuotai/releases); the package-manager channels are not live yet, so check [`installing.md`](installing.md#channel-status) for what is available:
 
 - **winget:** `winget install Cuotai.Cuotai` (planned, not live yet; the first submission to the winget repository is a manual step).
 - **Direct download:** from [GitHub Releases](https://github.com/jmarcon/cuotai/releases), either `Cuotai_<version>_x64-setup.exe` (the installer; installs for the current user, no administrator rights needed) or `Cuotai_<version>_x64_en-US.msi`. ARM64 PCs may use `Cuotai_<version>_arm64-setup.exe` when the release includes it. [Verify the download](installing.md#verify-your-download) first if you like (`Get-FileHash` in PowerShell, compared with `SHA256SUMS`).
@@ -88,7 +88,7 @@ Notices come while the window is hidden in the tray, but not after you Quit. The
 
 ## Themes and languages
 
-**Settings › General** has the theme picker, the light/dark/system switch and the animation setting (it also follows the Windows "reduce animations" preference when set to System). All [15 themes](themes.md) work in both modes, including Windows 11, Windows 98 and Windows XP looks. The language list (Portuguese, English, Spanish, Italian) is on the same page.
+**Settings › General** has the theme picker, the light/dark/system switch and the animation setting (it also follows the Windows "reduce animations" preference when set to System). All [15 themes](themes.md) work in both modes, including Windows 11, Windows 98 and Windows XP looks. The language list (14 languages, each with its flag and its own name) is on the same page.
 
 ## Launch at sign-in
 

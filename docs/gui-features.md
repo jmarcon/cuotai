@@ -9,21 +9,29 @@ Everything the app shows comes from `cuotai-core`, the same engine the terminal 
   <p><em>The main window: one card per account, each highlighting its most restrictive limit.</em></p>
 </div>
 
-**Settings** opens in a window of its own, beside the dashboard, so a change shows in the main window and the tray at once. Open it with the gear in the main window or the tray popover, **Settings** in the tray menu, or `⌘,` (macOS) / `Ctrl+,` (Windows, Linux); opening it again brings the same window to the front. A sidebar lists its pages: **General**, **Dashboard**, **Alerts**, **Data & privacy**, an **Advanced** group (**Integrations**, **Local cost**, **Files**) and **About**. The window remembers its size, position and last page.
+**Settings** opens in a window of its own, beside the dashboard, so a change shows in the main window and the tray at once. Open it with the gear in the main window or the tray popover, **Settings** in the tray menu, or `⌘,` (macOS) / `Ctrl+,` (Windows, Linux); opening it again brings the same window to the front. A sidebar lists its pages: **General**, **Dashboard**, **Menu bar**, **Alerts**, **Data & privacy**, an **Advanced** group (**Integrations**, **Local cost**, **Extensions**, **Files**) and **About**. A search field above it finds any setting by its name, description or keywords. The window remembers its size, position and last page.
 
 ## Contents
 
 - [Dashboard and background refresh](#dashboard-and-background-refresh)
 - [Consumption pace](#consumption-pace)
+- [Paid extra usage](#paid-extra-usage)
+- [Best account in a group](#best-account-in-a-group)
 - [Reset notices and usage alerts](#reset-notices-and-usage-alerts)
 - [Providers' public status](#providers-public-status)
 - [How each account's usage is read](#how-each-accounts-usage-is-read)
 - [Account details and history](#account-details-and-history)
 - [Local cost](#local-cost)
 - [Tray popover and tray menu](#tray-popover-and-tray-menu)
+- [Menu bar title and accounts](#menu-bar-title-and-accounts)
+- [What each row shows](#what-each-row-shows)
+- [Adding accounts](#adding-accounts)
+- [Extensions](#extensions)
+- [First run, updates and What's new](#first-run-updates-and-whats-new)
 - [9router and other aggregators](#9router-and-other-aggregators)
 - [Themes and languages](#themes-and-languages)
 - [Integration: local server and hooks](#integration-local-server-and-hooks)
+- [Statistics and limits coming back](#statistics-and-limits-coming-back)
 
 ## Dashboard and background refresh
 
@@ -127,9 +135,38 @@ A 9router instance you run (see [`providers.md`](providers.md#9router-nine_route
 - **Tray popover.** In "All", an instance is one row with the pool figure ("5/7 available") and its tightest connection or exhausted pool; activating it expands it in place with the pool lines, the connection rows and **Open the 9router view**, the instance's full list. **Settings › Dashboard › 9router connections in All** shows it grouped (default), lists its active connections with your accounts marked "via 9router", or hides it.
 - **Details.** A connection's details show its quotas, the provider in 9router and in Cuotai, "via 9router" with the reminder that 9router may zero-fill a missing value or serve a cached reading, and **Open dashboard**. The instance's details add its address (host only), version, connection count, the pools and **Alert on each connection**: off by default, an instance notifies once when every account of one provider runs out and once when one returns; on, each connection alerts like an account.
 
+## Menu bar title and accounts
+
+**Settings › Menu bar** chooses what the menu-bar item (the tray icon on Windows and Linux) shows, with a live preview built from your current readings:
+
+- **Tightest %**, the default: the lowest remaining share across the chosen accounts with its account ("22% · Work"), or the compact outlook chip when it is shorter.
+- **Logos + %**: one provider mark and figure per account ("C 22% · G 64%").
+- **Meters**: up to four small bars, one per account, in the template look of the system menu bar.
+- **Icon only**: the mark with its badge.
+
+An unmeasured account shows "—", never 0%; a stale reading is marked and left out of "tightest" unless every reading is stale; an exhausted account shows its return time. The **Colored** switch is off by default, and the figures and marks carry the meaning with or without it. Below the style, **Accounts in the menu bar** lists the accounts with check boxes and drag handles (or `Alt+↑/↓`); **Automatic** shows every account in dashboard order (at most 4 meters or 6 logos), and the popover lists the rest under "Not in menu bar". The title never exceeds 24 characters (extra items collapse into "+2"), updates at most once a second and never animates. The item's tooltip, and on macOS its accessibility label, spell the summary out ("Claude Work 22% left, resets 19:30; Gemini 64% left"). How each system renders it is in [`platforms.md`](platforms.md).
+
+## What each row shows
+
+**Settings › Dashboard › Row display** controls how much an account row (in the tray and in the main window) carries: **Detailed**, **Standard** (the default), **Minimal** or **Custom**, with a switch per element (plan badge, account label, monogram, unit word, pace corridor, status label, ring glyph, runs-out chip, returns chip, freshness age, incident mark, extra-usage line and sub-limit line). The figure and the bar are always shown. Hidden information is not lost: it stays in the expanded row, the details, the tooltip and the row's accessible name. **Minimal** shows one status chosen by priority (incident, stale, exhausted or blocked with its return time, runs out before the reset, pace). A switch lets the main window use a different layout from the tray, and a live preview row shows the effect of every change. The same page also has the account list with add, edit, remove, enable switch and order, the tray view (list, rings or compact), "Show pace as" (points or percent) and the refresh interval. An account's tile shows a monogram: the provider's own letters, or two characters you type in the account form (kept on this computer in `desktop.json`, never in the accounts file).
+
+## Adding accounts
+
+**Add account** opens a searchable catalog of every provider and sign-in mode: a grid grouped by sign-in method (browser, API key, admin key, local file and so on) at 560 px and above, a ranked list when you type, with a one-line hint, a "Billed per query" chip for services that cost money to read (kept on the account card afterwards) and a "Found on this device" chip for tools Cuotai detected. The dialog opens on the recommended way to connect and keeps the others under **Other ways to connect**. Providers without a usage query are not offered, and **Request a provider** opens the project's issue form. The name is optional until you add a second account of the same provider.
+
+**Check this device** (Settings › Data & privacy, also asked once from the catalog) is an opt-in, presence-only detection: with your consent Cuotai checks whether the folders of known tools exist (Gemini CLI, Copilot CLI, OpenCode, Cursor, Kiro, Zed and others), whether well-known key variables such as `OPENROUTER_API_KEY` are set (never their values) and whether a 9router answers on `127.0.0.1`. Nothing is opened or read, and a found tool only offers its existing import or sign-in flow.
+
+## Extensions
+
+**Settings › Advanced › Extensions** (also the Extensions entry of the main window) manages [executable extensions](extensions.md): the list with each one's version, state and last run, the exact disclosure and consent before anything runs, secrets kept in the system vault, an optional override of a built-in provider, the extensions folder and the guide. Each extension appears as an account with an **Extension** mark.
+
+## First run, updates and What's new
+
+After your first account is saved, one step offers to turn on the recommended notices (usage alerts at 75% and 90%, exhaustion and recovery, the 60-minute "warn before running out" and the extra-usage notice) with **Turn on** or **Not now**; a refused system permission leaves them off with guidance. A separate question asks whether Cuotai may check for updates automatically; no update request is made before you answer, and on an install managed by a package manager the step shows that manager's command instead. **Settings › General** can show the step again. **Settings › About** has the daily update check (it sends only the version, system and architecture), the open-source libraries and **What's new**, the release notes of every version in your language's labels. After an update, What's new opens once by itself; **Show what's new** turns that off.
+
 ## Themes and languages
 
-The app ships 15 themes, each with a dark and a light mode, and follows the system appearance by default. The interface is available in Portuguese, English, Spanish and Italian, and you can add your own themes and languages without recompiling. See [`themes.md`](themes.md) for every built-in theme and how to add yours.
+The app ships 15 themes, each with a dark and a light mode, and follows the system appearance by default. The interface is available in 14 languages (English, Portuguese, Spanish, Italian, German, French, Russian, Turkish, Japanese, Korean, Simplified Chinese, Hindi, Indonesian and Vietnamese; the ten newest are machine drafts waiting for native review), picked from a list that shows each language's flag and its own name, and you can add your own themes and languages without recompiling. See [`themes.md`](themes.md) for every built-in theme and how to add yours.
 
 <div align="center">
   <img src="assets/screenshots/desktop-dashboard-light.png" alt="Cuotai desktop main window in light mode" width="100%" />

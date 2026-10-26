@@ -4,21 +4,21 @@ This page is the full version of the README's install section: every channel wit
 
 ## Channel status
 
-Cuotai is **pre-release**: no GitHub release has been published yet, and every package-manager channel is opt-in and off until the maintainer enables it after the first release (PRD 0021, status "In progress"; see [`plans/0000_control.md`](plans/0000_control.md)). The table records what was checked on 2026-10-23 and why.
+Cuotai 0.80.0 is published on GitHub Releases. Every package-manager channel is opt-in and off until the maintainer enables it (PRD 0021; see [`plans/0000_control.md`](plans/0000_control.md)), so Releases is the one live install channel for now. The table records what was checked on 2026-10-25 and why.
 
 | Channel | Command (when live) | Status today | Evidence |
 |---|---|---|---|
-| GitHub Releases (direct download) | download from the [Releases page](https://github.com/jmarcon/cuotai/releases) | **Not yet**: first release pending | The repository has no tags and the GitHub API lists no releases; the release pipeline (`.github/workflows/release.yml`) is tag-driven and has not run for a tag. |
-| Homebrew cask (desktop, macOS) | `brew install --cask jmarcon/cuotai/cuotai` | **Not yet** | The tap repository `jmarcon/homebrew-cuotai` does not exist; the channel needs `PUBLISH_HOMEBREW=true` and a token. |
+| GitHub Releases (direct download) | download from the [Releases page](https://github.com/jmarcon/cuotai/releases) | **Live** | Release `v0.80.0` is published with the desktop installers, the terminal archives and the integrity files (the release pipeline `.github/workflows/release.yml` is tag-driven). The macOS `.dmg` is signed and notarized; the Windows installers are not code-signed yet. |
+| Homebrew cask (desktop, macOS) | `brew install --cask jmarcon/cuotai/cuotai` | **Not yet** | The tap repository `jmarcon/homebrew-cuotai` exists but holds no cask yet; the channel needs `PUBLISH_HOMEBREW=true` and a token. |
 | Homebrew formula (terminal, macOS/Linux) | `brew install jmarcon/cuotai/cuotai` | **Not yet** | Same tap. |
 | winget (desktop, Windows) | `winget install Cuotai.Cuotai` | **Not yet** | The first submission to `microsoft/winget-pkgs` is a manual owner step and has not happened. |
-| Scoop (terminal, Windows) | `scoop bucket add cuotai` then `scoop install cuotai` | **Not yet** | The bucket repository `jmarcon/scoop-cuotai` does not exist. |
+| Scoop (terminal, Windows) | `scoop bucket add cuotai` then `scoop install cuotai` | **Not yet** | The bucket repository `jmarcon/scoop-cuotai` exists but holds no manifest yet. |
 | AUR `cuotai-bin` (desktop, Arch) | `yay -S cuotai-bin` | **Not yet** | The AUR RPC finds no `cuotai-bin` package. |
 | crates.io (terminal) | `cargo install cuotai-tui --locked` or `cargo binstall cuotai-tui` | **Not yet** | crates.io reports that neither `cuotai-tui` nor `cuotai-core` exists. |
 | `cargo install --git` (terminal) | `cargo install --git https://github.com/jmarcon/cuotai cuotai-tui --locked` | **Works today** | Builds from the repository's default branch; needs Rust. |
 | Build from source (desktop and terminal) | see [`building.md`](building.md) | **Works today** | |
 
-Debian/Ubuntu (`.deb`), Fedora (`.rpm`), AppImage, macOS `.dmg`, Windows `.exe`/`.msi` and the terminal archives will all come from the GitHub release; they are not separate channels.
+Debian/Ubuntu (`.deb`), Fedora (`.rpm`), AppImage, macOS `.dmg`, Windows `.exe`/`.msi` and the terminal archives all come from the GitHub release; they are not separate channels.
 
 Shell completions: the Homebrew formula installs the bash, zsh and fish scripts from `cuotai --completions SHELL`; the Scoop manifest prints the PowerShell one-liner in its notes. For the other channels, see [Shell completions](tui.md#shell-completions).
 
