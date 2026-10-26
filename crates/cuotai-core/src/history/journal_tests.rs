@@ -192,3 +192,42 @@ fn a_connection_event_keeps_its_aggregator_and_travels_in_the_csv() {
     assert_eq!(history.journal(.., &accounts, 20), Ok(Vec::new()));
     let _ = other;
 }
+
+#[test]
+fn overage_and_projection_events_fill_spent_currency_and_projected_at() {
+    let dir = tempfile::tempdir().unwrap();
+    let history = store(&dir.path().join("history.sqlite3"), "one");
+    let accounts = config(CONFIG).accounts;
+    let alpha = &accounts[0];
+    let mut started = event(alpha, EventKind::OverageStarted, 0);
+    started.metric = None;
+    started.current = Values {
+        spent: Some(12.5),
+        currency: Some("USD".into()),
+        ..Values::default()
+    };
+    let mut ended = event(alpha, EventKind::OverageEnded, 2);
+    ended.metric = None;
+    ended.current = Values {
+        spent: Some(f64::NAN),
+        ..Values::default()
+    };
+    let mut projected = event(alpha, EventKind::QuotaExhaustionProjected, 4);
+    projected.current = Values {
+        projected_at: Some(t0() + TimeDelta::minutes(30)),
+        ..Values::default()
+    };
+    assert_eq!(history.journal_record(&[started, ended, projected]), Ok(3));
+    let entries = history.journal(.., &accounts, 20).unwrap();
+    let projected = &entries[0];
+    assert_eq!(projected.kind, EventKind::QuotaExhaustionProjected);
+    assert_eq!(projected.projected_at, Some(t0() + TimeDelta::minutes(30)));
+    assert_eq!((projected.spent, projected.currency.as_deref()), (None, None));
+    // A non-finite amount is unknown, never stored.
+    assert_eq!(entries[1].kind, EventKind::OverageEnded);
+    assert_eq!(entries[1].spent, None);
+    let started = &entries[2];
+    assert_eq!(started.kind, EventKind::OverageStarted);
+    assert_eq!(started.spent, Some(12.5));
+    assert_eq!(started.currency.as_deref(), Some("USD"));
+}

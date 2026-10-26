@@ -129,7 +129,7 @@ impl HistoryStore {
                 "INSERT OR IGNORE INTO journal (config_key, account_digest, occurred_at, minute,
                     kind, metric_digest, metric_label, threshold, used_ratio, resets_at, category,
                     incident, projected_at, spent, currency, parent_digest)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, NULL, NULL, ?14)",
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
             )?;
             for event in events {
                 let at = millis(event.occurred_at);
@@ -152,6 +152,8 @@ impl HistoryStore {
                     values.category.map(FailureCategory::name),
                     values.incident.map(tag),
                     values.projected_at.map(millis),
+                    values.spent.filter(|spent| spent.is_finite()),
+                    values.currency.as_deref(),
                     event
                         .parent
                         .as_ref()
