@@ -110,12 +110,12 @@ for (const { code } of i18n.LOCALES) {
 
   const at = new Date(Date.now() + 95 * 60_000 + 30_000).toISOString();
   const name = laneLabel({ name: "Work", returns_at: at, exhausted: false, remaining_share: 0.4, stale: false }, "hours24");
-  assert.ok(name.includes("Work") && name.includes("1h 35m") && name.includes("40"), `${code}: lane name "${name}"`);
+  assert.ok(name.includes("Work") && /1\D+35/.test(name) && name.includes("40"), `${code}: lane name "${name}"`);
   console.log(`${code}: ${name}`);
 }
 
 // UI-owned catalog keys of this feature exist in every locale with the same placeholders.
-const placeholders = (v) => JSON.stringify([...JSON.stringify(v).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort());
+const placeholders = (v) => JSON.stringify([...new Set([...JSON.stringify(v).matchAll(/\{(\w+)\}/g)].map((m) => m[1]))].sort());
 let reference;
 for (const { code } of i18n.LOCALES) {
   const catalog = JSON.parse(await readFile(fileURLToPath(new URL(`apps/desktop/ui/locales/${code}.json`, root)), "utf8"));

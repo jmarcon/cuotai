@@ -101,7 +101,7 @@ const scenarios = [
   { stored: null, system: ["est", "it-CH"], expected: "it", label: "est is not es" },
   { stored: null, system: ["zh-TW", "es-419"], expected: "es", label: "zh-TW skipped, numeric region" },
   { stored: null, system: ["fr-FR"], userLocales: ["fr"], expected: "fr", label: "user pack for a language in progress" },
-  { stored: "de", system: ["it"], expected: "it", label: "stored language in progress" },
+  { stored: "ja", system: ["it"], expected: "it", label: "stored language in progress" },
 ];
 
 for (const page of ["index.html", "tray.html", "settings.html"]) {

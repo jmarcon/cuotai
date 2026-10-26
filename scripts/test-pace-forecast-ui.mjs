@@ -123,6 +123,18 @@ const expected = {
     reset: "Si rinnova 19:30 · tra 1h 35m", best: "Migliore ora",
     advice: "Work è esaurito · Personal ha il 64% disponibile",
   },
+  de: {
+    points: "10 Pkt. voraus", percent: "20% über dem Tempo",
+    callout: "In diesem Tempo ist Session (5h) ≈18:53 erschöpft, 37 Min. vor der Erneuerung", chip: "Reicht bis ≈18:53",
+    reset: "Erneuert 19:30 · in 1 Std. 35 Min.", best: "Jetzt am besten",
+    advice: "Work ist erschöpft · Personal hat noch 64%",
+  },
+  ru: {
+    points: "+10 п. п.", percent: "на 20% выше темпа",
+    callout: "В этом темпе Session (5h) закончится ≈18:53, за 37 мин до обновления", chip: "Закончится ≈18:53",
+    reset: "Обновится 19:30 · через 1 ч 35 мин", best: "Лучшая сейчас",
+    advice: "Work исчерпан · у Personal осталось 64%",
+  },
 };
 
 for (const { code } of i18n.LOCALES) {

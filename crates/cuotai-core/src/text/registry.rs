@@ -213,7 +213,7 @@ pub const LOCALES: &[LocaleRow] = &[
         "Latn",
         &["de"],
         PluralRule::One,
-        InProgress,
+        Shipped,
         1,
     ),
     row(
@@ -233,7 +233,7 @@ pub const LOCALES: &[LocaleRow] = &[
         "Cyrl",
         &["ru"],
         PluralRule::EastSlavic,
-        InProgress,
+        Shipped,
         1,
     ),
     row(

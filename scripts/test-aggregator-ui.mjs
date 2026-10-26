@@ -66,6 +66,8 @@ const expected = {
   es: { pool: "Claude · 1 de 2 disponibles", off: "Desactivada en 9router", tight: "La más ajustada: Claude Code · work" },
   it: { pool: "Claude · 1 di 2 disponibili", off: "Disattivata in 9router", tight: "La più stretta: Claude Code · work" },
   "pt-BR": { pool: "Claude · 1 de 2 disponíveis", off: "Desligada no 9router", tight: "Mais apertada: Claude Code · work" },
+  de: { pool: "Claude · 1 von 2 verfügbar", off: "In 9router aus", tight: "Am knappsten: Claude Code · work" },
+  ru: { pool: "Claude · доступно 1 из 2", off: "Выключено в 9router", tight: "Самый жёсткий: Claude Code · work" },
 };
 const untranslated = /\b(agg|settings\.agg)\.[a-zA-Z.]+/;
 for (const { code } of i18n.LOCALES) {

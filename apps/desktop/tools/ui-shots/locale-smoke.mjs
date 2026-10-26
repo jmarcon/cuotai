@@ -6,7 +6,7 @@
 import { launch } from "./driver.mjs";
 
 const args = process.argv.slice(2).filter((a) => !a.startsWith("--"));
-const LOCALES = args.length ? args : ["en-US", "es", "it"];
+const LOCALES = args.length ? args : ["en-US", "es", "it", "de", "ru"];
 const PAGES = [
   ["tray", "tray.html", 380, 600, []],
   ["tray-account", "tray.html", 380, 600, ["[data-open]"]],

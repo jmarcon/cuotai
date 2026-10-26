@@ -173,6 +173,8 @@ const expectedReleaseDates = {
   "en-US": "released on Oct 22, 2026",
   es: "publicada el 22 oct 2026",
   it: "pubblicato il 22 ott 2026",
+  de: "veröffentlicht am 22. Okt. 2026",
+  ru: "выпущено 22 окт. 2026 г.",
 };
 
 let expectedUpdateKeys;

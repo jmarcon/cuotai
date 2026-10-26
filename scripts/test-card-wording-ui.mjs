@@ -90,6 +90,28 @@ const expected = {
     sortAsc: "Disponibile: prima il minore",
     sortDesc: "Disponibile: prima il maggiore",
   },
+  de: {
+    unit: "übrig",
+    levels: {
+      good: "75% übrig: reichlich vorhanden (70% oder mehr).",
+      warn: "Achtung: 50% übrig (zwischen 30% und 70%).",
+      bad: "Kritisch: nur noch 20% übrig (unter 30%).",
+    },
+    rateLimit: "Ratenlimit: 42% übrig",
+    sortAsc: "Übrig: niedrigste zuerst",
+    sortDesc: "Übrig: höchste zuerst",
+  },
+  ru: {
+    unit: "осталось",
+    levels: {
+      good: "Осталось 75%: запас достаточный (70% и более).",
+      warn: "Внимание: осталось 50% (от 30% до 70%).",
+      bad: "Критично: осталось всего 20% (меньше 30%).",
+    },
+    rateLimit: "Лимит частоты: осталось 42%",
+    sortAsc: "Осталось: сначала наименьшее",
+    sortDesc: "Осталось: сначала наибольшее",
+  },
 };
 
 const coreCatalog = JSON.parse(await readFile(

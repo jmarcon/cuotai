@@ -523,6 +523,8 @@ embedded_catalogs! {
     "pt-BR" => "../locales/pt-BR.json",
     "es" => "../locales/es.json",
     "it" => "../locales/it.json",
+    "de" => "../locales/de.json",
+    "ru" => "../locales/ru.json",
 }
 
 /// A resolved language: a handle on its registry row. Unknown codes
