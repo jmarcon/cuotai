@@ -1391,8 +1391,25 @@ fn fallback_locale_of(flag: Option<&str>, machine: bool) -> Result<Option<String
             Ok(None)
         }
         None => Err(format!(
-            "--fallback-locale {flag:?} is not supported; use pt-BR, es, it or en-US."
+            "--fallback-locale {flag:?} is not supported; use {}.",
+            fallback_locale_codes()
         )),
+    }
+}
+
+/// The codes `--fallback-locale` accepts, from the core registry: the
+/// source language, then every language with a core catalog.
+fn fallback_locale_codes() -> String {
+    let source = cuotai_core::text::Locale::resolve("").code();
+    let mut codes = vec![source];
+    codes.extend(
+        cuotai_core::text::catalog_locales()
+            .into_iter()
+            .filter(|code| *code != source),
+    );
+    match codes.split_last() {
+        Some((last, rest)) if !rest.is_empty() => format!("{} or {last}", rest.join(", ")),
+        _ => codes.join(""),
     }
 }
 
@@ -1648,6 +1665,16 @@ fn history_text(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fallback_locale_error_lists_the_registry_codes() {
+        let error = fallback_locale_of(Some("xx-YY"), true).unwrap_err();
+        assert!(error.contains("en-US"), "{error}");
+        for code in cuotai_core::text::catalog_locales() {
+            assert!(error.contains(code), "{code} missing: {error}");
+        }
+        assert!(error.contains(" or "), "{error}");
+    }
 
     /// PRD 0024 RF3.4/RF5.1: `--notify` alone never projects;
     /// `--notify-projected` needs `--notify` and takes 15, 30 or 60 (60
