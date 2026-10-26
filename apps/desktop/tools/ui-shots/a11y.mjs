@@ -23,6 +23,8 @@ const PAGES = [
 ];
 // Contrast is judged per theme by contrast_gate.py against the theme contract; axe's own color-contrast rule is
 // reported too, but it cannot see through gradients and image backgrounds, so it stays advisory (listed, not failing).
+// en-US in both modes, then the languages whose scripts or lengths stress the layout and the names (dark only).
+const RUNS = [["en-US", "dark"], ["en-US", "light"], ["de", "dark"], ["ru", "dark"]];
 const ADVISORY = new Set(["color-contrast"]);
 
 let source;
@@ -42,17 +44,18 @@ const ui = await launch();
 const report = {};
 let failing = 0;
 try {
-  for (const mode of ["dark", "light"]) {
+  for (const [locale, mode] of RUNS) {
     for (const [name, page, w, h] of PAGES) {
-      await ui.open(page, { w, h, scale: 1, mode, theme: mode === "light" ? "github" : "dracula" });
+      await ui.open(page, { w, h, scale: 1, mode, locale, theme: mode === "light" ? "github" : "dracula" });
       await ui.evaluate(axeSource);
       const result = await ui.evaluate(`axe.run(document, { resultTypes: ["violations"] }).then((r) => r.violations.map((v) => ({ id: v.id, impact: v.impact, help: v.help, nodes: v.nodes.slice(0, 3).map((n) => n.target.join(" ")) })))`);
       const found = result ?? [{ id: "error", impact: "critical", help: "axe did not run", nodes: [] }];
       const bad = found.filter((v) => failOn.includes(v.impact) && !ADVISORY.has(v.id));
       failing += bad.length;
-      report[`${name}.${mode}`] = found;
+      const tag = locale === "en-US" ? mode : `${mode} ${locale}`;
+      report[`${name}.${tag.replace(" ", ".")}`] = found;
       if (!json) {
-        console.log(`${bad.length ? "FAIL" : "ok  "} ${name} ${mode}: ${bad.length} violation(s), ${found.length - bad.length} advisory`);
+        console.log(`${bad.length ? "FAIL" : "ok  "} ${name} ${tag}: ${bad.length} violation(s), ${found.length - bad.length} advisory`);
         for (const v of found) console.log(`       ${bad.includes(v) ? "" : "(advisory) "}${v.impact} ${v.id}: ${v.help} -> ${v.nodes.join(" | ")}`);
       }
     }
