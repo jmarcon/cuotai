@@ -6,6 +6,7 @@ mod cost;
 mod dashboard;
 mod extension_check;
 mod extensions_view;
+mod glyphs;
 mod headless;
 mod l10n;
 mod models_view;

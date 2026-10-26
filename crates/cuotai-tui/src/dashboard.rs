@@ -4790,6 +4790,35 @@ mod tests {
         assert!(!plain.contains("Melhor agora"), "{plain}");
     }
 
+    /// PRD 0035 RF6.3/RF6.7: under both ambiguous widths, every locale's
+    /// cards and header at 80 columns keep their borders in place: after the
+    /// frame's glyph pass no ambiguous-width shape or border is left, so a
+    /// CJK terminal draws each row in exactly the 80 cells laid out.
+    #[test]
+    fn every_locale_keeps_its_columns_under_both_ambiguous_widths() {
+        use crate::glyphs::{fallback, Glyphs};
+        use unicode_width::UnicodeWidthChar;
+        for row in cuotai_core::text::LOCALES {
+            for mode in [Glyphs::Unicode, Glyphs::AmbiguousWide] {
+                let rows = crate::l10n::with_locale(row.code, || {
+                    render_sized(&paced(), &[], &[], false, at_min(0), (80, 24))
+                });
+                for line in rows {
+                    let drawn: String = line
+                        .chars()
+                        .map(|c| fallback(c, mode).unwrap_or(c))
+                        .collect();
+                    if mode == Glyphs::AmbiguousWide {
+                        let misdrawn = drawn
+                            .chars()
+                            .find(|c| !c.is_alphanumeric() && c.width_cjk() != c.width());
+                        assert_eq!(misdrawn, None, "{}: {drawn}", row.code);
+                    }
+                }
+            }
+        }
+    }
+
     #[test]
     fn cards_prefix_eligible_metrics_with_the_pace_stage_icon() {
         let rows = render_rows(&paced(), false).join("\n");

@@ -123,6 +123,7 @@ pub(crate) fn downgrade(buffer: &mut Buffer) {
 /// set, and otherwise downgrades them to ANSI names on a terminal without
 /// truecolor.
 pub(crate) fn finish(buffer: &mut Buffer) {
+    crate::glyphs::finish(buffer);
     if no_color() {
         strip(buffer);
     } else if limited_colors() {
