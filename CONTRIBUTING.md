@@ -101,9 +101,21 @@ The full procedure, the dry run (**Actions → Release → Run workflow**, which
 builds everything and publishes nothing), the signing secrets and the fork
 rehearsal are documented in [`docs/releasing.md`](docs/releasing.md); the version, support and reproducibility policies in [`docs/release-policy.md`](docs/release-policy.md).
 
+## Translations
+
+Cuotai ships fourteen languages: English (the source), Portuguese (Brazil), Spanish, Italian, Chinese (Simplified), French, German, Japanese, Russian, Korean, Hindi, Indonesian, Turkish and Vietnamese. Most of them start as machine drafts and improve through reviews like yours.
+
+**Fix a string.** Each language has three catalogs: `crates/cuotai-core/locales/<code>.json` (texts the backend emits), `apps/desktop/ui/locales/<code>.json` (desktop labels and dialogs) and `crates/cuotai-tui/locales/<code>.json` (terminal captions). Find the id by searching the current text, edit only the value, keep every `{placeholder}` exactly as it is, and run `cargo test --workspace`: the parity tests fail on a lost or renamed placeholder, markup, a wrong plural shape or a non-NFC text, and `length_budget` fails when a label goes over its class budget (`docs/i18n-length-budgets.md`). Read the review checklist and the glossary in [`apps/desktop/ui/locales/README.md`](apps/desktop/ui/locales/README.md) first. If you cannot run the tests, open a **Translation fix** issue instead.
+
+**Propose a new language.** Open an issue titled "Language: xx" (the BCP 47 code) and name at least one native reviewer. A new language needs its registry row in `crates/cuotai-core/src/text/registry.rs`, the three catalogs, drawn flag artwork in `apps/desktop/ui/js/flags.js` and, for a script other than Latin or Cyrillic, a `--font-script` stack in `apps/desktop/ui/css/themes.css`; the steps are in "Adding a built-in language" of the locales README. A language without a reviewer for its critical strings (credentials, consent, deletion, errors) is not shipped.
+
+**Credit.** Reviewers are credited by GitHub handle in the catalog's `_meta.reviewed` list and in the status table of the locales README. Sign your review in the pull request.
+
+**Commits.** A translation fix is `fix(i18n): ...` with a `Changelog:` sentence (for example `Changelog: Japanese texts for removing an account are clearer.`); a new language is `feat(i18n): ...`. Code comments, documentation, commits and issues stay in English: the product is multilingual, the repository is not.
+
 ## Documentation language
 
-The README and all documentation are written in **English**, as is usual for open-source repositories. The product itself stays multilingual: UI strings live in the English source and in the catalogs of the other 13 languages (14 in all).
+The README and all documentation are written in **English**, as is usual for open-source repositories. The product itself stays multilingual: UI strings live in the English source and the catalogs of the thirteen other languages listed under "Translations".
 
 ## License of contributions
 

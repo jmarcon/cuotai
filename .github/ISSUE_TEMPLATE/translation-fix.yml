@@ -1,0 +1,60 @@
+name: Translation fix
+description: A text in one of Cuotai's languages is wrong, unclear, too long or reads like a machine translation.
+title: "[Translation] "
+labels: ["i18n"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for helping with a language. The guide is the "Translations" section of `CONTRIBUTING.md`; the glossary and the review checklist are in `apps/desktop/ui/locales/README.md`.
+        **Do not include credentials.** A screenshot must not show tokens, e-mails or real account names; crop or blur them.
+  - type: input
+    id: language
+    attributes:
+      label: Language code
+      description: The registry code, for example `ja`, `de`, `pt-BR` or `zh-CN`.
+      placeholder: ja
+    validations:
+      required: true
+  - type: input
+    id: message_id
+    attributes:
+      label: Message id
+      description: The catalog key (for example `pace.chip.lasts`), if you know it. Otherwise say where the text appears.
+  - type: textarea
+    id: current
+    attributes:
+      label: Current text
+      description: Copy the text exactly as Cuotai shows it.
+    validations:
+      required: true
+  - type: textarea
+    id: suggested
+    attributes:
+      label: Suggested text
+      description: Keep every `{placeholder}` unchanged. Labels should be as short as the English or shorter (see `docs/i18n-length-budgets.md`).
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where it appears
+      options:
+        - Desktop app
+        - Tray or menu bar
+        - Terminal dashboard (TUI)
+        - CLI output or notifications
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context screenshot
+      description: Optional. Drag an image here; use placeholder accounts only.
+  - type: checkboxes
+    id: native
+    attributes:
+      label: Native speaker
+      options:
+        - label: I speak this language natively or professionally, and I checked the suggestion against the glossary.

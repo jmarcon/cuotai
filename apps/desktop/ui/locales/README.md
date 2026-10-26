@@ -1,9 +1,10 @@
 # Cuotai languages
 
-Each built-in language has a core catalog and a desktop UI catalog. The core
-catalogs in `crates/cuotai-core/locales/{pt-BR,es,it}.json` contain the texts
-emitted by the backend; English is the text written in the core's code (the
-`fallback`), so en-US has no core catalog. The desktop UI catalogs in
+Each built-in language has a core catalog, a desktop UI catalog and a TUI
+catalog. The core catalogs in `crates/cuotai-core/locales/<code>.json` contain
+the texts emitted by the backend; English is the text written in the core's
+code (the `fallback`), so en-US has no core catalog. The TUI catalogs in
+`crates/cuotai-tui/locales/<code>.json` hold the terminal captions. The desktop UI catalogs in
 `apps/desktop/ui/locales/<code>.json` contain shell labels, dialogs, tray
 messages, settings and themes.
 
@@ -33,11 +34,11 @@ Every language is one row of the core registry, `cuotai_core::text::LOCALES`
 (`crates/cuotai-core/src/text/registry.rs`, PRD 0035 RF1): code, endonym,
 flag, script, language subtags and aliases, plural rule and status. The core,
 the TUI and the desktop all read it; no test loop, prefix chain or
-hard-coded list needs editing. The fourteen rows are pt-BR, en-US, es and it
-(shipped) and zh-CN, fr, de, ja, ru, ko, hi-IN, id-ID, tr and vi, registered
-with the status `in_progress`: they resolve (a Japanese system is recognized
-as Japanese) but read the English source, and the language list shows them
-as "Translation in progress", not selectable.
+hard-coded list needs editing. The fourteen rows (pt-BR, en-US, es, it,
+zh-CN, fr, de, ja, ru, ko, hi-IN, id-ID, tr and vi) are shipped. A new row
+starts with the status `in_progress`: it resolves (a Japanese system is
+recognized as Japanese) but reads the English source, and the language list
+shows it as "Translation in progress", not selectable.
 
 To ship a registered language:
 
@@ -144,6 +145,21 @@ Used by reviewers and by every pull request that touches a catalog (RF11.7):
 - for ja, zh-CN and ko, no machine-translation artifacts (wrong Han word,
   mixed-width punctuation);
 - the native reviewer signs in the pull request.
+
+## Length
+
+Shorter is better for labels. A label more than 30 % longer than en-US, or
+over its class budget in [`docs/i18n-length-budgets.md`](../../../../docs/i18n-length-budgets.md),
+is reworded during review, never truncated by the UI; the core test
+`length_budget` fails on a new one. Descriptions and callouts may wrap.
+
+## Provenance and status
+
+`_meta.status` says how a catalog was made (for example `machine-translated,
+needs native review`) and `_meta.reviewed` records the reviews (`false`, or
+the reviewers' GitHub handles with the date and the scope, `critical` or
+`full`). A reviewer who finishes a scope adds their entry; never claim a
+review that did not happen.
 
 ## User-provided languages
 
