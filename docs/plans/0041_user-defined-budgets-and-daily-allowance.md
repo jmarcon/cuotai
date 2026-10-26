@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0041 |
-| Status | Proposed |
+| Status | Planned (next version) |
 | Owner | `cuotai-core` (`budget` module, synthetic metrics, allowance, validation), `cuotai-tui` (wizard field, details line, `--once`), desktop (account dialog, card chip, details) |
 | Consumers | Every front end; `export::v1`, `--watch` and `/v1/*` consumers; PRD 0026 statistics |
 | Depends on | PRD 0029 (budgets keyed by the stable account id), PRD 0023 RF1 (`Metric::billing`, so a budget on overage spend is possible), PRD 0033 (`measured_at`, for the cycle boundary) |
@@ -152,3 +152,8 @@ At each step: `cargo fmt`, `clippy -D warnings`, workspace and desktop tests; a 
 | Should a budget's exhaustion count as "blocked" for `best` and the binding indicator? | Yes by default (the person chose that limit), with a per-budget `advisory = true` opt-out that keeps it out of binding and `best`. |
 | Allowance granularity | Day above 2 days to the reset, hour below; no week granularity. |
 | Tolerant keys for older versions | Add `budgets` and `floors` to the PRD 0029 RF0 tolerance list in the release before this PRD ships. |
+
+### Owner decisions (2026-10-25)
+
+- **TOML tolerance for `budgets` and `floors` ships in the current release: yes.** The keys are accepted and ignored by the release that precedes this PRD (PRD 0029 RF0 tolerance list), so the version that delivers budgets is downgrade-safe; a separate lane delivers the tolerance.
+- Scheduled for the next version, not this release.

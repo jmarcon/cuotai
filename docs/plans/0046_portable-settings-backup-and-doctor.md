@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0046 |
-| Status | Proposed |
+| Status | Planned (next version) |
 | Owner | `cuotai-core` (`bundle` module: export/import with manifest and conflict plan; `doctor` module: checks and report), `cuotai-tui` (`--backup`, `--restore`, `--doctor`), desktop (Settings › Advanced › Files actions, first-run restore) |
 | Consumers | People moving to a new computer or running Cuotai on two machines; support (PRD 0028 "Report a problem" gains a redacted doctor report) |
 | Depends on | PRD 0029 (stable account ids, so a restored account keeps its history and preferences), PRD 0032 (core-owned preference file), PRD 0012/0031 (server token file to **exclude**) |

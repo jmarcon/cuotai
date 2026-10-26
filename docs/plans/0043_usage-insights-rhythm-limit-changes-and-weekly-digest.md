@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0043 |
-| Status | Proposed |
+| Status | Planned (next version) |
 | Owner | `cuotai-core` (`stats::rhythm`, `stats::limit_changes`, `digest::weekly`, events), desktop (Stats view additions, menu-bar strip, digest notification), `cuotai-tui` (`--stats --rhythm`, `--digest`) |
 | Consumers | Every front end; `/v1/stats` (additive); hooks (`limit_changed`, `weekly_digest`) |
 | Depends on | PRD 0006 (history), PRD 0026 (stats, journal, Stats view), PRD 0029 (account id) |

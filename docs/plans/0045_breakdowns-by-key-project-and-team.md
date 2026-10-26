@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0045 |
-| Status | Proposed |
+| Status | Planned (next version) |
 | Owner | `cuotai-core` (`Scope` extension, breakdown rows on `Data`, per-provider breakdown fetchers, caps, redaction, access descriptors), desktop (Breakdown section in details, card sub-rows), `cuotai-tui` (details, `--once`) |
 | Consumers | Every front end; `export::v1` (additive `breakdown`), `/v1/accounts/{id}`, PRD 0041 (budgets on a key), PRD 0043 (limit changes on keys) |
 | Depends on | PRD 0005 (descriptors per mode), PRD 0023 (`Metric::scope`, `billing`), PRD 0029 (account id), PRD 0033 (metered cadence) |
@@ -146,3 +146,8 @@ At each step: `cargo fmt`, `clippy -D warnings`, workspace and desktop tests; a 
 | Row cap 25 and history cap 10 | Keep; configurable later if people ask. |
 | Alerts on rows default | Off, like PRD 0036's connections; one switch per account. |
 | Copilot org seats and Cursor Teams members | Excluded (per-user data). Document the reason in `providers.md`. |
+
+### Owner decisions (2026-10-25)
+
+- **TOML tolerance for `breakdown` ships in the current release: yes.** Accepted and ignored before this PRD ships, so the delivering version is downgrade-safe; a separate lane delivers the tolerance.
+- Scheduled for the next version, not this release.

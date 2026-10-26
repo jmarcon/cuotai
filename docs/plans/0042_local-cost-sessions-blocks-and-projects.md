@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0042 |
-| Status | Proposed |
+| Status | Planned (next version) |
 | Owner | `cuotai-core` (`cost` index schema v2, `cost::blocks`, `cost::sessions`, `cost::projects`, live summary), `cuotai-tui` (`--cost --by`, `--cost-live`), desktop (Local cost tabs, card line) |
 | Consumers | Every front end; `export::v1` `local_cost` (additive); PRD 0026 stats |
 | Depends on | PRD 0015 (local cost index and scanner), PRD 0030 (price table, plan value) |

@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0040 |
-| Status | Proposed |
+| Status | Planned (next version) |
 | Owner | `cuotai-core` (feed store, feed readers, provider source mode, access descriptor, status-line composer), `cuotai-tui` (`--feed`, `--statusline-claude`), desktop (live-session chip, Settings rows) |
 | Consumers | Every front end (cards, details, tray, `--once`, `--json-v1`, `--serve`, `--watch`), status-bar recipes of PRD 0031 |
 | Depends on | PRD 0005 (access descriptor), PRD 0010 (freshness and age), PRD 0029 (stable account id, to bind a feed to an account) |
@@ -175,3 +175,8 @@ At each step: `cargo fmt`, `clippy -D warnings`, workspace and desktop tests, an
 | Codex CLI local RPC instead of logs? | Not now: it starts the agent's process. Keep the log reader, canary-gated. |
 | Context-window alert ("ctx above 85%")? | Later, through PRD 0008's evaluator with its own kind; needs a decision on noise. |
 | Should the hybrid mode be the default for people who already have the API mode? | Offer a one-time banner "Also read from Claude Code" after the first feed arrives; never change a saved mode silently. |
+
+### Owner decisions (2026-10-25)
+
+- **Preselect the Claude Code mode when Claude Code is detected: yes.** The Add account dialog preselects `claude_code` for a new Claude account when PRD 0027's detection found Claude Code; the person can still pick another mode.
+- Scheduled for the next version, not this release.
