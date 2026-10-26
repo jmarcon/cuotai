@@ -138,7 +138,7 @@ const expected = {
   ko: {
     points: "10pt 초과", percent: "페이스보다 20% 빠름",
     callout: "이 속도라면 초기화보다 37분 앞서 ≈18:53에 Session (5h)이(가) 소진됩니다", chip: "≈18:53 소진",
-    reset: "19:30에 갱신 · 1시간 35분 후", best: "지금 최적",
+    reset: "19:30에 초기화 · 1시간 35분 후", best: "지금 최적",
     advice: "Work은(는) 소진됨 · Personal은(는) 64% 남음",
   },
   "hi-IN": {
