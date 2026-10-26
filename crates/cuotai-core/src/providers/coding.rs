@@ -1,7 +1,7 @@
 //! Usage and quota queries for coding assistants with a user-supplied
 //! API key (read-only).
 //!
-//! Cline "usage-billing" (Bearer em `CLINE_API_KEY`):
+//! Cline "usage-billing" (Bearer in `CLINE_API_KEY`):
 //!   Implements only the personal or organizational balance. We do not show
 //!   usage aggregates: the public organization-level aggregated usage endpoint
 //!   is not described in the open primary sources; the open-source

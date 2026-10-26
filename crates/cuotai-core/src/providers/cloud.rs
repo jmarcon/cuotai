@@ -3,7 +3,7 @@
 //! Official sources used:
 //! - Google (Gemini API / Vertex AI): Cloud Monitoring REST `projects.timeSeries.list`,
 //!   quota metrics `serviceruntime.googleapis.com/quota/limit` (GAUGE, sampled once a day)
-//!   e `serviceruntime.googleapis.com/quota/rate/net_usage` (DELTA, 60 s) no recurso
+//!   and `serviceruntime.googleapis.com/quota/rate/net_usage` (DELTA, 60 s) on the resource
 //!   `consumer_quota`.
 //! - AWS Bedrock: AWS CLI `aws ce get-cost-and-usage` (Cost Explorer), dimension filter
 //!   `SERVICE = Amazon Bedrock`, credentials exclusively through a named profile (`--profile`).

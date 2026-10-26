@@ -5,13 +5,13 @@
 //!   - `aistudio.xiaomimimo.com/open-apis/v1/user/usage` refuses `sk-` with 401
 //!     (9router `open-sse/services/usage/xiaomi-mimo.js`: "the sk- API key
 //!     cannot read the quota");
-//!   - o console `platform.xiaomimimo.com/api/v1/*` autentica exclusivamente
 //!   - the `platform.xiaomimimo.com/api/v1/*` console authenticates exclusively
 //!     by web session cookie — the official bundle
 //!     (`/static/main.*.chunk.js`) calls `fetch(..., {credentials:
-//!    "same-origin"})` without any Authorization header.
+//!     "same-origin"})` without any Authorization header.
+//!
 //! Reachable real mode (reference: CodexBar MIT,
-//! `Sources/CodexBarCore/Providers/MiMo/MiMoUsageFetcher.swift` e
+//! `Sources/CodexBarCore/Providers/MiMo/MiMoUsageFetcher.swift` and
 //! `MiMoCookieImporter.swift`): the user signs in to platform.xiaomimimo.com in the
 //! browser and pastes the session into the account wizard (system vault, PRD
 //! 0016) or exports it in a variable referenced by

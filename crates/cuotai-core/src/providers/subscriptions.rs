@@ -8,7 +8,7 @@
 //!   Internal interface, undocumented and subject to change without notice.
 //!   Evidence: official open-source Codex CLI client,
 //!   https://github.com/openai/codex/blob/main/codex-rs/backend-client/src/client/rate_limit_resets.rs
-//!   e https://github.com/openai/codex/tree/main/codex-rs/codex-backend-openapi-models
+//!   and https://github.com/openai/codex/tree/main/codex-rs/codex-backend-openapi-models
 //!
 //! Claude (Claude Code OAuth token in `CLAUDE_OAUTH_TOKEN`; we do NOT extract from the keychain/CLI):
 //!   - GET https://api.anthropic.com/api/oauth/usage — 5-hour and 7-day windows of the

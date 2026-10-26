@@ -2,7 +2,7 @@
 //!
 //! Contract documented at
 //! <https://openrouter.ai/docs/api/api-reference/api-keys/get-current-key>
-//! e <https://openrouter.ai/docs/api/api-reference/credits/get-credits>:
+//! and <https://openrouter.ai/docs/api/api-reference/credits/get-credits>:
 //!
 //! - `params.product = "key"` (default): one `GET /api/v1/key` with an
 //!   **inference** key: the key's limit, budgets, spend per period, BYOK and the
