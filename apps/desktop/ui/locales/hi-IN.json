@@ -2,7 +2,8 @@
   "_meta": {
     "name": "हिन्दी",
     "status": "machine-translated, needs native review",
-    "reviewed": false
+    "reviewed": false,
+    "machine_reviewed": "2026-10-25"
   },
   "agg.alertEach": "हर कनेक्शन पर अलर्ट",
   "agg.alertEachHelp": "बंद: किसी प्रदाता के सभी खाते खत्म होने पर एक सूचना, और कोई खाता वापस आने पर एक सूचना।",
@@ -441,7 +442,7 @@
   "freshness.stale": "पुराना",
   "age.measuredAt": "मापा गया: {time}",
   "age.clockAdjusted": "सिस्टम घड़ी बदली गई थी",
-  "metric.renewedWaiting": "{time} पर नवीनीकृत; रीडिंग का इंतज़ार",
+  "metric.renewedWaiting": "{time} पर रीसेट हुआ; रीडिंग का इंतज़ार",
   "freshness.data_as_of": "{time} तक का डेटा",
   "tray.tooltip": "Cuotai · सबसे पुरानी रीडिंग: {account}, {age}",
   "settings.order.title": "खातों का क्रम",

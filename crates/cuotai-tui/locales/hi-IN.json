@@ -2,7 +2,8 @@
   "_meta": {
     "name": "हिन्दी",
     "status": "machine-translated, needs native review",
-    "reviewed": false
+    "reviewed": false,
+    "machine_reviewed": "2026-10-25"
   },
   "about.brazil": "विशेष धन्यवाद: ब्राज़ीलियाई लोगों के बनाए प्रोजेक्ट",
   "about.component.core": "कोर",
@@ -151,7 +152,7 @@
   "dashboard.models.none": "कोई मॉडल नहीं",
   "dashboard.models.one": "1 मॉडल",
   "dashboard.reset.now": "अभी",
-  "dashboard.reset.renews": "नवीनीकरण ",
+  "dashboard.reset.renews": "रीसेट ",
   "dashboard.reset.soon": "जल्द",
   "dashboard.sub.also_direct": " · सीधे भी",
   "dashboard.too_small": "Cuotai: टर्मिनल को कम से कम 45 × 18 तक चौड़ा करें। q से बाहर निकलें।",
@@ -198,7 +199,7 @@
   "history.metric_empty": "  {label}: इस अवधि में कोई मापा गया मान नहीं",
   "history.no_accounts": "कॉन्फ़िगरेशन में कोई खाता नहीं; दिखाने के लिए कोई माप नहीं।",
   "history.window": "    विंडो {start} → {end}: {initial} → {final}, शिखर {peak} ({peak_at} पर){resets}",
-  "history.window.renews": " · {at} को नवीनीकरण",
+  "history.window.renews": " · {at} को रीसेट",
   "lang.unknown": "CUOTAI_LANG={value} ज्ञात भाषा नहीं है; अंग्रेज़ी (en-US) इस्तेमाल हो रही है।",
   "login.authorize_in_browser": "सिस्टम ब्राउज़र में अधिकृत करें:",
   "login.browser_unavailable": "ब्राउज़र नहीं खुल सका; ऊपर दिया URL खुद खोलें।",
@@ -246,7 +247,7 @@
   "once.period": "    अवधि: {period}",
   "once.pool": "  पूल: {summary}",
   "once.provider_status": "  प्रदाता की स्थिति: {parts}",
-  "once.renews": "नवीनीकरण: {at}",
+  "once.renews": "रीसेट: {at}",
   "once.source": "  स्रोत: {source}",
   "once.sub.disabled": "9router में बंद",
   "once.sub.duplicate": "सीधे भी मॉनिटर हो रहा है",

@@ -58,7 +58,7 @@ const wording = (code, clock) => ({
   de: `Erneuert um ${clock}; wartet auf einen Messwert`,
   ru: `Обновлено в ${clock}; ожидается показание`,
   ko: `${clock}에 초기화됨, 조회값을 기다리는 중`,
-  "hi-IN": `${clock} पर नवीनीकृत; रीडिंग का इंतज़ार`,
+  "hi-IN": `${clock} पर रीसेट हुआ; रीडिंग का इंतज़ार`,
   "id-ID": `Diperbarui pada ${clock}; menunggu pembacaan`,
   tr: `${clock} saatinde yenilendi; okuma bekleniyor`,
   vi: `Đã làm mới lúc ${clock}; đang chờ lần đọc`,
