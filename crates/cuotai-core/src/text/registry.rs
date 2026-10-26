@@ -136,6 +136,8 @@ const fn row(
     }
 }
 
+#[allow(unused_imports)]
+// every built-in language has shipped; a new one starts as `InProgress`
 use LocaleStatus::{InProgress, Shipped, Source};
 
 /// The built-in languages, in the fixed order of the language list
