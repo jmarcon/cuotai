@@ -4,9 +4,9 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 
 | Field | Value |
 |---|---|
-| Last updated | 2026-10-24 |
+| Last updated | 2026-10-25 |
 | Cuotai version at that date | 0.80.0 |
-| Plans | 39 (12 implemented, 4 awaiting owner verification, 9 in progress, 14 proposed) |
+| Plans | 46 (14 implemented, 7 awaiting owner verification, 17 in progress, 1 partially implemented, 7 proposed) |
 
 ## 1. How to maintain it
 
@@ -63,6 +63,13 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | [0037](0037_elevenlabs-provider.md) | ElevenLabs provider | Partially implemented (RF11 pending) | vNEXT | 0005 | 0006, 0007, 0008, 0009, 0011, 0023, 0027, 0028 | ElevenLabs credits as a monthly quota with its reset, plus extra usage. Wave 5f (the owner has an account). |
 | [0038](0038_openrouter-provider.md) | OpenRouter provider | Implemented (RF5.4 and RF13.1 owner-blocked) | vNEXT | 0005 | 0023, 0027, 0028, 0036 | OpenRouter key limits, spend and free-model counter (inference key), credit balance and optional breakdown (management key), native PKCE sign-in, low-balance note and consented env detection (core API). **Un-deferred by the owner on 2026-10-25.** |
 | [0039](0039_release-flow-and-changelog-automation.md) | Release flow and changelog automation | In progress | RF1–RF4, RF6, RF8, RF9, RF11 and RF5 partial (0.80.0); RF7 owner action; RF10 (vNEXT) | 0019 (RF2, RF7), 0021 (RF1, RF4, RF9) | — | Versions and `CHANGELOG.md` are produced at release time instead of in every commit: feature/fix commits carry a `Changelog:` trailer (plus `Refs:` and `BREAKING CHANGE:`) and never touch the five version locations; `cargo xtask release prepare` computes the next SemVer from the commits since the last release, writes every version location, both lockfiles, the section with real short hashes and the plans' `vNEXT` tokens, and produces a release PR; the owner tags after merge and `release.yml` runs unchanged. Adds a PR flow with a `main` ruleset, CI on pull requests and `main` only, a `release-preflight` job, and extends (does not duplicate) the documentation-only skip of `6638c69`. Supersedes 0019 RF7.3 and RF7.4's first bullet. **Wave: before the next feature wave (5b)**, because it changes how every delivery is versioned; owner decisions D1–D13 in its §13. |
+| [0040](0040_agent-fed-readings-claude-code-and-codex.md) | Agent-fed readings: Claude Code status line and Codex CLI as local sources | Proposed | — | 0005, 0010, 0029 | 0007, 0008, 0015, 0024, 0028, 0030, 0031, 0033 | Claude Code's documented status-line JSON (`rate_limits`, `context_window`, `cost`) becomes a network-free, token-free reading through `cuotai --feed claude-statusline`; `claude` gains the `claude_code` and hybrid modes (`Official`, no OAuth reuse, which Anthropic's 2026 policy restricts), `chat_gpt` a canary-gated `codex_cli` log mode; `cuotai --statusline-claude` prints Claude's windows plus the tightest other account; a live-session row (context %, agent cost estimate). Wave 6a (policy risk reduction). |
+| [0041](0041_user-defined-budgets-and-daily-allowance.md) | User-defined budgets, balance floors and daily allowance | Proposed | — | 0029, 0023 RF1, 0033 | 0006, 0007, 0008, 0009, 0024, 0030, 0036, 0038 | `[[accounts.budgets]]` turn spend, usage and credits into a derived quota (period boundary in local time, baseline from the history, top-up detection) so pace, alerts, binding, stats and `best` work on them; `[[accounts.floors]]` warn when a balance drops below a level; `pace::allowance` says "≈ 12%/day to the reset". Closes the "balances and spend never alert" gap. Wave 6a. |
+| [0042](0042_local-cost-sessions-blocks-and-projects.md) | Local cost: sessions, 5-hour blocks, projects and the live block | Proposed | — | 0015, 0030 | 0022, 0024, 0040, 0041 | Index schema 2 with a one-way project digest (path never stored), `cost::{sessions,blocks,projects,live}`, `--cost --by`, `--cost-live` (burn rate, projection with PRD 0024 gating), person-chosen labels, desktop tabs and a card line. `ccusage`/CodexBar parity on the person's own logs. Wave 6b. |
+| [0043](0043_usage-insights-rhythm-limit-changes-and-weekly-digest.md) | Usage insights: hourly rhythm, limit changes and the weekly digest | Proposed | — | 0006, 0026, 0029 | 0022, 0025, 0031, 0032, 0044 | `stats::rhythm` (24 hourly bars, workday-aware 7-day strip, typical day), `stats::limit_changes` (journal, 48-hour card note, `limit_changed` event, opt-in notice), an opt-in weekly digest under PRD 0032's policy, a menu-bar strip style; additive `/v1/stats` fields. Wave 6b. |
+| [0044](0044_built-in-notification-channels.md) | Built-in notification channels: webhook, ntfy, Slack and Discord | Proposed | — | 0032, 0029 | 0013, 0028, 0031, 0043 | Up to 5 person-owned destinations receiving exactly the notifications PRD 0032 decides to deliver (quiet hours, private texts, shared ledger), URL in the vault, host-only display, consent dialog with an example payload, bounded retries and an hourly cap, a redacted delivery log. No scripts needed; hooks stay for everything else. Wave 6b. |
+| [0045](0045_breakdowns-by-key-project-and-team.md) | Breakdowns by key, project, workspace and team for admin and aggregator accounts | Proposed | — | 0005, 0023, 0029, 0033 | 0022, 0028, 0036, 0038 | `Scope` gains `Key`, `VirtualKey`, `Project`, `Workspace`, `Team`; `Data.breakdown` rows (25-row cap, "Others", redacted labels, never per-user) for OpenRouter keys, LiteLLM keys/teams, OpenAI projects/keys and Anthropic workspaces, opt-in per account (`breakdown = ["keys"]`, refused on metered providers), history of the top 10 rows, gated alerts, details section. Wave 6c. |
+| [0046](0046_portable-settings-backup-and-doctor.md) | Portable settings, backup and `cuotai --doctor` | Proposed | — | 0029, 0032 | 0021, 0027, 0028, 0041, 0044, 0045 | A secret-free `.cuotai-backup.zip` (allow-listed files, scrubbed preferences, manifest with digests, optional history CSV; vault, server token, cost index and extensions never included), `--restore` with a plan, conflict choices and the sign-ins/variables still needed, and a read-only, redacted `--doctor` (config, credentials present or not, vault, permissions, server, databases, sources, clock) that feeds PRD 0028's report. Wave 6a (doctor) / 6c (bundle). |
 
 ### 2.1 Owner verification checklist
 
@@ -524,6 +531,24 @@ Claims of a paid macOS menu-bar monitor (WhatsMyUsage) compared with Cuotai at 0
 | About 69 supported agents | 36 providers | Not claimed: no verified list; additions go through provider PRDs (0036 aggregators, 0037 ElevenLabs; 0038 OpenRouter deferred) and the new-provider template (0027 §4) |
 | Interface in many languages | Four languages | 0034 and 0035 (ten more) |
 
+### 7.1 Additions of 2026-10-25 (product strategy review)
+
+Claims surveyed on 2026-10-25 from CodexBar (v0.75.0 notes and docs), Fetchy (App Store listing), OpenUsage, Claude Code Usage Monitor, `ccusage`, LiteLLM, OpenRouter's Activity page and Anthropic's Claude Code status-line documentation; the PRD that answers each one. Sources are cited inside the PRDs.
+
+| Market claim | Cuotai today | Delivered by |
+|---|---|---|
+| Reads the agent's own rate limits from the status line / local CLI (no backend call, no token reuse) | Undocumented OAuth query only | 0040 RF2–RF5 (`Official`, network-free) |
+| Context-window and session-cost view while the agent runs | Missing | 0040 RF7 |
+| Token or dollar budgets on pay-as-you-go keys and balances; soft budgets with alerts | Balances and spend never alert | 0041 RF1–RF3 |
+| "How much per day can I use" | Pace and projection only | 0041 RF4 (allowance) |
+| Session, 5-hour block and project cost reports; live block with burn rate | Day and model only | 0042 RF2–RF6 |
+| Hourly 24 h strip, workday-aware weekly strip, peak hours | Peak per day (0026) | 0043 RF1, RF4 |
+| Monthly/weekly usage insights pushed to the person | Missing | 0043 RF3 (weekly digest) |
+| Slack/webhook delivery of alerts without scripts | Hooks (scripts) only | 0044 |
+| Spend sliced by key, project, team (OpenRouter Activity, LiteLLM UI, OpenAI Admin) | Account total with static filters | 0045 |
+| Settings that travel between machines; a self-check | Missing | 0046 |
+| 50–60+ supported tools | 40 providers | Not matched by count; 0040 adds agent-fed modes, 0045 adds breakdowns; new providers through provider PRDs |
+
 ## 8. History of this file
 
 | Date | Change |
@@ -612,3 +637,4 @@ Claims of a paid macOS menu-bar monitor (WhatsMyUsage) compared with Cuotai at 0
 | 2026-10-23 | PRD 0022 written (Proposed), replacing the reserved row: UI refresh and design-system adoption with 19 RFs (tokens, components, motion, accessibility, i18n check, Cuotai as the new-install default theme, strict-contrast gate, TUI colors, nine fix requirements, screenshot pipeline), a De/Para section pairing the 54 "before" screenshots with the 71 "after" mockups (committed under `assets/0022/after/` with their generator); edges 0022 → 0020 (strong), 0025 and 0035 → 0022 (weak); owner decision on the logotype placement logged in §6.1. |
 | 2026-10-23 | Plan review of the priorities and dependencies: strong edges added where an RF needs another plan (0024 RF7 and 0032 RF1.3 → 0029; 0025 RF6.5 → 0018 RF2.6; 0018 → 0021; 0023 RF4–RF6 → 0008, 0013, 0012; 0033 → 0001, 0007, 0009); 0029 RF5's delivered part and 0031's delivered token default noted; missing 0.76.0 row; review ids GEM-01, SES-01, SES-02 (formerly FIX-G1, FIX-S1, FIX-S2) in the shape the commit gate accepts; owner checklist rows for 0021 RF9.1 and 0039 RF5/RF7; waves re-sequenced (cutover first, release blockers including 0029 RF0, 0018 RF2.6 and the tray crash before `v0.80.0-rc.1`, foundations in parallel lanes, core parity no longer behind 0022); 1.0 criteria made checkable. |
 | 2026-10-23 | `CHANGELOG.md` consolidated (owner decision refining PRD 0039 D11): the internal versions 0.1.0–0.79.0 are summarized in one "Pre-release history" section instead of one section each, with their footer links removed; the §3 rows stay their per-version detail and `changelog-check` resolves them through the history's range. |
+| 2026-10-25 | Product strategy review: PRDs 0040–0046 added (Proposed) — agent-fed readings (0040), budgets and allowance (0041), local cost sessions/blocks/projects (0042), usage insights and digest (0043), notification channels (0044), breakdowns by key/project/team (0045), backup and doctor (0046); §7.1 parity additions; the header counts recomputed from §2 (the 2026-10-24 header still said 14 proposed). |
