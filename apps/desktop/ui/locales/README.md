@@ -29,21 +29,44 @@ messages, settings and themes.
 
 ## Adding a built-in language
 
-1. Add `crates/cuotai-core/locales/<code>.json` with every core message ID:
-   `field.*`, `native.*`, `login.*`, `credential_help.*`, `oauth.*`,
-   `access.*`, `edit_error.*`, `query.*`, `note.*`, `remove_error.*`,
-   `remove.kept.*`, `status.*`, `provider.*`, `binding.*`,
-   `metric_window.*`, and `pace.*`. English is the embedded fallback; every
-   other language uses its catalog and falls back to that English text. The
-   core tests fail when the catalog lacks an id or renames a placeholder.
-2. Add `apps/desktop/ui/locales/<code>.json` with the UI's `common.*`,
-   `dialog.*`, `tray.*`, `settings.*`, `theme.*`, `account.*`, `card.*`,
-   `delete.*`, `filter.*`, `lang.*`, `metric.*`, `quota.*`, `sort.*`,
-   `time.*`, and `userContent.*` strings.
-3. Add `{ code, name }` to `LOCALES` in `js/i18n.js` and add the language to
-   the locale coverage tests.
+Every language is one row of the core registry, `cuotai_core::text::LOCALES`
+(`crates/cuotai-core/src/text/registry.rs`, PRD 0035 RF1): code, endonym,
+flag, script, language subtags and aliases, plural rule and status. The core,
+the TUI and the desktop all read it; no test loop, prefix chain or
+hard-coded list needs editing. The fourteen rows are pt-BR, en-US, es and it
+(shipped) and zh-CN, fr, de, ja, ru, ko, hi-IN, id-ID, tr and vi, registered
+with the status `in_progress`: they resolve (a Japanese system is recognized
+as Japanese) but read the English source, and the language list shows them
+as "Translation in progress", not selectable.
 
-The `en-US` fallback catalogs must contain every core and UI key.
+To ship a registered language:
+
+1. Add `crates/cuotai-core/locales/<code>.json` with every core id (the key
+   set of `pt-BR.json`), and its line in the `embedded_catalogs!` table of
+   `crates/cuotai-core/src/text.rs`.
+2. Add `crates/cuotai-tui/locales/<code>.json` with every TUI id, and its
+   line in the `tui_catalogs!` table of `crates/cuotai-tui/src/l10n.rs`.
+3. Add `apps/desktop/ui/locales/<code>.json` with every id of `en-US.json`
+   (the UI source).
+4. Set the row's `status` to `shipped`, then regenerate the desktop's copies
+   of the registry (the static copy in `js/locale-registry.js` and the
+   pre-paint lists of the three HTML pages):
+   `CUOTAI_REGENERATE_LOCALES=1 cargo test -p cuotai-core locale_registry_copies`.
+
+`_meta.name` of each catalog is the registry endonym. Values are strings or,
+for an id that embeds `{count}`, a plural object with exactly the categories
+of the language's rule (`other` for ja, zh-CN, ko, id-ID and vi; `one` and
+`other` for en-US, de, es, it, tr, pt-BR, fr and hi-IN; `one`, `few`, `many`
+and `other` for ru). The parity tests (`core_catalogs_are_in_parity`,
+`desktop_ui_catalogs_are_in_parity` and the TUI's
+`the_registry_matches_the_tui_catalogs`) fail on a missing or extra id, a
+renamed placeholder, markup, a wrong plural shape, an empty value, a control
+character, a decomposed (non-NFC) Latin or Cyrillic text, a `_meta.name`
+that is not the endonym, and a file the registry does not list (or the
+reverse). A row whose script is not Latin or Cyrillic also needs its
+`--font-script` stack in `css/themes.css`, and every row needs drawn flag
+artwork in `js/flags.js`; tests check both. A right-to-left row fails a test
+until a PRD covers mirroring.
 
 ## User-provided languages
 

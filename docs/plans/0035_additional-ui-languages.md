@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0035 |
-| Status | Proposed |
+| Status | In progress |
 | Owner | `cuotai-core` (locale registry, resolution, catalogs, plural rules), desktop (`apps/desktop/ui`: catalogs, `i18n.js`, `flags.js`, typography), TUI (`crates/cuotai-tui`: locale selection, chrome catalog, terminal width) |
 | Consumers | every front end and every text the backend emits: cards, details, tray, native tray menu, notifications (PRD 0003, 0008), `--once`/`--watch` text, "What's new" (PRD 0019 RF7.7), user language packs |
 | Depends on | PRD 0034 (English source locale: en-US becomes the source and fallback, pt-BR becomes a catalog) for RF2 and RF3; none for RF1, RF4 and RF5 (they can land first) |
@@ -13,20 +13,20 @@
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable. A **locale** is a BCP 47 code with a catalog (`pt-BR`, `zh-CN`); a **catalog** is one JSON file of message ids; the **core catalog** holds the texts the backend emits (`Localized`), the **UI catalog** holds desktop chrome, and the **TUI chrome** is the terminal interface's own captions. "Critical strings" are defined in RF11.3.
 
-## Implementation status (2026-10-23)
+## Implementation status (2026-10-25)
 
 | RF | Version | Delivery |
 |---|---|---|
-| RF1 | — | Proposed. |
+| RF1 | vNEXT | Delivered: `text::LOCALES` (fourteen rows, the ten new ones `in_progress`), `text::normalize` (alias table of RF1.4), `Locale` as a registry handle, one `include_str!` per catalog from a macro with a registry/file test in the core and the TUI, the `locale_registry` Tauri command with a generated static copy and generated pre-paint copies, the same algorithm in `i18n.js`, `CUOTAI_LANG` normalized with one warning, `set_locale` canonical for built-in codes (decision D11). |
 | RF2 | — | Proposed. |
 | RF3 | — | Proposed. |
-| RF4 | — | Proposed. |
+| RF4 | vNEXT | Delivered: plural objects in every catalog layer (`text::Catalog`, `text::Message`), `text::plural_category` cross-checked against a recorded `Intl.PluralRules` fixture, `Localized::plural`, the nine core count texts as plural objects in pt-BR, es and it, plural objects of core texts in the desktop `tl()`. |
 | RF5 | — | Proposed. |
 | RF6 | — | Proposed. |
 | RF7 | — | Proposed. |
 | RF8 | — | Proposed. |
 | RF9 | — | Proposed. |
-| RF10 | — | Proposed. |
+| RF10 | vNEXT | Partly delivered: RF10.3 (desktop countdowns use the core's `text.duration.*` patterns and two new UI patterns), RF10.5 (`fold()` in `util.js` and its Rust twin `text::fold` for the TUI filter), RF10.6 (explicit `localeCompare` locales). RF10.1, RF10.2 and RF10.4 need no code (the registry code already reaches `Intl`); their per-language screenshot checks belong to the language lanes (RF13). |
 | RF11 | — | Proposed. |
 | RF12 | — | Proposed. |
 | RF13 | — | Proposed. |
@@ -394,3 +394,14 @@ The owner accepted every recommendation on 2026-10-23. The questions that were o
 | 8 | hi-IN and id-ID number grouping | Yes, one screenshot-backed check per language; no custom formatting code. | RF13.3 includes it. |
 | 9 | Group the language list | No grouping; fixed order with scrolling. Revisit above twenty languages. | RF3.3 stands. |
 | 10 | Reviewer roster | The owner maintains it through GitHub Discussions ("Looking for reviewers" per language); the status table is the public record. | RF11.2 and RF14.1 stand. |
+
+### Implementation decisions (2026-10-25, phase 0 infrastructure lane)
+
+| # | Decision | Reason |
+|---|---|---|
+| D11 | `set_locale` stores a built-in language by its canonical code and keeps any other valid code as chosen, instead of storing unknown codes as en-US (RF1.7). | `desktop.json` is the source of the UI language (PRD 0020 RF7); a user pack's code (`nl`, `zh-TW`) must survive a restart. Its notices still read English, the core having no catalog for it. |
+| D12 | The ten new languages are registry rows with the status `in_progress` until their three catalogs land: they resolve, read the English source, are never detected or selectable, and the language list shows them with a "Translation in progress" caption. A user pack with the same code makes one selectable. | Lets the infrastructure ship before the translations (phase 0) without a half-translated language reaching users. |
+| D13 | The core parity reference is the first translated core catalog (pt-BR), not en-US. | After PRD 0034 the English core and TUI texts live in the code (no en-US file); the descriptor and source-id tests already prove every English id is in every catalog. |
+| D14 | The NFC rule of RF2.2 is checked by a proxy: no combining diacritic (U+0300..U+036F) in a Latin or Cyrillic text; the Rust `text::fold` maps precomposed letters by table. | The tree has no Unicode normalization crate and RF6.1 forbids adding crates for this. |
+| D15 | `edit_error.index_out_of_range` stays a plain text. | Its `{count}` is a length printed in parentheses, not a counted noun. |
+| D16 | Italian `quiet.digest.more` reads "e un altro" for one; the plural parity compares the union of placeholders across forms. | A singular form may name the number in words. |
