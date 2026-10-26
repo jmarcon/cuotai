@@ -2,7 +2,8 @@
   "_meta": {
     "name": "Français",
     "status": "machine-translated, needs native review",
-    "reviewed": false
+    "reviewed": false,
+    "machine_reviewed": "2026-10-25"
   },
   "about.brazil": "Remerciements particuliers : projets créés par des Brésiliens",
   "about.component.core": "noyau",
@@ -151,7 +152,7 @@
   "dashboard.models.none": "aucun modèle",
   "dashboard.models.one": "1 modèle",
   "dashboard.reset.now": "maintenant",
-  "dashboard.reset.renews": "renouvelle ",
+  "dashboard.reset.renews": "réinit. ",
   "dashboard.reset.soon": "bientôt",
   "dashboard.sub.also_direct": " · aussi en direct",
   "dashboard.too_small": "Cuotai : élargissez le terminal à au moins 45 × 18. q quitte.",
@@ -198,7 +199,7 @@
   "history.metric_empty": "  {label} : aucune valeur mesurée sur la période",
   "history.no_accounts": "Aucun compte dans la configuration ; aucune mesure à afficher.",
   "history.window": "    Fenêtre {start} → {end} : {initial} → {final}, pic {peak} à {peak_at}{resets}",
-  "history.window.renews": " · renouvelle {at}",
+  "history.window.renews": " · réinitialisation {at}",
   "lang.unknown": "CUOTAI_LANG={value} n’est pas une langue connue ; utilisation de l’anglais (en-US).",
   "login.authorize_in_browser": "Autorisez dans le navigateur du système :",
   "login.browser_unavailable": "Impossible d’ouvrir le navigateur ; ouvrez l’URL ci-dessus manuellement.",
@@ -246,7 +247,7 @@
   "once.period": "    Période : {period}",
   "once.pool": "  Groupe : {summary}",
   "once.provider_status": "  État du fournisseur : {parts}",
-  "once.renews": "Renouvellement : {at}",
+  "once.renews": "Réinitialisation : {at}",
   "once.source": "  Source : {source}",
   "once.sub.disabled": "désactivée dans 9router",
   "once.sub.duplicate": "aussi surveillé en direct",
