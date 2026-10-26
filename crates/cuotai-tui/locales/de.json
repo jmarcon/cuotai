@@ -2,7 +2,8 @@
   "_meta": {
     "name": "Deutsch",
     "status": "machine-translated, needs native review",
-    "reviewed": false
+    "reviewed": false,
+    "machine_reviewed": "2026-10-25"
   },
   "about.brazil": "Besonderer Dank: Projekte von Brasilianern",
   "about.component.core": "Kern",

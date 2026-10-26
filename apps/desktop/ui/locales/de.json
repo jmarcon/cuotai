@@ -2,7 +2,8 @@
   "_meta": {
     "name": "Deutsch",
     "status": "machine-translated, needs native review",
-    "reviewed": false
+    "reviewed": false,
+    "machine_reviewed": "2026-10-25"
   },
   "agg.alertEach": "Bei jeder Verbindung warnen",
   "agg.alertEachHelp": "Aus: eine Meldung, wenn alle Konten eines Anbieters erschöpft sind, und eine, wenn ein Konto zurückkehrt.",
@@ -531,7 +532,7 @@
   "delete.kept": "Konto entfernt; die Zugangsdaten bleiben im Tresor.",
   "delete.keptShared": "Konto entfernt; die Zugangsdaten blieben erhalten, weil das Konto {other} sie ebenfalls nutzt.",
   "delete.partial": "Konto aus der Datei entfernt, aber seine Zugangsdaten wurden NICHT aus dem Tresor gelöscht: {message}",
-  "delete.retry": "Zugangsdaten jetzt zu löschen versuchen",
+  "delete.retry": "Jetzt versuchen, die Zugangsdaten zu löschen",
   "common.dismiss": "Schließen",
   "settings.refresh.title": "Aktualisierung",
   "settings.refresh.help": "Globales Intervall zwischen Abfragen. Konten mit eigenem Intervall ändern sich nicht; pro Abfrage abgerechnete Anbieter haben ein höheres Minimum.",
@@ -720,7 +721,7 @@
   "settings.cost.erase": "Index löschen",
   "settings.cost.eraseText": "Den gesamten lokalen Kostenindex löschen? Aktive Quellen lesen ihre Logs wieder von Anfang an.",
   "settings.cost.eraseConfirm": "Index löschen",
-  "settings.cost.erased": "Index gelöscht: {count} Datensatz/Datensätze.",
+  "settings.cost.erased": "Index gelöscht: {count} Eintrag/Einträge.",
   "settings.cost.plans": "Tarife und zweite Währung",
   "settings.kw.cost-plans": "lokale kosten tarife zweite währung tarif preis wechselkurs",
   "settings.kw.cost-plan": "lokale kosten tarif preis abonnement zahlen monatlich wert",
@@ -861,7 +862,7 @@
   "update.state.failed": "Die letzte Prüfung ist fehlgeschlagen.",
   "update.off.preference": "In den Einstellungen ausgeschaltet: Es wird nicht geprüft.",
   "update.off.env": "Durch CUOTAI_UPDATER=off in der Umgebung ausgeschaltet: Der Paketmanager dieser Installation aktualisiert sie.",
-  "update.off.build": "In der Version dieser Kopie ausgeschaltet (Build-Schlüssel des Paketierers).",
+  "update.off.build": "Im Build dieser Kopie ausgeschaltet (Build-Schlüssel des Paketierers).",
   "update.off.homebrew": "Diese Kopie wurde über Homebrew installiert: Aktualisieren Sie sie mit dem Befehl unten.",
   "update.off.scoop": "Diese Kopie wurde über Scoop installiert: Aktualisieren Sie sie mit dem Befehl unten.",
   "update.off.winget": "Diese Kopie wurde über winget installiert: Aktualisieren Sie sie mit dem Befehl unten.",
