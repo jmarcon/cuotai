@@ -827,6 +827,10 @@ fn assert_english(template: &str) {
 }
 
 #[cfg(test)]
+#[path = "text/budget_tests.rs"]
+mod budget_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use std::collections::BTreeSet;
