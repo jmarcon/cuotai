@@ -120,7 +120,7 @@
 .kpis {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-  gap: var(--sp-3);
+  gap: var(--sp-2);
 }
 .kpi {
   display: flex;
@@ -559,7 +559,7 @@
   display: none;
 }
 .pop-head [data-stats-scope-slot] {
-  flex: 0 1 150px;
+  flex: 0 1 116px;
   min-width: 0;
 }
 .pop-head .st-scope {
@@ -575,6 +575,7 @@
   background-color: var(--surface);
   color: var(--fg);
   font: inherit;
+  font-size: var(--text-sm);
 }
 .pop-head .st-scope select:focus-visible {
   outline: 2px solid var(--focus);
