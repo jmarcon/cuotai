@@ -476,5 +476,7 @@
   "wizard.summary.token_vault": "(das Token liegt im sicheren Speicher; es wird nie angezeigt oder in die TOML geschrieben)",
   "wizard.summary.unnamed": "{provider} (unbenannt)",
   "wizard.title": "Assistent — {position}/{total} {label}",
-  "wizard.too_small": "Assistent: Vergrößern Sie das Terminal auf mindestens 60 × 20. Esc bricht ab."
+  "wizard.too_small": "Assistent: Vergrößern Sie das Terminal auf mindestens 60 × 20. Esc bricht ab.",
+  "dashboard.footer.next_connection": "n Verbindung",
+  "dashboard.footer.aggregator_filter": "f Aggregator"
 }

@@ -476,5 +476,7 @@
   "wizard.summary.token_vault": "(токен хранится в защищённом хранилище; он никогда не показывается и не записывается в TOML)",
   "wizard.summary.unnamed": "{provider} (без имени)",
   "wizard.title": "Мастер — {position}/{total} {label}",
-  "wizard.too_small": "Мастер: увеличьте терминал минимум до 60 × 20. Esc — отмена."
+  "wizard.too_small": "Мастер: увеличьте терминал минимум до 60 × 20. Esc — отмена.",
+  "dashboard.footer.next_connection": "n подключение",
+  "dashboard.footer.aggregator_filter": "f агрегатор"
 }

@@ -1230,5 +1230,15 @@
   "settings.display.more": "Weitere Anzeigeoptionen",
   "lang.inProgress": "Übersetzung in Arbeit",
   "time.duration.minutesSeconds": "{m} Min. {s} s",
-  "time.duration.seconds": "{s} s"
+  "time.duration.seconds": "{s} s",
+  "settings.page.extensions": "Erweiterungen",
+  "settings.kw.extensions": "erweiterungen lokale erweiterung add-on plugin anbieter eigene ausführen genehmigen ordner",
+  "dialog.monogram": "Monogramm",
+  "dialog.monogramPlaceholder": "optional, z. B. WK",
+  "dialog.monogramHint": "Ein oder zwei Zeichen auf der Kachel dieses Kontos, wenn der Anbieter mehrere Konten hat. Leer: die Anfangsbuchstaben des Namens.",
+  "dialog.monogram.invalid": "Verwende ein oder zwei Zeichen ohne Leerzeichen.",
+  "desktop.error.invalid_monogram": "Ein Monogramm hat ein oder zwei Zeichen ohne Leerzeichen.",
+  "settings.whatsnew.auto": "Neuigkeiten anzeigen",
+  "settings.whatsnew.auto.desc": "Öffnet die Versionshinweise einmal nach jedem Update",
+  "settings.kw.whats-new-auto": "neuigkeiten versionshinweise changelog update version automatisch öffnen nach update"
 }

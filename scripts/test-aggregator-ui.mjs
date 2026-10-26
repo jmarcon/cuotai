@@ -101,7 +101,7 @@ for (const { code } of i18n.LOCALES) {
 // none without `connection_warnings`, and the details list them too.
 assert.equal(agg.warningChipsHtml(router), "", "no warnings, no chips");
 const warned = { ...router, connection_warnings: { exposed: true, private_http: true } };
-const chipTexts = { "en-US": ["No password", "Unencrypted"], es: ["Sin contraseña", "Sin cifrado"], it: ["Senza password", "Non cifrato"], "pt-BR": ["Sem senha", "Sem criptografia"] };
+const chipTexts = { "en-US": ["No password", "Unencrypted"], es: ["Sin contraseña", "Sin cifrado"], it: ["Senza password", "Non cifrato"], "pt-BR": ["Sem senha", "Sem criptografia"], de: ["Ohne Passwort", "Unverschlüsselt"], ru: ["Без пароля", "Без шифрования"] };
 for (const { code } of i18n.LOCALES) {
   await i18n.setLocale(code);
   const html = agg.warningChipsHtml(warned);
