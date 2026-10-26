@@ -2,7 +2,8 @@
   "_meta": {
     "name": "Tiếng Việt",
     "status": "machine-translated, needs native review",
-    "reviewed": false
+    "reviewed": false,
+    "machine_reviewed": "2026-10-25"
   },
   "about.brazil": "Đặc biệt cảm ơn: các dự án do người Brazil tạo ra",
   "about.component.core": "lõi",
