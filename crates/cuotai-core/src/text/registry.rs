@@ -283,7 +283,7 @@ pub const LOCALES: &[LocaleRow] = &[
         "Latn",
         &["vi"],
         PluralRule::Other,
-        InProgress,
+        Shipped,
         2,
     ),
 ];

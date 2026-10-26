@@ -156,6 +156,17 @@ const expected = {
     sortAsc: "Kalan: en az önce",
     sortDesc: "Kalan: en çok önce",
   },
+  vi: {
+    unit: "còn lại",
+    levels: {
+      good: "Còn 75%: còn nhiều (70% trở lên).",
+      warn: "Chú ý: còn 50% (từ 30% đến 70%).",
+      bad: "Nguy cấp: chỉ còn 20% (dưới 30%).",
+    },
+    rateLimit: "Giới hạn tốc độ: còn 42%",
+    sortAsc: "Còn lại: ít nhất trước",
+    sortDesc: "Còn lại: nhiều nhất trước",
+  },
 };
 
 const coreCatalog = JSON.parse(await readFile(

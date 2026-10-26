@@ -179,6 +179,7 @@ const expectedReleaseDates = {
   "hi-IN": "22 अक्टू॰ 2026 को जारी",
   "id-ID": "dirilis pada 22 Okt 2026",
   tr: "22 Eki 2026 tarihinde yayımlandı",
+  vi: "phát hành ngày 22 thg 10, 2026",
 };
 
 let expectedUpdateKeys;

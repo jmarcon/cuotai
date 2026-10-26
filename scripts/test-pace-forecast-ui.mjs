@@ -159,6 +159,12 @@ const expected = {
     reset: "Sıfırlanma 19:30 · 1sa 35dk sonra", best: "Şimdi en iyi",
     advice: "Work tükendi · Personal için %64 kaldı",
   },
+  vi: {
+    points: "Vượt 10 điểm", percent: "Nhanh hơn nhịp độ 20%",
+    callout: "Với nhịp này Session (5h) sẽ hết khoảng 18:53, sớm hơn 37 phút so với lần đặt lại", chip: "Hết khoảng 18:53",
+    reset: "Đặt lại 19:30 · sau 1 giờ 35 phút", best: "Tốt nhất lúc này",
+    advice: "Work đã hết · Personal còn 64%",
+  },
 };
 
 for (const { code } of i18n.LOCALES) {

@@ -72,6 +72,7 @@ const expected = {
   "hi-IN": { pool: "Claude · 2 में से 1 उपलब्ध", off: "9router में बंद", tight: "सबसे कम: Claude Code · work" },
   "id-ID": { pool: "Claude · 1 dari 2 tersedia", off: "Nonaktif di 9router", tight: "Paling ketat: Claude Code · work" },
   tr: { pool: "Claude · 2 içinden 1 kullanılabilir", off: "9router&#39;da kapalı", tight: "En sıkı: Claude Code · work" },
+  vi: { pool: "Claude · 1 trên 2 khả dụng", off: "Tắt trong 9router", tight: "Chặt nhất: Claude Code · work" },
 };
 const untranslated = /\b(agg|settings\.agg)\.[a-zA-Z.]+/;
 for (const { code } of i18n.LOCALES) {

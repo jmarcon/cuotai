@@ -97,6 +97,7 @@ const scenarios = [
   { stored: null, system: ["es-MX"], expected: "es", label: "same-language detection" },
   { stored: null, system: ["in-ID"], expected: "id-ID", label: "legacy Indonesian code" },
   { stored: null, system: ["tr-TR"], expected: "tr", label: "Turkish detection" },
+  { stored: null, system: ["vi-VN"], expected: "vi", label: "Vietnamese detection" },
   { stored: null, system: ["ja"], expected: "en-US", label: "translation in progress falls back" },
   // PRD 0035 RF1.3: registry normalization, never a string prefix, never Simplified Chinese for zh-TW.
   { stored: null, system: ["pt_PT.UTF-8"], expected: "pt-BR", label: "system form with an encoding" },

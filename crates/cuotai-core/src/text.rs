@@ -529,6 +529,7 @@ embedded_catalogs! {
     "hi-IN" => "../locales/hi-IN.json",
     "id-ID" => "../locales/id-ID.json",
     "tr" => "../locales/tr.json",
+    "vi" => "../locales/vi.json",
 }
 
 /// A resolved language: a handle on its registry row. Unknown codes

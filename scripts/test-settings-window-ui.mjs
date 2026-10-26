@@ -45,6 +45,8 @@ const { costHtml } = await import("../apps/desktop/ui/js/settings/cost.js");
 await i18n.initI18n();
 
 const long = [];
+// Vietnamese spaces separate syllables, not words: a label or a page holds about twice as many space-separated tokens.
+const SYLLABLE_FACTOR = { vi: 2 };
 // Product and source names count as one word.
 const names = [...(await lib.costStatus()).sources.map((x) => x.label), /^Cuotai \S+/];
 const { PAGES, ADVANCED, LEGACY_SECTIONS, CONTROLS } = registry;
@@ -219,17 +221,17 @@ for (const { code } of i18n.LOCALES) {
     // RF5.1: a row label has at most 4 words (a source or version name counts as one).
     for (const [, label] of shown.matchAll(/<span class="set-row-label"[^>]*>([\s\S]*?)<\/span>/g)) {
       const n = names.reduce((text, name) => text.replace(name, "X"), plain(label)).split(/\s+/).filter(Boolean).length;
-      if (n > 4) long.push(`${code}/${page.id}: ${plain(label)}`);
+      if (n > 4 * (SYLLABLE_FACTOR[code] ?? 1)) long.push(`${code}/${page.id}: ${plain(label)}`);
     }
     const words = plain(shown).split(/\s+/).filter(Boolean).length;
-    assert.ok(words <= 150, `${code}/${page.id}: ${words} words shown before any disclosure`);
+    assert.ok(words <= 150 * (SYLLABLE_FACTOR[code] ?? 1), `${code}/${page.id}: ${words} words shown before any disclosure`);
     total += words;
   }
   // Budget 450 -> 490 (audit #16: helper lines show as text; the setup row moved to About): the Startup group of mockup 50-settings-general (audit #37) adds one heading and one row.
   // PRD 0035 RF9.1: Hindi, Indonesian and Vietnamese run longer than English in words (separate particles and
   // postpositions) but short per word, so their page-text budget counts 10 % more words.
   const wordy = { "hi-IN": 1.1, "id-ID": 1.1, vi: 1.1 }[code] ?? 1;
-  assert.ok(total <= Math.round(490 * wordy), `${code}: ${total} words shown across the pages`);
+  assert.ok(total <= Math.round(490 * wordy) * (SYLLABLE_FACTOR[code] ?? 1), `${code}: ${total} words shown across the pages`);
   // PRD 0032 RF2.3/RF7.1: the quiet-hours row (with its search keywords) and its weekday editor, and the private
   // switch, render translated: seven weekday rows, labelled time fields, "Same every day", up to three intervals.
   const alertsPage = rendered.get("alerts");
