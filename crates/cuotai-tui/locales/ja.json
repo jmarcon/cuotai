@@ -2,7 +2,8 @@
   "_meta": {
     "name": "日本語",
     "status": "machine-translated, needs native review",
-    "reviewed": false
+    "reviewed": false,
+    "machine_reviewed": "2026-10-25"
   },
   "about.brazil": "特別な感謝：ブラジル人が作ったプロジェクト",
   "about.component.core": "コア",
