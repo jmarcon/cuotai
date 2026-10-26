@@ -438,6 +438,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
         with:
           toolchain: 1.99.1
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: xtask
+          save-if: false
       - run: cargo run -p xtask --locked -- release-check
       - run: cargo run -p xtask --locked -- workflow-check
 
@@ -464,9 +468,13 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
         with:
           toolchain: 1.99.1
-      # Only xtask is built here; main writes the cache like in `test`.
+      # Only xtask is built here. The jobs that build nothing but xtask
+      # (`version-check`, `access-evidence`, `release-preflight` and this one)
+      # share one `xtask` cache entry instead of one per job; this job is the
+      # only one that always runs on main, so it alone writes the entry.
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
+          shared-key: xtask
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: cargo run -p xtask --locked -- changelog-check
       # PRD 0028 RF6.2: annotations only, never a failure.
@@ -528,7 +536,8 @@ jobs:
           toolchain: 1.99.1
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          shared-key: xtask
+          save-if: false
       - run: cargo run -p xtask --locked -- access-staleness --days 90 --fail-after 180
 
   # PRD 0028 RF4.8: CI holds no provider secret, so it only dry-runs the local
@@ -548,9 +557,16 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
         with:
           toolchain: 1.99.1
+      # The same key as `test (ubuntu-latest)`: that job compiles these very
+      # test binaries, so this one restores its entry and rebuilds nearly
+      # nothing. The `test` job writes the entry; this job never saves.
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          shared-key: test
+          workspaces: |
+            . -> target
+            apps/desktop/src-tauri -> target
+          save-if: false
       - name: drift detector, report, draft and evidence list
         run: cargo test --locked -p cuotai-core --lib canary
       - name: end-to-end dry run against the mutated fixture
@@ -576,7 +592,8 @@ jobs:
           toolchain: 1.99.1
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          shared-key: xtask
+          save-if: false
       - run: cargo build -p xtask --locked
       - run: ./target/debug/xtask workflow-check
       - run: ./target/debug/xtask release-check
