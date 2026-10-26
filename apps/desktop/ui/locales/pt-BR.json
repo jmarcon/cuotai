@@ -1178,6 +1178,8 @@
   "settings.theme.desc": "Só cores; layout igual.",
   "settings.motion.desc": "Sistema segue o movimento reduzido.",
   "settings.lang.desc": "Vale também para a bandeja.",
+  "settings.lang.machine": "Tradução automática; ainda sem revisão de um falante nativo.",
+  "settings.lang.machine.link": "Ajude a revisar",
   "settings.mode.label": "Modo",
   "dialog.picker.searchCount": "Buscar entre {count} provedores",
   "settings.menubar.appearance": "Aparência",

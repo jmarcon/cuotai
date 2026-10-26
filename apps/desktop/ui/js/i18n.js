@@ -44,6 +44,9 @@ const store = {
 };
 
 export const currentLocale = () => current;
+/** PRD 0035 RF11.5: the active language's UI catalog says it was machine-translated and not yet reviewed by a
+ *  native speaker (`_meta.reviewed: false`). */
+export const machineTranslated = () => uiCatalogs.get(current)?._meta?.reviewed === false;
 // One Intl.PluralRules per locale: building one on every plural lookup showed in the render profile.
 let plural = null;
 function pluralRules() {

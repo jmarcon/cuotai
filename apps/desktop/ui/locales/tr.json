@@ -1174,6 +1174,8 @@
   "settings.theme.desc": "Yalnızca renkler; düzen aynı kalır.",
   "settings.motion.desc": "Sistem, azaltılmış hareket ayarınızı izler.",
   "settings.lang.desc": "Tepsi ve menü çubuğu için de geçerlidir.",
+  "settings.lang.machine": "Makine çevirisi; henüz anadili konuşan biri tarafından gözden geçirilmedi.",
+  "settings.lang.machine.link": "İncelemeye yardım edin",
   "settings.mode.label": "Mod",
   "dialog.picker.searchCount": "{count} sağlayıcıda ara",
   "settings.menubar.appearance": "Görünüm",

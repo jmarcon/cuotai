@@ -107,6 +107,8 @@ export const setExtensionOverride = (index, id, on) =>
   call("set_extension_override", { index, id, on });
 export const setExtensionSecret = (id, name, value) =>
   call("set_extension_secret", { id, name, value });
+/** PRD 0035 RF11.5: where a machine-translated language asks for review; `TRANSLATION_GUIDE` in about.rs. */
+export const TRANSLATION_GUIDE_URL = "https://github.com/jmarcon/cuotai/blob/main/apps/desktop/ui/locales/README.md";
 export const EXTENSIONS_GUIDE_URL = "https://github.com/jmarcon/cuotai/blob/main/docs/extensions.md";
 export const openExtensionsFolder = () => (isDesktop ? call("open_extensions_folder") : Promise.resolve());
 export const forgetExtensionSecrets = (id) => call("forget_extension_secrets", { id });

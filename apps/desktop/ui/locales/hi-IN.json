@@ -1174,6 +1174,8 @@
   "settings.theme.desc": "केवल रंग; लेआउट अपरिवर्तित।",
   "settings.motion.desc": "सिस्टम की कम-मोशन सेटिंग का पालन।",
   "settings.lang.desc": "ट्रे और मेन्यू बार पर भी लागू।",
+  "settings.lang.machine": "मशीन अनुवाद; किसी मूल भाषी ने अभी इसकी समीक्षा नहीं की है।",
+  "settings.lang.machine.link": "समीक्षा में मदद करें",
   "settings.mode.label": "मोड",
   "dialog.picker.searchCount": "{count} प्रदाता खोजें",
   "settings.menubar.appearance": "रूप",

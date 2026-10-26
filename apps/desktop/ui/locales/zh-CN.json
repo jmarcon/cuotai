@@ -1163,6 +1163,8 @@
   "settings.theme.desc": "仅改变颜色；布局保持不变。",
   "settings.motion.desc": "“跟随系统”会遵循系统的减少动态效果设置。",
   "settings.lang.desc": "同样适用于托盘和菜单栏。",
+  "settings.lang.machine": "机器翻译，尚未经过母语人士审校。",
+  "settings.lang.machine.link": "帮助审校",
   "settings.mode.label": "模式",
   "dialog.picker.searchCount": "搜索 {count} 个提供商",
   "settings.menubar.appearance": "外观",

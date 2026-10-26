@@ -1196,6 +1196,8 @@
   "settings.theme.desc": "Только цвета; макет остаётся прежним.",
   "settings.motion.desc": "«Системная» следует вашей настройке уменьшения движения.",
   "settings.lang.desc": "Применяется также к трею и строке меню.",
+  "settings.lang.machine": "Машинный перевод; носитель языка его ещё не проверил.",
+  "settings.lang.machine.link": "Помогите проверить",
   "settings.mode.label": "Режим",
   "dialog.picker.searchCount": "Поиск среди провайдеров: {count}",
   "settings.menubar.appearance": "Оформление",

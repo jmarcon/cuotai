@@ -1185,6 +1185,8 @@
   "settings.theme.desc": "Colors only; layout stays the same.",
   "settings.motion.desc": "System follows your reduced-motion setting.",
   "settings.lang.desc": "Also applies to the tray and the menu bar.",
+  "settings.lang.machine": "Machine-translated; a native speaker has not reviewed it yet.",
+  "settings.lang.machine.link": "Help review it",
   "settings.mode.label": "Mode",
   "dialog.picker.searchCount": "Search {count} providers",
   "settings.menubar.appearance": "Appearance",

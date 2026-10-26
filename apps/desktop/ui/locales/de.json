@@ -1174,6 +1174,8 @@
   "settings.theme.desc": "Nur Farben; das Layout bleibt gleich.",
   "settings.motion.desc": "„System“ folgt Ihrer Einstellung für reduzierte Bewegung.",
   "settings.lang.desc": "Gilt auch für den Tray und die Menüleiste.",
+  "settings.lang.machine": "Maschinell übersetzt; noch nicht von Muttersprachlern geprüft.",
+  "settings.lang.machine.link": "Hilf beim Prüfen",
   "settings.mode.label": "Modus",
   "dialog.picker.searchCount": "{count} Anbieter durchsuchen",
   "settings.menubar.appearance": "Darstellung",

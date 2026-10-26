@@ -306,6 +306,15 @@ function plain(html) {
     assert.ok(!general.html({ settings: { motion: "system", show_in_dock: false } }).match(/id="dock"[^>]*checked/), `${code}: hidden choice`);
   }
   delete document.documentElement.dataset.platform;
+  // PRD 0035 RF11.5: a machine-translated language (catalog `_meta.reviewed: false`) says so on the General page and
+  // links the translation guide; a reviewed one does not. The line is not a row, so it has no search keywords.
+  for (const { code } of i18n.LOCALES) {
+    await i18n.setLocale(code);
+    const catalog = JSON.parse(await readFile(ui(`locales/${code}.json`), "utf8"));
+    const html = general.html({ settings: { motion: "system" } });
+    assert.equal(html.includes("data-lang-mt"), catalog._meta?.reviewed === false, `${code}: machine-translation notice`);
+    if (catalog._meta?.reviewed === false) assert.ok(html.includes(`href="${lib.TRANSLATION_GUIDE_URL}"`), `${code}: guide link`);
+  }
   await lib.setPreference("show_in_dock", false);
   assert.equal((await lib.getSettings()).show_in_dock, false);
   await assert.rejects(lib.setPreference("show_in_dock", "no"));

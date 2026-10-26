@@ -1,6 +1,6 @@
 // Settings › General (PRD 0020 RF2.5): appearance (theme, light/dark mode, animations) and language, as rows (RF3).
-import { t, te } from "../i18n.js";
-import { autostartSet, autostartStatus, setPreference, langMenuHtml, MOTIONS, setMotion, themeSwitchHtml } from "../lib.js";
+import { machineTranslated, t, te } from "../i18n.js";
+import { autostartSet, autostartStatus, langMenuHtml, MOTIONS, openExternal, setMotion, setPreference, themeSwitchHtml, TRANSLATION_GUIDE_URL } from "../lib.js";
 import { errorText, group } from "./common.js";
 import { row, rowError, seg, sw, toast } from "./rows.js";
 
@@ -17,7 +17,9 @@ export function html({ settings: s }) {
     + row({ key: "theme", label: te("theme.label"), desc: te("settings.theme.desc"), control: () => themeSelect })
     + row({ key: "motion", label: te("settings.motion.label"), desc: te("settings.motion.desc"), msg: "motion-msg",
       control: (a) => seg("motion", motions.map((m) => [m, te(`settings.motion.${m}`)]), s.motion, a) }))
-    + group("language", te("lang.label"), row({ key: "lang", label: te("lang.label"), desc: te("settings.lang.desc"), control: () => langMenuHtml({ field: true }) }))
+    + group("language", te("lang.label"), row({ key: "lang", label: te("lang.label"), desc: te("settings.lang.desc"), control: () => langMenuHtml({ field: true }) })
+      // PRD 0035 RF11.5: a machine-translated language says so and asks for review (not a row: no search keywords).
+      + (machineTranslated() ? `<p class="hint lang-mt" data-lang-mt>${te("settings.lang.machine")} <a href="${TRANSLATION_GUIDE_URL}" data-lang-guide>${te("settings.lang.machine.link")}</a></p>` : ""))
     // Audit #37: the system owns this state; the switch is drawn off and disabled until the system has answered.
     + group("startup", te("settings.startup"), row({ key: "autostart", label: te("settings.autostart.label"), desc: te("settings.autostart.desc"),
       control: (a) => sw("autostart", false, a, "disabled") })
@@ -47,6 +49,10 @@ export function bind(root, ctx) {
   dock?.addEventListener("change", () => setPreference("show_in_dock", dock.checked).then(
     () => { rowError(dock, ""); toast(); ctx.changed("show_in_dock"); },
     (x) => { dock.checked = !dock.checked; rowError(dock, errorText(x)); }));
+  root.querySelector("[data-lang-guide]")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    openExternal(TRANSLATION_GUIDE_URL).catch(() => {});
+  });
   const motion = root.querySelector("#motion");
   let saved = ctx.settings.motion;
   motion.addEventListener("change", () => setMotion(motion.value).then(

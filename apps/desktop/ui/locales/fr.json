@@ -1174,6 +1174,8 @@
   "settings.theme.desc": "Seules les couleurs changent.",
   "settings.motion.desc": "Système suit la réduction des animations.",
   "settings.lang.desc": "Aussi pour la barre des menus.",
+  "settings.lang.machine": "Traduction automatique, pas encore relue par une personne de langue maternelle.",
+  "settings.lang.machine.link": "Aidez à la relire",
   "settings.mode.label": "Mode",
   "dialog.picker.searchCount": "Rechercher parmi {count} fournisseurs",
   "settings.menubar.appearance": "Apparence",

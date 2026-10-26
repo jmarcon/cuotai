@@ -1163,6 +1163,8 @@
   "settings.theme.desc": "Chỉ màu sắc; bố cục giữ nguyên.",
   "settings.motion.desc": "Hệ thống theo cài đặt giảm chuyển động của bạn.",
   "settings.lang.desc": "Cũng áp dụng cho khay và thanh menu.",
+  "settings.lang.machine": "Bản dịch máy; chưa được người bản ngữ rà soát.",
+  "settings.lang.machine.link": "Giúp rà soát",
   "settings.mode.label": "Chế độ",
   "dialog.picker.searchCount": "Tìm trong {count} nhà cung cấp",
   "settings.menubar.appearance": "Giao diện",

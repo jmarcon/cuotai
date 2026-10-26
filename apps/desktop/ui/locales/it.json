@@ -1171,6 +1171,8 @@
   "settings.theme.desc": "Solo i colori; il layout resta uguale.",
   "settings.motion.desc": "Sistema segue il movimento ridotto.",
   "settings.lang.desc": "Vale anche per il vassoio.",
+  "settings.lang.machine": "Traduzione automatica; non ancora rivista da un madrelingua.",
+  "settings.lang.machine.link": "Aiuta a rivederla",
   "settings.mode.label": "Modalità",
   "dialog.picker.searchCount": "Cerca tra {count} provider",
   "settings.menubar.appearance": "Aspetto",

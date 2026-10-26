@@ -1163,6 +1163,8 @@
   "settings.theme.desc": "색상만 바뀌며 레이아웃은 그대로입니다.",
   "settings.motion.desc": "시스템은 동작 줄이기 설정을 따릅니다.",
   "settings.lang.desc": "트레이와 메뉴 막대에도 적용됩니다.",
+  "settings.lang.machine": "기계 번역이며 아직 원어민 검토를 거치지 않았습니다.",
+  "settings.lang.machine.link": "검토 돕기",
   "settings.mode.label": "모드",
   "dialog.picker.searchCount": "제공업체 {count}개 검색",
   "settings.menubar.appearance": "화면 모양",

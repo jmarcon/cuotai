@@ -1163,6 +1163,8 @@
   "settings.theme.desc": "色のみ変わり、レイアウトは同じです。",
   "settings.motion.desc": "「システム」は視差効果を減らす設定に従います。",
   "settings.lang.desc": "トレイとメニューバーにも適用されます。",
+  "settings.lang.machine": "機械翻訳です。ネイティブ話者のレビューはまだです。",
+  "settings.lang.machine.link": "レビューに協力する",
   "settings.mode.label": "モード",
   "dialog.picker.searchCount": "{count} プロバイダーを検索",
   "settings.menubar.appearance": "外観",

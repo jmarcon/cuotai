@@ -1163,6 +1163,8 @@
   "settings.theme.desc": "Hanya warna; tata letak tetap sama.",
   "settings.motion.desc": "Sistem mengikuti pengaturan pengurangan gerakan Anda.",
   "settings.lang.desc": "Juga berlaku untuk baki dan bilah menu.",
+  "settings.lang.machine": "Terjemahan mesin; belum ditinjau penutur asli.",
+  "settings.lang.machine.link": "Bantu meninjau",
   "settings.mode.label": "Mode",
   "dialog.picker.searchCount": "Cari {count} penyedia",
   "settings.menubar.appearance": "Tampilan",

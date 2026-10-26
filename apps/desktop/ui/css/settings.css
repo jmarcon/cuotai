@@ -1340,3 +1340,10 @@ li.mb-sub + .mb-acc {
 .lang-field-btn .swatch {
   flex: none;
 }
+
+/* PRD 0035 RF11.5: the machine-translation notice under the language row, aligned with the row text. */
+.set-sec .lang-mt {
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-3);
+  font-size: var(--text-sm);
+}

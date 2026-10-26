@@ -126,6 +126,7 @@ pub fn is_listed(url: &str) -> bool {
     url == about::PROJECT_REPOSITORY
         || url == NEW_PROVIDER_ISSUE
         || url == EXTENSIONS_GUIDE
+        || url == TRANSLATION_GUIDE
         || url == crate::updater::MANUAL_URL
         || about::libraries().iter().any(|l| l.repository == url)
         || cuotai_core::incidents::is_status_link(url)
@@ -140,6 +141,11 @@ pub const NEW_PROVIDER_ISSUE: &str =
 /// PRD 0017 RF5: the guide the Extensions dialog links ("How extensions work");
 /// `EXTENSIONS_GUIDE_URL` in `js/lib.js`.
 pub const EXTENSIONS_GUIDE: &str = "https://github.com/jmarcon/cuotai/blob/main/docs/extensions.md";
+
+/// PRD 0035 RF11.5: the translation guide the machine-translation notice in
+/// Settings › General links (`TRANSLATION_GUIDE_URL` in `js/lib.js`).
+pub const TRANSLATION_GUIDE: &str =
+    "https://github.com/jmarcon/cuotai/blob/main/apps/desktop/ui/locales/README.md";
 
 /// PRD 0017 RF5: opens the folder discovery reads extensions from (created on
 /// demand) in the system file manager. The path is the core's, never the UI's.
@@ -189,6 +195,7 @@ mod tests {
         assert!(is_listed(about::PROJECT_REPOSITORY));
         assert!(is_listed(NEW_PROVIDER_ISSUE));
         assert!(is_listed(EXTENSIONS_GUIDE));
+        assert!(is_listed(TRANSLATION_GUIDE));
         for library in about::libraries() {
             assert!(is_listed(library.repository), "{}", library.name);
         }

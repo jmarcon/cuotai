@@ -1171,6 +1171,8 @@
   "settings.theme.desc": "Solo cambian los colores.",
   "settings.motion.desc": "Sistema sigue el movimiento reducido.",
   "settings.lang.desc": "También en la bandeja.",
+  "settings.lang.machine": "Traducción automática; aún sin revisión de un hablante nativo.",
+  "settings.lang.machine.link": "Ayuda a revisarla",
   "settings.mode.label": "Modo",
   "dialog.picker.searchCount": "Buscar entre {count} proveedores",
   "settings.menubar.appearance": "Apariencia",
