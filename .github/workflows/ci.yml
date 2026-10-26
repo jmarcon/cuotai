@@ -341,6 +341,10 @@ jobs:
       - run: node scripts/test-renewed-reading-ui.mjs
       - run: node scripts/test-menu-bar-ui.mjs
       - run: node scripts/test-density-ui.mjs
+      # The meter level thresholds (70/30) agree across the desktop and the TUI.
+      - run: node scripts/test-level-thresholds-ui.mjs
+      - run: node scripts/test-profile-prefs-ui.mjs
+      - run: node scripts/test-pseudo-core-ui.mjs
       - run: node scripts/test-demo-fixture-ui.mjs
       # PRD 0022 RF1.9/RF15.5: literal colors, durations and keyframes in the
       # UI, the theme contract, and strict contrast against the baseline.
