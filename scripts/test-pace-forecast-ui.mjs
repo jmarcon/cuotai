@@ -141,6 +141,12 @@ const expected = {
     reset: "19:30에 갱신 · 1시간 35분 후", best: "지금 최적",
     advice: "Work은(는) 소진됨 · Personal은(는) 64% 남음",
   },
+  "hi-IN": {
+    points: "10 अंक आगे", percent: "गति से 20% तेज़",
+    callout: "इस गति से Session (5h) रीसेट से 37 मिनट पहले ≈18:53 पर खत्म हो जाएगा", chip: "≈18:53 पर खत्म",
+    reset: "19:30 को नवीनीकरण · 1 घं 35 मि में", best: "अभी सर्वश्रेष्ठ",
+    advice: "Work खत्म हो गया · Personal में 64% बचा है",
+  },
 };
 
 for (const { code } of i18n.LOCALES) {

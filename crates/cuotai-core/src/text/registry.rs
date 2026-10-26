@@ -253,7 +253,7 @@ pub const LOCALES: &[LocaleRow] = &[
         "Deva",
         &["hi"],
         PluralRule::Hindi,
-        InProgress,
+        Shipped,
         2,
     ),
     row(

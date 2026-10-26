@@ -176,6 +176,7 @@ const expectedReleaseDates = {
   de: "veröffentlicht am 22. Okt. 2026",
   ru: "выпущено 22 окт. 2026 г.",
   ko: "2026년 10월 22일 출시",
+  "hi-IN": "22 अक्टू॰ 2026 को जारी",
 };
 
 let expectedUpdateKeys;

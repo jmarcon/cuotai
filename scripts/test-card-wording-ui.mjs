@@ -123,6 +123,17 @@ const expected = {
     sortAsc: "남음: 적은 순",
     sortDesc: "남음: 많은 순",
   },
+  "hi-IN": {
+    unit: "बचा",
+    levels: {
+      good: "75% बचा: काफ़ी बचा है (70% या ज़्यादा)।",
+      warn: "ध्यान दें: 50% बचा (30% से 70% के बीच)।",
+      bad: "गंभीर: केवल 20% बचा (30% से कम)।",
+    },
+    rateLimit: "रेट लिमिट: 42% बचा",
+    sortAsc: "बचा: पहले कम वाला",
+    sortDesc: "बचा: पहले ज़्यादा वाला",
+  },
 };
 
 const coreCatalog = JSON.parse(await readFile(
