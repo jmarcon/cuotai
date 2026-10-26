@@ -145,6 +145,17 @@ const expected = {
     sortAsc: "Sisa: paling sedikit dulu",
     sortDesc: "Sisa: paling banyak dulu",
   },
+  tr: {
+    unit: "kaldı",
+    levels: {
+      good: "%75 kaldı: bol miktarda var (%70 veya daha fazla).",
+      warn: "Dikkat: %50 kaldı (%30 ile %70 arası).",
+      bad: "Kritik: yalnızca %20 kaldı (%30&#39;un altında).",
+    },
+    rateLimit: "Hız sınırı: %42 kaldı",
+    sortAsc: "Kalan: en az önce",
+    sortDesc: "Kalan: en çok önce",
+  },
 };
 
 const coreCatalog = JSON.parse(await readFile(

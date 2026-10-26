@@ -273,7 +273,7 @@ pub const LOCALES: &[LocaleRow] = &[
         "Latn",
         &["tr"],
         PluralRule::One,
-        InProgress,
+        Shipped,
         2,
     ),
     row(

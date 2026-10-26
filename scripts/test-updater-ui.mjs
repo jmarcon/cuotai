@@ -178,6 +178,7 @@ const expectedReleaseDates = {
   ko: "2026년 10월 22일 출시",
   "hi-IN": "22 अक्टू॰ 2026 को जारी",
   "id-ID": "dirilis pada 22 Okt 2026",
+  tr: "22 Eki 2026 tarihinde yayımlandı",
 };
 
 let expectedUpdateKeys;

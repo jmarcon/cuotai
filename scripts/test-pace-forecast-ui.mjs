@@ -153,6 +153,12 @@ const expected = {
     reset: "Reset 19:30 · dalam 1j 35mnt", best: "Terbaik sekarang",
     advice: "Work habis · Personal tersisa 64%",
   },
+  tr: {
+    points: "10 puan önde", percent: "Hızdan %20 daha hızlı",
+    callout: "Bu hızla Session (5h) ≈18:53 tükenir, sıfırlanmadan 37 dk önce", chip: "Tükenme ≈18:53",
+    reset: "Sıfırlanma 19:30 · 1sa 35dk sonra", best: "Şimdi en iyi",
+    advice: "Work tükendi · Personal için %64 kaldı",
+  },
 };
 
 for (const { code } of i18n.LOCALES) {

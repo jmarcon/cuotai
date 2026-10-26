@@ -48,6 +48,7 @@ tui_catalogs! {
     "ko" => "../locales/ko.json",
     "hi-IN" => "../locales/hi-IN.json",
     "id-ID" => "../locales/id-ID.json",
+    "tr" => "../locales/tr.json",
 }
 
 /// The TUI catalog of `locale`'s language; `None` for English and for a

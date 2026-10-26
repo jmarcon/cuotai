@@ -6,9 +6,9 @@
 import { launch } from "./driver.mjs";
 
 const args = process.argv.slice(2).filter((a) => !a.startsWith("--"));
-const LOCALES = args.length ? args : ["en-US", "es", "it", "de", "ru", "id-ID"];
+const LOCALES = args.length ? args : ["en-US", "es", "it", "de", "ru", "id-ID", "tr"];
 // Languages whose own orthography uses the letters of CHARS (Vietnamese ã ê ô â, Turkish zekâ): the letter test is skipped there.
-const CHARS_OK = new Set([]);
+const CHARS_OK = new Set(["tr"]);
 const PAGES = [
   ["tray", "tray.html", 380, 600, []],
   ["tray-account", "tray.html", 380, 600, ["[data-open]"]],
