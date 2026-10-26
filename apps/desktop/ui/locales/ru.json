@@ -2,7 +2,8 @@
   "_meta": {
     "name": "Русский",
     "status": "machine-translated, needs native review",
-    "reviewed": false
+    "reviewed": false,
+    "machine_reviewed": "2026-10-25"
   },
   "agg.alertEach": "Оповещать о каждом подключении",
   "agg.alertEachHelp": "Выкл.: одно уведомление, когда исчерпаны все учётные записи провайдера, и одно, когда запись снова доступна.",
