@@ -167,6 +167,17 @@ const expected = {
     sortAsc: "Còn lại: ít nhất trước",
     sortDesc: "Còn lại: nhiều nhất trước",
   },
+  "zh-CN": {
+    unit: "剩余",
+    levels: {
+      good: "剩余 75%：余量充足（70% 或以上）。",
+      warn: "注意：剩余 50%（30% 到 70% 之间）。",
+      bad: "严重：仅剩 20%（低于 30%）。",
+    },
+    rateLimit: "速率限制：剩余 42%",
+    sortAsc: "剩余：最少优先",
+    sortDesc: "剩余：最多优先",
+  },
 };
 
 const coreCatalog = JSON.parse(await readFile(

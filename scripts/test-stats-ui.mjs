@@ -115,6 +115,7 @@ for (const { code } of i18n.LOCALES) {
 }
 
 // UI-owned catalog keys of this feature exist in every locale with the same placeholders.
+// Distinct names: a language with one plural form (ja, zh-CN) repeats a placeholder fewer times.
 const placeholders = (v) => JSON.stringify([...new Set([...JSON.stringify(v).matchAll(/\{(\w+)\}/g)].map((m) => m[1]))].sort());
 let reference;
 for (const { code } of i18n.LOCALES) {

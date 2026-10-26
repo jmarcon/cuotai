@@ -530,6 +530,7 @@ embedded_catalogs! {
     "id-ID" => "../locales/id-ID.json",
     "tr" => "../locales/tr.json",
     "vi" => "../locales/vi.json",
+    "zh-CN" => "../locales/zh-CN.json",
 }
 
 /// A resolved language: a handle on its registry row. Unknown codes

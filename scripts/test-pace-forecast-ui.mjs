@@ -165,6 +165,12 @@ const expected = {
     reset: "Đặt lại 19:30 · sau 1 giờ 35 phút", best: "Tốt nhất lúc này",
     advice: "Work đã hết · Personal còn 64%",
   },
+  "zh-CN": {
+    points: "超前 10 点", percent: "比节奏快 20%",
+    callout: "按此节奏，Session (5h) 将于 ≈18:53 用尽，比重置早 37分钟", chip: "≈18:53 用尽",
+    reset: "19:30 重置 · 1小时35分后", best: "当前最佳",
+    advice: "Work 已用尽 · Personal 剩余 64%",
+  },
 };
 
 for (const { code } of i18n.LOCALES) {
