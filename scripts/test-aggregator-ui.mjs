@@ -68,6 +68,7 @@ const expected = {
   "pt-BR": { pool: "Claude · 1 de 2 disponíveis", off: "Desligada no 9router", tight: "Mais apertada: Claude Code · work" },
   de: { pool: "Claude · 1 von 2 verfügbar", off: "In 9router aus", tight: "Am knappsten: Claude Code · work" },
   ru: { pool: "Claude · доступно 1 из 2", off: "Выключено в 9router", tight: "Самый жёсткий: Claude Code · work" },
+  ko: { pool: "Claude · 2개 중 1개 사용 가능", off: "9router에서 꺼짐", tight: "가장 빠듯함: Claude Code · work" },
 };
 const untranslated = /\b(agg|settings\.agg)\.[a-zA-Z.]+/;
 for (const { code } of i18n.LOCALES) {

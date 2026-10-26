@@ -525,6 +525,7 @@ embedded_catalogs! {
     "it" => "../locales/it.json",
     "de" => "../locales/de.json",
     "ru" => "../locales/ru.json",
+    "ko" => "../locales/ko.json",
 }
 
 /// A resolved language: a handle on its registry row. Unknown codes

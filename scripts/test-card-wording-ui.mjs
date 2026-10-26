@@ -112,6 +112,17 @@ const expected = {
     sortAsc: "Осталось: сначала наименьшее",
     sortDesc: "Осталось: сначала наибольшее",
   },
+  ko: {
+    unit: "남음",
+    levels: {
+      good: "75% 남음: 여유가 충분합니다(70% 이상).",
+      warn: "주의: 50% 남음(30%~70%).",
+      bad: "위험: 20%만 남음(30% 미만).",
+    },
+    rateLimit: "요청 제한: 42% 남음",
+    sortAsc: "남음: 적은 순",
+    sortDesc: "남음: 많은 순",
+  },
 };
 
 const coreCatalog = JSON.parse(await readFile(
