@@ -1127,6 +1127,8 @@ if (new URLSearchParams(location.search).get("aggregator") !== "off") {
 // PRD 0016 RF2.1 demo: the platform session slot the core declares for Xiaomi MiMo.
 // PRD 0027 RF6.4: the native-login detections of the core table (Kimi CLI, Grok CLI, Zed) for the demo picker.
 export const DEMO_NATIVE_DETECT = [["claude", "claude_cli", "Claude Code", "Claude Code"], ["chat_gpt", "codex_cli", "Codex CLI", "OpenAI Codex"], ["kimi", "kimi_cli", "Kimi Code CLI", "Kimi"], ["grok", "grok_cli", "Grok CLI", "Grok (xAI)"], ["zed", "zed", "Zed", "Zed"]];
+/** The demo's stable account id (PRD 0029) of the account at `index`. */
+const demoAccountId = (index) => `acc_demo${String(index).padStart(8, "0")}`;
 const DEMO_SESSION_SLOT = { slot: "platform_session_env",
   label: { id: "user_session.slot.xiaomi_mimo.platform_session_env", params: {}, fallback: "platform.xiaomimimo.com web session (balance and Token Plan)" },
   instructions: { id: "user_session.instructions", params: { site: "platform.xiaomimimo.com" }, fallback: "Sign in to platform.xiaomimimo.com in your browser. In the developer tools (F12), Network tab, reload the page, pick a request to platform.xiaomimimo.com and copy its Cookie header or use \"Copy as cURL\"; the cookie table of the Application tab works too. Only this session's cookies are kept; the rest of the pasted text is discarded." },
@@ -1263,6 +1265,8 @@ const demoView = () => {
       metrics, pace_index: paceIndex,
       next_refresh_at_ms: Date.now() + (40 + index * 37) * 1000, uses_oauth: r.provider === "kiro" || r.uses_oauth, access: demoAccess(r),
       account_key: demoKey(r), notify, usage_alerts: metrics.filter((m) => m.alert?.active).map((m) => m.label), incident,
+      // PRD 0022 MONO-4: the shell adds the override kept by account id in desktop.json.
+      ...(demoSettings.monograms[demoAccountId(index)] ? { monogram: demoSettings.monograms[demoAccountId(index)] } : {}),
       ...(note ? { notes: [...r.notes, note.fallback], notes_l10n: [...r.notes.map((n, i) => r.notes_l10n?.[i] ?? null), note] } : {}) };
   });
   return { config_path: demoSettings.config ?? "~/.config/cuotai/config.toml (demo)", config_source: demoSettings.config ? "chosen" : "system", refresh_seconds: demoSettings.refresh ?? 300, config_exists: true, account_count: demoReports.length, loaded: true,
@@ -1860,7 +1864,7 @@ const demo = {
     const label = { id: "user_session.slot.xiaomi_mimo.platform_session_env", params: {}, fallback: "platform.xiaomimimo.com web session (balance and Token Plan)" };
     const hosts = ["platform.xiaomimimo.com"];
     return { name: r.account, provider: r.provider, credential: "DEMO_API_KEY",
-      interval: "", group: "", account_id: `acc_demo${String(index).padStart(8, "0")}`, monogram: "", uses_oauth: false, native_login: false, auth_mode: "credential", auth_options: {}, auth_registration: {}, fields: [{ key: "project_id", text: "", choice: null }, { key: "mode", text: null, choice: 0 }],
+      interval: "", group: "", account_id: demoAccountId(index), monogram: demoSettings.monograms[demoAccountId(index)] ?? "", uses_oauth: false, native_login: false, auth_mode: "credential", auth_options: {}, auth_registration: {}, fields: [{ key: "project_id", text: "", choice: null }, { key: "mode", text: null, choice: 0 }],
       session_slots: state === "vault" ? ["platform_session_env"] : [],
       session_migration: sessionOffer ? [{ slot: "platform_session_env", env: "MIMO_COOKIE", label, hosts,
         consent: { id: "user_session.migrate.consent", params: { label, env: "MIMO_COOKIE", hosts: hosts.join(", ") },
@@ -1913,6 +1917,10 @@ const demo = {
     }
     if (input.monogram != null && !validMonogram(input.monogram)) throw JSON.stringify({ id: "desktop.error.invalid_monogram", params: {}, fallback: "A monogram has one or two characters, without spaces." });
     window.__lastSaveMonogram = input.monogram ?? null;
+    if (input.index != null && input.monogram != null) {
+      const id = demoAccountId(input.index), text = String(input.monogram).trim();
+      if (text) demoSettings.monograms[id] = text; else delete demoSettings.monograms[id];
+    }
     const r = dr(input.name.trim(), input.provider, [dm("Exemplo", 10, 100, 5, "quota", null)]);
     // PRD 0016 demo: a paste goes to the vault; otherwise the account keeps where its session was.
     const prev = input.index == null ? null : demoReports[input.index];

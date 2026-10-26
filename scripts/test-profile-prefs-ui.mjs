@@ -91,6 +91,14 @@ await i18n.initI18n();
   assert.equal((await lib.getSettings()).monograms.acc_demo00000000, "WK", "stored per account id");
   await lib.setAccountMonogram("acc_demo00000000", "");
   assert.deepEqual((await lib.getSettings()).monograms, {}, "blank clears the override");
+  // End to end: the override kept by account id reaches the view, and the tiles draw it.
+  await lib.setAccountMonogram("acc_demo00000000", "WK");
+  const viewed = (await lib.getView()).reports[0];
+  assert.equal(viewed.monogram, "WK", "the view carries the override");
+  const comp = await import("../apps/desktop/ui/js/components.js");
+  assert.equal(comp.monograms([viewed]).get(lib.reportKey(viewed)), "WK", "the tile draws it");
+  await lib.setAccountMonogram("acc_demo00000000", "");
+  assert.equal((await lib.getView()).reports[0].monogram, undefined, "cleared, the letters are derived again");
   // The form reads the override, the save sends it, and the shell refuses what the form lets through.
   const form = await lib.getAccount(0);
   assert.equal(form.monogram, "", "no override: derived from the name");

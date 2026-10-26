@@ -514,6 +514,10 @@ pub struct ReportView {
     /// PRD 0029 RF1: the stable account id, which the menu-bar selection is
     /// keyed by (PRD 0025 RF2.2).
     account_id: String,
+    /// PRD 0022 MONO-4: the monogram override kept in `desktop.json` by
+    /// account id; absent, the tiles derive the letters from the name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    monogram: Option<String>,
     /// PRD 0003 RF3.2: the account's bell (reset notices and, PRD 0008
     /// RF3.2, usage alerts on).
     notify: bool,
@@ -1004,6 +1008,7 @@ fn report_view(
         access: report_access(account, report),
         account_key: account.state_key(),
         account_id: account.id().to_string(),
+        monogram: None,
         notify: true,
         usage_alerts: Vec::new(),
         incident: None,
@@ -1486,6 +1491,8 @@ impl Inner {
         let clock = chrono::Utc::now();
         // PRD 0011 RF4: cached readings only (empty while off), no network.
         let statuses = l.monitor.incident_statuses();
+        // PRD 0022 MONO-4: read once per view, applied by account id.
+        let desk = crate::settings::view();
         let reports: Vec<ReportView> = slot_reports
             .iter()
             .enumerate()
@@ -1517,6 +1524,7 @@ impl Inner {
                     .map(|report| report.collapse_expired(now_utc))
                     .map(|report| last_good_view(&report, now_utc));
                 view.notify = self.notices.account_on(&view.account_key);
+                view.monogram = desk.monogram_of(&view.account_id);
                 view.incident = incident_view(&statuses, view.provider);
                 // PRD 0036 RF8: an aggregator carries its connections.
                 if l.file.config.accounts[i].provider.is_aggregator() {
@@ -7388,6 +7396,24 @@ mod tests {
             secret(user_session::NINE_ROUTER_SSO_SLOT),
             Some(serde_json::json!(false))
         );
+    }
+
+    /// PRD 0022 MONO-4: a monogram override in `desktop.json` reaches the
+    /// tiles through the report view; without one the key is absent and
+    /// the letters are derived from the name.
+    #[test]
+    fn the_report_view_carries_the_monogram_override() {
+        let config = Config {
+            accounts: vec![plain_account("work")],
+            ..Config::default()
+        };
+        let mut view = report_view(0, &ready("work", Vec::new()), &config, None, None, 0, &[]);
+        assert!(serde_json::to_value(&view)
+            .unwrap()
+            .get("monogram")
+            .is_none());
+        view.monogram = Some("Wk".into());
+        assert_eq!(serde_json::to_value(&view).unwrap()["monogram"], "Wk");
     }
 
     /// PRD 0029 RF3.3: adding a second MiMo account beside an unnamed one
