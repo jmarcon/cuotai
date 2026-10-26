@@ -1483,8 +1483,8 @@
   "remove_error.session": "Không xóa được phiên web của tài khoản này khỏi kho của hệ thống, nên tài khoản chưa bị xóa: {detail}",
   "resets.body": "{account}: {metrics}. Theo thời điểm nhà cung cấp báo; số dư mới hiện ở lần làm mới tiếp theo.",
   "resets.body.private": "Theo thời điểm nhà cung cấp báo; số dư mới hiện ở lần làm mới tiếp theo.",
-  "resets.chip.return_unknown": "Chưa chắc khi nào hoạt động lại",
-  "resets.chip.returns": "Hoạt động lại {at}",
+  "resets.chip.return_unknown": "Trở lại: chưa rõ",
+  "resets.chip.returns": "Trở lại {at}",
   "resets.pair": "Đặt lại {at} · {in}",
   "resets.title.reset": "{provider}: hạn mức {window} đã được đặt lại",
   "resets.title.reset_many": {

@@ -1256,7 +1256,7 @@
   "pace.chip.ahead": "{d} puan önde",
   "pace.chip.ahead_pct": "Hızdan %{p} daha hızlı",
   "pace.chip.exhausted": "Tükendi",
-  "pace.chip.lasts": "Sıfırlanmaya kadar yeter",
+  "pace.chip.lasts": "Sıfırlamaya yeter",
   "pace.chip.on_pace": "Hızında",
   "pace.chip.reserve": "{d} puan yedekte",
   "pace.chip.reserve_pct": "Hızdan %{p} daha yavaş",

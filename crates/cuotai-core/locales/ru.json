@@ -1504,7 +1504,7 @@
   "remove_error.session": "Не удалось удалить веб-сеанс этой записи из системного хранилища, поэтому запись не удалена: {detail}",
   "resets.body": "{account}: {metrics}. По времени, сообщённому провайдером; новый баланс появится при следующем обновлении.",
   "resets.body.private": "По времени, сообщённому провайдером; новый баланс появится при следующем обновлении.",
-  "resets.chip.return_unknown": "Возврат неопределённый",
+  "resets.chip.return_unknown": "Возврат неясен",
   "resets.chip.returns": "Вернётся {at}",
   "resets.pair": "Сброс {at} · {in}",
   "resets.title.reset": "{provider}: квота {window} сброшена",

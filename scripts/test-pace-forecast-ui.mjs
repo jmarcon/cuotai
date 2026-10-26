@@ -148,7 +148,7 @@ const expected = {
     advice: "Work खत्म हो गया · Personal में 64% बचा है",
   },
   "id-ID": {
-    points: "10 poin di depan", percent: "20% lebih cepat dari laju",
+    points: "10 poin di depan", percent: "20% lebih cepat",
     callout: "Dengan laju ini Session (5h) habis ≈18:53, 37 mnt sebelum reset", chip: "Habis ≈18:53",
     reset: "Reset 19:30 · dalam 1j 35mnt", best: "Terbaik sekarang",
     advice: "Work habis · Personal tersisa 64%",

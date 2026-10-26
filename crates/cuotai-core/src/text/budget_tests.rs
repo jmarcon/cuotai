@@ -108,18 +108,7 @@ const CLASSES: &[Class] = &[
 /// Catalog entries over their class budget today, waiting for the
 /// translator to reword them (RF9.3). The list only shrinks: an entry that
 /// fits again fails the test until it is removed.
-const PENDING_REWORDING: &[(&str, &str)] = &[
-    ("de", "pace.chip.lasts"),
-    ("fr", "pace.chip.lasts"),
-    ("ru", "pace.chip.lasts"),
-    ("tr", "pace.chip.lasts"),
-    ("id-ID", "pace.chip.ahead_pct"),
-    ("id-ID", "pace.chip.reserve_pct"),
-    ("ru", "resets.chip.return_unknown"),
-    ("id-ID", "resets.chip.return_unknown"),
-    ("vi", "resets.chip.returns"),
-    ("vi", "resets.chip.return_unknown"),
-];
+const PENDING_REWORDING: &[(&str, &str)] = &[];
 
 /// The widest sample of each placeholder (RF9.6).
 const SAMPLES: &[(&str, &str)] = &[("{d}", "99"), ("{p}", "100"), ("{at}", "23:59")];

@@ -1256,7 +1256,7 @@
   "pace.chip.ahead": "{d} Pkt. voraus",
   "pace.chip.ahead_pct": "{p}% über dem Tempo",
   "pace.chip.exhausted": "Erschöpft",
-  "pace.chip.lasts": "Reicht bis zur Zurücksetzung",
+  "pace.chip.lasts": "Reicht bis Reset",
   "pace.chip.on_pace": "Im Tempo",
   "pace.chip.reserve": "{d} Pkt. Reserve",
   "pace.chip.reserve_pct": "{p}% unter dem Tempo",
