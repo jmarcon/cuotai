@@ -265,8 +265,8 @@ pub(crate) fn stats_rows(summary: &StatsSummary, locale: &str) -> Vec<Row> {
                 Tone::Normal
             },
             format!(
-                "{:<24} {}",
-                safe(&account.name),
+                "{} {}",
+                crate::dashboard::pad_end(&safe(&account.name), 24),
                 trf_in(
                     locale,
                     "stats.account_line",

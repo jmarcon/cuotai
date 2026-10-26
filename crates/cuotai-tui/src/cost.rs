@@ -9,6 +9,7 @@
 //! [`CostSummary`] in the account details and the exports carry it as
 //! `local_cost`.
 
+use crate::dashboard::{cells, pad_end, pad_start};
 use crate::l10n::{tr, tr_in, trf, trf_in};
 use cuotai_core::cost::{
     self, CostIndex, CostSummary, CostWorker, Env, Limits, Period, PriceOrigin, Prices,
@@ -723,38 +724,57 @@ fn prices(file: &PricingFile, json: bool, locale: &str) -> Result<(String, u8), 
         }
         None => {}
     }
-    let width = rows
+    // Columns are measured in terminal cells (PRD 0035 RF6.1): a translated
+    // header in CJK takes two cells per character, which `{:>N}` ignores.
+    let header = [
+        tr_in(locale, "cost.prices.col.model", "Model").to_owned(),
+        tr_in(locale, "cost.prices.col.input", "Input").to_owned(),
+        tr_in(locale, "cost.prices.col.output", "Output").to_owned(),
+        tr_in(locale, "cost.prices.col.cache_read", "Cache read").to_owned(),
+        tr_in(locale, "cost.prices.col.cache_write", "Cache write").to_owned(),
+        tr_in(locale, "cost.prices.col.cache_write_1h", "Cache write 1h").to_owned(),
+        tr_in(locale, "cost.prices.col.origin", "Origin").to_owned(),
+    ];
+    let body: Vec<[String; 7]> = rows
         .iter()
-        .map(|row| row.model.len())
-        .max()
-        .unwrap_or(0)
-        .max(6);
-    out += &format!(
-        "\n{:<width$}  {:>9}  {:>9}  {:>13}  {:>14}  {:>17}  {}\n",
-        tr_in(locale, "cost.prices.col.model", "Model"),
-        tr_in(locale, "cost.prices.col.input", "Input"),
-        tr_in(locale, "cost.prices.col.output", "Output"),
-        tr_in(locale, "cost.prices.col.cache_read", "Cache read"),
-        tr_in(locale, "cost.prices.col.cache_write", "Cache write"),
-        tr_in(locale, "cost.prices.col.cache_write_1h", "Cache write 1h"),
-        tr_in(locale, "cost.prices.col.origin", "Origin"),
-    );
-    for row in &rows {
-        let origin = match row.origin {
-            PriceOrigin::Embedded => tr_in(locale, "cost.prices.origin.embedded", "built-in"),
-            PriceOrigin::User => tr_in(locale, "cost.prices.origin.user", "your table"),
-        };
-        out += &format!(
-            "{:<width$}  {:>9}  {:>9}  {:>13}  {:>14}  {:>17}  {origin}\n",
-            row.model,
-            row.rates.input.to_string(),
-            row.rates.output.to_string(),
-            row.rates.cache_read.to_string(),
-            row.rates.cache_write.to_string(),
-            row.rates
-                .cache_write_1h
-                .map_or_else(|| "—".to_owned(), |rate| rate.to_string())
-        );
+        .map(|row| {
+            let origin = match row.origin {
+                PriceOrigin::Embedded => tr_in(locale, "cost.prices.origin.embedded", "built-in"),
+                PriceOrigin::User => tr_in(locale, "cost.prices.origin.user", "your table"),
+            };
+            [
+                row.model.clone(),
+                row.rates.input.to_string(),
+                row.rates.output.to_string(),
+                row.rates.cache_read.to_string(),
+                row.rates.cache_write.to_string(),
+                row.rates
+                    .cache_write_1h
+                    .map_or_else(|| "—".to_owned(), |rate| rate.to_string()),
+                origin.to_owned(),
+            ]
+        })
+        .collect();
+    let mut widths = [6, 9, 9, 13, 14, 17, 0];
+    for line in std::iter::once(&header).chain(&body) {
+        for (width, cell) in widths.iter_mut().zip(line) {
+            *width = (*width).max(cells(cell));
+        }
+    }
+    let render = |line: &[String; 7]| {
+        let mut text = pad_end(&line[0], widths[0]);
+        for (cell, width) in line[1..6].iter().zip(&widths[1..6]) {
+            text += "  ";
+            text += &pad_start(cell, *width);
+        }
+        text += "  ";
+        text += &line[6];
+        text + "\n"
+    };
+    out += "\n";
+    out += &render(&header);
+    for line in &body {
+        out += &render(line);
     }
     out += "\n";
     out += tr_in(

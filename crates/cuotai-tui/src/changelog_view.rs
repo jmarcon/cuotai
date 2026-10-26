@@ -194,7 +194,7 @@ impl ChangelogView {
             .border_style(Style::default().fg(CYAN))
             .title(format!(
                 " {} ",
-                resolve(&changelog_title_l10n(), locale).to_uppercase()
+                cuotai_core::text::uppercase(locale, &resolve(&changelog_title_l10n(), locale))
             ));
         let inner = block.inner(areas[0]);
         let body = Paragraph::new(lines(locale)).wrap(ratatui::widgets::Wrap { trim: false });

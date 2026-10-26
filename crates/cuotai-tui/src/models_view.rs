@@ -69,16 +69,16 @@ fn catalog(state: &Outcome) -> Option<&ModelCatalog> {
     }
 }
 
-/// Case-insensitive local match on id or name; never uses the network.
+/// Case- and accent-insensitive local match on id or name (the desktop's
+/// folding, PRD 0035 RF6.4); never uses the network.
 fn filtered<'a>(models: &'a [ModelInfo], query: &str) -> Vec<&'a ModelInfo> {
-    let query = query.to_lowercase();
+    use cuotai_core::text::fold;
+    let query = fold(query);
     models
         .iter()
         .filter(|m| {
-            m.id.to_lowercase().contains(&query)
-                || m.name
-                    .as_ref()
-                    .is_some_and(|n| n.to_lowercase().contains(&query))
+            fold(&m.id).contains(&query)
+                || m.name.as_ref().is_some_and(|n| fold(n).contains(&query))
         })
         .collect()
 }
@@ -159,7 +159,7 @@ impl ModelsView {
                 _ if modifiers.contains(KeyModifiers::CONTROL) => {}
                 KeyCode::Esc | KeyCode::Enter => self.searching = false,
                 KeyCode::Backspace => {
-                    self.query.pop();
+                    crate::dashboard::pop_grapheme(&mut self.query);
                     self.scroll = 0;
                 }
                 KeyCode::Char(c) => {

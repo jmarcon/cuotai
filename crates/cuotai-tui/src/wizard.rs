@@ -797,7 +797,7 @@ impl Wizard {
                 self.refilter();
             }
             KeyCode::Backspace => {
-                self.filter.pop();
+                crate::dashboard::pop_grapheme(&mut self.filter);
                 self.refilter();
             }
             KeyCode::Char(c) if plain => {
@@ -1512,7 +1512,7 @@ impl Wizard {
             }
             (KeyCode::Backspace, _) => {
                 if let Some(buf) = self.current_text_mut() {
-                    buf.pop();
+                    crate::dashboard::pop_grapheme(buf);
                     self.after_credential_edit();
                 }
             }

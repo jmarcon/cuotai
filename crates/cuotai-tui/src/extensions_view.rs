@@ -164,7 +164,7 @@ impl ExtensionsView {
                     Action::Stay
                 }
                 KeyCode::Backspace => {
-                    prompt.value.pop();
+                    crate::dashboard::pop_grapheme(&mut prompt.value);
                     Action::Stay
                 }
                 KeyCode::Enter if !prompt.value.trim().is_empty() => Action::SaveSecret {

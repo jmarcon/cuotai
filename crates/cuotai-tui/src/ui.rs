@@ -2198,7 +2198,7 @@ pub async fn run(
                         _ if key.modifiers.contains(KeyModifiers::CONTROL) => {}
                         KeyCode::Esc | KeyCode::Enter => state.filtering = false,
                         KeyCode::Backspace => {
-                            state.filter.pop();
+                            crate::dashboard::pop_grapheme(&mut state.filter);
                             state.selection.select(Some(0));
                             state.detail_scroll = 0;
                         }

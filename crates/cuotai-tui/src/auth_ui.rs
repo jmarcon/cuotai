@@ -271,7 +271,7 @@ impl LoginTask {
                 self.code.clear()
             }
             KeyCode::Backspace => {
-                self.code.pop();
+                crate::dashboard::pop_grapheme(&mut self.code);
             }
             KeyCode::Enter if !self.code.is_empty() => {
                 let code = std::mem::take(&mut self.code);

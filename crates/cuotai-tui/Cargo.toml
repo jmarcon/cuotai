@@ -36,4 +36,7 @@ ratatui = { version = "0.30", features = ["unstable-rendered-line-info"] }
 crossterm = "0.29"
 # Display width of card text (CJK, emoji, accents) for wrapping and truncation.
 unicode-width = "0.2"
+# PRD 0035 RF6.2: Backspace removes a whole grapheme (a letter with its
+# combining marks, a Hangul or Devanagari cluster); already in the tree via ratatui.
+unicode-segmentation = "1.13"
 sys-locale = "0.3"

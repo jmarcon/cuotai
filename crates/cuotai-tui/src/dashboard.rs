@@ -2019,8 +2019,13 @@ fn badge_title(badge: &IncidentBadge, room: usize) -> Option<Line<'static>> {
     let full = format!(" {} {} ", badge.glyph, badge.label);
     let text = if Span::raw(full.as_str()).width() <= room {
         full
-    } else if room >= 6 {
-        let cut: String = badge.label.chars().take(room - 5).collect();
+    } else if room >= 6
+        && cells(split_at_cells(&badge.label, room - 4 - cells(badge.glyph)).0)
+            <= room - 4 - cells(badge.glyph)
+    {
+        // Cut by cells (PRD 0035 RF6.1): a wide character that would cross
+        // the edge is left out rather than overflowing the border.
+        let (cut, _) = split_at_cells(&badge.label, room - 4 - cells(badge.glyph));
         format!(" {} {}… ", badge.glyph, cut.trim_end())
     } else if room >= 3 {
         format!(" {} ", badge.glyph)
@@ -2154,6 +2159,30 @@ fn note_row_count(note: Option<&str>, _width: u16) -> usize {
 /// marks none), as ratatui will draw it.
 pub(crate) fn cells(text: &str) -> usize {
     UnicodeWidthStr::width(text)
+}
+
+/// `text` padded with spaces on the right to `width` cells; `format!`'s
+/// `{:<N}` counts characters, which misaligns CJK and combining text
+/// (PRD 0035 RF6.1).
+pub(crate) fn pad_end(text: &str, width: usize) -> String {
+    format!("{text}{}", " ".repeat(width.saturating_sub(cells(text))))
+}
+
+/// Remove the last grapheme of a text field (PRD 0035 RF6.2): Backspace
+/// deletes a letter with its combining marks, or a whole Hangul or
+/// Devanagari cluster, never only the trailing code point.
+pub(crate) fn pop_grapheme(text: &mut String) {
+    use unicode_segmentation::UnicodeSegmentation;
+    let keep = text
+        .grapheme_indices(true)
+        .next_back()
+        .map_or(0, |(offset, _)| offset);
+    text.truncate(keep);
+}
+
+/// `text` padded with spaces on the left to `width` cells.
+pub(crate) fn pad_start(text: &str, width: usize) -> String {
+    format!("{}{text}", " ".repeat(width.saturating_sub(cells(text))))
 }
 
 /// `text` split where its first `width` cells end: a character that would
@@ -2818,7 +2847,13 @@ fn local_cost_lines(panel: &crate::cost::CostPanel, tool: &SourceCost) -> Vec<Li
     let mut lines = vec![
         Line::default(),
         Line::styled(
-            format!("  {}", text(&cost::heading(tool.source)).to_uppercase()),
+            format!(
+                "  {}",
+                cuotai_core::text::uppercase(
+                    crate::ui::tui_locale(),
+                    &text(&cost::heading(tool.source))
+                )
+            ),
             Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
         ),
     ];
@@ -6007,6 +6042,48 @@ mod tests {
             clipped_lines("認証に失敗しました", 6, 2),
             vec!["認証に", "失敗…"]
         );
+    }
+
+    /// PRD 0035 RF6.1: column padding counts cells, not characters.
+    #[test]
+    fn padding_counts_display_cells() {
+        assert_eq!(pad_end("日本", 6), "日本  ");
+        assert_eq!(pad_start("日本", 6), "  日本");
+        assert_eq!(pad_end("ação", 6), "ação  ");
+        assert_eq!(pad_end("toolong", 3), "toolong");
+        assert_eq!(cells(&pad_end("모델", 10)), 10);
+    }
+
+    #[test]
+    fn backspace_removes_whole_graphemes() {
+        let mut text = "cafe\u{301}".to_owned();
+        pop_grapheme(&mut text);
+        assert_eq!(text, "caf");
+        let mut text = "नमस्ते".to_owned();
+        pop_grapheme(&mut text);
+        assert_eq!(text, "नम", "the conjunct स्ते is one cluster");
+        let mut text = "한국".to_owned();
+        pop_grapheme(&mut text);
+        assert_eq!(text, "한");
+        let mut text = String::new();
+        pop_grapheme(&mut text);
+        assert_eq!(text, "");
+    }
+
+    /// A CJK incident label is cut by cells, so the badge never overflows.
+    #[test]
+    fn badge_title_cuts_wide_labels_by_cells() {
+        let badge = IncidentBadge {
+            glyph: "▲",
+            color: Color::Yellow,
+            label: "部分的な障害が発生中".to_owned(),
+            title: None,
+            url: String::new(),
+        };
+        for room in 6..20 {
+            let line = badge_title(&badge, room).expect("room for the shape");
+            assert!(line.width() <= room, "room {room}: {}", line.width());
+        }
     }
 
     /// Wide (CJK, emoji) account names and notes keep the card borders
