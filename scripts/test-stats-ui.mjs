@@ -95,6 +95,7 @@ for (const { code } of i18n.LOCALES) {
   const cards = kpisHtml(week);
   assert.ok(cards.includes('<b class="kpi-figure">1</b>') && cards.includes("58%"), `${code}: hits and average`);
   assert.ok(/6[.,]25/.test(cards) && /\$|USD/.test(cards) && cards.includes("créditos"), `${code}: one figure per unit`);
+  assert.equal((cards.match(/data-kpi="extra"[\s\S]*/)[0].match(/<b class="kpi-figure[^"]*">≈/g) ?? []).length, 2, `${code}: every extra-spent amount is marked as an estimate`);
   const bars = barsHtml(week.summary.daily);
   assert.equal((bars.match(/class="gap"/g) ?? []).length, 2, `${code}: two gap days`);
   assert.equal((bars.match(/bar ghost/g) ?? []).length, 2, `${code}: gaps are ghost columns, not zero bars`);

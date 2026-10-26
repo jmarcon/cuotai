@@ -64,9 +64,10 @@ export function kpisHtml(data) {
     ? kpi("stats.kpi.avg", `≈${pct(s.average_peak)}`, t("stats.kpi.avg.caption"), { id: "avg" })
     : kpi("stats.kpi.avg", "—", why, { unknown: true, id: "avg" });
   // Extra spent lists one figure per currency; provider units are separate lines, never summed (DS-CMP-EXTRA-3).
+  // Summed from the sampled readings, so each amount is an estimate and carries "≈" (DS-CMP-HON-2).
   const extra = s.extra_spent?.length
     ? `<div class="kpi" data-kpi="extra"><span class="kpi-label">${te("stats.kpi.extra")}</span>${
-      s.extra_spent.map((e) => { const text = money(e.amount, e.unit); return `<b class="kpi-figure${text.length > 6 ? " long" : ""}">${esc(text)}</b>`; }).join("")
+      s.extra_spent.map((e) => { const text = `≈${money(e.amount, e.unit)}`; return `<b class="kpi-figure${text.length > 6 ? " long" : ""}">${esc(text)}</b>`; }).join("")
     }<span class="kpi-caption sub">${te("stats.kpi.extra.caption")}</span></div>`
     : kpi("stats.kpi.extra", "—", t("stats.kpi.extra.none"), { unknown: true, id: "extra" });
   return `<div class="kpis">${hits}${avg}${extra}</div>`;
