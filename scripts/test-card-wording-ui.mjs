@@ -178,6 +178,17 @@ const expected = {
     sortAsc: "剩余：最少优先",
     sortDesc: "剩余：最多优先",
   },
+  fr: {
+    unit: "restant",
+    levels: {
+      good: "75 % restant : il en reste largement (70 % ou plus).",
+      warn: "Attention : 50 % restant (entre 30 % et 70 %).",
+      bad: "Critique : seulement 20 % restant (moins de 30 %).",
+    },
+    rateLimit: "Limite de débit : 42 % restant",
+    sortAsc: "Restant : le plus bas d’abord",
+    sortDesc: "Restant : le plus haut d’abord",
+  },
   ja: {
     unit: "残り",
     levels: {

@@ -171,6 +171,12 @@ const expected = {
     reset: "19:30 重置 · 1小时35分后", best: "当前最佳",
     advice: "Work 已用尽 · Personal 剩余 64%",
   },
+  fr: {
+    points: "10 pts d’avance", percent: "20 % plus rapide",
+    callout: "À ce rythme, Session (5h) s’épuise ≈18:53, 37 min avant la réinitialisation", chip: "Épuisé ≈18:53",
+    reset: "Réinitialisation 19:30 · dans 1 h 35 min", best: "Le meilleur maintenant",
+    advice: "Work est épuisé · Personal a 64 % disponible",
+  },
   ja: {
     points: "10 pt 超過", percent: "ペースより 20% 速い",
     callout: "このペースでは Session (5h) は ≈18:53 に上限に達し、リセットの 37分前です", chip: "≈18:53 に上限",

@@ -181,6 +181,7 @@ const expectedReleaseDates = {
   tr: "22 Eki 2026 tarihinde yayımlandı",
   vi: "phát hành ngày 22 thg 10, 2026",
   "zh-CN": "发布于 2026年10月22日",
+  fr: "publiée le 22 oct. 2026",
   ja: "2026年10月22日リリース",
 };
 

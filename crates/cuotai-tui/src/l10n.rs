@@ -51,6 +51,7 @@ tui_catalogs! {
     "tr" => "../locales/tr.json",
     "vi" => "../locales/vi.json",
     "zh-CN" => "../locales/zh-CN.json",
+    "fr" => "../locales/fr.json",
     "ja" => "../locales/ja.json",
 }
 

@@ -531,6 +531,7 @@ embedded_catalogs! {
     "tr" => "../locales/tr.json",
     "vi" => "../locales/vi.json",
     "zh-CN" => "../locales/zh-CN.json",
+    "fr" => "../locales/fr.json",
     "ja" => "../locales/ja.json",
 }
 
@@ -1046,9 +1047,9 @@ mod tests {
         // pt-BR resolves the id in its catalog.
         let pt = note.resolve("pt-BR");
         assert_eq!(pt, "Filtrado por membro da organização: alice@example.com.");
-        // An unknown locale renders the English fallback.
-        let fr = note.resolve("fr-FR");
-        assert_eq!(fr, "Filtered by organisation member: alice@example.com.");
+        // A language still in progress renders the English fallback.
+        let de = note.resolve("de-DE");
+        assert_eq!(de, "Filtered by organisation member: alice@example.com.");
     }
 
     #[test]
@@ -1454,7 +1455,7 @@ mod tests {
         assert_eq!(fallback_locale(Some("pt-BR")).as_deref(), Some("pt-BR"));
         assert_eq!(fallback_locale(Some(" es ")).as_deref(), Some("es"));
         assert_eq!(fallback_locale(Some("en-US")), None);
-        assert_eq!(fallback_locale(Some("fr")), None);
+        assert_eq!(fallback_locale(Some("de")), None);
         assert_eq!(fallback_locale(Some("")), None);
     }
 

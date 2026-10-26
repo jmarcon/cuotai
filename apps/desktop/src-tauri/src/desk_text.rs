@@ -75,6 +75,7 @@ mod tests {
                 "zh-CN",
                 catalog(include_str!("../../ui/locales/zh-CN.json")),
             ),
+            ("fr", catalog(include_str!("../../ui/locales/fr.json"))),
             ("ja", catalog(include_str!("../../ui/locales/ja.json"))),
         ];
         for (id, fallback) in ALL {

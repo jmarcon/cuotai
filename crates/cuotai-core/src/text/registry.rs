@@ -203,7 +203,7 @@ pub const LOCALES: &[LocaleRow] = &[
         "Latn",
         &["fr"],
         PluralRule::ZeroOne,
-        InProgress,
+        Shipped,
         1,
     ),
     row(

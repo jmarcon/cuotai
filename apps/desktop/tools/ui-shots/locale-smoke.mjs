@@ -6,7 +6,7 @@
 import { launch } from "./driver.mjs";
 
 const args = process.argv.slice(2).filter((a) => !a.startsWith("--"));
-const LOCALES = args.length ? args : ["en-US", "es", "it", "de", "ru", "ko", "hi-IN", "id-ID", "tr", "vi", "zh-CN", "ja"];
+const LOCALES = args.length ? args : ["en-US", "es", "it", "de", "ru", "ko", "hi-IN", "id-ID", "tr", "vi", "zh-CN", "fr", "ja"];
 // Languages whose own orthography uses the letters of CHARS (Vietnamese ã ê ô â, Turkish zekâ): the letter test is skipped there.
 const CHARS_OK = new Set(["vi", "tr"]);
 const PAGES = [
@@ -24,7 +24,8 @@ const PAGES = [
   ["settings-whats-new", "settings.html?page=about", 860, 900, ["[data-whats-new]"]],
   ["settings-report", "settings.html?page=about", 860, 900, ["[data-report-problem]"]],
 ];
-// Portuguese-only letters (not used by English, Spanish or Italian) and words that are not valid in those languages.
+// Portuguese letters not used by English, Spanish or Italian (French uses ê, â and ô, so the letters do not count there)
+// and words that are not valid in those languages.
 const CHARS = /[ãõêôâ]/i;
 const WORDS = new Set(["não", "você", "voce", "conta", "contas", "cota", "cotas", "sessão", "pessoal", "trabalho", "hoje", "ontem",
   "desligado", "precisa", "informe", "resposta", "serviço", "extensão", "atualização", "câmbio", "diretórios", "solicitações",
@@ -57,7 +58,7 @@ function markers(text, locale) {
   if (key) return [`missing catalog key ${key[1]}`];
   for (const m of text.matchAll(/\p{L}+/gu)) {
     const word = m[0].toLowerCase();
-    if (CHARS.test(word) && !CHARS_OK.has(locale)) found.add(word);
+    if (CHARS.test(word) && !CHARS_OK.has(locale) && locale !== "fr") found.add(word);
     else if (WORDS.has(word) && !(SHARED.has(word) && locale !== "en-US")) found.add(word);
   }
   return [...found];

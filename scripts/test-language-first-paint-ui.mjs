@@ -100,12 +100,12 @@ const scenarios = [
   { stored: null, system: ["vi-VN"], expected: "vi", label: "Vietnamese detection" },
   { stored: null, system: ["ja-JP"], expected: "ja", label: "exact ja detection" },
   { stored: null, system: ["zh-Hans-CN"], expected: "zh-CN", label: "Simplified Chinese script detection" },
+  { stored: null, system: ["fr-CA"], expected: "fr", label: "fr detection by language" },
   // PRD 0035 RF1.3: registry normalization, never a string prefix, never Simplified Chinese for zh-TW.
   { stored: null, system: ["pt_PT.UTF-8"], expected: "pt-BR", label: "system form with an encoding" },
   { stored: null, system: ["est", "it-CH"], expected: "it", label: "est is not es" },
   { stored: null, system: ["zh-TW", "es-419"], expected: "es", label: "zh-TW skipped, numeric region" },
-  { stored: null, system: ["fr-FR"], userLocales: ["fr"], expected: "fr", label: "user pack for a language in progress" },
-  { stored: "ja", system: ["it"], expected: "it", label: "stored language in progress" },
+  { stored: null, system: ["fr-FR"], userLocales: ["fr"], expected: "fr", label: "user pack for a built-in language" },
 ];
 
 for (const page of ["index.html", "tray.html", "settings.html"]) {
