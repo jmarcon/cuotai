@@ -39,6 +39,9 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: "0"
+  # The tauri-cli the release pipeline installs; `tooling-cache` below warms
+  # its binary cache on main. Must equal release.yml (workflow-check compares).
+  TAURI_CLI_VERSION: "2.12.4"
 
 jobs:
   # Documentation-only detection. The heavy jobs below run only when
@@ -404,6 +407,49 @@ jobs:
       - name: Settings open time and render time
         run: node apps/desktop/tools/ui-shots/perf.mjs --strict
 
+  # Warms the tauri-cli binary cache that the desktop jobs of release.yml
+  # restore. A workflow run reads caches of its own ref and of main only, and
+  # a tag runs once, so the release pipeline cannot keep this binary for the
+  # next tag itself: it compiled tauri-cli on every desktop leg (4.5 to 10
+  # minutes each, five legs, run 40202699547). The matrix is exactly the set
+  # of release runner images: the Linux binary must come from the same
+  # Ubuntu as desktop-linux (glibc). On a hit the job ends in seconds
+  # (`lookup-only` downloads nothing), so a build happens once per tauri-cli
+  # version and runner. Only pushes to main run it: a pull request cache
+  # could not be read by a tag anyway.
+  tooling-cache:
+    name: tauri-cli cache (${{ matrix.os }})
+    needs: changes
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, windows-11-arm, ubuntu-22.04, ubuntu-24.04-arm]
+    steps:
+      - name: Look up the cached tauri-cli
+        id: lookup
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-tauri*
+          key: tauri-cli-${{ env.TAURI_CLI_VERSION }}-${{ runner.os }}-${{ runner.arch }}
+          lookup-only: true
+      - if: steps.lookup.outputs.cache-hit != 'true'
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
+        with:
+          toolchain: 1.99.1
+      - name: Install tauri-cli
+        if: steps.lookup.outputs.cache-hit != 'true'
+        shell: bash
+        run: cargo install tauri-cli --locked --version "$TAURI_CLI_VERSION"
+      - name: Save tauri-cli
+        if: steps.lookup.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-tauri*
+          key: tauri-cli-${{ env.TAURI_CLI_VERSION }}-${{ runner.os }}-${{ runner.arch }}
+
   # Dependency licenses, advisories and sources (PRD 0019, RF1.3). cargo-deny
   # finds the root `deny.toml` by walking up from either manifest.
   deny:
@@ -624,7 +670,7 @@ jobs:
   # succeeded.
   ci-result:
     name: CI result
-    needs: [changes, test, ui-checks, deny, version-check, changelog-check, access-evidence, canary-dry-run, release-preflight]
+    needs: [changes, test, ui-checks, tooling-cache, deny, version-check, changelog-check, access-evidence, canary-dry-run, release-preflight]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5

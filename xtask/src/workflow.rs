@@ -310,7 +310,41 @@ const SECRET_OWNERS: &[(&str, &str, &str)] = &[
 pub fn check_file(path: &Path) -> Res<()> {
     let text = std::fs::read_to_string(path)
         .map_err(|e| Error::Msg(format!("cannot read {}: {e}", path.display())))?;
-    check_text(path, &text)
+    check_text(path, &text)?;
+    // ci.yml warms the tauri-cli binary cache that release.yml restores, so
+    // the two workflows must name the same version or the release legs would
+    // silently compile it again on every tag.
+    if path.file_name().and_then(|name| name.to_str()) == Some("ci.yml") {
+        let release = path.with_file_name("release.yml");
+        if release.is_file() {
+            let release_text = std::fs::read_to_string(&release)
+                .map_err(|e| Error::Msg(format!("cannot read {}: {e}", release.display())))?;
+            check_tauri_cli_version(&text, &release_text)?;
+        }
+    }
+    Ok(())
+}
+
+/// The workflow-level `env.TAURI_CLI_VERSION` of a workflow.
+fn tauri_cli_version(text: &str) -> Res<String> {
+    let root: Value = serde_yaml::from_str(text)
+        .map_err(|e| Error::Msg(format!("invalid workflow YAML: {e}")))?;
+    let root = mapping(&root, "workflow root")?;
+    let env = mapping(need(root, "env", "workflow root")?, "workflow env")?;
+    scalar(env, "TAURI_CLI_VERSION")
+        .map(str::to_owned)
+        .map_or_else(|| err("workflow env has no TAURI_CLI_VERSION"), Ok)
+}
+
+fn check_tauri_cli_version(ci_text: &str, release_text: &str) -> Res<()> {
+    let ci = tauri_cli_version(ci_text)?;
+    let release = tauri_cli_version(release_text)?;
+    if ci != release {
+        return err(format!(
+            "ci.yml warms the tauri-cli {ci} cache but release.yml installs tauri-cli {release}; keep TAURI_CLI_VERSION equal in both"
+        ));
+    }
+    Ok(())
 }
 
 fn check_text(path: &Path, text: &str) -> Res<()> {
@@ -1155,6 +1189,17 @@ mod tests {
         assert!(check_text(Path::new("release.yml"), RELEASE_WORKFLOW).is_ok());
         assert!(check_text(Path::new("external-rules.yml"), EXTERNAL_RULES_WORKFLOW).is_ok());
         assert!(check_text(Path::new("codeql.yml"), CODEQL_WORKFLOW).is_ok());
+    }
+
+    #[test]
+    fn ci_and_release_install_the_same_tauri_cli() {
+        assert!(super::check_tauri_cli_version(CI_WORKFLOW, RELEASE_WORKFLOW).is_ok());
+        let drifted =
+            RELEASE_WORKFLOW.replacen("TAURI_CLI_VERSION: \"", "TAURI_CLI_VERSION: \"9", 1);
+        assert_ne!(drifted, RELEASE_WORKFLOW);
+        assert!(super::check_tauri_cli_version(CI_WORKFLOW, &drifted).is_err());
+        let missing = CI_WORKFLOW.replacen("TAURI_CLI_VERSION:", "UNRELATED_VERSION:", 1);
+        assert!(super::check_tauri_cli_version(&missing, RELEASE_WORKFLOW).is_err());
     }
 
     #[test]

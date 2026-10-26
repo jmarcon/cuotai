@@ -199,7 +199,14 @@ jobs:
         run: scripts/release/macos-keychain.sh
       - name: Desktop lockfile is current
         run: cargo metadata --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --format-version 1 > /dev/null
-      - name: Install tauri-cli
+      - name: Restore tauri-cli (warmed by the CI run of main)
+        id: tauri-cli
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-tauri*
+          key: tauri-cli-${{ env.TAURI_CLI_VERSION }}-${{ runner.os }}-${{ runner.arch }}
+      - name: Install tauri-cli (cache miss)
+        if: steps.tauri-cli.outputs.cache-hit != 'true'
         run: cargo install tauri-cli --locked --version "$TAURI_CLI_VERSION"
       - name: Build universal app and DMG
         working-directory: apps/desktop
@@ -280,7 +287,14 @@ jobs:
       - name: Desktop lockfile is current
         shell: bash
         run: cargo metadata --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --format-version 1 > /dev/null
-      - name: Install tauri-cli
+      - name: Restore tauri-cli (warmed by the CI run of main)
+        id: tauri-cli
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-tauri*
+          key: tauri-cli-${{ env.TAURI_CLI_VERSION }}-${{ runner.os }}-${{ runner.arch }}
+      - name: Install tauri-cli (cache miss)
+        if: steps.tauri-cli.outputs.cache-hit != 'true'
         shell: bash
         run: cargo install tauri-cli --locked --version "$TAURI_CLI_VERSION"
       - name: Build desktop application
@@ -358,7 +372,14 @@ jobs:
       - name: Desktop lockfile is current
         shell: bash
         run: cargo metadata --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --format-version 1 > /dev/null
-      - name: Install tauri-cli
+      - name: Restore tauri-cli (warmed by the CI run of main)
+        id: tauri-cli
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-tauri*
+          key: tauri-cli-${{ env.TAURI_CLI_VERSION }}-${{ runner.os }}-${{ runner.arch }}
+      - name: Install tauri-cli (cache miss)
+        if: steps.tauri-cli.outputs.cache-hit != 'true'
         shell: bash
         run: cargo install tauri-cli --locked --version "$TAURI_CLI_VERSION"
       - name: Build desktop application (ARM64)
@@ -454,7 +475,14 @@ jobs:
             libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf rpm
       - name: Desktop lockfile is current
         run: cargo metadata --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --format-version 1 > /dev/null
-      - name: Install tauri-cli
+      - name: Restore tauri-cli (warmed by the CI run of main)
+        id: tauri-cli
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-tauri*
+          key: tauri-cli-${{ env.TAURI_CLI_VERSION }}-${{ runner.os }}-${{ runner.arch }}
+      - name: Install tauri-cli (cache miss)
+        if: steps.tauri-cli.outputs.cache-hit != 'true'
         run: cargo install tauri-cli --locked --version "$TAURI_CLI_VERSION"
       - name: Build AppImage, deb and rpm
         working-directory: apps/desktop
@@ -527,7 +555,14 @@ jobs:
             libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf rpm
       - name: Desktop lockfile is current
         run: cargo metadata --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --format-version 1 > /dev/null
-      - name: Install tauri-cli
+      - name: Restore tauri-cli (warmed by the CI run of main)
+        id: tauri-cli
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-tauri*
+          key: tauri-cli-${{ env.TAURI_CLI_VERSION }}-${{ runner.os }}-${{ runner.arch }}
+      - name: Install tauri-cli (cache miss)
+        if: steps.tauri-cli.outputs.cache-hit != 'true'
         run: cargo install tauri-cli --locked --version "$TAURI_CLI_VERSION"
       - name: Build AppImage, deb and rpm (ARM64)
         id: build

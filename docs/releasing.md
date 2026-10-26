@@ -248,7 +248,12 @@ free-tier budget.
   cache `.`. Release jobs restore only (`save-if: false`): a tag run can read
   the caches of its own ref and of `main`, and a tag never runs twice, so an
   entry saved from a tag is never restored and only evicts `main`'s entries
-  from the 10 GB repository limit. Every job has `timeout-minutes`.
+  from the 10 GB repository limit. For the same reason the `tooling-cache`
+  job of `ci.yml` warms, on pushes to `main`, the `tauri-cli` binary cache
+  (`tauri-cli-<version>-<os>-<arch>`, one entry per release runner image)
+  that each desktop leg restores before `cargo install tauri-cli`, which runs
+  only on a miss; `workflow-check` keeps `TAURI_CLI_VERSION` equal in both
+  workflows. Every job has `timeout-minutes`.
 - `cargo xtask workflow-check` enforces these invariants in CI and before a
   release build. Tests prove failures for broad permissions, missing timeouts,
   unpinned actions, dotted/bracketed/dynamic secret misuse, an unlisted job,
