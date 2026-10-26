@@ -107,7 +107,7 @@ fn json_v1_follows_the_fallback_locale() {
 fn an_unsupported_or_misplaced_fallback_locale_is_a_local_error() {
     let sandbox = Sandbox::new("errors");
     for args in [
-        &["--json", "--fallback-locale", "de"][..],
+        &["--json", "--fallback-locale", "xx"][..],
         &["--once", "--fallback-locale", "pt-BR"][..],
     ] {
         let output = sandbox.run(args, None);

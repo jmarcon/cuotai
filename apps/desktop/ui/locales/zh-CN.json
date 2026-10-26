@@ -1219,5 +1219,15 @@
   "settings.display.more": "更多显示选项",
   "lang.inProgress": "翻译进行中",
   "time.duration.minutesSeconds": "{m}分{s}秒",
-  "time.duration.seconds": "{s}秒"
+  "time.duration.seconds": "{s}秒",
+  "settings.page.extensions": "扩展",
+  "settings.kw.extensions": "扩展 本地扩展 插件 附加组件 提供商 自定义 运行 批准 文件夹",
+  "dialog.monogram": "字母标识",
+  "dialog.monogramPlaceholder": "可选，例如 WK",
+  "dialog.monogramHint": "当提供商有多个账户时，显示在此账户图块上的一到两个字符。留空则使用名称的首字母。",
+  "dialog.monogram.invalid": "请使用一到两个字符，不含空格。",
+  "desktop.error.invalid_monogram": "字母标识为一到两个字符，不含空格。",
+  "settings.whatsnew.auto": "显示新功能",
+  "settings.whatsnew.auto.desc": "每次更新后打开一次发行说明",
+  "settings.kw.whats-new-auto": "新功能 发行说明 更新日志 更新 版本 自动 打开"
 }

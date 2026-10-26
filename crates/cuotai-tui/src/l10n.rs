@@ -317,9 +317,8 @@ mod tests {
             })
             .collect();
         assert!(problems.is_empty(), "{problems:#?}");
-        // A language in progress renders the English source.
+        // A missing id renders the English source in every language.
         assert_eq!(with_locale("ko", || tr("x.missing", "Hello")), "Hello");
-        assert!(catalog("ko").is_none());
     }
 
     #[test]

@@ -24,7 +24,7 @@ const PAGES = [
 // Contrast is judged per theme by contrast_gate.py against the theme contract; axe's own color-contrast rule is
 // reported too, but it cannot see through gradients and image backgrounds, so it stays advisory (listed, not failing).
 // en-US in both modes, then the languages whose scripts or lengths stress the layout and the names (dark only).
-const RUNS = [["en-US", "dark"], ["en-US", "light"], ...["de", "ru", "ko", "hi-IN", "id-ID", "tr", "vi"].map((code) => [code, "dark"])];
+const RUNS = [["en-US", "dark"], ["en-US", "light"], ...["de", "ru", "ko", "hi-IN", "id-ID", "tr", "vi", "zh-CN", "fr", "ja"].map((code) => [code, "dark"])];
 const ADVISORY = new Set(["color-contrast"]);
 
 let source;

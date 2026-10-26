@@ -476,5 +476,8 @@
   "wizard.summary.token_vault": "（令牌保留在安全存储中；从不显示，也不写入 TOML）",
   "wizard.summary.unnamed": "{provider}（未命名）",
   "wizard.title": "向导 — {position}/{total} {label}",
-  "wizard.too_small": "向导：请将终端加宽到至少 60 × 20。Esc 取消。"
+  "wizard.too_small": "向导：请将终端加宽到至少 60 × 20。Esc 取消。",
+  "dashboard.footer.count.position": "{position}/{count} 个账户",
+  "dashboard.footer.next_connection": "n 连接",
+  "dashboard.footer.aggregator_filter": "f 聚合器"
 }

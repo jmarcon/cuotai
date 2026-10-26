@@ -476,5 +476,8 @@
   "wizard.summary.token_vault": "（トークンは安全なストレージに残り、表示も TOML への書き込みもされません）",
   "wizard.summary.unnamed": "{provider}（名前なし）",
   "wizard.title": "ウィザード — {position}/{total} {label}",
-  "wizard.too_small": "ウィザード：ターミナルを 60 × 20 以上に広げてください。Esc でキャンセルします。"
+  "wizard.too_small": "ウィザード：ターミナルを 60 × 20 以上に広げてください。Esc でキャンセルします。",
+  "dashboard.footer.count.position": "{position}/{count} アカウント",
+  "dashboard.footer.next_connection": "n 接続",
+  "dashboard.footer.aggregator_filter": "f アグリゲーター"
 }

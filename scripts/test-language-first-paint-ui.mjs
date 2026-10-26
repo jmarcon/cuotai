@@ -132,7 +132,9 @@ const firstRenderedMenu = langMenuHtml({ inline: true });
 assert.match(firstRenderedMenu, /data-locale="fr"[^>]*class="on"|class="on"[^>]*data-locale="fr"/, "stored user locale is not selected in the production menu");
 console.log(`production boot first render: lang=fr; tray.ok=${i18n.t("tray.ok")}`);
 // PRD 0035 RF1/RF3.3: the languages in progress are listed after the others, not selectable, with their own lang.
-assert.match(firstRenderedMenu, /data-locale-pending="ko"[^>]*>.*?<span lang="ko">한국어<\/span>/, "ko is listed as in progress");
+for (const { code, name: endonym } of i18n.pendingLocales()) {
+  assert.match(firstRenderedMenu, new RegExp(`data-locale-pending="${code}"[^>]*>.*?<span lang="${code}">${endonym}</span>`), `${code} is listed as in progress`);
+}
 assert.doesNotMatch(firstRenderedMenu, /data-locale-pending="fr"/, "the user pack makes fr a regular language");
 // A language still in translation (if any is left) is listed as pending and cannot be chosen.
 for (const { code } of i18n.pendingLocales()) {

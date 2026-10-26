@@ -48,10 +48,11 @@ assert.equal(fmtNext(now + 3_900_000, now), "1h 05m");
 await i18n.setLocale("it");
 assert.equal(durationText(3 * 86400 + 15 * 3600), "3g 15h", "Italian days");
 assert.equal(i18n.tl(alerts(1)), "Cuotai: 1 avviso di utilizzo");
-// A language in progress cannot be chosen; the language list shows it as pending.
-await i18n.setLocale("ko");
-assert.equal(i18n.currentLocale(), "it");
-assert.ok(i18n.pendingLocales().some((l) => l.code === "ko"));
+// A language in progress (none is left once every catalog ships) cannot be chosen.
+for (const { code } of i18n.pendingLocales()) {
+  await i18n.setLocale(code);
+  assert.equal(i18n.currentLocale(), "it", `${code} is still in progress`);
+}
 await i18n.setLocale("en-US");
 assert.equal(i18n.tl(alerts(1)), "Cuotai: 1 usage alerts", "English renders the core's own fallback");
 assert.equal(durationText(95 * 60), "1h 35m");

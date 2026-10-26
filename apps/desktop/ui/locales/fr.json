@@ -1230,5 +1230,15 @@
   "settings.display.more": "Plus d’options",
   "lang.inProgress": "Traduction en cours",
   "time.duration.minutesSeconds": "{m} min {s} s",
-  "time.duration.seconds": "{s} s"
+  "time.duration.seconds": "{s} s",
+  "settings.page.extensions": "Extensions",
+  "settings.kw.extensions": "extensions extension locale module plugin fournisseur personnalisé exécuter approuver dossier",
+  "dialog.monogram": "Monogramme",
+  "dialog.monogramPlaceholder": "facultatif, p. ex. WK",
+  "dialog.monogramHint": "Un ou deux caractères affichés sur la tuile de ce compte quand le fournisseur a plusieurs comptes. Vide : les initiales du nom.",
+  "dialog.monogram.invalid": "Utilisez un ou deux caractères, sans espace.",
+  "desktop.error.invalid_monogram": "Un monogramme compte un ou deux caractères, sans espace.",
+  "settings.whatsnew.auto": "Afficher les nouveautés",
+  "settings.whatsnew.auto.desc": "Ouvre les notes de version une fois après chaque mise à jour",
+  "settings.kw.whats-new-auto": "nouveautés notes de version changelog mise à jour version automatiquement ouvrir"
 }

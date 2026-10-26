@@ -109,7 +109,7 @@ for (const { code } of i18n.LOCALES) {
 // none without `connection_warnings`, and the details list them too.
 assert.equal(agg.warningChipsHtml(router), "", "no warnings, no chips");
 const warned = { ...router, connection_warnings: { exposed: true, private_http: true } };
-const chipTexts = { "en-US": ["No password", "Unencrypted"], es: ["Sin contraseña", "Sin cifrado"], it: ["Senza password", "Non cifrato"], "pt-BR": ["Sem senha", "Sem criptografia"], de: ["Ohne Passwort", "Unverschlüsselt"], ru: ["Без пароля", "Без шифрования"], ko: ["비밀번호 없음", "암호화 없음"], "hi-IN": ["बिना पासवर्ड", "बिना एन्क्रिप्शन"], "id-ID": ["Tanpa kata sandi", "Tanpa enkripsi"], tr: ["Parola yok", "Şifresiz"], vi: ["Không mật khẩu", "Không mã hóa"] };
+const chipTexts = { "en-US": ["No password", "Unencrypted"], es: ["Sin contraseña", "Sin cifrado"], it: ["Senza password", "Non cifrato"], "pt-BR": ["Sem senha", "Sem criptografia"], de: ["Ohne Passwort", "Unverschlüsselt"], ru: ["Без пароля", "Без шифрования"], ko: ["비밀번호 없음", "암호화 없음"], "hi-IN": ["बिना पासवर्ड", "बिना एन्क्रिप्शन"], "id-ID": ["Tanpa kata sandi", "Tanpa enkripsi"], tr: ["Parola yok", "Şifresiz"], vi: ["Không mật khẩu", "Không mã hóa"], "zh-CN": ["无密码", "未加密"], ja: ["パスワードなし", "暗号化なし"], fr: ["Sans mot de passe", "Non chiffré"] };
 for (const { code } of i18n.LOCALES) {
   await i18n.setLocale(code);
   const html = agg.warningChipsHtml(warned);

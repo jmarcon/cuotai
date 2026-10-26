@@ -1219,5 +1219,15 @@
   "settings.display.more": "その他の表示オプション",
   "lang.inProgress": "翻訳中",
   "time.duration.minutesSeconds": "{m}分{s}秒",
-  "time.duration.seconds": "{s}秒"
+  "time.duration.seconds": "{s}秒",
+  "settings.page.extensions": "拡張機能",
+  "settings.kw.extensions": "拡張機能 ローカル拡張 アドオン プラグイン プロバイダー カスタム 実行 承認 フォルダー",
+  "dialog.monogram": "モノグラム",
+  "dialog.monogramPlaceholder": "任意、例: WK",
+  "dialog.monogramHint": "プロバイダーに複数のアカウントがあるとき、このアカウントのタイルに表示する1〜2文字。空欄の場合は名前の頭文字を使います。",
+  "dialog.monogram.invalid": "スペースなしの1〜2文字を使ってください。",
+  "desktop.error.invalid_monogram": "モノグラムはスペースなしの1〜2文字です。",
+  "settings.whatsnew.auto": "新機能を表示",
+  "settings.whatsnew.auto.desc": "アップデートのたびにリリースノートを一度開きます",
+  "settings.kw.whats-new-auto": "新機能 リリースノート 変更履歴 アップデート バージョン 自動 開く"
 }

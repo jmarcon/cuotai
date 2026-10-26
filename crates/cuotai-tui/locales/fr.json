@@ -476,5 +476,8 @@
   "wizard.summary.token_vault": "(le token reste dans un stockage sécurisé ; il n’est jamais affiché ni écrit dans le TOML)",
   "wizard.summary.unnamed": "{provider} (sans nom)",
   "wizard.title": "Assistant — {position}/{total} {label}",
-  "wizard.too_small": "Assistant : élargissez le terminal à au moins 60 × 20. Esc annule."
+  "wizard.too_small": "Assistant : élargissez le terminal à au moins 60 × 20. Esc annule.",
+  "dashboard.footer.count.position": "{position}/{count} comptes",
+  "dashboard.footer.next_connection": "n connexion",
+  "dashboard.footer.aggregator_filter": "f agrégateur"
 }
