@@ -75,6 +75,7 @@ mod tests {
                 "zh-CN",
                 catalog(include_str!("../../ui/locales/zh-CN.json")),
             ),
+            ("ja", catalog(include_str!("../../ui/locales/ja.json"))),
         ];
         for (id, fallback) in ALL {
             assert_eq!(

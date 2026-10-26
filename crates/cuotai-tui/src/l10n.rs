@@ -51,6 +51,7 @@ tui_catalogs! {
     "tr" => "../locales/tr.json",
     "vi" => "../locales/vi.json",
     "zh-CN" => "../locales/zh-CN.json",
+    "ja" => "../locales/ja.json",
 }
 
 /// The TUI catalog of `locale`'s language; `None` for English and for a
@@ -316,8 +317,8 @@ mod tests {
             .collect();
         assert!(problems.is_empty(), "{problems:#?}");
         // A language in progress renders the English source.
-        assert_eq!(with_locale("ja", || tr("x.missing", "Hello")), "Hello");
-        assert!(catalog("ja").is_none());
+        assert_eq!(with_locale("ko", || tr("x.missing", "Hello")), "Hello");
+        assert!(catalog("ko").is_none());
     }
 
     #[test]

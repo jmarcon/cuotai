@@ -98,7 +98,7 @@ const scenarios = [
   { stored: null, system: ["in-ID"], expected: "id-ID", label: "legacy Indonesian code" },
   { stored: null, system: ["tr-TR"], expected: "tr", label: "Turkish detection" },
   { stored: null, system: ["vi-VN"], expected: "vi", label: "Vietnamese detection" },
-  { stored: null, system: ["ja"], expected: "en-US", label: "translation in progress falls back" },
+  { stored: null, system: ["ja-JP"], expected: "ja", label: "exact ja detection" },
   { stored: null, system: ["zh-Hans-CN"], expected: "zh-CN", label: "Simplified Chinese script detection" },
   // PRD 0035 RF1.3: registry normalization, never a string prefix, never Simplified Chinese for zh-TW.
   { stored: null, system: ["pt_PT.UTF-8"], expected: "pt-BR", label: "system form with an encoding" },
@@ -132,9 +132,12 @@ const firstRenderedMenu = langMenuHtml({ inline: true });
 assert.match(firstRenderedMenu, /data-locale="fr"[^>]*class="on"|class="on"[^>]*data-locale="fr"/, "stored user locale is not selected in the production menu");
 console.log(`production boot first render: lang=fr; tray.ok=${i18n.t("tray.ok")}`);
 // PRD 0035 RF1/RF3.3: the languages in progress are listed after the others, not selectable, with their own lang.
-assert.match(firstRenderedMenu, /data-locale-pending="ja"[^>]*>.*?<span lang="ja">日本語<\/span>/, "ja is listed as in progress");
+assert.match(firstRenderedMenu, /data-locale-pending="ko"[^>]*>.*?<span lang="ko">한국어<\/span>/, "ko is listed as in progress");
 assert.doesNotMatch(firstRenderedMenu, /data-locale-pending="fr"/, "the user pack makes fr a regular language");
-assert.doesNotMatch(firstRenderedMenu, /data-locale="ja"/, "a language in progress cannot be chosen");
+// A language still in translation (if any is left) is listed as pending and cannot be chosen.
+for (const { code } of i18n.pendingLocales()) {
+  assert.doesNotMatch(firstRenderedMenu, new RegExp(`data-locale="${code}"`), "a language in progress cannot be chosen");
+}
 const pendingOrder = [...firstRenderedMenu.matchAll(/data-locale-pending="([^"]+)"/g)].map((m) => m[1]);
 assert.deepEqual(pendingOrder, i18n.pendingLocales().map((l) => l.code).filter((code) => pendingOrder.includes(code)), "registry order");
 

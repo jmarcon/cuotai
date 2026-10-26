@@ -531,6 +531,7 @@ embedded_catalogs! {
     "tr" => "../locales/tr.json",
     "vi" => "../locales/vi.json",
     "zh-CN" => "../locales/zh-CN.json",
+    "ja" => "../locales/ja.json",
 }
 
 /// A resolved language: a handle on its registry row. Unknown codes
@@ -1412,7 +1413,7 @@ mod tests {
             "{count} problems",
         );
         assert_eq!(note.fallback, "3 problems");
-        assert_eq!(note.resolve("ja"), "3 problems", "in progress: English");
+        assert_eq!(note.resolve("ko"), "3 problems", "in progress: English");
     }
 
     /// PRD 0034 RF5.2: the fallback locale renders every `fallback`, nested

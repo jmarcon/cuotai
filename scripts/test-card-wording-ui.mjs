@@ -178,6 +178,17 @@ const expected = {
     sortAsc: "剩余：最少优先",
     sortDesc: "剩余：最多优先",
   },
+  ja: {
+    unit: "残り",
+    levels: {
+      good: "残り 75%：十分に残っています（70% 以上）。",
+      warn: "注意：残り 50%（30%〜70%）。",
+      bad: "危険：残りわずか 20%（30% 未満）。",
+    },
+    rateLimit: "レート制限：残り 42%",
+    sortAsc: "残り：少ない順",
+    sortDesc: "残り：多い順",
+  },
 };
 
 const coreCatalog = JSON.parse(await readFile(

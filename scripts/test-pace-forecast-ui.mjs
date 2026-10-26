@@ -171,6 +171,12 @@ const expected = {
     reset: "19:30 重置 · 1小时35分后", best: "当前最佳",
     advice: "Work 已用尽 · Personal 剩余 64%",
   },
+  ja: {
+    points: "10 pt 超過", percent: "ペースより 20% 速い",
+    callout: "このペースでは Session (5h) は ≈18:53 に上限に達し、リセットの 37分前です", chip: "≈18:53 に上限",
+    reset: "19:30 にリセット · 1時間35分後", best: "今のおすすめ",
+    advice: "Work は上限到達 · Personal は残り 64%",
+  },
 };
 
 for (const { code } of i18n.LOCALES) {

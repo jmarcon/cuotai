@@ -49,9 +49,9 @@ await i18n.setLocale("it");
 assert.equal(durationText(3 * 86400 + 15 * 3600), "3g 15h", "Italian days");
 assert.equal(i18n.tl(alerts(1)), "Cuotai: 1 avviso di utilizzo");
 // A language in progress cannot be chosen; the language list shows it as pending.
-await i18n.setLocale("ja");
+await i18n.setLocale("ko");
 assert.equal(i18n.currentLocale(), "it");
-assert.ok(i18n.pendingLocales().some((l) => l.code === "ja"));
+assert.ok(i18n.pendingLocales().some((l) => l.code === "ko"));
 await i18n.setLocale("en-US");
 assert.equal(i18n.tl(alerts(1)), "Cuotai: 1 usage alerts", "English renders the core's own fallback");
 assert.equal(durationText(95 * 60), "1h 35m");
