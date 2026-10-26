@@ -30,6 +30,11 @@ pub(crate) enum Glyphs {
     Ascii,
 }
 
+/// PRD 0035 RF6.7: shapes that are not East Asian Ambiguous in the width
+/// table but that the common CJK terminal fonts draw two cells wide; they
+/// are replaced in the same wide mode.
+const CJK_FONT_WIDE: &[char] = &['\u{2715}'];
+
 /// The one mapping from a drawn glyph to its ASCII equivalent.
 pub(crate) const TABLE: &[(char, char)] = &[
     // Pace and status shapes (RF6.7).
@@ -117,7 +122,9 @@ pub(crate) fn fallback(glyph: char, mode: Glyphs) -> Option<char> {
     let replace = match mode {
         Glyphs::Unicode => false,
         Glyphs::Ascii => true,
-        Glyphs::AmbiguousWide => glyph.width_cjk() != glyph.width(),
+        Glyphs::AmbiguousWide => {
+            glyph.width_cjk() != glyph.width() || CJK_FONT_WIDE.contains(&glyph)
+        }
     };
     if !replace {
         return None;
@@ -266,7 +273,7 @@ mod tests {
         );
         for shape in ['↓', '→', '↑', '✕', '◆', '▲'] {
             assert!(fallback(shape, Glyphs::Ascii).is_some(), "{shape}");
-            let ambiguous = shape.width_cjk() != shape.width();
+            let ambiguous = shape.width_cjk() != shape.width() || shape == '✕';
             assert_eq!(fallback(shape, Glyphs::AmbiguousWide).is_some(), ambiguous);
         }
         assert_eq!(fallback('↓', Glyphs::Unicode), None);
@@ -285,5 +292,14 @@ mod tests {
             .collect();
         assert!(line.starts_with("+ 会"), "{line}");
         assert!(line.contains("v . ✓+"), "{line}");
+    }
+
+    #[test]
+    fn the_cross_mark_is_replaced_under_cjk_locales() {
+        assert_eq!(fallback('\u{2715}', Glyphs::AmbiguousWide), Some('x'));
+        assert_eq!(fallback('\u{2715}', Glyphs::Unicode), None);
+        let mut buffer = Buffer::with_lines(["✕ 失败"]);
+        apply(&mut buffer, Glyphs::AmbiguousWide);
+        assert_eq!(buffer[(0, 0)].symbol(), "x");
     }
 }
