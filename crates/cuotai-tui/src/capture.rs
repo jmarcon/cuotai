@@ -17,7 +17,10 @@ const FG: &str = "#e6e6e6";
 fn hex(color: Color, default: &str) -> String {
     match color {
         Color::Reset => default.to_owned(),
-        Color::Rgb(r, g, b) => format!("#{r:02x}{g:02x}{b:02x}"),
+        color if crate::palette::channels(color).is_some() => {
+            let (r, g, b) = crate::palette::channels(color).unwrap_or_default();
+            format!("#{r:02x}{g:02x}{b:02x}")
+        }
         Color::Black => "#21222c".into(),
         Color::Red | Color::LightRed => "#ff5555".into(),
         Color::Green | Color::LightGreen => "#50fa7b".into(),
@@ -106,7 +109,7 @@ mod tests {
     #[test]
     fn cells_land_on_the_grid_with_their_colors() {
         let mut buffer = Buffer::with_lines(["a<b", "  c"]);
-        buffer[(0, 0)].set_style(Style::default().fg(Color::Rgb(255, 85, 85)));
+        buffer[(0, 0)].set_style(Style::default().fg(crate::palette::BAD));
         buffer[(2, 1)].set_style(Style::default().bg(Color::Green));
         let svg = svg(&buffer);
         assert!(svg.contains(r##"fill="#ff5555">a</text>"##), "{svg}");

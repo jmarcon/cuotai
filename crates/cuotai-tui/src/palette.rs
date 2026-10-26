@@ -131,6 +131,15 @@ pub(crate) fn finish(buffer: &mut Buffer) {
     }
 }
 
+/// The RGB channels of a truecolor value (test captures).
+#[cfg(test)]
+pub(crate) fn channels(color: Color) -> Option<(u8, u8, u8)> {
+    match color {
+        Color::Rgb(r, g, b) => Some((r, g, b)),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
