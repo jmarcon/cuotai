@@ -1667,7 +1667,10 @@ pub async fn run(
                     palette::finish(frame.buffer_mut());
                 })?;
             } else {
-                let selected = state.selected_account(&cycle_slot_reports(&refresh_cycle));
+                // One per-slot report view per frame: `selected_account`,
+                // the selection clamp and the dashboard all read it.
+                let slot_reports = cycle_slot_reports(&refresh_cycle);
+                let selected = state.selected_account(&slot_reports);
                 let refreshing = refresh.0.is_some()
                     || selected.is_some_and(|index| account_refresh.slot(index).is_some());
                 let next = selected.and_then(|index| {
@@ -1679,7 +1682,13 @@ pub async fn run(
                     .filter(|_| state.details)
                     .map(|index| (index, state.history_range));
                 state.history.refresh(&monitor, &refresh_cycle, detail);
-                state.draw(&mut terminal, &refresh_cycle, refreshing, next)?;
+                state.draw(
+                    &mut terminal,
+                    &refresh_cycle,
+                    slot_reports,
+                    refreshing,
+                    next,
+                )?;
                 frame_area = state.targets.area;
             }
             dirty = false;
@@ -3512,20 +3521,16 @@ impl State {
         &mut self,
         terminal: &mut Screen,
         cycle: &RefreshCycle,
+        slot_reports: Vec<Option<cuotai_core::Report>>,
         refreshing: bool,
         next_refresh: Option<Duration>,
     ) -> io::Result<()> {
-        // Build the per-slot report view the dashboard expects. The cycle
-        // owns the canonical list of slots; we borrow the snapshot when it
-        // is complete and synthesize the "all pending" view otherwise so
-        // the dashboard can show "Aguardando" placeholders instead of
-        // leaking stale rows from the previous configuration.
-        let slot_reports: Vec<Option<cuotai_core::Report>> = match cycle.snapshot() {
-            Some(snapshot) => snapshot.reports.iter().cloned().map(Some).collect(),
-            None => (0..cycle.len())
-                .map(|index| cycle.account_report(index).cloned())
-                .collect(),
-        };
+        // `slot_reports` is the per-slot report view the dashboard expects
+        // (`cycle_slot_reports`): the cycle owns the canonical list of
+        // slots; the caller borrows the snapshot when it is complete and
+        // synthesizes the "all pending" view otherwise, so the dashboard
+        // shows "Waiting" placeholders instead of leaking stale rows from
+        // the previous configuration. Built once per frame by the caller.
         // PRD 0033 RF2.1: expired metrics of a preserved reading collapse.
         let now = chrono::Utc::now();
         let collapsed: Vec<Option<cuotai_core::Report>> = (0..cycle.len())
