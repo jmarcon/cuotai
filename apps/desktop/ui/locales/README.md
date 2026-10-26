@@ -148,8 +148,10 @@ Used by reviewers and by every pull request that touches a catalog (RF11.7):
 ## User-provided languages
 
 Place a single `<config directory>/cuotai/locales/<code>.json` file and restart
-the app. It can combine UI and core keys and overrides any built-in catalog
-with the same code. The directory is `~/Library/Application Support/cuotai`
+the app. It can combine UI and core keys. A pack whose code equals a
+built-in language (for example `fr.json`) overrides that built-in catalog
+key by key (PRD 0035 RF12.3); a pack for a language that is not built in
+registers as a new language. The directory is `~/Library/Application Support/cuotai`
 on macOS, `%APPDATA%\cuotai` on Windows and `~/.config/cuotai` on Linux, or
 the value of `CUOTAI_USER_DIR`. The folder button in the top bar copies its
 path. Invalid files are ignored and a warning explains why. A partial example

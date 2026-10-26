@@ -152,7 +152,7 @@
   "dialog.credOauth": "यह खाता OAuth से प्रमाणित है; साइन-इन ऐप की प्रक्रिया से होता है।",
   "dialog.nativeNote": "यह प्रदाता नेटिव साइन-इन भी सपोर्ट करता है। डेस्कटॉप से साइन-इन कोर के लॉगिन API (PRD 0001, RF2) पर निर्भर है; फ़िलहाल TUI से साइन इन करें और खाता यहाँ दिखाई देगा।",
   "dialog.deleteTitle": "खाता हटाएँ",
-  "dialog.deleteBody": "cuotai.toml से {label} हटाएँ? वॉल्ट में सहेजे क्रेडेंशियल नहीं हटाए जाते।",
+  "dialog.deleteBody": "cuotai.toml से {label} हटाएँ? वॉल्ट में सहेजे क्रेडेंशियल मिटाए नहीं जाते।",
   "common.close": "बंद करें",
   "settings.title": "सेटिंग",
   "settings.nav.label": "सेटिंग पेज",
