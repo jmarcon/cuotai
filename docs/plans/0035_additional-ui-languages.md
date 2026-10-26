@@ -60,7 +60,7 @@ Refreshed on 2026-10-25 against the tree after PRD 0034 (English source locale) 
 | Desktop formatting | `Intl.NumberFormat(currentLocale())`, `toLocaleTimeString`, `toLocaleDateString`, `Intl.RelativeTimeFormat`; durations as above. | `js/lib.js` |
 | Casing and search | Desktop account search folds with NFD and lower-case (`main.js` `norm`); the model search only lower-cases (`detail.js`); three `localeCompare()` calls have no locale (`lib.js`). | as listed |
 | Typed consent answers | `hooks.confirm.answer`, `cost.confirm.answer`, `extensions.consent.answer`, compared with `to_lowercase()`. | core catalogs; `crates/cuotai-tui/src/cost.rs`, `extension_check.rs` |
-| User language packs | One JSON per code in the user directory overrides a built-in catalog of the same code. The shipped example is a **French** partial pack. | `apps/desktop/ui/locales/README.md`, `apps/desktop/examples/user/locales/fr.json` |
+| User language packs | One JSON per code in the user directory overrides a built-in catalog of the same code. The shipped example is a **Dutch** (`nl`, not built in) partial pack; it replaced the French one once `fr` became built in (RF12.3). | `apps/desktop/ui/locales/README.md`, `apps/desktop/examples/user/locales/nl.json` |
 
 ### 1.2 Flags: which ones exist
 

@@ -56,4 +56,27 @@ for (const { code } of i18n.pendingLocales()) {
 await i18n.setLocale("en-US");
 assert.equal(i18n.tl(alerts(1)), "Cuotai: 1 usage alerts", "English renders the core's own fallback");
 assert.equal(durationText(95 * 60), "1h 35m");
+// RF12.3: the shipped example user pack is a partial Dutch pack (a language that is not built in); its keys exist in
+// en-US with the same placeholders, it registers as a user language, and missing keys fall back to English.
+{
+  const { readFileSync } = await import("node:fs");
+  const read = (path) => JSON.parse(readFileSync(new URL(path, import.meta.url), "utf8"));
+  const pack = read("../apps/desktop/examples/user/locales/nl.json");
+  const english = read("../apps/desktop/ui/locales/en-US.json");
+  const holes = (v) => JSON.stringify(v).match(/\{[a-zA-Z_]+\}/g)?.sort() ?? [];
+  assert.equal(normalizeLocale("nl"), null, "nl is not a built-in language");
+  assert.equal(pack._meta.name, "Nederlands");
+  for (const [key, value] of Object.entries(pack)) {
+    if (key === "_meta") continue;
+    assert.ok(key in english, `example pack key ${key} is not an en-US key`);
+    assert.deepEqual(holes(value), holes(english[key]), `example pack key ${key} changes the placeholders`);
+  }
+  const { _meta, ...messages } = pack;
+  i18n.registerLocale("nl", _meta.name, messages, _meta.flag);
+  await i18n.setLocale("nl");
+  assert.equal(i18n.currentLocale(), "nl", "the example pack registers as a user language");
+  assert.equal(i18n.t("common.refresh"), "Vernieuwen");
+  assert.equal(i18n.t("tray.ok"), english["tray.ok"], "a key the pack lacks falls back to English");
+  await i18n.setLocale("en-US");
+}
 console.log("PASS: registry normalization, folding, durations and core plurals in the desktop modules");

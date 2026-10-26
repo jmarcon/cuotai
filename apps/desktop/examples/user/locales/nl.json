@@ -1,0 +1,23 @@
+{
+  "_meta": {
+    "name": "Nederlands",
+    "flag": "nl"
+  },
+  "common.loading": "Laden…",
+  "common.refresh": "Vernieuwen",
+  "common.refreshAll": "Alles vernieuwen",
+  "common.add": "Account toevoegen",
+  "common.edit": "Bewerken",
+  "common.remove": "Verwijderen",
+  "common.cancel": "Annuleren",
+  "common.save": "Opslaan",
+  "common.open": "Openen",
+  "common.quit": "Afsluiten",
+  "common.back": "Terug",
+  "common.showHidden": "Verborgen tonen",
+  "quota.count": {
+    "one": "{count} quotum",
+    "other": "{count} quota"
+  },
+  "quota.resetsIn": "over {time}"
+}
