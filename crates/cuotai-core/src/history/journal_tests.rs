@@ -222,7 +222,10 @@ fn overage_and_projection_events_fill_spent_currency_and_projected_at() {
     let projected = &entries[0];
     assert_eq!(projected.kind, EventKind::QuotaExhaustionProjected);
     assert_eq!(projected.projected_at, Some(t0() + TimeDelta::minutes(30)));
-    assert_eq!((projected.spent, projected.currency.as_deref()), (None, None));
+    assert_eq!(
+        (projected.spent, projected.currency.as_deref()),
+        (None, None)
+    );
     // A non-finite amount is unknown, never stored.
     assert_eq!(entries[1].kind, EventKind::OverageEnded);
     assert_eq!(entries[1].spent, None);
