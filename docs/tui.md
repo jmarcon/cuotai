@@ -2,16 +2,16 @@
 
 The `cuotai-tui` binary provides the interactive terminal dashboard (Ratatui), single-run modes (`--once`, `--json` and `--json-v1`) for scripts and automation, a foreground local server (`--serve`) and a foreground event stream (`--watch`).
 
-The TUI's own texts (shortcuts, frames, buttons, messages and `--help`) are in English by default and follow `CUOTAI_LANG`, or your system language when it is unset, in any of the 14 interface languages. This guide quotes the English texts; the screenshots on this page were captured with the Portuguese interface.
+The TUI's own texts (shortcuts, frames, buttons, messages and `--help`) are in English by default and follow `CUOTAI_LANG`, or your system language when it is unset, in any of the 14 interface languages. This guide and its screenshots use the English texts.
 
 <div align="center">
-  <img src="assets/screenshots/tui-dashboard.png" alt="The terminal dashboard with six demo accounts" width="100%" />
-  <p><em>The dashboard: cards in two columns, each with its remaining percentage, pace icon and reset countdown. The accounts here are demo extensions on a throwaway profile, not real services.</em></p>
+  <img src="assets/screenshots/tui-dashboard.png" alt="The terminal dashboard in English with six placeholder accounts" width="100%" />
+  <p><em>The dashboard in English: cards in two columns, each with its remaining percentage, pace icon and reset countdown. The account names are placeholders rendered from a test fixture, not real accounts.</em></p>
 </div>
 
 <div align="center">
-  <img src="assets/screenshots/tui-details.png" alt="The account details view with history sparklines" width="100%" />
-  <p><em>Enter opens the details: the binding limit, the pace per metric and the recorded history (keys <code>1</code>, <code>2</code>, <code>3</code>).</em></p>
+  <img src="assets/screenshots/tui-details.png" alt="The account details view with the binding limit and pace per metric" width="100%" />
+  <p><em>Enter opens the details: the binding limit and the pace per metric; with history recording on, keys <code>1</code>, <code>2</code> and <code>3</code> show the recorded history. Both captures are regenerated with <code>CUOTAI_TUI_SCREENSHOTS=&lt;dir&gt; cargo test -p cuotai-tui tui_documentation_screenshots -- --ignored</code> and <code>rsvg-convert -z 2</code>.</em></p>
 </div>
 
 Looking for the desktop app? See the [desktop feature reference](gui-features.md). For scripting recipes (`--json`, `--serve`, `--watch`, hooks, history and cost commands) and the accounts file, see [`advanced.md`](advanced.md).

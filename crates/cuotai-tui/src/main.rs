@@ -1,6 +1,8 @@
 mod about_view;
 mod auth_ui;
 mod canary;
+#[cfg(test)]
+mod capture;
 mod changelog_view;
 mod cost;
 mod dashboard;

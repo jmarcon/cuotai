@@ -4520,6 +4520,41 @@ mod tests {
         incidents: &[ProviderStatus],
         local_cost: Option<&cuotai_core::cost::CostSummary>,
     ) -> Vec<String> {
+        let buffer = render_view_buffer(
+            accounts,
+            reports,
+            last_good,
+            model_counts,
+            (details, selected),
+            now,
+            (width, height),
+            history,
+            incidents,
+            local_cost,
+        );
+        (0..buffer.area.height)
+            .map(|y| {
+                (0..buffer.area.width)
+                    .map(|x| buffer[(x, y)].symbol())
+                    .collect()
+            })
+            .collect()
+    }
+
+    /// [`render_view`]'s drawn buffer, colors included.
+    #[allow(clippy::too_many_arguments)]
+    fn render_view_buffer(
+        accounts: &[Account],
+        reports: &[Option<Report>],
+        last_good: &[Option<&Report>],
+        model_counts: &[Option<usize>],
+        (details, selected): (bool, usize),
+        now: DateTime<Utc>,
+        (width, height): (u16, u16),
+        history: Option<&DetailHistory>,
+        incidents: &[ProviderStatus],
+        local_cost: Option<&cuotai_core::cost::CostSummary>,
+    ) -> ratatui::buffer::Buffer {
         let panel = local_cost.map(|summary| crate::cost::CostPanel::of(summary.clone()));
         let local_cost = panel.as_ref();
         let visible = visible_indices(accounts, reports, "", true);
@@ -4560,14 +4595,186 @@ mod tests {
                 );
             })
             .unwrap();
-        let buffer = terminal.backend().buffer();
-        (0..buffer.area.height)
-            .map(|y| {
-                (0..buffer.area.width)
-                    .map(|x| buffer[(x, y)].symbol())
-                    .collect()
-            })
-            .collect()
+        terminal.backend().buffer().clone()
+    }
+
+    /// The README and `docs/tui.md` screenshots: six placeholder accounts
+    /// (no real names, e-mails or tokens) in English, 120 x 34 cells.
+    fn screenshot_fixture() -> (Vec<Account>, Vec<Option<Report>>) {
+        let account = |name: &str, provider: Provider| Account {
+            id: None,
+            name: name.into(),
+            provider,
+            credential_env: None,
+            session: None,
+            oauth: None,
+            params: Default::default(),
+            refresh_seconds: None,
+            group: None,
+        };
+        let accounts = vec![
+            account("Personal", Provider::Claude),
+            account("Work", Provider::ChatGpt),
+            account("Editor", Provider::Cursor),
+            account("Team", Provider::Copilot),
+            account("API", Provider::OpenAiApi),
+            account("Research", Provider::Groq),
+        ];
+        let quota =
+            |label: &str, used: f64, limit: f64, unit: &str, window, resets_in: i64| Metric {
+                window: Some(window),
+                resets_at: Some(at_min(resets_in)),
+                unit: unit.into(),
+                ..metric(label, Some(used), Some(limit), None)
+            };
+        let ready = |provider: Provider, metrics: Vec<Metric>| Report {
+            provider,
+            ..report(Status::Ready, metrics)
+        };
+        let reports = vec![
+            Some(ready(
+                Provider::Claude,
+                vec![
+                    quota(
+                        "Session (5h)",
+                        31.0,
+                        100.0,
+                        "%",
+                        MetricWindow::Window5h,
+                        185,
+                    ),
+                    quota(
+                        "Weekly",
+                        64.0,
+                        100.0,
+                        "%",
+                        MetricWindow::Weekly,
+                        3 * 1440 + 183,
+                    ),
+                ],
+            )),
+            Some(ready(
+                Provider::ChatGpt,
+                vec![
+                    quota(
+                        "Session (5h)",
+                        12.0,
+                        100.0,
+                        "%",
+                        MetricWindow::Window5h,
+                        240,
+                    ),
+                    quota(
+                        "Weekly",
+                        41.0,
+                        100.0,
+                        "%",
+                        MetricWindow::Weekly,
+                        5 * 1440 + 60,
+                    ),
+                ],
+            )),
+            Some(ready(
+                Provider::Cursor,
+                vec![quota(
+                    "Requests",
+                    500.0,
+                    500.0,
+                    "req",
+                    MetricWindow::Monthly,
+                    19 * 60 + 59,
+                )],
+            )),
+            Some(ready(
+                Provider::Copilot,
+                vec![quota(
+                    "Premium requests",
+                    120.0,
+                    300.0,
+                    "req",
+                    MetricWindow::Monthly,
+                    12 * 1440,
+                )],
+            )),
+            Some(ready(
+                Provider::OpenAiApi,
+                vec![Metric {
+                    kind: MetricKind::Spend,
+                    unit: "USD".into(),
+                    ..metric("Spend this month", Some(42.7), None, None)
+                }],
+            )),
+            Some(ready(
+                Provider::Groq,
+                vec![quota(
+                    "Daily requests",
+                    9650.0,
+                    10000.0,
+                    "req",
+                    MetricWindow::Daily,
+                    329,
+                )],
+            )),
+        ];
+        (accounts, reports)
+    }
+
+    /// Writes `tui-dashboard.svg` and `tui-details.svg` to
+    /// `$CUOTAI_TUI_SCREENSHOTS`; see `capture.rs` for the PNG step.
+    #[test]
+    #[ignore = "writes the documentation screenshots; run with CUOTAI_TUI_SCREENSHOTS=<dir>"]
+    fn tui_documentation_screenshots() {
+        let dir = std::path::PathBuf::from(
+            std::env::var_os("CUOTAI_TUI_SCREENSHOTS").expect("CUOTAI_TUI_SCREENSHOTS"),
+        );
+        let (accounts, reports) = screenshot_fixture();
+        for (name, details) in [("tui-dashboard", false), ("tui-details", true)] {
+            let buffer = crate::l10n::with_locale("en-US", || {
+                render_view_buffer(
+                    &accounts,
+                    &reports,
+                    &[],
+                    &[],
+                    (details, 0),
+                    at_min(0) + chrono::Duration::seconds(7),
+                    (120, 34),
+                    None,
+                    &[],
+                    None,
+                )
+            });
+            std::fs::write(
+                dir.join(format!("{name}.svg")),
+                crate::capture::svg(&buffer),
+            )
+            .unwrap();
+        }
+    }
+
+    /// The screenshot fixture renders in English, with placeholder names only.
+    #[test]
+    fn the_screenshot_fixture_is_english_and_placeholder_only() {
+        let (accounts, reports) = screenshot_fixture();
+        let text = crate::l10n::with_locale("en-US", || {
+            render_accounts(
+                &accounts,
+                &reports,
+                &[],
+                &[],
+                (false, 0),
+                at_min(0),
+                (120, 34),
+            )
+        })
+        .join("\n");
+        assert!(
+            text.contains("Personal") && text.contains("Research"),
+            "{text}"
+        );
+        for portuguese in ["contas", "renova", "Atualizado", "esgotado", "detalhes"] {
+            assert!(!text.contains(portuguese), "{portuguese}:\n{text}");
+        }
+        assert!(!text.contains('@'), "no e-mail in a screenshot");
     }
 
     #[test]

@@ -111,8 +111,8 @@ The complete list of desktop features and every setting is in the [desktop featu
 Prefer to stay in the terminal? The same engine powers an interactive dashboard with keyboard and mouse support, instant filtering and a built-in account wizard. Run `cuotai`, press `a` to add an account, and use `--once` or `--json` for scripts and status bars.
 
 <div align="center">
-  <img src="docs/assets/screenshots/tui-dashboard.png" alt="The Cuotai terminal dashboard showing six demo accounts" width="100%" />
-  <p><em>The terminal dashboard with demo accounts, captured with the Portuguese interface. The terminal follows your system language or `CUOTAI_LANG`; the guide shows the English captions.</em></p>
+  <img src="docs/assets/screenshots/tui-dashboard.png" alt="The Cuotai terminal dashboard in English with six placeholder accounts" width="100%" />
+  <p><em>The terminal dashboard in English, with placeholder accounts. Its captions follow your language.</em></p>
 </div>
 
 Keyboard shortcuts, the account wizard, filters, the command line and its exit codes are in the [terminal guide](docs/tui.md); scripting recipes (`--json`, `--serve`, `--watch`, hooks, history and cost commands) are in [advanced usage](docs/advanced.md).
