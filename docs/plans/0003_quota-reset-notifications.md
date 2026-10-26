@@ -90,7 +90,7 @@ People with window-based subscriptions (Claude 5h/week, Codex, Copilot, Kimi…)
   - **Include "other" windows**.
 
   Everything is stored in `desktop.json` (a per-device preference, never in `cuotai.toml`), with atomic writes like the other `settings.rs` fields.
-- **RF3.2** Per-account on/off with a bell icon on the card and in the details. The state lives in `desktop.json`, keyed by the account's stable key (provider + name). Renaming the account loses the preference, and this is documented. Removed accounts have their preference pruned when the configuration is saved. The icon has `aria-pressed` and an accessible label.
+- **RF3.2** Per-account on/off with a bell icon on the card and in the details. The state lives in `desktop.json`, keyed by the account's stable key (provider + name). Renaming the account loses the preference, and this is documented. *(Superseded by PRD 0029: preferences are keyed by the stable account `id`, so a rename keeps them.)* Removed accounts have their preference pruned when the configuration is saved. The icon has `aria-pressed` and an accessible label.
 - **RF3.3** Ask for the operating-system permission only when the user turns the global option on. If it is denied, show the state, guidance on opening the system settings and keep the option off. The **Send test notification** button validates the flow.
 - **RF3.4** The tray and the tooltip show the next notified reset ("Next notice: Claude 5h at 14:30") when there is one.
 - **Acceptance criterion:** a smoke test on the packaged macOS app (permission granted and denied, a real notice arriving with the window hidden), Windows and Linux when available; preferences survive a restart; in the three languages.

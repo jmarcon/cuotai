@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0038 |
-| Status | Implemented in vNEXT (owner-blocked: RF5.4, RF10, RF13.1) |
+| Status | Awaiting owner verification (RF1–RF14 delivered in vNEXT; the real-account unit check of RF5.4 and RF13.1 is the owner's, and RF10 is resolved as not available upstream) |
 | Owner | `cuotai-core` (`model`, `providers/open_router.rs`, `access`, `account_edit`, `incidents`, `models`, locales), desktop and TUI (generic rendering only) |
 | Consumers | `apps/desktop` (cards, details, account dialog, tray), `crates/cuotai-tui` (cards, details, `--once`, wizard), `export::v1` and `--watch` consumers, PRDs 0002, 0006, 0007, 0008, 0011, 0027 |
 | Depends on | PRD 0005 (RF1: the mandatory access descriptor) |

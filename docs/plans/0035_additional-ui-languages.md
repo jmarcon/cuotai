@@ -18,19 +18,19 @@
 | RF | Version | Delivery |
 |---|---|---|
 | RF1 | vNEXT | Delivered: `text::LOCALES` (fourteen rows, the ten new ones `in_progress`), `text::normalize` (alias table of RF1.4), `Locale` as a registry handle, one `include_str!` per catalog from a macro with a registry/file test in the core and the TUI, the `locale_registry` Tauri command with a generated static copy and generated pre-paint copies, the same algorithm in `i18n.js`, `CUOTAI_LANG` normalized with one warning, `set_locale` canonical for built-in codes (decision D11). |
-| RF2 | — | Proposed. |
-| RF3 | — | Proposed. |
+| RF2 | vNEXT | Delivered: `zh-CN`, `fr`, `de`, `ja`, `ko`, `hi-IN`, `id-ID`, `ru`, `tr` and `vi` core catalogs (13 files with `pt-BR`, `es` and `it`, 14 languages with the embedded `en-US`), every row `Shipped`, with the parity, placeholder and plural tests walking all of them. They are machine drafts: `_meta.status = "machine-translated, needs native review"` and `reviewed = false`; native review (RF11.2, RF13.5) is owner work. |
+| RF3 | vNEXT | Delivered: ten desktop catalogs next to `pt-BR`, `es`, `it` and `en-US`, merged under the core's as before; the generated pre-paint copies carry every language; the same machine-draft status. |
 | RF4 | vNEXT | Delivered: plural objects in every catalog layer (`text::Catalog`, `text::Message`), `text::plural_category` cross-checked against a recorded `Intl.PluralRules` fixture, `Localized::plural`, the nine core count texts as plural objects in pt-BR, es and it, plural objects of core texts in the desktop `tl()`. |
-| RF5 | — | Proposed. |
-| RF6 | — | Proposed. |
-| RF7 | — | Proposed. |
-| RF8 | — | Proposed. |
-| RF9 | — | Proposed. |
+| RF5 | vNEXT | Delivered: `crates/cuotai-tui/locales` holds the chrome catalogs of the thirteen files (PRD 0034 RF2 extracted them), `CUOTAI_LANG` is normalized through the registry with one warning, and `freshness::age_label` and the duration patterns are catalog texts. |
+| RF6 | vNEXT (partial) | RF6.1 delivered: the dashboard and the wizard measure terminal cells with `unicode-width` (CJK and accented text wrap, align and hit-test by display width). Open: the grapheme-aware text cursor (RF6.2), the ambiguous-width table and the ASCII fallbacks of the pace and status shapes for CJK locales (RF6.3, RF6.7), and the per-locale snapshots at 80 × 24 and 120 × 40. |
+| RF7 | vNEXT | Delivered: `flags.js` draws the six new flags, the selector lists the fourteen languages with flag and endonym (each name carries its `lang`), the active option is announced in its own language, and DS-CMP-SEL-3 records the 1 px hairline for the white-field flags (Japan, South Korea, Indonesia). |
+| RF8 | vNEXT (partial) | Delivered: `<html lang>` before first paint (PRD 0022 RF17.6) and `--font-script` system stacks per script (Simplified Chinese, Japanese, Korean, Devanagari) in `themes.css`, with a core test that every non-Latin, non-Cyrillic script of the registry has a stack. The remaining typography items (line-height per script, `font-synthesis`, line breaking, hyphenation) are not verified in this sweep and stay open. |
+| RF9 | vNEXT (partial) | Delivered: the `en-XA` pseudo-locale (PRD 0022 RF14.3) and the overflow check over every language and at 200 % zoom in the blocking `ui checks` CI job. Open: the stored budget table of RF9.2 and the translators' length flags of RF9.3. |
 | RF10 | vNEXT | Partly delivered: RF10.3 (desktop countdowns use the core's `text.duration.*` patterns and two new UI patterns), RF10.5 (`fold()` in `util.js` and its Rust twin `text::fold` for the TUI filter), RF10.6 (explicit `localeCompare` locales). RF10.1, RF10.2 and RF10.4 need no code (the registry code already reaches `Intl`); their per-language screenshot checks belong to the language lanes (RF13). |
-| RF11 | — | Proposed. |
-| RF12 | — | Proposed. |
-| RF13 | — | Proposed. |
-| RF14 | — | Proposed. |
+| RF11 | vNEXT (partial) | The process is in `apps/desktop/ui/locales/README.md` (the registry, the four steps that ship a language, the plural categories and the parity rules); each catalog states its provenance in `_meta`. Native reviewers and the critical-string review are owner work. |
+| RF12 | vNEXT (partial) | User language packs keep working and a pack with the code of a language overrides the built-in catalog. The community contribution guide beyond the locales README is not written. |
+| RF13 | — | Open: the per-language screenshot evidence, the cross-OS font checks and the reviewers' sign-off are owner work. |
+| RF14 | vNEXT (partial) | `docs/tui.md` (`CUOTAI_LANG` normalization), the locales README and `AGENTS.md` describe the registry; the README states 14 languages. |
 
 ## 1. Context
 

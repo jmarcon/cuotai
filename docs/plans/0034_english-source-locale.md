@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0034 |
-| Status | In progress |
+| Status | Implemented (RF1–RF7 in vNEXT; the raw metric identifiers stay as the adapters emit them, with additive localized `label_text`/`unit_text`/`period_text` beside them) |
 | Owner | `cuotai-core` (`text`, catalogs, every `Localized` fallback), TUI/CLI (chrome texts, help), desktop (catalog loading) |
 | Consumers | every front end, `--json`/`--json-v1`/`--serve`/`--watch` consumers reading `fallback` or `Report.notes`, translators, PRD 0035 (additional languages) |
 | Depends on | PRD 0001 RF8 (the `Localized` contract and core catalogs) |

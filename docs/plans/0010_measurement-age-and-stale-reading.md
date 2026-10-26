@@ -67,7 +67,7 @@ In the 2026-10-19 market analysis: Quotum shows how long ago each account was me
 
 ### RF3 — Display on the desktop (high priority)
 
-- **RF3.1** Each card shows "3 min ago" (relative text updated every minute by the front end, computed from the `checked_at` delivered by the backend) and a freshness indicator (`Fresh`, `Aging`, `Stale`) with an icon and text, not color alone.
+- **RF3.1** Each card shows "3 min ago" (relative text updated every minute by the front end, computed from the `checked_at` delivered by the backend) and a freshness indicator (`Fresh`, `Aging`, `Stale`) with an icon and text, not color alone. *Owner decision of 2026-10-25, aligned with the design system's exceptions-only rule: a `Fresh` reading shows no indicator; only `Aging` and `Stale` carry the icon and text (never color alone). The age text itself is always shown.*
 - **RF3.2** When there is a `last_good` and the current report failed, the card shows the old metrics with a "Stale · 42 min ago" badge and the cause of the failure (the existing localized message). Bars are dimmed and not animated.
 - **RF3.3** Tray and popover repeat the age and the badge. The icon tooltip indicates the age of the oldest account.
 - **Acceptance criterion:** a smoke test in three languages with a healthy account, an aging one, one failing with a preserved reading and one failing without a reading; the badge disappears on the next successful query.

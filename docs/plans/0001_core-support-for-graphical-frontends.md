@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0001 |
-| Status | Implemented (0.7.x; FIX-08 in 0.80.0) |
+| Status | Implemented (RF1–RF11 in 0.1.1 to 0.7.1, internal versions; FIX-08 in 0.80.0; the RF8 catalog wording and the FIX-08 acceptance were later amended by PRDs 0033, 0034 and 0035, see the tables) |
 | Owner | Backend (`cuotai-core`) |
 | Consumers | `apps/desktop` (Tauri), `cuotai-tui` |
 | Extended by | PRD 0029 (stable account `id` in the TOML and the account operations), PRD 0034 (English core fallback of `Localized`) |
@@ -24,7 +24,7 @@ All RFs were implemented in the core, the TUI and the desktop app, one at a time
 | RF5 | 0.4.1, 0.7.1 | Obsolete `credential_modes` removed; account identity (badges, e-mail, ARN) derived in the core. |
 | RF6 | 0.4.2 | Backoff never shortens configured intervals above 1 h. |
 | RF7 | 0.4.3 | `AccountClass`, `MetricState` (`state` tag) and `CredentialKind` serialized directly from the core. |
-| RF8 | 0.5.0 | Core `en-US`/`es` catalogs for every emitted id; the desktop app merges them, the TUI resolves through `CUOTAI_LANG`. |
+| RF8 | 0.5.0 | Core catalogs for every emitted id; the desktop app merges them, the TUI resolves through `CUOTAI_LANG`. Amended by PRDs 0034 and 0035: `en-US` is the embedded English fallback of `Localized` (there is no `en-US.json` in the core), and the core ships `pt-BR`, `es`, `it` and ten more catalogs (13 files, 14 languages with `en-US`). |
 | RF9 | 0.5.1 | Shared order without a spurious `params = {}` in the TOML. |
 | RF10 | 0.6.0 | `Metric.kind` and `Metric.window` filled in by the adapters; text-based recognition is gone. |
 | RF11 | 0.7.0 | Applicability per option and authentication type, replacement with a warning and validation in `build_account`. |
@@ -180,7 +180,7 @@ Added on 2026-10-23 (owner decision J): defects found by the 2026-10-21 requirem
 
 | ID | Requirement | Acceptance |
 |---|---|---|
-| FIX-08 | `Config::validate` (`lib.rs`, about lines 105–115) rejects a global `refresh_seconds` below 300 even when the AWS Bedrock account sets its own interval. The metered floor applies only to metered accounts **without** their own override, is checked per account, and the error names the field and the account (`accounts[N].refresh_seconds`, or the global key) instead of the generic `ConfigError::Bounds`. The metered default and floor themselves (3600 s default, 900 s floor, a cross-process last-query lock) are set by PRD 0033. | Validation tests: a global 120 s with a Bedrock account at 3600 s is accepted; a Bedrock account without an override under a global 120 s is rejected with a message naming the field; non-metered accounts are unaffected. |
+| FIX-08 | `Config::validate` (`lib.rs`, about lines 105–115) rejects a global `refresh_seconds` below 300 even when the AWS Bedrock account sets its own interval. The metered floor applies only to metered accounts **without** their own override, is checked per account, and the error names the field and the account (`accounts[N].refresh_seconds`, or the global key) instead of the generic `ConfigError::Bounds`. The metered default and floor themselves (3600 s default, 900 s floor, a cross-process last-query lock) are set by PRD 0033. | Validation tests: a global 120 s with a Bedrock account at 3600 s is accepted; a Bedrock account without an override under a global 120 s is rejected with a message naming the field; non-metered accounts are unaffected. **Superseded in part by PRD 0033 RF5:** a metered account without an override under a short global interval now uses the metered default (3600 s) instead of being rejected; only an account override below the floor is rejected, and the error still names `accounts[N].refresh_seconds`. |
 
 ## Technical assessment — core and TUI (2026-10-01, historical)
 

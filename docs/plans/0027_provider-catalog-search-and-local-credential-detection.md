@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0027 |
-| Status | In progress |
+| Status | Implemented (RF1–RF7 in vNEXT; Antigravity stays "to verify" in RF6.4 until an official path is found) |
 | Owner | `cuotai-core` (`account_edit` catalog and search, presence detection), desktop and TUI account editors |
 | Consumers | `apps/desktop/ui/js/account-dialog.js`, `crates/cuotai-tui/src/wizard.rs`, PRD 0025 (RF5.4, RF6) |
 | Depends on | PRD 0005 (RF1: `access::describe` credential class, level and metering) |
@@ -72,7 +72,7 @@ Credentials are never imported silently, by design: `providers/subscriptions.rs`
 
 ### RF3 — Desktop catalog picker (high priority)
 
-- **RF3.1** The `<select>` in `account-dialog.js` is replaced by a search field (DS-CMP-SRCH) over a grid of provider tiles (DS-ID-3) at 560 px and above or a list below (DS-CMP-CAT-1), each with the display name, a muted subtitle naming the sign-in method, the one-line hint, the level chip and an outlined "Connect" button (DS-CMP-LIST-6); **sign-in methods as section labels** when the query is empty (categories are no longer section labels); providers billed per query carry the "Billed per query" warning chip (DS-CMP-BADGE-2) in the row and on the account afterwards.
+- **RF3.1** The `<select>` in `account-dialog.js` is replaced by a search field (DS-CMP-SRCH) over a grid of provider tiles (DS-ID-3) at 560 px and above or a list below (DS-CMP-CAT-1), each with the display name, a muted subtitle naming the sign-in method, the one-line hint, ~~the level chip~~ (*dropped by the owner's rule of 2026-10-25: no integration-status labels in the UI; the level lives in `docs/providers.md`*) and an outlined "Connect" button (DS-CMP-LIST-6); **sign-in methods as section labels** when the query is empty (categories are no longer section labels); providers billed per query carry the "Billed per query" warning chip (DS-CMP-BADGE-2) in the row and on the account afterwards.
 - **RF3.2** Keyboard: typing focuses the search, arrows move between results, `Enter` chooses, `Esc` clears then closes; results announce their count politely to screen readers.
 - **RF3.3** Editing an existing account keeps the provider locked (today's `disabled` select) and shows the entry as a read-only header.
 - **RF3.4** Detected local sources (RF6) show a "Found on this device" chip on their tile (DS-CMP-CAT-2); it never implies a working account.
@@ -129,7 +129,7 @@ Credentials are never imported silently, by design: `providers/subscriptions.rs`
 ## 6. Non-functional requirements
 
 - **Privacy:** presence checks only; no content, size or timestamp read during detection; consent before every read; credentials go to the OS vault as today; nothing about detection is logged or exported.
-- **Performance:** search answers in under 5 ms for the full catalog; detection completes in under 50 ms and never blocks the dialog (run off the UI thread).
+- **Performance:** search answers in under 5 ms for the full catalog; detection completes in under 50 ms and never blocks the dialog (run off the UI thread). Guard tests in the core hold the search and the presence check to these budgets (the PRD figure in an optimized build, twenty times it in the debug suite).
 - **Accessibility:** combobox/listbox semantics for the picker; hints are text; badges have accessible names.
 - **i18n:** display names, aliases per language where common, hints in pt-BR, en-US, es and it.
 
@@ -161,7 +161,7 @@ RF1 and RF2 first (pure core). RF3 and RF4 next. RF5 changes both editors and is
 | Detection perceived as snooping | presence only, on demand, explained, dismissible |
 | Path tables drift as tools change | one reviewed table with references; missing paths simply detect nothing |
 | Aliases collide | tie order by catalog; tests for known collisions |
-| Recommendation picks a mode with weaker access | ordering rule documented; the level chip stays visible |
+| Recommendation picks a mode with weaker access | ordering rule documented; the level is not shown in the picker (owner rule of 2026-10-25), so the rule and `docs/providers.md` carry the transparency |
 
 ## 11. Order of execution and verification
 

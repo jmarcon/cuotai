@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0014 |
-| Status | In progress (RF1, RF4 and RF5 delivered in 0.71.0; RF2.1/RF2.3 and RF3.1 packaging delivered in vNEXT, live-widget acceptance on a clean Mac pending; RF5 `widget.json` for Windows/Linux kept, owner decision G of 2026-10-23) |
+| Status | Awaiting owner verification (RF1, RF4 and RF5 delivered in 0.71.0; RF2, RF3.1 packaging and RF3.4 localization delivered in vNEXT; only the live-widget acceptance on a signed build on a clean Mac remains, `0000_control.md` §2.1; RF5 `widget.json` for Windows/Linux kept, owner decision G of 2026-10-23) |
 | Owner | Desktop (macOS) and `cuotai-core` (snapshot file) |
 | Consumers | `apps/desktop`, widget extension (Swift), third-party integrations (Waybar, GNOME, KDE) that read the same file |
 | Depends on | PRD 0012 (RF1: the `export::v1` contract); PRD 0019 (signing and developer profile); it uses PRDs 0006, 0007, 0009 and 0010 |
@@ -23,6 +23,9 @@
 | RF5 | 0.71.0 | Implemented — RF5.1: the same snapshot is written to `<local data>/cuotai/widget.json` on Windows and Linux for third-party integrations (Waybar, GNOME, KDE), documented in `docs/export-v1.md` and `docs/widgets.md`. |
 
 Owner prerequisites (PRD 0019): a paid Apple developer account, the registered app group, a provisioning profile with the app-group entitlement, Developer ID signing of the app and the `.appex`, notarization of the bundle containing the extension, and the live-widget visual acceptance on a clean Mac.
+
+**Owner decisions (2026-10-25):** RF2.3 is relaxed on purpose: a build without the app group keeps the switch enabled, writes the snapshot to the documented local-data path and shows the `settings.widgets.macos` warning, instead of disabling the feature (dev and ad-hoc builds stay usable); RF3.4 is delivered by `Localizable.xcstrings` in four languages.
+
 
 ## 1. Context
 

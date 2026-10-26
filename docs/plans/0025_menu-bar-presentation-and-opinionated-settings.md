@@ -123,7 +123,7 @@ Settings are being redesigned by PRD 0020 (Proposed): a dedicated window with a 
 
 ### RF9 — Custom display mode (medium priority; added 2026-10-23, owner decision; `docs/design-system.md` DS-CMP-DENS-1..5)
 
-- **RF9.1** Settings → Dashboard gains "Rows" with four presets: **Detailed**, **Standard** (default), **Minimal** and **Custom**, as option cards (DS-CMP-CHK-3), with the element values of DS-CMP-DENS-1 for each preset.
+- **RF9.1** Settings → Dashboard gains "Rows" with four presets: **Detailed**, **Standard** (default), **Minimal** and **Custom**, as option cards (DS-CMP-CHK-3), with the element values of DS-CMP-DENS-1 for each preset. *Amended on 2026-10-25: the presets are a segmented control on the "Choose what a row shows" sub-page, as in the approved mockup `50-settings-display-custom`, not option cards on the page.*
 - **RF9.2** **Custom** lists per-element switches in the DS-CMP-DENS-1 order: plan badge, account label, monogram, unit word, pace corridor, status label, ring glyph, runs-out chip, returns chip, freshness age, incident mark, extra-usage sub-row and sub-limit preview. Choosing a preset sets the switches to its values; changing a switch selects **Custom**.
 - **RF9.3** **Never hideable:** the figure and the bar (meter), in every preset and in Custom; when a provider has several accounts the account label stays as the row title whatever the switch (DS-CMP-DENS-2).
 - **RF9.4** **Hidden information only moves** (DS-CMP-DENS-2): it stays in the expanded row, the details, the tooltip and the row's accessible name; hidden elements leave no gap. **Minimal** shows one status chosen by priority: incident > stale > exhausted or blocked (with its return time) > runs out before the reset > pace stage (DS-CMP-DENS-3).

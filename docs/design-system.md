@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Draft, normative once the UI refresh PRD adopts it |
+| Status | Normative (adopted by PRD 0022, whose RF1–RF13 are delivered; amendments in section 10) |
 | Applies to | `apps/desktop/ui` (tray popover `tray.html`, main window `index.html`, dialogs, the settings window of PRD 0020) |
 | Related | `apps/desktop/ui/css/themes/README.md` (theme contract), PRD 0004 (motion), 0007 (pace), 0009 (binding limit), 0010 (age and stale reading), 0011 (incidents), 0014 (widgets), 0020 (settings window) |
 
