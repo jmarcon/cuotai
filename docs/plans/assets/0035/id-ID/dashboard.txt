@@ -1,0 +1,40 @@
+┌ CUOTAI  |  6 akun  |  00:00:00 UTC  |  Pembaruan: — ─────────────────────────────────────────────────────────────────┐
+│config.toml                                                                                                           │
+│                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌ Personal ────────────────────────────────────────────────┐┌ Work ────────────────────────────────────────────────────┐
+│Claude · Terbaru · Tersedia · 7 dtk lalu                  ││ChatGPT / Codex · Terbaru · Tersedia · 7 dtk lalu         │
+│↑ Weekly: 64.00 % / 100.00                                ││↑ Weekly: 41.00 % / 100.00                                │
+│███████████████     36%                   diperbarui 3d 03││███████████████████ 59% █                 diperbarui 5d 00│
+│↓ Session (5h): 31.00 % / 100.00                          ││↓ Session (5h): 12.00 % / 100.00                          │
+│███████████████████ 69% █████             diperbarui 3h 04││███████████████████ 88% █████████████     diperbarui 3h 59│
+│                                                          ││                                                          │
+└──────────────────────────────────────────────────────────┘└──────────────────────────────────────────────────────────┘
+┌ Editor ──────────────────────────────────────────────────┐┌ Team ────────────────────────────────────────────────────┐
+│Cursor · Terbaru · Habis · 7 dtk lalu                     ││GitHub Copilot · Terbaru · Tersedia · 7 dtk lalu          │
+│✕ Requests: 500.00 req / 500.00                           ││↓ Premium requests: 120.00 req / 300.00                   │
+│                  habis                   diperbarui 19h 5││███████████████████ 60% █                 diperbarui 11d 2│
+│                                                          ││                                                          │
+│                                                          ││                                                          │
+│                                                          ││                                                          │
+└──────────────────────────────────────────────────────────┘└──────────────────────────────────────────────────────────┘
+┌ API ─────────────────────────────────────────────────────┐┌ Research ────────────────────────────────────────────────┐
+│OpenAI API · Terbaru · Tersedia · 7 dtk lalu              ││Groq · Terbaru · Tersedia · 7 dtk lalu                    │
+│Spend this month: 42.70 USD                               ││↑ Daily requests: 9650.00 req / 10000.00                  │
+│batas tidak dilaporkan                                    ││█                    4%                   diperbarui 5h 28│
+│                                                          ││                                                          │
+│                                                          ││                                                          │
+│                                                          ││                                                          │
+└──────────────────────────────────────────────────────────┘└──────────────────────────────────────────────────────────┘
+
+
+
+
+
+
+
+
+
+
+ ↑↓/jk PgUp/PgDn pilih  / filter  c hapus  r semua · R terpilih  x ekstensi  S statistik  ? tentang  q keluar
+Enter detail • a tambah • e ubah • K geser ↑ • J geser ↓ • d/Del hapus • u sembunyikan tanpa data • 1/6 akun

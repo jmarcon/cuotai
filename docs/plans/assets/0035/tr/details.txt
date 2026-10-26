@@ -1,0 +1,40 @@
+┌ CUOTAI  |  6 hesap  |  00:00:00 UTC  |  Güncelleme: — ───────────────────────────────────────────────────────────────┐
+│config.toml                                                                                                           │
+│                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌ Ayrıntılar · eksik ≠ sıfır ──────────────────────────────────────────────────────────────────────────────────────────┐
+│ HESAP  Personal  ·  Claude                                                                                           │
+│  ← —    ·    1/6    ·    → Work                                                                                      │
+│                                                                                                                      │
+│DURUM  Güncel   ·   sorgulandı 7 sn önce (00:00:00 UTC · 21:00:00 yerel)                                              │
+│SINIR  en kısıtlayıcı: haftalık penceresi, %64                                                                        │
+│                                                                                                                      │
+│KOTALAR VE KULLANIM                                                                                                   │
+│                                                                                                                      │
+│Session (5h)                                                                                                          │
+│31.00 % / 100.00                                                                                                      │
+│███████████████████████████████████████████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  3h 04m % 69 kaldı       │
+│↓ Session (5h): 7 puan yedekte · sıfırlanmaya kadar yeter   ·   beklenen %38 kullanım · doğrusal tahmin               │
+│                                                                                                                      │
+│Weekly   ◆ bağlayıcı                                                                                                  │
+│64.00 % / 100.00                                                                                                      │
+│█████████████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  3d 03h % 36 kaldı       │
+│↑ Hızın 9 puan üzerinde · 2026-01-03 01:17 saatinde tükenir, sıfırlanmadan 22h 45m önce   ·   beklenen %55 kullanım · │
+│doğrusal tahmin                                                                                                       │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+ ↑↓/jk PgUp/PgDn seç  / filtre  c temizle  r tümü · R seçili  x uzantılar  S istatistikler  ? hakkında  q çık
+←→ hesaplar • ↑↓/[ ] kaydır • Enter/Esc geri • m modeller • b bildir • 1/2/3 geçmiş • a ekle • e düzenle • K taşı ↑ •
+J taşı ↓ • d/Del sil • u verisizleri gizle • 1/6 hesap

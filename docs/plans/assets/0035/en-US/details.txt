@@ -1,0 +1,40 @@
+┌ CUOTAI  |  6 accounts  |  00:00:00 UTC  |  Update: — ────────────────────────────────────────────────────────────────┐
+│config.toml                                                                                                           │
+│                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌ Details · missing ≠ zero ────────────────────────────────────────────────────────────────────────────────────────────┐
+│ ACCOUNT  Personal  ·  Claude                                                                                         │
+│  ← —    ·    1/6    ·    → Work                                                                                      │
+│                                                                                                                      │
+│STATUS  Up to date   ·   queried 7 s ago (00:00:00 UTC · 21:00:00 local)                                              │
+│LIMIT  most restrictive: weekly window at 64%                                                                         │
+│                                                                                                                      │
+│QUOTAS AND USAGE                                                                                                      │
+│                                                                                                                      │
+│Session (5h)                                                                                                          │
+│31.00 % / 100.00                                                                                                      │
+│███████████████████████████████████████████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  3h 04m  69% left        │
+│↓ Session (5h): 7 points in reserve · lasts until the reset   ·   expected 38% used · linear estimate                 │
+│                                                                                                                      │
+│Weekly   ◆ binding                                                                                                    │
+│64.00 % / 100.00                                                                                                      │
+│█████████████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  3d 03h  36% left        │
+│↑ 9 points above the pace · runs out at 2026-01-03 01:17, 22h 45m before the reset   ·   expected 55% used · linear   │
+│estimate                                                                                                              │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+ ↑↓/jk PgUp/PgDn select  / filter  c clear  r all · R selected  x extensions  S statistics  ? about  q quit
+←→ accounts • ↑↓/[ ] scroll • Enter/Esc back • m models • b report • 1/2/3 history • a add • e edit • K move ↑ •
+J move ↓ • d/Del delete • u hide no data • 1/6 accounts

@@ -1,0 +1,40 @@
+┌ CUOTAI  |  6 cuentas  |  00:00:00 UTC  |  Actualización: — ──────────────────────────────────────────────────────────┐
+│config.toml                                                                                                           │
+│                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌ Detalles · ausente ≠ cero ───────────────────────────────────────────────────────────────────────────────────────────┐
+│ CUENTA  Personal  ·  Claude                                                                                          │
+│  ← —    ·    1/6    ·    → Work                                                                                      │
+│                                                                                                                      │
+│ESTADO  Al día   ·   consultado hace 7 s (00:00:00 UTC · 21:00:00 local)                                              │
+│LÍMITE  más restrictiva: ventana semanal al 64%                                                                       │
+│                                                                                                                      │
+│CUOTAS Y CONSUMO                                                                                                      │
+│                                                                                                                      │
+│Session (5h)                                                                                                          │
+│31.00 % / 100.00                                                                                                      │
+│███████████████████████████████████████████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  3h 04m  69% restante    │
+│↓ Session (5h): 7 puntos de reserva · dura hasta el reinicio   ·   esperado 38% usado · estimación lineal             │
+│                                                                                                                      │
+│Weekly   ◆ limitante                                                                                                  │
+│64.00 % / 100.00                                                                                                      │
+│█████████████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  3d 03h  36% restante    │
+│↑ 9 puntos por encima del ritmo · se agota a las 2026-01-03 01:17, 22h 45m antes del reinicio   ·   esperado 55% usado│
+│· estimación lineal                                                                                                   │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+ ↑↓/jk PgUp/PgDn seleccionar  / filtrar  c limpiar  r todas · R seleccionada  x extensiones  S estadísticas  ? acerca de
+q salir
+←→ cuentas • ↑↓/[ ] desplazar • Enter/Esc volver • m modelos • b informar • 1/2/3 historial • a añadir • e editar •
+K mover ↑ • J mover ↓ • d/Del eliminar • u ocultar sin datos • 1/6 cuentas

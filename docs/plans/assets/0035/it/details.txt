@@ -1,0 +1,40 @@
+┌ CUOTAI  |  6 account  |  00:00:00 UTC  |  Aggiornamento: —───────────────────────────────────────────────────────────┐
+│config.toml                                                                                                           │
+│                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌ Dettagli · assente ≠ zero────────────────────────────────────────────────────────────────────────────────────────────┐
+│ ACCOUNTPersonal  ·  Claude                                                                                           │
+│  ← —    ·    1/6    ·    → Work                                                                                      │
+│                                                                                                                      │
+│STATOAggiornato   ·   interrogato 7 s fa (00:00:00 UTC · 21:00:00 locale)                                             │
+│LIMITEpiù restrittiva: finestra settimanale al 64%                                                                    │
+│                                                                                                                      │
+│QUOTE E CONSUMI                                                                                                       │
+│                                                                                                                      │
+│Session (5h)                                                                                                          │
+│31.00 % / 100.00                                                                                                      │
+│███████████████████████████████████████████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  3h 04m  69% rimanente   │
+│↓ Session (5h): 7 punti di riserva · dura fino al reset   ·   previsto 38% usato · stima lineare                      │
+│                                                                                                                      │
+│Weekly   ◆ vincolante                                                                                                 │
+│64.00 % / 100.00                                                                                                      │
+│█████████████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  3d 03h  36% rimanente   │
+│↑ 9 punti sopra il ritmo · si esaurisce alle 2026-01-03 01:17, 22h 45m prima del reset   ·   previsto 55% usato ·     │
+│stima lineare                                                                                                         │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+ ↑↓/jk PgUp/PgDn seleziona  / filtra  c svuota  r tutti · R selezionato  x estensioni  S statistiche  ? informazioni
+q esci
+←→ account • ↑↓/[ ] scorri • Enter/Esc indietro • m modelli • b segnala • 1/2/3 cronologia • a aggiungi • e modifica •
+K sposta ↑ • J sposta ↓ • d/Del elimina • u nascondi senza dati • 1/6 account

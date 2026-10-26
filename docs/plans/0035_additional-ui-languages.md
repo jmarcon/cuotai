@@ -29,7 +29,7 @@
 | RF10 | vNEXT | Partly delivered: RF10.3 (desktop countdowns use the core's `text.duration.*` patterns and two new UI patterns), RF10.5 (`fold()` in `util.js` and its Rust twin `text::fold` for the TUI filter), RF10.6 (explicit `localeCompare` locales). RF10.1, RF10.2 and RF10.4 need no code (the registry code already reaches `Intl`); their per-language screenshot checks belong to the language lanes (RF13). |
 | RF11 | vNEXT (partial) | The process is in `apps/desktop/ui/locales/README.md` (the registry, the four steps that ship a language, the plural categories and the parity rules); each catalog states its provenance in `_meta`. Native reviewers and the critical-string review are owner work. |
 | RF12 | vNEXT (partial) | User language packs keep working and a pack with the code of a language overrides the built-in catalog. The community contribution guide beyond the locales README is not written. |
-| RF13 | — | Open: the per-language screenshot evidence, the cross-OS font checks and the reviewers' sign-off are owner work. |
+| RF13 | vNEXT | RF13.2 `TestBackend` part delivered: `dashboard::tests::tui_locale_snapshots` (ignored; `CUOTAI_TUI_LOCALE_SNAPSHOTS=<dir>`) renders the dashboard and the details view at 120 x 40 in each of the fourteen languages, glyph pass included, as SVG and text under `docs/plans/assets/0035/<code>/`. The `--once` text per language and the real-terminal captures (Windows Terminal or iTerm2 for zh-CN, ja, ko, hi-IN) are owner steps. |
 | RF14 | vNEXT (partial) | `docs/tui.md` (`CUOTAI_LANG` normalization), the locales README and `AGENTS.md` describe the registry; the README states 14 languages. |
 
 ## 1. Context

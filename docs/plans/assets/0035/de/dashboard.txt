@@ -1,0 +1,40 @@
+┌ CUOTAI  |  6 Konten  |  00:00:00 UTC  |  Aktualisierung: — ──────────────────────────────────────────────────────────┐
+│config.toml                                                                                                           │
+│                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌ Personal ────────────────────────────────────────────────┐┌ Work ────────────────────────────────────────────────────┐
+│Claude · Aktuell · Verfügbar · vor 7 Sek.                 ││ChatGPT / Codex · Aktuell · Verfügbar · vor 7 Sek.        │
+│↑ Weekly: 64.00 % / 100.00                                ││↑ Weekly: 41.00 % / 100.00                                │
+│███████████████     36%                   erneuert 3d 03h ││███████████████████ 59% █                 erneuert 5d 00h │
+│↓ Session (5h): 31.00 % / 100.00                          ││↓ Session (5h): 12.00 % / 100.00                          │
+│███████████████████ 69% █████             erneuert 3h 04m ││███████████████████ 88% █████████████     erneuert 3h 59m │
+│                                                          ││                                                          │
+└──────────────────────────────────────────────────────────┘└──────────────────────────────────────────────────────────┘
+┌ Editor ──────────────────────────────────────────────────┐┌ Team ────────────────────────────────────────────────────┐
+│Cursor · Aktuell · Erschöpft · vor 7 Sek.                 ││GitHub Copilot · Aktuell · Verfügbar · vor 7 Sek.         │
+│✕ Requests: 500.00 req / 500.00                           ││↓ Premium requests: 120.00 req / 300.00                   │
+│                erschöpft                 erneuert 19h 58m││███████████████████ 60% █                 erneuert 11d 23h│
+│                                                          ││                                                          │
+│                                                          ││                                                          │
+│                                                          ││                                                          │
+└──────────────────────────────────────────────────────────┘└──────────────────────────────────────────────────────────┘
+┌ API ─────────────────────────────────────────────────────┐┌ Research ────────────────────────────────────────────────┐
+│OpenAI API · Aktuell · Verfügbar · vor 7 Sek.             ││Groq · Aktuell · Verfügbar · vor 7 Sek.                   │
+│Spend this month: 42.70 USD                               ││↑ Daily requests: 9650.00 req / 10000.00                  │
+│Limit nicht angegeben                                     ││█                    4%                   erneuert 5h 28m │
+│                                                          ││                                                          │
+│                                                          ││                                                          │
+│                                                          ││                                                          │
+└──────────────────────────────────────────────────────────┘└──────────────────────────────────────────────────────────┘
+
+
+
+
+
+
+
+
+
+ ↑↓/jk PgUp/PgDn auswählen  / filtern  c leeren  r alle · R ausgewählte  x Erweiterungen  S Statistik  ? Über  q beenden
+Enter Details • a hinzufügen • e bearbeiten • K nach ↑ • J nach ↓ • d/Entf löschen • u ohne Daten ausblenden •
+1/6 Konten

@@ -4786,6 +4786,64 @@ mod tests {
         }
     }
 
+    /// PRD 0035 RF13.2: a 120 x 40 `TestBackend` capture of the dashboard
+    /// and the details view in every shipped language, written as SVG and
+    /// plain text to `$CUOTAI_TUI_LOCALE_SNAPSHOTS/<code>/` (the plan keeps
+    /// them under `docs/plans/assets/0035/`). The glyph pass of a real
+    /// frame (`palette::finish`) runs too, so CJK captures show the ASCII
+    /// fallbacks of RF6.7.
+    #[test]
+    #[ignore = "writes the RF13.2 evidence; run with CUOTAI_TUI_LOCALE_SNAPSHOTS=<dir>"]
+    fn tui_locale_snapshots() {
+        let dir = std::path::PathBuf::from(
+            std::env::var_os("CUOTAI_TUI_LOCALE_SNAPSHOTS").expect("CUOTAI_TUI_LOCALE_SNAPSHOTS"),
+        );
+        let (accounts, reports) = screenshot_fixture();
+        for row in cuotai_core::text::LOCALES
+            .iter()
+            .filter(|row| row.is_translated())
+        {
+            let out = dir.join(row.code);
+            std::fs::create_dir_all(&out).unwrap();
+            for (name, details) in [("dashboard", false), ("details", true)] {
+                let mut buffer = crate::l10n::with_locale(row.code, || {
+                    render_view_buffer(
+                        &accounts,
+                        &reports,
+                        &[],
+                        &[],
+                        (details, 0),
+                        at_min(0) + chrono::Duration::seconds(7),
+                        (120, 40),
+                        None,
+                        &[],
+                        None,
+                    )
+                });
+                let mode = crate::glyphs::mode_from(|_| None, row.code);
+                crate::glyphs::apply(&mut buffer, mode);
+                let text: String = (0..buffer.area.height)
+                    .map(|y| {
+                        let mut line = String::new();
+                        let mut x = 0;
+                        while x < buffer.area.width {
+                            let symbol = buffer[(x, y)].symbol();
+                            line.push_str(symbol);
+                            x += u16::try_from(cells(symbol).max(1)).unwrap_or(1);
+                        }
+                        line.trim_end().to_owned() + "\n"
+                    })
+                    .collect();
+                std::fs::write(out.join(format!("{name}.txt")), text).unwrap();
+                std::fs::write(
+                    out.join(format!("{name}.svg")),
+                    crate::capture::svg(&buffer),
+                )
+                .unwrap();
+            }
+        }
+    }
+
     /// The screenshot fixture renders in English, with placeholder names only.
     #[test]
     fn the_screenshot_fixture_is_english_and_placeholder_only() {

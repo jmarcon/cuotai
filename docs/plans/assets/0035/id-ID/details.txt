@@ -1,0 +1,40 @@
+┌ CUOTAI  |  6 akun  |  00:00:00 UTC  |  Pembaruan: — ─────────────────────────────────────────────────────────────────┐
+│config.toml                                                                                                           │
+│                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌ Detail · hilang ≠ nol ───────────────────────────────────────────────────────────────────────────────────────────────┐
+│ AKUN  Personal  ·  Claude                                                                                            │
+│  ← —    ·    1/6    ·    → Work                                                                                      │
+│                                                                                                                      │
+│STATUS  Terbaru   ·   dikueri 7 dtk lalu (00:00:00 UTC · 21:00:00 lokal)                                              │
+│BATAS  paling membatasi: jendela mingguan pada 64%                                                                    │
+│                                                                                                                      │
+│KUOTA DAN PENGGUNAAN                                                                                                  │
+│                                                                                                                      │
+│Session (5h)                                                                                                          │
+│31.00 % / 100.00                                                                                                      │
+│███████████████████████████████████████████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  3h 04m sisa  69%        │
+│↓ Session (5h): 7 poin cadangan · cukup hingga reset   ·   diharapkan 38% terpakai · perkiraan linear                 │
+│                                                                                                                      │
+│Weekly   ◆ pengikat                                                                                                   │
+│64.00 % / 100.00                                                                                                      │
+│█████████████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  3d 03h sisa  36%        │
+│↑ 9 poin di atas laju · habis pukul 2026-01-03 01:17, 22h 45m sebelum reset   ·   diharapkan 55% terpakai · perkiraan │
+│linear                                                                                                                │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+ ↑↓/jk PgUp/PgDn pilih  / filter  c hapus  r semua · R terpilih  x ekstensi  S statistik  ? tentang  q keluar
+←→ akun • ↑↓/[ ] gulir • Enter/Esc kembali • m model • b laporkan • 1/2/3 riwayat • a tambah • e ubah • K geser ↑ •
+J geser ↓ • d/Del hapus • u sembunyikan tanpa data • 1/6 akun
