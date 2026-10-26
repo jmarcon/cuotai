@@ -1355,6 +1355,11 @@ mod tests {
             "Turkish keeps its casing and tracking"
         );
         assert!(css.contains("font-synthesis: none") && css.contains("line-break: strict"));
+        // RF8.6 and RF8.7: the body keeps tabular digits, the Latin face
+        // before the script face, and wraps a long unbreakable token.
+        let body = rule("body");
+        assert!(body.contains("font-variant-numeric: tabular-nums"));
+        assert!(body.contains("overflow-wrap: break-word"));
     }
 
     /// PRD 0035 RF2.2: the parity rules catch each kind of drift.

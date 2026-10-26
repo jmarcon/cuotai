@@ -184,8 +184,12 @@ body {
   background: var(--body-bg);
   color: var(--fg);
   font: var(--text-base) / var(--line-body) var(--font-ui), var(--font-script);
+  /* PRD 0035 RF8.6: digits stay Latin (the registry codes resolve to `latn` in Intl) and tabular in every locale. */
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
+  /* RF8.7: a long unbreakable Latin token (model id, path, e-mail) inside CJK or Devanagari text wraps instead of
+     widening its container; the Latin face comes first in the stack, the script face only fills missing glyphs. */
+  overflow-wrap: break-word;
   user-select: none;
 }
 button {

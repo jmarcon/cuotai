@@ -80,3 +80,22 @@ assert.equal(durationText(95 * 60), "1h 35m");
   await i18n.setLocale("en-US");
 }
 console.log("PASS: registry normalization, folding, durations and core plurals in the desktop modules");
+
+// PRD 0035 RF8.6 (DS-TOK-TYP-2, DS-MSG-7): numbers stay Latin in every registry locale. `Intl` never substitutes
+// Devanagari (hi-IN), full-width (ja, zh-CN) or other native digits for the codes the app passes it.
+const NATIVE_DIGITS = /[٠-٩۰-۹०-९０-９]/;
+for (const { code } of REGISTRY) {
+  const number = new Intl.NumberFormat(code);
+  assert.equal(number.resolvedOptions().numberingSystem, "latn", `${code} numbers`);
+  const samples = [
+    number.format(1234567.89),
+    new Intl.NumberFormat(code, { style: "percent" }).format(0.42),
+    new Intl.NumberFormat(code, { style: "currency", currency: "USD" }).format(12.5),
+    new Intl.DateTimeFormat(code, { dateStyle: "short", timeStyle: "short" }).format(new Date(2026, 9, 25, 14, 5)),
+  ];
+  for (const sample of samples) {
+    assert.ok(/[0-9]/.test(sample) && !NATIVE_DIGITS.test(sample), `${code}: ${sample}`);
+  }
+  assert.equal(new Intl.DateTimeFormat(code).resolvedOptions().numberingSystem, "latn", `${code} dates`);
+}
+console.log("PASS: Latin digits in Intl output for every registry locale");
