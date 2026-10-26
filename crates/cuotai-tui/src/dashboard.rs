@@ -40,7 +40,11 @@ const NARROW_WIDTH: u16 = 45;
 const NARROW_HEIGHT: u16 = 18;
 const WIDE_COLUMNS_WIDTH: u16 = 110;
 const HEADER_HEIGHT: u16 = 4;
-const FOOTER_HEIGHT: u16 = 3;
+/// The footer shows at least two rows (navigation, actions) and flows the
+/// keys that do not fit the width onto up to two more, so a narrow
+/// terminal still names every key instead of clipping the rows mid-word.
+const FOOTER_MIN_ROWS: usize = 2;
+const FOOTER_MAX_ROWS: usize = 4;
 const METRICS_VISIBLE_IN_CARD: usize = 2;
 /// PRD 0006 RF6.1: sparkline glyphs, lowest to highest level.
 const SPARK: [char; 8] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
@@ -958,10 +962,11 @@ pub(crate) fn draw(frame: &mut Frame, view: View) -> Targets {
         return targets;
     }
     let header = HEADER_HEIGHT + u16::from(view.banner.is_some());
+    let footer = footer_rows(&view, usize::from(area.width));
     let areas = Layout::vertical([
         Constraint::Length(header),
         Constraint::Min(0),
-        Constraint::Length(FOOTER_HEIGHT),
+        Constraint::Length(u16::try_from(footer.len()).unwrap_or(u16::MAX)),
     ])
     .split(area);
     render_header(frame, areas[0], &view);
@@ -971,7 +976,7 @@ pub(crate) fn draw(frame: &mut Frame, view: View) -> Targets {
     } else {
         render_cards(frame, areas[1], &view, &mut targets);
     }
-    render_footer(frame, areas[2], &view, &mut targets);
+    render_footer(frame, areas[2], footer, &mut targets);
     targets
 }
 
@@ -1307,8 +1312,58 @@ fn selected_offers_new_paste(view: &View<'_>) -> bool {
         .is_some_and(cuotai_core::user_session::offers_new_paste)
 }
 
-fn render_footer(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut Targets) {
-    for (row, segments) in footer_segments(view).into_iter().enumerate() {
+/// Whether a segment only pads or separates its neighbours; one never opens
+/// a flowed row.
+fn is_footer_padding(segment: &FooterSegment) -> bool {
+    segment.action.is_none() && matches!(segment.text.trim(), "" | "•" | "·")
+}
+
+/// The footer's segments flowed into rows of at most `width` cells: each
+/// group (navigation, actions) starts a row, a segment that does not fit
+/// moves whole to the next row, and the keys beyond `FOOTER_MAX_ROWS` are
+/// dropped at a segment boundary rather than clipped mid-word.
+fn footer_rows(view: &View<'_>, width: usize) -> Vec<Vec<FooterSegment>> {
+    let width = width.max(1);
+    let mut rows: Vec<Vec<FooterSegment>> = Vec::new();
+    for group in footer_segments(view) {
+        let mut row: Vec<FooterSegment> = Vec::new();
+        let mut used = 0;
+        for segment in group {
+            let needed = cells(&segment.text);
+            if used + needed > width && !row.is_empty() {
+                rows.push(std::mem::take(&mut row));
+                used = 0;
+                if is_footer_padding(&segment) {
+                    continue;
+                }
+            }
+            used += needed;
+            row.push(segment);
+        }
+        if !row.is_empty() {
+            rows.push(row);
+        }
+    }
+    rows.truncate(FOOTER_MAX_ROWS);
+    // A cut flow never ends in a dangling separator.
+    if let Some(last) = rows.last_mut() {
+        while last.last().is_some_and(is_footer_padding) {
+            last.pop();
+        }
+    }
+    while rows.len() < FOOTER_MIN_ROWS {
+        rows.push(Vec::new());
+    }
+    rows
+}
+
+fn render_footer(
+    frame: &mut Frame,
+    area: Rect,
+    rows: Vec<Vec<FooterSegment>>,
+    targets: &mut Targets,
+) {
+    for (row, segments) in rows.into_iter().enumerate() {
         let Ok(row) = u16::try_from(row) else {
             break;
         };
@@ -5622,6 +5677,39 @@ mod tests {
             .chunks(usize::from(width))
             .map(|row| row.iter().map(|cell| cell.symbol()).collect::<String>())
             .collect()
+    }
+
+    /// At 80 columns the footer flows onto extra rows at segment boundaries,
+    /// so the quit, about and toggle keys stay visible; at 200 columns the
+    /// two rows suffice and the cards keep the room.
+    #[test]
+    fn narrow_footer_flows_whole_keys_onto_extra_rows() {
+        let (accounts, reports) = fifty_accounts();
+        let rows = rows_at(80, 24, &accounts, &reports, Some(0), false);
+        let footer: Vec<&str> = rows.iter().rev().take(4).map(String::as_str).collect();
+        let text = footer.join("\n");
+        for key in [
+            "? sobre",
+            "q sair",
+            "u ocultar sem dados",
+            "50 contas",
+            "x extensões",
+        ] {
+            assert!(text.contains(key), "{key} missing from the footer:\n{text}");
+        }
+        for row in &footer {
+            assert!(
+                !row.trim_end().ends_with(" x ext"),
+                "row cut mid-segment: {row:?}"
+            );
+        }
+        let wide = rows_at(200, 60, &accounts, &reports, Some(0), false);
+        assert!(
+            wide[58].contains("q sair"),
+            "two rows suffice at 200 columns"
+        );
+        assert!(wide[59].contains("50 contas"));
+        assert!(wide[57].trim().is_empty() || wide[57].ends_with('┘'));
     }
 
     #[test]
