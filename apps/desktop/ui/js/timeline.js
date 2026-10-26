@@ -41,7 +41,8 @@ function laneHtml(lane, all, tl) {
 /** Text lines for the returns beyond the range and for the unknown ones. */
 function textGroup(titleKey, lanes, tl, withTime) {
   if (!lanes.length) return "";
-  return `<div class="tl-text"><h4>${te(titleKey)}</h4><ul>${lanes.map((l) => `<li>${logo(l.provider, 14)}<span>${esc(`${brand(l.provider).label} · ${l.name}`)}</span>${
+  const hx = tl.compact ? "h3" : "h4";
+  return `<div class="tl-text"><${hx}>${te(titleKey)}</${hx}><ul>${lanes.map((l) => `<li>${logo(l.provider, 14)}<span>${esc(`${brand(l.provider).label} · ${l.name}`)}</span>${
     withTime ? `<span class="tl-when">${esc(timeOf(l.returns_at, "days7"))}</span>` : ""}</li>`).join("")}</ul></div>`;
 }
 
@@ -58,8 +59,10 @@ export function mountTimeline({ onSelect = () => {}, compact = false, only = () 
   const id = `tl-${++uid}`;
   const el = document.createElement("section");
   el.className = `timeline${compact ? " compact" : ""}`;
+  // The tray popover's title is its h1, so its timeline is a second level; the main window nests it one deeper.
+  const hx = compact ? "h2" : "h3";
   el.setAttribute("aria-labelledby", id);
-  el.innerHTML = `<div class="tl-head"><h3 id="${id}">${te("timeline.title")}</h3>
+  el.innerHTML = `<div class="tl-head"><${hx} id="${id}">${te("timeline.title")}</${hx}>
       <div class="seg" role="group" aria-label="${te("timeline.range.label")}">
         ${RANGES.map((r) => `<button type="button" data-timeline-range="${r}">${te(`timeline.range.${r}`)}</button>`).join("")}
       </div></div>
@@ -77,7 +80,7 @@ export function mountTimeline({ onSelect = () => {}, compact = false, only = () 
     const keep = only();
     const pick = (lanes) => (keep ? lanes.filter((l) => keep.has(l.account_index)) : lanes);
     const shown = data && { ...data, lanes: pick(data.lanes), later: pick(data.later), unknown: pick(data.unknown) };
-    body.innerHTML = !data || error ? "" : `${chartHtml({ ...shown, compact })}${textGroup("timeline.later", shown.later, shown, true)}${textGroup("timeline.unknown", shown.unknown, shown, false)}`;
+    body.innerHTML = !data || error ? "" : `${chartHtml({ ...shown, compact })}${textGroup("timeline.later", shown.later, { ...shown, compact }, true)}${textGroup("timeline.unknown", shown.unknown, { ...shown, compact }, false)}`;
   }
   async function load() {
     const e = ++epoch;

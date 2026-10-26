@@ -282,8 +282,10 @@ function render() {
         <h1>${esc(drillTitle)}</h1><span class="grow"></span>
         ${showStats ? `<span data-stats-scope-slot></span>` : `<span class="wordmark sm">${wordmark()}</span>`}<kbd aria-hidden="true">esc</kbd></header>`
     : `<header class="pop-head">${all.length ? filterTabsHtml(all, { selected: filter, moreOpen, maxTabs: tabFit, aggregatorTabs: true }) : `<h1 class="wordmark">${wordmark()}</h1>`}</header>`;
+  // The popover's content is its main landmark, with one level-one heading (visible in a drill-in or the empty
+  // state, hidden behind the tab list otherwise).
   root.innerHTML = `<div class="pop">${header}
-    <div class="pop-body">${body}</div>
+    <main class="pop-body">${!drill && !showStats && all.length ? '<h1 class="sr-only">Cuotai</h1>' : ""}${body}</main>
     ${noticeHtml(view, error)}${footerHtml(view, showStats)}</div>`;
   const head = root.querySelector(".pop-head"), strip = head?.querySelector(".tabs");
   if (strip && strip.scrollWidth > head.clientWidth - 24 && tabFit > 1) { tabFit--; return render(); }

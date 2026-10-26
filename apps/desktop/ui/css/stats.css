@@ -363,6 +363,7 @@
   justify-content: space-between;
   gap: var(--sp-3);
 }
+.tl-head h2,
 .tl-head h3 {
   margin: 0;
   font-size: var(--text-base);
@@ -526,6 +527,7 @@
   color: var(--fg-muted);
   font-size: var(--text-sm);
 }
+.tl-text h3,
 .tl-text h4 {
   margin: var(--sp-2) 0 var(--sp-1);
   font-size: var(--text-micro);
