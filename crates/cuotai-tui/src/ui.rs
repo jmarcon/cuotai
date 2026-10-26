@@ -904,7 +904,7 @@ pub async fn run(
                         let matching = dashboard::matching_cards(
                             &state.accounts[index],
                             Some(&cards),
-                            &state.filter.to_lowercase(),
+                            &cuotai_core::text::fold(&state.filter),
                         );
                         state.connection_focus = if state.aggregators_collapsed {
                             None

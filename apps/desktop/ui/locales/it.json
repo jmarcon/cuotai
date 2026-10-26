@@ -1236,5 +1236,7 @@
   "settings.whatsnew.auto": "Mostra le novità",
   "settings.whatsnew.auto.desc": "Apre le note di rilascio una volta dopo ogni aggiornamento",
   "settings.kw.whats-new-auto": "novità note di rilascio changelog aggiornamento versione automaticamente aprire dopo aggiornare",
-  "lang.inProgress": "Traduzione in corso"
+  "lang.inProgress": "Traduzione in corso",
+  "time.duration.minutesSeconds": "{m}m {s}s",
+  "time.duration.seconds": "{s}s"
 }

@@ -349,8 +349,10 @@ pub fn countdown(span: chrono::TimeDelta) -> Localized {
 // agree with the files on disk (PRD 0035 RF1.1).
 // ---------------------------------------------------------------------------
 
+mod fold;
 pub mod parity;
 mod registry;
+pub use fold::fold;
 pub use registry::{
     locale_row, normalize, plural_category, source_locale, Direction, LocaleRow, LocaleStatus,
     PluralRule, LOCALES,

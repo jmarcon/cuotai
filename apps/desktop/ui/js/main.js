@@ -18,7 +18,7 @@ import {
   openSettingsWindow, bindSettingsShortcut, onSettingsChanged, onAccountAction, listExtensions, extensionSecrets,
   planBadgeHtml, scopeBlocksHtml,
 } from "./lib.js";
-import { patch } from "./util.js";
+import { fold, patch } from "./util.js";
 import { initRowLayout } from "./density.js";
 import { connectionChips, groupsOf, handleConnectionAction, instanceHeadHtml, isAggregator, poolLineHtml, warningChipsHtml, withConnections } from "./aggregator.js";
 import {
@@ -250,7 +250,7 @@ let moreFor = null; // the card whose "…" menu is open
 let tabFit = 14;
 const tabsThatFit = () => tabFit;
 addEventListener("resize", () => { tabFit = 14; render(); });
-const norm = (s) => String(s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+const norm = fold; // PRD 0035 RF10.5: the shared folding (util.js), the TUI filter's twin
 const matchesFilter = (r) =>
   !filterText.trim() || norm([brand(r.provider).label, r.account, r.identity?.email, r.provider, r.connection?.upstream].join(" ")).includes(norm(filterText.trim()))
   // PRD 0036 RF8.4: an aggregator stays when one of its connections matches.

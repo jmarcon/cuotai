@@ -1250,5 +1250,7 @@
   "settings.whatsnew.auto": "Show what's new",
   "settings.whatsnew.auto.desc": "Open the release notes once after each update",
   "settings.kw.whats-new-auto": "what's new release notes changelog update version automatically open after update",
-  "lang.inProgress": "Translation in progress"
+  "lang.inProgress": "Translation in progress",
+  "time.duration.minutesSeconds": "{m}m {s}s",
+  "time.duration.seconds": "{s}s"
 }

@@ -1,3 +1,10 @@
+// PRD 0035 RF10.5: letters that do not decompose under NFD.
+const FOLD_EXTRA = { "đ": "d", "Đ": "d", "ı": "i", "ß": "ss", "ẞ": "ss", "ł": "l", "Ł": "l" };
+/** Search folding (the twin of `cuotai_core::text::fold`): NFD, strip combining marks, map đ ı ß ł, lower-case. CJK,
+ *  Hangul and Devanagari stay as typed (recomposed to NFC). `dong` finds `Đồng`, `istanbul` finds `İstanbul`. */
+export const fold = (s) => String(s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+  .replace(/[đĐıßẞłŁ]/g, (c) => FOLD_EXTRA[c]).toLowerCase().normalize("NFC");
+
 export const esc = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 

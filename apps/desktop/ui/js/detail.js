@@ -6,6 +6,7 @@ import {
   adviceHtml, fmtMetricExtra, forecastHtml, scopeBlocksHtml, isOverage, overageDetailHtml, paceHtml, paceOf, remainingPct, renewedText, reportKey, restNotes, staleView, statusLabel, syncModels, textualMetric,
 } from "./lib.js";
 import { expectedLeft, meterHtml } from "./components.js";
+import { fold } from "./util.js";
 
 /** Fa gap 8: the same localized limit names as the main-window cards ("5-hour session", "Weekly"). */
 const LONG_WINDOW = { window_5h: "h5", weekly: "week" };
@@ -122,8 +123,8 @@ export function mountModels({ key, index, generation }) {
   function render() {
     const cat = gone ? null : catalogOf(state);
     const models = cat?.models ?? [];
-    const q = search.value.trim().toLowerCase();
-    const shown = models.filter((m) => !q || m.id.toLowerCase().includes(q) || !!m.name?.toLowerCase().includes(q));
+    const q = fold(search.value.trim());
+    const shown = models.filter((m) => !q || fold(m.id).includes(q) || (m.name != null && fold(m.name).includes(q)));
     el.querySelector(".models-bar").hidden = gone || state?.state === "unsupported";
     search.closest("label").hidden = !models.length;
     sync.disabled = busy;

@@ -537,15 +537,33 @@ export function resetsText(m) {
 }
 /** "1h 35m" until `iso` ("now" once past): the local countdown the reset timeline speaks in its accessible names. */
 export const fmtCountdown = (iso) => legacyCountdown(iso);
+// PRD 0035 RF10.3: durations are catalog patterns (the core's `text.duration.*`, with their English fallbacks), never
+// concatenated letters, so each language words them (`{h}時間{m}分`, `{h} ч {m} мин`).
+const DURATION_EN = {
+  "text.duration.minutes": "{m} min",
+  "text.duration.hours": "{h}h",
+  "text.duration.hours_minutes": "{h}h {m}m",
+  "text.duration.days": "{d}d",
+  "text.duration.days_hours": "{d}d {h}h",
+};
+const durationPart = (id, params) =>
+  tl({ id, params, fallback: DURATION_EN[id].replace(/\{(\w+)\}/g, (m, n) => (n in params ? String(params[n]) : m)) });
+/** A span of `secs` seconds in the core's words (the twin of `cuotai_core::text::duration`): under an hour in whole
+ *  minutes rounded up, under a day in hours and minutes, otherwise in days and hours. */
+export function durationText(secs) {
+  secs = Math.max(0, Math.floor(secs));
+  if (secs < 3600) return durationPart("text.duration.minutes", { m: String(Math.min(59, Math.ceil(secs / 60))) });
+  const minutes = Math.floor(secs / 60);
+  const d = Math.floor(minutes / 1440), h = Math.floor(minutes / 60) % 24, m = minutes % 60;
+  if (d === 0) return m === 0 ? durationPart("text.duration.hours", { h: String(h) }) : durationPart("text.duration.hours_minutes", { h: String(h), m: String(m) });
+  return h === 0 ? durationPart("text.duration.days", { d: String(d) }) : durationPart("text.duration.days_hours", { d: String(d), h: String(h) });
+}
 function legacyCountdown(iso) {
   if (!iso) return null;
-  let s = Math.floor((new Date(iso).getTime() - Date.now()) / 1000);
+  const s = Math.floor((new Date(iso).getTime() - Date.now()) / 1000);
   if (Number.isNaN(s)) return null;
   if (s <= 0) return t("time.now");
-  const d = Math.floor(s / 86400); s -= d * 86400;
-  const h = Math.floor(s / 3600); s -= h * 3600;
-  const m = Math.floor(s / 60);
-  return d > 0 ? `${d}d ${h}h ${m}m` : h > 0 ? `${h}h ${m}m` : `${m}m`;
+  return durationText(s);
 }
 /** Contagem até a próxima consulta: "4m 20s", "1h 05m", "2d 3h". `ms` é um instante absoluto (Unix, ms). */
 export function fmtNext(ms, now = Date.now()) {
@@ -555,9 +573,9 @@ export function fmtNext(ms, now = Date.now()) {
   const d = Math.floor(s / 86400); s -= d * 86400;
   const h = Math.floor(s / 3600); s -= h * 3600;
   const m = Math.floor(s / 60); s -= m * 60;
-  if (d > 0) return `${d}d ${h}h`;
-  if (h > 0) return `${h}h ${String(m).padStart(2, "0")}m`;
-  return m > 0 ? `${m}m ${String(s).padStart(2, "0")}s` : `${s}s`;
+  if (d > 0) return durationPart(h ? "text.duration.days_hours" : "text.duration.days", { d: String(d), h: String(h) });
+  if (h > 0) return durationPart("text.duration.hours_minutes", { h: String(h), m: String(m).padStart(2, "0") });
+  return m > 0 ? t("time.duration.minutesSeconds", { m, s: String(s).padStart(2, "0") }) : t("time.duration.seconds", { s });
 }
 /** Date without a time, localized for release and other calendar-date labels (DS-MSG-8). */
 export function fmtDate(iso) {
@@ -912,7 +930,7 @@ export function themeSwitchHtml({ themeSelect = false, labels = false, selectOnl
   const modes = [["system", "monitor"], ["light", "sun"], ["dark", "moon"]];
   const groups = [...new Set(THEMES.map((x) => x.group))].sort((a, b) => {
     const ia = GROUP_ORDER.indexOf(a), ib = GROUP_ORDER.indexOf(b);
-    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b, currentLocale());
   });
   const field = `<div class="theme-select theme-field">
       <button type="button" class="lang-field-btn theme-field-btn" data-theme-toggle aria-haspopup="menu" aria-expanded="${themeOpen}" aria-label="${te("theme.label")}: ${esc(th.label)}"><span class="swatch" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>${esc(th.label)}</span>${icon("chevDown")}</button>
@@ -1424,7 +1442,7 @@ function demoNextNotice(reports) {
     .flatMap((r) => r.metrics.filter((m) => m.kind === "quota" && m.window && (m.window !== "other" || n.include_other) && m.resets_at)
       .map((m) => ({ index: r.index, provider: r.provider, account: r.account, window: m.window, label: m.label, resets_at: m.resets_at, at: new Date(new Date(m.resets_at).getTime() - lead).toISOString() })))
     .filter((e) => new Date(e.at).getTime() > Date.now())
-    .sort((a, b) => a.at.localeCompare(b.at));
+    .sort((a, b) => a.at.localeCompare(b.at, "en")); // ISO instants: a fixed, language-free order
   return next[0] ?? null;
 }
 // ponytail: demo mirror of `access::describe` + `UsageAccess::explain` (default modes, generic pt summary and
@@ -1726,7 +1744,7 @@ const fmtMoney = (amount) => `$${amount.toFixed(2)}`;
 const demoPrices = () => {
   const models = Object.values(DEMO_COST).flatMap((s) => Object.values(s.models).filter(Boolean))
     .map((p) => ({ model: p.entry, origin: "embedded", rates: { input: p.input, output: p.output, cache_read: p.cache_read, cache_write: p.cache_write } }))
-    .sort((a, b) => a.model.localeCompare(b.model));
+    .sort((a, b) => a.model.localeCompare(b.model, "en")); // model ids are identifiers, never translated
   return { currency: "USD", notice: demoNotice(), tables: [{ origin: "embedded", effective: DEMO_EFFECTIVE, source: "https://claude.com/pricing#api; https://openai.com/api/pricing/" }],
     pricing_file: { path: "/Users/demo/Library/Application Support/cuotai/cost/pricing.json", used: false, error: null }, models };
 };

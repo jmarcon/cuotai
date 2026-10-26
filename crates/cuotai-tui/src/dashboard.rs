@@ -109,7 +109,7 @@ pub(crate) fn visible_indices(
     filter: &str,
     show_unmeasured: bool,
 ) -> Vec<usize> {
-    let needle = filter.to_lowercase();
+    let needle = cuotai_core::text::fold(filter);
     // PRD 0036 RF9.1: an aggregator stays visible when one of its
     // connections matches (label or upstream).
     let connection_matches = |index: usize| {
@@ -118,8 +118,8 @@ pub(crate) fn visible_indices(
             .and_then(Option::as_ref)
             .is_some_and(|report| {
                 report.sub_reports.iter().any(|sub| {
-                    sub.label.to_lowercase().contains(&needle)
-                        || sub.upstream.to_lowercase().contains(&needle)
+                    cuotai_core::text::fold(&sub.label).contains(&needle)
+                        || cuotai_core::text::fold(&sub.upstream).contains(&needle)
                 })
             })
     };
@@ -128,8 +128,8 @@ pub(crate) fn visible_indices(
         .enumerate()
         .filter(|(index, account)| {
             needle.is_empty()
-                || account.display_name().to_lowercase().contains(&needle)
-                || account.provider.label().to_lowercase().contains(&needle)
+                || cuotai_core::text::fold(&account.display_name()).contains(&needle)
+                || cuotai_core::text::fold(account.provider.label()).contains(&needle)
                 || (account.provider.is_aggregator() && connection_matches(*index))
         })
         .filter(|(index, _)| {
@@ -756,7 +756,7 @@ fn card_slots(view: &View<'_>) -> Vec<Slot> {
         .filter(|(_, index)| !aggregator(**index))
         .map(|(position, _)| Slot::Account(position))
         .collect();
-    let needle = view.filter.to_lowercase();
+    let needle = cuotai_core::text::fold(view.filter);
     for (position, &index) in view.visible.iter().enumerate() {
         if !aggregator(index) {
             continue;
@@ -781,16 +781,16 @@ pub(crate) fn matching_cards(
     needle: &str,
 ) -> Vec<usize> {
     let parent_matches = needle.is_empty()
-        || account.name.to_lowercase().contains(needle)
-        || account.provider.label().to_lowercase().contains(needle);
+        || cuotai_core::text::fold(&account.name).contains(needle)
+        || cuotai_core::text::fold(account.provider.label()).contains(needle);
     cards
         .into_iter()
         .flatten()
         .enumerate()
         .filter(|(_, card)| {
             parent_matches
-                || card.account.name.to_lowercase().contains(needle)
-                || card.upstream.to_lowercase().contains(needle)
+                || cuotai_core::text::fold(&card.account.name).contains(needle)
+                || cuotai_core::text::fold(&card.upstream).contains(needle)
         })
         .map(|(sub, _)| sub)
         .collect()

@@ -328,6 +328,9 @@ jobs:
       - run: node scripts/test-motion-ui.mjs
       - run: node scripts/test-theme-default-ui.mjs
       - run: node scripts/test-flags-ui.mjs
+      # PRD 0035 RF1/RF4/RF10: registry normalization, folding, durations
+      # and core plurals in the production desktop modules.
+      - run: node scripts/test-i18n-infra-ui.mjs
       # Every UI smoke runs in CI: first paint in the saved language, the
       # renewed-reading line, the menu bar (PRD 0025) and the row display
       # densities (PRD 0022 RF8).
