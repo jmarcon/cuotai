@@ -454,17 +454,18 @@ impl RefreshCycle {
                 }
             }
         }
-        if next.slots.iter().all(Option::is_some) && !next.slots.is_empty() {
-            let reports: Vec<Report> = next.slots.iter().flatten().cloned().collect();
-            let started_at = self
-                .snapshot
-                .as_ref()
-                .map_or_else(Utc::now, |s| s.started_at);
-            next.snapshot = Some(Snapshot {
-                started_at,
-                finished_at: Utc::now(),
-                reports,
-            });
+        if !next.slots.is_empty() {
+            if let Some(reports) = complete_reports(&next.slots) {
+                let started_at = self
+                    .snapshot
+                    .as_ref()
+                    .map_or_else(Utc::now, |s| s.started_at);
+                next.snapshot = Some(Snapshot {
+                    started_at,
+                    finished_at: Utc::now(),
+                    reports,
+                });
+            }
         }
         next
     }
@@ -788,22 +789,19 @@ impl RefreshCycle {
                 self.deadlines[index] = now + backoff;
                 self.arm_reset_query(index, &report, Utc::now(), now);
                 let next_deadline = self.deadlines[index];
-                self.slots[index] = Some(report);
                 if let Some(snapshot) = self.snapshot.as_mut() {
-                    snapshot.reports[index] = self.slots[index]
-                        .clone()
-                        .expect("just filled by the branch above");
+                    snapshot.reports[index] = report.clone();
                     snapshot.finished_at = Utc::now();
-                } else if self.slots.iter().all(Option::is_some) {
-                    self.snapshot = Some(Snapshot {
-                        started_at: Utc::now(),
-                        finished_at: Utc::now(),
-                        reports: self
-                            .slots
-                            .iter()
-                            .map(|slot| slot.clone().unwrap())
-                            .collect(),
-                    });
+                    self.slots[index] = Some(report);
+                } else {
+                    self.slots[index] = Some(report);
+                    if let Some(reports) = complete_reports(&self.slots) {
+                        self.snapshot = Some(Snapshot {
+                            started_at: Utc::now(),
+                            finished_at: Utc::now(),
+                            reports,
+                        });
+                    }
                 }
                 self.deadlines[index] = next_deadline;
             }
@@ -976,26 +974,14 @@ impl RefreshCycle {
                 self.last_good.remove(index);
                 self.intervals.remove(index);
                 self.deadlines.remove(index);
-                if self.slots.iter().all(Option::is_some) {
-                    self.snapshot = Some(Snapshot {
-                        started_at: self
-                            .snapshot
-                            .as_ref()
-                            .map(|s| s.started_at)
-                            .unwrap_or_else(Utc::now),
-                        finished_at: Utc::now(),
-                        reports: self
-                            .slots
-                            .iter()
-                            .map(|slot| {
-                                slot.clone()
-                                    .expect("all slots filled when rebuilding snapshot")
-                            })
-                            .collect(),
-                    });
-                } else {
-                    self.snapshot = None;
-                }
+                self.snapshot = complete_reports(&self.slots).map(|reports| Snapshot {
+                    started_at: self
+                        .snapshot
+                        .as_ref()
+                        .map_or_else(Utc::now, |s| s.started_at),
+                    finished_at: Utc::now(),
+                    reports,
+                });
                 // Bookkeeping rebuild: removal slides every per-account
                 // vector one position to the left and clears the
                 // bookkeeping that no longer has a slot. The busy
@@ -1244,6 +1230,14 @@ impl RefreshCycle {
     }
 }
 
+/// The reports of every slot, cloned in account order, once each slot has
+/// one; `None` while any account is still waiting for its first answer.
+/// An empty slot list is complete (a configuration without accounts has a
+/// complete, empty snapshot).
+fn complete_reports(slots: &[Option<Report>]) -> Option<Vec<Report>> {
+    slots.iter().cloned().collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1299,6 +1293,16 @@ mod tests {
             accounts,
             groups: Vec::new(),
         }
+    }
+
+    #[test]
+    fn complete_reports_needs_every_slot_and_keeps_account_order() {
+        assert!(complete_reports(&[]).is_some_and(|reports| reports.is_empty()));
+        assert!(complete_reports(&[Some(report("a", 1)), None]).is_none());
+        let reports = complete_reports(&[Some(report("b", 2)), Some(report("a", 1))])
+            .expect("both slots filled");
+        let names: Vec<&str> = reports.iter().map(|r| r.account.as_str()).collect();
+        assert_eq!(names, ["b", "a"]);
     }
 
     /// Helper for the existing RF1 suite: stage an initial full sweep
