@@ -58,10 +58,75 @@ pub(crate) fn strip(buffer: &mut Buffer) {
     }
 }
 
-/// Called at the end of every frame: strips the colors when `NO_COLOR` is set.
+/// Whether the environment names a terminal limited to the 16 ANSI colors:
+/// no truecolor advertised (`COLORTERM`, the gauge gradient's signal) and a
+/// `TERM` without `256color`, `direct` or `truecolor` (`linux`, `xterm`,
+/// `screen`, `vt100`). An unset `TERM` (Windows) is not limited.
+pub(crate) fn limited_colors_from(var: impl Fn(&str) -> Option<String>) -> bool {
+    if crate::motion::truecolor(&var) {
+        return false;
+    }
+    var("TERM").is_some_and(|term| {
+        !["256color", "direct", "truecolor"]
+            .iter()
+            .any(|rich| term.contains(rich))
+    })
+}
+
+fn limited_colors() -> bool {
+    static ON: OnceLock<bool> = OnceLock::new();
+    *ON.get_or_init(|| limited_colors_from(|key| std::env::var(key).ok()))
+}
+
+/// The ANSI color of a palette role, for a terminal that does not advertise
+/// truecolor: a 16-color terminal or the Linux console would otherwise
+/// ignore the RGB sequences, and the named colors follow the user's own
+/// scheme (so a light theme keeps its contrast). A blended gauge value maps
+/// to the nearest level role.
+pub(crate) fn ansi_fallback(color: Color) -> Color {
+    let Color::Rgb(r, g, b) = color else {
+        return color;
+    };
+    const ROLES: [((u8, u8, u8), Color); 7] = [
+        ((98, 114, 164), Color::DarkGray),
+        ((139, 233, 253), Color::Cyan),
+        (GOOD_RGB, Color::Green),
+        (WARN_RGB, Color::Yellow),
+        (BAD_RGB, Color::Red),
+        ((189, 147, 249), Color::Magenta),
+        ((255, 121, 198), Color::LightMagenta),
+    ];
+    let distance = |(cr, cg, cb): (u8, u8, u8)| {
+        let d = |a: u8, b: u8| (i32::from(a) - i32::from(b)).pow(2);
+        d(cr, r) + d(cg, g) + d(cb, b)
+    };
+    ROLES
+        .iter()
+        .min_by_key(|(channels, _)| distance(*channels))
+        .map_or(color, |(_, ansi)| *ansi)
+}
+
+/// Replaces every RGB color of a drawn frame with its ANSI fallback.
+pub(crate) fn downgrade(buffer: &mut Buffer) {
+    let area = buffer.area;
+    for y in area.top()..area.bottom() {
+        for x in area.left()..area.right() {
+            let cell = &mut buffer[(x, y)];
+            let (fg, bg) = (ansi_fallback(cell.fg), ansi_fallback(cell.bg));
+            cell.set_fg(fg);
+            cell.set_bg(bg);
+        }
+    }
+}
+
+/// Called at the end of every frame: strips the colors when `NO_COLOR` is
+/// set, and otherwise downgrades them to ANSI names on a terminal without
+/// truecolor.
 pub(crate) fn finish(buffer: &mut Buffer) {
     if no_color() {
         strip(buffer);
+    } else if limited_colors() {
+        downgrade(buffer);
     }
 }
 
@@ -87,6 +152,50 @@ mod tests {
             assert_eq!(buffer[(x, 0)].bg, Color::Reset);
         }
         assert_eq!(buffer[(0, 0)].symbol(), "a");
+    }
+
+    #[test]
+    fn limited_colors_follow_term_unless_truecolor_is_advertised() {
+        let env = |pairs: &'static [(&str, &str)]| {
+            move |key: &str| {
+                pairs
+                    .iter()
+                    .find(|(k, _)| *k == key)
+                    .map(|(_, v)| v.to_string())
+            }
+        };
+        assert!(limited_colors_from(env(&[("TERM", "linux")])));
+        assert!(limited_colors_from(env(&[("TERM", "xterm")])));
+        assert!(limited_colors_from(env(&[("TERM", "screen")])));
+        assert!(!limited_colors_from(env(&[("TERM", "xterm-256color")])));
+        assert!(!limited_colors_from(env(&[("TERM", "xterm-direct")])));
+        assert!(!limited_colors_from(env(&[
+            ("TERM", "xterm"),
+            ("COLORTERM", "truecolor")
+        ])));
+        // Windows: no TERM, and the console speaks 24-bit.
+        assert!(!limited_colors_from(env(&[])));
+    }
+
+    #[test]
+    fn ansi_fallback_maps_roles_and_blends_to_named_colors() {
+        assert_eq!(ansi_fallback(GOOD), Color::Green);
+        assert_eq!(ansi_fallback(WARN), Color::Yellow);
+        assert_eq!(ansi_fallback(BAD), Color::Red);
+        assert_eq!(ansi_fallback(ACCENT), Color::Cyan);
+        assert_eq!(ansi_fallback(MUTED), Color::DarkGray);
+        assert_eq!(ansi_fallback(INFO), Color::Magenta);
+        assert_eq!(ansi_fallback(PINK), Color::LightMagenta);
+        // A gauge blend between warn and good lands on the nearer role.
+        assert_eq!(ansi_fallback(rgb((120, 250, 127))), Color::Green);
+        assert_eq!(ansi_fallback(Color::Reset), Color::Reset);
+        assert_eq!(ansi_fallback(Color::Blue), Color::Blue);
+        let mut buffer = Buffer::with_lines(["ab"]);
+        buffer.set_style(buffer.area, Style::default().fg(BAD).bg(MUTED));
+        downgrade(&mut buffer);
+        assert_eq!(buffer[(1, 0)].fg, Color::Red);
+        assert_eq!(buffer[(1, 0)].bg, Color::DarkGray);
+        assert_eq!(buffer[(1, 0)].symbol(), "b");
     }
 
     #[test]

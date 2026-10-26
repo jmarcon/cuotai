@@ -353,6 +353,13 @@ static LIBRARIES: &[Library] = &[
         &[Core],
     ),
     lib(
+        "unicode-width",
+        "MIT OR Apache-2.0",
+        "https://github.com/unicode-rs/unicode-width",
+        Role::Runtime,
+        &[Tui],
+    ),
+    lib(
         "windows-sys",
         "MIT OR Apache-2.0",
         "https://github.com/microsoft/windows-rs",
