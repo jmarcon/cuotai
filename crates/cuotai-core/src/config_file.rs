@@ -854,6 +854,51 @@ mod tests {
         );
     }
 
+    const FUTURE_KEYS_FIXTURE: &str = r#"refresh_seconds = 300
+concurrency = 4
+timeout_seconds = 30
+
+[[accounts]]
+name = "OR"
+provider = "open_router"
+credential_env = "OR_KEY"
+breakdown = ["keys"] # future
+
+[[accounts.budgets]]
+kind = "spend"
+amount = 50
+
+[[accounts.floors]]
+amount = 5
+"#;
+
+    #[test]
+    fn future_account_keys_load_and_survive_a_save() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("future-keys.toml");
+        fs::write(&path, FUTURE_KEYS_FIXTURE).unwrap();
+        let mut file = load_at(&path, false).unwrap();
+        let mut updated = file.config.clone();
+        updated.accounts[0].refresh_seconds = Some(90);
+        file.save(updated).unwrap();
+        let text = fs::read_to_string(&path).unwrap();
+        assert!(text.contains("breakdown = [\"keys\"] # future"));
+        assert!(text.contains("[[accounts.budgets]]") && text.contains("amount = 50"));
+        assert!(text.contains("[[accounts.floors]]"));
+        assert_eq!(
+            load_at(&path, false).unwrap().config.accounts[0].refresh_seconds,
+            Some(90)
+        );
+    }
+
+    #[test]
+    fn unrelated_unknown_account_keys_are_still_rejected() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("typo.toml");
+        fs::write(&path, FUTURE_KEYS_FIXTURE.replace("floors", "floor")).unwrap();
+        assert!(load_at(&path, false).is_err());
+    }
+
     #[test]
     fn save_preserves_existing_ids_and_gives_new_accounts_one() {
         let dir = tempfile::tempdir().unwrap();

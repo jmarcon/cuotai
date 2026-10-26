@@ -376,6 +376,18 @@ struct AccountConfig {
     refresh_seconds: Option<u64>,
     #[serde(default)]
     group: Option<String>,
+    // Forward compatibility (PRD 0041 budgets/floors, PRD 0045 breakdown):
+    // accepted and ignored so a file written by a newer release still loads.
+    // `ConfigFile` keeps the keys untouched when it edits the table.
+    #[serde(default)]
+    #[allow(dead_code)]
+    budgets: Option<serde::de::IgnoredAny>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    floors: Option<serde::de::IgnoredAny>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    breakdown: Option<serde::de::IgnoredAny>,
 }
 
 impl<'de> Deserialize<'de> for Account {
