@@ -703,12 +703,6 @@ impl Notes {
     pub(crate) fn finish(self) -> (Vec<String>, Vec<Localized>) {
         (self.texts, self.l10n)
     }
-
-    /// Test/portability view over the plain texts.
-    #[allow(dead_code)]
-    pub(crate) fn texts(&self) -> &[String] {
-        &self.texts
-    }
 }
 
 impl FromIterator<Localized> for Notes {

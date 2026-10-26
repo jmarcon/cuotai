@@ -1244,22 +1244,6 @@ impl RefreshCycle {
     }
 }
 
-// Compile-time check: Report carries the same `Status` variant set we
-// expect when a pending slot transitions to a refreshed report. This keeps
-// `Status` exhaustive against `Report::status` even if someone reorders
-// the variants while editing `model.rs`.
-#[allow(dead_code)]
-fn _status_round_trip(report: &Report) -> Status {
-    report.status
-}
-
-// Compile-time check: Account equality is what `verify_upsert` relies on.
-// If `Account` ever loses `PartialEq` the contract breaks; surface that.
-#[allow(dead_code)]
-fn _account_partial_eq(a: &Account, b: &Account) -> bool {
-    a == b
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

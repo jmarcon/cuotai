@@ -142,16 +142,6 @@ pub fn validation_note(field: Option<&'static str>, note: Localized) -> EditErro
     EditError::Validation { field, note }
 }
 
-/// Build an `Unsupported` error with a static id and message. Reserved
-/// for callers that need to emit the variant; not yet reached by any
-/// production code path.
-#[allow(dead_code)]
-pub(crate) fn unsupported(id: &'static str, message: &'static str) -> EditError {
-    EditError::Unsupported {
-        note: Localized::fixed(id, message),
-    }
-}
-
 /// Shared "index out of range" validation error. The message carries
 /// only the derived index and the account count — never user text.
 pub fn index_out_of_range(index: usize, count: usize) -> EditError {

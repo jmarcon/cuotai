@@ -610,24 +610,25 @@ impl Wizard {
 
     /// Enter the conflict-recovery modal: the file on disk changed
     /// since we last loaded or saved it. The wizard keeps its draft
-    /// (name/credential/fields/interval) intact; the caller can offer
-    /// the user a chance to reload via [`Wizard::take_conflict`] and
-    /// rebuild the runtime against the freshly-loaded file.
+    /// (name/credential/fields/interval) intact and draws the modal; the
+    /// caller reloads the file when the user accepts, rebuilds the runtime
+    /// against it and calls [`Wizard::clear_conflict`].
     pub(crate) fn set_conflict(&mut self, message: String) {
         self.conflict = Some(message);
         self.error = None;
     }
 
-    /// Are we currently in the conflict modal?
-    #[allow(dead_code)]
+    /// Are we currently in the conflict modal? The wizard draws the modal
+    /// itself from `self.conflict`; this view is for tests.
+    #[cfg(test)]
     pub(crate) fn has_conflict(&self) -> bool {
         self.conflict.is_some()
     }
 
-    /// Take ownership of the conflict message (for rendering). The
-    /// modal stays open until [`Wizard::clear_conflict`] is called
-    /// (typically after the user accepted reload or cancelled).
-    #[allow(dead_code)]
+    /// The conflict message, if the modal is open. The modal stays open
+    /// until [`Wizard::clear_conflict`] is called (typically after the user
+    /// accepted reload or cancelled).
+    #[cfg(test)]
     pub(crate) fn conflict(&self) -> Option<&str> {
         self.conflict.as_deref()
     }

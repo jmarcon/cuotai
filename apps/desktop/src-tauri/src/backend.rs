@@ -6797,14 +6797,6 @@ mod tests {
     struct MemoryStore {
         entries: Mutex<HashMap<String, OAuthToken>>,
         delete_calls: Mutex<Vec<String>>,
-        fail_deletes: Mutex<u32>,
-    }
-
-    impl MemoryStore {
-        #[allow(dead_code)] // exercised by future PartialFailure tests; mirrors the core fixture.
-        fn fail_next_deletes(&self, n: u32) {
-            *self.fail_deletes.lock() = n;
-        }
     }
 
     impl TokenStore for MemoryStore {
@@ -6817,16 +6809,6 @@ mod tests {
         }
         fn delete(&self, id: &str) -> Result<(), cuotai_core::oauth::OAuthError> {
             self.delete_calls.lock().push(id.into());
-            let mut remaining = self.fail_deletes.lock();
-            if *remaining > 0 {
-                *remaining -= 1;
-                return Err(cuotai_core::oauth::OAuthError::Storage(
-                    cuotai_core::text::Localized::fixed(
-                        "oauth_error.test.keychain_unavailable",
-                        "Keychain indisponível no teste",
-                    ),
-                ));
-            }
             self.entries.lock().remove(id);
             Ok(())
         }
