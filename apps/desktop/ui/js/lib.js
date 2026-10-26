@@ -1,6 +1,6 @@
 import { DEFAULT_THEME, GROUP_ORDER, THEMES, effectiveMode, themeById } from "./themes.js";
 import { LOCALES, currentLocale, pendingLocales, setLocale, t, te, tl } from "./i18n.js";
-import { esc } from "./util.js";
+import { esc, uiPath } from "./util.js";
 import { flagCountry, flagSvg } from "./flags.js";
 import { crossFade } from "./motion.js";
 export { esc };
@@ -874,11 +874,11 @@ export const logo = (provider, size = 40) => {
   const b = brand(provider);
   const style = `width:${size}px;height:${size}px;font-size:${size * 0.4}px`;
   if (provider === "kimchi") // arte própria, já colorida e circular: sem ladrilho nem máscara
-    return `<span class="logo art" style="${style}" aria-hidden="true"><img src="img/providers/kimchi.svg" alt="" draggable="false" /></span>`;
+    return `<span class="logo art" style="${style}" aria-hidden="true"><img src="${uiPath("img/providers/kimchi.svg")}" alt="" draggable="false" /></span>`;
   const g = glyphs[provider];
   if (!g) return `<span class="logo fb" style="${style};--c:${b.color}" aria-hidden="true"><b>${esc(b.mark)}</b></span>`;
   const [file, bg = b.color, fg = "#fff"] = g;
-  return `<span class="logo" style="${style};--c:${bg};--fg:${fg}" aria-hidden="true"><i class="glyph" style="-webkit-mask-image:url(img/providers/${file}.svg);mask-image:url(img/providers/${file}.svg)"></i></span>`;
+  return `<span class="logo" style="${style};--c:${bg};--fg:${fg}" aria-hidden="true"><i class="glyph" style="-webkit-mask-image:url(${uiPath(`img/providers/${file}.svg`)});mask-image:url(${uiPath(`img/providers/${file}.svg`)})"></i></span>`;
 };
 
 // ---------- tema (compartilhado entre janelas via localStorage + evento storage) ----------

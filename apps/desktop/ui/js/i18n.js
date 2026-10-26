@@ -15,7 +15,7 @@
 // as chaves do core têm prioridade para os ids que o core emite; chaves de
 // UI apenas permanecem no JSON local. Pacotes de idioma do usuário podem
 // sobrescrever ambos (e acrescentar ids novos do core para um idioma novo).
-import { esc } from "./util.js";
+import { esc, uiPath } from "./util.js";
 import { REGISTRY, normalizeLocale } from "./locale-registry.js";
 
 // PRD 0035 RF1.5: the built-in languages come from the core registry (`locale_registry`, or the static copy in the
@@ -70,7 +70,7 @@ export function registerLocale(code, name, messages, flag) {
 async function loadUi(code) {
   if (uiCatalogs.has(code)) return uiCatalogs.get(code);
   try {
-    const res = await fetch(`locales/${code}.json`);
+    const res = await fetch(uiPath(`locales/${code}.json`));
     const data = res.ok ? await res.json() : {};
     uiCatalogs.set(code, data);
     merged.clear();
@@ -91,7 +91,7 @@ async function loadCore(code) {
     // English is the core's built-in fallback and has no file. Absent (any other host): no core texts.
     let data = {};
     try {
-      const res = await fetch(`../../../crates/cuotai-core/locales/${code}.json`);
+      const res = await fetch(uiPath(`../../../crates/cuotai-core/locales/${code}.json`));
       data = res.ok ? await res.json() : {};
     } catch {}
     coreCatalogs.set(code, data);

@@ -1,20 +1,21 @@
 <!doctype html>
 <!-- PRD 0022 RF10.5 component fixture page (dev-only, never bundled): the surfaces for planned features rendered by
      the production modules from the browser demo's fixtures, one section per component. Served from the repository
-     root by driver.mjs; `<base>` points at apps/desktop/ui so the app's relative paths (catalogs, styles) resolve. -->
+     root by driver.mjs. It loads cleanly under the app CSP: no `<base>` (refused by `base-uri 'none'`); the styles use
+     relative paths and the `cuotai-ui-base` meta tells the app modules where their catalogs and images are. -->
 <html lang="en-US" data-theme="dracula" data-mode="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <base href="../../ui/" />
+    <meta name="cuotai-ui-base" content="../../ui/" />
     <title>Cuotai components</title>
-    <link rel="stylesheet" href="css/themes.css" />
-    <link rel="stylesheet" href="css/themes/index.css" />
-    <link rel="stylesheet" href="css/components.css" />
-    <link rel="stylesheet" href="css/detail.css" />
-    <link rel="stylesheet" href="css/stats.css" />
-    <link rel="stylesheet" href="css/main.css" />
-    <link rel="stylesheet" href="css/dialog.css" />
+    <link rel="stylesheet" href="../../ui/css/themes.css" />
+    <link rel="stylesheet" href="../../ui/css/themes/index.css" />
+    <link rel="stylesheet" href="../../ui/css/components.css" />
+    <link rel="stylesheet" href="../../ui/css/detail.css" />
+    <link rel="stylesheet" href="../../ui/css/stats.css" />
+    <link rel="stylesheet" href="../../ui/css/main.css" />
+    <link rel="stylesheet" href="../../ui/css/dialog.css" />
     <style>
       body { overflow: auto; }
       .fx { display: grid; gap: var(--space-4); padding: var(--space-4); max-width: 760px; }
@@ -27,6 +28,6 @@
   </head>
   <body>
     <main id="app" class="fx" aria-busy="true"></main>
-    <script type="module" src="../tools/ui-shots/components.mjs"></script>
+    <script type="module" src="components.mjs"></script>
   </body>
 </html>

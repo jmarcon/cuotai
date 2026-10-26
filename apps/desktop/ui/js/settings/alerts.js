@@ -5,6 +5,7 @@
 import { t, te } from "../i18n.js";
 import { esc, icon, sendTestNotification, setAlertOptions, setAlertsEnabled, setNotifyEnabled, setNotifyOptions, setNotifyPrivate, setProjectedAlert } from "../lib.js";
 import { errorText, group } from "./common.js";
+import { uiPath } from "../util.js";
 import { buttons, disc, row, rowError, select, seg, sw, toast } from "./rows.js";
 import { bindQuiet, quietHtml } from "./quiet.js";
 
@@ -16,7 +17,7 @@ const PROJECTED_LEADS = [15, 30, 60];
 /** PRD 0022 RF9.5 (DS-CMP-PREV-1, DS-CMP-NOTIF-1/-2): what the test notice shows, as the OS draws it: the
  *  app's mark, the title and one sentence. Static, not a live region; its text is its accessible name. */
 const previewHtml = () => `<div class="notif-preview" role="img" aria-label="${te("settings.notify.preview")}: ${te("notify.test.title")}. ${te("notify.test.body")}">
-  <span class="notif"><img src="img/logo.svg" alt="" width="20" height="20" /><span><b>${te("notify.test.title")}</b><span>${te("notify.test.body")}</span></span></span></div>`;
+  <span class="notif"><img src="${uiPath("img/logo.svg")}" alt="" width="20" height="20" /><span><b>${te("notify.test.title")}</b><span>${te("notify.test.body")}</span></span></span></div>`;
 
 export function html({ settings: s }) {
   const n = s.notify;

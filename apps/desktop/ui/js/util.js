@@ -57,3 +57,9 @@ function patchNode(a, b) {
   if (a instanceof HTMLInputElement && a.value !== b.value) a.value = b.value; // o atributo não muda o valor digitado
   patchChildren(a, b);
 }
+
+/** Prefix of the interface's own files (catalogs, images) relative to the page: empty in the app windows and the
+ *  demo, set by a dev-only page served from elsewhere with `<meta name="cuotai-ui-base">` (a `<base>` element is
+ *  refused by the app CSP's `base-uri 'none'`). */
+const UI_BASE = globalThis.document?.querySelector?.('meta[name="cuotai-ui-base"]')?.getAttribute("content") ?? "";
+export const uiPath = (path) => `${UI_BASE}${path}`;
