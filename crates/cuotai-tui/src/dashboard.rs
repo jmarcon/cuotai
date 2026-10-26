@@ -1154,6 +1154,20 @@ fn footer_segments(view: &View<'_>) -> [Vec<FooterSegment>; 2] {
         tr("dashboard.footer.count.zero", "0 accounts").to_string()
     } else if view.visible.len() == 1 {
         tr("dashboard.footer.count.one", "1 account").to_string()
+    } else if let Some(position) = view
+        .selected
+        .filter(|position| *position < view.visible.len())
+    {
+        // The selected card's place among the visible ones: with more
+        // accounts than a page holds, the only sign of where the list is.
+        trf(
+            "dashboard.footer.count.position",
+            "{position}/{count} accounts",
+            &[
+                ("position", &(position + 1)),
+                ("count", &view.visible.len()),
+            ],
+        )
     } else {
         trf(
             "dashboard.footer.count.many",
@@ -5703,13 +5717,17 @@ mod tests {
                 "row cut mid-segment: {row:?}"
             );
         }
-        let wide = rows_at(200, 60, &accounts, &reports, Some(0), false);
+        let wide = rows_at(200, 60, &accounts, &reports, Some(6), false);
         assert!(
             wide[58].contains("q sair"),
             "two rows suffice at 200 columns"
         );
-        assert!(wide[59].contains("50 contas"));
+        // The selected card's place among fifty: the only sign of where the
+        // list stands once the accounts span several pages.
+        assert!(wide[59].contains("7/50 contas"), "{}", wide[59]);
         assert!(wide[57].trim().is_empty() || wide[57].ends_with('┘'));
+        let unselected = rows_at(200, 60, &accounts, &reports, None, false);
+        assert!(unselected[59].contains(" 50 contas"), "{}", unselected[59]);
     }
 
     #[test]

@@ -98,6 +98,7 @@
   "dashboard.footer.clear": "c svuota",
   "dashboard.footer.count.many": "{count} account",
   "dashboard.footer.count.one": "1 account",
+  "dashboard.footer.count.position": "{position}/{count} account",
   "dashboard.footer.count.zero": "0 account",
   "dashboard.footer.delete": "d/Del elimina",
   "dashboard.footer.details": "Enter dettagli",

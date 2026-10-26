@@ -98,6 +98,7 @@
   "dashboard.footer.clear": "c limpiar",
   "dashboard.footer.count.many": "{count} cuentas",
   "dashboard.footer.count.one": "1 cuenta",
+  "dashboard.footer.count.position": "{position}/{count} cuentas",
   "dashboard.footer.count.zero": "0 cuentas",
   "dashboard.footer.delete": "d/Del eliminar",
   "dashboard.footer.details": "Enter detalles",
