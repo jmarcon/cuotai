@@ -1230,5 +1230,15 @@
   "settings.display.more": "और डिस्प्ले विकल्प",
   "lang.inProgress": "अनुवाद जारी है",
   "time.duration.minutesSeconds": "{m} मिनट {s} सेकंड",
-  "time.duration.seconds": "{s} सेकंड"
+  "time.duration.seconds": "{s} सेकंड",
+  "settings.page.extensions": "एक्सटेंशन",
+  "settings.kw.extensions": "एक्सटेंशन स्थानीय ऐड-ऑन प्लगइन प्रदाता कस्टम चलाएँ स्वीकृत फ़ोल्डर",
+  "dialog.monogram": "मोनोग्राम",
+  "dialog.monogramPlaceholder": "वैकल्पिक, जैसे WK",
+  "dialog.monogramHint": "प्रदाता के कई खाते होने पर इस खाते की टाइल पर दिखने वाले एक या दो अक्षर। खाली छोड़ें तो नाम के पहले अक्षर दिखेंगे।",
+  "dialog.monogram.invalid": "बिना स्पेस के एक या दो अक्षर लिखें।",
+  "desktop.error.invalid_monogram": "मोनोग्राम में बिना स्पेस के एक या दो अक्षर होते हैं।",
+  "settings.whatsnew.auto": "नया क्या है दिखाएँ",
+  "settings.whatsnew.auto.desc": "हर अपडेट के बाद रिलीज़ नोट्स एक बार खोलें",
+  "settings.kw.whats-new-auto": "नया क्या है रिलीज़ नोट्स बदलाव अपडेट संस्करण अपने आप खोलें"
 }

@@ -476,5 +476,8 @@
   "wizard.summary.token_vault": "(टोकन सुरक्षित स्टोरेज में रहता है; वह कभी दिखाया या TOML में लिखा नहीं जाता)",
   "wizard.summary.unnamed": "{provider} (बिना नाम)",
   "wizard.title": "विज़ार्ड — {position}/{total} {label}",
-  "wizard.too_small": "विज़ार्ड: टर्मिनल को कम से कम 60 × 20 तक चौड़ा करें। Esc रद्द करता है।"
+  "wizard.too_small": "विज़ार्ड: टर्मिनल को कम से कम 60 × 20 तक चौड़ा करें। Esc रद्द करता है।",
+  "dashboard.footer.count.position": "{position}/{count} खाते",
+  "dashboard.footer.next_connection": "n कनेक्शन",
+  "dashboard.footer.aggregator_filter": "f एग्रीगेटर"
 }

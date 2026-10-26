@@ -476,5 +476,8 @@
   "wizard.summary.token_vault": "(토큰은 보안 저장소에 남으며 표시되거나 TOML에 기록되지 않습니다)",
   "wizard.summary.unnamed": "{provider}(이름 없음)",
   "wizard.title": "마법사 — {position}/{total} {label}",
-  "wizard.too_small": "마법사: 터미널을 60 × 20 이상으로 넓혀 주세요. Esc로 취소합니다."
+  "wizard.too_small": "마법사: 터미널을 60 × 20 이상으로 넓혀 주세요. Esc로 취소합니다.",
+  "dashboard.footer.count.position": "{position}/{count}개 계정",
+  "dashboard.footer.next_connection": "n 연결",
+  "dashboard.footer.aggregator_filter": "f 애그리게이터"
 }

@@ -478,5 +478,6 @@
   "wizard.title": "Мастер — {position}/{total} {label}",
   "wizard.too_small": "Мастер: увеличьте терминал минимум до 60 × 20. Esc — отмена.",
   "dashboard.footer.next_connection": "n подключение",
-  "dashboard.footer.aggregator_filter": "f агрегатор"
+  "dashboard.footer.aggregator_filter": "f агрегатор",
+  "dashboard.footer.count.position": "{position}/{count} аккаунтов"
 }

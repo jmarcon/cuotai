@@ -478,5 +478,6 @@
   "wizard.title": "Assistent — {position}/{total} {label}",
   "wizard.too_small": "Assistent: Vergrößern Sie das Terminal auf mindestens 60 × 20. Esc bricht ab.",
   "dashboard.footer.next_connection": "n Verbindung",
-  "dashboard.footer.aggregator_filter": "f Aggregator"
+  "dashboard.footer.aggregator_filter": "f Aggregator",
+  "dashboard.footer.count.position": "{position}/{count} Konten"
 }
