@@ -1308,6 +1308,38 @@ mod tests {
         }
     }
 
+    /// PRD 0035 RF8.3 and RF8.4 (DS-TOK-TYP-9): the per-script line
+    /// heights and the CJK/Devanagari typography rules stay in `themes.css`.
+    #[test]
+    fn scripts_keep_their_line_height_and_typography_rules() {
+        let css = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../apps/desktop/ui/css/themes.css"),
+        )
+        .unwrap();
+        // Every block whose selector list ends with `selector`, joined.
+        let rule = |selector: &str| {
+            css.match_indices(&format!("{selector} {{"))
+                .map(|(at, _)| &css[at..at + css[at..].find('}').unwrap()])
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
+        assert!(rule(":root:lang(ko)").contains("--line-body: 1.5"));
+        assert!(rule(":root:lang(hi)").contains("--line-body: 1.6"));
+        assert!(rule(":root:lang(vi)").contains("--line-body: 1.45"));
+        assert!(css.contains("var(--line-body) var(--font-ui), var(--font-script)"));
+        let tracking = rule(":root:lang(hi) *");
+        assert!(
+            tracking.contains("letter-spacing: normal")
+                && tracking.contains("text-transform: none")
+        );
+        assert!(
+            !css.contains(":root:lang(tr) *"),
+            "Turkish keeps its casing and tracking"
+        );
+        assert!(css.contains("font-synthesis: none") && css.contains("line-break: strict"));
+    }
+
     /// PRD 0035 RF2.2: the parity rules catch each kind of drift.
     #[test]
     fn parity_catches_each_kind_of_drift() {

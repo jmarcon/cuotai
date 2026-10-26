@@ -106,6 +106,48 @@
 :root:lang(hi) {
   --text-2xs: 11px;
 }
+/* DS-TOK-TYP-9 (PRD 0035 RF8.3): body line-height per script, so stacked diacritics and matras never clip; the figure
+   line keeps 1.1 (digits are Latin). */
+:root {
+  --line-body: 1.4;
+}
+:root:lang(zh),
+:root:lang(ja),
+:root:lang(ko) {
+  --line-body: 1.5;
+}
+:root:lang(hi) {
+  --line-body: 1.6;
+}
+:root:lang(vi) {
+  --line-body: 1.45;
+}
+/* RF8.4 and RF8.5: no faux bold or italic, no tracking or forced capitals in scripts without case (tracking breaks
+   Devanagari conjuncts), strict CJK line breaking. `!important` on purpose, as for reduced motion: the script wins
+   over a component's micro-label style. Turkish keeps both (lang="tr" yields İ/ı). */
+:root:lang(zh),
+:root:lang(ja),
+:root:lang(ko),
+:root:lang(hi) {
+  font-synthesis: none;
+}
+:root:lang(zh) *,
+:root:lang(ja) *,
+:root:lang(ko) *,
+:root:lang(hi) * {
+  letter-spacing: normal !important;
+  text-transform: none !important;
+}
+:root:lang(zh),
+:root:lang(ja),
+:root:lang(ko) {
+  line-break: strict;
+  hyphens: manual;
+}
+/* RF8.5: German may hyphenate description paragraphs, never buttons, chips, numbers or labels. */
+:root:lang(de) p {
+  hyphens: auto;
+}
 /* Reduced motion (RF1.2): the app option ("Reduced"/"Off") or the system, except "Always".
    `!important` de propósito: a acessibilidade vence qualquer tema (temas não podem usar `!important`). */
 :root[data-motion="reduced"],
@@ -141,7 +183,7 @@ body,
 body {
   background: var(--body-bg);
   color: var(--fg);
-  font: var(--text-base)/1.4 var(--font-ui), var(--font-script);
+  font: var(--text-base) / var(--line-body) var(--font-ui), var(--font-script);
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
   user-select: none;
