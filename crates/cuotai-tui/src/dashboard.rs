@@ -33,6 +33,7 @@ use ratatui::{
     Frame,
 };
 use std::time::Duration;
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 const MIN_CARD_HEIGHT: u16 = 8;
 const NARROW_WIDTH: u16 = 45;
@@ -509,7 +510,7 @@ fn history_line(
     };
     let summary = trend_text(&trend, &metric.unit);
     let cells = usize::from(width)
-        .saturating_sub(6 + range.chars().count() + summary.chars().count())
+        .saturating_sub(6 + cells(range) + cells(&summary))
         .min(SPARK_MAX_CELLS);
     if cells < SPARK_MIN_CELLS {
         return Line::styled(
@@ -1530,18 +1531,14 @@ fn render_card(
     // PRD 0024 RF7.5: the best account of a group says so on its border,
     // while the title still fits.
     let title = match best_chip_of(view, account_index) {
-        Some(chip)
-            if title.chars().count() + chip.chars().count() + 4 <= usize::from(area.width) =>
-        {
+        Some(chip) if cells(&title) + cells(&chip) + 4 <= usize::from(area.width) => {
             format!("{title}· {} ", safe(&chip))
         }
         _ => title,
     };
     // PRD 0036 RF2.3/RF2.4: the aggregator's standing warnings, while they fit.
     let title = match report.and_then(warning_chips) {
-        Some(chips)
-            if title.chars().count() + chips.chars().count() + 4 <= usize::from(area.width) =>
-        {
+        Some(chips) if cells(&title) + cells(&chips) + 4 <= usize::from(area.width) => {
             format!("{title}· {} ", safe(&chips))
         }
         _ => title,
@@ -1817,11 +1814,8 @@ fn clipped_lines(text: &str, width: usize, rows: usize) -> Vec<String> {
     if lines.len() > rows {
         lines.truncate(rows);
         let last = &mut lines[rows - 1];
-        let room = width.saturating_sub(1);
-        if last.chars().count() > room {
-            *last = last.chars().take(room).collect();
-        }
-        last.push('…');
+        let (head, _) = split_at_cells(last, width.saturating_sub(1));
+        *last = format!("{head}…");
     }
     lines
 }
@@ -1841,12 +1835,7 @@ fn class_color(class: AccountClass) -> Color {
 fn session_title(session: &cuotai_core::text::Localized, width: u16) -> Line<'static> {
     let text = resolve_card_l10n(session);
     let room = usize::from(width.saturating_sub(4));
-    let text = if text.chars().count() > room {
-        let cut: String = text.chars().take(room.saturating_sub(1)).collect();
-        format!("{}…", cut.trim_end())
-    } else {
-        text
-    };
+    let text = ellipsize(&text, room);
     Line::from(Span::styled(
         format!(" {text} "),
         Style::default().fg(MUTED).remove_modifier(Modifier::BOLD),
@@ -2091,21 +2080,72 @@ fn note_row_count(note: Option<&str>, _width: u16) -> usize {
     }
 }
 
+/// The terminal cells `text` occupies (CJK and emoji take two, combining
+/// marks none), as ratatui will draw it.
+pub(crate) fn cells(text: &str) -> usize {
+    UnicodeWidthStr::width(text)
+}
+
+/// `text` split where its first `width` cells end: a character that would
+/// cross the boundary starts the tail. The head is never empty while the
+/// text is not, so a caller consuming the text always makes progress.
+fn split_at_cells(text: &str, width: usize) -> (&str, &str) {
+    let mut used = 0;
+    for (offset, character) in text.char_indices() {
+        let cell_width = UnicodeWidthChar::width(character).unwrap_or(0);
+        if offset > 0 && used + cell_width > width {
+            return text.split_at(offset);
+        }
+        used += cell_width;
+    }
+    (text, "")
+}
+
+/// `text` cut to `room` cells, ending in "…" when something was cut.
+fn ellipsize(text: &str, room: usize) -> String {
+    if cells(text) <= room {
+        return text.to_string();
+    }
+    let (head, _) = split_at_cells(text, room.saturating_sub(1));
+    let head = if room == 0 { "" } else { head.trim_end() };
+    format!("{head}…")
+}
+
+/// `text` wrapped to `width` cells on spaces; a word wider than a line (CJK
+/// text, a URL) breaks at character boundaries instead of being clipped.
 fn textwrap_simple(text: &str, width: usize) -> Vec<String> {
     if width == 0 {
         return vec![text.to_string()];
     }
     let mut lines = Vec::new();
     let mut current = String::new();
+    let mut current_cells = 0;
     for word in text.split_whitespace() {
-        if current.is_empty() {
-            current.push_str(word);
-        } else if current.len() + 1 + word.len() <= width {
-            current.push(' ');
-            current.push_str(word);
-        } else {
-            lines.push(std::mem::take(&mut current));
-            current.push_str(word);
+        let mut word = word;
+        let mut word_cells = cells(word);
+        loop {
+            if current.is_empty() {
+                if word_cells <= width {
+                    current.push_str(word);
+                    current_cells = word_cells;
+                    break;
+                }
+                let (head, tail) = split_at_cells(word, width);
+                lines.push(head.to_string());
+                word = tail;
+                word_cells = cells(tail);
+                if word.is_empty() {
+                    break;
+                }
+            } else if current_cells + 1 + word_cells <= width {
+                current.push(' ');
+                current.push_str(word);
+                current_cells += 1 + word_cells;
+                break;
+            } else {
+                lines.push(std::mem::take(&mut current));
+                current_cells = 0;
+            }
         }
     }
     if !current.is_empty() {
@@ -2682,7 +2722,9 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
             targets.source = Some((
                 Rect {
                     x: row.x + offset,
-                    width: (source.len() as u16).min(row.width - offset),
+                    width: u16::try_from(cells(source))
+                        .unwrap_or(u16::MAX)
+                        .min(row.width - offset),
                     ..row
                 },
                 source.to_owned(),
@@ -2768,7 +2810,7 @@ fn line_bar(
         .map(|reset| format!("  {}", format_reset_line(reset, now)))
         .unwrap_or_default();
     let width = usize::from(width)
-        .saturating_sub(2 + reset_label.chars().count() + 16)
+        .saturating_sub(2 + cells(&reset_label) + 16)
         .max(1);
     let bar_of = |ratio: f64| match motion {
         Some(_) => eighth_bar(ratio, width),
@@ -5472,5 +5514,254 @@ mod tests {
         let mut ready = rejected("user_session.rejected");
         ready.status = Status::Ready;
         assert!(!footer(ready, false).contains("colar nova sessão"));
+    }
+
+    /// Fifty accounts with five metrics and two notes each: the synthetic
+    /// load the performance review measures frames against.
+    fn fifty_accounts() -> (Vec<Account>, Vec<Option<Report>>) {
+        let providers = [
+            Provider::OpenAiApi,
+            Provider::AnthropicApi,
+            Provider::Cursor,
+            Provider::Copilot,
+            Provider::Groq,
+        ];
+        let accounts: Vec<Account> = (0..50)
+            .map(|i| Account {
+                id: None,
+                name: format!("Conta de teste número {i:02} — ação"),
+                provider: providers[i % providers.len()],
+                credential_env: None,
+                session: None,
+                oauth: None,
+                params: Default::default(),
+                refresh_seconds: None,
+                group: None,
+            })
+            .collect();
+        let reports = accounts
+            .iter()
+            .map(|account| {
+                let mut r = report(
+                    Status::Ready,
+                    (0..5)
+                        .map(|m| {
+                            let mut metric = metric(
+                                &format!("quota {m}"),
+                                Some(f64::from(m) * 10.0 + 1.0),
+                                Some(100.0),
+                                Some(99.0 - f64::from(m) * 10.0),
+                            );
+                            metric.resets_at =
+                                Some(Utc.with_ymd_and_hms(2026, 1, 2, 0, 0, 0).unwrap());
+                            metric
+                        })
+                        .collect(),
+                );
+                r.account = account.name.clone();
+                r.provider = account.provider;
+                r.notes = vec!["first note".into(), "second note with more words".into()];
+                Some(r)
+            })
+            .collect();
+        (accounts, reports)
+    }
+
+    /// Render `accounts`/`reports` at `width`x`height` and return the rows.
+    fn rows_at(
+        width: u16,
+        height: u16,
+        accounts: &[Account],
+        reports: &[Option<Report>],
+        selected: Option<usize>,
+        details: bool,
+    ) -> Vec<String> {
+        let visible = visible_indices(accounts, reports, "", true);
+        let model_counts = vec![None; accounts.len()];
+        let now = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+        let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+        terminal
+            .draw(|frame| {
+                draw(
+                    frame,
+                    View {
+                        accounts,
+                        reports,
+                        model_counts: &model_counts,
+                        visible: &visible,
+                        selected,
+                        details,
+                        detail_scroll: 0,
+                        show_unmeasured: true,
+                        refreshing: false,
+                        location: "~/.config/cuotai/config.toml",
+                        filter: "",
+                        filtering: false,
+                        next_refresh: Some(std::time::Duration::from_secs(120)),
+                        error: None,
+                        anim: None,
+                        last_good: &[],
+                        recent: &[],
+                        refresh_seconds: 300,
+                        history: None,
+                        banner: None,
+                        incidents: &[],
+                        local_cost: None,
+                        sub_cards: &[],
+                        aggregators_collapsed: false,
+                        connection_focus: None,
+                        access_account: None,
+                        now,
+                    },
+                );
+            })
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+        buffer
+            .content()
+            .chunks(usize::from(width))
+            .map(|row| row.iter().map(|cell| cell.symbol()).collect::<String>())
+            .collect()
+    }
+
+    #[test]
+    fn textwrap_measures_cells_not_bytes() {
+        // Nine characters, fourteen bytes: fits a ten-cell line.
+        assert_eq!(textwrap_simple("ação açãos", 10), vec!["ação açãos"]);
+        // Fifteen bytes, five characters, ten cells: each half is two
+        // double-width characters.
+        assert_eq!(textwrap_simple("日本語認証", 4), vec!["日本", "語認", "証"]);
+        // An overlong URL breaks instead of being clipped by the widget.
+        assert_eq!(
+            textwrap_simple("see https://example.com/a/b", 12),
+            vec!["see", "https://exam", "ple.com/a/b"]
+        );
+        assert_eq!(textwrap_simple("", 8), vec![""]);
+    }
+
+    #[test]
+    fn ellipsize_cuts_on_cells_and_keeps_short_text() {
+        assert_eq!(ellipsize("ação", 4), "ação");
+        assert_eq!(ellipsize("ação feita", 6), "ação…");
+        assert_eq!(ellipsize("日本語", 4), "日…");
+        assert_eq!(ellipsize("日本語", 0), "…");
+        assert_eq!(
+            clipped_lines("認証に失敗しました", 6, 2),
+            vec!["認証に", "失敗…"]
+        );
+    }
+
+    /// Wide (CJK, emoji) account names and notes keep the card borders
+    /// aligned at 80 columns: every bordered row still ends in its border.
+    #[test]
+    fn wide_characters_keep_card_borders_aligned_at_80_columns() {
+        let (mut accounts, mut reports) = fifty_accounts();
+        accounts.truncate(2);
+        reports.truncate(2);
+        accounts[0].name = "日本語のアカウント名がとても長い場合のテスト用の名前です".into();
+        accounts[1].name = "한국어 계정 🚀 이름".into();
+        let failed = report(Status::AuthenticationError, Vec::new());
+        let mut failed = failed;
+        failed.notes = vec![
+            "認証に失敗しました。トークンの有効期限が切れている可能性があります。設定を確認してください。もう一度ログインしてください。".into(),
+        ];
+        reports[1] = Some(failed);
+        let rows = rows_at(80, 24, &accounts, &reports, Some(0), false);
+        if std::env::var_os("CUOTAI_BENCH_DUMP").is_some() {
+            for row in &rows {
+                println!("{row}");
+            }
+        }
+        for row in &rows {
+            if row.starts_with('│') {
+                assert!(row.ends_with('│'), "right border lost: {row:?}");
+            }
+            if row.starts_with('┌') || row.starts_with('└') {
+                assert!(
+                    row.ends_with('┐') || row.ends_with('┘'),
+                    "corner lost: {row:?}"
+                );
+            }
+        }
+    }
+
+    /// Frame-time benchmark: `cargo test --release -p cuotai-tui
+    /// bench_frame_time -- --ignored --nocapture`. Prints the mean time of
+    /// `draw` per frame at 80x24 and 200x60, and the cost of cloning the
+    /// fifty reports once (what the event loop used to do per frame).
+    #[test]
+    #[ignore = "benchmark; run by hand with --release and --nocapture"]
+    fn bench_frame_time_fifty_accounts() {
+        let (accounts, reports) = fifty_accounts();
+        let visible = visible_indices(&accounts, &reports, "", true);
+        let model_counts = vec![None; accounts.len()];
+        let now = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+        for (width, height) in [(80u16, 24u16), (200, 60)] {
+            let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+            let frames = 300;
+            let started = std::time::Instant::now();
+            for _ in 0..frames {
+                terminal
+                    .draw(|frame| {
+                        draw(
+                            frame,
+                            View {
+                                accounts: &accounts,
+                                reports: &reports,
+                                model_counts: &model_counts,
+                                visible: &visible,
+                                selected: Some(7),
+                                details: false,
+                                detail_scroll: 0,
+                                show_unmeasured: true,
+                                refreshing: false,
+                                location: "~/.config/cuotai/config.toml",
+                                filter: "",
+                                filtering: false,
+                                next_refresh: Some(std::time::Duration::from_secs(120)),
+                                error: None,
+                                anim: None,
+                                last_good: &[],
+                                recent: &[],
+                                refresh_seconds: 300,
+                                history: None,
+                                banner: None,
+                                incidents: &[],
+                                local_cost: None,
+                                sub_cards: &[],
+                                aggregators_collapsed: false,
+                                connection_focus: None,
+                                access_account: None,
+                                now,
+                            },
+                        );
+                    })
+                    .unwrap();
+            }
+            let per_frame = started.elapsed() / frames;
+            println!("draw {width}x{height}: {per_frame:?} per frame");
+            if std::env::var_os("CUOTAI_BENCH_DUMP").is_some() {
+                let buffer = terminal.backend().buffer();
+                for row in buffer.content().chunks(usize::from(width)) {
+                    println!(
+                        "{}",
+                        row.iter().map(|cell| cell.symbol()).collect::<String>()
+                    );
+                }
+            }
+        }
+        let started = std::time::Instant::now();
+        let calls = 100_000;
+        for _ in 0..calls {
+            std::hint::black_box(tr("dashboard.footer.select", "select"));
+        }
+        println!("tr(): {:?} per call", started.elapsed() / calls);
+        let started = std::time::Instant::now();
+        let rounds = 1000;
+        for _ in 0..rounds {
+            let cloned: Vec<Option<Report>> = reports.clone();
+            std::hint::black_box(cloned);
+        }
+        println!("clone of fifty reports: {:?}", started.elapsed() / rounds);
     }
 }

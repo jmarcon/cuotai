@@ -799,6 +799,7 @@ dependencies = [
  "serde_json",
  "sys-locale",
  "tokio",
+ "unicode-width",
 ]
 
 [[package]]

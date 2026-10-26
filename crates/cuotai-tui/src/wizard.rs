@@ -1617,7 +1617,12 @@ impl Wizard {
         let mut buttons = Vec::new();
         let mut x = inner.x;
         for (label, code) in entries {
-            let width = label.len() as u16 + 2; // colchetes
+            // The brackets plus the label's cells: a translated label with
+            // accents or wide characters keeps the drawn and clicked
+            // rectangles equal.
+            let width = u16::try_from(crate::dashboard::cells(label))
+                .unwrap_or(u16::MAX)
+                .saturating_add(2);
             if x.saturating_add(width) > inner.x.saturating_add(inner.width) {
                 break;
             }
