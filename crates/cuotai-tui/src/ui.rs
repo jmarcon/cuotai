@@ -3969,9 +3969,8 @@ mod tests {
         assert_eq!(tui_locale_for(Some("en-XA"), Some("pt-BR")), "en-XA");
         assert_eq!(tui_locale_for(None, Some("en-XA")), "en-US");
         assert!(unknown_lang_warning_for("en-XA").is_none());
-        let chrome = crate::l10n::trf_in("en-XA", "demo.id", "{n} accounts", &[("n", &3)]);
-        assert!(chrome.starts_with('⟦') && chrome.ends_with('⟧'), "{chrome}");
-        assert!(chrome.contains("3 áççôüñts"), "{chrome}");
+        let chrome = crate::l10n::tr_in("en-XA", "cost.prices.col.model", "Model");
+        assert_eq!(chrome, "⟦Môdël·····⟧");
         let core = cuotai_core::text::status_l10n(cuotai_core::Status::Ready).resolve("en-XA");
         assert!(core.starts_with('⟦'), "{core}");
     }

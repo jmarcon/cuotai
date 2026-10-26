@@ -148,8 +148,8 @@
 :root:lang(de) p {
   hyphens: auto;
 }
-/* Reduced motion (RF1.2): the app option ("Reduced"/"Off") or the system, except "Always".
-   `!important` de propósito: a acessibilidade vence qualquer tema (temas não podem usar `!important`). */
+/* Reduced motion (RF1.2): the app option ("Reduced"/"Off") or the system setting, unless "Always".
+   `!important` on purpose: accessibility beats any theme (themes cannot use `!important`). */
 :root[data-motion="reduced"],
 :root[data-motion="off"] {
   --motion-fast: 0ms !important;
