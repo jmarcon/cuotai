@@ -1295,6 +1295,55 @@ credential_env = "GROQ_KEY_BETA"
         assert_eq!(count(&empty, "1"), 1, "the newer file is untouched");
     }
 
+    /// The single migration chain carries a 0.80.0 file (version 2) with
+    /// readings through every step to the current schema: each sample keeps
+    /// its numbers under its series, which keeps the metric's unit, kind and
+    /// window from its newest sample.
+    #[test]
+    fn a_0_80_file_with_readings_upgrades_through_every_version() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("v080-data.sqlite3");
+        let mut db = raw(&path);
+        migrate(&mut db, &MIGRATIONS[..2]).unwrap();
+        db.execute_batch(
+            "INSERT INTO series VALUES ('cfg', 'acct', 'm5h', '5h', 0, 2000, NULL);
+             INSERT INTO samples VALUES ('cfg', 'acct', 'm5h', 1000, 10.0, 100.0, NULL,
+                 '%', 'quota', 'h5', NULL);
+             INSERT INTO samples VALUES ('cfg', 'acct', 'm5h', 2000, 25.0, 100.0, NULL,
+                 '%', 'quota', 'h5', 9000);",
+        )
+        .unwrap();
+        migrate(&mut db, &MIGRATIONS).unwrap();
+        drop(db);
+        let version: i64 = raw(&path)
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(version, MIGRATIONS.len() as i64);
+        assert_eq!(
+            count(&path, "s.metric_key = 'm5h'"),
+            2,
+            "both readings kept"
+        );
+        assert_eq!(
+            count(
+                &path,
+                "s.unit = '%' AND s.kind = 'quota' AND s.\"window\" = 'h5'"
+            ),
+            2
+        );
+        assert_eq!(
+            count(
+                &path,
+                "x.taken_at = 2000 AND x.used = 25.0 AND x.resets_at = 9000"
+            ),
+            1
+        );
+        assert_eq!(
+            count(&path, "s.billing = 'included' AND s.scope IS NULL"),
+            2
+        );
+    }
+
     #[cfg(unix)]
     #[test]
     fn store_dir_and_files_are_private_even_when_preexisting() {
