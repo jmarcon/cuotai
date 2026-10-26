@@ -204,6 +204,15 @@ impl Localized {
     /// [`Localized`] parameters are recursively resolved against the same
     /// locale.
     pub fn resolve(&self, locale: &str) -> String {
+        // PRD 0035 RF9.4: development builds render `en-XA` from the English
+        // source, placeholders kept.
+        if is_pseudo(locale) {
+            return substitute(
+                &pseudo_text(&self.fallback),
+                &self.params,
+                Locale::resolve(locale),
+            );
+        }
         let resolved = Locale::resolve(locale);
         let count = match self.params.get("count") {
             Some(ParamValue::Text(count)) => Some(count.as_str()),
@@ -352,9 +361,11 @@ pub fn countdown(span: chrono::TimeDelta) -> Localized {
 mod case;
 mod fold;
 pub mod parity;
+mod pseudo;
 mod registry;
 pub use case::uppercase;
 pub use fold::{answer_matches, fold};
+pub use pseudo::{is_pseudo, pseudo_text, registered_locales, PSEUDO_LOCALE};
 pub use registry::{
     locale_row, normalize, plural_category, source_locale, Direction, LocaleRow, LocaleStatus,
     PluralRule, LOCALES,

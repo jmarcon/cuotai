@@ -68,10 +68,28 @@ pub(crate) fn tr(id: &str, en: &'static str) -> &'static str {
 
 /// [`tr`] for an explicit locale.
 pub(crate) fn tr_in(locale: &str, id: &str, en: &'static str) -> &'static str {
+    if cuotai_core::text::is_pseudo(locale) {
+        return pseudo(en);
+    }
     catalog(locale)
         .and_then(|catalog| catalog.get(id))
         .and_then(Message::as_text)
         .unwrap_or(en)
+}
+
+/// PRD 0035 RF9.4: the `en-XA` text of an English source string, kept for
+/// the life of the process so [`tr_in`] can keep returning `&'static str`.
+/// Only development builds reach it (`is_pseudo` is `false` in release),
+/// and the cache is bounded by the number of distinct TUI texts.
+fn pseudo(en: &'static str) -> &'static str {
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+    static CACHE: LazyLock<Mutex<HashMap<&'static str, &'static str>>> =
+        LazyLock::new(Mutex::default);
+    let mut cache = CACHE.lock().unwrap_or_else(|poison| poison.into_inner());
+    cache
+        .entry(en)
+        .or_insert_with(|| Box::leak(cuotai_core::text::pseudo_text(en).into_boxed_str()))
 }
 
 /// [`tr`] with `{name}` placeholders substituted from `params`.

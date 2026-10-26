@@ -3654,7 +3654,11 @@ pub(crate) fn tui_locale() -> &'static str {
 }
 
 fn tui_locale_for(preferred: Option<&str>, system: Option<&str>) -> String {
-    use cuotai_core::text::{normalize, source_locale};
+    use cuotai_core::text::{is_pseudo, normalize, source_locale, PSEUDO_LOCALE};
+    // PRD 0035 RF9.4: `CUOTAI_LANG=en-XA` in a development build only.
+    if preferred.is_some_and(is_pseudo) {
+        return PSEUDO_LOCALE.to_string();
+    }
     let chosen = match preferred.filter(|locale| !locale.trim().is_empty()) {
         // An unknown CUOTAI_LANG is English, not the system language
         // (`unknown_lang_warning` says so once).
@@ -3955,6 +3959,21 @@ mod tests {
             assert_eq!(tui_locale_for(None, Some(&system)), row.code);
             assert_eq!(tui_locale_for(Some(row.code), Some("pt-BR")), row.code);
         }
+    }
+
+    /// PRD 0035 RF9.4: `CUOTAI_LANG=en-XA` renders the pseudo-locale in a
+    /// development build, chrome and core texts alike, placeholders kept;
+    /// the system language never selects it.
+    #[test]
+    fn pseudo_locale_is_a_development_only_choice() {
+        assert_eq!(tui_locale_for(Some("en-XA"), Some("pt-BR")), "en-XA");
+        assert_eq!(tui_locale_for(None, Some("en-XA")), "en-US");
+        assert!(unknown_lang_warning_for("en-XA").is_none());
+        let chrome = crate::l10n::trf_in("en-XA", "demo.id", "{n} accounts", &[("n", &3)]);
+        assert!(chrome.starts_with('⟦') && chrome.ends_with('⟧'), "{chrome}");
+        assert!(chrome.contains("3 áççôüñts"), "{chrome}");
+        let core = cuotai_core::text::status_l10n(cuotai_core::Status::Ready).resolve("en-XA");
+        assert!(core.starts_with('⟦'), "{core}");
     }
 
     #[test]

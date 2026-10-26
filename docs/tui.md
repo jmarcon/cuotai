@@ -45,7 +45,7 @@ cuotai --completions fish > ~/.config/fish/completions/cuotai.fish
 The TUI resolves the texts delivered by the core (login labels,
 fields, help, edit errors, report notes, cost warnings) against the
 core catalog, using the locale set in `CUOTAI_LANG`
-(RFC 5646 codes: `en-US`, `es`, `it`, `pt-BR`...; system forms such as `pt_BR.UTF-8` and aliases such as `zh-Hans` or `in` are normalized by the core's locale registry, and a value that names no known language prints one warning and uses English). Without `CUOTAI_LANG`,
+(RFC 5646 codes: `en-US`, `es`, `it`, `pt-BR`...; system forms such as `pt_BR.UTF-8` and aliases such as `zh-Hans` or `in` are normalized by the core's locale registry, and a value that names no known language prints one warning and uses English; development builds also accept `CUOTAI_LANG=en-XA`, a pseudo-locale that lengthens and accents every text and wraps it in `⟦ ⟧` to expose clipping and untranslated text, which release builds read as English). Without `CUOTAI_LANG`,
 it uses your system language, and English when that is not one of the 14 interface languages.
 The TUI's own texts (shortcuts, frames, buttons, messages) come from the catalogs in
 `crates/cuotai-tui/locales` for the same language.
