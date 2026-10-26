@@ -1230,5 +1230,15 @@
   "settings.display.more": "Daha fazla görüntü seçeneği",
   "lang.inProgress": "Çeviri sürüyor",
   "time.duration.minutesSeconds": "{m} dk {s} sn",
-  "time.duration.seconds": "{s} sn"
+  "time.duration.seconds": "{s} sn",
+  "settings.page.extensions": "Uzantılar",
+  "settings.kw.extensions": "uzantılar yerel uzantı eklenti sağlayıcı özel çalıştır onayla klasör",
+  "dialog.monogram": "Monogram",
+  "dialog.monogramPlaceholder": "isteğe bağlı, örn. WK",
+  "dialog.monogramHint": "Sağlayıcının birden çok hesabı olduğunda bu hesabın kutucuğunda görünen bir veya iki karakter. Boş bırakılırsa adın baş harfleri kullanılır.",
+  "dialog.monogram.invalid": "Boşluksuz bir veya iki karakter kullanın.",
+  "desktop.error.invalid_monogram": "Monogram boşluksuz bir veya iki karakterdir.",
+  "settings.whatsnew.auto": "Yenilikleri göster",
+  "settings.whatsnew.auto.desc": "Her güncellemeden sonra sürüm notlarını bir kez açar",
+  "settings.kw.whats-new-auto": "yenilikler sürüm notları değişiklikler güncelleme sürüm otomatik aç"
 }

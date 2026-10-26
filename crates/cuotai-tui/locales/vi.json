@@ -476,5 +476,8 @@
   "wizard.summary.token_vault": "(token nằm trong nơi lưu trữ an toàn; không bao giờ được hiển thị hay ghi vào TOML)",
   "wizard.summary.unnamed": "{provider} (chưa đặt tên)",
   "wizard.title": "Trình hướng dẫn — {position}/{total} {label}",
-  "wizard.too_small": "Trình hướng dẫn: hãy mở rộng terminal tối thiểu 60 × 20. Esc để hủy."
+  "wizard.too_small": "Trình hướng dẫn: hãy mở rộng terminal tối thiểu 60 × 20. Esc để hủy.",
+  "dashboard.footer.count.position": "{position}/{count} tài khoản",
+  "dashboard.footer.next_connection": "n kết nối",
+  "dashboard.footer.aggregator_filter": "f bộ tổng hợp"
 }

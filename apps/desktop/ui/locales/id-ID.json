@@ -1219,5 +1219,15 @@
   "settings.display.more": "Opsi tampilan lainnya",
   "lang.inProgress": "Terjemahan sedang dikerjakan",
   "time.duration.minutesSeconds": "{m} mnt {s} dtk",
-  "time.duration.seconds": "{s} dtk"
+  "time.duration.seconds": "{s} dtk",
+  "settings.page.extensions": "Ekstensi",
+  "settings.kw.extensions": "ekstensi lokal add-on plugin penyedia kustom jalankan setujui folder",
+  "dialog.monogram": "Monogram",
+  "dialog.monogramPlaceholder": "opsional, mis. WK",
+  "dialog.monogramHint": "Satu atau dua karakter di ubin akun ini saat penyedia punya beberapa akun. Kosongkan untuk memakai huruf awal nama.",
+  "dialog.monogram.invalid": "Gunakan satu atau dua karakter tanpa spasi.",
+  "desktop.error.invalid_monogram": "Monogram berisi satu atau dua karakter tanpa spasi.",
+  "settings.whatsnew.auto": "Tampilkan yang baru",
+  "settings.whatsnew.auto.desc": "Buka catatan rilis sekali setelah setiap pembaruan",
+  "settings.kw.whats-new-auto": "yang baru catatan rilis changelog pembaruan versi otomatis buka"
 }

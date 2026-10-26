@@ -476,5 +476,8 @@
   "wizard.summary.token_vault": "(jeton güvenli depolamada kalır; asla gösterilmez veya TOML'a yazılmaz)",
   "wizard.summary.unnamed": "{provider} (adsız)",
   "wizard.title": "Sihirbaz — {position}/{total} {label}",
-  "wizard.too_small": "Sihirbaz: terminali en az 60 × 20 olacak şekilde genişletin. Esc iptal eder."
+  "wizard.too_small": "Sihirbaz: terminali en az 60 × 20 olacak şekilde genişletin. Esc iptal eder.",
+  "dashboard.footer.count.position": "{position}/{count} hesap",
+  "dashboard.footer.next_connection": "n bağlantı",
+  "dashboard.footer.aggregator_filter": "f toplayıcı"
 }

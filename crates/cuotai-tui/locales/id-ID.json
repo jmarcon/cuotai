@@ -476,5 +476,8 @@
   "wizard.summary.token_vault": "(token tetap di penyimpanan aman; tidak pernah ditampilkan atau ditulis ke TOML)",
   "wizard.summary.unnamed": "{provider} (tanpa nama)",
   "wizard.title": "Wizard — {position}/{total} {label}",
-  "wizard.too_small": "Wizard: lebarkan terminal hingga minimal 60 × 20. Esc membatalkan."
+  "wizard.too_small": "Wizard: lebarkan terminal hingga minimal 60 × 20. Esc membatalkan.",
+  "dashboard.footer.count.position": "{position}/{count} akun",
+  "dashboard.footer.next_connection": "n koneksi",
+  "dashboard.footer.aggregator_filter": "f agregator"
 }

@@ -1219,5 +1219,15 @@
   "settings.display.more": "Thêm tùy chọn hiển thị",
   "lang.inProgress": "Đang dịch",
   "time.duration.minutesSeconds": "{m} phút {s} giây",
-  "time.duration.seconds": "{s} giây"
+  "time.duration.seconds": "{s} giây",
+  "settings.page.extensions": "Tiện ích mở rộng",
+  "settings.kw.extensions": "tiện ích mở rộng cục bộ add-on plugin nhà cung cấp tùy chỉnh chạy phê duyệt thư mục",
+  "dialog.monogram": "Chữ viết tắt",
+  "dialog.monogramPlaceholder": "không bắt buộc, vd. WK",
+  "dialog.monogramHint": "Một hoặc hai ký tự hiển thị trên ô của tài khoản này khi nhà cung cấp có nhiều tài khoản. Để trống sẽ dùng chữ cái đầu của tên.",
+  "dialog.monogram.invalid": "Dùng một hoặc hai ký tự, không có khoảng trắng.",
+  "desktop.error.invalid_monogram": "Chữ viết tắt gồm một hoặc hai ký tự, không có khoảng trắng.",
+  "settings.whatsnew.auto": "Hiện điểm mới",
+  "settings.whatsnew.auto.desc": "Mở ghi chú phát hành một lần sau mỗi lần cập nhật",
+  "settings.kw.whats-new-auto": "điểm mới ghi chú phát hành nhật ký thay đổi cập nhật phiên bản tự động mở"
 }
