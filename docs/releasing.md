@@ -245,7 +245,10 @@ free-tier budget.
   the two ARM64 CLI rows are optional; every other RF2 artifact is required.
 - `Swatinem/rust-cache` is enabled for Cargo builds. Jobs that compile the
   desktop cache both `.` and `apps/desktop/src-tauri`; root-only Cargo jobs
-  cache `.`. Every job has `timeout-minutes`.
+  cache `.`. Release jobs restore only (`save-if: false`): a tag run can read
+  the caches of its own ref and of `main`, and a tag never runs twice, so an
+  entry saved from a tag is never restored and only evicts `main`'s entries
+  from the 10 GB repository limit. Every job has `timeout-minutes`.
 - `cargo xtask workflow-check` enforces these invariants in CI and before a
   release build. Tests prove failures for broad permissions, missing timeouts,
   unpinned actions, dotted/bracketed/dynamic secret misuse, an unlisted job,

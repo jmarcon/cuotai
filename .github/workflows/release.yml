@@ -67,8 +67,16 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
         with:
           toolchain: 1.99.1
+      # Every rust-cache step of this workflow restores only (`save-if:
+      # false`). A run on a tag can read caches of its own ref and of main,
+      # and a tag never runs twice, so a cache saved here would never be
+      # restored: the v0.80.0 release left ~8 GB of unreachable entries that
+      # evicted main's test caches (the 10 GB repository limit) and cost each
+      # desktop job 30-40 s of upload. The restore still finds main's entries
+      # when a key matches.
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
+          save-if: false
           workspaces: . -> target
       - name: Release check (RF1)
         id: result
@@ -177,6 +185,7 @@ jobs:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
+          save-if: false
           workspaces: |
             . -> target
             apps/desktop/src-tauri -> target
@@ -264,6 +273,7 @@ jobs:
           toolchain: 1.99.1
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
+          save-if: false
           workspaces: |
             . -> target
             apps/desktop/src-tauri -> target
@@ -341,6 +351,7 @@ jobs:
           toolchain: 1.99.1
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
+          save-if: false
           workspaces: |
             . -> target
             apps/desktop/src-tauri -> target
@@ -428,6 +439,7 @@ jobs:
           toolchain: 1.99.1
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
+          save-if: false
           workspaces: |
             . -> target
             apps/desktop/src-tauri -> target
@@ -500,6 +512,7 @@ jobs:
           toolchain: 1.99.1
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
+          save-if: false
           workspaces: |
             . -> target
             apps/desktop/src-tauri -> target
@@ -591,6 +604,7 @@ jobs:
           targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
+          save-if: false
           workspaces: . -> target
       - name: Cross-build packages
         if: matrix.packages != ''
@@ -693,6 +707,7 @@ jobs:
           toolchain: 1.99.1
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
+          save-if: false
           workspaces: |
             . -> target
             apps/desktop/src-tauri -> target
@@ -788,6 +803,7 @@ jobs:
           toolchain: 1.99.1
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
+          save-if: false
           workspaces: . -> target
       - name: Build xtask
         run: cargo build -p xtask --locked
@@ -1154,6 +1170,7 @@ jobs:
           toolchain: 1.99.1
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
+          save-if: false
           workspaces: . -> target
       - name: Build xtask
         run: cargo build -p xtask --locked
@@ -1204,6 +1221,7 @@ jobs:
           toolchain: 1.99.1
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
+          save-if: false
           workspaces: . -> target
       - name: Build xtask
         run: cargo build -p xtask --locked
@@ -1248,6 +1266,7 @@ jobs:
           toolchain: 1.99.1
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
+          save-if: false
           workspaces: . -> target
       - name: Build xtask
         run: cargo build -p xtask --locked
@@ -1549,6 +1568,7 @@ jobs:
           toolchain: 1.99.1
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
+          save-if: false
           workspaces: . -> target
       - name: Packaging check for cuotai-core
         run: cargo publish --dry-run --locked -p cuotai-core
