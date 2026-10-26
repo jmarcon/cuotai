@@ -501,7 +501,7 @@ fn check_job_permissions(workflow_name: &str, job_name: &str, job: &Mapping) -> 
         ("release.yml", "verify-public") => &[("contents", "read"), ("attestations", "read")],
         ("external-rules.yml", "issue") => &[("issues", "write")],
         // CodeQL advanced setup: the SARIF upload needs security-events: write.
-        ("codeql.yml", "analyze") => &[
+        ("codeql.yml", "analyze" | "analyze-swift") => &[
             ("security-events", "write"),
             ("contents", "read"),
             ("actions", "read"),

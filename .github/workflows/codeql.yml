@@ -22,6 +22,15 @@
 # later pattern wins. The two lists below are identical; keep them (and the
 # ci.yml allow-list) in sync when one changes.
 #
+# Swift is the one language with a traced build, and it runs on macOS (the
+# scarcest runner: 14 minutes per analysis, measured on run 40205035023,
+# queued 24 minutes behind the CI test and ui-checks jobs of parallel pull
+# requests). Its only sources are the WidgetKit extension in
+# apps/desktop/widgets/macos, so the `changes` job below runs it only when
+# that folder or this workflow changed; the weekly schedule and a dispatch
+# always run it, and so does a diff that cannot be computed. The alerts of
+# the other four languages are unaffected: they analyze on every run.
+#
 # The weekly schedule keeps alerts fresh when no code is pushed (new queries
 # and CodeQL releases can raise alerts on unchanged code). A skip marker in a
 # commit message also skips this workflow (AGENTS.md).
@@ -72,9 +81,69 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
+  # Which optional analyses this change needs. Swift is the only one so far.
+  changes:
+    name: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      swift: ${{ steps.classify.outputs.swift }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Classify the changed files
+        id: classify
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          zero=0000000000000000000000000000000000000000
+          range=""
+          case "$EVENT" in
+            pull_request) range="$BASE_SHA...$HEAD_SHA" ;;
+            push)
+              if [ "$BEFORE" != "$zero" ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+                range="$BEFORE..$AFTER"
+              fi
+              ;;
+          esac
+          # Undecidable (schedule, dispatch, force push, new branch): analyze.
+          swift=true
+          why="event $EVENT, no diff to classify"
+          if [ -n "$range" ]; then
+            if list="$(git diff --name-only --no-renames "$range")"; then
+              if [ -n "$list" ]; then
+                swift=false
+                why="no Swift source or workflow change in $range"
+                while IFS= read -r file; do
+                  case "$file" in
+                    apps/desktop/widgets/macos/* | .github/workflows/codeql.yml)
+                      swift=true
+                      why="$file changed"
+                      break
+                      ;;
+                  esac
+                done <<< "$list"
+              else
+                why="empty diff for $range"
+              fi
+            else
+              why="cannot diff $range"
+            fi
+          fi
+          echo "swift=$swift" >> "$GITHUB_OUTPUT"
+          echo "swift=$swift ($why)"
+
   analyze:
     name: analyze (${{ matrix.language }})
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     # The only job that needs more than the read-only workflow token: the
     # SARIF upload writes code-scanning results.
@@ -85,22 +154,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - language: actions
-            runner: ubuntu-latest
-            build-mode: none
-          - language: javascript-typescript
-            runner: ubuntu-latest
-            build-mode: none
-          - language: python
-            runner: ubuntu-latest
-            build-mode: none
-          - language: rust
-            runner: ubuntu-latest
-            build-mode: none
-          - language: swift
-            runner: macos-latest
-            build-mode: manual
+        language: [actions, javascript-typescript, python, rust]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -109,19 +163,43 @@ jobs:
         uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           languages: ${{ matrix.language }}
-          build-mode: ${{ matrix.build-mode }}
+          build-mode: none
           # No `queries` input: the action then runs each language's default
           # code-scanning suite (the same as the default setup). `queries:
           # default` is not a valid value; it is read as a query pack name.
-      # Swift needs a traced build: the WidgetKit sources of
-      # apps/desktop/widgets/macos compile through their SwiftPM manifest.
+      - name: Analyze
+        uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  # Swift needs a traced build on macOS: the WidgetKit sources of
+  # apps/desktop/widgets/macos compile through their SwiftPM manifest. Same
+  # category as before, so the alerts continue the existing series.
+  analyze-swift:
+    name: analyze (swift)
+    needs: changes
+    if: needs.changes.outputs.swift == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 60
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          languages: swift
+          build-mode: manual
       # SwiftPM's manifest sandbox cannot spawn the manifest binary under the
       # CodeQL tracer, hence --disable-sandbox.
       - name: Build the Swift widget sources
-        if: matrix.language == 'swift'
         working-directory: apps/desktop/widgets/macos
         run: swift build --disable-sandbox
       - name: Analyze
         uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
-          category: "/language:${{ matrix.language }}"
+          category: "/language:swift"
