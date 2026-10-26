@@ -193,7 +193,7 @@
   background: var(--surface);
   scroll-margin-top: 56px;
 }
-.set-content .set-sec > h3 {
+.set-content .set-sec > h2 {
   position: absolute;
   bottom: 100%;
   left: 4px;
@@ -603,7 +603,7 @@
   border: 0;
   background: transparent;
 }
-.set-content[data-sub] .set-sec > h3 {
+.set-content[data-sub] .set-sec > h2 {
   display: none;
 }
 /* The sections a sub-page draws for itself are cards again (the page's own group stays transparent). */
@@ -1203,7 +1203,7 @@
   margin: 0;
   width: auto;
 }
-.set-content .set-sec > h3:has(.sec-count) {
+.set-content .set-sec > h2:has(.sec-count) {
   right: 4px;
   display: flex;
 }
@@ -1318,7 +1318,7 @@ li.mb-sub + .mb-acc {
   gap: var(--space-3);
   margin: var(--space-2) var(--space-1) 0;
 }
-.rows-el-head h4 {
+.rows-el-head h3 {
   margin: 0;
   color: var(--fg-muted);
   font-size: var(--text-micro);

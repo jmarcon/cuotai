@@ -78,7 +78,7 @@ export function resultsHtml(results) {
   return `${head}<p class="hint" role="status">${te("settings.search.count", { count: results.length })}</p>`
     + pages.map((id) => {
       const list = results.filter((r) => r.page === id);
-      return `<section class="set-sec set-results" aria-label="${esc(list[0].pageLabel)}"><h3>${esc(list[0].pageLabel)}</h3>${list.map((r) =>
+      return `<section class="set-sec set-results" aria-label="${esc(list[0].pageLabel)}"><h2>${esc(list[0].pageLabel)}</h2>${list.map((r) =>
         `<button type="button" class="set-result" data-result="${esc(r.page)}" data-row-key="${esc(r.key)}">
           <span class="set-result-label">${esc(r.label)}</span>${r.desc ? `<span class="set-result-desc">${esc(r.desc)}</span>` : ""}</button>`).join("")}</section>`;
     }).join("");

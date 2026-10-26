@@ -31,7 +31,7 @@ export function bodyHtml(rows, scope) {
   return `<div class="rows-head"><p class="hint">${te("settings.rows.intro")}</p>${presets}</div>
     <div class="prev-card rows-prev" role="img" aria-label="" data-rows-preview><span class="prev-label">${te("settings.menubar.preview")}</span><div class="rows-prev-out" data-rows-preview-out></div></div>
     ${row({ key: "rows-separate", label: te("settings.rows.separate"), kw: "rows-separate", control: (a) => sw("rows-separate", rows.separate, a), body: scopes })}
-    <div class="rows-el-head"><h4>${te("settings.rows.elements")}</h4><span class="hint">${te("settings.rows.live")}</span></div>
+    <div class="rows-el-head"><h3>${te("settings.rows.elements")}</h3><span class="hint">${te("settings.rows.live")}</span></div>
     <div class="rows-els">${ELEMENTS.map((k) => row({ key: `rows-el-${k}`, kw: "rows", label: te(`settings.rows.el.${k}`), desc: te(`settings.rows.el.${k}.desc`),
       control: (a) => sw(`rows-el-${k}`, layout.elements[k], a, `data-rows-el="${k}"`) })).join("")}</div>`;
 }

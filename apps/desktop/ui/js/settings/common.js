@@ -7,7 +7,7 @@ import { showDialog } from "../motion.js";
 /** RF2.2: one group of a page (a small-caps label over a card). `id` is the section id, also the anchor
  *  (`#set-<id>`) a link can land on (RF1.3); `attrs` keeps the data attributes the bindings look for. */
 export const group = (id, title, body, attrs = "") =>
-  `<section class="set-sec" id="set-${id}" data-section="${id}" ${attrs}>${title ? `<h3>${title}</h3>` : ""}${body}</section>`;
+  `<section class="set-sec" id="set-${id}" data-section="${id}" ${attrs}>${title ? `<h2>${title}</h2>` : ""}${body}</section>`;
 
 /** Shell error codes (`invalid_motion`, `unwritable`, …): their translation, else the generic failure. */
 export const errorText = (e) => {
