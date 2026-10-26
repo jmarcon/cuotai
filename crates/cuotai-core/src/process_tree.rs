@@ -87,6 +87,10 @@ impl Job {
             JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
         };
         let handle = child.raw_handle()?;
+        // SAFETY: plain Win32 calls on handles this function owns or that
+        // `child` keeps alive for the call; `limits` is a fully initialized
+        // struct passed with its own size, and a job that fails to configure
+        // is closed before it is dropped on the floor.
         unsafe {
             let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
             if job.is_null() {
@@ -110,6 +114,7 @@ impl Job {
     }
 
     fn kill(&self) {
+        // SAFETY: `self.0` is the job handle `new` created and still owns.
         unsafe {
             windows_sys::Win32::System::JobObjects::TerminateJobObject(self.0, 1);
         }
@@ -120,6 +125,7 @@ impl Job {
 impl Drop for Job {
     fn drop(&mut self) {
         self.kill();
+        // SAFETY: the handle is owned by `self` and closed exactly once, here.
         unsafe {
             windows_sys::Win32::Foundation::CloseHandle(self.0);
         }
