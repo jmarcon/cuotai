@@ -155,4 +155,7 @@ registers as a new language. The directory is `~/Library/Application Support/cuo
 on macOS, `%APPDATA%\cuotai` on Windows and `~/.config/cuotai` on Linux, or
 the value of `CUOTAI_USER_DIR`. The folder button in the top bar copies its
 path. Invalid files are ignored and a warning explains why. A partial example
-is available at `apps/desktop/examples/user/locales/fr.json`.
+is available at `apps/desktop/examples/user/locales/nl.json` (Dutch, a language
+that is not built in, so it registers as a new one). The RF12.3 override is
+per key: a built-in-code pack such as `fr.json` changes only the keys it
+carries, and every other text keeps the built-in French catalog.
