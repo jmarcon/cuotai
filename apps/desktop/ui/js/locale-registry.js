@@ -14,7 +14,7 @@ export const REGISTRY = [
   {"code":"ru","endonym":"Русский","flag":"ru","script":"Cyrl","dir":"ltr","languages":["ru"],"excluded_scripts":[],"excluded_regions":[],"plural_rule":"east_slavic","status":"shipped","critical_reviewed":false,"phase":1},
   {"code":"ko","endonym":"한국어","flag":"kr","script":"Kore","dir":"ltr","languages":["ko"],"excluded_scripts":[],"excluded_regions":[],"plural_rule":"other","status":"shipped","critical_reviewed":false,"phase":2},
   {"code":"hi-IN","endonym":"हिन्दी","flag":"in","script":"Deva","dir":"ltr","languages":["hi"],"excluded_scripts":[],"excluded_regions":[],"plural_rule":"hindi","status":"shipped","critical_reviewed":false,"phase":2},
-  {"code":"id-ID","endonym":"Bahasa Indonesia","flag":"id","script":"Latn","dir":"ltr","languages":["id","in"],"excluded_scripts":[],"excluded_regions":[],"plural_rule":"other","status":"in_progress","critical_reviewed":false,"phase":2},
+  {"code":"id-ID","endonym":"Bahasa Indonesia","flag":"id","script":"Latn","dir":"ltr","languages":["id","in"],"excluded_scripts":[],"excluded_regions":[],"plural_rule":"other","status":"shipped","critical_reviewed":false,"phase":2},
   {"code":"tr","endonym":"Türkçe","flag":"tr","script":"Latn","dir":"ltr","languages":["tr"],"excluded_scripts":[],"excluded_regions":[],"plural_rule":"one","status":"in_progress","critical_reviewed":false,"phase":2},
   {"code":"vi","endonym":"Tiếng Việt","flag":"vn","script":"Latn","dir":"ltr","languages":["vi"],"excluded_scripts":[],"excluded_regions":[],"plural_rule":"other","status":"in_progress","critical_reviewed":false,"phase":2},
 ];

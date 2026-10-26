@@ -59,8 +59,9 @@ const wording = (code, clock) => ({
   ru: `Обновлено в ${clock}; ожидается показание`,
   ko: `${clock}에 갱신됨, 조회값을 기다리는 중`,
   "hi-IN": `${clock} पर नवीनीकृत; रीडिंग का इंतज़ार`,
+  "id-ID": `Diperbarui pada ${clock}; menunggu pembacaan`,
 })[code];
-const asOfWording = { "pt-BR": "dados de", "en-US": "data as of", es: "datos de", it: "dati delle", de: "Daten vom", ru: "данные от", ko: "기준 데이터", "hi-IN": "तक का डेटा" };
+const asOfWording = { "pt-BR": "dados de", "en-US": "data as of", es: "datos de", it: "dati delle", de: "Daten vom", ru: "данные от", ko: "기준 데이터", "hi-IN": "तक का डेटा", "id-ID": "data per" };
 
 for (const { code } of i18n.LOCALES) {
   await i18n.setLocale(code);

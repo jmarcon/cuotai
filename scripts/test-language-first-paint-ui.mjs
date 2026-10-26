@@ -95,6 +95,7 @@ const scenarios = [
   { stored: null, system: ["es"], expected: "es", label: "exact es detection" },
   { stored: null, system: ["it"], expected: "it", label: "exact it detection" },
   { stored: null, system: ["es-MX"], expected: "es", label: "same-language detection" },
+  { stored: null, system: ["in-ID"], expected: "id-ID", label: "legacy Indonesian code" },
   { stored: null, system: ["ja"], expected: "en-US", label: "translation in progress falls back" },
   // PRD 0035 RF1.3: registry normalization, never a string prefix, never Simplified Chinese for zh-TW.
   { stored: null, system: ["pt_PT.UTF-8"], expected: "pt-BR", label: "system form with an encoding" },
@@ -131,7 +132,8 @@ console.log(`production boot first render: lang=fr; tray.ok=${i18n.t("tray.ok")}
 assert.match(firstRenderedMenu, /data-locale-pending="ja"[^>]*>.*?<span lang="ja">日本語<\/span>/, "ja is listed as in progress");
 assert.doesNotMatch(firstRenderedMenu, /data-locale-pending="fr"/, "the user pack makes fr a regular language");
 assert.doesNotMatch(firstRenderedMenu, /data-locale="ja"/, "a language in progress cannot be chosen");
-assert.ok(firstRenderedMenu.indexOf('data-locale-pending="zh-CN"') < firstRenderedMenu.indexOf('data-locale-pending="vi"'), "registry order");
+const pendingOrder = [...firstRenderedMenu.matchAll(/data-locale-pending="([^"]+)"/g)].map((m) => m[1]);
+assert.deepEqual(pendingOrder, i18n.pendingLocales().map((l) => l.code).filter((code) => pendingOrder.includes(code)), "registry order");
 
 await i18n.setLocale("es");
 const spanishCatalog = JSON.parse(await readFile(

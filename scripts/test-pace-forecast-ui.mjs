@@ -147,6 +147,12 @@ const expected = {
     reset: "19:30 को नवीनीकरण · 1 घं 35 मि में", best: "अभी सर्वश्रेष्ठ",
     advice: "Work खत्म हो गया · Personal में 64% बचा है",
   },
+  "id-ID": {
+    points: "10 poin di depan", percent: "20% lebih cepat dari laju",
+    callout: "Dengan laju ini Session (5h) habis ≈18:53, 37 mnt sebelum reset", chip: "Habis ≈18:53",
+    reset: "Reset 19:30 · dalam 1j 35mnt", best: "Terbaik sekarang",
+    advice: "Work habis · Personal tersisa 64%",
+  },
 };
 
 for (const { code } of i18n.LOCALES) {

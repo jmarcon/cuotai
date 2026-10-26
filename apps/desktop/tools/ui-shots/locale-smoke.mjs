@@ -6,7 +6,9 @@
 import { launch } from "./driver.mjs";
 
 const args = process.argv.slice(2).filter((a) => !a.startsWith("--"));
-const LOCALES = args.length ? args : ["en-US", "es", "it", "de", "ru"];
+const LOCALES = args.length ? args : ["en-US", "es", "it", "de", "ru", "id-ID"];
+// Languages whose own orthography uses the letters of CHARS (Vietnamese ã ê ô â, Turkish zekâ): the letter test is skipped there.
+const CHARS_OK = new Set([]);
 const PAGES = [
   ["tray", "tray.html", 380, 600, []],
   ["tray-account", "tray.html", 380, 600, ["[data-open]"]],
@@ -55,7 +57,7 @@ function markers(text, locale) {
   if (key) return [`missing catalog key ${key[1]}`];
   for (const m of text.matchAll(/\p{L}+/gu)) {
     const word = m[0].toLowerCase();
-    if (CHARS.test(word)) found.add(word);
+    if (CHARS.test(word) && !CHARS_OK.has(locale)) found.add(word);
     else if (WORDS.has(word) && !(SHARED.has(word) && locale !== "en-US")) found.add(word);
   }
   return [...found];

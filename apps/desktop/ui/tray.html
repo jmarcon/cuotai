@@ -9,7 +9,7 @@
       // PRD 0035 RF1.3/RF1.5: the languages with catalogs, from the core registry (generated between the markers by
       // `CUOTAI_REGENERATE_LOCALES=1 cargo test -p cuotai-core locale_registry_copies`), resolved like js/i18n.js.
       /* registry:begin */
-      var localeRows = [{"code":"pt-BR","excluded_regions":[],"excluded_scripts":[],"languages":["pt"]},{"code":"en-US","excluded_regions":[],"excluded_scripts":[],"languages":["en"]},{"code":"es","excluded_regions":[],"excluded_scripts":[],"languages":["es"]},{"code":"it","excluded_regions":[],"excluded_scripts":[],"languages":["it"]},{"code":"de","excluded_regions":[],"excluded_scripts":[],"languages":["de"]},{"code":"ru","excluded_regions":[],"excluded_scripts":[],"languages":["ru"]},{"code":"ko","excluded_regions":[],"excluded_scripts":[],"languages":["ko"]},{"code":"hi-IN","excluded_regions":[],"excluded_scripts":[],"languages":["hi"]}];
+      var localeRows = [{"code":"pt-BR","excluded_regions":[],"excluded_scripts":[],"languages":["pt"]},{"code":"en-US","excluded_regions":[],"excluded_scripts":[],"languages":["en"]},{"code":"es","excluded_regions":[],"excluded_scripts":[],"languages":["es"]},{"code":"it","excluded_regions":[],"excluded_scripts":[],"languages":["it"]},{"code":"id-ID","excluded_regions":[],"excluded_scripts":[],"languages":["id","in"]}];
       /* registry:end */
       var supportedLocales = localeRows.map(function (row) { return row.code; });
       var userLocaleCodes = [];
@@ -80,13 +80,6 @@
             if ((localStorage.key(k) || "").indexOf("cuotai.") === 0) { theme = "dracula"; localStorage.setItem("cuotai.theme", theme); break; }
           }
           localStorage.setItem("cuotai.themeDefaultMigrated", "1");
-          // Empty web storage in the app: a new install or a profile whose storage was cleared. Only the shell
-          // (desktop.json) can tell them apart, so the first paint waits for it, hidden for at most 600 ms, instead
-          // of flashing the new-install theme over an existing profile's Dracula.
-          if (!theme && typeof window !== "undefined" && window.__TAURI__) {
-            document.documentElement.setAttribute("data-theme-pending", "");
-            setTimeout(function () { document.documentElement.removeAttribute("data-theme-pending"); }, 600);
-          }
         }
         document.documentElement.dataset.theme = theme || "cuotai";
         document.documentElement.dataset.mode = d ? "dark" : "light";

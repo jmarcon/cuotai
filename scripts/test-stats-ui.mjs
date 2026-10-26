@@ -110,7 +110,7 @@ for (const { code } of i18n.LOCALES) {
 
   const at = new Date(Date.now() + 95 * 60_000 + 30_000).toISOString();
   const name = laneLabel({ name: "Work", returns_at: at, exhausted: false, remaining_share: 0.4, stale: false }, "hours24");
-  assert.ok(name.includes("Work") && /1\D+35/.test(name) && name.includes("40"), `${code}: lane name "${name}"`);
+  assert.ok(name.includes("Work") && /\b1\D{1,12}35\D/.test(name) && name.includes("40"), `${code}: lane name "${name}"`);
   console.log(`${code}: ${name}`);
 }
 

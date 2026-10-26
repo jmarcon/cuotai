@@ -134,6 +134,17 @@ const expected = {
     sortAsc: "बचा: पहले कम वाला",
     sortDesc: "बचा: पहले ज़्यादा वाला",
   },
+  "id-ID": {
+    unit: "tersisa",
+    levels: {
+      good: "Sisa 75%: masih banyak (70% atau lebih).",
+      warn: "Perhatian: sisa 50% (antara 30% dan 70%).",
+      bad: "Kritis: hanya sisa 20% (di bawah 30%).",
+    },
+    rateLimit: "Batas laju: sisa 42%",
+    sortAsc: "Sisa: paling sedikit dulu",
+    sortDesc: "Sisa: paling banyak dulu",
+  },
 };
 
 const coreCatalog = JSON.parse(await readFile(

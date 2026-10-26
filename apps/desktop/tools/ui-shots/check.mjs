@@ -16,7 +16,7 @@ const selftest = args.includes("--selftest");
 // window and Settings are checked there (the tray is a fixed 380 px popover whose content does not reflow).
 const zoom = args.includes("--zoom");
 const locales = args.filter((a) => !a.startsWith("--"));
-const LOCALES = locales.length ? locales : selftest ? ["en-US"] : ["en-US", "pt-BR", "es", "it", "de", "ru", "en-XA"];
+const LOCALES = locales.length ? locales : selftest ? ["en-US"] : ["en-US", "pt-BR", "es", "it", "de", "ru", "id-ID", "en-XA"];
 const ZOOM_PAGES = [
   ["zoom200-main", "index.html", 640, 410, {}],
   ["zoom200-main-stats", "index.html", 640, 410, { "cuotai.openView": "stats" }],
