@@ -94,7 +94,7 @@ const WAL_SIZE_LIMIT: i64 = 4 << 20;
 /// Times are UTC unix milliseconds. Version 2 indexes samples by age (the
 /// file-wide retention and size pruning, RF4) and adds `meta` (the
 /// resolution reduction's progress).
-const MIGRATIONS: [&str; 6] = [
+const MIGRATIONS: [&str; 7] = [
     "CREATE TABLE series (
     config_key TEXT NOT NULL,
     account_digest TEXT NOT NULL,
@@ -133,6 +133,57 @@ CREATE TABLE meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL) WITHOUT ROWID;"
     // Version 6 (PRD 0023 RF10): the model scope of a metric as JSON, so
     // statistics skip model limits and a restored reading keeps them scoped.
     "ALTER TABLE series ADD COLUMN scope TEXT;",
+    // Version 7: integer series ids. Until here every sample (and the two
+    // indexes) repeated the three 64-character digests and the unit, kind
+    // and window of its metric, about 750 bytes per sample; a sample now
+    // carries the series id and its numbers (about a tenth), and the unit,
+    // kind and window live on the series (constant per `metric_key`, whose
+    // digest they are part of). The identity of a series is unchanged
+    // (`config_key`, `account_digest`, `metric_key`); a series without
+    // samples is dropped, as the prune would. `samples_by_time` goes: the
+    // per-configuration reads go through the series.
+    "CREATE TABLE series_v7 (
+    id INTEGER PRIMARY KEY,
+    config_key TEXT NOT NULL,
+    account_digest TEXT NOT NULL,
+    metric_key TEXT NOT NULL,
+    label TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    seen_at INTEGER NOT NULL,
+    removed_at INTEGER,
+    billing TEXT NOT NULL DEFAULT 'included',
+    scope TEXT,
+    unit TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    \"window\" TEXT,
+    UNIQUE (config_key, account_digest, metric_key)
+);
+INSERT INTO series_v7 (config_key, account_digest, metric_key, label, position, seen_at,
+    removed_at, billing, scope, unit, kind, \"window\")
+SELECT s.config_key, s.account_digest, s.metric_key, s.label, s.position, s.seen_at,
+    s.removed_at, s.billing, s.scope, x.unit, x.kind, x.\"window\"
+FROM series s JOIN samples x ON x.config_key = s.config_key
+    AND x.account_digest = s.account_digest AND x.metric_key = s.metric_key
+WHERE x.taken_at = (SELECT MAX(taken_at) FROM samples WHERE config_key = s.config_key
+    AND account_digest = s.account_digest AND metric_key = s.metric_key);
+CREATE TABLE samples_v7 (
+    series_id INTEGER NOT NULL,
+    taken_at INTEGER NOT NULL,
+    used REAL,
+    \"limit\" REAL,
+    remaining REAL,
+    resets_at INTEGER,
+    PRIMARY KEY (series_id, taken_at)
+) WITHOUT ROWID;
+INSERT INTO samples_v7 (series_id, taken_at, used, \"limit\", remaining, resets_at)
+SELECT s.id, x.taken_at, x.used, x.\"limit\", x.remaining, x.resets_at
+FROM samples x JOIN series_v7 s ON s.config_key = x.config_key
+    AND s.account_digest = x.account_digest AND s.metric_key = x.metric_key;
+DROP TABLE samples;
+DROP TABLE series;
+ALTER TABLE series_v7 RENAME TO series;
+ALTER TABLE samples_v7 RENAME TO samples;
+CREATE INDEX samples_by_age ON samples (taken_at);",
 ];
 
 /// PRD 0029 RF2.2: `legacy_digest` (the pre-0029 series identity,
@@ -163,9 +214,7 @@ pub(crate) fn series_digest(
     let legacy = account_key(account);
     let pending = db
         .query_row(
-            "SELECT 1 FROM series WHERE config_key = ?1 AND account_digest = ?2
-             UNION ALL SELECT 1 FROM samples WHERE config_key = ?1 AND account_digest = ?2
-             LIMIT 1",
+            "SELECT 1 FROM series WHERE config_key = ?1 AND account_digest = ?2 LIMIT 1",
             rusqlite::params![config_key, legacy],
             |_| Ok(()),
         )
@@ -173,27 +222,32 @@ pub(crate) fn series_digest(
         .is_some();
     if pending {
         let tx = db.unchecked_transaction()?;
+        // The series missing under the id are created; the samples of every
+        // legacy series then join the id's series of the same metric (rows
+        // already there win), and the legacy series go.
         tx.execute(
             "INSERT OR IGNORE INTO series (config_key, account_digest, metric_key, label,
-                position, seen_at, removed_at, billing, scope)
-             SELECT config_key, ?3, metric_key, label, position, seen_at, removed_at, billing, scope
+                position, seen_at, removed_at, billing, scope, unit, kind, \"window\")
+             SELECT config_key, ?3, metric_key, label, position, seen_at, removed_at, billing,
+                scope, unit, kind, \"window\"
              FROM series WHERE config_key = ?1 AND account_digest = ?2",
             rusqlite::params![config_key, legacy, current],
         )?;
         tx.execute(
-            "INSERT OR IGNORE INTO samples (config_key, account_digest, metric_key, taken_at,
-                used, \"limit\", remaining, unit, kind, \"window\", resets_at)
-             SELECT config_key, ?3, metric_key, taken_at, used, \"limit\", remaining, unit,
-                kind, \"window\", resets_at
-             FROM samples WHERE config_key = ?1 AND account_digest = ?2",
+            "INSERT OR IGNORE INTO samples (series_id, taken_at, used, \"limit\", remaining,
+                resets_at)
+             SELECT n.id, x.taken_at, x.used, x.\"limit\", x.remaining, x.resets_at
+             FROM samples x JOIN series o ON o.id = x.series_id
+               JOIN series n ON n.config_key = o.config_key AND n.account_digest = ?3
+                AND n.metric_key = o.metric_key
+             WHERE o.config_key = ?1 AND o.account_digest = ?2",
             rusqlite::params![config_key, legacy, current],
         )?;
-        for table in ["samples", "series"] {
-            tx.execute(
-                &format!("DELETE FROM {table} WHERE config_key = ?1 AND account_digest = ?2"),
-                rusqlite::params![config_key, legacy],
-            )?;
-        }
+        delete_series(
+            &tx,
+            "config_key = ?1 AND account_digest = ?2",
+            rusqlite::params![config_key, legacy],
+        )?;
         tx.execute(
             "INSERT OR REPLACE INTO aliases (config_key, legacy_digest, account_id)
              VALUES (?1, ?2, ?3)",
@@ -202,6 +256,38 @@ pub(crate) fn series_digest(
         tx.commit()?;
     }
     Ok(current)
+}
+
+/// The id of the series of `metric_key` of the account, if any.
+pub(crate) fn series_id(
+    db: &Connection,
+    config_key: &str,
+    account_digest: &str,
+    metric_key: &str,
+) -> rusqlite::Result<Option<i64>> {
+    db.prepare_cached(
+        "SELECT id FROM series WHERE config_key = ?1 AND account_digest = ?2 AND metric_key = ?3",
+    )?
+    .query_row(
+        rusqlite::params![config_key, account_digest, metric_key],
+        |row| row.get(0),
+    )
+    .optional()
+}
+
+/// Delete the series matching `filter` (a `WHERE` clause over `series`
+/// with `params`) and their samples. Returns the samples removed.
+pub(crate) fn delete_series(
+    db: &Connection,
+    filter: &str,
+    params: &[&dyn rusqlite::ToSql],
+) -> rusqlite::Result<usize> {
+    let removed = db.execute(
+        &format!("DELETE FROM samples WHERE series_id IN (SELECT id FROM series WHERE {filter})"),
+        params,
+    )?;
+    db.execute(&format!("DELETE FROM series WHERE {filter}"), params)?;
+    Ok(removed)
 }
 
 /// Measurement history of one configuration. Holds only the database path
@@ -374,24 +460,39 @@ pub(crate) fn wal(db: &Connection) -> rusqlite::Result<()> {
 /// `BEGIN IMMEDIATE` so concurrent first opens migrate once. A file from a
 /// newer Cuotai (a higher `user_version`) is rejected, never guessed at.
 pub(crate) fn migrate(db: &mut Connection, migrations: &[&str]) -> Result<(), HistoryError> {
+    migrate_from(db, migrations).map(drop)
+}
+
+/// [`migrate`], returning the version the file had before (`None` when it
+/// was current already).
+fn migrate_from(db: &mut Connection, migrations: &[&str]) -> Result<Option<i64>, HistoryError> {
     let latest = i64::try_from(migrations.len()).map_err(|_| HistoryError::Storage)?;
     let version =
         |db: &Connection| db.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0));
     if version(db)? == latest {
-        return Ok(());
+        return Ok(None);
     }
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     let current = version(&tx)?;
     if !(0..=latest).contains(&current) {
         return Err(HistoryError::Storage);
     }
+    if current == latest {
+        // Another process migrated the file between the check and the lock.
+        return Ok(None);
+    }
     for (done, step) in (current..).zip(&migrations[current as usize..]) {
         tx.execute_batch(step)?;
         tx.pragma_update(None, "user_version", done + 1)?;
     }
     tx.commit()?;
-    Ok(())
+    Ok(Some(current))
 }
+
+/// The first version whose upgrade frees most of the file (the version 7
+/// rewrite of `samples`): the file is rewritten once afterwards so the
+/// freed pages leave the disk instead of staying on the free list.
+const COMPACT_BELOW: i64 = 7;
 
 /// The window instance (0, 1, …) of each sample, in time order: `None` for
 /// a sample without a finite `used`, which is skipped. A window ends when
@@ -545,7 +646,11 @@ impl HistoryStore {
         db.busy_timeout(BUSY_TIMEOUT)?;
         wal(&db)?;
         db.pragma_update(None, "journal_size_limit", WAL_SIZE_LIMIT)?;
-        migrate(&mut db, &MIGRATIONS)?;
+        if migrate_from(&mut db, &MIGRATIONS)?.is_some_and(|from| from < COMPACT_BELOW) {
+            // Best effort: another process holding the file (BUSY) only
+            // leaves the free pages for later writes to reuse.
+            let _ = db.execute_batch("VACUUM");
+        }
         db.execute_batch(ALIASES)?;
         aliases::apply(&db, aliases::METRIC_ALIASES)?;
         Ok(db)
@@ -596,77 +701,80 @@ impl HistoryStore {
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let mut added = 0;
         {
+            // The upsert returns the series id in both cases (insert and
+            // update), so one statement names the series of each metric.
             let mut series = tx.prepare(
                 "INSERT INTO series (config_key, account_digest, metric_key, label, position, seen_at,
-                    billing, scope)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+                    billing, scope, unit, kind, \"window\")
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
                  ON CONFLICT (config_key, account_digest, metric_key) DO UPDATE SET
                     label = excluded.label,
                     billing = excluded.billing,
                     scope = excluded.scope,
+                    unit = excluded.unit,
+                    kind = excluded.kind,
+                    \"window\" = excluded.\"window\",
                     position = CASE WHEN excluded.seen_at >= seen_at
                         THEN excluded.position ELSE position END,
                     seen_at = MAX(seen_at, excluded.seen_at),
-                    removed_at = NULL",
+                    removed_at = NULL
+                 RETURNING id",
             )?;
             let mut sample = tx.prepare(
-                "INSERT OR IGNORE INTO samples (config_key, account_digest, metric_key, taken_at,
-                    used, \"limit\", remaining, unit, kind, \"window\", resets_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                "INSERT OR IGNORE INTO samples (series_id, taken_at, used, \"limit\", remaining,
+                    resets_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             )?;
             let mut previous = tx.prepare(
                 "SELECT taken_at, used, \"limit\", remaining, resets_at FROM samples
-                 WHERE config_key = ?1 AND account_digest = ?2 AND metric_key = ?3
-                   AND taken_at <= ?4
+                 WHERE series_id = ?1 AND taken_at <= ?2
                  ORDER BY taken_at DESC LIMIT 1",
             )?;
             for (position, metric) in metrics.iter().enumerate() {
                 let key = metric_key(metric);
                 let position = i64::try_from(position).map_err(|_| HistoryError::Storage)?;
-                series.execute(rusqlite::params![
-                    self.config_key,
-                    account_digest,
-                    key,
-                    metric.label,
-                    position,
-                    at,
-                    tag(metric.billing),
-                    metric
-                        .scope
-                        .as_ref()
-                        .and_then(|scope| serde_json::to_string(scope).ok())
-                ])?;
+                let id: i64 = series.query_row(
+                    rusqlite::params![
+                        self.config_key,
+                        account_digest,
+                        key,
+                        metric.label,
+                        position,
+                        at,
+                        tag(metric.billing),
+                        metric
+                            .scope
+                            .as_ref()
+                            .and_then(|scope| serde_json::to_string(scope).ok()),
+                        metric.unit,
+                        tag(metric.kind),
+                        metric.window.map(tag),
+                    ],
+                    |row| row.get(0),
+                )?;
                 let values = Values::of(metric);
                 let last = previous
-                    .query_row(
-                        rusqlite::params![self.config_key, account_digest, key, at],
-                        |row| {
-                            Ok((
-                                row.get::<_, i64>(0)?,
-                                Values {
-                                    used: row.get(1)?,
-                                    limit: row.get(2)?,
-                                    remaining: row.get(3)?,
-                                    resets_at: row.get(4)?,
-                                },
-                            ))
-                        },
-                    )
+                    .query_row(rusqlite::params![id, at], |row| {
+                        Ok((
+                            row.get::<_, i64>(0)?,
+                            Values {
+                                used: row.get(1)?,
+                                limit: row.get(2)?,
+                                remaining: row.get(3)?,
+                                resets_at: row.get(4)?,
+                            },
+                        ))
+                    })
                     .optional()?;
                 if last.is_some_and(|(last_at, last)| values.repeats(at, &last, last_at)) {
                     continue;
                 }
                 added += sample.execute(rusqlite::params![
-                    self.config_key,
-                    account_digest,
-                    key,
+                    id,
                     at,
                     values.used,
                     values.limit,
                     values.remaining,
-                    metric.unit,
-                    tag(metric.kind),
-                    metric.window.map(tag),
                     values.resets_at,
                 ])?;
             }
@@ -768,7 +876,9 @@ impl HistoryStore {
         } else {
             let Some(seen_at) = db.query_row(
                 "SELECT MAX(taken_at) FROM samples
-                 WHERE config_key = ?1 AND account_digest = ?2 AND taken_at <= ?3",
+                 WHERE series_id IN (SELECT id FROM series
+                    WHERE config_key = ?1 AND account_digest = ?2)
+                   AND taken_at <= ?3",
                 rusqlite::params![self.config_key, account_digest, cutoff],
                 |row| row.get::<_, Option<i64>>(0),
             )?
@@ -779,15 +889,12 @@ impl HistoryStore {
         };
         let mut query = db.prepare_cached(
             "SELECT s.metric_key, s.label, x.taken_at, x.used, x.\"limit\", x.remaining,
-                    x.unit, x.kind, x.\"window\", x.resets_at, s.billing, s.scope
-             FROM series s JOIN samples x
-               ON x.config_key = s.config_key AND x.account_digest = s.account_digest
-              AND x.metric_key = s.metric_key
+                    s.unit, s.kind, s.\"window\", x.resets_at, s.billing, s.scope
+             FROM series s JOIN samples x ON x.series_id = s.id
              WHERE s.config_key = ?1 AND s.account_digest = ?2
                AND (?3 OR s.seen_at = ?4)
                AND x.taken_at = (SELECT MAX(taken_at) FROM samples
-                    WHERE config_key = s.config_key AND account_digest = s.account_digest
-                      AND metric_key = s.metric_key AND taken_at <= ?5)
+                    WHERE series_id = s.id AND taken_at <= ?5)
              ORDER BY s.position",
         )?;
         let metrics = query
@@ -842,48 +949,68 @@ impl HistoryStore {
         metrics: &[Metric],
         now: DateTime<Utc>,
     ) -> Result<Vec<Vec<Point>>, HistoryError> {
-        let spans: Vec<Option<DateTime<Utc>>> = metrics
+        self.recent_many(&[(account, metrics, now)])
+            .map(|mut all| all.pop().unwrap_or_default())
+    }
+
+    /// [`Self::recent`] for several readings at once, in their order, over
+    /// one connection: a front end that shows every account reads the
+    /// store once per refresh instead of once per account. Nothing is read
+    /// (nor created) when no metric has a pace or nothing was recorded.
+    pub fn recent_many(
+        &self,
+        readings: &[(&Account, &[Metric], DateTime<Utc>)],
+    ) -> Result<Vec<Vec<Vec<Point>>>, HistoryError> {
+        let spans: Vec<Vec<Option<DateTime<Utc>>>> = readings
             .iter()
-            .map(|metric| crate::pace::recent_since(metric, now))
+            .map(|(_, metrics, now)| {
+                metrics
+                    .iter()
+                    .map(|metric| crate::pace::recent_since(metric, *now))
+                    .collect()
+            })
             .collect();
-        let mut points = vec![Vec::new(); metrics.len()];
-        if spans.iter().all(Option::is_none) {
-            return Ok(points);
+        let mut all: Vec<Vec<Vec<Point>>> = readings
+            .iter()
+            .map(|(_, metrics, _)| vec![Vec::new(); metrics.len()])
+            .collect();
+        if spans.iter().flatten().all(Option::is_none) {
+            return Ok(all);
         }
         let Some(db) = self.open_existing()? else {
-            return Ok(points);
+            return Ok(all);
         };
-        let account_digest = series_digest(&db, &self.config_key, account)?;
         let mut query = db.prepare(
             "SELECT taken_at, used FROM samples
-             WHERE config_key = ?1 AND account_digest = ?2 AND metric_key = ?3
-               AND taken_at BETWEEN ?4 AND ?5 AND used IS NOT NULL
+             WHERE series_id = ?1 AND taken_at BETWEEN ?2 AND ?3 AND used IS NOT NULL
              ORDER BY taken_at",
         )?;
-        for ((metric, since), points) in metrics.iter().zip(spans).zip(&mut points) {
-            let Some(since) = since else {
+        for (((account, metrics, now), spans), points) in readings.iter().zip(spans).zip(&mut all) {
+            if spans.iter().all(Option::is_none) {
                 continue;
-            };
-            *points = query
-                .query_map(
-                    rusqlite::params![
-                        self.config_key,
-                        account_digest,
-                        metric_key(metric),
-                        millis(since),
-                        millis(now)
-                    ],
-                    |row| {
+            }
+            let account_digest = series_digest(&db, &self.config_key, account)?;
+            for ((metric, since), points) in metrics.iter().zip(spans).zip(points) {
+                let Some(since) = since else {
+                    continue;
+                };
+                let Some(id) =
+                    series_id(&db, &self.config_key, &account_digest, &metric_key(metric))?
+                else {
+                    continue;
+                };
+                *points = query
+                    .query_map(rusqlite::params![id, millis(since), millis(*now)], |row| {
                         Ok(Point {
                             taken_at: instant(row.get(0)?)?,
                             used: row.get(1)?,
                         })
-                    },
-                )?
-                .filter(|point| point.as_ref().map_or(true, |p| p.used.is_finite()))
-                .collect::<rusqlite::Result<Vec<_>>>()?;
+                    })?
+                    .filter(|point| point.as_ref().map_or(true, |p| p.used.is_finite()))
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
+            }
         }
-        Ok(points)
+        Ok(all)
     }
 
     /// Samples of one metric within `range` (any `RangeBounds`, compared to
@@ -930,24 +1057,23 @@ impl HistoryStore {
         let (start, end) = span(range);
         let db = self.open()?;
         let account_digest = series_digest(&db, &self.config_key, account)?;
+        let Some(id) = series_id(&db, &self.config_key, &account_digest, metric_key)? else {
+            return Ok(Vec::new());
+        };
         let mut query = db.prepare(
             "SELECT taken_at, used, \"limit\", resets_at FROM samples
-             WHERE config_key = ?1 AND account_digest = ?2 AND metric_key = ?3
-               AND taken_at BETWEEN ?4 AND ?5
+             WHERE series_id = ?1 AND taken_at BETWEEN ?2 AND ?3
              ORDER BY taken_at",
         )?;
         let samples = query
-            .query_map(
-                rusqlite::params![self.config_key, account_digest, metric_key, start, end],
-                |row| {
-                    Ok(WindowSample {
-                        taken_at: instant(row.get(0)?)?,
-                        used: row.get(1)?,
-                        limit: row.get(2)?,
-                        resets_at: row.get::<_, Option<i64>>(3)?.map(instant).transpose()?,
-                    })
-                },
-            )?
+            .query_map(rusqlite::params![id, start, end], |row| {
+                Ok(WindowSample {
+                    taken_at: instant(row.get(0)?)?,
+                    used: row.get(1)?,
+                    limit: row.get(2)?,
+                    resets_at: row.get::<_, Option<i64>>(3)?.map(instant).transpose()?,
+                })
+            })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
         Ok(samples)
     }
@@ -967,12 +1093,15 @@ impl HistoryStore {
     }
 
     fn bounds_in(&self, db: &Connection) -> Result<Option<Bounds>, HistoryError> {
-        // One aggregate per query: SQLite answers a lone MIN or MAX from the
-        // ends of `samples_by_time`, while both together walk the whole
-        // index of the configuration.
+        // Per series, SQLite answers a lone MIN or MAX from one end of the
+        // primary key; the configuration's edge is the edge of those.
         let edge = |aggregate: &str| {
             db.query_row(
-                &format!("SELECT {aggregate}(taken_at) FROM samples WHERE config_key = ?1"),
+                &format!(
+                    "SELECT {aggregate}(edge) FROM (SELECT (SELECT {aggregate}(taken_at)
+                        FROM samples WHERE series_id = s.id) AS edge
+                     FROM series s WHERE s.config_key = ?1)"
+                ),
                 [&self.config_key],
                 |row| row.get::<_, Option<i64>>(0),
             )
@@ -1054,10 +1183,15 @@ credential_env = "GROQ_KEY_BETA"
         Connection::open(path).unwrap()
     }
 
+    /// Samples matching `filter`, which may name the sample's columns and
+    /// its series' (`s.`).
     fn count(path: &Path, filter: &str) -> i64 {
         raw(path)
             .query_row(
-                &format!("SELECT COUNT(*) FROM samples WHERE {filter}"),
+                &format!(
+                    "SELECT COUNT(*) FROM samples x JOIN series s ON s.id = x.series_id
+                     WHERE {filter}"
+                ),
                 [],
                 |r| r.get(0),
             )
@@ -1277,7 +1411,10 @@ credential_env = "GROQ_KEY_BETA"
             1,
             "an infinite limit is unknown"
         );
-        assert_eq!(count(&db, "\"window\" IS NULL AND resets_at IS NULL"), 1);
+        assert_eq!(
+            count(&db, "s.\"window\" IS NULL AND x.resets_at IS NULL"),
+            1
+        );
         let latest = history.latest(&alpha).unwrap().unwrap();
         let values: Vec<_> = latest
             .metrics
@@ -1309,20 +1446,19 @@ credential_env = "GROQ_KEY_BETA"
         // What a pre-0029 release left behind: the same rows under the
         // legacy digest of the account.
         let conn = Connection::open(&db).unwrap();
-        for table in ["samples", "series"] {
-            conn.execute(
-                &format!("UPDATE {table} SET account_digest = ?1"),
-                [account_key(&account)],
-            )
-            .unwrap();
-        }
+        conn.execute(
+            "UPDATE series SET account_digest = ?1",
+            [account_key(&account)],
+        )
+        .unwrap();
         assert!(
             history.latest(&account).unwrap().is_some(),
             "adopted on read"
         );
         let legacy_left: i64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM samples WHERE account_digest = ?1",
+                "SELECT COUNT(*) FROM samples x JOIN series s ON s.id = x.series_id
+                 WHERE s.account_digest = ?1",
                 [account_key(&account)],
                 |row| row.get(0),
             )
@@ -1676,11 +1812,8 @@ credential_env = "GROQ_KEY_BETA"
         history.record_at(&alpha, now, &[metric], now).unwrap();
         let db = raw(&db);
         db.execute(
-            "INSERT INTO samples
-                (config_key, account_digest, metric_key, taken_at, used, \"limit\",
-                 remaining, unit, kind, \"window\", resets_at)
-             SELECT config_key, account_digest, metric_key, ?1, 99.0, \"limit\",
-                    remaining, unit, kind, \"window\", resets_at
+            "INSERT INTO samples (series_id, taken_at, used, \"limit\", remaining, resets_at)
+             SELECT series_id, ?1, 99.0, \"limit\", remaining, resets_at
              FROM samples WHERE taken_at = ?2",
             rusqlite::params![millis(now + mins(10)), millis(now)],
         )

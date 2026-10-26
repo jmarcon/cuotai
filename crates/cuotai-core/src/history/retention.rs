@@ -264,9 +264,7 @@ fn used_bytes(db: &Connection) -> rusqlite::Result<u64> {
 
 fn drop_orphan_series(db: &Connection) -> rusqlite::Result<usize> {
     db.execute(
-        "DELETE FROM series WHERE NOT EXISTS (SELECT 1 FROM samples x
-            WHERE x.config_key = series.config_key AND x.account_digest = series.account_digest
-              AND x.metric_key = series.metric_key)",
+        "DELETE FROM series WHERE NOT EXISTS (SELECT 1 FROM samples x WHERE x.series_id = series.id)",
         [],
     )
 }
@@ -320,18 +318,15 @@ impl HistoryStore {
         let mut report = PruneReport {
             removed: delete_batches(
                 &mut db,
-                "DELETE FROM samples WHERE (config_key, account_digest, metric_key, taken_at) IN (
-                    SELECT x.config_key, x.account_digest, x.metric_key, x.taken_at
-                    FROM series s JOIN samples x ON x.config_key = s.config_key
-                     AND x.account_digest = s.account_digest AND x.metric_key = s.metric_key
+                "DELETE FROM samples WHERE (series_id, taken_at) IN (
+                    SELECT x.series_id, x.taken_at FROM series s JOIN samples x ON x.series_id = s.id
                     WHERE s.removed_at <= ?1 LIMIT ?2)",
                 millis(now - REMOVED_GRACE),
             )?,
             expired: delete_batches(
                 &mut db,
-                "DELETE FROM samples WHERE (config_key, account_digest, metric_key, taken_at) IN (
-                    SELECT config_key, account_digest, metric_key, taken_at FROM samples
-                    WHERE taken_at < ?1 LIMIT ?2)",
+                "DELETE FROM samples WHERE (series_id, taken_at) IN (
+                    SELECT series_id, taken_at FROM samples WHERE taken_at < ?1 LIMIT ?2)",
                 millis(now - TimeDelta::days(i64::from(self.retention.keep_days()))),
             )?,
             ..PruneReport::default()
@@ -362,43 +357,34 @@ impl HistoryStore {
         if from >= until {
             return Ok(0);
         }
-        let series: Vec<(String, String, String)> = db
+        let series: Vec<i64> = db
             .prepare(
-                "SELECT DISTINCT config_key, account_digest, metric_key FROM samples
+                "SELECT DISTINCT series_id FROM samples
                  WHERE taken_at >= ?1 AND taken_at < ?2",
             )?
-            .query_map([from, until], |row| {
-                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
-            })?
+            .query_map([from, until], |row| row.get(0))?
             .collect::<rusqlite::Result<_>>()?;
         let mut reduced = 0;
-        for (config, account, metric) in series {
+        for id in series {
             let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
             let samples: Vec<(i64, WindowSample)> = tx
                 .prepare_cached(
                     "SELECT taken_at, used, \"limit\", resets_at FROM samples
-                     WHERE config_key = ?1 AND account_digest = ?2 AND metric_key = ?3
-                       AND taken_at >= ?4 AND taken_at < ?5
+                     WHERE series_id = ?1 AND taken_at >= ?2 AND taken_at < ?3
                      ORDER BY taken_at",
                 )?
-                .query_map(
-                    rusqlite::params![config, account, metric, from, until],
-                    |row| {
-                        let at: i64 = row.get(0)?;
-                        Ok((
-                            at,
-                            WindowSample {
-                                taken_at: instant(at)?,
-                                used: row.get(1)?,
-                                limit: row.get(2)?,
-                                resets_at: row
-                                    .get::<_, Option<i64>>(3)?
-                                    .map(instant)
-                                    .transpose()?,
-                            },
-                        ))
-                    },
-                )?
+                .query_map(rusqlite::params![id, from, until], |row| {
+                    let at: i64 = row.get(0)?;
+                    Ok((
+                        at,
+                        WindowSample {
+                            taken_at: instant(at)?,
+                            used: row.get(1)?,
+                            limit: row.get(2)?,
+                            resets_at: row.get::<_, Option<i64>>(3)?.map(instant).transpose()?,
+                        },
+                    ))
+                })?
                 .collect::<rusqlite::Result<_>>()?;
             // One statement per series: the rows of the span not among the
             // keepers go, instead of one DELETE per dropped row.
@@ -410,10 +396,9 @@ impl HistoryStore {
             if kept.len() < samples.len() {
                 let kept = serde_json::to_string(&kept).map_err(|_| HistoryError::Storage)?;
                 reduced += tx.execute(
-                    "DELETE FROM samples WHERE config_key = ?1 AND account_digest = ?2
-                       AND metric_key = ?3 AND taken_at >= ?4 AND taken_at < ?5
-                       AND taken_at NOT IN (SELECT value FROM json_each(?6))",
-                    rusqlite::params![config, account, metric, from, until, kept],
+                    "DELETE FROM samples WHERE series_id = ?1 AND taken_at >= ?2 AND taken_at < ?3
+                       AND taken_at NOT IN (SELECT value FROM json_each(?4))",
+                    rusqlite::params![id, from, until, kept],
                 )?;
             }
             tx.commit()?;
@@ -438,9 +423,8 @@ impl HistoryStore {
         loop {
             let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
             let deleted = tx.execute(
-                "DELETE FROM samples WHERE (config_key, account_digest, metric_key, taken_at) IN (
-                    SELECT config_key, account_digest, metric_key, taken_at FROM samples
-                    ORDER BY taken_at LIMIT ?1)",
+                "DELETE FROM samples WHERE (series_id, taken_at) IN (
+                    SELECT series_id, taken_at FROM samples ORDER BY taken_at LIMIT ?1)",
                 [BATCH],
             )?;
             tx.commit()?;
@@ -483,49 +467,66 @@ impl HistoryStore {
         write(out, &header)?;
         let mut rows = 0;
         if let Some(db) = self.open_existing()? {
-            let mut query = db.prepare(
-                "SELECT s.label, x.metric_key, x.unit, x.kind, x.\"window\", x.taken_at,
-                        x.used, x.\"limit\", x.remaining, x.resets_at
-                 FROM samples x JOIN series s ON s.config_key = x.config_key
-                   AND s.account_digest = x.account_digest AND s.metric_key = x.metric_key
-                 WHERE x.config_key = ?1 AND x.account_digest = ?2
-                   AND (?3 IS NULL OR x.metric_key = ?3) AND x.taken_at BETWEEN ?4 AND ?5
-                 ORDER BY s.position, x.metric_key, x.taken_at",
+            // The series of each account in position order, then each one's
+            // samples through the primary key (time order): no join over the
+            // span, no temporary sort.
+            let mut series_query = db.prepare(
+                "SELECT id, label, metric_key, unit, kind, \"window\" FROM series
+                 WHERE config_key = ?1 AND account_digest = ?2
+                   AND (?3 IS NULL OR metric_key = ?3)
+                 ORDER BY position, metric_key",
+            )?;
+            let mut samples_query = db.prepare(
+                "SELECT taken_at, used, \"limit\", remaining, resets_at FROM samples
+                 WHERE series_id = ?1 AND taken_at BETWEEN ?2 AND ?3
+                 ORDER BY taken_at",
             )?;
             for account in accounts {
                 let account_digest = series_digest(&db, &self.config_key, account)?;
-                let mut found = query.query(rusqlite::params![
-                    self.config_key,
-                    account_digest,
-                    metric_key,
-                    start,
-                    end
-                ])?;
-                while let Some(sample) = found.next()? {
-                    let row = Row {
-                        account: &account.name,
-                        provider: account.provider,
-                        metric: sample.get(0)?,
-                        metric_key: sample.get(1)?,
-                        unit: sample.get(2)?,
-                        kind: sample.get(3)?,
-                        window: sample.get(4)?,
-                        taken_at: instant(sample.get(5)?)?,
-                        used: finite(sample.get(6)?),
-                        limit: finite(sample.get(7)?),
-                        remaining: finite(sample.get(8)?),
-                        resets_at: sample.get::<_, Option<i64>>(9)?.map(instant).transpose()?,
-                    };
-                    let line = match format {
-                        ExportFormat::Csv => row.csv() + "\n",
-                        ExportFormat::Json => {
-                            let json =
-                                serde_json::to_string(&row).map_err(|_| HistoryError::Export)?;
-                            format!("{}\n{json}", if rows == 0 { "" } else { "," })
-                        }
-                    };
-                    write(out, &line)?;
-                    rows += 1;
+                let series: Vec<(i64, String, String, String, String, Option<String>)> =
+                    series_query
+                        .query_map(
+                            rusqlite::params![self.config_key, account_digest, metric_key],
+                            |row| {
+                                Ok((
+                                    row.get(0)?,
+                                    row.get(1)?,
+                                    row.get(2)?,
+                                    row.get(3)?,
+                                    row.get(4)?,
+                                    row.get(5)?,
+                                ))
+                            },
+                        )?
+                        .collect::<rusqlite::Result<_>>()?;
+                for (id, label, key, unit, kind, window) in &series {
+                    let mut found = samples_query.query(rusqlite::params![id, start, end])?;
+                    while let Some(sample) = found.next()? {
+                        let row = Row {
+                            account: &account.name,
+                            provider: account.provider,
+                            metric: label.clone(),
+                            metric_key: key.clone(),
+                            unit: unit.clone(),
+                            kind: kind.clone(),
+                            window: window.clone(),
+                            taken_at: instant(sample.get(0)?)?,
+                            used: finite(sample.get(1)?),
+                            limit: finite(sample.get(2)?),
+                            remaining: finite(sample.get(3)?),
+                            resets_at: sample.get::<_, Option<i64>>(4)?.map(instant).transpose()?,
+                        };
+                        let line = match format {
+                            ExportFormat::Csv => row.csv() + "\n",
+                            ExportFormat::Json => {
+                                let json = serde_json::to_string(&row)
+                                    .map_err(|_| HistoryError::Export)?;
+                                format!("{}\n{json}", if rows == 0 { "" } else { "," })
+                            }
+                        };
+                        write(out, &line)?;
+                        rows += 1;
+                    }
                 }
             }
         }
@@ -567,25 +568,18 @@ impl HistoryStore {
         let legacy = account_key(account);
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         // Rows an older release wrote under the legacy digest go too.
-        for table in ["samples", "series"] {
-            tx.execute(
-                &format!("DELETE FROM {table} WHERE config_key = ?1 AND account_digest = ?2"),
-                rusqlite::params![self.config_key, legacy],
-            )?;
-        }
+        super::delete_series(
+            &tx,
+            "config_key = ?1 AND account_digest = ?2",
+            rusqlite::params![self.config_key, legacy],
+        )?;
         tx.execute(
             "DELETE FROM aliases WHERE config_key = ?1 AND account_id = ?2",
             rusqlite::params![self.config_key, account.state_key()],
         )?;
-        let removed = tx.execute(
-            "DELETE FROM samples WHERE config_key = ?1 AND (account_digest = ?2
-                OR (account_digest, metric_key) IN (SELECT account_digest, metric_key FROM series
-                    WHERE config_key = ?1 AND removed_at IS NOT NULL))",
-            rusqlite::params![self.config_key, digest],
-        )?;
-        tx.execute(
-            "DELETE FROM series WHERE config_key = ?1
-               AND (account_digest = ?2 OR removed_at IS NOT NULL)",
+        let removed = super::delete_series(
+            &tx,
+            "config_key = ?1 AND (account_digest = ?2 OR removed_at IS NOT NULL)",
             rusqlite::params![self.config_key, digest],
         )?;
         super::journal::erase_account(&tx, &self.config_key, &account.state_key())?;
@@ -971,11 +965,8 @@ mod tests {
         Connection::open(&db)
             .unwrap()
             .execute(
-                "INSERT INTO samples
-                    (config_key, account_digest, metric_key, taken_at, used, \"limit\",
-                     remaining, unit, kind, \"window\", resets_at)
-                 SELECT config_key, account_digest, metric_key, ?1, 99.0, \"limit\",
-                        remaining, unit, kind, \"window\", resets_at
+                "INSERT INTO samples (series_id, taken_at, used, \"limit\", remaining, resets_at)
+                 SELECT series_id, ?1, 99.0, \"limit\", remaining, resets_at
                  FROM samples WHERE taken_at = ?2",
                 rusqlite::params![millis(DateTime::<Utc>::MAX_UTC), millis(now)],
             )

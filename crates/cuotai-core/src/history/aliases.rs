@@ -24,28 +24,27 @@ pub(crate) fn apply(db: &Connection, aliases: &[(&str, &str)]) -> rusqlite::Resu
     }
     let tx = db.unchecked_transaction()?;
     for (old, new) in aliases {
+        // The new identity's series is created where missing; the old
+        // series' samples join it (rows already there win) and the old goes.
         tx.execute(
             "INSERT OR IGNORE INTO series (config_key, account_digest, metric_key, label,
-                position, seen_at, removed_at, billing, scope)
+                position, seen_at, removed_at, billing, scope, unit, kind, \"window\")
              SELECT config_key, account_digest, ?2, label, position, seen_at, removed_at, billing,
-                scope
+                scope, unit, kind, \"window\"
              FROM series WHERE metric_key = ?1",
             rusqlite::params![old, new],
         )?;
         tx.execute(
-            "INSERT OR IGNORE INTO samples (config_key, account_digest, metric_key, taken_at,
-                used, \"limit\", remaining, unit, kind, \"window\", resets_at)
-             SELECT config_key, account_digest, ?2, taken_at, used, \"limit\", remaining, unit,
-                kind, \"window\", resets_at
-             FROM samples WHERE metric_key = ?1",
+            "INSERT OR IGNORE INTO samples (series_id, taken_at, used, \"limit\", remaining,
+                resets_at)
+             SELECT n.id, x.taken_at, x.used, x.\"limit\", x.remaining, x.resets_at
+             FROM samples x JOIN series o ON o.id = x.series_id
+               JOIN series n ON n.config_key = o.config_key
+                AND n.account_digest = o.account_digest AND n.metric_key = ?2
+             WHERE o.metric_key = ?1",
             rusqlite::params![old, new],
         )?;
-        for table in ["samples", "series"] {
-            tx.execute(
-                &format!("DELETE FROM {table} WHERE metric_key = ?1"),
-                rusqlite::params![old],
-            )?;
-        }
+        super::delete_series(&tx, "metric_key = ?1", rusqlite::params![old])?;
     }
     tx.commit()
 }
@@ -62,22 +61,28 @@ mod tests {
 
     fn put(db: &Connection, key: &str, at: i64, used: f64) {
         db.execute(
-            "INSERT OR IGNORE INTO series (config_key, account_digest, metric_key, label, position, seen_at, removed_at)
-             VALUES ('c', 'a', ?1, 'label', 0, 1, NULL)",
+            "INSERT OR IGNORE INTO series (config_key, account_digest, metric_key, label, position,
+                seen_at, removed_at, unit, kind, \"window\")
+             VALUES ('c', 'a', ?1, 'label', 0, 1, NULL, 'u', 'quota', NULL)",
             [key],
         )
         .unwrap();
         db.execute(
-            "INSERT INTO samples VALUES ('c', 'a', ?1, ?2, ?3, NULL, NULL, 'u', 'quota', NULL, NULL)",
+            "INSERT INTO samples (series_id, taken_at, used)
+             SELECT id, ?2, ?3 FROM series WHERE metric_key = ?1",
             rusqlite::params![key, at, used],
         )
         .unwrap();
     }
 
     fn keys(db: &Connection, table: &str) -> Vec<(String, i64)> {
+        let from = match table {
+            "samples" => "samples x JOIN series s ON s.id = x.series_id",
+            _ => "series s",
+        };
         let mut stmt = db
             .prepare(&format!(
-                "SELECT metric_key, COUNT(*) FROM {table} GROUP BY metric_key ORDER BY 1"
+                "SELECT s.metric_key, COUNT(*) FROM {from} GROUP BY s.metric_key ORDER BY 1"
             ))
             .unwrap();
         stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
@@ -104,7 +109,8 @@ mod tests {
         );
         let kept: f64 = db
             .query_row(
-                "SELECT used FROM samples WHERE metric_key = 'new' AND taken_at = 2",
+                "SELECT x.used FROM samples x JOIN series s ON s.id = x.series_id
+                 WHERE s.metric_key = 'new' AND x.taken_at = 2",
                 [],
                 |r| r.get(0),
             )
