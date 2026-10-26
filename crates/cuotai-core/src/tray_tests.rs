@@ -309,3 +309,26 @@ fn a_report_with_active_extra_usage_is_on_extra() {
     let none = AccountView::from_report(&account, None, crate::freshness::Freshness::Fresh);
     assert!(!none.on_extra);
 }
+
+#[test]
+fn level_thresholds_are_70_and_30_and_match_the_desktop_ui() {
+    assert_eq!(Level::of(0.7), Level::Good);
+    assert_eq!(Level::of(0.6999), Level::Warn);
+    assert_eq!(Level::of(0.3), Level::Warn);
+    assert_eq!(Level::of(0.2999), Level::Bad);
+    let lib = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../apps/desktop/ui/js/lib.js"
+    ))
+    .unwrap();
+    let line = lib
+        .lines()
+        .find(|l| l.starts_with("export const level ="))
+        .expect("lib.js level()");
+    let expected = format!(
+        "p >= {} ? \"good\" : p >= {} ? \"warn\"",
+        (Level::GOOD_AT * 100.0).round(),
+        (Level::WARN_AT * 100.0).round()
+    );
+    assert!(line.contains(&expected), "{line}");
+}

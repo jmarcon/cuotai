@@ -153,12 +153,13 @@ fn metric_state_color(state: MetricState) -> Option<Color> {
         MetricState::Available { ratio, uncapped } => {
             if uncapped {
                 Some(MUTED)
-            } else if ratio >= 0.5 {
-                Some(GREEN)
-            } else if ratio >= 0.2 {
-                Some(YELLOW)
             } else {
-                Some(RED)
+                // Single source of the thresholds: core `tray::Level` (DS-ID-5).
+                Some(match cuotai_core::tray::Level::of(ratio) {
+                    cuotai_core::tray::Level::Good => GREEN,
+                    cuotai_core::tray::Level::Warn => YELLOW,
+                    cuotai_core::tray::Level::Bad => RED,
+                })
             }
         }
     }
@@ -2951,6 +2952,21 @@ fn format_reset_line(reset: DateTime<Utc>, now: DateTime<Utc>) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn gauge_colours_follow_the_core_level_thresholds() {
+        let colour = |ratio| {
+            metric_state_color(MetricState::Available {
+                ratio,
+                uncapped: false,
+            })
+        };
+        assert_eq!(colour(0.70), Some(GREEN));
+        assert_eq!(colour(0.69), Some(YELLOW));
+        assert_eq!(colour(0.30), Some(YELLOW));
+        assert_eq!(colour(0.29), Some(RED));
+        assert_eq!(colour(0.55), Some(YELLOW), "was green at the old 50% cut");
+    }
+
     use super::*;
     use chrono::TimeZone;
     use cuotai_core::{MetricKind, MetricWindow, Provider};

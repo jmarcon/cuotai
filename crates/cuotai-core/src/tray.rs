@@ -118,10 +118,17 @@ pub enum Level {
 }
 
 impl Level {
+    /// Remaining share from which a level is `good` (DS-ID-5). The only
+    /// definition: the TUI maps this type and the desktop test asserts that
+    /// `lib.js` `level()` uses the same numbers.
+    pub const GOOD_AT: f64 = 0.7;
+    /// Remaining share from which a level is `warn` rather than `bad`.
+    pub const WARN_AT: f64 = 0.3;
+
     pub fn of(remaining: f64) -> Self {
-        if remaining >= 0.7 {
+        if remaining >= Self::GOOD_AT {
             Self::Good
-        } else if remaining >= 0.3 {
+        } else if remaining >= Self::WARN_AT {
             Self::Warn
         } else {
             Self::Bad

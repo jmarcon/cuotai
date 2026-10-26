@@ -56,18 +56,27 @@ fn spinner(elapsed: Duration) -> char {
     SPINNER[(elapsed.as_millis() / 80) as usize % SPINNER.len()]
 }
 
-/// Level colour: red up to 20% left, yellow at 35%, green from 50% (the
-/// dashboard's thresholds), blended in between.
+/// Level colour blended towards the core `tray::Level` thresholds: red up to
+/// 15% left, yellow from 30% (`Warn`) to 55%, green from 70% (`Good`).
 fn gradient(ratio: f64) -> Color {
     let mix = |a: (u8, u8, u8), b: (u8, u8, u8), t: f64| {
         let ch = |x: u8, y: u8| (f64::from(x) + (f64::from(y) - f64::from(x)) * t).round() as u8;
         palette::rgb((ch(a.0, b.0), ch(a.1, b.1), ch(a.2, b.2)))
     };
     let r = ratio.clamp(0.0, 1.0);
-    if r < 0.35 {
-        mix(RED, YELLOW, ((r - 0.2) / 0.15).clamp(0.0, 1.0))
+    const BLEND: f64 = 0.15;
+    let (warn, good) = (
+        cuotai_core::tray::Level::WARN_AT,
+        cuotai_core::tray::Level::GOOD_AT,
+    );
+    if r < warn + (good - warn - BLEND) / 2.0 {
+        mix(RED, YELLOW, ((r - (warn - BLEND)) / BLEND).clamp(0.0, 1.0))
     } else {
-        mix(YELLOW, GREEN, ((r - 0.35) / 0.15).clamp(0.0, 1.0))
+        mix(
+            YELLOW,
+            GREEN,
+            ((r - (good - BLEND)) / BLEND).clamp(0.0, 1.0),
+        )
     }
 }
 
@@ -247,10 +256,12 @@ mod tests {
     #[test]
     fn gradient_follows_dashboard_thresholds() {
         assert_eq!(gradient(0.0), palette::BAD);
-        assert_eq!(gradient(0.2), palette::BAD);
-        assert_eq!(gradient(0.35), palette::WARN);
+        assert_eq!(gradient(0.15), palette::BAD);
+        assert_eq!(gradient(0.30), palette::WARN);
+        assert_eq!(gradient(0.55), palette::WARN);
+        assert_eq!(gradient(0.70), palette::GOOD);
         assert_eq!(gradient(1.0), palette::GOOD);
-        assert_ne!(gradient(0.42), gradient(0.35));
+        assert_ne!(gradient(0.22), gradient(0.30));
     }
 
     #[test]
