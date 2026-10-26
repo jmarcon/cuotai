@@ -68,3 +68,7 @@
 90-components.github-light	../tools/ui-shots/components.html?aggwarn&mono=zq	800	1600	github	light	en-US
 90-components.win98	../tools/ui-shots/components.html?aggwarn&mono=zq	800	1600	win98	light	en-US
 90-components.crt	../tools/ui-shots/components.html?aggwarn&mono=zq	800	1600	crt	dark	en-US
+13b-account-dialog-edit	index.html	1200	820	dracula	dark	en-US	[data-card-more]|[data-details]|[data-edit]
+13c-account-delete-confirm	index.html	1200	820	dracula	dark	en-US	[data-card-more]|[data-details]|[data-remove]
+50-settings-about-updates	settings.html?page=about&anchor=updates	860	900	dracula	dark	en-US
+50-settings-alerts-notifications	settings.html?page=alerts&anchor=notify	860	900	dracula	dark	en-US
