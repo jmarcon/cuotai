@@ -1,4 +1,4 @@
-/* Windows XP (Luna) — modos claro (Luna) e escuro (Royale Noir). Sem imagens externas; gradientes CSS puros. */
+/* Windows XP (Luna) — light (Luna) and dark (Royale Noir) modes. No external images; pure CSS gradients. */
 :root[data-theme="winxp"][data-mode="light"] {
   color-scheme: light;
   --bg: #ece9d8;
@@ -71,7 +71,7 @@
   --body-bg: linear-gradient(#1e2430, #171c26);
 }
 
-/* Janela XP: borda azul e barra de título Luna */
+/* XP window: blue border and Luna title bar */
 :root[data-theme="winxp"] .card {
   border-color: #0054e3;
   border-top-left-radius: 8px;
@@ -124,7 +124,7 @@
   color: #ffffff;
 }
 
-/* Controles bege sobre a barra (claro) */
+/* Beige controls on the bar (light) */
 :root[data-theme="winxp"][data-mode="light"] .btn,
 :root[data-theme="winxp"][data-mode="light"] .theme-switch select {
   border-color: #003c74;
@@ -149,7 +149,7 @@
   background: #ffffff;
 }
 
-/* Barras de progresso em estilo "blocos" */
+/* Progress bars in "blocks" style */
 :root[data-theme="winxp"][data-mode="light"] .bar {
   border: 1px solid #7f9db9;
 }

@@ -1,7 +1,7 @@
-// PRD 0018 RF2/RF3 — o aviso de atualização e a seção "Updates" das configurações.
-// A interface nunca vê uma URL de manifesto, uma assinatura ou uma chave: o backend
-// entrega só o que mostrar (fase, versão, notas, progresso, motivo). Todos os textos
-// moram nos quatro catálogos.
+// PRD 0018 RF2/RF3 — the update notice and the "Updates" section of the settings.
+// The interface never sees a manifest URL, a signature or a key: the backend
+// hands over only what to show (phase, version, notes, progress, reason). All texts
+// live in the four catalogs.
 import { te, t, currentLocale } from "./i18n.js";
 import { showDialog } from "./motion.js";
 import { row, sw } from "./settings/rows.js";
@@ -22,7 +22,7 @@ const publish = (view) => {
   return view;
 };
 
-/** Lê o estado uma vez e passa a reagir ao evento `updater` das duas janelas. */
+/** Reads the state once and starts reacting to the `updater` event from both windows. */
 export async function initUpdates() {
   if (!started) {
     started = true;
@@ -33,17 +33,17 @@ export async function initUpdates() {
   return status;
 }
 
-/** O último estado recebido (null antes da primeira resposta). */
+/** The last state received (null before the first response). */
 export const updateState = () => status;
 
-/** Assina as mudanças do estado (repintar, avisar a bandeja). */
+/** Subscribes to state changes (repaint, notify the tray). */
 export function onUpdateState(cb) {
   listeners.add(cb);
   if (status) cb(status);
   return () => listeners.delete(cb);
 }
 
-/** PRD 0018 RF2.2: o aviso da janela principal. Nada baixa sem "Atualizar agora". */
+/** PRD 0018 RF2.2: the main window notice. Nothing downloads without "Atualizar agora". */
 export function updateBannerHtml() {
   const s = status;
   if (!s || s.consent_pending) return "";
@@ -129,7 +129,7 @@ const availableHtml = (s) => {
 </div>`;
 };
 
-/** PRD 0018 RF2.5 / PRD 0021 RF8.1: instalação gerenciada ou sem escrita. */
+/** PRD 0018 RF2.5 / PRD 0021 RF8.1: managed or non-writable installation. */
 const managedHtml = (s) => `<div class="banner" role="status" data-update-banner data-update="managed">
   <b>${te("update.available", { version: s.version })}</b>
   <p class="hint">${te(`update.cannot.${s.upgrade_command ? "managed" : "place"}`)}</p>
@@ -154,9 +154,9 @@ const failedHtml = (s) => `<div class="banner bad" role="alert" data-update-bann
 </div>`;
 
 /**
- * PRD 0018 RF2.2/RF2.3/RF2.4: os cliques do aviso. `rerender` repinta a janela depois da
- * resposta; `onError` mostra a recusa (por exemplo o login em andamento que bloqueia o
- * reinício).
+ * PRD 0018 RF2.2/RF2.3/RF2.4: the notice's clicks. `rerender` repaints the window after the
+ * response; `onError` shows the refusal (for example the login in progress that blocks
+ * the restart).
  */
 export function bindUpdateBanner(root, { rerender, onError }) {
   root.addEventListener("click", async (e) => {
@@ -176,7 +176,7 @@ export function bindUpdateBanner(root, { rerender, onError }) {
   });
 }
 
-/** PRD 0018 RF2.1/RF3.1: o que a verificação envia (primeira execução e Settings). */
+/** PRD 0018 RF2.1/RF3.1: what the check sends (first run and Settings). */
 export const privacyNoteHtml = () => `<p class="hint" data-update-privacy>${te("update.privacy")}</p>`;
 
 /** PRD 0018 RF3.1/RF2.5: the complete Settings "Updates" section, including its
@@ -208,7 +208,7 @@ export function updatesSectionHtml(s, message = "") {
   </section>`;
 }
 
-/** Uma linha honesta sobre o que está acontecendo agora. */
+/** An honest line about what is happening now. */
 const phaseText = (s) => {
   if (!s) return t("common.loading");
   if (s.consent_pending) return t("update.consent.pending");
@@ -225,7 +225,7 @@ const phaseText = (s) => {
   }
 };
 
-/** PRD 0018 RF3.1: os controles da seção, cada mudança salva na hora. */
+/** PRD 0018 RF3.1: the section's controls, each change saved immediately. */
 export async function bindUpdates(sec) {
   const automatic = sec.querySelector("#update-automatic");
   const msg = sec.querySelector("#update-msg");

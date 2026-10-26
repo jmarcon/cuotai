@@ -1,50 +1,50 @@
-//! Quota via sessão web da plataforma Xiaomi MiMo (`platform.xiaomimimo.com`).
+//! Quota via the Xiaomi MiMo platform web session (`platform.xiaomimimo.com`).
 //!
-//! A chave `sk-` emitida pelo login nativo (fluxo authorize/ECDH) é somente
-//! uma chave de inferência e NÃO lê quota em nenhum endpoint conhecido:
-//!   - `aistudio.xiaomimimo.com/open-apis/v1/user/usage` recusa `sk-` com 401
+//! The `sk-` key issued by native login (authorize/ECDH flow) is only
+//! an inference key and does NOT read quota at any known endpoint:
+//!   - `aistudio.xiaomimimo.com/open-apis/v1/user/usage` refuses `sk-` with 401
 //!     (9router `open-sse/services/usage/xiaomi-mimo.js`: "the sk- API key
 //!     cannot read the quota");
 //!   - o console `platform.xiaomimimo.com/api/v1/*` autentica exclusivamente
-//!     por cookie de sessão web — o bundle oficial
-//!     (`/static/main.*.chunk.js`) chama `fetch(..., {credentials:
-//!     "same-origin"})` sem qualquer cabeçalho Authorization.
-//!
-//! Modo real alcançável (referência: CodexBar MIT,
+//!   - the `platform.xiaomimimo.com/api/v1/*` console authenticates exclusively
+//!     by web session cookie — the official bundle
+//!     (`/static/main.*.chunk.js`) calls `fetch(..., {credentials:
+//!    "same-origin"})` without any Authorization header.
+//! Reachable real mode (reference: CodexBar MIT,
 //! `Sources/CodexBarCore/Providers/MiMo/MiMoUsageFetcher.swift` e
-//! `MiMoCookieImporter.swift`): o usuário entra em platform.xiaomimimo.com no
-//! navegador e cola a sessão no assistente da conta (cofre do sistema, PRD
-//! 0016) ou a exporta numa variável referenciada por
-//! `params.platform_session_env`. O descritor da sessão
-//! (`crate::user_session::descriptors`) exige `api-platform_serviceToken` e
-//! `userId`; `super::web_session` os confere antes de chamar [`fetch`].
+//! `MiMoCookieImporter.swift`): the user signs in to platform.xiaomimimo.com in the
+//! browser and pastes the session into the account wizard (system vault, PRD
+//! 0016) or exports it in a variable referenced by
+//! `params.platform_session_env`. The session descriptor
+//! (`crate::user_session::descriptors`) requires `api-platform_serviceToken` and
+//! `userId`; `super::web_session` checks them before calling [`fetch`].
 //!
-//! Endpoints (GET, cookie de sessão web):
+//! Endpoints (GET, web session cookie):
 //!   /balance           -> {code, data:{balance,currency,cashBalance?,giftBalance?}}
-//!                         (valores monetários como strings)
+//!                         (monetary values as strings)
 //!   /tokenPlan/detail  -> {code, data:{planCode?,currentPeriodEnd?,expired}}
 //!   /tokenPlan/usage   -> {code, data:{monthUsage:{percent, items:[{name,used,limit,percent}]}}}
-//! `percent` do tokenPlan é a FRAÇÃO USADA (0–1): o CodexBar converte com
-//! `clamp(percent*100)` para usedPercent e o bundle oficial usa
-//! `min(100, max(0, 100*e))` na barra de "Current plan usage".
-//! `currentPeriodEnd` vem como "yyyy-MM-dd HH:mm:ss" em UTC.
+//! The tokenPlan `percent` is the USED FRACTION (0–1): CodexBar converts with
+//! `clamp(percent*100)` to usedPercent and the official bundle uses
+//! `min(100, max(0, 100*e))` in the "Current plan usage" bar.
+//! `currentPeriodEnd` comes as "yyyy-MM-dd HH:mm:ss" in UTC.
 //!
-//! `/balance` é obrigatório (como no CodexBar); os dois de tokenPlan são
-//! complementares — falha neles degrada para nota, nunca para zero inventado.
+//! `/balance` is mandatory (as in CodexBar); the two tokenPlan ones are
+//! complementary — a failure in them degrades to a note, never to an invented zero.
 
 use super::{Context, Data, QueryError};
 use crate::text::{params, Localized, Notes, ParamValue};
 use crate::{Metric, MetricKind, MetricWindow, Status};
 use chrono::{DateTime, Utc};
 
-/// Base fixa da API do console web. Em testes, a URL do mock é injetada.
+/// Fixed base of the web console API. In tests, the mock's URL is injected.
 pub(crate) const PLATFORM_API_BASE: &str = "https://platform.xiaomimimo.com/api/v1";
 const PLATFORM_ORIGIN: &str = "https://platform.xiaomimimo.com";
-/// UA de navegador, como o CodexBar envia; o backend espera sessão web real.
+/// Browser UA, as CodexBar sends; the backend expects a real web session.
 const PLATFORM_UA: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
 
-/// Consulta saldo e plano de tokens com o cookie da sessão web da plataforma
-/// (já conferido contra o descritor por `super::web_session`).
+/// Queries balance and token plan with the platform web session cookie
+/// (already checked against the descriptor by `super::web_session`).
 pub(crate) async fn fetch(ctx: &Context<'_>, base: &str, cookie: &str) -> Result<Data, QueryError> {
     let cookie = cookie.trim();
 
@@ -52,7 +52,7 @@ pub(crate) async fn fetch(ctx: &Context<'_>, base: &str, cookie: &str) -> Result
     let balance_body = get(ctx, &format!("{base}/balance"), cookie)
         .await?
         .ok_or_else(QueryError::schema)?;
-    // tokenPlan/* são complementares: indisponibilidade vira nota.
+    // tokenPlan/* are complementary: unavailability becomes a note.
     let detail_body = get(ctx, &format!("{base}/tokenPlan/detail"), cookie)
         .await
         .ok()
@@ -70,9 +70,9 @@ pub(crate) async fn fetch(ctx: &Context<'_>, base: &str, cookie: &str) -> Result
     )
 }
 
-/// GET autenticado por cookie. Ok(None) quando o endpoint complementar falha
-/// ou não traz envelope válido; Err apenas para falhas de autenticação/transporte
-/// que comprometem a sessão como um todo.
+/// Cookie-authenticated GET. Ok(None) when the complementary endpoint fails
+/// or carries no valid envelope; Err only for authentication/transport failures
+/// that compromise the session as a whole.
 async fn get(
     ctx: &Context<'_>,
     url: &str,
@@ -84,8 +84,8 @@ async fn get(
         .header("Cookie", cookie)
         .header("Accept", "application/json, text/plain, */*")
         .header("Accept-Language", "en-US,en;q=0.9")
-        // O servidor formata datas conforme este cabeçalho; UTC mantém o
-        // parse de currentPeriodEnd estável (CodexBar assume UTC).
+        // The server formats dates according to this header; UTC keeps the
+        // parse of currentPeriodEnd stable (CodexBar assumes UTC).
         .header("x-timeZone", "UTC")
         .header("Origin", PLATFORM_ORIGIN)
         .header("Referer", format!("{PLATFORM_ORIGIN}/"))
@@ -134,7 +134,7 @@ async fn get(
     let body = super::body_value(response).await?;
     match body.get("code").and_then(|c| c.as_i64()) {
         Some(0) => Ok(Some(body)),
-        // O envelope também sinaliza sessão no corpo (CodexBar trata igual).
+        // The envelope also signals a session in the body (CodexBar treats it the same).
         Some(code @ (401 | 403)) => Err(QueryError {
             diagnostic: None,
             status: Status::AuthenticationError,
@@ -144,7 +144,7 @@ async fn get(
                 "Xiaomi MiMo (platform): web session expired or invalid. Re-export the cookie.",
             ),
         }),
-        // Endpoint complementar sem assinatura/permissão: degrada para nota.
+        // Complementary endpoint without subscription/permission: degrades to a note.
         _ => Ok(None),
     }
 }
@@ -158,7 +158,7 @@ fn build_data(
     let mut metrics = Vec::new();
     let mut notes = Notes::new();
 
-    // ---- Plano de tokens (mensal): percent é a fração USADA (0–1).
+    // ---- Token plan (monthly): percent is the USED fraction (0–1).
     let detail = detail_body.and_then(|b| b.get("data"));
     let resets_at = detail
         .and_then(|d| d.get("currentPeriodEnd"))
@@ -193,9 +193,9 @@ fn build_data(
         .and_then(|d| d.get("monthUsage"))
     {
         Some(month) => {
-            // Referência (CodexBar parseTokenPlanUsage): os valores vêm de
-            // items[0]; monthUsage.percent só é fallback quando o item não
-            // traz nada utilizável. `percent` é a fração USADA (0–1).
+            // Reference (CodexBar parseTokenPlanUsage): values come from
+            // items[0]; monthUsage.percent is only a fallback when the item
+            // carries nothing usable. `percent` is the USED fraction (0–1).
             let item = month
                 .get("items")
                 .and_then(|v| v.as_array())
@@ -212,8 +212,8 @@ fn build_data(
                 .and_then(|i| finite(i.get("percent")))
                 .or_else(|| finite(month.get("percent")));
             if let Some((used, limit)) = absolute {
-                // Sem clamp: uso acima do limite é real e aparece como
-                // remaining negativo, nunca como 0 artificial.
+                // No clamp: usage above the limit is real and shows up as
+                // negative remaining, never as an artificial 0.
                 metrics.push(Metric {
                     billing: Default::default(),
                     scope: None,
@@ -229,7 +229,7 @@ fn build_data(
                     resets_at,
                 });
             } else if let Some(fraction) = fraction {
-                // Fração usada pode passar de 1 (estouro do plano): sem clamp.
+                // Used fraction can exceed 1 (plan overrun): no clamp.
                 let used_pct = fraction * 100.0;
                 metrics.push(Metric {
                     billing: Default::default(),
@@ -249,8 +249,8 @@ fn build_data(
                     "API returned only the plan percentage; `percent` is the USED fraction (0–1).",
                 );
             } else {
-                // monthUsage malformado: endpoint complementar — degrada para
-                // nota e preserva o saldo, nunca zera a consulta inteira.
+                // malformed monthUsage: complementary endpoint — degrades to a
+                // note and preserves the balance, never zeroes the whole query.
                 notes.push(
                     "note.mimo_platform.month_usage_unusable",
                     "Token plan returned monthUsage without usable values; no quota was estimated.",
@@ -265,7 +265,7 @@ fn build_data(
         }
     }
 
-    // ---- Saldo pay-as-you-go (obrigatório, como no CodexBar).
+    // ---- Pay-as-you-go balance (mandatory, as in CodexBar).
     let balance_data = balance_body
         .get("data")
         .ok_or_else(|| QueryError::schema_at(balance_body, &["data"], "object"))?;
@@ -335,7 +335,7 @@ fn build_data(
     Ok(Data::new(metrics, notes, base))
 }
 
-/// "yyyy-MM-dd HH:mm:ss" em UTC (formato de currentPeriodEnd no CodexBar).
+/// "yyyy-MM-dd HH:mm:ss" in UTC (currentPeriodEnd format in CodexBar).
 fn parse_platform_datetime(s: &str) -> Option<DateTime<Utc>> {
     chrono::NaiveDateTime::parse_from_str(s.trim(), "%Y-%m-%d %H:%M:%S")
         .ok()
@@ -480,7 +480,7 @@ mod tests {
             })))
             .mount(&server)
             .await;
-        // tokenPlan sem assinatura: envelope com code != 0 e sem dados.
+        // tokenPlan without a subscription: envelope with code != 0 and no data.
         Mock::given(method("GET"))
             .and(path("/tokenPlan/detail"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
@@ -498,7 +498,7 @@ mod tests {
         let data = fetch(&ctx_with(&http, &NoCredentials), &server.uri(), COOKIE)
             .await
             .expect("saldo continua disponível");
-        // Nenhum plano inventado; apenas o saldo real.
+        // No invented plan; only the real balance.
         assert_eq!(data.metrics.len(), 1);
         assert_eq!(data.metrics[0].label, "Saldo da plataforma");
         assert_eq!(data.metrics[0].remaining, Some(0.0));
@@ -567,7 +567,7 @@ mod tests {
             })))
             .mount(&server)
             .await;
-        // monthUsage presente mas sem items nem percent utilizável.
+        // monthUsage present but with neither items nor usable percent.
         Mock::given(method("GET"))
             .and(path("/tokenPlan/usage"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
@@ -618,7 +618,7 @@ mod tests {
             .await
             .expect("sucesso");
         let plan = &data.metrics[0];
-        // Estouro real: 1200 usados de 1000 → remaining negativo, sem clamp.
+        // Real overrun: 1200 used of 1000 → negative remaining, no clamp.
         assert_eq!(plan.used, Some(1200.0));
         assert_eq!(plan.limit, Some(1000.0));
         assert_eq!(plan.remaining, Some(-200.0));
@@ -635,7 +635,7 @@ mod tests {
             })))
             .mount(&server)
             .await;
-        // Item sem contadores mas com percent próprio; o do mês diverge.
+        // Item without counters but with its own percent; the month's one differs.
         Mock::given(method("GET"))
             .and(path("/tokenPlan/usage"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
@@ -653,7 +653,7 @@ mod tests {
             .await
             .expect("sucesso");
         let plan = &data.metrics[0];
-        // CodexBar lê items[0]: percent do item (0.3 → 30%), não o do mês.
+        // CodexBar reads items[0]: the item's percent (0.3 → 30%), not the month's.
         assert_eq!(plan.used, Some(30.0));
         assert_eq!(plan.remaining, Some(70.0));
         assert_eq!(plan.unit, "%");

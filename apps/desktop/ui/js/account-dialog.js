@@ -1,6 +1,6 @@
-// Formulário de conta: todo o esquema, visibilidade e validação vêm do core.
-// RF2: o login é orquestrado pelo core; este diálogo só renderiza eventos
-// tipados (LoginEvent, sem segredos) e envia entradas do usuário.
+// Account form: the whole schema, visibility and validation come from the core.
+// RF2: the login is orchestrated by the core; this dialog only renders typed
+// events (LoginEvent, no secrets) and sends user input.
 import {
   accountLabel, configChangedOnDisk, deleteAccount, detectSources, forgetExtensionSecrets, dismissDetected, draftAccess, errText, esc, fieldChoices, formSchema, getAccount,
   getSettings, getView, icon, listProviders, logo, NEW_PROVIDER_URL, openExternal, providerModes, setDetectEnabled,
@@ -46,17 +46,17 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   // The order is the core's (`picker_providers`), the same one the TUI shows; never re-sorted here.
   let provider = existing?.provider ?? providers[0].id;
   let schema = await formSchema(provider);
-  // Valores correntes por chave: { text } ou { choice }.
+  // Current values by key: { text } or { choice }.
   const values = new Map((existing?.fields ?? []).map((f) => [f.key, f]));
-  // authMode inicial: prioriza a config existente (oauth ou credential) ou
-  // o primeiro modo do core quando o provedor não tem credencial manual.
+  // Initial authMode: prefers the existing config (oauth or credential) or
+  // the core's first mode when the provider has no manual credential.
   let authMode = existing?.auth_mode
     || (schema.credential_kind === "none"
       ? ((schema.login?.modes ?? []).find((m) => !m.unavailable_reason)?.id ?? "credential")
       : "credential");
   let visible = new Set();
-  // Estado do login RF2: null ou { phase, lines, url, userCode, params, codeError, attempt }.
-  // phase: "running" | "done" | "failed". O token NUNCA passa por aqui.
+  // RF2 login state: null or { phase, lines, url, userCode, params, codeError, attempt }.
+  // phase: "running" | "done" | "failed". The token NEVER passes through here.
   let loginState = null;
   let committing = false;
 
@@ -139,8 +139,8 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     dlg.querySelector("#peer-label").textContent = t("dialog.peerName", { provider: label });
     syncLoginBtn();
   }
-  // O login só começa com a conta nomeada (ao terminar ela é salva sozinha). Em vez de `disabled`, que engole o
-  // clique sem explicar, o botão fica apagado, mostra o motivo logo abaixo e, ao clicar, leva ao campo do nome.
+  // The login only starts with the account named (when it finishes it is saved automatically). Instead of `disabled`, which swallows the
+  // click without explaining, the button is dimmed, shows the reason right below and, when clicked, leads to the name field.
   const showNameError = () => {
     nameInput.classList.add("invalid");
     nameErr.textContent = t("dialog.login.nameFirst");
@@ -546,15 +546,15 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   dlg.querySelector("#copy-url").addEventListener("click", (e) => copyText(urlInput.value, e.currentTarget));
   dlg.querySelector("#copy-code").addEventListener("click", (e) => copyText(codeText.textContent, e.currentTarget));
 
-  // Cancelamento aguardado: o backend reage serialmente, então trocar de
-  // modo/provider e iniciar um novo login não colide com o anterior.
+  // Awaited cancellation: the backend reacts serially, so switching
+  // mode/provider and starting a new login does not collide with the previous one.
   async function resetLogin() {
     const attempt = loginState?.attempt;
     if (loginState) await loginCancel(attempt);
     loginState = null;
-    // Limpa envelopes pendentes: o novo login começa com attempt novo e
-    // não deve herdar envelopes de uma tentativa anterior que ainda não
-    // tinham attempt conhecido no momento da chegada.
+    // Clears pending envelopes: the new login starts with a new attempt and
+    // must not inherit envelopes from a previous attempt that did not
+    // yet have a known attempt at arrival time.
     pendingEnvelopes = [];
     panel.hidden = true;
     codeRow.hidden = true;
@@ -577,38 +577,38 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     dlg.querySelector("#login-cancel").disabled = loginState.phase !== "running";
   }
 
-  // Eventos tipados do core (RF2.1/RF2.5): nunca contêm tokens nem URLs de
-  // callback com credencial. Cada evento chega envelopado em
-  // `{ attempt, ...LoginEvent }`. Janela de aceitação: um evento é
-  // enfileirado SOMENTE quando existe um `loginState` ativo e ainda sem
-  // `attempt` real atribuído (a tentativa acaba de começar e o
-  // `await loginStart` ainda não resolveu). Envelopes com `attempt`
-  // não-zero e diferente do ativo são forwarders velhos e descartados.
-  // Sem login ativo, descarta: o Tauri side já roteou o evento, e manter
-  // em buffer seria unbounded.
+  // Typed core events (RF2.1/RF2.5): they never contain tokens or callback
+  // URLs with credentials. Each event arrives wrapped in
+  // `{ attempt, ...LoginEvent }`. Acceptance window: an event is
+  // queued ONLY when there is an active `loginState` with no
+  // real `attempt` assigned yet (the attempt just started and
+  // `await loginStart` has not resolved). Envelopes with a nonzero
+  // `attempt` different from the active one are stale forwarders and are dropped.
+  // With no active login, drop: the Tauri side already routed the event, and keeping
+  // it buffered would be unbounded.
   let pendingEnvelopes = [];
   let drainScheduled = false;
   const drainPending = () => {
     if (!loginState) return;
-    if (loginState.attempt === 0) return; // ainda sem id; chamada feita cedo demais
+    if (loginState.attempt === 0) return; // still no id; call made too early
     const ready = pendingEnvelopes;
     pendingEnvelopes = [];
     for (const ev of ready) dispatch(ev);
   };
   const unlisten = await onLogin((ev) => {
-    if (!loginState) return; // sem login ativo: descarta
+    if (!loginState) return; // no active login: drop
     if (typeof ev.attempt === "number" && ev.attempt !== loginState.attempt) {
       // attempt conhecido e diferente: forwarder velho. Descarta.
       if (loginState.attempt === 0) {
-        // Janela start: ainda sem id, mas esse envelope já traz um
-        // attempt concreto; pode ser a nossa tentativa chegando cedo.
-        // Guarda até o id bater.
+        // Start window: still no id, but this envelope already carries a
+        // concrete attempt; it may be our attempt arriving early.
+        // Keep it until the id matches.
         pendingEnvelopes.push(ev);
       }
       return;
     }
     if (loginState.attempt === 0 && typeof ev.attempt === "number" && ev.attempt !== 0) {
-      // Janela start: enfileira para drenar quando o id real chegar.
+      // Start window: queue it to drain when the real id arrives.
       pendingEnvelopes.push(ev);
       return;
     }
@@ -629,7 +629,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
         loginState.url = ev.url;
         break;
       case "progress":
-        if (loginState.placeholder) { loginState.lines = []; loginState.placeholder = false; } // o core já diz o mesmo
+        if (loginState.placeholder) { loginState.lines = []; loginState.placeholder = false; } // the core already says the same
         loginState.lines.push(tl(ev.l10n ?? ev.text));
         break;
       case "waiting_code":
@@ -641,7 +641,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       case "finished": {
         loginState.phase = "done";
         loginState.params = ev.params ?? {};
-        // Aplica os metadados públicos devolvidos pelo login aos campos.
+        // Applies the public metadata returned by the login to the fields.
         for (const [key, value] of Object.entries(loginState.params)) {
           const f = schema.fields.find((x) => x.key === key);
           if (!f) continue;
@@ -653,7 +653,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
         loginState.lines.push(selectedMode()?.completion_notice
           ? tl(selectedMode().completion_notice)
           : t("dialog.login.authorized"));
-        // Atualiza o formulário com os parâmetros do login e só então salva (o `collect()` do salvar lê esses campos).
+        // Updates the form with the login parameters and only then saves (save's `collect()` reads these fields).
         renderDynamic().then(() => {
           if (!dlg.open || loginState?.phase !== "done" || committing) return;
           loginState.lines.push(t("dialog.login.saving"));
@@ -674,8 +674,8 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     unlisten();
     // PRD 0016 RF2.3: a pasted session never outlives the dialog.
     clearPastes();
-    // Fechar o diálogo com login ativo e sem commit cancela o fluxo: o token
-    // autorizado morre em memória e nada é gravado no cofre (RF2.4).
+    // Closing the dialog with an active login and no commit cancels the flow: the authorized
+    // token dies in memory and nothing is written to the vault (RF2.4).
     if (loginState && !committing) {
       const attempt = loginState.attempt;
       loginCancel(attempt);
@@ -1019,8 +1019,8 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       dlg.querySelector("[data-cancel]").disabled = false;
     }
   });
-  // PRD 0002 RF6.1: catálogo da conta em edição; numa conta nova, escolha explícita de uma conta configurada do
-  // mesmo provedor (a nova ainda não tem credencial salva) ou a orientação do core quando não há nenhuma.
+  // PRD 0002 RF6.1: catalog of the account being edited; for a new account, an explicit choice of a configured account of the
+  // same provider (the new one has no saved credential yet) or the core's guidance when there is none.
   const modelsHost = dlg.querySelector("#models-host");
   let models = null;
   let modelsSeq = 0;
@@ -1160,8 +1160,8 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   }
 }
 
-/** Confirma a remoção. Conta com credencial no cofre pergunta se a credencial também deve ser apagada.
- *  `onDone(resultado)` recebe o que o core fez (removida, apagada do cofre, mantida, compartilhada…). */
+/** Confirms the removal. An account with a credential in the vault asks whether the credential should be deleted too.
+ *  `onDone(result)` receives what the core did (removed, deleted from the vault, kept, shared…). */
 export function confirmDelete(index, label, { usesOauth = false, secretsOf = null, onDone = () => {} } = {}) {
   const buttons = usesOauth
     ? `<button type="button" class="btn" data-purge="0">${te("dialog.deleteVaultKeep")}</button>

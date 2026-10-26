@@ -14,17 +14,17 @@
 
 use super::OAuthError;
 
-/// Tempo máximo para `bl auth login --console`. O `bl` pode abrir navegador e
-/// esperar interação humana; 10 minutos é folga suficiente sem prender a UI.
+/// Maximum time for `bl auth login --console`. `bl` may open a browser and
+/// wait for human interaction; 10 minutes is enough slack without holding the UI.
 const BAILIAN_LOGIN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10 * 60);
 
-/// Sites suportados pelo `bl --console --console-site` no Token Plan internacional.
-/// Recusa qualquer valor fora desta lista para nunca repassar argumentos
-/// arbitrários ao subprocesso.
+/// Sites supported by `bl --console --console-site` in the international Token Plan.
+/// Refuses any value outside this list so as never to pass arbitrary
+/// arguments to the subprocess.
 const BAILIAN_ALLOWED_SITES: &[&str] = &["international"];
 
-/// Valida o argumento `--console-site` antes de montar a argv. Sites não
-/// conhecidos viram `Configuration` com a lista branca exibida ao usuário.
+/// Validates the `--console-site` argument before building argv. Unknown
+/// sites become `Configuration` with the allow-list shown to the user.
 fn validate_console_site(site: &str) -> Result<(), OAuthError> {
     let trimmed = site.trim();
     if trimmed.is_empty() {
@@ -45,11 +45,11 @@ fn validate_console_site(site: &str) -> Result<(), OAuthError> {
     Ok(())
 }
 
-/// Valida o nome do perfil dedicado (`--config <name>` do `bl`). Limita a
-/// ASCII seguro para que o token nunca seja interpretado como flag e nunca
-/// colida com `argv` do CLI: letras, dígitos, hífen e underscore; sem
-/// leading `-`; até 32 caracteres. O perfil é SEMPRE passado como um
-/// argumento argv separado — nunca concatenado.
+/// Validates the dedicated profile name (`bl`'s `--config <name>`). Limits it to
+/// safe ASCII so the token is never interpreted as a flag and never
+/// collides with the CLI's `argv`: letters, digits, hyphen and underscore; no
+/// leading `-`; up to 32 characters. The profile is ALWAYS passed as a separate
+/// argv argument — never concatenated.
 fn validate_cli_profile(name: &str) -> Result<(), OAuthError> {
     let trimmed = name.trim();
     if trimmed.is_empty() {
@@ -92,9 +92,9 @@ pub(crate) async fn console_login(console_site: &str, profile: &str) -> Result<(
     validate_console_site(console_site)?;
     validate_cli_profile(profile)?;
 
-    // argv é uma lista fixa: `auth`, `login`, `--console`, `--console-site`,
-    // `<site>`, `--config`, `<profile>` — cada item separado, sem concatenação,
-    // sem shell. Nada de API key, cookie, token.
+    // argv is a fixed list: `auth`, `login`, `--console`, `--console-site`,
+    // `<site>`, `--config`, `<profile>` — each item separate, no concatenation,
+    // no shell. No API key, cookie or token.
     let mut child = Command::new("bl")
         .args([
             "auth",
@@ -144,7 +144,7 @@ pub(crate) async fn console_login(console_site: &str, profile: &str) -> Result<(
             "Failed while waiting for `bl`.",
         ))),
         Err(_) => {
-            // Tempo esgotado: mata o filho antes de devolver erro.
+            // Timeout: kills the child before returning an error.
             let _ = child.kill().await;
             let _ = child.wait().await;
             Err(OAuthError::Expired)
@@ -152,8 +152,8 @@ pub(crate) async fn console_login(console_site: &str, profile: &str) -> Result<(
     }
 }
 
-/// Descarta silenciosamente qualquer conteúdo do stream — nada jamais chega
-/// à UI nem a logs. Mantém o pipe ativo para o filho nunca bloquear.
+/// Silently discards any stream content — nothing ever reaches
+/// the UI or logs. Keeps the pipe active so the child never blocks.
 async fn drain_silent(mut stream: impl tokio::io::AsyncRead + Unpin) {
     let _ = tokio::io::copy(&mut stream, &mut tokio::io::sink()).await;
 }
@@ -164,9 +164,9 @@ mod tests {
 
     #[test]
     fn console_site_accepts_only_known_values() {
-        // `international` é o único site atualmente aceito.
+        // `international` is the only site currently accepted.
         assert!(validate_console_site("international").is_ok());
-        // Não repassa argv arbitrária ao subprocesso.
+        // Does not pass arbitrary argv to the subprocess.
         for bad in [
             "",
             "   ",
@@ -192,8 +192,8 @@ mod tests {
     fn cli_profile_rejects_argv_unsafe_names() {
         assert!(validate_cli_profile("cuotai-test").is_ok());
         assert!(validate_cli_profile("qwen-personal").is_ok());
-        // Perfis com leading '-' ou caracteres não-ASCII-seguros são
-        // rejeitados antes do spawn para nunca colidir com parsing de argv.
+        // Profiles with a leading '-' or non-ASCII-safe characters are
+        // rejected before spawn so they never collide with argv parsing.
         for bad in [
             "-leading-dash",
             "with space",

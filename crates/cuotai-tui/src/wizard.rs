@@ -1,10 +1,10 @@
-//! Assistente passo a passo para adicionar/editar contas sem editar TOML manualmente.
+//! Step-by-step wizard to add/edit accounts without editing the TOML by hand.
 //!
-//! O assistente armazena apenas NOMES de variáveis de ambiente (ou o perfil AWS),
-//! nunca valores de credenciais: valores presentes no ambiente nunca são exibidos
-//! nem gravados; apenas a existência (PRESENTE/AUSENTE, com trim) é exibida.
-//! `Save` devolve uma cópia de `Config`; quem grava no disco é o chamador e, em
-//! caso de falha, o rascunho permanece intacto para nova tentativa.
+//! The wizard stores only environment variable NAMES (or the AWS profile),
+//! never credential values: values present in the environment are never shown
+//! or written; only existence (PRESENT/ABSENT, trimmed) is shown.
+//! `Save` returns a copy of `Config`; the caller writes it to disk and, on
+//! failure, the draft stays intact for another attempt.
 
 use crate::l10n::{tr, trf};
 use crate::palette;
@@ -29,9 +29,9 @@ use std::collections::BTreeMap;
 use std::path::Path;
 use std::rc::Rc;
 
-/// Split vertical único do assistente, compartilhado entre `draw` e
-/// `handle_mouse` para que o hit-test nunca divirja da renderização.
-/// Rodapé com 5 linhas: borda + linha de botões clicáveis + dica de teclado.
+/// Single vertical split of the wizard, shared between `draw` and
+/// `handle_mouse` so the hit-test never diverges from the rendering.
+/// Footer with 5 lines: border + clickable button line + keyboard hint.
 fn wizard_chunks(area: Rect) -> Rc<[Rect]> {
     Layout::vertical([
         Constraint::Length(3),
@@ -127,9 +127,9 @@ fn min_interval_for(provider: Provider) -> u64 {
     }
 }
 
-// Paleta Dracula para o assistente; o dashboard expõe a mesma paleta em
-// outro ponto de desenho. Mantemos estes `const` aqui para que mudanças
-// visuais no wizard não dependam do tema do dashboard.
+// Dracula palette for the wizard; the dashboard exposes the same palette at
+// another drawing point. We keep these `const`s here so that visual changes
+// in the wizard do not depend on the dashboard theme.
 const DRACULA_BG: Color = palette::BG;
 const DRACULA_FG: Color = palette::FG;
 const DRACULA_CYAN: Color = palette::ACCENT;
@@ -340,14 +340,14 @@ pub(crate) struct Wizard {
     auth_mode: String,
     login_fields: Vec<LoginField>,
     login_idx: usize,
-    /// Config OAuth da conta em edição, preservada enquanto a identidade não mudar.
+    /// OAuth config of the account being edited, preserved while the identity does not change.
     oauth_existing: Option<OAuthConfig>,
-    /// Config autorizada por login concluído nesta sessão do assistente.
+    /// Config authorized by a login completed in this wizard session.
     oauth_authorized: Option<OAuthConfig>,
     /// Public params returned by an external CLI login (`Some` also means the
     /// flow completed; an empty map is a valid result for a future mode).
     external_login_params: Option<BTreeMap<String, String>>,
-    /// Params públicos devolvidos pelo login concluído nesta sessão.
+    /// Public params returned by the login completed in this wizard session.
     oauth_login_params: BTreeMap<String, String>,
     /// Models picker of the provider step: highlighted position among the
     /// configured accounts of the highlighted provider.
@@ -823,10 +823,10 @@ impl Wizard {
         Some(Action::Continue)
     }
 
-    /// Campos visíveis: decisão única no core via `edit::visible_field_indices`,
-    /// que conhece o schema do provedor, o modo nativo, os params de login e as
-    /// seleções de Choice atuais. O TUI apenas repete o resultado para indexar
-    /// os widgets de Field.
+    /// Visible fields: a single decision in the core via `edit::visible_field_indices`,
+    /// which knows the provider schema, the native mode, the login params and the
+    /// current Choice selections. The TUI only repeats the result to index
+    /// the Field widgets.
     fn visible_fields(&self) -> Vec<usize> {
         let selections = self.choice_selections();
         let visibility = edit::FieldVisibility {
@@ -838,10 +838,10 @@ impl Wizard {
         edit::visible_field_indices(self.provider, &visibility)
     }
 
-    /// Snapshot das seleções de Choice atuais. Core precisa desse mapa para
-    /// avaliar regras condicionais (`org` aparece quando `mode == 1`, etc.);
-    /// construímos a partir dos widgets do wizard para que UI e backend
-    /// concordem sempre.
+    /// Snapshot of the current Choice selections. The core needs this map to
+    /// evaluate conditional rules (`org` appears when `mode == 1`, etc.);
+    /// we build it from the wizard widgets so that UI and backend
+    /// always agree.
     fn choice_selections(&self) -> BTreeMap<String, usize> {
         let mut map = BTreeMap::new();
         for field in &self.fields {
@@ -883,7 +883,7 @@ impl Wizard {
         }
     }
 
-    /// Avança um passo; ao sair da seleção de provedor, aplica a troca.
+    /// Advances one step; on leaving the provider selection, applies the switch.
     fn advance(&mut self) {
         match self.step {
             Step::Provider => {
@@ -902,8 +902,8 @@ impl Wizard {
                     .flatten();
                 self.offer_consent = offer.as_ref().map(|d| crate::ui::resolve_l10n(&d.consent));
                 if selected != self.provider {
-                    // Troca de provedor: parâmetros incompatíveis são descartados e a
-                    // credencial volta ao padrão do novo provedor (nunca reutiliza a anterior).
+                    // Provider switch: incompatible parameters are discarded and the
+                    // credential goes back to the new provider's default (never reuses the previous one).
                     self.provider = selected;
                     self.field_idx = 0;
                     self.credential = edit::suggested_credential(selected).to_string();
@@ -1340,7 +1340,7 @@ impl Wizard {
         if key.code == KeyCode::Esc {
             return Action::Cancel;
         }
-        // Aviso de sucesso é transitório: some na primeira tecla seguinte.
+        // The success notice is transient: it goes away on the next keypress.
         self.notice = None;
         // RF3.4: any key other than the confirming Enter cancels "save anyway".
         let confirmed = std::mem::take(&mut self.confirm_save);
@@ -1580,7 +1580,7 @@ impl Wizard {
                     Step::Name | Step::Credential | Step::Params | Step::Session
                 ) && !c.is_control()
                 {
-                    // Aceita texto colado/digitado, inclusive caminhos longos (Azure).
+                    // Accepts pasted/typed text, including long paths (Azure).
                     if let Some(buf) = self.current_text_mut() {
                         buf.push(c);
                     }
@@ -1592,12 +1592,12 @@ impl Wizard {
         Action::Continue
     }
 
-    /// Botões clicáveis do rodapé: (retângulo exato de 1 linha, tecla
-    /// equivalente, rótulo). `inner` é o interior com borda de `chunks[3]`.
-    /// Usado tanto por `draw` (renderiza) quanto por `handle_mouse` (hit-test),
-    /// garantindo que a geometria nunca divirja. `Voltar` é omitido no passo
-    /// Provedor (não há para onde voltar); `Próximo` vira `Gravar` na Revisão.
-    /// As teclas reproduzem os atalhos já documentados na dica do rodapé.
+    /// Clickable footer buttons: (exact 1-line rectangle, equivalent
+    /// key, label). `inner` is the bordered interior of `chunks[3]`.
+    /// Used both by `draw` (renders) and `handle_mouse` (hit-test),
+    /// guaranteeing the geometry never diverges. `Back` is omitted at the
+    /// Provider step (nowhere to go back to); `Next` becomes `Save` at Review.
+    /// The keys reproduce the shortcuts already documented in the footer hint.
     fn footer_buttons(&self, inner: Rect) -> Vec<(Rect, KeyCode, &'static str)> {
         let mut entries: Vec<(&'static str, KeyCode)> = Vec::new();
         if self.step != Step::Provider {
@@ -1636,22 +1636,22 @@ impl Wizard {
                 code,
                 label,
             ));
-            x = x.saturating_add(width + 2); // gap entre botões
+            x = x.saturating_add(width + 2); // gap between buttons
         }
         buttons
     }
 
-    /// Clique/rolagem do mouse. `area` é o retângulo completo em que `draw` foi
-    /// renderizado (o `frame.area()` do chamador); as coordenadas do evento são
-    /// absolutas de tela. A geometria de hit-test replica exatamente o layout de
-    /// `draw`/`draw_*` (mesmos offsets e linhas de ajuda condicionais).
+    /// Mouse click/scroll. `area` is the full rectangle `draw` was
+    /// rendered in (the caller's `frame.area()`); the event coordinates are
+    /// absolute screen ones. The hit-test geometry exactly replicates the layout of
+    /// `draw`/`draw_*` (same offsets and conditional help lines).
     ///
-    /// Rolagem equivale a ↑/↓ (nunca Enter): rola a lista de provedores, as
-    /// opções/campos e a revisão — nunca grava, apaga ou inicia login OAuth.
-    /// Clique esquerdo foca a linha sob o cursor; clicar na linha JÁ focada
-    /// ativa o controle óbvio dela (opção Choice avança; a linha de confirmação
-    /// OAuth equivale a Enter via `handle`). Nenhum clique equivale a Enter
-    /// genericamente e cliques fora do corpo são ignorados.
+    /// Scrolling is equivalent to ↑/↓ (never Enter): it scrolls the provider list, the
+    /// options/fields and the review — never saves, deletes or starts an OAuth login.
+    /// A left click focuses the line under the cursor; clicking the ALREADY focused line
+    /// activates its obvious control (a Choice option advances; the OAuth confirmation
+    /// line is equivalent to Enter via `handle`). No click is equivalent to Enter
+    /// generically and clicks outside the body are ignored.
     pub(crate) fn handle_mouse(&mut self, mouse: MouseEvent, area: Rect) -> Action {
         match mouse.kind {
             MouseEventKind::ScrollUp => {
@@ -1667,15 +1667,15 @@ impl Wizard {
             MouseEventKind::Down(MouseButton::Left) => {}
             _ => return Action::Continue,
         }
-        // Mesma guarda de tamanho mínimo e mesmo split vertical de `draw`.
+        // Same minimum-size guard and same vertical split as `draw`.
         if area.width < 60 || area.height < 20 {
             return Action::Continue;
         }
         let chunks = wizard_chunks(area);
         let (x, y) = (mouse.column, mouse.row);
-        // Botões do rodapé: retângulos exatos renderizados por `draw`; cada um
-        // equivale à tecla correspondente via `handle` (nunca clique=Enter
-        // genérico — [Gravar] só existe no próprio botão do passo Revisão).
+        // Footer buttons: exact rectangles rendered by `draw`; each one is
+        // equivalent to the corresponding key via `handle` (never a generic
+        // click=Enter — [Save] exists only on the Review step's own button).
         let footer_inner = Block::default().borders(Borders::ALL).inner(chunks[3]);
         for (rect, code, _) in self.footer_buttons(footer_inner) {
             if y == rect.y && x >= rect.x && x < rect.x.saturating_add(rect.width) {
@@ -1694,8 +1694,8 @@ impl Wizard {
         let enter = || KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
         let right = || KeyEvent::new(KeyCode::Right, KeyModifiers::NONE);
         match self.step {
-            // draw_provider: linha 0 é o cabeçalho; provedores começam na linha 1
-            // a partir de `provider_offset`, no máximo `visible` (mínimo 1).
+            // draw_provider: line 0 is the header; providers start on line 1
+            // from `provider_offset`, at most `visible` (minimum 1).
             Step::Provider => {
                 let header = self.picker_header_len();
                 if row < header {
@@ -1712,7 +1712,7 @@ impl Wizard {
                     }
                 }
             }
-            // draw_params: cada campo ocupa 1 linha + 1 linha de ajuda quando focado.
+            // draw_params: each field takes 1 line + 1 help line when focused.
             Step::Params => {
                 let visible = self.visible_fields();
                 let mut line = 0u16;
@@ -1762,8 +1762,8 @@ impl Wizard {
                     self.login_idx = self.login_fields.len();
                 }
             }
-            // Name/Interval/Credential em modo variável de ambiente: um único
-            // campo de texto já focado; Summary: só rolagem (tratada acima).
+            // Name/Interval/Credential in environment variable mode: a single
+            // already focused text field; Summary: scrolling only (handled above).
             _ => {}
         }
         Action::Continue
@@ -1794,9 +1794,9 @@ impl Wizard {
             .unwrap_or(false)
     }
 
-    /// Validação por passo no Enter: o erro aparece onde a correção é feita.
-    /// Toda a política de credencial / nome / visibilidade vive em core;
-    /// o wizard apenas invoca os helpers e devolve a mensagem.
+    /// Per-step validation on Enter: the error appears where the fix is made.
+    /// All credential / name / visibility policy lives in the core;
+    /// the wizard only invokes the helpers and returns the message.
     fn validate_step(&self) -> Result<(), String> {
         let result = match self.step {
             Step::Name => edit::validate_name(&self.name, self.provider, &self.base, self.editing)
@@ -1856,7 +1856,7 @@ impl Wizard {
                                 &[("field", &field.label)],
                             ));
                         }
-                        return Ok(()); // opcional em branco é removido só ao salvar
+                        return Ok(()); // optional blank is removed only on save
                     }
                     let mut known = BTreeMap::new();
                     for &j in &visible {
@@ -1900,7 +1900,7 @@ impl Wizard {
         if !edit::valid_env_name(self.credential.trim()) {
             return (tr("wizard.env.invalid", "INVALID NAME"), DRACULA_RED);
         }
-        // Mesma regra do backend: valor presente e não vazio após trim.
+        // Same rule as the backend: present and non-empty value after trim.
         match std::env::var(self.credential.trim()) {
             Ok(value) if !value.trim().is_empty() => {
                 (tr("wizard.env.present", "PRESENT"), DRACULA_GREEN)
@@ -2556,8 +2556,8 @@ impl Wizard {
 
     pub(crate) fn draw(&mut self, frame: &mut Frame, path: &Path) {
         let area = frame.area();
-        // Dracula frame background para o wizard inteiro; o restante do TUI
-        // (dashboard) usa o mesmo padrão em outro ponto de desenho.
+        // Dracula frame background for the whole wizard; the rest of the TUI
+        // (dashboard) uses the same pattern at another drawing point.
         frame.render_widget(
             Block::default().style(Style::default().bg(DRACULA_BG).fg(DRACULA_FG)),
             area,
@@ -2802,7 +2802,7 @@ impl Wizard {
         let footer = Block::default().borders(Borders::ALL);
         let footer_inner = footer.inner(chunks[3]);
         frame.render_widget(footer, chunks[3]);
-        // Botões clicáveis: mesmos retângulos usados no hit-test do mouse.
+        // Clickable buttons: the same rectangles used in the mouse hit-test.
         for (rect, _, label) in self.footer_buttons(footer_inner) {
             frame.render_widget(
                 Paragraph::new(Span::styled(
@@ -3423,7 +3423,7 @@ impl Wizard {
     }
 
     fn draw_interval(&self, frame: &mut Frame, area: ratatui::layout::Rect) {
-        // Dracula prompt color (cyan) e amarelo suave para o alerta AWS.
+        // Dracula prompt color (cyan) and soft yellow for the AWS alert.
         let prompt = Style::default().fg(DRACULA_CYAN);
         let accent = Style::default().fg(DRACULA_GREEN);
         let dim = Style::default().fg(DRACULA_COMMENT);
@@ -4460,15 +4460,15 @@ mod tests {
 
     #[test]
     fn parse_interval_blank_means_inherit_global() {
-        // Campo vazio é o estado "sem override": o intervalo global vale.
+        // An empty field is the "no override" state: the global interval applies.
         let wiz = wizard_with("OpenAI", "OPENAI_ADMIN_KEY", "");
         assert_eq!(wiz.parse_interval().unwrap(), None);
     }
 
     #[test]
     fn parse_interval_preloads_existing_override() {
-        // Editar uma conta com override deve pré-carregar o valor existente,
-        // não o global — para que o usuário veja o que está prestes a apagar.
+        // Editing an account with an override must preload the existing value,
+        // not the global one — so that the user sees what they are about to erase.
         let mut acc = account("OpenAI", "OPENAI_ADMIN_KEY");
         acc.refresh_seconds = Some(120);
         let config = Config {
@@ -4491,9 +4491,9 @@ mod tests {
 
     #[test]
     fn build_config_writes_override_to_account_without_touching_global() {
-        // Garantia de invariante: o assistente grava apenas `account.refresh_seconds`,
-        // nunca o `config.refresh_seconds` global. O global permanece como
-        // fallback para as demais contas.
+        // Invariant guarantee: the wizard writes only `account.refresh_seconds`,
+        // never the global `config.refresh_seconds`. The global stays as
+        // the fallback for the other accounts.
         let config = Config {
             accounts: vec![account("OpenAI", "OPENAI_ADMIN_KEY")],
             ..Config::default()
@@ -4507,8 +4507,8 @@ mod tests {
 
     #[test]
     fn build_config_blank_interval_clears_existing_override() {
-        // Editar uma conta e deixar o campo em branco apaga o override
-        // individual e devolve a conta ao regime global.
+        // Editing an account and leaving the field blank erases the individual
+        // override and returns the account to the global regime.
         let mut acc = account("OpenAI", "OPENAI_ADMIN_KEY");
         acc.refresh_seconds = Some(45);
         let config = Config {

@@ -1,6 +1,6 @@
-//! Ponte entre `cuotai-core` e a UI. Não contém regra de negócio: validação,
-//! edição de contas, escrita do TOML, classificação de métricas e agendamento
-//! vêm do core; aqui só há estado, DTOs e orquestração.
+//! Bridge between `cuotai-core` and the UI. It holds no business rules: validation,
+//! account editing, TOML writes, metric classification and scheduling
+//! come from the core; here there is only state, DTOs and orchestration.
 use crate::hooks::{HooksBadge, HooksView, Integration as Hooks, HOOKS_EVENT};
 use crate::local_server::{Feed, FeedSlot, Integration, ServeView};
 use crate::notify::{Notices, SystemNotifier};
@@ -165,11 +165,11 @@ const NOTICE_NAP: Duration = Duration::from_secs(60);
 const STATUS_TICK: Duration = Duration::from_secs(30);
 pub const EVENT: &str = "snapshot";
 
-/// Canal de eventos do login (RF2): somente `LoginEvent` serializável do
-/// core — URLs de autorização públicas, user_code de device flow e textos
-/// seguros. Tokens e URLs de callback NUNCA trafegam aqui. O envelope
-/// carrega o `attempt` da tentativa para que o frontend descarte eventos
-/// de um forwarder velho (login já substituído por outro).
+/// Login event channel (RF2): only the serializable core `LoginEvent` —
+/// public authorization URLs, device-flow user_code and safe texts.
+/// Tokens and callback URLs NEVER travel here. The envelope
+/// carries the attempt's `attempt` so the frontend drops events
+/// from a stale forwarder (a login already replaced by another).
 pub const LOGIN_EVENT: &str = "login";
 
 #[derive(Clone, Serialize)]
@@ -179,39 +179,39 @@ pub struct LoginEnvelope<'a> {
     pub event: &'a login::LoginEvent,
 }
 
-/// Login em andamento (RF2). O `CompletedLogin` (token opaco em memória)
-/// fica SOMENTE aqui: nunca é serializado para a UI, sobrevive ao fechamento
-/// do diálogo durante o commit e é descartado sem gravar no cofre se o
-/// usuário cancelar antes de salvar.
+/// Login in progress (RF2). The `CompletedLogin` (opaque in-memory token)
+/// lives ONLY here: it is never serialized to the UI, survives the dialog
+/// closing during the commit and is discarded without writing to the vault if the
+/// user cancels before saving.
 struct PendingLogin {
-    /// Identificador monotônico: a tarefa forwarder o carrega e só muta o
-    /// `PendingLogin` se o slot atual ainda for o seu — protege contra um
-    /// forwarder velho que termine depois de o usuário já ter iniciado outro.
+    /// Monotonic identifier: the forwarder task carries it and only mutates the
+    /// `PendingLogin` if the current slot is still its own — this protects against a
+    /// stale forwarder that finishes after the user has already started another login.
     attempt: u64,
     provider: Provider,
-    /// Conta em reautenticação (RF2.8); `None` = conta nova.
+    /// Account being reauthenticated (RF2.8); `None` = new account.
     index: Option<usize>,
-    /// Códigos manuais (ex.: MiMo) digitados na UI. O oneshot devolve o
-    /// veredito IMEDIATO do core (`SubmitCodeError`: fila cheia, fluxo
-    /// encerrado, modo sem código) para a UI manter o código no campo;
-    /// a validação em si chega depois via `LoginEvent`.
+    /// Manual codes (e.g. MiMo) typed in the UI. The oneshot returns the core's
+    /// IMMEDIATE verdict (`SubmitCodeError`: queue full, flow
+    /// ended, no-code mode) so the UI keeps the code in the field;
+    /// the validation itself arrives later through `LoginEvent`.
     code_tx: mpsc::Sender<(String, oneshot::Sender<Result<(), String>>)>,
-    /// Cancela a tarefa forwarder, que derruba o driver (sem escrita no cofre).
+    /// Cancels the forwarder task, which tears down the driver (no vault write).
     cancel_tx: Option<oneshot::Sender<()>>,
-    /// A tarefa forwarder terminou (Finished/Failed): um novo `login_start`
-    /// pode substituir este pendente.
+    /// The forwarder task finished (Finished/Failed): a new `login_start`
+    /// can replace this pending login.
     done: bool,
-    /// Presente após `Finished` com credencial gravável (modo oauth). Modos
-    /// aws_sso/bailian_console terminam sem credencial no cofre Cuotai.
+    /// Present after `Finished` with a writable credential (oauth mode). The
+    /// aws_sso/bailian_console modes end without a credential in the Cuotai vault.
     completed: Option<CompletedLogin>,
 }
 
 /// What the scheduler decided to do on this tick. Pulled out of the
 /// inner lock so the match arm below can call async methods on `self`
 /// without re-entering the mutex.
-/// A primeira rodada completa ao abrir o app. `RefreshCycle::new` agenda o primeiro prazo de cada
-/// conta para daqui a um intervalo; esperar esse prazo deixava a tela em "consultando" por minutos.
-/// Só vale enquanto nenhuma rodada completa foi tentada: reconsultas seguem os prazos por conta.
+/// The first full round when the app opens. `RefreshCycle::new` schedules each account's first deadline
+/// one interval ahead; waiting for that deadline left the screen on "querying" for minutes.
+/// It only applies while no full round has been attempted: re-queries follow the per-account deadlines.
 fn needs_initial_sweep(
     cycle: &RefreshCycle,
     tokens: &[Option<cuotai_core::refresh::Generation>],
@@ -264,7 +264,7 @@ struct Loaded {
     /// the desktop offer a "Tentar de novo" button without depending
     /// on the removed account index (which no longer exists in TOML).
     pending_recovery: Vec<RecoveryEntry>,
-    /// RF1.2: arquivo aberto por último pela TUI, quando difere deste.
+    /// RF1.2: file last opened by the TUI, when it differs from this one.
     other_config: Option<String>,
 }
 
@@ -284,10 +284,10 @@ struct Inner {
     loaded: Option<Loaded>,
     load_error: Option<String>,
     session: Option<Arc<OAuthSession>>,
-    /// Login RF2 em andamento; no máximo um por vez (o diálogo é modal).
+    /// Login RF2 in progress; at most one at a time (the dialog is modal).
     login: Option<PendingLogin>,
-    /// Contador monotônico: cada `login_start` recebe um id único que
-    /// frente e back usam para casar `PendingLogin` com o que a UI vê.
+    /// Monotonic counter: each `login_start` gets a unique id that
+    /// frontend and backend use to match `PendingLogin` with what the UI sees.
     next_login_attempt: u64,
     generation: u64,
     /// PRD 0006 RF5: bumped when the history was erased or recording
@@ -338,7 +338,7 @@ pub struct Backend {
     stopping: AtomicBool,
 }
 
-// ---------- DTOs (somente leitura para a UI) ----------
+// ---------- DTOs (read-only for the UI) ----------
 
 #[derive(Serialize, Clone)]
 pub struct MetricView {
@@ -470,20 +470,20 @@ pub struct ReportView {
     status: Status,
     metrics: Vec<MetricView>,
     notes: Vec<String>,
-    /// RF8: sidecar estruturado paralelo a `notes` (mesma ordem, mesmo
-    /// tamanho). A UI resolve `id` no catálogo e usa `fallback` (PT) em
-    /// fallback. `skip_serializing_if = "Vec::is_empty"` mantém o JSON
-    /// da CLI/Snapshot idêntico ao pré-RF8 quando não há notas.
+    /// RF8: structured sidecar parallel to `notes` (same order, same
+    /// length). The UI resolves `id` in the catalog and uses `fallback` (PT) as the
+    /// fallback. `skip_serializing_if = "Vec::is_empty"` keeps the CLI/Snapshot
+    /// JSON identical to pre-RF8 when there are no notes.
     notes_l10n: Vec<cuotai_core::text::Localized>,
     source: String,
     class: AccountClass,
     refresh_seconds: u64,
-    /// Instante (Unix, ms) da próxima consulta agendada desta conta; `None` enquanto ela está sendo consultada.
+    /// Instant (Unix, ms) of this account's next scheduled query; `None` while it is being queried.
     next_refresh_at_ms: Option<u64>,
     uses_oauth: bool,
     identity: AccountIdentity,
-    /// Modelos no catálogo sincronizado desta conta (cache local, sem rede);
-    /// `None` quando nunca sincronizado ou sem listagem.
+    /// Models in this account's synced catalog (local cache, no network);
+    /// `None` when never synced or without a listing.
     model_count: Option<usize>,
     /// PRD 0009 RF2: the core's binding metric (`index` points into `metrics`)
     /// and the account's position in the core's "most restrictive first" order
@@ -838,25 +838,25 @@ fn last_good_view(report: &Report, now: chrono::DateTime<chrono::Utc>) -> LastGo
 
 #[derive(Serialize, Clone)]
 pub struct View {
-    /// Identidade normalizada (symlinks/relativos resolvidos) do arquivo em uso.
+    /// Normalized identity (symlinks/relative paths resolved) of the file in use.
     config_path: Option<String>,
-    /// Regra que escolheu o arquivo: `env`, `chosen` ou `system`.
+    /// Rule that chose the file: `env`, `chosen` or `system`.
     config_source: Option<PathSource>,
-    /// RF1.2: caminho que a TUI usou por último, só quando difere.
+    /// RF1.2: path the TUI used last, only when it differs.
     other_config: Option<String>,
     config_exists: bool,
     account_count: usize,
-    /// `false` até a primeira rodada completa terminar.
+    /// `false` until the first full round finishes.
     loaded: bool,
     started_at: Option<chrono::DateTime<chrono::Utc>>,
     finished_at: Option<chrono::DateTime<chrono::Utc>>,
     reports: Vec<ReportView>,
     busy: Vec<usize>,
     error: Option<String>,
-    /// Intervalo global de atualização (`refresh_seconds` do arquivo); 0 antes de carregar a configuração.
+    /// Global refresh interval (`refresh_seconds` from the file); 0 before the configuration loads.
     refresh_seconds: u64,
-    /// RF6.1: identidade da configuração carregada (muda a cada save/remove/move/reload/troca);
-    /// a UI a devolve nos comandos de modelos. 0 antes de carregar (nunca aceita).
+    /// RF6.1: identity of the loaded configuration (changes on every save/remove/move/reload/switch);
+    /// the UI returns it in model commands. 0 before loading (never accepted).
     generation: u64,
     /// PRD 0006: the history's storage failure, size-ceiling pruning or
     /// dropped readings, to show; `None` when all is well.
@@ -1524,7 +1524,7 @@ impl Inner {
             .iter()
             .enumerate()
             .filter_map(|(i, slot)| {
-                // Próxima consulta como instante absoluto: a UI faz a contagem regressiva sem novos eventos.
+                // Next query as an absolute instant: the UI counts down without further events.
                 let next = (!l.cycle.is_busy(i))
                     .then(|| unix_ms + l.cycle.next_refresh_in(i, now).as_millis() as u64);
                 let models = l.monitor.model_count(i);
@@ -1739,7 +1739,7 @@ impl Inner {
         let session = match &self.session {
             Some(s) => Arc::clone(s),
             None => {
-                // Somente desenvolvimento: SQLite em texto puro, recusado por builds release (core).
+                // Development only: plaintext SQLite, refused by release builds (core).
                 let session = match std::env::var_os("CUOTAI_DEV_CREDENTIALS_SQLITE") {
                     Some(path) => {
                         eprintln!("WARNING: credentials in UNENCRYPTED SQLite (development only); the system keychain will not be used.");
@@ -1898,10 +1898,10 @@ fn attach_history(
 }
 
 impl Inner {
-    /// RF1.2: `CUOTAI_CONFIG` > arquivo escolhido nas configurações > caminho
-    /// do SO (nunca `./cuotai.toml` do `cwd`). Carrega via core e troca todo o
-    /// estado por configuração (monitor, agenda, tokens, recuperação); em erro
-    /// o estado atual fica intacto.
+    /// RF1.2: `CUOTAI_CONFIG` > file chosen in settings > OS path
+    /// (never `./cuotai.toml` from the `cwd`). Loads through the core and swaps all
+    /// per-configuration state (monitor, schedule, tokens, recovery); on error
+    /// the current state stays intact.
     fn switch(&mut self, chosen: Option<PathBuf>, locations: &Locations) -> Result<(), String> {
         let file = ConfigFile::load_with(Discovery::Gui { chosen }, true, locations)
             .map_err(|e| edit_error_to_json(&e))?;
@@ -2519,7 +2519,7 @@ impl Backend {
         g.notices.prefs().enabled || g.notices.alerts().enabled
     }
 
-    /// Carrega a configuração se ainda não houver uma válida em memória.
+    /// Loads the configuration if there is no valid one in memory yet.
     async fn ensure_loaded(&self) {
         let mut g = self.inner.lock().await;
         if g.loaded.is_some() {
@@ -2531,9 +2531,9 @@ impl Backend {
         }
     }
 
-    /// Aplica o `cuotai.toml` escolhido nas configurações (`None` = padrão do
-    /// SO): recarrega pelo core, limpa o estado da configuração anterior e só
-    /// então persiste a escolha em `desktop.json`.
+    /// Applies the `cuotai.toml` chosen in settings (`None` = OS
+    /// default): reloads through the core, clears the previous configuration's state and only
+    /// then persists the choice in `desktop.json`.
     pub async fn set_config_file(
         &self,
         app: &AppHandle,
@@ -2677,7 +2677,7 @@ impl Backend {
         l.file.changed_on_disk().map_err(|e| edit_error_to_json(&e))
     }
 
-    /// Rodada completa. `force` ignora o intervalo (botão "Atualizar tudo").
+    /// Full round. `force` ignores the interval ("Refresh all" button).
     pub async fn refresh_all(&self, app: &AppHandle) {
         self.ensure_loaded().await;
         // Claim the sweep token BEFORE spawning the task: any edit
@@ -2791,8 +2791,8 @@ impl Backend {
         Ok(())
     }
 
-    /// Laço de fundo: primeira rodada completa e depois cada conta no seu
-    /// intervalo. After a partial edit, the cycle has a hidden snapshot
+    /// Background loop: first full round, then each account on its own
+    /// interval. After a partial edit, the cycle has a hidden snapshot
     /// (pending slots) and the scheduler must only fire the per-account
     /// refreshes that are actually due — never a full sweep, which would
     /// re-query every account.
@@ -2812,7 +2812,7 @@ impl Backend {
             let plan: SchedulerPlan = 'plan: {
                 let g = self.inner.lock().await;
                 let Some(l) = g.loaded.as_ref() else {
-                    // Sem configuração válida: espera o próximo tick (nada de laço apertado).
+                    // No valid configuration: wait for the next tick (no tight loop).
                     break 'plan SchedulerPlan::Idle;
                 };
                 if l.file.config.accounts.is_empty() {
@@ -2821,9 +2821,9 @@ impl Backend {
                     let now = Instant::now();
                     let can_full = needs_initial_sweep(&l.cycle, &l.tokens);
                     if can_full {
-                        // Primeira rodada: sem dados, nenhuma rodada completa
-                        // tentada e nada em andamento. Roda já, sem esperar
-                        // o prazo periódico (que só vale para as próximas).
+                        // First round: no data, no full round
+                        // attempted and nothing in flight. Run right away, without waiting
+                        // for the periodic deadline (which only applies to the next ones).
                         SchedulerPlan::Full
                     } else {
                         // Deadline-aware pending (edit-driven) + periodic
@@ -2862,7 +2862,7 @@ impl Backend {
         }
     }
 
-    // ---------- extensões locais (PRD 0017 RF5) ----------
+    // ---------- local extensions (PRD 0017 RF5) ----------
 
     pub async fn extensions(
         &self,
@@ -3152,7 +3152,7 @@ impl Backend {
             .map_err(|note| l10n_to_json(&note))
     }
 
-    // ---------- edição de contas ----------
+    // ---------- account editing ----------
 
     pub async fn save_account(
         &self,
@@ -3280,13 +3280,13 @@ impl Backend {
             let l = loaded
                 .as_mut()
                 .ok_or_else(crate::desk_text::config_not_loaded)?;
-            // RF2: a `commit_login` request deve encontrar o pending login
-            // de THIS account/provider, da MESMA tentativa (o `attempt` evita
-            // que um forwarder velho confunda um login já substituído por
-            // outro). O `CompletedLogin` (token opaco) nunca sai de
-            // `PendingLogin`. Modos sem credencial Cuotai (aws_sso /
-            // bailian_console) são consumidos pelo save sem escrita no
-            // cofre.
+            // RF2: a `commit_login` request must find the pending login
+            // of THIS account/provider, from the SAME attempt (the `attempt` prevents
+            // a stale forwarder from mistaking an already replaced login for
+            // another one). The `CompletedLogin` (opaque token) never leaves
+            // `PendingLogin`. Modes without a Cuotai credential (aws_sso /
+            // bailian_console) are consumed by the save with no vault
+            // write.
             let pending_match_ref = login.as_ref().filter(|p| {
                 p.provider == input.provider
                     && p.index == input.index
@@ -3429,17 +3429,17 @@ impl Backend {
                 undo_paste(vault.as_deref(), staged_paste).await;
                 return Err(edit_error_to_json(&e));
             }
-            // Persistido: pendente consumido (committed credential ou modo
-            // sem cofre) some. Para `auth_mode_credential` sem oauth, o
-            // frontend não envia `commitLogin` e o pendente, se houver, é
-            // simplesmente descartado também.
+            // Persisted: the pending login is consumed (committed credential or no-vault
+            // mode) and disappears. For `auth_mode_credential` without oauth, the
+            // frontend does not send `commitLogin` and the pending login, if any, is
+            // simply discarded too.
             if pending_match_ref.is_some() {
                 *login = None;
             }
             // Commit: cycle + monitor + bookkeeping + generation
-            // mudam juntos sob a mesma aquisição do lock. Bump direto
-            // em `l.generation`; `Inner.generation` espelha, então
-            // propagamos por último (ainda sob o lock).
+            // change together under the same lock acquisition. Direct bump
+            // of `l.generation`; `Inner.generation` mirrors it, so
+            // we propagate it last (still under the lock).
             l.cycle = staged;
             l.monitor = new_monitor;
             // Saved: an edited identity (rename, credential, region) loses its entry.
@@ -3462,8 +3462,8 @@ impl Backend {
         Ok(saved)
     }
 
-    /// `purge_credentials`: apagar também a credencial OAuth do cofre do sistema. O core decide se pode (credencial
-    /// compartilhada com outra conta nunca é apagada) e o resultado diz o que realmente aconteceu.
+    /// `purge_credentials`: also delete the OAuth credential from the system vault. The core decides whether it may (a credential
+    /// shared with another account is never deleted) and the result says what actually happened.
     pub async fn delete_account(
         &self,
         app: &AppHandle,
@@ -3724,9 +3724,9 @@ impl Backend {
         }
     }
 
-    /// Troca o intervalo global de atualização (`refresh_seconds`). Valida e grava pelo core; o ciclo é recriado com
-    /// os mesmos relatórios (nenhuma consulta nova) e os prazos de todas as contas sem intervalo próprio passam a
-    /// seguir o novo valor.
+    /// Changes the global refresh interval (`refresh_seconds`). Validates and writes through the core; the cycle is recreated with
+    /// the same reports (no new query) and the deadlines of all accounts without their own interval start
+    /// following the new value.
     pub async fn set_refresh_seconds(&self, app: &AppHandle, seconds: u64) -> Result<(), String> {
         self.ensure_loaded().await;
         {
@@ -4201,10 +4201,10 @@ impl Backend {
             .get(index)
             .ok_or_else(crate::desk_text::no_account)?;
         let credential = account_edit::stored_credential(a);
-        // auth_mode + auth_options para prefill. Quando a conta tem oauth,
-        // o id de modo é o que combina com o provider: hoje o core só
-        // emite "oauth" para fluxos com credencial Cuotai; AWS SSO/Bailian
-        // não ficam em `oauth` (eles não têm `Account::oauth`).
+        // auth_mode + auth_options for prefill. When the account has oauth,
+        // the mode id is the one matching the provider: today the core only
+        // emits "oauth" for flows with a Cuotai credential; AWS SSO/Bailian
+        // do not end up in `oauth` (they have no `Account::oauth`).
         let (auth_mode, auth_options, auth_registration) = if a.oauth.is_some() {
             let request = LoginRequest::for_account(a.provider, login::MODE_OAUTH, Some(a));
             (login::MODE_OAUTH, request.options, request.registration)
@@ -4440,26 +4440,26 @@ impl Backend {
         Ok(due.first().copied())
     }
 
-    // ---------- login (RF2: orquestração no core; aqui só estado e repasse) ----------
+    // ---------- login (RF2: orchestration in the core; here only state and relay) ----------
 
-    /// Inicia um fluxo de login do core e repassa os eventos tipados ao
-    /// frontend via `LOGIN_EVENT`. O driver e a credencial completada ficam
-    /// no backend; a UI só recebe `LoginEvent` (sem segredos). Retorna o
-    /// `attempt` (monotônico) que o frontend ecoa em `save_account` para
-    /// garantir que o pending certo seja consumido.
+    /// Starts a core login flow and relays the typed events to the
+    /// frontend through `LOGIN_EVENT`. The driver and the completed credential stay
+    /// in the backend; the UI only receives `LoginEvent` (no secrets). Returns the
+    /// monotonic `attempt` that the frontend echoes in `save_account` to
+    /// make sure the right pending login is consumed.
     pub async fn login_start(
         self: &Arc<Self>,
         app: &AppHandle,
         input: LoginStartInput,
     ) -> Result<u64, String> {
         self.ensure_loaded().await;
-        // Sessão, pré-condição e instalação do `PendingLogin` acontecem
-        // sob o MESMO lock: evita a janela em que um login_start cancelaria
-        // um predecessor e instalaria o novo entre dois `lock().await`,
-        // janela na qual um `login_submit_code` ou `save_account` correria
-        // contra um slot inexistente e um forwarder velho poderia mutar o
-        // novo pendente. O `start_login` do core é síncrono, então a seção
-        // crítica é rápida.
+        // Session, precondition and `PendingLogin` installation happen
+        // under the SAME lock: this avoids the window in which a login_start would cancel
+        // a predecessor and install the new one between two `lock().await` calls,
+        // a window in which a `login_submit_code` or `save_account` would run
+        // against a nonexistent slot and a stale forwarder could mutate the
+        // new pending login. The core's `start_login` is synchronous, so the
+        // critical section is quick.
         let mut g = self.inner.lock().await;
         if g.login.as_ref().is_some_and(|p| !p.done) {
             return Err(crate::desk_text::login_already_running());
@@ -4479,19 +4479,19 @@ impl Backend {
         let mut request = LoginRequest::for_account(input.provider, &input.mode, existing);
         request.options = input.options.clone();
         request.registration = input.registration.clone();
-        // Valida o NOVO pedido ANTES de tomar o predecessor.
+        // Validates the NEW request BEFORE taking over the predecessor.
         let driver =
             login::start_login(session, input.provider, request).map_err(|e| e.to_string())?;
-        // Novo pedido validado: agora sim descarta o predecessor terminal
-        // (o forwarder dele é cancelado para que não confunda o novo slot).
+        // New validated request: only now discard the terminal predecessor
+        // (its forwarder is cancelled so it cannot confuse the new slot).
         if let Some(mut old) = g.login.take() {
             if let Some(cancel) = old.cancel_tx.take() {
                 let _ = cancel.send(());
             }
         }
-        // Fila de capacidade 1: um código por vez aguardando repasse ao
-        // driver; o veredito imediato do core volta pelo oneshot (a
-        // validação em si chega depois via LoginEvent).
+        // Capacity-1 queue: one code at a time waiting to be relayed to the
+        // driver; the core's immediate verdict comes back through the oneshot (the
+        // validation itself arrives later through LoginEvent).
         let (code_tx, mut code_rx) =
             mpsc::channel::<(String, oneshot::Sender<Result<(), String>>)>(1);
         let (cancel_tx, cancel_rx) = oneshot::channel::<()>();
@@ -4513,16 +4513,16 @@ impl Backend {
         tauri::async_runtime::spawn(async move {
             loop {
                 let event = tokio::select! {
-                    // Cancelar derruba o driver aqui (Drop aborta): nenhum
-                    // byte chega ao cofre antes do commit (RF2.4).
+                    // Cancelling tears down the driver here (Drop aborts): not a single
+                    // byte reaches the vault before the commit (RF2.4).
                     _ = &mut cancel_rx => break,
                     code = code_rx.recv() => {
                         match code {
                             Some((code, reply)) => {
-                                // Repassa o veredito imediato do core:
-                                // Full/Closed/Unsupported voltam à UI com o
-                                // código intacto no campo; a validação do
-                                // código aceito chega via LoginEvent.
+                                // Relays the core's immediate verdict:
+                                // Full/Closed/Unsupported go back to the UI with the
+                                // code intact in the field; validation of the
+                                // accepted code arrives through LoginEvent.
                                 let result = match driver.submit_code(code) {
                                     Ok(()) => Ok(()),
                                     Err(login::SubmitCodeError::Unsupported) => Err(crate::desk_text::no_manual_code()),
@@ -4532,8 +4532,8 @@ impl Backend {
                                 let _ = reply.send(result);
                                 continue;
                             }
-                            // Todos os remetentes sumiram (cancel/limpeza):
-                            // tratar como cancelamento.
+                            // All senders are gone (cancel/cleanup):
+                            // treat as a cancellation.
                             None => break,
                         }
                     }
@@ -4547,12 +4547,12 @@ impl Backend {
                     LoginEvent::Finished { .. } | LoginEvent::Failed { .. }
                 );
                 if matches!(event, LoginEvent::Finished { .. }) {
-                    // Após Finished, `finish` retorna imediatamente com o
-                    // resultado; credencial completada fica no backend.
+                    // After Finished, `finish` returns immediately with the
+                    // result; the completed credential stays in the backend.
                     if let Ok(login::LoginResult::Authorized(completed)) = driver.finish().await {
                         let mut g = backend.inner.lock().await;
-                        // Guard contra forwarder velho: só muta o slot se
-                        // a tentativa ainda for a sua.
+                        // Guard against a stale forwarder: only mutate the slot if
+                        // the attempt is still its own.
                         if let Some(p) = g.login.as_mut() {
                             if p.attempt == attempt {
                                 p.completed = Some(completed);
@@ -4560,10 +4560,10 @@ impl Backend {
                         }
                     }
                 }
-                // Marca `done` e invalida `cancel_tx` ANTES de emitir o
-                // evento terminal: o frontend pode chamar `saveAccount`
-                // imediatamente após receber o `Finished` e a checagem
-                // `p.done` precisa passar já na primeira tentativa.
+                // Mark `done` and invalidate `cancel_tx` BEFORE emitting the
+                // terminal event: the frontend may call `saveAccount`
+                // right after receiving `Finished` and the `p.done` check
+                // must pass on the first try.
                 if terminal {
                     let mut g = backend.inner.lock().await;
                     if let Some(p) = g.login.as_mut() {
@@ -4573,8 +4573,8 @@ impl Backend {
                         }
                     }
                 }
-                // Carrega o `attempt` da tentativa atual: o frontend
-                // descarta envelopes cuja tentativa não bate com a ativa.
+                // Carries the current attempt's `attempt`: the frontend
+                // drops envelopes whose attempt does not match the active one.
                 let attempt_now = {
                     let g = backend.inner.lock().await;
                     g.login
@@ -4594,8 +4594,8 @@ impl Backend {
                     break;
                 }
             }
-            // Saída por cancel ou canal fechado: marca `done` para o
-            // caminho de submit/cancel saber que o slot expirou.
+            // Exit by cancel or closed channel: mark `done` so the
+            // submit/cancel path knows the slot has expired.
             let mut g = backend.inner.lock().await;
             if let Some(p) = g.login.as_mut() {
                 if p.attempt == attempt {
@@ -4607,9 +4607,9 @@ impl Backend {
         Ok(attempt)
     }
 
-    /// Envia um código colado manualmente (fluxo MiMo). O veredito imediato
-    /// do core (aceito para validação / fila cheia / encerrado) volta ao
-    /// chamador; a validação em si chega à UI via `LoginEvent`.
+    /// Sends a manually pasted code (MiMo flow). The core's immediate verdict
+    /// (accepted for validation / queue full / ended) goes back to the
+    /// caller; the validation itself reaches the UI through `LoginEvent`.
     pub async fn login_submit_code(&self, code: String) -> Result<(), String> {
         let (reply_tx, reply_rx) = oneshot::channel();
         {
@@ -4623,11 +4623,11 @@ impl Backend {
                 mpsc::error::TrySendError::Closed(_) => crate::desk_text::login_ended(),
             })?;
         }
-        // A espera deve terminar com o veredito IMEDIATO do core (Full/etc.)
-        // OU com a queda do forwarder (canal oneshot fechado). A janela entre
-        // a última ação do forwarder e a marcação de `done` é coberta pelo
-        // timeout: a sessão ativa responde em < 1 ms, então 5 s só dispara
-        // mesmo se o forwarder morrer antes de responder.
+        // The wait must end with the core's IMMEDIATE verdict (Full/etc.)
+        // OR with the forwarder going down (oneshot channel closed). The window between
+        // the forwarder's last action and the `done` marking is covered by the
+        // timeout: the active session answers in < 1 ms, so 5 s only fires
+        // even if the forwarder dies before answering.
         match tokio::time::timeout(std::time::Duration::from_secs(5), reply_rx).await {
             Ok(Ok(Ok(()))) => Ok(()),
             Ok(Ok(Err(message))) => Err(message),
@@ -4636,11 +4636,11 @@ impl Backend {
         }
     }
 
-    /// Cancela o login pendente. Cancelamento antes do commit não grava
-    /// nada no cofre; uma credencial completada morre em memória. Quando o
-    /// frontend já conhecia um `attempt` específico (passado em
-    /// `attempt`), só cancela se o slot ainda for aquele — evita limpar um
-    /// login novo que já tomou o lugar do anterior.
+    /// Cancels the pending login. Cancelling before the commit writes
+    /// nothing to the vault; a completed credential dies in memory. When the
+    /// frontend already knew a specific `attempt` (passed in
+    /// `attempt`), it only cancels if the slot is still that one — this avoids clearing a
+    /// new login that already took the previous one's place.
     pub async fn login_cancel(&self, attempt: Option<u64>) {
         let mut g = self.inner.lock().await;
         let matches = match (attempt, g.login.as_ref()) {
@@ -4765,7 +4765,7 @@ pub struct ProblemDraft {
     copy_only: bool,
 }
 
-/// Erro estável dos comandos de modelos: a configuração mudou desde a view da UI.
+/// Stable error of the model commands: the configuration changed since the UI view.
 pub const STALE: &str = "stale";
 
 // ---------- history (PRD 0006 RF5) ----------
@@ -4882,12 +4882,12 @@ fn history_view(
 #[derive(Serialize)]
 pub struct ModelSupport {
     supported: bool,
-    /// Fonte do catálogo quando `supported`, senão o motivo (sem rede).
+    /// Catalog source when `supported`, otherwise the reason (no network).
     text: cuotai_core::text::Localized,
 }
 
-/// Orientação para uma conta ainda não salva: o mesmo probe padrão do
-/// assistente da TUI (sem parâmetros gravados nem rede).
+/// Guidance for an account that is not saved yet: the same default probe as the
+/// TUI wizard (no stored parameters and no network).
 pub fn model_support(provider: Provider) -> ModelSupport {
     let probe = cuotai_core::Account {
         id: None,
@@ -4901,7 +4901,7 @@ pub fn model_support(provider: Provider) -> ModelSupport {
     ModelSupport { supported, text }
 }
 
-// ---------- formulário ----------
+// ---------- form ----------
 
 #[derive(Deserialize, Serialize)]
 pub struct FieldValue {
@@ -4910,7 +4910,7 @@ pub struct FieldValue {
     pub choice: Option<usize>,
 }
 
-/// A interface envia os campos em camelCase. Login options/results contain
+/// The interface sends the fields in camelCase. Login options/results contain
 /// only public values; the core applies the selected mode's account binding.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -4976,7 +4976,7 @@ fn default_credential_mode() -> String {
     "credential".to_string()
 }
 
-/// Entrada de `login_start`: modo escolhido + opções/registro não secretos.
+/// `login_start` input: chosen mode + non-secret options/registration.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LoginStartInput {
@@ -5664,11 +5664,11 @@ pub fn field_choices(
         .collect()
 }
 
-/// Resultado de remover uma conta, para a UI dizer a verdade sobre o cofre.
+/// Result of removing an account, so the UI tells the truth about the vault.
 #[derive(Debug, Serialize)]
 pub struct DeleteResult {
-    /// "removed" (sem credencial no cofre), "purged" (apagada do cofre), "kept" (mantida a pedido),
-    /// "kept_shared" (mantida porque outra conta a usa) ou "partial_failure" (TOML salvo, cofre não apagado).
+    /// "removed" (no credential in the vault), "purged" (deleted from the vault), "kept" (kept on request),
+    /// "kept_shared" (kept because another account uses it) or "partial_failure" (TOML saved, vault not cleared).
     outcome: &'static str,
     other_account: Option<String>,
     message: Option<String>,
@@ -5737,9 +5737,9 @@ fn login_needed_before_save(mode: Option<&login::LoginMode>, oauth_mode: bool) -
         && !oauth_mode
 }
 
-/// Chaves dos campos visíveis para as escolhas atuais (regra do core). `auth_mode` é o modo escolhido no
-/// diálogo ("credential" ou o id de um `LoginMode`): o login nativo esconde os campos de identidade
-/// que o próprio login preenche, igual à regra de `build_account` (modo OAuth, sem registro de cliente).
+/// Keys of the fields visible for the current choices (core rule). `auth_mode` is the mode chosen in the
+/// dialog ("credential" or the id of a `LoginMode`): native login hides the identity fields
+/// that the login itself fills in, like the `build_account` rule (OAuth mode, no client registration).
 pub fn visible_keys(
     provider: Provider,
     choices: BTreeMap<String, usize>,
@@ -5921,13 +5921,13 @@ mod tests {
 
         config.refresh_seconds = 3600;
         let rebuilt = rebuild_cycle_keeping_reports(&cycle, &config);
-        // relatórios preservados, nenhuma conta precisa de nova consulta
+        // reports preserved, no account needs a new query
         assert_eq!(
             rebuilt.snapshot().map(|s| s.reports.len()),
             Some(config.accounts.len())
         );
         assert!(rebuilt.pending_indices().is_empty());
-        // contas sem intervalo próprio passam a seguir o novo valor global (≈ 1 h)
+        // accounts without their own interval start following the new global value (≈ 1 h)
         let next = rebuilt.next_refresh_in(0, Instant::now());
         assert!(
             next > Duration::from_secs(3000),
@@ -6708,7 +6708,7 @@ mod tests {
 
     #[test]
     fn account_input_reads_the_camel_case_fields_the_ui_sends() {
-        // Exatamente o objeto que `saveAccount` do diálogo monta ao salvar depois de um login concluído.
+        // Exactly the object that the dialog's `saveAccount` builds when saving after a completed login.
         let input: AccountInput = serde_json::from_value(serde_json::json!({
             "index": null, "provider": "kiro", "name": "Kiro Pessoal", "credential": "",
             "fields": [], "interval": "",
@@ -6742,18 +6742,18 @@ mod tests {
     fn native_login_hides_the_identity_fields_the_login_fills_in() {
         let none = BTreeMap::new();
         let keys = |mode: &str| visible_keys(Provider::Kiro, BTreeMap::new(), mode, &none);
-        // credencial manual: o método de autenticação (origem do token) é um campo editável
+        // manual credential: the authentication method (token origin) is an editable field
         assert!(keys("credential").contains(&"auth_method"));
-        // login no navegador: o próprio login define o método; o campo não pode aparecer duplicado
+        // browser login: the login itself defines the method; the field must not appear duplicated
         let native = keys(login::MODE_OAUTH);
         assert!(!native.contains(&"auth_method"));
-        // o ARN continua editável enquanto o login não o fixar
+        // the ARN stays editable until the login pins it
         assert!(native.contains(&"profile_arn"));
     }
 
     #[test]
     fn first_sweep_does_not_wait_for_the_periodic_deadline() {
-        // Deadlines de um ciclo recém-criado estão no futuro (agora + intervalo).
+        // Deadlines of a freshly created cycle are in the future (now + interval).
         let config = Config::default();
         let cycle = RefreshCycle::new(&config, Instant::now());
         assert!(cycle.pending_now_indices(Instant::now()).is_empty());

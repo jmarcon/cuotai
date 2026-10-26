@@ -1,5 +1,5 @@
-// Menu do clique direito no ícone da bandeja: texto simples, uma linha por conta ("nome: % disponível").
-// As linhas seguem a mesma ordem e os mesmos filtros do popover; o shell só monta o menu nativo.
+// Right-click menu on the tray icon: plain text, one line per account ("name: % available").
+// The lines follow the same order and filters as the popover; the shell only builds the native menu.
 import { t, tl } from "./i18n.js";
 import { adviceShown, ageText, bindingPct, blockedText, brand, disabledAccounts, nextNoticeText, reportKey, setTrayMenu, shownAt, sortReports, statusLabel } from "./lib.js";
 import { updateState } from "./updater.js";
@@ -58,7 +58,7 @@ export function trayBest(reports) {
   return best ? `${tl(best.best_now)}: ${brand(best.provider).label} (${best.account})` : null;
 }
 
-/** Envia o menu ao shell quando algo mudou (dados, ordem, idioma, contas desativadas ou quotas ocultas). */
+/** Sends the menu to the shell when something changed (data, order, language, disabled accounts or hidden quotas). */
 export function syncTrayMenu(view) {
   if (!view) return;
   const payload = {

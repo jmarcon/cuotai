@@ -1,5 +1,5 @@
-// Detalhe de uma conta: mesmo componente no popover e no diálogo da janela principal.
-// Critério único: percentual DISPONÍVEL, barra = disponível, quantidade = usado / limite; métricas sem limite viram texto.
+// Detail of an account: same component in the popover and in the main window dialog.
+// Single criterion: AVAILABLE percentage, bar = available, amount = used / limit; metrics without a limit become text.
 import { currentLocale, t, te, tl } from "./i18n.js";
 import {
   STALE, accessHtml, ageHtml, bindingChipText, causeText, errText, esc, fmtAmount, fmtReset, getView, icon, incidentDetailHtml, isBindingMetric, isMetricHidden, isRenewedWaiting, isStaleReading, level, loadModels, metricAlertHtml, metricKey, modelState, noteText,
@@ -56,7 +56,7 @@ export function metricCardHtml(r, m, { eye = false, stale = false } = {}) {
   </div>`;
 }
 
-/** Lista de quotas + notas. Sem `eye` (popover), as ocultas não aparecem. PRD 0010 RF3: the age leads; a failure
+/** Quota list + notes. Without `eye` (popover), hidden ones do not appear. PRD 0010 RF3: the age leads; a failure
  *  with a preserved reading lists the old metrics dimmed under the cause of the failure. PRD 0005 RF4: the core's
  *  access level and summary follow the age, and its explanation, when there is one, is the cause. PRD 0011 RF4.1:
  *  the provider's public status follows, while status queries are on. */
@@ -86,7 +86,7 @@ const when = (iso) => {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? "" : d.toLocaleString(currentLocale(), { dateStyle: "short", timeStyle: "short" });
 };
-/** Catálogo exibível: o atual (`ready`) ou o anterior preservado em falha/consulta/interrupção. */
+/** Displayable catalog: the current one (`ready`) or the previous one preserved on failure/query/interruption. */
 const catalogOf = (s) => (s?.state === "ready" ? s : s?.previous ?? null);
 const stateText = (s) => {
   switch (s?.state) {
@@ -100,10 +100,10 @@ const stateText = (s) => {
   }
 };
 
-/** Seção pesquisável de modelos da conta `key` (`provider::nome`) no índice `index` da configuração `generation`.
- *  O cache do core é a fonte (nada em localStorage). A primeira consulta só ocorre ao abrir a seção com o estado
- *  `not_fetched`; outra, só por "Sincronizar modelos". Resultado de outra identidade (geração/índice antigos) é
- *  descartado. O host chama `update` a cada view, `focused()` antes de redesenhar e `attach(root, foco)` depois. */
+/** Searchable models section of account `key` (`provider::name`) at index `index` of configuration `generation`.
+ *  The core cache is the source (nothing in localStorage). The first query only happens when opening the section in state
+ *  `not_fetched`; another one only through "Sync models". A result from another identity (old generation/index) is
+ *  discarded. The host calls `update` on each view, `focused()` before redrawing and `attach(root, focus)` afterwards. */
 export function mountModels({ key, index, generation }) {
   const el = document.createElement("details");
   el.className = "models";
@@ -117,7 +117,7 @@ export function mountModels({ key, index, generation }) {
     <ul class="models-list" aria-label="${te("models.title")}"></ul>`;
   const [search, sync, status, meta, list] =
     ["input", ".models-sync", ".models-status", ".models-meta", ".models-list"].map((s) => el.querySelector(s));
-  // `epoch` muda a cada troca de identidade: respostas de uma época anterior são ignoradas.
+  // `epoch` changes with every identity switch: responses from an earlier epoch are ignored.
   let state = null, error = null, progress = null, busy = false, gone = false, epoch = 0;
 
   function render() {
@@ -138,7 +138,7 @@ export function mountModels({ key, index, generation }) {
       : shown.map((m, i) => `<li tabindex="${i ? -1 : 0}"><code>${esc(m.id)}</code>${m.name && m.name !== m.id ? ` <span class="sub">${esc(m.name)}</span>` : ""}</li>`).join("");
   }
 
-  /** Uma chamada ao backend; `note` marca operação longa (anunciada, botão desativado). */
+  /** A call to the backend; `note` marks a long operation (announced, button disabled). */
   async function call(fn, note) {
     const e = epoch;
     if (note) { busy = true; progress = note; render(); }
@@ -151,7 +151,7 @@ export function mountModels({ key, index, generation }) {
     } catch (x) {
       if (e !== epoch) return null;
       if (x === STALE) resync();
-      else error = errText(x); // o catálogo exibido continua
+      else error = errText(x); // the displayed catalog stays
       return null;
     } finally {
       if (e === epoch) {
@@ -160,7 +160,7 @@ export function mountModels({ key, index, generation }) {
       }
     }
   }
-  /** Relê o estado sem consultar; uma consulta já em andamento (outra janela/processo) é aguardada, não repetida. */
+  /** Re-reads the state without querying; a query already in progress (another window/process) is awaited, not repeated. */
   async function refresh(first) {
     const s = await call(modelState);
     if (s?.state === "fetching") await call(loadModels, tl(s.note));
@@ -173,7 +173,7 @@ export function mountModels({ key, index, generation }) {
     if (el.open) refresh(false);
     else render();
   }
-  /** A configuração mudou antes de a UI ver a nova view: localiza a mesma conta (ou nota que sumiu). */
+  /** The configuration changed before the UI saw the new view: find the same account (or note that it vanished). */
   async function resync() {
     const v = await getView().catch(() => null);
     const r = v?.reports.find((x) => reportKey(x) === key);
@@ -187,7 +187,7 @@ export function mountModels({ key, index, generation }) {
   sync.addEventListener("click", () => { if (!busy) call(syncModels, t("models.syncing")); });
   search.addEventListener("input", render);
   search.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") e.preventDefault(); // dentro do formulário de conta, Enter não salva
+    if (e.key === "Enter") e.preventDefault(); // inside the account form, Enter does not save
     if (e.key === "ArrowDown") { e.preventDefault(); list.querySelector("li[tabindex]")?.focus(); }
   });
   list.addEventListener("keydown", (e) => {

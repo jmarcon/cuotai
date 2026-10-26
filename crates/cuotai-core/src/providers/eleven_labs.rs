@@ -1,18 +1,18 @@
-//! Consulta read-only de créditos da ElevenLabs (PRD 0037).
+//! Read-only ElevenLabs credits query (PRD 0037).
 //!
-//! Contrato documentado em
+//! Contract documented at
 //! <https://elevenlabs.io/docs/api-reference/user/subscription/get>:
 //!
-//! - `GET {base}/v1/user/subscription`, sem corpo nem parâmetros de consulta;
-//! - autenticação somente pelo cabeçalho `xi-api-key`;
-//! - o campo da API ainda se chama `character_count`/`character_limit`, mas o
-//!   produto os chama de *créditos*; o adaptador exibe "créditos".
+//! - `GET {base}/v1/user/subscription`, with no body or query parameters;
+//! - authentication only through the `xi-api-key` header;
+//! - the API field is still called `character_count`/`character_limit`, but the
+//!   product calls them *credits*; the adapter shows "créditos".
 //!
-//! O adaptador lê apenas os campos que usa de um `serde_json::Value`: faturas,
-//! cupons, `pending_change` e qualquer outro campo nunca são copiados para
-//! métricas, notas ou logs. Nenhum endpoint de geração é usado e a base é
-//! escolhida numa lista fixa de regiões, de modo que a chave nunca é enviada a
-//! um host arbitrário.
+//! The adapter reads only the fields it uses from a `serde_json::Value`: invoices,
+//! coupons, `pending_change` and any other field are never copied into
+//! metrics, notes or logs. No generation endpoint is used and the base is
+//! chosen from a fixed list of regions, so that the key is never sent to
+//! an arbitrary host.
 
 use super::{secret, send, Context, Data, QueryError};
 use crate::text::{params, Localized, Notes, ParamValue};

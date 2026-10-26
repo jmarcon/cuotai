@@ -228,7 +228,7 @@ function aggregatorSection(r, ctx) {
 const pasteSessionHtml = (r) => r.paste_session
   ? `<button type="button" class="btn" data-paste-session="${r.index}">${icon("edit")}<span>${te("card.pasteSession")}</span></button>` : "";
 
-/** Conta ainda sem relatório ("Aguardando"): esqueleto com shimmer até os dados chegarem (RF2.3). */
+/** Account with no report yet ("Waiting"): skeleton with shimmer until the data arrives (RF2.3). */
 const skeleton = (index) => `<section class="card skeleton" data-card="skeleton:${index}" aria-busy="true">
     <div class="card-head"><span class="sk sk-logo"></span><div class="who"><h2>${te("card.waiting")}</h2><span class="sk"></span></div></div>
     <div class="summary"><span class="sk"></span><span class="sk sk-short"></span></div>
@@ -241,7 +241,7 @@ const rechargingGroup = (list, ctx) => `<details class="recharging" data-recharg
     <summary>${icon("battery")}<span>${te("group.recharging")}</span><span class="count">${list.length}</span></summary>
     <div class="grid">${list.map((r) => card(r, ctx, true)).join("")}</div></details>`;
 
-// Filtro por texto (nome do provedor, da conta, e-mail): sem acentos e sem diferenciar maiúsculas.
+// Text filter (provider name, account, e-mail): accent- and case-insensitive.
 let filterText = "";
 let providerFilter = "all"; // PRD 0022 RF7.4 (DS-CMP-TAB-5): the selected filter tab, remembered for this window
 let tabsMoreOpen = false;
@@ -256,12 +256,12 @@ const matchesFilter = (r) =>
   // PRD 0036 RF8.4: an aggregator stays when one of its connections matches.
   || (isAggregator(r) && withConnections([r]).slice(1).some(matchesFilter));
 
-// Aviso curto após remover uma conta (o que aconteceu com a credencial no cofre).
-// `retry` é opcional: quando presente, o aviso ganha um botão "Tentar
-// de novo" que re-executa o `purge_credential` no backend usando o
-// mesmo handle. O backend re-roda o shared-key guard do core contra a
-// configuração atual; o usuário só precisa recarregar quando a
-// sobrevivente cair.
+// Short notice after removing an account (what happened to the credential in the vault).
+// `retry` is optional: when present, the notice gets a "Try
+// again" button that re-runs `purge_credential` in the backend using the
+// same handle. The backend re-runs the core's shared-key guard against the
+// current configuration; the user only needs to reload when the
+// surviving account drops.
 let notice = null;
 let noticeTimer = null;
 function setNotice(tone, text, retry = null) {
@@ -287,16 +287,16 @@ function onDeleted(result) {
   else if (result.outcome === "partial_failure") setNotice("bad", t("delete.partial", { message: result.message ?? "" }) + session, retry);
 }
 
-// Botão "Tentar de novo" do aviso RF3. Reusa `onDeleted` para re-render
-// o banner com o resultado fresco (o handle pode voltar como `purged`,
-// `partial_failure` com nova mensagem, etc.). Chamada a partir do
-// handler global de cliques do shell.
+// "Try again" button of the RF3 notice. Reuses `onDeleted` to re-render
+// the banner with the fresh result (the handle may come back as `purged`,
+// `partial_failure` with a new message, etc.). Called from the
+// shell's global click handler.
 async function retryDelete() {
   if (!notice?.retry) return;
   const handle = notice.retry.handle;
-  // Desabilita o aviso enquanto a chamada está em voo para não
-  // empilhar retentativas. O `setTimeout` é cancelado pelo próximo
-  // `setNotice` quando `onDeleted` rodar de novo.
+  // Disables the notice while the call is in flight so as not to
+  // stack retries. The `setTimeout` is cancelled by the next
+  // `setNotice` when `onDeleted` runs again.
   const previous = notice;
   notice = { tone: previous.tone, text: previous.text, retry: null };
   render();
@@ -419,7 +419,7 @@ let reorderPending = false;
 function render() {
   refreshDetails();
   syncTrayMenu(store.view);
-  if (dragKey) { renderPending = true; return; } // não reconstrói a tela no meio de um arraste
+  if (dragKey) { renderPending = true; return; } // does not rebuild the screen in the middle of a drag
   const { view, error } = store;
   const reports = view?.reports ?? [];
   // PRD 0022 RF7.4: the provider tabs filter the grid; the text filter narrows it further.
@@ -431,7 +431,7 @@ function render() {
   const aggregators = sorted.filter(isAggregator);
   const [rest, recharging] = splitRecharging(ordered); // the chosen order holds inside each group
   const loading = !!view && view.busy.length > 0;
-  // "Aguardando": contas da configuração que ainda não têm relatório (só antes da primeira resposta de cada uma).
+  // "Waiting": configuration accounts that have no report yet (only before each one's first response).
   const have = new Set(reports.map((r) => r.index));
   const waiting = view && !filterText.trim() ? [...Array(view.account_count).keys()].filter((i) => !have.has(i)) : [];
   trackChanges(view);
@@ -445,7 +445,7 @@ function render() {
   // PRD 0015 RF4.1: a source that is on with no configured account of its tool gets a card of its own.
   const solo = view?.loaded ? (localCost?.sources ?? []).filter((s) => s.usage && !reports.some((r) => s.providers.includes(r.provider))
     && (!filterText.trim() || norm(s.label).includes(norm(filterText.trim())))) : [];
-  // Reconciliação por cartão (`data-card`): foco, cursor do filtro, rolagem e barras sobrevivem ao redesenho.
+  // Per-card reconciliation (`data-card`): focus, filter cursor, scroll and bars survive the redraw.
   patch(root, `<div class="shell">
     <header class="topbar" data-tauri-drag-region>
       <h1 class="wordmark tb-brand" data-tauri-drag-region>${wordmark(" data-tauri-drag-region")}</h1>
@@ -655,7 +655,7 @@ addEventListener("keydown", (e) => {
   e.preventDefault();
   setPage("grid");
 });
-// "/" foca o filtro (como na TUI), exceto ao digitar em outro campo ou com um diálogo aberto.
+// "/" focuses the filter (as in the TUI), except when typing in another field or with a dialog open.
 addEventListener("keydown", (e) => {
   if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey) return;
   const tag = e.target?.tagName;
@@ -663,7 +663,7 @@ addEventListener("keydown", (e) => {
   e.preventDefault();
   document.getElementById("filter")?.focus();
 });
-// Contagem regressiva da próxima consulta: atualiza só o texto, uma vez por segundo.
+// Countdown to the next query: updates only the text, once per second.
 setInterval(() => {
   for (const el of document.querySelectorAll("[data-next-at]")) {
     const text = fmtNext(Number(el.dataset.nextAt));

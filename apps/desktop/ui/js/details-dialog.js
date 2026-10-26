@@ -1,4 +1,4 @@
-// Diálogo de detalhes de uma conta (aberto pela lupa do card): quotas completas, histórico, notas, selos e ações.
+// Account details dialog (opened by the card's magnifier): full quotas, history, notes, badges and actions.
 import { te, tl } from "./i18n.js";
 import { acknowledgeMissed, bellHtml, brand, esc, hiddenMetrics, icon, logo, openSettingsWindow, reportKey, statusLabel } from "./lib.js";
 import { detailHtml, mountModels } from "./detail.js";
@@ -11,8 +11,8 @@ import { connectionInfoHtml, handleConnectionAction, instanceInfoHtml, isAggrega
 let dlg = null;
 let currentKey = null;
 let ctx = null; // { reports(), generation(), historyEpoch(), view(), localCost(), onEdit(index), onPasteSession(index), onRemove(index, label), onChange(), onBell(key, on), onMetricAlert(key, label, on), onSettings() }
-let models = null; // seção de modelos montada uma vez por diálogo; sobrevive aos redesenhos
-let history = null; // PRD 0006 RF5.2: idem, para o histórico
+let models = null; // models section mounted once per dialog; survives redraws
+let history = null; // PRD 0006 RF5.2: likewise, for the history
 
 const badges = (list) =>
   list.length ? `<div class="badges">${list.map((b) => `<span class="badge ${esc(b.tone)}">${esc(tl(b.text))}</span>`).join("")}</div>` : "";
@@ -28,7 +28,7 @@ function localCostHtml(r) {
 
 function render() {
   const r = ctx.reports().find((x) => reportKey(x) === currentKey);
-  if (!r) return dlg.close(); // a conta foi removida ou mudou de identidade
+  if (!r) return dlg.close(); // the account was removed or changed identity
   // PRD 0036 RF8.5: a 9router connection is not an account of its own: no edit, removal, models or history here
   // (its index is the aggregator's); recovery is "Open dashboard".
   if (isConnection(r)) return renderConnection(r);
@@ -71,7 +71,7 @@ function renderConnection(r) {
   </div>`;
 }
 
-/** `from`: o cartão de origem; o diálogo cresce a partir dele (RF3.1). */
+/** `from`: the source card; the dialog grows from it (RF3.1). */
 export function openDetails(key, context, from = null) {
   ctx = context;
   currentKey = key;
@@ -134,7 +134,7 @@ export function openDetails(key, context, from = null) {
   render();
 }
 
-/** Redesenha o conteúdo quando os dados mudam com o diálogo aberto. */
+/** Redraws the content when data changes while the dialog is open. */
 export function refreshDetails() {
   if (dlg?.open) render();
 }

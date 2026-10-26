@@ -7,7 +7,7 @@ license = "MIT OR Apache-2.0"
 # and through the package-manager channels, never on crates.io.
 publish = false
 
-# Workspace próprio: não altera o workspace do backend/TUI.
+# Own workspace: it does not change the backend/TUI workspace.
 [workspace]
 
 [[bin]]
@@ -34,19 +34,19 @@ tauri-plugin-notification = "=2.7.0"
 # PRD 0022 (audit #37): "Start at login" in Settings › General, through the official autostart plugin
 # (2.x line, compatible with Tauri 2.12). Desktop-only: it registers a login item / Run key / .desktop entry.
 tauri-plugin-autostart = "=2.7.0"
-# PRD 0018 RF1.1: plugin oficial de atualização, versão 2.x fixada (compativel com Tauri 2.12).
-# O recurso `zip` fica desligado de propósito: ele só existe para desembrulhar os
-# artefatos zipados do updater v1 e para extrair um AppImage comprimido, e nenhum
-# release daqui publica um deles (o manifesto aponta para o `.exe`/`.msi` cru do
-# Windows e para o AppImage cru do Linux). Desligá-lo tira do grafo o `zip 4.x`,
-# que hoje carrega três advisories de extração (RUSTSEC-2026-0367/0368/0369) e
-# faz o `cargo deny` do manifesto do desktop falhar.
+# PRD 0018 RF1.1: official updater plugin, pinned to version 2.x (compatible with Tauri 2.12).
+# The `zip` feature is deliberately off: it only exists to unwrap the zipped
+# updater v1 artifacts and to extract a compressed AppImage, and no release
+# here publishes either (the manifest points at the raw `.exe`/`.msi` for
+# Windows and the raw AppImage for Linux). Turning it off removes `zip 4.x`
+# from the graph, which currently carries three extraction advisories
+# (RUSTSEC-2026-0367/0368/0369) and makes `cargo deny` fail on the desktop manifest.
 tauri-plugin-updater = { version = "=2.14.0", default-features = false, features = [
   "rustls-tls",
   "system-proxy",
 ] }
-# PRD 0018 RF4.3: o cliente do plugin usa rustls sem provedor; o app instala o `ring`
-# como provedor padrão do processo (ver `updater::ensure_crypto_provider`).
+# PRD 0018 RF4.3: the plugin client uses rustls without a provider; the app installs `ring`
+# as the process default provider (see `updater::ensure_crypto_provider`).
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 chrono = { version = "0.4", features = ["serde"] }
 tokio = { version = "1", features = ["time", "sync", "macros"] }
@@ -74,9 +74,9 @@ objc2-foundation = { version = "0.3", default-features = false, features = ["std
 
 [dev-dependencies]
 tempfile = "3"
-# PRD 0018 RF1.4: os testes assinam com um par de chaves efêmero (nunca a chave de release).
+# PRD 0018 RF1.4: tests sign with an ephemeral key pair (never the release key).
 minisign = "0.7"
 base64 = "0.22"
-# PRD 0018 RF4.3: servidor TLS local com certificado autoassinado para o teste de recusa.
+# PRD 0018 RF4.3: local TLS server with a self-signed certificate for the refusal test.
 rcgen = "0.13"
 tauri = { version = "2", features = ["test"] }

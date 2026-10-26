@@ -1,5 +1,5 @@
-//! Shell Tauri do Cuotai: janela principal, popover na bandeja e comandos.
-//! Somente consome `cuotai-core` (via `backend.rs`); não contém lógica de provider.
+//! Cuotai Tauri shell: main window, tray popover and commands.
+//! It only consumes `cuotai-core` (via `backend.rs`); it holds no provider logic.
 mod about;
 mod autostart;
 mod backend;
@@ -497,12 +497,12 @@ fn locale_registry() -> &'static [cuotai_core::text::LocaleRow] {
     cuotai_core::text::LOCALES
 }
 
-/// Linhas do menu do ícone da bandeja (clique direito), já traduzidas pela interface: o shell não conhece idioma.
+/// Tray icon menu lines (right click), already translated by the interface: the shell knows no language.
 #[derive(serde::Deserialize)]
 struct TrayMenuPayload {
-    /// Uma linha por conta: "nome: % disponível".
+    /// One line per account: "name: % available".
     lines: Vec<String>,
-    /// Texto quando não há contas.
+    /// Text when there are no accounts.
     empty: String,
     open: String,
     settings: String,
@@ -522,7 +522,7 @@ struct TrayMenuPayload {
     best: Option<String>,
 }
 
-/// Remove controles, apara e limita o tamanho de uma linha de menu.
+/// Strips control characters, trims and limits the size of a menu line.
 fn clean_menu_line(text: &str) -> String {
     let cleaned: String = text.chars().filter(|c| !c.is_control()).collect();
     let trimmed = cleaned.trim();
@@ -535,7 +535,7 @@ fn clean_menu_line(text: &str) -> String {
 
 fn build_tray_menu(app: &AppHandle, p: &TrayMenuPayload) -> tauri::Result<Menu<tauri::Wry>> {
     let menu = Menu::new(app)?;
-    // PRD 0018 RF2.2: a atualização vem antes de tudo; o resto do menu é o de sempre.
+    // PRD 0018 RF2.2: the update comes first; the rest of the menu is the usual one.
     if let Some(update) = p
         .update
         .as_deref()
@@ -582,7 +582,7 @@ fn build_tray_menu(app: &AppHandle, p: &TrayMenuPayload) -> tauri::Result<Menu<t
             None::<&str>,
         )?)?;
     }
-    // Habilitadas (texto com contraste normal); clicar numa conta abre a janela principal.
+    // Enabled (text with normal contrast); clicking an account opens the main window.
     for line in &lines {
         menu.append(&MenuItem::with_id(
             app,
@@ -618,7 +618,7 @@ fn build_tray_menu(app: &AppHandle, p: &TrayMenuPayload) -> tauri::Result<Menu<t
     Ok(menu)
 }
 
-/// Atualiza o menu do clique direito. Comando síncrono: roda na thread principal, onde o menu nativo vive.
+/// Updates the right-click menu. Synchronous command: runs on the main thread, where the native menu lives.
 #[tauri::command]
 fn set_tray_menu(app: AppHandle, payload: TrayMenuPayload) -> Result<(), String> {
     // PRD 0020 RF1.4: the localized "Settings" also titles the next Settings
@@ -651,8 +651,8 @@ fn whats_new() -> about::WhatsNewView {
     about::whats_new()
 }
 
-/// Abre no navegador um repositório da lista do "Sobre" ou uma página pública de status de uma fonte
-/// verificada (PRD 0011 RF4.1); qualquer outro endereço é recusado.
+/// Opens in the browser a repository from the "About" list or a public status page of a verified
+/// source (PRD 0011 RF4.1); any other address is refused.
 #[tauri::command]
 fn open_external(url: String) -> Result<(), String> {
     about::open_external(&url).map_err(str::to_owned)
@@ -693,7 +693,7 @@ fn get_settings() -> settings::SettingsView {
     settings::view()
 }
 
-/// `path = None` volta à pasta padrão. Os erros são códigos estáveis que a UI traduz.
+/// `path = None` goes back to the default folder. Errors are stable codes that the UI translates.
 #[tauri::command]
 fn set_user_dir(app: AppHandle, path: Option<String>) -> Result<(), String> {
     if settings::env_user_dir().is_some() {
@@ -1524,8 +1524,8 @@ async fn reset_timeline(
     b.reset_timeline(range, generation).await
 }
 
-/// RF1.2: `path = None` volta ao `cuotai.toml` padrão do SO. Recarrega pelo core e só então
-/// grava a escolha em `desktop.json`. Erros: códigos de `settings` ou o JSON tipado do core.
+/// RF1.2: `path = None` goes back to the OS default `cuotai.toml`. Reloads through the core and only then
+/// writes the choice to `desktop.json`. Errors: `settings` codes or the core's typed JSON.
 #[tauri::command]
 async fn set_config_file(
     app: AppHandle,
@@ -1536,9 +1536,9 @@ async fn set_config_file(
         .await
 }
 
-/// PRD 0018 RF3.1: o estado que Settings → Updates e "Sobre" mostram: o interruptor, a
-/// última verificação, a versão atual, o canal, o motivo de estar desligado e a fase
-/// (nada de URL, assinatura ou chave).
+/// PRD 0018 RF3.1: the state that Settings → Updates and "About" show: the switch, the
+/// last check, the current version, the channel, the reason it is off and the phase
+/// (no URL, signature or key).
 #[tauri::command]
 fn updater_status(u: Updates<'_>) -> updater::UpdateView {
     u.view()
@@ -1567,8 +1567,8 @@ fn updater_answer_automatic(
     u.answer_automatic(&app, on)
 }
 
-/// PRD 0018 RF3.1: "Verificar agora". Com o recurso desligado responde `updater_off` e
-/// não faz pedido algum.
+/// PRD 0018 RF3.1: "Check now". With the feature off it answers `updater_off` and
+/// makes no request at all.
 #[tauri::command]
 async fn updater_check_now(app: AppHandle, u: Updates<'_>) -> Result<updater::UpdateView, String> {
     u.check_now(&app).await
@@ -1581,21 +1581,21 @@ fn updater_install(app: AppHandle, u: Updates<'_>) -> Result<updater::UpdateView
     u.install(&app)
 }
 
-/// PRD 0018 RF2.3: cancela o download em curso; a versão instalada continua intacta.
+/// PRD 0018 RF2.3: cancels the download in progress; the installed version stays intact.
 #[tauri::command]
 fn updater_cancel_download(app: AppHandle, u: Updates<'_>) -> updater::UpdateView {
     u.cancel_download(&app)
 }
 
-/// PRD 0018 RF2.2: "Lembrar depois" — o aviso some até a próxima verificação.
+/// PRD 0018 RF2.2: "Remind me later" — the notice goes away until the next check.
 #[tauri::command]
 fn updater_dismiss(app: AppHandle, u: Updates<'_>) -> updater::UpdateView {
     u.dismiss(&app)
 }
 
-/// PRD 0018 RF2.4: reinicia para terminar a atualização. Um login em andamento bloqueia
-/// com `login_in_progress`; sem pacote pronto responde `no_update`. O backend para o
-/// ciclo de atualização e persiste o estado antes de qualquer reinício.
+/// PRD 0018 RF2.4: restarts to finish the update. A login in progress blocks
+/// with `login_in_progress`; with no package ready it answers `no_update`. The backend stops the
+/// update cycle and persists the state before any restart.
 #[tauri::command]
 async fn updater_restart(app: AppHandle, b: Shared<'_>, u: Updates<'_>) -> Result<(), String> {
     let login = b.login_in_progress().await;
@@ -2165,7 +2165,7 @@ pub fn run() {
                 // PRD 0025 RF3.1: a template on macOS (light and dark menu bars).
                 .icon_as_template(cfg!(target_os = "macos"))
                 .tooltip("Cuotai")
-                // Clique esquerdo abre o popover; o direito mostra o menu de texto (contas e ações).
+                // Left click opens the popover; right click shows the text menu (accounts and actions).
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id().as_ref() {
                     "account" | "open" => show_main_window(app.clone()),
@@ -2190,7 +2190,7 @@ pub fn run() {
                     }
                 })
                 .build(app)?;
-            // Menu inicial (a interface o substitui, já traduzido e com as contas, assim que carrega).
+            // Initial menu (the interface replaces it, already translated and with the accounts, as soon as it loads).
             let initial = initial_tray_words();
             let initial = TrayMenuPayload {
                 lines: vec![],
@@ -2210,7 +2210,7 @@ pub fn run() {
                 let _ = tray.set_menu(Some(menu));
             }
 
-            // Popover fecha ao perder o foco; fechar a janela principal só a esconde.
+            // Popover closes on focus loss; closing the main window only hides it.
             if let Some(w) = app.get_webview_window("tray") {
                 #[cfg(target_os = "macos")]
                 macos_popover::make_panel(&w);

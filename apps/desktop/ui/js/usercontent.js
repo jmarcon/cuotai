@@ -1,8 +1,8 @@
-// Temas e idiomas do usuário. O shell (Rust) lê <pasta de config>/cuotai/{themes,locales} e entrega os textos;
-// aqui eles são VALIDADOS e registrados. Itens inválidos são ignorados e listados em `userContent.errors`.
+// User themes and languages. The shell (Rust) reads <config folder>/cuotai/{themes,locales} and hands over the texts;
+// here they are VALIDATED and registered. Invalid items are ignored and listed in `userContent.errors`.
 //
-// Tema:   themes/<id>.css  — cabeçalho opcional  /*! cuotai-theme {"label":"Nome","group":"custom","modes":["dark","light"]} */
-// Idioma: locales/<código>.json — { "_meta": { "name": "Nome" }, "chave": "texto" }
+// Theme:    themes/<id>.css  — optional header  /*! cuotai-theme {"label":"Name","group":"custom","modes":["dark","light"]} */
+// Language: locales/<code>.json — { "_meta": { "name": "Name" }, "key": "text" }
 import { LOCALES, registerLocale, t } from "./i18n.js";
 import { isBuiltinTheme, registerTheme, THEMES } from "./themes.js";
 
@@ -15,7 +15,7 @@ const MAX_BYTES = 256 * 1024;
 
 class Skip extends Error {}
 
-/** Regras: sem @import/@font-face/URLs externas, sem @-regras, e todo seletor dentro de :root[data-theme="<id>"]. */
+/** Rules: no @import/@font-face/external URLs, no @-rules, and every selector inside :root[data-theme="<id>"]. */
 export function validateThemeCss(id, css) {
   const body = css.replace(/\/\*[\s\S]*?\*\//g, "");
   if (/@import|@font-face|@charset|@namespace/i.test(body) ||
@@ -73,7 +73,7 @@ function addLocale(file) {
 }
 
 export async function loadUserContent() {
-  if (!T) return userContent; // navegador (demo): sem pasta de usuário
+  if (!T) return userContent; // browser (demo): no user folder
   let raw;
   try { raw = await T.core.invoke("load_user_content"); } catch { return userContent; }
   userContent.dir = raw.dir;

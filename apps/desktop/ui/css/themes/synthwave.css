@@ -1,4 +1,4 @@
-/* Old Terminal (synthwave) — terminal retrô com brilho neon leve (escuro e claro). */
+/* Old Terminal (synthwave) — retro terminal with a light neon glow (dark and light). */
 :root[data-theme="synthwave"][data-mode="dark"] {
   color-scheme: dark;
   --bg: #120a24;

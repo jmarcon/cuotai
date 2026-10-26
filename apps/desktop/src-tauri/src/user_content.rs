@@ -1,5 +1,5 @@
-//! Temas e idiomas do usuário: lê `<pasta de configuração>/cuotai/{themes,locales}` e entrega os textos à UI,
-//! que valida e registra. Somente leitura; nenhum arquivo é executado e a UI aplica as regras de segurança.
+//! User themes and languages: reads `<config folder>/cuotai/{themes,locales}` and hands the texts to the UI,
+//! which validates and registers them. Read-only; no file is executed and the UI applies the security rules.
 use serde::Serialize;
 use std::{fs, path::PathBuf};
 
@@ -27,7 +27,7 @@ pub struct UserContent {
     errors: Vec<UserError>,
 }
 
-/// Pasta efetiva (variável de ambiente → configuração do usuário → padrão); ver `settings.rs`.
+/// Effective folder (environment variable → user setting → default); see `settings.rs`.
 pub fn user_dir() -> Option<PathBuf> {
     crate::settings::effective_user_dir()
 }
@@ -38,7 +38,7 @@ fn read_dir(
     kind: &'static str,
     errors: &mut Vec<UserError>,
 ) -> Vec<UserFile> {
-    let _ = fs::create_dir_all(&dir); // facilita achar a pasta; falha silenciosa (somente leitura)
+    let _ = fs::create_dir_all(&dir); // makes the folder easier to find; silent failure (read-only)
     let Ok(entries) = fs::read_dir(&dir) else {
         return vec![];
     };

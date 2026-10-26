@@ -1,5 +1,5 @@
-//! "Sobre": dados do projeto e das bibliotecas de código aberto (lista do core) e abertura de
-//! repositórios no navegador padrão.
+//! "About": project and open-source library data (core list) and opening
+//! repositories in the default browser.
 
 use cuotai_core::about::{self, Library};
 use cuotai_core::changelog::{self, Changelog, Release, Section};
@@ -117,11 +117,11 @@ pub fn whats_new() -> WhatsNewView {
     whats_new_from(changelog::entries())
 }
 
-/// Só endereços que o próprio Cuotai publica (o projeto, a página de lançamentos que o
-/// atualizador oferece quando algo falha — PRD 0018 RF2.3/RF2.5 — e a lista do core) ou,
-/// PRD 0011 RF4.1, as páginas públicas de status das fontes verificadas do core podem ser
-/// abertos: a UI nunca escolhe o destino, então um texto qualquer vindo dela não vira um
-/// comando.
+/// Only addresses that Cuotai itself publishes (the project, the releases page the
+/// updater offers when something fails — PRD 0018 RF2.3/RF2.5 — and the core list) or,
+/// PRD 0011 RF4.1, the public status pages of the core's verified sources may be
+/// opened: the UI never chooses the destination, so arbitrary text coming from it never becomes a
+/// command.
 pub fn is_listed(url: &str) -> bool {
     url == about::PROJECT_REPOSITORY
         || url == NEW_PROVIDER_ISSUE
@@ -149,7 +149,7 @@ pub fn open_extensions_folder() -> Result<(), &'static str> {
     launch(&dir.to_string_lossy())
 }
 
-/// Abre `url` no navegador padrão do sistema, se estiver na lista.
+/// Opens `url` in the system default browser, if it is on the list.
 pub fn open_external(url: &str) -> Result<(), &'static str> {
     if !is_listed(url) {
         return Err("not_listed");
@@ -174,7 +174,7 @@ fn launch(url: &str) -> Result<(), &'static str> {
     let mut cmd = std::process::Command::new("xdg-open");
     #[cfg(target_os = "windows")]
     let mut cmd = {
-        // `explorer` abre a URL no navegador padrão sem passar pelo interpretador de comandos.
+        // `explorer` opens the URL in the default browser without going through the command interpreter.
         std::process::Command::new("explorer")
     };
     cmd.arg(url).spawn().map(|_| ()).map_err(|_| "unavailable")

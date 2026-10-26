@@ -1,22 +1,22 @@
-//! Consulta read-only da OpenRouter (PRD 0038).
+//! Read-only OpenRouter query (PRD 0038).
 //!
-//! Contrato documentado em
+//! Contract documented at
 //! <https://openrouter.ai/docs/api/api-reference/api-keys/get-current-key>
 //! e <https://openrouter.ai/docs/api/api-reference/credits/get-credits>:
 //!
-//! - `params.product = "key"` (padrão): um `GET /api/v1/key` com uma chave de
-//!   **inferência**: limite da chave, orçamentos, gasto por período, BYOK e o
-//!   contador diário de requisições dos modelos `:free`;
-//! - `params.product = "account"`: `GET /api/v1/credits` com uma chave de
-//!   **gerenciamento** (saldo de créditos) e, opcionalmente
-//!   (`params.breakdown`), `GET /api/v1/activity` (gasto dos últimos 30 dias
-//!   concluídos por provedor de origem ou modelo).
+//! - `params.product = "key"` (default): one `GET /api/v1/key` with an
+//!   **inference** key: the key's limit, budgets, spend per period, BYOK and the
+//!   daily request counter for `:free` models;
+//! - `params.product = "account"`: `GET /api/v1/credits` with a
+//!   **management** key (credit balance) and, optionally
+//!   (`params.breakdown`), `GET /api/v1/activity` (spend over the last 30
+//!   completed days by origin provider or model).
 //!
-//! O adaptador lê apenas os campos que usa de um `serde_json::Value`:
-//! `label`, `creator_user_id`, `organization_id` e `workspace_id` nunca são
-//! copiados para métricas, notas ou logs. Nenhum endpoint de inferência é
-//! usado e a base é uma constante, de modo que a chave nunca é enviada a um
-//! host arbitrário; um redirecionamento é uma resposta rejeitada.
+//! The adapter reads only the fields it uses from a `serde_json::Value`:
+//! `label`, `creator_user_id`, `organization_id` and `workspace_id` are never
+//! copied into metrics, notes or logs. No inference endpoint is
+//! used and the base is a constant, so the key is never sent to an
+//! arbitrary host; a redirect is a rejected response.
 
 use super::{secret, send, Context, Data, QueryError};
 use crate::text::{params, Localized, Notes, ParamValue};

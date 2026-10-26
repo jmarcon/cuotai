@@ -1,6 +1,6 @@
-//! Configurações do app desktop (não confundir com o `cuotai.toml` de contas, que é do core).
-//! Arquivo `desktop.json` na pasta padrão de configuração: pasta de temas e idiomas e o
-//! `cuotai.toml` escolhido pelo usuário (só o caminho; nunca dentro do TOML).
+//! Desktop app settings (not to be confused with the accounts `cuotai.toml`, which belongs to the core).
+//! `desktop.json` file in the default configuration folder: themes and languages folder and the
+//! `cuotai.toml` chosen by the user (the path only; never inside the TOML).
 use cuotai_core::{
     alerts::THRESHOLD_RANGE,
     history::Retention,
@@ -22,8 +22,8 @@ struct Stored {
     user_dir: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     config_file: Option<String>,
-    /// Animações (PRD 0004 RF1.2); ausente = `system`. Texto livre na leitura: um valor
-    /// desconhecido vira `system` sem invalidar os demais campos do arquivo.
+    /// Animations (PRD 0004 RF1.2); absent = `system`. Free text on read: an unknown
+    /// value becomes `system` without invalidating the file's other fields.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     motion: Option<String>,
     /// Consumption pace (PRD 0007 RF3.4); absent = shown. Only `false` is stored.
@@ -934,7 +934,7 @@ pub fn hooks_enabled() -> bool {
     hooks_of(&load())
 }
 
-/// Valores aceitos para `motion`, na ordem exibida pela UI.
+/// Accepted values for `motion`, in the order the UI shows them.
 pub const MOTIONS: [&str; 4] = ["system", "always", "reduced", "off"];
 
 fn motion_of(stored: &Stored) -> &'static str {
@@ -944,7 +944,7 @@ fn motion_of(stored: &Stored) -> &'static str {
         .unwrap_or("system")
 }
 
-/// Pasta padrão de configuração do Cuotai (`<config do SO>/cuotai`).
+/// Default Cuotai configuration folder (`<OS config>/cuotai`).
 pub fn default_dir() -> Option<PathBuf> {
     dirs::config_dir().map(|d| d.join("cuotai"))
 }
@@ -964,7 +964,7 @@ fn load() -> Stored {
     settings_file().map(|f| read(&f)).unwrap_or_default()
 }
 
-/// Altera um campo preservando os demais. Escrita atômica (temporário + rename).
+/// Changes one field preserving the others. Atomic write (temporary file + rename).
 fn update(file: &Path, change: impl FnOnce(&mut Stored)) -> Result<(), &'static str> {
     let parent = file.parent().ok_or("unwritable")?;
     fs::create_dir_all(parent).map_err(|_| "unwritable")?;
@@ -976,7 +976,7 @@ fn update(file: &Path, change: impl FnOnce(&mut Stored)) -> Result<(), &'static 
     fs::rename(&tmp, file).map_err(|_| "unwritable")
 }
 
-/// Pasta personalizada salva pelo usuário (sem considerar `CUOTAI_USER_DIR`).
+/// Custom folder saved by the user (ignoring `CUOTAI_USER_DIR`).
 pub fn custom_user_dir() -> Option<PathBuf> {
     load()
         .user_dir
@@ -984,20 +984,20 @@ pub fn custom_user_dir() -> Option<PathBuf> {
         .filter(|p| p.is_absolute())
 }
 
-/// A variável de ambiente tem prioridade e bloqueia a edição pela interface.
+/// The environment variable takes priority and blocks editing through the interface.
 pub fn env_user_dir() -> Option<PathBuf> {
     std::env::var_os("CUOTAI_USER_DIR").map(PathBuf::from)
 }
 
-/// Pasta efetiva: variável de ambiente → configuração do usuário → padrão.
+/// Effective folder: environment variable → user setting → default.
 pub fn effective_user_dir() -> Option<PathBuf> {
     env_user_dir().or_else(custom_user_dir).or_else(default_dir)
 }
 
-/// Erros com código estável (a UI traduz): `invalid_path`, `not_dir`, `unwritable`.
+/// Errors with a stable code (the UI translates): `invalid_path`, `not_dir`, `unwritable`.
 pub fn validate_dir(path: &Path) -> Result<(), &'static str> {
     if !path.is_absolute() || path.parent().is_none() || path.components().count() < 3 {
-        return Err("invalid_path"); // relativo ou raiz do disco / pasta de topo
+        return Err("invalid_path"); // relative or disk root / top-level folder
     }
     if path.exists() && !path.is_dir() {
         return Err("not_dir");
@@ -1020,7 +1020,7 @@ pub fn save_user_dir(dir: Option<&Path>) -> Result<(), &'static str> {
     update(&file, |s| s.user_dir = dir.map(|d| d.display().to_string()))
 }
 
-/// `cuotai.toml` escolhido nas configurações (sem considerar `CUOTAI_CONFIG`).
+/// `cuotai.toml` chosen in settings (ignoring `CUOTAI_CONFIG`).
 pub fn chosen_config() -> Option<PathBuf> {
     load()
         .config_file
@@ -1028,7 +1028,7 @@ pub fn chosen_config() -> Option<PathBuf> {
         .filter(|p| p.is_absolute())
 }
 
-/// Erro com código estável (a UI traduz): `not_file` (relativo, ausente ou pasta).
+/// Error with a stable code (the UI translates): `not_file` (relative, missing or a folder).
 pub fn validate_config_file(path: &Path) -> Result<(), &'static str> {
     if path.is_absolute() && path.is_file() {
         Ok(())
@@ -1037,7 +1037,7 @@ pub fn validate_config_file(path: &Path) -> Result<(), &'static str> {
     }
 }
 
-/// Grava (ou, com `None`, remove) o arquivo escolhido; o chamador já validou e carregou.
+/// Writes (or, with `None`, removes) the chosen file; the caller has already validated and loaded it.
 pub fn save_config_file(path: Option<&Path>) -> Result<(), &'static str> {
     let file = settings_file().ok_or("unwritable")?;
     update(&file, |s| {
@@ -1045,7 +1045,7 @@ pub fn save_config_file(path: Option<&Path>) -> Result<(), &'static str> {
     })
 }
 
-/// Grava a preferência de animações. Erro com código estável: `invalid_motion`.
+/// Writes the animations preference. Error with a stable code: `invalid_motion`.
 pub fn save_motion(motion: &str) -> Result<(), &'static str> {
     if !MOTIONS.contains(&motion) {
         return Err("invalid_motion");
@@ -1409,15 +1409,15 @@ pub struct SettingsView {
     /// Pasta em uso agora.
     user_dir: Option<String>,
     default_dir: Option<String>,
-    /// Pasta escolhida pelo usuário (vazia = usa a padrão).
+    /// Folder chosen by the user (empty = use the default).
     custom_dir: Option<String>,
-    /// `CUOTAI_USER_DIR` definida: a escolha pela interface não tem efeito.
+    /// `CUOTAI_USER_DIR` is set: the choice made through the interface has no effect.
     env_locked: bool,
-    /// `cuotai.toml` escolhido (vazio = padrão do SO).
+    /// Chosen `cuotai.toml` (empty = OS default).
     config_file: Option<String>,
-    /// `CUOTAI_CONFIG` definida: tem prioridade sobre o arquivo escolhido.
+    /// `CUOTAI_CONFIG` is set: it takes priority over the chosen file.
     config_env_locked: bool,
-    /// Animações: `system`, `always`, `reduced` ou `off`.
+    /// Animations: `system`, `always`, `reduced` or `off`.
     motion: &'static str,
     /// Consumption pace on cards, details and tray (on by default).
     show_pace: bool,
@@ -1565,7 +1565,7 @@ pub fn view() -> SettingsView {
     }
 }
 
-/// Abre a pasta no gerenciador de arquivos do sistema. Só a pasta efetiva, nunca um caminho vindo da UI.
+/// Opens the folder in the system file manager. Only the effective folder, never a path coming from the UI.
 pub fn open_user_dir() -> Result<(), &'static str> {
     let dir = effective_user_dir().ok_or("invalid_path")?;
     fs::create_dir_all(&dir).map_err(|_| "unwritable")?;
@@ -1862,7 +1862,7 @@ mod tests {
         let stored = read(&file);
         assert_eq!(motion_of(&stored), "off");
         assert_eq!(stored.user_dir.as_deref(), Some("/u"));
-        // Valor desconhecido (edição manual) cai no padrão e não apaga o resto.
+        // Unknown value (manual edit) falls back to the default and does not erase the rest.
         fs::write(&file, r#"{"user_dir":"/u","motion":"fast"}"#).unwrap();
         let stored = read(&file);
         assert_eq!(motion_of(&stored), "system");

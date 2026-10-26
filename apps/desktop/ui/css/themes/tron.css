@@ -1,4 +1,4 @@
-/* Tron (The Grid) — neon ciano e laranja sobre a grade; escuro "Grid" e claro "Legacy Light". */
+/* Tron (The Grid) — cyan and orange neon on the grid; dark "Grid" and light "Legacy Light". */
 :root[data-theme="tron"][data-mode="dark"] {
   color-scheme: dark;
   --bg: #000a0f;

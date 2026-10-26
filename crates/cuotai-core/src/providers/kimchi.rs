@@ -1,21 +1,21 @@
-//! Consulta read-only de créditos e orçamentos do Kimchi.
+//! Read-only query of Kimchi credits and budgets.
 //!
-//! Contrato confirmado no cliente oficial `getkimchi/kimchi`, revisão
-//! `36cc0406339a50f5ced984266d0306fb8a150408` (2026-09-29), em
+//! Contract confirmed in the official client `getkimchi/kimchi`, revision
+//! `36cc0406339a50f5ced984266d0306fb8a150408` (2026-09-29), in
 //! `src/extensions/billing/status.ts`:
 //!
 //! - `GET https://llm.kimchi.dev/v1/credits`
 //! - `GET https://llm.kimchi.dev/v1/budget`
-//! - ambos usam `Authorization: Bearer $KIMCHI_API_KEY`;
-//! - `/v1/credits` devolve `serverless`, `tier`, `is_paid_tier`,
-//!   `billing_status`, `has_credits` e `remaining` (número ou string numérica);
-//! - `/v1/budget` devolve `period.{startTime,endTime}` e `budgets[]`, com
-//!   `scope`, `budgetLimitUsd`, `totalSpendUsd` e `providerBudgets[]`.
+//! - both use `Authorization: Bearer $KIMCHI_API_KEY`;
+//! - `/v1/credits` returns `serverless`, `tier`, `is_paid_tier`,
+//!   `billing_status`, `has_credits` and `remaining` (number or numeric string);
+//! - `/v1/budget` returns `period.{startTime,endTime}` and `budgets[]`, with
+//!   `scope`, `budgetLimitUsd`, `totalSpendUsd` and `providerBudgets[]`.
 //!
-//! O endpoint de orçamento é complementar: o próprio cliente oficial tolera
-//! `404` de proxies antigos. Uma falha apenas nessa segunda consulta não apaga
-//! o saldo real já obtido de `/v1/credits`. Nenhum endpoint de geração é usado.
-//! A criação manual da chave está documentada em
+//! The budget endpoint is complementary: the official client itself tolerates
+//! `404` from old proxies. A failure only in that second query does not erase
+//! the real balance already obtained from `/v1/credits`. No generation endpoint is used.
+//! Manual key creation is documented at
 //! <https://docs.kimchi.dev/docs/inference-quickstart.md>.
 
 use super::{json, secret, send as secure_send, Context, Data, Miss, QueryError};
@@ -212,7 +212,7 @@ fn budget_fields(value: &Value) -> Result<Vec<Metric>, Miss> {
     let resets_at = DateTime::parse_from_rfc3339(end)
         .map_err(|_| in_period(Miss::new("endTime", "string")))?
         .with_timezone(&Utc);
-    // Validar também o início evita rotular como período uma resposta truncada.
+    // Validating the start too avoids labeling a truncated response as a period.
     DateTime::parse_from_rfc3339(start).map_err(|_| in_period(Miss::new("startTime", "string")))?;
     let period_label = format!("{start} — {end}");
 
@@ -239,8 +239,8 @@ fn budget_entry(
     let budget = value.as_object().ok_or_else(|| Miss::root("object"))?;
     let scope = required_string(budget, "scope")?;
     let scope_label = scope_label(scope).ok_or_else(|| Miss::new("scope", "string"))?;
-    // scopeId faz parte do contrato, mas não é exibido: pode identificar
-    // usuário, equipe ou chave e não é necessário para a métrica.
+    // scopeId is part of the contract, but is not shown: it may identify a
+    // user, team or key and is not needed for the metric.
     required_string(budget, "scopeId")?;
     let limit = usd_string(budget, "budgetLimitUsd")?;
     let used = usd_string(budget, "totalSpendUsd")?;
@@ -317,7 +317,7 @@ fn push_budget_metric(
     period: &str,
     resets_at: DateTime<Utc>,
 ) {
-    // O cliente oficial interpreta budgetLimitUsd == 0 como ilimitado.
+    // The official client interprets budgetLimitUsd == 0 as unlimited.
     let (limit, remaining) = if limit > 0.0 {
         (Some(limit), Some(limit - used))
     } else {

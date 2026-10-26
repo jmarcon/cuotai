@@ -8,15 +8,15 @@ export const fold = (s) => String(s ?? "").normalize("NFD").replace(/[\u0300-\u0
 export const esc = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
-/** Deixa `el` igual a `html` mexendo só no que mudou (PRD 0004 RF1.3): nós mantidos preservam foco,
- *  rolagem e transições CSS (ex.: `.bar > span` anima a largura nova). Filhos com `data-card` casam pela
- *  chave (criados, movidos ou removidos); os demais, por posição e tipo. */
+/** Makes `el` equal to `html` touching only what changed (PRD 0004 RF1.3): kept nodes preserve focus,
+ *  scroll and CSS transitions (e.g. `.bar > span` animates the new width). Children with `data-card` match by
+ *  key (created, moved or removed); the others, by position and type. */
 export function patch(el, html) {
   const t = document.createElement("template");
   t.innerHTML = html;
   const focused = document.activeElement;
   patchChildren(el, t.content);
-  // Mover um cartão (insertBefore) tira o foco no Chromium/WebKit; devolve sem rolar.
+  // Moving a card (insertBefore) drops focus in Chromium/WebKit; it gives focus back without scrolling.
   if (focused !== document.activeElement && focused?.isConnected) focused.focus({ preventScroll: true });
 }
 const keyOf = (n) => (n.nodeType === 1 ? n.getAttribute("data-card") : null);
@@ -27,23 +27,23 @@ function patchChildren(old, next) {
     const k = keyOf(c);
     if (k == null) continue;
     if (nextKeys.has(k)) keyed.set(k, c);
-    else c.remove(); // remove antes de alinhar: os vizinhos não precisam ser movidos (mover tira o foco)
+    else c.remove(); // remove before aligning: the neighbors do not need to be moved (moving drops focus)
   }
   let cur = old.firstChild;
   for (const n of [...next.childNodes]) {
     const k = keyOf(n);
     let match = k != null ? keyed.get(k) : cur && keyOf(cur) == null && cur.nodeName === n.nodeName ? cur : null;
     if (!match && k == null && n.nodeType === 1) {
-      // Um elemento sumiu antes deste (ex.: um aviso fechado): descarta os nós sem chave até o par, em vez de
-      // recriar o resto (recriar o `<main>` perderia foco, barras e os cartões).
+      // An element vanished before this one (e.g. a dismissed notice): discard the unkeyed nodes up to the pair, instead of
+      // recreating the rest (recreating `<main>` would lose focus, bars and the cards).
       let c = cur;
       while (c && keyOf(c) == null && c.nodeName !== n.nodeName) c = c.nextSibling;
       if (c && keyOf(c) == null) { while (cur !== c) { const nx = cur.nextSibling; cur.remove(); cur = nx; } match = c; }
     }
-    if (k != null) keyed.delete(k); // chave repetida: o segundo cartão ganha um nó novo
+    if (k != null) keyed.delete(k); // duplicate key: the second card gets a new node
     if (!match) { old.insertBefore(n, cur); continue; }
-    // Um cartão (nó com chave) idêntico ao novo não tem nada a corrigir: a comparação nativa poupa percorrer a
-    // subárvore em JS a cada redesenho (cartões não têm campos de texto, cujo valor digitado o atributo não reflete).
+    // A card (keyed node) identical to the new one has nothing to fix: the native comparison saves walking the
+    // subtree in JS on every redraw (cards have no text fields, whose typed value the attribute does not reflect).
     if (k == null || !match.isEqualNode(n)) patchNode(match, n);
     if (match === cur) cur = cur.nextSibling;
     else old.insertBefore(match, cur);
@@ -54,7 +54,7 @@ function patchNode(a, b) {
   if (a.nodeType !== 1) { if (a.nodeValue !== b.nodeValue) a.nodeValue = b.nodeValue; return; }
   for (const { name } of [...a.attributes]) if (!b.hasAttribute(name)) a.removeAttribute(name);
   for (const { name, value } of b.attributes) if (a.getAttribute(name) !== value) a.setAttribute(name, value);
-  if (a instanceof HTMLInputElement && a.value !== b.value) a.value = b.value; // o atributo não muda o valor digitado
+  if (a instanceof HTMLInputElement && a.value !== b.value) a.value = b.value; // the attribute does not change the typed value
   patchChildren(a, b);
 }
 

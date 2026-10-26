@@ -1,51 +1,51 @@
-//! Alibaba Cloud — cobrança de conta mestra via BSS OpenAPI (somente leitura).
+//! Alibaba Cloud — master account billing via the BSS OpenAPI (read-only).
 //!
-//! Fontes oficiais consultadas em 2026-09-29 (SDK Go `alibaba-cloud-sdk-go`
-//! branch `master`, commit de referência `services/bssopenapi/`):
+//! Official sources consulted on 2026-09-29 (Go SDK `alibaba-cloud-sdk-go`
+//! branch `master`, reference commit `services/bssopenapi/`):
 //!
 //! - `QueryAccountBalance` (`POST /`, Action `QueryAccountBalance`,
-//!   Version `2017-12-14`): resposta com `Code`, `Message`, `RequestId`,
-//!   `Success` (bool) e `Data{ AvailableAmount, AvailableCashAmount,
+//!   Version `2017-12-14`): response with `Code`, `Message`, `RequestId`,
+//!   `Success` (bool) and `Data{ AvailableAmount, AvailableCashAmount,
 //!   CreditAmount, MybankCreditAmount, Currency, BillingCycle, AccountName,
-//!   AccountID, ... }`. Campos monetários retornam como **string**
-//!   (decimal fixo); SDK oficial: `services/bssopenapi/struct_data.go`,
+//!   AccountID, ... }`. Monetary fields come back as a **string**
+//!   (fixed decimal); official SDK: `services/bssopenapi/struct_data.go`,
 //!   `query_account_balance.go`.
 //! - `QueryBill` (`POST /`, Action `QueryBill`, Version `2017-12-14`):
-//!   resposta `Data{ PageNum, PageSize, TotalCount, BillingCycle,
+//!   response `Data{ PageNum, PageSize, TotalCount, BillingCycle,
 //!   Items.Item[] { PretaxAmount, AfterTaxAmount, Currency, ProductCode,
 //!   ProductName, BillingItem, BillingItemCode, Usage, UsageUnit,
-//!   UsageStartTime, UsageEndTime, ... } }`. Paginação por `PageNum`/
-//!   `PageSize` (sem token de continuação), `TotalCount` é a fonte de
-//!   verdade: SDK `query_bill.go`, `struct_data_in_query_bill.go`,
+//!   UsageStartTime, UsageEndTime, ... } }`. Pagination by `PageNum`/
+//!   `PageSize` (no continuation token), `TotalCount` is the source of
+//!   truth: SDK `query_bill.go`, `struct_data_in_query_bill.go`,
 //!   `struct_items_in_query_bill.go`, `struct_item.go`.
-//! - **Assinatura**: legacy RPC v1 (`HMAC-SHA1`, `SignatureVersion=1.0`)
-//!   canônica do SDK Go `sdk/auth/rpc_signature_composer.go` e
-//!   `sdk/auth/signers/signer_access_key.go`. Vetores oficiais em
-//!   `sdk/auth/rpc_signature_composer_test.go` reproduzidos literalmente:
+//! - **Signature**: legacy RPC v1 (`HMAC-SHA1`, `SignatureVersion=1.0`)
+//!   canonical form from the Go SDK `sdk/auth/rpc_signature_composer.go` and
+//!   `sdk/auth/signers/signer_access_key.go`. Official vectors in
+//!   `sdk/auth/rpc_signature_composer_test.go` reproduced literally:
 //!   `{AK:"accessKeyId",SK:"accessKeySecret",region:"regionId",nonce:"MOCK_UUID",
-//!   date:"mock date"}` → `7loPmFjvDnzOVnQeQNj85S6nFGY=`; com STS token
+//!   date:"mock date"}` → `7loPmFjvDnzOVnQeQNj85S6nFGY=`; with STS token
 //!   `"accessKeyStsToken"` → `5Nxdcler+ihqWqv0Hr2On4PsBf4=`.
-//! - **Endpoints fixos** (`endpoint.go` do SDK): CN →
-//!   `business.aliyuncs.com`; Internacional (todas as regiões exceto China
-//!   mainland) → `business.ap-southeast-1.aliyuncs.com`. STS e Bearer
-//!   não fazem sentido aqui: a BSS aceita apenas AccessKey permanente ou
-//!   STS (par `AccessKeyId`/`AccessKeySecret` + `SecurityToken`).
+//! - **Fixed endpoints** (the SDK's `endpoint.go`): CN →
+//!   `business.aliyuncs.com`; International (all regions except China
+//!   mainland) → `business.ap-southeast-1.aliyuncs.com`. STS and Bearer
+//!   make no sense here: the BSS accepts only a permanent AccessKey or
+//!   STS (`AccessKeyId`/`AccessKeySecret` pair + `SecurityToken`).
 //!
-//! **Escopo desta adaptador (Provider::AlibabaCloud)**:
-//! - `QueryAccountBalance` é interpretado integralmente (sempre chamado).
-//! - `QueryBill` é tentado somente quando `params.billing_cycle` está
-//!   configurado como `YYYY-MM` (paginação completa até `TotalCount`).
-//!   Sem `params.billing_cycle`, a fatura do mês corrente não é consultada
-//!   para não confundir custo de IA com outros produtos da conta mestra:
-//!   a BSS consolida **toda** a conta, sem dimensão "apenas Model Studio".
-//!   O console oficial continua sendo a fonte de detalhe:
+//! **Scope of this adapter (Provider::AlibabaCloud)**:
+//! - `QueryAccountBalance` is interpreted in full (always called).
+//! - `QueryBill` is attempted only when `params.billing_cycle` is
+//!   set to `YYYY-MM` (full pagination up to `TotalCount`).
+//!   Without `params.billing_cycle`, the current month's bill is not queried
+//!   so as not to confuse AI cost with other master-account products:
+//!   the BSS consolidates the **whole** account, with no "Model Studio only" dimension.
+//!   The official console remains the source of detail:
 //!   <https://usercenter2.aliyun.com/billing/>.
 //!
-//! **Caveat**: valores retornam como `string` (decimal fixo de yuan) e a
-//! `Currency` é a do **cash account** (CNY por padrão em conta mestra
-//! mainland; pode ser outra para contas internacionais, segundo docs da
-//! BSS). Não fazemos suposição de produto: "Aliyun余额" no console. Não
-//! emitimos geração paga nem mutação de configuração.
+//! **Caveat**: values come back as `string` (fixed-decimal yuan) and the
+//! `Currency` is the **cash account**'s (CNY by default on a mainland
+//! master account; it may differ for international accounts, per the
+//! BSS docs). We make no product assumption: "Aliyun余额" in the console. We do not
+//! emit paid generation or configuration mutation.
 
 use super::{json, secret, Context, Data, QueryError};
 use crate::text::{params as l10n_params, Localized, Notes, ParamValue};
@@ -64,19 +64,19 @@ const FORMAT: &str = "JSON";
 
 /// Endpoint fixo CN (China mainland), conforme tabela `endpoint.go`.
 const CN_ENDPOINT: &str = "https://business.aliyuncs.com";
-/// Endpoint fixo internacional (todas as demais regiões), conforme tabela
-/// `endpoint.go` (`ap-southeast-1` cobre internacional na BSS OpenAPI).
+/// Fixed international endpoint (all other regions), per the
+/// `endpoint.go` table (`ap-southeast-1` covers international in the BSS OpenAPI).
 const INTL_ENDPOINT: &str = "https://business.ap-southeast-1.aliyuncs.com";
 
-/// Limite duro de páginas de `QueryBill` para evitar loops indefinidos
-/// caso `TotalCount` venha inconsistente. 200 páginas × 300 itens = 60 000
-/// linhas — mais do que uma conta normal precisa ver num único mês.
+/// Hard page limit for `QueryBill` to avoid endless loops
+/// if `TotalCount` comes back inconsistent. 200 pages × 300 items = 60 000
+/// rows — more than a normal account needs to see in a single month.
 const QUERY_BILL_MAX_PAGES: u32 = 200;
-/// `PageSize` default enviado à BSS. O serviço aceita 1..300.
+/// Default `PageSize` sent to the BSS. The service accepts 1..300.
 const QUERY_BILL_PAGE_SIZE: u32 = 300;
 
-/// Variáveis de ambiente padrão; o usuário pode sobrescrever via
-/// `account.credential_env` (AccessKeyId) e `params.secret_env` (Secret).
+/// Default environment variables; the user may override via
+/// `account.credential_env` (AccessKeyId) and `params.secret_env` (Secret).
 const DEFAULT_AK_ENV: &str = "ALIBABA_CLOUD_ACCESS_KEY_ID";
 const DEFAULT_SK_ENV: &str = "ALIBABA_CLOUD_ACCESS_KEY_SECRET";
 
@@ -151,8 +151,8 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
     let mut notes: Notes = notes_l10n.into_iter().collect();
 
     if let Some(cycle) = billing_cycle(account)? {
-        // billing_cycle explícito: erro de QueryBill PROPAGA — não
-        // silenciamos, pois o usuário pediu o custo e ele deve saber.
+        // explicit billing_cycle: a QueryBill error PROPAGATES — we do not
+        // silence it, since the user asked for the cost and must know about it.
         let BillReport {
             metric,
             notes: _,
@@ -254,11 +254,11 @@ fn billing_cycle(account: &Account) -> Result<Option<String>, QueryError> {
 
 // --------------------------------------------------------------------- signing
 
-/// Codifica **um** par `chave=valor` no estilo `url.QueryEscape` do Go
-/// (`net/url.QueryEscape`): escapa tudo que não é unreserved em RFC 3986
-/// (`A-Z a-z 0-9 - _ . ~`). Corresponde a `urllib.parse.quote(s, safe="-_.~")`
-/// em Python. Usado dentro do `stringToSign` para casar literalmente com
-/// o vetor oficial do SDK Go (`rpc_signature_composer_test.go`).
+/// Encodes **one** `key=value` pair in the style of Go's `url.QueryEscape`
+/// (`net/url.QueryEscape`): escapes everything that is not unreserved in RFC 3986
+/// (`A-Z a-z 0-9 - _ . ~`). Matches `urllib.parse.quote(s, safe="-_.~")`
+/// in Python. Used inside the `stringToSign` to match the Go SDK's official
+/// vector literally (`rpc_signature_composer_test.go`).
 fn go_query_escape(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for &b in s.as_bytes() {
@@ -267,7 +267,7 @@ fn go_query_escape(s: &str) -> String {
         if is_unreserved {
             out.push(c);
         } else {
-            // Cobertura completa de bytes UTF-8 multibyte: %XX para cada.
+            // Full coverage of multibyte UTF-8 bytes: %XX for each.
             out.push('%');
             out.push_str(&format!("{:02X}", b));
         }
@@ -275,21 +275,21 @@ fn go_query_escape(s: &str) -> String {
     out
 }
 
-/// Codifica o `stringToSign` no padrão RPC v1 da Alibaba Cloud.
+/// Encodes the `stringToSign` in Alibaba Cloud's RPC v1 standard.
 ///
-/// Pipeline idêntico ao `buildRpcStringToSign` do SDK Go
+/// Pipeline identical to the Go SDK's `buildRpcStringToSign`
 /// (`sdk/auth/rpc_signature_composer.go`):
-///   1. juntar `queryParams ∪ formParams` num único mapa,
-///   2. ordenar chaves em ordem lexicográfica,
-///   3. `key=value` joined por `&` com cada lado passado por
-///      `go_query_escape` (passo 1 do `GetUrlFormedMap`),
-///   4. substituir `+` → `%20`, `*` → `%2A`, `%7E` → `~`,
-///   5. aplicar `go_query_escape` no resultado inteiro
-///      (passo final do Go, equivalente a `url.QueryEscape`),
-///   6. prefixar `"<METHOD>&%2F&"`.
+///   1. merge `queryParams ∪ formParams` into a single map,
+///   2. sort keys in lexicographic order,
+///   3. `key=value` joined by `&` with each side passed through
+///      `go_query_escape` (step 1 of `GetUrlFormedMap`),
+///   4. replace `+` → `%20`, `*` → `%2A`, `%7E` → `~`,
+///   5. apply `go_query_escape` to the whole result
+///      (Go's final step, equivalent to `url.QueryEscape`),
+///   6. prefix `"<METHOD>&%2F&"`.
 ///
-/// `method` é o verbo HTTP (`GET`/`POST`); testado com `GET` no vetor
-/// oficial.
+/// `method` is the HTTP verb (`GET`/`POST`); tested with `GET` on the
+/// official vector.
 fn canonical_string(method: &str, params: &std::collections::BTreeMap<String, String>) -> String {
     let step1: String = params
         .iter()
@@ -304,18 +304,18 @@ fn canonical_string(method: &str, params: &std::collections::BTreeMap<String, St
     format!("{method}&%2F&{step3}")
 }
 
-/// Assina uma request RPC v1 da Alibaba. `form_params` é o conjunto de
-/// parâmetros do corpo da aplicação (BillingCycle, PageNum, …); os demais
-/// parâmetros do envelope de assinatura (`Version`, `Action`, `Format`,
+/// Signs an Alibaba RPC v1 request. `form_params` is the set of
+/// application body parameters (BillingCycle, PageNum, …); the other
+/// signature-envelope parameters (`Version`, `Action`, `Format`,
 /// `Timestamp`, `SignatureMethod`, `SignatureVersion`, `SignatureType`,
-/// `SignatureNonce`, `AccessKeyId`, `RegionId`, `SecurityToken?`) entram
-/// em `query_overrides` para garantir precedência sobre nomes colidentes.
+/// `SignatureNonce`, `AccessKeyId`, `RegionId`, `SecurityToken?`) go into
+/// `query_overrides` to guarantee precedence over colliding names.
 ///
 /// `request_uuid` is the per-request unique value sent as `SignatureNonce`
 /// (SDK vocabulary); production passes a fresh random UUID v4.
 ///
-/// `version` permite passar `""` para reproduzir vetores oficiais do SDK
-/// Go (request sem `InitWithApiInfo`); em produção é sempre `VERSION`.
+/// `version` allows passing `""` to reproduce the Go SDK's official vectors
+/// (request without `InitWithApiInfo`); in production it is always `VERSION`.
 #[allow(clippy::too_many_arguments)] // RPC signature includes every signed protocol field.
 fn sign(
     method: &str,
@@ -354,8 +354,8 @@ fn sign(
     base64::engine::general_purpose::STANDARD.encode(mac.finalize().into_bytes())
 }
 
-/// Gera nonce (UUID v4 randomico) + timestamp ISO-8601 UTC.
-/// Override disponível apenas para testes com vetores oficiais.
+/// Generates nonce (random UUID v4) + ISO-8601 UTC timestamp.
+/// Override available only for tests with official vectors.
 fn build_nonce_and_timestamp() -> (String, String) {
     use chrono::Utc;
     let nonce = uuid::Uuid::new_v4().simple().to_string();
@@ -426,9 +426,9 @@ async fn fetch_balance(
         &[],
     );
 
-    // POST form-body com TODOS os parâmetros de assinatura + Signature:
-    // AccessKeyId/SecurityToken não vazam para URL (logs/proxies). O
-    // AccessKeySecret nunca é transmitido — apenas entra no HMAC.
+    // POST form body with ALL signature parameters + Signature:
+    // AccessKeyId/SecurityToken do not leak into the URL (logs/proxies). The
+    // AccessKeySecret is never transmitted — it only goes into the HMAC.
     let url = format!("{endpoint}/");
     let mut params = vec![
         ("AccessKeyId", ak),
@@ -469,8 +469,8 @@ async fn fetch_balance(
         "AvailableCashAmount",
     )?;
     let credit = decimal_to_f64(data.credit_amount.as_deref().unwrap_or(""), "CreditAmount")?;
-    // MybankCreditAmount é opcional (subset do CreditAmount). Se ausente,
-    // não falhamos: apenas registramos a ausência na nota.
+    // MybankCreditAmount is optional (a subset of CreditAmount). If absent,
+    // we do not fail: we only record the absence in the note.
     let mybank = data
         .mybank_credit_amount
         .as_deref()
@@ -595,8 +595,8 @@ async fn fetch_balance(
     let (notes, notes_l10n) = notes.finish();
 
     Ok(BalanceReport {
-        // AvailableAmount e AvailableCashAmount são saldos: usamos
-        // `remaining` (desconhecido → não zero).
+        // AvailableAmount and AvailableCashAmount are balances: we use
+        // `remaining` (unknown → not zero).
         available_metric: Metric {
             billing: Default::default(),
             scope: None,
@@ -623,8 +623,8 @@ async fn fetch_balance(
             period: Some("saldo atual".into()),
             resets_at: None,
         },
-        // CreditAmount é **limite** de crédito (cap), não saldo gasto:
-        // modelamos como `limit` para refletir o teto do benefício.
+        // CreditAmount is a credit **limit** (cap), not a spent balance:
+        // we model it as `limit` to reflect the benefit's ceiling.
         credit_metric: Metric {
             billing: Default::default(),
             scope: None,
@@ -797,9 +797,9 @@ async fn fetch_bill(
             _ => {}
         }
 
-        // Paginação por offset: termina quando a página retornou menos que
-        // o pedido, ou quando já cobrimos `TotalCount`. `TotalCount==0`
-        // encerra imediatamente.
+        // Offset pagination: ends when the page returned fewer than
+        // requested, or when we already covered `TotalCount`. `TotalCount==0`
+        // ends immediately.
         if page_items.is_empty()
             || page_items.len() < last_page_size as usize
             || items_seen >= page_total
@@ -998,8 +998,8 @@ mod tests {
     #[test]
     fn assinatura_vetor_oficial_sem_sts() {
         // sdk/auth/rpc_signature_composer_test.go: linhas 39–55
-        // Vetor oficial do SDK Go para um request sem InitWithApiInfo
-        // (Version="" e Action=""), nonce e timestamp fixos.
+        // Official Go SDK vector for a request without InitWithApiInfo
+        // (Version="" and Action=""), fixed nonce and timestamp.
         let p = official_params("MOCK_UUID", "mock date", "regionId", "");
         let s = canonical_string("GET", &p);
         let sig = sign(
@@ -1041,10 +1041,10 @@ mod tests {
 
     #[test]
     fn assinatura_producao_deterministica_para_mesmos_parametros() {
-        // Em produção: Version="2017-12-14" e Action="QueryAccountBalance".
-        // Para os mesmos Timestamp+Nonce+form_params, a assinatura é
-        // reproduzível (não depende de clock). Aqui travamos nonce e ts
-        // para verificar a string de assinatura.
+        // In production: Version="2017-12-14" and Action="QueryAccountBalance".
+        // For the same Timestamp+Nonce+form_params, the signature is
+        // reproducible (it does not depend on the clock). Here we pin nonce and ts
+        // to verify the signature string.
         let sig_a = sign(
             "POST",
             "AK",
@@ -1070,7 +1070,7 @@ mod tests {
             &[("BillingCycle", "2026-09")],
         );
         assert_eq!(sig_a, sig_b);
-        // Mudar qualquer parâmetro deve mudar a assinatura.
+        // Changing any parameter must change the signature.
         let sig_c = sign(
             "POST",
             "AK",
@@ -1113,7 +1113,7 @@ mod tests {
         assert_eq!(go_query_escape("ação"), "a%C3%A7%C3%A3o");
     }
 
-    // --------------------------------------------- parsing / validação helpers
+    // --------------------------------------------- parsing / validation helpers
 
     #[test]
     fn decimal_para_f64_rejeita_strings_invalidas() {
@@ -1175,7 +1175,7 @@ mod tests {
         assert_eq!(other.status, Status::Error);
     }
 
-    // --------------------------------------------- integração wiremock
+    // --------------------------------------------- wiremock integration
 
     #[tokio::test]
     async fn balance_sucesso_retorna_metricas_e_moeda() {
@@ -1324,10 +1324,10 @@ mod tests {
         m.insert("ALIBABA_ALT_SECRET".into(), "sk-alt".into());
         let creds = EnvCreds(m);
         let acc = account(None, None, Some("ALIBABA_ALT_SECRET"), None);
-        // Não precisa do servidor aqui: a falta do secret customizado
-        // deve ser detectada antes da rede. Mas como default e customizado
-        // estão presentes, a função prossegue e tenta HTTP; usamos um
-        // mock que sempre falha para validar que a chamada de fato tenta.
+        // No server needed here: the missing custom secret
+        // must be detected before the network. But since the default and custom ones
+        // are present, the function proceeds and tries HTTP; we use a
+        // mock that always fails to validate that the call does try.
         let server = MockServer::start().await;
         Mock::given(method("POST"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
@@ -1336,16 +1336,16 @@ mod tests {
             })))
             .mount(&server)
             .await;
-        // O endpoint real é fixo, então usamos um dos endereços para
-        // inspecionar a chamada. Aqui só validamos que a ausência do env
-        // customizado produz erro de configuração sem servidor.
+        // The real endpoint is fixed, so we use one of the addresses to
+        // inspect the call. Here we only validate that a missing custom
+        // env produces a configuration error without a server.
         let creds_sem_custom = EnvCreds(BTreeMap::from([(DEFAULT_AK_ENV.into(), "AK".into())]));
         let err = fetch(&acc, &ctx(&http, &creds_sem_custom))
             .await
             .unwrap_err();
         assert_eq!(err.status, Status::NeedsConfiguration);
         assert!(err.note.fallback.contains("ALIBABA_ALT_SECRET"));
-        // sanity: com creds válidas, a chamada prossegue (não estoura aqui).
+        // sanity: with valid creds, the call proceeds (does not blow up here).
         let _ = ctx(&http, &creds);
     }
 
@@ -1423,8 +1423,8 @@ mod tests {
     #[tokio::test]
     async fn bill_pagina_multiplas_vezes_e_valida_total_count() {
         let server = MockServer::start().await;
-        // página 1: 300 itens, TotalCount=450
-        // página 2: 150 itens, TotalCount=450
+        // page 1: 300 items, TotalCount=450
+        // page 2: 150 items, TotalCount=450
         Mock::given(method("POST"))
             .and(path("/"))
             .and(header("x-acs-action", "QueryBill"))
@@ -1612,18 +1612,18 @@ mod tests {
             })))
             .mount(&server)
             .await;
-        // O fetch público usa endpoint fixo, então usamos um helper que
-        // aceita endpoint variável. Aqui validamos apenas o fetch_balance
-        // e a nota de ausência de billing_cycle via account config.
+        // The public fetch uses a fixed endpoint, so we use a helper that
+        // accepts a variable endpoint. Here we only validate fetch_balance
+        // and the missing-billing_cycle note via account config.
         let http = reqwest::Client::new();
         let creds = creds("AK", "sk", None);
         let acc = account(None, None, None, None);
-        // fetch público chama o endpoint fixo. Para testá-lo, precisamos
-        // mockar o endpoint oficial — wiremock permite. O servidor acima
-        // serve qualquer path "/", então apontamos a constante CN/INTL
-        // para a URL do mock não é trivial sem alterar o design. Aqui
-        // validamos indiretamente: a configuração sem billing_cycle não
-        // tenta QueryBill (não há mock para ela).
+        // the public fetch calls the fixed endpoint. To test it, we need to
+        // mock the official endpoint — wiremock allows it. The server above
+        // serves any "/" path, so pointing the CN/INTL constant
+        // at the mock URL is not trivial without changing the design. Here
+        // we validate indirectly: the configuration without billing_cycle does not
+        // attempt QueryBill (there is no mock for it).
         let _ = ctx(&http, &creds);
         assert!(billing_cycle(&acc).unwrap().is_none());
     }

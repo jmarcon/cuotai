@@ -1,5 +1,5 @@
-// Bandeiras em SVG embutido (emoji de bandeira não renderiza no Windows). Proporção 3:2.
-// Para um país novo, acrescente uma entrada em FLAGS; sem bandeira, usa-se um globo.
+// Inline SVG flags (flag emoji do not render on Windows). 3:2 aspect ratio.
+// For a new country, add an entry to FLAGS; without a flag, a globe is used.
 const bands = (dir, colors) => {
   const n = colors.length;
   return colors.map((c, i) =>
@@ -54,7 +54,7 @@ const GLOBE = `<rect width="30" height="20" fill="#4a6fa5"/><circle cx="15" cy="
 const LANG_FLAG = { en: "us", es: "es", pt: "pt", fr: "fr", de: "de", it: "it", nl: "nl", ru: "ru", pl: "pl", ja: "jp",
   ko: "kr", vi: "vn", tr: "tr", zh: "cn", hi: "in", id: "id" };
 
-/** País da bandeira de um idioma: `_meta.flag` explícito, senão a região do código (pt-BR → br), senão a língua. */
+/** Flag country for a language: explicit `_meta.flag`, otherwise the code's region (pt-BR → br), otherwise the language. */
 export function flagCountry(code, explicit) {
   if (/^[A-Za-z]{2}$/.test(explicit ?? "")) return explicit.toLowerCase();
   const [lang, region] = code.split("-");

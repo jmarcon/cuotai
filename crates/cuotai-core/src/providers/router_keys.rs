@@ -1,18 +1,18 @@
-//! Consultas de quota para provedores de roteamento por chave: OpenCode Go,
-//! Groq, Kimi Coding (opt-in) e Xiaomi MiMo.
+//! Quota queries for key-routed providers: OpenCode Go,
+//! Groq, Kimi Coding (opt-in) and Xiaomi MiMo.
 //!
-//! Todos os endpoints aqui são rotas internas/não documentadas publicamente,
-//! portadas do projeto 9router (licença MIT, commit
+//! All endpoints here are internal/publicly undocumented routes,
+//! ported from the 9router project (MIT license, commit
 //! f01fb909e37189008080632ddaf404f096345cde, github.com/decolua/9router):
 //! - open-sse/services/usage/opencode-go.js — GET https://opencode.ai/zen/go/v1/usage
 //! - open-sse/services/usage/groq.js — GET https://api.groq.com/openai/v1/models
-//!   (quota via cabeçalhos x-ratelimit-*, sem consumir tokens)
+//!   (quota via x-ratelimit-* headers, without consuming tokens)
 //! - open-sse/services/usage/kimi.js — GET https://api.kimi.com/coding/v1/usages
 //! - open-sse/services/usage/xiaomi-mimo.js + open-sse/shared/mimoAccount.js
 //!
-//! Por serem rotas internas, podem mudar sem aviso; cada resposta inclui uma
-//! nota de estabilidade. Nenhum endpoint de geração, compra, reset ou consumo
-//! de créditos é chamado — apenas leituras GET idempotentes.
+//! Being internal routes, they may change without notice; each response includes a
+//! stability note. No generation, purchase, reset or credit consumption
+//! endpoint is called — only idempotent GET reads.
 
 use super::{secret, send as secure_send, Context, Data, QueryError};
 use crate::text::{params, provider_l10n, Localized, Notes, ParamValue};
@@ -24,8 +24,8 @@ pub(crate) const GROQ_MODELS_URL: &str = "https://api.groq.com/openai/v1/models"
 const KIMI_CODING_USAGES_URL: &str = "https://api.kimi.com/coding/v1/usages";
 const MIMO_AISTUDIO_USAGE_URL: &str = "https://aistudio.xiaomimimo.com/open-apis/v1/user/usage";
 
-/// Clusters regionais do serviço de conta MiMo (1:1 com mimoAccount.js do
-/// 9router). O padrão é `sgp`, o cluster internacional.
+/// Regional clusters of the MiMo account service (1:1 with mimoAccount.js from
+/// 9router). The default is `sgp`, the international cluster.
 const MIMO_REGION_BASES: [(&str, &str); 5] = [
     ("cn", "https://mimo-server-cn.xiaomimimo.com"),
     ("sgp", "https://mimo-server-sgp.xiaomimimo.com"),
@@ -34,7 +34,7 @@ const MIMO_REGION_BASES: [(&str, &str); 5] = [
     ("in", "https://mimo-server-in.xiaomimimo.com"),
 ];
 const MIMO_DEFAULT_REGION: &str = "sgp";
-/// User-Agent esperado pelo backend do mimo-server (mimoAccount.js).
+/// User-Agent expected by the mimo-server backend (mimoAccount.js).
 const MIMO_API_UA: &str =
     "miNative PC/Normal Windows_NT/10.0.19045 SDKV/1.0.0 DEVT/PC DEVS/Windows APP/miaccount_desktop APPV/0.1.0";
 
@@ -63,8 +63,8 @@ fn opt_param<'a>(account: &'a Account, key: &str) -> Option<&'a str> {
         .filter(|s| !s.is_empty())
 }
 
-/// Converte número ou string numérica (o 9router aceita ambos via
-/// `toFiniteNumber`) em f64 finito; ausente/inválido → None.
+/// Converts a number or numeric string (9router accepts both via
+/// `toFiniteNumber`) into a finite f64; absent/invalid → None.
 fn finite(value: Option<&serde_json::Value>) -> Option<f64> {
     match value? {
         serde_json::Value::Number(n) => n.as_f64().filter(|v| v.is_finite()),
@@ -80,8 +80,8 @@ fn finite(value: Option<&serde_json::Value>) -> Option<f64> {
     }
 }
 
-/// Porta de `parseResetTime` (shared.js): epoch em s ou ms (número ou string
-/// numérica) ou string de data ISO.
+/// Port of `parseResetTime` (shared.js): epoch in s or ms (number or numeric
+/// string) or an ISO date string.
 fn parse_reset_time(value: Option<&serde_json::Value>) -> Option<DateTime<Utc>> {
     match value? {
         serde_json::Value::Number(n) => n.as_i64().and_then(epoch_to_utc),
@@ -112,7 +112,7 @@ fn epoch_to_utc(ts: i64) -> Option<DateTime<Utc>> {
     }
 }
 
-/// Envia GET e mapeia status para QueryError sem expor corpo ou URL.
+/// Sends GET and maps the status to QueryError without exposing the body or URL.
 async fn send(req: reqwest::RequestBuilder) -> Result<reqwest::Response, QueryError> {
     let response = secure_send(req).await?;
     let code = response.status();
@@ -136,8 +136,8 @@ async fn send(req: reqwest::RequestBuilder) -> Result<reqwest::Response, QueryEr
 
 // ------------------------------------------------------------- OpenCode Go
 
-/// GET {base} com Bearer; `usage.{rolling,weekly,monthly}.{percent,resetsAt}`.
-/// `percent` é o percentual USADO (0–100); string numérica é aceita.
+/// GET {base} with Bearer; `usage.{rolling,weekly,monthly}.{percent,resetsAt}`.
+/// `percent` is the USED percentage (0–100); a numeric string is accepted.
 async fn opencode_go_at(
     account: &Account,
     ctx: &Context<'_>,
@@ -154,9 +154,9 @@ async fn opencode_go_at(
     let response = secure_send(request).await?;
     let code = response.status();
     if !code.is_success() {
-        // 403 com error.type == "EntitlementError" distingue "sem assinatura"
-        // de credencial inválida (opencode-go.js). O corpo nunca vaza para a
-        // mensagem — só o tipo estruturado é inspecionado.
+        // 403 with error.type == "EntitlementError" distinguishes "no subscription"
+        // from an invalid credential (opencode-go.js). The body never leaks into the
+        // message — only the structured type is inspected.
         let status = match code.as_u16() {
             401 | 403 => Status::AuthenticationError,
             429 => Status::RateLimited,
@@ -223,7 +223,7 @@ async fn opencode_go_at(
         let Some(quota) = usage.get(period_key).and_then(|q| q.as_object()) else {
             continue;
         };
-        // Percentual ausente/inválido → janela ignorada (nunca zero inventado).
+        // Absent/invalid percentage → window ignored (never an invented zero).
         let Some(percent) = finite(quota.get("percent")) else {
             continue;
         };
@@ -265,9 +265,9 @@ async fn opencode_go_at(
 
 // -------------------------------------------------------------------- Groq
 
-/// Groq não tem endpoint de quota: os limites trafegam nos cabeçalhos
-/// x-ratelimit-* de toda resposta. Lê-se GET /openai/v1/models (listagem,
-/// não gera tokens). Cabeçalho ausente ≠ zero: a métrica é omitida.
+/// Groq has no quota endpoint: limits travel in the x-ratelimit-*
+/// headers of every response. GET /openai/v1/models is read (listing,
+/// generates no tokens). Absent header ≠ zero: the metric is omitted.
 pub(crate) async fn groq_at(
     account: &Account,
     ctx: &Context<'_>,
@@ -282,7 +282,7 @@ pub(crate) async fn groq_at(
         .timeout(ctx.timeout);
     let response = send(request).await?;
     let headers = response.headers().clone();
-    // Drena o corpo para liberar a conexão; o conteúdo não é usado.
+    // Drains the body to release the connection; the content is not used.
     let _ = response.bytes().await;
 
     let mut metrics = Vec::new();
@@ -340,8 +340,8 @@ pub(crate) async fn groq_at(
         "Groq internal route observed in 9router; subject to change and provider restrictions.",
     );
     if metrics.is_empty() {
-        // Chave válida, mas nenhum bucket de rate limit reportado: distinto
-        // de erro de autenticação.
+        // Valid key, but no rate-limit bucket reported: distinct
+        // from an authentication error.
         notes.push(
             "note.router_keys.groq_rate_limit_headers_missing",
             "Groq response without `x-ratelimit-*` headers in this request; the limit window is unknown.",
@@ -362,7 +362,7 @@ fn header_number(headers: &reqwest::header::HeaderMap, name: &str) -> Option<f64
         .filter(|v| v.is_finite())
 }
 
-/// Porta de `parseGroqDurationMs` (groq.js): durações estilo Go
+/// Port of `parseGroqDurationMs` (groq.js): Go-style durations
 /// ("2m59.56s", "7.66s", "1h2m3s", "150ms").
 fn parse_groq_duration(value: &str) -> Option<std::time::Duration> {
     let value = value.trim();
@@ -379,7 +379,7 @@ fn parse_groq_duration(value: &str) -> Option<std::time::Duration> {
             i += 1;
         }
         if start == i {
-            // Separadores inesperados: aborta se não for dígito conhecido.
+            // Unexpected separators: aborts if it is not a known digit.
             if !matches!(bytes[i], b' ' | b'-' | b'+') {
                 return None;
             }
@@ -411,17 +411,17 @@ fn parse_groq_duration(value: &str) -> Option<std::time::Duration> {
 
 /// GET https://api.kimi.com/coding/v1/usages (kimi.js).
 ///
-/// Opt-in explícito: `params.product = "coding"`. Sem ele, o provedor Kimi
-/// permanece no adaptador legado de saldo internacional (asia.rs) — o pai
-/// só roteia para cá quando o opt-in está presente; o erro abaixo protege
-/// roteamento acidental.
+/// Explicit opt-in: `params.product = "coding"`. Without it, the Kimi provider
+/// stays on the legacy international balance adapter (asia.rs) — the parent
+/// only routes here when the opt-in is present; the error below guards against
+/// accidental routing.
 ///
-/// Autenticação dual (1:1 com a referência):
-/// - `credential_env` (padrão KIMI_API_KEY) → header `x-api-key` apenas;
-/// - `params.token_env` apontando para um access token OAuth → `Bearer` +
-///   cabeçalhos X-Msh-* (`params.device_id` opcional fixa o device id).
+/// Dual authentication (1:1 with the reference):
+/// - `credential_env` (default KIMI_API_KEY) → `x-api-key` header only;
+/// - `params.token_env` pointing to an OAuth access token → `Bearer` +
+///   X-Msh-* headers (optional `params.device_id` pins the device id).
 ///
-/// A chave de API tem precedência quando ambas existem (como na referência).
+/// The API key takes precedence when both exist (as in the reference).
 async fn kimi_coding_at(
     account: &Account,
     ctx: &Context<'_>,
@@ -444,7 +444,7 @@ async fn kimi_coding_at(
 
     let mut request = ctx.http.get(url).timeout(ctx.timeout);
     if let Some(key) = api_key {
-        // Caminho de chave de plataforma: x-api-key apenas (sem Bearer/X-Msh).
+        // Platform key path: x-api-key only (no Bearer/X-Msh).
         request = request.header("x-api-key", key.trim());
     } else if let Some(token) = access_token {
         // Caminho OAuth (device-code): Bearer + X-Msh-*.
@@ -485,8 +485,8 @@ async fn kimi_coding_at(
 
     let mut metrics = Vec::new();
 
-    // Quota semanal da assinatura: data.usage.{limit,used,remaining,resetTime}
-    // (campos podem vir como strings numéricas; variantes PascalCase aceitas).
+    // Subscription weekly quota: data.usage.{limit,used,remaining,resetTime}
+    // (fields may come as numeric strings; PascalCase variants accepted).
     if let Some(usage) = body.get("usage").and_then(|u| u.as_object()) {
         let pick = |names: &[&str]| -> Option<&serde_json::Value> {
             names.iter().find_map(|n| usage.get(*n))
@@ -512,7 +512,7 @@ async fn kimi_coding_at(
         }
     }
 
-    // Rate limit por janela: data.limits[].detail.{limit,remaining,resetTime}.
+    // Rate limit per window: data.limits[].detail.{limit,remaining,resetTime}.
     if let Some(limits) = body.get("limits").and_then(|l| l.as_array()) {
         for item in limits {
             let Some(detail) = item.get("detail").and_then(|d| d.as_object()) else {
@@ -580,9 +580,9 @@ fn kimi_plan_name(level: &str) -> &'static str {
     }
 }
 
-/// Porta de `formatKimiUsageError` (kimi.js): 401 = sessão expirada; 403
-/// REASON_FEATURE_NO_PERMISSION = falta de assinatura Kimi Code (NÃO é
-/// sessão expirada). O corpo nunca vaza para a mensagem.
+/// Port of `formatKimiUsageError` (kimi.js): 401 = expired session; 403
+/// REASON_FEATURE_NO_PERMISSION = missing Kimi Code subscription (NOT an
+/// expired session). The body never leaks into the message.
 fn kimi_coding_error(status: u16, body: &serde_json::Value) -> QueryError {
     if status == 401 {
         return QueryError {
@@ -649,37 +649,37 @@ fn kimi_coding_error(status: u16, body: &serde_json::Value) -> QueryError {
 
 // -------------------------------------------------------------- Xiaomi MiMo
 
-/// Quota do Xiaomi MiMo: modos reais, em ordem de prioridade.
+/// Xiaomi MiMo quota: real modes, in priority order.
 ///
-/// 1. Sessão `session_env` (PRD 0016: colada no cofre do sistema ou, como
-///    alternativa, numa variável nomeada por `params.session_env`) — cookie
-///    da CONTA Xiaomi (`serviceToken=...`, do MiMo Desktop/SSO); GET
-///    `{mimo-server-<região>}/api/user/usage`.
-///    Região em `params.region` ∈ {cn, sgp, ams, ru, in} (padrão `sgp`).
-///    Resposta: `{ code: 0, data: { percent, resetDate, resetAt? } }`, onde
-///    `percent` é o percentual RESTANTE da quota semanal (ex.: 94).
-///    (xiaomi-mimo.js + mimoAccount.js do 9router.)
+/// 1. `session_env` session (PRD 0016: pasted into the system vault or, alternatively,
+///    in a variable named by `params.session_env`) — Xiaomi ACCOUNT
+///    cookie (`serviceToken=...`, from MiMo Desktop/SSO); GET
+///    `{mimo-server-<region>}/api/user/usage`.
+///    Region in `params.region` ∈ {cn, sgp, ams, ru, in} (default `sgp`).
+///    Response: `{ code: 0, data: { percent, resetDate, resetAt? } }`, where
+///    `percent` is the REMAINING percentage of the weekly quota (e.g. 94).
+///    (xiaomi-mimo.js + mimoAccount.js from 9router.)
 ///
-/// 2. Sessão `platform_session_env` (cofre ou variável) — cookie da sessão
-///    WEB da plataforma (login em platform.xiaomimimo.com; precisa de
-///    `api-platform_serviceToken` e `userId`). Saldo pay-as-you-go e plano
-///    de tokens mensal; implementado em `super::mimo_platform` (referência:
+/// 2. `platform_session_env` session (vault or variable) — the platform's
+///    WEB session cookie (login at platform.xiaomimimo.com; needs
+///    `api-platform_serviceToken` and `userId`). Pay-as-you-go balance and monthly
+///    token plan; implemented in `super::mimo_platform` (reference:
 ///    CodexBar).
 ///
-/// Os cookies exigidos de cada sessão vêm do descritor
-/// (`crate::user_session::descriptors`), checados por `super::web_session`
-/// antes de qualquer requisição.
+/// The cookies required for each session come from the descriptor
+/// (`crate::user_session::descriptors`), checked by `super::web_session`
+/// before any request.
 ///
-/// 3. Chave nativa `sk-` (login authorize/ECDH): NÃO lê quota em endpoint
-///    nenhum — a rota AI Studio recusa `sk-` com 401 (verificado pelo 9router)
-///    e o console web exige cookie de sessão. Em vez de uma requisição fadada
-///    ao 401, retornamos orientação de configuração SEM pedir novo código de
-///    login: o código é criptografado por tentativa e um novo código produz a
-///    mesma chave sem quota.
+/// 3. Native `sk-` key (authorize/ECDH login): does NOT read quota at any endpoint
+///    — the AI Studio route refuses `sk-` with 401 (verified by 9router)
+///    and the web console requires a session cookie. Instead of a request doomed
+///    to 401, we return configuration guidance WITHOUT asking for a new login
+///    code: the code is encrypted per attempt and a new code produces the
+///    same key without quota.
 ///
-/// 4. Credencial manual sem sinal de chave nativa: tentativa Bearer no
-///    endpoint `aistudio.xiaomimimo.com/open-apis/v1/user/usage` — só funciona
-///    se a credencial for um token de sessão, não uma `sk-` de inferência.
+/// 4. Manual credential with no sign of a native key: a Bearer attempt at the
+///    `aistudio.xiaomimimo.com/open-apis/v1/user/usage` endpoint — it only works
+///    if the credential is a session token, not an inference `sk-`.
 async fn xiaomi_mimo(account: &Account, ctx: &Context<'_>) -> Result<Data, QueryError> {
     if let Some(session) = super::web_session(account, ctx, "session_env")? {
         let region = opt_param(account, "region")
@@ -708,8 +708,8 @@ async fn xiaomi_mimo(account: &Account, ctx: &Context<'_>) -> Result<Data, Query
         .await;
     }
 
-    // Conta criada pelo login nativo (oauth presente) ou marcada
-    // explicitamente: a credencial é a chave sk- de inferência.
+    // Account created by native login (oauth present) or explicitly
+    // marked: the credential is the inference sk- key.
     let native_key =
         account.oauth.is_some() || opt_param(account, "auth_method") == Some("native_key");
     if native_key {
@@ -723,8 +723,8 @@ async fn xiaomi_mimo(account: &Account, ctx: &Context<'_>) -> Result<Data, Query
     mimo_aistudio_at(ctx, MIMO_AISTUDIO_USAGE_URL, key.trim()).await
 }
 
-/// Envelope interno para wiremock: em produção `base` é um dos clusters
-/// fixos; em teste, a URL local do mock.
+/// Internal envelope for wiremock: in production `base` is one of the fixed
+/// clusters; in tests, the mock's local URL.
 async fn mimo_session_at(
     ctx: &Context<'_>,
     base: &str,
@@ -779,7 +779,7 @@ async fn mimo_session_at(
     mimo_data_from_body(&body, &label, &source)
 }
 
-/// Envelope interno para wiremock: fallback com token Bearer no aistudio.
+/// Internal envelope for wiremock: fallback with a Bearer token on aistudio.
 async fn mimo_aistudio_at(ctx: &Context<'_>, url: &str, key: &str) -> Result<Data, QueryError> {
     let request = ctx
         .http
@@ -819,8 +819,8 @@ async fn mimo_aistudio_at(ctx: &Context<'_>, url: &str, key: &str) -> Result<Dat
     )
 }
 
-/// Normaliza `{code, data:{percent, resetDate, resetAt}}`: `percent` é o
-/// percentual RESTANTE da quota semanal (0–100).
+/// Normalizes `{code, data:{percent, resetDate, resetAt}}`: `percent` is the
+/// REMAINING percentage of the weekly quota (0–100).
 fn mimo_data_from_body(
     body: &serde_json::Value,
     credential_label: &str,
@@ -832,13 +832,13 @@ fn mimo_data_from_body(
     let data = body
         .get("data")
         .ok_or_else(|| QueryError::schema_at(body, &["data"], "object"))?;
-    // percent ausente/inválido ≠ zero.
+    // percent absent/invalid ≠ zero.
     let percent = finite(data.get("percent"))
         .ok_or_else(|| QueryError::schema_at(body, &["data", "percent"], "number"))?;
     let remaining = percent.round().clamp(0.0, 100.0);
     let used = 100.0 - remaining;
 
-    // resetAt (epoch s) tem precedência sobre resetDate ("AAAA-MM-DD").
+    // resetAt (epoch s) takes precedence over resetDate ("YYYY-MM-DD").
     let resets_at = data
         .get("resetAt")
         .and_then(|v| v.as_i64())
@@ -961,7 +961,7 @@ mod tests {
             parse_reset_time(Some(&serde_json::json!(1_700_000_000))),
             DateTime::from_timestamp(1_700_000_000, 0)
         );
-        // string numérica em ms
+        // numeric string in ms
         assert_eq!(
             parse_reset_time(Some(&serde_json::json!("1700000000000"))),
             DateTime::from_timestamp_millis(1_700_000_000_000)
@@ -1033,7 +1033,7 @@ mod tests {
             rolling.resets_at,
             DateTime::from_timestamp_millis(1_788_532_082_617)
         );
-        // Percentual como string numérica também é aceito (toFiniteNumber).
+        // Percentage as a numeric string is also accepted (toFiniteNumber).
         assert_eq!(data.metrics[1].used, Some(5.0));
         assert!(data.source.contains("opencode.ai/zen/go/v1/usage"));
     }
@@ -1116,7 +1116,7 @@ mod tests {
         let tok = &data.metrics[1];
         assert_eq!(tok.used, Some(3.0));
         assert_eq!(tok.limit, Some(18_000.0));
-        // Durações relativas viram timestamps futuros reais.
+        // Relative durations become real future timestamps.
         for m in &data.metrics {
             let reset = m.resets_at.expect("reset presente");
             assert!(reset > Utc::now());
@@ -1140,7 +1140,7 @@ mod tests {
         let data = groq_at(&acc, &ctx_with(&http, &creds), &server.uri())
             .await
             .expect("chave válida sem buckets");
-        // Nenhuma métrica inventada; a nota explica o estado.
+        // No invented metric; the note explains the state.
         assert!(data.metrics.is_empty());
         assert!(data.notes.iter().any(|n| n.contains("x-ratelimit")));
     }
@@ -1229,7 +1229,7 @@ mod tests {
             .await;
 
         let http = reqwest::Client::new();
-        // Sem KIMI_API_KEY; apenas o token OAuth.
+        // No KIMI_API_KEY; only the OAuth token.
         let creds = TestCredentials("KIMI_TOKEN", "tok-abc");
         let mut acc = kimi_coding_account();
         acc.params.insert("token_env".into(), "KIMI_TOKEN".into());
@@ -1320,7 +1320,7 @@ mod tests {
         acc.params
             .insert("session_env".into(), "MIMO_SESSION".into());
         acc.params.insert("region".into(), "sgp".into());
-        // Injeta a base do mock como se fosse o cluster (envelope de teste).
+        // Injects the mock's base as if it were the cluster (test envelope).
         let data = mimo_session_at(
             &ctx_with(&http, &creds),
             &server.uri(),
@@ -1421,9 +1421,9 @@ mod tests {
 
     #[tokio::test]
     async fn mimo_chave_nativa_nao_faz_requisicao_e_orienta_config() {
-        // Conta criada pelo login nativo: oauth presente, credencial é sk-.
-        // A consulta deve falhar em configuração SEM tráfego de rede e SEM
-        // pedir novo código de login.
+        // Account created by native login: oauth present, credential is sk-.
+        // The query must fail on configuration WITHOUT network traffic and WITHOUT
+        // asking for a new login code.
         let http = reqwest::Client::new();
         let creds = TestCredentials("XIAOMI_MIMO_API_KEY", "sk-mimo-native");
         let mut acc = account(Provider::XiaomiMimo, "XIAOMI_MIMO_API_KEY");
@@ -1439,7 +1439,7 @@ mod tests {
 
     #[tokio::test]
     async fn mimo_auth_method_native_key_param_tambem_evita_requisicao() {
-        // Mesmo sem oauth na conta, params.auth_method=native_key marca a sk-.
+        // Even without oauth on the account, params.auth_method=native_key marks the sk-.
         let http = reqwest::Client::new();
         let creds = TestCredentials("XIAOMI_MIMO_API_KEY", "sk-mimo-native");
         let mut acc = account(Provider::XiaomiMimo, "XIAOMI_MIMO_API_KEY");
@@ -1452,9 +1452,9 @@ mod tests {
 
     #[tokio::test]
     async fn mimo_platform_session_env_seleciona_modo_plataforma_sem_rede() {
-        // Cookie sem os campos exigidos pela plataforma: a validação local do
-        // modo plataforma rejeita antes de qualquer requisição, provando o
-        // roteamento (o modo semanal não conheceria api-platform_serviceToken).
+        // Cookie without the fields the platform requires: local validation of the
+        // platform mode rejects before any request, proving the
+        // routing (the weekly mode would not know api-platform_serviceToken).
         let http = reqwest::Client::new();
         let creds = TestCredentials("MIMO_PLATFORM", "session=abc");
         let mut acc = account(Provider::XiaomiMimo, "XIAOMI_MIMO_API_KEY");
@@ -1469,8 +1469,8 @@ mod tests {
 
     #[tokio::test]
     async fn mimo_session_env_tem_precedencia_sobre_platform() {
-        // Com os dois cookies configurados, o modo semanal (session_env) é
-        // avaliado primeiro — a região inválida denuncia o caminho escolhido.
+        // With both cookies configured, the weekly mode (session_env) is
+        // evaluated first — the invalid region betrays the chosen path.
         let http = reqwest::Client::new();
         let creds = TestCredentials("MIMO_SESSION", "serviceToken=abc");
         let mut acc = account(Provider::XiaomiMimo, "XIAOMI_MIMO_API_KEY");

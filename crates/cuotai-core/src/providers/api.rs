@@ -1,23 +1,23 @@
-//! Consultas de uso e custo via APIs oficiais de organização (somente leitura).
+//! Usage and cost queries through official organization APIs (read-only).
 //!
-//! OpenAI (Admin API, chave de administração `OPENAI_ADMIN_KEY`):
+//! OpenAI (Admin API, administration key `OPENAI_ADMIN_KEY`):
 //!   - GET https://api.openai.com/v1/organization/costs
 //!   - GET https://api.openai.com/v1/organization/usage/completions
 //!
-//!   Referência: https://developers.openai.com/api/reference/resources/admin/subresources/organization
+//!   Reference: https://developers.openai.com/api/reference/resources/admin/subresources/organization
 //!
-//! Anthropic (Usage & Cost Admin API, chave `sk-ant-admin01-...` em `ANTHROPIC_ADMIN_KEY`):
+//! Anthropic (Usage & Cost Admin API, key `sk-ant-admin01-...` in `ANTHROPIC_ADMIN_KEY`):
 //!   - GET https://api.anthropic.com/v1/organizations/cost_report
 //!   - GET https://api.anthropic.com/v1/organizations/usage_report/messages
 //!
-//!   Referência: https://platform.claude.com/docs/en/manage-claude/usage-cost-api
+//!   Reference: https://platform.claude.com/docs/en/manage-claude/usage-cost-api
 //!
-//! Nenhum dos dois provedores oferece endpoint oficial de saldo ou crédito
-//! restante; `limit` e `remaining` ficam sempre desconhecidos (None).
+//! Neither provider offers an official remaining balance or credit
+//! endpoint; `limit` and `remaining` are always unknown (None).
 //!
-//! Parâmetros opcionais em `Account.params` (listas separadas por vírgula):
-//! - OpenAI: `project_ids` (custos e uso), `models` (uso)
-//! - Anthropic: `workspace_ids` (custos e uso), `models` (uso)
+//! Optional parameters in `Account.params` (comma-separated lists):
+//! - OpenAI: `project_ids` (costs and usage), `models` (usage)
+//! - Anthropic: `workspace_ids` (costs and usage), `models` (usage)
 
 use super::{json, secret, Context, Data, QueryError};
 use crate::text::{params, Notes, ParamValue};
@@ -30,7 +30,7 @@ use std::collections::BTreeMap;
 const OPENAI_BASE: &str = "https://api.openai.com";
 const ANTHROPIC_BASE: &str = "https://api.anthropic.com";
 const ANTHROPIC_VERSION: &str = "2023-06-01";
-/// Diário com 31 buckets por página: o mês corrente nunca precisa de 2 páginas.
+/// Daily with 31 buckets per page: the current month never needs 2 pages.
 const MAX_PAGES: usize = 8;
 const PAGE_LIMIT: &str = "31";
 
@@ -49,7 +49,7 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
     }
 }
 
-/// Início do mês corrente (UTC) e o instante de reinício (próximo mês).
+/// Start of the current month (UTC) and the reset instant (next month).
 fn month_bounds(now: DateTime<Utc>) -> (DateTime<Utc>, DateTime<Utc>) {
     let start = now
         .date_naive()
@@ -60,7 +60,7 @@ fn month_bounds(now: DateTime<Utc>) -> (DateTime<Utc>, DateTime<Utc>) {
     (start, start + Months::new(1))
 }
 
-/// Lista opcional separada por vírgula em `Account.params`.
+/// Optional comma-separated list in `Account.params`.
 fn csv(account: &Account, key: &str) -> Vec<String> {
     account
         .params
@@ -75,7 +75,7 @@ fn csv(account: &Account, key: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// Envelope de paginação idêntico nos dois provedores.
+/// Pagination envelope identical in both providers.
 #[derive(Deserialize)]
 struct Page<B> {
     data: Vec<B>,
@@ -83,7 +83,7 @@ struct Page<B> {
     next_page: Option<String>,
 }
 
-/// Consome todas as páginas via cursor; jamais devolve total parcial.
+/// Consumes every page through the cursor; never returns a partial total.
 async fn buckets<B: serde::de::DeserializeOwned>(
     build: impl Fn(Option<String>) -> RequestBuilder,
 ) -> Result<Vec<B>, QueryError> {
@@ -142,7 +142,7 @@ fn openai_costs_as_of(buckets: &[OpenAiCostBucket], now: DateTime<Utc>) -> Optio
 
 #[derive(Deserialize)]
 struct OpenAiCostResult {
-    // Opcional no esquema, mas obrigatório aqui: ausência não pode virar zero.
+    // Optional in the schema, but mandatory here: absence cannot become zero.
     amount: OpenAiAmount,
 }
 
@@ -320,7 +320,7 @@ struct AnthropicCostBucket {
 
 #[derive(Deserialize)]
 struct AnthropicCostResult {
-    /// String decimal na menor unidade da moeda (centavos para USD).
+    /// Decimal string in the currency's smallest unit (cents for USD).
     amount: String,
     currency: String,
 }
@@ -381,7 +381,7 @@ async fn anthropic(account: &Account, ctx: &Context<'_>, base: &str) -> Result<D
     let mut saw_cost = false;
     for bucket in cost_buckets {
         for result in bucket.results {
-            // Centavos documentados apenas para USD ("currently always USD").
+            // Cents documented only for USD ("currently always USD").
             if !result.currency.trim().eq_ignore_ascii_case("usd") {
                 return Err(QueryError::schema());
             }

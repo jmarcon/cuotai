@@ -184,7 +184,7 @@
 }
 
 .grid {
-  /* o número de colunas acompanha a largura da janela */
+  /* the number of columns follows the window width */
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr));
   gap: var(--space-4);
@@ -301,7 +301,7 @@
 .card-foot .chg {
   margin-right: var(--space-1);
 }
-/* RF2.3: conta "Aguardando" — esqueleto com shimmer (só transform; para com a janela escondida e com
+/* RF2.3: "Waiting" account — skeleton with shimmer (transform only; stops with the window hidden and with
    movimento reduzido/desligado, onde --motion-spin é 0) */
 .skeleton .sk {
   position: relative;
@@ -677,7 +677,7 @@
   height: 26px;
 }
 
-/* janelas de 5h e semanal lado a lado; a janela ausente mantém o espaço (card com o mesmo tamanho) */
+/* 5h and weekly windows side by side; the missing window keeps its space (card of the same size) */
 .wins {
   display: grid;
   grid-template-columns: 1fr 1fr;

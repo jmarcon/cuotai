@@ -1,5 +1,5 @@
-// "Sobre › Novidades" (PRD 0019 RF7.7): o histórico do CHANGELOG.md, já analisado pelo core (`whats_new`).
-// A UI só desenha: títulos e rótulos vêm como textos do core (`tl`); as entradas ficam em inglês, como o próprio dialog diz.
+// "About › What's new" (PRD 0019 RF7.7): the CHANGELOG.md history, already parsed by the core (`whats_new`).
+// The UI only draws: titles and labels come as core texts (`tl`); the entries stay in English, as the dialog itself says.
 import { t, te, tl } from "./i18n.js";
 import { bindShell, shellHtml } from "./dialog-shell.js";
 import { getSettings, whatsNew, whatsNewSeen } from "./lib.js";

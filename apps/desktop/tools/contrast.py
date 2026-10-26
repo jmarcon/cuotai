@@ -5,7 +5,7 @@ import re, sys
 
 REQUIRED = ["--bg","--surface","--surface-2","--border","--fg","--fg-muted","--accent","--accent-fg",
             "--good","--warn","--bad","--info","--track"]
-# (a, b, mínimo, descrição)
+# (a, b, minimum, description)
 PAIRS = [
     ("--fg","--surface",4.5,"texto principal sobre cards"),
     ("--fg","--bg",4.5,"texto principal sobre o fundo"),
@@ -21,15 +21,15 @@ PAIRS = [
     ("--border","--surface",1.15,"contorno visível"),
     ("--track","--surface",1.10,"trilho da barra visível"),
 ]
-# --strict: design system DS-COL-5..7 (texto ≥ 4.5 em todos os fundos, estados como texto ≥ 4.5,
-# gráficos ≥ 3 também sobre --bg). Opcional para não reprovar temas antigos; temas novos devem passar.
+# --strict: design system DS-COL-5..7 (text ≥ 4.5 on all backgrounds, states as text ≥ 4.5,
+# charts ≥ 3 also on --bg). Optional so old themes are not failed; new themes must pass.
 STRICT = [
     ("--fg-muted","--surface-2",4.5,"DS-COL-5 texto secundário em hover/grupos"),
     ("--fg-muted","--bg",4.5,"DS-COL-5 texto secundário sobre o fundo"),
 ] + [(k,bg,4.5,f"DS-COL-7 {k} como texto sobre {bg}") for k in ("--good","--warn","--bad","--info") for bg in ("--surface","--bg")] + [
     ("--accent","--bg",3.0,"DS-COL-7 destaque sobre o fundo"),
 ]
-# Papéis derivados opcionais (DS-COL-6/7): conferidos só quando o tema os define como #rrggbb.
+# Optional derived roles (DS-COL-6/7): checked only when the theme defines them as #rrggbb.
 OPTIONAL = [
     ("--bad-fg","--bad",4.5,"DS-COL-6 texto sobre o estado ruim"),
     ("--focus","--surface",3.0,"anel de foco sobre cards"),

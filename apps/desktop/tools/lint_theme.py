@@ -13,7 +13,7 @@ for path in sys.argv[1:]:
             if p and not p.startswith(f':root[data-theme="{tid}"]'):
                 problems.append(f"seletor fora de escopo: {p[:60]}")
     for prop in re.findall(r"(?<![-\w])(width|height|padding|margin|display|position|grid-template[-\w]*|font-size|flex[-\w]*)\s*:",css):
-        # position/inset só são aceitos no pseudo-elemento de efeito
+        # position/inset are only accepted on the effect pseudo-element
         if prop not in ("position",): problems.append(f"propriedade de layout: {prop}")
     print(("OK   " if not problems else "FALHA"),tid,("" if not problems else "; ".join(sorted(set(problems)))))
     bad+=bool(problems)

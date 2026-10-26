@@ -1,5 +1,5 @@
 /*! cuotai-theme {"label":"Ocean (exemplo)","group":"custom","modes":["dark","light"]} */
-/* Copie este arquivo para <pasta de configuração>/cuotai/themes/ocean.css e reinicie o app.
+/* Copy this file to <config folder>/cuotai/themes/ocean.css and restart the app.
    O nome do arquivo (sem .css) é o id do tema e deve aparecer nos seletores. */
 :root[data-theme="ocean"][data-mode="dark"] {
   color-scheme: dark;

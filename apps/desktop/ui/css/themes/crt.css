@@ -1,4 +1,4 @@
-/* CRT — monitor de tubo: fósforo verde no escuro, âmbar sobre papel bege no claro. */
+/* CRT — tube monitor: green phosphor in the dark, amber on beige paper in the light. */
 :root[data-theme="crt"][data-mode="dark"] {
   color-scheme: dark;
   --bg: #050a05;
@@ -59,7 +59,7 @@
   --switch-knob: #fff8e0;
 }
 
-/* Brilho de fósforo (apenas no escuro) */
+/* Phosphor glow (dark only) */
 :root[data-theme="crt"][data-mode="dark"] .card-head h2,
 :root[data-theme="crt"][data-mode="dark"] .who {
   text-shadow: 0 0 6px rgba(92, 255, 106, 0.35);
@@ -71,7 +71,7 @@
   box-shadow: 0 0 8px rgba(255, 176, 0, 0.4);
 }
 
-/* Terminal de fósforo: o valor troca na hora, sem interpolação (o spinner continua girando) */
+/* Phosphor terminal: the value switches instantly, with no interpolation (the spinner keeps spinning) */
 :root[data-theme="crt"] {
   --motion-fast: 0ms;
   --motion-base: 0ms;
@@ -93,7 +93,7 @@
   background: repeating-linear-gradient(0deg, rgba(40, 30, 0, 0.035) 0, rgba(40, 30, 0, 0.035) 1px, transparent 1px, transparent 4px);
 }
 
-/* Vinheta de tela abaulada */
+/* Curved-screen vignette */
 :root[data-theme="crt"] body::after {
   content: "";
   position: fixed;

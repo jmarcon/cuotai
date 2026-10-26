@@ -1,20 +1,20 @@
-// Internacionalização: um arquivo JSON por idioma em locales/<código>.json (ou na pasta do usuário).
-// Formato: { "_meta": { "name": "Español" }, "chave.simples": "texto {var}", "chave.plural": { "one": "…", "other": "…" } }
-// Chaves ausentes caem para o idioma de reserva (en-US) e, por fim, para a própria chave.
+// Internationalization: one JSON file per language in locales/<code>.json (or in the user folder).
+// Format: { "_meta": { "name": "Español" }, "simple.key": "text {var}", "plural.key": { "one": "…", "other": "…" } }
+// Missing keys fall back to the fallback language (en-US) and, finally, to the key itself.
 //
-// RF8 — resolutor `tl()`: textos entregues pelo core (campos, avisos, erros
-// de edição, notas de relatório, login modes/options/registration) viajam
-// como `{ id, params, fallback }` onde `fallback` é o texto em inglês.
-// O desktop resolve `id` no catálogo corrente e usa `fallback` quando a
-// chave está ausente. Parâmetros podem ser strings ou um `Localized`
-// aninhado, resolvido recursivamente para que rótulos de
-// status/provedor embarcados nas notas também sejam traduzidos.
+// RF8 — `tl()` resolver: texts delivered by the core (fields, warnings, edit
+// errors, report notes, login modes/options/registration) travel
+// as `{ id, params, fallback }` where `fallback` is the English text.
+// The desktop resolves `id` in the current catalog and uses `fallback` when the
+// key is missing. Parameters can be strings or a nested
+// `Localized`, resolved recursively so that status/provider
+// labels embedded in the notes are translated too.
 //
-// O catálogo do core (crates/cuotai-core/locales/{pt-BR,es,it}.json) é carregado
-// pelo comando Tauri `core_catalog(locale)` e mesclado sob o catálogo de UI:
-// as chaves do core têm prioridade para os ids que o core emite; chaves de
-// UI apenas permanecem no JSON local. Pacotes de idioma do usuário podem
-// sobrescrever ambos (e acrescentar ids novos do core para um idioma novo).
+// The core catalog (crates/cuotai-core/locales/{pt-BR,es,it}.json) is loaded
+// by the Tauri command `core_catalog(locale)` and merged under the UI catalog:
+// the core keys take priority for the ids the core emits; UI
+// keys only remain in the local JSON. User language packs can
+// override both (and add new core ids for a new language).
 import { esc, uiPath } from "./util.js";
 import { REGISTRY, normalizeLocale } from "./locale-registry.js";
 
@@ -25,18 +25,18 @@ import { REGISTRY, normalizeLocale } from "./locale-registry.js";
 let registry = REGISTRY;
 const fromRow = (row) => ({ code: row.code, name: row.endonym, flag: row.flag, script: row.script });
 const translatedRows = (rows) => rows.filter((row) => row.status !== "in_progress").map(fromRow);
-/** Idiomas selecionáveis: os do registro com catálogos, mais os do usuário (acrescentados em tempo de execução). */
+/** Selectable languages: those in the registry with catalogs, plus the user's (added at runtime). */
 export const LOCALES = translatedRows(registry);
 /** Registry languages whose translation is in progress (and no user pack covers), in registry order. */
 export const pendingLocales = () => registry.filter((row) => row.status === "in_progress" && !LOCALES.some((l) => l.code === row.code)).map(fromRow);
 export const FALLBACK = "en-US";
 const KEY = "cuotai.locale";
 
-const uiCatalogs = new Map(); // código -> objeto de mensagens da UI
-const userCatalogs = new Map(); // idiomas do usuário já validados (têm prioridade sobre o builtin de mesmo código)
-const coreCatalogs = new Map(); // código -> catálogo do core (mescla sob o de UI na resolução)
+const uiCatalogs = new Map(); // code -> UI message object
+const userCatalogs = new Map(); // user languages already validated (they take priority over the built-in of the same code)
+const coreCatalogs = new Map(); // code -> core catalog (merges under the UI one at resolution)
 let current = FALLBACK;
-const merged = new Map(); // código -> catálogo mesclado (invalidado a cada carga/registro)
+const merged = new Map(); // code -> merged catalog (invalidated on each load/registration)
 
 const store = {
   get: () => { try { return localStorage.getItem(KEY); } catch { return null; } },
@@ -55,7 +55,7 @@ export const hasLocale = (code) => LOCALES.some((l) => l.code === code);
 /** The registry row of the current language (script, plural rule), null for a user pack's own code. */
 export const currentRow = () => registry.find((r) => r.code === current) ?? null;
 
-/** Registra um idioma do usuário (já validado). */
+/** Registers a user language (already validated). */
 export function registerLocale(code, name, messages, flag) {
   userCatalogs.set(code, messages);
   uiCatalogs.set(code, messages);
@@ -82,7 +82,7 @@ async function loadUi(code) {
   }
 }
 
-/** Carrega (e cacheia) o catálogo do core para `code` via Tauri. */
+/** Loads (and caches) the core catalog for `code` via Tauri. */
 async function loadCore(code) {
   if (coreCatalogs.has(code)) return coreCatalogs.get(code);
   const T = window.__TAURI__;
@@ -109,17 +109,17 @@ async function loadCore(code) {
   }
 }
 
-/** Catálogo mesclado: as do usuário (se houver) cobrem as da UI, e as do core são mescladas por baixo para os ids do core. */
+/** Merged catalog: the user's (if any) cover the UI's, and the core's are merged underneath for the core ids. */
 function mergedCatalog(code) {
   const hit = merged.get(code);
   if (hit) return hit;
   const ui = uiCatalogs.get(code) ?? {};
   const fallback = uiCatalogs.get(FALLBACK) ?? {};
-  const user = userCatalogs.get(code); // se ausente, sem pacote do usuário
+  const user = userCatalogs.get(code); // if absent, no user pack
   const core = coreCatalogs.get(code) ?? {};
   const out = {};
-  // Ordem da mescla (sobreposição vence): en-US UI < core do idioma < UI do idioma < usuário. O inglês vem primeiro:
-  // um id do core que só o en-US da UI conhece (o core não tem catálogo en-US) não pode cobrir a tradução do core.
+  // Merge order (overlay wins): en-US UI < language core < language UI < user. English comes first:
+  // a core id that only the UI en-US knows (the core has no en-US catalog) must not cover the core translation.
   Object.assign(out, fallback);
   Object.assign(out, core);
   Object.assign(out, ui);
@@ -129,8 +129,8 @@ function mergedCatalog(code) {
 }
 
 /**
- * Escolhe o idioma: preferência salva → cada idioma do sistema (código exato; a linha do registro pela língua, PRD 0035
- * RF1.3, sem nunca dar chinês simplificado a zh-TW; um pacote do usuário da mesma língua) → en-US. A language in
+ * Chooses the language: saved preference → each system language (exact code; the registry row by language, PRD 0035
+ * RF1.3, never giving Simplified Chinese to zh-TW; a user pack of the same language) → en-US. A language in
  * progress is never picked. The pre-paint copy in the HTML pages follows the same order.
  */
 export function pickLocale(preferred, systemLangs = navigator.languages ?? [navigator.language]) {
@@ -217,9 +217,9 @@ function reportLocale(code) {
 }
 
 function lookup(key) {
-  // Mescla sob a UI para todas as resoluções de chave em ambas as
-  // resoluções — sem isso, `tl()` e `t()` divergem quando o catálogo
-  // do core tem uma chave ausente do catálogo de UI.
+  // Merges under the UI for all key resolutions in both
+  // resolutions — without this, `tl()` and `t()` diverge when the core catalog
+  // has a key missing from the UI catalog.
   const currentCatalog = mergedCatalog(current);
   const fallbackCatalog = mergedCatalog(FALLBACK);
   return currentCatalog[key] ?? fallbackCatalog[key];
@@ -237,13 +237,13 @@ function resolve(key, vars) {
   return typeof v === "string" ? v : null;
 }
 
-/** Traduz `key`. Plural: passe `{ count }` e use `{ one, other, … }` no catálogo (Intl.PluralRules). */
+/** Translates `key`. Plural: pass `{ count }` and use `{ one, other, … }` in the catalog (Intl.PluralRules). */
 export function t(key, vars = {}) {
   const v = resolve(key, vars);
   return v == null ? key : v.replace(/\{(\w+)\}/g, (m, n) => (n in vars ? String(vars[n]) : m));
 }
 
-/** Como `t`, mas seguro para HTML: escapa o texto traduzido e os valores injetados (sem escape duplo). */
+/** Like `t`, but HTML-safe: escapes the translated text and the injected values (no double escaping). */
 export function te(key, vars = {}) {
   const v = resolve(key, vars);
   if (v == null) return esc(key);

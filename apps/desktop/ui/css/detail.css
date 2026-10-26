@@ -1,4 +1,4 @@
-/* Detalhe de conta: usado no popover e no diálogo de detalhes da janela principal. */
+/* Account detail: used in the popover and in the main window's details dialog. */
 .sub {
   color: var(--fg-muted);
   font-size: var(--text-sm);
@@ -240,7 +240,7 @@
   font-weight: 400;
   opacity: 0.8;
 }
-/* Modelos (PRD 0002 RF6): seção expansível e pesquisável, no diálogo de detalhes, no popover e no formulário. */
+/* Models (PRD 0002 RF6): expandable, searchable section, in the details dialog, the popover and the form. */
 .models {
   margin-top: var(--space-2);
   padding: var(--space-3) var(--space-3);
@@ -324,7 +324,7 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
-/* Histórico (PRD 0006 RF5.2): um gráfico de área compacto por métrica, no diálogo de detalhes. */
+/* History (PRD 0006 RF5.2): one compact area chart per metric, in the details dialog. */
 .history {
   margin-top: var(--space-2);
   padding: var(--space-3) var(--space-3);

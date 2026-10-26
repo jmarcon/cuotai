@@ -1,4 +1,4 @@
-/* Base: contrato de tokens (ver css/themes/README.md). Cada tema vive em css/themes/<id>.css.
+/* Base: token contract (see css/themes/README.md). Each theme lives in css/themes/<id>.css.
    Os valores abaixo são o fallback caso o id do tema seja desconhecido (paleta Dracula escura). */
 :root {
   color-scheme: dark;
@@ -25,7 +25,7 @@
   --radius-pill: 99px;
   --logo-radius: 22%;
   --border-w: 1px;
-  /* superfícies e efeitos */
+  /* surfaces and effects */
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25);
   --shadow-dialog: 0 24px 64px rgba(0, 0, 0, 0.45);
   --card-bg: var(--surface);
@@ -106,7 +106,7 @@
 :root:lang(hi) {
   --text-2xs: 11px;
 }
-/* Movimento reduzido (RF1.2): a opção do app ("Reduzidas"/"Desligadas") ou o sistema, salvo "Sempre".
+/* Reduced motion (RF1.2): the app option ("Reduced"/"Off") or the system, except "Always".
    `!important` de propósito: a acessibilidade vence qualquer tema (temas não podem usar `!important`). */
 :root[data-motion="reduced"],
 :root[data-motion="off"] {

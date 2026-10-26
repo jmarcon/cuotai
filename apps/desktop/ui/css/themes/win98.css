@@ -1,4 +1,4 @@
-/* Windows 98 — cinza clássico, biséis 3D, barra de título azul-marinho. CSS puro, sem recursos externos. */
+/* Windows 98 — classic gray, 3D bevels, navy title bar. Pure CSS, no external resources. */
 :root[data-theme="win98"][data-mode="light"] {
   color-scheme: light;
   --bg: #c0c0c0;
@@ -73,7 +73,7 @@
   --body-bg: #000000;
 }
 
-/* Movimento em degraus, como no Windows 98 (sem interpolação suave) */
+/* Stepped motion, as in Windows 98 (no smooth interpolation) */
 :root[data-theme="win98"] {
   --ease-out: steps(4, end);
   --ease-spring: steps(2, end);
@@ -130,7 +130,7 @@
   box-shadow: inset 1px 1px #000000, inset -1px -1px #5a5a5a;
 }
 
-/* Botão pressionado */
+/* Pressed button */
 :root[data-theme="win98"][data-mode="light"] .btn:active:not(:disabled) {
   box-shadow: inset 1px 1px #0a0a0a, inset -1px -1px #ffffff, inset 2px 2px #808080, inset -2px -2px #dfdfdf;
 }
@@ -138,7 +138,7 @@
   box-shadow: inset 1px 1px #000000, inset -1px -1px #5a5a5a, inset 2px 2px #101010, inset -2px -2px #3c3c3c;
 }
 
-/* Barra de título azul-marinho */
+/* Navy title bar */
 :root[data-theme="win98"] .card-head {
   border-bottom-color: #000080;
 }
@@ -173,7 +173,7 @@
   color: #ffffff;
 }
 
-/* Controles cinza sobre a barra */
+/* Gray controls on the bar */
 :root[data-theme="win98"][data-mode="light"] .btn,
 :root[data-theme="win98"][data-mode="light"] .segmented button {
   color: #000000;

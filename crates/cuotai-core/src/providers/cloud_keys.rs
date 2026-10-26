@@ -1,34 +1,34 @@
-//! Provedores de chave única de IA: Cloudflare Workers AI, Ollama Cloud e Gemini AI.
+//! Single-key AI providers: Cloudflare Workers AI, Ollama Cloud and Gemini AI.
 //!
-//! Cada adaptador é registrado de forma transparente como não suportado quando
-//! a API pública do provedor não expõe leitura de quota/uso para a chave
-//! enviada. Nenhum cabeçalho é inferido a partir de chamadas a `models/generate`.
+//! Each adapter is transparently registered as unsupported when
+//! the provider's public API does not expose quota/usage reading for the key
+//! sent. No header is inferred from calls to `models/generate`.
 //!
-//! Fontes oficiais consultadas (consultadas em 2026-09-28):
+//! Official sources consulted (consulted on 2026-09-28):
 //! - Cloudflare:
 //!   - [Workers AI docs index](https://developers.cloudflare.com/workers-ai/llms.txt)
-//!     — não lista nenhuma página de analytics/uso por chave pública; a
-//!     contabilidade de Neurons é exibida apenas no painel.
+//!     — lists no per-key public analytics/usage page; Neuron
+//!     accounting is shown only in the dashboard.
 //!   - [Pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/)
 //!     — "monitor your Neuron usage in the Cloudflare Workers AI dashboard".
 //!   - [Workers AI via REST API](https://developers.cloudflare.com/api/resources/ai/methods/run/)
-//!     — única rota pública de `/accounts/{id}/ai/run/{model}`.
+//!     — the only public route of `/accounts/{id}/ai/run/{model}`.
 //!   - [AI Gateway Analytics](https://developers.cloudflare.com/ai-gateway/observability/analytics/)
-//!     — único dataset GraphQL público da Cloudflare para consumo de IA
-//!     (`aiGatewayRequestsAdaptiveGroups`); pertence ao AI Gateway, produto
-//!     distinto de Workers AI.
+//!     — Cloudflare's only public GraphQL dataset for AI consumption
+//!     (`aiGatewayRequestsAdaptiveGroups`); it belongs to AI Gateway, a product
+//!     distinct from Workers AI.
 //!
-//!   O dataset `workersInvocationsAdaptive` do GraphQL Analytics agrega
-//!   invocações de qualquer Worker (`requests`, `errors`, `cpuTime`); não é
-//!   métrica de Workers AI nem expõe Neurons por chamada, portanto não serve
-//!   como base de quota de Workers AI.
+//!   The GraphQL Analytics dataset `workersInvocationsAdaptive` aggregates
+//!   invocations of any Worker (`requests`, `errors`, `cpuTime`); it is not a
+//!   Workers AI metric nor does it expose Neurons per call, so it does not serve
+//!   as a Workers AI quota basis.
 //! - Gemini AI: [Gemini API rate limits](https://ai.google.dev/gemini-api/docs/rate-limits)
-//!   e [All methods](https://ai.google.dev/api/all-methods). A chave de API do
-//!   AI Studio (`AIza...`) não tem endpoint público de uso/cota residual; o
-//!   dashboard [AI Studio](https://aistudio.google.com/rate-limit) é a única
-//!   visualização. O caminho programático equivalente é
+//!   and [All methods](https://ai.google.dev/api/all-methods). The AI Studio
+//!   API key (`AIza...`) has no public usage/remaining-quota endpoint; the
+//!   [AI Studio](https://aistudio.google.com/rate-limit) dashboard is the only
+//!   view. The equivalent programmatic path is
 //!   [Cloud Monitoring timeSeries.list](https://cloud.google.com/monitoring/api/ref_v3/rest/v3/projects.timeSeries/list)
-//!   via OAuth, atendido pelo adaptador `Gemini (Cloud Monitoring)`.
+//!   via OAuth, served by the `Gemini (Cloud Monitoring)` adapter.
 
 use super::{json, paginate, secret, Context, Data, QueryError};
 use crate::models::ModelInfo;

@@ -51,7 +51,7 @@ use tokio::task::JoinHandle;
 
 type Screen = Terminal<CrosstermBackend<io::Stdout>>;
 
-// Paleta Dracula (mesma usada pelo dashboard/wizard/auth).
+// Dracula palette (the same one the dashboard/wizard/auth use).
 const DRACULA_BG: Color = palette::BG;
 const DRACULA_FG: Color = palette::FG;
 const DRACULA_YELLOW: Color = palette::WARN;
@@ -441,17 +441,17 @@ pub async fn run(
         End,
         Filter,
         ClearFilter,
-        /// Avança entre contas visíveis no detalhe (Left/Right quando detalhes abertos).
+        /// Moves between visible accounts in the detail (Left/Right when details are open).
         NextDetail,
-        /// Retrocede entre contas visíveis no detalhe.
+        /// Moves back between visible accounts in the detail.
         PrevDetail,
-        /// Abre a seção Modelos da conta em detalhe.
+        /// Opens the account's Models section in the detail.
         Models,
         /// Opens discovered executable extensions.
         Extensions,
-        /// Abre a tela Sobre (bibliotecas de código aberto e repositórios).
+        /// Opens the About screen (open-source libraries and repositories).
         About,
-        /// PRD 0026 RF6.1: abre as estatísticas de uso.
+        /// PRD 0026 RF6.1: opens the usage statistics.
         Stats,
         /// PRD 0006 RF6.1: span of the details' history (1, 2, 3).
         HistoryRange(HistoryRange),
@@ -464,8 +464,8 @@ pub async fn run(
     /// key does not drive a dashboard transition (e.g. Ctrl-C, paste, or a key
     /// already handled by the auth/wizard/deletion/filtering layers above).
     fn key_command(code: KeyCode, details: bool, refresh_idle: bool) -> Option<Command> {
-        // Left/Right só navegam entre contas enquanto o detalhe está aberto;
-        // fora do detalhe, são no-op (outros atalhos: ←→ nas opções do wizard).
+        // Left/Right only navigate between accounts while the detail is open;
+        // outside the detail, they are no-ops (other shortcuts: ←→ on the wizard options).
         if details {
             match code {
                 KeyCode::Right => return Some(Command::NextDetail),
@@ -1111,8 +1111,8 @@ pub async fn run(
                     state.selection.select(Some(0));
                     state.detail_scroll = 0;
                 }
-                // Navegação no detalhe: move a seleção entre contas visíveis
-                // (sem wrap, igual a Down/Up) e zera o scroll lateral.
+                // Navigation in the detail: moves the selection between visible accounts
+                // (no wrap, same as Down/Up) and resets the horizontal scroll.
                 Command::NextDetail => state.move_selection(1, &cycle_slot_reports(&refresh_cycle)),
                 Command::PrevDetail => {
                     state.move_selection(-1, &cycle_slot_reports(&refresh_cycle))
@@ -1222,9 +1222,9 @@ pub async fn run(
                             active.external_login_finished(login.params);
                         }
                         Ok(Outcome::CredentialReady(commit)) => {
-                            // RF2.4: cofre gravado; agora o TOML. Em caso de
-                            // falha, o core compensa o cofre (restaura o token
-                            // anterior ou remove o novo) e reporta o estado.
+                            // RF2.4: vault written; now the TOML. In case of
+                            // failure, the core compensates the vault (restores the previous token
+                            // or removes the new one) and reports the state.
                             if let Some((config, edit)) = saving_config.take() {
                                 match apply_edit_to_config(
                                     &mut file,
@@ -1274,9 +1274,9 @@ pub async fn run(
                             active.set_error(crate::auth_ui::partial_failure_message(&failure));
                         }
                         Ok(Outcome::RolledBack(failure)) => {
-                            // Estado exato reportado pelo core; o login
-                            // autorizado continua em `authorized` e salvar de
-                            // novo repete o commit de forma idempotente.
+                            // Exact state reported by the core; the login
+                            // authorized login stays in `authorized` and saving
+                            // again repeats the commit idempotently.
                             let mut message = crate::auth_ui::partial_failure_message(&failure);
                             if let Some(staged) = saving_paste.take() {
                                 if let Err(note) =
@@ -1644,7 +1644,7 @@ pub async fn run(
             } else if let Some(state_) = &deletion {
                 terminal.draw(|frame| {
                     frame_area = frame.area();
-                    // Dracula frame background para a confirmação de exclusão.
+                    // Dracula frame background for the delete confirmation.
                     frame.render_widget(
                         Block::default().style(Style::default().bg(DRACULA_BG).fg(DRACULA_FG)),
                         frame.area(),
@@ -4146,7 +4146,7 @@ mod tests {
         let mut state = state_with(three_accounts());
         state.selection.select(Some(0));
         state.detail_scroll = 7;
-        // move_selection(1) reflete exatamente o que NextDetail faz no run_command.
+        // move_selection(1) reflects exactly what NextDetail does in run_command.
         state.move_selection(1, &[]);
         assert_eq!(state.selection.selected(), Some(1));
         assert_eq!(state.detail_scroll, 0, "scroll lateral precisa zerar");
@@ -4154,7 +4154,7 @@ mod tests {
         state.move_selection(1, &[]);
         assert_eq!(state.selection.selected(), Some(2));
         assert_eq!(state.detail_scroll, 0);
-        // Sem wrap: avançar do último não volta ao início.
+        // No wrap: advancing from the last one does not return to the start.
         state.detail_scroll = 1;
         state.move_selection(1, &[]);
         assert_eq!(state.selection.selected(), Some(2));
@@ -4169,7 +4169,7 @@ mod tests {
         state.move_selection(-1, &[]);
         assert_eq!(state.selection.selected(), Some(1));
         assert_eq!(state.detail_scroll, 0);
-        // Sem wrap: retroceder do primeiro fica parado.
+        // No wrap: going back from the first one stays put.
         state.selection.select(Some(0));
         state.detail_scroll = 5;
         state.move_selection(-1, &[]);
@@ -4232,9 +4232,9 @@ mod tests {
 
     #[test]
     fn key_command_maps_left_right_only_when_details_open() {
-        // Espelha a função `key_command` local em `run`: extraída aqui só
-        // para fixar a regra de gating — Left/Right não devem virar comando
-        // fora do detalhe e não devem cair em outros comandos.
+        // Mirrors the local `key_command` function in `run`: extracted here only
+        // to pin down the gating rule — Left/Right must not become a command
+        // outside the detail and must not fall through to other commands.
         fn map(code: KeyCode, details: bool) -> Option<&'static str> {
             if details {
                 match code {
@@ -4252,10 +4252,10 @@ mod tests {
         }
         assert_eq!(map(KeyCode::Right, true), Some("next_detail"));
         assert_eq!(map(KeyCode::Left, true), Some("prev_detail"));
-        // Fora do detalhe, Left/Right são silenciosamente ignorados.
+        // Outside the detail, Left/Right are silently ignored.
         assert_eq!(map(KeyCode::Right, false), None);
         assert_eq!(map(KeyCode::Left, false), None);
-        // Esc continua saindo mesmo com detalhe aberto (mapeia para quit, não para detail).
+        // Esc still quits even with the detail open (maps to quit, not to detail).
         assert_eq!(map(KeyCode::Esc, true), Some("close_details"));
     }
 }

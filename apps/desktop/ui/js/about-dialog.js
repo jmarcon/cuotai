@@ -1,4 +1,4 @@
-// "Sobre › Bibliotecas de código aberto": a lista vem do core (`about_info`), a mesma da TUI.
+// "About › Open-source libraries": the list comes from the core (`about_info`), the same as the TUI's.
 import { te, t } from "./i18n.js";
 import { aboutInfo, openExternal } from "./lib.js";
 import { esc } from "./util.js";

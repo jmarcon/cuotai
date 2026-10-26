@@ -1,42 +1,42 @@
-//! Consultas de saldo de conta via APIs oficiais asiáticas (somente leitura).
+//! Account balance queries through official Asian APIs (read-only).
 //!
-//! Fontes primárias consultadas em 2026-09-28:
+//! Primary sources consulted on 2026-09-28:
 //!
-//! - **MiniMax saldo de conta** (`MINIMAX_IO_API_KEY`)
+//! - **MiniMax account balance** (`MINIMAX_IO_API_KEY`)
 //!   - `GET https://www.minimax.io/account/query_balance` (Bearer)
-//!     - Selecionado automaticamente quando a chave começa com
-//!       `sk-api-` (`src/client/endpoints.ts::selectUsageEndpoint`); chaves
-//!       de Token/Coding Plan (sem esse prefixo) são tratadas pelo
-//!       adaptador `router_minimax`.
-//!     - Campos: `available_amount`, `cash_balance`, `voucher_balance`,
+//!     - Selected automatically when the key starts with
+//!       `sk-api-` (`src/client/endpoints.ts::selectUsageEndpoint`); Token/Coding
+//!       Plan keys (without that prefix) are handled by the
+//!       `router_minimax` adapter.
+//!     - Fields: `available_amount`, `cash_balance`, `voucher_balance`,
 //!       `credit_balance`, `owed_amount`, `balance_alert_switch`,
-//!       `balance_alert_threshold`, `base_resp`. A moeda **não é
-//!       documentada** pela MiniMax para este endpoint; o rótulo de
-//!       unidade é neutro para não inferir.
-//!   - Toda resposta traz `base_resp.status_code`; status não-zero é
-//!     considerado erro mesmo em HTTP 200
+//!       `balance_alert_threshold`, `base_resp`. The currency is **not
+//!       documented** by MiniMax for this endpoint; the unit
+//!       label is neutral so as not to infer.
+//!   - Every response carries `base_resp.status_code`; a nonzero status is
+//!     considered an error even on HTTP 200
 //!     (`src/client/http.ts::requestJson`).
 //!
-//! - **Kimi / Moonshot Open Platform** (KIMI_API_KEY, saldo da conta)
+//! - **Kimi / Moonshot Open Platform** (KIMI_API_KEY, account balance)
 //!   - `GET https://api.moonshot.ai/v1/users/me/balance` (Bearer)
-//!     - Documentado em <https://platform.kimi.ai/docs/api/balance.md>.
-//!     - `available_balance`, `voucher_balance`, `cash_balance` em
-//!       **USD**. `cash_balance` pode ser negativo (dívida);
-//!       `voucher_balance` nunca.
-//!     - Exige `code == 0` e `status == true`.
-//!   - Kimi Code (assinatura/programação) **não** expõe endpoint
-//!     público de cota — apenas console e CLI proprietario `/usage`
+//!     - Documented at <https://platform.kimi.ai/docs/api/balance.md>.
+//!     - `available_balance`, `voucher_balance`, `cash_balance` in
+//!       **USD**. `cash_balance` may be negative (debt);
+//!       `voucher_balance` never.
+//!     - Requires `code == 0` and `status == true`.
+//!   - Kimi Code (subscription/programming) does **not** expose a public
+//!     quota endpoint — only the console and the proprietary `/usage` CLI
 //!     (<https://www.kimi.com/code/docs/en/kimi-code/membership.html>).
-//!     ⇒ Não implementar modo Kimi Coding.
+//!     ⇒ Do not implement a Kimi Coding mode.
 //!
 //! - **Qwen / DashScope / Model Studio** (QWEN_API_KEY)
-//!   - DashScope expõe apenas inferência
+//!   - DashScope exposes only inference
 //!     (`POST /api/v1/services/aigc/...`, `/v1/chat/completions`,
-//!     `/anthropic/v1/messages`) e Batch API
+//!     `/anthropic/v1/messages`) and the Batch API
 //!     (<https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-dashscope>).
-//!   - O saldo de cobrança da conta Alibaba Cloud requer
-//!     `QueryAccountBalance` (Financial Management API), autenticada
-//!     com `AccessKey ID` + `AccessKey Secret` da conta mestre
+//!   - The Alibaba Cloud account's billing balance requires
+//!     `QueryAccountBalance` (Financial Management API), authenticated
+//!     with the master account's `AccessKey ID` + `AccessKey Secret`
 //!     (<https://www.alibabacloud.com/help/en/finance/account-management/latest/api-bill-overview>).
 //!   - ⇒ `Unsupported`.
 
@@ -45,8 +45,8 @@ use crate::text::{params, Localized, Notes, ParamValue};
 use crate::{Account, Metric, MetricKind, Provider};
 use serde::Deserialize;
 
-/// URLs internacionais oficiais (não configuráveis pelo usuário final;
-/// apenas os testes recebem uma base privada via `*_at(account, ctx, base)`).
+/// Official international URLs (not configurable by the end user;
+/// only tests receive a private base through `*_at(account, ctx, base)`).
 const MINIMAX_ACCOUNT_BALANCE_URL: &str = "https://www.minimax.io/account/query_balance";
 const KIMI_BALANCE_URL: &str = "https://api.moonshot.ai/v1/users/me/balance";
 /// OpenAI-shaped model list for the same platform key (`platform.kimi.ai/docs/api/list-models`).
@@ -81,11 +81,11 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
 
 // ------------------------------------------------------------------ MiniMax
 
-/// Apenas o saldo da conta (`MINIMAX_IO_API_KEY` pay-as-you-go) continua
-/// aqui: chaves `sk-api-…` chamam `/account/query_balance`; chaves de
-/// Token/Coding Plan (qualquer outro valor) seguem para
-/// `super::router_minimax::fetch`, que implementa a leitura de quota na
-/// ordem do registro (`/token_plan/remains` → `/coding_plan/remains`).
+/// Only the account balance (`MINIMAX_IO_API_KEY` pay-as-you-go) remains
+/// here: `sk-api-…` keys call `/account/query_balance`; Token/Coding Plan
+/// keys (any other value) go to
+/// `super::router_minimax::fetch`, which implements the quota reading in
+/// in the registry order (`/token_plan/remains` → `/coding_plan/remains`).
 #[derive(Deserialize)]
 struct MinimaxBaseResp {
     status_code: i64,
@@ -132,9 +132,9 @@ fn parse_balance_amount(raw: &str) -> Result<f64, QueryError> {
     }
 }
 
-/// Envelope interno que aceita `base` privada (para wiremock). A
-/// produção passa `MINIMAX_ACCOUNT_BALANCE_URL`; os testes injetam a URL
-/// local do mock diretamente.
+/// Internal envelope that accepts a private `base` (for wiremock). Production
+/// passes `MINIMAX_ACCOUNT_BALANCE_URL`; tests inject the mock's
+/// local URL directly.
 async fn minimax_balance_at(
     account: &Account,
     ctx: &Context<'_>,
@@ -277,13 +277,13 @@ struct KimiBalanceData {
     cash_balance: f64,
 }
 
-/// Envelope interno que aceita `base` privada para wiremock.
+/// Internal envelope that accepts a private `base` for wiremock.
 async fn kimi_at(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data, QueryError> {
     let key = secret(account, ctx, "KIMI_API_KEY")?;
     let url = if base == KIMI_BALANCE_URL {
         KIMI_BALANCE_URL
     } else {
-        // Injeção de teste: combina base + path.
+        // Test injection: combines base + path.
         &format!("{}/v1/users/me/balance", base.trim_end_matches('/'))
     };
     let request = ctx.http.get(url).bearer_auth(&key).timeout(ctx.timeout);
@@ -558,7 +558,7 @@ mod tests {
 
     #[test]
     fn fetch_dispatch_qwen_continua_unsupported() {
-        // dispatch não chama a rede: providers unsupported têm mensagem.
+        // dispatch does not hit the network: unsupported providers have a message.
         let http = reqwest::Client::new();
         let acc_qwen = account(Provider::Qwen, "QWEN_API_KEY");
         let creds_qwen = TestCredentials("QWEN_API_KEY", "sk-test");

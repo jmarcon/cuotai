@@ -1,16 +1,16 @@
-//! Provedores de nuvem: Gemini API, Vertex AI, AWS Bedrock e Azure OpenAI.
+//! Cloud providers: Gemini API, Vertex AI, AWS Bedrock and Azure OpenAI.
 //!
-//! Fontes oficiais utilizadas:
+//! Official sources used:
 //! - Google (Gemini API / Vertex AI): Cloud Monitoring REST `projects.timeSeries.list`,
-//!   métricas de cota `serviceruntime.googleapis.com/quota/limit` (GAUGE, amostrada 1x/dia)
+//!   quota metrics `serviceruntime.googleapis.com/quota/limit` (GAUGE, sampled once a day)
 //!   e `serviceruntime.googleapis.com/quota/rate/net_usage` (DELTA, 60 s) no recurso
 //!   `consumer_quota`.
-//! - AWS Bedrock: AWS CLI `aws ce get-cost-and-usage` (Cost Explorer), filtro de dimensão
-//!   `SERVICE = Amazon Bedrock`, credenciais exclusivamente via perfil nomeado (`--profile`).
+//! - AWS Bedrock: AWS CLI `aws ce get-cost-and-usage` (Cost Explorer), dimension filter
+//!   `SERVICE = Amazon Bedrock`, credentials exclusively through a named profile (`--profile`).
 //! - Azure OpenAI: Cost Management REST `Query - Usage`, api-version 2025-03-01, filtro
-//!   `ResourceId In [params.resource_id]`, `ActualCost`/`PreTaxCost`, escopo de assinatura.
-//!   Não há evidência oficial de dimensão de faturamento "Azure OpenAI"; a atribuição
-//!   conservadora é por recurso configurado explicitamente pelo usuário.
+//!   `ResourceId In [params.resource_id]`, `ActualCost`/`PreTaxCost`, subscription scope.
+//!   There is no official evidence of an "Azure OpenAI" billing dimension; the conservative
+//!   attribution is per resource explicitly configured by the user.
 
 use super::{json, param, secret, Context, Data, QueryError};
 use crate::text::{params, Localized, Notes, ParamValue};
@@ -55,8 +55,8 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
     }
 }
 
-/// Identificadores de caminho (projeto, assinatura, grupo de recursos) nunca podem
-/// conter separadores ou caracteres de consulta: evita injeção de path na URL.
+/// Path identifiers (project, subscription, resource group) must never
+/// contain separators or query characters: this prevents path injection in the URL.
 fn path_id<'a>(value: &'a str, key: &str) -> Result<&'a str, QueryError> {
     if value
         .chars()
@@ -130,8 +130,8 @@ impl PointValue {
     }
 }
 
-/// Consulta paginada de séries temporais; qualquer página ausente, token repetido
-/// ou ponto inválido é erro de esquema, nunca total parcial apresentado como completo.
+/// Paginated time-series query; any missing page, repeated token
+/// or invalid point is a schema error, never a partial total presented as complete.
 async fn list_series(
     base: &str,
     ctx: &Context<'_>,
@@ -436,7 +436,7 @@ async fn fetch_azure(base: &str, account: &Account, ctx: &Context<'_>) -> Result
             m
         }
         None => {
-            // o valor é desconhecido, não zero presumido.
+            // the value is unknown, not an assumed zero.
             notes.push(
                 "note.cloud.azure_no_cost_rows",
                 "The query returned no rows: the resource cost in this scope for the current month could not be confirmed.",
@@ -460,8 +460,8 @@ async fn fetch_azure(base: &str, account: &Account, ctx: &Context<'_>) -> Result
     ))
 }
 
-/// Exige ID ARM completo de conta Cognitive Services dentro da assinatura configurada:
-/// /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.CognitiveServices/accounts/{nome}
+/// Requires the full ARM ID of a Cognitive Services account inside the configured subscription:
+/// /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.CognitiveServices/accounts/{name}
 fn azure_resource_id<'a>(id: &'a str, subscription: &str) -> Result<&'a str, QueryError> {
     let segments: Vec<&str> = id.split('/').collect();
     let valid = id.starts_with(&format!("/subscriptions/{subscription}/resourceGroups/"))

@@ -1,29 +1,29 @@
-//! Consultas read-only dos provedores Alibaba Model Studio e Coding Plan.
+//! Read-only queries for the Alibaba Model Studio and Coding Plan providers.
 //!
-//! Model Studio continua sem uma API de cota autenticável com a chave de
-//! inferência. Coding Plan, por outro lado, é consultado pelo gateway do
-//! console usado pelo painel Alibaba. Há dois modos mutuamente exclusivos:
+//! Model Studio still has no quota API authenticable with the inference
+//! key. Coding Plan, on the other hand, is queried through the console gateway
+//! used by the Alibaba panel. There are two mutually exclusive modes:
 //!
-//! - sessão web `session_env` (PRD 0016): colada no assistente da conta e
-//!   guardada no cofre do sistema ou, como alternativa, numa variável
-//!   nomeada por `params.session_env`. Quando existe, ela sempre tem
-//!   precedência e nenhuma API key é exigida. O adaptador obtém `sec_token`
-//!   com um GET no dashboard e faz o RPC do console com o cookie.
-//! - API key: `Account.credential_env` (padrão `BAILIAN_CODING_PLAN_API_KEY`) é enviada ao
-//!   gateway regional nos três cabeçalhos aceitos pelo console.
+//! - web session `session_env` (PRD 0016): pasted into the account wizard and
+//!   kept in the system vault or, alternatively, in a variable
+//!   named by `params.session_env`. When it exists, it always takes
+//!   precedence and no API key is required. The adapter obtains `sec_token`
+//!   with a GET on the dashboard and makes the console RPC with the cookie.
+//! - API key: `Account.credential_env` (default `BAILIAN_CODING_PLAN_API_KEY`) is sent to the
+//!   regional gateway in the three headers the console accepts.
 //!
-//! A região é fixa por conta (`params.region = "intl" | "cn"`, padrão
-//! `intl`). Credenciais nunca são tentadas automaticamente na outra região e
-//! não há parâmetro para sobrescrever endpoints de produção.
+//! The region is fixed per account (`params.region = "intl" | "cn"`, default
+//! `intl`). Credentials are never tried automatically in the other region and
+//! there is no parameter to override production endpoints.
 //!
-//! O RPC de Coding Plan é uma interface interna do console, não uma API
-//! pública estável. A implementação segue o protocolo observado no CodexBar:
+//! The Coding Plan RPC is an internal console interface, not a stable
+//! public API. The implementation follows the protocol observed in CodexBar:
 //! <https://github.com/steipete/CodexBar/blob/main/Sources/CodexBarCore/Providers/Alibaba/AlibabaCodingPlanUsageFetcher.swift>.
 //!
-//! Parâmetros opcionais:
-//! - `region`: `intl` (padrão) ou `cn`;
-//! - `session_env`: nome da variável que contém o header Cookie completo
-//!   (alternativa à sessão no cofre).
+//! Optional parameters:
+//! - `region`: `intl` (default) or `cn`;
+//! - `session_env`: name of the variable holding the full Cookie header
+//!   (alternative to the vault session).
 
 use super::{json as fetch_json, paginate, secret, send as secure_send, Context, Data, QueryError};
 use crate::text::{params, Localized, Notes, ParamValue};
@@ -195,10 +195,10 @@ fn coding_plan_dashboard(region: Region) -> &'static str {
 // ---------------------------------------- Alibaba Model Studio / DashScope
 
 async fn alibaba_model_studio(account: &Account, ctx: &Context<'_>) -> Result<Data, QueryError> {
-    // A `DASHSCOPE_API_KEY` é obrigatória só para sinalizar que o
-    // usuário configurou a conta; ela **não** será usada para nenhuma
-    // requisição. Validar garante erro claro se o usuário esqueceu a
-    // env var; o valor nunca é enviado a nenhum servidor.
+    // The `DASHSCOPE_API_KEY` is required only to signal that the
+    // user configured the account; it will **not** be used for any
+    // request. Validating guarantees a clear error if the user forgot the
+    // env var; the value is never sent to any server.
     let _unused_key = secret(account, ctx, "DASHSCOPE_API_KEY")?;
     let region = parse_region(account)?;
     let free_quota_url = match region {
@@ -2547,8 +2547,8 @@ mod tests {
             )
             .mount(&server)
             .await;
-        // Subscription devolve "lite"; quota-config traz totais apenas para
-        // "lite" — nenhum match para outras chaves deve ser aplicado.
+        // Subscription returns "lite"; quota-config brings totals only for
+        // "lite" — no match for other keys must be applied.
         Mock::given(method("POST"))
             .and(path("/data/api.json"))
             .and(query_param("api", TOKEN_PLAN_SUBSCRIPTION_API))

@@ -4,10 +4,10 @@ import { esc, uiPath } from "./util.js";
 import { flagCountry, flagSvg } from "./flags.js";
 import { crossFade } from "./motion.js";
 export { esc };
-// Camada compartilhada (sem framework, sem bundler). Espelha cuotai_core::model.
+// Shared layer (no framework, no bundler). Mirrors cuotai_core::model.
 
 // ---------- util ----------
-// Ícones (paths do Lucide, ISC).
+// Icons (Lucide paths, ISC).
 const paths = {
   refresh: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
   edit: '<path d="M21.17 6.81a1 1 0 0 0-3.99-3.99L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5z"/>',
@@ -115,11 +115,11 @@ export const visibleFields = (provider, choices, authMode, loginParams = {}) => 
 export const fieldChoices = (provider, choices, authMode) => call("field_choices", { provider, choices, authMode });
 /** PRD 0005 RF3: how the draft's usage is read (level, notes, cost warning, save confirmation), from the core. */
 export const draftAccess = (provider, authMode, fields, sessionSlots = []) => call("draft_access", { provider, authMode, fields, sessionSlots });
-// RF2: login orquestrado pelo core; a UI só renderiza eventos e envia entradas.
+// RF2: login orchestrated by the core; the UI only renders events and sends input.
 export const loginStart = (request) => call("login_start", { request });
 export const loginSubmitCode = (code) => call("login_submit_code", { code });
 export const loginCancel = (attempt) => call("login_cancel", { attempt });
-/** Assina os eventos tipados do login (sem segredos). Devolve função de cancelamento da assinatura. */
+/** Subscribes to the typed login events (no secrets). Returns the subscription's cancel function. */
 const demoLoginListeners = new Set();
 export const onLogin = (cb) => {
   if (isDesktop) return T.event.listen("login", (e) => cb(e.payload));
@@ -189,7 +189,7 @@ export const autostartSet = (enabled) => call("autostart_set", { enabled });
 export const firstRunTurnOn = () => call("first_run_turn_on");
 export const firstRunRecord = (again = false) => call("first_run_record", { again });
 export const setUserDir = (path) => call("set_user_dir", { path });
-// Animações (PRD 0004 RF1.2): `desktop.json` é a fonte; o localStorage só espelha para a leitura síncrona do <head>.
+// Animations (PRD 0004 RF1.2): `desktop.json` is the source; localStorage only mirrors it for the synchronous read in the <head>.
 export const MOTIONS = ["system", "always", "reduced", "off"];
 const applyMotion = (m) => { m = MOTIONS.includes(m) ? m : "system"; document.documentElement.dataset.motion = m; put("cuotai.motion", m); };
 export const setMotion = async (motion) => { await call("set_motion", { motion }); applyMotion(motion); };
@@ -354,11 +354,11 @@ export async function pickExportFile(format) {
   if (isDesktop && T.dialog) return T.dialog.save({ defaultPath, filters: [{ name: format.toUpperCase(), extensions: [format] }] });
   return `/Users/demo/${defaultPath}`; // navegador (demo)
 }
-/** "Sobre": identidade do projeto e lista de bibliotecas de código aberto (vem do core). */
+/** "About": project identity and open-source library list (comes from the core). */
 export const aboutInfo = () => call("about_info");
-/** PRD 0019 RF7.7: o histórico do changelog já analisado pelo core (sem rede). */
+/** PRD 0019 RF7.7: the changelog history already parsed by the core (no network). */
 export const whatsNew = () => call("whats_new");
-/** Abre no navegador um repositório da lista do "Sobre" (o shell recusa qualquer outro endereço). */
+/** Opens in the browser a repository from the "About" list (the shell refuses any other address). */
 export const reportProblem = (index, generation) => call("report_problem", { index: index ?? null, generation });
 export const openExternal = (url) => (isDesktop ? call("open_external", { url }) : Promise.resolve(window.open(url, "_blank", "noopener,noreferrer")));
 /** PRD 0020 RF1.3: every entry point opens (or focuses) the one Settings window, optionally on a page of its
@@ -417,21 +417,21 @@ export const onSettingsChanged = (cb) => {
   ch?.unref?.();
   return Promise.resolve(() => ch?.close());
 };
-/** Seletor nativo de pasta (plugin de diálogo do Tauri). */
+/** Native folder picker (Tauri dialog plugin). */
 export async function pickFolder(defaultPath) {
   if (isDesktop && T.dialog) return T.dialog.open({ directory: true, multiple: false, defaultPath: defaultPath || undefined });
   return "/Users/demo/CuotaiUser"; // navegador (demo)
 }
-/// RF1.2: aplica o `cuotai.toml` escolhido (`null` = padrão do SO); recarrega as contas e devolve a nova view.
+/// RF1.2: applies the chosen `cuotai.toml` (`null` = OS default); reloads the accounts and returns the new view.
 export const setConfigFile = (path) => call("set_config_file", { path });
-/** Seletor nativo de arquivo TOML. */
+/** Native TOML file picker. */
 export async function pickTomlFile(defaultPath) {
   if (isDesktop && T.dialog) return T.dialog.open({ multiple: false, directory: false, defaultPath: defaultPath || undefined, filters: [{ name: "TOML", extensions: ["toml"] }] });
   return "/Users/demo/cuotai.toml"; // navegador (demo)
 }
-/** Caminho efetivo do `cuotai.toml` com a origem (variável, escolhido ou padrão do SO); texto não escapado. */
+/** Effective path of `cuotai.toml` with its origin (variable, chosen or OS default); unescaped text. */
 export const configLabel = (view) => view?.config_path ? `${view.config_path} · ${t(`settings.config.source.${view.config_source}`)}` : "";
-/** RF1.2: aviso quando a TUI usou outro arquivo por último; texto não escapado. */
+/** RF1.2: notice when the TUI last used another file; unescaped text. */
 export const otherConfigNotice = (view) => view?.other_config ? t("config.other", { tui: view.other_config, app: view.config_path }) : "";
 /** RF1.2 banner of the main window (DS-CMP-MSG-2, dismissable): each (TUI path, app path) pair shows in one session
  *  only. The first render while the window is visible records the pair in localStorage, so a later launch does not show
@@ -461,15 +461,15 @@ export function dismissOtherConfig(view) { if (view?.other_config) otherDismisse
 export const setTrayMenu = (payload) => isDesktop && T.core.invoke("set_tray_menu", { payload });
 export const openMainWindow = () => isDesktop && T.core.invoke("show_main_window");
 export const quitApp = () => isDesktop && T.core.invoke("quit_app");
-// PRD 0002 RF6.1: catálogo de modelos por conta. `generation` vem da `View` lida pela UI; se a configuração mudou
-// desde então o backend recusa com "stale" e o resultado (da identidade antiga) é descartado.
+// PRD 0002 RF6.1: per-account model catalog. `generation` comes from the `View` the UI read; if the configuration changed
+// since then the backend refuses with "stale" and the result (from the old identity) is discarded.
 export const STALE = "stale";
 export const modelState = (index, generation) => call("model_state", { index, generation });
 export const loadModels = (index, generation) => call("load_models", { index, generation });
 export const syncModels = (index, generation) => call("sync_models", { index, generation });
-/** Fonte do catálogo ou motivo de não listar, para conta ainda não salva (sem rede). */
+/** Catalog source or reason for not listing, for an account not saved yet (no network). */
 export const modelSupport = (provider) => call("model_support", { provider });
-// RF8: erros do backend chegam como JSON `{ id, params, fallback }` ou texto simples.
+// RF8: backend errors arrive as JSON `{ id, params, fallback }` or plain text.
 export const errText = (e) => {
   if (e && typeof e === "object" && "id" in e) return tl(e);
   if (typeof e === "string") {
@@ -483,8 +483,8 @@ export const errText = (e) => {
   return t("common.unexpected");
 };
 
-// ---------- formatação ----------
-/** Percentual restante (0–100) segundo a classificação do core; null = sem medida/limite. */
+// ---------- formatting ----------
+/** Remaining percentage (0–100) per the core's classification; null = no measure/limit. */
 export function remainingPct(m) {
   if (m.state === "exhausted") return 0;
   if (m.state === "available" && !m.uncapped && m.ratio != null) return m.ratio * 100;
@@ -509,7 +509,7 @@ export function intlFormatter(kind, locale, options) {
 export const fmtLocal = (date, options, locale = currentLocale()) => intlFormatter("DateTimeFormat", locale, options).format(date);
 const HHMM = { hour: "2-digit", minute: "2-digit" };
 export const fmtNumber = (n, max = 2) => (n == null ? "—" : intlFormatter("NumberFormat", currentLocale(), { maximumFractionDigits: max }).format(n));
-// Unidades que descrevem "contagem de requisições": ficam implícitas. Outras (USD, créditos, tokens) são exibidas.
+// Units that describe "request count": left implicit. Others (USD, credits, tokens) are shown.
 const QUIET_UNITS = new Set(["", "%", "—", "solicitações", "requisições", "consultas", "unidades", "requests"]);
 const unitSuffix = (m) => (QUIET_UNITS.has(m.unit) ? "" : ` ${m.unit}`);
 export function fmtAmount(m) {
@@ -518,7 +518,7 @@ export function fmtAmount(m) {
 }
 /** One recorded value of a metric with `unit` (history): "60%", "12.5 USD", or a bare count. */
 export const fmtValue = (v, unit) => (unit === "%" ? `${fmtNumber(v)}%` : `${fmtNumber(v)}${unitSuffix({ unit })}`);
-/** Métrica sem limite utilizável: texto no lugar da barra (nunca inventa "100% livre"). */
+/** Metric without a usable limit: text in place of the bar (never invents "100% free"). */
 export function textualMetric(m) {
   if (m.state === "exhausted" && m.no_cap) return t("metric.exhausted");
   if (m.state === "available" && m.uncapped) {
@@ -565,7 +565,7 @@ function legacyCountdown(iso) {
   if (s <= 0) return t("time.now");
   return durationText(s);
 }
-/** Contagem até a próxima consulta: "4m 20s", "1h 05m", "2d 3h". `ms` é um instante absoluto (Unix, ms). */
+/** Countdown to the next query: "4m 20s", "1h 05m", "2d 3h". `ms` is an absolute instant (Unix, ms). */
 export function fmtNext(ms, now = Date.now()) {
   let s = Math.ceil((ms - now) / 1000);
   if (!Number.isFinite(s)) return "";
@@ -615,8 +615,8 @@ export const isRenewedWaiting = (m) => m.expired === true;
 /** "Renewed at 14:30; waiting for a reading", in the viewer's local time. */
 export const renewedText = (m) => t("metric.renewedWaiting", { time: fmtClock(m.resets_at) ?? "—" });
 export const statusLabel = (status) => t(`status.${status}`);
-/** Quotas que definem o resumo e a ordenação da conta: sem a janela curta de rate limit (não é a cota do
- *  plano) e sem as que o usuário ocultou. */
+/** Quotas that define the account's summary and ordering: without the short rate-limit window (it is not the
+ *  plan quota) and without the ones the user hid. */
 export const planMetrics = (r) => r.metrics.filter((m) => m.kind !== "rate_limit" && !isOverage(m) && !isMetricHidden(r, m));
 
 // ---------- PRD 0023: paid extra usage (overage) ----------
@@ -848,9 +848,9 @@ const brands = {
 export const brand = (p) => brands[p] ?? B(p, "#888888");
 /** PRD 0029 RF3.4: the account's display name, its configured name or else its provider's. */
 export const accountLabel = (r) => (r.account ?? "").trim() || brand(r.provider).label;
-// Logos de provider: glifos SVG monocromáticos (lobehub/icons, MIT; zed: simple-icons, CC0; ver img/providers/NOTICE.md)
-// pintados por máscara CSS sobre um ladrilho com a cor da marca — nítidos em qualquer tamanho e sem fundo branco.
-// [arquivo, fundo do ladrilho, cor do glifo]; o fundo omitido usa a cor da marca e o glifo, branco.
+// Provider logos: monochrome SVG glyphs (lobehub/icons, MIT; zed: simple-icons, CC0; see img/providers/NOTICE.md)
+// painted by CSS mask over a tile in the brand color — sharp at any size and with no white background.
+// [file, tile background, glyph color]; an omitted background uses the brand color and the glyph, white.
 const glyphs = {
   open_ai_api: ["openai"], anthropic_api: ["anthropic"], chat_gpt: ["codex", "#111113"], claude: ["claude"],
   gemini_api: ["gemini"], vertex_ai: ["vertexai"], aws_bedrock: ["bedrock", "#232f3e", "#ff9900"], azure_open_ai: ["azure"],
@@ -872,7 +872,7 @@ export const wordmark = (attrs = "") =>
 export const logo = (provider, size = 40) => {
   const b = brand(provider);
   const style = `width:${size}px;height:${size}px;font-size:${size * 0.4}px`;
-  if (provider === "kimchi") // arte própria, já colorida e circular: sem ladrilho nem máscara
+  if (provider === "kimchi") // own artwork, already colored and circular: no tile or mask
     return `<span class="logo art" style="${style}" aria-hidden="true"><img src="${uiPath("img/providers/kimchi.svg")}" alt="" draggable="false" /></span>`;
   const g = glyphs[provider];
   if (!g) return `<span class="logo fb" style="${style};--c:${b.color}" aria-hidden="true"><b>${esc(b.mark)}</b></span>`;
@@ -881,13 +881,13 @@ export const logo = (provider, size = 40) => {
 };
 
 // ---------- tema (compartilhado entre janelas via localStorage + evento storage) ----------
-// Registro e regras de modo em js/themes.js; tokens em css/themes/<id>.css.
+// Registry and mode rules in js/themes.js; tokens in css/themes/<id>.css.
 const get = (k, d) => { try { return localStorage.getItem(k) || d; } catch { return d; } };
 const put = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
 const systemDark = () => matchMedia("(prefers-color-scheme: dark)").matches;
 export const theme = {
   mode: get("cuotai.themeMode", "system"),
-  id: get("cuotai.theme", get("cuotai.darkTheme", DEFAULT_THEME)), // bruto: temas do usuário só existem após o boot; darkTheme: chave antiga
+  id: get("cuotai.theme", get("cuotai.darkTheme", DEFAULT_THEME)), // raw: user themes only exist after boot; darkTheme: old key
 };
 export function applyTheme() {
   const t = themeById(theme.id);
@@ -923,7 +923,7 @@ export function initTheme(onChange = () => {}) {
   });
 }
 const groupLabel = (g) => (GROUP_ORDER.includes(g) ? t(`theme.group.${g}`) : g);
-/** Aparência rápida (auto/claro/escuro). `themeSelect` acrescenta a escolha do tema (só na tela de configurações). */
+/** Quick appearance (auto/light/dark). `themeSelect` adds the theme choice (settings screen only). */
 export function themeSwitchHtml({ themeSelect = false, labels = false, selectOnly = false } = {}) {
   const th = themeById(theme.id);
   const modes = [["system", "monitor"], ["light", "sun"], ["dark", "moon"]];
@@ -949,7 +949,7 @@ export function themeSwitchHtml({ themeSelect = false, labels = false, selectOnl
 let langOpen = false;
 let themeOpen = false;
 const flagOf = (l) => flagSvg(flagCountry(l.code, l.flag));
-/** Botão com a bandeira do idioma atual e menu (bandeira + nome). `inline` mostra a lista aberta (tela de configurações). */
+/** Button with the current language's flag and a menu (flag + name). `inline` shows the open list (settings screen). */
 export function langMenuHtml({ inline = false, field = false } = {}) {
   const cur = LOCALES.find((l) => l.code === currentLocale()) ?? LOCALES[0];
   // PRD 0022 RF9.6 (DS-CMP-SEL-3): flag (decorative) + the endonym in its own language; the selected one is marked
@@ -971,7 +971,7 @@ export function langMenuHtml({ inline = false, field = false } = {}) {
   </div>`;
 }
 
-/** Delegação de eventos do seletor; `rerender` é chamado após a troca (tema e idioma com cross-fade, RF3.3). */
+/** Selector event delegation; `rerender` is called after the switch (theme and language with cross-fade, RF3.3). */
 export function bindThemeSwitch(root, rerender) {
   root.addEventListener("click", (e) => {
     const b = e.target.closest("[data-theme-mode]");
@@ -995,7 +995,7 @@ export function bindThemeSwitch(root, rerender) {
       return crossFade(() => { applyTheme(); return rerender(); });
     }
     const item = e.target.closest("[data-locale]");
-    if (item) { langOpen = false; await setLocale(item.dataset.locale); return crossFade(rerender); } // carrega antes: a transição não congela a tela
+    if (item) { langOpen = false; await setLocale(item.dataset.locale); return crossFade(rerender); } // loads first: the transition does not freeze the screen
     if ((langOpen || sortOpen || themeOpen) && !e.target.closest(".lang, .theme-field")) { langOpen = false; sortOpen = false; themeOpen = false; rerender(); }
   });
   addEventListener("keydown", (e) => { if (e.key === "Escape" && (langOpen || sortOpen || themeOpen)) { langOpen = false; sortOpen = false; themeOpen = false; rerender(); } });
@@ -1025,19 +1025,19 @@ export function persistentSet(key, onExternal = () => {}) {
   };
 }
 
-// Quotas ocultas pelo usuário (olho na tela de detalhes): compartilhadas entre as janelas e fora do resumo/ordem.
+// Quotas hidden by the user (eye on the details screen): shared between windows and outside the summary/order.
 const hiddenListeners = new Set();
 export const hiddenMetrics = persistentSet("cuotai.hiddenMetrics", () => hiddenListeners.forEach((f) => f()));
 export const onHiddenChange = (f) => hiddenListeners.add(f);
 export const isMetricHidden = (r, m) => hiddenMetrics.has(metricKey(r, m));
 
-// Contas desativadas no painel (interruptor do card): compartilhadas entre janelas e com o menu da bandeja.
+// Accounts turned off in the panel (card switch): shared between windows and with the tray menu.
 const disabledListeners = new Set();
 export const disabledAccounts = persistentSet("cuotai.disabledAccounts", () => disabledListeners.forEach((f) => f()));
 export const onDisabledChange = (f) => disabledListeners.add(f);
 
-// ---------- estado de dados ----------
-// O backend é a única fonte: agenda por conta (RefreshCycle) e emite "snapshot".
+// ---------- data state ----------
+// The backend is the only source: per-account schedule (RefreshCycle) and emits "snapshot".
 export function createStore(render) {
   const s = { view: null, error: null };
   const set = (v) => { s.view = v; s.error = v?.error ?? null; render(); };
@@ -1054,7 +1054,7 @@ export function createStore(render) {
   return s;
 }
 
-// ---------- demo (só no navegador; mesma forma dos comandos Tauri) ----------
+// ---------- demo (browser only; same shape as the Tauri commands) ----------
 const h = (n) => new Date(Date.now() + n * 3600e3).toISOString();
 const dm = (label, used, limit, resetH, kind, window, unit = "requests") => {
   const unmeasured = used === 0 && limit === 0;
@@ -1476,8 +1476,8 @@ const demoSettings = { monograms: {}, profileExisted: new URLSearchParams(locati
   serve: { enabled: DEMO_SERVE_TAKEN, port: 6738, allow_browsers: false, secret: null },
   widgets: { enabled: DEMO_WIDGETS, include_identity: false, max_accounts: 6, written: false } };
 const demoPermission = (on) => (!on ? "off" : new URLSearchParams(location.search).has("notify-denied") ? "denied" : "granted");
-// Modelos na demo: mesma validação (índice + geração) e o estado `unsupported` com motivo explícito de demonstração;
-// nenhum catálogo inventado é exibido como real.
+// Models in the demo: same validation (index + generation) and the `unsupported` state with an explicit demonstration reason;
+// no invented catalog is shown as real.
 const demoModels = async ({ index, generation }) => {
   if (generation !== demoSettings.generation) throw STALE;
   if (!demoReports[index]) throw JSON.stringify({ id: "models.error.invalid_index", params: {}, fallback: "Account does not exist in this configuration." });
@@ -1949,7 +1949,7 @@ const demo = {
     demoSettings.generation++;
     return { cleanup_warning: null };
   },
-  // Login de demonstração: emite a sequência de eventos do core (prompt → progresso → concluído).
+  // Demo login: emits the core's event sequence (prompt → progress → completed).
   login_start: async ({ request }) => {
     window.__lastLoginRequest = request;
     const attempt = 1;
@@ -2250,7 +2250,7 @@ const demo = {
   reset_timeline: demoTimeline,
   set_config_file: async ({ path }) => { demoSettings.config = path ?? null; demoSettings.generation++; return demoView(); },
   open_user_dir: async () => {},
-  // Demonstração: amostra do histórico (no app, o core entrega o changelog embutido).
+  // Demo: history sample (in the app, the core delivers the embedded changelog).
   whats_new: async () => ({
     current: "demo",
     title: { id: "changelog.title", params: {}, fallback: "What's new" },
@@ -2262,8 +2262,8 @@ const demo = {
     ],
     history: null,
   }),
-  // Demonstração: amostra da lista real (no app, a lista completa vem do core).
-  // Demonstração: o texto do relato é do core; aqui, um exemplo sem dado algum.
+  // Demo: sample of the real list (in the app, the full list comes from the core).
+  // Demo: the report text is the core's; here, an example with no data at all.
   report_problem: async ({ index }) => ({
     title: "[Provider] claude: schema_changed",
     body: `## Provider problem report\n\n- Cuotai version: demo\n- Provider: \`claude\`${index == null ? "" : "\n- Failure category: \`schema_changed\`"}\n`,
@@ -2285,9 +2285,9 @@ const demo = {
   }),
 };
 
-// ---------- ordem das contas ----------
-// O modo personalizado segue `report.index`, a ordem persistida no TOML pelo
-// core e compartilhada com a TUI. Só o modo de ordenação é preferência local.
+// ---------- account order ----------
+// Custom mode follows `report.index`, the order persisted in the TOML by the
+// core and shared with the TUI. Only the ordering mode is a local preference.
 const SORT_KEY = "cuotai.sort";
 // "binding" (PRD 0009 RF2.3): the core's "most restrictive first" order (`binding_rank`); it only changes the
 // display, so the manual order in the TOML stays the default and is never rewritten.
@@ -2475,8 +2475,8 @@ function onPreferencesChanged(cb) {
   });
 }
 
-/** Resumo da conta: a quota mais apertada (menor % disponível; empate → reinício mais próximo), ou o texto de
- *  uma métrica sem limite, ou o motivo de não haver resumo. */
+/** Account summary: the tightest quota (lowest % available; tie → nearest reset), or the text of
+ *  a metric without a limit, or the reason there is no summary. */
 export function summaryOf(r) {
   const quotas = planMetrics(r);
   const when = (m) => (m.resets_at ? new Date(m.resets_at).getTime() : Infinity);
@@ -2490,29 +2490,29 @@ export function summaryOf(r) {
   const planAll = r.metrics.filter((m) => m.kind !== "rate_limit" && !isOverage(m));
   return { kind: planAll.length && !quotas.length ? "hidden" : "none" };
 }
-/** Janelas de 5h e semanal da conta (a classificação vem do core: `metric.window`). Em cada janela vale a quota mais
- *  apertada, entre as não ocultas; null quando a conta não tem a janela. */
+/** The account's 5h and weekly windows (classification comes from the core: `metric.window`). In each window the tightest
+ *  quota among the non-hidden ones wins; null when the account has no such window. */
 export function windowsOf(r) {
   const when = (m) => (m.resets_at ? new Date(m.resets_at).getTime() : Infinity);
   const pick = (w) => planMetrics(r).filter((m) => m.window === w).map((m) => ({ m, pct: remainingPct(m) })).filter((x) => x.pct != null)
     .sort((a, b) => a.pct - b.pct || when(a.m) - when(b.m))[0] ?? null;
   return { h5: pick("window_5h"), week: pick("weekly") };
 }
-/** Pior % disponível entre as janelas de rate limit (não ocultas); null quando não há. */
+/** Worst % available among the rate-limit windows (non-hidden); null when there are none. */
 export function rateLimitOf(r) {
   const v = r.metrics.filter((m) => m.kind === "rate_limit" && !isMetricHidden(r, m)).map(remainingPct).filter((x) => x != null);
   return v.length ? Math.min(...v) : null;
 }
 
-/** Instante (ms) do reinício mais próximo entre as métricas da conta; null quando nenhuma informa. */
+/** Instant (ms) of the nearest reset among the account's metrics; null when none reports one. */
 function soonestReset(r) {
   const now = Date.now();
   const s = summaryOf(r);
-  if (s.m?.resets_at) { const t0 = new Date(s.m.resets_at).getTime(); if (Number.isFinite(t0) && t0 > now) return t0; } // o mesmo reinício que o card mostra
+  if (s.m?.resets_at) { const t0 = new Date(s.m.resets_at).getTime(); if (Number.isFinite(t0) && t0 > now) return t0; } // the same reset that the card shows
   const times = planMetrics(r).map((m) => (m.resets_at ? new Date(m.resets_at).getTime() : NaN)).filter((x) => Number.isFinite(x) && x > now);
   return times.length ? Math.min(...times) : null;
 }
-/** Lista na ordem escolhida. A personalizada é a ordem do arquivo; fora dela, contas sem o dado vão para o fim. */
+/** List in the chosen order. Custom is the file order; outside it, accounts without the datum go to the end. */
 export function sortReports(reports) {
   if (sortMode === "custom") return [...reports].sort((a, b) => a.index - b.index);
   if (sortMode === "binding") return [...reports].sort((a, b) => a.binding_rank - b.binding_rank);
@@ -2529,7 +2529,7 @@ export function sortReports(reports) {
 }
 
 let sortOpen = false;
-/** Botão + menu de ordenação (personalizada, reinício, % disponível). */
+/** Button + ordering menu (custom, reset, % available). */
 export function sortMenuHtml() {
   const label = (m) => (m === "custom" ? t("sort.custom") : t(`sort.${m}`));
   const items = SORT_MODES.map((m) => `<button role="menuitemradio" aria-checked="${m === sortMode}" class="${m === sortMode ? "on" : ""}" data-sort="${m}"><span>${label(m)}</span>${m === sortMode ? icon("tick", "sel-tick") : ""}</button>`).join("");
@@ -2539,7 +2539,7 @@ export function sortMenuHtml() {
   </div>`;
 }
 
-// ---------- categorias de aviso (cards e popover): ícone dedicado e cor própria, da mais grave à menos grave ----------
+// ---------- notice categories (cards and popover): dedicated icon and own color, from most to least severe ----------
 // `label(r)`: with the account, the category's text for it; without, the category's title.
 export const ALERTS = [
   { id: "error", icon: "xcircle", tone: "bad", label: () => t("status.error"), match: (r) => r.status === "error" },
@@ -2554,7 +2554,7 @@ export const ALERTS = [
 ];
 export const alertOf = (r) => ALERTS.find((c) => c.match(r)) ?? null;
 
-// Kiro de demonstração: um modo de login (oauth) e os campos de credencial, como no core.
+// Demo Kiro: one login mode (oauth) and the credential fields, as in the core.
 const dl = (id, fallback) => ({ id, params: {}, fallback });
 // The core's own id when the catalogs know it, else a demo id (so no language shows the Portuguese fallback).
 const dlx = (id, demoId, fallback) => dl(t(id) !== id ? id : demoId, fallback);

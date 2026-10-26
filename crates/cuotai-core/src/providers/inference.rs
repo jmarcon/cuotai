@@ -1,60 +1,60 @@
-//! Adaptador para provedores de inferência de terceiros (somente leitura).
+//! Adapter for third-party inference providers (read-only).
 //!
-//! Política deste adaptador:
+//! This adapter's policy:
 //!
-//! 1. Os nomes de credencial expostos no wizard são exatamente
+//! 1. The credential names exposed in the wizard are exactly
 //!    `GROQ_API_KEY`, `PERPLEXITY_API_KEY`, `MISTRAL_API_KEY`,
-//!    `X_GROK_API_KEY`, `NVIDIA_NIM_API_KEY`, `POOLSIDE_API_KEY`. O
-//!    usuário pode sobrescrever a env via `Account.credential_env`.
-//! 2. Quando o endpoint oficial exige uma classe de credencial diferente
-//!    da geração (admin, analytics, management), o usuário indica a env
-//!    alternativa em `params.admin_key_env`,
-//!    `params.analytics_key_env` ou `params.management_key_env` — esses
-//!    params armazenam apenas o **nome** da env; o valor continua sendo
-//!    lido via `Context.credentials`.
-//! 3. Precedência de credencial: `params.<env_ref>` configurado →
-//!    `credential_env`/`default`. Nunca lemos duas credenciais para o
-//!    mesmo provedor.
-//! 4. Quando o endpoint exige classe alternativa e nenhuma env aponta
-//!    para uma chave da classe correta, retornamos `NeedsConfiguration`
-//!    com a instrução de usar `params.<env_ref>`.
-//! 5. Provedores sem endpoint público de saldo/uso por chave retornam
-//!    `Unsupported` com a URL da fonte primária. Nada de probing.
+//!    `X_GROK_API_KEY`, `NVIDIA_NIM_API_KEY`, `POOLSIDE_API_KEY`. The
+//!    user may override the env via `Account.credential_env`.
+//! 2. When the official endpoint requires a credential class different
+//!    from the generation one (admin, analytics, management), the user gives the alternative
+//!    env in `params.admin_key_env`,
+//!    `params.analytics_key_env` or `params.management_key_env` — these
+//!    params store only the env **name**; the value is still
+//!    read through `Context.credentials`.
+//! 3. Credential precedence: configured `params.<env_ref>` →
+//!    `credential_env`/`default`. We never read two credentials for the
+//!    same provider.
+//! 4. When the endpoint requires an alternative class and no env points
+//!    to a key of the correct class, we return `NeedsConfiguration`
+//!    with the instruction to use `params.<env_ref>`.
+//! 5. Providers without a public per-key balance/usage endpoint return
+//!    `Unsupported` with the primary source URL. No probing.
 //!
-//! Fontes oficiais consultadas:
+//! Official sources consulted:
 //!
-//! - Mistral (admin): endpoints `beta.admin.billing` exigem Admin API Key.
-//!   `GET /v1/admin/spend-limit` retorna uso/limite/moeda do ciclo
-//!   corrente.
+//! - Mistral (admin): `beta.admin.billing` endpoints require an Admin API Key.
+//!   `GET /v1/admin/spend-limit` returns usage/limit/currency of the current
+//!   cycle.
 //!   Ref.: <https://docs.mistral.ai/api/endpoint/beta/admin/billing>
 //!   OpenAPI: <https://docs.mistral.ai/openapi.yaml>
 //!
-//! - Perplexity: a API principal (Sonar/Ask) não tem endpoint público de
-//!   saldo/uso por chave. A Analytics API
-//!   (`GET /v1/analytics/computer/usage`) cobre o produto Perplexity
-//!   Computer dentro de organizações Enterprise; é opt-in via
-//!   `params.product=computer` para não silenciosamente trocar de
-//!   produto.
+//! - Perplexity: the main API (Sonar/Ask) has no public per-key balance/usage
+//!   endpoint. The Analytics API
+//!   (`GET /v1/analytics/computer/usage`) covers the Perplexity
+//!   Computer product within Enterprise organizations; it is opt-in through
+//!   `params.product=computer` so as not to silently switch
+//!   product.
 //!   Ref.: <https://docs.perplexity.ai/docs/admin/computer-analytics-api.md>
 //!   Ref.: <https://docs.perplexity.ai/api-reference/computer-analytics-usage-get.md>
 //!
-//! - Grok (xAI): Management API em `https://management-api.x.ai` (host
-//!   distinto de `https://api.x.ai`, inferência, e de `https://api.x.com`,
-//!   API social X). Endpoints documentados: `GET /prepaid/balance` para
-//!   saldo de créditos pré-pagos e `GET /postpaid/invoice/preview` para
-//!   o previsto no ciclo corrente. O `effectiveSpendingLimit` é o teto
-//!   mensal configurado pelo usuário (soft spending limit pós-pago), não
-//!   uma cota da plataforma.
+//! - Grok (xAI): Management API at `https://management-api.x.ai` (a host
+//!   distinct from `https://api.x.ai`, inference, and from `https://api.x.com`,
+//!   the X social API). Documented endpoints: `GET /prepaid/balance` for
+//!   prepaid credit balance and `GET /postpaid/invoice/preview` for
+//!   the forecast in the current cycle. `effectiveSpendingLimit` is the
+//!   monthly ceiling configured by the user (postpaid soft spending limit), not
+//!   a platform quota.
 //!   Ref.: <https://docs.x.ai/developers/management-api-guide.md>
 //!   Ref.: <https://docs.x.ai/developers/rest-api-reference/management/billing.md>
 //!
-//! - NvidiaNim: `https://integrate.api.nvidia.com` é só geração; cobrança
-//!   é pela conta NVIDIA Cloud.
+//! - NvidiaNim: `https://integrate.api.nvidia.com` is generation only; billing
+//!   is through the NVIDIA Cloud account.
 //!   Ref.: <https://docs.api.nvidia.com/nim/reference/llm-apis>
 //!
-//! - Poolside: API hospedada (`https://inference.poolside.ai/v1`) expõe
-//!   somente `/v1/models` e `/v1/chat/completions`; implantações
-//!   auto-gerenciadas publicam métricas Prometheus, não saldo por chave.
+//! - Poolside: hosted API (`https://inference.poolside.ai/v1`) exposes
+//!   only `/v1/models` and `/v1/chat/completions`; self-managed
+//!   deployments publish Prometheus metrics, not per-key balance.
 //!   Ref.: <https://docs.poolside.ai/api/overview.md>
 
 use super::{json, Context, Data, QueryError};
@@ -64,7 +64,7 @@ use chrono::{DateTime, Datelike, Months, Utc};
 use reqwest::RequestBuilder;
 use serde::Deserialize;
 
-/// Limite padrão de iteração para paginação cursor-based.
+/// Default iteration limit for cursor-based pagination.
 const MAX_PAGES: usize = 8;
 
 const MISTRAL_BASE: &str = "https://api.mistral.ai";
@@ -112,7 +112,7 @@ fn finite(value: f64) -> Result<f64, QueryError> {
     }
 }
 
-/// Início do mês corrente (UTC) e o instante de reinício (próximo mês).
+/// Start of the current month (UTC) and the reset instant (next month).
 fn month_bounds(now: DateTime<Utc>) -> (DateTime<Utc>, DateTime<Utc>) {
     let start = now
         .date_naive()
@@ -123,8 +123,8 @@ fn month_bounds(now: DateTime<Utc>) -> (DateTime<Utc>, DateTime<Utc>) {
     (start, start + Months::new(1))
 }
 
-/// Identificador de equipe/workspace: nunca pode conter separadores
-/// suscetíveis a injeção em path.
+/// Team/workspace identifier: it must never contain separators
+/// susceptible to path injection.
 fn path_id<'a>(value: &'a str, key: &str) -> Result<&'a str, QueryError> {
     if value
         .chars()
@@ -140,11 +140,11 @@ fn path_id<'a>(value: &'a str, key: &str) -> Result<&'a str, QueryError> {
     }
 }
 
-/// Resolve a credencial de fato usada. Política: o `param_name` opcional
-/// (ex.: `params.admin_key_env`) tem prioridade quando configurado com um
-/// valor não vazio; caso contrário, usamos `credential_env` ou `default`.
-/// Nunca tentamos duas credenciais para o mesmo provedor. O valor nunca
-/// passa pelo `Account`: é resolvido exclusivamente via
+/// Resolves the credential actually used. Policy: the optional `param_name`
+/// (e.g. `params.admin_key_env`) takes priority when configured with a
+/// non-empty value; otherwise we use `credential_env` or `default`.
+/// We never try two credentials for the same provider. The value never
+/// passes through `Account`: it is resolved exclusively via
 /// `Context.credentials`.
 fn resolve_credential(
     account: &Account,
@@ -204,9 +204,9 @@ fn resolve_credential(
 
 // =================================================================== Perplexity
 
-/// `count` é obrigatório na resposta da Analytics API: sua ausência
-/// significa resposta fora do contrato. Por isso NÃO usamos `default`,
-/// evitando zeros silenciosos para séries quebradas.
+/// `count` is required in the Analytics API response: its absence
+/// means a response outside the contract. That is why we do NOT use `default`,
+/// avoiding silent zeros for broken series.
 #[derive(Deserialize)]
 struct PerplexityBucket {
     count: f64,
@@ -270,11 +270,11 @@ async fn perplexity(account: &Account, ctx: &Context<'_>, base: &str) -> Result<
     let (start, reset) = month_bounds(now);
     let period = start.format("%Y-%m").to_string();
 
-    // Este adaptador consulta apenas `credit_usage`. Outros datasets
-    // (`query_volume`, `daily_active_users`, `connectors`, etc.) medem
-    // grandezas diferentes (consultas, membros, threads) e estão fora do
-    // escopo desta consulta; nada impede uma expansão futura, mas por
-    // enquanto mantemos a unidade/label sem ambiguidade.
+    // This adapter queries only `credit_usage`. Other datasets
+    // (`query_volume`, `daily_active_users`, `connectors`, etc.) measure
+    // different quantities (queries, members, threads) and are out of the
+    // scope of this query; nothing prevents a future expansion, but for
+    // now we keep the unit/label unambiguous.
     let dataset = "credit_usage";
 
     let user_email = account
@@ -388,8 +388,8 @@ struct MistralLimitsOut {
 }
 
 async fn mistral(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data, QueryError> {
-    // Documentação oficial: Admin API autentica via header `x-api-key`,
-    // não `Authorization: Bearer`. Fonte:
+    // Official documentation: the Admin API authenticates via the `x-api-key` header,
+    // not `Authorization: Bearer`. Source:
     // https://docs.mistral.ai/admin/admin-api/authentication
     let key = resolve_credential(
         account,
@@ -416,16 +416,16 @@ async fn mistral(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
         return Err(QueryError::schema());
     }
 
-    // O OpenAPI documenta o bloco como contendo apenas `monthly_limit_reached`
-    // como obrigatório, mais opcionais `usage`, `vibe_usage`, `total_usage`
-    // e `usage_limit`. O OpenAPI declara `usage: number` sem `format`; o
-    // guia oficial `usage-metrics.md` afirma que o limite mensal é "as a
+    // The OpenAPI documents the block as having only `monthly_limit_reached`
+    // as required, plus optional `usage`, `vibe_usage`, `total_usage`
+    // and `usage_limit`. The OpenAPI declares `usage: number` without `format`; the
+    // official guide `usage-metrics.md` states that the monthly limit is "as a
     // whole number in your Organization's billing currency (`500` means
-    // 500, not 500 cents)" mas **não** confirma a mesma escala para os
-    // campos numéricos de uso. Sem fonte primária explícita sobre a
-    // escala desses campos, usamos a moeda declarada (`limits.currency`)
-    // como rótulo genérico de unidade — `USD`, `EUR` etc. — sem assumir
-    // USD direto nem cents.
+    // 500, not 500 cents)" but does **not** confirm the same scale for the
+    // numeric usage fields. Without an explicit primary source on the
+    // scale of those fields, we use the declared currency (`limits.currency`)
+    // as a generic unit label — `USD`, `EUR` etc. — without assuming
+    // USD directly or cents.
     let completion = body.limits.completion;
     let used_opt = match completion.total_usage.or(completion.usage) {
         Some(v) if v.is_finite() => Some(v),
@@ -535,16 +535,16 @@ struct GrokPrepaidBalance {
     total: GrokUsdCents,
 }
 
-/// Decodifica strings de USD cents (1 USD = 100 cents) em `f64`,
-/// distinguindo três casos:
-/// - ausente/vazio: `Ok(None)`
-/// - presente e finito: `Ok(Some(dollars))`
-/// - presente mas malformado ou não finito: `Err(schema)`
+/// Decodes USD cents strings (1 USD = 100 cents) into `f64`,
+/// distinguishing three cases:
+/// - absent/empty: `Ok(None)`
+/// - present and finite: `Ok(Some(dollars))`
+/// - present but malformed or non-finite: `Err(schema)`
 ///
-/// A regra acima garante que campos ausentes (ex.: saldo pré-pago zerado
-/// sem bloco `total`) não sejam confundidos com dados corrompidos, mas
-/// qualquer string presente que não parseie vira erro de esquema — sem
-/// fallback silencioso para 0.
+/// The rule above ensures that absent fields (e.g. a zeroed prepaid balance
+/// without a `total` block) are not confused with corrupted data, but
+/// any present string that does not parse becomes a schema error — with no silent
+/// fallback to 0.
 fn parse_usd_cents(value: &str) -> Result<Option<f64>, QueryError> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
@@ -617,10 +617,10 @@ async fn grok(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data, 
         "Prepaid credits have no documented monthly expiration; no reset is inferred and `resets_at = None` is kept for that balance.",
     );
 
-    // Pré-pago: o endpoint devolve `total` em USD cents (negativo quando
-    // há compra, positivo quando há gasto). Tratamos o valor como saldo
-    // **disponível** e o apresentamos em `remaining`; `used` permanece
-    // `None` porque o campo da API é saldo, não consumo.
+    // Prepaid: the endpoint returns `total` in USD cents (negative when
+    // there is a purchase, positive when there is spending). We treat the value as the
+    // **available** balance and present it in `remaining`; `used` stays
+    // `None` because the API field is a balance, not consumption.
     match parse_usd_cents(&prepaid.total.val)? {
         Some(saldo) => {
             let mut m = Metric::usage(
@@ -632,7 +632,7 @@ async fn grok(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data, 
             );
             m.used = None;
             m.remaining = Some(saldo);
-            // Sem reset documentado para pré-pago: permanece None.
+            // No documented reset for prepaid: stays None.
             metrics.push(m);
         }
         None => {
@@ -669,9 +669,9 @@ async fn grok(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data, 
             }
             m.resets_at = Some(start + Months::new(1));
             if let Some(limit) = limit_opt {
-                // Rótulo explícito: é o orçamento pós-pago que o próprio
-                // usuário configurou na console (soft spending limit),
-                // não uma cota da plataforma.
+                // Explicit label: it is the postpaid budget that the
+                // user configured in the console (soft spending limit),
+                // not a platform quota.
                 m.limit = Some(limit);
                 let remaining = limit - total;
                 m.remaining = Some(finite(remaining)?);
@@ -703,8 +703,8 @@ async fn grok(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data, 
     }
 
     if metrics.is_empty() {
-        // Se nenhum endpoint devolveu dados utilizáveis, retornamos erro
-        // de esquema em vez de fingir sucesso com relatório vazio.
+        // If no endpoint returned usable data, we return a schema error
+        // instead of faking success with an empty report.
         return Err(QueryError::schema());
     }
 
@@ -771,7 +771,7 @@ mod tests {
         );
     }
 
-    // ---------------------------------------------- defaults dos provedores
+    // ---------------------------------------------- provider defaults
 
     #[tokio::test]
     async fn fetch_provider_nao_atendido_retorna_indisponivel() {
@@ -897,7 +897,7 @@ mod tests {
         assert!(err.note.fallback.contains("admin (Mistral)"));
     }
 
-    // ----------------------------------------------------- helpers numéricos
+    // ----------------------------------------------------- numeric helpers
 
     #[tokio::test]
     async fn finite_aceita_valores_e_rejeita_nan_e_infinito() {
@@ -1011,8 +1011,8 @@ mod tests {
             .mount(&server)
             .await;
 
-        // PERPLEXITY_API_KEY intencionalmente ausente: a chave de
-        // analytics é resolvida via params.analytics_key_env.
+        // PERPLEXITY_API_KEY intentionally absent: the analytics
+        // key is resolved through params.analytics_key_env.
         let mut creds = MapCreds(BTreeMap::new());
         creds.0.insert("PPLX_AN".to_string(), "pplx-an".to_string());
         let http = reqwest::Client::new();
@@ -1042,8 +1042,8 @@ mod tests {
 
     #[tokio::test]
     async fn perplexity_opt_in_chave_via_credential_env_padrao_tambem_funciona() {
-        // Mesmo sem params.analytics_key_env, se a env `credential_env`
-        // contiver uma chave de analytics válida, usamos ela.
+        // Even without params.analytics_key_env, if the `credential_env` env
+        // holds a valid analytics key, we use it.
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/v1/analytics/computer/usage"))
@@ -1082,9 +1082,9 @@ mod tests {
 
     #[tokio::test]
     async fn perplexity_dataset_user_email_e_apenas_credit_usage() {
-        // O dataset é fixo em `credit_usage`; este teste confirma que
-        // mesmo se o usuário tentar outros nomes via params, a consulta
-        // usa o dataset fixo e o filtro user_email é propagado.
+        // The dataset is fixed to `credit_usage`; this test confirms that
+        // even if the user tries other names through params, the query
+        // uses the fixed dataset and the user_email filter is propagated.
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/v1/analytics/computer/usage"))
@@ -1110,7 +1110,7 @@ mod tests {
                 BTreeMap::from([
                     ("product".to_string(), "computer".to_string()),
                     ("user_email".to_string(), "alice@example.com".to_string()),
-                    // Tentativa de override do dataset é ignorada.
+                    // Attempt to override the dataset is ignored.
                     ("dataset".to_string(), "query_volume".to_string()),
                 ]),
             ),
@@ -1133,8 +1133,8 @@ mod tests {
 
     #[tokio::test]
     async fn perplexity_count_ausente_no_bucket_e_schema_nao_zero() {
-        // count ausente no payload é tratado como erro de esquema
-        // (não como zero silencioso).
+        // count missing from the payload is treated as a schema error
+        // (not as a silent zero).
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/v1/analytics/computer/usage"))
@@ -1351,8 +1351,8 @@ mod tests {
 
     #[tokio::test]
     async fn mistral_apenas_booleano_sem_usage_mantem_used_como_none() {
-        // Resposta mínima (apenas o campo obrigatório `monthly_limit_reached`):
-        // mantemos `used` desconhecido e emitimos uma nota explicando.
+        // Minimal response (only the required `monthly_limit_reached` field):
+        // we keep `used` unknown and emit a note explaining it.
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/v1/admin/spend-limit"))
@@ -1421,7 +1421,7 @@ mod tests {
         .await
         .unwrap_err();
         assert_eq!(err.status, Status::Error);
-        // O erro é QueryError::schema — mensagem fixa do helper.
+        // The error is QueryError::schema — fixed helper message.
         assert!(err.note.fallback.contains("Response"));
     }
 
@@ -1549,14 +1549,14 @@ mod tests {
         .unwrap();
 
         let prepaid = metric(&data, "Saldo de créditos pré-pagos");
-        // Pré-pago: `used` permanece None; o saldo é exposto em `remaining`.
+        // Prepaid: `used` stays None; the balance is exposed in `remaining`.
         assert!(prepaid.used.is_none());
         approx(prepaid.remaining.unwrap(), 123.45);
         assert_eq!(prepaid.kind, MetricKind::Credits);
         assert_eq!(prepaid.window, None);
         assert_eq!(prepaid.unit, "USD");
         assert!(prepaid.period.is_none());
-        // Sem reset documentado para pré-pago.
+        // No documented reset for prepaid.
         assert!(prepaid.resets_at.is_none());
 
         let cycle = metric(&data, "Uso pós-pago previsto no ciclo corrente");
@@ -1567,7 +1567,7 @@ mod tests {
         assert_eq!(cycle.window, Some(MetricWindow::Monthly));
         assert_eq!(cycle.period.as_deref(), Some("2025-11"));
 
-        // Notas explicam que effectiveSpendingLimit é orçamento, não cota.
+        // Notes explain that effectiveSpendingLimit is a budget, not a quota.
         assert!(data.notes.iter().any(|n| n.contains("budget")));
         assert!(data.notes.iter().any(|n| n.contains("monthly expiration")));
         assert_eq!(server.received_requests().await.unwrap().len(), 2);
@@ -1721,15 +1721,15 @@ mod tests {
         .await
         .unwrap();
 
-        // Sem métrica de saldo pré-pago (ausente).
+        // No prepaid balance metric (absent).
         assert!(!data
             .metrics
             .iter()
             .any(|m| m.label == "Saldo de créditos pré-pagos"));
-        // Mas a métrica do ciclo continua presente (0 USD).
+        // But the cycle metric is still present (0 USD).
         let cycle = metric(&data, "Uso pós-pago previsto no ciclo corrente");
         approx(cycle.used.unwrap(), 0.0);
-        // E a nota explica a ausência.
+        // And the note explains the absence.
         assert!(data.notes.iter().any(|n| n.contains("prepaid credits")));
     }
 

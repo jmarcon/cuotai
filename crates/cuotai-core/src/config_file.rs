@@ -784,8 +784,8 @@ fn edit_account(table: &mut toml_edit::Table, account: &Account) -> Result<(), E
     if account.params.is_empty() {
         table.remove("params");
     }
-    // Override individual de refresh_seconds: só persiste quando setado;
-    // limpar o campo no assistente remove a chave (herda o global).
+    // Individual refresh_seconds override: only persisted when set;
+    // clearing the field in the wizard removes the key (inherits the global).
     if account.refresh_seconds.is_none() {
         table.remove("refresh_seconds");
     }
@@ -1514,7 +1514,7 @@ params = { profile = "validation" }
         );
         let reloaded = load_at(&path, false).unwrap();
         assert_eq!(reloaded.config.accounts[0].refresh_seconds, Some(120));
-        // Limpar o override remove a chave do arquivo (sem campo fantasma).
+        // Clearing the override removes the key from the file (no ghost field).
         let mut cleared = reloaded.config.clone();
         cleared.accounts[0].refresh_seconds = None;
         file.save(cleared).unwrap();

@@ -1,47 +1,47 @@
-//! Consultas de uso e cota de assinaturas (somente leitura, credencial fornecida pelo usuário).
+//! Subscription usage and quota queries (read-only, user-supplied credential).
 //!
-//! ChatGPT / Codex (token OAuth da sessão ChatGPT em `CHATGPT_ACCESS_TOKEN`; NÃO extraímos
-//! credenciais locais automaticamente):
-//!   - GET https://chatgpt.com/backend-api/wham/usage — janelas de limite do Codex/agente
-//!     (não expõe a cota de mensagens do chat web do ChatGPT, que não tem endpoint legível).
+//! ChatGPT / Codex (OAuth token of the ChatGPT session in `CHATGPT_ACCESS_TOKEN`; we do NOT extract
+//! local credentials automatically):
+//!   - GET https://chatgpt.com/backend-api/wham/usage — Codex/agent limit windows
+//!     (does not expose the ChatGPT web chat message quota, which has no readable endpoint).
 //!
-//!   Interface interna, não documentada e sujeita a mudanças sem aviso.
-//!   Evidência: cliente oficial de código aberto do Codex CLI,
+//!   Internal interface, undocumented and subject to change without notice.
+//!   Evidence: official open-source Codex CLI client,
 //!   https://github.com/openai/codex/blob/main/codex-rs/backend-client/src/client/rate_limit_resets.rs
 //!   e https://github.com/openai/codex/tree/main/codex-rs/codex-backend-openapi-models
 //!
-//! Claude (token OAuth do Claude Code em `CLAUDE_OAUTH_TOKEN`; NÃO extraímos do keychain/CLI):
-//!   - GET https://api.anthropic.com/api/oauth/usage — janelas de 5 horas e 7 dias do plano
-//!     Pro/Max. Endpoint no host oficial api.anthropic.com, evidenciado por clientes de
-//!     código aberto da comunidade (não há documentação oficial confirmando o contrato);
-//!     pode mudar sem aviso.
+//! Claude (Claude Code OAuth token in `CLAUDE_OAUTH_TOKEN`; we do NOT extract from the keychain/CLI):
+//!   - GET https://api.anthropic.com/api/oauth/usage — 5-hour and 7-day windows of the
+//!     Pro/Max plan. Endpoint on the official host api.anthropic.com, evidenced by community
+//!     open-source clients (no official documentation confirms the contract);
+//!     it may change without notice.
 //!
-//!   Evidência: https://github.com/loocor/codmate/blob/main/services/ClaudeUsageAPIClient.swift
+//!   Evidence: https://github.com/loocor/codmate/blob/main/services/ClaudeUsageAPIClient.swift
 //!
-//! Cursor (Admin API oficial, chave de administrador em `CURSOR_ADMIN_API_KEY`, Basic auth):
-//!   - POST https://api.cursor.com/teams/spend — gasto do ciclo de cobrança da equipe.
+//! Cursor (official Admin API, administrator key in `CURSOR_ADMIN_API_KEY`, Basic auth):
+//!   - POST https://api.cursor.com/teams/spend — team billing cycle spend.
 //!
-//!   Requer plano Teams/Enterprise com chave de administrador.
-//!   Referência: https://cursor.com/docs/account/teams/admin-api.md#get-spending-data
+//!   Requires a Teams/Enterprise plan with an administrator key.
+//!   Reference: https://cursor.com/docs/account/teams/admin-api.md#get-spending-data
 //!
-//! GitHub Copilot (PAT em `GITHUB_TOKEN`):
-//!   - modo `user` (padrão): GET /user + GET /users/{login}/settings/billing/{produto}/usage
-//!   - modo `org` (`params.mode=org`, `params.org`): GET /organizations/{org}/settings/billing/{produto}/usage
-//!   - produto: `params.billing=premium_requests` (padrão) | `ai_credits`
+//! GitHub Copilot (PAT in `GITHUB_TOKEN`):
+//!   - `user` mode (default): GET /user + GET /users/{login}/settings/billing/{product}/usage
+//!   - `org` mode (`params.mode=org`, `params.org`): GET /organizations/{org}/settings/billing/{product}/usage
+//!   - product: `params.billing=premium_requests` (default) | `ai_credits`
 //!
-//!   Referência: https://docs.github.com/en/rest/billing/usage
+//!   Reference: https://docs.github.com/en/rest/billing/usage
 //!
-//! Windsurf (API oficial Enterprise, chave de serviço em `WINDSURF_SERVICE_KEY`):
-//!   - POST https://server.codeium.com/api/v1/GetTeamCreditBalance (permissão Billing Read)
-//!   - POST https://server.codeium.com/api/v1/UserPageAnalytics (permissão Teams Read-Only)
+//! Windsurf (official Enterprise API, service key in `WINDSURF_SERVICE_KEY`):
+//!   - POST https://server.codeium.com/api/v1/GetTeamCreditBalance (Billing Read permission)
+//!   - POST https://server.codeium.com/api/v1/UserPageAnalytics (Teams Read-Only permission)
 //!
-//!   Requer plano Enterprise; em planos sem acesso a API responde 403 (AuthenticationError).
-//!   Referência: https://docs.windsurf.com/windsurf/accounts/api-reference/api-introduction
+//!   Requires an Enterprise plan; on plans without API access it answers 403 (AuthenticationError).
+//!   Reference: https://docs.windsurf.com/windsurf/accounts/api-reference/api-introduction
 //!
-//! Parâmetros em `Account.params`:
-//! - ChatGpt: `account_id` (opcional, cabeçalho chatgpt-account-id para conta de equipe)
-//! - Copilot: `mode` = `user` (padrão) | `org`; `org` = slug da organização (modo org);
-//!   `billing` = `premium_requests` (padrão) | `ai_credits`
+//! Parameters in `Account.params`:
+//! - ChatGpt: `account_id` (optional, chatgpt-account-id header for a team account)
+//! - Copilot: `mode` = `user` (default) | `org`; `org` = organization slug (org mode);
+//!   `billing` = `premium_requests` (default) | `ai_credits`
 
 use super::{json, paginate, param, secret, Context, Data, QueryError};
 use crate::models::ModelInfo;
@@ -57,9 +57,9 @@ const GITHUB_BASE: &str = "https://api.github.com";
 const WINDSURF_BASE: &str = "https://server.codeium.com/api/v1";
 const GITHUB_API_VERSION: &str = "2026-03-10";
 const CLAUDE_OAUTH_BETA: &str = "oauth-2025-04-20";
-/// Teto de segurança para laços de paginação; nunca devolve total parcial.
+/// Safety ceiling for pagination loops; never returns a partial total.
 const MAX_PAGES: u32 = 1000;
-/// Tamanho de página do /teams/spend.
+/// /teams/spend page size.
 const CURSOR_PAGE_SIZE: u32 = 200;
 
 pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, QueryError> {
@@ -80,14 +80,14 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
     }
 }
 
-// ------------------------------------------------------- catálogo de modelos
+// ------------------------------------------------------- model catalog
 
-/// Versão enviada em `client_version`: o endpoint do Codex exige o parâmetro e filtra modelos por
-/// `minimal_client_version`. Acompanha uma versão pública recente do Codex CLI.
+/// Version sent in `client_version`: the Codex endpoint requires the parameter and filters models by
+/// `minimal_client_version`. Tracks a recent public Codex CLI version.
 const CODEX_CLIENT_VERSION: &str = "0.163.0";
 
-/// `GET {base}/v1/models` da Anthropic, paginado por `after_id` enquanto `has_more`. `auth` aplica a
-/// credencial (chave de API, chave administrativa ou token OAuth) a cada página.
+/// Anthropic's `GET {base}/v1/models`, paginated by `after_id` while `has_more`. `auth` applies the
+/// credential (API key, admin key or OAuth token) to each page.
 pub(crate) async fn anthropic_models(
     ctx: &Context<'_>,
     base: &str,
@@ -115,7 +115,7 @@ pub(crate) async fn anthropic_models(
             .timeout(ctx.timeout);
         async move {
             let page: Page = json(request).await?;
-            // `has_more` sem cursor seria uma página incompleta: rejeita em vez de truncar.
+            // `has_more` without a cursor would be an incomplete page: reject instead of truncating.
             let next = match (page.has_more, page.last_id) {
                 (false, _) => None,
                 (true, Some(id)) if !id.is_empty() => Some(id),
@@ -132,9 +132,9 @@ pub(crate) async fn anthropic_models(
     .await
 }
 
-/// Modelos do Claude com o mesmo token OAuth da assinatura: `GET /v1/models` com os cabeçalhos do
-/// OAuth. O contrato público é de chave de API; o uso com o token da assinatura segue o mesmo
-/// caminho do Claude Code e não é documentado, podendo mudar sem aviso.
+/// Claude models with the same subscription OAuth token: `GET /v1/models` with the OAuth
+/// headers. The public contract is for an API key; use with the subscription token follows the same
+/// path as Claude Code and is undocumented, so it may change without notice.
 pub(crate) async fn claude_models(
     account: &Account,
     ctx: &Context<'_>,
@@ -149,9 +149,9 @@ pub(crate) async fn claude_models(
     .await
 }
 
-/// Modelos do Codex com o token da sessão ChatGPT: `GET /codex/models?client_version=…`, a lista
-/// que o próprio Codex CLI lê. Interface interna e não documentada. Modelos marcados como
-/// ocultos (`visibility` diferente de `list`) não aparecem no seletor do Codex e ficam de fora.
+/// Codex models with the ChatGPT session token: `GET /codex/models?client_version=…`, the list
+/// that the Codex CLI itself reads. Internal, undocumented interface. Models marked as
+/// hidden (`visibility` other than `list`) do not appear in the Codex picker and are left out.
 pub(crate) async fn chatgpt_models(
     account: &Account,
     ctx: &Context<'_>,
@@ -195,7 +195,7 @@ pub(crate) async fn chatgpt_models(
         .collect())
 }
 
-/// Rejeita valores não finitos: NaN/infinito jamais entram em métricas.
+/// Rejects non-finite values: NaN/infinity never enter metrics.
 fn finite(value: f64) -> Result<f64, QueryError> {
     if value.is_finite() {
         Ok(value)
@@ -204,7 +204,7 @@ fn finite(value: f64) -> Result<f64, QueryError> {
     }
 }
 
-/// Percentuais de janela não podem ser negativos.
+/// Window percentages cannot be negative.
 fn percent_metric(
     label: impl Into<String>,
     used_percent: f64,
@@ -230,7 +230,7 @@ fn epoch_millis(ts: i64) -> Option<DateTime<Utc>> {
     Utc.timestamp_millis_opt(ts).single()
 }
 
-/// RFC 3339 estrito: presente mas malformado é erro de esquema, nunca silêncio.
+/// Strict RFC 3339: present but malformed is a schema error, never silence.
 fn iso(value: &Option<String>) -> Result<Option<DateTime<Utc>>, QueryError> {
     match value {
         None => Ok(None),
@@ -361,7 +361,7 @@ async fn chatgpt(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
                 MetricKind::Credits,
                 None,
             );
-            // Saldo é o que RESTA: used fica desconhecido, remaining carrega o valor.
+            // Balance is what REMAINS: used stays unknown, remaining carries the value.
             m.used = None;
             m.remaining = Some(finite(value)?);
             metrics.push(m);
@@ -472,8 +472,8 @@ async fn claude(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data
         });
         if extra.is_enabled == Some(true) {
             if let Some(used) = extra.used_credits {
-                // Unidade exata (créditos vs. centavos) não é documentada: rotulamos como
-                // unidades brutas do provedor.
+                // The exact unit (credits vs. cents) is not documented: we label it as
+                // the provider's raw units.
                 let mut m = Metric::usage(
                     "Uso extra — utilizado",
                     finite(used)?,
@@ -550,8 +550,8 @@ async fn cursor(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data
         if response.total_pages > MAX_PAGES {
             return Err(QueryError::schema());
         }
-        // O total de páginas deve ser estável entre páginas; caso contrário o
-        // conjunto mudou durante a leitura e o total seria parcial.
+        // The total number of pages must be stable across pages; otherwise the
+        // set changed during the read and the total would be partial.
         match expected_pages {
             None => expected_pages = Some(response.total_pages),
             Some(expected) if expected != response.total_pages => return Err(QueryError::schema()),
@@ -656,7 +656,7 @@ struct BillingUsageReport {
     usage_items: Vec<BillingUsageItem>,
 }
 
-/// Slugs de usuário/organização: somente caracteres seguros em path de URL fixa.
+/// User/organization slugs: only characters safe in a fixed URL path.
 fn slug(value: &str) -> Result<&str, QueryError> {
     if !value.is_empty() && value.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
         Ok(value)
@@ -729,7 +729,7 @@ async fn copilot(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
     let report: BillingUsageReport =
         json(get(scope).query(&[("year", year.as_str()), ("month", month.as_str())])).await?;
 
-    // grossQuantity = uso bruto antes de descontos; netAmount = custo após descontos.
+    // grossQuantity = raw usage before discounts; netAmount = cost after discounts.
     let mut used = 0.0f64;
     let mut amount = 0.0f64;
     let mut unit: Option<&str> = None;
@@ -811,7 +811,7 @@ async fn windsurf(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Da
     let seats = finite(balance.num_seats)?;
     let add_available = finite(balance.add_on_credits_available)?;
     let add_used = finite(balance.add_on_credits_used)?;
-    // Janela malformada é erro de esquema: nunca consultamos com strings inválidas.
+    // A malformed window is a schema error: we never query with invalid strings.
     let cycle_start = iso(&balance.billing_cycle_start)?;
     let cycle_end = iso(&balance.billing_cycle_end)?;
     if matches!((cycle_start, cycle_end), (Some(start), Some(end)) if start >= end) {
@@ -833,8 +833,8 @@ async fn windsurf(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Da
         "Prompt credit allocation: {per_seat} per seat × {seats} seats; this is a team allocation, not a hard per-user quota.",
     );
 
-    // Soma de créditos por usuário no ciclo corrente (UserPageAnalytics não é paginado;
-    // promptCreditsUsed vem em centésimos de crédito e é obrigatório por usuário).
+    // Sum of credits per user in the current cycle (UserPageAnalytics is not paginated;
+    // promptCreditsUsed comes in hundredths of a credit and is mandatory per user).
     if let (Some(start), Some(end)) = (&balance.billing_cycle_start, &balance.billing_cycle_end) {
         let analytics: UserPageAnalytics = json(
             ctx.http
@@ -882,8 +882,8 @@ async fn windsurf(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Da
         resets_at: cycle_end,
     });
 
-    // addOnCreditsAvailable é a alocação do ciclo (recalculada no início de cada ciclo),
-    // não necessariamente o restante em tempo real.
+    // addOnCreditsAvailable is the cycle allocation (recomputed at the start of each cycle),
+    // not necessarily the real-time remainder.
     let mut add = Metric::usage(
         "Créditos adicionais usados no ciclo",
         add_used,
@@ -1705,7 +1705,7 @@ mod tests {
         assert!(err.note.fallback.contains("INEXISTENTE"));
     }
 
-    // ------------------------------------------------ catálogo de modelos
+    // ------------------------------------------------ model catalog
 
     #[tokio::test]
     async fn claude_models_follow_after_id_with_oauth_headers() {

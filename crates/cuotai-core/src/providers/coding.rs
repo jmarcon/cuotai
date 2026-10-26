@@ -1,32 +1,32 @@
-//! Consultas de uso e cota de assistentes de codificação com chave de API
-//! fornecida pelo usuário (somente leitura).
+//! Usage and quota queries for coding assistants with a user-supplied
+//! API key (read-only).
 //!
 //! Cline "usage-billing" (Bearer em `CLINE_API_KEY`):
-//!   Implementa apenas saldo pessoal ou organizacional. Não exibimos
-//!   agregados de uso: o endpoint público de uso agregado por organização
-//!   não está descrito nas fontes primárias abertas; o cliente
-//!   open-source usa
-//!   `/api/v1/organizations/{id}/members/{memberId}/usages`, que exige o
-//!   `memberId`. Para a conta pessoal, `/users/{uid}/usages` não traz
-//!   contrato de janela (o cliente oficial faz uma única chamada sem
-//!   paginação), e qualquer item incompleto invalidaria uma soma
-//!   nomeada "histórico completo" — então preferimos não chamá-lo:
-//!   saldo é a única informação de quota que o usuário precisa e a
-//!   chamada extra só adicionaria custo, latência e pontos de falha.
-//!   Sequência:
-//!     1. `GET /api/v1/users/me` → `{ id, ... }` (precisa do uid).
+//!   Implements only the personal or organizational balance. We do not show
+//!   usage aggregates: the public organization-level aggregated usage endpoint
+//!   is not described in the open primary sources; the open-source
+//!   client uses
+//!   `/api/v1/organizations/{id}/members/{memberId}/usages`, which requires the
+//!   `memberId`. For the personal account, `/users/{uid}/usages` has no
+//!   window contract (the official client makes a single call without
+//!   pagination), and any incomplete item would invalidate a sum
+//!   named "full history" — so we prefer not to call it:
+//!   balance is the only quota information the user needs and the
+//!   extra call would only add cost, latency and failure points.
+//!   Sequence:
+//!     1. `GET /api/v1/users/me` → `{ id, ... }` (needs the uid).
 //!     2. `GET /api/v1/users/{uid}/balance` → `BalanceResponse`
-//!        (`{ balance: number, userId: string }`) em dólares. Saldo pode
-//!        ser negativo (dívida); preservamos o valor bruto.
-//!   Fontes primárias: `https://docs.cline.bot/enterprise-solutions/api-reference.md`
-//!     e o código aberto
+//!        (`{ balance: number, userId: string }`) in dollars. The balance may
+//!        be negative (debt); we preserve the raw value.
+//!   Primary sources: `https://docs.cline.bot/enterprise-solutions/api-reference.md`
+//!     and the open source
 //!     `apps/vscode/src/services/account/ClineAccountService.ts` +
-//!     `apps/vscode/src/shared/ClineAccount.ts` do repositório
+//!     `apps/vscode/src/shared/ClineAccount.ts` of the repository
 //!     `cline/cline`.
 //!
-//! Parâmetros em `Account.params`:
-//!   - Cline: `organization_id` (opcional). Quando presente, consulta
-//!     apenas `/api/v1/organizations/{id}/balance` (saldo).
+//! Parameters in `Account.params`:
+//!   - Cline: `organization_id` (optional). When present, queries
+//!     only `/api/v1/organizations/{id}/balance` (balance).
 
 use super::{json, secret, Context, Data, QueryError};
 use crate::text::{params, Notes};
@@ -64,9 +64,9 @@ fn require_finite(value: f64) -> Result<(), QueryError> {
     }
 }
 
-/// Saldo puro: usado é None, remaining é o valor bruto do provedor
-/// (pode ser negativo para dívida). Preserva o sinal exatamente como
-/// veio do /balance.
+/// Pure balance: used is None, remaining is the provider's raw value
+/// (may be negative for debt). Preserves the sign exactly as
+/// it came from /balance.
 fn push_balance(metrics: &mut Vec<Metric>, label: &str, balance: f64) -> Result<(), QueryError> {
     require_finite(balance)?;
     metrics.push(Metric {
@@ -231,10 +231,10 @@ mod tests {
             })))
             .mount(&server)
             .await;
-        // /api/v1/users/user_abc123/usages deliberadamente NÃO é
-        // registrado: se o código o chamasse, o wiremock retornaria 404
-        // e o teste falharia. Isso garante que não fazemos mais essa
-        // requisição.
+        // /api/v1/users/user_abc123/usages is deliberately NOT
+        // registered: if the code called it, wiremock would return 404
+        // and the test would fail. This guarantees we no longer make that
+        // request.
 
         let client = reqwest::Client::new();
         let data = cline(&account(Provider::Cline), &context(&client), &server.uri())

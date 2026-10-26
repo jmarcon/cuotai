@@ -1,23 +1,23 @@
-//! Quota do MiniMax Token Plan / Coding Plan via os endpoints
-//! internacionais internos (somente leitura, GET) usados pelo 9router.
+//! MiniMax Token Plan / Coding Plan quota through the internal
+//! international endpoints (read-only, GET) used by 9router.
 //!
-//! Rota padrão deste adaptador: `Provider::MiniMax` com chave de plano
-//! (qualquer valor que **não** comece com `sk-api-`; essas são
-//! pay-as-you-go e continuam no adaptador `asia`). Nenhum `params.*` é
-//! obrigatório: a credencial vem de `account.credential_env` ou de
+//! Default route of this adapter: `Provider::MiniMax` with a plan key
+//! (any value that does **not** start with `sk-api-`; those are
+//! pay-as-you-go and stay in the `asia` adapter). No `params.*` is
+//! required: the credential comes from `account.credential_env` or
 //! `MINIMAX_IO_API_KEY`.
 //!
-//! Fontes primárias (9router @ f01fb909e37189008080632ddaf404f096345cde,
-//! licença MIT — ver THIRD_PARTY_NOTICES):
-//! - `open-sse/services/usage/minimax.js` — handler (ordem de fallback,
-//!   semântica dos contadores, baldes percent-only);
-//! - `open-sse/providers/registry/minimax.js` — URLs internacionais;
-//! - `tests/unit/minimax-usage.test.js` — fixtures de comportamento.
+//! Primary sources (9router @ f01fb909e37189008080632ddaf404f096345cde,
+//! MIT license — see THIRD_PARTY_NOTICES):
+//! - `open-sse/services/usage/minimax.js` — handler (fallback order,
+//!   counter semantics, percent-only buckets);
+//! - `open-sse/providers/registry/minimax.js` — international URLs;
+//! - `tests/unit/minimax-usage.test.js` — behavior fixtures.
 //!
-//! Limites deliberados: nenhuma operação de reset de cota ou consumo de
-//! créditos; sem extração de credencial de navegador; sem geração de
-//! inferência. A região China (`minimaxi.com`) nunca é contactada com esta
-//! credencial — aqui só existem as URLs internacionais do registro.
+//! Deliberate limits: no quota reset or credit consumption operation;
+//! no browser credential extraction; no inference
+//! generation. The China region (`minimaxi.com`) is never contacted with this
+//! credential — only the registry's international URLs exist here.
 
 use super::{secret, send as secure_send, Context, Data, QueryError};
 use crate::text::{params, provider_l10n, Localized, Notes, ParamValue};
@@ -28,18 +28,18 @@ use serde_json::Value;
 
 const REF: &str = "https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/minimax.js";
 
-/// Endpoints internacionais oficiais, na ordem do 9router
-/// (`registry/minimax.js`): Token Plan primeiro; Coding Plan é tentado
-/// apenas quando o anterior falha com erro transitório (404/405/5xx/rede).
+/// Official international endpoints, in 9router's order
+/// (`registry/minimax.js`): Token Plan first; Coding Plan is tried
+/// only when the previous one fails with a transient error (404/405/5xx/network).
 const TOKEN_PLAN_URL: &str = "https://www.minimax.io/v1/token_plan/remains";
 const CODING_PLAN_URL: &str = "https://api.minimax.io/v1/api/openplatform/coding_plan/remains";
 
-/// Teto do corpo da resposta: a quota de plano é um JSON pequeno; corpos
-/// maiores são rejeitados em vez de carregados inteiros na memória.
+/// Response body ceiling: the plan quota is a small JSON; larger
+/// bodies are rejected instead of being loaded whole into memory.
 const MAX_BODY_BYTES: usize = 256 * 1024;
 
-/// `base_resp.status_code` devolvido pela MiniMax para chave inválida ou
-/// inativa (9router `minimax.js`).
+/// `base_resp.status_code` returned by MiniMax for an invalid or
+/// inactive key (9router `minimax.js`).
 const STATUS_INVALID_KEY: i64 = 1004;
 
 pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, QueryError> {
@@ -58,9 +58,9 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
 
 // ------------------------------------------------------------- esquema
 
-/// Envelope tolerante: o 9router trata corpo não-JSON como payload vazio e
-/// `base_resp` é opcional nas respostas upstream. Campos aceitos em
-/// snake_case e camelCase (`getMiniMaxField`).
+/// Tolerant envelope: 9router treats a non-JSON body as an empty payload and
+/// `base_resp` is optional in upstream responses. Fields accepted in
+/// snake_case and camelCase (`getMiniMaxField`).
 #[derive(Deserialize, Default)]
 struct Envelope {
     #[serde(default, alias = "baseResp")]
@@ -77,8 +77,8 @@ struct BaseResp {
     status_msg: Option<String>,
 }
 
-/// Todos os campos são opcionais: baldes M-series (era M3) chegam sem
-/// contadores nem timestamps — o percentual restante basta.
+/// All fields are optional: M-series buckets (the M3 era) arrive without
+/// counters or timestamps — the remaining percentage is enough.
 #[derive(Deserialize)]
 struct ModelRemain {
     #[serde(default, alias = "modelName")]
@@ -95,13 +95,13 @@ struct ModelRemain {
     current_weekly_usage_count: Option<f64>,
     #[serde(default, alias = "currentWeeklyRemainingPercent")]
     current_weekly_remaining_percent: Option<f64>,
-    /// Duração restante da janela em **milissegundos** (preferida ao
-    /// timestamp, conforme `getMiniMaxResetAt`).
+    /// Remaining window duration in **milliseconds** (preferred over the
+    /// timestamp, per `getMiniMaxResetAt`).
     #[serde(default, alias = "remainsTime")]
     remains_time: Option<f64>,
     #[serde(default, alias = "weeklyRemainsTime")]
     weekly_remains_time: Option<f64>,
-    /// Timestamp de fim da janela: epoch (s ou ms), string numérica ou ISO
+    /// Window end timestamp: epoch (s or ms), numeric string or ISO
     /// 8601 (`parseResetTime`).
     #[serde(default, alias = "endTime")]
     end_time: Option<Value>,
@@ -127,9 +127,9 @@ fn has_quota(model: &ModelRemain) -> bool {
         || clamp_percent(model.current_weekly_remaining_percent).is_some()
 }
 
-/// `formatMiniMaxQuotaName`: o balde compartilhado M3+ (`MiniMax-M*` em
-/// respostas antigas, `general` nas novas) vira o rótulo amigável
-/// "M-series"; demais nomes são title-case com ajustes To/Tts/Hd.
+/// `formatMiniMaxQuotaName`: the shared M3+ bucket (`MiniMax-M*` in
+/// old responses, `general` in new ones) becomes the friendly label
+/// "M-series"; other names are title-cased with To/Tts/Hd adjustments.
 fn display_name(model: &ModelRemain) -> String {
     let raw = model.model_name.as_deref().unwrap_or("").trim();
     if raw.is_empty() {
@@ -157,8 +157,8 @@ fn display_name(model: &ModelRemain) -> String {
         .join(" ")
 }
 
-/// `getMiniMaxResetAt`: a duração restante em ms (`remains_time`) tem
-/// precedência sobre o timestamp (`end_time`).
+/// `getMiniMaxResetAt`: the remaining duration in ms (`remains_time`) takes
+/// precedence over the timestamp (`end_time`).
 fn reset_at(
     remains_ms: Option<f64>,
     end: Option<&Value>,
@@ -174,9 +174,9 @@ fn reset_at(
     end.and_then(parse_reset_value)
 }
 
-/// `parseResetTime`: epoch em segundos ou milissegundos (número ou string
-/// numérica) ou data ISO 8601. Valor ausente/inválido ⇒ `None` (janela
-/// desconhecida não é inventada).
+/// `parseResetTime`: epoch in seconds or milliseconds (number or numeric
+/// string) or ISO 8601 date. Absent/invalid value ⇒ `None` (an unknown
+/// window is not invented).
 fn parse_reset_value(value: &Value) -> Option<DateTime<Utc>> {
     match value {
         Value::Number(number) => number.as_f64().and_then(epoch_to_utc),
@@ -212,9 +212,9 @@ fn epoch_to_utc(timestamp: f64) -> Option<DateTime<Utc>> {
     DateTime::<Utc>::from_timestamp_millis(millis as i64)
 }
 
-/// `addMiniMaxQuota` + `buildMiniMaxQuota`: sem `total` e sem percentual a
-/// janela é omitida (nunca fabricada). Baldes percent-only (contadores
-/// zerados) viram métrica de `%` — sem inventar total de requisições.
+/// `addMiniMaxQuota` + `buildMiniMaxQuota`: with no `total` and no percentage the
+/// window is omitted (never fabricated). Percent-only buckets (zeroed
+/// counters) become a `%` metric — without inventing a request total.
 #[allow(clippy::too_many_arguments)]
 fn push_quota(
     metrics: &mut Vec<Metric>,
@@ -251,8 +251,8 @@ fn push_quota(
         });
         return;
     }
-    // Em /token_plan/remains o contador é "consumido"; em
-    // /coding_plan/remains é "restante" (semântica do 9router por URL).
+    // In /token_plan/remains the counter is "consumed"; in
+    // /coding_plan/remains it is "remaining" (9router's per-URL semantics).
     let used = if count_means_remaining {
         (total - count).max(0.0)
     } else {
@@ -276,8 +276,8 @@ fn push_quota(
 
 // --------------------------------------------------------------- HTTP
 
-/// Falha de endpoint: `transient` indica que o próximo URL da lista pode
-/// ser tentado (404/405/5xx ou erro de rede), como no laço do 9router.
+/// Endpoint failure: `transient` indicates that the next URL in the list
+/// may be tried (404/405/5xx or network error), as in 9router's loop.
 struct Failure {
     error: QueryError,
     transient: bool,
@@ -298,8 +298,8 @@ impl Failure {
     }
 }
 
-/// Leitura limitada do corpo: recusa respostas acima de `MAX_BODY_BYTES`
-/// em vez de carregá-las por completo.
+/// Bounded body read: refuses responses above `MAX_BODY_BYTES`
+/// instead of loading them in full.
 async fn read_bounded(response: &mut reqwest::Response) -> Result<String, Failure> {
     let mut body: Vec<u8> = Vec::new();
     while let Some(chunk) = response
@@ -328,8 +328,8 @@ async fn query_endpoint(ctx: &Context<'_>, key: &str, url: &str) -> Result<Data,
     .map_err(Failure::transient)?;
     let status = response.status();
     let body = read_bounded(&mut response).await?;
-    // O 9router tolera corpo não-JSON (payload vazio) e `base_resp`
-    // ausente; o corpo cru nunca entra em mensagens de erro.
+    // 9router tolerates a non-JSON body (empty payload) and a missing
+    // `base_resp`; the raw body never enters error messages.
     let payload: Envelope = serde_json::from_str(&body).unwrap_or_default();
 
     let status_code = payload.base_resp.as_ref().and_then(|b| b.status_code);
@@ -487,9 +487,9 @@ async fn query_endpoint(ctx: &Context<'_>, key: &str, url: &str) -> Result<Data,
     Ok(Data::new(metrics, notes, REF))
 }
 
-/// Envelope interno que aceita a lista de endpoints (para wiremock). A
-/// produção passa as URLs internacionais fixas; os testes injetam URLs
-/// locais — a semântica de contadores continua derivada do path.
+/// Internal envelope that accepts the endpoint list (for wiremock). Production
+/// passes the fixed international URLs; tests inject local
+/// URLs — counter semantics remain derived from the path.
 async fn fetch_at(
     account: &Account,
     ctx: &Context<'_>,
@@ -557,7 +557,7 @@ mod tests {
         }
     }
 
-    /// Lista privada de endpoints espelhando a ordem de produção.
+    /// Private endpoint list mirroring the production order.
     fn endpoints(server: &MockServer) -> [String; 2] {
         [
             format!("{}/v1/token_plan/remains", server.uri()),
@@ -625,8 +625,8 @@ mod tests {
         assert_eq!(data.source, REF);
     }
 
-    // Fixture do 9router: coding-plan, contadores = restantes, esquema novo
-    // camelCase, resets via duração remains_time (ms).
+    // 9router fixture: coding-plan, counters = remaining, new camelCase
+    // schema, resets via remains_time duration (ms).
     #[tokio::test]
     async fn coding_plan_contadores_sao_restantes_esquema_novo() {
         let server = MockServer::start().await;
@@ -672,8 +672,8 @@ mod tests {
         assert!(reset <= after + Duration::milliseconds(2000));
     }
 
-    // Fixture do 9router: balde M-series percent-only (sem contadores nem
-    // timestamps) no token-plan — o percentual basta.
+    // 9router fixture: percent-only M-series bucket (no counters or
+    // timestamps) in token-plan — the percentage is enough.
     #[tokio::test]
     async fn percent_only_m_series_token_plan_vira_metrica_percentual() {
         let server = MockServer::start().await;
@@ -707,8 +707,8 @@ mod tests {
         assert_eq!(semanal.remaining, Some(64.0));
     }
 
-    // Fixture do 9router: mesmo balde percent-only no coding-plan não pode
-    // inverter o percentual (countMeansRemaining).
+    // 9router fixture: the same percent-only bucket in coding-plan must not
+    // invert the percentage (countMeansRemaining).
     #[tokio::test]
     async fn percent_only_m_series_coding_plan_nao_inverte() {
         let server = MockServer::start().await;
@@ -740,8 +740,8 @@ mod tests {
         assert_eq!(semanal.remaining, Some(95.0));
     }
 
-    // Fixture do 9router: wildcard "MiniMax-M*" (era M3) com contadores no
-    // coding-plan — rótulo amigável e semântica de restantes.
+    // 9router fixture: wildcard "MiniMax-M*" (M3 era) with counters in
+    // coding-plan — friendly label and remaining semantics.
     #[tokio::test]
     async fn wildcard_minimax_m_vira_m_series_com_contadores() {
         let server = MockServer::start().await;
@@ -779,7 +779,7 @@ mod tests {
         assert_eq!(semanal.remaining, Some(18000.0));
     }
 
-    // Fallback na ordem do registro: token_plan 404 (transitório) ⇒ tenta
+    // Fallback in registry order: token_plan 404 (transient) ⇒ tries
     // coding_plan.
     #[tokio::test]
     async fn fallback_para_coding_plan_em_erro_transitorio() {
@@ -804,7 +804,7 @@ mod tests {
         let data = fetch_at(&account(), &ctx(&http, &Creds), &endpoints(&server))
             .await
             .expect("fallback deve ter sucesso");
-        // base_resp ausente é tolerado (upstream opcional).
+        // base_resp absent is tolerated (optional upstream).
         let curto = find(&data, "M-series (5h)");
         assert_eq!(curto.remaining, Some(80.0));
         assert!(data
@@ -813,7 +813,7 @@ mod tests {
             .any(|n| n.contains("/coding_plan/remains")));
     }
 
-    // Erros não transitórios não fazem fallback: 401 é terminal.
+    // Non-transient errors do not fall back: 401 is terminal.
     #[tokio::test]
     async fn http_401_e_autenticacao_sem_fallback() {
         let server = MockServer::start().await;
@@ -831,7 +831,7 @@ mod tests {
         assert!(err.note.fallback.contains("invalid or inactive"));
     }
 
-    // base_resp.status_code 1004 ⇒ AuthenticationError, sem corpo cru.
+    // base_resp.status_code 1004 ⇒ AuthenticationError, no raw body.
     #[tokio::test]
     async fn status_1004_e_autenticacao_sem_corpo_cru() {
         let server = MockServer::start().await;
@@ -854,7 +854,7 @@ mod tests {
         assert!(!err.note.fallback.contains("invalid api key"));
     }
 
-    // base_resp ausente por completo (upstream opcional) com dados válidos.
+    // base_resp entirely absent (optional upstream) with valid data.
     #[tokio::test]
     async fn base_resp_opcional_ausente() {
         let server = MockServer::start().await;
@@ -879,7 +879,7 @@ mod tests {
         assert_eq!(metric.remaining, Some(95.0));
     }
 
-    // Modelo sem cota alguma não gera métricas fabricadas.
+    // A model with no quota at all generates no fabricated metrics.
     #[tokio::test]
     async fn sem_cota_retornada_nao_fabrica_janelas() {
         let server = MockServer::start().await;
@@ -900,8 +900,8 @@ mod tests {
         assert!(err.note.fallback.contains("No quota data"));
     }
 
-    // 500 transitório em ambos os endpoints esgota o fallback e devolve o
-    // último erro (sem corpo cru).
+    // A transient 500 on both endpoints exhausts the fallback and returns the
+    // last error (no raw body).
     #[tokio::test]
     async fn fallback_esgotado_devolve_ultimo_erro() {
         let server = MockServer::start().await;
@@ -920,8 +920,8 @@ mod tests {
         assert!(!err.note.fallback.contains("RAW_BODY_MARKER"));
     }
 
-    // Rota padrão pública: Provider::MiniMax, sem params obrigatórios, e a
-    // credencial ausente vira NeedsConfiguration antes de qualquer rede.
+    // Public default route: Provider::MiniMax, no required params, and the
+    // missing credential becomes NeedsConfiguration before any network.
     #[tokio::test]
     async fn fetch_sem_credencial_e_needs_configuration() {
         let http = reqwest::Client::new();

@@ -1,57 +1,57 @@
-//! Consultas read-only de quota do Antigravity (IDE Google) — mesmo
-//! fingerprint do cliente oficial, mesmas URLs e mesma semântica do
-//! `open-sse/services/usage/google.js` + `antigravity-weekly.js` no
+//! Read-only quota queries for Antigravity (Google IDE) — same
+//! fingerprint as the official client, same URLs and same semantics as
+//! `open-sse/services/usage/google.js` + `antigravity-weekly.js` in
 //! 9router f01fb909e37189008080632ddaf404f096345cde.
 //!
-//! Fluxo (uma chamada de quota por conta; timeout compartilhado):
+//! Flow (one quota call per account; shared timeout):
 //!   1. `POST cloudcode-pa.googleapis.com/v1internal:loadCodeAssist`
-//!      → descobre `cloudaicompanionProject` (string ou objeto com `id`)
-//!      e expõe `paidTier` para a decisão free/paid. Sobrescrito se
-//!      `params.project_id` for fornecido manualmente.
+//!      → discovers `cloudaicompanionProject` (string or object with `id`)
+//!      and exposes `paidTier` for the free/paid decision. Overridden if
+//!      `params.project_id` is supplied manually.
 //!   2. `POST daily-cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels`
-//!      → quotas por modelo (janela curta de 5h). Pago apenas.
+//!      → per-model quotas (short 5h window). Paid only.
 //!   3. `POST daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary`
-//!      → buckets semanais (`window=weekly`) e de sessão (`window=5h`).
+//!      → weekly buckets (`window=weekly`) and session buckets (`window=5h`).
 //!
-//! Comportamento espelhado do 9router:
+//! Behavior mirrored from 9router:
 //!
-//! - **Headers fixos**: `User-Agent: antigravity/ide/<VER> darwin/arm64`,
+//! - **Fixed headers**: `User-Agent: antigravity/ide/<VER> darwin/arm64`,
 //!   `X-Client-Name: antigravity`, `X-Client-Version: <VER>`.
-//! - **Free-tier**: contas com `paidTier.id` ausente ou igual a
-//!   `"free-tier"` NÃO exibem quotas por modelo. Apenas o
-//!   `retrieveUserQuotaSummary` é material.
-//! - **Paid-tier**: processa somente modelos da allow-list (Gemini
-//!   3.8/3.7/3.6/3.5 Flash nas 3/4 faixas, Gemini Pro agent/3.1 Pro,
+//! - **Free tier**: accounts with `paidTier.id` absent or equal to
+//!   `"free-tier"` do NOT show per-model quotas. Only
+//!   `retrieveUserQuotaSummary` matters.
+//! - **Paid tier**: processes only models on the allow-list (Gemini
+//!   3.8/3.7/3.6/3.5 Flash in the 3/4 tiers, Gemini Pro agent/3.1 Pro,
 //!   Claude Sonnet 4.6, Claude Opus 4.6 Thinking, GPT-OSS 120B Medium,
-//!   Gemini 3.1 Flash Image). Modelos `isInternal=true` são pulados;
-//!   sem `quotaInfo`/`remainingFraction` permanecem com quota desconhecida.
-//! - **Weekly**: parsing tolerante a `groups` ou `quotaSummary.groups`,
-//!   buckets `weekly` e `5h` (e aliases `daily`/`five hour`/`5h`).
-//!   `disabled=true` pula `weekly`; para `5h` mantém com `0%`.
-//! - **Reconciliação paid-tier**: se TODOS os modelos Gemini (não-imagem)
-//!   estão com `remainingFraction == 0` e o `gemini_session` ainda
-//!   mostra saldo > 0, a sessão é recolocada em `0%` com o `resetAt`
-//!   mais distante da família (linha semanal permanece intacta).
-//!   Mesma regra para Claude/GPT.
-//! - **Falha parcial**: notas `PARCIAL:` indicam explicitamente se o
-//!   erro veio de `modelos` ou `resumo` (não alega conclusão).
-//! - **Reset**: `resetTime` pode chegar como string RFC 3339, número
-//!   epoch em segundos OU milissegundos, ou `NaiveDateTime`. Ausente ou
-//!   malformado vira `None`.
-//! - **Percentuais brutos**: a fração é multiplicada por `100` sem
-//!   `clamp` — quotas acima de 100% (uso excedente) são preservadas.
+//!   Gemini 3.1 Flash Image). Models with `isInternal=true` are skipped;
+//!   without `quotaInfo`/`remainingFraction` they stay with unknown quota.
+//! - **Weekly**: parsing tolerant of `groups` or `quotaSummary.groups`,
+//!   `weekly` and `5h` buckets (and aliases `daily`/`five hour`/`5h`).
+//!   `disabled=true` skips `weekly`; for `5h` it keeps it at `0%`.
+//! - **Paid-tier reconciliation**: if ALL Gemini models (non-image)
+//!   have `remainingFraction == 0` and `gemini_session` still
+//!   shows a balance > 0, the session is reset to `0%` with the family's
+//!   furthest `resetAt` (the weekly line stays intact).
+//!   Same rule for Claude/GPT.
+//! - **Partial failure**: `PARCIAL:` notes state explicitly whether the
+//!   error came from `modelos` or `resumo` (it does not claim completion).
+//! - **Reset**: `resetTime` may arrive as an RFC 3339 string, an epoch
+//!   number in seconds OR milliseconds, or `NaiveDateTime`. Absent or
+//!   malformed becomes `None`.
+//! - **Raw percentages**: the fraction is multiplied by `100` without
+//!   `clamp` — quotas above 100% (excess usage) are preserved.
 //!
-//! Credencial:
-//!   - Manual: env var `ANTIGRAVITY_ACCESS_TOKEN` (Bearer do IDE).
-//!   - OAuth: o dispatcher em `crate::lib` substitui `credential_env`
-//!     por `__CUOTAI_OAUTH_ACCESS` quando `account.oauth` está presente.
+//! Credential:
+//!   - Manual: env var `ANTIGRAVITY_ACCESS_TOKEN` (the IDE's Bearer).
+//!   - OAuth: the dispatcher in `crate::lib` replaces `credential_env`
+//!     with `__CUOTAI_OAUTH_ACCESS` when `account.oauth` is present.
 //!
-//! Parâmetros em `Account.params` (todos opcionais):
-//!   - `project_id`: força o `project` enviado a `:fetchAvailableModels`
-//!     e `:retrieveUserQuotaSummary`. Quando ausente, o adaptador
-//!     consulta `:loadCodeAssist` para descobrir (sem fallback se a
-//!     chamada de descoberta falhar — nesse caso as quotas são
-//!     enviadas sem `project` e uma nota é registrada).
+//! Parameters in `Account.params` (all optional):
+//!   - `project_id`: forces the `project` sent to `:fetchAvailableModels`
+//!     and `:retrieveUserQuotaSummary`. When absent, the adapter
+//!     queries `:loadCodeAssist` to discover it (no fallback if the
+//!     discovery call fails — in that case the quotas are
+//!     sent without `project` and a note is recorded).
 
 use super::{json, secret, Context, Data, QueryError};
 use crate::text::{params, Localized, Notes, ParamValue};
@@ -59,9 +59,9 @@ use crate::{Account, Metric, MetricKind, MetricWindow, Provider};
 use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::Deserialize;
 
-// ─── Endpoints fixos (mesma base do registro 9router) ──────────────────
-/// `loadCodeAssist` mora em `cloudcode-pa.googleapis.com` (sem prefixo
-/// `daily-`); as demais rotas ficam em `daily-cloudcode-pa.googleapis.com`.
+// ─── Fixed endpoints (same base as the 9router registry) ──────────────────
+/// `loadCodeAssist` lives at `cloudcode-pa.googleapis.com` (no `daily-`
+/// prefix); the other routes are at `daily-cloudcode-pa.googleapis.com`.
 pub(crate) const LOAD_CODE_ASSIST_URL: &str =
     "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist";
 pub(crate) const FETCH_AVAILABLE_MODELS_URL: &str =
@@ -73,13 +73,13 @@ const RETRIEVE_USER_QUOTA_SUMMARY_URL: &str =
 const ANTIGRAVITY_IDE_VERSION: &str = "2.11.0";
 const ANTIGRAVITY_USER_AGENT: &str = "antigravity/ide/2.11.0 darwin/arm64";
 
-/// Variável de ambiente padrão para token manual importado do IDE.
+/// Default environment variable for a manual token imported from the IDE.
 const DEFAULT_CREDENTIAL_ENV: &str = "ANTIGRAVITY_ACCESS_TOKEN";
 
-/// Chave reconhecida em `Account.params` para `project_id` manual.
+/// Recognized key in `Account.params` for a manual `project_id`.
 const PARAM_PROJECT_ID: &str = "project_id";
 
-/// `paidTier.id` enviado pelo servidor para contas sem assinatura paga.
+/// `paidTier.id` sent by the server for accounts without a paid subscription.
 const FREE_TIER_ID: &str = "free-tier";
 
 /// Allow-list de modelos cujas quotas valem a pena exibir.
@@ -110,7 +110,7 @@ const IMPORTANT_MODELS: &[&str] = &[
     "gemini-3.1-flash-image",
 ];
 
-// ─── Famílias para reconciliação / agrupamento do weekly ────────────────
+// ─── Families for reconciliation / weekly grouping ────────────────
 struct GroupConfig {
     pattern: &'static str,
     weekly_key: &'static str,
@@ -143,8 +143,8 @@ const GROUP_CONFIGS: &[GroupConfig] = &[
     },
 ];
 
-/// Casa nomes de grupo case-insensitive sem regex: o conjunto de padrões
-/// é estático, finito e trivial (`gemini`, `claude`, `gpt`).
+/// Matches group names case-insensitively without regex: the set of patterns
+/// is static, finite and trivial (`gemini`, `claude`, `gpt`).
 fn group_matches(pattern: &str, display_name: &str) -> bool {
     if pattern.is_empty() {
         return false;
@@ -154,13 +154,13 @@ fn group_matches(pattern: &str, display_name: &str) -> bool {
     haystack.contains(&needle)
 }
 
-/// Decisão free/paid replicada do 9router: `paidTier.id` ausente ou
-/// igual a `"free-tier"` indica conta sem assinatura paga.
+/// Free/paid decision replicated from 9router: `paidTier.id` absent or
+/// equal to `"free-tier"` indicates an account without a paid subscription.
 fn is_free_tier_from(paid_tier_id: Option<&str>) -> bool {
     paid_tier_id.is_none() || paid_tier_id == Some(FREE_TIER_ID)
 }
 
-// ─── Entrada pública (contrato do dispatcher) ────────────────────────
+// ─── Public entry (dispatcher contract) ────────────────────────
 
 pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, QueryError> {
     match account.provider {
@@ -222,7 +222,7 @@ pub(crate) async fn models(
     Ok(models)
 }
 
-// ─── Implementação ────────────────────────────────────────────────────
+// ─── Implementation ────────────────────────────────────────────────
 
 async fn fetch_antigravity(account: &Account, ctx: &Context<'_>) -> Result<Data, QueryError> {
     fetch_antigravity_at(
@@ -235,8 +235,8 @@ async fn fetch_antigravity(account: &Account, ctx: &Context<'_>) -> Result<Data,
     .await
 }
 
-/// Envelope interno que aceita URLs injetadas (test seam). Produção
-/// passa as constantes fixas; os testes podem passar `wiremock::MockServer::uri()`.
+/// Internal envelope that accepts injected URLs (test seam). Production
+/// passes the fixed constants; tests may pass `wiremock::MockServer::uri()`.
 async fn fetch_antigravity_at(
     account: &Account,
     ctx: &Context<'_>,
@@ -279,7 +279,7 @@ async fn fetch_antigravity_at(
 
     let is_free_tier = is_free_tier_from(paid_tier_id.as_deref());
 
-    // 1) fetchAvailableModels (somente paid-tier)
+    // 1) fetchAvailableModels (paid-tier only)
     let mut quotas = QuotaMap::new();
     let mut model_failure: Option<String> = None;
     let mut fetched_models: Option<FetchAvailableModelsResponse> = None;
@@ -304,7 +304,7 @@ async fn fetch_antigravity_at(
         }
     }
 
-    // 2) retrieveUserQuotaSummary (best-effort, nunca bloqueia)
+    // 2) retrieveUserQuotaSummary (best-effort, never blocks)
     let mut weekly_failure: Option<String> = None;
     let mut parsed_weekly = WeeklySummary::default();
     match retrieve_user_quota_summary(
@@ -328,13 +328,13 @@ async fn fetch_antigravity_at(
         }
     }
 
-    // 3) Reconciliação paid-tier (5h session → 0% se família exausta)
+    // 3) Paid-tier reconciliation (5h session → 0% if the family is exhausted)
     if !is_free_tier && fetched_models.is_some() {
         reconcile_exhausted_family(&mut quotas, &mut parsed_weekly, "gemini");
         reconcile_exhausted_family(&mut quotas, &mut parsed_weekly, "claude");
     }
 
-    // 4) Falha total → erro. Caso contrário, parcial fica como Ready + nota PARCIAL.
+    // 4) Total failure → error. Otherwise, partial stays as Ready + PARCIAL note.
     if quotas.is_empty() && parsed_weekly.is_empty() {
         let mut detail = Vec::new();
         if let Some(msg) = model_failure {
@@ -360,7 +360,7 @@ async fn fetch_antigravity_at(
         });
     }
 
-    // ─── Montagem das métricas ──────────────────────────────────────
+    // ─── Building the metrics ──────────────────────────────────────
     let mut metrics = Vec::new();
 
     for (key, entry) in quotas.iter() {
@@ -441,7 +441,7 @@ fn build_percent_metric(
     if !remaining_fraction.is_finite() {
         return None;
     }
-    // Sem `clamp` — quotas acima de 100% (uso excedente) são preservadas.
+    // No `clamp` — quotas above 100% (excess usage) are preserved.
     let used_percent = (1.0 - remaining_fraction) * 100.0;
     let remaining_percent = remaining_fraction * 100.0;
     let mut metric = Metric::usage(label, used_percent, "%", MetricKind::Quota, Some(window));
@@ -467,10 +467,10 @@ struct LoadCodeAssistResponse {
     paid_tier: Option<PaidTier>,
 }
 
-/// Aceita `cloudaicompanionProject` em três formatos:
-/// - string simples (`"projects/foo"`)
-/// - objeto com campo `id` (`{"id":"projects/foo"}`)
-/// - ausente, nulo ou formato desconhecido → `None` (nunca erro)
+/// Accepts `cloudaicompanionProject` in three formats:
+/// - plain string (`"projects/foo"`)
+/// - object with an `id` field (`{"id":"projects/foo"}`)
+/// - absent, null or unknown format → `None` (never an error)
 fn deserialize_project_id<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -628,7 +628,7 @@ async fn retrieve_user_quota_summary(
     .await
 }
 
-// ─── Parsers puros (testáveis sem rede) ───────────────────────────────
+// ─── Pure parsers (testable without network) ───────────────────────
 
 #[derive(Clone, Debug)]
 struct QuotaEntry {
@@ -678,7 +678,7 @@ impl WeeklySummary {
         self.weekly.is_empty() && self.session.is_empty()
     }
     fn insert_weekly(&mut self, key: String, bucket: WeeklyBucket) {
-        // Primeira ocorrência vence, idêntico ao 9router.
+        // First occurrence wins, identical to 9router.
         self.weekly.entry(key).or_insert(bucket);
     }
     fn insert_session(&mut self, key: String, bucket: WeeklyBucket) {
@@ -755,8 +755,8 @@ fn parse_fraction(value: &serde_json::Value) -> Option<f64> {
     .filter(|f| f.is_finite())
 }
 
-/// Aceita string RFC 3339, número epoch em segundos ou milissegundos,
-/// ou número em string. `None` quando malformado ou ausente.
+/// Accepts an RFC 3339 string, an epoch number in seconds or milliseconds,
+/// or a number in a string. `None` when malformed or absent.
 fn parse_reset_value(value: &serde_json::Value) -> Option<DateTime<Utc>> {
     match value {
         serde_json::Value::String(raw) => {
@@ -893,9 +893,9 @@ fn parse_weekly_summary(envelope: &QuotaSummaryEnvelope) -> WeeklySummary {
     summary
 }
 
-/// Família "gemini" ou "claude". Se todos os modelos da família estão
-/// com `remainingFraction == 0` e a sessão 5h ainda mostra saldo > 0,
-/// força a sessão para `0%` com o `resetAt` mais distante da família.
+/// "gemini" or "claude" family. If all the family's models have
+/// `remainingFraction == 0` and the 5h session still shows a balance > 0,
+/// forces the session to `0%` with the family's furthest `resetAt`.
 fn reconcile_exhausted_family(quotas: &mut QuotaMap, weekly: &mut WeeklySummary, family: &str) {
     let session_key = match family {
         "gemini" => "gemini_session",
@@ -956,7 +956,7 @@ fn reconcile_exhausted_family(quotas: &mut QuotaMap, weekly: &mut WeeklySummary,
     }
 }
 
-// ─── Testes unitários ────────────────────────────────────────────────
+// ─── Unit tests ────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
@@ -1180,7 +1180,7 @@ mod tests {
 
     #[test]
     fn parse_paid_tier_models_preserva_uso_excedente() {
-        // Servidor pode reportar remainingFraction negativa (uso >100%).
+        // The server may report a negative remainingFraction (usage >100%).
         let mut models = serde_json::Map::new();
         models.insert(
             "claude-opus-4-6-thinking".into(),
@@ -1767,8 +1767,8 @@ mod tests {
             .scope
             .is_none());
 
-        // Reconciliação: gemini_3.8_flash_high tem 0.85 (não zero),
-        // então a sessão permanece intacta em 100%.
+        // Reconciliation: gemini_3.8_flash_high has 0.85 (not zero),
+        // so the session stays intact at 100%.
         let session = data
             .metrics
             .iter()
@@ -1786,7 +1786,7 @@ mod tests {
 
     #[tokio::test]
     async fn free_tier_apenas_weekly_sem_per_model() {
-        // Mock para modelos também existe, mas não deve ser chamado.
+        // A mock for models also exists, but must not be called.
         let server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(path("/v1internal:loadCodeAssist"))
@@ -1853,7 +1853,7 @@ mod tests {
         .await
         .expect("ok");
 
-        // Apenas weekly; nota PARCIAL sobre modelos.
+        // Weekly only; PARCIAL note about models.
         let labels: Vec<&str> = data.metrics.iter().map(|m| m.label.as_str()).collect();
         assert!(labels.contains(&"Gemini (Semanal)"));
         assert!(
@@ -1898,10 +1898,10 @@ mod tests {
         .expect("ok");
 
         let labels: Vec<&str> = data.metrics.iter().map(|m| m.label.as_str()).collect();
-        // Per-model ainda emitido.
+        // Per-model still emitted.
         assert!(labels.contains(&"Gemini 3.8 Flash (High)"));
         assert!(labels.contains(&"Claude Sonnet 4.6"));
-        // Nota PARCIAL sobre weekly/resumo.
+        // PARCIAL note about weekly/summary.
         assert!(
             data.notes
                 .iter()

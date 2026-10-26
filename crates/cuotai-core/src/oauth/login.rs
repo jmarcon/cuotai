@@ -1187,7 +1187,7 @@ async fn run_bailian_console(
     let site = console_site
         .filter(|s| !s.trim().is_empty())
         .ok_or_else(OAuthError::bailian_console_site_blank)?;
-    // Mensagens estáticas e genéricas — nunca conteúdo do stdout do CLI.
+    // Static, generic messages — never the CLI's stdout content.
     let _ = events
         .send(LoginEvent::progress(Localized::fixed(
             "login.progress.bailian_start",

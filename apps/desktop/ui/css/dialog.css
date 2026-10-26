@@ -12,7 +12,7 @@ dialog.dlg {
 dialog.dlg::backdrop {
   background: var(--scrim); /* DS-TOK-ELV-3: no component blur */
 }
-/* Saída (motion.js `showDialog`): o diálogo já fechado volta à camada superior como popover inerte. */
+/* Exit (motion.js `showDialog`): the already closed dialog returns to the top layer as an inert popover. */
 dialog.dlg:popover-open {
   display: block;
 }
@@ -400,7 +400,7 @@ dialog.details {
   color: var(--good);
 }
 
-/* Sobre › bibliotecas de código aberto */
+/* About › open-source libraries */
 dialog.libs {
   width: min(var(--dialog-lg), calc(100vw - 32px));
 }

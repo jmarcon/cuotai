@@ -1,6 +1,6 @@
-//! Diálogo de login da TUI. Toda a política e orquestração de login vivem no
-//! core (`cuotai_core::login`, RF2); este módulo apenas renderiza os eventos
-//! tipados e encaminha o código colado pelo usuário.
+//! TUI login dialog. All login policy and orchestration live in the
+//! core (`cuotai_core::login`, RF2); this module only renders the typed
+//! events and forwards the code pasted by the user.
 
 use crate::l10n::{tr, trf};
 use crate::palette;
@@ -23,7 +23,7 @@ use ratatui::{
 use std::sync::Arc;
 use tokio::task::JoinHandle;
 
-// Paleta Dracula local — mesma do dashboard/wizard.
+// Local Dracula palette — same as the dashboard/wizard.
 const DRACULA_BG: Color = palette::BG;
 const DRACULA_FG: Color = palette::FG;
 const DRACULA_CYAN: Color = palette::ACCENT;
@@ -33,25 +33,25 @@ pub(crate) enum Outcome {
     Authorized(CompletedLogin),
     /// External CLI completed; only public account params are returned.
     External(ExternalLogin),
-    /// Credencial gravada no cofre; falta apenas a gravação do TOML.
+    /// Credential written to the vault; only the TOML write is missing.
     CredentialReady(CredentialCommit),
     /// TOML saved and post-save cleanup resolved (possibly non-fatally).
     Committed(LoginCommitOutcome),
-    /// A gravação do TOML falhou após a credencial ser gravada; a
-    /// compensação do core já foi aplicada e o estado exato é relatado.
+    /// The TOML write failed after the credential was written; the
+    /// core's compensation has already been applied and the exact state is reported.
     RolledBack(PartialFailure),
 }
 
 enum Job {
-    /// Fluxo interativo conduzido pelo driver do core.
+    /// Interactive flow driven by the core's driver.
     Login(LoginDriver),
-    /// Etapa 1 do commit (cofre). Não cancelável.
+    /// Commit step 1 (vault). Not cancellable.
     Commit(JoinHandle<Result<CredentialCommit, OAuthError>>),
-    /// TOML já salvo; limpeza da chave substituída em andamento.
+    /// TOML already saved; cleanup of the replaced key in progress.
     Confirm(JoinHandle<LoginCommitOutcome>),
-    /// Compensação após falha da gravação do TOML; também não cancelável.
+    /// Compensation after the TOML write failed; also not cancellable.
     Rollback(JoinHandle<PartialFailure>),
-    /// Resultado já coletado.
+    /// Result already collected.
     Done,
 }
 
@@ -63,7 +63,7 @@ pub(crate) struct LoginTask {
     code_status: String,
 }
 impl LoginTask {
-    /// Envolve um `LoginDriver` já iniciado pelo core
+    /// Wraps a `LoginDriver` already started by the core
     /// (`cuotai_core::login::start_login`).
     pub fn new(driver: LoginDriver) -> Self {
         Self {
@@ -75,9 +75,9 @@ impl LoginTask {
         }
     }
 
-    /// Etapa 1 do commit RF2.4: captura o token anterior (reauth) e grava a
-    /// credencial no cofre. O TOML é gravado depois pelo chamador, seguido de
-    /// `CredentialCommit::confirm` ou `LoginTask::rollback`.
+    /// Commit step 1 of RF2.4: captures the previous token (reauth) and writes the
+    /// credential to the vault. The TOML is written afterwards by the caller, followed by
+    /// `CredentialCommit::confirm` or `LoginTask::rollback`.
     pub fn begin_commit(session: Arc<OAuthSession>, login: CompletedLogin) -> Self {
         let job = tokio::spawn(async move {
             cuotai_core::login::begin_credential_commit(&session, &login).await
@@ -115,9 +115,9 @@ impl LoginTask {
             code_status: String::new(),
         }
     }
-    /// Compensação do commit quando a gravação do TOML falhou: o core
-    /// restaura o token anterior (reauth) ou remove o token novo, e devolve
-    /// o estado exato para a UI.
+    /// Commit compensation when the TOML write failed: the core
+    /// restores the previous token (reauth) or removes the new token, and returns
+    /// the exact state to the UI.
     pub fn rollback(session: Arc<OAuthSession>, commit: CredentialCommit, message: String) -> Self {
         let job = tokio::spawn(async move { commit.rollback(&session, message).await });
         Self {
@@ -143,7 +143,7 @@ impl LoginTask {
         }
     }
 
-    /// Drena os eventos tipados do core para as linhas do diálogo.
+    /// Drains the core's typed events into the dialog lines.
     pub fn drain(&mut self) -> bool {
         let Job::Login(driver) = &mut self.job else {
             return false;
@@ -221,9 +221,9 @@ impl LoginTask {
         };
     }
 
-    /// Somente fluxos interativos podem ser cancelados (Esc). Durante o
-    /// commit/rollback a gravação segue até o fim para nunca deixar o cofre
-    /// e o TOML em estado ambíguo.
+    /// Only interactive flows can be cancelled (Esc). During the
+    /// commit/rollback the write proceeds to the end so as never to leave the vault
+    /// and the TOML in an ambiguous state.
     pub fn can_cancel(&self) -> bool {
         matches!(self.job, Job::Login(_))
     }
@@ -311,7 +311,7 @@ impl LoginTask {
     }
 
     pub fn draw(&mut self, frame: &mut Frame) {
-        // Dracula frame background, mesma paleta do dashboard/wizard.
+        // Dracula frame background, same palette as the dashboard/wizard.
         frame.render_widget(
             Block::default().style(Style::default().bg(DRACULA_BG).fg(DRACULA_FG)),
             frame.area(),
@@ -373,8 +373,8 @@ impl LoginTask {
     }
 }
 
-/// Texto da falha parcial RF2.4: a UI apenas apresenta o estado exato
-/// reportado pelo core, sem inventar política.
+/// RF2.4 partial failure text: the UI only presents the exact state
+/// reported by the core, without inventing policy.
 pub(crate) fn partial_failure_message(failure: &PartialFailure) -> String {
     use cuotai_core::login::{CommitStage, Compensation};
     let base = trf(
