@@ -5427,6 +5427,9 @@ pub struct SessionSlotSchema {
     /// PRD 0036 RF2.1/RF10.1: the paste is a password or key (a masked
     /// one-line field), not a cookie list.
     secret: bool,
+    /// PRD 0048 RF1: the desktop can capture this session from its own
+    /// sign-in window ("Sign in and capture session").
+    capture: bool,
 }
 
 /// The dialog's values in the core draft shape; unknown keys and values of
@@ -5618,6 +5621,7 @@ pub fn form_schema(provider: Provider) -> FormSchema {
                 hosts: descriptor.hosts,
                 open_url: descriptor.open_url,
                 secret: descriptor.delivery == user_session::Delivery::Secret,
+                capture: descriptor.capture.is_some(),
             })
             .collect(),
         session_notice: user_session::paste_notice(provider),

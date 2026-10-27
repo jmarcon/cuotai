@@ -142,6 +142,10 @@ export const vaultPrune = () => call("vault_prune");
 export const previewSession = (provider, slot, paste) => call("preview_session", { provider, slot, paste });
 /** PRD 0016 RF2.1: one read-only query of the draft with its pasted sessions; nothing is stored. */
 export const testSession = (input) => call("test_session", { input });
+/** PRD 0048 RF1: "Sign in and capture session" — the app's own sign-in window; resolves with its outcome. */
+export const captureSession = (provider, slot) => call("capture_session", { provider, slot });
+/** PRD 0048 RF6.2: closes a capture window still waiting for its sign-in. */
+export const cancelSessionCapture = () => call("cancel_session_capture");
 export const testAggregator = (input) => call("test_aggregator", { input });
 export const openAggregatorDashboard = (index) => call("open_aggregator_dashboard", { index });
 export const saveAccount = (input) => call("save_account", { input });
@@ -1170,7 +1174,7 @@ const DEMO_KEY_INPUT = { slot: "credential_env", label: { id: "secret_input.cred
 const DEMO_SESSION_SLOT = { slot: "platform_session_env", open_url: "https://platform.xiaomimimo.com/console/plan-manage",
   label: { id: "user_session.slot.xiaomi_mimo.platform_session_env", params: {}, fallback: "platform.xiaomimimo.com web session (balance and Token Plan)" },
   instructions: { id: "user_session.instructions", params: { site: "platform.xiaomimimo.com" }, fallback: "Sign in to platform.xiaomimimo.com in your browser. In the developer tools (F12), Network tab, reload the page, pick a request to platform.xiaomimimo.com and copy its Cookie header or use \"Copy as cURL\"; the cookie table of the Application tab works too. Only this session's cookies are kept; the rest of the pasted text is discarded." },
-  hosts: ["platform.xiaomimimo.com"] };
+  hosts: ["platform.xiaomimimo.com"], capture: true };
 // ponytail: fixed demo fixtures name their core-selected metric and rank explicitly; add a mocked backend when
 // the browser demo needs dynamic reports. This keeps binding choice rules out of the interface.
 const DEMO_BINDINGS = new Map([
@@ -1938,6 +1942,9 @@ const demo = {
     const expiry = { id: "user_session.expiry.unknown", params: {}, fallback: "Validity unknown." };
     return { kept, discarded, expiry: null, summary: { id: "user_session.paste.summary", params: { kept: kept.join(", "), discarded, expiry }, fallback: `Kept: ${kept.join(", ")}. Discarded: ${discarded}. Validity unknown.` } };
   },
+  // PRD 0048 demo: the browser has no capture window; the dialog falls back to the paste box.
+  capture_session: async () => ({ status: "unavailable" }),
+  cancel_session_capture: async () => {},
   open_aggregator_dashboard: async () => {},
   // PRD 0036 RF2.2: the demo instance answers like a local 9router with three connections.
   test_aggregator: async ({ input }) => {

@@ -8,6 +8,7 @@ mod hooks;
 mod local_cost;
 mod local_server;
 mod notify;
+mod session_capture;
 mod settings;
 mod settings_window;
 mod tray_bar;
@@ -317,6 +318,25 @@ fn preview_session(
     paste: String,
 ) -> Result<backend::SessionPreview, String> {
     backend::preview_session(provider, &slot, paste)
+}
+
+/// PRD 0048 RF1: "Sign in and capture session" of `slot`: opens the
+/// capture window and waits for its outcome. The captured paste goes back
+/// to the dialog's paste box only. Errors: `not_capturable`, `busy`,
+/// `unavailable`.
+#[tauri::command]
+async fn capture_session(
+    app: AppHandle,
+    provider: Provider,
+    slot: String,
+) -> Result<session_capture::Outcome, String> {
+    session_capture::run(&app, provider, &slot).await
+}
+
+/// PRD 0048 RF6.2: the dialog closed or its Cancel was pressed.
+#[tauri::command]
+fn cancel_session_capture(state: tauri::State<'_, session_capture::State>) {
+    state.cancel();
 }
 
 /// PRD 0036 RF8.2: "Open dashboard" of the aggregator account at `index`
@@ -2014,6 +2034,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Arc::clone(&backend))
         .manage(local_cost)
+        .manage(session_capture::State::default())
         .manage(Arc::clone(&updates))
         .manage(settings_window::State::new(settings::settings_path()))
         .invoke_handler(tauri::generate_handler![
@@ -2056,6 +2077,8 @@ pub fn run() {
             vault_audit,
             vault_prune,
             preview_session,
+            capture_session,
+            cancel_session_capture,
             test_session,
             test_aggregator,
             open_aggregator_dashboard,

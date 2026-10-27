@@ -5,7 +5,7 @@ import {
   accountLabel, configChangedOnDisk, deleteAccount, detectSources, forgetExtensionSecrets, dismissDetected, draftAccess, errText, esc, fieldChoices, formSchema, getAccount,
   getSettings, getView, icon, listProviders, logo, NEW_PROVIDER_URL, openExternal, sessionOpenLinkHtml, providerModes, setDetectEnabled,
   loginCancel, loginStart, loginSubmitCode, forgetSession, migrateSession, modelSupport, onLogin, previewSession, reloadConfig,
-  reportKey, saveAccount, sessionNoticeHtml, testAggregator, testSession, validMonogram, visibleFields,
+  reportKey, saveAccount, captureSession, cancelSessionCapture, sessionNoticeHtml, testAggregator, testSession, validMonogram, visibleFields,
 } from "./lib.js";
 import { mountModels } from "./detail.js";
 import { entryChips, mountPicker, pickerHtml } from "./provider-picker.js";
@@ -419,6 +419,8 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   let confirmMove = false;
   let confirmForget = false;
   let previewSeq = 0;
+  // PRD 0048 RF6.2: a capture window still waiting closes with the dialog.
+  let capturing = false;
   function renderSession(status = "") {
     const slots = schema.sessions ?? [];
     // PRD 0047: the vault reference may also hold typed keys; this box speaks only of its own session slots, and
@@ -426,6 +428,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     const kept = existing?.provider === provider ? existing?.session_slots ?? [] : [];
     const stored = kept.filter((slot) => slots.some((s) => s.slot === slot));
     const forgettable = stored.length > 0 && stored.length === kept.length;
+    if (capturing) cancelSessionCapture().catch(() => {});
     clearPastes();
     sessionBox.hidden = !slots.length && !stored.length && !status;
     if (sessionBox.hidden) { sessionBox.innerHTML = ""; return; }
@@ -441,6 +444,8 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
               placeholder="${te("dialog.session.placeholder")}"></textarea>`}
             <small class="hint">${esc(tl(s.instructions))}</small>
             ${sessionOpenLinkHtml(s)}
+            ${s.capture ? `<span class="dlg-actions"><button type="button" class="btn" data-capture="${esc(s.slot)}">${te("dialog.session.capture")}</button></span>
+              <small class="hint">${te("dialog.session.captureHint")}</small>` : ""}
             ${s.hosts.length ? `<small class="hint">${te("dialog.session.hosts", { hosts: s.hosts.join(", ") })}</small>` : ""}
             ${stored.includes(s.slot) ? `<small class="hint">${te("dialog.session.replace")}</small>` : ""}
             <small class="hint" data-preview="${esc(s.slot)}" role="status" aria-live="polite"></small></label>
@@ -465,6 +470,34 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     sessionBox.querySelectorAll("[data-session-url]").forEach((b) => b.addEventListener("click", (e) => {
       e.preventDefault();
       openExternal(b.dataset.sessionUrl).catch(() => {});
+    }));
+    // PRD 0048 RF1/RF4: the app's own sign-in window; its reduced cookies land in this paste box, which previews
+    // and tests them as any paste. The user types password, 2FA and captcha there; nothing is filled for them.
+    sessionBox.querySelectorAll("[data-capture]").forEach((btn) => btn.addEventListener("click", async () => {
+      const slot = btn.dataset.capture;
+      const field = sessionBox.querySelector(`.session-paste[data-slot="${slot}"]`);
+      const statusEl = sessionBox.querySelector("#session-test-status");
+      btn.disabled = true;
+      capturing = true;
+      statusEl.textContent = t("dialog.session.capturing");
+      let outcome;
+      try { outcome = await captureSession(provider, slot); } catch (x) { outcome = { status: "error", error: x }; }
+      capturing = false;
+      if (!dlg.open || !field?.isConnected) return;
+      btn.disabled = false;
+      if (outcome.status === "captured") {
+        field.value = outcome.paste;
+        outcome.paste = "";
+        field.dispatchEvent(new Event("input"));
+        statusEl.textContent = t("dialog.session.captured");
+        sessionBox.querySelector("#session-test")?.click();
+        return;
+      }
+      statusEl.textContent = outcome.status === "cancelled" ? t("dialog.session.captureCancelled")
+        : outcome.status === "timed_out" ? t("dialog.session.captureTimeout")
+        : outcome.status === "error" && String(outcome.error).includes("busy") ? t("dialog.session.captureBusy")
+        : t("dialog.session.captureUnavailable");
+      if (outcome.status !== "cancelled") field?.focus();
     }));
     sessionBox.querySelector("#session-test")?.addEventListener("click", async (e) => {
       const btn = e.currentTarget;
@@ -737,6 +770,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     // PRD 0016 RF2.3 / PRD 0047: a pasted session or typed secret never outlives the dialog.
     clearPastes();
     clearSecrets();
+    if (capturing) cancelSessionCapture().catch(() => {});
     // Closing the dialog with an active login and no commit cancels the flow: the authorized
     // token dies in memory and nothing is written to the vault (RF2.4).
     if (loginState && !committing) {
