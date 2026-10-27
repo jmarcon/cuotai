@@ -1887,3 +1887,54 @@ fn open_urls_are_https_on_declared_hosts() {
     assert_eq!(seen, 3);
     assert!(!is_open_url("https://example.com/"));
 }
+
+/// PRD 0048 RF1/RF3: only the Xiaomi platform session offers a capture, and
+/// its window may load only the platform and the Xiaomi sign-in hosts.
+#[test]
+fn capture_is_declared_only_for_the_xiaomi_platform_and_allows_its_hosts() {
+    let with_capture: Vec<_> = Provider::ALL
+        .iter()
+        .flat_map(|p| descriptors(*p).iter().map(move |d| (*p, d)))
+        .filter(|(_, d)| d.capture.is_some())
+        .map(|(p, d)| (p, d.slot))
+        .collect();
+    assert_eq!(
+        with_capture,
+        vec![(Provider::XiaomiMimo, "platform_session_env")]
+    );
+    let d = descriptor(Provider::XiaomiMimo, "platform_session_env").unwrap();
+    let spec = d.capture.unwrap();
+    assert!(d.capture_allows(spec.start_url));
+    assert!(d.capture_allows(spec.cookie_url));
+    for ok in [
+        "https://platform.xiaomimimo.com/sts?sign=x&followup=y",
+        "https://account.xiaomi.com/pass/serviceLogin?sid=api-platform",
+        "https://ACCOUNT.xiaomi.com/fe/service/login",
+        "https://global.account.xiaomi.com/fe/service/login",
+        "https://static-verify.sec.xiaomi.com/captcha",
+        "about:blank",
+        "about:srcdoc",
+    ] {
+        assert!(d.capture_allows(ok), "{ok}");
+    }
+    for blocked in [
+        "http://platform.xiaomimimo.com/",
+        "https://platform.xiaomimimo.com:8443/",
+        "https://user:pw@platform.xiaomimimo.com/",
+        "https://evil.example/",
+        "https://account.xiaomi.com.evil.example/",
+        "https://evilaccount.xiaomi.com/",
+        "https://sec.xiaomi.com/",
+        "https://xiaomi.com/",
+        "https://mimo-server-sgp.xiaomimimo.com/",
+        "https://127.0.0.1/",
+        "file:///etc/passwd",
+        "javascript:alert(1)",
+        "tauri://localhost/index.html",
+        "not a url",
+    ] {
+        assert!(!d.capture_allows(blocked), "{blocked}");
+    }
+    let account = descriptor(Provider::XiaomiMimo, "session_env").unwrap();
+    assert!(!account.capture_allows("https://platform.xiaomimimo.com/"));
+}

@@ -76,6 +76,58 @@ pub const NINE_ROUTER_SSO_SLOT: &str = "auth_session_env";
 /// Longest secret value accepted from a paste.
 const MAX_SECRET_LEN: usize = 4096;
 
+/// PRD 0048 RF1: where a desktop sign-in window captures a session: the
+/// page it opens, the address whose cookies it reads, and the sign-in
+/// hosts it may visit besides the descriptor's own `hosts`.
+#[derive(Debug, PartialEq, Eq)]
+pub struct CaptureSpec {
+    /// The first page of the window, on one of the descriptor's hosts.
+    pub start_url: &'static str,
+    /// The address whose cookie store is read (one of the `hosts`).
+    pub cookie_url: &'static str,
+    /// Sign-in hosts the window may visit, matched exactly.
+    pub login_hosts: &'static [&'static str],
+    /// Sign-in host suffixes (each starting with `.`), for the identity
+    /// provider's own subdomains.
+    pub login_suffixes: &'static [&'static str],
+}
+
+impl SessionDescriptor {
+    /// PRD 0048 RF3: whether the capture window may load `url` (a top-level
+    /// page or a frame): HTTPS on the default port without user info, to
+    /// one of the descriptor's hosts or the capture's sign-in hosts, plus
+    /// the empty frames pages create (`about:blank`, `about:srcdoc`).
+    /// `false` without a capture.
+    pub fn capture_allows(&self, url: &str) -> bool {
+        let Some(spec) = self.capture else {
+            return false;
+        };
+        if url == "about:blank" || url == "about:srcdoc" {
+            return true;
+        }
+        let Ok(parsed) = url::Url::parse(url) else {
+            return false;
+        };
+        if parsed.scheme() != "https"
+            || parsed.port().is_some()
+            || !parsed.username().is_empty()
+            || parsed.password().is_some()
+        {
+            return false;
+        }
+        let Some(url::Host::Domain(host)) = parsed.host() else {
+            return false;
+        };
+        let host = host.to_ascii_lowercase();
+        self.hosts.contains(&host.as_str())
+            || spec.login_hosts.contains(&host.as_str())
+            || spec
+                .login_suffixes
+                .iter()
+                .any(|suffix| host.ends_with(suffix) && host.len() > suffix.len())
+    }
+}
+
 /// One session a provider accepts, declared by the core.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct SessionDescriptor {
@@ -96,6 +148,10 @@ pub struct SessionDescriptor {
     /// origin, so no other host can receive it.
     pub account_host: bool,
     pub delivery: Delivery,
+    /// PRD 0048 RF1: how the desktop app may capture this session from a
+    /// sign-in window of its own; `None` keeps the paste box only.
+    #[serde(skip)]
+    pub capture: Option<&'static CaptureSpec>,
     /// The expiry is read from the JWT `exp` of the required cookie, not
     /// verified (PRD 0036 RF2.6).
     #[serde(skip)]
@@ -192,6 +248,7 @@ const XIAOMI_ACCOUNT: SessionDescriptor = SessionDescriptor {
     ],
     account_host: false,
     delivery: Delivery::CookieHeader,
+    capture: None,
     jwt_expiry: false,
     site: "MiMo Desktop",
     open_url: None,
@@ -201,6 +258,19 @@ const XIAOMI_ACCOUNT: SessionDescriptor = SessionDescriptor {
     ),
 };
 
+/// PRD 0048 RF3: the platform console's own sign-in. Evidence (2026-10-27,
+/// unauthenticated): the console's bundle sends a signed-out user to
+/// `/api/v1/genLoginUrl`, which answers `302` to
+/// `https://account.xiaomi.com/pass/serviceLogin?sid=api-platform&callback=https://platform.xiaomimimo.com/sts...`;
+/// that page moves to `account.xiaomi.com/fe/service/login` and loads its
+/// security check from `static-verify.sec.xiaomi.com`.
+const XIAOMI_PLATFORM_CAPTURE: CaptureSpec = CaptureSpec {
+    start_url: "https://platform.xiaomimimo.com/console/plan-manage",
+    cookie_url: "https://platform.xiaomimimo.com/",
+    login_hosts: &["account.xiaomi.com"],
+    login_suffixes: &[".account.xiaomi.com", ".sec.xiaomi.com"],
+};
+
 const XIAOMI_PLATFORM: SessionDescriptor = SessionDescriptor {
     slot: "platform_session_env",
     required: &["api-platform_serviceToken", "userId"],
@@ -208,6 +278,7 @@ const XIAOMI_PLATFORM: SessionDescriptor = SessionDescriptor {
     hosts: &["platform.xiaomimimo.com"],
     account_host: false,
     delivery: Delivery::CookieHeader,
+    capture: Some(&XIAOMI_PLATFORM_CAPTURE),
     jwt_expiry: false,
     site: "platform.xiaomimimo.com",
     open_url: Some("https://platform.xiaomimimo.com/console/plan-manage"),
@@ -229,6 +300,7 @@ const ALIBABA_CODING_PLAN: SessionDescriptor = SessionDescriptor {
     ],
     account_host: false,
     delivery: Delivery::CookieHeader,
+    capture: None,
     jwt_expiry: false,
     site: "bailian.console.aliyun.com / modelstudio.console.alibabacloud.com",
     open_url: Some("https://bailian.console.aliyun.com/cn-beijing/?tab=model#/efm/coding_plan"),
@@ -245,6 +317,7 @@ const ALIBABA_TOKEN_PLAN: SessionDescriptor = SessionDescriptor {
     hosts: &["home.qwencloud.com", "cs-data.qwencloud.com"],
     account_host: false,
     delivery: Delivery::CookieHeader,
+    capture: None,
     jwt_expiry: false,
     site: "home.qwencloud.com",
     open_url: Some("https://home.qwencloud.com/billing/subscription/token-plan-individual"),
@@ -261,6 +334,7 @@ const NINE_ROUTER_PASSWORD: SessionDescriptor = SessionDescriptor {
     hosts: &[],
     account_host: true,
     delivery: Delivery::Secret,
+    capture: None,
     jwt_expiry: false,
     site: "9router",
     open_url: None,
@@ -278,6 +352,7 @@ const NINE_ROUTER_SSO: SessionDescriptor = SessionDescriptor {
     hosts: &[],
     account_host: true,
     delivery: Delivery::CookieHeader,
+    capture: None,
     jwt_expiry: true,
     site: "9router",
     open_url: None,
@@ -294,6 +369,7 @@ const LITELLM_KEY: SessionDescriptor = SessionDescriptor {
     hosts: &[],
     account_host: true,
     delivery: Delivery::Secret,
+    capture: None,
     jwt_expiry: false,
     site: "LiteLLM",
     open_url: None,
@@ -346,6 +422,7 @@ pub fn vault_descriptor(provider: Provider, slot: &str) -> Option<SessionDescrip
         hosts: &[],
         account_host: false,
         delivery: Delivery::Secret,
+        capture: None,
         jwt_expiry: false,
         site: "",
         open_url: None,
