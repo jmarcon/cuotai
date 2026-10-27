@@ -516,7 +516,6 @@
   "filter.none": "필터와 일치하는 계정이 없습니다.",
   "dialog.deleteBodyVault": "{label}에는 시스템 보관소에 저장된 자격 증명이 있습니다. 함께 삭제할까요?",
   "dialog.deleteExtensionSecrets": "이 확장 기능이 보관소에 저장한 비밀도 함께 삭제합니다.",
-  "dialog.picker.more": "제공업체 {count}개 더 있습니다. 검색해서 찾거나",
   "dialog.picker.addExtension": "확장 기능으로 제공업체 추가",
   "dialog.picker.notListed": "목록에 없나요?",
   "dialog.deleteVaultKeep": "제거하고 보관소에 유지",

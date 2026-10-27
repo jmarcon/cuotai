@@ -521,7 +521,6 @@
   "filter.none": "Kein Konto entspricht dem Filter.",
   "dialog.deleteBodyVault": "{label} hat Zugangsdaten im Systemtresor gespeichert. Diese ebenfalls löschen?",
   "dialog.deleteExtensionSecrets": "Auch die gespeicherten Geheimnisse dieser Erweiterung aus dem Tresor löschen.",
-  "dialog.picker.more": "{count} weitere Anbieter. Suchen Sie sie oder",
   "dialog.picker.addExtension": "einen Anbieter über eine Erweiterung hinzufügen",
   "dialog.picker.notListed": "Nicht aufgeführt?",
   "dialog.deleteVaultKeep": "Entfernen und im Tresor behalten",

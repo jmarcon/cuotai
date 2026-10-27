@@ -521,7 +521,6 @@
   "filter.none": "Filtreyle eşleşen hesap yok.",
   "dialog.deleteBodyVault": "{label} hesabının sistem kasasında kayıtlı bir kimlik bilgisi var. O da silinsin mi?",
   "dialog.deleteExtensionSecrets": "Bu uzantının kasada kayıtlı gizli bilgilerini de sil.",
-  "dialog.picker.more": "{count} sağlayıcı daha. Bulmak için arayın veya",
   "dialog.picker.addExtension": "bir uzantıyla sağlayıcı ekleyin",
   "dialog.picker.notListed": "Listede yok mu?",
   "dialog.deleteVaultKeep": "Kaldır ve kasada tut",

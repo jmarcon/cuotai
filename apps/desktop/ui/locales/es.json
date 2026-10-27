@@ -518,7 +518,6 @@
   "filter.none": "Ninguna cuenta coincide con el filtro.",
   "dialog.deleteBodyVault": "{label} tiene una credencial guardada en el almacén del sistema. ¿Quieres borrarla también?",
   "dialog.deleteExtensionSecrets": "Borrar también del almacén los secretos guardados de esta extensión.",
-  "dialog.picker.more": "{count} proveedores más. Busca para encontrarlos, o",
   "dialog.picker.addExtension": "añade un proveedor con una extensión",
   "dialog.picker.notListed": "¿No aparece?",
   "dialog.deleteVaultKeep": "Eliminar y conservar en el almacén",

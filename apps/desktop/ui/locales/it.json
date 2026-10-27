@@ -518,7 +518,6 @@
   "filter.none": "Nessun account corrisponde al filtro.",
   "dialog.deleteBodyVault": "{label} ha una credenziale salvata nel vault di sistema. Eliminare anche quella?",
   "dialog.deleteExtensionSecrets": "Elimina anche dal vault i segreti salvati di questa estensione.",
-  "dialog.picker.more": "Altri {count} provider. Cerca per trovarli, oppure",
   "dialog.picker.addExtension": "aggiungi un provider con un'estensione",
   "dialog.picker.notListed": "Non in elenco?",
   "dialog.deleteVaultKeep": "Rimuovi e mantieni nel vault",

@@ -531,7 +531,6 @@
   "filter.none": "Ни одна запись не соответствует фильтру.",
   "dialog.deleteBodyVault": "У {label} есть учётные данные в системном хранилище. Удалить и их?",
   "dialog.deleteExtensionSecrets": "Также удалить из хранилища сохранённые секреты этого расширения.",
-  "dialog.picker.more": "Ещё провайдеров: {count}. Найдите их поиском или",
   "dialog.picker.addExtension": "добавьте провайдера через расширение",
   "dialog.picker.notListed": "Нет в списке?",
   "dialog.deleteVaultKeep": "Удалить, оставив в хранилище",

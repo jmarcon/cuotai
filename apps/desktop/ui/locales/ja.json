@@ -516,7 +516,6 @@
   "filter.none": "フィルターに一致するアカウントはありません。",
   "dialog.deleteBodyVault": "{label} の認証情報がシステムの保管庫に保存されています。一緒に削除しますか？",
   "dialog.deleteExtensionSecrets": "この拡張機能の保存済みシークレットも保管庫から削除します。",
-  "dialog.picker.more": "ほかに {count} 個のプロバイダーがあります。検索して見つけるか、",
   "dialog.picker.addExtension": "拡張機能でプロバイダーを追加",
   "dialog.picker.notListed": "一覧にない場合",
   "dialog.deleteVaultKeep": "外して保管庫に残す",

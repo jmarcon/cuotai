@@ -518,7 +518,6 @@
   "filter.none": "No account matches the filter.",
   "dialog.deleteBodyVault": "{label} has a credential saved in the system vault. Delete it as well?",
   "dialog.deleteExtensionSecrets": "Also delete this extension's saved secrets from the vault.",
-  "dialog.picker.more": "{count} more providers. Search to find them, or",
   "dialog.picker.addExtension": "add a provider with an extension",
   "dialog.picker.notListed": "Not listed?",
   "dialog.deleteVaultKeep": "Remove and keep in vault",

@@ -521,7 +521,6 @@
   "filter.none": "Aucun compte ne correspond au filtre.",
   "dialog.deleteBodyVault": "{label} a un identifiant enregistré dans le coffre du système. Le supprimer aussi ?",
   "dialog.deleteExtensionSecrets": "Supprimer aussi du coffre les secrets enregistrés de cette extension.",
-  "dialog.picker.more": "{count} autres fournisseurs. Recherchez-les, ou",
   "dialog.picker.addExtension": "ajoutez un fournisseur avec une extension",
   "dialog.picker.notListed": "Absent de la liste ?",
   "dialog.deleteVaultKeep": "Retirer et garder dans le coffre",

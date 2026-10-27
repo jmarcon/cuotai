@@ -521,7 +521,6 @@
   "filter.none": "कोई खाता फ़िल्टर से मेल नहीं खाता।",
   "dialog.deleteBodyVault": "{label} का एक क्रेडेंशियल सिस्टम वॉल्ट में सहेजा है। उसे भी मिटाएँ?",
   "dialog.deleteExtensionSecrets": "इस एक्सटेंशन के वॉल्ट में सहेजे गोपनीय मान भी मिटाएँ।",
-  "dialog.picker.more": "{count} और प्रदाता। उन्हें खोजें, या",
   "dialog.picker.addExtension": "एक्सटेंशन से प्रदाता जोड़ें",
   "dialog.picker.notListed": "सूची में नहीं है?",
   "dialog.deleteVaultKeep": "हटाएँ और वॉल्ट में रखें",

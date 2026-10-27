@@ -516,7 +516,6 @@
   "filter.none": "没有与筛选匹配的账户。",
   "dialog.deleteBodyVault": "{label} 在系统保险库中保存了凭据。是否一并删除？",
   "dialog.deleteExtensionSecrets": "同时从保险库中删除此扩展已保存的密钥。",
-  "dialog.picker.more": "还有 {count} 个提供商。搜索即可找到，或",
   "dialog.picker.addExtension": "通过扩展添加提供商",
   "dialog.picker.notListed": "没有列出？",
   "dialog.deleteVaultKeep": "移除并保留在保险库中",

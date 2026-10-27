@@ -516,7 +516,6 @@
   "filter.none": "Tidak ada akun yang cocok dengan filter.",
   "dialog.deleteBodyVault": "{label} memiliki kredensial yang tersimpan di brankas sistem. Hapus juga?",
   "dialog.deleteExtensionSecrets": "Hapus juga rahasia tersimpan ekstensi ini dari brankas.",
-  "dialog.picker.more": "{count} penyedia lainnya. Cari untuk menemukannya, atau",
   "dialog.picker.addExtension": "tambahkan penyedia dengan ekstensi",
   "dialog.picker.notListed": "Tidak terdaftar?",
   "dialog.deleteVaultKeep": "Keluarkan dan simpan di brankas",

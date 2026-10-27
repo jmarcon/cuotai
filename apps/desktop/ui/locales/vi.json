@@ -516,7 +516,6 @@
   "filter.none": "Không có tài khoản nào khớp với bộ lọc.",
   "dialog.deleteBodyVault": "{label} có một thông tin xác thực lưu trong kho của hệ thống. Xóa luôn?",
   "dialog.deleteExtensionSecrets": "Xóa luôn các bí mật đã lưu của tiện ích mở rộng này khỏi kho.",
-  "dialog.picker.more": "Còn {count} nhà cung cấp nữa. Hãy tìm kiếm để thấy chúng, hoặc",
   "dialog.picker.addExtension": "thêm nhà cung cấp bằng tiện ích mở rộng",
   "dialog.picker.notListed": "Không có trong danh sách?",
   "dialog.deleteVaultKeep": "Gỡ và giữ trong kho",

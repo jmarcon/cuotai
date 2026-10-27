@@ -524,7 +524,6 @@
   "filter.none": "Nenhuma conta corresponde ao filtro.",
   "dialog.deleteBodyVault": "{label} tem uma credencial salva no cofre do sistema. Quer apagá-la também?",
   "dialog.deleteExtensionSecrets": "Apagar também os segredos salvos desta extensão do cofre.",
-  "dialog.picker.more": "Mais {count} provedores. Pesquise para encontrá-los ou",
   "dialog.picker.addExtension": "adicione um provedor com uma extensão",
   "dialog.picker.notListed": "Não está na lista?",
   "dialog.deleteVaultKeep": "Remover e manter no cofre",

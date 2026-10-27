@@ -26,16 +26,6 @@ export const pickerHtml = (labelledBy) => `<div class="picker" id="picker">
     <p class="picker-foot" id="picker-foot"></p>
   </div>`;
 
-/** Mockup 31: at most five browser sign-ins lead, the other groups fill the rest, so every group shows. */
-const featured = (result) => {
-  const first = result.filter((e) => e.method === result[0]?.method).slice(0, 5);
-  const rest = result.filter((e) => e.method !== first[0]?.method).slice(0, FEATURED - first.length);
-  return [...first, ...rest];
-};
-
-/** The grouped catalog shows this many providers; the rest are found by searching (mockup 31). */
-export const FEATURED = 9;
-
 /** Chips of one entry: "Billed per query" (DS-CMP-BADGE-2, warning) and "Found on this device" (DS-CMP-CAT-2, info). */
 export const entryChips = (entry, found) =>
   (entry.metered ? `<span class="mini warn">${icon("warn")}${te("dialog.picker.metered")}</span>` : "")
@@ -55,7 +45,6 @@ export function mountPicker(root, { onChoose, detected = () => [], onDismiss = (
   const empty = root.querySelector("#picker-empty");
   const count = root.querySelector("#picker-count");
   let entries = [];
-  let total = 0;
   const foot = root.querySelector("#picker-foot");
   let active = -1; // no row is highlighted on open (mockup 31); the first arrow key or a query selects one
   const foundFor = (provider) => detected().find((d) => d.provider === provider) ?? null;
@@ -97,12 +86,9 @@ export function mountPicker(root, { onChoose, detected = () => [], onDismiss = (
             ? `<span class="pick-group-hint">${te(GROUP_HINTS[g.method])}</span>` : ""}</div>
           <div class="pick-items">${g.items.map(([entry, i]) => option(entry, i, true)).join("")}</div></div>`).join("");
     }
-    // Mockup 31/31b: the footer counts what the grouped view hides and always offers an extension.
-    const hidden = grouped ? total - entries.length : 0;
+    // Mockup 31b: the footer always offers an extension.
     const link = `<a href="#" class="text-link" data-extensions>${te("dialog.picker.addExtension")}</a>`;
-    foot.innerHTML = hidden > 0
-      ? `${esc(t("dialog.picker.more", { count: hidden }))} ${link}`
-      : (entries.length ? `${te("dialog.picker.notListed")} ${link}` : "");
+    foot.innerHTML = entries.length ? `${te("dialog.picker.notListed")} ${link}` : "";
     syncActive(false);
   }
 
@@ -119,8 +105,8 @@ export function mountPicker(root, { onChoose, detected = () => [], onDismiss = (
     const mine = ++seq;
     const result = await searchProviders(input.value, currentLocale());
     if (mine !== seq) return; // a newer keystroke won
-    total = result.length;
-    entries = input.value.trim() ? result : featured(result);
+    // The empty search lists the whole catalog, grouped; typing narrows it (owner decision 2026-10-26).
+    entries = result;
     // Mockup 31: the empty search names how many providers it covers.
     if (!input.value.trim()) input.placeholder = t("dialog.picker.searchCount", { count: result.length });
     active = input.value.trim() ? 0 : -1;
