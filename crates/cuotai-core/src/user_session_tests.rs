@@ -1888,7 +1888,8 @@ fn open_urls_are_https_on_declared_hosts() {
     assert!(!is_open_url("https://example.com/"));
 }
 
-/// PRD 0048 RF1/RF3: only the Xiaomi platform session offers a capture, and
+/// PRD 0048 RF1/RF3: only the Xiaomi platform and the Qwen Cloud sessions
+/// offer a capture, and
 /// its window may load only the platform and the Xiaomi sign-in hosts.
 #[test]
 fn capture_is_declared_only_for_the_xiaomi_platform_and_allows_its_hosts() {
@@ -1900,7 +1901,10 @@ fn capture_is_declared_only_for_the_xiaomi_platform_and_allows_its_hosts() {
         .collect();
     assert_eq!(
         with_capture,
-        vec![(Provider::XiaomiMimo, "platform_session_env")]
+        vec![
+            (Provider::XiaomiMimo, "platform_session_env"),
+            (Provider::AlibabaTokenPlan, "session_env"),
+        ]
     );
     let d = descriptor(Provider::XiaomiMimo, "platform_session_env").unwrap();
     let spec = d.capture.unwrap();
@@ -1941,4 +1945,51 @@ fn capture_is_declared_only_for_the_xiaomi_platform_and_allows_its_hosts() {
     }
     let account = descriptor(Provider::XiaomiMimo, "session_env").unwrap();
     assert!(!account.capture_allows("https://platform.xiaomimimo.com/"));
+}
+
+/// PRD 0048 RF3.3: the Qwen Cloud capture opens the Token Plan usage page
+/// (also the open link) and allows only the Qwen Cloud, Alibaba Cloud,
+/// Google and GitHub sign-in hosts.
+#[test]
+fn qwen_cloud_capture_allows_only_its_sign_in_hosts() {
+    let d = descriptor(Provider::AlibabaTokenPlan, "session_env").unwrap();
+    let spec = d.capture.unwrap();
+    let usage = "https://home.qwencloud.com/analytics/token-plan/individual?region=ap-southeast-1";
+    assert_eq!(spec.start_url, usage);
+    assert_eq!(d.open_url, Some(usage));
+    assert!(is_open_url(usage));
+    assert!(!is_open_url(
+        "https://home.qwencloud.com/analytics/token-plan/individual"
+    ));
+    assert_eq!(spec.done_when, &["login_aliyunid_pk"]);
+    for ok in [
+        usage,
+        spec.cookie_url,
+        "https://cs-data.qwencloud.com/data/api.json",
+        "https://account.qwencloud.com/sso/OIDCAuth?oauth_callback=x",
+        "https://account.alibabacloud.com/sso/login.htm?client_id=qwencloud",
+        "https://account.alibabacloud.com:443/login/login_aliyun.htm",
+        "https://passport.alibabacloud.com/sns_oauth.htm?type=google_qwen",
+        "https://accounts.google.com/o/oauth2/v2/auth",
+        "https://github.com/login/oauth/authorize",
+        "about:blank",
+    ] {
+        assert!(d.capture_allows(ok), "{ok}");
+    }
+    for blocked in [
+        "http://home.qwencloud.com/",
+        "https://www.qwencloud.com/",
+        "https://evil.qwencloud.com/",
+        "https://alibabacloud.com/",
+        "https://signin.alibabacloud.com/",
+        "https://account.alibabacloud.com.evil.example/",
+        "https://gist.github.com/",
+        "https://mail.google.com/",
+        "https://account.qianwenai.com/",
+        "https://bailian.console.aliyun.com/",
+    ] {
+        assert!(!d.capture_allows(blocked), "{blocked}");
+    }
+    let coding = descriptor(Provider::AlibabaCodingPlan, "session_env").unwrap();
+    assert!(coding.capture.is_none());
 }

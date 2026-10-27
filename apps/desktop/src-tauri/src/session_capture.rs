@@ -83,7 +83,8 @@ pub fn domain_matches(host: &str, domain: &str) -> bool {
 
 /// RF4.2: the descriptor's required and optional cookies of `store` that
 /// `host` receives, as a `Cookie` header list in the descriptor's order;
-/// `None` while a required cookie is missing or empty. Every other cookie
+/// `None` while a required cookie, or one of the capture's `done_when`
+/// cookies, is missing or empty. Every other cookie
 /// is dropped. A name the store holds several times (a host and a
 /// parent-domain cookie) keeps the most specific one: the longest domain,
 /// then the longest path.
@@ -98,7 +99,13 @@ pub fn reduce_cookies(
             .filter(|c| c.name == name && !c.value.is_empty() && domain_matches(host, &c.domain))
             .max_by_key(|c| (c.domain.trim_start_matches('.').len(), c.path.len()))
     };
-    if descriptor.required.iter().any(|name| pick(name).is_none()) {
+    let done_when = descriptor.capture.map_or(&[][..], |spec| spec.done_when);
+    if descriptor
+        .required
+        .iter()
+        .chain(done_when)
+        .any(|name| pick(name).is_none())
+    {
         return None;
     }
     let pairs: Vec<String> = descriptor
@@ -474,6 +481,35 @@ mod tests {
             Some("not_capturable")
         );
         assert!(capture_descriptor(Provider::XiaomiMimo, "platform_session_env").is_ok());
+        assert!(capture_descriptor(Provider::AlibabaTokenPlan, "session_env").is_ok());
+        assert_eq!(
+            capture_descriptor(Provider::AlibabaCodingPlan, "session_env").err(),
+            Some("not_capturable")
+        );
+    }
+
+    /// RF4.2: the Qwen Cloud session has only optional cookies; anonymous
+    /// ones (`cna`) do not end the capture, the sign-in's account id does,
+    /// and `.qwencloud.com` cookies are kept for `cs-data.qwencloud.com`.
+    #[test]
+    fn qwen_cloud_capture_waits_for_the_sign_in() {
+        let d = capture_descriptor(Provider::AlibabaTokenPlan, "session_env").unwrap();
+        let host = "home.qwencloud.com";
+        let anonymous = [
+            cookie("cna", "anon", ".qwencloud.com", "/"),
+            cookie("login_aliyunid_pk", "1", ".alibabacloud.com", "/"),
+        ];
+        assert_eq!(reduce_cookies(d, host, &anonymous), None);
+        let signed_in = [
+            cookie("cna", "anon", ".qwencloud.com", "/"),
+            cookie("_ga", "x", ".qwencloud.com", "/"),
+            cookie("login_aliyunid_ticket", "t", ".qwencloud.com", "/"),
+            cookie("login_aliyunid_pk", "1", ".qwencloud.com", "/"),
+        ];
+        assert_eq!(
+            reduce_cookies(d, host, &signed_in).as_deref(),
+            Some("login_aliyunid_ticket=t; login_aliyunid_pk=1; cna=anon")
+        );
     }
 
     #[test]

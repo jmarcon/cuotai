@@ -37,6 +37,7 @@ globalThis.localStorage = { getItem: (k) => storage.get(k) ?? null, setItem: (k,
 globalThis.fetch = async () => ({ ok: false, json: async () => ({}) });
 const lib = await import("../apps/desktop/ui/js/lib.js");
 assert.deepEqual(await lib.captureSession("xiaomi_mimo", "platform_session_env"), { status: "unavailable" });
+assert.deepEqual(await lib.captureSession("alibaba_token_plan", "session_env"), { status: "unavailable" });
 await lib.cancelSessionCapture();
 
 // The dialog's wiring, read from its source.

@@ -90,6 +90,10 @@ pub struct CaptureSpec {
     /// Sign-in host suffixes (each starting with `.`), for the identity
     /// provider's own subdomains.
     pub login_suffixes: &'static [&'static str],
+    /// Cookies that must also be present before the capture ends, for a
+    /// descriptor whose cookies are all optional (anonymous cookies such
+    /// as `cna` exist before sign-in, so "any cookie" is not a sign-in).
+    pub done_when: &'static [&'static str],
 }
 
 impl SessionDescriptor {
@@ -276,6 +280,7 @@ const XIAOMI_PLATFORM_CAPTURE: CaptureSpec = CaptureSpec {
         "accounts.google.com",
     ],
     login_suffixes: &[".account.xiaomi.com", ".sec.xiaomi.com"],
+    done_when: &[],
 };
 
 const XIAOMI_PLATFORM: SessionDescriptor = SessionDescriptor {
@@ -317,6 +322,37 @@ const ALIBABA_CODING_PLAN: SessionDescriptor = SessionDescriptor {
     ),
 };
 
+/// PRD 0048 RF3.3: the Qwen Cloud sign-in. Evidence (2026-10-27,
+/// unauthenticated): the console bundle sends a signed-out user to
+/// `https://account.qwencloud.com/sso/OIDCAuth?oauth_callback=...`, which
+/// answers `302` to `https://account.alibabacloud.com/sso/login.htm?client_id=qwencloud...`;
+/// its Google and GitHub buttons go through
+/// `account.alibabacloud.com/login/third_party_bind_login.htm` to
+/// `passport.alibabacloud.com/sns_oauth.htm`, which answers `302` to
+/// `accounts.google.com/o/oauth2/v2/auth` or `github.com/login/oauth/authorize`,
+/// both returning to `account.qwencloud.com/sso/...`.
+const QWEN_CLOUD_CAPTURE: CaptureSpec = CaptureSpec {
+    start_url: QWEN_CLOUD_USAGE,
+    cookie_url: "https://home.qwencloud.com/",
+    login_hosts: &[
+        "account.qwencloud.com",
+        "account.alibabacloud.com",
+        "passport.alibabacloud.com",
+        "accounts.google.com",
+        "github.com",
+    ],
+    login_suffixes: &[],
+    // The signed-out console page already reads `login_aliyunid_pk` from
+    // its own cookies; it is the account id set by the sign-in, unlike the
+    // anonymous `cna`. The adapter's `login_aliyunid_ticket` is set by the
+    // same sign-in response.
+    done_when: &["login_aliyunid_pk"],
+};
+
+/// The Token Plan usage page (owner, 2026-10-27).
+const QWEN_CLOUD_USAGE: &str =
+    "https://home.qwencloud.com/analytics/token-plan/individual?region=ap-southeast-1";
+
 const ALIBABA_TOKEN_PLAN: SessionDescriptor = SessionDescriptor {
     slot: "session_env",
     required: &[],
@@ -324,10 +360,10 @@ const ALIBABA_TOKEN_PLAN: SessionDescriptor = SessionDescriptor {
     hosts: &["home.qwencloud.com", "cs-data.qwencloud.com"],
     account_host: false,
     delivery: Delivery::CookieHeader,
-    capture: None,
+    capture: Some(&QWEN_CLOUD_CAPTURE),
     jwt_expiry: false,
     site: "home.qwencloud.com",
-    open_url: Some("https://home.qwencloud.com/billing/subscription/token-plan-individual"),
+    open_url: Some(QWEN_CLOUD_USAGE),
     label: (
         "user_session.slot.alibaba_token_plan.session_env",
         "Qwen Cloud console session (Token Plan)",
