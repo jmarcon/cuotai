@@ -1127,15 +1127,19 @@ impl RefreshCycle {
                 return Err(EditError::UnexpectedDiff);
             }
         }
-        if append {
-            // When appending, the new slot's identity (name/provider/oauth)
-            // must not collide with an existing account — `Config::validate`
-            // already enforces that, but we double-check because two
-            // accounts sharing identity would have stolen each other's
-            // reports on a future refresh.
-            if new_config.accounts[index].name.trim().is_empty() {
-                return Err(EditError::UnexpectedDiff);
-            }
+        // PRD 0029 RF1/RF3.1: an account's identity is its id, and the name
+        // is optional (only an account with a same-provider peer needs one,
+        // which `upsert_account` enforces). The touched slot must not share
+        // its id with another account, or the two would steal each other's
+        // reports on a later refresh.
+        let id = new_config.accounts[index].id();
+        if new_config
+            .accounts
+            .iter()
+            .enumerate()
+            .any(|(offset, other)| offset != index && other.id() == id)
+        {
+            return Err(EditError::UnexpectedDiff);
         }
         // A replace that leaves the TOML entry identical is valid: re-authenticating an account
         // renews its vault credential without touching the file, and the slot is queried again.
@@ -1530,6 +1534,44 @@ mod tests {
         // Edited account's new effective interval drives its deadline.
         assert_eq!(cycle.intervals[1], Duration::from_secs(45));
         assert_eq!(cycle.deadlines[1], now + Duration::from_secs(45));
+    }
+
+    #[test]
+    fn apply_edit_upsert_appends_an_unnamed_account() {
+        // PRD 0029 RF3.1: a new account of a provider without a peer may stay
+        // unnamed (the desktop's Add account with a blank name).
+        let prev = config_with(vec![account("alpha", None)]);
+        let mut cycle = RefreshCycle::new(&prev, Instant::now());
+        let unnamed = Account {
+            id: Some(crate::AccountId::random()),
+            provider: Provider::XiaomiMimo,
+            ..account("", None)
+        };
+        let new_config = config_with(vec![account("alpha", None), unnamed]);
+        let due = cycle
+            .apply_edit(&prev, &new_config, Edit::Upsert(1), Instant::now())
+            .expect("unnamed append accepted");
+        assert_eq!(due, vec![1]);
+    }
+
+    #[test]
+    fn apply_edit_upsert_rejects_an_id_shared_with_another_account() {
+        let id = crate::AccountId::random();
+        let first = Account {
+            id: Some(id.clone()),
+            ..account("alpha", None)
+        };
+        let prev = config_with(vec![first.clone()]);
+        let mut cycle = RefreshCycle::new(&prev, Instant::now());
+        let clash = Account {
+            id: Some(id),
+            ..account("beta", None)
+        };
+        let new_config = config_with(vec![first, clash]);
+        assert_eq!(
+            cycle.apply_edit(&prev, &new_config, Edit::Upsert(1), Instant::now()),
+            Err(EditError::UnexpectedDiff)
+        );
     }
 
     #[test]
