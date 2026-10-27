@@ -849,6 +849,7 @@
   "models.source.chat_gpt": "Codex GET /codex/models dengan token sesi ChatGPT (antarmuka internal Codex CLI yang tidak terdokumentasi); tidak membuktikan kuota, harga, atau ketersediaan saat ini.",
   "models.source.claude": "Claude GET /v1/models dengan token OAuth langganan (antarmuka tidak terdokumentasi untuk token ini); tidak membuktikan kuota, harga, atau ketersediaan saat ini.",
   "models.source.gemini_ai": "Gemini API models.list, berhalaman, dengan kunci AI Studio akun; tidak membuktikan kuota, harga, atau ketersediaan saat ini.",
+  "models.source.meta": "Meta Model API GET /v1/models dengan kunci akun; tidak membuktikan izin inferensi, harga, atau ketersediaan saat ini.",
   "models.source.groq": "Groq GET /openai/v1/models dengan kunci akun; tidak membuktikan izin inferensi, harga, atau ketersediaan saat ini.",
   "models.source.kimi": "Kimi GET /v1/models (api.moonshot.ai) dengan kunci akun; tidak membuktikan izin inferensi, harga, atau ketersediaan saat ini.",
   "models.source.live": "{provider} {endpoint} dengan kredensial akun (tidak membuktikan izin inferensi); juga tidak membuktikan harga atau ketersediaan saat ini.",

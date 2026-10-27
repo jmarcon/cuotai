@@ -849,6 +849,7 @@
   "models.source.chat_gpt": "Codex GET /codex/models với token phiên ChatGPT (giao diện nội bộ không có tài liệu của Codex CLI); không chứng minh hạn mức, giá hay tình trạng khả dụng hiện tại.",
   "models.source.claude": "Claude GET /v1/models với token OAuth của gói đăng ký (giao diện không có tài liệu cho token này); không chứng minh hạn mức, giá hay tình trạng khả dụng hiện tại.",
   "models.source.gemini_ai": "Gemini API models.list, phân trang, với khóa AI Studio của tài khoản; không chứng minh hạn mức, giá hay tình trạng khả dụng hiện tại.",
+  "models.source.meta": "Meta Model API GET /v1/models bằng khóa của tài khoản; không chứng minh quyền suy luận, giá hay tình trạng khả dụng hiện tại.",
   "models.source.groq": "Groq GET /openai/v1/models với khóa của tài khoản; không chứng minh quyền suy luận, giá hay tình trạng khả dụng hiện tại.",
   "models.source.kimi": "Kimi GET /v1/models (api.moonshot.ai) với khóa của tài khoản; không chứng minh quyền suy luận, giá hay tình trạng khả dụng hiện tại.",
   "models.source.live": "{provider} {endpoint} với thông tin xác thực của tài khoản (không chứng minh quyền suy luận); cũng không chứng minh giá hay tình trạng khả dụng hiện tại.",

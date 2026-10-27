@@ -854,6 +854,7 @@
   "models.source.chat_gpt": "ChatGPT सत्र के टोकन से Codex GET /codex/models (Codex CLI का अदस्तावेज़ीकृत आंतरिक इंटरफ़ेस); कोटा, कीमत या मौजूदा उपलब्धता का प्रमाण नहीं।",
   "models.source.claude": "सदस्यता के OAuth टोकन से Claude GET /v1/models (उस टोकन के लिए अदस्तावेज़ीकृत इंटरफ़ेस); कोटा, कीमत या मौजूदा उपलब्धता का प्रमाण नहीं।",
   "models.source.gemini_ai": "खाते की AI Studio कुंजी से पेज-दर-पेज लिया गया Gemini API models.list; कोटा, कीमत या मौजूदा उपलब्धता का प्रमाण नहीं।",
+  "models.source.meta": "खाते की कुंजी से Meta Model API GET /v1/models; यह अनुमान अनुमति, कीमत या मौजूदा उपलब्धता साबित नहीं करता।",
   "models.source.groq": "खाते की कुंजी से Groq GET /openai/v1/models; इन्फ़रेंस की अनुमति, कीमत या मौजूदा उपलब्धता का प्रमाण नहीं।",
   "models.source.kimi": "खाते की कुंजी से Kimi GET /v1/models (api.moonshot.ai); इन्फ़रेंस की अनुमति, कीमत या मौजूदा उपलब्धता का प्रमाण नहीं।",
   "models.source.live": "खाते के क्रेडेंशियल से {provider} {endpoint} (इन्फ़रेंस की अनुमति का प्रमाण नहीं); कीमत या मौजूदा उपलब्धता का भी प्रमाण नहीं।",

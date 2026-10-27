@@ -849,6 +849,7 @@
   "models.source.chat_gpt": "Codex GET /codex/models，使用 ChatGPT 会话的令牌（Codex CLI 的未公开内部接口）；不证明额度、价格或当前可用性。",
   "models.source.claude": "Claude GET /v1/models，使用订阅的 OAuth 令牌（该令牌的未公开接口）；不证明额度、价格或当前可用性。",
   "models.source.gemini_ai": "Gemini API models.list，分页，使用账户的 AI Studio 密钥；不证明额度、价格或当前可用性。",
+  "models.source.meta": "Meta Model API 使用账户密钥调用 GET /v1/models；不能证明推理权限、价格或当前可用性。",
   "models.source.groq": "Groq GET /openai/v1/models，使用账户的密钥；不证明推理权限、价格或当前可用性。",
   "models.source.kimi": "Kimi GET /v1/models（api.moonshot.ai），使用账户的密钥；不证明推理权限、价格或当前可用性。",
   "models.source.live": "{provider} {endpoint}，使用账户的凭据（不证明推理权限）；也不证明价格或当前可用性。",

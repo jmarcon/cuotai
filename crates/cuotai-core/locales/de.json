@@ -854,6 +854,7 @@
   "models.source.chat_gpt": "Codex GET /codex/models mit dem Token der ChatGPT-Sitzung (interne, nicht dokumentierte Schnittstelle der Codex CLI); beweist weder Kontingent noch Preis oder aktuelle Verfügbarkeit.",
   "models.source.claude": "Claude GET /v1/models mit dem OAuth-Token des Abonnements (für dieses Token nicht dokumentierte Schnittstelle); beweist weder Kontingent noch Preis oder aktuelle Verfügbarkeit.",
   "models.source.gemini_ai": "Gemini API models.list, seitenweise mit dem AI-Studio-Schlüssel des Kontos; beweist weder Kontingent noch Preis oder aktuelle Verfügbarkeit.",
+  "models.source.meta": "Meta Model API GET /v1/models mit dem Schlüssel des Kontos; belegt weder Inferenzberechtigung noch Preis oder aktuelle Verfügbarkeit.",
   "models.source.groq": "Groq GET /openai/v1/models mit dem Schlüssel des Kontos; beweist weder Inferenzberechtigung noch Preis oder aktuelle Verfügbarkeit.",
   "models.source.kimi": "Kimi GET /v1/models (api.moonshot.ai) mit dem Schlüssel des Kontos; beweist weder Inferenzberechtigung noch Preis oder aktuelle Verfügbarkeit.",
   "models.source.live": "{provider} {endpoint} mit den Zugangsdaten des Kontos (beweist keine Inferenzberechtigung); beweist auch weder Preis noch aktuelle Verfügbarkeit.",

@@ -366,7 +366,11 @@ fn contract(account: &Account) -> Result<(Localized, ModelEvidence), Localized> 
             false,
             documented("https://openrouter.ai/docs/api/api-reference/models/get-models"),
         ),
-        Provider::Meta => no_evidence(),
+        Provider::Meta => source(
+            "models.source.meta",
+            "Meta Model API GET /v1/models with the account key; does not prove inference permission, price or current availability.",
+            documented("https://dev.meta.ai/docs/api-reference/models/list-models"),
+        ),
         Provider::ElevenLabs => reason(
             "eleven_labs",
             "ElevenLabs offers no model catalog for quota queries; no request is made.",
@@ -914,6 +918,10 @@ impl Monitor {
                 )
                 .await
             }
+            Provider::Meta => {
+                let key = secret(account, ctx, "META_API_KEY")?;
+                openai_models(ctx, providers::meta::META_MODELS_URL, &key).await
+            }
             Provider::Poolside => {
                 let key = secret(account, ctx, "POOLSIDE_API_KEY")?;
                 openai_models(ctx, providers::inference::POOLSIDE_MODELS_URL, &key).await
@@ -1380,7 +1388,6 @@ credential_env = "ALIBABA_CLOUD_ACCESS_KEY_ID"
             Kimchi,
             Copilot,
             ElevenLabs,
-            Meta,
             NineRouter,
             LiteLlm,
         ];

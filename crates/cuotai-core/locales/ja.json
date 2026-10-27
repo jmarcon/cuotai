@@ -849,6 +849,7 @@
   "models.source.chat_gpt": "Codex GET /codex/models、ChatGPT セッションのトークンを使用（Codex CLI の非公開の内部インターフェース）。クォータ、価格、現在の可用性を示すものではありません。",
   "models.source.claude": "Claude GET /v1/models、サブスクリプションの OAuth トークンを使用（このトークンでは非公開のインターフェース）。クォータ、価格、現在の可用性を示すものではありません。",
   "models.source.gemini_ai": "Gemini API models.list、ページ分割、アカウントの AI Studio キーを使用。クォータ、価格、現在の可用性を示すものではありません。",
+  "models.source.meta": "アカウントのキーで Meta Model API GET /v1/models を呼び出します。推論権限、価格、現在の利用可否は証明しません。",
   "models.source.groq": "Groq GET /openai/v1/models、アカウントのキーを使用。推論の権限、価格、現在の可用性を示すものではありません。",
   "models.source.kimi": "Kimi GET /v1/models（api.moonshot.ai）、アカウントのキーを使用。推論の権限、価格、現在の可用性を示すものではありません。",
   "models.source.live": "{provider} {endpoint}、アカウントの認証情報を使用（推論の権限を示すものではありません）。価格や現在の可用性も示しません。",

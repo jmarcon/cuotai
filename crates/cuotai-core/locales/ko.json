@@ -849,6 +849,7 @@
   "models.source.chat_gpt": "ChatGPT 세션 토큰으로 조회한 Codex GET /codex/models(문서화되지 않은 Codex CLI 내부 인터페이스)입니다. 할당량, 가격, 현재 사용 가능 여부를 증명하지 않습니다.",
   "models.source.claude": "구독 OAuth 토큰으로 조회한 Claude GET /v1/models(해당 토큰에 대해 문서화되지 않은 인터페이스)입니다. 할당량, 가격, 현재 사용 가능 여부를 증명하지 않습니다.",
   "models.source.gemini_ai": "계정의 AI Studio 키로 페이지를 넘겨 조회한 Gemini API models.list입니다. 할당량, 가격, 현재 사용 가능 여부를 증명하지 않습니다.",
+  "models.source.meta": "계정 키로 Meta Model API GET /v1/models를 호출합니다. 추론 권한, 가격, 현재 사용 가능 여부는 증명하지 않습니다.",
   "models.source.groq": "계정 키로 조회한 Groq GET /openai/v1/models입니다. 추론 권한, 가격, 현재 사용 가능 여부를 증명하지 않습니다.",
   "models.source.kimi": "계정 키로 조회한 Kimi GET /v1/models(api.moonshot.ai)입니다. 추론 권한, 가격, 현재 사용 가능 여부를 증명하지 않습니다.",
   "models.source.live": "계정 자격 증명으로 조회한 {provider} {endpoint}입니다(추론 권한을 증명하지 않음). 가격과 현재 사용 가능 여부도 증명하지 않습니다.",

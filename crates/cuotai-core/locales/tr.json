@@ -854,6 +854,7 @@
   "models.source.chat_gpt": "Codex GET /codex/models, ChatGPT oturum jetonuyla (Codex CLI'nin dahili, belgelenmemiş arayüzü); kotayı, fiyatı veya güncel kullanılabilirliği kanıtlamaz.",
   "models.source.claude": "Claude GET /v1/models, abonelik OAuth jetonuyla (bu jeton için belgelenmemiş arayüz); kotayı, fiyatı veya güncel kullanılabilirliği kanıtlamaz.",
   "models.source.gemini_ai": "Gemini API models.list, sayfalı, hesabın AI Studio anahtarıyla; kotayı, fiyatı veya güncel kullanılabilirliği kanıtlamaz.",
+  "models.source.meta": "Hesap anahtarıyla Meta Model API GET /v1/models; çıkarım iznini, fiyatı veya güncel erişilebilirliği kanıtlamaz.",
   "models.source.groq": "Groq GET /openai/v1/models, hesap anahtarıyla; çıkarım iznini, fiyatı veya güncel kullanılabilirliği kanıtlamaz.",
   "models.source.kimi": "Kimi GET /v1/models (api.moonshot.ai), hesap anahtarıyla; çıkarım iznini, fiyatı veya güncel kullanılabilirliği kanıtlamaz.",
   "models.source.live": "{provider} {endpoint}, hesap kimlik bilgisiyle (çıkarım iznini kanıtlamaz); fiyatı veya güncel kullanılabilirliği de kanıtlamaz.",
