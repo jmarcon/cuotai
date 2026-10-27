@@ -71,6 +71,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | [0045](0045_breakdowns-by-key-project-and-team.md) | Breakdowns by key, project, workspace and team for admin and aggregator accounts | Planned (next version) | — | 0005, 0023, 0029, 0033 | 0022, 0028, 0036, 0038 | `Scope` gains `Key`, `VirtualKey`, `Project`, `Workspace`, `Team`; `Data.breakdown` rows (25-row cap, "Others", redacted labels, never per-user) for OpenRouter keys, LiteLLM keys/teams, OpenAI projects/keys and Anthropic workspaces, opt-in per account (`breakdown = ["keys"]`, refused on metered providers), history of the top 10 rows, gated alerts, details section. Wave 6c. |
 | [0046](0046_portable-settings-backup-and-doctor.md) | Portable settings, backup and `cuotai --doctor` | Planned (next version) | — | 0029, 0032 | 0021, 0027, 0028, 0041, 0044, 0045 | A secret-free `.cuotai-backup.zip` (allow-listed files, scrubbed preferences, manifest with digests, optional history CSV; vault, server token, cost index and extensions never included), `--restore` with a plan, conflict choices and the sign-ins/variables still needed, and a read-only, redacted `--doctor` (config, credentials present or not, vault, permissions, server, databases, sources, clock) that feeds PRD 0028's report. Wave 6a (doctor) / 6c (bundle). |
 | [0047](0047_typed-secrets-in-the-desktop-environment-variables-in-the-terminal.md) | Typed secrets in the desktop, environment variables in the terminal | In progress | E1–E7 core and desktop backend contract, G1–G7 desktop UI (vNEXT) | 0016 | 0036 | Owner decision 2026-10-27: the desktop never mentions environment variables; every API key, token, secret or session is typed, tested before save and kept in the OS vault (TOML holds only the reference); terminal users keep a default variable per provider and a distinct variable per account. Amends 0001 RF2.7/RF11, 0016 RF1.2/RF5.1, 0027 RF6.5, 0036 RF2.1, 0037 RF1.4, 0038 RF1.3/RF12.2. TUI (T1–T4) delivery pending. |
+| [0048](0048_sign-in-and-capture-web-session.md) | Sign in and capture a web session in the desktop | Awaiting owner verification | RF1–RF8 (vNEXT) | 0016 | 0047 | "Sign in and capture session" next to a web-session paste box opens a Cuotai-owned, IPC-less, private webview at the provider's page; the user signs in there; Rust reads the store, keeps only the descriptor's cookies and fills the paste box, which runs the usual preview and test. Enabled for the Xiaomi MiMo platform session only. Live sign-in pending owner verification. |
 
 ### 2.1 Owner verification checklist
 
@@ -256,6 +257,7 @@ graph LR
   P45["0045 Breakdowns"]:::todo
   P46["0046 Portable settings"]:::todo
   P47["0047 Typed secrets in the desktop"]:::wip
+  P48["0048 Capture web session"]:::wip
 
   P8 --> P3
   P13 --> P12
@@ -334,6 +336,7 @@ graph LR
   P46 --> P29
   P46 --> P32
   P47 --> P16
+  P48 --> P16
 
   P7 -.-> P6
   P8 -.-> P6
@@ -402,7 +405,7 @@ The graph draws every strong edge of section 2 and only the weak edges that affe
 | 0012 | 0013, 0014, 0023 (RF6), 0031, 0036 | 0028 |
 | 0013 | 0023 (RF5), 0026 (RF3), 0031, 0032 | 0024 |
 | 0015 | 0030, 0042 | — |
-| 0016 | 0029, 0047 | 0027 |
+| 0016 | 0029, 0047, 0048 | 0027 |
 | 0017 | 0028 (RF7) | 0027 |
 | 0018 | 0025 (RF6.5, through RF2.6) | 0020 |
 | 0019 | 0014, 0018, 0021, 0039 | 0020 |
