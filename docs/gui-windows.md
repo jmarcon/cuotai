@@ -29,10 +29,10 @@ Nothing about this weakens Windows; it only reflects that the file has no publis
 
 1. Press **Add account** (or the **+** in the top bar).
 2. Choose the **provider** and give the account a unique **name**.
-3. Choose how to authenticate. Where the provider supports it, pick **browser sign-in** and press **Sign in**: Cuotai opens your default browser, you approve, and the token is stored in Credential Manager. Otherwise, type the **name** of an environment variable that holds the key.
+3. Choose how to authenticate. Where the provider supports it, pick **browser sign-in** and press **Sign in**: Cuotai opens your default browser, you approve, and the token is stored in Credential Manager. Otherwise, paste the provider's **API key** (or the token or secret the form asks for) into the masked field (the eye button shows what you typed). Where the provider can be queried, Cuotai checks it with one read-only query before saving, and keeps it in the Credential Manager; the accounts file stores only a reference. When you edit the account later the key shows as **Saved in the system vault** with a **Replace** button; leave the field blank to keep it.
 4. Press **Save**. The card appears and fills in on the next refresh.
 
-> **Environment variables.** Set a variable under **Settings → System → About → Advanced system settings → Environment Variables** (or `setx NAME value` in a terminal), then **quit and restart Cuotai**: a running app does not see variables created after it started, and a terminal's `set NAME=value` only applies to programs started from that terminal.
+> **Accounts set up in the terminal.** An account created with the terminal app may read its key from the terminal setup, which an app started from the Start menu usually cannot see. The edit dialog then shows **Key set up in the terminal** and offers **Move key into Cuotai**, which copies the key into the Credential Manager after you confirm. If the app cannot read it, use **Replace** and paste the key instead.
 
 ## The dashboard
 
@@ -128,6 +128,6 @@ and delete the `cuotai.oauth` and `cuotai.serve` entries in Credential Manager. 
 ## Troubleshooting
 
 - **The tray icon is missing.** Look in the overflow flyout (the **^** arrow) and pin it as described above.
-- **An account says "missing configuration".** The environment variable it names was not set when the app started; set it and restart Cuotai.
+- **An account says "missing configuration".** The account has no key the app can read yet: open **Edit**, then paste the key (or use **Move key into Cuotai**, see the note above).
 - **Credential Manager unavailable.** Make sure the Credential Manager service is running and retry.
 - Something else? Open an [issue](https://github.com/jmarcon/cuotai/issues) (never paste a real token), and see [`platforms.md`](platforms.md) for what is verified on Windows.

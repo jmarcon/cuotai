@@ -24,10 +24,10 @@ Cuotai 0.80.0 is on [GitHub Releases](https://github.com/jmarcon/cuotai/releases
 
 1. Press **Add account** (or the **+** in the top bar).
 2. Choose the **provider** and give the account a unique **name**.
-3. Choose how to authenticate. Where the provider supports it, pick **browser sign-in** and press **Sign in**: Cuotai opens your browser with `xdg-open` (if that fails it shows the address to copy), you approve, and the token is stored in the Secret Service keyring. Otherwise, type the **name** of an environment variable that holds the key.
+3. Choose how to authenticate. Where the provider supports it, pick **browser sign-in** and press **Sign in**: Cuotai opens your browser with `xdg-open` (if that fails it shows the address to copy), you approve, and the token is stored in the Secret Service keyring. Otherwise, paste the provider's **API key** (or the token or secret the form asks for) into the masked field (the eye button shows what you typed). Where the provider can be queried, Cuotai checks it with one read-only query before saving, and keeps it in the Secret Service keyring; the accounts file stores only a reference. When you edit the account later the key shows as **Saved in the system vault** with a **Replace** button; leave the field blank to keep it.
 4. Press **Save**. The card appears and fills in on the next refresh.
 
-> **Environment variables.** An app started from the application menu does not inherit variables you `export` in a shell. Either use the browser sign-in, start Cuotai from a terminal where the variable is exported, or define it for your whole session (for example in `~/.config/environment.d/cuotai.conf` as `NAME=value`, then log out and back in).
+> **Accounts set up in the terminal.** An account created with the terminal app may read its key from the terminal setup, which an app started from the application menu usually cannot see. The edit dialog then shows **Key set up in the terminal** and offers **Move key into Cuotai**, which copies the key into the Secret Service keyring after you confirm. If the app cannot read it, use **Replace** and paste the key instead.
 
 ## The dashboard
 
@@ -101,7 +101,7 @@ Turn on **Settings › General › Startup › Open at login**. Cuotai then writ
 
 ## Credential vault: Secret Service
 
-OAuth sign-ins, pasted web sessions and the local-server token are stored through the **Secret Service** API, provided by **GNOME Keyring** or **KWallet** (entries named `cuotai.oauth` and `cuotai.serve`); the accounts file never holds a secret and there is no plaintext fallback. It needs a running D-Bus session and a provider. If none is available, Cuotai says "No Secret Service provider available; start GNOME Keyring or KWallet (with a D-Bus session) and try again." On a minimal window manager, install `gnome-keyring` (or enable KWallet's Secret Service) and start it with your session; until then, environment-variable credentials still work. You can inspect or delete entries with **Passwords and Keys** (Seahorse) or KWalletManager.
+OAuth sign-ins, typed API keys, pasted web sessions and the local-server token are stored through the **Secret Service** API, provided by **GNOME Keyring** or **KWallet** (entries named `cuotai.oauth` and `cuotai.serve`); the accounts file never holds a secret and there is no plaintext fallback. It needs a running D-Bus session and a provider. If none is available, Cuotai says "No Secret Service provider available; start GNOME Keyring or KWallet (with a D-Bus session) and try again." On a minimal window manager, install `gnome-keyring` (or enable KWallet's Secret Service) and start it with your session; until then, accounts set up in the terminal app (environment variables) still work. You can inspect or delete entries with **Passwords and Keys** (Seahorse) or KWalletManager.
 
 ## Where things are
 
@@ -129,7 +129,7 @@ and delete the `cuotai.oauth` and `cuotai.serve` entries in your keyring tool. S
 ## Troubleshooting
 
 - **No tray icon on GNOME.** Install and enable the AppIndicator extension, as above.
-- **An account says "missing configuration".** The environment variable it names is not visible to the app; see the note above.
+- **An account says "missing configuration".** The account has no key the app can read yet: open **Edit**, then paste the key (or use **Move key into Cuotai**, see the note above).
 - **"No Secret Service provider available".** Start GNOME Keyring or KWallet in your session.
 - **The AppImage does not start.** Install FUSE 2 (`libfuse2`) or run it with `--appimage-extract-and-run`.
 - Something else? Open an [issue](https://github.com/jmarcon/cuotai/issues) (never paste a real token), and see [`platforms.md`](platforms.md) for what is verified on Linux; real GNOME and KDE tray behavior is not exercised in CI.

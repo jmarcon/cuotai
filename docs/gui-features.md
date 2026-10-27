@@ -154,7 +154,7 @@ An unmeasured account shows "—", never 0%; a stale reading is marked and left 
 
 **Add account** opens a searchable catalog of every provider and sign-in mode: a grid grouped by sign-in method (browser, API key, admin key, local file and so on) at 560 px and above, a ranked list when you type, with a one-line hint, a "Billed per query" chip for services that cost money to read (kept on the account card afterwards) and a "Found on this device" chip for tools Cuotai detected. The dialog opens on the recommended way to connect and keeps the others under **Other ways to connect**. Providers without a usage query are not offered, and **Request a provider** opens the project's issue form. The name is optional until you add a second account of the same provider.
 
-**Check this device** (Settings › Data & privacy, also asked once from the catalog) is an opt-in, presence-only detection: with your consent Cuotai checks whether the folders of known tools exist (Gemini CLI, Copilot CLI, OpenCode, Cursor, Kiro, Zed and others), whether well-known key variables such as `OPENROUTER_API_KEY` are set (never their values) and whether a 9router answers on `127.0.0.1`. Nothing is opened or read, and a found tool only offers its existing import or sign-in flow.
+**Check this device** (Settings › Data & privacy, also asked once from the catalog) is an opt-in, presence-only detection: with your consent Cuotai checks whether the folders of known tools exist (Gemini CLI, Copilot CLI, OpenCode, Cursor, Kiro, Zed and others) and whether a 9router answers on `127.0.0.1`. Nothing is opened or read, and a found tool only offers its existing import or sign-in flow.
 
 ## Extensions
 

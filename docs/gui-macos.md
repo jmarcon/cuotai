@@ -29,10 +29,10 @@ You only do this once per installed copy. Cuotai never asks you to disable Gatek
 
 1. Press **Add account** (or the **+** in the top bar).
 2. Choose the **provider** and give the account a **name** (it must be unique).
-3. Choose how to authenticate. Where the provider supports it, pick **browser sign-in** and press **Sign in**: Cuotai opens your browser, you approve, and the token is stored in the Keychain. Otherwise, type the **name** of an environment variable that holds the key (the field help says which one the provider uses). How each provider's usage is read is documented in [`providers.md`](providers.md#usage-access-matrix).
+3. Choose how to authenticate. Where the provider supports it, pick **browser sign-in** and press **Sign in**: Cuotai opens your browser, you approve, and the token is stored in the Keychain. Otherwise, paste the provider's **API key** (or the token or secret the form asks for) into the masked field (the eye button shows what you typed). Where the provider can be queried, Cuotai checks it with one read-only query before saving, and keeps it in the Keychain; the accounts file stores only a reference. When you edit the account later the key shows as **Saved in the system vault** with a **Replace** button; leave the field blank to keep it. How each provider's usage is read is documented in [`providers.md`](providers.md#usage-access-matrix).
 4. Press **Save**. The card appears and fills in on the next refresh.
 
-> **Environment variables and the Dock.** An app started from the Dock, Spotlight or Finder does not inherit variables you `export` in your shell, so an environment-variable credential is usually not visible to it. Either use the browser sign-in (stored in the Keychain), start Cuotai from a terminal where the variable is exported (`/Applications/Cuotai.app/Contents/MacOS/Cuotai`), or set it for your login session with `launchctl setenv NAME value` before launching the app.
+> **Accounts set up in the terminal.** An account created with the terminal app may read its key from the terminal setup, which an app started from the Dock, Spotlight or Finder usually cannot see. The edit dialog then shows **Key set up in the terminal** and offers **Move key into Cuotai**, which copies the key into the Keychain after you confirm. If the app cannot read it, use **Replace** and paste the key instead.
 
 ## The dashboard
 
@@ -133,6 +133,6 @@ security delete-generic-password -s cuotai.serve
 ## Troubleshooting
 
 - **The menu-bar icon is missing.** On a crowded menu bar macOS may hide it behind the notch or under other items; quit some other menu-bar apps or hold Cmd and drag icons to make room.
-- **An account says "missing configuration".** The environment variable it names is not visible to the app; see the Dock note above.
+- **An account says "missing configuration".** The account has no key the app can read yet: open **Edit**, then paste the key (or use **Move key into Cuotai**, see the note above).
 - **"Keychain unavailable".** Unlock the login keychain (Keychain Access) and retry.
 - Something else? Open an [issue](https://github.com/jmarcon/cuotai/issues) (never paste a real token), and see [`platforms.md`](platforms.md) for what is verified on macOS.

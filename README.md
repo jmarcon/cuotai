@@ -72,7 +72,7 @@ Also coming soon: Homebrew (`brew install jmarcon/cuotai/cuotai`) and Scoop (`sc
 
 ## A tour of the desktop app
 
-Open Cuotai, press **Add account**, pick a provider and either sign in with your browser or point Cuotai at an environment variable that holds the key. From then on it refreshes in the background. A name is optional until you add a second account of the same provider, and renaming an account later keeps its alerts, muted quotas and history.
+Open Cuotai, press **Add account**, pick a provider and either sign in with your browser or paste your API key; Cuotai checks it with the provider and keeps it in your system's credential vault, never in the accounts file. From then on it refreshes in the background. A name is optional until you add a second account of the same provider, and renaming an account later keeps its alerts, muted quotas and history.
 
 <div align="center">
   <img src="docs/assets/screenshots/desktop-dashboard.png" alt="Cuotai desktop dashboard with quota cards" width="100%" />

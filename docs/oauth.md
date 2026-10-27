@@ -20,7 +20,7 @@ Cuotai supports native authentication flows (browser OAuth, Device Code, AWS SSO
 | Cursor | Explicit import of the local SQLite session | Sign in to Cursor, choose Tab → import and confirm. Nothing reads the token merely because the wizard was opened |
 | Qwen Code | Device OAuth with PKCE + renewal | Legacy flow discontinued by the provider; the TUI shows the warning. The endpoint still issued a challenge in the smoke test, but that does not prove access or quota is granted |
 | Antigravity | Google OAuth in the browser + renewal | IDE/Code Assist session, distinct from a Gemini API key; tokens in the vault, no project provisioning |
-| OpenAI/Anthropic API, Windsurf, Ollama and OpenCode Go | Key/variable methods kept | There is no button that simulates a login that does not exist |
+| OpenAI/Anthropic API, Windsurf, Ollama and OpenCode Go | Key methods kept (typed into the desktop app, a variable in the terminal) | There is no button that simulates a login that does not exist |
 
 ## Running a native login (9router) from the TUI or the desktop app
 
@@ -63,7 +63,7 @@ When the page shows **Authentication Code / Paste this into MiMo Code**, go back
 
 The code is encrypted to that attempt's ephemeral key. The automatic callback is still accepted in parallel. The typed code is never persisted; only the decoded token is written to the vault after the final confirmation.
 
-**Authorization by code is not a quota session:** the code delivers an inference key (`sk-`), not console cookies. For the balance and the monthly Token Plan, paste the `platform.xiaomimimo.com` session (`api-platform_serviceToken` and `userId`) in the account wizard, which keeps it in the system vault, or set `params.platform_session_env` to the **name** of the variable holding that Cookie. The MiMo Desktop weekly quota is a separate session (`session_env`, `serviceToken`, with `region`), pasted or named the same way; if both are present, the Desktop mode takes precedence. A session in a variable can move into the system vault with explicit confirmation, after which the TOML keeps only `[accounts.session]` (see "Web sessions in the vault" in [providers.md](providers.md)).
+**Authorization by code is not a quota session:** the code delivers an inference key (`sk-`), not console cookies. For the balance and the monthly Token Plan, paste the `platform.xiaomimimo.com` session (`api-platform_serviceToken` and `userId`) in the account wizard, which keeps it in the system vault, or (terminal app and TOML only) set `params.platform_session_env` to the **name** of the variable holding that Cookie. The MiMo Desktop weekly quota is a separate session (`session_env`, `serviceToken`, with `region`), pasted or named the same way; if both are present, the Desktop mode takes precedence. A session in a variable can move into the system vault with explicit confirmation (in the desktop app: **Move key into Cuotai** in the account dialog), after which the TOML keeps only `[accounts.session]` (see "Web sessions in the vault" in [providers.md](providers.md)).
 
 ### Qwen Code OAuth
 
@@ -80,7 +80,7 @@ Authorize the Google session in the browser through the OAuth mode. The registra
 1. In [Google Cloud](https://console.cloud.google.com/apis/credentials), enable the **Cloud Monitoring API** on the queried project and configure the OAuth consent screen. For an external app in testing, add your account to the test users.
 2. Create an **OAuth client ID → Desktop app** for Cuotai. Do not use another product's client ID.
 3. In Cuotai, choose Gemini API or Vertex AI, select the OAuth mode and enter the `client_id`.
-4. If your Google registration requires a `client_secret`, export it in a variable and enter **the name of that variable** in the next field. Secrets never enter the TOML.
+4. If your Google registration requires a `client_secret`, export it in a variable and enter **the name of that variable** in the next field (this registration field still names a variable in the desktop app too). Secrets never enter the TOML.
 5. Start the login. The browser requests `https://www.googleapis.com/auth/monitoring.read`; the return uses a free local port.
 6. Fill in `project_id`, review and save. The Google identity needs `monitoring.timeSeries.list` (for example, Monitoring Viewer on the project).
 
@@ -114,7 +114,7 @@ The vault cannot list what it holds, so Cuotai keeps its own index of the entrie
 
 ## Web sessions (PRD 0016)
 
-Xiaomi MiMo, Alibaba Coding Plan and Alibaba Token Plan query with a web session you paste yourself (an environment variable named by `session_env`/`platform_session_env` stays as an alternative); Cuotai never imports cookies from a browser. Their adapters read either one through the same session descriptor, and a session lacking the descriptor's required cookies is refused before any request, naming only those cookies. The full contract is in "Web sessions in the vault" in [providers.md](providers.md); in short:
+Xiaomi MiMo, Alibaba Coding Plan and Alibaba Token Plan query with a web session you paste yourself (in the terminal app and the TOML, an environment variable named by `session_env`/`platform_session_env` stays as an alternative; the desktop app never asks for a variable); Cuotai never imports cookies from a browser. Their adapters read either one through the same session descriptor, and a session lacking the descriptor's required cookies is refused before any request, naming only those cookies. The full contract is in "Web sessions in the vault" in [providers.md](providers.md); in short:
 
 - **Flow:** sign in to the provider's site in your browser, copy the `Cookie` header, the request as cURL or the inspector's cookie table, and paste it into the TUI wizard's **Colar sessão** step or the desktop dialog's **Web session** box. Both first show the `UserSession` level and the warning "This is a full login session. Cuotai stores it in the system vault and uses it only to query this service." F4 / **Test session** runs one read-only query; saving stores the session.
 - **What is stored:** only the cookies the provider's session slot declares, joined into one `Cookie` value, plus the expiry date when the pasted table showed one. They go to the same Cuotai vault entry type as OAuth tokens (Keychain, Credential Manager or Secret Service; the development SQLite store below keeps its plaintext warning), under a key bound to the account's random `credential_ref`, the provider and the slot. The TOML keeps only `[accounts.session]` (the reference and the slot names).
