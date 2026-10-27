@@ -998,6 +998,7 @@
   "note.mimo_platform.month_usage_unusable": "Le forfait de tokens a renvoyé monthUsage sans valeurs exploitables ; aucun quota n’a été estimé.",
   "note.mimo_platform.percentage_only": "L’API n’a renvoyé que le pourcentage du forfait ; `percent` est la fraction UTILISÉE (0–1).",
   "note.mimo_platform.token_plan": "Forfait de tokens : {plan}.",
+  "note.mimo_platform.balance_empty_plan_live": "Solde à l'usage : {amount} {currency} ; l'usage est décompté du forfait de tokens.",
   "note.mimo_platform.token_plan_expired": "Le forfait de tokens a expiré.",
   "note.mimo_platform.token_plan_unavailable": "Forfait de tokens non renvoyé (pas d’abonnement Token Plan ou point d’accès indisponible) ; aucun quota n’a été estimé.",
   "note.minimax.balance_alert": "Alerte de solde : {state}.",

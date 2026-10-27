@@ -993,6 +993,7 @@
   "note.mimo_platform.month_usage_unusable": "トークンプランが返した monthUsage に使える値がありません。クォータは推定していません。",
   "note.mimo_platform.percentage_only": "API はプランのパーセントのみを返しました。`percent` は使用済みの割合（0–1）です。",
   "note.mimo_platform.token_plan": "トークンプラン：{plan}。",
+  "note.mimo_platform.balance_empty_plan_live": "従量課金の残高: {amount} {currency}。使用量はトークンプランから差し引かれます。",
   "note.mimo_platform.token_plan_expired": "トークンプランは期限切れです。",
   "note.mimo_platform.token_plan_unavailable": "トークンプランが返されませんでした（Token Plan のサブスクリプションがないか、エンドポイントを利用できません）。クォータは推定していません。",
   "note.minimax.balance_alert": "残高アラート：{state}。",

@@ -998,6 +998,7 @@
   "note.mimo_platform.month_usage_unusable": "टोकन प्लान ने ऐसा monthUsage लौटाया जिसमें उपयोगी मान नहीं; कोई कोटा अनुमानित नहीं किया गया।",
   "note.mimo_platform.percentage_only": "API ने केवल प्लान का प्रतिशत लौटाया; `percent` इस्तेमाल हुआ हिस्सा (0–1) है।",
   "note.mimo_platform.token_plan": "टोकन प्लान: {plan}।",
+  "note.mimo_platform.balance_empty_plan_live": "उपयोग-आधारित बैलेंस: {amount} {currency}; उपयोग टोकन प्लान से घटाया जाता है।",
   "note.mimo_platform.token_plan_expired": "टोकन प्लान समाप्त हो चुका है।",
   "note.mimo_platform.token_plan_unavailable": "टोकन प्लान नहीं लौटा (Token Plan सदस्यता नहीं या एंडपॉइंट उपलब्ध नहीं); कोई कोटा अनुमानित नहीं किया गया।",
   "note.minimax.balance_alert": "बैलेंस अलर्ट: {state}।",

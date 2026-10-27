@@ -998,6 +998,7 @@
   "note.mimo_platform.month_usage_unusable": "Token planı kullanılabilir değer içermeyen monthUsage döndürdü; hiçbir kota tahmin edilmedi.",
   "note.mimo_platform.percentage_only": "API yalnızca plan yüzdesini döndürdü; `percent` KULLANILAN orandır (0–1).",
   "note.mimo_platform.token_plan": "Token planı: {plan}.",
+  "note.mimo_platform.balance_empty_plan_live": "Kullandıkça öde bakiyesi: {amount} {currency}; kullanım token planından düşülür.",
   "note.mimo_platform.token_plan_expired": "Token planının süresi dolmuş.",
   "note.mimo_platform.token_plan_unavailable": "Token planı döndürülmedi (Token Plan aboneliği yok veya uç nokta kullanılamıyor); hiçbir kota tahmin edilmedi.",
   "note.minimax.balance_alert": "Bakiye uyarısı: {state}.",

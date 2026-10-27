@@ -1008,6 +1008,7 @@
   "note.mimo_platform.month_usage_unusable": "Token Plan вернул monthUsage без пригодных значений; квота не оценивалась.",
   "note.mimo_platform.percentage_only": "API вернул только процент тарифа; `percent` — ИСПОЛЬЗОВАННАЯ доля (0–1).",
   "note.mimo_platform.token_plan": "Token Plan: {plan}.",
+  "note.mimo_platform.balance_empty_plan_live": "Баланс оплаты по факту: {amount} {currency}; расход списывается с тарифа токенов.",
   "note.mimo_platform.token_plan_expired": "Token Plan истёк.",
   "note.mimo_platform.token_plan_unavailable": "Token Plan не возвращён (нет подписки Token Plan или эндпоинт недоступен); квота не оценивалась.",
   "note.minimax.balance_alert": "Предупреждение о балансе: {state}.",

@@ -993,6 +993,7 @@
   "note.mimo_platform.month_usage_unusable": "Paket token mengembalikan monthUsage tanpa nilai yang dapat dipakai; tidak ada kuota yang diperkirakan.",
   "note.mimo_platform.percentage_only": "API hanya mengembalikan persentase paket; `percent` adalah fraksi TERPAKAI (0–1).",
   "note.mimo_platform.token_plan": "Paket token: {plan}.",
+  "note.mimo_platform.balance_empty_plan_live": "Saldo bayar sesuai pemakaian: {amount} {currency}; pemakaian dipotong dari paket token.",
   "note.mimo_platform.token_plan_expired": "Paket token sudah kedaluwarsa.",
   "note.mimo_platform.token_plan_unavailable": "Paket token tidak dikembalikan (tanpa langganan Token Plan atau endpoint tidak tersedia); tidak ada kuota yang diperkirakan.",
   "note.minimax.balance_alert": "Peringatan saldo: {state}.",

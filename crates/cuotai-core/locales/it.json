@@ -632,6 +632,7 @@
   "note.mimo_platform.month_usage_unusable": "Il token plan ha restituito monthUsage senza valori utilizzabili; nessuna quota è stata stimata.",
   "note.mimo_platform.percentage_only": "L'API ha restituito solo la percentuale del piano; `percent` è la frazione UTILIZZATA (0–1).",
   "note.mimo_platform.token_plan": "Token plan: {plan}.",
+  "note.mimo_platform.balance_empty_plan_live": "Saldo a consumo: {amount} {currency}; l'utilizzo viene scalato dal piano di token.",
   "note.mimo_platform.token_plan_expired": "Il token plan è scaduto.",
   "note.mimo_platform.token_plan_unavailable": "Token plan non restituito (nessun abbonamento Token Plan o endpoint non disponibile); nessuna quota è stata stimata.",
   "note.minimax.balance_alert": "Avviso di saldo: {state}.",

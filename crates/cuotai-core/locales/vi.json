@@ -993,6 +993,7 @@
   "note.mimo_platform.month_usage_unusable": "Gói token trả về monthUsage không có giá trị dùng được; không ước tính hạn mức nào.",
   "note.mimo_platform.percentage_only": "API chỉ trả về phần trăm của gói; `percent` là tỷ lệ ĐÃ DÙNG (0–1).",
   "note.mimo_platform.token_plan": "Gói token: {plan}.",
+  "note.mimo_platform.balance_empty_plan_live": "Số dư trả theo mức dùng: {amount} {currency}; mức dùng được trừ vào gói token.",
   "note.mimo_platform.token_plan_expired": "Gói token đã hết hạn.",
   "note.mimo_platform.token_plan_unavailable": "Không trả về gói token (không có gói Token Plan hoặc endpoint không khả dụng); không ước tính hạn mức nào.",
   "note.minimax.balance_alert": "Cảnh báo số dư: {state}.",

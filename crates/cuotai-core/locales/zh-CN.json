@@ -993,6 +993,7 @@
   "note.mimo_platform.month_usage_unusable": "token 套餐返回的 monthUsage 没有可用的数值；未估算任何额度。",
   "note.mimo_platform.percentage_only": "API 只返回了套餐的百分比；`percent` 是已用的比例（0–1）。",
   "note.mimo_platform.token_plan": "token 套餐：{plan}。",
+  "note.mimo_platform.balance_empty_plan_live": "按量付费余额：{amount} {currency}；用量从 Token 套餐中扣除。",
   "note.mimo_platform.token_plan_expired": "token 套餐已过期。",
   "note.mimo_platform.token_plan_unavailable": "未返回 token 套餐（没有 Token Plan 订阅或接口不可用）；未估算任何额度。",
   "note.minimax.balance_alert": "余额提醒：{state}。",

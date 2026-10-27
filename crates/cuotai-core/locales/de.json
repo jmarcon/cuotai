@@ -998,6 +998,7 @@
   "note.mimo_platform.month_usage_unusable": "Der Token Plan lieferte monthUsage ohne verwertbare Werte; es wurde kein Kontingent geschätzt.",
   "note.mimo_platform.percentage_only": "Die API lieferte nur den Prozentwert des Tarifs; `percent` ist der GENUTZTE Anteil (0–1).",
   "note.mimo_platform.token_plan": "Token Plan: {plan}.",
+  "note.mimo_platform.balance_empty_plan_live": "Guthaben (nutzungsbasiert): {amount} {currency}; die Nutzung wird vom Token-Plan abgezogen.",
   "note.mimo_platform.token_plan_expired": "Der Token Plan ist abgelaufen.",
   "note.mimo_platform.token_plan_unavailable": "Token Plan nicht zurückgegeben (kein Token-Plan-Abonnement oder Endpunkt nicht verfügbar); es wurde kein Kontingent geschätzt.",
   "note.minimax.balance_alert": "Guthabenwarnung: {state}.",

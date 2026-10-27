@@ -284,19 +284,38 @@ fn build_data(
         .map(str::trim)
         .filter(|s| !s.is_empty())
         .ok_or_else(|| QueryError::schema_at(balance_body, &["data", "currency"], "string"))?;
-    metrics.push(Metric {
-        billing: Default::default(),
-        scope: None,
-        label: "Saldo da plataforma".into(),
-        used: None,
-        limit: None,
-        remaining: Some(balance),
-        unit: currency.to_string(),
-        kind: MetricKind::Balance,
-        window: None,
-        period: Some("saldo atual".into()),
-        resets_at: None,
-    });
+    // An empty pay-as-you-go balance beside a live token plan is not an
+    // exhausted account: calls draw on the plan. It stays a note so the card
+    // leads with the plan instead of "Exhausted".
+    let plan_expired = detail
+        .and_then(|d| d.get("expired"))
+        .and_then(|v| v.as_bool())
+        == Some(true);
+    let plan_live = !plan_expired && metrics.iter().any(|m| m.kind == MetricKind::Quota);
+    if balance <= 0.0 && plan_live {
+        notes.push_params(
+            "note.mimo_platform.balance_empty_plan_live",
+            params([
+                ("amount", ParamValue::from(balance.to_string())),
+                ("currency", ParamValue::from(currency.to_string())),
+            ]),
+            "Pay-as-you-go balance: {amount} {currency}; usage is drawn from the token plan.",
+        );
+    } else {
+        metrics.push(Metric {
+            billing: Default::default(),
+            scope: None,
+            label: "Saldo da plataforma".into(),
+            used: None,
+            limit: None,
+            remaining: Some(balance),
+            unit: currency.to_string(),
+            kind: MetricKind::Balance,
+            window: None,
+            period: Some("saldo atual".into()),
+            resets_at: None,
+        });
+    }
     for key in ["cashBalance", "giftBalance"] {
         if let Some(v) = balance_data.get(key).and_then(|v| {
             v.as_str()
@@ -621,7 +640,12 @@ mod tests {
         // Real overrun: 1200 used of 1000 → negative remaining, no clamp.
         assert_eq!(plan.used, Some(1200.0));
         assert_eq!(plan.limit, Some(1000.0));
-        assert_eq!(plan.remaining, Some(-200.0));
+        assert_eq!(plan.remaining, Some(-200.0)); // An empty balance beside a live plan is a note, not an exhausted metric.
+        assert!(data.metrics.iter().all(|m| m.kind != MetricKind::Balance));
+        assert!(data
+            .notes
+            .iter()
+            .any(|n| n.contains("drawn from the token plan")));
     }
 
     #[tokio::test]

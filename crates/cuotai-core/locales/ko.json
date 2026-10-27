@@ -993,6 +993,7 @@
   "note.mimo_platform.month_usage_unusable": "토큰 요금제가 쓸 수 있는 값이 없는 monthUsage를 반환하여 할당량을 추정하지 않았습니다.",
   "note.mimo_platform.percentage_only": "API가 요금제 비율만 반환했습니다. `percent`는 사용된 비율(0–1)입니다.",
   "note.mimo_platform.token_plan": "토큰 요금제: {plan}.",
+  "note.mimo_platform.balance_empty_plan_live": "종량제 잔액: {amount} {currency}. 사용량은 토큰 플랜에서 차감됩니다.",
   "note.mimo_platform.token_plan_expired": "토큰 요금제가 만료되었습니다.",
   "note.mimo_platform.token_plan_unavailable": "토큰 요금제가 반환되지 않았습니다(Token Plan 구독이 없거나 엔드포인트를 사용할 수 없음). 할당량을 추정하지 않았습니다.",
   "note.minimax.balance_alert": "잔액 알림: {state}.",
