@@ -267,7 +267,14 @@ const XIAOMI_ACCOUNT: SessionDescriptor = SessionDescriptor {
 const XIAOMI_PLATFORM_CAPTURE: CaptureSpec = CaptureSpec {
     start_url: "https://platform.xiaomimimo.com/console/plan-manage",
     cookie_url: "https://platform.xiaomimimo.com/",
-    login_hosts: &["account.xiaomi.com"],
+    // The Xiaomi sign-in page also offers Facebook and Google; their pages
+    // must load in the window too (Google may still refuse embedded views).
+    login_hosts: &[
+        "account.xiaomi.com",
+        "www.facebook.com",
+        "m.facebook.com",
+        "accounts.google.com",
+    ],
     login_suffixes: &[".account.xiaomi.com", ".sec.xiaomi.com"],
 };
 

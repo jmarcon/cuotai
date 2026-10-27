@@ -1912,6 +1912,8 @@ fn capture_is_declared_only_for_the_xiaomi_platform_and_allows_its_hosts() {
         "https://ACCOUNT.xiaomi.com/fe/service/login",
         "https://global.account.xiaomi.com/fe/service/login",
         "https://static-verify.sec.xiaomi.com/captcha",
+        "https://www.facebook.com/login.php",
+        "https://accounts.google.com/o/oauth2/v2/auth",
         "about:blank",
         "about:srcdoc",
     ] {
@@ -1926,6 +1928,8 @@ fn capture_is_declared_only_for_the_xiaomi_platform_and_allows_its_hosts() {
         "https://evilaccount.xiaomi.com/",
         "https://sec.xiaomi.com/",
         "https://xiaomi.com/",
+        "https://evil.facebook.com.example/",
+        "https://mail.google.com/",
         "https://mimo-server-sgp.xiaomimimo.com/",
         "https://127.0.0.1/",
         "file:///etc/passwd",
