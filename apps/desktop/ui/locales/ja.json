@@ -499,6 +499,7 @@
   "dialog.credKey": "API キー",
   "dialog.secret.placeholder": "値を貼り付けるか入力してください",
   "dialog.secret.replacePlaceholder": "保存済みの値を置き換える新しい値を貼り付けてください",
+  "dialog.secret.createKey": "{site} でキーを作成",
   "dialog.secret.show": "値を表示",
   "dialog.secret.hide": "値を隠す",
   "dialog.secret.saved": "システムの保管庫に保存済み",

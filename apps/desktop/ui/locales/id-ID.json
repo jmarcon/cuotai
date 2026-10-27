@@ -499,6 +499,7 @@
   "dialog.credKey": "Kunci API",
   "dialog.secret.placeholder": "Tempel atau ketik nilainya",
   "dialog.secret.replacePlaceholder": "Tempel nilai baru untuk mengganti yang tersimpan",
+  "dialog.secret.createKey": "Buat kunci di {site}",
   "dialog.secret.show": "Tampilkan nilai",
   "dialog.secret.hide": "Sembunyikan nilai",
   "dialog.secret.saved": "Tersimpan di brankas sistem",

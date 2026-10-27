@@ -499,6 +499,7 @@
   "dialog.credKey": "Khóa API",
   "dialog.secret.placeholder": "Dán hoặc nhập giá trị",
   "dialog.secret.replacePlaceholder": "Dán giá trị mới để thay giá trị đã lưu",
+  "dialog.secret.createKey": "Tạo khóa trên {site}",
   "dialog.secret.show": "Hiện giá trị",
   "dialog.secret.hide": "Ẩn giá trị",
   "dialog.secret.saved": "Đã lưu trong kho bảo mật của hệ thống",

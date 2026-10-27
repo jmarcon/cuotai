@@ -504,6 +504,7 @@
   "dialog.credKey": "API anahtarı",
   "dialog.secret.placeholder": "Değeri yapıştırın veya yazın",
   "dialog.secret.replacePlaceholder": "Kayıtlı değerin yerine geçecek yeni değeri yapıştırın",
+  "dialog.secret.createKey": "{site} üzerinde anahtar oluştur",
   "dialog.secret.show": "Değeri göster",
   "dialog.secret.hide": "Değeri gizle",
   "dialog.secret.saved": "Sistem kasasında kayıtlı",

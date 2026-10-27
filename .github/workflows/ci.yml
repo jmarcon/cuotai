@@ -292,6 +292,9 @@ jobs:
       # PRD 0047 G1: no core text naming an environment variable or a
       # params.* name reaches the desktop; its own wording replaces it.
       - run: node scripts/test-desktop-wording-ui.mjs
+      # PRD 0047: the "Create a key on <host>" link under a typed key carries
+      # only the core's HTTPS key page and opens through the allow-list.
+      - run: node scripts/test-key-page-ui.mjs
       # PRD 0022 RF10: the Extensions dialog's shell commands are registered
       # and its guide link is the allow-listed address.
       - run: node scripts/test-extensions-wiring-ui.mjs

@@ -3,7 +3,7 @@
 // events (LoginEvent, no secrets) and sends user input.
 import {
   accountLabel, configChangedOnDisk, deleteAccount, detectSources, forgetExtensionSecrets, dismissDetected, draftAccess, errText, esc, fieldChoices, formSchema, getAccount,
-  getSettings, getView, icon, listProviders, logo, NEW_PROVIDER_URL, openExternal, sessionOpenLinkHtml, providerModes, setDetectEnabled,
+  getSettings, getView, icon, listProviders, logo, NEW_PROVIDER_URL, openExternal, sessionOpenLinkHtml, keyPageLinkHtml, providerModes, setDetectEnabled,
   loginCancel, loginStart, loginSubmitCode, forgetSession, migrateSession, modelSupport, onLogin, previewSession, reloadConfig,
   reportKey, saveAccount, captureSession, cancelSessionCapture, sessionNoticeHtml, testAggregator, testSession, validMonogram, visibleFields,
 } from "./lib.js";
@@ -405,7 +405,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
           <button type="button" class="icon secret-reveal" aria-controls="${id}" aria-pressed="false" aria-label="${te("dialog.secret.show")}" title="${te("dialog.secret.show")}">${icon("eye")}</button>
         </div>
         <small class="field-err" hidden></small>
-        <small id="${id}-h" ${open ? "" : "hidden"}>${esc(tl(s.help))}${source !== "unset" && open ? ` ${te("dialog.secret.keepHint")}` : ""}</small>${extra}</div>`;
+        <small id="${id}-h" ${open ? "" : "hidden"}>${esc(tl(s.help))}${source !== "unset" && open ? ` ${te("dialog.secret.keepHint")}` : ""}</small>${keyPageLinkHtml(s)}${extra}</div>`;
   };
   // PRD 0016 RF1: slots the saved account keeps in the vault (the provider cannot change while editing), plus
   // RF2: the slots with a paste and PRD 0047 the typed secrets, which the save writes to the vault.
@@ -1019,6 +1019,12 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       reveal.title = label;
       reveal.innerHTML = icon(shown ? "eyeOff" : "eye");
       input.focus();
+      return;
+    }
+    const keyPage = e.target.closest("[data-key-url]");
+    if (keyPage) {
+      e.preventDefault();
+      openExternal(keyPage.dataset.keyUrl).catch(() => {});
       return;
     }
     const replace = e.target.closest("[data-replace]");

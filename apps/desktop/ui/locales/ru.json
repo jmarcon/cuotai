@@ -514,6 +514,7 @@
   "dialog.credKey": "API-ключ",
   "dialog.secret.placeholder": "Вставьте или введите значение",
   "dialog.secret.replacePlaceholder": "Вставьте новое значение вместо сохранённого",
+  "dialog.secret.createKey": "Создать ключ на {site}",
   "dialog.secret.show": "Показать значение",
   "dialog.secret.hide": "Скрыть значение",
   "dialog.secret.saved": "Сохранено в системном хранилище",

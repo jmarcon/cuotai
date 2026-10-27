@@ -499,6 +499,7 @@
   "dialog.credKey": "API 密钥",
   "dialog.secret.placeholder": "粘贴或输入该值",
   "dialog.secret.replacePlaceholder": "粘贴新值以替换已保存的值",
+  "dialog.secret.createKey": "在 {site} 创建密钥",
   "dialog.secret.show": "显示值",
   "dialog.secret.hide": "隐藏值",
   "dialog.secret.saved": "已保存在系统保险库中",

@@ -501,6 +501,7 @@
   "dialog.credKey": "API key",
   "dialog.secret.placeholder": "Paste or type the value",
   "dialog.secret.replacePlaceholder": "Paste the new value to replace the saved one",
+  "dialog.secret.createKey": "Create a key on {site}",
   "dialog.secret.show": "Show value",
   "dialog.secret.hide": "Hide value",
   "dialog.secret.saved": "Saved in the system vault",

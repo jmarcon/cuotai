@@ -499,6 +499,7 @@
   "dialog.credKey": "API 키",
   "dialog.secret.placeholder": "값을 붙여넣거나 입력하세요",
   "dialog.secret.replacePlaceholder": "저장된 값을 바꿀 새 값을 붙여넣으세요",
+  "dialog.secret.createKey": "{site}에서 키 만들기",
   "dialog.secret.show": "값 표시",
   "dialog.secret.hide": "값 숨기기",
   "dialog.secret.saved": "시스템 보관함에 저장됨",

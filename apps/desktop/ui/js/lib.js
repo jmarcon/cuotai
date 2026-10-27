@@ -810,6 +810,15 @@ export function sessionOpenLinkHtml(slot) {
   try { host = new URL(url).host; } catch { return ""; }
   return `<button type="button" class="link session-open" data-session-url="${esc(url)}">${icon("window")}<span>${te("dialog.session.open", { site: host })}</span></button>`;
 }
+/** Owner request: "Create key on <host>" under a typed key, for the page the core declares (`SecretInput.key_page`);
+ * the shell opens only those exact addresses (`open_external`). */
+export function keyPageLinkHtml(input) {
+  const url = input?.key_page;
+  if (typeof url !== "string" || !url.startsWith("https://")) return "";
+  let host;
+  try { host = new URL(url).host; } catch { return ""; }
+  return `<button type="button" class="link key-page" data-key-url="${esc(url)}">${icon("window")}<span>${te("dialog.secret.createKey", { site: host })}</span></button>`;
+}
 /** "Open status page": the shell opens only the core's verified status hosts (`open_external`). */
 const statusLinkHtml = (url) => `<button class="status-link" type="button" data-status-url="${esc(url)}">${icon("chev")}<span>${te("incident.open")}</span></button><span class="status-err" data-status-err role="alert"></span>`;
 /** Card badge (color, icon and text) with the status page link; `link: false` inside a clickable row. */

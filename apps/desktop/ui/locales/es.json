@@ -501,6 +501,7 @@
   "dialog.credKey": "Clave de API",
   "dialog.secret.placeholder": "Pega o escribe el valor",
   "dialog.secret.replacePlaceholder": "Pega el nuevo valor para sustituir el guardado",
+  "dialog.secret.createKey": "Crear clave en {site}",
   "dialog.secret.show": "Mostrar valor",
   "dialog.secret.hide": "Ocultar valor",
   "dialog.secret.saved": "Guardado en el almacén del sistema",

@@ -132,6 +132,7 @@ pub fn is_listed(url: &str) -> bool {
         || cuotai_core::incidents::is_status_link(url)
         || cuotai_core::support::is_issue_url(url)
         || cuotai_core::user_session::is_open_url(url)
+        || cuotai_core::secret_input::is_key_page_url(url)
 }
 
 /// PRD 0027 RF3.5: the new-provider issue template, offered by the picker's
@@ -213,6 +214,30 @@ mod tests {
         ] {
             assert!(!is_listed(url), "{url}");
             assert_eq!(open_external(url), Err("not_listed"));
+        }
+    }
+
+    /// Owner request: the account dialog opens the key-creation page the
+    /// core declares for each typed key, and nothing that only looks like one.
+    #[test]
+    fn key_creation_pages_open_and_look_alikes_do_not() {
+        let pages: Vec<_> = cuotai_core::Provider::ALL
+            .iter()
+            .flat_map(|p| cuotai_core::secret_input::secret_inputs(*p))
+            .filter_map(|input| input.key_page)
+            .collect();
+        assert!(!pages.is_empty());
+        for url in &pages {
+            assert!(is_listed(url), "{url}");
+        }
+        for url in [
+            "https://console.groq.com/keys/../evil",
+            "https://console.groq.com/keysx",
+            "http://console.groq.com/keys",
+            "https://console.groq.com.example.com/keys",
+            "https://platform.claude.com/settings/admin-keys?next=https://example.com",
+        ] {
+            assert_eq!(open_external(url), Err("not_listed"), "{url}");
         }
     }
 

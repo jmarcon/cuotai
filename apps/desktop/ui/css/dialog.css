@@ -189,6 +189,10 @@ label.mode-off {
   min-width: 0;
   font-family: var(--font-mono), var(--font-script);
 }
+/* Owner request: the key-creation link sits under the help, at its own width. */
+.secret-row .key-page {
+  align-self: flex-start;
+}
 .secret-state {
   display: flex;
   align-items: center;

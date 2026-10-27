@@ -504,6 +504,7 @@
   "dialog.credKey": "API कुंजी",
   "dialog.secret.placeholder": "मान चिपकाएँ या टाइप करें",
   "dialog.secret.replacePlaceholder": "सहेजे गए मान को बदलने के लिए नया मान चिपकाएँ",
+  "dialog.secret.createKey": "{site} पर कुंजी बनाएँ",
   "dialog.secret.show": "मान दिखाएँ",
   "dialog.secret.hide": "मान छिपाएँ",
   "dialog.secret.saved": "सिस्टम वॉल्ट में सहेजा गया",
