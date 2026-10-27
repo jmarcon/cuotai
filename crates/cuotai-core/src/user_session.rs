@@ -96,16 +96,49 @@ pub struct CaptureSpec {
     pub done_when: &'static [&'static str],
 }
 
+/// PRD 0048 RF3.4: a descriptor's capture and open link for the accounts
+/// whose `params.region` equals `value`.
+#[derive(Debug, PartialEq, Eq)]
+pub struct SessionRegion {
+    pub value: &'static str,
+    pub capture: &'static CaptureSpec,
+    pub open_url: &'static str,
+}
+
 impl SessionDescriptor {
+    fn region(&self, region: Option<&str>) -> Option<&'static SessionRegion> {
+        let region = region?;
+        self.regions.iter().find(|r| r.value == region)
+    }
+
+    /// PRD 0048 RF3.4: the capture for an account of `region`
+    /// (`params.region`); the default capture for no or another region.
+    pub fn capture_in(&self, region: Option<&str>) -> Option<&'static CaptureSpec> {
+        self.region(region).map(|r| r.capture).or(self.capture)
+    }
+
+    /// PRD 0048 RF3.4: the "Open {site}" page for an account of `region`.
+    pub fn open_url_in(&self, region: Option<&str>) -> Option<&'static str> {
+        self.region(region).map(|r| r.open_url).or(self.open_url)
+    }
+
+    /// [`Self::capture_allows_in`] for the default region.
+    pub fn capture_allows(&self, url: &str) -> bool {
+        self.capture_allows_in(None, url)
+    }
+
     /// PRD 0048 RF3: whether the capture window may load `url` (a top-level
     /// page or a frame): HTTPS on the default port without user info, to
     /// one of the descriptor's hosts or the capture's sign-in hosts, plus
     /// the empty frames pages create (`about:blank`, `about:srcdoc`).
-    /// `false` without a capture.
-    pub fn capture_allows(&self, url: &str) -> bool {
-        let Some(spec) = self.capture else {
-            return false;
-        };
+    /// `false` without a capture. `region` selects the capture (RF3.4).
+    pub fn capture_allows_in(&self, region: Option<&str>, url: &str) -> bool {
+        self.capture_in(region)
+            .is_some_and(|spec| self.capture_allows_with(spec, url))
+    }
+
+    /// [`Self::capture_allows_in`] for a capture already chosen.
+    pub fn capture_allows_with(&self, spec: &CaptureSpec, url: &str) -> bool {
         if url == "about:blank" || url == "about:srcdoc" {
             return true;
         }
@@ -156,6 +189,11 @@ pub struct SessionDescriptor {
     /// sign-in window of its own; `None` keeps the paste box only.
     #[serde(skip)]
     pub capture: Option<&'static CaptureSpec>,
+    /// PRD 0048 RF3.4: the capture and open link of an account whose
+    /// `params.region` names another console; `capture`/`open_url` are the
+    /// adapter's default region.
+    #[serde(skip)]
+    pub regions: &'static [SessionRegion],
     /// The expiry is read from the JWT `exp` of the required cookie, not
     /// verified (PRD 0036 RF2.6).
     #[serde(skip)]
@@ -253,6 +291,7 @@ const XIAOMI_ACCOUNT: SessionDescriptor = SessionDescriptor {
     account_host: false,
     delivery: Delivery::CookieHeader,
     capture: None,
+    regions: &[],
     jwt_expiry: false,
     site: "MiMo Desktop",
     open_url: None,
@@ -291,6 +330,7 @@ const XIAOMI_PLATFORM: SessionDescriptor = SessionDescriptor {
     account_host: false,
     delivery: Delivery::CookieHeader,
     capture: Some(&XIAOMI_PLATFORM_CAPTURE),
+    regions: &[],
     jwt_expiry: false,
     site: "platform.xiaomimimo.com",
     open_url: Some("https://platform.xiaomimimo.com/console/plan-manage"),
@@ -299,6 +339,65 @@ const XIAOMI_PLATFORM: SessionDescriptor = SessionDescriptor {
         "platform.xiaomimimo.com web session (balance and Token Plan)",
     ),
 };
+
+/// PRD 0048 RF3.4: the international Model Studio console sign-in, the
+/// adapter's default region. Evidence (2026-10-27, unauthenticated): the
+/// console's `fetcher.js` (`g.alicdn.com/bailian-fe/bailian-site-fe/0.0.169`)
+/// sends a signed-out user on an `alibabacloud` host to
+/// `https://account.alibabacloud.com/login/login.htm?oauth_callback=...`; that
+/// page embeds `passport.alibabacloud.com/mini_login.htm` and offers Google
+/// and GitHub through `account.alibabacloud.com/login/third_party_bind_login.htm`,
+/// then `passport.alibabacloud.com/sns_oauth.htm`, which answers `302` to
+/// `accounts.google.com` or `github.com`.
+const ALIBABA_CODING_PLAN_INTL_CAPTURE: CaptureSpec = CaptureSpec {
+    start_url: ALIBABA_CODING_PLAN_INTL_URL,
+    cookie_url: "https://modelstudio.console.alibabacloud.com/",
+    login_hosts: &[
+        "account.alibabacloud.com",
+        "passport.alibabacloud.com",
+        "accounts.google.com",
+        "github.com",
+    ],
+    login_suffixes: &[],
+    // `cna` exists before sign-in; the account id is set by the sign-in
+    // together with `login_aliyunid_ticket`, from which the adapter
+    // obtains `sec_token` (RF4.3).
+    done_when: &["login_aliyunid_pk"],
+};
+
+/// PRD 0048 RF3.4: the mainland console sign-in. Evidence (2026-10-27,
+/// unauthenticated): the same `fetcher.js` sends a signed-out user on an
+/// `aliyun.com` host to `https://account.aliyun.com/login/login.htm?oauth_callback=...`
+/// (or the in-page `fast-login.js` dialog, a script from `g.alicdn.com`);
+/// that page embeds `passport.aliyun.com/mini_login.htm` and links the RAM
+/// sign-in `signin.aliyun.com/login.htm`. Its Alipay, Taobao and DingTalk
+/// buttons go through `account.aliyun.com/login/third_party_bind_login.htm`
+/// to `auth.alipay.com/login/index.htm` (whose embedder frames
+/// `passport.alipay.com`), `passport.aliyun.com/sns_oauth.htm` (`302` to
+/// `havanalogin.taobao.com`) and `oapi.dingtalk.com/connect/oauth2/sns_authorize`
+/// (`302` to `h5.dingtalk.com`).
+const ALIBABA_CODING_PLAN_CN_CAPTURE: CaptureSpec = CaptureSpec {
+    start_url: ALIBABA_CODING_PLAN_CN_URL,
+    cookie_url: "https://bailian.console.aliyun.com/",
+    login_hosts: &[
+        "account.aliyun.com",
+        "passport.aliyun.com",
+        "signin.aliyun.com",
+        "auth.alipay.com",
+        "passport.alipay.com",
+        "havanalogin.taobao.com",
+        "oapi.dingtalk.com",
+        "h5.dingtalk.com",
+    ],
+    login_suffixes: &[],
+    done_when: &["login_aliyunid_pk"],
+};
+
+/// The Coding Plan dashboards of `alibaba_plans` (`CODING_PLAN_DASHBOARD_*`).
+const ALIBABA_CODING_PLAN_INTL_URL: &str =
+    "https://modelstudio.console.alibabacloud.com/ap-southeast-1/?tab=coding-plan#/efm/coding_plan";
+const ALIBABA_CODING_PLAN_CN_URL: &str =
+    "https://bailian.console.aliyun.com/cn-beijing/?tab=model#/efm/coding_plan";
 
 const ALIBABA_CODING_PLAN: SessionDescriptor = SessionDescriptor {
     slot: "session_env",
@@ -312,10 +411,15 @@ const ALIBABA_CODING_PLAN: SessionDescriptor = SessionDescriptor {
     ],
     account_host: false,
     delivery: Delivery::CookieHeader,
-    capture: None,
+    capture: Some(&ALIBABA_CODING_PLAN_INTL_CAPTURE),
+    regions: &[SessionRegion {
+        value: "cn",
+        capture: &ALIBABA_CODING_PLAN_CN_CAPTURE,
+        open_url: ALIBABA_CODING_PLAN_CN_URL,
+    }],
     jwt_expiry: false,
     site: "bailian.console.aliyun.com / modelstudio.console.alibabacloud.com",
-    open_url: Some("https://bailian.console.aliyun.com/cn-beijing/?tab=model#/efm/coding_plan"),
+    open_url: Some(ALIBABA_CODING_PLAN_INTL_URL),
     label: (
         "user_session.slot.alibaba_coding_plan.session_env",
         "Alibaba console session (Coding Plan)",
@@ -361,6 +465,7 @@ const ALIBABA_TOKEN_PLAN: SessionDescriptor = SessionDescriptor {
     account_host: false,
     delivery: Delivery::CookieHeader,
     capture: Some(&QWEN_CLOUD_CAPTURE),
+    regions: &[],
     jwt_expiry: false,
     site: "home.qwencloud.com",
     open_url: Some(QWEN_CLOUD_USAGE),
@@ -378,6 +483,7 @@ const NINE_ROUTER_PASSWORD: SessionDescriptor = SessionDescriptor {
     account_host: true,
     delivery: Delivery::Secret,
     capture: None,
+    regions: &[],
     jwt_expiry: false,
     site: "9router",
     open_url: None,
@@ -396,6 +502,7 @@ const NINE_ROUTER_SSO: SessionDescriptor = SessionDescriptor {
     account_host: true,
     delivery: Delivery::CookieHeader,
     capture: None,
+    regions: &[],
     jwt_expiry: true,
     site: "9router",
     open_url: None,
@@ -413,6 +520,7 @@ const LITELLM_KEY: SessionDescriptor = SessionDescriptor {
     account_host: true,
     delivery: Delivery::Secret,
     capture: None,
+    regions: &[],
     jwt_expiry: false,
     site: "LiteLLM",
     open_url: None,
@@ -428,7 +536,7 @@ pub fn is_open_url(url: &str) -> bool {
     Provider::ALL
         .iter()
         .flat_map(|p| descriptors(*p))
-        .any(|d| d.open_url == Some(url))
+        .any(|d| d.open_url == Some(url) || d.regions.iter().any(|r| r.open_url == url))
 }
 
 /// The sessions `provider` accepts; empty when it has none.
@@ -466,6 +574,7 @@ pub fn vault_descriptor(provider: Provider, slot: &str) -> Option<SessionDescrip
         account_host: false,
         delivery: Delivery::Secret,
         capture: None,
+        regions: &[],
         jwt_expiry: false,
         site: "",
         open_url: None,

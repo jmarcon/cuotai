@@ -1882,9 +1882,16 @@ fn open_urls_are_https_on_declared_hosts() {
                 d.slot
             );
             assert!(is_open_url(url));
+            for r in d.regions {
+                seen += 1;
+                let rest = r.open_url.strip_prefix("https://").expect("https only");
+                let host = rest.split(['/', '?', '#']).next().unwrap();
+                assert!(d.hosts.contains(&host), "{} is not a host", r.open_url);
+                assert!(is_open_url(r.open_url));
+            }
         }
     }
-    assert_eq!(seen, 3);
+    assert_eq!(seen, 4);
     assert!(!is_open_url("https://example.com/"));
 }
 
@@ -1903,6 +1910,7 @@ fn capture_is_declared_only_for_the_xiaomi_platform_and_allows_its_hosts() {
         with_capture,
         vec![
             (Provider::XiaomiMimo, "platform_session_env"),
+            (Provider::AlibabaCodingPlan, "session_env"),
             (Provider::AlibabaTokenPlan, "session_env"),
         ]
     );
@@ -1990,6 +1998,95 @@ fn qwen_cloud_capture_allows_only_its_sign_in_hosts() {
     ] {
         assert!(!d.capture_allows(blocked), "{blocked}");
     }
-    let coding = descriptor(Provider::AlibabaCodingPlan, "session_env").unwrap();
-    assert!(coding.capture.is_none());
+}
+
+/// PRD 0048 RF3.4: the Coding Plan capture follows `params.region`: the
+/// international console (the default) and the mainland console each open
+/// their own dashboard, read their own domain's cookies and allow only
+/// their own sign-in hosts.
+#[test]
+fn coding_plan_capture_follows_the_region() {
+    let d = descriptor(Provider::AlibabaCodingPlan, "session_env").unwrap();
+    let intl_url =
+        "https://modelstudio.console.alibabacloud.com/ap-southeast-1/?tab=coding-plan#/efm/coding_plan";
+    let cn_url = "https://bailian.console.aliyun.com/cn-beijing/?tab=model#/efm/coding_plan";
+    for region in [None, Some("intl"), Some("other")] {
+        let spec = d.capture_in(region).unwrap();
+        assert_eq!(spec.start_url, intl_url);
+        assert_eq!(
+            spec.cookie_url,
+            "https://modelstudio.console.alibabacloud.com/"
+        );
+        assert_eq!(d.open_url_in(region), Some(intl_url));
+    }
+    let cn = d.capture_in(Some("cn")).unwrap();
+    assert_eq!(cn.start_url, cn_url);
+    assert_eq!(cn.cookie_url, "https://bailian.console.aliyun.com/");
+    assert_eq!(d.open_url_in(Some("cn")), Some(cn_url));
+    assert!(is_open_url(intl_url) && is_open_url(cn_url));
+    for region in [None, Some("cn")] {
+        assert_eq!(
+            d.capture_in(region).unwrap().done_when,
+            &["login_aliyunid_pk"]
+        );
+    }
+    let intl_ok = [
+        intl_url,
+        "https://bailian-singapore-cs.alibabacloud.com/data/api.json",
+        "https://account.alibabacloud.com/login/login.htm?oauth_callback=x&clearRedirectCookie=1",
+        "https://passport.alibabacloud.com/mini_login.htm?appName=intl-aliyun",
+        "https://account.alibabacloud.com/login/third_party_bind_login.htm?type=google",
+        "https://passport.alibabacloud.com/sns_oauth.htm?type=github",
+        "https://accounts.google.com/o/oauth2/v2/auth",
+        "https://github.com/login/oauth/authorize",
+        "about:blank",
+    ];
+    let cn_ok = [
+        cn_url,
+        "https://bailian-cs.console.aliyun.com/data/api.json",
+        "https://account.aliyun.com/login/login.htm?oauth_callback=x",
+        "https://passport.aliyun.com/mini_login.htm",
+        "https://signin.aliyun.com/login.htm",
+        "https://auth.alipay.com/login/index.htm?goto=x",
+        "https://passport.alipay.com/littleLogin/littleLogin.htm",
+        "https://havanalogin.taobao.com/unify_oauth.htm",
+        "https://oapi.dingtalk.com/connect/oauth2/sns_authorize?appid=x",
+        "https://h5.dingtalk.com/liveeasylogin/index.html",
+        "about:srcdoc",
+    ];
+    for ok in intl_ok {
+        assert!(d.capture_allows(ok), "{ok}");
+        assert!(d.capture_allows_in(Some("intl"), ok), "{ok}");
+    }
+    for ok in cn_ok {
+        assert!(d.capture_allows_in(Some("cn"), ok), "{ok}");
+    }
+    let intl_blocked = [
+        "https://account.aliyun.com/login/login.htm",
+        "https://passport.aliyun.com/mini_login.htm",
+        "https://signin.alibabacloud.com/login.htm",
+        "https://auth.alipay.com/login/index.htm",
+        "https://oapi.dingtalk.com/",
+        "https://account.qwencloud.com/sso/OIDCAuth",
+        "https://evil.alibabacloud.com/",
+        "http://modelstudio.console.alibabacloud.com/",
+    ];
+    let cn_blocked = [
+        "https://account.alibabacloud.com/login/login.htm",
+        "https://passport.alibabacloud.com/sns_oauth.htm",
+        "https://accounts.google.com/o/oauth2/v2/auth",
+        "https://github.com/login/oauth/authorize",
+        "https://www.alipay.com/",
+        "https://login.taobao.com/",
+        "https://www.dingtalk.com/",
+        "https://evil.aliyun.com/",
+        "https://account.aliyun.com.evil.example/",
+        "https://account-intl.aliyun.com/login/login.htm",
+    ];
+    for blocked in intl_blocked {
+        assert!(!d.capture_allows(blocked), "{blocked}");
+    }
+    for blocked in cn_blocked {
+        assert!(!d.capture_allows_in(Some("cn"), blocked), "{blocked}");
+    }
 }

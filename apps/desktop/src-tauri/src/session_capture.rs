@@ -88,22 +88,18 @@ pub fn domain_matches(host: &str, domain: &str) -> bool {
 /// is dropped. A name the store holds several times (a host and a
 /// parent-domain cookie) keeps the most specific one: the longest domain,
 /// then the longest path.
-pub fn reduce_cookies(
-    descriptor: &SessionDescriptor,
-    host: &str,
-    store: &[StoreCookie],
-) -> Option<String> {
+pub fn reduce_cookies(capture: Capture, host: &str, store: &[StoreCookie]) -> Option<String> {
     let pick = |name: &str| {
         store
             .iter()
             .filter(|c| c.name == name && !c.value.is_empty() && domain_matches(host, &c.domain))
             .max_by_key(|c| (c.domain.trim_start_matches('.').len(), c.path.len()))
     };
-    let done_when = descriptor.capture.map_or(&[][..], |spec| spec.done_when);
+    let Capture { descriptor, spec } = capture;
     if descriptor
         .required
         .iter()
-        .chain(done_when)
+        .chain(spec.done_when)
         .any(|name| pick(name).is_none())
     {
         return None;
@@ -120,7 +116,7 @@ pub fn reduce_cookies(
 /// RF6: one polling step. `read` is the store's content, or `Err` when the
 /// platform cannot read it. `None` keeps waiting.
 pub fn step(
-    descriptor: &SessionDescriptor,
+    capture: Capture,
     host: &str,
     elapsed: Duration,
     cancelled: bool,
@@ -133,20 +129,29 @@ pub fn step(
         Ok(store) => store,
         Err(()) => return Some(Outcome::Unavailable),
     };
-    if let Some(paste) = reduce_cookies(descriptor, host, store) {
+    if let Some(paste) = reduce_cookies(capture, host, store) {
         return Some(Outcome::Captured { paste });
     }
     (elapsed >= TIMEOUT).then_some(Outcome::TimedOut)
 }
 
-/// The capture descriptor of `slot`, refused when it declares no capture.
+/// A session descriptor and the capture chosen for the account's region.
+#[derive(Debug, Clone, Copy)]
+pub struct Capture {
+    pub descriptor: &'static SessionDescriptor,
+    pub spec: &'static user_session::CaptureSpec,
+}
+
+/// The capture of `slot` for an account of `region` (`params.region`, the
+/// dialog's choice; PRD 0048 RF3.4), refused when it declares no capture.
 pub fn capture_descriptor(
     provider: Provider,
     slot: &str,
-) -> Result<&'static SessionDescriptor, &'static str> {
-    user_session::descriptor(provider, slot)
-        .filter(|d| d.capture.is_some())
-        .ok_or("not_capturable")
+    region: Option<&str>,
+) -> Result<Capture, &'static str> {
+    let descriptor = user_session::descriptor(provider, slot).ok_or("not_capturable")?;
+    let spec = descriptor.capture_in(region).ok_or("not_capturable")?;
+    Ok(Capture { descriptor, spec })
 }
 
 /// The capture in progress, at most one per app.
@@ -211,9 +216,9 @@ pub async fn run<R: Runtime>(
     app: &AppHandle<R>,
     provider: Provider,
     slot: &str,
+    region: Option<&str>,
 ) -> Result<Outcome, String> {
-    let descriptor = capture_descriptor(provider, slot)?;
-    let spec = descriptor.capture.ok_or("not_capturable")?;
+    let target = capture_descriptor(provider, slot, region)?;
     let state = app.state::<State>();
     let Some(cancel) = state.begin() else {
         if let Some(window) = app.get_webview_window(LABEL) {
@@ -221,17 +226,17 @@ pub async fn run<R: Runtime>(
         }
         return Err("busy".into());
     };
-    let outcome = capture(app, descriptor, spec, &cancel).await;
+    let outcome = capture(app, target, &cancel).await;
     state.end();
     outcome
 }
 
 async fn capture<R: Runtime>(
     app: &AppHandle<R>,
-    descriptor: &'static SessionDescriptor,
-    spec: &'static user_session::CaptureSpec,
+    target: Capture,
     cancel: &Arc<AtomicBool>,
 ) -> Result<Outcome, String> {
+    let Capture { descriptor, spec } = target;
     let start = tauri::Url::parse(spec.start_url).map_err(|_| "not_capturable")?;
     let cookie_url = tauri::Url::parse(spec.cookie_url).map_err(|_| "not_capturable")?;
     let host = cookie_url.host_str().ok_or("not_capturable")?.to_owned();
@@ -244,7 +249,7 @@ async fn capture<R: Runtime>(
         .center()
         .incognito(true)
         .disable_drag_drop_handler()
-        .on_navigation(move |url| descriptor.capture_allows(url.as_str()))
+        .on_navigation(move |url| descriptor.capture_allows_with(spec, url.as_str()))
         .on_new_window(|url, _| {
             if url.scheme() == "https" {
                 let _ = crate::about::open_dashboard(url.as_str());
@@ -287,7 +292,7 @@ async fn capture<R: Runtime>(
                 .map_err(|_| ())
         };
         let read = read.as_deref().map_err(|_| ());
-        if let Some(outcome) = step(descriptor, host, began.elapsed(), cancelled, read) {
+        if let Some(outcome) = step(target, host, began.elapsed(), cancelled, read) {
             break outcome;
         }
     };
@@ -342,8 +347,8 @@ mod tests {
         assert_eq!(reduce_cookies(platform(), HOST, &store), None);
     }
 
-    fn platform() -> &'static SessionDescriptor {
-        capture_descriptor(Provider::XiaomiMimo, "platform_session_env").unwrap()
+    fn platform() -> Capture {
+        capture_descriptor(Provider::XiaomiMimo, "platform_session_env", None).unwrap()
     }
 
     #[test]
@@ -473,19 +478,52 @@ mod tests {
     #[test]
     fn only_declared_captures_start() {
         assert_eq!(
-            capture_descriptor(Provider::XiaomiMimo, "session_env").err(),
+            capture_descriptor(Provider::XiaomiMimo, "session_env", None).err(),
             Some("not_capturable")
         );
         assert_eq!(
-            capture_descriptor(Provider::NineRouter, "auth_session_env").err(),
+            capture_descriptor(Provider::NineRouter, "auth_session_env", None).err(),
             Some("not_capturable")
         );
-        assert!(capture_descriptor(Provider::XiaomiMimo, "platform_session_env").is_ok());
-        assert!(capture_descriptor(Provider::AlibabaTokenPlan, "session_env").is_ok());
-        assert_eq!(
-            capture_descriptor(Provider::AlibabaCodingPlan, "session_env").err(),
-            Some("not_capturable")
-        );
+        assert!(capture_descriptor(Provider::XiaomiMimo, "platform_session_env", None).is_ok());
+        assert!(capture_descriptor(Provider::AlibabaTokenPlan, "session_env", None).is_ok());
+        assert!(capture_descriptor(Provider::AlibabaCodingPlan, "session_env", None).is_ok());
+        assert!(capture_descriptor(Provider::AlibabaCodingPlan, "session_env", Some("cn")).is_ok());
+    }
+
+    /// RF3.4/RF4.3: the Coding Plan capture reads the region's own console
+    /// cookies; anonymous `cna` never ends it, and the other region's
+    /// cookies never match.
+    #[test]
+    fn coding_plan_capture_waits_for_the_sign_in_of_its_region() {
+        for (region, domain, other) in [
+            (None, ".alibabacloud.com", ".aliyun.com"),
+            (Some("cn"), ".aliyun.com", ".alibabacloud.com"),
+        ] {
+            let c = capture_descriptor(Provider::AlibabaCodingPlan, "session_env", region).unwrap();
+            let host = tauri::Url::parse(c.spec.cookie_url).unwrap();
+            let host = host.host_str().unwrap();
+            let anonymous = [
+                cookie("cna", "anon", domain, "/"),
+                cookie("login_aliyunid_pk", "1", other, "/"),
+                cookie("login_aliyunid_ticket", "t", other, "/"),
+            ];
+            assert_eq!(reduce_cookies(c, host, &anonymous), None, "{region:?}");
+            let signed_in = [
+                cookie("cna", "anon", domain, "/"),
+                cookie("_ga", "x", domain, "/"),
+                cookie("login_aliyunid_ticket", "t", domain, "/"),
+                cookie("login_aliyunid_pk", "1", domain, "/"),
+                cookie("login_aliyunid_csrf", "c", domain, "/"),
+            ];
+            assert_eq!(
+                reduce_cookies(c, host, &signed_in).as_deref(),
+                Some(
+                    "login_aliyunid_ticket=t; login_aliyunid_pk=1; login_aliyunid_csrf=c; cna=anon"
+                ),
+                "{region:?}"
+            );
+        }
     }
 
     /// RF4.2: the Qwen Cloud session has only optional cookies; anonymous
@@ -493,7 +531,7 @@ mod tests {
     /// and `.qwencloud.com` cookies are kept for `cs-data.qwencloud.com`.
     #[test]
     fn qwen_cloud_capture_waits_for_the_sign_in() {
-        let d = capture_descriptor(Provider::AlibabaTokenPlan, "session_env").unwrap();
+        let d = capture_descriptor(Provider::AlibabaTokenPlan, "session_env", None).unwrap();
         let host = "home.qwencloud.com";
         let anonymous = [
             cookie("cna", "anon", ".qwencloud.com", "/"),

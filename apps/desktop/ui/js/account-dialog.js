@@ -429,6 +429,33 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   let previewSeq = 0;
   // PRD 0048 RF6.2: a capture window still waiting closes with the dialog.
   let capturing = false;
+  // PRD 0048 RF3.4: the `region` choice's value, which selects the session's console (open link and capture).
+  const sessionRegion = () => {
+    const field = schema.fields.find((f) => f.key === "region");
+    const el = dyn.querySelector(`[name="f:region"]`);
+    const choice = el ? Number(el.value) : values.get("region")?.choice;
+    return field?.options?.find((o) => o.index === choice)?.value ?? null;
+  };
+  const bindOpenLink = (b) => b.addEventListener("click", (e) => {
+    e.preventDefault();
+    openExternal(b.dataset.sessionUrl).catch(() => {});
+  });
+  const bindOpenLinks = () => sessionBox.querySelectorAll("[data-session-url]").forEach(bindOpenLink);
+  const refreshOpenLinks = () => {
+    const region = sessionRegion();
+    for (const s of schema.sessions ?? []) {
+      const old = sessionBox.querySelector(`.session-paste[data-slot="${s.slot}"]`)?.closest(".session-slot")?.querySelector("[data-session-url]");
+      if (!old) continue;
+      const html = sessionOpenLinkHtml(s, region);
+      if (!html) continue;
+      const tpl = document.createElement("template");
+      tpl.innerHTML = html;
+      const link = tpl.content.firstElementChild;
+      old.replaceWith(link);
+      bindOpenLink(link);
+    }
+  };
+  dyn.addEventListener("change", (e) => { if (e.target?.name === "f:region" && !sessionBox.hidden) refreshOpenLinks(); });
   function renderSession(status = "") {
     const slots = schema.sessions ?? [];
     // PRD 0047: the vault reference may also hold typed keys; this box speaks only of its own session slots, and
@@ -455,7 +482,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
               : `<textarea class="session-paste" data-slot="${esc(s.slot)}" rows="3" autocomplete="off" autocapitalize="off" spellcheck="false"
               placeholder="${te("dialog.session.placeholder")}"></textarea>`}
             <small class="hint">${esc(tl(s.instructions))}</small>
-            ${sessionOpenLinkHtml(s)}
+            ${sessionOpenLinkHtml(s, sessionRegion())}
             ${s.capture ? `<span class="dlg-actions"><button type="button" class="btn" data-capture="${esc(s.slot)}">${te("dialog.session.capture")}</button></span>
               <small class="hint">${te("dialog.session.captureHint")}</small>` : ""}
             ${s.hosts.length ? `<small class="hint">${te("dialog.session.hosts", { hosts: s.hosts.join(", ") })}</small>` : ""}
@@ -479,10 +506,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       if (seq === previewSeq) out.textContent = text;
       await renderAccess();
     }));
-    sessionBox.querySelectorAll("[data-session-url]").forEach((b) => b.addEventListener("click", (e) => {
-      e.preventDefault();
-      openExternal(b.dataset.sessionUrl).catch(() => {});
-    }));
+    bindOpenLinks();
     // PRD 0048 RF1/RF4: the app's own sign-in window; its reduced cookies land in this paste box, which previews
     // and tests them as any paste. The user types password, 2FA and captcha there; nothing is filled for them.
     sessionBox.querySelectorAll("[data-capture]").forEach((btn) => btn.addEventListener("click", async () => {
@@ -493,7 +517,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       capturing = true;
       statusEl.textContent = t("dialog.session.capturing");
       let outcome;
-      try { outcome = await captureSession(provider, slot); } catch (x) { outcome = { status: "error", error: x }; }
+      try { outcome = await captureSession(provider, slot, sessionRegion()); } catch (x) { outcome = { status: "error", error: x }; }
       capturing = false;
       if (!dlg.open || !field?.isConnected) return;
       btn.disabled = false;

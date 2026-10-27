@@ -5424,12 +5424,22 @@ pub struct SessionSlotSchema {
     hosts: &'static [&'static str],
     /// The HTTPS sign-in page the "Open {site}" link opens (`open_external`).
     open_url: Option<&'static str>,
+    /// PRD 0048 RF3.4: `open_url` for an account whose `region` choice has
+    /// this value (the capture follows the same choice).
+    region_open_urls: Vec<RegionOpenUrl>,
     /// PRD 0036 RF2.1/RF10.1: the paste is a password or key (a masked
     /// one-line field), not a cookie list.
     secret: bool,
     /// PRD 0048 RF1: the desktop can capture this session from its own
     /// sign-in window ("Sign in and capture session").
     capture: bool,
+}
+
+/// PRD 0048 RF3.4: one regional "Open {site}" page of a session slot.
+#[derive(Serialize)]
+pub struct RegionOpenUrl {
+    value: &'static str,
+    url: &'static str,
 }
 
 /// The dialog's values in the core draft shape; unknown keys and values of
@@ -5622,6 +5632,14 @@ pub fn form_schema(provider: Provider) -> FormSchema {
                 instructions: descriptor.instructions(),
                 hosts: descriptor.hosts,
                 open_url: descriptor.open_url,
+                region_open_urls: descriptor
+                    .regions
+                    .iter()
+                    .map(|r| RegionOpenUrl {
+                        value: r.value,
+                        url: r.open_url,
+                    })
+                    .collect(),
                 secret: descriptor.delivery == user_session::Delivery::Secret,
                 capture: descriptor.capture.is_some(),
             })

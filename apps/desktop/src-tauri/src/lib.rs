@@ -322,15 +322,17 @@ fn preview_session(
 
 /// PRD 0048 RF1: "Sign in and capture session" of `slot`: opens the
 /// capture window and waits for its outcome. The captured paste goes back
-/// to the dialog's paste box only. Errors: `not_capturable`, `busy`,
-/// `unavailable`.
+/// to the dialog's paste box only. `region` is the dialog's `region` choice
+/// (RF3.4); the core picks the capture from it. Errors: `not_capturable`,
+/// `busy`, `unavailable`.
 #[tauri::command]
 async fn capture_session(
     app: AppHandle,
     provider: Provider,
     slot: String,
+    region: Option<String>,
 ) -> Result<session_capture::Outcome, String> {
-    session_capture::run(&app, provider, &slot).await
+    session_capture::run(&app, provider, &slot, region.as_deref()).await
 }
 
 /// PRD 0048 RF6.2: the dialog closed or its Cancel was pressed.

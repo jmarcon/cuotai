@@ -143,7 +143,8 @@ export const previewSession = (provider, slot, paste) => call("preview_session",
 /** PRD 0016 RF2.1: one read-only query of the draft with its pasted sessions; nothing is stored. */
 export const testSession = (input) => call("test_session", { input });
 /** PRD 0048 RF1: "Sign in and capture session" — the app's own sign-in window; resolves with its outcome. */
-export const captureSession = (provider, slot) => call("capture_session", { provider, slot });
+/** RF3.4: `region` is the dialog's `region` choice value (or null); the core picks that region's capture. */
+export const captureSession = (provider, slot, region = null) => call("capture_session", { provider, slot, region });
 /** PRD 0048 RF6.2: closes a capture window still waiting for its sign-in. */
 export const cancelSessionCapture = () => call("cancel_session_capture");
 export const testAggregator = (input) => call("test_aggregator", { input });
@@ -803,8 +804,9 @@ export function incidentBadge(r) {
 }
 /** PRD 0016 RF2.1: the "Open {site}" link of a session paste box; only the core descriptor's HTTPS `open_url`
  * (the shell's `open_external` opens no other address). */
-export function sessionOpenLinkHtml(slot) {
-  const url = slot?.open_url;
+export function sessionOpenLinkHtml(slot, region = null) {
+  // PRD 0048 RF3.4: an account of another region opens that region's console.
+  const url = slot?.region_open_urls?.find((r) => r.value === region)?.url ?? slot?.open_url;
   if (typeof url !== "string" || !url.startsWith("https://")) return "";
   let host;
   try { host = new URL(url).host; } catch { return ""; }
