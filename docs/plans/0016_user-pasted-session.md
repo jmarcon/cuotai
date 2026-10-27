@@ -62,6 +62,7 @@ In the 2026-10-19 market analysis, CodexBar covers dozens of providers by cookie
 
 - **RF1.1** Add the `UserSession` credential class to `account_edit` and `access` (PRD 0005). The provider descriptor declares which cookies/headers are required (a list of accepted names, for example the session keys), the destination host and how the session is sent. The interface contains no per-provider rules.
 - **RF1.2** A reference in the TOML by **vault identifier** (`credential_ref`, the same convention as OAuth tokens), never by value. Old accounts with `session_env` keep working; the wizard offers "migrate to the vault" with explicit consent.
+  > **Amended by [PRD 0047](0047_typed-secrets-in-the-desktop-environment-variables-in-the-terminal.md) (2026-10-27):** `session_env` stays a terminal alternative only; the desktop offers the paste box and the generalized move into the vault.
 - **RF1.3** Storage in a Cuotai-owned vault entry (Keychain, Credential Manager or Secret Service), with the same mechanism as `TokenStore`. In the development mode with plain-text SQLite, the existing warning still holds; release builds refuse it.
 - **Acceptance criterion:** storage and read tests through `Credentials`, migration from `session_env` to the vault, absence of the value in the TOML, `Debug`, logs and `Report`.
 
@@ -90,6 +91,7 @@ In the 2026-10-19 market analysis, CodexBar covers dozens of providers by cookie
 ### RF5 — First providers (medium priority)
 
 - **RF5.1** Migrate the existing cases (Xiaomi MIMO, Alibaba Token Plan, Alibaba Coding Plan) to the `UserSession` descriptor, keeping `session_env` as an alternative.
+  > **Amended by [PRD 0047](0047_typed-secrets-in-the-desktop-environment-variables-in-the-terminal.md) (2026-10-27):** keeping `session_env` as an alternative applies to the TUI; the desktop hides the field.
 - **RF5.2** New providers only enter with evidence (the vendor's documentation or a contract verified in 9router/a community client) that the query is read-only and that the session is enough, and they go through PRD 0005.
 - **Acceptance criterion:** the migrated adapters' current tests keep passing; the `docs/providers.md` matrix reflects the change.
 
