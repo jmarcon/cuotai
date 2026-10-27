@@ -69,6 +69,13 @@ pub struct SecretInput {
 /// interface asks for them). [`is_key_page_url`] lets a shell open
 /// exactly these addresses.
 const KEY_PAGES: &[(Provider, &str, &str)] = &[
+    // dev.meta.ai/docs/overview: keys are created under "API keys" in the
+    // dev.meta.ai dashboard (team and project ids are the user's, not ours).
+    (
+        Provider::Meta,
+        CREDENTIAL_SLOT,
+        "https://dev.meta.ai/api-keys",
+    ),
     // platform.openai.com/docs/api-reference/administration: Admin keys.
     (
         Provider::OpenAiApi,
