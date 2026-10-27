@@ -20,6 +20,7 @@
 | G1–G6 (desktop UI) | vNEXT | Delivered on `feat/gui-keys-ui`: the add/edit dialog renders `secret_inputs` as masked inputs (show/hide, never prefilled) in place of the variable-name row and the terminal-only fields, sends `secrets` with `credential: ""`, shows "Saved in the system vault" with Replace (blank keeps), "Key set up in the terminal" with **Move key into Cuotai** (`vault_migration`, two-step confirmation, unreadable setups never name the variable), checks missing required secrets in its own words, and the detection consent no longer mentions variables; demo fixtures and the GUI guides follow. |
 | T1–T2 (TUI) | vNEXT | Delivered on `feat/gui-keys-tui`: the wizard prefills `suggest_env_for` for a new account, on provider switch and when leaving the name step (a typed variable is kept). |
 | T3–T4 | vNEXT | T3: `credential_help.*` and the `query.*`/`note.*` ids stay terminal-worded (the desktop renders `SecretInput.help`); the GUI-neutral split of the remaining shared query notes stays a follow-up. T4: no change needed, vault and `credential_env` accounts load as before. |
+| G7 (desktop wording of core texts) | vNEXT | Delivered on `integration/next`: `apps/desktop/ui/js/desktop-wording.js` maps, by stable id, every core note, query error, edit/sign-in error, login help and session text that names a variable or a `params.*` value to the desktop's own wording (`coreText.*`, all desktop catalogs); `tl()` applies it, so the TUI/CLI keep the terminal wording. A note asking for a web session (the Xiaomi MiMo native `sk-` key first) offers **Connect session**, which opens the account dialog on the session box. `scripts/test-desktop-wording-ui.mjs` fails when a core text naming a variable is neither mapped nor listed as never rendered, and when a desktop catalog names `_env` or `params.`. |
 
 ## 1. Owner decision (2026-10-27)
 
@@ -35,6 +36,7 @@ In the desktop GUI, adding an account never mentions environment variables. The 
 ## 3. GUI requirements (desktop user)
 
 - **G1 — No environment variables.** The add and edit flows, their help texts and errors never name a variable or ask for one. Fields that name a variable (`*_env`) are not rendered; device detection in the desktop checks tool folders only, never variables.
+- **G7 — Core texts in the desktop's words.** A core text that names a variable or a `params.*` value (notes, query and edit errors, sign-in help, session texts) is shown in the desktop with its own plain wording, chosen by the text's stable id; the TUI and CLI keep the core wording. When the fix is a web session, the card and the details offer **Connect session**, which opens the account dialog on the session box.
 - **G2 — Type the secret.** Every API key, token, secret and web session the provider needs is a masked input in the flow, labelled in user terms ("API key or access token", "AccessKey secret", "Platform session").
 - **G3 — Test before save.** Where the provider can be queried, the typed secret is tested by one read-only query before it reaches the vault (PRD 0016 SES-02): a rejection blocks the save, an unreachable provider offers "Save anyway". The secret is never echoed.
 - **G4 — Stored in the vault.** The secret goes to the OS vault; the configuration file keeps only a reference. Editing an account shows "Saved in the system vault" with a Replace action, never the value; leaving the input blank keeps the stored secret.
@@ -123,9 +125,11 @@ New core catalog ids (all 13 languages): `secret_input.help`, `secret_input.cred
 | PRD 0037 RF1.4 | The credential is a vault field in the GUI and a variable name (`ELEVENLABS_API_KEY` default) in the TUI. |
 | PRD 0038 RF1.3 | The same: vault field in the GUI, variable name in the TUI. |
 | PRD 0038 RF12.2 note | Any note telling the user to set a variable is terminal wording; the GUI says to add the key to the account. |
+| PRD 0005 RF4.2 / DS-MSG-6 | The desktop shows the core's cause text, except the ids G7 maps to its own wording. |
 
 ## 9. Acceptance criteria
 
 - Core tests (`secret_input_tests.rs`): no GUI label/help names a variable; a typed Groq key is refused when wrong, tested, written to a `MemoryStore` vault, absent from the TOML, the report JSON and `Debug`, read by the query; editing keeps it; a failed vault write stores nothing and the rollback undoes a staged write; an environment account works unchanged, reads `environment`, moves to the vault with its consent naming no variable; a typed parameter secret is not written to `params`; `suggest_env_for` yields distinct valid names.
 - Desktop tests (`backend.rs`): a typed key without the test clearance stores nothing; with it, only the vault holds the key and the TOML and `get_account` JSON carry no value; editing with a blank key keeps it; the schema lists the secret inputs and terminal-only fields; an environment key moves into the vault on `migrate` without its name reaching the form.
 - Backward compatibility: existing TOML with `credential_env`, `*_env` params and `[accounts.session]` loads, validates and queries as before; `build_account` and `migration_candidates` behave as before.
+- Desktop UI test (`scripts/test-desktop-wording-ui.mjs`, G7): no core text naming a variable reaches the desktop unmapped; the mapped wording in every locale names no variable; the Xiaomi MiMo native-key note reads "Esta chave não mostra o consumo. Para ver a quota, conecte a sessão da sua conta Xiaomi." in pt-BR and offers Connect session.

@@ -17,6 +17,7 @@
 // override both (and add new core ids for a new language).
 import { esc, uiPath } from "./util.js";
 import { REGISTRY, normalizeLocale } from "./locale-registry.js";
+import { desktopWording } from "./desktop-wording.js";
 
 // PRD 0035 RF1.5: the built-in languages come from the core registry (`locale_registry`, or the static copy in the
 // browser demo), in its fixed order. A row whose catalogs are not written yet is "translation in progress": it is not
@@ -286,6 +287,8 @@ export function tl(value, vars = {}, escape = false) {
   if (!isL10n(value)) {
     return escape ? esc(String(value)) : String(value);
   }
+  // PRD 0047 G1: a core text naming a terminal variable or `params.*` reads in the desktop's own words.
+  value = desktopWording(value);
   const allVars = { ...(value.params ?? {}), ...vars };
   const currentCatalog = mergedCatalog(current);
   const fallbackCatalog = mergedCatalog(FALLBACK);

@@ -1271,9 +1271,14 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   // SES-01: "Paste a new session" opens this editor on the account's paste box.
   const pasteField = pasteSession ? sessionBox.querySelector(".session-paste[data-slot]") : null;
   if (pasteField) {
-    sessionBox.querySelector("#session-status").textContent = t("dialog.session.pasteNew");
+    // PRD 0047 G1: "Connect session" (no session saved yet) does not speak of a rejected one.
+    const hasSaved = (existing?.session_slots ?? []).some((slot) => (schema.sessions ?? []).some((s) => s.slot === slot));
+    sessionBox.querySelector("#session-status").textContent = t(hasSaved ? "dialog.session.pasteNew" : "dialog.session.connect");
     sessionBox.scrollIntoView({ block: "center" });
     pasteField.focus();
+  } else if (pasteSession && dyn.querySelector(".secret-input[data-slot*=session], .secret-input[data-slot*=token]")) {
+    // PRD 0047 G1: a provider whose session is a typed token ("Connect session") opens on that input.
+    dyn.querySelector(".secret-input[data-slot*=session], .secret-input[data-slot*=token]").focus();
   } else if (pickerApi) {
     pickerApi.focus();
   } else {

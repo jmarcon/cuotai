@@ -17,6 +17,7 @@ import {
   accountLabel, billingOverage, fmtExtra, overageLineText, isRecharging, resetsText, bestChipHtml, cardPace, forecastChipHtml, renewedText, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, setPoolAlerts, openAggregatorDashboard, incidentHtml, bindStatusLinks, costUsage, paceHtml, paceLineLabel, costPlans,
   openSettingsWindow, bindSettingsShortcut, onSettingsChanged, onAccountAction, listExtensions, extensionSecrets,
   planBadgeHtml, scopeBlocksHtml,
+  sessionAction,
 } from "./lib.js";
 import { fold, patch } from "./util.js";
 import { initRowLayout } from "./density.js";
@@ -225,8 +226,9 @@ function aggregatorSection(r, ctx) {
 }
 
 /** SES-01: the core says the account's vault session was rejected: the cause line gets its one recovery action. */
-const pasteSessionHtml = (r) => r.paste_session
-  ? `<button type="button" class="btn" data-paste-session="${r.index}">${icon("edit")}<span>${te("card.pasteSession")}</span></button>` : "";
+/** PRD 0047 G1: a note asking for a web session gets "Connect session", which opens the same paste box. */
+const pasteSessionHtml = (r) => (sessionAction(r)
+  ? `<button type="button" class="btn" data-paste-session="${r.index}">${icon("edit")}<span>${te(sessionAction(r) === "paste" ? "card.pasteSession" : "card.connectSession")}</span></button>` : "");
 
 /** Account with no report yet ("Waiting"): skeleton with shimmer until the data arrives (RF2.3). */
 const skeleton = (index) => `<section class="card skeleton" data-card="skeleton:${index}" aria-busy="true">

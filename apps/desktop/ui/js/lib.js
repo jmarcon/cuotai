@@ -1,6 +1,7 @@
 import { DEFAULT_THEME, GROUP_ORDER, THEMES, effectiveMode, themeById } from "./themes.js";
 import { LOCALES, currentLocale, pendingLocales, setLocale, t, te, tl } from "./i18n.js";
 import { esc, uiPath } from "./util.js";
+import { desktopAction } from "./desktop-wording.js";
 import { flagCountry, flagSvg } from "./flags.js";
 import { crossFade } from "./motion.js";
 export { esc };
@@ -756,15 +757,13 @@ export const staleView = (r) => ({ ...r, metrics: r.last_good.metrics, notes: []
 // PRD 0036 RF8: a 9router connection is keyed by the core's own key (`nine_router:<instance>/<id>`), never by a
 // provider and name another account could share.
 export const reportKey = (r) => (r.connection ? r.account_key : `${r.provider}::${r.account}`);
-/** Resolve the structured note sidecar by the same index as the legacy fallback. */
+/** Resolve the structured note sidecar by the same index as the legacy fallback. PRD 0047 G1: `tl` swaps the core
+ *  texts that name a terminal variable for the desktop's own wording (`desktop-wording.js`). */
 export const noteText = (report, index) =>
-  report.notes_l10n?.[index]
-    ? tl(KEY_MISSING_NOTES.has(report.notes_l10n[index].id) ? { id: "card.keyMissing", params: {}, fallback: "No key saved for this account. Open Edit to add it." } : report.notes_l10n[index])
-    : report.notes[index] ?? "";
-// PRD 0047 G1: core notes that name the terminal variable of a missing key; the desktop says it in its own words.
-const KEY_MISSING_NOTES = new Set(["query.missing_credential", "query.router_keys.kimi_missing_credential",
-  "query.alibaba_billing.missing_secret", "query.alibaba_billing.missing_security_token",
-  "query.inference.missing_endpoint_credential.hint_default", "query.inference.missing_endpoint_credential.hint_override"]);
+  report.notes_l10n?.[index] ? tl(report.notes_l10n[index]) : report.notes[index] ?? "";
+/** PRD 0047 G1: the account's first note asks for a web session (or the core offers a new paste): the card and the
+ *  details offer the button that opens the account dialog on the session box. */
+export const sessionAction = (r) => (r.paste_session ? "paste" : r.status !== "ready" && desktopAction(r.notes_l10n?.[0]) === "session" ? "connect" : null);
 /** PRD 0005 RF4.2: what a failed account shows first: the core's explanation (an Unavailable account's reason, a
  *  changed undocumented interface), else the adapter's first note, else the status. */
 export const causeText = (r) => (r.pending ? t("card.waiting") : r.access?.explanation ? tl(r.access.explanation) : r.notes.length ? noteText(r, 0) : statusLabel(r.status));

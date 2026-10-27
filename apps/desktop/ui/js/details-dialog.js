@@ -1,6 +1,6 @@
 // Account details dialog (opened by the card's magnifier): full quotas, history, notes, badges and actions.
 import { te, tl } from "./i18n.js";
-import { acknowledgeMissed, bellHtml, brand, esc, hiddenMetrics, icon, logo, openSettingsWindow, reportKey, statusLabel } from "./lib.js";
+import { acknowledgeMissed, bellHtml, brand, esc, hiddenMetrics, icon, logo, openSettingsWindow, reportKey, sessionAction, statusLabel } from "./lib.js";
 import { detailHtml, mountModels } from "./detail.js";
 import { costDetailHtml, sourceFor } from "./cost.js";
 import { mountHistory } from "./history.js";
@@ -50,7 +50,7 @@ function render() {
       </div>
     </div>
     ${id.copy ? `<div class="copy-row"><button class="chip" data-copy="${esc(id.copy.value)}" title="${te("common.copyLabel", { label: tl(id.copy.label) })}">${icon("copy")}<code>${esc(id.copy.value)}</code></button></div>` : ""}
-    ${r.paste_session ? `<div class="dlg-actions"><button type="button" class="btn" data-paste-session>${icon("edit")}<span>${te("card.pasteSession")}</span></button></div>` : ""}
+    ${sessionAction(r) ? `<div class="dlg-actions"><button type="button" class="btn" data-paste-session>${icon("edit")}<span>${te(sessionAction(r) === "paste" ? "card.pasteSession" : "card.connectSession")}</span></button></div>` : ""}
     <div class="det-body">${detailHtml(r, { eye: true })}${isAggregator(r) ? instanceInfoHtml(r) : ""}${localCostHtml(r)}<div data-history-slot></div><div data-models-slot></div></div>
     <div class="dlg-actions">${r.status !== "ready" ? `<button class="btn" data-report>${te("report.action")}</button>` : ""}<button class="btn primary" data-close>${te("common.close")}</button></div>
   </div>`;
