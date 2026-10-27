@@ -18,7 +18,8 @@
 |---|---|---|
 | E1–E7 (core and desktop backend contract) | vNEXT | Delivered on `feat/gui-keys-core`: `secret_input` module, generalized vault slots, `build_account_with_secrets`, typed `secrets` in `save_account`, `secret_states`/`credential_stored`/`vault_migration` in `get_account`, `secret_inputs`/`terminal_only_fields` in the form schema, generalized migration, desktop detection without variables, `suggest_env_for`. |
 | G1–G6 (desktop UI) | vNEXT | Delivered on `feat/gui-keys-ui`: the add/edit dialog renders `secret_inputs` as masked inputs (show/hide, never prefilled) in place of the variable-name row and the terminal-only fields, sends `secrets` with `credential: ""`, shows "Saved in the system vault" with Replace (blank keeps), "Key set up in the terminal" with **Move key into Cuotai** (`vault_migration`, two-step confirmation, unreadable setups never name the variable), checks missing required secrets in its own words, and the detection consent no longer mentions variables; demo fixtures and the GUI guides follow. |
-| T1–T4 (TUI) | — | Pending: TUI agent (T1 and T2 have their core function). |
+| T1–T2 (TUI) | vNEXT | Delivered on `feat/gui-keys-tui`: the wizard prefills `suggest_env_for` for a new account, on provider switch and when leaving the name step (a typed variable is kept). |
+| T3–T4 | vNEXT | T3: `credential_help.*` and the `query.*`/`note.*` ids stay terminal-worded (the desktop renders `SecretInput.help`); the GUI-neutral split of the remaining shared query notes stays a follow-up. T4: no change needed, vault and `credential_env` accounts load as before. |
 
 ## 1. Owner decision (2026-10-27)
 

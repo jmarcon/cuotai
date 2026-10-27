@@ -381,9 +381,33 @@ pub(crate) struct Wizard {
     /// PRD 0036 RF2.3: the fingerprint the last test offered for trust on
     /// first use; F6 pins it (after the user checked it) and tests again.
     offered_pin: Option<String>,
+    /// PRD 0047 T2: the variable the wizard last suggested for a new
+    /// account; it is replaced when the provider or name changes, but only
+    /// while the credential field still holds it (a typed name is kept).
+    suggested_env: String,
 }
 
 impl Wizard {
+    /// PRD 0047 T1/T2: the variable to prefill for `provider` and the
+    /// current name: the provider default, or a distinct one when another
+    /// account of `base` already uses it.
+    fn suggest_env(&self, provider: Provider) -> String {
+        edit::suggest_env_for(provider, &self.base, self.name.trim(), self.editing)
+    }
+
+    /// Re-run the suggestion after the name changed, unless the user typed
+    /// a different variable meanwhile.
+    fn refresh_suggested_env(&mut self) {
+        if self.editing.is_some() || self.selected_mode().is_some() {
+            return;
+        }
+        if self.credential.is_empty() || self.credential == self.suggested_env {
+            let next = self.suggest_env(self.provider);
+            self.credential = next.clone();
+            self.suggested_env = next;
+        }
+    }
+
     /// PRD 0027 RF1.3: offer `entries` (discovered extensions that can
     /// still be added) in the picker of a new account.
     pub(crate) fn with_extensions(
@@ -408,7 +432,12 @@ impl Wizard {
         let name = existing.map(|a| a.name.clone()).unwrap_or_default();
         let credential = match existing {
             Some(a) => edit::stored_credential(a),
-            None => edit::suggested_credential(provider).to_string(),
+            None => edit::suggest_env_for(provider, config, "", None),
+        };
+        let suggested_env = if existing.is_none() {
+            credential.clone()
+        } else {
+            String::new()
         };
         let oauth_existing = existing
             .filter(|a| a.provider == provider)
@@ -480,6 +509,7 @@ impl Wizard {
             aggregator_test: None,
             aggregator_ok: None,
             offered_pin: None,
+            suggested_env,
         };
         // RF6.2: detection runs only when the Add-account wizard starts,
         // and only after the session's consent (RF6.5).
@@ -906,7 +936,8 @@ impl Wizard {
                     // credential goes back to the new provider's default (never reuses the previous one).
                     self.provider = selected;
                     self.field_idx = 0;
-                    self.credential = edit::suggested_credential(selected).to_string();
+                    self.credential = self.suggest_env(selected);
+                    self.suggested_env = self.credential.clone();
                     self.login = login::login_modes(selected);
                     // RF5.1: open the recommended mode (or the detected
                     // source's mode, RF7.1) when this wizard offers it.
@@ -934,7 +965,10 @@ impl Wizard {
                 self.step = Step::Name;
                 self.peer_focus = false;
             }
-            Step::Name => self.step = Step::Credential,
+            Step::Name => {
+                self.refresh_suggested_env();
+                self.step = Step::Credential;
+            }
             Step::Credential => {
                 self.field_idx = 0;
                 self.step = Step::Params;
@@ -4560,6 +4594,37 @@ mod tests {
         assert_eq!(wiz.step, Step::Interval);
         // A fresh account starts without a group.
         assert_eq!(Wizard::new(&Config::default(), None).group, "");
+    }
+
+    #[test]
+    fn second_account_of_a_provider_gets_a_distinct_variable() {
+        // PRD 0047 T1/T2.
+        let first = Wizard::new(&Config::default(), None);
+        let default = first.credential.clone();
+        assert_eq!(default, edit::default_env(Provider::OpenAiApi));
+        let mut config = Config::default();
+        config.accounts.push(Account {
+            name: "personal".into(),
+            provider: Provider::OpenAiApi,
+            credential_env: Some(default.clone()),
+            ..Default::default()
+        });
+        let mut wiz = Wizard::new(&config, None);
+        assert_eq!(
+            wiz.credential,
+            format!("{default}_2"),
+            "no name yet: numeric"
+        );
+        wiz.name = "Work".into();
+        wiz.step = Step::Name;
+        wiz.advance();
+        assert_eq!(wiz.credential, format!("{default}_WORK"));
+        // A variable the user typed is kept when the name changes.
+        wiz.credential = "MY_KEY".into();
+        wiz.step = Step::Name;
+        wiz.name = "Other".into();
+        wiz.advance();
+        assert_eq!(wiz.credential, "MY_KEY");
     }
 
     #[test]

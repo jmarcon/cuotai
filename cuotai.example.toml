@@ -32,6 +32,7 @@ timeout_seconds = 30
 name = "OpenAI API"
 provider = "open_ai_api"
 credential_env = "OPENAI_ADMIN_KEY"
+# A second account of the same provider needs its own variable, e.g. OPENAI_ADMIN_KEY_WORK.
 # refresh_seconds = 60 # optional, for this account only (minimum 30 s)
 # group = "coding" # optional, see the note above the first account
 # params = { project_ids = "proj_1,proj_2", models = "gpt-4.1" }
