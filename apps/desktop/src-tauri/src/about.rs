@@ -133,6 +133,7 @@ pub fn is_listed(url: &str) -> bool {
         || cuotai_core::support::is_issue_url(url)
         || cuotai_core::user_session::is_open_url(url)
         || cuotai_core::secret_input::is_key_page_url(url)
+        || cuotai_core::oauth::bailian::is_install_url(url)
 }
 
 /// PRD 0027 RF3.5: the new-provider issue template, offered by the picker's
@@ -214,6 +215,19 @@ mod tests {
         ] {
             assert!(!is_listed(url), "{url}");
             assert_eq!(open_external(url), Err("not_listed"));
+        }
+    }
+
+    /// Owner request: the `bl` install page the core declares opens; a look-alike does not.
+    #[test]
+    fn bl_install_page_opens_and_look_alikes_do_not() {
+        assert!(is_listed(cuotai_core::oauth::bailian::CLI_INSTALL_URL));
+        for url in [
+            "https://www.alibabacloud.com/help/en/model-studio/cli/installation/../x",
+            "http://www.alibabacloud.com/help/en/model-studio/cli/installation",
+            "https://www.alibabacloud.com/help/en/model-studio/cli/installationx",
+        ] {
+            assert!(!is_listed(url), "{url}");
         }
     }
 

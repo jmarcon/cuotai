@@ -3,7 +3,7 @@
 // events (LoginEvent, no secrets) and sends user input.
 import {
   accountLabel, configChangedOnDisk, deleteAccount, detectSources, forgetExtensionSecrets, dismissDetected, draftAccess, errText, esc, fieldChoices, formSchema, getAccount,
-  getSettings, getView, icon, listProviders, logo, NEW_PROVIDER_URL, openExternal, sessionOpenLinkHtml, keyPageLinkHtml, providerModes, setDetectEnabled,
+  getSettings, getView, icon, listProviders, logo, NEW_PROVIDER_URL, openExternal, sessionOpenLinkHtml, keyPageLinkHtml, installLinkHtml, providerModes, setDetectEnabled,
   loginCancel, loginStart, loginSubmitCode, forgetSession, migrateSession, modelSupport, onLogin, previewSession, reloadConfig,
   reportKey, saveAccount, captureSession, cancelSessionCapture, sessionNoticeHtml, testAggregator, testSession, validMonogram, visibleFields,
 } from "./lib.js";
@@ -70,7 +70,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     <div class="form-rest" id="form-rest" ${editing ? "" : "hidden"}>
     <p class="cost-advisory offer-consent" id="offer-consent" role="note" hidden></p>
     <label class="f" data-field="name"><span>${te("dialog.nameOptional")}</span><input name="name" value="${esc(existing?.name ?? "")}" aria-describedby="name-hint" /><small class="hint" id="name-hint"></small><small class="field-err" id="name-err" role="alert" hidden></small></label>
-    <label class="f" data-field="peer_name" id="peer-row" hidden><span id="peer-label"></span><input name="peer_name" /><small class="field-err" role="alert" hidden></small></label>
+    <label class="f" data-field="peer_name" id="peer-row" hidden><span id="peer-label"></span><input name="peer_name" autocomplete="off" aria-describedby="peer-hint" /><small class="hint" id="peer-hint"></small><small class="field-err" role="alert" hidden></small></label>
     <div id="dyn"><div id="dyn-auth"></div>
     <div class="login-panel" id="login-panel" hidden>
       <div class="login-log" id="login-log" role="status" aria-live="polite"></div>
@@ -125,6 +125,8 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   // this only shapes the form). Adding beside an unnamed account also asks for that account's name.
   let nameNeeded = false;
   let peerShown = false;
+  // The peer the field currently describes (`provider:index`): its value is prefilled whenever that changes.
+  let peerKey = null;
   const providerLabel = () => providers.find((p) => p.id === provider)?.label ?? provider;
   async function syncNameRule() {
     const view = await getView().catch(() => null);
@@ -134,10 +136,16 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     const label = providerLabel();
     nameInput.placeholder = label;
     dlg.querySelector("#name-hint").textContent = nameNeeded ? t("dialog.nameNeeded", { provider: label }) : t("dialog.nameHint", { provider: label });
-    if (Boolean(peer) !== peerShown) peerInput.value = peer ? label : "";
+    // The prefill follows the peer itself, not the row's visibility: switching providers in the picker never
+    // leaves another provider's value (or a blank) behind. Blank stays allowed: the core then keeps the default.
+    const key = peer ? `${provider}:${peer.index}` : null;
+    if (key !== peerKey) peerInput.value = peer ? label : "";
+    peerKey = key;
     peerShown = Boolean(peer);
     peerRow.hidden = !peerShown;
+    peerInput.placeholder = label;
     dlg.querySelector("#peer-label").textContent = t("dialog.peerName", { provider: label });
+    dlg.querySelector("#peer-hint").textContent = t("dialog.peerHint");
     syncLoginBtn();
   }
   // The login only starts with the account named (when it finishes it is saved automatically). Instead of `disabled`, which swallows the
@@ -434,7 +442,11 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     if (sessionBox.hidden) { sessionBox.innerHTML = ""; return; }
     confirmForget = false;
     // PRD 0016 RF4.1: the core's `UserSession` level and risk warning lead the paste box.
-    sessionBox.innerHTML = `<h3>${te("dialog.session.title")}</h3>${slots.length ? sessionNoticeHtml(schema.session_notice) : ""}`
+    // Beside another way to connect (a mode or a credential), the web session reads as the alternative it is.
+    const alternative = slots.length && (modes().length || schema.credential_kind !== "none");
+    sessionBox.innerHTML = `<h3>${te("dialog.session.title")}</h3>`
+      + (alternative ? `<p class="hint session-or">${te("dialog.session.orIntro", { provider: providerLabel() })}</p>` : "")
+      + `${slots.length ? sessionNoticeHtml(schema.session_notice) : ""}`
       + slots.map((s) => `<div class="session-slot">
           <label class="f"><span>${esc(tl(s.label))}</span>
             ${s.secret
@@ -897,10 +909,10 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
         radios.push(`<label class="mode"><input type="radio" name="auth" value="credential" ${authMode === "credential" ? "checked" : ""} /> ${esc(label)}</label>`);
       }
       for (const m of available) {
-        radios.push(`<label class="mode"><input type="radio" name="auth" value="${esc(m.id)}" ${authMode === m.id ? "checked" : ""} /> ${esc(tl(m.label, { id: m.id }))}${m.help ? ` <small>${esc(tl(m.help, { id: m.id }))}</small>` : ""}</label>`);
+        radios.push(`<label class="mode"><input type="radio" name="auth" value="${esc(m.id)}" ${authMode === m.id ? "checked" : ""} /> ${esc(tl(m.label, { id: m.id }))}${m.help ? ` <small>${esc(tl(m.help, { id: m.id }))}</small>` : ""}</label>${installLinkHtml(m)}`);
       }
       for (const m of unavailable) {
-        radios.push(`<label class="mode mode-off"><input type="radio" name="auth" value="${esc(m.id)}" disabled /> ${esc(tl(m.label, { id: m.id }))} <small>${esc(tl(m.unavailable_reason))}</small></label>`);
+        radios.push(`<label class="mode mode-off"><input type="radio" name="auth" value="${esc(m.id)}" disabled /> ${esc(tl(m.label, { id: m.id }))} <small>${esc(tl(m.unavailable_reason))}</small></label>${installLinkHtml(m)}`);
       }
       authHtml = `<fieldset class="auth"><legend>${te("dialog.authLegend")}</legend>${radios.join("")}</fieldset>`;
       // PRD 0027 RF5.1 / DS-CMP-CAT-3: a new account opens the recommended mode; the others sit, collapsed, under
@@ -923,8 +935,9 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     if (!mode) {
       // PRD 0047 G1/G2: the key is typed (masked) and kept in the vault; the variable name, the terminal default and the
       // terminal help (`credential`, `default_env`, `credential_help`) are never shown. An AWS profile stays a name.
+      // A provider with a web-session slot always has something to enter (the session box): never say otherwise.
       bodyHtml = cred === "none"
-        ? `<p class="hint">${te("dialog.credNone")}${notesSlot}</p>`
+        ? `<p class="hint">${(schema.sessions ?? []).length ? "" : te("dialog.credNone")}${notesSlot}</p>`
         : cred === "profile"
           ? `<label class="f" data-field="credential"><span>${te("dialog.credProfile")}</span>
             <input name="credential" value="${esc(existing?.credential ?? "")}" required />

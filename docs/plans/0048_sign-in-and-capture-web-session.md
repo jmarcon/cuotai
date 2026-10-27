@@ -53,6 +53,8 @@ PRD 0016 RF2.1 asks the user to sign in in a browser, open the developer tools, 
   - RF7.1: macOS (WKWebView), Windows (WebView2) and Linux (WebKitGTK) are supported through Tauri 2.12.5 / wry 0.57.0.
   - RF7.2: when the platform cannot read its store (`cookies` returns an error) or the window cannot be created, the capture ends as *unavailable* and the dialog points to the paste box below. The browser demo always answers *unavailable*.
 - **RF8 — Texts.** Every new text exists in the 14 desktop catalogs (`dialog.session.capture*`); pt-BR reads "Entrar e capturar sessão".
+- **RF9 — The session as an alternative (owner, 2026-10-27).** A provider with a session slot never shows "there is no credential to enter" (`dialog.credNone`) beside the session box; when the provider also has a sign-in mode or a credential, the box opens with one line presenting the web session as the alternative (`dialog.session.orIntro`, pt-BR "Ou use a sessão web de {provider}:"). The `bl` mode of the Token Plan reads as a CLI profile in every core catalog (en "Bailian CLI profile (bl)", pt-BR "Perfil do CLI bl (Bailian)").
+- **RF10 — Missing CLI (owner, 2026-10-27).** When the CLI a sign-in mode runs is not found on this device's `PATH` (`bl` for the Token Plan), the core's `LoginMode.install` names the official install page (Alibaba Cloud Model Studio, "Installation & Authentication") with a localized text (`login.install.bl`, pt-BR "Instalar o CLI bl"); the desktop links it beside the option through the exact-match `open_external` allow-list, the TUI prints the address as text.
 
 ## 4. Non-functional requirements
 

@@ -903,7 +903,10 @@ pub fn auth_mode_label(auth_mode: &str) -> crate::text::Localized {
         AUTH_MODE_CREDENTIAL => ("auth_mode.credential.label", "Environment credential"),
         "oauth" => ("auth_mode.oauth.label", "Native login"),
         "aws_sso" => ("auth_mode.aws_sso.label", "AWS SSO profile"),
-        "bailian_console" => ("auth_mode.bailian_console.label", "Bailian console"),
+        "bailian_console" => (
+            "auth_mode.bailian_console.label",
+            "Bailian CLI profile (bl)",
+        ),
         _ => ("auth_mode.unknown.label", "Unknown authentication mode"),
     };
     crate::text::Localized::fixed(id, fallback)
@@ -2646,6 +2649,21 @@ impl Config {
             crate::edit_error::validation_note(None, crate::edit_error::config_error_note(&e))
         })?;
         Ok(updated)
+    }
+
+    /// PRD 0029 RF3.3: names the unnamed peer at `index` while an account of
+    /// the same provider is added beside it. The name is optional: blank
+    /// keeps the default the form prefills, the provider's name.
+    pub fn name_peer(
+        &self,
+        index: usize,
+        name: &str,
+    ) -> Result<Config, crate::edit_error::EditError> {
+        let name = match (name.trim(), self.accounts.get(index)) {
+            ("", Some(account)) => account.provider.label(),
+            (trimmed, _) => trimmed,
+        };
+        self.rename_account(index, name)
     }
 
     /// PRD 0029 RF3.3: give the account at `index` the name `name` (the
@@ -4531,6 +4549,21 @@ mod tests {
         let err = build_account(&draft, &config, None).unwrap_err();
         assert_eq!(err.field(), Some("name"));
         assert_eq!(err.l10n().id, "edit_error.name_required_same_provider");
+    }
+
+    /// PRD 0029 RF3.3: the peer's name is optional; blank keeps the
+    /// provider's name the form prefills, a typed one is trimmed.
+    #[test]
+    fn name_peer_falls_back_to_the_provider_name() {
+        let config = config_with(vec![env_account("", Provider::Claude, "X")]);
+        let named = config.name_peer(0, "  ").unwrap();
+        assert_eq!(named.accounts[0].name, Provider::Claude.label());
+        assert!(named.accounts[0].id.is_some());
+        assert_eq!(
+            config.name_peer(0, " Work ").unwrap().accounts[0].name,
+            "Work"
+        );
+        assert!(config.name_peer(3, "").is_err());
     }
 
     /// PRD 0029 RF3.1/RF3.2: the optional-name rule.

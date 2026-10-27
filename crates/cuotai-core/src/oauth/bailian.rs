@@ -14,6 +14,34 @@
 
 use super::OAuthError;
 
+/// Official install instructions of the Bailian CLI (`bl`), from Alibaba
+/// Cloud Model Studio's "Installation & Authentication" page:
+/// <https://www.alibabacloud.com/help/en/model-studio/cli/installation>
+/// (verified 2026-10-27). Desktop `open_external` allows exactly this URL.
+pub const CLI_INSTALL_URL: &str =
+    "https://www.alibabacloud.com/help/en/model-studio/cli/installation";
+
+/// Whether the address is [`CLI_INSTALL_URL`] (exact match).
+pub fn is_install_url(url: &str) -> bool {
+    url == CLI_INSTALL_URL
+}
+
+/// Whether `bl` is found on this device's `PATH`: the same lookup a spawn of
+/// `"bl"` does (the query's and the login's `cli_not_found`), without running it.
+pub fn cli_installed() -> bool {
+    std::env::var_os("PATH").is_some_and(|path| cli_in_path(&path))
+}
+
+/// [`cli_installed`] against an explicit `PATH` value (testable).
+pub fn cli_in_path(path: &std::ffi::OsStr) -> bool {
+    let names: &[&str] = if cfg!(windows) {
+        &["bl.exe", "bl.cmd", "bl.bat", "bl.ps1", "bl"]
+    } else {
+        &["bl"]
+    };
+    std::env::split_paths(path).any(|dir| names.iter().any(|name| dir.join(name).is_file()))
+}
+
 /// Maximum time for `bl auth login --console`. `bl` may open a browser and
 /// wait for human interaction; 10 minutes is enough slack without holding the UI.
 const BAILIAN_LOGIN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10 * 60);

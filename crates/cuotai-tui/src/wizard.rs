@@ -1838,7 +1838,7 @@ impl Wizard {
                 .and_then(|()| match self.peer() {
                     Some(peer) => self
                         .base
-                        .rename_account(peer, &self.peer_name)
+                        .name_peer(peer, &self.peer_name)
                         .map(|_| ())
                         .map_err(|error| error.l10n()),
                     None => Ok(()),
@@ -2283,7 +2283,7 @@ impl Wizard {
         let base = match self.peer() {
             Some(peer) => self
                 .base
-                .rename_account(peer, &self.peer_name)
+                .name_peer(peer, &self.peer_name)
                 .map_err(|e| crate::ui::resolve_l10n(&e.l10n()))?,
             None => self.base.clone(),
         };
@@ -3105,6 +3105,17 @@ impl Wizard {
                 },
                 crate::ui::resolve_l10n(&mode.label)
             )));
+            // The CLI this mode runs is missing: its official install page, as text.
+            if let Some(install) = &mode.install {
+                lines.push(Line::from(Span::styled(
+                    format!(
+                        "    {}: {}",
+                        crate::ui::resolve_l10n(&install.label),
+                        install.url
+                    ),
+                    Style::default().fg(DRACULA_COMMENT),
+                )));
+            }
         }
         // RF5.1: the other ways to connect, each with its core hint.
         let others: Vec<String> = edit::catalog()
@@ -4639,6 +4650,40 @@ mod tests {
         wiz.name = "Other".into();
         wiz.advance();
         assert_eq!(wiz.credential, "MY_KEY");
+    }
+
+    /// Owner request: without the `bl` CLI the credential step prints its
+    /// official install page as text beside the option.
+    #[test]
+    fn missing_bl_cli_prints_the_install_page() {
+        let config = Config {
+            accounts: vec![Account {
+                id: None,
+                name: "Qwen Cloud".into(),
+                provider: Provider::AlibabaTokenPlan,
+                credential_env: None,
+                session: None,
+                oauth: None,
+                params: BTreeMap::new(),
+                refresh_seconds: None,
+                group: None,
+            }],
+            ..Config::default()
+        };
+        let mut wiz = Wizard::new(&config, Some(0));
+        wiz.step = Step::Credential;
+        wiz.login = login::login_modes_with(Provider::AlibabaTokenPlan, || false);
+        let screen = screen_of(&mut wiz, 160, 50);
+        assert!(
+            screen.contains(cuotai_core::oauth::bailian::CLI_INSTALL_URL),
+            "{screen}"
+        );
+        wiz.login = login::login_modes_with(Provider::AlibabaTokenPlan, || true);
+        let screen = screen_of(&mut wiz, 160, 50);
+        assert!(
+            !screen.contains("model-studio/cli/installation"),
+            "{screen}"
+        );
     }
 
     #[test]

@@ -819,6 +819,12 @@ export function keyPageLinkHtml(input) {
   try { host = new URL(url).host; } catch { return ""; }
   return `<button type="button" class="link key-page" data-key-url="${esc(url)}">${icon("window")}<span>${te("dialog.secret.createKey", { site: host })}</span></button>`;
 }
+/** The official install page of the CLI a login mode runs, which the core declares only when that CLI is missing. */
+export function installLinkHtml(mode) {
+  const url = mode?.install?.url;
+  if (typeof url !== "string" || !url.startsWith("https://")) return "";
+  return `<button type="button" class="link key-page install-link" data-key-url="${esc(url)}">${icon("window")}<span>${tl(mode.install.label, {}, true)}</span></button>`;
+}
 /** "Open status page": the shell opens only the core's verified status hosts (`open_external`). */
 const statusLinkHtml = (url) => `<button class="status-link" type="button" data-status-url="${esc(url)}">${icon("chev")}<span>${te("incident.open")}</span></button><span class="status-err" data-status-err role="alert"></span>`;
 /** Card badge (color, icon and text) with the status page link; `link: false` inside a clickable row. */

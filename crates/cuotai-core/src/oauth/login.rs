@@ -349,6 +349,19 @@ pub struct LoginMode {
     /// Nonsecret flow options accepted in [`LoginRequest::options`].
     pub options: Vec<LoginOption>,
     pub unavailable_reason: Option<crate::text::Localized>,
+    /// Official install instructions of the CLI the mode runs ([`LoginInstall`]), set only when
+    /// that CLI is not found on this device (owner request: "Install the bl
+    /// CLI" beside the option). Front ends show it as a link or as text.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub install: Option<LoginInstall>,
+}
+
+/// Where to install the CLI a [`LoginMode`] runs: a localized link text and
+/// the official HTTPS page.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LoginInstall {
+    pub label: crate::text::Localized,
+    pub url: String,
 }
 
 /// Result of [`login_modes`]: interactive modes and the reason when no login
@@ -426,6 +439,12 @@ fn oauth_completion_notice(provider: Provider) -> String {
 
 /// RF2.7: every interactive login mode for `provider`, with all descriptors.
 pub fn login_modes(provider: Provider) -> ProviderLogin {
+    login_modes_with(provider, super::bailian::cli_installed)
+}
+
+/// [`login_modes`] with the CLI presence check injected (`cli_present`
+/// answers for the `bl` CLI), so tests do not depend on this device's PATH.
+pub fn login_modes_with(provider: Provider, cli_present: impl Fn() -> bool) -> ProviderLogin {
     let mut modes = Vec::new();
     match provider {
         Provider::AwsBedrock => {
@@ -460,6 +479,7 @@ pub fn login_modes(provider: Provider) -> ProviderLogin {
                 )
                 .required()],
                 unavailable_reason: None,
+                install: None,
             });
         }
         Provider::AlibabaTokenPlan => {
@@ -472,7 +492,7 @@ pub fn login_modes(provider: Provider) -> ProviderLogin {
                 id,
                 label: crate::text::Localized::fixed(
                     format!("{mode_prefix}.label"),
-                    "Bailian console (bl)".to_string(),
+                    "Bailian CLI profile (bl)".to_string(),
                 ),
                 help: crate::text::Localized::fixed(
                     format!("{mode_prefix}.help"),
@@ -519,6 +539,13 @@ pub fn login_modes(provider: Provider) -> ProviderLogin {
                     .validation(LoginOptionValidation::CliProfile),
                 ],
                 unavailable_reason: None,
+                install: (!cli_present()).then(|| LoginInstall {
+                    label: crate::text::Localized::fixed(
+                        "login.install.bl",
+                        "Install the bl CLI",
+                    ),
+                    url: super::bailian::CLI_INSTALL_URL.to_string(),
+                }),
             });
         }
         _ if supports_login(provider) => {
@@ -545,6 +572,7 @@ pub fn login_modes(provider: Provider) -> ProviderLogin {
                     .map(|descriptor| LoginOption::from_native(provider, MODE_OAUTH, descriptor))
                     .collect(),
                 unavailable_reason: None,
+                install: None,
             });
         }
         _ => {}
@@ -1651,6 +1679,33 @@ mod tests {
 
     fn completed(provider: Provider) -> CompletedLogin {
         completed_from(request_for(provider, None), provider)
+    }
+
+    /// Owner request: the bl option links the official install page only
+    /// when the CLI is missing, under a "CLI profile" label.
+    #[test]
+    fn bailian_mode_offers_the_install_page_only_without_the_cli() {
+        let missing = login_modes_with(Provider::AlibabaTokenPlan, || false);
+        let mode = &missing.modes[0];
+        assert_eq!(mode.label.fallback, "Bailian CLI profile (bl)");
+        let install = mode.install.as_ref().expect("install link");
+        assert_eq!(install.url, super::super::bailian::CLI_INSTALL_URL);
+        assert!(install.url.starts_with("https://"));
+        assert_eq!(install.label.id, "login.install.bl");
+        assert!(super::super::bailian::is_install_url(&install.url));
+        let present = login_modes_with(Provider::AlibabaTokenPlan, || true);
+        assert!(present.modes[0].install.is_none());
+        let aws = login_modes_with(Provider::AwsBedrock, || false);
+        assert!(aws.modes.iter().all(|m| m.install.is_none()));
+    }
+
+    #[test]
+    fn bl_lookup_reads_the_given_path_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = std::env::join_paths([dir.path()]).unwrap();
+        assert!(!super::super::bailian::cli_in_path(&path));
+        std::fs::write(dir.path().join("bl"), b"").unwrap();
+        assert!(super::super::bailian::cli_in_path(&path));
     }
 
     #[test]

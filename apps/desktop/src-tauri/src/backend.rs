@@ -5266,7 +5266,7 @@ async fn undo_paste(vault: Option<&OAuthSession>, staged: Option<user_session::S
 fn with_named_peer(config: &Config, input: &AccountInput) -> Result<Config, String> {
     match account_edit::unnamed_peer(config, input.provider, input.index) {
         Some(peer) => config
-            .rename_account(peer, input.peer_name.as_deref().unwrap_or_default())
+            .name_peer(peer, input.peer_name.as_deref().unwrap_or_default())
             .map_err(|e| l10n_to_json(&e.l10n())),
         None => Ok(config.clone()),
     }
@@ -5531,6 +5531,8 @@ pub struct LoginModeSchema {
     registration: Vec<LoginOptionSchema>,
     options: Vec<LoginOptionSchema>,
     unavailable_reason: Option<cuotai_core::text::Localized>,
+    /// The official install page of the CLI this mode runs, only when it is missing.
+    install: Option<login::LoginInstall>,
 }
 
 #[derive(Serialize)]
@@ -5656,6 +5658,7 @@ pub fn form_schema(provider: Provider) -> FormSchema {
                             .map(|option| login_option_schema(provider, &mode_id, option, false))
                             .collect(),
                         unavailable_reason: mode.unavailable_reason,
+                        install: mode.install,
                     }
                 })
                 .collect(),
@@ -7702,37 +7705,32 @@ mod tests {
     }
 
     /// PRD 0029 RF3.3: adding a second MiMo account beside an unnamed one
-    /// names both in one save; without the peer's name nothing is written.
+    /// names both in one save; the peer's name is optional and blank keeps
+    /// the provider's name, through the same edit guard (no unexpected diff).
     #[tokio::test(flavor = "current_thread")]
     async fn adding_beside_an_unnamed_account_names_it_in_the_same_save() {
-        let store = Arc::new(MemoryStore::default());
-        let mut unnamed = session_env_account("MIMO_COOKIE");
-        unnamed.name.clear();
-        let backend = build_backend(store, vec![unnamed]).await;
-        let id = backend.loaded_config().await.accounts[0].id();
-        let mut input = pasted_input("");
-        input.sessions.clear();
-        input.index = None;
-        input.name = "Work".into();
-        let error = backend
-            .inner
-            .drive_save_account(input, None)
-            .await
-            .unwrap_err();
-        assert!(error.contains("edit_error.name_required"), "{error}");
-        assert_eq!(backend.loaded_config().await.accounts.len(), 1);
-
-        let mut input = pasted_input("");
-        input.sessions.clear();
-        input.index = None;
-        input.name = "Work".into();
-        input.peer_name = Some("Personal".into());
-        backend.inner.drive_save_account(input, None).await.unwrap();
-        let config = backend.loaded_config().await;
-        assert_eq!(config.accounts.len(), 2);
-        assert_eq!(config.accounts[0].name, "Personal");
-        assert_eq!(config.accounts[0].id(), id);
-        assert_eq!(config.accounts[1].name, "Work");
+        for (peer_name, expected) in [
+            (Some("Personal"), "Personal"),
+            (Some("  "), Provider::XiaomiMimo.label()),
+            (None, Provider::XiaomiMimo.label()),
+        ] {
+            let store = Arc::new(MemoryStore::default());
+            let mut unnamed = session_env_account("MIMO_COOKIE");
+            unnamed.name.clear();
+            let backend = build_backend(store, vec![unnamed]).await;
+            let id = backend.loaded_config().await.accounts[0].id();
+            let mut input = pasted_input("");
+            input.sessions.clear();
+            input.index = None;
+            input.name = "Work".into();
+            input.peer_name = peer_name.map(Into::into);
+            backend.inner.drive_save_account(input, None).await.unwrap();
+            let config = backend.loaded_config().await;
+            assert_eq!(config.accounts.len(), 2);
+            assert_eq!(config.accounts[0].name, expected);
+            assert_eq!(config.accounts[0].id(), id);
+            assert_eq!(config.accounts[1].name, "Work");
+        }
     }
 
     /// SES-02: the core's clearance of a passed test before save, for the
