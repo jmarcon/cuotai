@@ -349,6 +349,19 @@ fn texts(entry: &DetectEntry) -> (Localized, Localized) {
 /// dropping them hid every tool the person had already connected. Order follows [`TABLE`]; one result per
 /// provider (the first present source).
 pub fn local_sources(home: &Path, os: Os, env: &dyn Env, configured: &[Provider]) -> Vec<Detected> {
+    local_sources_with(home, os, env, configured, true)
+}
+
+/// [`local_sources`] that checks environment variables only when
+/// `include_env` is set. PRD 0047 G1: the desktop passes `false`, since a
+/// desktop account never names a variable.
+pub fn local_sources_with(
+    home: &Path,
+    os: Os,
+    env: &dyn Env,
+    configured: &[Provider],
+    include_env: bool,
+) -> Vec<Detected> {
     let mut out: Vec<Detected> = Vec::new();
     for entry in TABLE.iter().filter(|entry| entry.verified) {
         if out.iter().any(|d| d.provider == entry.provider)
@@ -377,7 +390,7 @@ pub fn local_sources(home: &Path, os: Os, env: &dyn Env, configured: &[Provider]
     // variables, checked for presence only (the value is never read or
     // kept); the account then names the variable.
     let is_set = |name: &str| env.var(name).is_some_and(|value| !value.is_empty());
-    for found in crate::catalog::detect_env_keys(true, is_set) {
+    for found in crate::catalog::detect_env_keys(include_env, is_set) {
         if out.iter().any(|d| d.provider == found.provider) {
             continue;
         }
@@ -460,6 +473,15 @@ async fn probe_nine_router_at(base: &str, configured: &[Provider]) -> Option<Det
 }
 
 /// [`local_sources`] for the current user and OS.
+/// PRD 0047 G1: [`local_sources_here`] for the desktop: tool folders only,
+/// never an environment variable.
+pub fn desktop_sources_here(configured: &[Provider]) -> Vec<Detected> {
+    match dirs::home_dir() {
+        Some(home) => local_sources_with(&home, Os::current(), &ProcessEnv, configured, false),
+        None => Vec::new(),
+    }
+}
+
 pub fn local_sources_here(configured: &[Provider]) -> Vec<Detected> {
     match dirs::home_dir() {
         Some(home) => local_sources(&home, Os::current(), &ProcessEnv, configured),

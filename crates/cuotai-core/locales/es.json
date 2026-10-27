@@ -1714,5 +1714,22 @@
   "metric.label.window_weeks": "{prefix} — ventana de {n} semana(s) (%)",
   "metric.label.window_hours": "{prefix} — ventana de {n} hora(s) (%)",
   "metric.label.window_seconds": "{prefix} — ventana de {n}s (%)",
-  "metric.label.rate_limit_of": "{label} (rate limit)"
+  "metric.label.rate_limit_of": "{label} (rate limit)",
+  "secret_input.help": "Pega el valor. Cuotai lo guarda en el almacén del sistema y solo lo envía a este proveedor; el archivo de configuración guarda solo una referencia.",
+  "secret_input.credential.label": "Clave de API o token de acceso",
+  "secret_input.slot.admin_key_env.label": "Clave de API de administración (opcional)",
+  "secret_input.slot.token_env.label": "Token de acceso OAuth (opcional)",
+  "secret_input.slot.session_env.label": "Token de sesión de la CLI",
+  "secret_input.slot.management_key_env.label": "Clave de gestión (opcional)",
+  "secret_input.slot.analytics_key_env.label": "Clave de Analytics (opcional)",
+  "secret_input.slot.secret_env.label": "AccessKey Secret",
+  "secret_input.slot.security_token_env.label": "Token de seguridad STS (opcional)",
+  "secret_input.slot.platform_session_env.label": "Sesión de la plataforma",
+  "secret_input.unknown_slot": "Este proveedor no acepta ese secreto; vuelve a abrir el formulario de la cuenta.",
+  "secret_input.duplicate_slot": "El mismo secreto se envió dos veces; vuelve a abrir el formulario de la cuenta.",
+  "secret_input.state.vault": "Guardado en el almacén del sistema",
+  "secret_input.state.environment": "Usa una variable de entorno (configurada en la terminal)",
+  "secret_input.state.unset": "Sin definir",
+  "secret_input.migrate.consent": "{label}: Cuotai copia el valor que hoy lee de la configuración de la terminal al almacén del sistema. Desde entonces esta cuenta funciona sin esa configuración; el archivo de configuración guarda solo una referencia.",
+  "user_session.slot.secret": "Secreto guardado en el almacén del sistema"
 }

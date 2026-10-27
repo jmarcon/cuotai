@@ -8,9 +8,8 @@ use crate::settings::{ServePrefs, WidgetPrefs};
 use crate::widgets::{self, WidgetsView};
 use cuotai_core::{
     account_edit::{
-        self, build_account, credential_help, default_env, field_descriptors,
-        visible_field_indices, AccountDraft, CredentialKind, DraftField, DraftValue,
-        FieldDescriptorKind, FieldVisibility,
+        self, credential_help, default_env, field_descriptors, visible_field_indices, AccountDraft,
+        CredentialKind, DraftField, DraftValue, FieldDescriptorKind, FieldVisibility,
     },
     advice, alerts,
     config_file::{ConfigFile, Discovery, Locations, PathSource, ResolvedPath},
@@ -3224,7 +3223,7 @@ impl Backend {
     /// The dialog's draft account, the monitor to query it and its reduced
     /// pasted sessions; `None` without a paste.
     async fn session_probe(&self, input: &AccountInput) -> Result<Option<SessionProbe>, String> {
-        let pasted = reduce_pastes(input.provider, &input.sessions)?;
+        let pasted = reduce_input(input)?;
         if pasted.is_empty() {
             return Ok(None);
         }
@@ -3334,7 +3333,7 @@ impl Backend {
             // reach the vault first (an existing reference keeps its entry);
             // every later failure takes them out again.
             let vault = session.clone();
-            let pasted = reduce_pastes(input.provider, &input.sessions)?;
+            let pasted = reduce_input(&input)?;
             let staged_paste = if pasted.is_empty() {
                 None
             } else {
@@ -4256,6 +4255,19 @@ impl Backend {
                 .flat_map(|session| session.slots.iter().cloned())
                 .collect(),
             session_migration: user_session::migration_candidates(a),
+            credential_stored: a
+                .session
+                .as_ref()
+                .is_some_and(|s| s.slots.contains(user_session::CREDENTIAL_SLOT)),
+            secret_states: cuotai_core::secret_input::secret_states(a),
+            vault_migration: cuotai_core::secret_input::vault_migration_candidates(a)
+                .into_iter()
+                .map(|c| VaultMigrationView {
+                    slot: c.slot,
+                    label: c.label,
+                    consent: c.consent,
+                })
+                .collect(),
             account_id: a.id().to_string(),
             monogram: crate::settings::view()
                 .monogram_of(a.id().as_str())
@@ -4302,7 +4314,7 @@ impl Backend {
         };
         // PRD 0036 RF2.1/RF2.6: an unsaved vault password, key or SSO paste
         // is tested in place of the saved one; nothing is stored here.
-        let pasted = reduce_pastes(input.provider, &input.sessions)?;
+        let pasted = reduce_input(&input)?;
         let test = monitor.test_nine_router_with(&account, &pasted).await;
         let mut g = self.inner.lock().await;
         g.aggregator_tested = test.is_ok().then(|| account.clone());
@@ -4398,7 +4410,9 @@ impl Backend {
         let prev = l.file.config.clone();
         let staged = match change {
             SessionChange::Migrate => {
-                user_session::stage_migration(&session, &EnvironmentCredentials, &prev, index).await
+                // PRD 0047 G5: sessions and API keys alike.
+                user_session::stage_vault_migration(&session, &EnvironmentCredentials, &prev, index)
+                    .await
             }
             SessionChange::Forget => user_session::stage_forget(&session, &prev, index).await,
         }
@@ -4943,6 +4957,12 @@ pub struct AccountInput {
     /// reduces them before anything else; the text is never logged or kept.
     #[serde(default)]
     pub sessions: Vec<SessionPasteInput>,
+    /// PRD 0047 G2: secrets typed in the dialog (API key, token, secret),
+    /// by `secret_inputs` slot. Written to the vault, never to the TOML;
+    /// never logged, overwritten when dropped. A blank value keeps the
+    /// stored secret.
+    #[serde(default)]
+    pub secrets: Vec<cuotai_core::secret_input::SecretValue>,
     /// SES-02: the user explicitly chose "Save anyway" after the test before
     /// save could not reach the provider (never after a rejection).
     #[serde(default)]
@@ -4989,6 +5009,15 @@ pub struct LoginStartInput {
     pub registration: BTreeMap<String, String>,
 }
 
+/// PRD 0047 G5: one secret the migration would move, without the
+/// variable name.
+#[derive(Serialize)]
+pub struct VaultMigrationView {
+    slot: &'static str,
+    label: cuotai_core::text::Localized,
+    consent: cuotai_core::text::Localized,
+}
+
 #[derive(Serialize)]
 pub struct AccountForm {
     name: String,
@@ -5008,6 +5037,16 @@ pub struct AccountForm {
     /// PRD 0016 RF1.2: sessions still read from a variable, offered for
     /// migration to the vault.
     session_migration: Vec<user_session::MigrationCandidate>,
+    /// PRD 0047 G4: whether the main credential is kept in the vault (the
+    /// dialog shows "saved" and a Replace action, never a value).
+    credential_stored: bool,
+    /// PRD 0047 G4/G5: where each secret input comes from (vault, terminal
+    /// environment, unset); never a value or a variable name.
+    secret_states: Vec<cuotai_core::secret_input::SecretState>,
+    /// PRD 0047 G5: the secrets the "Move into Cuotai" action would copy
+    /// from the terminal environment into the vault (`change_session`
+    /// with `migrate`). No variable name.
+    vault_migration: Vec<VaultMigrationView>,
     /// PRD 0022 MONO-4: the account's stable id and its monogram override
     /// (blank = derived from the name).
     account_id: String,
@@ -5163,6 +5202,41 @@ impl Backend {
 /// PRD 0016 RF2.2: the dialog's non-empty pastes reduced by the core to the
 /// cookies each slot accepts; the first one it refuses is the error (it
 /// names cookies, never values).
+/// PRD 0016 pasted sessions plus PRD 0047 typed secrets of the dialog,
+/// reduced by the core; one slot may come only once.
+fn reduce_input(input: &AccountInput) -> Result<Vec<user_session::ReducedSession>, String> {
+    let mut reduced = reduce_pastes(input.provider, &input.sessions)?;
+    let typed = cuotai_core::secret_input::reduce_secrets(input.provider, &input.secrets)
+        .map_err(|note| l10n_to_json(&note))?;
+    for secret in typed {
+        if reduced.iter().any(|r| r.slot() == secret.slot()) {
+            return Err(l10n_to_json(&cuotai_core::text::Localized::fixed(
+                "secret_input.duplicate_slot",
+                "The same secret was sent twice; reopen the account form.",
+            )));
+        }
+        reduced.push(secret);
+    }
+    Ok(reduced)
+}
+
+/// The slots `input` writes to the vault (non-blank pastes and secrets).
+fn typed_slots(input: &AccountInput) -> Vec<&str> {
+    input
+        .sessions
+        .iter()
+        .filter(|paste| !paste.paste.trim().is_empty())
+        .map(|paste| paste.slot.as_str())
+        .chain(
+            input
+                .secrets
+                .iter()
+                .filter(|secret| !secret.value.trim().is_empty())
+                .map(|secret| secret.slot.as_str()),
+        )
+        .collect()
+}
+
 fn reduce_pastes(
     provider: Provider,
     pastes: &[SessionPasteInput],
@@ -5266,7 +5340,10 @@ fn input_account(
         interval_text: &input.interval,
         group_text: input.group.as_deref(),
     };
-    build_account(&draft, config, input.index).map_err(|e| l10n_to_json(&e.l10n()))
+    // PRD 0047: the typed secrets go to the vault, so their variable
+    // fields are neither required nor written.
+    account_edit::build_account_with_secrets(&draft, config, input.index, &typed_slots(input))
+        .map_err(|e| l10n_to_json(&e.l10n()))
 }
 
 /// PRD 0016 RF2.1: what the dialog shows of a paste before it is saved:
@@ -5472,6 +5549,12 @@ pub struct FormSchema {
     /// PRD 0036 RF2.2: an aggregator account, saved only after a
     /// successful Test connection.
     aggregator: bool,
+    /// PRD 0047 G1/G2: the secrets the dialog asks for (typed into
+    /// `AccountInput::secrets`); replaces the variable-name credential row.
+    secret_inputs: Vec<cuotai_core::secret_input::SecretInput>,
+    /// PRD 0047 G1: keys of `fields` that name a variable; the desktop
+    /// never renders them (the TUI does).
+    terminal_only_fields: Vec<&'static str>,
 }
 
 fn login_option_schema(
@@ -5536,6 +5619,12 @@ pub fn form_schema(provider: Provider) -> FormSchema {
             .collect(),
         session_notice: user_session::paste_notice(provider),
         aggregator: provider.is_aggregator(),
+        secret_inputs: cuotai_core::secret_input::secret_inputs(provider),
+        terminal_only_fields: field_descriptors(provider)
+            .iter()
+            .map(|d| d.key)
+            .filter(|key| account_edit::is_terminal_only_field(provider, key))
+            .collect(),
         login: ProviderLoginSchema {
             modes: login
                 .modes
@@ -7309,6 +7398,7 @@ mod tests {
             auth_options: BTreeMap::new(),
             auth_params: BTreeMap::new(),
             sessions: Vec::new(),
+            secrets: Vec::new(),
             save_anyway: false,
             monogram: None,
         };
@@ -7373,6 +7463,7 @@ mod tests {
             auth_options: BTreeMap::new(),
             auth_params: BTreeMap::new(),
             sessions: Vec::new(),
+            secrets: Vec::new(),
             save_anyway: false,
             monogram: None,
         };
@@ -7401,9 +7492,144 @@ mod tests {
                 slot: "platform_session_env".into(),
                 paste: paste.into(),
             }],
+            secrets: Vec::new(),
             save_anyway: false,
             monogram: None,
         }
+    }
+
+    const TYPED_KEY: &str = "gsk_DESKTOP-TYPED-SECRET";
+
+    /// PRD 0047 G2: a new Groq account whose key the dialog typed.
+    fn typed_key_input(key: &str) -> AccountInput {
+        let mut input = pasted_input("");
+        input.sessions.clear();
+        input.index = None;
+        input.provider = Provider::Groq;
+        input.name = String::new();
+        input.credential = String::new();
+        input.secrets = vec![cuotai_core::secret_input::SecretValue {
+            slot: user_session::CREDENTIAL_SLOT.into(),
+            value: key.into(),
+        }];
+        input
+    }
+
+    /// PRD 0047 G2/G4: the typed key reaches only the vault; the TOML, the
+    /// account form and the schema carry no value and no variable name.
+    #[tokio::test(flavor = "current_thread")]
+    async fn a_typed_key_is_saved_in_the_vault_and_never_in_the_toml() {
+        let store = Arc::new(MemoryStore::default());
+        let backend = build_backend(store.clone(), Vec::new()).await;
+        // Without the clearance of the test before save nothing is stored.
+        let refused = backend
+            .inner
+            .drive_save_account(typed_key_input(TYPED_KEY), None)
+            .await
+            .unwrap_err();
+        assert!(refused.contains("user_session.save.untested"), "{refused}");
+        assert!(!refused.contains(TYPED_KEY));
+        assert!(store.entries.lock().is_empty());
+        assert!(backend.loaded_config().await.accounts.is_empty());
+
+        backend
+            .inner
+            .drive_save_account(typed_key_input(TYPED_KEY), cleared())
+            .await
+            .unwrap();
+        let values: Vec<_> = store
+            .entries
+            .lock()
+            .values()
+            .map(|token| token.access_token.clone())
+            .collect();
+        assert_eq!(values, [TYPED_KEY]);
+        let text = std::fs::read_to_string(backend.file_path().await).unwrap();
+        assert!(!text.contains(TYPED_KEY), "{text}");
+        assert!(!text.contains("credential_env ="), "{text}");
+        let config = backend.loaded_config().await;
+        assert_eq!(config.accounts[0].credential_env, None);
+
+        let form = serde_json::to_string(&backend.inner.get_account(0).await.unwrap()).unwrap();
+        assert!(!form.contains(TYPED_KEY), "{form}");
+        let form: serde_json::Value = serde_json::from_str(&form).unwrap();
+        assert_eq!(form["credential_stored"], true);
+        assert_eq!(form["secret_states"][0]["source"], "vault");
+        assert!(form["vault_migration"].as_array().unwrap().is_empty());
+
+        // Editing without retyping keeps the vault key.
+        let mut edit = typed_key_input("");
+        edit.index = Some(0);
+        backend.inner.drive_save_account(edit, None).await.unwrap();
+        assert_eq!(store.entries.lock().len(), 1);
+        assert_eq!(
+            backend.loaded_config().await.accounts[0].credential_env,
+            None
+        );
+    }
+
+    /// PRD 0047 G1: the schema lists the secret inputs, marks the variable
+    /// fields as terminal-only, and no GUI label names a variable.
+    #[test]
+    fn the_form_schema_asks_for_secrets_not_variables() {
+        let schema = serde_json::to_value(form_schema(Provider::AlibabaCloud)).unwrap();
+        let slots: Vec<_> = schema["secret_inputs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|i| i["slot"].as_str().unwrap().to_string())
+            .collect();
+        assert_eq!(
+            slots,
+            ["credential_env", "secret_env", "security_token_env"]
+        );
+        assert_eq!(
+            schema["terminal_only_fields"],
+            serde_json::json!(["secret_env", "security_token_env"])
+        );
+        for input in schema["secret_inputs"].as_array().unwrap() {
+            let label = input["label"]["fallback"].as_str().unwrap().to_lowercase();
+            assert!(!label.contains("variable"), "{label}");
+        }
+    }
+
+    /// PRD 0047 G5: an account set up in the terminal shows as such, without
+    /// its variable name, and the move into the vault copies its key.
+    #[tokio::test(flavor = "current_thread")]
+    async fn an_environment_key_moves_into_the_vault_on_request() {
+        let env = "CUOTAI_TEST_DESKTOP_MIGRATE_KEY";
+        std::env::set_var(env, TYPED_KEY);
+        let store = Arc::new(MemoryStore::default());
+        let account = Account {
+            name: "groq".into(),
+            provider: Provider::Groq,
+            credential_env: Some(env.into()),
+            ..Default::default()
+        };
+        let backend = build_backend(store.clone(), vec![account]).await;
+        let before = serde_json::to_value(backend.inner.get_account(0).await.unwrap()).unwrap();
+        assert_eq!(before["secret_states"][0]["source"], "environment");
+        assert_eq!(before["credential_stored"], false);
+        assert!(!before["vault_migration"].to_string().contains(env));
+        assert_eq!(before["vault_migration"].as_array().unwrap().len(), 1);
+
+        let moved = backend
+            .inner
+            .drive_session_change(0, SessionChange::Migrate)
+            .await;
+        std::env::remove_var(env);
+        moved.unwrap();
+        let values: Vec<_> = store
+            .entries
+            .lock()
+            .values()
+            .map(|token| token.access_token.clone())
+            .collect();
+        assert_eq!(values, [TYPED_KEY]);
+        let text = std::fs::read_to_string(backend.file_path().await).unwrap();
+        assert!(!text.contains(env) && !text.contains(TYPED_KEY), "{text}");
+        let after = serde_json::to_value(backend.inner.get_account(0).await.unwrap()).unwrap();
+        assert_eq!(after["credential_stored"], true);
     }
 
     /// PRD 0036 RF2.1/RF2.6: Test connection of a 9router draft reads the

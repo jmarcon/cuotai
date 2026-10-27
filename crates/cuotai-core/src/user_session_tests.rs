@@ -1550,10 +1550,17 @@ fn only_a_failed_vault_session_offers_a_new_paste() {
         Status::Error,
         "query.transport"
     )));
+    // PRD 0047: a provider that keeps nothing in the vault never offers one.
     assert!(!offers_new_paste(&failed(
-        Provider::OpenAiApi,
+        Provider::AwsBedrock,
         Status::AuthenticationError,
         "user_session.rejected"
+    )));
+    // A vault API key that went missing asks for it again.
+    assert!(offers_new_paste(&failed(
+        Provider::OpenAiApi,
+        Status::NeedsConfiguration,
+        "user_session.not_found"
     )));
     let mut ready = failed(
         Provider::XiaomiMimo,

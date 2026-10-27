@@ -1717,5 +1717,22 @@
   "metric.label.window_weeks": "{prefix} — {n} haftalık pencere (%)",
   "metric.label.window_hours": "{prefix} — {n} saatlik pencere (%)",
   "metric.label.window_seconds": "{prefix} — {n} sn'lik pencere (%)",
-  "metric.label.rate_limit_of": "{label} (hız sınırı)"
+  "metric.label.rate_limit_of": "{label} (hız sınırı)",
+  "secret_input.help": "Değeri yapıştırın. Cuotai onu sistem kasasında saklar ve yalnızca bu sağlayıcıya gönderir; yapılandırma dosyası yalnızca bir başvuru tutar.",
+  "secret_input.credential.label": "API anahtarı veya erişim belirteci",
+  "secret_input.slot.admin_key_env.label": "Yönetici API anahtarı (isteğe bağlı)",
+  "secret_input.slot.token_env.label": "OAuth erişim belirteci (isteğe bağlı)",
+  "secret_input.slot.session_env.label": "CLI oturum belirteci",
+  "secret_input.slot.management_key_env.label": "Yönetim anahtarı (isteğe bağlı)",
+  "secret_input.slot.analytics_key_env.label": "Analytics anahtarı (isteğe bağlı)",
+  "secret_input.slot.secret_env.label": "AccessKey Secret",
+  "secret_input.slot.security_token_env.label": "STS güvenlik belirteci (isteğe bağlı)",
+  "secret_input.slot.platform_session_env.label": "Platform oturumu",
+  "secret_input.unknown_slot": "Bu sağlayıcı bu gizli değeri kabul etmiyor; hesap formunu yeniden açın.",
+  "secret_input.duplicate_slot": "Aynı gizli değer iki kez gönderildi; hesap formunu yeniden açın.",
+  "secret_input.state.vault": "Sistem kasasında saklanıyor",
+  "secret_input.state.environment": "Bir ortam değişkeni kullanılıyor (terminalde ayarlandı)",
+  "secret_input.state.unset": "Ayarlanmadı",
+  "secret_input.migrate.consent": "{label}: Cuotai bugün terminal ayarlarından okuduğu değeri sistem kasasına kopyalar. Bundan sonra bu hesap o ayar olmadan çalışır; yapılandırma dosyası yalnızca bir başvuru tutar.",
+  "user_session.slot.secret": "Sistem kasasında saklanan gizli değer"
 }

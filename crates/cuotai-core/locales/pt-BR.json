@@ -1714,5 +1714,22 @@
   "metric.label.window_weeks": "{prefix} — janela de {n} semana(s) (%)",
   "metric.label.window_hours": "{prefix} — janela de {n} hora(s) (%)",
   "metric.label.window_seconds": "{prefix} — janela de {n}s (%)",
-  "metric.label.rate_limit_of": "{label} (rate limit)"
+  "metric.label.rate_limit_of": "{label} (rate limit)",
+  "secret_input.help": "Cole o valor. O Cuotai o guarda no cofre do sistema e o envia só a este provedor; o arquivo de configuração guarda apenas uma referência.",
+  "secret_input.credential.label": "Chave de API ou token de acesso",
+  "secret_input.slot.admin_key_env.label": "Chave de API de administração (opcional)",
+  "secret_input.slot.token_env.label": "Token de acesso OAuth (opcional)",
+  "secret_input.slot.session_env.label": "Token de sessão da CLI",
+  "secret_input.slot.management_key_env.label": "Chave de gerenciamento (opcional)",
+  "secret_input.slot.analytics_key_env.label": "Chave de Analytics (opcional)",
+  "secret_input.slot.secret_env.label": "AccessKey Secret",
+  "secret_input.slot.security_token_env.label": "Token de segurança STS (opcional)",
+  "secret_input.slot.platform_session_env.label": "Sessão da plataforma",
+  "secret_input.unknown_slot": "Este provedor não aceita esse segredo; reabra o formulário da conta.",
+  "secret_input.duplicate_slot": "O mesmo segredo foi enviado duas vezes; reabra o formulário da conta.",
+  "secret_input.state.vault": "Guardado no cofre do sistema",
+  "secret_input.state.environment": "Usando uma variável de ambiente (configurada no terminal)",
+  "secret_input.state.unset": "Não definido",
+  "secret_input.migrate.consent": "{label}: o Cuotai copia o valor que hoje lê da configuração do terminal para o cofre do sistema. A partir daí esta conta funciona sem essa configuração; o arquivo de configuração guarda apenas uma referência.",
+  "user_session.slot.secret": "Segredo guardado no cofre do sistema"
 }

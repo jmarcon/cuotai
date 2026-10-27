@@ -1735,5 +1735,22 @@
   "metric.label.window_weeks": "{prefix} — окно: недель: {n} (%)",
   "metric.label.window_hours": "{prefix} — окно: часов: {n} (%)",
   "metric.label.window_seconds": "{prefix} — окно: {n} с (%)",
-  "metric.label.rate_limit_of": "{label} (лимит частоты)"
+  "metric.label.rate_limit_of": "{label} (лимит частоты)",
+  "secret_input.help": "Вставьте значение. Cuotai хранит его в системном хранилище и отправляет только этому провайдеру; в файле конфигурации остаётся лишь ссылка.",
+  "secret_input.credential.label": "Ключ API или токен доступа",
+  "secret_input.slot.admin_key_env.label": "Административный ключ API (необязательно)",
+  "secret_input.slot.token_env.label": "Токен доступа OAuth (необязательно)",
+  "secret_input.slot.session_env.label": "Токен сеанса CLI",
+  "secret_input.slot.management_key_env.label": "Ключ управления (необязательно)",
+  "secret_input.slot.analytics_key_env.label": "Ключ Analytics (необязательно)",
+  "secret_input.slot.secret_env.label": "AccessKey Secret",
+  "secret_input.slot.security_token_env.label": "Токен безопасности STS (необязательно)",
+  "secret_input.slot.platform_session_env.label": "Сеанс платформы",
+  "secret_input.unknown_slot": "Этот провайдер не принимает такой секрет; откройте форму аккаунта заново.",
+  "secret_input.duplicate_slot": "Один и тот же секрет отправлен дважды; откройте форму аккаунта заново.",
+  "secret_input.state.vault": "Сохранено в системном хранилище",
+  "secret_input.state.environment": "Используется переменная окружения (настроенная в терминале)",
+  "secret_input.state.unset": "Не задано",
+  "secret_input.migrate.consent": "{label}: Cuotai копирует значение, которое сейчас читает из настроек терминала, в системное хранилище. После этого аккаунт работает без этих настроек; в файле конфигурации остаётся лишь ссылка.",
+  "user_session.slot.secret": "Секрет в системном хранилище"
 }

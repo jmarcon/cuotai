@@ -1708,5 +1708,22 @@
   "metric.label.window_weeks": "{prefix} — khung {n} tuần (%)",
   "metric.label.window_hours": "{prefix} — khung {n} giờ (%)",
   "metric.label.window_seconds": "{prefix} — khung {n} giây (%)",
-  "metric.label.rate_limit_of": "{label} (rate limit)"
+  "metric.label.rate_limit_of": "{label} (rate limit)",
+  "secret_input.help": "Dán giá trị. Cuotai giữ nó trong kho của hệ thống và chỉ gửi cho nhà cung cấp này; tệp cấu hình chỉ giữ một tham chiếu.",
+  "secret_input.credential.label": "Khóa API hoặc mã truy cập",
+  "secret_input.slot.admin_key_env.label": "Khóa API quản trị (tùy chọn)",
+  "secret_input.slot.token_env.label": "Mã truy cập OAuth (tùy chọn)",
+  "secret_input.slot.session_env.label": "Mã phiên của CLI",
+  "secret_input.slot.management_key_env.label": "Khóa quản lý (tùy chọn)",
+  "secret_input.slot.analytics_key_env.label": "Khóa Analytics (tùy chọn)",
+  "secret_input.slot.secret_env.label": "AccessKey Secret",
+  "secret_input.slot.security_token_env.label": "Mã bảo mật STS (tùy chọn)",
+  "secret_input.slot.platform_session_env.label": "Phiên của nền tảng",
+  "secret_input.unknown_slot": "Nhà cung cấp này không nhận bí mật đó; hãy mở lại biểu mẫu tài khoản.",
+  "secret_input.duplicate_slot": "Cùng một bí mật đã được gửi hai lần; hãy mở lại biểu mẫu tài khoản.",
+  "secret_input.state.vault": "Đã lưu trong kho của hệ thống",
+  "secret_input.state.environment": "Đang dùng biến môi trường (thiết lập trong terminal)",
+  "secret_input.state.unset": "Chưa đặt",
+  "secret_input.migrate.consent": "{label}: Cuotai sao chép giá trị hiện đọc từ thiết lập terminal vào kho của hệ thống. Từ đó tài khoản này hoạt động mà không cần thiết lập đó; tệp cấu hình chỉ giữ một tham chiếu.",
+  "user_session.slot.secret": "Bí mật được giữ trong kho của hệ thống"
 }

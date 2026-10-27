@@ -1708,5 +1708,22 @@
   "metric.label.window_weeks": "{prefix} — {n} 週間ウィンドウ（%）",
   "metric.label.window_hours": "{prefix} — {n} 時間ウィンドウ（%）",
   "metric.label.window_seconds": "{prefix} — {n} 秒ウィンドウ（%）",
-  "metric.label.rate_limit_of": "{label}（レート制限）"
+  "metric.label.rate_limit_of": "{label}（レート制限）",
+  "secret_input.help": "値を貼り付けてください。Cuotai はシステムの保管庫に保存し、このプロバイダーにのみ送信します。設定ファイルには参照だけが残ります。",
+  "secret_input.credential.label": "API キーまたはアクセストークン",
+  "secret_input.slot.admin_key_env.label": "管理用 API キー（任意）",
+  "secret_input.slot.token_env.label": "OAuth アクセストークン（任意）",
+  "secret_input.slot.session_env.label": "CLI のセッショントークン",
+  "secret_input.slot.management_key_env.label": "管理キー（任意）",
+  "secret_input.slot.analytics_key_env.label": "Analytics キー（任意）",
+  "secret_input.slot.secret_env.label": "AccessKey Secret",
+  "secret_input.slot.security_token_env.label": "STS セキュリティトークン（任意）",
+  "secret_input.slot.platform_session_env.label": "プラットフォームのセッション",
+  "secret_input.unknown_slot": "このプロバイダーはそのシークレットを受け付けません。アカウントのフォームを開き直してください。",
+  "secret_input.duplicate_slot": "同じシークレットが 2 回送信されました。アカウントのフォームを開き直してください。",
+  "secret_input.state.vault": "システムの保管庫に保存済み",
+  "secret_input.state.environment": "環境変数を使用中（ターミナルで設定）",
+  "secret_input.state.unset": "未設定",
+  "secret_input.migrate.consent": "{label}: Cuotai は現在ターミナルの設定から読み取っている値をシステムの保管庫にコピーします。以後このアカウントはその設定なしで動作し、設定ファイルには参照だけが残ります。",
+  "user_session.slot.secret": "システムの保管庫に保存されたシークレット"
 }

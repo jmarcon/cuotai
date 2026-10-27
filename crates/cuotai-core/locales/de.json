@@ -1717,5 +1717,22 @@
   "metric.label.window_weeks": "{prefix} — Fenster von {n} Woche(n) (%)",
   "metric.label.window_hours": "{prefix} — Fenster von {n} Stunde(n) (%)",
   "metric.label.window_seconds": "{prefix} — Fenster von {n} s (%)",
-  "metric.label.rate_limit_of": "{label} (Ratenlimit)"
+  "metric.label.rate_limit_of": "{label} (Ratenlimit)",
+  "secret_input.help": "Füge den Wert ein. Cuotai bewahrt ihn im Systemtresor auf und sendet ihn nur an diesen Anbieter; die Konfigurationsdatei enthält nur einen Verweis.",
+  "secret_input.credential.label": "API-Schlüssel oder Zugriffstoken",
+  "secret_input.slot.admin_key_env.label": "Admin-API-Schlüssel (optional)",
+  "secret_input.slot.token_env.label": "OAuth-Zugriffstoken (optional)",
+  "secret_input.slot.session_env.label": "Sitzungstoken der CLI",
+  "secret_input.slot.management_key_env.label": "Verwaltungsschlüssel (optional)",
+  "secret_input.slot.analytics_key_env.label": "Analytics-Schlüssel (optional)",
+  "secret_input.slot.secret_env.label": "AccessKey Secret",
+  "secret_input.slot.security_token_env.label": "STS-Sicherheitstoken (optional)",
+  "secret_input.slot.platform_session_env.label": "Plattform-Sitzung",
+  "secret_input.unknown_slot": "Dieser Anbieter nimmt dieses Geheimnis nicht an; öffne das Kontoformular erneut.",
+  "secret_input.duplicate_slot": "Dasselbe Geheimnis wurde zweimal gesendet; öffne das Kontoformular erneut.",
+  "secret_input.state.vault": "Im Systemtresor gespeichert",
+  "secret_input.state.environment": "Verwendet eine Umgebungsvariable (im Terminal eingerichtet)",
+  "secret_input.state.unset": "Nicht gesetzt",
+  "secret_input.migrate.consent": "{label}: Cuotai kopiert den Wert, den es heute aus der Terminal-Einrichtung liest, in den Systemtresor. Danach funktioniert dieses Konto ohne diese Einrichtung; die Konfigurationsdatei enthält nur einen Verweis.",
+  "user_session.slot.secret": "Im Systemtresor gespeichertes Geheimnis"
 }

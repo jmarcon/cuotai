@@ -870,6 +870,17 @@ mod tests {
 
         let mut ids = Vec::new();
         ids.push("edit_error.option_not_valid_for_auth_mode".to_string());
+        for id in [
+            "secret_input.unknown_slot",
+            "secret_input.duplicate_slot",
+            "secret_input.state.vault",
+            "secret_input.state.environment",
+            "secret_input.state.unset",
+            "secret_input.migrate.consent",
+            "user_session.slot.secret",
+        ] {
+            ids.push(id.to_string());
+        }
         ids.push("edit_notice.option_replaced_for_auth_mode".to_string());
         for error in [
             crate::models::ModelError::InvalidIndex,
@@ -923,6 +934,11 @@ mod tests {
                 let notice = crate::user_session::notice(&legacy).expect("env session");
                 ids.push(notice.level.id.to_string());
                 ids.push(notice.warning.id.to_string());
+            }
+            // PRD 0047: the secrets the desktop asks for.
+            for input in crate::secret_input::secret_inputs(provider) {
+                ids.push(input.label.id.to_string());
+                ids.push(input.help.id.to_string());
             }
             if let Some(notice) = crate::user_session::paste_notice(provider) {
                 ids.push(notice.warning.id.to_string());

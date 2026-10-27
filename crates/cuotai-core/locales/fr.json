@@ -1717,5 +1717,22 @@
   "metric.label.window_weeks": "{prefix} — fenêtre de {n} semaine(s) (%)",
   "metric.label.window_hours": "{prefix} — fenêtre de {n} heure(s) (%)",
   "metric.label.window_seconds": "{prefix} — fenêtre de {n} s (%)",
-  "metric.label.rate_limit_of": "{label} (limite de débit)"
+  "metric.label.rate_limit_of": "{label} (limite de débit)",
+  "secret_input.help": "Collez la valeur. Cuotai la conserve dans le coffre du système et ne l'envoie qu'à ce fournisseur ; le fichier de configuration ne garde qu'une référence.",
+  "secret_input.credential.label": "Clé d'API ou jeton d'accès",
+  "secret_input.slot.admin_key_env.label": "Clé d'API d'administration (facultative)",
+  "secret_input.slot.token_env.label": "Jeton d'accès OAuth (facultatif)",
+  "secret_input.slot.session_env.label": "Jeton de session de la CLI",
+  "secret_input.slot.management_key_env.label": "Clé de gestion (facultative)",
+  "secret_input.slot.analytics_key_env.label": "Clé Analytics (facultative)",
+  "secret_input.slot.secret_env.label": "AccessKey Secret",
+  "secret_input.slot.security_token_env.label": "Jeton de sécurité STS (facultatif)",
+  "secret_input.slot.platform_session_env.label": "Session de la plateforme",
+  "secret_input.unknown_slot": "Ce fournisseur n'accepte pas ce secret ; rouvrez le formulaire du compte.",
+  "secret_input.duplicate_slot": "Le même secret a été envoyé deux fois ; rouvrez le formulaire du compte.",
+  "secret_input.state.vault": "Enregistré dans le coffre du système",
+  "secret_input.state.environment": "Utilise une variable d'environnement (configurée dans le terminal)",
+  "secret_input.state.unset": "Non défini",
+  "secret_input.migrate.consent": "{label} : Cuotai copie la valeur qu'il lit aujourd'hui dans la configuration du terminal vers le coffre du système. Ensuite ce compte fonctionne sans cette configuration ; le fichier de configuration ne garde qu'une référence.",
+  "user_session.slot.secret": "Secret enregistré dans le coffre du système"
 }

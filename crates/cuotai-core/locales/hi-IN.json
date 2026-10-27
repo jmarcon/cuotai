@@ -1717,5 +1717,22 @@
   "metric.label.window_weeks": "{prefix} — {n} सप्ताह की विंडो (%)",
   "metric.label.window_hours": "{prefix} — {n} घंटे की विंडो (%)",
   "metric.label.window_seconds": "{prefix} — {n} सेकंड की विंडो (%)",
-  "metric.label.rate_limit_of": "{label} (रेट लिमिट)"
+  "metric.label.rate_limit_of": "{label} (रेट लिमिट)",
+  "secret_input.help": "मान चिपकाएँ। Cuotai इसे सिस्टम वॉल्ट में रखता है और केवल इसी प्रदाता को भेजता है; कॉन्फ़िगरेशन फ़ाइल में केवल एक संदर्भ रहता है।",
+  "secret_input.credential.label": "API कुंजी या एक्सेस टोकन",
+  "secret_input.slot.admin_key_env.label": "एडमिन API कुंजी (वैकल्पिक)",
+  "secret_input.slot.token_env.label": "OAuth एक्सेस टोकन (वैकल्पिक)",
+  "secret_input.slot.session_env.label": "CLI सत्र टोकन",
+  "secret_input.slot.management_key_env.label": "प्रबंधन कुंजी (वैकल्पिक)",
+  "secret_input.slot.analytics_key_env.label": "Analytics कुंजी (वैकल्पिक)",
+  "secret_input.slot.secret_env.label": "AccessKey Secret",
+  "secret_input.slot.security_token_env.label": "STS सुरक्षा टोकन (वैकल्पिक)",
+  "secret_input.slot.platform_session_env.label": "प्लेटफ़ॉर्म सत्र",
+  "secret_input.unknown_slot": "यह प्रदाता वह गोपनीय मान नहीं लेता; खाते का फ़ॉर्म फिर से खोलें।",
+  "secret_input.duplicate_slot": "एक ही गोपनीय मान दो बार भेजा गया; खाते का फ़ॉर्म फिर से खोलें।",
+  "secret_input.state.vault": "सिस्टम वॉल्ट में सहेजा गया",
+  "secret_input.state.environment": "एनवायरनमेंट वेरिएबल का उपयोग (टर्मिनल में सेट)",
+  "secret_input.state.unset": "सेट नहीं",
+  "secret_input.migrate.consent": "{label}: Cuotai वह मान जो वह अभी टर्मिनल सेटअप से पढ़ता है, सिस्टम वॉल्ट में कॉपी करता है। इसके बाद यह खाता उस सेटअप के बिना काम करता है; कॉन्फ़िगरेशन फ़ाइल में केवल एक संदर्भ रहता है।",
+  "user_session.slot.secret": "सिस्टम वॉल्ट में रखा गोपनीय मान"
 }

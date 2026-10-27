@@ -100,7 +100,8 @@ async fn detect_sources(b: Shared<'_>) -> Result<Vec<cuotai_core::detect::Detect
     let configured = b.configured_providers().await;
     let probe_configured = configured.clone();
     let mut found = tauri::async_runtime::spawn_blocking(move || {
-        cuotai_core::detect::local_sources_here(&configured)
+        // PRD 0047 G1: the desktop never detects environment variables.
+        cuotai_core::detect::desktop_sources_here(&configured)
     })
     .await
     .map_err(|_| "detect_failed".to_string())?;

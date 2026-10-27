@@ -84,6 +84,78 @@ pub fn default_env(provider: Provider) -> &'static str {
     }
 }
 
+/// PRD 0047 T1/T2: the variable the TUI suggests for a new account of
+/// `provider` named `name` in `config` (`editing` is the account being
+/// edited, left out of the comparison). The first account of a provider
+/// gets [`default_env`]; when another account already names that variable
+/// the suggestion is `<DEFAULT>_<NAME>` (the account name upper-cased,
+/// every other character an underscore), then a numeric suffix until no
+/// account of `config` names it. Empty for providers without a variable.
+pub fn suggest_env_for(
+    provider: Provider,
+    config: &Config,
+    name: &str,
+    editing: Option<usize>,
+) -> String {
+    let default = default_env(provider);
+    if default.is_empty() {
+        return String::new();
+    }
+    let taken: std::collections::BTreeSet<&str> = config
+        .accounts
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| Some(*index) != editing)
+        .flat_map(|(_, account)| {
+            account.credential_env.iter().map(String::as_str).chain(
+                account
+                    .params
+                    .iter()
+                    .filter(|(key, _)| key.ends_with("_env"))
+                    .map(|(_, value)| value.as_str()),
+            )
+        })
+        .collect();
+    if !taken.contains(default) {
+        return default.to_string();
+    }
+    let mut slug: String = name
+        .trim()
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() {
+                c.to_ascii_uppercase()
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    while slug.contains("__") {
+        slug = slug.replace("__", "_");
+    }
+    let slug = slug.trim_matches('_');
+    let base = if slug.is_empty() {
+        default.to_string()
+    } else {
+        format!("{default}_{slug}")
+    };
+    if !taken.contains(base.as_str()) {
+        return base;
+    }
+    (2..)
+        .map(|n| format!("{base}_{n}"))
+        .find(|candidate| !taken.contains(candidate.as_str()))
+        .expect("an unused suffix")
+}
+
+/// PRD 0047 G1: whether the field `key` of `provider` names a variable
+/// (a `*_env` parameter). The desktop never renders it; it asks for the
+/// secret through [`crate::secret_input::secret_inputs`] instead, and the
+/// TUI keeps it.
+pub fn is_terminal_only_field(provider: Provider, key: &str) -> bool {
+    key.ends_with("_env") && descriptor(provider, key).is_some()
+}
+
 /// Provider-specific help shown next to the credential field.
 ///
 /// RF8: the returned [`Localized`] carries the stable id
@@ -1986,6 +2058,18 @@ pub fn apply_draft_fields(
     fields: &[DraftField],
     visibility: &FieldVisibility<'_>,
 ) -> Result<(), crate::text::Localized> {
+    apply_fields(provider, params, fields, visibility, &Default::default())
+}
+
+/// [`apply_draft_fields`] where the `vault` slots are kept in the system
+/// vault (PRD 0047): their fields are never required in the draft.
+fn apply_fields(
+    provider: Provider,
+    params: &mut BTreeMap<String, String>,
+    fields: &[DraftField],
+    visibility: &FieldVisibility<'_>,
+    vault: &std::collections::BTreeSet<&str>,
+) -> Result<(), crate::text::Localized> {
     strip_managed_keys(provider, params);
     let descriptors = field_descriptors(provider);
     let visible = visible_field_indices(provider, visibility);
@@ -2013,8 +2097,9 @@ pub fn apply_draft_fields(
 
     for idx in visible {
         let descriptor = &descriptors[idx];
+        let required = descriptor.required && !vault.contains(descriptor.key);
         let Some(field) = draft_by_key.get(descriptor.key) else {
-            if descriptor.required {
+            if required {
                 return Err(required_field_note(provider, descriptor));
             }
             if let FieldDescriptorKind::Choice(choice) = descriptor.kind {
@@ -2042,7 +2127,7 @@ pub fn apply_draft_fields(
             (FieldDescriptorKind::Text, DraftValue::Text(value)) => {
                 let trimmed = value.trim();
                 if trimmed.is_empty() {
-                    if descriptor.required {
+                    if required {
                         return Err(required_field_note(provider, descriptor));
                     }
                     continue;
@@ -2342,6 +2427,25 @@ pub fn build_account(
     config: &Config,
     editing: Option<usize>,
 ) -> Result<Account, crate::edit_error::EditError> {
+    build_account_with_secrets(draft, config, editing, &[])
+}
+
+/// PRD 0047: [`build_account`] for a draft whose secrets the GUI typed.
+/// `typed` names the [`crate::secret_input::SecretInput`] slots the save
+/// writes to the vault (from [`crate::secret_input::reduce_secrets`]); the
+/// slots the edited account already keeps in the vault count as well. A
+/// vault-held main credential needs no variable name (`credential_env`
+/// stays unset whatever the draft's credential text) and a vault-held
+/// parameter secret is neither required in the draft nor written to
+/// `params` when typed. Persist the result through
+/// [`crate::user_session::stage_pasted`], which points the account at the
+/// vault.
+pub fn build_account_with_secrets(
+    draft: &AccountDraft<'_>,
+    config: &Config,
+    editing: Option<usize>,
+    typed: &[&str],
+) -> Result<Account, crate::edit_error::EditError> {
     let AccountDraft {
         provider,
         name,
@@ -2366,8 +2470,25 @@ pub fn build_account(
     let oauth = resolve_oauth(*oauth_mode, oauth_authorized.clone(), *oauth_existing)
         .map_err(|message| build_account_field_error("oauth", message))?;
 
-    let credential_env = resolve_credential_env(*provider, credential, oauth.as_ref())
-        .map_err(|message| build_account_field_error("credential_env", message))?;
+    let stored: std::collections::BTreeSet<&str> = editing
+        .and_then(|i| config.accounts.get(i))
+        .filter(|account| account.provider == *provider)
+        .and_then(|account| account.session.as_ref())
+        .into_iter()
+        .flat_map(|session| session.slots.iter().map(String::as_str))
+        .collect();
+    let vault: std::collections::BTreeSet<&str> = stored
+        .iter()
+        .copied()
+        .chain(typed.iter().copied())
+        .collect();
+    let credential_env = if oauth.is_none() && vault.contains(crate::user_session::CREDENTIAL_SLOT)
+    {
+        None
+    } else {
+        resolve_credential_env(*provider, credential, oauth.as_ref())
+            .map_err(|message| build_account_field_error("credential_env", message))?
+    };
 
     // Start from the credential-enriched params when Bailian F2 mutated
     // them; otherwise clone the editing account's params (same provider
@@ -2402,8 +2523,11 @@ pub fn build_account(
         login_params: oauth_login_params,
         choice_selections: &choice_selections,
     };
-    apply_draft_fields(*provider, &mut params, fields, &visibility)
+    apply_fields(*provider, &mut params, fields, &visibility, &vault)
         .map_err(|message| build_account_field_error("params", message))?;
+    for slot in typed {
+        params.remove(*slot);
+    }
 
     let editing_account = editing.and_then(|i| config.accounts.get(i));
     if oauth.is_some() {

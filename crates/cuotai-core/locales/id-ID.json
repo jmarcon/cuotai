@@ -1708,5 +1708,22 @@
   "metric.label.window_weeks": "{prefix} — jendela {n} minggu (%)",
   "metric.label.window_hours": "{prefix} — jendela {n} jam (%)",
   "metric.label.window_seconds": "{prefix} — jendela {n} dtk (%)",
-  "metric.label.rate_limit_of": "{label} (rate limit)"
+  "metric.label.rate_limit_of": "{label} (rate limit)",
+  "secret_input.help": "Tempel nilainya. Cuotai menyimpannya di brankas sistem dan hanya mengirimkannya ke penyedia ini; berkas konfigurasi hanya menyimpan referensi.",
+  "secret_input.credential.label": "Kunci API atau token akses",
+  "secret_input.slot.admin_key_env.label": "Kunci API admin (opsional)",
+  "secret_input.slot.token_env.label": "Token akses OAuth (opsional)",
+  "secret_input.slot.session_env.label": "Token sesi CLI",
+  "secret_input.slot.management_key_env.label": "Kunci manajemen (opsional)",
+  "secret_input.slot.analytics_key_env.label": "Kunci Analytics (opsional)",
+  "secret_input.slot.secret_env.label": "AccessKey Secret",
+  "secret_input.slot.security_token_env.label": "Token keamanan STS (opsional)",
+  "secret_input.slot.platform_session_env.label": "Sesi platform",
+  "secret_input.unknown_slot": "Penyedia ini tidak menerima rahasia tersebut; buka ulang formulir akun.",
+  "secret_input.duplicate_slot": "Rahasia yang sama dikirim dua kali; buka ulang formulir akun.",
+  "secret_input.state.vault": "Disimpan di brankas sistem",
+  "secret_input.state.environment": "Memakai variabel lingkungan (diatur di terminal)",
+  "secret_input.state.unset": "Belum diatur",
+  "secret_input.migrate.consent": "{label}: Cuotai menyalin nilai yang kini dibacanya dari pengaturan terminal ke brankas sistem. Sejak itu akun ini berfungsi tanpa pengaturan tersebut; berkas konfigurasi hanya menyimpan referensi.",
+  "user_session.slot.secret": "Rahasia yang disimpan di brankas sistem"
 }

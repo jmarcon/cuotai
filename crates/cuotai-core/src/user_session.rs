@@ -301,6 +301,32 @@ pub fn descriptor(provider: Provider, slot: &str) -> Option<&'static SessionDesc
     descriptors(provider).iter().find(|d| d.slot == slot)
 }
 
+/// PRD 0047: the vault descriptor of `slot` for `provider`: the web
+/// session or password the provider declares in [`descriptors`], else the
+/// API key, token or secret of [`crate::secret_input::secret_inputs`]
+/// (delivered by the adapter itself, [`Delivery::Secret`]). `None` for a
+/// slot the provider cannot keep in the vault.
+pub fn vault_descriptor(provider: Provider, slot: &str) -> Option<SessionDescriptor> {
+    if let Some(declared) = descriptor(provider, slot) {
+        return Some(*declared);
+    }
+    let input = crate::secret_input::secret_input_slot(provider, slot)?;
+    Some(SessionDescriptor {
+        slot: input,
+        required: &[],
+        optional: &[],
+        hosts: &[],
+        account_host: false,
+        delivery: Delivery::Secret,
+        jwt_expiry: false,
+        site: "",
+        label: (
+            "user_session.slot.secret",
+            "Secret kept in the system vault",
+        ),
+    })
+}
+
 /// Prefix of the name a vault session slot is read under: the query puts
 /// it in the slot's parameter in place of a variable name.
 pub(crate) const VAULT_NAME: &str = "__CUOTAI_USER_SESSION:";
@@ -374,7 +400,7 @@ impl SessionConfig {
             && self
                 .slots
                 .iter()
-                .all(|slot| descriptor(provider, slot).is_some())
+                .all(|slot| vault_descriptor(provider, slot).is_some())
     }
 }
 
@@ -454,7 +480,7 @@ pub(crate) async fn load(
     let mut sessions = Vec::with_capacity(config.slots.len());
     for slot in &config.slots {
         let (Some(descriptor), Some(key)) = (
-            descriptor(account.provider, slot),
+            vault_descriptor(account.provider, slot),
             storage_key(account.provider, config, slot),
         ) else {
             return Err(crate::providers::QueryError {
@@ -516,7 +542,7 @@ pub fn migrated_notice() -> Localized {
 
 /// The variable name `slot` of `account` reads today: `credential_env` for
 /// [`CREDENTIAL_SLOT`], `params.<slot>` otherwise.
-fn slot_env<'a>(account: &'a Account, slot: &str) -> Option<&'a str> {
+pub(crate) fn slot_env<'a>(account: &'a Account, slot: &str) -> Option<&'a str> {
     if slot == CREDENTIAL_SLOT {
         account.credential_env.as_deref()
     } else {
@@ -611,7 +637,34 @@ pub async fn stage_migration(
     index: usize,
 ) -> Result<StagedSession, Localized> {
     let account = config.accounts.get(index).ok_or_else(no_account)?;
-    let candidates = migration_candidates(account);
+    stage_candidates(oauth, secrets, config, index, migration_candidates(account)).await
+}
+
+/// PRD 0047 (GUI requirement G5): move every secret of the account at
+/// `index` still read from an environment variable — its web sessions and
+/// its API keys, tokens and secrets alike — into the vault, after the
+/// user's explicit request. Same guarantees as [`stage_migration`]:
+/// nothing is written when a variable is unset, errors name the variable
+/// and never its value, and [`rollback`] undoes the writes.
+pub async fn stage_vault_migration(
+    oauth: &OAuthSession,
+    secrets: &dyn Credentials,
+    config: &Config,
+    index: usize,
+) -> Result<StagedSession, Localized> {
+    let account = config.accounts.get(index).ok_or_else(no_account)?;
+    let candidates = crate::secret_input::vault_migration_candidates(account);
+    stage_candidates(oauth, secrets, config, index, candidates).await
+}
+
+async fn stage_candidates(
+    oauth: &OAuthSession,
+    secrets: &dyn Credentials,
+    config: &Config,
+    index: usize,
+    candidates: Vec<MigrationCandidate>,
+) -> Result<StagedSession, Localized> {
+    let account = config.accounts.get(index).ok_or_else(no_account)?;
     if candidates.is_empty() {
         return Err(Localized::fixed(
             "user_session.migrate.nothing",
@@ -666,7 +719,7 @@ pub async fn stage_pasted(
     let mut values = Vec::with_capacity(sessions.len());
     for session in sessions {
         let descriptor =
-            descriptor(account.provider, session.slot).ok_or_else(invalid_reference)?;
+            vault_descriptor(account.provider, session.slot).ok_or_else(invalid_reference)?;
         values.push((descriptor.slot, session.cookie.clone(), session.expires_at));
     }
     write_sessions(oauth, config, index, values).await
@@ -768,7 +821,8 @@ pub fn offers_new_paste(report: &crate::Report) -> bool {
         "user_session.invalid_reference",
         "query.session.missing_cookies",
     ];
-    !descriptors(report.provider).is_empty()
+    (!descriptors(report.provider).is_empty()
+        || !crate::secret_input::secret_inputs(report.provider).is_empty())
         && report.status != crate::Status::Ready
         && report
             .notes_l10n
@@ -818,6 +872,13 @@ impl SessionCheck {
 #[derive(Debug)]
 pub struct SaveClearance {
     _private: (),
+}
+
+#[cfg(test)]
+impl SaveClearance {
+    pub(crate) fn for_tests() -> Self {
+        Self { _private: () }
+    }
 }
 
 /// SES-02: why a pasted session was not saved. `save_anyway` is set only
@@ -1342,7 +1403,7 @@ pub fn reduce(
     paste: &str,
     now: DateTime<Utc>,
 ) -> Result<ReducedSession, Localized> {
-    let descriptor = descriptor(provider, slot).ok_or_else(invalid_reference)?;
+    let descriptor = &vault_descriptor(provider, slot).ok_or_else(invalid_reference)?;
     if descriptor.delivery == Delivery::Secret {
         return reduce_secret(descriptor, paste);
     }
@@ -1509,10 +1570,7 @@ pub(crate) fn jwt_expiry(token: &str) -> Option<DateTime<Utc>> {
 /// PRD 0036 RF2.1: a pasted password or key is kept whole (trimmed); it
 /// must be non-empty, bounded and free of control characters. Errors never
 /// echo the value.
-fn reduce_secret(
-    descriptor: &'static SessionDescriptor,
-    paste: &str,
-) -> Result<ReducedSession, Localized> {
+fn reduce_secret(descriptor: &SessionDescriptor, paste: &str) -> Result<ReducedSession, Localized> {
     let mut value = paste.trim().to_string();
     if value.is_empty() || value.len() > MAX_SECRET_LEN || value.chars().any(char::is_control) {
         wipe(&mut value);
@@ -1624,7 +1682,14 @@ pub fn paste_notice(provider: Provider) -> Option<SessionNotice> {
 /// session: kept in the vault or, before a migration, read from the
 /// environment variable it names. `None` for an account without one.
 pub fn notice(account: &Account) -> Option<SessionNotice> {
-    if account.session.is_some() {
+    // PRD 0047: an API key kept in the vault is no login session.
+    let web_session = account.session.as_ref().is_some_and(|session| {
+        session
+            .slots
+            .iter()
+            .any(|slot| descriptor(account.provider, slot).is_some())
+    });
+    if web_session {
         return Some(notice_with(vault_warning()));
     }
     descriptors(account.provider)

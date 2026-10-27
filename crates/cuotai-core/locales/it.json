@@ -1714,5 +1714,22 @@
   "metric.label.window_weeks": "{prefix} — finestra di {n} settimana/e (%)",
   "metric.label.window_hours": "{prefix} — finestra di {n} ora/e (%)",
   "metric.label.window_seconds": "{prefix} — finestra di {n}s (%)",
-  "metric.label.rate_limit_of": "{label} (rate limit)"
+  "metric.label.rate_limit_of": "{label} (rate limit)",
+  "secret_input.help": "Incolla il valore. Cuotai lo conserva nel portachiavi di sistema e lo invia solo a questo provider; il file di configurazione conserva solo un riferimento.",
+  "secret_input.credential.label": "Chiave API o token di accesso",
+  "secret_input.slot.admin_key_env.label": "Chiave API di amministrazione (facoltativa)",
+  "secret_input.slot.token_env.label": "Token di accesso OAuth (facoltativo)",
+  "secret_input.slot.session_env.label": "Token di sessione della CLI",
+  "secret_input.slot.management_key_env.label": "Chiave di gestione (facoltativa)",
+  "secret_input.slot.analytics_key_env.label": "Chiave Analytics (facoltativa)",
+  "secret_input.slot.secret_env.label": "AccessKey Secret",
+  "secret_input.slot.security_token_env.label": "Token di sicurezza STS (facoltativo)",
+  "secret_input.slot.platform_session_env.label": "Sessione della piattaforma",
+  "secret_input.unknown_slot": "Questo provider non accetta quel segreto; riapri il modulo dell'account.",
+  "secret_input.duplicate_slot": "Lo stesso segreto è stato inviato due volte; riapri il modulo dell'account.",
+  "secret_input.state.vault": "Conservato nel portachiavi di sistema",
+  "secret_input.state.environment": "Usa una variabile d'ambiente (configurata nel terminale)",
+  "secret_input.state.unset": "Non impostato",
+  "secret_input.migrate.consent": "{label}: Cuotai copia il valore che oggi legge dalla configurazione del terminale nel portachiavi di sistema. Da allora questo account funziona senza quella configurazione; il file di configurazione conserva solo un riferimento.",
+  "user_session.slot.secret": "Segreto conservato nel portachiavi di sistema"
 }
