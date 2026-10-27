@@ -476,6 +476,7 @@
   "dialog.session.stored": "セッションはシステムの保管庫に保存され、TOML には参照のみが残ります。",
   "dialog.session.placeholder": "Cookie: … の行、name=value; … のリスト、Cookie の表、またはコピーした cURL",
   "dialog.session.hosts": "送信先：{hosts} のみ",
+  "dialog.session.open": "{site} を開く",
   "dialog.session.replace": "保管庫にセッションがあります。別のものを貼り付けると置き換わります。",
   "dialog.session.test": "セッションをテスト",
   "dialog.session.testing": "セッションをテストしています…",

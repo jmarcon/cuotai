@@ -3,7 +3,7 @@
 // events (LoginEvent, no secrets) and sends user input.
 import {
   accountLabel, configChangedOnDisk, deleteAccount, detectSources, forgetExtensionSecrets, dismissDetected, draftAccess, errText, esc, fieldChoices, formSchema, getAccount,
-  getSettings, getView, icon, listProviders, logo, NEW_PROVIDER_URL, openExternal, providerModes, setDetectEnabled,
+  getSettings, getView, icon, listProviders, logo, NEW_PROVIDER_URL, openExternal, sessionOpenLinkHtml, providerModes, setDetectEnabled,
   loginCancel, loginStart, loginSubmitCode, forgetSession, migrateSession, modelSupport, onLogin, previewSession, reloadConfig,
   reportKey, saveAccount, sessionNoticeHtml, testAggregator, testSession, validMonogram, visibleFields,
 } from "./lib.js";
@@ -440,6 +440,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
               : `<textarea class="session-paste" data-slot="${esc(s.slot)}" rows="3" autocomplete="off" autocapitalize="off" spellcheck="false"
               placeholder="${te("dialog.session.placeholder")}"></textarea>`}
             <small class="hint">${esc(tl(s.instructions))}</small>
+            ${sessionOpenLinkHtml(s)}
             ${s.hosts.length ? `<small class="hint">${te("dialog.session.hosts", { hosts: s.hosts.join(", ") })}</small>` : ""}
             ${stored.includes(s.slot) ? `<small class="hint">${te("dialog.session.replace")}</small>` : ""}
             <small class="hint" data-preview="${esc(s.slot)}" role="status" aria-live="polite"></small></label>
@@ -460,6 +461,10 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       }
       if (seq === previewSeq) out.textContent = text;
       await renderAccess();
+    }));
+    sessionBox.querySelectorAll("[data-session-url]").forEach((b) => b.addEventListener("click", (e) => {
+      e.preventDefault();
+      openExternal(b.dataset.sessionUrl).catch(() => {});
     }));
     sessionBox.querySelector("#session-test")?.addEventListener("click", async (e) => {
       const btn = e.currentTarget;

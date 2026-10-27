@@ -481,6 +481,7 @@
   "dialog.session.stored": "सत्र सिस्टम वॉल्ट में रखा है; TOML में केवल संदर्भ रहता है।",
   "dialog.session.placeholder": "Cookie: … पंक्ति, name=value; … सूची, कुकी तालिका या कॉपी किया गया cURL",
   "dialog.session.hosts": "केवल यहाँ भेजा जाता है: {hosts}",
+  "dialog.session.open": "{site} खोलें",
   "dialog.session.replace": "वॉल्ट में एक सत्र है; दूसरा पेस्ट करने पर वह बदल जाएगा।",
   "dialog.session.test": "सत्र जाँचें",
   "dialog.session.testing": "सत्र जाँचा जा रहा है…",

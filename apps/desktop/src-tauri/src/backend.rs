@@ -5422,6 +5422,8 @@ pub struct SessionSlotSchema {
     label: cuotai_core::text::Localized,
     instructions: cuotai_core::text::Localized,
     hosts: &'static [&'static str],
+    /// The HTTPS sign-in page the "Open {site}" link opens (`open_external`).
+    open_url: Option<&'static str>,
     /// PRD 0036 RF2.1/RF10.1: the paste is a password or key (a masked
     /// one-line field), not a cookie list.
     secret: bool,
@@ -5614,6 +5616,7 @@ pub fn form_schema(provider: Provider) -> FormSchema {
                 label: descriptor.label(),
                 instructions: descriptor.instructions(),
                 hosts: descriptor.hosts,
+                open_url: descriptor.open_url,
                 secret: descriptor.delivery == user_session::Delivery::Secret,
             })
             .collect(),

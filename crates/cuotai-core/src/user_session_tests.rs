@@ -1864,3 +1864,26 @@ async fn a_pasted_sso_session_replaces_the_login_and_a_rejected_one_says_so() {
         .iter()
         .any(|note| note.id == "user_session.rejected"));
 }
+
+/// PRD 0016 RF2.1: every "Open {site}" page is HTTPS on a host that receives
+/// that session, or on the site the user signs in to.
+#[test]
+fn open_urls_are_https_on_declared_hosts() {
+    let mut seen = 0;
+    for provider in Provider::ALL {
+        for d in descriptors(provider) {
+            let Some(url) = d.open_url else { continue };
+            seen += 1;
+            let rest = url.strip_prefix("https://").expect("https only");
+            let host = rest.split(['/', '?', '#']).next().unwrap();
+            assert!(
+                d.hosts.contains(&host) || d.site.split(" / ").any(|s| s == host),
+                "{url} is not a host of {}",
+                d.slot
+            );
+            assert!(is_open_url(url));
+        }
+    }
+    assert_eq!(seen, 3);
+    assert!(!is_open_url("https://example.com/"));
+}

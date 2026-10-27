@@ -478,6 +478,7 @@
   "dialog.session.stored": "Sessione conservata nel vault di sistema; il TOML mantiene solo il riferimento.",
   "dialog.session.placeholder": "Riga Cookie: …, elenco nome=valore; …, la tabella dei cookie o un cURL copiato",
   "dialog.session.hosts": "Inviata solo a: {hosts}",
+  "dialog.session.open": "Apri {site}",
   "dialog.session.replace": "Nel vault c'è già una sessione; incollarne un'altra la sostituisce.",
   "dialog.session.test": "Prova sessione",
   "dialog.session.testing": "Prova della sessione…",

@@ -481,6 +481,7 @@
   "dialog.session.stored": "Sitzung im Systemtresor gespeichert; die TOML behält nur den Verweis.",
   "dialog.session.placeholder": "Zeile Cookie: …, Liste name=value; …, Cookie-Tabelle oder kopiertes cURL",
   "dialog.session.hosts": "Gesendet nur an: {hosts}",
+  "dialog.session.open": "{site} öffnen",
   "dialog.session.replace": "Im Tresor liegt eine Sitzung; das Einfügen einer anderen ersetzt sie.",
   "dialog.session.test": "Sitzung testen",
   "dialog.session.testing": "Sitzung wird getestet…",

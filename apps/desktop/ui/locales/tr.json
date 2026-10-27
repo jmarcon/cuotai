@@ -481,6 +481,7 @@
   "dialog.session.stored": "Oturum sistem kasasında saklanır; TOML yalnızca başvuruyu tutar.",
   "dialog.session.placeholder": "Cookie: … satırı, ad=değer; … listesi, çerez tablosu veya kopyalanmış bir cURL",
   "dialog.session.hosts": "Yalnızca şuraya gönderilir: {hosts}",
+  "dialog.session.open": "{site} sayfasını aç",
   "dialog.session.replace": "Kasada bir oturum var; başka birini yapıştırmak onun yerine geçer.",
   "dialog.session.test": "Oturumu test et",
   "dialog.session.testing": "Oturum test ediliyor…",

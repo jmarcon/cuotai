@@ -478,6 +478,7 @@
   "dialog.session.stored": "Sesión guardada en la bóveda del sistema; el TOML guarda solo la referencia.",
   "dialog.session.placeholder": "Línea Cookie: …, lista nombre=valor; …, la tabla de cookies o un cURL copiado",
   "dialog.session.hosts": "Se envía solo a: {hosts}",
+  "dialog.session.open": "Abrir {site}",
   "dialog.session.replace": "Hay una sesión en la bóveda; pegar otra la reemplaza.",
   "dialog.session.test": "Probar sesión",
   "dialog.session.testing": "Probando la sesión…",

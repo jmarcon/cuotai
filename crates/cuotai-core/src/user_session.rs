@@ -102,6 +102,10 @@ pub struct SessionDescriptor {
     jwt_expiry: bool,
     /// Where the user signs in to copy the session, for [`Self::instructions`].
     pub site: &'static str,
+    /// PRD 0016 RF2.1: the HTTPS page where the user signs in and sees the
+    /// usage, opened by the desktop "Open {site}" link; `None` for an app or
+    /// a self-hosted address.
+    pub open_url: Option<&'static str>,
     /// `user_session.slot.*` id and English fallback of [`Self::label`].
     #[serde(skip)]
     label: (&'static str, &'static str),
@@ -190,6 +194,7 @@ const XIAOMI_ACCOUNT: SessionDescriptor = SessionDescriptor {
     delivery: Delivery::CookieHeader,
     jwt_expiry: false,
     site: "MiMo Desktop",
+    open_url: None,
     label: (
         "user_session.slot.xiaomi_mimo.session_env",
         "Xiaomi account session (MiMo Desktop weekly quota)",
@@ -205,6 +210,7 @@ const XIAOMI_PLATFORM: SessionDescriptor = SessionDescriptor {
     delivery: Delivery::CookieHeader,
     jwt_expiry: false,
     site: "platform.xiaomimimo.com",
+    open_url: Some("https://platform.xiaomimimo.com/console/plan-manage"),
     label: (
         "user_session.slot.xiaomi_mimo.platform_session_env",
         "platform.xiaomimimo.com web session (balance and Token Plan)",
@@ -225,6 +231,7 @@ const ALIBABA_CODING_PLAN: SessionDescriptor = SessionDescriptor {
     delivery: Delivery::CookieHeader,
     jwt_expiry: false,
     site: "bailian.console.aliyun.com / modelstudio.console.alibabacloud.com",
+    open_url: Some("https://bailian.console.aliyun.com/cn-beijing/?tab=model#/efm/coding_plan"),
     label: (
         "user_session.slot.alibaba_coding_plan.session_env",
         "Alibaba console session (Coding Plan)",
@@ -240,6 +247,7 @@ const ALIBABA_TOKEN_PLAN: SessionDescriptor = SessionDescriptor {
     delivery: Delivery::CookieHeader,
     jwt_expiry: false,
     site: "home.qwencloud.com",
+    open_url: Some("https://home.qwencloud.com/billing/subscription/token-plan-individual"),
     label: (
         "user_session.slot.alibaba_token_plan.session_env",
         "Qwen Cloud console session (Token Plan)",
@@ -255,6 +263,7 @@ const NINE_ROUTER_PASSWORD: SessionDescriptor = SessionDescriptor {
     delivery: Delivery::Secret,
     jwt_expiry: false,
     site: "9router",
+    open_url: None,
     label: (
         "user_session.slot.nine_router.credential_env",
         "9router dashboard password (kept in the system vault)",
@@ -271,6 +280,7 @@ const NINE_ROUTER_SSO: SessionDescriptor = SessionDescriptor {
     delivery: Delivery::CookieHeader,
     jwt_expiry: true,
     site: "9router",
+    open_url: None,
     label: (
         "user_session.slot.nine_router.auth_session_env",
         "9router dashboard session (auth_token cookie, for SSO-only instances)",
@@ -286,11 +296,21 @@ const LITELLM_KEY: SessionDescriptor = SessionDescriptor {
     delivery: Delivery::Secret,
     jwt_expiry: false,
     site: "LiteLLM",
+    open_url: None,
     label: (
         "user_session.slot.litellm.credential_env",
         "LiteLLM master or virtual key (kept in the system vault)",
     ),
 };
+
+/// PRD 0016 RF2.1: whether `url` is the sign-in page of a declared
+/// session, so a shell may open it in the browser.
+pub fn is_open_url(url: &str) -> bool {
+    Provider::ALL
+        .iter()
+        .flat_map(|p| descriptors(*p))
+        .any(|d| d.open_url == Some(url))
+}
 
 /// The sessions `provider` accepts; empty when it has none.
 pub fn descriptors(provider: Provider) -> &'static [SessionDescriptor] {
@@ -328,6 +348,7 @@ pub fn vault_descriptor(provider: Provider, slot: &str) -> Option<SessionDescrip
         delivery: Delivery::Secret,
         jwt_expiry: false,
         site: "",
+        open_url: None,
         label: (
             "user_session.slot.secret",
             "Secret kept in the system vault",

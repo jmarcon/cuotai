@@ -478,6 +478,7 @@
   "dialog.session.stored": "Session kept in the system vault; the TOML keeps only the reference.",
   "dialog.session.placeholder": "Cookie: … line, name=value; … list, the cookie table or a copied cURL",
   "dialog.session.hosts": "Sent only to: {hosts}",
+  "dialog.session.open": "Open {site}",
   "dialog.session.replace": "A session is in the vault; pasting another replaces it.",
   "dialog.session.test": "Test session",
   "dialog.session.testing": "Testing the session…",

@@ -491,6 +491,7 @@
   "dialog.session.stored": "Сеанс хранится в системном хранилище; в TOML остаётся только ссылка.",
   "dialog.session.placeholder": "Строка Cookie: …, список name=value; …, таблица cookie или скопированный cURL",
   "dialog.session.hosts": "Отправляется только на: {hosts}",
+  "dialog.session.open": "Открыть {site}",
   "dialog.session.replace": "В хранилище есть сеанс; вставка другого заменит его.",
   "dialog.session.test": "Проверить сеанс",
   "dialog.session.testing": "Проверка сеанса…",

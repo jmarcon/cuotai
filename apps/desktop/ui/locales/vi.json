@@ -476,6 +476,7 @@
   "dialog.session.stored": "Phiên được giữ trong kho của hệ thống; TOML chỉ giữ tham chiếu.",
   "dialog.session.placeholder": "Dòng Cookie: …, danh sách tên=giá trị; …, bảng cookie hoặc cURL đã sao chép",
   "dialog.session.hosts": "Chỉ gửi đến: {hosts}",
+  "dialog.session.open": "Mở {site}",
   "dialog.session.replace": "Đã có một phiên trong kho; dán phiên khác sẽ thay thế nó.",
   "dialog.session.test": "Kiểm tra phiên",
   "dialog.session.testing": "Đang kiểm tra phiên…",

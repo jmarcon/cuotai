@@ -476,6 +476,7 @@
   "dialog.session.stored": "Sesi disimpan di brankas sistem; TOML hanya menyimpan referensinya.",
   "dialog.session.placeholder": "Baris Cookie: …, daftar nama=nilai; …, tabel cookie, atau cURL yang disalin",
   "dialog.session.hosts": "Hanya dikirim ke: {hosts}",
+  "dialog.session.open": "Buka {site}",
   "dialog.session.replace": "Ada sesi di brankas; menempel yang lain akan menggantikannya.",
   "dialog.session.test": "Uji sesi",
   "dialog.session.testing": "Menguji sesi…",

@@ -45,7 +45,7 @@ globalThis.fetch = async (relative) => {
 import { readdir } from "node:fs/promises";
 const i18n = await import("../apps/desktop/ui/js/i18n.js");
 const { DESKTOP_WORDING, desktopAction } = await import("../apps/desktop/ui/js/desktop-wording.js");
-const { noteText, sessionAction, causeText } = await import("../apps/desktop/ui/js/lib.js");
+const { noteText, sessionAction, causeText, sessionOpenLinkHtml } = await import("../apps/desktop/ui/js/lib.js");
 await i18n.initI18n();
 
 const readJson = async (rel) => JSON.parse(await readFile(fileURLToPath(new URL(rel, root)), "utf8"));
@@ -121,3 +121,18 @@ for (const { code } of i18n.LOCALES) {
 await i18n.setLocale("pt-BR");
 assert.equal(noteText(xiaomi, 0), "Esta chave não mostra o consumo. Para ver a quota, conecte a sessão da sua conta Xiaomi.");
 console.log("desktop wording: ok");
+
+// PRD 0016 RF2.1: the paste box's "Open {site}" link carries only the descriptor's HTTPS page.
+{
+  const url = "https://platform.xiaomimimo.com/console/plan-manage";
+  const html = sessionOpenLinkHtml({ open_url: url });
+  assert.match(html, /data-session-url="https:\/\/platform\.xiaomimimo\.com\/console\/plan-manage"/);
+  assert.match(html, /platform\.xiaomimimo\.com<\/span>/);
+  for (const bad of [undefined, null, "", "http://platform.xiaomimimo.com/", "javascript:alert(1)", "https://"]) {
+    assert.equal(sessionOpenLinkHtml({ open_url: bad }), "", String(bad));
+  }
+  for (const f of ["pt-BR", "en-US", "es", "it", "de", "fr", "hi-IN", "id-ID", "ja", "ko", "ru", "tr", "vi", "zh-CN"]) {
+    const cat = JSON.parse(await readFile(fileURLToPath(new URL(`apps/desktop/ui/locales/${f}.json`, root)), "utf8"));
+    assert.match(cat["dialog.session.open"], /\{site\}/, f);
+  }
+}

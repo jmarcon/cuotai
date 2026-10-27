@@ -481,6 +481,7 @@
   "dialog.session.stored": "Session conservée dans le coffre du système ; le TOML ne garde que la référence.",
   "dialog.session.placeholder": "Ligne Cookie: …, liste name=value; …, tableau des cookies ou cURL copié",
   "dialog.session.hosts": "Envoyée uniquement à : {hosts}",
+  "dialog.session.open": "Ouvrir {site}",
   "dialog.session.replace": "Une session est dans le coffre ; en coller une autre la remplace.",
   "dialog.session.test": "Tester la session",
   "dialog.session.testing": "Test de la session…",

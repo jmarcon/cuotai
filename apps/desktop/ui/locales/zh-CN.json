@@ -476,6 +476,7 @@
   "dialog.session.stored": "会话保存在系统保险库中；TOML 只保存引用。",
   "dialog.session.placeholder": "Cookie: … 行、name=value; … 列表、Cookie 表或复制的 cURL",
   "dialog.session.hosts": "仅发送至：{hosts}",
+  "dialog.session.open": "打开 {site}",
   "dialog.session.replace": "保险库中已有会话；粘贴新会话将替换它。",
   "dialog.session.test": "测试会话",
   "dialog.session.testing": "正在测试会话…",

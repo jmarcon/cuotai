@@ -476,6 +476,7 @@
   "dialog.session.stored": "세션은 시스템 보관소에 저장되며 TOML에는 참조만 남습니다.",
   "dialog.session.placeholder": "Cookie: … 줄, name=value; … 목록, 쿠키 표 또는 복사한 cURL",
   "dialog.session.hosts": "전송 대상: {hosts}",
+  "dialog.session.open": "{site} 열기",
   "dialog.session.replace": "보관소에 세션이 있습니다. 다른 세션을 붙여 넣으면 교체됩니다.",
   "dialog.session.test": "세션 테스트",
   "dialog.session.testing": "세션을 테스트하는 중…",

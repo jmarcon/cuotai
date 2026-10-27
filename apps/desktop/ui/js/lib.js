@@ -797,6 +797,15 @@ export function incidentBadge(r) {
     : [t("incident.unavailable"), checked].filter(Boolean).join(" · ");
   return { tone, glyph, text, url: s.incident?.url ?? s.page_url, outage: s.state === "partial_outage" || s.state === "major_outage" };
 }
+/** PRD 0016 RF2.1: the "Open {site}" link of a session paste box; only the core descriptor's HTTPS `open_url`
+ * (the shell's `open_external` opens no other address). */
+export function sessionOpenLinkHtml(slot) {
+  const url = slot?.open_url;
+  if (typeof url !== "string" || !url.startsWith("https://")) return "";
+  let host;
+  try { host = new URL(url).host; } catch { return ""; }
+  return `<button type="button" class="link session-open" data-session-url="${esc(url)}">${icon("window")}<span>${te("dialog.session.open", { site: host })}</span></button>`;
+}
 /** "Open status page": the shell opens only the core's verified status hosts (`open_external`). */
 const statusLinkHtml = (url) => `<button class="status-link" type="button" data-status-url="${esc(url)}">${icon("chev")}<span>${te("incident.open")}</span></button><span class="status-err" data-status-err role="alert"></span>`;
 /** Card badge (color, icon and text) with the status page link; `link: false` inside a clickable row. */
@@ -1158,7 +1167,7 @@ const demoAccountId = (index) => `acc_demo${String(index).padStart(8, "0")}`;
 const DEMO_KEY_INPUT = { slot: "credential_env", label: { id: "secret_input.credential.label", params: {}, fallback: "API key or access token" },
   help: { id: "secret_input.help", params: {}, fallback: "Paste the value. Cuotai keeps it in the system vault and sends it only to this provider; the configuration file keeps just a reference." },
   required: true, cookie: false, field: null };
-const DEMO_SESSION_SLOT = { slot: "platform_session_env",
+const DEMO_SESSION_SLOT = { slot: "platform_session_env", open_url: "https://platform.xiaomimimo.com/console/plan-manage",
   label: { id: "user_session.slot.xiaomi_mimo.platform_session_env", params: {}, fallback: "platform.xiaomimimo.com web session (balance and Token Plan)" },
   instructions: { id: "user_session.instructions", params: { site: "platform.xiaomimimo.com" }, fallback: "Sign in to platform.xiaomimimo.com in your browser. In the developer tools (F12), Network tab, reload the page, pick a request to platform.xiaomimimo.com and copy its Cookie header or use \"Copy as cURL\"; the cookie table of the Application tab works too. Only this session's cookies are kept; the rest of the pasted text is discarded." },
   hosts: ["platform.xiaomimimo.com"] };

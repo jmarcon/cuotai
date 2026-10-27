@@ -131,6 +131,7 @@ pub fn is_listed(url: &str) -> bool {
         || about::libraries().iter().any(|l| l.repository == url)
         || cuotai_core::incidents::is_status_link(url)
         || cuotai_core::support::is_issue_url(url)
+        || cuotai_core::user_session::is_open_url(url)
 }
 
 /// PRD 0027 RF3.5: the new-provider issue template, offered by the picker's
@@ -196,6 +197,9 @@ mod tests {
         assert!(is_listed(NEW_PROVIDER_ISSUE));
         assert!(is_listed(EXTENSIONS_GUIDE));
         assert!(is_listed(TRANSLATION_GUIDE));
+        assert!(is_listed(
+            "https://platform.xiaomimimo.com/console/plan-manage"
+        ));
         for library in about::libraries() {
             assert!(is_listed(library.repository), "{}", library.name);
         }
