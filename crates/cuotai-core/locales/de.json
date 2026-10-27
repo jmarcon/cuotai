@@ -1569,6 +1569,7 @@
   "user_session.expiry.unknown": "Gültigkeit unbekannt.",
   "user_session.forget.done": "Sitzung vergessen: Der Eintrag im Systemtresor wurde gelöscht, und die TOML speichert den Verweis nicht mehr.",
   "user_session.forget.nothing": "Dieses Konto speichert keine Sitzung im Systemtresor.",
+  "user_session.instructions.xiaomi_account": "Dieses Cookie stammt aus der App MiMo Desktop, nicht von einer Webseite. Erfasse bei angemeldetem MiMo Desktop eine seiner Anfragen an mimo-server-<Region>.xiaomimimo.com (zum Beispiel mit einem Debugging-Proxy) und kopiere den Cookie-Header; er muss serviceToken enthalten. Nur die Cookies dieser Sitzung werden gespeichert; der Rest des eingefügten Texts wird verworfen. Wenn du nur einen Browser hast, nutze die Sitzung von platform.xiaomimimo.com.",
   "user_session.instructions": "Melden Sie sich im Browser bei {site} an. Laden Sie in den Entwicklertools (F12) auf dem Tab Netzwerk die Seite neu, wählen Sie eine Anfrage an {site} und kopieren Sie den Cookie-Header oder nutzen Sie „Als cURL kopieren“; auch die Cookie-Tabelle des Tabs Anwendung funktioniert. Es werden nur die Cookies dieser Sitzung gespeichert; der übrige eingefügte Text wird verworfen.",
   "user_session.instructions.secret": "Fügen Sie den Wert von {site} ein. Er liegt nur im Systemtresor und wird nur an die Adresse dieses Kontos gesendet; die TOML speichert nur den Verweis.",
   "user_session.invalid_reference": "Ungültiger Sitzungsverweis in [accounts.session]; geben Sie die Sitzung im Kontoassistenten erneut an.",

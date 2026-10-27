@@ -117,6 +117,14 @@ impl SessionDescriptor {
     /// (no capture of a real one).
     pub fn instructions(&self) -> Localized {
         let site = self.site;
+        // The Xiaomi account cookie is issued to the MiMo Desktop app, not to
+        // a web page (`xiaomimimo.com` itself does not resolve).
+        if self.label.0 == "user_session.slot.xiaomi_mimo.session_env" {
+            return Localized::fixed(
+                "user_session.instructions.xiaomi_account",
+                "This cookie comes from the MiMo Desktop app, not from a web page. With MiMo Desktop signed in, capture one of its requests to mimo-server-<region>.xiaomimimo.com (for example with a debugging proxy) and copy its Cookie header; it must contain serviceToken. Only this session's cookies are kept; the rest of the pasted text is discarded. With just a browser, use the platform.xiaomimimo.com session instead.",
+            );
+        }
         if self.delivery == Delivery::Secret {
             return Localized::with_param(
                 "user_session.instructions.secret",
@@ -181,7 +189,7 @@ const XIAOMI_ACCOUNT: SessionDescriptor = SessionDescriptor {
     account_host: false,
     delivery: Delivery::CookieHeader,
     jwt_expiry: false,
-    site: "xiaomimimo.com",
+    site: "MiMo Desktop",
     label: (
         "user_session.slot.xiaomi_mimo.session_env",
         "Xiaomi account session (MiMo Desktop weekly quota)",

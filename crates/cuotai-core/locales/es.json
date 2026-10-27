@@ -1064,6 +1064,7 @@
   "user_session.slot.alibaba_token_plan.session_env": "Sesión de la consola de Qwen Cloud (Token Plan)",
   "user_session.slot.xiaomi_mimo.platform_session_env": "Sesión web de platform.xiaomimimo.com (saldo y Token Plan)",
   "user_session.slot.xiaomi_mimo.session_env": "Sesión de la cuenta Xiaomi (cuota semanal de MiMo Desktop)",
+  "user_session.instructions.xiaomi_account": "Esta cookie viene de la app MiMo Desktop, no de una página web. Con MiMo Desktop conectado, captura una de sus solicitudes a mimo-server-<región>.xiaomimimo.com (por ejemplo, con un proxy de depuración) y copia su encabezado Cookie; debe contener serviceToken. Solo se guardan las cookies de esta sesión; el resto del texto pegado se descarta. Si solo tienes el navegador, usa la sesión de platform.xiaomimimo.com.",
   "user_session.instructions": "Inicie sesión en {site} en el navegador. En las herramientas de desarrollo (F12), pestaña Red, recargue la página, elija una solicitud a {site} y copie su encabezado Cookie o use \"Copiar como cURL\"; la tabla de cookies de la pestaña Aplicación también sirve. Solo se guardan las cookies de esta sesión; el resto del texto pegado se descarta.",
   "user_session.rejected": "Sesión expirada o revocada; pegue una nueva en el asistente de la cuenta.",
   "user_session.save.unreachable": "No se pudo probar la sesión ({cause}); no se guardó nada. Elija \"Guardar de todos modos\" para conservarla sin probar, o inténtelo de nuevo.",

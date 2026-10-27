@@ -1560,6 +1560,7 @@
   "user_session.expiry.unknown": "Chưa rõ thời hạn hiệu lực.",
   "user_session.forget.done": "Đã quên phiên: mục trong kho của hệ thống đã bị xóa và TOML không còn giữ tham chiếu.",
   "user_session.forget.nothing": "Tài khoản này không giữ phiên nào trong kho của hệ thống.",
+  "user_session.instructions.xiaomi_account": "Cookie này đến từ ứng dụng MiMo Desktop, không phải từ trang web. Khi MiMo Desktop đã đăng nhập, hãy bắt một yêu cầu của nó tới mimo-server-<khu vực>.xiaomimimo.com (ví dụ bằng proxy gỡ lỗi) và sao chép header Cookie; header phải chứa serviceToken. Chỉ cookie của phiên này được giữ lại; phần văn bản dán còn lại bị loại bỏ. Nếu bạn chỉ có trình duyệt, hãy dùng phiên của platform.xiaomimimo.com.",
   "user_session.instructions": "Hãy đăng nhập {site} trong trình duyệt của bạn. Trong công cụ dành cho nhà phát triển (F12), tab Network, tải lại trang, chọn một yêu cầu tới {site} rồi sao chép header Cookie của nó hoặc dùng \"Copy as cURL\"; bảng cookie trong tab Application cũng dùng được. Chỉ cookie của phiên này được giữ; phần còn lại của văn bản đã dán sẽ bị bỏ.",
   "user_session.instructions.secret": "Hãy dán giá trị {site}. Nó chỉ nằm trong kho của hệ thống và chỉ được gửi tới địa chỉ của tài khoản này; TOML chỉ giữ tham chiếu.",
   "user_session.invalid_reference": "Tham chiếu phiên không hợp lệ trong [accounts.session]; hãy nhập lại phiên trong trình hướng dẫn tài khoản.",

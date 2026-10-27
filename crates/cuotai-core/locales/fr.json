@@ -1569,6 +1569,7 @@
   "user_session.expiry.unknown": "Validité inconnue.",
   "user_session.forget.done": "Session oubliée : l’entrée du coffre du système a été supprimée et le TOML ne garde plus la référence.",
   "user_session.forget.nothing": "Ce compte ne conserve aucune session dans le coffre du système.",
+  "user_session.instructions.xiaomi_account": "Ce cookie provient de l'app MiMo Desktop, pas d'une page web. Avec MiMo Desktop connecté, capturez une de ses requêtes vers mimo-server-<région>.xiaomimimo.com (par exemple avec un proxy de débogage) et copiez son en-tête Cookie ; il doit contenir serviceToken. Seuls les cookies de cette session sont conservés ; le reste du texte collé est ignoré. Si vous n'avez qu'un navigateur, utilisez la session de platform.xiaomimimo.com.",
   "user_session.instructions": "Connectez-vous à {site} dans le navigateur. Dans les outils de développement (F12), onglet Réseau, rechargez la page, choisissez une requête vers {site} et copiez son en-tête Cookie ou utilisez « Copier comme cURL » ; le tableau des cookies de l’onglet Application convient aussi. Seuls les cookies de cette session sont conservés ; le reste du texte collé est abandonné.",
   "user_session.instructions.secret": "Collez la valeur de {site}. Elle reste uniquement dans le coffre du système et n’est envoyée qu’à l’adresse de ce compte ; le TOML ne garde que la référence.",
   "user_session.invalid_reference": "Référence de session invalide dans [accounts.session] ; indiquez à nouveau la session dans l’assistant du compte.",

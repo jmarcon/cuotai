@@ -1569,6 +1569,7 @@
   "user_session.expiry.unknown": "Geçerlilik süresi bilinmiyor.",
   "user_session.forget.done": "Oturum unutuldu: sistem kasasındaki kayıt silindi ve TOML artık başvuruyu tutmuyor.",
   "user_session.forget.nothing": "Bu hesap sistem kasasında hiçbir oturum saklamıyor.",
+  "user_session.instructions.xiaomi_account": "Bu çerez bir web sayfasından değil, MiMo Desktop uygulamasından gelir. MiMo Desktop'ta oturum açıkken uygulamanın mimo-server-<bölge>.xiaomimimo.com adresine yaptığı bir isteği (örneğin bir hata ayıklama proxy'siyle) yakalayın ve Cookie başlığını kopyalayın; serviceToken içermelidir. Yalnızca bu oturumun çerezleri saklanır; yapıştırılan metnin geri kalanı atılır. Yalnızca tarayıcınız varsa platform.xiaomimimo.com oturumunu kullanın.",
   "user_session.instructions": "Tarayıcınızda {site} sitesinde oturum açın. Geliştirici araçlarında (F12), Network sekmesinde sayfayı yeniden yükleyin, {site} sitesine bir istek seçin ve Cookie başlığını kopyalayın ya da \"Copy as cURL\" kullanın; Application sekmesindeki çerez tablosu da işe yarar. Yalnızca bu oturumun çerezleri saklanır; yapıştırılan metnin geri kalanı atılır.",
   "user_session.instructions.secret": "{site} değerini yapıştırın. Yalnızca sistem kasasında kalır ve yalnızca bu hesabın adresine gönderilir; TOML yalnızca başvuruyu tutar.",
   "user_session.invalid_reference": "[accounts.session] içinde geçersiz oturum başvurusu; oturumu hesap sihirbazında yeniden girin.",

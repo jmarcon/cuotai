@@ -1560,6 +1560,7 @@
   "user_session.expiry.unknown": "有效期未知。",
   "user_session.forget.done": "会话已忘记：系统保险库中的条目已删除，TOML 也不再保存其引用。",
   "user_session.forget.nothing": "此账户没有在系统保险库中保存任何会话。",
+  "user_session.instructions.xiaomi_account": "此 Cookie 来自 MiMo Desktop 应用，而不是网页。在 MiMo Desktop 已登录时，捕获它发往 mimo-server-<区域>.xiaomimimo.com 的一个请求（例如使用调试代理），并复制其 Cookie 请求头；其中必须包含 serviceToken。只保留此会话的 Cookie，粘贴的其余文本会被丢弃。如果只有浏览器，请改用 platform.xiaomimimo.com 的会话。",
   "user_session.instructions": "在浏览器中登录 {site}。在开发者工具（F12）的“网络”标签页中刷新页面，选择一个发往 {site} 的请求，复制其 Cookie 标头或使用“复制为 cURL”；“应用”标签页中的 Cookie 表也可以。只保存此会话的 Cookie；粘贴文本的其余部分会被丢弃。",
   "user_session.instructions.secret": "粘贴 {site} 的值。它只保存在系统保险库中，只会发送到此账户的地址；TOML 只保存引用。",
   "user_session.invalid_reference": "[accounts.session] 中的会话引用无效；请在账户向导中重新填写会话。",

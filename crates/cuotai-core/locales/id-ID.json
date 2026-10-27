@@ -1560,6 +1560,7 @@
   "user_session.expiry.unknown": "Masa berlaku tidak diketahui.",
   "user_session.forget.done": "Sesi dilupakan: entri brankas sistem dihapus dan TOML tidak lagi menyimpan referensinya.",
   "user_session.forget.nothing": "Akun ini tidak menyimpan sesi apa pun di brankas sistem.",
+  "user_session.instructions.xiaomi_account": "Cookie ini berasal dari aplikasi MiMo Desktop, bukan dari halaman web. Saat MiMo Desktop sudah masuk, tangkap salah satu permintaannya ke mimo-server-<wilayah>.xiaomimimo.com (misalnya dengan proxy debugging) lalu salin header Cookie-nya; header itu harus berisi serviceToken. Hanya cookie sesi ini yang disimpan; sisa teks yang ditempel dibuang. Jika Anda hanya punya browser, gunakan sesi platform.xiaomimimo.com.",
   "user_session.instructions": "Masuk ke {site} di peramban Anda. Di alat pengembang (F12), tab Network, muat ulang halaman, pilih permintaan ke {site} dan salin header Cookie-nya atau gunakan \"Copy as cURL\"; tabel cookie di tab Application juga bisa. Hanya cookie sesi ini yang disimpan; sisa teks yang ditempel dibuang.",
   "user_session.instructions.secret": "Tempel nilai {site}. Nilai ini hanya tersimpan di brankas sistem dan hanya dikirim ke alamat akun ini; TOML hanya menyimpan referensinya.",
   "user_session.invalid_reference": "Referensi sesi tidak valid di [accounts.session]; masukkan sesi lagi di wizard akun.",

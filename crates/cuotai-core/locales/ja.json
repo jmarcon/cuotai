@@ -1560,6 +1560,7 @@
   "user_session.expiry.unknown": "有効期限は不明です。",
   "user_session.forget.done": "セッションを消去しました。システムの保管庫の項目は削除され、TOML にも参照は残っていません。",
   "user_session.forget.nothing": "このアカウントはシステムの保管庫にセッションを保存していません。",
+  "user_session.instructions.xiaomi_account": "この Cookie は Web ページではなく MiMo Desktop アプリから取得します。MiMo Desktop にサインインした状態で、mimo-server-<リージョン>.xiaomimimo.com へのリクエストを（デバッグ用プロキシなどで）取得し、Cookie ヘッダーをコピーしてください。serviceToken を含む必要があります。保存されるのはこのセッションの Cookie だけで、貼り付けた残りのテキストは破棄されます。ブラウザーしかない場合は platform.xiaomimimo.com のセッションを使ってください。",
   "user_session.instructions": "ブラウザーで {site} にサインインしてください。開発者ツール（F12）の「ネットワーク」タブでページを再読み込みし、{site} へのリクエストを選んで Cookie ヘッダーをコピーするか「cURL としてコピー」を使用してください。「アプリケーション」タブの Cookie の表でもかまいません。保存されるのはこのセッションの Cookie のみで、貼り付けた残りのテキストは破棄されます。",
   "user_session.instructions.secret": "{site} の値を貼り付けてください。値はシステムの保管庫にのみ保存され、このアカウントのアドレスにのみ送信されます。TOML には参照のみが保存されます。",
   "user_session.invalid_reference": "[accounts.session] のセッション参照が無効です。アカウントのウィザードでセッションを指定し直してください。",
