@@ -313,6 +313,7 @@ pub const fn source(provider: Provider) -> Option<StatusSource> {
         | Provider::AlibabaCloud
         | Provider::Antigravity
         | Provider::Kimchi
+        | Provider::Meta
         | Provider::NineRouter
         | Provider::OpenRouter
         | Provider::LiteLlm

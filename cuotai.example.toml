@@ -133,6 +133,14 @@ credential_env = "GROQ_API_KEY"
 # Reads x-ratelimit-* from GET /models, with no generation; it may return without quota headers.
 
 [[accounts]]
+name = "Meta Muse"
+provider = "meta"
+credential_env = "META_API_KEY"
+# Meta Model API (Muse models), key from https://dev.meta.ai/api-keys. Checks the key with
+# GET https://api.meta.ai/v1/models (no tokens) and reads the team x-ratelimit-* headers when
+# present. Meta documents no usage or balance API: spend stays in the dev.meta.ai console.
+
+[[accounts]]
 name = "Perplexity"
 provider = "perplexity"
 credential_env = "PERPLEXITY_API_KEY"

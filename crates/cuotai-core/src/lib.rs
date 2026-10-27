@@ -1465,6 +1465,7 @@ impl Monitor {
             Provider::Antigravity => providers::antigravity::fetch(account, ctx).await,
             Provider::Kimchi => providers::kimchi::fetch(account, ctx).await,
             Provider::ElevenLabs => providers::eleven_labs::fetch(account, ctx).await,
+            Provider::Meta => providers::meta::fetch(account, ctx).await,
             Provider::NineRouter => providers::nine_router::fetch(account, ctx).await,
             Provider::OpenRouter => providers::open_router::fetch(account, ctx).await,
             Provider::LiteLlm => providers::litellm::fetch(account, ctx).await,

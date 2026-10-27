@@ -112,6 +112,7 @@ The table is generated: a core test compares it with `access::describe` and fail
 | `antigravity` | default | Undocumented | Subscription session | — | Account | reference [`antigravity-weekly.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/antigravity-weekly.js) | 2026-10-20 | not reported |
 | `kimchi` | default | Undocumented | Inference key | — | Account | reference [`status.ts`](https://github.com/getkimchi/kimchi/blob/36cc0406339a50f5ced984266d0306fb8a150408/src/extensions/billing/status.ts) | 2026-10-20 | not reported |
 | `eleven_labs` | default | Official | Inference key | — | Account | [documentation](https://elevenlabs.io/docs/api-reference/user/subscription/get) | 2026-10-23 | not reported |
+| `meta` | default | Derived | Inference key | — | Organization | [documentation](https://dev.meta.ai/docs/pricing-rate-limits) | 2026-10-27 | not reported |
 | `nine_router` | default | Undocumented | Aggregator login | — | Instance | reference [`dashboardGuard.js`](https://github.com/decolua/9router/blob/f39d8f07481ae8518e93175f0ecaaafa61573c6c/src/dashboardGuard.js) | 2026-10-25 | not reported |
 | `open_router` | default | Official | Inference key | — | Account | [documentation](https://openrouter.ai/docs/api/api-reference/api-keys/get-current-key) | 2026-10-23 | not reported |
 | `open_router` | `product = "account"` | Official | Admin key | — | Account | [documentation](https://openrouter.ai/docs/api/api-reference/credits/get-credits) | 2026-10-23 | not reported |
@@ -185,6 +186,7 @@ The account pickers (desktop and TUI) list providers from `cuotai_core::account_
 | Antigravity | `antigravity` | `credential` | API key | Coding tool | google | Account access token |
 | Kimchi | `kimchi` | — | API key | API platform | — | API key |
 | ElevenLabs | `eleven_labs` | — | API key | API platform | elevenlabs, eleven labs, 11labs, tts, text to speech, voice, voice agents | API key |
+| Meta Model API | `meta` | — | API key | API platform | muse, muse spark, llama, meta ai, facebook | API key |
 | 9router | `nine_router` | — | Self-hosted gateway | Router | 9router, nine router, router, aggregator | Dashboard password (optional) |
 | OpenRouter | `open_router` | `oauth` | Browser sign-in | Router | openrouter, open router, router, or | Sign in with your browser |
 | OpenRouter | `open_router` | `credential` | API key | Router | openrouter, open router, router, or | API key |
@@ -430,6 +432,7 @@ Evidence of each listing (PRD 0028 RF10.1), generated from `models::evidence` an
 | `antigravity` | any | verified live | [reference](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/antigravity-weekly.js) | 2026-10-20 |
 | `kimchi` | any | none: `Unsupported` | — | — |
 | `eleven_labs` | any | none: `Unsupported` | — | — |
+| `meta` | any | none: `Unsupported` | — | — |
 | `nine_router` | any | none: `Unsupported` | — | — |
 | `open_router` | any | documented | [reference](https://openrouter.ai/docs/api/api-reference/models/get-models) | 2026-10-20 |
 | `litellm` | any | none: `Unsupported` | — | — |

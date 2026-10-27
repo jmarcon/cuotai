@@ -63,6 +63,7 @@ fn every_provider_has_a_verified_scope_or_an_explicit_none() {
             ElevenLabs,
             Some(include_str!("fixtures/eleven-labs-components.json")),
         ),
+        (Meta, None),
         (NineRouter, None),
         (OpenRouter, None),
         (LiteLlm, None),

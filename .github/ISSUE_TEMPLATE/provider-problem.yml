@@ -51,6 +51,7 @@ body:
         - antigravity
         - kimchi
         - eleven_labs
+        - meta
         - nine_router
         - open_router
         - litellm

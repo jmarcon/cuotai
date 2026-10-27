@@ -42,6 +42,8 @@ pub enum Provider {
     Antigravity,
     Kimchi,
     ElevenLabs,
+    /// Meta Model API (Muse models) at api.meta.ai.
+    Meta,
     /// PRD 0036: a user's own 9router instance (an aggregator).
     NineRouter,
     OpenRouter,
@@ -56,7 +58,7 @@ pub enum Provider {
 }
 
 impl Provider {
-    pub const ALL: [Self; 40] = [
+    pub const ALL: [Self; 41] = [
         Self::OpenAiApi,
         Self::AnthropicApi,
         Self::ChatGpt,
@@ -94,6 +96,7 @@ impl Provider {
         Self::Antigravity,
         Self::Kimchi,
         Self::ElevenLabs,
+        Self::Meta,
         Self::NineRouter,
         Self::OpenRouter,
         Self::LiteLlm,
@@ -116,6 +119,7 @@ impl Provider {
             Self::Kimi => "Kimi",
             Self::Qwen => "Qwen",
             Self::Groq => "Groq",
+            Self::Meta => "Meta Model API",
             Self::Perplexity => "Perplexity",
             Self::Mistral => "Mistral",
             Self::CloudflareAi => "Cloudflare AI",
@@ -198,6 +202,7 @@ impl Provider {
             Self::Kimi => "kimi",
             Self::Qwen => "qwen",
             Self::Groq => "groq",
+            Self::Meta => "meta",
             Self::Perplexity => "perplexity",
             Self::Mistral => "mistral",
             Self::CloudflareAi => "cloudflare_ai",
@@ -232,7 +237,7 @@ impl Provider {
     /// [`Provider::ALL`]: consumers that parse or route a provider name
     /// (hooks rules, CLI arguments, saved payloads) must accept it, while
     /// the account creation catalog keeps offering only real providers.
-    pub const VARIANTS: [Self; 41] = [
+    pub const VARIANTS: [Self; 42] = [
         Self::OpenAiApi,
         Self::AnthropicApi,
         Self::ChatGpt,
@@ -270,6 +275,7 @@ impl Provider {
         Self::Antigravity,
         Self::Kimchi,
         Self::ElevenLabs,
+        Self::Meta,
         Self::NineRouter,
         Self::OpenRouter,
         Self::LiteLlm,

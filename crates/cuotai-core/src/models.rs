@@ -366,6 +366,7 @@ fn contract(account: &Account) -> Result<(Localized, ModelEvidence), Localized> 
             false,
             documented("https://openrouter.ai/docs/api/api-reference/models/get-models"),
         ),
+        Provider::Meta => no_evidence(),
         Provider::ElevenLabs => reason(
             "eleven_labs",
             "ElevenLabs offers no model catalog for quota queries; no request is made.",
@@ -1379,6 +1380,7 @@ credential_env = "ALIBABA_CLOUD_ACCESS_KEY_ID"
             Kimchi,
             Copilot,
             ElevenLabs,
+            Meta,
             NineRouter,
             LiteLlm,
         ];

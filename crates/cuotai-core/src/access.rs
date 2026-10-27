@@ -46,6 +46,7 @@ const VERIFIED: &[(&str, &str)] = &[
     ("kimi_coding", "2026-10-20"),
     ("kiro", "2026-10-20"),
     ("litellm", "2026-10-25"),
+    ("meta", "2026-10-27"),
     ("mini_max", "2026-10-20"),
     ("mistral", "2026-10-20"),
     ("nine_router", "2026-10-25"),
@@ -660,6 +661,9 @@ pub(crate) fn classify(
                 doc("https://elevenlabs.io/docs/api-reference/user/subscription/get"),
                 "eleven_labs", "Reads credits used, plan limit and next reset from the documented ElevenLabs subscription endpoint, plus extra usage when enabled.")
         },
+        Provider::Meta => entry(Derived, InferenceKey, Scope::Organization,
+            doc("https://dev.meta.ai/docs/pricing-rate-limits"),
+            "meta", "Key check and team rate limits read from the x-ratelimit-* headers of the model listing; Meta documents no usage or balance API."),
         Provider::NineRouter => entry(Undocumented, AggregatorLogin, Scope::Instance,
             Evidence::Reference("https://github.com/decolua/9router/blob/f39d8f07481ae8518e93175f0ecaaafa61573c6c/src/dashboardGuard.js"),
             "nine_router", "Quotas of the connections you already added in your own 9router instance, read through its internal management routes."),
@@ -856,7 +860,7 @@ mod tests {
     #[test]
     fn classification_table_covers_every_provider_and_mode() {
         use Provider::*;
-        let base: [(Provider, Level, Credential); 40] = [
+        let base: [(Provider, Level, Credential); 41] = [
             (OpenAiApi, Official, C::AdminKey),
             (AnthropicApi, Official, C::AdminKey),
             (ChatGpt, Undocumented, C::SubscriptionSession),
@@ -894,6 +898,7 @@ mod tests {
             (Antigravity, Undocumented, C::SubscriptionSession),
             (Kimchi, Undocumented, C::InferenceKey),
             (ElevenLabs, Official, C::InferenceKey),
+            (Meta, Derived, C::InferenceKey),
             (NineRouter, Undocumented, C::AggregatorLogin),
             (OpenRouter, Official, C::InferenceKey),
             (LiteLlm, Official, C::AdminKey),

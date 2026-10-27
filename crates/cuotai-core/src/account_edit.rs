@@ -77,6 +77,7 @@ pub fn default_env(provider: Provider) -> &'static str {
         Provider::Antigravity => "ANTIGRAVITY_ACCESS_TOKEN",
         Provider::Kimchi => "KIMCHI_API_KEY",
         Provider::ElevenLabs => "ELEVENLABS_API_KEY",
+        Provider::Meta => "META_API_KEY",
         Provider::NineRouter => "NINEROUTER_PASSWORD",
         Provider::OpenRouter => "OPENROUTER_API_KEY",
         Provider::LiteLlm => "LITELLM_API_KEY",
@@ -205,6 +206,7 @@ fn credential_help_text(provider: Provider) -> &'static str {
         Provider::Kimi => "KIMI_API_KEY (Moonshot/Kimi). Default: international account balance. Coding opt-in: accepts the platform key OR an OAuth access token (set the variable name in token_env); the key has priority.",
         Provider::Qoder => "QODER_API_KEY accepts PAT (pt-..., exchanged for a job token) or an existing Bearer/job token (jt-.../device). Choose the credential type in parameters.",
         Provider::OpenCodeGo => "OPENCODE_GO_API_KEY of the account; the user's own key authenticates the internal query.",
+        Provider::Meta => "Meta Model API key (META_API_KEY) from dev.meta.ai/api-keys. It only checks the key and reads the team rate-limit headers; Meta exposes no usage or balance API.",
         Provider::Groq => "GROQ_API_KEY of the account; the user's own key authenticates the internal query.",
         Provider::OllamaCloud => "OLLAMA_CLOUD_API_KEY of the account (Bearer); usage in GET ollama.com/api/usage and plan in POST /api/me. No cookie import required.",
         Provider::XiaomiMimo => "Balance/Token Plan: paste the platform.xiaomimimo.com web session in the account wizard (system vault) or name the variable in platform_session_env. The native code returns an inference key, not a cookie. The Xiaomi account session (session_env) is separate: weekly MiMo Desktop quota.",
@@ -1743,6 +1745,7 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
         | Provider::MiniMax
         | Provider::Qwen
         | Provider::Groq
+        | Provider::Meta
         | Provider::NvidiaNim
         | Provider::Poolside
         | Provider::OpenCodeGo
