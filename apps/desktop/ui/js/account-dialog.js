@@ -93,6 +93,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     </div>
     <div id="dyn-fields"></div></div>
     <div class="session-box" id="session-box" hidden></div>
+    <div class="session-box" id="move-box" hidden></div>
     <div class="session-box" id="aggregator-box" hidden>
       <h3>${te("dialog.aggregator.title")}</h3>
       <p class="hint">${te("dialog.aggregator.hint")}</p>
@@ -210,6 +211,8 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
         : dlg.querySelector('[data-field^="f:"]');
       return row || dlg.querySelector('[data-field="credential"]');
     }
+    // PRD 0047: the main credential row stands for the account's `credential_env`, typed or kept in the vault.
+    if (field === "credential_env") return dlg.querySelector('[data-field="credential"]');
     return dlg.querySelector(`[data-field="${CSS.escape(field)}"]`);
   };
 
@@ -372,26 +375,60 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     const notes = dyn.querySelector("#access-notes");
     if (notes) notes.innerHTML = access.notes.map((n) => `<small>${esc(tl(n))}</small>`).join("");
   }
+  // PRD 0047 G2: the keys, tokens and secrets the form types (masked, never prefilled, never echoed back). The slots of
+  // the session box (`schema.sessions`) stay there; every other `secret_inputs` entry is a row of the form.
+  const sessionSlotSet = () => new Set((schema.sessions ?? []).map((s) => s.slot));
+  const formSecrets = () => (schema.secret_inputs ?? []).filter((s) => !sessionSlotSet().has(s.slot));
+  const mainSecret = () => formSecrets().find((s) => s.slot === "credential_env") ?? null;
+  // G4/G5: where a saved secret comes from (`vault`, `environment` set up in the terminal, `unset`); never a value or name.
+  const secretSource = (slot) => (existing && existing.provider === provider
+    ? existing.secret_states?.find((s) => s.slot === slot)?.source : null) ?? "unset";
+  const secretEls = () => [...dyn.querySelectorAll(".secret-input[data-slot]")];
+  const typedSecrets = () => secretEls().filter((el) => el.value.trim()).map((el) => ({ slot: el.dataset.slot, value: el.value }));
+  const clearSecrets = () => secretEls().forEach((el) => { el.value = ""; el.type = "password"; });
+  // Saved secrets the user chose to replace: their input stays open across re-renders of the form.
+  const replacing = new Set();
+  const secretRowHtml = (s, extra = "") => {
+    const source = secretSource(s.slot);
+    const open = source === "unset" || replacing.has(s.slot);
+    const id = `secret-${s.slot}`;
+    const required = s.required && source === "unset";
+    const state = source === "unset" ? ""
+      : `<p class="secret-state">${icon(source === "vault" ? "check" : "terminal")}<span>${te(source === "vault" ? "dialog.secret.saved" : "dialog.secret.terminal")}</span>
+          ${open ? "" : `<button type="button" class="btn sm" data-replace="${esc(s.slot)}" aria-describedby="${id}-l">${te("dialog.secret.replace")}</button>`}</p>`;
+    return `<div class="f secret-row" data-field="${s.slot === "credential_env" ? "credential" : `f:${esc(s.slot)}`}">
+        <span id="${id}-l">${esc(tl(s.label))}${required ? " *" : ""}</span>${state}
+        <div class="secret-field" ${open ? "" : "hidden"}>
+          <input type="password" id="${id}" class="secret-input" data-slot="${esc(s.slot)}" aria-labelledby="${id}-l" aria-describedby="${id}-h"
+            autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false"
+            placeholder="${te(source === "unset" ? "dialog.secret.placeholder" : "dialog.secret.replacePlaceholder")}" ${required ? "required" : ""} />
+          <button type="button" class="icon secret-reveal" aria-controls="${id}" aria-pressed="false" aria-label="${te("dialog.secret.show")}" title="${te("dialog.secret.show")}">${icon("eye")}</button>
+        </div>
+        <small class="field-err" hidden></small>
+        <small id="${id}-h" ${open ? "" : "hidden"}>${esc(tl(s.help))}${source !== "unset" && open ? ` ${te("dialog.secret.keepHint")}` : ""}</small>${extra}</div>`;
+  };
   // PRD 0016 RF1: slots the saved account keeps in the vault (the provider cannot change while editing), plus
-  // RF2: the slots with a paste, which the save writes to the vault.
-  const sessionSlots = () => [...new Set([...(existing?.session_slots ?? []), ...pastes().map((p) => p.slot)])];
+  // RF2: the slots with a paste and PRD 0047 the typed secrets, which the save writes to the vault.
+  const sessionSlots = () => [...new Set([...(existing?.session_slots ?? []), ...pastes().map((p) => p.slot), ...typedSecrets().map((s) => s.slot)])];
   const sessionBox = dlg.querySelector("#session-box");
   // PRD 0016 RF2.1: the pasted sessions live only in the masked fields; they go to the core on preview, test and save.
   const pastes = () => [...sessionBox.querySelectorAll(".session-paste[data-slot]")]
     .filter((el) => el.value.trim())
     .map((el) => ({ slot: el.dataset.slot, paste: el.value }));
   const clearPastes = () => sessionBox.querySelectorAll(".session-paste[data-slot]").forEach((el) => { el.value = ""; });
-  let confirmMigrate = false;
+  let confirmMove = false;
   let confirmForget = false;
   let previewSeq = 0;
   function renderSession(status = "") {
-    const offers = existing?.session_migration ?? [];
-    const stored = existing?.session_slots ?? [];
     const slots = schema.sessions ?? [];
+    // PRD 0047: the vault reference may also hold typed keys; this box speaks only of its own session slots, and
+    // "Forget" (which empties the whole reference) is offered only when nothing else lives there.
+    const kept = existing?.provider === provider ? existing?.session_slots ?? [] : [];
+    const stored = kept.filter((slot) => slots.some((s) => s.slot === slot));
+    const forgettable = stored.length > 0 && stored.length === kept.length;
     clearPastes();
-    sessionBox.hidden = !slots.length && !offers.length && !stored.length && !status;
+    sessionBox.hidden = !slots.length && !stored.length && !status;
     if (sessionBox.hidden) { sessionBox.innerHTML = ""; return; }
-    confirmMigrate = false;
     confirmForget = false;
     // PRD 0016 RF4.1: the core's `UserSession` level and risk warning lead the paste box.
     sessionBox.innerHTML = `<h3>${te("dialog.session.title")}</h3>${slots.length ? sessionNoticeHtml(schema.session_notice) : ""}`
@@ -409,10 +446,8 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
         </div>`).join("")
       + (slots.length ? `<div class="dlg-actions"><button type="button" class="btn" id="session-test">${te("dialog.session.test")}</button></div>
           <p class="hint" id="session-test-status" role="status" aria-live="polite"></p>` : "")
-      + (stored.length ? `<p class="hint">${te("dialog.session.stored")}</p>
-          <div class="dlg-actions"><button type="button" class="btn danger-btn" id="session-forget">${te("dialog.session.forget")}</button></div>` : "")
-      + offers.map((c) => `<p class="hint">${esc(tl(c.consent))}</p>`).join("")
-      + (offers.length ? `<div class="dlg-actions"><button type="button" class="btn" id="session-migrate">${te("dialog.session.migrate")}</button></div>` : "")
+      + (stored.length ? `<p class="hint">${te("dialog.session.stored")}</p>` : "")
+      + (forgettable ? `<div class="dlg-actions"><button type="button" class="btn danger-btn" id="session-forget">${te("dialog.session.forget")}</button></div>` : "")
       + `<p class="hint" id="session-status" role="status" aria-live="polite">${esc(status)}</p>`;
     // RF2.2: the core says what each paste keeps (names, counts, expiry) — never the value.
     sessionBox.querySelectorAll(".session-paste[data-slot]").forEach((el) => el.addEventListener("input", async () => {
@@ -444,30 +479,6 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
         btn.disabled = false;
       }
     });
-    const btn = sessionBox.querySelector("#session-migrate");
-    btn?.addEventListener("click", async () => {
-      const statusEl = sessionBox.querySelector("#session-status");
-      if (!confirmMigrate) {
-        confirmMigrate = true;
-        btn.textContent = t("dialog.session.confirm");
-        statusEl.textContent = t("dialog.session.confirmHint");
-        return;
-      }
-      btn.disabled = true;
-      try {
-        const migrated = offers.map((c) => c.slot);
-        existing = await migrateSession(index);
-        // The saved account no longer names the variables; the draft must not bring them back on save.
-        for (const slot of migrated) values.set(slot, { key: slot, text: "", choice: null });
-        renderSession(t("dialog.session.migrated"));
-        await renderDynamic();
-      } catch (x) {
-        btn.disabled = false;
-        confirmMigrate = false;
-        btn.textContent = t("dialog.session.migrate");
-        statusEl.textContent = errText(x);
-      }
-    });
     // PRD 0016 RF4.2: "Forget this session" asks once more, then deletes the vault entry and the reference.
     const forgetBtn = sessionBox.querySelector("#session-forget");
     forgetBtn?.addEventListener("click", async () => {
@@ -482,7 +493,8 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       try {
         existing = await forgetSession(index);
         renderSession(t("dialog.session.forgotten"));
-        await renderAccess();
+        renderMove();
+        await renderDynamic();
       } catch (x) {
         forgetBtn.disabled = false;
         confirmForget = false;
@@ -492,6 +504,51 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     });
   }
   renderSession();
+  // PRD 0047 G5: secrets set up in the terminal (keys and sessions alike) show no variable name; one click, confirmed
+  // once more, copies them into the system vault and the account stops depending on that setup.
+  const moveBox = dlg.querySelector("#move-box");
+  function renderMove(status = "") {
+    const offers = existing?.provider === provider ? existing?.vault_migration ?? [] : [];
+    moveBox.hidden = !offers.length && !status;
+    confirmMove = false;
+    if (moveBox.hidden) { moveBox.innerHTML = ""; return; }
+    moveBox.innerHTML = `<h3>${te("dialog.move.title")}</h3>`
+      + (offers.length ? `<p class="hint">${te("dialog.move.intro")}</p>`
+        + offers.map((c) => `<p class="hint">${esc(tl(c.consent))}</p>`).join("")
+        + `<div class="dlg-actions"><button type="button" class="btn" id="move-btn">${te("dialog.move.button")}</button></div>` : "")
+      + `<p class="hint" id="move-status" role="status" aria-live="polite">${esc(status)}</p>`;
+    const btn = moveBox.querySelector("#move-btn");
+    btn?.addEventListener("click", async () => {
+      const statusEl = moveBox.querySelector("#move-status");
+      if (!confirmMove) {
+        confirmMove = true;
+        btn.textContent = t("dialog.move.confirm");
+        statusEl.textContent = t("dialog.move.confirmHint");
+        return;
+      }
+      btn.disabled = true;
+      try {
+        const moved = offers.map((c) => c.slot);
+        existing = await migrateSession(index);
+        // The saved account no longer points at the terminal setup; the draft must not bring those references back.
+        for (const slot of moved) {
+          if (values.has(slot)) values.set(slot, { key: slot, text: "", choice: null });
+          replacing.delete(slot);
+        }
+        renderSession();
+        renderMove(t("dialog.move.done"));
+        await renderDynamic();
+      } catch (x) {
+        btn.disabled = false;
+        confirmMove = false;
+        btn.textContent = t("dialog.move.button");
+        // The terminal setup is often invisible to a desktop app; never show the core's text, which names the variable.
+        const parsed = parseErrorEnvelope(x);
+        statusEl.textContent = parsed?.id?.startsWith("user_session.migrate.") ? t("dialog.move.unreadable") : errText(x);
+      }
+    });
+  }
+  renderMove();
   // PRD 0036 RF2.2: an aggregator (9router) is tested before its first save: health, version, sign-in and the
   // connection list, with one core sentence as the outcome (never a body or URL).
   const aggregatorBox = dlg.querySelector("#aggregator-box");
@@ -672,8 +729,9 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   }
   dlg.addEventListener("close", () => {
     unlisten();
-    // PRD 0016 RF2.3: a pasted session never outlives the dialog.
+    // PRD 0016 RF2.3 / PRD 0047: a pasted session or typed secret never outlives the dialog.
     clearPastes();
+    clearSecrets();
     // Closing the dialog with an active login and no commit cancels the flow: the authorized
     // token dies in memory and nothing is written to the vault (RF2.4).
     if (loginState && !committing) {
@@ -772,6 +830,9 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     for (const el of dyn.querySelectorAll("[name^='o:'],[name^='r:']")) {
       optSnapshot.set(el.name, el.value);
     }
+    // PRD 0047: typed secrets survive the re-render in the DOM only (never in `values`, never logged).
+    const secretSnapshot = new Map(typedSecrets().map((x) => [x.slot, x.value]));
+    for (const slot of secretSnapshot.keys()) replacing.add(slot);
     const resolvedChoices = await fieldChoices(provider, choices(), authMode);
     const notices = [];
     for (const resolved of resolvedChoices) {
@@ -793,7 +854,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     if (modes().length || cred !== "none") {
       const radios = [];
       if (cred !== "none") {
-        const label = t(cred === "profile" ? "dialog.credProfile" : "dialog.credEnvShort");
+        const label = cred === "profile" ? t("dialog.credProfile") : mainSecret() ? tl(mainSecret().label) : t("dialog.credKey");
         radios.push(`<label class="mode"><input type="radio" name="auth" value="credential" ${authMode === "credential" ? "checked" : ""} /> ${esc(label)}</label>`);
       }
       for (const m of available) {
@@ -821,12 +882,18 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     const notesSlot = `<span class="access-notes" id="access-notes"></span>`;
     let bodyHtml = "";
     if (!mode) {
+      // PRD 0047 G1/G2: the key is typed (masked) and kept in the vault; the variable name, the terminal default and the
+      // terminal help (`credential`, `default_env`, `credential_help`) are never shown. An AWS profile stays a name.
       bodyHtml = cred === "none"
         ? `<p class="hint">${te("dialog.credNone")}${notesSlot}</p>`
-        : `<label class="f" data-field="credential"><span>${te(cred === "profile" ? "dialog.credProfile" : "dialog.credEnv")}</span>
-            <input name="credential" value="${esc(existing?.credential ?? "")}" placeholder="${esc(cred === "env" ? schema.default_env : "")}" required />
+        : cred === "profile"
+          ? `<label class="f" data-field="credential"><span>${te("dialog.credProfile")}</span>
+            <input name="credential" value="${esc(existing?.credential ?? "")}" required />
             <small class="field-err" hidden></small>
-            <small>${esc(tl(schema.credential_help))}</small>${notesSlot}</label>`;
+            <small>${esc(tl(schema.credential_help))}</small>${notesSlot}</label>`
+          : mainSecret()
+            ? secretRowHtml(mainSecret(), notesSlot)
+            : `<p class="hint">${notesSlot}</p>`;
     } else {
       const renderOption = (option, isRegistration) => {
         const prefix = isRegistration ? "r" : "o";
@@ -857,8 +924,14 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     }
 
     dynAuth.innerHTML = authHtml + bodyHtml;
+    // PRD 0047 G1: a field that names a variable is terminal-only; its secret input (if any) takes its place.
+    const terminalOnly = new Set(schema.terminal_only_fields ?? []);
     dynFields.innerHTML =
       schema.fields.filter((f) => visible.has(f.key)).map((f) => {
+        if (terminalOnly.has(f.key)) {
+          const secret = formSecrets().find((x) => x.field === f.key);
+          return secret ? secretRowHtml(secret) : "";
+        }
         const v = values.get(f.key);
         const input = f.options
           ? `<select name="f:${esc(f.key)}">${f.options.map((option) => `<option value="${option.index}" ${(v?.choice ?? f.options[0]?.index ?? 0) === option.index ? "selected" : ""}>${esc(tl(option.label))}</option>`).join("")}</select>`
@@ -869,6 +942,8 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       const el = dyn.querySelector(`[name="${name}"]`);
       if (el && value !== "") el.value = value;
     }
+    for (const el of secretEls()) if (secretSnapshot.has(el.dataset.slot)) el.value = secretSnapshot.get(el.dataset.slot);
+    secretSnapshot.clear();
     const loginBtn = dyn.querySelector("#login-btn");
     if (loginBtn) loginBtn.addEventListener("click", () => startLogin(loginBtn));
     syncLoginBtn();
@@ -888,8 +963,44 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     } else if (e.target.name?.startsWith("f:")) {
       collect();
       await (e.target.tagName === "SELECT" ? renderDynamic() : renderAccess());
+    } else if (e.target.classList?.contains("secret-input")) {
+      await renderAccess();
     }
   });
+  // PRD 0047 G2/G4: Show/Hide reveals only what the user typed; Replace opens the input of a saved secret (blank keeps it).
+  dyn.addEventListener("click", (e) => {
+    const reveal = e.target.closest(".secret-reveal");
+    if (reveal) {
+      const input = dyn.querySelector(`#${CSS.escape(reveal.getAttribute("aria-controls"))}`);
+      const shown = input.type === "password";
+      input.type = shown ? "text" : "password";
+      reveal.setAttribute("aria-pressed", String(shown));
+      const label = t(shown ? "dialog.secret.hide" : "dialog.secret.show");
+      reveal.setAttribute("aria-label", label);
+      reveal.title = label;
+      reveal.innerHTML = icon(shown ? "eyeOff" : "eye");
+      input.focus();
+      return;
+    }
+    const replace = e.target.closest("[data-replace]");
+    if (replace) {
+      const row = replace.closest(".secret-row");
+      replacing.add(replace.dataset.replace);
+      row.querySelector(".secret-field").hidden = false;
+      const help = row.querySelector(`#secret-${CSS.escape(replace.dataset.replace)}-h`);
+      if (help) { help.hidden = false; help.insertAdjacentText("beforeend", ` ${t("dialog.secret.keepHint")}`); }
+      row.querySelector(".secret-input").placeholder = t("dialog.secret.replacePlaceholder");
+      replace.remove();
+      row.querySelector(".secret-input").focus();
+    }
+  });
+  // PRD 0047: a typed key travels in `secrets` (the credential text is then empty); an untouched key the terminal set up
+  // keeps its reference, which the form never displays; an AWS profile is the name typed in its row.
+  function credentialText(data) {
+    if (!mainSecret()) return String(data.get("credential") ?? "");
+    const typed = typedSecrets().some((x) => x.slot === "credential_env");
+    return !typed && secretSource("credential_env") === "environment" ? existing?.credential ?? "" : "";
+  }
   // The dialog's draft as the backend reads it (save and the PRD 0016 session test).
   function draftInput() {
     const data = new FormData(form);
@@ -898,7 +1009,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     return {
       index, provider, name: String(data.get("name") ?? ""),
       peerName: peerShown ? String(data.get("peer_name") ?? "") : null,
-      credential: mode ? "" : String(data.get("credential") ?? ""),
+      credential: mode ? "" : credentialText(data),
       fields: draftFields(),
       interval: String(data.get("interval") ?? ""),
       group: String(data.get("group") ?? ""),
@@ -909,6 +1020,8 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       authMode,
       authOptions: options,
       authParams: loginDone() ? loginState.params : {},
+      // PRD 0047 G2: blank or absent keeps the stored secret.
+      secrets: mode ? typedSecrets().filter((x) => x.slot !== "credential_env") : typedSecrets(),
     };
   }
   dlg.querySelector("[data-cancel]").addEventListener("click", () => {
@@ -933,6 +1046,12 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       return;
     }
     const mode = selectedMode();
+    // PRD 0047 G1: a missing required secret is said in the form's own words (the core's text is terminal wording).
+    const missing = secretEls().find((el) => el.required && !el.value.trim());
+    if (missing) {
+      setFieldError(missing.closest("[data-field]").dataset.field, t("dialog.secret.required"));
+      return;
+    }
     if (loginState?.phase === "running") {
       err.textContent = t("dialog.save.loginRunning");
       return;
@@ -959,6 +1078,8 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     const sessions = pastes();
     const testStatus = sessionBox.querySelector("#session-test-status");
     if (sessions.length && testStatus) testStatus.textContent = t("dialog.session.testingSave");
+    // G3: a typed key is checked with one read-only query before it reaches the vault.
+    else if (typedSecrets().length) err.textContent = t("dialog.secret.testingSave");
     try {
       // PRD 0036 RF2.2: the save of an aggregator runs its Test connection first; a failed test blocks it.
       if (schema.aggregator && !(await runAggregatorTest("dialog.aggregator.testingSave"))) {

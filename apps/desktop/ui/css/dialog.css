@@ -175,6 +175,33 @@ label.mode-off {
   font-family: var(--font-mono), var(--font-script);
   resize: vertical;
 }
+/* PRD 0047 G2/G4: a typed secret is masked (Show reveals it on request) and a saved one shows only its state. */
+.secret-field {
+  display: flex;
+  gap: calc(var(--space-1) + var(--space-0));
+  align-items: center;
+}
+.secret-field[hidden] {
+  display: none;
+}
+.secret-field input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono), var(--font-script);
+}
+.secret-state {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-md);
+}
+.secret-state svg {
+  width: 16px;
+  height: 16px;
+  color: var(--fg-muted);
+}
 .login-log {
   max-height: 6.5em;
   overflow-y: auto;

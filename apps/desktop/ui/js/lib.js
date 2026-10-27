@@ -758,7 +758,13 @@ export const staleView = (r) => ({ ...r, metrics: r.last_good.metrics, notes: []
 export const reportKey = (r) => (r.connection ? r.account_key : `${r.provider}::${r.account}`);
 /** Resolve the structured note sidecar by the same index as the legacy fallback. */
 export const noteText = (report, index) =>
-  report.notes_l10n?.[index] ? tl(report.notes_l10n[index]) : report.notes[index] ?? "";
+  report.notes_l10n?.[index]
+    ? tl(KEY_MISSING_NOTES.has(report.notes_l10n[index].id) ? { id: "card.keyMissing", params: {}, fallback: "No key saved for this account. Open Edit to add it." } : report.notes_l10n[index])
+    : report.notes[index] ?? "";
+// PRD 0047 G1: core notes that name the terminal variable of a missing key; the desktop says it in its own words.
+const KEY_MISSING_NOTES = new Set(["query.missing_credential", "query.router_keys.kimi_missing_credential",
+  "query.alibaba_billing.missing_secret", "query.alibaba_billing.missing_security_token",
+  "query.inference.missing_endpoint_credential.hint_default", "query.inference.missing_endpoint_credential.hint_override"]);
 /** PRD 0005 RF4.2: what a failed account shows first: the core's explanation (an Unavailable account's reason, a
  *  changed undocumented interface), else the adapter's first note, else the status. */
 export const causeText = (r) => (r.pending ? t("card.waiting") : r.access?.explanation ? tl(r.access.explanation) : r.notes.length ? noteText(r, 0) : statusLabel(r.status));
@@ -1096,7 +1102,7 @@ const demoReports = [
   drn("Personal", "mistral", [], demoNote("rate", "HTTP 429: rate limit reached."), "rate_limited"),
   { ...drn("Dev", "cursor", [], demoNote("down", "Service unavailable right now."), "error"), checked_at: ago(1),
     last_good: { checked_at: ago(42), metrics: [dm("Fast requests", 380, 500, 120, "quota", "monthly")] } },
-  drn("Work", "windsurf", [], demoNote("config", "Set the environment variable that holds the credential."), "needs_configuration"),
+  drn("Work", "windsurf", [], demoNote("config", "Add the API key to this account to finish setting it up."), "needs_configuration"),
   { ...dr("Account 3", "kiro", [dm("credit", 596.15, 10000, 360, "quota", "other", "credits")]),
     identity: { email: null, copy: { label: { id: "identity.profile_arn", params: {}, fallback: "Profile ARN" }, value: "arn:aws:codewhisperer:us-east-1:123456789012:profile/EXAMPLEPROFILE" },
       badges: [{ tone: "accent", text: "IAM Identity Center" }, { tone: "info", text: "us-east-1" }, { tone: "good", text: { id: "demo.kiro.badge.active", params: {}, fallback: "active" } }] } },
@@ -1109,7 +1115,7 @@ const demoReports = [
   // PRD 0010 RF2.3 fixture: just opened, no answer yet; the reading recorded 3 h ago shows as stale.
   { ...dr("Restored", "chat_gpt", []), pending: true, class: "unmeasured", checked_at: ago(180),
     last_good: { checked_at: ago(180), metrics: [dm("5h", 30, 100, 2, "quota", "window_5h", "%")] } },
-  // PRD 0016 RF1.2 fixture: a session still read from an environment variable, offered for the vault;
+  // PRD 0016 RF1.2 / PRD 0047 G5 fixture: a session set up in the terminal, offered for the vault;
   // RF3.2: its pasted session expires in 2 days (the card warns).
   { ...dr("Personal", "xiaomi_mimo", [dm("Weekly", 6, 100, 96, "quota", "weekly", "%")]),
     session_expiry: { expires_at: new Date(Date.now() + 2.5 * 86400000).toISOString(), days: 2, soon: true,
@@ -1150,6 +1156,9 @@ if (new URLSearchParams(location.search).get("aggregator") !== "off") {
 export const DEMO_NATIVE_DETECT = [["claude", "claude_cli", "Claude Code", "Claude Code"], ["chat_gpt", "codex_cli", "Codex CLI", "OpenAI Codex"], ["kimi", "kimi_cli", "Kimi Code CLI", "Kimi"], ["grok", "grok_cli", "Grok CLI", "Grok (xAI)"], ["zed", "zed", "Zed", "Zed"]];
 /** The demo's stable account id (PRD 0029) of the account at `index`. */
 const demoAccountId = (index) => `acc_demo${String(index).padStart(8, "0")}`;
+const DEMO_KEY_INPUT = { slot: "credential_env", label: { id: "secret_input.credential.label", params: {}, fallback: "API key or access token" },
+  help: { id: "secret_input.help", params: {}, fallback: "Paste the value. Cuotai keeps it in the system vault and sends it only to this provider; the configuration file keeps just a reference." },
+  required: true, cookie: false, field: null };
 const DEMO_SESSION_SLOT = { slot: "platform_session_env",
   label: { id: "user_session.slot.xiaomi_mimo.platform_session_env", params: {}, fallback: "platform.xiaomimimo.com web session (balance and Token Plan)" },
   instructions: { id: "user_session.instructions", params: { site: "platform.xiaomimimo.com" }, fallback: "Sign in to platform.xiaomimimo.com in your browser. In the developer tools (F12), Network tab, reload the page, pick a request to platform.xiaomimimo.com and copy its Cookie header or use \"Copy as cURL\"; the cookie table of the Application tab works too. Only this session's cookies are kept; the rest of the pasted text is discarded." },
@@ -1852,8 +1861,11 @@ const demo = {
       save_confirmation: reason && { id: "access.confirm_unavailable", params: { reason }, fallback: `${reason.fallback} The account will be saved, but it will show this reason instead of numbers.` },
     };
   },
-  form_schema: async ({ provider }) => provider === "kiro" ? demoKiroSchema() : ({ credential_kind: "env", default_env: "DEMO_API_KEY",
-    credential_help: { id: "demo.credential_help", params: {}, fallback: "Name of the environment variable that holds the credential (demo)." },
+  // PRD 0047: the desktop types the key (`secret_inputs`); the variable-name fields are terminal-only.
+  form_schema: async ({ provider }) => provider === "kiro" ? demoKiroSchema() : ({ credential_kind: "env",
+    secret_inputs: [DEMO_KEY_INPUT, ...(provider === "xiaomi_mimo" ? [{ slot: DEMO_SESSION_SLOT.slot, label: DEMO_SESSION_SLOT.label,
+      help: DEMO_SESSION_SLOT.instructions, required: false, cookie: true, field: null }] : [])],
+    terminal_only_fields: [],
     login: { modes: [{ id: "oauth", label: { id: "demo.login.oauth.label", params: {}, fallback: "OAuth sign-in (demo)" }, help: { id: "demo.login.oauth.help", params: {}, fallback: "The browser demo does not run the sign-in." }, completion_notice: { id: "demo.login.oauth.completion", params: {}, fallback: "Sign-in authorized (demo)." }, credential_store: "cuotai_vault", account_binding: { type: "none" }, registration: [], options: [], unavailable_reason: { id: "demo.login.oauth.unavailable", params: {}, fallback: "Sign-in is not available in the demo." } }], unsupported_reason: null },
     sessions: provider === "xiaomi_mimo" ? [DEMO_SESSION_SLOT] : [],
     session_notice: provider === "xiaomi_mimo" ? demoSessionNotice("vault") : null,
@@ -1883,13 +1895,18 @@ const demo = {
     const state = demoSessionState(r);
     const sessionOffer = state === "env";
     const label = { id: "user_session.slot.xiaomi_mimo.platform_session_env", params: {}, fallback: "platform.xiaomimimo.com web session (balance and Token Plan)" };
-    const hosts = ["platform.xiaomimimo.com"];
-    return { name: r.account, provider: r.provider, credential: "DEMO_API_KEY",
+    // PRD 0047 G4/G5: the key of every demo account is in the vault; the MiMo session still comes from the terminal setup
+    // until it is moved. No value and no variable name reach the form.
+    const source = state === "env" ? "environment" : state === "vault" ? "vault" : "unset";
+    const states = [{ slot: "credential_env", source: "vault", label: dl("secret_input.state.vault", "Saved in the system vault") },
+      ...(r.provider === "xiaomi_mimo" ? [{ slot: "platform_session_env", source, label: dl(`secret_input.state.${source}`, source) }] : [])];
+    return { name: r.account, provider: r.provider, credential: "",
       interval: "", group: "", account_id: demoAccountId(index), monogram: demoSettings.monograms[demoAccountId(index)] ?? "", uses_oauth: false, native_login: false, auth_mode: "credential", auth_options: {}, auth_registration: {}, fields: [{ key: "project_id", text: "", choice: null }, { key: "mode", text: null, choice: 0 }],
       session_slots: state === "vault" ? ["platform_session_env"] : [],
-      session_migration: sessionOffer ? [{ slot: "platform_session_env", env: "MIMO_COOKIE", label, hosts,
-        consent: { id: "user_session.migrate.consent", params: { label, env: "MIMO_COOKIE", hosts: hosts.join(", ") },
-          fallback: `${label.fallback}: copy the value of MIMO_COOKIE into the system vault and remove MIMO_COOKIE from the TOML. The session is only sent to ${hosts.join(", ")}; the variable stays in your environment until you remove it.` } }] : [] };
+      credential_stored: true, secret_states: states,
+      vault_migration: sessionOffer ? [{ slot: "platform_session_env", label,
+        consent: { id: "secret_input.migrate.consent", params: { label },
+          fallback: `${label.fallback}: Cuotai copies the value it reads today from the terminal setup into the system vault. From then on this account works without that setup; the configuration file keeps just a reference.` } }] : [] };
   },
   migrate_session: async ({ index }) => {
     demoSettings.sessionMigrated.add(demoReports[index]);
@@ -2585,7 +2602,7 @@ const demoLevel = (level) => dl(`access.level.${level}`, { official: "Official",
 function demoKiroSchema() {
   const opts = (key, items) => items.map(([value, label], index) => ({ id: `${key}.${value}`, index, value, label: dl(`${key}.${value}`, label) }));
   return {
-    credential_kind: "env", default_env: "KIRO_ACCESS_TOKEN", credential_help: dl("credential_help.kiro", "Access token Kiro (demo)."),
+    credential_kind: "env", secret_inputs: [DEMO_KEY_INPUT], terminal_only_fields: [],
     login: { unsupported_reason: null, modes: [{ id: "oauth", label: dl("demo.kiro.login.oauth.label", "Login no navegador"), help: dl("demo.kiro.login.oauth.help", "Login nativo no navegador do sistema."),
       completion_notice: dl("demo.kiro.login.oauth.completion", "Sign-in authorized (demo)."),
       credential_store: "cuotai_vault", account_binding: { type: "none" },
@@ -2599,7 +2616,7 @@ function demoKiroSchema() {
       { key: "auth_method", label: dl("demo.kiro.f.auth_method", "Authentication method"), help: dl("demo.kiro.f.auth_method.h", "Source of the access token."), required: false,
         options: [
           ...opts("demo.kiro.f.auth_method", [["builder-id", "AWS Builder ID (default)"], ["idc", "IAM Identity Center"]]).map((option) => ({ ...option, auth_modes: ["oauth"], unavailable_reason: dl("demo.kiro.f.auth_method.login_only", "Available only with the native sign-in.") })),
-          ...opts("demo.kiro.f.auth_method", [["google", "Google"], ["github", "GitHub"], ["import", "Imported"], ["api_key", "API key"], ["external_idp", "External IdP"]]).map((option, offset) => ({ ...option, index: offset + 2, auth_modes: ["credential"], unavailable_reason: dl("demo.kiro.f.auth_method.env_only", "Available only with an environment credential.") })),
+          ...opts("demo.kiro.f.auth_method", [["google", "Google"], ["github", "GitHub"], ["import", "Imported"], ["api_key", "API key"], ["external_idp", "External IdP"]]).map((option, offset) => ({ ...option, index: offset + 2, auth_modes: ["credential"], unavailable_reason: dl("demo.kiro.f.auth_method.env_only", "Available only with a typed access token.") })),
         ] },
       { key: "profile_arn", label: dl("demo.kiro.f.profile_arn", "ARN do perfil CodeWhisperer (opcional)"), help: dl("demo.kiro.f.profile_arn.h", ""), required: false, options: null },
     ],
