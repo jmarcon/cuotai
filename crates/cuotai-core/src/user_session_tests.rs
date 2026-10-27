@@ -1969,7 +1969,10 @@ fn qwen_cloud_capture_allows_only_its_sign_in_hosts() {
     assert!(!is_open_url(
         "https://home.qwencloud.com/analytics/token-plan/individual"
     ));
-    assert_eq!(spec.done_when, &["login_aliyunid_pk"]);
+    assert_eq!(
+        spec.done_when,
+        &["login_aliyunid_pk", "login_aliyunid_ticket"]
+    );
     for ok in [
         usage,
         spec.cookie_url,
@@ -2027,7 +2030,7 @@ fn coding_plan_capture_follows_the_region() {
     for region in [None, Some("cn")] {
         assert_eq!(
             d.capture_in(region).unwrap().done_when,
-            &["login_aliyunid_pk"]
+            &["login_aliyunid_pk", "login_aliyunid_ticket"]
         );
     }
     let intl_ok = [

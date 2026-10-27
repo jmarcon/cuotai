@@ -276,6 +276,7 @@ async fn capture<R: Runtime>(
         });
     }
     let began = Instant::now();
+    let mut seen: Vec<String> = Vec::new();
     let outcome = loop {
         tokio::time::sleep(POLL).await;
         let cancelled = cancel.load(Ordering::SeqCst);
@@ -292,7 +293,26 @@ async fn capture<R: Runtime>(
                 .map_err(|_| ())
         };
         let read = read.as_deref().map_err(|_| ());
+        if cfg!(debug_assertions) {
+            if let Ok(store) = read {
+                if !store.is_empty() {
+                    let mut names: Vec<String> = store
+                        .iter()
+                        .map(|c| format!("{}@{}", c.name, c.domain))
+                        .collect();
+                    names.sort();
+                    names.dedup();
+                    seen = names;
+                }
+            }
+        }
         if let Some(outcome) = step(target, host, began.elapsed(), cancelled, read) {
+            // Debug builds only: the cookie names and domains the store last
+            // held, never a value, to diagnose a capture that ends early or
+            // never ends.
+            if cfg!(debug_assertions) {
+                eprintln!("session capture ({host}): cookie names {seen:?}");
+            }
             break outcome;
         }
     };

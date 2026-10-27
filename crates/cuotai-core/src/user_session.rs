@@ -359,10 +359,12 @@ const ALIBABA_CODING_PLAN_INTL_CAPTURE: CaptureSpec = CaptureSpec {
         "github.com",
     ],
     login_suffixes: &[],
-    // `cna` exists before sign-in; the account id is set by the sign-in
-    // together with `login_aliyunid_ticket`, from which the adapter
+    // `cna` exists before sign-in. The account id can arrive before the
+    // ticket (owner test 2026-10-27: a capture that stopped on
+    // `login_aliyunid_pk` alone was rejected as expired), so the capture
+    // also waits for `login_aliyunid_ticket`, from which the adapter
     // obtains `sec_token` (RF4.3).
-    done_when: &["login_aliyunid_pk"],
+    done_when: &["login_aliyunid_pk", "login_aliyunid_ticket"],
 };
 
 /// PRD 0048 RF3.4: the mainland console sign-in. Evidence (2026-10-27,
@@ -390,7 +392,7 @@ const ALIBABA_CODING_PLAN_CN_CAPTURE: CaptureSpec = CaptureSpec {
         "h5.dingtalk.com",
     ],
     login_suffixes: &[],
-    done_when: &["login_aliyunid_pk"],
+    done_when: &["login_aliyunid_pk", "login_aliyunid_ticket"],
 };
 
 /// The Coding Plan dashboards of `alibaba_plans` (`CODING_PLAN_DASHBOARD_*`).
@@ -450,7 +452,7 @@ const QWEN_CLOUD_CAPTURE: CaptureSpec = CaptureSpec {
     // its own cookies; it is the account id set by the sign-in, unlike the
     // anonymous `cna`. The adapter's `login_aliyunid_ticket` is set by the
     // same sign-in response.
-    done_when: &["login_aliyunid_pk"],
+    done_when: &["login_aliyunid_pk", "login_aliyunid_ticket"],
 };
 
 /// The Token Plan usage page (owner, 2026-10-27).
