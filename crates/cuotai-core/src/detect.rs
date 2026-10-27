@@ -202,6 +202,10 @@ pub struct Detected {
     pub hint: Localized,
     /// What the offered flow reads once confirmed, and why (RF7.2).
     pub consent: Localized,
+    /// The provider already has at least one account. The source is still
+    /// reported (a second account is allowed, and an account added by
+    /// another flow does not prove this tool's source is in use, RF6.2).
+    pub configured: bool,
 }
 
 /// Environment lookups the path table needs (`CODEX_HOME`, `XDG_*`,
@@ -339,14 +343,15 @@ fn texts(entry: &DetectEntry) -> (Localized, Localized) {
 }
 
 /// RF6.1–RF6.3: the verified sources present under `home`, skipping
-/// providers in `configured` (they already have an account) and providers
-/// the picker does not offer. Order follows [`TABLE`]; one result per
+/// providers the picker does not offer. Providers in `configured` are still
+/// reported, marked [`Detected::configured`]: the core cannot tell which
+/// source an existing account uses (native logins keep no local trace), so
+/// dropping them hid every tool the person had already connected. Order follows [`TABLE`]; one result per
 /// provider (the first present source).
 pub fn local_sources(home: &Path, os: Os, env: &dyn Env, configured: &[Provider]) -> Vec<Detected> {
     let mut out: Vec<Detected> = Vec::new();
     for entry in TABLE.iter().filter(|entry| entry.verified) {
-        if configured.contains(&entry.provider)
-            || out.iter().any(|d| d.provider == entry.provider)
+        if out.iter().any(|d| d.provider == entry.provider)
             || !crate::access::has_usage_query(entry.provider)
         {
             continue;
@@ -364,6 +369,7 @@ pub fn local_sources(home: &Path, os: Os, env: &dyn Env, configured: &[Provider]
                 mode,
                 hint,
                 consent,
+                configured: configured.contains(&entry.provider),
             });
         }
     }
@@ -372,8 +378,7 @@ pub fn local_sources(home: &Path, os: Os, env: &dyn Env, configured: &[Provider]
     // kept); the account then names the variable.
     let is_set = |name: &str| env.var(name).is_some_and(|value| !value.is_empty());
     for found in crate::catalog::detect_env_keys(true, is_set) {
-        if configured.contains(&found.provider) || out.iter().any(|d| d.provider == found.provider)
-        {
+        if out.iter().any(|d| d.provider == found.provider) {
             continue;
         }
         let variable = found.variable;
@@ -393,6 +398,7 @@ pub fn local_sources(home: &Path, os: Os, env: &dyn Env, configured: &[Provider]
                 variable,
                 "The account will keep only the name {variable}; the value is never read or saved.",
             ),
+            configured: configured.contains(&found.provider),
         });
     }
     out
@@ -449,6 +455,7 @@ async fn probe_nine_router_at(base: &str, configured: &[Provider]) -> Option<Det
             "detect.consent.nine_router_local",
             "The address http://127.0.0.1:20128 is filled in. Only 9router's public health route was asked; nothing was read from it.",
         ),
+        configured: false,
     })
 }
 
@@ -650,18 +657,70 @@ mod tests {
     }
 
     #[test]
-    fn detects_directories_and_skips_configured_providers() {
+    fn detects_directories_and_marks_configured_providers() {
         let home = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(home.path().join(".claude")).unwrap();
         std::fs::create_dir_all(home.path().join(".codex")).unwrap();
         touch(&home.path().join(".aws/config"));
         let found = local_sources(home.path(), Os::Linux, &no_env, &[Provider::ChatGpt]);
         let providers: Vec<_> = found.iter().map(|d| d.provider).collect();
-        assert_eq!(providers, vec![Provider::Claude, Provider::AwsBedrock]);
+        assert_eq!(
+            providers,
+            vec![Provider::Claude, Provider::ChatGpt, Provider::AwsBedrock]
+        );
+        let configured: Vec<_> = found.iter().map(|d| d.configured).collect();
+        assert_eq!(configured, vec![false, true, false]);
         assert_eq!(found[0].mode, Some("oauth"));
         // RF6.3: no path or user name in what is returned.
         let json = serde_json::to_string(&found).unwrap();
         assert!(!json.contains(&home.path().display().to_string()));
+    }
+
+    /// The owner's report (2026-10-27): every tool present and every
+    /// provider already configured still yields one offer per provider.
+    #[test]
+    fn a_fully_configured_mac_home_still_reports_every_tool() {
+        let home = tempfile::tempdir().unwrap();
+        let h = home.path();
+        touch(&h.join("Library/Application Support/Cursor/User/globalStorage/state.vscdb"));
+        for dir in [
+            ".claude",
+            ".codex",
+            ".gemini",
+            ".copilot",
+            ".kiro",
+            ".local/share/opencode",
+        ] {
+            std::fs::create_dir_all(h.join(dir)).unwrap();
+        }
+        for file in [
+            ".aws/config",
+            ".kimi/config.toml",
+            ".grok/config.toml",
+            ".config/zed/settings.json",
+        ] {
+            touch(&h.join(file));
+        }
+        let all: Vec<Provider> = TABLE.iter().map(|e| e.provider).collect();
+        let found = local_sources(h, Os::MacOs, &no_env, &all);
+        let providers: Vec<_> = found.iter().map(|d| d.provider).collect();
+        assert_eq!(
+            providers,
+            vec![
+                Provider::Cursor,
+                Provider::Claude,
+                Provider::ChatGpt,
+                Provider::AwsBedrock,
+                Provider::GeminiAi,
+                Provider::Copilot,
+                Provider::OpenCodeGo,
+                Provider::Kiro,
+                Provider::Kimi,
+                Provider::Grok,
+                Provider::Zed,
+            ]
+        );
+        assert!(found.iter().all(|d| d.configured));
     }
 
     #[test]
@@ -752,7 +811,7 @@ mod tests {
         assert!(
             local_sources(home.path(), Os::Linux, &Set, &[Provider::OpenRouter])
                 .iter()
-                .all(|d| d.provider != Provider::OpenRouter)
+                .any(|d| d.provider == Provider::OpenRouter && d.configured)
         );
     }
 }
