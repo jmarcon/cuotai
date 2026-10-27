@@ -3237,6 +3237,20 @@ impl Wizard {
                     Style::default().fg(DRACULA_COMMENT),
                 )));
             }
+            // Where the provider creates the key, as text the user can copy.
+            if let Some(url) = cuotai_core::secret_input::key_page(
+                self.provider,
+                cuotai_core::user_session::CREDENTIAL_SLOT,
+            ) {
+                lines.push(Line::from(Span::styled(
+                    trf(
+                        "wizard.credential.key_page",
+                        "Create the key at: {url}",
+                        &[("url", &url)],
+                    ),
+                    Style::default().fg(DRACULA_COMMENT),
+                )));
+            }
             if let Some(reason) = &self.login.unsupported_reason {
                 lines.push(Line::from(Span::styled(
                     trf(

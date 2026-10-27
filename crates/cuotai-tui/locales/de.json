@@ -382,6 +382,7 @@
   "wizard.credential.action.start": "Enter startet die Anmeldung; F2 startet sie ebenfalls",
   "wizard.credential.aws_profile": "AWS-CLI-v2-Profil für die Zugangsdaten:",
   "wizard.credential.env": "NAME der Umgebungsvariable mit den exportierten Zugangsdaten (nie der Wert):",
+  "wizard.credential.key_page": "Schlüssel hier erstellen: {url}",
   "wizard.credential.login_unavailable": "Integrierte Anmeldung nicht verfügbar: {reason}",
   "wizard.credential.manual": "Manuelle Zugangsdaten (Profil/Variable je nach Anbieter)",
   "wizard.credential.mode": "Authentifizierungsmodus (Tab wechselt; Enter/F2 bestätigt):",

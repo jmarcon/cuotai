@@ -382,6 +382,7 @@
   "wizard.credential.action.start": "Enter запускает вход; F2 тоже",
   "wizard.credential.aws_profile": "Профиль AWS CLI v2 для учётных данных:",
   "wizard.credential.env": "ИМЯ переменной окружения с экспортированными учётными данными (не значение):",
+  "wizard.credential.key_page": "Создайте ключ здесь: {url}",
   "wizard.credential.login_unavailable": "Встроенный вход недоступен: {reason}",
   "wizard.credential.manual": "Учётные данные вручную (профиль/переменная — по провайдеру)",
   "wizard.credential.mode": "Режим аутентификации (Tab — переключить; Enter/F2 — подтвердить):",

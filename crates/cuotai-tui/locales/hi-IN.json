@@ -382,6 +382,7 @@
   "wizard.credential.action.start": "Enter लॉगिन शुरू करता है; F2 भी करता है",
   "wizard.credential.aws_profile": "क्रेडेंशियल के लिए इस्तेमाल होने वाली AWS CLI v2 प्रोफ़ाइल:",
   "wizard.credential.env": "क्रेडेंशियल रखने वाले एक्सपोर्ट किए एनवायरनमेंट वेरिएबल का नाम (मान कभी नहीं):",
+  "wizard.credential.key_page": "कुंजी यहाँ बनाएँ: {url}",
   "wizard.credential.login_unavailable": "अंतर्निहित लॉगिन उपलब्ध नहीं: {reason}",
   "wizard.credential.manual": "मैन्युअल क्रेडेंशियल (प्रदाता के अनुसार प्रोफ़ाइल/वेरिएबल)",
   "wizard.credential.mode": "प्रमाणीकरण मोड (Tab बदलता है; Enter/F2 पुष्टि करता है):",

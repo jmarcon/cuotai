@@ -382,6 +382,7 @@
   "wizard.credential.action.start": "Invio avvia l'accesso; anche F2 lo avvia",
   "wizard.credential.aws_profile": "Profilo della AWS CLI v2 usato per le credenziali:",
   "wizard.credential.env": "NOME della variabile d'ambiente esportata con la credenziale (mai il valore):",
+  "wizard.credential.key_page": "Crea la chiave su: {url}",
   "wizard.credential.login_unavailable": "Accesso integrato non disponibile: {reason}",
   "wizard.credential.manual": "Credenziale manuale (profilo/variabile secondo il provider)",
   "wizard.credential.mode": "Modalità di autenticazione (Tab cambia; Invio/F2 conferma):",

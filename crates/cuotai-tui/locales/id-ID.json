@@ -382,6 +382,7 @@
   "wizard.credential.action.start": "Enter memulai login; F2 juga memulainya",
   "wizard.credential.aws_profile": "Profil AWS CLI v2 yang dipakai untuk kredensial:",
   "wizard.credential.env": "NAMA variabel lingkungan yang diekspor dan menyimpan kredensial (bukan nilainya):",
+  "wizard.credential.key_page": "Buat kunci di: {url}",
   "wizard.credential.login_unavailable": "Login bawaan tidak tersedia: {reason}",
   "wizard.credential.manual": "Kredensial manual (profil/variabel tergantung penyedia)",
   "wizard.credential.mode": "Mode autentikasi (Tab berpindah; Enter/F2 mengonfirmasi):",

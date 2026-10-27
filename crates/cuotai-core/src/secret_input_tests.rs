@@ -420,3 +420,55 @@ fn empty() -> Config {
         ..Config::default()
     }
 }
+
+/// Owner request: every key page is HTTPS, allow-listed exactly (no
+/// prefix match) and listed once per slot.
+#[test]
+fn key_pages_are_https_and_exactly_allow_listed() {
+    for (provider, slot, url) in KEY_PAGES {
+        assert!(url.starts_with("https://"), "{url}");
+        assert!(!url.contains(char::is_whitespace), "{url}");
+        assert!(is_key_page_url(url));
+        assert!(!is_key_page_url(&format!("{url}x")));
+        assert!(!is_key_page_url(&url.replacen("https://", "http://", 1)));
+        assert_eq!(key_page(*provider, slot), Some(*url));
+        assert!(
+            !NO_KEY_PAGE
+                .iter()
+                .any(|(p, s, _)| p == provider && s == slot),
+            "{provider:?}/{slot} is both linked and exempt"
+        );
+    }
+    assert!(!is_key_page_url("https://example.com/"));
+    assert!(!is_key_page_url(""));
+}
+
+/// Owner request: every typed key of every provider either links its
+/// creation page or is in the documented exemption list.
+#[test]
+fn every_typed_key_has_a_page_or_an_exemption() {
+    let mut missing = Vec::new();
+    for &provider in Provider::ALL.iter() {
+        for input in secret_inputs(provider) {
+            if input.cookie || user_session::descriptor(provider, input.slot).is_some() {
+                continue;
+            }
+            let exempt = NO_KEY_PAGE
+                .iter()
+                .any(|(p, s, _)| *p == provider && *s == input.slot);
+            if input.key_page.is_none() && !exempt {
+                missing.push(format!("{provider:?}/{}", input.slot));
+            }
+            assert_eq!(input.key_page, key_page(provider, input.slot));
+        }
+    }
+    assert!(missing.is_empty(), "no key page nor exemption: {missing:?}");
+    for (provider, slot, _) in KEY_PAGES {
+        assert!(
+            secret_inputs(*provider)
+                .iter()
+                .any(|i| i.slot == *slot && i.key_page.is_some()),
+            "{provider:?}/{slot} links a page no input shows"
+        );
+    }
+}

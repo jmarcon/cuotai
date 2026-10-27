@@ -382,6 +382,7 @@
   "wizard.credential.action.start": "Enter 开始登录；F2 也可开始",
   "wizard.credential.aws_profile": "用于凭据的 AWS CLI v2 配置文件：",
   "wizard.credential.env": "保存凭据的已导出环境变量的名称（绝不是其值）：",
+  "wizard.credential.key_page": "在此创建密钥：{url}",
   "wizard.credential.login_unavailable": "内置登录不可用：{reason}",
   "wizard.credential.manual": "手动凭据（配置文件/变量，视提供商而定）",
   "wizard.credential.mode": "认证方式（Tab 切换；Enter/F2 确认）：",

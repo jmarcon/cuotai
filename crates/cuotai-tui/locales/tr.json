@@ -382,6 +382,7 @@
   "wizard.credential.action.start": "Enter oturum açmayı başlatır; F2 de başlatır",
   "wizard.credential.aws_profile": "Kimlik bilgileri için kullanılan AWS CLI v2 profili:",
   "wizard.credential.env": "Kimlik bilgisini tutan, dışa aktarılmış ortam değişkeninin ADI (değeri asla):",
+  "wizard.credential.key_page": "Anahtarı şurada oluşturun: {url}",
   "wizard.credential.login_unavailable": "Yerleşik oturum açma kullanılamıyor: {reason}",
   "wizard.credential.manual": "Elle kimlik bilgisi (sağlayıcıya göre profil/değişken)",
   "wizard.credential.mode": "Kimlik doğrulama modu (Tab değiştirir; Enter/F2 onaylar):",

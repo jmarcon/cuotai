@@ -382,6 +382,7 @@
   "wizard.credential.action.start": "Enter inicia o login; F2 também inicia",
   "wizard.credential.aws_profile": "Perfil do AWS CLI v2 usado para as credenciais:",
   "wizard.credential.env": "NOME da variável de ambiente exportada com a credencial (nunca o valor):",
+  "wizard.credential.key_page": "Crie a chave em: {url}",
   "wizard.credential.login_unavailable": "Login integrado indisponível: {reason}",
   "wizard.credential.manual": "Credencial manual (perfil/variável conforme o provedor)",
   "wizard.credential.mode": "Modo de autenticação (Tab alterna; Enter/F2 confirma):",

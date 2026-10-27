@@ -382,6 +382,7 @@
   "wizard.credential.action.start": "Enter để bắt đầu đăng nhập; F2 cũng bắt đầu được",
   "wizard.credential.aws_profile": "Hồ sơ AWS CLI v2 dùng cho thông tin xác thực:",
   "wizard.credential.env": "TÊN của biến môi trường đã xuất chứa thông tin xác thực (không phải giá trị):",
+  "wizard.credential.key_page": "Tạo khóa tại: {url}",
   "wizard.credential.login_unavailable": "Đăng nhập tích hợp sẵn không khả dụng: {reason}",
   "wizard.credential.manual": "Thông tin xác thực thủ công (hồ sơ/biến tùy nhà cung cấp)",
   "wizard.credential.mode": "Chế độ xác thực (Tab để chuyển; Enter/F2 để xác nhận):",

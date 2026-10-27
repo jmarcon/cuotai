@@ -56,6 +56,283 @@ pub struct SecretInput {
     /// Terminal only: the variable the TUI suggests for this secret;
     /// empty when the TUI has no default. The GUI never shows it.
     pub default_env: &'static str,
+    /// HTTPS page of the provider where this key is created, for the
+    /// exact key type Cuotai needs ([`key_page`]); `None` when the
+    /// provider documents no such page ([`NO_KEY_PAGE`]).
+    pub key_page: Option<&'static str>,
+}
+
+/// Where each typed key is created, by provider and slot. Every address
+/// comes from the provider's official documentation (source in the
+/// comment, checked on 2026-10-27) and names the page of the key type the
+/// adapter needs (admin, management or service keys where the usage
+/// interface asks for them). [`is_key_page_url`] lets a shell open
+/// exactly these addresses.
+const KEY_PAGES: &[(Provider, &str, &str)] = &[
+    // platform.openai.com/docs/api-reference/administration: Admin keys.
+    (
+        Provider::OpenAiApi,
+        CREDENTIAL_SLOT,
+        "https://platform.openai.com/settings/organization/admin-keys",
+    ),
+    // platform.claude.com/docs/en/manage-claude/admin-api-keys.
+    (
+        Provider::AnthropicApi,
+        CREDENTIAL_SLOT,
+        "https://platform.claude.com/settings/admin-keys",
+    ),
+    // cursor.com/docs/api.md: "cursor.com/dashboard → API Keys" (admin:* scope).
+    (
+        Provider::Cursor,
+        CREDENTIAL_SLOT,
+        "https://cursor.com/dashboard/api",
+    ),
+    // docs.github.com, "Managing your personal access tokens" (fine-grained).
+    (
+        Provider::Copilot,
+        CREDENTIAL_SLOT,
+        "https://github.com/settings/personal-access-tokens/new",
+    ),
+    // docs.windsurf.com/windsurf/accounts/api-reference/api-introduction: Service Keys.
+    (
+        Provider::Windsurf,
+        CREDENTIAL_SLOT,
+        "https://windsurf.com/team/settings",
+    ),
+    // platform.minimax.io/docs/guides/quickstart-preparation.
+    (
+        Provider::MiniMax,
+        CREDENTIAL_SLOT,
+        "https://platform.minimax.io/user-center/basic-information/interface-key",
+    ),
+    // platform.kimi.ai/docs/introduction.
+    (
+        Provider::Kimi,
+        CREDENTIAL_SLOT,
+        "https://platform.kimi.ai/console/api-keys",
+    ),
+    // console.groq.com/docs/quickstart.
+    (
+        Provider::Groq,
+        CREDENTIAL_SLOT,
+        "https://console.groq.com/keys",
+    ),
+    // docs.mistral.ai/admin/admin-api/overview: the Admin Panel manages Admin API keys.
+    (
+        Provider::Mistral,
+        CREDENTIAL_SLOT,
+        "https://admin.mistral.ai/",
+    ),
+    (
+        Provider::Mistral,
+        "admin_key_env",
+        "https://admin.mistral.ai/",
+    ),
+    // docs.x.ai/developers/rest-api-reference/management: Management Keys.
+    (
+        Provider::Grok,
+        CREDENTIAL_SLOT,
+        "https://console.x.ai/team/default/management-keys",
+    ),
+    (
+        Provider::Grok,
+        "management_key_env",
+        "https://console.x.ai/team/default/management-keys",
+    ),
+    // docs.ollama.com/api/authentication.
+    (
+        Provider::OllamaCloud,
+        CREDENTIAL_SLOT,
+        "https://ollama.com/settings/keys",
+    ),
+    // opencode.ai/docs/go: "Sign in to the OpenCode Console ... copy your API key".
+    (
+        Provider::OpenCodeGo,
+        CREDENTIAL_SLOT,
+        "https://opencode.ai/console",
+    ),
+    // docs.cline.bot/api/authentication: app.cline.bot, Settings > API Keys.
+    (Provider::Cline, CREDENTIAL_SLOT, "https://app.cline.bot/"),
+    // docs.kimchi.dev/docs/inference-quickstart: "Kimchi → API Keys".
+    (
+        Provider::Kimchi,
+        CREDENTIAL_SLOT,
+        "https://app.kimchi.dev/settings",
+    ),
+    // elevenlabs.io/docs/developers/quickstart.
+    (
+        Provider::ElevenLabs,
+        CREDENTIAL_SLOT,
+        "https://elevenlabs.io/app/api/api-keys",
+    ),
+    // openrouter.ai/docs/api/reference/authentication.
+    (
+        Provider::OpenRouter,
+        CREDENTIAL_SLOT,
+        "https://openrouter.ai/settings/keys",
+    ),
+    // alibabacloud.com/help/en/model-studio/coding-plan: the plan-specific sk-sp key.
+    (
+        Provider::AlibabaCodingPlan,
+        CREDENTIAL_SLOT,
+        "https://modelstudio.console.alibabacloud.com/ap-southeast-1/subscription/coding-plan",
+    ),
+    // alibabacloud.com/help/en/ram/user-guide/create-an-accesskey-pair.
+    (
+        Provider::AlibabaCloud,
+        CREDENTIAL_SLOT,
+        "https://ram.console.alibabacloud.com/",
+    ),
+    (
+        Provider::AlibabaCloud,
+        "secret_env",
+        "https://ram.console.alibabacloud.com/",
+    ),
+];
+
+/// Typed keys with no creation link, and why. The test of [`KEY_PAGES`]
+/// requires every typed (non-cookie) secret to be listed in one of them.
+pub const NO_KEY_PAGE: &[(Provider, &str, &str)] = &[
+    (
+        Provider::ChatGpt,
+        CREDENTIAL_SLOT,
+        "subscription session token, issued by sign-in",
+    ),
+    (
+        Provider::Claude,
+        CREDENTIAL_SLOT,
+        "subscription session token, issued by sign-in",
+    ),
+    (
+        Provider::GeminiApi,
+        CREDENTIAL_SLOT,
+        "short-lived cloud access token from the gcloud CLI",
+    ),
+    (
+        Provider::VertexAi,
+        CREDENTIAL_SLOT,
+        "short-lived cloud access token from the gcloud CLI",
+    ),
+    (
+        Provider::AzureOpenAi,
+        CREDENTIAL_SLOT,
+        "short-lived cloud access token from the Azure CLI",
+    ),
+    (
+        Provider::Kiro,
+        CREDENTIAL_SLOT,
+        "subscription session token, issued by sign-in",
+    ),
+    (
+        Provider::CodeBuddy,
+        CREDENTIAL_SLOT,
+        "subscription session token, issued by sign-in",
+    ),
+    (
+        Provider::Zed,
+        CREDENTIAL_SLOT,
+        "subscription session token, issued by sign-in",
+    ),
+    (
+        Provider::Antigravity,
+        CREDENTIAL_SLOT,
+        "subscription session token, issued by sign-in",
+    ),
+    (
+        Provider::Qoder,
+        CREDENTIAL_SLOT,
+        "subscription session token, issued by sign-in",
+    ),
+    (
+        Provider::Kimi,
+        "token_env",
+        "OAuth access token, issued by sign-in",
+    ),
+    (
+        Provider::GeminiAi,
+        "session_env",
+        "Gemini CLI session token, issued by sign-in",
+    ),
+    (
+        Provider::Grok,
+        "session_env",
+        "Grok CLI session token, issued by sign-in",
+    ),
+    (
+        Provider::AlibabaCloud,
+        "security_token_env",
+        "temporary STS token, issued by a role assumption",
+    ),
+    (
+        Provider::Perplexity,
+        CREDENTIAL_SLOT,
+        "the Computer analytics key has no documented page address",
+    ),
+    (
+        Provider::Perplexity,
+        "analytics_key_env",
+        "the Computer analytics key has no documented page address",
+    ),
+    (
+        Provider::XiaomiMimo,
+        CREDENTIAL_SLOT,
+        "no documented key page address",
+    ),
+    (
+        Provider::NineRouter,
+        CREDENTIAL_SLOT,
+        "self-hosted instance password",
+    ),
+    (Provider::LiteLlm, CREDENTIAL_SLOT, "self-hosted proxy key"),
+    (
+        Provider::AlibabaTokenPlan,
+        CREDENTIAL_SLOT,
+        "the plan is read through the local CLI or a web session",
+    ),
+    (
+        Provider::Qwen,
+        CREDENTIAL_SLOT,
+        "no usage query for this key",
+    ),
+    (
+        Provider::CloudflareAi,
+        CREDENTIAL_SLOT,
+        "no usage query for this key",
+    ),
+    (
+        Provider::NvidiaNim,
+        CREDENTIAL_SLOT,
+        "no usage query for this key",
+    ),
+    (
+        Provider::Poolside,
+        CREDENTIAL_SLOT,
+        "no usage query for this key",
+    ),
+    (
+        Provider::AlibabaModelStudio,
+        CREDENTIAL_SLOT,
+        "no usage query for this key",
+    ),
+    (
+        Provider::GeminiAi,
+        CREDENTIAL_SLOT,
+        "no usage query for this key",
+    ),
+];
+
+/// The page where `provider` creates the key of `slot`, when documented.
+pub fn key_page(provider: Provider, slot: &str) -> Option<&'static str> {
+    KEY_PAGES
+        .iter()
+        .find(|(p, s, _)| *p == provider && *s == slot)
+        .map(|(_, _, url)| *url)
+}
+
+/// Whether `url` is exactly one of the key-creation pages, so a shell may
+/// open it in the browser. Never a prefix or pattern match.
+pub fn is_key_page_url(url: &str) -> bool {
+    KEY_PAGES.iter().any(|(_, _, page)| *page == url)
 }
 
 /// Generic help of a key, token or secret input.
@@ -106,6 +383,7 @@ pub fn secret_inputs(provider: Provider) -> Vec<SecretInput> {
             cookie: false,
             field: None,
             default_env: account_edit::default_env(provider),
+            key_page: key_page(provider, CREDENTIAL_SLOT),
         });
     }
     for field in account_edit::field_descriptors(provider) {
@@ -123,6 +401,7 @@ pub fn secret_inputs(provider: Provider) -> Vec<SecretInput> {
                 cookie: declared.delivery == Delivery::CookieHeader,
                 field: Some(field.key),
                 default_env: "",
+                key_page: None,
             });
             continue;
         }
@@ -137,6 +416,7 @@ pub fn secret_inputs(provider: Provider) -> Vec<SecretInput> {
             cookie: false,
             field: Some(field.key),
             default_env: "",
+            key_page: key_page(provider, field.key),
         });
     }
     for declared in user_session::descriptors(provider) {
@@ -151,6 +431,7 @@ pub fn secret_inputs(provider: Provider) -> Vec<SecretInput> {
             cookie: declared.delivery == Delivery::CookieHeader,
             field: None,
             default_env: "",
+            key_page: None,
         });
     }
     inputs

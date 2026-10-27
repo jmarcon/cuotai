@@ -382,6 +382,7 @@
   "wizard.credential.action.start": "Enter でログインを開始（F2 でも可）",
   "wizard.credential.aws_profile": "認証情報に使用する AWS CLI v2 プロファイル：",
   "wizard.credential.env": "認証情報を保持するエクスポート済み環境変数の名前（値ではありません）：",
+  "wizard.credential.key_page": "キーの作成先: {url}",
   "wizard.credential.login_unavailable": "組み込みログインは利用できません：{reason}",
   "wizard.credential.manual": "手動の認証情報（プロバイダーに応じてプロファイル/変数）",
   "wizard.credential.mode": "認証方式（Tab で切り替え、Enter/F2 で確定）：",
