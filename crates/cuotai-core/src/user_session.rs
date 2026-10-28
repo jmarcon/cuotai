@@ -499,6 +499,11 @@ const META_CONSOLE_CAPTURE: CaptureSpec = CaptureSpec {
         "www.facebook.com",
         "m.facebook.com",
         "www.instagram.com",
+        // Owner test 2026-10-27: the sign-in page also offers Google
+        // (`auth.meta.com/login/oidc/google/` -> accounts.google.com) and
+        // GitHub; both were refused until listed.
+        "accounts.google.com",
+        "github.com",
     ],
     login_suffixes: &[],
     // `llama_dev_sess` is required, so the capture already waits for it.

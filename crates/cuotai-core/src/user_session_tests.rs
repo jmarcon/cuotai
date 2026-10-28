@@ -2027,11 +2027,15 @@ fn meta_console_capture_allows_only_its_sign_in_hosts() {
         "https://accountscenter.meta.com/",
         "https://www.facebook.com/login.php",
         "https://www.instagram.com/accounts/login/",
+        "https://accounts.google.com/o/oauth2/v2/auth",
+        "https://github.com/login/oauth/authorize",
         "about:blank",
     ] {
         assert!(d.capture_allows(ok), "{ok}");
     }
     for blocked in [
+        "https://gist.github.com/",
+        "https://x-marketing.fbthirdpartypixel.com/tr/",
         "http://dev.meta.ai/usage",
         "https://dev.meta.ai:8443/usage",
         "https://api.meta.ai/v1/models",
