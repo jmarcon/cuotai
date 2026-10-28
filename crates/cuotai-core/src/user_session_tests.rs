@@ -1891,7 +1891,7 @@ fn open_urls_are_https_on_declared_hosts() {
             }
         }
     }
-    assert_eq!(seen, 4);
+    assert_eq!(seen, 5);
     assert!(!is_open_url("https://example.com/"));
 }
 
@@ -1912,6 +1912,7 @@ fn capture_is_declared_only_for_the_xiaomi_platform_and_allows_its_hosts() {
             (Provider::XiaomiMimo, "platform_session_env"),
             (Provider::AlibabaCodingPlan, "session_env"),
             (Provider::AlibabaTokenPlan, "session_env"),
+            (Provider::Meta, "session_env"),
         ]
     );
     let d = descriptor(Provider::XiaomiMimo, "platform_session_env").unwrap();
@@ -2001,6 +2002,58 @@ fn qwen_cloud_capture_allows_only_its_sign_in_hosts() {
     ] {
         assert!(!d.capture_allows(blocked), "{blocked}");
     }
+}
+
+/// PRD 0049 RF7: the dev.meta.ai capture opens the usage page (also the
+/// open link), ends only on the console session `llama_dev_sess` (never on
+/// the anonymous `datr`), and allows only the console and the Meta,
+/// Facebook and Instagram sign-in hosts, matched exactly.
+#[test]
+fn meta_console_capture_allows_only_its_sign_in_hosts() {
+    let d = descriptor(Provider::Meta, "session_env").unwrap();
+    let spec = d.capture.unwrap();
+    let usage = "https://dev.meta.ai/usage";
+    assert_eq!(spec.start_url, usage);
+    assert_eq!(d.open_url, Some(usage));
+    assert!(is_open_url(usage));
+    assert_eq!(d.required, &["llama_dev_sess"]);
+    assert!(!d.required.contains(&"datr") && !spec.done_when.contains(&"datr"));
+    assert_eq!(spec.cookie_url, "https://dev.meta.ai/");
+    for ok in [
+        usage,
+        "https://dev.meta.ai/api/auth/login?next=%2Fusage",
+        "https://auth.meta.com/oidc/?app_id=1&redirect_uri=x",
+        "https://auth.meta.ai/model_api?code=x",
+        "https://accountscenter.meta.com/",
+        "https://www.facebook.com/login.php",
+        "https://www.instagram.com/accounts/login/",
+        "about:blank",
+    ] {
+        assert!(d.capture_allows(ok), "{ok}");
+    }
+    for blocked in [
+        "http://dev.meta.ai/usage",
+        "https://dev.meta.ai:8443/usage",
+        "https://api.meta.ai/v1/models",
+        "https://billing.dev.meta.ai/",
+        "https://evil.auth.meta.com/",
+        "https://auth.meta.com.evil.example/",
+        "https://meta.ai/",
+        "https://developers.facebook.com/",
+    ] {
+        assert!(!d.capture_allows(blocked), "{blocked}");
+    }
+    let url = |u: &str| url::Url::parse(u).unwrap();
+    assert!(may_receive(
+        Provider::Meta,
+        "session_env",
+        &url("https://dev.meta.ai/api/portal/teams")
+    ));
+    assert!(!may_receive(
+        Provider::Meta,
+        "session_env",
+        &url("https://api.meta.ai/v1/models")
+    ));
 }
 
 /// PRD 0048 RF3.4: the Coding Plan capture follows `params.region`: the

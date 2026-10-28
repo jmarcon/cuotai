@@ -249,7 +249,22 @@ async fn capture<R: Runtime>(
         .center()
         .incognito(true)
         .disable_drag_drop_handler()
-        .on_navigation(move |url| descriptor.capture_allows_with(spec, url.as_str()))
+        .on_navigation(move |url| {
+            let allowed = descriptor.capture_allows_with(spec, url.as_str());
+            // Debug builds only: the host and path of each page or frame
+            // load (never the query, which carries sign-in codes and
+            // state). The webview's navigation hook does not see the
+            // page's fetch/XHR calls; those need the browser's DevTools.
+            if cfg!(debug_assertions) {
+                eprintln!(
+                    "session capture: navigation {} {}{}",
+                    if allowed { "allowed" } else { "refused" },
+                    url.host_str().unwrap_or("-"),
+                    url.path()
+                );
+            }
+            allowed
+        })
         .on_new_window(|url, _| {
             if url.scheme() == "https" {
                 let _ = crate::about::open_dashboard(url.as_str());
@@ -509,6 +524,31 @@ mod tests {
         assert!(capture_descriptor(Provider::AlibabaTokenPlan, "session_env", None).is_ok());
         assert!(capture_descriptor(Provider::AlibabaCodingPlan, "session_env", None).is_ok());
         assert!(capture_descriptor(Provider::AlibabaCodingPlan, "session_env", Some("cn")).is_ok());
+        assert!(capture_descriptor(Provider::Meta, "session_env", None).is_ok());
+    }
+
+    /// PRD 0049 RF7: the dev.meta.ai capture ends only on the console
+    /// session `llama_dev_sess`: the anonymous `datr` and the sign-in
+    /// helpers never end it, and only `llama_dev_sess` is kept.
+    #[test]
+    fn meta_console_capture_waits_for_the_console_session() {
+        let d = capture_descriptor(Provider::Meta, "session_env", None).unwrap();
+        let host = "dev.meta.ai";
+        let anonymous = [
+            cookie("datr", "anon", ".meta.ai", "/"),
+            cookie("llama_dev_csrf", "c", "dev.meta.ai", "/"),
+            cookie("llama_dev_sess", "s", ".facebook.com", "/"),
+        ];
+        assert_eq!(reduce_cookies(d, host, &anonymous), None);
+        let signed_in = [
+            cookie("datr", "anon", ".meta.ai", "/"),
+            cookie("llama_dev_sess", "s", "dev.meta.ai", "/"),
+            cookie("llama_auto_login", "1", "dev.meta.ai", "/"),
+        ];
+        assert_eq!(
+            reduce_cookies(d, host, &signed_in).as_deref(),
+            Some("llama_dev_sess=s")
+        );
     }
 
     /// RF3.4/RF4.3: the Coding Plan capture reads the region's own console

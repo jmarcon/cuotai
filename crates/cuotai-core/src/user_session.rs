@@ -477,6 +477,56 @@ const ALIBABA_TOKEN_PLAN: SessionDescriptor = SessionDescriptor {
     ),
 };
 
+/// PRD 0049 RF7: the dev.meta.ai console sign-in. Evidence (2026-10-27,
+/// unauthenticated): signed out, `dev.meta.ai/usage` answers `307` to `/`;
+/// the console's `/api/auth/login` answers `302` to
+/// `https://auth.meta.com/oidc/?app_id=...&redirect_uri=https://auth.meta.ai/model_api`,
+/// whose relay returns to `dev.meta.ai/api/auth/callback`. The account
+/// links of the bundle go to `accountscenter.meta.com`; a Meta account may
+/// sign in with Facebook or Instagram (inferred: the `auth.meta.com` page
+/// refuses non-browser clients). `POST /api/auth/logout` clears
+/// `llama_dev_sess`, the console session; `llama_dev_csrf`, `llama_dev_pkce`,
+/// `llama_od_routing` and `llama_auto_login` are sign-in helpers the callback
+/// clears, and `datr` is anonymous.
+const META_CONSOLE_CAPTURE: CaptureSpec = CaptureSpec {
+    start_url: META_CONSOLE_USAGE,
+    cookie_url: "https://dev.meta.ai/",
+    login_hosts: &[
+        "auth.meta.com",
+        "auth.meta.ai",
+        "accountscenter.meta.com",
+        "www.meta.com",
+        "www.facebook.com",
+        "m.facebook.com",
+        "www.instagram.com",
+    ],
+    login_suffixes: &[],
+    // `llama_dev_sess` is required, so the capture already waits for it.
+    done_when: &[],
+};
+
+/// The console's usage page (owner, 2026-10-27); signed out it redirects
+/// to the console home, which offers the sign-in.
+const META_CONSOLE_USAGE: &str = "https://dev.meta.ai/usage";
+
+const META_CONSOLE: SessionDescriptor = SessionDescriptor {
+    slot: "session_env",
+    required: &["llama_dev_sess"],
+    optional: &[],
+    hosts: &["dev.meta.ai"],
+    account_host: false,
+    delivery: Delivery::CookieHeader,
+    capture: Some(&META_CONSOLE_CAPTURE),
+    regions: &[],
+    jwt_expiry: false,
+    site: "dev.meta.ai",
+    open_url: Some(META_CONSOLE_USAGE),
+    label: (
+        "user_session.slot.meta.session_env",
+        "dev.meta.ai console session (usage)",
+    ),
+};
+
 const NINE_ROUTER_PASSWORD: SessionDescriptor = SessionDescriptor {
     slot: CREDENTIAL_SLOT,
     required: &[],
@@ -549,6 +599,7 @@ pub fn descriptors(provider: Provider) -> &'static [SessionDescriptor] {
         Provider::XiaomiMimo => &[XIAOMI_ACCOUNT, XIAOMI_PLATFORM],
         Provider::AlibabaCodingPlan => &[ALIBABA_CODING_PLAN],
         Provider::AlibabaTokenPlan => &[ALIBABA_TOKEN_PLAN],
+        Provider::Meta => &[META_CONSOLE],
         _ => &[],
     }
 }
