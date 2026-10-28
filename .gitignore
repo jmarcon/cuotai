@@ -28,3 +28,6 @@
 
 # SwiftPM build output of the WidgetKit sources
 /apps/desktop/widgets/macos/.build/
+
+# Debug-only dev credential store index (run.sh)
+*.sqlite3.vault-index.json
