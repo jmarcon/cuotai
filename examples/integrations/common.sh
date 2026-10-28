@@ -3,7 +3,8 @@
 # desktop app's local server) and sets:
 #
 #   cuotai_pct       percent consumed of the tightest account's binding metric
-#   cuotai_name      that account's name
+#   cuotai_name      that account's name (tabs and line breaks become spaces,
+#                    so they cannot shift the fields below)
 #   cuotai_severity  ok | warning | critical | outage
 #   cuotai_reset     its reset time (RFC 3339) or empty
 #
@@ -25,7 +26,7 @@ cuotai_read() {
   cuotai_fields=$(printf '%s' "$cuotai_body" | jq -r '
     (.summary.tightest // {}) as $t
     | [ (if $t.used_ratio then ($t.used_ratio * 100 | round | tostring) else "" end),
-        ($t.name // ""),
+        (($t.name // "") | gsub("[\\t\\n\\r]+"; " ")),
         (if .summary.worst_class == "exhausted" then "critical"
          elif (.summary.worst_incident // "") | test("^(partial_outage|major_outage)$") then "outage"
          elif ($t.used_ratio // 0) >= 0.9 then "critical"

@@ -149,3 +149,23 @@ fn an_unreachable_server_shows_offline_and_exits_zero() {
         "--set cuotai label=offline label.color=0xff888888"
     );
 }
+
+#[test]
+fn separators_in_an_account_name_do_not_shift_the_fields() {
+    if !has_jq() {
+        return;
+    }
+    let bin = Bin::new("separators");
+    let body = fs::read_to_string(examples().join("fixtures/limits-busy.json"))
+        .unwrap()
+        .replace(
+            "\"name\": \"Personal\"",
+            "\"name\": \"Work\\tTeam\\nNight\"",
+        );
+    let fixture = bin.0.join("limits-tabbed.json");
+    fs::write(&fixture, body).unwrap();
+    assert_eq!(
+        bin.run("waybar.sh", fixture.to_str()),
+        r#"{"text":"Cuotai 78% Work Team Night","class":"warning","tooltip":"Resets at 2026-10-24T09:00:00Z"}"#
+    );
+}
