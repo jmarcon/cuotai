@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0018 |
-| Status | Awaiting owner verification (RF1–RF4 delivered in 0.74.0–0.75.1, the shared install-source contract adopted in 0.77.0 and RF2.6's pre-request consent gate delivered in 0.80.0; the acceptance criteria that need a real signed release and native/package-manager runners stay owner-blocked, and the winget installer receipt marker of RF3.2 is delivered in vNEXT) |
+| Status | Awaiting owner verification (RF1–RF4 delivered in 0.74.0–0.75.1, the shared install-source contract adopted in 0.77.0 and RF2.6's pre-request consent gate delivered in 0.80.0; the acceptance criteria that need a real signed release and native/package-manager runners stay owner-blocked, and the winget installer receipt marker of RF3.2 is delivered in 0.81.0) |
 | Owner | Desktop (`apps/desktop`) and the release pipeline |
 | Consumers | `apps/desktop/src-tauri`, `apps/desktop/ui` (Settings → Updates and About) |
 | Depends on | PRD 0019 (RF2: CI) and PRD 0021 (RF1–RF4, which supersede PRD 0019 RF3: signed packages and artifact hosting) |
@@ -21,7 +21,7 @@
 | RF3 (Settings and About) | 0.74.0, 0.75.1 and 0.77.0 | Delivered; the four-language UI smoke and zero-request test are automated. In 0.75.1 malformed persisted dates, preference re-enabling, Scoop boundaries and Linux guidance were corrected. In 0.77.0 package-manager ownership/reasons and upgrade commands come from the same core function exposed by the offline CLI, with Cargo and Homebrew Cellar included. |
 | RF2.6 (ask before the first check) | 0.80.0 | Delivered — a persisted answer gates the scheduler, the manual command and the request boundary in Rust. The one-time dialog discloses the exact request fields and click-only download/install in all four UI languages; its Yes, No and close paths are exercised through the production UI modules. A request-counting backend test proves zero requests while unanswered, after No and under every existing off policy, and one scheduled check after Yes; legacy profiles with an explicit off preference migrate as answered and stay off. |
 | RF4 (operational security) | 0.74.0–0.75.1 | Delivered — HTTPS endpoint and real untrusted-certificate coverage in 0.74.0/0.75.1, artifact URLs restricted to this repository's HTTPS release downloads in 0.75.1, and key custody, leak/loss procedures plus the pipeline review in 0.75.0 ([`docs/updater-security.md`](../updater-security.md)). |
-| RF3.2 (winget ownership) | vNEXT | Delivered — the winget installer manifest passes `/WINGET=1`; an NSIS installer hook writes an `install-source.txt` receipt beside `Cuotai.exe` (a manual install removes it, and so does the uninstaller) and `cuotai_core::install_source` reads it as `Winget` after the path rules, so the internal updater stays off beside the package manager. A live `winget install` is an owner check. |
+| RF3.2 (winget ownership) | 0.81.0 | Delivered — the winget installer manifest passes `/WINGET=1`; an NSIS installer hook writes an `install-source.txt` receipt beside `Cuotai.exe` (a manual install removes it, and so does the uninstaller) and `cuotai_core::install_source` reads it as `Winget` after the path rules, so the internal updater stays off beside the package manager. A live `winget install` is an owner check. |
 
 Open or owner-blocked, and not claimed as delivered:
 
@@ -33,7 +33,7 @@ Open or owner-blocked, and not claimed as delivered:
   detection is proven on path fixtures, not real installations; normal winget
   installs used to share the NSIS path with manual installs; the winget
   manifest now passes `/WINGET=1` and the NSIS installer writes
-  `install-source.txt` beside `Cuotai.exe` (vNEXT), which a live winget install
+  `install-source.txt` beside `Cuotai.exe` (0.81.0), which a live winget install
   must still confirm;
 - the **`release` environment protection** is on (a required reviewer and a deployment branch policy, checked on 2026-10-25), as documented in [`docs/updater-security.md`](../updater-security.md); whether the branch policy admits only tags is worth one look in the repository settings.
 

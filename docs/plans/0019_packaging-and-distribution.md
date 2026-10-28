@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0019 |
-| Status | Implemented (RF1, RF2, RF3 superseded by PRD 0021 RF1–RF4, RF4 superseded by PRD 0021 RF5, RF5, RF6 and RF7; the desktop What's new screen and its automatic opening are delivered in vNEXT) |
+| Status | Implemented (RF1, RF2, RF3 superseded by PRD 0021 RF1–RF4, RF4 superseded by PRD 0021 RF5, RF5, RF6 and RF7; the desktop What's new screen and its automatic opening are delivered in 0.81.0) |
 | Owner | Repository, CI and release (`.github/`, `apps/desktop`, `crates/cuotai-tui`) |
 | Consumers | end users, PRDs 0014 and 0018 |
 | Depends on | none; it is a prerequisite of PRDs 0014 and 0018 |
@@ -37,7 +37,7 @@
 | RF7.4 | 0.69.0 | CI `changelog-check` job: the file's format (strict shared parser), every `PRD NNNN RFx` reference and every version the plans mark as delivered; on pull requests the `feat`/`fix` gate with the `Changelog: skip <reason>` escape. |
 | RF7.5 | 0.69.0 | The release body and the updater notes come from the one parsed section of `cuotai_core::changelog`, which the product and the checks share; a missing or empty section still fails the release. |
 | RF7.6 | 0.20.0 (no bump) | Every version from 0.1.0 to 0.20.0 reconstructed from the commits that change the version and from the PRDs' status tables, each entry citing its commit. |
-| RF7.7 | 0.69.0 | Core `changelog::entries()` (version, date, categories, entries, references) embedded offline; TUI `Sobre` -> `Novidades`; `cuotai --changelog [VERSION]`; category labels in pt-BR/en-US/es with the entries kept in English, as the screen states. The desktop About -> What's new opens by itself once after a version change (vNEXT): `desktop.json` keeps the last version seen and the shell compares it with the running one (`whats_new_due`; a first install records the version and shows nothing; a profile from before this build shows it once), and Settings › About has a "Show what's new" switch (on by default; off records the running version so turning it on later replays nothing); `scripts/test-profile-prefs-ui.mjs` and the Rust `whats_new_*` tests cover it. |
+| RF7.7 | 0.69.0 | Core `changelog::entries()` (version, date, categories, entries, references) embedded offline; TUI `Sobre` -> `Novidades`; `cuotai --changelog [VERSION]`; category labels in pt-BR/en-US/es with the entries kept in English, as the screen states. The desktop About -> What's new opens by itself once after a version change (0.81.0): `desktop.json` keeps the last version seen and the shell compares it with the running one (`whats_new_due`; a first install records the version and shows nothing; a profile from before this build shows it once), and Settings › About has a "Show what's new" switch (on by default; off records the running version so turning it on later replays nothing); `scripts/test-profile-prefs-ui.mjs` and the Rust `whats_new_*` tests cover it. |
 | RF7.8 | 0.69.0 | `changelog-check` compares every delivered version cited by a PRD's status table and by `0000_control.md` against the CHANGELOG sections and fails on divergence. |
 
 The first `cargo deny` also found four `rustls` advisories and a yanked package, fixed in 0.17.1 (`chore(security)`). The `rsa` advisory `RUSTSEC-2023-0071` remains ignored, as no fixed version exists, with the justification recorded in `deny.toml`.

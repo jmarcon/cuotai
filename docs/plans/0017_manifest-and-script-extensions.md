@@ -7,7 +7,7 @@
 | Owner | `cuotai-core`, TUI and desktop |
 | Consumers | `crates/cuotai-tui`, `apps/desktop`, extension authors |
 | Depends on | PRD 0005 (RF1: the `Extension` level) |
-| Extended by | PRD 0028 (manifest `overrides`, `[[secrets]]` in the vault, `min_cuotai` and ignored `x-*` tables), PRD 0050 (native desktop approval; credential-env collision disclosure narrowing RF3.2 to explicitly highlighted and approved names; FIX-05's vNEXT completion is its RF8.1) |
+| Extended by | PRD 0028 (manifest `overrides`, `[[secrets]]` in the vault, `min_cuotai` and ignored `x-*` tables), PRD 0050 (native desktop approval; credential-env collision disclosure narrowing RF3.2 to explicitly highlighted and approved names; FIX-05's 0.81.0 completion is its RF8.1) |
 | Date | 2026-10-19 |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
@@ -23,7 +23,7 @@
 
 
 **Decision (2026-10-21, orchestrator):** RF2.4 `--extension-check` ran the extension with the RF3 runner and RF4 consent, so it was delivered in 0.66.0; RF2 is now complete.
-**Fix requirements (2026-10-21 review), delivered in 0.77.1:** FIX-03 — approvals moved from `<data dir>/cuotai/extensions/consent.json` to `<data dir>/cuotai/consent/extensions.json` (`0600` in a `0700` folder), migrated once (read, written, removed); FIX-04 — the consent digest covers the whole extension folder (`extensions::tree::scan`: sorted records, execute bits, link text; links that leave the folder and special files refused; bounded size), so every earlier approval reads as changed once, and the disclosure shows a script's `#!` interpreter (`extensions.consent.interpreter`, bound to the approval); FIX-05 — on Unix a folder, or anything in it, writable by group/others or owned by another user is rejected at discovery and fails `Approved::verify` before every spawn. **Completed in vNEXT:** the check also walks every folder from the extension's folder up to the extensions root (the root included), refusing any that is group- or world-writable or owned by another user, so a group-writable `extensions/` can no longer let the folder be swapped by a rename.
+**Fix requirements (2026-10-21 review), delivered in 0.77.1:** FIX-03 — approvals moved from `<data dir>/cuotai/extensions/consent.json` to `<data dir>/cuotai/consent/extensions.json` (`0600` in a `0700` folder), migrated once (read, written, removed); FIX-04 — the consent digest covers the whole extension folder (`extensions::tree::scan`: sorted records, execute bits, link text; links that leave the folder and special files refused; bounded size), so every earlier approval reads as changed once, and the disclosure shows a script's `#!` interpreter (`extensions.consent.interpreter`, bound to the approval); FIX-05 — on Unix a folder, or anything in it, writable by group/others or owned by another user is rejected at discovery and fails `Approved::verify` before every spawn. **Completed in 0.81.0:** the check also walks every folder from the extension's folder up to the extensions root (the root included), refusing any that is group- or world-writable or owned by another user, so a group-writable `extensions/` can no longer let the folder be swapped by a rename.
 
 ## 1. Context
 

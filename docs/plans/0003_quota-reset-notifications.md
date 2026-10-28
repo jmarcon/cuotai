@@ -20,7 +20,7 @@
 
 **Decisions (2026-10-20, 0.44.0):** the TUI has no notice preferences (the lead time, filter and per-account bell are the desktop's, per device in `desktop.json`), so it uses the planner's defaults. "No persistence" is read as per session: a reset whose notice time came before the TUI opened (a reading restored from the history, PRD 0010 RF2.3) is recorded as seen and never announced, so reopening the TUI does not repeat it. OSC 9 goes out automatically on a whitelist of terminals known to show it, never through a multiplexer, rather than behind a second flag. The banner lasts an hour so it is still there when the user comes back to the terminal.
 
-> **PRD 0032 (vNEXT):** the open items on duplicates and lock-screen names are closed there: `cuotai --notify` and the desktop share `notified.json` under `notified.lock` (one notice per event across processes), notification texts hide account names by default (`notify.private`), and quiet hours drop a reset that happens inside the window (recorded as `skipped`).
+> **PRD 0032 (0.81.0):** the open items on duplicates and lock-screen names are closed there: `cuotai --notify` and the desktop share `notified.json` under `notified.lock` (one notice per event across processes), notification texts hide account names by default (`notify.private`), and quiet hours drop a reset that happens inside the window (recorded as `skipped`).
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
 

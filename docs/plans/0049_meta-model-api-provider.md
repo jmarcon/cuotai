@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0049 |
-| Status | Awaiting owner verification (RF1–RF5 and RF7–RF10 delivered in vNEXT; RF6 and RF11, the real-account checks, are the owner's) |
+| Status | Awaiting owner verification (RF1–RF5 and RF7–RF10 delivered in 0.81.0; RF6 and RF11, the real-account checks, are the owner's) |
 | Owner | `cuotai-core` (model, adapter, access descriptor, account fields, catalog entry) |
 | Consumers | `apps/desktop` and `crates/cuotai-tui` (generic rendering only) |
 | Depends on | PRD 0005 RF1 (`access::describe`), PRD 0047 (typed keys kept in the system vault), PRD 0048 (session capture window) |
@@ -16,16 +16,16 @@
 
 | RF | Version | Delivery |
 |---|---|---|
-| RF1 | vNEXT | `Provider::Meta` (slug `meta`), dispatch and the `providers::meta` adapter. |
-| RF2 | vNEXT | Access descriptor (`Derived`, inference key, organization scope, `verified_on` 2026-10-27), core catalog texts and the regenerated `docs/providers.md` matrices. |
-| RF3 | vNEXT | Account fields: the key as a typed vault secret in the desktop (PRD 0047), `META_API_KEY` as the TUI default; catalog aliases `muse`, `muse spark`, `llama`, `meta ai`. |
-| RF4 | vNEXT | Example config, desktop brand monogram (no logo asset: none with a clear license was found). |
-| RF5 | vNEXT | `wiremock` contract tests: headers present, absent, partial, 401/403, 429, schema drift, missing key. |
+| RF1 | 0.81.0 | `Provider::Meta` (slug `meta`), dispatch and the `providers::meta` adapter. |
+| RF2 | 0.81.0 | Access descriptor (`Derived`, inference key, organization scope, `verified_on` 2026-10-27), core catalog texts and the regenerated `docs/providers.md` matrices. |
+| RF3 | 0.81.0 | Account fields: the key as a typed vault secret in the desktop (PRD 0047), `META_API_KEY` as the TUI default; catalog aliases `muse`, `muse spark`, `llama`, `meta ai`. |
+| RF4 | 0.81.0 | Example config, desktop brand monogram (no logo asset: none with a clear license was found). |
+| RF5 | 0.81.0 | `wiremock` contract tests: headers present, absent, partial, 401/403, 429, schema drift, missing key. |
 | RF6 | — | Owner check with a real key. |
-| RF7 | vNEXT | `meta` session descriptor `session_env` (`llama_dev_sess`, host `dev.meta.ai`) with a PRD 0048 capture of `https://dev.meta.ai/usage` and its exact-host sign-in allow-list. |
-| RF8 | vNEXT | Optional `team_id` / `project_id` params (`project_id` validated but not sent: the console's usage request carries only the team); team discovered through `/api/portal/teams` when the session has one team. |
-| RF9 | vNEXT | Console usage read through the owner-confirmed `GET /api/portal/teams/{team}/usage/batch` (month to date, UTC) and its `metrics.<NAME>.series[TOTAL]` shape; access level `Undocumented` / user session for the session mode. |
-| RF10 | vNEXT | `wiremock`, parser, allow-list and capture tests; debug-only diagnostics (navigation hosts/paths, unrecognised usage field names). |
+| RF7 | 0.81.0 | `meta` session descriptor `session_env` (`llama_dev_sess`, host `dev.meta.ai`) with a PRD 0048 capture of `https://dev.meta.ai/usage` and its exact-host sign-in allow-list. |
+| RF8 | 0.81.0 | Optional `team_id` / `project_id` params (`project_id` validated but not sent: the console's usage request carries only the team); team discovered through `/api/portal/teams` when the session has one team. |
+| RF9 | 0.81.0 | Console usage read through the owner-confirmed `GET /api/portal/teams/{team}/usage/batch` (month to date, UTC) and its `metrics.<NAME>.series[TOTAL]` shape; access level `Undocumented` / user session for the session mode. |
+| RF10 | 0.81.0 | `wiremock`, parser, allow-list and capture tests; debug-only diagnostics (navigation hosts/paths, unrecognised usage field names). |
 | RF11 | — | Request and shape confirmed by the owner on 2026-10-27 (§5.1); pending: a non-zero sample to confirm the cents offset (§5.2) and the card in dev mode (§5.4 step 4). |
 
 ## 1. Context and evidence (checked on 2026-10-27)
