@@ -17,7 +17,7 @@ const VERSION: &str = "0.68.1";
 const TAG: &str = "v0.68.1";
 const REPO: &str = "jmarcon/cuotai";
 
-const CASK: &str = "homebrew/Casks/cuotai.rb";
+const CASK: &str = "homebrew/Casks/cuotai-app.rb";
 const FORMULA: &str = "homebrew/Formula/cuotai.rb";
 const WINGET_INSTALLER: &str = "winget/Cuotai.Cuotai.installer.yaml";
 const SCOOP: &str = "scoop/bucket/cuotai.json";
@@ -168,7 +168,7 @@ fn renders_every_channel_deterministically_from_one_manifest() {
     assert_eq!(
         paths,
         vec![
-            "homebrew/Casks/cuotai.rb",
+            "homebrew/Casks/cuotai-app.rb",
             "homebrew/Formula/cuotai.rb",
             "winget/Cuotai.Cuotai.yaml",
             "winget/Cuotai.Cuotai.installer.yaml",
@@ -316,7 +316,7 @@ fn template_placeholders_must_all_resolve() {
     let dir = tempfile::tempdir().unwrap();
     let src = templates_dir();
     for file in [
-        "homebrew/Casks/cuotai.rb.tmpl",
+        "homebrew/Casks/cuotai-app.rb.tmpl",
         "homebrew/Formula/cuotai.rb.tmpl",
         "winget/Cuotai.Cuotai.yaml.tmpl",
         "winget/Cuotai.Cuotai.installer.yaml.tmpl",

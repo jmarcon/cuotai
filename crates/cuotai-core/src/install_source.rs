@@ -90,7 +90,7 @@ impl InstallSource {
     /// does not prescribe a distribution-specific command.
     pub const fn upgrade_command(self) -> Option<&'static str> {
         match self {
-            Self::Homebrew => Some("brew upgrade --cask cuotai"),
+            Self::Homebrew => Some("brew upgrade --cask cuotai-app"),
             Self::HomebrewFormula => Some("brew upgrade cuotai"),
             Self::Scoop => Some("scoop update cuotai"),
             Self::Winget => Some("winget upgrade Cuotai.Cuotai"),
@@ -138,7 +138,8 @@ fn classify(
     if path.contains("/AppTranslocation/") {
         return InstallSource::Translocated;
     }
-    if path.contains("/Caskroom/cuotai/") {
+    // The cask was named "cuotai" until 0.81.0 and "cuotai-app" since.
+    if path.contains("/Caskroom/cuotai-app/") || path.contains("/Caskroom/cuotai/") {
         return InstallSource::Homebrew;
     }
     if path.contains("/Cellar/cuotai/") {
@@ -299,7 +300,13 @@ mod tests {
                 "/opt/homebrew/Caskroom/cuotai/0.76.0/Cuotai.app/Contents/MacOS/Cuotai",
                 &[][..],
                 InstallSource::Homebrew,
-                Some("brew upgrade --cask cuotai"),
+                Some("brew upgrade --cask cuotai-app"),
+            ),
+            (
+                "/opt/homebrew/Caskroom/cuotai-app/0.82.0/Cuotai.app/Contents/MacOS/Cuotai",
+                &[][..],
+                InstallSource::Homebrew,
+                Some("brew upgrade --cask cuotai-app"),
             ),
             (
                 "/opt/homebrew/Cellar/cuotai/0.76.0/bin/cuotai",

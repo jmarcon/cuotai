@@ -967,7 +967,7 @@ mod detector {
                     true,
                 ),
                 Some("homebrew"),
-                Some("brew upgrade --cask cuotai"),
+                Some("brew upgrade --cask cuotai-app"),
                 false,
             ),
             (
@@ -1887,7 +1887,7 @@ mod contract {
         let service = Service::build(InstallSource::Homebrew, None, false, false);
         let view = service.view();
         assert_eq!(view.disabled_reason, Some("homebrew"));
-        assert_eq!(view.upgrade_command, Some("brew upgrade --cask cuotai"));
+        assert_eq!(view.upgrade_command, Some("brew upgrade --cask cuotai-app"));
         assert!(!view.can_install);
         assert!(!view.enabled);
         assert!(!view.consent_pending, "managed installs are never asked");

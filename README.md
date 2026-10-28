@@ -53,14 +53,14 @@ It is made for developers, teams and heavy users of coding assistants and AI API
 
 > **Status.** Cuotai 0.80.0 is published on [GitHub Releases](https://github.com/jmarcon/cuotai/releases): the macOS `.dmg` is signed and notarized, the Windows installers are **not code-signed yet** (SmartScreen will warn), and the Linux packages and the terminal archives are covered by the signed `SHA256SUMS`. The package-manager commands below are prepared but **not live yet**; until they are, download from Releases or build from source ([build guide](docs/building.md)). Nothing here claims a channel is available before it is.
 
-| System | Package manager (planned) | Direct download | Works today |
+| System | Package manager | Direct download | Works today |
 |---|---|---|---|
-| **macOS** (Apple silicon and Intel) | Homebrew: `brew install --cask jmarcon/cuotai/cuotai` (coming soon) | `.dmg` from [Releases](https://github.com/jmarcon/cuotai/releases) | [Download from Releases](https://github.com/jmarcon/cuotai/releases) or [build from source](docs/building.md#desktop-app-tauri) |
+| **macOS** (Apple silicon and Intel) | Homebrew: `brew install --cask jmarcon/cuotai/cuotai-app` | `.dmg` from [Releases](https://github.com/jmarcon/cuotai/releases) | [Download from Releases](https://github.com/jmarcon/cuotai/releases) or [build from source](docs/building.md#desktop-app-tauri) |
 | **Windows** (x64; ARM64 optional) | winget: `winget install Cuotai.Cuotai` (coming soon) | `.exe` or `.msi` installer from [Releases](https://github.com/jmarcon/cuotai/releases) | [Download from Releases](https://github.com/jmarcon/cuotai/releases) or [build from source](docs/building.md#desktop-app-tauri) |
 | **Linux** (x64; ARM64 optional) | AUR: `yay -S cuotai-bin` (coming soon) | `.deb`, `.rpm` or `.AppImage` from [Releases](https://github.com/jmarcon/cuotai/releases) | [Download from Releases](https://github.com/jmarcon/cuotai/releases) or [build from source](docs/building.md#desktop-app-tauri) |
 | **Any system, terminal only** | `cargo install cuotai-tui --locked` or `cargo binstall cuotai-tui` (coming soon, once the crates are published) | CLI archive from [Releases](https://github.com/jmarcon/cuotai/releases) | The archive, or `cargo install --git https://github.com/jmarcon/cuotai cuotai-tui --locked` |
 
-Also coming soon: Homebrew (`brew install jmarcon/cuotai/cuotai`) and Scoop (`scoop bucket add cuotai && scoop install cuotai`) for the terminal version. The full channel status, with how each one is checked, is in [`docs/installing.md`](docs/installing.md).
+For the terminal version: Homebrew (`brew install jmarcon/cuotai/cuotai`) and Scoop (`scoop bucket add cuotai https://github.com/jmarcon/scoop-cuotai` then `scoop install cuotai`). The full channel status, with how each one is checked, is in [`docs/installing.md`](docs/installing.md).
 
 **Good to know**
 

@@ -508,7 +508,7 @@ and `.SRCINFO` agreement). The templates live in
 
 | Channel | Renders | Own linter in CI | Publishes to |
 |---|---|---|---|
-| Homebrew tap (RF5.1) | `Casks/cuotai.rb` (desktop), `Formula/cuotai.rb` (CLI) | `brew style`, `brew audit --strict --online`, `brew install --cask` | `jmarcon/homebrew-cuotai` |
+| Homebrew tap (RF5.1) | `Casks/cuotai-app.rb` (desktop), `Formula/cuotai.rb` (CLI) | `brew style`, `brew audit --strict --online`, `brew install --cask` | `jmarcon/homebrew-cuotai` |
 | winget (RF5.2) | `Cuotai.Cuotai{,.installer,.locale.en-US}.yaml` | `winget validate`, silent install/uninstall | `microsoft/winget-pkgs` |
 | Scoop (RF5.3) | `bucket/cuotai.json` (CLI zip, `checkver: github`) | JSON validation, `scoop install` | `jmarcon/scoop-cuotai` |
 | Cargo (RF5.4) | nothing: crate metadata in `crates/*/Cargo.toml` | `cargo publish --dry-run` | crates.io (`cuotai-core` before `cuotai-tui`) |
@@ -548,8 +548,8 @@ binaries:
 
 | Channel | What uninstall removes | What it always keeps |
 |---|---|---|
-| `brew uninstall --cask cuotai` | `/Applications/Cuotai.app` | config, databases, Keychain entries |
-| `brew zap --cask cuotai` (opt-in) | + webview caches and the preference plist listed in the cask | config, databases, Keychain entries |
+| `brew uninstall --cask cuotai-app` | `/Applications/Cuotai.app` | config, databases, Keychain entries |
+| `brew zap --cask cuotai-app` (opt-in) | + webview caches and the preference plist listed in the cask | config, databases, Keychain entries |
 | `winget uninstall Cuotai.Cuotai` | the installed program files | `%APPDATA%\cuotai`, `%LOCALAPPDATA%\cuotai`, Credential Manager entries |
 | `scoop uninstall cuotai` | the binary | `%APPDATA%\cuotai`, `%LOCALAPPDATA%\cuotai`, Credential Manager entries |
 | `pacman -R cuotai-bin` | packaged files (`/usr/bin/Cuotai`, …) | `~/.config/cuotai`, `~/.local/share/cuotai`, Secret Service entries |
@@ -1002,16 +1002,16 @@ change the templates in this repository during an incident.
 
 #### Homebrew tap — `jmarcon/homebrew-cuotai`
 
-The controlled paths are `Casks/cuotai.rb` and `Formula/cuotai.rb`:
+The controlled paths are `Casks/cuotai-app.rb` and `Formula/cuotai.rb`:
 
 ```sh
 gh repo clone jmarcon/homebrew-cuotai homebrew-cuotai-rollback
 cd homebrew-cuotai-rollback
 bad_commit="$(git log -1 --format=%H --fixed-strings \
-  --grep="cuotai $BAD_VERSION" -- Casks/cuotai.rb Formula/cuotai.rb)"
+  --grep="cuotai $BAD_VERSION" -- Casks/cuotai-app.rb Formula/cuotai.rb)"
 test -n "$bad_commit"
 git revert --no-edit "$bad_commit"
-grep -F "version \"$PREVIOUS_VERSION\"" Casks/cuotai.rb
+grep -F "version \"$PREVIOUS_VERSION\"" Casks/cuotai-app.rb
 grep -F "/v$PREVIOUS_VERSION/" Formula/cuotai.rb
 git push origin HEAD
 ```
@@ -1021,9 +1021,9 @@ paths. Then run:
 
 ```sh
 brew update
-brew info --cask jmarcon/cuotai/cuotai
+brew info --cask jmarcon/cuotai/cuotai-app
 brew info jmarcon/cuotai/cuotai
-brew audit --strict --online --cask jmarcon/cuotai/cuotai
+brew audit --strict --online --cask jmarcon/cuotai/cuotai-app
 brew audit --strict --online --formula jmarcon/cuotai/cuotai
 ```
 

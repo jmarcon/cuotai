@@ -1798,7 +1798,7 @@ const demoUpdate = {
   lastCheck: null,
   phase: DEMO_UPDATE === "error" ? "failed" : DEMO_UPDATE === "fresh" || DEMO_UPDATE === "off" || DEMO_UPDATE === "consent" ? "uptodate" : "available",
   version: "0.72.0", notes: DEMO_NOTES, date: "2026-10-22T00:00:00Z",
-  canInstall: DEMO_UPDATE !== "managed", upgradeCommand: DEMO_UPDATE === "managed" ? "brew upgrade --cask cuotai" : null,
+  canInstall: DEMO_UPDATE !== "managed", upgradeCommand: DEMO_UPDATE === "managed" ? "brew upgrade --cask cuotai-app" : null,
   progress: null, dismissed: false, error: DEMO_UPDATE === "error" ? "network" : null,
   disabledReason: DEMO_UPDATE === "managed" ? "homebrew" : DEMO_UPDATE === "off" ? "preference" : null,
 };

@@ -4,15 +4,15 @@ This page is the full version of the README's install section: every channel wit
 
 ## Channel status
 
-Cuotai 0.80.0 is published on GitHub Releases. Every package-manager channel is opt-in and off until the maintainer enables it (PRD 0021; see [`plans/0000_control.md`](plans/0000_control.md)), so Releases is the one live install channel for now. The table records what was checked on 2026-10-25 and why.
+Cuotai 0.81.0 is published on GitHub Releases, the Homebrew tap and the Scoop bucket. Every other package-manager channel is opt-in and off until the maintainer enables it (PRD 0021; see [`plans/0000_control.md`](plans/0000_control.md)). The table records what was checked on 2026-10-28 and why.
 
 | Channel | Command (when live) | Status today | Evidence |
 |---|---|---|---|
-| GitHub Releases (direct download) | download from the [Releases page](https://github.com/jmarcon/cuotai/releases) | **Live** | Release `v0.80.0` is published with the desktop installers, the terminal archives and the integrity files (the release pipeline `.github/workflows/release.yml` is tag-driven). The macOS `.dmg` is signed and notarized; the Windows installers are not code-signed yet. |
-| Homebrew cask (desktop, macOS) | `brew install --cask jmarcon/cuotai/cuotai` | **Not yet** | The tap repository `jmarcon/homebrew-cuotai` exists but holds no cask yet; the channel needs `PUBLISH_HOMEBREW=true` and a token. |
-| Homebrew formula (terminal, macOS/Linux) | `brew install jmarcon/cuotai/cuotai` | **Not yet** | Same tap. |
+| GitHub Releases (direct download) | download from the [Releases page](https://github.com/jmarcon/cuotai/releases) | **Live** | Release `v0.81.0` is published with the desktop installers, the terminal archives and the integrity files (the release pipeline `.github/workflows/release.yml` is tag-driven). The macOS `.dmg` is signed and notarized; the Windows installers are not code-signed yet. |
+| Homebrew cask (desktop, macOS) | `brew install --cask jmarcon/cuotai/cuotai-app` | **Live** | The tap `jmarcon/homebrew-cuotai` holds the 0.81.0 cask. It was named `cuotai` in 0.81.0; the tap's `cask_renames.json` moves those installs to `cuotai-app` on their next `brew upgrade`. |
+| Homebrew formula (terminal, macOS/Linux) | `brew install jmarcon/cuotai/cuotai` | **Live** | Same tap, 0.81.0 formula. |
 | winget (desktop, Windows) | `winget install Cuotai.Cuotai` | **Not yet** | The first submission to `microsoft/winget-pkgs` is a manual owner step and has not happened. |
-| Scoop (terminal, Windows) | `scoop bucket add cuotai` then `scoop install cuotai` | **Not yet** | The bucket repository `jmarcon/scoop-cuotai` exists but holds no manifest yet. |
+| Scoop (terminal, Windows) | `scoop bucket add cuotai https://github.com/jmarcon/scoop-cuotai` then `scoop install cuotai` | **Live** | The bucket `jmarcon/scoop-cuotai` holds the 0.81.0 manifest. |
 | AUR `cuotai-bin` (desktop, Arch) | `yay -S cuotai-bin` | **Not yet** | The AUR RPC finds no `cuotai-bin` package. |
 | crates.io (terminal) | `cargo install cuotai-tui --locked` or `cargo binstall cuotai-tui` | **Not yet** | crates.io reports that neither `cuotai-tui` nor `cuotai-core` exists. |
 | `cargo install --git` (terminal) | `cargo install --git https://github.com/jmarcon/cuotai cuotai-tui --locked` | **Works today** | Builds from the repository's default branch; needs Rust. |
@@ -74,8 +74,8 @@ Uninstalling removes the application or binary only. Your configuration (`<OS co
 
 | Channel | What uninstall removes | What it always keeps |
 |---|---|---|
-| `brew uninstall --cask cuotai` | `/Applications/Cuotai.app` | config, databases, Keychain entries |
-| `brew zap --cask cuotai` (opt-in) | also the app's web caches and preference plist, and only that | config, databases, Keychain entries |
+| `brew uninstall --cask cuotai-app` | `/Applications/Cuotai.app` | config, databases, Keychain entries |
+| `brew zap --cask cuotai-app` (opt-in) | also the app's web caches and preference plist, and only that | config, databases, Keychain entries |
 | `winget uninstall Cuotai.Cuotai` | the installed program files | `%APPDATA%\cuotai`, `%LOCALAPPDATA%\cuotai`, Credential Manager entries |
 | `scoop uninstall cuotai` | the binary | the same folders and entries |
 | `pacman -R cuotai-bin` | packaged files (`/usr/bin/Cuotai`, ...) | `~/.config/cuotai`, `~/.local/share/cuotai`, Secret Service entries |
