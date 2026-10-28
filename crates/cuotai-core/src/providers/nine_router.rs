@@ -558,9 +558,23 @@ pub(crate) async fn forget_login(base: &str) {
     SESSIONS.lock().await.remove(base);
 }
 
+/// A random key drawn once per process for [`fingerprint`].
+static FINGERPRINT_KEY: LazyLock<[u8; 32]> = LazyLock::new(|| {
+    let mut key = [0u8; 32];
+    rand::RngCore::fill_bytes(&mut rand::rngs::OsRng, &mut key);
+    key
+});
+
+/// Tells whether a rejected password is the one tried again, without keeping
+/// it: an HMAC-SHA256 under a random key of this process, so the value held
+/// in memory is no plain password hash and means nothing to another process.
 fn fingerprint(password: &str) -> String {
-    let digest = Sha256::digest(password.as_bytes());
-    digest.iter().map(|byte| format!("{byte:02x}")).collect()
+    use hmac::{Hmac, Mac as _};
+    let mut mac = Hmac::<Sha256>::new_from_slice(FINGERPRINT_KEY.as_slice())
+        .expect("HMAC takes a key of any length");
+    mac.update(password.as_bytes());
+    let tag = mac.finalize().into_bytes();
+    tag.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 /// `exp` of a JWT, read without verifying it.
