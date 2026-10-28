@@ -746,11 +746,17 @@ fn parse_activity(value: &Value, breakdown: Breakdown) -> Result<Vec<Metric>, Qu
     };
     let mut sums: BTreeMap<String, f64> = BTreeMap::new();
     let mut other = 0.0;
-    let mut byok = 0.0;
+    // Absent usage is never zero: a row without `usage` makes the whole
+    // breakdown unavailable, and one without `byok_usage_inference` leaves
+    // the BYOK total unknown (not shown) rather than understated.
+    let mut byok = Some(0.0);
     for row in rows {
         let row = row.as_object().ok_or_else(QueryError::schema)?;
-        byok += nonneg(row, "byok_usage_inference")?.unwrap_or(0.0);
-        let usage = nonneg(row, "usage")?.unwrap_or(0.0);
+        match nonneg(row, "byok_usage_inference")? {
+            Some(amount) => byok = byok.map(|sum| sum + amount),
+            None => byok = None,
+        }
+        let usage = nonneg(row, "usage")?.ok_or_else(QueryError::schema)?;
         if usage == 0.0 {
             continue;
         }
@@ -782,7 +788,7 @@ fn parse_activity(value: &Value, breakdown: Breakdown) -> Result<Vec<Metric>, Qu
     if other > 0.0 {
         metrics.push(item("Gasto 30 dias — Outros".into(), other, None));
     }
-    if byok > 0.0 {
+    if let Some(byok) = byok.filter(|sum| *sum > 0.0) {
         metrics.push(item("BYOK (externo)".into(), byok, None));
     }
     Ok(metrics)
@@ -1482,6 +1488,31 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(first.metrics.len(), later.metrics.len());
+    }
+
+    #[test]
+    fn absent_usage_is_never_counted_as_zero() {
+        let mut rows = activity_rows();
+        rows["data"][1].as_object_mut().unwrap().remove("usage");
+        let error = parse_activity(&rows, Breakdown::Provider).unwrap_err();
+        assert_eq!(&*error.note.id, "query.schema");
+        rows["data"][1]["usage"] = Value::Null;
+        assert!(parse_activity(&rows, Breakdown::Provider).is_err());
+
+        let mut rows = activity_rows();
+        rows["data"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("byok_usage_inference");
+        let metrics = parse_activity(&rows, Breakdown::Provider).unwrap();
+        assert!(
+            metrics.iter().all(|m| m.label != "BYOK (externo)"),
+            "an unknown BYOK total is not shown"
+        );
+        assert!(metrics.iter().any(|m| m.label.ends_with("OpenAI")));
+        let full = parse_activity(&activity_rows(), Breakdown::Provider).unwrap();
+        let byok = full.iter().find(|m| m.label == "BYOK (externo)").unwrap();
+        assert_eq!(byok.used, Some(0.75));
     }
 
     #[test]
