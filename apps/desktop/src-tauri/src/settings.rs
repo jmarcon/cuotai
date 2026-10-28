@@ -902,7 +902,9 @@ fn show_in_dock_of(stored: &Stored) -> bool {
     stored.show_in_dock != Some(false)
 }
 
-/// macOS "Show in Dock": applied at startup and on every change.
+/// macOS "Show in Dock": applied at startup and on every change. Other
+/// systems have no Dock, so only the macOS activation policy reads it.
+#[cfg(target_os = "macos")]
 pub fn show_in_dock() -> bool {
     show_in_dock_of(&load())
 }

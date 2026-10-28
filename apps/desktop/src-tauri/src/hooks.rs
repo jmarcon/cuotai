@@ -235,8 +235,9 @@ impl Integration {
     /// (RF3.2), so an edit made outside the app shows at the next state
     /// change, not only at the next event; otherwise they stop (or
     /// restart, when the new rules are confirmed too) and these events run
-    /// nothing. Returns whether what runs changed.
-    #[cfg(test)]
+    /// nothing. Returns whether what runs changed. Only the Unix-only
+    /// runner test calls it.
+    #[cfg(all(test, unix))]
     pub fn observe(&mut self, path: &Path, export: &Export, now: DateTime<Utc>) -> bool {
         self.observe_with(path, export, now, &|_, _| None)
     }
