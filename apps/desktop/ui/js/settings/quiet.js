@@ -139,7 +139,10 @@ export function bindQuiet(root, ctx, initial) {
     if (!field || TIME.test(field.value)) return;
     const { qDay: day, qIndex: index } = field.closest("[data-q-day]").dataset;
     const kept = saved.days[day]?.[Number(index)];
-    if (kept) field.value = field.matches("[data-q-from]") ? kept.from : kept.to;
+    if (!kept) return;
+    field.value = field.matches("[data-q-from]") ? kept.from : kept.to;
+    // The saved time is back, so the "incomplete time" note shown while typing no longer applies.
+    rowError(field, "");
   });
   deps();
 }

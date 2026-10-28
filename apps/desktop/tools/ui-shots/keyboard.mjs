@@ -64,27 +64,37 @@ try {
   ok("Enter adds an interval and focuses its time field");
 
   // 5. Backspace empties the hour: the value is incomplete, so nothing is saved, but the field keeps the focus (the
-  //    editor is not drawn again under the cursor) and the typing goes on. Then a time is typed with digits (the
-  //    field commits when it loses focus) and Tab moves from field to field.
+  //    editor is not drawn again under the cursor) and the typing goes on. Then a time is typed with digits and Tab
+  //    moves from field to field. The field follows the machine's clock: 24-hour (here "22:00") or 12-hour with a
+  //    day-period segment ("10:00 PM", macOS CI runners in en-US). Backspace clears only the hour, so in a 12-hour
+  //    field "0930" alone keeps PM and reads 21:30; the "a" that follows picks AM there and is ignored by a
+  //    24-hour field (its last segment is the minutes, which take digits only), so both read 09:30.
   await browser.press("Backspace");
   await sleep(300);
   await expectFocus("[data-q-from]@mon#0", "Backspace keeps the focus in the time field");
   await eq(`document.querySelector('[data-q-day="mon"] [data-q-from]').value`, "", "the emptied hour leaves no value");
-  for (const key of ["0", "9", "3", "0"]) await browser.press(key);
+  for (const key of ["0", "9", "3", "0", "a"]) await browser.press(key);
   await expectFocus("[data-q-from]@mon#0", "typing stays in the time field");
-  await browser.press("Tab"); // minutes -> AM/PM or the next field; keep tabbing until the "to" field
+  await eq(`document.querySelector('[data-q-day="mon"] [data-q-from]').value`, "09:30", "the typed time reads 09:30 in either clock");
+  // The last segment (minutes, or AM/PM) has focus: Tab leaves the field for the "to" field.
   for (let i = 0; i < 4 && !(await focused()).startsWith("[data-q-to]"); i++) await browser.press("Tab");
   await sleep(400);
   await expectFocus("[data-q-to]@mon#0", "Tab reaches the second time field");
-  await eq(`document.querySelector('[data-q-day="mon"] [data-q-from]').value`, "09:30", "the typed time is committed");
+  await eq(`document.querySelector('[data-q-day="mon"] [data-q-from]').value`, "09:30", "the typed time stays after leaving the field");
+  await eq(`import("./js/lib.js").then((m) => m.getSettings()).then((s) => s.quiet.days.mon[0].from)`, "09:30", "the typed time is saved");
   ok("digits set a time and Tab moves between fields");
 
-  // 5b. An incomplete time gets the saved one back when the focus leaves it, without moving the focus.
-  await browser.evaluate(`document.querySelector('[data-q-day="mon"] [data-q-to]').value = ""`);
+  // 5b. An incomplete time gets the saved one back when the focus leaves it, without moving the focus, and the
+  //     note shown while it was incomplete goes away.
+  const note = `document.querySelector('[data-q-day="mon"]').closest('.set-row').querySelector('.set-row-err').textContent`;
+  await eq(`${note} === ""`, true, "a complete time shows no note");
+  await browser.evaluate(`(() => { const f = document.querySelector('[data-q-day="mon"] [data-q-to]'); f.value = ""; f.dispatchEvent(new Event("change", { bubbles: true })); })()`);
+  await eq(`${note} !== ""`, true, "an incomplete time shows why it is not saved");
   for (let i = 0; i < 4 && (await focused()) === "[data-q-to]@mon#0"; i++) await browser.press("Tab");
   await expectFocus("[data-q-remove]@mon#0", "Tab leaves the incomplete time for Remove");
   await sleep(300);
   await eq(`document.querySelector('[data-q-day="mon"] [data-q-to]').value`, "08:00", "leaving an incomplete time restores the saved one");
+  await eq(`${note} === ""`, true, "the note goes away with the restored time");
   ok("an incomplete time is put back on leaving it");
 
   // 6. Enter on the remove button (reached with Tab above) deletes the interval; focus goes back to the weekday's
