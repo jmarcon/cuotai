@@ -221,7 +221,16 @@ pub fn summarize<Tz: TimeZone>(
             }
             for point in metric.points.iter().filter(|p| p.taken_at >= range_start) {
                 if let Some(index) = day_index(point.taken_at) {
-                    let share = (point.used / limit).clamp(0.0, 1.0);
+                    // Each reading against the limit of its own window: a
+                    // limit raised today does not shrink yesterday's peak.
+                    let cap = metric
+                        .windows
+                        .iter()
+                        .find(|w| w.started_at <= point.taken_at && point.taken_at <= w.ended_at)
+                        .and_then(|w| w.limit)
+                        .filter(|l| l.is_finite() && *l > 0.0)
+                        .unwrap_or(limit);
+                    let share = (point.used / cap).clamp(0.0, 1.0);
                     best[index] = Some(best[index].map_or(share, |known: f64| known.max(share)));
                 }
             }
@@ -390,6 +399,33 @@ credential_env = "GROQ_KEY_BETA"
             Some(0.6),
             "accounts without data are not zeros"
         );
+    }
+
+    /// A limit raised within the range: each day's peak is read against the
+    /// limit of its own window, not the latest one.
+    #[test]
+    fn each_peak_is_read_against_the_limit_of_its_window() {
+        let dir = tempfile::tempdir().unwrap();
+        let history = store(dir.path());
+        let alpha = &accounts()[0];
+        let resets = |day: u32| at(day, 0) + TimeDelta::days(1);
+        history
+            .record(
+                alpha,
+                at(19, 10),
+                &[metric("daily", 80.0, Some(100.0), resets(19))],
+            )
+            .unwrap();
+        history
+            .record(
+                alpha,
+                at(20, 10),
+                &[metric("daily", 100.0, Some(1000.0), resets(20))],
+            )
+            .unwrap();
+        let s = summary(&history, StatsRange::Days7, at(20, 12));
+        assert_eq!(s.daily[5].share, Some(0.8), "80 of the old 100");
+        assert_eq!(s.daily[6].share, Some(0.1), "100 of the new 1000");
     }
 
     /// PRD 0023 RF10: a model-scoped limit at its cap is not a limit hit of
