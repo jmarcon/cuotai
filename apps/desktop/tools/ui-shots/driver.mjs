@@ -87,9 +87,9 @@ export async function launch({ port, cdp } = {}) {
       await sleep(400);
     }
   }
-  /** Presses a key like a person at the keyboard (Tab, Shift+Tab, Enter, Space, a digit or a letter). */
+  /** Presses a key like a person at the keyboard (Tab, Shift+Tab, Enter, Space, Backspace, a digit or a letter). */
   async function press(key, { shift = false } = {}) {
-    const named = { Tab: [9, "Tab", ""], Enter: [13, "Enter", "\r"], " ": [32, "Space", " "], Escape: [27, "Escape", ""], ArrowDown: [40, "ArrowDown", ""], ArrowUp: [38, "ArrowUp", ""] };
+    const named = { Tab: [9, "Tab", ""], Enter: [13, "Enter", "\r"], " ": [32, "Space", " "], Escape: [27, "Escape", ""], Backspace: [8, "Backspace", ""], ArrowDown: [40, "ArrowDown", ""], ArrowUp: [38, "ArrowUp", ""] };
     const [vk, code, text] = named[key] ?? [key.toUpperCase().charCodeAt(0), /^\d$/.test(key) ? `Digit${key}` : `Key${key.toUpperCase()}`, key];
     const base = { key, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, modifiers: shift ? 8 : 0 };
     await send("Input.dispatchKeyEvent", { ...base, type: text ? "keyDown" : "rawKeyDown", text });

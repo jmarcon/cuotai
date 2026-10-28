@@ -59,7 +59,8 @@ export function quietDaysHtml(q) {
 }
 
 /** PRD 0032 RF2.3: every change to the quiet hours is saved at once as the whole schedule; a refused one is put
- *  back and the reason shown in its row. Time fields commit when both are valid `HH:MM` values. */
+ *  back and the reason shown in its row. Time fields commit when both are valid `HH:MM` values; an incomplete
+ *  one keeps its place while typed and gets the saved time back when the focus leaves it. */
 export function bindQuiet(root, ctx, initial) {
   let saved = structuredClone(initial);
   const on = root.querySelector("#quiet-on");
@@ -128,8 +129,17 @@ export function bindQuiet(root, ctx, initial) {
     const { qDay: day, qIndex: index } = holder.dataset;
     const from = holder.querySelector("[data-q-from]").value;
     const to = holder.querySelector("[data-q-to]").value;
-    if (!TIME.test(from) || !TIME.test(to)) { paint(); rowError(field, t("settings.error.invalid_quiet")); return; }
+    // A segment cleared or still being typed leaves the value empty: the field stays (drawing the editor again
+    // would drop the focus and the rest of the typed time) and shows the reason; leaving it puts the saved time back.
+    if (!TIME.test(from) || !TIME.test(to)) { rowError(field, t("settings.error.invalid_quiet")); return; }
     save(edit((q) => { q.days[day][Number(index)] = { from, to }; }), field, null, false);
+  });
+  days.addEventListener("focusout", (e) => {
+    const field = e.target.closest?.("[data-q-from], [data-q-to]");
+    if (!field || TIME.test(field.value)) return;
+    const { qDay: day, qIndex: index } = field.closest("[data-q-day]").dataset;
+    const kept = saved.days[day]?.[Number(index)];
+    if (kept) field.value = field.matches("[data-q-from]") ? kept.from : kept.to;
   });
   deps();
 }
