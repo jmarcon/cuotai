@@ -110,26 +110,42 @@ fn no_personal_email_address_is_committed() {
 
 /// The owner's GitHub handle may appear only in the repository's own address
 /// (`github.com/<owner>/cuotai`); demo fixtures and smokes use placeholders
-/// such as `octo-dev`.
+/// such as `octo-dev`. Another repository of the owner, or a name that only
+/// starts with `cuotai`, still counts.
 fn handle_outside_repo_urls(text: &str, handle: &str) -> bool {
-    let repo = format!("github.com/{handle}/");
     let lower = text.to_ascii_lowercase();
-    lower
-        .match_indices(handle)
-        .any(|(i, _)| !lower[..i + handle.len() + 1].ends_with(&repo))
+    let handle = handle.to_ascii_lowercase();
+    lower.match_indices(&handle).any(|(i, _)| {
+        // `i` and `i + handle.len()` are char boundaries: the match is the
+        // ASCII handle itself, so slicing at them cannot split a character.
+        let before = &lower[..i];
+        let after = &lower[i + handle.len()..];
+        let repo = after.strip_prefix("/cuotai").is_some_and(|rest| {
+            !rest
+                .chars()
+                .next()
+                .is_some_and(|c| c.is_alphanumeric() || c == '-' || c == '_')
+        });
+        !(before.ends_with("github.com/") && repo)
+    })
 }
 
 #[test]
 fn handle_scan_ignores_only_the_repository_address() {
     let handle = ["jm", "arcon"].concat();
-    assert!(!handle_outside_repo_urls(
-        &format!("https://github.com/{handle}/cuotai"),
-        &handle
-    ));
-    assert!(handle_outside_repo_urls(
-        &format!("dr(\"{handle}\", \"copilot\")"),
-        &handle
-    ));
+    let outside = |text: String| handle_outside_repo_urls(&text, &handle);
+    assert!(!outside(format!("https://github.com/{handle}/cuotai")));
+    assert!(!outside(format!(
+        "https://github.com/{handle}/cuotai/pull/1"
+    )));
+    assert!(!outside(format!("https://github.com/{handle}/cuotai.git")));
+    assert!(outside(format!("dr(\"{handle}\", \"copilot\")")));
+    assert!(outside(format!("https://github.com/{handle}/dotfiles")));
+    assert!(outside(format!("https://github.com/{handle}/cuotai-fork")));
+    // At the end of a line, and before a multibyte character: reported, no panic.
+    assert!(outside(format!("owner {handle}")));
+    assert!(outside(format!("{handle}é")));
+    assert!(outside(format!("github.com/{handle}")));
 }
 
 #[test]
