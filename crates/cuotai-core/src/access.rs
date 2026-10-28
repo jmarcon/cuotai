@@ -661,6 +661,14 @@ pub(crate) fn classify(
                 doc("https://elevenlabs.io/docs/api-reference/user/subscription/get"),
                 "eleven_labs", "Reads credits used, plan limit and next reset from the documented ElevenLabs subscription endpoint, plus extra usage when enabled.")
         },
+        // PRD 0049 RF9: the console session reads the usage page's own
+        // backend, found in the dev.meta.ai bundle (no public contract).
+        Provider::Meta if set("session_env") => UsageAccess {
+            verified_on: "2026-10-27",
+            ..entry(Undocumented, UserSession, Scope::Organization,
+                Evidence::Reference("https://dev.meta.ai/usage"),
+                "meta_session", "Team usage read from the dev.meta.ai console's internal interface with the captured session, plus the key check; it may change without notice.")
+        },
         Provider::Meta => entry(Derived, InferenceKey, Scope::Organization,
             doc("https://dev.meta.ai/docs/pricing-rate-limits"),
             "meta", "Key check and team rate limits read from the x-ratelimit-* headers of the model listing; Meta documents no usage or balance API."),

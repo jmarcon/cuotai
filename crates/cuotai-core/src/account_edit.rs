@@ -206,7 +206,7 @@ fn credential_help_text(provider: Provider) -> &'static str {
         Provider::Kimi => "KIMI_API_KEY (Moonshot/Kimi). Default: international account balance. Coding opt-in: accepts the platform key OR an OAuth access token (set the variable name in token_env); the key has priority.",
         Provider::Qoder => "QODER_API_KEY accepts PAT (pt-..., exchanged for a job token) or an existing Bearer/job token (jt-.../device). Choose the credential type in parameters.",
         Provider::OpenCodeGo => "OPENCODE_GO_API_KEY of the account; the user's own key authenticates the internal query.",
-        Provider::Meta => "Meta Model API key (META_API_KEY) from dev.meta.ai/api-keys. It only checks the key and reads the team rate-limit headers; Meta exposes no usage or balance API.",
+        Provider::Meta => "Meta Model API key (META_API_KEY) from dev.meta.ai/api-keys. It checks the key and reads the team rate-limit headers; Meta exposes no usage API, so usage comes from the dev.meta.ai console session captured with Sign in (undocumented interface).",
         Provider::Groq => "GROQ_API_KEY of the account; the user's own key authenticates the internal query.",
         Provider::OllamaCloud => "OLLAMA_CLOUD_API_KEY of the account (Bearer); usage in GET ollama.com/api/usage and plan in POST /api/me. No cookie import required.",
         Provider::XiaomiMimo => "Balance/Token Plan: paste the platform.xiaomimimo.com web session in the account wizard (system vault) or name the variable in platform_session_env. The native code returns an inference key, not a cookie. The Xiaomi account session (session_env) is separate: weekly MiMo Desktop quota.",
@@ -349,6 +349,7 @@ pub fn managed_keys(provider: Provider) -> &'static [&'static str] {
         Provider::AlibabaModelStudio => &["region"],
         Provider::AlibabaCodingPlan => &["region", "session_env"],
         Provider::AlibabaTokenPlan => &["session_env"],
+        Provider::Meta => &["team_id", "project_id", "session_env"],
         Provider::AlibabaCloud => &[
             "region",
             "secret_env",
@@ -1704,6 +1705,28 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
         "Empty = quota through the session pasted in the account wizard (system vault) or, without one, the dedicated `bl` profile (`params.cli_profile`). If you prefer a variable, set the NAME of the variable holding the home.qwencloud.com cookie; never paste the cookie here.",
         false,
     )];
+    // PRD 0049 RF8: the console ids are the user's, copied from the usage
+    // page address `dev.meta.ai/usage?team_id=<team>&project_id=<project>`.
+    const META: [FieldDescriptor; 3] = [
+        FieldDescriptor::text(
+            "team_id",
+            "Team ID (optional)",
+            "Only with the dev.meta.ai session. Empty = the session's only team. To choose one, open dev.meta.ai/usage and copy the number after team_id= in the address bar.",
+            false,
+        ),
+        FieldDescriptor::text(
+            "project_id",
+            "Project ID (optional)",
+            "Only with the dev.meta.ai session. Empty = the whole team. To read one project, copy the number after project_id= in the dev.meta.ai/usage address.",
+            false,
+        ),
+        FieldDescriptor::text(
+            "session_env",
+            "dev.meta.ai session variable (optional)",
+            "Empty = the session captured with \"Sign in\" in the account wizard (system vault). If you prefer a variable, set the NAME of the variable holding the dev.meta.ai cookie (llama_dev_sess); never paste the cookie here.",
+            false,
+        ),
+    ];
     const ALIBABA_CLOUD: [FieldDescriptor; 4] = [
         FieldDescriptor::choice(
             "region",
@@ -1745,7 +1768,6 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
         | Provider::MiniMax
         | Provider::Qwen
         | Provider::Groq
-        | Provider::Meta
         | Provider::NvidiaNim
         | Provider::Poolside
         | Provider::OpenCodeGo
@@ -1776,6 +1798,7 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
         Provider::AlibabaCodingPlan => &ALIBABA_CODING_PLAN,
         Provider::AlibabaTokenPlan => &ALIBABA_TOKEN_PLAN,
         Provider::AlibabaCloud => &ALIBABA_CLOUD,
+        Provider::Meta => &META,
     }
 }
 

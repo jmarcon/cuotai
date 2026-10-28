@@ -3,11 +3,11 @@
 | Field | Value |
 |---|---|
 | ID | 0049 |
-| Status | Awaiting owner verification (RF1–RF5 delivered in vNEXT; RF6, the real-account check, is the owner's) |
+| Status | Awaiting owner verification (RF1–RF5 and RF7–RF10 delivered in vNEXT; RF6 and RF11, the real-account checks, are the owner's) |
 | Owner | `cuotai-core` (model, adapter, access descriptor, account fields, catalog entry) |
 | Consumers | `apps/desktop` and `crates/cuotai-tui` (generic rendering only) |
-| Depends on | PRD 0005 RF1 (`access::describe`), PRD 0047 (typed keys kept in the system vault) |
-| Benefits from | PRD 0048 (a future session capture of the dev.meta.ai usage page) |
+| Depends on | PRD 0005 RF1 (`access::describe`), PRD 0047 (typed keys kept in the system vault), PRD 0048 (session capture window) |
+| Benefits from | — |
 | Date | 2026-10-27 |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement. "Muse" is the family of Meta models (Muse Spark, Muse Image, Muse Voice and others) served by the **Meta Model API**; the provider is named after the API.
@@ -22,6 +22,11 @@
 | RF4 | vNEXT | Example config, desktop brand monogram (no logo asset: none with a clear license was found). |
 | RF5 | vNEXT | `wiremock` contract tests: headers present, absent, partial, 401/403, 429, schema drift, missing key. |
 | RF6 | — | Owner check with a real key. |
+| RF7 | vNEXT | `meta` session descriptor `session_env` (`llama_dev_sess`, host `dev.meta.ai`) with a PRD 0048 capture of `https://dev.meta.ai/usage` and its exact-host sign-in allow-list. |
+| RF8 | vNEXT | Optional `team_id` / `project_id` params; team discovered through `/api/portal/teams` when the session has one team. |
+| RF9 | vNEXT | Console usage read and parsed (inferred shape), access level `Undocumented` / user session for the session mode. |
+| RF10 | vNEXT | `wiremock`, parser, allow-list and capture tests; debug-only diagnostics (navigation hosts/paths, unrecognised usage field names). |
+| RF11 | — | Owner check with a real session: confirm the usage route's parameters and body shape (§5.4). |
 
 ## 1. Context and evidence (checked on 2026-10-27)
 
@@ -33,7 +38,7 @@
 | Successful token-based responses carry `x-ratelimit-limit-tokens`, `x-ratelimit-remaining-tokens`, `x-ratelimit-limit-requests`, `x-ratelimit-remaining-requests`; 429 carries `Retry-After`. Limits apply per team, not per key. | <https://dev.meta.ai/docs/pricing-rate-limits> |
 | No usage, spend, credit or balance endpoint is documented. Usage and billing are shown only in the console (`dev.meta.ai/usage`). | same page; the API reference index lists only Responses, Chat completions, Messages, Files, Images, Voice and Models |
 
-Team and project ids appear only in console URLs; the API does not need them, so Cuotai does not ask for them.
+Team and project ids appear only in console URLs; the Model API does not need them. The console usage (§5) does, so they are optional params for the session mode.
 
 ## 2. Requirements
 
@@ -43,13 +48,56 @@ Team and project ids appear only in console URLs; the API does not need them, so
 - **RF4** The card says that Meta documents no usage or balance API and points to the dev.meta.ai console.
 - **RF5** The key-creation page is `https://dev.meta.ai/api-keys` (without team or project ids). When the API-key-link mechanism lands, this provider uses that URL.
 - **RF6** Owner check: add the account with a real key, confirm the card reaches "Up to date" and whether rate-limit metrics appear.
+- **RF7** A `session_env` session descriptor requires the console cookie `llama_dev_sess`, sent only over HTTPS to `dev.meta.ai`. Its capture opens `https://dev.meta.ai/usage`, reads the `dev.meta.ai` cookies and may visit only `dev.meta.ai`, `auth.meta.com`, `auth.meta.ai`, `accountscenter.meta.com`, `www.meta.com`, `www.facebook.com`, `m.facebook.com` and `www.instagram.com`, matched exactly. Anonymous cookies (`datr`) and sign-in helpers never end the capture.
+- **RF8** `params.team_id` and `params.project_id` are optional ids copied from `dev.meta.ai/usage?team_id=…&project_id=…` (digits, letters, `_`, `-`, at most 64 characters; anything else is a configuration error before any request). Without `team_id`, `GET /api/portal/teams` picks the session's only team; with several, a note asks for `team_id`.
+- **RF9** With a session, the adapter calls `GET https://dev.meta.ai/api/portal/teams/{team_id}/usage[?project_id=…]` with the cookie and `Content-Type: application/json`. 401/403 or a redirect is "session expired" (authentication error); other codes degrade to a note and the key check still shows. Recognised totals become metrics (spend → `Spend`, credits → `Credits`, tokens and requests → `Usage`); a missing or non-numeric field is left out, never zero; an unrecognised body gives a note. The session mode's access level is `Undocumented`, so the card says it may change without notice.
+- **RF10** Tests use placeholder data only. Debug builds print the capture window's navigation host and path (no query) and the field names (no values) of an unrecognised usage body.
+- **RF11** Owner check with a real session (§5.4).
 
 ## 3. Out of scope
 
-- Spend, credits and balance: they need the console web session. The usage page's backend call is a candidate for a future PRD 0048 session capture; it is not implemented or probed here.
 - Inference calls to obtain rate-limit headers: they would consume tokens.
 
 ## 4. Decision log
 
 - 2026-10-27: provider slug `meta`, label "Meta Model API"; level `Derived`, like Groq.
 - 2026-10-27: the model listing is not offered in the Models view (`no_evidence`): its schema is not published in field detail.
+- 2026-10-27 (owner): usage may be read through a dev.meta.ai web session captured in a Cuotai window (PRD 0048 style). Agent: slot `session_env` (as Alibaba), cookie `llama_dev_sess` (the one `/api/auth/logout` clears), team discovery from `/api/portal/teams` with `team_id`/`project_id` params as overrides, inferred body parser with a debug field-name diagnostic until the owner confirms the shape.
+
+## 5. Console usage evidence (2026-10-27, unauthenticated only)
+
+No sign-in and no credentials were used. "Confirmed" means observed in an HTTP answer or in the public bundle; "inferred" means not observed.
+
+### 5.1 Confirmed
+
+| Fact | Evidence |
+|---|---|
+| The console is a Next.js (Turbopack) app on Vercel; Sentry app key `model-api-web`. | `dev.meta.ai/` HTML (`server: Vercel`); 50 chunks under `/_next/static/immutable/chunks/*.js` (e.g. `07n8c26xo_us2.js`, `turbopack-2_04ewhudzrza.js`). |
+| Signed out, `/usage?team_id=…&project_id=…` and `/billing` answer `307` to `/`. | `curl -D -` |
+| The console has no GraphQL, `doc_id`, `fb_dtsg` or `lsd`: its data comes from same-origin REST routes under `/api/`. | Bundle grep: the only `graphQL` strings are Sentry options. Routes found: `/api/auth/{login,logout,me,session/reset,callback}`, `/api/portal/teams`, `/api/portal/teams/{id}`, `…/{id}/api-keys`, `…/{id}/billing-banner`, `…/{id}/model-capabilities`, `…/{id}/subscription-quota`, `/api/portal/gating`, `/api/billing/embed?team_id=…&dest=…`, `/api/model-api/models?project_id=…`, `/api/uploads/token?project_id=…`. |
+| GETs send only `Content-Type: application/json` (plus `x-dev-atod-token`/`x-dev-od-alias` for Meta's internal dev hosts) and same-origin cookies; no CSRF header. | Bundle module `415234` (headers hook) and `449260` (fetch helper, reads `error_code`/`action_url` from JSON errors). |
+| `GET /api/portal/teams` answers `{teams:[…]}`; items carry `team_id` and `role`. | Bundle: `(await t.json()).teams??[]`, `F.find(e=>String(e.team_id)===H)`, `G?.role`. Signed out: `401 {"error":"Not authenticated"}`. |
+| `team_id` and `project_id` are query parameters of the console pages (`useSearchParams().get("team_id")`, `setTeamProject`). | Bundle. |
+| **`/api/portal/teams/{id}/usage` exists**: signed out it answers `401 {"error":"Not authenticated"}`, like `…/projects`, `…/rate-limits`, `…/members`; `…/spend`, `…/costs`, `…/credits`, `…/balance`, `…/invoices`, `…/billing`, `…/usage/summary`, `/api/portal/usage` and `/api/portal/projects/{id}/usage` answer `404`. | `curl` probes with team id `1`. |
+| Sign-in: `/api/auth/login[?next=…]` answers `302` to `https://auth.meta.com/oidc/?app_id=2403310080153219&redirect_uri=https://auth.meta.ai/model_api&response_type=code&scope=openid+linking&…&code_challenge_method=S256`, whose `state` returns to `https://dev.meta.ai/api/auth/callback`; it sets `llama_dev_csrf` (path `/api/auth/callback/<attempt>`). | `curl -D -` |
+| Cookies: `POST /api/auth/logout` answers `303` and clears `llama_dev_sess` (the session); `/api/auth/callback` clears `llama_dev_csrf`, `llama_dev_pkce`, `llama_od_routing`, `llama_auto_login`. All `HttpOnly; Secure; SameSite=Lax; Path=/`. | `curl -D -` |
+| The bundle links `accountscenter.meta.com`, `work.meta.com/accounts_center` (managed accounts), `auth.meta.com/oauth/device/`, `billing.dev.meta.ai` (the `/billing` iframe origin). | Bundle. |
+
+### 5.2 Inferred (not observed)
+
+- The body and query parameters of `/api/portal/teams/{id}/usage`: the usage page's chunk is only loaded after sign-in, so its fields, date range and project filter are unknown. The parser's field names (`total_cost`, `total_spend`, `spend`, `cost`, `currency`, `credit_balance`, `total_tokens`, `input_tokens`, `output_tokens`, `total_requests`, under the body, `data`, `usage`, `summary` or `totals`) are guesses; `project_id` is passed as a query parameter by analogy with the page URL.
+- Currency defaults to USD only because Meta's pricing page is in USD.
+- Sign-in hosts beyond `auth.meta.com`/`auth.meta.ai`: `auth.meta.com` refuses non-browser clients (`400`), so `www.meta.com`, `www.facebook.com`, `m.facebook.com` and `www.instagram.com` (Meta account sign-in with Facebook or Instagram) are inferred. A missing host shows as a refused navigation in the debug log.
+- That `llama_dev_sess` alone authenticates `/api/portal/*` (`llama_od_routing` is cleared at callback and looks like internal routing).
+
+### 5.3 Diagnostics (debug builds only)
+
+- The capture window prints `session capture: navigation allowed|refused <host><path>` for each page or frame load (no query string), and the cookie names it saw when it ends. Tauri's navigation hook does not see the page's `fetch`/XHR calls, so the usage request itself is not observable there.
+- The adapter prints `meta usage: unrecognised response keys [...]` (field names, two levels, no values) when the usage body has no recognised field.
+
+### 5.4 Owner verification (RF11)
+
+1. In a normal browser, sign in at `https://dev.meta.ai/usage` and open DevTools → Network, filter `Fetch/XHR`, reload.
+2. Find the request whose path starts with `/api/portal/teams/` and ends with `/usage` (or any other request the page makes for the usage numbers).
+3. Report only: the request path with the ids replaced by `<team>`/`<project>`, its query parameter names (not values), the response's field names (from the Preview tab; no values needed), and the name of the session cookie if not `llama_dev_sess` (Application → Cookies → `dev.meta.ai`, names only). Never copy cookies, headers or the response body.
+4. In Cuotai (dev mode), add or edit the `meta` account, press "Sign in" for the dev.meta.ai session, sign in, and confirm the card shows usage or the "no field Cuotai recognises" note; in the terminal, copy the `meta usage: unrecognised response keys` line if present.

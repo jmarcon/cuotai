@@ -138,7 +138,10 @@ provider = "meta"
 credential_env = "META_API_KEY"
 # Meta Model API (Muse models), key from https://dev.meta.ai/api-keys. Checks the key with
 # GET https://api.meta.ai/v1/models (no tokens) and reads the team x-ratelimit-* headers when
-# present. Meta documents no usage or balance API: spend stays in the dev.meta.ai console.
+# present. Meta documents no usage or balance API. For usage, sign in to dev.meta.ai with
+# "Sign in" in the desktop account wizard (session kept in the system vault), or name a
+# variable holding the `llama_dev_sess` cookie. Undocumented console interface; it may change.
+# params = { session_env = "META_SESSION", team_id = "<team_id= of dev.meta.ai/usage>", project_id = "<optional>" }
 
 [[accounts]]
 name = "Perplexity"
