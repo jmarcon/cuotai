@@ -7,7 +7,7 @@
 | Owner | `cuotai-core` (event engine and hooks), TUI/CLI and desktop |
 | Consumers | `crates/cuotai-tui` (`--watch`), `apps/desktop` (Settings → Integration), user scripts |
 | Depends on | PRD 0012 (RF1: the `export::v1` contract); it uses PRDs 0003, 0008, 0009 and 0011 when they exist |
-| Extended by | PRD 0023 (`overage_started`, `overage_ended`), PRD 0024 (`quota_exhaustion_projected`), PRD 0026 (persisted event journal), PRD 0031 (`session_expiring` and `quota_reset_soon` events, per-provider dedup of `provider_incident` with `Unknown` resolution, exit 0 on a signal stop with `--strict-exit`, hook process-tree kill and a private working directory), PRD 0032 (optional `quiet` filter per hook rule), PRD 0036 (events carry `parent`) |
+| Extended by | PRD 0023 (`overage_started`, `overage_ended`), PRD 0024 (`quota_exhaustion_projected`), PRD 0026 (persisted event journal), PRD 0031 (`session_expiring` and `quota_reset_soon` events, per-provider dedup of `provider_incident` with `Unknown` resolution, exit 0 on a signal stop with `--strict-exit`, hook process-tree kill and a private working directory), PRD 0032 (optional `quiet` filter per hook rule), PRD 0036 (events carry `parent`), PRD 0050 (resolved program and interpreter pinned in the consent digest; Rust-native confirmation boundary), PRD 0054 (RF2: cross-process per-rule hook claims) |
 | Date | 2026-10-19 |
 
 ## Implementation status (2026-10-21)

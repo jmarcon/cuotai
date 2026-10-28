@@ -8,7 +8,7 @@
 | Consumers | `apps/desktop/ui` (new `settings.html`), `apps/desktop/src-tauri` (window, menu, capabilities) |
 | Depends on | none |
 | Benefits from | PRD 0018 (an Updates page), PRD 0019 RF7.7 (What's new in About) |
-| Extended by | PRD 0025 (Menu bar page, Advanced group, display mode, first-run defaults), PRD 0022 (UI refresh visuals) |
+| Extended by | PRD 0025 (Menu bar page, Advanced group, display mode, first-run defaults), PRD 0022 (UI refresh visuals), PRD 0050 (origin, logging and user-content error rows), PRD 0054 (RF7: main-window geometry persistence and mixed-DPI restore) |
 | Date | 2026-10-21; amended 2026-10-23 (review item SET-01: preferences move to `desktop.json`; RF2.1 superseded by `docs/design-system.md` DS-CMP-SEG-5) |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.

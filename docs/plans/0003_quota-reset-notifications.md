@@ -6,7 +6,7 @@
 | Status | Awaiting owner verification (every RF delivered; only the owner smoke listed in `0000_control.md` §2.1 remains; status introduced on 2026-10-23) |
 | Owner | `cuotai-core` and desktop (TUI optional) |
 | Consumers | `apps/desktop`, `crates/cuotai-tui` |
-| Extended by | PRD 0029 (`Account::key` → stable account id for the bell and `notified.json`), PRD 0031 (`quota_reset_soon` event), PRD 0032 (hide account names on the lock screen; cross-process dedup through the shared `notified.json` ledger, `--notify` kept), PRD 0033 (one refresh 30 s after a reset notice) |
+| Extended by | PRD 0029 (`Account::key` → stable account id for the bell and `notified.json`), PRD 0031 (`quota_reset_soon` event), PRD 0032 (hide account names on the lock screen; cross-process dedup through the shared `notified.json` ledger, `--notify` kept), PRD 0033 (one refresh 30 s after a reset notice), PRD 0051 (ledger scoped by config identity; a corrupt `notified.json` quarantined without overwriting the previous one and with a visible marker, fix requirement COMP-02) |
 | Date | 2026-10-19 |
 
 ## Implementation status (2026-10-20)

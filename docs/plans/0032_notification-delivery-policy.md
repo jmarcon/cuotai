@@ -9,6 +9,7 @@
 | Depends on | PRD 0003 (RF1–RF4: reset planner, ledger, delivery), PRD 0008 (RF1–RF4: `alerts::evaluate`, `AlertState`, preferences), PRD 0013 (RF3: hooks); PRD 0029 (RF2: state keyed by account `id`) for RF1.3 |
 | Benefits from | PRD 0020 (Settings rows), PRD 0022 (UI refresh: marker visuals), PRD 0025 (RF6: recommended defaults) |
 | Extends | PRD 0003 RF2/RF4 (quiet hours, cross-process ledger, private texts), PRD 0008 RF1/RF2/RF3/RF4 (deferred marks, missed-crossing marker, recovery without reset, single preference source), PRD 0013 RF3 (`quiet` filter) |
+| Extended by | PRD 0051 (state schema and backup policy beside RF4's `LedgerLock`; COMP-02 strengthens the fixed `.corrupt` set-aside), PRD 0054 (RF2: hook claims beside RF4's ledger claims; RF4.2 must cover every `notified.json` write path) |
 | Date | 2026-10-23 |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable. **Quiet hours** are the person's do-not-disturb intervals. A **digest** is the single notification sent when quiet hours end. A notice **breaks through** when it is delivered during quiet hours. Code references are to `origin/main` at `0ba9c9b`.

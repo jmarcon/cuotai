@@ -6,7 +6,7 @@
 | Status | Implemented (RF1–RF11 in 0.1.1 to 0.7.1, internal versions; FIX-08 in 0.80.0; the RF8 catalog wording and the FIX-08 acceptance were later amended by PRDs 0033, 0034 and 0035, see the tables) |
 | Owner | Backend (`cuotai-core`) |
 | Consumers | `apps/desktop` (Tauri), `cuotai-tui` |
-| Extended by | PRD 0029 (stable account `id` in the TOML and the account operations), PRD 0034 (English core fallback of `Localized`) |
+| Extended by | PRD 0029 (stable account `id` in the TOML and the account operations), PRD 0034 (English core fallback of `Localized`), PRD 0051 (tolerant/strict TOML parsing with field-position diagnostics; fix requirement COMP-01), PRD 0054 (RF3: resume- and reconnect-aware refresh deadlines) |
 | Date | 2026-10-01 |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement. The acronym is kept so that references in the code, commits and other plans stay stable.

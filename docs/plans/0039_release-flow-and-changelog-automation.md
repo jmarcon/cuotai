@@ -9,6 +9,7 @@
 | Depends on | PRD 0019 (RF2 CI, RF7 changelog format, gate, draft and plan links), PRD 0021 (RF1 tag trigger and `release-check`, RF4 release notes, RF9 workflow policy) |
 | Coordinates with | the documentation-only CI skip already on `main` (`6638c69`, `73aa423`: the `changes` job and the `CI result` aggregate in `ci.yml`). This PRD extends that job's outputs and the aggregate; it does not re-implement the classifier |
 | Amends | PRD 0019 RF7.3 (maintenance flow) and RF7.4 (pull-request gate); PRD 0021 RF1.1/RF1.3 (how the tagged commit is produced; retroactive tags) |
+| Extended by | PRD 0053 (fail-closed `plans-check`, delivery-aware §3 rows, post-release reconciliation, honest ruleset documentation; fix requirements FIX-PROC-01 and FIX-PROC-02) |
 | Date | 2026-10-23 |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable. A **release commit** is the single commit `chore(release): X.Y.Z` that `cargo xtask release prepare` writes. A **release PR** is the pull request that carries it. An **entry** is one bullet of a `CHANGELOG.md` section. A **trailer** is a `Key: value` line at the end of a commit message (Git's term).

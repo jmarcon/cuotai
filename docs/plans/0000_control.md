@@ -4,9 +4,9 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 
 | Field | Value |
 |---|---|
-| Last updated | 2026-10-25 |
+| Last updated | 2026-10-28 |
 | Cuotai version at that date | 0.80.0 (published); the work after it is `vNEXT` |
-| Plans | 46 (18 implemented, 17 awaiting owner verification, 4 in progress, 7 planned for the next version) |
+| Plans | 54 (18 implemented, 19 awaiting owner verification, 7 in progress, 7 planned for the next version, 3 proposed) |
 
 ## 1. How to maintain it
 
@@ -73,6 +73,11 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | [0047](0047_typed-secrets-in-the-desktop-environment-variables-in-the-terminal.md) | Typed secrets in the desktop, environment variables in the terminal | In progress | E1–E7 core and desktop backend contract, G1–G7 desktop UI (vNEXT) | 0016 | 0036 | Owner decision 2026-10-27: the desktop never mentions environment variables; every API key, token, secret or session is typed, tested before save and kept in the OS vault (TOML holds only the reference); terminal users keep a default variable per provider and a distinct variable per account. Amends 0001 RF2.7/RF11, 0016 RF1.2/RF5.1, 0027 RF6.5, 0036 RF2.1, 0037 RF1.4, 0038 RF1.3/RF12.2. TUI (T1–T4) delivery pending. |
 | [0048](0048_sign-in-and-capture-web-session.md) | Sign in and capture a web session in the desktop | Awaiting owner verification | RF1–RF10, RF3.3–RF3.5, RF4.3, RF4.4 (vNEXT) | 0016 | 0047 | "Sign in and capture session" next to a web-session paste box opens a Cuotai-owned, IPC-less, private webview at the provider's page; the user signs in there; Rust reads the store, keeps only the descriptor's cookies and fills the paste box, which runs the usual preview and test. Enabled for the Xiaomi MiMo platform session, the Qwen Cloud Token Plan session and the Alibaba Coding Plan session, per region (vNEXT). Live sign-in pending owner verification. |
 | [0049](0049_meta-model-api-provider.md) | Meta Model API (Muse) provider | Awaiting owner verification | RF1–RF5, RF7–RF10 (vNEXT) | 0005, 0047, 0048 | — | Key check through GET api.meta.ai/v1/models and the team x-ratelimit-* headers when present; with the dev.meta.ai console session (captured `llama_dev_sess`) it reads the undocumented `/api/portal/teams/{team}/usage/batch` route (request and shape confirmed by the owner on 2026-10-27; the cents offset is inferred). Real-key check and a non-zero session sample pending (RF6, RF11). |
+| [0050](0050_desktop-security-baseline-and-webview-trust.md) | Desktop security baseline and webview trust | In progress | RF8.1 on Unix (vNEXT, as 0017 FIX-05's completion); RF1 partial (vNEXT) | 0012 (RF2, RF3, RF5), 0013 (RF3, RF4), 0017 (RF1, RF3–RF5) | 0020, 0031, 0035 | From the 2026-10-25 PRD audit (written as 0040, renumbered on 2026-10-28). Strict CSP for the webview (`e330ba82` set one; `connect-src 'self'`, `frame-ancestors` and the external first-paint script remain), Rust-native confirmation for every action that runs local code (hooks, extensions) with the consent digest re-derived in Rust and the resolved program pinned, a parsed contract for user themes and language packs with protected security text ids, a token required and an exact Origin allow-list when browsers are allowed on the local server, admission bounds before authentication, an explicit access-log policy, a tested security-invariant registry (`docs/security-baseline.md`) and the extension credential-name disclosure. Security lane of wave 5h. |
+| [0051](0051_compatibility-version-skew-and-local-state-integrity.md) | Compatibility, version skew and local-state integrity | Proposed | — (groundwork only: `47ac1bd1` tolerates three named account keys; a corrupt `notified.json` is set aside) | 0001 (RF4), 0003 (RF2), 0006 (RF1), 0013 (RF1), 0014 (RF1), 0015 (RF2); 0029 (RF1) for RF5.4 | 0034, 0039 | From the 2026-10-25 PRD audit (written as 0041, renumbered on 2026-10-28). Forward-tolerant TOML reading (an unknown provider slug or key fails one account, not the file; strict mode for editors and `--check-config`), parse diagnostics with line, column and key path (never the value), schema versions and an N/N-1 downgrade policy for every local state file (`desktop.json`, `notified.json`, `history.sqlite3`, `models.sqlite3`, `cost.sqlite3`, `hooks.toml`, `widget.json`), a durable locked core-owned `desktop.json` writer, config-scoped alert marks, history relocation when the TOML moves and `CUOTAI_DATA_DIR`. **Raised priority:** `history.sqlite3` schema 7 (`eae69857`) and `[[groups]]` (0024 RF7) already shipped in vNEXT without it, so a downgrade to 0.80.0 fails; it must land before the next release adds more TOML or state keys. Compatibility lane of wave 5h. |
+| [0052](0052_diagnostics-logging-and-privacy-data-inventory.md) | Diagnostics, logging and privacy data inventory | Proposed | — | 0005 (RF1), 0006 (RF4), 0012 (RF3), 0013 (RF3), 0021 (RF8.1) | 0020, 0022, 0027 (RF1), 0028 (RF1, RF2), 0046 (RF4) | From the 2026-10-25 PRD audit (written as 0042, renumbered on 2026-10-28). One redacted, levelled logging facade in the core, desktop panic capture and native startup errors, `cuotai --diagnostics [--json]` and "Copy diagnostics", a real `--list-providers --json`, the generated and drift-tested `docs/privacy.md` network/local-data inventory, TUI/CLI history export and erase parity, `--erase-all-data` including vault entries, OS trust roots and proxy behaviour, the headless/WSL support level and an HTTP `Date` clock-skew warning. RF3 overlaps 0046 RF4 (`--doctor`); the owner picks one owner before either is built (§6). The Cline `Report.source` id leak (RF3.6) is live. Diagnostics lane of wave 5h. |
+| [0053](0053_plan-governance-and-release-reconciliation.md) | Plan governance and release reconciliation | Proposed | — (by hand: README/`docs/installing.md` and plan statuses reconciled after 0.80.0 in `40da9f4e`, `33f37d3c`; weekly advisories and two release approvals in `2d16fd09`) | 0039 (RF1–RF9, RF11), 0021 (RF1–RF6, RF9), 0019 (RF1, RF5–RF7), 0018 (RF1, RF2) | 0022 | From the 2026-10-25 PRD audit (written as 0043, renumbered on 2026-10-28). `docs/plans/TEMPLATE.md`; a fail-closed `cargo xtask plans-check` (header counts, §2 versus each plan's status table, graph versus dependency columns, `Refs:` resolved to an existing `### RFk` heading, `Extended by` lines versus §4); delivery-aware §3 rows (the 0.80.0 rows over-credit 0039 RF5/RF7 and 0018 RF1.1/RF3.1); a generated post-release reconciliation step; honest ruleset documentation and an independent release reviewer; Dependabot, MSRV, secret scanning, bundled licences, OS/EOL policy; one user-facing release-notes renderer. This header's counts were wrong again before this row was added (46 counted against 49 rows), which is the drift RF2 gates. Process lane of wave 5h, first. |
+| [0054](0054_desktop-lifecycle-and-refresh-resilience.md) | Desktop lifecycle and refresh resilience | In progress | RF4.1 (vNEXT, `778e00d9`); RF4.2–RF4.4 and RF7.3 partial | 0032 (RF4), 0033 (RF5.3), 0051 (RF3, RF4), 0052 (RF2, RF3) | 0021 (RF5, RF6), 0025 (RF3), 0031 (RF9) | From the 2026-10-25 PRD audit (written as 0044, renumbered on 2026-10-28). A single desktop instance and cross-process hook claims, resume- and reconnect-aware refresh deadlines in the core (`Instant` deadlines do not advance during sleep) respecting the metered floor and lock, launch at login (delivered: official autostart plugin, off by default), a window-only fallback when the tray cannot be created (GNOME without AppIndicator exits today) with visible startup failures, a core resolver for `aws`/`bl` when launched from Finder or the Dock, and main-window geometry persistence. Lifecycle lane of wave 5h, after 0051 and 0052; RF3 and RF6 may be pulled forward as a core lane. |
 
 ### 2.1 Owner verification checklist
 
@@ -260,6 +265,11 @@ graph LR
   P47["0047 Typed secrets in the desktop"]:::wip
   P48["0048 Capture web session"]:::wip
   P49["0049 Meta Model API provider"]:::wip
+  P50["0050 Security baseline"]:::wip
+  P51["0051 Compatibility and state"]:::todo
+  P52["0052 Diagnostics and privacy"]:::todo
+  P53["0053 Plan governance"]:::todo
+  P54["0054 Desktop lifecycle"]:::wip
 
   P8 --> P3
   P13 --> P12
@@ -342,6 +352,29 @@ graph LR
   P49 --> P5
   P49 --> P47
   P49 --> P48
+  P50 --> P12
+  P50 --> P13
+  P50 --> P17
+  P51 --> P1
+  P51 --> P3
+  P51 --> P6
+  P51 --> P13
+  P51 --> P14
+  P51 --> P15
+  P51 --> P29
+  P52 --> P5
+  P52 --> P6
+  P52 --> P12
+  P52 --> P13
+  P52 --> P21
+  P53 --> P39
+  P53 --> P21
+  P53 --> P19
+  P53 --> P18
+  P54 --> P32
+  P54 --> P33
+  P54 --> P51
+  P54 --> P52
 
   P7 -.-> P6
   P8 -.-> P6
@@ -390,6 +423,9 @@ graph LR
   P37 -.-> P23
   P38 -.-> P23
   P38 -.-> P36
+  P50 -.-> P31
+  P52 -.-> P46
+  P54 -.-> P25
 ```
 
 The graph draws every strong edge of section 2 and only the weak edges that affect a wave; section 2 is the complete list. PRD 0022 (UI refresh) is also a weak dependency of the desktop visuals of 0023, 0024, 0026–0028, 0032 and 0036; only its edges to 0020, 0025 and 0035 are drawn, for readability.
@@ -398,38 +434,46 @@ The graph draws every strong edge of section 2 and only the weak edges that affe
 
 | Plan | Unblocks (strong) | Benefits (weak) |
 |---|---|---|
-| 0001 | 0029, 0033 | — |
-| 0003 | 0008, 0032, 0033 | 0013 |
-| 0005 | 0015, 0016, 0017, 0027, 0028, 0036, 0037, 0038, 0040, 0045, 0049 | 0011, 0012 |
-| 0006 | 0024, 0026, 0033, 0043 | 0007, 0008, 0010, 0014, 0015 |
+| 0001 | 0029, 0033, 0051 | — |
+| 0003 | 0008, 0032, 0033, 0051 | 0013 |
+| 0005 | 0015, 0016, 0017, 0027, 0028, 0036, 0037, 0038, 0040, 0045, 0049, 0052 | 0011, 0012 |
+| 0006 | 0024, 0026, 0033, 0043, 0051, 0052 | 0007, 0008, 0010, 0014, 0015 |
 | 0007 | 0024, 0033 | 0012, 0014 |
 | 0008 | 0023 (RF4), 0024, 0032 | 0013 |
 | 0009 | 0033 | 0012, 0013, 0014, 0023 |
 | 0010 | 0033, 0036, 0040 | 0012, 0014 |
 | 0011 | — | 0012, 0013, 0033 |
-| 0012 | 0013, 0014, 0023 (RF6), 0031, 0036 | 0028 |
-| 0013 | 0023 (RF5), 0026 (RF3), 0031, 0032 | 0024 |
-| 0015 | 0030, 0042 | — |
+| 0012 | 0013, 0014, 0023 (RF6), 0031, 0036, 0050, 0052 | 0028 |
+| 0013 | 0023 (RF5), 0026 (RF3), 0031, 0032, 0050, 0051, 0052 | 0024 |
+| 0014 | 0051 | — |
+| 0015 | 0030, 0042, 0051 | — |
 | 0016 | 0029, 0047, 0048 | 0027 |
-| 0017 | 0028 (RF7) | 0027 |
-| 0018 | 0025 (RF6.5, through RF2.6) | 0020 |
-| 0019 | 0014, 0018, 0021, 0039 | 0020 |
-| 0020 | 0022 (RF9), 0025 (RF4, RF5, RF9) | — |
-| 0022 | — | 0023, 0024, 0025, 0026, 0027, 0028, 0032, 0035, 0036 |
-| 0021 | 0018, 0028 (RF8), 0039 | — |
+| 0017 | 0028 (RF7), 0050 | 0027 |
+| 0018 | 0025 (RF6.5, through RF2.6), 0053 | 0020 |
+| 0019 | 0014, 0018, 0021, 0039, 0053 | 0020 |
+| 0020 | 0022 (RF9), 0025 (RF4, RF5, RF9) | 0050, 0052 |
+| 0022 | — | 0023, 0024, 0025, 0026, 0027, 0028, 0032, 0035, 0036, 0052, 0053 |
+| 0021 | 0018, 0028 (RF8), 0039, 0052 (RF8.1), 0053 | 0054 |
 | 0023 | 0041, 0045 | 0024, 0025, 0026, 0030, 0037, 0038 |
 | 0024 | — | 0025, 0026, 0031 |
-| 0025 | 0031 (status line) | 0024 |
+| 0025 | 0031 (status line) | 0024, 0054 |
 | 0026 | 0031, 0043 | — |
-| 0028 | — | 0031, 0036 |
-| 0029 | 0024, 0025, 0026, 0030, 0032, 0036, 0040, 0041, 0043, 0044, 0045, 0046 | 0022, 0031, 0033 |
+| 0027 | — | 0052 |
+| 0028 | — | 0031, 0036, 0052 |
+| 0029 | 0024, 0025, 0026, 0030, 0032, 0036, 0040, 0041, 0043, 0044, 0045, 0046, 0051 (RF5.4) | 0022, 0031, 0033 |
 | 0030 | 0042 | — |
-| 0032 | 0044, 0046 | — |
-| 0033 | 0041, 0045 | 0031, 0036 |
-| 0034 | 0035 | — |
+| 0031 | — | 0050, 0054 |
+| 0032 | 0044, 0046, 0054 | — |
+| 0033 | 0041, 0045, 0054 | 0031, 0036 |
+| 0034 | 0035 | 0051 |
+| 0035 | — | 0050 |
 | 0036 | — | 0028, 0038 |
+| 0039 | 0053 | 0051 |
+| 0046 | — | 0052 |
 | 0047 | 0049 | — |
 | 0048 | 0049 | — |
+| 0051 | 0054 | — |
+| 0052 | 0054 | — |
 
 ### Extensions between plans
 
@@ -437,27 +481,36 @@ New plans that add requirements to delivered or proposed ones, without rewriting
 
 | Plan | Extended by | What is added (and which non-goal is superseded, if any) |
 |---|---|---|
-| 0001 | 0029, 0034 | Stable account `id` (0029); English core fallback (0034). Fix requirement FIX-08 (metered floor per account) recorded in the plan. |
+| 0001 | 0029, 0034, 0051, 0054 | Stable account `id` (0029); English core fallback (0034). Fix requirement FIX-08 (metered floor per account) recorded in the plan. Added by the 2026-10-25 audit plans: tolerant/strict TOML parsing with field-position diagnostics (0051, COMP-01); resume-aware refresh deadlines (0054 RF3). |
 | 0002 | 0028, 0036, 0038 | Model listing gated on evidence, static 9router lists and the Copilot token exchange removed (0028 RF10); aggregator and OpenRouter adapters. |
-| 0003 | 0029, 0031, 0032, 0033 | Ledger keyed by id; `quota_reset_soon`; lock-screen names and cross-process dedup; one refresh 30 s after a reset, superseding the §4 "query at the reset" non-goal (0033). |
+| 0003 | 0029, 0031, 0032, 0033, 0051 | Ledger keyed by id; `quota_reset_soon`; lock-screen names and cross-process dedup; one refresh 30 s after a reset, superseding the §4 "query at the reset" non-goal (0033). Added by the 2026-10-25 audit plans: ledger scoped by config identity and a corrupt `notified.json` quarantined without overwriting the previous set-aside, with a visible marker (0051, COMP-02). |
 | 0004 | 0022 | Reduced-motion change marker, polite `aria-live`, TUI `NO_COLOR` and theme colors. |
-| 0005 | 0027, 0028, 0036, 0037, 0038 | Catalog entry by sign-in method (0027); per-interface `verified_on`, drift paths and `access.risk.subscription_token` (0028); aggregator credential class (0036); new descriptors. |
-| 0006 | 0026, 0028, 0029, 0033 | Aggregates and the journal table, narrowing the §4 "history of errors" non-goal to failure categories (0026); label snapshot and aliases (0028 RF11); series keyed by id; reset-aware restore and future samples rejected (0033). |
+| 0005 | 0027, 0028, 0036, 0037, 0038, 0054 | Catalog entry by sign-in method (0027); per-interface `verified_on`, drift paths and `access.risk.subscription_token` (0028); aggregator credential class (0036); new descriptors. Added by the 2026-10-25 audit plans: CLI-tool resolution as a provider-availability source (0054 RF6). |
+| 0006 | 0026, 0028, 0029, 0033, 0051, 0052 | Aggregates and the journal table, narrowing the §4 "history of errors" non-goal to failure categories (0026); label snapshot and aliases (0028 RF11); series keyed by id; reset-aware restore and future samples rejected (0033). Added by the 2026-10-25 audit plans: same-major downgrade read, typed newer-major failure, `.bak` migration and history relocation when the TOML moves (0051, COMP-03); TUI/CLI export and erase parity (0052). |
 | 0007 | 0024, 0033 | Time chips in points or percent; supersedes the §4 "recommending a switch" non-goal for same-provider or grouped accounts (advisory only); "hysteresis" wording corrected (DOC-06); both chips name their metric (0033). |
 | 0008 | 0023, 0024, 0029, 0032, 0036 | `OverageStarted`/`OverageCapReached` and `ProjectedExhaustion`; supersede the §4 pace-notice non-goal and, for overage only, the accumulated-spend non-goal; one core preferences source, the closed-app marker and quiet hours (0032); pool alert (0036). |
 | 0009 | 0023, 0026, 0033, 0036 | Overage and model-scoped metrics excluded from the binding metric (MET-01); binding returns on a timeline; labelled chips; binding per sub-account. |
-| 0010 | 0033 | Optional `as_of` (narrowing the §4 `Report` non-goal), reset-aware restore, metered cadence. |
+| 0010 | 0033, 0052 | Optional `as_of` (narrowing the §4 `Report` non-goal), reset-aware restore, metered cadence. Added by the 2026-10-25 audit plans: HTTP `Date` clock-skew warning without any schedule or reading change (0052 RF7). |
 | 0011 | 0022, 0028, 0031, 0033, 0037, 0038 | Template-compatible outage badge on the menu-bar icon (0022 RF17.8 with 0025 RF3.1); status component check in the canary; incident state in `/v1/limits`; stale incident expiry (FIX-09). Fix requirement for the `gemini_api` scope recorded in the plan. |
-| 0012 | 0023, 0024, 0028, 0029, 0031, 0036 | Additive `overage`, `billing`, `scope`, `group`, `best`, `delta_ratio`, `failure`, `id` and `sub_accounts`; token by default, exact port, `HEAD`, ETag, v1 window and `/v1/stats` (0031). |
-| 0013 | 0023, 0024, 0026, 0031, 0032, 0036 | Events `overage_started`, `overage_ended`, `quota_exhaustion_projected`, `session_expiring`, `quota_reset_soon`; persisted journal; signal exit codes and hook hardening (0031); `quiet` hook filter (0032). |
-| 0014 | 0023 | Overage object in the widget snapshot. |
-| 0015 | 0030 | Plan value, new sources, price age, `fx_rate`; DOC-02 wording corrected (no price download). |
+| 0012 | 0023, 0024, 0028, 0029, 0031, 0036, 0050, 0052 | Additive `overage`, `billing`, `scope`, `group`, `best`, `delta_ratio`, `failure`, `id` and `sub_accounts`; token by default, exact port, `HEAD`, ETag, v1 window and `/v1/stats` (0031). Added by the 2026-10-25 audit plans: token mandatory with browsers, exact Origin allow-list superseding `Access-Control-Allow-Origin: *`, admission bounds before authentication and an access-log policy (0050); serve token and server state in diagnostics and total erasure (0052). |
+| 0013 | 0023, 0024, 0026, 0031, 0032, 0036, 0050, 0054 | Events `overage_started`, `overage_ended`, `quota_exhaustion_projected`, `session_expiring`, `quota_reset_soon`; persisted journal; signal exit codes and hook hardening (0031); `quiet` hook filter (0032). Added by the 2026-10-25 audit plans: resolved program and interpreter pinned in the consent digest and a Rust-native confirmation boundary (0050); cross-process per-rule hook claims (0054). |
+| 0014 | 0023, 0051 | Overage object in the widget snapshot. Added by the 2026-10-25 audit plans: `widget.json` revision fixtures and backup policy (0051). |
+| 0015 | 0030, 0051 | Plan value, new sources, price age, `fx_rate`; DOC-02 wording corrected (no price download). Added by the 2026-10-25 audit plans: common SQLite downgrade/backup policy for `cost.sqlite3` (0051). |
 | 0016 | 0029 | Vault session removed with the account (FIX-06). Fix requirements ("Paste a new session", test before save) recorded in the plan. |
-| 0017 | 0028 | Manifest `overrides`, vault `[[secrets]]` (EXT-01), `min_cuotai` and ignored `x-*` tables. Fix requirements FIX-03, FIX-04, FIX-05 recorded in the plan. |
-| 0018 | 0025, 0028 | RF2.6 "ask before the first check" (superseding RF2.1's default), asked in 0025's first run; the core install-source detector is already delivered (0.77.0) and serves 0028's CLI notice. |
-| 0019 | 0028 | `SUPPORT.md` beside the RF1 community files (GitHub only). |
-| 0020 | 0022, 0025 | Menu bar page, Advanced group and display mode; supersedes the §4 "no new settings" non-goal for the listed preferences (0025); RF2.1 superseded by DS-CMP-SEG-5 and RF7.2 amended for `desktop.json` (SET-01). |
-| 0021 | 0028 | RF8.1's install-source detector (in the core since 0.77.0) is reused by 0028's opt-in CLI update notice (DIST-12). |
+| 0017 | 0028, 0050 | Manifest `overrides`, vault `[[secrets]]` (EXT-01), `min_cuotai` and ignored `x-*` tables. Fix requirements FIX-03, FIX-04, FIX-05 recorded in the plan. Added by the 2026-10-25 audit plans: native desktop approval and credential-env collision disclosure, narrowing RF3.2's absolute wording to explicitly highlighted and approved names (0050); FIX-05's vNEXT completion (parents up to the extensions root) is 0050 RF8.1. |
+| 0018 | 0025, 0028, 0051, 0053 | RF2.6 "ask before the first check" (superseding RF2.1's default), asked in 0025's first run; the core install-source detector is already delivered (0.77.0) and serves 0028's CLI notice. Added by the 2026-10-25 audit plans: updater preference writes through the shared `desktop.json` writer (0051); plain-text multi-version `latest.json` notes from the shared renderer (0053, FIX-UPD-02). |
+| 0019 | 0028, 0052, 0053, 0054 | `SUPPORT.md` beside the RF1 community files (GitHub only). Added by the 2026-10-25 audit plans: diagnostics output in the security-report template (0052); tested MSRV/OS/EOL policy, bundled third-party licences and the shared release-notes renderer (0053, FIX-REL-01); the RF5 "tray failure aborts" support claim superseded by a window-only fallback (0054). |
+| 0020 | 0022, 0025, 0050, 0054 | Menu bar page, Advanced group and display mode; supersedes the §4 "no new settings" non-goal for the listed preferences (0025); RF2.1 superseded by DS-CMP-SEG-5 and RF7.2 amended for `desktop.json` (SET-01). Added by the 2026-10-25 audit plans: origin, logging and user-content error rows (0050); main-window geometry persistence and mixed-DPI restore (0054). |
+| 0021 | 0028, 0052, 0053, 0054 | RF8.1's install-source detector (in the core since 0.77.0) is reused by 0028's opt-in CLI update notice (DIST-12). Added by the 2026-10-25 audit plans: one-command purge beside RF8.2 (0052); Dependabot, scheduled advisories, secret scanning, licence payloads and an independent release approval (0053); installed-channel autostart and no-tray smokes (0054). |
+| 0024 | 0051 | `group` and `[[groups]]` survivable by older readers before they understand them (RF7; already shipped in vNEXT, so 0.80.0 rejects a TOML that uses them). |
+| 0028 | 0052, 0054 | `Report.source` without runtime ids and diagnostics privacy (0052 RF3.6); CLI-tool resolution in diagnostics (0054). |
+| 0029 | 0051 | The one-key RF0 precursor generalized to every unknown key and provider, config-scoped state before the id migration; COMP-04 corrects RF0.3/RF0.4's downgrade promise (a newer history schema is not safe to downgrade, and schema 7 is now in vNEXT). |
+| 0031 | 0050 | Admission bounds before authentication and redacted log templates on every route, not only `/v1/stats` (RF6, RF11.2). |
+| 0032 | 0051, 0054 | State schema and backup policy beside RF4's `LedgerLock`; COMP-02 strengthens the fixed `.corrupt` set-aside (0051); hook claims beside RF4's ledger claims, and RF4.2 must cover every `notified.json` write path (0054). |
+| 0033 | 0054 | Paired wall/monotonic clock resume and reconnect behaviour that respects the metered floor and lock (RF3). |
+| 0035 | 0050 | Protected security text ids that a user language pack cannot override (RF12.3 narrowed). |
+| 0036 | 0051 | Aggregator TOML keys fail locally (one account) and survive older-editor saves (RF2). |
+| 0039 | 0053 | Fail-closed `plans-check`, delivery-aware §3 rows, post-release reconciliation and honest ruleset documentation (FIX-PROC-01, FIX-PROC-02); supersedes RF11.2's allowance for incomplete weak edges. |
 
 ## 5. Suggested delivery order
 
@@ -478,6 +531,7 @@ The waves respect the strong dependencies; within each wave the order is by prio
 | 5e | 0025 (after 0020 RF1–RF2, 0029 RF2 and 0018 RF2.6; visuals with 0022 RF8 and RF17.8); 0032 (after 0029 RF2); 0031 rest (RF2 after 0025 RF1, RF11 after 0026 RF1); 0033 RF1, RF3, RF4, RF5.3; 0030 rest; 0027 RF3–RF7 | Menu bar, notification policy, the rest of the integration contract, reset-aware readings and cost; each after its strong prerequisites. |
 | 5f (providers and languages) | 0037 (independent: it can be pulled into any earlier wave as its own lane), 0036 (RF5 after 0029), 0035 (phase 0 after 0034 RF4; phases 1 and 2 after 0022 RF1) | New providers verifiable live by the owner; new languages on the English source. |
 | 5g (closure, 2026-10-25) | Every plan 0001–0039 re-audited against the code and the RF/RNF audit reports; statuses reconciled in §2; owner checks listed in §2.1; the remaining gaps are 0026 (journal `spent`/`currency`), 0030 (OpenCode and Qwen Code sources, RF2.3), 0035 (RF6.2, RF6.3, RF6.7 and the typography, budget, process and evidence items) and 0036 (the `tested_min` warning, which needs the owner's T2) | The next release implements every requirement of 0001–0039; what is left is either an owner check or listed here. |
+| 5h (2026-10-25 audit plans, after 5g) | **process first:** 0053 RF1–RF4 (`TEMPLATE.md`, fail-closed `plans-check`, delivery-aware §3 rows, generated reconciliation), then RF5–RF7; **compatibility:** 0051 RF1, RF2, RF3 reader precursor, RF4, RF6 before the next release that writes new TOML or state keys (RF5.4 after 0029 RF1, delivered); **security:** 0050 RF1 rest, RF2, RF4, RF5, RF7, RF8.2–RF8.3, then RF3 and RF6 with their desktop rows; **diagnostics:** 0052 RF1, RF2, RF4–RF7 core and CLI parts, RF3 once the 0046 RF4 overlap is decided; **lifecycle:** 0054 after 0051 RF3–RF4 and 0052 RF2–RF3 (RF3 resume-aware deadlines and RF6 CLI-tool resolver may be pulled forward as a core lane; RF4 and RF5 land together) | Written by the 2026-10-25 PRD audit against 0.80.0 and moved onto this branch on 2026-10-28. 0051 is the most urgent: history schema 7 and `[[groups]]` already make a downgrade to 0.80.0 fail. The plans-check gate must exist before the next release so the control file stops drifting. |
 | After the Apple account | 0014 (RF2.1, RF2.3, RF3.1) | Needs the Apple developer account and signing. |
 
 Critical path to the first release: **PR #7 (0039 cutover) → the 5a lanes (0029 RF0 with FIX-08; 0018 RF2.6 with 0022 RF17.1; 0021 RF6) and, in parallel, the owner's 0021 RF9.1 release environment → `release prepare` → `v0.80.0-rc.1` → §2.1 smokes → `v0.80.0`.** Critical path to 1.0: **Apple Developer ID and Windows certificate (owner, longest lead; start now) → signed release → 0018 signed-update smoke across two signed releases**, in parallel with **0029 RF1 → RF2 → RF3/RF4**, **0034** and **0031 RF5** before the `export::v1` freeze. Critical path of integrations: **0012 → 0013 and 0014 → 0031**. Critical path of alerts: **0003 → 0008 → 0023 RF1 → 0024 → 0032**. Critical path of settings: **0020 RF1–RF2 → 0022 RF9 and 0025 RF4, RF5, RF9** (0025 → 0022 is weak). Critical path of identity: **0029 RF0 (in the first public release) → 0029 RF1, RF2 before 0024 RF7, 0025 RF2, 0026 RF3, 0030 RF1, 0032 RF1.3 and 0036 RF5**. Critical path of statistics: **0026 RF1 → 0031 RF11 (`/v1/stats`)**. Critical path of languages: **0034 → 0035**.
@@ -504,6 +558,12 @@ Version 1.0 ships only when all of these hold (owner decision of 2026-10-23):
 | ~~Local server on by default or not~~ | 0012 | **Decided on 2026-10-20: off by default, loopback only**, suggested port 6738 (checked for conflicts when RF2 is implemented). |
 | ~~Reset notices on by default or not~~ | 0003 (RF3) | **Decided on 2026-10-20: off by default**; nothing is notified until the user turns on Settings → Notifications (delivered in 0.41.0). |
 | ~~Provider status on by default or not~~ | 0011 | **Decided on 2026-10-20: opt-in, off until enabled**, with `--no-status` as an override; RF1 only registers verified sources, without making requests. |
+| Windows ACL parity for private files | 0050 (RF7.5), 0051 | `private_fs::writable_by_others`/`open_to_others` return false on Windows, so the serve-token and extension-tree checks (0017 FIX-05 included) are Unix-only. Option A: implement ACL checks (parity); option B: document Windows as "permissions not verified". 0050 §13 recommends A. |
+| `main` ruleset bypass and release reviewer identity | 0053 (RF5) | The admin bypass in pull-request mode lets the agent token merge a red `CI result`, and the `release` environment reviewers (two gates since `2d16fd09`) may be the identity the agents use. Option A: remove the bypass and require a distinct human reviewer; option B: keep the bypass with a written agent rule. 0053 §13 recommends A. |
+| User language packs overriding security texts | 0050 (RF3.3), 0035 | Option A: protected id prefixes a pack cannot replace (consent, credential warnings, security errors); option B: packs override everything and a banner says so. 0050 recommends A. |
+| Logging crate and log file by default | 0052 (RF1) | `tracing` versus `log`, and whether a redacted log file is written by default (recommended: on, warn level, 1 MiB rotation) or only with `CUOTAI_LOG`. |
+| One diagnostic command | 0052 (RF3), 0046 (RF4) | Both plan an offline, redacted self-description (`--diagnostics` and `--doctor`, "Copy diagnostics" and **Check setup**). Option A: 0046 RF4 owns the command and 0052 RF3 adds to it; option B: 0052 RF3 owns it and 0046 RF4 reuses it. 0052 §13 recommends A. |
+| Launch at login: package-manager installs | 0054 (RF4) | The mechanism and default are settled by the vNEXT delivery `778e00d9` (official autostart plugin, off by default); still open: whether package-manager installs may register a login item, and a Repair action after the app moves. |
 
 ### 6.1 Decisions log (2026-10-21 review and 2026-10-23 refinements)
 
@@ -701,3 +761,4 @@ Claims surveyed on 2026-10-25 from CodexBar (v0.75.0 notes and docs), Fetchy (Ap
 | 2026-10-23 | `CHANGELOG.md` consolidated (owner decision refining PRD 0039 D11): the internal versions 0.1.0–0.79.0 are summarized in one "Pre-release history" section instead of one section each, with their footer links removed; the §3 rows stay their per-version detail and `changelog-check` resolves them through the history's range. |
 | 2026-10-25 | Product strategy review: PRDs 0040–0046 added (Proposed) — agent-fed readings (0040), budgets and allowance (0041), local cost sessions/blocks/projects (0042), usage insights and digest (0043), notification channels (0044), breakdowns by key/project/team (0045), backup and doctor (0046); §7.1 parity additions; the header counts recomputed from §2 (the 2026-10-24 header still said 14 proposed). |
 | 2026-10-25 | Final documentation sweep after v0.80.0: Portuguese code comments translated to English; every plan 0001–0039 re-checked against the code and the RF/RNF audit reports, so stale statuses were reconciled (18 implemented, 17 awaiting owner verification, 4 in progress), the approved deviations and the owner decisions recorded, `docs/design-system.md` made Normative (PRD 0022 RF19.1), and the §2.1 checklist rebuilt (the green hosted CI, the SBOM on the published release, the `release` environment and the rulesets were verified and left it). |
+| 2026-10-28 | The five plans of the 2026-10-25 PRD audit (written on `main` as 0040–0044, never committed there) moved onto this branch as 0050–0054, because 0040–0049 here are other plans: 0050 desktop security baseline and webview trust (In progress: RF8.1 delivered as 0017 FIX-05's completion, RF1 partial through the vNEXT CSP), 0051 compatibility and local-state integrity (Proposed; raised priority because history schema 7 and `[[groups]]` already break a downgrade to 0.80.0), 0052 diagnostics, logging and privacy (Proposed; RF3 overlaps 0046 RF4), 0053 plan governance and release reconciliation (Proposed; parts done by hand), 0054 desktop lifecycle (In progress: RF4.1 launch at login delivered). Every RF re-evaluated against this branch at `18009a04`; graph, unblocks and extensions tables, wave 5h and §6 decisions added; `Extended by` lines added to the 23 plans they extend; the header counts corrected (they counted 46 plans against 49 rows). |

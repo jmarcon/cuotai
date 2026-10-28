@@ -7,7 +7,7 @@
 | Owner | `cuotai-core`, TUI and desktop |
 | Consumers | `crates/cuotai-tui`, `apps/desktop`, extension authors |
 | Depends on | PRD 0005 (RF1: the `Extension` level) |
-| Extended by | PRD 0028 (manifest `overrides`, `[[secrets]]` in the vault, `min_cuotai` and ignored `x-*` tables) |
+| Extended by | PRD 0028 (manifest `overrides`, `[[secrets]]` in the vault, `min_cuotai` and ignored `x-*` tables), PRD 0050 (native desktop approval; credential-env collision disclosure narrowing RF3.2 to explicitly highlighted and approved names; FIX-05's vNEXT completion is its RF8.1) |
 | Date | 2026-10-19 |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.

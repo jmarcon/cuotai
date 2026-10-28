@@ -8,7 +8,7 @@
 | Consumers | end users, PRD 0018 (updater), PRD 0014 (widgets) |
 | Depends on | PRD 0019 RF2 (green CI on three systems) and RF7.1 to RF7.3 (`CHANGELOG.md`) |
 | Benefits from | PRD 0018 (update artifacts), PRD 0019 RF7.5 (release notes from the changelog) |
-| Extended by | PRD 0028 (RF8.2 and RF8.3: the CLI update notice reuses the core detector delivered in 0.77.0; review item DIST-12) |
+| Extended by | PRD 0028 (RF8.2 and RF8.3: the CLI update notice reuses the core detector delivered in 0.77.0; review item DIST-12), PRD 0052 (one-command purge beside RF8.2), PRD 0053 (Dependabot, scheduled advisories, secret scanning, licence payloads, independent release approval), PRD 0054 (installed-channel autostart and no-tray smokes) |
 | Date | 2026-10-21; reconciled 2026-10-23 with the 2026-10-21 requirements review |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.

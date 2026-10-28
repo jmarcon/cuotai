@@ -7,7 +7,7 @@
 | Owner | `cuotai-core`, desktop and TUI |
 | Consumers | `apps/desktop` (cards, details, tray), `crates/cuotai-tui`, PRDs 0012 and 0014 |
 | Depends on | PRD 0006 (RF3: `latest`) to survive a restart; the rest works without it |
-| Extended by | PRD 0033 (optional `as_of` where the provider dates its data; a restored reading drops metrics whose `resets_at` has passed; metered cadence 3600 s default, 900 s floor) |
+| Extended by | PRD 0033 (optional `as_of` where the provider dates its data; a restored reading drops metrics whose `resets_at` has passed; metered cadence 3600 s default, 900 s floor), PRD 0052 (RF7: HTTP `Date` clock-skew warning without any schedule or reading change) |
 | Date | 2026-10-19 |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.

@@ -7,7 +7,7 @@
 | Owner | `cuotai-core`, desktop and TUI |
 | Consumers | `apps/desktop` (details), `crates/cuotai-tui` (details and `--history`), PRDs 0007, 0008, 0012 and 0014 |
 | Depends on | none |
-| Extended by | PRD 0026 (statistics over stored windows, event journal), PRD 0028 (RF11: per-adapter label snapshot and alias table so series survive label changes), PRD 0029 (stable account ids replace the identity digest as the series key), PRD 0033 (reset-aware restore of the last reading; samples more than 5 minutes in the future rejected) |
+| Extended by | PRD 0026 (statistics over stored windows, event journal), PRD 0028 (RF11: per-adapter label snapshot and alias table so series survive label changes), PRD 0029 (stable account ids replace the identity digest as the series key), PRD 0033 (reset-aware restore of the last reading; samples more than 5 minutes in the future rejected), PRD 0051 (same-major downgrade read, typed newer-major failure, `.bak` migration and history relocation when the TOML moves; fix requirement COMP-03), PRD 0052 (RF5: TUI/CLI history export and erase parity) |
 | Date | 2026-10-19 |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.

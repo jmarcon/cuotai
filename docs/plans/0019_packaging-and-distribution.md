@@ -7,7 +7,7 @@
 | Owner | Repository, CI and release (`.github/`, `apps/desktop`, `crates/cuotai-tui`) |
 | Consumers | end users, PRDs 0014 and 0018 |
 | Depends on | none; it is a prerequisite of PRDs 0014 and 0018 |
-| Extended by | PRD 0028 (`SUPPORT.md`) |
+| Extended by | PRD 0028 (`SUPPORT.md`), PRD 0052 (diagnostics output in the security-report template), PRD 0053 (tested MSRV/OS/EOL policy, bundled third-party licences, shared release-notes renderer; fix requirement FIX-REL-01), PRD 0054 (RF5: the "tray failure aborts" support claim superseded by a window-only fallback) |
 | Date | 2026-10-19 |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.

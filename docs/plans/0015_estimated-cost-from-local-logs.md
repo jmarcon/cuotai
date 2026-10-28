@@ -7,7 +7,7 @@
 | Owner | `cuotai-core`, desktop and TUI |
 | Consumers | `apps/desktop`, `crates/cuotai-tui`, PRD 0012 (contract field) |
 | Depends on | PRD 0005 (`LocalCli`/estimate access label); it uses PRD 0006 |
-| Extended by | PRD 0030 (plan value against the API-price estimate, new local sources, price-table age, models without a price and a `pricing.json` template, the 1-hour cache-write column, the largest `output_tokens` per request, a display-only manual `fx_rate`) |
+| Extended by | PRD 0030 (plan value against the API-price estimate, new local sources, price-table age, models without a price and a `pricing.json` template, the 1-hour cache-write column, the largest `output_tokens` per request, a display-only manual `fx_rate`), PRD 0051 (common SQLite downgrade/backup policy for `cost.sqlite3`) |
 | Date | 2026-10-19 |
 
 ## Implementation status (2026-10-21)

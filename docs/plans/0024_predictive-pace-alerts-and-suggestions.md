@@ -9,6 +9,7 @@
 | Depends on | PRD 0007 (RF1, RF2: `pace::assess`, `projected_exhaustion_at`), PRD 0008 (RF1, RF2: `alerts::evaluate`, `AlertState`, delivery), PRD 0006 (RF2, RF3: recent samples for `source = recent`); PRD 0029 (RF1: account `id`) for RF7, whose `[[groups]]` and suggestions name accounts |
 | Benefits from | PRD 0010 (freshness), PRD 0013 (RF1: event engine), PRD 0022 (UI refresh: chips, callout and row visuals), PRD 0023 (RF1: overage excluded from pace; MET-01 `Metric::scope`), PRD 0025 (RF6: first-run consent), PRD 0031 (`/v1/limits` summary), PRD 0032 (quiet hours) |
 | Extends | PRD 0007 RF2 (compact chip texts in points or percent), PRD 0008 RF1 (new alert kind), PRD 0012 RF1 (additive `group`, `best` and `pace.delta_ratio`), PRD 0013 RF1.2 (new event) |
+| Extended by | PRD 0051 (`group` and `[[groups]]` survivable by older readers before they understand them) |
 | Date | 2026-10-22; amended 2026-10-23 (owner decisions B, C, D, M; review items DEC-01, DEC-02, FIX-11, FIX-12; design system DS-CMP-TIME-1..5) |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable. "Lead time" is how long before the projected exhaustion the warning is sent. "Margin" is the time between the projected exhaustion and the reset. A **comparable group** is a set of accounts the user says can replace one another (RF7).

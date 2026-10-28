@@ -9,6 +9,7 @@
 | Depends on | PRD 0001 (`ConfigFile`, `account_edit`), PRD 0016 (RF1, RF4: `[accounts.session]`, `stage_forget`) |
 | Blocks | PRD 0025 RF2 (`tray.accounts` keyed by account), PRD 0026 RF3 (journal keyed by account digest), PRD 0024 RF7 (`[[groups]]` and suggestions name accounts), PRD 0030 RF1 (per-account plan prices), PRD 0032 RF1.3 (bells and mutes in the shared preferences), PRD 0036 RF5 (sub-account dedup and preferences); all of them persist or match account-keyed state and must key it by `id` |
 | Extends | PRD 0003 RF2 (ledger keys), PRD 0006 RF1 (series identity), PRD 0008 RF2 (alert marks), PRD 0012 RF1/RF2 (`id` field, `/v1/accounts/{id}`), PRD 0013 RF1/RF3 (event `account_id`, hook filter) |
+| Extended by | PRD 0051 (the RF0 one-key precursor generalized to every unknown key and provider; config-scoped state before the id migration; fix requirement COMP-04 corrects the RF0.3/RF0.4 downgrade promise) |
 | Date | 2026-10-23 |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable. The **legacy key** is today's `Account::key` (`<provider slug>:<name>`, or `extension:<id>:<name>`). The **display name** is the configured name or, when there is none, the provider's name. Code references are to `origin/main` at `0ba9c9b` (0.75+); the 2026-10-21 review's line numbers moved.

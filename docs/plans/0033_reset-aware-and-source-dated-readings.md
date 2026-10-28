@@ -9,6 +9,7 @@
 | Depends on | PRD 0001 (`RefreshCycle` deadlines), PRD 0003 (RF1: reset planner), PRD 0006 (RF2: restored readings), PRD 0007 (pace line), PRD 0009 (binding chip), PRD 0010 (RF1, RF2: freshness, last valid reading) |
 | Benefits from | PRD 0029 (RF1: account `id` for the metered lock file), PRD 0031 (RF13: same pace in the export) |
 | Extends | PRD 0003 §4 (supersedes the non-goal "querying the provider at the reset moment" for non-metered providers), PRD 0010 RF1/RF2 (`as_of`, expired metrics in preserved readings), PRD 0009 RF2.2 and PRD 0007 RF3.2 (labelled chip and pace line), PRD 0001 (metered cadence) |
+| Extended by | PRD 0054 (RF3: paired wall/monotonic clock resume and reconnect behaviour respecting the metered floor and lock) |
 | Date | 2026-10-23 |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable. A **preserved reading** is PRD 0010's last valid reading shown while the current query fails or has not run; a **restored reading** is one loaded from the history at start-up (PRD 0006). A **metered** provider charges per query (`Provider::is_metered`, today only AWS Bedrock through Cost Explorer). Code references are to `origin/main` at `0ba9c9b`.

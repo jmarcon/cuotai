@@ -9,6 +9,7 @@
 | Depends on | PRD 0034 (English source locale: en-US becomes the source and fallback, pt-BR becomes a catalog) for RF2 and RF3; none for RF1, RF4 and RF5 (they can land first) |
 | Benefits from | PRD 0022 (UI refresh) and `docs/design-system.md` (DS-TOK-TYP-7..10, DS-CMP-SEL-3, DS-MSG-12, DS-MSG-14..16 already describe this PRD's targets); PRD 0020 RF7 (preferences move to `desktop.json`) |
 | Extends | PRD 0001 RF8 (core-owned catalogs and the lookup order), PRD 0003 RF2.2 (notices in the app's language), PRD 0019 RF7.7 (changelog labels), PRD 0017 (user language packs keep working) |
+| Extended by | PRD 0050 (RF3.3: protected security text ids a user language pack cannot override) |
 | Date | 2026-10-23 |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable. A **locale** is a BCP 47 code with a catalog (`pt-BR`, `zh-CN`); a **catalog** is one JSON file of message ids; the **core catalog** holds the texts the backend emits (`Localized`), the **UI catalog** holds desktop chrome, and the **TUI chrome** is the terminal interface's own captions. "Critical strings" are defined in RF11.3.

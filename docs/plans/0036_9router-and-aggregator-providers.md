@@ -10,6 +10,7 @@
 | Benefits from | PRD 0022 (UI refresh), PRD 0027 (local detection, consent-gated presence probe) for RF2.5, PRD 0028 (contract health, local canary, CAT-01) for RF3.8, PRD 0033 (source-dated readings, `as_of`) for RF4.3, PRD 0011 (incidents) for RF6.6, decision C of 2026-10-23 (TOML groups, "best account now") for RF6.5 |
 | Related | PRD 0038 (OpenRouter provider: an aggregator that reports only its own credits, see §1.4), PRD 0002/0028 CAT-01 (removal of the static model lists copied from 9router's registry) |
 | Extends | PRD 0005 RF1 (new credential class, scope and `via` evidence), PRD 0009 RF1 (binding per sub-account), PRD 0008 RF1 (pool alert), PRD 0012 RF1 (additive `sub_accounts`), PRD 0013 RF1.2 (events carry `parent`) |
+| Extended by | PRD 0051 (aggregator TOML keys fail locally for one account and survive older-editor saves) |
 | Date | 2026-10-23 |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable. An **aggregator** (or routing gateway) is a service that holds credentials for several upstream AI providers and routes requests to them. An **aggregator account** is the Cuotai account that points at one aggregator instance; each upstream credential the aggregator holds (9router calls it a *connection*, new-api a *channel*) becomes a **sub-account** of it. **Instance** means one running aggregator (local or remote).

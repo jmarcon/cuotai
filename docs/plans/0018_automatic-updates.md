@@ -7,7 +7,7 @@
 | Owner | Desktop (`apps/desktop`) and the release pipeline |
 | Consumers | `apps/desktop/src-tauri`, `apps/desktop/ui` (Settings → Updates and About) |
 | Depends on | PRD 0019 (RF2: CI) and PRD 0021 (RF1–RF4, which supersede PRD 0019 RF3: signed packages and artifact hosting) |
-| Extended by | PRD 0025 (RF6.5: the first-run step hosts the update question of RF2.6), PRD 0028 (RF8.2 and RF8.3: the core install-source detector delivered in 0.77.0 serves a CLI update notice) |
+| Extended by | PRD 0025 (RF6.5: the first-run step hosts the update question of RF2.6), PRD 0028 (RF8.2 and RF8.3: the core install-source detector delivered in 0.77.0 serves a CLI update notice), PRD 0051 (the updater preference writes through the shared `desktop.json` writer), PRD 0053 (RF7: plain-text multi-version `latest.json` notes from the shared renderer; fix requirement FIX-UPD-02) |
 | Date | 2026-10-19; amended 2026-10-23 (review item UPD-01, owner decision F: RF2.6 "ask before the first check" supersedes the on-by-default part of RF2.1) |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.

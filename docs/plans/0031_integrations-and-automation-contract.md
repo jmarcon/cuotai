@@ -9,6 +9,7 @@
 | Depends on | PRD 0012 (RF1–RF5: `export::v1`, `LocalServer`, security), PRD 0013 (RF1–RF3: events, `--watch`, hooks), PRD 0025 (RF1: `tray::summary`) for RF2, PRD 0026 (RF1: `stats::summarize`) for RF11 |
 | Benefits from | PRD 0029 (RF4: `id` in every contract), PRD 0024 (RF5: `quota_exhaustion_projected`; decision C `best`), PRD 0028 (failure object), PRD 0033 (RF3: `as_of`) |
 | Extends | PRD 0012 RF2/RF3/RF4/RF5 (routes, port, HEAD, caching, policy), PRD 0013 RF1/RF2 (new events, exit codes, signals), PRD 0025 RF8 (moved here as RF2) |
+| Extended by | PRD 0050 (admission bounds before authentication and redacted log templates on every route, not only `/v1/stats`) |
 | Date | 2026-10-23 |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable. A **recipe** is a tested, versioned snippet that wires Cuotai into another tool. Code references are to `origin/main` at `0ba9c9b`.
