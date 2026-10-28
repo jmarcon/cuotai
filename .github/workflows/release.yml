@@ -137,15 +137,24 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
-  release-prerequisites:
-    name: required release credentials
+  # Each signing build enters the release environment directly after `check`
+  # and validates the updater key before doing build work. The separate
+  # prerequisite deployment made run 40142600517 (rc.2) ask the owner for an
+  # extra approval without adding a security boundary.
+  desktop-macos:
+    name: desktop (macOS universal)
     needs: check
     if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
+    runs-on: macos-latest
+    timeout-minutes: 90
+    # Tag pushes use the owner-configured `release` environment. Dispatch
+    # rehearsals use the separate secretless `rehearsal` environment.
     environment: ${{ github.event_name == 'push' && 'release' || 'rehearsal' }}
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
     steps:
       - name: Validate required release credentials
+        shell: bash
         env:
           HAS_TAURI_SIGNING_PRIVATE_KEY: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
           HAS_TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD != '' }}
@@ -163,19 +172,6 @@ jobs:
             printf '::error::missing required release-environment secrets: %s\n' "${missing[*]}"
             exit 1
           fi
-
-  desktop-macos:
-    name: desktop (macOS universal)
-    needs: [check, release-prerequisites]
-    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)
-    runs-on: macos-latest
-    timeout-minutes: 90
-    # Tag pushes use the owner-configured `release` environment. Dispatch
-    # rehearsals use the separate secretless `rehearsal` environment.
-    environment: ${{ github.event_name == 'push' && 'release' || 'rehearsal' }}
-    env:
-      VERSION: ${{ needs.check.outputs.version }}
-    steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -262,7 +258,7 @@ jobs:
 
   desktop-windows:
     name: desktop (Windows x64)
-    needs: [check, release-prerequisites]
+    needs: check
     if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)
     runs-on: windows-latest
     timeout-minutes: 90
@@ -270,6 +266,25 @@ jobs:
     env:
       VERSION: ${{ needs.check.outputs.version }}
     steps:
+      - name: Validate required release credentials
+        shell: bash
+        env:
+          HAS_TAURI_SIGNING_PRIVATE_KEY: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+          HAS_TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD != '' }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" != "push" ]; then
+            echo "dispatch rehearsal: release credentials are intentionally unavailable"
+            exit 0
+          fi
+          missing=()
+          [ "$HAS_TAURI_SIGNING_PRIVATE_KEY" = "true" ] || missing+=(TAURI_SIGNING_PRIVATE_KEY)
+          [ "$HAS_TAURI_SIGNING_PRIVATE_KEY_PASSWORD" = "true" ] || missing+=(TAURI_SIGNING_PRIVATE_KEY_PASSWORD)
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf '::error::missing required release-environment secrets: %s\n' "${missing[*]}"
+            exit 1
+          fi
       # Keep LF so the bundled resources match the repository bytes.
       - run: git config --global core.autocrlf false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -347,7 +362,7 @@ jobs:
   # empty fragment and the manifest lists the artifacts as not produced.
   desktop-windows-arm64:
     name: desktop (Windows ARM64, optional)
-    needs: [check, release-prerequisites]
+    needs: check
     if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)
     runs-on: windows-11-arm
     continue-on-error: true
@@ -356,6 +371,25 @@ jobs:
     env:
       VERSION: ${{ needs.check.outputs.version }}
     steps:
+      - name: Validate required release credentials
+        shell: bash
+        env:
+          HAS_TAURI_SIGNING_PRIVATE_KEY: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+          HAS_TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD != '' }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" != "push" ]; then
+            echo "dispatch rehearsal: release credentials are intentionally unavailable"
+            exit 0
+          fi
+          missing=()
+          [ "$HAS_TAURI_SIGNING_PRIVATE_KEY" = "true" ] || missing+=(TAURI_SIGNING_PRIVATE_KEY)
+          [ "$HAS_TAURI_SIGNING_PRIVATE_KEY_PASSWORD" = "true" ] || missing+=(TAURI_SIGNING_PRIVATE_KEY_PASSWORD)
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf '::error::missing required release-environment secrets: %s\n' "${missing[*]}"
+            exit 1
+          fi
       - run: git config --global core.autocrlf false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -441,7 +475,7 @@ jobs:
 
   desktop-linux:
     name: desktop (Linux x64)
-    needs: [check, release-prerequisites]
+    needs: check
     if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)
     runs-on: ubuntu-22.04 # oldest supported glibc (RF2)
     timeout-minutes: 90
@@ -452,6 +486,25 @@ jobs:
     env:
       VERSION: ${{ needs.check.outputs.version }}
     steps:
+      - name: Validate required release credentials
+        shell: bash
+        env:
+          HAS_TAURI_SIGNING_PRIVATE_KEY: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+          HAS_TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD != '' }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" != "push" ]; then
+            echo "dispatch rehearsal: release credentials are intentionally unavailable"
+            exit 0
+          fi
+          missing=()
+          [ "$HAS_TAURI_SIGNING_PRIVATE_KEY" = "true" ] || missing+=(TAURI_SIGNING_PRIVATE_KEY)
+          [ "$HAS_TAURI_SIGNING_PRIVATE_KEY_PASSWORD" = "true" ] || missing+=(TAURI_SIGNING_PRIVATE_KEY_PASSWORD)
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf '::error::missing required release-environment secrets: %s\n' "${missing[*]}"
+            exit 1
+          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -523,7 +576,7 @@ jobs:
 
   desktop-linux-arm64:
     name: desktop (Linux ARM64, optional)
-    needs: [check, release-prerequisites]
+    needs: check
     if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)
     runs-on: ubuntu-24.04-arm
     continue-on-error: true
@@ -532,6 +585,25 @@ jobs:
     env:
       VERSION: ${{ needs.check.outputs.version }}
     steps:
+      - name: Validate required release credentials
+        shell: bash
+        env:
+          HAS_TAURI_SIGNING_PRIVATE_KEY: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+          HAS_TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD != '' }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" != "push" ]; then
+            echo "dispatch rehearsal: release credentials are intentionally unavailable"
+            exit 0
+          fi
+          missing=()
+          [ "$HAS_TAURI_SIGNING_PRIVATE_KEY" = "true" ] || missing+=(TAURI_SIGNING_PRIVATE_KEY)
+          [ "$HAS_TAURI_SIGNING_PRIVATE_KEY_PASSWORD" = "true" ] || missing+=(TAURI_SIGNING_PRIVATE_KEY_PASSWORD)
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf '::error::missing required release-environment secrets: %s\n' "${missing[*]}"
+            exit 1
+          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -602,7 +674,7 @@ jobs:
   # RF2.2: plain cargo build per target; tarballs on Unix, zip on Windows.
   cli:
     name: cli (${{ matrix.target }})
-    needs: [check, release-prerequisites]
+    needs: check
     if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.optional == true }}
@@ -729,7 +801,7 @@ jobs:
   # RF2: CycloneDX SBOM generated by a Cargo tool (no Node/Python).
   sbom:
     name: SBOM (CycloneDX)
-    needs: [check, release-prerequisites]
+    needs: check
     if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -1344,9 +1416,12 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  # RF5.1/RF5.7: independent, opt-in tag-only channel jobs. Each one
-  # downloads the rendered manifests, never touches the release, and its
-  # failure never fails the GitHub Release (nothing depends on it).
+  # RF5.1/RF5.7: independent, opt-in tag-only channel jobs. Each one uses the
+  # reviewer-free, tag-only `channels` environment, downloads the rendered
+  # manifests, never touches the release, and cannot fail the GitHub Release
+  # (nothing depends on it). Run 40202699547 waited two days for a fourth
+  # approval after v0.80.0 was already published; immutable admin-created tags
+  # provide the boundary for these separately scoped channel credentials.
   channel-homebrew:
     name: "channel: Homebrew tap"
     needs: [check, package-manifests]
@@ -1357,7 +1432,7 @@ jobs:
           && needs.package-manifests.result == 'success' }}
     runs-on: macos-latest
     timeout-minutes: 30
-    environment: release
+    environment: channels
     continue-on-error: true
     env:
       TAG: ${{ needs.check.outputs.tag }}
@@ -1412,7 +1487,7 @@ jobs:
         run: |
           set -euo pipefail
           [ -n "$GH_TOKEN" ] || {
-            echo "::error::HOMEBREW_TAP_TOKEN is not set in the release environment; add a token scoped to $TAP_REPO (contents: write) or unset PUBLISH_HOMEBREW"
+            echo "::error::HOMEBREW_TAP_TOKEN is not set in the channels environment; add a token scoped to $TAP_REPO (contents: write) or unset PUBLISH_HOMEBREW"
             exit 1
           }
           tap_dir="$RUNNER_TEMP/tap-push"
@@ -1437,7 +1512,7 @@ jobs:
           && needs.package-manifests.result == 'success' }}
     runs-on: windows-latest
     timeout-minutes: 30
-    environment: release
+    environment: channels
     continue-on-error: true
     defaults:
       run:
@@ -1493,7 +1568,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           if (-not $env:GITHUB_TOKEN) {
-            Write-Error "WINGET_SUBMIT_TOKEN is not set in the release environment; the first submission stays manual and unattended submissions stay off"
+            Write-Error "WINGET_SUBMIT_TOKEN is not set in the channels environment; the first submission stays manual and unattended submissions stay off"
             exit 1
           }
           $exe = "wingetcreate.exe"
@@ -1522,7 +1597,7 @@ jobs:
           && needs.package-manifests.result == 'success' }}
     runs-on: windows-latest
     timeout-minutes: 30
-    environment: release
+    environment: channels
     continue-on-error: true
     defaults:
       run:
@@ -1566,7 +1641,7 @@ jobs:
         run: |
           set -euo pipefail
           [ -n "$GH_TOKEN" ] || {
-            echo "::error::SCOOP_BUCKET_TOKEN is not set in the release environment; add a token scoped to $BUCKET_REPO (contents: write) or unset PUBLISH_SCOOP"
+            echo "::error::SCOOP_BUCKET_TOKEN is not set in the channels environment; add a token scoped to $BUCKET_REPO (contents: write) or unset PUBLISH_SCOOP"
             exit 1
           }
           bucket_dir="$RUNNER_TEMP/bucket"
@@ -1590,7 +1665,7 @@ jobs:
           && needs.package-manifests.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment: release
+    environment: channels
     continue-on-error: true
     env:
       VERSION: ${{ needs.check.outputs.version }}
@@ -1619,7 +1694,7 @@ jobs:
         run: |
           set -euo pipefail
           [ -n "$CARGO_REGISTRY_TOKEN" ] || {
-            echo "::error::CARGO_REGISTRY_TOKEN is not set in the release environment; publish by hand or unset PUBLISH_CARGO"
+            echo "::error::CARGO_REGISTRY_TOKEN is not set in the channels environment; publish by hand or unset PUBLISH_CARGO"
             exit 1
           }
           # A published crate cannot depend on a path-only crate, so the
@@ -1645,7 +1720,7 @@ jobs:
           && needs.package-manifests.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: release
+    environment: channels
     continue-on-error: true
     env:
       VERSION: ${{ needs.check.outputs.version }}
@@ -1666,7 +1741,7 @@ jobs:
         run: |
           set -euo pipefail
           [ -n "$AUR_SSH_PRIVATE_KEY" ] || {
-            echo "::error::AUR_SSH_PRIVATE_KEY is not set in the release environment; add the AUR account's SSH key or unset PUBLISH_AUR"
+            echo "::error::AUR_SSH_PRIVATE_KEY is not set in the channels environment; add the AUR account's SSH key or unset PUBLISH_AUR"
             exit 1
           }
           mkdir -p ~/.ssh

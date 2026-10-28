@@ -1,0 +1,29 @@
+# Weekly advisory scan. The `deny` job in ci.yml runs only after a code pull
+# request or push, so a new RUSTSEC advisory against an unchanged Cargo.lock
+# would otherwise remain invisible between code changes.
+name: Advisories
+
+on:
+  schedule:
+    - cron: "41 6 * * 3"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  advisories:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        manifest: [Cargo.toml, apps/desktop/src-tauri/Cargo.toml]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        with:
+          manifest-path: ${{ matrix.manifest }}
+          command: check advisories

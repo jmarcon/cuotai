@@ -77,24 +77,33 @@ computed version (`v0.80.0-rc.1` when a feature landed, D9). Versions 0.1.0
 to 0.79.0 are internal versions and get no retroactive tags (D10).
 
 ```text
-check ──┬─ desktop-macos ───┐
-        ├─ desktop-windows ─┤
-        ├─ desktop-windows-arm64 (optional) ─┤
-        ├─ desktop-linux ───┤
-        ├─ desktop-linux-arm64 (optional) ───┤
-        ├─ cli (7 legs, 2 optional) ─────────┤
-        └─ sbom ────────────┴─► assemble ─┬─ smoke-cli (7 legs) ──────┐
-                                          ├─ smoke-desktop-macos ────┤
-                                          ├─ smoke-desktop-windows ──┤
-                                          └─ smoke-desktop-linux ────┴─► publish ─► verify-public
-                                                                                  │
-                                                                                  └─► package-manifests
-                                                             ├─► channel-homebrew
-                                                             ├─► channel-winget
-                                                             ├─► channel-scoop
-                                                             ├─► channel-cargo
-                                                             └─► channel-aur
+check ─┬─► [owner approves release builds] ─┬─ desktop-macos ───────────────────┐
+       │                                    ├─ desktop-windows ─────────────────┤
+       │                                    ├─ desktop-windows-arm64 (optional) ┤
+       │                                    ├─ desktop-linux ───────────────────┤
+       │                                    └─ desktop-linux-arm64 (optional) ──┤
+       ├─ cli (7 legs, 2 optional) ─────────────────────────────────────────────┤
+       └─ sbom ─────────────────────────────────────────────────────────────────┴─► assemble
+assemble ─┬─ smoke-cli (7 legs) ────┐
+          ├─ smoke-desktop-macos ───┤
+          ├─ smoke-desktop-windows ─┤
+          └─ smoke-desktop-linux ───┴─► [owner approves publish] ─► publish ─► verify-public
+                                                                               └─► package-manifests
+                                                                                   ├─► channel-homebrew
+                                                                                   ├─► channel-winget
+                                                                                   ├─► channel-scoop
+                                                                                   ├─► channel-cargo
+                                                                                   └─► channel-aur
 ```
+
+A stable release asks the owner for exactly two approvals: once for the
+desktop signing builds to enter `release`, and once for `publish`. The former
+prerequisite deployment added a separate click before the builds
+(run 40142600517 reached three approvals during rc.2), while channel jobs
+could add a fourth after publication (run 40202699547 waited two days on
+Homebrew). Credential validation now runs first inside every signing build,
+and the immutable, admin-created `v*` tag is the deployment boundary for the
+reviewer-free `channels` environment.
 
 An interrupted or failing run leaves at most a **draft** release — never a
 public partial one. The channel jobs run last, are independent of each
@@ -210,12 +219,13 @@ Choose **Actions → Release → Run workflow**, optionally provide a tag name
   changelog section and requested tag syntax; `workflow-check` audits
   permissions, timeouts, action pins, step-owned secrets, the bounded matrix
   and execution gates. Only `check` runs.
-- Select **full_rehearsal** to exercise RF1.4 deliberately. The prerequisite
-  gate and bounded desktop/CLI/SBOM jobs run in the secretless `rehearsal`
-  environment, assembly signs and verifies `SHA256SUMS` with the rehearsal's
-  branch identity (the bundle is discarded), records updater and checksum
-  signatures as unavailable, and the complete unsigned artifact set plus
-  rendered package manifests is uploaded to the workflow run.
+- Select **full_rehearsal** to exercise RF1.4 deliberately. The bounded
+  desktop/CLI/SBOM jobs run after `check`; desktop jobs use the secretless
+  `rehearsal` environment and validate that production credentials are
+  intentionally unavailable before build work. Assembly signs and verifies
+  `SHA256SUMS` with the rehearsal's branch identity (the bundle is discarded),
+  records updater and checksum signatures as unavailable, and uploads the
+  complete unsigned artifact set plus rendered package manifests.
 
 Neither dispatch mode creates a GitHub Release, publishes an attestation,
 contacts a package-manager repository or receives a production secret.
@@ -237,9 +247,10 @@ free-tier budget.
   the explicit `full_rehearsal` input.
 - Signing credentials and per-target publishing tokens appear only in the
   `env` block of the step that consumes them. `HOMEBREW_TAP_TOKEN`,
-  `SCOOP_BUCKET_TOKEN` and `WINGET_SUBMIT_TOKEN` are separate credentials,
-  stored only in the owner-configured `release` environment. The AUR SSH key
-  and crates.io token are likewise isolated to their own publish steps.
+  `SCOOP_BUCKET_TOKEN`, `WINGET_SUBMIT_TOKEN`, `AUR_SSH_PRIVATE_KEY` and
+  `CARGO_REGISTRY_TOKEN` are separate credentials stored only in the
+  owner-configured, reviewer-free, tag-only `channels` environment; signing
+  credentials remain in the reviewer-protected `release` environment.
 - Desktop bundles, the seven-row CLI matrix and aggregate SBOM run only for a
   pushed tag or an explicit full rehearsal. Windows ARM64, Linux ARM64 and
   the two ARM64 CLI rows are optional; every other RF2 artifact is required.
@@ -257,7 +268,8 @@ free-tier budget.
 - `cargo xtask workflow-check` enforces these invariants in CI and before a
   release build. Tests prove failures for broad permissions, missing timeouts,
   unpinned actions, dotted/bracketed/dynamic secret misuse, an unlisted job,
-  a bypassable heavy-job condition and a missing prerequisite dependency.
+  a bypassable heavy-job condition, a heavy job with another dependency, or
+  a desktop build that does not validate signing credentials first.
   For RF6 it also fails when `publish` does not wait for every smoke job or
   could run after a failed one, when a smoke job or its script step is
   conditional or tolerates failure, when `smoke-cli` does not cover exactly
@@ -516,13 +528,14 @@ Workflow behaviour (RF5.7):
   An explicit full rehearsal renders and uploads `package-manifests`, while
   all external channel jobs remain tag-only; renderers and validators also
   remain covered by `cargo test -p xtask`.
-- On a stable **tag run** the publish steps use only their owning environment
-  secret (`HOMEBREW_TAP_TOKEN`, `WINGET_SUBMIT_TOKEN`,
-  `SCOOP_BUCKET_TOKEN`, `AUR_SSH_PRIVATE_KEY`, or
-  `CARGO_REGISTRY_TOKEN`) and stop with an explicit error when it is missing,
-  instead of half-publishing. Optional gates: `WINGET_SUBMIT=true` (the first
-  winget submission stays manual) and the repository variables
-  `HOMEBREW_TAP_REPO`, `SCOOP_BUCKET_REPO` (default
+- On a stable **tag run** the publish steps use only their owning `channels`
+  environment secret (`HOMEBREW_TAP_TOKEN`, `WINGET_SUBMIT_TOKEN`,
+  `SCOOP_BUCKET_TOKEN`, `AUR_SSH_PRIVATE_KEY`, or `CARGO_REGISTRY_TOKEN`) and
+  stop with an explicit error when it is missing, instead of half-publishing.
+  The environment has no required reviewer because only immutable,
+  admin-created `v*` tags can enter it. Optional gates:
+  `WINGET_SUBMIT=true` (the first winget submission stays manual) and the
+  repository variables `HOMEBREW_TAP_REPO`, `SCOOP_BUCKET_REPO` (default
   `jmarcon/homebrew-cuotai`, `jmarcon/scoop-cuotai`).
 - The AUR push pins the host key against the fingerprints published on
   `aur.archlinux.org` and `wingetcreate.exe` is verified against a pinned
@@ -613,12 +626,15 @@ The pipeline never creates production secrets, environments or repositories.
 Before the first real release:
 
 1. Create the **`release`** environment (Settings → Environments), with a
-   **required reviewer** and deployment branches restricted to tags. Tag-push
-   jobs enter it; dispatch rehearsals instead enter the separate, secretless
-   `rehearsal` environment and cannot read signing or publishing secrets. See
+   **required reviewer** and deployment branches restricted to tags matching
+   `v*`. Create a separate **`channels`** environment with **no required
+   reviewer** and the same tag-only deployment restriction (`v*`). Tag-push
+   signing and publish jobs enter `release`; channel jobs enter `channels`.
+   Dispatch rehearsals instead enter the separate, secretless `rehearsal`
+   environment and cannot read production secrets. See
    [`docs/updater-security.md`](updater-security.md) for the updater key's own
    requirements.
-2. Add to the `release` environment, as desired:
+2. Add signing credentials to the `release` environment, as desired:
    - `APPLE_CERTIFICATE` — base64-encoded PKCS#12 (`.p12`);
      `APPLE_CERTIFICATE_PASSWORD` — that file's password; and
      `APPLE_SIGNING_IDENTITY` — the exact `Developer ID Application: …`
@@ -636,15 +652,30 @@ Before the first real release:
      [`docs/updater-security.md`](updater-security.md), including the exact
      `gh secret set --env release` commands and the environment protection
      (required reviewer, tag-only deployment branches) the owner must set.
-   - per channel, one token or key each, never shared (RF9.2):
-     `HOMEBREW_TAP_TOKEN` (a fine-grained token scoped only to the tap
-     repository, contents: write), `SCOOP_BUCKET_TOKEN` (a different
-     fine-grained token scoped only to the bucket repository, contents:
-     write), `WINGET_SUBMIT_TOKEN` (a token scoped only to the owner's
-     `winget-pkgs` fork, with the contents/pull-request access required by
-     `wingetcreate`), `AUR_SSH_PRIVATE_KEY` (only the AUR account's SSH key)
-     and `CARGO_REGISTRY_TOKEN` (only the crates.io scopes needed to publish
-     `cuotai-core` and `cuotai-tui`).
+   Add the five channel credentials to `channels`, never sharing credentials
+   between destinations (RF9.2):
+   `HOMEBREW_TAP_TOKEN` (a fine-grained token scoped only to the tap
+   repository, contents: write), `SCOOP_BUCKET_TOKEN` (a different
+   fine-grained token scoped only to the bucket repository, contents: write),
+   `WINGET_SUBMIT_TOKEN` (a token scoped only to the owner's `winget-pkgs`
+   fork, with the contents/pull-request access required by `wingetcreate`),
+   `AUR_SSH_PRIVATE_KEY` (only the AUR account's SSH key) and
+   `CARGO_REGISTRY_TOKEN` (only the crates.io scopes needed to publish
+   `cuotai-core` and `cuotai-tui`). Set them, verify the new environment, then
+   remove any old copies from `release`:
+
+   ```sh
+   gh secret set HOMEBREW_TAP_TOKEN --env channels
+   gh secret set SCOOP_BUCKET_TOKEN --env channels
+   gh secret set WINGET_SUBMIT_TOKEN --env channels
+   gh secret set CARGO_REGISTRY_TOKEN --env channels
+   gh secret set AUR_SSH_PRIVATE_KEY --env channels
+   gh secret delete HOMEBREW_TAP_TOKEN --env release
+   gh secret delete SCOOP_BUCKET_TOKEN --env release
+   gh secret delete WINGET_SUBMIT_TOKEN --env release
+   gh secret delete CARGO_REGISTRY_TOKEN --env release
+   gh secret delete AUR_SSH_PRIVATE_KEY --env release
+   ```
 3. For each channel the owner wants, create its repository first
    (`jmarcon/homebrew-cuotai`, `jmarcon/scoop-cuotai`, an AUR account for
    `cuotai-bin`) and set the repository variable that enables it:
@@ -661,16 +692,16 @@ by design, not by failure. Each channel job has an `if:` that requires a tag
 push, a stable tag **and** its enabling repository variable to equal the
 string `true` (`vars.PUBLISH_WINGET`, `vars.PUBLISH_AUR`, `vars.PUBLISH_CARGO`).
 Those variables were unset, so GitHub marks the job as skipped before it
-enters the `release` environment, and no secret check runs. Only
+enters the `channels` environment, and no secret check runs. Only
 `PUBLISH_HOMEBREW` was enabled, which is why the Homebrew job ran. (Its
 online audit then failed on the unauthenticated GitHub API rate limit; the
 audit step now passes the read-only job token as `HOMEBREW_GITHUB_API_TOKEN`.)
 
 What the owner must create before each skipped channel can run. Variables go
 in Settings → Secrets and variables → Actions → Variables (repository level);
-secrets go in the `release` environment. No value is ever committed.
+secrets go in the `channels` environment. No value is ever committed.
 
-| Channel | Accounts and repositories to create | Secret (`release` environment) | Variables |
+| Channel | Accounts and repositories to create | Secret (`channels` environment) | Variables |
 |---|---|---|---|
 | winget | A fork of `microsoft/winget-pkgs` under the owner's account; make the **first** submission by hand (PRD 0021 RF5.2) | `WINGET_SUBMIT_TOKEN`: token scoped to that fork only | `PUBLISH_WINGET=true`; later `WINGET_SUBMIT=true` for unattended pull requests |
 | AUR | An AUR account and the `cuotai-bin` package (first push by hand), with a dedicated SSH key registered on the account | `AUR_SSH_PRIVATE_KEY`: that key's private half | `PUBLISH_AUR=true` |

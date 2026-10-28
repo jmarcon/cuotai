@@ -12,7 +12,6 @@ use crate::{err, Error, Res};
 
 const RELEASE_JOBS: &[&str] = &[
     "check",
-    "release-prerequisites",
     "desktop-macos",
     "desktop-windows",
     "desktop-windows-arm64",
@@ -45,6 +44,22 @@ const RELEASE_HEAVY_JOBS: &[&str] = &[
     "sbom",
 ];
 
+const RELEASE_DESKTOP_JOBS: &[&str] = &[
+    "desktop-macos",
+    "desktop-windows",
+    "desktop-windows-arm64",
+    "desktop-linux",
+    "desktop-linux-arm64",
+];
+
+const CHANNEL_JOBS: &[&str] = &[
+    "channel-homebrew",
+    "channel-winget",
+    "channel-scoop",
+    "channel-cargo",
+    "channel-aur",
+];
+
 /// PRD 0021 RF6: the produced-artifact smoke jobs, each with the script it
 /// must run. `publish` waits for all of them.
 const RELEASE_SMOKE_JOBS: &[(&str, &str)] = &[
@@ -68,14 +83,7 @@ const PUBLISH_CONDITION: &str =
 const HEAVY_JOB_CONDITION: &str = "(github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)";
 const RELEASE_OR_REHEARSAL_ENVIRONMENT: &str =
     "${{ github.event_name == 'push' && 'release' || 'rehearsal' }}";
-const REHEARSAL_SECRET_JOBS: &[&str] = &[
-    "release-prerequisites",
-    "desktop-macos",
-    "desktop-windows",
-    "desktop-windows-arm64",
-    "desktop-linux",
-    "desktop-linux-arm64",
-];
+const REHEARSAL_SECRET_JOBS: &[&str] = RELEASE_DESKTOP_JOBS;
 
 const SECRET_OWNERS: &[(&str, &str, &str)] = &[
     (
@@ -165,12 +173,52 @@ const SECRET_OWNERS: &[(&str, &str, &str)] = &[
     ),
     (
         "TAURI_SIGNING_PRIVATE_KEY",
-        "release-prerequisites",
+        "desktop-macos",
         "Validate required release credentials",
     ),
     (
         "TAURI_SIGNING_PRIVATE_KEY_PASSWORD",
-        "release-prerequisites",
+        "desktop-macos",
+        "Validate required release credentials",
+    ),
+    (
+        "TAURI_SIGNING_PRIVATE_KEY",
+        "desktop-windows",
+        "Validate required release credentials",
+    ),
+    (
+        "TAURI_SIGNING_PRIVATE_KEY_PASSWORD",
+        "desktop-windows",
+        "Validate required release credentials",
+    ),
+    (
+        "TAURI_SIGNING_PRIVATE_KEY",
+        "desktop-windows-arm64",
+        "Validate required release credentials",
+    ),
+    (
+        "TAURI_SIGNING_PRIVATE_KEY_PASSWORD",
+        "desktop-windows-arm64",
+        "Validate required release credentials",
+    ),
+    (
+        "TAURI_SIGNING_PRIVATE_KEY",
+        "desktop-linux",
+        "Validate required release credentials",
+    ),
+    (
+        "TAURI_SIGNING_PRIVATE_KEY_PASSWORD",
+        "desktop-linux",
+        "Validate required release credentials",
+    ),
+    (
+        "TAURI_SIGNING_PRIVATE_KEY",
+        "desktop-linux-arm64",
+        "Validate required release credentials",
+    ),
+    (
+        "TAURI_SIGNING_PRIVATE_KEY_PASSWORD",
+        "desktop-linux-arm64",
         "Validate required release credentials",
     ),
     (
@@ -450,21 +498,41 @@ fn check_triggers(name: &str, root: &Mapping) -> Res<()> {
         }
     }
     if name == "ci.yml" {
-        // PRD 0039 RF8.1: pull requests, pushes to main, manual dispatch and
-        // merge groups; never tags (release.yml owns them) nor other branches.
+        // PRD 0039 RF8.1: pull requests, pushes to main and manual dispatch;
+        // never tags (release.yml owns them) nor other branches.
         let actual: BTreeSet<&str> = on
             .keys()
             .map(|key| string(key, "trigger"))
             .collect::<Res<_>>()?;
-        let expected = BTreeSet::from(["pull_request", "push", "workflow_dispatch", "merge_group"]);
+        let expected = BTreeSet::from(["pull_request", "push", "workflow_dispatch"]);
         if actual != expected {
             return err(
-                "ci.yml must trigger exactly on pull_request, push (main), workflow_dispatch and merge_group",
+                "ci.yml must trigger exactly on pull_request, push (main) and workflow_dispatch",
             );
         }
         let push = mapping(need(on, "push", "ci triggers")?, "ci push trigger")?;
         if push.len() != 1 || scalar_sequence(push, "branches")? != ["main"] {
             return err("ci.yml push trigger must be limited to the main branch (no tags)");
+        }
+    }
+    if name == "advisories.yml" {
+        let actual: BTreeSet<&str> = on
+            .keys()
+            .map(|key| string(key, "trigger"))
+            .collect::<Res<_>>()?;
+        let expected = BTreeSet::from(["schedule", "workflow_dispatch"]);
+        if actual != expected {
+            return err("advisories.yml may trigger only weekly and by workflow_dispatch");
+        }
+        let schedule = need(on, "schedule", "advisories triggers")?
+            .as_sequence()
+            .ok_or_else(|| Error::Msg("advisories schedule must be a sequence".into()))?;
+        if schedule.len() != 1 {
+            return err("advisories.yml must have exactly one weekly schedule");
+        }
+        let schedule = mapping(&schedule[0], "advisories schedule")?;
+        if scalar(schedule, "cron") != Some("41 6 * * 3") {
+            return err("advisories.yml must run weekly on Wednesday");
         }
     }
     if name == "external-rules.yml" {
@@ -611,14 +679,26 @@ fn check_job_secrets(job_name: &str, job: &Mapping) -> Res<()> {
             uses_environment_secret |= secret != "GITHUB_TOKEN";
         }
     }
+    let environment = scalar(job, "environment");
+    if CHANNEL_JOBS.contains(&job_name) {
+        if environment != Some("channels") {
+            return err(format!(
+                "channel job {job_name} must use the channels environment"
+            ));
+        }
+    } else if environment == Some("channels") {
+        return err(format!(
+            "non-channel job {job_name} must not use the channels environment"
+        ));
+    }
     if uses_environment_secret {
-        let environment = scalar(job, "environment");
         let allowed = environment == Some("release")
             || (REHEARSAL_SECRET_JOBS.contains(&job_name)
-                && environment == Some(RELEASE_OR_REHEARSAL_ENVIRONMENT));
+                && environment == Some(RELEASE_OR_REHEARSAL_ENVIRONMENT))
+            || (CHANNEL_JOBS.contains(&job_name) && environment == Some("channels"));
         if !allowed {
             return err(format!(
-                "job {job_name} must read owned secrets from release, or from the secretless rehearsal environment on dispatch"
+                "job {job_name} must read owned secrets from its checked release, channels or secretless-rehearsal environment"
             ));
         }
     }
@@ -680,59 +760,54 @@ fn check_release_policy(jobs: &Mapping) -> Res<()> {
         );
     }
 
-    let prerequisites = mapping(
-        need(jobs, "release-prerequisites", "release jobs")?,
-        "job release-prerequisites",
-    )?;
-    if scalar(prerequisites, "needs") != Some("check")
-        || normalized_condition(prerequisites) != HEAVY_JOB_CONDITION
-        || scalar(prerequisites, "environment") != Some(RELEASE_OR_REHEARSAL_ENVIRONMENT)
-    {
-        return err("release prerequisite gate must cover tag pushes and explicit full rehearsals");
-    }
-    let prerequisite_step = steps(prerequisites)?
-        .into_iter()
-        .find(|step| scalar(step, "name") == Some("Validate required release credentials"))
-        .ok_or_else(|| Error::Msg("release prerequisite validation step is missing".into()))?;
-    let prerequisite_env = mapping(
-        need(
-            prerequisite_step,
-            "env",
-            "release prerequisite validation step",
-        )?,
-        "release prerequisite validation environment",
-    )?;
-    for (name, expected) in [
-        (
-            "HAS_TAURI_SIGNING_PRIVATE_KEY",
-            "${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}",
-        ),
-        (
-            "HAS_TAURI_SIGNING_PRIVATE_KEY_PASSWORD",
-            "${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD != '' }}",
-        ),
-    ] {
-        if scalar(prerequisite_env, name) != Some(expected) {
-            return err(
-                "release prerequisite secrets must be inspected only during pushed tag runs",
-            );
-        }
-    }
-
     for job_name in RELEASE_HEAVY_JOBS {
         let job = mapping(
             need(jobs, job_name, "release jobs")?,
             &format!("job {job_name}"),
         )?;
-        if scalar_sequence(job, "needs")? != ["check", "release-prerequisites"] {
-            return err(format!(
-                "heavy job {job_name} must wait for the release prerequisite gate"
-            ));
+        if scalar(job, "needs") != Some("check") {
+            return err(format!("heavy job {job_name} must wait only for check"));
         }
         if normalized_condition(job) != HEAVY_JOB_CONDITION {
             return err(format!(
                 "heavy job {job_name} must run only for a pushed tag or explicit full rehearsal"
             ));
+        }
+    }
+
+    for job_name in RELEASE_DESKTOP_JOBS {
+        let job = mapping(
+            need(jobs, job_name, "release jobs")?,
+            &format!("job {job_name}"),
+        )?;
+        let first_step = steps(job)?
+            .into_iter()
+            .next()
+            .ok_or_else(|| Error::Msg(format!("desktop job {job_name} has no steps")))?;
+        if scalar(first_step, "name") != Some("Validate required release credentials") {
+            return err(format!(
+                "desktop job {job_name} must validate release credentials before build work"
+            ));
+        }
+        let validation_env = mapping(
+            need(first_step, "env", "release credential validation step")?,
+            "release credential validation environment",
+        )?;
+        for (name, expected) in [
+            (
+                "HAS_TAURI_SIGNING_PRIVATE_KEY",
+                "${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}",
+            ),
+            (
+                "HAS_TAURI_SIGNING_PRIVATE_KEY_PASSWORD",
+                "${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD != '' }}",
+            ),
+        ] {
+            if scalar(validation_env, name) != Some(expected) {
+                return err(format!(
+                    "desktop job {job_name} must inspect release credentials only during pushed tag runs"
+                ));
+            }
         }
     }
 
@@ -1177,6 +1252,7 @@ mod tests {
     const EXTERNAL_RULES_WORKFLOW: &str =
         include_str!("../../.github/workflows/external-rules.yml");
     const CODEQL_WORKFLOW: &str = include_str!("../../.github/workflows/codeql.yml");
+    const ADVISORIES_WORKFLOW: &str = include_str!("../../.github/workflows/advisories.yml");
 
     #[test]
     fn accepts_least_privilege_fixture() {
@@ -1187,6 +1263,7 @@ mod tests {
     fn accepts_repository_workflows() {
         assert!(check_text(Path::new("ci.yml"), CI_WORKFLOW).is_ok());
         assert!(check_text(Path::new("release.yml"), RELEASE_WORKFLOW).is_ok());
+        assert!(check_text(Path::new("advisories.yml"), ADVISORIES_WORKFLOW).is_ok());
         assert!(check_text(Path::new("external-rules.yml"), EXTERNAL_RULES_WORKFLOW).is_ok());
         assert!(check_text(Path::new("codeql.yml"), CODEQL_WORKFLOW).is_ok());
     }
@@ -1329,10 +1406,11 @@ mod tests {
     #[test]
     fn rejects_non_conjunctive_heavy_job_gate() {
         let unsafe_workflow = RELEASE_WORKFLOW.replacen(
-            "  desktop-macos:\n    name: desktop (macOS universal)\n    needs: [check, release-prerequisites]\n    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)",
-            "  desktop-macos:\n    name: desktop (macOS universal)\n    needs: [check, release-prerequisites]\n    if: github.event_name == 'push' || !startsWith(github.ref, 'refs/tags/')",
+            "  desktop-macos:\n    name: desktop (macOS universal)\n    needs: check\n    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)",
+            "  desktop-macos:\n    name: desktop (macOS universal)\n    needs: check\n    if: github.event_name == 'push' || !startsWith(github.ref, 'refs/tags/')",
             1,
         );
+        assert_ne!(unsafe_workflow, RELEASE_WORKFLOW);
         assert!(check_text(Path::new("release.yml"), &unsafe_workflow).is_err());
     }
 
@@ -1357,12 +1435,35 @@ mod tests {
     }
 
     #[test]
-    fn rejects_heavy_job_without_prerequisite_gate() {
+    fn rejects_heavy_job_with_an_extra_gate() {
         let unsafe_workflow = RELEASE_WORKFLOW.replacen(
-            "    needs: [check, release-prerequisites]\n",
-            "    needs: check\n",
+            "  desktop-macos:\n    name: desktop (macOS universal)\n    needs: check\n",
+            "  desktop-macos:\n    name: desktop (macOS universal)\n    needs: [check, assemble]\n",
             1,
         );
+        assert_ne!(unsafe_workflow, RELEASE_WORKFLOW);
+        assert!(check_text(Path::new("release.yml"), &unsafe_workflow).is_err());
+    }
+
+    #[test]
+    fn rejects_non_channel_job_in_channels_environment() {
+        let unsafe_workflow = RELEASE_WORKFLOW.replacen(
+            "    environment: ${{ github.event_name == 'push' && 'release' || 'rehearsal' }}\n",
+            "    environment: channels\n",
+            1,
+        );
+        assert_ne!(unsafe_workflow, RELEASE_WORKFLOW);
+        assert!(check_text(Path::new("release.yml"), &unsafe_workflow).is_err());
+    }
+
+    #[test]
+    fn rejects_channel_job_in_release_environment() {
+        let unsafe_workflow = RELEASE_WORKFLOW.replacen(
+            "    environment: channels\n",
+            "    environment: release\n",
+            1,
+        );
+        assert_ne!(unsafe_workflow, RELEASE_WORKFLOW);
         assert!(check_text(Path::new("release.yml"), &unsafe_workflow).is_err());
     }
 
@@ -1396,13 +1497,39 @@ mod tests {
     }
 
     #[test]
-    fn rejects_unguarded_prerequisite_secret_lookup() {
+    fn rejects_unguarded_release_credential_lookup() {
         let unsafe_workflow = RELEASE_WORKFLOW.replacen(
             "${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}",
             "${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}",
             1,
         );
         assert!(check_text(Path::new("release.yml"), &unsafe_workflow).is_err());
+    }
+
+    #[test]
+    fn rejects_desktop_build_that_validates_credentials_late() {
+        let unsafe_workflow = RELEASE_WORKFLOW.replacen(
+            "    steps:\n      - name: Validate required release credentials\n",
+            "    steps:\n      - run: echo build work first\n      - name: Validate required release credentials\n",
+            1,
+        );
+        assert_ne!(unsafe_workflow, RELEASE_WORKFLOW);
+        assert!(check_text(Path::new("release.yml"), &unsafe_workflow).is_err());
+    }
+
+    #[test]
+    fn rejects_advisories_trigger_drift() {
+        let wrong_schedule = ADVISORIES_WORKFLOW.replacen("41 6 * * 3", "41 6 * * 4", 1);
+        assert_ne!(wrong_schedule, ADVISORIES_WORKFLOW);
+        assert!(check_text(Path::new("advisories.yml"), &wrong_schedule).is_err());
+
+        let extra_trigger = ADVISORIES_WORKFLOW.replacen(
+            "  workflow_dispatch:\n",
+            "  workflow_dispatch:\n  push:\n",
+            1,
+        );
+        assert_ne!(extra_trigger, ADVISORIES_WORKFLOW);
+        assert!(check_text(Path::new("advisories.yml"), &extra_trigger).is_err());
     }
 
     #[test]

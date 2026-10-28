@@ -1,9 +1,9 @@
 # Continuous integration (PRD 0019 RF2, PRD 0039 RF8) on Linux, macOS and
 # Windows. It runs on pull requests (the quality gate before main), on pushes
 # to main (post-merge verification, cache warming, and the commit gate for a
-# push that bypassed the ruleset), on manual dispatch (any ref) and on merge
-# queue groups. A push to any other branch starts nothing: open a (draft) pull
-# request or dispatch the workflow. Tags start no CI run; release.yml owns them.
+# push that bypassed the ruleset), and on manual dispatch (any ref). A push to
+# any other branch starts nothing: open a (draft) pull request or dispatch the
+# workflow. Tags start no CI run; release.yml owns them.
 # Uses no secrets: `pull_request` (never `pull_request_target`) gives fork pull
 # requests a read-only token and no repository secrets. Actions are pinned by
 # commit hash (tag in the comment).
@@ -22,7 +22,6 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-  merge_group:
 
 permissions:
   contents: read
@@ -47,10 +46,10 @@ jobs:
   # Documentation-only detection. The heavy jobs below run only when
   # `code == true`. Anything that is not clearly documentation counts as code,
   # and so does every case where the diff cannot be computed (a dispatch, a
-  # merge group, a force push whose previous tip is gone, an empty diff such
-  # as `--allow-empty`). `release_tooling` (PRD 0039 RF8.2) is true when the
-  # change touches what the release flow runs (xtask, workflows, release
-  # scripts, packaging templates, the Tauri configs, deny.toml) and starts the
+  # force push whose previous tip is gone, or an empty diff such as
+  # `--allow-empty`). `release_tooling` (PRD 0039 RF8.2) is true when the change
+  # touches what the release flow runs (xtask, workflows, release scripts,
+  # packaging templates, the Tauri configs, deny.toml) and starts the
   # `release-preflight` job; it is also true whenever the diff is undecidable.
   # Documentation is an allow-list of paths that no build, test or shipped
   # artifact reads:
@@ -629,11 +628,11 @@ jobs:
       - name: end-to-end dry run against the mutated fixture
         run: cargo test --locked -p cuotai-tui --test canary
 
-  # Release preflight (PRD 0039 RF8.3): read-only, no secrets. Runs when the
-  # change touches release tooling and on every release PR (head branch
-  # release/v*), where it also proves the release commit with
-  # `release prepare --check`. The full artifact rehearsal stays manual
-  # (Actions -> Release -> Run workflow with full_rehearsal).
+  # Release preflight (PRD 0039 RF8.3): read-only, no secrets. Runs actionlint
+  # and the checked release policies when a change touches release tooling,
+  # and on every release PR (head branch release/v*), where it also proves the
+  # release commit with `release prepare --check`. The full artifact rehearsal
+  # stays manual (Actions -> Release -> Run workflow with full_rehearsal).
   release-preflight:
     needs: changes
     if: needs.changes.outputs.release_tooling == 'true' || startsWith(github.head_ref, 'release/v')
@@ -644,6 +643,20 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0 # the release base and the commits since it
+      - name: Lint GitHub Actions workflows
+        env:
+          ACTIONLINT_VERSION: "1.7.12"
+          ACTIONLINT_SHA256: "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+        run: |
+          set -euo pipefail
+          # Download and extract outside the checkout: the archive ships its own
+          # README.md and docs/*.md, which would overwrite the repository's
+          # release files that the later release steps read.
+          archive="$RUNNER_TEMP/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL -o "$archive" "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/$(basename "$archive")"
+          printf '%s  %s\n' "$ACTIONLINT_SHA256" "$archive" | sha256sum -c -
+          tar -xzf "$archive" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" -color .github/workflows/*.yml
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
         with:
           toolchain: 1.99.1
