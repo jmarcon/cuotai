@@ -28,18 +28,52 @@ pub fn parse(doc: &str) -> Res<Vec<Row>> {
     let Some((matrix, _)) = rest.split_once(MATRIX_END) else {
         return err("docs/providers.md has no access matrix end marker");
     };
+    let Some(header) = matrix.lines().find(|l| l.starts_with('|')) else {
+        return err("the access matrix has no header row");
+    };
+    let split = |line: &str| -> Vec<String> {
+        line.trim()
+            .trim_matches('|')
+            .split(" | ")
+            .map(|c| c.trim().to_string())
+            .collect()
+    };
+    // Columns are found by name, so a column the generator adds (such as
+    // `Overage`) does not break the check.
+    let names = split(header);
+    let column = |name: &str| -> Res<usize> {
+        names
+            .iter()
+            .position(|n| n == name)
+            .ok_or_else(|| crate::Error::Msg(format!("the access matrix has no '{name}' column")))
+    };
+    let (provider, mode, level, credential, verified_on) = (
+        column("Identifier")?,
+        column("Mode")?,
+        column("Level")?,
+        column("Credential")?,
+        column("Verified on")?,
+    );
     let mut rows = Vec::new();
-    for line in matrix.lines().filter(|l| l.starts_with("| `")) {
-        let cells: Vec<&str> = line.trim_matches('|').split(" | ").map(str::trim).collect();
-        if cells.len() != 8 {
-            return err(format!("matrix row has {} cells, expected 8", cells.len()));
+    for line in matrix
+        .lines()
+        .filter(|l| l.starts_with('|') && !l.starts_with("|-"))
+        .skip(1)
+    {
+        let cells = split(line);
+        if cells.len() != names.len() {
+            return err(format!(
+                "matrix row has {} cells, expected {}",
+                cells.len(),
+                names.len()
+            ));
         }
         rows.push(Row {
-            provider: cells[0].trim_matches('`').to_string(),
-            mode: cells[1].to_string(),
-            level: cells[2].to_string(),
-            credential: cells[3].to_string(),
-            verified_on: cells[7].to_string(),
+            provider: cells[provider].trim_matches('`').to_string(),
+            mode: cells[mode].clone(),
+            level: cells[level].clone(),
+            credential: cells[credential].clone(),
+            verified_on: cells[verified_on].clone(),
         });
     }
     if rows.is_empty() {
@@ -218,13 +252,42 @@ mod tests {
     use super::*;
 
     const DOC: &str = "x\n<!-- access-matrix:start (generated) -->\n\
-| Identifier | Mode | Level | Credential | Plan | Scope | Evidence | Verified on |\n\
-|---|---|---|---|---|---|---|---|\n\
-| `claude` | default | Undocumented | Subscription session | — | Account | e | 2026-01-01 |\n\
-| `groq` | default | Derived | Inference key | — | Organization | e | 2025-01-01 |\n\
-| `alibaba_token_plan` | `session_env` set | Official | User session | — | Account | e | 2026-06-01 |\n\
-| `open_ai_api` | default | Official | Admin key | — | Organization | e | 2026-10-20 |\n\
+| Identifier | Mode | Level | Credential | Plan | Scope | Evidence | Verified on | Overage |\n\
+|---|---|---|---|---|---|---|---|---|\n\
+| `claude` | default | Undocumented | Subscription session | — | Account | e | 2026-01-01 | reported |\n\
+| `groq` | default | Derived | Inference key | — | Organization | e | 2025-01-01 | not reported |\n\
+| `alibaba_token_plan` | `session_env` set | Official | User session | — | Account | e | 2026-06-01 | not reported |\n\
+| `open_ai_api` | default | Official | Admin key | — | Organization | e | 2026-10-20 | not reported |\n\
 <!-- access-matrix:end -->\ny\n";
+
+    #[test]
+    fn columns_are_found_by_header_name() {
+        let doc = "<!-- access-matrix:start -->\n\
+| Mode | Identifier | Verified on | Credential | Level |\n\
+|---|---|---|---|---|\n\
+| default | `claude` | 2026-01-01 | Subscription session | Undocumented |\n\
+<!-- access-matrix:end -->\n";
+        let rows = parse(doc).unwrap();
+        assert_eq!(rows[0].provider, "claude");
+        assert_eq!(rows[0].verified_on, "2026-01-01");
+        let ragged = DOC.replace(" | reported |", " | reported | extra |");
+        let error = parse(&ragged).unwrap_err().to_string();
+        assert!(error.contains("10 cells, expected 9"), "{error}");
+        let missing = DOC.replace("| Verified on |", "| Checked |");
+        assert!(parse(&missing)
+            .unwrap_err()
+            .to_string()
+            .contains("'Verified on'"));
+    }
+
+    #[test]
+    fn the_repository_matrix_parses() {
+        let doc = std::fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../docs/providers.md"),
+        )
+        .unwrap();
+        assert!(parse(&doc).unwrap().len() > 10);
+    }
 
     #[test]
     fn day_numbers_follow_the_calendar() {
