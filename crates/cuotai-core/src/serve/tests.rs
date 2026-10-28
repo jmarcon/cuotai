@@ -1536,14 +1536,14 @@ async fn stats_answers_redacted_figures_for_a_valid_range() {
     assert_eq!(response.status(), StatusCode::OK);
     assert_json_no_store(&response);
     let body = response.text().await.unwrap();
-    for secret in [
+    for needle in [
         "alice@example.com",
         "hunter2",
         "sk-1",
         "https://",
         "CLAUDE_SECRET_ENV",
     ] {
-        assert!(!body.contains(secret), "{secret} leaked: {body}");
+        assert!(!body.contains(needle), "{needle} leaked: {body}");
     }
     let value: Value = serde_json::from_str(&body).unwrap();
     assert_eq!(value["range"], "7d");

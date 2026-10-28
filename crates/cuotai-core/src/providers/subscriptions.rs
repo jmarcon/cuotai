@@ -1167,10 +1167,10 @@ mod tests {
             serde_json::json!({ "is_enabled": true, "monthly_limit": null, "used_credits": null }),
             serde_json::Value::Null,
         ] {
-            let metrics = claude_extra(extra).await;
+            let metrics = claude_extra(extra.clone()).await;
             assert!(
                 metrics.iter().all(|m| m.billing == Billing::Included),
-                "{metrics:?}"
+                "an extra metric for {extra}"
             );
         }
         // Enabled with nothing spent: a real zero, still overage.

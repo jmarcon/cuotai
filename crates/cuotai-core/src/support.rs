@@ -383,8 +383,8 @@ mod tests {
         assert_eq!(pairs["provider"], "claude");
         assert!(!draft.copy_only);
         for text in [&draft.title, &draft.body, &draft.url] {
-            for secret in ["SEEDED", "example.com", "sk-live", "ana@"] {
-                assert!(!text.contains(secret), "{secret} leaked in {text}");
+            for needle in ["SEEDED", "example.com", "sk-live", "ana@"] {
+                assert!(!text.contains(needle), "{needle} leaked in {text}");
             }
         }
         let all = format!("{}{}", draft.body, decoded.query().unwrap());

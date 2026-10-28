@@ -503,7 +503,7 @@ fn every_paste_format_keeps_only_the_accepted_cookies() {
             let shown = format!("{reduced:?} {}", reduced.summary(now()).resolve("en-US"));
             assert!(
                 !shown.contains("SECRET") && !shown.contains("DISCARDED"),
-                "{format}: {shown}"
+                "{format}: the debug form or the summary shows a cookie value"
             );
         }
     }

@@ -323,8 +323,8 @@ mod tests {
     #[test]
     fn no_seeded_secret_survives() {
         let out = run("claude", &sample().to_string(), Options::default()).unwrap();
-        for secret in SECRETS.iter().chain(&["bob@corp.io"]) {
-            assert!(!out.contains(secret), "{secret} leaked:\n{out}");
+        for needle in SECRETS.iter().chain(&["bob@corp.io"]) {
+            assert!(!out.contains(needle), "{needle} leaked:\n{out}");
         }
         assert!(!out.contains("Acme"));
     }

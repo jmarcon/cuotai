@@ -1460,7 +1460,7 @@ pub(crate) fn outcome_text(outcome: &TestOutcome) -> Localized {
 /// capture verifier completes a handshake (and reads the certificate's
 /// fingerprint) where the real one failed. Nothing but the public health
 /// route is requested.
-async fn certificate_outcome(instance: &Instance<'_>, trust: &tls::TlsMode) -> TestOutcome {
+async fn handshake_outcome(instance: &Instance<'_>, trust: &tls::TlsMode) -> TestOutcome {
     if instance.base.scheme() != "https" {
         return TestOutcome::Unreachable;
     }
@@ -1544,7 +1544,7 @@ pub(crate) async fn test_connection_at(
                 super::read_json::<Value>(response).await.ok()
             }
             Ok(_) => return TestOutcome::Unreachable,
-            Err(_) => return certificate_outcome(&instance, &trust).await,
+            Err(_) => return handshake_outcome(&instance, &trust).await,
         },
         Err(_) => return TestOutcome::Unreachable,
     };
@@ -1641,13 +1641,14 @@ mod tests {
             .unwrap()
     }
 
-    fn account(server: &MockServer, password: bool, extra: &[(&str, &str)]) -> Account {
+    /// `env_set`: the account names the test password variable (`credential_env`).
+    fn account(server: &MockServer, env_set: bool, extra: &[(&str, &str)]) -> Account {
         let mut params = BTreeMap::from([("base_url".to_string(), server.uri())]);
         params.extend(extra.iter().map(|(k, v)| (k.to_string(), v.to_string())));
         Account {
             name: "home".into(),
             provider: Provider::NineRouter,
-            credential_env: password.then(|| "TEST_NINE_ROUTER_PASSWORD".into()),
+            credential_env: env_set.then(|| "TEST_NINE_ROUTER_PASSWORD".into()),
             params,
             ..Account::default()
         }

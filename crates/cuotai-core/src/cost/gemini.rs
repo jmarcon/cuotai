@@ -179,8 +179,8 @@ mod tests {
             }
         );
         let shown = format!("{entry:?}");
-        for secret in ["SENSITIVE", "abc-session", "Users", "m2"] {
-            assert!(!shown.contains(secret), "{secret} leaked: {shown}");
+        for needle in ["SENSITIVE", "abc-session", "Users", "m2"] {
+            assert!(!shown.contains(needle), "{needle} leaked: {shown}");
         }
         assert!(entry.dedup.is_some());
         assert_eq!(entry.at.to_rfc3339(), "2026-10-01T09:00:05+00:00");

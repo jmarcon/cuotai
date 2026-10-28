@@ -223,7 +223,7 @@ enum DeletionState {
         index: usize,
         outcome: Box<RemoveOutcome>,
         /// What happened to the extension's secrets, when they were asked for.
-        secrets_note: Option<String>,
+        vault_note: Option<String>,
     },
 }
 
@@ -2666,10 +2666,10 @@ fn render_deletion(state_: &DeletionState, file: &ConfigFile) -> (&'static str, 
         DeletionState::Result {
             index,
             outcome,
-            secrets_note,
+            vault_note,
         } => {
             let (mut body, footer) = render_deletion_result(*index, outcome);
-            if let Some(note) = secrets_note {
+            if let Some(note) = vault_note {
                 body = format!("{body}\n\n{note}");
             }
             (tr("ui.delete.result.title", " Result "), body, footer)
@@ -3159,12 +3159,12 @@ fn run_remove_account(
             state.details = false;
             // PRD 0028 RF7.4: the account is gone; the extension's vault
             // secrets go only when the user asked for it.
-            let secrets_note = forget_secrets
-                .map(|id| forget_extension_secrets_note(monitor, session.as_ref(), &id));
+            let vault_note = forget_secrets
+                .map(|id| forget_extension_vault_note(monitor, session.as_ref(), &id));
             *state_ = DeletionState::Result {
                 index,
                 outcome: Box::new(outcome),
-                secrets_note,
+                vault_note,
             };
             // Keep the dialog open so the user reads the outcome.
             false
@@ -3209,7 +3209,7 @@ fn already_removed() -> &'static str {
 }
 
 /// Deletes the vault secrets of extension `id` and words the result.
-fn forget_extension_secrets_note(monitor: &Monitor, session: &OAuthSession, id: &str) -> String {
+fn forget_extension_vault_note(monitor: &Monitor, session: &OAuthSession, id: &str) -> String {
     let Some(manager) = monitor.extension_manager() else {
         return tr(
             "ui.delete.secrets.unavailable",
@@ -3845,7 +3845,7 @@ mod tests {
                     storage_key: None,
                     sessions_removed: false,
                 })),
-                secrets_note: Some("2 segredo(s) apagado(s)".into()),
+                vault_note: Some("2 segredo(s) apagado(s)".into()),
             },
             &file,
         );
@@ -3877,7 +3877,7 @@ mod tests {
             Arc::new(cuotai_core::EnvironmentCredentials),
         )
         .unwrap();
-        let note = forget_extension_secrets_note(&monitor, &session, "acme-usage");
+        let note = forget_extension_vault_note(&monitor, &session, "acme-usage");
         // Nothing was stored, so nothing is reported as deleted.
         assert!(note.starts_with("0 segredo(s)"), "{note}");
         let _ = std::fs::remove_file(path);

@@ -1456,15 +1456,15 @@ credential_env = "ALIBABA_CLOUD_ACCESS_KEY_ID"
     /// contract of the quota interface.
     #[test]
     fn every_listing_has_evidence_and_no_static_list_remains() {
-        for account in matrix_accounts() {
+        for case in matrix_variants() {
             let at = format!(
                 "{:?} {:?} {}",
-                account.provider,
-                account.params,
-                account.oauth.is_some()
+                case.provider,
+                case.params,
+                case.oauth.is_some()
             );
-            let listed = support(&account).is_ok();
-            let found = evidence(&account);
+            let listed = support(&case).is_ok();
+            let found = evidence(&case);
             assert_eq!(found.is_some(), listed, "{at}");
             if let Some(found) = found {
                 let url = found.evidence.url();
@@ -1516,7 +1516,7 @@ credential_env = "ALIBABA_CLOUD_ACCESS_KEY_ID"
     }
 
     /// Accounts for every provider and interface-switching mode.
-    fn matrix_accounts() -> Vec<Account> {
+    fn matrix_variants() -> Vec<Account> {
         let modes: [&[(&str, &str)]; 5] = [
             &[],
             &[("product", "cli")],
@@ -1553,7 +1553,7 @@ credential_env = "ALIBABA_CLOUD_ACCESS_KEY_ID"
         );
         for provider in Provider::ALL {
             let mut rows: Vec<(Vec<String>, String)> = Vec::new();
-            for account in matrix_accounts()
+            for account in matrix_variants()
                 .into_iter()
                 .filter(|a| a.provider == provider)
             {

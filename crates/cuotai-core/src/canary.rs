@@ -848,7 +848,7 @@ mod tests {
                 .map(|d| format!("{}{}{}", d.title, d.body, d.url))
                 .collect::<String>()
         );
-        for secret in [
+        for needle in [
             "SEEDED",
             "ana@",
             "example.com",
@@ -857,7 +857,7 @@ mod tests {
             "1234567890",
             "123456.789",
         ] {
-            assert!(!all.contains(secret), "{secret} leaked:\n{all}");
+            assert!(!all.contains(needle), "{needle} leaked:\n{all}");
         }
     }
 

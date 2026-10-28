@@ -1698,7 +1698,7 @@ mod tests {
         for metric in &data.metrics {
             haystack.push_str(&format!("{metric:?}"));
         }
-        for secret in [
+        for needle in [
             KEY,
             "Bearer",
             "sk-or-v1-abc",
@@ -1706,15 +1706,15 @@ mod tests {
             "org_secret",
             "127.0.0.1",
         ] {
-            assert!(!haystack.contains(secret), "leaked {secret}");
+            assert!(!haystack.contains(needle), "leaked {needle}");
         }
         for error in [
             key_err(ResponseTemplate::new(401)).await,
             key_err(ResponseTemplate::new(500)).await,
         ] {
             let text = format!("{error:?}");
-            for secret in [KEY, "Bearer", "127.0.0.1"] {
-                assert!(!text.contains(secret), "leaked {secret}");
+            for needle in [KEY, "Bearer", "127.0.0.1"] {
+                assert!(!text.contains(needle), "leaked {needle}");
             }
         }
     }
