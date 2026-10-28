@@ -155,5 +155,5 @@ At each step: `cargo fmt`, `clippy -D warnings`, workspace and desktop tests; a 
 
 ### Owner decisions (2026-10-25)
 
-- **TOML tolerance for `budgets` and `floors` ships in the current release: yes.** The keys are accepted and ignored by the release that precedes this PRD (PRD 0029 RF0 tolerance list), so the version that delivers budgets is downgrade-safe; delivered in vNEXT (the account table accepts and ignores the key).
+- **TOML tolerance for `budgets` and `floors` ships in the current release: yes.** The keys are accepted and ignored by the release that precedes this PRD (PRD 0029 RF0 tolerance list), so the version that delivers budgets is downgrade-safe; delivered in 0.81.0 (the account table accepts and ignores the key).
 - Scheduled for the next version, not this release.

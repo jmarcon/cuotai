@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0038 |
-| Status | Awaiting owner verification (RF1–RF14 delivered in vNEXT; the real-account unit check of RF5.4 and RF13.1 is the owner's, and RF10 is resolved as not available upstream) |
+| Status | Awaiting owner verification (RF1–RF14 delivered in 0.81.0; the real-account unit check of RF5.4 and RF13.1 is the owner's, and RF10 is resolved as not available upstream) |
 | Owner | `cuotai-core` (`model`, `providers/open_router.rs`, `access`, `account_edit`, `incidents`, `models`, locales), desktop and TUI (generic rendering only) |
 | Consumers | `apps/desktop` (cards, details, account dialog, tray), `crates/cuotai-tui` (cards, details, `--once`, wizard), `export::v1` and `--watch` consumers, PRDs 0002, 0006, 0007, 0008, 0011, 0027 |
 | Depends on | PRD 0005 (RF1: the mandatory access descriptor) |
@@ -18,20 +18,20 @@
 
 | RF | Version | Delivery |
 |---|---|---|
-| RF1 | vNEXT | Provider variant, dispatch, adapter, `product` and `breakdown` validation, example TOML, issue template and desktop brand. |
-| RF2 | vNEXT | Key cap, budget layers and reset, with fixtures F1 to F5. |
-| RF3 | vNEXT | Spend by period and BYOK. |
-| RF4 | vNEXT | Free-model counter (`Quota` for free-tier keys, `Usage` otherwise; `classify_report` no longer lets an exhausted `Usage` counter exhaust an account). |
-| RF5 | vNEXT | Credit balance without a gauge, in "credits" (no `$`); RF5.4 (real-account unit check) is owner-blocked. |
-| RF6 | vNEXT | Optional `/activity` breakdown by provider or model, cached per UTC day; failure keeps the balance. |
-| RF7 | vNEXT | Error classification and wrong-key-class diagnosis. `429` is `RateLimited`; a `Retry-After` (seconds or HTTP date, capped at 24 h) rides on the note as the `retry_after_seconds` parameter (`QueryError::with_retry_after`, `Report::retry_after`) and `RefreshCycle` delays only that account when it exceeds the computed backoff. Generic: any adapter can opt in. |
-| RF8 | vNEXT | Access arms (key and account), texts in every core catalog and the regenerated matrices. |
-| RF9 | vNEXT | Eligibility verified by the fixtures; `overage::assess` is unchanged. |
-| RF10 | vNEXT | Resolved as **not available upstream** (read-only check, 2026-10-25): `status.openrouter.ai` is a Datadog Status Pages SPA; `/api/v2/summary.json`, `/api/v2/components.json`, `/feed.rss`, `/index.json`, `/proxy/status.openrouter.ai` and `/robots.txt` return `403 AccessDenied`, `/history.rss` returns `404`, `/api/v1/summary` returns the HTML shell, and the page script reads an undocumented internal `config.json` asset (its only data routes) with no public API. `incidents::source` stays `None` by PRD 0011's never-guess rule; the registry document records the evidence. |
-| RF11 | vNEXT | Live model listing for the key view (`offset` pages, `output_modalities=all`); `Unsupported` for the account view. |
-| RF12 | vNEXT | One catalog entry (category Router, aliases `openrouter`, `open router`, `router`, `or`) with a native sign-in and a key mode; the product (key or account) is chosen in the account form instead of a second entry. |
-| RF13 | vNEXT | Fixtures F1 to F23 in `providers/open_router.rs`; RF13.1 (real-account check) is owner-blocked. |
-| RF14 | vNEXT | Documentation, example config, this status and the control row. |
+| RF1 | 0.81.0 | Provider variant, dispatch, adapter, `product` and `breakdown` validation, example TOML, issue template and desktop brand. |
+| RF2 | 0.81.0 | Key cap, budget layers and reset, with fixtures F1 to F5. |
+| RF3 | 0.81.0 | Spend by period and BYOK. |
+| RF4 | 0.81.0 | Free-model counter (`Quota` for free-tier keys, `Usage` otherwise; `classify_report` no longer lets an exhausted `Usage` counter exhaust an account). |
+| RF5 | 0.81.0 | Credit balance without a gauge, in "credits" (no `$`); RF5.4 (real-account unit check) is owner-blocked. |
+| RF6 | 0.81.0 | Optional `/activity` breakdown by provider or model, cached per UTC day; failure keeps the balance. |
+| RF7 | 0.81.0 | Error classification and wrong-key-class diagnosis. `429` is `RateLimited`; a `Retry-After` (seconds or HTTP date, capped at 24 h) rides on the note as the `retry_after_seconds` parameter (`QueryError::with_retry_after`, `Report::retry_after`) and `RefreshCycle` delays only that account when it exceeds the computed backoff. Generic: any adapter can opt in. |
+| RF8 | 0.81.0 | Access arms (key and account), texts in every core catalog and the regenerated matrices. |
+| RF9 | 0.81.0 | Eligibility verified by the fixtures; `overage::assess` is unchanged. |
+| RF10 | 0.81.0 | Resolved as **not available upstream** (read-only check, 2026-10-25): `status.openrouter.ai` is a Datadog Status Pages SPA; `/api/v2/summary.json`, `/api/v2/components.json`, `/feed.rss`, `/index.json`, `/proxy/status.openrouter.ai` and `/robots.txt` return `403 AccessDenied`, `/history.rss` returns `404`, `/api/v1/summary` returns the HTML shell, and the page script reads an undocumented internal `config.json` asset (its only data routes) with no public API. `incidents::source` stays `None` by PRD 0011's never-guess rule; the registry document records the evidence. |
+| RF11 | 0.81.0 | Live model listing for the key view (`offset` pages, `output_modalities=all`); `Unsupported` for the account view. |
+| RF12 | 0.81.0 | One catalog entry (category Router, aliases `openrouter`, `open router`, `router`, `or`) with a native sign-in and a key mode; the product (key or account) is chosen in the account form instead of a second entry. |
+| RF13 | 0.81.0 | Fixtures F1 to F23 in `providers/open_router.rs`; RF13.1 (real-account check) is owner-blocked. |
+| RF14 | 0.81.0 | Documentation, example config, this status and the control row. |
 
 ## 1. Context
 
