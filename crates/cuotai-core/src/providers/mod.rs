@@ -123,8 +123,13 @@ impl Data {
                 .map(|s| &s.label)
                 .collect::<Vec<_>>(),
         );
-        for id in seeded {
-            assert!(!text.contains(id), "{id} leaked into the report: {text}");
+        // The message names the seeded position only: the report text derives from
+        // the account's credentials and is never printed.
+        for (at, id) in seeded.iter().enumerate() {
+            assert!(
+                !text.contains(id),
+                "seeded value {at} leaked into the report"
+            );
         }
     }
 }
