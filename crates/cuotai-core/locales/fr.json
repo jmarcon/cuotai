@@ -1076,6 +1076,7 @@
   "note.meta.rate_limit_headers_missing": "Cette réponse ne contenait pas d’en-têtes `x-ratelimit-*` ; la fenêtre de limite de l’équipe est inconnue.",
   "note.meta.rate_limit_team": "Les limites de débit s’appliquent par équipe et sont partagées par toutes les clés de l’équipe.",
   "note.meta.no_usage_api": "Meta ne documente aucune API d’usage, de dépenses ou de solde ; consultez l’usage et la facturation dans la console dev.meta.ai.",
+  "note.meta.no_key_session_only": "Aucune clé API pour ce compte ; l'usage provient de la session dev.meta.ai et la vérification de la clé est ignorée.",
   "note.meta.sign_in_for_usage": "Meta ne documente aucune API d'utilisation, de dépense ou de solde ; connectez-vous à dev.meta.ai depuis le compte pour lire l'utilisation de la console.",
   "note.meta.console_undocumented": "Utilisation lue dans l'interface interne de la console dev.meta.ai ; peut changer sans préavis.",
   "note.meta.teams_unavailable": "La console dev.meta.ai n'a pas listé les équipes ; indiquez \"ID de l'équipe\" d'après l'adresse de la page d'utilisation.",

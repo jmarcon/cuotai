@@ -1076,6 +1076,7 @@
   "note.meta.rate_limit_headers_missing": "इस जवाब में `x-ratelimit-*` हेडर नहीं थे; टीम की रेट लिमिट विंडो अज्ञात है।",
   "note.meta.rate_limit_team": "रेट लिमिट टीम के हिसाब से है और टीम की सभी कुंजियाँ इसे साझा करती हैं।",
   "note.meta.no_usage_api": "Meta उपयोग, खर्च या बैलेंस का कोई API दस्तावेज़ित नहीं करता; उपयोग और बिलिंग dev.meta.ai कंसोल में देखें।",
+  "note.meta.no_key_session_only": "इस खाते के लिए कोई API कुंजी नहीं है; उपयोग dev.meta.ai सत्र से आता है और कुंजी जाँच छोड़ दी जाती है।",
   "note.meta.sign_in_for_usage": "Meta उपयोग, खर्च या शेष राशि का कोई API प्रलेखित नहीं करता; कंसोल का उपयोग पढ़ने के लिए खाते से dev.meta.ai में साइन इन करें।",
   "note.meta.console_undocumented": "उपयोग dev.meta.ai कंसोल के आंतरिक इंटरफ़ेस से पढ़ा गया; यह बिना सूचना के बदल सकता है।",
   "note.meta.teams_unavailable": "dev.meta.ai कंसोल ने टीमों की सूची नहीं दी; उपयोग पेज के पते से \"टीम ID\" सेट करें।",

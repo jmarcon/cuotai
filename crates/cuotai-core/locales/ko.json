@@ -1071,6 +1071,7 @@
   "note.meta.rate_limit_headers_missing": "이 응답에 `x-ratelimit-*` 헤더가 없습니다. 팀의 요청 제한 기간을 알 수 없습니다.",
   "note.meta.rate_limit_team": "요청 제한은 팀 단위이며 팀의 모든 키가 공유합니다.",
   "note.meta.no_usage_api": "Meta는 사용량, 지출, 잔액 API를 문서화하지 않습니다. 사용량과 청구는 dev.meta.ai 콘솔에서 확인하세요.",
+  "note.meta.no_key_session_only": "이 계정에는 API 키가 없습니다. 사용량은 dev.meta.ai 세션에서 가져오며 키 확인은 건너뜁니다.",
   "note.meta.sign_in_for_usage": "Meta는 사용량, 지출, 잔액 API를 문서화하지 않습니다. 콘솔 사용량을 읽으려면 계정에서 dev.meta.ai에 로그인하세요.",
   "note.meta.console_undocumented": "dev.meta.ai 콘솔의 내부 인터페이스에서 읽은 사용량입니다. 예고 없이 바뀔 수 있습니다.",
   "note.meta.teams_unavailable": "dev.meta.ai 콘솔이 팀 목록을 주지 않았습니다. 사용량 페이지 주소에서 \"팀 ID\"를 설정하세요.",

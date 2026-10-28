@@ -1071,6 +1071,7 @@
   "note.meta.rate_limit_headers_missing": "Phản hồi này không có header `x-ratelimit-*`; khung rate limit của nhóm chưa rõ.",
   "note.meta.rate_limit_team": "Rate limit tính theo nhóm và được mọi khóa của nhóm dùng chung.",
   "note.meta.no_usage_api": "Meta không công bố API sử dụng, chi tiêu hay số dư; xem mức sử dụng và thanh toán trong bảng điều khiển dev.meta.ai.",
+  "note.meta.no_key_session_only": "Tài khoản này không có khóa API; mức dùng lấy từ phiên dev.meta.ai và bỏ qua bước kiểm tra khóa.",
   "note.meta.sign_in_for_usage": "Meta không công bố API mức dùng, chi tiêu hay số dư; hãy đăng nhập dev.meta.ai từ tài khoản để đọc mức dùng của bảng điều khiển.",
   "note.meta.console_undocumented": "Mức dùng được đọc từ giao diện nội bộ của bảng điều khiển dev.meta.ai; có thể thay đổi mà không báo trước.",
   "note.meta.teams_unavailable": "Bảng điều khiển dev.meta.ai không liệt kê các nhóm; hãy đặt \"ID nhóm\" theo địa chỉ trang mức dùng.",

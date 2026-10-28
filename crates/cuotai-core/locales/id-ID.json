@@ -1071,6 +1071,7 @@
   "note.meta.rate_limit_headers_missing": "Respons ini tidak membawa header `x-ratelimit-*`; jendela rate limit tim tidak diketahui.",
   "note.meta.rate_limit_team": "Rate limit berlaku per tim dan dipakai bersama oleh semua kunci tim.",
   "note.meta.no_usage_api": "Meta tidak mendokumentasikan API penggunaan, pengeluaran, atau saldo; lihat penggunaan dan tagihan di konsol dev.meta.ai.",
+  "note.meta.no_key_session_only": "Tidak ada kunci API untuk akun ini; pemakaian berasal dari sesi dev.meta.ai dan pemeriksaan kunci dilewati.",
   "note.meta.sign_in_for_usage": "Meta tidak mendokumentasikan API penggunaan, pengeluaran, atau saldo; masuk ke dev.meta.ai dari akun untuk membaca penggunaan konsol.",
   "note.meta.console_undocumented": "Penggunaan dibaca dari antarmuka internal konsol dev.meta.ai; dapat berubah tanpa pemberitahuan.",
   "note.meta.teams_unavailable": "Konsol dev.meta.ai tidak menampilkan daftar tim; atur \"ID tim\" dari alamat halaman penggunaan.",

@@ -1076,6 +1076,7 @@
   "note.meta.rate_limit_headers_missing": "Diese Antwort enthielt keine Header `x-ratelimit-*`; das Ratenlimit-Fenster des Teams ist unbekannt.",
   "note.meta.rate_limit_team": "Ratenlimits gelten pro Team und werden von allen Schlüsseln des Teams geteilt.",
   "note.meta.no_usage_api": "Meta dokumentiert keine API für Nutzung, Ausgaben oder Guthaben; Nutzung und Abrechnung stehen in der Konsole dev.meta.ai.",
+  "note.meta.no_key_session_only": "Kein API-Schlüssel für dieses Konto; die Nutzung kommt aus der dev.meta.ai-Sitzung und die Schlüsselprüfung entfällt.",
   "note.meta.sign_in_for_usage": "Meta dokumentiert keine Nutzungs-, Ausgaben- oder Guthaben-API; melden Sie sich im Konto bei dev.meta.ai an, um die Nutzung der Konsole zu lesen.",
   "note.meta.console_undocumented": "Nutzung aus der internen Schnittstelle der dev.meta.ai-Konsole; kann sich ohne Ankündigung ändern.",
   "note.meta.teams_unavailable": "Die dev.meta.ai-Konsole hat die Teams nicht aufgelistet; setzen Sie \"Team-ID\" aus der Adresse der Nutzungsseite.",

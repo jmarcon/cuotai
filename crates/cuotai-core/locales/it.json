@@ -680,6 +680,7 @@
   "note.meta.rate_limit_headers_missing": "Questa risposta non conteneva header `x-ratelimit-*`; la finestra di rate limit del team è sconosciuta.",
   "note.meta.rate_limit_team": "I rate limit valgono per team e sono condivisi da tutte le chiavi del team.",
   "note.meta.no_usage_api": "Meta non documenta un'API di utilizzo, spesa o saldo; vedi utilizzo e fatturazione nella console dev.meta.ai.",
+  "note.meta.no_key_session_only": "Nessuna chiave API per questo account; l'utilizzo arriva dalla sessione di dev.meta.ai e il controllo della chiave viene saltato.",
   "note.meta.sign_in_for_usage": "Meta non documenta un'API di utilizzo, spesa o saldo; accedi a dev.meta.ai dall'account per leggere l'utilizzo della console.",
   "note.meta.console_undocumented": "Utilizzo letto dall'interfaccia interna della console dev.meta.ai; può cambiare senza preavviso.",
   "note.meta.teams_unavailable": "La console dev.meta.ai non ha elencato i team; imposta \"ID del team\" dall'indirizzo della pagina di utilizzo.",

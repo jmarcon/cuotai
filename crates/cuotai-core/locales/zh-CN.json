@@ -1071,6 +1071,7 @@
   "note.meta.rate_limit_headers_missing": "此响应没有 `x-ratelimit-*` 标头；团队的速率限制窗口未知。",
   "note.meta.rate_limit_team": "速率限制按团队计算，由团队的所有密钥共享。",
   "note.meta.no_usage_api": "Meta 未公开用量、支出或余额 API；请在 dev.meta.ai 控制台查看用量和账单。",
+  "note.meta.no_key_session_only": "此账户没有 API 密钥；用量来自 dev.meta.ai 会话，并跳过密钥检查。",
   "note.meta.sign_in_for_usage": "Meta 未提供有文档的用量、支出或余额 API；请在账户中登录 dev.meta.ai 以读取控制台用量。",
   "note.meta.console_undocumented": "用量读取自 dev.meta.ai 控制台的内部接口；可能随时变更，恕不另行通知。",
   "note.meta.teams_unavailable": "dev.meta.ai 控制台未列出团队；请根据用量页面地址设置 \"团队 ID\"。",

@@ -64,7 +64,20 @@ pub(crate) async fn fetch_at(
 ) -> Result<Data, QueryError> {
     // A malformed session is refused before any request.
     let session = super::web_session(account, ctx, SESSION_SLOT)?;
-    let (mut metrics, mut notes) = key_check(account, ctx, models_url).await?;
+    // The console session reads usage on its own; without a key the key
+    // check is skipped instead of failing the whole account (the session
+    // test before save runs with the typed session only).
+    let has_key = secret(account, ctx, "META_API_KEY").is_ok();
+    let (mut metrics, mut notes) = if session.is_some() && !has_key {
+        let mut notes = Notes::new();
+        notes.push(
+            "note.meta.no_key_session_only",
+            "No API key for this account; usage comes from the dev.meta.ai session and the key check is skipped.",
+        );
+        (Vec::new(), notes)
+    } else {
+        key_check(account, ctx, models_url).await?
+    };
     match session {
         Some(session) => {
             let usage = console_usage(account, ctx, console, &session.cookie).await?;
@@ -818,6 +831,50 @@ mod tests {
             &server.uri(),
         )
         .await
+    }
+
+    struct SessionOnly;
+    impl Credentials for SessionOnly {
+        fn get(&self, name: &str) -> Option<String> {
+            (name == "META_SESSION").then(|| "llama_dev_sess=placeholder-session".into())
+        }
+    }
+
+    /// The session test before save carries the typed session only: usage is
+    /// read and the key check is skipped, never failed.
+    #[tokio::test]
+    async fn session_without_key_reads_usage_and_skips_the_key_check() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(models()))
+            .expect(0)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/api/portal/teams/1001/usage/batch"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(zero_sample()))
+            .mount(&server)
+            .await;
+        let http = reqwest::Client::new();
+        let ctx = Context {
+            http: &http,
+            credentials: &SessionOnly,
+            timeout: Duration::from_secs(5),
+        };
+        let data = fetch_at(
+            &session_account(&[("team_id", "1001")]),
+            &ctx,
+            &format!("{}/v1/models", server.uri()),
+            &server.uri(),
+        )
+        .await
+        .expect("usage without a key");
+        assert!(!data.metrics.is_empty());
+        assert!(data
+            .notes
+            .iter()
+            .any(|n| n.contains("key check is skipped")));
     }
 
     fn one_team() -> ResponseTemplate {

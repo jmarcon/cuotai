@@ -1071,6 +1071,7 @@
   "note.meta.rate_limit_headers_missing": "この応答に `x-ratelimit-*` ヘッダーがありません。チームのレート制限のウィンドウは不明です。",
   "note.meta.rate_limit_team": "レート制限はチーム単位で、チームのすべてのキーで共有されます。",
   "note.meta.no_usage_api": "Meta は使用量、支出、残高の API を公開していません。使用量と請求は dev.meta.ai のコンソールで確認してください。",
+  "note.meta.no_key_session_only": "このアカウントには API キーがありません。使用量は dev.meta.ai のセッションから取得し、キーの確認は省略します。",
   "note.meta.sign_in_for_usage": "Meta は使用量、支出、残高の API を公開していません。コンソールの使用量を読むには、アカウントから dev.meta.ai にサインインしてください。",
   "note.meta.console_undocumented": "dev.meta.ai コンソールの内部インターフェースから読み取った使用量です。予告なく変わる可能性があります。",
   "note.meta.teams_unavailable": "dev.meta.ai コンソールがチームを返しませんでした。使用量ページのアドレスから \"チーム ID\" を設定してください。",

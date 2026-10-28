@@ -1073,6 +1073,7 @@
   "note.meta.rate_limit_headers_missing": "Esta resposta não trouxe cabeçalhos `x-ratelimit-*`; a janela de rate limit do time é desconhecida.",
   "note.meta.rate_limit_team": "Os rate limits valem por time e são compartilhados por todas as chaves do time.",
   "note.meta.no_usage_api": "A Meta não documenta API de uso, gasto ou saldo; veja uso e cobrança no console dev.meta.ai.",
+  "note.meta.no_key_session_only": "Nenhuma chave de API nesta conta; o uso vem da sessão de dev.meta.ai e a verificação da chave é pulada.",
   "note.meta.sign_in_for_usage": "A Meta não documenta API de uso, gasto ou saldo; entre no dev.meta.ai pela conta para ler o uso do console.",
   "note.meta.console_undocumented": "Uso lido na interface interna do console dev.meta.ai; pode mudar sem aviso.",
   "note.meta.teams_unavailable": "O console dev.meta.ai não listou as equipes; informe \"ID da equipe\" a partir do endereço da página de uso.",

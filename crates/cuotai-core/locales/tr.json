@@ -1076,6 +1076,7 @@
   "note.meta.rate_limit_headers_missing": "Bu yanıtta `x-ratelimit-*` başlıkları yok; ekibin hız sınırı penceresi bilinmiyor.",
   "note.meta.rate_limit_team": "Hız sınırları ekip başınadır ve ekibin tüm anahtarlarınca paylaşılır.",
   "note.meta.no_usage_api": "Meta kullanım, harcama veya bakiye API'si belgelemez; kullanımı ve faturalamayı dev.meta.ai konsolunda görün.",
+  "note.meta.no_key_session_only": "Bu hesap için API anahtarı yok; kullanım dev.meta.ai oturumundan gelir ve anahtar denetimi atlanır.",
   "note.meta.sign_in_for_usage": "Meta kullanım, harcama veya bakiye API'si belgelemiyor; konsol kullanımını okumak için hesaptan dev.meta.ai'ye oturum açın.",
   "note.meta.console_undocumented": "Kullanım dev.meta.ai konsolunun iç arayüzünden okunur; haber verilmeden değişebilir.",
   "note.meta.teams_unavailable": "dev.meta.ai konsolu ekipleri listelemedi; kullanım sayfası adresinden \"Ekip kimliği\" girin.",
