@@ -341,7 +341,7 @@ fn render_homebrew(templates_dir: &Path, req: &RenderRequest) -> Res<Vec<Rendere
     values.insert("DMG_SHA256", dmg.sha256.clone());
     values.insert("CASK_CAVEATS", caveats);
     let cask = substitute(
-        &load_template(templates_dir, "homebrew/Casks/cuotai.rb.tmpl")?,
+        &load_template(templates_dir, "homebrew/Casks/cuotai-app.rb.tmpl")?,
         &values,
         "homebrew cask",
     )?;
@@ -349,7 +349,7 @@ fn render_homebrew(templates_dir: &Path, req: &RenderRequest) -> Res<Vec<Rendere
         "homebrew cask",
         &cask,
         &[
-            "cask \"cuotai\" do",
+            "cask \"cuotai-app\" do",
             &format!("version \"{v}\""),
             &format!("sha256 \"{}\"", dmg.sha256),
             // The cask keeps Homebrew's `#{version}` interpolation in the URL.
@@ -389,7 +389,7 @@ fn render_homebrew(templates_dir: &Path, req: &RenderRequest) -> Res<Vec<Rendere
     Ok(vec![
         Rendered {
             channel: "homebrew",
-            path: PathBuf::from("homebrew/Casks/cuotai.rb"),
+            path: PathBuf::from("homebrew/Casks/cuotai-app.rb"),
             content: cask,
         },
         Rendered {

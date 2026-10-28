@@ -87,8 +87,8 @@ assert.match(step, /data-first-update-yes/);
 assert.match(step, /data-first-update-no/);
 assert.ok(!firstRun.stepHtml({ updatePending: false }).includes("data-first-update-yes"));
 // RF6.5: a managed install gets the package manager's command instead of the question.
-const managed = firstRun.stepHtml({ updatePending: false, managed: { reason: "homebrew", command: "brew upgrade --cask cuotai" } });
-assert.match(managed, /brew upgrade --cask cuotai/);
+const managed = firstRun.stepHtml({ updatePending: false, managed: { reason: "homebrew", command: "brew upgrade --cask cuotai-app" } });
+assert.match(managed, /brew upgrade --cask cuotai-app/);
 assert.match(managed, /Homebrew/);
 assert.ok(!managed.includes("data-first-update-yes"), "nothing is asked");
 assert.equal(firstRun.due({ onboarding: 0, onboarding_version: 1 }, { account_count: 1 }), true);

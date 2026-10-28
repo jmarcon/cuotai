@@ -1448,7 +1448,7 @@ jobs:
           name: package-manifests
           path: rendered
       - name: Homebrew style (own lint rules)
-        run: brew style rendered/homebrew/Casks/cuotai.rb rendered/homebrew/Formula/cuotai.rb
+        run: brew style rendered/homebrew/Casks/cuotai-app.rb rendered/homebrew/Formula/cuotai.rb
       - name: Audit and install test against a temporary local tap (tag runs)
         env:
           HOMEBREW_NO_AUTO_UPDATE: "1"
@@ -1460,7 +1460,7 @@ jobs:
           tap_dir="$RUNNER_TEMP/tap"
           rm -rf "$tap_dir"
           mkdir -p "$tap_dir/Casks" "$tap_dir/Formula"
-          cp rendered/homebrew/Casks/cuotai.rb "$tap_dir/Casks/"
+          cp rendered/homebrew/Casks/cuotai-app.rb "$tap_dir/Casks/"
           cp rendered/homebrew/Formula/cuotai.rb "$tap_dir/Formula/"
           cd "$tap_dir"
           git init -q .
@@ -1472,12 +1472,12 @@ jobs:
           brew untap jmarcon/cuotai >/dev/null 2>&1 || true
           brew tap jmarcon/cuotai "$tap_dir" --force
           # Download checks use the public release produced by this tag run.
-          brew audit --strict --online --cask jmarcon/cuotai/cuotai
+          brew audit --strict --online --cask jmarcon/cuotai/cuotai-app
           brew audit --strict --online --formula jmarcon/cuotai/cuotai
-          brew install --cask jmarcon/cuotai/cuotai
+          brew install --cask jmarcon/cuotai/cuotai-app
           brew install jmarcon/cuotai/cuotai
           "$(brew --prefix)/bin/cuotai" --version
-          brew uninstall --cask jmarcon/cuotai/cuotai
+          brew uninstall --cask jmarcon/cuotai/cuotai-app
           brew uninstall jmarcon/cuotai/cuotai
           brew untap jmarcon/cuotai
       - name: Push the rendered manifests to the tap (tag runs only)
@@ -1493,8 +1493,12 @@ jobs:
           tap_dir="$RUNNER_TEMP/tap-push"
           git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${TAP_REPO}.git" "$tap_dir"
           mkdir -p "$tap_dir/Casks" "$tap_dir/Formula"
-          cp rendered/homebrew/Casks/cuotai.rb "$tap_dir/Casks/"
+          cp rendered/homebrew/Casks/cuotai-app.rb "$tap_dir/Casks/"
           cp rendered/homebrew/Formula/cuotai.rb "$tap_dir/Formula/"
+          # The cask was "cuotai" until 0.81.0; the rename map moves those installs
+          # to "cuotai-app" on their next `brew upgrade`.
+          rm -f "$tap_dir/Casks/cuotai.rb"
+          cp packaging/homebrew/cask_renames.json "$tap_dir/"
           # `commit -a` skips the new files of a first publish, and a failed commit
           # must not pass for "up to date": stage everything, commit only real changes.
           git -C "$tap_dir" add -A

@@ -9,9 +9,9 @@ A walkthrough of the Cuotai desktop app on macOS: installing it, the first launc
 
 ## Install
 
-Cuotai 0.80.0 is on [GitHub Releases](https://github.com/jmarcon/cuotai/releases); the package-manager channels are not live yet, so check [`installing.md`](installing.md#channel-status) for what is available:
+Cuotai 0.81.0 is on [GitHub Releases](https://github.com/jmarcon/cuotai/releases) and the Homebrew tap; [`installing.md`](installing.md#channel-status) lists every channel:
 
-- **Homebrew:** `brew install --cask jmarcon/cuotai/cuotai` (planned, not live yet).
+- **Homebrew:** `brew install --cask jmarcon/cuotai/cuotai-app`.
 - **Direct download:** the `Cuotai_<version>_universal.dmg` from [GitHub Releases](https://github.com/jmarcon/cuotai/releases). It is one universal build for Apple silicon and Intel. Open the disk image and drag **Cuotai** to **Applications**. [Verify the download](installing.md#verify-your-download) first if you like.
 - **From source today:** see [`building.md`](building.md#desktop-app-tauri).
 
@@ -102,7 +102,7 @@ Turn on **Settings › General › Startup › Open at login**. Cuotai then adds
 
 ## Updates
 
-**Settings › About › Updates** checks once a day (you can turn it off) and sends only the version, system and architecture. A Homebrew install is updated with `brew upgrade --cask cuotai` and the in-app updater tells you so. An app running from the mounted disk image cannot update itself: drag it to Applications first.
+**Settings › About › Updates** checks once a day (you can turn it off) and sends only the version, system and architecture. A Homebrew install is updated with `brew upgrade --cask cuotai-app` and the in-app updater tells you so. An app running from the mounted disk image cannot update itself: drag it to Applications first.
 
 ## Credential vault: Keychain
 
@@ -120,7 +120,7 @@ OAuth sign-ins, pasted web sessions and the local-server token are stored in you
 
 ## Uninstall
 
-Quit Cuotai from the menu-bar menu, then drag it from Applications to the Trash, or run `brew uninstall --cask cuotai` (and `brew zap --cask cuotai` for its caches). That keeps your accounts, history and Keychain entries on purpose. To erase them too:
+Quit Cuotai from the menu-bar menu, then drag it from Applications to the Trash, or run `brew uninstall --cask cuotai-app` (and `brew zap --cask cuotai-app` for its caches). That keeps your accounts, history and Keychain entries on purpose. To erase them too:
 
 ```sh
 rm -rf ~/Library/Application\ Support/cuotai

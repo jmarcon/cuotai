@@ -17,7 +17,7 @@ submission (RF5.6): change the template here instead.
 
 | Directory | Channel | Renders | Published to | Owner prerequisite |
 |---|---|---|---|---|
-| `homebrew/` | Homebrew tap (RF5.1) | `Casks/cuotai.rb` (desktop), `Formula/cuotai.rb` (CLI) | `jmarcon/homebrew-cuotai` | tap repository + scoped token (`HOMEBREW_TAP_TOKEN`) |
+| `homebrew/` | Homebrew tap (RF5.1) | `Casks/cuotai-app.rb` (desktop), `Formula/cuotai.rb` (CLI) | `jmarcon/homebrew-cuotai` | tap repository + scoped token (`HOMEBREW_TAP_TOKEN`) |
 | `winget/` | winget (RF5.2) | `Cuotai.Cuotai{,.installer,.locale.en-US}.yaml` | `microsoft/winget-pkgs` via PR | first submission by hand; `WINGET_SUBMIT_TOKEN` afterwards |
 | `scoop/` | Scoop bucket (RF5.3) | `bucket/cuotai.json` (CLI zip, `checkver`/`autoupdate`) | `jmarcon/scoop-cuotai` | bucket repository + scoped token (`SCOOP_BUCKET_TOKEN`) |
 | `aur/` | AUR `cuotai-bin` (RF5.5) | `PKGBUILD` + `.SRCINFO` (desktop `.deb`) | `ssh://aur@aur.archlinux.org/cuotai-bin.git` | AUR account + SSH key (`AUR_SSH_PRIVATE_KEY`) |
@@ -38,7 +38,7 @@ binaries. The configuration (`<OS config dir>/cuotai/config.toml`, e.g.
 databases (`<OS local data dir>/cuotai/`) and the OS credential-vault entries
 (`cuotai.oauth`, `cuotai.serve`) survive unless the user explicitly opts in:
 
-- **Homebrew**: `brew zap --cask cuotai` removes only the webview caches and
+- **Homebrew**: `brew zap --cask cuotai-app` removes only the webview caches and
   preference plist listed in the cask's `zap` block — never the
   configuration, databases or Keychain entries. Purging those is a manual,
   documented step.
