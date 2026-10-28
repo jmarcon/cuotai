@@ -1495,8 +1495,15 @@ jobs:
           mkdir -p "$tap_dir/Casks" "$tap_dir/Formula"
           cp rendered/homebrew/Casks/cuotai.rb "$tap_dir/Casks/"
           cp rendered/homebrew/Formula/cuotai.rb "$tap_dir/Formula/"
-          git -C "$tap_dir" -c user.email "ci@github.com" -c user.name "cuotai release pipeline" \
-            commit -qam "cuotai $VERSION" || echo "tap already up to date"
+          # `commit -a` skips the new files of a first publish, and a failed commit
+          # must not pass for "up to date": stage everything, commit only real changes.
+          git -C "$tap_dir" add -A
+          if git -C "$tap_dir" diff --cached --quiet; then
+            echo "tap already up to date"
+          else
+            git -C "$tap_dir" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" -c user.name="cuotai release pipeline" \
+              commit -qm "cuotai $VERSION"
+          fi
           git -C "$tap_dir" push origin HEAD
       - name: Channel status
         run: |
@@ -1648,8 +1655,15 @@ jobs:
           git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${BUCKET_REPO}.git" "$bucket_dir"
           mkdir -p "$bucket_dir/bucket"
           cp rendered/scoop/bucket/cuotai.json "$bucket_dir/bucket/"
-          git -C "$bucket_dir" -c user.email "ci@github.com" -c user.name "cuotai release pipeline" \
-            commit -qam "cuotai $VERSION" || echo "bucket already up to date"
+          # `commit -a` skips the new files of a first publish, and a failed commit
+          # must not pass for "up to date": stage everything, commit only real changes.
+          git -C "$bucket_dir" add -A
+          if git -C "$bucket_dir" diff --cached --quiet; then
+            echo "bucket already up to date"
+          else
+            git -C "$bucket_dir" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" -c user.name="cuotai release pipeline" \
+              commit -qm "cuotai $VERSION"
+          fi
           git -C "$bucket_dir" push origin HEAD
       - name: Channel status
         run: |
@@ -1766,8 +1780,15 @@ jobs:
           work="$RUNNER_TEMP/aur"
           git clone "ssh://aur@aur.archlinux.org/cuotai-bin.git" "$work"
           cp rendered/aur/PKGBUILD rendered/aur/.SRCINFO "$work/"
-          git -C "$work" -c user.email "aur@aur.archlinux.org" -c user.name "cuotai release pipeline" \
-            commit -qam "cuotai $VERSION" || echo "AUR package already up to date"
+          # `commit -a` skips the new files of a first publish, and a failed commit
+          # must not pass for "up to date": stage everything, commit only real changes.
+          git -C "$work" add -A
+          if git -C "$work" diff --cached --quiet; then
+            echo "AUR package already up to date"
+          else
+            git -C "$work" -c user.email="aur@aur.archlinux.org" -c user.name="cuotai release pipeline" \
+              commit -qm "cuotai $VERSION"
+          fi
           git -C "$work" push origin HEAD
       - name: Channel status
         run: |
