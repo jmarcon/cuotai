@@ -73,7 +73,7 @@ async fn query(config: Config) -> Result<(), Box<dyn std::error::Error>> {
 - `MetricState` serializes with the `state` tag: `{"state":"unmeasured"}`, `{"state":"exhausted","no_cap":true}` or `{"state":"available","ratio":0.25,"uncapped":false}` (when `uncapped` is `true`, `ratio` does not represent availability).
 - Each `Metric` carries `kind` (`"quota"`, `"rate_limit"`, `"balance"`, `"credits"`, `"spend"` or `"usage"`) and `window` (`"window_5h"`, `"daily"`, `"weekly"`, `"monthly"`, `"other"` or `null`). The adapters assign these fields from the provider's contract; front ends must not infer them from `label` or `period`. The fields are additive to the `Snapshot` and to the CLI JSON.
 - `account_edit::CredentialKind` serializes as `"env"`, `"profile"` or `"none"`.
-- `Monitor::with_credentials(config, Arc<dyn Credentials>)` lets you inject a custom secret lookup (`Credentials::get` must be fast and non-interactive). `Monitor::with_oauth` shares the `OAuthSession` across queries.
+- `Monitor::with_credentials(config, Arc<dyn Credentials>)` lets you inject a custom secret lookup (`Credentials::get` must be fast and non-interactive). `Monitor::with_login_session` shares the `OAuthSession` across queries.
 
 ### Internationalization (`Localized`)
 

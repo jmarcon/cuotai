@@ -2274,7 +2274,7 @@ fn new_monitor(
     retention: Retention,
     incidents: &IncidentMonitor,
 ) -> io::Result<Arc<Monitor>> {
-    let mut monitor = Monitor::with_oauth(
+    let mut monitor = Monitor::with_login_session(
         file.config.clone(),
         Arc::new(EnvironmentCredentials),
         Arc::clone(session),

@@ -1152,9 +1152,10 @@ credential_env = "ALIBABA_CLOUD_ACCESS_KEY_ID"
         let creds: Arc<dyn Credentials> = Arc::new(Keys);
         let session =
             Arc::new(oauth::OAuthSession::new(Arc::new(NoTokens), Arc::clone(&creds)).unwrap());
-        let mut monitor = Monitor::with_oauth(Config::from_toml(toml).unwrap(), creds, session)
-            .unwrap()
-            .with_model_cache(ModelCache::new(db.to_path_buf(), config));
+        let mut monitor =
+            Monitor::with_login_session(Config::from_toml(toml).unwrap(), creds, session)
+                .unwrap()
+                .with_model_cache(ModelCache::new(db.to_path_buf(), config));
         monitor.groq_url = Some(server.uri());
         monitor
     }

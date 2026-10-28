@@ -59,7 +59,8 @@ pub async fn run(
         eprintln!("No account to observe (metered accounts need --canary-include-metered).");
         return Ok(1);
     }
-    let monitor = Monitor::with_oauth(config.clone(), Arc::new(EnvironmentCredentials), session)?;
+    let monitor =
+        Monitor::with_login_session(config.clone(), Arc::new(EnvironmentCredentials), session)?;
     let (snapshot, responses) = monitor.refresh_with_shapes().await;
     let now = Utc::now();
     let date = now.format("%Y-%m-%d").to_string();

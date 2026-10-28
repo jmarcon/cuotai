@@ -929,7 +929,7 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         };
         let history = history_store(&file, retention);
         let mut monitor =
-            Monitor::with_oauth(config.clone(), Arc::new(EnvironmentCredentials), session)?;
+            Monitor::with_login_session(config.clone(), Arc::new(EnvironmentCredentials), session)?;
         monitor.incidents().set_enabled(status);
         if let Some(store) = history {
             monitor = monitor.with_history(store);

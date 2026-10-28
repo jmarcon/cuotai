@@ -1751,7 +1751,7 @@ impl Inner {
                 s
             }
         };
-        let monitor = Monitor::with_oauth(
+        let monitor = Monitor::with_login_session(
             file.config.clone(),
             Arc::new(EnvironmentCredentials),
             session,
@@ -7212,7 +7212,7 @@ mod tests {
             .unwrap(),
         );
         let monitor = Arc::new(
-            Monitor::with_oauth(
+            Monitor::with_login_session(
                 config.clone(),
                 Arc::new(cuotai_core::EnvironmentCredentials),
                 Arc::clone(&session),

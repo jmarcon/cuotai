@@ -440,10 +440,10 @@ impl Monitor {
             oauth::OAuthSession::new(Arc::new(oauth::SystemTokenStore), Arc::clone(&credentials))
                 .map_err(|_| ConfigError::Client)?,
         );
-        Self::with_oauth(config, credentials, oauth)
+        Self::with_login_session(config, credentials, oauth)
     }
 
-    pub fn with_oauth(
+    pub fn with_login_session(
         config: Config,
         credentials: Arc<dyn Credentials>,
         oauth: Arc<oauth::OAuthSession>,
@@ -1631,7 +1631,7 @@ credential_id = "00000000-0000-0000-0000-000000000000"
             )
             .unwrap(),
         );
-        let monitor = Monitor::with_oauth(config, creds, session).unwrap();
+        let monitor = Monitor::with_login_session(config, creds, session).unwrap();
         let report = monitor.refresh_account(0).await;
         assert_eq!(report.account, "First");
         assert_eq!(report.status, Status::NeedsConfiguration);
@@ -1671,7 +1671,7 @@ credential_id = "4be708d8-7073-4d01-85ba-3306cc3cf087"
         let creds: Arc<dyn Credentials> = Arc::new(Cookie);
         let session =
             Arc::new(oauth::OAuthSession::new(Arc::new(DeniedStore), Arc::clone(&creds)).unwrap());
-        let monitor = Monitor::with_oauth(config, creds, session).unwrap();
+        let monitor = Monitor::with_login_session(config, creds, session).unwrap();
         let snapshot = monitor.refresh().await;
         assert_eq!(snapshot.reports[0].status, Status::NeedsConfiguration);
         assert!(snapshot.reports[0].metrics.is_empty());
@@ -1783,7 +1783,7 @@ credential_env = "GROQ_KEY_GAMMA"
         let creds: Arc<dyn Credentials> = Arc::new(GroqKeys);
         let store: Arc<dyn oauth::TokenStore> = EmptyStore::new();
         let session = Arc::new(oauth::OAuthSession::new(store, Arc::clone(&creds)).unwrap());
-        let mut monitor = Monitor::with_oauth(config, creds, session).unwrap();
+        let mut monitor = Monitor::with_login_session(config, creds, session).unwrap();
         monitor.groq_url = Some(server.uri());
         (server, monitor)
     }
@@ -1816,7 +1816,7 @@ credential_env = "GROQ_KEY_ALPHA"
         let creds: Arc<dyn Credentials> = Arc::new(GroqKeys);
         let store: Arc<dyn oauth::TokenStore> = EmptyStore::new();
         let session = Arc::new(oauth::OAuthSession::new(store, Arc::clone(&creds)).unwrap());
-        let mut monitor = Monitor::with_oauth(config, creds, session).unwrap();
+        let mut monitor = Monitor::with_login_session(config, creds, session).unwrap();
         monitor.groq_url = Some(server.uri());
         let slow = monitor.refresh_account(0).await;
         assert_eq!(FailureCategory::of(&slow), Some(FailureCategory::Timeout));
@@ -1953,7 +1953,7 @@ credential_env = "GROQ_KEY_ALPHA"
             Arc::new(oauth::OAuthSession::new(EmptyStore::new(), Arc::clone(&creds)).unwrap());
         let mut config = three_groq_accounts();
         config.accounts.truncate(2);
-        let mut monitor = Monitor::with_oauth(config, creds, session)
+        let mut monitor = Monitor::with_login_session(config, creds, session)
             .unwrap()
             .with_recorder(recorder);
         monitor.groq_url = Some(server.uri());
@@ -2093,7 +2093,8 @@ credential_env = "OPENAI_ADMIN_KEY"
         let store: Arc<dyn oauth::TokenStore> = EmptyStore::new();
         let session =
             Arc::new(oauth::OAuthSession::new(Arc::clone(&store), Arc::clone(&creds)).unwrap());
-        let monitor = Monitor::with_oauth(config.clone(), creds, Arc::clone(&session)).unwrap();
+        let monitor =
+            Monitor::with_login_session(config.clone(), creds, Arc::clone(&session)).unwrap();
         // Same timeout: HTTP client is reused (same pointer), credentials
         // and OAuthSession are reused.
         let next = monitor.with_config(config.clone()).expect("with_config");
@@ -2126,7 +2127,8 @@ credential_env = "OPENAI_ADMIN_KEY"
         let store: Arc<dyn oauth::TokenStore> = EmptyStore::new();
         let session =
             Arc::new(oauth::OAuthSession::new(Arc::clone(&store), Arc::clone(&creds)).unwrap());
-        let monitor = Monitor::with_oauth(config.clone(), creds, Arc::clone(&session)).unwrap();
+        let monitor =
+            Monitor::with_login_session(config.clone(), creds, Arc::clone(&session)).unwrap();
 
         let mut next_config = config.clone();
         next_config.timeout_seconds = 60;
@@ -2346,7 +2348,7 @@ credential_env = "OPENAI_ADMIN_KEY"
         let store: Arc<dyn oauth::TokenStore> = EmptyStore::new();
         let session =
             Arc::new(oauth::OAuthSession::new(Arc::clone(&store), Arc::clone(&creds)).unwrap());
-        let monitor = Monitor::with_oauth(config, creds, session).unwrap();
+        let monitor = Monitor::with_login_session(config, creds, session).unwrap();
 
         let report = monitor.refresh_account(0).await;
         let position = report

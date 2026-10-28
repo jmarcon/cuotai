@@ -227,7 +227,7 @@ async fn migrated(slot: &'static str, value: &'static str) -> (Account, Monitor)
     let config = staged.config().clone();
     let account = config.accounts[0].clone();
     // The variable is gone from the process: only the vault can answer.
-    let monitor = Monitor::with_oauth(config, Arc::new(Env(Vec::new())), oauth).unwrap();
+    let monitor = Monitor::with_login_session(config, Arc::new(Env(Vec::new())), oauth).unwrap();
     (account, monitor)
 }
 
@@ -275,7 +275,7 @@ async fn the_report_of_a_vault_session_never_carries_its_value() {
         .lock()
         .insert(key, token("other=SECRET-SESSION-VALUE".into(), None));
     account.session = Some(reference);
-    let monitor = Monitor::with_oauth(
+    let monitor = Monitor::with_login_session(
         config(vec![account]),
         Arc::new(Env(Vec::new())),
         Arc::new(session(&store)),
@@ -298,7 +298,7 @@ async fn a_reference_without_its_vault_entry_asks_for_the_session_again() {
         slots: ["platform_session_env".to_string()].into(),
     });
     let store = Arc::new(MemoryStore::default());
-    let monitor = Monitor::with_oauth(
+    let monitor = Monitor::with_login_session(
         config(vec![account]),
         Arc::new(Env(Vec::new())),
         Arc::new(session(&store)),
@@ -703,7 +703,7 @@ async fn pasted(paste: &str) -> (Account, Monitor) {
     .unwrap();
     let config = staged.config().clone();
     let account = config.accounts[0].clone();
-    let monitor = Monitor::with_oauth(config, Arc::new(Env(Vec::new())), oauth).unwrap();
+    let monitor = Monitor::with_login_session(config, Arc::new(Env(Vec::new())), oauth).unwrap();
     (account, monitor)
 }
 
@@ -923,7 +923,7 @@ async fn a_test_query_uses_the_paste_and_stores_nothing() {
     let server = balance_server().await;
     let store = Arc::new(MemoryStore::default());
     let draft = mimo(&[]);
-    let monitor = Monitor::with_oauth(
+    let monitor = Monitor::with_login_session(
         config(vec![draft.clone()]),
         Arc::new(Env(Vec::new())),
         Arc::new(session(&store)),
@@ -1314,7 +1314,7 @@ async fn tested(
     let store = Arc::new(MemoryStore::default());
     let oauth = Arc::new(session(&store));
     let draft = mimo(&[]);
-    let monitor = Monitor::with_oauth(
+    let monitor = Monitor::with_login_session(
         config(vec![draft.clone()]),
         Arc::new(Env(Vec::new())),
         Arc::clone(&oauth),
@@ -1458,7 +1458,7 @@ fn a_timeout_is_a_transport_failure_and_a_refused_endpoint_is_not() {
 async fn the_test_before_save_refuses_an_invalid_draft_and_needs_nothing_without_a_paste() {
     let store = Arc::new(MemoryStore::default());
     let draft = mimo(&[]);
-    let monitor = Monitor::with_oauth(
+    let monitor = Monitor::with_login_session(
         config(vec![draft.clone()]),
         Arc::new(Env(Vec::new())),
         Arc::new(session(&store)),
@@ -1610,7 +1610,7 @@ async fn the_pasted_test_reports_the_worst_slot() {
     let store = Arc::new(MemoryStore::default());
     let mut invalid = mimo(&[]);
     invalid.refresh_seconds = Some(1);
-    let monitor = Monitor::with_oauth(
+    let monitor = Monitor::with_login_session(
         config(vec![mimo(&[])]),
         Arc::new(Env(Vec::new())),
         Arc::new(session(&store)),
@@ -1652,7 +1652,7 @@ async fn typed_secrets_that_work_together_are_tested_together() {
         ..Default::default()
     };
     let store = Arc::new(MemoryStore::default());
-    let monitor = Monitor::with_oauth(
+    let monitor = Monitor::with_login_session(
         config(vec![account.clone()]),
         Arc::new(Env(Vec::new())),
         Arc::new(session(&store)),
@@ -1831,7 +1831,7 @@ async fn a_vault_password_logs_in_and_never_reaches_the_toml_or_the_report() {
         "{toml}"
     );
 
-    let monitor = Monitor::with_oauth(saved, Arc::new(Env(Vec::new())), oauth).unwrap();
+    let monitor = Monitor::with_login_session(saved, Arc::new(Env(Vec::new())), oauth).unwrap();
     let snapshot = monitor.refresh().await;
     let report = &snapshot.reports[0];
     assert_eq!(report.status, Status::Ready, "{:?}", report.notes);
@@ -1857,7 +1857,7 @@ async fn a_pasted_sso_session_replaces_the_login_and_a_rejected_one_says_so() {
     };
     let monitor_for = |account: &Account| {
         let store = Arc::new(MemoryStore::default());
-        Monitor::with_oauth(
+        Monitor::with_login_session(
             config(vec![account.clone()]),
             Arc::new(Env(Vec::new())),
             Arc::new(session(&store)),

@@ -832,10 +832,13 @@ pub const PORTUGUESE_MARKER_ALLOWED: [&str; 0] = [];
 #[cfg(test)]
 #[track_caller]
 fn assert_english(template: &str) {
-    let markers = portuguese_markers(template);
+    // The count and the caller's location (`track_caller`) identify the
+    // text; texts can describe logins, so their contents stay out of the
+    // message.
+    let found = portuguese_markers(template).len();
     assert!(
-        markers.is_empty(),
-        "Portuguese marker(s) {markers:?} in an English fallback: {template:?}"
+        found == 0,
+        "{found} Portuguese marker(s) in the English fallback built here"
     );
 }
 

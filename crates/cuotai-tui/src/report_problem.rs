@@ -62,7 +62,8 @@ pub async fn run(
         eprintln!("No account with that name in the configuration.");
         return Ok(1);
     };
-    let monitor = Monitor::with_oauth(config.clone(), Arc::new(EnvironmentCredentials), session)?;
+    let monitor =
+        Monitor::with_login_session(config.clone(), Arc::new(EnvironmentCredentials), session)?;
     let report: Report = monitor.refresh_account(index).await;
     let draft = issue_draft(
         &AccountView {

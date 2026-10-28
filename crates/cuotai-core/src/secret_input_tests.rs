@@ -102,7 +102,7 @@ async fn groq(
         .await;
     let creds: Arc<dyn Credentials> = Arc::new(env);
     let oauth = Arc::new(OAuthSession::new(store, Arc::clone(&creds)).unwrap());
-    let mut monitor = Monitor::with_oauth(config, creds, Arc::clone(&oauth)).unwrap();
+    let mut monitor = Monitor::with_login_session(config, creds, Arc::clone(&oauth)).unwrap();
     monitor.groq_url = Some(server.uri());
     (server, monitor, oauth)
 }
@@ -122,20 +122,20 @@ fn gui_inputs_never_mention_an_environment_variable() {
             assert_eq!(inputs[0].slot, CREDENTIAL_SLOT, "{provider:?}");
             assert_eq!(inputs[0].default_env, account_edit::default_env(provider));
         }
+        // Messages name the provider and the input's position only: the
+        // inputs describe secrets, so their contents stay out of the output.
         let mut slots = BTreeSet::new();
-        for input in &inputs {
-            assert!(slots.insert(input.slot), "{provider:?} {}", input.slot);
+        for (at, input) in inputs.iter().enumerate() {
+            assert!(slots.insert(input.slot), "{provider:?} input {at}");
             assert!(
                 user_session::vault_descriptor(provider, input.slot).is_some(),
-                "{provider:?} {}",
-                input.slot
+                "{provider:?} input {at}"
             );
             for text in [&input.label.fallback, &input.help.fallback] {
                 let lower = text.to_lowercase();
                 assert!(
                     !lower.contains("variable") && !lower.contains("_env") && !text.contains("$"),
-                    "{provider:?} {}: {text}",
-                    input.slot
+                    "{provider:?} input {at} names a variable"
                 );
             }
         }
@@ -226,14 +226,10 @@ async fn a_typed_key_is_tested_vaulted_and_queried_without_reaching_the_toml() {
 
     let reloaded = ConfigFile::load(Some(file.path.clone()), false).unwrap();
     let saved = &reloaded.config.accounts[0];
-    assert_eq!(
-        secret_states(saved)[0].source,
-        SecretSource::Vault,
-        "{saved:?}"
-    );
+    assert_eq!(secret_states(saved)[0].source, SecretSource::Vault);
     let monitor = monitor.with_config(reloaded.config.clone()).unwrap();
     let report = monitor.refresh_account(0).await;
-    assert_eq!(report.status, Status::Ready, "{:?}", report.notes);
+    assert_eq!(report.status, Status::Ready, "the vault key authenticates");
     let json = serde_json::to_string(&report).unwrap();
     assert!(!json.contains(KEY));
     assert!(

@@ -92,7 +92,7 @@ impl Rig {
         let creds: Arc<dyn Credentials> = Arc::new(Keys);
         let session =
             Arc::new(oauth::OAuthSession::new(Arc::new(NoTokens), Arc::clone(&creds)).unwrap());
-        let mut monitor = Monitor::with_oauth(config.clone(), creds, session).unwrap();
+        let mut monitor = Monitor::with_login_session(config.clone(), creds, session).unwrap();
         let clock = Arc::new(parking_lot::Mutex::new(t0()));
         monitor.groq_url = Some(server.uri());
         monitor.clock = Some(Arc::clone(&clock));

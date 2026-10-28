@@ -45,7 +45,7 @@ fn monitor(accounts: &[(Provider, Option<&str>)], status: &MockServer) -> Monito
     let creds: Arc<dyn Credentials> = Arc::new(NoCredentials);
     let session =
         Arc::new(oauth::OAuthSession::new(Arc::new(EmptyStore), Arc::clone(&creds)).unwrap());
-    let monitor = Monitor::with_oauth(config, creds, session).unwrap();
+    let monitor = Monitor::with_login_session(config, creds, session).unwrap();
     monitor.incidents().set_test_knobs(TestKnobs {
         base: Some(status.uri()),
         ..TestKnobs::default()
@@ -849,7 +849,7 @@ fn eleven_labs_monitor(regions: &[Option<&str>], status: &MockServer) -> Monitor
     let creds: Arc<dyn Credentials> = Arc::new(NoCredentials);
     let session =
         Arc::new(oauth::OAuthSession::new(Arc::new(EmptyStore), Arc::clone(&creds)).unwrap());
-    let monitor = Monitor::with_oauth(config, creds, session).unwrap();
+    let monitor = Monitor::with_login_session(config, creds, session).unwrap();
     monitor.incidents().set_test_knobs(TestKnobs {
         base: Some(status.uri()),
         ..TestKnobs::default()

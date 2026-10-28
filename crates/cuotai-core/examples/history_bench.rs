@@ -120,14 +120,10 @@ fn main() {
             .expect("summarize");
     }
     let t = Instant::now();
-    let summary = stats::summarize(&store, &config.accounts, StatsRange::Days30, now, &Utc)
+    // Only timings: the summary holds per-account history.
+    let _summary = stats::summarize(&store, &config.accounts, StatsRange::Days30, now, &Utc)
         .expect("summarize");
-    println!(
-        "summarize(30d): {:?} hits={} coverage={:?}",
-        t.elapsed(),
-        summary.hits,
-        summary.coverage
-    );
+    println!("summarize(30d): {:?}", t.elapsed());
 
     let t = Instant::now();
     let mut points = 0;
@@ -165,11 +161,7 @@ fn main() {
     println!("prune: {:?} {report:?}", t.elapsed());
 
     let t = Instant::now();
-    let summary = stats::summarize(&store, &config.accounts, StatsRange::Days30, now, &Utc)
+    let _summary = stats::summarize(&store, &config.accounts, StatsRange::Days30, now, &Utc)
         .expect("summarize");
-    println!(
-        "summarize(30d) after prune: {:?} coverage={:?}",
-        t.elapsed(),
-        summary.coverage
-    );
+    println!("summarize(30d) after prune: {:?}", t.elapsed());
 }
