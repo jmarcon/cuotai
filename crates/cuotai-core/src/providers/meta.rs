@@ -21,12 +21,15 @@
 //! - `GET https://dev.meta.ai/api/portal/teams` answers `{teams:[{team_id,
 //!   role, ...}]}` (the bundle reads `.teams` and `team_id`); it picks the
 //!   team when `params.team_id` is empty;
-//! - `GET https://dev.meta.ai/api/portal/teams/{team_id}/usage` (the route
-//!   exists: signed out it answers `401 {"error":"Not authenticated"}` while
-//!   unknown sibling routes answer `404`). Its query parameters and body are
-//!   not public (the usage page's chunk loads only after sign-in), so the
-//!   parser accepts a few plausible totals and otherwise says the shape is
-//!   unknown: a missing value is never zero.
+//! - `GET https://dev.meta.ai/api/portal/teams/{team_id}/usage/batch?metrics=...
+//!   &start_date=YYYY-MM-DD&end_date=YYYY-MM-DD&timezone=<IANA>` with the
+//!   `Referer` of the usage page: the request the signed-in console makes
+//!   (confirmed by the owner, 2026-10-27). It answers `{as_of, models,
+//!   metrics: {<NAME>: {metric, series: [{type: "TOTAL", data_points:
+//!   [{date, value[, amount]}]}]}}}`; the cost carries `currency: {code,
+//!   offset}`. Cuotai sums the `TOTAL` series of the current month; an empty
+//!   series is unknown, never zero. That `offset: 100` means amounts in
+//!   cents is inferred (the confirmed sample was all zeros).
 //!
 //! The console's GETs carry only the cookie and `Content-Type:
 //! application/json` (no CSRF token). No inference, purchase or billing
@@ -35,6 +38,7 @@
 use super::{secret, send, Context, Data, QueryError};
 use crate::text::{params, Localized, Notes, ParamValue};
 use crate::{Account, Metric, MetricKind, MetricWindow, Status};
+use chrono::{DateTime, Datelike, Months, NaiveDate, Utc};
 use serde_json::Value;
 
 /// The console origin; in tests the mock's URL is injected.
@@ -212,7 +216,7 @@ async fn console_usage(
             })
         }
         Param::Empty => {
-            let Some(body) = console_get(ctx, &format!("{console}/api/portal/teams"), &[], cookie)
+            let Some(body) = console_get(ctx, &format!("{console}/api/portal/teams"), &[], cookie, None)
                 .await?
             else {
                 notes.push(
@@ -242,45 +246,69 @@ async fn console_usage(
             }
         }
     };
-    let mut query = Vec::new();
-    match param_id(account, "project_id") {
-        Param::Set(project) => query.push(("project_id", project)),
-        Param::Empty => {}
-        Param::Invalid => {
-            return Err(QueryError {
-                diagnostic: None,
-                status: Status::NeedsConfiguration,
-                note: Localized::fixed(
-                    "query.meta.project_id_invalid",
-                    "The Project ID is not a dev.meta.ai project id; copy the number after project_id= in the usage page address.",
-                ),
-            })
-        }
+    // `project_id` stays a validated optional param, but the console's own
+    // usage request carries only the team (owner, 2026-10-27), so it is not
+    // sent.
+    if let Param::Invalid = param_id(account, "project_id") {
+        return Err(QueryError {
+            diagnostic: None,
+            status: Status::NeedsConfiguration,
+            note: Localized::fixed(
+                "query.meta.project_id_invalid",
+                "The Project ID is not a dev.meta.ai project id; copy the number after project_id= in the usage page address.",
+            ),
+        });
     }
-    let url = format!("{console}/api/portal/teams/{team}/usage");
-    let Some(body) = console_get(ctx, &url, &query, cookie).await? else {
+    let period = MonthToDate::at(Utc::now());
+    let query = usage_query(&period);
+    let url = format!("{console}/api/portal/teams/{team}/usage/batch");
+    let referer = format!("{console}/usage?team_id={team}");
+    let Some(body) = console_get(ctx, &url, &query, cookie, Some(&referer)).await? else {
         notes.push(
             "note.meta.usage_unavailable",
             "The dev.meta.ai console did not return the usage; the card shows only the key check.",
         );
         return Ok((Vec::new(), notes));
     };
-    let metrics = usage_metrics(&body);
-    if metrics.is_empty() {
+    let Some(series) = body.get("metrics").and_then(Value::as_object) else {
         if cfg!(debug_assertions) {
             // Debug builds only: the field names (never values) of the
             // unrecognised answer, so the owner can report its shape.
             eprintln!(
-                "meta usage: unrecognised response keys {:?}",
+                "meta usage: response without a metrics object, keys {:?}",
                 key_paths(&body)
             );
         }
+        return Err(QueryError::schema());
+    };
+    if cfg!(debug_assertions) {
+        let unknown: Vec<&str> = series
+            .keys()
+            .map(String::as_str)
+            .filter(|k| !USAGE_METRICS.contains(k))
+            .collect();
+        if !unknown.is_empty() {
+            eprintln!("meta usage: unrecognised metric keys {unknown:?}");
+        }
+    }
+    let metrics = usage_metrics(series, &period);
+    if metrics.is_empty() {
         notes.push(
-            "note.meta.usage_shape_unknown",
-            "The dev.meta.ai usage answer has no field Cuotai recognises; usage is unknown, not zero.",
+            "note.meta.usage_empty",
+            "The dev.meta.ai console returned no usage series for this month; usage is unknown, not zero.",
         );
     }
     Ok((metrics, notes))
+}
+
+/// The query of the console's `usage/batch` request.
+fn usage_query(period: &MonthToDate) -> [(&'static str, String); 4] {
+    [
+        ("metrics", USAGE_METRICS.join(",")),
+        ("start_date", period.start.format("%Y-%m-%d").to_string()),
+        ("end_date", period.end.format("%Y-%m-%d").to_string()),
+        ("timezone", USAGE_TIMEZONE.to_string()),
+    ]
 }
 
 enum Param {
@@ -329,8 +357,9 @@ async fn console_get(
     url: &str,
     query: &[(&str, String)],
     cookie: &str,
+    referer: Option<&str>,
 ) -> Result<Option<Value>, QueryError> {
-    let request = ctx
+    let mut request = ctx
         .http
         .get(url)
         .query(query)
@@ -340,6 +369,9 @@ async fn console_get(
         .header("Content-Type", "application/json")
         .header("User-Agent", CONSOLE_UA)
         .timeout(ctx.timeout);
+    if let Some(referer) = referer {
+        request = request.header("Referer", referer);
+    }
     // A redirect (the sign-in of an expired session) is refused, never followed.
     let response = super::send_session(request, crate::Provider::Meta, SESSION_SLOT).await?;
     match response.status().as_u16() {
@@ -359,120 +391,180 @@ async fn console_get(
     }
 }
 
-/// The candidate objects of the inferred usage answer: the body itself and
-/// its `data`, `usage`, `summary` and `totals` members (one level, and
-/// `summary`/`totals` under `data`).
-fn roots(body: &Value) -> Vec<&Value> {
-    let mut out = vec![body];
-    for key in ["data", "usage", "summary", "totals"] {
-        if let Some(v) = body.get(key).filter(|v| v.is_object()) {
-            out.push(v);
-            for inner in ["summary", "totals"] {
-                if let Some(w) = v.get(inner).filter(|w| w.is_object()) {
-                    out.push(w);
-                }
-            }
-        }
-    }
-    out
+/// The metrics the console's usage page asks for (owner, 2026-10-27), in
+/// its order.
+const USAGE_METRICS: [&str; 15] = [
+    "REQUESTS",
+    "USAGE_BILLABLE_COST",
+    "INPUT_TOKENS",
+    "CACHED_PROMPT_TOKENS",
+    "UNCACHED_PROMPT_TOKENS",
+    "BATCH_INPUT_TOKENS",
+    "BATCH_CACHED_PROMPT_TOKENS",
+    "BATCH_UNCACHED_PROMPT_TOKENS",
+    "OUTPUT_TOKENS",
+    "BATCH_OUTPUT_TOKENS",
+    "IMAGES_GENERATED_STANDARD",
+    "SEARCH_GROUNDING_REQUESTS",
+    "AUDIO_TRANSCRIPTION_SECONDS",
+    "VIDEO_FRAMES_PROCESSED",
+    "IMAGES_PROCESSED",
+];
+
+/// No adapter reads the system's IANA zone (`iana-time-zone` is not a
+/// direct dependency), so the month is a UTC month, as in the other
+/// month-to-date adapters.
+const USAGE_TIMEZONE: &str = "UTC";
+
+/// The calendar month to date (UTC): the first day, today and the next
+/// month's start (the reset).
+struct MonthToDate {
+    start: NaiveDate,
+    end: NaiveDate,
+    resets_at: DateTime<Utc>,
 }
 
-/// A non-negative finite number from a number, a numeric string, or an
-/// object's `amount`/`value`.
+impl MonthToDate {
+    fn at(now: DateTime<Utc>) -> Self {
+        let end = now.date_naive();
+        let start = end.with_day(1).expect("day 1 of any month is valid");
+        let resets_at = (start + Months::new(1))
+            .and_hms_opt(0, 0, 0)
+            .expect("midnight is valid")
+            .and_utc();
+        Self {
+            start,
+            end,
+            resets_at,
+        }
+    }
+
+    fn label(&self) -> String {
+        format!(
+            "mês corrente ({} a {}, {USAGE_TIMEZONE})",
+            self.start.format("%Y-%m-%d"),
+            self.end.format("%Y-%m-%d")
+        )
+    }
+}
+
+/// A non-negative finite number from a JSON number or numeric string.
 fn number(v: &Value) -> Option<f64> {
     let n = match v {
         Value::Number(n) => n.as_f64(),
         Value::String(s) => s.trim().parse::<f64>().ok(),
-        Value::Object(o) => o.get("amount").or_else(|| o.get("value")).and_then(number),
         _ => None,
     }?;
     (n.is_finite() && n >= 0.0).then_some(n)
 }
 
-fn first(roots: &[&Value], keys: &[&str]) -> Option<(f64, Option<String>)> {
-    roots.iter().find_map(|root| {
-        keys.iter().find_map(|key| {
-            let v = root.get(*key)?;
-            let currency = v
-                .get("currency")
-                .or_else(|| root.get("currency"))
-                .or_else(|| root.get("currency_code"))
-                .and_then(Value::as_str)
-                .map(|c| c.trim().to_ascii_uppercase())
-                .filter(|c| c.len() == 3 && c.bytes().all(|b| b.is_ascii_alphabetic()));
-            number(v).map(|n| (n, currency))
-        })
-    })
+/// The sum of the `TOTAL` series of one metric. `None` when the metric,
+/// its `TOTAL` series or every usable data point is missing: an empty
+/// series is unknown, never zero. Points explicitly reported as `0` count.
+/// `field` reads `amount` first (cost) and falls back to `value`.
+fn total(metric: &Value, amount_first: bool) -> Option<f64> {
+    let series = metric.get("series")?.as_array()?;
+    let total = series
+        .iter()
+        .find(|s| s.get("type").and_then(Value::as_str) == Some("TOTAL"))?;
+    let points = total.get("data_points")?.as_array()?;
+    let mut sum = None;
+    for point in points {
+        let v = if amount_first {
+            point
+                .get("amount")
+                .and_then(number)
+                .or_else(|| point.get("value").and_then(number))
+        } else {
+            point.get("value").and_then(number)
+        };
+        if let Some(v) = v {
+            sum = Some(sum.unwrap_or(0.0) + v);
+        }
+    }
+    sum
 }
 
-/// PRD 0049 RF9: the totals Cuotai recognises in the inferred usage answer.
-/// A field that is absent or not a number is left out, never zero.
-fn usage_metrics(body: &Value) -> Vec<Metric> {
-    let roots = roots(body);
-    let metric = |label: &str, used: f64, unit: String, kind: MetricKind| Metric {
+/// PRD 0049 RF9: the month-to-date totals of the console's
+/// `usage/batch` answer (`metrics.<NAME>.series[type=TOTAL].data_points`).
+fn usage_metrics(series: &serde_json::Map<String, Value>, period: &MonthToDate) -> Vec<Metric> {
+    let metric = |label: &str, used: f64, unit: &str, kind: MetricKind| Metric {
         billing: Default::default(),
         scope: None,
         label: label.into(),
         used: Some(used),
         limit: None,
         remaining: None,
-        unit,
+        unit: unit.into(),
         kind,
-        window: Some(MetricWindow::Other),
-        period: Some("período exibido na página Uso do dev.meta.ai".into()),
-        resets_at: None,
+        window: Some(MetricWindow::Monthly),
+        period: Some(period.label()),
+        resets_at: Some(period.resets_at),
     };
     let mut out = Vec::new();
-    if let Some((spend, currency)) = first(
-        &roots,
-        &["total_cost", "total_spend", "spend", "cost", "amount_spent"],
-    ) {
-        // Meta prices the Model API in USD (dev.meta.ai/docs/pricing-rate-limits).
-        out.push(metric(
-            "Gasto",
-            spend,
-            currency.unwrap_or_else(|| "USD".into()),
-            MetricKind::Spend,
-        ));
-    }
-    if let Some((credits, currency)) = first(
-        &roots,
-        &[
-            "credit_balance",
-            "remaining_credits",
-            "credits_remaining",
-            "balance",
-        ],
-    ) {
-        let mut m = metric(
-            "Créditos",
-            credits,
-            currency.unwrap_or_else(|| "USD".into()),
-            MetricKind::Credits,
-        );
-        m.used = None;
-        m.remaining = Some(credits);
-        out.push(m);
-    }
-    for (label, keys) in [
-        ("Tokens", &["total_tokens", "tokens"][..]),
-        ("Tokens de entrada", &["input_tokens", "prompt_tokens"][..]),
-        (
-            "Tokens de saída",
-            &["output_tokens", "completion_tokens"][..],
-        ),
-    ] {
-        if let Some((n, _)) = first(&roots, keys) {
-            out.push(metric(label, n, "tokens".into(), MetricKind::Usage));
+    if let Some(cost) = series.get("USAGE_BILLABLE_COST") {
+        if let Some(sum) = total(cost, true) {
+            let currency = cost.get("currency");
+            // Inferred (the confirmed sample is all zeros): `offset: 100`
+            // says the amounts are minor units (cents).
+            let offset = currency
+                .and_then(|c| c.get("offset"))
+                .and_then(number)
+                .filter(|o| *o > 0.0)
+                .unwrap_or(1.0);
+            let code = currency
+                .and_then(|c| c.get("code"))
+                .and_then(Value::as_str)
+                .map(|c| c.trim().to_ascii_uppercase())
+                .filter(|c| c.len() == 3 && c.bytes().all(|b| b.is_ascii_alphabetic()))
+                // Meta prices the Model API in USD (dev.meta.ai/docs/pricing-rate-limits).
+                .unwrap_or_else(|| "USD".into());
+            out.push(metric("Gasto", sum / offset, &code, MetricKind::Spend));
         }
     }
-    if let Some((n, _)) = first(&roots, &["total_requests", "request_count", "requests"]) {
-        out.push(metric(
-            "Requisições",
-            n,
-            "requisições".into(),
-            MetricKind::Usage,
-        ));
+    for (key, label, unit) in [
+        ("REQUESTS", "Requisições", "requisições"),
+        ("INPUT_TOKENS", "Tokens de entrada", "tokens"),
+        (
+            "CACHED_PROMPT_TOKENS",
+            "Tokens de entrada em cache",
+            "tokens",
+        ),
+        (
+            "UNCACHED_PROMPT_TOKENS",
+            "Tokens de entrada sem cache",
+            "tokens",
+        ),
+        ("OUTPUT_TOKENS", "Tokens de saída", "tokens"),
+        ("BATCH_INPUT_TOKENS", "Tokens de entrada (lote)", "tokens"),
+        (
+            "BATCH_CACHED_PROMPT_TOKENS",
+            "Tokens de entrada em cache (lote)",
+            "tokens",
+        ),
+        (
+            "BATCH_UNCACHED_PROMPT_TOKENS",
+            "Tokens de entrada sem cache (lote)",
+            "tokens",
+        ),
+        ("BATCH_OUTPUT_TOKENS", "Tokens de saída (lote)", "tokens"),
+        ("IMAGES_GENERATED_STANDARD", "Imagens geradas", "imagens"),
+        (
+            "SEARCH_GROUNDING_REQUESTS",
+            "Buscas de grounding",
+            "requisições",
+        ),
+        ("AUDIO_TRANSCRIPTION_SECONDS", "Transcrição de áudio", "s"),
+        (
+            "VIDEO_FRAMES_PROCESSED",
+            "Quadros de vídeo processados",
+            "quadros",
+        ),
+        ("IMAGES_PROCESSED", "Imagens processadas", "imagens"),
+    ] {
+        if let Some(sum) = series.get(key).and_then(|m| total(m, false)) {
+            out.push(metric(label, sum, unit, MetricKind::Usage));
+        }
     }
     out
 }
@@ -524,7 +616,7 @@ mod tests {
     use crate::{Credentials, Provider};
     use std::collections::BTreeMap;
     use std::time::Duration;
-    use wiremock::matchers::{header, method, path};
+    use wiremock::matchers::{header, method, path, query_param, query_param_is_missing};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     struct Key(&'static str);
@@ -704,7 +796,7 @@ mod tests {
                 .await;
         }
         Mock::given(method("GET"))
-            .and(path("/api/portal/teams/1001/usage"))
+            .and(path("/api/portal/teams/1001/usage/batch"))
             .and(header("Cookie", "llama_dev_sess=placeholder-session"))
             .and(header("Content-Type", "application/json"))
             .respond_with(usage)
@@ -733,16 +825,42 @@ mod tests {
             .set_body_json(serde_json::json!({ "teams": [{ "team_id": 1001, "role": "OWNER" }] }))
     }
 
+    /// A `usage/batch` metric with one `TOTAL` series.
+    fn series(name: &str, points: serde_json::Value) -> serde_json::Value {
+        serde_json::json!({ "metric": name, "series": [
+            { "type": "TOTAL", "identifier": name, "data_points": points }
+        ]})
+    }
+
+    /// The owner's confirmed sample (2026-10-27), values zeroed.
+    fn zero_sample() -> serde_json::Value {
+        let zeros = serde_json::json!([
+            { "date": "2026-10-22", "value": 0 }, { "date": "2026-10-23", "value": 0 }
+        ]);
+        let mut cost = series(
+            "usage_billable_cost",
+            serde_json::json!([{ "date": "2026-10-22", "value": 0, "amount": 0 }]),
+        );
+        cost["currency"] = serde_json::json!(
+            { "code": "USD", "symbol": "$", "format": "{symbol}{amount}", "offset": 100 }
+        );
+        serde_json::json!({ "as_of": "2026-10-28T00:50:13Z", "models": [], "metrics": {
+            "REQUESTS": series("num_requests", zeros.clone()),
+            "USAGE_BILLABLE_COST": cost,
+            "INPUT_TOKENS": series("num_prompt_tokens", zeros.clone()),
+            "CACHED_PROMPT_TOKENS": series("num_cached_prompt_tokens", zeros.clone()),
+            "UNCACHED_PROMPT_TOKENS": series("num_uncached_prompt_tokens", zeros.clone()),
+            "BATCH_INPUT_TOKENS": { "metric": "num_batch_prompt_tokens", "series": [] },
+            "OUTPUT_TOKENS": series("num_completion_tokens", zeros),
+        }})
+    }
+
     #[tokio::test]
     async fn session_reads_the_usage_of_the_only_team() {
-        let usage = serde_json::json!({
-            "data": { "total_cost": "12.5", "currency": "usd", "total_tokens": 4200,
-                      "input_tokens": 4000, "output_tokens": 200, "total_requests": 7 }
-        });
         let data = console(
             &session_account(&[]),
             Some(one_team()),
-            ResponseTemplate::new(200).set_body_json(usage),
+            ResponseTemplate::new(200).set_body_json(zero_sample()),
         )
         .await
         .expect("usage");
@@ -751,15 +869,25 @@ mod tests {
             .iter()
             .find(|m| m.kind == MetricKind::Spend)
             .unwrap();
-        assert_eq!(spend.used, Some(12.5));
-        assert_eq!(spend.unit, "USD");
+        assert_eq!((spend.used, spend.unit.as_str()), (Some(0.0), "USD"));
         assert_eq!(spend.limit, None);
-        let tokens: Vec<_> = data.metrics.iter().filter(|m| m.unit == "tokens").collect();
-        assert_eq!(tokens.len(), 3);
-        assert!(data
-            .metrics
-            .iter()
-            .any(|m| m.label == "Requisições" && m.used == Some(7.0)));
+        assert_eq!(spend.window, Some(MetricWindow::Monthly));
+        assert!(spend.period.as_deref().unwrap().contains("UTC"));
+        assert!(spend.resets_at.is_some());
+        let labels: Vec<_> = data.metrics.iter().map(|m| m.label.as_str()).collect();
+        assert_eq!(
+            labels,
+            [
+                "Gasto",
+                "Requisições",
+                "Tokens de entrada",
+                "Tokens de entrada em cache",
+                "Tokens de entrada sem cache",
+                "Tokens de saída"
+            ]
+        );
+        // Explicit zero points are a real zero.
+        assert!(data.metrics.iter().all(|m| m.used == Some(0.0)));
         assert!(data
             .notes
             .iter()
@@ -768,14 +896,78 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn team_and_project_params_skip_discovery() {
-        let server_usage = ResponseTemplate::new(200).set_body_json(
-            serde_json::json!({ "total_spend": { "amount": 3, "currency": "EUR" } }),
+    async fn usage_request_matches_the_console() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(models()))
+            .mount(&server)
+            .await;
+        let period = MonthToDate::at(Utc::now());
+        let mut mock = Mock::given(method("GET"))
+            .and(path("/api/portal/teams/1000000000000001/usage/batch"))
+            .and(header("Cookie", "llama_dev_sess=placeholder-session"))
+            .and(header("Content-Type", "application/json"))
+            .and(header(
+                "Referer",
+                format!("{}/usage?team_id=1000000000000001", server.uri()).as_str(),
+            ));
+        for (k, v) in usage_query(&period) {
+            mock = mock.and(query_param(k, v.as_str()));
+        }
+        mock.and(query_param_is_missing("project_id"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(zero_sample()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let http = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .unwrap();
+        let ctx = Context {
+            http: &http,
+            credentials: &KeyAndSession,
+            timeout: Duration::from_secs(5),
+        };
+        let account = session_account(&[("team_id", "1000000000000001"), ("project_id", "2002")]);
+        let data = fetch_at(
+            &account,
+            &ctx,
+            &format!("{}/v1/models", server.uri()),
+            &server.uri(),
+        )
+        .await
+        .expect("usage");
+        assert!(data.metrics.iter().any(|m| m.kind == MetricKind::Spend));
+        let q = usage_query(&period);
+        assert!(q[0]
+            .1
+            .starts_with("REQUESTS,USAGE_BILLABLE_COST,INPUT_TOKENS,"));
+        assert!(q[0].1.ends_with(",IMAGES_PROCESSED"));
+        assert!(q[1].1.ends_with("-01"));
+    }
+
+    #[tokio::test]
+    async fn cost_amount_is_divided_by_the_currency_offset() {
+        let mut cost = series(
+            "usage_billable_cost",
+            serde_json::json!([
+                { "date": "2026-10-01", "value": 1000, "amount": 1000 },
+                { "date": "2026-10-02", "value": 234, "amount": 234 }
+            ]),
         );
+        cost["currency"] = serde_json::json!({ "code": "usd", "offset": 100 });
+        let body = serde_json::json!({ "metrics": {
+            "USAGE_BILLABLE_COST": cost,
+            "REQUESTS": series("num_requests", serde_json::json!([
+                { "date": "2026-10-01", "value": 5 }, { "date": "2026-10-02", "value": "2" }
+            ])),
+            "SOMETHING_NEW": series("x", serde_json::json!([{ "value": 9 }])),
+        }});
         let data = console(
-            &session_account(&[("team_id", "1001"), ("project_id", "2002")]),
+            &session_account(&[("team_id", "1001")]),
             None,
-            server_usage,
+            ResponseTemplate::new(200).set_body_json(body),
         )
         .await
         .expect("usage");
@@ -784,21 +976,42 @@ mod tests {
             .iter()
             .find(|m| m.kind == MetricKind::Spend)
             .unwrap();
-        assert_eq!((spend.used, spend.unit.as_str()), (Some(3.0), "EUR"));
+        assert_eq!((spend.used, spend.unit.as_str()), (Some(12.34), "USD"));
+        assert!(data
+            .metrics
+            .iter()
+            .any(|m| m.label == "Requisições" && m.used == Some(7.0)));
+        assert_eq!(data.metrics.len(), 2);
     }
 
     #[tokio::test]
-    async fn unknown_usage_shape_is_unknown_not_zero() {
+    async fn empty_series_is_unknown_not_zero() {
+        let body = serde_json::json!({ "as_of": "x", "models": [], "metrics": {
+            "REQUESTS": { "metric": "num_requests", "series": [] },
+            "OUTPUT_TOKENS": series("num_completion_tokens", serde_json::json!([])),
+        }});
         let data = console(
+            &session_account(&[("team_id", "1001")]),
+            None,
+            ResponseTemplate::new(200).set_body_json(body),
+        )
+        .await
+        .expect("key still valid");
+        assert!(data.metrics.iter().all(|m| m.kind == MetricKind::RateLimit));
+        assert!(data.notes.iter().any(|n| n.contains("unknown, not zero")));
+    }
+
+    #[tokio::test]
+    async fn malformed_usage_is_a_schema_error() {
+        let err = console(
             &session_account(&[("team_id", "1001")]),
             None,
             ResponseTemplate::new(200)
                 .set_body_json(serde_json::json!({ "series": [{ "day": "x" }] })),
         )
         .await
-        .expect("key still valid");
-        assert!(data.metrics.is_empty());
-        assert!(data.notes.iter().any(|n| n.contains("unknown, not zero")));
+        .expect_err("schema");
+        assert_eq!(err.status, QueryError::schema().status);
         assert_eq!(
             key_paths(&serde_json::json!({ "series": [{ "day": 1 }] })),
             ["series", "series.day"]
@@ -848,15 +1061,6 @@ mod tests {
                 .expect_err("invalid");
             assert_eq!(err.status, Status::NeedsConfiguration, "{key}");
         }
-    }
-
-    #[test]
-    fn usage_parser_ignores_negative_and_non_numeric_values() {
-        let body = serde_json::json!({ "cost": -1, "total_tokens": "abc", "summary": { "requests": "5" } });
-        let metrics = usage_metrics(&body);
-        assert_eq!(metrics.len(), 1);
-        assert_eq!(metrics[0].used, Some(5.0));
-        assert!(usage_metrics(&serde_json::json!({})).is_empty());
     }
 
     #[test]

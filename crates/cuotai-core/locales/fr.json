@@ -1081,7 +1081,7 @@
   "note.meta.teams_unavailable": "La console dev.meta.ai n'a pas listé les équipes ; indiquez \"ID de l'équipe\" d'après l'adresse de la page d'utilisation.",
   "note.meta.several_teams": "La session appartient à {count} équipes ; indiquez \"ID de l'équipe\" d'après l'adresse de la page d'utilisation pour en choisir une.",
   "note.meta.usage_unavailable": "La console dev.meta.ai n'a pas renvoyé l'utilisation ; la carte n'affiche que la vérification de la clé.",
-  "note.meta.usage_shape_unknown": "La réponse d'utilisation de dev.meta.ai n'a aucun champ que Cuotai reconnaisse ; l'utilisation est inconnue, pas nulle.",
+  "note.meta.usage_empty": "La console dev.meta.ai n'a renvoyé aucune série d'utilisation pour ce mois ; l'utilisation est inconnue, pas nulle.",
   "note.router_keys.kimi_internal_route": "Route interne de Kimi observée dans 9router ; susceptible de changer et d’être restreinte par le fournisseur.",
   "note.router_keys.kimi_no_numeric_quota": "Réponse de Kimi sans bloc de quota numérique ; absent ne signifie pas illimité.",
   "note.router_keys.kimi_plan": "Forfait : {plan}.",

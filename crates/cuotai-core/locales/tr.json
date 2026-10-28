@@ -1081,7 +1081,7 @@
   "note.meta.teams_unavailable": "dev.meta.ai konsolu ekipleri listelemedi; kullanım sayfası adresinden \"Ekip kimliği\" girin.",
   "note.meta.several_teams": "Oturum {count} ekibe ait; birini seçmek için kullanım sayfası adresinden \"Ekip kimliği\" girin.",
   "note.meta.usage_unavailable": "dev.meta.ai konsolu kullanımı döndürmedi; kart yalnızca anahtar denetimini gösterir.",
-  "note.meta.usage_shape_unknown": "dev.meta.ai kullanım yanıtında Cuotai'nin tanıdığı alan yok; kullanım bilinmiyor, sıfır değil.",
+  "note.meta.usage_empty": "dev.meta.ai konsolu bu ay için kullanım serisi döndürmedi; kullanım bilinmiyor, sıfır değil.",
   "note.router_keys.kimi_internal_route": "9router'da gözlemlenen dahili Kimi rotası; değişebilir ve sağlayıcı kısıtlamalarına tabidir.",
   "note.router_keys.kimi_no_numeric_quota": "Sayısal kota bloğu olmayan Kimi yanıtı; olmaması sınırsız anlamına gelmez.",
   "note.router_keys.kimi_plan": "Plan: {plan}.",

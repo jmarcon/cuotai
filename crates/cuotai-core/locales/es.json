@@ -685,7 +685,7 @@
   "note.meta.teams_unavailable": "La consola dev.meta.ai no listó los equipos; indique \"ID del equipo\" a partir de la dirección de la página de uso.",
   "note.meta.several_teams": "La sesión pertenece a {count} equipos; indique \"ID del equipo\" a partir de la dirección de la página de uso para elegir uno.",
   "note.meta.usage_unavailable": "La consola dev.meta.ai no devolvió el uso; la tarjeta muestra solo la verificación de la clave.",
-  "note.meta.usage_shape_unknown": "La respuesta de uso de dev.meta.ai no tiene ningún campo que Cuotai reconozca; el uso es desconocido, no cero.",
+  "note.meta.usage_empty": "La consola de dev.meta.ai no devolvió ninguna serie de uso para este mes; el uso es desconocido, no cero.",
   "note.router_keys.kimi_internal_route": "Ruta interna de Kimi observada en 9router; sujeta a cambios y restricciones del proveedor.",
   "note.router_keys.kimi_no_numeric_quota": "Respuesta de Kimi sin bloque de cuota numérica; ausente no significa ilimitado.",
   "note.router_keys.kimi_plan": "Plan: {plan}.",

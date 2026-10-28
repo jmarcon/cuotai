@@ -685,7 +685,7 @@
   "note.meta.teams_unavailable": "La console dev.meta.ai non ha elencato i team; imposta \"ID del team\" dall'indirizzo della pagina di utilizzo.",
   "note.meta.several_teams": "La sessione appartiene a {count} team; imposta \"ID del team\" dall'indirizzo della pagina di utilizzo per sceglierne uno.",
   "note.meta.usage_unavailable": "La console dev.meta.ai non ha restituito l'utilizzo; la scheda mostra solo la verifica della chiave.",
-  "note.meta.usage_shape_unknown": "La risposta di utilizzo di dev.meta.ai non ha campi che Cuotai riconosca; l'utilizzo è sconosciuto, non zero.",
+  "note.meta.usage_empty": "La console di dev.meta.ai non ha restituito serie di utilizzo per questo mese; l'utilizzo è sconosciuto, non zero.",
   "note.router_keys.kimi_internal_route": "Rotta interna di Kimi osservata in 9router; soggetta a modifiche e restrizioni del provider.",
   "note.router_keys.kimi_no_numeric_quota": "Risposta di Kimi senza blocco di quota numerica; assente non significa illimitato.",
   "note.router_keys.kimi_plan": "Piano: {plan}.",

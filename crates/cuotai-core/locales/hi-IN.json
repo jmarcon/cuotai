@@ -1081,7 +1081,7 @@
   "note.meta.teams_unavailable": "dev.meta.ai कंसोल ने टीमों की सूची नहीं दी; उपयोग पेज के पते से \"टीम ID\" सेट करें।",
   "note.meta.several_teams": "सत्र {count} टीमों का है; एक चुनने के लिए उपयोग पेज के पते से \"टीम ID\" सेट करें।",
   "note.meta.usage_unavailable": "dev.meta.ai कंसोल ने उपयोग नहीं लौटाया; कार्ड केवल कुंजी की जाँच दिखाता है।",
-  "note.meta.usage_shape_unknown": "dev.meta.ai के उपयोग उत्तर में कोई ऐसा फ़ील्ड नहीं है जिसे Cuotai पहचाने; उपयोग अज्ञात है, शून्य नहीं।",
+  "note.meta.usage_empty": "dev.meta.ai कंसोल ने इस महीने की कोई उपयोग शृंखला नहीं लौटाई; उपयोग अज्ञात है, शून्य नहीं।",
   "note.router_keys.kimi_internal_route": "आंतरिक रूट, सार्वजनिक रूप से दस्तावेज़ीकृत नहीं (संदर्भ: 9router MIT, कमिट f01fb909); बिना सूचना बदल सकता है।",
   "note.router_keys.kimi_no_numeric_quota": "खाता जुड़ा है; इस जवाब में API ने संख्यात्मक कोटा विंडो नहीं लौटाईं।",
   "note.router_keys.kimi_plan": "API द्वारा बताया गया प्लान: {plan}।",

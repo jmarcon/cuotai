@@ -1078,7 +1078,7 @@
   "note.meta.teams_unavailable": "O console dev.meta.ai não listou as equipes; informe \"ID da equipe\" a partir do endereço da página de uso.",
   "note.meta.several_teams": "A sessão pertence a {count} equipes; informe \"ID da equipe\" a partir do endereço da página de uso para escolher uma.",
   "note.meta.usage_unavailable": "O console dev.meta.ai não devolveu o uso; o cartão mostra só a verificação da chave.",
-  "note.meta.usage_shape_unknown": "A resposta de uso do dev.meta.ai não tem campo que o Cuotai reconheça; o uso é desconhecido, não zero.",
+  "note.meta.usage_empty": "O console do dev.meta.ai não retornou série de uso para este mês; o uso é desconhecido, não zero.",
   "note.router_keys.kimi_internal_route": "Rota interna não documentada publicamente (referência: 9router MIT, commit f01fb909); pode mudar sem aviso.",
   "note.router_keys.kimi_no_numeric_quota": "Conta conectada; a API não retornou janelas de quota numérica nesta resposta.",
   "note.router_keys.kimi_plan": "Plano reportado pela API: {plan}.",

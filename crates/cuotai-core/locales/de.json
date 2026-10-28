@@ -1081,7 +1081,7 @@
   "note.meta.teams_unavailable": "Die dev.meta.ai-Konsole hat die Teams nicht aufgelistet; setzen Sie \"Team-ID\" aus der Adresse der Nutzungsseite.",
   "note.meta.several_teams": "Die Sitzung gehört zu {count} Teams; setzen Sie \"Team-ID\" aus der Adresse der Nutzungsseite, um eines zu wählen.",
   "note.meta.usage_unavailable": "Die dev.meta.ai-Konsole hat die Nutzung nicht geliefert; die Karte zeigt nur die Schlüsselprüfung.",
-  "note.meta.usage_shape_unknown": "Die Nutzungsantwort von dev.meta.ai hat kein Feld, das Cuotai erkennt; die Nutzung ist unbekannt, nicht null.",
+  "note.meta.usage_empty": "Die dev.meta.ai-Konsole lieferte für diesen Monat keine Nutzungsreihe; die Nutzung ist unbekannt, nicht null.",
   "note.router_keys.kimi_internal_route": "Interne Kimi-Route, in 9router beobachtet; Änderungen und Einschränkungen des Anbieters vorbehalten.",
   "note.router_keys.kimi_no_numeric_quota": "Kimi-Antwort ohne numerischen Kontingentblock; fehlend bedeutet nicht unbegrenzt.",
   "note.router_keys.kimi_plan": "Tarif: {plan}.",

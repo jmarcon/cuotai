@@ -1076,7 +1076,7 @@
   "note.meta.teams_unavailable": "Bảng điều khiển dev.meta.ai không liệt kê các nhóm; hãy đặt \"ID nhóm\" theo địa chỉ trang mức dùng.",
   "note.meta.several_teams": "Phiên thuộc {count} nhóm; hãy đặt \"ID nhóm\" theo địa chỉ trang mức dùng để chọn một nhóm.",
   "note.meta.usage_unavailable": "Bảng điều khiển dev.meta.ai không trả về mức dùng; thẻ chỉ hiển thị kiểm tra khóa.",
-  "note.meta.usage_shape_unknown": "Phản hồi mức dùng của dev.meta.ai không có trường nào Cuotai nhận ra; mức dùng là không rõ, không phải bằng 0.",
+  "note.meta.usage_empty": "Bảng điều khiển dev.meta.ai không trả về chuỗi mức dùng nào cho tháng này; mức dùng là không rõ, không phải bằng 0.",
   "note.router_keys.kimi_internal_route": "Tuyến nội bộ của Kimi được ghi nhận trong 9router; có thể thay đổi và chịu các hạn chế của nhà cung cấp.",
   "note.router_keys.kimi_no_numeric_quota": "Phản hồi Kimi không có khối hạn mức dạng số; thiếu không có nghĩa là không giới hạn.",
   "note.router_keys.kimi_plan": "Gói: {plan}.",

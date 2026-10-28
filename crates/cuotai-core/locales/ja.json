@@ -1076,7 +1076,7 @@
   "note.meta.teams_unavailable": "dev.meta.ai コンソールがチームを返しませんでした。使用量ページのアドレスから \"チーム ID\" を設定してください。",
   "note.meta.several_teams": "セッションは {count} 個のチームに属しています。使用量ページのアドレスから \"チーム ID\" を設定して 1 つを選んでください。",
   "note.meta.usage_unavailable": "dev.meta.ai コンソールが使用量を返しませんでした。カードにはキーの確認のみ表示されます。",
-  "note.meta.usage_shape_unknown": "dev.meta.ai の使用量の応答に Cuotai が認識できる項目がありません。使用量は不明であり、ゼロではありません。",
+  "note.meta.usage_empty": "dev.meta.ai コンソールは今月の使用量の系列を返しませんでした。使用量は不明であり、ゼロではありません。",
   "note.router_keys.kimi_internal_route": "9router で確認された Kimi の内部ルート。プロバイダーの変更や制限の影響を受けます。",
   "note.router_keys.kimi_no_numeric_quota": "Kimi の応答に数値のクォータのブロックがありません。ないことは無制限を意味しません。",
   "note.router_keys.kimi_plan": "プラン：{plan}。",

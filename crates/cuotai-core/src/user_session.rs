@@ -512,7 +512,9 @@ const META_CONSOLE_USAGE: &str = "https://dev.meta.ai/usage";
 const META_CONSOLE: SessionDescriptor = SessionDescriptor {
     slot: "session_env",
     required: &["llama_dev_sess"],
-    optional: &[],
+    // Present beside the session in the owner's signed-in request
+    // (2026-10-27); sent when captured, never required.
+    optional: &["ecto_1_sess"],
     hosts: &["dev.meta.ai"],
     account_host: false,
     delivery: Delivery::CookieHeader,

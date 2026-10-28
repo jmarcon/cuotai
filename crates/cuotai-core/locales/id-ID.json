@@ -1076,7 +1076,7 @@
   "note.meta.teams_unavailable": "Konsol dev.meta.ai tidak menampilkan daftar tim; atur \"ID tim\" dari alamat halaman penggunaan.",
   "note.meta.several_teams": "Sesi ini milik {count} tim; atur \"ID tim\" dari alamat halaman penggunaan untuk memilih satu.",
   "note.meta.usage_unavailable": "Konsol dev.meta.ai tidak mengembalikan penggunaan; kartu hanya menampilkan pemeriksaan kunci.",
-  "note.meta.usage_shape_unknown": "Jawaban penggunaan dev.meta.ai tidak memiliki kolom yang dikenali Cuotai; penggunaan tidak diketahui, bukan nol.",
+  "note.meta.usage_empty": "Konsol dev.meta.ai tidak mengembalikan seri penggunaan untuk bulan ini; penggunaan tidak diketahui, bukan nol.",
   "note.router_keys.kimi_internal_route": "Rute internal Kimi yang teramati di 9router; dapat berubah dan tunduk pada pembatasan penyedia.",
   "note.router_keys.kimi_no_numeric_quota": "Respons Kimi tanpa blok kuota numerik; tidak adanya data bukan berarti tanpa batas.",
   "note.router_keys.kimi_plan": "Paket: {plan}.",

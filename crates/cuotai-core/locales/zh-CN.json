@@ -1076,7 +1076,7 @@
   "note.meta.teams_unavailable": "dev.meta.ai 控制台未列出团队；请根据用量页面地址设置 \"团队 ID\"。",
   "note.meta.several_teams": "该会话属于 {count} 个团队；请根据用量页面地址设置 \"团队 ID\" 以选择其一。",
   "note.meta.usage_unavailable": "dev.meta.ai 控制台未返回用量；卡片仅显示密钥检查。",
-  "note.meta.usage_shape_unknown": "dev.meta.ai 的用量响应中没有 Cuotai 可识别的字段；用量未知，而不是零。",
+  "note.meta.usage_empty": "dev.meta.ai 控制台未返回本月的用量序列；用量未知，而不是零。",
   "note.router_keys.kimi_internal_route": "在 9router 中观察到的 Kimi 内部路由；可能随提供商的更改和限制而变化。",
   "note.router_keys.kimi_no_numeric_quota": "Kimi 的响应中没有数字额度区块；缺失并不意味着无限。",
   "note.router_keys.kimi_plan": "套餐：{plan}。",
