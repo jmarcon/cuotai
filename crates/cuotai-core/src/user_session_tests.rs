@@ -1632,6 +1632,56 @@ async fn the_pasted_test_reports_the_worst_slot() {
     assert!(store.values().is_empty());
 }
 
+// PRD 0047 review: typed secrets that only work together (an Alibaba Cloud
+// AccessKey ID and its Secret) reach the adapter in the same probe. The STS
+// variable is named but unset, so a probe holding both keys stops at it
+// without any network request; a probe with one key stops at the other.
+#[tokio::test]
+async fn typed_secrets_that_work_together_are_tested_together() {
+    use crate::secret_input::{reduce_secrets, SecretValue};
+    let account = Account {
+        id: None,
+        name: "Alibaba".into(),
+        provider: Provider::AlibabaCloud,
+        credential_env: Some("ALI_TEST_AK".into()),
+        params: [
+            ("secret_env".to_string(), "ALI_TEST_SK".to_string()),
+            ("security_token_env".to_string(), "ALI_TEST_STS".to_string()),
+        ]
+        .into(),
+        ..Default::default()
+    };
+    let store = Arc::new(MemoryStore::default());
+    let monitor = Monitor::with_oauth(
+        config(vec![account.clone()]),
+        Arc::new(Env(Vec::new())),
+        Arc::new(session(&store)),
+    )
+    .unwrap();
+    let typed = reduce_secrets(
+        Provider::AlibabaCloud,
+        &[
+            SecretValue {
+                slot: CREDENTIAL_SLOT.into(),
+                value: "SECRET-ACCESS-KEY-ID".into(),
+            },
+            SecretValue {
+                slot: "secret_env".into(),
+                value: "SECRET-ACCESS-KEY-SECRET".into(),
+            },
+        ],
+    )
+    .unwrap();
+    assert_eq!(typed.len(), 2);
+    let report = test_pasted(&monitor, &account, &typed).await;
+    let keys: Vec<_> = report.notes_l10n.iter().map(|n| n.id.as_ref()).collect();
+    assert!(
+        keys.contains(&"query.alibaba_billing.missing_security_token"),
+        "{keys:?}"
+    );
+    assert!(store.values().is_empty());
+}
+
 // ------------------------------------------- PRD 0036 RF2.1 / RF2.6 (aggregators)
 
 fn nine_router(base: &str) -> Account {

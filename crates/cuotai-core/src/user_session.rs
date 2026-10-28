@@ -1288,22 +1288,34 @@ fn only_slot(account: &Account, slot: &str) -> Account {
     probe
 }
 
-/// SES-02: the RF3 test of each pasted session on its own (one read-only
-/// query per slot, with the account's other sessions left out), so a
-/// working session of another slot never vouches for a paste and a broken
-/// one never blocks it. The report is the first rejected one, else the
-/// first unreachable one, else the last passed one; nothing is stored.
+/// SES-02: the RF3 test of the pasted sessions and typed secrets. Each web
+/// session the provider declares ([`descriptors`]) is an alternative and is
+/// tested on its own (one read-only query per slot, with the account's
+/// other sessions left out), so a working session of another slot never
+/// vouches for a paste and a broken one never blocks it. Typed secrets that
+/// are not such sessions (an AccessKey ID and its Secret, PRD 0047) only
+/// work together, so every probe carries all of them. The report is the
+/// first rejected one, else the first unreachable one, else the last passed
+/// one; nothing is stored.
 pub async fn test_pasted(
     monitor: &crate::Monitor,
     account: &Account,
     sessions: &[ReducedSession],
 ) -> crate::Report {
+    let (alternatives, shared): (Vec<&ReducedSession>, Vec<&ReducedSession>) = sessions
+        .iter()
+        .partition(|s| descriptor(account.provider, s.slot).is_some());
+    if alternatives.is_empty() {
+        return monitor.test_session(account, sessions).await;
+    }
     let mut worst: Option<(SessionCheck, crate::Report)> = None;
-    for session in sessions {
+    for session in alternatives {
         let probe = only_slot(account, session.slot);
-        let report = monitor
-            .test_session(&probe, std::slice::from_ref(session))
-            .await;
+        let batch: Vec<ReducedSession> = std::iter::once(session)
+            .chain(shared.iter().copied())
+            .map(ReducedSession::duplicate)
+            .collect();
+        let report = monitor.test_session(&probe, &batch).await;
         let check = SessionCheck::of(&report);
         let rank = |check: SessionCheck| match check {
             SessionCheck::Rejected => 2,
@@ -1378,6 +1390,18 @@ impl Drop for ReducedSession {
 impl ReducedSession {
     pub fn slot(&self) -> &'static str {
         self.slot
+    }
+
+    /// A second copy for one probe of [`test_pasted`]; it is wiped when
+    /// dropped like the original.
+    fn duplicate(&self) -> Self {
+        Self {
+            slot: self.slot,
+            cookie: self.cookie.clone(),
+            kept: self.kept.clone(),
+            discarded: self.discarded,
+            expires_at: self.expires_at,
+        }
     }
 
     /// The reduced `Cookie` value, for a query or the vault only.
