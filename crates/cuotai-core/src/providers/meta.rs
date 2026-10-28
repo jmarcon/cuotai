@@ -996,6 +996,8 @@ mod tests {
         .await
         .expect("usage");
         assert!(data.metrics.iter().any(|m| m.kind == MetricKind::Spend));
+        // PRD 0052 RF3.6: the team and project ids are in the request only.
+        data.assert_id_free(&["1000000000000001", "2002", &server.uri()]);
         let q = usage_query(&period);
         assert!(q[0]
             .1

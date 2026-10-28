@@ -1199,6 +1199,23 @@ mod tests {
         }
     }
 
+    /// PRD 0052 RF3.6: an adapter source template keeps its named
+    /// placeholders through the redaction, so the exported `source` reads
+    /// as the endpoint with `{user_id}`, never a percent-encoded or
+    /// redacted path.
+    #[test]
+    fn source_templates_survive_the_redaction() {
+        let cline = account("cline", Provider::Cline);
+        let scrub = Scrub::new(&cline, false);
+        for template in [
+            "https://api.cline.bot/api/v1/users/{user_id}/balance",
+            "https://api.cline.bot/api/v1/organizations/{organization_id}/balance",
+            "https://mimo-server-{region}.xiaomimimo.com/api/user/usage",
+        ] {
+            assert_eq!(scrub.text(template), template);
+        }
+    }
+
     fn quota(label: &str, used: f64, window: MetricWindow, resets_in_hours: i64) -> Metric {
         Metric {
             limit: Some(100.0),

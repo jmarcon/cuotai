@@ -14,8 +14,6 @@ use reqwest::RequestBuilder;
 use serde_json::Value;
 use std::collections::BTreeMap;
 
-const REF: &str = "https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/";
-
 // Kiro (providers/registry/kiro.js + config/kiroConstants.js): fixed us-east-1 hosts.
 const KIRO_CW_HOST: &str = "https://codewhisperer.us-east-1.amazonaws.com";
 const KIRO_Q_HOST: &str = "https://q.us-east-1.amazonaws.com";
@@ -578,7 +576,10 @@ fn kiro_data(body: Value) -> Result<Data, QueryError> {
         (true, true) => crate::OverageHint::Armed,
         (true, false) => crate::OverageHint::Unknown,
     });
-    Ok(Data::new(metrics, notes, format!("{REF}kiro.js")).with_overage_hint(overage_hint))
+    Ok(
+        Data::new(metrics, notes, super::router_ref!("usage/kiro.js"))
+            .with_overage_hint(overage_hint),
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -738,7 +739,11 @@ async fn codebuddy(
             "No credit pack found in the response.",
         );
     }
-    Ok(Data::new(metrics, notes, format!("{REF}codebuddy-cn.js")))
+    Ok(Data::new(
+        metrics,
+        notes,
+        super::router_ref!("usage/codebuddy-cn.js"),
+    ))
 }
 
 /// Label a refill pack by its cycle length (Monthly is the common case).
@@ -979,7 +984,7 @@ billing: Default::default(), scope: None,
             "No numeric quota returned; absent does not mean unlimited.",
         );
     }
-    Data::new(metrics, notes, format!("{REF}zed.js"))
+    Data::new(metrics, notes, super::router_ref!("usage/zed.js"))
 }
 
 /// Map plan_v3 ids to dashboard labels (CodexBar-compatible, per reference).

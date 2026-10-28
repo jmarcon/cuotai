@@ -31,6 +31,10 @@ pub(crate) const BASE: &str = "https://openrouter.ai";
 const KEY_PATH: &str = "/api/v1/key";
 const CREDITS_PATH: &str = "/api/v1/credits";
 const ACTIVITY_PATH: &str = "/api/v1/activity";
+/// The report sources, `BASE` plus the path as literals (PRD 0052 RF3.6;
+/// a test checks they agree).
+const KEY_SOURCE: &str = "https://openrouter.ai/api/v1/key";
+const CREDITS_SOURCE: &str = "https://openrouter.ai/api/v1/credits";
 /// Largest body of the small endpoints.
 const BODY_LIMIT: usize = 1024 * 1024;
 /// RF6.3: largest `/activity` body and row count accepted.
@@ -132,12 +136,12 @@ async fn open_router_at(
         Product::Key => {
             let url = format!("{base}{KEY_PATH}");
             let value = get(ctx, &url, key, product, BODY_LIMIT).await?;
-            parse_key(&value, now, url)
+            parse_key(&value, now, KEY_SOURCE)
         }
         Product::Account => {
             let url = format!("{base}{CREDITS_PATH}");
             let value = get(ctx, &url, key, product, BODY_LIMIT).await?;
-            let mut data = parse_credits(&value, url)?;
+            let mut data = parse_credits(&value, CREDITS_SOURCE)?;
             let threshold = account
                 .params
                 .get("low_balance")
@@ -426,7 +430,7 @@ const KEY_GROUPS: [&str; 9] = [
     "effective_budget",
 ];
 
-fn parse_key(value: &Value, now: DateTime<Utc>, source: String) -> Result<Data, QueryError> {
+fn parse_key(value: &Value, now: DateTime<Utc>, source: &'static str) -> Result<Data, QueryError> {
     let data = value
         .get("data")
         .and_then(Value::as_object)
@@ -646,7 +650,7 @@ fn low_balance_note(data: &mut Data, threshold: f64) {
     }
 }
 
-fn parse_credits(value: &Value, source: String) -> Result<Data, QueryError> {
+fn parse_credits(value: &Value, source: &'static str) -> Result<Data, QueryError> {
     let data = value
         .get("data")
         .and_then(Value::as_object)
@@ -878,13 +882,13 @@ pub(super) fn label_fixtures() -> Vec<(&'static str, Vec<Metric>)> {
     vec![
         (
             "open_router.key",
-            parse_key(&key, now, String::new())
+            parse_key(&key, now, KEY_SOURCE)
                 .expect("fixture decodes")
                 .metrics,
         ),
         (
             "open_router.credits",
-            parse_credits(&credits, String::new())
+            parse_credits(&credits, CREDITS_SOURCE)
                 .expect("fixture decodes")
                 .metrics,
         ),
@@ -1899,5 +1903,17 @@ mod tests {
             bad.validate(),
             Err(crate::ConfigError::OpenRouter)
         ));
+    }
+}
+
+#[cfg(test)]
+mod source_tests {
+    use super::*;
+
+    /// PRD 0052 RF3.6: the literal sources are `BASE` plus the paths.
+    #[test]
+    fn the_sources_are_the_base_plus_the_paths() {
+        assert_eq!(KEY_SOURCE, format!("{BASE}{KEY_PATH}"));
+        assert_eq!(CREDITS_SOURCE, format!("{BASE}{CREDITS_PATH}"));
     }
 }

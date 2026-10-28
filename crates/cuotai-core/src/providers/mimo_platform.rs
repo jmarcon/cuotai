@@ -62,12 +62,7 @@ pub(crate) async fn fetch(ctx: &Context<'_>, base: &str, cookie: &str) -> Result
         .ok()
         .flatten();
 
-    build_data(
-        &balance_body,
-        detail_body.as_ref(),
-        usage_body.as_ref(),
-        base,
-    )
+    build_data(&balance_body, detail_body.as_ref(), usage_body.as_ref())
 }
 
 /// Cookie-authenticated GET. Ok(None) when the complementary endpoint fails
@@ -153,7 +148,6 @@ fn build_data(
     balance_body: &serde_json::Value,
     detail_body: Option<&serde_json::Value>,
     usage_body: Option<&serde_json::Value>,
-    base: &str,
 ) -> Result<Data, QueryError> {
     let mut metrics = Vec::new();
     let mut notes = Notes::new();
@@ -348,10 +342,10 @@ fn build_data(
 
     notes.push_params(
         "note.mimo_platform.console_api_reference",
-        params([("base", ParamValue::from(base.to_string()))]),
+        params([("base", ParamValue::from(PLATFORM_API_BASE))]),
         "Source: {base}. Web console routes are not publicly documented (reference: CodexBar MIT, MiMoUsageFetcher.swift); they may change without notice.",
     );
-    Ok(Data::new(metrics, notes, base))
+    Ok(Data::new(metrics, notes, PLATFORM_API_BASE))
 }
 
 /// "yyyy-MM-dd HH:mm:ss" in UTC (currentPeriodEnd format in CodexBar).
@@ -370,8 +364,7 @@ pub(super) fn label_fixtures() -> Vec<(&'static str, Vec<Metric>)> {
     let usage = serde_json::json!({"data": {"monthUsage": {"items": [
         {"limit": 100.0, "used": 10.0, "percent": 0.1}
     ]}}});
-    let data = build_data(&balance, Some(&detail), Some(&usage), "https://example.com")
-        .expect("fixture decodes");
+    let data = build_data(&balance, Some(&detail), Some(&usage)).expect("fixture decodes");
     vec![("mimo_platform", data.metrics)]
 }
 

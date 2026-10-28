@@ -34,6 +34,10 @@ const MIMO_REGION_BASES: [(&str, &str); 5] = [
     ("in", "https://mimo-server-in.xiaomimimo.com"),
 ];
 const MIMO_DEFAULT_REGION: &str = "sgp";
+/// The report source of a MiMo account session: the cluster is a named
+/// placeholder (PRD 0052 RF3.6); the card label names the region.
+const MIMO_SESSION_USAGE_SOURCE: &str =
+    "https://mimo-server-{region}.xiaomimimo.com/api/user/usage";
 /// User-Agent expected by the mimo-server backend (mimoAccount.js).
 const MIMO_API_UA: &str =
     "miNative PC/Normal Windows_NT/10.0.19045 SDKV/1.0.0 DEVT/PC DEVS/Windows APP/miaccount_desktop APPV/0.1.0";
@@ -768,15 +772,12 @@ async fn mimo_session_at(
         });
     }
     let body = super::body_value(response).await?;
-    let (label, source) = if is_fixed {
-        (
-            format!("Account session (cookie, region {region})"),
-            url.clone(),
-        )
+    let label = if is_fixed {
+        format!("Account session (cookie, region {region})")
     } else {
-        ("Account session (cookie)".to_string(), url.clone())
+        "Account session (cookie)".to_string()
     };
-    mimo_data_from_body(&body, &label, &source)
+    mimo_data_from_body(&body, &label, MIMO_SESSION_USAGE_SOURCE)
 }
 
 /// Internal envelope for wiremock: fallback with a Bearer token on aistudio.
@@ -815,7 +816,7 @@ async fn mimo_aistudio_at(ctx: &Context<'_>, url: &str, key: &str) -> Result<Dat
     mimo_data_from_body(
         &body,
         "Bearer token (params.session_env not configured)",
-        url,
+        MIMO_AISTUDIO_USAGE_URL,
     )
 }
 
@@ -824,7 +825,7 @@ async fn mimo_aistudio_at(ctx: &Context<'_>, url: &str, key: &str) -> Result<Dat
 fn mimo_data_from_body(
     body: &serde_json::Value,
     credential_label: &str,
-    source: &str,
+    source: &'static str,
 ) -> Result<Data, QueryError> {
     if body.get("code").and_then(|c| c.as_i64()) != Some(0) {
         return Err(QueryError::schema_at(body, &["code"], "number"));
@@ -1329,6 +1330,10 @@ mod tests {
         )
         .await
         .expect("sucesso");
+        // PRD 0052 RF3.6: the source is the cluster template, never the URL
+        // the request went to, and the cookie stays out.
+        assert_eq!(data.source, MIMO_SESSION_USAGE_SOURCE);
+        data.assert_id_free(&["serviceToken", &server.uri()]);
 
         let m = &data.metrics[0];
         // percent = RESTANTE: 94 restantes → 6 usados.

@@ -27,6 +27,8 @@ use serde_json::{Map, Value};
 const KIMCHI_BASE: &str = "https://llm.kimchi.dev";
 const CREDITS_PATH: &str = "/v1/credits";
 const BUDGET_PATH: &str = "/v1/budget";
+/// The report source, the two endpoints as a literal (PRD 0052 RF3.6).
+const SOURCE: &str = "https://llm.kimchi.dev/v1/credits; https://llm.kimchi.dev/v1/budget";
 
 pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, QueryError> {
     kimchi_at(account, ctx, KIMCHI_BASE).await
@@ -92,11 +94,7 @@ async fn kimchi_at(account: &Account, ctx: &Context<'_>, base: &str) -> Result<D
         ),
     }
 
-    Ok(Data::new(
-        metrics,
-        notes,
-        format!("{credits_url}; {budget_url}"),
-    ))
+    Ok(Data::new(metrics, notes, SOURCE))
 }
 
 #[derive(Debug)]
@@ -713,5 +711,18 @@ mod tests {
         assert_eq!(metrics[0].limit, None);
         assert_eq!(metrics[0].remaining, None);
         assert_eq!(metrics[1].remaining, Some(-2.0));
+    }
+}
+
+#[cfg(test)]
+mod source_tests {
+    /// PRD 0052 RF3.6: the literal source names the two endpoints queried.
+    #[test]
+    fn the_source_names_both_endpoints() {
+        use super::*;
+        assert_eq!(
+            SOURCE,
+            format!("{KIMCHI_BASE}{CREDITS_PATH}; {KIMCHI_BASE}{BUDGET_PATH}")
+        );
     }
 }

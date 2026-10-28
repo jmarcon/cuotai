@@ -34,6 +34,14 @@ use crate::{Account, Metric, MetricKind};
 use serde::Deserialize;
 
 const CLINE_BASE: &str = "https://api.cline.bot";
+/// The report sources (PRD 0052 RF3.6): the endpoint templates, with the
+/// organization and user ids as named placeholders. The ids are only in
+/// the request; neither reaches `--json`, `export::v1` or the details.
+const CLINE_ORG_BALANCE_SOURCE: &str =
+    "https://api.cline.bot/api/v1/organizations/{organization_id}/balance";
+const CLINE_USER_BALANCE_SOURCE: &str = "https://api.cline.bot/api/v1/users/{user_id}/balance";
+/// The path the personal note names, with the same placeholder.
+const CLINE_USER_BALANCE_PATH: &str = "/api/v1/users/{user_id}/balance";
 
 pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, QueryError> {
     cline(account, ctx, CLINE_BASE).await
@@ -111,11 +119,7 @@ async fn cline(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data,
             "note.coding.organization_balance_only",
             "Cline org has no public usage endpoint aggregated by organization without memberId. Only balance is shown; for history, use the authenticated panel at app.cline.bot.",
         );
-        Ok(Data::new(
-            metrics,
-            notes,
-            format!("{base}{org_balance_path}"),
-        ))
+        Ok(Data::new(metrics, notes, CLINE_ORG_BALANCE_SOURCE))
     } else {
         let me: ClineMe = json(
             ctx.http
@@ -144,10 +148,13 @@ async fn cline(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data,
         let mut notes = Notes::new();
         notes.push_params(
             "note.coding.personal_balance_only",
-            params([("balance_path", crate::text::ParamValue::from(balance_path.as_str()))]),
+            params([(
+                "balance_path",
+                crate::text::ParamValue::from(CLINE_USER_BALANCE_PATH),
+            )]),
             "Bearer CLINE_API_KEY (created at app.cline.bot → Settings → API Keys) is used for /api/v1/users/me and for {balance_path}. The endpoint /api/v1/users/{uid}/usages is not queried: the open-source Cline client (repo cline/cline) documents no window contract, and any aggregation would present partial sums as full history. Balance is the only quota metric. For history, use the authenticated dashboard at app.cline.bot.",
         );
-        Ok(Data::new(metrics, notes, format!("{base}{balance_path}")))
+        Ok(Data::new(metrics, notes, CLINE_USER_BALANCE_SOURCE))
     }
 }
 
@@ -249,10 +256,15 @@ mod tests {
         assert_eq!(saldo.kind, MetricKind::Balance);
         assert_eq!(saldo.window, None);
         assert_eq!(saldo.unit, "USD");
-        assert_eq!(
-            data.source,
-            format!("{}/api/v1/users/user_abc123/balance", server.uri())
-        );
+        // PRD 0052 RF3.6: the request used the returned user id (the mock
+        // answers only at its path), but the report names the template and
+        // carries neither the id nor the e-mail.
+        assert_eq!(data.source, CLINE_USER_BALANCE_SOURCE);
+        assert!(data
+            .notes
+            .iter()
+            .any(|n| n.contains("for /api/v1/users/{user_id}/balance.")));
+        data.assert_id_free(&["user_abc123", "x@example.com", &server.uri()]);
     }
 
     #[tokio::test]
@@ -307,9 +319,10 @@ mod tests {
         assert_eq!(saldo.used, None);
         assert_eq!(saldo.remaining, Some(7.5));
         assert!(!data.metrics.iter().any(|m| m.label.starts_with("Janela")));
-        assert!(data
-            .source
-            .ends_with("/api/v1/organizations/org_xyz/balance"));
+        // PRD 0052 RF3.6: the configured organization id is in the request
+        // path only.
+        assert_eq!(data.source, CLINE_ORG_BALANCE_SOURCE);
+        data.assert_id_free(&["org_xyz", &server.uri()]);
     }
 
     #[tokio::test]
@@ -357,5 +370,23 @@ mod tests {
         assert!(!is_safe_org_id("org 123"));
         assert!(!is_safe_org_id("org/123"));
         assert!(!is_safe_org_id("org.123"));
+    }
+}
+
+#[cfg(test)]
+mod source_tests {
+    use super::*;
+
+    /// PRD 0052 RF3.6: the Cline sources are the base plus the endpoint
+    /// templates, with named placeholders instead of ids.
+    #[test]
+    fn the_sources_are_templates_on_the_base() {
+        assert_eq!(
+            CLINE_USER_BALANCE_SOURCE,
+            format!("{CLINE_BASE}{CLINE_USER_BALANCE_PATH}")
+        );
+        assert!(CLINE_ORG_BALANCE_SOURCE.starts_with(CLINE_BASE));
+        assert!(CLINE_ORG_BALANCE_SOURCE.contains("/{organization_id}/"));
+        assert!(CLINE_USER_BALANCE_SOURCE.contains("/{user_id}/"));
     }
 }

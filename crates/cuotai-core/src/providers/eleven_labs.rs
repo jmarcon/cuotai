@@ -39,6 +39,24 @@ pub(crate) fn base_for_region(region: Option<&str>) -> Option<&'static str> {
     }
 }
 
+/// The report source of `base`, a literal per region host (PRD 0052 RF3.6);
+/// an unknown base (a test's mock server) reports the default host.
+fn source_for(base: &str) -> &'static str {
+    match base.trim_end_matches('/') {
+        "https://api.us.elevenlabs.io" => "https://api.us.elevenlabs.io/v1/user/subscription",
+        "https://api.eu.residency.elevenlabs.io" => {
+            "https://api.eu.residency.elevenlabs.io/v1/user/subscription"
+        }
+        "https://api.in.residency.elevenlabs.io" => {
+            "https://api.in.residency.elevenlabs.io/v1/user/subscription"
+        }
+        "https://api.sg.residency.elevenlabs.io" => {
+            "https://api.sg.residency.elevenlabs.io/v1/user/subscription"
+        }
+        _ => "https://api.elevenlabs.io/v1/user/subscription",
+    }
+}
+
 pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, QueryError> {
     let base =
         base_for_region(account.params.get("region").map(String::as_str)).ok_or_else(|| {
@@ -71,7 +89,7 @@ async fn eleven_labs_at(
         return Err(classify_http(code.as_u16(), detail.as_deref()));
     }
     let value = super::body_value(response).await?;
-    parse(&value, url)
+    parse(&value, source_for(base))
 }
 
 /// `detail.code` (or the legacy `detail.status`) of an error body, bounded.
@@ -197,7 +215,7 @@ fn valid_tier(tier: &str) -> bool {
             .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
 }
 
-fn parse(value: &Value, source: String) -> Result<Data, QueryError> {
+fn parse(value: &Value, source: &'static str) -> Result<Data, QueryError> {
     let body = super::object_of(value)?;
     let used = non_negative(body.get("character_count"))
         .ok_or_else(|| QueryError::schema_at(value, &["character_count"], "number"))?;
@@ -398,7 +416,7 @@ pub(super) fn label_fixtures() -> Vec<(&'static str, Vec<Metric>)> {
         "max_credit_limit_extension": 5000,
         "can_extend_character_limit": true,
     });
-    let data = parse(&body, "fixture".into()).expect("fixture decodes");
+    let data = parse(&body, source_for("https://api.elevenlabs.io")).expect("fixture decodes");
     vec![("eleven_labs", data.metrics)]
 }
 
@@ -935,5 +953,23 @@ mod tests {
         let data = ok(base(1, 10)).await;
         let all = format!("{:?}", data.notes);
         assert!(!all.contains(KEY) && !all.contains("http"));
+    }
+}
+
+#[cfg(test)]
+mod source_tests {
+    use super::*;
+
+    /// PRD 0052 RF3.6: each region's literal source is its base plus `PATH`.
+    #[test]
+    fn each_region_source_is_its_base_plus_the_path() {
+        for region in [None, Some("us"), Some("eu"), Some("in"), Some("sg")] {
+            let base = base_for_region(region).unwrap();
+            assert_eq!(source_for(base), format!("{base}{PATH}"), "{region:?}");
+        }
+        assert_eq!(
+            source_for("http://127.0.0.1:1"),
+            "https://api.elevenlabs.io/v1/user/subscription"
+        );
     }
 }

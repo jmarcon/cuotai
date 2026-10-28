@@ -8,8 +8,6 @@ use serde::Deserialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
 
-const REF: &str = "https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/";
-
 pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, QueryError> {
     match account.provider {
         Provider::Copilot => copilot(account, ctx, "https://api.github.com").await,
@@ -154,7 +152,11 @@ async fn copilot(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
             "No numeric quota returned; absent does not mean unlimited.",
         );
     }
-    Ok(Data::new(metrics, notes, format!("{REF}github.js")))
+    Ok(Data::new(
+        metrics,
+        notes,
+        super::router_ref!("usage/github.js"),
+    ))
 }
 
 #[derive(Deserialize)]
@@ -265,7 +267,11 @@ async fn gemini_cli(account: &Account, ctx: &Context<'_>, base: &str) -> Result<
         "note.router_existing.gemini_normalized_percentage",
         "`remainingFraction` is reported as a percentage; the normalised 1000 total from 9router is not a real request cap.",
     );
-    Ok(Data::new(metrics, notes, format!("{REF}google.js")))
+    Ok(Data::new(
+        metrics,
+        notes,
+        super::router_ref!("usage/google.js"),
+    ))
 }
 
 /// The display name of a Copilot quota key: GitHub's product names for the

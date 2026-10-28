@@ -345,11 +345,11 @@ async fn perplexity(account: &Account, ctx: &Context<'_>, base: &str) -> Result<
         "note.inference.perplexity_limit_unavailable",
         "Spending limit preview without numeric total: soft/hard not exposed for this user in the current cycle.",
     );
-    if let Some(email) = user_email {
-        notes.push_params(
-            "note.inference.perplexity_member_filter",
-            params([("email", ParamValue::from(email.to_string()))]),
-            "Filtered by organisation member: {email}.",
+    if user_email.is_some() {
+        // PRD 0052 RF3.6: the note never carries the address.
+        notes.push(
+            "note.inference.perplexity_member_filtered",
+            "Filtered by organisation member.",
         );
     }
 
@@ -1129,6 +1129,12 @@ mod tests {
             .notes
             .iter()
             .any(|n| n.contains("Dataset pinned to `credit_usage`")));
+        // PRD 0052 RF3.6: the filter went in the request, not in the note.
+        data.assert_id_free(&["alice@example.com", &server.uri()]);
+        assert!(data
+            .notes
+            .iter()
+            .any(|n| n == "Filtered by organisation member."));
     }
 
     #[tokio::test]

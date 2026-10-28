@@ -49,12 +49,10 @@ const COOKIE_HEADER: &str = "Cookie";
 const SESSION_COOKIE: &str = "WorkosCursorSessionToken";
 
 /// References: steipete/CodexBar CursorStatusProbe and CursorAppAuth under
-/// MIT (see THIRD_PARTY_NOTICES).
-const REF_PROBE: &str =
-    "https://github.com/steipete/CodexBar/blob/main/Sources/CodexBarCore/Providers/Cursor/CursorStatusProbe.swift";
-const REF_APP_AUTH: &str =
-    "https://github.com/steipete/CodexBar/blob/main/Sources/CodexBarCore/Providers/Cursor/CursorAppAuth.swift";
-const REF_DOCS: &str = "https://github.com/steipete/CodexBar/blob/main/docs/cursor.md";
+/// MIT (see THIRD_PARTY_NOTICES), with its Cursor notes: the report source.
+const SOURCE: &str = "https://github.com/steipete/CodexBar/blob/main/Sources/CodexBarCore/Providers/Cursor/CursorStatusProbe.swift ; \
+     https://github.com/steipete/CodexBar/blob/main/Sources/CodexBarCore/Providers/Cursor/CursorAppAuth.swift ; \
+     https://github.com/steipete/CodexBar/blob/main/docs/cursor.md";
 
 /// Public, non-secret params expected from the parent dispatcher
 /// (see `crate::oauth::account_params`):
@@ -77,11 +75,11 @@ async fn fetch_at_base(
     let secret_value = secret(account, ctx, "CURSOR_ACCESS_TOKEN")?;
     let cookie = build_session_cookie(&secret_value, param(account, PARAM_USER_ID).ok())?;
     let mut notes = Notes::new();
-    if let Ok(device) = param(account, PARAM_DEVICE_ID) {
-        notes.push_params(
+    if param(account, PARAM_DEVICE_ID).is_ok() {
+        // PRD 0052 RF3.6: the note never carries the device id.
+        notes.push(
             "note.cursor_personal.imported_device",
-            params([("device_id", ParamValue::from(device.to_string()))]),
-            "Session imported from the Cursor IDE (device_id {device_id}); no password is stored.",
+            "Session imported from the Cursor IDE; no password is stored.",
         );
     } else {
         notes.push(
@@ -109,33 +107,9 @@ async fn fetch_at_base(
     metrics.extend(plan_metrics(&summary)?);
     metrics.extend(on_demand_metrics(&summary)?);
 
-    if let Some(info) = user_info.as_ref() {
-        if let Some(email) = info.email.as_deref().filter(|s| !s.trim().is_empty()) {
-            notes.push_params(
-                "note.cursor_personal.account_email",
-                params([("email", ParamValue::from(email.to_string()))]),
-                "Account: {email}.",
-            );
-        }
-        if let Some(name) = info.name.as_deref().filter(|s| !s.trim().is_empty()) {
-            notes.push_params(
-                "note.cursor_personal.user_name",
-                params([("name", ParamValue::from(name.to_string()))]),
-                "User: {name}.",
-            );
-        }
-        if let Some(membership) = summary
-            .membership_type
-            .as_deref()
-            .filter(|s| !s.trim().is_empty())
-        {
-            notes.push_params(
-                "note.cursor_personal.membership",
-                params([("membership", ParamValue::from(membership.to_string()))]),
-                "Cursor plan: {membership}.",
-            );
-        }
-    } else if let Some(membership) = summary
+    // PRD 0052 RF3.6: the e-mail and name `/api/auth/me` returns stay out of
+    // the notes (they reach `--json`); the account's identity is its own.
+    if let Some(membership) = summary
         .membership_type
         .as_deref()
         .filter(|s| !s.trim().is_empty())
@@ -177,11 +151,7 @@ async fn fetch_at_base(
         );
     }
 
-    Ok(Data::new(
-        metrics,
-        notes,
-        format!("{REF_PROBE} ; {REF_APP_AUTH} ; {REF_DOCS}"),
-    ))
+    Ok(Data::new(metrics, notes, SOURCE))
 }
 
 /// Normalize the incoming secret value into a `WorkosCursorSessionToken=...`
@@ -572,8 +542,6 @@ struct UserInfo {
     #[serde(default)]
     email: Option<String>,
     #[serde(default)]
-    name: Option<String>,
-    #[serde(default)]
     sub: Option<String>,
 }
 
@@ -764,7 +732,10 @@ mod tests {
             .mount(&server)
             .await;
         let creds = StaticCred(fake_jwt);
-        let account = account();
+        let mut account = account();
+        account
+            .params
+            .insert(PARAM_DEVICE_ID.into(), "dev-4242424242".into());
         let http = reqwest::Client::new();
         let ctx = Context {
             http: &http,
@@ -805,7 +776,18 @@ mod tests {
         let state = crate::overage::assess_metrics(std::slice::from_ref(on_demand), None).unwrap();
         assert_eq!(state.state, crate::overage::OverageState::Active);
         assert_eq!(on_demand.window, Some(MetricWindow::Monthly));
-        assert!(data.notes.iter().any(|n| n.contains("[email protected]")));
+        // PRD 0052 RF3.6: the e-mail, name, user id and device id stay out.
+        assert!(data.notes.iter().any(|n| n == "Cursor plan: pro."));
+        data.assert_id_free(&[
+            "[email protected]",
+            "Ada",
+            "user_AbC123_XyZ",
+            "dev-4242424242",
+        ]);
+        assert!(data
+            .notes
+            .iter()
+            .any(|n| n == "Session imported from the Cursor IDE; no password is stored."));
     }
 
     #[tokio::test]

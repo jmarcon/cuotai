@@ -22,6 +22,10 @@ use std::collections::{BTreeMap, HashSet};
 const GOOGLE_MONITORING: &str = "https://monitoring.googleapis.com";
 const AZURE_MANAGEMENT: &str = "https://management.azure.com";
 const AZURE_API_VERSION: &str = "2025-03-01";
+/// The Azure report source, a literal (PRD 0052 RF3.6) a test checks
+/// against [`AZURE_API_VERSION`].
+const AZURE_SOURCE: &str =
+    "https://learn.microsoft.com/rest/api/cost-management/query/usage (api-version 2025-03-01)";
 const BEDROCK_SERVICE: &str = "Amazon Bedrock";
 
 pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, QueryError> {
@@ -403,13 +407,11 @@ async fn fetch_azure(base: &str, account: &Account, ctx: &Context<'_>) -> Result
         }
     }
     let mut notes = Notes::new();
-    notes.push_params(
+    // PRD 0052 RF3.6: the note never carries the resource path or the
+    // subscription id.
+    notes.push(
         "note.cloud.azure_scope",
-        params([
-            ("resource_id", ParamValue::from(resource_id.to_string())),
-            ("scope", ParamValue::from(scope.clone())),
-        ]),
-        "Real cost (ActualCost/PreTaxCost) filtered by ResourceId = {resource_id} in scope /{scope}. Azure cost data updates daily and may lag by several hours; values are not for financial settlement.",
+        "Real cost (ActualCost/PreTaxCost) filtered by the account's ResourceId. Azure cost data updates daily and may lag by several hours; values are not for financial settlement.",
     );
     notes.push(
         "note.cloud.azure_resource_attribution",
@@ -453,11 +455,7 @@ async fn fetch_azure(base: &str, account: &Account, ctx: &Context<'_>) -> Result
             m
         }
     };
-    Ok(Data::new(
-        vec![metric],
-        notes,
-        format!("https://learn.microsoft.com/rest/api/cost-management/query/usage (api-version {AZURE_API_VERSION})"),
-    ))
+    Ok(Data::new(vec![metric], notes, AZURE_SOURCE))
 }
 
 /// Requires the full ARM ID of a Cognitive Services account inside the configured subscription:
@@ -982,6 +980,13 @@ mod tests {
         assert_eq!(data.metrics[0].unit, "USD");
         assert_eq!(data.metrics[0].kind, MetricKind::Spend);
         assert_eq!(data.metrics[0].window, Some(MetricWindow::Monthly));
+        // PRD 0052 RF3.6: the subscription and resource path stay in the
+        // request.
+        data.assert_id_free(&["sub-1", "rg-1", "openai-1", &server.uri()]);
+        assert!(data
+            .notes
+            .iter()
+            .any(|n| n.contains("filtered by the account's ResourceId.")));
     }
 
     #[tokio::test]
@@ -1182,5 +1187,16 @@ esac
         for bad in ["a/b", "a?b", "a#b", "a%2Fb", "a b"] {
             assert!(path_id(bad, "project_id").is_err());
         }
+    }
+}
+
+#[cfg(test)]
+mod source_tests {
+    use super::*;
+
+    /// PRD 0052 RF3.6: the literal Azure source names the API version used.
+    #[test]
+    fn the_azure_source_names_the_api_version() {
+        assert!(AZURE_SOURCE.ends_with(&format!("(api-version {AZURE_API_VERSION})")));
     }
 }

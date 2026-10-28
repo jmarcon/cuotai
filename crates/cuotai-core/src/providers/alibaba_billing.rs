@@ -177,15 +177,7 @@ pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, 
         );
     }
 
-    Ok(Data::new(
-        metrics,
-        notes,
-        format!(
-            "{PRODUCT} {VERSION} — QueryAccountBalance/QueryBill (HMAC-SHA1 RPC v1) \
-             endpoint {endpoint}. Documentation: \
-             https://www.alibabacloud.com/help/en/finance/account-management/latest/api-bill-overview"
-        ),
-    ))
+    Ok(Data::new(metrics, notes, source_for(region)))
 }
 
 // --------------------------------------------------------------------- region
@@ -205,6 +197,19 @@ fn region_for(account: &Account) -> Result<&'static str, QueryError> {
             l10n_params([("region", ParamValue::from(other.to_string()))]),
             "params.region invalid ({region}); use \"intl\" or \"cn\".",
         )),
+    }
+}
+
+/// The report source: a literal per endpoint (PRD 0052 RF3.6), checked
+/// against [`PRODUCT`], [`VERSION`] and [`endpoint_for`] by a test.
+fn source_for(region: &str) -> &'static str {
+    match region {
+        "cn" => "BssOpenApi 2017-12-14 — QueryAccountBalance/QueryBill (HMAC-SHA1 RPC v1) \
+                 endpoint https://business.aliyuncs.com. Documentation: \
+                 https://www.alibabacloud.com/help/en/finance/account-management/latest/api-bill-overview",
+        _ => "BssOpenApi 2017-12-14 — QueryAccountBalance/QueryBill (HMAC-SHA1 RPC v1) \
+              endpoint https://business.ap-southeast-1.aliyuncs.com. Documentation: \
+              https://www.alibabacloud.com/help/en/finance/account-management/latest/api-bill-overview",
     }
 }
 
@@ -391,8 +396,6 @@ struct BalanceData {
     currency: Option<String>,
     #[serde(default)]
     billing_cycle: Option<String>,
-    #[serde(default, rename = "AccountID")]
-    account_id: Option<String>,
 }
 
 #[derive(Debug)]
@@ -484,12 +487,6 @@ async fn fetch_balance(
         .filter(|s| !s.is_empty())
         .map(str::to_string);
     let unit = currency.clone().unwrap_or_else(|| "—".to_string());
-    let account_id = data
-        .account_id
-        .as_deref()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(str::to_string);
     let billing_cycle = data
         .billing_cycle
         .as_deref()
@@ -515,33 +512,10 @@ async fn fetch_balance(
         "note.alibaba_billing.balance_field_semantics",
         "AvailableAmount = total available balance (cash + credit + voucher + coupons). AvailableCashAmount = cash only. CreditAmount = total Alibaba credit limit (includes Mybank as a subset).",
     );
-    match (
-        currency.as_deref(),
-        account_id.as_deref(),
-        billing_cycle.as_deref(),
-    ) {
-        (Some(c), Some(id), Some(cycle)) => {
-            notes.push_params(
-                "note.alibaba_billing.balance_metadata_currency_account_cycle",
-                l10n_params([
-                    ("currency", ParamValue::from(c.to_string())),
-                    ("account_id", ParamValue::from(id.to_string())),
-                    ("billing_cycle", ParamValue::from(cycle.to_string())),
-                ]),
-                "Currency: {currency}. AccountID: {account_id}. Current BillingCycle: {billing_cycle}.",
-            );
-        }
-        (Some(c), Some(id), None) => {
-            notes.push_params(
-                "note.alibaba_billing.balance_metadata_currency_account",
-                l10n_params([
-                    ("currency", ParamValue::from(c.to_string())),
-                    ("account_id", ParamValue::from(id.to_string())),
-                ]),
-                "Currency: {currency}. AccountID: {account_id}.",
-            );
-        }
-        (Some(c), None, Some(cycle)) => {
+    // PRD 0052 RF3.6: the AccountID the response carries stays out of the
+    // notes (they reach `--json`, `export::v1` and the details).
+    match (currency.as_deref(), billing_cycle.as_deref()) {
+        (Some(c), Some(cycle)) => {
             notes.push_params(
                 "note.alibaba_billing.balance_metadata_currency_cycle",
                 l10n_params([
@@ -551,34 +525,19 @@ async fn fetch_balance(
                 "Currency: {currency}. Current BillingCycle: {billing_cycle}.",
             );
         }
-        (Some(c), None, None) => notes.push_params(
+        (Some(c), None) => notes.push_params(
             "note.alibaba_billing.balance_metadata_currency",
             l10n_params([("currency", ParamValue::from(c.to_string()))]),
             "Currency: {currency}.",
         ),
-        (None, Some(id), Some(cycle)) => {
-            notes.push_params(
-                "note.alibaba_billing.balance_metadata_account_cycle",
-                l10n_params([
-                    ("account_id", ParamValue::from(id.to_string())),
-                    ("billing_cycle", ParamValue::from(cycle.to_string())),
-                ]),
-                "AccountID: {account_id}. Current BillingCycle: {billing_cycle}.",
-            );
-        }
-        (None, Some(id), None) => notes.push_params(
-            "note.alibaba_billing.balance_metadata_account",
-            l10n_params([("account_id", ParamValue::from(id.to_string()))]),
-            "AccountID: {account_id}.",
-        ),
-        (None, None, Some(cycle)) => {
+        (None, Some(cycle)) => {
             notes.push_params(
                 "note.alibaba_billing.balance_metadata_cycle",
                 l10n_params([("billing_cycle", ParamValue::from(cycle.to_string()))]),
                 "Current BillingCycle: {billing_cycle}.",
             );
         }
-        (None, None, None) => {}
+        (None, None) => {}
     }
     if let Some(m) = mybank {
         notes.push_params(
@@ -1195,7 +1154,7 @@ mod tests {
                     "MybankCreditAmount": "0",
                     "Currency": "CNY",
                     "BillingCycle": "2026-09",
-                    "AccountID": "12345"
+                    "AccountID": "1234567890123456"
                 }
             })))
             .mount(&server)
@@ -1234,7 +1193,16 @@ mod tests {
         assert_eq!(data.cash_metric.window, None);
         assert_eq!(data.credit_metric.kind, MetricKind::Credits);
         assert_eq!(data.credit_metric.window, None);
-        assert!(data.notes.iter().any(|n| n.contains("AccountID: 12345")));
+        // PRD 0052 RF3.6: the AccountID never reaches a note.
+        assert!(data
+            .notes
+            .iter()
+            .any(|n| n == "Currency: CNY. Current BillingCycle: 2026-09."));
+        assert!(
+            !format!("{:?}{:?}", data.notes, data.notes_l10n).contains("1234567890123456"),
+            "{:?}",
+            data.notes
+        );
     }
 
     #[tokio::test]
@@ -1626,5 +1594,27 @@ mod tests {
         // attempt QueryBill (there is no mock for it).
         let _ = ctx(&http, &creds);
         assert!(billing_cycle(&acc).unwrap().is_none());
+    }
+}
+
+#[cfg(test)]
+mod source_tests {
+    use super::*;
+
+    /// PRD 0052 RF3.6: the literal sources name the product, version and
+    /// endpoint the adapter really uses.
+    #[test]
+    fn each_region_source_names_its_endpoint() {
+        for region in ["cn", "intl"] {
+            let source = source_for(region);
+            assert!(
+                source.starts_with(&format!("{PRODUCT} {VERSION} — ")),
+                "{source}"
+            );
+            assert!(
+                source.contains(&format!("endpoint {}. ", endpoint_for(region))),
+                "{source}"
+            );
+        }
     }
 }

@@ -1,3 +1,15 @@
+/// A 9router reference at the pinned revision (`THIRD_PARTY_NOTICES`), as a
+/// literal: a [`Data`] source is `&'static str` (PRD 0052 RF3.6).
+macro_rules! router_ref {
+    ($path:literal) => {
+        concat!(
+            "https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/",
+            $path
+        )
+    };
+}
+pub(crate) use router_ref;
+
 pub(crate) mod alibaba_billing;
 pub(crate) mod alibaba_plans;
 pub(crate) mod antigravity;
@@ -73,16 +85,46 @@ impl Data {
         self
     }
 
-    pub(crate) fn new(metrics: Vec<Metric>, notes: Notes, source: impl Into<String>) -> Self {
+    /// `source` is `&'static str` on purpose (PRD 0052 RF3.6): it reaches
+    /// `--json`, `export::v1`, `--serve` and the details, so it must be a
+    /// public origin/path template written in the code, with runtime
+    /// identifiers (organization, user, team, project, account) replaced
+    /// by named placeholders such as `{user_id}`. A value read from the
+    /// account's params or from a response cannot be passed here.
+    pub(crate) fn new(metrics: Vec<Metric>, notes: Notes, source: &'static str) -> Self {
         let (notes, notes_l10n) = notes.finish();
         Self {
             metrics,
             notes,
             notes_l10n,
-            source: source.into(),
+            source: source.to_owned(),
             sub_reports: Vec::new(),
             as_of: None,
             overage_hint: None,
+        }
+    }
+
+    /// PRD 0052 RF3.6 guard for adapter tests: the report a fetch built
+    /// carries none of `seeded`, the ids, e-mails or names the test put in
+    /// the account's params or in the provider's answer. It looks at
+    /// everything a report shows: `source`, the notes with their
+    /// parameters, the metric labels and the sub-account labels.
+    #[cfg(test)]
+    #[track_caller]
+    pub(crate) fn assert_id_free(&self, seeded: &[&str]) {
+        let text = format!(
+            "{}\n{:?}\n{:?}\n{:?}\n{:?}",
+            self.source,
+            self.notes,
+            self.notes_l10n,
+            self.metrics.iter().map(|m| &m.label).collect::<Vec<_>>(),
+            self.sub_reports
+                .iter()
+                .map(|s| &s.label)
+                .collect::<Vec<_>>(),
+        );
+        for id in seeded {
+            assert!(!text.contains(id), "{id} leaked into the report: {text}");
         }
     }
 }

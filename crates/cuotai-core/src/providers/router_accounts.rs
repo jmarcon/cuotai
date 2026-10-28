@@ -10,9 +10,6 @@ use chrono::{DateTime, Datelike, NaiveDate, Utc};
 use serde::Deserialize;
 use serde_json::Value;
 
-const REF_USAGE: &str = "https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/misc.js";
-const REF_QODER_MODELS: &str = "https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/qoderModels.js";
-
 pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, QueryError> {
     match account.provider {
         Provider::Qoder => {
@@ -217,7 +214,12 @@ async fn qoder(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data,
     Ok(Data::new(
         metrics,
         notes,
-        format!("{REF_USAGE} (getQoderUsage) + {REF_QODER_MODELS} (resolveQoderCredentials)"),
+        concat!(
+            super::router_ref!("usage/misc.js"),
+            " (getQoderUsage) + ",
+            super::router_ref!("qoderModels.js"),
+            " (resolveQoderCredentials)"
+        ),
     ))
 }
 
@@ -463,7 +465,7 @@ async fn ollama(
                 return Ok(Data::new(
                     usage_metrics,
                     notes,
-                    format!("{REF_USAGE} (getOllamaUsage)"),
+                    concat!(super::router_ref!("usage/misc.js"), " (getOllamaUsage)"),
                 ));
             }
         }
@@ -484,7 +486,7 @@ async fn ollama(
     Ok(Data::new(
         metrics,
         notes,
-        format!("{REF_USAGE} (getOllamaUsage)"),
+        concat!(super::router_ref!("usage/misc.js"), " (getOllamaUsage)"),
     ))
 }
 

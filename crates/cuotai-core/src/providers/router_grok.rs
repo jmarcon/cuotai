@@ -12,7 +12,6 @@ use chrono::{DateTime, Utc};
 use serde_json::Value;
 use std::collections::HashMap;
 
-const REF: &str = "https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/";
 const BASE: &str = "https://cli-chat-proxy.grok.com";
 const GRPC_BASE: &str = "https://grok.com";
 const CLIENT_VERSION: &str = "0.2.99";
@@ -169,7 +168,11 @@ async fn grok_cli(
             );
         }
     }
-    Ok(Data::new(metrics, notes, format!("{REF}grok-cli.js")))
+    Ok(Data::new(
+        metrics,
+        notes,
+        super::router_ref!("usage/grok-cli.js"),
+    ))
 }
 
 struct ParsedBilling {

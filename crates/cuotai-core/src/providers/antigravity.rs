@@ -68,6 +68,9 @@ pub(crate) const FETCH_AVAILABLE_MODELS_URL: &str =
     "https://daily-cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels";
 const RETRIEVE_USER_QUOTA_SUMMARY_URL: &str =
     "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary";
+/// The report source, both routes as a literal (PRD 0052 RF3.6).
+const SOURCE: &str = "https://daily-cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels + \
+     https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary";
 
 /// User-agent oficial do Antigravity IDE Desktop 2.11.0 (macOS arm64).
 const ANTIGRAVITY_IDE_VERSION: &str = "2.11.0";
@@ -398,9 +401,7 @@ async fn fetch_antigravity_at(
         }
     }
 
-    let source = format!("{FETCH_AVAILABLE_MODELS_URL} + {RETRIEVE_USER_QUOTA_SUMMARY_URL}");
-
-    Ok(Data::new(metrics, notes, source))
+    Ok(Data::new(metrics, notes, SOURCE))
 }
 
 // ─── Helpers compartilhados ──────────────────────────────────────────
@@ -2004,5 +2005,19 @@ mod tests {
         .await
         .unwrap_err();
         assert!(matches!(err.status, crate::Status::NeedsConfiguration));
+    }
+}
+
+#[cfg(test)]
+mod source_tests {
+    use super::*;
+
+    /// PRD 0052 RF3.6: the literal source names the two routes queried.
+    #[test]
+    fn the_source_names_both_routes() {
+        assert_eq!(
+            SOURCE,
+            format!("{FETCH_AVAILABLE_MODELS_URL} + {RETRIEVE_USER_QUOTA_SUMMARY_URL}")
+        );
     }
 }
