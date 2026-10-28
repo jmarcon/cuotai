@@ -93,7 +93,8 @@ const rowOf = (code, template) => {
   return flat(template.replace("{amount}", usd(6.25)).replace("{cap}", usd(50)));
 };
 const rowTemplates = { "en-US": "{amount} extra of {cap}", es: "{amount} extra de {cap}", it: "{amount} extra su {cap}", "pt-BR": "{amount} extra de {cap}" };
-const decode = (html) => flat(html).replaceAll("&amp;", "&").replaceAll("&#39;", "'").replaceAll("&quot;", '"');
+// `&amp;` last, so an escaped entity such as `&amp;#39;` is not decoded twice.
+const decode = (html) => flat(html).replaceAll("&#39;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
 
 for (const { code } of i18n.LOCALES) {
   if (!expected[code]) continue;

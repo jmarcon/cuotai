@@ -13,7 +13,7 @@ assert.equal(DEFAULT_THEME, "cuotai");
 async function prePaint(page, initial, { app = false } = {}) {
   const html = await readFile(new URL(page, ui), "utf8");
   assert.match(html, /<html lang="en-US" data-theme="cuotai"/, `${page}: static default`);
-  const script = /<script>([\s\S]*?)<\/script>/.exec(html)[1];
+  const script = /<script\b(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script\s*>/i.exec(html)[1];
   const storage = new Map(Object.entries(initial));
   const localStorage = {
     getItem: (k) => storage.get(k) ?? null,
