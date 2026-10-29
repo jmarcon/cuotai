@@ -13,6 +13,16 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.82.0] - 2026-10-29
+
+### Added
+
+- The tray shows the shortest usage window as a thick bar and the next longer one as a thin bar, with pace markers and how many points you are ahead of or behind pace (PRD 0024 RF6.1; 7ab8b16).
+
+### Changed
+
+- The Homebrew desktop app is now installed with `brew install --cask jmarcon/cuotai/cuotai-app`, so it no longer shares a name with the terminal formula; existing installs move over on their next `brew upgrade` (3d7bc30).
+
 ## [0.81.0] - 2026-10-28
 
 ### Added
@@ -356,6 +366,7 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.81.0...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.82.0...HEAD
+[0.82.0]: https://github.com/jmarcon/cuotai/compare/v0.81.0...v0.82.0
 [0.81.0]: https://github.com/jmarcon/cuotai/compare/v0.80.0...v0.81.0
 [0.80.0]: https://github.com/jmarcon/cuotai/compare/2bbb39a...v0.80.0
