@@ -750,7 +750,7 @@ dependencies = [
 
 [[package]]
 name = "cuotai-core"
-version = "0.81.0"
+version = "0.82.0"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",
@@ -788,7 +788,7 @@ dependencies = [
 
 [[package]]
 name = "cuotai-tui"
-version = "0.81.0"
+version = "0.82.0"
 dependencies = [
  "chrono",
  "clap",
