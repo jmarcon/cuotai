@@ -496,6 +496,7 @@ dialog:focus-visible {
 :root[data-rows-hide~="monogram"] .mono-badge,
 :root[data-rows-hide~="unit"] .fig small,
 :root[data-rows-hide~="corridor"] .mtr .pm,
+:root[data-rows-hide~="corridor"] .fig .pd,
 :root[data-rows-hide~="status"] .stl .lbl,
 :root[data-rows-hide~="ring"] .stl .ring,
 :root[data-rows-hide~="ring"] .stl .sg,
@@ -585,6 +586,84 @@ dialog:focus-visible {
   display: block;
   margin: var(--space-0) 0;
 }
+/* ---- DS-CMP-ROW-8: the tray row's two windows (thick shortest window, thin next one) ---- */
+.rm.dual {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-1) + var(--space-0));
+  padding-top: var(--space-1); /* room for the pace triangle above the thick bar */
+}
+/* DS-CMP-MTR-6c: a small downward triangle above the thick bar at the expected remaining share */
+.mtr .pm.tri {
+  top: auto;
+  bottom: calc(100% + 1px);
+  width: 8px;
+  height: 5px;
+  min-width: 0;
+  margin-left: -4px;
+  border-radius: 0;
+  background: var(--fg);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+/* DS-CMP-MTR-6c: a small dot on the thin bar at the expected remaining share, ringed by the row surface */
+.mtr .pm.dot {
+  top: 50%;
+  bottom: auto;
+  width: 6px;
+  height: 6px;
+  min-width: 0;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: var(--fg);
+  box-shadow: 0 0 0 1px var(--surface);
+}
+/* DS-CMP-ROW-8a: the figure block of the pair: share, window name and delta on each line */
+.fig.dual { gap: var(--space-0); }
+.fig.dual .f1,
+.fig.dual .f2 {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+.fig.dual .wl {
+  color: var(--fg-muted);
+  font-size: var(--text-2xs);
+  font-weight: 400;
+  line-height: 1.1;
+}
+/* a model name may truncate (DS-MSG-15); a window name never does */
+.fig.dual .wl.model {
+  min-width: 0;
+  max-width: 88px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fig.dual .f2 {
+  color: var(--fg-muted);
+  font-size: var(--text-2xs);
+  line-height: 1.1;
+}
+.fig.dual .f2 .fv { font-weight: 600; }
+.fig.dual .f2.warn,
+.fig.dual .f2.warn .wl { color: var(--warn); }
+.fig.dual .f2.bad,
+.fig.dual .f2.bad .wl { color: var(--bad); }
+.fig.dual.stale .f2 { opacity: 0.5; }
+/* DS-CMP-ROW-8c: the pace delta (decorative here; its words are in the row's accessible name and the tooltip) */
+.pd {
+  display: inline-flex;
+  flex: none;
+  align-items: baseline;
+  gap: 1px;
+  color: var(--fg-muted);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  line-height: 1.1;
+}
+.pd.good { color: var(--good); }
+.pd.warn { color: var(--warn); }
+.pd.bad { color: var(--bad); }
 /* ---- DS-CMP-BADGE-1: plan badge (the core's plan name; outlined, mono, neutral, never filled) ---- */
 .plan-badge {
   flex: none;

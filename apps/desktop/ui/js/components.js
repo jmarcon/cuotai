@@ -5,8 +5,8 @@
 // the core (`tl`) or from the UI catalogs.
 import { t, te, tl } from "./i18n.js";
 import {
-  ALERTS, billingOverage, bindingPct, brand, fmtExtra, fmtLocal, paceUnit, esc, fmtAge, icon, incidentBadge, isBlocked, isStaleReading, level, logo, paceOf, reportKey,
-  shownAt, staleView, statusLabel, summaryOf, windowsOf,
+  ALERTS, billingOverage, bindingPct, brand, fmtExtra, fmtLocal, paceUnit, esc, fmtAge, icon, incidentBadge, isBlocked, isMetricHidden, isStaleReading, level, logo,
+  paceLabelOf, paceOf, remainingPct, reportKey, shownAt, staleView, statusLabel, summaryOf, windowsOf,
   planBadgeHtml,
 } from "./lib.js";
 import { currentLocale } from "./i18n.js";
@@ -26,9 +26,11 @@ export function corridor(expectedLeft) {
  * The continuous meter (DS-CMP-MTR-1..9). `pct` is the remaining share (null = unknown);
  * `state`: "fresh" | "stale" | "unknown" | "exhausted" | "overage"; `expected`: the expected remaining share from
  * the core's pace (only drawn on fresh meters); `thin`: the 4 px form with a tick instead of the corridor;
- * `text`: the accessible value text (DS-CMP-MTR-9), built by the caller from core texts.
+ * `mark`: the pace mark's form, "band" (corridor) or "tick" by default, "tri" (the triangle above the tray's thick
+ * bar) or "dot" (on the tray's thin bar), DS-CMP-MTR-6c; `text`: the accessible value text (DS-CMP-MTR-9), built by
+ * the caller from core texts.
  */
-export function meterHtml(pct, { state = "fresh", expected = null, thin = false, role = null, text = "", name = "" } = {}) {
+export function meterHtml(pct, { state = "fresh", expected = null, thin = false, role = null, text = "", name = "", mark = null } = {}) {
   const unknown = state === "unknown" || (pct == null && state !== "exhausted");
   const value = state === "exhausted" ? 0 : unknown ? null : clamp(pct);
   const lv = role ?? (state === "exhausted" ? "bad" : level(value));
@@ -37,15 +39,16 @@ export function meterHtml(pct, { state = "fresh", expected = null, thin = false,
   const fill = width ? `<span class="mf" style="width:${width}%"></span>` : "";
   // DS-CMP-MTR-6b: no pace mark for stale, unknown, exhausted or overage meters.
   const band = state === "fresh" && value != null ? corridor(expected) : null;
-  const mark = !band ? "" : thin
-    ? `<span class="pm tick" style="left:${band.center}%"></span>`
-    : `<span class="pm" style="left:${band.left}%;width:${band.width}%"></span>`;
+  const form = mark ?? (thin ? "tick" : "band");
+  const pm = !band ? "" : form === "band"
+    ? `<span class="pm" style="left:${band.left}%;width:${band.width}%"></span>`
+    : `<span class="pm ${form}" style="left:${band.center}%" aria-hidden="true"></span>`;
   const cls = ["mtr", unknown ? "none" : lv, state === "stale" ? "stale" : "", thin ? "thin" : ""].filter(Boolean).join(" ");
   const label = text || (value == null ? t("meter.noData") : t("meter.left", { pct: Math.round(value) }));
   // PRD 0020 RNF (axe aria-required-attr): a meter without a value is not a meter; it is an image named "No data".
-  if (value == null) return `<div class="${cls}" role="img" aria-label="${esc(name || label)}">${fill}${mark}</div>`;
+  if (value == null) return `<div class="${cls}" role="img" aria-label="${esc(name || label)}">${fill}${pm}</div>`;
   // axe aria-meter-name: every meter carries an accessible name (the caller's metric name, else its value text).
-  return `<div class="${cls}" role="meter" aria-label="${esc(name || label)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(value)}" aria-valuetext="${esc(label)}">${fill}${mark}</div>`;
+  return `<div class="${cls}" role="meter" aria-label="${esc(name || label)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(value)}" aria-valuetext="${esc(label)}">${fill}${pm}</div>`;
 }
 
 /** Expected remaining share (0–100) of a metric's core pace, or null. */
@@ -511,29 +514,116 @@ export function accountMeterHtml(r, st = accountState(r), { thin = false } = {})
     text: st.pct == null ? t("meter.noData") : p.full ? t("meter.valuetext", { pct: Math.round(st.pct), status: p.full }) : "",
   });
 }
+// ---------- DS-CMP-ROW-8: the tray row's two windows ----------
+/** "22%" with the honest rounding of DS-CMP-MTR-4: a sliver reads "< 1%", an unfinished window never "100%". */
+export const fmtShare = (p) => (p > 0 && p < 1 ? "< 1%" : `${p < 100 ? Math.min(99, Math.round(p)) : Math.round(p)}%`);
+/** The name of one bar: the model (a scoped limit, PRD 0023) or the window ("5h", "Week"), from the core's data. */
+const windowName = (m, byModel) => (byModel && m.scope?.label ? m.scope.label : paceLabelOf(m));
+/** One bar of the pair: the metric, its remaining share, its name, its core pace and whether it limits the account. */
+function windowOf(r, index, byModel) {
+  const m = index == null ? null : r.metrics[index];
+  if (!m || isMetricHidden(r, m)) return null;
+  const pct = remainingPct(m);
+  if (pct == null) return null;
+  const limiting = r.binding?.index === index;
+  return { m, index, pct, name: windowName(m, byModel), model: byModel && !!m.scope?.label, limiting, exhausted: m.state === "exhausted", pace: paceOf(m) };
+}
 /**
- * One account row (DS-CMP-ROW-1..7). `title`/`sub`: the title line (the account label is the title when the provider
+ * DS-CMP-ROW-8: the core's pair of windows of a current reading (`r.windows`, `metrics::window_pair`): `thick` the
+ * shortest window (or the tightest model), `thin` the next longer one (or the second model) or null. Null keeps the
+ * single summary bar: no pair or a single window from the core, a failed, pending or stale reading, a hidden metric of
+ * the pair, or an exhausted account on paid extra usage (its figure is the money, DS-CMP-ROW-2).
+ */
+export function windowBars(r, st = accountState(r)) {
+  if (r.status !== "ready" || r.pending || isStaleReading(r) || !r.windows) return null;
+  if (st.kind === "exhausted" && billingOverage(r)) return null;
+  const byModel = !!r.windows.by_model;
+  const thick = windowOf(r, r.windows.primary, byModel);
+  const thin = windowOf(r, r.windows.secondary, byModel);
+  // A single window keeps today's row: one bar with its corridor and the "N% left" figure.
+  return thick && thin ? { thick, thin } : null;
+}
+/** The level role of a bar; the thin bar that limits the account is at least a warning (DS-CMP-ROW-8b). */
+const barRole = (w, thin) => (w.exhausted ? "bad" : thin && w.limiting && level(w.pct) === "good" ? "warn" : level(w.pct));
+/** DS-CMP-ROW-8c: the pace delta of one window from the core's pace: ↗ +12 in reserve (good), ↘ −50 above the pace
+ *  (warning; danger when the core projects the run-out before the reset), → on pace. Points by default; in percent
+ *  the core's compact form ("20%", DS-CMP-TIME-1), never a signed bare percent. Null without a core pace. */
+export function paceDelta(w) {
+  const p = w?.pace;
+  if (!p || p.stage === "exhausted" || !Number.isFinite(p.delta_points)) return null;
+  const chip = stageChip(p);
+  const full = [chip ? tl(chip.text) : tl(p.label), p.outlook ? tl(p.outlook) : ""].filter(Boolean).join(" · ");
+  if (p.stage === "on_pace") return { glyph: "→", text: "", role: "muted", full };
+  const reserve = p.stage === "reserve";
+  const points = `${reserve ? "+" : "−"}${Math.round(Math.abs(p.delta_points))}`;
+  const text = paceUnit() === "percent" && p.delta_ratio != null && chip?.compact ? chip.compact : points;
+  return { glyph: reserve ? "↗" : "↘", text, role: reserve ? "good" : p.projected_exhaustion_at ? "bad" : "warn", full };
+}
+const paceDeltaHtml = (d) => (d ? `<span class="pd ${d.role}" aria-hidden="true" title="${esc(d.full)}"><span class="pg">${d.glyph}</span>${d.text ? `<span>${esc(d.text)}</span>` : ""}</span>` : "");
+/** The spoken form of one window: "Week: 49% left, 50 pts ahead, Most restrictive limit right now". */
+function windowSpoken(w, thin) {
+  const d = paceDelta(w);
+  return `${w.name}: ${[t("meter.left", { pct: Math.round(w.pct) }), d?.full ?? "", thin && w.limiting ? t("card.binding.title") : ""].filter(Boolean).join(", ")}`;
+}
+/** The row's accessible text for both windows (DS-CMP-ROW-8d); "" without a pair. */
+export const windowsText = (bars) => (bars ? [windowSpoken(bars.thick, false), bars.thin ? windowSpoken(bars.thin, true) : ""].filter(Boolean).join("; ") : "");
+/** The figure block of a pair (DS-CMP-ROW-8a): the thick window's share and name with its delta; below, the thin one's
+ *  share and name (in its limiting role) with its delta. */
+function windowsFigureHtml(bars, { dim = false } = {}) {
+  const { thick, thin } = bars;
+  // A window name never truncates; a model name may (DS-MSG-15), with its full text in the tooltip and the row's name.
+  const wl = (w) => `<span class="wl${w.model ? " model" : ""}" title="${esc(w.name)}">${esc(w.name)}</span>`;
+  const big = `<span class="f1"><b class="${thick.exhausted ? "bad" : ""}">${esc(fmtShare(thick.pct))}</b>${wl(thick)}${dim ? "" : paceDeltaHtml(paceDelta(thick))}</span>`;
+  const role = thin ? (thin.exhausted ? "bad" : thin.limiting ? barRole(thin, true) : "") : "";
+  const small = thin ? `<span class="f2${role ? ` ${role}` : ""}"><span class="fv">${esc(fmtShare(thin.pct))}</span>${wl(thin)}${dim ? "" : paceDeltaHtml(paceDelta(thin))}</span>` : "";
+  return `<span class="fig dual${dim ? " stale" : ""}">${big}${small}</span>`;
+}
+/** The pair's meters (DS-CMP-ROW-8b): the 6 px thick bar with the pace triangle above it, the 4 px thin bar with the
+ *  pace dot, each with its own accessible name and value text. An aging reading is dimmed and has no pace marks. */
+function windowsMeterHtml(bars, aging) {
+  const bar = (w, thin) => {
+    const d = paceDelta(w);
+    const status = [d?.full ?? "", thin && w.limiting ? t("card.binding.title") : "", fmtAt(w.m.resets_at) ? t("stl.resets", { time: fmtAt(w.m.resets_at) }) : ""].filter(Boolean).join(", ");
+    return meterHtml(w.pct, {
+      thin,
+      mark: thin ? "dot" : "tri",
+      role: barRole(w, thin),
+      state: w.exhausted ? "exhausted" : aging ? "stale" : "fresh",
+      expected: aging ? null : expectedLeft(w.m),
+      name: w.name,
+      text: status ? t("meter.valuetext", { pct: Math.round(w.pct), status }) : t("meter.left", { pct: Math.round(w.pct) }),
+    });
+  };
+  return `<span class="rm dual">${bar(bars.thick, false)}${bars.thin ? bar(bars.thin, true) : ""}</span>`;
+}
+
+/**
+ * One account row (DS-CMP-ROW-1..8). `title`/`sub`: the title line (the account label is the title when the provider
  * has several accounts); `mono`: monogram; `open`: expanded body HTML (accordion) or null; `chips`: the row's
  * feature chips (extra usage, best account, a 9router connection's state), on one wrapping line.
  */
 export function rowHtml(r, { title, sub = "", mono = "", open = null, key = reportKey(r), chips = "" } = {}) {
   const st = accountState(r);
   const f = figureOf(r, st);
-  const meter = accountMeterHtml(r, st);
+  // DS-CMP-ROW-8: the core's pair of windows replaces the single summary bar and figure.
+  const bars = windowBars(r, st);
+  const meter = bars ? windowsMeterHtml(bars, isAging(r)) : accountMeterHtml(r, st);
+  const figure = bars ? windowsFigureHtml(bars, { dim: isAging(r) })
+    : figureHtml(f.fig, f.unit, { role: f.role, dim: f.dim || isAging(r), cls: f.word ? "wordfig" : "" });
   // PRD 0025 RF9 / PRD 0022 RF8.2: the row display; hidden elements are left out by the root's CSS hook, Minimal
   // shows one status. The plan badge and the sub-limit line exist only when the account has them; the accessible
   // name carries every element whatever the layout (DS-CMP-DENS-2).
   const lay = rowLayout();
   const plan = r.plan ?? r.connection?.plan ?? "";
   const dup = r.connection?.duplicate_of ? " dup" : "";
-  const name = [rowName(r, st), plan, subLimitsText(r)].filter(Boolean).join(", ");
+  const name = [rowName(r, st), plan, bars ? windowsText(bars) : subLimitsText(r)].filter(Boolean).join(", ");
   const status = lay.one ? oneStatusHtml(r, st) : `${statusLineHtml(r, st)}${extraLineHtml(r, st)}`;
   return `<article class="row${open != null ? " open" : ""}${dup}" data-row="${esc(key)}">
     <button class="rh" data-open="${esc(key)}" aria-expanded="${open != null}" aria-label="${esc(name)}" title="${esc(name)}">
       ${tileHtml(r.provider, 32, mono)}
       <span class="rc">
-        <span class="r1"><span class="nm">${esc(title)}</span>${planBadgeHtml({ plan })}${sub ? `<span class="ac">${esc(sub)}</span>` : ""}${changeMarkHtml(key)}${figureHtml(f.fig, f.unit, { role: f.role, dim: f.dim || isAging(r), cls: f.word ? "wordfig" : "" })}${icon(open != null ? "chevDown" : "chev", "chev")}</span>
-        ${meter ? `<span class="rm">${meter}</span>` : ""}
+        <span class="r1"><span class="nm">${esc(title)}</span>${planBadgeHtml({ plan })}${sub ? `<span class="ac">${esc(sub)}</span>` : ""}${changeMarkHtml(key)}${figure}${icon(open != null ? "chevDown" : "chev", "chev")}</span>
+        ${bars ? meter : meter ? `<span class="rm">${meter}</span>` : ""}
         ${status}
         ${lay.elements.sublimits ? subLimitsHtml(r) : ""}
         ${chips ? `<span class="row-chips">${chips}</span>` : ""}

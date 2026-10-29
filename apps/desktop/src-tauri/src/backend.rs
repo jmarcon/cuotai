@@ -23,8 +23,8 @@ use cuotai_core::{
     incidents::{IncidentMonitor, ProviderStatus},
     login::{self, CompletedLogin, LoginEvent, LoginRequest},
     metrics::{
-        binding, binding_where, classify_metric, classify_report, cmp_binding, AccountClass,
-        Binding, MetricState,
+        binding, binding_where, classify_metric, classify_report, cmp_binding, window_pair,
+        AccountClass, Binding, MetricState, WindowPair,
     },
     models::{self, ModelError, ModelState},
     oauth::{vault_index, OAuthSession},
@@ -505,6 +505,9 @@ pub struct ReportView {
     /// PRD 0007 RF3.2: index (into `metrics`) of the most restrictive metric
     /// that has a pace (the core's binding rule restricted to them).
     pace_index: Option<usize>,
+    /// The tray row's two bars (the core's [`window_pair`]): the shortest
+    /// window and the next longer one, or the two tightest models.
+    windows: Option<WindowPair>,
     /// PRD 0005 RF4: how the account's usage is read.
     access: ReportAccess,
     /// The core's stable `Account::key` (provider slug + name), which the
@@ -1004,6 +1007,7 @@ fn report_view(
         last_good: None,
         pending: false,
         pace_index,
+        windows: window_pair(report),
         access: report_access(account, report),
         account_key: account.state_key(),
         account_id: account.id().to_string(),
@@ -6549,7 +6553,7 @@ mod tests {
                 && r["notes"].as_array().unwrap().is_empty()
         );
         assert_eq!(r["class"], "unmeasured");
-        assert!(r["binding"].is_null() && r["pace_index"].is_null());
+        assert!(r["binding"].is_null() && r["pace_index"].is_null() && r["windows"].is_null());
         assert_eq!(
             r["last_good"]["checked_at"],
             serde_json::to_value(stored.checked_at).unwrap()
@@ -6603,6 +6607,12 @@ mod tests {
         // The binding is the 95% "credits"; the card's pace line uses the week.
         assert_eq!(view["binding"]["index"], 2);
         assert_eq!(view["pace_index"], 1);
+        // The tray's bars: the tightest 5h on top; the limiting "credits"
+        // takes the thin bar from the week, so it stays on screen.
+        assert_eq!(
+            view["windows"],
+            serde_json::json!({ "primary": 3, "secondary": 2, "by_model": false })
+        );
     }
 
     /// PRD 0024 FIX-11: the pace is read at the reading's `checked_at` and

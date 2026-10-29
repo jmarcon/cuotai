@@ -1149,6 +1149,11 @@ const demoReports = [
   { ...dr("Personal", "xiaomi_mimo", [dm("Weekly", 6, 100, 96, "quota", "weekly", "%")]),
     session_expiry: { expires_at: new Date(Date.now() + 2.5 * 86400000).toISOString(), days: 2, soon: true,
       label: { id: "user_session.expiry.days", params: { days: 2 }, fallback: "Session expires in 2 days." } } },
+  // DS-CMP-ROW-8 demo: per-model daily quotas (the tray names the two tightest models) and a day + month pair whose
+  // month limits the account (its thin bar warns while the day is free).
+  dr("Personal", "gemini_ai", [{ ...dm("Gemini 2.5 Flash", 35, 100, 9, "quota", "daily"), scope: { kind: "model", id: "gemini-2.5-flash", label: "Gemini 2.5 Flash" } },
+    { ...dm("Gemini 2.5 Pro", 82, 100, 9, "quota", "daily"), scope: { kind: "model", id: "gemini-2.5-pro", label: "Gemini 2.5 Pro" } }]),
+  dr("Work", "qwen", [dm("Daily", 800, 2000, 9, "quota", "daily"), dm("Monthly", 21000, 30000, 300, "quota", "monthly")]),
 ];
 // PRD 0036 RF8 demo: a local 9router instance with four connections (two Claude, one of them exhausted; a Codex one
 // off in 9router; an unmapped GLM one whose query failed). `?aggregator=off` leaves it out.
@@ -1197,7 +1202,18 @@ const DEMO_SESSION_SLOT = { slot: "platform_session_env", open_url: "https://pla
 const DEMO_BINDINGS = new Map([
   [0, [2, 5]], [1, [1, 0]], [2, [0, 6]], [3, [1, 1]], [4, [null, 10]], [5, [1, 4]], [6, [0, 8]], [7, [0, 2]],
   [8, [0, 9]], [9, [null, 11]], [10, [null, 12]], [11, [null, 13]], [12, [null, 14]], [13, [0, 7]], [14, [0, 3]], [15, [null, 15]],
+  [20, [null, 16]], [21, [1, 17]],
 ].map(([index, binding]) => [demoReports[index], binding]));
+// ponytail: the core's tray pair (`windows`, `metrics::window_pair`) of each demo account, fixed like the bindings:
+// [thick, thin, by model]. Accounts without an entry keep the single summary bar.
+const DEMO_WINDOWS = new Map([
+  [0, [0, 2]], [1, [1, 0]], [2, [0]], [3, [1]], [5, [0, 1]], [6, [0]], [7, [0]], [8, [0]], [13, [0]], [14, [0]], [19, [0]],
+  [20, [1, 0, true]], [21, [0, 1]],
+].map(([index, w]) => [demoReports[index], w]));
+const demoTrayPair = (r) => {
+  const w = DEMO_WINDOWS.get(r);
+  return w ? { primary: w[0], secondary: w[1] ?? null, by_model: !!w[2] } : null;
+};
 const demoBinding = (r) => {
   const [metricIndex] = DEMO_BINDINGS.get(r) ?? [];
   if (metricIndex == null) return null;
@@ -1255,6 +1271,8 @@ const DEMO_PACES = new Map([
   [7, [0, { 0: dp("exhausted", "bad", 0.351, 1, 109) }]],
   [8, [0, { 0: dp("reserve", "good", 0.656, 0, 248) }]],
   [14, [0, { 0: dp("exhausted", "bad", 0.866, 1, 100) }]],
+  [20, [null, { 0: dp("reserve", "good", 0.6, 0.35, 9), 1: dp("ahead", "warn", 0.6, 0.82, 9, 4.5) }]],
+  [21, [1, { 0: dp("reserve", "good", 0.62, 0.4, 9), 1: dp("ahead", "warn", 0.45, 0.7, 300, 150) }]],
 ].map(([index, pace]) => [demoReports[index], pace]));
 // PRD 0022 RF18.2: `?fixture=six` swaps the demo accounts for the mockups' set (the six accounts plus a second Claude
 // account, example.com identities only), so the captures compare with `assets/0022/after/` (01, 03, 10, 11). With
@@ -1267,23 +1285,24 @@ if (DEMO_QUERY.get("fixture") === "six") {
     summary: { id: "overage.limit_hit_on_extra", params: { amount: `$${amount.toFixed(2)}` }, fallback: `Limit hit · on extra $${amount.toFixed(2)}` }, caveat: null });
   const six = [
     [{ ...dr("work@example.com", "claude", [dm("session (5h)", 78, 100, 1.2, "quota", "window_5h", "%"), dm("weekly (7d)", 41, 100, 70, "quota", "weekly", "%")]), plan: "Max", model_count: 3 },
-      [0, 0], [0, { 0: dp("ahead", "warn", 0.62, 0.78, 1.2, 0.4) }]],
+      [0, 0], [0, { 0: dp("ahead", "warn", 0.62, 0.78, 1.2, 0.4), 1: dp("reserve", "good", 0.58, 0.41, 70) }], [0, 1]],
     [{ ...dr("side@example.com", "claude", [dm("session (5h)", 29, 100, 3.1, "quota", "window_5h", "%"), dm("weekly (7d)", 12, 100, 120, "quota", "weekly", "%")]), plan: "Pro" },
-      [0, 3], [0, { 0: dp("on_pace", "good", 0.3, 0.29, 3.1) }]],
-    [{ ...dr("me@example.com", "chat_gpt", [dm("5h", 37, 100, 2.4, "quota", "window_5h", "%"), dm("weekly", 20, 100, 90, "quota", "weekly", "%")]), plan: "Plus" }, [0, 2], [0, { 0: dp("reserve", "good", 0.5, 0.37, 2.4) }]],
+      [0, 3], [0, { 0: dp("on_pace", "good", 0.3, 0.29, 3.1) }], [0, 1]],
+    [{ ...dr("me@example.com", "chat_gpt", [dm("5h", 37, 100, 2.4, "quota", "window_5h", "%"), dm("weekly", 20, 100, 90, "quota", "weekly", "%")]), plan: "Plus" }, [0, 2], [0, { 0: dp("reserve", "good", 0.5, 0.37, 2.4) }], [0, 1]],
     [{ ...dr("dev@example.com", "cursor", [dm("Fast requests", 500, 500, 200, "quota", "monthly"),
       { label: "Extra usage", used: 6.25, limit: 50, remaining: null, unit: "USD", kind: "spend", window: "monthly", period: null, resets_at: h(200), billing: "overage",
-        state: "available", ratio: null, uncapped: true, no_cap: false }]), class: "exhausted", plan: "Pro", overage: overage(6.25) }, [0, 1], null],
-    [dr("ops@example.com", "kimi", [dm("Weekly", 41, 100, 50, "quota", "weekly"), dm("Ratelimit", 0, 100, 4.8, "rate_limit", "other")]), [0, 4], [0, { 0: dp("on_pace", "neutral", 0.42, 0.41, 50) }]],
+        state: "available", ratio: null, uncapped: true, no_cap: false }]), class: "exhausted", plan: "Pro", overage: overage(6.25) }, [0, 1], null, [0]],
+    [dr("ops@example.com", "kimi", [dm("Weekly", 41, 100, 50, "quota", "weekly"), dm("Ratelimit", 0, 100, 4.8, "rate_limit", "other")]), [0, 4], [0, { 0: dp("on_pace", "neutral", 0.42, 0.41, 50) }], [0]],
     [{ ...drn("team@example.com", "groq", [], demoNote("down", "Service unavailable right now."), "error"), checked_at: ago(2),
       last_good: { checked_at: ago(38), metrics: [dm("Requests (day)", 26, 100, 9, "quota", "daily")] } }, [null, 5], null],
     [drn("api@example.com", "anthropic_api", [], demoNote("auth", "Credential missing or expired."), "authentication_error"), [null, 6], null],
     ...(DEMO_QUERY.has("bedrock") ? [[dr("billing@example.com", "aws_bedrock", [], ["Cost Explorer: no spend recorded this month (demo)."]), [null, 7], null]] : []),
   ];
   demoReports.splice(0, demoReports.length, ...six.map(([r]) => r));
-  for (const [r, binding, pace] of six) {
+  for (const [r, binding, pace, windows] of six) {
     DEMO_BINDINGS.set(r, binding);
     if (pace) DEMO_PACES.set(r, pace);
+    if (windows) DEMO_WINDOWS.set(r, windows);
   }
 }
 if (DEMO_QUERY.get("mono") && demoReports[0]) demoReports[0].monogram = DEMO_QUERY.get("mono");
@@ -1321,7 +1340,7 @@ const demoView = () => {
       metrics: c.metrics.map((m) => ({ ...m, pace: null, alert: null })), next_refresh_at_ms: Date.now() + 90e3, access: demoAccess(r),
       account_key: `nine_router:${r.account}/${c.demo_id}`, notify: true, usage_alerts: [], incident: null }));
     return { ...r, account: demoName(r.account), connections, index, binding: demoBinding(r), binding_rank: DEMO_BINDINGS.get(r)?.[1] ?? DEMO_BINDINGS.size + index,
-      metrics, pace_index: paceIndex,
+      metrics, pace_index: paceIndex, windows: r.status === "ready" ? demoTrayPair(r) : null,
       next_refresh_at_ms: Date.now() + (40 + index * 37) * 1000, uses_oauth: r.provider === "kiro" || r.uses_oauth, access: demoAccess(r),
       account_key: demoKey(r), notify, usage_alerts: metrics.filter((m) => m.alert?.active).map((m) => m.label), incident,
       // PRD 0022 MONO-4: the shell adds the override kept by account id in desktop.json.
