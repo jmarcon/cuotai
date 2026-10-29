@@ -19,6 +19,8 @@
 //! * [`binding`] picks the eligible quota that restricts the account most,
 //!   while [`binding_ratio`] and [`cmp_binding`] provide allocation-free sort
 //!   keys for consumers.
+//! * [`window_pair`] picks the two limits a compact row draws: the shortest
+//!   window and the next longer one (or the two tightest models).
 //!
 //! These primitives intentionally avoid colors or anything tied to terminal
 //! widgets; only [`Binding::summary`] produces presentation-neutral text.
@@ -528,6 +530,135 @@ fn window_rank(window: Option<MetricWindow>) -> u8 {
         Some(MetricWindow::Monthly) => 3,
         Some(MetricWindow::Other) | None => 4,
     }
+}
+
+/// The two limits a compact account row draws (the tray's thick and thin
+/// bars): the account's shortest window and the next longer one, or, for an
+/// account whose plan limits are all scoped to models, its two tightest
+/// models of one window. Indices point into `Report::metrics`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct WindowPair {
+    /// The thick bar: the shortest window (or the tightest model).
+    pub primary: usize,
+    /// The thin bar: the next longer window (or the second tightest model);
+    /// `None` when the account reports a single one.
+    pub secondary: Option<usize>,
+    /// Both bars are model-scoped limits of the same window, named by their
+    /// scope rather than by their window.
+    pub by_model: bool,
+}
+
+/// [`WindowPair`] of a report, with the eligibility of [`binding`]:
+/// `Quota` metrics included in the plan, with a finite positive cap and a
+/// finite signal.
+///
+/// * Account-wide limits in a known window (`5h`, day, week, month): in each
+///   window the tightest one stands for it; `primary` is the shortest window
+///   and `secondary` the next longer one. When the binding metric is none of
+///   them it takes the `secondary` place, so the limiting window is always on
+///   screen; when it is exhausted it takes the `primary` place (the thick bar
+///   and the big figure show what blocks the account).
+/// * Account-wide limits only in other or no windows: the binding metric
+///   alone.
+/// * No account-wide limit, only model-scoped ones: the tightest model and
+///   the second tightest of the same window, `by_model`.
+///
+/// `None` for a non-`Ready` report or one without an eligible quota, so a
+/// front end keeps its single summary bar.
+pub fn window_pair(report: &Report) -> Option<WindowPair> {
+    if report.status != Status::Ready {
+        return None;
+    }
+    let eligible: Vec<BindingCandidate> = report
+        .metrics
+        .iter()
+        .enumerate()
+        .filter_map(|(index, metric)| pair_candidate(index, metric))
+        .collect();
+    let wide: Vec<&BindingCandidate> = eligible
+        .iter()
+        .filter(|c| report.metrics[c.index].scope.is_none())
+        .collect();
+    if wide.is_empty() {
+        return model_pair(report, &eligible);
+    }
+    // The tightest limit of each known window, shortest window first.
+    let mut windows: Vec<(u8, BindingCandidate)> = Vec::new();
+    for candidate in wide {
+        let rank = window_rank(report.metrics[candidate.index].window);
+        if rank > 3 {
+            continue;
+        }
+        match windows.iter_mut().find(|(r, _)| *r == rank) {
+            Some((_, kept)) if candidate.ratio < kept.ratio => *kept = *candidate,
+            Some(_) => {}
+            None => windows.push((rank, *candidate)),
+        }
+    }
+    windows.sort_by_key(|(rank, _)| *rank);
+    let limiting = binding(report);
+    let Some(&(_, first)) = windows.first() else {
+        return limiting.map(|b| WindowPair {
+            primary: b.index,
+            secondary: None,
+            by_model: false,
+        });
+    };
+    let mut primary = first.index;
+    let mut secondary = windows.get(1).map(|(_, c)| c.index);
+    if let Some(b) = limiting {
+        if b.index != primary && Some(b.index) != secondary {
+            secondary = Some(b.index);
+        }
+        if b.reason == BindingReason::Exhausted && Some(b.index) == secondary {
+            secondary = Some(primary);
+            primary = b.index;
+        }
+    }
+    Some(WindowPair {
+        primary,
+        secondary,
+        by_model: false,
+    })
+}
+
+/// [`window_pair`] of an account whose eligible limits are all model-scoped.
+fn model_pair(report: &Report, eligible: &[BindingCandidate]) -> Option<WindowPair> {
+    let tightest = eligible.iter().min_by(|a, b| a.ratio.total_cmp(&b.ratio))?;
+    let window = report.metrics[tightest.index].window;
+    let second = eligible
+        .iter()
+        .filter(|c| c.index != tightest.index && report.metrics[c.index].window == window)
+        .min_by(|a, b| a.ratio.total_cmp(&b.ratio));
+    Some(WindowPair {
+        primary: tightest.index,
+        secondary: second.map(|c| c.index),
+        by_model: true,
+    })
+}
+
+/// A plan `Quota` with a usable cap and signal, as [`select_kind`] accepts
+/// it; exhausted ones have the ratio `0.0`.
+fn pair_candidate(index: usize, metric: &Metric) -> Option<BindingCandidate> {
+    if metric.kind != MetricKind::Quota
+        || metric.billing != Billing::Included
+        || !metric.limit.is_some_and(|cap| cap.is_finite() && cap > 0.0)
+    {
+        return None;
+    }
+    let (ratio, exhausted) = match classify_metric(metric) {
+        MetricState::Exhausted { no_cap: false } => (0.0, true),
+        MetricState::Available {
+            ratio,
+            uncapped: false,
+        } => (ratio, false),
+        _ => return None,
+    };
+    Some(BindingCandidate {
+        index,
+        ratio,
+        exhausted,
+    })
 }
 
 /// Remaining fraction of the account's binding metric, if any.
@@ -1314,5 +1445,175 @@ mod tests {
         assert_eq!(v["scope"]["kind"], "model");
         let back: Metric = serde_json::from_value(plain).unwrap();
         assert_eq!(back.billing, Billing::Included);
+    }
+
+    #[test]
+    fn window_pair_table() {
+        let n = |v: f64| Some(v);
+        let day = Some(MetricWindow::Daily);
+        let other = Some(MetricWindow::Other);
+        let pair = |primary, secondary| {
+            Some(WindowPair {
+                primary,
+                secondary,
+                by_model: false,
+            })
+        };
+        // (case, metrics, expected pair)
+        let cases: Vec<(&str, Vec<Metric>, Option<WindowPair>)> = vec![
+            (
+                "5h and week: thick 5h, thin week, whichever limits",
+                vec![
+                    quota(WEEK, n(51.0), n(100.0), Some(14)),
+                    quota(H5, n(0.0), n(100.0), Some(5)),
+                ],
+                pair(1, Some(0)),
+            ),
+            (
+                "weekly only: one bar",
+                vec![quota(WEEK, n(30.0), n(100.0), Some(14))],
+                pair(0, None),
+            ),
+            (
+                "day and month: thick day, thin month",
+                vec![
+                    quota(MONTH, n(10.0), n(100.0), Some(20)),
+                    quota(day, n(80.0), n(100.0), Some(9)),
+                ],
+                pair(1, Some(0)),
+            ),
+            (
+                "monthly only",
+                vec![quota(MONTH, n(10.0), n(100.0), Some(20))],
+                pair(0, None),
+            ),
+            (
+                "three windows: the two shortest",
+                vec![
+                    quota(MONTH, n(5.0), n(100.0), Some(20)),
+                    quota(WEEK, n(10.0), n(100.0), Some(14)),
+                    quota(H5, n(20.0), n(100.0), Some(5)),
+                ],
+                pair(2, Some(1)),
+            ),
+            (
+                "three windows, the month limits: it takes the thin bar",
+                vec![
+                    quota(MONTH, n(95.0), n(100.0), Some(20)),
+                    quota(WEEK, n(10.0), n(100.0), Some(14)),
+                    quota(H5, n(20.0), n(100.0), Some(5)),
+                ],
+                pair(2, Some(0)),
+            ),
+            (
+                "two limits in one window: the tightest stands for it",
+                vec![
+                    quota(H5, n(10.0), n(100.0), Some(5)),
+                    quota(H5, n(70.0), n(100.0), Some(5)),
+                    quota(WEEK, n(10.0), n(100.0), Some(14)),
+                ],
+                pair(1, Some(2)),
+            ),
+            (
+                "week exhausted: it takes the thick bar, the 5h stays thin",
+                vec![
+                    quota(H5, n(0.0), n(100.0), Some(5)),
+                    quota(WEEK, n(100.0), n(100.0), Some(14)),
+                ],
+                pair(1, Some(0)),
+            ),
+            (
+                "5h exhausted: thick 5h, thin week",
+                vec![
+                    quota(H5, n(100.0), n(100.0), Some(5)),
+                    quota(WEEK, n(40.0), n(100.0), Some(14)),
+                ],
+                pair(0, Some(1)),
+            ),
+            (
+                "no reset date: still a pair (the pace is what goes)",
+                vec![
+                    quota(H5, n(10.0), n(100.0), None),
+                    quota(WEEK, n(40.0), n(100.0), None),
+                ],
+                pair(0, Some(1)),
+            ),
+            (
+                "only other windows: the binding alone",
+                vec![
+                    quota(other, n(10.0), n(100.0), None),
+                    quota(other, n(60.0), n(100.0), None),
+                ],
+                pair(1, None),
+            ),
+            (
+                "an other window limits a 5h: it takes the thin bar",
+                vec![
+                    quota(H5, n(10.0), n(100.0), Some(5)),
+                    quota(other, n(90.0), n(100.0), None),
+                ],
+                pair(0, Some(1)),
+            ),
+            (
+                "overage, rate limits and uncapped metrics never pair",
+                vec![
+                    quota(H5, n(10.0), n(100.0), Some(5)).overage(),
+                    kind(MetricKind::RateLimit, quota(WEEK, n(10.0), n(100.0), None)),
+                    quota(WEEK, n(10.0), None, None),
+                ],
+                None,
+            ),
+        ];
+        for (case, metrics, expected) in cases {
+            assert_eq!(
+                window_pair(&report(Status::Ready, metrics)),
+                expected,
+                "{case}"
+            );
+        }
+        let failed = report(Status::Error, vec![quota(H5, n(10.0), n(100.0), Some(5))]);
+        assert_eq!(window_pair(&failed), None, "a failed report keeps no pair");
+    }
+
+    #[test]
+    fn window_pair_by_model_takes_the_two_tightest_of_one_window() {
+        let mut flash = model("Flash", 20.0);
+        flash.window = Some(MetricWindow::Daily);
+        let mut pro = model("Pro", 70.0);
+        pro.window = Some(MetricWindow::Daily);
+        let mut lite = model("Lite", 50.0);
+        lite.window = Some(MetricWindow::Daily);
+        let mut weekly = model("Video", 10.0);
+        weekly.window = Some(MetricWindow::Weekly);
+        let r = report(Status::Ready, vec![flash, pro, weekly, lite]);
+        assert_eq!(
+            window_pair(&r),
+            Some(WindowPair {
+                primary: 1,
+                secondary: Some(3),
+                by_model: true,
+            })
+        );
+        let r = report(Status::Ready, vec![model("Opus", 10.0)]);
+        assert_eq!(
+            window_pair(&r),
+            Some(WindowPair {
+                primary: 0,
+                secondary: None,
+                by_model: true,
+            })
+        );
+        // An account-wide limit wins over the models (they stay in the details).
+        let mut wide = pq("5h", 10.0, 100.0);
+        wide.window = H5;
+        let r = report(Status::Ready, vec![model("Opus", 90.0), wide]);
+        assert_eq!(
+            window_pair(&r),
+            Some(WindowPair {
+                primary: 1,
+                secondary: None,
+                by_model: false,
+            })
+        );
     }
 }
