@@ -598,8 +598,10 @@ fn symbolic_links_are_not_followed() {
     assert_eq!(f.requests(), 0);
 }
 
+/// Only bounds a worker that never gets there: the worker thread runs in the
+/// background band, which a busy machine can stall for seconds.
 fn wait_for(worker: &CostWorker, done: impl Fn(&CostStatus) -> bool) -> CostStatus {
-    let deadline = Instant::now() + Duration::from_secs(10);
+    let deadline = Instant::now() + Duration::from_secs(120);
     loop {
         let status = worker.status();
         if done(&status) {
@@ -610,13 +612,38 @@ fn wait_for(worker: &CostWorker, done: impl Fn(&CostStatus) -> bool) -> CostStat
     }
 }
 
+const WORKER_SCHEDULE: Schedule = Schedule {
+    interval: Duration::from_secs(3600),
+    catch_up: Duration::from_secs(3600),
+};
+
+#[test]
+fn spawning_the_worker_never_waits_for_its_first_cycle() {
+    let f = fixture();
+    f.enable(SourceId::ClaudeCode);
+    let (release, released) = std::sync::mpsc::channel::<()>();
+    // The first cycle stops here, before it sets any state, until the
+    // spawning thread lets it go: a spawn that waited would never return.
+    let worker = CostWorker::spawn_with(
+        f.scanner.clone(),
+        WORKER_SCHEDULE,
+        Box::new(move || released.recv().is_ok()),
+    );
+    assert_eq!(worker.status().state, WorkerState::Starting);
+    release.send(()).unwrap();
+    wait_for(&worker, |s| s.state == WorkerState::Paused);
+}
+
 #[test]
 fn the_worker_scans_on_its_own_thread_and_pauses_while_saving_energy() {
-    let schedule = Schedule {
-        interval: Duration::from_secs(3600),
-        catch_up: Duration::from_secs(3600),
-    };
-    let f = fixture();
+    // The scan's time budget is wall-clock, and on a busy machine the
+    // background band can spend it before the first file. A stopped scan
+    // has its own test; this one must not depend on the machine's speed.
+    let f = fixture_with(Limits {
+        max_duration: Duration::from_secs(24 * 3600),
+        pace: false,
+        ..Limits::default()
+    });
     // The worker uses the real clock: a line from an hour ago.
     let recent = (Utc::now() - chrono::TimeDelta::hours(1)).to_rfc3339();
     write(
@@ -625,15 +652,10 @@ fn the_worker_scans_on_its_own_thread_and_pauses_while_saving_energy() {
     );
     let saving = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
     let probe = std::sync::Arc::clone(&saving);
-    let started = Instant::now();
     let worker = CostWorker::spawn_with(
         f.scanner.clone(),
-        schedule,
+        WORKER_SCHEDULE,
         Box::new(move || probe.load(std::sync::atomic::Ordering::Relaxed)),
-    );
-    assert!(
-        started.elapsed() < Duration::from_secs(1),
-        "spawning never waits"
     );
     wait_for(&worker, |s| s.state == WorkerState::Off);
 
@@ -653,6 +675,7 @@ fn the_worker_scans_on_its_own_thread_and_pauses_while_saving_energy() {
     worker.wake();
     let status = wait_for(&worker, |s| s.state == WorkerState::Waiting);
     let last = status.last.unwrap();
+    assert!(last.complete);
     assert_eq!(source_scan(&last, SourceId::ClaudeCode).requests, 1);
 }
 
