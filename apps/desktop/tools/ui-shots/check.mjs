@@ -96,6 +96,13 @@ const PAGE_JS = `(() => {
   for (const s of document.querySelectorAll(".rc > .stl")) if (s.getBoundingClientRect().height > 22) out.push({ kind: "status-line-taller-than-one-line", ok: false, sel: sel(s), text: s.textContent.trim().slice(0, 50) });
   // The local-cost row's title and its "estimate" mark stay on one line each; only the values may wrap.
   for (const s of document.querySelectorAll(".cost-fold .cf-t, .cost-fold .cf-e")) { const rg = document.createRange(); rg.selectNodeContents(s); if (new Set([...rg.getClientRects()].map((x) => Math.round(x.top))).size > 1) out.push({ kind: "title-wraps", ok: false, sel: sel(s), text: s.textContent.trim().slice(0, 50) }); }
+  // A card's limit columns: a name never breaks inside a word, and meters on one row of columns line up.
+  for (const n of document.querySelectorAll(".wins .win-name")) { const rg = document.createRange(); rg.selectNodeContents(n); const lines = new Set([...rg.getClientRects()].map((x) => Math.round(x.top))).size; if (lines > n.textContent.trim().split(/\\s+/).length) out.push({ kind: "word-broken", ok: false, sel: sel(n), text: n.textContent.trim().slice(0, 50) }); }
+  for (const w of document.querySelectorAll(".wins")) {
+    const rows = new Map();
+    for (const c of w.children) { const m = c.querySelector(":scope > .mtr"); if (!m) continue; const top = Math.round(c.getBoundingClientRect().top); rows.set(top, [...(rows.get(top) ?? []), Math.round(m.getBoundingClientRect().top)]); }
+    for (const tops of rows.values()) if (new Set(tops).size > 1) out.push({ kind: "limits-misaligned", ok: false, sel: "div.wins", text: tops.join(" / ") });
+  }
   for (const b of document.querySelectorAll("button, input, select")) {
     if (b.closest("[hidden], dialog:not([open]), .menu, .lang-menu, .set-pop")) continue;
     const r = b.getBoundingClientRect();

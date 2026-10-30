@@ -866,10 +866,59 @@
   gap: var(--space-0) var(--space-2);
   min-height: 24px;
 }
-/* Three limit columns in a narrow window: the name wraps instead of running under the Binding tag. */
+/* The name wraps at a word instead of running under the Binding tag. */
 .win-top .win-name {
   min-width: 0;
-  overflow-wrap: anywhere;
+}
+/* The columns share their rows, so a name that wraps never pushes one figure or meter below its neighbors. */
+.wins {
+  row-gap: 0;
+}
+.wins > .win {
+  display: grid;
+  grid-row: span 4;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: subgrid;
+  row-gap: 0;
+}
+.wins > .win > .win-reset {
+  grid-row: 4;
+}
+/* A narrow card has no room for three columns, or for a name and a plan badge side by side. */
+.card {
+  container-type: inline-size;
+}
+@container (max-width: 520px) {
+  .wins.three {
+    grid-template-columns: 1fr 1fr;
+  }
+  .wins.three > .win.extra {
+    grid-column: 1 / -1;
+    margin-top: var(--space-3);
+  }
+}
+@container (max-width: 460px) {
+  .card .who:has(.plan-badge) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: var(--space-2);
+  }
+  .card .who-t {
+    display: contents;
+  }
+  .card .who-t h2 {
+    flex: 0 0 100%;
+  }
+  /* Grows from nothing up to its text, so it truncates beside the badge instead of pushing it to a third line. */
+  .card .who:has(.plan-badge) > p {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: max-content;
+  }
+  .card .who-t .plan-badge {
+    order: 1;
+  }
 }
 .win-name {
   font-size: var(--text-micro);
