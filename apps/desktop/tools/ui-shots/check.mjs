@@ -37,6 +37,8 @@ const PAGES = zoom ? ZOOM_PAGES : [
   ["settings-menubar", "settings.html?page=menubar", 640, 460, {}],
   ["main-stats", "index.html", 1200, 820, { "cuotai.openView": "stats" }],
   ["tray-stats", "tray.html", 380, 600, {}, "[data-open-stats]"],
+  ["details-short", "index.html", 1200, 500, {}, "[data-details]"],
+  ["details-narrow", "index.html", 520, 600, {}, "[data-details]"],
 ];
 // DS-MSG-15: what may truncate (with its full text in a tooltip or the accessible name).
 export const ALLOWED = [".r1 .nm", ".r1 .ac", ".crow .nm", ".tile-name b", ".tile-st span", ".who h2", ".who p", ".stl.truncated .lbl",
@@ -50,8 +52,11 @@ const PAGE_JS = `(() => {
   const sel = (e) => { const c = typeof e.className === "string" ? e.className.trim().split(/\\s+/).filter(Boolean).slice(0, 3).join(".") : ""; return e.tagName.toLowerCase() + (c ? "." + c : ""); };
   const ok = (e) => !!e.closest(allowed);
   const leaves = [];
+  // A modal dialog covers the page: only its own text can collide.
+  const modal = document.querySelector("dialog.details[open]");
   for (const e of document.querySelectorAll("body *")) {
     if (e.closest("svg, .sr-only, .wm-name, [hidden], dialog:not([open]), .set-pop, .menu, .lang-menu")) continue;
+    if (modal && !modal.contains(e)) continue;
     // the hidden part of a closed disclosure (its own text and every child but the summary)
     if (e.matches("details:not([open])") || (e.closest("details:not([open])") && !e.closest("summary"))) continue;
     const cs = getComputedStyle(e);
@@ -99,6 +104,8 @@ const PAGE_JS = `(() => {
     const hit = a.own.some((x) => b.own.some((y) => Math.min(x.right, y.right) - Math.max(x.left, y.left) > 2 && Math.min(x.bottom, y.bottom) - Math.max(x.top, y.top) > 3));
     if (hit) out.push({ kind: "overlap", ok: false, sel: sel(a.e) + " x " + sel(b.e), text: a.text.slice(0, 30) + " | " + b.text.slice(0, 30) });
   }
+  // The details dialog scrolls in its body only, never around it and never sideways.
+  if (modal && (modal.scrollHeight > modal.clientHeight + 1 || modal.scrollWidth > modal.clientWidth + 1)) out.push({ kind: "nested-scroll", ok: false, sel: "dialog.details", text: modal.scrollWidth + "x" + modal.scrollHeight + " > " + modal.clientWidth + "x" + modal.clientHeight });
   if (document.documentElement.scrollWidth > vw + 1) out.push({ kind: "horizontal-scroll", ok: false, sel: "html", text: document.documentElement.scrollWidth + " > " + vw });
   return out;
 })()`;
