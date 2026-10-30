@@ -590,8 +590,15 @@
 .set-disc-body {
   border-top: var(--border-w) solid var(--border);
 }
-.set-disc-body > :not(.set-row) {
+.set-disc-body > :not(.set-row),
+[data-update-body] > :not(.set-row) {
   margin: var(--space-2) var(--space-4);
+}
+[data-update-body] > :empty {
+  display: none;
+}
+.set-sec > .dlg-actions {
+  margin: var(--space-2) var(--space-4) var(--space-3);
 }
 
 /* RF2.3: a sub-page replaces the page content, with a back button; the rest of the page is hidden meanwhile. */
