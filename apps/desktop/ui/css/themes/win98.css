@@ -154,6 +154,10 @@
 :root[data-theme="win98"] .topbar .tb-age {
   color: #ffffff;
 }
+:root[data-theme="win98"] .card-head .plan-badge {
+  border-color: #ffffff;
+  color: #ffffff;
+}
 :root[data-theme="win98"] .card-head .icon:hover:not(:disabled),
 :root[data-theme="win98"] .topbar .icon:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.25);
@@ -173,8 +177,8 @@
   color: #ffffff;
 }
 
-/* Gray controls on the bar */
-:root[data-theme="win98"][data-mode="light"] .btn,
+/* Gray controls on the bar (a primary button keeps the accent's own text color) */
+:root[data-theme="win98"][data-mode="light"] .btn:not(.primary),
 :root[data-theme="win98"][data-mode="light"] .segmented button {
   color: #000000;
 }
@@ -185,7 +189,7 @@
   background: #dfdfdf;
   color: #000000;
 }
-:root[data-theme="win98"][data-mode="dark"] .btn,
+:root[data-theme="win98"][data-mode="dark"] .btn:not(.primary),
 :root[data-theme="win98"][data-mode="dark"] .segmented button {
   color: #ffffff;
 }
@@ -195,4 +199,11 @@
 :root[data-theme="win98"][data-mode="dark"] .segmented button.on {
   background: #3c3c3c;
   color: #ffffff;
+}
+/* Outlined buttons have no fill of their own: on the title bar they read like its icons. */
+:root[data-theme="win98"] .topbar .btn.outline {
+  color: #ffffff;
+}
+:root[data-theme="win98"] .topbar .btn.outline:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.25);
 }
