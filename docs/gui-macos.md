@@ -67,7 +67,9 @@ Cuotai has three WidgetKit widgets: **Summary** (small, medium, large), **Accoun
   <img src="assets/screenshots/widgets/macos-gallery-dark.png" alt="Cuotai macOS widgets, dark mode" width="48%" />
 </div>
 
-These images are the widgets' SwiftUI views rendered off-screen from an example file, not a desktop capture: the widget extension is not in the release bundle yet, because it needs the Apple developer account for signing and the *app group*. Every family, the states and how the images are made are in [widgets.md](widgets.md#widgets).
+The extension ships inside the app, so there is nothing else to install. To add a widget, turn the option on, then right-click the desktop and choose **Edit Widgets**, or open **Edit Widgets** at the bottom of Notification Center, and search for Cuotai. Releases before 0.82.1 embedded an extension that crashed at launch, so the gallery did not list it.
+
+These images are the widgets' SwiftUI views rendered off-screen from an example file, not a desktop capture. Every family, the states and how the images are made are in [widgets.md](widgets.md#widgets).
 
 ## Details, history and local cost
 

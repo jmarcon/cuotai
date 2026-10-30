@@ -43,7 +43,11 @@ for arch in arm64 x86_64; do
     triple="$arch-apple-macosx$deployment"
     # `-application-extension` restricts the build to extension-safe API;
     # `-parse-as-library` lets the `@main` WidgetBundle be the entry point.
+    # `-e _NSExtensionMain` is what Xcode links into an extension target: with
+    # the `@main` of the WidgetBundle as the entry point the process traps in
+    # `_EXRunningExtension` at launch and the gallery lists no widget.
     xcrun swiftc -parse-as-library -application-extension \
+        -Xlinker -e -Xlinker _NSExtensionMain \
         -O -whole-module-optimization \
         -sdk "$sdk" -target "$triple" \
         -module-name "$module" \

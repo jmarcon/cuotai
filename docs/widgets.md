@@ -33,7 +33,7 @@ Every image below is drawn from the same example `widget.json` ([`fixtures/widge
   <img src="assets/screenshots/widgets/macos-gallery-dark.png" alt="Cuotai macOS widgets, dark mode: Summary (large and small), History (medium) and Account (small)" width="100%" />
 </p>
 
-> **Rendered, not captured.** These are the shipped SwiftUI entry views (`Sources/*.swift`) drawn off-screen with `ImageRenderer`, because they were rendered before the signed `.appex` existed (see [Building and packaging](#building-and-packaging)). The widget background is approximated with a solid card, and the relative age is frozen at render time ("2 min, 0 secs"); on the desktop the system advances it. The e-mail appears because the example file was written with "include identity" on. The live-widget check on a clean Mac is still pending.
+> **Rendered, not captured.** These are the shipped SwiftUI entry views (`Sources/*.swift`) drawn off-screen with `ImageRenderer`, so the images can be regenerated without a signed `.appex` (see [Building and packaging](#building-and-packaging)). The widget background is approximated with a solid card, and the relative age is frozen at render time ("2 min, 0 secs"); on the desktop the system advances it. The e-mail appears because the example file was written with "include identity" on. 
 
 | Widget | Family | Light | Dark |
 |---|---|---|---|
@@ -172,11 +172,11 @@ Type-checking proves the code compiles; it does not prove the bundle is packaged
 Tauri cannot build a Swift app extension, so the release builds it beside the bundle (`desktop-macos` job of `release.yml`):
 
 1. `cargo tauri build` produces `Cuotai.app`.
-2. `scripts/release/macos-embed-widgets.sh` runs `apps/desktop/widgets/macos/build-appex.sh`, which compiles the sources for arm64 and x86_64 with `swiftc -application-extension`, joins them with `lipo`, writes `Info.plist` (extension point `com.apple.widgetkit-extension`, identifier `dev.cuotai.desktop.widgets`) and the App Intents metadata the Account picker needs (`appintentsmetadataprocessor`, full Xcode), into `Cuotai.app/Contents/PlugIns/CuotaiWidgets.appex`.
+2. `scripts/release/macos-embed-widgets.sh` runs `apps/desktop/widgets/macos/build-appex.sh`, which compiles the sources for arm64 and x86_64 with `swiftc -application-extension` and the `_NSExtensionMain` entry point Xcode gives an extension target, joins them with `lipo`, writes `Info.plist` (extension point `com.apple.widgetkit-extension`, identifier `dev.cuotai.desktop.widgets`) and the App Intents metadata the Account picker needs (`appintentsmetadataprocessor`, full Xcode), into `Cuotai.app/Contents/PlugIns/CuotaiWidgets.appex`.
 3. `scripts/release/macos-sign-and-verify.sh` signs inside-out: the extension with `CuotaiWidgets.entitlements` (sandbox plus the app group), then the app with `Cuotai.entitlements` (the app group only), both with the hardened runtime, then recreates the DMG. Notarization covers the extension as part of the app.
-4. `smoke-desktop-macos.sh` checks that the extension is embedded, signed the way `signing-state.json` records, sandboxed, and (Developer ID) in the app group.
+4. `smoke-desktop-macos.sh` checks that the extension is embedded, signed the way `signing-state.json` records, sandboxed, linked with `_NSExtensionMain`, and (Developer ID) in the app group.
 
-The app group is `WL9XSC6H36.dev.cuotai.desktop`: on macOS a group prefixed with the Team ID needs no provisioning profile and no registration in the Apple portal, unlike the iOS-style `group.` prefix. A full rehearsal has no Developer ID, so it embeds the same extension with an ad-hoc signature and only the sandbox entitlement; such a build falls back to the per-user directory and its widgets show the empty state.
+The app group is `WL9XSC6H36.dev.cuotai.desktop`: on macOS a group prefixed with the Team ID needs no provisioning profile and no registration in the Apple portal, unlike the iOS-style `group.` prefix. A full rehearsal has no Developer ID, so it embeds the same extension with an ad-hoc signature and only the sandbox entitlement; such a build cannot read the app group container and its widgets show the empty state.
 
 A local build: `VERSION=0.0.0 scripts/release/macos-embed-widgets.sh <path/to/Cuotai.app>`, then sign as step 3.
 
