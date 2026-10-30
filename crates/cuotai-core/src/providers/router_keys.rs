@@ -496,17 +496,24 @@ async fn kimi_coding_at(
             names.iter().find_map(|n| usage.get(*n))
         };
         let limit = finite(pick(&["limit", "Limit"]));
-        let used = finite(pick(&["used", "Used"])).unwrap_or(0.0).max(0.0);
+        let used = finite(pick(&["used", "Used"])).map(|used| used.max(0.0));
         let remaining = finite(pick(&["remaining", "Remaining"]));
         let reset = parse_reset_time(pick(&["resetTime", "ResetTime", "reset_at", "resetAt"]));
         if let Some(limit) = limit.filter(|l| *l > 0.0) {
+            // One of the two gives the other; with neither the limit stays
+            // alone (no consumption is known, which is not zero).
+            let (used, remaining) = match (used, remaining) {
+                (None, Some(left)) => (Some((limit - left).max(0.0)), Some(left)),
+                (Some(spent), None) => (Some(spent), Some((limit - spent).max(0.0))),
+                known => known,
+            };
             metrics.push(Metric {
                 billing: Default::default(),
                 scope: None,
                 label: "Semanal".into(),
-                used: Some(used),
+                used,
                 limit: Some(limit),
-                remaining: Some(remaining.unwrap_or((limit - used).max(0.0))),
+                remaining,
                 unit: "créditos".into(),
                 kind: MetricKind::Quota,
                 window: Some(MetricWindow::Weekly),
@@ -528,14 +535,14 @@ async fn kimi_coding_at(
             let Some(limit) = finite(pick(&["limit", "Limit"])).filter(|l| *l > 0.0) else {
                 continue;
             };
-            let remaining = finite(pick(&["remaining", "Remaining"])).unwrap_or(limit);
+            let remaining = finite(pick(&["remaining", "Remaining"]));
             metrics.push(Metric {
                 billing: Default::default(),
                 scope: None,
                 label: "Rate limit".into(),
-                used: Some((limit - remaining).max(0.0)),
+                used: remaining.map(|remaining| (limit - remaining).max(0.0)),
                 limit: Some(limit),
-                remaining: Some(remaining.max(0.0)),
+                remaining: remaining.map(|remaining| remaining.max(0.0)),
                 unit: "requisições".into(),
                 kind: MetricKind::RateLimit,
                 window: Some(MetricWindow::Other),
@@ -1215,6 +1222,60 @@ mod tests {
         assert_eq!(rate.kind, MetricKind::RateLimit);
         assert_eq!(rate.window, Some(MetricWindow::Other));
         assert!(data.notes.iter().any(|n| n.contains("Allegro")));
+    }
+
+    async fn kimi_metrics_of(body: serde_json::Value) -> Vec<Metric> {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(body))
+            .mount(&server)
+            .await;
+        let http = reqwest::Client::new();
+        let creds = TestCredentials("KIMI_API_KEY", "sk-test-123");
+        kimi_coding_at(
+            &kimi_coding_account(),
+            &ctx_with(&http, &creds),
+            &server.uri(),
+        )
+        .await
+        .expect("sucesso")
+        .metrics
+    }
+
+    #[tokio::test]
+    async fn kimi_coding_weekly_used_absent_comes_from_remaining_never_from_zero() {
+        let metrics = kimi_metrics_of(serde_json::json!({
+            "usage": { "limit": 100, "remaining": 30 }
+        }))
+        .await;
+        assert_eq!(metrics[0].used, Some(70.0));
+        assert_eq!(metrics[0].remaining, Some(30.0));
+        assert_eq!(
+            crate::metrics::classify_metric(&metrics[0]),
+            crate::metrics::MetricState::Available {
+                ratio: 0.3,
+                uncapped: false
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn kimi_coding_limit_without_consumption_stays_unmeasured() {
+        let metrics = kimi_metrics_of(serde_json::json!({
+            "usage": { "limit": 100 },
+            "limits": [{ "detail": { "limit": 60 } }]
+        }))
+        .await;
+        assert_eq!(metrics.len(), 2);
+        for metric in &metrics {
+            assert_eq!((metric.used, metric.remaining), (None, None));
+            assert_eq!(
+                crate::metrics::classify_metric(metric),
+                crate::metrics::MetricState::Unmeasured
+            );
+        }
+        assert_eq!(metrics[0].limit, Some(100.0));
+        assert_eq!(metrics[1].limit, Some(60.0));
     }
 
     #[tokio::test]
