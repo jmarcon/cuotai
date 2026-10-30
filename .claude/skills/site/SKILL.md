@@ -1,6 +1,6 @@
 ---
 name: site
-description: Project site workflow for the GitHub Pages landing page in site/, served at jmarcon.github.io/cuotai. Use when creating, updating or redesigning the site, or when a change to its claims, screenshots or Pages pipeline is needed. Not for README.md, docs/ or the desktop UI in apps/desktop/ui.
+description: Project site workflow for the GitHub Pages landing page in site/, served at www.julianomarcon.com.br/cuotai. Use when creating, updating or redesigning the site, or when a change to its claims, screenshots or Pages pipeline is needed. Not for README.md, docs/ or the desktop UI in apps/desktop/ui.
 ---
 
 # Project site
@@ -14,7 +14,7 @@ description: Project site workflow for the GitHub Pages landing page in site/, s
 3. **Edit.** Apply the claims within the hard rules. Keep to `site/` and `docs/assets/screenshots/`.
 4. **Verify.** Done when every item under "Verification" passes.
 5. **Deliver.** Follow "How to deliver a change" with `docs(site): <subject>`: staging by explicit path, no version or `CHANGELOG.md` edit, a PR with a green `CI result`, Rebase and merge. A commit that leaves `crates/` and `apps/` alone needs no `Changelog:` trailer. Push, open the PR or merge only when the user asks.
-6. **Confirm the deploy.** After the merge, watch the run with `gh run list --workflow pages.yml --limit 1` and `gh run watch <id>`, then open https://jmarcon.github.io/cuotai/ and confirm the change is live. A `main` push touching `site/**`, `docs/assets/screenshots/**`, `scripts/site-build.sh` or `.github/workflows/pages.yml` deploys; `gh workflow run pages.yml` deploys by hand. App releases play no part.
+6. **Confirm the deploy.** After the merge, watch the run with `gh run list --workflow pages.yml --limit 1` and `gh run watch <id>`, then open https://www.julianomarcon.com.br/cuotai/ and confirm the change is live. A `main` push touching `site/**`, `docs/assets/screenshots/**`, `scripts/site-build.sh` or `.github/workflows/pages.yml` deploys; `gh workflow run pages.yml` deploys by hand. App releases play no part.
 
 ## Sources of truth
 
