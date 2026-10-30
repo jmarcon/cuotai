@@ -1719,6 +1719,10 @@ fn app_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
 
 #[tauri::command]
 fn show_main_window(app: AppHandle) {
+    reveal_main_window(&app);
+}
+
+fn reveal_main_window(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("tray") {
         let _ = w.hide();
     }
@@ -2281,8 +2285,21 @@ pub fn run() {
             tauri::async_runtime::spawn(Arc::clone(&updates).run(app.handle().clone()));
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("erro ao iniciar o Cuotai");
+        .build(tauri::generate_context!())
+        .expect("erro ao iniciar o Cuotai")
+        .run(|_app, _event| {
+            // macOS: closing the window only hides it, so a click on the Dock
+            // icon (or opening the app again) must bring it back; AppKit
+            // shows nothing by itself for a hidden window.
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen {
+                has_visible_windows: false,
+                ..
+            } = _event
+            {
+                reveal_main_window(_app);
+            }
+        });
 }
 
 #[cfg(test)]
