@@ -29,7 +29,7 @@ const LOGIN_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 pub async fn login(profile: &str, events: Sender<String>) -> Result<(), OAuthError> {
     validate_profile(profile)?;
 
-    let mut child = Command::new("aws")
+    let mut child = Command::new(crate::cli_path::resolve("aws"))
         // Fixed argument vector; profile is an argv value, never a shell string.
         .args(["sso", "login", "--profile", profile, "--use-device-code", "--no-browser"])
         .stdin(Stdio::null())

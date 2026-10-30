@@ -26,20 +26,10 @@ pub fn is_install_url(url: &str) -> bool {
     url == CLI_INSTALL_URL
 }
 
-/// Whether `bl` is found on this device's `PATH`: the same lookup a spawn of
-/// `"bl"` does (the query's and the login's `cli_not_found`), without running it.
+/// Whether `bl` is found on this device: the same lookup the query and the
+/// login do before their spawn, without running it.
 pub fn cli_installed() -> bool {
-    std::env::var_os("PATH").is_some_and(|path| cli_in_path(&path))
-}
-
-/// [`cli_installed`] against an explicit `PATH` value (testable).
-pub fn cli_in_path(path: &std::ffi::OsStr) -> bool {
-    let names: &[&str] = if cfg!(windows) {
-        &["bl.exe", "bl.cmd", "bl.bat", "bl.ps1", "bl"]
-    } else {
-        &["bl"]
-    };
-    std::env::split_paths(path).any(|dir| names.iter().any(|name| dir.join(name).is_file()))
+    crate::cli_path::found("bl")
 }
 
 /// Maximum time for `bl auth login --console`. `bl` may open a browser and
@@ -123,7 +113,7 @@ pub(crate) async fn console_login(console_site: &str, profile: &str) -> Result<(
     // argv is a fixed list: `auth`, `login`, `--console`, `--console-site`,
     // `<site>`, `--config`, `<profile>` — each item separate, no concatenation,
     // no shell. No API key, cookie or token.
-    let mut child = Command::new("bl")
+    let mut child = Command::new(crate::cli_path::resolve("bl"))
         .args([
             "auth",
             "login",
