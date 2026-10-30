@@ -247,6 +247,11 @@ struct Loaded {
     /// the lock" — if `Inner.generation` differs from
     /// `Loaded.generation`, an in-flight refresh's token is stale.
     generation: u64,
+    /// Which [`RefreshCycle`] this is. A new cycle counts its tokens from
+    /// zero, so a query started on the replaced one can come back with a
+    /// token the new one just issued; a refresh keeps the epoch it started
+    /// under and its result lands only on the same cycle.
+    cycle_epoch: u64,
     /// Per-slot generation token for in-flight refreshes, mirroring
     /// the cycle's `in_flight` table. `None` means the slot is idle.
     /// Stored on `Loaded` so the inner mutex can quickly check "slot
@@ -1836,6 +1841,7 @@ impl Inner {
             file,
             monitor,
             generation: self.generation,
+            cycle_epoch: self.generation,
             tokens: vec![None; accounts_len],
             pending_recovery: Vec::new(),
         });
@@ -2711,41 +2717,54 @@ impl Backend {
         // per-account refresh — in that case the scheduler should have
         // routed the sweep through the per-account path; we simply
         // bail.
-        let (monitor, token) = {
-            let mut g = self.inner.lock().await;
-            let Some(l) = g.loaded.as_mut() else { return };
-            let Some(token) = l.cycle.begin_full() else {
-                return;
-            };
-            for slot in l.tokens.iter_mut() {
-                *slot = Some(token);
-            }
-            (Arc::clone(&l.monitor), token)
+        let Some((monitor, token, epoch)) = self.claim_sweep().await else {
+            return;
         };
         self.emit(app).await;
         let snapshot = monitor.refresh().await;
-        {
-            let mut g = self.inner.lock().await;
-            let Inner {
-                loaded, notices, ..
-            } = &mut *g;
-            if let Some(l) = loaded.as_mut() {
-                finish_full(
-                    &mut l.cycle,
-                    notices,
-                    (&l.monitor, &l.file.config),
-                    snapshot,
-                    token,
-                    chrono::Utc::now(),
-                );
-                for slot in l.tokens.iter_mut() {
-                    if *slot == Some(token) {
-                        *slot = None;
-                    }
+        self.land_sweep(snapshot, token, epoch).await;
+        self.emit(app).await;
+    }
+
+    /// Testable half of [`Self::refresh_all`]: reserves every slot for one
+    /// sweep; `None` without a configuration or with a slot already busy.
+    async fn claim_sweep(&self) -> Option<(Arc<Monitor>, cuotai_core::refresh::Generation, u64)> {
+        let mut g = self.inner.lock().await;
+        let l = g.loaded.as_mut()?;
+        let token = l.cycle.begin_full()?;
+        for slot in l.tokens.iter_mut() {
+            *slot = Some(token);
+        }
+        Some((Arc::clone(&l.monitor), token, l.cycle_epoch))
+    }
+
+    /// Testable half of [`Self::refresh_all`]: applies the sweep claimed by
+    /// [`Self::claim_sweep`], unless its cycle was replaced in between.
+    async fn land_sweep(
+        &self,
+        snapshot: cuotai_core::Snapshot,
+        token: cuotai_core::refresh::Generation,
+        epoch: u64,
+    ) {
+        let mut g = self.inner.lock().await;
+        let Inner {
+            loaded, notices, ..
+        } = &mut *g;
+        if let Some(l) = loaded.as_mut().filter(|l| l.cycle_epoch == epoch) {
+            finish_full(
+                &mut l.cycle,
+                notices,
+                (&l.monitor, &l.file.config),
+                snapshot,
+                token,
+                chrono::Utc::now(),
+            );
+            for slot in l.tokens.iter_mut() {
+                if *slot == Some(token) {
+                    *slot = None;
                 }
             }
         }
-        self.emit(app).await;
     }
 
     pub async fn refresh_account(&self, app: &AppHandle, index: usize) -> Result<(), String> {
@@ -2765,7 +2784,7 @@ impl Backend {
         // mid-flight rejects the eventual result via the generation
         // guard. `begin` returns `None` when the slot is already busy;
         // the caller can retry later.
-        let (monitor, token, previous) = {
+        let (monitor, token, previous, epoch) = {
             let mut g = self.inner.lock().await;
             let l = g
                 .loaded
@@ -2784,35 +2803,45 @@ impl Backend {
                 return Ok(());
             };
             l.tokens[index] = Some(token);
-            (Arc::clone(&l.monitor), token, previous)
+            (Arc::clone(&l.monitor), token, previous, l.cycle_epoch)
         };
         self.emit(app).await;
         let report = match (sub.as_deref(), previous.as_ref()) {
             (Some(sub), Some(previous)) => monitor.refresh_connection(index, sub, previous).await,
             _ => monitor.refresh_account(index).await,
         };
-        {
-            let mut g = self.inner.lock().await;
-            let Inner {
-                loaded, notices, ..
-            } = &mut *g;
-            if let Some(l) = loaded.as_mut() {
-                finish_account(
-                    &mut l.cycle,
-                    notices,
-                    (&l.monitor, &l.file.config),
-                    index,
-                    report,
-                    token,
-                    chrono::Utc::now(),
-                );
-                if let Some(slot) = l.tokens.iter_mut().find(|slot| **slot == Some(token)) {
-                    *slot = None;
-                }
-            }
-        }
+        self.land_account(index, report, token, epoch).await;
         self.emit(app).await;
         Ok(())
+    }
+
+    /// Testable half of [`Self::refresh_account_or_connection`]: applies one
+    /// account's query, unless its cycle was replaced in between.
+    async fn land_account(
+        &self,
+        index: usize,
+        report: Report,
+        token: cuotai_core::refresh::Generation,
+        epoch: u64,
+    ) {
+        let mut g = self.inner.lock().await;
+        let Inner {
+            loaded, notices, ..
+        } = &mut *g;
+        if let Some(l) = loaded.as_mut().filter(|l| l.cycle_epoch == epoch) {
+            finish_account(
+                &mut l.cycle,
+                notices,
+                (&l.monitor, &l.file.config),
+                index,
+                report,
+                token,
+                chrono::Utc::now(),
+            );
+            if let Some(slot) = l.tokens.iter_mut().find(|slot| **slot == Some(token)) {
+                *slot = None;
+            }
+        }
     }
 
     /// Background loop: first full round, then each account on its own
@@ -3773,6 +3802,7 @@ impl Backend {
             l.monitor = Arc::new(new_monitor);
             l.tokens = vec![None; updated.accounts.len()];
             l.generation += 1;
+            l.cycle_epoch = l.generation;
             g.generation = l.generation;
         }
         self.emit(app).await;
@@ -7258,6 +7288,7 @@ mod tests {
             monitor,
             cycle: RefreshCycle::new(&config, Instant::now()),
             generation: 1,
+            cycle_epoch: 1,
             tokens: vec![None; config.accounts.len()],
             pending_recovery: Vec::new(),
         });
@@ -8393,6 +8424,83 @@ mod tests {
         cfg.accounts.push(plain_account("gamma"));
         file.save(cfg.clone()).unwrap();
         assert_eq!(file.config.accounts.len(), 2, "gamma now persists");
+    }
+
+    fn snapshot_of(names: &[&str]) -> cuotai_core::Snapshot {
+        cuotai_core::Snapshot {
+            started_at: chrono::Utc::now(),
+            finished_at: chrono::Utc::now(),
+            reports: names.iter().map(|name| ready(name, Vec::new())).collect(),
+        }
+    }
+
+    /// `install` starts a cycle whose tokens count from zero: a sweep still
+    /// running for the file just replaced can return with the very token the
+    /// new sweep holds. It must neither reach the new accounts nor, with
+    /// another number of accounts, panic and take the scheduler down.
+    #[tokio::test(flavor = "current_thread")]
+    async fn a_sweep_of_a_replaced_configuration_never_lands_on_the_new_one() {
+        let store = Arc::new(MemoryStore::default());
+        let backend = build_backend(store.clone(), vec![plain_account("alpha")]).await;
+        let (_, old_token, old_epoch) = backend.inner.claim_sweep().await.expect("first sweep");
+
+        let mut replaced = backend.loaded_config().await;
+        replaced.accounts = vec![plain_account("beta"), plain_account("gamma")];
+        backend.reinstall_for_test(replaced).await.unwrap();
+        let (_, token, epoch) = backend.inner.claim_sweep().await.expect("new sweep");
+        assert!(token == old_token, "the collision this test is about");
+
+        backend
+            .inner
+            .land_sweep(snapshot_of(&["alpha"]), old_token, old_epoch)
+            .await;
+        {
+            let g = backend.inner.inner.lock().await;
+            let l = g.loaded.as_ref().unwrap();
+            assert!(l.cycle.account_report(0).is_none());
+            assert_eq!(l.tokens, vec![Some(token); 2], "the new sweep stays busy");
+        }
+
+        backend
+            .inner
+            .land_sweep(snapshot_of(&["beta", "gamma"]), token, epoch)
+            .await;
+        let g = backend.inner.inner.lock().await;
+        let l = g.loaded.as_ref().unwrap();
+        assert_eq!(l.cycle.account_report(0).unwrap().account, "beta");
+        assert!(l.tokens.iter().all(Option::is_none));
+    }
+
+    /// The same for one account: the same position and token in the new
+    /// cycle do not make the old account's reading the new one's.
+    #[tokio::test(flavor = "current_thread")]
+    async fn an_account_query_of_a_replaced_configuration_never_lands_on_the_new_one() {
+        let store = Arc::new(MemoryStore::default());
+        let backend = build_backend(store.clone(), vec![plain_account("alpha")]).await;
+        let begin = || async {
+            let mut g = backend.inner.inner.lock().await;
+            let l = g.loaded.as_mut().unwrap();
+            let token = l.cycle.begin(0).expect("slot free");
+            l.tokens[0] = Some(token);
+            (token, l.cycle_epoch)
+        };
+        let (old_token, old_epoch) = begin().await;
+
+        let mut replaced = backend.loaded_config().await;
+        replaced.accounts = vec![plain_account("beta")];
+        backend.reinstall_for_test(replaced).await.unwrap();
+        let (token, _) = begin().await;
+        assert!(token == old_token, "the collision this test is about");
+
+        backend
+            .inner
+            .land_account(0, ready("alpha", Vec::new()), old_token, old_epoch)
+            .await;
+
+        let g = backend.inner.inner.lock().await;
+        let l = g.loaded.as_ref().unwrap();
+        assert!(l.cycle.account_report(0).is_none());
+        assert_eq!(l.tokens, vec![Some(token)], "the new query stays busy");
     }
 
     /// A stopped loop waits instead of ending: after a failed install the
