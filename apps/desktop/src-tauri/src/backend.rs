@@ -335,6 +335,8 @@ pub struct Backend {
     /// background loops stop asking for provider data instead of being killed
     /// mid-request.
     stopping: AtomicBool,
+    /// Wakes the stopped loops when the update failed to install.
+    resumed: tokio::sync::Notify,
 }
 
 // ---------- DTOs (read-only for the UI) ----------
@@ -1963,12 +1965,35 @@ impl Backend {
     }
 
     /// PRD 0018 RF2.4: stop the refresh cycle cleanly before the restart that applies an
-    /// update. The loops finish their current pass and return; configuration and
+    /// update. The loops finish their current pass and wait; configuration and
     /// preferences are already persisted (both writers are atomic), so nothing is lost.
     pub fn prepare_for_restart(&self) {
         self.stopping.store(true, Ordering::Relaxed);
         self.notice_nudge.notify_waiters();
         self.status_nudge.notify_waiters();
+    }
+
+    /// The installer refused the update and the app stays open: the loops
+    /// [`Self::prepare_for_restart`] stopped go on.
+    pub fn resume_after_failed_restart(&self) {
+        self.stopping.store(false, Ordering::Relaxed);
+        self.resumed.notify_waiters();
+    }
+
+    /// Where a background loop waits while the restart is under way. It must
+    /// not return: the installer can still fail and leave the app open.
+    async fn hold_while_stopping(&self) {
+        while self.stopping.load(Ordering::Relaxed) {
+            tokio::select! {
+                () = tokio::time::sleep(TICK) => {}
+                () = self.resumed.notified() => {}
+            }
+        }
+    }
+
+    #[cfg(test)]
+    pub fn is_stopping(&self) -> bool {
+        self.stopping.load(Ordering::Relaxed)
     }
 
     /// Every state change ends here: the UI gets the view, the reset
@@ -2429,9 +2454,7 @@ impl Backend {
         // transition to `expired` observable even when the due retry fails.
         let mut shown = Vec::new();
         loop {
-            if self.stopping.load(Ordering::Relaxed) {
-                return;
-            }
+            self.hold_while_stopping().await;
             let monitor = {
                 let g = self.inner.lock().await;
                 g.loaded
@@ -2467,9 +2490,7 @@ impl Backend {
         let notifier = SystemNotifier(app.clone());
         loop {
             // PRD 0018 RF2.4: no notice is due after the restart that applies an update.
-            if self.stopping.load(Ordering::Relaxed) {
-                return;
-            }
+            self.hold_while_stopping().await;
             let tick = {
                 let mut g = self.inner.lock().await;
                 let Inner {
@@ -2808,9 +2829,7 @@ impl Backend {
     pub async fn run_scheduler(self: Arc<Self>, app: AppHandle) {
         loop {
             // PRD 0018 RF2.4: the restart that applies an update stops the cycle.
-            if self.stopping.load(Ordering::Relaxed) {
-                return;
-            }
+            self.hold_while_stopping().await;
             self.ensure_loaded().await;
             let plan: SchedulerPlan = 'plan: {
                 let g = self.inner.lock().await;
@@ -8374,6 +8393,20 @@ mod tests {
         cfg.accounts.push(plain_account("gamma"));
         file.save(cfg.clone()).unwrap();
         assert_eq!(file.config.accounts.len(), 2, "gamma now persists");
+    }
+
+    /// A stopped loop waits instead of ending: after a failed install the
+    /// same loop goes on, and the app never runs without a refresh cycle.
+    #[tokio::test(flavor = "current_thread")]
+    async fn a_failed_restart_releases_the_stopped_loops() {
+        let backend = Backend::default();
+        backend.prepare_for_restart();
+        let loop_held = backend.hold_while_stopping();
+        tokio::pin!(loop_held);
+        let wait = Duration::from_millis(20);
+        assert!(tokio::time::timeout(wait, &mut loop_held).await.is_err());
+        backend.resume_after_failed_restart();
+        assert!(tokio::time::timeout(wait, &mut loop_held).await.is_ok());
     }
 
     #[tokio::test(flavor = "current_thread")]

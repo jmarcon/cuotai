@@ -1622,7 +1622,12 @@ fn updater_dismiss(app: AppHandle, u: Updates<'_>) -> updater::UpdateView {
 #[tauri::command]
 async fn updater_restart(app: AppHandle, b: Shared<'_>, u: Updates<'_>) -> Result<(), String> {
     let login = b.login_in_progress().await;
-    u.restart(&app, login, || b.prepare_for_restart())
+    u.restart(
+        &app,
+        login,
+        || b.prepare_for_restart(),
+        || b.resume_after_failed_restart(),
+    )
 }
 
 /// PRD 0020 RF1.2/RF1.3: open the Settings window (or focus it) on an optional

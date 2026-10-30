@@ -729,13 +729,15 @@ impl Service {
     }
 
     /// RF2.4: installs and restarts to finish the update. `prepare` is the
-    /// backend hook (carefully interrupt the cycle and persist the state)
-    /// and `login_in_progress` blocks before any installer is started.
+    /// backend hook (carefully interrupt the cycle and persist the state),
+    /// `resume` undoes it when the install fails and the app stays open, and
+    /// `login_in_progress` blocks before any installer is started.
     pub fn restart<R: Runtime>(
         &self,
         app: &AppHandle<R>,
         login_in_progress: bool,
         prepare: impl FnOnce(),
+        resume: impl FnOnce(),
     ) -> Result<(), String> {
         if login_in_progress {
             return Err("login_in_progress".to_string());
@@ -785,14 +787,15 @@ impl Service {
         self.emit(app);
         prepare();
         self.stopping.store(true, Ordering::Relaxed);
-        // On Windows `install` launches NSIS/MSI and exits immediately, so
-        // cleanup must happen first. On the other platforms it returns and the
-        // explicit restart below finishes the same flow.
-        app.cleanup_before_exit();
+        // The app's cleanup runs only once it really exits: the plugin's
+        // `on_before_exit` does it on Windows, where `install` launches
+        // NSIS/MSI and ends the process, and `restart` elsewhere. Done here,
+        // a failed install would leave the app open without its tray icon.
         match update.install(&bytes) {
             Ok(()) => app.restart(),
             Err(error) => {
                 self.stopping.store(false, Ordering::Relaxed);
+                resume();
                 let code = error_code(&error);
                 *self.phase.lock() = Phase::Failed { code };
                 self.emit(app);
@@ -1865,9 +1868,12 @@ mod contract {
         let prepared = std::sync::atomic::AtomicBool::new(false);
 
         assert_eq!(
-            service.restart(app.handle(), true, || {
-                prepared.store(true, Ordering::SeqCst)
-            }),
+            service.restart(
+                app.handle(),
+                true,
+                || prepared.store(true, Ordering::SeqCst),
+                || {}
+            ),
             Err("login_in_progress".into())
         );
         assert!(!prepared.load(Ordering::SeqCst));
@@ -1880,6 +1886,49 @@ mod contract {
             }
             _ => panic!("the login gate must leave the package ready"),
         };
+    }
+
+    /// A resource of the app, to see whether it survives a failed install.
+    struct Kept;
+    impl tauri::Resource for Kept {}
+
+    /// When the installer refuses the package the app stays open: the refresh
+    /// cycle stopped for the restart comes back, and the tray icon and the
+    /// app's resources are still there.
+    #[test]
+    fn a_failed_install_brings_back_what_the_restart_stopped() {
+        use tauri::Manager as _;
+        let key = keypair();
+        let download = "https://github.com/jmarcon/cuotai/releases/download/v0.2.0/app.tar.gz";
+        let server = Local::http(manifest("0.2.0", &b64(b"not a signature"), download));
+        let app = app(&key.pubkey, &server.url);
+        let update = check(&app).expect("manifest read").expect("an update");
+        let kept = app.resources_table().add(Kept);
+        let backend = crate::backend::Backend::default();
+        let service = Service::build(InstallSource::Direct, None, false, false);
+        *service.phase.lock() = Phase::Ready {
+            version: "0.2.0".into(),
+            raw: update.raw_json.clone(),
+            bytes: b"not a package".to_vec(),
+        };
+
+        let outcome = service.restart(
+            app.handle(),
+            false,
+            || backend.prepare_for_restart(),
+            || backend.resume_after_failed_restart(),
+        );
+
+        assert!(outcome.is_err());
+        assert_eq!(service.view().phase, "failed");
+        assert!(
+            !backend.is_stopping(),
+            "the refresh cycle must not stay stopped"
+        );
+        assert!(
+            app.resources_table().get::<Kept>(kept).is_ok(),
+            "nothing is torn down until the app really exits"
+        );
     }
 
     /// A check while a verified package waits for the restart (the 24-hour tick
