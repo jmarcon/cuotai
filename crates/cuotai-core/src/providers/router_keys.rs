@@ -408,7 +408,7 @@ fn parse_groq_duration(value: &str) -> Option<std::time::Duration> {
     if !matched || !total_ms.is_finite() || total_ms < 0.0 {
         return None;
     }
-    Some(std::time::Duration::from_secs_f64(total_ms / 1000.0))
+    std::time::Duration::try_from_secs_f64(total_ms / 1000.0).ok()
 }
 
 // ------------------------------------------------------------- Kimi Coding
@@ -996,6 +996,7 @@ mod tests {
         assert!(parse_groq_duration("").is_none());
         assert!(parse_groq_duration("abc").is_none());
         assert!(parse_groq_duration("10x").is_none());
+        assert!(parse_groq_duration("99999999999999999999999h").is_none());
     }
 
     // ------------------------------------------------------------ OpenCode Go
