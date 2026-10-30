@@ -582,9 +582,13 @@ impl Service {
         }
         {
             let mut phase = self.phase.lock();
+            // `Ready` holds the verified package: a check would drop it.
             if matches!(
                 &*phase,
-                Phase::Checking | Phase::Downloading { .. } | Phase::Installing { .. }
+                Phase::Checking
+                    | Phase::Downloading { .. }
+                    | Phase::Installing { .. }
+                    | Phase::Ready { .. }
             ) {
                 return;
             }
@@ -1876,6 +1880,34 @@ mod contract {
             }
             _ => panic!("the login gate must leave the package ready"),
         };
+    }
+
+    /// A check while a verified package waits for the restart (the 24-hour tick
+    /// of an app left open, or *Check now*) must not throw it away: the user
+    /// would be sent back to downloading it, or lose it to a failed check.
+    #[test]
+    fn a_later_check_keeps_the_downloaded_package_ready() {
+        let key = keypair();
+        let server = Local::http(r#"{"version":"0.3.0","platforms":{}}"#.to_string());
+        let app = app(&key.pubkey, &server.url);
+        let dir = tempfile::tempdir().expect("tempdir");
+        let file = dir.path().join("desktop.json");
+        let service = Service::build(InstallSource::Direct, Some(file), false, false);
+        service
+            .answer_automatic(app.handle(), true)
+            .expect("answer");
+        *service.phase.lock() = Phase::Ready {
+            version: "0.2.0".into(),
+            raw: serde_json::json!({"version": "0.2.0", "platforms": {}}),
+            bytes: b"verified package".to_vec(),
+        };
+
+        let view =
+            tauri::async_runtime::block_on(service.check_now(app.handle())).expect("check now");
+
+        assert_eq!(view.phase, "ready");
+        assert_eq!(view.version.as_deref(), Some("0.2.0"));
+        assert_eq!(server.count(), 0);
     }
 
     /// A package manager `View` carries the command and says it does not update in place.
