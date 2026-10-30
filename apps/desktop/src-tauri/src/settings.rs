@@ -14,6 +14,7 @@ use std::{
     fs,
     io::Write,
     path::{Path, PathBuf},
+    sync::{Mutex, PoisonError},
 };
 
 #[derive(Serialize, Deserialize, Default, Clone)]
@@ -966,13 +967,21 @@ fn load() -> Stored {
     settings_file().map(|f| read(&f)).unwrap_or_default()
 }
 
-/// Changes one field preserving the others. Atomic write (temporary file + rename).
+/// One read-modify-write of `desktop.json` at a time in this process: its
+/// writers run on the main thread and on the async pool, and two overlapping
+/// ones would lose a field or rename a half-written temporary file.
+static WRITES: Mutex<()> = Mutex::new(());
+
+/// Changes one field preserving the others. Atomic write (temporary file +
+/// rename, the file named per process since a second copy of the app may be
+/// running).
 fn update(file: &Path, change: impl FnOnce(&mut Stored)) -> Result<(), &'static str> {
+    let _writing = WRITES.lock().unwrap_or_else(PoisonError::into_inner);
     let parent = file.parent().ok_or("unwritable")?;
     fs::create_dir_all(parent).map_err(|_| "unwritable")?;
     let mut stored = read(file);
     change(&mut stored);
-    let tmp = parent.join(".desktop.json.tmp");
+    let tmp = parent.join(format!(".desktop.json.{}.tmp", std::process::id()));
     let text = serde_json::to_string_pretty(&stored).map_err(|_| "unwritable")?;
     fs::write(&tmp, text).map_err(|_| "unwritable")?;
     fs::rename(&tmp, file).map_err(|_| "unwritable")
@@ -2362,6 +2371,32 @@ mod tests {
             fs::write(&file, odd).unwrap();
             assert!(advice_of(&read(&file)), "{odd}");
         }
+    }
+
+    /// Commands run on the main thread and on the async pool at the same time
+    /// (a window saving a preference while the backend records the notices).
+    /// Neither may lose the other's field, fail, or leave a torn file that
+    /// the next read takes for an empty one.
+    #[test]
+    fn concurrent_writers_keep_every_field() {
+        const WRITERS: usize = 8;
+        const WRITES: usize = 25;
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        let start = std::sync::Barrier::new(WRITERS);
+        std::thread::scope(|scope| {
+            for writer in 0..WRITERS {
+                let (file, start) = (&file, &start);
+                scope.spawn(move || {
+                    start.wait();
+                    for write in 0..WRITES {
+                        let id = format!("acc_{writer:02}_{write:02}");
+                        assert_eq!(write_monogram(file, &id, "AB"), Ok(()));
+                    }
+                });
+            }
+        });
+        assert_eq!(monograms_of(&read(&file)).len(), WRITERS * WRITES);
     }
 
     #[test]
