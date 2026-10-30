@@ -91,6 +91,15 @@ if [ "$method" = "developer-id" ]; then
     }
   done
 fi
+# Linked with `@main` as its entry point the extension registers but traps at
+# launch, so the widget gallery stays empty while every check above passes.
+plugin_binary="$plugin/Contents/MacOS/CuotaiWidgets"
+for arch in arm64 x86_64; do
+  nm -arch "$arch" -u "$plugin_binary" | grep -q '^_NSExtensionMain$' || {
+    echo "the widget extension ($arch) is not linked with the _NSExtensionMain entry point" >&2
+    exit 1
+  }
+done
 echo "ok: widget extension embedded and signed ($method)"
 
 executable="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")"
