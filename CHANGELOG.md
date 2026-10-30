@@ -13,6 +13,15 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.82.1] - 2026-10-30
+
+### Fixed
+
+- The macOS widgets now appear in the widget gallery (088716a).
+- Alibaba Token Plan and AWS Bedrock now find their command-line tools when the app is opened from the Finder or a desktop launcher (issue #50; 4746c47).
+- The account details name the model or group of each limit when several share a window (issue #52; 754b687).
+- The account details dialog now has a single scroll bar (issue #49; 686409b).
+
 ## [0.82.0] - 2026-10-29
 
 ### Added
@@ -366,7 +375,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.82.0...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.82.1...HEAD
+[0.82.1]: https://github.com/jmarcon/cuotai/compare/v0.82.0...v0.82.1
 [0.82.0]: https://github.com/jmarcon/cuotai/compare/v0.81.0...v0.82.0
 [0.81.0]: https://github.com/jmarcon/cuotai/compare/v0.80.0...v0.81.0
 [0.80.0]: https://github.com/jmarcon/cuotai/compare/2bbb39a...v0.80.0
