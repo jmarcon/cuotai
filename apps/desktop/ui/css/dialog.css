@@ -903,7 +903,7 @@ dialog.dlg.dlg-catalog:has(#picker:not([hidden])) {
   justify-content: space-between;
   gap: var(--space-2);
   margin: var(--space-3) var(--space-1) var(--space-1);
-  font-size: var(--text-xs);
+  font-size: var(--text-micro);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
