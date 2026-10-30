@@ -32,6 +32,8 @@ const PAGES = zoom ? ZOOM_PAGES : [
   ["main-narrow", "index.html", 520, 820, {}],
   ["main-narrow-cost", "index.html?cost", 520, 820, {}],
   ["main-two-columns-cost", "index.html?cost", 820, 820, {}],
+  ["main-one-row-topbar", "index.html", 905, 600, {}],
+  ["main-one-row-topbar-wide", "index.html", 1105, 600, {}],
   ["main", "index.html", 1200, 820, {}],
   ["main-win98-light", "index.html?fixture=six", 1200, 820, { "cuotai.theme": "win98", "cuotai.themeMode": "light" }],
   ["main-win98-dark", "index.html?fixture=six", 1200, 820, { "cuotai.theme": "win98", "cuotai.themeMode": "dark" }],
@@ -108,6 +110,9 @@ const PAGE_JS = `(() => {
     for (const c of w.children) { const m = c.querySelector(":scope > .mtr"); if (!m) continue; const top = Math.round(c.getBoundingClientRect().top); rows.set(top, [...(rows.get(top) ?? []), Math.round(m.getBoundingClientRect().top)]); }
     for (const tops of rows.values()) if (new Set(tops).size > 1) out.push({ kind: "limits-misaligned", ok: false, sel: "div.wins", text: tops.join(" / ") });
   }
+  // DS-CMP-TAB-4: the topbar's filter tabs never clip: what does not fit is reachable through "More".
+  const strip = document.querySelector(".tb-tabs .tabs");
+  if (strip && strip.scrollWidth > strip.parentElement.clientWidth + 1) out.push({ kind: "tabs-clipped", ok: false, sel: "div.tabs", text: strip.scrollWidth + " > " + strip.parentElement.clientWidth });
   // A retro theme's control or title-bar rule must not take the text color away from a primary button, a plan badge or a button on the title bar.
   const rgb = (c) => [...c.matchAll(/rgba?\\(([^)]+)\\)/g)].map((m) => m[1].split(/[ ,\\/]+/).map(Number)).filter((p) => p.length < 4 || p[3] > 0).map((p) => p.slice(0, 3));
   const lum = (p) => { const f = p.map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * f[0] + 0.7152 * f[1] + 0.0722 * f[2]; };

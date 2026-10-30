@@ -44,6 +44,12 @@
   right: var(--space-2);
   pointer-events: none;
 }
+/* DS-CMP-TAB-4: a long "Add account" and the age left the one-row bar no room for the filter tabs and their "More". */
+@media (max-width: 1100px) {
+  .topbar .tb-add { display: none; }
+  .topbar .tb-add-icon { display: inline-grid; }
+  .tb-age { display: none; }
+}
 /* DS-TOK-LAY-3, DS-CMP-TAB-4: narrow windows (520 px minimum) get two rows: the brand and the icon actions, then
    the filter tabs, the search (an icon until focused) and sort. Nothing is clipped. */
 @media (max-width: 900px) {
@@ -53,9 +59,6 @@
     row-gap: var(--space-2);
     padding-left: calc(var(--space-8) * 2 + var(--space-4));
   }
-  .topbar .tb-add { display: none; }
-  .topbar .tb-add-icon { display: inline-grid; }
-  .tb-age { display: none; }
   .topbar .tb-search input { width: 32px; padding-right: 0; color: transparent; }
   .tb-search input::placeholder { color: transparent; }
   .tb-search kbd { display: none; }
