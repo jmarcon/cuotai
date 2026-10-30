@@ -115,6 +115,11 @@ fn finite_or_zero(value: Option<f64>) -> f64 {
     value.filter(|v| v.is_finite()).unwrap_or(0.0).max(0.0)
 }
 
+/// A counter as reported: absent or non-finite stays unknown, never zero.
+fn counter(value: Option<f64>) -> Option<f64> {
+    value.filter(|v| v.is_finite()).map(|v| v.max(0.0))
+}
+
 fn clamp_percent(value: Option<f64>) -> Option<f64> {
     value.filter(|v| v.is_finite()).map(|v| v.clamp(0.0, 100.0))
 }
@@ -212,9 +217,10 @@ fn epoch_to_utc(timestamp: f64) -> Option<DateTime<Utc>> {
     DateTime::<Utc>::from_timestamp_millis(millis as i64)
 }
 
-/// `addMiniMaxQuota` + `buildMiniMaxQuota`: with no `total` and no percentage the
-/// window is omitted (never fabricated). Percent-only buckets (zeroed
-/// counters) become a `%` metric — without inventing a request total.
+/// `addMiniMaxQuota` + `buildMiniMaxQuota`: with neither a `total` and its
+/// `count` nor a percentage the window is omitted (never fabricated).
+/// Percent-only buckets (zeroed or absent counters) become a `%` metric —
+/// without inventing a request total.
 #[allow(clippy::too_many_arguments)]
 fn push_quota(
     metrics: &mut Vec<Metric>,
@@ -222,20 +228,17 @@ fn push_quota(
     suffix: &str,
     window: MetricWindow,
     total: f64,
-    count: f64,
+    count: Option<f64>,
     percent: Option<f64>,
     resets_at: Option<DateTime<Utc>>,
     count_means_remaining: bool,
 ) {
     let total = total.max(0.0);
-    let count = count.max(0.0);
-    let percent = clamp_percent(percent);
-    if total <= 0.0 && percent.is_none() {
-        return;
-    }
     let label = format!("{name} {suffix}");
-    if total <= 0.0 {
-        let remaining = percent.unwrap_or(0.0);
+    let Some(count) = count.filter(|_| total > 0.0) else {
+        let Some(remaining) = clamp_percent(percent) else {
+            return;
+        };
         metrics.push(Metric {
             billing: Default::default(),
             scope: None,
@@ -250,7 +253,7 @@ fn push_quota(
             resets_at,
         });
         return;
-    }
+    };
     // In /token_plan/remains the counter is "consumed"; in
     // /coding_plan/remains it is "remaining" (9router's per-URL semantics).
     let used = if count_means_remaining {
@@ -429,7 +432,7 @@ async fn query_endpoint(ctx: &Context<'_>, key: &str, url: &str) -> Result<Data,
             "(5h)",
             MetricWindow::Window5h,
             finite_or_zero(model.current_interval_total_count),
-            finite_or_zero(model.current_interval_usage_count),
+            counter(model.current_interval_usage_count),
             model.current_interval_remaining_percent,
             reset_at(model.remains_time, model.end_time.as_ref(), captured_at),
             count_means_remaining,
@@ -440,7 +443,7 @@ async fn query_endpoint(ctx: &Context<'_>, key: &str, url: &str) -> Result<Data,
             "(7d)",
             MetricWindow::Weekly,
             finite_or_zero(model.current_weekly_total_count),
-            finite_or_zero(model.current_weekly_usage_count),
+            counter(model.current_weekly_usage_count),
             model.current_weekly_remaining_percent,
             reset_at(
                 model.weekly_remains_time,
@@ -877,6 +880,85 @@ mod tests {
         let metric = find(&data, "Music 2.6 (5h)");
         assert_eq!(metric.used, Some(5.0));
         assert_eq!(metric.remaining, Some(95.0));
+    }
+
+    // A total without its counter: the counter is unknown, so the percentage
+    // speaks. On /coding_plan/remains a counter read as 0 meant 100% used.
+    #[tokio::test]
+    async fn total_sem_contador_usa_o_percentual_e_nao_zero() {
+        for (route, url) in [
+            ("/v1/token_plan/remains", 0),
+            ("/v1/api/openplatform/coding_plan/remains", 1),
+        ] {
+            let server = MockServer::start().await;
+            Mock::given(method("GET"))
+                .and(path(route))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "model_remains": [{
+                        "model_name": "general",
+                        "current_interval_total_count": 1000,
+                        "current_interval_remaining_percent": 40
+                    }]
+                })))
+                .mount(&server)
+                .await;
+            let http = reqwest::Client::new();
+            let only = [endpoints(&server)[url].clone()];
+            let data = fetch_at(&account(), &ctx(&http, &Creds), &only)
+                .await
+                .expect("sucesso");
+            let metric = find(&data, "M-series (5h)");
+            assert_eq!(metric.used, Some(60.0), "{route}");
+            assert_eq!(metric.limit, Some(100.0), "{route}");
+            assert_eq!(metric.remaining, Some(40.0), "{route}");
+            assert_eq!(metric.unit, "%", "{route}");
+        }
+    }
+
+    // Neither counter nor percentage: the window is omitted, not fabricated.
+    #[tokio::test]
+    async fn total_sem_contador_nem_percentual_omite_a_janela() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/api/openplatform/coding_plan/remains"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "model_remains": [{
+                    "model_name": "general",
+                    "current_interval_total_count": 1000,
+                    "current_weekly_total_count": 500,
+                    "current_weekly_usage_count": 450
+                }]
+            })))
+            .mount(&server)
+            .await;
+        let http = reqwest::Client::new();
+        let only = [endpoints(&server)[1].clone()];
+        let data = fetch_at(&account(), &ctx(&http, &Creds), &only)
+            .await
+            .expect("sucesso");
+        assert_eq!(data.metrics.len(), 1, "only the measured window");
+        assert_eq!(find(&data, "M-series (7d)").used, Some(50.0));
+    }
+
+    #[tokio::test]
+    async fn so_totais_sem_nenhum_contador_nao_e_leitura() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/api/openplatform/coding_plan/remains"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "model_remains": [{
+                    "model_name": "general",
+                    "current_interval_total_count": 1000
+                }]
+            })))
+            .mount(&server)
+            .await;
+        let http = reqwest::Client::new();
+        let only = [endpoints(&server)[1].clone()];
+        let err = fetch_at(&account(), &ctx(&http, &Creds), &only)
+            .await
+            .unwrap_err();
+        assert!(matches!(err.status, Status::Unsupported));
     }
 
     // A model with no quota at all generates no fabricated metrics.
