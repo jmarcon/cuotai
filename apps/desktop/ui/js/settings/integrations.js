@@ -106,13 +106,13 @@ async function bindIntegration(sec, ctx) {
 }
 
 /** PRD 0014 RF4.1/RF4.2/RF2.3: the widget snapshot of this device, off by default. The switch, whether identity
- *  (e-mail) travels with it, how many accounts are published, the file location (and whether it is the app group a
- *  WidgetKit extension can read), and "delete widget data". The redraw of a widget depends on the operating system,
- *  so the data on it may lag; on macOS the extension also needs a signed app with the app group entitlement. */
+ *  (e-mail) travels with it, how many accounts are published, the file location (and whether a WidgetKit
+ *  extension reads it), and "delete widget data". The redraw of a widget depends on the operating system,
+ *  so the data on it may lag. */
 export function widgetsHtml(wv, message = []) {
   const p = wv.prefs ?? { enabled: false, include_identity: false, max_accounts: 6 };
-  const where = wv.app_group
-    ? te("settings.widgets.path.appGroup")
+  const where = wv.extension_reads
+    ? te("settings.widgets.path.extension")
     : wv.macos ? te("settings.widgets.path.userDataMac") : te("settings.widgets.path.userData");
   const off = p.enabled ? "" : "disabled";
   return withError(row({ key: "widgets", label: te("settings.widgets.on"), desc: te(p.enabled ? "settings.widgets.onState" : "settings.widgets.off"),
@@ -121,8 +121,7 @@ export function widgetsHtml(wv, message = []) {
       control: (a) => sw("widgets-identity", p.include_identity, a, off) })
     + row({ key: "max", label: te("settings.widgets.maxAccounts"), dep: true, info: te("settings.widgets.maxAccountsHelp", { min: wv.accounts_min, max: wv.accounts_max }),
       msg: "widgets-max-msg", control: (a) => num("widgets-max", { value: p.max_accounts, min: wv.accounts_min, max: wv.accounts_max }, `${a} ${off}`) })
-    + disc("widgets-path", te("settings.widgets.path.label"), `${pathHtml(wv.path)}<p class="hint">${where}</p>
-      ${wv.macos && !wv.app_group ? `<p class="hint warn-txt">${icon("warn")} ${te("settings.widgets.macos")}</p>` : ""}`)
+    + disc("widgets-path", te("settings.widgets.path.label"), `${pathHtml(wv.path)}<p class="hint">${where}</p>`)
     + row({ key: "widgets-delete", label: te("settings.widgets.delete"), danger: true, msg: "widgets-delete-msg",
       control: () => buttons(`<button class="btn sm danger-btn" data-widgets-delete aria-labelledby="widgets-delete-label">${icon("trash")}</button>`) }), message);
 }

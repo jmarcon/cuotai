@@ -5,29 +5,17 @@ import Foundation
 // provider, never reads a credential and never computes usage: it draws what
 // the app already measured. See `docs/widgets.md` for the contract.
 
-/// Where the app writes the file: the *app group* container when the signed
-/// app has the entitlement (RF2.1); otherwise the same per-user location the
-/// app falls back to, which a sandboxed extension cannot reach.
+/// Where the app writes the file: `<local data>/cuotai/widget.json`, the one
+/// path outside its container the sandbox lets this extension read
+/// (`CuotaiWidgets.entitlements`). `FileManager` would answer the container,
+/// so the path starts at the real home directory.
 enum SnapshotLocation {
-    static let appGroup = "WL9XSC6H36.dev.cuotai.desktop"
     static let fileName = "widget.json"
 
     static var url: URL? {
-        let container = FileManager.default
-            .containerURL(forSecurityApplicationGroupIdentifier: appGroup)
-        if let container {
-            return container.appendingPathComponent(fileName)
-        }
-        return fallback
-    }
-
-    /// `<local data>/cuotai/widget.json` (RF5.1): the same directory the app
-    /// falls back to, so the two agree when there is no *app group*.
-    static var fallback: URL? {
-        FileManager.default
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask)
-            .first?
-            .appendingPathComponent("cuotai")
+        guard let home = getpwuid(getuid())?.pointee.pw_dir else { return nil }
+        return URL(fileURLWithPath: String(cString: home))
+            .appendingPathComponent("Library/Application Support/cuotai")
             .appendingPathComponent(fileName)
     }
 }
