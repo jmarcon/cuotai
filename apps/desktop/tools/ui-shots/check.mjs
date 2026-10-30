@@ -30,6 +30,8 @@ const PAGES = zoom ? ZOOM_PAGES : [
   ["tray-rings", "tray.html", 380, 600, { "cuotai.trayView": "rings" }],
   ["tray-compact", "tray.html", 380, 600, { "cuotai.trayView": "compact" }],
   ["main-narrow", "index.html", 520, 820, {}],
+  ["main-narrow-cost", "index.html?cost", 520, 820, {}],
+  ["main-two-columns-cost", "index.html?cost", 820, 820, {}],
   ["main", "index.html", 1200, 820, {}],
   ["settings-general", "settings.html?page=general", 640, 460, {}],
   ["settings-dashboard", "settings.html?page=dashboard", 640, 460, {}],
@@ -92,6 +94,8 @@ const PAGE_JS = `(() => {
     if (box && box !== e && !ok(e)) { const br = box.getBoundingClientRect(); if (own.some((x) => x.right > br.right + 1 || x.left < br.left - 1)) out.push({ kind: "spills-container", ok: false, sel: sel(e) + " in " + sel(box), text: text.slice(0, 40) }); }
   }
   for (const s of document.querySelectorAll(".rc > .stl")) if (s.getBoundingClientRect().height > 22) out.push({ kind: "status-line-taller-than-one-line", ok: false, sel: sel(s), text: s.textContent.trim().slice(0, 50) });
+  // The local-cost row's title and its "estimate" mark stay on one line each; only the values may wrap.
+  for (const s of document.querySelectorAll(".cost-fold .cf-t, .cost-fold .cf-e")) { const rg = document.createRange(); rg.selectNodeContents(s); if (new Set([...rg.getClientRects()].map((x) => Math.round(x.top))).size > 1) out.push({ kind: "title-wraps", ok: false, sel: sel(s), text: s.textContent.trim().slice(0, 50) }); }
   for (const b of document.querySelectorAll("button, input, select")) {
     if (b.closest("[hidden], dialog:not([open]), .menu, .lang-menu, .set-pop")) continue;
     const r = b.getBoundingClientRect();
