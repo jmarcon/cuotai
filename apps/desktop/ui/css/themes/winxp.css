@@ -89,6 +89,10 @@
 :root[data-theme="winxp"] .card-head h2 {
   text-shadow: 1px 1px 0 rgba(0, 0, 40, 0.6);
 }
+:root[data-theme="winxp"] .card-head .plan-badge {
+  border-color: #ffffff;
+  color: #ffffff;
+}
 :root[data-theme="winxp"] .card-head .icon:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.25);
   color: #ffffff;
@@ -124,13 +128,13 @@
   color: #ffffff;
 }
 
-/* Beige controls on the bar (light) */
-:root[data-theme="winxp"][data-mode="light"] .btn,
+/* Beige controls on the bar (light; a primary button keeps the accent's fill and text color) */
+:root[data-theme="winxp"][data-mode="light"] .btn:not(.primary),
 :root[data-theme="winxp"][data-mode="light"] .theme-switch select {
   border-color: #003c74;
   color: #000000;
 }
-:root[data-theme="winxp"][data-mode="light"] .btn:hover:not(:disabled) {
+:root[data-theme="winxp"][data-mode="light"] .btn:not(.primary):hover:not(:disabled) {
   background: linear-gradient(#fff8e0, #ffe9a8 85%, #f8d36a);
   border-color: #e5a50a;
 }
@@ -158,12 +162,12 @@
 }
 
 /* Controles escuros (Royale Noir) mantendo a barra azul */
-:root[data-theme="winxp"][data-mode="dark"] .btn,
+:root[data-theme="winxp"][data-mode="dark"] .btn:not(.primary),
 :root[data-theme="winxp"][data-mode="dark"] .theme-switch select {
   border-color: #0b2b66;
   color: #f0f3fa;
 }
-:root[data-theme="winxp"][data-mode="dark"] .btn:hover:not(:disabled) {
+:root[data-theme="winxp"][data-mode="dark"] .btn:not(.primary):hover:not(:disabled) {
   background: linear-gradient(#3d5a99, #26457a);
   border-color: #6cb4ff;
 }
@@ -186,4 +190,12 @@
 }
 :root[data-theme="winxp"][data-mode="dark"] .switch.on {
   background: #5fcf4a;
+}
+
+/* Outlined buttons have no fill of their own: on the Luna bar they read like its icons. */
+:root[data-theme="winxp"] .topbar .btn.outline {
+  color: #ffffff;
+}
+:root[data-theme="winxp"] .topbar .btn.outline:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.25);
 }

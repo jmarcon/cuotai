@@ -33,6 +33,10 @@ const PAGES = zoom ? ZOOM_PAGES : [
   ["main-narrow-cost", "index.html?cost", 520, 820, {}],
   ["main-two-columns-cost", "index.html?cost", 820, 820, {}],
   ["main", "index.html", 1200, 820, {}],
+  ["main-win98-light", "index.html?fixture=six", 1200, 820, { "cuotai.theme": "win98", "cuotai.themeMode": "light" }],
+  ["main-win98-dark", "index.html?fixture=six", 1200, 820, { "cuotai.theme": "win98", "cuotai.themeMode": "dark" }],
+  ["main-winxp-light", "index.html?fixture=six", 1200, 820, { "cuotai.theme": "winxp", "cuotai.themeMode": "light" }],
+  ["main-winxp-dark", "index.html?fixture=six", 1200, 820, { "cuotai.theme": "winxp", "cuotai.themeMode": "dark" }],
   ["settings-general", "settings.html?page=general", 640, 460, {}],
   ["settings-dashboard", "settings.html?page=dashboard", 640, 460, {}],
   ["settings-alerts", "settings.html?page=alerts", 640, 460, {}],
@@ -103,6 +107,18 @@ const PAGE_JS = `(() => {
     const rows = new Map();
     for (const c of w.children) { const m = c.querySelector(":scope > .mtr"); if (!m) continue; const top = Math.round(c.getBoundingClientRect().top); rows.set(top, [...(rows.get(top) ?? []), Math.round(m.getBoundingClientRect().top)]); }
     for (const tops of rows.values()) if (new Set(tops).size > 1) out.push({ kind: "limits-misaligned", ok: false, sel: "div.wins", text: tops.join(" / ") });
+  }
+  // A retro theme's control or title-bar rule must not take the text color away from a primary button, a plan badge or a button on the title bar.
+  const rgb = (c) => [...c.matchAll(/rgba?\\(([^)]+)\\)/g)].map((m) => m[1].split(/[ ,\\/]+/).map(Number)).filter((p) => p.length < 4 || p[3] > 0).map((p) => p.slice(0, 3));
+  const lum = (p) => { const f = p.map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * f[0] + 0.7152 * f[1] + 0.0722 * f[2]; };
+  for (const e of document.querySelectorAll(".btn.primary:not(:disabled), .card-head .plan-badge, .topbar .btn.outline")) {
+    if (!e.getClientRects().length) continue;
+    let bg = [];
+    for (let p = e; p && !bg.length; p = p.parentElement) { const c = getComputedStyle(p); bg = rgb(c.backgroundImage === "none" ? c.backgroundColor : c.backgroundImage); }
+    const fg = rgb(getComputedStyle(e).color)[0];
+    const worst = Math.min(...bg.map((b) => { const [x, y] = [lum(fg), lum(b)]; return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); }));
+    // On a title bar the measure is its lightest gradient stop, the theme's own limit for white text there.
+    if (worst < (e.matches(".btn.primary") ? 4.5 : 3)) out.push({ kind: "low-contrast", ok: false, sel: sel(e), text: worst.toFixed(1) + ":1 " + e.textContent.trim().slice(0, 30) });
   }
   // Everything in a Settings group keeps the rows' inset from the card's edge; the group's label sits above the card.
   for (const s of document.querySelectorAll(".set-content .set-sec")) {
