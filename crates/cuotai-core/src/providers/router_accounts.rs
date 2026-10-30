@@ -493,9 +493,14 @@ async fn ollama(
 /// Human label of a usage `range` ("7d" → "7 dias"); unknown shapes are shown as sent.
 fn ollama_range_label(range: &str) -> String {
     let range = range.trim();
-    match range.split_at(range.len().saturating_sub(1)) {
-        (n, "d") if n.parse::<u32>().is_ok() => format!("{n} dias"),
-        (n, "h") if n.parse::<u32>().is_ok() => format!("{n} h"),
+    let number = |suffix| {
+        range
+            .strip_suffix(suffix)
+            .filter(|n| n.parse::<u32>().is_ok())
+    };
+    match (number('d'), number('h')) {
+        (Some(n), _) => format!("{n} dias"),
+        (_, Some(n)) => format!("{n} h"),
         _ => range.to_string(),
     }
 }
@@ -752,6 +757,45 @@ mod tests {
             data.notes.iter().any(|n| n.contains("no longer exposes")),
             "the usage-only note is missing"
         );
+    }
+
+    #[test]
+    fn ollama_range_label_keeps_known_shapes_and_any_other_text_as_sent() {
+        assert_eq!(ollama_range_label(" 7d "), "7 dias");
+        assert_eq!(ollama_range_label("24h"), "24 h");
+        for sent in ["", "d", "h", "all", "7 d", "7日", "週", "7д", "é"] {
+            assert_eq!(ollama_range_label(sent), sent);
+        }
+    }
+
+    /// A multi-byte `range` once split inside a character and panicked,
+    /// taking the whole refresh down with it.
+    #[tokio::test]
+    async fn ollama_usage_report_accepts_a_non_ascii_range() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/usage"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "range": "7日", "totals": {"request_count": 12}
+            })))
+            .mount(&server)
+            .await;
+        let http = reqwest::Client::new();
+        let ctx = Context {
+            http: &http,
+            credentials: &Creds("dummy"),
+            timeout: Duration::from_secs(2),
+        };
+        let data = ollama(
+            &account(Provider::OllamaCloud, &[]),
+            &ctx,
+            &server.uri(),
+            now("2026-10-18T15:00:00Z"),
+        )
+        .await
+        .unwrap();
+        assert_eq!(data.metrics[0].label, "Ollama: requisições (7日)");
+        assert_eq!(data.metrics[0].used, Some(12.0));
     }
 
     #[tokio::test]
