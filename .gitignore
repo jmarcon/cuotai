@@ -1,6 +1,7 @@
 /target/
 /dist/
 /fragments/
+/_site/
 *.rs.broken
 /cuotai.toml
 .env

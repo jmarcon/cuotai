@@ -15,9 +15,10 @@
 #   - README.md, CONTRIBUTING.md, SECURITY.md, SUPPORT.md, AGENTS.md, apps/desktop/README.md
 #   - docs/**/*.md and docs/assets/** (screenshots)
 #   - .github/ISSUE_TEMPLATE/** and .github/*.md
+#   - site/** (the project site; pages.yml builds and validates it)
 # Deliberately scanned (code, see ci.yml): CHANGELOG.md, docs/providers.md,
-# docs/*.json, licenses, THIRD_PARTY_NOTICES, apps/desktop/ui/** and the
-# workflows. `paths-ignore` cannot re-include docs/providers.md after the
+# docs/*.json, licenses, THIRD_PARTY_NOTICES, apps/desktop/ui/**,
+# scripts/site-build.sh and the workflows. `paths-ignore` cannot re-include docs/providers.md after the
 # docs/**/*.md exclusion, so the list uses `paths` with `!` patterns, where a
 # later pattern wins. The two lists below are identical; keep them (and the
 # ci.yml allow-list) in sync when one changes.
@@ -51,6 +52,7 @@ on:
       - "!docs/assets/**"
       - "!.github/ISSUE_TEMPLATE/**"
       - "!.github/*.md"
+      - "!site/**"
       - "docs/providers.md"
   pull_request:
     branches: [main]
@@ -66,6 +68,7 @@ on:
       - "!docs/assets/**"
       - "!.github/ISSUE_TEMPLATE/**"
       - "!.github/*.md"
+      - "!site/**"
       - "docs/providers.md"
   schedule:
     - cron: "23 5 * * 1"

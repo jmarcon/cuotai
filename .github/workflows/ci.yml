@@ -56,12 +56,14 @@ jobs:
   #   - README.md, CONTRIBUTING.md, SECURITY.md, SUPPORT.md, AGENTS.md, apps/desktop/README.md
   #   - docs/**/*.md and docs/assets/** (screenshots)
   #   - .github/ISSUE_TEMPLATE/** and .github/*.md
+  #   - site/** (the project site; pages.yml builds and validates it)
   # Deliberately code, although they look like documentation:
   #   - CHANGELOG.md (embedded in the binaries and parsed by tests and release-check)
   #   - docs/providers.md (a core test compares its access matrix with the code)
   #   - docs/*.json (the export schema and example are read by core tests)
   #   - LICENSE-*, THIRD_PARTY_NOTICES (shipped in the packages and the About box)
   #   - apps/desktop/ui/** (the whole folder is embedded in the desktop app)
+  #   - scripts/site-build.sh (it runs in the Pages deploy; only its site/ input is content)
   #   - .github/workflows/** and every other file
   # codeql.yml applies the same allow-list in its `paths` filters: change both
   # together.
@@ -133,7 +135,7 @@ jobs:
                 case "$file" in
                   docs/providers.md) kind=code ;;
                   README.md | CONTRIBUTING.md | SECURITY.md | SUPPORT.md | AGENTS.md | apps/desktop/README.md) kind=docs ;;
-                  docs/*.md | docs/assets/* | .github/ISSUE_TEMPLATE/* | .github/*.md) kind=docs ;;
+                  docs/*.md | docs/assets/* | .github/ISSUE_TEMPLATE/* | .github/*.md | site/*) kind=docs ;;
                   *) kind=code ;;
                 esac
                 case "$file" in

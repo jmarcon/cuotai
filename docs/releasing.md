@@ -240,7 +240,9 @@ free-tier budget.
   Sigstore signing and provenance attestation, receives `id-token: write` and
   `attestations: write`. The publish and public-verification jobs receive only
   `attestations: read`. No job grants `packages: write`: crates.io uses its
-  own registry token in the single publish step.
+  own registry token in the single publish step. Outside the release, only
+  the `deploy` job of `pages.yml` holds `pages: write` and `id-token: write`
+  (see [Project site](#project-site)).
 - CI uses `pull_request`, never `pull_request_target`, and references no
   secret. Release triggers are exactly `v*` tag pushes and
   `workflow_dispatch`; dispatch is cheap by default and heavy work requires
@@ -907,6 +909,21 @@ cargo xtask updater-manifest \
 A missing platform is simply absent from `platforms`; a collected artifact
 without a `.sig` and a missing `--require` key both fail the command rather
 than producing a manifest that cannot be installed.
+
+## Project site
+
+The site in `site/` publishes on its own schedule, independently of app
+releases: `.github/workflows/pages.yml` deploys from `main` whenever `site/**`,
+`docs/assets/screenshots/**`, `scripts/site-build.sh` or the workflow change,
+or by manual dispatch. A release neither needs nor triggers it, and a site
+change takes no version bump, `Changelog:` trailer or tag. The site names no
+version, which `scripts/site-build.sh` enforces, so a release never leaves it
+stale. The same script assembles `_site/` and validates it; run
+`sh scripts/site-build.sh` locally before pushing.
+
+One-time owner setting: **Settings → Pages → Build and deployment → Source:
+GitHub Actions**. It creates the `github-pages` environment. Until then the
+`deploy` job fails at its first step and publishes nothing.
 
 ## Manual desktop checklist per release
 

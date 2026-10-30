@@ -608,6 +608,8 @@ fn check_job_permissions(workflow_name: &str, job_name: &str, job: &Mapping) -> 
             ("contents", "read"),
             ("actions", "read"),
         ],
+        // The one job that publishes the project site.
+        ("pages.yml", "deploy") => &[("pages", "write"), ("id-token", "write")],
         _ => &[],
     };
     let permissions = job.get(Value::String("permissions".into()));
@@ -643,6 +645,14 @@ fn check_job_permissions(workflow_name: &str, job_name: &str, job: &Mapping) -> 
         });
         if !has_attestation {
             return err("assemble grants id-token: write without an attestation step");
+        }
+    }
+    if (workflow_name, job_name) == ("pages.yml", "deploy") {
+        let has_deployment = steps(job)?.iter().any(|step| {
+            scalar(step, "uses").is_some_and(|uses| uses.starts_with("actions/deploy-pages@"))
+        });
+        if !has_deployment {
+            return err("pages deploy grants id-token: write without a deploy-pages step");
         }
     }
     Ok(())
@@ -1253,6 +1263,7 @@ mod tests {
         include_str!("../../.github/workflows/external-rules.yml");
     const CODEQL_WORKFLOW: &str = include_str!("../../.github/workflows/codeql.yml");
     const ADVISORIES_WORKFLOW: &str = include_str!("../../.github/workflows/advisories.yml");
+    const PAGES_WORKFLOW: &str = include_str!("../../.github/workflows/pages.yml");
 
     #[test]
     fn accepts_least_privilege_fixture() {
@@ -1266,6 +1277,7 @@ mod tests {
         assert!(check_text(Path::new("advisories.yml"), ADVISORIES_WORKFLOW).is_ok());
         assert!(check_text(Path::new("external-rules.yml"), EXTERNAL_RULES_WORKFLOW).is_ok());
         assert!(check_text(Path::new("codeql.yml"), CODEQL_WORKFLOW).is_ok());
+        assert!(check_text(Path::new("pages.yml"), PAGES_WORKFLOW).is_ok());
     }
 
     #[test]
@@ -1307,6 +1319,30 @@ mod tests {
             1,
         );
         assert!(check_text(Path::new("codeql.yml"), &unsafe_workflow).is_err());
+    }
+
+    #[test]
+    fn rejects_pages_permissions_outside_the_deploy_step() {
+        // Broader than the two permissions of the deploy job.
+        let broad = PAGES_WORKFLOW.replacen(
+            "      pages: write\n",
+            "      pages: write\n      contents: write\n",
+            1,
+        );
+        assert_ne!(broad, PAGES_WORKFLOW);
+        assert!(check_text(Path::new("pages.yml"), &broad).is_err());
+        // The build job handles pull request code and must stay read-only.
+        let build = PAGES_WORKFLOW.replacen(
+            "    timeout-minutes: 10\n    steps:\n",
+            "    timeout-minutes: 10\n    permissions:\n      pages: write\n      id-token: write\n    steps:\n",
+            1,
+        );
+        assert_ne!(build, PAGES_WORKFLOW);
+        assert!(check_text(Path::new("pages.yml"), &build).is_err());
+        // `id-token: write` with nothing that deploys.
+        let idle = PAGES_WORKFLOW.replacen("actions/deploy-pages@", "actions/other-action@", 1);
+        assert_ne!(idle, PAGES_WORKFLOW);
+        assert!(check_text(Path::new("pages.yml"), &idle).is_err());
     }
 
     #[test]
