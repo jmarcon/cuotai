@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cuotai: AI quotas, usage limits and costs in one place</title>
+  <meta name="description" content="Cuotai is a free, open-source, read-only monitor for AI-provider usage, quotas and costs, with a desktop app and a terminal dashboard.">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#e8ecf3">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1b1f28">
+  <link rel="canonical" href="https://jmarcon.github.io/cuotai/">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="alternate icon" href="favicon.png" type="image/png">
+  <link rel="stylesheet" href="styles.css">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Cuotai">
+  <meta property="og:description" content="All your AI quotas, usage limits and costs in one place. Free, open source and read-only.">
+  <meta property="og:url" content="https://jmarcon.github.io/cuotai/">
+  <meta property="og:image" content="https://jmarcon.github.io/cuotai/assets/screenshots/desktop-hero.png">
+  <meta property="og:image:alt" content="The Cuotai desktop app with quota cards and the tray popover, shown with made-up demo accounts">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="site-head">
+    <div class="wrap site-head-row">
+      <a class="brand" href="./" aria-label="Cuotai home">
+        <img src="logotype.svg" alt="" width="124" height="31">
+      </a>
+      <nav aria-label="Main">
+        <ul class="nav">
+          <li><a href="#what">What it is</a></li>
+          <li><a href="#monitors">What it monitors</a></li>
+          <li><a href="#previews">Previews</a></li>
+          <li><a href="#install">Install</a></li>
+          <li><a href="#docs">Docs</a></li>
+          <li><a href="https://github.com/jmarcon/cuotai">GitHub</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero wrap" aria-labelledby="hero-title">
+      <h1 id="hero-title">All your AI quotas, usage limits and costs in one place.</h1>
+      <div class="hero-row">
+        <p class="lede">A free, open-source monitor that shows how much of your 5-hour window, weekly quota or monthly budget is left, across the AI assistants and APIs you use. A desktop app and a terminal dashboard, and it only ever reads.</p>
+        <div class="actions">
+          <a class="btn btn-primary" href="https://github.com/jmarcon/cuotai/releases/latest">Download the latest release</a>
+          <a class="btn" href="#install">All install options</a>
+        </div>
+      </div>
+      <figure class="shot shot-hero">
+        <a href="assets/screenshots/desktop-hero.png">
+          <img src="assets/screenshots/desktop-hero.png" width="1500" height="800" fetchpriority="high"
+            alt="The Cuotai desktop app: the main window with one card per AI account, each showing its 5-hour and weekly quotas, beside the tray popover with quota rings">
+        </a>
+        <figcaption>The main window and the tray popover, shown with made-up demo accounts.</figcaption>
+      </figure>
+    </section>
+
+    <section class="band" id="what" aria-labelledby="what-title">
+      <div class="wrap">
+        <div class="split">
+          <div class="prose">
+            <p class="label">What it is</p>
+            <h2 id="what-title">Know what is left before a limit stops you</h2>
+            <p>If you work with several AI assistants and APIs, you probably hop between dashboards to find out how much is left. Cuotai puts it all in one place and keeps it fresh in the background.</p>
+            <p>It is made for developers, teams and heavy users of coding assistants and AI APIs who juggle more than one subscription or key. A Rust core does the reading; a Tauri desktop app and a Ratatui terminal dashboard present it.</p>
+            <p>The name comes from <em lang="pt">cuota</em>, how many Portuguese speakers say “quota”, plus AI. The four-color C is a gauge that is never quite closed, the same ring that shows how much quota an account has left.</p>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <p class="label">How a reading looks</p>
+              <span class="tag">Made-up values</span>
+            </div>
+            <ul class="readings" aria-label="Example readings, with made-up values">
+              <li class="reading">
+                <div class="reading-name">Session (5h)</div>
+                <div class="figure">88%<small>left</small></div>
+                <div class="bar lvl-good" role="meter" aria-label="Session (5h)" aria-valuemin="0" aria-valuemax="100" aria-valuenow="88" aria-valuetext="88% left, 8 points in reserve">
+                  <span class="fill" style="width:88%"></span><span class="corridor" style="left:75%;width:10%"></span>
+                </div>
+                <div class="reading-meta"><span>8 pts in reserve · lasts until the reset</span><span class="mono">Resets 19:30</span></div>
+              </li>
+              <li class="reading">
+                <div class="reading-name">Weekly</div>
+                <div class="figure">22%<small>left</small></div>
+                <div class="bar lvl-bad" role="meter" aria-label="Weekly" aria-valuemin="0" aria-valuemax="100" aria-valuenow="22" aria-valuetext="22% left, 16 points ahead of pace, runs out at about 18:53">
+                  <span class="fill" style="width:22%"></span><span class="corridor" style="left:33%;width:10%"></span>
+                </div>
+                <div class="reading-meta"><span>16 pts ahead · runs out ≈18:53</span><span class="mono">Resets 19:30</span></div>
+              </li>
+              <li class="reading is-stale">
+                <div class="reading-name">Monthly budget</div>
+                <div class="figure">46%<small>left</small></div>
+                <div class="bar lvl-warn" role="meter" aria-label="Monthly budget, stale reading" aria-valuemin="0" aria-valuemax="100" aria-valuenow="46" aria-valuetext="46% left, stale reading from 42 minutes ago">
+                  <span class="fill" style="width:46%"></span>
+                </div>
+                <div class="reading-meta"><span class="chip chip-warn">Stale · 42 min ago</span><span>Last valid reading, kept</span></div>
+              </li>
+              <li class="reading">
+                <div class="reading-name">Requests</div>
+                <div class="figure figure-word">Exhausted</div>
+                <div class="bar" role="meter" aria-label="Requests" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="Exhausted, blocked until 14:30"></div>
+                <div class="reading-meta"><span>Blocked until 14:30</span></div>
+              </li>
+              <li class="reading">
+                <div class="reading-name">Spend limit</div>
+                <div class="figure">—</div>
+                <div class="bar bar-unknown" role="img" aria-label="Spend limit: no data"></div>
+                <div class="reading-meta"><span>No data, and never a zero</span></div>
+              </li>
+            </ul>
+            <p class="panel-foot">Bars show what is left, not what was used. The band on a bar marks a steady pace until the reset, as a linear estimate.</p>
+          </div>
+        </div>
+
+        <h3 class="sub">What you get</h3>
+        <ul class="features">
+          <li><strong>Every limit in one window</strong> One card per account with its windows, rate limits, balances and spend, each with its reset time.</li>
+          <li><strong>Pace and “runs out” warnings</strong> Whether what you used so far lasts until the reset, or when it runs out if it does not. A linear estimate, not a promise.</li>
+          <li><strong>Alerts that matter</strong> Optional system notifications for resets, thresholds you choose and exhausted quotas, with quiet hours. Nothing is sent to anyone.</li>
+          <li><strong>Which account has room</strong> Put interchangeable accounts in a group and Cuotai marks the best one, as advice only. It never switches accounts for you.</li>
+          <li><strong>Paid extra usage</strong> When a plan bills past its limit, the spend so far is shown apart from the plan limits. Cuotai never changes billing settings.</li>
+          <li><strong>History and local cost</strong> Charts of how each quota moved, kept on your computer, and an optional cost estimate from your own Claude Code, Codex CLI and Gemini CLI logs.</li>
+          <li><strong>Runs where you work</strong> Windows, macOS and Linux, with a tray or menu-bar popover for a quick look.</li>
+          <li><strong>Scriptable</strong> <code>cuotai --json</code>, an opt-in read-only local server, events and hooks with <code>--watch</code>, and executable extensions.</li>
+          <li><strong>Yours to shape</strong> Built-in themes in dark and light, your own themes, and a translated interface.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="band" id="monitors" aria-labelledby="monitors-title">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="label">What it monitors</p>
+          <h2 id="monitors-title">Subscriptions, coding plans, cloud bills and your own gateways</h2>
+          <p>Among the services Cuotai reads today. What each one reads, the credential it needs and its limitations are in the <a href="https://github.com/jmarcon/cuotai/blob/main/docs/providers.md">provider catalog</a>.</p>
+        </div>
+
+        <dl class="groups">
+          <div>
+            <dt>Assistants and subscriptions</dt>
+            <dd>Claude, OpenAI Codex / ChatGPT, GitHub Copilot, Cursor (personal and Teams), Windsurf, Kiro / AWS, Antigravity, Cline, Zed, CodeBuddy, Qoder, OpenCode Go</dd>
+          </div>
+          <div>
+            <dt>CLIs and coding plans</dt>
+            <dd>Gemini CLI, Grok CLI / xAI, Kimi Coding and API, MiniMax Token / Coding Plan, Alibaba Coding Plan, Alibaba Token Plan / Qwen Cloud, Xiaomi MiMo, Ollama Cloud</dd>
+          </div>
+          <div>
+            <dt>Cloud billing and admin APIs</dt>
+            <dd>OpenAI Admin API, Anthropic Admin API, Google Gemini API Monitoring, Google Vertex AI, AWS Bedrock Cost Explorer, Azure OpenAI Cost Management, Alibaba Cloud BSS, Mistral Admin, Perplexity Computer Analytics, Kimchi, Groq, ElevenLabs</dd>
+          </div>
+          <div>
+            <dt>Aggregators</dt>
+            <dd>9router and LiteLLM proxy: the quotas or budgets of the connections inside your own instance</dd>
+          </div>
+        </dl>
+
+        <h3 class="sub">What to expect</h3>
+        <ul class="facts">
+          <li>
+            <h4>Read-only</h4>
+            <p>Cuotai asks providers for quota, usage and billing numbers. It never sends a request that spends credits, and it never changes a provider's billing settings.</p>
+          </li>
+          <li>
+            <h4>Credentials stay out of the config</h4>
+            <p>Sign-ins and tokens are kept in your system's vault: macOS Keychain, Windows Credential Manager or Linux Secret Service. The settings file holds references or the names of environment variables, never a secret.</p>
+          </li>
+          <li>
+            <h4>Some interfaces are undocumented</h4>
+            <p>Several providers expose usage only through internal interfaces the vendor does not document. These may change without notice; when one stops matching, the card says so.</p>
+          </li>
+          <li>
+            <h4>Some reads cost money</h4>
+            <p>AWS Cost Explorer charges per request, so it is read once an hour by default and never more than every 15 minutes. Google Cloud Monitoring can also bill for reads.</p>
+          </li>
+          <li>
+            <h4>A web session is a full login</h4>
+            <p>A few providers are read through a web session you paste. It stays in the vault and goes only to that provider's hosts over HTTPS, but the provider's terms may not allow third-party tools. <a href="https://github.com/jmarcon/cuotai/blob/main/docs/providers.md#web-sessions-in-the-vault-prd-0016">Read the risks</a> first.</p>
+          </li>
+          <li>
+            <h4>Nothing in the middle</h4>
+            <p>There is no Cuotai account or cloud service. The update check is optional and sends only the version, system and architecture. Reading the providers' public status pages is off by default.</p>
+          </li>
+        </ul>
+        <p class="note">Every integration is classified as Official, Undocumented, Derived or Unavailable in the <a href="https://github.com/jmarcon/cuotai/blob/main/docs/providers.md#usage-access-matrix">usage access matrix</a>, with the evidence for each. Services with no usage query are not offered when you add an account.</p>
+      </div>
+    </section>
+
+    <section class="band" id="previews" aria-labelledby="previews-title">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="label">Previews</p>
+          <h2 id="previews-title">On your desktop and in your terminal</h2>
+          <p>Every screenshot uses made-up demo accounts. Select one to open it at full size.</p>
+        </div>
+
+        <h3 class="sub">Desktop app</h3>
+        <figure class="shot">
+          <a href="assets/screenshots/desktop-dashboard.png">
+            <picture>
+              <source media="(prefers-color-scheme: light)" srcset="assets/screenshots/desktop-dashboard-light.png">
+              <img src="assets/screenshots/desktop-dashboard.png" width="1800" height="1200" loading="lazy"
+                alt="The Cuotai main window: a grid of account cards, each with its quota figures, bars, reset times and a freshness label">
+            </picture>
+          </a>
+          <figcaption>The dashboard: one card per account, highlighting the limit that blocks you and how old each reading is.</figcaption>
+        </figure>
+
+        <div class="shots-desktop">
+          <figure class="shot">
+            <a href="assets/screenshots/desktop-details.png">
+              <img src="assets/screenshots/desktop-details.png" width="840" height="907" loading="lazy"
+                alt="The account details dialog: each quota with its bar, pace mark, expected use and reset time">
+            </a>
+            <figcaption>Account details, with pace and reset times.</figcaption>
+          </figure>
+          <figure class="shot">
+            <a href="assets/screenshots/desktop-tray-list.png">
+              <img src="assets/screenshots/desktop-tray-list.png" width="570" height="900" loading="lazy"
+                alt="The tray popover in list view: account rows with a quota figure, a bar and a freshness label">
+            </a>
+            <figcaption>Tray popover, list view.</figcaption>
+          </figure>
+          <figure class="shot">
+            <a href="assets/screenshots/desktop-tray-donut.png">
+              <img src="assets/screenshots/desktop-tray-donut.png" width="570" height="900" loading="lazy"
+                alt="The tray popover in ring view: a grid of accounts, each with an open ring showing the share left">
+            </a>
+            <figcaption>Tray popover, ring view.</figcaption>
+          </figure>
+        </div>
+
+        <h3 class="sub">Terminal dashboard</h3>
+        <p class="sub-lede">The same engine powers an interactive dashboard with keyboard and mouse support. Run <code>cuotai</code>, press <kbd>a</kbd> to add an account, and use <code>--once</code> or <code>--json</code> for scripts and status bars.</p>
+        <div class="shots-terminal">
+          <figure class="shot">
+            <a href="assets/screenshots/tui-dashboard.png">
+              <img src="assets/screenshots/tui-dashboard.png" width="2208" height="1340" loading="lazy"
+                alt="The Cuotai terminal dashboard: six placeholder accounts in bordered panels, each with quota bars and renewal times">
+            </a>
+            <figcaption>The terminal dashboard, with placeholder accounts.</figcaption>
+          </figure>
+          <figure class="shot">
+            <a href="assets/screenshots/tui-details.png">
+              <img src="assets/screenshots/tui-details.png" width="2208" height="1340" loading="lazy"
+                alt="The terminal account details: the most restrictive limit, then each quota with its bar, time to reset and pace estimate">
+            </a>
+            <figcaption>Account details, where missing is not zero.</figcaption>
+          </figure>
+        </div>
+
+        <h3 class="sub">Themes</h3>
+        <p class="sub-lede">Every built-in theme has a dark and a light mode, from editor palettes to retro systems. See them all, and how to add your own, in the <a href="https://github.com/jmarcon/cuotai/blob/main/docs/themes.md">theme guide</a>.</p>
+        <div class="shots-themes">
+          <figure class="shot">
+            <a href="assets/screenshots/theme-cuotai-light.png"><img src="assets/screenshots/theme-cuotai-light.png" width="1000" height="560" loading="lazy" alt="The app in the Cuotai theme, light mode"></a>
+            <figcaption>Cuotai, light</figcaption>
+          </figure>
+          <figure class="shot">
+            <a href="assets/screenshots/theme-synthwave-dark.png"><img src="assets/screenshots/theme-synthwave-dark.png" width="1000" height="560" loading="lazy" alt="The app in the Synthwave theme, dark mode"></a>
+            <figcaption>Synthwave, dark</figcaption>
+          </figure>
+          <figure class="shot">
+            <a href="assets/screenshots/theme-win98-light.png"><img src="assets/screenshots/theme-win98-light.png" width="1000" height="560" loading="lazy" alt="The app in the Windows 98 theme, light mode"></a>
+            <figcaption>Windows 98, light</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="band" id="install" aria-labelledby="install-title">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="label">Install</p>
+          <h2 id="install-title">Pick the app, the terminal version, or both</h2>
+          <p>Direct downloads are on the <a href="https://github.com/jmarcon/cuotai/releases/latest">latest release</a>. Each release's notes say which of its files are signed.</p>
+        </div>
+
+        <div class="install">
+          <div>
+            <h3>Desktop app</h3>
+            <div class="channel">
+              <h4>macOS <span>Apple silicon and Intel</span></h4>
+              <pre><code>brew install --cask jmarcon/cuotai/cuotai-app</code></pre>
+              <p>Or download the <code>.dmg</code> from the <a href="https://github.com/jmarcon/cuotai/releases/latest">latest release</a>. A build that is not notarized needs <a href="https://github.com/jmarcon/cuotai/blob/main/docs/gui-macos.md#first-launch-and-gatekeeper">one extra step</a> the first time.</p>
+            </div>
+            <div class="channel">
+              <h4>Windows <span>x64</span></h4>
+              <p>Download the <code>.exe</code> or <code>.msi</code> installer from the <a href="https://github.com/jmarcon/cuotai/releases/latest">latest release</a>. An installer that is not code-signed triggers a SmartScreen warning: <a href="https://github.com/jmarcon/cuotai/blob/main/docs/gui-windows.md#first-launch-and-smartscreen">what to do</a>.</p>
+            </div>
+            <div class="channel">
+              <h4>Linux <span>x64</span></h4>
+              <p>Download the <code>.deb</code>, <code>.rpm</code> or <code>.AppImage</code> from the <a href="https://github.com/jmarcon/cuotai/releases/latest">latest release</a>. On GNOME, the tray icon needs the <a href="https://github.com/jmarcon/cuotai/blob/main/docs/gui-linux.md#tray-icon">AppIndicator extension</a>.</p>
+            </div>
+          </div>
+
+          <div>
+            <h3>Terminal version</h3>
+            <div class="channel">
+              <h4>Homebrew <span>macOS and Linux</span></h4>
+              <pre><code>brew install jmarcon/cuotai/cuotai</code></pre>
+            </div>
+            <div class="channel">
+              <h4>Scoop <span>Windows</span></h4>
+              <pre><code>scoop bucket add cuotai https://github.com/jmarcon/scoop-cuotai</code></pre>
+              <pre><code>scoop install cuotai</code></pre>
+            </div>
+            <div class="channel">
+              <h4>Direct download</h4>
+              <p>Terminal archives for each system are on the <a href="https://github.com/jmarcon/cuotai/releases/latest">latest release</a>.</p>
+            </div>
+            <div class="channel">
+              <h4>From the repository <span>needs Rust</span></h4>
+              <pre><code>cargo install --git https://github.com/jmarcon/cuotai cuotai-tui --locked</code></pre>
+            </div>
+          </div>
+        </div>
+
+        <p class="note">Every release ships a signed <code>SHA256SUMS</code> and build provenance, so you can <a href="https://github.com/jmarcon/cuotai/blob/main/docs/installing.md#verify-your-download">verify your download</a>. Uninstalling removes the app only; your accounts file, history and vault entries stay until <a href="https://github.com/jmarcon/cuotai/blob/main/docs/installing.md#uninstalling">you delete them</a>. Channel status, and how each one was checked, is in the <a href="https://github.com/jmarcon/cuotai/blob/main/docs/installing.md">install guide</a>. To build it yourself, see <a href="https://github.com/jmarcon/cuotai/blob/main/docs/building.md">building from source</a>.</p>
+      </div>
+    </section>
+
+    <section class="band" id="docs" aria-labelledby="docs-title">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="label">Docs</p>
+          <h2 id="docs-title">Documentation on GitHub</h2>
+        </div>
+        <div class="doclinks">
+          <div>
+            <h3>Using the app</h3>
+            <ul>
+              <li><a href="https://github.com/jmarcon/cuotai/blob/main/docs/gui-macos.md">Cuotai on macOS</a></li>
+              <li><a href="https://github.com/jmarcon/cuotai/blob/main/docs/gui-windows.md">Cuotai on Windows</a></li>
+              <li><a href="https://github.com/jmarcon/cuotai/blob/main/docs/gui-linux.md">Cuotai on Linux</a></li>
+              <li><a href="https://github.com/jmarcon/cuotai/blob/main/docs/gui-features.md">Desktop feature reference</a></li>
+              <li><a href="https://github.com/jmarcon/cuotai/blob/main/docs/tui.md">Terminal dashboard and command line</a></li>
+              <li><a href="https://github.com/jmarcon/cuotai/blob/main/docs/providers.md">Providers, credentials and limitations</a></li>
+              <li><a href="https://github.com/jmarcon/cuotai/blob/main/docs/oauth.md">Native sign-in and the vault</a></li>
+              <li><a href="https://github.com/jmarcon/cuotai/blob/main/docs/platforms.md">Platform support</a></li>
+            </ul>
+          </div>
+          <div>
+            <h3>Automation</h3>
+            <ul>
+              <li><a href="https://github.com/jmarcon/cuotai/blob/main/docs/advanced.md">Advanced usage</a></li>
+              <li><a href="https://github.com/jmarcon/cuotai/blob/main/docs/local-server.md">Local HTTP server</a></li>
+              <li><a href="https://github.com/jmarcon/cuotai/blob/main/docs/events.md">Events and hooks</a></li>
+              <li><a href="https://github.com/jmarcon/cuotai/blob/main/docs/export-v1.md">Export contract v1</a></li>
+              <li><a href="https://github.com/jmarcon/cuotai/blob/main/docs/extensions.md">Executable extensions</a></li>
+              <li><a href="https://github.com/jmarcon/cuotai/blob/main/docs/widgets.md">System widgets</a></li>
+              <li><a href="https://github.com/jmarcon/cuotai/blob/main/cuotai.example.toml">Configuration example</a></li>
+            </ul>
+          </div>
+          <div>
+            <h3>Contributors</h3>
+            <ul>
+              <li><a href="https://github.com/jmarcon/cuotai/blob/main/docs/building.md">Building from source</a></li>
+              <li><a href="https://github.com/jmarcon/cuotai/blob/main/docs/architecture.md">Architecture</a></li>
+              <li><a href="https://github.com/jmarcon/cuotai/blob/main/CONTRIBUTING.md">Contributing guide</a></li>
+              <li><a href="https://github.com/jmarcon/cuotai/blob/main/CHANGELOG.md">Changelog</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="band" id="help" aria-labelledby="help-title">
+      <div class="wrap split split-even">
+        <div class="prose">
+          <p class="label">How to help</p>
+          <h2 id="help-title">A one-person project, and help counts</h2>
+          <p>Support happens on GitHub. Never paste a real key, token or cookie into an issue.</p>
+          <ul class="helplist">
+            <li><a href="https://github.com/jmarcon/cuotai">Star the repository</a> so more people find it.</li>
+            <li><a href="https://github.com/jmarcon/cuotai/issues/new/choose">Report a bug or a provider problem</a>, or ask for a new provider.</li>
+            <li><a href="https://github.com/jmarcon/cuotai/discussions">Ask a question or share a setup</a> in Discussions.</li>
+            <li><a href="https://github.com/jmarcon/cuotai/blob/main/apps/desktop/ui/locales/README.md">Translate or proofread a language.</a> Some are machine drafts, so a native speaker's review is the most useful help.</li>
+            <li><a href="https://github.com/jmarcon/cuotai/blob/main/CONTRIBUTING.md">Contribute a theme, a fix or a provider.</a></li>
+            <li><a href="https://github.com/jmarcon/cuotai/security/advisories/new">Report a security problem privately</a>, never in a public issue.</li>
+          </ul>
+        </div>
+        <div class="prose" id="license">
+          <p class="label">License</p>
+          <h2>Free and open source</h2>
+          <p>Cuotai is distributed under the terms of either the <a href="https://github.com/jmarcon/cuotai/blob/main/LICENSE-MIT">MIT license</a> or the <a href="https://github.com/jmarcon/cuotai/blob/main/LICENSE-APACHE">Apache License, Version 2.0</a>, at your option.</p>
+          <p>Third-party notices are in <a href="https://github.com/jmarcon/cuotai/blob/main/THIRD_PARTY_NOTICES"><code>THIRD_PARTY_NOTICES</code></a>.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-foot">
+    <div class="wrap site-foot-row">
+      <img src="favicon.svg" alt="" width="24" height="24">
+      <p>Cuotai. MIT or Apache-2.0.</p>
+      <ul>
+        <li><a href="https://github.com/jmarcon/cuotai">GitHub</a></li>
+        <li><a href="https://github.com/jmarcon/cuotai/releases/latest">Latest release</a></li>
+        <li><a href="https://github.com/jmarcon/cuotai/blob/main/SUPPORT.md">Support</a></li>
+        <li><a href="https://github.com/jmarcon/cuotai/blob/main/SECURITY.md">Security</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>
