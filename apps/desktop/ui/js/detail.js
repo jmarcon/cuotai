@@ -8,9 +8,17 @@ import {
 import { expectedLeft, meterHtml } from "./components.js";
 import { fold } from "./util.js";
 
-/** Fa gap 8: the same localized limit names as the main-window cards ("5-hour session", "Weekly"). */
+/** Fa gap 8: the same localized limit names as the main-window cards ("5-hour session", "Weekly"), for the only limit
+ *  of its window. Several limits of one window keep what tells them apart: the model or the provider's group name. */
 const LONG_WINDOW = { window_5h: "h5", weekly: "week" };
-const limitLabel = (m) => (LONG_WINDOW[m.window] ? t(`card.window.long.${LONG_WINDOW[m.window]}`) : m.label);
+function limitLabel(r, m) {
+  const own = tl(m.label_text ?? m.label);
+  const long = LONG_WINDOW[m.window];
+  if (!long) return own;
+  const window = t(`card.window.long.${long}`);
+  if ((r.metrics ?? []).filter((x) => x.window === m.window).length < 2) return window;
+  return m.scope?.label ? `${m.scope.label} · ${window}` : own;
+}
 
 /** `eye`: the quota's hide/show button and, PRD 0008 RF3.2, its usage alert mute (dialog only). */
 export function metricCardHtml(r, m, { eye = false, stale = false } = {}) {
@@ -33,7 +41,7 @@ export function metricCardHtml(r, m, { eye = false, stale = false } = {}) {
     ? `<p class="sub" data-renewed-waiting>${icon("clock")} ${esc(renewedText(m))}</p>`
     : text != null
     ? `<div class="balance ${m.state === "exhausted" && !extra ? "bad" : ""}">${esc(text)}</div>`
-    : `<div class="gauge" title="${pace ? te("card.pace.estimate") : ""}">${meterHtml(pct, { state, expected: expectedLeft(m), text: valueText, name: m.label })}</div>`;
+    : `<div class="gauge" title="${pace ? te("card.pace.estimate") : ""}">${meterHtml(pct, { state, expected: expectedLeft(m), text: valueText, name: limitLabel(r, m) })}</div>`;
   // PRD 0009 RF2.2: the core's binding metric gets the "Binding" tag; every other metric stays listed.
   const binding = isBindingMetric(r, m);
   // DS-CMP-SUB-1 (mockup 03): label + tag, the figure with its unit inline; the meter; the pace stage on the left and
@@ -42,7 +50,7 @@ export function metricCardHtml(r, m, { eye = false, stale = false } = {}) {
   const resetText = reset && !renewed ? (m.resets_label ? tl(m.resets_label) : t("metric.resetsAt", { when: reset })) : "";
   return `<div class="metric ${hid ? "muted" : ""} ${binding ? "binding" : ""} ${m.alert?.active ? "usage-alert" : ""}" title="${esc(fmtAmount(m))}">
     <div class="metric-top">
-      <h3>${esc(limitLabel(m))}${binding ? ` <span class="btag" data-binding-chip title="${esc(`${t("card.binding.title")}: ${bindingChipText(r)}`)}">${te("binding.tag")}</span>` : ""}</h3>
+      <h3>${esc(limitLabel(r, m))}${binding ? ` <span class="btag" data-binding-chip title="${esc(`${t("card.binding.title")}: ${bindingChipText(r)}`)}">${te("binding.tag")}</span>` : ""}</h3>
       <div class="metric-right">
         ${text == null && pct != null ? `<span class="pct" title="${te(`metric.level.${lv}`, { pct: Math.round(pct) })}">${Math.round(pct)}%<small>${te("card.available")}</small></span>` : ""}
         ${eye ? metricAlertHtml(r, m) : ""}
