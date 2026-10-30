@@ -490,9 +490,11 @@ fn render(config: &Config, previous: Option<&[u8]>) -> Result<Vec<u8>, EditError
             set_int(&mut doc, "refresh_seconds", config.refresh_seconds as i64);
             set_int(&mut doc, "concurrency", config.concurrency as i64);
             set_int(&mut doc, "timeout_seconds", config.timeout_seconds as i64);
+            // `accounts = []` is what removing the last account writes: an
+            // empty list is as editable as a missing one.
             let editable = doc
                 .get("accounts")
-                .map(|item| item.as_array_of_tables().is_some())
+                .map(|item| item.as_array_of_tables().is_some() || is_empty_array(item))
                 .unwrap_or(true);
             if !editable {
                 if config.accounts.is_empty() {
@@ -656,6 +658,16 @@ fn update_accounts(
         doc["accounts"] = toml_edit::value(toml_edit::Array::new());
         return Ok(());
     }
+    // The comments above `accounts = []` move to the first table replacing it.
+    let mut list_prefix = None;
+    if doc.get("accounts").is_some_and(is_empty_array) {
+        list_prefix = doc
+            .as_table()
+            .key("accounts")
+            .and_then(|key| key.leaf_decor().prefix())
+            .cloned();
+        doc.remove("accounts");
+    }
     if !doc.contains_key("accounts") {
         doc["accounts"] = toml_edit::Item::ArrayOfTables(toml_edit::ArrayOfTables::new());
     }
@@ -736,7 +748,14 @@ fn update_accounts(
     while array.len() > accounts.len() {
         array.remove(array.len() - 1);
     }
+    if let (Some(prefix), Some(first)) = (list_prefix, array.get_mut(0)) {
+        first.decor_mut().set_prefix(prefix);
+    }
     Ok(())
+}
+
+fn is_empty_array(item: &toml_edit::Item) -> bool {
+    item.as_array().is_some_and(toml_edit::Array::is_empty)
 }
 
 /// Overwrite a table's fields, preserving value decor (trailing comments) and
@@ -852,6 +871,57 @@ mod tests {
             toml::to_string(&without_ids).unwrap(),
             toml::to_string(&cfg).unwrap()
         );
+    }
+
+    #[test]
+    fn adding_to_an_empty_account_list_keeps_unrelated_content() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("cuotai.toml");
+        fs::write(
+            &path,
+            "# my settings\nrefresh_seconds = 300\n# nobody yet\naccounts = []\n\n\
+             [updates]\ncheck = true # keep me\n",
+        )
+        .unwrap();
+        let mut file = load_at(&path, false).unwrap();
+        assert!(file.updates().check);
+        let mut with_one = file.config.clone();
+        with_one
+            .accounts
+            .push(account("OpenAI", Some("OPENAI_ADMIN_KEY")));
+        file.save(with_one).unwrap();
+
+        let text = fs::read_to_string(&path).unwrap();
+        for kept in ["# my settings", "# nobody yet", "[updates]", "# keep me"] {
+            assert!(text.contains(kept), "{kept} was lost:\n{text}");
+        }
+        let reloaded = load_at(&path, false).unwrap();
+        assert!(reloaded.updates().check);
+        assert_eq!(reloaded.config.accounts, file.config.accounts);
+    }
+
+    #[test]
+    fn removing_the_last_account_and_adding_one_keeps_the_updates_table() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("cuotai.toml");
+        fs::write(
+            &path,
+            "[[accounts]]\nname = \"a\"\nprovider = \"open_ai_api\"\n\
+             credential_env = \"A\"\n\n[updates]\ncheck = true\n",
+        )
+        .unwrap();
+        let mut file = load_at(&path, false).unwrap();
+        let mut empty = file.config.clone();
+        empty.accounts.clear();
+        file.save(empty.clone()).unwrap();
+        assert!(load_at(&path, false).unwrap().updates().check);
+
+        let mut again = empty;
+        again.accounts.push(account("b", Some("B")));
+        file.save(again).unwrap();
+        let reloaded = load_at(&path, false).unwrap();
+        assert!(reloaded.updates().check, "the [updates] table was dropped");
+        assert_eq!(reloaded.config.accounts.len(), 1);
     }
 
     const FUTURE_KEYS_FIXTURE: &str = r#"refresh_seconds = 300
