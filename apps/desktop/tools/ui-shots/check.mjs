@@ -37,6 +37,7 @@ const PAGES = zoom ? ZOOM_PAGES : [
   ["settings-dashboard", "settings.html?page=dashboard", 640, 460, {}],
   ["settings-alerts", "settings.html?page=alerts", 640, 460, {}],
   ["settings-menubar", "settings.html?page=menubar", 640, 460, {}],
+  ["settings-about", "settings.html?page=about", 640, 460, {}],
   ["main-stats", "index.html", 1200, 820, { "cuotai.openView": "stats" }],
   ["tray-stats", "tray.html", 380, 600, {}, "[data-open-stats]"],
   ["details-short", "index.html", 1200, 500, {}, "[data-details]"],
@@ -102,6 +103,12 @@ const PAGE_JS = `(() => {
     const rows = new Map();
     for (const c of w.children) { const m = c.querySelector(":scope > .mtr"); if (!m) continue; const top = Math.round(c.getBoundingClientRect().top); rows.set(top, [...(rows.get(top) ?? []), Math.round(m.getBoundingClientRect().top)]); }
     for (const tops of rows.values()) if (new Set(tops).size > 1) out.push({ kind: "limits-misaligned", ok: false, sel: "div.wins", text: tops.join(" / ") });
+  }
+  // Everything in a Settings group keeps the rows' inset from the card's edge; the group's label sits above the card.
+  for (const s of document.querySelectorAll(".set-content .set-sec")) {
+    const box = s.getBoundingClientRect();
+    if (!box.width) continue;
+    for (const e of s.querySelectorAll("h2, h3, p, button, pre, code")) { if (e.closest("[hidden], dialog, .set-pop, .menu, summary") || !e.textContent.trim()) continue; const r = e.getBoundingClientRect(), inset = e.matches("button") ? 0 : parseFloat(getComputedStyle(e).paddingLeft); if (r.width && (e.matches("h2") ? r.bottom > box.top + 1 : r.left + inset < box.left + 8)) out.push({ kind: "flush-to-group-edge", ok: false, sel: sel(e), text: e.textContent.trim().slice(0, 50) }); }
   }
   for (const b of document.querySelectorAll("button, input, select")) {
     if (b.closest("[hidden], dialog:not([open]), .menu, .lang-menu, .set-pop")) continue;

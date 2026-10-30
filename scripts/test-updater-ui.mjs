@@ -200,7 +200,7 @@ for (const { code } of i18n.LOCALES) {
   assert.equal(lib.fmtDate("not-a-date"), null, `${code}: invalid release date must stay absent`);
   const section = updater.updatesSectionHtml(base);
   const page = await settingsPageHtml();
-  const headings = Array.from(page.matchAll(/<h3>([^<]*)<\/h3>/g), (match) => match[1])
+  const headings = Array.from(page.matchAll(/<h2>([^<]*)<\/h2>/g), (match) => match[1])
     .filter((heading) => heading === catalog["update.title"]);
   assert.match(section, /^<section class="set-sec" data-updates>/, `${code}: updater section wrapper missing`);
   assert.deepEqual(headings, [catalog["update.title"]], `${code}: the About page must render exactly one updater heading`);

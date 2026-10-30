@@ -190,7 +190,7 @@ export function updatesSectionHtml(s, message = "") {
   const last = s?.last_check ? t("update.lastCheckAt", { date: new Date(s.last_check).toLocaleString(currentLocale()) }) : t("update.lastCheckNever");
   const offText = pending ? te("update.consent.pending") : off ? te(`update.off.${s.disabled_reason}`) : "";
   return `<section class="set-sec" data-updates>
-    <h3>${te("update.title")}</h3>
+    <h2>${te("update.title")}</h2>
     <div data-update-body>
       ${privacyNoteHtml()}
       ${row({ key: "update-auto", label: te("update.automatic"), msg: "update-auto-msg", control: (a) => sw("update-automatic", s?.automatic, a, switchLocked ? "disabled" : "") })}
