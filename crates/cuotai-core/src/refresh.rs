@@ -945,7 +945,7 @@ impl RefreshCycle {
                     .iter()
                     .enumerate()
                     .map(|(i, _)| {
-                        if i < prev_config.accounts.len() {
+                        if i != index && i < prev_config.accounts.len() {
                             self.failures.get(i).copied().unwrap_or(0)
                         } else {
                             0
@@ -1534,6 +1534,29 @@ mod tests {
         // Edited account's new effective interval drives its deadline.
         assert_eq!(cycle.intervals[1], Duration::from_secs(45));
         assert_eq!(cycle.deadlines[1], now + Duration::from_secs(45));
+    }
+
+    /// A replaced credential starts from the base interval: failures of the
+    /// previous one must not stretch the backoff of the first new error.
+    #[test]
+    fn apply_edit_upsert_forgets_the_failures_of_the_touched_account() {
+        let prev = config_with(vec![account("alpha", Some(60)), account("beta", Some(60))]);
+        let now = Instant::now();
+        let mut cycle = RefreshCycle::new(&prev, now);
+        cycle.failures = vec![2, 4];
+
+        let mut edited = account("beta", Some(60));
+        edited.credential_env = Some("NEW_KEY".into());
+        let new_config = config_with(vec![account("alpha", Some(60)), edited]);
+        cycle
+            .apply_edit(&prev, &new_config, Edit::Upsert(1), now)
+            .expect("upsert accepted");
+        assert_eq!(cycle.failures, [2, 0], "only the untouched account keeps");
+
+        let token = cycle.begin(1).expect("slot is free");
+        let failed = report_with_status("beta", 9, Status::AuthenticationError);
+        assert!(cycle.finish_account(1, Some(failed), token, now));
+        assert_eq!(cycle.deadlines[1], now + Duration::from_secs(120));
     }
 
     #[test]
