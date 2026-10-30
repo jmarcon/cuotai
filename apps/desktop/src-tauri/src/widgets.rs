@@ -22,11 +22,9 @@ use crate::settings::{WidgetPrefs, MAX_WIDGET_ACCOUNTS};
 /// coalesced into the next write instead of lost.
 pub const MIN_INTERVAL: Duration = Duration::from_secs(15);
 
-/// PRD 0014 RF2.1: the *app group* the app and its signed widget extension
-/// share. It carries the Team ID prefix, the macOS form that needs no
-/// provisioning profile; the release signs both with it (PRD 0019).
+/// The *app group* of earlier releases (see [`legacy_snapshot_path`]).
 #[cfg(target_os = "macos")]
-pub const APP_GROUP: &str = "WL9XSC6H36.dev.cuotai.desktop";
+const LEGACY_APP_GROUP: &str = "WL9XSC6H36.dev.cuotai.desktop";
 
 /// PRD 0014 RF3.1: the extension the release embeds in the app bundle.
 #[cfg(target_os = "macos")]
@@ -35,26 +33,25 @@ const EXTENSION: &str = "CuotaiWidgets.appex";
 /// PRD 0014 RF5: the file name every consumer looks for.
 pub const FILE_NAME: &str = "widget.json";
 
-/// Where the snapshot lives. On macOS the *app group* container when the
-/// app has the entitlement (the only place a sandboxed extension can read);
-/// otherwise (and on Windows/Linux) this user's local data directory, which
-/// third-party panels read but a WidgetKit extension cannot.
+/// Where the snapshot lives: this user's local data directory on every
+/// system. The macOS extension reads this one file through a read-only
+/// sandbox exception (`CuotaiWidgets.entitlements`).
 pub fn snapshot_path() -> Option<PathBuf> {
-    let path = app_group_dir()
-        .filter(|dir| dir.is_dir() || (embeds_extension() && std::fs::create_dir_all(dir).is_ok()))
-        .or_else(data_dir)?;
-    Some(path.join(FILE_NAME))
+    Some(data_dir()?.join(FILE_NAME))
 }
 
-/// The *app group* container of `APP_GROUP`, whether or not it exists.
-fn app_group_dir() -> Option<PathBuf> {
+/// The *app group* file of earlier releases. macOS ignores that entitlement
+/// without a provisioning profile, so nothing reads it; it only goes away
+/// with the data.
+fn legacy_snapshot_path() -> Option<PathBuf> {
     #[cfg(target_os = "macos")]
     {
-        let home = dirs::home_dir()?;
         Some(
-            home.join("Library")
+            dirs::home_dir()?
+                .join("Library")
                 .join("Group Containers")
-                .join(APP_GROUP),
+                .join(LEGACY_APP_GROUP)
+                .join(FILE_NAME),
         )
     }
     #[cfg(not(target_os = "macos"))]
@@ -64,10 +61,7 @@ fn app_group_dir() -> Option<PathBuf> {
 }
 
 /// Whether this executable runs from a bundle that embeds the widget
-/// extension (`Cuotai.app/Contents/{MacOS/cuotai,PlugIns/…appex}`). Only
-/// then is the *app group* folder created up front, so the extension finds
-/// the file before it ever ran; a dev or third-party build keeps the
-/// per-user fallback.
+/// extension (`Cuotai.app/Contents/{MacOS/cuotai,PlugIns/…appex}`).
 fn embeds_extension() -> bool {
     #[cfg(target_os = "macos")]
     {
@@ -82,22 +76,20 @@ fn embeds_extension() -> bool {
     }
 }
 
-/// `<local data>/cuotai`: the per-user directory of the other systems
-/// (RF5.1) and the macOS fallback without the entitlement.
+/// `<local data>/cuotai`: the per-user directory (RF5.1).
 fn data_dir() -> Option<PathBuf> {
     dirs::data_local_dir().map(|dir| dir.join("cuotai"))
 }
 
-/// The snapshot path as Settings shows it, and whether it is the *app
-/// group* (an extension can read it) or this user's data directory.
+/// The snapshot path as Settings shows it, and whether a WidgetKit extension
+/// reads it.
 #[derive(Debug, Clone, Serialize)]
 pub struct WidgetsView {
     pub prefs: WidgetPrefs,
     pub path: Option<String>,
-    pub app_group: bool,
-    /// PRD 0014 RF2.3/RF3.1: macOS needs a signed app and an *app group*
-    /// entitlement before the extension can read the file; without them
-    /// only third-party integrations can.
+    /// PRD 0014 RF3.1: this bundle embeds the extension that reads the file;
+    /// without it only third-party integrations do.
+    pub extension_reads: bool,
     pub macos: bool,
     pub accounts_min: usize,
     pub accounts_max: usize,
@@ -108,9 +100,7 @@ pub fn view(prefs: WidgetPrefs) -> WidgetsView {
     let path = snapshot_path();
     WidgetsView {
         prefs,
-        app_group: path
-            .as_deref()
-            .is_some_and(|path| app_group_dir().is_some_and(|dir| dir.join(FILE_NAME) == path)),
+        extension_reads: embeds_extension(),
         path: path.map(|path| path.display().to_string()),
         macos: cfg!(target_os = "macos"),
         accounts_min: 1,
@@ -219,6 +209,9 @@ impl Publisher {
 
 /// PRD 0014 RF2.2: remove the snapshot (an absent file is not an error).
 pub fn delete(path: Option<&Path>) -> bool {
+    if let Some(legacy) = legacy_snapshot_path() {
+        let _ = std::fs::remove_file(legacy);
+    }
     match path {
         Some(path) => std::fs::remove_file(path).is_ok(),
         None => false,

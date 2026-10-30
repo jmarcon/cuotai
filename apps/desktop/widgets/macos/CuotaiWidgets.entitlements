@@ -1,15 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!-- PRD 0014 RF2.1: the widget extension is sandboxed (WidgetKit requires it)
-     and may only read the app group container the app writes. The group is
-     Team-ID-prefixed, the macOS form that needs no provisioning profile. -->
+     and reads one file outside its container, the snapshot the app writes.
+     An app group would need a provisioning profile: macOS ignores the
+     entitlement without one. -->
 <plist version="1.0">
 <dict>
 	<key>com.apple.security.app-sandbox</key>
 	<true/>
-	<key>com.apple.security.application-groups</key>
+	<key>com.apple.security.temporary-exception.files.home-relative-path.read-only</key>
 	<array>
-		<string>WL9XSC6H36.dev.cuotai.desktop</string>
+		<string>/Library/Application Support/cuotai/widget.json</string>
 	</array>
 </dict>
 </plist>

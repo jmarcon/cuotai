@@ -1401,7 +1401,7 @@ const DEMO_WIDGETS = new URLSearchParams(location.search).has("widgets");
 function demoWidgetsView() {
   const w = demoSettings.widgets;
   return { prefs: { enabled: w.enabled, include_identity: w.include_identity, max_accounts: w.max_accounts },
-    path: "~/.local/share/cuotai/widget.json (demo)", app_group: DEMO_WIDGETS, macos: true, accounts_min: 1, accounts_max: 24 };
+    path: "~/.local/share/cuotai/widget.json (demo)", extension_reads: DEMO_WIDGETS, macos: true, accounts_min: 1, accounts_max: 24 };
 }
 // ponytail: demo mirror of the backend's hooks (PRD 0013 RF4) with the core's validation, listing and digest reduced
 // to what the screen needs; nothing runs in the browser: a test logs a made-up successful run after a moment.

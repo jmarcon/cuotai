@@ -72,7 +72,7 @@ assert_signature_kind "$app" "app"
 echo "ok: codesign verified ($method)"
 
 # PRD 0014 RF3.1: the WidgetKit extension ships inside the app, signed the
-# same way, sandboxed, and (Developer ID only) in the shared app group.
+# same way, sandboxed, and able to read the snapshot the app writes.
 plugin="$app/Contents/PlugIns/CuotaiWidgets.appex"
 [ -d "$plugin" ] || { echo "the app does not embed CuotaiWidgets.appex" >&2; exit 1; }
 codesign --verify --strict --verbose=2 "$plugin"
@@ -82,15 +82,10 @@ grep -q 'com.apple.security.app-sandbox' <<<"$plugin_entitlements" || {
   echo "the widget extension is not sandboxed" >&2
   exit 1
 }
-if [ "$method" = "developer-id" ]; then
-  app_entitlements="$(codesign -d --entitlements - --xml "$app" 2>/dev/null)"
-  for entitlements in "$plugin_entitlements" "$app_entitlements"; do
-    grep -q 'WL9XSC6H36.dev.cuotai.desktop' <<<"$entitlements" || {
-      echo "the app or its widget extension lacks the app group entitlement" >&2
-      exit 1
-    }
-  done
-fi
+grep -q '/Library/Application Support/cuotai/widget.json' <<<"$plugin_entitlements" || {
+  echo "the widget extension cannot read the snapshot" >&2
+  exit 1
+}
 # Linked with `@main` as its entry point the extension registers but traps at
 # launch, so the widget gallery stays empty while every check above passes.
 plugin_binary="$plugin/Contents/MacOS/CuotaiWidgets"
