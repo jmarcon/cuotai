@@ -43,6 +43,7 @@ globalThis.fetch = async (relative) => {
 
 const i18n = await import("../apps/desktop/ui/js/i18n.js");
 const { metricCardHtml } = await import("../apps/desktop/ui/js/detail.js");
+const { esc } = await import("../apps/desktop/ui/js/lib.js");
 await i18n.initI18n();
 
 const expected = {
@@ -242,16 +243,16 @@ for (const { code } of i18n.LOCALES) {
   // The window's name titles the only limit of a window; several keep the model or the group that tells them apart.
   const h5 = catalog["card.window.long.h5"];
   const week = catalog["card.window.long.week"];
-  const title = (m, metrics) => metricCardHtml({ ...report, metrics }, { ...metric, ...m }).match(/<h3>([^<]*)/)[1].replaceAll("&amp;", "&").replaceAll("&#39;", "'").trim();
+  const title = (m, metrics) => metricCardHtml({ ...report, metrics }, { ...metric, ...m }).match(/<h3>([^<]*)/)[1].trim();
   const pro = { label: "Gemini Pro", window: "window_5h", scope: { label: "Gemini Pro" } };
   const flash = { label: "Gemini Flash", window: "window_5h", scope: { label: "Gemini Flash" } };
   const group = { label: "Gemini (5h)", label_text: "Gemini (5h)", window: "window_5h" };
   const weekly = { label: "Gemini (Semanal)", label_text: "Gemini (Weekly)", window: "weekly" };
-  assert.equal(title(pro, [pro, flash, group, weekly]), `Gemini Pro · ${h5}`, `${code}: model name lost`);
-  assert.equal(title(flash, [pro, flash, group, weekly]), `Gemini Flash · ${h5}`, `${code}: model name lost`);
+  assert.equal(title(pro, [pro, flash, group, weekly]), esc(`Gemini Pro · ${h5}`), `${code}: model name lost`);
+  assert.equal(title(flash, [pro, flash, group, weekly]), esc(`Gemini Flash · ${h5}`), `${code}: model name lost`);
   assert.equal(title(group, [pro, flash, group, weekly]), "Gemini (5h)", `${code}: group name lost`);
-  assert.equal(title(weekly, [pro, flash, group, weekly]), week, `${code}: the only weekly limit lost the window's name`);
-  assert.equal(title(pro, [pro]), h5, `${code}: the only 5-hour limit lost the window's name`);
+  assert.equal(title(weekly, [pro, flash, group, weekly]), esc(week), `${code}: the only weekly limit lost the window's name`);
+  assert.equal(title(pro, [pro]), esc(h5), `${code}: the only 5-hour limit lost the window's name`);
   for (const [tone, ratio] of [["good", 0.75], ["warn", 0.5], ["bad", 0.2]]) {
     const rendered = metricCardHtml(report, { ...metric, ratio });
     assert.ok(
