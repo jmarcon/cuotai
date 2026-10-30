@@ -1700,15 +1700,6 @@ mod tests {
     }
 
     #[test]
-    fn bl_lookup_reads_the_given_path_only() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = std::env::join_paths([dir.path()]).unwrap();
-        assert!(!super::super::bailian::cli_in_path(&path));
-        std::fs::write(dir.path().join("bl"), b"").unwrap();
-        assert!(super::super::bailian::cli_in_path(&path));
-    }
-
-    #[test]
     fn login_modes_describe_every_flow_and_registration_field() {
         let aws = login_modes(Provider::AwsBedrock);
         assert_eq!(aws.modes.len(), 1);

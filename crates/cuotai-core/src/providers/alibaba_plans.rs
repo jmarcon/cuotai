@@ -1603,7 +1603,7 @@ async fn run_token_plan_cli(
     binary: &str,
     profile: &str,
 ) -> Result<Data, QueryError> {
-    let mut cmd = tokio::process::Command::new(binary);
+    let mut cmd = tokio::process::Command::new(crate::cli_path::resolve(binary));
     cmd.args([
         "usage",
         "token-plan",

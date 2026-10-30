@@ -562,7 +562,7 @@ async fn run_aws(
     profile: &str,
     permission: &str,
 ) -> Result<Vec<u8>, QueryError> {
-    let mut cmd = tokio::process::Command::new(binary);
+    let mut cmd = tokio::process::Command::new(crate::cli_path::resolve(binary));
     cmd.args(args)
         .args(["--output", "json", "--profile", profile])
         .env("AWS_PAGER", "")

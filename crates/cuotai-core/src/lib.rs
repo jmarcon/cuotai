@@ -12,6 +12,7 @@ pub mod build_info;
 pub mod canary;
 pub mod catalog;
 pub mod changelog;
+mod cli_path;
 pub mod config_file;
 pub mod cost;
 pub mod detect;
