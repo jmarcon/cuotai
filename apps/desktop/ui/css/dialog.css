@@ -792,6 +792,25 @@ dialog.extensions-dlg {
 dialog.dlg.dlg-catalog {
   width: min(var(--dialog-xl), calc(100vw - 32px));
 }
+/* The catalog scrolls in its list only: the title, the search and the foot stay on screen in a short window. */
+dialog.dlg.dlg-catalog:has(#picker:not([hidden])) {
+  overflow: hidden;
+}
+.dlg-catalog:has(#picker:not([hidden])) > .dlg-body {
+  box-sizing: border-box;
+  max-height: calc(100dvh - 34px);
+}
+.dlg-catalog [data-field="provider"],
+.dlg-catalog #picker {
+  flex: 0 1 auto;
+  min-height: 0;
+}
+.dlg-catalog .picker-list {
+  flex: 0 1 auto;
+}
+.dlg-catalog .picker-list:not(:empty) {
+  min-height: 96px;
+}
 .picker {
   display: flex;
   flex-direction: column;
