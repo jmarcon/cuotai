@@ -550,6 +550,9 @@
 .topbar [data-stats-toggle][aria-pressed="true"] {
   color: var(--accent);
 }
+.stats-back {
+  margin-block: var(--space-4);
+}
 .stats-page .timeline {
   padding-top: 0;
 }
