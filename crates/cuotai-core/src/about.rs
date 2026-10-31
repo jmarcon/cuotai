@@ -304,6 +304,13 @@ static LIBRARIES: &[Library] = &[
         &[Desktop],
     ),
     lib(
+        "tauri-plugin-single-instance",
+        "Apache-2.0 OR MIT",
+        "https://github.com/tauri-apps/plugins-workspace",
+        Role::Runtime,
+        &[Desktop],
+    ),
+    lib(
         "tauri-plugin-updater",
         "Apache-2.0 OR MIT",
         "https://github.com/tauri-apps/plugins-workspace",

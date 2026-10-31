@@ -164,6 +164,8 @@ An unmeasured account shows "—", never 0%; a stale reading is marked and left 
 
 After your first account is saved, one step offers to turn on the recommended notices (usage alerts at 75% and 90%, exhaustion and recovery, the 60-minute "warn before running out" and the extra-usage notice) with **Turn on** or **Not now**; a refused system permission leaves them off with guidance. A separate question asks whether Cuotai may check for updates automatically; no update request is made before you answer, and on an install managed by a package manager the step shows that manager's command instead. **Settings › General** can show the step again. **Settings › About** has the daily update check (it sends only the version, system and architecture), the open-source libraries and **What's new**, the release notes of every version in your language's labels. After an update, What's new opens once by itself; **Show what's new** turns that off.
 
+Cuotai runs once: opening it again while it is running brings the existing main window forward and the new copy exits.
+
 If `desktop.json` is damaged (not valid JSON, or a field of the wrong type), Cuotai copies it to `desktop.json.bak` in the same folder (`desktop.json.bak.1`, `.2` and so on when a backup already exists; backups are never overwritten), opens with the default settings and says so in a banner on the main window. Your accounts are not affected, because they live in `cuotai.toml`. To go back, quit the app and fix or restore the file.
 
 ## Themes and languages
