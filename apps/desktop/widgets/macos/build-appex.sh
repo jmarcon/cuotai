@@ -66,6 +66,17 @@ mkdir -p "$appex/Contents/MacOS" "$appex/Contents/Resources"
 # shellcheck disable=SC2086 # the slice list is word-split on purpose
 lipo -create $slices -output "$appex/Contents/MacOS/$name"
 
+# The failure that shipped in 0.82.0: the build succeeds without the entry
+# point, and only the widget gallery stays empty. `-e` is the one reference to
+# this Foundation symbol, so an import means the linker honored it.
+# scripts/release/smoke-desktop-macos.sh makes the same check on the signed app.
+for arch in arm64 x86_64; do
+    nm -arch "$arch" -u "$appex/Contents/MacOS/$name" | grep -q '^_NSExtensionMain$' || {
+        echo "the widget extension ($arch) is not linked with the _NSExtensionMain entry point" >&2
+        exit 1
+    }
+done
+
 # PRD 0014 RF3.4: the string catalog (en source, pt-BR, es, it) compiles to
 # one <lang>.lproj/Localizable.strings per language in the extension.
 xcrun xcstringstool compile -o "$appex/Contents/Resources" "$here/Localizable.xcstrings"
