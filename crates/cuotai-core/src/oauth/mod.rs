@@ -167,6 +167,14 @@ impl OAuthError {
             MSG_GOOGLE_CLIENT_SECRET_ENV_EMPTY,
         ))
     }
+    /// The provider refused the OAuth client itself (`invalid_client`,
+    /// `unauthorized_client`): a configuration problem, not a bad answer.
+    pub(crate) fn client_registration_refused() -> Self {
+        OAuthError::Configuration(crate::text::Localized::fixed(
+            "oauth_error.device.client_registration_refused",
+            "Client registration refused by the provider; sign in again.",
+        ))
+    }
     /// Device-flow verification URL returned by the provider is untrusted.
     pub(crate) fn device_verification_url_untrusted() -> Self {
         OAuthError::Configuration(crate::text::Localized::fixed(

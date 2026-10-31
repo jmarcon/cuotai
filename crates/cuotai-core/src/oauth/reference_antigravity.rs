@@ -614,6 +614,7 @@ fn check_oauth_error(body: &Value, status: StatusCode) -> Result<(), OAuthError>
         return Err(match code {
             "access_denied" => OAuthError::Denied,
             "expired_token" | "invalid_grant" | "invalid_token" => OAuthError::Expired,
+            "invalid_client" | "unauthorized_client" => OAuthError::client_registration_refused(),
             _ => OAuthError::InvalidResponse,
         });
     }
@@ -1006,6 +1007,15 @@ mod tests {
         assert!(!rendered.contains(PRIVATE_BODY));
         assert!(!rendered.contains("do-not-leak"));
         assert!(!rendered.contains("secret"));
+    }
+
+    #[test]
+    fn a_refused_client_is_a_configuration_problem() {
+        for code in ["invalid_client", "unauthorized_client"] {
+            let body = serde_json::json!({ "error": code });
+            let error = check_oauth_error(&body, StatusCode::UNAUTHORIZED).expect_err("must fail");
+            assert!(matches!(error, OAuthError::Configuration(_)), "{code}");
+        }
     }
 
     /// `check_oauth_error` sends 401/403 to a new login, but only a body
