@@ -4,8 +4,8 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 
 | Field | Value |
 |---|---|
-| Last updated | 2026-10-30 |
-| Cuotai version at that date | 0.82.1 |
+| Last updated | 2026-10-31 |
+| Cuotai version at that date | 0.82.2 |
 | Plans | 54 (18 implemented, 19 awaiting owner verification, 8 in progress, 7 planned for the next version, 2 proposed) |
 
 ## 1. How to maintain it
