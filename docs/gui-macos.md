@@ -9,9 +9,9 @@ A walkthrough of the Cuotai desktop app on macOS: installing it, the first launc
 
 ## Install
 
-Cuotai 0.81.0 is on [GitHub Releases](https://github.com/jmarcon/cuotai/releases) and the Homebrew tap; [`installing.md`](installing.md#channel-status) lists every channel:
+Cuotai is on [GitHub Releases](https://github.com/jmarcon/cuotai/releases) and the Homebrew tap; [`installing.md`](installing.md#channel-status) lists every channel:
 
-- **Homebrew:** `brew install --cask jmarcon/cuotai/cuotai-app`.
+- **Homebrew:** `brew tap jmarcon/cuotai`, then `brew trust jmarcon/cuotai` (once; Homebrew refuses a third-party tap until you trust it), then `brew install --cask jmarcon/cuotai/cuotai-app`.
 - **Direct download:** the `Cuotai_<version>_universal.dmg` from [GitHub Releases](https://github.com/jmarcon/cuotai/releases). It is one universal build for Apple silicon and Intel. Open the disk image and drag **Cuotai** to **Applications**. [Verify the download](installing.md#verify-your-download) first if you like.
 - **From source today:** see [`building.md`](building.md#desktop-app-tauri).
 

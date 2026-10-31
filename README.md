@@ -56,12 +56,12 @@ It is made for developers, teams and heavy users of coding assistants and AI API
 
 | System | Package manager | Direct download | Works today |
 |---|---|---|---|
-| **macOS** (Apple silicon and Intel) | Homebrew: `brew install --cask jmarcon/cuotai/cuotai-app` | `.dmg` from [Releases](https://github.com/jmarcon/cuotai/releases) | Homebrew, [download from Releases](https://github.com/jmarcon/cuotai/releases) or [build from source](docs/building.md#desktop-app-tauri) |
+| **macOS** (Apple silicon and Intel) | Homebrew: `brew tap jmarcon/cuotai && brew trust jmarcon/cuotai`, then `brew install --cask jmarcon/cuotai/cuotai-app` | `.dmg` from [Releases](https://github.com/jmarcon/cuotai/releases) | Homebrew, [download from Releases](https://github.com/jmarcon/cuotai/releases) or [build from source](docs/building.md#desktop-app-tauri) |
 | **Windows** (x64; ARM64 optional) | winget: `winget install Cuotai.Cuotai` (coming soon) | `.exe` or `.msi` installer from [Releases](https://github.com/jmarcon/cuotai/releases) | [Download from Releases](https://github.com/jmarcon/cuotai/releases) or [build from source](docs/building.md#desktop-app-tauri) |
 | **Linux** (x64; ARM64 optional) | AUR: `yay -S cuotai-bin` (coming soon) | `.deb`, `.rpm` or `.AppImage` from [Releases](https://github.com/jmarcon/cuotai/releases) | [Download from Releases](https://github.com/jmarcon/cuotai/releases) or [build from source](docs/building.md#desktop-app-tauri) |
 | **Any system, terminal only** | `cargo install cuotai-tui --locked` or `cargo binstall cuotai-tui` (coming soon, once the crates are published) | CLI archive from [Releases](https://github.com/jmarcon/cuotai/releases) | The archive, or `cargo install --git https://github.com/jmarcon/cuotai cuotai-tui --locked` |
 
-For the terminal version: Homebrew (`brew install jmarcon/cuotai/cuotai`) and Scoop (`scoop bucket add cuotai https://github.com/jmarcon/scoop-cuotai` then `scoop install cuotai`). The full channel status, with how each one is checked, is in [`docs/installing.md`](docs/installing.md).
+For the terminal version: Homebrew (`brew install jmarcon/cuotai/cuotai`, after the same tap and trust steps) and Scoop (`scoop bucket add cuotai https://github.com/jmarcon/scoop-cuotai` then `scoop install cuotai`). The full channel status, with how each one is checked, is in [`docs/installing.md`](docs/installing.md).
 
 **Good to know**
 
