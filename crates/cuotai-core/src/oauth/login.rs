@@ -1419,7 +1419,13 @@ pub async fn begin_credential_commit(
     login: &CompletedLogin,
 ) -> Result<CredentialCommit, OAuthError> {
     let key = login.login.key().to_string();
-    let prior = session.load_by_key(&key).await?;
+    let prior = match session.load_by_key(&key).await {
+        Ok(prior) => prior,
+        // Nothing usable to restore, and this login is what the error asks
+        // for. Any other failed read keeps the commit from going ahead.
+        Err(OAuthError::Storage(note)) if note.id == super::store::TOKEN_UNREADABLE => None,
+        Err(error) => return Err(error),
+    };
     session.save_login(&login.login).await?;
     let replaced_key = login.replaced_key.clone().filter(|old| old != &key);
     Ok(CredentialCommit {
@@ -1679,6 +1685,46 @@ mod tests {
 
     fn completed(provider: Provider) -> CompletedLogin {
         completed_from(request_for(provider, None), provider)
+    }
+
+    /// The vault's own message for an undecodable token says "sign in again":
+    /// that sign-in has to be able to replace it. Any other failed read still
+    /// stops the commit, since a live token could not be restored.
+    #[tokio::test]
+    async fn a_new_login_replaces_a_token_the_vault_cannot_decode() {
+        struct Corrupt {
+            memory: MemoryStore,
+            note: &'static str,
+        }
+        impl TokenStore for Corrupt {
+            fn load(&self, _: &str) -> Result<Option<OAuthToken>, OAuthError> {
+                Err(OAuthError::Storage(crate::text::Localized::fixed(
+                    self.note, "broken",
+                )))
+            }
+            fn save(&self, id: &str, token: &OAuthToken) -> Result<(), OAuthError> {
+                self.memory.save(id, token)
+            }
+            fn delete(&self, id: &str) -> Result<(), OAuthError> {
+                self.memory.delete(id)
+            }
+        }
+        let login = completed(Provider::Claude);
+        let store = Arc::new(Corrupt {
+            memory: MemoryStore::default(),
+            note: "oauth_error.store.token_unreadable",
+        });
+        let session = OAuthSession::new(store.clone(), Arc::new(NoSecrets)).unwrap();
+        assert!(begin_credential_commit(&session, &login).await.is_ok());
+        assert_eq!(store.memory.len(), 1);
+
+        let store = Arc::new(Corrupt {
+            memory: MemoryStore::default(),
+            note: "oauth_error.store.macos_keychain_unavailable",
+        });
+        let session = OAuthSession::new(store.clone(), Arc::new(NoSecrets)).unwrap();
+        assert!(begin_credential_commit(&session, &login).await.is_err());
+        assert_eq!(store.memory.len(), 0);
     }
 
     /// Owner request: the bl option links the official install page only
