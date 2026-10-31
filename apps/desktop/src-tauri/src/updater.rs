@@ -335,6 +335,10 @@ pub struct Service {
     prefs_file: Option<PathBuf>,
     /// Fallback for systems without a configuration directory and for tests.
     memory_prefs: Mutex<UpdaterPrefs>,
+    /// When the last check of this run finished, whether or not its date
+    /// reached `prefs_file`: a store that refuses writes must not make every
+    /// pass of the timer look like the first.
+    last_attempt: Mutex<Option<chrono::DateTime<chrono::Utc>>>,
     /// `CUOTAI_UPDATER=off` no ambiente (RF3.2).
     env_off: bool,
     /// `CUOTAI_UPDATER_DEFAULT=off` no build do empacotador (RF3.2).
@@ -369,6 +373,7 @@ impl Service {
             source,
             prefs_file,
             memory_prefs: Mutex::new(UpdaterPrefs::default()),
+            last_attempt: Mutex::new(None),
             env_off,
             build_off,
             stopping: Arc::new(AtomicBool::new(false)),
@@ -404,9 +409,16 @@ impl Service {
         self.requests_allowed_for(&self.prefs())
     }
 
-    /// RF2.1: never checked, or 24 h have passed (an unreadable date counts as never).
+    /// The last check known: the stored date (an unreadable one counts as
+    /// never) or a later one this run could not store.
+    fn last_check(&self, prefs: &UpdaterPrefs) -> Option<chrono::DateTime<chrono::Utc>> {
+        let stored = prefs.last_check.as_deref().and_then(parse_instant);
+        stored.max(*self.last_attempt.lock())
+    }
+
+    /// RF2.1: never checked, or 24 h have passed.
     pub fn check_due(&self, prefs: &UpdaterPrefs, now: chrono::DateTime<chrono::Utc>) -> bool {
-        match prefs.last_check.as_deref().and_then(parse_instant) {
+        match self.last_check(prefs) {
             None => true,
             Some(last) => {
                 now.signed_duration_since(last)
@@ -601,12 +613,18 @@ impl Service {
         self.emit(app);
         let outcome = self.check_inner(app).await;
         *self.phase.lock() = outcome;
-        // The date of the last check (RF3.1) is written even when it failed: the user
-        // needs to know the app tried. A failure to write does not bring the check down.
-        let mut prefs = self.prefs();
-        prefs.last_check = Some(chrono::Utc::now().to_rfc3339());
-        let _ = self.save_prefs(&prefs);
+        self.note_check_finished(chrono::Utc::now());
         self.emit(app);
+    }
+
+    /// The date of the last check (RF3.1) is written even when it failed: the user
+    /// needs to know the app tried. A failure to write does not bring the check
+    /// down, and the schedule keeps the date in memory.
+    fn note_check_finished(&self, at: chrono::DateTime<chrono::Utc>) {
+        *self.last_attempt.lock() = Some(at);
+        let mut prefs = self.prefs();
+        prefs.last_check = Some(at.to_rfc3339());
+        let _ = self.save_prefs(&prefs);
     }
 
     async fn check_inner<R: Runtime>(&self, app: &AppHandle<R>) -> Phase {
@@ -835,8 +853,10 @@ impl Service {
         if !self.requests_allowed_for(&prefs) {
             return Duration::from_secs(60 * 60);
         }
-        let Some(last) = prefs.last_check.as_deref().and_then(parse_instant) else {
-            return Duration::ZERO;
+        // No check finished yet, so the pass before this wait started none: a
+        // check of the user's is still running or the download holds the phase.
+        let Some(last) = self.last_check(&prefs) else {
+            return CHECK_NAP;
         };
         let interval = chrono::TimeDelta::from_std(CHECK_INTERVAL)
             .unwrap_or_else(|_| chrono::TimeDelta::hours(24));
@@ -1117,6 +1137,52 @@ mod schedule {
         // Closer than the cap, the wait ends at the due time.
         let near = now - chrono::TimeDelta::hours(24) + chrono::TimeDelta::seconds(30);
         assert_eq!(with_last(near), Duration::from_secs(30));
+    }
+
+    /// A check whose date cannot be stored still counts: without that, the
+    /// timer would see "never checked" on every pass and ask the update
+    /// server in a loop.
+    #[test]
+    fn a_date_that_cannot_be_stored_still_spaces_the_checks() {
+        let dir = tempfile::tempdir().unwrap();
+        // A folder where the file should be: every write fails.
+        let file = dir.path().join("desktop.json");
+        std::fs::create_dir(&file).unwrap();
+        let service = Service::build(super::InstallSource::Direct, Some(file), false, false);
+        let allowed = UpdaterPrefs {
+            automatic: true,
+            consent_answered: true,
+            ..UpdaterPrefs::default()
+        };
+        let now = chrono::Utc::now();
+        assert!(service.check_due(&allowed, now));
+
+        service.note_check_finished(now);
+
+        assert_eq!(service.prefs().last_check, None);
+        assert!(!service.check_due(&allowed, now));
+        let day = chrono::TimeDelta::hours(24);
+        assert!(service.check_due(&allowed, now + day));
+        // A stored date older than the attempt does not reopen the check.
+        let old = UpdaterPrefs {
+            last_check: Some((now - day).to_rfc3339()),
+            ..allowed
+        };
+        assert!(!service.check_due(&old, now));
+    }
+
+    /// With no date at all the timer still sleeps: the pass found nothing to
+    /// do because a check was already running or a package is ready.
+    #[test]
+    fn no_check_yet_does_not_spin_the_timer() {
+        let service = service();
+        *service.memory_prefs.lock() = UpdaterPrefs {
+            automatic: true,
+            consent_answered: true,
+            ..UpdaterPrefs::default()
+        };
+        assert!(service.requests_allowed());
+        assert_eq!(service.until_next_check(chrono::Utc::now()), CHECK_NAP);
     }
 
     #[test]
