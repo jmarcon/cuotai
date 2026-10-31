@@ -139,7 +139,8 @@ pub struct AuditEntry {
     /// No configured account references it.
     pub orphan: bool,
     /// The vault still holds it (checked with a load whose value is
-    /// dropped unread); `false` when it is already gone.
+    /// dropped unread); `false` only when it is known to be gone, so an
+    /// entry the vault failed to read counts as held.
     pub present: bool,
 }
 
@@ -163,7 +164,7 @@ pub async fn audit(session: &OAuthSession, path: &Path, config: &crate::Config) 
     let references = references(config);
     let mut entries = Vec::with_capacity(index.entries.len());
     for (key, entry) in index.entries {
-        let present = matches!(session.load_by_key(&key).await, Ok(Some(_)));
+        let present = !matches!(session.load_by_key(&key).await, Ok(None));
         let reference = references.get(&key);
         entries.push(AuditEntry {
             created_at: entry.created_at,
@@ -299,6 +300,61 @@ mod tests {
         let store = IndexedStore::new(memory.clone(), blocked.join("vault-index.json"));
         store.save("key-b", &token("t")).unwrap();
         store.delete("key-b").unwrap();
+    }
+
+    /// A store that holds entries it cannot read back.
+    struct Unreadable {
+        inner: Memory,
+        delete_works: bool,
+    }
+    impl TokenStore for Unreadable {
+        fn load(&self, _: &str) -> Result<Option<OAuthToken>, OAuthError> {
+            Err(OAuthError::Storage(crate::text::Localized::fixed(
+                "test.vault_locked",
+                "Vault unavailable.",
+            )))
+        }
+        fn save(&self, id: &str, token: &OAuthToken) -> Result<(), OAuthError> {
+            self.inner.save(id, token)
+        }
+        fn delete(&self, id: &str) -> Result<(), OAuthError> {
+            if self.delete_works {
+                self.inner.delete(id)
+            } else {
+                self.load(id).map(|_| ())
+            }
+        }
+    }
+
+    /// A failed read is not a missing entry: the vault may still hold it, so
+    /// `prune` must delete it, or keep it indexed when the vault refuses.
+    #[tokio::test]
+    async fn an_orphan_the_vault_cannot_read_is_never_forgotten() {
+        for delete_works in [true, false] {
+            let dir = tempfile::tempdir().unwrap();
+            let path = dir.path().join("vault-index.json");
+            let vault = Arc::new(Unreadable {
+                inner: Memory::default(),
+                delete_works,
+            });
+            let store: Arc<dyn TokenStore> =
+                Arc::new(IndexedStore::new(vault.clone(), path.clone()));
+            store.save("left-behind", &token("OLD")).unwrap();
+            let session = session(store);
+            let config = Config::default();
+            assert!(audit(&session, &path, &config).await[0].present);
+
+            let pruned = prune(&session, &path, &config).await;
+            let held = vault.inner.load("left-behind").unwrap().is_some();
+            let indexed = read(&path).entries.contains_key("left-behind");
+            if delete_works {
+                assert_eq!(pruned.unwrap(), 1);
+                assert!(!held && !indexed);
+            } else {
+                assert!(pruned.is_err());
+                assert!(held && indexed, "held {held}, indexed {indexed}");
+            }
+        }
     }
 
     #[tokio::test]
