@@ -1306,6 +1306,8 @@ if (DEMO_QUERY.get("fixture") === "six") {
   }
 }
 if (DEMO_QUERY.get("mono") && demoReports[0]) demoReports[0].monogram = DEMO_QUERY.get("mono");
+// `?paste-session`: the core offers the MiMo account a new paste, so the card and the details show Paste session.
+if (DEMO_QUERY.has("paste-session")) for (const r of demoReports) if (r.provider === "xiaomi_mimo") r.paste_session = true;
 // The core's binding of a demo connection: its most consumed quota (demo only; the app gets it from the core).
 const demoConnectionBinding = (c) => {
   const ratio = (m) => (m.limit ? m.used / m.limit : 0);
@@ -1363,7 +1365,7 @@ const demoView = () => {
 // ponytail: a rough demo of the core's `tray::summary` (PRD 0025 RF1); the app always asks the core.
 const demoTrayAccounts = () => demoReports.map((r) => {
   const b = demoBinding(r);
-  return { key: demoKey(r), provider: r.provider, provider_label: r.provider, name: demoName(r.account),
+  return { key: demoKey(r), provider: r.provider, provider_label: brand(r.provider).label, name: demoName(r.account),
     remaining: b ? Math.max(0, 1 - b.used_ratio) : null, exhausted: b?.reason === "exhausted" };
 });
 function demoTraySelection(style = demoSettings.tray.style, accounts = demoSettings.tray.accounts) {

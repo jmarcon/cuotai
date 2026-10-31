@@ -14,6 +14,7 @@ const lib = await import("../apps/desktop/ui/js/lib.js");
 const c = await import("../apps/desktop/ui/js/components.js");
 
 const { reports } = await lib.getView();
+assert.deepEqual([...new Set((await lib.trayAccounts()).map((a) => a.provider_label))], ["Claude Code", "OpenAI Codex", "Cursor", "Kimi", "Groq", "Anthropic API", "AWS Bedrock"], "Menu bar shows brand labels, never provider ids");
 assert.deepEqual(reports.map((r) => `${r.provider}:${r.account}`), [
   "claude:work@example.com", "claude:side@example.com", "chat_gpt:me@example.com", "cursor:dev@example.com",
   "kimi:ops@example.com", "groq:team@example.com", "anthropic_api:api@example.com", "aws_bedrock:billing@example.com",
