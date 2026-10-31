@@ -250,12 +250,15 @@ async fn fetch_antigravity_at(
     let token = secret(account, ctx, DEFAULT_CREDENTIAL_ENV)?;
 
     let mut notes = Notes::new();
+    // What the report says if nothing at all can be read.
+    let mut failure = crate::Status::Error;
     let (project_id, paid_tier_id) = match load_code_assist(ctx, &token, load_code_assist_url).await
     {
         Ok((discovered_project, discovered_paid_tier)) => {
             (discovered_project, discovered_paid_tier)
         }
         Err(error) => {
+            failure = graver(failure, error.status);
             notes.push_params(
                 "note.antigravity.load_code_assist_unavailable",
                 params([("error", ParamValue::L10n(Box::new(error.note.clone())))]),
@@ -297,6 +300,7 @@ async fn fetch_antigravity_at(
                 fetched_models = Some(data);
             }
             Err(error) => {
+                failure = graver(failure, error.status);
                 model_failure = Some(error.note.fallback.clone().into_owned());
                 notes.push_params(
                     "note.antigravity.models_unavailable",
@@ -322,6 +326,7 @@ async fn fetch_antigravity_at(
             parsed_weekly = parse_weekly_summary(&summary);
         }
         Err(error) => {
+            failure = graver(failure, error.status);
             weekly_failure = Some(error.note.fallback.clone().into_owned());
             notes.push_params(
                 "note.antigravity.summary_unavailable",
@@ -353,7 +358,7 @@ async fn fetch_antigravity_at(
         };
         return Err(QueryError {
             diagnostic: None,
-            status: crate::Status::Error,
+            status: failure,
             note: Localized::with_param(
                 "note.antigravity.fatal_summary",
                 "summary",
@@ -405,6 +410,18 @@ async fn fetch_antigravity_at(
 }
 
 // ─── Helpers compartilhados ──────────────────────────────────────────
+
+/// The status that says more of two failed requests of one query: a refused
+/// credential first (no retry fixes it), then a rate limit.
+fn graver(a: crate::Status, b: crate::Status) -> crate::Status {
+    use crate::Status::{AuthenticationError, RateLimited};
+    match (a, b) {
+        (AuthenticationError, _) | (_, AuthenticationError) => AuthenticationError,
+        (RateLimited, _) | (_, RateLimited) => RateLimited,
+        (a, _) => a,
+    }
+}
+
 fn build_model_metric(label: String, entry: &QuotaEntry) -> Metric {
     if let Some(fraction) = entry.remaining_fraction {
         if let Some(metric) = build_percent_metric(
@@ -996,6 +1013,71 @@ mod tests {
             credentials: creds,
             timeout: Duration::from_secs(5),
         }
+    }
+
+    /// When nothing could be read, the report keeps what the endpoints said:
+    /// a revoked token must reach the user as an authentication failure.
+    #[tokio::test]
+    async fn a_total_failure_keeps_the_status_of_its_cause() {
+        for (code, expected) in [
+            (401, Status::AuthenticationError),
+            (403, Status::AuthenticationError),
+            (429, Status::RateLimited),
+            (500, Status::Error),
+        ] {
+            let server = MockServer::start().await;
+            Mock::given(method("POST"))
+                .respond_with(ResponseTemplate::new(code))
+                .mount(&server)
+                .await;
+            let http = reqwest::Client::new();
+            let creds = StaticCred(DEFAULT_CREDENTIAL_ENV, "token");
+            let url = |route: &str| format!("{}/{route}", server.uri());
+            let result = fetch_antigravity_at(
+                &account(),
+                &ctx(&http, &creds),
+                &url("load"),
+                &url("models"),
+                &url("summary"),
+            )
+            .await;
+            let Err(error) = result else {
+                panic!("HTTP {code} must fail the account");
+            };
+            assert_eq!(error.status, expected, "HTTP {code}");
+        }
+    }
+
+    /// An authentication failure on one endpoint outweighs a server failure
+    /// on the others: retrying will not fix a dead token.
+    #[tokio::test]
+    async fn an_authentication_failure_outweighs_the_other_failures() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/load"))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/summary"))
+            .respond_with(ResponseTemplate::new(401))
+            .mount(&server)
+            .await;
+        let http = reqwest::Client::new();
+        let creds = StaticCred(DEFAULT_CREDENTIAL_ENV, "token");
+        let url = |route: &str| format!("{}/{route}", server.uri());
+        let result = fetch_antigravity_at(
+            &account(),
+            &ctx(&http, &creds),
+            &url("load"),
+            &url("models"),
+            &url("summary"),
+        )
+        .await;
+        let Err(error) = result else {
+            panic!("must fail the account");
+        };
+        assert_eq!(error.status, Status::AuthenticationError);
     }
 
     // ── parse_reset_value ───────────────────────────────────────────
