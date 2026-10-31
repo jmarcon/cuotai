@@ -1,7 +1,8 @@
 //! Release automation for Cuotai (PRD 0021 RF1–RF5/RF9, PRD 0039): the
 //! commit contract and gate, release preparation and tagging, version/tag checks,
 //! artifact manifest + checksums, signing state, release notes, updater and
-//! package-manager manifests, workflow policy, and external-rule drift.
+//! package-manager manifests, workflow policy, external-rule drift, and the
+//! local preflight behind the versioned hooks.
 //! Library half; `main.rs` is a thin CLI over it.
 
 pub mod access;
@@ -22,6 +23,7 @@ pub mod manifest;
 pub mod notes;
 pub mod packages;
 pub mod plan_links;
+pub mod preflight;
 pub mod release;
 pub mod sbom;
 pub mod signing;
