@@ -1526,14 +1526,7 @@ async fn alibaba_token_plan(account: &Account, ctx: &Context<'_>) -> Result<Data
 }
 
 fn is_safe_cli_profile(profile: &str) -> bool {
-    let mut chars = profile.chars();
-    let Some(first) = chars.next() else {
-        return false;
-    };
-    if !(first.is_ascii_alphanumeric()) {
-        return false;
-    }
-    profile.len() <= 32 && chars.all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_'))
+    crate::account_edit::is_valid_cli_profile(profile)
 }
 
 fn classify_cli_failure(stderr: &str) -> Status {
@@ -2581,6 +2574,19 @@ mod tests {
             assert_eq!(metrics.len(), 1);
             assert_eq!(metrics[0].remaining, Some(75.0));
             assert_eq!(metrics[0].resets_at, None);
+        }
+    }
+
+    /// The login and the form accept a profile with a leading underscore:
+    /// the query must accept every profile they let through.
+    #[test]
+    fn the_query_accepts_every_profile_the_login_accepts() {
+        for name in ["_work", "work", "a-b_c", "-x", "", "a b", "with.dot"] {
+            assert_eq!(
+                is_safe_cli_profile(name),
+                crate::account_edit::is_valid_cli_profile(name),
+                "{name:?}"
+            );
         }
     }
 
