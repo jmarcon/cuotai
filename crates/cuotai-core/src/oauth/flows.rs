@@ -12,8 +12,8 @@
 //! No borrowed client IDs, no browser-cookie or CLI-token extraction, and no
 //! server error bodies or token material ever appear in error text.
 
-use super::send_secure;
 use super::session::ClientSecretLookup;
+use super::{send_secure, status_failure};
 use super::{LoginPrompt, OAuthConfig, OAuthError, OAuthToken};
 use crate::model::Provider;
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
@@ -263,7 +263,7 @@ async fn post_form(
         }
         bytes.extend_from_slice(&chunk);
     }
-    let body: Value = serde_json::from_slice(&bytes).map_err(|_| OAuthError::InvalidResponse)?;
+    let body: Value = serde_json::from_slice(&bytes).map_err(|_| status_failure(status))?;
     Ok((status, body))
 }
 
@@ -354,7 +354,7 @@ async fn refresh_grant(
         return Err(classify_error(code));
     }
     if !status.is_success() {
-        return Err(OAuthError::InvalidResponse);
+        return Err(status_failure(status));
     }
     parse_token_body(&body, previous.refresh_token.clone())
 }
@@ -469,7 +469,7 @@ impl LoopbackLogin {
             return Err(classify_error(code));
         }
         if !status.is_success() {
-            return Err(OAuthError::InvalidResponse);
+            return Err(status_failure(status));
         }
         parse_token_body(&body, None)
     }
@@ -685,7 +685,7 @@ async fn begin_device(
         return Err(classify_error(code));
     }
     if !status.is_success() {
-        return Err(OAuthError::InvalidResponse);
+        return Err(status_failure(status));
     }
     let device_code = body
         .get("device_code")
@@ -779,7 +779,7 @@ impl DeviceLogin {
                 None => {}
             }
             if !status.is_success() {
-                return Err(OAuthError::InvalidResponse);
+                return Err(status_failure(status));
             }
             if Instant::now() >= self.deadline {
                 return Err(OAuthError::Expired);
@@ -1263,6 +1263,53 @@ mod tests {
             !format!("{error}").contains("sensitive"),
             "leaked body: {error}"
         );
+    }
+
+    /// A token endpoint that fails without an OAuth error code is classified
+    /// by its status: the body (an HTML page, an empty one, `{}`) says nothing.
+    #[tokio::test]
+    async fn refresh_classifies_a_failure_without_an_error_code_by_status() {
+        for (status, body, expected) in [
+            (401, "<html>denied</html>", "expired"),
+            (403, "", "expired"),
+            (401, "{}", "expired"),
+            (503, "<html>busy</html>", "network"),
+            (429, "", "network"),
+            (500, "{}", "network"),
+            (400, "<html>bad</html>", "invalid"),
+        ] {
+            let server = MockServer::start().await;
+            Mock::given(method("POST"))
+                .and(path("/token"))
+                .respond_with(ResponseTemplate::new(status).set_body_string(body))
+                .mount(&server)
+                .await;
+            let previous = OAuthToken {
+                access_token: "a".into(),
+                refresh_token: Some("rt".into()),
+                expires_at: None,
+                metadata: Default::default(),
+            };
+            let error = refresh_grant(
+                &client(),
+                &test_config(),
+                None,
+                "rt",
+                &previous,
+                &format!("{}/token", server.uri()),
+                None,
+            )
+            .await
+            .err()
+            .expect("must fail");
+            let got = match error {
+                OAuthError::Expired => "expired",
+                OAuthError::Network => "network",
+                OAuthError::InvalidResponse => "invalid",
+                other => panic!("{status}: {other}"),
+            };
+            assert_eq!(got, expected, "HTTP {status} body {body:?}");
+        }
     }
 
     // -- public dispatch ------------------------------------------------------

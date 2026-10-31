@@ -20,7 +20,7 @@
 //! only. No passwords, cookies or CLI tokens are ever read. Server error
 //! bodies and token material never appear in error text.
 
-use super::send_secure;
+use super::{send_secure, status_failure};
 use super::{LoginPrompt, OAuthConfig, OAuthError, OAuthToken};
 use crate::Provider;
 use base64::engine::general_purpose::{
@@ -110,7 +110,7 @@ async fn send_json(
         }
         body.extend_from_slice(&chunk);
     }
-    let value = serde_json::from_slice(&body).map_err(|_| OAuthError::InvalidResponse)?;
+    let value = serde_json::from_slice(&body).map_err(|_| status_failure(status))?;
     Ok((status, value))
 }
 
@@ -1588,6 +1588,27 @@ mod tests {
                 std::mem::discriminant(&error)
             ),
             Ok(_) => panic!("expected InvalidResponse, got Ok"),
+        }
+    }
+
+    /// A body that is not JSON says nothing: the status classifies it.
+    #[tokio::test]
+    async fn an_unreadable_body_is_classified_by_status() {
+        for (status, expected) in [(401, "expired"), (503, "network"), (400, "invalid")] {
+            let server = MockServer::start().await;
+            Mock::given(any())
+                .respond_with(ResponseTemplate::new(status).set_body_string("<html>x</html>"))
+                .mount(&server)
+                .await;
+            let request = reqwest::Client::new().post(server.uri());
+            let got = match send_json(request).await {
+                Err(OAuthError::Expired) => "expired",
+                Err(OAuthError::Network) => "network",
+                Err(OAuthError::InvalidResponse) => "invalid",
+                Err(other) => panic!("{status}: {other}"),
+                Ok(_) => panic!("{status}: must fail"),
+            };
+            assert_eq!(got, expected, "HTTP {status}");
         }
     }
 

@@ -22,7 +22,7 @@
 //!
 //! Error text never contains response bodies, request URLs, or token material.
 
-use super::send_secure;
+use super::{send_secure, status_failure};
 use super::{LoginPrompt, OAuthConfig, OAuthError, OAuthToken};
 use crate::Provider;
 use base64::{engine::general_purpose::URL_SAFE, Engine as _};
@@ -275,7 +275,7 @@ async fn read_json(
             Err(_) => return Err(OAuthError::Network),
         }
     }
-    let value = serde_json::from_slice(&body).map_err(|_| OAuthError::InvalidResponse)?;
+    let value = serde_json::from_slice(&body).map_err(|_| status_failure(status))?;
     Ok((status, value))
 }
 
@@ -895,7 +895,7 @@ async fn begin_kiro(
     if !status.is_success() {
         return Err(body_error_code(&client_info)
             .map(classify_error)
-            .unwrap_or(OAuthError::InvalidResponse));
+            .unwrap_or_else(|| status_failure(status)));
     }
     let client_id = client_info
         .get("clientId")
@@ -926,7 +926,7 @@ async fn begin_kiro(
     if !status.is_success() {
         return Err(body_error_code(&device_data)
             .map(classify_error)
-            .unwrap_or(OAuthError::InvalidResponse));
+            .unwrap_or_else(|| status_failure(status)));
     }
     let (device_code, user_code, server_uri, server_complete) = device_code_fields(&device_data)?;
     let prompt_url = trusted_verification_url(server_complete.as_deref(), KIRO_TRUSTED_HOSTS)
@@ -1087,7 +1087,7 @@ async fn refresh_kiro(
     if !status.is_success() {
         return Err(body_error_code(&response)
             .map(classify_error)
-            .unwrap_or(OAuthError::InvalidResponse));
+            .unwrap_or_else(|| status_failure(status)));
     }
     let grant = parse_grant(&response, TokenShape::Camel)?;
     let mut metadata = token.metadata.clone();
@@ -1134,7 +1134,7 @@ async fn begin_grok(
     if !status.is_success() {
         return Err(body_error_code(&body)
             .map(classify_error)
-            .unwrap_or(OAuthError::InvalidResponse));
+            .unwrap_or_else(|| status_failure(status)));
     }
     let (device_code, user_code, server_uri, server_complete) = device_code_fields(&body)?;
     let prompt_url = trusted_verification_url(server_complete.as_deref(), trusted_hosts)
@@ -1252,7 +1252,7 @@ async fn refresh_form_grant(
     if !status.is_success() {
         return Err(body_error_code(&body)
             .map(classify_error)
-            .unwrap_or(OAuthError::InvalidResponse));
+            .unwrap_or_else(|| status_failure(status)));
     }
     let grant = parse_grant(&body, shape)?;
     let mut metadata = token.metadata.clone();
@@ -1330,6 +1330,46 @@ mod tests {
             .redirect(reqwest::redirect::Policy::none())
             .build()
             .unwrap()
+    }
+
+    /// A refresh that fails without an OAuth error code is classified by its
+    /// status, whatever the body is.
+    #[tokio::test]
+    async fn refresh_classifies_a_failure_without_an_error_code_by_status() {
+        for (status, body, expected) in [
+            (401, "<html>denied</html>", "expired"),
+            (401, "{}", "expired"),
+            (503, "<html>busy</html>", "network"),
+            (500, "{}", "network"),
+            (400, "<html>bad</html>", "invalid"),
+        ] {
+            let token = OAuthToken {
+                access_token: "old".into(),
+                refresh_token: Some("rt".into()),
+                expires_at: None,
+                metadata: BTreeMap::new(),
+            };
+            let mock = Mock::start(vec![(status, body.to_string())]).await;
+            let error = refresh_form_grant(
+                &http(),
+                &config(),
+                &token,
+                &format!("{}/token", mock.url),
+                GROK_CLIENT_ID,
+                &[],
+                TokenShape::Snake,
+            )
+            .await
+            .err()
+            .expect("must fail");
+            let got = match error {
+                OAuthError::Expired => "expired",
+                OAuthError::Network => "network",
+                OAuthError::InvalidResponse => "invalid",
+                other => panic!("{status}: {other}"),
+            };
+            assert_eq!(got, expected, "HTTP {status} body {body:?}");
+        }
     }
 
     #[test]

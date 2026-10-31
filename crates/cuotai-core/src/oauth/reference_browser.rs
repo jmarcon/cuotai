@@ -14,7 +14,7 @@
 //! usable; this is a compatibility client, not an official integration.
 //! Token material and provider payloads never appear in error text or logs.
 
-use super::send_secure;
+use super::{send_secure, status_failure};
 use super::{LoginPrompt, OAuthConfig, OAuthError, OAuthToken};
 use crate::Provider;
 use base64::engine::general_purpose::{STANDARD as B64_STANDARD, URL_SAFE, URL_SAFE_NO_PAD};
@@ -1281,7 +1281,7 @@ async fn read_bounded(response: reqwest::Response) -> Result<(StatusCode, Value)
         }
         bytes.extend_from_slice(&chunk);
     }
-    let body: Value = serde_json::from_slice(&bytes).map_err(|_| OAuthError::InvalidResponse)?;
+    let body: Value = serde_json::from_slice(&bytes).map_err(|_| status_failure(status))?;
     Ok((status, body))
 }
 
@@ -1328,10 +1328,10 @@ fn check_oauth_error(body: &Value, status: StatusCode) -> Result<(), OAuthError>
             _ => OAuthError::InvalidResponse,
         });
     }
-    match status.as_u16() {
-        _ if status.is_success() => Ok(()),
-        401 | 403 => Err(OAuthError::Expired),
-        _ => Err(OAuthError::InvalidResponse),
+    if status.is_success() {
+        Ok(())
+    } else {
+        Err(status_failure(status))
     }
 }
 
@@ -1630,6 +1630,45 @@ mod tests {
         .await
         .expect("refresh");
         assert_eq!(token.refresh_token.as_deref(), Some("rt-old"));
+    }
+
+    /// `check_oauth_error` sends 401/403 to a new login, but only a body
+    /// that parsed ever reached it: an HTML or empty 401 became an invalid
+    /// response. A server failure is not a malformed answer either.
+    #[tokio::test]
+    async fn refresh_classifies_a_failure_without_an_error_code_by_status() {
+        for (status, body, expected) in [
+            (401, "<html>denied</html>", "expired"),
+            (403, "", "expired"),
+            (503, "<html>busy</html>", "network"),
+            (500, "{}", "network"),
+            (400, "<html>bad</html>", "invalid"),
+        ] {
+            let server = MockServer::start().await;
+            Mock::given(method("POST"))
+                .and(path("/token"))
+                .respond_with(ResponseTemplate::new(status).set_body_string(body))
+                .mount(&server)
+                .await;
+            let endpoints = loopback_endpoints(&server, Provider::Claude);
+            let error = refresh_with(
+                &client(),
+                Provider::Claude,
+                &test_config(),
+                &stored_token(),
+                &endpoints,
+            )
+            .await
+            .err()
+            .expect("must fail");
+            let got = match error {
+                OAuthError::Expired => "expired",
+                OAuthError::Network => "network",
+                OAuthError::InvalidResponse => "invalid",
+                other => panic!("{status}: {other}"),
+            };
+            assert_eq!(got, expected, "HTTP {status} body {body:?}");
+        }
     }
 
     #[tokio::test]

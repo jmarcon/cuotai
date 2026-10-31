@@ -6,7 +6,7 @@
 //! production endpoints stay fixed, token payloads never reach diagnostics,
 //! and the project lookup cannot accidentally trigger Code Assist onboarding.
 
-use super::send_secure;
+use super::{send_secure, status_failure};
 use super::{LoginPrompt, OAuthConfig, OAuthError, OAuthToken};
 use crate::Provider;
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
@@ -605,7 +605,7 @@ async fn read_bounded(response: reqwest::Response) -> Result<(StatusCode, Value)
     }
     // Never include these bytes in an error: OAuth servers commonly echo
     // authorization codes, refresh tokens, and client details.
-    let body = serde_json::from_slice(&bytes).map_err(|_| OAuthError::InvalidResponse)?;
+    let body = serde_json::from_slice(&bytes).map_err(|_| status_failure(status))?;
     Ok((status, body))
 }
 
@@ -617,10 +617,10 @@ fn check_oauth_error(body: &Value, status: StatusCode) -> Result<(), OAuthError>
             _ => OAuthError::InvalidResponse,
         });
     }
-    match status.as_u16() {
-        _ if status.is_success() => Ok(()),
-        401 | 403 => Err(OAuthError::Expired),
-        _ => Err(OAuthError::InvalidResponse),
+    if status.is_success() {
+        Ok(())
+    } else {
+        Err(status_failure(status))
     }
 }
 
@@ -1006,5 +1006,43 @@ mod tests {
         assert!(!rendered.contains(PRIVATE_BODY));
         assert!(!rendered.contains("do-not-leak"));
         assert!(!rendered.contains("secret"));
+    }
+
+    /// `check_oauth_error` sends 401/403 to a new login, but only a body
+    /// that parsed ever reached it: an HTML or empty 401 became an invalid
+    /// response. A server failure is not a malformed answer either.
+    #[tokio::test]
+    async fn refresh_classifies_a_failure_without_an_error_code_by_status() {
+        for (status, body, expected) in [
+            (401, "<html>denied</html>", "expired"),
+            (403, "", "expired"),
+            (503, "<html>busy</html>", "network"),
+            (500, "{}", "network"),
+            (400, "<html>bad</html>", "invalid"),
+        ] {
+            let server = MockServer::start().await;
+            Mock::given(method("POST"))
+                .respond_with(ResponseTemplate::new(status).set_body_string(body))
+                .mount(&server)
+                .await;
+            let stored = OAuthToken {
+                access_token: "access-old".into(),
+                refresh_token: Some("refresh-old".into()),
+                expires_at: None,
+                metadata: BTreeMap::new(),
+            };
+            let error = match refresh_with(&client(), &config(), &stored, &endpoints(&server)).await
+            {
+                Ok(_) => panic!("must fail"),
+                Err(error) => error,
+            };
+            let got = match error {
+                OAuthError::Expired => "expired",
+                OAuthError::Network => "network",
+                OAuthError::InvalidResponse => "invalid",
+                other => panic!("{status}: {other}"),
+            };
+            assert_eq!(got, expected, "HTTP {status} body {body:?}");
+        }
     }
 }
