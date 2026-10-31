@@ -13,6 +13,30 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.82.2] - 2026-10-31
+
+### Fixed
+
+- The macOS widgets now show your accounts' data (7ce59d1).
+- Adding an account to a configuration with `accounts = []` no longer erases its comments and the `[updates]` table (a69db0e).
+- A non-ASCII usage range from Ollama Cloud no longer crashes the refresh (5aa190b).
+- Editing or signing in again to an account clears its retry backoff, so the next error no longer delays it by up to an hour (1f895e8).
+- Kimi Coding no longer shows a quota as unused when the provider omits the consumption (24777da).
+- MiniMax no longer shows a window as unused or exhausted when the provider omits its usage counter (80640f0).
+- Settings changed at the same moment no longer overwrite each other or reset your desktop preferences (d9314b3).
+- An update that finished downloading stays ready to install when the app checks for updates again (f3c4285).
+- A failed update install no longer stops refreshes and notifications or removes the tray icon until the app restarts (2b71ef3).
+- Switching or reloading the configuration during a refresh no longer shows another account's usage or stops automatic refreshes (17d8717).
+- On macOS, clicking the Dock icon or opening Cuotai again brings back a closed main window (9960430).
+- The local cost row of a narrow account card no longer breaks its title over several lines (76106c7).
+- Account cards at narrow widths keep their limits aligned, show the extra usage on its own row and no longer cut the account name short beside the plan badge (a857932).
+- The Updates group in Settings and the Add account button of the Dashboard page no longer touch the edge of their card (c62abd7).
+- Primary buttons, the title bar's Add account and Sort buttons and plan badges are legible again in the Windows 98 and Windows XP themes (c5c93e6).
+- The provider filter tabs and their More menu no longer disappear from the main window's top bar at medium widths in long languages (dbfa3fb).
+- The Add account catalog scrolls only in its provider list, so its title, search and foot stay visible in short windows (e859282).
+- A malformed Groq reset header no longer stops the refresh (88f44bd).
+- The group labels of the Add account catalog use the right size (5919ad4).
+
 ## [0.82.1] - 2026-10-30
 
 ### Fixed
@@ -375,7 +399,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.82.1...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.82.2...HEAD
+[0.82.2]: https://github.com/jmarcon/cuotai/compare/v0.82.1...v0.82.2
 [0.82.1]: https://github.com/jmarcon/cuotai/compare/v0.82.0...v0.82.1
 [0.82.0]: https://github.com/jmarcon/cuotai/compare/v0.81.0...v0.82.0
 [0.81.0]: https://github.com/jmarcon/cuotai/compare/v0.80.0...v0.81.0
