@@ -34,6 +34,20 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 
+Versioned Git hooks run the right checks for what you changed, so errors show up before a push. They do nothing until you enable them, once per clone (linked worktrees included):
+
+```sh
+git config core.hooksPath .githooks
+```
+
+The hooks call `cargo xtask preflight`, which you can also run by hand:
+
+- `--commit` (`pre-commit`, seconds): formatting, `changelog-check`, the privacy test and `actionlint`, only for what is staged. The `commit-msg` hook checks the message format, the trailers and the noreply identity.
+- `--push` (`pre-push`, 2 to 10 minutes or more): what CI would run for your diff against `origin/main`.
+- `--full`: everything with no filter, before a release.
+
+Missing optional tools are reported and skipped. `CUOTAI_SKIP=clippy,test` bypasses steps by name, and `--no-verify` bypasses a hook, but CI still applies. On Windows, Git for Windows runs the hooks with its own `sh`; otherwise run `cargo xtask preflight` by hand. Details are in "Local hooks and preflight" in [`AGENTS.md`](AGENTS.md).
+
 For desktop changes, also:
 
 ```sh
