@@ -4,13 +4,13 @@ This page is the full version of the README's install section: every channel wit
 
 ## Channel status
 
-Cuotai 0.81.0 is published on GitHub Releases, the Homebrew tap and the Scoop bucket. Every other package-manager channel is opt-in and off until the maintainer enables it (PRD 0021; see [`plans/0000_control.md`](plans/0000_control.md)). The table records what was checked on 2026-10-28 and why.
+Cuotai is published on GitHub Releases, the Homebrew tap and the Scoop bucket. Every other package-manager channel is opt-in and off until the maintainer enables it (PRD 0021; see [`plans/0000_control.md`](plans/0000_control.md)). The table records what was checked on 2026-10-28 and why.
 
 | Channel | Command (when live) | Status today | Evidence |
 |---|---|---|---|
-| GitHub Releases (direct download) | download from the [Releases page](https://github.com/jmarcon/cuotai/releases) | **Live** | Release `v0.81.0` is published with the desktop installers, the terminal archives and the integrity files (the release pipeline `.github/workflows/release.yml` is tag-driven). The macOS `.dmg` is signed and notarized; the Windows installers are not code-signed yet. |
-| Homebrew cask (desktop, macOS) | `brew install --cask jmarcon/cuotai/cuotai-app` | **Live** | The tap `jmarcon/homebrew-cuotai` holds the 0.81.0 cask. It was named `cuotai` in 0.81.0; the tap's `cask_renames.json` moves those installs to `cuotai-app` on their next `brew upgrade`. |
-| Homebrew formula (terminal, macOS/Linux) | `brew install jmarcon/cuotai/cuotai` | **Live** | Same tap, 0.81.0 formula. |
+| GitHub Releases (direct download) | download from the [Releases page](https://github.com/jmarcon/cuotai/releases) | **Live** | Each release is published with the desktop installers, the terminal archives and the integrity files (the release pipeline `.github/workflows/release.yml` is tag-driven). The macOS `.dmg` is signed and notarized; the Windows installers are not code-signed yet. |
+| Homebrew cask (desktop, macOS) | `brew tap jmarcon/cuotai`, `brew trust jmarcon/cuotai`, then `brew install --cask jmarcon/cuotai/cuotai-app` | **Live** | The tap `jmarcon/homebrew-cuotai` holds the cask. Homebrew refuses a third-party tap until you trust it, once. The cask was named `cuotai` in 0.81.0; the tap's `cask_renames.json` moves those installs to `cuotai-app` on their next `brew upgrade`. |
+| Homebrew formula (terminal, macOS/Linux) | `brew install jmarcon/cuotai/cuotai`, after the tap and trust steps above | **Live** | Same tap. |
 | winget (desktop, Windows) | `winget install Cuotai.Cuotai` | **Not yet** | The first submission to `microsoft/winget-pkgs` is a manual owner step and has not happened. |
 | Scoop (terminal, Windows) | `scoop bucket add cuotai https://github.com/jmarcon/scoop-cuotai` then `scoop install cuotai` | **Live** | The bucket `jmarcon/scoop-cuotai` holds the 0.81.0 manifest. |
 | AUR `cuotai-bin` (desktop, Arch) | `yay -S cuotai-bin` | **Not yet** | The AUR RPC finds no `cuotai-bin` package. |
