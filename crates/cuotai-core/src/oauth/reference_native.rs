@@ -973,7 +973,8 @@ impl CodeBuddyLogin {
 
 /// CodeBuddy refresh (reference `refreshCodebuddyToken`): POST the refresh
 /// endpoint with the refresh token in the `X-Refresh-Token` header and an
-/// empty JSON body. Any non-success is terminal and requires re-login.
+/// empty JSON body. An outage (429, 5xx) leaves the login as it is; any other
+/// non-success is terminal and requires re-login.
 async fn refresh_codebuddy(
     http: &reqwest::Client,
     config: &OAuthConfig,
@@ -1020,8 +1021,10 @@ async fn refresh_codebuddy(
         .body("{}");
     let (status, body) = timeout(REQUEST_TIMEOUT, send_json(request))
         .await
-        .map_err(|_| OAuthError::Network)?
-        .map_err(|_| OAuthError::Network)?;
+        .map_err(|_| OAuthError::Network)??;
+    if status.as_u16() == 429 || status.is_server_error() {
+        return Err(OAuthError::Network);
+    }
     if !status.is_success() || body.get("code").and_then(Value::as_i64) != Some(0) {
         return Err(OAuthError::Expired);
     }
@@ -1588,6 +1591,55 @@ mod tests {
                 std::mem::discriminant(&error)
             ),
             Ok(_) => panic!("expected InvalidResponse, got Ok"),
+        }
+    }
+
+    fn codebuddy_token_on_file() -> (OAuthConfig, OAuthToken) {
+        let mut config = test_config();
+        config.options.insert("region".into(), "intl".into());
+        let mut token = OAuthToken {
+            access_token: "at-cb".into(),
+            refresh_token: Some("rt-cb".into()),
+            expires_at: None,
+            metadata: BTreeMap::new(),
+        };
+        token.metadata.insert("region".into(), "intl".into());
+        (config, token)
+    }
+
+    /// An outage says nothing about the refresh token: treating it as an
+    /// expired login drops the preserved reading and asks for a needless
+    /// sign-in. A refused or dead token still expires.
+    #[tokio::test]
+    async fn codebuddy_refresh_tells_an_outage_from_a_dead_token() {
+        for (status, body, expected) in [
+            (503, r#"{"code":500}"#, "network"),
+            (500, "<html>down</html>", "network"),
+            (429, r#"{"code":429}"#, "network"),
+            (401, "<html>denied</html>", "expired"),
+            (403, r#"{"code":1}"#, "expired"),
+            (200, r#"{"code":11217}"#, "expired"),
+        ] {
+            let server = MockServer::start().await;
+            Mock::given(any())
+                .respond_with(ResponseTemplate::new(status).set_body_string(body))
+                .mount(&server)
+                .await;
+            let (config, token) = codebuddy_token_on_file();
+            let result = refresh_codebuddy(
+                &reqwest::Client::new(),
+                &config,
+                &token,
+                Some(&server.uri()),
+            )
+            .await;
+            let got = match result {
+                Err(OAuthError::Expired) => "expired",
+                Err(OAuthError::Network) => "network",
+                Err(other) => panic!("{status}: {other}"),
+                Ok(_) => panic!("{status}: must fail"),
+            };
+            assert_eq!(got, expected, "HTTP {status} {body}");
         }
     }
 
