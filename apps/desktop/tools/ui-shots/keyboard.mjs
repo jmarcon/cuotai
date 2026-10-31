@@ -2,7 +2,8 @@
 // the Settings > Alerts > Quiet hours sub-page of the demo with Tab, Shift+Tab, Enter, Space and typed digits: open
 // the sub-page, switch the schedule on, add an interval (focus lands on its first time field), type a time, remove
 // it (focus returns to the weekday's Add button), repeat the schedule on every day, and reach the three-interval
-// limit. Exits 1 on the first step that needs a mouse. Run from the repository root; needs Chrome (see README).
+// limit. It then opens Report a problem and What's new, whose content loads after they open, and checks where focus
+// lands. Exits 1 on the first step that needs a mouse. Run from the repository root; needs Chrome (see README).
 import assert from "node:assert/strict";
 import { launch } from "./driver.mjs";
 
@@ -127,7 +128,25 @@ try {
   // 9. Every control on the page is reachable and has an accessible name.
   await eq(`[...document.querySelectorAll('[data-quiet-days] input, [data-quiet-days] button')].filter((el) => !el.getAttribute('aria-label') && !el.textContent.trim() && !el.title).length`, 0, "unnamed control");
   ok("every control has a name");
-  console.log("PASS: the quiet-hours weekday editor works from the keyboard");
+
+  // 10. Report a problem and What's new replace their content once it loads, which destroys the control `showModal`
+  //     focused: focus must land on the first control of the new content, never on `body`, and Escape must give it back.
+  await browser.open("settings.html?page=about", { w: 900, h: 760, scale: 1 });
+  for (const [opener, dialog] of [["data-report-problem", ".report-dlg"], ["data-whats-new", ".whats-new"]]) {
+    await browser.evaluate(`document.querySelector('[${opener}]').focus()`);
+    await browser.press("Enter");
+    await sleep(500);
+    await eq(`!!document.querySelector('${dialog}')?.open`, true, `Enter opens ${dialog}`);
+    await eq(`!!document.querySelector('${dialog} .dlg-shell-body')?.textContent.trim()`, true, `${dialog} has its content`);
+    await eq(`document.activeElement.matches('${dialog} [data-shell-close]')`, true, `${dialog}: focus is on ${await focused()}, expected the first control`);
+    await browser.press("Tab");
+    await eq(`document.querySelector('${dialog}').contains(document.activeElement)`, true, `Tab stays in ${dialog}`);
+    await browser.press("Escape");
+    await sleep(200);
+    await eq(`document.activeElement.hasAttribute('${opener}')`, true, `Escape returns focus to ${opener}`);
+    ok(`${dialog}: focus survives the content replacement`);
+  }
+  console.log("PASS: the quiet-hours weekday editor and the loading dialogs work from the keyboard");
 } catch (error) {
   console.error(error.message ?? error);
   process.exitCode = 1;
