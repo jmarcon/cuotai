@@ -903,7 +903,9 @@ async fn resolve_sec_token(
         }
     }
 
-    if let Ok(response) = super::send_session(
+    // The last page decides: one that could not answer says nothing about
+    // the session, so its failure is reported instead of a login request.
+    let outage = match super::send_session(
         ctx.http
             .get(endpoints.user_info)
             .header("Cookie", cookie)
@@ -916,19 +918,34 @@ async fn resolve_sec_token(
     )
     .await
     {
-        if response.status().is_success() {
+        Ok(response) if response.status().is_success() => {
             if let Ok(payload) = super::read_json::<Value>(response).await {
                 let expanded = expand_embedded_json(payload);
                 if let Some(token) = find_string(&expanded, &["secToken", "sec_token"]) {
                     return Ok(token);
                 }
             }
+            None
         }
-    }
+        other => console_outage(other),
+    };
 
     cookie_value(cookie, "sec_token")
         .map(str::to_string)
-        .ok_or_else(|| login_required(true))
+        .ok_or_else(|| outage.unwrap_or_else(|| login_required(true)))
+}
+
+/// The failure of a console page that did not answer the question: a request
+/// that never got through, a rate limit or a server failure. `None` when the
+/// answer refused the session (a redirect, a 401).
+fn console_outage(answer: Result<reqwest::Response, QueryError>) -> Option<QueryError> {
+    match answer {
+        Ok(response) => {
+            let code = response.status();
+            (code.as_u16() == 429 || code.is_server_error()).then(|| http_error(code, true))
+        }
+        Err(error) => (error.status != Status::AuthenticationError).then_some(error),
+    }
 }
 
 async fn query_with_session(
@@ -2160,6 +2177,64 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(metric(&data, "Coding Plan: 5h").remaining, Some(9.0));
+    }
+
+    /// `sec_token` comes from two console pages. When they are down, the
+    /// session was not refused: it must not read as a login failure.
+    #[tokio::test]
+    async fn coding_plan_console_outage_is_not_a_login_failure() {
+        for (code, expected) in [
+            (Some(503), Status::Error),
+            (Some(429), Status::RateLimited),
+            (Some(200), Status::AuthenticationError),
+            (Some(302), Status::AuthenticationError),
+            (None, Status::Error),
+        ] {
+            let server = MockServer::start().await;
+            let uri = if let Some(code) = code {
+                Mock::given(method("GET"))
+                    .respond_with(ResponseTemplate::new(code).set_body_string("<html></html>"))
+                    .mount(&server)
+                    .await;
+                server.uri()
+            } else {
+                // A port nothing listens on: the console is unreachable.
+                let closed = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+                format!("http://{}", closed.local_addr().unwrap())
+            };
+            let cookie = "login_aliyunid_ticket=ticket; cna=anon";
+            let credentials =
+                MapCredentials(BTreeMap::from([("ALIBABA_SESSION".into(), cookie.into())]));
+            let http = reqwest::Client::builder()
+                .redirect(reqwest::redirect::Policy::none())
+                .build()
+                .unwrap();
+            let mut account = account(Provider::AlibabaCodingPlan, "MISSING_API_KEY", Some("intl"));
+            account
+                .params
+                .insert("session_env".into(), "ALIBABA_SESSION".into());
+            let (dashboard, rpc, user_info, gateway) = (
+                format!("{uri}/dashboard"),
+                format!("{uri}/rpc"),
+                format!("{uri}/user-info"),
+                format!("{uri}/api"),
+            );
+            let result = fetch_coding_plan_at(
+                &account,
+                &ctx_with(&http, &credentials),
+                CodingPlanEndpoints {
+                    gateway: &gateway,
+                    dashboard: &dashboard,
+                    rpc: &rpc,
+                    user_info: &user_info,
+                },
+            )
+            .await;
+            let Err(error) = result else {
+                panic!("{code:?} must fail the account");
+            };
+            assert_eq!(error.status, expected, "{code:?}");
+        }
     }
 
     /// PRD 0016 RF5.1: a session kept in the vault (read under the name the
