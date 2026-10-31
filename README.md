@@ -17,7 +17,8 @@
     <a href="#terminal-dashboard">Terminal</a> •
     <a href="#themes">Themes</a> •
     <a href="#help-cuotai-grow">Support the project</a> •
-    <a href="#documentation">Documentation</a>
+    <a href="#documentation">Documentation</a> •
+    <a href="https://www.julianomarcon.com.br/cuotai/">Website</a>
   </p>
   <img src="docs/assets/screenshots/desktop-hero.png" alt="The Cuotai desktop app: the main window with one card per AI account and the tray popover with quota rings" width="100%" />
   <p><em>The main window and the tray popover, shown here with made-up demo accounts.</em></p>
@@ -51,11 +52,11 @@ It is made for developers, teams and heavy users of coding assistants and AI API
 
 ## Install
 
-> **Status.** Cuotai 0.80.0 is published on [GitHub Releases](https://github.com/jmarcon/cuotai/releases): the macOS `.dmg` is signed and notarized, the Windows installers are **not code-signed yet** (SmartScreen will warn), and the Linux packages and the terminal archives are covered by the signed `SHA256SUMS`. The package-manager commands below are prepared but **not live yet**; until they are, download from Releases or build from source ([build guide](docs/building.md)). Nothing here claims a channel is available before it is.
+> **Status.** Every release is published on [GitHub Releases](https://github.com/jmarcon/cuotai/releases), the Homebrew tap and the Scoop bucket. On Releases, the macOS `.dmg` is signed and notarized, the Windows installers are **not code-signed yet** (SmartScreen will warn), and the Linux packages and the terminal archives are covered by the signed `SHA256SUMS`. winget, the AUR and crates.io are marked "coming soon" below: they are **not live yet**, so use Releases or build from source ([build guide](docs/building.md)). [`docs/installing.md`](docs/installing.md) records the status of every channel.
 
 | System | Package manager | Direct download | Works today |
 |---|---|---|---|
-| **macOS** (Apple silicon and Intel) | Homebrew: `brew install --cask jmarcon/cuotai/cuotai-app` | `.dmg` from [Releases](https://github.com/jmarcon/cuotai/releases) | [Download from Releases](https://github.com/jmarcon/cuotai/releases) or [build from source](docs/building.md#desktop-app-tauri) |
+| **macOS** (Apple silicon and Intel) | Homebrew: `brew install --cask jmarcon/cuotai/cuotai-app` | `.dmg` from [Releases](https://github.com/jmarcon/cuotai/releases) | Homebrew, [download from Releases](https://github.com/jmarcon/cuotai/releases) or [build from source](docs/building.md#desktop-app-tauri) |
 | **Windows** (x64; ARM64 optional) | winget: `winget install Cuotai.Cuotai` (coming soon) | `.exe` or `.msi` installer from [Releases](https://github.com/jmarcon/cuotai/releases) | [Download from Releases](https://github.com/jmarcon/cuotai/releases) or [build from source](docs/building.md#desktop-app-tauri) |
 | **Linux** (x64; ARM64 optional) | AUR: `yay -S cuotai-bin` (coming soon) | `.deb`, `.rpm` or `.AppImage` from [Releases](https://github.com/jmarcon/cuotai/releases) | [Download from Releases](https://github.com/jmarcon/cuotai/releases) or [build from source](docs/building.md#desktop-app-tauri) |
 | **Any system, terminal only** | `cargo install cuotai-tui --locked` or `cargo binstall cuotai-tui` (coming soon, once the crates are published) | CLI archive from [Releases](https://github.com/jmarcon/cuotai/releases) | The archive, or `cargo install --git https://github.com/jmarcon/cuotai cuotai-tui --locked` |
@@ -119,7 +120,7 @@ Keyboard shortcuts, the account wizard, filters, the command line and its exit c
 
 ## Themes
 
-Fifteen built-in themes, every one with a dark and a light mode. The picker is in **Settings › General**, and the mode switch (system, light, dark) sits in the top bar.
+Fifteen built-in themes, every one with a dark and a light mode. The picker and the mode switch (system, light, dark) are in **Settings › General**.
 
 <table>
   <tr>
@@ -148,7 +149,7 @@ Cuotai ships **40 integrations**. For what each one reads, the credential it nee
 | **Aggregators** | 9router and LiteLLM proxy (the quotas or budgets of the connections inside your own instance) |
 | **Additional catalog** | Alibaba Model Studio, Cloudflare AI, NVIDIA NIM, Poolside |
 
-Some providers expose usage only through interfaces the vendor does not document, and a few cost money per query (AWS Cost Explorer). Cuotai labels every account **Official**, **Undocumented**, **Derived** or **Unavailable** so you know how much to trust each reading, and `docs/providers.md` keeps the limitations in writing.
+Some providers expose usage only through interfaces the vendor does not document, and a few cost money per query (AWS Cost Explorer). [`docs/providers.md`](docs/providers.md) records how each integration is read, how far to trust it and its limitations; the app itself keeps these levels out of the cards and details.
 
 ## Help Cuotai grow
 
