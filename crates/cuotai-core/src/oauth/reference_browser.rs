@@ -1048,7 +1048,7 @@ fn jwt_expiry_sane(token: &str, now: DateTime<Utc>) -> bool {
         return true;
     };
     match payload.get("exp").and_then(Value::as_i64) {
-        Some(exp) => exp + JWT_EXP_SKEW_SECS > now.timestamp(),
+        Some(exp) => exp.saturating_add(JWT_EXP_SKEW_SECS) > now.timestamp(),
         None => true,
     }
 }
@@ -1670,6 +1670,19 @@ mod tests {
             };
             assert_eq!(got, expected, "HTTP {status} body {body:?}");
         }
+    }
+
+    /// `exp` comes straight from a provider's unverified JWT payload.
+    #[test]
+    fn a_jwt_exp_at_the_integer_limit_is_not_an_overflow() {
+        let token = |exp: i64| {
+            format!(
+                "e30.{}.sig",
+                URL_SAFE_NO_PAD.encode(format!("{{\"exp\":{exp}}}"))
+            )
+        };
+        assert!(jwt_expiry_sane(&token(i64::MAX), now()));
+        assert!(!jwt_expiry_sane(&token(i64::MIN), now()));
     }
 
     #[test]
