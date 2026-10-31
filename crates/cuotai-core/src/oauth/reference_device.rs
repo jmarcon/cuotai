@@ -318,7 +318,9 @@ async fn post_json(
 fn classify_error(code: &str) -> OAuthError {
     match code {
         "access_denied" | "authorization_declined" => OAuthError::Denied,
-        "expired_token" | "invalid_grant" | "incorrect_device_code" => OAuthError::Expired,
+        "expired_token" | "invalid_grant" | "incorrect_device_code" | "bad_refresh_token" => {
+            OAuthError::Expired
+        }
         "invalid_client" | "incorrect_client_credentials" | "unauthorized_client" => {
             OAuthError::Configuration(crate::text::Localized::fixed(
                 "oauth_error.device.client_registration_refused",
@@ -1249,10 +1251,12 @@ async fn refresh_form_grant(
         ("client_id".to_string(), client_id),
     ];
     let (status, body) = post_form(http, token_url, &form, extra_headers).await?;
+    // GitHub and Kimi send OAuth errors with HTTP 200: the code comes first.
+    if let Some(code) = body_error_code(&body) {
+        return Err(classify_error(code));
+    }
     if !status.is_success() {
-        return Err(body_error_code(&body)
-            .map(classify_error)
-            .unwrap_or_else(|| status_failure(status)));
+        return Err(status_failure(status));
     }
     let grant = parse_grant(&body, shape)?;
     let mut metadata = token.metadata.clone();
@@ -1369,6 +1373,36 @@ mod tests {
                 other => panic!("{status}: {other}"),
             };
             assert_eq!(got, expected, "HTTP {status} body {body:?}");
+        }
+    }
+
+    /// GitHub answers a dead refresh token with HTTP 200 and an `error`
+    /// field, and Kimi uses 200 for its OAuth errors too: the code decides,
+    /// not the status.
+    #[tokio::test]
+    async fn refresh_reads_an_error_code_sent_with_http_200() {
+        for code in ["bad_refresh_token", "invalid_grant"] {
+            let token = OAuthToken {
+                access_token: "old".into(),
+                refresh_token: Some("rt".into()),
+                expires_at: None,
+                metadata: BTreeMap::new(),
+            };
+            let body = json!({ "error": code, "error_description": "sensitive" }).to_string();
+            let mock = Mock::start(vec![(200, body)]).await;
+            let error = refresh_form_grant(
+                &http(),
+                &config(),
+                &token,
+                &format!("{}/token", mock.url),
+                GITHUB_CLIENT_ID,
+                &[],
+                TokenShape::Snake,
+            )
+            .await
+            .err()
+            .expect("must fail");
+            assert!(matches!(error, OAuthError::Expired), "{code}: {error}");
         }
     }
 
