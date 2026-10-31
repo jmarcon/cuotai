@@ -583,10 +583,12 @@ fn rustfmt_check(root: &Path, source: &str) -> Result<Option<String>, String> {
         .wait_with_output()
         .map_err(|e| format!("cannot read rustfmt: {e}"))?;
     let _ = writer.join();
-    if output.status.success() {
+    // On standard input `--check` prints its diff and still exits 0, so the
+    // output is the verdict as much as the status is.
+    let mut report = String::from_utf8_lossy(&output.stdout).into_owned();
+    if output.status.success() && report.trim().is_empty() {
         return Ok(None);
     }
-    let mut report = String::from_utf8_lossy(&output.stdout).into_owned();
     report.push_str(&String::from_utf8_lossy(&output.stderr));
     Ok(Some(report))
 }
@@ -774,11 +776,11 @@ fn check_message_file(root: &Path, file: &Path) -> Res<()> {
     } else {
         root.join(file)
     };
-    let result = message::check_file(root, &file);
-    if result.is_err() {
-        eprintln!("{SKIP_VARIABLE}=commit-policy bypasses this check. {NO_VERIFY_NOTE}");
-    }
-    result
+    message::check_file(root, &file).map_err(|e| {
+        Error::Msg(format!(
+            "{e}\n{SKIP_VARIABLE}=commit-policy bypasses this check. {NO_VERIFY_NOTE}"
+        ))
+    })
 }
 
 /// `cargo xtask preflight`.
@@ -834,6 +836,9 @@ pub fn run(args: &[String]) -> Res<()> {
         },
     };
 
+    if plan.steps.is_empty() {
+        return Ok(());
+    }
     if mode != Mode::Commit {
         let known = git::run(&root, &["rev-parse", "--verify", "--quiet", &base]).is_ok();
         if !known {
@@ -1038,6 +1043,19 @@ mod tests {
             .any(|(name, value)| name == "GIT_DIR_PREFLIGHT_TEST" && value.is_none());
         std::env::remove_var("GIT_DIR_PREFLIGHT_TEST");
         assert!(removed);
+    }
+
+    #[test]
+    fn the_staged_format_check_reports_unformatted_and_broken_source() {
+        let root = context(Mode::Commit, &[]).root;
+        // The CI job that builds xtask alone installs no rustfmt.
+        let Ok(clean) = rustfmt_check(&root, "pub fn a() {}\n") else {
+            return;
+        };
+        assert_eq!(clean, None);
+        let bad = rustfmt_check(&root, "pub fn   a( ){}\n").unwrap().unwrap();
+        assert!(bad.contains("pub fn a()"), "{bad}");
+        assert!(rustfmt_check(&root, "pub fn {\n").unwrap().is_some());
     }
 
     #[test]
