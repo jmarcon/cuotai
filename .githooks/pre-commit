@@ -1,0 +1,5 @@
+#!/bin/sh
+# Seconds: formatting, changelog-check, the privacy test and actionlint, only
+# for what is staged. See "How to deliver a change" in AGENTS.md.
+. "$(dirname "$0")/lib.sh"
+preflight --commit

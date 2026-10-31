@@ -127,6 +127,18 @@ SUBCOMMANDS:
   workflow-check      Enforce GitHub Actions least privilege and cost guardrails (RF9)
     --workflow PATH         workflow to inspect (repeat; default: every .yml/.yaml workflow)
 
+  preflight           Local checks before a commit or a push; the hooks call it
+    --commit                pre-commit: formatting, changelog-check, privacy and
+                            actionlint, only for what is staged
+    --commit-msg FILE       commit-msg: the commit gate's message rules, identity
+                            and the skip marker
+    --push                  pre-push: what CI would run for origin/main...HEAD
+    --full                  everything, with no filter (before a release)
+    --base REF              compare --push with REF (default: origin/main)
+    --stdin-refs            read the pre-push ref lines from standard input
+    --dry-run               print the selected steps and run nothing
+                            CUOTAI_SKIP=step,step bypasses steps by name
+
   external-rules-check
                        Compare external policy hashes and GitHub Action releases (RF9.3)
     --repo PATH             repository root (default: .)
@@ -156,6 +168,9 @@ fn run(args: &[String]) -> Res<()> {
     }
     if sub == "anonymize-fixture" {
         return anonymize_fixture(&args[1..]);
+    }
+    if sub == "preflight" {
+        return xtask::preflight::run(&args[1..]);
     }
     let opts = Opts::parse(&args[1..])?;
     match sub.as_str() {

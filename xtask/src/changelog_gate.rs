@@ -83,21 +83,30 @@ pub fn run(repo: &Path, base: &str, head: &str) -> Res<usize> {
     Ok(commits.len())
 }
 
-/// Every problem of one commit, without the commit prefix.
-fn check_commit(
-    repo: &Path,
+/// Whether `commit` may change `CHANGELOG.md`: a `docs(changelog)` commit with
+/// `Changelog-Edit:` (the content of that edit is checked against its tree).
+fn may_edit_changelog(commit: &Commit) -> bool {
+    commit
+        .header
+        .as_ref()
+        .is_ok_and(|h| h.kind == "docs" && h.scope.as_deref() == Some("changelog"))
+        && commit.trailers.changelog_edit.is_some()
+}
+
+/// The rules that need only the message and the changed paths, not a commit
+/// object: the `commit-msg` hook runs them before the commit exists.
+pub fn check_message(
     commit: &Commit,
     files: &[String],
     plans: Option<&crate::plan_links::Plans>,
-) -> Res<Vec<String>> {
+) -> Vec<String> {
     let mut out = Vec::new();
     if let Err(problem) = &commit.header {
         out.push(format!("rule 1: {problem}"));
     }
     out.extend(commit.problems.iter().map(|p| format!("trailers: {p}")));
-    let release = commit.release_version().is_some();
 
-    if !release {
+    if commit.release_version().is_none() {
         // Rule 2.
         if commit.is_user_visible()
             && files.iter().any(|f| is_product(f))
@@ -123,42 +132,17 @@ fn check_commit(
                     .to_string(),
             );
         }
-        // Rule 4.
-        for change in version_changes(repo, &commit.sha, files)? {
-            out.push(format!(
-                "rule 4: {change}; versions move only in the release commit of \
-                 `cargo xtask release prepare`: drop this hunk"
-            ));
-        }
-        if files.iter().any(|f| f == "CHANGELOG.md") {
-            let allowed = commit
-                .header
-                .as_ref()
-                .is_ok_and(|h| h.kind == "docs" && h.scope.as_deref() == Some("changelog"))
-                && commit.trailers.changelog_edit.is_some();
-            if !allowed {
-                out.push(
-                    "rule 4: changes CHANGELOG.md: entries are generated at release time from the \
-                     'Changelog:' trailer; drop the CHANGELOG.md hunk (a prose fix of a released \
-                     section is a 'docs(changelog)' commit with 'Changelog-Edit: <reason>')"
-                        .to_string(),
-                );
-            } else if let Some(problem) = changelog_edit_problem(repo, &commit.sha)? {
-                out.push(format!("rule 4: {problem}"));
-            }
+        // Rule 4, the parts visible without a tree.
+        if files.iter().any(|f| f == "CHANGELOG.md") && !may_edit_changelog(commit) {
+            out.push(
+                "rule 4: changes CHANGELOG.md: entries are generated at release time from the \
+                 'Changelog:' trailer; drop the CHANGELOG.md hunk (a prose fix of a released \
+                 section is a 'docs(changelog)' commit with 'Changelog-Edit: <reason>')"
+                    .to_string(),
+            );
         }
         if commit.trailers.version_override.is_some() {
             out.push("rule 4: 'Version-Override:' belongs only in a release commit".to_string());
-        }
-    } else {
-        // Rule 5.
-        for file in files.iter().filter(|f| !release::in_release_set(f)) {
-            out.push(format!(
-                "rule 5: a release commit changes only the release file set, not {file}"
-            ));
-        }
-        if let Err(problem) = release::check_release(repo, &commit.sha) {
-            out.push(format!("rule 5: {problem}"));
         }
     }
     // Rule 6.
@@ -184,6 +168,41 @@ fn check_commit(
                     out.push(format!("rule 7: Refs: PRD {prd} {rf}: {problem}"));
                 }
             }
+        }
+    }
+    out
+}
+
+/// Every problem of one commit, without the commit prefix.
+fn check_commit(
+    repo: &Path,
+    commit: &Commit,
+    files: &[String],
+    plans: Option<&crate::plan_links::Plans>,
+) -> Res<Vec<String>> {
+    let mut out = check_message(commit, files, plans);
+    if commit.release_version().is_none() {
+        // Rule 4.
+        for change in version_changes(repo, &commit.sha, files)? {
+            out.push(format!(
+                "rule 4: {change}; versions move only in the release commit of \
+                 `cargo xtask release prepare`: drop this hunk"
+            ));
+        }
+        if files.iter().any(|f| f == "CHANGELOG.md") && may_edit_changelog(commit) {
+            if let Some(problem) = changelog_edit_problem(repo, &commit.sha)? {
+                out.push(format!("rule 4: {problem}"));
+            }
+        }
+    } else {
+        // Rule 5.
+        for file in files.iter().filter(|f| !release::in_release_set(f)) {
+            out.push(format!(
+                "rule 5: a release commit changes only the release file set, not {file}"
+            ));
+        }
+        if let Err(problem) = release::check_release(repo, &commit.sha) {
+            out.push(format!("rule 5: {problem}"));
         }
     }
     Ok(out)

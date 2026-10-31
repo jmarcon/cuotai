@@ -1,0 +1,5 @@
+#!/bin/sh
+# The commit gate's message rules, the noreply identity and the skip marker,
+# before the commit exists.
+. "$(dirname "$0")/lib.sh"
+preflight --commit-msg "$1"

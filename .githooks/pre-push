@@ -1,0 +1,5 @@
+#!/bin/sh
+# Two to ten minutes: what CI would run for origin/main...HEAD, on this
+# machine. Git passes the pushed refs on standard input.
+. "$(dirname "$0")/lib.sh"
+preflight --push --stdin-refs
