@@ -1525,6 +1525,7 @@ pub async fn run(
             // waits for the natural deadline before retrying.
             if refresh.0.is_none() {
                 let now = Instant::now();
+                refresh_cycle.follow_wall_clock(now, chrono::Utc::now());
                 let pending_any: Vec<usize> = refresh_cycle.pending_indices();
                 let all_pending =
                     !pending_any.is_empty() && pending_any.len() == file.config.accounts.len();

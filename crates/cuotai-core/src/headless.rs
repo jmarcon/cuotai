@@ -182,6 +182,7 @@ impl Driver {
     fn start_due(&mut self, now: Instant) {
         if self.full.is_none() {
             let mut cycle = lock(&self.cycle);
+            cycle.follow_wall_clock(now, chrono::Utc::now());
             if !cycle.attempted_full() && self.accounts.iter().all(Option::is_none) {
                 // `Monitor::refresh` also reads the provider statuses when on.
                 if let Some(token) = cycle.begin_full() {
