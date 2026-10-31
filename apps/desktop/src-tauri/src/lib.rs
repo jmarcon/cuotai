@@ -2004,6 +2004,13 @@ fn tray_icon() -> tauri::Result<tauri::image::Image<'static>> {
     tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png"))
 }
 
+/// Whether this process joins the app's single instance. A debug build on
+/// the development credential store runs apart: it must start beside an
+/// installed Cuotai, which shares the instance lock but not its stores.
+fn single_instance_applies(debug_build: bool, dev_store: bool) -> bool {
+    !(debug_build && dev_store)
+}
+
 pub fn run() {
     // First of all: a damaged `desktop.json` is kept before anything reads the defaults.
     settings::recover_damaged();
@@ -2025,6 +2032,20 @@ pub fn run() {
     // one-time answer before the first possible request.
     let updates = Arc::new(updater::Service::new());
     let builder = tauri::Builder::default();
+    // Registered before the other plugins, so a second launch stops here. A
+    // launch by the login entry stays out of the way, as it does on its own.
+    let builder = if single_instance_applies(
+        cfg!(debug_assertions),
+        std::env::var_os("CUOTAI_DEV_CREDENTIALS_SQLITE").is_some(),
+    ) {
+        builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            if !autostart::launched_at_login(args) {
+                reveal_main_window(app);
+            }
+        }))
+    } else {
+        builder
+    };
     // PRD 0020 RF1.3: "Settings…" with ⌘, in the macOS app menu; Windows and
     // Linux have no app menu, and the interface handles Ctrl+, itself.
     #[cfg(target_os = "macos")]
@@ -2306,6 +2327,15 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn only_a_debug_build_on_the_development_store_runs_apart() {
+        assert!(super::single_instance_applies(false, false));
+        assert!(super::single_instance_applies(true, false));
+        // Release builds refuse that store, so the variable changes nothing.
+        assert!(super::single_instance_applies(false, true));
+        assert!(!super::single_instance_applies(true, true));
+    }
+
     /// Security review: the webviews run under a Content Security Policy.
     /// Every interface string is escaped before it reaches `innerHTML`, and
     /// this is the second barrier: with `withGlobalTauri` any script that

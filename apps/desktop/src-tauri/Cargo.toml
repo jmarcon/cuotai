@@ -34,6 +34,8 @@ tauri-plugin-notification = "=2.7.0"
 # PRD 0022 (audit #37): "Start at login" in Settings › General, through the official autostart plugin
 # (2.x line, compatible with Tauri 2.12). Desktop-only: it registers a login item / Run key / .desktop entry.
 tauri-plugin-autostart = "=2.7.0"
+# A second launch focuses the running app and exits (2.x line, compatible with Tauri 2.12).
+tauri-plugin-single-instance = "=2.5.5"
 # PRD 0018 RF1.1: official updater plugin, pinned to version 2.x (compatible with Tauri 2.12).
 # The `zip` feature is deliberately off: it only exists to unwrap the zipped
 # updater v1 artifacts and to extract a compressed AppImage, and no release
