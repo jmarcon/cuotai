@@ -907,7 +907,7 @@ fn codebuddy_token(
     let access_token = non_empty(data.get("accessToken")).ok_or(OAuthError::InvalidResponse)?;
     let refresh_token = non_empty(data.get("refreshToken")).or(refresh_token_fallback);
     let expires_at = match data.get("expiresIn") {
-        None => None,
+        None | Some(Value::Null) => None,
         Some(v) => match v.as_i64() {
             Some(n) if (1..=MAX_EXPIRES_IN_SECS).contains(&n) => {
                 Some(Utc::now() + ChronoDuration::seconds(n))
@@ -1641,6 +1641,31 @@ mod tests {
             };
             assert_eq!(got, expected, "HTTP {status} {body}");
         }
+    }
+
+    /// `expiresIn: null` is an absent lifetime, like the key not being there:
+    /// failing here would lose the refresh token the provider just rotated.
+    #[tokio::test]
+    async fn codebuddy_refresh_accepts_a_null_lifetime() {
+        let server = MockServer::start().await;
+        Mock::given(any())
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "code": 0,
+                "data": { "accessToken": "at-new", "refreshToken": "rt-new", "expiresIn": null }
+            })))
+            .mount(&server)
+            .await;
+        let (config, token) = codebuddy_token_on_file();
+        let refreshed = refresh_codebuddy(
+            &reqwest::Client::new(),
+            &config,
+            &token,
+            Some(&server.uri()),
+        )
+        .await
+        .unwrap_or_else(|error| panic!("refresh: {error}"));
+        assert_eq!(refreshed.refresh_token.as_deref(), Some("rt-new"));
+        assert!(refreshed.expires_at.is_none());
     }
 
     /// A body that is not JSON says nothing: the status classifies it.
