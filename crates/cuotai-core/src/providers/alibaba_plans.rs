@@ -1105,7 +1105,7 @@ fn token_plan_metrics(
             quota.monthly,
         ),
     ] {
-        if let Some(raw) = find_value(&payload, &[percentage]) {
+        if let Some(raw) = find_value(&payload, &[percentage]).filter(|raw| !raw.is_null()) {
             let fraction = raw.as_f64().ok_or_else(|| {
                 QueryError::schema_named(&payload, percentage, Some(raw), "number")
             })?;
@@ -1118,6 +1118,7 @@ fn token_plan_metrics(
                 ));
             }
             let resets_at = find_value(&payload, &[reset])
+                .filter(|value| !value.is_null())
                 .map(|value| {
                     value
                         .as_i64()
@@ -1584,7 +1585,7 @@ fn token_plan_cli_metrics(payload: Value) -> Result<Vec<Metric>, QueryError> {
             "per1WeekResetTime",
         ),
     ] {
-        if let Some(raw) = find_value(&payload, &[percentage]) {
+        if let Some(raw) = find_value(&payload, &[percentage]).filter(|raw| !raw.is_null()) {
             let fraction = raw.as_f64().ok_or_else(|| {
                 QueryError::schema_named(&payload, percentage, Some(raw), "number")
             })?;
@@ -1597,6 +1598,7 @@ fn token_plan_cli_metrics(payload: Value) -> Result<Vec<Metric>, QueryError> {
                 ));
             }
             let resets_at = find_value(&payload, &[reset])
+                .filter(|value| !value.is_null())
                 .map(|value| {
                     value
                         .as_i64()
@@ -2556,6 +2558,30 @@ mod tests {
             data.metrics[0].resets_at.unwrap().timestamp_millis(),
             1787001180000
         );
+    }
+
+    /// `null` is an absent value: one window without a reset, or without a
+    /// reading yet, must not fail the windows that have one. No metric is
+    /// invented for the null percentage.
+    #[test]
+    fn token_plan_null_fields_are_absent() {
+        let payload = || {
+            json!({
+                "per5HourPercentage": 0.25,
+                "per5HourResetTime": null,
+                "per1WeekPercentage": null,
+                "per1WeekResetTime": null
+            })
+        };
+        let session = token_plan_metrics(payload(), TokenPlanQuotaTotals::default())
+            .unwrap_or_else(|error| panic!("session: {error:?}"));
+        let cli =
+            token_plan_cli_metrics(payload()).unwrap_or_else(|error| panic!("cli: {error:?}"));
+        for metrics in [session, cli] {
+            assert_eq!(metrics.len(), 1);
+            assert_eq!(metrics[0].remaining, Some(75.0));
+            assert_eq!(metrics[0].resets_at, None);
+        }
     }
 
     /// An outage of the user-info route says nothing about the session:
