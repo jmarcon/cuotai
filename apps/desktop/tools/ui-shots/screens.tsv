@@ -72,3 +72,4 @@
 13c-account-delete-confirm	index.html	1200	820	dracula	dark	en-US	[data-card-more]|[data-details]|[data-remove]
 50-settings-about-updates	settings.html?page=about&anchor=updates	860	900	dracula	dark	en-US
 50-settings-alerts-notifications	settings.html?page=alerts&anchor=notify	860	900	dracula	dark	en-US
+07f-paste-session	index.html?paste-session	1200	820	dracula	dark	en-US	[data-paste-session]

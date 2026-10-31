@@ -18,7 +18,7 @@ repository root.
 | `node apps/desktop/tools/ui-shots/check.mjs --zoom [locale …]` | The 200 % zoom pass (PRD 0020 RNF): the same overflow check on the main window at 640 × 410 and four Settings pages at 640 × 360, the CSS viewports a 1280-wide screen leaves at 200 % |
 | `node apps/desktop/tools/ui-shots/a11y.mjs [--json] [--all]` | axe-core (pinned 4.10.2 from cdnjs, SHA-256 verified before it runs) over the tray, main window and four Settings pages, light and dark in en-US and dark in every other shipped language; fails on serious/critical violations (`--all`: every impact; `color-contrast` stays advisory, `contrast_gate.py` owns contrast); exit 3 when axe could not be fetched |
 | `node apps/desktop/tools/ui-shots/perf.mjs [--strict] [--runs N]` | Median of several runs: Settings open time (budget 300 ms, PRD 0020 RNF) and interaction work time in the tray (click, render and layout; budget 16 ms; the next-frame time is informational); a printed warm-up run is left out of the tray probes, and a probe over budget is measured once more before the median of both batches decides; advisory unless `--strict` |
-| `node apps/desktop/tools/ui-shots/keyboard.mjs` | PRD 0032: drives Settings › Alerts › Quiet hours with the keyboard only (Tab, Shift+Tab, Enter, Space, typed digits): open the sub-page, switch on, add, type a time, remove, repeat on every day, reach the three-interval limit; exits 1 on the first step that needs a mouse |
+| `node apps/desktop/tools/ui-shots/keyboard.mjs` | PRD 0032: drives Settings › Alerts › Quiet hours with the keyboard only (Tab, Shift+Tab, Enter, Space, typed digits): open the sub-page, switch on, add, type a time, remove, repeat on every day, reach the three-interval limit. Then Report a problem and What's new: focus must land on their first control after the content loads and return to the opener on Escape; exits 1 on the first step that needs a mouse |
 | `node apps/desktop/tools/ui-shots/check.mjs --selftest` | Forces a long string into a tray figure and passes only if the check catches it |
 
 `screens.tsv` columns: name, page (with its query), width, height, theme, mode, language, clicks
@@ -28,7 +28,8 @@ Demo switches (URL query, no app file edited, RF18.4): `?fixture=six` swaps the 
 (two Claude accounts, Codex, Cursor on extra usage, Kimi, a stale Groq and an Anthropic API account needing sign-in) so
 the `*.fixture` captures compare with `assets/0022/after/` (01, 03, 10, 11); `&bedrock` adds an AWS Bedrock account
 (the "Billed per query" chip); `?mono=XY` gives the first account a monogram override (DS-CMP-MONO-4); `?aggwarn` gives
-the 9router instance both standing warnings (PRD 0036 RF2.3/RF2.4).
+the 9router instance both standing warnings (PRD 0036 RF2.3/RF2.4); `?paste-session` makes the core offer the Xiaomi MiMo
+account a new paste, so its card and details show Paste session (not with `?fixture=six`, which has no MiMo account).
 
 [`components.html`](components.html) is the PRD 0022 RF10.5 component fixture page: meters, state rings, the extra-usage
 chip and sub-row, the forecast callout, rows with monograms, the filter tabs with an aggregator tab and the chips, drawn
