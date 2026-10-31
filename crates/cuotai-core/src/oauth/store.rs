@@ -90,12 +90,16 @@ fn encode(token: &OAuthToken) -> Result<String, OAuthError> {
     })
 }
 
+/// Note id of a stored token that no longer decodes. Unlike a vault failure,
+/// a new login can replace it.
+pub(super) const TOKEN_UNREADABLE: &str = "oauth_error.store.token_unreadable";
+
 /// Deserialize a stored token. The raw payload and the parser's error text
 /// are intentionally discarded so no token material can leak via messages.
 fn decode(raw: &str) -> Result<OAuthToken, OAuthError> {
     serde_json::from_str(raw).map_err(|_| {
         OAuthError::Storage(crate::text::Localized::fixed(
-            "oauth_error.store.token_unreadable",
+            TOKEN_UNREADABLE,
             "Stored OAuth token is unreadable; sign in again to relink the account.",
         ))
     })
