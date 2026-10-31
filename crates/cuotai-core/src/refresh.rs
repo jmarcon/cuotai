@@ -22,6 +22,9 @@ const BRING_FORWARD_SLACK: Duration = Duration::from_secs(60);
 /// PRD 0033 RF1.2: minimum spacing between two reset-driven queries of an
 /// account.
 const RESET_QUERY_SPACING: Duration = Duration::from_secs(300);
+/// A wall clock ahead of the monotonic one by less than this is ordinary
+/// drift (or a nap too short to matter), not a suspension.
+const SUSPEND_SLACK: Duration = Duration::from_secs(60);
 
 /// What the cycle remembers of an account's reset-driven query (RF1.2).
 #[derive(Clone, Debug)]
@@ -91,6 +94,8 @@ pub struct RefreshCycle {
     /// Reset-driven queries already armed, by [`Report::account_key`], so
     /// each window instance causes at most one (PRD 0033 RF1.2).
     reset_queries: std::collections::BTreeMap<String, ResetQuery>,
+    /// Both clocks at the last [`Self::follow_wall_clock`].
+    clocks: Option<(Instant, chrono::DateTime<Utc>)>,
 }
 
 /// Identifier returned by [`RefreshCycle::begin`]. The frontend passes
@@ -179,6 +184,36 @@ impl RefreshCycle {
             in_flight: vec![None; len],
             attempted_full: false,
             reset_queries: std::collections::BTreeMap::new(),
+            clocks: None,
+        }
+    }
+
+    /// Credit the deadlines with the time the machine was suspended.
+    ///
+    /// Deadlines are [`Instant`]s, and the monotonic clock stops during a
+    /// system suspension on macOS and Linux: without this, an account would
+    /// wait out the rest of its interval after waking, showing stale data.
+    /// Schedulers call this before asking what is due. The wall clock running
+    /// ahead of the monotonic one by more than [`SUSPEND_SLACK`] since the
+    /// previous call counts as that much suspended time, so an interval
+    /// shorter than the suspension is due at once and a longer one only
+    /// loses what really passed. Moving the system clock forward looks the
+    /// same and costs one early query per account; moving it back does
+    /// nothing.
+    pub fn follow_wall_clock(&mut self, now: Instant, wall: chrono::DateTime<Utc>) {
+        let Some((last_now, last_wall)) = self.clocks.replace((now, wall)) else {
+            return;
+        };
+        let Ok(wall_passed) = (wall - last_wall).to_std() else {
+            return;
+        };
+        let suspended = wall_passed.saturating_sub(now.saturating_duration_since(last_now));
+        if suspended <= SUSPEND_SLACK {
+            return;
+        }
+        for deadline in &mut self.deadlines {
+            let left = deadline.saturating_duration_since(now);
+            *deadline = now + left.saturating_sub(suspended);
         }
     }
 
@@ -407,6 +442,7 @@ impl RefreshCycle {
             in_flight: self.in_flight.clone(),
             attempted_full: self.attempted_full,
             reset_queries: self.reset_queries.clone(),
+            clocks: self.clocks,
         }
     }
 
@@ -1318,6 +1354,65 @@ mod tests {
     fn prime_with_snapshot(cycle: &mut RefreshCycle, snapshot: Snapshot, now: Instant) {
         let token = cycle.begin_full().expect("begin_full available");
         cycle.finish_full(Some(snapshot), token, now);
+    }
+
+    /// The monotonic clock stops during a suspension, so the deadlines
+    /// follow the wall clock's lead: a shorter interval is due on waking, a
+    /// longer one loses only the suspended time, and once is enough.
+    #[test]
+    fn a_suspension_counts_towards_the_deadlines() {
+        let now = Instant::now();
+        let wall = Utc.timestamp_opt(1_000_000, 0).unwrap();
+        let config = config_with(vec![account("a", Some(300)), account("b", Some(7_200))]);
+        let mut cycle = RefreshCycle::new(&config, now);
+        let snapshot = Snapshot {
+            started_at: wall,
+            finished_at: wall,
+            reports: vec![report("a", 1), report("b", 2)],
+        };
+        prime_with_snapshot(&mut cycle, snapshot, now);
+        cycle.follow_wall_clock(now, wall);
+
+        // One hour asleep, ten seconds awake.
+        let awake = now + Duration::from_secs(10);
+        let woken = wall + TimeDelta::seconds(3_610);
+        assert!(cycle.due_indices(awake).is_empty());
+        cycle.follow_wall_clock(awake, woken);
+        assert_eq!(cycle.due_indices(awake), vec![0]);
+        assert_eq!(
+            cycle.next_refresh_in(1, awake),
+            Duration::from_secs(7_200 - 10 - 3_600)
+        );
+
+        // The same suspension is not counted twice.
+        let later = awake + Duration::from_secs(5);
+        cycle.follow_wall_clock(later, woken + TimeDelta::seconds(5));
+        assert_eq!(
+            cycle.next_refresh_in(1, later),
+            Duration::from_secs(7_200 - 15 - 3_600)
+        );
+    }
+
+    #[test]
+    fn clock_noise_leaves_the_deadlines_alone() {
+        let now = Instant::now();
+        let wall = Utc.timestamp_opt(1_000_000, 0).unwrap();
+        let config = config_with(vec![account("a", Some(300))]);
+        let mut cycle = RefreshCycle::new(&config, now);
+        let before = cycle.deadlines_snapshot();
+
+        // The first call only records the clocks.
+        cycle.follow_wall_clock(now, wall + TimeDelta::hours(5));
+        assert_eq!(cycle.deadlines_snapshot(), before);
+        // Drift within the slack.
+        let tick = now + Duration::from_secs(5);
+        let wall = wall + TimeDelta::hours(5);
+        cycle.follow_wall_clock(tick, wall + TimeDelta::seconds(30));
+        assert_eq!(cycle.deadlines_snapshot(), before);
+        // The system clock set back.
+        let tick = tick + Duration::from_secs(5);
+        cycle.follow_wall_clock(tick, wall - TimeDelta::hours(2));
+        assert_eq!(cycle.deadlines_snapshot(), before);
     }
 
     /// PRD 0031 RF12: a reload keeps unchanged accounts' readings and

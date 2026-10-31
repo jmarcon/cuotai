@@ -2861,8 +2861,8 @@ impl Backend {
             self.hold_while_stopping().await;
             self.ensure_loaded().await;
             let plan: SchedulerPlan = 'plan: {
-                let g = self.inner.lock().await;
-                let Some(l) = g.loaded.as_ref() else {
+                let mut g = self.inner.lock().await;
+                let Some(l) = g.loaded.as_mut() else {
                     // No valid configuration: wait for the next tick (no tight loop).
                     break 'plan SchedulerPlan::Idle;
                 };
@@ -2870,6 +2870,7 @@ impl Backend {
                     SchedulerPlan::Idle
                 } else {
                     let now = Instant::now();
+                    l.cycle.follow_wall_clock(now, chrono::Utc::now());
                     let can_full = needs_initial_sweep(&l.cycle, &l.tokens);
                     if can_full {
                         // First round: no data, no full round
