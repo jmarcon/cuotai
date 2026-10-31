@@ -1325,6 +1325,7 @@ fn check_oauth_error(body: &Value, status: StatusCode) -> Result<(), OAuthError>
             // `invalid_grant` on a grant means it was revoked/expired: the
             // user must sign in again.
             "expired_token" | "invalid_grant" => OAuthError::Expired,
+            "invalid_client" | "unauthorized_client" => OAuthError::client_registration_refused(),
             _ => OAuthError::InvalidResponse,
         });
     }
@@ -1668,6 +1669,15 @@ mod tests {
                 other => panic!("{status}: {other}"),
             };
             assert_eq!(got, expected, "HTTP {status} body {body:?}");
+        }
+    }
+
+    #[test]
+    fn a_refused_client_is_a_configuration_problem() {
+        for code in ["invalid_client", "unauthorized_client"] {
+            let error = check_oauth_error(&json!({ "error": code }), StatusCode::UNAUTHORIZED)
+                .expect_err("must fail");
+            assert!(matches!(error, OAuthError::Configuration(_)), "{code}");
         }
     }
 

@@ -322,10 +322,7 @@ fn classify_error(code: &str) -> OAuthError {
             OAuthError::Expired
         }
         "invalid_client" | "incorrect_client_credentials" | "unauthorized_client" => {
-            OAuthError::Configuration(crate::text::Localized::fixed(
-                "oauth_error.device.client_registration_refused",
-                "Client registration refused by the provider; sign in again.",
-            ))
+            OAuthError::client_registration_refused()
         }
         _ => OAuthError::InvalidResponse,
     }

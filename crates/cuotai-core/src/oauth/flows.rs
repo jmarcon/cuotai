@@ -273,8 +273,15 @@ fn classify_error(code: &str) -> OAuthError {
     match code {
         "access_denied" => OAuthError::Denied,
         // `invalid_grant` on refresh means the grant was revoked/expired:
-        // the user must sign in again.
-        "expired_token" | "invalid_grant" => OAuthError::Expired,
+        // the user must sign in again. Entra's interaction codes (a new MFA or
+        // consent requirement) can only be met by a new login as well.
+        "expired_token"
+        | "invalid_grant"
+        | "interaction_required"
+        | "consent_required"
+        | "login_required" => OAuthError::Expired,
+        "invalid_client" | "unauthorized_client" => OAuthError::client_registration_refused(),
+        "temporarily_unavailable" | "server_error" => OAuthError::Network,
         _ => OAuthError::InvalidResponse,
     }
 }
@@ -1309,6 +1316,56 @@ mod tests {
                 other => panic!("{status}: {other}"),
             };
             assert_eq!(got, expected, "HTTP {status} body {body:?}");
+        }
+    }
+
+    /// RFC 6749 §5.2 and Entra's documented token-endpoint codes: a refused
+    /// client is a configuration problem, a required interaction a new login,
+    /// and a busy server a transient failure. None is a malformed answer.
+    #[tokio::test]
+    async fn refresh_classifies_the_standard_token_error_codes() {
+        for (code, expected) in [
+            ("invalid_client", "configuration"),
+            ("unauthorized_client", "configuration"),
+            ("interaction_required", "expired"),
+            ("consent_required", "expired"),
+            ("login_required", "expired"),
+            ("temporarily_unavailable", "network"),
+            ("server_error", "network"),
+            ("invalid_scope", "invalid"),
+        ] {
+            let server = MockServer::start().await;
+            Mock::given(method("POST"))
+                .and(path("/token"))
+                .respond_with(ResponseTemplate::new(400).set_body_json(json!({ "error": code })))
+                .mount(&server)
+                .await;
+            let previous = OAuthToken {
+                access_token: "a".into(),
+                refresh_token: Some("rt".into()),
+                expires_at: None,
+                metadata: Default::default(),
+            };
+            let error = refresh_grant(
+                &client(),
+                &test_config(),
+                None,
+                "rt",
+                &previous,
+                &format!("{}/token", server.uri()),
+                None,
+            )
+            .await
+            .err()
+            .expect("must fail");
+            let got = match error {
+                OAuthError::Configuration(_) => "configuration",
+                OAuthError::Expired => "expired",
+                OAuthError::Network => "network",
+                OAuthError::InvalidResponse => "invalid",
+                other => panic!("{code}: {other}"),
+            };
+            assert_eq!(got, expected, "{code}");
         }
     }
 
