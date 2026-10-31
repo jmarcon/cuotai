@@ -43,13 +43,13 @@ Rule IDs are stable and never reused. A retired rule keeps its ID and is marked 
 
 These traits define Cuotai and MUST survive any redesign:
 
-- **DS-ID-1 The theme system.** 14 built-in themes in three groups (editors, systems, retro), each with dark and light modes, plus user themes, all through the token contract. Retro themes (Win98, Windows XP, CRT, Synthwave, TRON) keep their character: bevels, square corners, scanlines, phosphor glow, title-bar gradients on surfaces. A component that only looks right in one theme is wrong.
+- **DS-ID-1 The theme system.** 15 built-in themes, Cuotai's own plus three groups (editors, systems, retro), each with dark and light modes, plus user themes, all through the token contract. Retro themes (Win98, Windows XP, CRT, Synthwave, TRON) keep their character: bevels, square corners, scanlines, phosphor glow, title-bar gradients on surfaces. A component that only looks right in one theme is wrong.
 - **DS-ID-2 The mark.** The logo (`img/logo.svg`) is a ring of four separate arcs. The logo keeps its own fixed colors; it is the only multi-color brand artwork.
 - **DS-ID-3 Provider tiles.** Providers are shown as rounded tiles in the provider's brand color with a white glyph mask (`logo()` in `js/lib.js`, `.logo`, `--logo-radius`), with a letter fallback. Brand tile colors are provider identity, not theme colors, and are the one allowed exception to DS-COL-1.
 - **DS-ID-4 Typography.** System UI stack (`--font-ui`), headings at weight 650, large bold tabular figures for "how much is left", and uppercase micro labels with `0.04em` tracking (`.win-name`, `.lc-head`, settings group labels).
 - **DS-ID-5 The "available" criterion.** Meters show what is **left**, not what was used; levels are `good` ≥ 70 % left, `warn` 30–70 %, `bad` < 30 % (`level()` in `js/lib.js`).
 - **DS-ID-6 Breadth of truth.** Cuotai shows what other monitors hide: several accounts per provider, the binding limit, pace, measurement age and stale readings, provider incidents, local cost estimates, history, usage alerts and extensions. Simplification moves these into disclosures; it never deletes them.
-- **DS-ID-7 Multilingual.** pt-BR, en-US, es and it catalogs, plus user language packs.
+- **DS-ID-7 Multilingual.** 14 shipped languages, plus user language packs.
 - **DS-ID-8 The ring.** The tray's ring gauge (`.donut` tiles in `tray.js`) is the "C" of Cuotai: an open ring that echoes the logo. It is an identity element, not a donut chart, and is specified as a single-value component in DS-CMP-RING. Static and 12–16 px, it is also Cuotai's **account-state glyph** (DS-CMP-RING-6): the leading mark of status lines, the attention mark on filter tabs, the menu-bar icon, notifications where the OS allows an image, and widgets. It appears as a gauge in three places: one small static ring in the "All" filter tab, the "Icon only" menu-bar style, and the per-account ring grid, which is an **alternative** tray view the user selects in Settings; the default tray view is the list of account rows with continuous meters (DS-CMP-ROW).
 
 ## 2. Tokens (no colors)
