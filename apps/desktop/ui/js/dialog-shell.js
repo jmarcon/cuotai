@@ -14,3 +14,7 @@ export const shellHtml = ({ id, title, body, foot = "" }) => `<div class="dlg-sh
 
 /** Makes the × close the dialog; call again after the content is replaced. */
 export const bindShell = (dlg) => { for (const b of dlg.querySelectorAll("[data-shell-close]")) b.addEventListener("click", () => dlg.close()); };
+
+/** Replacing the content of an open dialog destroys the control that had focus and leaves it on `body`: call this
+ *  after the replacement, and focus lands where `showModal` would put it, on the first control. */
+export const focusFirst = (dlg) => dlg.querySelector("button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex='-1'])")?.focus();

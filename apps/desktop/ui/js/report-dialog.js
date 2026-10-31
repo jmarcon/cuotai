@@ -4,7 +4,7 @@
 import { t, te } from "./i18n.js";
 import { errText, esc, icon, openExternal, reportProblem } from "./lib.js";
 import { showDialog } from "./motion.js";
-import { bindShell, shellHtml } from "./dialog-shell.js";
+import { bindShell, focusFirst, shellHtml } from "./dialog-shell.js";
 
 let dlg = null;
 
@@ -35,6 +35,7 @@ export async function openReportProblem(index, generation, from = null) {
       ${draft && !draft.copy_only ? `<button class="btn primary" data-open>${te("report.open")} ${icon("ext")}</button>` : ""}`,
   });
   bindShell(dlg);
+  focusFirst(dlg);
   const err = dlg.querySelector("#report-err");
   const copy = dlg.querySelector("[data-copy]");
   if (copy) copy.onclick = async () => {

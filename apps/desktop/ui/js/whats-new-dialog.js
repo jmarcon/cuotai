@@ -1,7 +1,7 @@
 // "About › What's new" (PRD 0019 RF7.7): the CHANGELOG.md history, already parsed by the core (`whats_new`).
 // The UI only draws: titles and labels come as core texts (`tl`); the entries stay in English, as the dialog itself says.
 import { t, te, tl } from "./i18n.js";
-import { bindShell, shellHtml } from "./dialog-shell.js";
+import { bindShell, focusFirst, shellHtml } from "./dialog-shell.js";
 import { getSettings, whatsNew, whatsNewSeen } from "./lib.js";
 import { esc } from "./util.js";
 import { showDialog } from "./motion.js";
@@ -70,4 +70,5 @@ export async function openWhatsNew() {
     ? render(view)
     : shell(`<p class="err" role="alert">${te("common.unexpected")}</p>`);
   bindShell(dlg);
+  focusFirst(dlg);
 }
