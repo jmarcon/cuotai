@@ -80,6 +80,18 @@ pub(crate) async fn send_secure(
         .map_err(|_| OAuthError::Network)
 }
 
+/// What a token-endpoint answer means when it carries no OAuth error code, or
+/// a body that cannot be read at all: the provider refused the credential
+/// (a new login is needed), it could not answer now, or it answered something
+/// this client does not understand. The body is never consulted.
+pub(crate) fn status_failure(status: reqwest::StatusCode) -> OAuthError {
+    match status.as_u16() {
+        401 | 403 => OAuthError::Expired,
+        429 | 500..=599 => OAuthError::Network,
+        _ => OAuthError::InvalidResponse,
+    }
+}
+
 /// Backwards-compat: callers that still have a plain message build
 /// `OAuthError::Configuration` from a `String`/`&str`. The message becomes
 /// the `{detail}` parameter of the canonical `query.oauth.configuration`

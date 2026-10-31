@@ -35,7 +35,7 @@
 //!   the inference adapter (Qwen Code portal), but never used as a base
 //!   for arbitrary quota queries here.
 
-use super::send_secure;
+use super::{send_secure, status_failure};
 use super::{LoginPrompt, OAuthConfig, OAuthError, OAuthToken};
 use crate::Provider;
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
@@ -195,7 +195,7 @@ async fn begin_qwen(
             .get("error")
             .and_then(Value::as_str)
             .map(classify_poll_error)
-            .unwrap_or(OAuthError::InvalidResponse));
+            .unwrap_or_else(|| status_failure(status)));
     }
     let issued = parse_device_authorization(&body)?;
 
@@ -251,7 +251,7 @@ async fn refresh_qwen(
         return Err(classify_poll_error(code));
     }
     if !status.is_success() {
-        return Err(OAuthError::InvalidResponse);
+        return Err(status_failure(status));
     }
     let grant = parse_grant_body(&body, body.get("access_token").is_some())?;
     Ok(token_from_grant(grant, previous_refresh))
@@ -318,7 +318,7 @@ async fn read_json(
             Err(_) => return Err(OAuthError::Network),
         }
     }
-    let value = serde_json::from_slice(&body).map_err(|_| OAuthError::InvalidResponse)?;
+    let value = serde_json::from_slice(&body).map_err(|_| status_failure(status))?;
     Ok((status, value))
 }
 
@@ -1171,6 +1171,46 @@ mod tests {
             Err(e) => e,
         };
         assert!(matches!(err, OAuthError::Expired));
+    }
+
+    /// A refresh that fails without an OAuth error code is classified by its
+    /// status, whatever the body is.
+    #[tokio::test]
+    async fn refresh_classifies_a_failure_without_an_error_code_by_status() {
+        for (status, body, expected) in [
+            (401, "<html>denied</html>", "expired"),
+            (401, "{}", "expired"),
+            (503, "<html>busy</html>", "network"),
+            (500, "{}", "network"),
+            (400, "<html>bad</html>", "invalid"),
+        ] {
+            let server = MockServer::start().await;
+            let token_url = format!("{}/api/v1/oauth2/token", server.uri());
+            Mock::given(method("POST"))
+                .and(path("/api/v1/oauth2/token"))
+                .respond_with(ResponseTemplate::new(status).set_body_string(body))
+                .mount(&server)
+                .await;
+            let error = match refresh_qwen(
+                &reqwest::Client::new(),
+                QWEN_OAUTH_CLIENT_ID_DEFAULT,
+                "rt",
+                &token_url,
+                Some("rt".to_owned()),
+            )
+            .await
+            {
+                Ok(_) => panic!("must fail"),
+                Err(error) => error,
+            };
+            let got = match error {
+                OAuthError::Expired => "expired",
+                OAuthError::Network => "network",
+                OAuthError::InvalidResponse => "invalid",
+                other => panic!("{status}: {other}"),
+            };
+            assert_eq!(got, expected, "HTTP {status} body {body:?}");
+        }
     }
 
     #[tokio::test]
