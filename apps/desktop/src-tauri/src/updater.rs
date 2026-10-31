@@ -39,6 +39,10 @@ pub const EVENT: &str = "updater";
 
 /// RF2.1: check on startup and then once every 24 hours.
 pub const CHECK_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
+/// Longest sleep of the update timer while checks are on: the monotonic clock
+/// stops during a system suspension, so the next pass rereads the wall clock
+/// soon after waking instead of adding the suspended time to the day.
+const CHECK_NAP: Duration = Duration::from_secs(60);
 
 /// RF2.3/RF2.5: the manual link the app offers when something fails (network, signature,
 /// space, permission) or when the installation cannot update in place.
@@ -805,16 +809,16 @@ impl Service {
     }
 
     /// PRD 0018 RF2.1/RF2.6: after the affirmative answer, checks on opening and
-    /// every 24 hours while enabled. The wait ends at the next due check or on a
-    /// notification (*Check now* checks directly; answering the question also
-    /// wakes the task).
+    /// every 24 hours while enabled. The wait ends at the next due check, after
+    /// [`CHECK_NAP`] or on a notification (*Check now* checks directly; answering
+    /// the question also wakes the task).
     pub async fn run(self: Arc<Self>, app: AppHandle) {
         loop {
             if self.stopping.load(Ordering::Relaxed) {
                 return;
             }
             self.tick(&app).await;
-            let wait = self.until_next_check();
+            let wait = self.until_next_check(chrono::Utc::now());
             tokio::select! {
                 () = tokio::time::sleep(wait) => {}
                 () = self.nudge.notified() => {}
@@ -822,9 +826,9 @@ impl Service {
         }
     }
 
-    /// Time until the next automatic check (never less than an instant).
-    fn until_next_check(&self) -> Duration {
-        let now = chrono::Utc::now();
+    /// Time until the task should look again (never less than an instant, and
+    /// at most [`CHECK_NAP`] while checks are on).
+    fn until_next_check(&self, now: chrono::DateTime<chrono::Utc>) -> Duration {
         let prefs = self.prefs();
         // While off or unanswered, no request time is accrued. Re-evaluate hourly;
         // an answer or preference change wakes the task immediately.
@@ -838,13 +842,13 @@ impl Service {
             .unwrap_or_else(|_| chrono::TimeDelta::hours(24));
         let elapsed = now.signed_duration_since(last);
         if elapsed <= chrono::TimeDelta::zero() {
-            // The stored date is in the future (clock set backwards): wait a day.
-            return CHECK_INTERVAL;
+            // The stored date is in the future (clock set backwards): no check is due.
+            return CHECK_NAP;
         }
         (interval - elapsed)
             .to_std()
             .unwrap_or(CHECK_INTERVAL)
-            .max(Duration::from_secs(1))
+            .clamp(Duration::from_secs(1), CHECK_NAP)
     }
 }
 
@@ -1056,7 +1060,7 @@ mod detector {
 
 #[cfg(test)]
 mod schedule {
-    use super::{parse_instant, Service, UpdaterPrefs};
+    use super::{parse_instant, Duration, Service, UpdaterPrefs, CHECK_NAP};
 
     fn service() -> Service {
         Service::build(super::InstallSource::Direct, None, false, false)
@@ -1092,6 +1096,27 @@ mod schedule {
             },
             now
         ));
+    }
+
+    /// The monotonic sleep stops during a suspension, so a wait of hours
+    /// would overshoot the 24 hours by the time the machine slept.
+    #[test]
+    fn the_wait_for_the_next_check_is_capped() {
+        let now = chrono::Utc::now();
+        let with_last = |last: chrono::DateTime<chrono::Utc>| {
+            let service = service();
+            *service.memory_prefs.lock() = UpdaterPrefs {
+                automatic: true,
+                consent_answered: true,
+                last_check: Some(last.to_rfc3339()),
+            };
+            service.until_next_check(now)
+        };
+        assert_eq!(with_last(now - chrono::TimeDelta::hours(1)), CHECK_NAP);
+        assert_eq!(with_last(now + chrono::TimeDelta::hours(2)), CHECK_NAP);
+        // Closer than the cap, the wait ends at the due time.
+        let near = now - chrono::TimeDelta::hours(24) + chrono::TimeDelta::seconds(30);
+        assert_eq!(with_last(near), Duration::from_secs(30));
     }
 
     #[test]
