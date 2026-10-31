@@ -13,6 +13,37 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.82.3] - 2026-10-31
+
+### Fixed
+
+- Accounts refresh right after the computer wakes from sleep instead of showing old data until the rest of their interval runs out (5d11d70).
+- The daily update check now runs on time after the computer has been asleep (bc1af10).
+- The app no longer asks the update server over and over when it cannot save the date of its last check (fb47fca).
+- Choosing a configuration file that cannot be saved as the choice now leaves the app on the file it was using (359ab17).
+- A damaged desktop.json is now kept as a backup and reported on the main window, instead of being silently replaced with the defaults (de8846f).
+- Opening Cuotai while it is already running now brings the existing window forward instead of starting a second copy (ab42a4e).
+- Reloading the configuration no longer repeats the extra query that follows a plan limit reset (636fa45).
+- A sign-in the provider refuses with an unreadable answer now asks you to log in again, and a provider outage no longer reads as an invalid response (6922be4).
+- A revoked GitHub Copilot or Kimi sign-in now asks you to log in again instead of showing an invalid response (a2fda3c).
+- A refused OAuth client now shows as a configuration problem, and Microsoft sign-ins that need new consent ask you to log in again (4b331a6).
+- A temporary CodeBuddy outage no longer reports your login as expired (5adc7f9).
+- A CodeBuddy token answer without a lifetime no longer loses the rotated login (8d63dd4).
+- A brief network failure no longer aborts a Qoder or CodeBuddy sign-in in progress (e8c3691).
+- Cleaning up orphaned vault entries no longer forgets a credential it could not read (5cc384c).
+- Signing in again now repairs an account whose stored token became unreadable (a7fbd86).
+- A revoked Antigravity session now shows as an authentication failure, and a rate limit as a rate limit (8f697af).
+- An Antigravity quota without a reset time no longer shows a reset in 1970 (fa3bf79).
+- A temporary Qwen Cloud outage no longer reports your Token Plan session as invalid (6ec5bd2).
+- A temporary Alibaba console outage no longer asks you to replace a working Coding Plan session (468db7b).
+- A Token Plan window without a reset time or reading no longer fails the whole account (3c7d5fc).
+- A Token Plan account whose bl profile starts with an underscore no longer fails every refresh (d2696cf).
+- Connections of a 9router instance that report only a percentage now show the right usage (d13b371).
+- Report a problem and What's new keep keyboard focus inside the dialog after their content loads (b7b7de4).
+- The Back to accounts button of the Stats view no longer touches the banner above or the title below (e180488).
+- Settings button rows drop below their label in a narrow window instead of squeezing it (b51c027).
+- Settings sidebar labels no longer truncate at the default window size in German, French, Russian and Vietnamese (b51c027).
+
 ## [0.82.2] - 2026-10-31
 
 ### Fixed
@@ -399,7 +430,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.82.2...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.82.3...HEAD
+[0.82.3]: https://github.com/jmarcon/cuotai/compare/v0.82.2...v0.82.3
 [0.82.2]: https://github.com/jmarcon/cuotai/compare/v0.82.1...v0.82.2
 [0.82.1]: https://github.com/jmarcon/cuotai/compare/v0.82.0...v0.82.1
 [0.82.0]: https://github.com/jmarcon/cuotai/compare/v0.81.0...v0.82.0
