@@ -1918,6 +1918,31 @@ impl Inner {
             .map_err(|e| edit_error_to_json(&e))?;
         self.install(file)
     }
+
+    /// Moves to the file the user chose. A file that does not load and a
+    /// choice that cannot be saved leave the running state untouched, and
+    /// a swap that fails puts `previous` back, so the app and `desktop.json`
+    /// never disagree about which file is in use.
+    fn choose(
+        &mut self,
+        chosen: Option<PathBuf>,
+        previous: Option<PathBuf>,
+        locations: &Locations,
+        save: impl Fn(Option<&std::path::Path>) -> Result<(), &'static str>,
+    ) -> Result<(), String> {
+        let file = ConfigFile::load_with(
+            Discovery::Gui {
+                chosen: chosen.clone(),
+            },
+            true,
+            locations,
+        )
+        .map_err(|e| edit_error_to_json(&e))?;
+        save(chosen.as_deref()).map_err(str::to_owned)?;
+        self.install(file).inspect_err(|_| {
+            let _ = save(previous.as_deref());
+        })
+    }
 }
 
 impl Backend {
@@ -2561,9 +2586,9 @@ impl Backend {
         }
     }
 
-    /// Applies the `cuotai.toml` chosen in settings (`None` = OS
-    /// default): reloads through the core, clears the previous configuration's state and only
-    /// then persists the choice in `desktop.json`.
+    /// Applies the `cuotai.toml` chosen in settings (`None` = OS default):
+    /// reloads through the core, persists the choice in `desktop.json` and
+    /// only then clears the previous configuration's state ([`Inner::choose`]).
     pub async fn set_config_file(
         &self,
         app: &AppHandle,
@@ -2576,9 +2601,14 @@ impl Backend {
         if let Some(p) = &path {
             crate::settings::validate_config_file(p).map_err(str::to_owned)?;
         }
+        let previous = crate::settings::chosen_config();
         let mut g = self.inner.lock().await;
-        g.switch(path.clone(), &locations)?;
-        crate::settings::save_config_file(path.as_deref()).map_err(str::to_owned)?;
+        g.choose(
+            path,
+            previous,
+            &locations,
+            crate::settings::save_config_file,
+        )?;
         let view = g.view();
         drop(g);
         self.emit(app).await;
@@ -7245,6 +7275,47 @@ mod tests {
             ),
             "an unknown-handle retry must not touch the vault"
         );
+    }
+
+    /// Choosing a file is one step: a choice that cannot be saved leaves
+    /// the app on the file it had, and a file that does not load is never
+    /// recorded as chosen.
+    #[tokio::test]
+    async fn the_chosen_file_goes_live_only_once_it_is_saved() {
+        let backend = build_backend(Arc::new(MemoryStore::default()), vec![]).await;
+        let live = backend.file_path().await;
+        let dir = tempfile::tempdir().unwrap();
+        let next = dir.path().join("next.toml");
+        std::fs::write(&next, "refresh_seconds = 120\naccounts = []\n").unwrap();
+        let broken = dir.path().join("broken.toml");
+        std::fs::write(&broken, "not toml = = =").unwrap();
+        let locations = Locations {
+            env: None,
+            cwd: PathBuf::new(),
+            config_dir: Some(dir.path().to_path_buf()),
+        };
+        let mut g = backend.inner.inner.lock().await;
+        let generation = g.generation;
+
+        let refused = g.choose(Some(next.clone()), None, &locations, |_| Err("unwritable"));
+        assert_eq!(refused.unwrap_err(), "unwritable");
+        assert_eq!(g.loaded.as_ref().unwrap().file.path, live);
+        assert_eq!(g.generation, generation);
+
+        let saves = std::cell::RefCell::new(Vec::new());
+        let save = |path: Option<&std::path::Path>| {
+            saves.borrow_mut().push(path.map(std::path::Path::to_owned));
+            Ok(())
+        };
+        assert!(g.choose(Some(broken), None, &locations, save).is_err());
+        assert!(saves.borrow().is_empty());
+        assert_eq!(g.loaded.as_ref().unwrap().file.path, live);
+
+        g.choose(Some(next.clone()), None, &locations, save)
+            .unwrap();
+        assert_eq!(*saves.borrow(), [Some(next)]);
+        assert_ne!(g.loaded.as_ref().unwrap().file.path, live);
+        assert_eq!(g.loaded.as_ref().unwrap().file.config.refresh_seconds, 120);
     }
 
     // --- test helpers (kept local; do not export) ---
