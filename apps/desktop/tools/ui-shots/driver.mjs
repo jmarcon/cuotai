@@ -96,9 +96,9 @@ export async function launch({ port, cdp } = {}) {
     await send("Input.dispatchKeyEvent", { ...base, type: "keyUp" });
     await sleep(120);
   }
-  /** Writes a PNG of the viewport. */
-  async function shot(file) {
-    const r = await send("Page.captureScreenshot", { format: "png" });
+  /** Writes a PNG of the viewport, or of `clip` (`{ x, y, width, height, scale }`, in CSS pixels). */
+  async function shot(file, clip) {
+    const r = await send("Page.captureScreenshot", { format: "png", ...(clip ? { clip } : {}) });
     const { writeFileSync } = await import("node:fs");
     writeFileSync(file, Buffer.from(r.result.data, "base64"));
   }
