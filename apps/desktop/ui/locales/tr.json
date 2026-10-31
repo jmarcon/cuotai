@@ -681,6 +681,7 @@
   "settings.serve.privacy": "Yalnızca bu bilgisayarda (127.0.0.1) dinler ve kimlik bilgilerini asla sunmaz. Kullanıcınız altında çalışan herhangi bir program sunduklarını okuyabilir, tıpkı cuotai --json gibi.",
   "serve.banner": "Yerel sunucu hizmet vermiyor:",
   "serve.bannerOpen": "Ayarları aç",
+  "settings.recovered": "Cuotai ayarlarını okuyamadı ve varsayılanlarla başladı. Hasarlı dosya şurada saklandı: {path}.",
   "settings.widgets.title": "Widget'lar",
   "settings.widgets.help": "Uygulamanın zaten gösterdiği bilgileri (her hesabın bağlayıcı kotası, yaşı ve güncelliği) içeren küçük bir JSON dosyası yayımlar; dosya atomik olarak yazılır ve yalnızca kullanıcınız okuyabilir. Widget'lar ve üçüncü taraf paneller (Waybar, GNOME, KDE) bu dosyayı okur; hiçbiri bir sağlayıcıyı sorgulamaz.",
   "settings.widgets.on": "Widget verilerini yayımla",

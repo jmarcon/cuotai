@@ -870,6 +870,9 @@ pub struct View {
     /// PRD 0006: the history's storage failure, size-ceiling pruning or
     /// dropped readings, to show; `None` when all is well.
     history_warning: Option<cuotai_core::text::Localized>,
+    /// Where a damaged `desktop.json` was kept when this run replaced it
+    /// with the defaults.
+    settings_backup: Option<String>,
     /// Changes when the history was erased or recording switched (RF5).
     history_epoch: u64,
     notify: NotifyView,
@@ -1487,6 +1490,7 @@ impl Inner {
                 refresh_seconds: 0,
                 generation: 0,
                 history_warning: None,
+                settings_backup: crate::settings::recovered_backup(),
                 history_epoch: self.history_epoch,
                 notify: NotifyView {
                     enabled: self.notices.prefs().enabled,
@@ -1637,6 +1641,7 @@ impl Inner {
                 .monitor
                 .history_status()
                 .and_then(|status| status.warning()),
+            settings_backup: crate::settings::recovered_backup(),
             history_epoch: self.history_epoch,
             notify: NotifyView {
                 enabled: self.notices.prefs().enabled,

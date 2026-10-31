@@ -681,6 +681,7 @@
   "settings.serve.privacy": "Er lauscht nur auf diesem Computer (127.0.0.1) und liefert nie Zugangsdaten. Jedes Programm unter Ihrem Benutzer kann lesen, was er liefert, wie bei cuotai --json.",
   "serve.banner": "Der lokale Server stellt nichts bereit:",
   "serve.bannerOpen": "Einstellungen öffnen",
+  "settings.recovered": "Cuotai konnte seine Einstellungen nicht lesen und wurde mit den Standardwerten gestartet. Die beschädigte Datei wurde unter {path} aufbewahrt.",
   "settings.widgets.title": "Widgets",
   "settings.widgets.help": "Veröffentlicht eine kleine JSON-Datei mit dem, was die App bereits zeigt (das maßgebliche Kontingent jedes Kontos, sein Alter und seine Aktualität), atomar geschrieben und nur für Ihren Benutzer lesbar. Widgets und Panels von Drittanbietern (Waybar, GNOME, KDE) lesen diese Datei; nichts fragt einen Anbieter ab.",
   "settings.widgets.on": "Widget-Daten veröffentlichen",

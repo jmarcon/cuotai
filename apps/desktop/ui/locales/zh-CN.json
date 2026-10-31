@@ -675,6 +675,7 @@
   "settings.serve.privacy": "它只在此电脑上监听（127.0.0.1），从不提供凭据。与 cuotai --json 一样，以您的用户身份运行的任何程序都能读取它提供的内容。",
   "serve.banner": "本地服务器未在提供服务：",
   "serve.bannerOpen": "打开设置",
+  "settings.recovered": "Cuotai 无法读取其设置，已使用默认值启动。损坏的文件已保留在 {path}。",
   "settings.widgets.title": "小组件",
   "settings.widgets.help": "发布一个小型 JSON 文件，内容是应用已显示的信息（每个账户的约束额度、读数时间和新鲜度），以原子方式写入，且只有当前用户可读。小组件和第三方面板（Waybar、GNOME、KDE）读取该文件；不会查询任何提供商。",
   "settings.widgets.on": "发布小组件数据",
