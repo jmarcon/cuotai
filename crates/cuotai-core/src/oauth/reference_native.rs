@@ -87,7 +87,7 @@ async fn poll_attempt(
     //   Err(elapsed)               = overall deadline elapsed
     match timeout_at(deadline, timeout(REQUEST_TIMEOUT, send_json(request))).await {
         Err(_) => PollAttempt::Expired,
-        Ok(Err(_)) => PollAttempt::Transient,
+        Ok(Err(_)) | Ok(Ok(Err(OAuthError::Network))) => PollAttempt::Transient,
         Ok(Ok(Err(error))) => PollAttempt::Failed(error),
         Ok(Ok(Ok((status, body)))) => PollAttempt::Response(status, body),
     }
@@ -1666,6 +1666,19 @@ mod tests {
         .unwrap_or_else(|error| panic!("refresh: {error}"));
         assert_eq!(refreshed.refresh_token.as_deref(), Some("rt-new"));
         assert!(refreshed.expires_at.is_none());
+    }
+
+    /// A transport blip while polling keeps the login alive until its
+    /// deadline, as `PollAttempt` documents; only an answer ends it.
+    #[tokio::test]
+    async fn a_refused_connection_while_polling_is_transient() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+        let url = format!("http://{}", listener.local_addr().expect("addr"));
+        drop(listener);
+        let client = reqwest::Client::new();
+        let request = client.get(&url);
+        let attempt = poll_attempt(&client, request, Instant::now() + REQUEST_TIMEOUT).await;
+        assert!(matches!(attempt, PollAttempt::Transient));
     }
 
     /// A body that is not JSON says nothing: the status classifies it.
