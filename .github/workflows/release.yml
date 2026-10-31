@@ -1471,6 +1471,8 @@ jobs:
           cd - >/dev/null
           brew untap jmarcon/cuotai >/dev/null 2>&1 || true
           brew tap jmarcon/cuotai "$tap_dir" --force
+          # Homebrew refuses to load a third-party tap until it is trusted.
+          brew trust jmarcon/cuotai
           # Download checks use the public release produced by this tag run.
           brew audit --strict --online --cask jmarcon/cuotai/cuotai-app
           brew audit --strict --online --formula jmarcon/cuotai/cuotai
