@@ -484,7 +484,7 @@ impl RefreshCycle {
                 None => next.deadlines[index] = now,
             }
             if let Some(report) = &next.slots[index] {
-                let key = report.account_key();
+                let key = report.state_key();
                 if let Some(query) = self.reset_queries.get(&key) {
                     next.reset_queries.insert(key, query.clone());
                 }
@@ -3239,6 +3239,37 @@ mod prd0033_rf2_tests {
         let later = now + wait;
         finish_one(&mut cycle, report, later);
         assert_eq!(cycle.next_refresh_in(0, later), Duration::from_secs(3600));
+    }
+
+    /// PRD 0033 RF1.2 across a reload: the window instance already answered
+    /// stays answered, so the next reading arms no second extra query.
+    #[test]
+    fn a_reload_does_not_arm_the_same_reset_again() {
+        let (mut cycle, now) = cycle_with(Provider::Claude, 3600);
+        let config = Config {
+            accounts: vec![crate::Account {
+                group: Default::default(),
+                id: None,
+                name: "a".into(),
+                provider: Provider::Claude,
+                credential_env: None,
+                session: None,
+                oauth: None,
+                params: Default::default(),
+                refresh_seconds: Some(3600),
+            }],
+            ..Config::default()
+        };
+        let report = quota_report(Provider::Claude, &[TimeDelta::minutes(10)]);
+        finish_one(&mut cycle, report.clone(), now);
+        let later = now + cycle.next_refresh_in(0, now);
+        finish_one(&mut cycle, report.clone(), later);
+        let mut reloaded = cycle.reload(&config, &config, later);
+        finish_one(&mut reloaded, report, later);
+        assert_eq!(
+            reloaded.next_refresh_in(0, later),
+            Duration::from_secs(3600)
+        );
     }
 
     #[test]
