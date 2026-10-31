@@ -494,9 +494,12 @@ pub(crate) fn parse_usage(value: &Value) -> Result<UsageOutcome, QueryError> {
         if limit.is_none() {
             if let Some(percentage) = percentage {
                 // Only a percentage is known: say so, do not invent a cap.
+                // Without a total, `used` and `remaining` are not percents
+                // (9router normalizes a missing one to 0), so neither is kept.
+                let percentage = percentage.clamp(0.0, 100.0);
                 limit = Some(100.0);
-                remaining = remaining.or(Some(percentage.clamp(0.0, 100.0)));
-                used = used.or(Some(100.0 - percentage.clamp(0.0, 100.0)));
+                remaining = Some(percentage);
+                used = Some(100.0 - percentage);
                 unit = "%".into();
             }
         } else if limit == Some(100.0) && percentage.is_some() {
@@ -1623,6 +1626,29 @@ mod tests {
     use super::*;
     use crate::Credentials;
     use serde_json::json;
+
+    /// 9router normalizes a missing value to 0, and without a total the
+    /// other fields may be in another unit: on a percentage meter only the
+    /// percentage counts.
+    #[test]
+    fn a_percentage_meter_ignores_values_in_other_units() {
+        for quota in [
+            json!({ "total": 0, "used": 0, "remaining": 0, "remainingPercentage": 40 }),
+            json!({ "used": 5000, "remainingPercentage": 40 }),
+            json!({ "remaining": 7, "remainingPercentage": 40 }),
+        ] {
+            let UsageOutcome::Usage(usage) =
+                parse_usage(&json!({ "quotas": { "weekly": quota } })).expect("decodes")
+            else {
+                panic!("usage expected");
+            };
+            let metric = &usage.metrics[0];
+            assert_eq!(metric.unit, "%");
+            assert_eq!(metric.limit, Some(100.0));
+            assert_eq!(metric.used, Some(60.0));
+            assert_eq!(metric.remaining, Some(40.0));
+        }
+    }
     use std::collections::BTreeMap;
     use wiremock::matchers::{header, method, path, query_param};
     use wiremock::{Mock, MockServer, Request, ResponseTemplate};
