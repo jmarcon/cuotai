@@ -1420,7 +1420,26 @@ async fn token_plan_with_session(
         "session_env",
     )
     .await?;
-    if !info.status().is_success() {
+    let code = info.status();
+    if code.as_u16() == 429 || code.is_server_error() {
+        return Err(QueryError {
+            diagnostic: None,
+            status: if code.as_u16() == 429 {
+                Status::RateLimited
+            } else {
+                Status::Error
+            },
+            note: Localized::with_params(
+                "query.alibaba_plans.token_plan_http",
+                params([
+                    ("api", ParamValue::from("user/info")),
+                    ("code", ParamValue::from(code.as_u16())),
+                ]),
+                "Token Plan {api} returned HTTP {code}.",
+            ),
+        });
+    }
+    if !code.is_success() {
         return Err(QueryError {
             diagnostic: None,
             status: Status::AuthenticationError,
@@ -2462,6 +2481,44 @@ mod tests {
             data.metrics[0].resets_at.unwrap().timestamp_millis(),
             1787001180000
         );
+    }
+
+    /// An outage of the user-info route says nothing about the session:
+    /// reporting it as invalid drops the preserved reading and asks the user
+    /// to paste a session that still works.
+    #[tokio::test]
+    async fn qwen_cloud_user_info_outage_is_not_an_invalid_session() {
+        for (code, expected) in [
+            (503, Status::Error),
+            (500, Status::Error),
+            (429, Status::RateLimited),
+            (401, Status::AuthenticationError),
+            (403, Status::AuthenticationError),
+        ] {
+            let server = MockServer::start().await;
+            Mock::given(method("GET"))
+                .and(path("/tool/user/info.json"))
+                .respond_with(ResponseTemplate::new(code))
+                .mount(&server)
+                .await;
+            let http = reqwest::Client::new();
+            let creds = TestCredentials("QWEN_CLOUD_COOKIE", "session=test-cookie");
+            let mut account = account(Provider::AlibabaTokenPlan, "QWEN_API_KEY", None);
+            account
+                .params
+                .insert("session_env".into(), "QWEN_CLOUD_COOKIE".into());
+            let result = token_plan_at(
+                &account,
+                &ctx_with(&http, &creds),
+                &format!("{}/data/api.json", server.uri()),
+                &format!("{}/tool/user/info.json", server.uri()),
+            )
+            .await;
+            let Err(error) = result else {
+                panic!("HTTP {code} must fail the account");
+            };
+            assert_eq!(error.status, expected, "HTTP {code}");
+        }
     }
 
     #[tokio::test]
