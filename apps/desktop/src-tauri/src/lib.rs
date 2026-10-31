@@ -2005,6 +2005,8 @@ fn tray_icon() -> tauri::Result<tauri::image::Image<'static>> {
 }
 
 pub fn run() {
+    // First of all: a damaged `desktop.json` is kept before anything reads the defaults.
+    settings::recover_damaged();
     // PRD 0022 RF15.1 / PRD 0019 RF7.7: before anything else writes `desktop.json`.
     settings::note_profile_origin();
     settings::note_running_version(env!("CARGO_PKG_VERSION"));

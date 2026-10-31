@@ -678,6 +678,7 @@
   "settings.serve.privacy": "È in ascolto solo su questo computer (127.0.0.1) e non serve mai credenziali. Qualsiasi programma eseguito con il tuo utente può leggere ciò che serve, come con cuotai --json.",
   "serve.banner": "Il server locale non è in esecuzione:",
   "serve.bannerOpen": "Apri le impostazioni",
+  "settings.recovered": "Cuotai non è riuscito a leggere le impostazioni ed è partito con i valori predefiniti. Il file danneggiato è stato conservato in {path}.",
   "settings.widgets.title": "Widget",
   "settings.widgets.help": "Pubblica un piccolo file JSON con ciò che l'app già mostra (la quota più vincolante di ogni account, la sua età e la freschezza), scritto in modo atomico e leggibile solo dal tuo utente. I widget e i pannelli di terze parti (Waybar, GNOME, KDE) leggono quel file; nulla interroga un provider.",
   "settings.widgets.on": "Pubblica dati widget",

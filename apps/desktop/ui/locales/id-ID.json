@@ -675,6 +675,7 @@
   "settings.serve.privacy": "Hanya mendengarkan di komputer ini (127.0.0.1) dan tidak pernah menyajikan kredensial. Program apa pun yang berjalan di bawah pengguna Anda dapat membaca yang disajikannya, seperti cuotai --json.",
   "serve.banner": "Server lokal tidak menyajikan:",
   "serve.bannerOpen": "Buka pengaturan",
+  "settings.recovered": "Cuotai tidak dapat membaca pengaturannya dan dimulai dengan nilai bawaan. File yang rusak disimpan di {path}.",
   "settings.widgets.title": "Widget",
   "settings.widgets.help": "Menerbitkan file JSON kecil berisi yang sudah ditampilkan aplikasi (kuota pengikat tiap akun, usia, dan kesegarannya), ditulis secara atomik dan hanya dapat dibaca pengguna Anda. Widget dan panel pihak ketiga (Waybar, GNOME, KDE) membaca file itu; tidak ada yang mengueri penyedia.",
   "settings.widgets.on": "Terbitkan data widget",

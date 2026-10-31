@@ -277,6 +277,13 @@ function otherBannerHtml() {
   const text = otherConfigBanner(store.view);
   return text ? `<div class="banner dismissable" role="status" data-other-config>${icon("info")}<span>${esc(text)}</span><button class="icon" data-dismiss-other-config title="${te("common.dismiss")}" aria-label="${te("common.dismiss")}">${icon("x")}</button></div>` : "";
 }
+// A damaged `desktop.json` was set aside and the app opened with the defaults.
+let dismissedBackup = null;
+function settingsBackupHtml() {
+  const path = store.view?.settings_backup;
+  if (!path || path === dismissedBackup) return "";
+  return `<div class="banner bad dismissable" role="status" data-settings-backup>${icon("warn")}<span>${te("settings.recovered", { path })}</span><button class="icon" data-dismiss-settings-backup title="${te("common.dismiss")}" aria-label="${te("common.dismiss")}">${icon("x")}</button></div>`;
+}
 function onDeleted(result) {
   if (!result) return;
   const retry = result.recovery_handle ? { handle: result.recovery_handle } : null;
@@ -467,6 +474,7 @@ function render() {
       </div>
     </header>
     ${error ? `<div class="banner bad">${esc(error)}</div>` : ""}
+    ${settingsBackupHtml()}
     ${otherBannerHtml()}
     ${notice ? `<div class="banner ${notice.tone}">${esc(notice.text)}${notice.retry ? ` <button class="link" data-retry-delete>${te("delete.retry")}</button>` : ""} <button class="link" data-dismiss-notice>${te("common.dismiss")}</button></div>` : ""}
     ${userContent.errors.map((e) => `<div class="banner">${esc(skippedMessage(e))}</div>`).join("")}
@@ -518,6 +526,7 @@ root.addEventListener("click", (e) => {
   if (moreFor && !t.closest(".card-more .menu")) { moreFor = null; render(); }
   if (t.closest("[data-dismiss-notice]")) { notice = null; return render(); }
   if (t.closest("[data-dismiss-other-config]")) { dismissOtherConfig(store.view); return render(); }
+  if (t.closest("[data-dismiss-settings-backup]")) { dismissedBackup = store.view?.settings_backup ?? null; return render(); }
   if (t.closest("[data-retry-delete]")) return retryDelete();
   const move = t.closest("[data-move-from]");
   if (move) return reorderAccounts(Number(move.dataset.moveFrom), Number(move.dataset.moveTo));

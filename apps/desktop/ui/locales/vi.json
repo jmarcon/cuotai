@@ -675,6 +675,7 @@
   "settings.serve.privacy": "Chỉ lắng nghe trên máy tính này (127.0.0.1) và không bao giờ phục vụ thông tin xác thực. Mọi chương trình chạy dưới tài khoản người dùng của bạn đều đọc được những gì nó phục vụ, như với cuotai --json.",
   "serve.banner": "Máy chủ cục bộ không phục vụ:",
   "serve.bannerOpen": "Mở cài đặt",
+  "settings.recovered": "Cuotai không đọc được phần cài đặt và đã khởi động với giá trị mặc định. Tệp bị hỏng được giữ tại {path}.",
   "settings.widgets.title": "Widget",
   "settings.widgets.help": "Xuất bản một tệp JSON nhỏ với những gì ứng dụng đã hiển thị (hạn mức ràng buộc của từng tài khoản, độ tuổi và độ mới của nó), được ghi nguyên tử và chỉ người dùng của bạn đọc được. Widget và bảng điều khiển bên thứ ba (Waybar, GNOME, KDE) đọc tệp đó; không có gì truy vấn nhà cung cấp.",
   "settings.widgets.on": "Xuất bản dữ liệu widget",

@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
     fs,
-    io::Write,
+    io::{self, Write},
     path::{Path, PathBuf},
     sync::{Mutex, PoisonError},
 };
@@ -956,15 +956,114 @@ fn settings_file() -> Option<PathBuf> {
     default_dir().map(|d| d.join("desktop.json"))
 }
 
+/// What `desktop.json` holds. A damaged file reads as the defaults but is
+/// never treated as a missing one: [`update`] sets it aside first.
+enum OnDisk {
+    Missing,
+    Intact(Box<Stored>),
+    /// Not a JSON object, or a field of the wrong type (the fields that
+    /// tolerate that are `serde_json::Value`s, read leniently one by one).
+    Damaged(Vec<u8>),
+    /// It exists but could not be read, so nothing is known about it.
+    Unreadable,
+}
+
+fn parse(bytes: &[u8]) -> Option<Stored> {
+    let value: serde_json::Value = serde_json::from_slice(bytes).ok()?;
+    if !value.is_object() {
+        return None;
+    }
+    serde_json::from_value(value).ok()
+}
+
+fn inspect(file: &Path) -> OnDisk {
+    match fs::read(file) {
+        Ok(bytes) => match parse(&bytes) {
+            Some(stored) => OnDisk::Intact(Box::new(stored)),
+            None => OnDisk::Damaged(bytes),
+        },
+        Err(error) if error.kind() == io::ErrorKind::NotFound => OnDisk::Missing,
+        Err(_) => OnDisk::Unreadable,
+    }
+}
+
 fn read(file: &Path) -> Stored {
-    fs::read_to_string(file)
-        .ok()
-        .and_then(|t| serde_json::from_str(&t).ok())
-        .unwrap_or_default()
+    match inspect(file) {
+        OnDisk::Intact(stored) => *stored,
+        OnDisk::Missing | OnDisk::Damaged(_) | OnDisk::Unreadable => Stored::default(),
+    }
 }
 
 fn load() -> Stored {
     settings_file().map(|f| read(&f)).unwrap_or_default()
+}
+
+/// Numbered backups tried after `desktop.json.bak`. Past the last one, saves
+/// fail with the damaged file in place rather than lose it.
+const MAX_BACKUPS: u32 = 99;
+
+/// `desktop.json.bak`, then `desktop.json.bak.1`, `.2` and so on.
+fn backup_path(file: &Path, number: u32) -> PathBuf {
+    let mut name = file.file_name().unwrap_or_default().to_os_string();
+    name.push(".bak");
+    if number > 0 {
+        name.push(format!(".{number}"));
+    }
+    file.with_file_name(name)
+}
+
+/// Keeps `bytes`, the damaged contents of `file`, in the first free backup,
+/// on disk before this returns. No backup is ever overwritten; one that
+/// already holds these bytes is the backup (a crash may have come between
+/// taking it and replacing the file).
+fn back_up(file: &Path, bytes: &[u8]) -> io::Result<PathBuf> {
+    for number in 0..=MAX_BACKUPS {
+        let path = backup_path(file, number);
+        match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+        {
+            Ok(mut backup) => {
+                backup.write_all(bytes)?;
+                backup.sync_all()?;
+                return Ok(path);
+            }
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                if fs::read(&path).is_ok_and(|kept| kept == bytes) {
+                    return Ok(path);
+                }
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    Err(io::ErrorKind::AlreadyExists.into())
+}
+
+/// The backups this run took, newest last.
+static RECOVERED: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
+
+/// The latest backup of a damaged `desktop.json` this run took, for the
+/// main window's notice.
+pub fn recovered_backup() -> Option<String> {
+    let recovered = RECOVERED.lock().unwrap_or_else(PoisonError::into_inner);
+    recovered.last().map(|path| path.display().to_string())
+}
+
+/// Sets a damaged `desktop.json` aside and starts over with the defaults.
+/// Call it before anything else reads the file; a file damaged later is
+/// caught by the next [`update`].
+pub fn recover_damaged() {
+    if let Some(file) = settings_file() {
+        let _ = recover_damaged_file(&file);
+    }
+}
+
+fn recover_damaged_file(file: &Path) -> Result<(), &'static str> {
+    match inspect(file) {
+        OnDisk::Damaged(_) => update(file, |_| {}),
+        OnDisk::Missing | OnDisk::Intact(_) | OnDisk::Unreadable => Ok(()),
+    }
 }
 
 /// One read-modify-write of `desktop.json` at a time in this process: its
@@ -974,16 +1073,34 @@ static WRITES: Mutex<()> = Mutex::new(());
 
 /// Changes one field preserving the others. Atomic write (temporary file +
 /// rename, the file named per process since a second copy of the app may be
-/// running).
+/// running), flushed first so a power cut cannot leave an empty file behind.
+/// The write never replaces the only copy of something: a damaged file goes
+/// to a backup first, and one that cannot be read or backed up stays where
+/// it is and the save fails.
 fn update(file: &Path, change: impl FnOnce(&mut Stored)) -> Result<(), &'static str> {
     let _writing = WRITES.lock().unwrap_or_else(PoisonError::into_inner);
     let parent = file.parent().ok_or("unwritable")?;
     fs::create_dir_all(parent).map_err(|_| "unwritable")?;
-    let mut stored = read(file);
+    let mut stored = match inspect(file) {
+        OnDisk::Missing => Stored::default(),
+        OnDisk::Intact(stored) => *stored,
+        OnDisk::Damaged(bytes) => {
+            let backup = back_up(file, &bytes).map_err(|_| "unwritable")?;
+            let mut recovered = RECOVERED.lock().unwrap_or_else(PoisonError::into_inner);
+            recovered.push(backup);
+            Stored::default()
+        }
+        OnDisk::Unreadable => return Err("unwritable"),
+    };
     change(&mut stored);
     let tmp = parent.join(format!(".desktop.json.{}.tmp", std::process::id()));
     let text = serde_json::to_string_pretty(&stored).map_err(|_| "unwritable")?;
-    fs::write(&tmp, text).map_err(|_| "unwritable")?;
+    fs::File::create(&tmp)
+        .and_then(|mut out| {
+            out.write_all(text.as_bytes())?;
+            out.sync_all()
+        })
+        .map_err(|_| "unwritable")?;
     fs::rename(&tmp, file).map_err(|_| "unwritable")
 }
 
@@ -1594,6 +1711,130 @@ mod tests {
     use super::*;
     use cuotai_core::alerts::Lead;
     use std::collections::{BTreeMap, BTreeSet};
+
+    fn backups(file: &Path) -> Vec<String> {
+        let mut names: Vec<String> = fs::read_dir(file.parent().unwrap())
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .filter(|name| name.contains(".bak"))
+            .collect();
+        names.sort();
+        names
+    }
+
+    #[test]
+    fn corrupt_json_goes_to_a_backup_before_the_first_save() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        let broken = r#"{"updater":{"consent_answered":true},"#;
+        fs::write(&file, broken).unwrap();
+
+        // Reading alone reads the defaults and touches nothing.
+        assert_eq!(read_notify(&file), NotifyPrefs::default());
+        assert_eq!(fs::read_to_string(&file).unwrap(), broken);
+        assert!(backups(&file).is_empty());
+
+        write_locale(&file, "fr").unwrap();
+
+        assert_eq!(backups(&file), ["desktop.json.bak"]);
+        assert_eq!(
+            fs::read_to_string(dir.path().join("desktop.json.bak")).unwrap(),
+            broken
+        );
+        assert_eq!(read_locale(&file).as_deref(), Some("fr"));
+        let recovered = RECOVERED.lock().unwrap_or_else(PoisonError::into_inner);
+        assert!(recovered.contains(&dir.path().join("desktop.json.bak")));
+    }
+
+    #[test]
+    fn a_field_of_the_wrong_type_is_a_damaged_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        for (index, text) in [
+            r#"{"motion":"off","show_pace":"yes"}"#,
+            r#"{"motion":"off","history_days":"many"}"#,
+            "[]",
+            "null",
+            "",
+        ]
+        .iter()
+        .enumerate()
+        {
+            fs::write(&file, text).unwrap();
+            assert!(motion_of(&read(&file)) == "system", "{text}");
+            recover_damaged_file(&file).unwrap();
+            assert_eq!(backups(&file).len(), index + 1, "{text}");
+            assert!(matches!(inspect(&file), OnDisk::Intact(_)), "{text}");
+        }
+    }
+
+    /// The lenient fields keep working as they did: one bad value there
+    /// costs that value, not the file, and nothing is backed up.
+    #[test]
+    fn a_lenient_field_of_the_wrong_type_is_not_damage() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        fs::write(&file, r#"{"motion":"off","notify":"loud","tray":3}"#).unwrap();
+
+        recover_damaged_file(&file).unwrap();
+        write_locale(&file, "fr").unwrap();
+
+        assert!(backups(&file).is_empty());
+        assert_eq!(motion_of(&read(&file)), "off");
+    }
+
+    #[test]
+    fn saves_after_a_recovery_keep_every_backup() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        fs::write(&file, "first").unwrap();
+        recover_damaged_file(&file).unwrap();
+        for locale in ["fr", "de", "it"] {
+            write_locale(&file, locale).unwrap();
+        }
+        let first = dir.path().join("desktop.json.bak");
+        assert_eq!(backups(&file), ["desktop.json.bak"]);
+        assert_eq!(fs::read_to_string(&first).unwrap(), "first");
+
+        // A later break neither overwrites it nor repeats it.
+        fs::write(&file, "second").unwrap();
+        write_locale(&file, "fr").unwrap();
+        assert_eq!(backups(&file), ["desktop.json.bak", "desktop.json.bak.1"]);
+        assert_eq!(fs::read_to_string(&first).unwrap(), "first");
+        assert_eq!(
+            fs::read_to_string(dir.path().join("desktop.json.bak.1")).unwrap(),
+            "second"
+        );
+        fs::write(&file, "second").unwrap();
+        write_locale(&file, "fr").unwrap();
+        assert_eq!(backups(&file).len(), 2);
+    }
+
+    /// With no backup there is no save: the damaged file is the only copy.
+    #[test]
+    fn a_save_that_cannot_back_up_leaves_the_damaged_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        for number in 0..=MAX_BACKUPS {
+            fs::write(backup_path(&file, number), "older").unwrap();
+        }
+        fs::write(&file, "broken").unwrap();
+
+        assert_eq!(write_locale(&file, "fr"), Err("unwritable"));
+        assert_eq!(fs::read_to_string(&file).unwrap(), "broken");
+    }
+
+    #[test]
+    fn a_file_that_cannot_be_read_is_never_replaced() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        fs::create_dir(&file).unwrap();
+
+        recover_damaged_file(&file).unwrap();
+        assert_eq!(write_locale(&file, "fr"), Err("unwritable"));
+        assert!(file.is_dir());
+        assert!(backups(&file).is_empty());
+    }
 
     #[test]
     fn detect_prefs_read_leniently_and_keep_known_kinds() {

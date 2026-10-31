@@ -675,6 +675,7 @@
   "settings.serve.privacy": "이 컴퓨터(127.0.0.1)에서만 수신하며 자격 증명은 절대 제공하지 않습니다. 사용자 계정으로 실행되는 모든 프로그램이 제공 내용을 읽을 수 있으며, cuotai --json도 마찬가지입니다.",
   "serve.banner": "로컬 서버가 동작하지 않습니다:",
   "serve.bannerOpen": "설정 열기",
+  "settings.recovered": "Cuotai가 설정을 읽지 못해 기본값으로 시작했습니다. 손상된 파일은 {path}에 보관되어 있습니다.",
   "settings.widgets.title": "위젯",
   "settings.widgets.help": "앱이 이미 보여 주는 내용(계정별 가장 제한적인 할당량, 경과 시간, 최신 여부)을 담은 작은 JSON 파일을 게시합니다. 파일은 원자적으로 기록되며 사용자만 읽을 수 있습니다. 위젯과 서드파티 패널(Waybar, GNOME, KDE)이 이 파일을 읽으며 제공업체는 조회하지 않습니다.",
   "settings.widgets.on": "위젯 데이터 게시",
