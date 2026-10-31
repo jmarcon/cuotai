@@ -801,7 +801,7 @@ fn parse_reset_value(value: &serde_json::Value) -> Option<DateTime<Utc>> {
 }
 
 fn epoch_to_datetime(value: f64) -> Option<DateTime<Utc>> {
-    if !value.is_finite() {
+    if !value.is_finite() || value <= 0.0 {
         return None;
     }
     let millis = if value.abs() < 1e12 {
@@ -1013,6 +1013,22 @@ mod tests {
             credentials: creds,
             timeout: Duration::from_secs(5),
         }
+    }
+
+    /// A protobuf default of `0` is an absent reset, never 1 January 1970:
+    /// such a date reads as a window that already renewed.
+    #[test]
+    fn a_zero_or_negative_reset_time_is_absent() {
+        for value in [
+            json!(0),
+            json!("0"),
+            json!(-1),
+            json!(-1_000_000_000_000_i64),
+        ] {
+            assert_eq!(parse_reset_value(&value), None, "{value}");
+        }
+        assert!(parse_reset_value(&json!(1_787_001_180)).is_some());
+        assert!(parse_reset_value(&json!(1_787_001_180_000_i64)).is_some());
     }
 
     /// When nothing could be read, the report keeps what the endpoints said:
