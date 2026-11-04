@@ -314,6 +314,34 @@ impl Integration {
         Ok(())
     }
 
+    /// PRD 0050 RF2.3: the rules of the file at `path` when they are the
+    /// approved ones (what turning hooks on would start), else `None`.
+    pub fn approved(&self, path: Option<&Path>) -> Option<cuotai_core::hooks::Hooks> {
+        let hooks = Document::read(path?).into_hooks().ok()?;
+        self.consent
+            .as_ref()?
+            .check(hooks)
+            .ok()
+            .map(|confirmed| confirmed.hooks().clone())
+    }
+
+    /// PRD 0050 RF2.3: [`Self::test`], only while the active rules are
+    /// still the ones shown under `digest`. Errors: `hooks_off`,
+    /// `hook_unknown` (also for rules changed since the dialog).
+    pub fn test_checked(
+        &mut self,
+        path: Option<&Path>,
+        name: &str,
+        digest: &str,
+    ) -> Result<(), &'static str> {
+        self.reconcile(path);
+        let active = self.active.as_ref().ok_or("hooks_off")?;
+        if active.hooks.digest() != digest {
+            return Err("hook_unknown");
+        }
+        self.test(path, name)
+    }
+
     /// RF4.2: record the user's confirmation of the rules now in the file
     /// at `path`, which must be the ones the dialog listed (`digest`), and
     /// run them when on. Errors: the core's `hooks.error.*` text.

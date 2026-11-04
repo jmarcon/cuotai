@@ -302,8 +302,7 @@ label.mode-off {
   grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
   gap: var(--space-1) var(--space-3);
 }
-.hook-events code,
-.hook-listing code {
+.hook-events code {
   font: var(--text-sm) var(--font-mono), var(--font-script);
 }
 .hook-events small {
@@ -337,30 +336,6 @@ label.mode-off {
 .hook-runs time {
   color: var(--fg-muted);
   font-variant-numeric: tabular-nums;
-}
-dialog.hooks-confirm {
-  width: min(var(--dialog-md), calc(100vw - 32px));
-}
-.hook-listing {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  max-height: clamp(160px, calc(100dvh - 280px), 480px);
-  overflow-y: auto;
-}
-.hook-listing h3 {
-  margin-top: var(--space-2);
-  font-size: var(--text-base);
-}
-.hook-command {
-  display: block;
-  padding: calc(var(--space-1) + var(--space-0)) var(--space-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--input-bg);
-  white-space: pre-wrap;
-  word-break: break-all;
-  user-select: text;
 }
 
 /* PRD 0015: Settings → Local cost and its disclosure dialog. */

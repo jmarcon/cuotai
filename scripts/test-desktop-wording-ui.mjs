@@ -67,6 +67,7 @@ const NOT_RENDERED = [
   [/^access\.credential_hint\.extension$/, "extension access hint, same as above"],
   [/^bundle\./, "backup and restore are command-line only for now (PRD 0046 RF2/RF3)"],
   [/^doctor\./, "Check setup renders the doctor on purpose: it names the variable an account reads, never its value, as cuotai --doctor does (PRD 0046 RF4)"],
+  [/^hooks\.confirm\.environment$/, "only in the native dialog Rust builds (PRD 0050 RF2.2), which names the hook's environment on purpose"],
 ];
 const notRendered = (id) => NOT_RENDERED.some(([re]) => re.test(id));
 

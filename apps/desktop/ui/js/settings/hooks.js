@@ -1,7 +1,6 @@
 // Settings › Advanced › Integrations › Hooks (PRD 0013 RF4), moved unchanged from the old dialog (PRD 0020 RF2.5).
 import { currentLocale, t, te, tle } from "../i18n.js";
 import { confirmHooks, esc, hooksStatus, icon, onHookRun, saveHooks, setHooksEnabled, testHook } from "../lib.js";
-import { showDialog } from "../motion.js";
 import { askDialog, l10nError, serveErrorText } from "./common.js";
 import { check, pathHtml, row, setGuard, subpage, subRow, sw, toast } from "./rows.js";
 
@@ -93,11 +92,11 @@ export async function bindHooks(box, ctx) {
     box.querySelector("[data-hooks-discard]").disabled = false;
     for (const b of box.querySelectorAll("[data-hook-test]")) { b.disabled = true; b.title = t("settings.hooks.testOff"); }
   };
-  /** RF4.2: confirm the rules listed in `view`, then (when asked) turn hooks on. */
+  /** RF4.2, PRD 0050 RF2: the shell shows the exact commands in a native dialog and acts only on its answer:
+   *  turning on approves rules still waiting in the same dialog; the review button approves them alone. */
   const confirmThen = async (view, enable) => {
-    if (view.digest && !(await confirmCommands(view.listing))) return paint(null);
-    if (view.digest) view = await confirmHooks(view.digest);
-    paint(enable ? await setHooksEnabled(true) : view);
+    if (enable) paint(await setHooksEnabled(true));
+    else if (view.digest) paint(await confirmHooks());
     ctx.changed("hooks");
   };
   const bind = () => {
@@ -166,32 +165,4 @@ export async function bindHooks(box, ctx) {
     hooksStatus().then((next) => paint(next), () => {});
   });
   ctx.onLeave?.(() => unlisten.then((stop) => stop()));
-}
-
-/** RF4.2: the confirmation as a dialog with the core's exact listing (the file, then each rule's name, events,
- *  filters, time limit and command as a JSON array, so quotes and separators show). Resolves to the user's answer;
- *  closing it any other way declines. */
-function confirmCommands(listing) {
-  return new Promise((resolve) => {
-    const d = document.createElement("dialog");
-    d.className = "dlg hooks-confirm";
-    d.setAttribute("role", "alertdialog");
-    d.setAttribute("aria-labelledby", "hooks-confirm-title");
-    const line = (l) => (l.id === "hooks.confirm.header" ? `<p>${tle(l)}</p>`
-      : l.id === "hooks.confirm.rule" ? `<h3>${tle(l)}</h3>`
-        : l.id === "hooks.confirm.command" ? `<p><code class="hook-command">${tle(l)}</code></p>`
-          : `<p class="hint">${tle(l)}</p>`);
-    d.innerHTML = `<div class="dlg-body"><h2 id="hooks-confirm-title">${te("settings.hooks.confirm.title")}</h2>
-      <p class="hint warn-txt">${te("settings.hooks.confirm.help")}</p>
-      <div class="hook-listing" data-hooks-listing>${listing.map(line).join("")}</div>
-      <div class="dlg-actions"><button class="btn" data-hooks-decline>${te("common.cancel")}</button>
-        <button class="btn danger-btn" data-hooks-accept>${te("settings.hooks.confirm.yes")}</button></div></div>`;
-    document.body.append(d);
-    let answer = false;
-    d.addEventListener("close", () => resolve(answer), { once: true });
-    d.querySelector("[data-hooks-accept]").onclick = () => { answer = true; d.close(); };
-    d.querySelector("[data-hooks-decline]").onclick = () => d.close();
-    showDialog(d);
-    d.querySelector("[data-hooks-decline]").focus();
-  });
 }

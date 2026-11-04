@@ -636,6 +636,12 @@ impl Manager {
         })
     }
 
+    /// PRD 0050 RF2.5: the lines of a native review of `id` (the same as
+    /// [`Self::disclosure`]'s), issuing no candidate.
+    pub fn review(&self, id: &str) -> Result<Vec<Localized>, Localized> {
+        Ok(consent::disclosure(&self.manifest(id)?))
+    }
+
     /// Whether the current manifest and program are already approved.
     pub fn is_enabled(&self, id: &str) -> Result<bool, Localized> {
         let manifest = self.manifest(id)?;

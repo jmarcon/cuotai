@@ -314,7 +314,12 @@ fn every_message_reads_in_each_catalog() {
         output: String::new(),
         truncated: false,
     };
-    let mut messages = hooks.listing();
+    // PRD 0050 RF2.2: the native review adds the working directory and
+    // the environment names to the listing.
+    let mut messages = hooks.review();
+    assert!(messages.starts_with(&hooks.listing()));
+    assert_eq!(hooks.rule_review("a"), Some(hooks.review()));
+    assert_eq!(hooks.rule_review("b"), None);
     messages.extend([
         confirm_answer(),
         confirm_question("yes"),

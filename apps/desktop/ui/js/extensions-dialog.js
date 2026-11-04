@@ -188,7 +188,8 @@ export async function mountExtensions(host, { onChanged = () => {}, onRemove = (
 
   async function consent(id) {
     try {
-      const { lines, candidate } = await extensionDisclosure(id);
+      // PRD 0050 RF2.5: a preview; the shell discloses again and asks in a native dialog on Approve.
+      const { lines } = await extensionDisclosure(id);
       const box = el("section", "extension-consent");
       box.setAttribute("role", "alertdialog");
       box.setAttribute("aria-label", te("extensions.consentTitle"));
@@ -203,7 +204,7 @@ export async function mountExtensions(host, { onChanged = () => {}, onRemove = (
       const approve = actionButton(t("extensions.approve"), async () => {
         if (!check.checked) return;
         try {
-          const result = await enableExtension(candidate);
+          const result = await enableExtension(id);
           status.textContent = tl(result.message);
           box.remove();
           await load();
