@@ -37,6 +37,8 @@ In scope, for example:
 
 Script extensions (PRD 0017) run as your own user, after you review an exact disclosure and approve them: **Cuotai restricts neither their network nor their files**, so what an approved extension does with them is the extension author's responsibility. What stays in scope is Cuotai's side of that contract: an extension running without approval or after its manifest or program changed, credentials or other accounts' data reaching an extension, or its output escaping validation.
 
+Backups and the self-check are in scope too: a `cuotai --backup` archive must never hold a secret (vault entries, tokens, the local server token or anything shaped like a key; the command refuses to write when a file looks like one), a restore must never write outside its allow-listed files or to the vault, and `cuotai --doctor` and `--check-config` must never print a value, only names, positions and paths.
+
 Out of scope:
 - changes to or outages of provider interfaces (open a regular issue);
 - the **plain-text** SQLite store of development mode (`--dev-credentials-sqlite`), which is intentional, exists only in debug builds and is refused in release builds;

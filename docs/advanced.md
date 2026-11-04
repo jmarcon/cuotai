@@ -113,6 +113,24 @@ check = true
 
 Then the interactive TUI and `--once`, when run on a terminal, read the same signed release manifest the desktop updater reads (`latest.json` on GitHub Releases) at most once every 24 hours and print one line to standard error when a newer stable version exists, for example `Cuotai 0.81.0 is available: brew upgrade cuotai`. The command is the one of the channel you installed from (`cuotai --install-source`); a copy without a package manager gets the releases page instead. The request carries only the `User-Agent` `cuotai/<version>`; the answer is cached in `<OS local data dir>/cuotai/update-check.json`. Nothing is printed for `--json`, `--json-v1`, `--watch`, `--serve` or when standard output is not a terminal, and a failed check is silent. Cuotai never updates itself from the terminal.
 
+## Backup, restore and self-check
+
+```sh
+# Check this installation, read-only and offline (exit 2 when something needs attention)
+cuotai --doctor            # or --doctor --json
+# Back up the settings, never a secret
+cuotai --backup cuotai-backup-2026-11-04.cuotai-backup.zip
+# See what a backup would change here, then restore it
+cuotai --restore cuotai-backup-2026-11-04.cuotai-backup.zip --check
+cuotai --restore cuotai-backup-2026-11-04.cuotai-backup.zip [--only config|prefs|user] [--yes]
+```
+
+- **`--doctor [--json]`** (PRD 0046 RF4) checks the configuration file (with `--check-config`'s strict reader), every account's credential variable (set or not, never its value; vault sign-ins and local tools are left to the next refresh), the data folder (`CUOTAI_DATA_DIR` included), the history, model and cost databases (opened read-only: size, version, `quick_check`, a newer format), `hooks.toml`, the desktop settings, the local server token's permissions and whether the default port 6738 is free. Each problem has a fix line. Accounts are named by position and provider, and paths under your home folder start with `~`, so the report can go into an issue. Exit `0` without a failure (warnings included), `2` with one, `1` when the doctor itself fails. It never writes, never queries a provider and never reads the vault.
+- **`--backup FILE [--json]`** (PRD 0046 RF1/RF2) writes a `.cuotai-backup.zip` with `manifest.json` (format 1, date, version, OS, each file's SHA-256 and kind) and an allow-list of files: the accounts TOML (verbatim: it names variables, not values) and `hooks.toml`; the desktop settings without window geometry, one-time records or machine paths; the local cost settings without the per-machine sources and folders; your `pricing.json`; your user themes (`*.css`) and languages (`*.json`). **Never included:** vault entries, tokens, the local server token, the cost index, extensions and logs; the command lists them with the reason. If any file holds something shaped like a key or token, nothing is written (exit `1`), and the development SQLite store (`--dev-credentials-sqlite`) is refused. The same files give the same archive. The measurement history is not included yet.
+- **`--restore FILE`** (PRD 0046 RF3) checks the archive (only those folders, every digest, a known format; exit `2` for a damaged, edited or newer backup), then prints the plan: per file `add`, `replace`, `keep (identical)` or `skip (changed here after the backup)`, with the TOML's accounts added, changed and removed by id, and **what you still need to do**: each variable to set and each sign-in to redo, because no secret travels. It then writes the additions and asks `y/N` for each replacement in a terminal (`--yes` replaces all of them; without a terminal and without `--yes` it stops when a file would be replaced). Desktop settings are merged over this computer's (its window, paths and other members stay). Every write is atomic and refused when the file changed since the plan. Nothing is written to the vault. `--check` prints the plan and writes nothing; `--only config|prefs|user` restores one part.
+- **Move to a new computer:** run `cuotai --backup` on the old one, install Cuotai on the new one, run `cuotai --restore FILE --check` there to read what is missing, then `cuotai --restore FILE`, set the listed variables in the environment that starts Cuotai and sign in again to the accounts it names. `cuotai --doctor` then names anything still missing.
+- **Keep two computers aligned:** back up on the one you changed and run `cuotai --restore FILE --check` on the other: the plan is the difference. Restore with `--only config` to take the accounts and leave that computer's preferences.
+
 ## Environment variables
 
 | Variable | Effect |
