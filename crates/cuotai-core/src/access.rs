@@ -646,7 +646,7 @@ pub(crate) fn classify(
         Provider::AlibabaTokenPlan => entry(Undocumented,
             if set("session_env") { UserSession } else { LocalCli }, Scope::Account,
             Evidence::Reference("https://github.com/modelstudioai/cli/blob/main/packages/commands/src/commands/usage/token-plan.ts"),
-            "alibaba_token_plan", "5 h and weekly Token Plan quota through the official CLI or the Qwen Cloud console."),
+            "alibaba_token_plan", "Token Plan quota (month, week, 5 h or any window reported) through the official CLI or the Qwen Cloud console."),
         Provider::AlibabaCloud => entry(Official, CloudIdentity, Scope::WholeCloud,
             doc("https://www.alibabacloud.com/help/en/user-center/developer-reference/api-bssopenapi-2017-12-14-queryaccountbalance"),
             "alibaba_cloud", "Balance and bill of every product of the Alibaba Cloud account through the BSS OpenAPI."),
