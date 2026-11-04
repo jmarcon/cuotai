@@ -265,7 +265,7 @@ mod tests {
             "en-US",
             &path,
             None,
-            vec![draft("notify", &["/bin/echo", "low"])],
+            vec![draft("notify", &["notify-tool", "low"])],
         )
         .await
         .unwrap();
@@ -273,7 +273,7 @@ mod tests {
         assert_eq!(question.title, "Save commands");
         assert_eq!(question.accept, "Save");
         assert!(
-            question.body.contains(r#"command: ["/bin/echo","low"]"#),
+            question.body.contains(r#"command: ["notify-tool","low"]"#),
             "{}",
             question.body
         );
@@ -305,14 +305,14 @@ mod tests {
             "en-US",
             &path,
             None,
-            vec![draft("a", &["/bin/true"])],
+            vec![draft("a", &["true-tool"])],
         )
         .await
         .unwrap_err();
         assert_eq!(error, declined);
         assert!(!path.exists(), "nothing written");
 
-        write(&path, vec![draft("a", &["/bin/true"])]);
+        write(&path, vec![draft("a", &["true-tool"])]);
         let error = approve_hooks(&Fake::new(false), "en-US", &path)
             .await
             .unwrap_err();
@@ -349,10 +349,10 @@ mod tests {
     async fn a_file_changed_while_the_dialog_is_open_is_not_approved() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("hooks.toml");
-        write(&path, vec![draft("a", &["/bin/echo", "shown"])]);
+        write(&path, vec![draft("a", &["echo-tool", "shown"])]);
         let swapped = path.clone();
         let fake = Fake::new(true).while_open(move || {
-            write(&swapped, vec![draft("a", &["/bin/sh", "-c", "unseen"])]);
+            write(&swapped, vec![draft("a", &["sh-tool", "-c", "unseen"])]);
         });
         let mut integration = crate::hooks::Integration::new(
             true,
@@ -368,14 +368,14 @@ mod tests {
         let revision = Document::read(&path).revision().map(str::to_owned);
         let swapped = path.clone();
         let fake = Fake::new(true).while_open(move || {
-            write(&swapped, vec![draft("b", &["/bin/true"])]);
+            write(&swapped, vec![draft("b", &["true-tool"])]);
         });
         let error = save_hooks(
             &fake,
             "en-US",
             &path,
             revision.as_deref(),
-            vec![draft("c", &["/bin/true"])],
+            vec![draft("c", &["true-tool"])],
         )
         .await
         .unwrap_err();
@@ -386,7 +386,7 @@ mod tests {
     async fn an_accepted_approval_commits_exactly_what_was_shown() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("hooks.toml");
-        write(&path, vec![draft("a", &["/bin/echo", "ok"])]);
+        write(&path, vec![draft("a", &["echo-tool", "ok"])]);
         let mut integration = crate::hooks::Integration::new(
             true,
             Some(hooks::Consent::at(dir.path().join("consent.json"))),
