@@ -98,7 +98,7 @@
   "settings.agg.all.listed": "Hesaplarımla birlikte listelenir",
   "settings.agg.allHelp": "9router görünümü her zaman tüm bağlantıları gösterir.",
   "settings.doctor.help": "Bu bilgisayarın kurulumunu çevrimdışı ve hiçbir şeyi değiştirmeden denetler: hesap dosyası, her hesabın değişkeni (ayarlı mı değil mi, değeri asla), veritabanları, kancalar, ayarlar ve yerel sunucu. Her sorun ne yapılacağıyla birlikte gelir. cuotai --doctor ile aynı.",
-  "settings.doctor.run": "Şimdi denetle",
+  "settings.doctor.run": "Denetle",
   "settings.doctor.running": "Denetleniyor…",
   "settings.doctor.status.fail": "İlgilenilmeli",
   "settings.doctor.status.ok": "Sorunsuz",

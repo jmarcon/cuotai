@@ -96,7 +96,7 @@
   "settings.agg.all.listed": "Dicantumkan bersama akun saya",
   "settings.agg.allHelp": "Tampilan 9router selalu menampilkan semua koneksi.",
   "settings.doctor.help": "Memeriksa penyiapan komputer ini secara offline tanpa mengubah apa pun: file akun, variabel tiap akun (disetel atau tidak, tidak pernah nilainya), basis data, hook, pengaturan, dan server lokal. Setiap masalah disertai langkah perbaikannya. Sama seperti cuotai --doctor.",
-  "settings.doctor.run": "Periksa sekarang",
+  "settings.doctor.run": "Periksa",
   "settings.doctor.running": "Memeriksa…",
   "settings.doctor.status.fail": "Perlu perhatian",
   "settings.doctor.status.ok": "Baik",

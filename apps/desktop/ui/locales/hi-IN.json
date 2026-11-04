@@ -98,7 +98,7 @@
   "settings.agg.all.listed": "मेरे खातों के साथ सूचीबद्ध",
   "settings.agg.allHelp": "9router व्यू में हमेशा सभी कनेक्शन दिखते हैं।",
   "settings.doctor.help": "इस कंप्यूटर के सेटअप को ऑफ़लाइन और बिना कुछ बदले जाँचता है: खाता फ़ाइल, हर खाते का वेरिएबल (सेट है या नहीं, उसका मान कभी नहीं), डेटाबेस, हुक, सेटिंग्स और स्थानीय सर्वर। हर समस्या के साथ बताया जाता है कि क्या करें। cuotai --doctor जैसा ही।",
-  "settings.doctor.run": "अभी जाँचें",
+  "settings.doctor.run": "जाँचें",
   "settings.doctor.running": "जाँच हो रही है…",
   "settings.doctor.status.fail": "ध्यान देने की ज़रूरत",
   "settings.doctor.status.ok": "ठीक है",

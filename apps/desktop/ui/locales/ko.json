@@ -96,7 +96,7 @@
   "settings.agg.all.listed": "내 계정과 함께 나열",
   "settings.agg.allHelp": "9router 보기에는 항상 모든 연결이 표시됩니다.",
   "settings.doctor.help": "이 컴퓨터의 설정을 오프라인으로, 아무것도 바꾸지 않고 점검합니다: 계정 파일, 각 계정의 변수(설정 여부만, 값은 절대 표시 안 함), 데이터베이스, 훅, 설정, 로컬 서버. 문제마다 해야 할 일을 알려 줍니다. cuotai --doctor와 같습니다.",
-  "settings.doctor.run": "지금 점검",
+  "settings.doctor.run": "점검",
   "settings.doctor.running": "점검 중…",
   "settings.doctor.status.fail": "조치 필요",
   "settings.doctor.status.ok": "정상",
