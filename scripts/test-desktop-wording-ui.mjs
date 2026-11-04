@@ -65,6 +65,8 @@ const NOT_RENDERED = [
   [/^detect\./, "the desktop device check uses its own consent (`dialog.detect.*`) and checks folders only (G1)"],
   [/^extensions\./, "an extension's manifest lists its own variables (PRD 0038)"],
   [/^access\.credential_hint\.extension$/, "extension access hint, same as above"],
+  [/^bundle\./, "backup and restore are command-line only for now (PRD 0046 RF2/RF3)"],
+  [/^doctor\./, "Check setup renders the doctor on purpose: it names the variable an account reads, never its value, as cuotai --doctor does (PRD 0046 RF4)"],
 ];
 const notRendered = (id) => NOT_RENDERED.some(([re]) => re.test(id));
 
