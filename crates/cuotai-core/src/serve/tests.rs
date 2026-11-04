@@ -1137,6 +1137,7 @@ async fn answers_and_access_log_carry_no_secrets() {
         ServeConfig {
             token: Some(token.clone()),
             access_log: Some(Arc::new(move |entry| log.lock().push(entry.clone()))),
+            access_log_mode: AccessLogMode::All,
             ..ServeConfig::default()
         },
         fixture_source(),
@@ -1186,17 +1187,27 @@ async fn answers_and_access_log_carry_no_secrets() {
 
     let entries = entries.lock().clone();
     assert_eq!(entries.len(), 4);
-    assert_eq!(entries[0].path, "/v1/snapshot");
+    assert_eq!(entries[0].route, "/v1/snapshot");
     assert_eq!(entries[0].status, 200);
-    assert_eq!(
-        entries[1].path,
-        format!("/v1/accounts/{}", config.accounts[1].key())
-    );
+    assert_eq!(entries[0].peer, PeerClass::Loopback);
+    // PRD 0050 RF6.2: the route template, never the account key.
+    assert_eq!(entries[1].route, "/v1/accounts/:key");
     assert_eq!(entries[3].status, 401);
     for entry in &entries {
         let line = entry.to_string();
-        assert!(line.contains(" GET /"), "{line}");
-        for needle in [token.expose(), "Bearer", "sk-QUERY", "sk-WRONG", "t0p", "?"] {
+        assert!(line.contains(" loopback GET /"), "{line}");
+        let key = config.accounts[1].key();
+        for needle in [
+            token.expose(),
+            "Bearer",
+            "sk-QUERY",
+            "sk-WRONG",
+            "t0p",
+            "?",
+            "127.0.0.1",
+            key.as_str(),
+            "Work",
+        ] {
             assert!(!line.contains(needle), "{needle} in {line}");
         }
     }
@@ -1948,4 +1959,115 @@ async fn the_client_reads_limits_from_a_running_server() {
         client::limits_views(&base, Some(&token)).await,
         Err(client::ClientError::Unreachable)
     );
+}
+
+/// PRD 0050 RF6.2: the route template and method never carry the account
+/// key, a query, an e-mail or raw bytes.
+// security-invariant: SEC-ACCESS-LOG
+#[test]
+fn access_entries_are_route_templates_without_sentinels() {
+    for (target, route) in [
+        ("/health", "/health"),
+        ("/v1/snapshot?token=sk-SECRET", "/v1/snapshot"),
+        ("/v1/limits#x", "/v1/limits"),
+        ("/v1/stats?range=7d", "/v1/stats"),
+        (
+            "/v1/accounts/claude:someone%40example.com",
+            "/v1/accounts/:key",
+        ),
+        ("/v1/accounts/", "-"),
+        ("/v1/accounts/a/b", "-"),
+        ("/etc/passwd", "-"),
+        ("\u{1b}[31m", "-"),
+    ] {
+        assert_eq!(route_template(target), route, "{target}");
+    }
+    assert_eq!(method_name("GET"), "GET");
+    assert_eq!(method_name("BREW\u{1b}"), "-");
+    let entry = AccessEntry {
+        at: Utc::now(),
+        peer: PeerClass::of("192.0.2.7".parse().unwrap()),
+        method: method_name("GET"),
+        route: route_template("/v1/accounts/someone@example.com?token=sk-SECRET"),
+        status: 404,
+        elapsed: Duration::from_millis(3),
+    };
+    let line = entry.to_string();
+    assert!(
+        line.ends_with(" non_loopback GET /v1/accounts/:key 404 3ms"),
+        "{line}"
+    );
+    for sentinel in ["someone", "example.com", "sk-SECRET", "192.0.2.7", "token"] {
+        assert!(!line.contains(sentinel), "{sentinel} in {line}");
+    }
+    assert_eq!(AccessLogMode::parse("errors"), Some(AccessLogMode::Errors));
+    assert_eq!(AccessLogMode::parse("verbose"), None);
+    assert!(!AccessLogMode::Off.records(500));
+    assert!(AccessLogMode::Errors.records(408) && !AccessLogMode::Errors.records(304));
+    assert!(AccessLogMode::All.records(200));
+}
+
+/// PRD 0050 RF6.1: `Off` records nothing, `Errors` the refusals and a head
+/// timeout (`408`), `All` every request; the mode changes in place.
+#[tokio::test]
+async fn the_access_log_mode_decides_what_is_recorded() {
+    let entries = Arc::new(Mutex::new(Vec::<AccessEntry>::new()));
+    let sink = Arc::clone(&entries);
+    let config = |mode| ServeConfig {
+        access_log: Some(Arc::new({
+            let sink = Arc::clone(&sink);
+            move |entry: &AccessEntry| sink.lock().push(entry.clone())
+        })),
+        access_log_mode: mode,
+        bounds: Bounds {
+            head_timeout: Duration::from_millis(200),
+            ..Bounds::default()
+        },
+        ..ServeConfig::default()
+    };
+    let server = start(config(AccessLogMode::Off), fixture_source()).await;
+    let exchange = |server: &LocalServer| {
+        let addr = server.addr();
+        let url = server.url();
+        async move {
+            client().get(format!("{url}/health")).send().await.unwrap();
+            client().get(format!("{url}/nope")).send().await.unwrap();
+            // A head that never ends: closed at the head deadline.
+            let mut slow = TcpStream::connect(addr).await.unwrap();
+            slow.write_all(b"GET /health HTTP/1.1\r\n").await.unwrap();
+            let mut buf = Vec::new();
+            let _ = slow.read_to_end(&mut buf).await;
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    };
+    exchange(&server).await;
+    assert!(entries.lock().is_empty(), "off records nothing");
+
+    for (mode, want) in [
+        (AccessLogMode::Errors, vec![(404, "-"), (408, "-")]),
+        (
+            AccessLogMode::All,
+            vec![(200, "/health"), (404, "-"), (408, "-")],
+        ),
+    ] {
+        entries.lock().clear();
+        let swapped = server
+            .reconfigure(
+                ServeConfig {
+                    port: 0,
+                    ..config(mode)
+                },
+                fixture_source(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(swapped, Reconfigure::Replaced, "a hot policy change");
+        exchange(&server).await;
+        let got: Vec<(u16, &str)> = entries
+            .lock()
+            .iter()
+            .map(|entry| (entry.status, entry.route))
+            .collect();
+        assert_eq!(got, want, "{mode:?}");
+    }
 }

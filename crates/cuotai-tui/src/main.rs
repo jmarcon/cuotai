@@ -453,6 +453,13 @@ struct Args {
     /// history.
     #[arg(long, requires = "serve", conflicts_with = "no_token")]
     serve_stats: bool,
+    /// With --serve, which requests are written to stderr, one line each:
+    /// off, errors (the default: refusals, malformed requests and requests
+    /// that timed out) or all. A line holds the time, loopback or
+    /// non_loopback, the method, the route (/v1/accounts/:key, never the
+    /// key), the status and the duration; never a query, header or address.
+    #[arg(long, value_name = "MODE", requires = "serve", value_parser = ["off", "errors", "all"])]
+    access_log: Option<String>,
     /// Watches the accounts without opening the TUI and without needing a
     /// terminal: keeps the refresh cycle and emits one event per real
     /// transition (a quota crossed a threshold, ran out, renewed, an account
@@ -1203,6 +1210,11 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
                 no_token: args.no_token,
                 stats: args.serve_stats,
                 fallback_locale: fallback_locale.clone(),
+                access_log: args
+                    .access_log
+                    .as_deref()
+                    .and_then(cuotai_core::serve::AccessLogMode::parse)
+                    .unwrap_or_default(),
             });
             let watch = args.watch.then_some(watch::WatchArgs {
                 events,

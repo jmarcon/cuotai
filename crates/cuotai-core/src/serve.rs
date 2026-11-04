@@ -303,23 +303,116 @@ impl Bounds {
     }
 }
 
-/// One served request, for the access log. It never holds headers (so no
-/// `Authorization`) nor the query string.
+/// One answered (or timed-out) request, for the access log (PRD 0050
+/// RF6.2). It never holds the peer address, headers (so no
+/// `Authorization` nor `Origin`), the query, an account key or name, a
+/// body or raw malformed bytes: only the class of the peer, a known method,
+/// the route template and the status.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AccessEntry {
+    /// UTC, whole seconds when displayed.
     pub at: DateTime<Utc>,
-    pub peer: IpAddr,
-    /// `-` when the request could not be read.
-    pub method: String,
-    /// The path without its query, printable ASCII only, at most
-    /// [`AccessEntry::MAX_PATH`] bytes; `-` when the request could not be read.
-    pub path: String,
+    pub peer: PeerClass,
+    /// A known HTTP method; `-` for another one or an unread request.
+    pub method: &'static str,
+    /// [`route_template`] of the path: `/v1/accounts/:key`, never the key;
+    /// `-` for an unknown route or an unread request.
+    pub route: &'static str,
+    /// `408` when the head did not arrive in time.
     pub status: u16,
     pub elapsed: Duration,
 }
 
-impl AccessEntry {
-    pub const MAX_PATH: usize = 256;
+/// PRD 0050 RF6.2: whether the peer was this computer, never its address.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PeerClass {
+    Loopback,
+    NonLoopback,
+}
+
+impl PeerClass {
+    pub fn of(ip: IpAddr) -> Self {
+        if is_loopback(ip) {
+            Self::Loopback
+        } else {
+            Self::NonLoopback
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Loopback => "loopback",
+            Self::NonLoopback => "non_loopback",
+        }
+    }
+}
+
+/// PRD 0050 RF6.1: which requests [`ServeConfig::access_log`] receives.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AccessLogMode {
+    /// None; no entry is built.
+    Off,
+    /// Status `>= 400`: refusals, parse errors and head timeouts (`408`).
+    #[default]
+    Errors,
+    /// Every request.
+    All,
+}
+
+impl AccessLogMode {
+    /// `off`, `errors` or `all` (`--access-log`).
+    pub fn parse(text: &str) -> Option<Self> {
+        match text {
+            "off" => Some(Self::Off),
+            "errors" => Some(Self::Errors),
+            "all" => Some(Self::All),
+            _ => None,
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Off => "off",
+            Self::Errors => "errors",
+            Self::All => "all",
+        }
+    }
+
+    /// Whether an answer with `status` is recorded.
+    pub fn records(self, status: u16) -> bool {
+        match self {
+            Self::Off => false,
+            Self::Errors => status >= 400,
+            Self::All => true,
+        }
+    }
+}
+
+/// PRD 0050 RF6.2: the route template of a request target: the documented
+/// routes as written, `/v1/accounts/:key` for any account, `-` for the
+/// rest. The query never counts.
+pub fn route_template(target: &str) -> &'static str {
+    let path = target.split(['?', '#']).next().unwrap_or_default();
+    match path {
+        "/health" => "/health",
+        "/v1/snapshot" => "/v1/snapshot",
+        "/v1/limits" => "/v1/limits",
+        "/v1/stats" => "/v1/stats",
+        _ => match path.strip_prefix("/v1/accounts/") {
+            Some(key) if !key.is_empty() && !key.contains('/') => "/v1/accounts/:key",
+            _ => "-",
+        },
+    }
+}
+
+/// PRD 0050 RF6.2: a known method as itself, any other as `-`.
+pub fn method_name(method: &str) -> &'static str {
+    const KNOWN: [&str; 7] = ["GET", "HEAD", "OPTIONS", "POST", "PUT", "PATCH", "DELETE"];
+    KNOWN
+        .iter()
+        .find(|known| **known == method)
+        .copied()
+        .unwrap_or("-")
 }
 
 impl fmt::Display for AccessEntry {
@@ -328,9 +421,9 @@ impl fmt::Display for AccessEntry {
             f,
             "{} {} {} {} {} {}ms",
             self.at.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
-            self.peer,
+            self.peer.name(),
             self.method,
-            self.path,
+            self.route,
             self.status,
             self.elapsed.as_millis()
         )
@@ -371,7 +464,12 @@ pub struct ServeConfig {
     /// without it.
     pub fallback_locale: Option<String>,
     pub bounds: Bounds,
+    /// Receives the [`AccessEntry`] of each request [`Self::access_log_mode`]
+    /// records; `None` records nothing.
     pub access_log: Option<AccessLog>,
+    /// PRD 0050 RF6.1: `Errors` by default; changing it is a hot
+    /// [`LocalServer::reconfigure`].
+    pub access_log_mode: AccessLogMode,
 }
 
 impl Default for ServeConfig {
@@ -388,6 +486,7 @@ impl Default for ServeConfig {
             fallback_locale: None,
             bounds: Bounds::default(),
             access_log: None,
+            access_log_mode: AccessLogMode::default(),
         }
     }
 }
@@ -406,6 +505,7 @@ impl fmt::Debug for ServeConfig {
             .field("fallback_locale", &self.fallback_locale)
             .field("bounds", &self.bounds)
             .field("access_log", &self.access_log.is_some())
+            .field("access_log_mode", &self.access_log_mode)
             .finish()
     }
 }
@@ -973,44 +1073,60 @@ async fn serve_connection(
             http::read_head(&mut stream, bounds.max_head_bytes, bounds.max_headers),
         )
         .await;
-        let (response, method, path) = match read {
-            Err(_) | Ok(Read::Closed) => return,
-            Ok(Read::TooLarge) => (Response::error(431, "headers_too_large"), None, None),
-            Ok(Read::Malformed) => (Response::error(400, "bad_request"), None, None),
+        let (response, method, route) = match read {
+            Ok(Read::Closed) => return,
+            // PRD 0050 RF6.2: a head that did not arrive in time is a 408
+            // in the log, and the connection is closed unanswered.
+            Err(_) => {
+                log(snapshot, peer, "-", "-", 408, started);
+                return;
+            }
+            Ok(Read::TooLarge) => (Response::error(431, "headers_too_large"), "-", "-"),
+            Ok(Read::Malformed) => (Response::error(400, "bad_request"), "-", "-"),
             Ok(Read::Head(head)) => {
-                let method = head.method.clone();
-                let target = head.target.clone();
+                let method = method_name(&head.method);
+                let route = route_template(&head.target);
                 let response = state.respond(&head, peer, pending, snapshot);
                 let cors = cors_origin(&head, &snapshot.config);
-                (response.with_cors(cors), Some(method), Some(target))
+                (response.with_cors(cors), method, route)
             }
         };
         let response = state.finish(response, snapshot);
         let status = response.status;
-        let include_body = method.as_deref() != Some("HEAD");
+        let include_body = method != "HEAD";
         let _ = http::write(&mut stream, response, include_body).await;
-        if let Some(log) = &snapshot.config.access_log {
-            log(&AccessEntry {
-                at: Utc::now(),
-                peer,
-                method: method.unwrap_or_else(|| "-".into()),
-                path: path.as_deref().map_or_else(|| "-".into(), log_path),
-                status,
-                elapsed: started.elapsed(),
-            });
-        }
+        log(snapshot, peer, method, route, status, started);
         http::linger(&mut stream).await;
     })
     .await;
 }
 
-/// The path of `target` for the log: no query, printable ASCII, bounded.
-fn log_path(target: &str) -> String {
-    let path = target.split(['?', '#']).next().unwrap_or_default();
-    path.chars()
-        .map(|c| if c.is_ascii_graphic() { c } else { '?' })
-        .take(AccessEntry::MAX_PATH)
-        .collect()
+/// PRD 0050 RF6.1: hand one entry to the access log when its mode records
+/// `status`; nothing is built otherwise.
+fn log(
+    snapshot: &Snapshot,
+    peer: IpAddr,
+    method: &'static str,
+    route: &'static str,
+    status: u16,
+    started: Instant,
+) {
+    let config = &snapshot.config;
+    let Some(sink) = config
+        .access_log
+        .as_ref()
+        .filter(|_| config.access_log_mode.records(status))
+    else {
+        return;
+    };
+    sink(&AccessEntry {
+        at: Utc::now(),
+        peer: PeerClass::of(peer),
+        method,
+        route,
+        status,
+        elapsed: started.elapsed(),
+    });
 }
 
 impl State {

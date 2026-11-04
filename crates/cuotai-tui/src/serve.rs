@@ -42,6 +42,8 @@ pub(crate) struct ServeArgs {
     pub stats: bool,
     /// PRD 0034 RF5.2: `--fallback-locale` / `CUOTAI_FALLBACK_LOCALE`.
     pub fallback_locale: Option<String>,
+    /// PRD 0050 RF6.1: `--access-log off|errors|all` (errors by default).
+    pub access_log: cuotai_core::serve::AccessLogMode,
 }
 
 /// INT-04: the bearer token every request must carry — `--token-file`'s,
@@ -192,6 +194,7 @@ async fn taken_port_message(error: &ServeError, port: u16, text: &str) -> String
 /// Loopback on exactly the chosen port (PRD 0031 RF9.1): a taken port is an
 /// error, never a silent move to another one.
 fn serve_config(args: &ServeArgs, token: Option<Token>) -> ServeConfig {
+    // PRD 0050 RF6.3: stderr; retention belongs to whoever runs the server.
     let access_log: cuotai_core::serve::AccessLog = Arc::new(|entry: &AccessEntry| {
         crate::cli::message_with(
             crate::cli::Level::Info,
@@ -215,6 +218,7 @@ fn serve_config(args: &ServeArgs, token: Option<Token>) -> ServeConfig {
         stats: args.stats,
         fallback_locale: args.fallback_locale.clone(),
         access_log: Some(access_log),
+        access_log_mode: args.access_log,
         ..ServeConfig::default()
     }
 }
