@@ -700,8 +700,16 @@ fn parse_coding_plan_payload(
     let multiple_instances =
         instances.is_some_and(|items| items.iter().filter(|value| value.is_object()).count() > 1);
 
+    // Every instance is expired or inactive (the best one scores below zero):
+    // the account has no plan to measure, which is not a malformed response.
+    if selected.is_some_and(|(_, score)| score < 0) {
+        return Err(QueryError::unsupported(
+            "query.alibaba_plans.plan_inactive",
+            "The Alibaba Coding Plan subscription is expired or inactive; there is no quota to show.",
+        ));
+    }
+
     let quota = match selected {
-        Some((_, score)) if score < 0 => None,
         Some((instance, score)) if multiple_instances && score > 0 => find_quota_in_map(instance),
         Some((instance, _)) => {
             find_quota_in_map(instance).or_else(|| find_quota_without_arrays(&payload))
@@ -2095,6 +2103,31 @@ mod tests {
         assert_eq!(metric(&data, "Coding Plan: semanal").used, Some(5.0));
         assert_eq!(metric(&data, "Coding Plan: mensal").used, Some(6.0));
         assert!(data.notes.iter().any(|note| note == "Plan: Active."));
+    }
+
+    #[test]
+    fn an_expired_or_inactive_plan_is_not_a_schema_error() {
+        let now = Utc::now();
+        for payload in [
+            json!({"data": {"codingPlanInstanceInfos": [{
+                "planName": "Lite", "status": "EXPIRED",
+                "codingPlanQuotaInfo": {"per5HourUsedQuota": 1, "per5HourTotalQuota": 10}
+            }]}}),
+            json!({"data": {"codingPlanInstanceInfos": [
+                {"planName": "A", "isActive": false},
+                {"planName": "B", "instanceStatus": "INACTIVE"}
+            ]}}),
+        ] {
+            let error = parse_coding_plan_payload(payload, Region::Intl, QueriedWith::ApiKey, now)
+                .unwrap_err();
+            assert_eq!(error.status, Status::Unsupported);
+            assert_eq!(error.note.id, "query.alibaba_plans.plan_inactive");
+        }
+        // A response that carries no instance and no quota stays a schema error.
+        let error =
+            parse_coding_plan_payload(json!({"data": {}}), Region::Intl, QueriedWith::ApiKey, now)
+                .unwrap_err();
+        assert_eq!(error.status, Status::Error);
     }
 
     #[tokio::test]

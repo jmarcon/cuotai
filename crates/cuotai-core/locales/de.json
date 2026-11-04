@@ -1351,6 +1351,7 @@
   "query.alibaba_plans.invalid_cli_profile": "Ungültiges params.cli_profile: Verwenden Sie Buchstaben, Ziffern, '-' oder '_' (bis zu 32 Zeichen).",
   "query.alibaba_plans.invalid_region": "params.region '{region}' ist für Alibaba ungültig; verwenden Sie 'intl' (Standard) oder 'cn'.",
   "query.alibaba_plans.model_studio_no_public_quota": "Alibaba Model Studio / DashScope (DASHSCOPE_API_KEY oder QWEN_API_KEY) gewährt keinen Zugriff auf einen öffentlichen Endpunkt für Guthaben oder Abrechnungskontingent. Der Inferenzschlüssel (sk-…) autorisiert nur POST an {infer_base} und kompatible OpenAI-/Anthropic-Routen; das echte Guthaben des Alibaba-Cloud-Kontos erfordert AccessKey ID/Secret des Hauptkontos über QueryAccountBalance (Financial Management API) und wird vom Adapter AlibabaCloud behandelt. Die Grenzen der kostenlosen Stufe und der Verbrauch von Model Studio sind nur im angemeldeten Dashboard verfügbar: kostenlose Stufe unter {free_quota_url} und detaillierte Nutzung unter {usage_url}. Primärquellen: {dashscope_docs} (Inferenz) und {billing_docs} (Kontoguthaben).",
+  "query.alibaba_plans.plan_inactive": "Das Alibaba-Coding-Plan-Abonnement ist abgelaufen oder inaktiv; es gibt kein Kontingent anzuzeigen.",
   "query.alibaba_plans.qwen_cloud_missing_sec_token": "Qwen-Cloud-Sitzung ohne sec_token; erneuern Sie params.session_env.",
   "query.alibaba_plans.qwen_cloud_session_invalid": "Qwen-Cloud-Sitzung ungültig; erneuern Sie params.session_env.",
   "query.alibaba_plans.rpc_quota": "Alibaba Coding Plan lieferte einen Fehler im Kontingent-RPC.",
