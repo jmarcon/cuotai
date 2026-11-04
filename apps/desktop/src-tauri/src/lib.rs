@@ -7,6 +7,7 @@ mod desk_text;
 mod hooks;
 mod local_cost;
 mod local_server;
+mod main_window;
 mod notify;
 mod session_capture;
 mod settings;
@@ -1776,9 +1777,11 @@ fn toggle_popover(w: &WebviewWindow, anchor: PhysicalPosition<f64>) {
         let _ = w.hide();
         return;
     }
-    let width = w.outer_size().map(|s| s.width as f64).unwrap_or(380.0);
-    let height = w.outer_size().map(|s| s.height as f64).unwrap_or(600.0);
-    let scale = w.scale_factor().unwrap_or(1.0);
+    let own_scale = w.scale_factor().unwrap_or(1.0);
+    let outer = w
+        .outer_size()
+        .map(|s| (s.width as f64, s.height as f64))
+        .unwrap_or((380.0 * own_scale, 600.0 * own_scale));
     // The screen that holds the icon that was clicked, not the one where the
     // popover was last shown. The anchor is in physical pixels, so it is
     // matched against each monitor's physical rectangle: tao's
@@ -1793,11 +1796,24 @@ fn toggle_popover(w: &WebviewWindow, anchor: PhysicalPosition<f64>) {
         .available_monitors()
         .unwrap_or_default()
         .iter()
-        .map(rect)
+        .map(|m| (rect(m), m.scale_factor()))
         .collect();
-    let screen = screen_containing(anchor, &monitors)
-        .or_else(|| w.current_monitor().ok().flatten().map(|m| rect(&m)));
-    let (x, y) = popover_origin(anchor, (width, height), screen, scale);
+    let rects: Vec<_> = monitors.iter().map(|(r, _)| *r).collect();
+    let screen = screen_containing(anchor, &rects)
+        .and_then(|r| monitors.iter().find(|(m, _)| *m == r).copied())
+        .or_else(|| {
+            w.current_monitor()
+                .ok()
+                .flatten()
+                .map(|m| (rect(&m), m.scale_factor()))
+        });
+    // PRD 0054 RF7.3: gaps, margins and the popover's size use the scale of
+    // the clicked screen, not the one the popover was last shown on.
+    let scale = screen.map_or(own_scale, |(_, s)| s);
+    let size = popover_size(outer, own_scale, scale);
+    // Only the placement uses it: the OS rescales the window itself when it
+    // lands on a screen of another scale.
+    let (x, y) = popover_origin(anchor, size, screen.map(|(r, _)| r), scale);
     let _ = w.set_position(PhysicalPosition::new(x, y));
     #[cfg(target_os = "macos")]
     macos_popover::present(w);
@@ -1806,6 +1822,18 @@ fn toggle_popover(w: &WebviewWindow, anchor: PhysicalPosition<f64>) {
         let _ = w.show();
         let _ = w.set_focus();
     }
+}
+
+/// The popover's outer size in the physical pixels of a screen of scale
+/// `target`, from its current physical size at scale `own`: its logical size
+/// never changes between screens.
+fn popover_size((width, height): (f64, f64), own: f64, target: f64) -> (f64, f64) {
+    let ratio = if own > 0.0 && target > 0.0 {
+        target / own
+    } else {
+        1.0
+    };
+    ((width * ratio).round(), (height * ratio).round())
 }
 
 /// The first screen, as `(x, y, width, height)` in physical pixels, whose
@@ -2104,6 +2132,7 @@ pub fn run() {
         .manage(session_capture::State::default())
         .manage(Arc::clone(&updates))
         .manage(settings_window::State::new(settings::settings_path()))
+        .manage(Arc::new(main_window::State::new(settings::settings_path())))
         .invoke_handler(tauri::generate_handler![
             get_view,
             tray_preview,
@@ -2315,6 +2344,9 @@ pub fn run() {
                 });
             }
             if let Some(w) = app.get_webview_window("main") {
+                // PRD 0054 RF7: back where it was, then followed.
+                main_window::restore(&w);
+                main_window::track(&w);
                 // Started by the login entry: stay in the tray, without a window.
                 if autostart::launched_at_login(std::env::args()) {
                     let _ = w.hide();
@@ -2324,6 +2356,9 @@ pub fn run() {
                     if let WindowEvent::CloseRequested { api, .. } = e {
                         api.prevent_close();
                         let _ = handle.hide();
+                        // Its geometry is read outside the event handler.
+                        let app = handle.app_handle().clone();
+                        tauri::async_runtime::spawn(async move { main_window::save(&app) });
                     }
                 });
             }
@@ -2346,6 +2381,10 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("erro ao iniciar o Cuotai")
         .run(|_app, _event| {
+            // PRD 0054 RF7.1: the main window's last normal geometry.
+            if let tauri::RunEvent::ExitRequested { .. } = _event {
+                main_window::save(_app);
+            }
             // PRD 0056 RF2.3: the shared capture window ends with the app.
             if let tauri::RunEvent::Exit = _event {
                 session_capture::on_exit(_app);
@@ -2580,6 +2619,33 @@ mod tests {
             1.0,
         );
         assert_eq!((x, y), (-90.0, 16.0));
+    }
+
+    /// PRD 0054 RF7.3: a popover last shown on a 2× screen, clicked from a
+    /// 1× taskbar on a screen left of the primary one (negative origin),
+    /// opens above the icon at its 1× size, kept 8 px inside that screen.
+    #[test]
+    fn popover_uses_the_clicked_screen_scale_and_negative_origins() {
+        use super::{popover_origin, popover_size, screen_containing};
+        use tauri::PhysicalPosition;
+        assert_eq!(popover_size((760.0, 1200.0), 2.0, 1.0), (380.0, 600.0));
+        assert_eq!(popover_size((380.0, 600.0), 1.0, 2.0), (760.0, 1200.0));
+        assert_eq!(popover_size((380.0, 600.0), 1.0, 1.5), (570.0, 900.0));
+        let left = (-1920.0, 0.0, 1920.0, 1080.0);
+        let primary = (0.0, 0.0, 3024.0, 1964.0);
+        let anchor = PhysicalPosition::new(-100.0, 1060.0);
+        assert_eq!(screen_containing(anchor, &[primary, left]), Some(left));
+        let size = popover_size((760.0, 1200.0), 2.0, 1.0);
+        let (x, y) = popover_origin(anchor, size, Some(left), 1.0);
+        assert_eq!(
+            (x, y),
+            (-1920.0 + 1920.0 - 380.0 - 8.0, 1060.0 - 600.0 - 6.0)
+        );
+        // A screen above the primary one (negative y), icon in its top half.
+        let above = (0.0, -1440.0, 2560.0, 1440.0);
+        let anchor = PhysicalPosition::new(30.0, -1430.0);
+        let (x, y) = popover_origin(anchor, (380.0, 600.0), Some(above), 1.0);
+        assert_eq!((x, y), (8.0, -1430.0 + 6.0));
     }
 
     use super::clean_menu_line;
