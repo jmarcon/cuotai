@@ -191,4 +191,4 @@ Every front end that records the measurement history also keeps a journal of the
 
 ## Privacy
 
-Payloads carry no credentials, credential variable names, e-mails, URLs (neither the query's nor the status page's), provider notes, incident titles or raw error messages. A test feeds readings full of them through every event kind and checks that none reaches a payload.
+[`privacy.md`](privacy.md) is the inventory of every network flow and local file (hooks run programs you confirmed, which may use your network). Payloads carry no credentials, credential variable names, e-mails, URLs (neither the query's nor the status page's), provider notes, incident titles or raw error messages. A test feeds readings full of them through every event kind and checks that none reaches a payload.

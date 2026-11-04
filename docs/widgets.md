@@ -80,7 +80,7 @@ Windows has no Cuotai widget: PRD 0014 delivers no native widget there. The app 
 
 ## Privacy
 
-The file can be read by any process of the same user and by the extension. Therefore it carries **no credentials, no credential variable names, no provider notes, no response bodies and no authenticated URLs** — notes are not projected at all. The e-mail of an account appears only when Settings › Advanced › Integrations › Widgets has "include identity (e-mail)" turned on, which is off by default. On Unix the file is written `0600` (readable by its owner only); on Windows the per-user data directory provides the equivalent.
+`widget.json` is the `widgets.snapshot` row of the generated inventory in [`privacy.md`](privacy.md). The file can be read by any process of the same user and by the extension. Therefore it carries **no credentials, no credential variable names, no provider notes, no response bodies and no authenticated URLs** — notes are not projected at all. The e-mail of an account appears only when Settings › Advanced › Integrations › Widgets has "include identity (e-mail)" turned on, which is off by default. On Unix the file is written `0600` (readable by its owner only); on Windows the per-user data directory provides the equivalent.
 
 The same rules that apply to [`export::v1`](export-v1.md#what-never-appears) apply here, and `widget_snapshot` inherits the redacted fields it projects.
 

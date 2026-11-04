@@ -72,6 +72,7 @@ pub mod notify_prefs;
 pub mod oauth;
 pub mod overage;
 pub mod pace;
+pub mod privacy;
 pub mod private_fs;
 mod process_tree;
 mod providers;

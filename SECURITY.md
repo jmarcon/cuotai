@@ -16,7 +16,10 @@ Include, without any real credentials:
 - the Cuotai version and your operating system;
 - what happens and what should happen;
 - minimal steps to reproduce, using fictitious data;
-- the impact you see (for example, token leakage, command execution, file access).
+- the impact you see (for example, token leakage, command execution, file access);
+- when useful, the relevant lines of the redacted app log ([`docs/advanced.md`](docs/advanced.md#app-log)) and `cuotai --list-providers --json`, after you have reviewed them.
+
+[`docs/privacy.md`](docs/privacy.md) lists every network flow and local file Cuotai has; a flow or file missing from it is worth reporting.
 
 **Never** send tokens, cookies, API keys, the contents of a `cuotai.toml` that holds secrets, credential SQLite databases, or screenshots showing account data. If a real secret leaked while you were testing, revoke it with the provider before reporting.
 

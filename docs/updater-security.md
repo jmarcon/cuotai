@@ -320,6 +320,8 @@ Each result must name the new certificate and have `Status` equal to `Valid`.
 
 ## Exactly what an update check sends (privacy)
 
+This section covers the updater only; [`privacy.md`](privacy.md) is the generated inventory of every network flow and local file.
+
 Checking for updates is a plain `GET` of the endpoint:
 
 ```text
