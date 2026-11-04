@@ -545,8 +545,15 @@ mod tests {
     }
 
     fn assert_free_of_secrets(text: &str) {
-        for secret in [ID, SECRET, TOKEN, "jetbrains.cloud", "oauth.account"] {
-            assert!(!text.contains(secret), "{secret} leaked into {text:?}");
+        for (index, needle) in [ID, SECRET, TOKEN, "jetbrains.cloud", "oauth.account"]
+            .into_iter()
+            .enumerate()
+        {
+            // The message names only the position, never the placeholder value.
+            assert!(
+                !text.contains(needle),
+                "placeholder #{index} leaked into a note"
+            );
         }
     }
 
