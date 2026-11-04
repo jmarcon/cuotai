@@ -36,7 +36,7 @@ mod claude;
 mod codex;
 mod estimate;
 mod gemini;
-mod index;
+pub(crate) mod index;
 mod plan;
 mod prices;
 mod scan;
