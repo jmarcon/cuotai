@@ -234,9 +234,17 @@ fn serves_reads_without_queries_and_exits_0_on_sigterm() {
 
     let queries = sandbox.aws_calls();
     assert_eq!(queries, 1, "one first sweep");
+    // PRD 0050 RF5.3: one peer gets a burst of 20 heads, then one a
+    // second; a read past it is `429`, and no read ever queries.
+    let mut served = 0;
     for _ in 0..100 {
-        assert_eq!(server.get("/v1/snapshot", &bearer).0, 200);
+        match server.get("/v1/snapshot", &bearer).0 {
+            200 => served += 1,
+            429 => {}
+            other => panic!("unexpected status {other}"),
+        }
     }
+    assert!(served > 0, "reads within the burst are served");
     assert_eq!(sandbox.aws_calls(), queries, "a read never queries");
 
     let (status, addr) = server.stop("-TERM");
