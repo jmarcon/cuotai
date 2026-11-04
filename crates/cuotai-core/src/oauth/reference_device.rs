@@ -1034,6 +1034,16 @@ async fn finish_kiro(poll: KiroPoll) -> Result<OAuthToken, OAuthError> {
     })
 }
 
+/// Tests only: a Kiro refresh against a local mock token endpoint.
+#[cfg(test)]
+pub(super) async fn refresh_kiro_at(
+    http: &reqwest::Client,
+    token: &OAuthToken,
+    token_url: &str,
+) -> Result<OAuthToken, OAuthError> {
+    refresh_kiro(http, token, Some(token_url)).await
+}
+
 async fn refresh_kiro(
     http: &reqwest::Client,
     token: &OAuthToken,
