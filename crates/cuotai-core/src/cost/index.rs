@@ -25,6 +25,9 @@ const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 /// Forward migrations: entry `n` takes `PRAGMA user_version` from `n` to
 /// `n + 1`. Append new steps, never edit a shipped one. Days are local
 /// `YYYY-MM-DD`; times are UTC unix milliseconds.
+/// PRD 0046 RF4: the migration count this release knows, for `--doctor`.
+pub(crate) const SCHEMA_REVISION: i64 = MIGRATIONS.len() as i64;
+
 pub(super) const MIGRATIONS: [&str; 2] = [
     "CREATE TABLE usage (
     source TEXT NOT NULL,

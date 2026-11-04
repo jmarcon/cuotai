@@ -7,6 +7,7 @@ mod changelog_view;
 mod config_check;
 mod cost;
 mod dashboard;
+mod doctor;
 mod extension_check;
 mod extensions_view;
 mod glyphs;
@@ -167,6 +168,15 @@ struct Args {
         ]
     )]
     check_config: bool,
+    /// Checks this installation, read-only and offline: the configuration
+    /// file, each account's credential variable (set or not, never its
+    /// value), the data folder, the history, model and cost databases,
+    /// hooks, desktop settings, the server token and port. Each problem
+    /// comes with its fix; the report names no account and shows the home
+    /// folder as ~, so it can go into an issue. With --json, as JSON. Exit
+    /// 0 without a failure, 2 with one, 1 when the doctor itself fails.
+    #[arg(long, conflicts_with_all = SETUP_CONFLICTS)]
+    doctor: bool,
     /// Usage statistics from the local history (limits reached, average peak
     /// of the tightest limit, extra spending, peak per day and per account),
     /// without querying the providers. With --days 7|30 (default 7) and
@@ -561,6 +571,29 @@ struct Args {
 }
 
 /// PRD 0029 RF6.2: the vault audit runs alone.
+/// PRD 0046: `--doctor` runs alone (with `--config` and `--json`).
+const SETUP_CONFLICTS: [&str; 19] = [
+    "list_providers",
+    "changelog",
+    "extension_check",
+    "once",
+    "json_v1",
+    "history",
+    "notify",
+    "serve",
+    "watch",
+    "install_source",
+    "cost_action",
+    "report_problem",
+    "canary",
+    "status_line",
+    "stored_view",
+    "completions",
+    "vault_audit",
+    "vault_prune",
+    "check_config",
+];
+
 const VAULT_CONFLICTS: [&str; 7] = [
     "cost_action",
     "once",
@@ -772,6 +805,27 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
             );
         }
         return Ok(0);
+    }
+    // PRD 0046 RF4: read-only and offline; it reports an invalid
+    // CUOTAI_DATA_DIR instead of stopping on it.
+    if args.doctor {
+        let source = std::env::current_exe()
+            .map(|exe| {
+                detect_install_source(
+                    &exe,
+                    |key| std::env::var_os(key),
+                    || executable_dir_writable(&exe),
+                )
+                .as_str()
+                .to_owned()
+            })
+            .unwrap_or_else(|_| "unknown".to_owned());
+        return Ok(doctor::run(
+            args.config.take(),
+            source,
+            args.json,
+            ui::tui_locale(),
+        )?);
     }
     // PRD 0051 RF5.2: an invalid CUOTAI_DATA_DIR is a local error, never a
     // silent fallback to the OS directory.

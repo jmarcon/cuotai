@@ -99,6 +99,9 @@ const WAL_SIZE_LIMIT: i64 = 4 << 20;
 /// Times are UTC unix milliseconds. Version 2 indexes samples by age (the
 /// file-wide retention and size pruning, RF4) and adds `meta` (the
 /// resolution reduction's progress).
+/// PRD 0046 RF4: the migration count this release knows, for `--doctor`.
+pub(crate) const SCHEMA_REVISION: i64 = MIGRATIONS.len() as i64;
+
 const MIGRATIONS: [&str; 7] = [
     "CREATE TABLE series (
     config_key TEXT NOT NULL,
