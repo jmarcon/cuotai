@@ -1659,6 +1659,7 @@
   "serve.client.unauthorized": "Le serveur local a refusé le token (utilisez --token-file avec le même fichier que --serve).",
   "serve.client.unreachable": "Le serveur local n’a pas répondu ; est-il en cours d’exécution (cuotai --serve) ?",
   "serve.error.bind": "Impossible d’ouvrir le port {port} du serveur local.",
+  "serve.error.bounds": "Une limite du serveur local est hors de sa plage autorisée.",
   "serve.error.invalid_token": "Token du serveur local invalide : utilisez de 16 à 512 caractères sans espaces (lettres, chiffres et - . _ ~ + /).",
   "serve.error.non_loopback": "Le serveur local n’écoute qu’en boucle locale (127.0.0.1 ou ::1) ; l’adresse {addr} nécessite l’option explicite hors boucle locale.",
   "serve.error.port_in_use": "Les ports {first} à {last} sont utilisés ; choisissez un autre port pour le serveur local.",

@@ -1650,6 +1650,7 @@
   "serve.client.unauthorized": "로컬 서버가 토큰을 거부했습니다(--serve와 같은 파일로 --token-file을 사용하세요).",
   "serve.client.unreachable": "로컬 서버가 응답하지 않았습니다. 실행 중인가요(cuotai --serve)?",
   "serve.error.bind": "로컬 서버의 {port} 포트를 열지 못했습니다.",
+  "serve.error.bounds": "로컬 서버의 제한 값 하나가 허용 범위를 벗어났습니다.",
   "serve.error.invalid_token": "로컬 서버 토큰이 올바르지 않습니다. 공백 없이 16~512자를 사용하세요(영문자, 숫자, - . _ ~ + /).",
   "serve.error.non_loopback": "로컬 서버는 루프백(127.0.0.1 또는 ::1)에서만 수신합니다. {addr} 주소는 루프백 밖으로 열겠다는 명시적 옵션이 필요합니다.",
   "serve.error.port_in_use": "{first}~{last} 포트가 모두 사용 중입니다. 로컬 서버에 다른 포트를 고르세요.",

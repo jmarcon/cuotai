@@ -1659,6 +1659,7 @@
   "serve.client.unauthorized": "Yerel sunucu jetonu reddetti (--serve ile aynı dosyayla --token-file kullanın).",
   "serve.client.unreachable": "Yerel sunucu yanıt vermedi; çalışıyor mu (cuotai --serve)?",
   "serve.error.bind": "Yerel sunucunun {port} bağlantı noktası açılamadı.",
+  "serve.error.bounds": "Yerel sunucunun bir sınırı izin verilen aralığın dışında.",
   "serve.error.invalid_token": "Geçersiz yerel sunucu jetonu: 16 ile 512 karakter kullanın, boşluk olmadan (harf, rakam ve - . _ ~ + /).",
   "serve.error.non_loopback": "Yerel sunucu yalnızca loopback üzerinde dinler (127.0.0.1 veya ::1); {addr} adresi, loopback dışı için açık seçenek gerektirir.",
   "serve.error.port_in_use": "{first} ile {last} arasındaki bağlantı noktaları kullanımda; yerel sunucu için başka bir bağlantı noktası seçin.",

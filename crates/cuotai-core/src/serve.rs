@@ -24,6 +24,7 @@
 //! ([`TokenSource`], [`resolve_token`]). With a token, whoever can read it
 //! (your own user's programs) can still read the data.
 
+mod admission;
 pub mod client;
 mod http;
 mod origin;
@@ -218,29 +219,86 @@ where
 /// PRD 0031 RF11.2.3: `/v1/stats` requests one peer may make per minute.
 pub const STATS_PER_MINUTE: usize = 6;
 
-/// Defensive limits of RF2.4.
+/// Defensive limits of RF2.4, split by PRD 0050 RF5 into the work a
+/// connection may cause before it is authenticated (pending heads, their
+/// deadline and rate) and the authenticated requests served at once. The
+/// ranges of [`Bounds::validate`] keep every limit meaningful.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Bounds {
-    /// Connections served at once; any other is closed as soon as accepted.
+    /// Authenticated requests served at once (`4..=128`); one more gets
+    /// `503 busy`.
     pub max_connections: usize,
+    /// PRD 0050 RF5.1: connections still sending their head, in all
+    /// (`4..=128`); one more is closed as soon as accepted.
+    pub max_pending_heads: usize,
+    /// ... and per peer address (`1..=16`); every loopback client is one
+    /// peer, so this bounds availability, it does not tell clients apart.
+    pub max_pending_heads_per_peer: usize,
+    /// PRD 0050 RF5.1: time a connection has to send its whole head
+    /// (`100 ms..=2 s`); a slower one is closed unanswered.
+    pub head_timeout: Duration,
     /// Request line plus headers; more answers `431`.
     pub max_head_bytes: usize,
     /// Request target (path and query); longer answers `414`.
     pub max_url_bytes: usize,
     /// Header count; more answers `431`.
     pub max_headers: usize,
-    /// Whole connection, from accepting to closing; a slower one is cut.
+    /// Whole connection, from accepting to closing (`1..=30 s`); a slower
+    /// one is cut.
     pub request_timeout: Duration,
+    /// PRD 0050 RF5.3: completed heads one peer may send.
+    pub peer_rate: Rate,
+    /// PRD 0050 RF5.3: completed heads of every peer together.
+    pub global_rate: Rate,
+}
+
+/// A token bucket: `burst` at once, then `per_minute` spread evenly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Rate {
+    pub per_minute: u32,
+    pub burst: u32,
 }
 
 impl Default for Bounds {
     fn default() -> Self {
         Self {
             max_connections: 16,
+            max_pending_heads: 16,
+            max_pending_heads_per_peer: 4,
+            head_timeout: Duration::from_secs(1),
             max_head_bytes: 8 * 1024,
             max_url_bytes: 2 * 1024,
             max_headers: 32,
             request_timeout: Duration::from_secs(5),
+            peer_rate: Rate {
+                per_minute: 60,
+                burst: 20,
+            },
+            global_rate: Rate {
+                per_minute: 240,
+                burst: 40,
+            },
+        }
+    }
+}
+
+impl Bounds {
+    /// PRD 0050 RF5.1: every limit within its documented range.
+    pub fn validate(&self) -> Result<(), ServeError> {
+        let rate_ok =
+            |rate: Rate| (1..=6000).contains(&rate.per_minute) && (1..=1000).contains(&rate.burst);
+        let ok = (4..=128).contains(&self.max_connections)
+            && (4..=128).contains(&self.max_pending_heads)
+            && (1..=16).contains(&self.max_pending_heads_per_peer)
+            && (Duration::from_millis(100)..=Duration::from_secs(2)).contains(&self.head_timeout)
+            && (Duration::from_secs(1)..=Duration::from_secs(30)).contains(&self.request_timeout)
+            && self.head_timeout <= self.request_timeout
+            && rate_ok(self.peer_rate)
+            && rate_ok(self.global_rate);
+        if ok {
+            Ok(())
+        } else {
+            Err(ServeError::Bounds)
         }
     }
 }
@@ -358,6 +416,7 @@ impl ServeConfig {
     /// PRD 0050 RF4.1/RF4.2: browser mode, on loopback too, needs a token
     /// and 1 to [`MAX_ORIGINS`] distinct allowed origins.
     pub fn validate(&self) -> Result<(), ServeError> {
+        self.bounds.validate()?;
         if !self.bind.is_loopback() {
             if !self.allow_non_loopback {
                 return Err(ServeError::NonLoopback { addr: self.bind });
@@ -400,6 +459,9 @@ pub enum ServeError {
     /// PRD 0050 RF4.2.
     #[error("Allowing browsers needs 1 to 16 distinct trusted origins.")]
     OriginsRequired,
+    /// PRD 0050 RF5.1: a limit of [`Bounds`] is outside its range.
+    #[error("A local server limit is outside its allowed range.")]
+    Bounds,
     /// `first == last` when only the requested port was tried.
     #[error("{}", port_in_use_text(*.first, *.last))]
     PortInUse { first: u16, last: u16 },
@@ -442,6 +504,7 @@ impl ServeError {
                 Localized::fixed("serve.error.browser_token_required", fallback)
             }
             Self::OriginsRequired => Localized::fixed("serve.error.origins_required", fallback),
+            Self::Bounds => Localized::fixed("serve.error.bounds", fallback),
             Self::PortInUse { first, last } if first == last => {
                 Localized::with_param("serve.error.port_taken", "port", first, fallback)
             }
@@ -616,8 +679,11 @@ impl LocalServer {
     ) -> Self {
         let (stop, stopped) = watch::channel(false);
         let state = Arc::new(State {
+            serving: Arc::new(Semaphore::new(initial.config.bounds.max_connections)),
             snapshot: RwLock::new(initial),
             stats_asked: std::sync::Mutex::new(std::collections::HashMap::new()),
+            pending: Arc::default(),
+            buckets: std::sync::Mutex::default(),
         });
         let task = tokio::spawn(accept_loop(listener, state.clone(), stopped));
         Self {
@@ -657,6 +723,7 @@ impl LocalServer {
             || live.port_fallback != config.port_fallback
             || live.allow_non_loopback != config.allow_non_loopback
             || live.bounds.max_connections != config.bounds.max_connections
+            || live.bounds.max_pending_heads != config.bounds.max_pending_heads
             || live.bounds.request_timeout != config.bounds.request_timeout;
         if restart_required {
             return Ok(Reconfigure::RestartRequired);
@@ -752,6 +819,14 @@ struct State {
     /// outlives a [`LocalServer::reconfigure`], so changing a setting does
     /// not reset the limit.
     stats_asked: std::sync::Mutex<std::collections::HashMap<IpAddr, Vec<Instant>>>,
+    /// PRD 0050 RF5.2: authenticated requests served at once
+    /// ([`Bounds::max_connections`], fixed for the server's lifetime).
+    serving: Arc<Semaphore>,
+    /// PRD 0050 RF5.2: connections still sending their head.
+    pending: Arc<std::sync::Mutex<admission::Pending>>,
+    /// PRD 0050 RF5.3: completed heads per peer and in all; outlives a
+    /// reconfigure like `stats_asked`.
+    buckets: std::sync::Mutex<admission::Buckets>,
 }
 
 impl State {
@@ -841,9 +916,7 @@ async fn accept_loop(listener: TcpListener, state: Arc<State>, mut stopped: watc
     // `max_connections` cannot change live; the accept_loop owns the
     // semaphore for the server's lifetime. Reconfigure forces a restart when
     // this field differs.
-    let max_connections = state.snapshot.read().await.config.bounds.max_connections;
     let drain_timeout = state.snapshot.read().await.config.bounds.request_timeout;
-    let slots = Arc::new(Semaphore::new(max_connections));
     let mut connections = JoinSet::new();
     loop {
         while connections.try_join_next().is_some() {}
@@ -852,15 +925,23 @@ async fn accept_loop(listener: TcpListener, state: Arc<State>, mut stopped: watc
             _ = stopped.changed() => break,
             accepted = listener.accept() => match accepted {
                 Ok((stream, peer)) => {
-                    // RF2.4: over the limit, the connection is closed at once.
-                    let Ok(slot) = Arc::clone(&slots).try_acquire_owned() else {
+                    let snapshot = state.snapshot.read().await.clone();
+                    let bounds = snapshot.config.bounds;
+                    // PRD 0050 RF5.2: a pending-head slot, in all and for
+                    // this peer, at accept; over either limit the
+                    // connection is closed at once.
+                    let peer = peer.ip().to_canonical();
+                    let Some(pending) = admission::PendingSlot::enter(
+                        &state.pending,
+                        peer,
+                        bounds.max_pending_heads,
+                        bounds.max_pending_heads_per_peer,
+                    ) else {
                         continue;
                     };
-                    let snapshot = state.snapshot.read().await.clone();
                     let state = Arc::clone(&state);
                     connections.spawn(async move {
-                        let _slot = slot;
-                        serve_connection(stream, peer.ip(), &state, &snapshot).await;
+                        serve_connection(stream, peer, pending, &state, &snapshot).await;
                     });
                 }
                 // Out of descriptors and the like: do not spin.
@@ -875,23 +956,35 @@ async fn accept_loop(listener: TcpListener, state: Arc<State>, mut stopped: watc
     }
 }
 
-async fn serve_connection(mut stream: TcpStream, peer: IpAddr, state: &State, snapshot: &Snapshot) {
+async fn serve_connection(
+    mut stream: TcpStream,
+    peer: IpAddr,
+    pending: admission::PendingSlot,
+    state: &State,
+    snapshot: &Snapshot,
+) {
     let bounds = snapshot.config.bounds;
     let started = Instant::now();
     let _ = tokio::time::timeout(bounds.request_timeout, async {
-        let (response, method, path) =
-            match http::read_head(&mut stream, bounds.max_head_bytes, bounds.max_headers).await {
-                Read::Closed => return,
-                Read::TooLarge => (Response::error(431, "headers_too_large"), None, None),
-                Read::Malformed => (Response::error(400, "bad_request"), None, None),
-                Read::Head(head) => {
-                    let method = head.method.clone();
-                    let target = head.target.clone();
-                    let response = state.respond(&head, peer, snapshot);
-                    let cors = cors_origin(&head, &snapshot.config);
-                    (response.with_cors(cors), Some(method), Some(target))
-                }
-            };
+        // PRD 0050 RF5.2: the head within `head_timeout`, or the connection
+        // is closed unanswered and its pending slot freed.
+        let read = tokio::time::timeout(
+            bounds.head_timeout,
+            http::read_head(&mut stream, bounds.max_head_bytes, bounds.max_headers),
+        )
+        .await;
+        let (response, method, path) = match read {
+            Err(_) | Ok(Read::Closed) => return,
+            Ok(Read::TooLarge) => (Response::error(431, "headers_too_large"), None, None),
+            Ok(Read::Malformed) => (Response::error(400, "bad_request"), None, None),
+            Ok(Read::Head(head)) => {
+                let method = head.method.clone();
+                let target = head.target.clone();
+                let response = state.respond(&head, peer, pending, snapshot);
+                let cors = cors_origin(&head, &snapshot.config);
+                (response.with_cors(cors), Some(method), Some(target))
+            }
+        };
         let response = state.finish(response, snapshot);
         let status = response.status;
         let include_body = method.as_deref() != Some("HEAD");
@@ -921,42 +1014,84 @@ fn log_path(target: &str) -> String {
 }
 
 impl State {
-    /// RF3 checks, in order, then the route.
-    fn respond(&self, head: &Head, peer: IpAddr, snapshot: &Snapshot) -> Response {
+    /// PRD 0050 RF5: the rate of completed heads, then the RF3 checks while
+    /// the head still holds its pending slot, then (with the slot given
+    /// back) an authenticated-serving slot and the route. A refused head
+    /// never reaches the source.
+    fn respond(
+        &self,
+        head: &Head,
+        peer: IpAddr,
+        pending: admission::PendingSlot,
+        snapshot: &Snapshot,
+    ) -> Response {
+        let bounds = snapshot.config.bounds;
+        let rate = self
+            .buckets
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take(
+                peer,
+                bounds.peer_rate,
+                bounds.global_rate,
+                tokio::time::Instant::now(),
+            );
+        if let Err(wait) = rate {
+            let seconds = wait.as_secs() + u64::from(wait.subsec_nanos() > 0);
+            return Response::error(429, "rate_limited")
+                .header("Retry-After", seconds.clamp(1, 60).to_string());
+        }
+        if let Err(refused) = self.admit(head, peer, snapshot) {
+            return refused;
+        }
+        drop(pending);
+        let Ok(_serving) = self.serving.try_acquire() else {
+            return Response::error(503, "busy").header("Retry-After", "1");
+        };
+        self.route(head, peer, snapshot)
+    }
+
+    /// RF3 checks, in order: the answer of a refused (or preflight) head.
+    fn admit(&self, head: &Head, peer: IpAddr, snapshot: &Snapshot) -> Result<(), Response> {
         let config = &snapshot.config;
         if head.target.len() > config.bounds.max_url_bytes {
-            return Response::error(414, "uri_too_long");
+            return Err(Response::error(414, "uri_too_long"));
         }
         if !self.host_allowed(head, snapshot) {
-            return Response::error(403, "host_not_allowed");
+            return Err(Response::error(403, "host_not_allowed"));
         }
         if !config.allow_browsers && head.sent_by_page() {
-            return Response::error(403, "browser_not_allowed");
+            return Err(Response::error(403, "browser_not_allowed"));
         }
         // PRD 0050 RF4.3: in browser mode a page must name one allowed
         // origin; a page request without `Origin` cannot be matched.
         if config.allow_browsers && head.sent_by_page() && cors_origin(head, config).is_none() {
-            return Response::error(403, "origin_not_allowed");
+            return Err(Response::error(403, "origin_not_allowed"));
         }
         if config.token.is_none() && !is_loopback(peer) {
-            return Response::error(403, "peer_not_allowed");
+            return Err(Response::error(403, "peer_not_allowed"));
         }
         if config.allow_browsers && head.method == "OPTIONS" {
             // A CORS preflight carries no credentials.
-            return Response::empty(204)
+            return Err(Response::empty(204)
                 .header("Access-Control-Allow-Methods", "GET, HEAD")
                 .header("Access-Control-Allow-Headers", "Authorization")
-                .header("Access-Control-Max-Age", "600");
+                .header("Access-Control-Max-Age", "600"));
         }
         if let Some(token) = &config.token {
             if !head
                 .bearer()
                 .is_some_and(|presented| token.matches(presented))
             {
-                return Response::error(401, "unauthorized")
-                    .header("WWW-Authenticate", BEARER_CHALLENGE);
+                return Err(Response::error(401, "unauthorized")
+                    .header("WWW-Authenticate", BEARER_CHALLENGE));
             }
         }
+        Ok(())
+    }
+
+    /// The route of an admitted head.
+    fn route(&self, head: &Head, peer: IpAddr, snapshot: &Snapshot) -> Response {
         // PRD 0031 RF9.2: `HEAD` answers like `GET`, without the body
         // (`serve_connection` drops it when writing).
         if head.method != "GET" && head.method != "HEAD" {

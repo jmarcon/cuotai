@@ -1650,6 +1650,7 @@
   "serve.client.unauthorized": "ローカルサーバーがトークンを拒否しました（--token-file には --serve と同じファイルを使用してください）。",
   "serve.client.unreachable": "ローカルサーバーが応答しませんでした。実行中ですか（cuotai --serve）？",
   "serve.error.bind": "ローカルサーバーのポート {port} を開けませんでした。",
+  "serve.error.bounds": "ローカルサーバーの制限値の一つが許容範囲外です。",
   "serve.error.invalid_token": "ローカルサーバーのトークンが無効です。スペースを含まない 16〜512 文字（英字、数字、- . _ ~ + /）にしてください。",
   "serve.error.non_loopback": "ローカルサーバーはループバック（127.0.0.1 または ::1）でのみ待ち受けます。アドレス {addr} にはループバック外の明示的なオプションが必要です。",
   "serve.error.port_in_use": "ポート {first}〜{last} はすべて使用中です。ローカルサーバーに別のポートを選んでください。",

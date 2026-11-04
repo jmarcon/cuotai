@@ -1659,6 +1659,7 @@
   "serve.client.unauthorized": "Der lokale Server hat das Token abgelehnt (verwenden Sie --token-file mit derselben Datei wie bei --serve).",
   "serve.client.unreachable": "Der lokale Server hat nicht geantwortet; läuft er (cuotai --serve)?",
   "serve.error.bind": "Der Port {port} des lokalen Servers konnte nicht geöffnet werden.",
+  "serve.error.bounds": "Ein Limit des lokalen Servers liegt außerhalb des erlaubten Bereichs.",
   "serve.error.invalid_token": "Ungültiges Token des lokalen Servers: Verwenden Sie 16 bis 512 Zeichen ohne Leerzeichen (Buchstaben, Ziffern und - . _ ~ + /).",
   "serve.error.non_loopback": "Der lokale Server lauscht nur auf Loopback (127.0.0.1 oder ::1); die Adresse {addr} erfordert die ausdrückliche Option für Adressen außerhalb von Loopback.",
   "serve.error.port_in_use": "Die Ports {first} bis {last} sind belegt; wählen Sie einen anderen Port für den lokalen Server.",
