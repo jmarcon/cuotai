@@ -95,7 +95,7 @@
   "settings.agg.all.listed": "Elencate con i miei account",
   "settings.agg.allHelp": "La vista di 9router mostra sempre tutte le connessioni.",
   "settings.doctor.help": "Controlla la configurazione di questo computer offline e senza modificare nulla: il file degli account, la variabile di ogni account (impostata o no, mai il valore), i database, gli hook, le impostazioni e il server locale. Ogni problema indica cosa fare. Come cuotai --doctor.",
-  "settings.doctor.run": "Controlla ora",
+  "settings.doctor.run": "Controlla",
   "settings.doctor.running": "Controllo in corso…",
   "settings.doctor.status.fail": "Da sistemare",
   "settings.doctor.status.ok": "A posto",

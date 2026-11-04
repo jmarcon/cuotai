@@ -96,7 +96,7 @@
   "settings.agg.all.listed": "Liệt kê cùng tài khoản của tôi",
   "settings.agg.allHelp": "Chế độ xem 9router luôn hiển thị mọi kết nối.",
   "settings.doctor.help": "Kiểm tra cài đặt của máy này ở chế độ ngoại tuyến và không thay đổi gì: tệp tài khoản, biến của từng tài khoản (đã đặt hay chưa, không bao giờ hiện giá trị), cơ sở dữ liệu, hook, cài đặt và máy chủ cục bộ. Mỗi vấn đề kèm cách xử lý. Giống cuotai --doctor.",
-  "settings.doctor.run": "Kiểm tra ngay",
+  "settings.doctor.run": "Kiểm tra",
   "settings.doctor.running": "Đang kiểm tra…",
   "settings.doctor.status.fail": "Cần xử lý",
   "settings.doctor.status.ok": "Ổn",

@@ -95,7 +95,7 @@
   "settings.agg.all.listed": "Listadas",
   "settings.agg.allHelp": "La vista de 9router siempre muestra todas las conexiones.",
   "settings.doctor.help": "Comprueba la instalación de este equipo sin conexión y sin cambiar nada: el archivo de cuentas, la variable de cada cuenta (definida o no, nunca su valor), las bases de datos, los hooks, los ajustes y el servidor local. Cada problema indica qué hacer. Igual que cuotai --doctor.",
-  "settings.doctor.run": "Comprobar ahora",
+  "settings.doctor.run": "Comprobar",
   "settings.doctor.running": "Comprobando…",
   "settings.doctor.status.fail": "Necesita atención",
   "settings.doctor.status.ok": "Correcto",
