@@ -38,6 +38,7 @@ fn fixtures() -> Vec<(&'static str, Vec<Metric>)> {
     use super::*;
     let mut all = Vec::new();
     all.extend(eleven_labs::label_fixtures());
+    all.extend(jetbrains_ai::label_fixtures());
     all.extend(kimchi::label_fixtures());
     all.extend(litellm::label_fixtures());
     all.extend(mimo_platform::label_fixtures());

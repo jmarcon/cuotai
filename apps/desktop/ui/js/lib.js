@@ -879,6 +879,7 @@ const brands = {
   alibaba_token_plan: B("Alibaba Token Plan", "#ff6a00", "Al"), alibaba_cloud: B("Alibaba Cloud", "#ff6a00", "Al"),
   antigravity: B("Antigravity", "#7c6cf0", "Ag"), kimchi: B("Kimchi", "#ef4444", "Km"),
   meta: B("Meta Model API", "#0866ff", "Me"), open_router: B("OpenRouter", "#6467f2", "OR"),
+  jetbrains_ai: B("JetBrains AI", "#fc801d", "JB"),
   nine_router: B("9router", "#0369a1", "9r"), litellm: B("LiteLLM proxy", "#14b8a6", "LL"),
   extension: B("Extension", "#8b5cf6", "Ex"),
 };
@@ -2634,7 +2635,7 @@ const dlx = (id, demoId, fallback) => dl(t(id) !== id ? id : demoId, fallback);
 const DEMO_LEVELS = {
   derived: ["gemini_api", "vertex_ai", "groq"],
   unavailable: ["qwen", "perplexity", "cloudflare_ai", "gemini_ai", "nvidia_nim", "poolside", "alibaba_model_studio"],
-  official: ["open_ai_api", "anthropic_api", "aws_bedrock", "azure_open_ai", "cursor", "copilot", "windsurf", "kimi", "mistral", "grok", "cline", "alibaba_cloud", "open_router"],
+  official: ["open_ai_api", "anthropic_api", "aws_bedrock", "azure_open_ai", "cursor", "copilot", "windsurf", "kimi", "mistral", "grok", "cline", "alibaba_cloud", "open_router", "jetbrains_ai"],
 };
 // Providers without a usage query in any mode (`access::has_usage_query`, demo only): left out of the picker.
 // The core groups aggregators under "Self-hosted gateway" (`catalog::SignInMethod::SelfHostedGateway`).

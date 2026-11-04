@@ -167,6 +167,21 @@ pub(crate) const TABLE: &[(&str, &str, &str)] = &[
     ),
     ("Crédito", "metric.label.credit", "Credit"),
     (
+        "Créditos de IA da organização (cota incluída)",
+        "metric.label.jetbrains_ai.org_tariff",
+        "Organization AI credits (built-in quota)",
+    ),
+    (
+        "Créditos de IA da organização (top-up)",
+        "metric.label.jetbrains_ai.org_topup",
+        "Organization AI credits (top-up)",
+    ),
+    (
+        "Créditos de IA — {tool}",
+        "metric.label.jetbrains_ai.tool",
+        "AI credits — {tool}",
+    ),
+    (
         "Créditos do plano",
         "metric.label.plan_credits",
         "Plan credits",

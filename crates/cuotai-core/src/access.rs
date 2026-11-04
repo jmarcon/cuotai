@@ -41,6 +41,7 @@ const VERIFIED: &[(&str, &str)] = &[
     ("grok", "2026-10-20"),
     ("grok_cli", "2026-10-20"),
     ("groq", "2026-10-20"),
+    ("jetbrains_ai", "2026-11-04"),
     ("kimchi", "2026-10-20"),
     ("kimi", "2026-10-20"),
     ("kimi_coding", "2026-10-20"),
@@ -672,6 +673,11 @@ pub(crate) fn classify(
         Provider::Meta => entry(Derived, InferenceKey, Scope::Organization,
             doc("https://dev.meta.ai/docs/pricing-rate-limits"),
             "meta", "Key check and team rate limits read from the x-ratelimit-* headers of the model listing; Meta documents no usage or balance API."),
+        // PRD 0055: documented Analytics API, read with a service account.
+        Provider::JetbrainsAi => entry(Official, AdminKey, Scope::Organization,
+            doc("https://www.jetbrains.com/help/air/analytics-api-v2.html"),
+            "jetbrains_ai", "AI credits the organization consumed this month, by tool, through the documented JetBrains Analytics API with a service account.")
+            .requires("business_enterprise", "Business or Enterprise"),
         Provider::NineRouter => entry(Undocumented, AggregatorLogin, Scope::Instance,
             Evidence::Reference("https://github.com/decolua/9router/blob/f39d8f07481ae8518e93175f0ecaaafa61573c6c/src/dashboardGuard.js"),
             "nine_router", "Quotas of the connections you already added in your own 9router instance, read through its internal management routes."),
@@ -868,7 +874,7 @@ mod tests {
     #[test]
     fn classification_table_covers_every_provider_and_mode() {
         use Provider::*;
-        let base: [(Provider, Level, Credential); 41] = [
+        let base: [(Provider, Level, Credential); 42] = [
             (OpenAiApi, Official, C::AdminKey),
             (AnthropicApi, Official, C::AdminKey),
             (ChatGpt, Undocumented, C::SubscriptionSession),
@@ -907,6 +913,7 @@ mod tests {
             (Kimchi, Undocumented, C::InferenceKey),
             (ElevenLabs, Official, C::InferenceKey),
             (Meta, Derived, C::InferenceKey),
+            (JetbrainsAi, Official, C::AdminKey),
             (NineRouter, Undocumented, C::AggregatorLogin),
             (OpenRouter, Official, C::InferenceKey),
             (LiteLlm, Official, C::AdminKey),

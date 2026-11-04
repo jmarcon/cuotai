@@ -23,6 +23,7 @@ pub(crate) mod coding;
 pub(crate) mod cursor_personal;
 pub(crate) mod eleven_labs;
 pub(crate) mod inference;
+pub(crate) mod jetbrains_ai;
 pub(crate) mod kimchi;
 #[cfg(test)]
 mod label_snapshot;

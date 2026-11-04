@@ -19,6 +19,7 @@ export const DESKTOP_WORDING = {
   "query.missing_credential": KEY_MISSING,
   "query.router_keys.kimi_missing_credential": KEY_MISSING,
   "query.alibaba_billing.missing_secret": KEY_MISSING,
+  "query.jetbrains_ai.missing_secret": KEY_MISSING,
   "query.alibaba_billing.missing_security_token": KEY_MISSING,
   "query.inference.missing_endpoint_credential.hint_default": KEY_MISSING,
   "query.inference.missing_endpoint_credential.hint_override": KEY_MISSING,
@@ -84,6 +85,7 @@ export const DESKTOP_WORDING = {
   "note.cloud.azure_resource_attribution": w("coreText.optionalSetting", "More detail is available with one more setting in Edit."),
   "note.inference.perplexity_computer_opt_in": w("coreText.perplexityComputer", "Showing Perplexity Computer usage only; Sonar has no usage endpoint."),
   "note.eleven_labs.key_rejected": w("coreText.keyRejected", "The provider rejected the key. Check or replace it in Edit."),
+  "note.jetbrains_ai.client_rejected": w("coreText.keyRejected", "The provider rejected the key. Check or replace it in Edit."),
   "query.cloud.aws_auth": w("coreText.awsAuth", "AWS sign-in failed for the account's profile. Check the profile's credentials."),
   // Web sessions.
   "user_session.warning_env": w("coreText.sessionWarning", "This is a full sign-in session, used only to query this service. Keep it in the system vault."),

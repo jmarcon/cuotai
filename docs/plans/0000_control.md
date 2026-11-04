@@ -78,6 +78,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | [0052](0052_diagnostics-logging-and-privacy-data-inventory.md) | Diagnostics, logging and privacy data inventory | In progress | RF3.6 (0.81.0) | 0005 (RF1), 0006 (RF4), 0012 (RF3), 0013 (RF3), 0021 (RF8.1) | 0020, 0022, 0027 (RF1), 0028 (RF1, RF2), 0046 (RF4) | From the 2026-10-25 PRD audit (written as 0042, renumbered on 2026-10-28). One redacted, levelled logging facade in the core, desktop panic capture and native startup errors, `cuotai --diagnostics [--json]` and "Copy diagnostics", a real `--list-providers --json`, the generated and drift-tested `docs/privacy.md` network/local-data inventory, TUI/CLI history export and erase parity, `--erase-all-data` including vault entries, OS trust roots and proxy behaviour, the headless/WSL support level and an HTTP `Date` clock-skew warning. RF3 overlaps 0046 RF4 (`--doctor`); the owner picks one owner before either is built (§6). The Cline `Report.source` id leak (RF3.6) is fixed in 0.81.0, with the same audit of every adapter's source and notes. Diagnostics lane of wave 5h. |
 | [0053](0053_plan-governance-and-release-reconciliation.md) | Plan governance and release reconciliation | Proposed | — (by hand: README/`docs/installing.md` and plan statuses reconciled after 0.80.0 in `40da9f4e`, `33f37d3c`; weekly advisories and two release approvals in `2d16fd09`) | 0039 (RF1–RF9, RF11), 0021 (RF1–RF6, RF9), 0019 (RF1, RF5–RF7), 0018 (RF1, RF2) | 0022 | From the 2026-10-25 PRD audit (written as 0043, renumbered on 2026-10-28). `docs/plans/TEMPLATE.md`; a fail-closed `cargo xtask plans-check` (header counts, §2 versus each plan's status table, graph versus dependency columns, `Refs:` resolved to an existing `### RFk` heading, `Extended by` lines versus §4); delivery-aware §3 rows (the 0.80.0 rows over-credit 0039 RF5/RF7 and 0018 RF1.1/RF3.1); a generated post-release reconciliation step; honest ruleset documentation and an independent release reviewer; Dependabot, MSRV, secret scanning, bundled licences, OS/EOL policy; one user-facing release-notes renderer. This header's counts were wrong again before this row was added (46 counted against 49 rows), which is the drift RF2 gates. Process lane of wave 5h, first. |
 | [0054](0054_desktop-lifecycle-and-refresh-resilience.md) | Desktop lifecycle and refresh resilience | In progress | RF4.1 (0.81.0, `778e00d9`); RF4.2–RF4.4 and RF7.3 partial | 0032 (RF4), 0033 (RF5.3), 0051 (RF3, RF4), 0052 (RF2, RF3) | 0021 (RF5, RF6), 0025 (RF3), 0031 (RF9) | From the 2026-10-25 PRD audit (written as 0044, renumbered on 2026-10-28). A single desktop instance and cross-process hook claims, resume- and reconnect-aware refresh deadlines in the core (`Instant` deadlines do not advance during sleep) respecting the metered floor and lock, launch at login (delivered: official autostart plugin, off by default), a window-only fallback when the tray cannot be created (GNOME without AppIndicator exits today) with visible startup failures, a core resolver for `aws`/`bl` when launched from Finder or the Dock, and main-window geometry persistence. Lifecycle lane of wave 5h, after 0051 and 0052; RF3 and RF6 may be pulled forward as a core lane. |
+| [0055](0055_jetbrains-ai-provider.md) | JetBrains AI (AI Assistant, Junie) provider | Awaiting owner verification | RF1–RF7 (vNEXT) | 0005 | 0045, 0047 | Organization AI credits for the month (UTC), by tool, through the documented Analytics API (`POST /credits-usage/group-by/tool`) with a service-account client-credentials token (Business or Enterprise, View AI analytics); missing values never become zero. Individual AI Pro/Ultimate quotas have no documented interface (only the IDE's internal `AIAssistantQuotaManager2.xml`) and stay an open owner decision. Real service-account check pending (RF8). Issue #51. |
 
 ### 2.1 Owner verification checklist
 
@@ -304,6 +305,7 @@ graph LR
   P52["0052 Diagnostics and privacy"]:::wip
   P53["0053 Plan governance"]:::todo
   P54["0054 Desktop lifecycle"]:::wip
+  P55["0055 JetBrains AI provider"]:::wip
 
   P8 --> P3
   P13 --> P12
@@ -409,6 +411,7 @@ graph LR
   P54 --> P33
   P54 --> P51
   P54 --> P52
+  P55 --> P5
 
   P7 -.-> P6
   P8 -.-> P6
@@ -470,7 +473,7 @@ The graph draws every strong edge of section 2 and only the weak edges that affe
 |---|---|---|
 | 0001 | 0029, 0033, 0051 | — |
 | 0003 | 0008, 0032, 0033, 0051 | 0013 |
-| 0005 | 0015, 0016, 0017, 0027, 0028, 0036, 0037, 0038, 0040, 0045, 0049, 0052 | 0011, 0012 |
+| 0005 | 0015, 0016, 0017, 0027, 0028, 0036, 0037, 0038, 0040, 0045, 0049, 0052, 0055 | 0011, 0012 |
 | 0006 | 0024, 0026, 0033, 0043, 0051, 0052 | 0007, 0008, 0010, 0014, 0015 |
 | 0007 | 0024, 0033 | 0012, 0014 |
 | 0008 | 0023 (RF4), 0024, 0032 | 0013 |
