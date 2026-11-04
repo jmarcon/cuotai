@@ -2511,9 +2511,12 @@ mod tests {
     /// slipped through could call the IPC commands (vault secrets, the
     /// server token), so no inline or remote script may run, no frame,
     /// object or form may load, and connections stay on the app origin and
-    /// Tauri's IPC protocol. Tauri appends the hash of the first-paint
-    /// inline script itself; the inline `style` attributes the components
-    /// write need `'unsafe-inline'` for styles only.
+    /// Tauri's IPC protocol. The first-paint bootstrap is the external
+    /// `js/first-paint.js` (PRD 0050 RF1.2), so scripts need no hash or
+    /// nonce; the inline `style` attributes the components write need
+    /// `'unsafe-inline'` for styles only. `cargo xtask security-baseline`
+    /// checks the same policy and the HTML pages (RF1.4).
+    // security-invariant: SEC-WEBVIEW (PRD 0050 RF1, RF7.1)
     #[test]
     fn the_webviews_run_under_a_restrictive_content_security_policy() {
         let config: serde_json::Value =
@@ -2536,6 +2539,7 @@ mod tests {
         assert_eq!(directives["base-uri"], ["'none'"]);
         assert_eq!(directives["frame-src"], ["'none'"]);
         assert_eq!(directives["form-action"], ["'none'"]);
+        assert_eq!(directives["frame-ancestors"], ["'none'"]);
         assert_eq!(
             directives["connect-src"],
             ["'self'", "ipc:", "http://ipc.localhost"],

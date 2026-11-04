@@ -137,8 +137,11 @@ const html = await readFile(ui("settings.html"), "utf8");
 assert.match(html, /<script type="module" src="js\/settings\/window\.js"><\/script>/);
 assert.match(html, /href="css\/settings\.css"/);
 const index = await readFile(ui("index.html"), "utf8");
-const bootstrap = (page) => page.split("<script>", 2)[1].split("</script>", 1)[0];
-assert.equal(bootstrap(html), bootstrap(index), "settings.html must apply language and theme before first paint like index.html");
+// PRD 0050 RF1.2: the shared external bootstrap, never an inline copy.
+for (const page of [html, index]) {
+  assert.match(page.split("</head>", 1)[0], /<script src="js\/first-paint\.js"><\/script>/, "settings.html must apply language and theme before first paint like index.html");
+  assert.doesNotMatch(page, /<script>/, "no inline script");
+}
 const capability = JSON.parse(await readFile(fileURLToPath(new URL("apps/desktop/src-tauri/capabilities/default.json", root)), "utf8"));
 assert.deepEqual(capability.windows, ["main", "tray", "settings"]);
 // RF10.1 (as far as RF1 needs): the old dialog and its event are gone.

@@ -139,6 +139,9 @@ SUBCOMMANDS:
     --dry-run               print the selected steps and run nothing
                             CUOTAI_SKIP=step,step bypasses steps by name
 
+  security-baseline   Desktop CSP and pages, and the security invariant registry (PRD 0050)
+    --repo PATH             repository root (default: .)
+
   external-rules-check
                        Compare external policy hashes and GitHub Action releases (RF9.3)
     --repo PATH             repository root (default: .)
@@ -189,6 +192,7 @@ fn run(args: &[String]) -> Res<()> {
         "package-manifests" => package_manifests(&opts),
         "workflow-check" => workflow_check(&opts),
         "external-rules-check" => external_rules_check(&opts),
+        "security-baseline" => security_baseline(&opts),
         "help" | "--help" | "-h" => {
             print!("{USAGE}");
             Ok(())
@@ -756,6 +760,13 @@ fn external_rules_check(opts: &Opts) -> Res<()> {
     for action in &report.actions {
         println!("action {}: {:?}", action.action, action.status);
     }
+    Ok(())
+}
+
+fn security_baseline(opts: &Opts) -> Res<()> {
+    let repo = opts.path("repo").unwrap_or_else(|| PathBuf::from("."));
+    let count = xtask::security::run(&repo)?;
+    println!("security baseline passed: CSP, desktop pages and {count} invariants");
     Ok(())
 }
 

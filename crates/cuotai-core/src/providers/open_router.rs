@@ -1653,6 +1653,7 @@ mod tests {
         );
     }
 
+    // security-invariant: SEC-REDIRECT (PRD 0050 RF7.1)
     #[tokio::test]
     async fn a_redirect_is_rejected_and_never_followed() {
         let error = key_err(

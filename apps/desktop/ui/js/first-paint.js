@@ -1,0 +1,92 @@
+// PRD 0050 RF1.2: the first-paint bootstrap, a classic (blocking) script loaded from the <head> of index.html,
+// settings.html and tray.html, so the Content Security Policy needs no inline script, hash or nonce.
+(function () {
+  /* Applies language and theme before the first paint; runtime logic lives in
+     js/i18n.js and js/lib.js. Motion mirrors desktop.json. */
+  // PRD 0035 RF1.3/RF1.5: the languages with catalogs, from the core registry (generated between the markers by
+  // `CUOTAI_REGENERATE_LOCALES=1 cargo test -p cuotai-core locale_registry_copies`), resolved like js/i18n.js.
+  /* registry:begin */
+  var localeRows = [{"code":"pt-BR","excluded_regions":[],"excluded_scripts":[],"languages":["pt"]},{"code":"en-US","excluded_regions":[],"excluded_scripts":[],"languages":["en"]},{"code":"es","excluded_regions":[],"excluded_scripts":[],"languages":["es"]},{"code":"it","excluded_regions":[],"excluded_scripts":[],"languages":["it"]},{"code":"zh-CN","excluded_regions":["tw","hk","mo"],"excluded_scripts":["hant"],"languages":["zh","cmn"]},{"code":"fr","excluded_regions":[],"excluded_scripts":[],"languages":["fr"]},{"code":"de","excluded_regions":[],"excluded_scripts":[],"languages":["de"]},{"code":"ja","excluded_regions":[],"excluded_scripts":[],"languages":["ja"]},{"code":"ru","excluded_regions":[],"excluded_scripts":[],"languages":["ru"]},{"code":"ko","excluded_regions":[],"excluded_scripts":[],"languages":["ko"]},{"code":"hi-IN","excluded_regions":[],"excluded_scripts":[],"languages":["hi"]},{"code":"id-ID","excluded_regions":[],"excluded_scripts":[],"languages":["id","in"]},{"code":"tr","excluded_regions":[],"excluded_scripts":[],"languages":["tr"]},{"code":"vi","excluded_regions":[],"excluded_scripts":[],"languages":["vi"]}];
+  /* registry:end */
+  var supportedLocales = localeRows.map(function (row) { return row.code; });
+  var userLocaleCodes = [];
+  try {
+    var userLocales = JSON.parse(localStorage.getItem("cuotai.userLocales") || "[]");
+    if (Array.isArray(userLocales)) {
+      for (var j = 0; j < userLocales.length; j++) {
+        var userLocale = userLocales[j];
+        if (typeof userLocale === "string" &&
+            /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(userLocale) &&
+            !supportedLocales.includes(userLocale)) {
+          supportedLocales.push(userLocale);
+          userLocaleCodes.push(userLocale);
+        }
+      }
+    }
+  } catch (e) {}
+  var normalizeLocale = function (raw) {
+    var tags = String(raw).trim().split(/[.@]/)[0].split(/[-_]/);
+    var lang = (tags.shift() || "").toLowerCase();
+    if (!/^[a-z]{2,3}$/.test(lang)) return null;
+    var script = null, region = null;
+    for (var k = 0; k < tags.length; k++) {
+      var tag = tags[k];
+      if (/^[A-Za-z]{4}$/.test(tag) && !script && !region) script = tag.toLowerCase();
+      else if (/^[A-Za-z]{2}$/.test(tag) && !region) region = tag.toLowerCase();
+      else if (/^[0-9]{3}$/.test(tag) && !region) region = tag;
+      else if (!/^[A-Za-z0-9]{1,8}$/.test(tag)) return null;
+    }
+    var row = localeRows.find(function (r) { return r.languages.includes(lang); });
+    if (!row) return null;
+    if (script ? row.excluded_scripts.includes(script) : region && row.excluded_regions.includes(region)) return null;
+    return row.code;
+  };
+  var storedLocale = "";
+  try { storedLocale = localStorage.getItem("cuotai.locale") || ""; } catch (e) {}
+  var locale = supportedLocales.includes(storedLocale) ? storedLocale : "";
+  if (!locale) {
+    var detectedLocales = navigator.languages && navigator.languages.length
+      ? navigator.languages : [navigator.language];
+    locale = "en-US";
+    for (var i = 0; i < detectedLocales.length; i++) {
+      var requested = detectedLocales[i];
+      if (!requested) continue;
+      var requestedLower = requested.toLowerCase();
+      var exact = supportedLocales.find(function (candidate) {
+        return candidate.toLowerCase() === requestedLower;
+      });
+      var base = requestedLower.split(/[-_]/)[0];
+      var found = exact || normalizeLocale(requested) || userLocaleCodes.find(function (candidate) {
+        return candidate.split("-")[0].toLowerCase() === base;
+      });
+      if (found) {
+        locale = found;
+        break;
+      }
+    }
+  }
+  document.documentElement.lang = locale;
+  try {
+    var m = localStorage.getItem("cuotai.themeMode") || "system";
+    var d = m === "dark" || (m === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+    // PRD 0022 RF15.1: Cuotai is the default for new installs only. A profile that already has cuotai.* keys
+    // but never chose a theme keeps the old default (Dracula), written once before the first paint.
+    var theme = localStorage.getItem("cuotai.theme") || localStorage.getItem("cuotai.darkTheme");
+    if (!theme && !localStorage.getItem("cuotai.themeDefaultMigrated")) {
+      for (var k = 0; k < localStorage.length; k++) {
+        if ((localStorage.key(k) || "").indexOf("cuotai.") === 0) { theme = "dracula"; localStorage.setItem("cuotai.theme", theme); break; }
+      }
+      localStorage.setItem("cuotai.themeDefaultMigrated", "1");
+      // Empty web storage in the app: a new install or a profile whose storage was cleared. Only the shell
+      // (desktop.json) can tell them apart, so the first paint waits for it, hidden for at most 600 ms, instead
+      // of flashing the new-install theme over an existing profile's Dracula.
+      if (!theme && typeof window !== "undefined" && window.__TAURI__) {
+        document.documentElement.setAttribute("data-theme-pending", "");
+        setTimeout(function () { document.documentElement.removeAttribute("data-theme-pending"); }, 600);
+      }
+    }
+    document.documentElement.dataset.theme = theme || "cuotai";
+    document.documentElement.dataset.mode = d ? "dark" : "light";
+    document.documentElement.dataset.motion = localStorage.getItem("cuotai.motion") || "system";
+  } catch (e) {}
+})();

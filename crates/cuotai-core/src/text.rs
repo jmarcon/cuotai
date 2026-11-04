@@ -1282,7 +1282,7 @@ mod tests {
     }
 
     /// PRD 0035 RF1.5: the desktop's static registry copy (browser demo)
-    /// and the pre-paint copies of the HTML pages equal the registry.
+    /// and the pre-paint copy (`js/first-paint.js`) equal the registry.
     /// `CUOTAI_REGENERATE_LOCALES=1` rewrites them.
     #[test]
     fn locale_registry_copies() {
@@ -1318,18 +1318,16 @@ mod tests {
                 })
             })
             .collect();
-        let html_body = format!(
-            "      var localeRows = {};",
-            serde_json::to_string(&translated).unwrap()
-        );
-        for page in ["index.html", "tray.html", "settings.html"] {
-            targets.push((
-                ui.join(page),
-                "/* registry:begin */",
-                "/* registry:end */",
-                html_body.clone(),
-            ));
-        }
+        // PRD 0050 RF1.2: the three pages share one external first-paint script.
+        targets.push((
+            ui.join("js/first-paint.js"),
+            "/* registry:begin */",
+            "/* registry:end */",
+            format!(
+                "  var localeRows = {};",
+                serde_json::to_string(&translated).unwrap()
+            ),
+        ));
         let mut stale = Vec::new();
         for (path, begin, end, body) in targets {
             let text = std::fs::read_to_string(&path).unwrap();

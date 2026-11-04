@@ -39,6 +39,7 @@ mod tests {
         assert!(is_secure_str("HTTPS://api.example.com"));
     }
 
+    // security-invariant: SEC-TRANSPORT (PRD 0050 RF7.1)
     #[test]
     fn plain_http_is_secure_only_for_loopback() {
         for ok in [

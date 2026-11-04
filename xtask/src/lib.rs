@@ -26,6 +26,7 @@ pub mod plan_links;
 pub mod preflight;
 pub mod release;
 pub mod sbom;
+pub mod security;
 pub mod signing;
 pub mod updater;
 pub mod workflow;
