@@ -175,3 +175,17 @@ is available at `apps/desktop/examples/user/locales/nl.json` (Dutch, a language
 that is not built in, so it registers as a new one). The RF12.3 override is
 per key: a built-in-code pack such as `fr.json` changes only the keys it
 carries, and every other text keeps the built-in French catalog.
+
+**Protected texts (PRD 0050 RF3.3).** A pack cannot change the words of
+credential warnings, consent, confirmations or the local server. The app
+removes these keys from every pack before it is used, keeps the built-in or
+core text for them, and shows a notice with how many were removed: keys
+starting with `credential_help.`, `oauth_error.`, `edit_error.`,
+`remove_error.`, `user_session.`, `access.risk.`, `access.credential_hint.`,
+`hooks.`, `extensions.consent.`, `serve.`, `update.` or `execution.`, the
+key `dialog.delete` and its `dialog.delete.*` keys, and any key containing
+`.confirm.` or `.consent.`. The list lives in `cuotai_core::user_pack`.
+
+**Folder limits (PRD 0050 RF3.4).** Each of `themes/` and `locales/` reads at
+most 64 files with its extension, in name order; the rest are reported by name.
+Symbolic links are refused, and a file over 256 KiB is skipped.

@@ -1,5 +1,6 @@
-// User themes and languages. The shell (Rust) reads <config folder>/cuotai/{themes,locales} and hands over the texts;
-// here they are VALIDATED and registered. Invalid items are ignored and listed in `userContent.errors`.
+// User themes and languages. The shell (Rust) reads <config folder>/cuotai/{themes,locales} and hands over the texts,
+// with the protected security ids of each language pack already removed (PRD 0050 RF3.3); here they are VALIDATED and
+// registered. Invalid items are ignored and listed in `userContent.errors`.
 //
 // Theme:    themes/<id>.css  — optional header  /*! cuotai-theme {"label":"Name","group":"custom","modes":["dark","light"]} */
 // Language: locales/<code>.json — { "_meta": { "name": "Name" }, "key": "text" }
@@ -94,6 +95,8 @@ export async function loadUserContent() {
   return userContent;
 }
 
-export const skippedMessage = (e) =>
-  t("userContent.skipped", { kind: t(`userContent.kind.${e.kind}`), name: e.name, reason: t(`userContent.reason.${e.reason}`) });
+// PRD 0050 RF3.3: a pack that tried to replace protected security texts still loads; the shell removed those texts.
+export const skippedMessage = (e) => e.reason === "protected"
+  ? t("userContent.protected", { kind: t(`userContent.kind.${e.kind}`), name: e.name, count: e.count ?? 0 })
+  : t("userContent.skipped", { kind: t(`userContent.kind.${e.kind}`), name: e.name, reason: t(`userContent.reason.${e.reason}`) });
 export { LOCALES };
