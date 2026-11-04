@@ -447,6 +447,7 @@
   "hooks.error.command": "El command de la regla \"{name}\" debe ser una lista de argumentos cuyo primer elemento sea una ruta absoluta o un nombre buscado en el PATH, como [\"/ruta/script\", \"--opcion\"].",
   "hooks.error.changed": "hooks.toml cambió desde que se mostró; revise las reglas de nuevo.",
   "hooks.error.consent_storage": "No se pudo registrar la confirmación de los hooks en el directorio de datos local.",
+  "hooks.error.claims": "Los hooks están en pausa: Cuotai no pudo registrar en el directorio de datos local qué ejecuciones reclamó, así que no se ejecuta ningún comando.",
   "hooks.error.declined": "Hooks no confirmados; no se ejecutó nada.",
   "hooks.error.duplicate": "Hay más de una regla llamada \"{name}\".",
   "hooks.error.empty": "hooks.toml no tiene ninguna regla [[hooks]].",

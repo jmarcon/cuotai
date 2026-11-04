@@ -359,6 +359,7 @@ fn every_message_reads_in_each_catalog() {
             .unwrap_err(),
     );
     messages.push(changed());
+    messages.push(claims_unavailable());
     let valid = vec![RuleDraft {
         name: "a".into(),
         events: vec!["quota_exhausted".into()],
@@ -676,9 +677,35 @@ mod running {
                 on_run,
                 parent,
                 Some(self.path("data").join("hooks").join("work")),
+                Some(HookClaims::at(
+                    self.path("data").join("hooks").join("claims.json"),
+                )),
             );
             (runner, receiver)
         }
+    }
+
+    /// `event` as a transition never seen before (each call is a new
+    /// reading), so the claims never stand in the way of these tests.
+    fn fresh(event: &Event) -> ObservedEvent {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static READING: AtomicU64 = AtomicU64::new(0);
+        let n = READING.fetch_add(1, Ordering::Relaxed);
+        ObservedEvent {
+            event: event.clone(),
+            transition: crate::watch::Transition::observed(format!("test {n}"), event.occurred_at),
+        }
+    }
+
+    /// [`Runner::submit`] of a new transition; the runs dropped.
+    fn submit(runner: &Runner, event: &Event) -> usize {
+        submit_in(runner, event, false)
+    }
+
+    fn submit_in(runner: &Runner, event: &Event, in_quiet: bool) -> usize {
+        let submitted = runner.submit_in(&fresh(event), in_quiet);
+        assert_eq!(submitted.unclaimed, 0);
+        submitted.dropped
     }
 
     /// Wait until `path` holds a complete line (a pid a script wrote).
@@ -776,7 +803,7 @@ pwd -P > "$out/pwd"
         );
         let account = format!("Work\"; touch {}; echo \"", pwned.display());
         let event = event(EventKind::QuotaExhausted, &account, None);
-        assert_eq!(runner.submit(&event), 0);
+        assert_eq!(submit(&runner, &event), 0);
         let run = next(&mut runs).await;
         assert!(run.succeeded(), "{run:?}");
 
@@ -871,7 +898,7 @@ pwd -P > "$out/pwd"
         ]);
         let (runner, mut runs) = rig.start(confirmed, vec![("PATH", "/usr/bin:/bin")]);
 
-        runner.submit(&event(EventKind::QuotaExhausted, "Work", None));
+        submit(&runner, &event(EventKind::QuotaExhausted, "Work", None));
         let run = next(&mut runs).await;
         assert_eq!(
             (run.rule.as_str(), run.outcome),
@@ -882,22 +909,22 @@ pwd -P > "$out/pwd"
         let pid = std::fs::read_to_string(&pid).unwrap();
         assert!(!alive(&pid), "the timed-out process was killed");
 
-        runner.submit(&event(EventKind::QuotaReset, "Work", None));
+        submit(&runner, &event(EventKind::QuotaReset, "Work", None));
         let run = next(&mut runs).await;
         assert!(run.succeeded(), "{run:?}");
         assert_eq!(run.output.len(), OUTPUT_LIMIT);
         assert!(run.truncated);
 
-        runner.submit(&event(EventKind::RefreshFailed, "Work", None));
+        submit(&runner, &event(EventKind::RefreshFailed, "Work", None));
         let run = next(&mut runs).await;
         assert_eq!((run.outcome, run.exit_code), (Outcome::Exited, Some(3)));
         assert_eq!(run.output, "oops\n");
         assert!(!run.truncated);
 
-        runner.submit(&event(EventKind::AuthRequired, "Work", None));
+        submit(&runner, &event(EventKind::AuthRequired, "Work", None));
         assert_eq!(next(&mut runs).await.outcome, Outcome::NotStarted);
 
-        runner.submit(&event(EventKind::UsageUpdated, "Work", None));
+        submit(&runner, &event(EventKind::UsageUpdated, "Work", None));
         assert!(next(&mut runs).await.succeeded(), "the runner goes on");
 
         let log = std::fs::read_to_string(rig.path("runs.log")).unwrap();
@@ -938,11 +965,10 @@ rm '{running}/'$$
         let total = QUEUE_CAPACITY + 2;
         let dropped: usize = (0..total)
             .map(|index| {
-                runner.submit(&event(
-                    EventKind::QuotaExhausted,
-                    &format!("n{index}"),
-                    None,
-                ))
+                submit(
+                    &runner,
+                    &event(EventKind::QuotaExhausted, &format!("n{index}"), None),
+                )
             })
             .sum();
         assert_eq!(dropped, 2);
@@ -976,7 +1002,7 @@ rm '{running}/'$$
         );
         let confirmed = rig.confirmed(&[("sleep", "\"quota_exhausted\"", sh(&script, &[]), 60)]);
         let (runner, _runs) = rig.start(confirmed, vec![("PATH", "/usr/bin:/bin")]);
-        runner.submit(&event(EventKind::QuotaExhausted, "Work", None));
+        submit(&runner, &event(EventKind::QuotaExhausted, "Work", None));
         let deadline = Instant::now() + Duration::from_secs(20);
         let pid = loop {
             if let Some(pid) = std::fs::read_to_string(&pid)
@@ -1021,13 +1047,13 @@ rm '{running}/'$$
         ]);
         let (runner, mut runs) = rig.start(confirmed, vec![("PATH", "/usr/bin:/bin")]);
 
-        runner.submit(&event(EventKind::QuotaExhausted, "Work", None));
+        submit(&runner, &event(EventKind::QuotaExhausted, "Work", None));
         let run = next(&mut runs).await;
         assert_eq!(run.outcome, Outcome::TimedOut);
         let grandchild = read_pid(&hung).await;
         gone(&grandchild, "the timed-out hook's grandchild survived").await;
 
-        runner.submit(&event(EventKind::QuotaReset, "Work", None));
+        submit(&runner, &event(EventKind::QuotaReset, "Work", None));
         let run = next(&mut runs).await;
         assert!(run.succeeded(), "{run:?}");
         let orphan = read_pid(&left).await;
@@ -1052,7 +1078,7 @@ rm '{running}/'$$
             10,
         )]);
         let (runner, mut runs) = rig.start(confirmed, vec![("PATH", "/usr/bin:/bin")]);
-        runner.submit(&event(EventKind::QuotaExhausted, "Work", None));
+        submit(&runner, &event(EventKind::QuotaExhausted, "Work", None));
         assert_eq!(next(&mut runs).await.outcome, Outcome::NotStarted);
         assert!(!marker.exists());
     }
@@ -1109,16 +1135,99 @@ rm '{running}/'$$
             .unwrap();
         let (runner, mut runs) = rig.start(confirmed, vec![("PATH", "/usr/bin:/bin")]);
         let event = runner.rules()[0].sample(Utc::now());
-        assert_eq!(runner.submit_in(&event, true), 0);
+        assert_eq!(submit_in(&runner, &event, true), 0);
         let run = next(&mut runs).await;
         assert_eq!(run.rule, "always");
         tokio::time::sleep(Duration::from_millis(200)).await;
         assert!(always_file.exists() && !quiet_file.exists());
         // Outside quiet hours both run.
-        runner.submit_in(&event, false);
+        submit_in(&runner, &event, false);
         next(&mut runs).await;
         next(&mut runs).await;
         assert!(quiet_file.exists());
+    }
+
+    /// PRD 0054 RF2: two runners on one claim store (the desktop and
+    /// `cuotai --watch --hooks`, which share only these files) run each
+    /// rule once for the same transition, and again for a later distinct
+    /// reading; the Test action bypasses the claims.
+    #[tokio::test]
+    async fn two_processes_run_each_rule_once_per_transition() {
+        let rig = Rig::new();
+        let log = rig.path("ran");
+        let append = |name: &str| {
+            rig.script(
+                &format!("{name}.sh"),
+                &format!("echo {name} >> '{}'\n", log.display()),
+            )
+        };
+        let (a, b) = (append("a"), append("b"));
+        let rules = [
+            ("a", "\"quota_exhausted\"", sh(&a, &[]), 10),
+            ("b", "\"quota_exhausted\"", sh(&b, &[]), 10),
+        ];
+        let (desktop, mut desktop_runs) =
+            rig.start(rig.confirmed(&rules), vec![("PATH", "/usr/bin:/bin")]);
+        let (watch, mut watch_runs) =
+            rig.start(rig.confirmed(&rules), vec![("PATH", "/usr/bin:/bin")]);
+        let exhausted = event(EventKind::QuotaExhausted, "Work", None);
+        let reading = |at: i64| ObservedEvent {
+            event: exhausted.clone(),
+            transition: crate::watch::Transition::observed(
+                "claude quota_exhausted",
+                Utc.with_ymd_and_hms(2026, 10, 20, 12, 0, 0).unwrap()
+                    + chrono::TimeDelta::seconds(at),
+            ),
+        };
+        let first = desktop.submit(&reading(0));
+        assert_eq!((first.queued, first.claimed_elsewhere), (2, 0));
+        // The same reading, observed seconds later by the other process.
+        let mut late = reading(0);
+        late.event.occurred_at += chrono::TimeDelta::seconds(7);
+        let second = watch.submit(&late);
+        assert_eq!((second.queued, second.claimed_elsewhere), (0, 2));
+        next(&mut desktop_runs).await;
+        next(&mut desktop_runs).await;
+        // A later distinct reading runs again, in whichever process sees it first.
+        assert_eq!(watch.submit(&reading(60)).queued, 2);
+        assert_eq!(desktop.submit(&reading(60)).claimed_elsewhere, 2);
+        next(&mut watch_runs).await;
+        next(&mut watch_runs).await;
+        // The explicit test always runs.
+        let sample = watch.rules()[0].sample(Utc::now());
+        assert_eq!(desktop.submit_to("a", &sample), Some(0));
+        assert_eq!(watch.submit_to("a", &sample), Some(0));
+        next(&mut desktop_runs).await;
+        next(&mut watch_runs).await;
+        let mut ran: Vec<String> = std::fs::read_to_string(&log)
+            .unwrap()
+            .lines()
+            .map(str::to_owned)
+            .collect();
+        ran.sort();
+        assert_eq!(ran, ["a", "a", "a", "a", "b", "b"]);
+    }
+
+    /// PRD 0054 RF2.3: without a claim store nothing runs, and the caller
+    /// learns it.
+    #[tokio::test]
+    async fn without_a_claim_store_no_hook_runs() {
+        let rig = Rig::new();
+        let ran = rig.path("ran");
+        let touch = rig.script("t.sh", &format!("touch '{}'\n", ran.display()));
+        let confirmed = rig.confirmed(&[("t", "\"quota_exhausted\"", sh(&touch, &[]), 10)]);
+        let runner = Runner::start_with_env(
+            confirmed,
+            None,
+            Arc::new(|_: &Run, _: Option<&io::Error>| {}),
+            vec![(OsString::from("PATH"), OsString::from("/usr/bin:/bin"))],
+            Some(rig.path("work")),
+            None,
+        );
+        let submitted = runner.submit(&fresh(&event(EventKind::QuotaExhausted, "Work", None)));
+        assert_eq!((submitted.queued, submitted.unclaimed), (0, 1));
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert!(!ran.exists());
     }
 }
 

@@ -788,6 +788,7 @@
   "hooks.error.changed": "hooks.toml a changé depuis son affichage ; vérifiez de nouveau les règles.",
   "hooks.error.command": "Le command de la règle « {name} » doit être une liste d’arguments dont le premier élément est un chemin absolu ou un nom recherché dans le PATH, comme [\"/chemin/script\", \"--option\"].",
   "hooks.error.consent_storage": "Impossible d’enregistrer la confirmation des hooks dans le dossier de données local.",
+  "hooks.error.claims": "Les hooks sont en pause : Cuotai n’a pas pu enregistrer dans le dossier de données local les exécutions qu’il a réservées, donc aucune commande ne s’exécute.",
   "hooks.error.declined": "Hooks non confirmés ; rien n’a été exécuté.",
   "hooks.error.duplicate": "Plusieurs règles s’appellent « {name} ».",
   "hooks.error.empty": "hooks.toml ne contient aucune règle [[hooks]].",

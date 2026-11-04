@@ -784,6 +784,7 @@
   "hooks.error.changed": "hooks.toml이 표시된 이후 바뀌었습니다. 규칙을 다시 검토하세요.",
   "hooks.error.command": "규칙 \"{name}\"의 command는 첫 항목이 절대 경로 또는 PATH에서 찾을 이름인 인수 목록이어야 합니다(예: [\"/path/script\", \"--option\"]).",
   "hooks.error.consent_storage": "로컬 데이터 디렉터리에 훅 확인을 기록하지 못했습니다.",
+  "hooks.error.claims": "훅이 일시 중지되었습니다. Cuotai가 맡은 실행을 로컬 데이터 디렉터리에 기록하지 못해 명령이 실행되지 않습니다.",
   "hooks.error.declined": "훅이 확인되지 않았으며 실행된 것이 없습니다.",
   "hooks.error.duplicate": "\"{name}\"이라는 규칙이 둘 이상 있습니다.",
   "hooks.error.empty": "hooks.toml에 [[hooks]] 규칙이 없습니다.",
