@@ -5,7 +5,7 @@ import {
   accountLabel, configChangedOnDisk, deleteAccount, detectSources, forgetExtensionSecrets, dismissDetected, draftAccess, errText, esc, fieldChoices, formSchema, getAccount,
   getSettings, getView, icon, listProviders, logo, NEW_PROVIDER_URL, openExternal, sessionOpenLinkHtml, keyPageLinkHtml, installLinkHtml, providerModes, setDetectEnabled,
   loginCancel, loginStart, loginSubmitCode, forgetSession, migrateSession, modelSupport, onLogin, previewSession, reloadConfig,
-  reportKey, saveAccount, captureSession, cancelSessionCapture, sessionNoticeHtml, testAggregator, testSession, validMonogram, visibleFields,
+  reportKey, saveAccount, captureSession, cancelSessionCapture, forgetSharedCapture, sessionCaptureHintHtml, sessionNoticeHtml, testAggregator, testSession, validMonogram, visibleFields,
 } from "./lib.js";
 import { mountModels } from "./detail.js";
 import { entryChips, mountPicker, pickerHtml } from "./provider-picker.js";
@@ -455,7 +455,31 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       bindOpenLink(link);
     }
   };
-  dyn.addEventListener("change", (e) => { if (e.target?.name === "f:region" && !sessionBox.hidden) refreshOpenLinks(); });
+  // PRD 0056 RF2.4: "Forget the Google sign-in" destroys the hidden shared capture window.
+  const bindForget = (root) => root.querySelectorAll("[data-capture-forget]").forEach((b) => b.addEventListener("click", async () => {
+    const statusEl = sessionBox.querySelector("#session-test-status");
+    let text;
+    try { text = (await forgetSharedCapture()) ? t("dialog.session.captureForgotten") : t("dialog.session.captureNothingToForget"); }
+    catch (x) { text = String(x).includes("busy") ? t("dialog.session.captureBusy") : errText(x); }
+    if (statusEl) statusEl.textContent = text;
+  }));
+  // PRD 0056 RF1.3: the capture hint follows the region choice (the mainland Coding Plan console has no Google sign-in).
+  const refreshCaptureHints = () => {
+    const region = sessionRegion();
+    for (const s of schema.sessions ?? []) {
+      const old = sessionBox.querySelector(`[data-capture-hint="${s.slot}"]`);
+      const html = sessionCaptureHintHtml(s, region);
+      if (!old || !html) continue;
+      const tpl = document.createElement("template");
+      tpl.innerHTML = html;
+      const hint = tpl.content.firstElementChild;
+      old.replaceWith(hint);
+      bindForget(hint);
+    }
+  };
+  dyn.addEventListener("change", (e) => {
+    if (e.target?.name === "f:region" && !sessionBox.hidden) { refreshOpenLinks(); refreshCaptureHints(); }
+  });
   function renderSession(status = "") {
     const slots = schema.sessions ?? [];
     // PRD 0047: the vault reference may also hold typed keys; this box speaks only of its own session slots, and
@@ -484,7 +508,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
             <small class="hint">${esc(tl(s.instructions))}</small>
             ${sessionOpenLinkHtml(s, sessionRegion())}
             ${s.capture ? `<span class="dlg-actions"><button type="button" class="btn" data-capture="${esc(s.slot)}">${te("dialog.session.capture")}</button></span>
-              <small class="hint">${te("dialog.session.captureHint")}</small>` : ""}
+              ${sessionCaptureHintHtml(s, sessionRegion())}` : ""}
             ${s.hosts.length ? `<small class="hint">${te("dialog.session.hosts", { hosts: s.hosts.join(", ") })}</small>` : ""}
             ${stored.includes(s.slot) ? `<small class="hint">${te("dialog.session.replace")}</small>` : ""}
             <small class="hint" data-preview="${esc(s.slot)}" role="status" aria-live="polite"></small></label>
@@ -507,6 +531,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       await renderAccess();
     }));
     bindOpenLinks();
+    bindForget(sessionBox);
     // PRD 0048 RF1/RF4: the app's own sign-in window; its reduced cookies land in this paste box, which previews
     // and tests them as any paste. The user types password, 2FA and captcha there; nothing is filled for them.
     sessionBox.querySelectorAll("[data-capture]").forEach((btn) => btn.addEventListener("click", async () => {

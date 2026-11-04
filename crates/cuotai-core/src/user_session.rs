@@ -94,6 +94,70 @@ pub struct CaptureSpec {
     /// descriptor whose cookies are all optional (anonymous cookies such
     /// as `cna` exist before sign-in, so "any cookie" is not a sign-in).
     pub done_when: &'static [&'static str],
+    /// PRD 0056 RF1: the sign-in this capture shares with the other
+    /// captures that declare the same one, in one window the desktop keeps
+    /// alive and hidden for the app session; `None` keeps a private,
+    /// one-shot window (PRD 0048 RF2).
+    pub shared: Option<SharedSignIn>,
+}
+
+/// PRD 0056 RF1: an identity provider whose sign-in several captures may
+/// reuse. The desktop keeps one hidden capture window per value; between
+/// two captures that window keeps only this provider's own cookies (RF3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SharedSignIn {
+    /// "Sign in with Google" (`accounts.google.com`).
+    Google,
+}
+
+impl SharedSignIn {
+    /// Every value, for exhaustive checks.
+    pub const ALL: [SharedSignIn; 1] = [SharedSignIn::Google];
+
+    /// The identity provider's sign-in hosts: a capture that lists one of
+    /// them among its `login_hosts` shares this sign-in (RF1.1), and a
+    /// popup to one of them opens in the same window (RF5).
+    pub fn sign_in_hosts(self) -> &'static [&'static str] {
+        match self {
+            SharedSignIn::Google => &["accounts.google.com"],
+        }
+    }
+
+    /// The registrable domain whose cookies hold the sign-in.
+    fn cookie_domain(self) -> &'static str {
+        match self {
+            SharedSignIn::Google => "google.com",
+        }
+    }
+
+    /// RF3: whether the shared window keeps a cookie of `domain` (as the
+    /// store reports it, with or without a leading dot) between captures:
+    /// the identity provider's domain or one of its subdomains. Every other
+    /// cookie (the provider consoles', their sign-in hosts') is deleted.
+    pub fn keeps_cookie(self, domain: &str) -> bool {
+        let domain = domain.trim_start_matches('.').to_ascii_lowercase();
+        let own = self.cookie_domain();
+        domain == own
+            || (domain.len() > own.len()
+                && domain.ends_with(own)
+                && domain[..domain.len() - own.len()].ends_with('.'))
+    }
+
+    /// RF5: whether a popup to `url` (`window.open`) opens in the shared
+    /// window itself: an HTTPS page on the default port, without user
+    /// info, on one of [`Self::sign_in_hosts`].
+    pub fn opens_in_place(self, url: &str) -> bool {
+        let Ok(parsed) = url::Url::parse(url) else {
+            return false;
+        };
+        parsed.scheme() == "https"
+            && parsed.port().is_none()
+            && parsed.username().is_empty()
+            && parsed.password().is_none()
+            && matches!(parsed.host(), Some(url::Host::Domain(host))
+                if self.sign_in_hosts().contains(&host.to_ascii_lowercase().as_str()))
+    }
 }
 
 /// PRD 0048 RF3.4: a descriptor's capture and open link for the accounts
@@ -320,6 +384,8 @@ const XIAOMI_PLATFORM_CAPTURE: CaptureSpec = CaptureSpec {
     ],
     login_suffixes: &[".account.xiaomi.com", ".sec.xiaomi.com"],
     done_when: &[],
+    // PRD 0056 RF1: the sign-in page offers Google; the capture shares it.
+    shared: Some(SharedSignIn::Google),
 };
 
 const XIAOMI_PLATFORM: SessionDescriptor = SessionDescriptor {
@@ -365,6 +431,8 @@ const ALIBABA_CODING_PLAN_INTL_CAPTURE: CaptureSpec = CaptureSpec {
     // also waits for `login_aliyunid_ticket`, from which the adapter
     // obtains `sec_token` (RF4.3).
     done_when: &["login_aliyunid_pk", "login_aliyunid_ticket"],
+    // PRD 0056 RF1: the sign-in page offers Google; the capture shares it.
+    shared: Some(SharedSignIn::Google),
 };
 
 /// PRD 0048 RF3.4: the mainland console sign-in. Evidence (2026-10-27,
@@ -393,6 +461,8 @@ const ALIBABA_CODING_PLAN_CN_CAPTURE: CaptureSpec = CaptureSpec {
     ],
     login_suffixes: &[],
     done_when: &["login_aliyunid_pk", "login_aliyunid_ticket"],
+    // PRD 0056 RF1: no Google sign-in on the mainland console.
+    shared: None,
 };
 
 /// The Coding Plan dashboards of `alibaba_plans` (`CODING_PLAN_DASHBOARD_*`).
@@ -453,6 +523,8 @@ const QWEN_CLOUD_CAPTURE: CaptureSpec = CaptureSpec {
     // anonymous `cna`. The adapter's `login_aliyunid_ticket` is set by the
     // same sign-in response.
     done_when: &["login_aliyunid_pk", "login_aliyunid_ticket"],
+    // PRD 0056 RF1: the sign-in page offers Google; the capture shares it.
+    shared: Some(SharedSignIn::Google),
 };
 
 /// The Token Plan usage page (owner, 2026-10-27).
@@ -508,6 +580,8 @@ const META_CONSOLE_CAPTURE: CaptureSpec = CaptureSpec {
     login_suffixes: &[],
     // `llama_dev_sess` is required, so the capture already waits for it.
     done_when: &[],
+    // PRD 0056 RF1: the sign-in page offers Google; the capture shares it.
+    shared: Some(SharedSignIn::Google),
 };
 
 /// The console's usage page (owner, 2026-10-27); signed out it redirects

@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0056 |
-| Status | Proposed |
+| Status | Awaiting owner verification |
 | Owner | `cuotai-core` (`user_session::CaptureSpec::shared`, `SharedSignIn`), desktop backend (`session_capture` shared window, `forget_shared_capture` command, `form_schema` `sessions[].capture_shared`), desktop UI (`account-dialog.js`, `lib.js`, desktop catalogs) |
 | Consumers | Desktop users adding or editing an account whose console sign-in offers "Sign in with Google" |
 | Depends on | PRD 0048 (sign in and capture a web session) |
@@ -16,7 +16,7 @@
 
 | Item | Version | Delivery |
 |---|---|---|
-| — | — | Proposed; no code yet. |
+| RF1–RF9, RNF1–RNF5 | vNEXT | Delivered on `feat/shared-google-capture-session`: the core's `SharedSignIn` declaration on the four captures that offer Google, the desktop's shared window (state machine, parking with cookie reduction, idle limit, exit, forget), in-place Google popups, the dialog hints and "Forget the Google sign-in" in the 14 desktop catalogs, and the docs. The lifecycle was verified with unit tests and Tauri's mock runtime only (no real webview, no real account, no real cookie store); the owner's live check on macOS (§9) is pending. |
 
 ## 1. Owner request (2026-11-04)
 

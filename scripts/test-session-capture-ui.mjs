@@ -10,7 +10,10 @@ import { fileURLToPath } from "node:url";
 const root = new URL("../", import.meta.url);
 const ui = (path) => fileURLToPath(new URL(`apps/desktop/ui/${path}`, root));
 const KEYS = ["capture", "captureHint", "capturing", "captured", "captureCancelled", "captureTimeout",
-  "captureUnavailable", "captureBusy"].map((k) => `dialog.session.${k}`);
+  "captureUnavailable", "captureBusy",
+  // PRD 0056: the shared Google window, the passkey limit and "Forget the Google sign-in".
+  "captureSharedHint", "capturePasskeyHint", "captureForget", "captureForgotten", "captureNothingToForget",
+].map((k) => `dialog.session.${k}`);
 
 // RF8.1: every catalog has every text, none empty and none left in English outside en-US.
 const locales = (await readdir(ui("locales"))).filter((f) => f.endsWith(".json"));
@@ -40,6 +43,30 @@ assert.deepEqual(await lib.captureSession("xiaomi_mimo", "platform_session_env")
 assert.deepEqual(await lib.captureSession("alibaba_token_plan", "session_env"), { status: "unavailable" });
 assert.deepEqual(await lib.captureSession("alibaba_coding_plan", "session_env", "cn"), { status: "unavailable" });
 await lib.cancelSessionCapture();
+// PRD 0056 RF2.4: the demo has no shared window to forget.
+assert.equal(await lib.forgetSharedCapture(), false);
+
+// PRD 0056 RF1.3/RF6: a shared Google capture explains the kept window and the passkey limit and offers "Forget";
+// a private capture keeps the PRD 0048 hint; the region's capture decides (the mainland console has no Google).
+const shared = { slot: "session_env", capture: true, capture_shared: "google",
+  region_open_urls: [{ value: "cn", url: "https://bailian.console.aliyun.com/", capture_shared: null }] };
+assert.equal(lib.captureSharedOf(shared, null), "google");
+assert.equal(lib.captureSharedOf(shared, "intl"), "google");
+assert.equal(lib.captureSharedOf(shared, "cn"), null);
+assert.equal(lib.captureSharedOf({ slot: "x", capture: true }), null);
+const sharedHint = lib.sessionCaptureHintHtml(shared, null);
+assert.match(sharedHint, /data-capture-hint="session_env"/);
+assert.match(sharedHint, /data-capture-forget/);
+// No catalog is loaded here, so the texts render as their ids.
+assert.match(sharedHint, /dialog\.session\.captureSharedHint[\s\S]*dialog\.session\.capturePasskeyHint[\s\S]*dialog\.session\.captureForget/);
+assert.doesNotMatch(sharedHint, /dialog\.session\.captureHint\b/);
+const privateHint = lib.sessionCaptureHintHtml(shared, "cn");
+assert.doesNotMatch(privateHint, /data-capture-forget|capturePasskeyHint|captureSharedHint/);
+assert.match(privateHint, /dialog\.session\.captureHint\b/);
+// The English texts say what the user sees: the passkey limit and the way out.
+assert.match(en["dialog.session.capturePasskeyHint"], /Passkeys do not work in this window[\s\S]*Try another way/);
+assert.match(en["dialog.session.captureSharedHint"], /30 minutes/);
+assert.equal(lib.sessionCaptureHintHtml({ slot: "x", capture: false }), "");
 
 // PRD 0048 RF3.4: the "Open {site}" link follows the region choice; another value keeps the default page.
 const coding = { slot: "session_env", open_url: "https://modelstudio.console.alibabacloud.com/ap-southeast-1/?tab=coding-plan#/efm/coding_plan",
@@ -61,4 +88,9 @@ assert.match(dialog, /#session-test"\)\?\.click\(\)/, "the capture is tested lik
 assert.match(dialog, /addEventListener\("close", \(\) => \{[\s\S]{0,300}if \(capturing\) cancelSessionCapture\(\)/, "closing the dialog cancels");
 for (const status of ["cancelled", "timed_out"]) assert.ok(dialog.includes(`"${status}"`), status);
 assert.ok(!/console\.(log|info|debug)\([^)]*paste/.test(dialog), "no paste is logged");
+// PRD 0056: the hint comes from the shared helper, follows the region, and "Forget" calls the shell.
+assert.match(dialog, /sessionCaptureHintHtml\(s, sessionRegion\(\)\)/, "the capture hint follows the region choice");
+assert.match(dialog, /refreshOpenLinks\(\); refreshCaptureHints\(\);/, "a region change updates the capture hint");
+assert.match(dialog, /await forgetSharedCapture\(\)\) \? t\("dialog\.session\.captureForgotten"\)/, "Forget reports its result");
+assert.match(dialog, /bindForget\(sessionBox\)/, "Forget is wired on render");
 console.log("session capture UI: ok");
