@@ -1451,6 +1451,7 @@
   "query.asia.other_provider": "{provider} की जाँच किसी और एडेप्टर से होती है।",
   "query.cloud.aws_access_denied": "कॉन्फ़िगर की गई AWS प्रोफ़ाइल में पहुँच अस्वीकृत। प्रोफ़ाइल को {permission} की अनुमति दें।",
   "query.cloud.aws_auth": "params.profile में कॉन्फ़िगर प्रोफ़ाइल का AWS प्रमाणीकरण विफल रहा। प्रोफ़ाइल के क्रेडेंशियल जाँचें (aws configure sso / aws configure)।",
+  "query.cloud.invalid_aws_profile": "params.profile मान्य AWS प्रोफ़ाइल नाम नहीं है: 1 से 128 अक्षर इस्तेमाल करें, \"-\" से शुरू न करें और कोई नियंत्रण अक्षर न रखें।",
   "query.cloud.aws_cli": "AWS CLI विफल रहा (कोड {code})। प्रोफ़ाइल में {permission} की अनुमति जाँचें।",
   "query.cloud.aws_cli_not_found": "PATH में AWS CLI नहीं मिला। AWS Bedrock की जाँच के लिए AWS CLI v2 इंस्टॉल करें।",
   "query.cloud.aws_throttled": "AWS ने इस प्रोफ़ाइल के अनुरोधों की दर सीमित कर दी; बाद में फिर कोशिश करें।",

@@ -562,6 +562,13 @@ async fn run_aws(
     profile: &str,
     permission: &str,
 ) -> Result<Vec<u8>, QueryError> {
+    // PRD 0054 RF6.4: an invalid profile never starts the CLI.
+    if !crate::cli_path::valid_aws_profile(profile) {
+        return Err(QueryError::config(
+            "query.cloud.invalid_aws_profile",
+            "params.profile is not a valid AWS profile name: use 1 to 128 characters, not starting with \"-\" and without control characters.",
+        ));
+    }
     let mut cmd = tokio::process::Command::new(crate::cli_path::resolve(binary));
     cmd.args(args)
         .args(["--output", "json", "--profile", profile])
@@ -1172,8 +1179,18 @@ esac
 
         let bad_region = list(&[("profile", "prod"), ("region", "us;rm -rf")]).await;
         assert_eq!(bad_region.unwrap_err().status, Status::NeedsConfiguration);
+        // PRD 0054 RF6.4: a profile that would read as an option never runs it either.
+        for profile in ["--debug", "-p", "a\nb"] {
+            let error = list(&[("profile", profile)]).await.unwrap_err();
+            assert_eq!(error.status, Status::NeedsConfiguration, "{profile:?}");
+            assert_eq!(error.note.id, "query.cloud.invalid_aws_profile");
+        }
         let argv = std::fs::read_to_string(dir.path().join("argv.log")).unwrap();
-        assert_eq!(argv.lines().count(), 7, "invalid region never runs the CLI");
+        assert_eq!(
+            argv.lines().count(),
+            7,
+            "invalid region or profile never runs the CLI"
+        );
         assert!(argv
             .lines()
             .all(|l| l.starts_with("bedrock list-foundation-models")));

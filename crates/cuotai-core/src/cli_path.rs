@@ -16,6 +16,17 @@ pub(crate) fn resolve(name: &str) -> PathBuf {
     resolve_in(name, &path, &install_dirs())
 }
 
+/// PRD 0054 RF6.4: whether `profile` may follow `--profile` on an `aws`
+/// command line: 1 to 128 bytes, not starting with `-` (it would read as an
+/// option) and without control characters. Login, model listing and queries
+/// all check it before starting the CLI.
+pub(crate) fn valid_aws_profile(profile: &str) -> bool {
+    !profile.is_empty()
+        && profile.len() <= 128
+        && !profile.starts_with('-')
+        && !profile.chars().any(char::is_control)
+}
+
 /// Whether [`resolve`] finds `name`.
 pub(crate) fn found(name: &str) -> bool {
     let path = std::env::var_os("PATH").unwrap_or_default();
@@ -80,6 +91,27 @@ fn is_program(path: &Path) -> bool {
 #[cfg(not(unix))]
 fn is_program(path: &Path) -> bool {
     path.is_file()
+}
+
+#[cfg(test)]
+mod profile_tests {
+    #[test]
+    fn an_aws_profile_is_never_an_option_or_a_control_character() {
+        for ok in ["prod", "my-profile_1", "a", &"p".repeat(128), "sso:team"] {
+            assert!(super::valid_aws_profile(ok), "{ok}");
+        }
+        for bad in [
+            "",
+            "-p",
+            "--debug",
+            "--endpoint-url=x",
+            "a\nb",
+            "a\u{7}",
+            &"p".repeat(129),
+        ] {
+            assert!(!super::valid_aws_profile(bad), "{bad:?}");
+        }
+    }
 }
 
 #[cfg(all(test, unix))]

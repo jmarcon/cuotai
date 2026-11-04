@@ -1446,6 +1446,7 @@
   "query.asia.other_provider": "{provider} ditangani oleh adaptor lain.",
   "query.cloud.aws_access_denied": "Akses ditolak pada profil AWS yang dikonfigurasi. Berikan {permission} ke profil.",
   "query.cloud.aws_auth": "Autentikasi AWS gagal untuk profil yang dikonfigurasi di params.profile. Periksa kredensial profil (aws configure sso / aws configure).",
+  "query.cloud.invalid_aws_profile": "params.profile bukan nama profil AWS yang valid: gunakan 1 hingga 128 karakter, tidak diawali \"-\" dan tanpa karakter kontrol.",
   "query.cloud.aws_cli": "AWS CLI gagal (kode {code}). Periksa izin {permission} pada profil.",
   "query.cloud.aws_cli_not_found": "AWS CLI tidak ada di PATH. Pasang AWS CLI v2 untuk mengueri AWS Bedrock.",
   "query.cloud.aws_throttled": "AWS membatasi laju permintaan profil ini; coba lagi nanti.",

@@ -48,6 +48,7 @@ export const DESKTOP_WORDING = {
   "query.alibaba_billing.invalid_region": SETTING_INVALID,
   "query.alibaba_plans.invalid_region": SETTING_INVALID,
   "query.alibaba_plans.invalid_cli_profile": SETTING_INVALID,
+  "query.cloud.invalid_aws_profile": SETTING_INVALID,
   "query.cloud.invalid_azure_resource_id": SETTING_INVALID,
   "query.cloud.invalid_resource_identifier": SETTING_INVALID,
   "query.coding.invalid_organization_id": SETTING_INVALID,
