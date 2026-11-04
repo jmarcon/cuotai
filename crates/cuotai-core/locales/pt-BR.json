@@ -1656,6 +1656,7 @@
   "serve.client.unauthorized": "O servidor local recusou o token (use --token-file com o mesmo arquivo do --serve).",
   "serve.client.unreachable": "O servidor local não respondeu; ele está rodando (cuotai --serve)?",
   "serve.error.bind": "Não foi possível abrir a porta {port} do servidor local.",
+  "serve.error.bounds": "Um limite do servidor local está fora do intervalo permitido.",
   "serve.error.invalid_token": "Token do servidor local inválido: use de 16 a 512 caracteres, sem espaços (letras, números e - . _ ~ + /).",
   "serve.error.non_loopback": "O servidor local só escuta em loopback (127.0.0.1 ou ::1); o endereço {addr} exige a opção explícita para fora do loopback.",
   "serve.error.port_in_use": "As portas {first} a {last} estão em uso; escolha outra porta para o servidor local.",

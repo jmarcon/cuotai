@@ -111,8 +111,26 @@ fn fixture_source() -> impl Source {
     source_of(config, cycle)
 }
 
-/// `config` on an ephemeral port.
+/// A rate no test of the routes reaches (PRD 0050 RF5.3 has its own tests,
+/// which use [`start_exact`]).
+const WIDE: Rate = Rate {
+    per_minute: 6000,
+    burst: 1000,
+};
+
+/// `config` on an ephemeral port, with the pre-auth rates widened so a
+/// test may send many requests from loopback.
 async fn start(config: ServeConfig, source: impl Source) -> LocalServer {
+    let bounds = Bounds {
+        peer_rate: WIDE,
+        global_rate: WIDE,
+        ..config.bounds
+    };
+    start_exact(ServeConfig { bounds, ..config }, source).await
+}
+
+/// `config` on an ephemeral port, its bounds as given.
+async fn start_exact(config: ServeConfig, source: impl Source) -> LocalServer {
     LocalServer::start(ServeConfig { port: 0, ..config }, source)
         .await
         .expect("loopback server starts")
@@ -434,33 +452,29 @@ credential_env = "GROQ_KEY"
     assert_eq!(snapshot["accounts"][0]["report"]["status"], "ready");
 }
 
+/// PRD 0050 RF5.2: idle connections hold pending-head slots, at most
+/// `max_pending_heads_per_peer` of one peer (all of loopback); one more is
+/// closed unanswered until a slot frees, and a slot frees at the head
+/// deadline.
+// security-invariant: SEC-SERVE-ADMISSION
 #[tokio::test]
-async fn connections_over_the_limit_are_closed_until_a_slot_frees() {
-    let server = start(
-        ServeConfig {
-            bounds: Bounds {
-                max_connections: 2,
-                request_timeout: Duration::from_secs(30),
-                ..Bounds::default()
-            },
-            ..ServeConfig::default()
-        },
-        fixture_source(),
-    )
-    .await;
-    // Two idle clients hold both slots (accepted in order, before ours).
-    let first = TcpStream::connect(server.addr()).await.unwrap();
-    let _second = TcpStream::connect(server.addr()).await.unwrap();
+async fn pending_heads_are_bounded_per_peer_and_freed_at_their_deadline() {
+    let server = start(ServeConfig::default(), fixture_source()).await;
+    // Four idle clients hold every pending slot of loopback.
+    let mut idle = Vec::new();
+    for _ in 0..4 {
+        idle.push(TcpStream::connect(server.addr()).await.unwrap());
+    }
     tokio::time::sleep(Duration::from_millis(100)).await;
     assert!(
         request(&server, Method::GET, "/health")
             .send()
             .await
             .is_err(),
-        "a third connection is closed unanswered"
+        "a fifth connection of the same peer is closed unanswered"
     );
 
-    drop(first);
+    drop(idle.pop());
     let mut served = None;
     for _ in 0..100 {
         if let Ok(response) = request(&server, Method::GET, "/health").send().await {
@@ -470,6 +484,120 @@ async fn connections_over_the_limit_are_closed_until_a_slot_frees() {
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
     assert_eq!(served, Some(StatusCode::OK), "the freed slot serves again");
+
+    // The other three idle heads are cut at the one-second head deadline.
+    let mut idle = Vec::new();
+    for _ in 0..4 {
+        idle.push(TcpStream::connect(server.addr()).await.unwrap());
+    }
+    let started = Instant::now();
+    let mut buf = [0u8; 16];
+    for stream in &mut idle {
+        let read = tokio::time::timeout(Duration::from_secs(3), stream.read(&mut buf)).await;
+        assert!(matches!(read, Ok(Ok(0)) | Ok(Err(_))), "closed unanswered");
+    }
+    assert!(
+        started.elapsed() < Duration::from_millis(1800),
+        "{:?}",
+        started.elapsed()
+    );
+    assert_eq!(get(&server, "/health").await.status(), StatusCode::OK);
+}
+
+/// PRD 0050 RF5.1: limits outside their ranges are refused.
+#[test]
+fn bounds_outside_their_ranges_are_refused() {
+    assert!(Bounds::default().validate().is_ok());
+    for bad in [
+        Bounds {
+            max_connections: 3,
+            ..Bounds::default()
+        },
+        Bounds {
+            max_pending_heads: 129,
+            ..Bounds::default()
+        },
+        Bounds {
+            max_pending_heads_per_peer: 0,
+            ..Bounds::default()
+        },
+        Bounds {
+            head_timeout: Duration::from_millis(99),
+            ..Bounds::default()
+        },
+        Bounds {
+            head_timeout: Duration::from_secs(3),
+            ..Bounds::default()
+        },
+        Bounds {
+            request_timeout: Duration::from_secs(31),
+            ..Bounds::default()
+        },
+        Bounds {
+            peer_rate: Rate {
+                per_minute: 0,
+                burst: 1,
+            },
+            ..Bounds::default()
+        },
+    ] {
+        assert_eq!(bad.validate(), Err(ServeError::Bounds), "{bad:?}");
+        let config = ServeConfig {
+            bounds: bad,
+            ..ServeConfig::default()
+        };
+        assert_eq!(config.validate(), Err(ServeError::Bounds));
+    }
+    assert_eq!(ServeError::Bounds.l10n().id, "serve.error.bounds");
+}
+
+/// PRD 0050 RF5.2/RF5.3: refused heads never build an export: 61 wrong
+/// tokens from one peer get `401` for its burst of 20, then `429` with a
+/// bounded `Retry-After`, and the source is never asked.
+// security-invariant: SEC-SERVE-ADMISSION
+#[tokio::test]
+async fn rejected_and_rate_limited_heads_never_build_an_export() {
+    let built = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counter = Arc::clone(&built);
+    let source = move || {
+        counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        None
+    };
+    let token = Token::generate().unwrap();
+    let server = start_exact(
+        ServeConfig {
+            token: Some(token),
+            ..ServeConfig::default()
+        },
+        source,
+    )
+    .await;
+    let wrong = Token::generate().unwrap();
+    let mut statuses = std::collections::BTreeMap::new();
+    let mut retry_after = None;
+    for _ in 0..61 {
+        let response = request(&server, Method::GET, "/v1/snapshot")
+            .bearer_auth(wrong.expose())
+            .send()
+            .await
+            .unwrap();
+        if response.status() == StatusCode::TOO_MANY_REQUESTS {
+            retry_after = response.headers().get(header::RETRY_AFTER).cloned();
+            assert_eq!(json(response).await["error"], "rate_limited");
+            *statuses.entry(429).or_insert(0) += 1;
+        } else {
+            *statuses.entry(response.status().as_u16()).or_insert(0) += 1;
+        }
+    }
+    assert_eq!(statuses.get(&401), Some(&20), "{statuses:?}");
+    assert_eq!(statuses.get(&429), Some(&41), "{statuses:?}");
+    let retry: u64 = retry_after.unwrap().to_str().unwrap().parse().unwrap();
+    assert!((1..=60).contains(&retry));
+    assert_eq!(
+        built.load(std::sync::atomic::Ordering::SeqCst),
+        0,
+        "no export built"
+    );
 }
 
 #[tokio::test]
@@ -477,8 +605,9 @@ async fn slow_and_oversized_requests_are_bounded() {
     let server = start(
         ServeConfig {
             bounds: Bounds {
-                max_connections: 1,
-                request_timeout: Duration::from_millis(300),
+                max_connections: 4,
+                head_timeout: Duration::from_millis(300),
+                request_timeout: Duration::from_secs(1),
                 ..Bounds::default()
             },
             ..ServeConfig::default()
@@ -486,8 +615,8 @@ async fn slow_and_oversized_requests_are_bounded() {
         fixture_source(),
     )
     .await;
-    // A head that never ends is cut at the request timeout, unanswered,
-    // and its slot is freed.
+    // A head that never ends is cut at the head timeout (PRD 0050 RF5.2),
+    // unanswered, and its slot is freed.
     let started = Instant::now();
     let answer = raw(
         server.addr(),

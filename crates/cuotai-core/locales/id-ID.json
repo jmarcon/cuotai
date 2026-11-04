@@ -1650,6 +1650,7 @@
   "serve.client.unauthorized": "Server lokal menolak token (gunakan --token-file dengan file yang sama seperti --serve).",
   "serve.client.unreachable": "Server lokal tidak menjawab; apakah sedang berjalan (cuotai --serve)?",
   "serve.error.bind": "Tidak dapat membuka port {port} server lokal.",
+  "serve.error.bounds": "Salah satu batas server lokal berada di luar rentang yang diizinkan.",
   "serve.error.invalid_token": "Token server lokal tidak valid: gunakan 16 hingga 512 karakter, tanpa spasi (huruf, angka, dan - . _ ~ + /).",
   "serve.error.non_loopback": "Server lokal hanya mendengarkan di loopback (127.0.0.1 atau ::1); alamat {addr} memerlukan opsi eksplisit di luar loopback.",
   "serve.error.port_in_use": "Port {first} hingga {last} sedang dipakai; pilih port lain untuk server lokal.",

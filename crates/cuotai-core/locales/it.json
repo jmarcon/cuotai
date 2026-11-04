@@ -1239,6 +1239,7 @@
   "serve.error.port_in_use": "Le porte da {first} a {last} sono in uso; scegli un'altra porta per il server locale.",
   "serve.error.port_taken": "La porta {port} è in uso; scegli un'altra porta per il server locale.",
   "serve.error.bind": "Impossibile aprire la porta {port} per il server locale.",
+  "serve.error.bounds": "Un limite del server locale è fuori dall’intervallo consentito.",
   "serve.error.invalid_token": "Token del server locale non valido: usa da 16 a 512 caratteri senza spazi (lettere, cifre e - . _ ~ + /).",
   "serve.error.vault": "Il vault di sistema non è disponibile o ha negato l'accesso al token del server locale.",
   "serve.error.random": "Il generatore casuale di sistema non è disponibile; il token non è stato creato.",

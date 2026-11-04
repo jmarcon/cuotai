@@ -97,7 +97,7 @@ Until some account has a reading (current or preserved), the data routes answer 
 
 ## Limits
 
-`ServeConfig::bounds` (`Bounds::default()`): at most 16 connections at once (any other is closed as soon as it is accepted), a request head of at most 8 KiB and 32 headers (`431`), a request target of at most 2 KiB (`414`), and 5 seconds for the whole connection (a slower client is disconnected).
+`ServeConfig::bounds` (`Bounds::default()`, PRD 0050 RF5) separates the work before authentication from serving. Before: at most 16 connections still sending their request head, and 4 of them from one peer address (all of loopback is one peer: this bounds availability, it does not tell local clients apart); one more is closed as soon as it is accepted, and a head not complete within 1 second is closed unanswered. Each completed head spends a token of its peer (a burst of 20, then 60 a minute) and of the server (40, then 240 a minute); with none left the answer is `429 rate_limited` with `Retry-After`. A head of at most 8 KiB and 32 headers (`431`) and a target of at most 2 KiB (`414`); refused heads (rate, size, `Host`, `Origin`, peer, token) never build an export. After: at most 16 authenticated requests served at once (`503 busy` with `Retry-After: 1` beyond), and 5 seconds for the whole connection. `Bounds::validate` (run by `start` and `reconfigure`) refuses limits outside `4..=128` (serving and pending), `1..=16` (pending per peer), `100 ms..=2 s` (head) and `1..=30 s` (connection).
 
 ## Security
 
