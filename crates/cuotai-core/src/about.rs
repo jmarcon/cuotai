@@ -248,6 +248,14 @@ static LIBRARIES: &[Library] = &[
         Role::Runtime,
         &[Core],
     ),
+    // PRD 0052 RF6.1: the OS trust store for every core client.
+    lib(
+        "rustls-native-certs",
+        "Apache-2.0 OR ISC OR MIT",
+        "https://github.com/rustls/rustls-native-certs",
+        Role::Runtime,
+        &[Core],
+    ),
     lib(
         "rusqlite",
         "MIT",

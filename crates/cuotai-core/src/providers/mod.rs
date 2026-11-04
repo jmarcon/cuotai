@@ -316,13 +316,16 @@ pub(crate) async fn send(request: RequestBuilder) -> Result<reqwest::Response, Q
     if !crate::transport::is_secure(request.url()) {
         return Err(QueryError::insecure());
     }
-    client.execute(request).await.map_err(|error| {
+    let response = client.execute(request).await.map_err(|error| {
         if error.is_timeout() {
             QueryError::timeout()
         } else {
             QueryError::transport()
         }
-    })
+    })?;
+    // PRD 0052 RF7.1: the server's `Date` against the local clock.
+    crate::network::observe(&response, crate::network::ClientPurpose::Provider);
+    Ok(response)
 }
 
 /// PRD 0016 RF3.3: send a request that carries the web session of `slot`
@@ -354,6 +357,7 @@ pub(crate) async fn send_session(
             QueryError::transport()
         }
     })?;
+    crate::network::observe(&response, crate::network::ClientPurpose::Provider);
     if response.status().is_redirection() {
         return Err(QueryError { diagnostic: None,
             status: Status::AuthenticationError,

@@ -18,7 +18,10 @@ chrono = { version = "0.4", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "process", "sync", "io-util", "net"] }
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+# PRD 0052 RF6.1: no built-in roots at all. `cuotai_core::network` loads the
+# OS trust store once (rustls-native-certs) and gives it to every client, so
+# nothing falls back to bundled webpki roots.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-manual-roots"] }
 thiserror = "2"
 hmac = "0.12"
 sha1 = "0.10"

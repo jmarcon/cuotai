@@ -104,12 +104,12 @@ impl OAuthSession {
         store: Arc<dyn TokenStore>,
         secrets: Arc<dyn Credentials>,
     ) -> Result<Self, OAuthError> {
-        let http = reqwest::Client::builder()
-            .redirect(reqwest::redirect::Policy::none())
-            .timeout(std::time::Duration::from_secs(30))
-            .user_agent(concat!("cuotai/", env!("CARGO_PKG_VERSION")))
-            .build()
-            .map_err(|_| OAuthError::Network)?;
+        // PRD 0052 RF6.1: OS roots, environment proxies, no redirects.
+        let http = crate::network::client(
+            crate::network::ClientPurpose::OAuth,
+            std::time::Duration::from_secs(30),
+        )
+        .ok_or(OAuthError::Network)?;
         Ok(Self {
             http,
             store,

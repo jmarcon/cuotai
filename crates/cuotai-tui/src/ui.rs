@@ -3421,6 +3421,12 @@ impl HistoryView {
         self.warning = monitor
             .history_status()
             .and_then(|status| status.warning())
+            // PRD 0052 RF7.2: a server clock that disagrees with this one.
+            .or_else(|| {
+                cuotai_core::network::clock_skew()
+                    .warning()
+                    .map(|skew| skew.l10n())
+            })
             .map(|warning| warning.resolve(tui_locale()));
     }
 }

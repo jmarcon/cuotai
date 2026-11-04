@@ -29,6 +29,9 @@ keyring = { version = "4.2", features = ["v1"] }
 # PRD 0052 RF5.4: the vault's service-wide search (the store `keyring`'s
 # `v1` API already initializes; same version as its dependency).
 keyring-core = "1"
+# PRD 0052 RF6.1: the OS root certificates, loaded once and given to every
+# client (the same crate reqwest's native-roots feature uses).
+rustls-native-certs = "0.8"
 sha2 = "0.10"
 # PRD 0046 RF1: deflate and CRC-32 for the backup archive (pure Rust backend).
 flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }

@@ -353,6 +353,8 @@ async fn fetch(
             .send()
             .await
             .map_err(|_| parse::Invalid)?;
+        // PRD 0052 RF7.1: status pages report their clock too.
+        crate::network::observe(&response, crate::network::ClientPurpose::Provider);
         if !response.status().is_success()
             || response
                 .content_length()
