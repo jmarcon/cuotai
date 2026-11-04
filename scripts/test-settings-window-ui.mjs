@@ -139,8 +139,8 @@ assert.match(html, /href="css\/settings\.css"/);
 const index = await readFile(ui("index.html"), "utf8");
 // PRD 0050 RF1.2: the shared external bootstrap, never an inline copy.
 for (const page of [html, index]) {
-  assert.match(page.split("</head>", 1)[0], /<script src="js\/first-paint\.js"><\/script>/, "settings.html must apply language and theme before first paint like index.html");
-  assert.doesNotMatch(page, /<script>/, "no inline script");
+  assert.ok(page.split("</head>", 1)[0].includes('<script src="js/first-paint.js"></script>'), "settings.html must apply language and theme before first paint like index.html");
+  assert.ok(!page.includes("<script>"), "no inline script");
 }
 const capability = JSON.parse(await readFile(fileURLToPath(new URL("apps/desktop/src-tauri/capabilities/default.json", root)), "utf8"));
 assert.deepEqual(capability.windows, ["main", "tray", "settings"]);
