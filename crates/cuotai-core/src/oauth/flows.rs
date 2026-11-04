@@ -264,6 +264,7 @@ async fn post_form(
         bytes.extend_from_slice(&chunk);
     }
     let body: Value = serde_json::from_slice(&bytes).map_err(|_| status_failure(status))?;
+    super::rotation::observe(status, &body);
     Ok((status, body))
 }
 

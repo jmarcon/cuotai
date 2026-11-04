@@ -606,6 +606,7 @@ async fn read_bounded(response: reqwest::Response) -> Result<(StatusCode, Value)
     // Never include these bytes in an error: OAuth servers commonly echo
     // authorization codes, refresh tokens, and client details.
     let body = serde_json::from_slice(&bytes).map_err(|_| status_failure(status))?;
+    super::rotation::observe(status, &body);
     Ok((status, body))
 }
 

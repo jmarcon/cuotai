@@ -16,6 +16,7 @@ mod reference_device;
 mod reference_native;
 mod reference_qwen;
 mod reference_xiaomi;
+mod rotation;
 
 use crate::Provider;
 use chrono::{DateTime, Utc};

@@ -276,6 +276,7 @@ async fn read_json(
         }
     }
     let value = serde_json::from_slice(&body).map_err(|_| status_failure(status))?;
+    super::rotation::observe(status, &value);
     Ok((status, value))
 }
 
