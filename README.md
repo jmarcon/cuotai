@@ -177,6 +177,7 @@ All technical documentation lives in **[`docs/`](docs/)**.
 - [Terminal dashboard, command line and account wizard](docs/tui.md): shortcuts, wizard, configuration precedence, exit codes.
 - [Providers, credentials and limitations](docs/providers.md) and [native sign-in and the vault](docs/oauth.md).
 - [Platform support](docs/platforms.md): what works on macOS, Windows and Linux.
+- [Privacy and data inventory](docs/privacy.md): every network flow Cuotai can start and every file and vault entry it keeps, with how to erase them.
 
 **Automation and integration**
 
