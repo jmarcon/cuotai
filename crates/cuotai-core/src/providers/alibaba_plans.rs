@@ -1777,7 +1777,15 @@ async fn run_token_plan_cli(
                 "`bl` (Bailian CLI) not found. Install the CLI and try again.",
             )
         } else {
-            QueryError::transport()
+            // Present but not runnable (permissions, a broken install).
+            QueryError {
+                diagnostic: None,
+                status: Status::Error,
+                note: Localized::fixed(
+                    "query.alibaba_plans.cli_start_failed",
+                    "`bl` (Bailian CLI) was found but could not be started. Check the installation.",
+                ),
+            }
         }
     })?;
     let output = match tokio::time::timeout(ctx.timeout, child.wait_with_output()).await {
@@ -1796,14 +1804,18 @@ async fn run_token_plan_cli(
         } else {
             classify_cli_failure(&stderr)
         };
+        // Neither stdout nor stderr reaches the note: they may echo tokens.
+        let profile_param = params([("profile", ParamValue::from(profile.to_string()))]);
         let note = match status {
-            Status::AuthenticationError => Localized::fixed(
+            Status::AuthenticationError => Localized::with_params(
                 "query.alibaba_plans.cli_auth",
-                "`bl auth login --console` exited with an error. Check the CLI and try again.",
+                profile_param,
+                "The `bl` profile '{profile}' is not signed in or its sign-in expired. Sign in again with `bl auth login --console`.",
             ),
-            _ => Localized::fixed(
+            _ => Localized::with_params(
                 "query.alibaba_plans.cli_failure",
-                "Could not start `bl auth login --console`.",
+                profile_param,
+                "`bl usage token-plan` failed for the profile '{profile}'. Check that the CLI works and try again.",
             ),
         };
         return Err(QueryError {
@@ -3155,6 +3167,64 @@ mod tests {
         assert!(data.metrics[0].resets_at.is_some());
         let ids: Vec<&str> = data.notes_l10n.iter().map(|n| n.id.as_ref()).collect();
         assert_eq!(ids, ["note.alibaba_plans.cli_query"]);
+    }
+
+    /// Writes an executable fake `bl` with `script` as its body.
+    #[cfg(unix)]
+    fn fake_bl(dir: &std::path::Path, script: &str) -> String {
+        use std::os::unix::fs::PermissionsExt;
+        let bin = dir.join("bl");
+        std::fs::write(&bin, format!("#!/bin/sh\n{script}\n")).unwrap();
+        let mut perms = std::fs::metadata(&bin).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&bin, perms).unwrap();
+        bin.to_string_lossy().into_owned()
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn cli_failures_say_which_of_missing_signed_out_or_failed() {
+        let http = reqwest::Client::new();
+        let creds = MapCredentials(BTreeMap::new());
+        let ctx = ctx_with(&http, &creds);
+        let dir = tempfile::tempdir().unwrap();
+
+        // Missing CLI.
+        let missing = dir.path().join("absent").join("bl");
+        let err = run_token_plan_cli(&ctx, &missing.to_string_lossy(), "demo")
+            .await
+            .unwrap_err();
+        assert_eq!(err.status, Status::NeedsConfiguration);
+        assert_eq!(err.note.id, "query.alibaba_plans.cli_not_found");
+
+        // Present but not executable.
+        let broken = dir.path().join("broken");
+        std::fs::write(&broken, "not a program").unwrap();
+        let err = run_token_plan_cli(&ctx, &broken.to_string_lossy(), "demo")
+            .await
+            .unwrap_err();
+        assert_eq!(err.status, Status::Error);
+        assert_eq!(err.note.id, "query.alibaba_plans.cli_start_failed");
+
+        // Signed out: the JSON error code 3 of `bl`, output never echoed.
+        let path = fake_bl(
+            dir.path(),
+            "echo '{\"error\":{\"code\":3,\"message\":\"SECRET_BODY\"}}'\nexit 1",
+        );
+        let err = run_token_plan_cli(&ctx, &path, "demo").await.unwrap_err();
+        assert_eq!(err.status, Status::AuthenticationError);
+        assert_eq!(err.note.id, "query.alibaba_plans.cli_auth");
+        assert!(err.note.fallback.contains("'demo' is not signed in"));
+        assert!(!err.note.fallback.contains("SECRET_BODY"));
+
+        // Any other failure of the command.
+        let path = fake_bl(dir.path(), "echo 'socket hang up SECRET_BODY' >&2\nexit 2");
+        let err = run_token_plan_cli(&ctx, &path, "demo").await.unwrap_err();
+        assert_eq!(err.status, Status::Error);
+        assert_eq!(err.note.id, "query.alibaba_plans.cli_failure");
+        assert!(err.note.fallback.contains("`bl usage token-plan` failed"));
+        assert!(!err.note.fallback.contains("SECRET_BODY"));
+        assert!(!err.note.fallback.contains("Could not start"));
     }
 
     #[cfg(unix)]

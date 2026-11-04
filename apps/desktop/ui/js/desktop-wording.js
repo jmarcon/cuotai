@@ -40,7 +40,6 @@ export const DESKTOP_WORDING = {
   "query.alibaba_plans.token_plan_session_expired": SESSION_EXPIRED,
   "query.alibaba_plans.session_http_auth": SESSION_EXPIRED,
   "query.alibaba_plans.cli_auth": SESSION_EXPIRED,
-  "query.alibaba_plans.cli_not_found": SESSION_NEEDED,
   // A `params.*` value is invalid.
   "query.alibaba_billing.billing_cycle_month_out_of_range": SETTING_INVALID,
   "query.alibaba_billing.invalid_billing_cycle_format": SETTING_INVALID,
@@ -48,7 +47,6 @@ export const DESKTOP_WORDING = {
   "query.alibaba_billing.invalid_region": SETTING_INVALID,
   "query.alibaba_plans.invalid_region": SETTING_INVALID,
   "query.alibaba_plans.invalid_cli_profile": SETTING_INVALID,
-  "query.alibaba_plans.cli_failure": SETTING_INVALID,
   "query.cloud.invalid_azure_resource_id": SETTING_INVALID,
   "query.cloud.invalid_resource_identifier": SETTING_INVALID,
   "query.coding.invalid_organization_id": SETTING_INVALID,
