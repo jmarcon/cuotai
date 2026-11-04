@@ -876,6 +876,9 @@ pub struct View {
     /// PRD 0051 RF1.2/RF1.3: the accounts the configuration reader set
     /// aside because they need a newer Cuotai, then unknown top-level keys.
     config_notices: Vec<cuotai_core::text::Localized>,
+    /// PRD 0054 RF5.1: the system refused the tray icon, so the window is
+    /// the only way in (a banner that cannot be dismissed says so).
+    tray_unavailable: bool,
     /// Changes when the history was erased or recording switched (RF5).
     history_epoch: u64,
     notify: NotifyView,
@@ -1495,6 +1498,8 @@ impl Inner {
                 history_warning: None,
                 settings_backup: crate::settings::recovered_backup(),
                 config_notices: Vec::new(),
+                tray_unavailable: crate::window_mode::current()
+                    == crate::window_mode::WindowMode::NoTray,
                 history_epoch: self.history_epoch,
                 notify: NotifyView {
                     enabled: self.notices.prefs().enabled,
@@ -1653,6 +1658,8 @@ impl Inner {
                 .map(|issue| issue.l10n())
                 .chain(l.file.warnings.iter().map(|warning| warning.l10n()))
                 .collect(),
+            tray_unavailable: crate::window_mode::current()
+                == crate::window_mode::WindowMode::NoTray,
             history_epoch: self.history_epoch,
             notify: NotifyView {
                 enabled: self.notices.prefs().enabled,

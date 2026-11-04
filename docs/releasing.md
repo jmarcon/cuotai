@@ -939,7 +939,9 @@ a release, a person completes every item:
   install, start and uninstall are automated by `smoke-desktop-windows`).
 - [ ] Open the desktop window and the tray on a real Linux desktop: the
   automated `smoke-desktop-linux` proves the `.deb`/AppImage install, link
-  and start headless, not the user interface. Install the `.rpm` on Fedora
+  and start headless, not the user interface. On a GNOME session without the
+  AppIndicator extension (PRD 0054 RF5), the window opens with the "no tray
+  icon" banner, accounts refresh, and closing the window quits the app. Install the `.rpm` on Fedora
   (its metadata only is automated) and, when produced, the optional ARM64
   installer and packages.
 - [ ] Confirm the `smoke-*` jobs of the tag run passed (they block `publish`;

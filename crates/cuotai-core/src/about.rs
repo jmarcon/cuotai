@@ -218,6 +218,13 @@ static LIBRARIES: &[Library] = &[
         &[Core],
     ),
     lib(
+        "rfd",
+        "MIT",
+        "https://github.com/PolyMeilex/rfd",
+        Role::Runtime,
+        &[Desktop],
+    ),
+    lib(
         "rsa",
         "MIT OR Apache-2.0",
         "https://github.com/RustCrypto/RSA",
