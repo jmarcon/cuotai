@@ -22,11 +22,20 @@ fn now() -> DateTime<Utc> {
     Utc.with_ymd_and_hms(2025, 10, 3, 12, 0, 0).unwrap()
 }
 
-fn fixture() -> Fixture {
-    fixture_with(Limits {
+/// The default limits with a time budget no scan can spend. The budget is
+/// wall-clock: on a loaded CI runner (notably Windows) opening the index
+/// alone can take the default five seconds, and the scan then stops before
+/// its first file. Only the tests of the budget itself set a real one.
+fn limits() -> Limits {
+    Limits {
+        max_duration: Duration::from_secs(24 * 3600),
         pace: false,
         ..Limits::default()
-    })
+    }
+}
+
+fn fixture() -> Fixture {
+    fixture_with(limits())
 }
 
 fn fixture_with(limits: Limits) -> Fixture {
@@ -232,12 +241,17 @@ fn a_rotated_file_is_counted_once() {
     f.enable(SourceId::ClaudeCode);
     let log = f.claude_log("s1");
     write(&log, &(claude_line(1, 10, 2) + &claude_line(2, 20, 2)));
-    f.scan();
+    // A first scan that stopped early would leave nothing to restart.
+    assert!(f.scan().complete);
+    assert_eq!((f.requests(), f.input()), (2, 30));
     // Rotation: the old content moves aside and a new file takes the name.
+    // NTFS gives the new file the old one's creation time (tunneling), so on
+    // Windows the identity matches and the shorter size tells them apart.
     let rotated = log.with_file_name("s1-old.jsonl");
     std::fs::rename(&log, &rotated).unwrap();
     write(&log, &claude_line(3, 5, 2));
     let report = f.scan();
+    assert!(report.complete);
     assert_eq!(source_scan(&report, SourceId::ClaudeCode).restarted, 1);
     assert_eq!((f.requests(), f.input()), (3, 35));
     // A copy of requests already counted (a resumed session) adds nothing.
@@ -283,8 +297,7 @@ fn line_file_time_and_size_limits_stop_and_the_next_scan_continues() {
         max_lines: 2,
         max_files: 1,
         max_line_bytes: 4096,
-        pace: false,
-        ..Limits::default()
+        ..limits()
     });
     f.enable(SourceId::ClaudeCode);
     let lines: String = (1..=3).map(|n| claude_line(n, 1, 2)).collect();
@@ -639,11 +652,7 @@ fn the_worker_scans_on_its_own_thread_and_pauses_while_saving_energy() {
     // The scan's time budget is wall-clock, and on a busy machine the
     // background band can spend it before the first file. A stopped scan
     // has its own test; this one must not depend on the machine's speed.
-    let f = fixture_with(Limits {
-        max_duration: Duration::from_secs(24 * 3600),
-        pace: false,
-        ..Limits::default()
-    });
+    let f = fixture();
     // The worker uses the real clock: a line from an hour ago.
     let recent = (Utc::now() - chrono::TimeDelta::hours(1)).to_rfc3339();
     write(
