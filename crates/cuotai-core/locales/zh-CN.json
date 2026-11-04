@@ -1346,6 +1346,7 @@
   "query.alibaba_plans.invalid_cli_profile": "`bl` 的配置文件名称无效：字母、数字、'-' 或 '_'，最多 32 个字符。",
   "query.alibaba_plans.invalid_region": "params.region“{region}”对 Alibaba 无效；请使用 'intl'（默认）或 'cn'。",
   "query.alibaba_plans.model_studio_no_public_quota": "Alibaba Model Studio / DashScope（DASHSCOPE_API_KEY 或 QWEN_API_KEY）无法访问公开的余额或计费额度接口。推理密钥（sk-…）只授权对 {infer_base} 的 POST 以及与 OpenAI/Anthropic 兼容的路由；Alibaba Cloud 账户的实际余额需要通过 QueryAccountBalance（Financial Management API）使用主账户的 AccessKey ID/Secret 获取，由 AlibabaCloud 适配器处理。免费额度和 Model Studio 的消耗只显示在已认证的仪表板中：免费额度见 {free_quota_url}，详细用量见 {usage_url}。主要来源：{dashscope_docs}（推理）和 {billing_docs}（账户余额）。",
+  "query.alibaba_plans.plan_inactive": "Alibaba Coding Plan 订阅已过期或未激活；没有可显示的配额。",
   "query.alibaba_plans.qwen_cloud_missing_sec_token": "Qwen Cloud 会话缺少 sec_token；请更新 params.session_env。",
   "query.alibaba_plans.qwen_cloud_session_invalid": "Qwen Cloud 会话无效；请更新 params.session_env。",
   "query.alibaba_plans.rpc_quota": "Alibaba Coding Plan 的额度 RPC 返回错误。",

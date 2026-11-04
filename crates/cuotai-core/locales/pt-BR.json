@@ -1348,6 +1348,7 @@
   "query.alibaba_plans.invalid_cli_profile": "params.cli_profile inválido: use letras, números, '-' ou '_' (até 32 caracteres).",
   "query.alibaba_plans.invalid_region": "params.region '{region}' inválido para Alibaba; use 'intl' (padrão) ou 'cn'.",
   "query.alibaba_plans.model_studio_no_public_quota": "Alibaba Model Studio / DashScope (DASHSCOPE_API_KEY ou QWEN_API_KEY) não concede acesso a endpoint público de saldo ou cota de billing. A chave de inferência (sk-…) autoriza apenas POST em {infer_base} e rotas OpenAI/Anthropic compatíveis; o saldo real da conta Alibaba Cloud requer AccessKey ID/Secret da conta mestre via QueryAccountBalance (Financial Management API) e é tratado pelo adaptador AlibabaCloud. Os limites da camada gratuita e o consumo do Model Studio estão disponíveis apenas no painel autenticado: camada gratuita em {free_quota_url} e uso detalhado em {usage_url}. Fontes primárias: {dashscope_docs} (inferência) e {billing_docs} (saldo da conta).",
+  "query.alibaba_plans.plan_inactive": "A assinatura do Alibaba Coding Plan está expirada ou inativa; não há cota para mostrar.",
   "query.alibaba_plans.qwen_cloud_missing_sec_token": "Sessão Qwen Cloud sem sec_token; renove params.session_env.",
   "query.alibaba_plans.qwen_cloud_session_invalid": "Sessão Qwen Cloud inválida; renove params.session_env.",
   "query.alibaba_plans.rpc_quota": "Alibaba Coding Plan retornou erro no RPC de quota.",

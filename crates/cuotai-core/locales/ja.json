@@ -1346,6 +1346,7 @@
   "query.alibaba_plans.invalid_cli_profile": "`bl` のプロファイル名が無効です。英字、数字、'-'、'_' で最大 32 文字にしてください。",
   "query.alibaba_plans.invalid_region": "params.region「{region}」は Alibaba では無効です。'intl'（既定）または 'cn' を使用してください。",
   "query.alibaba_plans.model_studio_no_public_quota": "Alibaba Model Studio / DashScope（DASHSCOPE_API_KEY または QWEN_API_KEY）では、残高や請求のクォータの公開エンドポイントにアクセスできません。推論キー（sk-…）が許可するのは {infer_base} への POST と OpenAI/Anthropic 互換のルートのみです。Alibaba Cloud アカウントの実際の残高には、マスターアカウントの AccessKey ID/Secret による QueryAccountBalance（Financial Management API）が必要で、AlibabaCloud アダプターが対応します。無料枠の上限と Model Studio の消費は認証済みのダッシュボードにのみ表示されます。無料枠は {free_quota_url}、詳細な使用量は {usage_url} です。一次情報：{dashscope_docs}（推論）と {billing_docs}（アカウントの残高）。",
+  "query.alibaba_plans.plan_inactive": "Alibaba Coding Plan のサブスクリプションは期限切れまたは無効です。表示するクォータはありません。",
   "query.alibaba_plans.qwen_cloud_missing_sec_token": "Qwen Cloud のセッションに sec_token がありません。params.session_env を更新してください。",
   "query.alibaba_plans.qwen_cloud_session_invalid": "Qwen Cloud のセッションが無効です。params.session_env を更新してください。",
   "query.alibaba_plans.rpc_quota": "Alibaba Coding Plan のクォータの RPC がエラーを返しました。",

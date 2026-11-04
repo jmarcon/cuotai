@@ -1351,6 +1351,7 @@
   "query.alibaba_plans.invalid_cli_profile": "`bl` प्रोफ़ाइल का नाम अमान्य है: अक्षर, अंक, '-' या '_', अधिकतम 32 अक्षर।",
   "query.alibaba_plans.invalid_region": "Alibaba के लिए params.region '{region}' अमान्य है; 'intl' (डिफ़ॉल्ट) या 'cn' इस्तेमाल करें।",
   "query.alibaba_plans.model_studio_no_public_quota": "Alibaba Model Studio / DashScope (DASHSCOPE_API_KEY या QWEN_API_KEY) बैलेंस या बिलिंग कोटे के किसी सार्वजनिक एंडपॉइंट तक पहुँच नहीं देता। इन्फ़रेंस कुंजी (sk-…) केवल {infer_base} पर POST और OpenAI/Anthropic संगत रूट को अधिकृत करती है; Alibaba Cloud खाते के असली बैलेंस के लिए QueryAccountBalance (Financial Management API) से मास्टर खाते की AccessKey ID/Secret चाहिए और उसे AlibabaCloud एडेप्टर संभालता है। निःशुल्क श्रेणी की सीमाएँ और Model Studio की खपत केवल लॉग-इन डैशबोर्ड में हैं: निःशुल्क श्रेणी {free_quota_url} पर और विस्तृत उपयोग {usage_url} पर। प्राथमिक स्रोत: {dashscope_docs} (इन्फ़रेंस) और {billing_docs} (खाते का बैलेंस)।",
+  "query.alibaba_plans.plan_inactive": "Alibaba Coding Plan सदस्यता समाप्त या निष्क्रिय है; दिखाने के लिए कोई कोटा नहीं है।",
   "query.alibaba_plans.qwen_cloud_missing_sec_token": "Qwen Cloud सत्र में sec_token नहीं है; params.session_env नवीनीकृत करें।",
   "query.alibaba_plans.qwen_cloud_session_invalid": "Qwen Cloud सत्र अमान्य है; params.session_env नवीनीकृत करें।",
   "query.alibaba_plans.rpc_quota": "Alibaba Coding Plan ने कोटा RPC में त्रुटि लौटाई।",

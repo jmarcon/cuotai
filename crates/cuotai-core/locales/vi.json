@@ -1346,6 +1346,7 @@
   "query.alibaba_plans.invalid_cli_profile": "params.cli_profile không hợp lệ: hãy dùng chữ cái, chữ số, '-' hoặc '_' (tối đa 32 ký tự).",
   "query.alibaba_plans.invalid_region": "params.region '{region}' không hợp lệ với Alibaba; hãy dùng 'intl' (mặc định) hoặc 'cn'.",
   "query.alibaba_plans.model_studio_no_public_quota": "Alibaba Model Studio / DashScope (DASHSCOPE_API_KEY hoặc QWEN_API_KEY) không cấp quyền truy cập endpoint số dư hay hạn mức thanh toán công khai. Khóa suy luận (sk-…) chỉ cho phép POST tới {infer_base} và các tuyến tương thích OpenAI/Anthropic; số dư thật của tài khoản Alibaba Cloud cần AccessKey ID/Secret của tài khoản chính qua QueryAccountBalance (Financial Management API) và do bộ điều hợp AlibabaCloud xử lý. Giới hạn bậc miễn phí và mức tiêu thụ Model Studio chỉ có trong bảng điều khiển đã xác thực: bậc miễn phí tại {free_quota_url} và mức sử dụng chi tiết tại {usage_url}. Nguồn chính: {dashscope_docs} (suy luận) và {billing_docs} (số dư tài khoản).",
+  "query.alibaba_plans.plan_inactive": "Gói đăng ký Alibaba Coding Plan đã hết hạn hoặc không hoạt động; không có hạn mức để hiển thị.",
   "query.alibaba_plans.qwen_cloud_missing_sec_token": "Phiên Qwen Cloud không có sec_token; hãy làm mới params.session_env.",
   "query.alibaba_plans.qwen_cloud_session_invalid": "Phiên Qwen Cloud không hợp lệ; hãy làm mới params.session_env.",
   "query.alibaba_plans.rpc_quota": "Alibaba Coding Plan trả về lỗi ở RPC hạn mức.",

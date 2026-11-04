@@ -918,6 +918,7 @@
   "query.alibaba_plans.invalid_cli_profile": "El nombre del perfil `bl` es inválido: letras, dígitos, '-' o '_', hasta 32 caracteres.",
   "query.alibaba_plans.invalid_region": "params.region '{region}' inválido para Alibaba; use 'intl' (por defecto) o 'cn'.",
   "query.alibaba_plans.model_studio_no_public_quota": "Alibaba Model Studio / DashScope (DASHSCOPE_API_KEY o QWEN_API_KEY) no concede acceso a un endpoint público de saldo o cuota de facturación. La clave de inferencia (sk-…) solo autoriza POST en {infer_base} y rutas compatibles con OpenAI/Anthropic; el saldo real de la cuenta Alibaba Cloud requiere el AccessKey ID/Secret de la cuenta maestra vía QueryAccountBalance (Financial Management API) y lo atiende el adaptador AlibabaCloud. Los límites del nivel gratuito y el consumo de Model Studio solo están en el panel autenticado: nivel gratuito en {free_quota_url} y uso detallado en {usage_url}. Fuentes primarias: {dashscope_docs} (inferencia) y {billing_docs} (saldo de la cuenta).",
+  "query.alibaba_plans.plan_inactive": "La suscripción de Alibaba Coding Plan está vencida o inactiva; no hay cuota que mostrar.",
   "query.alibaba_plans.qwen_cloud_missing_sec_token": "Sesión de Qwen Cloud sin sec_token; renueve params.session_env.",
   "query.alibaba_plans.qwen_cloud_session_invalid": "Sesión de Qwen Cloud inválida; renueve params.session_env.",
   "query.alibaba_plans.rpc_quota": "Alibaba Coding Plan devolvió un error en el RPC de cuota.",

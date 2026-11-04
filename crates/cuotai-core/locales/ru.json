@@ -1361,6 +1361,7 @@
   "query.alibaba_plans.invalid_cli_profile": "Недопустимый params.cli_profile: используйте буквы, цифры, '-' или '_' (до 32 символов).",
   "query.alibaba_plans.invalid_region": "params.region '{region}' недопустим для Alibaba; используйте 'intl' (по умолчанию) или 'cn'.",
   "query.alibaba_plans.model_studio_no_public_quota": "Alibaba Model Studio / DashScope (DASHSCOPE_API_KEY или QWEN_API_KEY) не даёт доступа к публичному эндпоинту баланса или квоты биллинга. Ключ инференса (sk-…) разрешает только POST на {infer_base} и совместимые маршруты OpenAI/Anthropic; реальный баланс учётной записи Alibaba Cloud требует AccessKey ID/Secret основной записи через QueryAccountBalance (Financial Management API) и обрабатывается адаптером AlibabaCloud. Лимиты бесплатного уровня и расход Model Studio доступны только в панели после входа: бесплатный уровень — {free_quota_url}, подробное использование — {usage_url}. Первичные источники: {dashscope_docs} (инференс) и {billing_docs} (баланс записи).",
+  "query.alibaba_plans.plan_inactive": "Подписка Alibaba Coding Plan истекла или неактивна; показывать нечего.",
   "query.alibaba_plans.qwen_cloud_missing_sec_token": "Сеанс Qwen Cloud без sec_token; обновите params.session_env.",
   "query.alibaba_plans.qwen_cloud_session_invalid": "Сеанс Qwen Cloud недействителен; обновите params.session_env.",
   "query.alibaba_plans.rpc_quota": "Alibaba Coding Plan вернул ошибку в RPC квоты.",

@@ -1346,6 +1346,7 @@
   "query.alibaba_plans.invalid_cli_profile": "`bl` 프로필 이름이 올바르지 않습니다. 영문자, 숫자, '-' 또는 '_'로 최대 32자까지 사용하세요.",
   "query.alibaba_plans.invalid_region": "Alibaba에 올바르지 않은 params.region '{region}'입니다. 'intl'(기본값) 또는 'cn'을 사용하세요.",
   "query.alibaba_plans.model_studio_no_public_quota": "Alibaba Model Studio / DashScope(DASHSCOPE_API_KEY 또는 QWEN_API_KEY)는 공개 잔액이나 청구 할당량 엔드포인트에 접근할 수 없습니다. 추론 키(sk-…)는 {infer_base}에 대한 POST와 OpenAI/Anthropic 호환 경로만 허용합니다. Alibaba Cloud 계정의 실제 잔액은 마스터 계정의 AccessKey ID/Secret으로 QueryAccountBalance(Financial Management API)를 호출해야 하며 AlibabaCloud 어댑터가 처리합니다. 무료 구간 한도와 Model Studio 사용량은 로그인된 대시보드에서만 확인할 수 있습니다. 무료 구간은 {free_quota_url}, 상세 사용량은 {usage_url}입니다. 1차 출처: {dashscope_docs}(추론), {billing_docs}(계정 잔액).",
+  "query.alibaba_plans.plan_inactive": "Alibaba Coding Plan 구독이 만료되었거나 비활성 상태입니다. 표시할 할당량이 없습니다.",
   "query.alibaba_plans.qwen_cloud_missing_sec_token": "Qwen Cloud 세션에 sec_token이 없습니다. params.session_env를 갱신하세요.",
   "query.alibaba_plans.qwen_cloud_session_invalid": "Qwen Cloud 세션이 올바르지 않습니다. params.session_env를 갱신하세요.",
   "query.alibaba_plans.rpc_quota": "Alibaba Coding Plan이 할당량 RPC에서 오류를 반환했습니다.",

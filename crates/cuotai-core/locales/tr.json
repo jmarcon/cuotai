@@ -1351,6 +1351,7 @@
   "query.alibaba_plans.invalid_cli_profile": "Geçersiz params.cli_profile: harf, rakam, '-' veya '_' kullanın (en çok 32 karakter).",
   "query.alibaba_plans.invalid_region": "params.region '{region}' Alibaba için geçersiz; 'intl' (varsayılan) veya 'cn' kullanın.",
   "query.alibaba_plans.model_studio_no_public_quota": "Alibaba Model Studio / DashScope (DASHSCOPE_API_KEY veya QWEN_API_KEY) herkese açık bir bakiye veya faturalama kotası uç noktasına erişim vermez. Çıkarım anahtarı (sk-…) yalnızca {infer_base} adresine POST'u ve OpenAI/Anthropic uyumlu yolları yetkilendirir; gerçek Alibaba Cloud hesap bakiyesi, QueryAccountBalance (Financial Management API) üzerinden ana hesabın AccessKey ID/Secret değerlerini gerektirir ve AlibabaCloud bağdaştırıcısı tarafından işlenir. Ücretsiz katman sınırları ve Model Studio tüketimi yalnızca kimliği doğrulanmış konsolda bulunur: ücretsiz katman {free_quota_url} adresinde, ayrıntılı kullanım {usage_url} adresinde. Birincil kaynaklar: {dashscope_docs} (çıkarım) ve {billing_docs} (hesap bakiyesi).",
+  "query.alibaba_plans.plan_inactive": "Alibaba Coding Plan aboneliğinin süresi dolmuş veya etkin değil; gösterilecek kota yok.",
   "query.alibaba_plans.qwen_cloud_missing_sec_token": "sec_token olmayan Qwen Cloud oturumu; params.session_env değerini yenileyin.",
   "query.alibaba_plans.qwen_cloud_session_invalid": "Geçersiz Qwen Cloud oturumu; params.session_env değerini yenileyin.",
   "query.alibaba_plans.rpc_quota": "Alibaba Coding Plan kota RPC'sinde hata döndürdü.",

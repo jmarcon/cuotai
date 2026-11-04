@@ -1346,6 +1346,7 @@
   "query.alibaba_plans.invalid_cli_profile": "params.cli_profile tidak valid: gunakan huruf, angka, '-' atau '_' (hingga 32 karakter).",
   "query.alibaba_plans.invalid_region": "params.region '{region}' tidak valid untuk Alibaba; gunakan 'intl' (bawaan) atau 'cn'.",
   "query.alibaba_plans.model_studio_no_public_quota": "Alibaba Model Studio / DashScope (DASHSCOPE_API_KEY atau QWEN_API_KEY) tidak memberi akses ke endpoint saldo atau kuota penagihan publik. Kunci inferensi (sk-…) hanya mengotorisasi POST ke {infer_base} dan rute yang kompatibel dengan OpenAI/Anthropic; saldo akun Alibaba Cloud yang sebenarnya memerlukan AccessKey ID/Secret akun utama lewat QueryAccountBalance (Financial Management API) dan ditangani oleh adaptor AlibabaCloud. Batas tingkat gratis dan konsumsi Model Studio hanya tersedia di konsol terautentikasi: tingkat gratis di {free_quota_url} dan penggunaan rinci di {usage_url}. Sumber utama: {dashscope_docs} (inferensi) dan {billing_docs} (saldo akun).",
+  "query.alibaba_plans.plan_inactive": "Langganan Alibaba Coding Plan kedaluwarsa atau tidak aktif; tidak ada kuota untuk ditampilkan.",
   "query.alibaba_plans.qwen_cloud_missing_sec_token": "Sesi Qwen Cloud tanpa sec_token; perbarui params.session_env.",
   "query.alibaba_plans.qwen_cloud_session_invalid": "Sesi Qwen Cloud tidak valid; perbarui params.session_env.",
   "query.alibaba_plans.rpc_quota": "Alibaba Coding Plan mengembalikan galat pada RPC kuota.",
