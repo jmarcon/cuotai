@@ -502,6 +502,8 @@ jobs:
           save-if: false
       - run: cargo run -p xtask --locked -- release-check
       - run: cargo run -p xtask --locked -- workflow-check
+      # PRD 0050 RF1.4/RF7.5: desktop CSP, pages and the invariant registry.
+      - run: cargo run -p xtask --locked -- security-baseline
 
   # Changelog format, PRD references, plan links and footer links (PRD 0019
   # RF7.4/RF7.8, PRD 0039 RF9.5), plus the commit gate (PRD 0039 RF2) over

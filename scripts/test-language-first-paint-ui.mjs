@@ -57,12 +57,17 @@ async function runPrePaintBootstrap(page, storedLocale, systemLanguages, storage
   document.documentElement.lang = "en-US";
   document.documentElement.dataset = {};
 
+  // PRD 0050 RF1.2: each page loads the shared external bootstrap first, with no inline script.
   const htmlUrl = new URL(`apps/desktop/ui/${page}`, root);
   const html = await readFile(fileURLToPath(htmlUrl), "utf8");
-  const bootstrap = html.split("<script>", 2)[1]?.split("</script>", 1)[0];
-  assert.ok(bootstrap, `${page}: missing pre-paint bootstrap`);
+  assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>/i.test(html), `${page}: inline script`);
+  const head = html.split("</head>", 1)[0];
+  assert.ok(head.indexOf('<script src="js/first-paint.js"></script>') >= 0, `${page}: missing pre-paint bootstrap`);
+  assert.ok(head.indexOf("first-paint.js") < head.indexOf("<link"), `${page}: the bootstrap must run before the styles`);
+  const scriptUrl = new URL("apps/desktop/ui/js/first-paint.js", root);
+  const bootstrap = await readFile(fileURLToPath(scriptUrl), "utf8");
   try {
-    vm.runInThisContext(bootstrap, { filename: fileURLToPath(htmlUrl) });
+    vm.runInThisContext(bootstrap, { filename: fileURLToPath(scriptUrl) });
     return document.documentElement.lang;
   } finally {
     storageGetThrows = false;

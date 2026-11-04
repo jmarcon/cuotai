@@ -238,6 +238,25 @@ impl TokenStore for SystemTokenStore {
 mod tests {
     use super::*;
 
+    /// PRD 0050 RF7.3: a release build refuses the plaintext development
+    /// store before it touches the filesystem (the path is never created).
+    // security-invariant: SEC-DEV-STORE
+    #[test]
+    fn the_development_store_is_refused_in_release_builds() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("cuotai-dev.sqlite3");
+        let result = development_store(&path);
+        if cfg!(debug_assertions) {
+            assert!(result.is_ok(), "debug builds open the development store");
+        } else {
+            let Err(OAuthError::Configuration(text)) = result else {
+                panic!("a release build must refuse the development store");
+            };
+            assert_eq!(text.id, "oauth_error.store.sqlite_dev_only");
+            assert!(!path.exists(), "no filesystem access");
+        }
+    }
+
     #[test]
     fn id_validation_accepts_uuid_and_hex_shapes() {
         assert!(validate_id("9b1d7c2e-4a3f-4e5b-8c6d-1a2b3c4d5e6f").is_ok());

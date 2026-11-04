@@ -144,6 +144,7 @@ mod tests {
             Some("refresh")
         );
     }
+    // security-invariant: SEC-DEV-FILE (PRD 0050 RF7.1)
     #[cfg(unix)]
     #[test]
     fn rejects_shared_files_and_symlinks() {

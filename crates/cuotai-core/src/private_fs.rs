@@ -491,6 +491,7 @@ mod tests {
         assert!(ensure_dir(&file).is_err());
     }
 
+    // security-invariant: SEC-PRIVATE-FS (PRD 0050 RF7.1)
     #[test]
     fn a_private_file_is_0600_in_a_0700_directory() {
         let root = tempfile::tempdir().unwrap();

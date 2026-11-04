@@ -768,6 +768,7 @@ async fn a_rejected_session_asks_for_a_new_paste_without_body_or_url() {
     );
 }
 
+// security-invariant: SEC-REDIRECT (PRD 0050 RF7.1)
 #[tokio::test]
 async fn a_redirect_to_another_host_never_carries_the_session() {
     use wiremock::matchers::{any, method};

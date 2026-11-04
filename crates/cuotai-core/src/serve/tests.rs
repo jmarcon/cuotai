@@ -818,6 +818,7 @@ async fn a_taken_port_falls_back_to_the_next_one_unless_strict() {
 
 /// RF3.4: neither answers nor the access log carry the token, credentials,
 /// credential variable names or query parameters.
+// security-invariant: SEC-ERRORS (PRD 0050 RF7.1)
 #[tokio::test]
 async fn answers_and_access_log_carry_no_secrets() {
     let (config, _) = fixture();
