@@ -1322,6 +1322,11 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
                 format_args!("cuotai: {}", warning.resolve(ui::tui_locale())),
             );
         }
+        // PRD 0052 RF7.2: a server clock disagreeing with this one, on
+        // stderr only (stdout and --json stay byte-for-byte unchanged).
+        if let Some(skew) = cuotai_core::network::clock_skew().warning() {
+            eprintln!("cuotai: {}", skew.l10n().resolve(ui::tui_locale()));
+        }
         update_notice::print(update_notice, locale).await;
         return Ok(code);
     }

@@ -76,10 +76,13 @@ pub(crate) async fn send_secure(
             "OAuth endpoint refused: secrets are only sent over HTTPS. Nothing was sent.",
         )));
     }
-    client
+    let response = client
         .execute(request)
         .await
-        .map_err(|_| OAuthError::Network)
+        .map_err(|_| OAuthError::Network)?;
+    // PRD 0052 RF7.1: the server's `Date` against the local clock.
+    crate::network::observe(&response, crate::network::ClientPurpose::OAuth);
+    Ok(response)
 }
 
 /// What a token-endpoint answer means when it carries no OAuth error code, or

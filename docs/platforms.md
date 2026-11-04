@@ -41,6 +41,48 @@ uses the same vault (`crates/cuotai-core/src/serve/token.rs`,
 Verification: **CI** (unit tests) on all three OSes; Keychain/Secret Service
 prompt flows are **code**-level only.
 
+### Headless sessions, SSH and WSL (PRD 0052 RF6.3)
+
+| Session | Supported |
+|---|---|
+| Native macOS, Windows or Linux desktop session with its system vault | Everything: OAuth and pasted sessions in the vault, the desktop app, the TUI and the CLI |
+| SSH, headless Linux, or WSL without a D-Bus Secret Service session | Only accounts that read their credential from an environment variable (`credential_env`, `session_env`), and `--serve` with `--token-file`; OAuth sign-in, sessions saved in the vault and the desktop app are unavailable |
+
+There is no plaintext fallback. When the Linux vault is missing, the
+`oauth_error.store.linux_secret_service_unavailable` error applies; the
+direct remedy on a headless machine is to configure the account with
+`credential_env = "VARIABLE"` (see [`cuotai.example.toml`](../cuotai.example.toml))
+and export that variable in the shell or service that runs `cuotai`.
+
+## Network: trust store and proxies (PRD 0052 RF6)
+
+Every core client (provider APIs, model lists, status pages, OAuth and the
+terminal update check) is built by `cuotai_core::network::builder`:
+
+- **Trust:** only the operating system's root certificates are trusted
+  (`rustls-native-certs`: the macOS Keychain, the Windows certificate store,
+  the Linux system bundle). Cuotai does not ship or fall back to its own root
+  list, so a root your administrator installed (a corporate TLS-inspecting
+  proxy, for example) is trusted exactly as the system trusts it. When no
+  root can be loaded at all, no secure connection is made and the error
+  `network.trust_store_empty` says to repair the system certificates. The
+  9router client keeps its own pinned or first-use certificate (PRD 0036).
+- **Proxies:** `HTTPS_PROXY`, `HTTP_PROXY` and `ALL_PROXY` (upper or lower
+  case) select a proxy and `NO_PROXY` lists hosts that bypass it, with the
+  rules of the `reqwest` library. HTTPS traffic goes through the proxy with
+  `CONNECT`, so the proxy sees the destination host and port but not the
+  request, unless it intercepts TLS with a root the system trusts. Proxy
+  credentials in the URL (`http://user:pass@host:port`) are accepted and
+  never written to the app log or to diagnostics, which show only the
+  variable, the scheme, host and port, and whether a bypass list is set. The
+  loopback 9router detection never uses a proxy. Variables are read when a
+  client is created: restart Cuotai after changing them.
+- **Clock:** the `Date` header of provider, OAuth and status responses is
+  compared with the local clock. More than five minutes apart, `--once`
+  prints a warning on standard error and the TUI shows it in its warning
+  line, advising automatic date and time; two agreeing responses clear it.
+  Readings, `--json`, `export::v1`, histories and schedules never change.
+
 ## Tray (desktop only)
 
 `apps/desktop/src-tauri/src/lib.rs` builds the tray icon and menu with Tauri.

@@ -121,18 +121,8 @@ fn write_cache(path: &Path, now: DateTime<Utc>, latest: Option<Version>) {
 
 async fn fetch(url: &str) -> Option<Version> {
     // Only HTTPS, and only to HTTPS, for the manifest and its redirects.
-    let client = reqwest::Client::builder()
-        .timeout(REQUEST_TIMEOUT)
-        .redirect(reqwest::redirect::Policy::custom(|attempt| {
-            if attempt.previous().len() < 4 && attempt.url().scheme() == "https" {
-                attempt.follow()
-            } else {
-                attempt.stop()
-            }
-        }))
-        .user_agent(concat!("cuotai/", env!("CARGO_PKG_VERSION")))
-        .build()
-        .ok()?;
+    let client =
+        crate::network::client(crate::network::ClientPurpose::UpdateCheck, REQUEST_TIMEOUT)?;
     let mut response = client
         .get(url)
         .header("Accept", "application/json")

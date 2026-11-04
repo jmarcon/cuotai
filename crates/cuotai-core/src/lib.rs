@@ -68,6 +68,7 @@ pub mod metric_text;
 pub mod metrics;
 mod model;
 pub mod models;
+pub mod network;
 pub mod notify_prefs;
 pub mod oauth;
 pub mod overage;
@@ -458,13 +459,11 @@ impl Monitor {
         oauth: Arc<oauth::OAuthSession>,
     ) -> Result<Self, ConfigError> {
         config.validate()?;
-        let http = reqwest::Client::builder()
-            .timeout(Duration::from_secs(config.timeout_seconds))
-            .connect_timeout(Duration::from_secs(10))
-            .redirect(reqwest::redirect::Policy::none())
-            .user_agent(concat!("cuotai/", env!("CARGO_PKG_VERSION")))
-            .build()
-            .map_err(|_| ConfigError::Client)?;
+        let http = network::client(
+            network::ClientPurpose::Provider,
+            Duration::from_secs(config.timeout_seconds),
+        )
+        .ok_or(ConfigError::Client)?;
         let query_slots = Semaphore::new(config.concurrency);
         Ok(Self {
             config,
@@ -506,13 +505,11 @@ impl Monitor {
         let http = if config.timeout_seconds == self.config.timeout_seconds {
             self.http.clone()
         } else {
-            reqwest::Client::builder()
-                .timeout(Duration::from_secs(config.timeout_seconds))
-                .connect_timeout(Duration::from_secs(10))
-                .redirect(reqwest::redirect::Policy::none())
-                .user_agent(concat!("cuotai/", env!("CARGO_PKG_VERSION")))
-                .build()
-                .map_err(|_| ConfigError::Client)?
+            network::client(
+                network::ClientPurpose::Provider,
+                Duration::from_secs(config.timeout_seconds),
+            )
+            .ok_or(ConfigError::Client)?
         };
         let query_slots = Semaphore::new(config.concurrency);
         Ok(Self {

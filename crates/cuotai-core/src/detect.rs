@@ -437,12 +437,7 @@ async fn probe_nine_router_at(base: &str, configured: &[Provider]) -> Option<Det
     if configured.contains(&Provider::NineRouter) {
         return None;
     }
-    let http = reqwest::Client::builder()
-        .no_proxy()
-        .redirect(reqwest::redirect::Policy::none())
-        .timeout(PROBE_TIMEOUT)
-        .build()
-        .ok()?;
+    let http = crate::network::client(crate::network::ClientPurpose::LocalProbe, PROBE_TIMEOUT)?;
     let response = http.get(format!("{base}/api/health")).send().await.ok()?;
     if !response.status().is_success() {
         return None;
