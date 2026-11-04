@@ -24,6 +24,10 @@ cuotai --list-providers
 # first problem, never its value (exit 1); --json for scripts
 cuotai --config cuotai.toml --check-config
 
+# The same catalog as JSON (schema 1, offline): slug, label key, connection
+# modes, access level, metered, model-list and incident-status support
+cuotai --list-providers --json
+
 # Human-readable summary in the terminal (single run)
 cuotai --config cuotai.toml --once
 
