@@ -13,6 +13,24 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.82.4] - 2026-11-04
+
+### Fixed
+
+- The desktop app no longer crashes on macOS when it restarts to finish an update (d2ad69b).
+- A refreshed login is no longer lost when the system vault fails to save it or a login commit is rolled back (2720442).
+- A login no longer ends logged out when the provider rotates its refresh token in an answer that Cuotai then rejects (1c5aec4).
+- The terminal app, the local server and the desktop app no longer log each other out when they renew the same login at the same time (8b349aa).
+- A paid Antigravity account keeps its per-model quotas when the plan lookup fails, with a note that the plan is unknown, instead of being shown as free (11e2a19).
+- An expired or inactive Alibaba Coding Plan is reported as such instead of as an incompatible response (c6a3280).
+- Alibaba Token Plan accounts read through the `bl` CLI now show the monthly quota and any other window the CLI reports (50266ea).
+- Alibaba Token Plan errors from the `bl` CLI now say whether the CLI is missing, the profile is signed out, or the command failed (8bb378a).
+- AWS Bedrock accounts are no longer queried early, and billed, when the system clock jumps forward or the computer wakes from sleep (a4d1973).
+
+### Security
+
+- The async-executor dependency moves off a yanked release (43f4eda).
+
 ## [0.82.3] - 2026-10-31
 
 ### Fixed
@@ -430,7 +448,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.82.3...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.82.4...HEAD
+[0.82.4]: https://github.com/jmarcon/cuotai/compare/v0.82.3...v0.82.4
 [0.82.3]: https://github.com/jmarcon/cuotai/compare/v0.82.2...v0.82.3
 [0.82.2]: https://github.com/jmarcon/cuotai/compare/v0.82.1...v0.82.2
 [0.82.1]: https://github.com/jmarcon/cuotai/compare/v0.82.0...v0.82.1
