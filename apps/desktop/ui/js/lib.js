@@ -278,7 +278,7 @@ export const setStatusEnabled = (on) => call("set_status_enabled", { on });
 // PRD 0012 RF5: the local server (desktop.json, off by default); the backend runs the core's server over this app's
 // own refresh cycle. Each call answers the server's new state; the token never comes back except to be copied.
 export const serveStatus = () => call("serve_status");
-export const setServe = (enabled, port, allowBrowsers) => call("set_serve", { enabled, port, allowBrowsers });
+export const setServe = (enabled, port, allowBrowsers, allowedOrigins = []) => call("set_serve", { enabled, port, allowBrowsers, allowedOrigins });
 // PRD 0031 RF11.2.5: "Share usage statistics" (`serve.stats`, /v1/stats), answered only with a token.
 export const setServeStats = (stats) => call("set_serve_stats", { stats });
 export const generateServeToken = () => call("generate_serve_token");
@@ -1418,10 +1418,11 @@ function demoServeView() {
   const taken = s.enabled && DEMO_SERVE_TAKEN && s.port === 6738;
   const state = !s.enabled ? "off" : taken ? "error" : "on";
   return { state, enabled: s.enabled, port: s.port, allow_browsers: s.allow_browsers, token: s.secret != null, stats: !!s.stats,
+    allowed_origins: s.allowed_origins ?? [], origins_notice: false,
     url: state === "on" ? `http://127.0.0.1:${s.port}` : null,
     error: taken ? { id: "serve.error.port_taken", params: { port: s.port }, fallback: `Port ${s.port} is in use; choose another port for the local server.` } : null,
     cuotai_on_port: taken, default_port: 6738, port_min: 1024, port_max: 65535,
-    browsers_warning: { id: "serve.allow_browsers.warning", params: {}, fallback: "With browsers allowed, any page open in your browser can read your usage from the local server (with a token, any page that knows it). Turn it on only if a page of yours needs this data." } };
+    browsers_warning: { id: "serve.allow_browsers.warning", params: {}, fallback: "With browsers allowed, the pages of the trusted origins that know the access token can read your usage from the local server. Add only origins you control." } };
 }
 // ponytail: demo mirror of the widget snapshot (PRD 0014 RF4.1); nothing is written in the browser. `?widgets`
 // starts with publishing on, so the file path and the macOS prerequisites are visible as in the app.
@@ -2145,9 +2146,17 @@ const demo = {
   set_history_recording: async ({ on }) => { demoSettings.historyRecording = on; demoSettings.historyEpoch++; },
   set_status_enabled: async ({ on }) => { demoSettings.statusQueries = on; },
   serve_status: async () => demoServeView(),
-  set_serve: async ({ enabled, port, allowBrowsers }) => {
+  set_serve: async ({ enabled, port, allowBrowsers, allowedOrigins = [] }) => {
     if (!Number.isInteger(port) || port < 1024 || port > 65535) throw "invalid_port";
-    Object.assign(demoSettings.serve, { enabled, port, allow_browsers: allowBrowsers });
+    // ponytail: demo mirror of the core's PRD 0050 RF4 refusals; the app's rules live in `serve::Origin`.
+    const fail = (id, fallback) => { throw JSON.stringify({ id, params: {}, fallback }); };
+    const list = allowedOrigins.map((o) => o.trim()).filter(Boolean);
+    if (list.some((o) => !/^(https:\/\/[a-z0-9.-]+|http:\/\/(localhost|127\.0\.0\.1|\[::1\]))(:\d{1,5})?\/?$/i.test(o))) {
+      fail("serve.origin.error.scheme", "Use https://host[:port], or http:// only for localhost and loopback addresses.");
+    }
+    if (allowBrowsers && !list.length) fail("serve.origin.error.empty", "Add at least one trusted origin before allowing browsers.");
+    if (allowBrowsers && demoSettings.serve.secret == null) fail("serve.error.browser_token_required", "Allowing browsers needs an access token for the local server: generate one first.");
+    Object.assign(demoSettings.serve, { enabled, port, allow_browsers: allowBrowsers, allowed_origins: list.map((o) => o.replace(/\/$/, "").toLowerCase()) });
     return demoServeView();
   },
   set_serve_stats: async ({ stats }) => { demoSettings.serve.stats = stats; return demoServeView(); },
@@ -2161,7 +2170,7 @@ const demo = {
     return demoWidgetsView();
   },
   delete_widget_data: async () => { demoSettings.widgets.written = false; },
-  revoke_serve_token: async () => { demoSettings.serve.secret = null; return demoServeView(); },
+  revoke_serve_token: async () => { if (demoSettings.serve.allow_browsers) throw "browsers_need_token"; demoSettings.serve.secret = null; return demoServeView(); },
   copy_serve_token: async () => {
     if (demoSettings.serve.secret == null) throw JSON.stringify({ id: "serve.error.token_missing", params: {}, fallback: "The local server token is no longer in the system vault; generate a new one or revoke the token." });
     return demoSettings.serve.secret;

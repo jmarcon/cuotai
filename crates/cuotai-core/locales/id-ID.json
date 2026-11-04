@@ -1611,7 +1611,16 @@
   "resets.title.soon_many": {
     "other": "{provider}: {count} kuota direset dalam {minutes} mnt"
   },
-  "serve.allow_browsers.warning": "Dengan peramban diizinkan, halaman apa pun yang terbuka di peramban Anda dapat membaca penggunaan Anda dari server lokal (dengan token, halaman mana pun yang mengetahuinya). Aktifkan hanya jika salah satu halaman Anda memerlukan data ini.",
+  "serve.allow_browsers.warning": "Dengan peramban diizinkan, halaman dari origin tepercaya yang mengetahui token akses dapat membaca penggunaan Anda dari server lokal. Tambahkan hanya origin yang Anda kendalikan.",
+  "serve.error.browser_token_required": "Mengizinkan peramban memerlukan token akses server lokal: buat token terlebih dahulu.",
+  "serve.error.origins_required": "Mengizinkan peramban memerlukan 1 hingga 16 origin tepercaya yang berbeda.",
+  "serve.origin.error.duplicate": "Origin ini sudah ada di daftar.",
+  "serve.origin.error.empty": "Tambahkan setidaknya satu origin tepercaya sebelum mengizinkan peramban.",
+  "serve.origin.error.extra": "Origin tidak memiliki nama pengguna, kata sandi, path, kueri, atau fragmen.",
+  "serve.origin.error.host": "Origin menyebut satu host: tanpa wildcard, null, atau host kosong.",
+  "serve.origin.error.port": "Port origin harus berupa angka dari 1 hingga 65535.",
+  "serve.origin.error.scheme": "Gunakan https://host[:port], atau http:// hanya untuk localhost dan alamat loopback.",
+  "serve.origin.error.too_many": "Paling banyak 16 origin tepercaya diizinkan.",
   "serve.client.incompatible": "Respons server lokal bukan /v1/limits yang kompatibel.",
   "serve.client.invalid_url": "Alamat server lokal tidak valid: gunakan http://127.0.0.1:PORT.",
   "serve.client.not_loopback": "Server lokal hanya dibaca lewat loopback (127.0.0.1, ::1, atau localhost).",

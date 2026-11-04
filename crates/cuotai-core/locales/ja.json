@@ -1611,7 +1611,16 @@
   "resets.title.soon_many": {
     "other": "{provider}：{count} 件のクォータは {minutes} 分後にリセット"
   },
-  "serve.allow_browsers.warning": "ブラウザーを許可すると、ブラウザーで開いたどのページでもローカルサーバーで使用量を読み取れます（トークンがある場合は、それを知っているどのページでも）。自分のページでこのデータが必要な場合のみオンにしてください。",
+  "serve.allow_browsers.warning": "ブラウザーを許可すると、アクセストークンを知っている信頼するオリジンのページが、ローカルサーバーで使用量を読み取れます。自分が管理するオリジンだけを追加してください。",
+  "serve.error.browser_token_required": "ブラウザーを許可するには、ローカルサーバーのアクセストークンが必要です。先に生成してください。",
+  "serve.error.origins_required": "ブラウザーを許可するには、重複のない信頼するオリジンを 1〜16 個指定する必要があります。",
+  "serve.origin.error.duplicate": "このオリジンはすでにリストにあります。",
+  "serve.origin.error.empty": "ブラウザーを許可する前に、信頼するオリジンを 1 つ以上追加してください。",
+  "serve.origin.error.extra": "オリジンにはユーザー名、パスワード、パス、クエリ、フラグメントを含めません。",
+  "serve.origin.error.host": "オリジンは 1 つのホストを指定します。ワイルドカード、null、空のホストは使えません。",
+  "serve.origin.error.port": "オリジンのポートは 1〜65535 の数値にしてください。",
+  "serve.origin.error.scheme": "https://ホスト[:ポート] を使ってください。http:// は localhost とループバックアドレスのみです。",
+  "serve.origin.error.too_many": "信頼するオリジンは最大 16 個までです。",
   "serve.client.incompatible": "ローカルサーバーの応答が互換性のある /v1/limits ではありません。",
   "serve.client.invalid_url": "ローカルサーバーのアドレスが無効です。http://127.0.0.1:ポート を使用してください。",
   "serve.client.not_loopback": "ローカルサーバーはループバック（127.0.0.1、::1、localhost）でのみ読み取れます。",

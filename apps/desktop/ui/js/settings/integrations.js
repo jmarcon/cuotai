@@ -33,7 +33,7 @@ const withError = (html, [id, text] = []) => (id ? html.replace(`id="${id}" role
 /** PRD 0012 RF5: the local server, off by default. The switch, the state (the effective address, or why it is not
  *  serving, naming another Cuotai server on the port), then the connection details collapsed (RF5.2): the port
  *  (bound exactly), the token (generated into the system vault, copied, renewed or revoked; never shown) and "allow
- *  browsers" behind the core's warning. Every change restarts the server and the group repaints from the state the
+ *  browsers" behind the core's warning, with its trusted origins (PRD 0050 RF4.4). Every change restarts the server and the group repaints from the state the
  *  backend answers. */
 export function integrationHtml(sv, message = []) {
   const state = sv.state === "on"
@@ -59,10 +59,20 @@ export function integrationHtml(sv, message = []) {
       + row({ key: "serve-stats", label: te("settings.serve.stats"), info: te("settings.serve.statsHelp"), msg: "serve-stats-msg",
         desc: sv.stats && !sv.token ? te("settings.serve.statsNeedsToken") : "",
         control: (a) => sw("serve-stats", sv.stats, a, sv.token || sv.stats ? "" : "disabled") })
+      // PRD 0050 RF4: browsers need the token and the exact origins of the user's pages; the core validates both.
       + row({ key: "browsers", label: te("settings.serve.browsers"), info: te("settings.serve.browsersOff"), msg: "serve-browsers-msg",
+        desc: !sv.token && !sv.allow_browsers ? te("settings.serve.browsersNeedsToken") : "",
         control: (a) => sw("serve-browsers", sv.allow_browsers, a),
         // RF5.3: the warning shows only in the state it applies to.
-        body: `${sv.allow_browsers ? `<p class="hint warn-txt">${tle(sv.browsers_warning)}</p>` : ""}
+        body: `${sv.origins_notice ? `<p class="hint warn-txt" role="status" data-serve-origins-notice>${icon("warn")} ${te("settings.serve.origins.notice")}</p>` : ""}
+        ${sv.allow_browsers ? `<p class="hint warn-txt">${tle(sv.browsers_warning)}</p>` : ""}
+        <div class="cost-paths" data-serve-origins-box>
+          <label class="f"><span>${te("settings.serve.origins.label")}</span>
+            <textarea rows="3" spellcheck="false" autocomplete="off" id="serve-origins" placeholder="https://dashboard.example.com">${esc((sv.allowed_origins ?? []).join("\n"))}</textarea>
+            <small>${te("settings.serve.origins.help")}</small></label>
+          <div class="dlg-actions left"><button class="btn" data-serve-origins-save>${te("settings.serve.origins.save")}</button></div>
+          <p class="err" id="serve-origins-msg" role="alert"></p>
+        </div>
         <div class="confirm" id="serve-browsers-confirm" role="alertdialog" aria-labelledby="serve-browsers-text" hidden>
           <p id="serve-browsers-text">${tle(sv.browsers_warning)}</p>
           <div class="dlg-actions left"><button class="btn danger-btn" data-serve-browsers-confirm>${te("settings.serve.browsersConfirm")}</button>
@@ -78,9 +88,21 @@ async function bindIntegration(sec, ctx) {
     sv = next;
     sec.innerHTML = integrationHtml(sv, message);
     const run = (work, line = "serve-msg") => work().then((answer) => { paint(answer); toast(); ctx.changed("serve"); }, (e) => paint(sv, [line, serveErrorText(e)]));
-    sec.querySelector("#serve-on").onchange = (e) => run(() => setServe(e.target.checked, sv.port, sv.allow_browsers));
+    // PRD 0050 RF4.2: the origins as typed (one per line); the core normalizes or refuses them.
+    const originsField = sec.querySelector("#serve-origins");
+    const origins = () => originsField.value.split("\n").map((line) => line.trim()).filter(Boolean);
+    const keepDraft = (work, line) => {
+      const draft = originsField.value;
+      return work().then((answer) => { paint(answer); toast(); ctx.changed("serve"); }, (e) => {
+        paint(sv, [line, serveErrorText(e)]);
+        sec.querySelector("#serve-origins").value = draft;
+      });
+    };
+    sec.querySelector("#serve-on").onchange = (e) => run(() => setServe(e.target.checked, sv.port, sv.allow_browsers, sv.allowed_origins));
+    sec.querySelector("[data-serve-origins-save]").onclick = () =>
+      keepDraft(() => setServe(sv.enabled, sv.port, sv.allow_browsers, origins()), "serve-origins-msg");
     // RF4.2: the port saves on Enter, on leaving the field or with the row's Apply; a refusal stays in its row.
-    commitField(sec.querySelector("#serve-port"), (value) => setServe(sv.enabled, Number(value), sv.allow_browsers).then(
+    commitField(sec.querySelector("#serve-port"), (value) => setServe(sv.enabled, Number(value), sv.allow_browsers, sv.allowed_origins).then(
       (answer) => { paint(answer); ctx.changed("serve"); }, (e) => { throw serveErrorText(e); }));
     sec.querySelector("#serve-stats").onchange = (e) => run(() => setServeStats(e.target.checked), "serve-stats-msg");
     sec.querySelector("[data-serve-token-new]").onclick = () => run(generateServeToken, "serve-token-msg");
@@ -94,12 +116,12 @@ async function bindIntegration(sec, ctx) {
     // PRD 0012 RF3.3: pages are only let in after the warning was read and confirmed.
     const confirm = sec.querySelector("#serve-browsers-confirm");
     sec.querySelector("#serve-browsers").onchange = (e) => {
-      if (!e.target.checked) { run(() => setServe(sv.enabled, sv.port, false), "serve-browsers-msg"); return; }
+      if (!e.target.checked) { run(() => setServe(sv.enabled, sv.port, false, origins()), "serve-browsers-msg"); return; }
       e.target.checked = false;
       confirm.hidden = false;
       sec.querySelector("[data-serve-browsers-confirm]").focus();
     };
-    sec.querySelector("[data-serve-browsers-confirm]").onclick = () => run(() => setServe(sv.enabled, sv.port, true), "serve-browsers-msg");
+    sec.querySelector("[data-serve-browsers-confirm]").onclick = () => keepDraft(() => setServe(sv.enabled, sv.port, true, origins()), "serve-browsers-msg");
     sec.querySelector("[data-serve-browsers-cancel]").onclick = () => { confirm.hidden = true; };
   };
   paint(sv);

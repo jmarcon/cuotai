@@ -1611,7 +1611,16 @@
   "resets.title.soon_many": {
     "other": "{provider}：{count} 项额度将在 {minutes} 分钟后重置"
   },
-  "serve.allow_browsers.warning": "允许浏览器后，浏览器中打开的任何页面都可以在本地服务器上读取您的用量（使用令牌时，任何知道令牌的页面都可以）。仅在您自己的页面需要这些数据时才开启。",
+  "serve.allow_browsers.warning": "允许浏览器后，知道访问令牌的受信任来源页面可以在本地服务器上读取您的用量。只添加您控制的来源。",
+  "serve.error.browser_token_required": "允许浏览器需要本地服务器的访问令牌：请先生成一个。",
+  "serve.error.origins_required": "允许浏览器需要 1 到 16 个不同的受信任来源。",
+  "serve.origin.error.duplicate": "此来源已在列表中。",
+  "serve.origin.error.empty": "允许浏览器前，请至少添加一个受信任来源。",
+  "serve.origin.error.extra": "来源不含用户名、密码、路径、查询或片段。",
+  "serve.origin.error.host": "来源只能指定一个主机：不能使用通配符、null 或空主机。",
+  "serve.origin.error.port": "来源的端口必须是 1 到 65535 之间的数字。",
+  "serve.origin.error.scheme": "请使用 https://主机[:端口]，http:// 仅限 localhost 和回环地址。",
+  "serve.origin.error.too_many": "最多允许 16 个受信任来源。",
   "serve.client.incompatible": "本地服务器的响应不是兼容的 /v1/limits。",
   "serve.client.invalid_url": "本地服务器地址无效：请使用 http://127.0.0.1:端口。",
   "serve.client.not_loopback": "本地服务器只能通过回环地址读取（127.0.0.1、::1 或 localhost）。",

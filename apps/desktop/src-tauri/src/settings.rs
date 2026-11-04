@@ -623,16 +623,24 @@ pub const SERVE_PORTS: std::ops::RangeInclusive<u16> = 1024..=u16::MAX;
 /// PRD 0012 RF5.1: the local server of this device. Off by default, on the
 /// core's suggested port, refusing web pages and without a token; the token
 /// itself lives in the OS vault, `token` only says one is required.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ServePrefs {
     pub enabled: bool,
     /// One of [`SERVE_PORTS`]; bound exactly, never moved to another one.
     pub port: u16,
+    /// PRD 0050 RF4.1: only with `token` and at least one allowed origin.
     pub allow_browsers: bool,
     pub token: bool,
     /// PRD 0031 RF11.2.5: also serve `/v1/stats` ("Share usage statistics").
     /// Off by default; the server answers it only with a token.
     pub stats: bool,
+    /// PRD 0050 RF4.2: the canonical origins browser mode answers, kept
+    /// while browsers are off so turning them back on needs no retyping.
+    pub allowed_origins: Vec<String>,
+    /// PRD 0050 RF4.4: browser mode was stored without a token or trusted
+    /// origins and was turned off on load; Settings says so until the next
+    /// choice.
+    pub origins_notice: bool,
 }
 
 impl Default for ServePrefs {
@@ -643,16 +651,21 @@ impl Default for ServePrefs {
             allow_browsers: false,
             token: false,
             stats: false,
+            allowed_origins: Vec::new(),
+            origins_notice: false,
         }
     }
 }
 
 impl ServePrefs {
     /// Each field on its own: an unknown or mistyped value is its default.
+    /// PRD 0050 RF4.4: an invalid origin is dropped, and browser mode
+    /// without a token or a valid origin loads off, fail-closed, with the
+    /// one-time notice; no origin is ever guessed.
     fn from_value(value: &serde_json::Value) -> Self {
         let default = Self::default();
         let flag = |key: &str, default: bool| value[key].as_bool().unwrap_or(default);
-        Self {
+        let mut prefs = Self {
             enabled: flag("enabled", default.enabled),
             port: value["port"]
                 .as_u64()
@@ -662,24 +675,66 @@ impl ServePrefs {
             allow_browsers: flag("allow_browsers", default.allow_browsers),
             token: flag("token", default.token),
             stats: flag("stats", default.stats),
+            allowed_origins: Vec::new(),
+            origins_notice: flag("origins_notice", default.origins_notice),
+        };
+        let mut origins: Vec<cuotai_core::serve::Origin> = Vec::new();
+        for entry in value["allowed_origins"].as_array().into_iter().flatten() {
+            if let Some(origin) = entry
+                .as_str()
+                .and_then(|text| cuotai_core::serve::Origin::parse(text).ok())
+            {
+                if !origins.contains(&origin) && origins.len() < cuotai_core::serve::MAX_ORIGINS {
+                    origins.push(origin);
+                }
+            }
         }
+        prefs.allowed_origins = origins.iter().map(ToString::to_string).collect();
+        if prefs.allow_browsers && (!prefs.token || prefs.allowed_origins.is_empty()) {
+            prefs.allow_browsers = false;
+            prefs.origins_notice = true;
+        }
+        prefs
     }
 
-    /// The switch, port and browser choice from the interface, keeping the
-    /// token requirement. Error: `invalid_port`.
+    /// The switch, port, browser choice and trusted origins from the
+    /// interface, keeping the token requirement; any choice clears the
+    /// migration notice. Errors: `invalid_port`, or the core's typed
+    /// refusal as JSON (PRD 0050 RF4.1/RF4.2: browser mode without a token,
+    /// an invalid, repeated or missing origin).
     pub fn with_choices(
         self,
         enabled: bool,
         port: u16,
         allow_browsers: bool,
-    ) -> Result<Self, &'static str> {
+        allowed_origins: &[String],
+    ) -> Result<Self, String> {
+        use cuotai_core::serve::{parse_origins, ServeError};
         if !SERVE_PORTS.contains(&port) {
-            return Err("invalid_port");
+            return Err("invalid_port".into());
+        }
+        let json = |note: cuotai_core::text::Localized| {
+            serde_json::to_string(&note).unwrap_or_else(|_| note.fallback.to_string())
+        };
+        let entries: Vec<&str> = allowed_origins
+            .iter()
+            .map(|entry| entry.trim())
+            .filter(|entry| !entry.is_empty())
+            .collect();
+        let origins = if entries.is_empty() && !allow_browsers {
+            Vec::new()
+        } else {
+            parse_origins(&entries).map_err(|(_, error)| json(error.l10n()))?
+        };
+        if allow_browsers && !self.token {
+            return Err(json(ServeError::BrowserTokenRequired.l10n()));
         }
         Ok(Self {
             enabled,
             port,
             allow_browsers,
+            allowed_origins: origins.iter().map(ToString::to_string).collect(),
+            origins_notice: false,
             ..self
         })
     }
@@ -2470,14 +2525,22 @@ mod tests {
                 allow_browsers: false,
                 token: false,
                 stats: false,
+                allowed_origins: Vec::new(),
+                origins_notice: false,
             }
         );
         update(&file, |s| s.motion = Some("off".into())).unwrap();
-        let on = ServePrefs {
+        let tokened = ServePrefs {
             token: true,
-            stats: true,
-            ..default.with_choices(true, 7001, true).unwrap()
+            ..default.clone()
         };
+        let on = ServePrefs {
+            stats: true,
+            ..tokened
+                .with_choices(true, 7001, true, &["HTTPS://Dash.example:443/".into()])
+                .unwrap()
+        };
+        assert_eq!(on.allowed_origins, ["https://dash.example"]);
         write_serve(&file, &on).unwrap();
         assert_eq!(read_serve(&file), on);
         assert_eq!(motion_of(&read(&file)), "off", "other fields kept");
@@ -2486,9 +2549,18 @@ mod tests {
         assert!(!fs::read_to_string(&file).unwrap().contains("serve"));
         // A privileged or impossible port is refused and keeps the choice.
         for port in [0, 80, 1023] {
-            assert_eq!(on.with_choices(true, port, false), Err("invalid_port"));
+            assert_eq!(
+                on.clone().with_choices(true, port, false, &[]),
+                Err("invalid_port".into())
+            );
         }
-        assert_eq!(on.with_choices(false, 1024, false).unwrap().port, 1024);
+        assert_eq!(
+            on.clone()
+                .with_choices(false, 1024, false, &[])
+                .unwrap()
+                .port,
+            1024
+        );
         // A hand-edited value of the wrong type is its default, alone.
         fs::write(
             &file,
@@ -2506,6 +2578,88 @@ mod tests {
         fs::write(&file, r#"{"serve":{"enabled":true,"port":80}}"#).unwrap();
         assert_eq!(read_serve(&file).port, 6738);
         assert_eq!(motion_of(&read(&file)), "system");
+    }
+
+    /// PRD 0050 RF4.1/RF4.2/RF4.4: browser mode needs a token and valid
+    /// origins; an old broad browser mode loads off with the notice.
+    #[test]
+    fn browser_mode_needs_a_token_and_origins_and_old_ones_migrate_off() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        let error_id = |result: Result<ServePrefs, String>| {
+            let text = result.unwrap_err();
+            serde_json::from_str::<serde_json::Value>(&text).unwrap()["id"]
+                .as_str()
+                .unwrap()
+                .to_owned()
+        };
+        let base = ServePrefs::default();
+        let origin = vec!["https://dash.example".to_string()];
+        assert_eq!(
+            error_id(base.clone().with_choices(true, 6738, true, &origin)),
+            "serve.error.browser_token_required"
+        );
+        let tokened = ServePrefs {
+            token: true,
+            ..base
+        };
+        assert_eq!(
+            error_id(tokened.clone().with_choices(true, 6738, true, &[])),
+            "serve.origin.error.empty"
+        );
+        assert_eq!(
+            error_id(
+                tokened
+                    .clone()
+                    .with_choices(true, 6738, true, &["*".into()])
+            ),
+            "serve.origin.error.scheme"
+        );
+        assert_eq!(
+            error_id(tokened.clone().with_choices(
+                true,
+                6738,
+                false,
+                &["https://a.example".into(), "https://A.example".into()]
+            )),
+            "serve.origin.error.duplicate"
+        );
+        let on = tokened
+            .clone()
+            .with_choices(
+                true,
+                6738,
+                true,
+                &[" https://dash.example ".into(), String::new()],
+            )
+            .unwrap();
+        assert_eq!(on.allowed_origins, origin);
+        // Turning browsers off keeps the list for next time.
+        let off = on.clone().with_choices(true, 6738, false, &origin).unwrap();
+        assert_eq!(off.allowed_origins, origin);
+        write_serve(&file, &on).unwrap();
+        assert_eq!(read_serve(&file), on);
+
+        // 0.82 and earlier: browsers on, no list (or no token): off, with the notice.
+        for stored in [
+            r#"{"serve":{"enabled":true,"allow_browsers":true,"token":true}}"#,
+            r#"{"serve":{"enabled":true,"allow_browsers":true,"allowed_origins":["https://dash.example"]}}"#,
+            r#"{"serve":{"enabled":true,"allow_browsers":true,"token":true,"allowed_origins":["*","null"]}}"#,
+        ] {
+            fs::write(&file, stored).unwrap();
+            let read = read_serve(&file);
+            assert!(!read.allow_browsers, "{stored}");
+            assert!(read.origins_notice, "{stored}");
+            assert!(read.enabled, "the server itself stays on");
+            // Any choice clears the notice.
+            let next = ServePrefs {
+                token: true,
+                ..read
+            }
+            .with_choices(true, 6738, false, &[])
+            .unwrap();
+            assert!(!next.origins_notice);
+        }
     }
 
     #[test]

@@ -13,9 +13,11 @@
 //! Security (RF3): it binds to `127.0.0.1` (or `::1`) unless
 //! [`ServeConfig::allow_non_loopback`] is set, which also requires a token;
 //! the `Host` header must name loopback (DNS rebinding); a request carrying a
-//! browser `Origin` (or a cross-site `Sec-Fetch-Site`) is refused and no
-//! `Access-Control-Allow-Origin` is sent unless [`ServeConfig::allow_browsers`]
-//! is on; an optional [`Token`] is required as `Authorization: Bearer`. The
+//! browser `Origin` (or a cross-site `Sec-Fetch-Site`) is refused unless
+//! [`ServeConfig::allow_browsers`] is on, and then only an `Origin` in
+//! [`ServeConfig::allowed_origins`] is answered, with that exact origin in
+//! `Access-Control-Allow-Origin` (PRD 0050 RF4); an optional [`Token`] is
+//! required as `Authorization: Bearer`, and browser mode requires one. The
 //! access log ([`AccessEntry`]) never records headers or query parameters.
 //! Without a token, **any local user or program** that can reach loopback
 //! can read the data; headless front ends therefore require one by default
@@ -24,11 +26,15 @@
 
 pub mod client;
 mod http;
+mod origin;
 mod token;
 
 #[cfg(test)]
 mod tests;
 
+pub use origin::{
+    check_origin_count, parse_origins, Origin, OriginError, OriginListError, MAX_ORIGINS,
+};
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
 pub use token::SystemTokenVault;
 pub use token::{
@@ -291,10 +297,13 @@ pub struct ServeConfig {
     pub allow_non_loopback: bool,
     /// RF3.2: required as `Authorization: Bearer` on every route when set.
     pub token: Option<Token>,
-    /// RF3.3: accept requests from web pages and let any of them read the
-    /// answers (`Access-Control-Allow-Origin: *`); see
-    /// [`allow_browsers_warning`].
+    /// RF3.3: accept requests from the web pages of
+    /// [`ServeConfig::allowed_origins`] and let them read the answers; see
+    /// [`allow_browsers_warning`]. PRD 0050 RF4.1: requires a token.
     pub allow_browsers: bool,
+    /// PRD 0050 RF4.2: the 1 to [`MAX_ORIGINS`] exact origins browser mode
+    /// answers; ignored while `allow_browsers` is off.
+    pub allowed_origins: Vec<Origin>,
     /// PRD 0031 RF11: serve `/v1/stats`. Off by default; even then it needs
     /// a token, refuses a non-loopback bind and is rate limited
     /// ([`STATS_PER_MINUTE`]).
@@ -316,6 +325,7 @@ impl Default for ServeConfig {
             allow_non_loopback: false,
             token: None,
             allow_browsers: false,
+            allowed_origins: Vec::new(),
             stats: false,
             fallback_locale: None,
             bounds: Bounds::default(),
@@ -333,6 +343,7 @@ impl fmt::Debug for ServeConfig {
             .field("allow_non_loopback", &self.allow_non_loopback)
             .field("token", &self.token)
             .field("allow_browsers", &self.allow_browsers)
+            .field("allowed_origins", &self.allowed_origins)
             .field("stats", &self.stats)
             .field("fallback_locale", &self.fallback_locale)
             .field("bounds", &self.bounds)
@@ -344,6 +355,8 @@ impl fmt::Debug for ServeConfig {
 impl ServeConfig {
     /// RF3.1: a non-loopback address only with the explicit flag, and then
     /// only with a token (without one such peers would be refused anyway).
+    /// PRD 0050 RF4.1/RF4.2: browser mode, on loopback too, needs a token
+    /// and 1 to [`MAX_ORIGINS`] distinct allowed origins.
     pub fn validate(&self) -> Result<(), ServeError> {
         if !self.bind.is_loopback() {
             if !self.allow_non_loopback {
@@ -351,6 +364,20 @@ impl ServeConfig {
             }
             if self.token.is_none() {
                 return Err(ServeError::TokenRequired);
+            }
+        }
+        if self.allow_browsers {
+            if self.token.is_none() {
+                return Err(ServeError::BrowserTokenRequired);
+            }
+            let mut seen = std::collections::BTreeSet::new();
+            if check_origin_count(self.allowed_origins.len()).is_err()
+                || !self
+                    .allowed_origins
+                    .iter()
+                    .all(|origin| seen.insert(origin))
+            {
+                return Err(ServeError::OriginsRequired);
             }
         }
         Ok(())
@@ -367,6 +394,12 @@ pub enum ServeError {
     NonLoopback { addr: IpAddr },
     #[error("A non-loopback address needs an access token for the local server.")]
     TokenRequired,
+    /// PRD 0050 RF4.1.
+    #[error("Allowing browsers needs an access token for the local server: generate one first.")]
+    BrowserTokenRequired,
+    /// PRD 0050 RF4.2.
+    #[error("Allowing browsers needs 1 to 16 distinct trusted origins.")]
+    OriginsRequired,
     /// `first == last` when only the requested port was tried.
     #[error("{}", port_in_use_text(*.first, *.last))]
     PortInUse { first: u16, last: u16 },
@@ -405,6 +438,10 @@ impl ServeError {
                 fallback,
             ),
             Self::TokenRequired => Localized::fixed("serve.error.token_required", fallback),
+            Self::BrowserTokenRequired => {
+                Localized::fixed("serve.error.browser_token_required", fallback)
+            }
+            Self::OriginsRequired => Localized::fixed("serve.error.origins_required", fallback),
             Self::PortInUse { first, last } if first == last => {
                 Localized::with_param("serve.error.port_taken", "port", first, fallback)
             }
@@ -518,7 +555,7 @@ fn port_in_use_text(first: u16, last: u16) -> String {
 pub fn allow_browsers_warning() -> Localized {
     Localized::fixed(
         "serve.allow_browsers.warning",
-        "With browsers allowed, any page open in your browser can read your usage from the local server (with a token, any page that knows it). Turn it on only if a page of yours needs this data.",
+        "With browsers allowed, the pages of the trusted origins that know the access token can read your usage from the local server. Add only origins you control.",
     )
 }
 
@@ -851,7 +888,8 @@ async fn serve_connection(mut stream: TcpStream, peer: IpAddr, state: &State, sn
                     let method = head.method.clone();
                     let target = head.target.clone();
                     let response = state.respond(&head, peer, snapshot);
-                    (response, Some(method), Some(target))
+                    let cors = cors_origin(&head, &snapshot.config);
+                    (response.with_cors(cors), Some(method), Some(target))
                 }
             };
         let response = state.finish(response, snapshot);
@@ -894,6 +932,11 @@ impl State {
         }
         if !config.allow_browsers && head.sent_by_page() {
             return Response::error(403, "browser_not_allowed");
+        }
+        // PRD 0050 RF4.3: in browser mode a page must name one allowed
+        // origin; a page request without `Origin` cannot be matched.
+        if config.allow_browsers && head.sent_by_page() && cors_origin(head, config).is_none() {
+            return Response::error(403, "origin_not_allowed");
         }
         if config.token.is_none() && !is_loopback(peer) {
             return Response::error(403, "peer_not_allowed");
@@ -1050,16 +1093,24 @@ impl State {
     }
 
     /// RF3.3: what every answer carries in "allow browsers" mode, and the
-    /// fallback texts in the chosen language (PRD 0034 RF5.2).
+    /// fallback texts in the chosen language (PRD 0034 RF5.2). PRD 0050
+    /// RF4.3: the answer to an allowed page names its exact origin (never
+    /// `*`), and every browser-mode answer varies on `Origin`.
     fn finish(&self, response: Response, snapshot: &Snapshot) -> Response {
         let response = match &snapshot.config.fallback_locale {
             Some(locale) if response.status == 200 => response.localize_fallbacks(locale),
             _ => response,
         };
-        if snapshot.config.allow_browsers {
-            response.header("Access-Control-Allow-Origin", "*")
-        } else {
-            response
+        if !snapshot.config.allow_browsers {
+            return response;
+        }
+        let cors = response.cors.clone();
+        let response = response.header("Vary", "Origin");
+        match cors {
+            Some(origin) if response.status != 403 => {
+                response.header("Access-Control-Allow-Origin", origin)
+            }
+            _ => response,
         }
     }
 
@@ -1080,6 +1131,23 @@ impl State {
                     || ip == snapshot.config.bind
             })
     }
+}
+
+/// PRD 0050 RF4.3: the canonical allowed origin a browser-mode request
+/// names in exactly one `Origin` header, or `None`.
+fn cors_origin(head: &Head, config: &ServeConfig) -> Option<String> {
+    if !config.allow_browsers {
+        return None;
+    }
+    let mut values = head.values("origin");
+    let (Some(value), None) = (values.next(), values.next()) else {
+        return None;
+    };
+    config
+        .allowed_origins
+        .iter()
+        .find(|origin| origin.matches_header(value))
+        .map(Origin::to_string)
 }
 
 /// The name of a `Host` value without its port (`[::1]:6738` → `::1`).

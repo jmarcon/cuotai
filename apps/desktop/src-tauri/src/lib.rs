@@ -1064,8 +1064,10 @@ async fn serve_status(b: Shared<'_>) -> Result<local_server::ServeView, String> 
 }
 
 /// PRD 0012 RF5.1: turn the local server on or off (off by default), its
-/// port (bound exactly) and "allow browsers", saved in `desktop.json`; the
-/// server restarts with them. Errors: `invalid_port`, `unwritable`.
+/// port (bound exactly) and "allow browsers" with its trusted origins
+/// (PRD 0050 RF4), saved in `desktop.json`; the server restarts with them.
+/// Errors: `invalid_port`, `unwritable`, the core's origin or token
+/// refusal as JSON.
 #[tauri::command]
 async fn set_serve(
     app: AppHandle,
@@ -1073,8 +1075,15 @@ async fn set_serve(
     enabled: bool,
     port: u16,
     allow_browsers: bool,
+    allowed_origins: Option<Vec<String>>,
 ) -> Result<local_server::ServeView, String> {
-    b.set_serve(&app, enabled, port, allow_browsers).await
+    // PRD 0050 RF4.2: an older caller without the list keeps the stored one.
+    let allowed_origins = match allowed_origins {
+        Some(list) => list,
+        None => b.serve_view().await.prefs.allowed_origins,
+    };
+    b.set_serve(&app, enabled, port, allow_browsers, allowed_origins)
+        .await
 }
 
 /// PRD 0031 RF11.2.5: "Share usage statistics" (`/v1/stats`, off by
