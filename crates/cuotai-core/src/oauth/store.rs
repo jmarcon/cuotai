@@ -130,6 +130,52 @@ impl SystemTokenStore {
         }
         keyring::v1::Entry::new(SERVICE_NAME, id).map_err(|_| storage_error())
     }
+
+    /// PRD 0052 RF5.4: delete every entry of the vault service `service`
+    /// (`cuotai.oauth`, `cuotai.serve`), found by the platform vault's own
+    /// search, so entries no configuration or index names go too. Returns
+    /// how many were deleted; `Err` when the vault is unavailable or cannot
+    /// search (nothing is then reported as erased). No id or value is read
+    /// or returned.
+    pub fn delete_service(service: &str) -> Result<usize, OAuthError> {
+        let entries = Self::search_service(service)?;
+        let mut deleted = 0;
+        for entry in entries {
+            // Only entries whose service is exactly `service` (a Windows
+            // pattern could match a longer name).
+            if entry
+                .get_specifiers()
+                .is_some_and(|(found, _)| found == service)
+            {
+                match entry.delete_credential() {
+                    Ok(()) => deleted += 1,
+                    Err(keyring_core::Error::NoEntry) => {}
+                    Err(_) => return Err(storage_error()),
+                }
+            }
+        }
+        Ok(deleted)
+    }
+
+    /// PRD 0052 RF5.4 preflight: whether the vault can enumerate `service`.
+    pub fn can_search(service: &str) -> bool {
+        Self::search_service(service).is_ok()
+    }
+
+    fn search_service(service: &str) -> Result<Vec<keyring_core::Entry>, OAuthError> {
+        if keyring::v1::Entry::store_status().is_err() {
+            return Err(storage_error());
+        }
+        let pattern = format!(r"\.{}$", regex::escape(service));
+        let mut spec = std::collections::HashMap::new();
+        if cfg!(target_os = "windows") {
+            // Windows targets read `<user>.<service>`.
+            spec.insert("pattern", pattern.as_str());
+        } else {
+            spec.insert("service", service);
+        }
+        keyring_core::Entry::search(&spec).map_err(|_| storage_error())
+    }
 }
 
 /// Fixed, platform-appropriate message (PT-BR, user-facing) for when secure

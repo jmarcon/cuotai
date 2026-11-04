@@ -1373,6 +1373,7 @@
   "pool.exhausted": "{upstream} · alle erschöpft",
   "pool.exhausted_returns": "{upstream} · alle erschöpft · zurück in {at}",
   "pool.unmeasured": "{upstream} · {total} Verbindungen ohne bekannte Nutzung",
+  "privacy.erase.vault_unavailable": "Nichts wurde gelöscht: Der Anmeldedatenspeicher des Systems kann die Einträge von Cuotai nicht auflisten. Entsperren Sie ihn (unter Linux einen Secret Service wie GNOME Keyring in einer D-Bus-Sitzung starten) und versuchen Sie es erneut.",
   "provider.alibaba_cloud": "Alibaba Cloud — Abrechnung",
   "provider.alibaba_coding_plan": "Alibaba Coding Plan",
   "provider.alibaba_model_studio": "Alibaba Model Studio / DashScope",

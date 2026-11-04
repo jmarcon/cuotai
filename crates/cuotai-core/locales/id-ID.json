@@ -1368,6 +1368,7 @@
   "pool.exhausted": "{upstream} · semuanya habis",
   "pool.exhausted_returns": "{upstream} · semuanya habis · kembali {at}",
   "pool.unmeasured": "{upstream} · {total} koneksi dengan penggunaan tidak diketahui",
+  "privacy.erase.vault_unavailable": "Tidak ada yang dihapus: brankas kredensial sistem tidak dapat menampilkan entri Cuotai. Buka kuncinya (di Linux, jalankan Secret Service seperti GNOME Keyring dalam sesi D-Bus) lalu coba lagi.",
   "provider.alibaba_cloud": "Alibaba Cloud — penagihan",
   "provider.alibaba_coding_plan": "Alibaba Coding Plan",
   "provider.alibaba_model_studio": "Alibaba Model Studio / DashScope",

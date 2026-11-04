@@ -852,6 +852,7 @@ dependencies = [
  "hmac 0.12.1",
  "httparse",
  "keyring",
+ "keyring-core",
  "libc",
  "rand 0.8.8",
  "regex",

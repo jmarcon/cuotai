@@ -1368,6 +1368,7 @@
   "pool.exhausted": "{upstream} · すべて上限到達",
   "pool.exhausted_returns": "{upstream} · すべて上限到達 · {at} に回復",
   "pool.unmeasured": "{upstream} · {total} 件の接続の使用量は不明",
+  "privacy.erase.vault_unavailable": "何も消去されていません: システムの資格情報保管庫が Cuotai の項目を一覧できません。保管庫のロックを解除して (Linux では D-Bus セッションで GNOME Keyring などの Secret Service を起動して) からもう一度お試しください。",
   "provider.alibaba_cloud": "Alibaba Cloud — 請求",
   "provider.alibaba_coding_plan": "Alibaba Coding Plan",
   "provider.alibaba_model_studio": "Alibaba Model Studio / DashScope",

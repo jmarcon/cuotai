@@ -1373,6 +1373,7 @@
   "pool.exhausted": "{upstream} · सभी खत्म",
   "pool.exhausted_returns": "{upstream} · सभी खत्म · {at} को वापसी",
   "pool.unmeasured": "{upstream} · {total} कनेक्शन जिनका उपयोग अज्ञात है",
+  "privacy.erase.vault_unavailable": "कुछ भी नहीं मिटाया गया: सिस्टम का क्रेडेंशियल वॉल्ट Cuotai की प्रविष्टियाँ सूचीबद्ध नहीं कर सकता। इसे अनलॉक करें (Linux पर, D-Bus सत्र में GNOME Keyring जैसी Secret Service शुरू करें) और फिर से प्रयास करें।",
   "provider.alibaba_cloud": "Alibaba Cloud — बिलिंग",
   "provider.alibaba_coding_plan": "Alibaba Coding Plan",
   "provider.alibaba_model_studio": "Alibaba Model Studio / DashScope",

@@ -1373,6 +1373,7 @@
   "pool.exhausted": "{upstream} · hepsi tükendi",
   "pool.exhausted_returns": "{upstream} · hepsi tükendi · {at} dönüyor",
   "pool.unmeasured": "{upstream} · kullanımı bilinmeyen {total} bağlantı",
+  "privacy.erase.vault_unavailable": "Hiçbir şey silinmedi: sistemin kimlik bilgisi kasası Cuotai kayıtlarını listeleyemiyor. Kasanın kilidini açın (Linux'ta bir D-Bus oturumunda GNOME Keyring gibi bir Secret Service başlatın) ve yeniden deneyin.",
   "provider.alibaba_cloud": "Alibaba Cloud — faturalama",
   "provider.alibaba_coding_plan": "Alibaba Coding Plan",
   "provider.alibaba_model_studio": "Alibaba Model Studio / DashScope",

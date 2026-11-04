@@ -12,6 +12,8 @@
 //! Nothing here makes a network request or reads a secret value: a vault
 //! service is metadata only.
 
+pub mod erase;
+
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
