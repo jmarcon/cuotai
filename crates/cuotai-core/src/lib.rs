@@ -23,6 +23,7 @@ pub mod diagnostics;
 pub mod doctor;
 pub mod edit_error;
 pub mod events;
+pub mod execution_review;
 pub mod export;
 pub mod extensions;
 pub mod freshness;

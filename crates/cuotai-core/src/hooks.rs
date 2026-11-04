@@ -530,6 +530,60 @@ impl Hooks {
     }
 }
 
+impl Hooks {
+    /// PRD 0050 RF2.2: the native review of these rules: the
+    /// [`Self::listing`], then the private working directory and the names
+    /// (never the values) of the environment each command receives.
+    pub fn review(&self) -> Vec<Localized> {
+        let mut lines = self.listing();
+        lines.extend(run_context());
+        lines
+    }
+
+    /// PRD 0050 RF2.3: the review of the single rule `name`, or `None`.
+    pub fn rule_review(&self, name: &str) -> Option<Vec<Localized>> {
+        let rule = self.rules.iter().find(|rule| rule.name == name)?;
+        let single = Self {
+            path: self.path.clone(),
+            rules: vec![rule.clone()],
+        };
+        Some(single.review())
+    }
+}
+
+/// The environment variables set per run, besides [`INHERITED_ENV`].
+pub const GENERATED_ENV: [&str; 5] = [
+    "CUOTAI_EVENT",
+    "CUOTAI_ACCOUNT",
+    "CUOTAI_ACCOUNT_ID",
+    "CUOTAI_PROVIDER",
+    "CUOTAI_METRIC",
+];
+
+fn run_context() -> Vec<Localized> {
+    let dir = work_dir().map_or_else(|| "-".to_owned(), |dir| dir.display().to_string());
+    let env = INHERITED_ENV
+        .iter()
+        .chain(GENERATED_ENV.iter())
+        .copied()
+        .collect::<Vec<_>>()
+        .join(", ");
+    vec![
+        Localized::with_param(
+            "hooks.confirm.work_dir",
+            "dir",
+            dir.as_str(),
+            "working directory: {dir}",
+        ),
+        Localized::with_param(
+            "hooks.confirm.environment",
+            "env",
+            env.as_str(),
+            "environment variables (names only): {env}",
+        ),
+    ]
+}
+
 /// The rules of `text` as written; an error names the line, never echoes
 /// the file.
 fn parse(text: &str) -> Result<Vec<RuleDraft>, Localized> {

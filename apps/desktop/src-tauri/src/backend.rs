@@ -342,6 +342,8 @@ pub struct Backend {
     stopping: AtomicBool,
     /// Wakes the stopped loops when the update failed to install.
     resumed: tokio::sync::Notify,
+    /// PRD 0050 RF2: one native confirmation at a time.
+    confirm_gate: crate::native_confirm::Gate,
 }
 
 // ---------- DTOs (read-only for the UI) ----------
@@ -2313,33 +2315,82 @@ impl Backend {
     /// `desktop.json`, off by default). On runs only rules already
     /// confirmed; off stops them and kills the running ones. Error:
     /// `unwritable`.
+    ///
+    /// PRD 0050 RF2.3: on asks natively first. Approved rules show as
+    /// "Turn on hooks"; rules waiting for approval show as "Approve
+    /// commands" and are approved by the same answer; with nothing valid
+    /// nothing would run and nothing is asked. Off never asks. Errors also:
+    /// `execution.declined`, `execution.pending`, the core's
+    /// `hooks.error.*` text, as JSON.
     pub async fn set_hooks_enabled(&self, app: &AppHandle, on: bool) -> Result<HooksView, String> {
+        if on {
+            self.ensure_loaded().await;
+            let _gate = self.confirm_gate.enter().map_err(|e| l10n_to_json(&e))?;
+            let path = self.inner.lock().await.hooks_path();
+            let confirmer = crate::native_confirm::DialogConfirmer::new(app);
+            let locale = crate::native_confirm::locale();
+            let approved = self.hooks.lock().await.approved(path.as_deref());
+            let pending = approved.is_none()
+                && path
+                    .as_deref()
+                    .is_some_and(|path| cuotai_core::hooks::Document::read(path).hooks().is_ok());
+            if pending {
+                let path = path.as_deref().expect("checked above");
+                let digest = crate::native_confirm::approve_hooks(&confirmer, &locale, path)
+                    .await
+                    .map_err(|e| l10n_to_json(&e))?;
+                self.hooks
+                    .lock()
+                    .await
+                    .confirm(Some(path), &digest)
+                    .map_err(|e| l10n_to_json(&e))?;
+            } else {
+                crate::native_confirm::enable_hooks(&confirmer, &locale, approved.as_ref())
+                    .await
+                    .map_err(|e| l10n_to_json(&e))?;
+            }
+        }
         crate::settings::save_hooks_enabled(on).map_err(str::to_owned)?;
         Ok(self.settle_hooks(app, |hooks| hooks.set_enabled(on)).await)
     }
 
-    /// PRD 0013 RF4.2: the user confirmed, in the dialog, the rules listed
-    /// under `digest`; they must still be the file's. Error: the core's
-    /// `hooks.error.*` text as JSON.
-    pub async fn confirm_hooks(
-        &self,
-        app: &AppHandle,
-        digest: String,
-    ) -> Result<HooksView, String> {
+    /// PRD 0013 RF4.2, PRD 0050 RF2.2: approve the rules now in
+    /// `hooks.toml`. Rust reads them, shows them in a native dialog and,
+    /// after OK, records the approval only if the file still holds exactly
+    /// what was shown. The webview supplies no digest. Errors:
+    /// `execution.declined`, `execution.pending`, the core's
+    /// `hooks.error.*` text, as JSON.
+    pub async fn confirm_hooks(&self, app: &AppHandle) -> Result<HooksView, String> {
         self.ensure_loaded().await;
-        let path = self.inner.lock().await.hooks_path();
+        let _gate = self.confirm_gate.enter().map_err(|e| l10n_to_json(&e))?;
+        let path = self
+            .inner
+            .lock()
+            .await
+            .hooks_path()
+            .ok_or_else(|| l10n_to_json(&cuotai_core::hooks::changed()))?;
+        let confirmer = crate::native_confirm::DialogConfirmer::new(app);
+        let digest = crate::native_confirm::approve_hooks(
+            &confirmer,
+            &crate::native_confirm::locale(),
+            &path,
+        )
+        .await
+        .map_err(|e| l10n_to_json(&e))?;
         self.hooks
             .lock()
             .await
-            .confirm(path.as_deref(), &digest)
+            .confirm(Some(&path), &digest)
             .map_err(|e| l10n_to_json(&e))?;
         Ok(self.settle_hooks(app, |_| {}).await)
     }
 
     /// PRD 0013 RF4.1: save the editor's rules into `hooks.toml` (the core
     /// validates them and refuses a file changed since `revision`); the
-    /// new rules wait for a confirmation. Errors: `no_config`, the core's
-    /// `hooks.error.*` text as JSON.
+    /// new rules wait for a confirmation. PRD 0050 RF2.2: the validated
+    /// rules show in a native "Save commands" dialog first. Errors:
+    /// `no_config`, `execution.declined`, `execution.pending`, the core's
+    /// `hooks.error.*` text, as JSON.
     pub async fn save_hooks(
         &self,
         app: &AppHandle,
@@ -2353,20 +2404,54 @@ impl Backend {
             .await
             .hooks_path()
             .ok_or_else(|| "no_config".to_owned())?;
-        cuotai_core::hooks::Document::save(&path, revision.as_deref(), rules)
-            .map_err(|e| l10n_to_json(&e))?;
+        let _gate = self.confirm_gate.enter().map_err(|e| l10n_to_json(&e))?;
+        crate::native_confirm::save_hooks(
+            &crate::native_confirm::DialogConfirmer::new(app),
+            &crate::native_confirm::locale(),
+            &path,
+            revision.as_deref(),
+            rules,
+        )
+        .await
+        .map_err(|e| l10n_to_json(&e))?;
         Ok(self.settle_hooks(app, |_| {}).await)
     }
 
     /// PRD 0013 RF4.1: run the confirmed rule `name` alone with a sample
     /// event; the run shows in the log (and [`HOOKS_EVENT`]) when it ends.
-    /// Errors: `hooks_off`, `hook_unknown`.
+    /// PRD 0050 RF2.3: the rule shows in a native dialog first, and runs
+    /// only if the active rules are still the ones shown. Errors:
+    /// `hooks_off`, `hook_unknown`, or `execution.declined` /
+    /// `execution.pending` as JSON.
     pub async fn test_hook(&self, app: &AppHandle, name: String) -> Result<HooksView, String> {
+        let _gate = self.confirm_gate.enter().map_err(|e| l10n_to_json(&e))?;
         let path = self.inner.lock().await.hooks_path();
+        let approved = {
+            let mut hooks = self.hooks.lock().await;
+            hooks.reconcile(path.as_deref());
+            if !hooks.is_running() {
+                return Err("hooks_off".into());
+            }
+            hooks.approved(path.as_deref()).ok_or("hook_unknown")?
+        };
+        let digest = crate::native_confirm::test_hook(
+            &crate::native_confirm::DialogConfirmer::new(app),
+            &crate::native_confirm::locale(),
+            &approved,
+            &name,
+        )
+        .await
+        .map_err(|e| {
+            if e == crate::native_confirm::unknown_hook() {
+                "hook_unknown".to_owned()
+            } else {
+                l10n_to_json(&e)
+            }
+        })?;
         self.hooks
             .lock()
             .await
-            .test(path.as_deref(), &name)
+            .test_checked(path.as_deref(), &name, &digest)
             .map_err(str::to_owned)?;
         Ok(self.settle_hooks(app, |_| {}).await)
     }
@@ -3012,7 +3097,42 @@ impl Backend {
             .map_err(|note| l10n_to_json(&note))
     }
 
+    /// PRD 0050 RF2.5: approve and use the extension `id`. Rust takes a
+    /// fresh disclosure (binding the opaque candidate to the files it
+    /// lists), shows its lines in a native dialog and, after OK, consumes
+    /// that candidate; the webview never holds it. Files changed in
+    /// between fail closed in the core. Errors also: `execution.declined`,
+    /// `execution.pending`, as JSON.
     pub async fn enable_extension(
+        &self,
+        app: &AppHandle,
+        id: &str,
+    ) -> Result<cuotai_core::extensions::management::ActionResult, String> {
+        self.ensure_loaded().await;
+        let _gate = self.confirm_gate.enter().map_err(|e| l10n_to_json(&e))?;
+        let manager = {
+            let g = self.inner.lock().await;
+            g.loaded
+                .as_ref()
+                .ok_or("config_unavailable")?
+                .monitor
+                .extension_manager()
+                .cloned()
+                .ok_or("extensions_unavailable")?
+        };
+        let disclosure = manager.disclosure(id).map_err(|note| l10n_to_json(&note))?;
+        crate::native_confirm::ask_extension(
+            &crate::native_confirm::DialogConfirmer::new(app),
+            &crate::native_confirm::locale(),
+            cuotai_core::execution_review::Review::EnableExtension,
+            &disclosure.lines,
+        )
+        .await
+        .map_err(|e| l10n_to_json(&e))?;
+        self.enable_candidate(app, &disclosure.candidate).await
+    }
+
+    async fn enable_candidate(
         &self,
         app: &AppHandle,
         candidate: &cuotai_core::extensions::management::Candidate,
@@ -3137,12 +3257,33 @@ impl Backend {
         Ok(action)
     }
 
+    /// PRD 0050 RF2.5: run the extension `id` once, after its lines show in
+    /// a native dialog. Errors also: `execution.declined`,
+    /// `execution.pending`, as JSON.
     pub async fn test_extension(
         &self,
         app: &AppHandle,
         id: &str,
     ) -> Result<cuotai_core::extensions::output::Checked, String> {
         self.ensure_loaded().await;
+        let _gate = self.confirm_gate.enter().map_err(|e| l10n_to_json(&e))?;
+        let lines = {
+            let g = self.inner.lock().await;
+            g.loaded
+                .as_ref()
+                .and_then(|loaded| loaded.monitor.extension_manager().cloned())
+                .ok_or("extensions_unavailable")?
+                .review(id)
+                .map_err(|note| l10n_to_json(&note))?
+        };
+        crate::native_confirm::ask_extension(
+            &crate::native_confirm::DialogConfirmer::new(app),
+            &crate::native_confirm::locale(),
+            cuotai_core::execution_review::Review::TestExtension,
+            &lines,
+        )
+        .await
+        .map_err(|e| l10n_to_json(&e))?;
         let (manager, store) = {
             let g = self.inner.lock().await;
             let manager = g

@@ -100,7 +100,8 @@ export const dismissDetected = (kind) => call("dismiss_detected", { kind });
 export const NEW_PROVIDER_URL = "https://github.com/jmarcon/cuotai/issues/new?template=new-provider.yml";
 export const listExtensions = () => call("list_extensions");
 export const extensionDisclosure = (id) => call("extension_disclosure", { id });
-export const enableExtension = (candidate) => call("enable_extension", { candidate });
+// PRD 0050 RF2.5: only the id; the shell discloses, asks in a native dialog and keeps the candidate.
+export const enableExtension = (id) => call("enable_extension", { id });
 export const disableExtension = (id) => call("disable_extension", { id });
 export const testExtension = (id) => call("test_extension", { id });
 export const extensionSecrets = (id) => call("extension_secrets", { id });
@@ -288,7 +289,8 @@ export const copyServeToken = () => call("copy_serve_token");
 // cycle. Each call answers the hooks' new state; `onHookRun` fires after every run so the log is read again.
 export const hooksStatus = () => call("hooks_status");
 export const setHooksEnabled = (on) => call("set_hooks_enabled", { on });
-export const confirmHooks = (digest) => call("confirm_hooks", { digest });
+// PRD 0050 RF2.2: the shell lists the commands in a native dialog and approves only on its answer.
+export const confirmHooks = () => call("confirm_hooks");
 export const saveHooks = (revision, rules) => call("save_hooks", { revision, rules });
 export const testHook = (name) => call("test_hook", { name });
 // PRD 0014 RF4.1: the widget snapshot (desktop.json, off by default). Each call answers the new state (the
@@ -1923,7 +1925,7 @@ const demo = {
   dismiss_detected: async ({ kind }) => { demoSettings.detect.dismissed.push(kind); },
   list_extensions: async () => demoExtensions(),
   extension_disclosure: async () => ({ lines: [], candidate: { token: "demo" } }),
-  enable_extension: async ({ candidate }) => ({ id: candidate?.id ?? "demo", message: dl("extensions.action.enabled", "Extension enabled."), account: null }),
+  enable_extension: async ({ id }) => ({ id: id ?? "demo", message: dl("extensions.action.enabled", "Extension enabled."), account: null }),
   disable_extension: async ({ id }) => ({ id, message: dl("extensions.action.disabled", `Extension ${id} disabled.`), account: null }),
   test_extension: async ({ id }) => ({ source: `extension:${id}`, status: "ready", metrics: [], notes: [], violations: [] }),
   // ponytail: demo mirror of `access` for the browser (default modes only, generic pt summary); the app asks the core.
@@ -2278,10 +2280,15 @@ const demo = {
   updater_dismiss: async () => { demoUpdate.dismissed = true; demoUpdateEmit(demoUpdateView()); return demoUpdateView(); },
   updater_restart: async () => { window.__lastUpdateRestart = true; },
   hooks_status: async () => demoHooksView(),
-  set_hooks_enabled: async ({ on }) => { demoHooks.enabled = on; return demoHooksView(); },
-  confirm_hooks: async ({ digest }) => {
-    if (!demoHooks.rules || demoDigest(demoHooks.rules) !== digest) throw JSON.stringify(demoL10n("hooks.error.changed", {}, "O hooks.toml mudou desde que foi exibido; revise as regras de novo."));
-    demoHooks.confirmed = digest;
+  // ponytail: the app asks in a native dialog (PRD 0050 RF2); the demo has none and accepts, approving what it lists.
+  set_hooks_enabled: async ({ on }) => {
+    if (on && demoHooks.rules && !demoHooksError(demoHooks.rules)) demoHooks.confirmed = demoDigest(demoHooks.rules);
+    demoHooks.enabled = on;
+    return demoHooksView();
+  },
+  confirm_hooks: async () => {
+    if (!demoHooks.rules) throw JSON.stringify(demoL10n("hooks.error.changed", {}, "O hooks.toml mudou desde que foi exibido; revise as regras de novo."));
+    demoHooks.confirmed = demoDigest(demoHooks.rules);
     return demoHooksView();
   },
   save_hooks: async ({ revision, rules }) => {

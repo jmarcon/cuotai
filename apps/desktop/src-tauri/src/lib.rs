@@ -8,6 +8,7 @@ mod hooks;
 mod local_cost;
 mod local_server;
 mod main_window;
+mod native_confirm;
 mod notify;
 mod session_capture;
 mod settings;
@@ -148,9 +149,11 @@ async fn extension_disclosure(
 async fn enable_extension(
     app: AppHandle,
     b: Shared<'_>,
-    candidate: cuotai_core::extensions::management::Candidate,
+    id: String,
 ) -> Result<cuotai_core::extensions::management::ActionResult, String> {
-    b.enable_extension(&app, &candidate).await
+    // PRD 0050 RF2.5: only an id; Rust discloses, asks natively and holds
+    // the candidate.
+    b.enable_extension(&app, &id).await
 }
 
 #[tauri::command]
@@ -1171,15 +1174,12 @@ async fn set_hooks_enabled(
     b.set_hooks_enabled(&app, on).await
 }
 
-/// PRD 0013 RF4.2: the user confirmed the exact commands the dialog listed
-/// under `digest`. Error: the core's `hooks.error.*` text as JSON.
+/// PRD 0013 RF4.2, PRD 0050 RF2.2: approve the commands of `hooks.toml`
+/// in a native dialog Rust builds; the webview supplies no digest. Error:
+/// the core's `hooks.error.*` or `execution.*` text as JSON.
 #[tauri::command]
-async fn confirm_hooks(
-    app: AppHandle,
-    b: Shared<'_>,
-    digest: String,
-) -> Result<hooks::HooksView, String> {
-    b.confirm_hooks(&app, digest).await
+async fn confirm_hooks(app: AppHandle, b: Shared<'_>) -> Result<hooks::HooksView, String> {
+    b.confirm_hooks(&app).await
 }
 
 /// PRD 0013 RF4.1: save the editor's rules into `hooks.toml` over the
