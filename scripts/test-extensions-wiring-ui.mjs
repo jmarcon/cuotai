@@ -49,4 +49,17 @@ assert.match(page, /onRemove: \(index, _name, secretsOf = null\) => requestAccou
 assert.match(main, /onAccountAction\(\(\{ action, index, secretsOf = null \}\)/, "the main window reads it");
 assert.match(main, /action === "remove" && secretsOf\) return removeExtensionAccount\(index, accountLabel\(r\), String\(secretsOf\)\)/);
 assert.match(main, /const removeExtensionAccount = \(index, label, secretsOf = null\) =>\s*confirmDelete\(index, label, \{\s*usesOauth: false,\s*secretsOf,/);
+// PRD 0050 RF2.5: approving sends only the id; the shell discloses, asks natively and keeps the candidate.
+assert.match(lib, /export const enableExtension = \(id\) => call\("enable_extension", \{ id \}\)/);
+assert.doesNotMatch(dialog, /candidate/i, "the webview never holds an extension candidate");
+assert.match(shell, /async fn enable_extension\(\s*app: AppHandle,\s*b: Shared<'_>,\s*id: String,/, "the command takes no candidate");
+// PRD 0050 RF8.3: a credential-name risk line stands apart (warning class and a note role, not color alone).
+assert.match(dialog, /startsWith\("extensions\.consent\.credential_risk"\)/);
+assert.match(dialog, /"hint warn-txt extension-risk"/);
+for (const code of ["pt-BR", "es", "it", "fr", "de", "ja", "zh-CN", "ru", "ko", "hi-IN", "id-ID", "tr", "vi"]) {
+  const core = JSON.parse(await read(`crates/cuotai-core/locales/${code}.json`));
+  for (const key of ["extensions.consent.credential_risk", "extensions.consent.credential_risk_conventional"]) {
+    assert.ok(core[key]?.includes("{name}"), `${code}: ${key}`);
+  }
+}
 console.log("extensions wiring ok");

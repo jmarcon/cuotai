@@ -496,6 +496,8 @@
   "extensions.consent.declined": "Erweiterung nicht freigegeben; sie wurde nicht ausgeführt.",
   "extensions.consent.directory": "Ordner: {dir}",
   "extensions.consent.env": "angeforderte Umgebungsvariablen: {env}",
+  "extensions.consent.credential_risk": "Kann die Zugangsdaten eines anderen Kontos offenlegen: {name} ist die Zugangsdaten-Variable von {accounts}.",
+  "extensions.consent.credential_risk_conventional": "Kann die Zugangsdaten eines anderen Kontos offenlegen: {name} ist die übliche Zugangsdaten-Variable eines konfigurierten Anbieters.",
   "extensions.consent.env_none": "fordert keine Umgebungsvariablen an",
   "extensions.consent.header": "Die Erweiterung {id} ({name}) führt ein lokales Programm mit Ihren Benutzerrechten aus:",
   "extensions.consent.interpreter": "Interpreter (#!-Zeile des Programms): {interpreter}",

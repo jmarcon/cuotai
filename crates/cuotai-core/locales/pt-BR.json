@@ -493,6 +493,8 @@
   "extensions.consent.declined": "Extensão não aprovada; ela não foi executada.",
   "extensions.consent.directory": "pasta: {dir}",
   "extensions.consent.env": "variáveis de ambiente pedidas: {env}",
+  "extensions.consent.credential_risk": "Pode expor a credencial de outra conta: {name} é a variável de credencial de {accounts}.",
+  "extensions.consent.credential_risk_conventional": "Pode expor a credencial de outra conta: {name} é a variável de credencial usual de um provedor configurado.",
   "extensions.consent.env_none": "não pede nenhuma variável de ambiente",
   "extensions.consent.header": "A extensão {id} ({name}) executa um programa local com os seus poderes de usuário:",
   "extensions.consent.interpreter": "interpretador (linha #! do programa): {interpreter}",

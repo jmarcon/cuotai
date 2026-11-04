@@ -494,6 +494,8 @@
   "extensions.consent.declined": "拡張機能は承認されず、実行されませんでした。",
   "extensions.consent.directory": "フォルダー：{dir}",
   "extensions.consent.env": "要求する環境変数：{env}",
+  "extensions.consent.credential_risk": "別のアカウントの認証情報が漏れるおそれがあります: {name} は {accounts} の認証情報の変数です。",
+  "extensions.consent.credential_risk_conventional": "別のアカウントの認証情報が漏れるおそれがあります: {name} は設定済みプロバイダーの一般的な認証情報の変数です。",
   "extensions.consent.env_none": "環境変数は要求しません",
   "extensions.consent.header": "拡張機能 {id}（{name}）は、現在のユーザーの権限でローカルのプログラムを実行します：",
   "extensions.consent.interpreter": "インタープリター（プログラムの #! 行）：{interpreter}",

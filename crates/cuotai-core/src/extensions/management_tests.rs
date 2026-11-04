@@ -937,3 +937,122 @@ async fn a_new_manifest_value_retires_the_old_scope() {
     assert_eq!(keys.len(), 1, "{keys:?}");
     assert_ne!(keys[0], old_keys[0]);
 }
+
+/// PRD 0050 RF8.2: requested names that another account reads its
+/// credential from (explicitly, through a `*_env` parameter or as its
+/// provider's usual variable) are typed risks, names only; the extension's
+/// own account and unrelated names are left out.
+// security-invariant: SEC-EXT-CREDENTIAL-NAMES
+#[test]
+fn credential_names_of_other_accounts_are_flagged_without_values() {
+    let mut explicit = Account {
+        name: "Work".into(),
+        provider: Provider::OpenAiApi,
+        credential_env: Some("WORK_OPENAI_KEY".into()),
+        ..Account::default()
+    };
+    explicit
+        .params
+        .insert("client_secret_env".into(), "SHARED_SECRET".into());
+    let usual = Account {
+        name: "Personal".into(),
+        provider: Provider::Kimi,
+        ..Account::default()
+    };
+    let config = Config {
+        accounts: vec![explicit, usual],
+        ..Config::default()
+    };
+    let env: Vec<String> = [
+        "WORK_OPENAI_KEY",
+        "SHARED_SECRET",
+        "KIMI_API_KEY",
+        "OPENAI_ADMIN_KEY",
+        "PROXY_URL",
+    ]
+    .map(String::from)
+    .to_vec();
+    let risks = credential_risks(&env, &config, "proxy");
+    let row = |name: &str| risks.iter().find(|risk| risk.name == name);
+    assert_eq!(row("WORK_OPENAI_KEY").unwrap().accounts, ["Work"]);
+    assert!(!row("WORK_OPENAI_KEY").unwrap().conventional);
+    assert_eq!(row("SHARED_SECRET").unwrap().accounts, ["Work"]);
+    let kimi = row("KIMI_API_KEY").unwrap();
+    assert_eq!(kimi.accounts, ["Personal"]);
+    assert!(kimi.conventional);
+    // The usual variable of a configured provider whose account names
+    // another one: flagged as conventional, no account reads it.
+    let usual = row("OPENAI_ADMIN_KEY").unwrap();
+    assert!(usual.accounts.is_empty() && usual.conventional);
+    assert!(row("PROXY_URL").is_none());
+    assert_eq!(risks.len(), 4);
+    // Windows compares names without case; elsewhere they are exact.
+    let lower = credential_risks(&["kimi_api_key".into()], &config, "proxy");
+    assert_eq!(lower.len(), usize::from(cfg!(windows)));
+    // The extension's own account is never a risk to itself.
+    let own = Account {
+        name: "Proxy".into(),
+        provider: Provider::Extension,
+        credential_env: Some("PROXY_URL".into()),
+        params: [("extension_id".to_string(), "proxy".to_string())].into(),
+        ..Account::default()
+    };
+    let with_own = Config {
+        accounts: vec![own],
+        ..Config::default()
+    };
+    assert!(credential_risks(&["PROXY_URL".into()], &with_own, "proxy").is_empty());
+    // The line names the variable and the accounts, never a value.
+    let lines = with_risks(Vec::new(), &risks);
+    assert_eq!(lines.len(), 4);
+    assert_eq!(lines[0].id, "extensions.consent.credential_risk");
+    assert_eq!(
+        lines[3].id,
+        "extensions.consent.credential_risk_conventional"
+    );
+    for locale in crate::text::catalog_locales() {
+        let text = lines[0].resolve(locale);
+        assert!(
+            text.contains("WORK_OPENAI_KEY") && text.contains("Work"),
+            "{locale}: {text}"
+        );
+    }
+}
+
+/// PRD 0050 RF8.2: the disclosure carries the risks as typed rows and as
+/// lines right after the requested names; a configuration without such
+/// accounts keeps the disclosure as it was.
+#[test]
+fn the_disclosure_lists_credential_names_after_the_requested_ones() {
+    let rig = Rig::new();
+    rig.extension("proxy", READY);
+    let manifest = rig.root.join("proxy").join(MANIFEST_FILE);
+    let text = fs::read_to_string(&manifest).unwrap();
+    fs::write(&manifest, format!("{text}env = [\"KIMI_API_KEY\"]\n")).unwrap();
+    let config = Config {
+        accounts: vec![Account {
+            name: "Personal".into(),
+            provider: Provider::Kimi,
+            ..Account::default()
+        }],
+        ..Config::default()
+    };
+    let disclosure = rig.manager.disclosure_for("proxy", &config).unwrap();
+    assert_eq!(disclosure.risks.len(), 1);
+    let at = disclosure
+        .lines
+        .iter()
+        .position(|line| line.id == "extensions.consent.env")
+        .unwrap();
+    assert_eq!(
+        disclosure.lines[at + 1].id,
+        "extensions.consent.credential_risk"
+    );
+    assert_eq!(
+        rig.manager.review("proxy", &config).unwrap(),
+        disclosure.lines
+    );
+    let plain = rig.manager.disclosure("proxy").unwrap();
+    assert!(plain.risks.is_empty());
+    assert_eq!(plain.lines.len(), disclosure.lines.len() - 1);
+}

@@ -197,6 +197,112 @@ impl Candidate {
 pub struct Disclosure {
     pub lines: Vec<Localized>,
     pub candidate: Candidate,
+    /// PRD 0050 RF8.2: the requested names that are another account's
+    /// credential variable ([`Manager::disclosure_for`]); their lines are
+    /// also in `lines`, right after the requested names.
+    #[serde(default)]
+    pub risks: Vec<CredentialRisk>,
+}
+
+/// PRD 0050 RF8.2: a variable an extension asks for that another account of
+/// the configuration reads its credential from. Names only, never values.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CredentialRisk {
+    /// The requested variable name.
+    pub name: String,
+    /// The other accounts that read their credential from it, explicitly
+    /// (`credential_env` or a `*_env` parameter) or through their
+    /// provider's usual variable.
+    pub accounts: Vec<String>,
+    /// The name is the usual credential variable of a configured provider
+    /// (`account_edit::default_env`).
+    pub conventional: bool,
+}
+
+/// PRD 0050 RF8.2: the names of `env` that are another account's credential
+/// variable in `config` (accounts of the extension `own_id` excluded).
+/// Names compare case-insensitively on Windows, exactly elsewhere.
+pub fn credential_risks(env: &[String], config: &Config, own_id: &str) -> Vec<CredentialRisk> {
+    let same = |a: &str, b: &str| {
+        if cfg!(windows) {
+            a.eq_ignore_ascii_case(b)
+        } else {
+            a == b
+        }
+    };
+    let others: Vec<&Account> = config
+        .accounts
+        .iter()
+        .filter(|account| account.extension_id() != Some(own_id))
+        .collect();
+    let mut risks = Vec::new();
+    for name in env {
+        let mut accounts = Vec::new();
+        let mut conventional = false;
+        for account in &others {
+            let usual = crate::account_edit::default_env(account.provider);
+            if !usual.is_empty() && same(usual, name) {
+                conventional = true;
+            }
+            let explicit = account.credential_env.iter().map(String::as_str).chain(
+                account
+                    .params
+                    .iter()
+                    .filter(|(key, _)| key.ends_with("_env"))
+                    .map(|(_, value)| value.as_str()),
+            );
+            let mut reads = false;
+            for variable in explicit {
+                reads |= same(variable, name);
+            }
+            if account.credential_env.is_none() && !usual.is_empty() && same(usual, name) {
+                reads = true;
+            }
+            if reads && !accounts.contains(&account.name) {
+                accounts.push(account.name.clone());
+            }
+        }
+        if conventional || !accounts.is_empty() {
+            risks.push(CredentialRisk {
+                name: name.clone(),
+                accounts,
+                conventional,
+            });
+        }
+    }
+    risks
+}
+
+/// `lines` with one line per risk inserted after the requested names.
+fn with_risks(mut lines: Vec<Localized>, risks: &[CredentialRisk]) -> Vec<Localized> {
+    let at = lines
+        .iter()
+        .position(|line| line.id == "extensions.consent.env")
+        .map_or(lines.len(), |at| at + 1);
+    lines.splice(at..at, risks.iter().map(risk_line));
+    lines
+}
+
+/// The disclosure line of one [`CredentialRisk`].
+fn risk_line(risk: &CredentialRisk) -> Localized {
+    if risk.accounts.is_empty() {
+        Localized::with_param(
+            "extensions.consent.credential_risk_conventional",
+            "name",
+            risk.name.as_str(),
+            "May expose another account credential: {name} is the usual credential variable of a configured provider.",
+        )
+    } else {
+        let accounts = risk.accounts.join(", ");
+        Localized::with_params(
+            "extensions.consent.credential_risk",
+            crate::text::params([
+                ("name", risk.name.as_str().into()),
+                ("accounts", accounts.as_str().into()),
+            ]),
+            "May expose another account credential: {name} is the credential variable of {accounts}.",
+        )
+    }
 }
 
 /// PRD 0028 RF7.4: one `[[secrets]]` entry of an extension, for the
@@ -624,22 +730,37 @@ impl Manager {
     /// RF5.3: what the user must see before approving, plus the opaque
     /// handle [`Self::enable`] will only accept for exactly these files.
     pub fn disclosure(&self, id: &str) -> Result<Disclosure, Localized> {
+        let none = Config {
+            accounts: Vec::new(),
+            ..Config::default()
+        };
+        self.disclosure_for(id, &none)
+    }
+
+    /// [`Self::disclosure`] that also names the requested variables another
+    /// account of `config` reads its credential from (PRD 0050 RF8.2), as
+    /// typed [`Disclosure::risks`] and as lines after the requested names.
+    pub fn disclosure_for(&self, id: &str, config: &Config) -> Result<Disclosure, Localized> {
         let manifest = self.manifest(id)?;
         let snapshot = self.snapshot(&manifest)?;
         let token = self.issue(snapshot);
+        let risks = credential_risks(&manifest.env, config, id);
         Ok(Disclosure {
-            lines: consent::disclosure(&manifest),
+            lines: with_risks(consent::disclosure(&manifest), &risks),
             candidate: Candidate {
                 token,
                 cached_id: Some(id.to_owned()),
             },
+            risks,
         })
     }
 
     /// PRD 0050 RF2.5: the lines of a native review of `id` (the same as
-    /// [`Self::disclosure`]'s), issuing no candidate.
-    pub fn review(&self, id: &str) -> Result<Vec<Localized>, Localized> {
-        Ok(consent::disclosure(&self.manifest(id)?))
+    /// [`Self::disclosure_for`]'s), issuing no candidate.
+    pub fn review(&self, id: &str, config: &Config) -> Result<Vec<Localized>, Localized> {
+        let manifest = self.manifest(id)?;
+        let risks = credential_risks(&manifest.env, config, id);
+        Ok(with_risks(consent::disclosure(&manifest), &risks))
     }
 
     /// Whether the current manifest and program are already approved.
