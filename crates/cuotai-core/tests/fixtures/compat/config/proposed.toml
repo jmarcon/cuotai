@@ -1,0 +1,44 @@
+# PRD 0051 RF6.3: today's syntax plus the keys proposed plans add to
+# cuotai.toml. Never edit this file once shipped; add a new fixture.
+# The tolerant reader must read it (unsupported accounts are set aside),
+# and the strict reader must name its first unsupported path.
+refresh_seconds = 300
+
+# PRD 0024 RF7: named groups.
+[[groups]]
+id = "coding"
+label = "Coding"
+members = ["work-groq"]
+
+# PRD 0029 RF1 `id` and PRD 0024 RF7 `group`: known today.
+[[accounts]]
+id = "work-groq"
+name = "Work"
+provider = "groq"
+credential_env = "GROQ_API_KEY"
+group = "coding"
+
+# PRD 0036 RF2.7: aggregator keys at the account level.
+[[accounts]]
+id = "home-router"
+name = "Router"
+provider = "nine_router"
+base_url = "https://router.example.com"
+password_env = "ROUTER_PASSWORD"
+tls_ca_file = "/etc/ssl/router.pem"
+tls_pin_sha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+allow_private_http = false
+dedup = "upstream"
+params = { include = "a,b", exclude = "c" }
+
+# A provider a later release adds.
+[[accounts]]
+id = "next-provider"
+name = "Next"
+provider = "a_provider_from_a_later_release"
+
+[[accounts]]
+id = "personal-mistral"
+name = "Personal"
+provider = "mistral"
+credential_env = "MISTRAL_API_KEY"

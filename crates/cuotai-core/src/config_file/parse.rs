@@ -521,6 +521,39 @@ credential_env = "GROQ_API_KEY"
         );
     }
 
+    /// PRD 0051 RF6.3: the proposed-key fixture is read tolerantly (known
+    /// accounts ready, the others set aside in order) and the strict reader
+    /// names its first unsupported path.
+    #[test]
+    fn the_proposed_key_fixture_passes_the_tolerant_reader() {
+        let text = include_str!("../../tests/fixtures/compat/config/proposed.toml");
+        let parsed = parse(text, ConfigParseMode::Tolerant).unwrap();
+        parsed.config.validate().unwrap();
+        let ids: Vec<_> = parsed
+            .config
+            .accounts
+            .iter()
+            .map(|account| account.id().as_str().to_owned())
+            .collect();
+        assert_eq!(ids, ["work-groq", "personal-mistral"]);
+        let issues: Vec<_> = parsed
+            .issues
+            .iter()
+            .map(|issue| (issue.index, issue.path.to_string()))
+            .collect();
+        assert_eq!(
+            issues,
+            [
+                (1, "accounts[1].base_url".to_owned()),
+                (2, "accounts[2].provider".to_owned())
+            ]
+        );
+        assert_eq!(parsed.issues[0].provider.as_deref(), Some("nine_router"));
+        assert_eq!(parsed.config.groups.len(), 1);
+        let (_, _, path) = parse_error_of(text, ConfigParseMode::Strict);
+        assert_eq!(path.as_deref(), Some("accounts[1].base_url"));
+    }
+
     #[test]
     fn a_path_quotes_keys_that_are_not_bare() {
         assert_eq!(
