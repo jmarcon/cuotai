@@ -142,6 +142,7 @@ pub(crate) fn source_ids() -> BTreeMap<String, String> {
     const SOURCES: &[(&str, &str)] = &[
         ("about_view.rs", include_str!("about_view.rs")),
         ("auth_ui.rs", include_str!("auth_ui.rs")),
+        ("backup.rs", include_str!("backup.rs")),
         ("canary.rs", include_str!("canary.rs")),
         ("changelog_view.rs", include_str!("changelog_view.rs")),
         ("config_check.rs", include_str!("config_check.rs")),

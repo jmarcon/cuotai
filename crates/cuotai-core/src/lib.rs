@@ -9,6 +9,7 @@ pub mod advice;
 pub mod aggregators;
 pub mod alerts;
 pub mod build_info;
+pub mod bundle;
 pub mod canary;
 pub mod catalog;
 pub mod changelog;

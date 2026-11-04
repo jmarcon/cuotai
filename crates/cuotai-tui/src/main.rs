@@ -1,5 +1,6 @@
 mod about_view;
 mod auth_ui;
+mod backup;
 mod canary;
 #[cfg(test)]
 mod capture;
@@ -177,6 +178,34 @@ struct Args {
     /// 0 without a failure, 2 with one, 1 when the doctor itself fails.
     #[arg(long, conflicts_with_all = SETUP_CONFLICTS)]
     doctor: bool,
+    /// Writes a backup of the settings to FILE (a .cuotai-backup.zip): the
+    /// accounts TOML, hooks, desktop and local cost preferences, prices,
+    /// user themes and languages. Never a secret: no vault entry, token,
+    /// server token, cost index, extension or log; the backup stops if a
+    /// file looks like it holds a key. Exit 0; 1 on a refusal or an error.
+    #[arg(long, value_name = "FILE", conflicts_with_all = SETUP_CONFLICTS, conflicts_with = "doctor")]
+    backup: Option<PathBuf>,
+    /// Restores a backup made by --backup: checks it, prints the plan (add,
+    /// replace, keep, skip) and the variables and sign-ins still needed,
+    /// then writes the additions and each replacement you confirm in the
+    /// terminal. With --check, only the plan (also how two computers
+    /// differ). Exit 0; 2 for a damaged or newer backup; 1 on an error.
+    #[arg(
+        long,
+        value_name = "FILE",
+        conflicts_with_all = SETUP_CONFLICTS,
+        conflicts_with_all = ["doctor", "backup"]
+    )]
+    restore: Option<PathBuf>,
+    /// With --restore, prints the plan and writes nothing.
+    #[arg(long, requires = "restore")]
+    check: bool,
+    /// With --restore, replaces every conflicting file without asking.
+    #[arg(long, requires = "restore", conflicts_with = "check")]
+    yes: bool,
+    /// With --restore, only one part: config, prefs or user.
+    #[arg(long, value_name = "PART", value_parser = ["config", "prefs", "user"], requires = "restore")]
+    only: Option<String>,
     /// Usage statistics from the local history (limits reached, average peak
     /// of the tightest limit, extra spending, peak per day and per account),
     /// without querying the providers. With --days 7|30 (default 7) and
@@ -571,7 +600,8 @@ struct Args {
 }
 
 /// PRD 0029 RF6.2: the vault audit runs alone.
-/// PRD 0046: `--doctor` runs alone (with `--config` and `--json`).
+/// PRD 0046: `--doctor`, `--backup` and `--restore` run alone (with
+/// `--config` and `--json`).
 const SETUP_CONFLICTS: [&str; 19] = [
     "list_providers",
     "changelog",
@@ -831,6 +861,27 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
     // silent fallback to the OS directory.
     if let Err(error) = cuotai_core::data_dir::check_override() {
         return Err(error.l10n().resolve(ui::tui_locale()).into());
+    }
+    // PRD 0046 RF2/RF3: the secret-free backup and its restore.
+    if let Some(out) = args.backup.take() {
+        return Ok(backup::backup(
+            &out,
+            args.config.take(),
+            args.dev_credentials_sqlite.is_some(),
+            args.json,
+            ui::tui_locale(),
+        )?);
+    }
+    if let Some(file) = args.restore.take() {
+        return Ok(backup::restore(
+            &file,
+            args.config.take(),
+            args.only.as_deref(),
+            args.check,
+            args.yes,
+            args.json,
+            ui::tui_locale(),
+        )?);
     }
     // PRD 0019 RF7.7: the embedded changelog, without loading the
     // accounts' configuration and without touching the network.

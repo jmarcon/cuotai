@@ -132,6 +132,13 @@ static LIBRARIES: &[Library] = &[
         &[Core, Desktop],
     ),
     lib(
+        "flate2",
+        "MIT OR Apache-2.0",
+        "https://github.com/rust-lang/flate2-rs",
+        Role::Runtime,
+        &[Core],
+    ),
+    lib(
         "futures-util",
         "MIT OR Apache-2.0",
         "https://github.com/rust-lang/futures-rs",
