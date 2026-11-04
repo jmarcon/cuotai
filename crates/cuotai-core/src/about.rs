@@ -210,12 +210,28 @@ static LIBRARIES: &[Library] = &[
         Role::Runtime,
         &[Tui],
     ),
+    // PRD 0052 RF1.3: the app log's redaction patterns.
+    lib(
+        "regex",
+        "MIT OR Apache-2.0",
+        "https://github.com/rust-lang/regex",
+        Role::Runtime,
+        &[Core],
+    ),
     lib(
         "reqwest",
         "MIT OR Apache-2.0",
         "https://github.com/seanmonstar/reqwest",
         Role::Runtime,
         &[Core],
+    ),
+    // PRD 0052 RF2.2: the desktop's native startup-failure modal.
+    lib(
+        "rfd",
+        "MIT",
+        "https://github.com/PolyMeilex/rfd",
+        Role::Runtime,
+        &[Desktop],
     ),
     lib(
         "rfd",
@@ -356,6 +372,21 @@ static LIBRARIES: &[Library] = &[
         "toml_edit",
         "MIT OR Apache-2.0",
         "https://github.com/toml-rs/toml",
+        Role::Runtime,
+        &[Core],
+    ),
+    // PRD 0052 RF1.1: the redacted app log.
+    lib(
+        "tracing",
+        "MIT",
+        "https://github.com/tokio-rs/tracing",
+        Role::Runtime,
+        &[Core],
+    ),
+    lib(
+        "tracing-subscriber",
+        "MIT",
+        "https://github.com/tokio-rs/tracing",
         Role::Runtime,
         &[Core],
     ),

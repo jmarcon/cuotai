@@ -56,7 +56,11 @@ pub async fn run(
     };
     let (config, skipped) = without_metered(config, args.include_metered);
     if config.accounts.is_empty() {
-        eprintln!("No account to observe (metered accounts need --canary-include-metered).");
+        crate::cli::message(
+            crate::cli::Level::Warn,
+            "canary.no_account",
+            "No account to observe (metered accounts need --canary-include-metered).",
+        );
         return Ok(1);
     }
     let monitor =
@@ -102,12 +106,20 @@ pub async fn run(
     if args.open {
         for draft in outcome.drafts.iter().filter(|d| !d.copy_only) {
             if !cuotai_core::oauth::login::open_browser(&draft.url).await {
-                eprintln!("Could not open the browser; copy the link above.");
+                crate::cli::message(
+                    crate::cli::Level::Warn,
+                    "canary.browser_unavailable",
+                    "Could not open the browser; copy the link above.",
+                );
             }
         }
     }
     if args.dry_run {
-        eprintln!("Dry run: nothing was written.");
+        crate::cli::message(
+            crate::cli::Level::Info,
+            "canary.dry_run",
+            "Dry run: nothing was written.",
+        );
     } else {
         store
             .save(
@@ -117,7 +129,11 @@ pub async fn run(
                 &outcome.evidence,
             )
             .map_err(|_| "Could not write the canary directory.")?;
-        eprintln!("Canary records written to {}", store.dir().display());
+        crate::cli::message(
+            crate::cli::Level::Info,
+            "canary.written",
+            format_args!("Canary records written to {}", store.dir().display()),
+        );
     }
     Ok(if outcome.drifts.is_empty() { 0 } else { 2 })
 }

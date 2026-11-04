@@ -5,6 +5,7 @@ mod canary;
 #[cfg(test)]
 mod capture;
 mod changelog_view;
+mod cli;
 mod config_check;
 mod cost;
 mod dashboard;
@@ -784,15 +785,33 @@ async fn main() -> std::process::ExitCode {
     match run().await {
         Ok(code) => std::process::ExitCode::from(code),
         Err(error) => {
-            eprintln!("cuotai: {error}");
+            // The error's text may name a path or an account: the log keeps
+            // only that the run failed.
+            cli::message(
+                cli::Level::Error,
+                "cli.failed",
+                format_args!("cuotai: {error}"),
+            );
             std::process::ExitCode::FAILURE
         }
     }
 }
 
 async fn run() -> Result<u8, Box<dyn std::error::Error>> {
+    // PRD 0052 RF1/RF2: the redacted app log and the panic record start
+    // before anything else; the interactive dashboard relabels itself.
+    cuotai_core::diagnostics::logging::init_default(
+        cuotai_core::diagnostics::logging::AppKind::Cli,
+    );
+    cuotai_core::diagnostics::logging::install_panic_hook(
+        cuotai_core::diagnostics::logging::AppKind::Cli,
+    );
     if let Some(warning) = ui::unknown_lang_warning() {
-        eprintln!("cuotai: {warning}");
+        cli::message(
+            cli::Level::Warn,
+            "locale.unknown",
+            format_args!("cuotai: {warning}"),
+        );
     }
     let mut args = match Args::try_parse() {
         Ok(args) => args,
@@ -1035,12 +1054,13 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
     let session = Arc::new(match args.dev_credentials_sqlite {
         Some(path) => {
             let session = OAuthSession::development_sqlite(&path)?;
-            eprintln!(
-                "{}",
+            cli::message(
+                cli::Level::Warn,
+                "credentials.dev_store",
                 l10n::tr(
                     "cli.dev_sqlite_warning",
                     "WARNING: credentials in SQLite WITHOUT ENCRYPTION (development); the Keychain will not be used. Do not share the database.",
-                )
+                ),
             );
             session
         }
@@ -1202,7 +1222,11 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
             );
         }
         if let Some(warning) = monitor.history_status().and_then(|s| s.warning()) {
-            eprintln!("cuotai: {}", warning.resolve(ui::tui_locale()));
+            cli::message(
+                cli::Level::Warn,
+                "history.degraded",
+                format_args!("cuotai: {}", warning.resolve(ui::tui_locale())),
+            );
         }
         update_notice::print(update_notice, locale).await;
         return Ok(code);
@@ -1212,6 +1236,9 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
     // sources that are on from a thread of its own while the TUI is open,
     // and the account details show it.
     let local_cost = cost::LocalCost::start();
+    cuotai_core::diagnostics::logging::set_app_kind(
+        cuotai_core::diagnostics::logging::AppKind::Tui,
+    );
     ui::run(
         file,
         session,
@@ -1639,7 +1666,11 @@ fn stored_view(args: &Args) -> Result<u8, Box<dyn std::error::Error>> {
     let now = Utc::now();
     let mut stdout = io::stdout().lock();
     let unreadable = |error: cuotai_core::history::HistoryError| {
-        eprintln!("cuotai: {}", error.l10n().resolve(locale));
+        cli::message(
+            cli::Level::Warn,
+            "history.unreadable",
+            format_args!("cuotai: {}", error.l10n().resolve(locale)),
+        );
         2u8
     };
     if args.stats {

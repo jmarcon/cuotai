@@ -95,13 +95,14 @@ pub(crate) async fn run(
     if let Some(server) = &server {
         if watch.is_some() {
             // stdout carries the events.
-            eprintln!(
-                "{}",
+            crate::cli::message(
+                crate::cli::Level::Info,
+                "serve.started",
                 trf(
                     "headless.server_at",
                     "cuotai: local server at {url}",
                     &[("url", &server.url())],
-                )
+                ),
             );
         } else {
             // The address alone on stdout, for a script that started it.
@@ -112,7 +113,11 @@ pub(crate) async fn run(
     }
     let mut watch = watch.map(crate::watch::Watch::new);
     if let Some(watch) = &watch {
-        eprintln!("{}", watch.started(read(&live).config.accounts.len()));
+        crate::cli::message(
+            crate::cli::Level::Info,
+            "watch.started",
+            watch.started(read(&live).config.accounts.len()),
+        );
     }
 
     // PRD 0026 RF3.2: the event journal follows this cycle too.
@@ -172,13 +177,18 @@ pub(crate) async fn run(
     // Readings queued to the history land before the process ends.
     monitor.flush_history(crate::HISTORY_FLUSH);
     if let Some(warning) = monitor.history_status().and_then(|s| s.warning()) {
-        eprintln!("cuotai: {}", warning.resolve(crate::ui::tui_locale()));
+        crate::cli::message(
+            crate::cli::Level::Warn,
+            "history.degraded",
+            format_args!("cuotai: {}", warning.resolve(crate::ui::tui_locale())),
+        );
     }
     let mut code = 0;
     if serve.is_some() {
-        eprintln!(
-            "{}",
-            tr("headless.server_stopped", "cuotai: local server stopped.")
+        crate::cli::message(
+            crate::cli::Level::Info,
+            "serve.stopped",
+            tr("headless.server_stopped", "cuotai: local server stopped."),
         );
         if strict_exit && !ready_seen {
             code = 2;
@@ -186,20 +196,22 @@ pub(crate) async fn run(
     }
     if watch.is_some() {
         if failing {
-            eprintln!(
-                "{}",
+            crate::cli::message(
+                crate::cli::Level::Warn,
+                "watch.stopped_not_ready",
                 tr(
                     "headless.watch_stopped_failing",
-                    "cuotai: watching stopped with failing accounts."
-                )
+                    "cuotai: watching stopped with failing accounts.",
+                ),
             );
             if strict_exit {
                 code = 2;
             }
         } else {
-            eprintln!(
-                "{}",
-                tr("headless.watch_stopped", "cuotai: watching stopped.")
+            crate::cli::message(
+                crate::cli::Level::Info,
+                "watch.stopped",
+                tr("headless.watch_stopped", "cuotai: watching stopped."),
             );
         }
     }
@@ -233,13 +245,14 @@ async fn reload_config(
     let (config, identity, monitor) = match loaded {
         Ok(loaded) => loaded,
         Err(error) => {
-            eprintln!(
-                "{}",
+            crate::cli::message(
+                crate::cli::Level::Warn,
+                "config.reload_failed",
                 trf(
                     "headless.reload_failed",
                     "cuotai: configuration not reloaded; the previous one stays in use: {error}",
                     &[("error", &crate::ui::safe(&error))],
-                )
+                ),
             );
             return Signal::Reload;
         }
@@ -255,13 +268,18 @@ async fn reload_config(
             identity,
             monitor,
         };
-        eprintln!(
-            "{}",
+        crate::cli::message_with(
+            crate::cli::Level::Info,
+            "config.reloaded",
+            &[(
+                "accounts",
+                crate::cli::Field::Count(live.config.accounts.len() as u64),
+            )],
             trf(
                 "headless.reloaded",
                 "cuotai: configuration reloaded ({count} account(s)).",
                 &[("count", &live.config.accounts.len())],
-            )
+            ),
         );
     }
     let Some(watch) = watch.filter(|_| reload.hooks) else {
@@ -277,17 +295,22 @@ async fn reload_config(
         result = job => match result {
             Ok(Ok(confirmed)) => {
                 watch.set_hooks(Some(confirmed));
-                eprintln!("{}", tr("headless.hooks_reloaded", "cuotai: hooks reloaded."));
+                crate::cli::message(
+                    crate::cli::Level::Info,
+                    "hooks.reloaded",
+                    tr("headless.hooks_reloaded", "cuotai: hooks reloaded."),
+                );
             }
-            Ok(Err(error)) => eprintln!(
-                "{}",
+            Ok(Err(error)) => crate::cli::message(
+                crate::cli::Level::Warn,
+                "hooks.suspended",
                 trf(
                     "headless.hooks_suspended_error",
                     "cuotai: hooks suspended: {error}",
                     &[("error", &error)],
-                )
+                ),
             ),
-            Err(_) => eprintln!("{}", hooks_suspended()),
+            Err(_) => crate::cli::message(crate::cli::Level::Warn, "hooks.suspended", hooks_suspended()),
         },
         // A stop while the question waits ends the process as usual; the
         // blocked read of the answer ends with it.
@@ -295,7 +318,7 @@ async fn reload_config(
             if signal == Signal::Stop {
                 return Signal::Stop;
             }
-            eprintln!("{}", hooks_suspended());
+            crate::cli::message(crate::cli::Level::Warn, "hooks.suspended", hooks_suspended());
         }
     }
     Signal::Reload

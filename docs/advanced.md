@@ -131,6 +131,12 @@ cuotai --restore cuotai-backup-2026-11-04.cuotai-backup.zip [--only config|prefs
 - **Move to a new computer:** run `cuotai --backup` on the old one, install Cuotai on the new one, run `cuotai --restore FILE --check` there to read what is missing, then `cuotai --restore FILE`, set the listed variables in the environment that starts Cuotai and sign in again to the accounts it names. `cuotai --doctor` then names anything still missing.
 - **Keep two computers aligned:** back up on the one you changed and run `cuotai --restore FILE --check` on the other: the plan is the difference. Restore with `--only config` to take the accounts and leave that computer's preferences.
 
+## App log
+
+The terminal, the CLI modes and the desktop app write one redacted log, `<OS local data dir>/cuotai/logs/cuotai.log` (`~/Library/Application Support/cuotai/logs/` on macOS, `%LOCALAPPDATA%\cuotai\logs\` on Windows, `~/.local/share/cuotai/logs/` on Linux), private to your user (`0600` on Unix). At 256 KiB it moves to `cuotai.log.1`, replacing the older copy, so the log never holds more than 512 KiB. The default level is `info`; `CUOTAI_LOG` (or `RUST_LOG`) changes it and `off` turns it off.
+
+Each line carries a time, a level, the app (`cli`, `tui` or `desktop`), a stable event id such as `serve.started` or `history.degraded`, and a few typed fields (counts, durations, classes). It never holds a token, cookie, authorization header, request or response body, the path or query of a URL, an e-mail address, or an account name below the `debug` level: every value passes a fail-closed redactor before it reaches the file. A crash adds one `panic` record (app, version, thread, source file name and line, a redacted message of at most 2 KiB) and never a backtrace. When the desktop app cannot start, it shows a native message naming this file and exits with a non-zero status. Nothing in the log leaves your computer unless you copy it.
+
 ## Environment variables
 
 | Variable | Effect |
@@ -145,3 +151,4 @@ cuotai --restore cuotai-backup-2026-11-04.cuotai-backup.zip [--only config|prefs
 | `CUOTAI_DATA_DIR` | Absolute folder for every local store instead of `<OS local data dir>/cuotai`: the history, model cache, reset marks, local cost index and settings, prices, hook consent and logs, extensions, server token, last-config records and the desktop widget fallback (terminal and desktop; set it in both to share one profile). It is created private (`0700` on Unix); a relative path, a link, a file or another user's folder is a local error (exit `1`) and Cuotai never falls back to the OS folder. Moving it does not move existing data: copy the old folder first. |
 | `CUOTAI_UPDATE_CHECK=1` | Turn on the terminal update notice (see [Update notice](#update-notice)); `0` turns it off even when the accounts file turns it on. |
 | `CUOTAI_UPDATER=off` | Turn the desktop in-app updater off (for example for a package-manager install). |
+| `CUOTAI_LOG`, `RUST_LOG` | Level of the app log (see [App log](#app-log)): `EnvFilter` syntax such as `debug` or `cuotai=debug,warn`, `off` to write nothing. `CUOTAI_LOG` wins; an invalid value falls back to `info`. |

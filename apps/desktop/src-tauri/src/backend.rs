@@ -1775,6 +1775,12 @@ impl Inner {
                 // Development only: plaintext SQLite, refused by release builds (core).
                 let session = match std::env::var_os("CUOTAI_DEV_CREDENTIALS_SQLITE") {
                     Some(path) => {
+                        // PRD 0052 RF1.4: a WARN record and the developer's stderr line.
+                        cuotai_core::diagnostics::logging::event(
+                            cuotai_core::diagnostics::logging::Level::Warn,
+                            "credentials.dev_store",
+                            &[],
+                        );
                         eprintln!("WARNING: credentials in UNENCRYPTED SQLite (development only); the system keychain will not be used.");
                         OAuthSession::development_sqlite(std::path::Path::new(&path))
                     }
@@ -2179,7 +2185,11 @@ impl Backend {
         self.emit(app).await;
         if !deleted {
             // Nothing to remove is not a failure; the state still repaints.
-            eprintln!("cuotai: there was no widget data to delete");
+            cuotai_core::diagnostics::logging::event(
+                cuotai_core::diagnostics::logging::Level::Debug,
+                "widgets.nothing_to_delete",
+                &[],
+            );
         }
         Ok(())
     }

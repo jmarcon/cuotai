@@ -60,7 +60,11 @@ pub async fn print(pending: Option<Pending>, locale: &str) {
         // does not change it.
         || true,
     );
-    eprintln!("{}", update_check::notice(latest, source).resolve(locale));
+    crate::cli::message(
+        crate::cli::Level::Info,
+        "update.available",
+        update_check::notice(latest, source).resolve(locale),
+    );
 }
 
 #[cfg(test)]

@@ -1172,15 +1172,13 @@ impl LoggedRun {
 /// the output.
 #[derive(Debug)]
 pub struct RunLog {
-    path: PathBuf,
-    lock: Mutex<()>,
+    file: crate::private_fs::RotatingFile,
 }
 
 impl RunLog {
     pub fn at(path: impl Into<PathBuf>) -> Self {
         Self {
-            path: path.into(),
-            lock: Mutex::new(()),
+            file: crate::private_fs::RotatingFile::new(path.into(), LOG_ROTATE_BYTES),
         }
     }
 
@@ -1190,48 +1188,27 @@ impl RunLog {
     }
 
     pub fn path(&self) -> &Path {
-        &self.path
-    }
-
-    /// `runs.log.1`, where the log moves when it rotates.
-    fn older(&self) -> PathBuf {
-        let mut older = self.path.clone().into_os_string();
-        older.push(".1");
-        older.into()
+        self.file.path()
     }
 
     /// Append `run` (creating the file privately: 0600 on Unix). Past
-    /// 256 KiB the log moves to `runs.log.1`, replacing the older one.
+    /// 256 KiB the log moves to `runs.log.1`, replacing the older one
+    /// (the rotating writer shared with the app log, PRD 0052 RF1.2).
     pub fn append(&self, run: &Run) -> io::Result<()> {
         let mut line = serde_json::to_vec(&run.logged())?;
         line.push(b'\n');
-        let _guard = self.lock.lock().unwrap_or_else(PoisonError::into_inner);
-        if let Some(dir) = self.path.parent().filter(|dir| !dir.as_os_str().is_empty()) {
-            std::fs::create_dir_all(dir)?;
-        }
-        if std::fs::metadata(&self.path).is_ok_and(|meta| meta.len() >= LOG_ROTATE_BYTES) {
-            std::fs::rename(&self.path, self.older())?;
-        }
-        let mut options = std::fs::OpenOptions::new();
-        options.create(true).append(true);
-        #[cfg(unix)]
-        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
-        options.open(&self.path)?.write_all(&line)
+        self.file.append(&line)
     }
 
     /// The last `limit` runs, newest first, from this log and the rotated
     /// one (any process's: `cuotai --watch --hooks` and the desktop share
     /// it). Lines that do not read as a run are skipped; no log is no run.
     pub fn latest(&self, limit: usize) -> Vec<LoggedRun> {
-        let _guard = self.lock.lock().unwrap_or_else(PoisonError::into_inner);
         let mut runs = Vec::new();
-        for path in [self.path.clone(), self.older()] {
+        for text in self.file.generations() {
             if runs.len() >= limit {
                 break;
             }
-            let Ok(text) = std::fs::read_to_string(&path) else {
-                continue;
-            };
             runs.extend(
                 text.lines()
                     .rev()

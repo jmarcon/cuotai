@@ -12,6 +12,7 @@ mod notify;
 mod session_capture;
 mod settings;
 mod settings_window;
+mod startup_error;
 mod tray_bar;
 mod updater;
 mod user_content;
@@ -1710,8 +1711,15 @@ fn open_settings_window(app: &AppHandle, target: settings_window::Target) {
     if let Some(w) = app.get_webview_window("tray") {
         let _ = w.hide();
     }
-    if let Err(e) = settings_window::open(app, target) {
-        eprintln!("cuotai: settings window: {e}");
+    if settings_window::open(app, target).is_err() {
+        // PRD 0052 RF1.4: a window failure is an ERROR record (its text may
+        // name a path), and the stderr line developers read.
+        cuotai_core::diagnostics::logging::event(
+            cuotai_core::diagnostics::logging::Level::Error,
+            "desktop.settings_window_failed",
+            &[],
+        );
+        eprintln!("cuotai: the settings window could not be opened");
     }
 }
 
@@ -2156,7 +2164,15 @@ fn single_instance_applies(debug_build: bool, dev_store: bool) -> bool {
     !(debug_build && dev_store)
 }
 
-pub fn run() {
+pub fn run() -> std::process::ExitCode {
+    // PRD 0052 RF1/RF2: the redacted app log and the panic record start
+    // before `Backend` or Tauri exist, so their failures are recorded too.
+    cuotai_core::diagnostics::logging::init_default(
+        cuotai_core::diagnostics::logging::AppKind::Desktop,
+    );
+    cuotai_core::diagnostics::logging::install_panic_hook(
+        cuotai_core::diagnostics::logging::AppKind::Desktop,
+    );
     // First of all: a damaged `desktop.json` is kept before anything reads the defaults.
     settings::recover_damaged();
     // PRD 0022 RF15.1 / PRD 0019 RF7.7: before anything else writes `desktop.json`.
@@ -2365,6 +2381,11 @@ pub fn run() {
             quit_app
         ])
         .setup(move |app| {
+            // PRD 0052 RF2: a test-only injected setup failure (debug builds).
+            #[cfg(debug_assertions)]
+            if std::env::var_os("CUOTAI_TEST_STARTUP_ERROR").is_some() {
+                return Err("injected startup failure".into());
+            }
             // PRD 0054 RF5.1: a tray the system refuses leaves a working window.
             let mode = match build_tray(app) {
                 Ok(()) => window_mode::WindowMode::Tray,
@@ -2432,10 +2453,22 @@ pub fn run() {
             Ok(())
         })
         .build(tauri::generate_context!());
-    // PRD 0054 RF5.3: a failure to start is shown, never only printed.
+    // PRD 0052 RF2.2: a failed start is logged and shown in a native modal,
+    // then the process exits non-zero instead of panicking.
     let app = match app {
         Ok(app) => app,
-        Err(_) => window_mode::startup_failed(window_mode::Failure::Start),
+        Err(error) => {
+            let locale = settings::settings_path()
+                .and_then(|file| settings::read_locale(&file))
+                .unwrap_or_else(|| "en-US".to_string());
+            let code = startup_error::report(
+                startup_error::class_of(&error),
+                &locale,
+                cuotai_core::diagnostics::logging::log_file(),
+                &startup_error::Native,
+            );
+            return std::process::ExitCode::from(code);
+        }
     };
     app.run(|_app, _event| {
         // PRD 0054 RF7.1: the main window's last normal geometry.
@@ -2458,6 +2491,7 @@ pub fn run() {
             reveal_main_window(_app);
         }
     });
+    std::process::ExitCode::SUCCESS
 }
 
 #[cfg(test)]

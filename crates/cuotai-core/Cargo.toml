@@ -46,6 +46,10 @@ rusqlite = { version = "0.39", features = ["bundled"] }
 dirs = "6"
 # PRD 0012 RF2: HTTP/1.x request parsing for the optional local server.
 httparse = { version = "=1.10.1", optional = true }
+# PRD 0052 RF1: the redacted logging facade (`diagnostics::logging`).
+tracing = { version = "0.1", default-features = false, features = ["std"] }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["std", "registry", "env-filter"] }
+regex = { version = "1", default-features = false, features = ["std", "perf", "unicode-case", "unicode-perl"] }
 
 # PRD 0017 RF3.3: the extension's process tree killed on timeout (a
 # process group on Unix, a kill-on-close Job Object on Windows) and the

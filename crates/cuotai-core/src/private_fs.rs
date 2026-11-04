@@ -389,6 +389,75 @@ pub(crate) fn foreign_owner(meta: &Metadata) -> bool {
     }
 }
 
+/// A private append-only log with one rotated generation (PRD 0013 RF3's
+/// `runs.log` policy, shared with the app log of PRD 0052 RF1.2): lines are
+/// appended to a `0600` file (on Unix); when the next line would take the
+/// file past the limit it moves to `<file>.1`, replacing the previous
+/// backup, so the two generations never hold more than twice the limit.
+#[derive(Debug)]
+pub(crate) struct RotatingFile {
+    path: std::path::PathBuf,
+    limit: u64,
+    lock: std::sync::Mutex<()>,
+}
+
+impl RotatingFile {
+    pub(crate) fn new(path: std::path::PathBuf, limit: u64) -> Self {
+        Self {
+            path,
+            limit,
+            lock: std::sync::Mutex::new(()),
+        }
+    }
+
+    pub(crate) fn path(&self) -> &Path {
+        &self.path
+    }
+
+    /// `<file>.1`, where the log moves when it rotates.
+    pub(crate) fn older(&self) -> std::path::PathBuf {
+        let mut older = self.path.clone().into_os_string();
+        older.push(".1");
+        older.into()
+    }
+
+    /// Append `line` (which should end in `\n`). A line longer than the
+    /// limit is cut to it, so neither generation ever exceeds the limit.
+    pub(crate) fn append(&self, line: &[u8]) -> io::Result<()> {
+        use std::io::Write;
+        let line = &line[..line
+            .len()
+            .min(usize::try_from(self.limit).unwrap_or(usize::MAX))];
+        let _guard = self
+            .lock
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(dir) = self.path.parent().filter(|dir| !dir.as_os_str().is_empty()) {
+            std::fs::create_dir_all(dir)?;
+        }
+        let len = std::fs::metadata(&self.path).map_or(0, |meta| meta.len());
+        if len > 0 && len + line.len() as u64 > self.limit {
+            std::fs::rename(&self.path, self.older())?;
+        }
+        let mut options = std::fs::OpenOptions::new();
+        options.create(true).append(true);
+        #[cfg(unix)]
+        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        options.open(&self.path)?.write_all(line)
+    }
+
+    /// The text of the current file, then the rotated one (missing files
+    /// are empty), read under the writer's lock.
+    pub(crate) fn generations(&self) -> [String; 2] {
+        let _guard = self
+            .lock
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        [self.path.clone(), self.older()]
+            .map(|path| std::fs::read_to_string(path).unwrap_or_default())
+    }
+}
+
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;

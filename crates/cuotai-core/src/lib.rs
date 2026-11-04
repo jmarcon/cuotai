@@ -20,6 +20,7 @@ pub mod data_dir;
 pub mod detect;
 pub mod diagnostic;
 pub mod doctor;
+pub mod diagnostics;
 pub mod edit_error;
 pub mod events;
 pub mod export;
