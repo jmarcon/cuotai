@@ -119,8 +119,14 @@ impl Credentials for EnvironmentCredentials {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
-    #[error("Invalid TOML document; check the fields and types in the example.")]
-    Parse,
+    /// PRD 0051 RF2.1: one-based position of the first offending token and,
+    /// when it falls on a key or a value, the key path (never the value).
+    #[error("Invalid TOML document at line {line}, column {column}; check the fields and types in the example.")]
+    Parse {
+        line: usize,
+        column: usize,
+        path: Option<config_file::ConfigPath>,
+    },
     #[error(
         "refresh_seconds must be >= 30, concurrency between 1 and 32 and timeout_seconds between 1 and 300."
     )]
@@ -183,23 +189,19 @@ fn metered_refresh_floor_error(
 }
 
 impl Config {
+    /// Parse and validate `text` strictly (PRD 0051 RF1.4): an unknown
+    /// provider, account key or top-level key is a
+    /// [`ConfigError::Parse`] naming its path. Runtime readers go through
+    /// [`config_file::ConfigFile`], which reads tolerantly
+    /// ([`config_file::parse`]) and isolates such accounts instead.
+    ///
+    /// PRD 0028 RF8.2: `[updates]` belongs to the CLI update notice
+    /// (`update_check`), not to the accounts' configuration. It is
+    /// validated here and left out of `Config`, so the struct keeps its
+    /// shape; `ConfigFile` preserves the table on save like any other
+    /// unrelated content.
     pub fn from_toml(text: &str) -> Result<Self, ConfigError> {
-        // PRD 0028 RF8.2: `[updates]` belongs to the CLI update notice
-        // (`update_check`), not to the accounts' configuration. It is
-        // validated here and left out of `Config`, so the struct keeps its
-        // shape; `ConfigFile` preserves the table on save like any other
-        // unrelated content.
-        let config: Self = match toml::from_str::<toml::Table>(text) {
-            Ok(mut table) if table.contains_key("updates") => {
-                if let Some(updates) = table.remove("updates") {
-                    updates
-                        .try_into::<update_check::UpdatesSettings>()
-                        .map_err(|_| ConfigError::Parse)?;
-                }
-                table.try_into().map_err(|_| ConfigError::Parse)?
-            }
-            _ => toml::from_str(text).map_err(|_| ConfigError::Parse)?,
-        };
+        let config = config_file::parse(text, config_file::ConfigParseMode::Strict)?.config;
         config.validate()?;
         Ok(config)
     }
@@ -1525,7 +1527,7 @@ mod tests {
     fn rejects_unknown_configuration_instead_of_silently_ignoring_it() {
         assert!(matches!(
             Config::from_toml("accounts = []\nrefresh_second = 1"),
-            Err(ConfigError::Parse)
+            Err(ConfigError::Parse { .. })
         ));
     }
 
@@ -1551,7 +1553,10 @@ provider = "groq"
 credential_en = "GROQ_API_KEY"
 "#;
 
-        assert!(matches!(Config::from_toml(typo), Err(ConfigError::Parse)));
+        assert!(matches!(
+            Config::from_toml(typo),
+            Err(ConfigError::Parse { .. })
+        ));
     }
 
     #[test]

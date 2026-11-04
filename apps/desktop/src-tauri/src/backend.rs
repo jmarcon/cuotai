@@ -873,6 +873,9 @@ pub struct View {
     /// Where a damaged `desktop.json` was kept when this run replaced it
     /// with the defaults.
     settings_backup: Option<String>,
+    /// PRD 0051 RF1.2/RF1.3: the accounts the configuration reader set
+    /// aside because they need a newer Cuotai, then unknown top-level keys.
+    config_notices: Vec<cuotai_core::text::Localized>,
     /// Changes when the history was erased or recording switched (RF5).
     history_epoch: u64,
     notify: NotifyView,
@@ -1491,6 +1494,7 @@ impl Inner {
                 generation: 0,
                 history_warning: None,
                 settings_backup: crate::settings::recovered_backup(),
+                config_notices: Vec::new(),
                 history_epoch: self.history_epoch,
                 notify: NotifyView {
                     enabled: self.notices.prefs().enabled,
@@ -1642,6 +1646,13 @@ impl Inner {
                 .history_status()
                 .and_then(|status| status.warning()),
             settings_backup: crate::settings::recovered_backup(),
+            config_notices: l
+                .file
+                .issues
+                .iter()
+                .map(|issue| issue.l10n())
+                .chain(l.file.warnings.iter().map(|warning| warning.l10n()))
+                .collect(),
             history_epoch: self.history_epoch,
             notify: NotifyView {
                 enabled: self.notices.prefs().enabled,

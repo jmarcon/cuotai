@@ -28,6 +28,7 @@
   "canary.no_data_dir": "Tidak ada direktori data lokal untuk canary.",
   "changelog.this_version": "  (versi ini)",
   "cli.account_not_found": "Akun tidak ditemukan di konfigurasi: {name}",
+  "cli.check_config.valid": "Konfigurasi {path} valid.",
   "cli.days_needs_mode": "--days hanya berfungsi dengan --cost, --stats, atau --events-log.",
   "cli.dev_sqlite_warning": "PERINGATAN: kredensial di SQLite TANPA ENKRIPSI (pengembangan); Keychain tidak akan dipakai. Jangan bagikan basis data ini.",
   "cli.needs_terminal": "TUI memerlukan terminal interaktif. Gunakan --once, --json, --json-v1, --serve, atau --watch.",

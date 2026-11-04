@@ -28,6 +28,7 @@
   "canary.no_data_dir": "カナリア用のローカルデータディレクトリがありません。",
   "changelog.this_version": "  （このバージョン）",
   "cli.account_not_found": "設定にアカウントが見つかりません：{name}",
+  "cli.check_config.valid": "設定 {path} は有効です。",
   "cli.days_needs_mode": "--days は --cost、--stats、--events-log と併用した場合のみ有効です。",
   "cli.dev_sqlite_warning": "警告：認証情報は暗号化されずに SQLite に保存されます（開発用）。キーチェーンは使用されません。データベースを共有しないでください。",
   "cli.needs_terminal": "TUI には対話型ターミナルが必要です。--once、--json、--json-v1、--serve、--watch のいずれかを使用してください。",

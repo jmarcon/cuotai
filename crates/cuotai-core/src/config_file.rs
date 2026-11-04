@@ -37,6 +37,14 @@
 
 use std::fs;
 use std::io::Write;
+
+mod check;
+mod parse;
+pub use check::{check, check_bytes, error_kind, ConfigCheck, ConfigDiagnostic};
+pub use parse::{
+    parse, ConfigAccountIssue, ConfigParseMode, ConfigPath, ConfigWarning, ParsedConfig,
+};
+pub(crate) use parse::{parse_note, position};
 use std::path::{Path, PathBuf};
 
 use crate::edit_error::{
@@ -157,8 +165,40 @@ pub struct ConfigFile {
     /// Rule that selected `path`.
     pub source: PathSource,
     pub exists: bool,
+    /// PRD 0051 RF1.2: `[[accounts]]` tables set aside because they need a
+    /// newer Cuotai, in document order. While any is present the file is
+    /// read-only to [`ConfigFile::save`], so they are never lost.
+    pub issues: Vec<ConfigAccountIssue>,
+    /// PRD 0051 RF1.3: unknown top-level keys and tables, kept on save.
+    pub warnings: Vec<ConfigWarning>,
     /// Byte snapshot of the file when loaded/saved; `None` when it did not exist.
     original: Option<Vec<u8>>,
+}
+
+/// PRD 0051 RF1/RF2: read `bytes` tolerantly and validate what is usable.
+/// Every error keeps its redacted, localized note (line, column, key path).
+fn read_document(bytes: &[u8]) -> Result<ParsedConfig, EditError> {
+    let text = std::str::from_utf8(bytes).map_err(|error| {
+        let (line, column) = position(
+            &String::from_utf8_lossy(&bytes[..error.valid_up_to()]),
+            usize::MAX,
+        );
+        validation_note(
+            None,
+            config_error_note(&crate::ConfigError::Parse {
+                line,
+                column,
+                path: None,
+            }),
+        )
+    })?;
+    let parsed = parse(text, ConfigParseMode::Tolerant)
+        .map_err(|error| validation_note(None, config_error_note(&error)))?;
+    parsed
+        .config
+        .validate()
+        .map_err(|error| validation_note(None, config_error_note(&error)))?;
+    Ok(parsed)
 }
 
 impl ConfigFile {
@@ -204,33 +244,20 @@ impl ConfigFile {
         let ResolvedPath { path, source } = resolved;
         match fs::read(&path) {
             Ok(bytes) => {
-                let text = std::str::from_utf8(&bytes).map_err(|_| {
-                    validation(None, "edit_error.config_not_utf8", "The file is not UTF-8.")
-                })?;
-                // ConfigError messages are fixed strings and never echo the body.
-                // Preserve the field/account detail of the metered compatibility
-                // boundary; other malformed documents keep the generic load error.
-                let mut config = Config::from_toml(text).map_err(|error| {
-                    if matches!(
-                        error,
-                        crate::ConfigError::MeteredRefreshFloor { .. }
-                            | crate::ConfigError::AccountIds { .. }
-                    ) {
-                        validation_note(None, config_error_note(&error))
-                    } else {
-                        validation(
-                            None,
-                            "edit_error.config_toml_invalid",
-                            "The file is not valid TOML.",
-                        )
-                    }
-                })?;
+                // ConfigError notes carry positions and key paths, never the body.
+                let ParsedConfig {
+                    mut config,
+                    issues,
+                    warnings,
+                } = read_document(&bytes)?;
                 config.resolve_ids(ConfigIdentity::of_path(&path).ok().as_ref());
                 Ok(Self {
                     config,
                     path,
                     source,
                     exists: true,
+                    issues,
+                    warnings,
                     original: Some(bytes),
                 })
             }
@@ -245,6 +272,8 @@ impl ConfigFile {
                         path,
                         source,
                         exists: false,
+                        issues: Vec::new(),
+                        warnings: Vec::new(),
                         original: None,
                     })
                 } else if matches!(
@@ -261,6 +290,8 @@ impl ConfigFile {
                         path,
                         source,
                         exists: false,
+                        issues: Vec::new(),
+                        warnings: Vec::new(),
                         original: None,
                     })
                 }
@@ -305,6 +336,16 @@ impl ConfigFile {
 
     /// Validate and durably persist `config`. See module docs for the policy.
     pub fn save(&mut self, mut config: Config) -> Result<(), EditError> {
+        // PRD 0051 RF1.5: the tables this release could not read are kept
+        // byte for byte, so it does not rewrite a file that holds any.
+        if !self.issues.is_empty() {
+            return Err(EditError::Unsupported {
+                note: crate::text::Localized::fixed(
+                    "edit_error.config_newer_accounts",
+                    "This file has accounts that need a newer version of Cuotai, so this version does not change it; update Cuotai or edit the file by hand.",
+                ),
+            });
+        }
         // PRD 0029 RF1.3: an account the front end built without an id gets
         // the effective one a reader of this file would derive; every saved
         // table carries its id from now on.
@@ -398,20 +439,17 @@ impl ConfigFile {
     pub fn reload(&mut self) -> Result<(), EditError> {
         match fs::read(&self.path) {
             Ok(bytes) => {
-                let text = std::str::from_utf8(&bytes).map_err(|_| {
-                    validation(None, "edit_error.config_not_utf8", "The file is not UTF-8.")
-                })?;
-                let mut config = Config::from_toml(text).map_err(|_| {
-                    validation(
-                        None,
-                        "edit_error.config_toml_invalid",
-                        "The file is not valid TOML.",
-                    )
-                })?;
+                let ParsedConfig {
+                    mut config,
+                    issues,
+                    warnings,
+                } = read_document(&bytes)?;
                 config.resolve_ids(ConfigIdentity::of_path(&self.path).ok().as_ref());
                 // Commit only after every step above succeeded; an
                 // intermediate failure keeps `self` untouched.
                 self.config = config;
+                self.issues = issues;
+                self.warnings = warnings;
                 self.exists = true;
                 self.original = Some(bytes);
                 Ok(())
@@ -501,6 +539,24 @@ fn render(config: &Config, previous: Option<&[u8]>) -> Result<Vec<u8>, EditError
                     doc["accounts"] =
                         toml_edit::Item::Value(toml_edit::Value::Array(toml_edit::Array::new()));
                     doc.to_string()
+                } else if doc.iter().any(|(key, _)| {
+                    !matches!(
+                        key,
+                        "refresh_seconds"
+                            | "concurrency"
+                            | "timeout_seconds"
+                            | "accounts"
+                            | "groups"
+                    )
+                }) {
+                    // PRD 0051 RF1.5: a fresh serialization would drop the
+                    // tables it does not model; refuse instead of losing them.
+                    return Err(EditError::Unsupported {
+                        note: crate::text::Localized::fixed(
+                            "edit_error.config_inline_accounts",
+                            "This file lists its accounts inline and has other tables that a rewrite would lose; change it by hand or write each account as an [[accounts]] table.",
+                        ),
+                    });
                 } else {
                     serialize_fresh(config)?
                 }
@@ -513,13 +569,9 @@ fn render(config: &Config, previous: Option<&[u8]>) -> Result<Vec<u8>, EditError
         None => serialize_fresh(config)?,
     };
     // Round-trip guard: the rendered document must describe the same config.
-    let parsed = Config::from_toml(&text).map_err(|_| {
-        validation(
-            None,
-            "edit_error.config_toml_invalid",
-            "The file is not valid TOML.",
-        )
-    })?;
+    // It reads tolerantly so unknown top-level tables, which `render` leaves
+    // in place (PRD 0051 RF1.3), do not fail the save.
+    let parsed = read_document(text.as_bytes())?.config;
     let want = toml::to_string(config).map_err(|_| {
         validation(
             None,
@@ -962,11 +1014,76 @@ amount = 5
     }
 
     #[test]
-    fn unrelated_unknown_account_keys_are_still_rejected() {
+    fn unrelated_unknown_account_keys_isolate_the_account_and_lock_the_file() {
+        // PRD 0051 RF1.2/RF1.5: the account with a key this release does not
+        // know is set aside (not the whole file), the strict reader still
+        // names the typo, and no save can drop the table.
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("typo.toml");
-        fs::write(&path, FUTURE_KEYS_FIXTURE.replace("floors", "floor")).unwrap();
-        assert!(load_at(&path, false).is_err());
+        let text = FUTURE_KEYS_FIXTURE.replace("floors", "floor");
+        fs::write(&path, &text).unwrap();
+        let mut file = load_at(&path, false).unwrap();
+        assert!(file.config.accounts.is_empty());
+        assert_eq!(file.issues.len(), 1);
+        assert_eq!(file.issues[0].path.to_string(), "accounts[0].floor");
+        assert!(matches!(
+            Config::from_toml(&text),
+            Err(crate::ConfigError::Parse { path: Some(path), .. }) if path.to_string() == "accounts[0].floor"
+        ));
+        let error = file.save(file.config.clone()).unwrap_err();
+        assert_eq!(error.l10n().id, "edit_error.config_newer_accounts");
+        assert_eq!(fs::read_to_string(&path).unwrap(), text, "nothing written");
+    }
+
+    #[test]
+    fn a_broken_document_keeps_its_position_and_path_on_open_and_reload() {
+        // PRD 0051 RF2.2 (COMP-01): not the generic "not valid TOML" note.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("broken.toml");
+        fs::write(
+            &path,
+            "[[accounts]]\nprovider = \"groq\"\nrefresh_seconds = \"x\"\n",
+        )
+        .unwrap();
+        let note = load_at(&path, false).err().unwrap().l10n();
+        assert_eq!(note.id, "config.error.parse_key");
+        assert_eq!(
+            note.params.get("path"),
+            Some(&crate::text::ParamValue::Text(
+                "accounts[0].refresh_seconds".into()
+            ))
+        );
+        fs::write(&path, "[[accounts]]\nprovider = \"groq\"\n").unwrap();
+        let mut file = load_at(&path, false).unwrap();
+        fs::write(&path, "accounts = [\n").unwrap();
+        let note = file.reload().unwrap_err().l10n();
+        assert_eq!(note.id, "config.error.parse");
+        assert_eq!(
+            file.config.accounts.len(),
+            1,
+            "an invalid reload keeps the live config"
+        );
+        fs::write(&path, [b'a', 0xff, b'\n']).unwrap();
+        assert_eq!(file.reload().unwrap_err().l10n().id, "config.error.parse");
+    }
+
+    #[test]
+    fn unknown_top_level_tables_survive_a_save() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("future-top.toml");
+        fs::write(
+            &path,
+            "refresh_seconds = 300\n\n# kept\n[future]\nanswer = 42\n\n[[accounts]]\nname = \"G\"\nprovider = \"groq\"\ncredential_env = \"GROQ_API_KEY\"\n",
+        )
+        .unwrap();
+        let mut file = load_at(&path, false).unwrap();
+        assert_eq!(file.warnings.len(), 1);
+        let mut updated = file.config.clone();
+        updated.refresh_seconds = 600;
+        file.save(updated).unwrap();
+        let text = fs::read_to_string(&path).unwrap();
+        assert!(text.contains("# kept\n[future]\nanswer = 42\n"), "{text}");
+        assert!(text.contains("refresh_seconds = 600"));
     }
 
     #[test]

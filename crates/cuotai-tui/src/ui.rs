@@ -333,6 +333,7 @@ pub async fn run(
         filter: String::new(),
         filtering: false,
         location: location(&file),
+        config_notice: config_notice(&file),
         error: None,
         detail_scroll: 0,
         show_unmeasured: true,
@@ -2352,6 +2353,7 @@ fn reload_config_after_conflict(
     refresh_cycle.restore_last_good(monitor.restored_readings());
     *account_refresh = AccountRefresh::new(file.config.accounts.len());
     state.set_accounts(&file.config);
+    state.config_notice = config_notice(file);
     state.detail_scroll = 0;
     state.details = false;
     state.location = location(file);
@@ -2511,6 +2513,7 @@ fn apply_edit_to_config(
         std::cmp::Ordering::Equal => {}
     }
     state.set_accounts(&file.config);
+    state.config_notice = config_notice(file);
     state.restore_selection(
         state.selected_account(&cycle_slot_reports(refresh_cycle)),
         &cycle_slot_reports(refresh_cycle),
@@ -2580,6 +2583,7 @@ fn move_account_in_config(
     *refresh_cycle = staged_cycle;
     account_refresh.move_account(from, to);
     state.set_accounts(&file.config);
+    state.config_notice = config_notice(file);
     state.restore_selection(selected_after, &cycle_slot_reports(refresh_cycle));
     state.detail_scroll = 0;
     state.error = None;
@@ -3151,6 +3155,7 @@ fn run_remove_account(
                 account_refresh.remove(index);
             }
             state.set_accounts(&file.config);
+            state.config_notice = config_notice(file);
             state.restore_selection(
                 state.selected_account(&cycle_slot_reports(refresh_cycle)),
                 &cycle_slot_reports(refresh_cycle),
@@ -3273,6 +3278,10 @@ struct State {
     filtering: bool,
     location: String,
     error: Option<String>,
+    /// PRD 0051 RF1.2/RF1.3: the accounts set aside because they need a
+    /// newer Cuotai, or an unknown top-level key (the first one, with the
+    /// count of the others).
+    config_notice: Option<String>,
     detail_scroll: u16,
     show_unmeasured: bool,
     /// PRD 0036 RF9.1: the aggregators' connections are folded (`g`).
@@ -3414,6 +3423,21 @@ impl HistoryView {
             .and_then(|status| status.warning())
             .map(|warning| warning.resolve(tui_locale()));
     }
+}
+
+/// PRD 0051 RF1.2/RF1.3: what the tolerant reader set aside, as one line.
+fn config_notice(file: &ConfigFile) -> Option<String> {
+    let notes: Vec<_> = file
+        .issues
+        .iter()
+        .map(|issue| issue.l10n())
+        .chain(file.warnings.iter().map(|warning| warning.l10n()))
+        .collect();
+    let first = notes.first()?.resolve(tui_locale());
+    Some(match notes.len() {
+        1 => first,
+        n => format!("{first} (+{})", n - 1),
+    })
 }
 
 impl State {
@@ -3593,7 +3617,11 @@ impl State {
                     // A storage failure, size-ceiling pruning or dropped
                     // readings of the history (PRD 0006) show when nothing
                     // more urgent does.
-                    error: self.error.as_deref().or(self.history.warning.as_deref()),
+                    error: self
+                        .error
+                        .as_deref()
+                        .or(self.config_notice.as_deref())
+                        .or(self.history.warning.as_deref()),
                     anim: self.anim.as_ref(),
                     last_good: &last_good,
                     recent: &self.history.recent,
@@ -4128,6 +4156,7 @@ mod tests {
             filtering: false,
             location: String::new(),
             error: None,
+            config_notice: None,
             detail_scroll: 0,
             show_unmeasured: true,
             aggregators_collapsed: false,

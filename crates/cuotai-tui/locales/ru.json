@@ -28,6 +28,7 @@
   "canary.no_data_dir": "Нет локального каталога данных для canary.",
   "changelog.this_version": "  (эта версия)",
   "cli.account_not_found": "Учётная запись не найдена в конфигурации: {name}",
+  "cli.check_config.valid": "Конфигурация {path} корректна.",
   "cli.days_needs_mode": "--days действует только с --cost, --stats или --events-log.",
   "cli.dev_sqlite_warning": "ВНИМАНИЕ: учётные данные в НЕЗАШИФРОВАННОЙ SQLite (режим разработки); связка ключей не используется. Не передавайте эту базу.",
   "cli.needs_terminal": "TUI требует интерактивного терминала. Используйте --once, --json, --json-v1, --serve или --watch.",

@@ -19,6 +19,10 @@ Run these without opening the interactive interface (`cuotai` is the installed b
 # List the 40 available providers
 cuotai --list-providers
 
+# Check the accounts file strictly and offline: line, column and key of the
+# first problem, never its value (exit 1); --json for scripts
+cuotai --config cuotai.toml --check-config
+
 # Human-readable summary in the terminal (single run)
 cuotai --config cuotai.toml --once
 

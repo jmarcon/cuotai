@@ -480,6 +480,7 @@ function render() {
     ${userContent.errors.map((e) => `<div class="banner">${esc(skippedMessage(e))}</div>`).join("")}
     ${updateBannerHtml()}
     ${view?.history_warning ? `<div class="banner bad" role="status" data-history-warning>${icon("warn")} ${esc(tl(view.history_warning))}</div>` : ""}
+    ${(view?.config_notices ?? []).map((note) => `<div class="banner bad" role="status" data-config-notice>${icon("warn")} ${esc(tl(note))}</div>`).join("")}
     ${view?.serve?.state === "error" ? `<div class="banner bad" role="status" data-serve-error>${icon("warn")} ${te("serve.banner")} ${esc(tl(view.serve.error))}${
       view.serve.cuotai_on_port ? ` ${te("settings.serve.cuotaiOnPort", { port: view.serve.port })}` : ""} <button class="link" data-settings="integrations" data-settings-anchor="serve">${te("serve.bannerOpen")}</button></div>` : ""}
     ${["unconfirmed", "invalid"].includes(view?.hooks?.state) ? `<div class="banner bad" role="status" data-hooks-banner>${icon("warn")} ${te(`hooks.banner.${view.hooks.state}`)} <button class="link" data-settings="integrations" data-settings-anchor="hooks">${te("serve.bannerOpen")}</button></div>` : ""}
