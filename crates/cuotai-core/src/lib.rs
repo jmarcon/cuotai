@@ -90,6 +90,7 @@ pub mod text;
 mod transport;
 pub mod tray;
 pub mod update_check;
+pub mod user_pack;
 pub mod user_session;
 pub mod watch;
 pub mod widget_snapshot;
