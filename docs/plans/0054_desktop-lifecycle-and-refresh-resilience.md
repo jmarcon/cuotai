@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0054 |
-| Status | In progress (RF4.1 delivered; RF4.2–RF4.4 and RF7.3 partial; the rest proposed) |
+| Status | In progress (RF1 and RF4.1 delivered; RF3, RF4.2–RF4.4, RF6 and RF7.3 partial; the rest proposed) |
 | Owner | `cuotai-core` (refresh clock, tool resolution, hook claims), desktop shell and Settings |
 | Consumers | `apps/desktop`, `crates/cuotai-tui` (`--watch`, `--serve`, hooks), packaged desktop users on macOS, Windows and Linux |
 | Depends on | PRD 0032 RF4 (cross-process notification claims), PRD 0033 RF5.3 (metered-query lock), PRD 0051 RF3/RF4 (`desktop.json` schema and writer), PRD 0052 RF2/RF3 (startup errors and diagnostics) |
@@ -13,18 +13,18 @@
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable. A **clock pair** is one wall-clock UTC instant plus one monotonic `Instant` sampled together. A **lifecycle wake** is an OS resume or network-available signal; it is only a scheduling hint, never permission to bypass cadence. Code references are to `origin/main` at `7a1d93c3`.
 
-## Implementation status (2026-10-28)
+## Implementation status (2026-11-04)
 
-Written on 2026-10-27 as PRD 0044 by the 2026-10-25 PRD audit against `origin/main` (0.80.0) and renumbered 0054 when it moved onto `integration/next`, whose 0040–0049 are other plans. This table was re-evaluated on 2026-10-28 against `integration/next` at `18009a04`; the §1 code references still point at `origin/main` at `7a1d93c3`, and the current location is named here where it moved.
+Written on 2026-10-27 as PRD 0044 by the 2026-10-25 PRD audit against `origin/main` (0.80.0) and renumbered 0054 when it moved onto `integration/next`, whose 0040–0049 are other plans. This table was re-evaluated on 2026-10-28 against `integration/next` at `18009a04`, and again on 2026-11-04 against `origin/main` at `88b4047f` (0.82.3), which shipped fixes that answer parts of RF1, RF3 and RF6 without naming this PRD; the §1 code references still point at `origin/main` at `7a1d93c3`, and the current location is named here where it moved.
 
 | RF | Version | Delivery |
 |---|---|---|
-| RF1 | — | Proposed. No single-instance plugin; every launch runs the full setup. |
+| RF1 | 0.82.3 | Delivered by `ab42a4ea`: official `tauri-plugin-single-instance` (pinned `=2.5.5`) registered before every other plugin; a second launch hides the popover and shows, unminimizes and focuses `main` through `reveal_main_window`, forwards nothing and exits before `setup`; a second launch by the login entry only exits. A debug build on the development credential store runs apart (`single_instance_applies`), and the lock is released before an updater restart. Not done: the two-packaged-binaries acceptance test and the real smoke with a `cuotai --serve` port conflict stay manual (owner checklist). |
 | RF2 | — | Proposed. Hooks still use an in-process lock only. Its prerequisite exists: PRD 0032 RF4's `notified.json` ledger claims (`0f778f1d`). |
-| RF3 | — | Proposed. `RefreshCycle` still keeps `Instant` deadlines only. RF3.5's prerequisite, the PRD 0033 RF5.3 metered lock (`metered_record.rs`), exists. |
+| RF3 | 0.82.3 (RF3.1, RF3.2 and RF3.4's polling path, by another design) | `5d11d706` added `RefreshCycle::follow_wall_clock(now, wall)` instead of a `ClockPair` with paired deadlines: between passes it compares wall and monotonic time and takes any lead above `SUSPEND_SLACK` (60 s) off every deadline, so an account whose interval elapsed during sleep is due at the next pass and the others lose only the time that passed; a backward jump changes nothing. The desktop scheduler (5 s `TICK`), the TUI loop and `headless::Driver` call it every pass, so after a wake due desktop accounts start within one tick (RF3.4's drift-polling fallback). `bc1af10` does the same for the daily update check. Not done: RF3.3 (`LifecycleSignal::NetworkAvailable`) and RF3.4's OS adapters (`lifecycle.rs`: `NSWorkspaceDidWakeNotification`, `WM_POWERBROADCAST`, logind), which polling makes redundant for resume and which only matter for reconnect; RF3.5's metered behaviour on a forward jump is being corrected by fix PR #65 (`fix/provider-classification`), not here. |
 | RF4 | 0.81.0 (RF4.1; RF4.2–RF4.4 partial) | RF4.1 delivered by `778e00d9`: the official autostart plugin pinned, typed `autostart_status`/`autostart_set` commands, OS state as the source of truth, off by default, Settings › General. RF4.2 partial: an `--autostart` launch hides the main window, without the RF5 no-tray override. RF4.3 partial: enabling rewrites the entry; no Repair or stale-target detection. RF4.4 partial: `docs/gui-{macos,windows,linux}.md` updated; `docs/platforms.md` and `docs/releasing.md` not. `1a9b9fd7` (Show in Dock) is related but answers no RF. |
 | RF5 | — | Proposed. A tray failure still fails setup; `docs/platforms.md` still says the app aborts. |
-| RF6 | — | Proposed. `aws` and `bl` are still spawned by bare name; RF6.4 partial: login validates the profile, queries do not, and the two `bl` validators are separate copies. |
+| RF6 | 0.82.1 (RF6.1/RF6.2 partial) | `4746c47b` added `crates/cuotai-core/src/cli_path.rs`: every `aws`/`bl` spawn (queries, Bailian login and its availability check, AWS login) goes through `cli_path::resolve`, which keeps a name found in `PATH` and otherwise tries `~/.local/bin`, `/opt/homebrew/bin` and `/usr/local/bin` on macOS and Linux (Windows gets the full `PATH` and has no extra directory). Not done: `params.cli_path` (RF6.1, RF6.5), the Linux `/usr/bin` and Windows well-known candidates and injected inputs (RF6.2), the `NeedsConfiguration` text and the `tool.*` diagnostics (RF6.3, which wait for PRD 0052 RF3), and RF6.4 (AWS login validates the profile, queries do not; the two `bl` validators are separate copies). |
 | RF7 | — | Proposed. Only the Settings window keeps geometry. RF7.3 partial: the tray popover is placed per click on the clicked screen in physical pixels, using the popover's own scale factor and no mixed-DPI fixture. |
 
 ## 1. Context
