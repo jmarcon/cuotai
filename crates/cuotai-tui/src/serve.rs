@@ -59,7 +59,11 @@ pub(crate) fn token(args: &ServeArgs) -> Result<Option<Token>, String> {
     let resolved = resolve_token(&source, default_token_file().as_deref())
         .map_err(|error| error.l10n().resolve(locale))?;
     for notice in &resolved.notices {
-        eprintln!("cuotai: {}", notice.resolve(locale));
+        crate::cli::message(
+            crate::cli::Level::Warn,
+            "serve.token_notice",
+            format_args!("cuotai: {}", notice.resolve(locale)),
+        );
     }
     Ok(resolved.token)
 }
@@ -140,12 +144,13 @@ pub(crate) async fn start(
             return Err(taken_port_message(&error, port, &text).await.into());
         }
     };
-    eprintln!(
-        "{}",
+    crate::cli::message(
+        crate::cli::Level::Info,
+        "serve.listening",
         crate::l10n::tr(
             "serve.started",
-            "cuotai: read-only local server; Ctrl+C stops it."
-        )
+            "cuotai: read-only local server; Ctrl+C stops it.",
+        ),
     );
     Ok(server)
 }
@@ -187,8 +192,22 @@ async fn taken_port_message(error: &ServeError, port: u16, text: &str) -> String
 /// Loopback on exactly the chosen port (PRD 0031 RF9.1): a taken port is an
 /// error, never a silent move to another one.
 fn serve_config(args: &ServeArgs, token: Option<Token>) -> ServeConfig {
-    let access_log: cuotai_core::serve::AccessLog =
-        Arc::new(|entry: &AccessEntry| eprintln!("{entry}"));
+    let access_log: cuotai_core::serve::AccessLog = Arc::new(|entry: &AccessEntry| {
+        crate::cli::message_with(
+            crate::cli::Level::Info,
+            "serve.access",
+            &[
+                ("status", crate::cli::Field::Count(u64::from(entry.status))),
+                (
+                    "elapsed",
+                    crate::cli::Field::Millis(
+                        u64::try_from(entry.elapsed.as_millis()).unwrap_or(u64::MAX),
+                    ),
+                ),
+            ],
+            entry,
+        );
+    });
     ServeConfig {
         port: args.port.unwrap_or(DEFAULT_PORT),
         port_fallback: false,

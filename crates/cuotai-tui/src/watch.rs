@@ -131,7 +131,12 @@ impl Watch {
                 unclaimed += submitted.unclaimed;
             }
             if dropped > 0 {
-                eprintln!("cuotai: {}", hooks::dropped(dropped).resolve(locale));
+                crate::cli::message_with(
+                    crate::cli::Level::Warn,
+                    "hooks.dropped",
+                    &[("count", crate::cli::Field::Count(dropped as u64))],
+                    format_args!("cuotai: {}", hooks::dropped(dropped).resolve(locale)),
+                );
             }
             if unclaimed > 0 {
                 eprintln!("cuotai: {}", hooks::claims_unavailable().resolve(locale));
@@ -163,11 +168,19 @@ fn start_hooks(confirmed: Confirmed) -> Runner {
     let on_run = move |run: &Run, log_error: Option<&io::Error>| {
         let locale = crate::ui::tui_locale();
         if !run.succeeded() {
-            eprintln!("cuotai: hook {}", safe(&run.summary().resolve(locale)));
+            crate::cli::message(
+                crate::cli::Level::Warn,
+                "hooks.run_failed",
+                format_args!("cuotai: hook {}", safe(&run.summary().resolve(locale))),
+            );
         }
         if let (Some(_), Some(path)) = (log_error, &log_path) {
             if !warned.swap(true, Ordering::Relaxed) {
-                eprintln!("cuotai: {}", hooks::log_unwritable(path).resolve(locale));
+                crate::cli::message(
+                    crate::cli::Level::Warn,
+                    "hooks.log_unwritable",
+                    format_args!("cuotai: {}", hooks::log_unwritable(path).resolve(locale)),
+                );
             }
         }
     };

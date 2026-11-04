@@ -59,7 +59,11 @@ pub async fn run(
     session: Arc<OAuthSession>,
 ) -> Result<u8, Box<dyn std::error::Error>> {
     let Some(index) = find(config, name) else {
-        eprintln!("No account with that name in the configuration.");
+        crate::cli::message(
+            crate::cli::Level::Warn,
+            "report.no_account",
+            "No account with that name in the configuration.",
+        );
         return Ok(1);
     };
     let monitor =
