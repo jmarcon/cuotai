@@ -5522,6 +5522,9 @@ pub struct SessionSlotSchema {
     /// PRD 0048 RF1: the desktop can capture this session from its own
     /// sign-in window ("Sign in and capture session").
     capture: bool,
+    /// PRD 0056 RF1.3: the default capture's shared sign-in (`"google"`):
+    /// the dialog then explains the shared window and the passkey limit.
+    capture_shared: Option<user_session::SharedSignIn>,
 }
 
 /// PRD 0048 RF3.4: one regional "Open {site}" page of a session slot.
@@ -5529,6 +5532,9 @@ pub struct SessionSlotSchema {
 pub struct RegionOpenUrl {
     value: &'static str,
     url: &'static str,
+    /// PRD 0056 RF1.3: the shared sign-in of this region's capture
+    /// (`"google"`), or `null` for a private window.
+    capture_shared: Option<user_session::SharedSignIn>,
 }
 
 /// The dialog's values in the core draft shape; unknown keys and values of
@@ -5727,10 +5733,12 @@ pub fn form_schema(provider: Provider) -> FormSchema {
                     .map(|r| RegionOpenUrl {
                         value: r.value,
                         url: r.open_url,
+                        capture_shared: r.capture.shared,
                     })
                     .collect(),
                 secret: descriptor.delivery == user_session::Delivery::Secret,
                 capture: descriptor.capture.is_some(),
+                capture_shared: descriptor.capture.and_then(|c| c.shared),
             })
             .collect(),
         session_notice: user_session::paste_notice(provider),

@@ -125,6 +125,21 @@ Xiaomi MiMo, Alibaba Coding Plan and Alibaba Token Plan query with a web session
 - **Forgetting:** **Forget this session** (TUI summary: F5 twice; desktop: the button, then its confirmation) deletes the vault entry and the reference. Since 0.77.1, removing the account or switching it to another provider deletes its session entry too, put back when the TOML save fails; a vault that refuses the delete leaves the account in place.
 - **Risks:** a session is a full login: anyone holding it can act as you on that site until it expires or is revoked. Only signing out on the site (or changing the password) revokes it for the provider; forgetting removes Cuotai's copy only. The console interface is internal and may be outside the provider's terms of use for third-party tools; the decision to use it is yours.
 
+### Signing in from the desktop capture window
+
+In the desktop app, **Sign in and capture session** next to a web-session box (PRD 0048) opens a Cuotai-owned window on the provider's page instead of asking for the developer tools. You type your password, second factor and captcha there; Cuotai never fills anything. The window has a non-persistent cookie store apart from the main window, may load only the provider's and its sign-in hosts' HTTPS pages, and has no access to Cuotai's commands. Rust reads the window's store, keeps only the cookies the session declares, and puts them in the paste box, which previews and tests them as any paste.
+
+**Shared Google sign-in (PRD 0056).** The captures whose sign-in page offers **Sign in with Google** — the Xiaomi MiMo platform, the Qwen Cloud Token Plan, the international Alibaba Coding Plan console and the Meta console — share one window. After a capture (or when you cancel from the dialog) it hides on a blank page and keeps **only Google's cookies**: every other cookie, including the session just captured, is deleted, and if that fails the window is destroyed. The next of these captures reopens the same window, so Google shows only its account chooser instead of asking for the password again. The Google sign-in lives in memory only: it is erased when you quit Cuotai, after 30 minutes without a capture, when you close the window, or with **Forget the Google sign-in** in the dialog. Nothing about it is written to disk. A Google sign-in popup opens in the same window; other popups open in your browser. The mainland Coding Plan console (Alipay, Taobao, DingTalk) keeps a private window per capture.
+
+### Passkeys
+
+| Flow | Passkeys |
+|---|---|
+| OAuth in the system browser: Gemini API and Vertex AI, Gemini CLI, Antigravity (all Google), and every other browser login above | Yes: the sign-in happens in your own browser, with its passkeys. |
+| Desktop capture windows (Xiaomi MiMo platform, Qwen Cloud, Alibaba Coding Plan, Meta) | No. An embedded web view does not get the system's passkeys for `google.com` (on macOS that needs Apple's browser or associated-domain entitlement). A probe on macOS 27.2 found the WebAuthn API present but no platform authenticator, and a passkey request refused at once. Windows (WebView2 and Windows Hello) and Linux were not tested. |
+
+When Google asks for a passkey in a capture window, choose **Try another way** and use your password, a code or your phone. An account that only has a passkey can still paste its session instead. `ASWebAuthenticationSession` (macOS) would give an OAuth flow Safari's passkeys, which the system browser already does, and never exposes cookies, so it cannot serve the console captures; Cuotai does not use it.
+
 ## SQLite credentials: development only
 
 To avoid Keychain prompts on every rebuild during local development:

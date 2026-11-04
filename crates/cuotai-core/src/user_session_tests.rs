@@ -2200,3 +2200,116 @@ fn coding_plan_capture_follows_the_region() {
         assert!(!d.capture_allows_in(Some("cn"), blocked), "{blocked}");
     }
 }
+
+/// Every capture, default or regional, as `(provider, slot, region, spec)`.
+type AnyCapture = (
+    Provider,
+    &'static str,
+    Option<&'static str>,
+    &'static CaptureSpec,
+);
+
+fn every_capture() -> Vec<AnyCapture> {
+    Provider::ALL
+        .iter()
+        .flat_map(|p| descriptors(*p).iter().map(move |d| (*p, d)))
+        .flat_map(|(p, d)| {
+            d.capture
+                .map(|spec| (p, d.slot, None, spec))
+                .into_iter()
+                .chain(
+                    d.regions
+                        .iter()
+                        .map(move |r| (p, d.slot, Some(r.value), r.capture)),
+                )
+        })
+        .collect()
+}
+
+/// PRD 0056 RF1.1: a capture shares the Google sign-in exactly when its
+/// sign-in hosts include Google's, and the shared ones are those listed.
+#[test]
+fn captures_with_a_google_sign_in_share_it() {
+    let mut shared = Vec::new();
+    for (provider, slot, region, spec) in every_capture() {
+        for sign_in in SharedSignIn::ALL {
+            let offers = sign_in
+                .sign_in_hosts()
+                .iter()
+                .any(|h| spec.login_hosts.contains(h));
+            assert_eq!(
+                spec.shared == Some(sign_in),
+                offers,
+                "{provider:?} {slot} {region:?}"
+            );
+        }
+        if spec.shared.is_some() {
+            shared.push((provider, slot, region));
+        }
+    }
+    assert_eq!(
+        shared,
+        vec![
+            (Provider::XiaomiMimo, "platform_session_env", None),
+            (Provider::AlibabaCodingPlan, "session_env", None),
+            (Provider::AlibabaTokenPlan, "session_env", None),
+            (Provider::Meta, "session_env", None),
+        ]
+    );
+    // The mainland Coding Plan console has no Google sign-in.
+    let coding = descriptor(Provider::AlibabaCodingPlan, "session_env").unwrap();
+    assert_eq!(coding.capture_in(Some("cn")).unwrap().shared, None);
+}
+
+/// PRD 0056 RF3: between captures the shared window keeps only Google's
+/// cookies; every console's and sign-in host's cookie is deleted.
+#[test]
+fn shared_google_window_keeps_only_google_cookies() {
+    let g = SharedSignIn::Google;
+    for kept in [
+        ".google.com",
+        "google.com",
+        "accounts.google.com",
+        ".accounts.google.com",
+        "ACCOUNTS.Google.COM",
+    ] {
+        assert!(g.keeps_cookie(kept), "{kept}");
+    }
+    for dropped in [
+        ".qwencloud.com",
+        ".alibabacloud.com",
+        "platform.xiaomimimo.com",
+        "dev.meta.ai",
+        ".facebook.com",
+        "github.com",
+        "notgoogle.com",
+        "google.com.evil.example",
+        "google.com.br",
+        ".youtube.com",
+        "",
+        ".",
+    ] {
+        assert!(!g.keeps_cookie(dropped), "{dropped}");
+    }
+}
+
+/// PRD 0056 RF5: only an HTTPS Google sign-in popup opens in place.
+#[test]
+fn only_google_sign_in_popups_open_in_place() {
+    let g = SharedSignIn::Google;
+    assert!(g.opens_in_place("https://accounts.google.com/o/oauth2/v2/auth?client_id=x"));
+    assert!(g.opens_in_place("https://Accounts.Google.com/signin"));
+    for refused in [
+        "http://accounts.google.com/",
+        "https://accounts.google.com:8443/",
+        "https://user@accounts.google.com/",
+        "https://myaccount.google.com/",
+        "https://accounts.google.com.evil.example/",
+        "https://github.com/login/oauth/authorize",
+        "javascript:alert(1)",
+        "about:blank",
+        "not a url",
+    ] {
+        assert!(!g.opens_in_place(refused), "{refused}");
+    }
+}

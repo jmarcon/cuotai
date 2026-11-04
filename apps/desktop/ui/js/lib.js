@@ -147,6 +147,8 @@ export const testSession = (input) => call("test_session", { input });
 export const captureSession = (provider, slot, region = null) => call("capture_session", { provider, slot, region });
 /** PRD 0048 RF6.2: closes a capture window still waiting for its sign-in. */
 export const cancelSessionCapture = () => call("cancel_session_capture");
+/** PRD 0056 RF2.4: destroys the hidden shared Google capture window; resolves `true` when one was there. */
+export const forgetSharedCapture = () => call("forget_shared_capture");
 export const testAggregator = (input) => call("test_aggregator", { input });
 export const openAggregatorDashboard = (index) => call("open_aggregator_dashboard", { index });
 export const saveAccount = (input) => call("save_account", { input });
@@ -812,6 +814,24 @@ export function sessionOpenLinkHtml(slot, region = null) {
   try { host = new URL(url).host; } catch { return ""; }
   return `<button type="button" class="link session-open" data-session-url="${esc(url)}">${icon("window")}<span>${te("dialog.session.open", { site: host })}</span></button>`;
 }
+/** PRD 0056 RF1.3: the shared sign-in (`"google"`) of a slot's capture for `region`, or null for a private window. */
+export function captureSharedOf(slot, region = null) {
+  const entry = slot?.region_open_urls?.find((r) => r.value === region);
+  return (entry ? entry.capture_shared : slot?.capture_shared) ?? null;
+}
+/** PRD 0048 RF1 and 0056 RF6: what the capture window does, under "Sign in and capture session". A shared Google
+ * window says it is kept hidden and reused, that passkeys do not work in it, and offers to forget it. */
+export function sessionCaptureHintHtml(slot, region = null) {
+  if (!slot?.capture) return "";
+  const shared = captureSharedOf(slot, region) === "google";
+  return `<span class="session-capture-hint" data-capture-hint="${esc(slot.slot)}">`
+    + (shared
+      ? `<small class="hint">${te("dialog.session.captureSharedHint")}</small>`
+        + `<small class="hint">${te("dialog.session.capturePasskeyHint")}</small>`
+        + `<button type="button" class="link" data-capture-forget>${te("dialog.session.captureForget")}</button>`
+      : `<small class="hint">${te("dialog.session.captureHint")}</small>`)
+    + "</span>";
+}
 /** Owner request: "Create key on <host>" under a typed key, for the page the core declares (`SecretInput.key_page`);
  * the shell opens only those exact addresses (`open_external`). */
 export function keyPageLinkHtml(input) {
@@ -1197,7 +1217,7 @@ const DEMO_KEY_INPUT = { slot: "credential_env", label: { id: "secret_input.cred
 const DEMO_SESSION_SLOT = { slot: "platform_session_env", open_url: "https://platform.xiaomimimo.com/console/plan-manage",
   label: { id: "user_session.slot.xiaomi_mimo.platform_session_env", params: {}, fallback: "platform.xiaomimimo.com web session (balance and Token Plan)" },
   instructions: { id: "user_session.instructions", params: { site: "platform.xiaomimimo.com" }, fallback: "Sign in to platform.xiaomimimo.com in your browser. In the developer tools (F12), Network tab, reload the page, pick a request to platform.xiaomimimo.com and copy its Cookie header or use \"Copy as cURL\"; the cookie table of the Application tab works too. Only this session's cookies are kept; the rest of the pasted text is discarded." },
-  hosts: ["platform.xiaomimimo.com"], capture: true };
+  hosts: ["platform.xiaomimimo.com"], capture: true, capture_shared: "google" };
 // ponytail: fixed demo fixtures name their core-selected metric and rank explicitly; add a mocked backend when
 // the browser demo needs dynamic reports. This keeps binding choice rules out of the interface.
 const DEMO_BINDINGS = new Map([
@@ -1984,6 +2004,7 @@ const demo = {
   // PRD 0048 demo: the browser has no capture window; the dialog falls back to the paste box.
   capture_session: async () => ({ status: "unavailable" }),
   cancel_session_capture: async () => {},
+  forget_shared_capture: async () => false,
   open_aggregator_dashboard: async () => {},
   // PRD 0036 RF2.2: the demo instance answers like a local 9router with three connections.
   test_aggregator: async ({ input }) => {

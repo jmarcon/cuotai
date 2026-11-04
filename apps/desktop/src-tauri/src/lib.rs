@@ -341,6 +341,14 @@ fn cancel_session_capture(state: tauri::State<'_, session_capture::State>) {
     state.cancel();
 }
 
+/// PRD 0056 RF2.4: "Forget the Google sign-in": destroys the hidden shared
+/// capture window. `true` when one was there; error `busy` while a capture
+/// runs in it.
+#[tauri::command]
+fn forget_shared_capture(app: AppHandle) -> Result<bool, String> {
+    session_capture::forget_shared(&app)
+}
+
 /// PRD 0036 RF8.2: "Open dashboard" of the aggregator account at `index`
 /// (its instance's usage page, in the browser). Errors: `not_found`,
 /// `not_listed`, `unavailable`.
@@ -2116,6 +2124,7 @@ pub fn run() {
             preview_session,
             capture_session,
             cancel_session_capture,
+            forget_shared_capture,
             test_session,
             test_aggregator,
             open_aggregator_dashboard,
@@ -2314,6 +2323,10 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("erro ao iniciar o Cuotai")
         .run(|_app, _event| {
+            // PRD 0056 RF2.3: the shared capture window ends with the app.
+            if let tauri::RunEvent::Exit = _event {
+                session_capture::on_exit(_app);
+            }
             // macOS: closing the window only hides it, so a click on the Dock
             // icon (or opening the app again) must bring it back; AppKit
             // shows nothing by itself for a hidden window.
