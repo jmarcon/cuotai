@@ -274,6 +274,11 @@ provider = "alibaba_model_studio"
 credential_env = "DASHSCOPE_API_KEY"
 # You can switch credential_env to QWEN_API_KEY if you already use that name.
 params = { region = "intl" }
+# The key alone reaches no quota. For the free tier, sign in with the bl CLI
+# (wizard: "Bailian CLI profile (bl)", F2 runs bl auth login --console):
+# params = { region = "intl", cli_profile = "cuotai-ms" }
+# Add workspace_id = "<Model Studio workspace ID>" for the calls and tokens of
+# the last 7 days (slower). Only the intl region is covered.
 
 [[accounts]]
 name = "Alibaba Coding Plan"

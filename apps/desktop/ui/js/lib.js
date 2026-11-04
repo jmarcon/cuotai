@@ -2650,7 +2650,7 @@ const demoPickerEntry = (id, b) => ({ provider: id, label: b.label, mode: null, 
   hint: DEMO_BROWSER.includes(id) ? { id: "catalog.hint.browser_sign_in", params: {}, fallback: "Sign in with the browser" }
     : { id: "catalog.hint.api_key", params: {}, fallback: "API key" }, metered: id === "aws_bedrock", recommended: true });
 const DEMO_METHOD_ORDER = ["browser_sign_in", "api_key", "self_hosted_gateway"];
-const DEMO_NO_QUERY = ["qwen", "cloudflare_ai", "nvidia_nim", "poolside", "alibaba_model_studio"];
+const DEMO_NO_QUERY = ["qwen", "cloudflare_ai", "nvidia_nim", "poolside"];
 const demoLevelOf = (provider) => Object.keys(DEMO_LEVELS).find((level) => DEMO_LEVELS[level].includes(provider)) ?? "undocumented";
 const demoLevel = (level) => dl(`access.level.${level}`, { official: "Official", undocumented: "Undocumented", derived: "Derived", unavailable: "Unavailable" }[level]);
 function demoKiroSchema() {

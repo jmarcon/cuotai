@@ -482,22 +482,30 @@ pub fn login_modes_with(provider: Provider, cli_present: impl Fn() -> bool) -> P
                 install: None,
             });
         }
-        Provider::AlibabaTokenPlan => {
+        Provider::AlibabaTokenPlan | Provider::AlibabaModelStudio => {
             let id = MODE_BAILIAN_CONSOLE.to_string();
             let slug = provider.slug();
             let mode_prefix = format!("login.{slug}.{id}");
             let site_prefix = format!("{mode_prefix}.option.console_site");
             let profile_prefix = format!("{mode_prefix}.option.profile");
+            let (help, site_help) = if provider == Provider::AlibabaModelStudio {
+                (
+                    "Runs \"bl auth login --console\" on a dedicated bl profile; the login lives in bl's local store, outside the Cuotai vault. Cancelling does not undo what bl recorded. The free-tier quota and the usage overview are read with this profile; the DashScope key is not sent to that query.",
+                    "Model Studio site served by \"bl --console-site\" (international only).",
+                )
+            } else {
+                (
+                    "Runs \"bl auth login --console\" on a dedicated bl profile; the login lives in bl's local store, outside the Cuotai vault. Cancelling does not undo what bl recorded. params.session_env remains an optional Cookie override; QWEN_API_KEY only authenticates inference and is not sent to the quota query.",
+                    "Token Plan site served by \"bl --console-site\".",
+                )
+            };
             modes.push(LoginMode {
                 id,
                 label: crate::text::Localized::fixed(
                     format!("{mode_prefix}.label"),
                     "Bailian CLI profile (bl)".to_string(),
                 ),
-                help: crate::text::Localized::fixed(
-                    format!("{mode_prefix}.help"),
-                    "Runs \"bl auth login --console\" on a dedicated bl profile; the login lives in bl's local store, outside the Cuotai vault. Cancelling does not undo what bl recorded. params.session_env remains an optional Cookie override; QWEN_API_KEY only authenticates inference and is not sent to the quota query.".to_string(),
-                ),
+                help: crate::text::Localized::fixed(format!("{mode_prefix}.help"), help.to_string()),
                 completion_notice: crate::text::Localized::fixed(
                     format!("{mode_prefix}.completion_notice"),
                     "bl auth login --console completed on the dedicated profile.".to_string(),
@@ -516,7 +524,7 @@ pub fn login_modes_with(provider: Provider, cli_present: impl Fn() -> bool) -> P
                         ),
                         help: crate::text::Localized::fixed(
                             format!("{site_prefix}.help"),
-                            "Token Plan site served by \"bl --console-site\".".to_string(),
+                            site_help.to_string(),
                         ),
                         choices: Some(vec![LoginChoice {
                             value: "international".to_string(),
@@ -902,6 +910,7 @@ pub fn start_login(
         MODE_OAUTH => Ok(start_oauth(session, provider, request)),
         MODE_AWS_SSO => Ok(start_aws_sso(request.options.get("profile").cloned())),
         MODE_BAILIAN_CONSOLE => Ok(start_bailian_console(
+            provider,
             request.options.get("console_site").cloned(),
             request.options.get("profile").cloned(),
         )),
@@ -1178,13 +1187,17 @@ async fn run_aws_sso(
     })
 }
 
-fn start_bailian_console(console_site: Option<String>, profile: Option<String>) -> LoginDriver {
+fn start_bailian_console(
+    provider: Provider,
+    console_site: Option<String>,
+    profile: Option<String>,
+) -> LoginDriver {
     let profile = profile
         .filter(|p| !p.trim().is_empty())
         .unwrap_or_else(|| account_edit::ensure_cli_profile(&mut BTreeMap::new()));
     let (event_tx, events) = mpsc::channel(8);
     let job = tokio::spawn(async move {
-        let result = run_bailian_console(console_site, profile, &event_tx).await;
+        let result = run_bailian_console(provider, console_site, profile, &event_tx).await;
         match result {
             Ok(login) => {
                 let _ = event_tx
@@ -1208,6 +1221,7 @@ fn start_bailian_console(console_site: Option<String>, profile: Option<String>) 
 }
 
 async fn run_bailian_console(
+    provider: Provider,
     console_site: Option<String>,
     profile: String,
     events: &mpsc::Sender<LoginEvent>,
@@ -1229,12 +1243,18 @@ async fn run_bailian_console(
             "The `bl` login finished in the dedicated profile. Cuotai stores NONE of it.",
         )))
         .await;
-    let _ = events
-        .send(LoginEvent::progress(Localized::fixed(
+    let profile_notice = if provider == Provider::AlibabaModelStudio {
+        Localized::fixed(
+            "login.progress.bailian_profile_model_studio",
+            "The Model Studio free tier and usage will be read with this profile via `bl --config <name>`.",
+        )
+    } else {
+        Localized::fixed(
             "login.progress.bailian_profile",
             "The Token Plan query will use this profile via `bl --config <name>`. `params.session_env` stays an optional override (manual Cookie) if you prefer the old route.",
-        )))
-        .await;
+        )
+    };
+    let _ = events.send(LoginEvent::progress(profile_notice)).await;
     Ok(ExternalLogin {
         params: BTreeMap::from([("cli_profile".to_string(), profile)]),
     })
@@ -1741,6 +1761,49 @@ mod tests {
         assert!(present.modes[0].install.is_none());
         let aws = login_modes_with(Provider::AwsBedrock, || false);
         assert!(aws.modes.iter().all(|m| m.install.is_none()));
+    }
+
+    /// Model Studio reuses the Token Plan's `bl` login on its own profile,
+    /// with texts of its own and the profile written to `cli_profile`.
+    #[test]
+    fn model_studio_offers_the_bl_console_login() {
+        let offered = login_modes_with(Provider::AlibabaModelStudio, || true);
+        assert_eq!(offered.modes.len(), 1);
+        let mode = &offered.modes[0];
+        assert_eq!(mode.id, MODE_BAILIAN_CONSOLE);
+        assert_eq!(mode.credential_store, LoginCredentialStore::External);
+        assert_eq!(
+            mode.help.id,
+            "login.alibaba_model_studio.bailian_console.help"
+        );
+        assert!(mode.help.fallback.contains("free-tier"));
+        assert!(!mode.help.fallback.contains("QWEN_API_KEY"));
+        let site = mode
+            .options
+            .iter()
+            .find(|o| o.key == "console_site")
+            .unwrap();
+        let choices: Vec<_> = site
+            .choices
+            .iter()
+            .flatten()
+            .map(|c| c.value.as_str())
+            .collect();
+        assert_eq!(choices, ["international"]);
+        let (credential, params) = account_login_inputs(
+            Provider::AlibabaModelStudio,
+            MODE_BAILIAN_CONSOLE,
+            "",
+            &BTreeMap::new(),
+            &BTreeMap::from([("cli_profile".to_string(), "cuotai-ms".to_string())]),
+            true,
+        )
+        .unwrap();
+        assert_eq!(credential, "");
+        assert_eq!(
+            params.unwrap().get("cli_profile").map(String::as_str),
+            Some("cuotai-ms")
+        );
     }
 
     #[test]
