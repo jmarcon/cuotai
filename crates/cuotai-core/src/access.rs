@@ -20,6 +20,7 @@ const VERIFIED: &[(&str, &str)] = &[
     ("alibaba_cloud", "2026-10-20"),
     ("alibaba_coding_plan", "2026-10-20"),
     ("alibaba_model_studio", "2026-10-20"),
+    ("alibaba_model_studio_cli", "2026-11-04"),
     ("alibaba_token_plan", "2026-10-20"),
     ("anthropic_api", "2026-10-20"),
     ("antigravity", "2026-10-20"),
@@ -636,6 +637,10 @@ pub(crate) fn classify(
             "code_buddy", "CodeBuddy resources and packages through the internal billing interface."),
         Provider::Zed => entry(Undocumented, SubscriptionSession, Scope::Account, router!("zed.js"),
             "zed", "Zed plan usage through the client's internal interface."),
+        // The console profile of the official CLI (`bl usage summary`).
+        Provider::AlibabaModelStudio if set("cli_profile") => entry(Undocumented, LocalCli, Scope::Account,
+            Evidence::Reference("https://github.com/modelstudioai/cli/blob/main/packages/commands/src/commands/usage/summary.ts"),
+            "alibaba_model_studio_cli", "Free-tier quota of the most urgent models and the recent usage overview through the official bl CLI's console login."),
         Provider::AlibabaModelStudio => unavailable(InferenceKey,
             doc("https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-dashscope"), "alibaba_model_studio",
             "Model Studio inference key.",
@@ -744,9 +749,10 @@ pub(crate) fn classify(
 }
 
 /// Every param value that may switch a provider to another queried
-/// interface (`product`, `query_mode`, `mode`, a session or an organization),
+/// interface (`product`, `query_mode`, `mode`, a session, an organization or
+/// a local CLI profile),
 /// walked with and without the native login by [`has_usage_query`].
-const SWITCHING_PARAMS: [&[(&str, &str)]; 9] = [
+const SWITCHING_PARAMS: [&[(&str, &str)]; 10] = [
     &[],
     &[("product", "cli")],
     &[("product", "coding")],
@@ -756,6 +762,7 @@ const SWITCHING_PARAMS: [&[(&str, &str)]; 9] = [
     &[("mode", "org")],
     &[("session_env", "X")],
     &[("organization_id", "X")],
+    &[("cli_profile", "X")],
 ];
 
 /// Whether some mode of `provider` has a usage query, that is, whether it is
@@ -829,7 +836,7 @@ mod tests {
 
     /// The default account plus every param that may switch the queried
     /// interface; the native login is walked separately.
-    const MODES: [&[(&str, &str)]; 10] = [
+    const MODES: [&[(&str, &str)]; 11] = [
         &[],
         &[("product", "account")],
         &[("product", "cli")],
@@ -840,6 +847,7 @@ mod tests {
         &[("mode", "org")],
         &[("session_env", SET)],
         &[("organization_id", SET)],
+        &[("cli_profile", SET)],
     ];
 
     /// Every interface-switching param and the OAuth login, per provider.
@@ -865,10 +873,7 @@ mod tests {
             .into_iter()
             .filter(|p| !has_usage_query(*p))
             .collect();
-        assert_eq!(
-            without,
-            [Qwen, CloudflareAi, NvidiaNim, Poolside, AlibabaModelStudio]
-        );
+        assert_eq!(without, [Qwen, CloudflareAi, NvidiaNim, Poolside]);
     }
 
     #[test]
@@ -939,7 +944,7 @@ mod tests {
             Credential,
             &'static str,
         );
-        let modes: [Mode; 19] = [
+        let modes: [Mode; 20] = [
             (
                 Cursor,
                 &[("query_mode", "personal")],
@@ -1084,6 +1089,14 @@ mod tests {
                 Undocumented,
                 C::UserSession,
                 "alibaba_token_plan",
+            ),
+            (
+                AlibabaModelStudio,
+                &[("cli_profile", "X")],
+                false,
+                Undocumented,
+                C::LocalCli,
+                "alibaba_model_studio_cli",
             ),
         ];
         for (provider, params, oauth, level, credential, slug) in modes {

@@ -1,4 +1,5 @@
-//! Alibaba Token Plan (Qwen Cloud) login via the provider's own `bl` CLI.
+//! Alibaba Token Plan (Qwen Cloud) and Model Studio login via the provider's
+//! own `bl` CLI.
 //!
 //! Runs `bl auth login --console --console-site <site> --config <profile>` in
 //! an isolated per-profile subprocess. The CLI writes to its own local vault;

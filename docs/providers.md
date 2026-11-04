@@ -55,7 +55,7 @@ How each account's usage is read, as `cuotai_core::access::describe` classifies 
 - **Credential:** the class of secret the query needs. **Plan:** the vendor plan the query requires, when any. **Scope:** what the number covers (`Whole cloud` is a bill for every product of the cloud account).
 - **Evidence:** the vendor documentation, or the public 9router/community-client file whose contract the adapter follows. Every row was last checked on the descriptor's `verified_on` date.
 
-**Providers you cannot add from the app.** A provider that is `Unavailable` in every mode has no usage query at all, so an account for it would only show the reason instead of numbers. The "Add account" picker (desktop and TUI) leaves these out, as the core's `access::has_usage_query` decides: today Qwen (DashScope key and Qwen Code OAuth), Cloudflare Workers AI, NVIDIA NIM, Poolside and Alibaba Model Studio. An existing account of one of them keeps working as before: it is still edited, and the card still shows the reason. Providers with at least one queried mode stay in the picker (for example Perplexity with `product = computer` and Gemini AI with `product = cli`).
+**Providers you cannot add from the app.** A provider that is `Unavailable` in every mode has no usage query at all, so an account for it would only show the reason instead of numbers. The "Add account" picker (desktop and TUI) leaves these out, as the core's `access::has_usage_query` decides: today Qwen (DashScope key and Qwen Code OAuth), Cloudflare Workers AI, NVIDIA NIM and Poolside. Alibaba Model Studio is offered through its `bl` CLI profile mode, which opens first; its key-only mode still shows only the reason. An existing account of one of them keeps working as before: it is still edited, and the card still shows the reason. Providers with at least one queried mode stay in the picker (for example Perplexity with `product = computer` and Gemini AI with `product = cli`).
 
 The table is generated: a core test compares it with `access::describe` and fails when they differ. After changing a classification, regenerate it with `CUOTAI_REGENERATE_DOCS=1 cargo test -p cuotai-core providers_doc_matrix` and commit the result.
 
@@ -104,6 +104,7 @@ The table is generated: a core test compares it with `access::describe` and fail
 | `code_buddy` | default | Undocumented | Subscription session | — | Account | reference [`codebuddy-cn.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/codebuddy-cn.js) | 2026-10-20 | not reported |
 | `zed` | default | Undocumented | Subscription session | — | Account | reference [`zed.js`](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/zed.js) | 2026-10-20 | not reported |
 | `alibaba_model_studio` | default | Unavailable | Inference key | — | Account | [documentation](https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-dashscope) | 2026-10-20 | not reported |
+| `alibaba_model_studio` | `cli_profile` set | Undocumented | Local CLI | — | Account | reference [`summary.ts`](https://github.com/modelstudioai/cli/blob/main/packages/commands/src/commands/usage/summary.ts) | 2026-11-04 | not reported |
 | `alibaba_coding_plan` | default | Undocumented | Inference key | — | Account | reference [`AlibabaCodingPlanUsageFetcher.swift`](https://github.com/steipete/CodexBar/blob/main/Sources/CodexBarCore/Providers/Alibaba/AlibabaCodingPlanUsageFetcher.swift) | 2026-10-20 | not reported |
 | `alibaba_coding_plan` | `session_env` set or session in the vault | Undocumented | User session | — | Account | reference [`AlibabaCodingPlanUsageFetcher.swift`](https://github.com/steipete/CodexBar/blob/main/Sources/CodexBarCore/Providers/Alibaba/AlibabaCodingPlanUsageFetcher.swift) | 2026-10-20 | not reported |
 | `alibaba_token_plan` | default | Undocumented | Local CLI | — | Account | reference [`token-plan.ts`](https://github.com/modelstudioai/cli/blob/main/packages/commands/src/commands/usage/token-plan.ts) | 2026-10-20 | not reported |
@@ -180,7 +181,8 @@ The account pickers (desktop and TUI) list providers from `cuotai_core::account_
 | CodeBuddy | `code_buddy` | `credential` | API key | Coding tool | tencent | Account access token |
 | Zed | `zed` | `oauth` | Browser sign-in | Coding tool | — | Sign in with your browser |
 | Zed | `zed` | `credential` | API key | Coding tool | — | Account access token |
-| Alibaba Model Studio / DashScope | `alibaba_model_studio` | — | API key | API platform | dashscope, model studio, alibaba | API key |
+| Alibaba Model Studio / DashScope | `alibaba_model_studio` | `bailian_console` | Local credentials | API platform | dashscope, model studio, alibaba | Uses the bl CLI |
+| Alibaba Model Studio / DashScope | `alibaba_model_studio` | `credential` | API key | API platform | dashscope, model studio, alibaba | API key |
 | Alibaba Coding Plan | `alibaba_coding_plan` | — | API key | Coding tool | bailian, alibaba, coding plan | API key |
 | Alibaba Token Plan (Qwen Cloud) | `alibaba_token_plan` | — | Local credentials | Coding tool | qwen cloud, alibaba | Uses the bl CLI |
 | Alibaba Cloud — billing | `alibaba_cloud` | — | Cloud profile | Cloud | aliyun, alibaba | Cloud credentials |
@@ -233,13 +235,14 @@ The identifiers below are machine values. `credential` means the provider's manu
 | Xiaomi MiMo | `region` | `ams` | `credential`, `oauth` |
 | Xiaomi MiMo | `region` | `ru` | `credential`, `oauth` |
 | Xiaomi MiMo | `region` | `in` | `credential`, `oauth` |
-| Alibaba Model Studio | `region` | `intl` | `credential` |
-| Alibaba Model Studio | `region` | `cn` | `credential` |
+| Alibaba Model Studio | `region` | `intl` | `credential`, `bailian_console` |
+| Alibaba Model Studio | `region` | `cn` | `credential`, `bailian_console` |
 | Alibaba Coding Plan | `region` | `intl` | `credential` |
 | Alibaba Coding Plan | `region` | `cn` | `credential` |
 | Alibaba Cloud | `region` | `intl` | `credential` |
 | Alibaba Cloud | `region` | `cn` | `credential` |
 | Alibaba Token Plan | `login.console_site` | `international` | `bailian_console` |
+| Alibaba Model Studio | `login.console_site` | `international` | `bailian_console` |
 
 In Kiro, `auth_method` is a single shared descriptor. The native login receives exactly `builder-id` and `idc`; the environment credential receives `google` (the explicit default for new accounts), `github`, `import`, `api_key` and `external_idp`. When you switch type, an incompatible value is replaced by the first applicable value and the interface shows the localized warning returned by the core.
 
@@ -254,7 +257,7 @@ The names below are the defaults configured in the wizard. `credential_env` can 
 | Minimax.io / `mini_max` | `MINIMAX_IO_API_KEY` | Token/Coding Plan: windows by count or percentage, including M-series. Fallback between the endpoints 9router uses; an `sk-api-` key keeps the balance query |
 | Kimi / `kimi` | `KIMI_API_KEY` | International Moonshot balance by default. `params.product=coding` (or native login) queries the Kimi Coding weekly quota and rate limit |
 | Qwen / `qwen` | `QWEN_API_KEY` | DashScope by key still has no compatible quota. Qwen Code OAuth is available with a deprecation warning; no quota endpoint has been confirmed for that session |
-| Alibaba Model Studio / `alibaba_model_studio` | `DASHSCOPE_API_KEY` | Separate registration, region `intl` or `cn`. An inference API key does not grant a public balance/quota query |
+| Alibaba Model Studio / `alibaba_model_studio` | `DASHSCOPE_API_KEY`, **or** `params.cli_profile = "cuotai-ms"` (international `bl` console login) | Separate registration, region `intl` or `cn`. The inference API key alone grants no balance/quota query. With a `bl` profile (region `intl` only), `bl usage summary --output json` reads the free tier and, when `params.workspace_id` is set, the usage overview of the last 7 days; see "Alibaba Model Studio through `bl`" below |
 | Alibaba Coding Plan / `alibaba_coding_plan` | `BAILIAN_CODING_PLAN_API_KEY` or a configured variable | Regional RPC `queryCodingPlanInstanceInfoV2`: usage/limit for 5h, week and month. If the gateway requires login, paste the console session in the account wizard (system vault) or reference it with `params.session_env`; it does not extract a browser session or try another region |
 | Alibaba Token Plan (Qwen Cloud) / `alibaba_token_plan` | `params.cli_profile = "cuotai-qwen"` (international `bl` login) **or** a home.qwencloud.com session pasted in the account wizard (system vault) or named by `params.session_env = "QWEN_CLOUD_COOKIE"` (Cookie) | Every quota window `bl usage token-plan --output json` reports on the given profile (month, week, 5h, or another `per<N><unit>Percentage` window; a window with no usage yet has no reset time, and no window at all means the limit may be unlimited); the session uses direct HTTP to the Qwen Cloud console and takes precedence when present. The `QWEN_API_KEY` key only authenticates inference |
 | Alibaba Cloud / `alibaba_cloud` | `ALIBABA_CLOUD_ACCESS_KEY_ID` | BSS balance through the AccessKey Secret referenced in `params.secret_env`; optional STS in `security_token_env`. `billing_cycle=YYYY-MM` queries the bill for **all products**, not only AI |
@@ -275,6 +278,17 @@ The names below are the defaults configured in the wizard. `credential_env` can 
 | ElevenLabs / `eleven_labs` | `ELEVENLABS_API_KEY`; optional `params.region` (`default`, `us`, `eu`, `in`, `sg`) | One `GET /v1/user/subscription` per refresh (no audio is generated): credits used of the plan limit, next reset, extra-usage cap and amount, and voice slots. Restrict the key to the permission that reads the subscription. Pay As You Go balance is not reported. Unused credits may roll over and the limit semantics are the provider's. The API still names credits "characters"; Cuotai shows "credits". The vendor documents no credit cost or rate limit for this read |
 
 For Mistral, Perplexity Computer and Grok, the variable in the Credential step must hold the **right class** of key. If you keep the admin key in another variable, set `params.admin_key_env`, `params.analytics_key_env` or `params.management_key_env`, respectively. The alternative reference takes precedence; only the key actually used is read.
+
+### Alibaba Model Studio through `bl`
+
+The Model Studio inference key reaches no quota interface; the free tier and the usage statistics live in the authenticated console. An account with `params.cli_profile` reads them through the official Bailian CLI on that dedicated profile, with the same `bl auth login --console --console-site international --config <profile>` login the Token Plan uses (the **Bailian CLI profile (bl)** mode of the account editors; the CLI keeps the session, Cuotai stores none of it). Without a profile the account keeps the previous behaviour: it needs `DASHSCOPE_API_KEY` and shows why no quota is available.
+
+- **Command:** `bl usage summary --days 7 --console-site international --console-region ap-southeast-1 --config <profile> [--workspace-id <id>] --output json --quiet`, one run per refresh, killed at the account deadline (`timeout_seconds`). Only the `intl` region is covered; a `cn` account with a profile reports `Unsupported`.
+- **Free tier:** the CLI lists every valid free-tier quota with a positive total (it can name hundreds of models). Cuotai shows the **3 models with the least quota left** as model-scoped percentages (one model running out does not mark the account exhausted), with the expiry date as the reset time, plus a **Models with free-tier quota** count and a note when more models exist. The CLI gives the expiry as a calendar date, shown at 00:00 UTC.
+- **Usage overview:** only when `params.workspace_id` names the Model Studio workspace (`BAILIAN_WORKSPACE_ID` from the shell is not passed on, so a slow telemetry poll runs only when the account asks for it): successful calls and total, input and output tokens of the last 7 days. Without a workspace, the report says the overview was skipped; if the poll times out, clear the workspace to read only the free tier.
+- **Absent values stay absent:** a model without numbers keeps an unknown quota; a missing call or token total produces no metric. The CLI itself reports `0` for a missing call count, which Cuotai cannot tell apart.
+- **Failures:** a missing CLI asks for the install; exit code 3 (or a login message on stderr) means the console login is missing or expired; exit code 5 or the account deadline is a timeout; exit code 6 is a network failure; a response that does not match the contract is an incompatible schema. No CLI output, token or URL reaches the notes.
+- **Evidence:** the contract was read from the CLI source (`packages/commands/src/commands/usage/summary.ts`, bl 2.8.1) and is exercised against a fake `bl` in the tests; it was not checked against a real account.
 
 ## Other assistants
 

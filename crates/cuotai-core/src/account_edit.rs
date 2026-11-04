@@ -1674,16 +1674,24 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
         "Empty tries to obtain the project from the Antigravity session. Not required when using a Gemini API key.",
         false,
     )];
-    const ALIBABA_MODEL_STUDIO: [FieldDescriptor; 1] = [FieldDescriptor::choice(
-        "region",
-        "Alibaba region",
-        "Use the region where your account/key was created; China and international have distinct endpoints.",
-        &[
-            ChoiceOptionDescriptor::new("intl", "International"),
-            ChoiceOptionDescriptor::new("cn", "Mainland China"),
-        ],
-        true,
-    )];
+    const ALIBABA_MODEL_STUDIO: [FieldDescriptor; 2] = [
+        FieldDescriptor::choice(
+            "region",
+            "Alibaba region",
+            "Use the region where your account/key was created; China and international have distinct endpoints.",
+            &[
+                ChoiceOptionDescriptor::new("intl", "International"),
+                ChoiceOptionDescriptor::new("cn", "Mainland China"),
+            ],
+            true,
+        ),
+        FieldDescriptor::text(
+            "workspace_id",
+            "Model Studio workspace ID (optional)",
+            "Only with the bl CLI profile. Empty = free tier only. Set the workspace ID shown in the Model Studio console to add the calls and tokens of the last 7 days; that overview can take longer to load.",
+            false,
+        ),
+    ];
     const ALIBABA_CODING_PLAN: [FieldDescriptor; 2] = [
         FieldDescriptor::choice(
             "region",
@@ -2434,7 +2442,7 @@ pub fn draft_access(
     fields: &[DraftField],
     stored_slots: &[String],
 ) -> crate::access::UsageAccess {
-    let params = fields
+    let mut params: BTreeMap<String, String> = fields
         .iter()
         .filter_map(|field| {
             let value = match (&descriptor(provider, field.key)?.kind, &field.value) {
@@ -2447,6 +2455,10 @@ pub fn draft_access(
             Some((field.key.to_string(), value))
         })
         .collect();
+    // The `bl` console login writes the profile the query reads.
+    if auth_mode == crate::oauth::login::MODE_BAILIAN_CONSOLE {
+        params.insert("cli_profile".to_string(), "profile".to_string());
+    }
     crate::access::classify(
         provider,
         auth_mode == crate::oauth::login::MODE_OAUTH,
@@ -2522,7 +2534,13 @@ pub fn build_account_with_secrets(
         .copied()
         .chain(typed.iter().copied())
         .collect();
-    let credential_env = if oauth.is_none() && vault.contains(crate::user_session::CREDENTIAL_SLOT)
+    // A `bl` console login needs no key; a key name typed beside it is kept
+    // (Model Studio still lists its models with it).
+    let cli_login_without_key =
+        *auth_mode == crate::oauth::login::MODE_BAILIAN_CONSOLE && credential.trim().is_empty();
+    let credential_env = if (oauth.is_none()
+        && vault.contains(crate::user_session::CREDENTIAL_SLOT))
+        || cli_login_without_key
     {
         None
     } else {
@@ -3904,6 +3922,69 @@ mod tests {
         let account = build_account(&draft, &config_with(Vec::new()), None).unwrap();
         assert!(account.credential_env.is_none());
         assert_eq!(account.params.get("cli_profile").unwrap(), "cuotai-123");
+    }
+
+    /// Model Studio's `bl` login needs no key: the desktop sends no key name
+    /// and the account saves without one; a name typed beside it (the TUI
+    /// keeps the suggestion) stays for the model catalog.
+    #[test]
+    fn model_studio_bl_login_saves_the_profile_with_or_without_a_key() {
+        let mode = crate::oauth::login::MODE_BAILIAN_CONSOLE;
+        let fields = [DraftField {
+            key: "workspace_id",
+            value: DraftValue::Text(" llm-demo ".into()),
+        }];
+        for (credential, expected) in [("", None), ("DASHSCOPE_API_KEY", Some("DASHSCOPE_API_KEY"))]
+        {
+            let draft = AccountDraft {
+                provider: Provider::AlibabaModelStudio,
+                name: "Model Studio",
+                credential,
+                auth_mode: mode,
+                oauth_mode: false,
+                oauth_existing: None,
+                oauth_authorized: None,
+                oauth_login_params: BTreeMap::new(),
+                existing_params: None,
+                credential_params: Some(BTreeMap::from([(
+                    "cli_profile".into(),
+                    "cuotai-ms".into(),
+                )])),
+                fields: &fields,
+                interval_text: "",
+                group_text: None,
+            };
+            let account = build_account(&draft, &config_with(Vec::new()), None).unwrap();
+            assert_eq!(account.credential_env.as_deref(), expected);
+            assert_eq!(account.params.get("cli_profile").unwrap(), "cuotai-ms");
+            assert_eq!(account.params.get("workspace_id").unwrap(), "llm-demo");
+            assert_eq!(
+                crate::access::describe(&account).credential,
+                crate::access::Credential::LocalCli
+            );
+        }
+        // The key mode still needs the key name.
+        let draft = AccountDraft {
+            provider: Provider::AlibabaModelStudio,
+            name: "Model Studio",
+            credential: "",
+            auth_mode: AUTH_MODE_CREDENTIAL,
+            oauth_mode: false,
+            oauth_existing: None,
+            oauth_authorized: None,
+            oauth_login_params: BTreeMap::new(),
+            existing_params: None,
+            credential_params: None,
+            fields: &[],
+            interval_text: "",
+            group_text: None,
+        };
+        assert!(build_account(&draft, &config_with(Vec::new()), None).is_err());
+        // The editor's access line follows the selected mode.
+        let bl = draft_access(Provider::AlibabaModelStudio, mode, &[], &[]);
+        assert_eq!(bl.credential, crate::access::Credential::LocalCli);
+        let key = draft_access(Provider::AlibabaModelStudio, AUTH_MODE_CREDENTIAL, &[], &[]);
+        assert_eq!(key.level, crate::access::Level::Unavailable);
     }
 
     #[test]

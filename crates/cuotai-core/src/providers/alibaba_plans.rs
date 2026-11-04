@@ -1,7 +1,9 @@
 //! Read-only queries for the Alibaba Model Studio and Coding Plan providers.
 //!
 //! Model Studio still has no quota API authenticable with the inference
-//! key. Coding Plan, on the other hand, is queried through the console gateway
+//! key; with a `bl` console profile (`params.cli_profile`) its free tier and
+//! usage overview come from the official CLI (see [`model_studio_cli`]).
+//! Coding Plan, on the other hand, is queried through the console gateway
 //! used by the Alibaba panel. There are two mutually exclusive modes:
 //!
 //! - web session `session_env` (PRD 0016): pasted into the account wizard and
@@ -30,6 +32,8 @@ use crate::text::{params, Localized, Notes, ParamValue};
 use crate::{Account, Metric, MetricKind, MetricWindow, Provider, Status};
 use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
 use serde_json::{json, Value};
+
+mod model_studio_cli;
 
 const CODING_PLAN_BASE_CN: &str = "https://coding.dashscope.aliyuncs.com/v1";
 const CODING_PLAN_BASE_INTL: &str = "https://coding-intl.dashscope.aliyuncs.com/v1";
@@ -195,6 +199,11 @@ fn coding_plan_dashboard(region: Region) -> &'static str {
 // ---------------------------------------- Alibaba Model Studio / DashScope
 
 async fn alibaba_model_studio(account: &Account, ctx: &Context<'_>) -> Result<Data, QueryError> {
+    // A console profile of the official CLI reads the free tier and usage;
+    // without one, the inference key has no quota query to offer.
+    if let Some(profile) = model_studio_cli::profile(account) {
+        return model_studio_cli::query(account, ctx, profile).await;
+    }
     // The `DASHSCOPE_API_KEY` is required only to signal that the
     // user configured the account; it will **not** be used for any
     // request. Validating guarantees a clear error if the user forgot the

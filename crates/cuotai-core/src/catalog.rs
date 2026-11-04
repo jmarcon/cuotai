@@ -120,8 +120,9 @@ pub enum LocalSource {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct CatalogEntry {
     pub provider: Provider,
-    /// `auth_mode` id (`"oauth"` or `"credential"`) when the provider has
-    /// more than one way to connect; `None` when it has a single one.
+    /// `auth_mode` id (`"oauth"`, `"credential"` or a CLI login mode such
+    /// as `"bailian_console"`) when the provider has more than one way to
+    /// connect; `None` when it has a single one.
     pub mode: Option<&'static str>,
     pub display_name: Localized,
     pub aliases: &'static [&'static str],
@@ -309,7 +310,7 @@ pub fn process_env_is_set(name: &str) -> bool {
 /// The CLI a `LocalCli` credential uses, for the "Uses the {cli} CLI" hint.
 fn cli_name(provider: Provider) -> &'static str {
     match provider {
-        Provider::AlibabaTokenPlan => "bl",
+        Provider::AlibabaTokenPlan | Provider::AlibabaModelStudio => "bl",
         _ => "local",
     }
 }
@@ -427,10 +428,54 @@ fn native_login_available(provider: Provider) -> bool {
     supports_login(provider) && !requires_client_registration(provider)
 }
 
+/// A login mode run by the provider's own CLI that the credential mode
+/// lacks, with the param its login writes: the only queried mode of the
+/// provider, so it opens first (RF5.1) and the credential mode follows.
+fn cli_login_mode(provider: Provider) -> Option<(&'static str, &'static str)> {
+    match provider {
+        Provider::AlibabaModelStudio => {
+            Some((crate::oauth::login::MODE_BAILIAN_CONSOLE, "cli_profile"))
+        }
+        _ => None,
+    }
+}
+
+/// The catalog entry of a [`cli_login_mode`], classified with the param its
+/// login writes.
+fn cli_entry(provider: Provider, mode: &'static str, param: &str) -> CatalogEntry {
+    let access = access::classify(
+        provider,
+        false,
+        &BTreeMap::from([(param.to_string(), "profile".to_string())]),
+    );
+    let (method, hint) = method_and_hint(
+        provider,
+        access.credential,
+        access.level,
+        access.metered,
+        false,
+    );
+    CatalogEntry {
+        mode: Some(mode),
+        method,
+        hint,
+        level: access.level,
+        metered: access.metered,
+        recommended: true,
+        ..entry_for(provider, false, true)
+    }
+}
+
 static CATALOG: LazyLock<Vec<CatalogEntry>> = LazyLock::new(|| {
     let mut entries = Vec::new();
     for provider in Provider::ALL {
-        if native_login_available(provider) {
+        if let Some((mode, param)) = cli_login_mode(provider) {
+            entries.push(cli_entry(provider, mode, param));
+            entries.push(CatalogEntry {
+                recommended: false,
+                ..entry_for(provider, false, true)
+            });
+        } else if native_login_available(provider) {
             entries.push(entry_for(provider, true, true));
             entries.push(entry_for(provider, false, true));
         } else {
@@ -812,7 +857,8 @@ mod tests {
         let entries = catalog();
         for provider in Provider::ALL {
             let own: Vec<_> = entries.iter().filter(|e| e.provider == provider).collect();
-            let expected = if native_login_available(provider) {
+            let cli = cli_login_mode(provider);
+            let expected = if native_login_available(provider) || cli.is_some() {
                 2
             } else {
                 1
@@ -825,7 +871,15 @@ mod tests {
             );
             let modes: std::collections::BTreeSet<_> = own.iter().map(|e| e.mode).collect();
             assert_eq!(modes.len(), own.len(), "{provider:?}: distinct modes");
-            if own.len() == 2 {
+            if let Some((mode, _)) = cli {
+                // The CLI login is the queried mode: it opens first.
+                assert!(
+                    own[0].recommended && own[0].mode == Some(mode),
+                    "{provider:?}"
+                );
+                assert_ne!(own[0].level, Level::Unavailable, "{provider:?}");
+                assert!(crate::oauth::login::login_mode(provider, mode).is_some());
+            } else if own.len() == 2 {
                 assert!(own[0].recommended && own[0].native_login, "{provider:?}");
             }
         }

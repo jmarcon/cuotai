@@ -93,6 +93,35 @@ pub(crate) const TABLE: &[(&str, &str, &str)] = &[
     ),
     ("últimos 10 min", "metric.period.last_10_min", "last 10 min"),
     (
+        "últimos {days} dias",
+        "metric.period.last_days",
+        "last {days} days",
+    ),
+    ("cota gratuita", "metric.period.free_tier", "free tier"),
+    ("modelos", "metric.unit.models", "models"),
+    ("chamadas", "metric.unit.calls", "calls"),
+    (
+        "Modelos com cota gratuita",
+        "metric.label.free_tier_models",
+        "Models with free-tier quota",
+    ),
+    (
+        "Chamadas bem-sucedidas",
+        "metric.label.successful_calls",
+        "Successful calls",
+    ),
+    ("Tokens totais", "metric.label.total_tokens", "Total tokens"),
+    (
+        "Tokens de entrada",
+        "metric.label.input_tokens",
+        "Input tokens",
+    ),
+    (
+        "Tokens de saída",
+        "metric.label.output_tokens",
+        "Output tokens",
+    ),
+    (
         "30 dias concluídos (UTC)",
         "metric.period.last_30_days_utc",
         "30 completed days (UTC)",
