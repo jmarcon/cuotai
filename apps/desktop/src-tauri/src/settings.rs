@@ -91,6 +91,11 @@ struct Stored {
     /// "center it again" and never invalidates the other fields.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     settings_window: Option<serde_json::Value>,
+    /// PRD 0054 RF7.1: the main window's outer position (physical pixels of
+    /// the virtual desktop) and inner size (logical pixels); absent until it
+    /// first settles. Read leniently like `settings_window`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    main_window: Option<serde_json::Value>,
     /// Theme id (PRD 0020 RF7.2); absent = the interface default. Free text on
     /// read: user themes only exist after the interface loads them.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -866,6 +871,23 @@ pub fn read_settings_window(file: &Path, min: (f64, f64)) -> Option<WindowGeomet
 pub fn write_settings_window(file: &Path, geometry: &WindowGeometry) -> Result<(), &'static str> {
     update(file, |s| {
         s.settings_window = serde_json::to_value(geometry).ok()
+    })
+}
+
+/// PRD 0054 RF7.1: the main window geometry stored in `file`, if valid for a
+/// window of at least `min`.
+pub fn read_main_window(file: &Path, min: (f64, f64)) -> Option<WindowGeometry> {
+    read(file)
+        .main_window
+        .as_ref()
+        .and_then(WindowGeometry::from_value)
+        .and_then(|g| g.checked(min))
+}
+
+/// Store the main window geometry in `file`, keeping the other fields.
+pub fn write_main_window(file: &Path, geometry: &WindowGeometry) -> Result<(), &'static str> {
+    update(file, |s| {
+        s.main_window = serde_json::to_value(geometry).ok()
     })
 }
 
@@ -2243,6 +2265,36 @@ mod tests {
         // A bad value never invalidates the other fields.
         fs::write(&file, r#"{"motion":"off","settings_window":"x"}"#).unwrap();
         assert_eq!(motion_of(&read(&file)), "off");
+    }
+
+    #[test]
+    fn main_window_geometry_is_its_own_key_and_keeps_the_others() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        let min = (520.0, 480.0);
+        assert_eq!(read_main_window(&file, min), None);
+        let settings = WindowGeometry {
+            x: 10.0,
+            y: 20.0,
+            width: 860.0,
+            height: 640.0,
+        };
+        write_settings_window(&file, &settings).unwrap();
+        let main = WindowGeometry {
+            x: -2560.0,
+            y: 100.0,
+            width: 1200.0,
+            height: 820.0,
+        };
+        write_main_window(&file, &main).unwrap();
+        assert_eq!(read_main_window(&file, min), Some(main));
+        assert_eq!(read_settings_window(&file, (640.0, 460.0)), Some(settings));
+        fs::write(
+            &file,
+            r#"{"main_window":{"x":0,"y":0,"width":100,"height":700}}"#,
+        )
+        .unwrap();
+        assert_eq!(read_main_window(&file, min), None);
     }
 
     #[test]
