@@ -331,7 +331,11 @@ pub(crate) fn sqlite_backup(db: &rusqlite::Connection, path: &Path) -> io::Resul
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600))?;
     }
-    std::fs::File::open(&tmp)?.sync_all()?;
+    // Windows flushes only through a handle opened for writing.
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(&tmp)?
+        .sync_all()?;
     tmp.persist(&target).map_err(|error| error.error)?;
     sync_dir(dir)
 }
