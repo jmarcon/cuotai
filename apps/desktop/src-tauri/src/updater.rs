@@ -213,11 +213,51 @@ fn endpoints_for<R: Runtime>(app: &AppHandle<R>) -> Result<Vec<Url>, &'static st
 fn updater_for<R: Runtime>(app: &AppHandle<R>) -> Option<tauri_plugin_updater::Updater> {
     ensure_crypto_provider();
     let endpoints = endpoints_for(app).ok()?;
+    let handle = app.clone();
     app.updater_builder()
         .endpoints(endpoints)
         .ok()?
+        // The plugin's own hook (run on Windows just before the installer ends
+        // the process) calls `cleanup_before_exit` on the installing thread;
+        // this one moves it to the main thread, where the tray icon lives.
+        .on_before_exit(move || cleanup_on_main_thread(&handle))
         .build()
         .ok()
+}
+
+/// How long the Windows installer path waits for the main thread to tear the
+/// tray icon and windows down before it lets the installer end the process.
+const CLEANUP_WAIT: Duration = Duration::from_secs(5);
+
+/// Restarts the app on the main thread to finish an update.
+///
+/// [`AppHandle::restart`] tears down the tray icon (`cleanup_before_exit`) on
+/// the calling thread whenever it cannot hand the exit to the event loop, and
+/// the async `updater_restart` command runs on a Tokio worker: on macOS
+/// removing an `NSStatusItem` off the main thread is a fatal AppKit assertion
+/// (the 0.82.3 crash). On the main thread `restart` cleans up and relaunches
+/// there. If the event loop is already gone nothing can run on the main thread
+/// any more, so the process relaunches without the cleanup instead of
+/// touching AppKit from this thread.
+pub fn restart_on_main_thread<R: Runtime>(app: &AppHandle<R>) {
+    let handle = app.clone();
+    if app.run_on_main_thread(move || handle.restart()).is_err() {
+        tauri::process::restart(&tauri::Manager::env(app));
+    }
+}
+
+/// `cleanup_before_exit` on the main thread, waiting (at most [`CLEANUP_WAIT`])
+/// until it is done. Called from the main thread it runs in place.
+fn cleanup_on_main_thread<R: Runtime>(app: &AppHandle<R>) {
+    let (done, finished) = std::sync::mpsc::channel();
+    let handle = app.clone();
+    let dispatched = app.run_on_main_thread(move || {
+        handle.cleanup_before_exit();
+        let _ = done.send(());
+    });
+    if dispatched.is_ok() {
+        let _ = finished.recv_timeout(CLEANUP_WAIT);
+    }
 }
 
 /// RF2.3: the reason the interface shows when the check or the installation fails. The
@@ -753,13 +793,16 @@ impl Service {
     /// RF2.4: installs and restarts to finish the update. `prepare` is the
     /// backend hook (carefully interrupt the cycle and persist the state),
     /// `resume` undoes it when the install fails and the app stays open, and
-    /// `login_in_progress` blocks before any installer is started.
+    /// `login_in_progress` blocks before any installer is started. `relaunch`
+    /// runs only after a successful install: in the app it is
+    /// [`restart_on_main_thread`], never a restart on the calling thread.
     pub fn restart<R: Runtime>(
         &self,
         app: &AppHandle<R>,
         login_in_progress: bool,
         prepare: impl FnOnce(),
         resume: impl FnOnce(),
+        relaunch: impl FnOnce(),
     ) -> Result<(), String> {
         if login_in_progress {
             return Err("login_in_progress".to_string());
@@ -811,10 +854,14 @@ impl Service {
         self.stopping.store(true, Ordering::Relaxed);
         // The app's cleanup runs only once it really exits: the plugin's
         // `on_before_exit` does it on Windows, where `install` launches
-        // NSIS/MSI and ends the process, and `restart` elsewhere. Done here,
-        // a failed install would leave the app open without its tray icon.
+        // NSIS/MSI and ends the process, and `relaunch` elsewhere; both on the
+        // main thread. Done here, a failed install would leave the app open
+        // without its tray icon.
         match update.install(&bytes) {
-            Ok(()) => app.restart(),
+            Ok(()) => {
+                relaunch();
+                Ok(())
+            }
             Err(error) => {
                 self.stopping.store(false, Ordering::Relaxed);
                 resume();
@@ -1963,7 +2010,8 @@ mod contract {
                 app.handle(),
                 true,
                 || prepared.store(true, Ordering::SeqCst),
-                || {}
+                || {},
+                || panic!("a blocked restart must not relaunch")
             ),
             Err("login_in_progress".into())
         );
@@ -2008,6 +2056,7 @@ mod contract {
             false,
             || backend.prepare_for_restart(),
             || backend.resume_after_failed_restart(),
+            || panic!("a failed install must not relaunch"),
         );
 
         assert!(outcome.is_err());
@@ -2019,6 +2068,73 @@ mod contract {
         assert!(
             app.resources_table().get::<Kept>(kept).is_ok(),
             "nothing is torn down until the app really exits"
+        );
+    }
+
+    /// The Windows installer hook tears the app's resources down (through the
+    /// main thread) and returns, so the installer can go on.
+    #[test]
+    fn the_installer_hook_cleans_up_and_returns() {
+        use tauri::Manager as _;
+        let key = keypair();
+        let app = app(&key.pubkey, "http://127.0.0.1:1/latest.json");
+        let kept = app.resources_table().add(Kept);
+
+        cleanup_on_main_thread(app.handle());
+
+        assert!(app.resources_table().get::<Kept>(kept).is_err());
+    }
+
+    /// The 0.82.3 crash: `updater_restart` is an async command, so it runs on a
+    /// Tokio worker, and a restart or `cleanup_before_exit` there drops the
+    /// macOS status item off the main thread. Outside the two helpers above,
+    /// the shell's production code must never restart, exit-clean or tear the
+    /// tray down by itself; the quit paths use `exit`, which only asks the
+    /// event loop.
+    #[test]
+    fn restarts_and_cleanups_only_go_through_the_main_thread_helpers() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let forbidden = [
+            ".restart()",
+            ".request_restart()",
+            "cleanup_before_exit()",
+            "process::exit(",
+            "remove_tray_by_id(",
+        ];
+        let mut offenders = Vec::new();
+        for entry in fs::read_dir(&dir).expect("src dir") {
+            let path = entry.expect("entry").path();
+            if path.extension().and_then(|e| e.to_str()) != Some("rs") {
+                continue;
+            }
+            let source = fs::read_to_string(&path)
+                .expect("source")
+                .replace("\r\n", "\n");
+            // Production code only: everything before the first test module.
+            let production = source
+                .split("\n#[cfg(test)]\nmod ")
+                .next()
+                .unwrap_or_default();
+            for (n, line) in production.lines().enumerate() {
+                let code = line.trim_start();
+                if code.starts_with("//") {
+                    continue;
+                }
+                for pattern in forbidden {
+                    if code.contains(pattern) {
+                        offenders.push(format!("{}:{}: {code}", path.display(), n + 1));
+                    }
+                }
+            }
+        }
+        let allowed = [
+            "if app.run_on_main_thread(move || handle.restart()).is_err() {",
+            "handle.cleanup_before_exit();",
+        ];
+        offenders.retain(|o| !allowed.iter().any(|a| o.ends_with(a)));
+        assert!(
+            offenders.is_empty(),
+            "off-main-thread teardown: {offenders:#?}"
         );
     }
 

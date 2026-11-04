@@ -1627,6 +1627,9 @@ async fn updater_restart(app: AppHandle, b: Shared<'_>, u: Updates<'_>) -> Resul
         login,
         || b.prepare_for_restart(),
         || b.resume_after_failed_restart(),
+        // The command runs on a Tokio worker; the restart (and the tray icon
+        // teardown it implies) must happen on the main thread.
+        || updater::restart_on_main_thread(&app),
     )
 }
 
