@@ -264,7 +264,7 @@ jobs:
         with:
           path: ~/.cache/cuotai-apt-debs
           key: ${{ steps.apt-key.outputs.key }}
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: |
             . -> target
@@ -496,7 +496,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
         with:
           toolchain: 1.99.1
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           shared-key: xtask
           save-if: false
@@ -530,7 +530,7 @@ jobs:
       # (`version-check`, `access-evidence`, `release-preflight` and this one)
       # share one `xtask` cache entry instead of one per job; this job is the
       # only one that always runs on main, so it alone writes the entry.
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           shared-key: xtask
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -592,7 +592,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
         with:
           toolchain: 1.99.1
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           shared-key: xtask
           save-if: false
@@ -618,7 +618,7 @@ jobs:
       # The same key as `test (ubuntu-latest)`: that job compiles these very
       # test binaries, so this one restores its entry and rebuilds nearly
       # nothing. The `test` job writes the entry; this job never saves.
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           shared-key: test
           workspaces: |
@@ -662,7 +662,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
         with:
           toolchain: 1.99.1
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           shared-key: xtask
           save-if: false

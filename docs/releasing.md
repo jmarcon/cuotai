@@ -315,7 +315,10 @@ Every external `uses:` line in every `.github/workflows/*.yml` or `.yaml` file
 is discovered. Full commit SHAs remain mandatory. For a `# vX.Y.Z` comment,
 the checker uses GitHub's official Releases API to find the latest published
 release and the Git Data API to prove that the commented tag resolves to the
-pinned SHA. A newer semantic version, a tag/SHA mismatch or a policy hash
+pinned SHA. `github/codeql-action` is the exception: its GitHub Releases are
+CodeQL CLI bundles (`codeql-bundle-vX.Y.Z`), not action versions, so its pins
+are compared with the highest stable `vX.Y.Z` tag of the repository instead.
+A newer semantic version, a tag/SHA mismatch or a policy hash
 change requires review. The release pipeline currently calls `cargo tauri`
 directly, not `tauri-apps/tauri-action`; if a Tauri action is introduced later,
 the directory scan includes it without a second allowlist.

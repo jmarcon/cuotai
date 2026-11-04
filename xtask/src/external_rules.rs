@@ -19,6 +19,11 @@ const GITHUB_ACCEPT: &str = "application/vnd.github+json";
 const USER_AGENT_VALUE: &str = "cuotai-external-rules-check";
 const MAX_RESPONSE_BYTES: u64 = 4 * 1024 * 1024;
 const INTENTIONALLY_UNVERSIONED_ACTIONS: &[&str] = &["dtolnay/rust-toolchain"];
+/// Repositories whose GitHub Releases are not the action's releases: the
+/// latest release of `github/codeql-action` is a CodeQL CLI bundle
+/// (`codeql-bundle-v2.27.3`), while the action itself is versioned only by its
+/// `vX.Y.Z` tags. Their latest version is the highest stable `v` tag.
+const TAG_VERSIONED_REPOSITORIES: &[&str] = &["github/codeql-action"];
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct Baseline {
@@ -192,7 +197,7 @@ pub fn run(repo: &Path, baseline_path: &Path, github_token: Option<&str>) -> Res
         .collect();
 
     let pins = scan_action_pins(&repo.join(".github/workflows"))?;
-    let mut latest_cache: BTreeMap<String, Result<Vec<u8>, String>> = BTreeMap::new();
+    let mut latest_cache: BTreeMap<String, Result<String, String>> = BTreeMap::new();
     let mut ref_cache: BTreeMap<(String, String), Result<String, String>> = BTreeMap::new();
     let mut actions = Vec::with_capacity(pins.len());
     for pin in pins {
@@ -218,7 +223,7 @@ pub fn run(repo: &Path, baseline_path: &Path, github_token: Option<&str>) -> Res
 
         let latest = latest_cache
             .entry(repository.to_string())
-            .or_insert_with(|| fetch_latest_release(&client, repository, github_token))
+            .or_insert_with(|| fetch_latest_version(&client, repository, github_token))
             .clone();
         let resolved = ref_cache
             .entry((repository.to_string(), version.to_string()))
@@ -240,6 +245,7 @@ pub fn run(repo: &Path, baseline_path: &Path, github_token: Option<&str>) -> Res
             "GitHub-hosted actions with a `# vX.Y.Z` comment are checked through GitHub's official Releases and Git Data APIs; a release tag must resolve to the committed SHA.".into(),
             "A missing or malformed semantic release comment is `could_not_check` and requires attention, except for explicitly known actions whose comments are not action releases.".into(),
             "`dtolnay/rust-toolchain` is intentionally `not_verifiable` because its comment is a Rust toolchain version; its full SHA remains enforced by workflow-check.".into(),
+            "`github/codeql-action` publishes CodeQL CLI bundles as its GitHub Releases, so its pins are compared with the highest stable `vX.Y.Z` tag of the repository instead.".into(),
             "A GitHub repository with no published Releases is `not_verifiable` only after the commented tag resolves to the pinned SHA.".into(),
             "Actions from another registry cannot be checked with the GitHub Releases API and are listed as `not_verifiable`, never as current.".into(),
             "An HTTP, API, parsing, authentication, or rate-limit failure is `could_not_check` and requires attention; it is never reported as unchanged or current.".into(),
@@ -362,9 +368,11 @@ fn assess_policy(baseline: &PolicyBaseline, fetched: Result<Vec<u8>, String>) ->
     }
 }
 
+/// `latest` is the tag name of the action's latest version (see
+/// [`fetch_latest_version`]) or why it could not be read.
 fn assess_action(
     pin: ActionPin,
-    latest: Result<Vec<u8>, String>,
+    latest: Result<String, String>,
     resolved: Result<String, String>,
 ) -> ActionResult {
     let repository = pin.repository.clone();
@@ -392,14 +400,7 @@ fn assess_action(
     }
 
     let latest = match latest {
-        Ok(json) => match serde_json::from_slice::<LatestRelease>(&json) {
-            Ok(release) => release,
-            Err(error) => {
-                result.detail =
-                    format!("could not check: invalid GitHub release response: {error}");
-                return result;
-            }
-        },
+        Ok(tag) => tag,
         Err(error) => {
             if error.starts_with("no published GitHub release") {
                 result.status = CheckStatus::NotVerifiable;
@@ -410,7 +411,7 @@ fn assess_action(
             return result;
         }
     };
-    result.latest_release = Some(latest.tag_name.clone());
+    result.latest_release = Some(latest.clone());
 
     let Some(pinned_text) = result.pinned_version.as_deref() else {
         result.status = CheckStatus::NotVerifiable;
@@ -425,7 +426,7 @@ fn assess_action(
             return result;
         }
     };
-    let latest_version = match parse_release_version(&latest.tag_name) {
+    let latest_version = match parse_release_version(&latest) {
         Ok(version) => version,
         Err(error) => {
             result.detail = format!("could not compare the latest release: {error}");
@@ -434,7 +435,7 @@ fn assess_action(
     };
     if latest_version > pinned_version {
         result.status = CheckStatus::Stale;
-        result.detail = format!("newer GitHub release {} is available", latest.tag_name);
+        result.detail = format!("newer GitHub release {latest} is available");
     } else {
         result.status = CheckStatus::Current;
         result.detail = if latest_version == pinned_version {
@@ -457,6 +458,12 @@ struct GitRef {
 }
 
 #[derive(Deserialize)]
+struct MatchingRef {
+    #[serde(rename = "ref")]
+    name: String,
+}
+
+#[derive(Deserialize)]
 struct GitTag {
     object: GitObject,
 }
@@ -468,18 +475,50 @@ struct GitObject {
     sha: String,
 }
 
-fn fetch_latest_release(
+/// The tag name of the action's latest version: GitHub's latest release, or
+/// for [`TAG_VERSIONED_REPOSITORIES`] the highest stable `vX.Y.Z` tag.
+fn fetch_latest_version(
     client: &Client,
     repository: &str,
     token: Option<&str>,
-) -> Result<Vec<u8>, String> {
+) -> Result<String, String> {
+    if TAG_VERSIONED_REPOSITORIES.contains(&repository) {
+        let url = format!("https://api.github.com/repos/{repository}/git/matching-refs/tags/v");
+        return highest_version_tag(&fetch_bytes(client, &url, token)?);
+    }
     let url = format!("https://api.github.com/repos/{repository}/releases/latest");
     match fetch_bytes(client, &url, token) {
         Err(error) if error.contains("HTTP 404") => Err(format!(
             "no published GitHub release exists for {repository}"
         )),
-        other => other,
+        Err(error) => Err(error),
+        Ok(json) => latest_release_tag(&json),
     }
+}
+
+/// The tag name of a `releases/latest` response.
+fn latest_release_tag(json: &[u8]) -> Result<String, String> {
+    serde_json::from_slice::<LatestRelease>(json)
+        .map(|release| release.tag_name)
+        .map_err(|e| format!("invalid GitHub release response: {e}"))
+}
+
+/// The highest stable `vX.Y.Z` tag of a `git/matching-refs/tags/v` response;
+/// moving major tags (`v4`) and pre-releases are ignored.
+fn highest_version_tag(json: &[u8]) -> Result<String, String> {
+    let refs: Vec<MatchingRef> = serde_json::from_slice(json)
+        .map_err(|e| format!("invalid GitHub matching-refs response: {e}"))?;
+    refs.iter()
+        .filter_map(|reference| reference.name.strip_prefix("refs/tags/"))
+        .filter_map(|tag| {
+            parse_release_version(tag)
+                .ok()
+                .filter(|version| version.pre.is_empty())
+                .map(|version| (version, tag))
+        })
+        .max_by(|a, b| a.0.cmp(&b.0))
+        .map(|(_, tag)| tag.to_string())
+        .ok_or_else(|| "no stable vX.Y.Z tag found".into())
 }
 
 fn resolve_tag_commit(
@@ -755,7 +794,7 @@ mod tests {
         let latest = include_bytes!("../tests/fixtures/external_rules/release-current.json");
         let result = assess_action(
             action_pin("v7.0.1"),
-            Ok(latest.to_vec()),
+            latest_release_tag(latest),
             Ok(PIN_SHA.into()),
         );
         assert_eq!(result.status, CheckStatus::Current);
@@ -767,7 +806,7 @@ mod tests {
         let latest = include_bytes!("../tests/fixtures/external_rules/release-stale.json");
         let result = assess_action(
             action_pin("v7.0.1"),
-            Ok(latest.to_vec()),
+            latest_release_tag(latest),
             Ok(PIN_SHA.into()),
         );
         assert_eq!(result.status, CheckStatus::Stale);
@@ -803,7 +842,7 @@ mod tests {
         let latest = include_bytes!("../tests/fixtures/external_rules/release-current.json");
         let result = assess_action(
             action_pin("v7.0.1"),
-            Ok(latest.to_vec()),
+            latest_release_tag(latest),
             Ok("0000000000000000000000000000000000000000".into()),
         );
         assert_eq!(result.status, CheckStatus::PinMismatch);
@@ -850,6 +889,58 @@ mod tests {
         );
         assert_eq!(result.status, CheckStatus::NotVerifiable);
         assert!(!result.status.needs_attention());
+    }
+
+    fn codeql_pin(version: &str) -> ActionPin {
+        ActionPin {
+            action: "github/codeql-action/init".into(),
+            repository: Some("github/codeql-action".into()),
+            sha: PIN_SHA.into(),
+            version: Some(version.into()),
+            locations: vec![".github/workflows/fixture.yml:20".into()],
+            unsupported_registry: None,
+        }
+    }
+
+    /// Issue #60: the latest GitHub release of `github/codeql-action` is a
+    /// CodeQL CLI bundle (`codeql-bundle-v2.27.3`), so the action's own version
+    /// is its highest stable `v` tag, not the release name.
+    #[test]
+    fn codeql_action_is_compared_with_its_highest_version_tag() {
+        assert!(TAG_VERSIONED_REPOSITORIES.contains(&"github/codeql-action"));
+        let refs = include_bytes!("../tests/fixtures/external_rules/codeql-tags.json");
+        assert_eq!(highest_version_tag(refs).as_deref(), Ok("v4.39.2"));
+
+        let stale = assess_action(
+            codeql_pin("v4.39.1"),
+            highest_version_tag(refs),
+            Ok(PIN_SHA.into()),
+        );
+        assert_eq!(stale.status, CheckStatus::Stale);
+        assert_eq!(stale.latest_release.as_deref(), Some("v4.39.2"));
+
+        let current = assess_action(
+            codeql_pin("v4.39.2"),
+            highest_version_tag(refs),
+            Ok(PIN_SHA.into()),
+        );
+        assert_eq!(current.status, CheckStatus::Current);
+        assert!(!current.status.needs_attention());
+    }
+
+    /// A bundle release name is never taken for an action version, and a tag
+    /// list without any stable `vX.Y.Z` tag cannot be compared.
+    #[test]
+    fn a_bundle_release_name_is_not_an_action_version() {
+        let bundle = br#"{"tag_name": "codeql-bundle-v2.27.3"}"#;
+        let result = assess_action(
+            codeql_pin("v4.39.1"),
+            latest_release_tag(bundle),
+            Ok(PIN_SHA.into()),
+        );
+        assert_eq!(result.status, CheckStatus::CouldNotCheck);
+        assert!(result.status.needs_attention());
+        assert!(highest_version_tag(br#"[{"ref": "refs/tags/codeql-bundle-v2.27.3"}]"#).is_err());
     }
 
     #[test]
