@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0050 |
-| Status | In progress (RF8.1 delivered on Unix; RF1 partial; the rest proposed) |
+| Status | In progress (RF1, RF4, RF5 and RF8.2/RF8.3 delivered in vNEXT; RF2, RF3, RF6 and RF7 partial; RF8.1 delivered on Unix) |
 | Owner | `cuotai-core` (execution consent, server policy, filesystem and transport invariants), desktop Rust shell (native confirmation and user content), desktop UI, TUI/CLI, `xtask` |
 | Consumers | `apps/desktop`, `cuotai --serve`, hook and extension users, user-theme and language-pack authors, security reviewers |
 | Depends on | PRD 0012 RF2/RF3/RF5 (local server and desktop controls), PRD 0013 RF3/RF4 (hooks and consent), PRD 0017 RF1/RF3/RF4/RF5 (extensions) |
@@ -13,9 +13,9 @@
 
 > **Note on terminology:** “RF” (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable. A **native confirmation** is an operating-system dialog created by Rust, outside the webview DOM. A **protected text id** is a catalog key that a user pack cannot replace. Code references are to `origin/main` at `7a1d93c3`.
 
-## Implementation status (2026-10-28)
+## Implementation status (2026-11-04)
 
-Written on 2026-10-27 as PRD 0040 by the 2026-10-25 PRD audit against `origin/main` (0.80.0) and renumbered 0050 when it moved onto `integration/next`, whose 0040–0049 are other plans. This table was re-evaluated on 2026-10-28 against `integration/next` at `18009a04`; the §1 code references still point at `origin/main` at `7a1d93c3`, and the current location is named here where it moved.
+Written on 2026-10-27 as PRD 0040 by the 2026-10-25 PRD audit against `origin/main` (0.80.0) and renumbered 0050 when it moved onto `integration/next`, whose 0040–0049 are other plans. This table was re-evaluated on 2026-10-28 against `integration/next` at `18009a04` and updated on 2026-11-04 with the vNEXT delivery on `feat/prd-0050-security-baseline`; the §1 code references still point at `origin/main` at `7a1d93c3`, and the current location is named here where it moved.
 
 | RF | Version | Delivery |
 |---|---|---|
