@@ -159,8 +159,29 @@ fn group_matches(pattern: &str, display_name: &str) -> bool {
 
 /// Free/paid decision replicated from 9router: `paidTier.id` absent or
 /// equal to `"free-tier"` indicates an account without a paid subscription.
+/// Only applies to a `loadCodeAssist` answer that was actually read.
 fn is_free_tier_from(paid_tier_id: Option<&str>) -> bool {
     paid_tier_id.is_none() || paid_tier_id == Some(FREE_TIER_ID)
+}
+
+/// The plan as far as this query knows it. A failed `loadCodeAssist` leaves
+/// it [`Tier::Unknown`]: an unread answer is not a free plan, so the paid
+/// per-model request is still attempted and its own failure is reported.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Tier {
+    Free,
+    Paid,
+    Unknown,
+}
+
+impl Tier {
+    fn from_paid_tier_id(paid_tier_id: Option<&str>) -> Self {
+        if is_free_tier_from(paid_tier_id) {
+            Tier::Free
+        } else {
+            Tier::Paid
+        }
+    }
 }
 
 // ─── Public entry (dispatcher contract) ────────────────────────
@@ -252,11 +273,11 @@ async fn fetch_antigravity_at(
     let mut notes = Notes::new();
     // What the report says if nothing at all can be read.
     let mut failure = crate::Status::Error;
-    let (project_id, paid_tier_id) = match load_code_assist(ctx, &token, load_code_assist_url).await
-    {
-        Ok((discovered_project, discovered_paid_tier)) => {
-            (discovered_project, discovered_paid_tier)
-        }
+    let (project_id, tier) = match load_code_assist(ctx, &token, load_code_assist_url).await {
+        Ok((discovered_project, discovered_paid_tier)) => (
+            discovered_project,
+            Tier::from_paid_tier_id(discovered_paid_tier.as_deref()),
+        ),
         Err(error) => {
             failure = graver(failure, error.status);
             notes.push_params(
@@ -264,7 +285,11 @@ async fn fetch_antigravity_at(
                 params([("error", ParamValue::L10n(Box::new(error.note.clone())))]),
                 "PARTIAL: loadCodeAssist (project_id/tier discovery) unavailable ({error}); project_id was not discovered.",
             );
-            (None, None)
+            notes.push(
+                "note.antigravity.tier_unknown",
+                "The plan (free or paid) is unknown because loadCodeAssist failed; per-model quotas are requested anyway.",
+            );
+            (None, Tier::Unknown)
         }
     };
 
@@ -283,9 +308,10 @@ async fn fetch_antigravity_at(
         }
     }
 
-    let is_free_tier = is_free_tier_from(paid_tier_id.as_deref());
+    // A free plan skips per-model quotas; a paid or unknown plan asks for them.
+    let is_free_tier = tier == Tier::Free;
 
-    // 1) fetchAvailableModels (paid-tier only)
+    // 1) fetchAvailableModels (paid or unknown tier)
     let mut quotas = QuotaMap::new();
     let mut model_failure: Option<String> = None;
     let mut fetched_models: Option<FetchAvailableModelsResponse> = None;
@@ -1917,6 +1943,75 @@ mod tests {
         assert!(labels.contains(&"Claude & GPT (Semanal)"));
         // Nenhum per-model.
         assert!(!labels.iter().any(|l| l.starts_with("Gemini 3.")));
+    }
+
+    #[tokio::test]
+    async fn failed_load_code_assist_leaves_the_tier_unknown_not_free() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1internal:loadCodeAssist"))
+            .respond_with(ResponseTemplate::new(503).set_body_string("test-token"))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/v1internal:fetchAvailableModels"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(paid_models_payload()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/v1internal:retrieveUserQuotaSummary"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(weekly_payload_paid_reconciles_session()),
+            )
+            .mount(&server)
+            .await;
+
+        let http = reqwest::Client::new();
+        let creds = StaticCred(DEFAULT_CREDENTIAL_ENV, "test-token");
+        let ctx = ctx(&http, &creds);
+        let base = server.uri();
+        let data = fetch_antigravity_at(
+            &account(),
+            &ctx,
+            &format!("{base}/v1internal:loadCodeAssist"),
+            &format!("{base}/v1internal:fetchAvailableModels"),
+            &format!("{base}/v1internal:retrieveUserQuotaSummary"),
+        )
+        .await
+        .expect("partial data");
+
+        // A paid session keeps its per-model quotas when discovery fails.
+        let labels: Vec<&str> = data.metrics.iter().map(|m| m.label.as_str()).collect();
+        assert!(labels.contains(&"Gemini 3.8 Flash (High)"), "{labels:?}");
+        assert!(labels.contains(&"Gemini (Semanal)"));
+        let keys: Vec<&str> = data.notes_l10n.iter().map(|n| n.id.as_ref()).collect();
+        assert!(keys.contains(&"note.antigravity.load_code_assist_unavailable"));
+        assert!(keys.contains(&"note.antigravity.tier_unknown"));
+        assert!(data.notes.iter().all(|n| !n.contains("test-token")));
+
+        // Total failure keeps the classified status, not a free-plan answer.
+        let down = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(401))
+            .mount(&down)
+            .await;
+        let base = down.uri();
+        let error = fetch_antigravity_at(
+            &account(),
+            &ctx,
+            &format!("{base}/v1internal:loadCodeAssist"),
+            &format!("{base}/v1internal:fetchAvailableModels"),
+            &format!("{base}/v1internal:retrieveUserQuotaSummary"),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(error.status, Status::AuthenticationError);
+        assert_eq!(
+            down.received_requests().await.unwrap().len(),
+            3,
+            "an unknown tier still asks for per-model quotas"
+        );
     }
 
     #[tokio::test]

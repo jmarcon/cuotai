@@ -926,6 +926,7 @@
   "note.antigravity.models_unavailable": "SEBAGIAN: fetchAvailableModels (model) tidak tersedia ({error}); hanya ringkasan yang ditampilkan.",
   "note.antigravity.project_override": "params.project_id menimpa project_id yang ditemukan oleh loadCodeAssist.",
   "note.antigravity.summary_unavailable": "SEBAGIAN: retrieveUserQuotaSummary (ringkasan mingguan/5 jam) tidak tersedia ({error}); hanya model yang ditampilkan.",
+  "note.antigravity.tier_unknown": "Paket (gratis atau berbayar) tidak diketahui karena loadCodeAssist gagal; kuota per model tetap diminta.",
   "note.cloud.aws_cost_scope": "Cost Explorer difilter berdasarkan layanan \"Amazon Bedrock\", granularitas bulanan, bulan ini. Data biaya AWS diperbarui ~1x/hari dan dapat tertunda hingga 24 jam.",
   "note.cloud.aws_estimated": "Nilai periode berjalan ditandai sebagai perkiraan oleh Cost Explorer.",
   "note.cloud.aws_query_cost": "Setiap panggilan get-cost-and-usage ke Cost Explorer ditagih oleh AWS (US$ 0,01 per permintaan), tidak seperti panggilan pembuatan: setiap penyegaran dasbor menimbulkan biaya kueri.",

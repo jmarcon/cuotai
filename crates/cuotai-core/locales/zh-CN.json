@@ -926,6 +926,7 @@
   "note.antigravity.models_unavailable": "部分：fetchAvailableModels（模型）不可用（{error}）；只显示摘要。",
   "note.antigravity.project_override": "params.project_id 覆盖了 loadCodeAssist 发现的 project_id。",
   "note.antigravity.summary_unavailable": "部分：retrieveUserQuotaSummary（每周/5 小时摘要）不可用（{error}）；只显示模型。",
+  "note.antigravity.tier_unknown": "由于 loadCodeAssist 失败，套餐（免费或付费）未知；仍会请求按模型的配额。",
   "note.cloud.aws_cost_scope": "Cost Explorer 按服务“Amazon Bedrock”筛选，按月粒度，当月。AWS 费用数据约每天更新一次，可能延迟最多 24 小时。",
   "note.cloud.aws_estimated": "当前周期的数值被 Cost Explorer 标记为估算值。",
   "note.cloud.aws_query_cost": "与生成调用不同，每次对 Cost Explorer 的 get-cost-and-usage 调用都会被 AWS 计费（每次请求 US$ 0.01）：仪表板每次刷新都会产生一次查询费用。",

@@ -926,6 +926,7 @@
   "note.antigravity.models_unavailable": "MỘT PHẦN: fetchAvailableModels (mô hình) không khả dụng ({error}); chỉ hiện phần tóm tắt.",
   "note.antigravity.project_override": "params.project_id đã ghi đè project_id do loadCodeAssist tìm được.",
   "note.antigravity.summary_unavailable": "MỘT PHẦN: retrieveUserQuotaSummary (tóm tắt tuần/5 giờ) không khả dụng ({error}); chỉ hiện các mô hình.",
+  "note.antigravity.tier_unknown": "Không rõ gói (miễn phí hay trả phí) vì loadCodeAssist thất bại; hạn mức theo mô hình vẫn được yêu cầu.",
   "note.cloud.aws_cost_scope": "Cost Explorer được lọc theo dịch vụ \"Amazon Bedrock\", độ chi tiết theo tháng, tháng hiện tại. Dữ liệu chi phí AWS cập nhật ~1 lần/ngày và có thể trễ đến 24 giờ.",
   "note.cloud.aws_estimated": "Giá trị của kỳ hiện tại được Cost Explorer đánh dấu là ước tính.",
   "note.cloud.aws_query_cost": "Mỗi lệnh gọi get-cost-and-usage tới Cost Explorer bị AWS tính phí (0,01 USD mỗi yêu cầu), khác với các lệnh gọi tạo nội dung: mỗi lần làm mới bảng điều khiển phát sinh phí truy vấn.",

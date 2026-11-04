@@ -926,6 +926,7 @@
   "note.antigravity.models_unavailable": "部分的：fetchAvailableModels（モデル）を利用できません（{error}）。概要のみ表示します。",
   "note.antigravity.project_override": "params.project_id が loadCodeAssist で検出した project_id を上書きしました。",
   "note.antigravity.summary_unavailable": "部分的：retrieveUserQuotaSummary（週間/5 時間の概要）を利用できません（{error}）。モデルのみ表示します。",
+  "note.antigravity.tier_unknown": "loadCodeAssist が失敗したため、プラン（無料または有料）は不明です。モデルごとのクォータはそれでも要求されます。",
   "note.cloud.aws_cost_scope": "Cost Explorer をサービス「Amazon Bedrock」、月単位、当月で絞り込み。AWS の費用データは 1 日に約 1 回更新され、最大 24 時間遅れることがあります。",
   "note.cloud.aws_estimated": "現在の期間の値は Cost Explorer によって見積もりとされています。",
   "note.cloud.aws_query_cost": "生成の呼び出しとは異なり、Cost Explorer への get-cost-and-usage の呼び出しは AWS に課金されます（1 リクエストあたり US$ 0.01）。ダッシュボードを更新するたびに照会料金が発生します。",
