@@ -28,6 +28,7 @@
   "canary.no_data_dir": "Kein lokales Datenverzeichnis für den Canary.",
   "changelog.this_version": "  (diese Version)",
   "cli.account_not_found": "Konto nicht in der Konfiguration gefunden: {name}",
+  "cli.check_config.valid": "Die Konfiguration {path} ist gültig.",
   "cli.days_needs_mode": "--days gilt nur mit --cost, --stats oder --events-log.",
   "cli.dev_sqlite_warning": "WARNUNG: Zugangsdaten in UNVERSCHLÜSSELTER SQLite (Entwicklung); der Schlüsselbund wird nicht verwendet. Die Datenbank nicht weitergeben.",
   "cli.needs_terminal": "Die TUI braucht ein interaktives Terminal. Nutzen Sie --once, --json, --json-v1, --serve oder --watch.",

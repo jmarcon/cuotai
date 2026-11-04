@@ -4,6 +4,7 @@ mod canary;
 #[cfg(test)]
 mod capture;
 mod changelog_view;
+mod config_check;
 mod cost;
 mod dashboard;
 mod extension_check;
@@ -150,6 +151,22 @@ struct Args {
     /// Lists the identifiers the configuration accepts.
     #[arg(long)]
     list_providers: bool,
+    /// Checks the configuration file strictly, without credentials or
+    /// network: unknown providers and keys, wrong types and the rules the
+    /// editors apply. Prints one diagnostic per line with its line, column
+    /// and key (never the value); with --json, {"valid", "diagnostics"}.
+    /// The file is the one the other modes would read. Exit 0 when valid,
+    /// 1 otherwise.
+    #[arg(
+        long,
+        conflicts_with_all = [
+            "list_providers", "changelog", "extension_check", "once", "json_v1",
+            "history", "notify", "serve", "watch", "install_source", "cost_action",
+            "report_problem", "canary", "status_line", "stored_view", "completions",
+            "vault_audit", "vault_prune",
+        ]
+    )]
+    check_config: bool,
     /// Usage statistics from the local history (limits reached, average peak
     /// of the tightest limit, extra spending, peak per day and per account),
     /// without querying the providers. With --days 7|30 (default 7) and
@@ -732,6 +749,14 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         clap_complete::generate(shell, &mut command, "cuotai", &mut std::io::stdout());
         return Ok(0);
     }
+    // PRD 0051 RF2.3: strict and offline; no vault, model or update access.
+    if args.check_config {
+        return Ok(config_check::run(
+            args.config.take(),
+            args.json,
+            ui::tui_locale(),
+        )?);
+    }
     if args.list_providers {
         for provider in Provider::ALL {
             println!(
@@ -873,6 +898,18 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         .map_err(|error| error.resolve(locale))?;
     let retention = retention(args.history_days)?;
     let file = ConfigFile::load(args.config, interactive)?;
+    // PRD 0051 RF1.2/RF1.3: what the tolerant reader set aside; the TUI
+    // shows it in its status line.
+    if !interactive {
+        for note in file
+            .issues
+            .iter()
+            .map(|issue| issue.l10n())
+            .chain(file.warnings.iter().map(|warning| warning.l10n()))
+        {
+            eprintln!("cuotai: {}", note.resolve(locale));
+        }
+    }
     // PRD 0028 RF8: the opt-in update notice, TUI and `--once` only.
     let update_notice = update_notice::start(
         &file,

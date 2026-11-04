@@ -28,6 +28,7 @@
   "canary.no_data_dir": "कैनरी के लिए कोई स्थानीय डेटा डायरेक्टरी नहीं है।",
   "changelog.this_version": "  (यह संस्करण)",
   "cli.account_not_found": "कॉन्फ़िगरेशन में खाता नहीं मिला: {name}",
+  "cli.check_config.valid": "कॉन्फ़िगरेशन {path} मान्य है।",
   "cli.days_needs_mode": "--days केवल --cost, --stats या --events-log के साथ काम करता है।",
   "cli.dev_sqlite_warning": "चेतावनी: क्रेडेंशियल बिना एन्क्रिप्शन के SQLite में हैं (डेवलपमेंट); कीचेन इस्तेमाल नहीं होगा। डेटाबेस साझा न करें।",
   "cli.needs_terminal": "TUI को इंटरैक्टिव टर्मिनल चाहिए। --once, --json, --json-v1, --serve या --watch इस्तेमाल करें।",

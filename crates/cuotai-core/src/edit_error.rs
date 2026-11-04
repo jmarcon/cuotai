@@ -179,6 +179,10 @@ pub fn config_error_note(error: &crate::ConfigError) -> Localized {
         );
     }
 
+    if let crate::ConfigError::Parse { line, column, path } = error {
+        return crate::config_file::parse_note(*line, *column, path.as_ref());
+    }
+
     if let crate::ConfigError::AccountIds { field } = error {
         return Localized::with_params(
             "edit_error.config_account_ids",
@@ -188,7 +192,6 @@ pub fn config_error_note(error: &crate::ConfigError) -> Localized {
     }
 
     let id = match error {
-        crate::ConfigError::Parse => "edit_error.config_parse",
         crate::ConfigError::Bounds => "edit_error.config_bounds",
         crate::ConfigError::AccountNames => "edit_error.config_account_names",
         crate::ConfigError::Client => "edit_error.config_client",
@@ -198,7 +201,9 @@ pub fn config_error_note(error: &crate::ConfigError) -> Localized {
         crate::ConfigError::Region => "edit_error.config_region",
         crate::ConfigError::Group => "edit_error.config_group",
         crate::ConfigError::OpenRouter => "edit_error.config_open_router",
-        crate::ConfigError::MeteredRefreshFloor { .. } | crate::ConfigError::AccountIds { .. } => {
+        crate::ConfigError::MeteredRefreshFloor { .. }
+        | crate::ConfigError::AccountIds { .. }
+        | crate::ConfigError::Parse { .. } => {
             unreachable!()
         }
         crate::ConfigError::BaseUrl => "edit_error.config_base_url",
@@ -292,7 +297,6 @@ mod tests {
     #[test]
     fn config_error_note_covers_every_variant() {
         for (error, id) in [
-            (crate::ConfigError::Parse, "edit_error.config_parse"),
             (crate::ConfigError::Bounds, "edit_error.config_bounds"),
             (
                 crate::ConfigError::AccountNames,

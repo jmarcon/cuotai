@@ -28,6 +28,7 @@
   "canary.no_data_dir": "没有供探测使用的本地数据目录。",
   "changelog.this_version": "  （当前版本）",
   "cli.account_not_found": "配置中未找到该账户：{name}",
+  "cli.check_config.valid": "配置 {path} 有效。",
   "cli.days_needs_mode": "--days 仅能与 --cost、--stats 或 --events-log 一起使用。",
   "cli.dev_sqlite_warning": "警告：凭据以未加密方式存储在 SQLite 中（开发模式）；不会使用钥匙串。请勿分享该数据库。",
   "cli.needs_terminal": "TUI 需要交互式终端。请使用 --once、--json、--json-v1、--serve 或 --watch。",

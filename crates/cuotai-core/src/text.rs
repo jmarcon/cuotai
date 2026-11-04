@@ -305,6 +305,36 @@ pub fn changelog_title_l10n() -> Localized {
     Localized::fixed(crate::changelog::TITLE_ID, crate::changelog::TITLE_FALLBACK)
 }
 
+/// PRD 0046 RF4.2 / PRD 0051 RF2: `path` with the user's home shown as `~`,
+/// so a diagnostic pasted into an issue does not carry the account name.
+pub fn home_relative(path: &std::path::Path) -> String {
+    home_relative_to(path, dirs::home_dir().as_deref())
+}
+
+fn home_relative_to(path: &std::path::Path, home: Option<&std::path::Path>) -> String {
+    match home.and_then(|home| path.strip_prefix(home).ok()) {
+        Some(rest) if rest.as_os_str().is_empty() => "~".to_owned(),
+        Some(rest) => format!("~{}{}", std::path::MAIN_SEPARATOR, rest.display()),
+        None => path.display().to_string(),
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn home_relative_hides_the_home_directory() {
+    let home = std::path::Path::new("/home/someone");
+    let sep = std::path::MAIN_SEPARATOR;
+    assert_eq!(
+        home_relative_to(&home.join(".config").join("cuotai"), Some(home)),
+        format!("~{sep}.config{sep}cuotai")
+    );
+    assert_eq!(home_relative_to(home, Some(home)), "~");
+    assert_eq!(
+        home_relative_to(std::path::Path::new("/etc/x"), Some(home)),
+        "/etc/x"
+    );
+}
+
 /// PRD 0024 RF1.4: a span as the core words it, so the TUI and the desktop
 /// agree: under an hour in whole minutes rounded up ("37 min", at least 1),
 /// under a day in hours and minutes ("1h 35m", "2h"), otherwise in days

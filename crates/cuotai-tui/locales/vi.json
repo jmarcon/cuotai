@@ -28,6 +28,7 @@
   "canary.no_data_dir": "Không có thư mục dữ liệu cục bộ cho canary.",
   "changelog.this_version": "  (phiên bản này)",
   "cli.account_not_found": "Không tìm thấy tài khoản trong cấu hình: {name}",
+  "cli.check_config.valid": "Cấu hình {path} hợp lệ.",
   "cli.days_needs_mode": "--days chỉ hoạt động với --cost, --stats hoặc --events-log.",
   "cli.dev_sqlite_warning": "CẢNH BÁO: thông tin xác thực nằm trong SQLite KHÔNG MÃ HÓA (phát triển); sẽ không dùng Keychain. Đừng chia sẻ cơ sở dữ liệu này.",
   "cli.needs_terminal": "TUI cần một terminal tương tác. Hãy dùng --once, --json, --json-v1, --serve hoặc --watch.",

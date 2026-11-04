@@ -28,6 +28,7 @@
   "canary.no_data_dir": "Aucun dossier de données local pour le canari.",
   "changelog.this_version": "  (cette version)",
   "cli.account_not_found": "Compte introuvable dans la configuration : {name}",
+  "cli.check_config.valid": "La configuration {path} est valide.",
   "cli.days_needs_mode": "--days ne fonctionne qu’avec --cost, --stats ou --events-log.",
   "cli.dev_sqlite_warning": "ATTENTION : identifiants dans SQLite SANS CHIFFREMENT (développement) ; le trousseau ne sera pas utilisé. Ne partagez pas la base.",
   "cli.needs_terminal": "La TUI nécessite un terminal interactif. Utilisez --once, --json, --json-v1, --serve ou --watch.",
