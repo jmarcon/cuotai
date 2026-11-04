@@ -494,6 +494,8 @@
   "extensions.consent.declined": "Ekstensi tidak disetujui; tidak dijalankan.",
   "extensions.consent.directory": "folder: {dir}",
   "extensions.consent.env": "variabel lingkungan yang diminta: {env}",
+  "extensions.consent.credential_risk": "Dapat mengekspos kredensial akun lain: {name} adalah variabel kredensial {accounts}.",
+  "extensions.consent.credential_risk_conventional": "Dapat mengekspos kredensial akun lain: {name} adalah variabel kredensial umum dari penyedia yang dikonfigurasi.",
   "extensions.consent.env_none": "tidak meminta variabel lingkungan apa pun",
   "extensions.consent.header": "Ekstensi {id} ({name}) menjalankan program lokal dengan kemampuan pengguna Anda:",
   "extensions.consent.interpreter": "interpreter (baris #! program): {interpreter}",

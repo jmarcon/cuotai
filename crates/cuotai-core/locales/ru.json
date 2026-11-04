@@ -500,6 +500,8 @@
   "extensions.consent.declined": "Расширение не одобрено; оно не запускалось.",
   "extensions.consent.directory": "папка: {dir}",
   "extensions.consent.env": "запрошенные переменные окружения: {env}",
+  "extensions.consent.credential_risk": "Может раскрыть учётные данные другого аккаунта: {name} — переменная учётных данных для {accounts}.",
+  "extensions.consent.credential_risk_conventional": "Может раскрыть учётные данные другого аккаунта: {name} — обычная переменная учётных данных настроенного провайдера.",
   "extensions.consent.env_none": "не запрашивает переменных окружения",
   "extensions.consent.header": "Расширение {id} ({name}) запускает локальную программу с вашими правами пользователя:",
   "extensions.consent.interpreter": "интерпретатор (строка #! программы): {interpreter}",

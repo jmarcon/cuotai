@@ -194,7 +194,14 @@ export async function mountExtensions(host, { onChanged = () => {}, onRemove = (
       box.setAttribute("role", "alertdialog");
       box.setAttribute("aria-label", te("extensions.consentTitle"));
       box.append(el("h3", "", t("extensions.consentTitle")));
-      for (const line of lines) box.append(el("p", "", tl(line)));
+      // PRD 0050 RF8.3: a requested name that is another account's credential variable stands apart, with an icon
+      // and its own words, never by color alone.
+      for (const line of lines) {
+        const risk = String(line.id).startsWith("extensions.consent.credential_risk");
+        const p = el("p", risk ? "hint warn-txt extension-risk" : "", tl(line));
+        if (risk) p.setAttribute("role", "note");
+        box.append(p);
+      }
       const label = el("label", "extension-confirm");
       const check = document.createElement("input");
       check.type = "checkbox";
@@ -210,9 +217,9 @@ export async function mountExtensions(host, { onChanged = () => {}, onRemove = (
           await load();
           onChanged();
         } catch (error) {
-          // The candidate is single use: whether the files changed or the
-          // confirmation expired, show the reason and ask again, so the
-          // user never approves bytes they did not read.
+          // Declined in the system dialog, or the files changed since the
+          // shell disclosed them: show the reason and ask again, so the user
+          // never approves bytes they did not read.
           status.textContent = errText(error);
           box.remove();
           await load();

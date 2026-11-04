@@ -1431,6 +1431,8 @@
   "extensions.consent.interpreter": "interprete (riga #! del programma): {interpreter}",
   "extensions.consent.directory": "directory: {dir}",
   "extensions.consent.env": "variabili d'ambiente richieste: {env}",
+  "extensions.consent.credential_risk": "Può esporre la credenziale di un altro account: {name} è la variabile della credenziale di {accounts}.",
+  "extensions.consent.credential_risk_conventional": "Può esporre la credenziale di un altro account: {name} è la variabile di credenziale abituale di un provider configurato.",
   "extensions.consent.env_none": "non richiede alcuna variabile d'ambiente",
   "extensions.consent.interval": "viene eseguita ogni {seconds} s, con un limite di {timeout} s per volta",
   "extensions.consent.risk": "Cuotai passa solo i valori richiesti che ha ereditato; non passa né dati del vault né credenziali di altri account e non limita né rete né file: rivedi il codice prima di approvarla.",

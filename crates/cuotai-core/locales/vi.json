@@ -494,6 +494,8 @@
   "extensions.consent.declined": "Tiện ích mở rộng chưa được phê duyệt; nó đã không chạy.",
   "extensions.consent.directory": "thư mục: {dir}",
   "extensions.consent.env": "biến môi trường nó yêu cầu: {env}",
+  "extensions.consent.credential_risk": "Có thể làm lộ thông tin xác thực của tài khoản khác: {name} là biến thông tin xác thực của {accounts}.",
+  "extensions.consent.credential_risk_conventional": "Có thể làm lộ thông tin xác thực của tài khoản khác: {name} là biến thông tin xác thực thường dùng của một nhà cung cấp đã cấu hình.",
   "extensions.consent.env_none": "không yêu cầu biến môi trường nào",
   "extensions.consent.header": "Tiện ích mở rộng {id} ({name}) chạy một chương trình cục bộ với quyền của người dùng bạn:",
   "extensions.consent.interpreter": "trình thông dịch (dòng #! của chương trình): {interpreter}",

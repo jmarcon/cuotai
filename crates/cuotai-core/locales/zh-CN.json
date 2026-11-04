@@ -494,6 +494,8 @@
   "extensions.consent.declined": "扩展未获批准；未运行。",
   "extensions.consent.directory": "文件夹：{dir}",
   "extensions.consent.env": "请求的环境变量：{env}",
+  "extensions.consent.credential_risk": "可能泄露其他账户的凭据：{name} 是 {accounts} 的凭据变量。",
+  "extensions.consent.credential_risk_conventional": "可能泄露其他账户的凭据：{name} 是某个已配置提供商的常用凭据变量。",
   "extensions.consent.env_none": "不请求任何环境变量",
   "extensions.consent.header": "扩展 {id}（{name}）会以当前用户的权限运行本地程序：",
   "extensions.consent.interpreter": "解释器（程序的 #! 行）：{interpreter}",

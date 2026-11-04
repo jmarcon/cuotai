@@ -496,6 +496,8 @@
   "extensions.consent.declined": "Uzantı onaylanmadı; çalıştırılmadı.",
   "extensions.consent.directory": "klasör: {dir}",
   "extensions.consent.env": "istediği ortam değişkenleri: {env}",
+  "extensions.consent.credential_risk": "Başka bir hesabın kimlik bilgisini açığa çıkarabilir: {name}, {accounts} hesabının kimlik bilgisi değişkenidir.",
+  "extensions.consent.credential_risk_conventional": "Başka bir hesabın kimlik bilgisini açığa çıkarabilir: {name}, yapılandırılmış bir sağlayıcının olağan kimlik bilgisi değişkenidir.",
   "extensions.consent.env_none": "hiçbir ortam değişkeni istemiyor",
   "extensions.consent.header": "{id} ({name}) uzantısı, kullanıcınızın yetkileriyle yerel bir program çalıştırır:",
   "extensions.consent.interpreter": "yorumlayıcı (programın #! satırı): {interpreter}",

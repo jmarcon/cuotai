@@ -1431,6 +1431,8 @@
   "extensions.consent.interpreter": "intérprete (línea #! del programa): {interpreter}",
   "extensions.consent.directory": "carpeta: {dir}",
   "extensions.consent.env": "variables de entorno que pide: {env}",
+  "extensions.consent.credential_risk": "Puede exponer la credencial de otra cuenta: {name} es la variable de credencial de {accounts}.",
+  "extensions.consent.credential_risk_conventional": "Puede exponer la credencial de otra cuenta: {name} es la variable de credencial habitual de un proveedor configurado.",
   "extensions.consent.env_none": "no pide ninguna variable de entorno",
   "extensions.consent.interval": "se ejecuta cada {seconds} s, con un límite de {timeout} s por ejecución",
   "extensions.consent.risk": "Cuotai entrega solo los valores solicitados que heredó; no entrega datos del almacén ni credenciales de otras cuentas y no restringe la red ni los archivos: revise el código antes de aprobarla.",

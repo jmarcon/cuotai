@@ -496,6 +496,8 @@
   "extensions.consent.declined": "Extension non approuvée ; elle n’a pas été exécutée.",
   "extensions.consent.directory": "dossier : {dir}",
   "extensions.consent.env": "variables d’environnement demandées : {env}",
+  "extensions.consent.credential_risk": "Peut exposer l’identifiant d’un autre compte : {name} est la variable d’identifiant de {accounts}.",
+  "extensions.consent.credential_risk_conventional": "Peut exposer l’identifiant d’un autre compte : {name} est la variable d’identifiant habituelle d’un fournisseur configuré.",
   "extensions.consent.env_none": "ne demande aucune variable d’environnement",
   "extensions.consent.header": "L’extension {id} ({name}) exécute un programme local avec les droits de votre compte :",
   "extensions.consent.interpreter": "interpréteur (ligne #! du programme) : {interpreter}",

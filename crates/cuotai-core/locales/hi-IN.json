@@ -496,6 +496,8 @@
   "extensions.consent.declined": "एक्सटेंशन मंज़ूर नहीं हुआ; वह चलाया नहीं गया।",
   "extensions.consent.directory": "फ़ोल्डर: {dir}",
   "extensions.consent.env": "माँगे गए एनवायरनमेंट वेरिएबल: {env}",
+  "extensions.consent.credential_risk": "किसी अन्य खाते का क्रेडेंशियल उजागर हो सकता है: {name}, {accounts} का क्रेडेंशियल वेरिएबल है।",
+  "extensions.consent.credential_risk_conventional": "किसी अन्य खाते का क्रेडेंशियल उजागर हो सकता है: {name} किसी कॉन्फ़िगर किए गए प्रदाता का सामान्य क्रेडेंशियल वेरिएबल है।",
   "extensions.consent.env_none": "कोई एनवायरनमेंट वेरिएबल नहीं माँगता",
   "extensions.consent.header": "एक्सटेंशन {id} ({name}) आपके उपयोगकर्ता के अधिकारों से एक स्थानीय प्रोग्राम चलाता है:",
   "extensions.consent.interpreter": "इंटरप्रेटर (प्रोग्राम की #! पंक्ति): {interpreter}",

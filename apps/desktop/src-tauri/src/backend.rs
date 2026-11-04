@@ -3089,11 +3089,12 @@ impl Backend {
         self.ensure_loaded().await;
         let g = self.inner.lock().await;
         let loaded = g.loaded.as_ref().ok_or("config_unavailable")?;
+        // PRD 0050 RF8.2: names another account reads its credential from.
         loaded
             .monitor
             .extension_manager()
             .ok_or("extensions_unavailable")?
-            .disclosure(id)
+            .disclosure_for(id, &loaded.file.config)
             .map_err(|note| l10n_to_json(&note))
     }
 
@@ -3110,17 +3111,16 @@ impl Backend {
     ) -> Result<cuotai_core::extensions::management::ActionResult, String> {
         self.ensure_loaded().await;
         let _gate = self.confirm_gate.enter().map_err(|e| l10n_to_json(&e))?;
-        let manager = {
+        let disclosure = {
             let g = self.inner.lock().await;
-            g.loaded
-                .as_ref()
-                .ok_or("config_unavailable")?
+            let loaded = g.loaded.as_ref().ok_or("config_unavailable")?;
+            loaded
                 .monitor
                 .extension_manager()
-                .cloned()
                 .ok_or("extensions_unavailable")?
+                .disclosure_for(id, &loaded.file.config)
+                .map_err(|note| l10n_to_json(&note))?
         };
-        let disclosure = manager.disclosure(id).map_err(|note| l10n_to_json(&note))?;
         crate::native_confirm::ask_extension(
             &crate::native_confirm::DialogConfirmer::new(app),
             &crate::native_confirm::locale(),
@@ -3269,11 +3269,12 @@ impl Backend {
         let _gate = self.confirm_gate.enter().map_err(|e| l10n_to_json(&e))?;
         let lines = {
             let g = self.inner.lock().await;
-            g.loaded
-                .as_ref()
-                .and_then(|loaded| loaded.monitor.extension_manager().cloned())
+            let loaded = g.loaded.as_ref().ok_or("extensions_unavailable")?;
+            loaded
+                .monitor
+                .extension_manager()
                 .ok_or("extensions_unavailable")?
-                .review(id)
+                .review(id, &loaded.file.config)
                 .map_err(|note| l10n_to_json(&note))?
         };
         crate::native_confirm::ask_extension(
