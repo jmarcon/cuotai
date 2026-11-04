@@ -928,6 +928,7 @@
   "note.antigravity.models_unavailable": "PARCIAL: fetchAvailableModels (modelos) indisponível ({error}); apenas o resumo exibido.",
   "note.antigravity.project_override": "params.project_id sobrescreveu o project_id descoberto em loadCodeAssist.",
   "note.antigravity.summary_unavailable": "PARCIAL: retrieveUserQuotaSummary (resumo semanal/5h) indisponível ({error}); apenas modelos exibidos.",
+  "note.antigravity.tier_unknown": "O plano (gratuito ou pago) é desconhecido porque o loadCodeAssist falhou; as cotas por modelo são solicitadas mesmo assim.",
   "note.cloud.aws_cost_scope": "Cost Explorer filtrado por serviço \"Amazon Bedrock\", granularidade mensal, mês corrente. Dados de custo AWS atualizam ~1x ao dia e podem atrasar até 24 h.",
   "note.cloud.aws_estimated": "Valores do período corrente marcados como estimados pelo Cost Explorer.",
   "note.cloud.aws_query_cost": "Cada consulta get-cost-and-usage ao Cost Explorer é tarifada pela AWS (US$ 0,01 por requisição), ao contrário das chamadas de geração: cada atualização do painel gera cobrança de consulta.",

@@ -931,6 +931,7 @@
   "note.antigravity.models_unavailable": "KISMİ: fetchAvailableModels (modeller) kullanılamıyor ({error}); yalnızca özet gösteriliyor.",
   "note.antigravity.project_override": "params.project_id, loadCodeAssist tarafından keşfedilen project_id değerini geçersiz kıldı.",
   "note.antigravity.summary_unavailable": "KISMİ: retrieveUserQuotaSummary (haftalık/5 saatlik özet) kullanılamıyor ({error}); yalnızca modeller gösteriliyor.",
+  "note.antigravity.tier_unknown": "loadCodeAssist başarısız olduğu için plan (ücretsiz veya ücretli) bilinmiyor; model başına kotalar yine de isteniyor.",
   "note.cloud.aws_cost_scope": "Cost Explorer \"Amazon Bedrock\" hizmetine göre filtrelendi, aylık ayrıntı düzeyi, geçerli ay. AWS maliyet verileri günde ~1 kez güncellenir ve 24 saate kadar gecikebilir.",
   "note.cloud.aws_estimated": "Geçerli dönemin değerleri Cost Explorer tarafından tahmini olarak işaretlenir.",
   "note.cloud.aws_query_cost": "Cost Explorer'a yapılan her get-cost-and-usage çağrısı AWS tarafından ücretlendirilir (istek başına 0,01 ABD doları), üretim çağrılarının aksine: panoyu her yenileme bir sorgu ücreti doğurur.",

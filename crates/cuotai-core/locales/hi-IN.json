@@ -931,6 +931,7 @@
   "note.antigravity.models_unavailable": "आंशिक: fetchAvailableModels (मॉडल) उपलब्ध नहीं ({error}); केवल सार दिखाया गया।",
   "note.antigravity.project_override": "params.project_id ने loadCodeAssist से मिले project_id को बदल दिया।",
   "note.antigravity.summary_unavailable": "आंशिक: retrieveUserQuotaSummary (साप्ताहिक/5 घंटे का सार) उपलब्ध नहीं ({error}); केवल मॉडल दिखाए गए।",
+  "note.antigravity.tier_unknown": "प्लान (मुफ़्त या सशुल्क) अज्ञात है क्योंकि loadCodeAssist विफल रहा; प्रति-मॉडल कोटा फिर भी माँगे जाते हैं।",
   "note.cloud.aws_cost_scope": "\"Amazon Bedrock\" सेवा से फ़िल्टर किया Cost Explorer, मासिक ग्रैन्युलैरिटी, चालू महीना। AWS का लागत डेटा लगभग दिन में एक बार अपडेट होता है और 24 घंटे तक देर से आ सकता है।",
   "note.cloud.aws_estimated": "चालू अवधि के मान Cost Explorer द्वारा अनुमानित चिह्नित हैं।",
   "note.cloud.aws_query_cost": "Cost Explorer पर हर get-cost-and-usage जाँच का AWS शुल्क लेता है (प्रति अनुरोध US$ 0.01), जनरेशन कॉल के विपरीत: डैशबोर्ड का हर अपडेट जाँच का शुल्क बनाता है।",

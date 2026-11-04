@@ -941,6 +941,7 @@
   "note.antigravity.models_unavailable": "ЧАСТИЧНО: fetchAvailableModels (модели) недоступен ({error}); показана только сводка.",
   "note.antigravity.project_override": "params.project_id переопределил project_id, найденный в loadCodeAssist.",
   "note.antigravity.summary_unavailable": "ЧАСТИЧНО: retrieveUserQuotaSummary (недельная/5-часовая сводка) недоступен ({error}); показаны только модели.",
+  "note.antigravity.tier_unknown": "Тариф (бесплатный или платный) неизвестен, так как loadCodeAssist завершился ошибкой; квоты по моделям всё равно запрашиваются.",
   "note.cloud.aws_cost_scope": "Cost Explorer с фильтром по сервису «Amazon Bedrock», месячная детализация, текущий месяц. Данные о расходах AWS обновляются примерно раз в сутки и могут запаздывать до 24 ч.",
   "note.cloud.aws_estimated": "Значения текущего периода помечены Cost Explorer как оценочные.",
   "note.cloud.aws_query_cost": "Каждый запрос get-cost-and-usage к Cost Explorer тарифицируется AWS (0,01 US$ за запрос), в отличие от вызовов генерации: каждое обновление панели влечёт плату за запрос.",
