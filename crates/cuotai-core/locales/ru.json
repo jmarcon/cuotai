@@ -1461,6 +1461,7 @@
   "query.asia.other_provider": "{provider} опрашивается другим адаптером.",
   "query.cloud.aws_access_denied": "В настроенном профиле AWS доступ запрещён. Предоставьте профилю {permission}.",
   "query.cloud.aws_auth": "Аутентификация AWS для профиля из params.profile не удалась. Проверьте учётные данные профиля (aws configure sso / aws configure).",
+  "query.cloud.invalid_aws_profile": "params.profile — недопустимое имя профиля AWS: используйте от 1 до 128 символов, не начиная с «-» и без управляющих символов.",
   "query.cloud.aws_cli": "AWS CLI завершился ошибкой (код {code}). Проверьте право {permission} в профиле.",
   "query.cloud.aws_cli_not_found": "AWS CLI не найден в PATH. Установите AWS CLI v2, чтобы опрашивать AWS Bedrock.",
   "query.cloud.aws_throttled": "AWS ограничил частоту запросов этого профиля; повторите попытку позже.",

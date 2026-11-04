@@ -1446,6 +1446,7 @@
   "query.asia.other_provider": "{provider} do bộ điều hợp khác xử lý.",
   "query.cloud.aws_access_denied": "Bị từ chối truy cập trên hồ sơ AWS đã cấu hình. Hãy cấp {permission} cho hồ sơ.",
   "query.cloud.aws_auth": "Xác thực AWS không thành công với hồ sơ cấu hình trong params.profile. Hãy kiểm tra thông tin xác thực của hồ sơ (aws configure sso / aws configure).",
+  "query.cloud.invalid_aws_profile": "params.profile không phải là tên hồ sơ AWS hợp lệ: dùng từ 1 đến 128 ký tự, không bắt đầu bằng \"-\" và không có ký tự điều khiển.",
   "query.cloud.aws_cli": "AWS CLI không thành công (mã {code}). Hãy kiểm tra quyền {permission} trên hồ sơ.",
   "query.cloud.aws_cli_not_found": "Không có AWS CLI trong PATH. Hãy cài AWS CLI v2 để truy vấn AWS Bedrock.",
   "query.cloud.aws_throttled": "AWS đã giới hạn tốc độ yêu cầu của hồ sơ này; hãy thử lại sau.",

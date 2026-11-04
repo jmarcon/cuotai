@@ -81,11 +81,7 @@ pub async fn login(profile: &str, events: Sender<String>) -> Result<(), OAuthErr
 }
 
 fn validate_profile(profile: &str) -> Result<(), OAuthError> {
-    let ok = !profile.is_empty()
-        && profile.len() <= 128
-        && !profile.starts_with('-')
-        && !profile.chars().any(char::is_control);
-    if ok {
+    if crate::cli_path::valid_aws_profile(profile) {
         Ok(())
     } else {
         Err(OAuthError::Configuration(crate::text::Localized::fixed(

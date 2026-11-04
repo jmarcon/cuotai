@@ -1451,6 +1451,7 @@
   "query.asia.other_provider": "{provider} başka bir bağdaştırıcı tarafından işleniyor.",
   "query.cloud.aws_access_denied": "Yapılandırılan AWS profilinde erişim reddedildi. Profile {permission} izni verin.",
   "query.cloud.aws_auth": "params.profile içinde yapılandırılan profil için AWS kimlik doğrulaması başarısız oldu. Profilin kimlik bilgilerini kontrol edin (aws configure sso / aws configure).",
+  "query.cloud.invalid_aws_profile": "params.profile geçerli bir AWS profil adı değil: \"-\" ile başlamayan ve denetim karakteri içermeyen 1 ila 128 karakter kullanın.",
   "query.cloud.aws_cli": "AWS CLI başarısız oldu (kod {code}). Profildeki {permission} iznini kontrol edin.",
   "query.cloud.aws_cli_not_found": "AWS CLI PATH içinde yok. AWS Bedrock'u sorgulamak için AWS CLI v2'yi kurun.",
   "query.cloud.aws_throttled": "AWS bu profilin isteklerini kısıtladı; daha sonra yeniden deneyin.",

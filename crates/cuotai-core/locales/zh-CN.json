@@ -1446,6 +1446,7 @@
   "query.asia.other_provider": "{provider} 由另一个适配器处理。",
   "query.cloud.aws_access_denied": "所配置的 AWS 配置文件访问被拒绝。请为该配置文件授予 {permission}。",
   "query.cloud.aws_auth": "params.profile 中配置的配置文件 AWS 认证失败。请检查配置文件的凭据（aws configure sso / aws configure）。",
+  "query.cloud.invalid_aws_profile": "params.profile 不是有效的 AWS 配置文件名称：请使用 1 到 128 个字符，不以“-”开头且不含控制字符。",
   "query.cloud.aws_cli": "AWS CLI 失败（代码 {code}）。请检查配置文件的 {permission} 权限。",
   "query.cloud.aws_cli_not_found": "PATH 中没有 AWS CLI。请安装 AWS CLI v2 以查询 AWS Bedrock。",
   "query.cloud.aws_throttled": "AWS 限制了此配置文件的请求速率；请稍后重试。",

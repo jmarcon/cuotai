@@ -1446,6 +1446,7 @@
   "query.asia.other_provider": "{provider} は別のアダプターが対応します。",
   "query.cloud.aws_access_denied": "設定した AWS プロファイルでアクセスが拒否されました。プロファイルに {permission} を付与してください。",
   "query.cloud.aws_auth": "params.profile で設定したプロファイルの AWS 認証に失敗しました。プロファイルの認証情報を確認してください（aws configure sso / aws configure）。",
+  "query.cloud.invalid_aws_profile": "params.profile は有効な AWS プロファイル名ではありません。1〜128 文字で、「-」で始まらず、制御文字を含まない名前にしてください。",
   "query.cloud.aws_cli": "AWS CLI が失敗しました（コード {code}）。プロファイルの {permission} 権限を確認してください。",
   "query.cloud.aws_cli_not_found": "AWS CLI が PATH にありません。AWS Bedrock を照会するには AWS CLI v2 をインストールしてください。",
   "query.cloud.aws_throttled": "AWS がこのプロファイルのリクエストを制限しました。しばらくしてからもう一度お試しください。",

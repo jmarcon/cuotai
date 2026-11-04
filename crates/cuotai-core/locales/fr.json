@@ -1451,6 +1451,7 @@
   "query.asia.other_provider": "{provider} relève d’un autre adaptateur.",
   "query.cloud.aws_access_denied": "Accès refusé pour le profil AWS configuré. Accordez {permission} au profil.",
   "query.cloud.aws_auth": "L’authentification AWS a échoué pour le profil configuré dans params.profile. Vérifiez les identifiants du profil (aws configure sso / aws configure).",
+  "query.cloud.invalid_aws_profile": "params.profile n’est pas un nom de profil AWS valide : utilisez de 1 à 128 caractères, sans commencer par « - » et sans caractère de contrôle.",
   "query.cloud.aws_cli": "L’AWS CLI a échoué (code {code}). Vérifiez le droit {permission} du profil.",
   "query.cloud.aws_cli_not_found": "L’AWS CLI n’est pas dans le PATH. Installez AWS CLI v2 pour interroger AWS Bedrock.",
   "query.cloud.aws_throttled": "AWS a limité le débit des requêtes de ce profil ; réessayez plus tard.",

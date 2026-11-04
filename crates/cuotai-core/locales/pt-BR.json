@@ -1448,6 +1448,7 @@
   "query.asia.other_provider": "{provider} é consultado por outro adaptador.",
   "query.cloud.aws_access_denied": "Acesso negado no perfil AWS configurado. Conceda {permission} ao perfil.",
   "query.cloud.aws_auth": "Autenticação AWS falhou para o perfil configurado em params.profile. Verifique as credenciais do perfil (aws configure sso / aws configure).",
+  "query.cloud.invalid_aws_profile": "params.profile não é um nome de perfil AWS válido: use de 1 a 128 caracteres, sem começar com \"-\" e sem caracteres de controle.",
   "query.cloud.aws_cli": "AWS CLI falhou (código {code}). Verifique permissão {permission} no perfil.",
   "query.cloud.aws_cli_not_found": "AWS CLI não encontrada no PATH. Instale a AWS CLI v2 para consultar o AWS Bedrock.",
   "query.cloud.aws_throttled": "A AWS limitou a taxa de requisições deste perfil; tente novamente mais tarde.",
