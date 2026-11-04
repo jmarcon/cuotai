@@ -1581,6 +1581,7 @@
   "serve.token.default_file": "Zugriffstoken in {path} (nur Ihr Benutzer kann es lesen): Senden Sie es als Authorization: Bearer; --no-token schaltet es aus.",
   "serve.token.file_exposed": "Achtung: Die Token-Datei kann von anderen Benutzern dieses Computers gelesen werden; schränken Sie sie mit chmod 600 ein.",
   "serve.token.none_warning": "Achtung: Ohne Token kann jeder Benutzer oder jedes Programm auf diesem Computer Ihre Nutzung vom lokalen Server lesen (nur Webseiten und andere Computer werden weiterhin abgewiesen).",
+  "state.error.newer_major_history": "Der lokale Verlauf wurde von einer neueren Cuotai-Version mit geändertem Format geschrieben; er bleibt unverändert. Aktualisiere Cuotai, um ihn zu nutzen.",
   "stats.history_kept": "Verlauf wird {days} Tage auf diesem Gerät aufbewahrt",
   "stats.not_enough": "Nicht genug Verlauf",
   "status.authentication_error": "Authentifizierung",

@@ -53,6 +53,10 @@ pub enum HistoryError {
     /// The export destination refused the data (RF4.4).
     #[error("Could not write the history export.")]
     Export,
+    /// PRD 0051 RF3.2/RF3.5: the file was written by a later schema major;
+    /// it is left untouched.
+    #[error("The local history was written by a newer version of Cuotai that changed its format; it is kept untouched. Update Cuotai to use it.")]
+    NewerMajor,
 }
 
 impl HistoryError {
@@ -60,6 +64,7 @@ impl HistoryError {
         let id = match self {
             Self::Storage => "history.error.storage",
             Self::Export => "history.error.export",
+            Self::NewerMajor => "state.error.newer_major_history",
         };
         Localized::fixed(id, self.to_string())
     }
@@ -465,26 +470,57 @@ pub(crate) fn migrate(db: &mut Connection, migrations: &[&str]) -> Result<(), Hi
 
 /// [`migrate`], returning the version the file had before (`None` when it
 /// was current already).
+///
+/// PRD 0051 RF3: a higher `user_version` is a later revision of the same
+/// schema when `state_meta` says major [`SQLITE_MAJOR`]: it only added
+/// tables, columns or indexes, so this release keeps reading and writing
+/// what it knows. Without that record, or with a later major, the file is
+/// [`HistoryError::NewerMajor`] and left untouched. Before migrating a
+/// file that holds data, `<file>.bak` is replaced with a consistent copy.
 fn migrate_from(db: &mut Connection, migrations: &[&str]) -> Result<Option<i64>, HistoryError> {
+    use crate::private_fs::{ensure_sqlite_meta, sqlite_backup, sqlite_major, SQLITE_MAJOR};
     let latest = i64::try_from(migrations.len()).map_err(|_| HistoryError::Storage)?;
     let version =
         |db: &Connection| db.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0));
-    if version(db)? == latest {
+    let newer = |db: &Connection| -> Result<Option<i64>, HistoryError> {
+        match sqlite_major(db)? {
+            Some(SQLITE_MAJOR) => Ok(None),
+            _ => Err(HistoryError::NewerMajor),
+        }
+    };
+    let before = version(db)?;
+    if before > latest {
+        return newer(db);
+    }
+    if before == latest {
+        ensure_sqlite_meta(db)?;
         return Ok(None);
+    }
+    if before > 0 {
+        if let Some(path) = db.path().filter(|path| !path.is_empty()).map(PathBuf::from) {
+            sqlite_backup(db, &path).map_err(|_| HistoryError::Storage)?;
+        }
     }
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     let current = version(&tx)?;
-    if !(0..=latest).contains(&current) {
+    if current > latest {
+        drop(tx);
+        return newer(db);
+    }
+    if current < 0 {
         return Err(HistoryError::Storage);
     }
     if current == latest {
         // Another process migrated the file between the check and the lock.
+        drop(tx);
+        ensure_sqlite_meta(db)?;
         return Ok(None);
     }
     for (done, step) in (current..).zip(&migrations[current as usize..]) {
         tx.execute_batch(step)?;
         tx.pragma_update(None, "user_version", done + 1)?;
     }
+    ensure_sqlite_meta(&tx)?;
     tx.commit()?;
     Ok(Some(current))
 }
@@ -1282,17 +1318,89 @@ credential_env = "GROQ_KEY_BETA"
         assert_eq!(version(&empty), MIGRATIONS.len() as i64 + 1);
         assert_eq!(count(&empty, "used = 10.0"), 1);
 
-        // Written by a newer Cuotai: every operation fails, nothing is guessed.
-        for op in [
-            store(&empty, "one").bounds().map(drop),
-            store(&empty, "one").latest(alpha).map(drop),
-            store(&empty, "one")
-                .record(alpha, t0() + mins(5), &[quota("5h", Some(11.0), None)])
-                .map(drop),
+        // PRD 0051 RF3: a later revision of the same major (it recorded
+        // `state_meta` major 1 and only added a column) stays usable.
+        store(&empty, "one")
+            .record(alpha, t0() + mins(5), &[quota("5h", Some(11.0), None)])
+            .unwrap();
+        assert_eq!(count(&empty, "1"), 2);
+        assert!(store(&empty, "one").latest(alpha).unwrap().is_some());
+
+        // A later major, or a newer file without the record: every operation
+        // fails with the typed error and nothing is guessed or written.
+        for marker in [
+            "UPDATE state_meta SET value = 2 WHERE key = 'major'",
+            "DROP TABLE state_meta",
         ] {
-            assert_eq!(op, Err(HistoryError::Storage));
+            raw(&empty).execute_batch(marker).unwrap();
+            let before = std::fs::read(&empty).unwrap();
+            for op in [
+                store(&empty, "one").bounds().map(drop),
+                store(&empty, "one").latest(alpha).map(drop),
+                store(&empty, "one")
+                    .record(alpha, t0() + mins(10), &[quota("5h", Some(12.0), None)])
+                    .map(drop),
+            ] {
+                assert_eq!(op, Err(HistoryError::NewerMajor), "{marker}");
+            }
+            assert_eq!(count(&empty, "1"), 2, "the newer file is untouched");
+            assert_eq!(std::fs::read(&empty).unwrap(), before, "{marker}");
+            assert_eq!(
+                HistoryError::NewerMajor.l10n().id,
+                "state.error.newer_major_history"
+            );
+            raw(&empty)
+                .execute_batch(
+                    "CREATE TABLE IF NOT EXISTS state_meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL) WITHOUT ROWID;
+                     INSERT OR REPLACE INTO state_meta VALUES ('major', 1);",
+                )
+                .unwrap();
         }
-        assert_eq!(count(&empty, "1"), 1, "the newer file is untouched");
+    }
+
+    /// PRD 0051 RF3.3: migrating a file with data first replaces
+    /// `history.sqlite3.bak` with a consistent copy of the old version.
+    #[test]
+    fn a_migration_keeps_a_private_backup_of_the_previous_version() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("history.sqlite3");
+        let mut db = raw(&path);
+        db.pragma_update(None, "journal_mode", "WAL").unwrap();
+        migrate(&mut db, &MIGRATIONS[..6]).unwrap();
+        db.execute_batch(
+            "INSERT INTO series (config_key, account_digest, metric_key, label, position, seen_at)
+                 VALUES ('cfg', 'acct', 'm5h', '5h', 0, 2000);
+             INSERT INTO samples VALUES ('cfg', 'acct', 'm5h', 2000, 25.0, 100.0, NULL,
+                 '%', 'quota', 'h5', 9000);",
+        )
+        .unwrap();
+        // The pre-migration rows sit in the WAL; the backup must see them.
+        migrate(&mut db, &MIGRATIONS).unwrap();
+        drop(db);
+        let backup = crate::private_fs::backup_path(&path);
+        let old = raw(&backup);
+        let version: i64 = old
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(version, 6);
+        let rows: i64 = old
+            .query_row("SELECT COUNT(*) FROM samples WHERE used = 25.0", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(rows, 1);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&backup).unwrap().permissions().mode() & 0o777;
+            assert_eq!(mode, 0o600);
+        }
+        let major = crate::private_fs::sqlite_major(&raw(&path)).unwrap();
+        assert_eq!(major, Some(1));
+        // An empty file (version 0) has nothing to keep.
+        let fresh = dir.path().join("fresh.sqlite3");
+        migrate(&mut raw(&fresh), &MIGRATIONS).unwrap();
+        assert!(!crate::private_fs::backup_path(&fresh).exists());
     }
 
     /// The single migration chain carries a 0.80.0 file (version 2) with

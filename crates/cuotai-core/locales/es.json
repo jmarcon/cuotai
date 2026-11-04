@@ -1089,6 +1089,7 @@
   "remove_error.purge_vault.network": "Fallo de red al purgar la bóveda.",
   "remove_error.purge_vault.storage": "No se pudo purgar la bóveda: {detail}",
   "remove_error.save": "No se pudo guardar la configuración: {detail}.",
+  "state.error.newer_major_history": "El historial local lo escribió una versión más reciente de Cuotai que cambió su formato; se deja intacto. Actualiza Cuotai para usarlo.",
   "status.authentication_error": "Autenticación",
   "status.error": "Error",
   "status.needs_configuration": "Necesita configuración",

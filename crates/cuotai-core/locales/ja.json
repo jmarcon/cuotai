@@ -1572,6 +1572,7 @@
   "serve.token.default_file": "アクセストークンは {path} にあります（現在のユーザーのみ読み取れます）。Authorization: Bearer として送信してください。--no-token で無効になります。",
   "serve.token.file_exposed": "注意：このコンピューターの他のユーザーがトークンファイルを読み取れます。chmod 600 で制限してください。",
   "serve.token.none_warning": "注意：トークンがないと、このコンピューターのどのユーザーやプログラムでもローカルサーバーで使用量を読み取れます（拒否されるのは Web ページと他のコンピューターのみです）。",
+  "state.error.newer_major_history": "ローカル履歴は形式を変更した新しいバージョンの Cuotai で書かれているため、そのまま保持されます。使うには Cuotai を更新してください。",
   "stats.history_kept": "このデバイスに履歴を {days} 日間保存",
   "stats.not_enough": "履歴が不足しています",
   "status.authentication_error": "認証",

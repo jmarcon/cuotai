@@ -1581,6 +1581,7 @@
   "serve.token.default_file": "Token d’accès dans {path} (seul votre compte peut le lire) : envoyez-le comme Authorization: Bearer ; --no-token le désactive.",
   "serve.token.file_exposed": "Attention : d’autres utilisateurs de cet ordinateur peuvent lire le fichier de token ; restreignez-le avec chmod 600.",
   "serve.token.none_warning": "Attention : sans token, tout utilisateur ou programme de cet ordinateur peut lire votre utilisation sur le serveur local (seuls les pages web et les autres ordinateurs restent refusés).",
+  "state.error.newer_major_history": "L'historique local a été écrit par une version plus récente de Cuotai qui en a changé le format ; il reste intact. Mettez Cuotai à jour pour l'utiliser.",
   "stats.history_kept": "Historique conservé {days} jours sur cet appareil",
   "stats.not_enough": "Historique insuffisant",
   "status.authentication_error": "Authentification",

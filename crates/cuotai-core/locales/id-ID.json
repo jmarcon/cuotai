@@ -1572,6 +1572,7 @@
   "serve.token.default_file": "Token akses di {path} (hanya pengguna Anda yang dapat membacanya): kirim sebagai Authorization: Bearer; --no-token menonaktifkannya.",
   "serve.token.file_exposed": "Peringatan: pengguna lain di komputer ini dapat membaca file token; batasi dengan chmod 600.",
   "serve.token.none_warning": "Peringatan: tanpa token, pengguna atau program mana pun di komputer ini dapat membaca penggunaan Anda dari server lokal (hanya halaman web dan komputer lain yang tetap ditolak).",
+  "state.error.newer_major_history": "Riwayat lokal ditulis oleh versi Cuotai yang lebih baru yang mengubah formatnya; riwayat dibiarkan utuh. Perbarui Cuotai untuk memakainya.",
   "stats.history_kept": "Riwayat disimpan {days} hari di perangkat ini",
   "stats.not_enough": "Riwayat belum cukup",
   "status.authentication_error": "Autentikasi",
