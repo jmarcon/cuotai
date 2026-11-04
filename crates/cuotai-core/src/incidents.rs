@@ -314,6 +314,7 @@ pub const fn source(provider: Provider) -> Option<StatusSource> {
         | Provider::Antigravity
         | Provider::Kimchi
         | Provider::Meta
+        | Provider::JetbrainsAi
         | Provider::NineRouter
         | Provider::OpenRouter
         | Provider::LiteLlm

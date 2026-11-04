@@ -114,6 +114,7 @@ The table is generated: a core test compares it with `access::describe` and fail
 | `eleven_labs` | default | Official | Inference key | — | Account | [documentation](https://elevenlabs.io/docs/api-reference/user/subscription/get) | 2026-10-23 | not reported |
 | `meta` | default | Derived | Inference key | — | Organization | [documentation](https://dev.meta.ai/docs/pricing-rate-limits) | 2026-10-27 | not reported |
 | `meta` | `session_env` set or session in the vault | Undocumented | User session | — | Organization | reference [`usage`](https://dev.meta.ai/usage) | 2026-10-27 | not reported |
+| `jetbrains_ai` | default | Official | Admin key | Business or Enterprise | Organization | [documentation](https://www.jetbrains.com/help/air/analytics-api-v2.html) | 2026-11-04 | not reported |
 | `nine_router` | default | Undocumented | Aggregator login | — | Instance | reference [`dashboardGuard.js`](https://github.com/decolua/9router/blob/f39d8f07481ae8518e93175f0ecaaafa61573c6c/src/dashboardGuard.js) | 2026-10-25 | not reported |
 | `open_router` | default | Official | Inference key | — | Account | [documentation](https://openrouter.ai/docs/api/api-reference/api-keys/get-current-key) | 2026-10-23 | not reported |
 | `open_router` | `product = "account"` | Official | Admin key | — | Account | [documentation](https://openrouter.ai/docs/api/api-reference/credits/get-credits) | 2026-10-23 | not reported |
@@ -188,6 +189,7 @@ The account pickers (desktop and TUI) list providers from `cuotai_core::account_
 | Kimchi | `kimchi` | — | API key | API platform | — | API key |
 | ElevenLabs | `eleven_labs` | — | API key | API platform | elevenlabs, eleven labs, 11labs, tts, text to speech, voice, voice agents | API key |
 | Meta Model API | `meta` | — | API key | API platform | muse, muse spark, llama, meta ai, facebook | API key |
+| JetBrains AI | `jetbrains_ai` | — | API key | Coding tool | jetbrains, junie, ai assistant, air, intellij | Admin API key |
 | 9router | `nine_router` | — | Self-hosted gateway | Router | 9router, nine router, router, aggregator | Dashboard password (optional) |
 | OpenRouter | `open_router` | `oauth` | Browser sign-in | Router | openrouter, open router, router, or | Sign in with your browser |
 | OpenRouter | `open_router` | `credential` | API key | Router | openrouter, open router, router, or | API key |
@@ -434,6 +436,7 @@ Evidence of each listing (PRD 0028 RF10.1), generated from `models::evidence` an
 | `kimchi` | any | none: `Unsupported` | — | — |
 | `eleven_labs` | any | none: `Unsupported` | — | — |
 | `meta` | any | documented | [reference](https://dev.meta.ai/docs/api-reference/models/list-models) | 2026-10-20 |
+| `jetbrains_ai` | any | none: `Unsupported` | — | — |
 | `nine_router` | any | none: `Unsupported` | — | — |
 | `open_router` | any | documented | [reference](https://openrouter.ai/docs/api/api-reference/models/get-models) | 2026-10-20 |
 | `litellm` | any | none: `Unsupported` | — | — |

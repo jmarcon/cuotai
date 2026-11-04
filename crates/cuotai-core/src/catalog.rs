@@ -188,6 +188,7 @@ fn aliases(provider: Provider) -> &'static [&'static str] {
         Provider::Qwen => &["qwen code", "dashscope", "alibaba"],
         Provider::Groq => &[],
         Provider::Meta => &["muse", "muse spark", "llama", "meta ai", "facebook"],
+        Provider::JetbrainsAi => &["jetbrains", "junie", "ai assistant", "air", "intellij"],
         Provider::Perplexity => &["sonar"],
         Provider::Mistral => &["le chat"],
         Provider::CloudflareAi => &["workers ai", "cloudflare"],
@@ -255,6 +256,7 @@ fn category(provider: Provider) -> Category {
         | Provider::AlibabaCloud => Category::Cloud,
         Provider::Cursor
         | Provider::Copilot
+        | Provider::JetbrainsAi
         | Provider::Windsurf
         | Provider::OpenCodeGo
         | Provider::Qoder

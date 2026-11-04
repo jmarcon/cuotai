@@ -195,6 +195,18 @@ const KEY_PAGES: &[(Provider, &str, &str)] = &[
         "secret_env",
         "https://ram.console.alibabacloud.com/",
     ),
+    // jetbrains.com/help/air/service-accounts.html: service accounts are
+    // created under Users and access in the JetBrains Central Console.
+    (
+        Provider::JetbrainsAi,
+        CREDENTIAL_SLOT,
+        "https://console.jetbrains.cloud/",
+    ),
+    (
+        Provider::JetbrainsAi,
+        "client_secret_env",
+        "https://console.jetbrains.cloud/",
+    ),
 ];
 
 /// Typed keys with no creation link, and why. The test of [`KEY_PAGES`]
@@ -359,10 +371,24 @@ fn param_label(slot: &str) -> Option<&'static str> {
         "management_key_env" => "Management key (optional)",
         "analytics_key_env" => "Analytics key (optional)",
         "secret_env" => "AccessKey secret",
+        "client_secret_env" => "Client secret",
         "security_token_env" => "STS security token (optional)",
         "platform_session_env" => "Platform session",
         _ => return None,
     })
+}
+
+/// Label of the main credential when no session descriptor declares one.
+fn credential_label(provider: Provider) -> Localized {
+    match provider {
+        // PRD 0055 RF6: the service account's client ID; its secret is a
+        // separate `client_secret_env` input.
+        Provider::JetbrainsAi => Localized::fixed(
+            "secret_input.credential.jetbrains_ai.label",
+            "Service account client ID",
+        ),
+        _ => Localized::fixed("secret_input.credential.label", "API key or access token"),
+    }
 }
 
 /// Whether `provider` asks for its main credential as a secret.
@@ -380,10 +406,7 @@ pub fn secret_inputs(provider: Provider) -> Vec<SecretInput> {
         let declared = user_session::descriptor(provider, CREDENTIAL_SLOT);
         inputs.push(SecretInput {
             slot: CREDENTIAL_SLOT,
-            label: declared.map_or_else(
-                || Localized::fixed("secret_input.credential.label", "API key or access token"),
-                |d| d.label(),
-            ),
+            label: declared.map_or_else(|| credential_label(provider), |d| d.label()),
             help: secret_help(),
             // PRD 0036 RF2.1: a 9router instance may have login disabled.
             required: provider != Provider::NineRouter,

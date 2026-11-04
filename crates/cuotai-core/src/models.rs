@@ -375,6 +375,10 @@ fn contract(account: &Account) -> Result<(Localized, ModelEvidence), Localized> 
             "eleven_labs",
             "ElevenLabs offers no model catalog for quota queries; no request is made.",
         ),
+        Provider::JetbrainsAi => reason(
+            "jetbrains_ai",
+            "the service account reads AI analytics only; JetBrains offers no model list for it, so no request is made.",
+        ),
         Provider::LiteLlm => reason(
             "litellm",
             "LiteLLM is monitored through its per-provider budgets; no model list is queried.",
@@ -1389,6 +1393,7 @@ credential_env = "ALIBABA_CLOUD_ACCESS_KEY_ID"
             Kimchi,
             Copilot,
             ElevenLabs,
+            JetbrainsAi,
             NineRouter,
             LiteLlm,
         ];

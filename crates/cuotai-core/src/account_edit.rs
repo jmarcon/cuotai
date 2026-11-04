@@ -78,6 +78,7 @@ pub fn default_env(provider: Provider) -> &'static str {
         Provider::Kimchi => "KIMCHI_API_KEY",
         Provider::ElevenLabs => "ELEVENLABS_API_KEY",
         Provider::Meta => "META_API_KEY",
+        Provider::JetbrainsAi => "JETBRAINS_CLIENT_ID",
         Provider::NineRouter => "NINEROUTER_PASSWORD",
         Provider::OpenRouter => "OPENROUTER_API_KEY",
         Provider::LiteLlm => "LITELLM_API_KEY",
@@ -219,6 +220,7 @@ fn credential_help_text(provider: Provider) -> &'static str {
         Provider::AlibabaCloud => "Set the NAME of the variable holding the AccessKey ID of the billing RAM account. In Parameters set the AccessKey Secret variable; the values are never written into TOML.",
         Provider::Antigravity => "Antigravity Google session, distinct from the Gemini API key. Press Tab for native login; the Code Assist project and quota windows are queried automatically.",
         Provider::Kimchi => "KIMCHI_API_KEY of the Kimchi account; queries credits and budgets at llm.kimchi.dev, no generation.",
+        Provider::JetbrainsAi => "Set the NAME of the variable holding the client ID of a JetBrains Central Console service account with the View AI analytics permission (Business or Enterprise). In Parameters set the client secret variable; the values are never written into TOML.",
         Provider::ElevenLabs => "Use an ElevenLabs API key. Restrict it to the permission that reads the account's subscription (it does not need text-to-speech access) and, if you use several workspaces, pick the key of the workspace you want to watch. Cuotai stores only the variable name.",
         Provider::LiteLlm => "Master or virtual key of your LiteLLM proxy: enter only the NAME of the variable that holds it; the value never goes into the TOML. Only the per-provider budget route is read.",
         Provider::NineRouter => "Leave empty when the 9router dashboard login is off. With a password, enter only the NAME of the variable that holds it; the value never goes into TOML. Reading usage can make 9router renew the sign-ins it holds.",
@@ -350,6 +352,7 @@ pub fn managed_keys(provider: Provider) -> &'static [&'static str] {
         Provider::AlibabaCodingPlan => &["region", "session_env"],
         Provider::AlibabaTokenPlan => &["session_env"],
         Provider::Meta => &["team_id", "project_id", "session_env"],
+        Provider::JetbrainsAi => &["client_secret_env"],
         Provider::AlibabaCloud => &[
             "region",
             "secret_env",
@@ -1727,6 +1730,13 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
             false,
         ),
     ];
+    // PRD 0055 RF6: the service account's client secret, by variable name.
+    const JETBRAINS_AI: [FieldDescriptor; 1] = [FieldDescriptor::text(
+        "client_secret_env",
+        "Client secret variable",
+        "Optional: default JETBRAINS_CLIENT_SECRET. Set the variable name only, never the secret.",
+        false,
+    )];
     const ALIBABA_CLOUD: [FieldDescriptor; 4] = [
         FieldDescriptor::choice(
             "region",
@@ -1799,6 +1809,7 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
         Provider::AlibabaTokenPlan => &ALIBABA_TOKEN_PLAN,
         Provider::AlibabaCloud => &ALIBABA_CLOUD,
         Provider::Meta => &META,
+        Provider::JetbrainsAi => &JETBRAINS_AI,
     }
 }
 

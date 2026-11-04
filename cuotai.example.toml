@@ -144,6 +144,17 @@ credential_env = "META_API_KEY"
 # params = { session_env = "META_SESSION", team_id = "<team_id= of dev.meta.ai/usage>", project_id = "<optional>" }
 
 [[accounts]]
+name = "JetBrains AI (organization)"
+provider = "jetbrains_ai"
+credential_env = "JETBRAINS_CLIENT_ID"
+# Business or Enterprise only. A JetBrains Central Console service account (Users and access ->
+# Service accounts) with a role that has the View AI analytics permission. Cuotai exchanges the
+# client ID and secret for a one-hour token and reads the month's AI credits by tool (AI Assistant,
+# Junie, agents) from the documented Analytics API; reading spends no credits.
+[accounts.params]
+client_secret_env = "JETBRAINS_CLIENT_SECRET"
+
+[[accounts]]
 name = "Perplexity"
 provider = "perplexity"
 credential_env = "PERPLEXITY_API_KEY"

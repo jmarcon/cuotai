@@ -52,6 +52,7 @@ body:
         - kimchi
         - eleven_labs
         - meta
+        - jetbrains_ai
         - nine_router
         - open_router
         - litellm
