@@ -1569,62 +1569,172 @@ fn token_plan_cli_metrics(payload: Value) -> Result<Vec<Metric>, QueryError> {
             ),
         });
     }
-    let mut metrics = Vec::new();
-    for (label, period, window, percentage, reset) in [
-        (
-            "Token Plan: 5h",
-            "janela de 5h",
-            MetricWindow::Window5h,
-            "per5HourPercentage",
-            "per5HourResetTime",
-        ),
-        (
-            "Token Plan: semanal",
-            "janela semanal",
-            MetricWindow::Weekly,
-            "per1WeekPercentage",
-            "per1WeekResetTime",
-        ),
-    ] {
-        if let Some(raw) = find_value(&payload, &[percentage]).filter(|raw| !raw.is_null()) {
-            let fraction = raw.as_f64().ok_or_else(|| {
-                QueryError::schema_named(&payload, percentage, Some(raw), "number")
-            })?;
-            if !fraction.is_finite() || !(0.0..=1.0).contains(&fraction) {
-                return Err(QueryError::schema_named(
-                    &payload,
-                    percentage,
-                    Some(raw),
-                    "number",
-                ));
-            }
-            let resets_at = find_value(&payload, &[reset])
-                .filter(|value| !value.is_null())
-                .map(|value| {
-                    value
-                        .as_i64()
-                        .and_then(chrono::DateTime::from_timestamp_millis)
-                        .ok_or_else(|| {
-                            QueryError::schema_named(&payload, reset, Some(value), "number")
-                        })
-                })
-                .transpose()?;
-            metrics.push(Metric {
-                billing: Default::default(),
-                scope: None,
-                label: label.into(),
-                used: Some(fraction * 100.0),
-                limit: Some(100.0),
-                remaining: Some(100.0 - fraction * 100.0),
-                unit: "%".into(),
-                kind: MetricKind::Quota,
-                window: Some(window),
-                period: Some(period.into()),
-                resets_at,
-            });
-        }
+    let mut windows = Vec::new();
+    collect_token_plan_windows(&payload, &mut windows);
+    windows.sort_by_key(|window| (window.unit.hours() * window.count, window.count));
+    let mut metrics = Vec::with_capacity(windows.len());
+    for window in windows {
+        let schema = |value: &Value, key: &str| {
+            QueryError::schema_named(&payload, key, Some(value), "number")
+        };
+        let fraction = window
+            .percentage
+            .as_f64()
+            .filter(|fraction| fraction.is_finite() && (0.0..=1.0).contains(fraction))
+            .ok_or_else(|| schema(window.percentage, &window.percentage_key))?;
+        // A window with no usage yet has no reset time: it stays unknown.
+        let resets_at = window
+            .reset
+            .filter(|value| !value.is_null())
+            .map(|value| {
+                value
+                    .as_i64()
+                    .and_then(chrono::DateTime::from_timestamp_millis)
+                    .ok_or_else(|| schema(value, &window.reset_key))
+            })
+            .transpose()?;
+        let (label, period, kind) = window.describe();
+        metrics.push(Metric {
+            billing: Default::default(),
+            scope: None,
+            label,
+            used: Some(fraction * 100.0),
+            limit: Some(100.0),
+            remaining: Some(100.0 - fraction * 100.0),
+            unit: "%".into(),
+            kind: MetricKind::Quota,
+            window: Some(kind),
+            period: Some(period),
+            resets_at,
+        });
     }
     Ok(metrics)
+}
+
+/// The unit of a `bl usage token-plan` window key.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TokenPlanUnit {
+    Hour,
+    Day,
+    Week,
+    Month,
+}
+
+impl TokenPlanUnit {
+    fn parse(text: &str) -> Option<(Self, &str)> {
+        [
+            ("Hour", Self::Hour),
+            ("Day", Self::Day),
+            ("Week", Self::Week),
+            ("Month", Self::Month),
+        ]
+        .into_iter()
+        .find_map(|(name, unit)| text.strip_prefix(name).map(|rest| (unit, rest)))
+    }
+
+    /// Length in hours, only to order the windows from shortest to longest.
+    fn hours(self) -> u64 {
+        match self {
+            Self::Hour => 1,
+            Self::Day => 24,
+            Self::Week => 24 * 7,
+            Self::Month => 24 * 30,
+        }
+    }
+
+    fn suffix(self) -> &'static str {
+        match self {
+            Self::Hour => "h",
+            Self::Day => "d",
+            Self::Week => "w",
+            Self::Month => "mo",
+        }
+    }
+}
+
+/// One quota window `bl usage token-plan --output json` reported.
+struct TokenPlanWindow<'a> {
+    count: u64,
+    unit: TokenPlanUnit,
+    percentage_key: String,
+    percentage: &'a Value,
+    reset_key: String,
+    reset: Option<&'a Value>,
+}
+
+impl TokenPlanWindow<'_> {
+    /// Label, period and window kind: the same texts as the web path for the
+    /// windows both know (5h, week, month).
+    fn describe(&self) -> (String, String, MetricWindow) {
+        match (self.count, self.unit) {
+            (5, TokenPlanUnit::Hour) => (
+                "Token Plan: 5h".into(),
+                "janela de 5h".into(),
+                MetricWindow::Window5h,
+            ),
+            (1, TokenPlanUnit::Day) => (
+                "Token Plan: diário".into(),
+                "diário".into(),
+                MetricWindow::Daily,
+            ),
+            (1, TokenPlanUnit::Week) => (
+                "Token Plan: semanal".into(),
+                "janela semanal".into(),
+                MetricWindow::Weekly,
+            ),
+            (1, TokenPlanUnit::Month) => (
+                "Token Plan: mensal".into(),
+                "ciclo mensal".into(),
+                MetricWindow::Monthly,
+            ),
+            (count, unit) => {
+                let span = format!("{count}{}", unit.suffix());
+                (
+                    format!("Token Plan: {span}"),
+                    format!("janela de {span}"),
+                    MetricWindow::Other,
+                )
+            }
+        }
+    }
+}
+
+/// Splits `per<N><Hour|Day|Week|Month>Percentage`, the pattern `bl` 2.8
+/// scans the usage response with, into its count and unit.
+fn token_plan_window_key(key: &str) -> Option<(u64, TokenPlanUnit)> {
+    let rest = key.strip_prefix("per")?;
+    let digits = rest.chars().take_while(char::is_ascii_digit).count();
+    let count = rest[..digits].parse::<u64>().ok().filter(|n| *n > 0)?;
+    let (unit, tail) = TokenPlanUnit::parse(&rest[digits..])?;
+    (tail == "Percentage").then_some((count, unit))
+}
+
+/// Every window with a non-null percentage, the first occurrence of each key
+/// winning, searching nested objects (not arrays) like the other parsers.
+fn collect_token_plan_windows<'a>(value: &'a Value, out: &mut Vec<TokenPlanWindow<'a>>) {
+    let Value::Object(map) = value else {
+        return;
+    };
+    for (key, raw) in map {
+        let Some((count, unit)) = token_plan_window_key(key) else {
+            continue;
+        };
+        if raw.is_null() || out.iter().any(|window| window.percentage_key == *key) {
+            continue;
+        }
+        let reset_key = format!("{}ResetTime", key.trim_end_matches("Percentage"));
+        out.push(TokenPlanWindow {
+            count,
+            unit,
+            reset: map.get(&reset_key),
+            reset_key,
+            percentage_key: key.clone(),
+            percentage: raw,
+        });
+    }
+    for nested in map.values().filter(|value| value.is_object()) {
+        collect_token_plan_windows(nested, out);
+    }
 }
 
 async fn token_plan_via_cli(ctx: &Context<'_>, profile: &str) -> Result<Data, QueryError> {
@@ -1719,7 +1829,7 @@ async fn run_token_plan_cli(
         notes.push_params(
             "note.alibaba_plans.cli_quota_unknown",
             profile_param,
-            "CLI `bl` queried profile '{profile}' but did not report 5h or weekly limits; quota unknown. Check the Token Plan console.",
+            "CLI `bl` queried profile '{profile}' but reported no quota window; the limit may be unlimited or unknown. Check the Token Plan console.",
         );
     } else {
         notes.push_params(
@@ -2855,6 +2965,117 @@ mod tests {
         assert_eq!(metrics[0].used, Some(25.0));
     }
 
+    /// `bl` 2.8 output for a monthly-only plan: exactly these three keys.
+    #[test]
+    fn cli_parser_reads_a_monthly_only_plan() {
+        let metrics = token_plan_cli_metrics(json!({
+            "per1MonthPercentage": 0.12,
+            "per1MonthResetTime": 1767225600000i64,
+            "hasQuotaData": true
+        }))
+        .unwrap();
+        assert_eq!(metrics.len(), 1);
+        let month = &metrics[0];
+        assert_eq!(month.label, "Token Plan: mensal");
+        assert_eq!(month.period.as_deref(), Some("ciclo mensal"));
+        assert_eq!(month.window, Some(MetricWindow::Monthly));
+        assert_eq!(month.kind, MetricKind::Quota);
+        assert!((month.used.unwrap() - 12.0).abs() < 1e-9);
+        assert!((month.remaining.unwrap() - 88.0).abs() < 1e-9);
+        assert_eq!(month.limit, Some(100.0));
+        assert_eq!(
+            month.resets_at,
+            DateTime::from_timestamp_millis(1767225600000)
+        );
+    }
+
+    #[test]
+    fn cli_parser_orders_every_reported_window_and_keeps_unknown_resets() {
+        let metrics = token_plan_cli_metrics(json!({
+            "per1MonthPercentage": 0.3,
+            "per1MonthResetTime": 1767225600000i64,
+            "per1WeekPercentage": 0.2,
+            "per5HourPercentage": 0.1,
+            "per5HourResetTime": 1787001180000i64,
+            "per1DayPercentage": 0.0,
+            "per2DayPercentage": 0.4,
+            "per2DayResetTime": null,
+            "perMonthPercentage": 0.9,
+            "per1MonthPercentageExtra": 0.9,
+            "hasQuotaData": true
+        }))
+        .unwrap();
+        let shape: Vec<(&str, Option<MetricWindow>, Option<&str>)> = metrics
+            .iter()
+            .map(|m| (m.label.as_str(), m.window, m.period.as_deref()))
+            .collect();
+        assert_eq!(
+            shape,
+            [
+                (
+                    "Token Plan: 5h",
+                    Some(MetricWindow::Window5h),
+                    Some("janela de 5h")
+                ),
+                (
+                    "Token Plan: diário",
+                    Some(MetricWindow::Daily),
+                    Some("diário")
+                ),
+                (
+                    "Token Plan: 2d",
+                    Some(MetricWindow::Other),
+                    Some("janela de 2d")
+                ),
+                (
+                    "Token Plan: semanal",
+                    Some(MetricWindow::Weekly),
+                    Some("janela semanal")
+                ),
+                (
+                    "Token Plan: mensal",
+                    Some(MetricWindow::Monthly),
+                    Some("ciclo mensal")
+                ),
+            ]
+        );
+        assert!(metrics[0].resets_at.is_some());
+        // No usage yet: no reset time, and none is invented.
+        assert_eq!(metrics[1].resets_at, None);
+        assert_eq!(metrics[1].used, Some(0.0));
+        assert_eq!(metrics[2].resets_at, None);
+        assert_eq!(metrics[3].resets_at, None);
+        assert!(metrics[4].resets_at.is_some());
+        // The display texts of the new label and period are localized.
+        assert_eq!(
+            crate::metric_text::metric_text("Token Plan: diário").id,
+            "metric.label.token_plan_daily"
+        );
+        assert_eq!(
+            crate::metric_text::metric_text("janela de 2d").id,
+            "metric.period.window_span"
+        );
+        assert_eq!(
+            crate::metric_text::metric_text("janela de 5h").id,
+            "metric.period.window_5h"
+        );
+    }
+
+    #[test]
+    fn cli_parser_without_quota_data_reports_no_window() {
+        assert!(token_plan_cli_metrics(json!({"hasQuotaData": false}))
+            .unwrap()
+            .is_empty());
+        let bad = token_plan_cli_metrics(json!({"per1MonthPercentage": 1.5})).unwrap_err();
+        assert_eq!(bad.status, Status::Error);
+        let bad = token_plan_cli_metrics(json!({
+            "per1MonthPercentage": 0.5,
+            "per1MonthResetTime": "soon"
+        }))
+        .unwrap_err();
+        assert_eq!(bad.status, Status::Error);
+    }
+
     #[test]
     fn cli_parser_login_required_no_payload() {
         let err = token_plan_cli_metrics(json!({"code": "NeedLogin"})).unwrap_err();
@@ -2905,6 +3126,37 @@ mod tests {
         assert_eq!(data.metrics[1].used, Some(70.0));
     }
 
+    #[cfg(unix)] // fake `bl` is a `#!/bin/sh` script
+    #[tokio::test]
+    async fn cli_monthly_only_output_of_bl_2_8_yields_the_monthly_quota() {
+        let dir = tempfile::tempdir().unwrap();
+        let bin = dir.path().join("bl");
+        std::fs::write(
+            &bin,
+            "#!/bin/sh\n\
+             echo '{\"per1MonthPercentage\":0.12,\"per1MonthResetTime\":1767225600000,\"hasQuotaData\":true}'\n\
+             exit 0\n",
+        )
+        .unwrap();
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = std::fs::metadata(&bin).unwrap().permissions();
+            perms.set_mode(0o755);
+            std::fs::set_permissions(&bin, perms).unwrap();
+        }
+        let http = reqwest::Client::new();
+        let creds = MapCredentials(BTreeMap::new());
+        let ctx = ctx_with(&http, &creds);
+        let path = bin.to_string_lossy().into_owned();
+        let data = run_token_plan_cli(&ctx, &path, "demo").await.unwrap();
+        assert_eq!(data.metrics.len(), 1);
+        assert_eq!(data.metrics[0].window, Some(MetricWindow::Monthly));
+        assert_eq!(data.metrics[0].label, "Token Plan: mensal");
+        assert!(data.metrics[0].resets_at.is_some());
+        let ids: Vec<&str> = data.notes_l10n.iter().map(|n| n.id.as_ref()).collect();
+        assert_eq!(ids, ["note.alibaba_plans.cli_query"]);
+    }
+
     #[cfg(unix)]
     #[tokio::test]
     async fn cli_objeto_vazio_retorna_quota_desconhecida() {
@@ -2928,7 +3180,11 @@ mod tests {
             .await
             .unwrap();
         assert!(data.metrics.is_empty());
-        assert!(data.notes.iter().any(|note| note.contains("quota unknown")));
+        assert!(data
+            .notes
+            .iter()
+            .any(|note| note.contains("no quota window")));
+        assert!(data.notes.iter().all(|note| !note.contains("5h or weekly")));
         assert!(data.notes.iter().all(|note| !note.contains("{}")));
     }
     #[cfg(unix)]

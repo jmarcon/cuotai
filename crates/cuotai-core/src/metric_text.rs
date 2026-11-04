@@ -98,6 +98,12 @@ pub(crate) const TABLE: &[(&str, &str, &str)] = &[
         "30 completed days (UTC)",
     ),
     ("ciclo {cycle}", "metric.period.cycle", "cycle {cycle}"),
+    // After the exact "janela de 5h"/"janela de 7d", which match first.
+    (
+        "janela de {span}",
+        "metric.period.window_span",
+        "{span} window",
+    ),
     ("Semanal", "metric.label.weekly", "Weekly"),
     (
         "Janela móvel",
@@ -275,6 +281,11 @@ pub(crate) const TABLE: &[(&str, &str, &str)] = &[
         "Plano de tokens MiMo",
         "metric.label.mimo_token_plan",
         "MiMo token plan",
+    ),
+    (
+        "Token Plan: diário",
+        "metric.label.token_plan_daily",
+        "Token Plan: daily",
     ),
     (
         "Grok CLI: semanal SuperGrok",
