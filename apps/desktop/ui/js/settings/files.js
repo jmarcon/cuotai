@@ -1,14 +1,14 @@
 // Settings › Advanced › Files (PRD 0020 RF2.5): the accounts file and the themes-and-languages folder, as path rows
 // (RF3.2) whose full path sits in a remembered disclosure (RF5.2).
-import { te } from "../i18n.js";
+import { te, tl } from "../i18n.js";
 import { THEMES } from "../themes.js";
 import { LOCALES, skippedMessage, userContent } from "../usercontent.js";
-import { brand, configLabel, esc, icon, openUserDir, otherConfigNotice, pickFolder, pickTomlFile, setConfigFile, setUserDir, vaultAudit, vaultPrune } from "../lib.js";
+import { brand, configLabel, doctorReport, esc, icon, openUserDir, otherConfigNotice, pickFolder, pickTomlFile, setConfigFile, setUserDir, vaultAudit, vaultPrune } from "../lib.js";
 import { configErrorText, errorText, group } from "./common.js";
 import { buttons, disc, pathHtml, row } from "./rows.js";
 
 // The last failure of each group, shown once by the next paint.
-const flash = { config: "", folder: "", credentials: "" };
+const flash = { config: "", folder: "", credentials: "", doctor: "" };
 const take = (key) => { const text = flash[key]; flash[key] = ""; return text; };
 
 export function html({ settings: s, view }) {
@@ -31,7 +31,11 @@ export function html({ settings: s, view }) {
   // PRD 0029 RF6.2: what Cuotai stored in the system vault, filled in by `bind` (never a value).
   const vaultRowHtml = row({ key: "vault", attrs: 'data-section="credentials"', label: te("settings.vault.title"), info: te("settings.vault.help"), msg: "vault-msg",
     body: `<div data-vault aria-live="polite"><p class="hint">${te("settings.vault.loading")}</p></div>` });
-  return group("config", "", configRow + folderRow + vaultRowHtml);
+  // PRD 0046 RF4.4: the core's self-check, run on demand and listed by status with each fix.
+  const doctorRowHtml = row({ key: "doctor", attrs: 'data-section="doctor"', label: te("settings.doctor.title"), info: te("settings.doctor.help"), msg: "doctor-msg",
+    control: () => buttons(`<button class="btn sm" data-doctor-run>${te("settings.doctor.run")}</button>`),
+    body: `<div data-doctor aria-live="polite"></div>` });
+  return group("config", "", configRow + folderRow + vaultRowHtml + doctorRowHtml);
 }
 
 /** One indexed entry: what uses it (or that nothing does) and since when. */
@@ -56,10 +60,18 @@ export function vaultHtml(entries) {
     </div>` : ""}`;
 }
 
+const DOCTOR_ORDER = ["fail", "warn", "ok", "skip"];
+
+/** The doctor's report, problems first; the status is a word, never only a color. */
+export function doctorHtml(report) {
+  const checks = [...(report?.checks ?? [])].sort((a, b) => DOCTOR_ORDER.indexOf(a.status) - DOCTOR_ORDER.indexOf(b.status));
+  return `<ul class="hook-runs">${checks.map((c) => `<li><strong>${te(`settings.doctor.status.${c.status}`)}</strong> — ${esc(tl(c.title))}${c.detail ? `: ${esc(tl(c.detail))}` : ""}${c.fix ? `<br><small>${esc(tl(c.fix))}</small>` : ""}</li>`).join("")}</ul>`;
+}
+
 export function bind(root, ctx) {
   const s = ctx.settings;
   // A failure is shown in its row after the repaint (RF4.3).
-  for (const [key, id] of [["config", "#config-msg"], ["folder", "#folder-msg"], ["credentials", "#vault-msg"]]) root.querySelector(id).textContent = take(key);
+  for (const [key, id] of [["config", "#config-msg"], ["folder", "#folder-msg"], ["credentials", "#vault-msg"], ["doctor", "#doctor-msg"]]) root.querySelector(id).textContent = take(key);
   const fail = (key, text) => { flash[key] = text; ctx.rerender(); };
   root.querySelector("[data-open-dir]").onclick = () => openUserDir().catch((e) => fail("folder", errorText(e)));
   const apply = async (path) => {
@@ -95,4 +107,10 @@ export function bind(root, ctx) {
     };
   }).catch((e) => { vault.innerHTML = `<p class="hint warn-txt">${esc(errorText(e))}</p>`; });
   showVault();
+  const doctor = root.querySelector("[data-doctor]");
+  root.querySelector("[data-doctor-run]").onclick = async () => {
+    doctor.innerHTML = `<p class="hint">${te("settings.doctor.running")}</p>`;
+    try { doctor.innerHTML = doctorHtml(await doctorReport()); }
+    catch (e) { doctor.innerHTML = `<p class="hint warn-txt">${esc(errorText(e))}</p>`; }
+  };
 }

@@ -303,6 +303,28 @@ async fn vault_audit(
     b.vault_audit().await
 }
 
+/// PRD 0046 RF4.4: the core's read-only, offline self-check of this
+/// installation (Settings › Advanced › Files › Check setup), over the file
+/// the app reads and the port of its local server. Never a value.
+#[tauri::command]
+async fn doctor_report() -> Result<cuotai_core::doctor::Report, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        use cuotai_core::config_file::{ConfigFile, Discovery, Locations};
+        let mut inputs =
+            cuotai_core::doctor::Inputs::from_process(None, updater::detect().as_str().to_owned());
+        inputs.config = ConfigFile::resolve_path(
+            Discovery::Gui {
+                chosen: settings::chosen_config(),
+            },
+            &Locations::from_process(),
+        );
+        inputs.port = settings::serve_prefs().port;
+        cuotai_core::doctor::run(&inputs)
+    })
+    .await
+    .map_err(|_| "unexpected".to_owned())
+}
+
 /// PRD 0029 RF6.2: delete the vault entries no account uses.
 #[tauri::command]
 async fn vault_prune(b: Shared<'_>) -> Result<usize, String> {
@@ -2121,6 +2143,7 @@ pub fn run() {
             forget_session,
             vault_audit,
             vault_prune,
+            doctor_report,
             preview_session,
             capture_session,
             cancel_session_capture,
