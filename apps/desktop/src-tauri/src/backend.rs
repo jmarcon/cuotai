@@ -2397,12 +2397,12 @@ impl Backend {
         enabled: bool,
         port: u16,
         allow_browsers: bool,
+        allowed_origins: Vec<String>,
     ) -> Result<ServeView, String> {
         let mut serve = self.serve.lock().await;
         let prefs = serve
             .prefs()
-            .with_choices(enabled, port, allow_browsers)
-            .map_err(str::to_owned)?;
+            .with_choices(enabled, port, allow_browsers, &allowed_origins)?;
         crate::settings::save_serve(&prefs).map_err(str::to_owned)?;
         Ok(self.apply_serve(app, &mut serve, prefs).await)
     }
@@ -2438,10 +2438,15 @@ impl Backend {
     }
 
     /// PRD 0012 RF5.1: revoke the token: remove it from the vault and serve
-    /// without one (loopback programs only, never web pages). Errors: the
-    /// core's vault error as JSON, `unwritable`.
+    /// without one (loopback programs only, never web pages). Errors:
+    /// `browsers_need_token` while browsers are allowed (PRD 0050 RF4.1),
+    /// the core's vault error as JSON, `unwritable`.
     pub async fn revoke_serve_token(&self, app: &AppHandle) -> Result<ServeView, String> {
         let mut serve = self.serve.lock().await;
+        // PRD 0050 RF4.1: browser mode never runs without its token.
+        if serve.prefs().allow_browsers {
+            return Err("browsers_need_token".into());
+        }
         serve
             .forget_token()
             .await

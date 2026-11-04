@@ -211,7 +211,7 @@ impl Integration {
     }
 
     pub fn prefs(&self) -> ServePrefs {
-        self.prefs
+        self.prefs.clone()
     }
 
     /// Listening right now.
@@ -221,7 +221,7 @@ impl Integration {
 
     pub fn view(&self) -> ServeView {
         view_of(
-            self.prefs,
+            self.prefs.clone(),
             self.server.as_ref().map(LocalServer::url),
             self.error.as_ref(),
             self.cuotai_on_port,
@@ -321,7 +321,7 @@ impl Integration {
             }
             Err(error) => {
                 self.cuotai_on_port = matches!(error, ServeError::PortInUse { .. })
-                    && serve::is_cuotai_server(prefs.port).await;
+                    && serve::is_cuotai_server(self.prefs.port).await;
                 self.error = Some(error);
             }
         }
@@ -350,6 +350,13 @@ impl Integration {
             port_fallback: false,
             token,
             allow_browsers: prefs.allow_browsers,
+            // PRD 0050 RF4.2: stored canonical; an unparsable entry is
+            // dropped and the core then refuses an empty browser list.
+            allowed_origins: prefs
+                .allowed_origins
+                .iter()
+                .filter_map(|origin| serve::Origin::parse(origin).ok())
+                .collect(),
             stats: prefs.stats,
             // PRD 0034 RF5.2: the same variable that the CLI server reads.
             fallback_locale: cuotai_core::text::fallback_locale(None),
@@ -572,6 +579,16 @@ mod tests {
         assert_eq!(status(port, "/health", &[]).await, None, "port closed");
     }
 
+    /// Browser mode on `port` with a token and one trusted origin.
+    fn browsers(port: u16) -> ServePrefs {
+        ServePrefs {
+            allow_browsers: true,
+            token: true,
+            allowed_origins: vec!["https://example.com".into()],
+            ..on(port)
+        }
+    }
+
     #[tokio::test(flavor = "multi_thread")]
     async fn serves_what_the_app_published_and_refuses_pages_unless_allowed() {
         let port = free_port();
@@ -591,21 +608,26 @@ mod tests {
         let page = [("Origin", "https://example.com")];
         assert_eq!(status(port, "/v1/limits", &page).await, Some(403));
 
-        integration
-            .apply(
-                ServePrefs {
-                    allow_browsers: true,
-                    ..on(port)
-                },
-                &slot,
-            )
-            .await;
+        // PRD 0050 RF4: browsers need the token and an allowed origin.
+        integration.store_new_token().await.unwrap();
+        let token = integration.stored_token().await.unwrap();
+        let bearer = format!("Bearer {}", token.expose());
+        integration.apply(browsers(port), &slot).await;
+        let page = [
+            ("Origin", "https://example.com"),
+            ("Authorization", bearer.as_str()),
+        ];
         let (code, answer) = get(port, "/v1/limits", &page).await.unwrap();
         assert_eq!(code, 200);
         assert!(
-            answer.contains("Access-Control-Allow-Origin: *"),
+            answer.contains("Access-Control-Allow-Origin: https://example.com"),
             "{answer}"
         );
+        let other = [
+            ("Origin", "https://other.example"),
+            ("Authorization", bearer.as_str()),
+        ];
+        assert_eq!(status(port, "/v1/limits", &other).await, Some(403));
         integration.apply(ServePrefs::default(), &slot).await;
     }
 
@@ -622,7 +644,7 @@ mod tests {
             token: true,
             ..on(0)
         };
-        integration.apply(guarded, &slot).await;
+        integration.apply(guarded.clone(), &slot).await;
         let mut port = bound_port(&integration);
         let first = integration.stored_token().await.unwrap();
         let bearer = |token: &Token| format!("Bearer {}", token.expose());
@@ -672,7 +694,7 @@ mod tests {
             token: true,
             ..on(0)
         };
-        integration.apply(guarded, &slot).await;
+        integration.apply(guarded.clone(), &slot).await;
         let port = bound_port(&integration);
         assert_eq!(status(port, "/v1/stats", &auth).await, Some(404));
         integration
@@ -707,8 +729,8 @@ mod tests {
             ),
             (Arc::new(BrokenVault), "serve.error.vault"),
         ] {
-            let mut integration = Integration::new(guarded, vault);
-            integration.apply(guarded, &slot).await;
+            let mut integration = Integration::new(guarded.clone(), vault);
+            integration.apply(guarded.clone(), &slot).await;
             let view = integration.view();
             assert_eq!(view.state, "error");
             assert_eq!(
@@ -778,35 +800,40 @@ mod tests {
         let port = free_port();
         let slot = FeedSlot::default();
         let mut integration = Integration::new(on(port), Arc::new(MemoryVault::default()));
+        integration.store_new_token().await.unwrap();
+        let bearer = format!(
+            "Bearer {}",
+            integration.stored_token().await.unwrap().expose()
+        );
+        let tokened = ServePrefs {
+            token: true,
+            ..on(port)
+        };
         slot.publish(Some(feed_named("Personal Max")));
 
         // First cold start: account "Personal Max".
-        integration.apply(on(port), &slot).await;
+        integration.apply(tokened.clone(), &slot).await;
         assert_eq!(integration.view().state, "on");
         assert_eq!(integration.cold_starts(), 1, "first apply binds once");
-        let (_, body) = get(port, "/v1/snapshot", &[]).await.unwrap();
+        let auth = [("Authorization", bearer.as_str())];
+        let (_, body) = get(port, "/v1/snapshot", &auth).await.unwrap();
         assert!(body.contains("Personal Max"), "{body}");
 
         // Same-port CORS on: hot swap. Counter stays at 1.
-        integration
-            .apply(
-                ServePrefs {
-                    allow_browsers: true,
-                    ..on(port)
-                },
-                &slot,
-            )
-            .await;
+        integration.apply(browsers(port), &slot).await;
         assert_eq!(
             integration.cold_starts(),
             1,
             "CORS flip must not bind a new socket"
         );
-        let browser = [("Origin", "https://example.com")];
+        let browser = [
+            ("Origin", "https://example.com"),
+            ("Authorization", bearer.as_str()),
+        ];
         let (code, answer) = get(port, "/v1/limits", &browser).await.unwrap();
         assert_eq!(code, 200, "browser-origin limits reachable");
         assert!(
-            answer.contains("Access-Control-Allow-Origin: *"),
+            answer.contains("Access-Control-Allow-Origin: https://example.com"),
             "{answer}"
         );
 
@@ -814,13 +841,13 @@ mod tests {
         // The source the running server reads must change without rebinding.
         let other_slot = FeedSlot::default();
         other_slot.publish(Some(feed_named("Work Pro")));
-        integration.apply(on(port), &other_slot).await;
+        integration.apply(tokened.clone(), &other_slot).await;
         assert_eq!(
             integration.cold_starts(),
             1,
             "source swap must not bind a new socket"
         );
-        let (_, body) = get(port, "/v1/snapshot", &[]).await.unwrap();
+        let (_, body) = get(port, "/v1/snapshot", &auth).await.unwrap();
         assert!(
             body.contains("Work Pro"),
             "snapshot reflects new source: {body}"
@@ -831,7 +858,7 @@ mod tests {
         );
 
         // CORS off: another hot swap. Counter still 1.
-        integration.apply(on(port), &slot).await;
+        integration.apply(tokened.clone(), &slot).await;
         assert_eq!(integration.cold_starts(), 1);
         let (code, _) = get(port, "/v1/limits", &browser).await.unwrap();
         assert_eq!(code, 403, "browser origin refused when allow_browsers off");
@@ -842,7 +869,7 @@ mod tests {
             .apply(
                 ServePrefs {
                     port: other_port,
-                    ..on(other_port)
+                    ..tokened.clone()
                 },
                 &slot,
             )
@@ -853,7 +880,7 @@ mod tests {
             2,
             "port change must cold-restart exactly once"
         );
-        let (_, body) = get(other_port, "/v1/snapshot", &[]).await.unwrap();
+        let (_, body) = get(other_port, "/v1/snapshot", &auth).await.unwrap();
         assert!(body.contains("Personal Max"), "{body}");
 
         integration.apply(ServePrefs::default(), &slot).await;

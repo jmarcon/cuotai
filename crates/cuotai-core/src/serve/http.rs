@@ -116,6 +116,8 @@ pub(super) struct Response {
     pub status: u16,
     headers: Vec<(&'static str, String)>,
     body: Vec<u8>,
+    /// PRD 0050 RF4.3: the allowed origin this answer may be shared with.
+    pub cors: Option<String>,
 }
 
 impl Response {
@@ -125,6 +127,7 @@ impl Response {
                 status,
                 headers: Vec::new(),
                 body,
+                cors: None,
             },
             Err(_) => Self::error(500, "internal"),
         }
@@ -136,6 +139,7 @@ impl Response {
             status,
             headers: Vec::new(),
             body: format!("{{\"error\":\"{code}\"}}").into_bytes(),
+            cors: None,
         }
     }
 
@@ -144,6 +148,7 @@ impl Response {
             status,
             headers: Vec::new(),
             body: Vec::new(),
+            cors: None,
         }
     }
 
@@ -155,6 +160,11 @@ impl Response {
                 self.body = body;
             }
         }
+        self
+    }
+
+    pub fn with_cors(mut self, origin: Option<String>) -> Self {
+        self.cors = origin;
         self
     }
 

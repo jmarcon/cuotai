@@ -610,21 +610,25 @@ async fn browser_requests_are_refused_unless_allowed() {
     assert_eq!(typed.status(), StatusCode::OK);
     assert_json_no_store(&typed);
 
+    // PRD 0050 RF4: browser mode needs a token and the exact origins.
+    let token = Token::generate().unwrap();
     let open = start(
-        ServeConfig {
-            allow_browsers: true,
-            ..ServeConfig::default()
-        },
+        browser_config(&token, &["https://dashboard.example"]),
         fixture_source(),
     )
     .await;
     let page = request(&open, Method::GET, "/v1/snapshot")
         .header("origin", "https://dashboard.example")
+        .bearer_auth(token.expose())
         .send()
         .await
         .unwrap();
     assert_eq!(page.status(), StatusCode::OK);
-    assert_eq!(page.headers()[header::ACCESS_CONTROL_ALLOW_ORIGIN], "*");
+    assert_eq!(
+        page.headers()[header::ACCESS_CONTROL_ALLOW_ORIGIN],
+        "https://dashboard.example"
+    );
+    assert_eq!(page.headers()[header::VARY], "Origin");
     let preflight = request(&open, Method::OPTIONS, "/v1/snapshot")
         .header("origin", "https://dashboard.example")
         .header("access-control-request-headers", "authorization")
@@ -640,20 +644,195 @@ async fn browser_requests_are_refused_unless_allowed() {
         preflight.headers()[header::ACCESS_CONTROL_ALLOW_METHODS],
         "GET, HEAD"
     );
-    // Rebinding stays blocked even with browsers allowed.
+    assert_eq!(
+        preflight.headers()[header::ACCESS_CONTROL_ALLOW_ORIGIN],
+        "https://dashboard.example"
+    );
+    // Rebinding stays blocked even with browsers allowed, and the refusal
+    // is not shared with the page.
     let rebound = request(&open, Method::GET, "/v1/snapshot")
         .header(header::HOST, "evil.example")
-        .header("origin", "http://evil.example")
+        .header("origin", "https://dashboard.example")
+        .bearer_auth(token.expose())
         .send()
         .await
         .unwrap();
     assert_eq!(rebound.status(), StatusCode::FORBIDDEN);
-    assert_eq!(rebound.headers()[header::ACCESS_CONTROL_ALLOW_ORIGIN], "*");
+    assert!(!rebound
+        .headers()
+        .contains_key(header::ACCESS_CONTROL_ALLOW_ORIGIN));
     let writing = request(&open, Method::POST, "/v1/snapshot")
+        .bearer_auth(token.expose())
         .send()
         .await
         .unwrap();
     assert_eq!(writing.status(), StatusCode::METHOD_NOT_ALLOWED);
+}
+
+/// A browser-mode configuration with `token` and `origins`.
+fn browser_config(token: &Token, origins: &[&str]) -> ServeConfig {
+    ServeConfig {
+        allow_browsers: true,
+        token: Some(token.clone()),
+        allowed_origins: origins.iter().map(|o| Origin::parse(o).unwrap()).collect(),
+        ..ServeConfig::default()
+    }
+}
+
+/// PRD 0050 RF4.1/RF4.2: browser mode is refused without a token, on
+/// loopback too, and without 1 to 16 distinct origins; no constructor can
+/// start or swap in such a policy.
+// security-invariant: SEC-SERVE-ORIGIN
+#[tokio::test]
+async fn browser_mode_needs_a_token_and_trusted_origins() {
+    let token = Token::generate().unwrap();
+    let tokenless = ServeConfig {
+        token: None,
+        ..browser_config(&token, &["https://a.example"])
+    };
+    assert_eq!(tokenless.validate(), Err(ServeError::BrowserTokenRequired));
+    assert!(matches!(
+        LocalServer::start(
+            ServeConfig {
+                port: 0,
+                ..tokenless.clone()
+            },
+            fixture_source()
+        )
+        .await,
+        Err(ServeError::BrowserTokenRequired)
+    ));
+    assert_eq!(
+        ServeError::BrowserTokenRequired.l10n().id,
+        "serve.error.browser_token_required"
+    );
+    assert_eq!(
+        browser_config(&token, &[]).validate(),
+        Err(ServeError::OriginsRequired)
+    );
+    let mut duplicate = browser_config(&token, &["https://a.example"]);
+    duplicate
+        .allowed_origins
+        .push(Origin::parse("https://A.example:443").unwrap());
+    assert_eq!(duplicate.validate(), Err(ServeError::OriginsRequired));
+    let many: Vec<String> = (1..=17).map(|n| format!("https://h{n}.example")).collect();
+    let many: Vec<&str> = many.iter().map(String::as_str).collect();
+    assert_eq!(
+        browser_config(&token, &many).validate(),
+        Err(ServeError::OriginsRequired)
+    );
+    assert!(browser_config(&token, &many[..16]).validate().is_ok());
+    // Origins without browser mode change nothing.
+    let off = ServeConfig {
+        allow_browsers: false,
+        token: None,
+        ..browser_config(&token, &[])
+    };
+    assert!(off.validate().is_ok());
+
+    let server = start(ServeConfig::default(), fixture_source()).await;
+    assert_eq!(
+        server.reconfigure(tokenless, fixture_source()).await.err(),
+        Some(ServeError::BrowserTokenRequired)
+    );
+}
+
+/// PRD 0050 RF4.3: only an exactly allowed origin is answered, with that
+/// origin echoed and `Vary: Origin`; a missing, other, wildcard, `null` or
+/// repeated `Origin` gets `403 origin_not_allowed` and no CORS header.
+// security-invariant: SEC-SERVE-ORIGIN
+#[tokio::test]
+async fn browser_mode_echoes_only_an_exact_allowed_origin() {
+    let token = Token::generate().unwrap();
+    let server = start(
+        browser_config(&token, &["https://dash.example", "http://localhost:5173"]),
+        fixture_source(),
+    )
+    .await;
+    for (origin, echoed) in [
+        ("https://dash.example", "https://dash.example"),
+        ("https://DASH.example:443", "https://dash.example"),
+        ("http://localhost:5173", "http://localhost:5173"),
+    ] {
+        for method in [Method::GET, Method::OPTIONS] {
+            let response = request(&server, method.clone(), "/health")
+                .header("origin", origin)
+                .bearer_auth(token.expose())
+                .send()
+                .await
+                .unwrap();
+            assert!(response.status().is_success(), "{origin} {method}");
+            assert_eq!(
+                response.headers()[header::ACCESS_CONTROL_ALLOW_ORIGIN],
+                echoed
+            );
+            assert_eq!(response.headers()[header::VARY], "Origin");
+        }
+    }
+    for origin in [
+        "https://evil.example",
+        "http://dash.example",
+        "https://dash.example:8443",
+        "https://dash.example/",
+        "http://localhost:5174",
+        "*",
+        "null",
+    ] {
+        for method in [Method::GET, Method::OPTIONS] {
+            let response = request(&server, method.clone(), "/health")
+                .header("origin", origin)
+                .bearer_auth(token.expose())
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(
+                response.status(),
+                StatusCode::FORBIDDEN,
+                "{origin} {method}"
+            );
+            assert!(!response
+                .headers()
+                .contains_key(header::ACCESS_CONTROL_ALLOW_ORIGIN));
+            assert_eq!(json(response).await["error"], "origin_not_allowed");
+        }
+    }
+    // Two Origin headers are never matched.
+    let mut stream = TcpStream::connect(server.addr()).await.unwrap();
+    let head = format!(
+        "GET /health HTTP/1.1\r\nHost: 127.0.0.1\r\nOrigin: https://dash.example\r\nOrigin: https://dash.example\r\nAuthorization: Bearer {}\r\n\r\n",
+        token.expose()
+    );
+    stream.write_all(head.as_bytes()).await.unwrap();
+    let mut answer = String::new();
+    let _ = stream.read_to_string(&mut answer).await;
+    assert!(answer.starts_with("HTTP/1.1 403"), "{answer}");
+    assert!(!answer
+        .to_ascii_lowercase()
+        .contains("access-control-allow-origin"));
+    // A page request without Origin (cross-site Sec-Fetch-Site) cannot be matched.
+    let unnamed = request(&server, Method::GET, "/health")
+        .header("sec-fetch-site", "cross-site")
+        .bearer_auth(token.expose())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(unnamed.status(), StatusCode::FORBIDDEN);
+    // A non-browser client without Origin keeps the token rule.
+    let tool = request(&server, Method::GET, "/health")
+        .bearer_auth(token.expose())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(tool.status(), StatusCode::OK);
+    assert!(!tool
+        .headers()
+        .contains_key(header::ACCESS_CONTROL_ALLOW_ORIGIN));
+    let anonymous = request(&server, Method::GET, "/health")
+        .header("origin", "https://dash.example")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(anonymous.status(), StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
@@ -927,12 +1106,12 @@ async fn reconfigure_keeps_the_listener_and_swaps_policy_in_place() {
     // Hot swap to allow browsers on the same listener. We pass `port: 0`
     // (matches the requested port on the running server) and the same
     // bind and `port_fallback` to keep the binding identity.
+    let token = Token::generate().unwrap();
     let result = server
         .reconfigure(
             ServeConfig {
                 port: 0,
-                allow_browsers: true,
-                ..ServeConfig::default()
+                ..browser_config(&token, &["https://example.com"])
             },
             fixture_source(),
         )
@@ -950,11 +1129,15 @@ async fn reconfigure_keeps_the_listener_and_swaps_policy_in_place() {
         .unwrap()
         .request(Method::GET, format!("{}{}", server.url(), "/health"))
         .header("origin", "https://example.com")
+        .bearer_auth(token.expose())
         .send()
         .await
         .unwrap();
     assert_eq!(page.status(), StatusCode::OK);
-    assert_eq!(page.headers()[header::ACCESS_CONTROL_ALLOW_ORIGIN], "*");
+    assert_eq!(
+        page.headers()[header::ACCESS_CONTROL_ALLOW_ORIGIN],
+        "https://example.com"
+    );
 }
 
 /// A change in binding identity must NOT be applied in place: the listener is

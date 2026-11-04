@@ -1611,7 +1611,16 @@
   "resets.title.soon_many": {
     "other": "{provider}: {count} hạn mức sẽ được đặt lại sau {minutes} phút"
   },
-  "serve.allow_browsers.warning": "Khi cho phép trình duyệt, bất kỳ trang nào đang mở trong trình duyệt của bạn đều đọc được mức sử dụng của bạn từ máy chủ cục bộ (có token thì là bất kỳ trang nào biết token). Chỉ bật nếu một trang của bạn cần dữ liệu này.",
+  "serve.allow_browsers.warning": "Khi cho phép trình duyệt, các trang thuộc nguồn gốc tin cậy biết token truy cập có thể đọc mức sử dụng của bạn từ máy chủ cục bộ. Chỉ thêm các nguồn gốc bạn kiểm soát.",
+  "serve.error.browser_token_required": "Cho phép trình duyệt cần token truy cập máy chủ cục bộ: hãy tạo token trước.",
+  "serve.error.origins_required": "Cho phép trình duyệt cần từ 1 đến 16 nguồn gốc tin cậy khác nhau.",
+  "serve.origin.error.duplicate": "Nguồn gốc này đã có trong danh sách.",
+  "serve.origin.error.empty": "Hãy thêm ít nhất một nguồn gốc tin cậy trước khi cho phép trình duyệt.",
+  "serve.origin.error.extra": "Nguồn gốc không có tên người dùng, mật khẩu, đường dẫn, truy vấn hay phân đoạn.",
+  "serve.origin.error.host": "Nguồn gốc chỉ nêu một máy chủ: không có ký tự đại diện, null hay máy chủ trống.",
+  "serve.origin.error.port": "Cổng của nguồn gốc phải là số từ 1 đến 65535.",
+  "serve.origin.error.scheme": "Dùng https://máy-chủ[:cổng], hoặc http:// chỉ cho localhost và địa chỉ loopback.",
+  "serve.origin.error.too_many": "Cho phép tối đa 16 nguồn gốc tin cậy.",
   "serve.client.incompatible": "Phản hồi của máy chủ cục bộ không phải /v1/limits tương thích.",
   "serve.client.invalid_url": "Địa chỉ máy chủ cục bộ không hợp lệ: hãy dùng http://127.0.0.1:CỔNG.",
   "serve.client.not_loopback": "Máy chủ cục bộ chỉ được đọc qua loopback (127.0.0.1, ::1 hoặc localhost).",
