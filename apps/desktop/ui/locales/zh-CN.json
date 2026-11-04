@@ -95,6 +95,8 @@
   "settings.agg.all.hidden": "隐藏",
   "settings.agg.all.listed": "与我的账户一起列出",
   "settings.agg.allHelp": "9router 视图始终显示所有连接。",
+  "settings.error.busy": "另一个 Cuotai 窗口或进程正在保存设置；请稍后再试。",
+  "settings.error.newer": "这些设置由更新版本的 Cuotai 写入，因此此版本不会修改它们。请更新 Cuotai。",
   "settings.hooks.event.pool_exhausted": "9router 中某提供商的所有账户已用尽",
   "settings.hooks.event.pool_recovered": "9router 中已用尽的提供商有账户恢复",
   "time.now": "现在",

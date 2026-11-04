@@ -97,6 +97,8 @@
   "settings.agg.all.hidden": "Gizli",
   "settings.agg.all.listed": "Hesaplarımla birlikte listelenir",
   "settings.agg.allHelp": "9router görünümü her zaman tüm bağlantıları gösterir.",
+  "settings.error.busy": "Başka bir Cuotai penceresi veya işlemi ayarları kaydediyor; biraz sonra yeniden deneyin.",
+  "settings.error.newer": "Bu ayarlar Cuotai'nin daha yeni bir sürümü tarafından yazıldı, bu yüzden bu sürüm onları değiştirmez. Cuotai'yi güncelleyin.",
   "settings.hooks.event.pool_exhausted": "9router'daki bir sağlayıcının tüm hesapları tükendi",
   "settings.hooks.event.pool_recovered": "9router'da tükenmiş bir sağlayıcının bir hesabı geri geldi",
   "time.now": "şimdi",

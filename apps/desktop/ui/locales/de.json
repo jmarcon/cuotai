@@ -97,6 +97,8 @@
   "settings.agg.all.hidden": "Ausgeblendet",
   "settings.agg.all.listed": "Mit meinen Konten aufgelistet",
   "settings.agg.allHelp": "Die 9router-Ansicht zeigt immer alle Verbindungen.",
+  "settings.error.busy": "Ein anderes Cuotai-Fenster oder ein anderer Prozess speichert gerade die Einstellungen; versuche es gleich noch einmal.",
+  "settings.error.newer": "Diese Einstellungen wurden von einer neueren Cuotai-Version geschrieben, daher ändert diese Version sie nicht. Aktualisiere Cuotai.",
   "settings.hooks.event.pool_exhausted": "alle Konten eines Anbieters in 9router sind erschöpft",
   "settings.hooks.event.pool_recovered": "ein Konto eines erschöpften Anbieters in 9router ist zurück",
   "time.now": "jetzt",

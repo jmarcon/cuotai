@@ -95,6 +95,8 @@
   "settings.agg.all.hidden": "Đã ẩn",
   "settings.agg.all.listed": "Liệt kê cùng tài khoản của tôi",
   "settings.agg.allHelp": "Chế độ xem 9router luôn hiển thị mọi kết nối.",
+  "settings.error.busy": "Một cửa sổ hoặc tiến trình Cuotai khác đang lưu cài đặt; hãy thử lại sau giây lát.",
+  "settings.error.newer": "Các cài đặt này do phiên bản Cuotai mới hơn ghi, nên phiên bản này không thay đổi chúng. Hãy cập nhật Cuotai.",
   "settings.hooks.event.pool_exhausted": "mọi tài khoản của một nhà cung cấp trong 9router đã hết",
   "settings.hooks.event.pool_recovered": "một tài khoản của nhà cung cấp đã hết trong 9router đã hoạt động trở lại",
   "time.now": "bây giờ",

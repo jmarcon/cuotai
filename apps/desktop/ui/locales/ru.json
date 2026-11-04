@@ -101,6 +101,8 @@
   "settings.agg.all.hidden": "Скрыто",
   "settings.agg.all.listed": "В списке с моими записями",
   "settings.agg.allHelp": "Вид 9router всегда показывает все подключения.",
+  "settings.error.busy": "Другое окно или процесс Cuotai сохраняет настройки; повторите попытку через минуту.",
+  "settings.error.newer": "Эти настройки записаны более новой версией Cuotai, поэтому эта версия их не меняет. Обновите Cuotai.",
   "settings.hooks.event.pool_exhausted": "исчерпаны все записи одного провайдера в 9router",
   "settings.hooks.event.pool_recovered": "запись исчерпанного провайдера в 9router снова доступна",
   "time.now": "сейчас",

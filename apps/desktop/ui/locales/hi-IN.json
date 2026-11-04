@@ -97,6 +97,8 @@
   "settings.agg.all.hidden": "छिपे हुए",
   "settings.agg.all.listed": "मेरे खातों के साथ सूचीबद्ध",
   "settings.agg.allHelp": "9router व्यू में हमेशा सभी कनेक्शन दिखते हैं।",
+  "settings.error.busy": "Cuotai की कोई दूसरी विंडो या प्रक्रिया सेटिंग्स सहेज रही है; थोड़ी देर बाद फिर कोशिश करें।",
+  "settings.error.newer": "ये सेटिंग्स Cuotai के नए संस्करण ने लिखी हैं, इसलिए यह संस्करण इन्हें नहीं बदलता। Cuotai अपडेट करें।",
   "settings.hooks.event.pool_exhausted": "9router में किसी प्रदाता के सभी खाते खत्म हो गए",
   "settings.hooks.event.pool_recovered": "9router में खत्म हो चुके प्रदाता का एक खाता वापस आ गया",
   "time.now": "अभी",

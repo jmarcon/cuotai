@@ -153,6 +153,25 @@ struct Stored {
     /// leniently ([`monograms_of`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     monograms: Option<serde_json::Value>,
+    /// PRD 0051 RF3.4/RF4.2: members a newer release wrote (its `schema`
+    /// and `schema_revision` included) are kept through every write.
+    #[serde(flatten)]
+    unknown: serde_json::Map<String, serde_json::Value>,
+}
+
+/// PRD 0051 RF3: the `desktop.json` schema major this release reads and
+/// writes. An absent `schema` is major 1; a higher one is never rewritten.
+const SCHEMA_MAJOR: u64 = 1;
+
+impl Stored {
+    /// A file whose `schema` names a later major: its meaning may have
+    /// changed, so this release reads what it knows but never writes it.
+    fn newer_major(&self) -> bool {
+        self.unknown
+            .get("schema")
+            .and_then(serde_json::Value::as_u64)
+            .is_some_and(|major| major > SCHEMA_MAJOR)
+    }
 }
 
 /// PRD 0027 RF6.5/RF7.3: `detect.enabled` (`None` until answered) and the
@@ -963,7 +982,7 @@ enum OnDisk {
     Intact(Box<Stored>),
     /// Not a JSON object, or a field of the wrong type (the fields that
     /// tolerate that are `serde_json::Value`s, read leniently one by one).
-    Damaged(Vec<u8>),
+    Damaged,
     /// It exists but could not be read, so nothing is known about it.
     Unreadable,
 }
@@ -980,7 +999,7 @@ fn inspect(file: &Path) -> OnDisk {
     match fs::read(file) {
         Ok(bytes) => match parse(&bytes) {
             Some(stored) => OnDisk::Intact(Box::new(stored)),
-            None => OnDisk::Damaged(bytes),
+            None => OnDisk::Damaged,
         },
         Err(error) if error.kind() == io::ErrorKind::NotFound => OnDisk::Missing,
         Err(_) => OnDisk::Unreadable,
@@ -990,7 +1009,7 @@ fn inspect(file: &Path) -> OnDisk {
 fn read(file: &Path) -> Stored {
     match inspect(file) {
         OnDisk::Intact(stored) => *stored,
-        OnDisk::Missing | OnDisk::Damaged(_) | OnDisk::Unreadable => Stored::default(),
+        OnDisk::Missing | OnDisk::Damaged | OnDisk::Unreadable => Stored::default(),
     }
 }
 
@@ -1061,7 +1080,7 @@ pub fn recover_damaged() {
 
 fn recover_damaged_file(file: &Path) -> Result<(), &'static str> {
     match inspect(file) {
-        OnDisk::Damaged(_) => update(file, |_| {}),
+        OnDisk::Damaged => update(file, |_| {}),
         OnDisk::Missing | OnDisk::Intact(_) | OnDisk::Unreadable => Ok(()),
     }
 }
@@ -1071,37 +1090,41 @@ fn recover_damaged_file(file: &Path) -> Result<(), &'static str> {
 /// ones would lose a field or rename a half-written temporary file.
 static WRITES: Mutex<()> = Mutex::new(());
 
-/// Changes one field preserving the others. Atomic write (temporary file +
-/// rename, the file named per process since a second copy of the app may be
-/// running), flushed first so a power cut cannot leave an empty file behind.
-/// The write never replaces the only copy of something: a damaged file goes
-/// to a backup first, and one that cannot be read or backed up stays where
-/// it is and the save fails.
+/// Changes one field preserving the others, and the members a newer
+/// release wrote. PRD 0051 RF4: every write goes through the core's
+/// [`cuotai_core::private_fs::update_locked`]: an advisory lock shared with
+/// any other Cuotai process, a re-read under it, a uniquely named `0600`
+/// temporary file synced and renamed, then the directory synced. The write
+/// never replaces the only copy of something: a damaged file goes to a
+/// backup first, one that cannot be read or backed up stays where it is,
+/// and one whose `schema` is a later major is never rewritten; the save
+/// then fails.
 fn update(file: &Path, change: impl FnOnce(&mut Stored)) -> Result<(), &'static str> {
+    use cuotai_core::private_fs::{update_locked, UpdateError};
     let _writing = WRITES.lock().unwrap_or_else(PoisonError::into_inner);
-    let parent = file.parent().ok_or("unwritable")?;
-    fs::create_dir_all(parent).map_err(|_| "unwritable")?;
-    let mut stored = match inspect(file) {
-        OnDisk::Missing => Stored::default(),
-        OnDisk::Intact(stored) => *stored,
-        OnDisk::Damaged(bytes) => {
-            let backup = back_up(file, &bytes).map_err(|_| "unwritable")?;
-            let mut recovered = RECOVERED.lock().unwrap_or_else(PoisonError::into_inner);
-            recovered.push(backup);
-            Stored::default()
-        }
-        OnDisk::Unreadable => return Err("unwritable"),
-    };
-    change(&mut stored);
-    let tmp = parent.join(format!(".desktop.json.{}.tmp", std::process::id()));
-    let text = serde_json::to_string_pretty(&stored).map_err(|_| "unwritable")?;
-    fs::File::create(&tmp)
-        .and_then(|mut out| {
-            out.write_all(text.as_bytes())?;
-            out.sync_all()
-        })
-        .map_err(|_| "unwritable")?;
-    fs::rename(&tmp, file).map_err(|_| "unwritable")
+    let result = update_locked(file, |bytes| {
+        let mut stored = match bytes {
+            None => Stored::default(),
+            Some(bytes) => match parse(&bytes) {
+                Some(stored) if stored.newer_major() => return Err("newer"),
+                Some(stored) => stored,
+                None => {
+                    let backup = back_up(file, &bytes).map_err(|_| "unwritable")?;
+                    let mut recovered = RECOVERED.lock().unwrap_or_else(PoisonError::into_inner);
+                    recovered.push(backup);
+                    Stored::default()
+                }
+            },
+        };
+        change(&mut stored);
+        serde_json::to_vec_pretty(&stored).map_err(|_| "unwritable")
+    });
+    match result {
+        Ok(()) => Ok(()),
+        Err(UpdateError::Refused(reason)) => Err(reason),
+        Err(UpdateError::Busy) => Err("busy"),
+        Err(UpdateError::NotPrivate | UpdateError::Io(_)) => Err("unwritable"),
+    }
 }
 
 /// Custom folder saved by the user (ignoring `CUOTAI_USER_DIR`).
@@ -1834,6 +1857,73 @@ mod tests {
         assert_eq!(write_locale(&file, "fr"), Err("unwritable"));
         assert!(file.is_dir());
         assert!(backups(&file).is_empty());
+    }
+
+    /// PRD 0051 RF3.4/RF4.2: what a newer release wrote survives a write.
+    #[test]
+    fn members_of_a_newer_release_survive_every_write() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        fs::write(
+            &file,
+            r#"{"schema":1,"schema_revision":3,"motion":"off","future":{"a":[1,2]},"later_flag":true}"#,
+        )
+        .unwrap();
+        write_locale(&file, "fr").unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&fs::read(&file).unwrap()).unwrap();
+        assert_eq!(value["future"], serde_json::json!({"a": [1, 2]}));
+        assert_eq!(value["later_flag"], true);
+        assert_eq!(value["schema_revision"], 3);
+        assert_eq!(value["locale"], "fr");
+        assert_eq!(value["motion"], "off");
+    }
+
+    /// PRD 0051 RF3.2: a later schema major is read but never rewritten.
+    #[test]
+    fn a_newer_schema_major_is_never_rewritten() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        let text = r#"{"schema":2,"motion":"off"}"#;
+        fs::write(&file, text).unwrap();
+        assert_eq!(motion_of(&read(&file)), "off");
+        assert_eq!(write_locale(&file, "fr"), Err("newer"));
+        assert_eq!(fs::read_to_string(&file).unwrap(), text);
+        assert!(backups(&file).is_empty());
+    }
+
+    /// PRD 0051 RF4.4: settings changes and an updater completion running
+    /// at once (threads stand in for the second process) all land.
+    #[test]
+    fn concurrent_settings_and_updater_writes_keep_every_change() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = std::sync::Arc::new(dir.path().join("desktop.json"));
+        let mut threads = Vec::new();
+        for n in 0..16u32 {
+            let file = std::sync::Arc::clone(&file);
+            threads.push(std::thread::spawn(move || {
+                write_monogram(&file, &format!("acct{n}"), "AB").unwrap();
+            }));
+        }
+        let updater = std::sync::Arc::clone(&file);
+        threads.push(std::thread::spawn(move || {
+            let prefs = UpdaterPrefs {
+                automatic: true,
+                last_check: Some("2026-11-04T00:00:00Z".into()),
+                consent_answered: true,
+            };
+            write_updater(&updater, &prefs).unwrap();
+        }));
+        let locale = std::sync::Arc::clone(&file);
+        threads.push(std::thread::spawn(move || {
+            write_locale(&locale, "de").unwrap()
+        }));
+        for thread in threads {
+            thread.join().unwrap();
+        }
+        let stored = read(&file);
+        assert_eq!(monograms_of(&stored).len(), 16);
+        assert!(read_updater(&file).automatic);
+        assert_eq!(read_locale(&file).as_deref(), Some("de"));
     }
 
     #[test]
