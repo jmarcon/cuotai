@@ -714,6 +714,96 @@ fn search_in(entries: &[CatalogEntry], query: &str, locale: &str) -> Vec<Catalog
         .collect()
 }
 
+/// PRD 0052 RF3.5: one connection mode of a provider in the machine-readable
+/// catalog.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct CatalogMode {
+    /// `auth_mode` id when the provider has several ways to connect.
+    pub mode: Option<&'static str>,
+    pub method: SignInMethod,
+    pub level: Level,
+    pub native_login: bool,
+    pub recommended: bool,
+}
+
+/// PRD 0052 RF3.5: one provider of `cuotai --list-providers --json`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ProviderRow {
+    pub slug: &'static str,
+    /// Catalog id of the display name (`provider.<slug>`).
+    pub label_key: String,
+    pub aggregator: bool,
+    /// The connection modes the account editor offers (empty for a provider
+    /// without a usage query, which the picker hides).
+    pub modes: Vec<CatalogMode>,
+    /// PRD 0005 access level of the default configuration.
+    pub level: Level,
+    /// Every query is billed.
+    pub metered: bool,
+    /// Model listing: `documented`, `verified_live` or `unsupported`.
+    pub models: &'static str,
+    /// Incident status: `public_status` (a verified public source) or `none`.
+    pub incidents: &'static str,
+}
+
+/// PRD 0052 RF3.5: the offline provider catalog, schema 1, exhaustive over
+/// `Provider::ALL`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ProviderCatalog {
+    pub schema: u32,
+    pub providers: Vec<ProviderRow>,
+}
+
+/// The catalog `cuotai --list-providers --json` prints (no network, no
+/// credential).
+pub fn provider_catalog() -> ProviderCatalog {
+    let entries = catalog();
+    let providers = Provider::ALL
+        .into_iter()
+        .map(|provider| {
+            let account = crate::Account {
+                provider,
+                ..Default::default()
+            };
+            let access = access::describe(&account);
+            let modes = entries
+                .iter()
+                .filter(|e| e.provider == provider && e.extension.is_none())
+                .map(|e| CatalogMode {
+                    mode: e.mode,
+                    method: e.method,
+                    level: e.level,
+                    native_login: e.native_login,
+                    recommended: e.recommended,
+                })
+                .collect();
+            let models = match crate::models::evidence(&account).map(|e| e.basis) {
+                Some(crate::models::EvidenceBasis::Documented) => "documented",
+                Some(crate::models::EvidenceBasis::VerifiedLive) => "verified_live",
+                None => "unsupported",
+            };
+            ProviderRow {
+                slug: provider.slug(),
+                label_key: format!("provider.{}", provider.slug()),
+                aggregator: provider.is_aggregator(),
+                modes,
+                level: access.level,
+                metered: access.metered,
+                models,
+                incidents: if crate::incidents::source_for(provider, None).is_some() {
+                    "public_status"
+                } else {
+                    "none"
+                },
+            }
+        })
+        .collect();
+    ProviderCatalog {
+        schema: 1,
+        providers,
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Generated documentation table (RF1.4)
 // ---------------------------------------------------------------------------
@@ -724,6 +814,40 @@ pub(crate) static DOC_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// PRD 0052 RF3.5: exhaustive, stable keys, schema 1.
+    #[test]
+    fn the_provider_catalog_is_exhaustive_json_schema_1() {
+        let catalog = provider_catalog();
+        assert_eq!(catalog.schema, 1);
+        assert_eq!(catalog.providers.len(), Provider::ALL.len());
+        let json = serde_json::to_value(&catalog).unwrap();
+        let first = &json["providers"][0];
+        for key in [
+            "slug",
+            "label_key",
+            "aggregator",
+            "modes",
+            "level",
+            "metered",
+            "models",
+            "incidents",
+        ] {
+            assert!(first.get(key).is_some(), "{key}");
+        }
+        for row in &catalog.providers {
+            assert!(["documented", "verified_live", "unsupported"].contains(&row.models));
+            assert!(["public_status", "none"].contains(&row.incidents));
+            if access::has_usage_query(
+                Provider::ALL
+                    .into_iter()
+                    .find(|p| p.slug() == row.slug)
+                    .unwrap(),
+            ) {
+                assert!(!row.modes.is_empty(), "{} has a mode", row.slug);
+            }
+        }
+    }
 
     #[test]
     fn env_detection_is_consent_gated_and_presence_only() {

@@ -151,8 +151,12 @@ struct Args {
     /// exits, without querying the providers.
     #[arg(long, value_name = "ACCOUNT", num_args = 0..=1, conflicts_with = "once")]
     history: Option<Option<String>>,
-    /// Lists the identifiers the configuration accepts.
-    #[arg(long)]
+    /// Lists the identifiers the configuration accepts; with --json, the
+    /// offline provider catalog (schema 1).
+    #[arg(
+        long,
+        conflicts_with_all = ["once", "json_v1", "history", "notify", "serve", "watch"]
+    )]
     list_providers: bool,
     /// Checks the configuration file strictly, without credentials or
     /// network: unknown providers and keys, wrong types and the rules the
@@ -838,6 +842,13 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
             args.json,
             ui::tui_locale(),
         )?);
+    }
+    // PRD 0052 RF3.5: the machine-readable catalog, offline.
+    if args.list_providers && args.json {
+        let mut stdout = std::io::stdout().lock();
+        serde_json::to_writer_pretty(&mut stdout, &cuotai_core::account_edit::provider_catalog())?;
+        writeln!(stdout)?;
+        return Ok(0);
     }
     if args.list_providers {
         for provider in Provider::ALL {
