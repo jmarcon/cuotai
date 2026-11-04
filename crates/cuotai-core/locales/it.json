@@ -43,6 +43,8 @@
   "config.error.parse_key": "La configurazione contiene {path} sconosciuto o non valido alla riga {line}, colonna {column}.",
   "config.error.unreadable": "Impossibile leggere il file di configurazione in {path}.",
   "config.warning.unknown_key": "{path} non è noto a questa versione di Cuotai; viene ignorato e conservato quando il file viene salvato.",
+  "data_dir.error.relative": "CUOTAI_DATA_DIR deve essere un percorso assoluto; Cuotai non conserva dati finché non viene corretto o rimosso.",
+  "data_dir.error.unusable": "CUOTAI_DATA_DIR deve essere una tua cartella che non sia un collegamento; Cuotai non conserva dati finché non viene corretto o rimosso.",
   "diagnostic.schema_drift": "Il provider ha cambiato `{path}` ({expected} → {found}).",
   "diagnostic.schema_drift_unknown": "Il provider ha cambiato il formato della risposta.",
   "access.risk.subscription_token": "Il token appartiene al client ufficiale del fornitore; usarlo da un altro strumento può violare i termini del fornitore.",

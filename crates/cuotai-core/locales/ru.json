@@ -323,6 +323,8 @@
   "credential_help.windsurf": "Требуется Enterprise с правами Billing Read и Teams Read-Only.",
   "credential_help.xiaomi_mimo": "Баланс/Token Plan: вставьте веб-сеанс platform.xiaomimimo.com в мастер учётных записей (системное хранилище) или укажите переменную в platform_session_env. Встроенный код выдаёт ключ инференса, а не cookie. Сеанс учётной записи Xiaomi (session_env) отдельный: недельная квота MiMo Desktop.",
   "credential_help.zed": "ZED_ACCESS_TOKEN (облачный токен доступа из встроенного потока входа zed.dev). Укажите также числовой user_id — он отправляется как `Authorization: <user_id> <token>`.",
+  "data_dir.error.relative": "CUOTAI_DATA_DIR должен быть абсолютным путём; пока он не исправлен или не удалён, Cuotai не хранит данные.",
+  "data_dir.error.unusable": "CUOTAI_DATA_DIR должен быть вашей собственной папкой, а не ссылкой; пока он не исправлен или не удалён, Cuotai не хранит данные.",
   "detect.consent.aws_profile": "Cuotai прочитает только имена профилей в ~/.aws/config, когда вы выберете профиль; ключи не читаются.",
   "detect.consent.cursor_import": "Cuotai однократно прочитает токен входа из локальной базы Cursor, чтобы запросить ваше использование. Он сохраняется в системном хранилище учётных данных.",
   "detect.consent.env": "Запись сохранит только имя {variable}; значение никогда не читается и не сохраняется.",

@@ -26,7 +26,7 @@ const SCHEMA: u32 = 1;
 
 /// `<OS local data dir>/cuotai/vault-index.json`, or `None` without one.
 pub fn default_path() -> Option<PathBuf> {
-    dirs::data_local_dir().map(|dir| dir.join("cuotai").join("vault-index.json"))
+    crate::data_dir::root().map(|dir| dir.join("vault-index.json"))
 }
 
 /// The index of the debug-only SQLite store at `database`: beside it, as

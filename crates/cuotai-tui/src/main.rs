@@ -773,6 +773,11 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         }
         return Ok(0);
     }
+    // PRD 0051 RF5.2: an invalid CUOTAI_DATA_DIR is a local error, never a
+    // silent fallback to the OS directory.
+    if let Err(error) = cuotai_core::data_dir::check_override() {
+        return Err(error.l10n().resolve(ui::tui_locale()).into());
+    }
     // PRD 0019 RF7.7: the embedded changelog, without loading the
     // accounts' configuration and without touching the network.
     if let Some(version) = args.changelog.take() {

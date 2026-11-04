@@ -317,6 +317,8 @@
   "credential_help.windsurf": "需要 Enterprise，并具有 Billing Read 和 Teams Read-Only 权限。",
   "credential_help.xiaomi_mimo": "余额/Token Plan：将 platform.xiaomimimo.com 的网页会话粘贴到账户向导中（系统保险库），或在 platform_session_env 中填写变量。原生代码提供的是推理密钥，不是 Cookie。小米账户会话（session_env）是另一回事：用于 MiMo Desktop 的每周额度。",
   "credential_help.zed": "ZED_ACCESS_TOKEN（zed.dev 原生登录流程中的云访问令牌）。还需填写数字形式的 user_id — 它以 `Authorization: <user_id> <token>` 发送。",
+  "data_dir.error.relative": "CUOTAI_DATA_DIR 必须是绝对路径；在修正或取消设置之前，Cuotai 不会保存任何数据。",
+  "data_dir.error.unusable": "CUOTAI_DATA_DIR 必须是属于你自己且不是链接的文件夹；在修正或取消设置之前，Cuotai 不会保存任何数据。",
   "detect.consent.aws_profile": "选择配置文件时，Cuotai 只读取 ~/.aws/config 中的配置文件名称；不读取任何密钥。",
   "detect.consent.cursor_import": "Cuotai 会从 Cursor 的本地数据库读取一次登录令牌，用于查询您的用量。它会保存在系统保险库中。",
   "detect.consent.env": "账户只会保存名称 {variable}；值从不读取或保存。",

@@ -317,6 +317,8 @@
   "credential_help.windsurf": "Billing Read と Teams Read-Only の権限を持つ Enterprise が必要です。",
   "credential_help.xiaomi_mimo": "残高/Token Plan：platform.xiaomimimo.com の Web セッションをアカウントのウィザードに貼り付ける（システムの保管庫）か、platform_session_env に変数を指定してください。ネイティブのコードで得られるのは推論キーで、Cookie ではありません。Xiaomi アカウントのセッション（session_env）は別物で、MiMo Desktop の週間クォータ用です。",
   "credential_help.zed": "ZED_ACCESS_TOKEN（zed.dev のネイティブログインで得られるクラウドのアクセストークン）。数値の user_id も指定してください — `Authorization: <user_id> <token>` として送信されます。",
+  "data_dir.error.relative": "CUOTAI_DATA_DIR は絶対パスである必要があります。修正するか削除するまで、Cuotai はデータを保存しません。",
+  "data_dir.error.unusable": "CUOTAI_DATA_DIR は、リンクではない自分のフォルダーである必要があります。修正するか削除するまで、Cuotai はデータを保存しません。",
   "detect.consent.aws_profile": "プロファイルを選ぶとき、Cuotai は ~/.aws/config のプロファイル名のみを読み取ります。キーは読み取りません。",
   "detect.consent.cursor_import": "Cuotai は使用量を照会するため、Cursor のローカルデータベースからログイントークンを一度だけ読み取ります。トークンはシステムの保管庫に保存されます。",
   "detect.consent.env": "アカウントには名前 {variable} のみが保存されます。値が読み取られたり保存されたりすることはありません。",

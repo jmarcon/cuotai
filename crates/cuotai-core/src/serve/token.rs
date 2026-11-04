@@ -93,7 +93,7 @@ pub fn ensure_token(vault: &dyn TokenVault) -> Result<Token, ServeError> {
 /// `cuotai --serve` creates and requires by default; `None` without a local
 /// data directory.
 pub fn default_token_file() -> Option<std::path::PathBuf> {
-    dirs::data_local_dir().map(|dir| dir.join("cuotai").join("serve").join("token"))
+    crate::data_dir::root().map(|dir| dir.join("serve").join("token"))
 }
 
 /// The token in the file at `path` (trimmed; a trailing newline is fine).

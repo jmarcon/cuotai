@@ -319,6 +319,8 @@
   "credential_help.windsurf": "Billing Read और Teams Read-Only अनुमतियों वाला Enterprise चाहिए।",
   "credential_help.xiaomi_mimo": "बैलेंस/Token Plan: platform.xiaomimimo.com का वेब सत्र खाता विज़ार्ड में पेस्ट करें (सिस्टम वॉल्ट) या platform_session_env में वेरिएबल का नाम दें। नेटिव कोड इन्फ़रेंस कुंजी देता है, कुकी नहीं। Xiaomi खाते का सत्र (session_env) अलग है: MiMo Desktop का साप्ताहिक कोटा।",
   "credential_help.zed": "ZED_ACCESS_TOKEN (zed.dev के नेटिव लॉगिन प्रवाह का क्लाउड एक्सेस टोकन)। संख्यात्मक user_id भी लिखें — वह `Authorization: <user_id> <token>` के रूप में भेजा जाता है।",
+  "data_dir.error.relative": "CUOTAI_DATA_DIR एक पूर्ण (absolute) पथ होना चाहिए; इसे ठीक करने या हटाने तक Cuotai कोई डेटा नहीं रखता।",
+  "data_dir.error.unusable": "CUOTAI_DATA_DIR आपका अपना फ़ोल्डर होना चाहिए जो लिंक न हो; इसे ठीक करने या हटाने तक Cuotai कोई डेटा नहीं रखता।",
   "detect.consent.aws_profile": "Cuotai प्रोफ़ाइल चुनते समय केवल ~/.aws/config के प्रोफ़ाइल नाम पढ़ेगा; कोई कुंजी नहीं पढ़ी जाती।",
   "detect.consent.cursor_import": "Cuotai आपका उपयोग जाँचने के लिए स्थानीय Cursor डेटाबेस से लॉगिन टोकन एक बार पढ़ेगा। वह सिस्टम के क्रेडेंशियल वॉल्ट में रखा जाता है।",
   "detect.consent.env": "खाता केवल {variable} का नाम रखेगा; मान कभी पढ़ा या लिखा नहीं जाता।",

@@ -319,6 +319,8 @@
   "credential_help.windsurf": "Billing Read ve Teams Read-Only izinleri olan Enterprise gerekir.",
   "credential_help.xiaomi_mimo": "Bakiye/Token Plan: platform.xiaomimimo.com web oturumunu hesap sihirbazına (sistem kasası) yapıştırın veya değişkeni platform_session_env içinde belirtin. Yerel kod bir çerez değil, bir çıkarım anahtarı verir. Xiaomi hesabı oturumu (session_env) ayrıdır: MiMo Desktop haftalık kotası.",
   "credential_help.zed": "ZED_ACCESS_TOKEN (zed.dev yerel oturum açma akışından bulut erişim jetonu). Sayısal user_id değerini de girin — `Authorization: <user_id> <token>` olarak gönderilir.",
+  "data_dir.error.relative": "CUOTAI_DATA_DIR mutlak bir yol olmalıdır; düzeltilene veya kaldırılana kadar Cuotai veri tutmaz.",
+  "data_dir.error.unusable": "CUOTAI_DATA_DIR size ait ve bağlantı olmayan bir klasör olmalıdır; düzeltilene veya kaldırılana kadar Cuotai veri tutmaz.",
   "detect.consent.aws_profile": "Cuotai, profili seçtiğinizde yalnızca ~/.aws/config içindeki profil adlarını okur; hiçbir anahtar okunmaz.",
   "detect.consent.cursor_import": "Cuotai, kullanımınızı sorgulamak için oturum açma jetonunu Cursor'un yerel veritabanından bir kez okur. Jeton, sisteminizin kimlik bilgisi kasasında saklanır.",
   "detect.consent.env": "Hesap yalnızca {variable} adını saklar; değer asla okunmaz veya kaydedilmez.",

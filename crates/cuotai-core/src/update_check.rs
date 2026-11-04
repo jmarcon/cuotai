@@ -92,7 +92,7 @@ struct Cached {
 
 /// The cached answer file, `<data dir>/cuotai/update-check.json`.
 pub fn cache_path() -> Option<PathBuf> {
-    dirs::data_local_dir().map(|dir| dir.join("cuotai").join("update-check.json"))
+    crate::data_dir::root().map(|dir| dir.join("update-check.json"))
 }
 
 fn read_cache(path: &Path, now: DateTime<Utc>) -> Option<Option<Version>> {
