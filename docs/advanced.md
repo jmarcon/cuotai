@@ -28,6 +28,16 @@ cuotai --config cuotai.toml --check-config
 # modes, access level, metered, model-list and incident-status support
 cuotai --list-providers --json
 
+# Export the local history (CSV or JSON; one account with --history, the last
+# N days with --history-days), or erase it after a typed confirmation
+cuotai --history-export history.csv --history-format csv [--history ACCOUNT] [--history-days 30]
+cuotai --history-erase ACCOUNT    # or: --history-erase all; --yes skips the question
+
+# Erase every file, directory and vault entry Cuotai keeps (docs/privacy.md).
+# It lists them first and asks for the confirmation word; without a terminal
+# it needs --yes. The accounts TOML and hooks.toml stay unless --include-config.
+cuotai --erase-all-data [--yes] [--include-config]
+
 # Human-readable summary in the terminal (single run)
 cuotai --config cuotai.toml --once
 

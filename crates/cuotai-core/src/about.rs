@@ -168,6 +168,14 @@ static LIBRARIES: &[Library] = &[
         Role::Runtime,
         &[Core],
     ),
+    // PRD 0052 RF5.4: the vault's service-wide search for total erasure.
+    lib(
+        "keyring-core",
+        "MIT OR Apache-2.0",
+        "https://github.com/open-source-cooperative/keyring-rs",
+        Role::Runtime,
+        &[Core],
+    ),
     lib(
         "libc",
         "MIT OR Apache-2.0",
@@ -465,7 +473,7 @@ static LIBRARIES: &[Library] = &[
         "MIT OR Apache-2.0",
         "https://github.com/Stebalien/tempfile",
         Role::Test,
-        &[Core, Desktop],
+        &[Core, Tui, Desktop],
     ),
     lib(
         "tokio-rustls",

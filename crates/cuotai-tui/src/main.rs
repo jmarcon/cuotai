@@ -9,6 +9,7 @@ mod cli;
 mod config_check;
 mod cost;
 mod dashboard;
+mod data_cli;
 mod doctor;
 mod extension_check;
 mod extensions_view;
@@ -205,9 +206,6 @@ struct Args {
     /// With --restore, prints the plan and writes nothing.
     #[arg(long, requires = "restore")]
     check: bool,
-    /// With --restore, replaces every conflicting file without asking.
-    #[arg(long, requires = "restore", conflicts_with = "check")]
-    yes: bool,
     /// With --restore, only one part: config, prefs or user.
     #[arg(long, value_name = "PART", value_parser = ["config", "prefs", "user"], requires = "restore")]
     only: Option<String>,
@@ -602,7 +600,63 @@ struct Args {
     /// Days kept in the local cost index (7 to 730; default 120).
     #[arg(long, value_name = "DAYS", conflicts_with_all = COST_OPTION_CONFLICTS)]
     cost_retention_days: Option<u32>,
+    /// PRD 0052 RF5.1: writes the local history to PATH and exits (with
+    /// --history ACCOUNT, one account; with --history-days N, the last N
+    /// days).
+    #[arg(long, value_name = "PATH", conflicts_with_all = DATA_CONFLICTS)]
+    history_export: Option<PathBuf>,
+    /// Format of --history-export: csv (default) or json.
+    #[arg(
+        long,
+        value_name = "FORMAT",
+        value_parser = ["csv", "json"],
+        default_value = "csv",
+        requires = "history_export"
+    )]
+    history_format: String,
+    /// PRD 0052 RF5.1: erases the history of ACCOUNT, or `all` of it, after
+    /// a typed confirmation (or --yes).
+    #[arg(
+        long,
+        value_name = "ACCOUNT|all",
+        conflicts_with_all = DATA_CONFLICTS,
+        conflicts_with_all = ["history", "history_export"]
+    )]
+    history_erase: Option<String>,
+    /// PRD 0052 RF5.3: erases every file, directory and vault entry Cuotai
+    /// keeps (docs/privacy.md) after showing them and a typed confirmation
+    /// (or --yes); the accounts TOML stays unless --include-config.
+    #[arg(
+        long,
+        conflicts_with_all = DATA_CONFLICTS,
+        conflicts_with_all = ["history", "history_export", "history_erase"]
+    )]
+    erase_all_data: bool,
+    /// With --erase-all-data, also erases the accounts TOML and its hooks.toml.
+    #[arg(long, requires = "erase_all_data")]
+    include_config: bool,
+    /// Confirms without asking: every replacement of --restore, or
+    /// --history-erase and --erase-all-data.
+    #[arg(long, conflicts_with = "check")]
+    yes: bool,
 }
+
+/// PRD 0052 RF5: the data actions run alone.
+const DATA_CONFLICTS: [&str; 13] = [
+    "check_config",
+    "doctor",
+    "backup",
+    "restore",
+    "cost_action",
+    "once",
+    "json",
+    "json_v1",
+    "notify",
+    "serve",
+    "watch",
+    "list_providers",
+    "stored_view",
+];
 
 /// PRD 0029 RF6.2: the vault audit runs alone.
 /// PRD 0046: `--doctor`, `--backup` and `--restore` run alone (with
@@ -935,6 +989,35 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         return Err(l10n::tr(
             "cli.days_needs_mode",
             "--days only works with --cost, --stats or --events-log.",
+        )
+        .into());
+    }
+    // PRD 0052 RF5: history export/erase and erase-all, before any query.
+    if let Some(out) = args.history_export.take() {
+        let format = if args.history_format == "json" {
+            cuotai_core::history::ExportFormat::Json
+        } else {
+            cuotai_core::history::ExportFormat::Csv
+        };
+        let account = args.history.clone().flatten();
+        return data_cli::history_export(
+            args.config,
+            &out,
+            format,
+            account.as_deref(),
+            args.history_days,
+        );
+    }
+    if let Some(target) = args.history_erase.take() {
+        return data_cli::history_erase(args.config, &target, args.yes);
+    }
+    if args.erase_all_data {
+        return data_cli::erase_all_data(args.config, args.include_config, args.yes);
+    }
+    if args.yes {
+        return Err(l10n::tr(
+            "cli.yes_needs_action",
+            "--yes only works with --history-erase or --erase-all-data.",
         )
         .into());
     }

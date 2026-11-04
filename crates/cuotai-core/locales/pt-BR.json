@@ -1370,6 +1370,7 @@
   "pool.exhausted": "{upstream} · todas esgotadas",
   "pool.exhausted_returns": "{upstream} · todas esgotadas · volta em {at}",
   "pool.unmeasured": "{upstream} · {total} conexões sem uso conhecido",
+  "privacy.erase.vault_unavailable": "Nada foi apagado: o cofre de credenciais do sistema não consegue listar as entradas do Cuotai. Desbloqueie-o (no Linux, inicie um Secret Service como o GNOME Keyring em uma sessão D-Bus) e tente de novo.",
   "provider.alibaba_cloud": "Alibaba Cloud — faturamento",
   "provider.alibaba_coding_plan": "Alibaba Coding Plan",
   "provider.alibaba_model_studio": "Alibaba Model Studio / DashScope",

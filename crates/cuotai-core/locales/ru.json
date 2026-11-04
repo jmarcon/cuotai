@@ -1383,6 +1383,7 @@
   "pool.exhausted": "{upstream} · все исчерпаны",
   "pool.exhausted_returns": "{upstream} · все исчерпаны · вернётся через {at}",
   "pool.unmeasured": "{upstream} · подключений без известного использования: {total}",
+  "privacy.erase.vault_unavailable": "Ничего не удалено: системное хранилище учётных данных не может перечислить записи Cuotai. Разблокируйте его (в Linux запустите Secret Service, например GNOME Keyring, в сеансе D-Bus) и повторите попытку.",
   "provider.alibaba_cloud": "Alibaba Cloud — биллинг",
   "provider.alibaba_coding_plan": "Alibaba Coding Plan",
   "provider.alibaba_model_studio": "Alibaba Model Studio / DashScope",

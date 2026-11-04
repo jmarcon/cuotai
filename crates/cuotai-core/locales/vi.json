@@ -1368,6 +1368,7 @@
   "pool.exhausted": "{upstream} · tất cả đã hết",
   "pool.exhausted_returns": "{upstream} · tất cả đã hết · hoạt động lại {at}",
   "pool.unmeasured": "{upstream} · {total} kết nối chưa rõ mức sử dụng",
+  "privacy.erase.vault_unavailable": "Chưa xóa gì: kho thông tin xác thực của hệ thống không liệt kê được các mục của Cuotai. Hãy mở khóa kho (trên Linux, khởi động một Secret Service như GNOME Keyring trong phiên D-Bus) rồi thử lại.",
   "provider.alibaba_cloud": "Alibaba Cloud — thanh toán",
   "provider.alibaba_coding_plan": "Alibaba Coding Plan",
   "provider.alibaba_model_studio": "Alibaba Model Studio / DashScope",

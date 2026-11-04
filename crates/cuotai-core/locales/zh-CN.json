@@ -1368,6 +1368,7 @@
   "pool.exhausted": "{upstream} · 全部用尽",
   "pool.exhausted_returns": "{upstream} · 全部用尽 · {at} 恢复",
   "pool.unmeasured": "{upstream} · {total} 个连接的用量未知",
+  "privacy.erase.vault_unavailable": "未删除任何内容：系统凭据库无法列出 Cuotai 的条目。请解锁凭据库（在 Linux 上，在 D-Bus 会话中启动 GNOME Keyring 等 Secret Service）后重试。",
   "provider.alibaba_cloud": "Alibaba Cloud — 计费",
   "provider.alibaba_coding_plan": "Alibaba Coding Plan",
   "provider.alibaba_model_studio": "Alibaba Model Studio / DashScope",

@@ -26,6 +26,9 @@ toml_edit = { version = "0.22", features = ["serde"] }
 tempfile = "3"
 uuid = { version = "1", features = ["v4", "v5"] }
 keyring = { version = "4.2", features = ["v1"] }
+# PRD 0052 RF5.4: the vault's service-wide search (the store `keyring`'s
+# `v1` API already initializes; same version as its dependency).
+keyring-core = "1"
 sha2 = "0.10"
 # PRD 0046 RF1: deflate and CRC-32 for the backup archive (pure Rust backend).
 flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }

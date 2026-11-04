@@ -943,6 +943,7 @@
   "pace.on_pace": "In linea con il ritmo",
   "pace.reserve": "{delta} punti di riserva",
   "pace.runs_out_at": "si esaurisce alle {at}, {margin} prima del reset",
+  "privacy.erase.vault_unavailable": "Non è stato cancellato nulla: l’archivio delle credenziali di sistema non riesce a elencare le voci di Cuotai. Sbloccalo (su Linux, avvia un Secret Service come GNOME Keyring in una sessione D-Bus) e riprova.",
   "provider.alibaba_cloud": "Alibaba Cloud — fatturazione",
   "provider.alibaba_coding_plan": "Alibaba Coding Plan",
   "provider.alibaba_model_studio": "Alibaba Model Studio / DashScope",
