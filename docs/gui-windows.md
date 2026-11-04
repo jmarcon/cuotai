@@ -92,7 +92,7 @@ Notices come while the window is hidden in the tray, but not after you Quit. The
 
 ## Launch at sign-in
 
-Turn on **Settings › General › Startup › Open at login**. Cuotai then adds itself to your user's startup entries (the `Run` key of the registry; no administrator rights) and starts in the notification area, without opening its window. The switch shows what Windows reports, so turning Cuotai off under **Settings → Apps → Startup** turns it off here too.
+Turn on **Settings › General › Startup › Open at login**. Cuotai then adds itself to your user's startup entries (the `Run` key of the registry; no administrator rights) and starts in the notification area, without opening its window. The switch shows what Windows reports, so turning Cuotai off under **Settings → Apps → Startup** turns it off here too. Cuotai does not read the entry's target on Windows, so it offers no **Repair**: after moving a portable copy, turn the switch off and on again.
 
 ## Updates
 
@@ -117,7 +117,7 @@ Extensions on Windows must be real executables (no batch or PowerShell wrappers)
 
 ## Uninstall
 
-Quit Cuotai from the tray menu, then uninstall it from **Settings → Apps → Installed apps**, or with `winget uninstall Cuotai.Cuotai` / `scoop uninstall cuotai`. That keeps your accounts, history and Credential Manager entries on purpose. To erase them too, in PowerShell:
+Turn off **Open at login** first (the `Run` entry would otherwise stay behind), quit Cuotai from the tray menu, then uninstall it from **Settings → Apps → Installed apps**, or with `winget uninstall Cuotai.Cuotai` / `scoop uninstall cuotai`. That keeps your accounts, history and Credential Manager entries on purpose. To erase them too, in PowerShell:
 
 ```powershell
 Remove-Item -Recurse -Force "$env:APPDATA\cuotai", "$env:LOCALAPPDATA\cuotai"

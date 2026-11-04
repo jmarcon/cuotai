@@ -260,6 +260,8 @@
   "settings.startup": "Démarrage",
   "settings.autostart.label": "Ouvrir à la connexion",
   "settings.autostart.desc": "Démarre en arrière-plan, sans fenêtre.",
+  "settings.autostart.stale": "L’entrée d’ouverture de session lance une copie de Cuotai qui a été déplacée ou n’existe plus.",
+  "settings.autostart.repair": "Réparer",
   "settings.kw.autostart": "démarrage connexion ouverture session lancement automatique ouvrir",
   "settings.dock.label": "Afficher dans le Dock",
   "settings.dock.desc": "Désactivé : Cuotai vit uniquement dans la barre des menus.",

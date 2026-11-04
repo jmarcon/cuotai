@@ -257,6 +257,8 @@
   "settings.startup": "Inicio",
   "settings.autostart.label": "Abrir al iniciar sesión",
   "settings.autostart.desc": "Se inicia en la bandeja, sin ventana.",
+  "settings.autostart.stale": "La entrada de inicio de sesión abre una copia de Cuotai que se movió o ya no existe.",
+  "settings.autostart.repair": "Reparar",
   "settings.kw.autostart": "iniciar sesión inicio arrancar abrir automáticamente sistema",
   "settings.dock.label": "Mostrar en el Dock",
   "settings.dock.desc": "Desactivado: Cuotai vive solo en la barra de menús.",

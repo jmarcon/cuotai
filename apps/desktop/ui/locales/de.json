@@ -260,6 +260,8 @@
   "settings.startup": "Start",
   "settings.autostart.label": "Bei Anmeldung öffnen",
   "settings.autostart.desc": "Startet im Tray, ohne Fenster.",
+  "settings.autostart.stale": "Der Anmeldeeintrag startet eine Cuotai-Kopie, die verschoben wurde oder nicht mehr existiert.",
+  "settings.autostart.repair": "Reparieren",
   "settings.kw.autostart": "start anmeldung autostart hochfahren starten automatisch öffnen",
   "settings.dock.label": "Im Dock zeigen",
   "settings.dock.desc": "Aus: Cuotai lebt nur in der Menüleiste.",

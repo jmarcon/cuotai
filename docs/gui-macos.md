@@ -100,7 +100,7 @@ Notices come while the window is hidden in the menu bar, but not after you Quit.
 
 ## Launch at login
 
-Turn on **Settings › General › Startup › Open at login**. Cuotai then adds a login item (a LaunchAgent) and starts in the menu bar, without opening its window. The switch shows what macOS reports, so removing the item under **System Settings → General → Login Items & Extensions** turns it off here too. If you move the app, turn the switch off and on again so the item points at the new location.
+Turn on **Settings › General › Startup › Open at login**. Cuotai then adds a login item (a LaunchAgent) and starts in the menu bar, without opening its window. The switch shows what macOS reports, so removing the item under **System Settings → General → Login Items & Extensions** turns it off here too. If you move the app, the row says the login item starts a copy that moved and offers **Repair**, which points it at this copy; Cuotai never turns the item back on by itself after you removed it. Without a menu bar icon (see [`platforms.md`](platforms.md#tray-desktop-only)), a launch at login opens the window instead.
 
 ## Updates
 
@@ -122,7 +122,7 @@ OAuth sign-ins, pasted web sessions and the local-server token are stored in you
 
 ## Uninstall
 
-Quit Cuotai from the menu-bar menu, then drag it from Applications to the Trash, or run `brew uninstall --cask cuotai-app` (and `brew zap --cask cuotai-app` for its caches). That keeps your accounts, history and Keychain entries on purpose. To erase them too:
+Turn off **Open at login** first (macOS keeps a LaunchAgent that would point at a missing app), quit Cuotai from the menu-bar menu, then drag it from Applications to the Trash, or run `brew uninstall --cask cuotai-app` (and `brew zap --cask cuotai-app` for its caches). That keeps your accounts, history and Keychain entries on purpose. To erase them too:
 
 ```sh
 rm -rf ~/Library/Application\ Support/cuotai

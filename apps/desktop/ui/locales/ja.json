@@ -257,6 +257,8 @@
   "settings.startup": "起動",
   "settings.autostart.label": "ログイン時に開く",
   "settings.autostart.desc": "ウィンドウを開かずにトレイで起動します。",
+  "settings.autostart.stale": "ログイン項目は、移動されたか存在しない Cuotai を起動します。",
+  "settings.autostart.repair": "修復",
   "settings.kw.autostart": "起動 ログイン スタートアップ 自動 開く autostart",
   "settings.dock.label": "Dock に表示",
   "settings.dock.desc": "オフ：Cuotai はメニューバーにのみ表示されます。",

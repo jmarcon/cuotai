@@ -889,6 +889,30 @@ fn autostart_set(app: AppHandle, enabled: bool) -> Result<bool, String> {
     autostart::apply(&app, enabled)
 }
 
+/// PRD 0054 RF4.3: whether the login entry starts a copy of the app that moved or is gone (macOS and
+/// Linux; always `false` without an entry, and on Windows).
+#[tauri::command]
+fn autostart_stale(app: AppHandle) -> bool {
+    if !autostart::status(&app).unwrap_or(false) {
+        return false;
+    }
+    let registered = autostart::registered_target(&app.package_info().name);
+    let expected =
+        autostart::expected_target(std::env::var_os("APPIMAGE").map(std::path::PathBuf::from));
+    autostart::is_stale(
+        registered.as_deref(),
+        expected.as_deref(),
+        std::path::Path::exists,
+    )
+}
+
+/// PRD 0054 RF4.3: rewrite the existing login entry for this copy of the app; never creates a removed
+/// one. Returns what the system now reports. Error: `autostart_failed`.
+#[tauri::command]
+fn autostart_repair(app: AppHandle) -> Result<bool, String> {
+    autostart::repair(&app)
+}
+
 /// PRD 0025 RF5.3: remember whether the Settings sidebar's Advanced group is
 /// open. Error: `unwritable`.
 #[tauri::command]
@@ -2202,6 +2226,8 @@ pub fn run() {
             set_rows,
             autostart_status,
             autostart_set,
+            autostart_stale,
+            autostart_repair,
             first_run_turn_on,
             first_run_record,
             refresh_all,

@@ -257,6 +257,8 @@
   "settings.startup": "Saat mulai",
   "settings.autostart.label": "Buka saat masuk",
   "settings.autostart.desc": "Dimulai di baki, tanpa jendela.",
+  "settings.autostart.stale": "Entri saat masuk menjalankan salinan Cuotai yang sudah dipindahkan atau tidak ada lagi.",
+  "settings.autostart.repair": "Perbaiki",
   "settings.kw.autostart": "mulai masuk startup boot luncurkan otomatis buka",
   "settings.dock.label": "Tampilkan di Dock",
   "settings.dock.desc": "Nonaktif: Cuotai hanya ada di bilah menu.",

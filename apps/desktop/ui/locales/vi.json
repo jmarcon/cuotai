@@ -257,6 +257,8 @@
   "settings.startup": "Khởi động",
   "settings.autostart.label": "Mở khi đăng nhập",
   "settings.autostart.desc": "Khởi động trong khay, không có cửa sổ.",
+  "settings.autostart.stale": "Mục đăng nhập khởi chạy một bản Cuotai đã bị di chuyển hoặc không còn tồn tại.",
+  "settings.autostart.repair": "Sửa",
   "settings.kw.autostart": "khởi động đăng nhập khởi chạy tự động mở",
   "settings.dock.label": "Hiện trên Dock",
   "settings.dock.desc": "Tắt: Cuotai chỉ nằm trên thanh menu.",

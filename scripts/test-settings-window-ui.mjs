@@ -293,7 +293,10 @@ function plain(html) {
     assert.match(html, /<input id="autostart" type="checkbox" role="switch" class="sw"[^>]*disabled/, `${code}: autostart switch waits for the system`);
     assert.match(html, /data-row="autostart" data-kw="[^"]{12,}"/, `${code}: autostart row has search keywords`);
     const catalog = JSON.parse(await readFile(ui(`locales/${code}.json`), "utf8"));
-    for (const k of ["settings.autostart.label", "settings.autostart.desc", "settings.startup", "settings.error.autostart_failed", "report.intro"]) assert.ok(catalog[k], `${code}: ${k}`);
+    for (const k of ["settings.autostart.label", "settings.autostart.desc", "settings.startup", "settings.error.autostart_failed", "settings.autostart.stale", "settings.autostart.repair", "report.intro"]) assert.ok(catalog[k], `${code}: ${k}`);
+    // PRD 0054 RF4.3: no Repair line until the shell reports a stale entry; then one with its button.
+    assert.ok(!html.includes("data-autostart-stale"), `${code}: no Repair line by default`);
+    assert.match(general.staleHtml(), /data-autostart-stale><p class="hint">[^<]+<button type="button" class="btn outline" data-autostart-repair>[^<]+<\/button>/, `${code}: Repair line`);
   }
   // "Show in Dock" (mockup 50-settings-general): only on macOS, beside Open at login, searchable, on by default.
   assert.ok(!general.html({ settings: { motion: "system" } }).includes('id="dock"'), "no Dock row off macOS");
@@ -325,6 +328,10 @@ function plain(html) {
   assert.equal(await lib.autostartSet(true), true);
   assert.equal(await lib.autostartStatus(), true);
   assert.equal(await lib.autostartSet(false), false);
+  // PRD 0054 RF4.3: off, nothing is stale and Repair never turns the entry back on.
+  assert.equal(await lib.autostartStale(), false);
+  assert.equal(await lib.autostartRepair(), false);
+  assert.equal(await lib.autostartStatus(), false);
   // The three dialogs share the one shell (title, ×, body, footer).
   const { shellHtml } = await import("../apps/desktop/ui/js/dialog-shell.js");
   const shell = shellHtml({ id: "x-title", title: "A <b>", body: "<p>b</p>", foot: "<button>ok</button>" });

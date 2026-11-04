@@ -266,6 +266,8 @@
   "settings.startup": "Запуск",
   "settings.autostart.label": "Открывать при входе",
   "settings.autostart.desc": "Запускается в трее без окна.",
+  "settings.autostart.stale": "Элемент входа запускает копию Cuotai, которая перемещена или больше не существует.",
+  "settings.autostart.repair": "Исправить",
   "settings.kw.autostart": "запуск вход автозапуск загрузка стартовать автоматически открывать",
   "settings.dock.label": "Показывать в Dock",
   "settings.dock.desc": "Выкл.: Cuotai остаётся только в строке меню.",
