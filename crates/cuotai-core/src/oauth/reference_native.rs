@@ -111,6 +111,7 @@ async fn send_json(
         body.extend_from_slice(&chunk);
     }
     let value = serde_json::from_slice(&body).map_err(|_| status_failure(status))?;
+    super::rotation::observe(status, &value);
     Ok((status, value))
 }
 

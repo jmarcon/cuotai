@@ -471,3 +471,119 @@ async fn a_new_login_supersedes_a_rotation_waiting_for_the_vault() {
     let token = session.credentials(Provider::Kiro, &config).await.unwrap();
     assert_eq!(token.refresh_token.as_deref(), Some("fake-refresh-relogin"));
 }
+
+/// The token endpoint rotates `old` into `new` once, in an answer the client
+/// rejects (`expiresIn` is not a number).
+async fn mount_rejected_rotation(server: &wiremock::MockServer, old: &str, new: &str) {
+    use wiremock::matchers::{body_string_contains, method, path};
+    wiremock::Mock::given(method("POST"))
+        .and(path("/token"))
+        .and(body_string_contains(old))
+        .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(
+            serde_json::json!({"accessToken": "fake-access-new", "refreshToken": new, "expiresIn": "soon"}),
+        ))
+        .expect(1)
+        .mount(server)
+        .await;
+}
+
+#[tokio::test]
+async fn a_rotation_in_a_rejected_answer_is_kept_for_the_next_refresh() {
+    let server = wiremock::MockServer::start().await;
+    mount_rejected_rotation(&server, "fake-refresh-old", "fake-refresh-mid").await;
+    mount_rotation(&server, "fake-refresh-mid", "fake-refresh-new", 1).await;
+    let store = Arc::new(FlakyStore::default());
+    let config = kiro_config();
+    let (session, key) = kiro_session(store.clone(), &server, &config);
+    store
+        .inner
+        .save(&key, &stale_kiro_token("fake-refresh-old"))
+        .unwrap();
+
+    let error = session
+        .credentials(Provider::Kiro, &config)
+        .await
+        .err()
+        .expect("the answer is rejected");
+    assert!(matches!(error, OAuthError::InvalidResponse), "got: {error}");
+    assert!(!error.to_string().contains("fake-"));
+    // The rotated token is stored with the expired access token, so the next
+    // call refreshes with it instead of the invalidated one.
+    let stored = store.inner.load(&key).unwrap().unwrap();
+    assert_eq!(stored.refresh_token.as_deref(), Some("fake-refresh-mid"));
+    assert_eq!(stored.access_token, "fake-access-old");
+    assert_eq!(
+        stored.metadata.get("client_id").map(String::as_str),
+        Some("fake-client-id")
+    );
+
+    let token = session.credentials(Provider::Kiro, &config).await.unwrap();
+    assert_eq!(token.access_token, "fake-access-new");
+    assert_eq!(token.refresh_token.as_deref(), Some("fake-refresh-new"));
+    assert_eq!(
+        store.refresh_token(&key).as_deref(),
+        Some("fake-refresh-new")
+    );
+}
+
+#[tokio::test]
+async fn a_rotation_in_a_rejected_answer_waits_in_memory_when_the_vault_fails() {
+    let server = wiremock::MockServer::start().await;
+    mount_rejected_rotation(&server, "fake-refresh-old", "fake-refresh-mid").await;
+    mount_rotation(&server, "fake-refresh-mid", "fake-refresh-new", 1).await;
+    let store = Arc::new(FlakyStore::default());
+    let config = kiro_config();
+    let (session, key) = kiro_session(store.clone(), &server, &config);
+    store
+        .inner
+        .save(&key, &stale_kiro_token("fake-refresh-old"))
+        .unwrap();
+
+    store.fail_next_saves(1);
+    // The refresh error wins over the vault error.
+    assert!(matches!(
+        session.credentials(Provider::Kiro, &config).await,
+        Err(OAuthError::InvalidResponse)
+    ));
+    assert_eq!(
+        store.refresh_token(&key).as_deref(),
+        Some("fake-refresh-old")
+    );
+    let token = session.credentials(Provider::Kiro, &config).await.unwrap();
+    assert_eq!(token.refresh_token.as_deref(), Some("fake-refresh-new"));
+    assert_eq!(
+        store.refresh_token(&key).as_deref(),
+        Some("fake-refresh-new")
+    );
+}
+
+#[tokio::test]
+async fn a_rejected_answer_without_a_new_refresh_token_changes_nothing() {
+    use wiremock::matchers::{method, path};
+    let server = wiremock::MockServer::start().await;
+    wiremock::Mock::given(method("POST"))
+        .and(path("/token"))
+        .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(
+            serde_json::json!({"accessToken": "fake-access-new", "refreshToken": "fake-refresh-old", "expiresIn": "soon"}),
+        ))
+        .mount(&server)
+        .await;
+    let store = Arc::new(FlakyStore::default());
+    let config = kiro_config();
+    let (session, key) = kiro_session(store.clone(), &server, &config);
+    store
+        .inner
+        .save(&key, &stale_kiro_token("fake-refresh-old"))
+        .unwrap();
+    // Any write would fail: none must be attempted.
+    store.fail_next_saves(1);
+    assert!(matches!(
+        session.credentials(Provider::Kiro, &config).await,
+        Err(OAuthError::InvalidResponse)
+    ));
+    assert!(session.unsaved_token(&key).is_none());
+    assert_eq!(
+        store.refresh_token(&key).as_deref(),
+        Some("fake-refresh-old")
+    );
+}

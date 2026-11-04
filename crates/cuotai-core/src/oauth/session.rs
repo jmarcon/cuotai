@@ -308,34 +308,43 @@ impl OAuthSession {
         // cancels its quota query; otherwise a rotated refresh token is lost.
         tokio::spawn(async move {
             let _guard = guard;
-            #[cfg(test)]
-            let refreshed = match test_refresher {
-                Some(refresher) => refresher(http.clone(), token.clone()).await,
-                None => dispatch_refresh(&http, provider, &config, secret.as_deref(), &token).await,
+            let refresh = async {
+                #[cfg(test)]
+                if let Some(refresher) = test_refresher {
+                    return refresher(http.clone(), token.clone()).await;
+                }
+                dispatch_refresh(&http, provider, &config, secret.as_deref(), &token).await
             };
-            #[cfg(not(test))]
-            let refreshed =
-                dispatch_refresh(&http, provider, &config, secret.as_deref(), &token).await;
-            let mut renewed = refreshed?;
+            let (refreshed, observed) = super::rotation::capture(refresh).await;
+            let mut renewed = match refreshed {
+                Ok(renewed) => renewed,
+                Err(error) => {
+                    // The endpoint may have rotated the refresh token in an
+                    // answer the refresh then rejected; the old one is
+                    // already invalid. Keep the rotated one with the expired
+                    // access token, so the next call refreshes with it.
+                    if let Some(rotated) =
+                        observed.filter(|rotated| token.refresh_token.as_ref() != Some(rotated))
+                    {
+                        let salvaged = OAuthToken {
+                            refresh_token: Some(rotated),
+                            ..token
+                        };
+                        // A vault failure here is secondary: the caller gets
+                        // the refresh error, and the token waits in memory.
+                        let _ = keep(&store, &unsaved, key, salvaged).await;
+                    }
+                    return Err(error);
+                }
+            };
             for (key, value) in &token.metadata {
                 renewed
                     .metadata
                     .entry(key.clone())
                     .or_insert_with(|| value.clone());
             }
-            match persist(&store, &key, &renewed).await {
-                Ok(()) => Ok(renewed),
-                Err(error) => {
-                    // The provider already invalidated the stored refresh
-                    // token: keep the rotated one for the next call to write
-                    // instead of dropping the only valid copy.
-                    unsaved
-                        .lock()
-                        .unwrap_or_else(PoisonError::into_inner)
-                        .insert(key, renewed);
-                    Err(error)
-                }
-            }
+            keep(&store, &unsaved, key, renewed.clone()).await?;
+            Ok(renewed)
         })
         .await
         .map_err(|_| storage_error())?
@@ -373,6 +382,27 @@ async fn persist(
     tokio::task::spawn_blocking(move || store.save(&key, &token))
         .await
         .map_err(|_| storage_error())?
+}
+
+/// Write a rotated token. The provider already invalidated the stored refresh
+/// token, so when the vault refuses the write the token waits in `unsaved`
+/// for the next call instead of being dropped as the only valid copy.
+async fn keep(
+    store: &Arc<dyn TokenStore>,
+    unsaved: &Unsaved,
+    key: String,
+    token: OAuthToken,
+) -> Result<(), OAuthError> {
+    match persist(store, &key, &token).await {
+        Ok(()) => Ok(()),
+        Err(error) => {
+            unsaved
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .insert(key, token);
+            Err(error)
+        }
+    }
 }
 
 async fn dispatch_refresh(
