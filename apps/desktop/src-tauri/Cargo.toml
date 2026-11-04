@@ -29,6 +29,9 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 dirs = "6"
 tauri-plugin-dialog = "2"
+# PRD 0054 RF5.3: the native dialog for a failure before any window exists. The
+# same rfd and features tauri-plugin-dialog already brings into the graph.
+rfd = { version = "0.16", default-features = false, features = ["gtk3", "common-controls-v6"] }
 # PRD 0003 RF2.2: reset notices (2.x line, compatible with Tauri 2.12).
 tauri-plugin-notification = "=2.7.0"
 # PRD 0022 (audit #37): "Start at login" in Settings › General, through the official autostart plugin

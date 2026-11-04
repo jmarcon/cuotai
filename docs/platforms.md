@@ -13,7 +13,7 @@ so.
 | Feature | macOS | Windows | Linux |
 |---|---|---|---|
 | Credential vault | Keychain (`keyring` crate; first save may prompt) | Credential Manager | Secret Service (GNOME Keyring or KWallet, with a D-Bus session) |
-| Tray (desktop) | Yes | Yes | Yes; on GNOME it may need an AppIndicator extension (the `appindicator` library is loaded at run time) |
+| Tray (desktop) | Yes | Yes | Yes; on GNOME it may need an AppIndicator extension (the `appindicator` library is loaded at run time); without a tray the app runs in its window only |
 | Notifications | Desktop: system notification center, with permission prompt and test notification; TUI: header banner + terminal bell, plus OSC 9 only on terminals known to show it | Same as macOS | Same as macOS |
 | Native browser login | `open` | `rundll32 url.dll,FileProtocolHandler` | `xdg-open` |
 | `aws` CLI (AWS Bedrock) | AWS CLI v2 required for queries and SSO login | Same as macOS | Same as macOS |
@@ -47,8 +47,16 @@ prompt flows are **code**-level only.
 On GNOME the tray only appears with an AppIndicator extension installed
 (e.g. "AppIndicator and KStatusNotifierItem Support"); CI installs no tray
 dependency because the library is loaded at run time. If tray creation fails
-the desktop app aborts startup with the Tauri error — it never runs without
-telling the user. The TUI has no tray.
+(PRD 0054 RF5) the app keeps running in its main window only: the window is
+shown even for a launch at login, it stays in the Dock or taskbar, closing it
+quits the app instead of hiding it, and a banner that cannot be dismissed says
+there is no tray icon (with the GNOME extension's name on Linux). Without a
+tray there is no popover, no tray menu and no menu-bar title or meter; the
+notices, refreshes, hooks, local server and widgets work as usual. A failure
+that stops the app altogether is shown in a native dialog with a fixed
+category (`startup`) and the app exits with status 1; the error text itself is
+never shown. Verified by unit tests of the decisions only; a real desktop
+without AppIndicator is a manual release check. The TUI has no tray.
 
 Verification: **code**; real GNOME/KDE session behavior is not exercised in
 CI.

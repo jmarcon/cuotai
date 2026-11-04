@@ -284,6 +284,12 @@ function settingsBackupHtml() {
   if (!path || path === dismissedBackup) return "";
   return `<div class="banner bad dismissable" role="status" data-settings-backup>${icon("warn")}<span>${te("settings.recovered", { path })}</span><button class="icon" data-dismiss-settings-backup title="${te("common.dismiss")}" aria-label="${te("common.dismiss")}">${icon("x")}</button></div>`;
 }
+// PRD 0054 RF5.1: no tray icon, so this window is the only way in; not dismissable.
+function trayUnavailableHtml() {
+  if (!store.view?.tray_unavailable) return "";
+  const key = /Linux/.test(navigator.platform ?? "") ? "tray.unavailableLinux" : "tray.unavailable";
+  return `<div class="banner bad" role="status" data-tray-unavailable>${icon("warn")}<span>${te(key)}</span></div>`;
+}
 function onDeleted(result) {
   if (!result) return;
   const retry = result.recovery_handle ? { handle: result.recovery_handle } : null;
@@ -475,6 +481,7 @@ function render() {
     </header>
     ${error ? `<div class="banner bad">${esc(error)}</div>` : ""}
     ${settingsBackupHtml()}
+    ${trayUnavailableHtml()}
     ${otherBannerHtml()}
     ${notice ? `<div class="banner ${notice.tone}">${esc(notice.text)}${notice.retry ? ` <button class="link" data-retry-delete>${te("delete.retry")}</button>` : ""} <button class="link" data-dismiss-notice>${te("common.dismiss")}</button></div>` : ""}
     ${userContent.errors.map((e) => `<div class="banner">${esc(skippedMessage(e))}</div>`).join("")}

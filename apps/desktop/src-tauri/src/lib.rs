@@ -16,6 +16,7 @@ mod tray_bar;
 mod updater;
 mod user_content;
 mod widgets;
+mod window_mode;
 
 use backend::{
     AccountForm, AccountInput, Backend, FieldChoiceSchema, FormSchema, LoginStartInput,
@@ -787,12 +788,15 @@ fn set_preference(app: AppHandle, key: String, value: serde_json::Value) -> Resu
 /// Dock icon, or an accessory that lives in the menu bar only. Other
 /// systems have no Dock; the row is hidden there.
 fn apply_dock_policy(app: &AppHandle) {
+    // PRD 0054 RF5.1: without a tray the Dock icon is the way back.
     #[cfg(target_os = "macos")]
-    let _ = app.set_activation_policy(if settings::show_in_dock() {
-        tauri::ActivationPolicy::Regular
-    } else {
-        tauri::ActivationPolicy::Accessory
-    });
+    let _ = app.set_activation_policy(
+        if settings::show_in_dock() || window_mode::force_dock(window_mode::current()) {
+            tauri::ActivationPolicy::Regular
+        } else {
+            tauri::ActivationPolicy::Accessory
+        },
+    );
     #[cfg(not(target_os = "macos"))]
     let _ = app;
 }
@@ -2045,6 +2049,62 @@ mod macos_popover {
     }
 }
 
+/// The tray icon with its menu and popover click (PRD 0025 RF3). An error
+/// means the system refused it (PRD 0054 RF5.1).
+fn build_tray(app: &tauri::App) -> tauri::Result<()> {
+    let icon = tray_icon()?;
+    TrayIconBuilder::with_id("cuotai")
+        .icon(icon)
+        // PRD 0025 RF3.1: a template on macOS (light and dark menu bars).
+        .icon_as_template(cfg!(target_os = "macos"))
+        .tooltip("Cuotai")
+        // Left click opens the popover; right click shows the text menu (accounts and actions).
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            "account" | "open" => show_main_window(app.clone()),
+            // PRD 0018 RF2.2: the update line opens the window, where the notice,
+            // the release notes and the buttons live.
+            "update" => show_main_window(app.clone()),
+            "settings" => open_settings_window(app, settings_window::Target::default()),
+            "quit" => app.exit(0),
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                position,
+                ..
+            } = event
+            {
+                if let Some(w) = tray.app_handle().get_webview_window("tray") {
+                    toggle_popover(&w, position);
+                }
+            }
+        })
+        .build(app)?;
+    // Initial menu (the interface replaces it, already translated and with the accounts, as soon as it loads).
+    let initial = initial_tray_words();
+    let initial = TrayMenuPayload {
+        lines: vec![],
+        empty: "Cuotai".into(),
+        open: initial.0.into(),
+        settings: initial.1.into(),
+        quit: initial.2.into(),
+        tooltip: "Cuotai".into(),
+        notice: None,
+        update: None,
+        best: None,
+    };
+    if let (Some(tray), Ok(menu)) = (
+        app.tray_by_id("cuotai"),
+        build_tray_menu(app.handle(), &initial),
+    ) {
+        let _ = tray.set_menu(Some(menu));
+    }
+    Ok(())
+}
+
 /// The icon tooltip, plus the next reset notice and the best account now
 /// (PRD 0024 RF7.3) on further lines.
 fn tray_tooltip(p: &TrayMenuPayload) -> String {
@@ -2115,7 +2175,7 @@ pub fn run() {
             open_settings_window(app, settings_window::Target::default());
         }
     });
-    builder
+    let app = builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         // PRD 0022 (audit #37): official autostart plugin. The web UI never calls it (the shell's
@@ -2279,60 +2339,15 @@ pub fn run() {
             quit_app
         ])
         .setup(move |app| {
+            // PRD 0054 RF5.1: a tray the system refuses leaves a working window.
+            let mode = match build_tray(app) {
+                Ok(()) => window_mode::WindowMode::Tray,
+                Err(_) => window_mode::WindowMode::NoTray,
+            };
+            window_mode::set(mode);
             apply_dock_policy(app.handle());
 
-            let icon = tray_icon()?;
-            TrayIconBuilder::with_id("cuotai")
-                .icon(icon)
-                // PRD 0025 RF3.1: a template on macOS (light and dark menu bars).
-                .icon_as_template(cfg!(target_os = "macos"))
-                .tooltip("Cuotai")
-                // Left click opens the popover; right click shows the text menu (accounts and actions).
-                .show_menu_on_left_click(false)
-                .on_menu_event(|app, event| match event.id().as_ref() {
-                    "account" | "open" => show_main_window(app.clone()),
-                    // PRD 0018 RF2.2: the update line opens the window, where the notice,
-                    // the release notes and the buttons live.
-                    "update" => show_main_window(app.clone()),
-                    "settings" => open_settings_window(app, settings_window::Target::default()),
-                    "quit" => app.exit(0),
-                    _ => {}
-                })
-                .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::Click {
-                        button: MouseButton::Left,
-                        button_state: MouseButtonState::Up,
-                        position,
-                        ..
-                    } = event
-                    {
-                        if let Some(w) = tray.app_handle().get_webview_window("tray") {
-                            toggle_popover(&w, position);
-                        }
-                    }
-                })
-                .build(app)?;
-            // Initial menu (the interface replaces it, already translated and with the accounts, as soon as it loads).
-            let initial = initial_tray_words();
-            let initial = TrayMenuPayload {
-                lines: vec![],
-                empty: "Cuotai".into(),
-                open: initial.0.into(),
-                settings: initial.1.into(),
-                quit: initial.2.into(),
-                tooltip: "Cuotai".into(),
-                notice: None,
-                update: None,
-                best: None,
-            };
-            if let (Some(tray), Ok(menu)) = (
-                app.tray_by_id("cuotai"),
-                build_tray_menu(app.handle(), &initial),
-            ) {
-                let _ = tray.set_menu(Some(menu));
-            }
-
-            // Popover closes on focus loss; closing the main window only hides it.
+            // Popover closes on focus loss.
             if let Some(w) = app.get_webview_window("tray") {
                 #[cfg(target_os = "macos")]
                 macos_popover::make_panel(&w);
@@ -2344,13 +2359,20 @@ pub fn run() {
                 });
             }
             if let Some(w) = app.get_webview_window("main") {
-                // PRD 0054 RF7: back where it was, then followed.
+                // PRD 0054 RF7/RF5.2: the window starts hidden, goes back where
+                // it was, and is shown unless the login entry started the app
+                // and the tray works.
                 main_window::restore(&w);
                 main_window::track(&w);
-                // Started by the login entry: stay in the tray, without a window.
-                if autostart::launched_at_login(std::env::args()) {
-                    let _ = w.hide();
+                if window_mode::show_main_at_start(
+                    mode,
+                    autostart::launched_at_login(std::env::args()),
+                ) {
+                    let _ = w.show();
+                    let _ = w.set_focus();
                 }
+                // Closing the main window hides it; without a tray it quits,
+                // since nothing else could bring it back.
                 let handle = w.clone();
                 w.on_window_event(move |e| {
                     if let WindowEvent::CloseRequested { api, .. } = e {
@@ -2358,7 +2380,12 @@ pub fn run() {
                         let _ = handle.hide();
                         // Its geometry is read outside the event handler.
                         let app = handle.app_handle().clone();
-                        tauri::async_runtime::spawn(async move { main_window::save(&app) });
+                        tauri::async_runtime::spawn(async move {
+                            main_window::save(&app);
+                            if window_mode::close_quits(window_mode::current()) {
+                                app.exit(0);
+                            }
+                        });
                     }
                 });
             }
@@ -2378,29 +2405,33 @@ pub fn run() {
             tauri::async_runtime::spawn(Arc::clone(&updates).run(app.handle().clone()));
             Ok(())
         })
-        .build(tauri::generate_context!())
-        .expect("erro ao iniciar o Cuotai")
-        .run(|_app, _event| {
-            // PRD 0054 RF7.1: the main window's last normal geometry.
-            if let tauri::RunEvent::ExitRequested { .. } = _event {
-                main_window::save(_app);
-            }
-            // PRD 0056 RF2.3: the shared capture window ends with the app.
-            if let tauri::RunEvent::Exit = _event {
-                session_capture::on_exit(_app);
-            }
-            // macOS: closing the window only hides it, so a click on the Dock
-            // icon (or opening the app again) must bring it back; AppKit
-            // shows nothing by itself for a hidden window.
-            #[cfg(target_os = "macos")]
-            if let tauri::RunEvent::Reopen {
-                has_visible_windows: false,
-                ..
-            } = _event
-            {
-                reveal_main_window(_app);
-            }
-        });
+        .build(tauri::generate_context!());
+    // PRD 0054 RF5.3: a failure to start is shown, never only printed.
+    let app = match app {
+        Ok(app) => app,
+        Err(_) => window_mode::startup_failed(window_mode::Failure::Start),
+    };
+    app.run(|_app, _event| {
+        // PRD 0054 RF7.1: the main window's last normal geometry.
+        if let tauri::RunEvent::ExitRequested { .. } = _event {
+            main_window::save(_app);
+        }
+        // PRD 0056 RF2.3: the shared capture window ends with the app.
+        if let tauri::RunEvent::Exit = _event {
+            session_capture::on_exit(_app);
+        }
+        // macOS: closing the window only hides it, so a click on the Dock
+        // icon (or opening the app again) must bring it back; AppKit
+        // shows nothing by itself for a hidden window.
+        #[cfg(target_os = "macos")]
+        if let tauri::RunEvent::Reopen {
+            has_visible_windows: false,
+            ..
+        } = _event
+        {
+            reveal_main_window(_app);
+        }
+    });
 }
 
 #[cfg(test)]
