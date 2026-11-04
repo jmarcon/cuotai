@@ -59,6 +59,9 @@ pub struct RefreshCycle {
     snapshot: Option<Snapshot>,
     intervals: Vec<Duration>,
     deadlines: Vec<Instant>,
+    /// Per slot: the provider bills every query ([`crate::Provider::is_metered`]).
+    /// [`Self::follow_wall_clock`] never brings such a deadline forward.
+    metered: Vec<bool>,
     /// Consecutive `RateLimited` / `AuthenticationError` results per
     /// slot. Reset to 0 on `Ready`; drives the exponential deadline
     /// growth described in `finish_account`. Kept alongside `slots` so a
@@ -151,6 +154,15 @@ pub enum EditError {
     UnexpectedDiff,
 }
 
+/// Per account: whether its provider bills every query.
+fn metered_slots(config: &Config) -> Vec<bool> {
+    config
+        .accounts
+        .iter()
+        .map(|account| account.provider.is_metered())
+        .collect()
+}
+
 /// Move one item to its final position using the same index semantics as
 /// [`Config::move_account`].
 fn move_item<T>(items: &mut Vec<T>, from: usize, to: usize) {
@@ -178,6 +190,7 @@ impl RefreshCycle {
             snapshot: None,
             intervals,
             deadlines,
+            metered: metered_slots(config),
             failures: vec![0; len],
             busy: std::collections::BTreeSet::new(),
             generation: 0,
@@ -200,6 +213,11 @@ impl RefreshCycle {
     /// loses what really passed. Moving the system clock forward looks the
     /// same and costs one early query per account; moving it back does
     /// nothing.
+    ///
+    /// A metered account (every query billed, such as AWS Cost Explorer)
+    /// keeps its own schedule: a suspension and a forward clock jump cannot
+    /// be told apart, so its deadline is never brought forward. After a real
+    /// suspension it is queried at most that long late, never early.
     pub fn follow_wall_clock(&mut self, now: Instant, wall: chrono::DateTime<Utc>) {
         let Some((last_now, last_wall)) = self.clocks.replace((now, wall)) else {
             return;
@@ -211,7 +229,10 @@ impl RefreshCycle {
         if suspended <= SUSPEND_SLACK {
             return;
         }
-        for deadline in &mut self.deadlines {
+        for (index, deadline) in self.deadlines.iter_mut().enumerate() {
+            if self.metered.get(index).copied().unwrap_or(false) {
+                continue;
+            }
             let left = deadline.saturating_duration_since(now);
             *deadline = now + left.saturating_sub(suspended);
         }
@@ -436,6 +457,7 @@ impl RefreshCycle {
             snapshot: self.snapshot.clone(),
             intervals: self.intervals.clone(),
             deadlines: self.deadlines.clone(),
+            metered: self.metered.clone(),
             failures: self.failures.clone(),
             busy: self.busy.clone(),
             generation: self.generation,
@@ -955,6 +977,7 @@ impl RefreshCycle {
                 self.slots = next_slots;
                 self.snapshot = None;
                 self.intervals = new_intervals.clone();
+                self.metered = metered_slots(new_config);
                 self.deadlines = (0..new_intervals.len())
                     .map(|i| {
                         if i == index {
@@ -1010,6 +1033,7 @@ impl RefreshCycle {
                 self.last_good.remove(index);
                 self.intervals.remove(index);
                 self.deadlines.remove(index);
+                self.metered.remove(index);
                 self.snapshot = complete_reports(&self.slots).map(|reports| Snapshot {
                     started_at: self
                         .snapshot
@@ -1094,6 +1118,7 @@ impl RefreshCycle {
                 move_item(&mut self.last_good, from, to);
                 move_item(&mut self.intervals, from, to);
                 move_item(&mut self.deadlines, from, to);
+                move_item(&mut self.metered, from, to);
                 move_item(&mut self.failures, from, to);
                 if let Some(snapshot) = self.snapshot.as_mut() {
                     move_item(&mut snapshot.reports, from, to);
@@ -1391,6 +1416,61 @@ mod tests {
             cycle.next_refresh_in(1, later),
             Duration::from_secs(7_200 - 15 - 3_600)
         );
+    }
+
+    /// A forward clock jump looks like a suspension. A metered account
+    /// (every query billed) keeps its deadline: it is never queried early,
+    /// also after an edit moved it or another account was removed.
+    #[test]
+    fn a_wall_clock_jump_never_brings_a_metered_query_forward() {
+        let now = Instant::now();
+        let wall = Utc.timestamp_opt(1_000_000, 0).unwrap();
+        let config = config_with(vec![
+            account("a", Some(300)),
+            metered_account("aws", Some(21_600)),
+        ]);
+        let mut cycle = RefreshCycle::new(&config, now);
+        let snapshot = Snapshot {
+            started_at: wall,
+            finished_at: wall,
+            reports: vec![report("a", 1), report("aws", 2)],
+        };
+        prime_with_snapshot(&mut cycle, snapshot, now);
+        cycle.follow_wall_clock(now, wall);
+        let metered_before = cycle.deadlines_snapshot()[1];
+
+        // The clock jumps seven hours ahead with ten seconds really elapsed.
+        let tick = now + Duration::from_secs(10);
+        cycle.follow_wall_clock(tick, wall + TimeDelta::hours(7));
+        assert_eq!(cycle.due_indices(tick), vec![0], "only the free account");
+        assert_eq!(cycle.deadlines_snapshot()[1], metered_before);
+        assert_eq!(
+            cycle.next_refresh_in(1, tick),
+            Duration::from_secs(21_600 - 10)
+        );
+
+        // After a move the flag follows its account.
+        let moved = config_with(vec![
+            metered_account("aws", Some(21_600)),
+            account("a", Some(300)),
+        ]);
+        cycle
+            .apply_edit(&config, &moved, Edit::Move { from: 1, to: 0 }, tick)
+            .unwrap();
+        let metered_before = cycle.deadlines_snapshot()[0];
+        let tick2 = tick + Duration::from_secs(10);
+        cycle.follow_wall_clock(tick2, wall + TimeDelta::hours(14));
+        assert_eq!(cycle.deadlines_snapshot()[0], metered_before);
+        assert_eq!(cycle.due_indices(tick2), vec![1]);
+
+        // After removing the free account, the metered one still holds.
+        let removed = config_with(vec![metered_account("aws", Some(21_600))]);
+        cycle
+            .apply_edit(&moved, &removed, Edit::Remove(1), tick2)
+            .unwrap();
+        let tick3 = tick2 + Duration::from_secs(10);
+        cycle.follow_wall_clock(tick3, wall + TimeDelta::hours(21));
+        assert_eq!(cycle.deadlines_snapshot(), vec![metered_before]);
     }
 
     #[test]
