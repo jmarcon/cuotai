@@ -63,7 +63,7 @@ pub trait TokenStore: Send + Sync {
 /// nonempty, bounded, alphanumeric plus `-` and `_` only. This keeps
 /// Keychain account names well-formed and prevents arbitrary user input
 /// (or, worst case, token material) from becoming a key.
-fn validate_id(id: &str) -> Result<&str, OAuthError> {
+pub(super) fn validate_id(id: &str) -> Result<&str, OAuthError> {
     let ok = !id.is_empty()
         && id.len() <= MAX_ID_LEN
         && id

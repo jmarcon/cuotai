@@ -587,3 +587,121 @@ async fn a_rejected_answer_without_a_new_refresh_token_changes_nothing() {
         Some("fake-refresh-old")
     );
 }
+
+/// Like [`mount_rotation`], with a slow answer so concurrent refreshes overlap.
+async fn mount_slow_rotation(server: &wiremock::MockServer, old: &str, new: &str, times: u64) {
+    use wiremock::matchers::{body_string_contains, method, path};
+    wiremock::Mock::given(method("POST"))
+        .and(path("/token"))
+        .and(body_string_contains(old))
+        .respond_with(
+            wiremock::ResponseTemplate::new(200)
+                .set_body_json(serde_json::json!({
+                    "accessToken": "fake-access-new", "refreshToken": new, "expiresIn": 3600
+                }))
+                .set_delay(std::time::Duration::from_millis(300)),
+        )
+        .expect(times)
+        .mount(server)
+        .await;
+}
+
+/// Two sessions stand for two processes (the TUI and the desktop app): each
+/// has its own in-process lock, and they share only the vault and the lock
+/// directory. One rotation reaches the provider; the other session uses its
+/// stored result instead of sending the invalidated refresh token.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn sessions_sharing_a_vault_rotate_a_stale_token_once() {
+    let server = wiremock::MockServer::start().await;
+    mount_slow_rotation(&server, "fake-refresh-old", "fake-refresh-new", 1).await;
+    let locks = tempfile::tempdir().unwrap();
+    let store: Arc<dyn TokenStore> = Arc::new(MemoryStore::default());
+    let config = kiro_config();
+    let open = || {
+        OAuthSession::new(Arc::clone(&store), Arc::new(NoSecrets))
+            .unwrap()
+            .with_test_refresher(kiro_refresher(&server))
+            .with_process_locks(locks.path().to_path_buf())
+    };
+    let (first, second) = (open(), open());
+    let key = storage_key(Provider::Kiro, &config).unwrap();
+    first
+        .save_login(&AuthorizedLogin::for_test(
+            key,
+            stale_kiro_token("fake-refresh-old"),
+        ))
+        .await
+        .unwrap();
+
+    let (a, b) = tokio::join!(
+        first.credentials(Provider::Kiro, &config),
+        second.credentials(Provider::Kiro, &config)
+    );
+    for token in [a.unwrap(), b.unwrap()] {
+        assert_eq!(token.access_token, "fake-access-new");
+        assert_eq!(token.refresh_token.as_deref(), Some("fake-refresh-new"));
+    }
+}
+
+/// The same race on the debug SQLite store: two sessions opened on one
+/// database file, as two `run.sh` processes would, with the lock directory
+/// the store places beside the database.
+#[cfg(debug_assertions)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn development_sqlite_sessions_rotate_a_stale_token_once() {
+    let server = wiremock::MockServer::start().await;
+    mount_slow_rotation(&server, "fake-refresh-old", "fake-refresh-new", 1).await;
+    let dir = tempfile::tempdir().unwrap();
+    let database = dir.path().join("cuotai-dev.sqlite3");
+    let config = kiro_config();
+    let open = || {
+        OAuthSession::development_sqlite(&database)
+            .unwrap()
+            .with_test_refresher(kiro_refresher(&server))
+    };
+    let (first, second) = (open(), open());
+    let key = storage_key(Provider::Kiro, &config).unwrap();
+    first
+        .save_login(&AuthorizedLogin::for_test(
+            key.clone(),
+            stale_kiro_token("fake-refresh-old"),
+        ))
+        .await
+        .unwrap();
+    assert!(super::super::process_lock::development_dir(&database)
+        .join(format!("{key}.lock"))
+        .is_file());
+
+    let (a, b) = tokio::join!(
+        first.credentials(Provider::Kiro, &config),
+        second.credentials(Provider::Kiro, &config)
+    );
+    for token in [a.unwrap(), b.unwrap()] {
+        assert_eq!(token.refresh_token.as_deref(), Some("fake-refresh-new"));
+    }
+    let stored = second.load_by_key(&key).await.unwrap().unwrap();
+    assert_eq!(stored.refresh_token.as_deref(), Some("fake-refresh-new"));
+}
+
+/// A fresh token is read without touching the lock directory, so a session
+/// whose lock directory is unusable keeps serving fresh tokens.
+#[tokio::test]
+async fn a_fresh_token_needs_no_process_lock() {
+    let dir = tempfile::tempdir().unwrap();
+    let blocker = dir.path().join("file");
+    std::fs::write(&blocker, b"").unwrap();
+    let store: Arc<dyn TokenStore> = Arc::new(MemoryStore::default());
+    let config = kiro_config();
+    let key = storage_key(Provider::Kiro, &config).unwrap();
+    let mut token = stale_kiro_token("fake-refresh-old");
+    token.expires_at = None;
+    store.save(&key, &token).unwrap();
+    let session = OAuthSession::new(store, Arc::new(NoSecrets))
+        .unwrap()
+        .with_process_locks(blocker.join("locks"));
+    assert_eq!(
+        session.access_token(Provider::Kiro, &config).await.unwrap(),
+        "fake-access-old"
+    );
+    assert!(!blocker.join("locks").exists());
+}

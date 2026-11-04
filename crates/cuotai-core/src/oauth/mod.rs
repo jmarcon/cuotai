@@ -9,6 +9,7 @@ pub mod vault_index;
 pub use session::{AuthorizedLogin, OAuthLogin, OAuthSession};
 pub mod aws;
 pub mod cursor_import;
+mod process_lock;
 mod reference;
 mod reference_antigravity;
 mod reference_browser;
