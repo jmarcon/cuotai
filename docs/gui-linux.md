@@ -93,7 +93,7 @@ Notices come while the window is hidden in the tray, but not after you Quit. The
 
 ## Launch at login
 
-Turn on **Settings › General › Startup › Open at login**. Cuotai then writes a `.desktop` entry in `~/.config/autostart/` (the XDG autostart folder your desktop reads) and starts in the tray, without opening its window. The switch shows whether that entry exists, so removing it from GNOME **Tweaks → Startup Applications** or KDE **System Settings → Autostart** turns it off here too. For an AppImage, turn the switch off and on again after moving the file.
+Turn on **Settings › General › Startup › Open at login**. Cuotai then writes a `.desktop` entry in `~/.config/autostart/` (the XDG autostart folder your desktop reads) and starts in the tray, without opening its window. The switch shows whether that entry exists, so removing it from GNOME **Tweaks → Startup Applications** or KDE **System Settings → Autostart** turns it off here too. If you move an AppImage, the row says the entry starts a copy that moved and offers **Repair**, which points it at the file you opened; Cuotai never turns the entry back on by itself after you removed it. Without a tray icon, a launch at login opens the window instead.
 
 ## Updates
 

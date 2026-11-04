@@ -260,6 +260,8 @@
   "settings.startup": "स्टार्टअप",
   "settings.autostart.label": "लॉगिन पर खोलें",
   "settings.autostart.desc": "बिना विंडो के ट्रे में शुरू होता है।",
+  "settings.autostart.stale": "लॉगिन प्रविष्टि Cuotai की ऐसी कॉपी खोलती है जो हटाई जा चुकी है या अब मौजूद नहीं है।",
+  "settings.autostart.repair": "ठीक करें",
   "settings.kw.autostart": "स्टार्टअप लॉगिन बूट लॉन्च अपने-आप साइन इन खोलें",
   "settings.dock.label": "Dock में दिखाएँ",
   "settings.dock.desc": "बंद: Cuotai सिर्फ़ मेन्यू बार में रहता है।",

@@ -257,6 +257,8 @@
   "settings.startup": "Startup",
   "settings.autostart.label": "Open at login",
   "settings.autostart.desc": "Starts in the tray, without a window.",
+  "settings.autostart.stale": "The login entry starts a copy of Cuotai that moved or no longer exists.",
+  "settings.autostart.repair": "Repair",
   "settings.kw.autostart": "start login startup boot launch automatically sign in open",
   "settings.dock.label": "Show in Dock",
   "settings.dock.desc": "Off: Cuotai lives only in the menu bar.",

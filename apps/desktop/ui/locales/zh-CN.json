@@ -257,6 +257,8 @@
   "settings.startup": "启动",
   "settings.autostart.label": "登录时打开",
   "settings.autostart.desc": "在托盘中启动，不打开窗口。",
+  "settings.autostart.stale": "登录项启动的 Cuotai 副本已被移动或不再存在。",
+  "settings.autostart.repair": "修复",
   "settings.kw.autostart": "启动 登录 开机 自动 打开 autostart",
   "settings.dock.label": "在程序坞中显示",
   "settings.dock.desc": "关闭：Cuotai 只显示在菜单栏中。",

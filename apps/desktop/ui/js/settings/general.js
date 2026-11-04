@@ -1,6 +1,6 @@
 // Settings › General (PRD 0020 RF2.5): appearance (theme, light/dark mode, animations) and language, as rows (RF3).
 import { machineTranslated, t, te } from "../i18n.js";
-import { autostartSet, autostartStatus, langMenuHtml, MOTIONS, openExternal, setMotion, setPreference, themeSwitchHtml, TRANSLATION_GUIDE_URL } from "../lib.js";
+import { autostartRepair, autostartSet, autostartStale, autostartStatus, langMenuHtml, MOTIONS, openExternal, setMotion, setPreference, themeSwitchHtml, TRANSLATION_GUIDE_URL } from "../lib.js";
 import { errorText, group } from "./common.js";
 import { row, rowError, seg, sw, toast } from "./rows.js";
 
@@ -31,18 +31,40 @@ export function html({ settings: s }) {
 /** Theme, mode and language go through the shell's shared switch (`bindThemeSwitch`, with cross-fade); they are
  *  saved in desktop.json by the shell, which tells the other windows (RF7). Animations save on change
  *  (RF4.1); a refused value goes back to the saved one with the reason in its row (RF4.3). */
+/** PRD 0054 RF4.3: the line under "Open at login" when its entry is stale, with its Repair button. */
+export const staleHtml = () =>
+  `<div class="set-row-body" data-autostart-stale><p class="hint">${te("settings.autostart.stale")} <button type="button" class="btn outline" data-autostart-repair>${te("settings.autostart.repair")}</button></p></div>`;
+
 export function bind(root, ctx) {
   // "Start at login": read from the system, written through the shell; what the system reports wins.
   const login = root.querySelector("#autostart");
+  // PRD 0054 RF4.3: while the entry starts a copy of Cuotai that moved or is gone, the row offers Repair.
+  const showStale = (on) => {
+    const row = login.closest(".set-row");
+    row?.querySelector("[data-autostart-stale]")?.remove();
+    if (on) row?.querySelector(".set-row-err")?.insertAdjacentHTML("beforebegin", staleHtml());
+  };
+  const checkStale = (on) => {
+    if (!on) return showStale(false);
+    autostartStale().then(showStale, () => showStale(false));
+  };
   autostartStatus().then(
-    (on) => { login.checked = on; login.disabled = false; },
+    (on) => { login.checked = on; login.disabled = false; checkStale(on); },
     (x) => rowError(login, errorText(x)));
   login.addEventListener("change", () => {
     login.disabled = true;
     autostartSet(login.checked).then(
-      (on) => { login.checked = on; rowError(login, ""); toast(); },
+      (on) => { login.checked = on; rowError(login, ""); toast(); checkStale(on); },
       (x) => { login.checked = !login.checked; rowError(login, errorText(x)); }
     ).finally(() => { login.disabled = false; });
+  });
+  login.closest(".set-row")?.addEventListener("click", (e) => {
+    const repair = e.target.closest?.("[data-autostart-repair]");
+    if (!repair) return;
+    repair.disabled = true;
+    autostartRepair().then(
+      (on) => { login.checked = on; rowError(login, ""); toast(); checkStale(on); },
+      (x) => { repair.disabled = false; rowError(login, errorText(x)); });
   });
   // "Show in Dock": the shell switches the activation policy as it saves (regular or menu-bar only).
   const dock = root.querySelector("#dock");

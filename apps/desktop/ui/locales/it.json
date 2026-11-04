@@ -257,6 +257,8 @@
   "settings.startup": "Avvio",
   "settings.autostart.label": "Apri all'accesso",
   "settings.autostart.desc": "Parte nella barra di sistema, senza finestra.",
+  "settings.autostart.stale": "La voce di accesso avvia una copia di Cuotai che è stata spostata o non esiste più.",
+  "settings.autostart.repair": "Ripara",
   "settings.kw.autostart": "avviare accesso login avvio aprire automaticamente sistema",
   "settings.dock.label": "Mostra nel Dock",
   "settings.dock.desc": "Disattivato: Cuotai resta solo nella barra dei menu.",

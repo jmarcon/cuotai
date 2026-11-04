@@ -97,6 +97,19 @@ display it, so no unknown sequence dirties other screens.
 Verification: **CI** (logic tests) on all three OSes; actual notification
 center delivery is **code**-level only.
 
+## Launch at login (desktop only)
+
+**Settings › General › Startup › Open at login** (PRD 0054 RF4) uses the
+official `tauri-plugin-autostart`, off by default; no installer or package
+manager turns it on. The switch always shows what the system reports.
+
+| | macOS | Windows | Linux |
+|---|---|---|---|
+| Mechanism | `~/Library/LaunchAgents/Cuotai.plist` (LaunchAgent) | `Run` value under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` | `~/.config/autostart/Cuotai.desktop` (XDG autostart) |
+| Launch | `--autostart`: hidden in the menu bar; the window opens when there is no tray | Same, notification area | Same, status notifier |
+| Moved app | The entry's program is read back; **Repair** rewrites it | Not read back: turn the switch off and on | The entry's `Exec=` is read back (AppImage path when run from one); **Repair** rewrites it |
+| Verification | Unit tests and the browser-free Settings script; log out/in is a manual release check | Same | Same, on one GNOME or KDE session |
+
 ## Native browser login
 
 `cuotai_core::login::open_browser` (`crates/cuotai-core/src/oauth/login.rs`)

@@ -944,6 +944,12 @@ a release, a person completes every item:
   icon" banner, accounts refresh, and closing the window quits the app. Install the `.rpm` on Fedora
   (its metadata only is automated) and, when produced, the optional ARM64
   installer and packages.
+- [ ] Launch at login (PRD 0054 RF4), on macOS, Windows and one GNOME or
+  KDE session: turn on **Open at login**, log out and in, and check that one
+  Cuotai runs, hidden in the tray (with the window open if the session has no
+  tray); turn it off, log out and in, and check that none starts. On macOS or
+  with an AppImage, move the app and check that **Repair** appears and fixes
+  the entry.
 - [ ] Confirm the `smoke-*` jobs of the tag run passed (they block `publish`;
   every CLI archive's `--version`, `--list-providers` and `--once` is
   automated there).

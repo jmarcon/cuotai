@@ -257,6 +257,8 @@
   "settings.startup": "시작",
   "settings.autostart.label": "로그인 시 열기",
   "settings.autostart.desc": "창 없이 트레이에서 시작합니다.",
+  "settings.autostart.stale": "로그인 항목이 이동되었거나 더 이상 없는 Cuotai를 실행합니다.",
+  "settings.autostart.repair": "복구",
   "settings.kw.autostart": "시작 로그인 부팅 실행 자동 열기",
   "settings.dock.label": "Dock에 표시",
   "settings.dock.desc": "꺼짐: Cuotai가 메뉴 막대에만 있습니다.",

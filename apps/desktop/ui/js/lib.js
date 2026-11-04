@@ -198,6 +198,9 @@ export const setRows = (rows) => call("set_rows", { rows });
 // "Start at login" (PRD 0022, audit #37): the system owns the state; both calls return what it reports.
 export const autostartStatus = () => call("autostart_status");
 export const autostartSet = (enabled) => call("autostart_set", { enabled });
+// PRD 0054 RF4.3: the login entry starts a moved or missing copy; Repair rewrites it (never creates one).
+export const autostartStale = () => call("autostart_stale");
+export const autostartRepair = () => call("autostart_repair");
 export const firstRunTurnOn = () => call("first_run_turn_on");
 export const firstRunRecord = (again = false) => call("first_run_record", { again });
 export const setUserDir = (path) => call("set_user_dir", { path });
@@ -2128,6 +2131,8 @@ const demo = {
   set_rows: async ({ rows }) => { demoSettings.rows = structuredClone(rows); },
   autostart_status: async () => !!demoSettings.autostart,
   autostart_set: async ({ enabled }) => { demoSettings.autostart = !!enabled; return demoSettings.autostart; },
+  autostart_stale: async () => !!demoSettings.autostart && !!demoSettings.autostartStale,
+  autostart_repair: async () => { demoSettings.autostartStale = false; return !!demoSettings.autostart; },
   first_run_turn_on: async () => { demoSettings.alerts.enabled = true; demoSettings.alerts.overage = true; demoSettings.alerts.projected_lead_minutes = 60; demoSettings.onboarding = 1; return "granted"; },
   first_run_record: async ({ again }) => { demoSettings.onboarding = again ? 0 : 1; },
   set_advice_enabled: async () => {},
