@@ -4,8 +4,27 @@ use super::{
 };
 use crate::{Credentials, EnvironmentCredentials, Provider};
 use chrono::Utc;
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, PoisonError};
 use tokio::sync::Mutex;
+
+/// Rotated tokens this process obtained but could not write to the vault yet,
+/// by storage key. The provider already invalidated the stored refresh token,
+/// so these copies are newer than the vault and win over it until a later
+/// write succeeds. Memory only: never logged, never `Debug`.
+type Unsaved = Arc<std::sync::Mutex<HashMap<String, OAuthToken>>>;
+
+/// Tests only: stands in for the provider dispatch of a refresh.
+#[cfg(test)]
+pub(super) type TestRefresher = Arc<
+    dyn Fn(
+            reqwest::Client,
+            OAuthToken,
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = Result<OAuthToken, OAuthError>> + Send>,
+        > + Send
+        + Sync,
+>;
 
 /// Owns persistent credentials; no browser/terminal effects. Share one instance
 /// across monitors to serialize rotating refresh tokens within the application.
@@ -14,8 +33,13 @@ pub struct OAuthSession {
     store: Arc<dyn TokenStore>,
     secrets: Arc<dyn Credentials>,
     refresh_lock: Arc<Mutex<()>>,
+    unsaved: Unsaved,
     /// PRD 0029 RF6: the index of the entries this session's store creates.
     vault_index: Option<std::path::PathBuf>,
+    /// Tests only: replaces the provider dispatch of a refresh, so a local
+    /// mock can stand in for the fixed provider endpoints.
+    #[cfg(test)]
+    test_refresher: Option<TestRefresher>,
 }
 
 impl OAuthSession {
@@ -79,8 +103,34 @@ impl OAuthSession {
             store,
             secrets,
             refresh_lock: Arc::new(Mutex::new(())),
+            unsaved: Arc::default(),
             vault_index: None,
+            #[cfg(test)]
+            test_refresher: None,
         })
+    }
+
+    #[cfg(test)]
+    pub(super) fn with_test_refresher(mut self, refresher: TestRefresher) -> Self {
+        self.test_refresher = Some(refresher);
+        self
+    }
+
+    /// The rotated token this process holds for `key` but could not persist.
+    fn unsaved_token(&self, key: &str) -> Option<OAuthToken> {
+        self.unsaved
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(key)
+            .cloned()
+    }
+
+    /// A write for `key` replaced whatever rotation was waiting to be saved.
+    fn forget_unsaved(&self, key: &str) {
+        self.unsaved
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(key);
     }
 
     /// The returned operation is cancelled by dropping it or its finish future.
@@ -126,27 +176,67 @@ impl OAuthSession {
     }
 
     pub async fn save_login(&self, login: &AuthorizedLogin) -> Result<(), OAuthError> {
-        let guard = Arc::clone(&self.refresh_lock).lock_owned().await;
-        let store = Arc::clone(&self.store);
-        let key = login.key.clone();
-        let token = login.token.clone();
-        tokio::task::spawn_blocking(move || {
-            let _guard = guard;
-            store.save(&key, &token)
-        })
-        .await
-        .map_err(|_| storage_error())?
+        let _guard = Arc::clone(&self.refresh_lock).lock_owned().await;
+        self.write(&login.key, &login.token).await
     }
 
-    /// Load the raw token stored under `key` (RF2.4 staged commit: captures
-    /// the prior token before a reauth overwrites it, so a failed config save
-    /// can restore it).
+    /// Save a new login and return the token it replaced, read under the
+    /// same lock as the write (RF2.4 staged commit). A refresh can no longer
+    /// rotate the prior token between the read and the write, and a rotation
+    /// this process could not persist counts as the prior token, so a rollback
+    /// restores the newest refresh token instead of one the provider already
+    /// invalidated. A stored token that no longer decodes counts as absent.
+    pub(crate) async fn save_login_replacing(
+        &self,
+        login: &AuthorizedLogin,
+    ) -> Result<Option<OAuthToken>, OAuthError> {
+        let _guard = Arc::clone(&self.refresh_lock).lock_owned().await;
+        let prior = match self.unsaved_token(&login.key) {
+            Some(token) => Some(token),
+            None => match self.read(&login.key).await {
+                Ok(prior) => prior,
+                Err(OAuthError::Storage(note)) if note.id == super::store::TOKEN_UNREADABLE => None,
+                Err(error) => return Err(error),
+            },
+        };
+        self.write(&login.key, &login.token).await?;
+        Ok(prior)
+    }
+
+    /// Load the token under `key`: a rotation this process could not persist
+    /// yet, else the stored one (RF2.4 staged commit and vault cleanup).
     pub(crate) async fn load_by_key(&self, key: &str) -> Result<Option<OAuthToken>, OAuthError> {
+        if let Some(token) = self.unsaved_token(key) {
+            return Ok(Some(token));
+        }
+        self.read(key).await
+    }
+
+    async fn read(&self, key: &str) -> Result<Option<OAuthToken>, OAuthError> {
         let store = Arc::clone(&self.store);
         let key = key.to_string();
         tokio::task::spawn_blocking(move || store.load(&key))
             .await
             .map_err(|_| storage_error())?
+    }
+
+    /// Write `token` under `key`; the caller holds the refresh lock. A
+    /// successful write supersedes any rotation waiting to be saved.
+    async fn write(&self, key: &str, token: &OAuthToken) -> Result<(), OAuthError> {
+        persist(&self.store, key, token).await?;
+        self.forget_unsaved(key);
+        Ok(())
+    }
+
+    /// Delete the entry under `key`; the caller holds the refresh lock.
+    async fn remove(&self, key: &str) -> Result<(), OAuthError> {
+        let store = Arc::clone(&self.store);
+        let id = key.to_string();
+        tokio::task::spawn_blocking(move || store.delete(&id))
+            .await
+            .map_err(|_| storage_error())??;
+        self.forget_unsaved(key);
+        Ok(())
     }
 
     /// Overwrite the token under `key`. Used only to RESTORE a prior token
@@ -156,28 +246,16 @@ impl OAuthSession {
         key: String,
         token: OAuthToken,
     ) -> Result<(), OAuthError> {
-        let guard = Arc::clone(&self.refresh_lock).lock_owned().await;
-        let store = Arc::clone(&self.store);
-        tokio::task::spawn_blocking(move || {
-            let _guard = guard;
-            store.save(&key, &token)
-        })
-        .await
-        .map_err(|_| storage_error())?
+        let _guard = Arc::clone(&self.refresh_lock).lock_owned().await;
+        self.write(&key, &token).await
     }
 
     /// Delete the token under `key`. Commit compensation only: called when a
     /// brand-new credential was written but the config save failed, and never
     /// when a prior token was replaced without a successful restore.
     pub(crate) async fn delete_by_key(&self, key: String) -> Result<(), OAuthError> {
-        let guard = Arc::clone(&self.refresh_lock).lock_owned().await;
-        let store = Arc::clone(&self.store);
-        tokio::task::spawn_blocking(move || {
-            let _guard = guard;
-            store.delete(&key)
-        })
-        .await
-        .map_err(|_| storage_error())?
+        let _guard = Arc::clone(&self.refresh_lock).lock_owned().await;
+        self.remove(&key).await
     }
 
     pub async fn access_token(
@@ -196,21 +274,17 @@ impl OAuthSession {
         config.validate(provider)?;
         let key = storage_key(provider, config)?;
         let guard = Arc::clone(&self.refresh_lock).lock_owned().await;
-        let store = Arc::clone(&self.store);
-        let load_key = key.clone();
-        let token = tokio::task::spawn_blocking(move || store.load(&load_key))
-            .await
-            .map_err(|_| storage_error())??
-            .ok_or_else(|| {
-                OAuthError::Configuration(crate::text::Localized::fixed(
-                    "oauth_error.session.login_not_found",
-                    "Login not found in the secure store. Open the wizard and authenticate again.",
-                ))
-            })?;
-        if token
-            .expires_at
-            .is_none_or(|expiry| expiry > Utc::now() + chrono::Duration::seconds(60))
-        {
+        let token = match self.unsaved_token(&key) {
+            // A rotation an earlier call could not persist is newer than the
+            // vault: retry the write first, and keep the token in memory until
+            // the vault accepts it.
+            Some(token) => {
+                self.write(&key, &token).await?;
+                token
+            }
+            None => self.read(&key).await?.ok_or_else(login_not_found)?,
+        };
+        if is_fresh(&token) {
             if token.access_token.trim().is_empty() {
                 return Err(OAuthError::InvalidResponse);
             }
@@ -227,28 +301,41 @@ impl OAuthSession {
         let http = self.http.clone();
         let config = config.clone();
         let store = Arc::clone(&self.store);
+        let unsaved = Arc::clone(&self.unsaved);
+        #[cfg(test)]
+        let test_refresher = self.test_refresher.clone();
         // Once token rotation starts, complete persistence even if the caller
         // cancels its quota query; otherwise a rotated refresh token is lost.
         tokio::spawn(async move {
-            let mut renewed = if requires_client_registration(provider) {
-                flows::refresh(&http, provider, &config, secret.as_deref(), &token).await?
-            } else {
-                reference::refresh(&http, provider, &config, &token).await?
+            let _guard = guard;
+            #[cfg(test)]
+            let refreshed = match test_refresher {
+                Some(refresher) => refresher(http.clone(), token.clone()).await,
+                None => dispatch_refresh(&http, provider, &config, secret.as_deref(), &token).await,
             };
+            #[cfg(not(test))]
+            let refreshed =
+                dispatch_refresh(&http, provider, &config, secret.as_deref(), &token).await;
+            let mut renewed = refreshed?;
             for (key, value) in &token.metadata {
                 renewed
                     .metadata
                     .entry(key.clone())
                     .or_insert_with(|| value.clone());
             }
-            let returned = renewed.clone();
-            tokio::task::spawn_blocking(move || {
-                let _guard = guard;
-                store.save(&key, &renewed)
-            })
-            .await
-            .map_err(|_| storage_error())??;
-            Ok(returned)
+            match persist(&store, &key, &renewed).await {
+                Ok(()) => Ok(renewed),
+                Err(error) => {
+                    // The provider already invalidated the stored refresh
+                    // token: keep the rotated one for the next call to write
+                    // instead of dropping the only valid copy.
+                    unsaved
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .insert(key, renewed);
+                    Err(error)
+                }
+            }
         })
         .await
         .map_err(|_| storage_error())?
@@ -256,14 +343,49 @@ impl OAuthSession {
 
     pub async fn logout(&self, provider: Provider, config: &OAuthConfig) -> Result<(), OAuthError> {
         let key = storage_key(provider, config)?;
-        let guard = Arc::clone(&self.refresh_lock).lock_owned().await;
-        let store = Arc::clone(&self.store);
-        tokio::task::spawn_blocking(move || {
-            let _guard = guard;
-            store.delete(&key)
-        })
+        let _guard = Arc::clone(&self.refresh_lock).lock_owned().await;
+        self.remove(&key).await
+    }
+}
+
+/// An access token that stays valid for more than a minute, or never expires.
+fn is_fresh(token: &OAuthToken) -> bool {
+    token
+        .expires_at
+        .is_none_or(|expiry| expiry > Utc::now() + chrono::Duration::seconds(60))
+}
+
+fn login_not_found() -> OAuthError {
+    OAuthError::Configuration(crate::text::Localized::fixed(
+        "oauth_error.session.login_not_found",
+        "Login not found in the secure store. Open the wizard and authenticate again.",
+    ))
+}
+
+async fn persist(
+    store: &Arc<dyn TokenStore>,
+    key: &str,
+    token: &OAuthToken,
+) -> Result<(), OAuthError> {
+    let store = Arc::clone(store);
+    let key = key.to_string();
+    let token = token.clone();
+    tokio::task::spawn_blocking(move || store.save(&key, &token))
         .await
         .map_err(|_| storage_error())?
+}
+
+async fn dispatch_refresh(
+    http: &reqwest::Client,
+    provider: Provider,
+    config: &OAuthConfig,
+    secret: Option<&str>,
+    token: &OAuthToken,
+) -> Result<OAuthToken, OAuthError> {
+    if requires_client_registration(provider) {
+        flows::refresh(http, provider, config, secret, token).await
+    } else {
+        reference::refresh(http, provider, config, token).await
     }
 }
 

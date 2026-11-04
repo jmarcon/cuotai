@@ -1419,14 +1419,12 @@ pub async fn begin_credential_commit(
     login: &CompletedLogin,
 ) -> Result<CredentialCommit, OAuthError> {
     let key = login.login.key().to_string();
-    let prior = match session.load_by_key(&key).await {
-        Ok(prior) => prior,
-        // Nothing usable to restore, and this login is what the error asks
-        // for. Any other failed read keeps the commit from going ahead.
-        Err(OAuthError::Storage(note)) if note.id == super::store::TOKEN_UNREADABLE => None,
-        Err(error) => return Err(error),
-    };
-    session.save_login(&login.login).await?;
+    // The prior token is read and replaced under one lock, so a concurrent
+    // refresh cannot rotate it in between and leave a rollback restoring a
+    // refresh token the provider already invalidated. An unreadable entry
+    // counts as absent (this login is what its error asks for); any other
+    // failed read keeps the commit from going ahead.
+    let prior = session.save_login_replacing(&login.login).await?;
     let replaced_key = login.replaced_key.clone().filter(|old| old != &key);
     Ok(CredentialCommit {
         key,
