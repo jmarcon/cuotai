@@ -97,6 +97,8 @@
   "settings.agg.all.hidden": "Masquées",
   "settings.agg.all.listed": "Listées avec mes comptes",
   "settings.agg.allHelp": "La vue 9router affiche toujours toutes les connexions.",
+  "settings.error.busy": "Une autre fenêtre ou un autre processus Cuotai enregistre les réglages ; réessayez dans un instant.",
+  "settings.error.newer": "Ces réglages ont été écrits par une version plus récente de Cuotai ; cette version ne les modifie donc pas. Mettez Cuotai à jour.",
   "settings.hooks.event.pool_exhausted": "tous les comptes d’un fournisseur dans 9router sont épuisés",
   "settings.hooks.event.pool_recovered": "un compte d’un fournisseur épuisé dans 9router est revenu",
   "time.now": "maintenant",

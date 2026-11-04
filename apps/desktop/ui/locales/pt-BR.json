@@ -83,6 +83,8 @@
   "settings.agg.all.hidden": "Ocultas",
   "settings.agg.all.listed": "Listadas com as minhas contas",
   "settings.agg.allHelp": "A visão do 9router sempre mostra todas as conexões.",
+  "settings.error.busy": "Outra janela ou processo do Cuotai está salvando as configurações; tente de novo em instantes.",
+  "settings.error.newer": "Estas configurações foram gravadas por uma versão mais nova do Cuotai, então esta versão não as altera. Atualize o Cuotai.",
   "settings.hooks.event.pool_exhausted": "todas as contas de um provedor no 9router esgotaram",
   "settings.hooks.event.pool_recovered": "uma conta de um provedor esgotado no 9router voltou",
   "status.ready": "Atualizado",

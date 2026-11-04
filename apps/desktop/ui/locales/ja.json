@@ -95,6 +95,8 @@
   "settings.agg.all.hidden": "非表示",
   "settings.agg.all.listed": "自分のアカウントと並べて表示",
   "settings.agg.allHelp": "9router ビューには常にすべての接続が表示されます。",
+  "settings.error.busy": "別の Cuotai のウィンドウまたはプロセスが設定を保存中です。少し待ってからもう一度お試しください。",
+  "settings.error.newer": "この設定は新しいバージョンの Cuotai で書かれたため、このバージョンでは変更しません。Cuotai を更新してください。",
   "settings.hooks.event.pool_exhausted": "9router のあるプロバイダーの全アカウントが上限に達した",
   "settings.hooks.event.pool_recovered": "9router の上限到達プロバイダーのアカウントが回復した",
   "time.now": "今",

@@ -95,6 +95,8 @@
   "settings.agg.all.hidden": "숨김",
   "settings.agg.all.listed": "내 계정과 함께 나열",
   "settings.agg.allHelp": "9router 보기에는 항상 모든 연결이 표시됩니다.",
+  "settings.error.busy": "다른 Cuotai 창이나 프로세스가 설정을 저장하는 중입니다. 잠시 후 다시 시도하세요.",
+  "settings.error.newer": "이 설정은 더 새로운 버전의 Cuotai가 작성했으므로 이 버전은 변경하지 않습니다. Cuotai를 업데이트하세요.",
   "settings.hooks.event.pool_exhausted": "9router에서 한 제공업체의 모든 계정이 소진됨",
   "settings.hooks.event.pool_recovered": "9router에서 소진된 제공업체의 계정이 다시 사용 가능해짐",
   "time.now": "지금",

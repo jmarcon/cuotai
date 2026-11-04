@@ -95,6 +95,8 @@
   "settings.agg.all.hidden": "Disembunyikan",
   "settings.agg.all.listed": "Dicantumkan bersama akun saya",
   "settings.agg.allHelp": "Tampilan 9router selalu menampilkan semua koneksi.",
+  "settings.error.busy": "Jendela atau proses Cuotai lain sedang menyimpan pengaturan; coba lagi sebentar lagi.",
+  "settings.error.newer": "Pengaturan ini ditulis oleh versi Cuotai yang lebih baru, jadi versi ini tidak mengubahnya. Perbarui Cuotai.",
   "settings.hooks.event.pool_exhausted": "semua akun satu penyedia di 9router habis",
   "settings.hooks.event.pool_recovered": "sebuah akun dari penyedia yang habis di 9router kembali aktif",
   "time.now": "sekarang",

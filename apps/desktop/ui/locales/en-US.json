@@ -94,6 +94,8 @@
   "settings.agg.all.hidden": "Hidden",
   "settings.agg.all.listed": "Listed with my accounts",
   "settings.agg.allHelp": "The 9router view always shows every connection.",
+  "settings.error.busy": "Another Cuotai window or process is saving the settings; try again in a moment.",
+  "settings.error.newer": "These settings were written by a newer version of Cuotai, so this version does not change them. Update Cuotai.",
   "settings.hooks.event.pool_exhausted": "every account of one provider in 9router ran out",
   "settings.hooks.event.pool_recovered": "an account of an exhausted provider in 9router is back",
   "time.now": "now",
