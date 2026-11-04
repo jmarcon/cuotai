@@ -138,6 +138,8 @@ export const forgetSession = (index) => call("forget_session", { index });
 /** PRD 0029 RF6.2: the vault entries Cuotai created (orphans marked), and the removal of the orphans. */
 export const vaultAudit = () => call("vault_audit");
 export const vaultPrune = () => call("vault_prune");
+/** PRD 0046 RF4.4: the core's read-only, offline self-check (statuses, details and fixes, never a value). */
+export const doctorReport = () => call("doctor_report");
 /** PRD 0016 RF2.2: what a paste keeps (names, counts, expiry), never the value. */
 export const previewSession = (provider, slot, paste) => call("preview_session", { provider, slot, paste });
 /** PRD 0016 RF2.1: one read-only query of the draft with its pasted sessions; nothing is stored. */
@@ -1987,6 +1989,16 @@ const demo = {
     { key: "00000000-0000-4000-8000-000000000001", created_at: "2026-10-01T12:00:00Z", kind: "oauth", provider: "claude", account_id: "acc_demo00000001", account: "Claude", orphan: false, present: true },
     ...(demoSettings.vaultPruned ? [] : [{ key: "00000000-0000-4000-8000-000000000002", created_at: "2026-09-01T12:00:00Z", kind: null, provider: null, account_id: null, account: null, orphan: true, present: true }]),
   ],
+  doctor_report: async () => ({ schema: 1, checks: [
+    { id: "version", status: "ok", title: { id: "doctor.title.version", params: { version: "demo", os: "macos", arch: "aarch64", source: "direct" }, fallback: "Cuotai {version} on {os} {arch} ({source})" } },
+    { id: "config", status: "ok", title: { id: "doctor.title.config", params: { path: "~/.config/cuotai/config.toml", source: "default" }, fallback: "Configuration file {path} ({source})" },
+      detail: { id: "doctor.config.valid", params: { count: 3 }, fallback: "Valid; accounts: {count}." } },
+    { id: "account.2", status: "fail", title: { id: "doctor.title.account", params: { number: 2, provider: "groq" }, fallback: "Account {number} ({provider})" },
+      detail: { id: "doctor.account.env_missing", params: { variable: "GROQ_API_KEY" }, fallback: "It reads {variable}, which is not set in this environment." },
+      fix: { id: "doctor.fix.set_env", params: { variable: "GROQ_API_KEY" }, fallback: "Set {variable} in the environment that starts Cuotai, or store the key in the vault from the account editor." } },
+    { id: "cost_index", status: "skip", title: { id: "doctor.title.cost_index", params: {}, fallback: "Local cost index" },
+      detail: { id: "doctor.state.absent", params: {}, fallback: "It has not been created yet." } },
+  ] }),
   vault_prune: async () => { const n = demoSettings.vaultPruned ? 0 : 1; demoSettings.vaultPruned = true; return n; },
   forget_session: async ({ index }) => {
     demoSettings.sessionForgotten.add(demoReports[index]);
