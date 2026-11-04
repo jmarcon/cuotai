@@ -32,6 +32,7 @@
 
 # Debug-only dev credential store index (run.sh)
 *.sqlite3.vault-index.json
+*.sqlite3.oauth-locks/
 
 # Agent state stays local, project skills are tracked. The first line is needed
 # because a global ignore of `.claude/` would otherwise hide the whole directory.

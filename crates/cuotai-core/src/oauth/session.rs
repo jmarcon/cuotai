@@ -1,3 +1,4 @@
+use super::process_lock::ProcessLock;
 use super::{
     flows, reference, requires_client_registration, LoginPrompt, OAuthConfig, OAuthError,
     OAuthToken, SystemTokenStore, TokenStore,
@@ -6,7 +7,7 @@ use crate::{Credentials, EnvironmentCredentials, Provider};
 use chrono::Utc;
 use std::collections::HashMap;
 use std::sync::{Arc, PoisonError};
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, OwnedMutexGuard};
 
 /// Rotated tokens this process obtained but could not write to the vault yet,
 /// by storage key. The provider already invalidated the stored refresh token,
@@ -34,6 +35,9 @@ pub struct OAuthSession {
     secrets: Arc<dyn Credentials>,
     refresh_lock: Arc<Mutex<()>>,
     unsaved: Unsaved,
+    /// Where the cross-process locks of this session's vault entries live
+    /// ([`super::process_lock`]); `None` keeps the in-process guard only.
+    process_locks: Option<std::path::PathBuf>,
     /// PRD 0029 RF6: the index of the entries this session's store creates.
     vault_index: Option<std::path::PathBuf>,
     /// Tests only: replaces the provider dispatch of a refresh, so a local
@@ -56,7 +60,14 @@ impl OAuthSession {
             Arc::new(EnvironmentCredentials),
         )?;
         session.vault_index = index;
-        Ok(session)
+        Ok(session.with_system_process_locks())
+    }
+
+    /// Guard the OS vault entries against rotation by other Cuotai processes
+    /// (TUI, `--serve`, desktop) with the shared lock directory.
+    pub(crate) fn with_system_process_locks(mut self) -> Self {
+        self.process_locks = super::process_lock::default_dir();
+        self
     }
 
     /// Opt-in plaintext credentials for local development, never a fallback.
@@ -73,6 +84,7 @@ impl OAuthSession {
             Arc::new(EnvironmentCredentials),
         )?;
         session.vault_index = Some(index);
+        session.process_locks = Some(super::process_lock::development_dir(path));
         Ok(session)
     }
 
@@ -104,6 +116,7 @@ impl OAuthSession {
             secrets,
             refresh_lock: Arc::new(Mutex::new(())),
             unsaved: Arc::default(),
+            process_locks: None,
             vault_index: None,
             #[cfg(test)]
             test_refresher: None,
@@ -114,6 +127,30 @@ impl OAuthSession {
     pub(super) fn with_test_refresher(mut self, refresher: TestRefresher) -> Self {
         self.test_refresher = Some(refresher);
         self
+    }
+
+    #[cfg(test)]
+    pub(super) fn with_process_locks(mut self, dir: std::path::PathBuf) -> Self {
+        self.process_locks = Some(dir);
+        self
+    }
+
+    /// Exclusive access to `key` for a vault write: this session's lock, then
+    /// the cross-process lock of the entry, always in that order.
+    async fn exclusive(
+        &self,
+        key: &str,
+    ) -> Result<(OwnedMutexGuard<()>, Option<ProcessLock>), OAuthError> {
+        let guard = Arc::clone(&self.refresh_lock).lock_owned().await;
+        let process = self.lock_process(key).await?;
+        Ok((guard, process))
+    }
+
+    async fn lock_process(&self, key: &str) -> Result<Option<ProcessLock>, OAuthError> {
+        match &self.process_locks {
+            Some(dir) => super::process_lock::acquire(dir, key, super::process_lock::WAIT).await,
+            None => Ok(None),
+        }
     }
 
     /// The rotated token this process holds for `key` but could not persist.
@@ -176,7 +213,7 @@ impl OAuthSession {
     }
 
     pub async fn save_login(&self, login: &AuthorizedLogin) -> Result<(), OAuthError> {
-        let _guard = Arc::clone(&self.refresh_lock).lock_owned().await;
+        let _locks = self.exclusive(&login.key).await?;
         self.write(&login.key, &login.token).await
     }
 
@@ -190,7 +227,7 @@ impl OAuthSession {
         &self,
         login: &AuthorizedLogin,
     ) -> Result<Option<OAuthToken>, OAuthError> {
-        let _guard = Arc::clone(&self.refresh_lock).lock_owned().await;
+        let _locks = self.exclusive(&login.key).await?;
         let prior = match self.unsaved_token(&login.key) {
             Some(token) => Some(token),
             None => match self.read(&login.key).await {
@@ -246,7 +283,7 @@ impl OAuthSession {
         key: String,
         token: OAuthToken,
     ) -> Result<(), OAuthError> {
-        let _guard = Arc::clone(&self.refresh_lock).lock_owned().await;
+        let _locks = self.exclusive(&key).await?;
         self.write(&key, &token).await
     }
 
@@ -254,7 +291,7 @@ impl OAuthSession {
     /// brand-new credential was written but the config save failed, and never
     /// when a prior token was replaced without a successful restore.
     pub(crate) async fn delete_by_key(&self, key: String) -> Result<(), OAuthError> {
-        let _guard = Arc::clone(&self.refresh_lock).lock_owned().await;
+        let _locks = self.exclusive(&key).await?;
         self.remove(&key).await
     }
 
@@ -274,7 +311,17 @@ impl OAuthSession {
         config.validate(provider)?;
         let key = storage_key(provider, config)?;
         let guard = Arc::clone(&self.refresh_lock).lock_owned().await;
-        let token = match self.unsaved_token(&key) {
+        let unsaved = self.unsaved_token(&key);
+        if unsaved.is_none() {
+            // Fast path: a fresh token needs no cross-process lock.
+            let token = self.read(&key).await?.ok_or_else(login_not_found)?;
+            if is_fresh(&token) {
+                return usable(token);
+            }
+        }
+        // Any write below happens under the entry's cross-process lock.
+        let process = self.lock_process(&key).await?;
+        let token = match unsaved {
             // A rotation an earlier call could not persist is newer than the
             // vault: retry the write first, and keep the token in memory until
             // the vault accepts it.
@@ -282,13 +329,13 @@ impl OAuthSession {
                 self.write(&key, &token).await?;
                 token
             }
+            // Read again under the lock: another process may have rotated
+            // the token while this one waited, and its stored result must be
+            // used instead of sending the refresh token it invalidated.
             None => self.read(&key).await?.ok_or_else(login_not_found)?,
         };
         if is_fresh(&token) {
-            if token.access_token.trim().is_empty() {
-                return Err(OAuthError::InvalidResponse);
-            }
-            return Ok(token);
+            return usable(token);
         }
         if token
             .refresh_token
@@ -307,7 +354,7 @@ impl OAuthSession {
         // Once token rotation starts, complete persistence even if the caller
         // cancels its quota query; otherwise a rotated refresh token is lost.
         tokio::spawn(async move {
-            let _guard = guard;
+            let _locks = (guard, process);
             let refresh = async {
                 #[cfg(test)]
                 if let Some(refresher) = test_refresher {
@@ -352,9 +399,17 @@ impl OAuthSession {
 
     pub async fn logout(&self, provider: Provider, config: &OAuthConfig) -> Result<(), OAuthError> {
         let key = storage_key(provider, config)?;
-        let _guard = Arc::clone(&self.refresh_lock).lock_owned().await;
+        let _locks = self.exclusive(&key).await?;
         self.remove(&key).await
     }
+}
+
+/// A fresh token is returned only with a usable access token.
+fn usable(token: OAuthToken) -> Result<OAuthToken, OAuthError> {
+    if token.access_token.trim().is_empty() {
+        return Err(OAuthError::InvalidResponse);
+    }
+    Ok(token)
 }
 
 /// An access token that stays valid for more than a minute, or never expires.

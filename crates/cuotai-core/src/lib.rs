@@ -439,6 +439,7 @@ impl Monitor {
     ) -> Result<Self, ConfigError> {
         let oauth = Arc::new(
             oauth::OAuthSession::new(Arc::new(oauth::SystemTokenStore), Arc::clone(&credentials))
+                .map(oauth::OAuthSession::with_system_process_locks)
                 .map_err(|_| ConfigError::Client)?,
         );
         Self::with_login_session(config, credentials, oauth)
