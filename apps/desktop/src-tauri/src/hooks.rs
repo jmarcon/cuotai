@@ -21,8 +21,8 @@ use cuotai_core::{
     events::{EventKind, EventState},
     export::v1::Export,
     hooks::{
-        self, Confirmed, Consent, Document, Hooks, LoggedRun, OnRun, RuleDraft, RunLog, Runner,
-        DEFAULT_TIMEOUT_SECONDS, MAX_TIMEOUT_SECONDS,
+        self, Confirmed, Consent, Document, HookClaims, Hooks, LoggedRun, OnRun, RuleDraft, RunLog,
+        Runner, DEFAULT_TIMEOUT_SECONDS, MAX_TIMEOUT_SECONDS,
     },
     text::Localized,
     watch::Watcher,
@@ -64,6 +64,8 @@ pub struct Integration {
     /// `None` without a local data directory: nothing can be confirmed.
     consent: Option<Consent>,
     log: Option<PathBuf>,
+    /// PRD 0054 RF2: the cross-process claims, beside the log.
+    claims: Option<HookClaims>,
     /// Called after each run (the app tells Settings).
     on_run: OnRun,
     active: Option<Active>,
@@ -73,6 +75,8 @@ pub struct Integration {
     dropped: usize,
     /// A run's line could not be written to the log.
     log_failed: Arc<AtomicBool>,
+    /// PRD 0054 RF2.3: the last claim attempt could not be recorded.
+    claims_failed: bool,
     /// PRD 0032 RF5.1: the quiet hours a rule with `quiet = "skip"` honours.
     quiet: cuotai_core::notify_prefs::Source,
 }
@@ -149,12 +153,17 @@ impl Integration {
         Self {
             enabled,
             consent,
+            claims: log
+                .as_deref()
+                .and_then(Path::parent)
+                .map(|dir| HookClaims::at(dir.join(hooks::CLAIMS_FILE_NAME))),
             log,
             on_run: Arc::new(|_, _| {}),
             active: None,
             path: None,
             dropped: 0,
             log_failed: Arc::new(AtomicBool::new(false)),
+            claims_failed: false,
             quiet: cuotai_core::notify_prefs::Source::new(None),
         }
     }
@@ -214,9 +223,15 @@ impl Integration {
         // its running hooks killed.
         self.active = None;
         self.dropped = 0;
+        self.claims_failed = false;
         self.active = Some(Active {
             hooks,
-            runner: Runner::start(confirmed, self.log.as_ref().map(RunLog::at), on_run),
+            runner: Runner::start_with_claims(
+                confirmed,
+                self.log.as_ref().map(RunLog::at),
+                on_run,
+                self.claims.clone(),
+            ),
             watcher: Watcher::new(EventState::default(), None),
         });
     }
@@ -261,9 +276,17 @@ impl Integration {
         let Some(active) = &mut self.active else {
             return false;
         };
-        for event in &active.watcher.observe_with(export, now, pace) {
-            let in_quiet = self.quiet.quiet_at(event.occurred_at);
-            self.dropped += active.runner.submit_in(event, in_quiet);
+        for observed in &active.watcher.observe_transitions(export, now, pace) {
+            let in_quiet = self.quiet.quiet_at(observed.event.occurred_at);
+            let submitted = active.runner.submit_in(observed, in_quiet);
+            self.dropped += submitted.dropped;
+            // PRD 0054 RF2.3: the claims could not be recorded, so nothing
+            // ran; Settings says so until a claim succeeds again.
+            if submitted.unclaimed > 0 {
+                self.claims_failed = true;
+            } else if submitted.queued > 0 || submitted.claimed_elsewhere > 0 {
+                self.claims_failed = false;
+            }
         }
         false
     }
@@ -325,6 +348,9 @@ impl Integration {
         }
         if self.dropped > 0 {
             warnings.push(hooks::dropped(self.dropped));
+        }
+        if self.claims_failed {
+            warnings.push(hooks::claims_unavailable());
         }
         if let Some(log) = self.log.as_ref() {
             if self.log_failed.load(Ordering::Relaxed) {

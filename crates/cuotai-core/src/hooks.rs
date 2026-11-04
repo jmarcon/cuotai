@@ -22,6 +22,10 @@
 //!   output, at most [`MAX_RUNNING`] at once and a queue of
 //!   [`QUEUE_CAPACITY`] that drops the oldest. A hook never blocks or
 //!   fails its caller.
+//! - [`HookClaims`] (PRD 0054 RF2) makes a rule run at most once per
+//!   transition across processes: [`Runner::submit`] claims each matching
+//!   rule in the shared store before queuing it, and runs nothing when the
+//!   store cannot be written.
 //! - [`RunLog`] records each run without the payload: rule, event, start,
 //!   duration, outcome and exit code; [`RunLog::latest`] reads them back.
 //! - For an editor (PRD 0013 RF4, the desktop's Settings → Integration):
@@ -50,7 +54,14 @@ use crate::config_file::ConfigIdentity;
 use crate::events::{Event, EventKind};
 use crate::process_tree::{self, Tree};
 use crate::text::{params, Localized, ParamValue};
+use crate::watch::ObservedEvent;
 use crate::Provider;
+
+#[path = "hook_claims.rs"]
+mod claims;
+pub use claims::{
+    unavailable as claims_unavailable, Claim, HookClaims, FILE_NAME as CLAIMS_FILE_NAME,
+};
 
 /// The rules' file, in the directory of the accounts' TOML.
 pub const FILE_NAME: &str = "hooks.toml";
@@ -1264,29 +1275,74 @@ struct Context {
     on_run: OnRun,
 }
 
+/// What [`Runner::submit`] did with an event's matching rules.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct Submitted {
+    /// Runs queued.
+    pub queued: usize,
+    /// Queued runs dropped (the oldest first) to keep the queue within
+    /// [`QUEUE_CAPACITY`].
+    pub dropped: usize,
+    /// PRD 0054 RF2: rules another process (or an earlier observation)
+    /// already claimed for this transition.
+    pub claimed_elsewhere: usize,
+    /// PRD 0054 RF2.3: rules not run because the claim store could not be
+    /// used ([`claims_unavailable`]).
+    pub unclaimed: usize,
+}
+
+/// Where the runner claims its runs: the shared store (`None`: none can be
+/// recorded, so nothing runs) and what scopes a claim to these rules.
+struct ClaimScope {
+    store: Option<HookClaims>,
+    file_identity: Option<String>,
+    rules_digest: String,
+}
+
 /// The confirmed rules, run on the events given to [`Runner::submit`].
 /// Must be started inside a Tokio runtime; dropping it discards the queue
 /// and kills the hooks still running.
 pub struct Runner {
     rules: Vec<Rule>,
+    claims: ClaimScope,
     shared: Arc<Shared>,
     dispatcher: JoinHandle<()>,
 }
 
 impl Runner {
+    /// Claims in `<OS local data dir>/cuotai/hooks/claims.json`
+    /// ([`HookClaims::in_data_dir`]).
     pub fn start(hooks: Confirmed, log: Option<RunLog>, on_run: OnRun) -> Self {
-        Self::start_with_env(hooks, log, on_run, std::env::vars_os(), work_dir())
+        Self::start_with_claims(hooks, log, on_run, HookClaims::in_data_dir())
     }
 
-    /// [`Self::start`] inheriting [`INHERITED_ENV`] from `parent` instead
-    /// of the process environment, and running in `work_dir`.
+    /// [`Self::start`] claiming in `claims` (`None`: no store, so no event
+    /// runs a hook; [`Self::submit_to`] still does).
+    pub fn start_with_claims(
+        hooks: Confirmed,
+        log: Option<RunLog>,
+        on_run: OnRun,
+        claims: Option<HookClaims>,
+    ) -> Self {
+        Self::start_with_env(hooks, log, on_run, std::env::vars_os(), work_dir(), claims)
+    }
+
+    /// [`Self::start_with_claims`] inheriting [`INHERITED_ENV`] from
+    /// `parent` instead of the process environment, and running in
+    /// `work_dir`.
     fn start_with_env(
         hooks: Confirmed,
         log: Option<RunLog>,
         on_run: OnRun,
         parent: impl IntoIterator<Item = (OsString, OsString)>,
         work_dir: Option<PathBuf>,
+        claims: Option<HookClaims>,
     ) -> Self {
+        let claims = ClaimScope {
+            store: claims,
+            file_identity: key(&hooks.0),
+            rules_digest: hooks.0.digest(),
+        };
         let rules = hooks.0.rules;
         let inherited = parent
             .into_iter()
@@ -1306,6 +1362,7 @@ impl Runner {
         let dispatcher = tokio::spawn(dispatch(Arc::clone(&shared), context));
         Self {
             rules,
+            claims,
             shared,
             dispatcher,
         }
@@ -1315,26 +1372,46 @@ impl Runner {
         &self.rules
     }
 
-    /// Queue a run of every rule that matches `event`, without waiting for
-    /// any. Returns how many queued runs were dropped (the oldest first)
-    /// to keep the queue within [`QUEUE_CAPACITY`].
-    pub fn submit(&self, event: &Event) -> usize {
-        self.submit_in(event, false)
+    /// Queue a run of every rule that matches `observed`'s event and that
+    /// this process claims for its transition (PRD 0054 RF2: one run per
+    /// rule and transition across the desktop and `cuotai --watch
+    /// --hooks`), without waiting for any. The claim is recorded before the
+    /// run is queued, so a process that dies before running loses it.
+    pub fn submit(&self, observed: &ObservedEvent) -> Submitted {
+        self.submit_in(observed, false)
     }
 
     /// [`Self::submit`] for an event that occurred `in_quiet` (inside a
     /// quiet window, PRD 0032 RF5.1): the rules with `quiet = "skip"` do
-    /// not run for it.
-    pub fn submit_in(&self, event: &Event, in_quiet: bool) -> usize {
-        let matching: Vec<usize> = self
-            .rules
-            .iter()
-            .enumerate()
-            .filter(|(_, rule)| rule.matches(event))
-            .filter(|(_, rule)| !(in_quiet && rule.quiet == QuietMode::Skip))
-            .map(|(index, _)| index)
-            .collect();
-        self.enqueue(matching, event)
+    /// not run for it (nor claim it).
+    pub fn submit_in(&self, observed: &ObservedEvent, in_quiet: bool) -> Submitted {
+        let event = &observed.event;
+        let mut submitted = Submitted::default();
+        let now = Utc::now();
+        let mut matching = Vec::new();
+        for (index, rule) in self.rules.iter().enumerate() {
+            if !rule.matches(event) || (in_quiet && rule.quiet == QuietMode::Skip) {
+                continue;
+            }
+            let claim = match (&self.claims.store, &self.claims.file_identity) {
+                (Some(store), Some(identity)) => store.claim(
+                    identity,
+                    &self.claims.rules_digest,
+                    &rule.name,
+                    &observed.transition,
+                    now,
+                ),
+                _ => Claim::Unavailable,
+            };
+            match claim {
+                Claim::Won => matching.push(index),
+                Claim::Taken => submitted.claimed_elsewhere += 1,
+                Claim::Unavailable => submitted.unclaimed += 1,
+            }
+        }
+        submitted.queued = matching.len();
+        submitted.dropped = self.enqueue(matching, event);
+        submitted
     }
 
     /// Queue a run of the rule named `rule` alone for `event`, whatever its

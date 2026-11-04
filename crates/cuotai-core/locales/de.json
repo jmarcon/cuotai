@@ -788,6 +788,7 @@
   "hooks.error.changed": "Die hooks.toml hat sich seit der Anzeige geändert; prüfen Sie die Regeln erneut.",
   "hooks.error.command": "Das command der Regel „{name}“ muss eine Liste von Argumenten sein, deren erstes Element ein absoluter Pfad oder ein im PATH gesuchter Name ist, etwa [\"/pfad/skript\", \"--option\"].",
   "hooks.error.consent_storage": "Die Bestätigung der Hooks konnte nicht im lokalen Datenverzeichnis gespeichert werden.",
+  "hooks.error.claims": "Hooks sind pausiert: Cuotai konnte im lokalen Datenverzeichnis nicht festhalten, welche Ausführungen es übernommen hat, daher wird kein Befehl ausgeführt.",
   "hooks.error.declined": "Hooks nicht bestätigt; nichts wurde ausgeführt.",
   "hooks.error.duplicate": "Es gibt mehr als eine Regel mit dem Namen „{name}“.",
   "hooks.error.empty": "hooks.toml enthält keine [[hooks]]-Regel.",

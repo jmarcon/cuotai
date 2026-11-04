@@ -784,6 +784,7 @@
   "hooks.error.changed": "hooks.toml は表示後に変更されました。ルールをもう一度確認してください。",
   "hooks.error.command": "ルール「{name}」の command は引数のリストで、最初の要素は絶対パスか PATH から探す名前にしてください。例：[\"/path/script\", \"--option\"]。",
   "hooks.error.consent_storage": "フックの確認をローカルのデータディレクトリに記録できませんでした。",
+  "hooks.error.claims": "フックは一時停止中です。Cuotai が引き受けた実行をローカルのデータディレクトリに記録できなかったため、コマンドは実行されません。",
   "hooks.error.declined": "フックは確認されず、何も実行されませんでした。",
   "hooks.error.duplicate": "「{name}」という名前のルールが複数あります。",
   "hooks.error.empty": "hooks.toml に [[hooks]] ルールがありません。",

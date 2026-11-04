@@ -138,12 +138,16 @@ impl Rig {
         let export = self.driver.export(&self.config, &self.identity, wall);
         let names = |events: Vec<Event>| events.into_iter().map(|e| e.event.name()).collect();
         self.tap.observe(&self.journal, &export, wall).unwrap();
-        let all = self.all.observe(&export, wall);
+        let observed = self.all.observe_transitions(&export, wall, |_, _| None);
         if let Some(hooks) = &self.hooks {
-            for event in &all {
-                assert_eq!(hooks.submit(event), 0);
+            for event in &observed {
+                assert_eq!(hooks.submit(event).dropped, 0);
             }
         }
+        let all: Vec<Event> = observed
+            .into_iter()
+            .map(|observed| observed.event)
+            .collect();
         (names(all), names(self.failures_only.observe(&export, wall)))
     }
 
@@ -324,7 +328,12 @@ async fn a_hook_runs_once_per_transition_and_its_failure_changes_nothing() {
         let _ = sender.send(run.clone());
     });
     let mut rig = Rig::new().await;
-    rig.hooks = Some(Runner::start(confirmed, None, on_run));
+    rig.hooks = Some(Runner::start_with_claims(
+        confirmed,
+        None,
+        on_run,
+        Some(crate::hooks::HookClaims::at(dir.path().join("claims.json"))),
+    ));
     let none = Vec::<&str>::new();
 
     assert_eq!(rig.at(0).await.0, none, "baseline");
@@ -347,4 +356,47 @@ async fn a_hook_runs_once_per_transition_and_its_failure_changes_nothing() {
         "refresh_failed alpha\nrefresh_recovered alpha\n"
     );
     assert!(runs.try_recv().is_err(), "no other run");
+}
+
+/// PRD 0054 RF2.2: two processes that observe the same reading seconds
+/// apart see the same transition; the next distinct reading is another one,
+/// and the payload carries no trace of it.
+#[tokio::test]
+async fn the_same_reading_is_the_same_transition_in_two_watchers() {
+    let mut rig = Rig::new().await;
+    let mut one = Watcher::new(EventState::default(), None);
+    let mut other = Watcher::new(EventState::default(), None);
+    let mut observe_both = |rig: &mut Rig, wall: DateTime<Utc>| {
+        let export = rig.driver.export(&rig.config, &rig.identity, wall);
+        let here = one.observe_transitions(&export, wall, |_, _| None);
+        let late = wall + chrono::TimeDelta::seconds(7);
+        let there = other.observe_transitions(&export, late, |_, _| None);
+        (here, there)
+    };
+    rig.at(0).await;
+    let wall = t0();
+    observe_both(&mut rig, wall);
+    rig.answer.set(wiremock::ResponseTemplate::new(500));
+    rig.at(60).await;
+    let wall = t0() + chrono::TimeDelta::seconds(60);
+    let (here, there) = observe_both(&mut rig, wall);
+    assert_eq!(here.len(), 1);
+    assert_eq!(here[0].event.event, EventKind::RefreshFailed);
+    assert_ne!(here[0].event.occurred_at, there[0].event.occurred_at);
+    assert_eq!(here[0].transition, there[0].transition);
+    let payload = serde_json::to_value(&here[0].event).unwrap();
+    assert!(payload.get("transition").is_none() && payload.get("transition_id").is_none());
+
+    rig.answer.set(remaining(13_000));
+    rig.at(120).await;
+    observe_both(&mut rig, t0() + chrono::TimeDelta::seconds(120));
+    rig.answer.set(wiremock::ResponseTemplate::new(500));
+    rig.at(180).await;
+    let wall = t0() + chrono::TimeDelta::seconds(180);
+    let (again, _) = observe_both(&mut rig, wall);
+    let failed = again
+        .iter()
+        .find(|observed| observed.event.event == EventKind::RefreshFailed)
+        .expect("failed again");
+    assert_ne!(failed.transition, here[0].transition, "a later reading");
 }

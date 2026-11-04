@@ -784,6 +784,7 @@
   "hooks.error.changed": "hooks.toml berubah sejak ditampilkan; tinjau aturannya lagi.",
   "hooks.error.command": "command aturan \"{name}\" harus berupa daftar argumen yang item pertamanya adalah jalur absolut atau nama yang dicari di PATH, seperti [\"/jalur/skrip\", \"--flag\"].",
   "hooks.error.consent_storage": "Tidak dapat mencatat konfirmasi hook di direktori data lokal.",
+  "hooks.error.claims": "Hook dijeda: Cuotai tidak dapat mencatat di direktori data lokal eksekusi mana yang diambilnya, jadi tidak ada perintah yang dijalankan.",
   "hooks.error.declined": "Hook tidak dikonfirmasi; tidak ada yang dijalankan.",
   "hooks.error.duplicate": "Ada lebih dari satu aturan bernama \"{name}\".",
   "hooks.error.empty": "hooks.toml tidak memiliki aturan [[hooks]].",

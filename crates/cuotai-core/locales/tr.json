@@ -788,6 +788,7 @@
   "hooks.error.changed": "hooks.toml gösterildikten sonra değişti; kuralları yeniden gözden geçirin.",
   "hooks.error.command": "\"{name}\" kuralının command değeri, ilk öğesi mutlak bir yol veya PATH içinde aranan bir ad olan bir argüman listesi olmalıdır, örneğin [\"/yol/betik\", \"--flag\"].",
   "hooks.error.consent_storage": "Kanca onayı yerel veri dizinine kaydedilemedi.",
+  "hooks.error.claims": "Kancalar duraklatıldı: Cuotai üstlendiği çalıştırmaları yerel veri dizinine kaydedemedi, bu yüzden hiçbir komut çalışmıyor.",
   "hooks.error.declined": "Kancalar onaylanmadı; hiçbir şey çalıştırılmadı.",
   "hooks.error.duplicate": "Birden fazla kuralın adı \"{name}\".",
   "hooks.error.empty": "hooks.toml içinde hiç [[hooks]] kuralı yok.",

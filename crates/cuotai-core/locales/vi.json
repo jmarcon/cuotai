@@ -784,6 +784,7 @@
   "hooks.error.changed": "hooks.toml đã thay đổi kể từ khi được hiển thị; hãy xem lại các quy tắc.",
   "hooks.error.command": "command của quy tắc \"{name}\" phải là danh sách đối số mà mục đầu là đường dẫn tuyệt đối hoặc tên được tìm trong PATH, ví dụ [\"/duong/dan/script\", \"--flag\"].",
   "hooks.error.consent_storage": "Không ghi lại được xác nhận hook trong thư mục dữ liệu cục bộ.",
+  "hooks.error.claims": "Hook đang tạm dừng: Cuotai không ghi lại được trong thư mục dữ liệu cục bộ những lần chạy nó đã nhận, nên không lệnh nào được chạy.",
   "hooks.error.declined": "Hook chưa được xác nhận; không chạy gì.",
   "hooks.error.duplicate": "Có nhiều hơn một quy tắc tên \"{name}\".",
   "hooks.error.empty": "hooks.toml không có quy tắc [[hooks]] nào.",

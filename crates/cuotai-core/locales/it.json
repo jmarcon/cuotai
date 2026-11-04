@@ -447,6 +447,7 @@
   "hooks.error.command": "Il comando della regola \"{name}\" deve essere un elenco di argomenti il cui primo elemento è un percorso assoluto o un nome cercato nel PATH, ad esempio [\"/path/script\", \"--flag\"].",
   "hooks.error.changed": "hooks.toml è cambiato dopo essere stato mostrato; rivedi di nuovo le regole.",
   "hooks.error.consent_storage": "Impossibile registrare la conferma degli hook nella directory dati locale.",
+  "hooks.error.claims": "Gli hook sono in pausa: Cuotai non è riuscito a registrare nella directory dati locale quali esecuzioni ha preso in carico, quindi nessun comando viene eseguito.",
   "hooks.error.declined": "Hook non confermati; nulla è stato eseguito.",
   "hooks.error.duplicate": "Più di una regola si chiama \"{name}\".",
   "hooks.error.empty": "hooks.toml non contiene nessuna regola [[hooks]].",

@@ -116,21 +116,31 @@ impl Watch {
         now: DateTime<Utc>,
         pace: &crate::notify::PaceOf,
     ) -> io::Result<bool> {
-        let events = self.watcher.observe_with(export, now, pace);
-        if events.is_empty() {
+        let observed = self.watcher.observe_transitions(export, now, pace);
+        if observed.is_empty() {
             return Ok(true);
         }
         let locale = crate::ui::tui_locale();
         if let Some(runner) = &self.hooks {
             let quiet = &mut self.quiet;
-            let dropped: usize = events
-                .iter()
-                .map(|event| runner.submit_in(event, quiet.quiet_at(event.occurred_at)))
-                .sum();
+            let (mut dropped, mut unclaimed) = (0, 0);
+            for event in &observed {
+                // PRD 0054 RF2: claimed across processes before it is queued.
+                let submitted = runner.submit_in(event, quiet.quiet_at(event.event.occurred_at));
+                dropped += submitted.dropped;
+                unclaimed += submitted.unclaimed;
+            }
             if dropped > 0 {
                 eprintln!("cuotai: {}", hooks::dropped(dropped).resolve(locale));
             }
+            if unclaimed > 0 {
+                eprintln!("cuotai: {}", hooks::claims_unavailable().resolve(locale));
+            }
         }
+        let events: Vec<Event> = observed
+            .into_iter()
+            .map(|observed| observed.event)
+            .collect();
         if self.with_hooks && !self.jsonl {
             return Ok(true);
         }

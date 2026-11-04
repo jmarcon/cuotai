@@ -784,6 +784,7 @@
   "hooks.error.changed": "hooks.toml 在显示后已更改；请重新检查规则。",
   "hooks.error.command": "规则“{name}”的 command 必须是参数列表，第一个元素是绝对路径或在 PATH 中查找的名称，例如 [\"/path/script\", \"--option\"]。",
   "hooks.error.consent_storage": "无法在本地数据目录中记录钩子的确认。",
+  "hooks.error.claims": "钩子已暂停：Cuotai 无法在本地数据目录中记录它认领的运行，因此不会执行任何命令。",
   "hooks.error.declined": "钩子未确认；未运行任何内容。",
   "hooks.error.duplicate": "有多条规则名为“{name}”。",
   "hooks.error.empty": "hooks.toml 中没有任何 [[hooks]] 规则。",

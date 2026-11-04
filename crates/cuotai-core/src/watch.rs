@@ -116,6 +116,20 @@ impl Watcher {
         now: DateTime<Utc>,
         pace: impl Fn(usize, &crate::Report) -> Option<(std::time::Duration, Vec<Vec<Point>>)>,
     ) -> Vec<Event> {
+        self.observe_transitions(export, now, pace)
+            .into_iter()
+            .map(|observed| observed.event)
+            .collect()
+    }
+
+    /// PRD 0054 RF2.2: [`Self::observe_with`] with each event's
+    /// [`Transition`], which hooks claim across processes before running.
+    pub fn observe_transitions(
+        &mut self,
+        export: &Export,
+        now: DateTime<Utc>,
+        pace: impl Fn(usize, &crate::Report) -> Option<(std::time::Duration, Vec<Vec<Point>>)>,
+    ) -> Vec<ObservedEvent> {
         let mut out = Vec::new();
         let units = export.units();
         for (next, parent) in &units {
@@ -156,6 +170,10 @@ impl Watcher {
                     self.selected
                         .as_ref()
                         .is_none_or(|selected| selected.contains(&event.event))
+                })
+                .map(|event| ObservedEvent {
+                    transition: Transition::of(&event, next),
+                    event,
                 }),
             );
         }
@@ -166,6 +184,101 @@ impl Watcher {
             .map(|(account, _)| (account.id.clone(), account))
             .collect();
         out
+    }
+}
+
+/// PRD 0054 RF2.2: an event with the identity of the transition behind it.
+/// The identity is internal: it never enters the schema-1 payload.
+#[derive(Debug, Clone)]
+pub struct ObservedEvent {
+    pub event: Event,
+    pub transition: Transition,
+}
+
+/// What makes two observations the same transition, in this process or in
+/// another one: the event kind, the account, the metric and threshold, and
+/// the instance: the window's reset time for an event about a window
+/// (matched within the reset drift tolerance), otherwise the time of the
+/// reading it came from (`Report.checked_at`, or the provider status'
+/// reading time for an incident). Never `occurred_at`, so two processes
+/// observing the same reading seconds apart agree.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Transition {
+    key: String,
+    at: DateTime<Utc>,
+    windowed: bool,
+}
+
+impl Transition {
+    /// The transition of `event`, observed in `account`'s export.
+    pub fn of(event: &Event, account: &AccountExport) -> Self {
+        let key = [
+            event.event.name().to_owned(),
+            event.account_id.clone(),
+            event.parent.clone().unwrap_or_default(),
+            event
+                .metric
+                .as_ref()
+                .map(|metric| format!("{}\u{1f}{:?}", metric.label, metric.window))
+                .unwrap_or_default(),
+            event
+                .current
+                .threshold
+                .map(|threshold| threshold.to_string())
+                .unwrap_or_default(),
+        ]
+        .join("\u{1e}");
+        let window = event
+            .metric
+            .as_ref()
+            .and(event.current.resets_at.or_else(|| {
+                event
+                    .previous
+                    .as_ref()
+                    .and_then(|previous| previous.resets_at)
+            }));
+        if let Some(at) = window {
+            return Self::windowed(key, at);
+        }
+        let reading = if event.event == EventKind::ProviderIncident {
+            account
+                .incident
+                .as_ref()
+                .and_then(|incident| incident.read_at)
+        } else {
+            account.report.as_ref().map(|report| report.checked_at)
+        };
+        Self::observed(key, reading.unwrap_or(event.occurred_at))
+    }
+
+    /// A transition identified by the reading taken at `at`.
+    pub fn observed(key: impl Into<String>, at: DateTime<Utc>) -> Self {
+        Self {
+            key: key.into(),
+            at,
+            windowed: false,
+        }
+    }
+
+    /// A transition of the window instance that resets at `at`.
+    pub fn windowed(key: impl Into<String>, at: DateTime<Utc>) -> Self {
+        Self {
+            key: key.into(),
+            at,
+            windowed: true,
+        }
+    }
+
+    pub(crate) fn key(&self) -> &str {
+        &self.key
+    }
+
+    pub(crate) fn at(&self) -> DateTime<Utc> {
+        self.at
+    }
+
+    pub(crate) fn is_windowed(&self) -> bool {
+        self.windowed
     }
 }
 
