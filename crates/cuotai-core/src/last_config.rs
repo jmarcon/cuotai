@@ -91,9 +91,9 @@ impl LastConfig {
             .any(|root| real.starts_with(root) || path.starts_with(root))
     }
 
-    /// `<dirs::data_local_dir()>/cuotai`, next to the model cache.
+    /// The data directory ([`crate::data_dir::root`]), next to the model cache.
     pub fn in_data_dir() -> Option<Self> {
-        dirs::data_local_dir().map(|d| Self::at(d.join("cuotai")))
+        crate::data_dir::root().map(Self::at)
     }
 
     /// Atomically record that `me` opened `identity` (file identities only).

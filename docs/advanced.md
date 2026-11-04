@@ -123,5 +123,6 @@ Then the interactive TUI and `--once`, when run on a terminal, read the same sig
 | `CUOTAI_STATUS=1` | Show providers' public status in the terminal and `--once` / `--json` (`--no-status` always wins). |
 | `CUOTAI_NO_ANIMATIONS=1`, `CUOTAI_ANIMATIONS=1` | Turn terminal animations off or back on (see [`tui.md`](tui.md#animations)). |
 | `CUOTAI_USER_DIR` | Folder for user themes and languages (desktop). |
+| `CUOTAI_DATA_DIR` | Absolute folder for every local store instead of `<OS local data dir>/cuotai`: the history, model cache, reset marks, local cost index and settings, prices, hook consent and logs, extensions, server token, last-config records and the desktop widget fallback (terminal and desktop; set it in both to share one profile). It is created private (`0700` on Unix); a relative path, a link, a file or another user's folder is a local error (exit `1`) and Cuotai never falls back to the OS folder. Moving it does not move existing data: copy the old folder first. |
 | `CUOTAI_UPDATE_CHECK=1` | Turn on the terminal update notice (see [Update notice](#update-notice)); `0` turns it off even when the accounts file turns it on. |
 | `CUOTAI_UPDATER=off` | Turn the desktop in-app updater off (for example for a package-manager install). |

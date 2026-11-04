@@ -172,10 +172,8 @@ impl CostIndex {
 
     /// `<OS local data dir>/cuotai/cost/cost.sqlite3`.
     pub fn in_data_dir() -> Result<Self, CostError> {
-        let dir = dirs::data_local_dir().ok_or(CostError::Storage)?;
-        Ok(Self::new(
-            dir.join("cuotai").join("cost").join("cost.sqlite3"),
-        ))
+        let dir = crate::data_dir::root().ok_or(CostError::Storage)?;
+        Ok(Self::new(dir.join("cost").join("cost.sqlite3")))
     }
 
     pub fn path(&self) -> &Path {

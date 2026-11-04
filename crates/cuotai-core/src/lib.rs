@@ -15,6 +15,7 @@ pub mod changelog;
 mod cli_path;
 pub mod config_file;
 pub mod cost;
+pub mod data_dir;
 pub mod detect;
 pub mod diagnostic;
 pub mod edit_error;

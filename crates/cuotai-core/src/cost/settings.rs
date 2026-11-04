@@ -265,8 +265,8 @@ impl SettingsStore {
 
     /// `<OS local data dir>/cuotai/cost/settings.json`.
     pub fn in_data_dir() -> Result<Self, CostError> {
-        dirs::data_local_dir()
-            .map(|dir| Self::at(dir.join("cuotai").join("cost").join("settings.json")))
+        crate::data_dir::root()
+            .map(|dir| Self::at(dir.join("cost").join("settings.json")))
             .ok_or(CostError::Settings)
     }
 

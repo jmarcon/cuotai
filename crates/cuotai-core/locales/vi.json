@@ -317,6 +317,8 @@
   "credential_help.windsurf": "Cần Enterprise với quyền Billing Read và Teams Read-Only.",
   "credential_help.xiaomi_mimo": "Số dư/Token Plan: dán phiên web platform.xiaomimimo.com vào trình hướng dẫn tài khoản (kho của hệ thống) hoặc nêu biến trong platform_session_env. Mã gốc cấp khóa suy luận, không phải cookie. Phiên tài khoản Xiaomi (session_env) là riêng: hạn mức tuần của MiMo Desktop.",
   "credential_help.zed": "ZED_ACCESS_TOKEN (token truy cập đám mây từ luồng đăng nhập gốc của zed.dev). Cũng hãy nhập user_id dạng số — nó được gửi dưới dạng `Authorization: <user_id> <token>`.",
+  "data_dir.error.relative": "CUOTAI_DATA_DIR phải là đường dẫn tuyệt đối; Cuotai không lưu dữ liệu cho đến khi nó được sửa hoặc bỏ đi.",
+  "data_dir.error.unusable": "CUOTAI_DATA_DIR phải là thư mục của chính bạn và không phải liên kết; Cuotai không lưu dữ liệu cho đến khi nó được sửa hoặc bỏ đi.",
   "detect.consent.aws_profile": "Cuotai chỉ đọc tên các hồ sơ trong ~/.aws/config khi bạn chọn hồ sơ; không đọc khóa nào.",
   "detect.consent.cursor_import": "Cuotai sẽ đọc token đăng nhập từ cơ sở dữ liệu cục bộ của Cursor một lần, để truy vấn mức sử dụng của bạn. Token được lưu trong kho thông tin xác thực của hệ thống.",
   "detect.consent.env": "Tài khoản chỉ giữ tên {variable}; giá trị không bao giờ được đọc hay lưu.",

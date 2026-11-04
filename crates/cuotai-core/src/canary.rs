@@ -533,7 +533,7 @@ impl Store {
 
     /// `<data dir>/cuotai/canary`.
     pub fn in_data_dir() -> Option<Self> {
-        dirs::data_local_dir().map(|dir| Self::new(dir.join("cuotai").join("canary")))
+        crate::data_dir::root().map(|dir| Self::new(dir.join("canary")))
     }
 
     pub fn dir(&self) -> &Path {

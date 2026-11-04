@@ -622,9 +622,9 @@ impl HistoryStore {
     /// [`ConfigFile::identity`]; front ends sharing a TOML share series.
     pub fn in_data_dir(file: &ConfigFile) -> Result<Self, HistoryError> {
         let identity = file.identity().map_err(|_| HistoryError::Storage)?;
-        let dir = dirs::data_local_dir().ok_or(HistoryError::Storage)?;
+        let dir = crate::data_dir::root().ok_or(HistoryError::Storage)?;
         Ok(Self::new(
-            dir.join("cuotai").join("history").join("history.sqlite3"),
+            dir.join("history").join("history.sqlite3"),
             &identity,
         ))
     }

@@ -78,7 +78,7 @@ fn embeds_extension() -> bool {
 
 /// `<local data>/cuotai`: the per-user directory (RF5.1).
 fn data_dir() -> Option<PathBuf> {
-    dirs::data_local_dir().map(|dir| dir.join("cuotai"))
+    cuotai_core::data_dir::root().map(|dir| dir)
 }
 
 /// The snapshot path as Settings shows it, and whether a WidgetKit extension

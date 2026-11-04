@@ -107,7 +107,7 @@ const CUOTAI_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// `<OS local data dir>/cuotai/extensions`; `None` without a data directory.
 pub fn default_dir() -> Option<PathBuf> {
-    dirs::data_local_dir().map(|dir| dir.join("cuotai").join("extensions"))
+    crate::data_dir::root().map(|dir| dir.join("extensions"))
 }
 
 /// One valid extension, as its manifest declares it.

@@ -47,7 +47,7 @@ impl Store {
 
     #[cfg_attr(test, allow(dead_code))]
     pub(crate) fn default_dir() -> Option<PathBuf> {
-        dirs::data_local_dir().map(|dir| dir.join("cuotai").join("metered"))
+        crate::data_dir::root().map(|dir| dir.join("metered"))
     }
 
     /// The record of `account`, named after a digest of its stable id

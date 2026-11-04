@@ -551,9 +551,9 @@ impl ModelCache {
     /// The store owns its directory, so making it private touches nothing else.
     pub fn in_data_dir(file: &ConfigFile) -> Result<Self, ModelError> {
         let identity = file.identity().map_err(|_| ModelError::Storage)?;
-        let dir = dirs::data_local_dir().ok_or(ModelError::Storage)?;
+        let dir = crate::data_dir::root().ok_or(ModelError::Storage)?;
         Ok(Self::new(
-            dir.join("cuotai").join("models").join("models.sqlite3"),
+            dir.join("models").join("models.sqlite3"),
             &identity,
         ))
     }

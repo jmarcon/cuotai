@@ -317,6 +317,8 @@
   "credential_help.windsurf": "Billing Read 및 Teams Read-Only 권한이 있는 Enterprise가 필요합니다.",
   "credential_help.xiaomi_mimo": "잔액/Token Plan: platform.xiaomimimo.com의 웹 세션을 계정 마법사에 붙여 넣거나(시스템 보관소) platform_session_env에 변수 이름을 지정하세요. 기본 코드는 쿠키가 아니라 추론 키를 줍니다. Xiaomi 계정 세션(session_env)은 별개이며 MiMo Desktop의 주간 할당량용입니다.",
   "credential_help.zed": "ZED_ACCESS_TOKEN(zed.dev 기본 로그인 흐름의 클라우드 액세스 토큰)입니다. 숫자 user_id도 입력하세요. `Authorization: <user_id> <token>`으로 전송됩니다.",
+  "data_dir.error.relative": "CUOTAI_DATA_DIR은(는) 절대 경로여야 합니다. 수정하거나 제거할 때까지 Cuotai는 데이터를 보관하지 않습니다.",
+  "data_dir.error.unusable": "CUOTAI_DATA_DIR은(는) 링크가 아닌 본인 소유의 폴더여야 합니다. 수정하거나 제거할 때까지 Cuotai는 데이터를 보관하지 않습니다.",
   "detect.consent.aws_profile": "Cuotai는 프로필을 고를 때 ~/.aws/config의 프로필 이름만 읽으며 키는 읽지 않습니다.",
   "detect.consent.cursor_import": "Cuotai는 사용량을 조회하기 위해 로컬 Cursor 데이터베이스의 로그인 토큰을 한 번 읽습니다. 토큰은 시스템 자격 증명 보관소에 저장됩니다.",
   "detect.consent.env": "계정에는 {variable} 이름만 저장되며 값은 읽거나 기록하지 않습니다.",

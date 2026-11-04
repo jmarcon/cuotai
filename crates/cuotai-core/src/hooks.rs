@@ -992,8 +992,8 @@ impl Consent {
     /// `<OS local data dir>/cuotai/hooks/consent.json`; without a local
     /// data directory nothing can be confirmed.
     pub fn in_data_dir() -> Result<Self, Localized> {
-        dirs::data_local_dir()
-            .map(|dir| Self::at(dir.join("cuotai").join("hooks").join("consent.json")))
+        crate::data_dir::root()
+            .map(|dir| Self::at(dir.join("hooks").join("consent.json")))
             .ok_or_else(consent_storage)
     }
 
@@ -1175,8 +1175,7 @@ impl RunLog {
 
     /// `<OS local data dir>/cuotai/hooks/runs.log`.
     pub fn in_data_dir() -> Option<Self> {
-        dirs::data_local_dir()
-            .map(|dir| Self::at(dir.join("cuotai").join("hooks").join("runs.log")))
+        crate::data_dir::root().map(|dir| Self::at(dir.join("hooks").join("runs.log")))
     }
 
     pub fn path(&self) -> &Path {
@@ -1237,7 +1236,7 @@ impl RunLog {
 /// of every hook, created `0700` on Unix when a hook first runs. `None`
 /// without a local data directory, and then no hook starts.
 pub fn work_dir() -> Option<PathBuf> {
-    dirs::data_local_dir().map(|dir| dir.join("cuotai").join("hooks").join("work"))
+    crate::data_dir::root().map(|dir| dir.join("hooks").join("work"))
 }
 
 /// Called after each run with the run and, when its log line could not be

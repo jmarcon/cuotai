@@ -316,6 +316,8 @@
   "credential_help.windsurf": "Requer Enterprise com permissões Billing Read e Teams Read-Only.",
   "credential_help.xiaomi_mimo": "Saldo/Token Plan: cole a sessão web de platform.xiaomimimo.com no assistente da conta (cofre do sistema) ou nomeie a variável em platform_session_env. O código nativo entrega chave de inferência, não cookie. A sessão da conta Xiaomi (session_env) é separada: quota semanal do MiMo Desktop.",
   "credential_help.zed": "ZED_ACCESS_TOKEN (cloud access token do fluxo de login nativo zed.dev). Informe também o user_id numérico — é enviado como `Authorization: <user_id> <token>`.",
+  "data_dir.error.relative": "CUOTAI_DATA_DIR precisa ser um caminho absoluto; o Cuotai não guarda dados até ele ser corrigido ou removido.",
+  "data_dir.error.unusable": "CUOTAI_DATA_DIR precisa ser uma pasta sua que não seja um link; o Cuotai não guarda dados até ele ser corrigido ou removido.",
   "detect.consent.aws_profile": "O Cuotai vai ler só os nomes dos perfis em ~/.aws/config quando você escolher o perfil; nenhuma chave é lida.",
   "detect.consent.cursor_import": "O Cuotai vai ler uma vez o token de login do banco local do Cursor, para consultar seu uso. Ele fica guardado no cofre de credenciais do sistema.",
   "detect.consent.env": "A conta guardará só o nome {variable}; o valor nunca é lido nem gravado.",

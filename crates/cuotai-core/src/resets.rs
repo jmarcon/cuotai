@@ -387,7 +387,7 @@ struct Notified {
 impl Ledger {
     /// `<OS local data dir>/cuotai/notified.json`.
     pub fn default_path() -> Option<PathBuf> {
-        dirs::data_local_dir().map(|dir| dir.join("cuotai").join("notified.json"))
+        crate::data_dir::root().map(|dir| dir.join("notified.json"))
     }
 
     /// A missing file is an empty ledger. A file that cannot be parsed is
