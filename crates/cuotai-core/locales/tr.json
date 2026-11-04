@@ -1581,6 +1581,7 @@
   "serve.token.default_file": "{path} içinde erişim jetonu (yalnızca kullanıcınız okuyabilir): Authorization: Bearer olarak gönderin; --no-token kapatır.",
   "serve.token.file_exposed": "Uyarı: bu bilgisayarın diğer kullanıcıları jeton dosyasını okuyabilir; chmod 600 ile kısıtlayın.",
   "serve.token.none_warning": "Uyarı: jeton olmadan, bu bilgisayardaki herhangi bir kullanıcı veya program kullanımınızı yerel sunucudan okuyabilir (yalnızca web sayfaları ve diğer bilgisayarlar yine reddedilir).",
+  "state.error.newer_major_history": "Yerel geçmiş, biçimini değiştiren daha yeni bir Cuotai sürümü tarafından yazıldı; olduğu gibi korunuyor. Kullanmak için Cuotai'yi güncelleyin.",
   "stats.history_kept": "Geçmiş bu cihazda {days} gün saklanıyor",
   "stats.not_enough": "Geçmiş yeterli değil",
   "status.authentication_error": "Kimlik doğrulama",

@@ -1572,6 +1572,7 @@
   "serve.token.default_file": "访问令牌位于 {path}（只有您的用户可以读取）：以 Authorization: Bearer 发送；--no-token 可将其关闭。",
   "serve.token.file_exposed": "注意：此电脑上的其他用户可以读取该令牌文件；请用 chmod 600 限制权限。",
   "serve.token.none_warning": "注意：没有令牌时，此电脑上的任何用户或程序都可以在本地服务器上读取您的用量（只有网页和其他电脑仍会被拒绝）。",
+  "state.error.newer_major_history": "本地历史由更改了格式的更新版本 Cuotai 写入，因此保持原样。请更新 Cuotai 后使用。",
   "stats.history_kept": "历史在此设备上保留 {days} 天",
   "stats.not_enough": "历史不足",
   "status.authentication_error": "认证",

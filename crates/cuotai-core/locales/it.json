@@ -1089,6 +1089,7 @@
   "remove_error.purge_vault.network": "Errore di rete durante la pulizia del vault.",
   "remove_error.purge_vault.storage": "Impossibile ripulire il vault: {detail}",
   "remove_error.save": "Salvataggio della configurazione non riuscito: {detail}.",
+  "state.error.newer_major_history": "La cronologia locale è stata scritta da una versione più recente di Cuotai che ne ha cambiato il formato; resta intatta. Aggiorna Cuotai per usarla.",
   "status.authentication_error": "Autenticazione",
   "status.error": "Errore",
   "status.needs_configuration": "Da configurare",

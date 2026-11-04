@@ -1572,6 +1572,7 @@
   "serve.token.default_file": "Token truy cập trong {path} (chỉ người dùng của bạn đọc được): hãy gửi dưới dạng Authorization: Bearer; --no-token sẽ tắt nó.",
   "serve.token.file_exposed": "Cảnh báo: những người dùng khác trên máy tính này đọc được tệp token; hãy hạn chế bằng chmod 600.",
   "serve.token.none_warning": "Cảnh báo: không có token, bất kỳ người dùng hay chương trình nào trên máy tính này đều đọc được mức sử dụng của bạn từ máy chủ cục bộ (chỉ trang web và máy tính khác vẫn bị từ chối).",
+  "state.error.newer_major_history": "Lịch sử cục bộ được ghi bởi phiên bản Cuotai mới hơn đã đổi định dạng; nó được giữ nguyên. Hãy cập nhật Cuotai để dùng.",
   "stats.history_kept": "Lịch sử được giữ {days} ngày trên thiết bị này",
   "stats.not_enough": "Chưa đủ lịch sử",
   "status.authentication_error": "Xác thực",

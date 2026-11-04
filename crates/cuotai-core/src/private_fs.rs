@@ -215,6 +215,127 @@ pub(crate) fn update_locked_with<E>(
     Ok(())
 }
 
+/// PRD 0051 RF3.1: the version of a local-state contract. A `major` change
+/// alters what an older reader would understand; a `revision` only adds
+/// (columns, tables, members) and an older reader of the same major keeps
+/// reading and writing what it knows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct StateVersion {
+    pub major: u32,
+    pub revision: u32,
+}
+
+/// How a file's [`StateVersion`] relates to the one this release writes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StateCompatibility {
+    Current,
+    /// Written by an older release; this one migrates it (with a `.bak`).
+    Older,
+    /// Same major, later revision: readable and writable as is.
+    NewerRevision,
+    /// A later major: refused read-only, never rewritten.
+    NewerMajor,
+}
+
+impl StateVersion {
+    pub fn compatibility(self, ours: StateVersion) -> StateCompatibility {
+        use std::cmp::Ordering::*;
+        match (
+            self.major.cmp(&ours.major),
+            self.revision.cmp(&ours.revision),
+        ) {
+            (Greater, _) => StateCompatibility::NewerMajor,
+            (Less, _) | (Equal, Less) => StateCompatibility::Older,
+            (Equal, Equal) => StateCompatibility::Current,
+            (Equal, Greater) => StateCompatibility::NewerRevision,
+        }
+    }
+}
+
+/// The schema major of every SQLite store this release writes.
+pub(crate) const SQLITE_MAJOR: i64 = 1;
+
+/// PRD 0051 RF3.1: the one-row-per-key `state_meta` table beside
+/// `PRAGMA user_version` (which stays the append-only migration count).
+/// It is created without a `user_version` step, so a release that predates
+/// it ignores it.
+const STATE_META: &str = "CREATE TABLE IF NOT EXISTS state_meta (
+    key TEXT PRIMARY KEY,
+    value INTEGER NOT NULL
+) WITHOUT ROWID;
+INSERT OR IGNORE INTO state_meta (key, value) VALUES ('major', 1);";
+
+/// The `major` recorded in `state_meta`, `None` when the table or the row
+/// is missing (a file written before this release).
+pub(crate) fn sqlite_major(db: &rusqlite::Connection) -> rusqlite::Result<Option<i64>> {
+    let exists: bool = db.query_row(
+        "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'state_meta')",
+        [],
+        |row| row.get(0),
+    )?;
+    if !exists {
+        return Ok(None);
+    }
+    match db.query_row(
+        "SELECT value FROM state_meta WHERE key = 'major'",
+        [],
+        |row| row.get(0),
+    ) {
+        Ok(major) => Ok(Some(major)),
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
+/// Record this release's major in `state_meta` when the file has none.
+pub(crate) fn ensure_sqlite_meta(db: &rusqlite::Connection) -> rusqlite::Result<()> {
+    if sqlite_major(db)?.is_none() {
+        db.execute_batch(STATE_META)?;
+    }
+    Ok(())
+}
+
+/// `<file>.bak` beside the database `path`.
+pub(crate) fn backup_path(path: &Path) -> std::path::PathBuf {
+    let mut name = path.file_name().unwrap_or_default().to_os_string();
+    name.push(".bak");
+    path.with_file_name(name)
+}
+
+/// PRD 0051 RF3.3: before a migration, replace `<file>.bak` with a
+/// consistent copy of the database as it is now. `VACUUM INTO` reads one
+/// snapshot through SQLite (WAL included), never the raw main file; the
+/// copy is written to a temporary name, made `0600`, synced, renamed over
+/// the previous backup and the directory synced. A failure leaves the
+/// previous backup and the database untouched, and the caller does not
+/// migrate.
+pub(crate) fn sqlite_backup(db: &rusqlite::Connection, path: &Path) -> io::Result<()> {
+    let dir = path
+        .parent()
+        .filter(|dir| !dir.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    let target = backup_path(path);
+    let (prefix, suffix) = temp_affixes(&target);
+    let tmp = tempfile::Builder::new()
+        .prefix(&prefix)
+        .suffix(suffix)
+        .tempfile_in(dir)?
+        .into_temp_path();
+    // `VACUUM INTO` refuses an existing file.
+    std::fs::remove_file(&tmp)?;
+    let destination = tmp.to_str().ok_or_else(|| io::Error::other("path"))?;
+    db.execute("VACUUM INTO ?1", [destination])
+        .map_err(io::Error::other)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600))?;
+    }
+    std::fs::File::open(&tmp)?.sync_all()?;
+    tmp.persist(&target).map_err(|error| error.error)?;
+    sync_dir(dir)
+}
+
 /// On Unix, whether the group or other users may write what `meta`
 /// describes. Always `false` elsewhere (ACLs are out of scope).
 pub(crate) fn writable_by_others(meta: &Metadata) -> bool {
@@ -342,6 +463,20 @@ mod update_tests {
             map.insert(key, serde_json::Value::Bool(true));
             Ok(serde_json::to_vec(&map).unwrap())
         })
+    }
+
+    #[test]
+    fn state_versions_compare_by_major_then_revision() {
+        let ours = StateVersion {
+            major: 1,
+            revision: 2,
+        };
+        let at = |major, revision| StateVersion { major, revision }.compatibility(ours);
+        assert_eq!(at(1, 2), StateCompatibility::Current);
+        assert_eq!(at(1, 1), StateCompatibility::Older);
+        assert_eq!(at(0, 9), StateCompatibility::Older);
+        assert_eq!(at(1, 7), StateCompatibility::NewerRevision);
+        assert_eq!(at(2, 0), StateCompatibility::NewerMajor);
     }
 
     #[test]

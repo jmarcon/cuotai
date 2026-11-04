@@ -567,9 +567,16 @@ impl ModelCache {
         match tx.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))? {
             0 => tx.execute_batch(SCHEMA)?,
             SCHEMA_VERSION => {}
-            // Written by a newer Cuotai: never guess its layout.
+            // PRD 0051 RF3: a later revision of the same major only added
+            // to the layout; it stays usable.
+            version
+                if version > SCHEMA_VERSION
+                    && crate::private_fs::sqlite_major(&tx)?
+                        == Some(crate::private_fs::SQLITE_MAJOR) => {}
+            // Written by a newer Cuotai with another layout: never guess it.
             _ => return Err(ModelError::Storage),
         }
+        crate::private_fs::ensure_sqlite_meta(&tx)?;
         tx.commit()?;
         Ok(db)
     }
