@@ -94,6 +94,12 @@ Every change reaches `main` through a pull request whose `CI result` check is gr
 6. **Wait for `CI result`** with `gh pr checks --watch`. To fix a red check, push new commits, or amend your own branch (`git commit --amend`, then `git push --force-with-lease`). `git rebase -i` is not available; reword older commits with `git rebase --exec`.
 7. **Merge.** The owner merges with **Rebase and merge**, which keeps each commit and its trailers. Merge yourself only when the user asks (`gh pr merge --rebase`, or `--auto --rebase`).
 8. **Releases** happen only when the owner asks for one. The owner, or an agent that follows "Release & tag rules for agents" below, runs `cargo xtask release prepare --branch` on an up-to-date `main`, opens the release PR and, after the merge, creates and pushes the tag with `cargo xtask release tag [--rc]`. See `docs/releasing.md`.
+9. **Free the disk.** Every worktree builds its own `target/` (10 to 40 GB with the desktop), so finished work fills the disk fast. When you finish a task (a PR merged or closed, a release published, an agent's work handed back), clean up:
+   - Remove your worktree with `git worktree remove <path>` once its branch is merged or abandoned and `git status --porcelain` is empty. Never pass `--force` or remove a worktree with uncommitted changes, commits not on `origin/main` (`git cherry origin/main HEAD` lists them with `+`), or another agent still at work in it. Run `git worktree prune` afterwards.
+   - Keeping a worktree, delete its build output: `target/` and `apps/desktop/src-tauri/target/`. Cargo rebuilds them.
+   - Delete the CodeQL databases you made: `$CUOTAI_CODEQL_DIR` or `$TMPDIR/cuotai-codeql.*`.
+   - Check the free space with `df -h .`. Below 50 GB, also run `cargo clean` in the main checkout; it removes only build output. Then tell the owner what you freed.
+   - Never delete `cuotai.toml`, `cuotai-dev.sqlite3`, `.env*`, the OS data folders of Cuotai or anything outside build output and your own worktrees.
 
 **Never:**
 
