@@ -48,9 +48,11 @@ export function metricCardHtml(r, m, { eye = false, stale = false } = {}) {
   // "Resets 20:32 · in 2h 11m" (mono, muted) on the right. Counts and the expected share live in the tooltips.
   const paceTip = pace ? [tl(pace.label), t("metric.pace.expected", { pct: Math.round(pace.expected_used_fraction * 100) }), pace.outlook ? tl(pace.outlook) : "", t("card.pace.estimate")].filter(Boolean).join(". ") : "";
   const resetText = reset && !renewed ? (m.resets_label ? tl(m.resets_label) : t("metric.resetsAt", { when: reset })) : "";
-  return `<div class="metric ${hid ? "muted" : ""} ${binding ? "binding" : ""} ${m.alert?.active ? "usage-alert" : ""}" title="${esc(fmtAmount(m))}">
+  // PRD 0041 RF2: a budget quota is the person's number, labelled as such on every surface (never a provider limit).
+  const budget = m.budget_badge ? tl(m.budget_badge) : "";
+  return `<div class="metric ${hid ? "muted" : ""} ${binding ? "binding" : ""} ${budget ? "budget" : ""} ${m.alert?.active ? "usage-alert" : ""}" title="${esc(fmtAmount(m))}">
     <div class="metric-top">
-      <h3>${esc(limitLabel(r, m))}${binding ? ` <span class="btag" data-binding-chip title="${esc(`${t("card.binding.title")}: ${bindingChipText(r)}`)}">${te("binding.tag")}</span>` : ""}</h3>
+      <h3>${esc(limitLabel(r, m))}${budget ? ` <span class="btag budget" data-budget-chip>${esc(budget)}</span>` : ""}${binding ? ` <span class="btag" data-binding-chip title="${esc(`${t("card.binding.title")}: ${bindingChipText(r)}`)}">${te("binding.tag")}</span>` : ""}</h3>
       <div class="metric-right">
         ${text == null && pct != null ? `<span class="pct" title="${te(`metric.level.${lv}`, { pct: Math.round(pct) })}">${Math.round(pct)}%<small>${te("card.available")}</small></span>` : ""}
         ${eye ? metricAlertHtml(r, m) : ""}
@@ -59,8 +61,27 @@ export function metricCardHtml(r, m, { eye = false, stale = false } = {}) {
     </div>
     ${gauge}
     ${pace || resetText ? `<div class="metric-meta">${pace ? `<span class="pace-line" data-pace="${esc(pace.stage)}" title="${esc(paceTip)}">${icon({ good: "check", neutral: "clock", warn: "warn", bad: "xcircle" }[pace.tone] ?? "clock", pace.tone)}<span>${esc(tl(pace.label))}</span></span>` : "<span></span>"}${resetText ? `<span class="resets">${esc(resetText)}</span>` : ""}</div>` : ""}
+    ${stale || !m.allowance ? "" : `<p class="sub allowance-line" data-allowance title="${te("card.pace.estimate")}">${icon("clock")}<span>${esc(tl(m.allowance))}</span></p>`}
+    ${stale ? "" : floorLinesHtml(r, m)}
     ${stale ? "" : forecastHtml(m, r)}
+    ${eye && !stale ? budgetActionsHtml(r, m) : ""}
     ${m.alert?.missed ? `<div class="resets missed" data-missed>${icon("clock")}<span>${te("alerts.missed", { percent: m.alert.missed })}</span></div>` : ""}
+  </div>`;
+}
+
+/** PRD 0041 RF3.2: the floor line under a balance ("Floor $10.00 · $3.20 left"), in the floor's role. */
+function floorLinesHtml(r, m) {
+  return (r.floors ?? []).filter((f) => f.label === m.label).map((f) =>
+    `<p class="sub floor-line ${f.role === "ok" ? "" : f.role}" data-floor>${icon(f.role === "ok" ? "check" : "warn", f.role === "ok" ? "" : f.role)}<span>${esc(tl(f.line))}</span></p>`).join("");
+}
+
+/** PRD 0041 RF5.3: "Set a budget…" / "Set a floor…" where the core offers them (details dialog only). */
+function budgetActionsHtml(r, m) {
+  const i = r.metrics.indexOf(m);
+  if (i < 0 || (!m.budget_draft && !m.offers_floor)) return "";
+  return `<div class="metric-actions">
+    ${m.budget_draft ? `<button type="button" class="btn sm" data-set-budget="${i}">${te("budget.action.set_budget")}</button>` : ""}
+    ${m.offers_floor ? `<button type="button" class="btn sm" data-set-floor="${i}">${te("budget.action.set_floor")}</button>` : ""}
   </div>`;
 }
 
@@ -86,7 +107,9 @@ export function detailHtml(r, { eye = false, action = eye } = {}) {
     return `<div class="detail">${incident}<div class="call ${tone}">${icon(r.status === "authentication_error" ? "key" : r.status === "ready" ? "info" : "alert")}<div>${esc(causeText(r))}</div></div>${reading}${rest}</div>`;
   }
   const metrics = eye ? r.metrics : r.metrics.filter((m) => !isMetricHidden(r, m));
-  return `<div class="detail">${incident}${overageDetailHtml(r)}${scopeBlocksHtml(r)}${metrics.map((m) => metricCardHtml(r, m, { eye })).join("")}${reading}${notes.map((n) => `<p class="note">${esc(n)}</p>`).join("")}</div>`;
+  // PRD 0043 RF2.2: the limit changes of the last 48 h, as silent notes.
+  const changes = (r.limit_notes ?? []).map((n) => `<p class="note limit-note" data-limit-note>${icon("info")}<span>${esc(tl(n))}</span></p>`).join("");
+  return `<div class="detail">${incident}${overageDetailHtml(r)}${scopeBlocksHtml(r)}${changes}${metrics.map((m) => metricCardHtml(r, m, { eye })).join("")}${reading}${notes.map((n) => `<p class="note">${esc(n)}</p>`).join("")}</div>`;
 }
 
 // ---------- modelos (PRD 0002 RF6) ----------

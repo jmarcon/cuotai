@@ -8,6 +8,7 @@ import { errorText, group } from "./common.js";
 import { uiPath } from "../util.js";
 import { buttons, disc, row, rowError, select, seg, sw, toast } from "./rows.js";
 import { bindQuiet, quietHtml } from "./quiet.js";
+import { bindInsights, insightsHtml } from "./insights.js";
 
 export { quietDaysHtml, quietSummary } from "./quiet.js";
 
@@ -50,6 +51,7 @@ export function html({ settings: s }) {
       + row({ key: "private", label: te("settings.notify.private"), info: te("settings.notify.privateHelp"),
         control: (x) => sw("notify-private", n.private, x) }))
     + quietHtml(s.quiet)
+    + insightsHtml(n)
     + row({ key: "test", label: te("settings.notify.test"), info: te("settings.notify.accounts"), msg: "notify-msg", msgRole: "status",
       control: () => buttons(`<button class="btn" data-notify-test aria-labelledby="test-label" ${n.enabled || a.enabled || lead != null ? "" : "disabled"}>${icon("bell")}</button>`),
       body: disc("notify-preview", te("settings.notify.preview"), previewHtml()) }), "data-notify");
@@ -111,6 +113,7 @@ export function bind(root, ctx) {
   bindAlertOptions(root, ctx, s, deps);
   bindPrivate(root, ctx);
   bindQuiet(root, ctx, s.quiet);
+  bindInsights(root, ctx);
   test.onclick = () =>
     sendTestNotification(t("notify.test.title"), t("notify.test.body")).then(
       () => { rowError(test, ""); toast(t("settings.notify.testSent")); },

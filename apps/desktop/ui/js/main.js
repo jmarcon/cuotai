@@ -142,6 +142,8 @@ function card(r, ctx, recharging = false, { connection = false } = {}) {
     connection ? connectionChips(r) : "",
     recharging ? `<span class="mini bad" data-return>${icon("clock")}<span class="mini-t">${esc(returnText(r))}</span></span>` : "",
     stale || hasExtraColumn(r) ? "" : overageChipHtml(r),
+    // PRD 0041 RF3.2: "Balance low · $3.20 left" (warn; bad at or below a quarter of the floor).
+    ...(stale ? [] : (r.floors ?? []).filter((f) => f.chip).map((f) => `<span class="mini ${f.role}" data-floor-chip title="${esc(tl(f.line))}">${icon("warn")}<span class="mini-t">${esc(tl(f.chip))}</span></span>`)),
     missedLevel ? `<span class="mini info" data-missed-chip title="${te("alerts.missed", { percent: missedLevel })}">${icon("clock")}<span class="mini-t">${te("alerts.missedChip")}</span></span>` : "",
     r.session_expiry ? `<span class="mini ${r.session_expiry.soon ? "warn" : ""}" data-session-expiry title="${esc(tl(r.session_expiry.label))}">${icon("clock")}<span class="mini-t">${esc(tl(r.session_expiry.label))}</span></span>` : "",
     rate != null && level(rate) !== "good" ? `<span class="mini ${level(rate)}" title="${te("card.rateLimit", { pct: Math.round(rate) })}">${icon("gauge")}${Math.round(rate)}%</span>` : "",
@@ -355,6 +357,9 @@ const editAccount = (index) =>
   isExtensionAccount(index) ? openExtensionManager() : openAccountDialog(index, { onSaved });
 /** SES-01: "Paste a new session" opens the account's editor on its paste box. */
 const pasteSession = (index) => openAccountDialog(index, { onSaved, pasteSession: true });
+/** PRD 0041 RF5.3: "Set a budget…" / "Set a floor…" open the editor at the budgets section with the core's draft row. */
+const setBudget = (index, draft) => openAccountDialog(index, { onSaved, budgetDraft: draft });
+const setFloor = (index, draft) => openAccountDialog(index, { onSaved, floorDraft: draft });
 
 const detailsContext = {
   // PRD 0036 RF8.5: a connection's details are found by its own key.
@@ -371,6 +376,8 @@ const detailsContext = {
   historyEpoch: () => store.view?.history_epoch ?? 0,
   onEdit: editAccount,
   onPasteSession: pasteSession,
+  onSetBudget: setBudget,
+  onSetFloor: setFloor,
   onRemove: async (index, label) => {
     // PRD 0028 RF7.4: an extension account whose vault holds secrets offers to delete them too.
     let secretsOf = null;

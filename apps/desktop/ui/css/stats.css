@@ -245,6 +245,35 @@
   font-weight: 700;
 }
 
+/* PRD 0043 RF4.1: the Rhythm card: three compact charts on the same bars (relative scale, no 0-100 axis). */
+.rhythm {
+  margin: var(--space-3) 0 0;
+}
+.rhythm figcaption {
+  margin-bottom: var(--space-1);
+}
+.rhythm-bars {
+  height: 90px;
+  padding: var(--space-1) 0 var(--space-5);
+}
+.rhythm-bars ul {
+  gap: var(--space-0);
+}
+.rhythm-bars .off .bar {
+  opacity: 0.45;
+}
+.rhythm-bars .off .x-label {
+  opacity: 0.6;
+}
+.rhythm-bars .x-reset {
+  position: absolute;
+  top: calc(100% + var(--space-3));
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--fg-muted);
+  font: var(--text-2xs) var(--font-mono), var(--font-script);
+}
+
 /* By account rows (DS-CHT-7) and the journal share the list container (DS-CMP-LIST-1). */
 .st-list {
   margin: 0;

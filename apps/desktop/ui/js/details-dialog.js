@@ -121,6 +121,16 @@ export function openDetails(key, context, from = null) {
       if (handleConnectionAction(t, () => { if (t.closest("[data-conn-flag=hidden]")) dlg.close(); ctx.onConnectionChange?.(); }, (x) => ctx.onError?.(x))) return;
       const each = t.closest("[data-pool-each]");
       if (each) return ctx.onPoolAlerts?.(each.dataset.poolEach, each.checked);
+      // PRD 0041 RF5.3: a quick budget or floor on this metric, in the account editor.
+      const budget = t.closest("[data-set-budget],[data-set-floor]");
+      if (budget) {
+        const rep = r();
+        const m = rep?.metrics?.[Number(budget.dataset.setBudget ?? budget.dataset.setFloor)];
+        dlg.close();
+        if (!rep || !m) return;
+        if (budget.dataset.setBudget != null) return ctx.onSetBudget?.(rep.index, m.budget_draft);
+        return ctx.onSetFloor?.(rep.index, { kind: m.kind === "balance" ? "balance" : "credits", amount: 0, unit: m.unit || undefined });
+      }
       if (t.closest("[data-edit]")) { const rep = r(); dlg.close(); if (rep) ctx.onEdit(rep.index); }
       // SES-01: straight to the account's paste box.
       else if (t.closest("[data-paste-session]")) { const rep = r(); dlg.close(); if (rep) ctx.onPasteSession(rep.index); }

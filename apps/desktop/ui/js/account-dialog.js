@@ -8,6 +8,7 @@ import {
   reportKey, saveAccount, captureSession, cancelSessionCapture, forgetSharedCapture, sessionCaptureHintHtml, sessionNoticeHtml, testAggregator, testSession, validMonogram, visibleFields,
 } from "./lib.js";
 import { mountModels } from "./detail.js";
+import { mountBudgets } from "./budgets-editor.js";
 import { entryChips, mountPicker, pickerHtml } from "./provider-picker.js";
 import { t, te, tl } from "./i18n.js";
 import { showDialog } from "./motion.js";
@@ -21,7 +22,7 @@ function open(html) {
   return dlg;
 }
 
-export async function openAccountDialog(index = null, { onSaved = () => {}, pasteSession = false, onExtension = null } = {}) {
+export async function openAccountDialog(index = null, { onSaved = () => {}, pasteSession = false, onExtension = null, budgetDraft = null, floorDraft = null } = {}) {
   // RF4: cheap external-change detection. If the file on disk
   // changed since the last view render, give the user a chance to
   // reload BEFORE they spend time editing the now-stale draft.
@@ -103,6 +104,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     <label class="f" data-field="interval"><span>${te("dialog.interval")}</span><input name="interval" inputmode="numeric" placeholder="${te("dialog.intervalPlaceholder")}" value="${esc(existing?.interval ?? "")}" /><small class="field-err" hidden></small></label>
     <label class="f" data-field="group"><span>${te("dialog.group")}</span><input name="group" autocomplete="off" maxlength="32" spellcheck="false" placeholder="${te("dialog.groupPlaceholder")}" value="${esc(existing?.group ?? "")}" /><small class="field-hint">${te("dialog.groupHint")}</small><small class="field-err" hidden></small></label>
     <label class="f" data-field="monogram"><span>${te("dialog.monogram")}</span><input name="monogram" autocomplete="off" spellcheck="false" size="4" placeholder="${te("dialog.monogramPlaceholder")}" value="${esc(existing?.monogram ?? "")}" aria-describedby="monogram-hint" /><small class="field-hint" id="monogram-hint">${te("dialog.monogramHint")}</small><small class="field-err" hidden></small></label>
+    <div id="budgets-host"></div>
     <p class="cost-advisory" id="cost-warn" hidden></p>
     <p class="cost-advisory" id="choice-notice" role="status" aria-live="polite" hidden></p>
     <div id="models-host"></div>
@@ -111,6 +113,10 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     <div class="dlg-actions"><button type="button" class="btn" data-cancel>${te("common.cancel")}</button><button type="submit" class="btn primary" id="ok" ${editing ? "" : "hidden"}>${te("common.save")}</button></div>
   </form>`);
   const form = dlg.querySelector("form");
+  // PRD 0041 RF5.1: the person's budgets and floors (the core checks every row; untouched, the account keeps its own).
+  const budgetsEditor = mountBudgets(dlg.querySelector("#budgets-host"), {
+    provider, budgets: existing?.budgets ?? [], floors: existing?.floors ?? [], budgetDraft, floorDraft,
+  });
   const dyn = dlg.querySelector("#dyn");
   const dynAuth = dlg.querySelector("#dyn-auth");
   const dynFields = dlg.querySelector("#dyn-fields");
@@ -1129,6 +1135,8 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       authParams: loginDone() ? loginState.params : {},
       // PRD 0047 G2: blank or absent keeps the stored secret.
       secrets: mode ? typedSecrets().filter((x) => x.slot !== "credential_env") : typedSecrets(),
+      // PRD 0041 RF5.1: only when the section was touched; absent, the saved account keeps its lists.
+      ...(budgetsEditor.rows() ?? {}),
     };
   }
   dlg.querySelector("[data-cancel]").addEventListener("click", () => {
@@ -1303,6 +1311,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       return;
     }
     provider = entry.provider;
+    budgetsEditor.setProvider(provider);
     schema = await formSchema(provider);
     catalogModes = await providerModes(provider).catch(() => []);
     values.clear();
