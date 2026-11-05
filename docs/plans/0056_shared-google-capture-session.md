@@ -16,7 +16,7 @@
 
 | Item | Version | Delivery |
 |---|---|---|
-| RF1–RF9, RNF1–RNF5 | vNEXT | Delivered on `feat/shared-google-capture-session`: the core's `SharedSignIn` declaration on the four captures that offer Google, the desktop's shared window (state machine, parking with cookie reduction, idle limit, exit, forget), in-place Google popups, the dialog hints and "Forget the Google sign-in" in the 14 desktop catalogs, and the docs. The lifecycle was verified with unit tests and Tauri's mock runtime only (no real webview, no real account, no real cookie store); the owner's live check on macOS (§9) is pending. |
+| RF1–RF9, RNF1–RNF5 | 0.83.0 | Delivered on `feat/shared-google-capture-session`: the core's `SharedSignIn` declaration on the four captures that offer Google, the desktop's shared window (state machine, parking with cookie reduction, idle limit, exit, forget), in-place Google popups, the dialog hints and "Forget the Google sign-in" in the 14 desktop catalogs, and the docs. The lifecycle was verified with unit tests and Tauri's mock runtime only (no real webview, no real account, no real cookie store); the owner's live check on macOS (§9) is pending. |
 
 ## 1. Owner request (2026-11-04)
 

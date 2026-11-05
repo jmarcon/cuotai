@@ -13,6 +13,70 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.83.0] - 2026-11-05
+
+### Added
+
+- You can add a JetBrains AI organization account: Cuotai shows the AI credits used this month by AI Assistant, Junie and other agents, read with a service account (PRD 0055 RF1, RF2, RF3, RF4, RF5, RF6, RF7; issue #51; 16e9d10).
+- Alibaba Model Studio accounts can sign in with the bl CLI to show the free-tier quota of the most urgent models and, with a workspace ID, the calls and tokens of the last 7 days (d88dab4).
+- When a console's sign-in offers "Sign in with Google", the desktop capture window now keeps your Google sign-in hidden in memory for up to 30 minutes, so the next provider only asks you to pick the account (PRD 0056 RF1, RF2, RF3, RF4, RF5, RF6, RF7, RF8, RF9; f7c6562).
+- An account whose provider or key comes from a newer Cuotai is skipped with a notice instead of rejecting the whole configuration file, and configuration errors now name the line, column and key (PRD 0051 RF1, RF2; PRD 0001 COMP-01; 425de85).
+- The new cuotai --check-config [--json] checks the configuration file strictly and offline, without printing any value (PRD 0051 RF1, RF2; PRD 0001 COMP-01; 425de85).
+- Desktop settings saved at the same time by two Cuotai windows or by the updater no longer overwrite each other, and settings written by a newer Cuotai are kept (PRD 0051 RF4; PRD 0018 RF2; da1f3c3).
+- The new CUOTAI_DATA_DIR environment variable keeps every local store (history, caches, reset marks, local cost, hooks, extensions, server token) in one private folder of your choice (PRD 0051 RF5; 66d229e).
+- Before upgrading the local history or cost index, Cuotai keeps a private .bak copy, and from this release on a newer Cuotai's additive changes no longer make an older one reject these files (PRD 0051 RF3; PRD 0006 COMP-03; 3567193).
+- The new cuotai --doctor [--json] checks your installation offline (configuration, credential variables, databases, hooks, server token and port) and says how to fix each problem, without printing any value (PRD 0046 RF4; 412fcc5).
+- The new cuotai --backup FILE writes your settings (accounts file, hooks, preferences, prices, themes and languages) to one archive that never holds a secret, and cuotai --restore FILE shows a plan, restores it and lists the variables and sign-ins still needed (PRD 0046 RF1, RF2, RF3, RF5; 5f7a3b0).
+- Settings › Advanced › Files has a Check setup row that checks this computer's setup offline and says how to fix each problem (PRD 0046 RF4; 862609d).
+- A hook rule now runs once per change even when the desktop app and cuotai --watch --hooks watch the same accounts (PRD 0054 RF2; 3a1ccf1).
+- The main window now opens with its last size and position, and comes back on screen when its monitor is unplugged or smaller (PRD 0054 RF7; 56cc6eb).
+- When the system shows no tray icon, such as GNOME without an AppIndicator extension, Cuotai keeps running in its window and says so instead of failing to start (PRD 0054 RF5, RF4; 341d5a8).
+- A failure to start now opens a dialog instead of closing without a word (PRD 0054 RF5, RF4; 341d5a8).
+- If you move Cuotai after turning on Open at login, Settings now says so on macOS and Linux and offers Repair to point the login entry at the app again (PRD 0054 RF4; c2f357e).
+- Cuotai now keeps a private, redacted app log (cuotai.log in the local data folder, at most 512 KiB), whose level CUOTAI_LOG sets (PRD 0052 RF1, RF2; 517d690).
+- When the desktop app cannot start, it shows a message naming the app log and exits instead of crashing silently (PRD 0052 RF1, RF2; 517d690).
+- The command cuotai --list-providers --json prints the provider catalog as JSON (connection modes, access level, metered, model-list and status support) (PRD 0052 RF3.5; c163185).
+- A new privacy page (docs/privacy.md) lists every network flow Cuotai can start and every file and vault entry it keeps, generated from the code (PRD 0052 RF3.3, RF4; fe10400).
+- The command line can export the local history (--history-export) and erase it (--history-erase), and --erase-all-data removes every file and vault entry Cuotai keeps after a typed confirmation (PRD 0052 RF5.1, RF5.2, RF5.3, RF5.4; 36ee124).
+- Cuotai trusts the operating system's certificate store (including roots your administrator installed) instead of its own bundled list, and follows HTTPS_PROXY and NO_PROXY for every connection (PRD 0052 RF6, RF7; 1c5b59b).
+- The terminal warns when this computer's clock is more than five minutes off the providers' servers (PRD 0052 RF6, RF7; 1c5b59b).
+- You can set your own budgets on spend, usage or credits in the accounts TOML; each one shows as a budget quota with pace, alerts, allowance and history (PRD 0041 RF1, RF2, RF3, RF4; PRD 0043 RF1, RF2, RF3, RF5; 82bba49).
+- You can set a floor on a balance or credits and be warned once when it drops below it (PRD 0041 RF1, RF2, RF3, RF4; PRD 0043 RF1, RF2, RF3, RF5; 82bba49).
+- Quotas with a reset show how much you can use per day (or per hour near the reset) and still reach it, in the details, in --once and in export::v1 (PRD 0041 RF1, RF2, RF3, RF4; PRD 0043 RF1, RF2, RF3, RF5; 82bba49).
+- Cuotai notes when a provider changes a limit, journals it, sends the limit_changed event and can notify you when you turn that on (PRD 0041 RF1, RF2, RF3, RF4; PRD 0043 RF1, RF2, RF3, RF5; 82bba49).
+- The terminal shows how your use spreads over the hours and days with --stats --rhythm and the r key of the statistics screen (PRD 0041 RF1, RF2, RF3, RF4; PRD 0043 RF1, RF2, RF3, RF5; 82bba49).
+- The new --digest flag prints a weekly summary of your usage from the history recorded on this computer (PRD 0041 RF1, RF2, RF3, RF4; PRD 0043 RF1, RF2, RF3, RF5; 82bba49).
+- The desktop account dialog edits budgets and balance floors, and the details offer Set a budget… and Set a floor… on spend and balances (PRD 0041 RF3, RF4, RF5; PRD 0043 RF2, RF3, RF4; 7677feb).
+- Desktop cards and details mark budget quotas, show floor warnings, the daily allowance and limit changes of the last 48 hours (PRD 0041 RF3, RF4, RF5; PRD 0043 RF2, RF3, RF4; 7677feb).
+- The desktop Stats view shows your hourly and daily rhythm, and Settings › Alerts can notify limit changes and send a weekly digest (PRD 0041 RF3, RF4, RF5; PRD 0043 RF2, RF3, RF4; 7677feb).
+- Organizational accounts can opt into a breakdown with `breakdown = [...]`: OpenRouter keys, LiteLLM virtual keys and teams, OpenAI projects and API keys, and Anthropic workspaces, never per user (PRD 0045 RF1, RF2, RF3, RF4, RF6, RF7, RF8; 023fbb5).
+- The TUI details, `--once` and the wizard show and set an account's breakdown rows (PRD 0045 RF1, RF2, RF3, RF4, RF6, RF7, RF8; 023fbb5).
+- The `--json-v1` export and the local server's account route carry each account's breakdown rows (PRD 0045 RF1, RF2, RF3, RF4, RF6, RF7, RF8; 023fbb5).
+- The desktop details show a Breakdown section sortable by spend or percentage, the Detailed card layout adds a "Top" line, and the account dialog offers each breakdown with the extra requests it adds (PRD 0045 RF6; 1c41d32).
+- Claude accounts can be fed by Claude Code's own status line and ChatGPT / Codex accounts by Codex CLI's local logs, with no network request and no token reuse (PRD 0040 RF1, RF3, RF4, RF5, RF6, RF7, RF8; 7ffb8ef).
+- The new `cuotai --statusline-claude` command shows Claude's own windows, the tightest other account and the context share in Claude Code's status line, and the terminal shows each fed account's live agent session (PRD 0040 RF2, RF5, RF7, RF3; 4b5ae68).
+- The desktop shows each fed account's live agent session (context share and the agent's cost estimate), offers to add a Claude account fed by Claude Code, and gives the status-line snippet to copy (PRD 0040 RF7, RF8, RF3, RF2; 036e7a7).
+- The local cost estimate now breaks down by session, 5-hour block and project, with a live burn rate and projection for the active block, and asks once to confirm the updated disclosure (PRD 0042 RF1, RF2, RF3, RF4, RF7; 6ffd65c).
+- New `cuotai --cost --by session|block|project`, `--cost-live` and `--cost-label` commands show and label the local cost by session, 5-hour block and project (PRD 0042 RF5, RF6; 3a6e97b).
+- The desktop app shows the local cost by session, 5-hour block and project in Settings, and the active block's cost and burn rate on the account cards (PRD 0042 RF6; b9d37e4).
+
+### Fixed
+
+- An AWS Bedrock account whose profile name is not valid now reports a configuration problem instead of starting the AWS command line with it (PRD 0054 RF6; 40f0cc0).
+- The macOS widgets no longer spill past their edges, and they show more accounts with a clearer layout and readable ages (6d8677a).
+- On Windows, saving settings, the configuration or other state no longer fails while another Cuotai window or the TUI has the file open (eb45547).
+- The TUI and the desktop app recording history at the same time now wait for each other's writes instead of losing a reading to a busy database on a slow disk (eb45547).
+
+### Security
+
+- The desktop app loads no inline script, so its webviews run under a stricter Content Security Policy (PRD 0050 RF1, RF7; b798462).
+- **Breaking**: Browser access to the local server needs an access token and a list of trusted origins, and only those origins can read the answers. Migration: `ServeConfig` gains `allowed_origins`, and browser mode needs a token and 1 to 16 trusted origins. A `desktop.json` with browsers allowed but no origins (or no token) loads with browsers off; add the origins of your pages in Settings › Advanced › Integrations and turn it on again (PRD 0050 RF4; 681d721).
+- Saving, approving, turning on and testing hooks, and approving or testing an extension, now ask for confirmation in a system dialog instead of inside the app window (PRD 0050 RF2; 6e997a5).
+- The local server limits slow and unauthenticated clients before reading any usage, so they cannot keep other clients waiting (PRD 0050 RF5; a21c868).
+- The extension disclosure warns when a requested variable is another account's credential variable, naming those accounts (PRD 0050 RF8.2, RF8.3; bfcde2f).
+- User language packs can no longer change the wording of security warnings, consent and confirmations, and symbolic links in the themes and languages folders are ignored (PRD 0050 RF3.3, RF3.4; 2c0514c).
+- The local server's access log records only errors by default, chosen with --access-log off|errors|all, and never the peer address or the account key (PRD 0050 RF6.1, RF6.2; 04fd00c).
+
 ## [0.82.4] - 2026-11-04
 
 ### Fixed
@@ -448,7 +512,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.82.4...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.83.0...HEAD
+[0.83.0]: https://github.com/jmarcon/cuotai/compare/v0.82.4...v0.83.0
 [0.82.4]: https://github.com/jmarcon/cuotai/compare/v0.82.3...v0.82.4
 [0.82.3]: https://github.com/jmarcon/cuotai/compare/v0.82.2...v0.82.3
 [0.82.2]: https://github.com/jmarcon/cuotai/compare/v0.82.1...v0.82.2
