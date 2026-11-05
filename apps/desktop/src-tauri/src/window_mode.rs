@@ -9,10 +9,9 @@
 //! nobody could reach. A launch by the login entry keeps the window hidden
 //! only while the tray works (RF4.2).
 //!
-//! A failure that stops the app altogether is shown in a native dialog
-//! ([`startup_failed`]) with a fixed, translated text and its category, and
-//! the process exits nonzero; the error itself (which can carry paths) is
-//! never shown.
+//! A failure that stops the app altogether (RF5.3) goes through
+//! `startup_error` (PRD 0052 RF2.2): logged, shown in a native dialog that
+//! names the log, and a nonzero exit.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -60,73 +59,6 @@ pub fn force_dock(mode: WindowMode) -> bool {
     mode == WindowMode::NoTray
 }
 
-/// RF5.3: the fixed category of a fatal startup failure, shown in the dialog.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Failure {
-    /// The windowing system, the web view or the setup could not start.
-    Start,
-}
-
-impl Failure {
-    fn code(self) -> &'static str {
-        match self {
-            Failure::Start => "startup",
-        }
-    }
-}
-
-/// The UI catalog of `locale` (compiled in), for the dialog's text before
-/// any web view exists.
-fn catalog(locale: &str) -> &'static str {
-    match locale {
-        "pt-BR" => include_str!("../../ui/locales/pt-BR.json"),
-        "es" => include_str!("../../ui/locales/es.json"),
-        "it" => include_str!("../../ui/locales/it.json"),
-        "fr" => include_str!("../../ui/locales/fr.json"),
-        "de" => include_str!("../../ui/locales/de.json"),
-        "ja" => include_str!("../../ui/locales/ja.json"),
-        "ko" => include_str!("../../ui/locales/ko.json"),
-        "zh-CN" => include_str!("../../ui/locales/zh-CN.json"),
-        "hi-IN" => include_str!("../../ui/locales/hi-IN.json"),
-        "id-ID" => include_str!("../../ui/locales/id-ID.json"),
-        "ru" => include_str!("../../ui/locales/ru.json"),
-        "tr" => include_str!("../../ui/locales/tr.json"),
-        "vi" => include_str!("../../ui/locales/vi.json"),
-        _ => include_str!("../../ui/locales/en-US.json"),
-    }
-}
-
-/// The dialog's title and text in `locale` (English for an unknown one).
-pub fn startup_text(locale: Option<&str>, failure: Failure) -> (String, String) {
-    let english: serde_json::Value = serde_json::from_str(catalog("en-US")).unwrap_or_default();
-    let chosen: serde_json::Value =
-        serde_json::from_str(catalog(locale.unwrap_or("en-US"))).unwrap_or_default();
-    let text = |key: &str| {
-        chosen[key]
-            .as_str()
-            .or_else(|| english[key].as_str())
-            .unwrap_or(key)
-            .to_owned()
-    };
-    let body = text("startup.failed").replace("{category}", failure.code());
-    (text("startup.failedTitle"), body)
-}
-
-/// RF5.3: show the native dialog for a fatal failure and exit nonzero.
-pub fn startup_failed(failure: Failure) -> ! {
-    let locale = crate::settings::settings_path()
-        .as_deref()
-        .and_then(crate::settings::read_locale);
-    let (title, body) = startup_text(locale.as_deref(), failure);
-    let _ = rfd::MessageDialog::new()
-        .set_level(rfd::MessageLevel::Error)
-        .set_title(title.as_str())
-        .set_description(body.as_str())
-        .set_buttons(rfd::MessageButtons::Ok)
-        .show();
-    std::process::exit(1)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -154,28 +86,5 @@ mod tests {
         assert_eq!(current(), WindowMode::NoTray);
         set(WindowMode::Tray);
         assert_eq!(current(), WindowMode::Tray);
-    }
-
-    #[test]
-    fn the_startup_dialog_is_translated_with_a_fixed_category() {
-        let (title, body) = startup_text(None, Failure::Start);
-        assert_eq!(title, "Cuotai could not start");
-        assert!(body.contains("startup") && !body.contains('{'), "{body}");
-        for locale in [
-            "pt-BR", "es", "it", "fr", "de", "ja", "ko", "zh-CN", "hi-IN", "id-ID", "ru", "tr",
-            "vi",
-        ] {
-            let (title, body) = startup_text(Some(locale), Failure::Start);
-            assert_ne!(title, "Cuotai could not start", "{locale}");
-            assert!(
-                body.contains("startup") && !body.contains('{'),
-                "{locale}: {body}"
-            );
-        }
-        // An unknown language reads English.
-        assert_eq!(
-            startup_text(Some("xx"), Failure::Start).0,
-            "Cuotai could not start"
-        );
     }
 }

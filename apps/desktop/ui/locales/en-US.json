@@ -697,8 +697,6 @@
   "serve.banner": "The local server is not serving:",
   "serve.bannerOpen": "Open settings",
   "settings.recovered": "Cuotai could not read its settings and started with the defaults. The damaged file was kept at {path}.",
-  "startup.failedTitle": "Cuotai could not start",
-  "startup.failed": "Something stopped Cuotai while it was starting (category: {category}). Open it again. If it keeps happening, report the problem on Cuotai's GitHub page and mention this category.",
   "tray.unavailable": "The system did not allow a tray icon, so Cuotai runs in this window only. Closing it quits Cuotai.",
   "tray.unavailableLinux": "Your desktop shows no tray icons, so Cuotai runs in this window only and closing it quits Cuotai. On GNOME, install the AppIndicator and KStatusNotifierItem Support extension, then open Cuotai again.",
   "settings.widgets.title": "Widgets",

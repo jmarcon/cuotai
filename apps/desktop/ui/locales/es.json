@@ -697,8 +697,6 @@
   "serve.banner": "El servidor local no está sirviendo:",
   "serve.bannerOpen": "Abrir configuración",
   "settings.recovered": "Cuotai no pudo leer sus ajustes y se inició con los valores predeterminados. El archivo dañado se conservó en {path}.",
-  "startup.failedTitle": "Cuotai no pudo iniciarse",
-  "startup.failed": "Algo detuvo Cuotai mientras se iniciaba (categoría: {category}). Ábralo de nuevo. Si sigue ocurriendo, informe el problema en la página de Cuotai en GitHub y mencione esta categoría.",
   "tray.unavailable": "El sistema no permitió un icono en la bandeja, así que Cuotai funciona solo en esta ventana. Cerrarla cierra Cuotai.",
   "tray.unavailableLinux": "Su escritorio no muestra iconos en la bandeja, así que Cuotai funciona solo en esta ventana y cerrarla cierra Cuotai. En GNOME, instale la extensión AppIndicator and KStatusNotifierItem Support y vuelva a abrir Cuotai.",
   "settings.widgets.title": "Widgets",
