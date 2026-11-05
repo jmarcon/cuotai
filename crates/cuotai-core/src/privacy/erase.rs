@@ -243,7 +243,7 @@ fn remove_empty_dirs(roots: &Roots) {
         })
         .filter_map(|path| path.parent().map(Path::to_path_buf))
         .collect();
-    dirs.extend(roots.local_data.as_ref().map(|d| d.join("cuotai")));
+    dirs.extend(roots.local_data.clone());
     dirs.extend(roots.config.as_ref().map(|d| d.join("cuotai")));
     // Deepest first, so a parent empties after its children.
     dirs.sort_by_key(|d| std::cmp::Reverse(d.components().count()));

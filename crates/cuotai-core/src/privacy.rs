@@ -415,7 +415,8 @@ pub fn artifact(id: &str) -> Option<&'static Artifact> {
 /// The directories artifact paths resolve against.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Roots {
-    /// `<OS local data dir>`, without the `cuotai` part.
+    /// The data root: `CUOTAI_DATA_DIR` or `<OS local data dir>/cuotai`
+    /// ([`crate::data_dir::root`]).
     pub local_data: Option<PathBuf>,
     /// `<OS config dir>`, without the `cuotai` part.
     pub config: Option<PathBuf>,
@@ -427,7 +428,7 @@ impl Roots {
     /// The OS directories and the given accounts file.
     pub fn system(accounts: Option<PathBuf>) -> Self {
         Self {
-            local_data: dirs::data_local_dir(),
+            local_data: crate::data_dir::root(),
             config: dirs::config_dir(),
             accounts,
         }
@@ -441,10 +442,7 @@ impl Roots {
                 .fold(base.to_path_buf(), |path, part| path.join(part))
         };
         match artifact.root {
-            Root::LocalData => self
-                .local_data
-                .as_deref()
-                .map(|d| join(&d.join("cuotai"), artifact.path)),
+            Root::LocalData => self.local_data.as_deref().map(|d| join(d, artifact.path)),
             Root::Config => self
                 .config
                 .as_deref()
@@ -919,7 +917,7 @@ mod tests {
     #[test]
     fn registry_paths_match_the_modules() {
         let roots = Roots {
-            local_data: Some(PathBuf::from("/data")),
+            local_data: Some(PathBuf::from("/data/cuotai")),
             config: Some(PathBuf::from("/conf")),
             accounts: Some(PathBuf::from("/acc/cuotai.toml")),
         };
@@ -927,7 +925,7 @@ mod tests {
         let local = |rel: &str| Path::new("/data").join("cuotai").join(rel);
         assert_eq!(
             path("app.log"),
-            crate::diagnostics::logging::log_path(Path::new("/data"))
+            crate::diagnostics::logging::log_path(Path::new("/data/cuotai"))
         );
         assert_eq!(path("hooks.runs"), local("hooks").join("runs.log"));
         assert_eq!(path("serve.token_file"), local("serve").join("token"));
@@ -948,7 +946,7 @@ mod tests {
     fn inspection_reports_kind_size_mode_and_schema_without_content() {
         let dir = tempfile::tempdir().unwrap();
         let roots = Roots {
-            local_data: Some(dir.path().to_path_buf()),
+            local_data: Some(dir.path().join("cuotai")),
             config: Some(dir.path().join("conf")),
             accounts: None,
         };

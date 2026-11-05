@@ -307,7 +307,7 @@ mod tests {
 
     fn options(dir: &Path) -> EraseOptions {
         let roots = Roots {
-            local_data: Some(dir.join("local")),
+            local_data: Some(dir.join("local").join("cuotai")),
             config: Some(dir.join("config")),
             accounts: Some(dir.join("cuotai.toml")),
         };
