@@ -12,10 +12,14 @@
 //! `cached_input_tokens`, `cache_write_input_tokens` since 0.145.0,
 //! `output_tokens`, `reasoning_output_tokens`, `total_tokens`;
 //! `codex-rs/protocol/src/protocol.rs`). Messages, instructions, working
-//! directories and tool output are never deserialized into a value.
+//! directories and tool output are never deserialized into a value, except
+//! `payload.cwd` of `session_meta` and `turn_context`, hashed at once into
+//! the project fingerprint (PRD 0042 RF1.2) and dropped.
 //! Compressed `.jsonl.zst` rollouts are not read.
 
-use super::source::{anonymous, instant, is_object, listed_dirs, model_name, under_home, Entry};
+use super::source::{
+    anonymous, instant, is_object, listed_dirs, model_name, note_project, under_home, Entry,
+};
 use super::source::{FileState, Line, Source, UNKNOWN_MODEL};
 use super::{SourceId, Tokens};
 use serde::Deserialize;
@@ -40,12 +44,16 @@ struct With<T> {
 struct SessionMeta {
     #[serde(default)]
     id: Option<String>,
+    #[serde(default)]
+    cwd: Option<String>,
 }
 
 #[derive(Deserialize)]
 struct TurnContext {
     #[serde(default)]
     model: Option<String>,
+    #[serde(default)]
+    cwd: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -151,13 +159,17 @@ impl Source for CodexCli {
                     if let Some(id) = meta.id {
                         state.session = Some(anonymous(source, &id));
                     }
+                    note_project(state, meta.cwd.as_deref());
                     Line::Skip
                 }
                 None => Line::Invalid,
             },
             Some("turn_context") => {
-                match payload::<TurnContext>(line).map(|turn| turn.model.as_deref().map(model_name))
-                {
+                let turn = payload::<TurnContext>(line);
+                if let Some(turn) = &turn {
+                    note_project(state, turn.cwd.as_deref());
+                }
+                match turn.map(|turn| turn.model.as_deref().map(model_name)) {
                     Some(Some(Some(model))) => {
                         state.model = Some(model);
                         Line::Skip
@@ -205,6 +217,7 @@ impl Source for CodexCli {
                     // the session's cumulative totals: counted once.
                     dedup: Some(anonymous(source, &format!("{session}\0{total}"))),
                     session,
+                    project: state.project.clone(),
                 })
             }
             _ => Line::Skip,

@@ -153,6 +153,23 @@ pub struct SourceCost {
     pub note: Option<Localized>,
     /// `null` while the source is off.
     pub usage: Option<SourceUsage>,
+    /// PRD 0042 RF1.2: the source was on under an earlier wording of the
+    /// disclosure; nothing is read until the person accepts the new one.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub reconsent: bool,
+}
+
+/// PRD 0042 RF7: a project as the export shows it: its name (the label or
+/// the digest prefix), never a folder name, and never a hidden project.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ProjectExport {
+    pub name: Localized,
+    pub label: Option<String>,
+    pub short: Option<String>,
+    pub first: DateTime<Utc>,
+    pub last: DateTime<Utc>,
+    pub sessions: u64,
+    pub estimate: Estimate,
 }
 
 /// RF4: the estimated cost from this computer's local logs, as every front
@@ -183,6 +200,17 @@ pub struct CostSummary {
     pub unpriced_models: Vec<String>,
     /// RF4.1: "No price for: a, b"; `null` when every model has a price.
     pub unpriced: Option<Localized>,
+    /// PRD 0042 RF7: the blocks of the last 7 days, newest first (absent
+    /// when there are none).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub blocks: Vec<super::BlockSummary>,
+    /// PRD 0042 RF3.3: the active block of each source, with its burn rate
+    /// and projection.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub live: Vec<super::LiveBlock>,
+    /// PRD 0042 RF7: the projects of the span that are not hidden.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub projects: Vec<ProjectExport>,
 }
 
 impl CostSummary {
@@ -292,7 +320,20 @@ pub fn summarize(input: &SummaryInput<'_>) -> CostSummary {
             .map(prices_age_text),
         unpriced: (!unpriced_models.is_empty()).then(|| unpriced_text(&unpriced_models)),
         unpriced_models,
+        blocks: Vec::new(),
+        live: Vec::new(),
+        projects: Vec::new(),
     }
+}
+
+/// PRD 0042 RF1.2: the note of a source waiting for a new consent.
+pub fn reconsent_text(label: &str) -> Localized {
+    Localized::with_param(
+        "cost.view.reconsent",
+        "source",
+        label,
+        "{source}: what is read changed (a project fingerprint was added); review and confirm again to keep reading. The numbers already indexed stay.",
+    )
 }
 
 fn source_cost(
@@ -309,6 +350,7 @@ fn source_cost(
         state: CostState::Off,
         note: Some(off_text(label)),
         usage: None,
+        reconsent: false,
     };
     if !input.enabled.contains(&source) {
         return base;
@@ -465,7 +507,7 @@ impl Scanner {
             self.index().usage(None, first, today)?
         };
         let (prices, pricing_error) = Prices::with_user_file(pricing);
-        Ok(summarize(&SummaryInput {
+        let mut summary = summarize(&SummaryInput {
             today,
             span,
             enabled: &enabled,
@@ -473,7 +515,33 @@ impl Scanner {
             prices: &prices,
             pricing_error: pricing_error.as_ref(),
             last,
-        }))
+        });
+        for source in &mut summary.sources {
+            if settings.needs_reconsent(source.source, self.env()) {
+                source.reconsent = true;
+                source.note = Some(reconsent_text(source.label));
+            }
+        }
+        if !enabled.is_empty() {
+            summary.blocks = self.blocks(pricing, None, Span::Days(7), now, &[])?.blocks;
+            summary.live = self.live(pricing, None, now, &[])?;
+            summary.projects = self
+                .projects(pricing, span, now)?
+                .projects
+                .into_iter()
+                .filter(|project| !project.hidden)
+                .map(|project| ProjectExport {
+                    name: project.name,
+                    label: project.label,
+                    short: project.short,
+                    first: project.first,
+                    last: project.last,
+                    sessions: project.sessions,
+                    estimate: project.estimate,
+                })
+                .collect();
+        }
+        Ok(summary)
     }
 }
 

@@ -17,8 +17,13 @@ use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
 /// Raised whenever the disclosure's wording or meaning changes, so an
-/// earlier consent no longer covers it.
-const DISCLOSURE_VERSION: u32 = 1;
+/// earlier consent no longer covers it. 2: PRD 0042 RF1.2 added the project
+/// fingerprint.
+const DISCLOSURE_VERSION: u32 = 2;
+
+/// PRD 0042 RF3.1: the block length bounds, in hours.
+pub const BLOCK_HOURS_MIN: u8 = 1;
+pub const BLOCK_HOURS_MAX: u8 = 24;
 
 /// The environment variables the sources' default directories follow.
 const VARIABLES: [&str; 2] = ["CLAUDE_CONFIG_DIR", "CODEX_HOME"];
@@ -90,6 +95,14 @@ pub struct CostSettings {
     /// PRD 0030 RF6.1: a second currency at a rate the person typed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub display_currency: Option<DisplayCurrency>,
+    /// PRD 0042 RF3.1: the block length per source, when not the default
+    /// ([`SourceId::default_block_hours`]).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub block_hours: BTreeMap<SourceId, u8>,
+    /// PRD 0042 RF4.3: the sources that keep the last folder name of each
+    /// project (off by default).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub folder_hints: BTreeMap<SourceId, bool>,
 }
 
 fn default_retention() -> u32 {
@@ -104,6 +117,8 @@ impl Default for CostSettings {
             retention_days: Retention::DEFAULT_DAYS,
             plans: BTreeMap::new(),
             display_currency: None,
+            block_hours: BTreeMap::new(),
+            folder_hints: BTreeMap::new(),
         }
     }
 }
@@ -117,6 +132,38 @@ impl CostSettings {
 
     fn source(&self, source: SourceId) -> Option<&SourceSettings> {
         self.sources.get(&source)
+    }
+
+    /// PRD 0042 RF3.1: the block length of `source` in hours; a value out
+    /// of bounds written by hand counts as the default.
+    pub fn block_hours(&self, source: SourceId) -> u8 {
+        self.block_hours
+            .get(&source)
+            .copied()
+            .filter(|hours| (BLOCK_HOURS_MIN..=BLOCK_HOURS_MAX).contains(hours))
+            .unwrap_or_else(|| source.default_block_hours())
+    }
+
+    /// PRD 0042 RF4.3: `source` keeps the last folder name of projects.
+    pub fn folder_hint(&self, source: SourceId) -> bool {
+        self.folder_hints.get(&source).copied().unwrap_or(false)
+    }
+
+    /// PRD 0042 RF1.2: `source` was on under an earlier wording of the
+    /// disclosure for the same directories: front ends show the new one
+    /// and ask again. Nothing is read meanwhile.
+    pub fn needs_reconsent(&self, source: SourceId, env: &Env) -> bool {
+        let Some(settings) = self.source(source) else {
+            return false;
+        };
+        let Some(consent) = settings.consent.as_deref() else {
+            return false;
+        };
+        let current = self.disclosure(source, env);
+        consent != current.digest
+            && (1..DISCLOSURE_VERSION).any(|version| {
+                consent == identity_digest(version, source, &current.directories, current.pattern)
+            })
     }
 
     /// The directories of `source` read when it is on: the chosen ones or
@@ -189,8 +236,6 @@ impl Disclosure {
     pub fn new(source: SourceId, chosen: &[PathBuf], env: &Env) -> Self {
         let directories = roots(source, chosen, env);
         let pattern = source.adapter().pattern();
-        let identity = serde_json::to_vec(&(DISCLOSURE_VERSION, source, &directories, pattern))
-            .expect("disclosure identity serializes");
         let label = source.label();
         Self {
             source,
@@ -204,18 +249,18 @@ impl Disclosure {
                 "To estimate, on this computer only, the tokens and the cost at API prices of your {source} usage per day and per model.",
             ),
             extracted: Localized::fixed(
-                "cost.disclosure.extracted",
-                "Only numbers are extracted: the time, the model, the token counts (input, output, cache read and cache write) and an anonymous digest of the session.",
+                "cost.disclosure.extracted_v2",
+                "Only numbers are extracted: the time, the model, the token counts (input, output, cache read and cache write), an anonymous digest of the session and a one-way fingerprint of the project folder, so you can label it.",
             ),
             never: Localized::fixed(
-                "cost.disclosure.never",
-                "Conversation content, prompts, answers, file names and project paths are never read into the index, stored or shown. Nothing leaves this computer.",
+                "cost.disclosure.never_v2",
+                "Conversation content, prompts, answers, file names and project paths are never read into the index, stored or shown; the last folder name of a project is kept only if you turn that on. Nothing leaves this computer.",
             ),
             off: Localized::fixed(
                 "cost.disclosure.off",
                 "Turning the source off stops every read and erases everything derived from it.",
             ),
-            digest: digest(&identity),
+            digest: identity_digest(DISCLOSURE_VERSION, source, &directories, pattern),
             directories,
         }
     }
@@ -250,6 +295,18 @@ impl Disclosure {
         lines.extend([self.extracted.clone(), self.never.clone(), self.off.clone()]);
         lines
     }
+}
+
+/// The digest a consent records for one wording `version` of a disclosure.
+fn identity_digest(
+    version: u32,
+    source: SourceId,
+    directories: &[PathBuf],
+    pattern: &str,
+) -> String {
+    let identity = serde_json::to_vec(&(version, source, directories, pattern))
+        .expect("disclosure identity serializes");
+    digest(&identity)
 }
 
 /// Where the preferences live; injectable so tests never touch OS dirs.
@@ -412,6 +469,40 @@ impl SettingsStore {
     pub fn set_retention(&self, retention: Retention) -> Result<CostSettings, CostError> {
         self.update(|settings| {
             settings.retention_days = retention.keep_days();
+            Ok(())
+        })
+    }
+
+    /// PRD 0042 RF3.1: the block length of `source` (1 to 24 hours); the
+    /// source's default is saved as no entry.
+    pub fn set_block_hours(&self, source: SourceId, hours: u8) -> Result<CostSettings, CostError> {
+        if !(BLOCK_HOURS_MIN..=BLOCK_HOURS_MAX).contains(&hours) {
+            return Err(CostError::BlockHours);
+        }
+        self.update(|settings| {
+            if hours == source.default_block_hours() {
+                settings.block_hours.remove(&source);
+            } else {
+                settings.block_hours.insert(source, hours);
+            }
+            Ok(())
+        })
+    }
+
+    /// PRD 0042 RF4.3: keep (or stop keeping) the last folder name of the
+    /// projects of `source`. Use [`super::set_folder_hint`], which also
+    /// deletes the stored names when it is turned off.
+    pub(crate) fn set_folder_hint(
+        &self,
+        source: SourceId,
+        on: bool,
+    ) -> Result<CostSettings, CostError> {
+        self.update(|settings| {
+            if on {
+                settings.folder_hints.insert(source, true);
+            } else {
+                settings.folder_hints.remove(&source);
+            }
             Ok(())
         })
     }

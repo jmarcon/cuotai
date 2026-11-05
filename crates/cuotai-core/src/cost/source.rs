@@ -54,6 +54,9 @@ pub(crate) struct Entry {
     /// Digest that identifies a request the tool may write twice (Claude
     /// Code copies earlier messages into a resumed session's file).
     pub dedup: Option<String>,
+    /// PRD 0042 RF1.1: the one-way fingerprint of the project folder
+    /// ([`project_digest`]); `None` when the log does not name it.
+    pub project: Option<String>,
 }
 
 /// What a parser carries from one line of a file to the next, stored per
@@ -67,6 +70,16 @@ pub(crate) struct FileState {
     pub session: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub total: Option<u64>,
+    /// PRD 0042 RF1.1: the project fingerprint in effect (a digest, never
+    /// the path).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project: Option<String>,
+    /// PRD 0042 RF4.3: the last folder name of the project just seen, for
+    /// the opt-in label hint. Never serialized, so it never reaches the
+    /// `files` table; the scanner takes it after each line and drops it
+    /// unless the source keeps folder names.
+    #[serde(skip)]
+    pub folder: Option<String>,
 }
 
 /// The model name recorded for usage whose model the log did not name.
@@ -101,6 +114,47 @@ pub(crate) fn instant(value: &str) -> Option<DateTime<Utc>> {
 /// the index can count sessions without holding the tool's identifiers.
 pub(crate) fn anonymous(source: SourceId, value: &str) -> String {
     digest(format!("{}\0{value}", source.slug()).as_bytes())
+}
+
+/// PRD 0042 RF1.1: the project fingerprint of a working directory: the
+/// SHA-256 of the normalized path (separators as `/`, no trailing one),
+/// truncated to 16 hex characters. Not salted by source, so the same folder
+/// is one project for every tool. The path itself is dropped by the caller.
+pub(crate) fn project_digest(cwd: &str) -> Option<String> {
+    let normalized = normalized_dir(cwd)?;
+    let mut full = digest(normalized.as_bytes());
+    full.truncate(16);
+    Some(full)
+}
+
+fn normalized_dir(cwd: &str) -> Option<String> {
+    let unified = cwd.trim().replace('\\', "/");
+    let trimmed = unified.trim_end_matches('/');
+    let normalized = if trimmed.is_empty() && unified.starts_with('/') {
+        "/"
+    } else {
+        trimmed
+    };
+    (!normalized.is_empty()).then(|| normalized.to_owned())
+}
+
+/// PRD 0042 RF4.3: the last segment of a working directory (at most 64
+/// characters, control characters dropped), offered only to prefill a label
+/// when the person turned the folder-name hint on.
+pub(crate) fn folder_name(cwd: &str) -> Option<String> {
+    let normalized = normalized_dir(cwd)?;
+    let last = normalized.rsplit('/').next().unwrap_or_default();
+    let clean: String = last.chars().filter(|c| !c.is_control()).take(64).collect();
+    (!clean.trim().is_empty()).then_some(clean)
+}
+
+/// PRD 0042 RF1.1: record `cwd` in `state` as a fingerprint (and the
+/// transient folder name); the path is not kept.
+pub(crate) fn note_project(state: &mut FileState, cwd: Option<&str>) {
+    if let Some(project) = cwd.and_then(project_digest) {
+        state.project = Some(project);
+        state.folder = cwd.and_then(folder_name);
+    }
 }
 
 /// `<home>/<parts…>`, when the home directory is known.

@@ -9,8 +9,10 @@
 //! `timestamp`, `sessionId`, `requestId` and `message.{id, model, usage}`
 //! with `input_tokens`, `output_tokens`, `cache_creation_input_tokens` and
 //! `cache_read_input_tokens` (and `cache_creation.ephemeral_{5m,1h}_input_tokens`
-//! when present); `message.content`, `cwd` and every other
-//! field are never deserialized into a value.
+//! when present); `message.content` and every other field are never
+//! deserialized into a value. `cwd` is read only to compute the project
+//! fingerprint (PRD 0042 RF1.2) and is then dropped: it is never stored,
+//! logged or shown.
 //!
 //! PRD 0030 RF7.1 finding: a streamed message is written as several lines
 //! with the same `message.id` and `requestId` and a growing
@@ -19,7 +21,9 @@
 //! keeps the highest count per key; the reduced, numbers-only transcript is
 //! `tests/fixtures/cost/claude_streamed_numbers.jsonl`.
 
-use super::source::{anonymous, instant, is_object, listed_dirs, model_name, under_home, Entry};
+use super::source::{
+    anonymous, instant, is_object, listed_dirs, model_name, note_project, under_home, Entry,
+};
 use super::source::{FileState, Line, Source};
 use super::{SourceId, Tokens};
 use serde::Deserialize;
@@ -38,6 +42,9 @@ struct Record {
     request_id: Option<String>,
     #[serde(default)]
     message: Option<Message>,
+    /// Hashed at once (PRD 0042 RF1.2), never kept.
+    #[serde(default)]
+    cwd: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -113,6 +120,7 @@ impl Source for ClaudeCode {
         else {
             return Line::Invalid;
         };
+        note_project(state, record.cwd.as_deref());
         let Some(message) = record.message else {
             return Line::Skip;
         };
@@ -161,6 +169,7 @@ impl Source for ClaudeCode {
             tokens,
             session: state.session.clone().unwrap_or_default(),
             dedup,
+            project: state.project.clone(),
         })
     }
 }

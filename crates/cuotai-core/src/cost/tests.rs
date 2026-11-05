@@ -467,6 +467,7 @@ fn a_commit_after_the_source_was_turned_off_writes_nothing() {
         },
         session: String::new(),
         dedup: None,
+        project: None,
     };
     let chunk = index::Chunk {
         source: SourceId::ClaudeCode,
@@ -478,8 +479,11 @@ fn a_commit_after_the_source_was_turned_off_writes_nothing() {
             position: 1,
             state: source::FileState::default(),
             invalid: 0,
+            backfill: 0,
         },
         entries: vec![(now().date_naive(), entry)],
+        replayed: 0,
+        folders: Vec::new(),
         read_at: 0,
     };
     assert_eq!(CostIndex::commit(&mut db, chunk, || false).unwrap(), None);
@@ -908,4 +912,364 @@ fn schema_one_is_migrated_and_claude_is_read_again() {
     assert_eq!(usage.len(), 1, "{usage:?}");
     assert_eq!(usage[0].tokens.cache_write_1h, 40);
     assert_eq!(usage[0].requests, 1);
+}
+
+/// PRD 0042: one Claude Code assistant line of `session` in `cwd` at
+/// `at` (RFC 3339) with `input` tokens.
+fn claude_at(n: u32, session: &str, cwd: &str, at: &str, input: u64) -> String {
+    format!(
+        r#"{{"cwd":"{cwd}","sessionId":"{session}","message":{{"id":"m{n}","model":"claude-sonnet-4-5-20250929","content":"{SECRET}","usage":{{"input_tokens":{input},"output_tokens":10}}}},"requestId":"r{n}","type":"assistant","timestamp":"{at}"}}"#
+    ) + "\n"
+}
+
+/// The project folder of the PRD 0042 fixtures: a personal name that
+/// must never reach the index or any output.
+const PERSONAL: &str = "/Users/ana-maria-example/clients/acme-secret";
+
+fn three_sessions(f: &Fixture) {
+    write(
+        &f.claude_log("one"),
+        &(claude_at(1, "s-one", PERSONAL, "2025-10-03T08:00:00Z", 100)
+            + &claude_at(2, "s-one", PERSONAL, "2025-10-03T09:30:00Z", 100)),
+    );
+    write(
+        &f.claude_log("two"),
+        &claude_at(3, "s-two", PERSONAL, "2025-10-03T10:00:00Z", 50),
+    );
+    write(
+        &f.claude_log("three"),
+        &(claude_at(
+            4,
+            "s-three",
+            "/srv/example/other",
+            "2025-10-03T11:00:00Z",
+            10,
+        ) + &claude_at(
+            5,
+            "s-three",
+            "/srv/example/other/",
+            "2025-10-03T11:40:00Z",
+            10,
+        )),
+    );
+}
+
+fn pricing(f: &Fixture) -> PricingFile {
+    PricingFile::at(f.dir.path().join("data/cost/pricing.json"))
+}
+
+#[test]
+fn sessions_and_projects_come_from_the_request_rows() {
+    let f = fixture();
+    f.enable(SourceId::ClaudeCode);
+    three_sessions(&f);
+    f.scan();
+    let pricing = pricing(&f);
+    let span = Span::Period(Period::Today);
+    let page = f.scanner.sessions(&pricing, span, now(), None, 0).unwrap();
+    assert_eq!(page.count, 3);
+    assert_eq!(page.total.requests, 5);
+    let newest = &page.sessions[0];
+    assert_eq!(newest.estimate.requests, 2);
+    assert_eq!(newest.duration_minutes, 40);
+    assert_eq!(
+        newest.name.resolve("en-US"),
+        "Session · 2025-10-03 11:00–11:40 · 40m"
+    );
+    assert!(
+        page.sessions
+            .iter()
+            .any(|s| s.estimate.requests == 2 && s.duration_minutes == 90),
+        "{:?}",
+        page.sessions
+    );
+    // Paging.
+    let second = f
+        .scanner
+        .sessions(&pricing, span, now(), Some(1), 1)
+        .unwrap();
+    assert_eq!((second.count, second.sessions.len()), (3, 1));
+    assert_eq!(second.sessions[0], page.sessions[1]);
+
+    let projects = f.scanner.projects(&pricing, span, now()).unwrap();
+    assert_eq!(
+        projects.projects.len(),
+        2,
+        "a trailing slash is the same folder"
+    );
+    let personal = projects
+        .projects
+        .iter()
+        .find(|p| p.estimate.requests == 3)
+        .unwrap();
+    assert_eq!(personal.sessions, 2);
+    let prefix = personal.short.clone().unwrap();
+    assert_eq!(personal.name.resolve("en-US"), format!("Project {prefix}"));
+
+    // Labels round trip by prefix; the session label is stored apart.
+    let index = f.scanner.index();
+    index
+        .set_label(LabelTarget::Project, &prefix[..6], Some("  Client work  "))
+        .unwrap();
+    index
+        .set_label(LabelTarget::Session, &newest.short, Some("Refactor"))
+        .unwrap();
+    assert_eq!(
+        index.set_label(LabelTarget::Project, "zz", Some("x")),
+        Err(CostError::UnknownPrefix)
+    );
+    assert_eq!(
+        index.set_label(LabelTarget::Project, &prefix, Some(&"x".repeat(49))),
+        Err(CostError::InvalidLabel)
+    );
+    let projects = f.scanner.projects(&pricing, span, now()).unwrap();
+    let labelled = projects
+        .projects
+        .iter()
+        .find(|p| p.estimate.requests == 3)
+        .unwrap();
+    assert_eq!(labelled.label.as_deref(), Some("Client work"));
+    assert_eq!(labelled.name.resolve("en-US"), "Client work");
+    let page = f.scanner.sessions(&pricing, span, now(), None, 0).unwrap();
+    assert_eq!(page.sessions[0].name.resolve("en-US"), "Refactor");
+    index
+        .set_label(LabelTarget::Project, &prefix, None)
+        .unwrap();
+
+    // A hidden project is listed but left out of the total.
+    index.set_hidden(&prefix, true).unwrap();
+    let projects = f.scanner.projects(&pricing, span, now()).unwrap();
+    assert_eq!(projects.hidden, 1);
+    assert_eq!(projects.projects.len(), 2);
+    assert_eq!(projects.total.requests, 2);
+    let summary = f
+        .scanner
+        .summary(&pricing, None, Some(span), now())
+        .unwrap();
+    assert_eq!(
+        summary.projects.len(),
+        1,
+        "a hidden project is never exported"
+    );
+
+    // The personal path never reaches the index or an output.
+    rusqlite::Connection::open(index.path())
+        .unwrap()
+        .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(()))
+        .unwrap();
+    let bytes = std::fs::read(index.path()).unwrap();
+    let outputs = [
+        serde_json::to_string(&projects).unwrap(),
+        serde_json::to_string(&page).unwrap(),
+        serde_json::to_string(&summary).unwrap(),
+    ];
+    for leak in ["ana-maria", "acme-secret", "/srv/example", SECRET] {
+        assert!(
+            !bytes.windows(leak.len()).any(|w| w == leak.as_bytes()),
+            "{leak}"
+        );
+        for output in &outputs {
+            assert!(!output.contains(leak), "{leak} in {output}");
+        }
+    }
+}
+
+#[test]
+fn the_folder_hint_is_opt_in_and_deleted_when_turned_off() {
+    let f = fixture();
+    f.enable(SourceId::ClaudeCode);
+    let store = f.scanner.settings();
+    let index = f.scanner.index();
+    write(
+        &f.claude_log("one"),
+        &claude_at(1, "s", PERSONAL, "2025-10-03T08:00:00Z", 1),
+    );
+    f.scan();
+    let hints = |index: &CostIndex| -> Vec<Option<String>> {
+        index
+            .projects()
+            .unwrap()
+            .into_iter()
+            .map(|p| p.folder_hint)
+            .collect()
+    };
+    assert_eq!(hints(index), [None], "off by default");
+    set_folder_hint(store, index, SourceId::ClaudeCode, true).unwrap();
+    append(
+        &f.claude_log("one"),
+        &claude_at(2, "s", PERSONAL, "2025-10-03T08:10:00Z", 1),
+    );
+    f.scan();
+    assert_eq!(hints(index), [Some("acme-secret".to_owned())]);
+    assert_eq!(
+        set_folder_hint(store, index, SourceId::ClaudeCode, false).unwrap(),
+        1
+    );
+    assert_eq!(hints(index), [None]);
+    assert!(!store.load().unwrap().folder_hint(SourceId::ClaudeCode));
+}
+
+#[test]
+fn blocks_and_the_live_summary_answer_from_the_index() {
+    let f = fixture();
+    f.enable(SourceId::ClaudeCode);
+    // A closed block in the morning, then an active one from 10:00 with
+    // three requests in the last ten minutes before noon.
+    let lines = [
+        claude_at(1, "s", "/p", "2025-10-03T03:10:00Z", 100),
+        claude_at(2, "s", "/p", "2025-10-03T10:05:00Z", 1000),
+        claude_at(3, "s", "/p", "2025-10-03T11:51:00Z", 1000),
+        claude_at(4, "s", "/p", "2025-10-03T11:55:00Z", 1000),
+        claude_at(5, "s", "/p", "2025-10-03T11:58:00Z", 1000),
+    ]
+    .concat();
+    write(&f.claude_log("s"), &lines);
+    f.scan();
+    let pricing = pricing(&f);
+    let today = Span::Period(Period::Today);
+    let page = f.scanner.blocks(&pricing, None, today, now(), &[]).unwrap();
+    assert_eq!(page.blocks.len(), 2);
+    let active = &page.blocks[0];
+    assert!(active.active);
+    assert_eq!(
+        active.start,
+        Utc.with_ymd_and_hms(2025, 10, 3, 10, 0, 0).unwrap()
+    );
+    assert_eq!(
+        active.end,
+        Utc.with_ymd_and_hms(2025, 10, 3, 15, 0, 0).unwrap()
+    );
+    assert!(!page.blocks[1].active);
+    let live = f.scanner.live(&pricing, None, now(), &[]).unwrap();
+    assert_eq!(live.len(), 1);
+    let rate = live[0].burn_rate_tokens_per_min.unwrap();
+    // Three requests of 1010 tokens over the last ten minutes.
+    assert!((rate - 303.0).abs() < 0.5, "{rate}");
+    assert_eq!(live[0].left_minutes, 180);
+    assert!(live[0].projected_block_cost.is_some(), "40% elapsed");
+    assert!(live[0].line.is_some());
+    // The block length follows the setting.
+    f.scanner
+        .settings()
+        .set_block_hours(SourceId::ClaudeCode, 1)
+        .unwrap();
+    let page = f.scanner.blocks(&pricing, None, today, now(), &[]).unwrap();
+    assert_eq!(page.blocks.len(), 3);
+    assert_eq!(
+        f.scanner
+            .settings()
+            .set_block_hours(SourceId::ClaudeCode, 25),
+        Err(CostError::BlockHours)
+    );
+}
+
+#[test]
+fn schema_two_files_replay_only_their_request_rows() {
+    let f = fixture();
+    f.enable(SourceId::ClaudeCode);
+    let streamed = include_str!("../../tests/fixtures/cost/claude_streamed_numbers.jsonl");
+    write(&f.claude_log("s1"), streamed);
+    write(&f.claude_log("copy"), streamed);
+    f.scan();
+    let before = f.usage();
+    let path = f.scanner.index().path().to_path_buf();
+    // What the schema 2 migration leaves: no request rows, and every file
+    // to be read again up to where it was.
+    {
+        let db = rusqlite::Connection::open(&path).unwrap();
+        db.execute_batch(
+            "DELETE FROM requests;
+             UPDATE files SET backfill = position, position = 0, examined = 0;",
+        )
+        .unwrap();
+    }
+    f.scan();
+    assert_eq!(f.usage(), before, "day totals do not change");
+    let requests = f
+        .scanner
+        .index()
+        .requests(None, DateTime::<Utc>::default(), now())
+        .unwrap();
+    assert_eq!(requests.len() as u64, before[0].requests);
+    let output: u64 = requests.iter().map(|r| r.tokens.output).sum();
+    assert_eq!(
+        output, before[0].tokens.output,
+        "the highest counts are kept"
+    );
+    let db = rusqlite::Connection::open(&path).unwrap();
+    let pending: i64 = db
+        .query_row("SELECT COUNT(*) FROM files WHERE backfill > 0", [], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    assert_eq!(pending, 0);
+}
+
+#[test]
+fn schema_two_is_migrated_in_place() {
+    let f = fixture();
+    let path = f.scanner.index().path().to_path_buf();
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    {
+        let db = rusqlite::Connection::open(&path).unwrap();
+        db.execute_batch(super::index::MIGRATIONS[0]).unwrap();
+        db.execute_batch(super::index::MIGRATIONS[1]).unwrap();
+        db.pragma_update(None, "user_version", 2).unwrap();
+        db.execute(
+            "INSERT INTO files VALUES ('codex_cli','f','id',90,90,'{}',0,0)",
+            [],
+        )
+        .unwrap();
+    }
+    let db = f.scanner.index().open().unwrap();
+    let row: (i64, i64, i64) = db
+        .query_row("SELECT backfill, position, examined FROM files", [], |r| {
+            Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+        })
+        .unwrap();
+    assert_eq!(row, (90, 0, 0));
+    drop(db);
+    for table in ["requests", "projects", "session_labels"] {
+        assert_eq!(f.rows(table), 0, "{table}");
+    }
+    assert!(f.scanner.index().erase().is_ok());
+}
+
+#[test]
+fn a_source_on_under_the_first_disclosure_is_asked_again() {
+    let f = fixture();
+    let store = f.scanner.settings();
+    let settings = store.load().unwrap();
+    let disclosure = settings.disclosure(SourceId::CodexCli, &f.env);
+    // The digest the first wording recorded.
+    let old = {
+        let identity = serde_json::to_vec(&(
+            1u32,
+            SourceId::CodexCli,
+            &disclosure.directories,
+            disclosure.pattern,
+        ))
+        .unwrap();
+        crate::models::digest(&identity)
+    };
+    std::fs::create_dir_all(store.path().parent().unwrap()).unwrap();
+    std::fs::write(
+        store.path(),
+        serde_json::json!({ "sources": { "codex_cli": { "consent": old } } }).to_string(),
+    )
+    .unwrap();
+    let saved = store.load().unwrap();
+    assert!(
+        !saved.enabled(SourceId::CodexCli, &f.env),
+        "nothing is read"
+    );
+    assert!(saved.needs_reconsent(SourceId::CodexCli, &f.env));
+    assert!(!saved.needs_reconsent(SourceId::ClaudeCode, &f.env));
+    let summary = f.scanner.summary(&pricing(&f), None, None, now()).unwrap();
+    assert!(summary.source(SourceId::CodexCli).unwrap().reconsent);
+    f.enable(SourceId::CodexCli);
+    assert!(!store
+        .load()
+        .unwrap()
+        .needs_reconsent(SourceId::CodexCli, &f.env));
 }

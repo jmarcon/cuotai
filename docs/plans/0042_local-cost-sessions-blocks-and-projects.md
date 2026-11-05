@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0042 |
-| Status | Planned (next version) |
+| Status | Awaiting owner verification |
 | Owner | `cuotai-core` (`cost` index schema v2, `cost::blocks`, `cost::sessions`, `cost::projects`, live summary), `cuotai-tui` (`--cost --by`, `--cost-live`), desktop (Local cost tabs, card line) |
 | Consumers | Every front end; `export::v1` `local_cost` (additive); PRD 0026 stats |
 | Depends on | PRD 0015 (local cost index and scanner), PRD 0030 (price table, plan value) |
@@ -13,11 +13,17 @@
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable. A **session** is one agent conversation (one JSONL file); a **block** is a 5-hour billing window as the vendor's subscription counts it, aligned to the first message after the previous block ended; a **project** is the working directory the agent was started in, stored only as a digest and a person-chosen label. All figures are estimates at API prices, never charges.
 
-## Implementation status (2026-10-25)
+## Implementation status (2026-11-05)
 
 | RF | Version | Delivery |
 |---|---|---|
-| RF1–RF7 | — | Proposed. |
+| RF1 | vNEXT | `cost.sqlite3` schema 2 (migration 3): `requests` (one row per request: time, model, session digest, project fingerprint, token counts), `projects` (label, opt-in `folder_hint`, `hidden`, first/last seen) and `session_labels`. The migration re-reads each followed file once from its start and adds only the request rows of lines already counted (`files.backfill`), so day totals never change; history whose logs are gone keeps its day totals but has no sessions or blocks. The three readers hash `cwd` (Claude Code lines, Codex `session_meta`/`turn_context`) into a 16-hex SHA-256 fingerprint and drop it; Gemini CLI has no folder, so its fingerprint is a digest of its own `projectHash`. The disclosure wording is version 2 (new `extracted_v2`/`never_v2` sentences); a source consented under version 1 is reported as `reconsent` and reads nothing until accepted again. `block_start` is not stored: blocks are computed at query time, because the block length is a setting. |
+| RF2 | vNEXT | `Scanner::sessions` (`cost::sessions` pure): per session digest, source, first/last, duration, models, tokens, cost, requests and the main project; paging; labels with `--cost-label session PREFIX LABEL` or inline in the desktop. |
+| RF3 | vNEXT | `Scanner::blocks`/`cost::blocks`: a block starts at the hour of the first request after the previous one ended (as `ccusage`), lasts `block_hours` (per source, 1–24; default 5 for Claude Code and Codex CLI, 24 for Gemini CLI), and the provider's 5-hour window of a ready account is attached beside the active block, never merged. `cost::live`: burn rate over the last 10 minutes (`None` under 3 requests or 3 minutes), projection only from 20% elapsed and never for unpriced usage. |
+| RF4 | vNEXT | `Scanner::projects`/`cost::projects`: label or "Project ab12cd34", "No project" for lines without a folder, hidden projects listed and left out of the totals; `--cost-label project`, `--cost-hide`/`--cost-unhide`; the opt-in folder-name hint (`--cost-folder-hint SOURCE on|off`, Settings), off by default, deleted when turned off, never exported. |
+| RF5 | vNEXT | `cuotai --cost --by day|model|session|block|project [--top N|--all] [--json]`, `cuotai --cost-live [--source S] [--watch-interval S] [--json]` (in place with `q` on a terminal, NDJSON with `--json`), `--cost-block-hours SOURCE HOURS`; exit codes as `--cost`. The provider window appears only in front ends that hold readings (desktop, TUI details), not in the CLI. |
+| RF6 | vNEXT | Settings › Advanced › Local cost › **Sessions, blocks and projects**: the per-source block length and folder-name hint, a Days · Models · Sessions · Blocks · Projects segmented control with the KPI header, inline labels, Hide, and the active block's live figures refreshed from the index every 30 s. The card's "This block ≈ $4.10 · 38K tok/min" line under the local usage (tooltip: honest-data suffix and projection); the TUI details show the same line. |
+| RF7 | vNEXT | `export::v1` `local_cost` gains `blocks[]` (last 7 days), `live[]` (one per source with an active block) and `projects[]` (labels or digest prefixes, never hidden projects or folder names), all omitted when empty; docs updated. The cross-check with PRD 0040's fed session cost is not done (optional, display only). |
 
 ## 1. Context
 

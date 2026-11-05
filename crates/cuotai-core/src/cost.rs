@@ -11,10 +11,15 @@
 //! [`SettingsStore`]; a changed directory list needs a new consent.
 //!
 //! The parsers extract only the time, the model, the token counts (input,
-//! output, cache read, cache write) and a digest of the session
-//! identifier; conversation content, prompts, file names and project paths
-//! are never deserialized into a value, stored, logged or shown. Invalid
-//! lines are skipped and counted.
+//! output, cache read, cache write), a digest of the session identifier
+//! and (PRD 0042) a one-way fingerprint of the project folder: the working
+//! directory is hashed as soon as it is read and never stored, logged or
+//! shown; conversation content, prompts and file names are never
+//! deserialized into a value. Invalid lines are skipped and counted.
+//!
+//! PRD 0042 adds the per-request rows behind [`Scanner::sessions`],
+//! [`Scanner::blocks`], [`Scanner::projects`] and [`Scanner::live`]
+//! (`breakdown`), the person's labels and the opt-in folder-name hint.
 //!
 //! [`Scanner`] reads only what grew since the last scan into
 //! [`CostIndex`] (`cost.sqlite3`, `0600`), bounded by [`Limits`];
@@ -32,6 +37,7 @@
 //! same [`CostSummary`]: per source today, yesterday and the span shown,
 //! the breakdown by day and by model, and why a source has no numbers.
 
+mod breakdown;
 mod claude;
 mod codex;
 mod estimate;
@@ -46,8 +52,18 @@ mod system;
 mod view;
 mod worker;
 
+pub use breakdown::{
+    block_hours_text, block_line, blocks, by_empty_text, by_heading, duration_text,
+    folder_hint_text, hidden_saved_text, hidden_text, label_saved_text, live, live_none_text,
+    live_rate_missing_text, live_window_text, local_estimate_text, more_text, project_name,
+    projects, provider_window_text, sessions, unknown_breakdown, BlockPage, BlockSummary,
+    Breakdown, LiveBlock, ProjectPage, ProjectSummary, ProviderWindow, SessionPage, SessionSummary,
+    BURN_WINDOW_MINUTES,
+};
 pub use estimate::{estimate, estimate_notice, Estimate, ModelEstimate, Usd};
-pub use index::{CostIndex, DailyUsage, Indexed};
+pub use index::{
+    CostIndex, DailyUsage, Indexed, LabelTarget, ProjectRow, Request, MAX_LABEL_CHARS, MIN_PREFIX,
+};
 pub use plan::{
     cycle_start, earliest_cycle, migrate_plan_keys, plan_accounts, plan_values, DisplayCurrency,
     PlanAccount, PlanAmount, PlanInput, PlanSetting, PlanValue, MAX_CYCLE_DAY, RATE_STALE_DAYS,
@@ -57,12 +73,14 @@ pub use prices::{
     Rate, Rates, TableInfo, CURRENCY, PRICE_AGE_NOTICE_DAYS,
 };
 pub use scan::{Limits, RootScan, RootState, ScanReport, Scanner, SourceScan, SourceState};
-pub use settings::{CostSettings, Disclosure, Env, SettingsStore, SourceSettings};
+pub use settings::{
+    CostSettings, Disclosure, Env, SettingsStore, SourceSettings, BLOCK_HOURS_MAX, BLOCK_HOURS_MIN,
+};
 pub use system::energy_saving;
 pub use view::{
     by_day_heading, by_model_heading, compact_tokens, enable_hint, heading, prices_age_text,
-    summarize, unpriced_text, usage_line, yesterday_label, CostState, CostSummary, DayCost,
-    SourceCost, SourceUsage, Span, SpanView, SummaryInput,
+    reconsent_text, summarize, unpriced_text, usage_line, yesterday_label, CostState, CostSummary,
+    DayCost, ProjectExport, SourceCost, SourceUsage, Span, SpanView, SummaryInput,
 };
 pub use worker::{CostStatus, CostWorker, Schedule, WorkerState};
 
@@ -112,6 +130,16 @@ impl SourceId {
 
     pub fn from_slug(slug: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|source| source.slug() == slug)
+    }
+
+    /// PRD 0042 RF3.1 and §12: the block length when the person did not
+    /// choose one: 5 hours for Claude Code and Codex CLI (their primary
+    /// subscription window), 24 for Gemini CLI (a daily quota).
+    pub fn default_block_hours(self) -> u8 {
+        match self {
+            Self::ClaudeCode | Self::CodexCli => 5,
+            Self::GeminiCli => 24,
+        }
     }
 
     /// RF4.1: the providers whose accounts are used through this tool and
@@ -289,6 +317,35 @@ impl DayZone {
             Self::Fixed(offset) => at.with_timezone(&offset).date_naive(),
         }
     }
+
+    /// PRD 0042: the first instant of local day `day` (the earliest one
+    /// when a clock change repeats midnight, the next hour when it skips
+    /// it).
+    pub fn start_of(self, day: NaiveDate) -> DateTime<Utc> {
+        use chrono::TimeZone;
+        let midnight = day.and_time(chrono::NaiveTime::MIN);
+        let pick = |result: chrono::LocalResult<DateTime<Utc>>| result.earliest();
+        let found = match self {
+            Self::Local => pick(Local.from_local_datetime(&midnight).map(|at| at.to_utc())),
+            Self::Fixed(offset) => {
+                pick(offset.from_local_datetime(&midnight).map(|at| at.to_utc()))
+            }
+        };
+        found.unwrap_or_else(|| {
+            let later = midnight + Days::hours(1);
+            match self {
+                Self::Local => Local
+                    .from_local_datetime(&later)
+                    .earliest()
+                    .map(|at| at.to_utc()),
+                Self::Fixed(offset) => offset
+                    .from_local_datetime(&later)
+                    .earliest()
+                    .map(|at| at.to_utc()),
+            }
+            .unwrap_or_else(|| Utc.from_utc_datetime(&midnight))
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
@@ -320,6 +377,18 @@ pub enum CostError {
     /// PRD 0030 RF6.1: a rate or currency code out of bounds.
     #[error("Invalid rate: a three-letter currency other than USD and a rate above zero.")]
     InvalidRate,
+    /// PRD 0042 RF2.2/RF4.2: an empty, too long or control-character label.
+    #[error("A label has 1 to 48 characters.")]
+    InvalidLabel,
+    /// PRD 0042 RF2.2/RF4.2: no session or project starts with the prefix.
+    #[error("No session or project starts with that prefix (at least 4 hexadecimal characters).")]
+    UnknownPrefix,
+    /// More than one starts with the prefix.
+    #[error("More than one session or project starts with that prefix; type more characters.")]
+    AmbiguousPrefix,
+    /// PRD 0042 RF3.1: a block length out of bounds.
+    #[error("The block length ranges from 1 to 24 hours.")]
+    BlockHours,
 }
 
 impl CostError {
@@ -349,6 +418,29 @@ impl CostError {
             Self::RelativePath => Localized::fixed("cost.error.relative_path", self.to_string()),
             Self::InvalidPlan => Localized::fixed("cost.error.invalid_plan", self.to_string()),
             Self::InvalidRate => Localized::fixed("cost.error.invalid_rate", self.to_string()),
+            Self::InvalidLabel => Localized::with_param(
+                "cost.error.invalid_label",
+                "max",
+                index::MAX_LABEL_CHARS as u64,
+                "A label has 1 to {max} characters.",
+            ),
+            Self::UnknownPrefix => Localized::with_param(
+                "cost.error.unknown_prefix",
+                "min",
+                index::MIN_PREFIX as u64,
+                "No session or project starts with that prefix (at least {min} hexadecimal characters).",
+            ),
+            Self::AmbiguousPrefix => {
+                Localized::fixed("cost.error.ambiguous_prefix", self.to_string())
+            }
+            Self::BlockHours => Localized::with_params(
+                "cost.error.block_hours",
+                params([
+                    ("min", u64::from(BLOCK_HOURS_MIN).into()),
+                    ("max", u64::from(BLOCK_HOURS_MAX).into()),
+                ]),
+                "The block length ranges from {min} to {max} hours.",
+            ),
         }
     }
 }
@@ -447,6 +539,23 @@ pub fn choose_paths(
     };
     settings.set_paths(source, chosen)?;
     Ok(removed)
+}
+
+/// PRD 0042 RF4.3: keep (or stop keeping) the last folder name of the
+/// projects of `source`; turning it off deletes the names already stored.
+/// Returns the stored names deleted.
+pub fn set_folder_hint(
+    settings: &SettingsStore,
+    index: &CostIndex,
+    source: SourceId,
+    on: bool,
+) -> Result<usize, CostError> {
+    settings.set_folder_hint(source, on)?;
+    if on {
+        Ok(0)
+    } else {
+        index.clear_folder_hints(source)
+    }
 }
 
 /// `source` was turned on.

@@ -244,6 +244,11 @@ struct FileRead {
     stopped: bool,
     /// The file was replaced between the listing and the opening.
     restarted: bool,
+    /// PRD 0042 RF1.1: leading entries that replay lines counted before
+    /// schema 2.
+    replayed: usize,
+    /// PRD 0042 RF4.3: `(project, folder name)` pairs, only when kept.
+    folders: Vec<(String, String)>,
 }
 
 /// The bounds of one scan.
@@ -304,6 +309,7 @@ impl Scanner {
             now,
             first_day: retention.first_day(self.zone.day(now)),
             oldest: SystemTime::from(now - kept),
+            keep_folders: false,
         };
         let mut budget = Budget {
             deadline: Instant::now() + self.limits.max_duration,
@@ -325,6 +331,10 @@ impl Scanner {
                 .sources
                 .get(&source)
                 .is_some_and(|s| !s.paths.is_empty());
+            let window = Window {
+                keep_folders: settings.folder_hint(source),
+                ..window
+            };
             sources.push(self.scan_source(db, source, &roots, custom, &window, &mut budget)?);
         }
         if !on.is_empty() {
@@ -393,10 +403,19 @@ impl Scanner {
             }
             budget.files -= 1;
             let started = Instant::now();
-            let row =
-                known.unwrap_or_else(|| FileRow::fresh(source, &file, candidate.identity.clone()));
+            let row = match known {
+                // PRD 0042 RF1.1: a file read again from its start after the
+                // schema 2 migration starts from a fresh parser state.
+                Some(row) if row.backfill > 0 && row.position == 0 => FileRow {
+                    backfill: row.backfill,
+                    invalid: row.invalid,
+                    ..FileRow::fresh(source, &file, row.identity)
+                },
+                Some(row) => row,
+                None => FileRow::fresh(source, &file, candidate.identity.clone()),
+            };
             let mut entries = Vec::new();
-            let (row, found) = match self.read_file(
+            let (row, mut found) = match self.read_file(
                 source,
                 &file,
                 &candidate.path,
@@ -421,6 +440,8 @@ impl Scanner {
                     restart: found.restarted,
                     row,
                     entries,
+                    replayed: found.replayed,
+                    folders: std::mem::take(&mut found.folders),
                     read_at: window.now.timestamp_millis(),
                 },
                 || self.still_on(source),
@@ -584,18 +605,38 @@ impl Scanner {
             if text.is_empty() {
                 continue;
             }
-            match adapter.parse(text, &mut row.state) {
+            let parsed = adapter.parse(text, &mut row.state);
+            // PRD 0042 RF4.3: the folder name is taken at once and kept
+            // only when the person asked for the hint.
+            if let Some(folder) = row.state.folder.take() {
+                if let (true, Some(project)) = (window.keep_folders, &row.state.project) {
+                    found.folders.retain(|(known, _)| known != project);
+                    found.folders.push((project.clone(), folder));
+                }
+            }
+            match parsed {
                 Line::Usage(entry) => {
                     let day = self.zone.day(entry.at);
                     if day < window.first_day {
                         found.expired += 1;
                     } else {
+                        if row.position <= row.backfill {
+                            found.replayed += 1;
+                        }
                         entries.push((day, entry));
                     }
                 }
                 Line::Skip => {}
-                Line::Invalid => found.invalid += 1,
+                Line::Invalid => {
+                    // Counted the first time the line was read.
+                    if row.position > row.backfill {
+                        found.invalid += 1;
+                    }
+                }
             }
+        }
+        if row.position >= row.backfill {
+            row.backfill = 0;
         }
         row.examined = if found.stopped {
             row.position
@@ -608,12 +649,15 @@ impl Scanner {
 }
 
 /// The span of one scan.
+#[derive(Clone, Copy)]
 struct Window {
     now: DateTime<Utc>,
     /// The oldest local day kept.
     first_day: NaiveDate,
     /// Files last modified before this hold no kept usage.
     oldest: SystemTime,
+    /// PRD 0042 RF4.3: the source keeps the last folder name of projects.
+    keep_folders: bool,
 }
 
 impl FileRow {
@@ -629,6 +673,7 @@ impl FileRow {
                 ..FileState::default()
             },
             invalid: 0,
+            backfill: 0,
         }
     }
 }
