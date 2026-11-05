@@ -280,7 +280,7 @@ Every RF is delivered against the mockups of section 9 and cites the DS rules it
 
 - **Identity** (DS-PRI-5, DS-ID-1..8): every reference theme (Dracula, GitHub light, Win98, CRT) and the Cuotai theme render every refreshed screen correctly; retro themes keep bevels, square corners and scanlines.
 - **Calm** (DS-PRI-2): an idle window has no running animation; data changes never animate.
-- **Performance:** a full re-render of the tray with 12 accounts stays under 16 ms on the reference Mac (no layout thrash from the status-line fitting: one measurement pass per refresh, cached per locale and width).
+- **Performance:** a full re-render of the tray with 12 accounts stays under 16 ms on the reference Mac (no layout thrash from the status-line fitting: one measurement pass per refresh, cached per locale and width). Note: CI runners hold the `tray-expand-account` probe of `ui-shots/perf.mjs` to 24 ms instead, because they are slower and noisier than the reference Mac; the 16 ms budget is unchanged.
 - **Accessibility:** WCAG 2.2 AA (DS-PRI-6); 200 % text zoom without horizontal scroll (DS-A11Y-7).
 - **i18n:** no regression in pt-BR, es and it; the RF14 check passes; drafts used by the mockups (159 per locale, listed in `after/src/i18n-usage.json`) are not real catalog strings and need native review before they ship with their PRDs.
 - **Privacy:** screenshots, fixtures and mockups use RFC 2606 identities only; no response body, URL or token appears in any error UI (DS-MSG-9).

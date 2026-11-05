@@ -12,6 +12,10 @@
 // from 5 to 30 ms, in bursts, so five runs went over a 16 ms budget with a true median of 12 ms: each probe discards
 // one printed warm-up run (the first click of a page's code, cold, took 20 ms there), takes many more runs, and a
 // probe over budget is measured once more; the median of both batches decides, so a real regression still fails.
+// CI allowance (owner decision, 2026-11-05): on a CI runner (`CI` or `GITHUB_ACTIONS` set) `tray-expand-account` is
+// held to 24 ms instead of 16 ms. GitHub's macOS runners measure it at a 13 to 21 ms median for the same code, so the
+// 16 ms frame budget flaked there; 16 ms stays the PRD budget on the reference machine and in local runs. An explicit
+// `--frame-budget` applies to every probe and overrides the allowance. The report names the budget used and why.
 // Usage: node apps/desktop/tools/ui-shots/perf.mjs [--json] [--strict] [--runs N] [--open-budget MS] [--frame-budget MS]
 import { launch } from "./driver.mjs";
 
@@ -22,6 +26,15 @@ const strict = args.includes("--strict");
 const RUNS = flag("--runs", 15);
 const OPEN_BUDGET = flag("--open-budget", 300);
 const FRAME_BUDGET = flag("--frame-budget", 16);
+const CI_ENV = ["GITHUB_ACTIONS", "CI"].find((k) => process.env[k] && process.env[k] !== "false" && process.env[k] !== "0");
+// Probes with a wider budget on CI runners only (see the CI allowance above); not applied when --frame-budget is given.
+const CI_FRAME_BUDGET = { "tray-expand-account": 24 };
+const frameBudget = (name) => {
+  if (CI_ENV && !args.includes("--frame-budget") && CI_FRAME_BUDGET[name] != null) {
+    return { budget: CI_FRAME_BUDGET[name], budget_reason: `CI allowance (${CI_ENV} is set; PRD budget ${FRAME_BUDGET} ms on the reference machine)` };
+  }
+  return { budget: FRAME_BUDGET, budget_reason: args.includes("--frame-budget") ? "--frame-budget" : CI_ENV ? "PRD budget (no CI allowance for this probe)" : "PRD budget (local run)" };
+};
 const median = (xs) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
 
 const ui = await launch();
@@ -37,11 +50,12 @@ try {
     })`);
     if (typeof t === "number") openTimes.push(t);
   }
-  results.push({ probe: "settings-open", unit: "ms", budget: OPEN_BUDGET, runs: openTimes.map((t) => Math.round(t)), median: openTimes.length ? Math.round(median(openTimes)) : null });
+  results.push({ probe: "settings-open", unit: "ms", budget: OPEN_BUDGET, budget_reason: args.includes("--open-budget") ? "--open-budget" : "PRD budget", runs: openTimes.map((t) => Math.round(t)), median: openTimes.length ? Math.round(median(openTimes)) : null });
 
   // Render time: the click, its render and a forced style + layout (the work), then the next presented frame (two
   // rAFs: the first runs before paint, the second after it; informational, it includes the vsync wait).
   const frame = async (name, page, w, h, selector) => {
+    const { budget, budget_reason } = frameBudget(name);
     const times = [], frames = [];
     const sample = async (runs) => {
       for (let i = 0; i < runs; i++) {
@@ -62,10 +76,10 @@ try {
     const warmup = times.shift();
     frames.shift();
     await sample(RUNS);
-    const remeasured = times.length > 0 && median(times) > FRAME_BUDGET;
+    const remeasured = times.length > 0 && median(times) > budget;
     if (remeasured) await sample(RUNS);
     const r1 = (x) => Math.round(x * 10) / 10;
-    results.push({ probe: name, unit: "ms", budget: FRAME_BUDGET, warmup: warmup == null ? null : r1(warmup), remeasured, runs: times.map(r1), median: times.length ? r1(median(times)) : null, frame_median: frames.length ? r1(median(frames)) : null });
+    results.push({ probe: name, unit: "ms", budget, budget_reason, warmup: warmup == null ? null : r1(warmup), remeasured, runs: times.map(r1), median: times.length ? r1(median(times)) : null, frame_median: frames.length ? r1(median(frames)) : null });
   };
   await frame("tray-expand-account", "tray.html", 380, 600, "[data-open]");
   await frame("tray-open-stats", "tray.html", 380, 600, "[data-open-stats]");
@@ -76,7 +90,7 @@ let over = 0;
 for (const r of results) {
   const bad = r.median == null || r.median > r.budget;
   if (bad) over++;
-  if (!json) console.log(`${bad ? "OVER" : "ok  "} ${r.probe}: median ${r.median} ${r.unit} (budget ${r.budget}; runs ${r.runs.join(", ")})${r.frame_median != null ? `; next frame ${r.frame_median} ms` : ""}${r.warmup != null ? `; warm-up ${r.warmup} ms not counted` : ""}${r.remeasured ? "; over budget at first, measured again" : ""}`);
+  if (!json) console.log(`${bad ? "OVER" : "ok  "} ${r.probe}: median ${r.median} ${r.unit} (budget ${r.budget}: ${r.budget_reason}; runs ${r.runs.join(", ")})${r.frame_median != null ? `; next frame ${r.frame_median} ms` : ""}${r.warmup != null ? `; warm-up ${r.warmup} ms not counted` : ""}${r.remeasured ? "; over budget at first, measured again" : ""}`);
 }
 if (json) console.log(JSON.stringify(results, null, 1));
 console.error(`ui-shots perf: ${over} probe(s) over budget${strict ? "" : " (advisory)"}`);
