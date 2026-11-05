@@ -6333,6 +6333,16 @@ pub struct FormSchema {
     /// PRD 0040 owner decision: the choices a new account preselects when a
     /// local tool was detected (PRD 0027 RF6): `{ kind, key, choice }`.
     preselect: Vec<PreselectSchema>,
+    /// PRD 0040: the choice that selects the feed-only mode, in which the
+    /// form asks for no credential (`{ key, choice }`); absent otherwise.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    feed_only: Option<FeedOnlySchema>,
+}
+
+#[derive(Serialize)]
+pub struct FeedOnlySchema {
+    key: &'static str,
+    choice: usize,
 }
 
 #[derive(Serialize)]
@@ -6422,6 +6432,8 @@ pub fn form_schema(provider: Provider) -> FormSchema {
             .map(|d| d.key)
             .filter(|key| account_edit::is_terminal_only_field(provider, key))
             .collect(),
+        feed_only: account_edit::feed_only_choice(provider)
+            .map(|(key, choice)| FeedOnlySchema { key, choice }),
         preselect: [
             cuotai_core::detect::SourceKind::ClaudeCode,
             cuotai_core::detect::SourceKind::CodexCli,

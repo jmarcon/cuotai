@@ -2100,13 +2100,19 @@ pub fn credential_optional(provider: Provider) -> bool {
     crate::feed::FeedSource::for_provider(provider).is_some()
 }
 
-/// Whether the draft `fields` select the feed-only mode of `provider`
-/// (option 1 of its `query_mode` choice).
+/// PRD 0040: the choice (field key and option index) that selects the
+/// feed-only mode of `provider`, in which the form asks for no credential.
+pub fn feed_only_choice(provider: Provider) -> Option<(&'static str, usize)> {
+    credential_optional(provider).then_some(("query_mode", 1))
+}
+
+/// Whether the draft `fields` select the feed-only mode of `provider`.
 fn feed_only(provider: Provider, fields: &[DraftField]) -> bool {
-    credential_optional(provider)
-        && fields
-            .iter()
-            .any(|field| field.key == "query_mode" && matches!(field.value, DraftValue::Choice(1)))
+    feed_only_choice(provider).is_some_and(|(key, index)| {
+        fields.iter().any(|field| {
+            field.key == key && matches!(field.value, DraftValue::Choice(i) if i == index)
+        })
+    })
 }
 
 /// PRD 0040 owner decision (2026-10-25): the choices an Add-account form

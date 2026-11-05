@@ -149,6 +149,26 @@ fn parse_and_write_fit_the_writer_budget() {
     assert!(started.elapsed() < std::time::Duration::from_millis(250));
 }
 
+#[test]
+fn the_feed_only_choice_names_the_feed_mode_option() {
+    use crate::account_edit::{self, FieldDescriptorKind};
+    for (provider, mode) in [
+        (crate::Provider::Claude, MODE_CLAUDE_CODE),
+        (crate::Provider::ChatGpt, MODE_CODEX_CLI),
+    ] {
+        let (key, index) = account_edit::feed_only_choice(provider).unwrap();
+        let descriptor = account_edit::field_descriptors(provider)
+            .iter()
+            .find(|d| d.key == key)
+            .unwrap();
+        let FieldDescriptorKind::Choice(choice) = &descriptor.kind else {
+            panic!("query_mode is a choice");
+        };
+        assert_eq!(choice.options[index].value, mode);
+    }
+    assert!(account_edit::feed_only_choice(crate::Provider::OpenAiApi).is_none());
+}
+
 // ------------------------------------------------------------- RF1
 
 #[test]
