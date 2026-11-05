@@ -7,7 +7,8 @@
 //! - `CUOTAI_LOG` wins over `RUST_LOG`; both take `EnvFilter` syntax. An
 //!   invalid filter falls back to `info` and records one fixed warning;
 //!   `off` writes nothing (and creates no file).
-//! - The file is `<OS local data dir>/cuotai/logs/cuotai.log`, `0600` on
+//! - The file is `<data root>/logs/cuotai.log` (the root is
+//!   `CUOTAI_DATA_DIR` or `<OS local data dir>/cuotai`), `0600` on
 //!   Unix, rotated to `cuotai.log.1` at 256 KiB (at most 512 KiB in all).
 //! - Every field value passes the fail-closed [`redact::text`]; an
 //!   `account` field is kept only at `debug`/`trace`. Writing never panics
@@ -114,14 +115,16 @@ pub fn log_file() -> Option<&'static Path> {
     LOG_FILE.get().map(PathBuf::as_path)
 }
 
-/// `<data_dir>/cuotai/logs/cuotai.log`.
-pub fn log_path(data_dir: &Path) -> PathBuf {
-    data_dir.join("cuotai").join("logs").join("cuotai.log")
+/// `<root>/logs/cuotai.log`, where `root` is the data root
+/// ([`crate::data_dir::root`]).
+pub fn log_path(root: &Path) -> PathBuf {
+    root.join("logs").join("cuotai.log")
 }
 
-/// The app log under the OS local data directory, `None` without one.
+/// The app log under the data root, `None` without one (or with an
+/// invalid `CUOTAI_DATA_DIR`).
 pub fn default_log_path() -> Option<PathBuf> {
-    dirs::data_local_dir().map(|dir| log_path(&dir))
+    crate::data_dir::root().map(|dir| log_path(&dir))
 }
 
 /// The filter text the environment selects: `CUOTAI_LOG`, then `RUST_LOG`.
@@ -147,8 +150,8 @@ fn is_off(text: Option<&str>) -> bool {
 }
 
 /// Start the app log for this process (once; later calls only report the
-/// state). `data_dir` is the OS local data directory (normally
-/// `dirs::data_local_dir()`); `None` leaves the log unavailable.
+/// state). `data_dir` is the data root (normally
+/// [`crate::data_dir::root`]); `None` leaves the log unavailable.
 pub fn init(kind: AppKind, data_dir: Option<&Path>) -> LogHealth {
     static ONCE: OnceLock<LogHealth> = OnceLock::new();
     *ONCE.get_or_init(|| {
@@ -183,9 +186,9 @@ pub fn init(kind: AppKind, data_dir: Option<&Path>) -> LogHealth {
     })
 }
 
-/// [`init`] under the OS local data directory.
+/// [`init`] under the data root (`CUOTAI_DATA_DIR` included).
 pub fn init_default(kind: AppKind) -> LogHealth {
-    init(kind, dirs::data_local_dir().as_deref())
+    init(kind, crate::data_dir::root().as_deref())
 }
 
 /// The subscriber [`init`] installs, over any rotating file (tests use a

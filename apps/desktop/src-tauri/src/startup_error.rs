@@ -86,7 +86,7 @@ mod tests {
             shown: RefCell::new(Vec::new()),
             works: true,
         };
-        let log = dirs::data_local_dir().map(|d| logging::log_path(&d));
+        let log = logging::default_log_path();
         let code = report("setup", "en-US", log.as_deref(), &fake);
         assert_eq!(code, 1);
         let shown = fake.shown.borrow();
