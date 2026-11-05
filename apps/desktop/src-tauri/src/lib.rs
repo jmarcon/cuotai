@@ -1642,6 +1642,50 @@ async fn cost_erase(cost: Cost<'_>) -> Result<usize, String> {
     cost.erase()
 }
 
+/// PRD 0042 RF6.1: one tab of the local cost breakdown (`day`, `model`,
+/// `session`, `block` or `project`) over the saved period. Reads the
+/// index, never a log.
+#[tauri::command]
+async fn cost_breakdown(
+    cost: Cost<'_>,
+    b: Shared<'_>,
+    by: cuotai_core::cost::Breakdown,
+) -> Result<serde_json::Value, String> {
+    let reports = b.reports().await;
+    cost.breakdown(by, &reports)
+}
+
+/// PRD 0042 RF2.2/RF4.2: label (or, with `label` null, unlabel) a session or
+/// project. Error: `cost.error.invalid_label` or `unknown_prefix` as JSON.
+#[tauri::command]
+async fn cost_set_label(
+    cost: Cost<'_>,
+    target: cuotai_core::cost::LabelTarget,
+    digest: String,
+    label: Option<String>,
+) -> Result<(), String> {
+    cost.set_label(target, &digest, label)
+}
+
+/// PRD 0042 RF4.1: hide a project from the totals, or count it again.
+#[tauri::command]
+async fn cost_set_hidden(cost: Cost<'_>, digest: String, hidden: bool) -> Result<(), String> {
+    cost.set_hidden(&digest, hidden)
+}
+
+/// PRD 0042 RF3.1/RF4.3: a source's block length (1 to 24 hours) and
+/// folder-name hint (off deletes the names kept). Error:
+/// `cost.error.block_hours` as JSON.
+#[tauri::command]
+async fn cost_set_source_options(
+    cost: Cost<'_>,
+    source: cuotai_core::cost::SourceId,
+    block_hours: u8,
+    folder_hint: bool,
+) -> Result<local_cost::CostView, String> {
+    cost.set_source_options(source, block_hours, folder_hint)
+}
+
 /// PRD 0006 RF5.3: bytes the history file takes on this device.
 #[tauri::command]
 async fn history_size(b: Shared<'_>) -> Result<u64, String> {
@@ -2443,6 +2487,10 @@ pub fn run() -> std::process::ExitCode {
             cost_set_options,
             cost_prices,
             cost_erase,
+            cost_breakdown,
+            cost_set_label,
+            cost_set_hidden,
+            cost_set_source_options,
             history_size,
             account_history,
             stats,

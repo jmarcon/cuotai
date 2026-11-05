@@ -327,6 +327,12 @@ export const costSetPaths = (source, paths) => call("cost_set_paths", { source, 
 export const costSetOptions = (period, retentionDays) => call("cost_set_options", { period, retentionDays });
 export const costPrices = () => call("cost_prices");
 export const costErase = () => call("cost_erase");
+// PRD 0042 RF6.1: one tab of the breakdown (`day`, `model`, `session`, `block`, `project`), labels, hidden projects and
+// each source's block length and folder-name hint.
+export const costBreakdown = (by) => call("cost_breakdown", { by });
+export const costSetLabel = (target, digest, label) => call("cost_set_label", { target, digest, label });
+export const costSetHidden = (digest, hidden) => call("cost_set_hidden", { digest, hidden });
+export const costSetSourceOptions = (source, blockHours, folderHint) => call("cost_set_source_options", { source, blockHours, folderHint });
 // PRD 0018 RF2.6/RF3: updater state and user actions. The UI never receives an
 // endpoint or signature; the backend returns only what it presents (consent,
 // phase, version, notes, progress and the off reason). `onUpdate` listens to the
@@ -1731,7 +1737,9 @@ const DEMO_COST = {
     providers: ["chat_gpt"], models: { "gpt-5-codex": { entry: "gpt-5-codex", input: 1.25, output: 10, cache_read: 0.125, cache_write: 1.25 } } },
 };
 const DEMO_PERIODS = { today: "Today", last_7_days: "Last 7 days", last_30_days: "Last 30 days", current_month: "Current month", all: "Everything available" };
-const demoCost = { on: {}, paths: {}, period: "last_7_days", retention: 120, erased: new Set() };
+const demoCost = { on: {}, paths: {}, period: "last_7_days", retention: 120, erased: new Set(), hours: {}, hints: {}, labels: {}, hidden: new Set() };
+// PRD 0042: the core's default block length per source.
+const DEMO_BLOCK_HOURS = { claude_code: 5, codex_cli: 5, gemini_cli: 24 };
 // `?cost` starts the demo with every local-cost source on, so the cards and the tray show their cost rows (fa gap 3).
 if (new URLSearchParams(location.search).has("cost")) for (const id of Object.keys(DEMO_COST)) demoCost.on[id] = "2026-10-01T09:00:00Z";
 const demoDirs = (id) => demoCost.paths[id]?.map((p) => p.replace(/^~(?=\/|$)/, "/Users/demo")) ?? DEMO_COST[id].dirs;
@@ -1740,8 +1748,8 @@ const demoDisclosure = (id) => {
   const dirs = demoDirs(id);
   return { source: id, label, directories: dirs, custom: !!demoCost.paths[id], pattern, digest: `demo-${id}-${dirs.join("|")}`,
     purpose: demoL10n("cost.disclosure.purpose", { source: label }, `To estimate, on this computer only, the tokens and the cost at API prices of your ${label} usage per day and per model.`),
-    extracted: demoL10n("cost.disclosure.extracted", {}, "Only numbers are extracted: the time, the model, the token counts (input, output, cache read and cache write) and an anonymous digest of the session."),
-    never: demoL10n("cost.disclosure.never", {}, "Conversation content, prompts, answers, file names and project paths are never read into the index, stored or shown. Nothing leaves this computer."),
+    extracted: demoL10n("cost.disclosure.extracted_v2", {}, "Only numbers are extracted: the time, the model, the token counts (input, output, cache read and cache write), an anonymous digest of the session and a one-way fingerprint of the project folder, so you can label it."),
+    never: demoL10n("cost.disclosure.never_v2", {}, "Conversation content, prompts, answers, file names and project paths are never read into the index, stored or shown; the last folder name of a project is kept only if you turn that on. Nothing leaves this computer."),
     off: demoL10n("cost.disclosure.off", {}, "Desligar a fonte interrompe qualquer leitura e apaga tudo o que foi derivado dela.") };
 };
 const demoCostView = () => {
@@ -1749,13 +1757,14 @@ const demoCostView = () => {
     const enabled = id in demoCost.on;
     const files = enabled && !demoCost.erased.has(id) ? s.files : 0;
     return { source: id, label: s.label, enabled, consented_at: demoCost.on[id] ?? null, paths: demoCost.paths[id] ?? [], disclosure: demoDisclosure(id),
-      indexed: { files, invalid_lines: files ? 2 : 0 },
+      indexed: { files, invalid_lines: files ? 2 : 0 }, reconsent: false, block_hours: demoCost.hours[id] ?? DEMO_BLOCK_HOURS[id],
+      default_block_hours: DEMO_BLOCK_HOURS[id], folder_hint: !!demoCost.hints[id],
       summary: enabled ? demoL10n("cost.scan.ready", { source: s.label, files: String(s.files), requests: String(files ? 0 : 41), invalid: "2" },
         `${s.label}: ${s.files} log(s); ${files ? 0 : 41} new request(s); 2 invalid line(s) ignored.`) : null };
   });
   const on = sources.some((s) => s.enabled);
   return { sources, period: demoCost.period, periods: Object.entries(DEMO_PERIODS).map(([id, text]) => ({ id, label: demoL10n(`cost.period.${id}`, {}, text) })),
-    retention_days: demoCost.retention, retention_min: 7, retention_max: 730,
+    retention_days: demoCost.retention, retention_min: 7, retention_max: 730, block_hours_min: 1, block_hours_max: 24,
     state: !on ? "off" : new URLSearchParams(location.search).has("cost-paused") ? "paused" : "waiting", error: null,
     size: on ? 86016 : 0 };
 };
@@ -1822,8 +1831,60 @@ const demoCostUsage = () => {
   const all = Object.keys(DEMO_COST).filter((id) => id in demoCost.on && !demoCost.erased.has(id))
     .flatMap((id) => Array.from({ length: span + 1 }, (_, back) => demoDayRows(id, back)).flat());
   return { currency: "USD", notice: demoNotice(), span: { period: demoCost.period, days: null, label, first_day: demoCost.period === "all" ? null : at(span), last_day: at(0) }, sources,
-    total: demoEstimate(all), pricing_error: null };
+    total: demoEstimate(all), pricing_error: null, live: demoLive() };
 };
+// PRD 0042 demo: sessions, 5-hour blocks and projects built from the same synthetic days; the active block started
+// 80 minutes ago. Digests are fixed placeholders; labels and hidden projects live for the page's life.
+const demoOn = () => Object.keys(DEMO_COST).filter((id) => id in demoCost.on && !demoCost.erased.has(id));
+const demoBlock = (id, back, active) => {
+  const now = Date.now();
+  const hours = demoCost.hours[id] ?? DEMO_BLOCK_HOURS[id];
+  const start = new Date(active ? now - 80 * 60_000 : now - (back * 24 + 3) * 3_600_000);
+  start.setMinutes(0, 0, 0);
+  return { source: id, start: start.toISOString(), end: new Date(start.getTime() + hours * 3_600_000).toISOString(), active,
+    last_request: new Date(active ? now - 60_000 : start.getTime() + 3_600_000).toISOString(), sessions: active ? 2 : 1, projects: 1,
+    estimate: demoEstimate(demoDayRows(id, back)), provider_window: null };
+};
+function demoLive() {
+  return demoOn().map((id) => {
+    const block = demoBlock(id, 0, true);
+    const cost = block.estimate.total;
+    return { block, elapsed_minutes: 80, left_minutes: (demoCost.hours[id] ?? DEMO_BLOCK_HOURS[id]) * 60 - 80, burn_rate_tokens_per_min: 38000, projected_block_cost: cost == null ? null : cost * 3.1,
+      line: cost == null ? null : demoL10n("cost.live.line", { cost: fmtMoney(cost), rate: "38K" }, `This block ≈ ${fmtMoney(cost)} · 38K tok/min`),
+      projection: cost == null ? null : demoL10n("cost.live.projection", { cost: fmtMoney(cost * 3.1), at: "18:00" }, `At this rate ≈ ${fmtMoney(cost * 3.1)} by 18:00`) };
+  });
+}
+const DEMO_PROJECTS = ["3f9a1c2e7b4d5a60", "a81d0c44e2f97b13"];
+function demoBreakdown(by) {
+  const usage = demoCostUsage();
+  const base = { notice: demoNotice(), span: usage.span, total: usage.total };
+  const label = (digest) => demoCost.labels[digest] ?? null;
+  if (by === "day" || by === "model") return usage;
+  if (by === "session") {
+    const sessions = demoOn().flatMap((id, i) => [0, 1, 2].map((back) => {
+      const digest = `${id.length}${i}${back}`.padEnd(64, "c");
+      const first = new Date(Date.now() - (back * 24 + 2) * 3_600_000);
+      const minutes = 40 + back * 35;
+      const name = label(digest) ? demoL10n("cost.session.labelled", { label: label(digest) }, label(digest))
+        : demoL10n("cost.session.name", { start: first.toISOString().slice(0, 16).replace("T", " "), end: "", duration: `${minutes}m` }, `Session · ${first.toISOString().slice(0, 16).replace("T", " ")} · ${minutes}m`);
+      return { source: id, session: digest, short: digest.slice(0, 8), label: label(digest), name, first: first.toISOString(),
+        last: new Date(first.getTime() + minutes * 60_000).toISOString(), duration_minutes: minutes, project: DEMO_PROJECTS[back % 2], estimate: demoEstimate(demoDayRows(id, back)) };
+    }));
+    return { ...base, count: sessions.length, sessions };
+  }
+  if (by === "block") {
+    const blocks = demoOn().flatMap((id) => [demoBlock(id, 0, true), demoBlock(id, 1, false), demoBlock(id, 2, false)]);
+    return { ...base, blocks, live: demoLive() };
+  }
+  const projects = (demoOn().length ? DEMO_PROJECTS : []).map((digest, i) => {
+    const rows = demoOn().flatMap((id) => [i, i + 2].flatMap((back) => demoDayRows(id, back)));
+    return { project: digest, short: digest.slice(0, 8), label: label(digest), folder_hint: null, hidden: demoCost.hidden.has(digest),
+      name: label(digest) ? demoL10n("cost.project.labelled", { label: label(digest) }, label(digest)) : demoL10n("cost.project.name", { short: digest.slice(0, 8) }, `Project ${digest.slice(0, 8)}`),
+      first: new Date(Date.now() - 5 * 86_400_000).toISOString(), last: new Date().toISOString(), sessions: 2 + i, estimate: demoEstimate(rows) };
+  });
+  const visible = DEMO_PROJECTS.filter((d) => !demoCost.hidden.has(d)).flatMap((_, i) => demoOn().flatMap((id) => [i, i + 2].flatMap((back) => demoDayRows(id, back))));
+  return { ...base, total: demoEstimate(visible), hidden: demoCost.hidden.size, projects };
+}
 // PRD 0030 RF1/RF6 demo: plan prices by account key and one typed rate, kept for the page's life like the core's
 // settings. The value line mirrors `cost::plan_values` for a plan in one currency (a ratio when it is USD or the
 // display currency); the amounts are the demo period totals.
@@ -2210,6 +2271,21 @@ const demo = {
   },
   cost_status: async () => demoCostView(),
   cost_usage: async () => demoCostUsage(),
+  cost_breakdown: async ({ by }) => demoBreakdown(by),
+  cost_set_label: async ({ digest, label }) => {
+    const text = (label ?? "").trim();
+    if (text.length > 48) throw JSON.stringify(demoL10n("cost.error.invalid_label", { max: "48" }, "A label has 1 to 48 characters."));
+    if (text) demoCost.labels[digest] = text; else delete demoCost.labels[digest];
+  },
+  cost_set_hidden: async ({ digest, hidden }) => { if (hidden) demoCost.hidden.add(digest); else demoCost.hidden.delete(digest); },
+  cost_set_source_options: async ({ source, blockHours, folderHint }) => {
+    if (!(Number.isInteger(blockHours) && blockHours >= 1 && blockHours <= 24)) {
+      throw JSON.stringify(demoL10n("cost.error.block_hours", { min: "1", max: "24" }, "The block length ranges from 1 to 24 hours."));
+    }
+    if (blockHours === DEMO_BLOCK_HOURS[source]) delete demoCost.hours[source]; else demoCost.hours[source] = blockHours;
+    demoCost.hints[source] = folderHint;
+    return demoCostView();
+  },
   cost_prices: async () => demoPrices(),
   cost_set_paths: async ({ source, paths }) => {
     const chosen = [...new Set(paths.map((p) => p.trim()).filter(Boolean))];

@@ -3066,6 +3066,21 @@ impl Backend {
             .unwrap_or_default()
     }
 
+    /// PRD 0042 RF3.2: the reports of the last refresh, for the provider
+    /// window shown beside a local block; empty before the first one.
+    pub async fn reports(&self) -> Vec<Report> {
+        let g = self.inner.lock().await;
+        let Some(l) = g.loaded.as_ref() else {
+            return Vec::new();
+        };
+        match l.cycle.snapshot() {
+            Some(snapshot) => snapshot.reports.clone(),
+            None => (0..l.cycle.len())
+                .filter_map(|index| l.cycle.account_report(index).cloned())
+                .collect(),
+        }
+    }
+
     pub async fn view(&self) -> View {
         self.ensure_loaded().await;
         let seen = self.prefetch_recent(None).await;
