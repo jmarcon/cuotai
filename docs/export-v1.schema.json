@@ -68,7 +68,9 @@
           "items": { "$ref": "#/$defs/Floor" },
           "description": "PRD 0041 RF3: the person's balance floors of the account; omitted when it has none. Additive."
         },
-        "breakdown": { "type": "array", "items": { "$ref": "#/$defs/BreakdownRow" }, "description": "PRD 0045 RF8: the rows of an account that opts into a breakdown (keys, projects, workspaces, teams), ordered by spend; past 24 rows the rest are summed into one row with id \"others\". Never per user; omitted when empty." }
+        "breakdown": { "type": "array", "items": { "$ref": "#/$defs/BreakdownRow" }, "description": "PRD 0045 RF8: the rows of an account that opts into a breakdown (keys, projects, workspaces, teams), ordered by spend; past 24 rows the rest are summed into one row with id \"others\". Never per user; omitted when empty." },
+        "source": { "$ref": "#/$defs/SourceExport", "description": "PRD 0040: how an account with an agent-fed mode was read; omitted for every other account." },
+        "sessions": { "type": "array", "items": { "$ref": "#/$defs/SessionExport" }, "description": "PRD 0040: the live agent sessions of the feed bound to the account, newest first; omitted when empty." }
       }
     },
     "BreakdownRow": {
@@ -480,17 +482,37 @@
         "cycle_ends_at": { "type": ["string", "null"], "format": "date-time" }
       }
     },
+    "SourceExport": {
+      "type": "object",
+      "required": ["kind", "answered_by", "measured_at"],
+      "properties": {
+        "kind": { "anyOf": [{ "enum": ["query", "feed", "hybrid"] }, { "type": "string" }], "description": "The configured mode." },
+        "answered_by": { "anyOf": [{ "type": "null" }, { "enum": ["api", "feed" ] }, { "type": "string" }], "description": "What answered the current report; null without a ready report." },
+        "measured_at": { "type": ["string", "null"], "format": "date-time", "description": "When the answering source measured: the feed's time, or the query's." }
+      }
+    },
+    "SessionExport": {
+      "type": "object",
+      "required": ["model_name", "context_used_pct", "cost_usd", "written_at"],
+      "properties": {
+        "model_name": { "type": ["string", "null"] },
+        "context_used_pct": { "type": ["number", "null"], "description": "Share of the agent's context window in use, 0 to 100." },
+        "cost_usd": { "type": ["number", "null"], "description": "The agent's own session estimate at list price, not a charge." },
+        "written_at": { "type": "string", "format": "date-time" }
+      }
+    },
     "UsageAccess": {
       "type": "object",
       "required": [
         "level", "credential", "plan_requirement", "scope", "metered", "evidence", "verified_on",
-        "summary", "credential_hint", "risk", "reason", "overage"
+        "summary", "credential_hint", "risk", "reason", "overage", "local"
       ],
       "properties": {
         "overage": { "anyOf": [{ "enum": ["money", "provider_units", "not_reported"] }, { "type": "string" }], "description": "Whether the interface reports paid extra usage, and in what." },
         "level": { "anyOf": [{ "enum": ["official", "undocumented", "derived", "unavailable", "extension"] }, { "type": "string" }] },
         "overrides": { "$ref": "#/$defs/Provider", "description": "Present only when an extension override answered this account (PRD 0028 RF7.3): the built-in provider it replaced; level is then extension." },
-        "credential": { "anyOf": [{ "enum": ["inference_key", "admin_key", "subscription_session", "cloud_identity", "local_cli", "user_session", "aggregator_login"] }, { "type": "string" }] },
+        "credential": { "anyOf": [{ "enum": ["inference_key", "admin_key", "subscription_session", "cloud_identity", "local_cli", "user_session", "aggregator_login", "agent_feed"] }, { "type": "string" }] },
+        "local": { "type": "boolean", "description": "PRD 0040: the reading needs no network request (an agent's local feed)." },
         "plan_requirement": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Localized" }] },
         "scope": { "anyOf": [{ "enum": ["account", "organization", "whole_cloud", "product", "instance"] }, { "type": "string" }] },
         "metered": { "type": "boolean", "description": "Every query is billed." },

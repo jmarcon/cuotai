@@ -28,9 +28,13 @@ const VERIFIED: &[(&str, &str)] = &[
     ("azure_open_ai", "2026-10-20"),
     ("chat_gpt", "2026-10-20"),
     ("claude", "2026-10-20"),
+    ("claude_code", "2026-10-25"),
+    ("claude_code_or_api", "2026-10-25"),
     ("cline", "2026-10-20"),
     ("cloudflare_ai", "2026-10-20"),
     ("code_buddy", "2026-10-20"),
+    ("codex_cli", "2026-11-05"),
+    ("codex_cli_or_api", "2026-11-05"),
     ("copilot_billing", "2026-10-20"),
     ("copilot_quota", "2026-10-20"),
     ("cursor_personal", "2026-10-20"),
@@ -113,6 +117,9 @@ pub enum Credential {
     /// PRD 0036: the dashboard password of a self-hosted aggregator (or
     /// none, when the instance has login disabled).
     AggregatorLogin,
+    /// PRD 0040: no credential; the agent on this computer, already signed
+    /// in, hands its own reading to Cuotai.
+    AgentFeed,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -183,6 +190,9 @@ pub struct UsageAccess {
     /// of the export's `access`.
     #[serde(skip)]
     pub breakdowns: Vec<BreakdownMode>,
+    /// PRD 0040 RF6.1: the reading needs no network request (an agent's
+    /// local feed).
+    pub local: bool,
 }
 
 /// PRD 0045 RF7: one breakdown an interface can add, described like an
@@ -404,6 +414,7 @@ impl Credential {
             Self::LocalCli => "local_cli",
             Self::UserSession => "user_session",
             Self::AggregatorLogin => "aggregator_login",
+            Self::AgentFeed => "agent_feed",
         }
     }
 
@@ -417,6 +428,7 @@ impl Credential {
             Self::LocalCli => "Local CLI",
             Self::UserSession => "User session",
             Self::AggregatorLogin => "Aggregator login",
+            Self::AgentFeed => "Agent feed",
         };
         Localized::fixed(format!("access.credential.{}", self.slug()), pt)
     }
@@ -430,6 +442,7 @@ impl Credential {
             Self::LocalCli => "Uses an already signed-in profile of the vendor's CLI installed on this machine.",
             Self::UserSession => "Needs a web session you paste in the account wizard (kept in the system vault) or export in a variable; it expires and is never imported automatically.",
             Self::AggregatorLogin => "Uses the dashboard password of your own instance (or none, when login is off on it); the providers' credentials never leave the instance.",
+            Self::AgentFeed => "No credential: the coding agent on this computer, already signed in, hands its own reading to Cuotai; no token is reused.",
         };
         Localized::fixed(format!("access.credential_hint.{}", self.slug()), pt)
     }
@@ -481,6 +494,7 @@ fn entry(
         overage: OverageReporting::NotReported,
         overrides: None,
         breakdowns: Vec::new(),
+        local: false,
     }
 }
 
@@ -638,6 +652,26 @@ impl UsageAccess {
 pub fn describe_reading(account: &Account, report: Option<&crate::Report>) -> UsageAccess {
     let overridden = account.provider != Provider::Extension
         && report.is_some_and(|report| report.source.starts_with("extension:"));
+    // PRD 0040 RF3.4: a hybrid account reports the level of the source
+    // that answered; a ready reading not from the feed came from the query.
+    if let (Some((_, crate::feed::SourceKind::Hybrid)), Some(report)) = (
+        crate::feed::mode_of(account.provider, &account.params),
+        report,
+    ) {
+        if !overridden
+            && report.status == Status::Ready
+            && !report.source.starts_with(crate::feed::REPORT_SOURCE_PREFIX)
+        {
+            let mut params = account.params.clone();
+            params.remove("query_mode");
+            let slots = account.session.iter().flat_map(|s| s.slots.iter());
+            return classify(
+                account.provider,
+                account.oauth.is_some(),
+                &with_vault_slots(&params, slots),
+            );
+        }
+    }
     if !overridden {
         return describe(account);
     }
@@ -691,6 +725,31 @@ pub(crate) fn classify(
         Provider::AnthropicApi => entry(Official, AdminKey, Scope::Organization,
             doc("https://platform.claude.com/docs/en/manage-claude/usage-cost-api"),
             "anthropic_api", "Organization cost and usage through Anthropic's Usage and Cost Admin API."),
+        // PRD 0040 RF6.1: the agent-fed modes.
+        Provider::ChatGpt if param("query_mode", crate::feed::MODE_CODEX_CLI) => UsageAccess {
+            local: true,
+            ..entry(Undocumented, AgentFeed, Scope::Account,
+                Evidence::Reference(crate::feed::codex::EVIDENCE),
+                "codex_cli", "Codex limit windows read from Codex CLI's own local session logs, with no network request.")
+        },
+        Provider::ChatGpt if param("query_mode", crate::feed::MODE_CODEX_CLI_OR_API) => UsageAccess {
+            token_risk: Some(subscription_token_risk()),
+            ..entry(Undocumented, AgentFeed, Scope::Account,
+                Evidence::Reference(crate::feed::codex::EVIDENCE),
+                "codex_cli_or_api", "Codex CLI's local session logs while they are recent, otherwise the Codex CLI's internal interface.")
+        },
+        Provider::Claude if param("query_mode", crate::feed::MODE_CLAUDE_CODE) => UsageAccess {
+            local: true,
+            ..entry(Official, AgentFeed, Scope::Account,
+                doc("https://code.claude.com/docs/en/statusline"),
+                "claude_code", "Claude plan windows handed over by Claude Code's documented status line, with no network request and no token reuse.")
+        },
+        Provider::Claude if param("query_mode", crate::feed::MODE_CLAUDE_CODE_OR_API) => UsageAccess {
+            token_risk: Some(subscription_token_risk()),
+            ..entry(Official, AgentFeed, Scope::Account,
+                doc("https://code.claude.com/docs/en/statusline"),
+                "claude_code_or_api", "Claude Code's documented status line while it is recent, otherwise the internal interface the official clients use.")
+        },
         Provider::ChatGpt => entry(Undocumented, SubscriptionSession, Scope::Account,
             Evidence::Reference("https://github.com/openai/codex/blob/main/codex-rs/backend-client/src/client/rate_limit_resets.rs"),
             "chat_gpt", "Codex limit windows through the Codex CLI's internal interface."),
@@ -901,7 +960,9 @@ pub(crate) fn classify(
         access.overage = match provider {
             Provider::Cursor if oauth || param("query_mode", "personal") => OverageReporting::Money,
             Provider::Kiro => OverageReporting::Money,
-            Provider::Claude => OverageReporting::ProviderUnits,
+            Provider::Claude if crate::feed::mode_of(provider, params).is_none() => {
+                OverageReporting::ProviderUnits
+            }
             Provider::Grok if oauth || param("product", "cli") => OverageReporting::ProviderUnits,
             _ => OverageReporting::NotReported,
         };
@@ -998,8 +1059,12 @@ mod tests {
 
     /// The default account plus every param that may switch the queried
     /// interface; the native login is walked separately.
-    const MODES: [&[(&str, &str)]; 11] = [
+    const MODES: [&[(&str, &str)]; 15] = [
         &[],
+        &[("query_mode", "claude_code")],
+        &[("query_mode", "claude_code_or_api")],
+        &[("query_mode", "codex_cli")],
+        &[("query_mode", "codex_cli_or_api")],
         &[("product", "account")],
         &[("product", "cli")],
         &[("product", "coding")],
@@ -1354,12 +1419,17 @@ mod tests {
                 access.verified_on, "1970-01-01",
                 "{at}: missing from VERIFIED"
             );
-            // RF6.3: every subscription-session interface carries the token risk.
+            // RF6.3: every subscription-session interface carries the token
+            // risk, and so does a hybrid feed mode (PRD 0040 RF3.4), whose
+            // fallback query uses the token.
             assert_eq!(
                 access.token_risk.is_some(),
-                access.credential == C::SubscriptionSession,
+                access.credential == C::SubscriptionSession
+                    || (access.credential == C::AgentFeed && !access.local),
                 "{at}"
             );
+            // PRD 0040 RF6.1: only an agent feed is local.
+            assert!(!access.local || access.credential == C::AgentFeed, "{at}");
             let texts = [&access.summary, &access.credential_hint, &access.risk]
                 .into_iter()
                 .chain(&access.reason)

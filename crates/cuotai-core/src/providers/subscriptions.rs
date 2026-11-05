@@ -277,7 +277,7 @@ struct WhamUsage {
     credits: Option<WhamCredits>,
 }
 
-fn window_label(prefix: &str, seconds: Option<i64>) -> String {
+pub(super) fn window_label(prefix: &str, seconds: Option<i64>) -> String {
     match seconds {
         Some(s) if s % 604800 == 0 => format!("{prefix} — janela de {} semana(s) (%)", s / 604800),
         Some(s) if s % 3600 == 0 => format!("{prefix} — janela de {} hora(s) (%)", s / 3600),
@@ -286,7 +286,7 @@ fn window_label(prefix: &str, seconds: Option<i64>) -> String {
     }
 }
 
-fn codex_window(seconds: Option<i64>) -> MetricWindow {
+pub(super) fn codex_window(seconds: Option<i64>) -> MetricWindow {
     match seconds {
         Some(18_000) => MetricWindow::Window5h,
         Some(86_400) => MetricWindow::Daily,

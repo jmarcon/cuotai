@@ -300,7 +300,8 @@ pub fn managed_keys(provider: Provider) -> &'static [&'static str] {
         Provider::Qwen => &["product"],
         Provider::OpenAiApi => &["project_ids", "models"],
         Provider::AnthropicApi => &["workspace_ids", "models"],
-        Provider::ChatGpt => &["account_id"],
+        Provider::ChatGpt => &["account_id", "query_mode", "feed"],
+        Provider::Claude => &["query_mode", "feed"],
         Provider::GeminiApi | Provider::VertexAi => &["project_id"],
         Provider::AwsBedrock => &["profile"],
         Provider::AzureOpenAi => &["subscription_id", "resource_id"],
@@ -1144,6 +1145,12 @@ pub fn visible_field_indices(provider: Provider, visibility: &FieldVisibility<'_
                     selection("product") == 1
                 }
                 "team_id" | "management_key_env" if provider == Provider::Grok => !cli_product,
+                // PRD 0040: the binding only for a query-mode account; the
+                // team header only when the query can run.
+                "feed" if matches!(provider, Provider::Claude | Provider::ChatGpt) => {
+                    selection("query_mode") == 0
+                }
+                "account_id" if provider == Provider::ChatGpt => selection("query_mode") != 1,
                 _ => true,
             };
             if keep {
@@ -1192,12 +1199,59 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
             false,
         ),
     ];
-    const CHATGPT: [FieldDescriptor; 1] = [FieldDescriptor::text(
-        "account_id",
-        "Account ID",
-        "Optional; chatgpt-account-id header for team accounts.",
-        false,
-    )];
+    // PRD 0040 RF3.5/RF4.2/RF8.1: the agent-fed modes and the binding.
+    const CHATGPT: [FieldDescriptor; 3] = [
+        FieldDescriptor::choice(
+            "query_mode",
+            "Source",
+            "Query (default): the Codex CLI's internal interface with your token. Fed by Codex CLI: read from Codex CLI's own local logs, no network request (needs the Codex CLI local source). Codex CLI, else the query: the logs while they are recent, otherwise the query.",
+            &[
+                ChoiceOptionDescriptor::new("api", "Query (default)"),
+                ChoiceOptionDescriptor::new("codex_cli", "Fed by Codex CLI"),
+                ChoiceOptionDescriptor::new("codex_cli_or_api", "Codex CLI, else the query"),
+            ],
+            true,
+        ),
+        FieldDescriptor::text(
+            "account_id",
+            "Account ID",
+            "Optional; chatgpt-account-id header for team accounts.",
+            false,
+        ),
+        FieldDescriptor::choice(
+            "feed",
+            "Live session",
+            "Show Codex CLI's live session on this account. Only one account can read it.",
+            &[
+                ChoiceOptionDescriptor::new("none", "Off (default)"),
+                ChoiceOptionDescriptor::new("codex_cli", "From Codex CLI"),
+            ],
+            true,
+        ),
+    ];
+    const CLAUDE: [FieldDescriptor; 2] = [
+        FieldDescriptor::choice(
+            "query_mode",
+            "Source",
+            "Query (default): the internal interface with your Claude token. Fed by Claude Code: Claude Code's documented status line, no network request and no token reuse (needs the status line, see docs). Claude Code, else the query: the status line while it is recent, otherwise the query.",
+            &[
+                ChoiceOptionDescriptor::new("api", "Query (default)"),
+                ChoiceOptionDescriptor::new("claude_code", "Fed by Claude Code"),
+                ChoiceOptionDescriptor::new("claude_code_or_api", "Claude Code, else the query"),
+            ],
+            true,
+        ),
+        FieldDescriptor::choice(
+            "feed",
+            "Live session",
+            "Show Claude Code's live session on this account. Only one account can read it.",
+            &[
+                ChoiceOptionDescriptor::new("none", "Off (default)"),
+                ChoiceOptionDescriptor::new("claude_code", "From Claude Code"),
+            ],
+            true,
+        ),
+    ];
     const EMPTY: [FieldDescriptor; 0] = [];
     const GEMINI_CLOUD: [FieldDescriptor; 1] = [FieldDescriptor::text(
         "project_id",
@@ -1780,8 +1834,8 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
         Provider::OpenAiApi => &OPENAI_API,
         Provider::AnthropicApi => &ANTHROPIC_API,
         Provider::ChatGpt => &CHATGPT,
-        Provider::Claude
-        | Provider::Cursor
+        Provider::Claude => &CLAUDE,
+        Provider::Cursor
         | Provider::Windsurf
         | Provider::AwsBedrock
         | Provider::MiniMax
@@ -2036,6 +2090,39 @@ pub fn resolve_credential_env(
         ));
     }
     Ok(Some(trimmed.to_string()))
+}
+
+/// PRD 0040: whether `provider` has an agent-fed mode, in which the
+/// credential may stay empty. The credential step accepts an empty value
+/// for it; [`build_account`] then requires one unless the selected
+/// `query_mode` is the feed-only one.
+pub fn credential_optional(provider: Provider) -> bool {
+    crate::feed::FeedSource::for_provider(provider).is_some()
+}
+
+/// Whether the draft `fields` select the feed-only mode of `provider`
+/// (option 1 of its `query_mode` choice).
+fn feed_only(provider: Provider, fields: &[DraftField]) -> bool {
+    credential_optional(provider)
+        && fields
+            .iter()
+            .any(|field| field.key == "query_mode" && matches!(field.value, DraftValue::Choice(1)))
+}
+
+/// PRD 0040 owner decision (2026-10-25): the choices an Add-account form
+/// preselects for `provider` given the local tools detected (PRD 0027
+/// RF6): the Claude Code mode when Claude Code is on this computer. Only
+/// for a new account; an edit keeps the saved mode.
+pub fn preselected_choices(
+    provider: Provider,
+    detected: &[crate::detect::SourceKind],
+) -> Vec<(&'static str, usize)> {
+    match provider {
+        Provider::Claude if detected.contains(&crate::detect::SourceKind::ClaudeCode) => {
+            vec![("query_mode", 1)]
+        }
+        _ => Vec::new(),
+    }
 }
 
 /// Pick the OAuth config the account should be saved with. Order matters:
@@ -2539,9 +2626,13 @@ pub fn build_account_with_secrets(
     // (Model Studio still lists its models with it).
     let cli_login_without_key =
         *auth_mode == crate::oauth::login::MODE_BAILIAN_CONSOLE && credential.trim().is_empty();
+    // PRD 0040 RF3.1/RF4.2: an agent-fed account needs no credential.
+    let feed_without_key =
+        oauth.is_none() && credential.trim().is_empty() && feed_only(*provider, fields);
     let credential_env = if (oauth.is_none()
         && vault.contains(crate::user_session::CREDENTIAL_SLOT))
         || cli_login_without_key
+        || feed_without_key
     {
         None
     } else {
