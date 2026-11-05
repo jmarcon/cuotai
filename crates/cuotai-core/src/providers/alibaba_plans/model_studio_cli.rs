@@ -317,6 +317,7 @@ fn free_tier_metric(entry: FreeTier) -> Metric {
         window: None,
         period: Some("cota gratuita".into()),
         resets_at: entry.expires,
+        derived_from: None,
     }
 }
 
@@ -333,6 +334,7 @@ fn usage_metric(label: &str, value: f64, unit: &str, period: &str) -> Metric {
         window: Some(MetricWindow::Other),
         period: Some(period.into()),
         resets_at: None,
+        derived_from: None,
     }
 }
 
@@ -376,6 +378,7 @@ fn summary_data(payload: Value, profile: &str, workspace: bool) -> Result<Data, 
         window: None,
         period: None,
         resets_at: None,
+        derived_from: None,
     });
 
     let days = payload

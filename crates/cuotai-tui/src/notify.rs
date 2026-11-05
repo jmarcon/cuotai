@@ -61,6 +61,9 @@ pub(crate) struct Notices {
     /// The time zone of the quiet hours; `None` is the system's. Tests set
     /// a fixed offset.
     zone: Option<chrono::FixedOffset>,
+    /// PRD 0041 RF3: the balance floors of the configuration's accounts
+    /// (from the TOML, refreshed on every pass).
+    floors: AlertPrefs,
 }
 
 impl Notices {
@@ -81,6 +84,7 @@ impl Notices {
             osc9,
             banner: None,
             zone: None,
+            floors: AlertPrefs::default(),
         }
     }
 
@@ -106,6 +110,7 @@ impl Notices {
         let mut prefs = self.loaded.evaluator();
         prefs.enabled = true;
         prefs.projected = self.projected;
+        prefs.floors = self.floors.floors.clone();
         prefs
     }
 
@@ -195,6 +200,7 @@ impl Notices {
     /// Forget the usage alerts of accounts no longer in `config` (after a
     /// save), so one added back later starts afresh.
     pub(crate) fn keep_accounts(&mut self, config: &Config) {
+        self.floors = AlertPrefs::default().with_floors(config);
         let keys: Vec<String> = config.accounts.iter().map(Account::state_key).collect();
         let kept = |event: &AlertEvent| keys.contains(&event.account_key);
         self.pending.retain(kept);
@@ -223,6 +229,8 @@ impl Notices {
         locale: &str,
     ) -> Vec<u8> {
         self.refresh_prefs();
+        // PRD 0041 RF3: the floors follow the TOML.
+        self.floors = AlertPrefs::default().with_floors(config);
         self.ledger.sync();
         self.ledger.mutate(|ledger| ledger.prune(now));
         let window = self.window(now);
@@ -570,6 +578,7 @@ mod tests {
                 window: Some(MetricWindow::Window5h),
                 period: None,
                 resets_at: Some(resets_at),
+                derived_from: None,
             }],
             notes: Vec::new(),
             notes_l10n: Vec::new(),

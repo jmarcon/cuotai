@@ -2702,6 +2702,18 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
                 } else {
                     Span::default()
                 },
+                // PRD 0041 RF2: the person's budget, never a provider limit.
+                if metric.derived_from.is_some() {
+                    Span::styled(
+                        format!(
+                            "   ◇ {}",
+                            safe(&resolve_l10n(&cuotai_core::budget::budget_badge()))
+                        ),
+                        Style::default().fg(PURPLE),
+                    )
+                } else {
+                    Span::default()
+                },
             ]));
             lines.push(Line::from(format!("  {}", safe(&row.text))));
             let motion = view
@@ -2735,6 +2747,38 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
                         Style::default().fg(MUTED),
                     ),
                 ]));
+            }
+            // PRD 0041 RF4.3: the allowance, from a fresh reading like the pace.
+            let allowance = clock
+                .filter(|clock| {
+                    cuotai_core::freshness::assess(clock.checked_at, clock.interval, clock.now)
+                        == cuotai_core::freshness::Freshness::Fresh
+                })
+                .and_then(|clock| pace::allowance(metric, clock.checked_at, Some(recent)));
+            if let Some(allowance) = allowance {
+                lines.push(Line::from(Span::styled(
+                    format!("  ⌁ {}", safe(&resolve_l10n(&allowance.sentence()))),
+                    Style::default().fg(MUTED),
+                )));
+            }
+            // PRD 0041 RF3.2: the floor line under its balance.
+            for floor in cuotai_core::budget::floor_statuses(account, shown)
+                .iter()
+                .filter(|floor| floor.label == metric.label)
+            {
+                let color = match floor.role {
+                    cuotai_core::budget::FloorRole::Bad => RED,
+                    cuotai_core::budget::FloorRole::Warn => YELLOW,
+                    cuotai_core::budget::FloorRole::Ok => MUTED,
+                };
+                let text = floor.chip.as_ref().map_or_else(
+                    || resolve_l10n(&floor.line),
+                    |chip| format!("{} · {}", resolve_l10n(chip), resolve_l10n(&floor.line)),
+                );
+                lines.push(Line::from(Span::styled(
+                    format!("  ▁ {}", safe(&text)),
+                    Style::default().fg(color),
+                )));
             }
             // A storage failure is shown once, on the heading.
             if let Some((detail, Ok(recorded))) = detail_history.map(|d| (d, &d.metrics)) {
@@ -3024,6 +3068,7 @@ mod tests {
             window: None,
             period: None,
             resets_at: None,
+            derived_from: None,
         }
     }
 
@@ -3085,6 +3130,7 @@ mod tests {
                 window: Some(MetricWindow::Monthly),
                 period: Some("ciclo de cobrança".into()),
                 resets_at: None,
+                derived_from: None,
             }],
             notes: Vec::new(),
             notes_l10n: Vec::new(),
@@ -3181,6 +3227,7 @@ mod tests {
                     window: Some(MetricWindow::Monthly),
                     period: None,
                     resets_at: None,
+                    derived_from: None,
                 }],
                 notes: Vec::new(),
                 notes_l10n: Vec::new(),
@@ -3340,6 +3387,8 @@ mod tests {
                 params: Default::default(),
                 refresh_seconds: None,
                 group: None,
+                budgets: Vec::new(),
+                floors: Vec::new(),
             },
             Account {
                 id: None,
@@ -3351,6 +3400,8 @@ mod tests {
                 params: Default::default(),
                 refresh_seconds: None,
                 group: None,
+                budgets: Vec::new(),
+                floors: Vec::new(),
             },
             Account {
                 id: None,
@@ -3362,6 +3413,8 @@ mod tests {
                 params: Default::default(),
                 refresh_seconds: None,
                 group: None,
+                budgets: Vec::new(),
+                floors: Vec::new(),
             },
         ];
         let ready = report(
@@ -3391,6 +3444,8 @@ mod tests {
                 params: Default::default(),
                 refresh_seconds: None,
                 group: None,
+                budgets: Vec::new(),
+                floors: Vec::new(),
             },
             Account {
                 id: None,
@@ -3402,6 +3457,8 @@ mod tests {
                 params: Default::default(),
                 refresh_seconds: None,
                 group: None,
+                budgets: Vec::new(),
+                floors: Vec::new(),
             },
         ];
         let snapshot = Snapshot {
@@ -3435,6 +3492,8 @@ mod tests {
                 params: Default::default(),
                 refresh_seconds: None,
                 group: None,
+                budgets: Vec::new(),
+                floors: Vec::new(),
             },
             Account {
                 id: None,
@@ -3446,6 +3505,8 @@ mod tests {
                 params: Default::default(),
                 refresh_seconds: None,
                 group: None,
+                budgets: Vec::new(),
+                floors: Vec::new(),
             },
             Account {
                 id: None,
@@ -3457,6 +3518,8 @@ mod tests {
                 params: Default::default(),
                 refresh_seconds: None,
                 group: None,
+                budgets: Vec::new(),
+                floors: Vec::new(),
             },
         ];
         let snapshot = Snapshot {
@@ -3509,6 +3572,8 @@ mod tests {
                 params: Default::default(),
                 refresh_seconds: None,
                 group: None,
+                budgets: Vec::new(),
+                floors: Vec::new(),
             },
             Account {
                 id: None,
@@ -3520,6 +3585,8 @@ mod tests {
                 params: Default::default(),
                 refresh_seconds: None,
                 group: None,
+                budgets: Vec::new(),
+                floors: Vec::new(),
             },
             Account {
                 id: None,
@@ -3531,6 +3598,8 @@ mod tests {
                 params: Default::default(),
                 refresh_seconds: None,
                 group: None,
+                budgets: Vec::new(),
+                floors: Vec::new(),
             },
             Account {
                 id: None,
@@ -3542,6 +3611,8 @@ mod tests {
                 params: Default::default(),
                 refresh_seconds: None,
                 group: None,
+                budgets: Vec::new(),
+                floors: Vec::new(),
             },
         ];
         let base = Snapshot {
@@ -3593,6 +3664,8 @@ mod tests {
                 params: Default::default(),
                 refresh_seconds: None,
                 group: None,
+                budgets: Vec::new(),
+                floors: Vec::new(),
             },
             Account {
                 id: None,
@@ -3604,6 +3677,8 @@ mod tests {
                 params: Default::default(),
                 refresh_seconds: None,
                 group: None,
+                budgets: Vec::new(),
+                floors: Vec::new(),
             },
             Account {
                 id: None,
@@ -3615,6 +3690,8 @@ mod tests {
                 params: Default::default(),
                 refresh_seconds: None,
                 group: None,
+                budgets: Vec::new(),
+                floors: Vec::new(),
             },
         ]
     }
@@ -4646,6 +4723,8 @@ mod tests {
             params: Default::default(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         };
         let accounts = vec![
             account("Personal", Provider::Claude),
@@ -5294,6 +5373,8 @@ mod tests {
             params: Default::default(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         };
         let failed = |provider, status, id: &'static str, text: &str| Report {
             provider,
@@ -5951,6 +6032,8 @@ mod tests {
                 params: Default::default(),
                 refresh_seconds: None,
                 group: None,
+                budgets: Vec::new(),
+                floors: Vec::new(),
             })
             .collect();
         let reports = accounts

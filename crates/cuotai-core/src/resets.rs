@@ -362,6 +362,10 @@ pub fn passed(prev: &Report, next: &Report) -> Vec<ResetMetric> {
         .collect()
 }
 
+/// PRD 0043 RF3.2: the ledger entry of a delivered weekly digest (never a
+/// metric digest, which is hexadecimal).
+const WEEKLY_DIGEST_MARK: &str = "weekly_digest";
+
 /// Notices already sent, persisted between runs (`notified.json`): the
 /// notified resets and the usage alert state (PRD 0008 RF2.1), only digests
 /// of account key and metric label plus thresholds and dates, forgotten
@@ -543,6 +547,33 @@ impl Ledger {
             None => self
                 .alerts
                 .take_deferred(reports.iter().copied(), prefs, digest, now),
+        }
+    }
+
+    /// PRD 0043 RF3.2: claim the weekly digest of `slot` (from
+    /// [`crate::digest::due_slot`]) under the lock: `true` for the one
+    /// process that delivers it, `false` once any process claimed it.
+    pub fn claim_weekly_digest(
+        &mut self,
+        path: Option<&Path>,
+        slot: DateTime<Utc>,
+        now: DateTime<Utc>,
+    ) -> bool {
+        let take = |ledger: &mut Ledger| {
+            if ledger.notified(WEEKLY_DIGEST_MARK, slot) {
+                return false;
+            }
+            ledger.notified.push(Notified {
+                digest: WEEKLY_DIGEST_MARK.to_owned(),
+                resets_at: slot,
+                at: now,
+                skipped: false,
+            });
+            true
+        };
+        match path {
+            Some(path) => self.claim(path, take),
+            None => take(self),
         }
     }
 
@@ -729,6 +760,7 @@ mod tests {
             window: Some(MetricWindow::Window5h),
             period: None,
             resets_at,
+            derived_from: None,
         }
     }
 

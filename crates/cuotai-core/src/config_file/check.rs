@@ -52,6 +52,7 @@ pub fn error_kind(error: &ConfigError) -> &'static str {
         ConfigError::Tls => "tls",
         ConfigError::Group => "group",
         ConfigError::OpenRouter => "open_router",
+        ConfigError::Budget { .. } => "budget",
     }
 }
 
@@ -62,9 +63,9 @@ fn diagnostic(error: &ConfigError) -> ConfigDiagnostic {
             Some(*column),
             path.as_ref().map(ToString::to_string),
         ),
-        ConfigError::MeteredRefreshFloor { field, .. } | ConfigError::AccountIds { field } => {
-            (None, None, Some(field.clone()))
-        }
+        ConfigError::MeteredRefreshFloor { field, .. }
+        | ConfigError::AccountIds { field }
+        | ConfigError::Budget { field, .. } => (None, None, Some(field.clone())),
         _ => (None, None, None),
     };
     ConfigDiagnostic {

@@ -2634,6 +2634,14 @@ pub fn build_account_with_secrets(
             .unwrap_or_else(crate::AccountId::random),
     );
 
+    // PRD 0041 RF1.3: an edit keeps the person's budgets and floors (the
+    // budget editor replaces them on the built account); a provider switch
+    // starts without them, since they name that provider's metrics.
+    let (budgets, floors) = editing_account
+        .filter(|account| account.provider == *provider)
+        .map(|account| (account.budgets.clone(), account.floors.clone()))
+        .unwrap_or_default();
+
     Ok(Account {
         id,
         name,
@@ -2644,6 +2652,8 @@ pub fn build_account_with_secrets(
         params,
         refresh_seconds,
         group,
+        budgets,
+        floors,
     })
 }
 
@@ -3350,6 +3360,8 @@ mod tests {
             params: BTreeMap::new(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         }
     }
 
@@ -3488,6 +3500,8 @@ mod tests {
             params: BTreeMap::new(),
             refresh_seconds: Some(120),
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         };
         let updated = config.upsert_account(new_account.clone(), Some(0)).unwrap();
         assert_eq!(updated.accounts.len(), 1);
@@ -3512,6 +3526,8 @@ mod tests {
             params: BTreeMap::new(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         };
         let updated = config.upsert_account(new_account.clone(), None).unwrap();
         assert_eq!(updated.accounts.len(), 2);
@@ -3535,6 +3551,8 @@ mod tests {
             params: BTreeMap::new(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         };
         assert!(config.upsert_account(dup, None).is_err());
     }
@@ -3772,6 +3790,8 @@ mod tests {
             params: BTreeMap::from([("project_ids".into(), "kept".into())]),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         };
         let config = config_with(vec![existing]);
         let draft = AccountDraft {
@@ -3812,6 +3832,8 @@ mod tests {
             ]),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         };
         let config = config_with(vec![existing.clone()]);
         let draft = AccountDraft {
@@ -3854,6 +3876,8 @@ mod tests {
             )]),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         };
         let config = config_with(vec![existing.clone()]);
         let draft = AccountDraft {
@@ -3873,6 +3897,50 @@ mod tests {
         };
         let account = build_account(&draft, &config, Some(0)).unwrap();
         assert_eq!(account.extension_override(), Some("proxy"));
+    }
+
+    /// PRD 0041 RF1.3: an edit from either editor keeps the budgets and
+    /// floors no form step shows; a provider switch drops them.
+    #[test]
+    fn build_account_keeps_budgets_and_floors_of_the_same_provider() {
+        let existing = Account {
+            name: "OpenAI".into(),
+            provider: Provider::OpenAiApi,
+            credential_env: Some("OPENAI_ADMIN_KEY".into()),
+            budgets: vec![crate::budget::Budget {
+                kind: Some(crate::budget::BudgetKind::Spend),
+                scope: None,
+                label_contains: None,
+                amount: 50.0,
+                unit: Some("USD".into()),
+                period: crate::budget::BudgetPeriod::Monthly,
+                starts: None,
+                label: None,
+            }],
+            ..Default::default()
+        };
+        let config = config_with(vec![existing.clone()]);
+        let mut draft = AccountDraft {
+            provider: Provider::OpenAiApi,
+            name: "Renamed",
+            credential: "OPENAI_ADMIN_KEY",
+            auth_mode: AUTH_MODE_CREDENTIAL,
+            oauth_mode: false,
+            oauth_existing: None,
+            oauth_authorized: None,
+            oauth_login_params: BTreeMap::new(),
+            existing_params: None,
+            credential_params: None,
+            fields: &[],
+            interval_text: "",
+            group_text: None,
+        };
+        let account = build_account(&draft, &config, Some(0)).unwrap();
+        assert_eq!(account.budgets, existing.budgets);
+        draft.provider = Provider::AnthropicApi;
+        draft.credential = "ANTHROPIC_ADMIN_KEY";
+        let switched = build_account(&draft, &config, Some(0)).unwrap();
+        assert!(switched.budgets.is_empty());
     }
 
     #[test]
@@ -4116,6 +4184,8 @@ mod tests {
             ]),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         };
         let config = config_with(vec![existing_account.clone()]);
         let draft = AccountDraft {
@@ -4352,6 +4422,8 @@ mod tests {
             params: BTreeMap::from([("profile".into(), "default".into())]),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         };
         assert_eq!(stored_credential(&account), "default");
 
@@ -4366,6 +4438,8 @@ mod tests {
             params: BTreeMap::new(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         };
         assert_eq!(stored_credential(&account), "");
     }
@@ -4385,6 +4459,8 @@ mod tests {
             params: BTreeMap::from([("cli_profile".into(), "qwen-personal".into())]),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         };
         assert_eq!(stored_credential(&account), "qwen-personal");
 
@@ -4398,6 +4474,8 @@ mod tests {
             params: BTreeMap::new(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         };
         assert_eq!(stored_credential(&empty), "");
     }
@@ -4417,6 +4495,8 @@ mod tests {
             params: BTreeMap::new(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         };
         assert_eq!(stored_credential(&account), "OPENAI_ADMIN_KEY");
 
@@ -4431,6 +4511,8 @@ mod tests {
             params: BTreeMap::new(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         };
         assert_eq!(stored_credential(&empty), default_env(Provider::OpenAiApi));
 
@@ -4446,6 +4528,8 @@ mod tests {
             params: BTreeMap::new(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         };
         assert_eq!(
             stored_credential(&missing),
@@ -4468,6 +4552,8 @@ mod tests {
             params: BTreeMap::from([("profile".into(), "stale".into())]),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         };
         assert_eq!(stored_credential(&account), "OPENAI_ADMIN_KEY");
     }
@@ -4863,6 +4949,8 @@ mod tests {
             params: BTreeMap::new(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         };
         let err = config.upsert_account(sneaky, None).unwrap_err();
         let msg = err.message();
@@ -4951,6 +5039,8 @@ mod tests {
             params: BTreeMap::new(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         }
     }
 
@@ -5406,6 +5496,8 @@ mod tests {
                     params: BTreeMap::new(),
                     refresh_seconds: None,
                     group: None,
+                    budgets: Vec::new(),
+                    floors: Vec::new(),
                 },
                 None,
             )

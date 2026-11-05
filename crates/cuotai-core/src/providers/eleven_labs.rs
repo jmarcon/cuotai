@@ -260,6 +260,7 @@ fn parse(value: &Value, source: &'static str) -> Result<Data, QueryError> {
         resets_at,
         billing: Default::default(),
         scope: None,
+        derived_from: None,
     }];
 
     // Extra usage (RF5).
@@ -295,6 +296,7 @@ fn parse(value: &Value, source: &'static str) -> Result<Data, QueryError> {
                 resets_at,
                 billing: Default::default(),
                 scope: None,
+                derived_from: None,
             }
             .overage(),
         );
@@ -328,6 +330,7 @@ fn parse(value: &Value, source: &'static str) -> Result<Data, QueryError> {
                     resets_at,
                     billing: Default::default(),
                     scope: None,
+                    derived_from: None,
                 }
                 .overage(),
             ),
@@ -386,6 +389,7 @@ fn parse(value: &Value, source: &'static str) -> Result<Data, QueryError> {
                 resets_at: None,
                 billing: Default::default(),
                 scope: None,
+                derived_from: None,
             });
         }
     }
@@ -450,6 +454,8 @@ mod tests {
             params: BTreeMap::new(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         }
     }
 

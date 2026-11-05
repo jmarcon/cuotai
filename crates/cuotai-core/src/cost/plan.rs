@@ -458,6 +458,8 @@ mod tests {
             session: None,
             params: BTreeMap::new(),
             refresh_seconds: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         }
     }
 

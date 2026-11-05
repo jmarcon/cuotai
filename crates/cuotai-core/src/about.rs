@@ -484,6 +484,13 @@ static LIBRARIES: &[Library] = &[
         &[Core],
     ),
     lib(
+        "chrono-tz",
+        "MIT OR Apache-2.0",
+        "https://github.com/chronotope/chrono-tz",
+        Role::Test,
+        &[Core],
+    ),
+    lib(
         "wiremock",
         "MIT OR Apache-2.0",
         "https://github.com/LukeMathWalker/wiremock-rs",

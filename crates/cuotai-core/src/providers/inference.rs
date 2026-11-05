@@ -746,6 +746,8 @@ mod tests {
             params,
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         }
     }
 

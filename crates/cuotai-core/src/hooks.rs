@@ -220,6 +220,11 @@ impl Rule {
             category,
             ..Values::default()
         };
+        let balance = |left: f64| Values {
+            remaining: Some(left),
+            unit: Some("USD".into()),
+            ..Values::default()
+        };
         let incident = |state| Values {
             incident: Some(state),
             ..Values::default()
@@ -261,6 +266,17 @@ impl Rule {
             }
             EventKind::QuotaRecovered | EventKind::AccountUnblocked | EventKind::PoolRecovered => {
                 (true, quota(0.0), quota(100.0))
+            }
+            // PRD 0041 RF3.3: a balance with no cap, below and above the floor.
+            EventKind::BalanceBelowFloor => (true, balance(3.2), balance(12.0)),
+            EventKind::BalanceRecovered => (true, balance(25.0), balance(3.2)),
+            // PRD 0043 RF2.2: the same quota with another limit.
+            EventKind::LimitChanged => {
+                let current = Values {
+                    limit: Some(150.0),
+                    ..quota(40.0)
+                };
+                (true, current, quota(40.0))
             }
             EventKind::QuotaReset => {
                 let previous = Values {

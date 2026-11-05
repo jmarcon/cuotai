@@ -3933,6 +3933,7 @@ mod tests {
             window: Some(cuotai_core::MetricWindow::Weekly),
             period: None,
             resets_at: Some(resets_at),
+            derived_from: None,
         };
         let text = metric_text(&metric);
         assert!(text.contains(&local_time(resets_at)), "{text}");
@@ -4035,6 +4036,8 @@ mod tests {
             params: BTreeMap::new(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         }
     }
 

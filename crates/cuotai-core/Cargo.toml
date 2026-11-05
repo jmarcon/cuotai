@@ -85,3 +85,6 @@ parking_lot = "0.12"
 # PRD 0036 RF2.3: the HTTPS test instance of the 9router TLS tests (the same
 # tokio-rustls reqwest already uses).
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring"] }
+# PRD 0041 RF2/§6: budget period boundaries tested across DST transitions in
+# real zones (production code takes any `chrono::TimeZone`, `Local` included).
+chrono-tz = { version = "0.10", default-features = false, features = ["std"] }

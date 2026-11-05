@@ -261,6 +261,7 @@ fn event(kind: AlertKind, threshold: u8) -> AlertEvent {
         consumed: 0.9,
         resets_at: None,
         projection: None,
+        limit_change: None,
     }
 }
 

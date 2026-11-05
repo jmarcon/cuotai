@@ -168,6 +168,7 @@ fn quota_metric(
         window,
         period: period.map(str::to_owned),
         resets_at,
+        derived_from: None,
     })
 }
 
@@ -879,6 +880,7 @@ fn zed_data(user: &Value) -> Data {
                     window: Some(MetricWindow::Other),
                     period: Some("ciclo de assinatura".into()),
                     resets_at: reset_at,
+                    derived_from: None,
                 });
                 notes.push(
                     "note.router_sessions.zed.edit_predictions_unlimited",
@@ -898,6 +900,7 @@ fn zed_data(user: &Value) -> Data {
                     window: Some(MetricWindow::Other),
                     period: Some("ciclo de assinatura".into()),
                     resets_at: reset_at,
+                    derived_from: None,
                 });
             }
             ZedLimit::Unknown => {
@@ -941,6 +944,7 @@ billing: Default::default(), scope: None,
                     kind: MetricKind::Quota,
                     window: Some(MetricWindow::Other),
                     resets_at: reset_at,
+                    derived_from: None,
                 });
                 notes.push(
                     "note.router_sessions.zed.hosted_requests_unlimited",
@@ -959,6 +963,7 @@ billing: Default::default(), scope: None,
                     kind: MetricKind::Quota,
                     window: Some(MetricWindow::Other),
                     resets_at: reset_at,
+                    derived_from: None,
                 });
             }
             // limit {limited:0}/0/null on Pro/Student means token billing,
@@ -1068,6 +1073,8 @@ mod tests {
                 .collect(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         }
     }
 

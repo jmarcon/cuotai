@@ -573,6 +573,8 @@ mod tests {
             session: None,
             params: BTreeMap::new(),
             refresh_seconds: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         };
         let plan = PlanSetting::new(100.0, "USD", Some(15)).unwrap();
         store.set_plan(&account.key(), Some(plan.clone())).unwrap();

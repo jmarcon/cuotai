@@ -34,6 +34,7 @@ fn quota(used: f64, resets_at: Option<DateTime<Utc>>) -> Metric {
         window: Some(MetricWindow::Window5h),
         period: None,
         resets_at,
+        derived_from: None,
     }
 }
 
@@ -205,6 +206,7 @@ fn event_of(report: &Report, kind: AlertKind, threshold: u8) -> AlertEvent {
         consumed: 0.9,
         resets_at: Some(window()),
         projection: None,
+        limit_change: None,
     }
 }
 
@@ -485,6 +487,7 @@ fn overage_report(at: DateTime<Utc>, spent: f64) -> Report {
         window: None,
         period: None,
         resets_at: Some(cycle),
+        derived_from: None,
     };
     report(at, metric)
 }

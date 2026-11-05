@@ -471,6 +471,8 @@ fn planned_accounts(plans: &std::collections::BTreeMap<String, cost::PlanSetting
                 session: None,
                 params: Default::default(),
                 refresh_seconds: None,
+                budgets: Vec::new(),
+                floors: Vec::new(),
             })
         })
         .collect()

@@ -191,6 +191,7 @@ async fn minimax_balance_at(
                 window: None,
                 period: Some("saldo atual".into()),
                 resets_at: None,
+                derived_from: None,
             },
             Metric {
                 billing: Default::default(),
@@ -204,6 +205,7 @@ async fn minimax_balance_at(
                 kind: MetricKind::Balance,
                 window: None,
                 resets_at: None,
+                derived_from: None,
             },
             Metric {
                 billing: Default::default(),
@@ -217,6 +219,7 @@ async fn minimax_balance_at(
                 resets_at: None,
                 kind: MetricKind::Credits,
                 window: None,
+                derived_from: None,
             },
             Metric {
                 billing: Default::default(),
@@ -230,6 +233,7 @@ async fn minimax_balance_at(
                 kind: MetricKind::Credits,
                 window: None,
                 resets_at: None,
+                derived_from: None,
             },
             Metric {
                 billing: Default::default(),
@@ -243,6 +247,7 @@ async fn minimax_balance_at(
                 kind: MetricKind::Balance,
                 window: None,
                 resets_at: None,
+                derived_from: None,
             },
         ],
         notes,
@@ -312,6 +317,7 @@ async fn kimi_at(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
             window: None,
             period: Some("saldo atual".into()),
             resets_at: None,
+            derived_from: None,
         });
     };
     add(
@@ -378,6 +384,8 @@ mod tests {
             params: BTreeMap::new(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         }
     }
 

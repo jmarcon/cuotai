@@ -639,6 +639,7 @@ fn window_metric(
         window: Some(window),
         period: Some(period.into()),
         resets_at: parse_date(direct_value(quota, reset_keys)),
+        derived_from: None,
     })
 }
 
@@ -1160,6 +1161,7 @@ fn token_plan_metrics(
                     window: Some(window),
                     period: Some(period.into()),
                     resets_at,
+                    derived_from: None,
                 });
             } else {
                 metrics.push(Metric {
@@ -1174,6 +1176,7 @@ fn token_plan_metrics(
                     unit: "%".into(),
                     period: Some(period.into()),
                     resets_at,
+                    derived_from: None,
                 });
             }
         }
@@ -1615,6 +1618,7 @@ fn token_plan_cli_metrics(payload: Value) -> Result<Vec<Metric>, QueryError> {
             window: Some(kind),
             period: Some(period),
             resets_at,
+            derived_from: None,
         });
     }
     Ok(metrics)
@@ -1917,6 +1921,8 @@ mod tests {
             params,
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         }
     }
 

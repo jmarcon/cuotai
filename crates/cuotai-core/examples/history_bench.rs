@@ -46,6 +46,7 @@ fn metrics(tick: i64) -> Vec<Metric> {
                 resets_at: Some(base() + TimeDelta::minutes((start + period) * STEP_MINUTES)),
                 billing: Default::default(),
                 scope: None,
+                derived_from: None,
             }
         })
         .collect()

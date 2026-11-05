@@ -625,6 +625,8 @@ mod tests {
                 .collect::<BTreeMap<_, _>>(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         }
     }
 

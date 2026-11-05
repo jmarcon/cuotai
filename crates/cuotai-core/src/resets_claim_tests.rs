@@ -27,6 +27,7 @@ fn quota(used: f64) -> Metric {
         window: Some(MetricWindow::Window5h),
         period: None,
         resets_at: Some(window()),
+        derived_from: None,
     }
 }
 
@@ -60,6 +61,7 @@ fn event_of(report: &Report, kind: AlertKind, threshold: u8) -> AlertEvent {
         consumed: 0.9,
         resets_at: Some(window()),
         projection: None,
+        limit_change: None,
     }
 }
 

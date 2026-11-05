@@ -212,6 +212,7 @@ fn google_metrics(label: &str, limits: &[Ts], usage: &[Ts]) -> Result<Vec<Metric
             window: Some(MetricWindow::Other),
             period: None,
             resets_at: None,
+            derived_from: None,
         });
     }
     for ts in usage {
@@ -782,6 +783,8 @@ mod tests {
                 .collect(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         }
     }
 

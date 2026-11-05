@@ -89,6 +89,7 @@ fn push_balance(metrics: &mut Vec<Metric>, label: &str, balance: f64) -> Result<
         window: None,
         period: None,
         resets_at: None,
+        derived_from: None,
     });
     Ok(())
 }
@@ -201,6 +202,8 @@ mod tests {
             params: BTreeMap::new(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         }
     }
 

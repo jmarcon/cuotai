@@ -183,6 +183,10 @@ pub fn config_error_note(error: &crate::ConfigError) -> Localized {
         return crate::config_file::parse_note(*line, *column, path.as_ref());
     }
 
+    if let crate::ConfigError::Budget { field, rule } = error {
+        return rule.note(field);
+    }
+
     if let crate::ConfigError::AccountIds { field } = error {
         return Localized::with_params(
             "edit_error.config_account_ids",
@@ -203,6 +207,7 @@ pub fn config_error_note(error: &crate::ConfigError) -> Localized {
         crate::ConfigError::OpenRouter => "edit_error.config_open_router",
         crate::ConfigError::MeteredRefreshFloor { .. }
         | crate::ConfigError::AccountIds { .. }
+        | crate::ConfigError::Budget { .. }
         | crate::ConfigError::Parse { .. } => {
             unreachable!()
         }

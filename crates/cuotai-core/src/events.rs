@@ -94,11 +94,18 @@ pub enum EventKind {
     PoolExhausted,
     /// PRD 0036 RF7.3: an exhausted pool has a connection available again.
     PoolRecovered,
+    /// PRD 0041 RF3.3: a balance dropped below the person's floor.
+    BalanceBelowFloor,
+    /// PRD 0041 RF3.3: a balance below its floor is back above it.
+    BalanceRecovered,
+    /// PRD 0043 RF2.2: a provider metric's limit changed between two
+    /// readings (`previous.limit` → `current.limit`).
+    LimitChanged,
 }
 
 impl EventKind {
     /// Every event, in the documented order.
-    pub const ALL: [Self; 18] = [
+    pub const ALL: [Self; 21] = [
         Self::QuotaThresholdCrossed,
         Self::QuotaExhausted,
         Self::QuotaRecovered,
@@ -117,6 +124,9 @@ impl EventKind {
         Self::QuotaResetSoon,
         Self::PoolExhausted,
         Self::PoolRecovered,
+        Self::BalanceBelowFloor,
+        Self::BalanceRecovered,
+        Self::LimitChanged,
     ];
 
     /// The stable name, as serialized in the payload's `event`.
@@ -140,6 +150,9 @@ impl EventKind {
             Self::QuotaResetSoon => "quota_reset_soon",
             Self::PoolExhausted => "pool_exhausted",
             Self::PoolRecovered => "pool_recovered",
+            Self::BalanceBelowFloor => "balance_below_floor",
+            Self::BalanceRecovered => "balance_recovered",
+            Self::LimitChanged => "limit_changed",
         }
     }
 
@@ -336,6 +349,28 @@ impl Event {
             }
             EventKind::PoolExhausted => with_metric("{metric}: all accounts exhausted"),
             EventKind::PoolRecovered => with_metric("{metric}: an account is available again"),
+            EventKind::BalanceBelowFloor => with_metric("{metric}: balance below your floor"),
+            EventKind::BalanceRecovered => with_metric("{metric}: balance back above your floor"),
+            EventKind::LimitChanged => match (
+                self.previous.as_ref().and_then(|values| values.limit),
+                self.current.limit,
+            ) {
+                (Some(from), Some(to)) => Localized::with_params(
+                    id,
+                    params([
+                        ("metric", ParamValue::from(metric.as_str())),
+                        ("from", ParamValue::from(crate::insights::plain(from))),
+                        ("to", ParamValue::from(crate::insights::plain(to))),
+                    ]),
+                    "{metric}: limit changed {from} → {to}",
+                ),
+                _ => Localized::with_param(
+                    "events.summary.limit_changed_unknown",
+                    "metric",
+                    metric.as_str(),
+                    "{metric}: limit changed",
+                ),
+            },
         }
     }
 }
@@ -620,6 +655,8 @@ impl EventState {
 
     fn with_prefs(mut prefs: AlertPrefs) -> Self {
         prefs.projected = Some(DEFAULT_PROJECTED_LEAD);
+        // PRD 0043 RF2.2: `limit_changed` is an event for every script.
+        prefs.limit_changes = true;
         Self {
             prefs,
             alerts: AlertState::default(),
@@ -627,6 +664,13 @@ impl EventState {
             incidents: BTreeMap::new(),
             reset_lead: DEFAULT_RESET_LEAD,
         }
+    }
+
+    /// PRD 0041 RF3.3: report `balance_below_floor` / `balance_recovered`
+    /// for the floors of `config`'s accounts.
+    pub fn with_floors(mut self, config: &crate::Config) -> Self {
+        self.prefs = self.prefs.with_floors(config);
+        self
     }
 
     /// Fire `quota_reset_soon` this long before a window resets (default
@@ -755,6 +799,15 @@ impl EventState {
             ..
         } = self;
         let now = out.now;
+        // PRD 0041 RF3.3: the account's floors travel with its export, so
+        // `--watch`, hooks and the local server judge them like the app.
+        if out.next.floors.is_empty() {
+            prefs.floors.remove(&out.next.id);
+        } else {
+            prefs
+                .floors
+                .insert(out.next.id.clone(), out.next.floors.clone());
+        }
         let failure = FailureCategory::of(report);
         let Some(track) = accounts.get_mut(&out.next.id) else {
             let mut track = Track {
@@ -889,6 +942,24 @@ impl EventState {
                     EventKind::PoolExhausted
                 }
                 AlertKind::PoolRecovered => EventKind::PoolRecovered,
+                AlertKind::BalanceBelowFloor => EventKind::BalanceBelowFloor,
+                AlertKind::BalanceRecovered => EventKind::BalanceRecovered,
+                AlertKind::LimitChanged => {
+                    let Some(change) = &alert.limit_change else {
+                        continue;
+                    };
+                    let mut previous = find(&last, &alert.label).unwrap_or_default();
+                    previous.limit = Some(change.from);
+                    current.limit = Some(change.to);
+                    let metric = MetricRef::new(alert.label.clone(), alert.window);
+                    out.push(
+                        EventKind::LimitChanged,
+                        Some(metric),
+                        current,
+                        Some(previous),
+                    );
+                    continue;
+                }
             };
             let metric = MetricRef::new(alert.label.clone(), alert.window);
             out.push(kind, Some(metric), current, find(&last, &alert.label));
@@ -1085,6 +1156,7 @@ impl Track {
                 resets_at: metric.resets_at,
                 projection: None,
                 overage: None,
+                limit_change: None,
             })
             .collect();
         alerts.update(report, prefs, &exhausted, now);

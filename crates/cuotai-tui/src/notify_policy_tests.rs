@@ -73,6 +73,7 @@ fn reading(checked_at: DateTime<Utc>, used: f64, resets_at: DateTime<Utc>) -> Re
             window: Some(MetricWindow::Window5h),
             period: None,
             resets_at: Some(resets_at),
+            derived_from: None,
         }],
         notes: Vec::new(),
         notes_l10n: Vec::new(),

@@ -511,6 +511,10 @@ pub(crate) struct StatsView {
     days: StatsRange,
     range: TimelineRange,
     data: Result<Data, HistoryError>,
+    /// PRD 0043 RF5: the rhythm range the `r` key cycles through (none,
+    /// 24 h, 7 days, typical day) and what it read.
+    rhythm: Option<cuotai_core::insights::RhythmRange>,
+    rhythm_data: Option<Result<cuotai_core::insights::Rhythm, HistoryError>>,
     scroll: u16,
     footer: Vec<(Rect, KeyCode)>,
 }
@@ -524,6 +528,8 @@ impl StatsView {
             days: StatsRange::Days7,
             range: TimelineRange::Hours24,
             data: Err(HistoryError::Storage),
+            rhythm: None,
+            rhythm_data: None,
             scroll: 0,
             footer: Vec::new(),
         };
@@ -540,6 +546,24 @@ impl StatsView {
             self.range,
             Utc::now(),
         );
+        self.rhythm_data = self.rhythm.map(|range| {
+            let query = cuotai_core::insights::RhythmQuery {
+                scope: None,
+                metric: None,
+                range,
+                days_off: cuotai_core::notify_prefs::Source::open()
+                    .loaded()
+                    .notify
+                    .days_off,
+            };
+            cuotai_core::insights::rhythm(
+                &self.store,
+                &self.config.accounts,
+                &query,
+                Utc::now(),
+                &Local,
+            )
+        });
         self.scroll = 0;
     }
 
@@ -557,6 +581,16 @@ impl StatsView {
                 self.range = match self.range {
                     TimelineRange::Hours24 => TimelineRange::Days7,
                     TimelineRange::Days7 => TimelineRange::Hours24,
+                };
+                self.reload();
+            }
+            KeyCode::Char('r') => {
+                use cuotai_core::insights::RhythmRange;
+                self.rhythm = match self.rhythm {
+                    None => Some(RhythmRange::Last24h),
+                    Some(RhythmRange::Last24h) => Some(RhythmRange::Last7d),
+                    Some(RhythmRange::Last7d) => Some(RhythmRange::Typical30d),
+                    Some(RhythmRange::Typical30d) => None,
                 };
                 self.reload();
             }
@@ -597,7 +631,8 @@ impl StatsView {
         };
         let rows = match &self.data {
             Ok(data) => {
-                let mut rows = stats_rows(&data.stats, locale);
+                let mut rows = rhythm_rows(self.rhythm_data.as_ref(), locale);
+                rows.extend(stats_rows(&data.stats, locale));
                 rows.push((Tone::Normal, String::new()));
                 rows.extend(timeline_rows(&data.timeline, locale));
                 rows.push((Tone::Normal, String::new()));
@@ -645,6 +680,10 @@ impl StatsView {
             (format!("  {days}"), Some(KeyCode::Char('d'))),
             (format!("  {range}"), Some(KeyCode::Char('t'))),
             (
+                tr_in(locale, "stats.footer.rhythm", "  r rhythm").to_owned(),
+                Some(KeyCode::Char('r')),
+            ),
+            (
                 tr_in(locale, "about.footer.back", "  Esc back").to_owned(),
                 Some(KeyCode::Esc),
             ),
@@ -660,6 +699,63 @@ impl StatsView {
         }
         frame.render_widget(Paragraph::new(Line::from(spans)), areas[1]);
     }
+}
+
+/// PRD 0043 RF5: the rhythm section the `r` key shows above the figures
+/// (nothing while it is off): a heading naming the range, then the core's
+/// text bar chart, gaps as `·`.
+pub(crate) fn rhythm_rows(
+    rhythm: Option<&Result<cuotai_core::insights::Rhythm, HistoryError>>,
+    locale: &str,
+) -> Vec<Row> {
+    use cuotai_core::insights::RhythmRange;
+    let Some(rhythm) = rhythm else {
+        return Vec::new();
+    };
+    let rhythm = match rhythm {
+        Ok(rhythm) => rhythm,
+        Err(error) => {
+            return vec![
+                (Tone::Bad, error.l10n().resolve(locale)),
+                (Tone::Normal, String::new()),
+            ]
+        }
+    };
+    let heading = match rhythm.range {
+        RhythmRange::Last24h => tr_in(locale, "stats.rhythm.24h", "RHYTHM · LAST 24 HOURS"),
+        RhythmRange::Last7d => tr_in(locale, "stats.rhythm.7d", "RHYTHM · LAST 7 DAYS"),
+        RhythmRange::Typical30d => tr_in(
+            locale,
+            "stats.rhythm.typical",
+            "RHYTHM · TYPICAL DAY (30 DAYS)",
+        ),
+    };
+    let mut rows = vec![(Tone::Heading, heading.to_owned())];
+    if rhythm
+        .buckets
+        .iter()
+        .all(|bucket| bucket.consumption.is_none())
+    {
+        rows.push((Tone::Muted, StatsSummary::not_enough().resolve(locale)));
+    } else {
+        rows.extend(
+            rhythm
+                .text_chart(locale, BAR_CELLS)
+                .lines()
+                .map(|line| (Tone::Normal, format!("  {line}"))),
+        );
+        rows.push((
+            Tone::Muted,
+            tr_in(
+                locale,
+                "stats.rhythm.legend",
+                "  Percentage points of the tightest limit; · no reading, ↺ reset.",
+            )
+            .to_owned(),
+        ));
+    }
+    rows.push((Tone::Normal, String::new()));
+    rows
 }
 
 #[cfg(test)]
