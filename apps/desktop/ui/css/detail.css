@@ -902,3 +902,36 @@
   gap: var(--space-1);
 }
 .limit-note svg.i { color: var(--info); }
+
+/* PRD 0045 RF6.1: the Breakdown section, DS-CMP-SUB rows under a heading with the spend / percentage toggle. */
+.breakdown {
+  display: grid;
+  gap: var(--space-2);
+}
+.brk-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.brk-head h3 {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+.brk-rows {
+  display: grid;
+  gap: var(--space-2);
+}
+.brk-amount {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.brk-row.others h3 {
+  color: var(--fg-muted);
+}
+.brk-note {
+  color: var(--warn);
+  font-size: var(--text-sm);
+}

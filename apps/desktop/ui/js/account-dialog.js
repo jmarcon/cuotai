@@ -103,6 +103,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     </div>
     <label class="f" data-field="interval"><span>${te("dialog.interval")}</span><input name="interval" inputmode="numeric" placeholder="${te("dialog.intervalPlaceholder")}" value="${esc(existing?.interval ?? "")}" /><small class="field-err" hidden></small></label>
     <label class="f" data-field="group"><span>${te("dialog.group")}</span><input name="group" autocomplete="off" maxlength="32" spellcheck="false" placeholder="${te("dialog.groupPlaceholder")}" value="${esc(existing?.group ?? "")}" /><small class="field-hint">${te("dialog.groupHint")}</small><small class="field-err" hidden></small></label>
+    <fieldset class="f brk-field" data-field="breakdown" id="breakdown-box" hidden><legend>${te("dialog.breakdown")}</legend><div id="breakdown-options"></div><small class="field-hint" id="breakdown-hint"></small><small class="field-err" hidden></small></fieldset>
     <label class="f" data-field="monogram"><span>${te("dialog.monogram")}</span><input name="monogram" autocomplete="off" spellcheck="false" size="4" placeholder="${te("dialog.monogramPlaceholder")}" value="${esc(existing?.monogram ?? "")}" aria-describedby="monogram-hint" /><small class="field-hint" id="monogram-hint">${te("dialog.monogramHint")}</small><small class="field-err" hidden></small></label>
     <div id="budgets-host"></div>
     <p class="cost-advisory" id="cost-warn" hidden></p>
@@ -388,7 +389,30 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     costWarn.hidden = !access.cost_advisory;
     const notes = dyn.querySelector("#access-notes");
     if (notes) notes.innerHTML = access.notes.map((n) => `<small>${esc(tl(n))}</small>`).join("");
+    renderBreakdown(access.breakdown);
   }
+  // PRD 0045 RF6.3: the Breakdown multi-select from the core's descriptor of the draft's mode, each option with its
+  // extra requests per refresh; a metered provider shows the control disabled with the reason. Ticks survive redraws.
+  const breakdownChosen = new Set(existing?.breakdown ?? []);
+  let breakdownOffered = false;
+  function renderBreakdown(b) {
+    const box = dlg.querySelector("#breakdown-box");
+    if (!box || !b) return;
+    for (const el of box.querySelectorAll("input[data-breakdown]")) {
+      if (el.checked) breakdownChosen.add(el.value);
+      else breakdownChosen.delete(el.value);
+    }
+    breakdownOffered = b.modes.length > 0;
+    const metered = b.reason?.id === "access.breakdown_metered";
+    box.querySelector("#breakdown-options").innerHTML = b.modes.map((m) => `<label class="extension-confirm"><input type="checkbox" data-breakdown value="${esc(m.kind)}"${breakdownChosen.has(m.kind) ? " checked" : ""} /><span>${esc(tl(m.label))}</span> <small class="sub">${esc(tl(m.requests))}</small></label>`).join("");
+    box.querySelector("#breakdown-hint").textContent = breakdownOffered ? t("dialog.breakdownHint") : tl(b.reason);
+    box.disabled = !breakdownOffered;
+    box.hidden = !breakdownOffered && !metered;
+  }
+  /** The ticked breakdowns, or undefined (keep the saved ones) when the draft's mode offers none. */
+  const breakdownValue = () => (breakdownOffered
+    ? [...dlg.querySelectorAll("#breakdown-box input[data-breakdown]:checked")].map((el) => el.value)
+    : undefined);
   // PRD 0047 G2: the keys, tokens and secrets the form types (masked, never prefilled, never echoed back). The slots of
   // the session box (`schema.sessions`) stay there; every other `secret_inputs` entry is a row of the form.
   const sessionSlotSet = () => new Set((schema.sessions ?? []).map((s) => s.slot));
@@ -1126,6 +1150,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       fields: draftFields(),
       interval: String(data.get("interval") ?? ""),
       group: String(data.get("group") ?? ""),
+      breakdown: breakdownValue(),
       // PRD 0022 MONO-4: the display override (blank = derived from the name); the shell keeps it in desktop.json.
       monogram: String(data.get("monogram") ?? "").trim(),
       commitLogin: loginDone(),

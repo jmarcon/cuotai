@@ -321,6 +321,9 @@ jobs:
       # PRD 0036 RF8: the 9router instance, pools, connection chips and
       # details render in every built-in catalog without raw keys or paths.
       - run: node scripts/test-aggregator-ui.mjs
+      # PRD 0045 RF6.1: the Breakdown section (0, 5 and 26 rows, both sort
+      # orders) and the card's "Top" line in every built-in catalog.
+      - run: node scripts/test-breakdown-ui.mjs
       # PRD 0026 RF4/RF5: the Stats view and the reset timeline render the
       # core's answers honestly (gaps, "—", accessible names) in every locale.
       - run: node scripts/test-stats-ui.mjs
