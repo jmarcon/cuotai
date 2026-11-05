@@ -500,6 +500,7 @@ mod tests {
             sub_reports: Vec::new(),
             as_of: None,
             overage_hint: None,
+            breakdown: Vec::new(),
         };
         cycle.finish_account(0, Some(report), token, Instant::now());
         Feed {

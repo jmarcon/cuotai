@@ -18,6 +18,13 @@
 //! Optional parameters in `Account.params` (comma-separated lists):
 //! - OpenAI: `project_ids` (costs and usage), `models` (usage)
 //! - Anthropic: `workspace_ids` (costs and usage), `models` (usage)
+//!
+//! PRD 0045 RF4: with `breakdown = ["projects"]` (or `["keys"]`) the OpenAI
+//! account also reads the costs grouped by `project_id` and the project
+//! list (or the completions usage grouped by `api_key_id`), and with
+//! `breakdown = ["workspaces"]` the Anthropic account reads the cost report
+//! grouped by `workspace_id` and the workspace list; at most three pages
+//! each, never filtered by `project_ids`/`workspace_ids`.
 
 use super::{json, secret, Context, Data, QueryError};
 use crate::text::{params, Notes, ParamValue};
@@ -303,12 +310,339 @@ async fn openai(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data
         metrics.push(m);
     }
 
-    Ok(Data::new(
+    // PRD 0045 RF4: projects or keys, opt-in; never fails the account.
+    let mut rows = Vec::new();
+    for kind in [crate::BreakdownKind::Projects, crate::BreakdownKind::Keys] {
+        if !account.breakdown.contains(&kind) {
+            continue;
+        }
+        let window = Window {
+            start,
+            now,
+            reset,
+            period: &period,
+        };
+        let fetched = match kind {
+            crate::BreakdownKind::Projects => openai_projects(ctx, base, &key, window).await,
+            _ => openai_keys(ctx, base, &key, window).await,
+        };
+        match fetched {
+            Ok((found, extra)) => {
+                rows.extend(found);
+                crate::breakdown::push_notes(&mut notes, extra);
+            }
+            Err(error) => notes.push_note(crate::breakdown::unavailable_note(&error)),
+        }
+    }
+
+    let mut data = Data::new(
         metrics,
         notes,
         "https://developers.openai.com/api/reference/resources/admin/subresources/organization",
     )
-    .with_as_of(as_of))
+    .with_as_of(as_of);
+    data.breakdown = crate::breakdown::finish(rows);
+    Ok(data)
+}
+
+// ------------------------------------------------- PRD 0045 RF4: breakdown
+
+/// The UTC month a breakdown covers, shared with the account total.
+#[derive(Clone, Copy)]
+struct Window<'a> {
+    start: DateTime<Utc>,
+    now: DateTime<Utc>,
+    reset: DateTime<Utc>,
+    period: &'a str,
+}
+
+impl Window<'_> {
+    /// A month-to-date metric of a breakdown row, like the account's own.
+    fn metric(&self, label: &str, value: f64, unit: &str, kind: MetricKind) -> Metric {
+        let mut m = Metric::usage(label, value, unit, kind, Some(MetricWindow::Monthly));
+        m.period = Some(self.period.to_string());
+        m.resets_at = Some(self.reset);
+        m
+    }
+}
+
+/// Like [`buckets`], but stops after [`crate::breakdown::MAX_PAGES`] pages
+/// and says whether pages were left unread (a breakdown may be partial; an
+/// account total never is).
+async fn capped_buckets<B: serde::de::DeserializeOwned>(
+    build: impl Fn(Option<String>) -> RequestBuilder,
+) -> Result<(Vec<B>, bool), QueryError> {
+    let mut out = Vec::new();
+    let mut cursor: Option<String> = None;
+    for _ in 0..crate::breakdown::MAX_PAGES {
+        let page: Page<B> = json(build(cursor.clone())).await?;
+        out.extend(page.data);
+        match page.next_page {
+            Some(next) if page.has_more => {
+                if next.trim().is_empty() || cursor.as_deref() == Some(next.as_str()) {
+                    return Err(QueryError::schema());
+                }
+                cursor = Some(next);
+            }
+            _ if page.has_more => return Err(QueryError::schema()),
+            _ => return Ok((out, false)),
+        }
+    }
+    Ok((out, true))
+}
+
+/// `id → name` from a list endpoint (`{ data: [{ id, name }] }`, one page
+/// of 100); `None` when the key may not read it, so rows keep their ids.
+async fn names(request: RequestBuilder) -> Option<BTreeMap<String, String>> {
+    let page: serde_json::Value = json(request).await.ok()?;
+    let items = page.get("data")?.as_array()?;
+    Some(
+        items
+            .iter()
+            .filter_map(|item| {
+                Some((
+                    item.get("id")?.as_str()?.to_string(),
+                    item.get("name")?.as_str()?.to_string(),
+                ))
+            })
+            .collect(),
+    )
+}
+
+/// `note.breakdown.names_unavailable`.
+fn names_note() -> crate::text::Localized {
+    crate::text::Localized::fixed(
+        "note.breakdown.names_unavailable",
+        "The key may not read the names, so the breakdown shows ids instead.",
+    )
+}
+
+/// Sums `amount` per id into rows labelled by `names` (redacted), else by
+/// a generic label with the id's last characters.
+fn sum_rows(
+    sums: BTreeMap<String, BTreeMap<String, f64>>,
+    names: Option<&BTreeMap<String, String>>,
+    scope: crate::ScopeKind,
+    window: Window<'_>,
+    label: impl Fn(&str) -> String,
+) -> Vec<crate::BreakdownRow> {
+    use crate::breakdown::{fallback_label, opaque_id, redact_label};
+    sums.into_iter()
+        .map(|(raw, by_currency)| {
+            let id = opaque_id(&raw);
+            let name = names.and_then(|names| names.get(&raw));
+            let row_label = match name {
+                Some(name) => redact_label(name, scope, &id),
+                None if raw == DEFAULT_GROUP => DEFAULT_WORKSPACE_LABEL.to_string(),
+                None => fallback_label(scope, &raw),
+            };
+            let metrics = by_currency
+                .into_iter()
+                .map(|(unit, total)| window.metric(&label(&unit), total, &unit, MetricKind::Spend))
+                .collect();
+            crate::BreakdownRow {
+                scope,
+                id,
+                label: row_label,
+                metrics,
+                truncated: false,
+                notes: Vec::new(),
+            }
+        })
+        .collect()
+}
+
+/// The group of results without an id (Anthropic's default workspace).
+const DEFAULT_GROUP: &str = "default";
+const DEFAULT_WORKSPACE_LABEL: &str = "Workspace padrão";
+
+#[derive(Deserialize)]
+struct OpenAiGroupedCostBucket {
+    results: Vec<OpenAiGroupedCost>,
+}
+
+#[derive(Deserialize)]
+struct OpenAiGroupedCost {
+    amount: OpenAiAmount,
+    #[serde(default)]
+    project_id: Option<String>,
+}
+
+/// RF4: month-to-date cost per project (`group_by=project_id`), named from
+/// the project list when the key may read it.
+async fn openai_projects(
+    ctx: &Context<'_>,
+    base: &str,
+    key: &str,
+    window: Window<'_>,
+) -> Result<(Vec<crate::BreakdownRow>, Vec<crate::text::Localized>), QueryError> {
+    let query = vec![
+        (
+            "start_time".to_string(),
+            window.start.timestamp().to_string(),
+        ),
+        ("end_time".to_string(), window.now.timestamp().to_string()),
+        ("bucket_width".to_string(), "1d".to_string()),
+        ("limit".to_string(), PAGE_LIMIT.to_string()),
+        ("group_by".to_string(), "project_id".to_string()),
+    ];
+    let (pages, more): (Vec<OpenAiGroupedCostBucket>, bool) = capped_buckets(|cursor| {
+        let mut q = query.clone();
+        if let Some(c) = cursor {
+            q.push(("page".to_string(), c));
+        }
+        ctx.http
+            .get(format!("{base}/v1/organization/costs"))
+            .bearer_auth(key)
+            .query(&q)
+            .timeout(ctx.timeout)
+    })
+    .await?;
+    let mut sums: BTreeMap<String, BTreeMap<String, f64>> = BTreeMap::new();
+    for result in pages.into_iter().flat_map(|bucket| bucket.results) {
+        let value = finite(result.amount.value)?;
+        let currency = result.amount.currency.trim().to_uppercase();
+        if currency.is_empty() {
+            return Err(QueryError::schema());
+        }
+        let Some(project) = result.project_id.filter(|id| !id.trim().is_empty()) else {
+            continue;
+        };
+        let entry = sums
+            .entry(project)
+            .or_default()
+            .entry(currency)
+            .or_insert(0.0);
+        *entry = finite(*entry + value)?;
+    }
+    let mut notes = Vec::new();
+    let names = if sums.is_empty() {
+        None
+    } else {
+        names(
+            ctx.http
+                .get(format!("{base}/v1/organization/projects"))
+                .bearer_auth(key)
+                .query(&[("limit", "100"), ("include_archived", "true")])
+                .timeout(ctx.timeout),
+        )
+        .await
+    };
+    if names.is_none() && !sums.is_empty() {
+        notes.push(names_note());
+    }
+    if more {
+        notes.push(crate::breakdown::paged_note());
+    }
+    let rows = sum_rows(
+        sums,
+        names.as_ref(),
+        crate::ScopeKind::Project,
+        window,
+        |currency| format!("Custo no mês corrente ({currency})"),
+    );
+    Ok((rows, notes))
+}
+
+#[derive(Deserialize)]
+struct OpenAiGroupedUsageBucket {
+    results: Vec<OpenAiGroupedUsage>,
+}
+
+#[derive(Deserialize)]
+struct OpenAiGroupedUsage {
+    input_tokens: u64,
+    output_tokens: u64,
+    num_model_requests: u64,
+    #[serde(default)]
+    api_key_id: Option<String>,
+}
+
+/// RF4: month-to-date completion tokens and requests per API key
+/// (`group_by=api_key_id`); the costs endpoint does not group by key, so a
+/// key row has no money figure. Keys are labelled by their id's last
+/// characters (the id is not a secret).
+async fn openai_keys(
+    ctx: &Context<'_>,
+    base: &str,
+    key: &str,
+    window: Window<'_>,
+) -> Result<(Vec<crate::BreakdownRow>, Vec<crate::text::Localized>), QueryError> {
+    let query = vec![
+        (
+            "start_time".to_string(),
+            window.start.timestamp().to_string(),
+        ),
+        ("end_time".to_string(), window.now.timestamp().to_string()),
+        ("bucket_width".to_string(), "1d".to_string()),
+        ("limit".to_string(), PAGE_LIMIT.to_string()),
+        ("group_by".to_string(), "api_key_id".to_string()),
+    ];
+    let (pages, more): (Vec<OpenAiGroupedUsageBucket>, bool) = capped_buckets(|cursor| {
+        let mut q = query.clone();
+        if let Some(c) = cursor {
+            q.push(("page".to_string(), c));
+        }
+        ctx.http
+            .get(format!("{base}/v1/organization/usage/completions"))
+            .bearer_auth(key)
+            .query(&q)
+            .timeout(ctx.timeout)
+    })
+    .await?;
+    let mut sums: BTreeMap<String, [u64; 3]> = BTreeMap::new();
+    for result in pages.into_iter().flat_map(|bucket| bucket.results) {
+        let Some(id) = result.api_key_id.filter(|id| !id.trim().is_empty()) else {
+            continue;
+        };
+        let entry = sums.entry(id).or_insert([0; 3]);
+        for (slot, value) in entry.iter_mut().zip([
+            result.input_tokens,
+            result.output_tokens,
+            result.num_model_requests,
+        ]) {
+            *slot = slot.checked_add(value).ok_or_else(QueryError::schema)?;
+        }
+    }
+    let rows = sums
+        .into_iter()
+        .map(|(raw, [input, output, requests])| {
+            let id = crate::breakdown::opaque_id(&raw);
+            crate::BreakdownRow {
+                scope: crate::ScopeKind::Key,
+                label: crate::breakdown::fallback_label(crate::ScopeKind::Key, &raw),
+                id,
+                metrics: vec![
+                    window.metric(
+                        "Requisições de modelo (completions)",
+                        requests as f64,
+                        "requisições",
+                        MetricKind::Usage,
+                    ),
+                    window.metric(
+                        "Tokens de entrada (completions)",
+                        input as f64,
+                        "tokens",
+                        MetricKind::Usage,
+                    ),
+                    window.metric(
+                        "Tokens de saída (completions)",
+                        output as f64,
+                        "tokens",
+                        MetricKind::Usage,
+                    ),
+                ],
+                truncated: false,
+                notes: Vec::new(),
+            }
+        })
+        .collect();
+    let notes = if more {
+        vec![crate::breakdown::paged_note()]
+    } else {
+        Vec::new()
+    };
+    Ok((rows, notes))
 }
 
 // ------------------------------------------------------------- Anthropic
@@ -484,11 +818,123 @@ async fn anthropic(account: &Account, ctx: &Context<'_>, base: &str) -> Result<D
         metrics.push(m);
     }
 
-    Ok(Data::new(
+    // PRD 0045 RF4: workspaces, opt-in; never fails the account.
+    let mut rows = Vec::new();
+    if account
+        .breakdown
+        .contains(&crate::BreakdownKind::Workspaces)
+    {
+        let window = Window {
+            start,
+            now,
+            reset,
+            period: &period,
+        };
+        match anthropic_workspaces(ctx, base, &key, window).await {
+            Ok((found, extra)) => {
+                rows = found;
+                crate::breakdown::push_notes(&mut notes, extra);
+            }
+            Err(error) => notes.push_note(crate::breakdown::unavailable_note(&error)),
+        }
+    }
+
+    let mut data = Data::new(
         metrics,
         notes,
         "https://platform.claude.com/docs/en/manage-claude/usage-cost-api",
-    ))
+    );
+    data.breakdown = crate::breakdown::finish(rows);
+    Ok(data)
+}
+
+#[derive(Deserialize)]
+struct AnthropicGroupedCostBucket {
+    results: Vec<AnthropicGroupedCost>,
+}
+
+#[derive(Deserialize)]
+struct AnthropicGroupedCost {
+    amount: String,
+    currency: String,
+    #[serde(default)]
+    workspace_id: Option<String>,
+}
+
+/// RF4: month-to-date cost per workspace (`group_by[]=workspace_id`; the
+/// default workspace comes without an id), named from the workspace list.
+async fn anthropic_workspaces(
+    ctx: &Context<'_>,
+    base: &str,
+    key: &str,
+    window: Window<'_>,
+) -> Result<(Vec<crate::BreakdownRow>, Vec<crate::text::Localized>), QueryError> {
+    let query = vec![
+        ("starting_at".to_string(), window.start.to_rfc3339()),
+        ("ending_at".to_string(), window.now.to_rfc3339()),
+        ("bucket_width".to_string(), "1d".to_string()),
+        ("limit".to_string(), PAGE_LIMIT.to_string()),
+        ("group_by[]".to_string(), "workspace_id".to_string()),
+    ];
+    let (pages, more): (Vec<AnthropicGroupedCostBucket>, bool) = capped_buckets(|cursor| {
+        let mut q = query.clone();
+        if let Some(c) = cursor {
+            q.push(("page".to_string(), c));
+        }
+        ctx.http
+            .get(format!("{base}/v1/organizations/cost_report"))
+            .header("x-api-key", key)
+            .header("anthropic-version", ANTHROPIC_VERSION)
+            .query(&q)
+            .timeout(ctx.timeout)
+    })
+    .await?;
+    let mut sums: BTreeMap<String, BTreeMap<String, f64>> = BTreeMap::new();
+    for result in pages.into_iter().flat_map(|bucket| bucket.results) {
+        if !result.currency.trim().eq_ignore_ascii_case("usd") {
+            return Err(QueryError::schema());
+        }
+        let cents: f64 = result.amount.parse().map_err(|_| QueryError::schema())?;
+        let workspace = result
+            .workspace_id
+            .filter(|id| !id.trim().is_empty())
+            .unwrap_or_else(|| DEFAULT_GROUP.to_string());
+        let entry = sums
+            .entry(workspace)
+            .or_default()
+            .entry("USD".to_string())
+            .or_insert(0.0);
+        *entry = finite(*entry + finite(cents)? / 100.0)?;
+    }
+    let mut notes = Vec::new();
+    let named = sums.keys().any(|id| id != DEFAULT_GROUP);
+    let names = if named {
+        names(
+            ctx.http
+                .get(format!("{base}/v1/organizations/workspaces"))
+                .header("x-api-key", key)
+                .header("anthropic-version", ANTHROPIC_VERSION)
+                .query(&[("limit", "100"), ("include_archived", "true")])
+                .timeout(ctx.timeout),
+        )
+        .await
+    } else {
+        None
+    };
+    if named && names.is_none() {
+        notes.push(names_note());
+    }
+    if more {
+        notes.push(crate::breakdown::paged_note());
+    }
+    let rows = sum_rows(
+        sums,
+        names.as_ref(),
+        crate::ScopeKind::Workspace,
+        window,
+        |_| "Custo no mês corrente (USD)".to_string(),
+    );
+    Ok((rows, notes))
 }
 
 // ------------------------------------------------------------------ testes
@@ -521,6 +967,7 @@ mod tests {
             group: None,
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         }
     }
 
@@ -1052,5 +1499,272 @@ mod tests {
         .await
         .unwrap_err();
         assert_eq!(err.status, Status::Error);
+    }
+
+    // ------------------------------------------------ PRD 0045 RF4
+
+    fn with_breakdown(provider: Provider, kinds: &[crate::BreakdownKind]) -> Account {
+        let mut account = account(provider);
+        account.breakdown = kinds.to_vec();
+        account
+    }
+
+    async fn mount_openai_totals(server: &MockServer) {
+        Mock::given(method("GET"))
+            .and(path("/v1/organization/costs"))
+            .and(query_param_is_missing("group_by"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(openai_cost_page(
+                serde_json::json!([{ "amount": { "value": 10.0, "currency": "usd" } }]),
+                false,
+                None,
+            )))
+            .mount(server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/v1/organization/usage/completions"))
+            .and(query_param_is_missing("group_by"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(openai_usage_page(1, 1, 1)))
+            .mount(server)
+            .await;
+    }
+
+    fn project_costs(count: usize) -> serde_json::Value {
+        let results: Vec<_> = (0..count)
+            .map(|n| {
+                serde_json::json!({
+                    "object": "organization.costs.result",
+                    "amount": { "value": n as f64 + 1.0, "currency": "usd" },
+                    "project_id": format!("proj_{n:03}"),
+                })
+            })
+            .chain([serde_json::json!({
+                "amount": { "value": 0.5, "currency": "usd" }, "project_id": null
+            })])
+            .collect();
+        openai_cost_page(serde_json::json!(results), false, None)
+    }
+
+    #[tokio::test]
+    async fn openai_projects_are_named_from_the_project_list() {
+        let server = MockServer::start().await;
+        mount_openai_totals(&server).await;
+        Mock::given(method("GET"))
+            .and(path("/v1/organization/costs"))
+            .and(query_param("group_by", "project_id"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(project_costs(2)))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/v1/organization/projects"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "data": [
+                    { "id": "proj_000", "name": "Proj-A", "status": "active" },
+                    { "id": "proj_001", "name": "owner@example.com", "status": "active" }
+                ]
+            })))
+            .mount(&server)
+            .await;
+        let client = reqwest::Client::new();
+        let account = with_breakdown(Provider::OpenAiApi, &[crate::BreakdownKind::Projects]);
+        let data = openai(&account, &context(&client), &server.uri())
+            .await
+            .unwrap();
+        // The account total is unchanged by the breakdown.
+        assert_eq!(
+            metric(&data, "Custo no mês corrente (USD)").used,
+            Some(10.0)
+        );
+        let rows = &data.breakdown;
+        assert_eq!(rows.len(), 2);
+        assert_eq!(
+            (rows[0].id.as_str(), rows[0].label.as_str()),
+            ("proj_001", "Project …j001")
+        );
+        assert_eq!(rows[1].label, "Proj-A");
+        assert_eq!(rows[1].metrics[0].used, Some(1.0));
+        assert_eq!(rows[1].metrics[0].window, Some(MetricWindow::Monthly));
+        assert!(
+            rows[1].metrics[0].resets_at.is_some(),
+            "the UTC month is reused"
+        );
+        // Two extra requests: the grouped costs and the project names.
+        let extra = server
+            .received_requests()
+            .await
+            .unwrap()
+            .into_iter()
+            .filter(|r| {
+                r.url.path() == "/v1/organization/projects"
+                    || r.url.query().is_some_and(|q| q.contains("group_by"))
+            })
+            .count();
+        assert_eq!(extra, 2);
+    }
+
+    #[tokio::test]
+    async fn openai_projects_keep_their_ids_without_names_and_cap_at_25() {
+        let server = MockServer::start().await;
+        mount_openai_totals(&server).await;
+        Mock::given(method("GET"))
+            .and(path("/v1/organization/costs"))
+            .and(query_param("group_by", "project_id"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(project_costs(30)))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/v1/organization/projects"))
+            .respond_with(ResponseTemplate::new(403))
+            .mount(&server)
+            .await;
+        let client = reqwest::Client::new();
+        let account = with_breakdown(Provider::OpenAiApi, &[crate::BreakdownKind::Projects]);
+        let data = openai(&account, &context(&client), &server.uri())
+            .await
+            .unwrap();
+        assert_eq!(data.breakdown.len(), crate::breakdown::MAX_ROWS);
+        assert_eq!(data.breakdown[0].label, "Project …j029");
+        assert_eq!(data.breakdown.last().unwrap().label, "Others (6)");
+        assert!(data
+            .notes_l10n
+            .iter()
+            .any(|n| n.id == "note.breakdown.names_unavailable"));
+    }
+
+    #[tokio::test]
+    async fn openai_keys_report_tokens_and_requests_per_key() {
+        let server = MockServer::start().await;
+        mount_openai_totals(&server).await;
+        Mock::given(method("GET"))
+            .and(path("/v1/organization/usage/completions"))
+            .and(query_param("group_by", "api_key_id"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "object": "page",
+                "data": [{ "start_time": 1, "end_time": 2, "results": [
+                    { "input_tokens": 10, "output_tokens": 5, "num_model_requests": 3, "api_key_id": "key_abc1" },
+                    { "input_tokens": 1, "output_tokens": 1, "num_model_requests": 1, "api_key_id": "key_zz99" },
+                    { "input_tokens": 7, "output_tokens": 7, "num_model_requests": 2, "api_key_id": "key_abc1" }
+                ]}],
+                "has_more": false, "next_page": null
+            })))
+            .mount(&server)
+            .await;
+        let client = reqwest::Client::new();
+        let account = with_breakdown(Provider::OpenAiApi, &[crate::BreakdownKind::Keys]);
+        let data = openai(&account, &context(&client), &server.uri())
+            .await
+            .unwrap();
+        let rows = &data.breakdown;
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].label, "Key …abc1");
+        assert_eq!(rows[0].scope, crate::ScopeKind::Key);
+        assert_eq!(
+            rows[0].metrics[0].used,
+            Some(5.0),
+            "requests order the rows"
+        );
+        assert_eq!(rows[0].metrics[1].used, Some(17.0));
+    }
+
+    #[tokio::test]
+    async fn a_failing_breakdown_leaves_the_openai_total_standing() {
+        let server = MockServer::start().await;
+        mount_openai_totals(&server).await;
+        Mock::given(method("GET"))
+            .and(path("/v1/organization/costs"))
+            .and(query_param("group_by", "project_id"))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&server)
+            .await;
+        let client = reqwest::Client::new();
+        let account = with_breakdown(Provider::OpenAiApi, &[crate::BreakdownKind::Projects]);
+        let data = openai(&account, &context(&client), &server.uri())
+            .await
+            .unwrap();
+        assert!(data.breakdown.is_empty());
+        assert_eq!(
+            metric(&data, "Custo no mês corrente (USD)").used,
+            Some(10.0)
+        );
+        assert!(data
+            .notes_l10n
+            .iter()
+            .any(|n| n.id == "note.breakdown.unavailable"));
+    }
+
+    #[tokio::test]
+    async fn anthropic_workspaces_are_named_and_the_default_one_labelled() {
+        let server = MockServer::start().await;
+        let cost_page = |results: serde_json::Value| serde_json::json!({ "data": [{ "results": results }], "has_more": false, "next_page": null });
+        Mock::given(method("GET"))
+            .and(path("/v1/organizations/cost_report"))
+            .and(query_param("group_by[]", "workspace_id"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(cost_page(serde_json::json!([
+                    { "amount": "41200", "currency": "USD", "workspace_id": "wrkspc_01A" },
+                    { "amount": "29800", "currency": "USD", "workspace_id": "wrkspc_01B" },
+                    { "amount": "150", "currency": "USD", "workspace_id": null }
+                ]))),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/v1/organizations/cost_report"))
+            .and(query_param_is_missing("group_by[]"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(cost_page(serde_json::json!([
+                    { "amount": "71150", "currency": "USD" }
+                ]))),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/v1/organizations/usage_report/messages"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "data": [], "has_more": false, "next_page": null
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/v1/organizations/workspaces"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "data": [ { "id": "wrkspc_01A", "name": "Proj-A" }, { "id": "wrkspc_01B", "name": "Proj-B" } ]
+            })))
+            .mount(&server)
+            .await;
+        let client = reqwest::Client::new();
+        let account = with_breakdown(Provider::AnthropicApi, &[crate::BreakdownKind::Workspaces]);
+        let data = anthropic(&account, &context(&client), &server.uri())
+            .await
+            .unwrap();
+        let rows = &data.breakdown;
+        assert_eq!(
+            rows.iter().map(|r| r.label.as_str()).collect::<Vec<_>>(),
+            ["Proj-A", "Proj-B", "Workspace padrão"]
+        );
+        assert_eq!(rows[0].metrics[0].used, Some(412.0));
+        assert_eq!(rows[0].scope, crate::ScopeKind::Workspace);
+        assert_eq!(rows[2].label_text().resolve("en-US"), "Default workspace");
+        assert_eq!(
+            crate::breakdown::top_line(rows, crate::breakdown::CARD_ROWS)
+                .unwrap()
+                .text(),
+            "Top: Proj-A $412 · Proj-B $298"
+        );
+    }
+
+    #[tokio::test]
+    async fn without_the_opt_in_no_grouped_query_is_made() {
+        let server = MockServer::start().await;
+        mount_openai_totals(&server).await;
+        let client = reqwest::Client::new();
+        let data = openai(
+            &account(Provider::OpenAiApi),
+            &context(&client),
+            &server.uri(),
+        )
+        .await
+        .unwrap();
+        assert!(data.breakdown.is_empty());
+        assert_eq!(server.received_requests().await.unwrap().len(), 2);
     }
 }

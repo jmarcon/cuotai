@@ -72,6 +72,9 @@ pub(crate) struct Data {
     pub as_of: Option<chrono::DateTime<chrono::Utc>>,
     /// Overage state not visible in a metric (PRD 0023 RF3).
     pub overage_hint: Option<crate::OverageHint>,
+    /// PRD 0045 RF1.1: breakdown rows, already through
+    /// [`crate::breakdown::finish`]; empty unless the account opts in.
+    pub breakdown: Vec<crate::BreakdownRow>,
 }
 
 impl Data {
@@ -102,6 +105,7 @@ impl Data {
             sub_reports: Vec::new(),
             as_of: None,
             overage_hint: None,
+            breakdown: Vec::new(),
         }
     }
 

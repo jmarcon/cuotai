@@ -157,6 +157,11 @@ pub struct AccountExport {
     /// when it has none. Additive.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub floors: Vec<crate::budget::Floor>,
+    /// PRD 0045 RF8: the breakdown rows of the current report (keys,
+    /// projects, workspaces, teams), labels redacted like the notes;
+    /// omitted when the account has none. Additive.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub breakdown: Vec<crate::BreakdownRow>,
 }
 
 /// PRD 0041 RF4.3: how much of a quota can be used per day (or hour) and
@@ -310,6 +315,7 @@ impl SubAccountExport {
             aggregator: None,
             allowance: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         }
     }
 }
@@ -1112,6 +1118,7 @@ fn account_export(
                 .collect()
         }),
         floors: account.floors.clone(),
+        breakdown: report.map_or_else(Vec::new, |report| scrub.breakdown(&report.breakdown)),
     }
 }
 
@@ -1167,6 +1174,22 @@ impl<'a> Scrub<'a> {
             }
         }
         report
+    }
+
+    /// PRD 0045 RF8: the rows with their labels and notes through the same
+    /// redaction as the account's texts (the adapters already redacted
+    /// them; this keeps the export's own guarantee).
+    fn breakdown(&self, rows: &[crate::BreakdownRow]) -> Vec<crate::BreakdownRow> {
+        rows.iter()
+            .cloned()
+            .map(|mut row| {
+                row.label = self.text(&row.label);
+                for note in &mut row.notes {
+                    self.localized(note);
+                }
+                row
+            })
+            .collect()
     }
 
     fn localized(&self, note: &mut Localized) {
@@ -1252,6 +1275,11 @@ fn env_like(word: &str) -> bool {
         && bytes
             .iter()
             .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || *b == b'_')
+}
+
+/// PRD 0045 RF1.3: whether `text` is exactly one e-mail address.
+pub(crate) fn is_email(text: &str) -> bool {
+    email_span(text).is_some_and(|(start, end)| start == 0 && end == text.len())
 }
 
 /// Byte range of the first e-mail address (`local@domain.tld`) in `text`.
@@ -1372,6 +1400,7 @@ mod tests {
             sub_reports: Vec::new(),
             as_of: None,
             overage_hint: None,
+            breakdown: Vec::new(),
         }
     }
 
@@ -2305,6 +2334,84 @@ mod tests {
     /// PRD 0012 RF2.2: the `/v1/limits` summary is declared in the same
     /// schema (`$defs/Limits`) and carries, per account, the binding metric
     /// and the age the export already computed.
+    /// PRD 0045 RF8: the breakdown is published per account (not inside the
+    /// report), follows the schema, keeps its redaction and stays out of
+    /// `/v1/limits` and of the legacy report JSON.
+    #[test]
+    fn the_breakdown_is_exported_per_account_and_left_out_of_limits() {
+        let schema: Value =
+            serde_json::from_str(&std::fs::read_to_string(doc_path(SCHEMA_DOC)).unwrap())
+                .expect("docs/export-v1.schema.json is JSON");
+        let mut org = account("Org", Provider::OpenRouter);
+        org.params.insert("product".into(), "account".into());
+        org.breakdown = vec![crate::BreakdownKind::Keys];
+        let config = Config {
+            accounts: vec![org],
+            ..Config::default()
+        };
+        let mut cycle = RefreshCycle::new(&config, Instant::now());
+        let mut ready = report(&config.accounts[0], Status::Ready, minutes_ago(1));
+        ready.metrics = vec![Metric::usage(
+            "Saldo de créditos",
+            5.0,
+            "créditos",
+            MetricKind::Balance,
+            None,
+        )];
+        let rows: Vec<crate::BreakdownRow> = (0..26)
+            .map(|n| crate::BreakdownRow {
+                scope: crate::ScopeKind::Key,
+                id: format!("k{n:02}"),
+                // An adapter bug must not leak an address through the export.
+                label: if n == 0 {
+                    "ops ops@example.com".into()
+                } else {
+                    format!("Key {n}")
+                },
+                metrics: vec![Metric {
+                    limit: Some(100.0),
+                    remaining: Some(100.0 - f64::from(n)),
+                    ..Metric::usage(
+                        "Limite da chave",
+                        f64::from(n),
+                        "USD",
+                        MetricKind::Quota,
+                        Some(MetricWindow::Monthly),
+                    )
+                }],
+                truncated: false,
+                notes: Vec::new(),
+            })
+            .collect();
+        ready.breakdown = crate::breakdown::finish(rows);
+        finish(&mut cycle, 0, ready);
+        let json = export(&config, &cycle, Options::default());
+        let mut errors = Vec::new();
+        validate(&schema, &schema, &json, "$", &mut errors);
+        assert!(errors.is_empty(), "{errors:#?}");
+        let account = &json["accounts"][0];
+        let breakdown = account["breakdown"].as_array().unwrap();
+        assert_eq!(breakdown.len(), crate::breakdown::MAX_ROWS);
+        assert_eq!(breakdown[0]["scope"], "key");
+        assert_eq!(breakdown[24]["id"], "others");
+        assert_eq!(breakdown[24]["label"], "Others (2)");
+        assert!(
+            account["report"].get("breakdown").is_none(),
+            "not inside the report"
+        );
+        assert!(!json.to_string().contains("ops@example.com"));
+        let limits = serde_json::to_value(Limits::from_export(&build(
+            &config,
+            &cycle,
+            Options::default(),
+        )))
+        .unwrap();
+        assert!(!limits.to_string().contains("breakdown"));
+        // `--json` keeps its shape: the legacy report never carries rows.
+        let legacy = serde_json::to_value(cycle.snapshot().expect("a snapshot")).unwrap();
+        assert!(!legacy.to_string().contains("\"breakdown\""));
+    }
+
     #[test]
     fn limits_summary_follows_its_schema() {
         let schema: Value =

@@ -3964,6 +3964,7 @@ mod tests {
             source: String::new(),
             session_expires_at: None,
             as_of: None,
+            breakdown: Vec::new(),
         };
         assert_eq!(data_as_of_suffix(&report), "");
         report.as_of = Some(checked_at - chrono::Duration::minutes(5));
@@ -4038,6 +4039,7 @@ mod tests {
             group: None,
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         }
     }
 

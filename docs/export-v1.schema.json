@@ -67,7 +67,21 @@
           "type": "array",
           "items": { "$ref": "#/$defs/Floor" },
           "description": "PRD 0041 RF3: the person's balance floors of the account; omitted when it has none. Additive."
-        }
+        },
+        "breakdown": { "type": "array", "items": { "$ref": "#/$defs/BreakdownRow" }, "description": "PRD 0045 RF8: the rows of an account that opts into a breakdown (keys, projects, workspaces, teams), ordered by spend; past 24 rows the rest are summed into one row with id \"others\". Never per user; omitted when empty." }
+      }
+    },
+    "BreakdownRow": {
+      "type": "object",
+      "description": "PRD 0045: one sub-scope of an account. Labels are redacted (no e-mails, URLs or secrets) and ids are opaque.",
+      "required": ["scope", "id", "label", "metrics", "truncated"],
+      "properties": {
+        "scope": { "anyOf": [{ "enum": ["key", "virtual_key", "project", "workspace", "team"] }, { "type": "string" }] },
+        "id": { "type": "string", "description": "At most 64 characters: the provider's opaque id or a digest; \"others\" for the sum row." },
+        "label": { "type": "string", "description": "At most 48 characters." },
+        "metrics": { "type": "array", "items": { "$ref": "#/$defs/Metric" }, "description": "At most 6." },
+        "truncated": { "type": "boolean", "description": "The provider reported more metrics than the row keeps." },
+        "notes": { "type": "array", "items": { "$ref": "#/$defs/Localized" }, "description": "Row notes (note.breakdown.disabled); omitted when empty." }
       }
     },
     "Allowance": {
@@ -372,7 +386,7 @@
           "required": ["kind", "id", "label"],
           "description": "Present only when the metric limits one model rather than the whole account.",
           "properties": {
-            "kind": { "anyOf": [{ "enum": ["model"] }, { "type": "string" }] },
+            "kind": { "anyOf": [{ "enum": ["model", "key", "virtual_key", "project", "workspace", "team"] }, { "type": "string" }] },
             "id": { "type": "string" },
             "label": { "type": "string" }
           }

@@ -57,6 +57,7 @@ fn report(metrics: Vec<Metric>, checked_at: DateTime<Utc>) -> Report {
         sub_reports: Vec::new(),
         as_of: None,
         overage_hint: None,
+        breakdown: Vec::new(),
     }
 }
 

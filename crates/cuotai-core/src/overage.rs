@@ -218,6 +218,7 @@ pub(crate) fn assess_metrics(metrics: &[Metric], hint: Option<OverageHint>) -> O
         source: String::new(),
         session_expires_at: None,
         overage_hint: hint,
+        breakdown: Vec::new(),
     })
 }
 
@@ -395,6 +396,7 @@ mod tests {
             source: String::new(),
             session_expires_at: None,
             overage_hint: hint,
+            breakdown: Vec::new(),
         }
     }
 

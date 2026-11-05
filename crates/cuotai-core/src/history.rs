@@ -349,6 +349,7 @@ impl StoredReport {
             sub_reports: Vec::new(),
             as_of: None,
             overage_hint: None,
+            breakdown: Vec::new(),
         }
     }
 }

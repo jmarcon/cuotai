@@ -47,6 +47,7 @@ fn report(at: DateTime<Utc>, used: f64) -> Report {
         notes_l10n: Vec::new(),
         source: String::new(),
         session_expires_at: None,
+        breakdown: Vec::new(),
     }
 }
 

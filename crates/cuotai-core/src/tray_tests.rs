@@ -303,6 +303,7 @@ fn a_report_with_active_extra_usage_is_on_extra() {
         sub_reports: Vec::new(),
         as_of: None,
         overage_hint: None,
+        breakdown: Vec::new(),
     };
     let view =
         AccountView::from_report(&account, Some(&report), crate::freshness::Freshness::Fresh);

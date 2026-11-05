@@ -316,6 +316,23 @@ pub(crate) const TABLE: &[(&str, &str, &str)] = &[
         "30-day spending — {name}",
     ),
     ("Limite da chave", "metric.label.key_limit", "Key limit"),
+    ("Gasto hoje", "metric.label.today_spend", "Spending today"),
+    ("Gasto total", "metric.label.total_spend", "Total spending"),
+    (
+        "Orçamento da chave",
+        "metric.label.key_budget",
+        "Key budget",
+    ),
+    (
+        "Orçamento da equipe",
+        "metric.label.team_budget",
+        "Team budget",
+    ),
+    (
+        "Workspace padrão",
+        "metric.label.default_workspace",
+        "Default workspace",
+    ),
     (
         "Limite atingido",
         "metric.label.limit_reached",

@@ -1245,6 +1245,7 @@ fn extension_account(manifest: &Manifest, config: &Config, editing: Option<usize
         group: None,
         budgets: Vec::new(),
         floors: Vec::new(),
+        breakdown: Vec::new(),
     }
 }
 

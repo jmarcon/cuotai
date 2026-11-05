@@ -299,6 +299,7 @@ mod tests {
             source: "https://secret.example.com/SEEDED".into(),
             session_expires_at: None,
             diagnostic: None,
+            breakdown: Vec::new(),
         }
     }
 

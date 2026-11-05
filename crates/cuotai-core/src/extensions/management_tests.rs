@@ -819,6 +819,7 @@ async fn an_override_never_sees_the_account_credential_and_revocation_restores_t
         refresh_seconds: None,
         budgets: Vec::new(),
         floors: Vec::new(),
+        breakdown: Vec::new(),
     });
 
     // Not offered before approval; enabling creates no account of its own.

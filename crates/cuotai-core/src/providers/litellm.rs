@@ -12,8 +12,11 @@
 //!   string | null } } }`, one entry per provider listed in the proxy's
 //!   `provider_budget_config`.
 //!
-//! Nothing else is requested: no `/v1` inference route, no key or team
-//! management route. No LiteLLM code is copied; the fixtures below are
+//! Nothing else is requested by default: no `/v1` inference route. With
+//! `breakdown = ["keys"]` or `["teams"]` (PRD 0045 RF3) the read-only
+//! `GET /key/list` (paged) and `GET /team/list` are read too
+//! (<https://docs.litellm.ai/docs/proxy/virtual_keys>,
+//! <https://docs.litellm.ai/docs/proxy/team_budgets>). No LiteLLM code is copied; the fixtures below are
 //! written from the documented example. A live instance has not been
 //! checked yet (owner verification), so the access level is `Official` (a documented route).
 
@@ -223,9 +226,196 @@ pub(crate) async fn fetch_at(
             "LiteLLM has no per-provider budgets (provider_budget_config); nothing to show.",
         );
     }
+    // PRD 0045 RF3: virtual keys and teams, opt-in; a failure never fails
+    // the account.
+    let root = base.as_str().trim_end_matches('/');
+    let mut rows = Vec::new();
+    for kind in [crate::BreakdownKind::Keys, crate::BreakdownKind::Teams] {
+        if !account.breakdown.contains(&kind) {
+            continue;
+        }
+        let fetched = match kind {
+            crate::BreakdownKind::Keys => key_rows(ctx, root, key.trim()).await,
+            _ => team_rows(ctx, root, key.trim()).await,
+        };
+        match fetched {
+            Ok((found, more)) => {
+                rows.extend(found);
+                if more {
+                    notes.push_note(crate::breakdown::paged_note());
+                }
+            }
+            Err(error) => notes.push_note(crate::breakdown::unavailable_note(&error)),
+        }
+    }
     let mut data = Data::new(Vec::new(), notes, "LiteLLM: provider/budgets");
     data.sub_reports = sub_reports;
+    data.breakdown = crate::breakdown::finish(rows);
     Ok(data)
+}
+
+// ------------------------------------------------- PRD 0045 RF3: breakdown
+
+const KEYS_PATH: &str = "/key/list";
+const TEAMS_PATH: &str = "/team/list";
+/// The largest page `/key/list` documents.
+const KEY_PAGE_SIZE: usize = 100;
+
+/// `GET /key/list?return_full_object=true&page=N&size=100`, at most
+/// [`crate::breakdown::MAX_PAGES`] pages; whether pages were left unread.
+async fn key_rows(
+    ctx: &Context<'_>,
+    root: &str,
+    key: &str,
+) -> Result<(Vec<crate::BreakdownRow>, bool), QueryError> {
+    let mut rows = Vec::new();
+    for page in 1..=crate::breakdown::MAX_PAGES {
+        let url =
+            format!("{root}{KEYS_PATH}?return_full_object=true&page={page}&size={KEY_PAGE_SIZE}");
+        let value: Value = json(
+            ctx.http
+                .get(&url)
+                .bearer_auth(key)
+                .header("Accept", "application/json")
+                .timeout(ctx.timeout),
+        )
+        .await?;
+        let keys = value
+            .get("keys")
+            .and_then(Value::as_array)
+            .ok_or_else(QueryError::schema)?;
+        for item in keys {
+            // A key listed as a bare token string carries no figure.
+            if let Some(item) = item.as_object() {
+                rows.extend(budget_row(item, crate::ScopeKind::VirtualKey)?);
+            }
+        }
+        let total_pages = value.get("total_pages").and_then(Value::as_u64);
+        let last = keys.is_empty()
+            || total_pages.is_none_or(|total| page as u64 >= total)
+            || keys.len() < KEY_PAGE_SIZE;
+        if last {
+            return Ok((rows, false));
+        }
+    }
+    Ok((rows, true))
+}
+
+/// `GET /team/list`: one answer with every team the credential may read.
+async fn team_rows(
+    ctx: &Context<'_>,
+    root: &str,
+    key: &str,
+) -> Result<(Vec<crate::BreakdownRow>, bool), QueryError> {
+    let value: Value = json(
+        ctx.http
+            .get(format!("{root}{TEAMS_PATH}"))
+            .bearer_auth(key)
+            .header("Accept", "application/json")
+            .timeout(ctx.timeout),
+    )
+    .await?;
+    let teams = value.as_array().ok_or_else(QueryError::schema)?;
+    let mut rows = Vec::new();
+    for item in teams {
+        let item = item.as_object().ok_or_else(QueryError::schema)?;
+        rows.extend(budget_row(item, crate::ScopeKind::Team)?);
+    }
+    Ok((rows, false))
+}
+
+/// One virtual key or team: a `Quota` (`spend` of `max_budget`, reset at
+/// `budget_reset_at`) when it has a budget, its `Spend` otherwise. The
+/// label is the alias (redacted), else the last four characters of the
+/// masked key name or of the id. Only `token`/`team_id`, the alias, the
+/// masked key name, the figures and `blocked` are read: never `user_id`,
+/// members or e-mails.
+fn budget_row(
+    item: &serde_json::Map<String, Value>,
+    scope: crate::ScopeKind,
+) -> Result<Option<crate::BreakdownRow>, QueryError> {
+    use crate::breakdown::{digest_id, fallback_label, opaque_id, redact_label};
+    let team = scope == crate::ScopeKind::Team;
+    let (id_field, alias_field) = if team {
+        ("team_id", "team_alias")
+    } else {
+        ("token", "key_alias")
+    };
+    let Some(raw_id) = item
+        .get(id_field)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+    else {
+        return Ok(None);
+    };
+    // A key's token is the hash of its secret: only a digest leaves.
+    let id = if team {
+        opaque_id(raw_id)
+    } else {
+        digest_id(raw_id)
+    };
+    let alias = item
+        .get(alias_field)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .unwrap_or_default();
+    let label = if alias.is_empty() {
+        let masked = item
+            .get("key_name")
+            .and_then(Value::as_str)
+            .filter(|name| !team && !name.trim().is_empty())
+            .unwrap_or(raw_id);
+        fallback_label(scope, masked)
+    } else {
+        redact_label(alias, scope, &id)
+    };
+    let spend = number(item.get("spend"));
+    let budget = number(item.get("max_budget")).filter(|limit| *limit > 0.0);
+    let resets_at = item
+        .get("budget_reset_at")
+        .and_then(Value::as_str)
+        .and_then(|raw| DateTime::parse_from_rfc3339(raw).ok())
+        .map(|at| at.with_timezone(&Utc));
+    let window = item
+        .get("budget_duration")
+        .and_then(Value::as_str)
+        .map(window_of);
+    let metric = match (budget, spend) {
+        (Some(limit), spend) => Metric {
+            label: if team {
+                "Orçamento da equipe"
+            } else {
+                "Orçamento da chave"
+            }
+            .into(),
+            used: spend,
+            limit: Some(limit),
+            remaining: spend.map(|spend| limit - spend),
+            unit: "USD".into(),
+            kind: MetricKind::Quota,
+            window,
+            period: None,
+            resets_at,
+            billing: Default::default(),
+            scope: None,
+            derived_from: None,
+        },
+        (None, Some(spend)) => Metric::usage("Gasto total", spend, "USD", MetricKind::Spend, None),
+        (None, None) => return Ok(None),
+    };
+    let mut notes = Vec::new();
+    if item.get("blocked") == Some(&Value::Bool(true)) {
+        notes.push(crate::breakdown::disabled_note());
+    }
+    Ok(Some(crate::BreakdownRow {
+        scope,
+        id,
+        label,
+        metrics: vec![metric],
+        truncated: false,
+        notes,
+    }))
 }
 
 /// PRD 0036 RF10.3 with RF2.2: Test connection of a LiteLLM proxy (the
@@ -304,6 +494,7 @@ mod tests {
             group: None,
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         }
     }
 
@@ -441,5 +632,161 @@ mod tests {
         assert!(matches!(account_base(&acct), Err(BaseUrlError::Insecure)));
         acct.params.clear();
         assert_eq!(account_base(&acct).unwrap().port(), Some(4000));
+    }
+
+    // ------------------------------------------------ PRD 0045 RF3
+
+    async fn mount_breakdown(server: &MockServer) {
+        use wiremock::matchers::query_param;
+        mount(server, 200, documented()).await;
+        let key = |n: usize, alias: Option<&str>, budget: Option<f64>, reset: Option<&str>| {
+            json!({
+                "token": format!("88b1c0ffee{n:04}hashedtoken"),
+                "key_name": format!("sk-...{n:04}"),
+                "key_alias": alias,
+                "spend": n as f64 + 0.5,
+                "max_budget": budget,
+                "budget_duration": reset.map(|_| "30d"),
+                "budget_reset_at": reset,
+                "user_id": "person@example.com",
+                "team_id": "team-1",
+                "blocked": n == 2,
+            })
+        };
+        Mock::given(method("GET"))
+            .and(path(KEYS_PATH))
+            .and(query_param("page", "1"))
+            .and(query_param("return_full_object", "true"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "keys": [
+                    key(1, Some("ci-pipeline"), Some(10.0), Some("2026-11-01T00:00:00Z")),
+                    key(2, None, Some(5.0), None),
+                    key(3, Some("sk-live-0123456789abcdef"), None, None),
+                    "88b1c0ffee9999hashedtoken"
+                ],
+                "total_count": 4, "current_page": 1, "total_pages": 1
+            })))
+            .mount(server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(TEAMS_PATH))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+                { "team_id": "team-1", "team_alias": "Platform", "spend": 42.0, "max_budget": 100.0,
+                  "budget_reset_at": "2026-11-01T00:00:00Z",
+                  "members_with_roles": [{ "user_id": "u-1", "user_email": "person@example.com" }] },
+                { "team_id": "team-2", "team_alias": null, "spend": 3.0 }
+            ])))
+            .mount(server)
+            .await;
+    }
+
+    #[tokio::test]
+    async fn virtual_keys_and_teams_become_breakdown_rows() {
+        let server = MockServer::start().await;
+        mount_breakdown(&server).await;
+        let http = reqwest::Client::new();
+        let mut acct = account(&server, &[]);
+        acct.breakdown = vec![crate::BreakdownKind::Keys, crate::BreakdownKind::Teams];
+        let data = fetch_at(&acct, &context(&http), Utc::now()).await.unwrap();
+        // The provider budgets stand beside the breakdown.
+        assert_eq!(data.sub_reports.len(), 5);
+        let rows = &data.breakdown;
+        let by = |label: &str| {
+            rows.iter()
+                .find(|row| row.label == label)
+                .unwrap_or_else(|| panic!("{label}"))
+        };
+        let team = by("Platform");
+        assert_eq!(team.scope, crate::ScopeKind::Team);
+        assert_eq!(team.id, "team-1");
+        let quota = team.capped().unwrap();
+        assert_eq!(
+            (quota.used, quota.limit, quota.remaining),
+            (Some(42.0), Some(100.0), Some(58.0))
+        );
+        assert!(quota.resets_at.is_some());
+        let ci = by("ci-pipeline");
+        assert_eq!(ci.scope, crate::ScopeKind::VirtualKey);
+        assert_eq!(ci.metrics[0].kind, MetricKind::Quota);
+        assert_eq!(ci.metrics[0].window, Some(MetricWindow::Monthly));
+        // A key without an alias shows the last characters of its masked name.
+        let unnamed = by("Virtual key …0002");
+        assert_eq!(unnamed.notes[0].id, "note.breakdown.disabled");
+        assert_eq!(
+            unnamed.metrics[0].resets_at, None,
+            "no reset without budget_reset_at"
+        );
+        // A secret-shaped alias is cut to its last four characters.
+        let secret = by("…cdef");
+        assert_eq!(secret.metrics[0].kind, MetricKind::Spend);
+        assert_eq!(by("Team …eam2").metrics[0].used, Some(3.0));
+        assert_eq!(rows.len(), 5);
+        // Never a user id, an e-mail, a member or a key hash.
+        let text = serde_json::to_string(rows).unwrap();
+        for leaked in ["person@", "u-1", "c0ffee", "hashedtoken", "sk-live"] {
+            assert!(!text.contains(leaked), "{leaked}");
+        }
+    }
+
+    #[tokio::test]
+    async fn key_lists_follow_their_pages_up_to_three() {
+        use wiremock::matchers::query_param;
+        let server = MockServer::start().await;
+        mount(&server, 200, documented()).await;
+        let page = |n: usize| {
+            let keys: Vec<Value> = (0..KEY_PAGE_SIZE)
+                .map(|i| json!({ "token": format!("t{n}-{i}"), "key_alias": format!("k{n}-{i}"), "spend": 1.0 }))
+                .collect();
+            json!({ "keys": keys, "total_count": 1000, "current_page": n, "total_pages": 10 })
+        };
+        for n in 1..=4 {
+            Mock::given(method("GET"))
+                .and(path(KEYS_PATH))
+                .and(query_param("page", n.to_string()))
+                .respond_with(ResponseTemplate::new(200).set_body_json(page(n)))
+                .mount(&server)
+                .await;
+        }
+        let http = reqwest::Client::new();
+        let mut acct = account(&server, &[]);
+        acct.breakdown = vec![crate::BreakdownKind::Keys];
+        let data = fetch_at(&acct, &context(&http), Utc::now()).await.unwrap();
+        assert_eq!(data.breakdown.len(), crate::breakdown::MAX_ROWS);
+        assert_eq!(data.breakdown.last().unwrap().label, "Others (276)");
+        assert!(data
+            .notes_l10n
+            .iter()
+            .any(|n| n.id == "note.breakdown.paged"));
+        let requests = server.received_requests().await.unwrap();
+        assert_eq!(
+            requests
+                .iter()
+                .filter(|r| r.url.path() == KEYS_PATH)
+                .count(),
+            3
+        );
+    }
+
+    #[tokio::test]
+    async fn a_refused_team_list_keeps_the_budgets() {
+        let server = MockServer::start().await;
+        mount(&server, 200, documented()).await;
+        Mock::given(method("GET"))
+            .and(path(TEAMS_PATH))
+            .respond_with(ResponseTemplate::new(401))
+            .mount(&server)
+            .await;
+        let http = reqwest::Client::new();
+        let mut acct = account(&server, &[]);
+        acct.breakdown = vec![crate::BreakdownKind::Teams];
+        let data = fetch_at(&acct, &context(&http), Utc::now()).await.unwrap();
+        assert_eq!(data.sub_reports.len(), 5);
+        assert!(data.breakdown.is_empty());
+        let note = data
+            .notes_l10n
+            .iter()
+            .find(|n| n.id == "note.breakdown.unavailable")
+            .unwrap();
+        assert!(note.text().contains("credential"));
     }
 }

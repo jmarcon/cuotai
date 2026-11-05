@@ -460,6 +460,7 @@ mod tests {
             refresh_seconds: None,
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         }
     }
 

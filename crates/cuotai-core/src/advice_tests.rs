@@ -42,6 +42,7 @@ fn report(name: &str, status: Status, metrics: Vec<Metric>) -> Report {
         notes_l10n: Vec::new(),
         source: String::new(),
         session_expires_at: None,
+        breakdown: Vec::new(),
     }
 }
 

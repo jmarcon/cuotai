@@ -86,6 +86,7 @@ fn report(config: &Config, used: f64, resets: DateTime<Utc>) -> Report {
         notes_l10n: Vec::new(),
         source: String::new(),
         session_expires_at: None,
+        breakdown: Vec::new(),
     }
 }
 

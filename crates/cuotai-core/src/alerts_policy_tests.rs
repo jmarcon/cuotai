@@ -54,6 +54,7 @@ fn report(at: DateTime<Utc>, metric: Metric) -> Report {
         notes_l10n: Vec::new(),
         source: String::new(),
         session_expires_at: None,
+        breakdown: Vec::new(),
     }
 }
 
