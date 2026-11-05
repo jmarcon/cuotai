@@ -54,6 +54,7 @@ pub fn error_kind(error: &ConfigError) -> &'static str {
         ConfigError::OpenRouter => "open_router",
         ConfigError::Budget { .. } => "budget",
         ConfigError::Breakdown { .. } => "breakdown",
+        ConfigError::Feed => "feed",
     }
 }
 

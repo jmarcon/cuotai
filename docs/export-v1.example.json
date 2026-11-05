@@ -177,7 +177,8 @@
           "fallback": "Internal interface the vendor does not document; it may change without notice."
         },
         "reason": null,
-        "overage": "provider_units"
+        "overage": "provider_units",
+        "local": false
       },
       "overage": {
         "state": "active",
@@ -313,7 +314,8 @@
           "fallback": "Interface documented by the vendor for this credential; it does not guarantee permission on your account."
         },
         "reason": null,
-        "overage": "not_reported"
+        "overage": "not_reported",
+        "local": false
       },
       "failure": {
         "category": "provider_error",
@@ -383,7 +385,8 @@
           "fallback": "Usage is inferred from another source (metrics or rate-limit headers); it is not a balance and may lag."
         },
         "reason": null,
-        "overage": "not_reported"
+        "overage": "not_reported",
+        "local": false
       },
       "failure": {
         "category": "auth_required",
@@ -445,7 +448,8 @@
           "fallback": "Interface documented by the vendor for this credential; it does not guarantee permission on your account."
         },
         "reason": null,
-        "overage": "not_reported"
+        "overage": "not_reported",
+        "local": false
       },
       "overage": null,
       "incident": null

@@ -387,6 +387,12 @@ fn credential_method(
             SignInMethod::ApiKey,
             hint("aggregator_login", "Dashboard password (optional)"),
         ),
+        // PRD 0040: never a catalog default (the feed is a mode of the
+        // account form), kept for exhaustiveness.
+        Credential::AgentFeed => (
+            SignInMethod::LocalCredentials,
+            hint("agent_feed", "Fed by the coding agent"),
+        ),
     }
 }
 

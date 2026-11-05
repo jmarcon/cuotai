@@ -10,6 +10,7 @@ macro_rules! router_ref {
 }
 pub(crate) use router_ref;
 
+pub(crate) mod agent_feed;
 pub(crate) mod alibaba_billing;
 pub(crate) mod alibaba_plans;
 pub(crate) mod antigravity;

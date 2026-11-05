@@ -213,6 +213,7 @@ pub fn config_error_note(error: &crate::ConfigError) -> Localized {
         crate::ConfigError::Region => "edit_error.config_region",
         crate::ConfigError::Group => "edit_error.config_group",
         crate::ConfigError::OpenRouter => "edit_error.config_open_router",
+        crate::ConfigError::Feed => "edit_error.config_feed",
         crate::ConfigError::MeteredRefreshFloor { .. }
         | crate::ConfigError::AccountIds { .. }
         | crate::ConfigError::Budget { .. }
@@ -327,6 +328,7 @@ mod tests {
                 crate::ConfigError::OpenRouter,
                 "edit_error.config_open_router",
             ),
+            (crate::ConfigError::Feed, "edit_error.config_feed"),
         ] {
             let note = config_error_note(&error);
             assert_eq!(note.id, id);

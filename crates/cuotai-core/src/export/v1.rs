@@ -162,6 +162,14 @@ pub struct AccountExport {
     /// omitted when the account has none. Additive.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub breakdown: Vec<crate::BreakdownRow>,
+    /// PRD 0040 §7: how an account with an agent-fed mode was read;
+    /// omitted for every other account. Additive.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<SourceExport>,
+    /// PRD 0040 §7: the live agent sessions of the feed bound to the
+    /// account ([`Export::with_live_sessions`]); omitted when empty.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub sessions: Vec<SessionExport>,
 }
 
 /// PRD 0041 RF4.3: how much of a quota can be used per day (or hour) and
@@ -191,6 +199,54 @@ impl From<pace::Allowance> for AllowanceExport {
             vs_recent: allowance.vs_recent,
         }
     }
+}
+
+/// PRD 0040 §7: the reading's source of an agent-fed account.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct SourceExport {
+    /// The configured mode.
+    pub kind: crate::feed::SourceKind,
+    /// `feed` or `api`: what answered the current report; `null` without
+    /// a ready report.
+    pub answered_by: Option<AnsweredBy>,
+    /// When the answering source measured (the feed's time, or the
+    /// query's); `null` without a ready report.
+    pub measured_at: Option<DateTime<Utc>>,
+}
+
+/// PRD 0040 §7: the source that answered a hybrid or feed account.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AnsweredBy {
+    Api,
+    Feed,
+}
+
+/// PRD 0040 §7: one live agent session; numbers only, never a path or id.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct SessionExport {
+    pub model_name: Option<String>,
+    pub context_used_pct: Option<f64>,
+    /// The agent's own estimate at list price, not a charge.
+    pub cost_usd: Option<f64>,
+    pub written_at: DateTime<Utc>,
+}
+
+/// PRD 0040 §7: [`SourceExport`] of `account` as `report` was read.
+pub(crate) fn source_export(account: &Account, report: Option<&Report>) -> Option<SourceExport> {
+    let (_, kind) = crate::feed::mode_of(account.provider, &account.params)?;
+    let ready = report.filter(|report| report.status == crate::Status::Ready);
+    Some(SourceExport {
+        kind,
+        answered_by: ready.map(|report| {
+            if report.source.starts_with(crate::feed::REPORT_SOURCE_PREFIX) {
+                AnsweredBy::Feed
+            } else {
+                AnsweredBy::Api
+            }
+        }),
+        measured_at: ready.map(|report| report.as_of.unwrap_or(report.checked_at)),
+    })
 }
 
 /// One upstream connection of an aggregator account (PRD 0036 RF7.1); each
@@ -316,6 +372,8 @@ impl SubAccountExport {
             allowance: Vec::new(),
             floors: Vec::new(),
             breakdown: Vec::new(),
+            source: None,
+            sessions: Vec::new(),
         }
     }
 }
@@ -504,6 +562,32 @@ impl Export {
     /// [`Export::local_cost`]).
     pub fn with_local_cost(self, local_cost: Option<CostSummary>) -> Self {
         Self { local_cost, ..self }
+    }
+
+    /// PRD 0040 RF7/§7: each account's live agent sessions, from the feed
+    /// it is bound to (`config` in the export's account order).
+    pub fn with_live_sessions(
+        mut self,
+        config: &crate::Config,
+        store: Option<&crate::feed::FeedStore>,
+        now: DateTime<Utc>,
+    ) -> Self {
+        let Some(store) = store else {
+            return self;
+        };
+        for (export, account) in self.accounts.iter_mut().zip(&config.accounts) {
+            export.sessions = crate::feed::live::block_for(account, store, now)
+                .sessions
+                .into_iter()
+                .map(|session| SessionExport {
+                    model_name: session.model_name,
+                    context_used_pct: session.context_used_pct,
+                    cost_usd: session.cost_usd,
+                    written_at: session.written_at,
+                })
+                .collect();
+        }
+        self
     }
 }
 
@@ -1119,6 +1203,8 @@ fn account_export(
         }),
         floors: account.floors.clone(),
         breakdown: report.map_or_else(Vec::new, |report| scrub.breakdown(&report.breakdown)),
+        source: source_export(account, report),
+        sessions: Vec::new(),
     }
 }
 

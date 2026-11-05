@@ -29,6 +29,7 @@ pub mod events;
 pub mod execution_review;
 pub mod export;
 pub mod extensions;
+pub mod feed;
 pub mod freshness;
 pub mod headless;
 pub mod history;
@@ -193,6 +194,10 @@ pub enum ConfigError {
     /// offer (metered providers offer none), or a repeated one.
     #[error("The field {field} lists a breakdown this account cannot read, or repeats one; the values allowed come from the provider and its mode.")]
     Breakdown { field: String },
+    /// PRD 0040 RF8: a `feed` binding that is not the provider's agent, or
+    /// two accounts bound to the same agent feed.
+    #[error("An account's params.feed must name its provider's agent (claude_code for claude, codex_cli for chat_gpt), and only one account may read each agent feed (its feed mode or its feed binding).")]
+    Feed,
 }
 
 /// PRD 0045 RF1.4: the path of the first `breakdown` value of `account`
@@ -417,6 +422,19 @@ impl Config {
                 rule: error.rule,
             })?;
         }
+        // PRD 0040 RF8.1/RF8.2: a feed carries no account identity, so one
+        // account at most reads each agent's feed.
+        let mut feeds = HashSet::new();
+        for account in &self.accounts {
+            if !feed::valid_binding(account.provider, &account.params) {
+                return Err(ConfigError::Feed);
+            }
+            if let Some(source) = feed::bound_source(account) {
+                if !feeds.insert(source) {
+                    return Err(ConfigError::Feed);
+                }
+            }
+        }
         // PRD 0029 RF1.2: an id names exactly one account.
         let mut ids = HashSet::new();
         for (index, account) in self.accounts.iter().enumerate() {
@@ -456,6 +474,9 @@ pub struct Monitor {
     /// requests a `Monitor` issues against a local `wiremock` server.
     #[cfg(test)]
     groq_url: Option<String>,
+    /// Test-only feed directory (PRD 0040), instead of the data directory's.
+    #[cfg(test)]
+    feed_dir: Option<std::path::PathBuf>,
     /// Per-config model catalog store; `None` keeps model operations
     /// unavailable without affecting quota refresh.
     models: Option<models::ModelCache>,
@@ -513,6 +534,8 @@ impl Monitor {
             query_slots,
             #[cfg(test)]
             groq_url: None,
+            #[cfg(test)]
+            feed_dir: None,
             models: None,
             history: None,
             incidents: incidents::IncidentMonitor::new(),
@@ -560,6 +583,8 @@ impl Monitor {
             query_slots,
             #[cfg(test)]
             groq_url: self.groq_url.clone(),
+            #[cfg(test)]
+            feed_dir: self.feed_dir.clone(),
             models: self.models.clone(),
             history: self.history.clone(),
             incidents: self.incidents.clone(),
@@ -896,6 +921,15 @@ impl Monitor {
             .ensure(source, &self.http, &self.query_slots)
             .await;
         Some(self.incidents.status(account.provider, source).state)
+    }
+
+    /// PRD 0040: the feed directory the feed modes read.
+    fn feed_store(&self) -> Option<feed::FeedStore> {
+        #[cfg(test)]
+        if let Some(dir) = &self.feed_dir {
+            return Some(feed::FeedStore::at(dir));
+        }
+        feed::FeedStore::in_data_dir()
     }
 
     fn now(&self) -> chrono::DateTime<Utc> {
@@ -1478,6 +1512,26 @@ impl Monitor {
         #[cfg(test)]
         if let (Provider::Groq, Some(url)) = (account.provider, self.groq_url.as_deref()) {
             return providers::router_keys::groq_at(account, ctx, url).await;
+        }
+        // PRD 0040 RF3/RF4: a feed mode answers without a network request;
+        // a hybrid mode falls back to the query when the feed is not recent.
+        if let Some((source, kind)) = feed::mode_of(account.provider, &account.params) {
+            let now = self.now();
+            let store = self.feed_store();
+            if kind == feed::SourceKind::Feed {
+                return providers::agent_feed::fetch(source, store.as_ref(), now);
+            }
+            let interval = account.effective_refresh_seconds(self.config.refresh_seconds);
+            if let Ok(Some(reading)) = providers::agent_feed::latest(source, store.as_ref(), now) {
+                if providers::agent_feed::fresh_enough(&reading, interval, now) {
+                    return Ok(providers::agent_feed::data(&reading, now, true));
+                }
+            }
+            let mut data = providers::subscriptions::fetch(account, ctx).await?;
+            let note = providers::agent_feed::answered_by_api(source);
+            data.notes.push(note.text().to_owned());
+            data.notes_l10n.push(note);
+            return Ok(data);
         }
         match account.provider {
             Provider::OpenAiApi | Provider::AnthropicApi => providers::api::fetch(account, ctx).await,
