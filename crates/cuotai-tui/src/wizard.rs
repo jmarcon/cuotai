@@ -3780,6 +3780,8 @@ mod tests {
             params: BTreeMap::new(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         }
     }
 
@@ -4667,6 +4669,8 @@ mod tests {
                 params: BTreeMap::new(),
                 refresh_seconds: None,
                 group: None,
+                budgets: Vec::new(),
+                floors: Vec::new(),
             }],
             ..Config::default()
         };
@@ -4699,6 +4703,8 @@ mod tests {
                 params: BTreeMap::from([("cli_profile".into(), "qwen-personal".into())]),
                 refresh_seconds: None,
                 group: None,
+                budgets: Vec::new(),
+                floors: Vec::new(),
             }],
             ..Config::default()
         };
@@ -4745,6 +4751,8 @@ mod tests {
                 params: BTreeMap::new(),
                 refresh_seconds: None,
                 group: None,
+                budgets: Vec::new(),
+                floors: Vec::new(),
             }],
             ..Config::default()
         };
@@ -4860,6 +4868,8 @@ mod tests {
                     params: BTreeMap::new(),
                     refresh_seconds: Some(45),
                     group: None,
+                    budgets: Vec::new(),
+                    floors: Vec::new(),
                 },
                 Account {
                     id: None,
@@ -4871,6 +4881,8 @@ mod tests {
                     params: BTreeMap::new(),
                     refresh_seconds: Some(60),
                     group: None,
+                    budgets: Vec::new(),
+                    floors: Vec::new(),
                 },
             ],
             ..Config::default()
@@ -4898,6 +4910,8 @@ mod tests {
                 params: BTreeMap::from([("profile".into(), "default".into())]),
                 refresh_seconds: None,
                 group: None,
+                budgets: Vec::new(),
+                floors: Vec::new(),
             }],
             ..Config::default()
         };
@@ -4930,6 +4944,8 @@ mod tests {
                 params: BTreeMap::from([("cli_profile".into(), "qwen-personal".into())]),
                 refresh_seconds: None,
                 group: None,
+                budgets: Vec::new(),
+                floors: Vec::new(),
             }],
             ..Config::default()
         };
@@ -4954,6 +4970,8 @@ mod tests {
                     params: BTreeMap::new(),
                     refresh_seconds: None,
                     group: None,
+                    budgets: Vec::new(),
+                    floors: Vec::new(),
                 }],
                 ..Config::default()
             };
@@ -4989,6 +5007,8 @@ mod tests {
                 params: BTreeMap::from([("auth_method".into(), "builder-id".into())]),
                 refresh_seconds: None,
                 group: None,
+                budgets: Vec::new(),
+                floors: Vec::new(),
             }],
             ..Config::default()
         };
@@ -5029,6 +5049,8 @@ mod tests {
                 params: BTreeMap::new(),
                 refresh_seconds: None,
                 group: None,
+                budgets: Vec::new(),
+                floors: Vec::new(),
             }],
             ..Config::default()
         };

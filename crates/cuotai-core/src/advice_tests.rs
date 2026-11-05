@@ -22,6 +22,7 @@ fn limit(label: &str, used: f64, resets_in: TimeDelta) -> Metric {
         window: Some(MetricWindow::Window5h),
         period: None,
         resets_at: Some(now() + resets_in),
+        derived_from: None,
     }
 }
 

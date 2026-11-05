@@ -66,6 +66,7 @@ fn quota(used: f64, resets: DateTime<Utc>) -> Metric {
         resets_at: Some(resets),
         billing: Default::default(),
         scope: None,
+        derived_from: None,
     }
 }
 
@@ -313,7 +314,7 @@ fn the_screen_scrolls_toggles_ranges_and_closes() {
     );
     // The footer actions are clickable.
     render(&mut view, 100, 30);
-    let back = view.footer[2].0;
+    let back = view.footer[3].0;
     assert_eq!(
         view.mouse(MouseEventKind::Down(MouseButton::Left), back.x, back.y),
         Reply::Close

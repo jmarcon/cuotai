@@ -179,6 +179,7 @@ async fn key_check(
             window: Some(MetricWindow::Other),
             period: Some("janela corrente do rate limit".into()),
             resets_at: None,
+            derived_from: None,
         });
     }
 
@@ -513,6 +514,7 @@ fn usage_metrics(series: &serde_json::Map<String, Value>, period: &MonthToDate) 
         window: Some(MetricWindow::Monthly),
         period: Some(period.label()),
         resets_at: Some(period.resets_at),
+        derived_from: None,
     };
     let mut out = Vec::new();
     if let Some(cost) = series.get("USAGE_BILLABLE_COST") {
@@ -650,6 +652,8 @@ mod tests {
             params: BTreeMap::new(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         }
     }
 

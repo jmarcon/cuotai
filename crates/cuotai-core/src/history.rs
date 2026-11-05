@@ -25,6 +25,7 @@
 
 pub mod aliases;
 mod journal;
+mod limits;
 mod recorder;
 mod retention;
 mod trend;
@@ -886,9 +887,12 @@ impl HistoryStore {
             .accounts
             .iter()
             .map(|account| {
-                Ok(self
-                    .latest_in(&db, account, now)?
-                    .map(|stored| stored.into_report(account)))
+                Ok(self.latest_in(&db, account, now)?.map(|stored| {
+                    let mut report = stored.into_report(account);
+                    // PRD 0041: budget metrics come back marked as such.
+                    crate::budget::mark_restored(account, &mut report);
+                    report
+                }))
             })
             .collect()
     }
@@ -966,6 +970,7 @@ impl HistoryStore {
                                 .transpose()?,
                             period: None,
                             resets_at: row.get::<_, Option<i64>>(9)?.map(instant).transpose()?,
+                            derived_from: None,
                         },
                     })
                 },
@@ -1215,6 +1220,7 @@ credential_env = "GROQ_KEY_BETA"
             window: Some(MetricWindow::Window5h),
             period: Some("5h".into()),
             resets_at: Some(t0() + TimeDelta::hours(5)),
+            derived_from: None,
         }
     }
 

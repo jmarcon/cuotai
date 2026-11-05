@@ -151,6 +151,8 @@ pub fn sub_account(parent: &Account, sub: &SubReport) -> Account {
         session: None,
         params: std::collections::BTreeMap::new(),
         refresh_seconds: parent.refresh_seconds,
+        budgets: Vec::new(),
+        floors: Vec::new(),
     }
 }
 
@@ -735,6 +737,7 @@ mod tests {
             window: None,
             period: None,
             resets_at: resets,
+            derived_from: None,
         }
     }
 
@@ -829,6 +832,8 @@ mod tests {
                 .into_iter()
                 .collect(),
             refresh_seconds: Some(300),
+            budgets: Vec::new(),
+            floors: Vec::new(),
         }
     }
 

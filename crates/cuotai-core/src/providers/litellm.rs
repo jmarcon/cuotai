@@ -137,6 +137,7 @@ fn parse_budgets(value: &Value, now: DateTime<Utc>) -> Result<Vec<SubReport>, Qu
                 window: period.as_deref().map(window_of),
                 period: None,
                 resets_at,
+                derived_from: None,
             });
         }
         subs.push(SubReport {
@@ -301,6 +302,8 @@ mod tests {
             params,
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         }
     }
 

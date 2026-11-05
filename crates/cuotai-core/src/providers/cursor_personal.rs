@@ -334,6 +334,7 @@ fn plan_metrics(summary: &UsageSummary) -> Result<Vec<Metric>, QueryError> {
             window: Some(MetricWindow::Monthly),
             period: Some("ciclo de cobrança".into()),
             resets_at,
+            derived_from: None,
         });
     } else if used_usd.is_some() || limit_usd.is_some() {
         // No totalPercentUsed: fall back to raw cents, no fake synthetic
@@ -350,6 +351,7 @@ fn plan_metrics(summary: &UsageSummary) -> Result<Vec<Metric>, QueryError> {
             window: Some(MetricWindow::Monthly),
             period: Some("ciclo de cobrança".into()),
             resets_at,
+            derived_from: None,
         });
     }
     // Independent contributions: auto and api are each their own percent
@@ -367,6 +369,7 @@ fn plan_metrics(summary: &UsageSummary) -> Result<Vec<Metric>, QueryError> {
             window: Some(MetricWindow::Monthly),
             period: Some("ciclo de cobrança".into()),
             resets_at,
+            derived_from: None,
         });
         out.push(Metric {
             billing: Default::default(),
@@ -380,6 +383,7 @@ fn plan_metrics(summary: &UsageSummary) -> Result<Vec<Metric>, QueryError> {
             window: Some(MetricWindow::Monthly),
             period: Some("ciclo de cobrança".into()),
             resets_at,
+            derived_from: None,
         });
     } else if let Some(auto) = plan.auto_percent_used {
         out.push(Metric {
@@ -394,6 +398,7 @@ fn plan_metrics(summary: &UsageSummary) -> Result<Vec<Metric>, QueryError> {
             window: Some(MetricWindow::Monthly),
             period: Some("ciclo de cobrança".into()),
             resets_at,
+            derived_from: None,
         });
     } else if let Some(api) = plan.api_percent_used {
         out.push(Metric {
@@ -408,6 +413,7 @@ fn plan_metrics(summary: &UsageSummary) -> Result<Vec<Metric>, QueryError> {
             window: Some(MetricWindow::Monthly),
             period: Some("ciclo de cobrança".into()),
             resets_at,
+            derived_from: None,
         });
     }
     Ok(out)
@@ -440,6 +446,7 @@ fn on_demand_metrics(summary: &UsageSummary) -> Result<Vec<Metric>, QueryError> 
         window: Some(MetricWindow::Monthly),
         period: Some("ciclo de cobrança".into()),
         resets_at,
+        derived_from: None,
     }])
 }
 
@@ -472,6 +479,7 @@ fn legacy_request_metric(
         window: Some(MetricWindow::Monthly),
         period: Some("ciclo de cobrança".into()),
         resets_at,
+        derived_from: None,
     }))
 }
 
@@ -627,6 +635,8 @@ mod tests {
             params: BTreeMap::new(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         }
     }
 

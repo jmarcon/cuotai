@@ -15,6 +15,7 @@ mod extension_check;
 mod extensions_view;
 mod glyphs;
 mod headless;
+mod insights_cli;
 mod l10n;
 mod models_view;
 mod motion;
@@ -80,7 +81,7 @@ fn build_version() -> &'static str {
     // PRD 0026 RF6.2: one stored view at a time, never with a query mode.
     group(
         clap::ArgGroup::new("stored_view")
-            .args(["stats", "timeline", "events_log"])
+            .args(["stats", "timeline", "events_log", "digest"])
             .multiple(false)
             .conflicts_with_all([
                 "once", "json_v1", "history", "notify", "serve", "watch", "changelog",
@@ -226,9 +227,29 @@ struct Args {
     /// (1 to 365; default 7) and --json. Same exit codes as --stats.
     #[arg(long)]
     events_log: bool,
-    /// The --timeline range: 24h or 7d.
-    #[arg(long, value_name = "RANGE", value_parser = ["24h", "7d"], requires = "timeline")]
+    /// The --timeline range (24h or 7d) or the --stats --rhythm range (24h,
+    /// 7d or typical).
+    #[arg(long, value_name = "RANGE", value_parser = ["24h", "7d", "typical"])]
     range: Option<String>,
+    /// With --stats, how use spread over the hours of the day (24h, the
+    /// default), the days of the week (7d, days off marked) or a typical day
+    /// over 30 days (typical), as a text bar chart; of ACCOUNT or of all
+    /// accounts. With --range and --json. From the local history only.
+    #[arg(long, value_name = "ACCOUNT", num_args = 0..=1, requires = "stats")]
+    rhythm: Option<Option<String>>,
+    /// The weekly digest from the local history: limits reached, average
+    /// peak, extra spent, limit changes, heaviest and lightest day, busiest
+    /// hours, budgets and the allowance for the coming week. With --week
+    /// last|current (default last) and --json or --markdown. Exit 0; 2 when
+    /// nothing was recorded or the history could not be read.
+    #[arg(long)]
+    digest: bool,
+    /// The --digest week: last (Monday to Sunday) or current (this week so far).
+    #[arg(long, value_name = "WEEK", value_parser = ["last", "current"], requires = "digest")]
+    week: Option<String>,
+    /// With --digest, the full Markdown text instead of the short one.
+    #[arg(long, requires = "digest", conflicts_with = "json")]
+    markdown: bool,
     /// Queries ACCOUNT once and prints the problem report (English text, no
     /// secrets, and the prefilled GitHub URL). Nothing is sent: you open the
     /// URL. Exit 0; 1 when the account does not exist or on a local error.
@@ -1087,7 +1108,7 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
             vault::audit(&session, &file.config, args.json).await
         };
     }
-    if args.stats || args.timeline || args.events_log {
+    if args.stats || args.timeline || args.events_log || args.digest {
         return stored_view(&args);
     }
     let interactive = !args.once
@@ -1433,7 +1454,37 @@ fn print_snapshot(
                 ui::local_time
             )
         );
+        // PRD 0041 RF3.2: the account's floors, under its block.
+        if let Some(account) = config.accounts.get(index) {
+            print!("{}", floors_text(account, report, ui::tui_locale()));
+        }
     }
+}
+
+/// PRD 0041 RF3.2: one `--once` line per floor of `account`: the chip when
+/// the balance is below it, then the floor and what is left.
+fn floors_text(account: &Account, report: &Report, locale: &str) -> String {
+    cuotai_core::budget::floor_statuses(account, report)
+        .iter()
+        .map(|floor| {
+            let text = floor.chip.as_ref().map_or_else(
+                || floor.line.resolve(locale),
+                |chip| format!("{} · {}", chip.resolve(locale), floor.line.resolve(locale)),
+            );
+            format!(
+                "{}\n",
+                l10n::trf_in(
+                    locale,
+                    "once.floor",
+                    "  {metric}: {text}",
+                    &[
+                        ("metric", &ui::safe(&floor.label_text.resolve(locale))),
+                        ("text", &ui::safe(&text)),
+                    ],
+                )
+            )
+        })
+        .collect()
 }
 
 /// One `--once` account block: heading, the provider's flagged status (PRD
@@ -1482,6 +1533,12 @@ fn report_text(
         if let Some(reset) = metric.resets_at {
             out += &renews_line(locale, "    ", &reset.to_rfc3339());
         }
+        if metric.derived_from.is_some() {
+            out += &format!(
+                "    {}\n",
+                ui::safe(&cuotai_core::budget::budget_badge().resolve(locale))
+            );
+        }
         let points = recent.get(index).map(Vec::as_slice);
         if let Some(pace) = pace::assess_reading(metric, report.checked_at, interval, now, points) {
             let text = dashboard::pace_text(&pace, locale, &at);
@@ -1490,6 +1547,21 @@ fn report_text(
                 "once.pace",
                 "    Pace: {text} (linear estimate)",
                 &[("text", &text)],
+            );
+            out += "\n";
+        }
+        // PRD 0041 RF4.3: the allowance, from a fresh reading like the pace.
+        let fresh = cuotai_core::freshness::assess(report.checked_at, interval, now)
+            == cuotai_core::freshness::Freshness::Fresh;
+        if let Some(allowance) = fresh
+            .then(|| pace::allowance(metric, report.checked_at, points))
+            .flatten()
+        {
+            out += &l10n::trf_in(
+                locale,
+                "once.allowance",
+                "    Allowance: {text}",
+                &[("text", &allowance.sentence().resolve(locale))],
             );
             out += "\n";
         }
@@ -1770,6 +1842,16 @@ fn stored_view(args: &Args) -> Result<u8, Box<dyn std::error::Error>> {
     let locale = ui::tui_locale();
     // Arguments are checked before the configuration is touched.
     let stats_range = view::stats_range(if args.stats { args.days } else { None });
+    // PRD 0043 RF5: `--range` belongs to --timeline (24h|7d) or to
+    // --stats --rhythm (24h|7d|typical).
+    let rhythm_range = insights_cli::rhythm_range(args.rhythm.is_some(), args.range.as_deref())?;
+    if args.range.is_some() && !args.timeline && args.rhythm.is_none() {
+        return Err(l10n::tr(
+            "cli.range_needs_mode",
+            "--range only works with --timeline or --stats --rhythm.",
+        )
+        .into());
+    }
     let timeline_range = view::timeline_range(args.range.as_deref());
     let events_days = view::event_days(if args.events_log { args.days } else { None });
     let file = ConfigFile::load(args.config.clone(), false)?;
@@ -1784,6 +1866,26 @@ fn stored_view(args: &Args) -> Result<u8, Box<dyn std::error::Error>> {
         );
         2u8
     };
+    if args.digest {
+        return insights_cli::digest(
+            &store,
+            &file,
+            args.week.as_deref(),
+            args.json,
+            args.markdown,
+            now,
+        );
+    }
+    if let (true, Some(range)) = (args.stats, rhythm_range) {
+        return insights_cli::rhythm(
+            &store,
+            &file,
+            args.rhythm.clone().flatten(),
+            range,
+            args.json,
+            now,
+        );
+    }
     if args.stats {
         let summary = match cuotai_core::stats::summarize(
             &store,
@@ -1796,7 +1898,13 @@ fn stored_view(args: &Args) -> Result<u8, Box<dyn std::error::Error>> {
             Err(error) => return Ok(unreadable(error)),
         };
         if args.json {
-            serde_json::to_writer_pretty(&mut stdout, &summary)?;
+            // PRD 0043 §7: `rhythm` and `limit_changes` join the summary.
+            let insights = insights_cli::insights_json(&store, &file, now);
+            let mut value = serde_json::to_value(&summary)?;
+            if let (Some(object), Ok(extra)) = (value.as_object_mut(), insights) {
+                object.extend(extra);
+            }
+            serde_json::to_writer_pretty(&mut stdout, &value)?;
             writeln!(stdout)?;
         } else {
             write!(stdout, "{}", view::stats_text(&summary, locale))?;
@@ -2008,6 +2116,7 @@ mod tests {
             window: Some(window),
             period: None,
             resets_at,
+            derived_from: None,
         }
     }
 
@@ -2219,9 +2328,16 @@ mod tests {
              \x20 Weekly: 88.00 % / 100.00\n\
              \x20   Renews: 2026-01-02T06:00:00+00:00\n\
              \x20   Pace: 6 points above the pace · runs out at 18:49, 11h 10m before the reset (linear estimate)\n\
+             \x20   Allowance: ≈ 0.4%/h to the reset\n\
              \x20 Daily: 1.00 % / 100.00\n\
              \x20   Renews: 2026-01-01T23:55:00+00:00\n\
+             \x20   Allowance: ≈ 4.1%/h to the reset\n\
              \x20 Monthly: 10.00 % / 100.00\n"
+        );
+        // PRD 0041 RF4.3: the allowance line follows the pace's freshness.
+        let late = now + chrono::Duration::minutes(20);
+        assert!(
+            !report_text(&report, &[], None, FIVE_MIN, late, "en-US", at).contains("Allowance")
         );
         assert!(report_text(&report, &[], None, FIVE_MIN, now, "es", at)
             .contains("Ritmo: 6 puntos por encima del ritmo · se agota a las 18:49"));

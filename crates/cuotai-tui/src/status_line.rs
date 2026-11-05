@@ -162,6 +162,7 @@ mod tests {
                 window: Some(MetricWindow::Weekly),
                 period: None,
                 resets_at: None,
+                derived_from: None,
             }],
             notes: Vec::new(),
             notes_l10n: Vec::new(),

@@ -213,6 +213,7 @@ mod tests {
             resets_at: resets,
             billing: Default::default(),
             scope: None,
+            derived_from: None,
         }
     }
 

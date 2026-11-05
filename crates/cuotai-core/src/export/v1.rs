@@ -148,6 +148,44 @@ pub struct AccountExport {
     /// every other account.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub aggregator: Option<AggregatorExport>,
+    /// PRD 0041 RF4.3: [`pace::allowance`] per metric of `report`, same
+    /// length and order as `pace` (`null` where there is none); omitted
+    /// without a report. Additive.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub allowance: Vec<Option<AllowanceExport>>,
+    /// PRD 0041 RF3: the person's balance floors of the account, omitted
+    /// when it has none. Additive.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub floors: Vec<crate::budget::Floor>,
+}
+
+/// PRD 0041 RF4.3: how much of a quota can be used per day (or hour) and
+/// still reach the reset.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct AllowanceExport {
+    /// In `unit`, per `per`.
+    pub amount: f64,
+    /// The same as a share of the limit, in percent.
+    pub percent: f64,
+    pub unit: String,
+    pub per: pace::AllowancePer,
+    /// Recent use per `per` over `amount`; `null` without recent samples.
+    pub vs_recent: Option<f64>,
+    /// The sentence front ends show ("≈ 12%/day to the reset").
+    pub text: crate::text::Localized,
+}
+
+impl From<pace::Allowance> for AllowanceExport {
+    fn from(allowance: pace::Allowance) -> Self {
+        Self {
+            text: allowance.sentence(),
+            amount: allowance.amount,
+            percent: allowance.percent,
+            unit: allowance.unit,
+            per: allowance.per,
+            vs_recent: allowance.vs_recent,
+        }
+    }
 }
 
 /// One upstream connection of an aggregator account (PRD 0036 RF7.1); each
@@ -270,6 +308,8 @@ impl SubAccountExport {
             incident: self.incident.clone(),
             sub_accounts: Vec::new(),
             aggregator: None,
+            allowance: Vec::new(),
+            floors: Vec::new(),
         }
     }
 }
@@ -732,6 +772,31 @@ pub struct StatsExport {
     /// Highest peak across accounts per day, oldest first.
     pub daily: Vec<StatsDay>,
     pub accounts: Vec<AccountStats>,
+    /// PRD 0043 RF5: the rhythm of all accounts (last 24 hours, last 7
+    /// days, typical day); omitted when it could not be read. Additive.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rhythm: Option<RhythmExport>,
+    /// PRD 0043 RF5: the limit changes recorded in the range, oldest
+    /// first. Additive.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub limit_changes: Vec<LimitChangeExport>,
+}
+
+/// PRD 0043 RF5: [`StatsExport::rhythm`].
+#[derive(Debug, Clone, Serialize)]
+pub struct RhythmExport {
+    pub last_24h: Vec<crate::insights::RhythmBucket>,
+    pub last_7d: Vec<crate::insights::RhythmBucket>,
+    pub typical: Vec<crate::insights::RhythmBucket>,
+}
+
+/// PRD 0043 RF5: one limit change of [`StatsExport::limit_changes`].
+#[derive(Debug, Clone, Serialize)]
+pub struct LimitChangeExport {
+    /// The account's stable id.
+    pub account_id: String,
+    #[serde(flatten)]
+    pub change: crate::insights::LimitChange,
 }
 
 /// One day of [`StatsExport`]: a share in `[0, 1]`, or `null` for a gap.
@@ -755,6 +820,54 @@ pub struct AccountStats {
 }
 
 impl StatsExport {
+    /// PRD 0043 RF5: these statistics with the rhythm of `accounts` and
+    /// their limit changes over the same range, read from `store` at `now`
+    /// in `tz` (a read failure leaves the fields out; never a provider).
+    pub fn with_insights<Tz: chrono::TimeZone>(
+        mut self,
+        store: &crate::history::HistoryStore,
+        accounts: &[Account],
+        now: DateTime<Utc>,
+        tz: &Tz,
+        days_off: crate::insights::DaysOff,
+    ) -> Self {
+        use crate::insights::{rhythm, RhythmQuery, RhythmRange};
+        let read = |range| {
+            let query = RhythmQuery {
+                scope: None,
+                metric: None,
+                range,
+                days_off,
+            };
+            rhythm(store, accounts, &query, now, tz).map(|rhythm| rhythm.buckets)
+        };
+        if let (Ok(last_24h), Ok(last_7d), Ok(typical)) = (
+            read(RhythmRange::Last24h),
+            read(RhythmRange::Last7d),
+            read(RhythmRange::Typical30d),
+        ) {
+            self.rhythm = Some(RhythmExport {
+                last_24h,
+                last_7d,
+                typical,
+            });
+        }
+        let days = if self.range == "30d" { 30 } else { 7 };
+        let since = now - chrono::TimeDelta::days(days);
+        for account in accounts {
+            if let Ok(changes) = store.limit_changes(account, since..=now) {
+                self.limit_changes
+                    .extend(changes.into_iter().map(|change| LimitChangeExport {
+                        account_id: account.state_key(),
+                        change,
+                    }));
+            }
+        }
+        self.limit_changes
+            .sort_by_key(|entry| entry.change.observed_at);
+        self
+    }
+
     /// `summary` as computed over `accounts` (the same slice, in order).
     pub fn from_summary(
         summary: &crate::stats::StatsSummary,
@@ -797,6 +910,8 @@ impl StatsExport {
                     })
                 })
                 .collect(),
+            limit_changes: Vec::new(),
+            rhythm: None,
         }
     }
 }
@@ -980,6 +1095,23 @@ fn account_export(
         incident: None,
         sub_accounts: Vec::new(),
         aggregator: None,
+        // PRD 0041 RF4.3: from the same fresh reading the pace uses.
+        allowance: report.map_or_else(Vec::new, |report| {
+            let fresh = freshness::assess(report.checked_at, interval, now) == Freshness::Fresh;
+            report
+                .metrics
+                .iter()
+                .enumerate()
+                .map(|(i, metric)| {
+                    let points = recent.get(i).map(Vec::as_slice);
+                    fresh
+                        .then(|| pace::allowance(metric, report.checked_at, points))
+                        .flatten()
+                        .map(AllowanceExport::from)
+                })
+                .collect()
+        }),
+        floors: account.floors.clone(),
     }
 }
 

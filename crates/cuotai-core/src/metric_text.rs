@@ -513,6 +513,12 @@ pub(crate) const TABLE: &[(&str, &str, &str)] = &[
         "metric.label.rate_limit_of",
         "{label} (rate limit)",
     ),
+    // PRD 0041 RF2.1: the default label of a budget metric.
+    (
+        "Orçamento · {label}",
+        "metric.label.budget_of",
+        "Budget · {label}",
+    ),
 ];
 
 /// The display text of a metric label, unit or period.

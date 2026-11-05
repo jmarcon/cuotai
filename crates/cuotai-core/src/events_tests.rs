@@ -1088,5 +1088,10 @@ fn the_new_events_are_known_by_name() {
         EventKind::from_name("quota_reset_soon"),
         Some(QuotaResetSoon)
     );
-    assert_eq!(EventKind::ALL.len(), 18);
+    assert_eq!(EventKind::from_name("limit_changed"), Some(LimitChanged));
+    assert_eq!(
+        EventKind::from_name("balance_below_floor"),
+        Some(BalanceBelowFloor)
+    );
+    assert_eq!(EventKind::ALL.len(), 21);
 }

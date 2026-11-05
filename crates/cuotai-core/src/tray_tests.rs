@@ -286,6 +286,7 @@ fn a_report_with_active_extra_usage_is_on_extra() {
         resets_at: None,
         billing: Billing::Overage,
         scope: None,
+        derived_from: None,
     };
     let report = Report {
         account_id: None,

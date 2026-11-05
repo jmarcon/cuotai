@@ -101,6 +101,7 @@ fn qoder_metric(
         window: Some(MetricWindow::Other),
         period: Some("ciclo de quota Qoder".into()),
         resets_at,
+        derived_from: None,
     }))
 }
 
@@ -418,6 +419,7 @@ async fn ollama(
             } else {
                 None
             },
+            derived_from: None,
         });
     }
     if metrics.is_empty() {
@@ -535,6 +537,8 @@ mod tests {
                 .collect::<BTreeMap<_, _>>(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         }
     }
 

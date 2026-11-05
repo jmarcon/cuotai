@@ -524,6 +524,163 @@ impl Pace {
     }
 }
 
+/// PRD 0041 RF4.1: the granularity of an [`Allowance`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AllowancePer {
+    Day,
+    Hour,
+}
+
+/// PRD 0041 RF4.1: how much of a quota can be used per day (per hour when
+/// less than 2 days remain) and still reach the reset.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Allowance {
+    /// In the metric's unit, per [`Self::per`].
+    pub amount: f64,
+    /// The same as a share of the limit, in percent.
+    pub percent: f64,
+    pub unit: String,
+    pub per: AllowancePer,
+    /// The recent use per [`Self::per`] divided by `amount` (from the
+    /// recent slope, PRD 0024); `None` without 3 recent samples.
+    pub vs_recent: Option<f64>,
+    /// The recent use per [`Self::per`], in percent of the limit.
+    #[serde(skip)]
+    pub recent_percent: Option<f64>,
+    /// Whether the metric is a person's budget (PRD 0041 RF2).
+    #[serde(skip)]
+    pub budget: bool,
+}
+
+/// RF4 decision: below this much time to the reset the allowance is per
+/// hour.
+const ALLOWANCE_HOURLY_BELOW: TimeDelta = TimeDelta::days(2);
+
+/// PRD 0041 RF4.1: the allowance of `metric` at `now`: `remaining` divided
+/// by the days (or hours, under 2 days) until `resets_at`. `None` for a
+/// metric that is not a plan quota, a 5-hour window, a rate limit, or one
+/// whose limit, use or reset is unknown or past. `recent` (the PRD 0024
+/// recent samples) gives [`Allowance::vs_recent`].
+pub fn allowance(
+    metric: &Metric,
+    now: DateTime<Utc>,
+    recent: Option<&[Point]>,
+) -> Option<Allowance> {
+    if !crate::metrics::is_plan_limit(metric) || metric.window == Some(MetricWindow::Window5h) {
+        return None;
+    }
+    let limit = metric.limit.filter(|cap| cap.is_finite() && *cap > 0.0)?;
+    let used = metric
+        .used
+        .filter(|used| used.is_finite() && *used >= 0.0)
+        .or_else(|| {
+            metric
+                .remaining
+                .filter(|r| r.is_finite())
+                .map(|remaining| limit - remaining)
+        })?;
+    let resets_at = metric.resets_at.filter(|at| *at > now)?;
+    let left = resets_at - now;
+    let per = if left < ALLOWANCE_HOURLY_BELOW {
+        AllowancePer::Hour
+    } else {
+        AllowancePer::Day
+    };
+    let unit_secs = match per {
+        AllowancePer::Day => 86_400.0,
+        AllowancePer::Hour => 3_600.0,
+    };
+    let units = (secs(left) / unit_secs).max(1.0 / 60.0);
+    let remaining = (limit - used).max(0.0);
+    let amount = remaining / units;
+    let percent = amount * 100.0 / limit;
+    if !amount.is_finite() || !percent.is_finite() {
+        return None;
+    }
+    let recent_percent = recent.and_then(|points| {
+        let start = window_start(metric, resets_at, now).unwrap_or(now - TimeDelta::days(30));
+        let length = secs(resets_at - start).max(1.0);
+        recent_slope(points, start, now, length, limit)
+            .map(|slope| (slope * unit_secs * 100.0).max(0.0))
+    });
+    let vs_recent = recent_percent
+        .filter(|_| percent > 0.0)
+        .map(|recent| recent / percent)
+        .filter(|ratio| ratio.is_finite());
+    Some(Allowance {
+        amount,
+        percent,
+        unit: metric.unit.clone(),
+        per,
+        vs_recent,
+        recent_percent,
+        budget: metric.derived_from.is_some(),
+    })
+}
+
+/// A percent for the allowance sentence: whole above 10, one decimal
+/// below (`12`, `0.4`, `1`), so a small allowance never reads `0`.
+fn short_percent(value: f64) -> String {
+    if value >= 9.95 {
+        format!("{:.0}", value.round())
+    } else {
+        let text = format!("{value:.1}");
+        text.strip_suffix(".0").map_or(text.clone(), str::to_owned)
+    }
+}
+
+impl Allowance {
+    /// PRD 0041 RF4.2: "≈ 12%/day to the reset", "≈ $3.40/day left in the
+    /// budget" (a budget in a currency), "≈ 4%/h to the reset" under 2
+    /// days, with " · recently 18%/day" when the recent use is known.
+    pub fn sentence(&self) -> Localized {
+        let per_hour = self.per == AllowancePer::Hour;
+        let money = self.budget && crate::budget::is_currency(&self.unit);
+        let value = if money {
+            crate::overage::format_amount(self.amount, &self.unit, Some(&self.unit))
+        } else {
+            crate::text::ParamValue::Text(format!("{}%", short_percent(self.percent)))
+        };
+        let (id, fallback) = match (money, per_hour, self.recent_percent.is_some()) {
+            (true, false, false) => (
+                "pace.allowance.budget_day",
+                "≈ {value}/day left in the budget",
+            ),
+            (true, true, false) => (
+                "pace.allowance.budget_hour",
+                "≈ {value}/h left in the budget",
+            ),
+            (false, false, false) => ("pace.allowance.day", "≈ {value}/day to the reset"),
+            (false, true, false) => ("pace.allowance.hour", "≈ {value}/h to the reset"),
+            (true, false, true) => (
+                "pace.allowance.budget_day_recent",
+                "≈ {value}/day left in the budget · recently {recent}%/day",
+            ),
+            (true, true, true) => (
+                "pace.allowance.budget_hour_recent",
+                "≈ {value}/h left in the budget · recently {recent}%/h",
+            ),
+            (false, false, true) => (
+                "pace.allowance.day_recent",
+                "≈ {value}/day to the reset · recently {recent}%/day",
+            ),
+            (false, true, true) => (
+                "pace.allowance.hour_recent",
+                "≈ {value}/h to the reset · recently {recent}%/h",
+            ),
+        };
+        let mut values = params([("value", value)]);
+        if let Some(recent) = self.recent_percent {
+            values.insert(
+                "recent".into(),
+                crate::text::ParamValue::Text(short_percent(recent)),
+            );
+        }
+        Localized::with_params(id, values, fallback)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -564,6 +721,7 @@ mod tests {
             window: Some(window),
             period: None,
             resets_at: Some(resets_at),
+            derived_from: None,
         }
     }
 

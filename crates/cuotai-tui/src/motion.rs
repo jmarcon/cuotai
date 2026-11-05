@@ -311,6 +311,8 @@ mod tests {
             params: Default::default(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         }]
     }
 
@@ -334,6 +336,7 @@ mod tests {
                 window: None,
                 period: None,
                 resets_at: None,
+                derived_from: None,
             }],
             notes: Vec::new(),
             notes_l10n: Vec::new(),

@@ -332,6 +332,14 @@ pub struct Account {
     /// ungrouped accounts of its provider.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub group: Option<String>,
+    /// PRD 0041 RF1: the person's budgets (`[[accounts.budgets]]`), at most
+    /// [`crate::budget::MAX_BUDGETS`]. Omitted from the TOML when empty.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub budgets: Vec<crate::budget::Budget>,
+    /// PRD 0041 RF3: the person's balance floors (`[[accounts.floors]]`), at
+    /// most [`crate::budget::MAX_FLOORS`]. Omitted from the TOML when empty.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub floors: Vec<crate::budget::Floor>,
 }
 
 /// Longest `group` value (PRD 0024 RF7.1).
@@ -388,15 +396,15 @@ struct AccountConfig {
     refresh_seconds: Option<u64>,
     #[serde(default)]
     group: Option<String>,
-    // Forward compatibility (PRD 0041 budgets/floors, PRD 0045 breakdown):
-    // accepted and ignored so a file written by a newer release still loads.
-    // `ConfigFile` keeps the keys untouched when it edits the table.
+    /// PRD 0041 RF1.
     #[serde(default)]
-    #[allow(dead_code)]
-    budgets: Option<serde::de::IgnoredAny>,
+    budgets: Vec<crate::budget::Budget>,
+    /// PRD 0041 RF3.
     #[serde(default)]
-    #[allow(dead_code)]
-    floors: Option<serde::de::IgnoredAny>,
+    floors: Vec<crate::budget::Floor>,
+    // Forward compatibility (PRD 0045 breakdown): accepted and ignored so a
+    // file written by a newer release still loads. `ConfigFile` keeps the
+    // key untouched when it edits the table.
     #[serde(default)]
     #[allow(dead_code)]
     breakdown: Option<serde::de::IgnoredAny>,
@@ -418,6 +426,8 @@ impl<'de> Deserialize<'de> for Account {
             params: account.params,
             refresh_seconds: account.refresh_seconds,
             group: account.group,
+            budgets: account.budgets,
+            floors: account.floors,
         })
     }
 }
@@ -735,6 +745,8 @@ impl Default for Account {
             params: BTreeMap::new(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         }
     }
 }
@@ -757,6 +769,8 @@ impl Default for Config {
                     params: BTreeMap::new(),
                     refresh_seconds: None,
                     group: None,
+                    budgets: Vec::new(),
+                    floors: Vec::new(),
                 })
                 .collect(),
             groups: Vec::new(),
@@ -839,6 +853,22 @@ pub struct Metric {
     /// than the whole account.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scope: Option<Scope>,
+    /// PRD 0041 RF2: set only on a budget metric the core derived from a
+    /// provider metric and the person's budget; `None` for every metric a
+    /// provider reported. Serialized as `derived: true` plus `derived_from`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub derived_from: Option<DerivedFrom>,
+}
+
+/// PRD 0041 RF2.1: what a derived (budget) metric follows.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DerivedFrom {
+    /// The target metric's kind.
+    pub kind: MetricKind,
+    /// The target metric's raw label (empty when it is missing).
+    pub label: String,
+    /// The position of the budget in the account's `budgets`.
+    pub budget: usize,
 }
 
 /// PRD 0034 RF2: `label`, `unit` and `period` stay the adapters' raw
@@ -849,7 +879,7 @@ impl Serialize for Metric {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         use crate::metric_text::metric_text;
         use serde::ser::SerializeStruct;
-        let mut out = serializer.serialize_struct("Metric", 14)?;
+        let mut out = serializer.serialize_struct("Metric", 16)?;
         out.serialize_field("label", &self.label)?;
         out.serialize_field("label_text", &metric_text(&self.label))?;
         out.serialize_field("used", &self.used)?;
@@ -871,6 +901,16 @@ impl Serialize for Metric {
         match &self.scope {
             Some(scope) => out.serialize_field("scope", scope)?,
             None => out.skip_field("scope")?,
+        }
+        match &self.derived_from {
+            Some(from) => {
+                out.serialize_field("derived", &true)?;
+                out.serialize_field("derived_from", from)?;
+            }
+            None => {
+                out.skip_field("derived")?;
+                out.skip_field("derived_from")?;
+            }
         }
         out.end()
     }
@@ -983,7 +1023,13 @@ impl Metric {
             resets_at: None,
             billing: Billing::Included,
             scope: None,
+            derived_from: None,
         }
+    }
+
+    /// PRD 0041: whether this is a budget metric the core derived.
+    pub fn is_derived(&self) -> bool {
+        self.derived_from.is_some()
     }
 
     /// Marks the metric as paid extra usage.

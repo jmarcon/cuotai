@@ -251,6 +251,7 @@ fn push_quota(
             window: Some(window),
             period: None,
             resets_at,
+            derived_from: None,
         });
         return;
     };
@@ -274,6 +275,7 @@ fn push_quota(
         window: Some(window),
         period: None,
         resets_at,
+        derived_from: None,
     });
 }
 
@@ -549,6 +551,8 @@ mod tests {
             params: BTreeMap::new(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         }
     }
 

@@ -472,6 +472,7 @@ fn build_model_metric(label: String, entry: &QuotaEntry) -> Metric {
         window: Some(MetricWindow::Window5h),
         period: Some("5h".into()),
         resets_at: entry.reset_at,
+        derived_from: None,
     }
 }
 
@@ -1030,6 +1031,8 @@ mod tests {
             params: BTreeMap::new(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         }
     }
 

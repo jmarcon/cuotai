@@ -1321,6 +1321,8 @@ mod tests {
             params: BTreeMap::new(),
             refresh_seconds,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         }
     }
 
@@ -3224,6 +3226,7 @@ mod prd0033_rf2_tests {
                 resets_at: Some(now + resets_in),
                 billing: Default::default(),
                 scope: None,
+                derived_from: None,
             }],
             notes: Vec::new(),
             notes_l10n: Vec::new(),
@@ -3246,6 +3249,8 @@ mod prd0033_rf2_tests {
                 params: Default::default(),
                 refresh_seconds: None,
                 group: None,
+                budgets: Vec::new(),
+                floors: Vec::new(),
             }],
             ..Config::default()
         };
@@ -3293,6 +3298,8 @@ mod prd0033_rf2_tests {
             oauth: None,
             params: Default::default(),
             refresh_seconds: Some(seconds),
+            budgets: Vec::new(),
+            floors: Vec::new(),
         };
         let config = Config {
             accounts: vec![acct],
@@ -3337,6 +3344,8 @@ mod prd0033_rf2_tests {
                 oauth: None,
                 params: Default::default(),
                 refresh_seconds: Some(3600),
+                budgets: Vec::new(),
+                floors: Vec::new(),
             }],
             ..Config::default()
         };

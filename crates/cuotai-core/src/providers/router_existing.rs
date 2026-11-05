@@ -114,6 +114,7 @@ async fn copilot(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
                 window: Some(MetricWindow::Other),
                 period: Some("janela do plano".into()),
                 resets_at,
+                derived_from: None,
             });
         }
     } else if response.monthly_quotas.is_some() || response.limited_user_quotas.is_some() {
@@ -141,6 +142,7 @@ async fn copilot(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
                 window: Some(MetricWindow::Monthly),
                 period: Some("janela mensal do plano".into()),
                 resets_at,
+                derived_from: None,
             });
         }
     } else {
@@ -256,6 +258,7 @@ async fn gemini_cli(account: &Account, ctx: &Context<'_>, base: &str) -> Result<
             window: Some(MetricWindow::Other),
             period: None,
             resets_at: reset(bucket.reset_time.as_deref())?,
+            derived_from: None,
         });
     }
     let mut notes = Notes::new();
@@ -329,6 +332,8 @@ mod tests {
             params: BTreeMap::new(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         }
     }
     #[tokio::test]

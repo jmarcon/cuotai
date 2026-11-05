@@ -8,6 +8,7 @@ pub mod account_id;
 pub mod advice;
 pub mod aggregators;
 pub mod alerts;
+pub mod budget;
 pub mod build_info;
 pub mod bundle;
 pub mod canary;
@@ -20,6 +21,7 @@ pub mod data_dir;
 pub mod detect;
 pub mod diagnostic;
 pub mod diagnostics;
+pub mod digest;
 pub mod doctor;
 pub mod edit_error;
 pub mod events;
@@ -32,6 +34,7 @@ pub mod history;
 pub mod hooks;
 pub mod identity;
 pub mod incidents;
+pub mod insights;
 
 /// RNF performance budgets in tests: the PRD figure in an optimized build,
 /// twenty times it in a debug build (CI runs the debug suite on shared
@@ -178,6 +181,12 @@ pub enum ConfigError {
     Group,
     #[error("The OpenRouter account's params.product must be key or account, and params.breakdown (account only) off, provider or model.")]
     OpenRouter,
+    /// PRD 0041 RF1.2: a budget or floor that breaks `rule` at `field`.
+    #[error("The budget or floor at {field} is invalid; check its kind, amount, unit, period and start.")]
+    Budget {
+        field: String,
+        rule: budget::BudgetRule,
+    },
 }
 
 fn metered_refresh_floor_error(
@@ -378,6 +387,11 @@ impl Config {
                     return Err(ConfigError::Extension);
                 }
             }
+            // PRD 0041 RF1.2: the person's budgets and floors.
+            budget::validate(index, account).map_err(|error| ConfigError::Budget {
+                field: error.field,
+                rule: error.rule,
+            })?;
         }
         // PRD 0029 RF1.2: an id names exactly one account.
         let mut ids = HashSet::new();
@@ -952,7 +966,11 @@ impl Monitor {
                 );
                 match store.begin(account, interval, self.now()) {
                     // Another process paid for this interval's query.
-                    metered_record::Decision::Reuse(report) => return *report,
+                    metered_record::Decision::Reuse(report) => {
+                        let mut report = *report;
+                        self.apply_budgets(account, &mut report);
+                        return report;
+                    }
                     metered_record::Decision::Query => {
                         let report = self.query_report(account, &[]).await;
                         store.finish(account, &report, self.now());
@@ -966,6 +984,8 @@ impl Monitor {
         // PRD 0036 RF5.3: a connection that duplicates a direct account is
         // marked before history, alerts or the ranking see it.
         aggregators::mark_duplicates(&self.config, account, &mut report);
+        // PRD 0041 RF2.1: the budget quotas, before history and alerts.
+        self.apply_budgets(account, &mut report);
         // RF2.2/RF2.4: only enqueued; the disk never delays the refresh.
         if let Some(recorder) = &self.history {
             recorder.submit(account, &report);
@@ -975,6 +995,27 @@ impl Monitor {
             }
         }
         report
+    }
+
+    /// PRD 0041 RF2.1: add the budget metrics of `account` to `report`, with
+    /// the baselines read from the history (none without one) and period
+    /// boundaries at local midnight.
+    fn apply_budgets(&self, account: &Account, report: &mut Report) {
+        if account.budgets.is_empty() {
+            return;
+        }
+        let store = self.history();
+        let baselines = |target: &Metric, since: chrono::DateTime<Utc>| -> Vec<pace::Point> {
+            store
+                .as_ref()
+                .and_then(|store| {
+                    store
+                        .series(account, &history::metric_key(target), since..)
+                        .ok()
+                })
+                .unwrap_or_default()
+        };
+        budget::apply(account, report, &baselines, self.now(), &chrono::Local);
     }
 
     /// PRD 0036 RF4.4: refresh only the connection `sub_id` of the

@@ -21,6 +21,11 @@
 //! when no overage amount was recorded, never a zero.
 
 use crate::history::{HistoryError, HistoryStore};
+/// PRD 0043 RF1/RF2: the rhythm and the limit changes live in
+/// [`crate::insights`].
+pub use crate::insights::{
+    limit_changes, rhythm, LimitChange, Rhythm, RhythmBucket, RhythmQuery, RhythmRange,
+};
 use crate::text::{params, Localized};
 use crate::{Account, Billing, MetricKind};
 use chrono::{DateTime, NaiveDate, NaiveTime, TimeDelta, TimeZone, Utc};
@@ -336,6 +341,7 @@ credential_env = "GROQ_KEY_BETA"
             resets_at: Some(resets),
             billing: Default::default(),
             scope: None,
+            derived_from: None,
         }
     }
 

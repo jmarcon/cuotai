@@ -34,6 +34,7 @@ fn quota(used: f64, resets_at: DateTime<Utc>) -> Metric {
         window: Some(MetricWindow::Window5h),
         period: None,
         resets_at: Some(resets_at),
+        derived_from: None,
     }
 }
 
@@ -137,6 +138,7 @@ fn off_by_default_and_recommended_at_60_minutes() {
         consumed: 0.5,
         resets_at: None,
         projection: None,
+        limit_change: None,
     };
     assert!(on.wants(&event));
     on.muted_metrics
@@ -386,6 +388,7 @@ fn pending(resets_at: DateTime<Utc>) -> AlertEvent {
         consumed: 0.7,
         resets_at: Some(resets_at),
         projection: None,
+        limit_change: None,
     }
 }
 

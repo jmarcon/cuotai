@@ -880,6 +880,7 @@ async fn windsurf(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Da
         window: Some(MetricWindow::Monthly),
         period: Some("ciclo de cobrança".into()),
         resets_at: cycle_end,
+        derived_from: None,
     });
 
     // addOnCreditsAvailable is the cycle allocation (recomputed at the start of each cycle),
@@ -941,6 +942,8 @@ mod tests {
             params: BTreeMap::new(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         }
     }
 

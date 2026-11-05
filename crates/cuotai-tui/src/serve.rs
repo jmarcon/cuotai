@@ -165,9 +165,19 @@ fn stats(monitor: &Monitor, accounts: &[Account], range: StatsRange) -> StatsAns
     };
     let now = Utc::now();
     match cuotai_core::stats::summarize(&store, accounts, range, now, &chrono::Local) {
-        Ok(summary) => {
-            StatsAnswer::Ready(Box::new(StatsExport::from_summary(&summary, accounts, now)))
-        }
+        Ok(summary) => StatsAnswer::Ready(Box::new(
+            // PRD 0043 RF5: the rhythm and the limit changes, additive.
+            StatsExport::from_summary(&summary, accounts, now).with_insights(
+                &store,
+                accounts,
+                now,
+                &chrono::Local,
+                cuotai_core::notify_prefs::Source::open()
+                    .loaded()
+                    .notify
+                    .days_off,
+            ),
+        )),
         Err(_) => StatsAnswer::Failed,
     }
 }

@@ -221,6 +221,7 @@ fn build_data(
                     window: Some(MetricWindow::Monthly),
                     period: Some("mensal".into()),
                     resets_at,
+                    derived_from: None,
                 });
             } else if let Some(fraction) = fraction {
                 // Used fraction can exceed 1 (plan overrun): no clamp.
@@ -237,6 +238,7 @@ fn build_data(
                     window: Some(MetricWindow::Monthly),
                     period: Some("mensal".into()),
                     resets_at,
+                    derived_from: None,
                 });
                 notes.push(
                     "note.mimo_platform.percentage_only",
@@ -308,6 +310,7 @@ fn build_data(
             window: None,
             period: Some("saldo atual".into()),
             resets_at: None,
+            derived_from: None,
         });
     }
     for key in ["cashBalance", "giftBalance"] {

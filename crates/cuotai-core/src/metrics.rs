@@ -749,6 +749,7 @@ mod tests {
             window: None,
             period: None,
             resets_at: None,
+            derived_from: None,
         }
     }
 

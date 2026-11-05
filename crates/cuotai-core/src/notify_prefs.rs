@@ -37,6 +37,12 @@ pub struct NotifyPrefs {
     /// PRD 0032 RF7.1: lock-screen-safe texts without account names. On by
     /// default (owner decision 2026-10-23): an absent key reads as on.
     pub private: bool,
+    /// PRD 0043 RF1.3: the days off the rhythm and the digest mark.
+    pub days_off: crate::insights::DaysOff,
+    /// PRD 0043 RF2.3: notify when a limit changes (off by default).
+    pub limit_changes: bool,
+    /// PRD 0043 RF3.2: the opt-in weekly digest.
+    pub digest: crate::insights::DigestPrefs,
 }
 
 impl Default for NotifyPrefs {
@@ -48,6 +54,9 @@ impl Default for NotifyPrefs {
             include_other: false,
             off_accounts: BTreeSet::new(),
             private: true,
+            days_off: crate::insights::DaysOff::default(),
+            limit_changes: false,
+            digest: crate::insights::DigestPrefs::default(),
         }
     }
 }
@@ -80,6 +89,17 @@ impl NotifyPrefs {
                 })
                 .unwrap_or_default(),
             private: value["private"].as_bool().unwrap_or(default.private),
+            days_off: value
+                .get("days_off")
+                .map(crate::insights::DaysOff::from_value)
+                .unwrap_or(default.days_off),
+            limit_changes: value["limit_changes"]
+                .as_bool()
+                .unwrap_or(default.limit_changes),
+            digest: value
+                .get("digest")
+                .map(crate::insights::DigestPrefs::from_value)
+                .unwrap_or(default.digest),
         }
     }
 
@@ -352,9 +372,12 @@ impl Loaded {
         }
     }
 
-    /// The evaluator's preferences (bells muting the accounts).
+    /// The evaluator's preferences (bells muting the accounts). PRD 0043
+    /// RF2.3: limit changes notify only when the person turned them on.
     pub fn evaluator(&self) -> AlertPrefs {
-        self.alerts.evaluator(&self.notify.off_accounts)
+        let mut prefs = self.alerts.evaluator(&self.notify.off_accounts);
+        prefs.limit_changes = self.notify.limit_changes;
+        prefs
     }
 
     /// The reset planner's preferences.

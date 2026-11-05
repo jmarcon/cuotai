@@ -145,4 +145,12 @@ impl SharedLedger {
         self.remember_stamp();
         events
     }
+
+    /// [`Ledger::claim_weekly_digest`] on this ledger's file.
+    pub fn claim_weekly_digest(&mut self, slot: DateTime<Utc>, now: DateTime<Utc>) -> bool {
+        let path = self.path.clone();
+        let claimed = self.ledger.claim_weekly_digest(path.as_deref(), slot, now);
+        self.remember_stamp();
+        claimed
+    }
 }

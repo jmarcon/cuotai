@@ -81,6 +81,12 @@ pub struct AlertPrefs {
     /// `None` (the default everywhere) turns the kind off. Only the user's
     /// own choice turns it on.
     pub projected: Option<Lead>,
+    /// PRD 0041 RF3: the person's balance floors per account state key,
+    /// from the accounts TOML ([`Self::with_floors`]).
+    pub floors: BTreeMap<String, Vec<crate::budget::Floor>>,
+    /// PRD 0043 RF2.3: notify when a provider metric's limit changes (off
+    /// by default; the card note shows the change anyway).
+    pub limit_changes: bool,
 }
 
 /// PRD 0024 RF2.7: how long before the projected exhaustion the warning
@@ -129,6 +135,8 @@ impl Default for AlertPrefs {
             muted_accounts: BTreeSet::new(),
             muted_metrics: BTreeMap::new(),
             projected: None,
+            floors: BTreeMap::new(),
+            limit_changes: false,
         }
     }
 }
@@ -168,6 +176,18 @@ impl AlertPrefs {
         }
     }
 
+    /// PRD 0041 RF3: these preferences with the floors of `config`'s
+    /// accounts (the TOML is their only source).
+    pub fn with_floors(mut self, config: &crate::Config) -> Self {
+        self.floors = config
+            .accounts
+            .iter()
+            .filter(|account| !account.floors.is_empty())
+            .map(|account| (account.state_key(), account.floors.clone()))
+            .collect();
+        self
+    }
+
     /// Ascending.
     pub fn thresholds(&self) -> impl DoubleEndedIterator<Item = u8> + '_ {
         self.thresholds.iter().copied()
@@ -189,6 +209,9 @@ impl AlertPrefs {
                 AlertKind::ProjectedExhaustion => self.projected.is_some(),
                 AlertKind::OverageStarted => self.overage,
                 AlertKind::OverageCapReached => self.overage && self.exhaustion,
+                AlertKind::BalanceBelowFloor => true,
+                AlertKind::BalanceRecovered => self.recovery,
+                AlertKind::LimitChanged => self.limit_changes,
             }
     }
 }
@@ -225,6 +248,16 @@ pub enum AlertKind {
     PoolExhausted,
     /// PRD 0036 RF6.4: an exhausted pool has a connection available again.
     PoolRecovered,
+    /// PRD 0041 RF3.1: a balance dropped below the person's floor. `label`
+    /// is the balance metric, `threshold` 0, `consumed` how far below the
+    /// floor it is (`1 − balance / floor`). Once per crossing.
+    BalanceBelowFloor,
+    /// PRD 0041 RF3.1: a balance below its floor rose above `floor × 1.1`
+    /// (or was topped up above the floor).
+    BalanceRecovered,
+    /// PRD 0043 RF2: a provider metric's limit changed between two
+    /// readings; [`AlertEvent::limit_change`] carries both values.
+    LimitChanged,
 }
 
 impl AlertKind {
@@ -341,6 +374,17 @@ pub struct AlertEvent {
     /// The overage reading, for the overage kinds only.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub overage: Option<OverageExport>,
+    /// PRD 0043 RF2: the old and new limit, for `LimitChanged` only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit_change: Option<LimitShift>,
+}
+
+/// PRD 0043 RF2: what a `LimitChanged` alert changed.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct LimitShift {
+    pub from: f64,
+    pub to: f64,
+    pub unit: String,
 }
 
 /// What earlier readings left behind: per account, metric, window instance
@@ -495,6 +539,7 @@ pub fn evaluate_with(
             resets_at: metric.resets_at,
             projection: None,
             overage: None,
+            limit_change: None,
         };
         if let (Some(input), Some(lead)) = (pace, prefs.projected) {
             if let Some(projection) = projected(prev, next, metric, input, lead, state, now) {
@@ -530,6 +575,28 @@ pub fn evaluate_with(
         }
     }
     events.extend(overage_events(prev, next, state));
+    events.extend(floor_events(prev, next, prefs, state));
+    // PRD 0043 RF2: a transition between two readings; nothing is marked.
+    events.extend(
+        crate::insights::limit_changes(prev, next)
+            .into_iter()
+            .map(|change| AlertEvent {
+                account_key: account_key.clone(),
+                label: change.label,
+                window: change.window,
+                kind: AlertKind::LimitChanged,
+                threshold: 0,
+                consumed: 0.0,
+                resets_at: None,
+                projection: None,
+                overage: None,
+                limit_change: Some(LimitShift {
+                    from: change.from,
+                    to: change.to,
+                    unit: change.unit,
+                }),
+            }),
+    );
     events.retain(|event| prefs.wants(event));
     // RF2.6: the projection is listed first in the account's notice.
     events.sort_by_key(|event| event.kind != AlertKind::ProjectedExhaustion);
@@ -538,6 +605,91 @@ pub fn evaluate_with(
 
 /// Mark of paid extra usage in [`AlertState`]: never a metric label.
 const OVERAGE_MARK: &str = "\u{0}overage";
+
+/// Prefix of a floor's mark in [`AlertState`] (followed by the balance
+/// metric's label): never a metric label itself.
+const FLOOR_MARK: &str = "\u{0}floor:";
+
+fn floor_mark(label: &str) -> String {
+    format!("{FLOOR_MARK}{label}")
+}
+
+/// PRD 0041 RF3.1: each floor of `next`'s account with its balance metric
+/// and the amount left, in floor order (floors whose balance is unknown
+/// are skipped: an unknown balance is never zero).
+fn floor_readings<'r>(
+    report: &'r Report,
+    prefs: &'r AlertPrefs,
+) -> impl Iterator<Item = (&'r crate::budget::Floor, &'r Metric, f64)> + 'r {
+    prefs
+        .floors
+        .get(&report.state_key())
+        .into_iter()
+        .flatten()
+        .filter_map(move |floor| {
+            let metric = crate::budget::floor_target(floor, &report.metrics)?;
+            Some((floor, metric, crate::budget::balance_left(metric)?))
+        })
+}
+
+/// Whether a balance at `value` (previously `before`) re-arms a floor of
+/// `amount`: above `amount × 1.1`, or a top-up that lands above the floor.
+fn floor_rearmed(value: f64, before: Option<f64>, amount: f64) -> bool {
+    // A top-up is a rise of more than the hysteresis band (10% of the
+    // floor), so a provider's rounding near the floor is not one.
+    let band = amount * (crate::budget::FLOOR_REARM - 1.0);
+    value > amount * crate::budget::FLOOR_REARM
+        || (value >= amount && before.is_some_and(|before| value - before > band))
+}
+
+/// PRD 0041 RF3.1: `BalanceBelowFloor` when a balance crosses below its
+/// floor between `prev` and `next` (once per crossing: the mark holds it
+/// until the balance re-arms), `BalanceRecovered` when a notified crossing
+/// re-arms.
+fn floor_events(
+    prev: &Report,
+    next: &Report,
+    prefs: &AlertPrefs,
+    state: &AlertState,
+) -> Vec<AlertEvent> {
+    let account_key = next.state_key();
+    let mut events = Vec::new();
+    for (floor, metric, value) in floor_readings(next, prefs) {
+        let digest = key_digest(&account_key, &floor_mark(&metric.label));
+        let mark = state
+            .marks
+            .iter()
+            .find(|mark| mark.metric == digest && mark.kind == AlertKind::BalanceBelowFloor);
+        let before = prev
+            .metrics
+            .iter()
+            .find(|old| old.label == metric.label)
+            .and_then(crate::budget::balance_left);
+        let event = |kind, consumed| AlertEvent {
+            account_key: account_key.clone(),
+            label: metric.label.clone(),
+            window: metric.window,
+            kind,
+            threshold: 0,
+            consumed,
+            resets_at: None,
+            projection: None,
+            overage: None,
+            limit_change: None,
+        };
+        match mark {
+            None if value < floor.amount && before.is_none_or(|before| before >= floor.amount) => {
+                let below = (1.0 - value / floor.amount).clamp(0.0, 1.0);
+                events.push(event(AlertKind::BalanceBelowFloor, below));
+            }
+            Some(mark) if mark.notified && floor_rearmed(value, before, floor.amount) => {
+                events.push(event(AlertKind::BalanceRecovered, 0.0));
+            }
+            _ => {}
+        }
+    }
+    events
+}
 
 /// The identity of the billing cycle a reading belongs to: the overage
 /// metric's `resets_at` (drift-tolerant) or, when the provider gives no
@@ -598,6 +750,7 @@ fn overage_events(prev: &Report, next: &Report, state: &AlertState) -> Vec<Alert
         consumed,
         resets_at: now_state.cycle_ends_at,
         overage: Some(OverageExport::from(&now_state)),
+        limit_change: None,
     }]
 }
 
@@ -771,6 +924,7 @@ pub fn evaluate_units(
                     resets_at: pool.returns_at,
                     projection: None,
                     overage: None,
+                    limit_change: None,
                 };
                 if prefs.wants(&event) {
                     events.push(event);
@@ -811,6 +965,7 @@ fn session_expiring(next: &Report, state: &AlertState, now: DateTime<Utc>) -> Op
         resets_at: Some(at),
         projection: None,
         overage: None,
+        limit_change: None,
     })
 }
 
@@ -926,6 +1081,56 @@ impl AlertState {
                 }
             }
             changed |= self.marks.len() != before;
+        }
+        // PRD 0041 RF3.1: a balance below its floor is marked (notified or
+        // not) so the crossing is told once; the mark goes when it re-arms.
+        let floors: Vec<(String, f64, f64)> = floor_readings(next, prefs)
+            .map(|(floor, metric, value)| (metric.label.clone(), floor.amount, value))
+            .collect();
+        for (label, amount, value) in floors {
+            let digest = key_digest(&account_key, &floor_mark(&label));
+            let marked = self
+                .marks
+                .iter()
+                .any(|mark| mark.metric == digest && mark.kind == AlertKind::BalanceBelowFloor);
+            let delivered = |kind| {
+                events.iter().any(|event| {
+                    event.account_key == account_key && event.label == label && event.kind == kind
+                })
+            };
+            if marked
+                && (floor_rearmed(value, None, amount) || delivered(AlertKind::BalanceRecovered))
+            {
+                self.marks.retain(|mark| {
+                    !(mark.metric == digest && mark.kind == AlertKind::BalanceBelowFloor)
+                });
+                changed = true;
+            } else if !marked && value < amount {
+                let notified = delivered(AlertKind::BalanceBelowFloor);
+                let deferred_until = deferred
+                    .iter()
+                    .find(|(event, _)| {
+                        event.account_key == account_key
+                            && event.label == label
+                            && event.kind == AlertKind::BalanceBelowFloor
+                    })
+                    .map(|(_, until)| *until)
+                    .filter(|_| !notified);
+                self.marks.push(Mark {
+                    account: account.clone(),
+                    metric: digest,
+                    kind: AlertKind::BalanceBelowFloor,
+                    threshold: 0,
+                    resets_at: None,
+                    notified,
+                    at: now,
+                    lapsed: false,
+                    deferred_until,
+                    acknowledged: false,
+                    projection: None,
+                });
+                changed = true;
+            }
         }
         for metric in &next.metrics {
             let Some(consumption) = consumption(metric) else {
@@ -1125,6 +1330,7 @@ impl AlertState {
                     consumed: consumption.percent / 100.0,
                     resets_at: metric.resets_at,
                     projection: None,
+                    limit_change: None,
                 });
                 let digest = key_digest(&account_key, &metric.label);
                 let handled = self.marks.iter().any(|mark| {
@@ -1224,14 +1430,26 @@ impl AlertState {
             // PRD 0036 RF6.4: a pool notice follows the pool's transition
             // between two readings; nothing is marked for it.
             AlertKind::PoolExhausted | AlertKind::PoolRecovered => false,
+            // PRD 0041 RF3.1: once per crossing, marked per balance metric.
+            AlertKind::BalanceBelowFloor => self.marks.iter().any(|mark| {
+                mark.metric == key_digest(&event.account_key, &floor_mark(&event.label))
+                    && mark.kind == AlertKind::BalanceBelowFloor
+                    && mark.notified
+            }),
+            AlertKind::BalanceRecovered | AlertKind::LimitChanged => false,
         }
     }
 
     /// PRD 0032 RF4.2: whether a crossing like `event` already waits for the
     /// digest (another process deferred it).
     pub fn deferred(&self, event: &AlertEvent) -> bool {
+        let floor;
         let label = match event.kind {
             AlertKind::OverageStarted | AlertKind::OverageCapReached => OVERAGE_MARK,
+            AlertKind::BalanceBelowFloor => {
+                floor = floor_mark(&event.label);
+                floor.as_str()
+            }
             _ => event.label.as_str(),
         };
         self.marks.iter().any(|mark| {
@@ -1305,6 +1523,7 @@ impl AlertState {
                         consumed: 0.0,
                         resets_at: Some(at),
                         projection: None,
+                        limit_change: None,
                     }),
                 // PRD 0032 RF3: the overage still bills (or is still at
                 // its cap) in the same billing cycle.
@@ -1336,6 +1555,7 @@ impl AlertState {
                         },
                         resets_at: overage.cycle_ends_at,
                         overage: Some(OverageExport::from(&overage)),
+                        limit_change: None,
                     }),
                 // PRD 0032 RF3.3: a held projection still projects before
                 // the reset of the same window instance.
@@ -1367,9 +1587,28 @@ impl AlertState {
                                         .num_seconds(),
                                     ..projection
                                 }),
+                                limit_change: None,
                             })
                         })
                 }
+                // PRD 0041 RF3: the balance is still below its floor.
+                AlertKind::BalanceBelowFloor => floor_readings(report, prefs)
+                    .find(|(floor, metric, value)| {
+                        key_digest(&account_key, &floor_mark(&metric.label)) == mark.metric
+                            && *value < floor.amount
+                    })
+                    .map(|(floor, metric, value)| AlertEvent {
+                        overage: None,
+                        account_key: account_key.clone(),
+                        label: metric.label.clone(),
+                        window: metric.window,
+                        kind: AlertKind::BalanceBelowFloor,
+                        threshold: 0,
+                        consumed: (1.0 - value / floor.amount).clamp(0.0, 1.0),
+                        resets_at: None,
+                        projection: None,
+                        limit_change: None,
+                    }),
                 kind => report
                     .metrics
                     .iter()
@@ -1392,6 +1631,7 @@ impl AlertState {
                             consumed: consumption.percent / 100.0,
                             resets_at: metric.resets_at,
                             projection: None,
+                            limit_change: None,
                         })
                     }),
             };
@@ -1826,6 +2066,15 @@ where
     ) {
         return pool_notice(account, event, now, tz);
     }
+    if matches!(
+        event.kind,
+        AlertKind::BalanceBelowFloor | AlertKind::BalanceRecovered
+    ) {
+        return floor_notice(account, event, private);
+    }
+    if event.kind == AlertKind::LimitChanged {
+        return limit_notice(account, event, private);
+    }
     let percent = event.threshold.to_string();
     let label = event.label.as_str();
     let known_window = matches!(
@@ -1893,6 +2142,12 @@ where
         (AlertKind::OverageStarted | AlertKind::OverageCapReached, _) => {
             unreachable!("overage notices return early")
         }
+        (
+            AlertKind::BalanceBelowFloor | AlertKind::BalanceRecovered | AlertKind::LimitChanged,
+            _,
+        ) => {
+            unreachable!("floor and limit notices return early")
+        }
     };
     let body = match event.resets_at {
         Some(at) if private => Localized::with_param(
@@ -1922,6 +2177,66 @@ where
             ]),
             "{account}: {metric}",
         ),
+    };
+    Notice { title, body }
+}
+
+/// PRD 0041 RF3.2: "OpenRouter: balance below your floor" with the account
+/// and the balance metric (private: no account name).
+fn floor_notice(account: &Account, event: &AlertEvent, private: bool) -> Notice {
+    let provider = provider_l10n(account.provider);
+    let below = event.kind == AlertKind::BalanceBelowFloor;
+    let title = if below {
+        Localized::with_param(
+            "alerts.title.balance_below_floor",
+            "provider",
+            provider,
+            "{provider}: balance below your floor",
+        )
+    } else {
+        Localized::with_param(
+            "alerts.title.balance_recovered",
+            "provider",
+            provider,
+            "{provider}: balance back above your floor",
+        )
+    };
+    let body = if private {
+        details_private()
+    } else {
+        Localized::with_params(
+            "alerts.body.no_reset",
+            params([
+                ("account", account.name.as_str().into()),
+                ("metric", event.label.as_str().into()),
+            ]),
+            "{account}: {metric}",
+        )
+    };
+    Notice { title, body }
+}
+
+/// PRD 0043 RF2.3: "Claude: a limit changed" with "Work: Weekly 100 → 150"
+/// (private: no account name, no values).
+fn limit_notice(account: &Account, event: &AlertEvent, private: bool) -> Notice {
+    let title = Localized::with_param(
+        "alerts.title.limit_changed",
+        "provider",
+        provider_l10n(account.provider),
+        "{provider}: a limit changed",
+    );
+    let body = match (&event.limit_change, private) {
+        (Some(change), false) => Localized::with_params(
+            "alerts.body.limit_changed",
+            params([
+                ("account", account.name.as_str().into()),
+                ("metric", event.label.as_str().into()),
+                ("from", crate::insights::plain(change.from).into()),
+                ("to", crate::insights::plain(change.to).into()),
+            ]),
+            "{account}: {metric} {from} → {to}",
+        ),
+        _ => details_private(),
     };
     Notice { title, body }
 }
@@ -2200,6 +2515,35 @@ where
             label,
             "{pool} available again",
         ),
+        AlertKind::BalanceBelowFloor => Localized::with_param(
+            "alerts.item.balance_below_floor",
+            "metric",
+            label,
+            "{metric} below your floor",
+        ),
+        AlertKind::BalanceRecovered => Localized::with_param(
+            "alerts.item.balance_recovered",
+            "metric",
+            label,
+            "{metric} back above your floor",
+        ),
+        AlertKind::LimitChanged => match &event.limit_change {
+            Some(change) => Localized::with_params(
+                "alerts.item.limit_changed",
+                params([
+                    ("metric", label.into()),
+                    ("from", crate::insights::plain(change.from).into()),
+                    ("to", crate::insights::plain(change.to).into()),
+                ]),
+                "{metric} limit {from} → {to}",
+            ),
+            None => Localized::with_param(
+                "alerts.item.limit_changed_unknown",
+                "metric",
+                label,
+                "{metric} limit changed",
+            ),
+        },
     }
 }
 
@@ -2268,6 +2612,7 @@ mod tests {
             window: Some(MetricWindow::Window5h),
             period: None,
             resets_at: Some(resets_at),
+            derived_from: None,
         }
     }
 
@@ -2528,6 +2873,7 @@ mod tests {
             window: Some(MetricWindow::Monthly),
             period: None,
             resets_at: cycle_end,
+            derived_from: None,
         };
         if spent.is_none() && cap.is_none() {
             meter.used = None;
@@ -2994,6 +3340,7 @@ mod tests {
                 resets_at: Some(window()),
                 projection: None,
                 overage: None,
+                limit_change: None,
             }]
         );
     }
@@ -3278,6 +3625,7 @@ mod tests {
             resets_at,
             projection: None,
             overage: None,
+            limit_change: None,
         };
         let ninety = event(
             "claude:Work",

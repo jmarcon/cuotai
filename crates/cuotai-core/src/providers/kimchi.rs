@@ -72,6 +72,7 @@ async fn kimchi_at(account: &Account, ctx: &Context<'_>, base: &str) -> Result<D
         window: None,
         period: None,
         resets_at: None,
+        derived_from: None,
     }];
     let mut notes = credits_notes(&credits);
 
@@ -333,6 +334,7 @@ fn push_budget_metric(
         window: Some(MetricWindow::Other),
         period: Some(period.into()),
         resets_at: Some(resets_at),
+        derived_from: None,
     });
 }
 
@@ -457,6 +459,8 @@ mod tests {
             params: BTreeMap::new(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         }
     }
 

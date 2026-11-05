@@ -145,6 +145,7 @@ async fn grok_cli(
                 window: Some(MetricWindow::Weekly),
                 period: Some("semanal".into()),
                 resets_at: grpc.reset_at,
+                derived_from: None,
             });
             notes.push(
                 "note.router_grok.supergrok_weekly_pool",
@@ -343,6 +344,7 @@ fn quota_metric(
         window,
         period: period.map(Into::into),
         resets_at,
+        derived_from: None,
     }
 }
 
@@ -410,6 +412,7 @@ fn parse_billing(billing: &Value, user: Option<&Value>) -> ParsedBilling {
                 window: Some(MetricWindow::Monthly),
                 period: Some("ciclo de cobrança".into()),
                 resets_at,
+                derived_from: None,
             });
         }
         _ => {}
@@ -431,6 +434,7 @@ fn parse_billing(billing: &Value, user: Option<&Value>) -> ParsedBilling {
             window: None,
             period: None,
             resets_at: None,
+            derived_from: None,
         });
     }
 
@@ -456,6 +460,7 @@ fn parse_billing(billing: &Value, user: Option<&Value>) -> ParsedBilling {
             window: Some(MetricWindow::Weekly),
             period: Some("semanal".into()),
             resets_at,
+            derived_from: None,
         });
     }
 
@@ -724,6 +729,8 @@ mod tests {
                 .collect::<BTreeMap<_, _>>(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         }
     }
 

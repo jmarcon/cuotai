@@ -316,6 +316,7 @@ fn metric(label: String, used: f64) -> Metric {
         resets_at: None,
         billing: Default::default(),
         scope: None,
+        derived_from: None,
     }
 }
 
@@ -453,6 +454,8 @@ mod tests {
             params,
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         }
     }
 

@@ -244,6 +244,7 @@ async fn opencode_go_at(
             window: Some(window),
             period: Some(period_pt.into()),
             resets_at: parse_reset_time(quota.get("resetsAt")),
+            derived_from: None,
         });
     }
 
@@ -331,6 +332,7 @@ pub(crate) async fn groq_at(
             window: Some(MetricWindow::Other),
             period: Some("janela corrente do rate limit".into()),
             resets_at,
+            derived_from: None,
         });
     }
 
@@ -519,6 +521,7 @@ async fn kimi_coding_at(
                 window: Some(MetricWindow::Weekly),
                 period: Some("semanal".into()),
                 resets_at: reset,
+                derived_from: None,
             });
         }
     }
@@ -548,6 +551,7 @@ async fn kimi_coding_at(
                 window: Some(MetricWindow::Other),
                 period: Some("janela corrente do rate limit".into()),
                 resets_at: parse_reset_time(pick(&["resetTime", "reset_at", "resetAt"])),
+                derived_from: None,
             });
         }
     }
@@ -875,6 +879,7 @@ fn mimo_data_from_body(
         window: Some(MetricWindow::Weekly),
         period: Some("semanal".into()),
         resets_at,
+        derived_from: None,
     }];
     let mut notes = Notes::new();
     notes.push_params(
@@ -936,6 +941,8 @@ mod tests {
             params: BTreeMap::new(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         }
     }
 

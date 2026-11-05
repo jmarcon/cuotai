@@ -598,7 +598,15 @@ fn render(config: &Config, previous: Option<&[u8]>) -> Result<Vec<u8>, EditError
 
 fn serialize_fresh(config: &Config) -> Result<String, EditError> {
     toml_edit::ser::to_document(config)
-        .map(|doc| doc.to_string())
+        .map(|mut doc| {
+            if let Some(accounts) = doc
+                .get_mut("accounts")
+                .and_then(toml_edit::Item::as_array_of_tables_mut)
+            {
+                accounts.iter_mut().for_each(expand_lists);
+            }
+            doc.to_string()
+        })
         .map_err(|_| {
             validation(
                 None,
@@ -794,6 +802,7 @@ fn update_accounts(
             for (key, item) in doc.iter() {
                 table[key] = item.clone();
             }
+            expand_lists(&mut table);
             array.push(table);
         }
     }
@@ -820,7 +829,21 @@ fn edit_account(table: &mut toml_edit::Table, account: &Account) -> Result<(), E
             "Could not serialise the configuration.",
         )
     })?;
+    // PRD 0041 RF1.3: an unchanged budget or floor list keeps its tables
+    // (and their comments) as written.
+    let unchanged = |key: &str| match key {
+        "budgets" => same_list(table.get(key), &account.budgets),
+        "floors" => same_list(table.get(key), &account.floors),
+        _ => false,
+    };
+    let keep: Vec<&str> = ["budgets", "floors"]
+        .into_iter()
+        .filter(|key| unchanged(key))
+        .collect();
     for (key, item) in doc.iter() {
+        if keep.contains(&key) {
+            continue;
+        }
         if let (Some(old), Some(new_value)) = (
             table.get_mut(key).and_then(|i| i.as_value_mut()),
             item.as_value(),
@@ -864,7 +887,50 @@ fn edit_account(table: &mut toml_edit::Table, account: &Account) -> Result<(), E
     if account.group.is_none() {
         table.remove("group");
     }
+    expand_lists(table);
+    // PRD 0041 RF1.3: budgets and floors are kept as written while they
+    // describe the account (comments survive); empty lists leave no key.
+    for (key, empty) in [
+        ("budgets", account.budgets.is_empty()),
+        ("floors", account.floors.is_empty()),
+    ] {
+        if empty {
+            table.remove(key);
+        }
+    }
     Ok(())
+}
+
+/// PRD 0041 RF1.1: write `budgets` and `floors` as `[[accounts.budgets]]`
+/// and `[[accounts.floors]]` tables, not inline arrays.
+fn expand_lists(table: &mut toml_edit::Table) {
+    for key in ["budgets", "floors"] {
+        let Some(item) = table.get_mut(key) else {
+            continue;
+        };
+        if item.is_array() {
+            let inline = std::mem::take(item);
+            *item = match inline.into_array_of_tables() {
+                Ok(tables) => toml_edit::Item::ArrayOfTables(tables),
+                Err(original) => original,
+            };
+        }
+    }
+}
+
+/// Whether the array of tables `item` reads back as `list`.
+fn same_list<T: serde::de::DeserializeOwned + PartialEq>(
+    item: Option<&toml_edit::Item>,
+    list: &[T],
+) -> bool {
+    let Some(tables) = item.and_then(toml_edit::Item::as_array_of_tables) else {
+        return false;
+    };
+    let parsed: Option<Vec<T>> = tables
+        .iter()
+        .map(|table| toml_edit::de::from_str(&table.to_string()).ok())
+        .collect();
+    parsed.is_some_and(|parsed| parsed == list)
 }
 
 #[cfg(test)]
@@ -885,6 +951,8 @@ mod tests {
             params: BTreeMap::new(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         }
     }
 
@@ -1011,6 +1079,88 @@ amount = 5
             load_at(&path, false).unwrap().config.accounts[0].refresh_seconds,
             Some(90)
         );
+    }
+
+    #[test]
+    fn budgets_and_floors_round_trip_with_comments_and_follow_their_account() {
+        // PRD 0041 RF1.3: the lists load into the account, survive an
+        // unrelated edit with their comments, and a budget added to the
+        // first of two accounts stays with that account.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("budgets.toml");
+        fs::write(
+            &path,
+            "[[accounts]]\nname = \"A\"\nprovider = \"open_ai_api\"\ncredential_env = \"A\"\n\n\
+             [[accounts]]\nname = \"B\"\nprovider = \"open_router\"\ncredential_env = \"B\"\n\n\
+             # my monthly cap\n[[accounts.budgets]]\nkind = \"spend\"\namount = 50\n\
+             unit = \"USD\"\nperiod = \"monthly\"\nstarts = 1\n\n\
+             [[accounts.floors]]\nkind = \"balance\"\namount = 5.5\n",
+        )
+        .unwrap();
+        let mut file = load_at(&path, false).unwrap();
+        let b = &file.config.accounts[1];
+        assert_eq!(b.budgets.len(), 1);
+        assert_eq!(b.budgets[0].amount, 50.0);
+        assert_eq!(
+            b.budgets[0].starts,
+            Some(crate::budget::BudgetStart::Day(1))
+        );
+        assert_eq!(b.floors[0].amount, 5.5);
+
+        let mut updated = file.config.clone();
+        updated.accounts[1].refresh_seconds = Some(600);
+        file.save(updated.clone()).unwrap();
+        let text = fs::read_to_string(&path).unwrap();
+        assert!(text.contains("# my monthly cap"), "{text}");
+
+        updated.accounts[0].budgets.push(crate::budget::Budget {
+            kind: None,
+            scope: Some(crate::budget::BudgetScope::Account),
+            label_contains: None,
+            amount: 20.0,
+            unit: Some("USD".into()),
+            period: crate::budget::BudgetPeriod::Weekly,
+            starts: Some(crate::budget::BudgetStart::Weekday(
+                crate::budget::WeekdayName::Friday,
+            )),
+            label: Some("Team".into()),
+        });
+        file.save(updated.clone()).unwrap();
+        let reloaded = load_at(&path, false).unwrap();
+        assert_eq!(
+            reloaded.config.accounts[0].budgets,
+            updated.accounts[0].budgets
+        );
+        assert_eq!(
+            reloaded.config.accounts[1].budgets,
+            updated.accounts[1].budgets
+        );
+        assert_eq!(
+            reloaded.config.accounts[1].floors,
+            updated.accounts[1].floors
+        );
+
+        updated.accounts[1].budgets.clear();
+        updated.accounts[1].floors.clear();
+        file.save(updated).unwrap();
+        let text = fs::read_to_string(&path).unwrap();
+        assert!(!text.contains("[[accounts.floors]]"), "{text}");
+        assert_eq!(text.matches("[[accounts.budgets]]").count(), 1, "{text}");
+    }
+
+    #[test]
+    fn invalid_budgets_are_rejected_with_their_field() {
+        // PRD 0041 RF1.2: validation names the field and the rule.
+        let text =
+            "[[accounts]]\nname = \"A\"\nprovider = \"open_ai_api\"\ncredential_env = \"A\"\n\n\
+             [[accounts.budgets]]\nkind = \"spend\"\namount = 0\n";
+        match Config::from_toml(text) {
+            Err(crate::ConfigError::Budget { field, rule }) => {
+                assert_eq!(field, "accounts[0].budgets[0].amount");
+                assert_eq!(rule, crate::budget::BudgetRule::Amount);
+            }
+            other => panic!("unexpected {other:?}"),
+        }
     }
 
     #[test]
