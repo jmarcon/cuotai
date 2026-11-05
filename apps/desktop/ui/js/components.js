@@ -626,6 +626,7 @@ export function rowHtml(r, { title, sub = "", mono = "", open = null, key = repo
         ${bars ? meter : meter ? `<span class="rm">${meter}</span>` : ""}
         ${status}
         ${lay.elements.sublimits ? subLimitsHtml(r) : ""}
+        ${lay.elements.sublimits && r.breakdown?.top ? `<span class="subl brk-top" data-breakdown-top>${esc(tl(r.breakdown.top))}</span>` : ""}
         ${chips ? `<span class="row-chips">${chips}</span>` : ""}
       </span>
     </button>
