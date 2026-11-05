@@ -586,7 +586,58 @@
         "prices_age_days": { "anyOf": [{ "type": "null" }, { "type": "integer", "minimum": 0 }], "description": "Days from prices_effective to the export day (additive)." },
         "prices_age": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Localized" }], "description": "The localized 'Prices from N days ago' text, present from 60 days on (additive)." },
         "unpriced_models": { "type": "array", "items": { "type": "string" }, "description": "Models with tokens in the span and no known price (additive)." },
-        "unpriced": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Localized" }], "description": "The localized 'No price for: ...' text (additive)." }
+        "unpriced": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Localized" }], "description": "The localized 'No price for: ...' text (additive)." },
+        "blocks": { "type": "array", "items": { "$ref": "#/$defs/CostBlock" }, "description": "PRD 0042 RF7 (additive, absent when empty): the computed 5-hour blocks of the last 7 days, newest first." },
+        "live": { "type": "array", "items": { "$ref": "#/$defs/CostLiveBlock" }, "description": "PRD 0042 RF3.3 (additive, absent when empty): the active block of each source with its burn rate and projection." },
+        "projects": { "type": "array", "items": { "$ref": "#/$defs/CostProject" }, "description": "PRD 0042 RF7 (additive, absent when empty): the projects of the span that are not hidden; never a folder name." }
+      }
+    },
+    "CostBlock": {
+      "type": "object",
+      "description": "A local estimate computed from the logs, never the provider's window.",
+      "required": ["source", "start", "end", "active", "last_request", "sessions", "projects", "estimate", "provider_window"],
+      "properties": {
+        "source": { "type": "string" },
+        "start": { "type": "string", "format": "date-time" },
+        "end": { "type": "string", "format": "date-time" },
+        "active": { "type": "boolean" },
+        "last_request": { "type": "string", "format": "date-time" },
+        "sessions": { "type": "integer", "minimum": 0 },
+        "projects": { "type": "integer", "minimum": 0 },
+        "estimate": { "$ref": "#/$defs/CostEstimate" },
+        "provider_window": {
+          "anyOf": [
+            { "type": "null" },
+            { "type": "object", "required": ["resets_at", "used_pct"], "properties": { "resets_at": { "type": "string", "format": "date-time" }, "used_pct": { "type": ["number", "null"] } } }
+          ],
+          "description": "The provider's 5-hour window shown beside the active block, never merged; null in the export."
+        }
+      }
+    },
+    "CostLiveBlock": {
+      "type": "object",
+      "required": ["block", "elapsed_minutes", "left_minutes", "burn_rate_tokens_per_min", "projected_block_cost", "line", "projection"],
+      "properties": {
+        "block": { "$ref": "#/$defs/CostBlock" },
+        "elapsed_minutes": { "type": "integer", "minimum": 0 },
+        "left_minutes": { "type": "integer", "minimum": 0 },
+        "burn_rate_tokens_per_min": { "type": ["number", "null"], "minimum": 0, "description": "Over the last 10 minutes; null under 3 requests or 3 minutes." },
+        "projected_block_cost": { "type": ["number", "null"], "minimum": 0, "description": "USD by the block's end at the current rate; null without a rate, before 20% of the block, or when nothing is priced." },
+        "line": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Localized" }] },
+        "projection": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Localized" }] }
+      }
+    },
+    "CostProject": {
+      "type": "object",
+      "required": ["name", "label", "short", "first", "last", "sessions", "estimate"],
+      "properties": {
+        "name": { "$ref": "#/$defs/Localized", "description": "The person's label, 'Project ab12cd34' or 'No project'." },
+        "label": { "type": ["string", "null"] },
+        "short": { "type": ["string", "null"], "description": "The first characters of the one-way fingerprint; null for 'No project'." },
+        "first": { "type": "string", "format": "date-time" },
+        "last": { "type": "string", "format": "date-time" },
+        "sessions": { "type": "integer", "minimum": 0 },
+        "estimate": { "$ref": "#/$defs/CostEstimate" }
       }
     },
     "CostSpan": {
@@ -609,7 +660,8 @@
         "providers": { "type": "array", "items": { "$ref": "#/$defs/Provider" }, "description": "The accounts of these providers show this source." },
         "state": { "anyOf": [{ "enum": ["off", "ready", "partial", "no_logs", "no_access", "not_read"] }, { "type": "string" }] },
         "note": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Localized" }], "description": "Why there are no numbers or what limits them; null when they are complete." },
-        "usage": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/CostUsage" }], "description": "null while the source is off." }
+        "usage": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/CostUsage" }], "description": "null while the source is off." },
+        "reconsent": { "type": "boolean", "description": "PRD 0042 RF1.2 (additive, absent when false): the source was on under an earlier disclosure and reads nothing until it is accepted again." }
       }
     },
     "CostUsage": {

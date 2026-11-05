@@ -9,12 +9,20 @@
 //! examined, the position read and the parser's carried numbers. Nothing
 //! else enters the file: no path, no file name, no content. Deleted rows
 //! are overwritten (`secure_delete`) and erasure truncates the WAL.
+//!
+//! PRD 0042 RF1 (schema 2): `requests` keeps one row per request (time,
+//! model, session digest, project fingerprint, token counts) for the
+//! session, block and project views; `projects` holds per fingerprint the
+//! person's label, the opt-in folder-name hint and whether it is hidden;
+//! `session_labels` the person's session labels. The migration re-reads
+//! every followed file once from its start: lines already counted only add
+//! their request rows (`files.backfill`), so the day totals do not change.
 
 use super::source::{Entry, FileState};
 use super::{CostError, Period, SourceId, Tokens};
 use crate::history::{migrate, wal};
 use crate::models::create_private_file;
-use chrono::NaiveDate;
+use chrono::{DateTime, NaiveDate, Utc};
 use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -25,7 +33,7 @@ use std::path::{Path, PathBuf};
 /// PRD 0046 RF4: the migration count this release knows, for `--doctor`.
 pub(crate) const SCHEMA_REVISION: i64 = MIGRATIONS.len() as i64;
 
-pub(super) const MIGRATIONS: [&str; 2] = [
+pub(super) const MIGRATIONS: [&str; 3] = [
     "CREATE TABLE usage (
     source TEXT NOT NULL,
     day TEXT NOT NULL,
@@ -84,10 +92,51 @@ ALTER TABLE seen ADD COLUMN output INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE seen ADD COLUMN cache_read INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE seen ADD COLUMN cache_write INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE seen ADD COLUMN cache_write_1h INTEGER NOT NULL DEFAULT 0;",
+    // PRD 0042 RF1.1: per-request rows, projects and labels. Every followed
+    // file is read again from its start; the lines before `backfill` were
+    // counted already and only add their request rows.
+    "CREATE TABLE requests (
+    source TEXT NOT NULL,
+    file TEXT NOT NULL,
+    key TEXT,
+    at INTEGER NOT NULL,
+    day TEXT NOT NULL,
+    model TEXT NOT NULL,
+    session TEXT NOT NULL,
+    project TEXT,
+    input INTEGER NOT NULL,
+    output INTEGER NOT NULL,
+    cache_read INTEGER NOT NULL,
+    cache_write INTEGER NOT NULL,
+    cache_write_1h INTEGER NOT NULL
+);
+CREATE INDEX requests_by_time ON requests (source, at);
+CREATE INDEX requests_by_file ON requests (source, file);
+CREATE INDEX requests_by_key ON requests (source, key);
+CREATE INDEX requests_by_day ON requests (day);
+CREATE TABLE projects (
+    project TEXT NOT NULL PRIMARY KEY,
+    label TEXT,
+    folder_hint TEXT,
+    hint_source TEXT,
+    first_seen INTEGER NOT NULL,
+    last_seen INTEGER NOT NULL,
+    hidden INTEGER NOT NULL DEFAULT 0
+) WITHOUT ROWID;
+CREATE TABLE session_labels (
+    session TEXT NOT NULL PRIMARY KEY,
+    label TEXT NOT NULL
+) WITHOUT ROWID;
+ALTER TABLE files ADD COLUMN backfill INTEGER NOT NULL DEFAULT 0;
+UPDATE files SET backfill = position, position = 0, examined = 0;",
 ];
 
-/// Tables whose rows all derive from the logs.
-const TABLES: [&str; 4] = ["usage", "sessions", "seen", "files"];
+/// Tables whose rows all derive from the logs, per source and file.
+const TABLES: [&str; 5] = ["usage", "sessions", "seen", "files", "requests"];
+
+/// PRD 0042: the person's own rows (labels, hidden projects, the opt-in
+/// folder names); kept while a request still refers to them.
+const LABEL_TABLES: [&str; 2] = ["projects", "session_labels"];
 
 /// The cost index of this computer. Holds only its path; errors surface on
 /// use.
@@ -116,6 +165,73 @@ pub struct DailyUsage {
     pub sessions: u64,
 }
 
+/// PRD 0042 RF1.1: one request, as the session, block and project views
+/// read it. Digests and numbers only.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Request {
+    pub source: SourceId,
+    pub at: DateTime<Utc>,
+    pub day: NaiveDate,
+    pub model: String,
+    /// The anonymous session digest.
+    pub session: String,
+    /// The project fingerprint; `None` counts under "No project".
+    pub project: Option<String>,
+    pub tokens: Tokens,
+}
+
+/// PRD 0042 RF4: what the index holds about one project fingerprint.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectRow {
+    pub project: String,
+    pub label: Option<String>,
+    /// RF4.3: the last folder name, only while the person keeps them.
+    pub folder_hint: Option<String>,
+    pub first_seen: DateTime<Utc>,
+    pub last_seen: DateTime<Utc>,
+    pub hidden: bool,
+}
+
+/// PRD 0042 RF2.2/RF4.2: what a label is attached to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LabelTarget {
+    Session,
+    Project,
+}
+
+impl LabelTarget {
+    pub fn from_slug(slug: &str) -> Option<Self> {
+        match slug {
+            "session" => Some(Self::Session),
+            "project" => Some(Self::Project),
+            _ => None,
+        }
+    }
+}
+
+/// The longest label (RF4.2), in characters.
+pub const MAX_LABEL_CHARS: usize = 48;
+/// The shortest digest prefix accepted on the command line.
+pub const MIN_PREFIX: usize = 4;
+
+/// A label as stored: trimmed, 1 to [`MAX_LABEL_CHARS`] characters, no
+/// control characters.
+fn clean_label(label: &str) -> Result<String, CostError> {
+    let label = label.trim();
+    if label.is_empty()
+        || label.chars().count() > MAX_LABEL_CHARS
+        || label.chars().any(char::is_control)
+    {
+        return Err(CostError::InvalidLabel);
+    }
+    Ok(label.to_owned())
+}
+
+fn instant_of(millis: i64) -> DateTime<Utc> {
+    DateTime::from_timestamp_millis(millis).unwrap_or_default()
+}
+
 /// What the index knows about one log file.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct FileRow {
@@ -126,6 +242,10 @@ pub(crate) struct FileRow {
     pub position: u64,
     pub state: FileState,
     pub invalid: u64,
+    /// PRD 0042 RF1.1: the lines before this byte were counted before
+    /// schema 2 and are read again only for their request rows; 0 when
+    /// nothing is replayed.
+    pub backfill: u64,
 }
 
 /// One read of one file, written in one transaction.
@@ -137,6 +257,12 @@ pub(crate) struct Chunk<'a> {
     pub restart: bool,
     pub row: FileRow,
     pub entries: Vec<(NaiveDate, Entry)>,
+    /// PRD 0042 RF1.1: how many leading `entries` are replays of lines
+    /// counted before schema 2 (only their request rows are added).
+    pub replayed: usize,
+    /// PRD 0042 RF4.3: `(project, folder name)` pairs seen, only when the
+    /// source keeps folder names.
+    pub folders: Vec<(String, String)>,
     pub read_at: i64,
 }
 
@@ -208,7 +334,7 @@ impl CostIndex {
     ) -> Result<Option<FileRow>, CostError> {
         let row = db
             .query_row(
-                "SELECT identity, examined, position, state, invalid FROM files
+                "SELECT identity, examined, position, state, invalid, backfill FROM files
                  WHERE source = ?1 AND file = ?2",
                 params![source.slug(), file],
                 |row| {
@@ -218,20 +344,22 @@ impl CostIndex {
                         row.get::<_, i64>(2)?,
                         row.get::<_, String>(3)?,
                         row.get::<_, i64>(4)?,
+                        row.get::<_, i64>(5)?,
                     ))
                 },
             )
             .optional()?;
-        Ok(
-            row.map(|(identity, examined, position, state, invalid)| FileRow {
+        Ok(row.map(
+            |(identity, examined, position, state, invalid, backfill)| FileRow {
                 identity,
                 examined: count(examined),
                 position: count(position),
                 // A carried state that no longer parses restarts empty.
                 state: serde_json::from_str(&state).unwrap_or_default(),
                 invalid: count(invalid),
-            }),
-        )
+                backfill: count(backfill),
+            },
+        ))
     }
 
     /// Drop the share and the control row of one file (shrunk or
@@ -267,7 +395,7 @@ impl CostIndex {
         }
         let source = chunk.source.slug();
         if chunk.restart {
-            for table in ["usage", "sessions", "seen"] {
+            for table in ["usage", "sessions", "seen", "requests"] {
                 tx.execute(
                     &format!("DELETE FROM {table} WHERE source = ?1 AND file = ?2"),
                     params![source, chunk.file],
@@ -311,8 +439,87 @@ impl CostIndex {
                 "INSERT OR IGNORE INTO sessions (source, day, model, session, file)
                  VALUES (?1, ?2, ?3, ?4, ?5)",
             )?;
-            for (day, entry) in &chunk.entries {
+            let mut request = tx.prepare_cached(
+                "INSERT INTO requests (source, file, key, at, day, model, session, project,
+                     input, output, cache_read, cache_write, cache_write_1h)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+            )?;
+            let mut grow_request = tx.prepare_cached(
+                "UPDATE requests SET input = input + ?3, output = output + ?4,
+                     cache_read = cache_read + ?5, cache_write = cache_write + ?6,
+                     cache_write_1h = cache_write_1h + ?7
+                 WHERE source = ?1 AND key = ?2",
+            )?;
+            let mut has_request =
+                tx.prepare_cached("SELECT 1 FROM requests WHERE source = ?1 AND key = ?2 LIMIT 1")?;
+            let mut project = tx.prepare_cached(
+                "INSERT INTO projects (project, first_seen, last_seen) VALUES (?1, ?2, ?2)
+                 ON CONFLICT (project) DO UPDATE SET
+                     first_seen = MIN(first_seen, excluded.first_seen),
+                     last_seen = MAX(last_seen, excluded.last_seen)",
+            )?;
+            let add_request = |request: &mut rusqlite::CachedStatement<'_>,
+                               day: &str,
+                               entry: &Entry,
+                               key: Option<&str>,
+                               t: Tokens|
+             -> rusqlite::Result<usize> {
+                request.execute(params![
+                    source,
+                    chunk.file,
+                    key,
+                    entry.at.timestamp_millis(),
+                    day,
+                    entry.model,
+                    entry.session,
+                    entry.project,
+                    stored(t.input),
+                    stored(t.output),
+                    stored(t.cache_read),
+                    stored(t.cache_write),
+                    stored(t.cache_write_1h),
+                ])
+            };
+            for (position, (day, entry)) in chunk.entries.iter().enumerate() {
                 let day = day_text(*day);
+                if let Some(digest) = &entry.project {
+                    project.execute(params![digest, entry.at.timestamp_millis()])?;
+                }
+                if position < chunk.replayed {
+                    // Counted before schema 2: only its request row, once,
+                    // from the file whose copy was accepted, with the
+                    // highest counts kept.
+                    match &entry.dedup {
+                        None => {
+                            add_request(&mut request, &day, entry, None, entry.tokens)?;
+                        }
+                        Some(key) => {
+                            let accepted = known
+                                .query_row(params![source, key], |row| {
+                                    Ok((
+                                        row.get::<_, String>(0)?,
+                                        row.get::<_, String>(2)?,
+                                        Tokens {
+                                            input: count(row.get(3)?),
+                                            output: count(row.get(4)?),
+                                            cache_read: count(row.get(5)?),
+                                            cache_write: count(row.get(6)?),
+                                            cache_write_1h: count(row.get(7)?),
+                                        },
+                                    ))
+                                })
+                                .optional()?;
+                            if let Some((file, model, kept)) = accepted {
+                                let present = has_request.exists(params![source, key])?;
+                                if file == chunk.file && !present {
+                                    let tokens = if model.is_empty() { entry.tokens } else { kept };
+                                    add_request(&mut request, &day, entry, Some(key), tokens)?;
+                                }
+                            }
+                        }
+                    }
+                    continue;
+                }
                 if let Some(key) = &entry.dedup {
                     let t = entry.tokens;
                     let fields = [
@@ -363,6 +570,15 @@ impl CostIndex {
                                     fields[i].saturating_sub(kept[i])
                                 });
                                 if gain.iter().any(|g| *g > 0) {
+                                    grow_request.execute(params![
+                                        source,
+                                        key,
+                                        stored(gain[0]),
+                                        stored(gain[1]),
+                                        stored(gain[2]),
+                                        stored(gain[3]),
+                                        stored(gain[4]),
+                                    ])?;
                                     grow.execute(params![
                                         source,
                                         old_day,
@@ -413,15 +629,22 @@ impl CostIndex {
                         chunk.file
                     ])?;
                 }
+                add_request(&mut request, &day, entry, entry.dedup.as_deref(), t)?;
                 done.requests += 1;
+            }
+            let mut hint = tx.prepare_cached(
+                "UPDATE projects SET folder_hint = ?2, hint_source = ?3 WHERE project = ?1",
+            )?;
+            for (digest, folder) in &chunk.folders {
+                hint.execute(params![digest, folder, source])?;
             }
         }
         let row = &chunk.row;
         let state = serde_json::to_string(&row.state).map_err(|_| CostError::Storage)?;
         tx.execute(
             "INSERT OR REPLACE INTO files (source, file, identity, examined, position, state,
-                 invalid, read_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                 invalid, read_at, backfill)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             params![
                 source,
                 chunk.file,
@@ -431,6 +654,7 @@ impl CostIndex {
                 state,
                 stored(row.invalid),
                 chunk.read_at,
+                stored(row.backfill),
             ],
         )?;
         tx.commit()?;
@@ -519,7 +743,7 @@ impl CostIndex {
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let first = day_text(first);
         let mut removed = 0;
-        for table in ["usage", "sessions", "seen"] {
+        for table in ["usage", "sessions", "seen", "requests"] {
             removed += tx.execute(&format!("DELETE FROM {table} WHERE day < ?1"), [&first])?;
         }
         removed += tx.execute("DELETE FROM files WHERE read_at < ?1", [read_before])?;
@@ -549,6 +773,29 @@ impl CostIndex {
                 [source.map(SourceId::slug)],
             )?;
         }
+        // PRD 0042 RF1.1: labels, hidden flags and folder names go with
+        // the last request that refers to them (all of them on Erase the
+        // index).
+        removed += match source {
+            None => {
+                let mut all = 0;
+                for table in LABEL_TABLES {
+                    all += tx.execute(&format!("DELETE FROM {table}"), [])?;
+                }
+                all
+            }
+            Some(_) => {
+                tx.execute(
+                    "DELETE FROM projects WHERE project NOT IN
+                         (SELECT project FROM requests WHERE project IS NOT NULL)",
+                    [],
+                )? + tx.execute(
+                    "DELETE FROM session_labels WHERE session NOT IN
+                         (SELECT session FROM requests)",
+                    [],
+                )?
+            }
+        };
         tx.commit()?;
         // The deleted pages were zeroed; drop the WAL copies too.
         db.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(()))?;
@@ -570,6 +817,184 @@ impl CostIndex {
             files: count(files),
             invalid_lines: count(invalid),
         })
+    }
+
+    /// PRD 0042 RF1.1: every request from `from` (inclusive) to `to`
+    /// (exclusive), oldest first; only `source` when given. Never creates
+    /// the file.
+    pub fn requests(
+        &self,
+        source: Option<SourceId>,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    ) -> Result<Vec<Request>, CostError> {
+        let Some(db) = self.open_existing()? else {
+            return Ok(Vec::new());
+        };
+        let mut query = db.prepare(
+            "SELECT source, at, day, model, session, project, input, output, cache_read,
+                 cache_write, cache_write_1h
+             FROM requests
+             WHERE at >= ?1 AND at < ?2 AND (?3 IS NULL OR source = ?3)
+             ORDER BY at, source",
+        )?;
+        let rows = query.query_map(
+            params![
+                from.timestamp_millis(),
+                to.timestamp_millis(),
+                source.map(SourceId::slug)
+            ],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, Option<String>>(5)?,
+                    Tokens {
+                        input: count(row.get(6)?),
+                        output: count(row.get(7)?),
+                        cache_read: count(row.get(8)?),
+                        cache_write: count(row.get(9)?),
+                        cache_write_1h: count(row.get(10)?),
+                    },
+                ))
+            },
+        )?;
+        let mut out = Vec::new();
+        for row in rows {
+            let (slug, at, day, model, session, project, tokens) = row?;
+            if let Some(source) = SourceId::from_slug(&slug) {
+                out.push(Request {
+                    source,
+                    at: instant_of(at),
+                    day: day_of(&day)?,
+                    model,
+                    session,
+                    project,
+                    tokens,
+                });
+            }
+        }
+        Ok(out)
+    }
+
+    /// PRD 0042 RF4: every project the index knows. Never creates the file.
+    pub fn projects(&self) -> Result<Vec<ProjectRow>, CostError> {
+        let Some(db) = self.open_existing()? else {
+            return Ok(Vec::new());
+        };
+        let mut query = db.prepare(
+            "SELECT project, label, folder_hint, first_seen, last_seen, hidden
+             FROM projects ORDER BY last_seen DESC, project",
+        )?;
+        let rows = query.query_map([], |row| {
+            Ok(ProjectRow {
+                project: row.get(0)?,
+                label: row.get(1)?,
+                folder_hint: row.get(2)?,
+                first_seen: instant_of(row.get(3)?),
+                last_seen: instant_of(row.get(4)?),
+                hidden: row.get::<_, i64>(5)? != 0,
+            })
+        })?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// PRD 0042 RF2.2: the person's session labels, by session digest.
+    pub fn session_labels(&self) -> Result<std::collections::BTreeMap<String, String>, CostError> {
+        let Some(db) = self.open_existing()? else {
+            return Ok(Default::default());
+        };
+        let mut query = db.prepare("SELECT session, label FROM session_labels")?;
+        let rows = query.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// The one digest of `target` that starts with `prefix` (at least
+    /// [`MIN_PREFIX`] hex characters).
+    fn resolve(db: &Connection, target: LabelTarget, prefix: &str) -> Result<String, CostError> {
+        let prefix = prefix.trim().to_ascii_lowercase();
+        if prefix.len() < MIN_PREFIX || !prefix.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return Err(CostError::UnknownPrefix);
+        }
+        let sql = match target {
+            LabelTarget::Session => {
+                "SELECT DISTINCT session FROM requests
+                 WHERE substr(session, 1, length(?1)) = ?1 LIMIT 2"
+            }
+            LabelTarget::Project => {
+                "SELECT project FROM projects WHERE substr(project, 1, length(?1)) = ?1 LIMIT 2"
+            }
+        };
+        let mut query = db.prepare(sql)?;
+        let found: Vec<String> = query
+            .query_map([&prefix], |row| row.get(0))?
+            .collect::<Result<_, _>>()?;
+        match found.as_slice() {
+            [one] => Ok(one.clone()),
+            [] => Err(CostError::UnknownPrefix),
+            _ => Err(CostError::AmbiguousPrefix),
+        }
+    }
+
+    /// PRD 0042 RF2.2/RF4.2: label (or, with `None`, unlabel) the session
+    /// or project whose digest starts with `prefix`. Returns the digest.
+    pub fn set_label(
+        &self,
+        target: LabelTarget,
+        prefix: &str,
+        label: Option<&str>,
+    ) -> Result<String, CostError> {
+        let label = label.map(clean_label).transpose()?;
+        let Some(db) = self.open_existing()? else {
+            return Err(CostError::UnknownPrefix);
+        };
+        let digest = Self::resolve(&db, target, prefix)?;
+        match (target, label) {
+            (LabelTarget::Session, Some(label)) => db.execute(
+                "INSERT INTO session_labels (session, label) VALUES (?1, ?2)
+                 ON CONFLICT (session) DO UPDATE SET label = excluded.label",
+                params![digest, label],
+            )?,
+            (LabelTarget::Session, None) => {
+                db.execute("DELETE FROM session_labels WHERE session = ?1", [&digest])?
+            }
+            (LabelTarget::Project, label) => db.execute(
+                "UPDATE projects SET label = ?2 WHERE project = ?1",
+                params![digest, label],
+            )?,
+        };
+        Ok(digest)
+    }
+
+    /// PRD 0042 RF4.1: hide (or show again) the project whose digest starts
+    /// with `prefix`. Returns the digest.
+    pub fn set_hidden(&self, prefix: &str, hidden: bool) -> Result<String, CostError> {
+        let Some(db) = self.open_existing()? else {
+            return Err(CostError::UnknownPrefix);
+        };
+        let digest = Self::resolve(&db, LabelTarget::Project, prefix)?;
+        db.execute(
+            "UPDATE projects SET hidden = ?2 WHERE project = ?1",
+            params![digest, hidden],
+        )?;
+        Ok(digest)
+    }
+
+    /// PRD 0042 RF4.3: delete the folder names `source` stored (the hint was
+    /// turned off). Returns the rows changed.
+    pub fn clear_folder_hints(&self, source: SourceId) -> Result<usize, CostError> {
+        let Some(db) = self.open_existing()? else {
+            return Ok(0);
+        };
+        let changed = db.execute(
+            "UPDATE projects SET folder_hint = NULL, hint_source = NULL WHERE hint_source = ?1",
+            [source.slug()],
+        )?;
+        db.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(()))?;
+        Ok(changed)
     }
 
     /// Bytes the index takes on disk (the database and its WAL).

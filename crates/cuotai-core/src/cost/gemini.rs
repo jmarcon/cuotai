@@ -17,10 +17,15 @@
 //! deserialized into a value. Legacy single-object `.json` recordings and
 //! the `*.tmp-*` / `*.unreadable-*` backups are not read.
 //!
+//! PRD 0042 RF1.2: the header's `projectHash` (Gemini CLI's own SHA-256 of
+//! the project root) is hashed again into the project fingerprint; the
+//! recording names no folder, so Gemini projects never get a folder-name
+//! hint and do not match the same folder seen by another tool.
+//!
 //! Google's prompt count includes the cached part, so `input` here is
 //! `input - cached + tool`; thinking tokens are billed as output.
 
-use super::source::{anonymous, instant, is_object, model_name, under_home, Entry};
+use super::source::{anonymous, instant, is_object, model_name, project_digest, under_home, Entry};
 use super::source::{FileState, Line, Source, UNKNOWN_MODEL};
 use super::{SourceId, Tokens};
 use serde::Deserialize;
@@ -32,6 +37,8 @@ pub(crate) struct GeminiCli;
 struct Record {
     #[serde(default, rename = "sessionId")]
     session_id: Option<String>,
+    #[serde(default, rename = "projectHash")]
+    project_hash: Option<String>,
     #[serde(default)]
     id: Option<String>,
     #[serde(default)]
@@ -103,6 +110,13 @@ impl Source for GeminiCli {
         };
         if let Some(id) = record.session_id.filter(|_| record.kind.is_none()) {
             state.session = Some(anonymous(self.id(), &id));
+            if let Some(project) = record
+                .project_hash
+                .as_deref()
+                .and_then(|hash| project_digest(&format!("gemini:{hash}")))
+            {
+                state.project = Some(project);
+            }
             return Line::Skip;
         }
         if record.kind.as_deref() != Some("gemini") {
@@ -139,6 +153,7 @@ impl Source for GeminiCli {
             tokens,
             session,
             dedup,
+            project: state.project.clone(),
         })
     }
 }
