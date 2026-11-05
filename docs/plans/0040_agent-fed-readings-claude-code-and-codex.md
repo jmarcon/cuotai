@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0040 |
-| Status | Planned (next version) |
+| Status | Awaiting owner verification |
 | Owner | `cuotai-core` (feed store, feed readers, provider source mode, access descriptor, status-line composer), `cuotai-tui` (`--feed`, `--statusline-claude`), desktop (live-session chip, Settings rows) |
 | Consumers | Every front end (cards, details, tray, `--once`, `--json-v1`, `--serve`, `--watch`), status-bar recipes of PRD 0031 |
 | Depends on | PRD 0005 (access descriptor), PRD 0010 (freshness and age), PRD 0029 (stable account id, to bind a feed to an account) |
@@ -13,11 +13,20 @@
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable. A **feed** is a reading that an agent running on this computer handed to Cuotai (through standard input or a file it writes itself), as opposed to a **query**, which Cuotai makes over the network. "Claude Code" and "Codex CLI" are the vendors' coding agents; Cuotai never runs them and never sends them a prompt.
 
-## Implementation status (2026-10-25)
+## Implementation status (2026-11-05)
 
 | RF | Version | Delivery |
 |---|---|---|
-| RF1–RF8 | — | Proposed. |
+| RF1 | vNEXT | `cuotai-core::feed`: `FeedStore` under `data_dir::root()/feed/<source>/<digest>.json` (`0700`/`0600`, atomic), `latest`/`sessions`/`health`, field validation (an invalid file is ignored and counted, never zero), 24-hour retention keeping the newest file of each source (so a quiet agent ages instead of vanishing) and a 64-file cap; listed in the privacy inventory. |
+| RF2 | vNEXT | `cuotai --feed claude-statusline [--print] [--setup]`: reads at most 64 KiB, keeps only the §7 fields (`cwd`, `workspace`, `transcript_path` and the rest never enter a struct), runs before the app log starts (nothing but the data folder is touched), panic hook prints one line; exit 0/1. Snippets in `docs/integrations/claude-code.md` and `--setup`. |
+| RF3 | vNEXT | `claude` `query_mode = "claude_code"` (no HTTP, no credential, `as_of` = the feed's time, absent windows stay absent, a window past its reset is dropped) and `claude_code_or_api` (feed while younger than the refresh interval, else the query, with `answered_by_*` notes); the same metric labels as the query mode; the wizard accepts an empty credential for the feed mode; `NeedsConfiguration` with `note.claude_code.no_feed` when no feed exists. |
+| RF4 | vNEXT | `feed::codex` reads `token_count` `rate_limits` (`used_percent`, `window_minutes`, `resets_at` or `resets_in_seconds`; verified against `codex-rs/protocol/src/protocol.rs` at `86ac091`, 2026-11-05), refuses unknown shapes as a schema error, reads only the newest logs' first line and last 256 KiB without following links; `chat_gpt` `codex_cli` / `codex_cli_or_api`, gated on the `codex_cli` local cost source consent (deviation: no separate consent dialog). |
+| RF5 | vNEXT | `cuotai --statusline-claude [--account ID]... [--from-server [URL]] [--max-width N] [--color]` over the core's `feed::statusline::compose`: Claude's windows, the tightest other account (server within 120 ms, else the history with its age; never a provider query), the context share; truncation order and the `--color` gate. |
+| RF6 | vNEXT | `access::classify` arms (`Official`/`AgentFeed`/`local` for Claude Code, `Undocumented` with the Codex source reference), `verified_on`, the 14 catalogs, `docs/providers.md` regenerated, `docs/integrations/claude-code.md`, `docs/oauth.md` paragraph, README sentence. |
+| RF7 | vNEXT | `feed::live` (10-minute expiry, five sessions and "and N more", display-only context roles at 70/90 %); desktop card block, tray chip and **Show live agent session** switch; TUI card suffix and details; `--once` line; `export::v1` `sessions` from `--json-v1` and the local servers. Deviation: the context share is a chip, not a meter, so it never reads as a quota. |
+| RF8 | vNEXT | `params.feed` binding (validated: only the provider's agent, one account per feed), the unbound-feed banner state machine with a 7-day dismissal and a prefilled **Add account**; owner decision: a new Claude account preselects the Claude Code mode when Claude Code is detected (TUI and desktop). |
+
+**Owner verification:** the §11 smoke with a real Claude Code session (status line shows Claude's windows plus the tightest other account within one prompt, the card reads its age from the feed, closing Claude Code ages the reading) and one real Codex CLI log; listed in `0000_control.md` §2.1.
 
 ## 1. Context
 
