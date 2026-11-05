@@ -254,7 +254,12 @@
 }
 .rhythm-bars {
   height: 90px;
-  padding: var(--space-1) 0 var(--space-5);
+  /* Room for the hour or day label and, under it, the reset mark: two lines of a fixed height. */
+  padding: var(--space-1) 0 calc(var(--space-2) + 2.4 * var(--text-2xs) + 6px);
+}
+/* Fixed line boxes, so a taller script font (CJK, Devanagari) never pushes the label into the reset mark. */
+.rhythm-bars .x-label {
+  line-height: 1.2;
 }
 .rhythm-bars ul {
   gap: var(--space-0);
@@ -267,11 +272,12 @@
 }
 .rhythm-bars .x-reset {
   position: absolute;
-  top: calc(100% + var(--space-3));
+  top: calc(100% + 6px + 1.2 * var(--text-2xs));
   left: 50%;
   transform: translateX(-50%);
   color: var(--fg-muted);
   font: var(--text-2xs) var(--font-mono), var(--font-script);
+  line-height: 1.2;
 }
 
 /* By account rows (DS-CHT-7) and the journal share the list container (DS-CMP-LIST-1). */
