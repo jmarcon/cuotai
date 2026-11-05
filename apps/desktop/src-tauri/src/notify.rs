@@ -93,6 +93,9 @@ pub struct Notices {
     /// The time zone of the quiet hours; `None` is the system's. Tests set
     /// a fixed offset.
     zone: Option<chrono::FixedOffset>,
+    /// PRD 0041 RF3: the balance floors of the loaded configuration (the
+    /// TOML is their only source), given to the evaluator.
+    floors: BTreeMap<String, Vec<cuotai_core::budget::Floor>>,
 }
 
 /// What one pass of the timer did.
@@ -283,6 +286,10 @@ impl Notices {
 
     fn rebuild_evaluator(&mut self) {
         self.evaluator = self.alerts.evaluator(&self.prefs.off_accounts);
+        // PRD 0041 RF3 and PRD 0043 RF2.3: the floors of the configuration
+        // and the opt-in limit-change notices.
+        self.evaluator.floors = self.floors.clone();
+        self.evaluator.limit_changes = self.prefs.limit_changes;
     }
 
     /// Turn the bell of `account_key` on or off: its reset notices and
@@ -332,6 +339,8 @@ impl Notices {
     /// legacy entries of its accounts moved to their ids
     /// ([`Self::adopt_config`]).
     pub fn keep_accounts(&mut self, config: &Config) -> Result<(), &'static str> {
+        self.floors = AlertPrefs::default().with_floors(config).floors;
+        self.rebuild_evaluator();
         self.adopt_config(config)?;
         let keys: Vec<String> = config.accounts.iter().map(|a| a.state_key()).collect();
         // PRD 0036: a connection's choices live under its aggregator's id.
@@ -621,6 +630,70 @@ impl Notices {
         tick
     }
 
+    /// PRD 0043 RF3.2: the weekly digest, once per slot across every
+    /// process (the shared ledger), when it is on and due at `now`
+    /// ([`cuotai_core::digest::due_slot`]: a slot missed while the app was
+    /// closed is still sent within 48 hours). Quiet hours hold it until
+    /// they end (the returned instant). Reads the history only.
+    pub fn weekly_digest(
+        &mut self,
+        store: Option<&cuotai_core::history::HistoryStore>,
+        config: &Config,
+        readings: &[Option<&Report>],
+        now: DateTime<Utc>,
+        notifier: &dyn Notifier,
+    ) -> (usize, Option<DateTime<Utc>>) {
+        let slot = match &self.zone {
+            Some(zone) => cuotai_core::digest::due_slot(&self.prefs.digest, now, zone),
+            None => cuotai_core::digest::due_slot(&self.prefs.digest, now, &chrono::Local),
+        };
+        let (Some(slot), Some(store)) = (slot, store) else {
+            return (0, None);
+        };
+        if let Some(window) = self.window(now) {
+            return (0, Some(window.ends_at));
+        }
+        self.ledger.sync();
+        if !self.ledger.claim_weekly_digest(slot, now) {
+            return (0, None);
+        }
+        let latest: Vec<Option<Report>> = readings.iter().map(|r| r.cloned()).collect();
+        let Ok(digest) = cuotai_core::digest::weekly(
+            store,
+            &config.accounts,
+            &latest,
+            cuotai_core::digest::DigestWeek::Last,
+            now,
+            &chrono::Local,
+            self.prefs.days_off,
+        ) else {
+            return (0, None);
+        };
+        (
+            usize::from(self.deliver_digest_text(&digest, notifier)),
+            None,
+        )
+    }
+
+    /// PRD 0043 RF4.3: post `digest` now (title and the short lines), as
+    /// the weekly digest and **Send a test digest** do. `true` when the
+    /// system took it.
+    pub fn deliver_digest_text(
+        &self,
+        digest: &cuotai_core::digest::Digest,
+        notifier: &dyn Notifier,
+    ) -> bool {
+        let locale = self.locale();
+        let body: Vec<String> = digest
+            .short_lines(locale)
+            .iter()
+            .map(|line| line.resolve(locale))
+            .collect();
+        notifier
+            .deliver(&digest.title().resolve(locale), &body.join("\n"))
+            .is_ok()
+    }
+
     /// PRD 0032 RF3.3/RF3.4: the digest that closes quiet hours, one
     /// notification subject to [`NOTICE_SPACING`] like any alert.
     fn deliver_digest(
@@ -757,6 +830,95 @@ mod tests {
         }
     }
 
+    /// PRD 0043 RF3.2: the weekly digest goes out once per slot (the shared
+    /// ledger), only while it is on, and quiet hours hold it.
+    #[test]
+    fn the_weekly_digest_is_sent_once_per_slot() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = cuotai_core::history::HistoryStore::new(
+            dir.path().join("history.sqlite3"),
+            &cuotai_core::config_file::ConfigIdentity::Explicit("digest".into()),
+        );
+        let mut notices = Notices {
+            zone: Some(chrono::FixedOffset::east_opt(0).unwrap()),
+            ..Notices::default()
+        };
+        let config = Config {
+            accounts: Vec::new(),
+            ..Config::default()
+        };
+        let fake = FakeNotifier::default();
+        // Monday 2026-03-02 10:00 UTC: one hour after the default slot.
+        let monday = Utc.with_ymd_and_hms(2026, 3, 2, 10, 0, 0).unwrap();
+        assert_eq!(
+            notices.weekly_digest(Some(&store), &config, &[], monday, &fake),
+            (0, None),
+            "off by default"
+        );
+        let mut prefs = notices.prefs().clone();
+        prefs.digest.enabled = true;
+        notices.set_prefs(prefs).unwrap();
+        assert_eq!(
+            notices
+                .weekly_digest(Some(&store), &config, &[], monday, &fake)
+                .0,
+            1
+        );
+        let later = monday + TimeDelta::hours(3);
+        assert_eq!(
+            notices
+                .weekly_digest(Some(&store), &config, &[], later, &fake)
+                .0,
+            0
+        );
+        assert_eq!(fake.0.borrow().len(), 1);
+        assert!(
+            fake.0.borrow()[0].0.contains("2026-02-23"),
+            "last week's title"
+        );
+        // Three days after the slot the catch-up window is over.
+        let mut late = Notices {
+            zone: notices.zone,
+            ..Notices::default()
+        };
+        late.set_prefs(notices.prefs().clone()).unwrap();
+        let thursday = monday + TimeDelta::days(3);
+        assert_eq!(
+            late.weekly_digest(Some(&store), &config, &[], thursday, &fake)
+                .0,
+            0
+        );
+    }
+
+    /// PRD 0041 RF3 and PRD 0043 RF2.3: the evaluator carries the floors of
+    /// the configuration and the opt-in limit-change notices.
+    #[test]
+    fn the_evaluator_carries_floors_and_limit_changes() {
+        let mut notices = Notices::default();
+        let account = Account {
+            name: "OR".into(),
+            provider: Provider::OpenRouter,
+            floors: vec![cuotai_core::budget::Floor {
+                kind: Some(cuotai_core::budget::FloorKind::Balance),
+                label_contains: None,
+                amount: 5.0,
+                unit: None,
+            }],
+            ..Default::default()
+        };
+        let config = Config {
+            accounts: vec![account.clone()],
+            ..Config::default()
+        };
+        notices.keep_accounts(&config).unwrap();
+        assert_eq!(notices.evaluator.floors[&account.state_key()].len(), 1);
+        assert!(!notices.evaluator.limit_changes);
+        let mut prefs = notices.prefs().clone();
+        prefs.limit_changes = true;
+        notices.set_prefs(prefs).unwrap();
+        assert!(notices.evaluator.limit_changes);
+    }
+
     /// The fake clock's origin; every reset is placed relative to it.
     fn t0() -> DateTime<Utc> {
         Utc.with_ymd_and_hms(2026, 3, 2, 14, 0, 0).unwrap()
@@ -779,6 +941,7 @@ mod tests {
             window: Some(window),
             period: None,
             resets_at: Some(resets_at),
+            derived_from: None,
         }
     }
 

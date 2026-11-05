@@ -265,6 +265,12 @@ export const setNotifyPrivate = (on) => call("set_notify_private", { on });
 export const setQuietHours = (quiet) => call("set_quiet_hours", { quiet });
 export const acknowledgeMissed = (accountKey) => call("acknowledge_missed", { accountKey });
 export const sendTestNotification = (title, body) => call("send_test_notification", { title, body });
+// PRD 0043: limit-change notices, days off and the weekly digest (the `notify` section of desktop.json).
+export const setInsightPrefs = ({ limitChanges, daysOff, digestEnabled, digestWeekday, digestHour }) =>
+  call("set_insight_prefs", { limitChanges, daysOff, digestEnabled, digestWeekday, digestHour });
+export const sendTestDigest = () => call("send_test_digest");
+// PRD 0041 RF5.1: the core's live sentences and problems of the dialog's budget and floor rows.
+export const checkBudgets = (provider, budgets, floors) => call("check_budgets", { provider, budgets, floors });
 // PRD 0008 RF3: usage alerts (desktop.json; the backend judges each reading and sends them). `setAlertsEnabled` asks
 // the same system permission as reset notices and resolves to `granted`, `denied`, `prompt` or `off`.
 export const setAlertsEnabled = (on) => call("set_alerts_enabled", { on });
@@ -1439,7 +1445,7 @@ function demoWidgetsView() {
 // `?hooks=changed` starts with the hooks on and a rule changed since its confirmation (the main-window banner).
 const DEMO_HOOK_EVENTS = ["quota_threshold_crossed", "quota_exhausted", "quota_recovered", "quota_reset", "account_blocked",
   "account_unblocked", "refresh_failed", "refresh_recovered", "auth_required", "provider_incident", "usage_updated", "overage_started", "overage_ended", "session_expiring", "quota_reset_soon",
-  "pool_exhausted", "pool_recovered"];
+  "pool_exhausted", "pool_recovered", "balance_below_floor", "balance_recovered", "limit_changed"];
 const DEMO_HOOKS_CHANGED = new URLSearchParams(location.search).get("hooks") === "changed";
 const demoHooks = { enabled: DEMO_HOOKS_CHANGED, path: "~/.config/cuotai/hooks.toml (demo)", revision: null, confirmed: null, runs: [],
   rules: DEMO_HOOKS_CHANGED ? [{ name: "sound", events: ["quota_exhausted"], command: ["/usr/bin/afplay", "/System/Library/Sounds/Glass.aiff"] }] : null };
@@ -1560,7 +1566,7 @@ const demoSettings = { monograms: {}, profileExisted: new URLSearchParams(locati
   // `?first-run` shows the first-run step (PRD 0025 RF6) in the demo.
   onboarding: new URLSearchParams(location.search).has("first-run") ? 0 : 1,
   custom: null, config: null, generation: 1, historyRecording: true, historyEpoch: 0, historyErased: new Set(), sessionMigrated: new Set(), sessionForgotten: new Set(),
-  notify: { enabled: false, lead_minutes: 0, when: "used", include_other: false, off_accounts: [], private: true },
+  notify: { enabled: false, lead_minutes: 0, when: "used", include_other: false, off_accounts: [], private: true, days_off: ["sat", "sun"], limit_changes: false, digest: { enabled: false, weekday: 0, hour: 9 } },
   quiet: { enabled: false, days: {}, digest: true }, missedSeen: new Set(),
   alerts: { enabled: false, thresholds: [75, 90], exhaustion: true, recovery: true, overage: true, muted: {} }, statusQueries: DEMO_STATUS != null, detect: { enabled: new URLSearchParams(location.search).get("detect") === "ask" ? null : true, dismissed: [] },
   serve: { enabled: DEMO_SERVE_TAKEN, port: 6738, allow_browsers: false, secret: null },
@@ -1678,8 +1684,27 @@ const demoStats = async ({ range, account, generation }) => {
       accounts, extra_spent: account == null && !erased ? [{ unit: "USD", amount: 6.25 }] : null, daily: dailyAll, unknown_limits: 0,
       retention_days: 90, first_sample_at: at(24 * 10), coverage: withData < 2 ? { kind: "not_enough" } : withData === days ? { kind: "full" } : { kind: "partial", days_with_data: withData } },
     indexes, history_kept: { id: "stats.history_kept", params: { days: 90 }, fallback: "History kept 90 days on this device" },
-    not_enough: { id: "stats.not_enough", params: {}, fallback: "Not enough history" }, removed_account: demoRemoved, events, recording: demoSettings.historyRecording };
+    not_enough: { id: "stats.not_enough", params: {}, fallback: "Not enough history" }, removed_account: demoRemoved, events, recording: demoSettings.historyRecording,
+    rhythm: demoRhythm(erased) };
 };
+// ponytail: PRD 0043 demo rhythm: working hours with a gap at night, a reset at 09:00 and the weekend off.
+function demoRhythm(erased) {
+  const now = new Date(), hour = now.getHours();
+  const at = (h) => new Date(now.getTime() - h * 36e5).toISOString();
+  const use = (h) => (h >= 9 && h < 19 ? Math.round(demoWave(h) * 120) / 10 : h < 7 ? null : 0.4);
+  const last24 = Array.from({ length: 24 }, (_, i) => {
+    const h = (hour - 23 + i + 24) % 24;
+    return { start: at(23 - i), hour: h, consumption: erased ? null : use(h), samples: erased || use(h) == null ? 0 : 4, reset: !erased && h === 9, day_off: false };
+  });
+  const week = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (6 - i));
+    const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const off = d.getDay() === 0 || d.getDay() === 6;
+    return { start: d.toISOString(), day, consumption: erased ? null : off ? 3 : Math.round(demoWave(i) * 600) / 10, samples: erased ? 0 : 40, reset: false, day_off: off };
+  });
+  const typical = Array.from({ length: 24 }, (_, h) => ({ start: at(0), hour: h, consumption: erased || use(h) == null ? null : use(h), samples: erased ? 0 : 12, reset: false, day_off: false }));
+  return { last_24h: { range: "last24h", buckets: last24, metrics: [] }, last_7d: { range: "last7d", buckets: week, metrics: [] }, typical: { range: "typical30d", buckets: typical, metrics: [] } };
+}
 const demoTimeline = async ({ range, generation }) => {
   if (generation !== demoSettings.generation) throw STALE;
   const now = Date.now(), span = range === "days7" ? 7 * DAY_MS : DAY_MS;
@@ -2371,6 +2396,21 @@ const demo = {
     if (!demoSettings.notify.enabled && !demoSettings.alerts.enabled) throw "notify_off";
     window.__lastTestNotification = { title, body };
   },
+  set_insight_prefs: async ({ limitChanges, daysOff, digestEnabled, digestWeekday, digestHour }) => {
+    if (digestWeekday > 6 || digestHour > 23) throw "invalid_notify";
+    Object.assign(demoSettings.notify, { limit_changes: limitChanges, days_off: daysOff, digest: { enabled: digestEnabled, weekday: digestWeekday, hour: digestHour } });
+  },
+  send_test_digest: async () => {
+    if (!demoSettings.notify.enabled && !demoSettings.alerts.enabled) throw "notify_off";
+    window.__lastTestNotification = { title: "Your week in Cuotai", body: "From the readings recorded on this computer." };
+  },
+  // Demo: the core's checks, reduced to the amount rule and the monthly sentence.
+  check_budgets: async ({ budgets, floors }) => ({
+    sentences: budgets.map((b) => ({ id: "budget.describe.monthly", params: { amount: `${b.amount} ${b.unit ?? ""}`.trim(), start: "1" }, fallback: `Cuotai will show a Budget quota of ${b.amount} a month, starting on day 1.` })),
+    problems: [...budgets.map((b, i) => ["budgets", i, b]), ...floors.map((f, i) => ["floors", i, f])]
+      .filter(([, , row]) => !(row.amount > 0 && row.amount <= 1e9))
+      .map(([list, i]) => ({ field: `${list}[${i}].amount`, note: { id: "budget.error.amount", params: { field: `${list}[${i}].amount` }, fallback: `${list}[${i}].amount: the amount must be greater than 0 and at most 1,000,000,000.` } })),
+  }),
   history_size: async () => (demoSettings.historyErased.has("all") ? 4096 : 1887437),
   account_history: demoHistory,
   stats: demoStats,

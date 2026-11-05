@@ -169,6 +169,43 @@ label.mode-off {
 .session-box p {
   margin: 0;
 }
+/* PRD 0041 RF5.1: Budgets and floors (DS-CMP-LIST rows, one grid of fields each). */
+.budgets-box summary {
+  cursor: pointer;
+}
+.budgets-box summary h3 {
+  display: inline;
+}
+.budgets-box h4 {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}
+.budget-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.budget-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+.budget-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--space-2);
+  width: 100%;
+}
+.budget-grid .f[hidden] {
+  display: none;
+}
 /* PRD 0016 RF2.1: the pasted session is never shown in clear. */
 .session-paste {
   -webkit-text-security: disc;

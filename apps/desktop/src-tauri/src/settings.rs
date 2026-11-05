@@ -2712,6 +2712,31 @@ mod tests {
     }
 
     #[test]
+    fn insight_prefs_round_trip_in_the_notify_section() {
+        // PRD 0043 RF1.3/RF2.3/RF3.2: days off, limit-change notices and the
+        // weekly digest live in `notify` and survive a write and a read.
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        let chosen = NotifyPrefs {
+            limit_changes: true,
+            days_off: cuotai_core::insights::DaysOff([
+                false, false, false, false, true, true, false,
+            ]),
+            digest: cuotai_core::insights::DigestPrefs {
+                enabled: true,
+                weekday: 4,
+                hour: 17,
+            },
+            ..NotifyPrefs::default()
+        };
+        write_notify(&file, &chosen).unwrap();
+        assert_eq!(read_notify(&file), chosen);
+        let doc: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&file).unwrap()).unwrap();
+        assert_eq!(doc["notify"]["days_off"], serde_json::json!(["fri", "sat"]));
+    }
+
+    #[test]
     fn notices_are_off_by_default_round_trip_and_read_leniently() {
         let dir = tempfile::tempdir().unwrap();
         let file = dir.path().join("desktop.json");

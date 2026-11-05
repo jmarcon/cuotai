@@ -414,6 +414,17 @@ async fn save_account(
     b.save_account(&app, input).await
 }
 
+/// PRD 0041 RF5.1: the live sentences and problems of the dialog's budget
+/// and floor rows (no save).
+#[tauri::command]
+fn check_budgets(
+    provider: Provider,
+    budgets: Vec<cuotai_core::budget::Budget>,
+    floors: Vec<cuotai_core::budget::Floor>,
+) -> backend::BudgetCheck {
+    backend::check_budgets(provider, &budgets, &floors)
+}
+
 #[tauri::command]
 async fn delete_account(
     app: AppHandle,
@@ -1456,6 +1467,47 @@ async fn send_test_notification(
     notify::SystemNotifier(app).deliver(&clean_menu_line(&title), &clean_menu_line(&body))
 }
 
+/// PRD 0043 RF2.3/RF1.3/RF3.2: Settings › Alerts: notify when a limit
+/// changes, the days off (weekday slugs `mon`..`sun`) and the weekly digest
+/// (weekday 0 = Monday … 6, hour 0–23), saved in the `notify` section of
+/// `desktop.json`. Errors: `invalid_notify`, `unwritable`.
+#[tauri::command]
+async fn set_insight_prefs(
+    app: AppHandle,
+    b: Shared<'_>,
+    limit_changes: bool,
+    days_off: Vec<String>,
+    digest_enabled: bool,
+    digest_weekday: u8,
+    digest_hour: u8,
+) -> Result<(), String> {
+    if digest_weekday > 6 || digest_hour > 23 {
+        return Err("invalid_notify".into());
+    }
+    b.update_notices(&app, |n| {
+        let mut prefs = n.prefs().clone();
+        prefs.limit_changes = limit_changes;
+        prefs.days_off = cuotai_core::insights::DaysOff::from_value(&serde_json::json!(days_off));
+        prefs.digest = cuotai_core::insights::DigestPrefs {
+            enabled: digest_enabled,
+            weekday: digest_weekday,
+            hour: digest_hour,
+        };
+        n.set_prefs(prefs)
+    })
+    .await
+}
+
+/// PRD 0043 RF4.3: **Send a test digest** now, from the history. Errors:
+/// `notify_off`, `no_history`, `notify_failed`.
+#[tauri::command]
+async fn send_test_digest(app: AppHandle, b: Shared<'_>) -> Result<(), String> {
+    if !b.notices_enabled().await {
+        return Err("notify_off".into());
+    }
+    b.send_test_digest(&notify::SystemNotifier(app)).await
+}
+
 /// PRD 0015 RF1/RF2/RF4.1: Settings → Local cost: each source with its
 /// disclosure, chosen directories, what the index follows and the last
 /// scan, the period and the retention.
@@ -2292,6 +2344,7 @@ pub fn run() -> std::process::ExitCode {
             test_aggregator,
             open_aggregator_dashboard,
             save_account,
+            check_budgets,
             delete_account,
             retry_purge,
             set_refresh_seconds,
@@ -2382,6 +2435,8 @@ pub fn run() -> std::process::ExitCode {
             set_locale,
             set_callback_style,
             send_test_notification,
+            set_insight_prefs,
+            send_test_digest,
             open_settings,
             settings_target,
             set_settings_title,

@@ -376,6 +376,21 @@ pub struct MetricView {
     /// "Renewed at 14:30; waiting for a reading" in the viewer's local time.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     expired: bool,
+    /// PRD 0041 RF4.3: the core's allowance sentence ("≈ 12%/day to the
+    /// reset"), only for a fresh reading like the pace.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    allowance: Option<cuotai_core::text::Localized>,
+    /// PRD 0041 RF2: the core's "Your budget" badge on a derived budget
+    /// quota (the person's number, never a provider limit).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    budget_badge: Option<cuotai_core::text::Localized>,
+    /// PRD 0041 RF5.3: the details offer **Set a budget…** with this
+    /// prefilled row (the core's `budget::draft_for`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    budget_draft: Option<cuotai_core::budget::Budget>,
+    /// PRD 0041 RF5.3: the details offer **Set a floor…**.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    offers_floor: bool,
 }
 
 /// PRD 0024 RF4.3: the in-app forecast, from the core's texts.
@@ -584,6 +599,64 @@ pub struct ReportView {
     /// core's "{model} at its limit until 19:30" sentence.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     scope_blocks: Vec<ScopeBlockView>,
+    /// PRD 0041 RF3.2: the person's floors against this reading (chip on
+    /// the card when below, line in the details).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    floors: Vec<cuotai_core::budget::FloorStatus>,
+    /// PRD 0043 RF2.2: the limit changes of the last 48 hours, as the
+    /// core's card notes (silent; the notification is opt-in).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    limit_notes: Vec<cuotai_core::text::Localized>,
+}
+
+/// PRD 0043 RF2.2: the card notes of the limit changes `store` recorded for
+/// `account` in the last 48 hours (empty on a storage failure: a note is
+/// never worth an error banner).
+fn limit_notes(
+    store: &HistoryStore,
+    account: &cuotai_core::Account,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Vec<cuotai_core::text::Localized> {
+    // The view is rebuilt on every event; the history is read again only
+    // after `LIMIT_NOTES_TTL` per account.
+    type Cached = (
+        chrono::DateTime<chrono::Utc>,
+        Vec<cuotai_core::text::Localized>,
+    );
+    static CACHE: std::sync::Mutex<BTreeMap<String, Cached>> =
+        std::sync::Mutex::new(BTreeMap::new());
+    const LIMIT_NOTES_TTL: chrono::TimeDelta = chrono::TimeDelta::minutes(2);
+    let key = account.state_key();
+    if let Some((at, notes)) = CACHE.lock().ok().and_then(|cache| cache.get(&key).cloned()) {
+        if now >= at && now - at < LIMIT_NOTES_TTL {
+            return notes;
+        }
+    }
+    let notes = read_limit_notes(store, account, now);
+    if let Ok(mut cache) = CACHE.lock() {
+        cache.insert(key, (now, notes.clone()));
+    }
+    notes
+}
+
+fn read_limit_notes(
+    store: &HistoryStore,
+    account: &cuotai_core::Account,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Vec<cuotai_core::text::Localized> {
+    store
+        .limit_changes(account, now - cuotai_core::insights::LIMIT_NOTE_SPAN..=now)
+        .unwrap_or_default()
+        .iter()
+        .filter(|change| change.shows_at(now))
+        .map(|change| {
+            change.note(|at| {
+                at.with_timezone(&chrono::Local)
+                    .format("%Y-%m-%d")
+                    .to_string()
+            })
+        })
+        .collect()
 }
 
 /// Whether `id` is in the comma-separated list parameter `key` of `account`.
@@ -957,6 +1030,10 @@ fn metric_view(metric: &Metric) -> MetricView {
         resets_label: None,
         alert: None,
         expired: false,
+        allowance: None,
+        budget_badge: metric.is_derived().then(cuotai_core::budget::budget_badge),
+        budget_draft: None,
+        offers_floor: false,
     }
 }
 
@@ -997,6 +1074,14 @@ fn report_view(
                     .resets_at
                     .filter(|at| *at > now)
                     .map(|at| cuotai_core::resets::pair_label(&local_at(at), at - now)),
+                // PRD 0041 RF4.3: like the pace, only while the reading is fresh.
+                allowance: (assess(report.checked_at, interval, now) == Freshness::Fresh)
+                    .then(|| pace::allowance(metric, report.checked_at, points))
+                    .flatten()
+                    .map(|allowance| allowance.sentence()),
+                budget_draft: cuotai_core::budget::offers_budget(account, report, metric)
+                    .then(|| cuotai_core::budget::draft_for(metric)),
+                offers_floor: cuotai_core::budget::offers_floor(account, report, metric),
                 ..metric_view(metric)
             }
         })
@@ -1047,6 +1132,8 @@ fn report_view(
         advice: None,
         plan: cuotai_core::metrics::plan_name(report),
         scope_blocks: scope_block_views(report),
+        floors: cuotai_core::budget::floor_statuses(account, report),
+        limit_notes: Vec::new(),
     }
 }
 
@@ -1545,6 +1632,8 @@ impl Inner {
         let statuses = l.monitor.incident_statuses();
         // PRD 0022 MONO-4: read once per view, applied by account id.
         let desk = crate::settings::view();
+        // PRD 0043 RF2.2: the limit changes come from the history.
+        let history = l.monitor.history();
         let reports: Vec<ReportView> = slot_reports
             .iter()
             .enumerate()
@@ -1578,6 +1667,9 @@ impl Inner {
                 view.notify = self.notices.account_on(&view.account_key);
                 view.monogram = desk.monogram_of(&view.account_id);
                 view.incident = incident_view(&statuses, view.provider);
+                if let Some(store) = &history {
+                    view.limit_notes = limit_notes(store, &l.file.config.accounts[i], clock);
+                }
                 // PRD 0036 RF8: an aggregator carries its connections.
                 if l.file.config.accounts[i].provider.is_aggregator() {
                     let (mut connections, summary) = aggregator_views(
@@ -2652,7 +2744,23 @@ impl Backend {
                 } = &mut *g;
                 loaded.as_ref().map(|l| {
                     let readings = notice_readings(&l.cycle);
-                    notices.tick(&l.file.config, &readings, chrono::Utc::now(), &notifier)
+                    let now = chrono::Utc::now();
+                    let mut tick = notices.tick(&l.file.config, &readings, now, &notifier);
+                    // PRD 0043 RF3.2: the opt-in weekly digest, once per slot.
+                    let store = l.monitor.history();
+                    let (sent, held) = notices.weekly_digest(
+                        store.as_ref(),
+                        &l.file.config,
+                        &readings,
+                        now,
+                        &notifier,
+                    );
+                    tick.delivered += sent;
+                    tick.next = match (tick.next, held) {
+                        (Some(a), Some(b)) => Some(a.min(b)),
+                        (a, b) => a.or(b),
+                    };
+                    tick
                 })
             };
             if tick.is_some_and(|tick| tick.delivered > 0) {
@@ -2695,6 +2803,41 @@ impl Backend {
     pub async fn notices_enabled(&self) -> bool {
         let g = self.inner.lock().await;
         g.notices.prefs().enabled || g.notices.alerts().enabled
+    }
+
+    /// PRD 0043 RF4.3: **Send a test digest**: last week's digest from the
+    /// history, posted now (nothing is claimed in the ledger, so the
+    /// scheduled one still goes out). Errors: `no_history`, `notify_failed`.
+    pub async fn send_test_digest<N: crate::notify::Notifier + Sync>(
+        &self,
+        notifier: &N,
+    ) -> Result<(), String> {
+        self.ensure_loaded().await;
+        let g = self.inner.lock().await;
+        let l = g
+            .loaded
+            .as_ref()
+            .ok_or_else(crate::desk_text::config_not_loaded)?;
+        let store = l.monitor.history().ok_or("no_history")?;
+        let latest: Vec<Option<Report>> = notice_readings(&l.cycle)
+            .into_iter()
+            .map(|reading| reading.cloned())
+            .collect();
+        let digest = cuotai_core::digest::weekly(
+            &store,
+            &l.file.config.accounts,
+            &latest,
+            cuotai_core::digest::DigestWeek::Last,
+            chrono::Utc::now(),
+            &chrono::Local,
+            g.notices.prefs().days_off,
+        )
+        .map_err(|_| "no_history".to_owned())?;
+        if g.notices.deliver_digest_text(&digest, notifier) {
+            Ok(())
+        } else {
+            Err("notify_failed".into())
+        }
     }
 
     /// Loads the configuration if there is no valid one in memory yet.
@@ -4235,7 +4378,7 @@ impl Backend {
         account: Option<usize>,
         generation: u64,
     ) -> Result<StatsView, String> {
-        let (monitor, accounts, indexes) = {
+        let (monitor, accounts, indexes, days_off) = {
             let g = self.inner.lock().await;
             let l = g
                 .loaded
@@ -4256,7 +4399,12 @@ impl Backend {
                     .ok_or_else(|| l10n_to_json(&ModelError::InvalidIndex.l10n()))?],
                 None => all.clone(),
             };
-            (Arc::clone(&l.monitor), accounts, indexes)
+            (
+                Arc::clone(&l.monitor),
+                accounts,
+                indexes,
+                g.notices.prefs().days_off,
+            )
         };
         let storage = || l10n_to_json(&HistoryError::Storage.l10n());
         let store = monitor.history().ok_or_else(storage)?;
@@ -4268,7 +4416,28 @@ impl Backend {
                 cuotai_core::stats::summarize(&store, &accounts, range, now, &chrono::Local)?;
             let since = now - chrono::TimeDelta::days(i64::from(range.days()));
             let entries = store.journal(since..=now, &accounts, JOURNAL_LIMIT * 4)?;
-            Ok::<_, HistoryError>((summary, entries, recording, account.is_some()))
+            // `accounts` is already the scope (one account or all of them).
+            let chart = |range| {
+                cuotai_core::insights::rhythm(
+                    &store,
+                    &accounts,
+                    &cuotai_core::insights::RhythmQuery {
+                        scope: None,
+                        metric: None,
+                        range,
+                        days_off,
+                    },
+                    now,
+                    &chrono::Local,
+                )
+            };
+            use cuotai_core::insights::RhythmRange;
+            let rhythm = RhythmView {
+                last_24h: chart(RhythmRange::Last24h)?,
+                last_7d: chart(RhythmRange::Last7d)?,
+                typical: chart(RhythmRange::Typical30d)?,
+            };
+            Ok::<_, HistoryError>((summary, entries, recording, account.is_some(), rhythm))
         })
         .await
         .map_err(|_| storage())?;
@@ -4282,7 +4451,7 @@ impl Backend {
         if live != Some(generation) {
             return Err(STALE.into());
         }
-        let (summary, entries, recording, scoped) =
+        let (summary, entries, recording, scoped, rhythm) =
             read.map_err(|error| l10n_to_json(&error.l10n()))?;
         let events = entries
             .into_iter()
@@ -4307,6 +4476,7 @@ impl Backend {
             summary,
             events,
             recording,
+            rhythm,
         })
     }
 
@@ -4536,6 +4706,8 @@ impl Backend {
             monogram: crate::settings::view()
                 .monogram_of(a.id().as_str())
                 .unwrap_or_default(),
+            budgets: a.budgets.clone(),
+            floors: a.floors.clone(),
         })
     }
 
@@ -5074,6 +5246,17 @@ pub struct StatsView {
     events: Vec<JournalView>,
     /// New readings enter the history (and the journal).
     recording: bool,
+    /// PRD 0043 RF4.1: the rhythm of the same scope: the last 24 hours, the
+    /// last 7 days (days off marked) and the typical day over 30 days.
+    rhythm: RhythmView,
+}
+
+/// PRD 0043 RF4.1: the three rhythm charts of the Stats view.
+#[derive(Debug, Serialize)]
+pub struct RhythmView {
+    last_24h: cuotai_core::insights::Rhythm,
+    last_7d: cuotai_core::insights::Rhythm,
+    typical: cuotai_core::insights::Rhythm,
 }
 
 #[derive(Serialize, Debug)]
@@ -5236,6 +5419,14 @@ pub struct AccountInput {
     /// `desktop.json`, never written to the TOML.
     #[serde(default)]
     pub monogram: Option<String>,
+    /// PRD 0041 RF5.1: the dialog's budget rows; `None` keeps the edited
+    /// account's budgets (a plain edit never loses them).
+    #[serde(default)]
+    pub budgets: Option<Vec<cuotai_core::budget::Budget>>,
+    /// PRD 0041 RF5.1: the dialog's floor rows; `None` keeps the edited
+    /// account's floors.
+    #[serde(default)]
+    pub floors: Option<Vec<cuotai_core::budget::Floor>>,
 }
 
 /// One pasted session of the dialog; the text is overwritten when dropped.
@@ -5315,6 +5506,77 @@ pub struct AccountForm {
     /// (blank = derived from the name).
     account_id: String,
     monogram: String,
+    /// PRD 0041 RF5.1: the account's budgets and floors, as in the TOML.
+    budgets: Vec<cuotai_core::budget::Budget>,
+    floors: Vec<cuotai_core::budget::Floor>,
+}
+
+/// PRD 0041 RF5.1: what the dialog's budget rows show and check, from the
+/// core: each row's live sentence, the problems with their field paths
+/// (`budgets[1].amount`) and localized texts.
+#[derive(Serialize)]
+pub struct BudgetCheck {
+    sentences: Vec<cuotai_core::text::Localized>,
+    problems: Vec<BudgetProblemView>,
+}
+
+#[derive(Serialize)]
+pub struct BudgetProblemView {
+    field: String,
+    note: cuotai_core::text::Localized,
+}
+
+/// PRD 0041 RF5.1: check the dialog's draft rows for an account of
+/// `provider` (no save). The unit of each sentence is the row's unit, else
+/// `default_unit` (the metric's).
+pub fn check_budgets(
+    provider: Provider,
+    budgets: &[cuotai_core::budget::Budget],
+    floors: &[cuotai_core::budget::Floor],
+) -> BudgetCheck {
+    BudgetCheck {
+        sentences: budgets
+            .iter()
+            .map(|budget| {
+                cuotai_core::budget::describe(budget, budget.unit.as_deref().unwrap_or_default())
+            })
+            .collect(),
+        problems: cuotai_core::budget::problems(provider, budgets, floors)
+            .into_iter()
+            .map(|problem| BudgetProblemView {
+                note: problem.note(),
+                field: problem.field,
+            })
+            .collect(),
+    }
+}
+
+/// PRD 0041 RF5.1: the budgets and floors the saved account carries: the
+/// dialog's rows, else the edited account's own (same provider), so an edit
+/// that does not touch the section keeps them. Rows are checked by the
+/// core before the save; the first problem is the error.
+fn with_budget_rows(
+    mut account: cuotai_core::Account,
+    existing: Option<&cuotai_core::Account>,
+    input: &AccountInput,
+) -> Result<cuotai_core::Account, String> {
+    let kept = existing.filter(|old| old.provider == account.provider);
+    account.budgets = match &input.budgets {
+        Some(rows) => rows.clone(),
+        None => kept.map(|old| old.budgets.clone()).unwrap_or_default(),
+    };
+    account.floors = match &input.floors {
+        Some(rows) => rows.clone(),
+        None => kept.map(|old| old.floors.clone()).unwrap_or_default(),
+    };
+    if let Some(problem) =
+        cuotai_core::budget::problems(account.provider, &account.budgets, &account.floors)
+            .into_iter()
+            .next()
+    {
+        return Err(l10n_to_json(&problem.note()));
+    }
+    Ok(account)
 }
 
 /// PRD 0016: what a confirmed "Web session" button changes in the vault.
@@ -5606,8 +5868,10 @@ fn input_account(
     };
     // PRD 0047: the typed secrets go to the vault, so their variable
     // fields are neither required nor written.
-    account_edit::build_account_with_secrets(&draft, config, input.index, &typed_slots(input))
-        .map_err(|e| l10n_to_json(&e.l10n()))
+    let account =
+        account_edit::build_account_with_secrets(&draft, config, input.index, &typed_slots(input))
+            .map_err(|e| l10n_to_json(&e.l10n()))?;
+    with_budget_rows(account, existing, input)
 }
 
 /// PRD 0016 RF2.1: what the dialog shows of a paste before it is saved:
@@ -6184,6 +6448,65 @@ mod tests {
         assert_eq!(all.len(), Provider::ALL.len());
     }
 
+    /// PRD 0041 RF5.1: a save without the section keeps the account's
+    /// budgets and floors; the dialog's rows replace them; an invalid row is
+    /// refused with the core's text.
+    #[test]
+    fn budget_rows_survive_a_plain_edit_and_are_checked() {
+        use cuotai_core::budget::{Budget, BudgetKind, BudgetPeriod};
+        let budget = Budget {
+            kind: Some(BudgetKind::Spend),
+            scope: None,
+            label_contains: None,
+            amount: 50.0,
+            unit: Some("USD".into()),
+            period: BudgetPeriod::Monthly,
+            starts: None,
+            label: None,
+        };
+        let existing = cuotai_core::Account {
+            name: "A".into(),
+            budgets: vec![budget.clone()],
+            ..Default::default()
+        };
+        let built = cuotai_core::Account {
+            name: "A".into(),
+            ..Default::default()
+        };
+        let input = |budgets: Option<Vec<Budget>>| AccountInput {
+            index: Some(0),
+            provider: Provider::OpenAiApi,
+            name: "A".into(),
+            peer_name: None,
+            credential: String::new(),
+            fields: Vec::new(),
+            interval: String::new(),
+            group: None,
+            commit_login: false,
+            login_attempt: 0,
+            auth_mode: "credential".into(),
+            auth_options: BTreeMap::new(),
+            auth_params: BTreeMap::new(),
+            sessions: Vec::new(),
+            secrets: Vec::new(),
+            save_anyway: false,
+            monogram: None,
+            budgets,
+            floors: None,
+        };
+        let kept = with_budget_rows(built.clone(), Some(&existing), &input(None)).unwrap();
+        assert_eq!(kept.budgets, vec![budget.clone()]);
+        let cleared =
+            with_budget_rows(built.clone(), Some(&existing), &input(Some(Vec::new()))).unwrap();
+        assert!(cleared.budgets.is_empty());
+        let bad = Budget {
+            amount: 0.0,
+            ..budget
+        };
+        let error = with_budget_rows(built, Some(&existing), &input(Some(vec![bad]))).unwrap_err();
+        assert!(error.contains("budget.error.amount"), "{error}");
+    }
+
     #[test]
     fn toggle_listed_adds_and_removes_one_sub_id() {
         assert_eq!(
@@ -6247,6 +6570,7 @@ mod tests {
             window: Some(MetricWindow::Weekly),
             period: None,
             resets_at: Some(now + chrono::Duration::hours(resets_in)),
+            derived_from: None,
         };
         let report = Report {
             overage_hint: Default::default(),
@@ -6337,6 +6661,7 @@ mod tests {
             window: Some(window),
             period: None,
             resets_at: Some(chrono::Utc::now() + chrono::Duration::hours(resets_h)),
+            derived_from: None,
         }
     }
 
@@ -7232,6 +7557,8 @@ mod tests {
             params: BTreeMap::new(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         }
     }
 
@@ -7250,6 +7577,8 @@ mod tests {
             params: BTreeMap::new(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         })
         .expect("OAuth config is valid; the storage key is derivable");
         store.entries.lock().insert(
@@ -7458,6 +7787,8 @@ mod tests {
                     params: BTreeMap::new(),
                     refresh_seconds: None,
                     group: None,
+                    budgets: Vec::new(),
+                    floors: Vec::new(),
                 })
                 .unwrap()
             ),
@@ -7749,6 +8080,8 @@ mod tests {
             secrets: Vec::new(),
             save_anyway: false,
             monogram: None,
+            budgets: None,
+            floors: None,
         };
         let error = backend
             .inner
@@ -7814,6 +8147,8 @@ mod tests {
             secrets: Vec::new(),
             save_anyway: false,
             monogram: None,
+            budgets: None,
+            floors: None,
         };
         let saved = input_account(&config, &input, None).unwrap();
         assert_eq!(saved.extension_override(), Some("proxy"));
@@ -7843,6 +8178,8 @@ mod tests {
             secrets: Vec::new(),
             save_anyway: false,
             monogram: None,
+            budgets: None,
+            floors: None,
         }
     }
 
@@ -8631,6 +8968,8 @@ mod tests {
             params: BTreeMap::new(),
             refresh_seconds: None,
             group: None,
+            budgets: Vec::new(),
+            floors: Vec::new(),
         }
     }
 

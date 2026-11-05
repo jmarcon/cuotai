@@ -35,6 +35,8 @@ const EVENT_ICON = {
   auth_required: ["key", "warn"], provider_incident: ["alert", "bad"], overage_started: ["coins", "warn"],
   overage_ended: ["coins", "muted"], session_expiring: ["clock", "warn"], quota_reset_soon: ["clock", "muted"],
   pool_exhausted: ["ban", "bad"], pool_recovered: ["check", "good"],
+  // PRD 0041 RF3.3 and PRD 0043 RF2.2.
+  balance_below_floor: ["coins", "warn"], balance_recovered: ["check", "good"], limit_changed: ["info", "muted"],
 };
 
 // ---------- KPI cards (DS-CMP-KPI) ----------
@@ -115,6 +117,48 @@ function chartHtml(data, id, range) {
       <thead><tr><th scope="col">${te("stats.table.day")}</th><th scope="col">${te("stats.table.peak")}</th></tr></thead><tbody>${rows}</tbody></table></section>`;
 }
 
+// ---------- rhythm (PRD 0043 RF4.1) ----------
+
+const pts = (v) => t("stats.rhythm.points", { value: fmtNumber(v, 1) });
+const hourLabel = (h) => `${String(h).padStart(2, "0")}`;
+
+/** One rhythm chart: equal columns scaled to its largest bucket; a bucket without samples is a hatched ghost column
+ *  (never a zero bar), a reset is marked under its column, a day off is dimmed. Hidden from assistive technology,
+ *  which reads the summary and the table (DS-CHT-10). */
+function rhythmChartHtml(rhythm, id, kind) {
+  const buckets = rhythm.buckets ?? [];
+  const max = Math.max(0, ...buckets.map((b) => b.consumption ?? 0));
+  const labelOf = (b) => (b.day ? dayName(b.day) : hourLabel(b.hour));
+  const cols = buckets.map((b, i) => {
+    const name = labelOf(b);
+    const extra = [b.reset ? t("stats.rhythm.reset") : "", b.day_off ? t("stats.rhythm.dayOff") : "", kind === "typical" && b.consumption != null ? t("stats.rhythm.samples", { count: b.samples }) : ""].filter(Boolean).join(" · ");
+    const tip = `${name}: ${b.consumption == null ? t("stats.chart.noData") : pts(b.consumption)}${extra ? ` · ${extra}` : ""}`;
+    const height = b.consumption == null || max <= 0 ? 0 : (b.consumption / max) * 100;
+    const bar = b.consumption == null ? `<i class="bar ghost"></i>` : `<i class="bar" style="height:${height.toFixed(1)}%"></i>`;
+    const label = b.day ? dayDate(b.day).toLocaleDateString(currentLocale(), { weekday: "short" }) : i % 6 === 0 ? hourLabel(b.hour) : "";
+    const cls = [b.consumption == null ? "gap" : "", b.reset ? "reset" : "", b.day_off ? "off" : ""].filter(Boolean).join(" ");
+    return `<li class="${cls}" title="${esc(tip)}">${bar}${b.reset ? `<span class="x-reset">↺</span>` : ""}<span class="x-label">${esc(label)}</span></li>`;
+  }).join("");
+  const known = buckets.filter((b) => b.consumption != null);
+  const top = known.reduce((a, b) => (b.consumption > (a?.consumption ?? -1) ? b : a), null);
+  const alt = known.length
+    ? t(`stats.rhythm.alt.${kind}`, { peak: top ? labelOf(top) : "", value: top ? pts(top.consumption) : "" })
+    : t("stats.rhythm.empty");
+  const rows = buckets.map((b) => `<tr><td>${esc(labelOf(b))}</td><td>${b.consumption == null ? te("stats.chart.noData") : esc(pts(b.consumption))}</td><td>${[b.reset ? te("stats.rhythm.reset") : "", b.day_off ? te("stats.rhythm.dayOff") : "", kind === "typical" && b.consumption != null ? te("stats.rhythm.samples", { count: b.samples }) : ""].filter(Boolean).join(" · ")}</td></tr>`).join("");
+  return `<figure class="rhythm" data-rhythm="${kind}"><figcaption class="micro">${te(`stats.rhythm.${kind}`)}</figcaption>
+    <div role="img" aria-label="${esc(alt)}" aria-describedby="${id}-${kind}-table">${known.length ? `<div class="bars rhythm-bars" aria-hidden="true"><ul style="--n:${buckets.length}">${cols}</ul></div>` : `<p class="sub st-empty">${esc(alt)}</p>`}</div>
+    <table class="sr-only" id="${id}-${kind}-table"><caption>${esc(alt)}</caption>
+      <thead><tr><th scope="col">${te(kind === "week" ? "stats.table.day" : "stats.rhythm.hour")}</th><th scope="col">${te("stats.rhythm.use")}</th><th scope="col">${te("stats.rhythm.marks")}</th></tr></thead><tbody>${rows}</tbody></table></figure>`;
+}
+
+/** PRD 0043 RF4.1: the Rhythm card: the last 24 hours, the last 7 days (days off dimmed) and a typical day. */
+function rhythmHtml(data, id) {
+  const r = data.rhythm;
+  if (!r) return "";
+  return `<section class="st-card" data-rhythm-card><div class="st-card-head"><div><h3>${te("stats.rhythm.title")}</h3><p class="sub">${te("stats.rhythm.subtitle")}</p></div></div>
+    ${rhythmChartHtml(r.last_24h, id, "day")}${rhythmChartHtml(r.last_7d, id, "week")}${rhythmChartHtml(r.typical, id, "typical")}</section>`;
+}
+
 // ---------- by account (DS-CHT-7) ----------
 
 function accountsHtml(data, view) {
@@ -171,7 +215,7 @@ function footnoteHtml(data) {
 
 /** The view for `data` (one `stats` answer): the three cards, the chart card, a row per account and the journal. */
 export function statsBodyHtml(data, view, id, { range = "days7" } = {}) {
-  return `${kpisHtml(data)}${chartHtml(data, id, range)}${accountsHtml(data, view)}${eventsHtml(data)}${footnoteHtml(data)}`;
+  return `${kpisHtml(data)}${chartHtml(data, id, range)}${rhythmHtml(data, id)}${accountsHtml(data, view)}${eventsHtml(data)}${footnoteHtml(data)}`;
 }
 
 /** The Stats view of a window: scope select + 7 d / 30 d toggle (DS-CMP-STATS-2), then `statsBodyHtml`. It loads
