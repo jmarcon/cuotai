@@ -417,7 +417,9 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   // the session box (`schema.sessions`) stay there; every other `secret_inputs` entry is a row of the form.
   const sessionSlotSet = () => new Set((schema.sessions ?? []).map((s) => s.slot));
   const formSecrets = () => (schema.secret_inputs ?? []).filter((s) => !sessionSlotSet().has(s.slot));
-  const mainSecret = () => formSecrets().find((s) => s.slot === "credential_env") ?? null;
+  // PRD 0040: the feed-only mode (Fed by Claude Code / Codex CLI) needs no credential: the key row goes away.
+  const feedOnly = () => schema.feed_only != null && values.get(schema.feed_only.key)?.choice === schema.feed_only.choice;
+  const mainSecret = () => (feedOnly() ? null : formSecrets().find((s) => s.slot === "credential_env") ?? null);
   // G4/G5: where a saved secret comes from (`vault`, `environment` set up in the terminal, `unset`); never a value or name.
   const secretSource = (slot) => (existing && existing.provider === provider
     ? existing.secret_states?.find((s) => s.slot === slot)?.source : null) ?? "unset";
