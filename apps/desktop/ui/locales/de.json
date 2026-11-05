@@ -700,8 +700,6 @@
   "serve.banner": "Der lokale Server stellt nichts bereit:",
   "serve.bannerOpen": "Einstellungen öffnen",
   "settings.recovered": "Cuotai konnte seine Einstellungen nicht lesen und wurde mit den Standardwerten gestartet. Die beschädigte Datei wurde unter {path} aufbewahrt.",
-  "startup.failedTitle": "Cuotai konnte nicht starten",
-  "startup.failed": "Etwas hat Cuotai beim Start angehalten (Kategorie: {category}). Öffnen Sie es erneut. Wenn das weiter passiert, melden Sie das Problem auf der GitHub-Seite von Cuotai und nennen Sie diese Kategorie.",
   "tray.unavailable": "Das System hat kein Symbol im Infobereich erlaubt, daher läuft Cuotai nur in diesem Fenster. Wenn Sie es schließen, wird Cuotai beendet.",
   "tray.unavailableLinux": "Ihr Desktop zeigt keine Symbole im Infobereich, daher läuft Cuotai nur in diesem Fenster, und wenn Sie es schließen, wird Cuotai beendet. Installieren Sie unter GNOME die Erweiterung AppIndicator and KStatusNotifierItem Support und öffnen Sie Cuotai erneut.",
   "settings.widgets.title": "Widgets",

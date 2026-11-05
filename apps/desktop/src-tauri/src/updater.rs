@@ -2131,15 +2131,7 @@ mod contract {
             "if app.run_on_main_thread(move || handle.restart()).is_err() {",
             "handle.cleanup_before_exit();",
         ];
-        // PRD 0054 RF5.3: a fatal startup failure exits on the main thread
-        // before the event loop, the tray or any window exists.
-        let allowed_in = [("window_mode.rs:", "std::process::exit(1)")];
-        offenders.retain(|o| {
-            !allowed.iter().any(|a| o.ends_with(a))
-                && !allowed_in
-                    .iter()
-                    .any(|(file, a)| o.contains(file) && o.ends_with(a))
-        });
+        offenders.retain(|o| !allowed.iter().any(|a| o.ends_with(a)));
         assert!(
             offenders.is_empty(),
             "off-main-thread teardown: {offenders:#?}"
