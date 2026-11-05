@@ -43,7 +43,7 @@ fn compact_age(age: std::time::Duration) -> String {
 }
 
 /// Claude's windows: "5h 23% · Wk 41% ↺ 19:30", the reset being the one of
-/// the tightest window. `None` without a window.
+/// the tightest window that states one. `None` without a window.
 fn claude_part(
     reading: &FeedReading,
     now: DateTime<Utc>,
@@ -51,7 +51,8 @@ fn claude_part(
     locale: &str,
 ) -> Option<(String, f64)> {
     let mut parts = Vec::new();
-    let mut tightest: Option<(f64, Option<DateTime<Utc>>)> = None;
+    let mut tightest: Option<f64> = None;
+    let mut next_reset: Option<(f64, DateTime<Utc>)> = None;
     for window in &reading.windows {
         let resets = window.resets_at().filter(|t| *t > now);
         if window.resets_at.is_some() && resets.is_none() {
@@ -90,13 +91,18 @@ fn claude_part(
             WindowId::Primary | WindowId::Secondary => continue,
         };
         parts.push(text.resolve(locale));
-        if tightest.is_none_or(|(used, _)| window.used_pct > used) {
-            tightest = Some((window.used_pct, resets));
+        if tightest.is_none_or(|used| window.used_pct > used) {
+            tightest = Some(window.used_pct);
+        }
+        if let Some(at) = resets {
+            if next_reset.is_none_or(|(used, _)| window.used_pct > used) {
+                next_reset = Some((window.used_pct, at));
+            }
         }
     }
-    let (used, resets) = tightest?;
+    let used = tightest?;
     let mut text = parts.join(" · ");
-    if let Some(when) = resets {
+    if let Some((_, when)) = next_reset {
         text.push(' ');
         text.push_str(
             &Localized::with_param("feed.line.reset", "time", at(when).as_str(), "↺ {time}")

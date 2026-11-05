@@ -340,6 +340,7 @@ pub async fn run(
         aggregators_collapsed: false,
         connection_focus: None,
         aggregator_filter: None,
+        live: LiveCache::default(),
         details: false,
         targets: dashboard::Targets::default(),
         model_counts: ModelCounts::default(),
@@ -3308,6 +3309,39 @@ struct State {
     /// PRD 0015 RF4.2: the local cost the details show; `None` before the
     /// first read or without a local data directory.
     local_cost: Option<crate::cost::CostPanel>,
+    /// PRD 0040 RF7.3: each account's live agent sessions, re-read from
+    /// the feed directory at most every 15 s, never per frame.
+    live: LiveCache,
+}
+
+/// PRD 0040 RF7.3: the live-session blocks the cards and details show.
+#[derive(Default)]
+struct LiveCache {
+    read_at: Option<std::time::Instant>,
+    accounts: usize,
+    blocks: Vec<cuotai_core::feed::live::LiveBlock>,
+}
+
+impl LiveCache {
+    fn refresh(&mut self, accounts: &[Account]) {
+        let recent = self
+            .read_at
+            .is_some_and(|at| at.elapsed() < std::time::Duration::from_secs(15));
+        if recent && self.accounts == accounts.len() {
+            return;
+        }
+        let now = chrono::Utc::now();
+        let store = cuotai_core::feed::FeedStore::in_data_dir();
+        self.blocks = accounts
+            .iter()
+            .map(|account| match &store {
+                Some(store) => cuotai_core::feed::live::block_for(account, store, now),
+                None => Default::default(),
+            })
+            .collect();
+        self.accounts = accounts.len();
+        self.read_at = Some(std::time::Instant::now());
+    }
 }
 
 /// Per-account synced catalog sizes shown on the cards. Read from the local
@@ -3603,6 +3637,7 @@ impl State {
         }
         let mut targets = dashboard::Targets::default();
         let now = chrono::Utc::now();
+        self.live.refresh(&self.accounts);
         terminal.draw(|frame| {
             targets = dashboard::draw(
                 frame,
@@ -3610,6 +3645,7 @@ impl State {
                     accounts: &self.accounts,
                     reports: &slot_reports,
                     model_counts: &self.model_counts.counts,
+                    live: &self.live.blocks,
                     visible: &visible,
                     selected: self.selection.selected(),
                     details: self.details,
@@ -4173,6 +4209,7 @@ mod tests {
             aggregators_collapsed: false,
             connection_focus: None,
             aggregator_filter: None,
+            live: LiveCache::default(),
             details: true,
             targets: dashboard::Targets::default(),
             model_counts: ModelCounts::default(),

@@ -14,6 +14,7 @@ mod data_cli;
 mod doctor;
 mod extension_check;
 mod extensions_view;
+mod feed_cli;
 mod glyphs;
 mod headless;
 mod insights_cli;
@@ -90,6 +91,13 @@ fn build_version() -> &'static str {
                 "cost_action",
             ])
     ),
+    // PRD 0040 RF5: the line options shared by `--status-line`,
+    // `--statusline-claude` and `--feed --print`.
+    group(
+        clap::ArgGroup::new("line_modes")
+            .args(["status_line", "statusline_claude", "feed"])
+            .multiple(true)
+    ),
     // PRD 0031 RF10.2: `--strict-exit` belongs to the foreground modes.
     group(
         clap::ArgGroup::new("headless")
@@ -128,11 +136,11 @@ struct Args {
     style: String,
     /// With --status-line, only this account (id); repeat it to pick several,
     /// in the given order. Without it: all of them, in the TOML's order.
-    #[arg(long = "account", value_name = "ID", requires = "status_line")]
+    #[arg(long = "account", value_name = "ID", requires = "line_modes")]
     status_accounts: Vec<String>,
     /// With --status-line, colors the line (ANSI) when the output is a
     /// terminal and NO_COLOR is not set.
-    #[arg(long, requires = "status_line")]
+    #[arg(long, requires = "line_modes")]
     color: bool,
     /// With --status-line, reads /v1/limits from a running cuotai --serve
     /// (default http://127.0.0.1 on the default port) instead of querying the
@@ -143,9 +151,38 @@ struct Args {
         value_name = "URL",
         num_args = 0..=1,
         default_missing_value = "",
-        requires = "status_line"
+        requires = "line_modes"
     )]
     from_server: Option<String>,
+    /// PRD 0040 RF2: reads Claude Code's status-line JSON on standard input
+    /// and stores only its rate-limit windows, context share, cost estimate,
+    /// model and a digest of the session id, for the Claude account fed by
+    /// Claude Code. Prints nothing (with --print, the --statusline-claude
+    /// line). No network, no vault, no provider query. Exit 0 on a valid
+    /// object, 1 on malformed or oversized input.
+    #[arg(
+        long,
+        value_name = "SOURCE",
+        value_parser = feed_cli::SOURCES,
+        conflicts_with_all = FEED_CONFLICTS
+    )]
+    feed: Option<String>,
+    /// With --feed, prints the --statusline-claude line after storing.
+    #[arg(long, requires = "feed")]
+    print: bool,
+    /// With --feed, prints the ~/.claude/settings.json snippet and exits.
+    #[arg(long, requires = "feed")]
+    setup: bool,
+    /// PRD 0040 RF5: one line for Claude Code's status line: reads its JSON
+    /// on standard input like --feed, then prints Claude's windows, the
+    /// tightest other account (from --from-server, or the last recorded
+    /// reading) and the context share. Never queries a provider.
+    #[arg(long, conflicts_with_all = FEED_CONFLICTS, conflicts_with = "feed")]
+    statusline_claude: bool,
+    /// With --statusline-claude or --feed --print, cuts the line to N
+    /// characters: the context share goes first, Claude's windows last.
+    #[arg(long, value_name = "N", requires = "line_modes")]
+    max_width: Option<usize>,
     /// Queries once and prints the Snapshot as JSON (no credentials); with
     /// --history, prints the history as JSON.
     #[arg(long)]
@@ -687,6 +724,22 @@ const DATA_CONFLICTS: [&str; 13] = [
     "stored_view",
 ];
 
+/// PRD 0040: the agent-side commands run alone.
+const FEED_CONFLICTS: [&str; 12] = [
+    "once",
+    "json",
+    "json_v1",
+    "history",
+    "notify",
+    "serve",
+    "watch",
+    "status_line",
+    "list_providers",
+    "cost_action",
+    "stored_view",
+    "check_config",
+];
+
 /// PRD 0029 RF6.2: the vault audit runs alone.
 /// PRD 0046: `--doctor`, `--backup` and `--restore` run alone (with
 /// `--config` and `--json`).
@@ -884,7 +937,44 @@ async fn main() -> std::process::ExitCode {
     }
 }
 
+/// PRD 0040 RF2/RF5: `--feed` and `--statusline-claude`, run before the app
+/// log starts: Claude Code runs them often, so they touch nothing but the
+/// data directory (and, with --from-server, the loopback server).
+async fn run_agent_side(args: Args) -> u8 {
+    let locale = ui::tui_locale();
+    let line = feed_cli::LineOptions {
+        config: args.config,
+        accounts: args.status_accounts,
+        from_server: args.from_server,
+        token_file: args.token_file,
+        max_width: args.max_width,
+        color: status_line::use_color(
+            args.color,
+            io::stdout().is_terminal(),
+            std::env::var("NO_COLOR").ok().as_deref(),
+        ),
+    };
+    if args.statusline_claude {
+        feed_cli::run_statusline(&line, locale).await
+    } else {
+        feed_cli::run_feed(args.print, args.setup, &line, locale).await
+    }
+}
+
 async fn run() -> Result<u8, Box<dyn std::error::Error>> {
+    if feed_cli::requested() {
+        feed_cli::install_panic_hook();
+        let args = match Args::try_parse() {
+            Ok(args) => args,
+            Err(error) => {
+                error.print()?;
+                return Ok(u8::from(error.use_stderr()));
+            }
+        };
+        if args.feed.is_some() || args.statusline_claude {
+            return Ok(run_agent_side(args).await);
+        }
+    }
     // PRD 0052 RF1/RF2: the redacted app log and the panic record start
     // before anything else; the interactive dashboard relabels itself.
     cuotai_core::diagnostics::logging::init_default(
@@ -1324,7 +1414,12 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
                 // PRD 0031 RF13: the pace reads the recent samples, as the app does.
                 |index, metrics, at| monitor.recent_points(index, metrics, at),
             )
-            .with_local_cost(local_cost.and_then(|job| job.join().ok()).flatten());
+            .with_local_cost(local_cost.and_then(|job| job.join().ok()).flatten())
+            .with_live_sessions(
+                &file.config,
+                cuotai_core::feed::FeedStore::in_data_dir().as_ref(),
+                Utc::now(),
+            );
             let mut stdout = io::stdout().lock();
             serde_json::to_writer_pretty(
                 &mut stdout,
@@ -1433,6 +1528,7 @@ fn print_snapshot(
         "\n{}",
         summary_lines(snapshot, ui::tui_locale(), ui::local_time)
     );
+    let feed = cuotai_core::feed::FeedStore::in_data_dir();
     for (index, report) in snapshot.reports.iter().enumerate() {
         let recent = recent.get(index).map_or(&[][..], Vec::as_slice);
         let status = incidents.iter().find(|s| s.provider == report.provider);
@@ -1458,6 +1554,12 @@ fn print_snapshot(
         // PRD 0041 RF3.2: the account's floors, under its block.
         if let Some(account) = config.accounts.get(index) {
             print!("{}", floors_text(account, report, ui::tui_locale()));
+        }
+        // PRD 0040 RF7.3: "Live session: Opus · ctx 8% · ≈$0.42".
+        if let (Some(account), Some(feed)) = (config.accounts.get(index), &feed) {
+            if let Some(line) = cuotai_core::feed::live::block_for(account, feed, now).once_line() {
+                println!("  {}", ui::safe(&line.resolve(ui::tui_locale())));
+            }
         }
     }
 }
