@@ -243,7 +243,7 @@ fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     };
     tmp.write_all(bytes)?;
     tmp.as_file().sync_all()?;
-    tmp.persist(path).map_err(|error| error.error)?;
+    crate::private_fs::persist(tmp, path)?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;

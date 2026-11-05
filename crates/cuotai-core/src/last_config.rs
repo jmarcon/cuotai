@@ -113,8 +113,7 @@ impl LastConfig {
         let mut tmp = tempfile::NamedTempFile::new_in(&self.dir)?;
         tmp.write_all(&body)?;
         tmp.as_file().sync_all()?;
-        tmp.persist(self.dir.join(me.file())).map_err(|e| e.error)?;
-        Ok(())
+        crate::private_fs::persist(tmp, &self.dir.join(me.file()))
     }
 
     fn last(&self, kind: Frontend) -> Option<PathBuf> {

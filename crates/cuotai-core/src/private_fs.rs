@@ -128,6 +128,88 @@ fn sync_dir(dir: &Path) -> io::Result<()> {
     }
 }
 
+/// Waits between attempts of [`persist`] when the rename meets a transient
+/// lock: about 1.4 s in all, the same budget SQLite's Windows VFS gives
+/// itself for the same errors (`winIoerrRetry`).
+const RENAME_RETRY_DELAYS_MS: [u64; 10] = [25, 50, 75, 100, 125, 150, 175, 200, 225, 250];
+
+/// Whether a failed rename may succeed if tried again shortly. Windows
+/// refuses to replace (or move) a file another process holds open without
+/// `FILE_SHARE_DELETE`, which antivirus scanners, the search indexer and
+/// backup agents do for a moment after each write; it reports that as
+/// `ERROR_ACCESS_DENIED` (also a target that is still delete-pending),
+/// `ERROR_SHARING_VIOLATION` or `ERROR_LOCK_VIOLATION`. Elsewhere a rename
+/// within one directory has no such transient failure.
+fn transient_rename_error(error: &io::Error) -> bool {
+    #[cfg(windows)]
+    {
+        const ERROR_ACCESS_DENIED: i32 = 5;
+        const ERROR_SHARING_VIOLATION: i32 = 32;
+        const ERROR_LOCK_VIOLATION: i32 = 33;
+        matches!(
+            error.raw_os_error(),
+            Some(ERROR_ACCESS_DENIED | ERROR_SHARING_VIOLATION | ERROR_LOCK_VIOLATION)
+        )
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = error;
+        false
+    }
+}
+
+/// Run `rename` until it succeeds, fails for good, or the delays run out.
+fn rename_with_retry(
+    mut rename: impl FnMut() -> io::Result<()>,
+    transient: impl Fn(&io::Error) -> bool,
+    delays: &[u64],
+) -> io::Result<()> {
+    let mut delays = delays.iter();
+    loop {
+        match rename() {
+            Err(error) if transient(&error) => match delays.next() {
+                Some(ms) => std::thread::sleep(std::time::Duration::from_millis(*ms)),
+                None => return Err(error),
+            },
+            other => return other,
+        }
+    }
+}
+
+/// Move the written and synced `tmp` over `path`, replacing it atomically.
+///
+/// `tempfile`'s own `persist` calls `MoveFileExW` on Windows, which fails
+/// with `ERROR_ACCESS_DENIED` whenever any handle is open on `path`: another
+/// Cuotai process (the TUI beside the desktop app) merely reading the file
+/// makes the write fail. `std::fs::rename` falls back to a POSIX-semantics
+/// rename there, which replaces a file other handles hold open with
+/// `FILE_SHARE_DELETE` (the default of every `std::fs` open), and the
+/// short bounded retry covers scanners that open it without that share.
+/// Our own handle on the temporary file is closed before the rename. On
+/// failure the temporary file is removed and `path` is left as it was.
+pub(crate) fn persist(tmp: tempfile::NamedTempFile, path: &Path) -> io::Result<()> {
+    let (file, tmp) = tmp.keep().map_err(|error| error.error)?;
+    drop(file);
+    replace(&tmp, path)
+}
+
+/// [`persist`] for a temporary file that is no longer open.
+fn persist_path(tmp: tempfile::TempPath, path: &Path) -> io::Result<()> {
+    let tmp = tmp.keep().map_err(|error| error.error)?;
+    replace(&tmp, path)
+}
+
+fn replace(tmp: &Path, path: &Path) -> io::Result<()> {
+    rename_with_retry(
+        || std::fs::rename(tmp, path),
+        transient_rename_error,
+        &RENAME_RETRY_DELAYS_MS,
+    )
+    .inspect_err(|_| {
+        let _ = std::fs::remove_file(tmp);
+    })
+}
+
 /// Remove this writer's temporary files left by a crash, once they are a
 /// day old. Anything else in the directory is never touched.
 fn clean_orphans(path: &Path) {
@@ -209,7 +291,7 @@ pub(crate) fn update_locked_with<E>(
     io::Write::write_all(&mut tmp, &bytes)?;
     io::Write::flush(&mut tmp)?;
     tmp.as_file().sync_all()?;
-    tmp.persist(path).map_err(|error| error.error)?;
+    persist(tmp, path)?;
     sync_dir(dir)?;
     clean_orphans(path);
     Ok(())
@@ -254,6 +336,71 @@ impl StateVersion {
 
 /// The schema major of every SQLite store this release writes.
 pub(crate) const SQLITE_MAJOR: i64 = 1;
+
+/// How long a connection to a Cuotai SQLite store waits for a lock another
+/// connection (often another Cuotai process) holds before it reports
+/// `SQLITE_BUSY`.
+pub(crate) const SQLITE_BUSY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// The sleep between two attempts of [`sqlite_busy_wait`]'s handler.
+const SQLITE_BUSY_POLL: std::time::Duration = std::time::Duration::from_millis(1);
+
+thread_local! {
+    /// When the current busy episode of this thread began. SQLite calls a
+    /// busy handler on the thread running the statement, with `count` 0
+    /// at the first retry of each lock.
+    static BUSY_SINCE: std::cell::Cell<Option<std::time::Instant>> =
+        const { std::cell::Cell::new(None) };
+}
+
+/// Make `db` wait up to [`SQLITE_BUSY_TIMEOUT`] (wall-clock time) for a
+/// lock, retrying every millisecond.
+///
+/// SQLite's own `busy_timeout` handler backs off to one attempt every
+/// 100 ms. Two connections that write back to back (the TUI and the
+/// desktop app recording the same refresh, each opening the store per
+/// operation and writing one transaction per account) leave gaps of a
+/// millisecond or two between transactions, so a waiter polling that
+/// rarely keeps missing them while the other writer takes the lock again,
+/// and gives up with `SQLITE_BUSY` although the lock was free many times.
+/// Measured on Windows runners, where flushes make every transaction slow,
+/// with four copies of the two-writer test in parallel: 12 of 1,800 runs
+/// starved past the 5 s timeout with SQLite's handler or the same schedule
+/// in Rust, 3 of 600 when polling every 1 to 5 ms, none of 1,200 when
+/// polling every millisecond (which was also faster overall).
+pub(crate) fn sqlite_busy_wait(db: &rusqlite::Connection) -> rusqlite::Result<()> {
+    db.busy_handler(Some(busy_handler))
+}
+
+fn busy_handler(count: i32) -> bool {
+    let now = std::time::Instant::now();
+    let delay = BUSY_SINCE.with(|since| {
+        let start = match since.get() {
+            Some(start) if count > 0 => start,
+            _ => {
+                since.set(Some(now));
+                now
+            }
+        };
+        busy_delay(now.saturating_duration_since(start), SQLITE_BUSY_TIMEOUT)
+    });
+    match delay {
+        Some(delay) => {
+            std::thread::sleep(delay);
+            true
+        }
+        None => false,
+    }
+}
+
+/// The sleep before the next attempt at a lock waited for `waited` so far,
+/// or `None` once `timeout` has passed.
+fn busy_delay(
+    waited: std::time::Duration,
+    timeout: std::time::Duration,
+) -> Option<std::time::Duration> {
+    (waited < timeout).then(|| SQLITE_BUSY_POLL.min(timeout - waited))
+}
 
 /// PRD 0051 RF3.1: the one-row-per-key `state_meta` table beside
 /// `PRAGMA user_version` (which stays the append-only migration count).
@@ -336,7 +483,7 @@ pub(crate) fn sqlite_backup(db: &rusqlite::Connection, path: &Path) -> io::Resul
         .write(true)
         .open(&tmp)?
         .sync_all()?;
-    tmp.persist(&target).map_err(|error| error.error)?;
+    persist_path(tmp, &target)?;
     sync_dir(dir)
 }
 
@@ -529,7 +676,15 @@ mod update_tests {
     use std::sync::Arc;
 
     fn add_key(path: &Path, key: String) -> Result<(), UpdateError<()>> {
-        update_locked(path, |bytes| {
+        add_key_waiting(path, key, UPDATE_LOCK_WAIT)
+    }
+
+    fn add_key_waiting(
+        path: &Path,
+        key: String,
+        wait: std::time::Duration,
+    ) -> Result<(), UpdateError<()>> {
+        update_locked_with(path, wait, |bytes| {
             let mut map: serde_json::Map<String, serde_json::Value> = match bytes {
                 Some(bytes) => serde_json::from_slice(&bytes).map_err(|_| ())?,
                 None => serde_json::Map::new(),
@@ -557,10 +712,19 @@ mod update_tests {
     fn concurrent_mutations_are_serialized_and_none_is_lost() {
         let dir = tempfile::tempdir().unwrap();
         let path = Arc::new(dir.path().join("cuotai").join("desktop.json"));
+        // 32 writers queue behind one lock, so the last waits for 31 synced
+        // writes. A write usually takes ~11 ms on a Windows runner, but
+        // flushes there spike to 300 ms and 32 queued writes were measured
+        // at 4.1 s: past the production UPDATE_LOCK_WAIT (3 s, sized for
+        // the two or three Cuotai processes that share the file), so the
+        // last writers reported `Busy`. This test checks serialization and
+        // that no change is lost, not the bound, which
+        // `a_refused_change_or_a_busy_lock_leaves_the_file_untouched` covers.
+        let wait = std::time::Duration::from_secs(120);
         let threads: Vec<_> = (0..32)
             .map(|n| {
                 let path = Arc::clone(&path);
-                std::thread::spawn(move || add_key(&path, format!("key{n}")).unwrap())
+                std::thread::spawn(move || add_key_waiting(&path, format!("key{n}"), wait).unwrap())
             })
             .collect();
         for thread in threads {
@@ -601,6 +765,130 @@ mod update_tests {
             lock_path(&path).exists(),
             "the lock file stays; it is never removed by age"
         );
+    }
+
+    #[test]
+    fn a_file_another_reader_holds_open_is_still_replaced() {
+        // Another Cuotai process reading the file (std opens share delete)
+        // must not make the write fail: `MoveFileExW` alone refuses this on
+        // Windows with `ERROR_ACCESS_DENIED`.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("desktop.json");
+        std::fs::write(&path, b"{}").unwrap();
+        let reader = std::fs::File::open(&path).unwrap();
+        add_key(&path, "k".into()).unwrap();
+        drop(reader);
+        assert_eq!(std::fs::read(&path).unwrap(), br#"{"k":true}"#);
+        let tmp = tempfile::NamedTempFile::new_in(dir.path()).unwrap();
+        let reader = std::fs::File::open(&path).unwrap();
+        persist(tmp, &path).unwrap();
+        drop(reader);
+        assert_eq!(std::fs::read(&path).unwrap(), b"");
+        let names: Vec<_> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .flatten()
+            .map(|entry| entry.file_name())
+            .collect();
+        assert_eq!(names.len(), 2, "only the file and its lock: {names:?}");
+    }
+
+    #[test]
+    fn a_transient_rename_failure_is_retried_within_a_bound() {
+        let transient = |error: &io::Error| error.kind() == io::ErrorKind::ResourceBusy;
+        let busy = || io::Error::from(io::ErrorKind::ResourceBusy);
+        let mut calls = 0;
+        let result = rename_with_retry(
+            || {
+                calls += 1;
+                if calls < 3 {
+                    Err(busy())
+                } else {
+                    Ok(())
+                }
+            },
+            transient,
+            &[0; 5],
+        );
+        assert!(result.is_ok());
+        assert_eq!(calls, 3, "retried until it succeeded");
+        let mut calls = 0;
+        let result = rename_with_retry(
+            || {
+                calls += 1;
+                Err(busy())
+            },
+            transient,
+            &[0; 5],
+        );
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::ResourceBusy);
+        assert_eq!(calls, 6, "one attempt plus one per delay, then the error");
+        let mut calls = 0;
+        let result = rename_with_retry(
+            || {
+                calls += 1;
+                Err(io::Error::from(io::ErrorKind::NotFound))
+            },
+            transient,
+            &[0; 5],
+        );
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::NotFound);
+        assert_eq!(calls, 1, "a lasting failure is not retried");
+    }
+
+    #[test]
+    fn the_busy_handler_polls_often_until_a_wall_clock_deadline() {
+        let ms = std::time::Duration::from_millis;
+        let timeout = ms(5000);
+        assert_eq!(busy_delay(ms(0), timeout), Some(ms(1)));
+        assert_eq!(busy_delay(ms(4000), timeout), Some(ms(1)));
+        assert_eq!(
+            busy_delay(std::time::Duration::from_micros(4_999_600), timeout),
+            Some(std::time::Duration::from_micros(400)),
+            "never past the deadline"
+        );
+        assert_eq!(busy_delay(ms(5000), timeout), None);
+        assert_eq!(busy_delay(ms(6000), timeout), None);
+    }
+
+    #[test]
+    fn a_connection_waits_for_a_lock_another_one_releases() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("store.sqlite3");
+        let holder = rusqlite::Connection::open(&path).unwrap();
+        holder
+            .execute_batch("PRAGMA journal_mode = WAL; CREATE TABLE t (x);")
+            .unwrap();
+        holder.execute_batch("BEGIN IMMEDIATE").unwrap();
+        let waiter = std::thread::spawn({
+            let path = path.clone();
+            move || {
+                let db = rusqlite::Connection::open(path).unwrap();
+                sqlite_busy_wait(&db).unwrap();
+                let start = std::time::Instant::now();
+                db.execute("INSERT INTO t VALUES (1)", []).unwrap();
+                start.elapsed()
+            }
+        });
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        holder.execute_batch("COMMIT").unwrap();
+        let waited = waiter.join().unwrap();
+        assert!(
+            waited >= std::time::Duration::from_millis(100),
+            "{waited:?}"
+        );
+        let rows: i64 = holder
+            .query_row("SELECT COUNT(*) FROM t", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(rows, 1);
+    }
+
+    #[test]
+    fn a_failed_persist_leaves_the_target_and_no_temporary() {
+        let dir = tempfile::tempdir().unwrap();
+        let tmp = tempfile::NamedTempFile::new_in(dir.path()).unwrap();
+        let missing = dir.path().join("missing").join("file.json");
+        assert!(persist(tmp, &missing).is_err());
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
     }
 
     #[test]

@@ -536,7 +536,7 @@ fn replace(
     if expected.is_some_and(|expected| current().ok().as_ref() != Some(expected)) {
         return Err(conflict());
     }
-    tmp.persist(path).map_err(|_| io())?;
+    crate::private_fs::persist(tmp, path).map_err(|_| io())?;
     Ok(())
 }
 

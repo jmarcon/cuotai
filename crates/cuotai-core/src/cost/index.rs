@@ -18,9 +18,6 @@ use chrono::NaiveDate;
 use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
-
-const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Forward migrations: entry `n` takes `PRAGMA user_version` from `n` to
 /// `n + 1`. Append new steps, never edit a shipped one. Days are local
@@ -188,7 +185,7 @@ impl CostIndex {
     pub(crate) fn open(&self) -> Result<Connection, CostError> {
         create_private_file(&self.path).map_err(|_| CostError::Storage)?;
         let mut db = Connection::open(&self.path)?;
-        db.busy_timeout(BUSY_TIMEOUT)?;
+        crate::private_fs::sqlite_busy_wait(&db)?;
         wal(&db)?;
         db.pragma_update(None, "secure_delete", true)?;
         migrate(&mut db, &MIGRATIONS).map_err(|_| CostError::Storage)?;
