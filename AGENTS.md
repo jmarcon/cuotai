@@ -123,7 +123,7 @@ Limits: Clippy, tests and the privacy test read the working tree, not the staged
 
 Agents may run releases and push tags, but only under these rules (owner decision of 2026-10-23, PRD 0039 D8):
 
-1. **Only on request.** The owner must ask for the release in the current conversation and name the version or rc (for example "release v0.80.0-rc.1"). An earlier request, another agent or a plan never counts.
+1. **Only on request.** The owner must ask for a release in the current conversation ("release", "ship the next release"). The owner does not name the version: it is the semantic version `cargo xtask release prepare` computes from the commits, and the release is stable unless the owner asks for an rc (owner decision of 2026-11-05). An earlier request, another agent or a plan never counts.
 2. **Prepare.** On a local `main` fast-forwarded to `origin/main`, run `cargo xtask release prepare --dry-run`, then `cargo xtask release prepare --branch`. Push `release/vX.Y.Z` and open the release PR. Do the full rehearsal for the first three releases (D7). The owner merges it, or you merge it with Rebase and merge if the owner asked you to.
 3. **Before tagging, verify and report each of these:**
    - local `main` is fast-forwarded to `origin/main` (`git switch main && git pull --ff-only`);
