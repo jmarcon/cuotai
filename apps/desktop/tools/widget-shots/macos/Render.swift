@@ -10,19 +10,7 @@ import WidgetKit
 //
 // Outside a widget extension `\.widgetFamily` is read-only and always the
 // default, so `render.sh` rewrites that environment read to `\.shotFamily`,
-// declared below. `ImageRenderer` also has no container for
-// `containerRelativeFrame` (the usage bar's fill), which then draws nothing,
-// so `render.sh` swaps that one modifier for `shotTrackFraction`: the fill
-// as a fraction of the bar's own track. Everything else is the shipped code.
-
-extension View {
-    /// The usage bar's fill: `fraction` of the width the track proposes.
-    func shotTrackFraction(_ fraction: Double) -> some View {
-        GeometryReader { proxy in
-            self.frame(width: proxy.size.width * fraction, height: proxy.size.height)
-        }
-    }
-}
+// declared below. Everything else is the shipped code.
 
 private struct ShotFamilyKey: EnvironmentKey {
     static let defaultValue: WidgetFamily = .systemSmall
@@ -76,6 +64,8 @@ struct WidgetCard<Content: View>: View {
             )
             .environment(\.shotFamily, family)
             .environment(\.colorScheme, scheme)
+            // The docs are in English, whatever the machine's language.
+            .environment(\.locale, Locale(identifier: "en"))
     }
 }
 

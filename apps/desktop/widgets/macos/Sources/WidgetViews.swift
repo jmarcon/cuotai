@@ -28,62 +28,116 @@ struct EmptyStateView: View {
 
 // MARK: - One account
 
+/// How much room an account gets. `row` is one line of the Summary list
+/// (name and percentage, the bar, then the metric and its age); `hero` is
+/// the only account of a small widget, with the percentage as its headline.
+enum AccountStyle {
+    case row
+    case hero
+}
+
 /// An account as the widgets draw it: the binding metric with its
 /// percentage, the account name (and the e-mail when the user asked for it)
 /// and the age of the reading.
 struct AccountRowView: View {
     let account: WidgetAccount
-    /// The medium widget fits two accounts side by side; the large one a
-    /// full row each.
-    var compact = false
+    var style: AccountStyle = .row
+    /// The medium Summary prints one age in its header; a row then shows
+    /// its own only when the reading is old (stale or aging).
+    var ageInHeader = false
 
     private var percent: Int {
         let ratio = account.binding?.usedRatio ?? account.metrics.first?.usedFraction ?? 0
         return Int((ratio * 100).rounded())
     }
 
-    private var headline: Text {
-        account.isUnavailable ? Text("Unavailable") : Text("\(percent)%")
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: compact ? 1 : 3) {
-            HStack(spacing: 4) {
-                Text(account.name)
-                    .font(compact ? .caption2 : .caption)
-                    .bold()
-                    .lineLimit(1)
-                if let identity = account.shownIdentity {
-                    Text(identity)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 0)
+        Group {
+            switch style {
+            case .row: row
+            case .hero: hero
             }
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                headline
-                    .font(compact ? .title3 : .title2)
-                    .monospacedDigit()
-                    .foregroundStyle(headlineColor)
-                if let binding = account.binding {
-                    Group { if binding.isExhausted { Text("Exhausted") } else { Text(binding.label) } }
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-            }
-            UsageBar(usedFraction: account.binding?.usedRatio ?? 0,
-                     stale: account.isStale,
-                     exhausted: account.binding?.isExhausted ?? false)
-            // RF3.3: the system's own relative text, so the age advances
-            // without the app; the absolute instant stays in the tooltip.
-            MeasurementAge(checkedAt: account.checkedAt, freshness: account.freshness, stale: account.isStale)
         }
         // Old data is dimmed, never hidden and never presented as current.
         .opacity(account.isStale ? 0.6 : 1)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text(accessibilityLabel))
+    }
+
+    private var row: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                name
+                Spacer(minLength: 4)
+                headline
+                    .font(.system(account.isUnavailable ? .caption : .callout, design: .rounded).weight(.semibold))
+            }
+            UsageBar(usedFraction: account.binding?.usedRatio ?? 0,
+                     stale: account.isStale,
+                     exhausted: account.binding?.isExhausted ?? false,
+                     tone: account.metrics.first?.pace?.tone)
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                metricLabel
+                    .layoutPriority(-1)
+                Spacer(minLength: 4)
+                // RF3.3: the system's own relative text, so the age advances
+                // without the app; the absolute instant stays in VoiceOver.
+                if !ageInHeader || account.isStale || account.freshness == "aging" {
+                    MeasurementAge(checkedAt: account.checkedAt, freshness: account.freshness, stale: account.isStale)
+                }
+            }
+        }
+    }
+
+    private var hero: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            name
+            headline
+                .font(.system(size: account.isUnavailable ? 17 : 32, weight: .semibold, design: .rounded))
+                .minimumScaleFactor(0.6)
+                .lineLimit(1)
+            metricLabel
+                .lineLimit(2)
+            Spacer(minLength: 4)
+            UsageBar(usedFraction: account.binding?.usedRatio ?? 0,
+                     stale: account.isStale,
+                     exhausted: account.binding?.isExhausted ?? false,
+                     tone: account.metrics.first?.pace?.tone)
+                .padding(.bottom, 2)
+            MeasurementAge(checkedAt: account.checkedAt, freshness: account.freshness, stale: account.isStale)
+        }
+    }
+
+    private var name: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            Text(account.name)
+                .font(.caption)
+                .bold()
+                .lineLimit(1)
+            if let identity = account.shownIdentity {
+                Text(identity)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+        }
+    }
+
+    private var headline: some View {
+        Group { account.isUnavailable ? Text("Unavailable") : Text("\(percent)%") }
+            .monospacedDigit()
+            .foregroundStyle(account.isUnavailable ? .secondary : headlineColor)
+    }
+
+    @ViewBuilder
+    private var metricLabel: some View {
+        if let binding = account.binding {
+            Group { if binding.isExhausted { Text("Exhausted") } else { Text(verbatim: binding.shortLabel) } }
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
     }
 
     /// VoiceOver (RF3.4): the same facts, said, never colour alone.
@@ -116,34 +170,42 @@ struct UsageBar: View {
     let usedFraction: Double
     var stale = false
     var exhausted = false
+    /// The pace tone (PRD 0007), so the bar agrees with the percentage.
+    var tone: String? = nil
+    var height: CGFloat = 5
 
     private var clamped: Double { min(max(usedFraction, 0), 1) }
 
     var body: some View {
-        // A GeometryReader would animate on resize; a fixed-height track with
-        // an overlay stays still (RF3.3, no animation).
-        ZStack(alignment: .leading) {
-            Capsule().fill(.quaternary)
-            Capsule()
-                .fill(barColor)
-                .frame(width: nil, alignment: .leading)
-                .containerRelativeFrame(.horizontal) { length, _ in length * clamped }
-        }
-        .frame(height: 6)
-        .opacity(stale ? 0.5 : 1)
-        .accessibilityHidden(true)
+        // The fill is a share of the bar's own track, never of the widget:
+        // a fill sized from the container overflows a column and pushes the
+        // whole layout past the widget's edges. Widgets do not animate, so
+        // the GeometryReader is inert (RF3.3).
+        Capsule()
+            .fill(.quaternary)
+            .overlay(alignment: .leading) {
+                GeometryReader { proxy in
+                    Capsule()
+                        .fill(barColor)
+                        .frame(width: max(proxy.size.width * clamped, clamped > 0 ? height : 0))
+                }
+            }
+            .frame(height: height)
+            .opacity(stale ? 0.5 : 1)
+            .accessibilityHidden(true)
     }
 
     private var barColor: Color {
         if exhausted || usedFraction > 1 { return .red }
-        if usedFraction >= 0.9 { return .orange }
+        if usedFraction >= 0.9 || tone == "warn" { return .orange }
+        if tone == "bad" { return .red }
         return .accentColor
     }
 }
 
-/// RF3.3: the measurement age in the system's relative style, plus the
-/// `Stale` state when the data is preserved; the exact instant is the
-/// tooltip and the VoiceOver label.
+/// RF3.3: the measurement age ("2 minutes ago"), which the system advances
+/// by itself, plus the `Stale` state when the data is preserved; the exact
+/// instant is the VoiceOver label.
 struct MeasurementAge: View {
     let checkedAt: Date?
     let freshness: String?
@@ -153,23 +215,32 @@ struct MeasurementAge: View {
         HStack(spacing: 3) {
             if stale {
                 Text("Stale")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                Text(verbatim: "·")
             } else if freshness == "aging" {
                 Text("Aging")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                Text(verbatim: "·")
             }
             if let checkedAt {
-                Text(checkedAt, style: .relative)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                relative(checkedAt)
                     .accessibilityLabel(Text("Updated \(checkedAt.formatted(date: .abbreviated, time: .shortened))"))
             } else {
                 Text("No reading yet")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
             }
+        }
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
+        .fixedSize()
+    }
+
+    /// Whole minutes, hours or days: the plain relative style ticks every
+    /// second ("1 min, 4 sec"), which reads as a countdown.
+    @ViewBuilder
+    private func relative(_ date: Date) -> some View {
+        if #available(macOS 15, *) {
+            Text(.currentDate, format: .reference(to: date, allowedFields: [.minute, .hour, .day], maxFieldCount: 1))
+        } else {
+            Text(date, style: .relative)
         }
     }
 }
@@ -177,6 +248,8 @@ struct MeasurementAge: View {
 /// The headline of a widget family, for VoiceOver and for the lock screen.
 struct WidgetHeader: View {
     let title: Text
+    /// The age of the oldest current reading, when the rows leave it out.
+    var checkedAt: Date? = nil
 
     var body: some View {
         HStack(spacing: 4) {
@@ -190,6 +263,9 @@ struct WidgetHeader: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
             Spacer(minLength: 0)
+            if let checkedAt {
+                MeasurementAge(checkedAt: checkedAt, freshness: nil)
+            }
         }
     }
 }
