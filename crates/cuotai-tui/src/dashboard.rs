@@ -581,6 +581,9 @@ pub(crate) struct View<'a> {
     /// `None` when never synced or the provider cannot list. Same length
     /// as `accounts` or empty.
     pub(crate) model_counts: &'a [Option<usize>],
+    /// PRD 0040 RF7.3: each account's live agent sessions; same length as
+    /// `accounts` or empty. Display only.
+    pub(crate) live: &'a [cuotai_core::feed::live::LiveBlock],
     pub(crate) visible: &'a [usize],
     pub(crate) selected: Option<usize>,
     pub(crate) details: bool,
@@ -837,6 +840,7 @@ fn render_sub_card(
         accounts,
         reports: &reports,
         model_counts: &[],
+        live: &[],
         visible: &[],
         selected: None,
         last_good: &last_good,
@@ -1008,6 +1012,7 @@ pub(crate) fn render_for_test(
         accounts,
         reports,
         model_counts,
+        live: &[],
         visible,
         selected: None,
         details: false,
@@ -1517,6 +1522,74 @@ fn render_cards(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut Ta
     }
 }
 
+/// PRD 0040 RF7.3: " · ctx 8% · ≈$0.42" on the card of an account whose
+/// feed has a live session; empty otherwise.
+fn live_suffix(view: &View<'_>, account_index: usize) -> String {
+    view.live
+        .get(account_index)
+        .and_then(|block| block.sessions.first())
+        .and_then(cuotai_core::feed::live::LiveSession::compact)
+        .map(|text| format!(" · {}", resolve_l10n(&text)))
+        .unwrap_or_default()
+}
+
+/// PRD 0040 RF7.3: the details' live-session lines: one per session (model,
+/// context share, the agent's cost estimate, age), "and N more", and what
+/// the cost figure is.
+fn live_lines(
+    block: &cuotai_core::feed::live::LiveBlock,
+    now: DateTime<Utc>,
+) -> Vec<Line<'static>> {
+    let mut lines = vec![Line::from(Span::styled(
+        format!(
+            "  {}",
+            resolve_l10n(&cuotai_core::feed::live::title()).to_uppercase()
+        ),
+        Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
+    ))];
+    for session in &block.sessions {
+        let mut parts: Vec<String> = Vec::new();
+        parts.extend(
+            session
+                .model_name
+                .as_deref()
+                .map(|name| safe(name).into_owned()),
+        );
+        parts.extend(session.context_chip().map(|chip| resolve_l10n(&chip)));
+        parts.extend(session.cost_text().map(|cost| resolve_l10n(&cost)));
+        parts.push(age_text(session.written_at, now));
+        let color = match session.context_level {
+            Some(cuotai_core::feed::live::ContextLevel::Bad) => RED,
+            Some(cuotai_core::feed::live::ContextLevel::Warn) => YELLOW,
+            _ => MUTED,
+        };
+        lines.push(Line::from(Span::styled(
+            format!("    {}", parts.join(" · ")),
+            Style::default().fg(color),
+        )));
+    }
+    if let Some(more) = block.more_text() {
+        lines.push(Line::from(Span::styled(
+            format!("    {}", resolve_l10n(&more)),
+            Style::default().fg(MUTED),
+        )));
+    }
+    if block
+        .sessions
+        .iter()
+        .any(|session| session.cost_usd.is_some())
+    {
+        lines.push(Line::from(Span::styled(
+            format!(
+                "    {}",
+                resolve_l10n(&cuotai_core::feed::live::cost_caveat())
+            ),
+            Style::default().fg(MUTED),
+        )));
+    }
+    lines
+}
+
 fn render_card(
     frame: &mut Frame,
     area: Rect,
@@ -1721,9 +1794,10 @@ fn render_card(
             report.map(|report| {
                 Span::styled(
                     format!(
-                        "{}{}",
+                        "{}{}{}",
                         age_text(report.checked_at, view.now),
-                        data_as_of_suffix(report)
+                        data_as_of_suffix(report),
+                        live_suffix(view, account_index)
                     ),
                     Style::default().fg(MUTED),
                 )
@@ -2530,6 +2604,14 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
             Style::default().fg(MUTED),
         ),
     ]));
+    // PRD 0040 RF7.3: the live agent sessions of the account's feed.
+    if let Some(block) = view
+        .live
+        .get(account_index)
+        .filter(|block| !block.is_empty())
+    {
+        lines.extend(live_lines(block, now));
+    }
     // PRD 0010 RF5: a failed query with a preserved reading lists the old
     // metrics under an explicit stale line with their original age; the
     // current report's notes below still carry the cause of the failure.
@@ -3033,6 +3115,48 @@ fn format_reset_line(reset: DateTime<Utc>, now: DateTime<Utc>) -> String {
 
 #[cfg(test)]
 mod tests {
+    /// PRD 0040 RF7.3: the details list the live sessions with the caveat,
+    /// and the card suffix is "ctx 8% · ≈$0.42".
+    #[test]
+    fn live_sessions_render_in_the_details_and_on_the_card() {
+        use cuotai_core::feed::live::{ContextLevel, LiveBlock, LiveSession};
+        use cuotai_core::feed::FeedSource;
+        let now = chrono::Utc::now();
+        let session = |ctx: f64| LiveSession {
+            source: FeedSource::ClaudeCode,
+            model_name: Some("Opus".into()),
+            context_used_pct: Some(ctx),
+            context_level: Some(ContextLevel::of(ctx)),
+            cost_usd: Some(0.42),
+            written_at: now - chrono::TimeDelta::minutes(2),
+        };
+        let block = LiveBlock {
+            sessions: vec![session(8.0), session(95.0)],
+            more: 1,
+        };
+        let text: Vec<String> = crate::l10n::with_locale("en-US", || {
+            live_lines(&block, now)
+                .iter()
+                .map(|line| line.to_string())
+                .collect()
+        });
+        assert_eq!(text[0].trim(), "LIVE SESSION");
+        assert!(
+            text[1].contains("Opus · ctx 8% · ≈ $0.42 this session · 2 min ago"),
+            "{text:?}"
+        );
+        assert!(text[2].contains("ctx 95%"), "{text:?}");
+        assert_eq!(text[3].trim(), "and 1 more");
+        assert_eq!(
+            text[4].trim(),
+            "Agent estimate at list price, not a charge."
+        );
+        let compact = crate::l10n::with_locale("en-US", || {
+            resolve_l10n(&block.sessions[0].compact().unwrap())
+        });
+        assert_eq!(compact, "ctx 8% · ≈$0.42");
+    }
+
     #[test]
     fn gauge_colours_follow_the_core_level_thresholds() {
         let colour = |ratio| {
@@ -3761,6 +3885,7 @@ mod tests {
                         accounts: &accounts,
                         reports: &reports_of(&snapshot),
                         model_counts: &[],
+                        live: &[],
                         visible: &visible,
                         selected: Some(0),
                         details: false,
@@ -3911,6 +4036,7 @@ mod tests {
                         accounts: &accounts,
                         reports: &reports,
                         model_counts: &[],
+                        live: &[],
                         visible: &visible,
                         selected: Some(0),
                         details: false,
@@ -4065,6 +4191,7 @@ mod tests {
                         accounts: &accounts,
                         reports: &reports_of(&snapshot),
                         model_counts: &[],
+                        live: &[],
                         visible: &visible,
                         selected: Some(0),
                         details: true,
@@ -4124,6 +4251,7 @@ mod tests {
                             accounts: &accounts,
                             reports: &reports_of(&snapshot),
                             model_counts: &[],
+                            live: &[],
                             visible: &visible,
                             selected: Some(0),
                             details: true,
@@ -4176,6 +4304,7 @@ mod tests {
                         accounts: &accounts,
                         reports: &reports_of(&snapshot),
                         model_counts: &[],
+                        live: &[],
                         visible: &visible,
                         selected: Some(0),
                         details: true,
@@ -4227,6 +4356,7 @@ mod tests {
                         accounts: &accounts,
                         reports: &reports_of(&snapshot),
                         model_counts: &[],
+                        live: &[],
                         visible: &visible,
                         selected: Some(1),
                         details: true,
@@ -4285,6 +4415,7 @@ mod tests {
                         accounts: &accounts,
                         reports: &reports_of(&snapshot),
                         model_counts: &[],
+                        live: &[],
                         visible: &visible,
                         selected: Some(0),
                         details: false,
@@ -4334,6 +4465,7 @@ mod tests {
                         accounts: &accounts,
                         reports: &reports_of(&snapshot),
                         model_counts: &[],
+                        live: &[],
                         visible: &visible,
                         selected: Some(0),
                         details: false,
@@ -4382,6 +4514,7 @@ mod tests {
                         accounts: &accounts,
                         reports: &reports_of(&snapshot),
                         model_counts: &[],
+                        live: &[],
                         visible: &visible,
                         selected: Some(0),
                         details: false,
@@ -4437,6 +4570,7 @@ mod tests {
                             accounts: &accounts,
                             reports: &reports,
                             model_counts: &[],
+                            live: &[],
                             visible: &visible,
                             selected: Some(0),
                             details: false,
@@ -4507,6 +4641,7 @@ mod tests {
                             accounts: &accounts,
                             reports: &reports,
                             model_counts: &[],
+                            live: &[],
                             visible: &[0, 1, 2],
                             selected: Some(0),
                             details: false,
@@ -4699,6 +4834,7 @@ mod tests {
                         accounts,
                         reports,
                         model_counts,
+                        live: &[],
                         visible: &visible,
                         selected: Some(selected),
                         details,
@@ -6108,6 +6244,7 @@ mod tests {
                         accounts,
                         reports,
                         model_counts: &model_counts,
+                        live: &[],
                         visible: &visible,
                         selected,
                         details,
@@ -6308,6 +6445,7 @@ mod tests {
                                 accounts: &accounts,
                                 reports: &reports,
                                 model_counts: &model_counts,
+                                live: &[],
                                 visible: &visible,
                                 selected: Some(7),
                                 details: false,

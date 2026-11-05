@@ -125,7 +125,13 @@ pub(crate) async fn start(
                 Options::default(),
                 |index, metrics, at| live.monitor.recent_points(index, metrics, at),
             )
-            .with_local_cost(local_cost),
+            .with_local_cost(local_cost)
+            // PRD 0040 §7: the live agent sessions of fed accounts.
+            .with_live_sessions(
+                &live.config,
+                cuotai_core::feed::FeedStore::in_data_dir().as_ref(),
+                now,
+            ),
         )
     };
     let config = serve_config(args, token);

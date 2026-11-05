@@ -953,6 +953,26 @@ impl Wizard {
                         .unwrap_or_else(|| initial_auth_mode(selected, &self.login, false));
                     let (fields, notices) = default_fields(selected, &self.auth_mode, None);
                     self.fields = fields;
+                    // PRD 0040 owner decision: a new Claude account opens
+                    // on the Claude Code mode when Claude Code was detected.
+                    if self.editing.is_none() {
+                        let kinds: Vec<detect::SourceKind> =
+                            self.detected.iter().map(|found| found.kind).collect();
+                        for (key, index) in edit::preselected_choices(selected, &kinds) {
+                            let field = self.fields.iter_mut().find(|field| field.key == key);
+                            if let Some(FieldKind::Choice {
+                                options,
+                                selected: chosen,
+                            }) = field.map(|field| &mut field.kind)
+                            {
+                                if let Some(position) =
+                                    options.iter().position(|option| option.index == index)
+                                {
+                                    *chosen = position;
+                                }
+                            }
+                        }
+                    }
                     self.notice = (!notices.is_empty()).then(|| {
                         notices
                             .iter()
@@ -1872,6 +1892,14 @@ impl Wizard {
                         } else {
                             Ok(())
                         }
+                    }
+                    // PRD 0040: an agent-fed mode, picked in the next step,
+                    // needs no credential; the core checks it on save.
+                    edit::CredentialKind::EnvVar
+                        if credential.trim().is_empty()
+                            && edit::credential_optional(self.provider) =>
+                    {
+                        Ok(())
                     }
                     edit::CredentialKind::EnvVar => {
                         let oauth = self

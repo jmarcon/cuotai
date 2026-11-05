@@ -114,7 +114,7 @@ pub(crate) async fn from_server(
 }
 
 /// ANSI foreground of a level: the theme roles good, warn and bad.
-fn ansi(level: Level) -> u8 {
+pub(crate) fn ansi(level: Level) -> u8 {
     match level {
         Level::Good => 32,
         Level::Warn => 33,
