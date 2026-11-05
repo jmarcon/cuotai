@@ -90,6 +90,10 @@ struct WidgetAccount: Codable, Identifiable {
         }
 
         var isExhausted: Bool { reason == "exhausted" }
+
+        /// The label without the trailing unit hint `(%)`: the widgets
+        /// already print the percentage next to it.
+        var shortLabel: String { label.strippingPercentHint }
     }
 
     struct Metric: Codable {
@@ -109,6 +113,8 @@ struct WidgetAccount: Codable, Identifiable {
         }
 
         var isOverused: Bool { usedFraction > 1 }
+
+        var shortLabel: String { label.strippingPercentHint }
 
         struct Pace: Codable {
             let elapsedFraction: Double
@@ -143,6 +149,14 @@ struct WidgetAccount: Codable, Identifiable {
             case takenAt = "taken_at"
             case usedFraction = "used_fraction"
         }
+    }
+}
+
+extension String {
+    /// `Week (7 days) (%)` → `Week (7 days)`; any other label is unchanged.
+    var strippingPercentHint: String {
+        guard hasSuffix("(%)") else { return self }
+        return String(dropLast(3)).trimmingCharacters(in: .whitespaces)
     }
 }
 

@@ -50,16 +50,25 @@ struct HistoryWidgetEntryView: View {
     let entry: HistoryEntry
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             WidgetHeader(title: entry.account.map { Text(verbatim: $0.name) } ?? Text("History"))
             if let account = entry.account, !entry.points.isEmpty {
-                Text("\(account.binding?.label ?? account.name) · last \(spanLabel)")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text("\(Int(((account.binding?.usedRatio ?? entry.points.last?.usedFraction ?? 0) * 100).rounded()))%")
+                        .font(.system(.title2, design: .rounded).weight(.semibold))
+                        .monospacedDigit()
+                    Text("\(account.binding?.shortLabel ?? account.name) · last \(spanLabel)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .layoutPriority(-1)
+                    Spacer(minLength: 4)
+                    MeasurementAge(checkedAt: account.checkedAt,
+                                   freshness: account.freshness,
+                                   stale: account.isStale)
+                }
                 chart(points: entry.points)
-                MeasurementAge(checkedAt: account.checkedAt,
-                               freshness: account.freshness,
-                               stale: account.isStale)
+                    .opacity(account.isStale ? 0.6 : 1)
             } else {
                 // No series: the app has no history for this account (or the
                 // file is absent). Say it instead of drawing nothing.
@@ -94,7 +103,9 @@ struct HistoryWidgetEntryView: View {
         Chart(points, id: \.takenAt) { point in
             AreaMark(x: .value("When", point.takenAt),
                      y: .value("Used", point.usedFraction))
-                .foregroundStyle(.tint.opacity(0.35))
+                .foregroundStyle(.linearGradient(colors: [Color.accentColor.opacity(0.35), Color.accentColor.opacity(0.05)],
+                                                 startPoint: .top, endPoint: .bottom))
+                .interpolationMethod(.monotone)
             LineMark(x: .value("When", point.takenAt),
                     y: .value("Used", point.usedFraction))
                 .foregroundStyle(.tint)
@@ -102,8 +113,8 @@ struct HistoryWidgetEntryView: View {
         }
         .chartYScale(domain: 0...1)
         .chartYAxis {
-            AxisMarks(position: .leading, values: [0, 1]) { value in
-                AxisGridLine()
+            AxisMarks(position: .trailing, values: [0, 0.5, 1]) { value in
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 3]))
                 AxisValueLabel {
                     if let ratio = value.as(Double.self) {
                         Text(ratio, format: .percent.precision(.fractionLength(0)))

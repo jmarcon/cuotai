@@ -27,14 +27,13 @@ for file in "$root"/apps/desktop/widgets/macos/Sources/*.swift; do
     name=$(basename "$file")
     [ "$name" = CuotaiWidgets.swift ] && continue
     sed -e 's/@Environment(\\\.widgetFamily)/@Environment(\\.shotFamily)/' \
-        -e 's/\.containerRelativeFrame(\.horizontal) { length, _ in length \* clamped }/.shotTrackFraction(clamped)/' \
         "$file" > "$build/src/$name"
 done
 
-# Fail loudly if a rewrite stopped matching (a renamed property would
-# otherwise render every widget as `.systemSmall`, or bars without a fill).
-if grep -q 'widgetFamily)\|containerRelativeFrame' "$build"/src/*.swift; then
-    echo "render.sh: a widgetFamily or containerRelativeFrame use was not rewritten" >&2
+# Fail loudly if the rewrite stopped matching (a renamed property would
+# otherwise render every widget as `.systemSmall`).
+if grep -q 'widgetFamily)' "$build"/src/*.swift; then
+    echo "render.sh: a widgetFamily use was not rewritten" >&2
     exit 1
 fi
 cp "$here/Render.swift" "$build/src/Render.swift"

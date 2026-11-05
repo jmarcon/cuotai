@@ -55,39 +55,67 @@ struct SummaryWidgetEntryView: View {
     private var content: some View {
         switch family {
         case .systemSmall:
-            VStack(alignment: .leading, spacing: 2) {
-                WidgetHeader(title: Text("Summary"))
-                if let account = entry.accounts.first {
-                    AccountRowView(account: account, compact: true)
-                }
-                if entry.accounts.count > 1 {
-                    Text("\(entry.accounts.count - 1) more")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        case .systemMedium:
-            VStack(alignment: .leading, spacing: 4) {
-                WidgetHeader(title: Text("Summary"))
-                HStack(alignment: .top, spacing: 10) {
-                    ForEach(entry.accounts.prefix(2)) { account in
-                        AccountRowView(account: account, compact: true)
-                    }
-                }
-                Spacer(minLength: 0)
-                TruncationNotice(truncated: entry.snapshot?.truncated ?? false,
-                                 accounts: entry.accounts.count)
-            }
-        default:
             VStack(alignment: .leading, spacing: 6) {
                 WidgetHeader(title: Text("Summary"))
-                ForEach(entry.accounts.prefix(5)) { account in
-                    AccountRowView(account: account)
+                if let account = entry.accounts.first {
+                    AccountRowView(account: account, style: .hero)
                 }
-                Spacer(minLength: 0)
-                TruncationNotice(truncated: entry.snapshot?.truncated ?? false,
-                                 accounts: entry.accounts.count)
+                SummaryFooter(shown: 1, accounts: entry.accounts.count,
+                              truncated: entry.snapshot?.truncated ?? false)
             }
+        case .systemMedium:
+            // Two columns, two rows: the four most restrictive accounts.
+            list(columns: 2, limit: 4)
+        default:
+            list(columns: 1, limit: 6)
+        }
+    }
+
+    private func list(columns: Int, limit: Int) -> some View {
+        let shown = Array(entry.accounts.prefix(limit))
+        // Two columns leave no room for an age per row: the header carries
+        // the oldest current one, so every fresh row is at most that old.
+        let ageInHeader = columns > 1
+        let oldest = shown.filter { !$0.isStale && $0.freshness != "aging" }.compactMap(\.checkedAt).min()
+        return VStack(alignment: .leading, spacing: 8) {
+            WidgetHeader(title: Text("Summary"), checkedAt: ageInHeader ? oldest : nil)
+            Grid(alignment: .topLeading, horizontalSpacing: 14, verticalSpacing: columns == 1 ? 9 : 8) {
+                ForEach(Array(stride(from: 0, to: shown.count, by: columns)), id: \.self) { start in
+                    GridRow {
+                        ForEach(start..<min(start + columns, shown.count), id: \.self) { index in
+                            AccountRowView(account: shown[index], ageInHeader: ageInHeader)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        // An odd last row keeps its column the same width.
+                        if start + columns > shown.count {
+                            Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                        }
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+            SummaryFooter(shown: shown.count, accounts: entry.accounts.count,
+                          truncated: entry.snapshot?.truncated ?? false)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+}
+
+/// The last line of the Summary: how many accounts did not fit, and, when
+/// the app published only part of the configuration, that the rest exists
+/// (the widget never shows a short list as if it were the whole one).
+struct SummaryFooter: View {
+    let shown: Int
+    let accounts: Int
+    let truncated: Bool
+
+    var body: some View {
+        if accounts > shown {
+            Text("\(accounts - shown) more")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        } else if truncated {
+            TruncationNotice(truncated: truncated, accounts: accounts)
         }
     }
 }
@@ -103,6 +131,8 @@ struct TruncationNotice: View {
             Text("\(accounts) accounts shown; the rest are not published.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
     }
 }

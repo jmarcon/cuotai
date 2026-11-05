@@ -86,12 +86,25 @@ struct AccountWidgetEntryView: View {
 
     var body: some View {
         if let account = entry.accounts.first {
-            VStack(alignment: .leading, spacing: 3) {
-                WidgetHeader(title: Text(verbatim: account.name))
-                AccountRowView(account: account, compact: family != .systemLarge)
-                Spacer(minLength: 0)
-                if let pace = account.metrics.first?.pace {
-                    PaceLine(pace: pace)
+            if family == .systemSmall {
+                VStack(alignment: .leading, spacing: 6) {
+                    WidgetHeader(title: Text("Account"))
+                    AccountRowView(account: account, style: .hero)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    WidgetHeader(title: Text("Account"))
+                    HStack(alignment: .top, spacing: 16) {
+                        AccountRowView(account: account, style: .hero)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        if account.metrics.count > 1 {
+                            OtherMetrics(account: account)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                    if let pace = account.metrics.first?.pace {
+                        PaceLine(pace: pace)
+                    }
                 }
             }
         } else {
@@ -109,6 +122,44 @@ struct AccountWidgetEntryView: View {
             }
             .accessibilityElement(children: .combine)
         }
+    }
+}
+
+/// The account's other quotas, beside the binding one in the medium size:
+/// each with its own share, so the widget shows what else is close.
+struct OtherMetrics: View {
+    let account: WidgetAccount
+
+    private var others: [WidgetAccount.Metric] {
+        let binding = account.binding?.index
+        return account.metrics.enumerated()
+            .filter { $0.offset != binding }
+            .map(\.element)
+            .prefix(3)
+            .map { $0 }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            ForEach(Array(others.enumerated()), id: \.offset) { _, metric in
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        Text(verbatim: metric.shortLabel)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .layoutPriority(-1)
+                        Spacer(minLength: 4)
+                        Text("\(Int((metric.usedFraction * 100).rounded()))%")
+                            .font(.system(.caption, design: .rounded).weight(.semibold))
+                            .monospacedDigit()
+                    }
+                    UsageBar(usedFraction: metric.usedFraction, stale: account.isStale, height: 4)
+                }
+                .accessibilityElement(children: .combine)
+            }
+        }
+        .opacity(account.isStale ? 0.6 : 1)
     }
 }
 
