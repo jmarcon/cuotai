@@ -9,10 +9,13 @@
 //! thread of its own, never on the refresh cycle.
 
 use cuotai_core::cost::{
-    self, CostError, CostIndex, CostStatus, CostSummary, CostWorker, Disclosure, Env, Indexed,
-    Period, PriceRow, Prices, PricingFile, Retention, Scanner, SettingsStore, SourceId, TableInfo,
-    WorkerState,
+    self, Breakdown, CostError, CostIndex, CostStatus, CostSummary, CostWorker, Disclosure, Env,
+    Indexed, LabelTarget, Period, PriceRow, Prices, PricingFile, Retention, Scanner, SettingsStore,
+    SourceId, Span, TableInfo, WorkerState,
 };
+
+/// PRD 0042 RF6.1: the sessions the Sessions tab lists (newest first).
+const SESSION_ROWS: usize = 100;
 use cuotai_core::text::Localized;
 use cuotai_core::Account;
 use serde::Serialize;
@@ -49,6 +52,14 @@ pub struct SourceView {
     indexed: Indexed,
     /// The last scan's sentence about the source, while it is on.
     summary: Option<Localized>,
+    /// PRD 0042 RF1.2: on under an earlier wording of the disclosure; the
+    /// switch asks again before anything is read.
+    reconsent: bool,
+    /// PRD 0042 RF3.1: the block length in hours and its default.
+    block_hours: u8,
+    default_block_hours: u8,
+    /// PRD 0042 RF4.3: the last folder name of projects is kept.
+    folder_hint: bool,
 }
 
 #[derive(Serialize)]
@@ -69,6 +80,8 @@ pub struct CostView {
     state: WorkerState,
     error: Option<Localized>,
     size: u64,
+    block_hours_min: u8,
+    block_hours_max: u8,
 }
 
 /// The user's `pricing.json` in Settings → Local cost.
@@ -201,6 +214,10 @@ impl LocalCost {
                 disclosure: saved.disclosure(source, &self.env),
                 indexed: stores.index.indexed(source).map_err(l10n)?,
                 summary,
+                reconsent: saved.needs_reconsent(source, &self.env),
+                block_hours: saved.block_hours(source),
+                default_block_hours: source.default_block_hours(),
+                folder_hint: saved.folder_hint(source),
             });
         }
         Ok(CostView {
@@ -219,7 +236,94 @@ impl LocalCost {
             state: status.state,
             error: status.error,
             size: stores.index.size_on_disk().map_err(l10n)?,
+            block_hours_min: cost::BLOCK_HOURS_MIN,
+            block_hours_max: cost::BLOCK_HOURS_MAX,
         })
+    }
+
+    /// PRD 0042 RF6.1: one tab of Settings › Local cost › Sessions, blocks
+    /// and projects over the saved period: `day` and `model` are the
+    /// cards' summary, `session` (newest 100), `block` (with the provider
+    /// window of `reports` beside the active one) and `project` the core's
+    /// pages. Reads the index, never a log.
+    pub fn breakdown(
+        &self,
+        by: Breakdown,
+        reports: &[cuotai_core::Report],
+    ) -> Result<serde_json::Value, String> {
+        let stores = self.stores()?;
+        let scanner = Self::scanner(stores, &self.env);
+        let now = chrono::Utc::now();
+        let span = Span::Period(stores.settings.load().map_err(l10n)?.period);
+        let json = |value: Result<serde_json::Value, serde_json::Error>| {
+            value.map_err(|error| error.to_string())
+        };
+        match by {
+            Breakdown::Day | Breakdown::Model => json(serde_json::to_value(self.usage()?)),
+            Breakdown::Session => json(serde_json::to_value(
+                scanner
+                    .sessions(&stores.pricing, span, now, Some(SESSION_ROWS), 0)
+                    .map_err(l10n)?,
+            )),
+            Breakdown::Block => {
+                let mut page = scanner
+                    .blocks(&stores.pricing, None, span, now, reports)
+                    .map_err(l10n)?;
+                let live = scanner
+                    .live(&stores.pricing, None, now, reports)
+                    .map_err(l10n)?;
+                // The active block first (RF6.1), then the newest.
+                page.blocks.sort_by_key(|block| !block.active);
+                let mut value = json(serde_json::to_value(&page))?;
+                value["live"] = json(serde_json::to_value(&live))?;
+                Ok(value)
+            }
+            Breakdown::Project => json(serde_json::to_value(
+                scanner.projects(&stores.pricing, span, now).map_err(l10n)?,
+            )),
+        }
+    }
+
+    /// PRD 0042 RF2.2/RF4.2: label (or, with `None`, unlabel) the session or
+    /// project `digest`.
+    pub fn set_label(
+        &self,
+        target: LabelTarget,
+        digest: &str,
+        label: Option<String>,
+    ) -> Result<(), String> {
+        self.stores()?
+            .index
+            .set_label(target, digest, label.as_deref())
+            .map(drop)
+            .map_err(l10n)
+    }
+
+    /// PRD 0042 RF4.1: hide (or count again) the project `digest`.
+    pub fn set_hidden(&self, digest: &str, hidden: bool) -> Result<(), String> {
+        self.stores()?
+            .index
+            .set_hidden(digest, hidden)
+            .map(drop)
+            .map_err(l10n)
+    }
+
+    /// PRD 0042 RF3.1/RF4.3: the block length of `source` and whether it
+    /// keeps the last folder name of projects (off deletes the names kept).
+    pub fn set_source_options(
+        &self,
+        source: SourceId,
+        block_hours: u8,
+        folder_hint: bool,
+    ) -> Result<CostView, String> {
+        let stores = self.stores()?;
+        stores
+            .settings
+            .set_block_hours(source, block_hours)
+            .map_err(l10n)?;
+        cost::set_folder_hint(&stores.settings, &stores.index, source, folder_hint)
+            .map_err(l10n)?;
+        self.view()
     }
 
     /// RF4.1: the cards' and details' estimate: per source today, yesterday
@@ -452,6 +556,38 @@ mod tests {
         assert_eq!((saved.price, saved.currency.as_str()), (20.0, "BRL"));
         let view = cost.set_plan(&accounts, &id, None).unwrap();
         assert!(view.accounts[0].plan.is_none());
+    }
+
+    /// PRD 0042 RF6.1: every tab answers while the sources are off (empty
+    /// pages, never an error), and the source options are validated and
+    /// saved.
+    #[test]
+    fn breakdown_tabs_and_source_options() {
+        let dir = tempfile::tempdir().unwrap();
+        let cost = local(dir.path());
+        for by in Breakdown::ALL {
+            let value = cost.breakdown(by, &[]).unwrap();
+            assert!(value.is_object(), "{by:?}");
+        }
+        let blocks = cost.breakdown(Breakdown::Block, &[]).unwrap();
+        assert_eq!(blocks["blocks"], serde_json::json!([]));
+        assert_eq!(blocks["live"], serde_json::json!([]));
+        assert!(cost
+            .set_source_options(SourceId::GeminiCli, 0, false)
+            .is_err());
+        let view = cost
+            .set_source_options(SourceId::GeminiCli, 6, true)
+            .unwrap();
+        let gemini = view
+            .sources
+            .iter()
+            .find(|s| s.source == SourceId::GeminiCli)
+            .unwrap();
+        assert_eq!((gemini.block_hours, gemini.folder_hint), (6, true));
+        assert_eq!(gemini.default_block_hours, 24);
+        assert!(cost
+            .set_label(LabelTarget::Project, "abcd", Some("x".into()))
+            .is_err());
     }
 
     /// PRD 0030 RF6.1: the rate is validated and saved; USD is refused.

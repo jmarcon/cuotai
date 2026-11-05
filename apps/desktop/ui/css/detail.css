@@ -734,6 +734,117 @@
   word-break: break-all;
 }
 
+/* PRD 0042 RF6.2: the active block's line under a card's local usage. */
+.lc-live-line {
+  margin: var(--space-1) 0 0;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* PRD 0042 RF6.1: Settings › Local cost › Sessions, blocks and projects. KPI cards (DS-CMP-KPI-1..3), the live block
+   as a callout surface, inline label fields and hidden projects dimmed. Theme roles only. */
+.lc-by {
+  margin: var(--space-3) 0 0;
+}
+.lc-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+}
+.lc-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0);
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.lc-kpi-label,
+.lc-kpi-caption {
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+.lc-kpi-caption {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lc-kpi-figure {
+  font-size: var(--text-figure);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.lc-kpi-figure.long {
+  font-size: var(--text-xl);
+}
+.lc-kpi.unknown .lc-kpi-figure {
+  color: var(--fg-muted);
+}
+.lc-kpi.unknown::after {
+  content: "";
+  height: 4px;
+  margin-top: var(--space-1);
+  border-radius: var(--radius-xs);
+  background: var(--hatch);
+  opacity: 0.8;
+}
+.lc-live {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+.lc-live h4 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-base);
+}
+.lc-live p {
+  margin: var(--space-0) 0 0;
+}
+.lc-by-table tr.lc-active th,
+.lc-by-table tr.lc-active td {
+  font-weight: 600;
+}
+.lc-by-table tr.lc-hidden th,
+.lc-by-table tr.lc-hidden td {
+  color: var(--fg-muted);
+}
+.lc-by-table .sub {
+  display: block;
+  color: var(--fg-muted);
+  font-size: var(--text-micro);
+}
+.lc-label-edit {
+  width: 100%;
+  min-width: 10ch;
+  padding: var(--space-0) var(--space-1);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+}
+.lc-label-edit:hover,
+.lc-label-edit:focus {
+  border-color: var(--border);
+  background: var(--surface);
+}
+.lc-hint-sw {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+}
+
 /* PRD 0036 RF8.5: what the details add for an aggregator instance or one of its connections. */
 .agg-info dl {
   display: grid;

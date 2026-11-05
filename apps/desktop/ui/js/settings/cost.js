@@ -1,9 +1,10 @@
 // Settings › Advanced › Local cost (PRD 0015), as rows (PRD 0020 RF3): one switch per source, the period and
 // retention, then the directories and the price table as sub-pages (RF2.3) and the index erasure at the end (RF3.4).
 import { t, te, tle } from "../i18n.js";
-import { costDisable, costEnable, costErase, costPlans, costPrices, costSetDisplay, costSetOptions, costSetPaths, costSetPlan, costStatus, esc, fmtDate, fmtNumber, fmtReset, icon } from "../lib.js";
+import { costDisable, costEnable, costErase, costPlans, costPrices, costSetDisplay, costSetOptions, costSetPaths, costSetPlan, costSetSourceOptions, costStatus, esc, fmtDate, fmtNumber, fmtReset, icon } from "../lib.js";
 import { askDialog, fmtBytes, group, l10nError } from "./common.js";
-import { buttons, commitField, num, row, select, subpage, subRow, sw, toast } from "./rows.js";
+import { bindBreakdown, breakdownHtml } from "./cost-breakdown.js";
+import { buttons, commitField, disc, num, row, select, subpage, subRow, sw, toast } from "./rows.js";
 
 export function html() {
   return group("cost", te("settings.cost.title"), `<div data-cost-body><p class="hint">${te("common.loading")}</p></div>`, "data-cost");
@@ -24,7 +25,7 @@ export function costHtml(cv, prices, plans = null) {
   const state = { starting: "settings.cost.state.starting", scanning: "settings.cost.state.scanning", paused: "settings.cost.state.paused" }[cv.state];
   const dirs = (s) => `${te("settings.cost.dirs", { pattern: s.disclosure.pattern })} ${s.disclosure.directories.map((d) => `<code>${esc(d)}</code>`).join(", ")}${s.disclosure.custom ? ` (${te("settings.cost.pathsChosen")})` : ""}`;
   const sources = cv.sources.map((s) => row({ key: `cost-src-${esc(s.source)}`, kw: "cost-src", label: te("settings.cost.read", { source: s.label }), attrs: `data-cost-source="${esc(s.source)}"`,
-    desc: `<span data-cost-state>${s.enabled ? te("settings.cost.since", { at: fmtReset(s.consented_at) ?? "—" }) : te("settings.cost.off")}</span>`,
+    desc: `<span data-cost-state>${s.enabled ? te("settings.cost.since", { at: fmtReset(s.consented_at) ?? "—" }) : s.reconsent ? te("settings.cost.reconsent") : te("settings.cost.off")}</span>`,
     info: `${te("settings.cost.help")}<br />${dirs(s)}${s.enabled ? `<br /><span data-cost-indexed>${te("settings.cost.indexed", { files: s.indexed.files, invalid: s.indexed.invalid_lines })}</span>` : ""}`,
     msg: `cost-src-${esc(s.source)}-msg`, control: (a) => sw(`cost-toggle-${esc(s.source)}`, s.enabled, a, `data-cost-toggle="${esc(s.source)}"`),
     body: s.enabled && s.summary ? `<p class="hint" data-cost-summary>${tle(s.summary)}</p>` : "" })).join("");
@@ -44,9 +45,11 @@ export function costHtml(cv, prices, plans = null) {
     ${row({ key: "cost-retention-row", label: te("settings.cost.retention"), desc: te("settings.cost.retentionRange", { min: cv.retention_min, max: cv.retention_max }), msg: "cost-retention-msg",
       control: (a) => num("cost-retention", { value: cv.retention_days, min: cv.retention_min, max: cv.retention_max, apply: "data-cost-save" }, a) })}
     ${plansHtml(plans)}
-    ${subRow({ key: "cost-dirs", label: te("settings.cost.pathsEdit") })}
+    ${subRow({ key: "cost-by", label: te("settings.costBy.title") })}
+    ${subpage("cost-by", te("settings.costBy.title"), `${sourceOptionsHtml(cv)}${breakdownHtml()}`)}
+    ${disc("cost-more", te("settings.cost.more"), `${subRow({ key: "cost-dirs", label: te("settings.cost.pathsEdit") })}
+      ${subRow({ key: "cost-prices", label: te("settings.cost.prices") })}`)}
     ${subpage("cost-dirs", te("settings.cost.pathsEdit"), `<p class="hint">${te("settings.cost.pathsHelp")}</p>${editors}`)}
-    ${subRow({ key: "cost-prices", label: te("settings.cost.prices") })}
     ${subpage("cost-prices", te("settings.cost.prices"), `<div class="cost-prices" data-cost-prices>${prices ? pricesHtml(prices) : `<p class="hint">${te("common.loading")}</p>`}</div>`)}
     ${row({ key: "cost-erase", label: te("settings.cost.erase"), danger: true, msg: "cost-msg",
       desc: `<span data-cost-size>${te("settings.cost.size", { size: fmtBytes(cv.size) })}</span>`,
@@ -56,6 +59,18 @@ export function costHtml(cv, prices, plans = null) {
           <div class="dlg-actions left"><button class="btn danger-btn" data-cost-erase-confirm>${te("settings.cost.eraseConfirm")}</button>
             <button class="btn" data-cost-erase-cancel>${te("common.cancel")}</button></div>
         </div>` })}`;
+}
+
+/** PRD 0042 RF3.1/RF4.3: per source, the block length (1 to 24 hours, the core's default named) and the opt-in
+ *  folder-name hint (off deletes the names kept). Saved together with the row's Apply. */
+function sourceOptionsHtml(cv) {
+  const rows = cv.sources.map((s) => row({ key: `cost-opt-${esc(s.source)}`, kw: "cost-opt", attrs: `data-cost-opt="${esc(s.source)}"`, msg: `cost-opt-${esc(s.source)}-msg`,
+    label: esc(s.label), desc: te("settings.costBy.blockDefault", { hours: s.default_block_hours }), info: te("settings.costBy.hintHelp"),
+    control: () => `<button class="btn sm primary" data-cost-opt-save="${esc(s.source)}">${te("settings.apply")}</button>`,
+    body: `<div class="set-fields"><span class="set-num"><input id="cost-hours-${esc(s.source)}" type="number" inputmode="numeric" min="${cv.block_hours_min}" max="${cv.block_hours_max}" step="1"
+        value="${esc(s.block_hours)}" aria-label="${esc(t("settings.costBy.blockHours", { source: s.label }))}" data-cost-hours /><span class="set-unit">${te("settings.costBy.hoursUnit")}</span></span>
+      <label class="lc-hint-sw">${sw(`cost-hint-${esc(s.source)}`, s.folder_hint, "", "data-cost-hint")} <span>${te("settings.costBy.hint")}</span></label></div>` })).join("");
+  return `<section class="set-sec" data-cost-options>${rows}</section>`;
 }
 
 /** PRD 0030 RF1/RF6: one plan price per account whose tool a source reads, and the second currency. Typed by the
@@ -118,14 +133,17 @@ async function bindCost(box, ctx) {
   try { cv = await costStatus(); } catch (e) { box.querySelector(".hint").textContent = l10nError(e); return; }
   let timer = null;
   let failure = null; // [line id, text]
-  ctx.onLeave?.(() => clearTimeout(timer));
+  let stopBreakdown = () => {};
+  ctx.onLeave?.(() => { clearTimeout(timer); stopBreakdown(); });
   const paint = (next, keep = false) => {
     cv = next;
     clearTimeout(timer);
     const drafts = keep ? [...box.querySelectorAll("[data-cost-paths]")].map((el) => [el.dataset.costPaths, el.value]) : [];
     const focused = keep && document.activeElement?.dataset?.costPaths;
     const caret = focused ? document.activeElement.selectionStart : 0;
+    stopBreakdown();
     box.innerHTML = costHtml(cv, prices, plans);
+    stopBreakdown = bindBreakdown(box, ctx);
     for (const [source, value] of drafts) { const el = box.querySelector(`[data-cost-paths="${source}"]`); if (el) el.value = value; }
     if (focused) {
       const el = box.querySelector(`[data-cost-paths="${focused}"]`);
@@ -148,6 +166,14 @@ async function bindCost(box, ctx) {
       if (!source.enabled) {
         if (await confirmDisclosure(source.disclosure)) run(() => costEnable(source.source, source.disclosure.digest), line);
       } else if (await confirmCostOff(source)) run(() => costDisable(source.source), line);
+    };
+    // PRD 0042 RF3.1/RF4.3: the block length and the folder-name hint of one source.
+    for (const button of box.querySelectorAll("[data-cost-opt-save]")) button.onclick = () => {
+      const source = button.dataset.costOptSave;
+      const holder = box.querySelector(`[data-cost-opt="${CSS.escape(source)}"]`);
+      const hours = Number(holder.querySelector("[data-cost-hours]").value);
+      const hint = holder.querySelector("[data-cost-hint]").checked;
+      run(() => costSetSourceOptions(source, hours, hint), `cost-opt-${source}-msg`);
     };
     // RF4.1: a different list needs a new consent, so a source that is on turns off (erasing what was derived) first.
     const savePaths = async (source, paths) => {

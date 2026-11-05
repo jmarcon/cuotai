@@ -337,6 +337,9 @@ jobs:
       # PRD 0030 RF1/RF6: plan price lines, the typed display currency and
       # their Settings rows in every built-in locale.
       - run: node scripts/test-cost-plan-ui.mjs
+      # PRD 0042 RF6: the sessions, blocks and projects tabs, labels, the
+      # hidden project and the card's block line in every built-in locale.
+      - run: node scripts/test-cost-breakdown-ui.mjs
       # PRD 0022 RF2-RF15: meters, rows, the tray shell, motion and the
       # new-install theme default, rendered from the production modules.
       - run: node scripts/test-meter-ui.mjs

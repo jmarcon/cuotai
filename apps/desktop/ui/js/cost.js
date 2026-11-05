@@ -84,13 +84,22 @@ export function costLineHtml(sc, summary) {
   return v ? `<p class="cost-line" data-local-cost="${esc(sc.source)}">${icon("dollar")}<span>${te("cost.line", v)}</span></p>` : "";
 }
 
+/** PRD 0042 RF6.2: "This block ≈ $4.10 · 38K tok/min" (the core's text) under the local usage, with the honest-data
+ *  suffix and the projection in the tooltip; nothing while the active block has no burn rate. */
+export function liveLineHtml(sc, summary) {
+  const live = (summary?.live ?? []).find((l) => l.block.source === sc.source);
+  if (!live?.line) return "";
+  const tip = [t("cost.live.tip"), live.projection ? tl(live.projection) : ""].filter(Boolean).join(" ");
+  return `<p class="lc-live-line" data-cost-live="${esc(sc.source)}" title="${esc(tip)}">${esc(tl(live.line))}</p>`;
+}
+
 /** The block inside an account card; nothing while the source is off. */
 export function costCardHtml(sc, summary) {
   if (!sc?.usage) return "";
   return `<div class="local-cost" data-local-cost="${esc(sc.source)}">
     <div class="lc-head">${icon("monitor")}<span class="lc-title">${te("cost.card.title", { source: sc.label })}</span>
       <button class="icon" data-cost-details="${esc(sc.source)}" title="${te("cost.card.details")}" aria-label="${te("cost.card.details")}">${icon("search")}</button></div>
-    ${noteHtml(sc)}${tilesHtml(sc, summary)}
+    ${noteHtml(sc)}${tilesHtml(sc, summary)}${liveLineHtml(sc, summary)}
     <p class="lc-foot">${te("cost.card.estimate")}</p></div>`;
 }
 
