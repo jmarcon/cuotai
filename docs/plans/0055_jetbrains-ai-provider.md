@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0055 |
-| Status | Awaiting owner verification (RF1–RF7 delivered in vNEXT; RF8, the real-account check, is the owner's) |
+| Status | Awaiting owner verification (RF1–RF7 delivered in 0.83.0; RF8, the real-account check, is the owner's) |
 | Owner | `cuotai-core` (model, adapter, access descriptor, account fields, catalog entry) |
 | Consumers | `apps/desktop` and `crates/cuotai-tui` (generic rendering only) |
 | Depends on | PRD 0005 RF1 (`access::describe`) |
@@ -16,13 +16,13 @@
 
 | RF | Version | Delivery |
 |---|---|---|
-| RF1 | vNEXT | `Provider::JetBrainsAi` (slug `jetbrains_ai`), dispatch and the `providers::jetbrains_ai` adapter. |
-| RF2 | vNEXT | Service-account client-credentials exchange with an in-process token cache. |
-| RF3 | vNEXT | Month-to-date credits by tool through `POST /credits-usage/group-by/tool`; missing or partial values never become zero. |
-| RF4 | vNEXT | Error classification (token and metrics endpoints) with fixed notes; no body, URL or secret in any note. |
-| RF5 | vNEXT | Access descriptor (`Official`, admin key, organization scope, Business or Enterprise), catalog texts in every core locale, regenerated `docs/providers.md` matrices. |
-| RF6 | vNEXT | Account fields (`credential_env` = client ID, `params.client_secret_env` = client secret variable), credential help, catalog aliases, example config. |
-| RF7 | vNEXT | `wiremock` contract tests: token exchange, request body, cache reuse, retry after a stale token, missing and partial values, 400/401/403/429/5xx, schema drift, missing credentials. |
+| RF1 | 0.83.0 | `Provider::JetBrainsAi` (slug `jetbrains_ai`), dispatch and the `providers::jetbrains_ai` adapter. |
+| RF2 | 0.83.0 | Service-account client-credentials exchange with an in-process token cache. |
+| RF3 | 0.83.0 | Month-to-date credits by tool through `POST /credits-usage/group-by/tool`; missing or partial values never become zero. |
+| RF4 | 0.83.0 | Error classification (token and metrics endpoints) with fixed notes; no body, URL or secret in any note. |
+| RF5 | 0.83.0 | Access descriptor (`Official`, admin key, organization scope, Business or Enterprise), catalog texts in every core locale, regenerated `docs/providers.md` matrices. |
+| RF6 | 0.83.0 | Account fields (`credential_env` = client ID, `params.client_secret_env` = client secret variable), credential help, catalog aliases, example config. |
+| RF7 | 0.83.0 | `wiremock` contract tests: token exchange, request body, cache reuse, retry after a stale token, missing and partial values, 400/401/403/429/5xx, schema drift, missing credentials. |
 | RF8 | — | Owner check with a real service account. |
 
 ## 1. Research (checked on 2026-11-04)
