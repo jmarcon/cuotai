@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0043 |
-| Status | Planned (next version) |
+| Status | In progress |
 | Owner | `cuotai-core` (`stats::rhythm`, `stats::limit_changes`, `digest::weekly`, events), desktop (Stats view additions, menu-bar strip, digest notification), `cuotai-tui` (`--stats --rhythm`, `--digest`) |
 | Consumers | Every front end; `/v1/stats` (additive); hooks (`limit_changed`, `weekly_digest`) |
 | Depends on | PRD 0006 (history), PRD 0026 (stats, journal, Stats view), PRD 0029 (account id) |
@@ -13,11 +13,16 @@
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable. **Rhythm** is how use spreads over the hours of a day and the days of a week; a **limit change** is a change in a metric's `limit` between two readings of the same window (a plan change, a promotion, a cap edit); the **digest** is a once-a-week summary the person opted in to.
 
-## Implementation status (2026-10-25)
+## Implementation status (2026-11-05)
 
 | RF | Version | Delivery |
 |---|---|---|
-| RF1–RF6 | — | Proposed. |
+| RF1 | vNEXT | `insights::rhythm` (re-exported as `stats::rhythm`): 24 hourly buckets, 7 daily buckets with days off, typical day over 30 days (3-day minimum, sample counts), gaps as `None`, resets marked, local zone (DST tested). `notify.days_off` in the shared preferences. |
+| RF2 | vNEXT | `insights::limit_changes` (0.5% / one-unit threshold, collapsed renewals skipped, budgets excluded) as `AlertKind::LimitChanged` (opt-in `notify.limit_changes`) and the `limit_changed` event (journal row). The 48-hour card note reads the changes back from the history (`HistoryStore::limit_changes`), so no new storage; the journal row's summary has no values. |
+| RF3 | vNEXT | `digest::weekly` (hits, average peak, days at the limit, extra spent, limit changes, heaviest and lightest day, busiest hours, budgets, allowance), short (≤ 8 lines, no account names) and Markdown texts in every catalog, `digest::due_slot` with the 48-hour catch-up and `Ledger::claim_weekly_digest` (once across processes), `cuotai --digest [--week] [--json|--markdown]` (exit 0; 2 when nothing was recorded). The desktop delivers it; `cuotai --notify` does not. |
+| RF4 | vNEXT (partial) | Desktop Stats **Rhythm** section with tables, **Insights** settings (limit changes, days off, weekly digest, test digest), limit-change notes on the details, digest notification. Not delivered: the macOS menu-bar strip style, the tray popover strip and opening the Stats view from the digest notification. |
+| RF5 | vNEXT | `--stats --rhythm [ACCOUNT] [--range 24h\|7d\|typical] [--json]`, TUI Stats `r` key, `--digest`, `rhythm`/`limit_changes` in `--stats --json` and `/v1/stats` (additive). |
+| RF6 | vNEXT | `docs/gui-features.md`, `docs/tui.md`, `docs/advanced.md`, `docs/events.md`, `docs/local-server.md`, `docs/export-v1.schema.json`. |
 
 ## 1. Context
 

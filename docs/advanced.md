@@ -65,6 +65,12 @@ cuotai --config cuotai.toml --watch --jsonl | jq -c 'select(.event == "quota_exh
 
 # Recorded history of every account (or one), without querying providers
 cuotai --config cuotai.toml --history "Personal Codex" --history-days 30
+
+# How use spreads over the day (24h, 7d or a typical day over 30 days), from the history
+cuotai --config cuotai.toml --stats --rhythm --range typical
+
+# The weekly digest of last week (or --week current), as text, --markdown or --json
+cuotai --config cuotai.toml --digest --markdown
 ```
 
 `--once`, `--json` and `--json-v1` exit `0` when every account is ready, `2` when an account failed or lacks configuration, and `1` for local errors. `--serve` and `--watch` exit `0` when a signal stops them (`SIGINT`/`SIGTERM`, Ctrl+C or Ctrl+Break), whatever the accounts' state; only with `--strict-exit` do they exit `2`, when no account had a ready reading until shutdown (`--serve`) or an account's latest reading had failed (`--watch`); `1` is a local error.
@@ -115,6 +121,27 @@ A model name with a date suffix (`claude-sonnet-4-5-20250929`) uses the price of
 ## Recorded history
 
 Every successful reading (TUI, desktop app, `--once`, `--json`, `--json-v1`, `--serve` and `--watch`) also enters a local measurement history on this computer only: `<OS local data dir>/cuotai/history/history.sqlite3`, private to your user, holding numbers and window metadata, never credentials, account names or provider text. The history keeps 90 days by default (`--history-days 7…365` on the command line, **Settings › Data & privacy** on the desktop), keeps one sample per hour after 7 days (each window's peak stays) and stays under 64 MiB, warning when it had to delete old samples. `--history [ACCOUNT]` prints the recorded series (`--json` for scripts; `--history-days` picks the days shown, 7 by default). How the desktop app draws it is in [`gui-features.md`](gui-features.md#account-details-and-history).
+
+## Budgets, floors and allowance
+
+A **budget** (PRD 0041) is your own limit on a metric the provider reports without one: a monthly API spend, a daily usage count, prepaid credits. Add `[[accounts.budgets]]` under an account (see [`cuotai.example.toml`](../cuotai.example.toml)) or use **Budgets and floors** in the desktop account dialog. Each budget becomes one extra quota labelled **Budget · <metric>** (or your `label`) with `used`, `limit`, `remaining` and a reset at the next period boundary, so the pace, usage alerts, the projection, the binding limit, the reset notices, the history, the statistics and the events work on it unchanged. It is marked `derived: true` everywhere (the export, `--json`, the cards show "Your budget"): it is your number, never a provider limit, and Cuotai never enforces it or changes anything at the provider.
+
+- **Choosing the metric:** `kind = "spend" | "usage" | "credits"`, optionally narrowed by `unit` and `label_contains` (matched against the metric's label, case-insensitively), or `scope = "account"` for the account's total spend.
+- **Periods:** `daily`, `weekly` (`starts = "monday".."sunday"`, Monday by default), `monthly` (`starts = 1..28`, the 1st by default) or `window` (the provider's own cycle, for a metric with a reset). Boundaries are local midnight, DST included.
+- **How `used` is counted:** when the provider's metric already covers the same period (a monthly spend for a monthly budget from the 1st), its own value; a provider month in another time zone is accepted with a note. Otherwise the current value minus the first reading recorded in the period, so the history must be on: until the period's first reading the budget shows "counting starts with the first reading of this period" instead of a number. A prepaid balance counts its drops; a top-up is detected and is not use.
+- **Rules:** at most 8 budgets and 4 floors per account, an amount above 0 and at most 1,000,000,000, a unit that is a currency code or the metric's unit, no two budgets on the same metric and period. `cuotai --check-config` names the offending field.
+
+A **floor** (`[[accounts.floors]]`) warns when a balance or credits metric drops below its `amount`: a "Balance low · $3.20 left" chip on the card (its role turns "bad" at a quarter of the floor), a line in the details and `--once`, a notification under the usual alert policy (held by quiet hours like a threshold, private texts by default) and the `balance_below_floor` / `balance_recovered` events. It fires once per crossing and re-arms above 110% of the floor or after a top-up.
+
+The **allowance** (PRD 0041 RF4) is how much of a quota you can use per day (per hour when less than 2 days remain) and still reach the reset: "≈ 12%/day to the reset", "≈ $3.40/day left in the budget", with the recent pace beside it when known ("· recently 18%/day"). It shows in the desktop details, the TUI details, an `Allowance:` line of `--once` and `allowance` in `export::v1`; never for a 5-hour window, a rate limit or an unknown value, and only for a fresh reading.
+
+## Usage insights: rhythm, limit changes and the weekly digest
+
+Everything here comes from the readings already recorded on this computer (PRD 0043); nothing queries a provider.
+
+- **Rhythm:** `cuotai --stats --rhythm [ACCOUNT] [--range 24h|7d|typical] [--json]` prints how use spread over the last 24 hours (hourly bars), the last 7 days (days off marked) or a typical day over 30 days (an hour needs 3 days of data), in percentage points of each account's tightest limit. A gap (no reading) shows `·`, never 0; `↺` marks a reset. The TUI statistics screen shows the same with `r`, and the desktop Stats view has a **Rhythm** section. Days off are `notify.days_off` in `desktop.json` (Saturday and Sunday by default; **Settings › Alerts** on the desktop).
+- **Limit changes:** when a provider metric's limit changes between two readings (a promotion, a plan change, a cap someone edited), the journal records `limit_changed`, the desktop card shows a note for 48 hours ("Weekly limit changed 100 → 150 points on Oct 25") and hooks receive `limit_changed`. A notification is opt-in (**Notify when a limit changes**, `notify.limit_changes`).
+- **Weekly digest:** `cuotai --digest [--week last|current] [--json|--markdown]` prints the week: limit hits, average peak, extra spent, limit changes, the heaviest and lightest day, the busiest hours, your budgets and the allowance for the coming week. Exit `0`; `2` when nothing was recorded. The desktop can also send it as a notification once a week (**Weekly digest**, off by default, Monday 09:00); one process delivers it, and a slot missed while the app was closed is delivered within 48 hours, then dropped. `--stats --json` and `/v1/stats` carry `rhythm` and `limit_changes` (additive).
 
 ## Update notice
 

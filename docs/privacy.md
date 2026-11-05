@@ -26,7 +26,7 @@ Cuotai is a read-only monitor that runs on your computer. It has no telemetry, n
 
 | Id | Location | Holds | Mode | Schema | Kept | Erased by | PRD |
 |---|---|---|---|---|---|---|---|
-| `config.accounts` | `<accounts dir>/<accounts TOML>` | account names, providers and their parameters, environment-variable names; never a secret | — | unversioned | kept; yours to edit | `--erase-all-data --include-config` | 0001 |
+| `config.accounts` | `<accounts dir>/<accounts TOML>` | account names, providers and their parameters, environment-variable names, budgets and balance floors; never a secret | — | unversioned | kept; yours to edit | `--erase-all-data --include-config` | 0001 |
 | `config.hooks` | `<accounts dir>/hooks.toml` | hook rules: events and the commands they run | — | unversioned | kept; yours to edit | `--erase-all-data --include-config` | 0013 |
 | `desktop.settings` | `<config>/cuotai/desktop.json` | desktop preferences: language, theme, notifications, server, widgets | `0600` | unversioned | until erased | `--erase-all-data` | 0020 |
 | `history.db` | `<local data>/cuotai/history/history.sqlite3` | readings per account and metric (digests of names, numbers, times) | `0600` | SQLite `user_version` | 90 days by default (7 to 365), 64 MiB cap | `--erase-all-data` | 0006 |
@@ -34,7 +34,7 @@ Cuotai is a read-only monitor that runs on your computer. It has no telemetry, n
 | `cost.db` | `<local data>/cuotai/cost/cost.sqlite3` | index of local coding-tool usage logs (tokens, models, times) | `0600` | SQLite `user_version` | rebuilt from the tools' logs | `--erase-all-data` | 0015 |
 | `cost.settings` | `<local data>/cuotai/cost/settings.json` | local cost sources and their switches | `0600` | unversioned | until erased | `--erase-all-data` | 0015 |
 | `cost.pricing` | `<local data>/cuotai/cost/pricing.json` | price overrides per model | `0600` | unversioned | until erased | `--erase-all-data` | 0015 |
-| `notifications.ledger` | `<local data>/cuotai/notified.json` | digests and dates of reset and usage notices already sent | `0600` | unversioned | 8 days | `--erase-all-data` | 0003 |
+| `notifications.ledger` | `<local data>/cuotai/notified.json` | digests and dates of reset and usage notices and weekly digests already sent | `0600` | unversioned | 8 days | `--erase-all-data` | 0003 |
 | `widgets.snapshot` | `<local data>/cuotai/widget.json` | the latest readings shown by system widgets (desktop) | `0600` | JSON `schema` | replaced on each refresh; 256 KiB cap | `--erase-all-data` | 0014 |
 | `last_config.tui` | `<local data>/cuotai/last-config-tui.json` | path of the accounts file the terminal last opened | `0600` | unversioned | replaced on each start | `--erase-all-data` | 0022 |
 | `last_config.desktop` | `<local data>/cuotai/last-config-desktop.json` | path of the accounts file the desktop last opened | `0600` | unversioned | replaced on each start | `--erase-all-data` | 0022 |

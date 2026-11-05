@@ -36,6 +36,28 @@ credential_env = "OPENAI_ADMIN_KEY"
 # refresh_seconds = 60 # optional, for this account only (minimum 30 s)
 # group = "coding" # optional, see the note above the first account
 # params = { project_ids = "proj_1,proj_2", models = "gpt-4.1" }
+#
+# Optional budgets (PRD 0041): your own limit on spend, usage or credits the
+# provider reports without one. Each becomes a "Budget" quota with pace,
+# alerts, allowance and history. Up to 8 per account; nothing is enforced or
+# sent anywhere. Pick the metric with kind = "spend" | "usage" | "credits"
+# (optionally label_contains = "month" and unit = "USD") or with
+# scope = "account" (the account's total spend). period is daily, weekly
+# (starts = "monday".."sunday"), monthly (starts = 1..28, default 1) or
+# window (the provider's own cycle). Boundaries are local midnight.
+# [[accounts.budgets]]
+# kind = "spend"
+# amount = 50
+# unit = "USD"
+# period = "monthly"
+# starts = 1
+# label = "API budget" # optional, at most 32 characters
+#
+# Optional balance floors (PRD 0041): warn when a balance or credits metric
+# drops below amount (up to 4 per account).
+# [[accounts.floors]]
+# kind = "balance" # or "credits"; absent: the first of either
+# amount = 5
 
 [[accounts]]
 name = "Anthropic API"

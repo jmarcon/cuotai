@@ -57,7 +57,40 @@
         "overage": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Overage" }], "description": "Paid extra usage of the current report (PRD 0023); null when the provider exposes no overage data or there is no report." },
         "incident": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/ProviderIncident" }], "description": "The provider's public status (PRD 0011); null while status queries are off or without a verified source." },
         "sub_accounts": { "type": "array", "items": { "$ref": "#/$defs/SubAccountExport" }, "description": "PRD 0036 RF7.1: the connections of an aggregator account; omitted when empty. Never repeated in the top-level accounts array." },
-        "aggregator": { "$ref": "#/$defs/AggregatorExport", "description": "PRD 0036 RF7.1: the instance of an aggregator account; omitted for every other account." }
+        "aggregator": { "$ref": "#/$defs/AggregatorExport", "description": "PRD 0036 RF7.1: the instance of an aggregator account; omitted for every other account." },
+        "allowance": {
+          "type": "array",
+          "items": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Allowance" }] },
+          "description": "PRD 0041 RF4.3: one entry per report.metrics item, same order as pace: how much of the quota can be used per day (per hour under 2 days) and still reach the reset; null where there is none and for every metric unless freshness is fresh; omitted without a report. Additive."
+        },
+        "floors": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Floor" },
+          "description": "PRD 0041 RF3: the person's balance floors of the account; omitted when it has none. Additive."
+        }
+      }
+    },
+    "Allowance": {
+      "type": "object",
+      "required": ["amount", "percent", "unit", "per", "vs_recent", "text"],
+      "properties": {
+        "amount": { "type": "number", "description": "In unit, per per." },
+        "percent": { "type": "number", "description": "The same as a share of the limit, in percent." },
+        "unit": { "type": "string" },
+        "per": { "anyOf": [{ "enum": ["day", "hour"] }, { "type": "string" }] },
+        "vs_recent": { "type": ["number", "null"], "description": "Recent use per per divided by amount; null without recent samples." },
+        "text": { "$ref": "#/$defs/Localized", "description": "The sentence front ends show (pace.allowance.*)." }
+      }
+    },
+    "Floor": {
+      "type": "object",
+      "required": ["amount"],
+      "description": "One [[accounts.floors]] entry (PRD 0041 RF3): warn when the balance metric drops below amount.",
+      "properties": {
+        "kind": { "anyOf": [{ "enum": ["balance", "credits"] }, { "type": "string" }], "description": "Absent: the first balance or credits metric." },
+        "label_contains": { "type": "string" },
+        "amount": { "type": "number", "exclusiveMinimum": 0 },
+        "unit": { "type": "string" }
       }
     },
     "SubAccountExport": {
@@ -164,7 +197,48 @@
               "days": { "type": "array", "items": { "$ref": "#/$defs/StatsDay" } }
             }
           }
+        },
+        "rhythm": {
+          "type": "object",
+          "description": "PRD 0043 RF5 (additive): how use spread over hours and days, all accounts, from the local history.",
+          "required": ["last_24h", "last_7d", "typical"],
+          "properties": {
+            "last_24h": { "type": "array", "items": { "$ref": "#/$defs/RhythmBucket" } },
+            "last_7d": { "type": "array", "items": { "$ref": "#/$defs/RhythmBucket" } },
+            "typical": { "type": "array", "items": { "$ref": "#/$defs/RhythmBucket" } }
+          }
+        },
+        "limit_changes": {
+          "type": "array",
+          "description": "PRD 0043 RF5 (additive): limit changes recorded within the range, oldest first.",
+          "items": {
+            "type": "object",
+            "required": ["account_id", "label", "from", "to", "unit", "observed_at"],
+            "properties": {
+              "account_id": { "type": "string" },
+              "label": { "type": "string" },
+              "label_text": { "$ref": "#/$defs/Localized" },
+              "window": { "anyOf": [{ "type": "null" }, { "enum": ["window_5h", "daily", "weekly", "monthly", "other"] }, { "type": "string" }] },
+              "from": { "type": "number" },
+              "to": { "type": "number" },
+              "unit": { "type": "string" },
+              "observed_at": { "type": "string", "format": "date-time" }
+            }
+          }
         }
+      }
+    },
+    "RhythmBucket": {
+      "type": "object",
+      "required": ["start", "consumption", "samples", "reset", "day_off"],
+      "properties": {
+        "start": { "type": "string", "format": "date-time" },
+        "hour": { "type": "integer", "minimum": 0, "maximum": 23, "description": "Local hour of an hourly bucket." },
+        "day": { "type": "string", "format": "date", "description": "Local date of a daily bucket." },
+        "consumption": { "type": ["number", "null"], "description": "Percentage points of the tightest limit consumed in the bucket; null for a gap (no sample), never 0." },
+        "samples": { "type": "integer", "minimum": 0, "description": "Samples in the bucket; for typical, the days with data (null consumption under 3)." },
+        "reset": { "type": "boolean" },
+        "day_off": { "type": "boolean" }
       }
     },
     "Limits": {
@@ -301,6 +375,17 @@
             "kind": { "anyOf": [{ "enum": ["model"] }, { "type": "string" }] },
             "id": { "type": "string" },
             "label": { "type": "string" }
+          }
+        },
+        "derived": { "const": true, "description": "PRD 0041 RF2: present (true) only on a budget quota the core derived from a provider metric and the person's budget; never a provider value." },
+        "derived_from": {
+          "type": "object",
+          "required": ["kind", "label", "budget"],
+          "description": "PRD 0041 RF2: what a derived budget quota follows; present with derived.",
+          "properties": {
+            "kind": { "anyOf": [{ "enum": ["quota", "rate_limit", "balance", "credits", "spend", "usage"] }, { "type": "string" }] },
+            "label": { "type": "string", "description": "The target metric's label; empty when it is missing from the reading." },
+            "budget": { "type": "integer", "minimum": 0, "description": "Position of the budget in the account's [[accounts.budgets]]." }
           }
         }
       }
