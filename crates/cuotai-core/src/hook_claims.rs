@@ -4,7 +4,7 @@
 //! and observe the same accounts, so without coordination each process
 //! would run a rule for the same transition. Before a real hook is queued,
 //! [`HookClaims::claim`] records `(hooks.toml identity, rules digest, rule,
-//! transition)` in `<OS local data dir>/cuotai/hooks/claims.json` under the
+//! transition)` in `<data root>/hooks/claims.json` under the
 //! advisory `claims.lock` (the same exclusive-file lock as `notified.json`,
 //! [`crate::resets::LedgerLock`]): it re-reads the file, prunes claims older
 //! than [`KEEP`], appends the new one and saves atomically, then releases the
@@ -86,10 +86,11 @@ impl HookClaims {
         Self { file: file.into() }
     }
 
-    /// `<OS local data dir>/cuotai/hooks/claims.json`; `None` without a local
-    /// data directory (and then no hook runs).
+    /// `<data root>/hooks/claims.json` (the root is `CUOTAI_DATA_DIR` or
+    /// `<OS local data dir>/cuotai`, [`crate::data_dir::root`]); `None`
+    /// without one (and then no hook runs).
     pub fn in_data_dir() -> Option<Self> {
-        dirs::data_local_dir().map(|dir| Self::at(dir.join("cuotai").join("hooks").join(FILE_NAME)))
+        crate::data_dir::root().map(|dir| Self::at(dir.join("hooks").join(FILE_NAME)))
     }
 
     pub fn path(&self) -> &Path {

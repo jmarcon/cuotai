@@ -316,6 +316,15 @@ static ARTIFACTS: &[Artifact] = &[
         UNTIL_ERASED,
         "0013",
     ),
+    file(
+        "hooks.claims",
+        LocalData,
+        "hooks/claims.json",
+        "a digest and two times per hook run claimed by one process; no payload, account or command",
+        Unversioned,
+        "8 days",
+        "0054",
+    ),
     dir(
         "hooks.work",
         "hooks/work",
@@ -902,6 +911,7 @@ mod tests {
             "extensions.tree",
             "extensions.consent",
             "hooks.consent",
+            "hooks.claims",
             "hooks.work",
             "hooks.runs",
             "serve.token_file",
@@ -928,6 +938,10 @@ mod tests {
             crate::diagnostics::logging::log_path(Path::new("/data/cuotai"))
         );
         assert_eq!(path("hooks.runs"), local("hooks").join("runs.log"));
+        assert_eq!(
+            path("hooks.claims"),
+            local("hooks").join(crate::hooks::CLAIMS_FILE_NAME)
+        );
         assert_eq!(path("serve.token_file"), local("serve").join("token"));
         assert_eq!(path("config.accounts"), PathBuf::from("/acc/cuotai.toml"));
         assert_eq!(path("config.hooks"), PathBuf::from("/acc/hooks.toml"));

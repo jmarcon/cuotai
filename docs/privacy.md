@@ -41,6 +41,7 @@ Cuotai is a read-only monitor that runs on your computer. It has no telemetry, n
 | `extensions.tree` | `<local data>/cuotai/extensions` | the default extensions directory: approved extension programs you added | `0700` | — | until erased | `--erase-all-data` | 0017 |
 | `extensions.consent` | `<local data>/cuotai/consent/extensions.json` | digests of the extensions you approved | `0600` | unversioned | until erased | `--erase-all-data` | 0017 |
 | `hooks.consent` | `<local data>/cuotai/hooks/consent.json` | digests of the hook rules you confirmed | `0600` | unversioned | until erased | `--erase-all-data` | 0013 |
+| `hooks.claims` | `<local data>/cuotai/hooks/claims.json` | a digest and two times per hook run claimed by one process; no payload, account or command | `0600` | unversioned | 8 days | `--erase-all-data` | 0054 |
 | `hooks.work` | `<local data>/cuotai/hooks/work` | the working directory of running hooks | `0700` | — | emptied by the hooks themselves | `--erase-all-data` | 0013 |
 | `hooks.runs` | `<local data>/cuotai/hooks/runs.log` (and `.1`) | rule, event, time, duration and exit code of each hook run; no payload or output | `0600` | unversioned | 256 KiB plus one rotated copy | `--erase-all-data` | 0013 |
 | `serve.token_file` | `<local data>/cuotai/serve/token` | the local server's bearer token, when `--serve` keeps it in a file | `0600` | unversioned | until revoked | `--erase-all-data` | 0012 |
