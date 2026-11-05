@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0041 |
-| Status | Planned (next version) |
+| Status | In progress |
 | Owner | `cuotai-core` (`budget` module, synthetic metrics, allowance, validation), `cuotai-tui` (wizard field, details line, `--once`), desktop (account dialog, card chip, details) |
 | Consumers | Every front end; `export::v1`, `--watch` and `/v1/*` consumers; PRD 0026 statistics |
 | Depends on | PRD 0029 (budgets keyed by the stable account id), PRD 0023 RF1 (`Metric::billing`, so a budget on overage spend is possible), PRD 0033 (`measured_at`, for the cycle boundary) |
@@ -13,11 +13,18 @@
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable. A **budget** is a limit the person sets on a metric the provider reports without one (spend, usage, credits); a **floor** is the balance level below which the person wants to be warned; the **allowance** is how much of a quota can be used per day (or per hour) and still reach the reset.
 
-## Implementation status (2026-10-25)
+## Implementation status (2026-11-05)
 
 | RF | Version | Delivery |
 |---|---|---|
-| RF1–RF7 | — | Proposed. |
+| RF1 | vNEXT | `budget` module: `[[accounts.budgets]]`/`[[accounts.floors]]` on `Account` (TOML round trips keep comments; `ConfigFile` writes array tables), `budget::validate`/`problems` in `Config::validate` and the editors (`ConfigError::Budget` with a localized note per rule). The kind check knows the shapes of a few providers only (`budget::reportable_kinds`); elsewhere a mismatch shows at reading time. |
+| RF2 | vNEXT | `budget::apply` in `Monitor::refresh_account` (after the adapter, before history and alerts): derived quota with `derived_from`, local-midnight boundaries (DST-safe, tested in New York, Berlin and Santiago), provider-period, baseline and balance-drop derivations, `note.budget.*` notes, restored readings re-marked. The budget metric's `billing` is always `included` (so every engine treats it as a plan limit); a top-up raises the baseline by its amount instead of resetting it, so use before it still counts; no journal entry for top-ups. |
+| RF3 | vNEXT | `AlertKind::BalanceBelowFloor`/`BalanceRecovered` (10% hysteresis, top-up re-arm, quiet hours like a threshold, private texts), `budget::floor_statuses` chips and lines, `balance_below_floor`/`balance_recovered` events (floors travel in `AccountExport.floors`). |
+| RF4 | vNEXT | `pace::allowance` with `vs_recent`, `Allowance::sentence` (`pace.allowance.*`), desktop details, TUI details, `--once` `Allowance:` and `export::v1` `allowance`. |
+| RF5 | vNEXT (partial) | Desktop **Budgets and floors** section with core validation and the live sentence, **Set a budget…**/**Set a floor…** quick actions. The TUI wizard keeps an account's budgets and floors on edit but has no editor yet (the TOML is the terminal's editor). |
+| RF6 | — | Not delivered: no PRD 0030 plan-price API to prefill from; `budget::recent_reference` (the "last 30 days" line) exists in the core but is not shown yet. |
+| RF7 | vNEXT | `cuotai.example.toml`, `docs/advanced.md`, `docs/gui-features.md`, `docs/tui.md`, `docs/export-v1.md` (+ schema), `docs/events.md`. |
+| Open question | vNEXT | `advisory = true` (keep a budget out of binding and `best`) is not implemented: every budget counts, the recommended default. |
 
 ## 1. Context
 

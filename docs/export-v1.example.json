@@ -202,7 +202,26 @@
         "read_at": "2026-10-20T11:59:00Z",
         "stale": false,
         "expired": false
-      }
+      },
+      "allowance": [
+        null,
+        {
+          "amount": 9.993060374739763,
+          "percent": 9.993060374739763,
+          "unit": "%",
+          "per": "day",
+          "vs_recent": null,
+          "text": {
+            "id": "pace.allowance.day",
+            "params": {
+              "value": "10%"
+            },
+            "fallback": "≈ 10%/day to the reset"
+          }
+        },
+        null,
+        null
+      ]
     },
     {
       "index": 1,
