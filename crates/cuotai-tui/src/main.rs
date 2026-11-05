@@ -1041,9 +1041,34 @@ pub(crate) fn history_store(file: &ConfigFile, retention: Retention) -> Option<H
         .map(|store| store.with_retention(retention))
 }
 
-#[tokio::main]
-async fn main() -> std::process::ExitCode {
-    match run().await {
+/// The main thread's stack: Windows gives the process 1 MiB, which the
+/// argument parser and `run`'s state machine outgrow in debug builds now
+/// that the CLI carries over a hundred flags; 8 MiB everywhere.
+const MAIN_STACK: usize = 8 * 1024 * 1024;
+
+fn main() -> std::process::ExitCode {
+    let worker = std::thread::Builder::new()
+        .name("cuotai-main".into())
+        .stack_size(MAIN_STACK)
+        .spawn(|| {
+            tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+                .map(|runtime| runtime.block_on(async_main()))
+                .unwrap_or_else(|error| {
+                    eprintln!("cuotai: {error}");
+                    std::process::ExitCode::FAILURE
+                })
+        });
+    match worker.map(std::thread::JoinHandle::join) {
+        Ok(Ok(code)) => code,
+        // A panic already printed its line (the panic hooks of `run`).
+        _ => std::process::ExitCode::FAILURE,
+    }
+}
+
+async fn async_main() -> std::process::ExitCode {
+    match Box::pin(run()).await {
         Ok(code) => std::process::ExitCode::from(code),
         Err(error) => {
             // The error's text may name a path or an account: the log keeps
