@@ -2985,7 +2985,7 @@ fn local_cost_lines(panel: &crate::cost::CostPanel, tool: &SourceCost) -> Vec<Li
             Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
         ),
     ];
-    for (row, line) in crate::cost::source_rows(tool, &summary.span) {
+    for (row, line) in crate::cost::source_rows(summary, tool) {
         use crate::cost::Row;
         let (indent, style) = match row {
             Row::Note => ("  ", Style::default().fg(YELLOW)),

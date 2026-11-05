@@ -666,6 +666,78 @@ struct Args {
     /// Days kept in the local cost index (7 to 730; default 120).
     #[arg(long, value_name = "DAYS", conflicts_with_all = COST_OPTION_CONFLICTS)]
     cost_retention_days: Option<u32>,
+    /// PRD 0042 RF5.1: with --cost, the breakdown shown: day (default),
+    /// model, session, block (5-hour blocks, the active one first) or
+    /// project.
+    #[arg(
+        long,
+        value_name = "BY",
+        value_parser = ["day", "model", "session", "block", "project"],
+        requires = "cost"
+    )]
+    by: Option<String>,
+    /// With --cost --by session|project, at most N rows (default 20).
+    #[arg(long, value_name = "N", requires = "by", conflicts_with = "all")]
+    top: Option<usize>,
+    /// With --cost --by session|project, every row.
+    #[arg(long, requires = "by")]
+    all: bool,
+    /// PRD 0042 RF5.2: shows the active 5-hour block of each local cost
+    /// source after reading what grew: its window, elapsed and left time,
+    /// tokens, estimated cost, burn rate (tokens per minute over the last
+    /// 10 minutes) and the projection at that rate; with --json, as JSON.
+    /// An estimate at API prices, not a charge. Exit 0; 2 when no source is
+    /// on or one has no logs or no access; 1 on a local error.
+    #[arg(long, group = "cost_action")]
+    cost_live: bool,
+    /// With --cost-live, only SOURCE (claude_code, codex_cli or gemini_cli).
+    #[arg(long, value_name = "SOURCE", requires = "cost_live")]
+    source: Option<String>,
+    /// With --cost-live, refresh every S seconds (2 to 3600): in place on a
+    /// terminal (q quits), one JSON object per line with --json.
+    #[arg(long, value_name = "S", requires = "cost_live")]
+    watch_interval: Option<u64>,
+    /// PRD 0042 RF2.2/RF4.2: labels the session or project whose digest
+    /// starts with PREFIX (at least 4 characters, as --cost --by shows
+    /// it): `--cost-label project ab12cd34 "Client work"` (up to 48
+    /// characters, stored in the local cost index); with --clear, removes
+    /// the label.
+    #[arg(
+        long,
+        value_names = ["session|project", "PREFIX", "LABEL"],
+        num_args = 2..=3,
+        group = "cost_action"
+    )]
+    cost_label: Option<Vec<String>>,
+    /// With --cost-label TARGET PREFIX, removes the label.
+    #[arg(long, requires = "cost_label")]
+    clear: bool,
+    /// PRD 0042 RF4.1: hides the project whose digest starts with PREFIX:
+    /// still listed, but left out of the totals.
+    #[arg(long, value_name = "PREFIX", group = "cost_action")]
+    cost_hide: Option<String>,
+    /// Counts a hidden project in the totals again.
+    #[arg(long, value_name = "PREFIX", group = "cost_action")]
+    cost_unhide: Option<String>,
+    /// PRD 0042 RF3.1: the block length of SOURCE in hours (1 to 24;
+    /// default 5 for claude_code and codex_cli, 24 for gemini_cli).
+    #[arg(
+        long,
+        value_names = ["SOURCE", "HOURS"],
+        num_args = 2,
+        group = "cost_action"
+    )]
+    cost_block_hours: Option<Vec<String>>,
+    /// PRD 0042 RF4.3: keep (`on`) the last folder name of each project of
+    /// SOURCE to prefill its label, or stop and delete the names kept
+    /// (`off`, the default).
+    #[arg(
+        long,
+        value_names = ["SOURCE", "on|off"],
+        num_args = 2,
+        group = "cost_action"
+    )]
+    cost_folder_hint: Option<Vec<String>>,
     /// PRD 0052 RF5.1: writes the local history to PATH and exits (with
     /// --history ACCOUNT, one account; with --history-days N, the last N
     /// days).
@@ -833,7 +905,56 @@ fn cost_action(args: &mut Args) -> Option<cost::CostAction> {
         });
     }
     if args.cost {
-        return Some(CostAction::Usage { days: args.days });
+        return Some(CostAction::Usage {
+            days: args.days,
+            by: args.by.take(),
+            top: if args.all {
+                None
+            } else {
+                Some(args.top.unwrap_or(cost::DEFAULT_TOP))
+            },
+        });
+    }
+    if args.cost_live {
+        return Some(CostAction::Live {
+            source: args.source.take(),
+            interval: args.watch_interval,
+        });
+    }
+    if let Some(values) = args.cost_label.take() {
+        let mut values = values.into_iter();
+        return Some(CostAction::Label {
+            target: values.next().unwrap_or_default(),
+            prefix: values.next().unwrap_or_default(),
+            label: values.next(),
+            clear: args.clear,
+        });
+    }
+    if let Some(prefix) = args.cost_hide.take() {
+        return Some(CostAction::Hide {
+            prefix,
+            hidden: true,
+        });
+    }
+    if let Some(prefix) = args.cost_unhide.take() {
+        return Some(CostAction::Hide {
+            prefix,
+            hidden: false,
+        });
+    }
+    if let Some(values) = args.cost_block_hours.take() {
+        let mut values = values.into_iter();
+        return Some(CostAction::BlockHours {
+            source: values.next().unwrap_or_default(),
+            hours: values.next().unwrap_or_default(),
+        });
+    }
+    if let Some(values) = args.cost_folder_hint.take() {
+        let mut values = values.into_iter();
+        return Some(CostAction::FolderHint {
+            source: values.next().unwrap_or_default(),
+            state: values.next().unwrap_or_default(),
+        });
     }
     (args.cost_period.is_some() || args.cost_retention_days.is_some()).then(|| {
         CostAction::Options {
