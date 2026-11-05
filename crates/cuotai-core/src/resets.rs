@@ -415,8 +415,7 @@ impl Ledger {
         let mut tmp = tempfile::NamedTempFile::new_in(dir)?;
         tmp.write_all(&body)?;
         tmp.as_file().sync_all()?;
-        tmp.persist(path).map_err(|e| e.error)?;
-        Ok(())
+        crate::private_fs::persist(tmp, path)
     }
 
     /// The same reset (within [`DRIFT_TOLERANCE`]) of the metric behind

@@ -783,8 +783,7 @@ pub(crate) fn write_atomically(path: &Path, bytes: &[u8]) -> io::Result<()> {
     let mut tmp = tempfile::NamedTempFile::new_in(dir)?;
     tmp.write_all(bytes)?;
     tmp.as_file().sync_all()?;
-    tmp.persist(path).map_err(|error| error.error)?;
-    Ok(())
+    crate::private_fs::persist(tmp, path)
 }
 
 /// The rules on disk are not the ones the user was shown: a save over a

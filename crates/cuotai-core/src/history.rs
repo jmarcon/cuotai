@@ -78,7 +78,7 @@ impl From<rusqlite::Error> for HistoryError {
 
 /// A drop in `used` above this fraction of `limit` ends the window (a reset).
 const RESET_DROP: f64 = 0.2;
-const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
+const BUSY_TIMEOUT: Duration = crate::private_fs::SQLITE_BUSY_TIMEOUT;
 /// RF2.3: a sample identical to the previous one of its metric taken less
 /// than this after it is not stored.
 const COMPACT_WITHIN_MS: i64 = 15 * 60 * 1000;
@@ -682,7 +682,7 @@ impl HistoryStore {
     fn open(&self) -> Result<Connection, HistoryError> {
         create_private_file(&self.path).map_err(|_| HistoryError::Storage)?;
         let mut db = Connection::open(&self.path)?;
-        db.busy_timeout(BUSY_TIMEOUT)?;
+        crate::private_fs::sqlite_busy_wait(&db)?;
         wal(&db)?;
         db.pragma_update(None, "journal_size_limit", WAL_SIZE_LIMIT)?;
         if migrate_from(&mut db, &MIGRATIONS)?.is_some_and(|from| from < COMPACT_BELOW) {

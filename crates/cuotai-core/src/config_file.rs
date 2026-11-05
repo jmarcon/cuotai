@@ -417,9 +417,9 @@ impl ConfigFile {
         // Last freshness check right before the rename shrinks the TOCTOU window.
         self.check_fresh(&dest)?;
         let result = if self.original.is_none() {
-            tmp.persist_noclobber(&dest).map_err(|e| e.error)
+            tmp.persist_noclobber(&dest).map(drop).map_err(|e| e.error)
         } else {
-            tmp.persist(&dest).map_err(|e| e.error)
+            crate::private_fs::persist(tmp, &dest)
         };
         result.map_err(|e| EditError::Io {
             path: dest.clone(),
