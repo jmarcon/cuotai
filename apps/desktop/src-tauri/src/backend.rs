@@ -610,6 +610,10 @@ pub struct ReportView {
     /// PRD 0045 RF6.1: the account's breakdown, from the core.
     #[serde(skip_serializing_if = "Option::is_none")]
     breakdown: Option<BreakdownView>,
+    /// PRD 0040 RF7.1: the live agent sessions of the feed bound to the
+    /// account (younger than 10 minutes); absent when there is none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    live: Option<LiveView>,
 }
 
 /// PRD 0043 RF2.2: the card notes of the limit changes `store` recorded for
@@ -723,6 +727,101 @@ fn breakdown_view(report: &Report) -> Option<BreakdownView> {
         top: breakdown::top_line(&report.breakdown, breakdown::CARD_ROWS),
         truncated: breakdown::truncated_note(&report.breakdown),
     })
+}
+
+/// PRD 0040 RF7.1: the live-session block of one account, every text from
+/// the core.
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct LiveView {
+    title: cuotai_core::text::Localized,
+    /// "Agent estimate at list price, not a charge." (HON).
+    caveat: cuotai_core::text::Localized,
+    /// "and 2 more" when sessions were left out.
+    more: Option<cuotai_core::text::Localized>,
+    /// RF7.2: the tray row's "ctx 8%" chip (newest session).
+    chip: Option<cuotai_core::text::Localized>,
+    chip_level: Option<cuotai_core::feed::live::ContextLevel>,
+    sessions: Vec<LiveSessionView>,
+}
+
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct LiveSessionView {
+    model_name: Option<String>,
+    /// "ctx 8%" and its display-only role.
+    context: Option<cuotai_core::text::Localized>,
+    level: Option<cuotai_core::feed::live::ContextLevel>,
+    /// "≈ $0.42 this session".
+    cost: Option<cuotai_core::text::Localized>,
+    written_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// PRD 0040 RF7.1: [`LiveView`] of `account` at `now`; `None` without a
+/// live session (or without a data directory).
+fn live_view(
+    account: &cuotai_core::Account,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Option<LiveView> {
+    use cuotai_core::feed::{self, live};
+    feed::bound_source(account)?;
+    let store = feed::FeedStore::in_data_dir()?;
+    let block = live::block_for(account, &store, now);
+    if block.is_empty() {
+        return None;
+    }
+    Some(LiveView {
+        title: live::title(),
+        caveat: live::cost_caveat(),
+        more: block.more_text(),
+        chip: block.tray_chip(),
+        chip_level: block.sessions.first().and_then(|s| s.context_level),
+        sessions: block
+            .sessions
+            .iter()
+            .map(|session| LiveSessionView {
+                model_name: session.model_name.clone(),
+                context: session.context_chip(),
+                level: session.context_level,
+                cost: session.cost_text(),
+                written_at: session.written_at,
+            })
+            .collect(),
+    })
+}
+
+/// PRD 0040 RF8.1: an agent sends readings no account uses.
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct FeedBannerView {
+    source: &'static str,
+    text: cuotai_core::text::Localized,
+    action: cuotai_core::text::Localized,
+    provider: Provider,
+    query_mode: &'static str,
+}
+
+/// PRD 0040 RF8.1: the banners of `config` at `now` (the core's state
+/// machine over the newest feed and the dismissal kept in desktop.json).
+fn feed_banners(config: &Config, now: chrono::DateTime<chrono::Utc>) -> Vec<FeedBannerView> {
+    use cuotai_core::feed::{self, live, FeedSource};
+    let Some(store) = feed::FeedStore::in_data_dir() else {
+        return Vec::new();
+    };
+    // Codex CLI readings land in the store only through a fed account, so
+    // only Claude Code's status line can be "unbound".
+    [FeedSource::ClaudeCode]
+        .into_iter()
+        .filter_map(|source| {
+            let latest = store.latest(source, now);
+            let dismissed = crate::settings::feed_banner_dismissed(source.slug());
+            live::unbound_banner(source, config, latest.as_ref(), dismissed, now)
+        })
+        .map(|banner| FeedBannerView {
+            source: banner.source.slug(),
+            text: banner.text,
+            action: banner.action,
+            provider: banner.provider,
+            query_mode: banner.query_mode,
+        })
+        .collect()
 }
 
 /// Whether `id` is in the comma-separated list parameter `key` of `account`.
@@ -1034,6 +1133,9 @@ pub struct View {
     /// The menu bar's input, per account in dashboard order (not sent).
     #[serde(skip)]
     tray_accounts: Vec<tray::AccountView>,
+    /// PRD 0040 RF8.1: "Claude Code is sending readings; add an account".
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    feed_banners: Vec<FeedBannerView>,
 }
 
 /// PRD 0025 RF2.3: what the popover needs from the menu-bar selection.
@@ -1201,6 +1303,7 @@ fn report_view(
         floors: cuotai_core::budget::floor_statuses(account, report),
         limit_notes: Vec::new(),
         breakdown: breakdown_view(report),
+        live: live_view(account, now),
     }
 }
 
@@ -1670,6 +1773,7 @@ impl Inner {
                 hooks: self.hooks,
                 tray: TrayView::default(),
                 tray_accounts: Vec::new(),
+                feed_banners: Vec::new(),
             };
         };
         // Per-account report lookup that mirrors the cycle's slots. Even
@@ -1836,6 +1940,7 @@ impl Inner {
             hooks: self.hooks,
             tray: TrayView::default(),
             tray_accounts,
+            feed_banners: feed_banners(&l.file.config, clock),
         }
     }
 
@@ -6225,6 +6330,16 @@ pub struct FormSchema {
     /// PRD 0047 G1: keys of `fields` that name a variable; the desktop
     /// never renders them (the TUI does).
     terminal_only_fields: Vec<&'static str>,
+    /// PRD 0040 owner decision: the choices a new account preselects when a
+    /// local tool was detected (PRD 0027 RF6): `{ kind, key, choice }`.
+    preselect: Vec<PreselectSchema>,
+}
+
+#[derive(Serialize)]
+pub struct PreselectSchema {
+    kind: &'static str,
+    key: &'static str,
+    choice: usize,
 }
 
 fn login_option_schema(
@@ -6307,6 +6422,21 @@ pub fn form_schema(provider: Provider) -> FormSchema {
             .map(|d| d.key)
             .filter(|key| account_edit::is_terminal_only_field(provider, key))
             .collect(),
+        preselect: [
+            cuotai_core::detect::SourceKind::ClaudeCode,
+            cuotai_core::detect::SourceKind::CodexCli,
+        ]
+        .into_iter()
+        .flat_map(|kind| {
+            account_edit::preselected_choices(provider, &[kind])
+                .into_iter()
+                .map(move |(key, choice)| PreselectSchema {
+                    kind: kind.slug(),
+                    key,
+                    choice,
+                })
+        })
+        .collect(),
         login: ProviderLoginSchema {
             modes: login
                 .modes

@@ -1,7 +1,7 @@
 // Settings › Advanced › Integrations (PRD 0020 RF2.5): the local server, hooks (`hooks.js`) and widgets, as the old
 // "Integration" section held them, one group each, built from the shared rows (RF3).
 import { t, te, tle } from "../i18n.js";
-import { copyServeToken, deleteWidgetData, esc, generateServeToken, hooksStatus, icon, revokeServeToken, serveStatus, setServe, setServeStats, setWidgets, widgetsStatus } from "../lib.js";
+import { claudeCodeSnippets, copyServeToken, deleteWidgetData, esc, generateServeToken, hooksStatus, icon, revokeServeToken, serveStatus, setServe, setServeStats, setWidgets, widgetsStatus } from "../lib.js";
 import { copySecret, group, l10nError, serveErrorText } from "./common.js";
 import { bindHooks, hooksHtml } from "./hooks.js";
 import { buttons, commitField, disc, num, pathHtml, row, sw, toast } from "./rows.js";
@@ -9,13 +9,41 @@ import { buttons, commitField, disc, num, pathHtml, row, sw, toast } from "./row
 export function html() {
   return group("serve", te("settings.serve.title"), `<div data-serve><p class="hint">${te("common.loading")}</p></div>`, "data-integration")
     + group("hooks", te("settings.hooks.title"), `<div data-hooks><p class="hint">${te("common.loading")}</p></div>`)
-    + group("widgets", te("settings.widgets.title"), `<div data-widgets><p class="hint">${te("common.loading")}</p></div>`);
+    + group("widgets", te("settings.widgets.title"), `<div data-widgets><p class="hint">${te("common.loading")}</p></div>`)
+    // PRD 0040 RF2.4: one disclosure named after the agent (no heading: the page copy budget, RF2.2).
+    + group("claude-code", "", claudeCodeHtml());
+}
+
+/** PRD 0040 RF2.4: Claude Code's status line feeds the Claude account; the snippet for ~/.claude/settings.json with
+ *  Copy (Cuotai never edits the agent's settings) and what is read and dropped. */
+function claudeCodeHtml() {
+  // Under one disclosure (RF2.2 copy budget); what is read and dropped is in the info popover.
+  return disc("claude-code", te("settings.claudeCode.title"),
+    row({ key: "claude-code", label: te("settings.claudeCode.show"), info: `${te("settings.claudeCode.desc")}<br />${te("settings.claudeCode.privacy")}`, msg: "claude-code-msg",
+      control: () => `<button type="button" class="btn sm" data-claude-copy="settings">${icon("copy")} ${te("settings.claudeCode.copy")}</button>`,
+      body: `<pre class="snippet" data-claude-snippet></pre>
+        <p class="hint">${te("settings.claudeCode.chained")}</p><pre class="snippet" data-claude-chained></pre>
+        <p class="dlg-actions left"><button type="button" class="btn sm" data-claude-copy="chained">${icon("copy")} ${te("settings.claudeCode.copy")}</button></p>` }));
+}
+
+async function bindClaudeCode(root) {
+  if (!root) return;
+  const snippets = await claudeCodeSnippets().catch(() => null);
+  if (!snippets) return;
+  const main = root.querySelector("[data-claude-snippet]");
+  const chained = root.querySelector("[data-claude-chained]");
+  if (main) main.textContent = snippets.settings;
+  if (chained) chained.textContent = snippets.chained;
+  for (const btn of root.querySelectorAll("[data-claude-copy]")) {
+    btn.addEventListener("click", () => navigator.clipboard.writeText(snippets[btn.dataset.claudeCopy]).then(
+      () => toast(t("settings.claudeCode.copied")), () => {}));
+  }
 }
 
 /** RF6.3: what the search indexes for this page: the rows drawn from the state of each group, by the same functions. */
 export async function searchHtml() {
   const [sv, hv, wv] = await Promise.all([serveStatus(), hooksStatus(), widgetsStatus()]);
-  return integrationHtml(sv) + hooksHtml(hv, hv.rules ?? [], false) + widgetsHtml(wv);
+  return integrationHtml(sv) + hooksHtml(hv, hv.rules ?? [], false) + widgetsHtml(wv) + claudeCodeHtml();
 }
 
 /** Resolves once every group has its state drawn (the shell then lands on an anchor). */
@@ -24,6 +52,7 @@ export function bind(root, ctx) {
     bindIntegration(root.querySelector("[data-serve]"), ctx),
     bindHooks(root.querySelector("[data-hooks]"), ctx),
     bindWidgets(root.querySelector("[data-widgets]"), ctx),
+    bindClaudeCode(root.querySelector('[data-section="claude-code"]')),
   ]);
 }
 

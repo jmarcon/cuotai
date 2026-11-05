@@ -11,7 +11,7 @@ import { mountStats } from "./stats.js";
 import { mountTimeline } from "./timeline.js";
 import { costLineHtml, sourceFor } from "./cost.js";
 import {
-  accountLabel, bestChipHtml, costUsage, bindStatusLinks, bindThemeSwitch, bindSettingsShortcut, brand, createStore, disabledAccounts, esc, fmtAge, icon,
+  accountLabel, bestChipHtml, liveChipHtml, costUsage, bindStatusLinks, bindThemeSwitch, bindSettingsShortcut, brand, createStore, disabledAccounts, esc, fmtAge, icon,
   initOrderSync, initTheme, initTrayView, level, nextNoticeText, noteText, onDisabledChange, onHiddenChange, onSettingsChanged, onTrayViewChange,
   openAggregatorDashboard, openMainWindow, openSettingsWindow, overageChipHtml, reportKey, setMetricAlert, sortReports, statusLabel, trayViewPref, wordmark,
   errText, isDesktop,
@@ -73,7 +73,7 @@ const notInHtml = () => `<p class="pop-sub" role="presentation">${te("settings.m
 /** The chips a row carries besides its status line: extra usage (PRD 0023), the best account (PRD 0024 RF7) and a
  *  9router connection's own state (PRD 0036). */
 // Fa gap 4: an exhausted account on extra usage says so on its status line, so the extra chip stays off the row.
-const rowChips = (r, via = false) => `${isConnection(r) ? connectionChips(r, { via }) : ""}${accountState(r).kind === "exhausted" ? "" : overageChipHtml(r)}${bestChipHtml(r)}`;
+const rowChips = (r, via = false) => `${isConnection(r) ? connectionChips(r, { via }) : ""}${accountState(r).kind === "exhausted" ? "" : overageChipHtml(r)}${bestChipHtml(r)}${liveChipHtml(r)}`;
 
 /** The row of one account, with the multi-account title rule (DS-CMP-ROW-1) and its monogram. */
 function row(r, ctx, open = null, { via = false } = {}) {

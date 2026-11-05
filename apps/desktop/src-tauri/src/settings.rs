@@ -38,6 +38,14 @@ struct Stored {
     /// on (it only shows where a group has two or more accounts).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     advice: Option<serde_json::Value>,
+    /// PRD 0040 RF7.2: the live agent session on cards and the tray;
+    /// absent = shown. Only `false` is stored.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    live_session: Option<bool>,
+    /// PRD 0040 RF8.1: when each agent's "add an account fed by it" banner
+    /// was dismissed (source slug → time); it comes back after 7 days.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    feed_banner_dismissed: BTreeMap<String, chrono::DateTime<chrono::Utc>>,
     /// Days of measurement history kept (PRD 0006 RF4.1, 7 to 365); absent
     /// = the core default (90). A value out of range reads as the default.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1577,6 +1585,29 @@ pub fn save_advice_enabled(enabled: bool) -> Result<(), &'static str> {
     })
 }
 
+/// PRD 0040 RF7.2: show (the default, removes the key) or hide the live
+/// agent session. Error: `unwritable`.
+pub fn save_live_session(show: bool) -> Result<(), &'static str> {
+    let file = settings_file().ok_or("unwritable")?;
+    update(&file, |s| s.live_session = (!show).then_some(false))
+}
+
+/// PRD 0040 RF8.1: when the banner of the agent `source` was dismissed.
+pub fn feed_banner_dismissed(source: &str) -> Option<chrono::DateTime<chrono::Utc>> {
+    load().feed_banner_dismissed.get(source).copied()
+}
+
+/// PRD 0040 RF8.1: hide the banner of the agent `source` for 7 days.
+/// Errors: `invalid_source`, `unwritable`.
+pub fn dismiss_feed_banner(source: &str) -> Result<(), &'static str> {
+    let source = cuotai_core::feed::FeedSource::from_slug(source).ok_or("invalid_source")?;
+    let file = settings_file().ok_or("unwritable")?;
+    update(&file, |s| {
+        s.feed_banner_dismissed
+            .insert(source.slug().to_owned(), chrono::Utc::now());
+    })
+}
+
 /// PRD 0024 RF1.3: how pace deviations read, "points" (the default) or
 /// "percent".
 fn pace_unit_of(stored: &Stored) -> &'static str {
@@ -1665,6 +1696,8 @@ pub struct SettingsView {
     pace_unit: &'static str,
     /// PRD 0024 RF7.5: show the best account of each group (on by default).
     advice_enabled: bool,
+    /// PRD 0040 RF7.2: show the live agent session (on by default).
+    live_session: bool,
     /// Days of measurement history kept, and the accepted range.
     history_days: u16,
     history_days_min: u16,
@@ -1748,6 +1781,7 @@ pub fn view() -> SettingsView {
         local_storage_migrated: migrated_of(&stored),
         pace_unit: pace_unit_of(&stored),
         advice_enabled: advice_of(&stored),
+        live_session: stored.live_session != Some(false),
         history_days: retention_of(&stored).keep_days(),
         history_days_min: Retention::MIN_DAYS,
         history_days_max: Retention::MAX_DAYS,
@@ -2350,6 +2384,27 @@ mod tests {
         )
         .unwrap();
         assert_eq!(read_main_window(&file, min), None);
+    }
+
+    /// PRD 0040 RF7.2/RF8.1: the live session is shown unless turned off,
+    /// and a feed banner dismissal is kept per agent.
+    #[test]
+    fn live_session_and_feed_banner_dismissals_round_trip() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        assert_eq!(read(&file).live_session, None);
+        update(&file, |s| s.live_session = Some(false)).unwrap();
+        let at = chrono::Utc::now();
+        update(&file, |s| {
+            s.feed_banner_dismissed.insert("claude_code".into(), at);
+        })
+        .unwrap();
+        let stored = read(&file);
+        assert_eq!(stored.live_session, Some(false));
+        assert_eq!(stored.feed_banner_dismissed.get("claude_code"), Some(&at));
+        fs::write(&file, r#"{"live_session":true}"#).unwrap();
+        assert_ne!(read(&file).live_session, Some(false));
+        assert!(read(&file).feed_banner_dismissed.is_empty());
     }
 
     #[test]

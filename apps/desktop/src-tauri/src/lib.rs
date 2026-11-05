@@ -1010,6 +1010,29 @@ fn set_advice_enabled(enabled: bool) -> Result<(), String> {
     settings::save_advice_enabled(enabled).map_err(str::to_owned)
 }
 
+/// PRD 0040 RF7.2: show or hide the live agent session. Error: `unwritable`.
+#[tauri::command]
+fn set_live_session(show: bool) -> Result<(), String> {
+    settings::save_live_session(show).map_err(str::to_owned)
+}
+
+/// PRD 0040 RF8.1: hide an agent's "add an account" banner for 7 days.
+/// Errors: `invalid_source`, `unwritable`.
+#[tauri::command]
+fn dismiss_feed_banner(source: String) -> Result<(), String> {
+    settings::dismiss_feed_banner(&source).map_err(str::to_owned)
+}
+
+/// PRD 0040 RF2.4: the `~/.claude/settings.json` snippets Settings offers
+/// with **Copy** (Cuotai never edits the agent's settings).
+#[tauri::command]
+fn claude_code_snippets() -> serde_json::Value {
+    serde_json::json!({
+        "settings": cuotai_core::feed::claude::SETTINGS_SNIPPET,
+        "chained": cuotai_core::feed::claude::CHAINED_SNIPPET,
+    })
+}
+
 /// PRD 0006 RF4.1: days of measurement history kept on this device (7 to
 /// 365), saved in `desktop.json`; prunes at once. Errors:
 /// `invalid_history_days`, `unwritable`.
@@ -2387,6 +2410,9 @@ pub fn run() -> std::process::ExitCode {
             migrate_local_storage,
             set_pace_unit,
             set_advice_enabled,
+            set_live_session,
+            dismiss_feed_banner,
+            claude_code_snippets,
             set_history_days,
             history_export,
             history_erase,

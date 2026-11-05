@@ -148,5 +148,7 @@ export function mountPicker(root, { onChoose, detected = () => [], onDismiss = (
     if (e.target.closest("button, input, select, textarea")) return;
     input.focus();
   });
-  return { refresh: () => paint(), reload: refresh, focus: () => input.focus() };
+  // PRD 0040 RF8.1: the recommended entry of a provider, for an Add account that names it.
+  const entryFor = (provider) => entries.find((e) => e.provider === provider && e.recommended) ?? entries.find((e) => e.provider === provider);
+  return { refresh: () => paint(), reload: refresh, focus: () => input.focus(), entryFor };
 }

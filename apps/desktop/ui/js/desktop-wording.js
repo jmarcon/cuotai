@@ -67,6 +67,7 @@ export const DESKTOP_WORDING = {
   "edit_error.param.resource_id_chars": SETTING_INVALID,
   "edit_error.config_region": SETTING_INVALID,
   "edit_error.config_open_router": SETTING_INVALID,
+  "edit_error.config_feed": SETTING_INVALID,
   "edit_error.config_base_url": SETTING_INVALID,
   "edit_error.env_invalid": KEY_REQUIRED,
   "edit_error.env_required": KEY_REQUIRED,

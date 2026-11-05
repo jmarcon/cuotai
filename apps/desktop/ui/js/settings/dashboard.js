@@ -2,7 +2,7 @@
 // stay in the main window, which owns them), the sort, the tray view, the row display, the "Recharging" group,
 // consumption pace and the refresh interval.
 import { t, te } from "../i18n.js";
-import { accountLabel, brand, esc, getView, logo, moveAccount, requestAccountAction, adviceShown, currentSort, groupingRecharging, icon, setAdviceEnabled, setGroupRecharging, setPaceUnit, setRefreshSeconds, setShowPace, setSort, setTrayView, TRAY_VIEWS, trayViewOf } from "../lib.js";
+import { accountLabel, brand, esc, getView, logo, moveAccount, requestAccountAction, adviceShown, currentSort, groupingRecharging, icon, liveSessionShown, setAdviceEnabled, setLiveSession, setGroupRecharging, setPaceUnit, setRefreshSeconds, setShowPace, setSort, setTrayView, TRAY_VIEWS, trayViewOf } from "../lib.js";
 import { errorText, group, l10nError } from "./common.js";
 import { commitField, disc, num, row, rowError, select, seg, sw, toast } from "./rows.js";
 import { AGG_MODES, aggregatorsInAll, setAggregatorsInAll } from "../aggregator.js";
@@ -36,7 +36,10 @@ export function html({ settings: s, view }) {
         // The example lives in the info popover (PRD 0020 RF5.1 copy budget).
         control: (a) => seg("pace-unit", [["points", te("settings.pace.points")], ["percent", te("settings.pace.percent")]], s.pace_unit ?? "points", a) })
       + row({ key: "advice", label: te("settings.advice.show"), info: te("settings.advice.help"), msg: "advice-msg",
-        control: (a) => sw("advice-on", s.advice_enabled !== false, a) })))
+        control: (a) => sw("advice-on", s.advice_enabled !== false, a) })
+      // PRD 0040 RF7.2: the live agent session (context share and the agent's cost estimate) on cards and the tray.
+      + row({ key: "live-session", label: te("settings.liveSession.show"), info: te("settings.liveSession.help"), msg: "live-session-msg",
+        control: (a) => sw("live-session-on", s.live_session !== false, a) })))
     + group("refresh", te("settings.refresh.title"),
       row({ key: "refresh", label: te("settings.refresh.label"), desc: te("settings.refresh.min"), info: te("settings.refresh.help"), msg: "refresh-msg",
         control: (a) => num("refresh-seconds", { value: seconds, min: 30, unit: "s", apply: "data-apply-refresh" }, a),
@@ -151,6 +154,10 @@ export function bind(root, ctx) {
   root.querySelector("#advice-on").onchange = (e) => setAdviceEnabled(e.target.checked).then(
     () => { rowError(e.target, ""); toast(); ctx.changed("advice"); },
     (x) => { e.target.checked = !e.target.checked; rowError(e.target, errorText(x)); e.target.focus(); });
+  // PRD 0040 RF7.2: display only; saved at once, put back when refused.
+  root.querySelector("#live-session-on").onchange = (e) => setLiveSession(e.target.checked).then(
+    () => { rowError(e.target, ""); toast(); ctx.changed("live_session"); },
+    (x) => { e.target.checked = liveSessionShown(); rowError(e.target, errorText(x)); e.target.focus(); });
   // RF4.2: the interval saves on Enter, on leaving the field or with the row's Apply; a preset saves at once.
   const input = root.querySelector("#refresh-seconds");
   const presets = root.querySelector("#refresh-presets");
