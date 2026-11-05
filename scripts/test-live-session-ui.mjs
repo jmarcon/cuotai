@@ -80,7 +80,7 @@ assert.ok(lib.liveSessionHtml({ live: live([session(50, "good")]) }));
 // Every new desktop key exists in every built-in catalog.
 const KEYS = [
   "settings.liveSession.show", "settings.liveSession.help", "settings.kw.live-session",
-  "settings.claudeCode.title", "settings.claudeCode.show", "settings.claudeCode.desc", "settings.claudeCode.privacy",
+  "settings.claudeCode.title", "settings.claudeCode.desc", "settings.claudeCode.privacy",
   "settings.claudeCode.copy", "settings.claudeCode.copied", "settings.claudeCode.chained", "settings.kw.claude-code",
 ];
 const files = (await readdir(fileURLToPath(new URL("apps/desktop/ui/locales/", root)))).filter((f) => f.endsWith(".json"));

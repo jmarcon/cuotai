@@ -102,7 +102,6 @@
   "settings.claudeCode.copy": "Copier",
   "settings.claudeCode.desc": "Alimente le compte Claude sans requête réseau ni réutilisation de jeton.",
   "settings.claudeCode.privacy": "Collez l’extrait dans ~/.claude/settings.json. Cuotai ne garde que les fenêtres de limite, la part de contexte, l’estimation de coût, le modèle et une empreinte de l’id de session ; le dossier de travail, le chemin de la transcription et les requêtes sont écartés avant toute écriture. Cuotai ne modifie jamais les réglages de l’agent.",
-  "settings.claudeCode.show": "Extrait de réglages",
   "settings.claudeCode.title": "Claude Code",
   "settings.doctor.help": "Vérifie l'installation de cet ordinateur hors ligne, sans rien modifier : le fichier des comptes, la variable de chaque compte (définie ou non, jamais sa valeur), les bases de données, les hooks, les réglages et le serveur local. Chaque problème indique quoi faire. Comme cuotai --doctor.",
   "settings.doctor.run": "Vérifier",

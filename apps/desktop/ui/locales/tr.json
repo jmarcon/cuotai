@@ -102,7 +102,6 @@
   "settings.claudeCode.copy": "Kopyala",
   "settings.claudeCode.desc": "Claude hesabını ağ isteği ve belirteç yeniden kullanımı olmadan besler.",
   "settings.claudeCode.privacy": "Parçacığı ~/.claude/settings.json dosyasına yapıştırın. Cuotai yalnızca hız sınırı pencerelerini, bağlam payını, maliyet tahminini, modeli ve oturum kimliğinin özetini tutar; çalışma klasörü, transkript yolu ve istemler yazılmadan önce atılır. Cuotai ajanın ayarlarını asla düzenlemez.",
-  "settings.claudeCode.show": "Ayar parçacığı",
   "settings.claudeCode.title": "Claude Code",
   "settings.doctor.help": "Bu bilgisayarın kurulumunu çevrimdışı ve hiçbir şeyi değiştirmeden denetler: hesap dosyası, her hesabın değişkeni (ayarlı mı değil mi, değeri asla), veritabanları, kancalar, ayarlar ve yerel sunucu. Her sorun ne yapılacağıyla birlikte gelir. cuotai --doctor ile aynı.",
   "settings.doctor.run": "Denetle",

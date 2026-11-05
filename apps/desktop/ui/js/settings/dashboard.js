@@ -2,7 +2,7 @@
 // stay in the main window, which owns them), the sort, the tray view, the row display, the "Recharging" group,
 // consumption pace and the refresh interval.
 import { t, te } from "../i18n.js";
-import { accountLabel, brand, esc, getView, logo, moveAccount, requestAccountAction, adviceShown, currentSort, groupingRecharging, icon, liveSessionShown, setAdviceEnabled, setLiveSession, setGroupRecharging, setPaceUnit, setRefreshSeconds, setShowPace, setSort, setTrayView, TRAY_VIEWS, trayViewOf } from "../lib.js";
+import { accountLabel, brand, claudeCodeSnippets, esc, getView, logo, moveAccount, requestAccountAction, adviceShown, currentSort, groupingRecharging, icon, liveSessionShown, setAdviceEnabled, setLiveSession, setGroupRecharging, setPaceUnit, setRefreshSeconds, setShowPace, setSort, setTrayView, TRAY_VIEWS, trayViewOf } from "../lib.js";
 import { errorText, group, l10nError } from "./common.js";
 import { commitField, disc, num, row, rowError, select, seg, sw, toast } from "./rows.js";
 import { AGG_MODES, aggregatorsInAll, setAggregatorsInAll } from "../aggregator.js";
@@ -39,11 +39,38 @@ export function html({ settings: s, view }) {
         control: (a) => sw("advice-on", s.advice_enabled !== false, a) })
       // PRD 0040 RF7.2: the live agent session (context share and the agent's cost estimate) on cards and the tray.
       + row({ key: "live-session", label: te("settings.liveSession.show"), info: te("settings.liveSession.help"), msg: "live-session-msg",
-        control: (a) => sw("live-session-on", s.live_session !== false, a) })))
+        control: (a) => sw("live-session-on", s.live_session !== false, a) })
+      + claudeCodeHtml()))
     + group("refresh", te("settings.refresh.title"),
       row({ key: "refresh", label: te("settings.refresh.label"), desc: te("settings.refresh.min"), info: te("settings.refresh.help"), msg: "refresh-msg",
         control: (a) => num("refresh-seconds", { value: seconds, min: 30, unit: "s", apply: "data-apply-refresh" }, a),
         body: seg("refresh-presets", PRESETS.map(([sec, label]) => [sec, label, `data-preset="${sec}"`]), seconds, `aria-label="${te("settings.refresh.presets")}"`) }));
+}
+
+/** PRD 0040 RF2.4: Claude Code's status line feeds the Claude account; the snippet for ~/.claude/settings.json with
+ *  Copy (Cuotai never edits the agent's settings) and what is read and dropped. */
+function claudeCodeHtml() {
+  // In the display disclosure beside the live-session switch (RF2.2 copy budget); what is read and dropped is in the
+  // info popover.
+  return row({ key: "claude-code", label: te("settings.claudeCode.title"), info: `${te("settings.claudeCode.desc")}<br />${te("settings.claudeCode.privacy")}`, msg: "claude-code-msg",
+      control: () => `<button type="button" class="btn sm" data-claude-copy="settings">${icon("copy")} ${te("settings.claudeCode.copy")}</button>`,
+      body: `<pre class="snippet" data-claude-snippet></pre>
+        <p class="hint">${te("settings.claudeCode.chained")}</p><pre class="snippet" data-claude-chained></pre>
+        <p class="dlg-actions left"><button type="button" class="btn sm" data-claude-copy="chained">${icon("copy")} ${te("settings.claudeCode.copy")}</button></p>` });
+}
+
+async function bindClaudeCode(root) {
+  if (!root) return;
+  const snippets = await claudeCodeSnippets().catch(() => null);
+  if (!snippets) return;
+  const main = root.querySelector("[data-claude-snippet]");
+  const chained = root.querySelector("[data-claude-chained]");
+  if (main) main.textContent = snippets.settings;
+  if (chained) chained.textContent = snippets.chained;
+  for (const btn of root.querySelectorAll("[data-claude-copy]")) {
+    btn.addEventListener("click", () => navigator.clipboard.writeText(snippets[btn.dataset.claudeCopy]).then(
+      () => toast(t("settings.claudeCode.copied")), () => {}));
+  }
 }
 
 /** PRD 0025 RF5.2: the configured accounts in their order (the TOML order, shared with the TUI), each with Edit and
@@ -154,6 +181,7 @@ export function bind(root, ctx) {
   root.querySelector("#advice-on").onchange = (e) => setAdviceEnabled(e.target.checked).then(
     () => { rowError(e.target, ""); toast(); ctx.changed("advice"); },
     (x) => { e.target.checked = !e.target.checked; rowError(e.target, errorText(x)); e.target.focus(); });
+  bindClaudeCode(root.querySelector('[data-row="claude-code"]') ?? root);
   // PRD 0040 RF7.2: display only; saved at once, put back when refused.
   root.querySelector("#live-session-on").onchange = (e) => setLiveSession(e.target.checked).then(
     () => { rowError(e.target, ""); toast(); ctx.changed("live_session"); },

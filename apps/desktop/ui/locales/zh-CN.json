@@ -100,7 +100,6 @@
   "settings.claudeCode.copy": "复制",
   "settings.claudeCode.desc": "无需网络请求、不复用令牌即可为 Claude 账户提供数据。",
   "settings.claudeCode.privacy": "将这段配置粘贴到 ~/.claude/settings.json。Cuotai 只保留限额窗口、上下文占比、费用估算、模型和会话 id 的摘要；工作文件夹、对话记录路径和提示在写入前即被丢弃。Cuotai 绝不会修改代理的设置。",
-  "settings.claudeCode.show": "配置片段",
   "settings.claudeCode.title": "Claude Code",
   "settings.doctor.help": "离线检查这台电脑的设置，不做任何更改：账户文件、每个账户的变量（只看是否设置，从不显示值）、数据库、钩子、设置和本地服务器。每个问题都附有处理方法。与 cuotai --doctor 相同。",
   "settings.doctor.run": "检查",

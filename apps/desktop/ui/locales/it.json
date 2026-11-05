@@ -99,7 +99,6 @@
   "settings.claudeCode.copy": "Copia",
   "settings.claudeCode.desc": "Alimenta l’account Claude senza richieste di rete né riutilizzo di token.",
   "settings.claudeCode.privacy": "Incolla lo snippet in ~/.claude/settings.json. Cuotai conserva solo le finestre di limite, la quota di contesto, la stima di costo, il modello e un digest dell’id di sessione; cartella di lavoro, percorso della trascrizione e prompt vengono scartati prima di scrivere. Cuotai non modifica mai le impostazioni dell’agente.",
-  "settings.claudeCode.show": "Snippet delle impostazioni",
   "settings.claudeCode.title": "Claude Code",
   "settings.doctor.help": "Controlla la configurazione di questo computer offline e senza modificare nulla: il file degli account, la variabile di ogni account (impostata o no, mai il valore), i database, gli hook, le impostazioni e il server locale. Ogni problema indica cosa fare. Come cuotai --doctor.",
   "settings.doctor.run": "Controlla",
