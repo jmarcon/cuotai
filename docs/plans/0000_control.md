@@ -5,7 +5,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | Field | Value |
 |---|---|
 | Last updated | 2026-11-05 |
-| Cuotai version at that date | 0.83.0 |
+| Cuotai version at that date | 0.83.1 |
 | Plans | 56 (18 implemented, 23 awaiting owner verification, 13 in progress, 1 planned for the next version, 1 proposed) |
 
 ## 1. How to maintain it
@@ -257,6 +257,7 @@ Every item below waits only for the owner: the code is delivered and covered by 
 | 0.83.0 | 0054 | RF1, RF3, RF6, RF2, RF7, RF5, RF4, RF5.3 (86adb9b, 3a1ccf1, 56cc6eb, 341d5a8, c2f357e, 40f0cc0, c9fd3fd, a388d63, 6c6eed1). |
 | 0.83.0 | 0055 | RF1, RF2, RF3, RF4, RF5, RF6, RF7 (16e9d10). |
 | 0.83.0 | 0056 | RF1, RF2, RF3, RF4, RF5, RF6, RF7, RF8, RF9 (f7c6562). |
+| 0.83.1 | 0052 | RF6 (5dd4b69). |
 
 ## 4. Dependency graph
 

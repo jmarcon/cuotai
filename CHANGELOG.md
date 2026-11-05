@@ -13,6 +13,12 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.83.1] - 2026-11-05
+
+### Fixed
+
+- On a system with no trusted root certificates, Cuotai no longer stops at start-up with an OAuth network error; each account that needs the network reports a network error instead (PRD 0052 RF6; 5dd4b69).
+
 ## [0.83.0] - 2026-11-05
 
 ### Added
@@ -512,7 +518,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.83.0...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.83.1...HEAD
+[0.83.1]: https://github.com/jmarcon/cuotai/compare/v0.83.0...v0.83.1
 [0.83.0]: https://github.com/jmarcon/cuotai/compare/v0.82.4...v0.83.0
 [0.82.4]: https://github.com/jmarcon/cuotai/compare/v0.82.3...v0.82.4
 [0.82.3]: https://github.com/jmarcon/cuotai/compare/v0.82.2...v0.82.3
