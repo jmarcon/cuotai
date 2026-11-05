@@ -64,8 +64,10 @@ terminal update check) is built by `cuotai_core::network::builder`:
   the Linux system bundle). Cuotai does not ship or fall back to its own root
   list, so a root your administrator installed (a corporate TLS-inspecting
   proxy, for example) is trusted exactly as the system trusts it. When no
-  root can be loaded at all, no secure connection is made and the error
-  `network.trust_store_empty` says to repair the system certificates. The
+  root can be loaded at all, no secure connection is made: the app log
+  records `network.trust_store_empty`, and each account that needs the
+  network fails with a network error while the others are still read
+  (repair or update the system certificates, then start Cuotai again). The
   9router client keeps its own pinned or first-use certificate (PRD 0036).
 - **Proxies:** `HTTPS_PROXY`, `HTTP_PROXY` and `ALL_PROXY` (upper or lower
   case) select a proxy and `NO_PROXY` lists hosts that bypass it, with the
