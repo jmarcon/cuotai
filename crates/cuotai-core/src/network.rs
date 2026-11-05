@@ -133,10 +133,12 @@ pub fn builder(purpose: ClientPurpose, timeout: Duration) -> reqwest::ClientBuil
     builder
 }
 
-/// A built client for `purpose`; `None` when the TLS backend cannot start
-/// or the trust store is empty.
+/// A built client for `purpose`; `None` when the TLS backend cannot start.
+/// An empty trust store still builds one (logged by [`native_roots`]): it
+/// trusts no server, so every HTTPS request fails as a per-account transport
+/// error instead of the whole process stopping before it can classify the
+/// accounts.
 pub fn client(purpose: ClientPurpose, timeout: Duration) -> Option<reqwest::Client> {
-    native_roots().ok()?;
     builder(purpose, timeout).build().ok()
 }
 
