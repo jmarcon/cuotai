@@ -944,6 +944,7 @@ mod tests {
             group: None,
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         }
     }
 
@@ -1232,6 +1233,7 @@ mod tests {
             source: String::new(),
             session_expires_at: None,
             overage_hint: None,
+            breakdown: Vec::new(),
         };
         let binding = crate::metrics::binding(&report).unwrap();
         assert_eq!(binding.label, "Sessão (5 horas) (%)");

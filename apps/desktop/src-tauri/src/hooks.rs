@@ -492,6 +492,7 @@ mod tests {
             sub_reports: Vec::new(),
             as_of: None,
             overage_hint: None,
+            breakdown: Vec::new(),
         };
         let snapshot = Snapshot {
             started_at: at,

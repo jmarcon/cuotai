@@ -8,6 +8,7 @@ pub mod account_id;
 pub mod advice;
 pub mod aggregators;
 pub mod alerts;
+pub mod breakdown;
 pub mod budget;
 pub mod build_info;
 pub mod bundle;
@@ -102,6 +103,7 @@ pub mod widget_snapshot;
 pub use oauth::login;
 
 pub use account_id::AccountId;
+pub use breakdown::{BreakdownKind, BreakdownRow};
 use chrono::Utc;
 use futures_util::{stream, StreamExt};
 pub use model::*;
@@ -187,6 +189,25 @@ pub enum ConfigError {
         field: String,
         rule: budget::BudgetRule,
     },
+    /// PRD 0045 RF1.4: a `breakdown` value the account's interface does not
+    /// offer (metered providers offer none), or a repeated one.
+    #[error("The field {field} lists a breakdown this account cannot read, or repeats one; the values allowed come from the provider and its mode.")]
+    Breakdown { field: String },
+}
+
+/// PRD 0045 RF1.4: the path of the first `breakdown` value of `account`
+/// its access descriptor does not offer, or that repeats an earlier one.
+fn breakdown_error(index: usize, account: &Account) -> Option<String> {
+    if account.breakdown.is_empty() {
+        return None;
+    }
+    let offered = access::describe(account).breakdowns;
+    let mut seen = HashSet::new();
+    account
+        .breakdown
+        .iter()
+        .position(|kind| !seen.insert(*kind) || !offered.iter().any(|mode| mode.kind == *kind))
+        .map(|at| format!("accounts[{index}].breakdown[{at}]"))
 }
 
 fn metered_refresh_floor_error(
@@ -363,6 +384,9 @@ impl Config {
                             .is_some_and(|p| p == "account")))
             {
                 return Err(ConfigError::OpenRouter);
+            }
+            if let Some(field) = breakdown_error(index, account) {
+                return Err(ConfigError::Breakdown { field });
             }
             if account.provider == Provider::Extension
                 && (account
@@ -1128,6 +1152,7 @@ impl Monitor {
                 sub_reports: Vec::new(),
                 as_of: None,
                 overage_hint: None,
+                breakdown: Vec::new(),
             };
         }
         self.query_report(account, sessions).await
@@ -1195,6 +1220,7 @@ impl Monitor {
                     sub_reports: Vec::new(),
                     as_of: None,
                     overage_hint: None,
+                    breakdown: Vec::new(),
                 }
             };
             let Some(manager) = &self.extensions else {
@@ -1225,18 +1251,22 @@ impl Monitor {
             )
             .await;
         let mut diagnostic = None;
+        let mut breakdown = Vec::new();
         let (status, metrics, mut notes, mut notes_l10n, source, sub_reports, as_of, overage_hint) =
             match result {
-                Ok(data) => (
-                    Status::Ready,
-                    data.metrics,
-                    data.notes,
-                    data.notes_l10n,
-                    data.source,
-                    data.sub_reports,
-                    data.as_of,
-                    data.overage_hint,
-                ),
+                Ok(data) => {
+                    breakdown = data.breakdown;
+                    (
+                        Status::Ready,
+                        data.metrics,
+                        data.notes,
+                        data.notes_l10n,
+                        data.source,
+                        data.sub_reports,
+                        data.as_of,
+                        data.overage_hint,
+                    )
+                }
                 Err(error) => {
                     let mut notes = crate::text::Notes::one(error.note);
                     // PRD 0028 RF1.3: the details say which field drifted.
@@ -1280,6 +1310,7 @@ impl Monitor {
             sub_reports,
             as_of,
             overage_hint,
+            breakdown,
         }
     }
 
@@ -2235,6 +2266,7 @@ credential_env = "OPENAI_ADMIN_KEY"
             source: "cost-explorer".into(),
             session_expires_at: None,
             as_of: None,
+            breakdown: Vec::new(),
         };
         let store = metered_record::Store::new(dir.path().to_path_buf());
         store.finish(
@@ -2469,6 +2501,7 @@ credential_env = "OPENAI_ADMIN_KEY"
                         sub_reports: Vec::new(),
                         as_of: None,
                         overage_hint: None,
+                        breakdown: Vec::new(),
                     },
                     crate::Report {
                         account_id: None,
@@ -2485,6 +2518,7 @@ credential_env = "OPENAI_ADMIN_KEY"
                         sub_reports: Vec::new(),
                         as_of: None,
                         overage_hint: None,
+                        breakdown: Vec::new(),
                     },
                 ],
             }),

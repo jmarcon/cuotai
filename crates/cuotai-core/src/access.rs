@@ -176,7 +176,163 @@ pub struct UsageAccess {
     /// otherwise.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub overrides: Option<Provider>,
+    /// PRD 0045 RF7: the breakdowns this interface can add (the values its
+    /// account may list in `breakdown = [...]`), each a mode of its own
+    /// with level, credential, evidence and the extra requests per refresh.
+    /// Empty for metered providers and for interfaces without one. Not part
+    /// of the export's `access`.
+    #[serde(skip)]
+    pub breakdowns: Vec<BreakdownMode>,
 }
+
+/// PRD 0045 RF7: one breakdown an interface can add, described like an
+/// interface of its own.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BreakdownMode {
+    pub kind: crate::BreakdownKind,
+    /// What each row is.
+    pub row: crate::ScopeKind,
+    pub level: Level,
+    pub credential: Credential,
+    pub scope: Scope,
+    pub evidence: Evidence,
+    pub verified_on: &'static str,
+    /// Most extra requests one refresh makes for it (pages included).
+    pub requests: u8,
+    /// `access.breakdown.<slug>`: what the rows show and where from.
+    pub summary: Localized,
+}
+
+impl BreakdownMode {
+    /// `access.breakdown_requests`: "+2 requests per refresh".
+    pub fn requests_text(&self) -> Localized {
+        Localized::with_param(
+            "access.breakdown_requests",
+            "count",
+            u64::from(self.requests),
+            "Extra requests per refresh: up to {count}",
+        )
+    }
+}
+
+/// `access.breakdown_metered`: why a metered provider offers no breakdown.
+pub fn breakdown_metered_reason() -> Localized {
+    Localized::fixed(
+        "access.breakdown_metered",
+        "This provider bills every query, so Cuotai offers no breakdown for it.",
+    )
+}
+
+/// `access.breakdown_none`: why an account offers no breakdown.
+pub fn breakdown_none_reason() -> Localized {
+    Localized::fixed(
+        "access.breakdown_none",
+        "This account's interface reports no keys, projects, workspaces or teams to break down; per-user data is never read.",
+    )
+}
+
+/// PRD 0045 RF7: the breakdown modes of `provider` in the interface the
+/// params select. Exhaustive on purpose, like [`classify`]: a new provider
+/// declares whether it can break its total down.
+fn breakdown_modes(
+    provider: Provider,
+    oauth: bool,
+    params: &BTreeMap<String, String>,
+) -> Vec<BreakdownMode> {
+    use crate::{BreakdownKind as K, ScopeKind as R};
+    let mode = |kind, row, credential, url, requests, slug: &str, summary: &str| BreakdownMode {
+        kind,
+        row,
+        level: Level::Official,
+        credential,
+        scope: Scope::Organization,
+        evidence: Evidence::Documentation(url),
+        verified_on: BREAKDOWN_VERIFIED_ON,
+        requests,
+        summary: Localized::fixed(format!("access.breakdown.{slug}"), summary),
+    };
+    let param = |key: &str, value: &str| params.get(key).is_some_and(|v| v == value);
+    match provider {
+        Provider::OpenRouter if param("product", "account") && !oauth => vec![mode(
+            K::Keys, R::Key, Credential::AdminKey,
+            "https://openrouter.ai/docs/api/api-reference/api-keys/list-api-keys",
+            3, "open_router_keys",
+            "Each key of the organization with its limit, reset and spend by period, through the documented key list of the management key.",
+        )],
+        Provider::LiteLlm => vec![
+            mode(K::Keys, R::VirtualKey, Credential::AdminKey,
+                "https://docs.litellm.ai/docs/proxy/virtual_keys",
+                3, "litellm_keys",
+                "Each virtual key with its spend and budget, labelled by its alias, through the proxy's documented key list."),
+            mode(K::Teams, R::Team, Credential::AdminKey,
+                "https://docs.litellm.ai/docs/proxy/team_budgets",
+                1, "litellm_teams",
+                "Each team with its spend and budget, labelled by its alias, through the proxy's documented team list."),
+        ],
+        Provider::OpenAiApi => vec![
+            mode(K::Projects, R::Project, Credential::AdminKey,
+                "https://developers.openai.com/api/reference/resources/admin/subresources/organization",
+                4, "open_ai_api_projects",
+                "Month-to-date cost per project (costs grouped by project_id), named from the project list when the key may read it."),
+            mode(K::Keys, R::Key, Credential::AdminKey,
+                "https://developers.openai.com/api/reference/resources/admin/subresources/organization",
+                3, "open_ai_api_keys",
+                "Month-to-date completion tokens and requests per API key (usage grouped by api_key_id); costs are not reported per key."),
+        ],
+        Provider::AnthropicApi => vec![mode(
+            K::Workspaces, R::Workspace, Credential::AdminKey,
+            "https://platform.claude.com/docs/en/manage-claude/usage-cost-api",
+            4, "anthropic_api_workspaces",
+            "Month-to-date cost per workspace (cost report grouped by workspace_id), named from the workspace list.",
+        )],
+        // Copilot organizations and Cursor Teams report seats per user only:
+        // excluded by design (PRD 0045 §4).
+        Provider::OpenRouter
+        | Provider::Copilot
+        | Provider::Cursor
+        | Provider::ChatGpt
+        | Provider::Claude
+        | Provider::GeminiApi
+        | Provider::VertexAi
+        | Provider::AwsBedrock
+        | Provider::AzureOpenAi
+        | Provider::Windsurf
+        | Provider::MiniMax
+        | Provider::Kimi
+        | Provider::Qwen
+        | Provider::Groq
+        | Provider::Perplexity
+        | Provider::Mistral
+        | Provider::CloudflareAi
+        | Provider::OllamaCloud
+        | Provider::XiaomiMimo
+        | Provider::OpenCodeGo
+        | Provider::Qoder
+        | Provider::GeminiAi
+        | Provider::Grok
+        | Provider::NvidiaNim
+        | Provider::Poolside
+        | Provider::Kiro
+        | Provider::Cline
+        | Provider::CodeBuddy
+        | Provider::Zed
+        | Provider::AlibabaModelStudio
+        | Provider::AlibabaCodingPlan
+        | Provider::AlibabaTokenPlan
+        | Provider::AlibabaCloud
+        | Provider::Antigravity
+        | Provider::Kimchi
+        | Provider::ElevenLabs
+        | Provider::Meta
+        | Provider::JetbrainsAi
+        | Provider::NineRouter
+        | Provider::Extension => Vec::new(),
+    }
+}
+
+/// PRD 0045: when the public documentation of the breakdown interfaces was
+/// read (the PRD's context section).
+const BREAKDOWN_VERIFIED_ON: &str = "2026-10-25";
 
 /// How an interface reports paid extra usage (overage).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -324,6 +480,7 @@ fn entry(
         reason: None,
         overage: OverageReporting::NotReported,
         overrides: None,
+        breakdowns: Vec::new(),
     }
 }
 
@@ -736,6 +893,10 @@ pub(crate) fn classify(
         );
     }
     access.metered = provider.is_metered();
+    // PRD 0045 RF7: metered providers never offer a breakdown.
+    if !access.metered && access.level != Unavailable {
+        access.breakdowns = breakdown_modes(provider, oauth, params);
+    }
     if access.level != Unavailable {
         access.overage = match provider {
             Provider::Cursor if oauth || param("query_mode", "personal") => OverageReporting::Money,
@@ -815,6 +976,7 @@ mod tests {
             sub_reports: Vec::new(),
             as_of: None,
             overage_hint: None,
+            breakdown: Vec::new(),
         }
     }
 
@@ -1688,6 +1850,80 @@ mod tests {
         assert_eq!(
             current, expected,
             "{PROVIDERS_DOC} is out of date with access::describe. Regenerate it with \
+             `{REGENERATE}=1 cargo test -p cuotai-core providers_doc_matrix` and commit the result."
+        );
+    }
+
+    const BREAKDOWNS_START: &str =
+        "<!-- breakdown-matrix:start (generated from access::describe; do not edit by hand) -->";
+    const BREAKDOWNS_END: &str = "<!-- breakdown-matrix:end -->";
+
+    /// PRD 0045 RF7: the `docs/providers.md` table of breakdowns, one row
+    /// per provider mode and breakdown value its descriptor offers.
+    fn breakdown_matrix() -> String {
+        use std::fmt::Write;
+        let en = |text: Localized| text.resolve("en-US");
+        let mut out = String::from(
+            "| Identifier | Mode | `breakdown` | Rows | Level | Credential | Extra requests per refresh | Evidence | Verified on |\n\
+             |---|---|---|---|---|---|---|---|---|\n",
+        );
+        for provider in Provider::ALL {
+            let mut seen = Vec::new();
+            for params in MODES {
+                for mode in describe(&account(provider, params, false)).breakdowns {
+                    if seen.contains(&mode.kind) {
+                        continue;
+                    }
+                    seen.push(mode.kind);
+                    let row = serde_json::to_value(mode.row).unwrap();
+                    writeln!(
+                        out,
+                        "| `{}` | {} | `\"{}\"` | {} | {} | {} | up to {} | [documentation]({}) | {} |",
+                        provider.slug(),
+                        mode_label(params),
+                        mode.kind.slug(),
+                        row.as_str().unwrap_or_default(),
+                        en(mode.level.label()),
+                        en(mode.credential.label()),
+                        mode.requests,
+                        mode.evidence.url(),
+                        mode.verified_on,
+                    )
+                    .unwrap();
+                }
+            }
+        }
+        out
+    }
+
+    /// RF7: `docs/providers.md` lists the breakdowns `access::describe`
+    /// offers today. Shares the matrix's regeneration command.
+    #[test]
+    fn providers_doc_matrix_lists_the_breakdowns() {
+        let _guard = crate::catalog::DOC_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join(PROVIDERS_DOC);
+        let doc = std::fs::read_to_string(&path)
+            .expect("providers doc")
+            .replace("\r\n", "\n");
+        let (head, rest) = doc
+            .split_once(BREAKDOWNS_START)
+            .expect("breakdown start marker in docs/providers.md");
+        let (current, tail) = rest
+            .split_once(BREAKDOWNS_END)
+            .expect("breakdown end marker in docs/providers.md");
+        let expected = format!("\n{}", breakdown_matrix());
+        if std::env::var_os(REGENERATE).is_some() {
+            let updated = format!("{head}{BREAKDOWNS_START}{expected}{BREAKDOWNS_END}{tail}");
+            std::fs::write(&path, updated).expect("write providers doc");
+            return;
+        }
+        assert_eq!(
+            current, expected,
+            "{PROVIDERS_DOC} is out of date with the breakdown descriptors. Regenerate it with \
              `{REGENERATE}=1 cargo test -p cuotai-core providers_doc_matrix` and commit the result."
         );
     }

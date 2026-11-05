@@ -934,6 +934,7 @@ mod tests {
             group: None,
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         }
     }
 

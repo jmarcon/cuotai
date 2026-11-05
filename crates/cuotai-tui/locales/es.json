@@ -116,6 +116,7 @@
   "dashboard.detail.stale": "(desactualizada) última válida {age} ({utc} · {local} local)",
   "dashboard.detail.status": "  ESTADO  ",
   "dashboard.detail.title": " Detalles · ausente ≠ cero ",
+  "dashboard.detail.breakdown": "  DESGLOSE",
   "dashboard.empty.all_unmeasured": "Todas las cuentas visibles están sin datos. u muestra las cuentas sin datos.",
   "dashboard.empty.no_accounts": "Ninguna cuenta. a abre el asistente; c limpia el filtro.",
   "dashboard.empty.no_match": "Sin resultados para el filtro actual. c limpia el filtro.",
@@ -288,6 +289,8 @@
   "once.sub.disabled": "desactivada en 9router",
   "once.sub.duplicate": "también monitorizada directamente",
   "once.sub.plan": "plan {plan}",
+  "once.breakdown": "  Desglose:",
+  "once.breakdown.more": "    … {count} más en los detalles",
   "report.footer": "Cuotai no envía nada · ↑↓ desplazar · Esc volver",
   "report.title": " INFORMAR UN PROBLEMA ",
   "serve.port.cuotai_holder": " Otro servidor local de Cuotai ya lo usa.",
@@ -518,6 +521,8 @@
   "wizard.summary.token_external": "(la credencial queda en el almacenamiento del CLI externo, fuera del almacén de Cuotai)",
   "wizard.summary.token_vault": "(el token queda en el almacenamiento seguro; nunca se muestra ni se escribe en el TOML)",
   "wizard.summary.unnamed": "{provider} (sin nombre)",
+  "wizard.summary.breakdown": "Desglose:",
+  "wizard.summary.breakdown.hint": "  Pulsa un número para activar o desactivar un desglose; las filas nunca son por usuario.",
   "wizard.title": "Asistente — {position}/{total} {label}",
   "wizard.too_small": "Asistente: amplía la terminal a al menos 60 × 20. Esc cancela."
 }

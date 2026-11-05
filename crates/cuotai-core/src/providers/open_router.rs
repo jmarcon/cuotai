@@ -31,6 +31,8 @@ pub(crate) const BASE: &str = "https://openrouter.ai";
 const KEY_PATH: &str = "/api/v1/key";
 const CREDITS_PATH: &str = "/api/v1/credits";
 const ACTIVITY_PATH: &str = "/api/v1/activity";
+/// PRD 0045 RF2: the management key's list of the organization's keys.
+const KEYS_PATH: &str = "/api/v1/keys";
 /// The report sources, `BASE` plus the path as literals (PRD 0052 RF3.6;
 /// a test checks they agree).
 const KEY_SOURCE: &str = "https://openrouter.ai/api/v1/key";
@@ -168,9 +170,150 @@ async fn open_router_at(
                 data.notes.extend(texts);
                 data.notes_l10n.extend(l10n);
             }
+            // PRD 0045 RF2: the organization's keys, opt-in.
+            if account.breakdown.contains(&crate::BreakdownKind::Keys) {
+                let mut notes = Notes::new();
+                match key_rows(ctx, base, key, now).await {
+                    Ok((rows, more)) => {
+                        data.breakdown = crate::breakdown::finish(rows);
+                        if more {
+                            notes.push_note(crate::breakdown::paged_note());
+                        }
+                    }
+                    Err(error) => notes.push_note(crate::breakdown::unavailable_note(&error)),
+                }
+                let (texts, l10n) = notes.finish();
+                data.notes.extend(texts);
+                data.notes_l10n.extend(l10n);
+            }
             Ok(data)
         }
     }
+}
+
+// ------------------------------------------------------------ /keys (0045)
+
+/// PRD 0045 RF2: `GET /api/v1/keys` with the management key, paged by
+/// `offset` (at most [`crate::breakdown::MAX_PAGES`] pages, disabled keys
+/// included). Returns the rows and whether more pages were left unread.
+async fn key_rows(
+    ctx: &Context<'_>,
+    base: &str,
+    key: &str,
+    now: DateTime<Utc>,
+) -> Result<(Vec<crate::BreakdownRow>, bool), QueryError> {
+    let mut rows = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    let mut offset = 0usize;
+    let mut first_len = None;
+    for page in 0..crate::breakdown::MAX_PAGES {
+        let url = format!("{base}{KEYS_PATH}?include_disabled=true&offset={offset}");
+        let value = get(ctx, &url, key, Product::Account, BODY_LIMIT * 4).await?;
+        let items = value
+            .get("data")
+            .and_then(Value::as_array)
+            .ok_or_else(QueryError::schema)?;
+        for item in items {
+            let item = item.as_object().ok_or_else(QueryError::schema)?;
+            if let Some(row) = parse_key_row(item, now)? {
+                if seen.insert(row.id.clone()) {
+                    rows.push(row);
+                }
+            }
+        }
+        let full = *first_len.get_or_insert(items.len());
+        if items.is_empty() || items.len() < full {
+            return Ok((rows, false));
+        }
+        offset += items.len();
+        if page + 1 == crate::breakdown::MAX_PAGES {
+            return Ok((rows, true));
+        }
+    }
+    Ok((rows, false))
+}
+
+/// One key of the list as a row. The key's `hash` only becomes a digest
+/// (never shown); `name` is the label, redacted, and a key without a name
+/// shows the last characters its masked `label` (`sk-or-v1-abc...xyz`)
+/// already reveals. `creator_user_id` and the other account fields are
+/// never read. A row without any figure is skipped.
+fn parse_key_row(
+    item: &Map<String, Value>,
+    now: DateTime<Utc>,
+) -> Result<Option<crate::BreakdownRow>, QueryError> {
+    use crate::breakdown::{digest_id, fallback_label, redact_label};
+    let hash = item
+        .get("hash")
+        .and_then(Value::as_str)
+        .filter(|hash| !hash.trim().is_empty())
+        .ok_or_else(QueryError::schema)?;
+    let id = digest_id(hash);
+    let name = item.get("name").and_then(Value::as_str).unwrap_or_default();
+    let label = if name.trim().is_empty() {
+        let masked = item
+            .get("label")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let tail = masked.rsplit("...").next().unwrap_or_default();
+        fallback_label(crate::ScopeKind::Key, tail)
+    } else {
+        redact_label(name, crate::ScopeKind::Key, &id)
+    };
+    let mut metrics = Vec::new();
+    if let (Some(limit), Some(remaining)) =
+        (nonneg(item, "limit")?, finite(item, "limit_remaining")?)
+    {
+        let (window, resets_at) = window_of(item.get("limit_reset"), now);
+        metrics.push(Metric {
+            used: Some(limit - remaining),
+            limit: Some(limit),
+            remaining: Some(remaining),
+            window,
+            resets_at: window.and(resets_at),
+            ..metric("Limite da chave", MetricKind::Quota, USD)
+        });
+    }
+    for (field, label, window, resets_at) in [
+        (
+            "usage_monthly",
+            "Gasto no mês",
+            Some(MetricWindow::Monthly),
+            Some(next_month(now)),
+        ),
+        (
+            "usage_weekly",
+            "Gasto na semana",
+            Some(MetricWindow::Weekly),
+            Some(next_week(now)),
+        ),
+        (
+            "usage_daily",
+            "Gasto hoje",
+            Some(MetricWindow::Daily),
+            Some(next_day(now)),
+        ),
+        ("usage", "Gasto total da chave", None, None),
+    ] {
+        if let Some(used) = nonneg(item, field)? {
+            metrics.push(spend(label, used, window, resets_at));
+        }
+    }
+    if metrics.is_empty() {
+        return Ok(None);
+    }
+    let mut notes = Vec::new();
+    if item.get("disabled") == Some(&Value::Bool(true)) {
+        notes.push(crate::breakdown::disabled_note());
+    }
+    Ok(Some(crate::BreakdownRow {
+        scope: crate::ScopeKind::Key,
+        id,
+        label,
+        metrics,
+        truncated: false,
+        notes,
+    }))
 }
 
 // ------------------------------------------------------------------ transport
@@ -1026,6 +1169,7 @@ mod tests {
             notes_l10n: data.notes_l10n,
             source: data.source,
             session_expires_at: None,
+            breakdown: Vec::new(),
         }
     }
 
@@ -1905,6 +2049,180 @@ mod tests {
             bad.validate(),
             Err(crate::ConfigError::OpenRouter)
         ));
+    }
+
+    // ------------------------------------------------- PRD 0045 RF2: keys
+
+    fn key_item(n: usize, monthly: f64) -> Value {
+        json!({
+            "hash": format!("f01d{n:04}c0ffee5ecretha5h"),
+            "name": format!("Key {n}"),
+            "label": format!("sk-or-v1-0a1...{n:03}"),
+            "disabled": false,
+            "limit": null,
+            "limit_remaining": null,
+            "limit_reset": null,
+            "usage": monthly * 2.0,
+            "usage_daily": 0.5,
+            "usage_weekly": 1.0,
+            "usage_monthly": monthly,
+            "creator_user_id": "user_2abcdefPerson",
+            "created_at": "2026-01-01T00:00:00Z",
+        })
+    }
+
+    async fn with_keys(pages: Vec<Value>) -> (Result<Data, QueryError>, MockServer) {
+        use wiremock::matchers::query_param;
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path(CREDITS_PATH))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({"data": {"total_credits": 10.0, "total_usage": 4.0}})),
+            )
+            .mount(&server)
+            .await;
+        let mut offset = 0;
+        for page in pages {
+            let len = page.as_array().map_or(0, Vec::len);
+            Mock::given(method("GET"))
+                .and(path(KEYS_PATH))
+                .and(query_param("offset", offset.to_string()))
+                .and(query_param("include_disabled", "true"))
+                .and(header("authorization", format!("Bearer {KEY}").as_str()))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "data": page })))
+                .mount(&server)
+                .await;
+            offset += len;
+        }
+        let mut account = account(Some("account"), None);
+        account.breakdown = vec![crate::BreakdownKind::Keys];
+        let result = run_at(&account, &server, clock()).await;
+        (result, server)
+    }
+
+    #[tokio::test]
+    async fn keys_breakdown_lists_each_key_with_its_cap_and_spend() {
+        let mut capped = key_item(1, 92.0);
+        capped["name"] = json!("ci sk-or-v1-abcdef123456");
+        capped["limit"] = json!(100.0);
+        capped["limit_remaining"] = json!(8.0);
+        capped["limit_reset"] = json!("monthly");
+        let mut disabled = key_item(2, 1.0);
+        disabled["disabled"] = json!(true);
+        let mut unnamed = key_item(3, 3.0);
+        unnamed["name"] = json!("");
+        let (data, server) = with_keys(vec![json!([capped, disabled, unnamed]), json!([])]).await;
+        let data = data.expect("ready");
+        // The balance stands beside the breakdown.
+        assert!(data.metrics.iter().any(|m| m.kind == MetricKind::Balance));
+        let rows = &data.breakdown;
+        assert_eq!(rows.len(), 3);
+        assert_eq!(rows[0].label, "ci …3456");
+        assert_eq!(rows[0].scope, crate::ScopeKind::Key);
+        let cap = rows[0].capped().expect("the key limit is a quota");
+        assert_eq!(
+            (cap.used, cap.limit, cap.remaining),
+            (Some(92.0), Some(100.0), Some(8.0))
+        );
+        assert_eq!(cap.window, Some(MetricWindow::Monthly));
+        assert_eq!(cap.resets_at, Some(at(2026, 11, 1, 0)));
+        assert!((rows[0].fraction().unwrap() - 0.92).abs() < 1e-9);
+        assert_eq!(rows[1].label, "Key …003");
+        let off = rows.iter().find(|row| row.label == "Key 2").unwrap();
+        assert_eq!(off.notes[0].id, "note.breakdown.disabled");
+        // Monthly spend orders the rows and each row keeps at most six metrics.
+        assert!(rows.iter().all(|row| row.metrics.len() <= 5));
+        // No key hash, masked key, secret or user id leaves the adapter.
+        let text = serde_json::to_string(rows).unwrap();
+        for leaked in ["c0ffee", "5ecret", "sk-or-v1", "user_2abc", "abcdef12"] {
+            assert!(!text.contains(leaked), "{leaked}");
+        }
+        assert!(data.notes.iter().all(|note| !note.contains("c0ffee")));
+        let requests = server.received_requests().await.unwrap();
+        assert_eq!(
+            requests
+                .iter()
+                .filter(|r| r.url.path() == KEYS_PATH)
+                .count(),
+            2,
+            "an empty page ends the listing"
+        );
+    }
+
+    #[tokio::test]
+    async fn keys_breakdown_caps_forty_keys_with_others() {
+        let keys: Vec<Value> = (0..40).map(|n| key_item(n, n as f64)).collect();
+        let (data, _server) = with_keys(vec![json!(keys), json!([])]).await;
+        let rows = data.expect("ready").breakdown;
+        assert_eq!(rows.len(), crate::breakdown::MAX_ROWS);
+        assert_eq!(rows[0].label, "Key 39");
+        let others = rows.last().unwrap();
+        assert!(others.is_others());
+        assert_eq!(others.label, "Others (16)");
+        // The months of keys 0 to 15.
+        assert_eq!(others.metrics[0].used, Some(120.0));
+    }
+
+    #[tokio::test]
+    async fn keys_breakdown_follows_three_pages_at_most() {
+        let page = |from: usize| {
+            json!((from..from + 2)
+                .map(|n| key_item(n, 1.0))
+                .collect::<Vec<_>>())
+        };
+        let (data, server) = with_keys(vec![page(0), page(2), page(4), page(6)]).await;
+        let data = data.expect("ready");
+        assert_eq!(data.breakdown.len(), 6);
+        assert!(data
+            .notes_l10n
+            .iter()
+            .any(|n| n.id == "note.breakdown.paged"));
+        let requests = server.received_requests().await.unwrap();
+        assert_eq!(
+            requests
+                .iter()
+                .filter(|r| r.url.path() == KEYS_PATH)
+                .count(),
+            3
+        );
+    }
+
+    #[tokio::test]
+    async fn a_failing_key_list_never_fails_the_account() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path(CREDITS_PATH))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({"data": {"total_credits": 10.0, "total_usage": 4.0}})),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(KEYS_PATH))
+            .respond_with(ResponseTemplate::new(429))
+            .mount(&server)
+            .await;
+        let mut account = account(Some("account"), None);
+        account.breakdown = vec![crate::BreakdownKind::Keys];
+        let data = run_at(&account, &server, clock()).await.expect("ready");
+        assert!(data.breakdown.is_empty());
+        let note = data
+            .notes_l10n
+            .iter()
+            .find(|n| n.id == "note.breakdown.unavailable")
+            .expect("the breakdown says it is unavailable");
+        assert!(note.text().contains("rate limited"));
+        assert!(data.metrics.iter().any(|m| m.kind == MetricKind::Balance));
+    }
+
+    #[tokio::test]
+    async fn without_the_opt_in_no_key_list_is_requested() {
+        let (data, server) = with_breakdown("off", ResponseTemplate::new(200), None).await;
+        assert!(data.expect("ready").breakdown.is_empty());
+        let requests = server.received_requests().await.unwrap();
+        assert!(requests.iter().all(|r| r.url.path() != KEYS_PATH));
     }
 }
 

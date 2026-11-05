@@ -175,6 +175,7 @@ mod tests {
             source: String::new(),
             session_expires_at: None,
             as_of: None,
+            breakdown: Vec::new(),
         };
         assert_eq!(data_age(&report, at(10_000)), None);
         assert_eq!(lagging_as_of(&report), None);

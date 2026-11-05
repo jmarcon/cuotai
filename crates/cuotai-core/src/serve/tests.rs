@@ -49,6 +49,7 @@ fn report(account: &Account, status: Status) -> Report {
         sub_reports: Vec::new(),
         as_of: None,
         overage_hint: None,
+        breakdown: Vec::new(),
     }
 }
 

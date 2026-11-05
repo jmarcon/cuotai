@@ -1323,6 +1323,7 @@ mod tests {
             group: None,
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         }
     }
 
@@ -1349,6 +1350,7 @@ mod tests {
             sub_reports: Vec::new(),
             as_of: None,
             overage_hint: None,
+            breakdown: Vec::new(),
         }
     }
 
@@ -2237,6 +2239,7 @@ mod tests {
             sub_reports: Vec::new(),
             as_of: None,
             overage_hint: None,
+            breakdown: Vec::new(),
         }
     }
 
@@ -3233,6 +3236,7 @@ mod prd0033_rf2_tests {
             source: String::new(),
             session_expires_at: None,
             as_of: None,
+            breakdown: Vec::new(),
         }
     }
 
@@ -3251,6 +3255,7 @@ mod prd0033_rf2_tests {
                 group: None,
                 budgets: Vec::new(),
                 floors: Vec::new(),
+                breakdown: Vec::new(),
             }],
             ..Config::default()
         };
@@ -3300,6 +3305,7 @@ mod prd0033_rf2_tests {
             refresh_seconds: Some(seconds),
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         };
         let config = Config {
             accounts: vec![acct],
@@ -3346,6 +3352,7 @@ mod prd0033_rf2_tests {
                 refresh_seconds: Some(3600),
                 budgets: Vec::new(),
                 floors: Vec::new(),
+                breakdown: Vec::new(),
             }],
             ..Config::default()
         };

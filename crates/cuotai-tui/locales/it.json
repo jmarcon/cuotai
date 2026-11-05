@@ -116,6 +116,7 @@
   "dashboard.detail.stale": "(non aggiornata) ultima valida {age} ({utc} · {local} locale)",
   "dashboard.detail.status": "  STATO",
   "dashboard.detail.title": " Dettagli · assente ≠ zero",
+  "dashboard.detail.breakdown": "  DETTAGLIO",
   "dashboard.empty.all_unmeasured": "Tutti gli account visibili sono senza dati. u mostra gli account senza dati.",
   "dashboard.empty.no_accounts": "Nessun account. a apre la procedura guidata; c svuota il filtro.",
   "dashboard.empty.no_match": "Nessun risultato per il filtro attuale. c svuota il filtro.",
@@ -288,6 +289,8 @@
   "once.sub.disabled": "disattivata in 9router",
   "once.sub.duplicate": "monitorata anche direttamente",
   "once.sub.plan": "piano {plan}",
+  "once.breakdown": "  Dettaglio:",
+  "once.breakdown.more": "    … altri {count} nei dettagli",
   "report.footer": "Cuotai non invia nulla · ↑↓ scorri · Esc indietro",
   "report.title": " SEGNALA UN PROBLEMA",
   "serve.port.cuotai_holder": " Un altro server locale di Cuotai la usa già.",
@@ -518,6 +521,8 @@
   "wizard.summary.token_external": "(la credenziale resta nell'archivio della CLI esterna, fuori dal portachiavi di Cuotai)",
   "wizard.summary.token_vault": "(il token resta nell'archivio sicuro; non viene mai mostrato né scritto nel TOML)",
   "wizard.summary.unnamed": "{provider} (senza nome)",
+  "wizard.summary.breakdown": "Dettaglio:",
+  "wizard.summary.breakdown.hint": "  Premi un numero per attivare o disattivare un dettaglio; le righe non sono mai per utente.",
   "wizard.title": "Procedura guidata — {position}/{total} {label}",
   "wizard.too_small": "Procedura guidata: allarga il terminale ad almeno 60 × 20. Esc annulla."
 }

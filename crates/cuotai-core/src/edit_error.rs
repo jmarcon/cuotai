@@ -195,6 +195,14 @@ pub fn config_error_note(error: &crate::ConfigError) -> Localized {
         );
     }
 
+    if let crate::ConfigError::Breakdown { field } = error {
+        return Localized::with_params(
+            "edit_error.config_breakdown",
+            params([("field", ParamValue::from(field.clone()))]),
+            "The field {field} lists a breakdown this account cannot read, or repeats one; the values allowed come from the provider and its mode.",
+        );
+    }
+
     let id = match error {
         crate::ConfigError::Bounds => "edit_error.config_bounds",
         crate::ConfigError::AccountNames => "edit_error.config_account_names",
@@ -208,6 +216,7 @@ pub fn config_error_note(error: &crate::ConfigError) -> Localized {
         crate::ConfigError::MeteredRefreshFloor { .. }
         | crate::ConfigError::AccountIds { .. }
         | crate::ConfigError::Budget { .. }
+        | crate::ConfigError::Breakdown { .. }
         | crate::ConfigError::Parse { .. } => {
             unreachable!()
         }

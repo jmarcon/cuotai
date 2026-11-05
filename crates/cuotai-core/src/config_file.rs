@@ -898,6 +898,10 @@ fn edit_account(table: &mut toml_edit::Table, account: &Account) -> Result<(), E
             table.remove(key);
         }
     }
+    // PRD 0045 RF1.4: an account without breakdowns writes no key.
+    if account.breakdown.is_empty() {
+        table.remove("breakdown");
+    }
     Ok(())
 }
 
@@ -953,6 +957,7 @@ mod tests {
             group: None,
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         }
     }
 
@@ -1052,6 +1057,7 @@ timeout_seconds = 30
 name = "OR"
 provider = "open_router"
 credential_env = "OR_KEY"
+params = { product = "account" }
 breakdown = ["keys"] # future
 
 [[accounts.budgets]]

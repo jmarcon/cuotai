@@ -116,6 +116,7 @@
   "dashboard.detail.stale": "(desatualizada) última válida {age} ({utc} · {local} local)",
   "dashboard.detail.status": "  STATUS  ",
   "dashboard.detail.title": " Detalhes · ausente ≠ zero ",
+  "dashboard.detail.breakdown": "  DETALHAMENTO",
   "dashboard.empty.all_unmeasured": "Todas as contas visíveis estão sem dados. u mostra contas sem dados.",
   "dashboard.empty.no_accounts": "Nenhuma conta. a abre o wizard; c limpa o filtro.",
   "dashboard.empty.no_match": "Sem resultados para o filtro atual. c limpa o filtro.",
@@ -288,6 +289,8 @@
   "once.sub.disabled": "desligada no 9router",
   "once.sub.duplicate": "também monitorada diretamente",
   "once.sub.plan": "plano {plan}",
+  "once.breakdown": "  Detalhamento:",
+  "once.breakdown.more": "    … mais {count} nos detalhes",
   "report.footer": "Nada é enviado pelo Cuotai · ↑↓ rolar · Esc voltar",
   "report.title": " REPORTAR PROBLEMA ",
   "serve.port.cuotai_holder": " Outro servidor local do Cuotai já a usa.",
@@ -518,6 +521,8 @@
   "wizard.summary.token_external": "(a credencial fica no armazenamento do CLI externo, fora do cofre Cuotai)",
   "wizard.summary.token_vault": "(o token fica no armazenamento seguro; nunca é exibido nem gravado no TOML)",
   "wizard.summary.unnamed": "{provider} (sem nome)",
+  "wizard.summary.breakdown": "Detalhamento:",
+  "wizard.summary.breakdown.hint": "  Tecle um número para ligar ou desligar um detalhamento; as linhas nunca são por usuário.",
   "wizard.title": "Assistente — {position}/{total} {label}",
   "wizard.too_small": "Assistente: amplie o terminal para pelo menos 60 × 20. Esc cancela."
 }

@@ -607,6 +607,9 @@ pub struct ReportView {
     /// core's card notes (silent; the notification is opt-in).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     limit_notes: Vec<cuotai_core::text::Localized>,
+    /// PRD 0045 RF6.1: the account's breakdown, from the core.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    breakdown: Option<BreakdownView>,
 }
 
 /// PRD 0043 RF2.2: the card notes of the limit changes `store` recorded for
@@ -657,6 +660,69 @@ fn read_limit_notes(
             })
         })
         .collect()
+}
+
+/// PRD 0045 RF6.1: the rows of the details' Breakdown section in the core's
+/// spend order, the order by percentage, the card's "Top: …" line and the
+/// truncation note. The UI only lays them out.
+#[derive(Serialize, Clone)]
+pub struct BreakdownView {
+    rows: Vec<BreakdownRowView>,
+    /// Indices into `rows` in the core's percentage order.
+    by_percent: Vec<usize>,
+    top: Option<cuotai_core::text::Localized>,
+    truncated: Option<cuotai_core::text::Localized>,
+}
+
+#[derive(Serialize, Clone)]
+pub struct BreakdownRowView {
+    scope: cuotai_core::ScopeKind,
+    id: String,
+    label: cuotai_core::text::Localized,
+    others: bool,
+    /// The row's figure: its capped metric (a meter) or its primary amount.
+    figure: Option<MetricView>,
+    /// Every metric of the row, for the tooltip and the meta line.
+    metrics: Vec<MetricView>,
+    notes: Vec<cuotai_core::text::Localized>,
+}
+
+fn breakdown_view(report: &Report) -> Option<BreakdownView> {
+    use cuotai_core::breakdown::{self, SortBy};
+    if report.breakdown.is_empty() {
+        return None;
+    }
+    let now = chrono::Utc::now();
+    let view_of = |metric: &Metric| MetricView {
+        resets_label: metric
+            .resets_at
+            .filter(|at| *at > now)
+            .map(|at| cuotai_core::resets::pair_label(&local_at(at), at - now)),
+        ..metric_view(metric)
+    };
+    let ordered = breakdown::sorted(&report.breakdown, SortBy::Spend);
+    let rows: Vec<BreakdownRowView> = ordered
+        .iter()
+        .map(|row| BreakdownRowView {
+            scope: row.scope,
+            id: row.id.clone(),
+            label: row.label_text(),
+            others: row.is_others(),
+            figure: row.capped().or_else(|| row.primary()).map(view_of),
+            metrics: row.metrics.iter().map(view_of).collect(),
+            notes: row.notes.clone(),
+        })
+        .collect();
+    let by_percent = breakdown::sorted(&report.breakdown, SortBy::Percent)
+        .into_iter()
+        .filter_map(|row| ordered.iter().position(|other| std::ptr::eq(*other, row)))
+        .collect();
+    Some(BreakdownView {
+        rows,
+        by_percent,
+        top: breakdown::top_line(&report.breakdown, breakdown::CARD_ROWS),
+        truncated: breakdown::truncated_note(&report.breakdown),
+    })
 }
 
 /// Whether `id` is in the comma-separated list parameter `key` of `account`.
@@ -1134,6 +1200,7 @@ fn report_view(
         scope_blocks: scope_block_views(report),
         floors: cuotai_core::budget::floor_statuses(account, report),
         limit_notes: Vec::new(),
+        breakdown: breakdown_view(report),
     }
 }
 
@@ -4677,6 +4744,7 @@ impl Backend {
             credential,
             interval: a.refresh_seconds.map(|s| s.to_string()).unwrap_or_default(),
             group: a.group.clone().unwrap_or_default(),
+            breakdown: a.breakdown.clone(),
             uses_oauth: a.oauth.is_some(),
             native_login,
             auth_mode,
@@ -5390,6 +5458,11 @@ pub struct AccountInput {
     /// keeps the edited account's group, blank clears it.
     #[serde(default)]
     pub group: Option<String>,
+    /// PRD 0045 RF6.3: the breakdowns ticked in the dialog; absent keeps
+    /// the edited account's, and only the ones the draft's mode offers are
+    /// saved.
+    #[serde(default)]
+    pub breakdown: Option<Vec<cuotai_core::BreakdownKind>>,
     #[serde(default)]
     pub commit_login: bool,
     #[serde(default)]
@@ -5481,6 +5554,8 @@ pub struct AccountForm {
     interval: String,
     /// PRD 0024 RF7.1: the account's group, blank when it has none.
     group: String,
+    /// PRD 0045 RF6.3: the breakdowns the account opts into.
+    breakdown: Vec<cuotai_core::BreakdownKind>,
     uses_oauth: bool,
     native_login: bool,
     auth_mode: &'static str,
@@ -5868,9 +5943,19 @@ fn input_account(
     };
     // PRD 0047: the typed secrets go to the vault, so their variable
     // fields are neither required nor written.
-    let account =
+    let mut account =
         account_edit::build_account_with_secrets(&draft, config, input.index, &typed_slots(input))
             .map_err(|e| l10n_to_json(&e.l10n()))?;
+    // PRD 0045 RF6.3: the ticked breakdowns the built mode still offers.
+    if let Some(kinds) = &input.breakdown {
+        let offered = cuotai_core::access::describe(&account).breakdowns;
+        let chosen: Vec<_> = kinds
+            .iter()
+            .copied()
+            .filter(|kind| offered.iter().any(|mode| mode.kind == *kind))
+            .collect();
+        account_edit::set_breakdown(&mut account, &chosen).map_err(|e| l10n_to_json(&e.l10n()))?;
+    }
     with_budget_rows(account, existing, input)
 }
 
@@ -6000,6 +6085,39 @@ pub struct AccessView {
     notes: Vec<cuotai_core::text::Localized>,
     cost_advisory: Option<cuotai_core::text::Localized>,
     save_confirmation: Option<cuotai_core::text::Localized>,
+    /// PRD 0045 RF6.3: the Breakdown multi-select of the draft's mode.
+    breakdown: BreakdownOptionsView,
+}
+
+/// PRD 0045 RF6.3: the modes the dialog offers, each with its extra
+/// requests per refresh, or why there is none (a metered provider).
+#[derive(Serialize)]
+pub struct BreakdownOptionsView {
+    modes: Vec<BreakdownModeView>,
+    reason: Option<cuotai_core::text::Localized>,
+}
+
+#[derive(Serialize)]
+pub struct BreakdownModeView {
+    kind: cuotai_core::BreakdownKind,
+    label: cuotai_core::text::Localized,
+    requests: cuotai_core::text::Localized,
+}
+
+fn breakdown_options_view(access: &cuotai_core::access::UsageAccess) -> BreakdownOptionsView {
+    let options = account_edit::breakdown_options(access);
+    BreakdownOptionsView {
+        modes: options
+            .modes
+            .iter()
+            .map(|mode| BreakdownModeView {
+                kind: mode.kind,
+                label: mode.kind.label(),
+                requests: mode.requests_text(),
+            })
+            .collect(),
+        reason: options.reason,
+    }
 }
 
 pub fn draft_access(
@@ -6015,6 +6133,7 @@ pub fn draft_access(
         session_slots,
     );
     AccessView {
+        breakdown: breakdown_options_view(&access),
         level: access.level.label(),
         notes: access.notes(),
         cost_advisory: access.cost_advisory(),
@@ -6493,6 +6612,7 @@ mod tests {
             monogram: None,
             budgets,
             floors: None,
+            breakdown: None,
         };
         let kept = with_budget_rows(built.clone(), Some(&existing), &input(None)).unwrap();
         assert_eq!(kept.budgets, vec![budget.clone()]);
@@ -6587,6 +6707,7 @@ mod tests {
             source: String::new(),
             session_expires_at: None,
             as_of: None,
+            breakdown: Vec::new(),
         };
         let view =
             serde_json::to_value(last_good_view(&report.collapse_expired(now), now)).unwrap();
@@ -6619,6 +6740,7 @@ mod tests {
                 sub_reports: Vec::new(),
                 as_of: None,
                 overage_hint: None,
+                breakdown: Vec::new(),
             })
             .collect();
         let snapshot = cuotai_core::Snapshot {
@@ -6681,6 +6803,7 @@ mod tests {
             sub_reports: Vec::new(),
             as_of: None,
             overage_hint: None,
+            breakdown: Vec::new(),
         }
     }
 
@@ -6728,6 +6851,60 @@ mod tests {
         let view =
             serde_json::to_value(report_view(1, &plain, &config, None, None, 0, &[])).unwrap();
         assert!(view["overage"].is_null());
+    }
+
+    /// PRD 0045 RF6.1: the view carries the breakdown rows in the core's
+    /// spend order, the percentage order, the card line and the truncation
+    /// note; an account without rows carries none.
+    #[test]
+    fn view_carries_the_breakdown_in_both_orders() {
+        use cuotai_core::{BreakdownRow, MetricKind, ScopeKind};
+        let config = Config {
+            accounts: vec![plain_account("org")],
+            ..Config::default()
+        };
+        let row = |id: &str, label: &str, metric: Metric| BreakdownRow {
+            scope: ScopeKind::Key,
+            id: id.into(),
+            label: label.into(),
+            metrics: vec![metric],
+            truncated: false,
+            notes: Vec::new(),
+        };
+        let spend = |used| Metric::usage("Gasto no mês", used, "USD", MetricKind::Spend, None);
+        let capped = |used, limit| Metric {
+            limit: Some(limit),
+            remaining: Some(limit - used),
+            ..Metric::usage("Limite da chave", used, "USD", MetricKind::Quota, None)
+        };
+        let mut report = ready("org", Vec::new());
+        report.breakdown = vec![
+            row("a", "Proj-A", spend(412.0)),
+            row("b", "Proj-B", capped(92.0, 100.0)),
+            row("c", "Proj-C", spend(5.0)),
+        ];
+        let view =
+            serde_json::to_value(report_view(0, &report, &config, None, None, 0, &[])).unwrap();
+        let breakdown = &view["breakdown"];
+        let labels: Vec<_> = breakdown["rows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|row| row["label"]["fallback"].as_str().unwrap().to_owned())
+            .collect();
+        assert_eq!(labels, ["Proj-A", "Proj-B", "Proj-C"]);
+        assert_eq!(breakdown["by_percent"], serde_json::json!([1, 0, 2]));
+        assert_eq!(breakdown["rows"][1]["figure"]["state"], "available");
+        assert_eq!(breakdown["rows"][1]["figure"]["limit"], 100.0);
+        assert_eq!(
+            breakdown["top"]["fallback"],
+            "Top: Proj-A $412 · Proj-B $92"
+        );
+        assert!(breakdown["truncated"].is_null());
+        let plain = ready("org", Vec::new());
+        let view =
+            serde_json::to_value(report_view(0, &plain, &config, None, None, 0, &[])).unwrap();
+        assert!(view.get("breakdown").is_none());
     }
 
     /// PRD 0036 RF8: an aggregator's view carries its connections (grouped
@@ -7559,6 +7736,7 @@ mod tests {
             group: None,
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         }
     }
 
@@ -7579,6 +7757,7 @@ mod tests {
             group: None,
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         })
         .expect("OAuth config is valid; the storage key is derivable");
         store.entries.lock().insert(
@@ -7789,6 +7968,7 @@ mod tests {
                     group: None,
                     budgets: Vec::new(),
                     floors: Vec::new(),
+                    breakdown: Vec::new(),
                 })
                 .unwrap()
             ),
@@ -8082,6 +8262,7 @@ mod tests {
             monogram: None,
             budgets: None,
             floors: None,
+            breakdown: None,
         };
         let error = backend
             .inner
@@ -8149,6 +8330,7 @@ mod tests {
             monogram: None,
             budgets: None,
             floors: None,
+            breakdown: None,
         };
         let saved = input_account(&config, &input, None).unwrap();
         assert_eq!(saved.extension_override(), Some("proxy"));
@@ -8180,6 +8362,7 @@ mod tests {
             monogram: None,
             budgets: None,
             floors: None,
+            breakdown: None,
         }
     }
 
@@ -8970,6 +9153,7 @@ mod tests {
             group: None,
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         }
     }
 

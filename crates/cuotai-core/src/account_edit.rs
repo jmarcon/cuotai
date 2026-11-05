@@ -2642,7 +2642,7 @@ pub fn build_account_with_secrets(
         .map(|account| (account.budgets.clone(), account.floors.clone()))
         .unwrap_or_default();
 
-    Ok(Account {
+    let mut account = Account {
         id,
         name,
         provider: *provider,
@@ -2654,7 +2654,76 @@ pub fn build_account_with_secrets(
         group,
         budgets,
         floors,
-    })
+        breakdown: Vec::new(),
+    };
+    // PRD 0045 RF6.3: an edit keeps the breakdowns the edited mode still
+    // offers; the form sets them with [`set_breakdown`] after the build.
+    if let Some(kept) = editing_account.filter(|old| old.provider == *provider) {
+        let offered = crate::access::describe(&account).breakdowns;
+        account.breakdown = kept
+            .breakdown
+            .iter()
+            .copied()
+            .filter(|kind| offered.iter().any(|mode| mode.kind == *kind))
+            .collect();
+    }
+    Ok(account)
+}
+
+/// PRD 0045 RF6.3: what the account editors offer in the **Breakdown**
+/// multi-select of `account` (built from the draft): the modes of its
+/// interface, or the reason there are none (metered provider, or an
+/// interface without keys, projects, workspaces or teams).
+#[derive(Debug, Clone)]
+pub struct BreakdownOptions {
+    pub modes: Vec<crate::access::BreakdownMode>,
+    /// `Some` exactly when `modes` is empty.
+    pub reason: Option<crate::text::Localized>,
+}
+
+/// [`BreakdownOptions`] of the interface `access` describes (for a draft,
+/// the result of [`draft_access`]).
+pub fn breakdown_options(access: &crate::access::UsageAccess) -> BreakdownOptions {
+    let reason = access.breakdowns.is_empty().then(|| {
+        if access.metered {
+            crate::access::breakdown_metered_reason()
+        } else {
+            crate::access::breakdown_none_reason()
+        }
+    });
+    BreakdownOptions {
+        modes: access.breakdowns.clone(),
+        reason,
+    }
+}
+
+/// PRD 0045 RF1.4/RF6.3: set `account.breakdown` to `kinds` (deduplicated,
+/// in [`crate::BreakdownKind::ALL`] order), refusing any value its
+/// interface does not offer; a metered provider offers none.
+pub fn set_breakdown(
+    account: &mut Account,
+    kinds: &[crate::BreakdownKind],
+) -> Result<(), crate::edit_error::EditError> {
+    let access = crate::access::describe(account);
+    if let Some(kind) = kinds
+        .iter()
+        .find(|kind| !access.breakdowns.iter().any(|mode| mode.kind == **kind))
+    {
+        let reason = breakdown_options(&access).reason.unwrap_or_else(|| {
+            crate::text::Localized::with_param(
+                "edit_error.breakdown_value",
+                "value",
+                kind.label(),
+                "This account cannot break its total down by {value}.",
+            )
+        });
+        return Err(build_account_field_error("breakdown", reason));
+    }
+    account.breakdown = crate::BreakdownKind::ALL
+        .into_iter()
+        .filter(|kind| kinds.contains(kind))
+        .collect();
+    Ok(())
 }
 
 /// Map a [`Localized`](crate::text::Localized) produced by the internal
@@ -3362,6 +3431,7 @@ mod tests {
             group: None,
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         }
     }
 
@@ -3502,6 +3572,7 @@ mod tests {
             group: None,
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         };
         let updated = config.upsert_account(new_account.clone(), Some(0)).unwrap();
         assert_eq!(updated.accounts.len(), 1);
@@ -3528,6 +3599,7 @@ mod tests {
             group: None,
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         };
         let updated = config.upsert_account(new_account.clone(), None).unwrap();
         assert_eq!(updated.accounts.len(), 2);
@@ -3553,6 +3625,7 @@ mod tests {
             group: None,
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         };
         assert!(config.upsert_account(dup, None).is_err());
     }
@@ -3792,6 +3865,7 @@ mod tests {
             group: None,
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         };
         let config = config_with(vec![existing]);
         let draft = AccountDraft {
@@ -3834,6 +3908,7 @@ mod tests {
             group: None,
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         };
         let config = config_with(vec![existing.clone()]);
         let draft = AccountDraft {
@@ -3878,6 +3953,7 @@ mod tests {
             group: None,
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         };
         let config = config_with(vec![existing.clone()]);
         let draft = AccountDraft {
@@ -4186,6 +4262,7 @@ mod tests {
             group: None,
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         };
         let config = config_with(vec![existing_account.clone()]);
         let draft = AccountDraft {
@@ -4424,6 +4501,7 @@ mod tests {
             group: None,
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         };
         assert_eq!(stored_credential(&account), "default");
 
@@ -4440,6 +4518,7 @@ mod tests {
             group: None,
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         };
         assert_eq!(stored_credential(&account), "");
     }
@@ -4461,6 +4540,7 @@ mod tests {
             group: None,
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         };
         assert_eq!(stored_credential(&account), "qwen-personal");
 
@@ -4476,6 +4556,7 @@ mod tests {
             group: None,
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         };
         assert_eq!(stored_credential(&empty), "");
     }
@@ -4497,6 +4578,7 @@ mod tests {
             group: None,
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         };
         assert_eq!(stored_credential(&account), "OPENAI_ADMIN_KEY");
 
@@ -4513,6 +4595,7 @@ mod tests {
             group: None,
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         };
         assert_eq!(stored_credential(&empty), default_env(Provider::OpenAiApi));
 
@@ -4530,6 +4613,7 @@ mod tests {
             group: None,
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         };
         assert_eq!(
             stored_credential(&missing),
@@ -4554,6 +4638,7 @@ mod tests {
             group: None,
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         };
         assert_eq!(stored_credential(&account), "OPENAI_ADMIN_KEY");
     }
@@ -4951,6 +5036,7 @@ mod tests {
             group: None,
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         };
         let err = config.upsert_account(sneaky, None).unwrap_err();
         let msg = err.message();
@@ -5041,6 +5127,7 @@ mod tests {
             group: None,
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         }
     }
 
@@ -5498,6 +5585,7 @@ mod tests {
                     group: None,
                     budgets: Vec::new(),
                     floors: Vec::new(),
+                    breakdown: Vec::new(),
                 },
                 None,
             )

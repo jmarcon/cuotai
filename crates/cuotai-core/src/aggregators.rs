@@ -153,6 +153,7 @@ pub fn sub_account(parent: &Account, sub: &SubReport) -> Account {
         refresh_seconds: parent.refresh_seconds,
         budgets: Vec::new(),
         floors: Vec::new(),
+        breakdown: Vec::new(),
     }
 }
 
@@ -178,6 +179,7 @@ pub fn sub_as_report(parent: &Report, sub: &SubReport) -> Report {
         diagnostic: None,
         as_of: sub.as_of,
         overage_hint: None,
+        breakdown: Vec::new(),
     }
 }
 
@@ -664,6 +666,7 @@ mod tests {
             account_id: None,
             as_of: None,
             diagnostic: None,
+            breakdown: Vec::new(),
         };
         assert!(ConnectionWarnings::of(&report).is_empty());
         assert!(ConnectionWarnings::of(&report).chips().is_empty());
@@ -776,6 +779,7 @@ mod tests {
             source: String::new(),
             session_expires_at: None,
             sub_reports: subs,
+            breakdown: Vec::new(),
         }
     }
 
@@ -834,6 +838,7 @@ mod tests {
             refresh_seconds: Some(300),
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         }
     }
 

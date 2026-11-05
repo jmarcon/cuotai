@@ -340,6 +340,12 @@ pub struct Account {
     /// most [`crate::budget::MAX_FLOORS`]. Omitted from the TOML when empty.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub floors: Vec<crate::budget::Floor>,
+    /// PRD 0045 RF1.4: the breakdowns this account opts into
+    /// (`breakdown = ["keys"]`); empty (the default) makes no extra request.
+    /// The values a provider accepts come from its access descriptor and
+    /// `Config::validate` rejects the others.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub breakdown: Vec<crate::BreakdownKind>,
 }
 
 /// Longest `group` value (PRD 0024 RF7.1).
@@ -402,12 +408,9 @@ struct AccountConfig {
     /// PRD 0041 RF3.
     #[serde(default)]
     floors: Vec<crate::budget::Floor>,
-    // Forward compatibility (PRD 0045 breakdown): accepted and ignored so a
-    // file written by a newer release still loads. `ConfigFile` keeps the
-    // key untouched when it edits the table.
+    /// PRD 0045 RF1.4.
     #[serde(default)]
-    #[allow(dead_code)]
-    breakdown: Option<serde::de::IgnoredAny>,
+    breakdown: Vec<crate::BreakdownKind>,
 }
 
 impl<'de> Deserialize<'de> for Account {
@@ -428,6 +431,7 @@ impl<'de> Deserialize<'de> for Account {
             group: account.group,
             budgets: account.budgets,
             floors: account.floors,
+            breakdown: account.breakdown,
         })
     }
 }
@@ -747,6 +751,7 @@ impl Default for Account {
             group: None,
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         }
     }
 }
@@ -771,6 +776,7 @@ impl Default for Config {
                     group: None,
                     budgets: Vec::new(),
                     floors: Vec::new(),
+                    breakdown: Vec::new(),
                 })
                 .collect(),
             groups: Vec::new(),
@@ -955,6 +961,12 @@ impl Scope {
 #[serde(rename_all = "snake_case")]
 pub enum ScopeKind {
     Model,
+    /// PRD 0045 RF1.1: the sub-scopes of a breakdown row.
+    Key,
+    VirtualKey,
+    Project,
+    Workspace,
+    Team,
 }
 
 impl Metric {
@@ -1091,6 +1103,12 @@ pub struct Report {
     /// on with an unreadable amount. Additive and skipped when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub overage_hint: Option<OverageHint>,
+    /// PRD 0045 RF1.1: the account's breakdown rows (keys, projects,
+    /// workspaces, teams) when it opts in; capped, redacted and never per
+    /// user. Never serialized with the report (RF6.2: `--json` keeps its
+    /// shape); `export::v1` publishes it as `AccountExport::breakdown`.
+    #[serde(default, skip_serializing)]
+    pub breakdown: Vec<crate::BreakdownRow>,
 }
 
 /// PRD 0036 RF1.2: one upstream connection of an aggregator instance. It
@@ -1303,6 +1321,7 @@ mod tests {
             sub_reports: Vec::new(),
             as_of: None,
             overage_hint: None,
+            breakdown: Vec::new(),
         };
         let json = serde_json::to_value(&report).unwrap();
         assert!(json.get("notes_l10n").is_none(), "empty sidecar must skip");

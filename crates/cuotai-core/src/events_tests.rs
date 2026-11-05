@@ -149,6 +149,7 @@ impl Watch {
             sub_reports: Vec::new(),
             as_of: None,
             overage_hint: None,
+            breakdown: Vec::new(),
         };
         let token = self.cycle.begin(0).unwrap();
         self.cycle
@@ -522,6 +523,7 @@ fn failures_are_classified_by_status_and_note_id() {
         sub_reports: Vec::new(),
         as_of: None,
         overage_hint: None,
+        breakdown: Vec::new(),
     };
     use FailureCategory as C;
     let cases = [
@@ -925,6 +927,7 @@ fn a_steep_recent_pace_projects_exhaustion_once() {
                 notes_l10n: Vec::new(),
                 source: String::new(),
                 session_expires_at: None,
+                breakdown: Vec::new(),
             };
             let token = watch.cycle.begin(0).unwrap();
             watch

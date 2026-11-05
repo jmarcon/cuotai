@@ -331,6 +331,10 @@ pub(crate) struct Wizard {
     interval: String,
     /// PRD 0024 RF7.1: the optional group of comparable accounts.
     group: String,
+    /// PRD 0045 RF6.3: the breakdowns chosen in the review (toggled with
+    /// the digit of each offered mode); only the ones the draft's mode still
+    /// offers are saved.
+    breakdown: Vec<cuotai_core::BreakdownKind>,
     summary_scroll: u16,
     error: Option<String>,
     conflict: Option<String>,
@@ -485,6 +489,7 @@ impl Wizard {
                 .map(|seconds| seconds.to_string())
                 .unwrap_or_default(),
             group: existing.and_then(|a| a.group.clone()).unwrap_or_default(),
+            breakdown: existing.map(|a| a.breakdown.clone()).unwrap_or_default(),
             summary_scroll: 0,
             error: None,
             conflict: None,
@@ -1609,6 +1614,13 @@ impl Wizard {
                     {
                         self.group.push(c);
                     }
+                } else if self.step == Step::Summary {
+                    // PRD 0045 RF6.3: digits toggle the offered breakdowns.
+                    if let Some(n) = c.to_digit(10) {
+                        if self.toggle_breakdown(n as usize) {
+                            self.error = None;
+                        }
+                    }
                 } else if matches!(
                     self.step,
                     Step::Name | Step::Credential | Step::Params | Step::Session
@@ -2287,10 +2299,79 @@ impl Wizard {
                 .map_err(|e| crate::ui::resolve_l10n(&e.l10n()))?,
             None => self.base.clone(),
         };
-        let account = edit::build_account(&draft, &base, self.editing)
+        let mut account = edit::build_account(&draft, &base, self.editing)
+            .map_err(|e| crate::ui::resolve_l10n(&e.l10n()))?;
+        // PRD 0045 RF6.3: the chosen breakdowns the built mode offers.
+        let offered = cuotai_core::access::describe(&account).breakdowns;
+        let chosen: Vec<_> = self
+            .breakdown
+            .iter()
+            .copied()
+            .filter(|kind| offered.iter().any(|mode| mode.kind == *kind))
+            .collect();
+        edit::set_breakdown(&mut account, &chosen)
             .map_err(|e| crate::ui::resolve_l10n(&e.l10n()))?;
         base.upsert_account(account, self.editing)
             .map_err(|e| crate::ui::resolve_l10n(&e.l10n()))
+    }
+
+    /// PRD 0045 RF6.3: the breakdown modes the draft offers, in the order
+    /// the review numbers them.
+    fn breakdown_modes(&self) -> Vec<cuotai_core::access::BreakdownMode> {
+        self.access().breakdowns
+    }
+
+    /// Toggle the `n`-th (1-based) offered breakdown; whether one was.
+    fn toggle_breakdown(&mut self, n: usize) -> bool {
+        let Some(mode) = n
+            .checked_sub(1)
+            .and_then(|index| self.breakdown_modes().into_iter().nth(index))
+        else {
+            return false;
+        };
+        match self.breakdown.iter().position(|kind| *kind == mode.kind) {
+            Some(at) => {
+                self.breakdown.remove(at);
+            }
+            None => self.breakdown.push(mode.kind),
+        }
+        true
+    }
+
+    /// The review's breakdown lines: each offered mode as a numbered
+    /// checkbox with its extra requests, or why there is none.
+    fn breakdown_lines(&self, dim: Style) -> Vec<Line<'static>> {
+        let access = self.access();
+        let options = edit::breakdown_options(&access);
+        let mut lines = vec![Line::from(Span::styled(
+            tr("wizard.summary.breakdown", "Breakdown:"),
+            dim,
+        ))];
+        if let Some(reason) = &options.reason {
+            lines.push(Line::from(Span::styled(
+                format!("  {}", crate::ui::resolve_l10n(reason)),
+                dim,
+            )));
+            return lines;
+        }
+        for (index, mode) in options.modes.iter().enumerate() {
+            let on = self.breakdown.contains(&mode.kind);
+            lines.push(Line::from(format!(
+                "  {} [{}] {} — {}",
+                index + 1,
+                if on { "x" } else { " " },
+                crate::ui::resolve_l10n(&mode.kind.label()),
+                crate::ui::resolve_l10n(&mode.requests_text()),
+            )));
+        }
+        lines.push(Line::from(Span::styled(
+            tr(
+                "wizard.summary.breakdown.hint",
+                "  Press a number to turn a breakdown on or off; rows are never per user.",
+            ),
+            dim,
+        )));
+        lines
     }
 
     fn summary_lines(&self, path: &Path) -> Vec<Line<'static>> {
@@ -2459,6 +2540,7 @@ impl Wizard {
                         .to_owned(),
                     }),
                 ]));
+                lines.extend(self.breakdown_lines(dim));
             }
             Err(message) => {
                 lines.push(Line::from(Span::styled(
@@ -3782,6 +3864,7 @@ mod tests {
             group: None,
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         }
     }
 
@@ -4311,6 +4394,7 @@ mod tests {
             sub_reports: Vec::new(),
             as_of: None,
             overage_hint: None,
+            breakdown: Vec::new(),
         }
     }
 
@@ -4583,6 +4667,58 @@ mod tests {
         assert_eq!(built.refresh_seconds, 300);
         assert_eq!(built.accounts[0].refresh_seconds, None);
     }
+    /// PRD 0045 RF6.3: the review lists the breakdowns the draft offers
+    /// with their extra requests; a digit toggles one, an edit keeps the
+    /// saved ones and an account without any says why.
+    #[test]
+    fn the_review_toggles_the_offered_breakdowns() {
+        let mut acc = account("OpenAI", "OPENAI_ADMIN_KEY");
+        acc.breakdown = vec![cuotai_core::BreakdownKind::Projects];
+        let config = Config {
+            accounts: vec![acc],
+            ..Config::default()
+        };
+        let mut wiz = Wizard::new(&config, Some(0));
+        assert_eq!(
+            wiz.build_config().unwrap().accounts[0].breakdown,
+            [cuotai_core::BreakdownKind::Projects],
+            "an edit keeps the saved breakdowns"
+        );
+        wiz.step = Step::Summary;
+        let text = |wiz: &Wizard| {
+            crate::l10n::with_locale("en-US", || {
+                wiz.breakdown_lines(Style::default())
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            })
+        };
+        let shown = text(&wiz);
+        assert!(
+            shown.contains("1 [x] Projects — Extra requests per refresh: up to 4"),
+            "{shown}"
+        );
+        assert!(shown.contains("2 [ ] API keys"), "{shown}");
+        wiz.handle(KeyEvent::new(KeyCode::Char('2'), KeyModifiers::NONE));
+        wiz.handle(KeyEvent::new(KeyCode::Char('1'), KeyModifiers::NONE));
+        // A digit beyond the offered modes does nothing.
+        wiz.handle(KeyEvent::new(KeyCode::Char('9'), KeyModifiers::NONE));
+        assert_eq!(
+            wiz.build_config().unwrap().accounts[0].breakdown,
+            [cuotai_core::BreakdownKind::Keys]
+        );
+        let claude = Config {
+            accounts: vec![Account {
+                provider: Provider::Claude,
+                ..Account::default()
+            }],
+            ..Config::default()
+        };
+        let none = text(&Wizard::new(&claude, Some(0)));
+        assert!(none.contains("per-user data is never read"), "{none}");
+    }
+
     /// PRD 0024 RF7.1: the wizard offers the optional group after the
     /// interval, folds capitals, keeps the existing one on an edit and a
     /// blank clears it.
@@ -4671,6 +4807,7 @@ mod tests {
                 group: None,
                 budgets: Vec::new(),
                 floors: Vec::new(),
+                breakdown: Vec::new(),
             }],
             ..Config::default()
         };
@@ -4705,6 +4842,7 @@ mod tests {
                 group: None,
                 budgets: Vec::new(),
                 floors: Vec::new(),
+                breakdown: Vec::new(),
             }],
             ..Config::default()
         };
@@ -4753,6 +4891,7 @@ mod tests {
                 group: None,
                 budgets: Vec::new(),
                 floors: Vec::new(),
+                breakdown: Vec::new(),
             }],
             ..Config::default()
         };
@@ -4870,6 +5009,7 @@ mod tests {
                     group: None,
                     budgets: Vec::new(),
                     floors: Vec::new(),
+                    breakdown: Vec::new(),
                 },
                 Account {
                     id: None,
@@ -4883,6 +5023,7 @@ mod tests {
                     group: None,
                     budgets: Vec::new(),
                     floors: Vec::new(),
+                    breakdown: Vec::new(),
                 },
             ],
             ..Config::default()
@@ -4912,6 +5053,7 @@ mod tests {
                 group: None,
                 budgets: Vec::new(),
                 floors: Vec::new(),
+                breakdown: Vec::new(),
             }],
             ..Config::default()
         };
@@ -4946,6 +5088,7 @@ mod tests {
                 group: None,
                 budgets: Vec::new(),
                 floors: Vec::new(),
+                breakdown: Vec::new(),
             }],
             ..Config::default()
         };
@@ -4972,6 +5115,7 @@ mod tests {
                     group: None,
                     budgets: Vec::new(),
                     floors: Vec::new(),
+                    breakdown: Vec::new(),
                 }],
                 ..Config::default()
             };
@@ -5009,6 +5153,7 @@ mod tests {
                 group: None,
                 budgets: Vec::new(),
                 floors: Vec::new(),
+                breakdown: Vec::new(),
             }],
             ..Config::default()
         };
@@ -5051,6 +5196,7 @@ mod tests {
                 group: None,
                 budgets: Vec::new(),
                 floors: Vec::new(),
+                breakdown: Vec::new(),
             }],
             ..Config::default()
         };

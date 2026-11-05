@@ -130,6 +130,28 @@ The **Overage** column says whether the interface reports consumption that the p
 
 **Claude units caveat.** The Claude interface does not document the unit of `used_credits` and `monthly_limit`. The account is billed in US dollars, but whether the API returns dollars or cents is still to be checked against the amount the Claude web console shows (PRD 0023 RF2.6, an owner smoke), so Cuotai keeps the value as provider units and shows no `$` sign until that check is recorded here.
 
+### Breakdowns by key, project, workspace and team (PRD 0045)
+
+An organizational account can opt into a **breakdown**: sub-rows under the account, one per API key, LiteLLM virtual key, project, workspace or team the provider reports. Add `breakdown = ["keys"]` (an array) to the account, or tick the values in the **Breakdown** field of the account dialog or wizard. The values each mode accepts, and the extra requests each one adds to a refresh, come from the access descriptor; `Config::validate` rejects any other value, and providers billed per query (`metered`) accept none. Without the field no extra request is made.
+
+<!-- breakdown-matrix:start (generated from access::describe; do not edit by hand) -->
+| Identifier | Mode | `breakdown` | Rows | Level | Credential | Extra requests per refresh | Evidence | Verified on |
+|---|---|---|---|---|---|---|---|---|
+| `open_ai_api` | default | `"projects"` | project | Official | Admin key | up to 4 | [documentation](https://developers.openai.com/api/reference/resources/admin/subresources/organization) | 2026-10-25 |
+| `open_ai_api` | default | `"keys"` | key | Official | Admin key | up to 3 | [documentation](https://developers.openai.com/api/reference/resources/admin/subresources/organization) | 2026-10-25 |
+| `anthropic_api` | default | `"workspaces"` | workspace | Official | Admin key | up to 4 | [documentation](https://platform.claude.com/docs/en/manage-claude/usage-cost-api) | 2026-10-25 |
+| `open_router` | `product = "account"` | `"keys"` | key | Official | Admin key | up to 3 | [documentation](https://openrouter.ai/docs/api/api-reference/api-keys/list-api-keys) | 2026-10-25 |
+| `litellm` | default | `"keys"` | virtual_key | Official | Admin key | up to 3 | [documentation](https://docs.litellm.ai/docs/proxy/virtual_keys) | 2026-10-25 |
+| `litellm` | default | `"teams"` | team | Official | Admin key | up to 1 | [documentation](https://docs.litellm.ai/docs/proxy/team_budgets) | 2026-10-25 |
+<!-- breakdown-matrix:end -->
+
+- **What a row holds.** Ordinary metrics (at most six): a `Quota` when the row has a cap (an OpenRouter key `limit` with its reset interval, a LiteLLM `max_budget` with `budget_reset_at`), its spend by period, or month-to-date cost and usage for OpenAI and Anthropic, with the account's own UTC-month note. Rows are ordered by spend (or usage), at most 25 per account: past that the rest are summed into one "Others (N)" row, and the details say how many were folded. A list is read for at most three pages.
+- **Privacy.** A breakdown is never a per-user report. Labels are the names the provider gives the key, project, workspace or team, redacted: e-mail addresses and URLs are removed, a word shaped like a key (`sk-…`, `or-…`, long random runs) keeps only its last four characters, and a row without a usable name reads "Key …ab12". Row ids are opaque: a key hash or LiteLLM token becomes a digest. User ids, members and e-mails are never read, and the TOML stores only the chosen values, never a label.
+- **Failures.** A failing breakdown request never fails the account: the account total stands and the report gains "The breakdown is unavailable right now" with the failure class.
+- **Excluded by design.** GitHub Copilot organizations and Cursor Teams report seats and spend per member only, so they offer no breakdown. The OpenRouter inference-key view has none either: its key is the account.
+- **Filters stay.** `params.project_ids` (OpenAI) and `params.workspace_ids` (Anthropic) keep filtering the account total; a breakdown is additional and is never filtered by them. OpenAI costs are not grouped by API key, so an OpenAI key row carries completion tokens and requests only.
+- **Where rows appear.** The desktop details (a **Breakdown** section, sortable by spend or percentage) and, with the Detailed display preset, one "Top: …" line on the card; the TUI details; up to five rows under the account in `--once`; `export::v1` (`breakdown` per account) and `/v1/accounts/{id}`. `--json` keeps its shape (no breakdown) and `/v1/limits` leaves them out.
+
 ## Provider catalog and search
 
 The account pickers (desktop and TUI) list providers from `cuotai_core::account_edit::catalog` (PRD 0027): one entry per provider and connection mode, grouped by **sign-in method**. The one-line hint is derived from the access descriptor, not written per provider; the native-login mode is the recommended one when a provider has it. `account_edit::search` ranks the same entries (case- and accent-insensitive; display name, identifier, aliases, then category, sign-in method and hint), so typing `codex` finds ChatGPT / Codex in both editors. The category is a search term only.
@@ -343,7 +365,7 @@ params = { base_url = "http://127.0.0.1:4000" }
 
 - **What is read.** Only `GET /provider/budgets` with `Authorization: Bearer <key>`, a documented route (access level *Official*; read from the public documentation on 2026-10-25, not yet checked against a live proxy). Each provider becomes a `Spend` metric: `spend` used of `budget_limit`, its window from `time_period` (`1d` daily, `7d` weekly, `1mo`/`30d` monthly, others without a window) and `budget_reset_at` as the reset when it is a timestamp. A budget below one cent (the docs use `1e-12` to block a provider) is shown as no cap, and an absent spend stays unknown.
 - **Mapping.** `openai`, `anthropic`, `azure`, `vertex_ai`, `gemini`, `bedrock`, `groq`, `mistral`, `perplexity` and `xai` map to their Cuotai providers; any other name keeps a generic tile and LiteLLM's name.
-- **Rules shared with 9router.** The same base-URL rules (HTTP only on loopback, or a private network with `allow_private_http`), Test connection before the first save, `params.hidden`, the pools, alerts and export of sub-accounts. LiteLLM reports no e-mail, so no provider is ever taken for a direct account. Inference, key and team routes are never called.
+- **Rules shared with 9router.** The same base-URL rules (HTTP only on loopback, or a private network with `allow_private_http`), Test connection before the first save, `params.hidden`, the pools, alerts and export of sub-accounts. LiteLLM reports no e-mail, so no provider is ever taken for a direct account. Inference routes are never called; the key and team lists are read only with `breakdown = ["keys"]` or `["teams"]` (PRD 0045: `GET /key/list`, paged, and `GET /team/list`, labelled by alias, never by user).
 
 ## Compatibility with 9router
 

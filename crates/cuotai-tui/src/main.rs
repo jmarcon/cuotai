@@ -1,6 +1,7 @@
 mod about_view;
 mod auth_ui;
 mod backup;
+mod breakdown_view;
 mod canary;
 #[cfg(test)]
 mod capture;
@@ -1567,6 +1568,7 @@ fn report_text(
         }
     }
     out += &sub_reports_text(report, locale, &at);
+    out += &breakdown_view::once_text(report, locale);
     for (idx, fallback_text) in report.notes.iter().enumerate() {
         let text = report
             .notes_l10n
@@ -2136,6 +2138,7 @@ mod tests {
             sub_reports: Vec::new(),
             as_of: None,
             overage_hint: None,
+            breakdown: Vec::new(),
         }
     }
 

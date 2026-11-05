@@ -79,6 +79,7 @@ fn reading(checked_at: DateTime<Utc>, used: f64, resets_at: DateTime<Utc>) -> Re
         notes_l10n: Vec::new(),
         source: String::new(),
         session_expires_at: None,
+        breakdown: Vec::new(),
     }
 }
 

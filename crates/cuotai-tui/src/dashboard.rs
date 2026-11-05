@@ -2789,6 +2789,8 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
         }
     }
 
+    // PRD 0045 RF6.2: the account's breakdown rows.
+    lines.extend(crate::breakdown_view::detail_lines(report, tui_locale()));
     if !report.notes.is_empty() {
         lines.push(Line::default());
         lines.push(Line::styled(
@@ -3088,6 +3090,7 @@ mod tests {
             sub_reports: Vec::new(),
             as_of: None,
             overage_hint: None,
+            breakdown: Vec::new(),
         }
     }
 
@@ -3139,6 +3142,7 @@ mod tests {
             sub_reports: Vec::new(),
             as_of: None,
             overage_hint: None,
+            breakdown: Vec::new(),
         };
         for locale in ["en-US", "es", "it"] {
             let screen = crate::dashboard::render_for_test(
@@ -3236,6 +3240,7 @@ mod tests {
                 sub_reports: Vec::new(),
                 as_of: None,
                 overage_hint: None,
+                breakdown: Vec::new(),
             };
             let expected_metric =
                 crate::l10n::with_locale(locale, || metric_text(&report.metrics[0]));
@@ -3389,6 +3394,7 @@ mod tests {
                 group: None,
                 budgets: Vec::new(),
                 floors: Vec::new(),
+                breakdown: Vec::new(),
             },
             Account {
                 id: None,
@@ -3402,6 +3408,7 @@ mod tests {
                 group: None,
                 budgets: Vec::new(),
                 floors: Vec::new(),
+                breakdown: Vec::new(),
             },
             Account {
                 id: None,
@@ -3415,6 +3422,7 @@ mod tests {
                 group: None,
                 budgets: Vec::new(),
                 floors: Vec::new(),
+                breakdown: Vec::new(),
             },
         ];
         let ready = report(
@@ -3446,6 +3454,7 @@ mod tests {
                 group: None,
                 budgets: Vec::new(),
                 floors: Vec::new(),
+                breakdown: Vec::new(),
             },
             Account {
                 id: None,
@@ -3459,6 +3468,7 @@ mod tests {
                 group: None,
                 budgets: Vec::new(),
                 floors: Vec::new(),
+                breakdown: Vec::new(),
             },
         ];
         let snapshot = Snapshot {
@@ -3494,6 +3504,7 @@ mod tests {
                 group: None,
                 budgets: Vec::new(),
                 floors: Vec::new(),
+                breakdown: Vec::new(),
             },
             Account {
                 id: None,
@@ -3507,6 +3518,7 @@ mod tests {
                 group: None,
                 budgets: Vec::new(),
                 floors: Vec::new(),
+                breakdown: Vec::new(),
             },
             Account {
                 id: None,
@@ -3520,6 +3532,7 @@ mod tests {
                 group: None,
                 budgets: Vec::new(),
                 floors: Vec::new(),
+                breakdown: Vec::new(),
             },
         ];
         let snapshot = Snapshot {
@@ -3574,6 +3587,7 @@ mod tests {
                 group: None,
                 budgets: Vec::new(),
                 floors: Vec::new(),
+                breakdown: Vec::new(),
             },
             Account {
                 id: None,
@@ -3587,6 +3601,7 @@ mod tests {
                 group: None,
                 budgets: Vec::new(),
                 floors: Vec::new(),
+                breakdown: Vec::new(),
             },
             Account {
                 id: None,
@@ -3600,6 +3615,7 @@ mod tests {
                 group: None,
                 budgets: Vec::new(),
                 floors: Vec::new(),
+                breakdown: Vec::new(),
             },
             Account {
                 id: None,
@@ -3613,6 +3629,7 @@ mod tests {
                 group: None,
                 budgets: Vec::new(),
                 floors: Vec::new(),
+                breakdown: Vec::new(),
             },
         ];
         let base = Snapshot {
@@ -3666,6 +3683,7 @@ mod tests {
                 group: None,
                 budgets: Vec::new(),
                 floors: Vec::new(),
+                breakdown: Vec::new(),
             },
             Account {
                 id: None,
@@ -3679,6 +3697,7 @@ mod tests {
                 group: None,
                 budgets: Vec::new(),
                 floors: Vec::new(),
+                breakdown: Vec::new(),
             },
             Account {
                 id: None,
@@ -3692,6 +3711,7 @@ mod tests {
                 group: None,
                 budgets: Vec::new(),
                 floors: Vec::new(),
+                breakdown: Vec::new(),
             },
         ]
     }
@@ -4725,6 +4745,7 @@ mod tests {
             group: None,
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         };
         let accounts = vec![
             account("Personal", Provider::Claude),
@@ -5375,6 +5396,7 @@ mod tests {
             group: None,
             budgets: Vec::new(),
             floors: Vec::new(),
+            breakdown: Vec::new(),
         };
         let failed = |provider, status, id: &'static str, text: &str| Report {
             provider,
@@ -6034,6 +6056,7 @@ mod tests {
                 group: None,
                 budgets: Vec::new(),
                 floors: Vec::new(),
+                breakdown: Vec::new(),
             })
             .collect();
         let reports = accounts
