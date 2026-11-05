@@ -2124,7 +2124,7 @@ const demo = {
   config_changed_on_disk: async () => false,
   get_settings: async () => ({ user_dir: demoSettings.custom ?? "~/.config/cuotai", default_dir: "~/.config/cuotai", custom_dir: demoSettings.custom, env_locked: false, config_file: demoSettings.config, config_env_locked: false, motion: get("cuotai.motion", "system"), show_pace: get(PACE_KEY, "on") !== "off",
     theme: get("cuotai.theme", "") || null, theme_mode: get("cuotai.themeMode", "system"), sort: get(SORT_KEY, "custom"), aggregators_in_all: get("cuotai.aggregators-in-all", "grouped"), group_recharging: get(GROUP_KEY, "off") === "on", show_in_dock: demoSettings.showInDock !== false, locale: get("cuotai.locale", "") || null, local_storage_migrated: true,
-    history_days: demoSettings.historyDays ?? 90, history_days_min: 7, history_days_max: 365, history_recording: demoSettings.historyRecording, status_queries: demoSettings.statusQueries,
+    live_session: get(LIVE_KEY, "on") !== "off", history_days: demoSettings.historyDays ?? 90, history_days_min: 7, history_days_max: 365, history_recording: demoSettings.historyRecording, status_queries: demoSettings.statusQueries,
     notify: { ...demoSettings.notify }, notify_leads: [0, 5, 15, 60], notify_whens: ["used", "exhausted", "always"],
     alerts: structuredClone(demoSettings.alerts), quiet: structuredClone(demoSettings.quiet), alert_min: 10, alert_max: 99, detect: structuredClone(demoSettings.detect), 
     tray: { ...demoSettings.tray }, advanced_open: !!demoSettings.advancedOpen,
@@ -2164,6 +2164,12 @@ const demo = {
   first_run_turn_on: async () => { demoSettings.alerts.enabled = true; demoSettings.alerts.overage = true; demoSettings.alerts.projected_lead_minutes = 60; demoSettings.onboarding = 1; return "granted"; },
   first_run_record: async ({ again }) => { demoSettings.onboarding = again ? 0 : 1; },
   set_advice_enabled: async () => {},
+  set_live_session: async () => {},
+  dismiss_feed_banner: async ({ source }) => { if (source !== "claude_code" && source !== "codex_cli") throw "invalid_source"; },
+  claude_code_snippets: async () => ({
+    settings: JSON.stringify({ statusLine: { type: "command", command: "cuotai --feed claude-statusline --print" } }, null, 2),
+    chained: JSON.stringify({ statusLine: { type: "command", command: `sh -c 'input=$(cat); printf %s "$input" | cuotai --feed claude-statusline; printf %s "$input" | ~/.claude/statusline.sh'` } }, null, 2),
+  }),
   set_pace_unit: async ({ unit }) => { if (!["points", "percent"].includes(unit)) throw "invalid_pace_unit"; },
   set_history_days: async ({ days }) => { if (!(Number.isInteger(days) && days >= 7 && days <= 365)) throw "invalid_history_days"; demoSettings.historyDays = days; },
   // ponytail: the browser demo has no history file; fixed counts let the export and erase flows be driven, and an
@@ -2523,6 +2529,33 @@ let adviceNow = get(ADVICE_KEY, "on") !== "off";
 const applyAdvice = (on) => { adviceNow = on !== false; put(ADVICE_KEY, adviceNow ? "on" : "off"); };
 export const adviceShown = () => adviceNow;
 export const setAdviceEnabled = async (on) => { await call("set_advice_enabled", { enabled: on }); applyAdvice(on); await emitSettingsChanged("advice_enabled"); };
+// PRD 0040 RF7.2: the live agent session on cards and the tray (on unless turned off).
+const LIVE_KEY = "cuotai.live-session";
+let liveNow = get(LIVE_KEY, "on") !== "off";
+const applyLive = (on) => { liveNow = on !== false; put(LIVE_KEY, liveNow ? "on" : "off"); };
+export const liveSessionShown = () => liveNow;
+export const setLiveSession = async (on) => { await call("set_live_session", { show: on }); applyLive(on); await emitSettingsChanged("live_session"); };
+/** PRD 0040 RF8.1: hide an agent's "add an account fed by it" banner for 7 days. */
+export const dismissFeedBanner = (source) => call("dismiss_feed_banner", { source });
+/** PRD 0040 RF2.4: the `~/.claude/settings.json` snippets (text only; Cuotai never edits the agent's settings). */
+export const claudeCodeSnippets = () => call("claude_code_snippets");
+const ctxRole = (level) => (level === "bad" ? "bad" : level === "warn" ? "warn" : "");
+/** PRD 0040 RF7.1: the card's Live session rows (model, "ctx 8%" in its display-only role, the agent's cost estimate
+ *  marked "≈" with the caveat as tooltip), newest first, "and N more"; nothing while there is none or it is turned off.
+ *  The context share is a chip, never a meter: it is not a quota and has no alert. */
+export function liveSessionHtml(r) {
+  const live = r?.live;
+  if (!liveNow || !live?.sessions?.length) return "";
+  const caveat = tl(live.caveat);
+  const rows = live.sessions.map((s) => `<li class="ls-row" data-live-row>${s.model_name ? `<span class="ls-model">${esc(s.model_name)}</span>` : ""}${
+    s.context ? `<span class="mini ${ctxRole(s.level)}" data-live-ctx><span class="mini-t">${esc(tl(s.context))}</span></span>` : ""}${
+    s.cost ? `<span class="ls-cost" title="${esc(caveat)}">${esc(tl(s.cost))}</span>` : ""}</li>`).join("");
+  return `<div class="live-session" data-live role="group" aria-label="${esc(tl(live.title))}"><p class="ls-title">${esc(tl(live.title))}</p><ul class="ls-list">${rows}</ul>${
+    live.more ? `<p class="ls-more">${esc(tl(live.more))}</p>` : ""}${live.sessions.some((s) => s.cost) ? `<p class="ls-caveat">${esc(caveat)}</p>` : ""}</div>`;
+}
+/** PRD 0040 RF7.2: the tray row's single "ctx 8%" chip. */
+export const liveChipHtml = (r) => (liveNow && r?.live?.chip
+  ? `<span class="mini ${ctxRole(r.live.chip_level)}" data-live-chip title="${esc(tl(r.live.title))}"><span class="mini-t">${esc(tl(r.live.chip))}</span></span>` : "");
 /** PRD 0024 RF7.3: the "Best now" chip of the best account in its group, from the core's text; empty otherwise. */
 export function bestChipHtml(r) {
   if (!adviceNow || !r.best_now) return "";
@@ -2591,7 +2624,7 @@ export function forecastChipHtml(m) {
 }
 export function initOrderSync(onChange) {
   onPreferencesChanged((changed) => {
-    if (["sort", "group_recharging", "show_pace", "pace_unit", "advice_enabled"].some((k) => changed.has(k))) onChange();
+    if (["sort", "group_recharging", "show_pace", "pace_unit", "advice_enabled", "live_session"].some((k) => changed.has(k))) onChange();
   });
 }
 
@@ -2612,6 +2645,8 @@ async function applyPreferences(s, { boot = false } = {}) {
   if (["points", "percent"].includes(s.pace_unit) && s.pace_unit !== paceUnitNow) { applyPaceUnit(s.pace_unit); changed.add("pace_unit"); }
   // PRD 0024 RF7.5: the best-account advice, the same way.
   if (typeof s.advice_enabled === "boolean" && s.advice_enabled !== adviceNow) { applyAdvice(s.advice_enabled); changed.add("advice_enabled"); }
+  // PRD 0040 RF7.2: the live agent session, the same way.
+  if (typeof s.live_session === "boolean" && s.live_session !== liveNow) { applyLive(s.live_session); changed.add("live_session"); }
   for (const [key, value] of [["theme", theme.id], ["theme_mode", theme.mode], ["sort", sortMode], ["group_recharging", groupRecharging], ["aggregators_in_all", aggMode]]) mirrorPreference(key, value);
   if (s.locale && boot) mirrorPreference("locale", s.locale); // the language loads right after: it picks the mirror up
   else if (s.locale && s.locale !== currentLocale()) { await setLocale(s.locale); changed.add("locale"); }

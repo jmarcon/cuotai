@@ -22,7 +22,7 @@ function open(html) {
   return dlg;
 }
 
-export async function openAccountDialog(index = null, { onSaved = () => {}, pasteSession = false, onExtension = null, budgetDraft = null, floorDraft = null } = {}) {
+export async function openAccountDialog(index = null, { onSaved = () => {}, pasteSession = false, onExtension = null, budgetDraft = null, floorDraft = null, prefill = null } = {}) {
   // RF4: cheap external-change detection. If the file on disk
   // changed since the last view render, give the user a chance to
   // reload BEFORE they spend time editing the now-stale draft.
@@ -1340,6 +1340,17 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     schema = await formSchema(provider);
     catalogModes = await providerModes(provider).catch(() => []);
     values.clear();
+    // PRD 0040 owner decision: a detected Claude Code preselects the mode it feeds; the person can pick another.
+    for (const p of schema.preselect ?? []) {
+      if (detected.some((d) => d.kind === p.kind)) values.set(p.key, { key: p.key, choice: p.choice, text: null });
+    }
+    // PRD 0040 RF8.1: an Add account opened from the feed banner names the mode.
+    if (prefill?.provider === provider) {
+      for (const f of schema.fields) {
+        const option = f.options?.find((o) => o.value === prefill[f.key]);
+        if (option) values.set(f.key, { key: f.key, choice: option.index, text: null });
+      }
+    }
     await resetLogin();
     await syncNameRule();
     const wanted = found?.mode ?? entry.mode;
@@ -1387,6 +1398,9 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       onExtensions: () => { dlg.close(); onExtension?.(null); },
     });
     await pickerApi.reload();
+    // PRD 0040 RF8.1: the feed banner's Add account opens the provider it names, prefilled.
+    const named = prefill && pickerApi.entryFor(prefill.provider);
+    if (named) await choose(named, null);
     // RF6.5: detection is opt-in; with no answer the question shows and nothing is checked.
     const ask = dlg.querySelector("#detect-ask");
     const runDetection = () => detectSources().then((found) => { detected = found; pickerApi.refresh(); }, () => {});

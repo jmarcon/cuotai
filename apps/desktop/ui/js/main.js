@@ -17,7 +17,7 @@ import {
   accountLabel, billingOverage, fmtExtra, overageLineText, isRecharging, resetsText, bestChipHtml, cardPace, forecastChipHtml, renewedText, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, setPoolAlerts, openAggregatorDashboard, incidentHtml, bindStatusLinks, costUsage, paceHtml, paceLineLabel, costPlans,
   openSettingsWindow, bindSettingsShortcut, onSettingsChanged, onAccountAction, listExtensions, extensionSecrets,
   planBadgeHtml, scopeBlocksHtml,
-  sessionAction,
+  sessionAction, liveSessionHtml, dismissFeedBanner,
 } from "./lib.js";
 import { fold, patch } from "./util.js";
 import { initRowLayout } from "./density.js";
@@ -180,11 +180,21 @@ function card(r, ctx, recharging = false, { connection = false } = {}) {
     </div>
     <div class="summary">${stale
       ? `<div class="stale-reading">${summaryHtml(staleView(r), true)}</div><p class="sum-note cause">${icon("warn")}<span>${esc(causeText(r))}</span></p>`
-      : summaryHtml(r)}${pasteSessionHtml(r)}${st.kind === "exhausted" && !billingOverage(r) ? "" : statusLineHtml(r, st, { compact: false, reset: false })}${stale ? "" : scopeBlocksHtml(r)}${bestChipHtml(r) ? `<div class="card-chips">${bestChipHtml(r)}</div>` : ""}${stale || billingOverage(r) ? "" : overageLineHtml(r)}${incidentHtml(r)}${accessHtml(r)}${costFoldHtml(r)}</div>
+      : summaryHtml(r)}${pasteSessionHtml(r)}${st.kind === "exhausted" && !billingOverage(r) ? "" : statusLineHtml(r, st, { compact: false, reset: false })}${stale ? "" : scopeBlocksHtml(r)}${liveSessionHtml(r)}${bestChipHtml(r) ? `<div class="card-chips">${bestChipHtml(r)}</div>` : ""}${stale || billingOverage(r) ? "" : overageLineHtml(r)}${incidentHtml(r)}${accessHtml(r)}${costFoldHtml(r)}</div>
     <div class="card-foot">${foot}<span class="grow"></span>
       ${changeMarkHtml(key)}<button class="btn ghost sm details-link" data-details="${esc(key)}">${te("card.details")}${icon("chev")}</button>
     </div>
   </section>`;
+}
+
+/** PRD 0040 RF8.1 (DS-CMP-MSG-2): an agent sends readings no account uses: one dismissable banner with the one
+ *  action that adds the account it feeds, prefilled. */
+const dismissedFeeds = new Set();
+function feedBannersHtml(view) {
+  return (view?.feed_banners ?? []).filter((b) => !dismissedFeeds.has(b.source)).map((b) =>
+    `<div class="banner dismissable" role="status" data-feed-banner="${esc(b.source)}">${icon("info")}<span>${esc(tl(b.text))}</span>
+      <button class="link" data-feed-add data-provider="${esc(b.provider)}" data-query-mode="${esc(b.query_mode)}">${esc(tl(b.action))}</button>
+      <button class="icon" data-feed-dismiss="${esc(b.source)}" title="${te("common.dismiss")}" aria-label="${te("common.dismiss")}">${icon("x")}</button></div>`).join("");
 }
 
 /** PRD 0022 RF3.5: the account's local cost folded into one disclosure row marked as an estimate. */
@@ -493,6 +503,7 @@ function render() {
     ${notice ? `<div class="banner ${notice.tone}">${esc(notice.text)}${notice.retry ? ` <button class="link" data-retry-delete>${te("delete.retry")}</button>` : ""} <button class="link" data-dismiss-notice>${te("common.dismiss")}</button></div>` : ""}
     ${userContent.errors.map((e) => `<div class="banner">${esc(skippedMessage(e))}</div>`).join("")}
     ${updateBannerHtml()}
+    ${feedBannersHtml(view)}
     ${view?.history_warning ? `<div class="banner bad" role="status" data-history-warning>${icon("warn")} ${esc(tl(view.history_warning))}</div>` : ""}
     ${(view?.config_notices ?? []).map((note) => `<div class="banner bad" role="status" data-config-notice>${icon("warn")} ${esc(tl(note))}</div>`).join("")}
     ${view?.serve?.state === "error" ? `<div class="banner bad" role="status" data-serve-error>${icon("warn")} ${te("serve.banner")} ${esc(tl(view.serve.error))}${
@@ -541,6 +552,11 @@ root.addEventListener("click", (e) => {
   if (moreFor && !t.closest(".card-more .menu")) { moreFor = null; render(); }
   if (t.closest("[data-dismiss-notice]")) { notice = null; return render(); }
   if (t.closest("[data-dismiss-other-config]")) { dismissOtherConfig(store.view); return render(); }
+  // PRD 0040 RF8.1: the feed banner's Add account (prefilled) and its dismissal for 7 days.
+  const feedAdd = t.closest("[data-feed-add]");
+  if (feedAdd) return openAccountDialog(null, { onSaved, onExtension: (id) => openExtensionManager(id), prefill: { provider: feedAdd.dataset.provider, query_mode: feedAdd.dataset.queryMode } });
+  const feedDismiss = t.closest("[data-feed-dismiss]");
+  if (feedDismiss) return dismissFeedBanner(feedDismiss.dataset.feedDismiss).then(() => store.reload?.(), () => {}).finally(() => { dismissedFeeds.add(feedDismiss.dataset.feedDismiss); render(); });
   if (t.closest("[data-dismiss-settings-backup]")) { dismissedBackup = store.view?.settings_backup ?? null; return render(); }
   if (t.closest("[data-retry-delete]")) return retryDelete();
   const move = t.closest("[data-move-from]");

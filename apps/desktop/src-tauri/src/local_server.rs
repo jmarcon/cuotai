@@ -131,6 +131,12 @@ impl FeedSlot {
                 |index, metrics, at| feed.monitor.recent_points(index, metrics, at),
             )
             .with_local_cost(local_cost)
+            // PRD 0040 §7: the live agent sessions of fed accounts.
+            .with_live_sessions(
+                &feed.config,
+                cuotai_core::feed::FeedStore::in_data_dir().as_ref(),
+                Utc::now(),
+            )
         })
     }
 }

@@ -1376,3 +1376,15 @@ li.mb-sub + .mb-acc {
   gap: var(--space-1);
   font-size: var(--text-sm);
 }
+/* PRD 0040 RF2.4: the Claude Code settings snippet, copied as is */
+.set-sec pre.snippet {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--fg);
+  font: var(--text-xs, 11px) var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

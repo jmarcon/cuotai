@@ -696,6 +696,13 @@ dialog:focus-visible {
   font-size: var(--text-sm);
 }
 .scope-block svg.i { flex: none; width: 14px; height: 14px; }
+/* PRD 0040 RF7.1: the live agent session; information only, so muted text and chips, never a meter */
+.live-session { margin: var(--space-2) 0 0; font-size: var(--text-sm); color: var(--fg-muted); }
+.live-session .ls-title { margin: 0; font-size: var(--text-2xs); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.live-session .ls-list { list-style: none; margin: var(--space-1) 0 0; padding: 0; display: grid; gap: var(--space-1); }
+.live-session .ls-row { display: flex; align-items: center; gap: var(--space-2); min-width: 0; flex-wrap: wrap; }
+.live-session .ls-model { color: var(--fg); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.live-session .ls-more, .live-session .ls-caveat { margin: var(--space-1) 0 0; font-size: var(--text-2xs); }
 /* PRD 0036 RF5.2: a connection that duplicates a direct account stays readable but steps back */
 .card.dup .summary,
 .card.dup .card-head .who,
