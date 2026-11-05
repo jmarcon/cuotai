@@ -12,8 +12,9 @@
 use crate::dashboard::{cells, pad_end, pad_start};
 use crate::l10n::{tr, tr_in, trf, trf_in};
 use cuotai_core::cost::{
-    self, CostIndex, CostSummary, CostWorker, Env, Limits, Period, PriceOrigin, Prices,
-    PricingFile, Retention, ScanReport, Scanner, SettingsStore, SourceId, SourceState, Span,
+    self, Breakdown, CostIndex, CostSummary, CostWorker, DayZone, Env, Limits, Period, PriceOrigin,
+    Prices, PricingFile, Retention, ScanReport, Scanner, SettingsStore, SourceId, SourceState,
+    Span,
 };
 use cuotai_core::{Account, Provider};
 use std::io::{self, BufRead, IsTerminal, Write};
@@ -47,15 +48,48 @@ pub(crate) enum CostAction {
     },
     /// PRD 0030 RF4.2 `--cost-prices --template MODEL…`.
     PricesTemplate(Vec<String>),
-    /// RF4.2 `--cost [--days N]`.
+    /// RF4.2 `--cost [--days N]`; PRD 0042 RF5.1 `--by BY [--top N | --all]`
+    /// (`top` is `None` with `--all`).
     Usage {
         days: Option<u32>,
+        by: Option<String>,
+        top: Option<usize>,
+    },
+    /// PRD 0042 RF5.2 `--cost-live [--source S] [--watch-interval S]`.
+    Live {
+        source: Option<String>,
+        interval: Option<u64>,
+    },
+    /// PRD 0042 RF2.2/RF4.2 `--cost-label TARGET PREFIX [LABEL] [--clear]`.
+    Label {
+        target: String,
+        prefix: String,
+        label: Option<String>,
+        clear: bool,
+    },
+    /// PRD 0042 RF4.1 `--cost-hide` / `--cost-unhide PREFIX`.
+    Hide {
+        prefix: String,
+        hidden: bool,
+    },
+    /// PRD 0042 RF3.1 `--cost-block-hours SOURCE HOURS`.
+    BlockHours {
+        source: String,
+        hours: String,
+    },
+    /// PRD 0042 RF4.3 `--cost-folder-hint SOURCE on|off`.
+    FolderHint {
+        source: String,
+        state: String,
     },
     Options {
         period: Option<String>,
         retention_days: Option<u32>,
     },
 }
+
+/// PRD 0042 RF5.1: the rows `--by session|project` shows without `--top`.
+pub(crate) const DEFAULT_TOP: usize = 20;
 
 /// The foreground scan reads everything that changed, up to a bound.
 const FOREGROUND: Limits = Limits {
@@ -370,18 +404,36 @@ pub(crate) fn run(
             }
             Ok(scan_code(&report))
         }
-        CostAction::Usage { days } => {
+        CostAction::Usage { days, by, top } => {
             let span = days.map(Span::days).transpose().map_err(l10n)?;
+            let by = match by.as_deref() {
+                None => Breakdown::Day,
+                Some(name) => Breakdown::from_slug(name)
+                    .ok_or_else(|| cost::unknown_breakdown(name).resolve(locale))?,
+            };
             let pricing = PricingFile::in_data_dir().map_err(l10n)?;
             let scanner = Scanner::new(index, settings, env).with_limits(FOREGROUND);
             let now = chrono::Utc::now();
             let report = scanner.scan(now).map_err(l10n)?;
+            if matches!(
+                by,
+                Breakdown::Session | Breakdown::Block | Breakdown::Project
+            ) {
+                let span = span.unwrap_or(Span::Period(
+                    scanner.settings().load().map_err(l10n)?.period,
+                ));
+                let text = breakdown_text(&scanner, &pricing, by, span, top, json, now, locale)?;
+                write!(stdout, "{text}").map_err(io_error)?;
+                return Ok(scan_code(&report));
+            }
             let summary = scanner
                 .summary(&pricing, Some(&report), span, now)
                 .map_err(l10n)?;
             if json {
                 serde_json::to_writer_pretty(&mut stdout, &summary).map_err(|e| e.to_string())?;
                 writeln!(stdout).map_err(io_error)?;
+            } else if by == Breakdown::Model {
+                write!(stdout, "{}", models_text(&summary, locale)).map_err(io_error)?;
             } else {
                 if let Some(configured) = configured.as_deref() {
                     // PRD 0030 RF1.1: plans typed under `provider:name`
@@ -403,6 +455,106 @@ pub(crate) fn run(
                 .map_err(io_error)?;
             }
             Ok(scan_code(&report))
+        }
+        CostAction::Live {
+            source: name,
+            interval,
+        } => {
+            let only = name.as_deref().map(|n| source(n, locale)).transpose()?;
+            if let Some(seconds) = interval {
+                if !(2..=3600).contains(&seconds) {
+                    return Err(tr_in(
+                        locale,
+                        "cost.live.interval_bounds",
+                        "--watch-interval ranges from 2 to 3600 seconds.",
+                    )
+                    .to_owned());
+                }
+            }
+            drop(stdout);
+            let pricing = PricingFile::in_data_dir().map_err(l10n)?;
+            let scanner = Scanner::new(index, settings, env).with_limits(FOREGROUND);
+            live_loop(&scanner, &pricing, only, interval, json, locale)
+        }
+        CostAction::Label {
+            target,
+            prefix,
+            label,
+            clear,
+        } => {
+            let target = cost::LabelTarget::from_slug(&target).ok_or_else(|| {
+                trf_in(
+                    locale,
+                    "cost.label.target",
+                    "Unknown label target: {name}. Targets: session, project.",
+                    &[("name", &target)],
+                )
+            })?;
+            let label = if clear {
+                None
+            } else {
+                Some(label.ok_or_else(|| cost::CostError::InvalidLabel.l10n().resolve(locale))?)
+            };
+            let digest = index
+                .set_label(target, &prefix, label.as_deref())
+                .map_err(l10n)?;
+            writeln!(
+                stdout,
+                "{}",
+                cost::label_saved_text(&digest, label.is_some()).resolve(locale)
+            )
+            .map_err(io_error)?;
+            Ok(0)
+        }
+        CostAction::Hide { prefix, hidden } => {
+            let digest = index.set_hidden(&prefix, hidden).map_err(l10n)?;
+            writeln!(
+                stdout,
+                "{}",
+                cost::hidden_saved_text(&digest, hidden).resolve(locale)
+            )
+            .map_err(io_error)?;
+            Ok(0)
+        }
+        CostAction::BlockHours {
+            source: name,
+            hours,
+        } => {
+            let source = source(&name, locale)?;
+            let hours = hours
+                .trim()
+                .parse::<u8>()
+                .map_err(|_| cost::CostError::BlockHours)
+                .map_err(l10n)?;
+            settings.set_block_hours(source, hours).map_err(l10n)?;
+            writeln!(
+                stdout,
+                "{}",
+                cost::block_hours_text(source, hours).resolve(locale)
+            )
+            .map_err(io_error)?;
+            Ok(0)
+        }
+        CostAction::FolderHint {
+            source: name,
+            state,
+        } => {
+            let source = source(&name, locale)?;
+            let on = match state.trim().to_ascii_lowercase().as_str() {
+                "on" => true,
+                "off" => false,
+                _ => {
+                    return Err(tr_in(locale, "cost.folder_hint.state", "Use on or off.").to_owned())
+                }
+            };
+            let removed = cost::set_folder_hint(&settings, &index, source, on).map_err(l10n)?;
+            writeln!(
+                stdout,
+                "{}",
+                cost::folder_hint_text(source, on, removed).resolve(locale)
+            )
+            .map_err(io_error)?;
+            Ok(0)
         }
         CostAction::Options {
             period,
@@ -808,9 +960,10 @@ pub(crate) enum Row {
 /// model and by day (the days with usage). A source that is off has only
 /// its note.
 pub(crate) fn source_rows(
+    summary: &CostSummary,
     source: &cost::SourceCost,
-    span: &cost::SpanView,
 ) -> Vec<(Row, cuotai_core::text::Localized)> {
+    let span = &summary.span;
     let mut rows: Vec<_> = source.note.iter().map(|n| (Row::Note, n.clone())).collect();
     let Some(usage) = &source.usage else {
         return rows;
@@ -820,6 +973,15 @@ pub(crate) fn source_rows(
         (Row::Amount, usage.yesterday.line(cost::yesterday_label())),
         (Row::Amount, usage.period.line(span.label.clone())),
     ]);
+    // PRD 0042 RF6.2: the active block, only with a burn rate.
+    if let Some(live) = summary
+        .live
+        .iter()
+        .find(|l| l.block.source == source.source)
+    {
+        rows.extend(live.line.iter().map(|line| (Row::Amount, line.clone())));
+        rows.extend(live.projection.iter().map(|p| (Row::Amount, p.clone())));
+    }
     if !usage.period.models.is_empty() {
         rows.push((Row::Heading, cost::by_model_heading(span)));
         rows.extend(usage.period.models.iter().map(|m| (Row::Item, m.line())));
@@ -862,7 +1024,7 @@ fn usage_text(
         if source.usage.is_some() {
             out += &format!("{}\n", cost::heading(source.source).resolve(locale));
         }
-        for (row, text) in source_rows(source, span) {
+        for (row, text) in source_rows(summary, source) {
             let indent = match row {
                 _ if source.usage.is_none() => "",
                 Row::Note | Row::Amount | Row::Heading => "  ",
@@ -889,6 +1051,295 @@ fn usage_text(
         out += &format!("\n{}\n", cost::enable_hint().resolve(locale));
     }
     out
+}
+
+/// PRD 0042 RF5.1 `--cost --by model` in text: per source on, the span's
+/// amount and its models.
+fn models_text(summary: &CostSummary, locale: &str) -> String {
+    let span = &summary.span;
+    let mut out = format!(
+        "{}\n{}\n",
+        cost::by_heading(Breakdown::Model, span).resolve(locale),
+        summary.notice.resolve(locale)
+    );
+    for source in summary.sources.iter().filter(|s| s.usage.is_some()) {
+        let Some(usage) = &source.usage else {
+            continue;
+        };
+        out += &format!("\n{}\n", cost::heading(source.source).resolve(locale));
+        if let Some(note) = &source.note {
+            out += &format!("  {}\n", crate::ui::safe(&note.resolve(locale)));
+        }
+        out += &format!(
+            "  {}\n",
+            usage.period.line(span.label.clone()).resolve(locale)
+        );
+        for model in &usage.period.models {
+            out += &format!("    {}\n", crate::ui::safe(&model.line().resolve(locale)));
+        }
+    }
+    if !summary.any_on() {
+        out += &format!("\n{}\n", cost::enable_hint().resolve(locale));
+    }
+    out
+}
+
+/// PRD 0042 RF5.1 `--cost --by session|block|project`: the core's page as
+/// JSON, or in text with at most `top` sessions or projects.
+#[allow(clippy::too_many_arguments)]
+fn breakdown_text(
+    scanner: &Scanner,
+    pricing: &PricingFile,
+    by: Breakdown,
+    span: Span,
+    top: Option<usize>,
+    json: bool,
+    now: chrono::DateTime<chrono::Utc>,
+    locale: &str,
+) -> Result<String, String> {
+    let l10n = |error: cost::CostError| error.l10n().resolve(locale);
+    let zone = DayZone::Local;
+    let safe =
+        |text: &cuotai_core::text::Localized| crate::ui::safe(&text.resolve(locale)).into_owned();
+    let header = |view: &cost::SpanView, notice: &cuotai_core::text::Localized| {
+        format!(
+            "{}\n{}\n",
+            cost::by_heading(by, view).resolve(locale),
+            notice.resolve(locale)
+        )
+    };
+    match by {
+        Breakdown::Session => {
+            let page = scanner.sessions(pricing, span, now, top, 0).map_err(l10n)?;
+            if json {
+                return serde_json::to_string_pretty(&page)
+                    .map(|text| text + "\n")
+                    .map_err(|e| e.to_string());
+            }
+            let mut out = header(&page.span, &page.notice);
+            out += &format!(
+                "{}\n",
+                page.total.line(page.span.label.clone()).resolve(locale)
+            );
+            if page.sessions.is_empty() {
+                out += &format!("\n{}\n", cost::by_empty_text().resolve(locale));
+            }
+            for session in &page.sessions {
+                out += &format!(
+                    "\n{} [{}] · {}\n",
+                    safe(&session.name),
+                    session.short,
+                    session.source.label()
+                );
+                out += &format!(
+                    "  {}\n",
+                    safe(
+                        &session
+                            .estimate
+                            .line(cost::project_name(session.project.as_deref(), None))
+                    )
+                );
+                for model in &session.estimate.models {
+                    out += &format!("    {}\n", safe(&model.line()));
+                }
+            }
+            let more = page.count.saturating_sub(page.sessions.len());
+            if more > 0 {
+                out += &format!("\n{}\n", cost::more_text(more).resolve(locale));
+            }
+            Ok(out)
+        }
+        Breakdown::Block => {
+            let page = scanner
+                .blocks(pricing, None, span, now, &[])
+                .map_err(l10n)?;
+            if json {
+                return serde_json::to_string_pretty(&page)
+                    .map(|text| text + "\n")
+                    .map_err(|e| e.to_string());
+            }
+            let mut out = header(&page.span, &page.notice);
+            out += &format!("{}\n", cost::local_estimate_text().resolve(locale));
+            if page.blocks.is_empty() {
+                out += &format!("\n{}\n", cost::by_empty_text().resolve(locale));
+            }
+            for block in &page.blocks {
+                out += &format!("\n{}\n", safe(&cost::block_line(block, zone)));
+                out += &format!(
+                    "  {}\n",
+                    safe(&block.estimate.line(cost::local_estimate_text()))
+                );
+                if let Some(window) = &block.provider_window {
+                    out += &format!("  {}\n", safe(&cost::provider_window_text(window, zone)));
+                }
+            }
+            Ok(out)
+        }
+        Breakdown::Project => {
+            let page = scanner.projects(pricing, span, now).map_err(l10n)?;
+            let shown: Vec<_> = page
+                .projects
+                .iter()
+                .take(top.unwrap_or(usize::MAX))
+                .collect();
+            if json {
+                let mut value = serde_json::to_value(&page).map_err(|e| e.to_string())?;
+                value["projects"] = serde_json::to_value(&shown).map_err(|e| e.to_string())?;
+                value["count"] = page.projects.len().into();
+                return serde_json::to_string_pretty(&value)
+                    .map(|text| text + "\n")
+                    .map_err(|e| e.to_string());
+            }
+            let mut out = header(&page.span, &page.notice);
+            out += &format!(
+                "{}\n",
+                page.total.line(page.span.label.clone()).resolve(locale)
+            );
+            if shown.is_empty() {
+                out += &format!("\n{}\n", cost::by_empty_text().resolve(locale));
+            }
+            for project in &shown {
+                let hidden = if project.hidden {
+                    format!(" ({})", cost::hidden_text().resolve(locale))
+                } else {
+                    String::new()
+                };
+                let short = project
+                    .short
+                    .as_deref()
+                    .map(|short| format!(" [{short}]"))
+                    .unwrap_or_default();
+                out += &format!("\n{}{short}{hidden}\n", safe(&project.name));
+                out += &format!(
+                    "  {}\n",
+                    safe(&project.estimate.line(trf_in(
+                        locale,
+                        "cost.project.sessions",
+                        "{count} session(s)",
+                        &[("count", &project.sessions)],
+                    )))
+                );
+            }
+            let more = page.projects.len().saturating_sub(shown.len());
+            if more > 0 {
+                out += &format!("\n{}\n", cost::more_text(more).resolve(locale));
+            }
+            Ok(out)
+        }
+        Breakdown::Day | Breakdown::Model => Ok(String::new()),
+    }
+}
+
+/// PRD 0042 RF5.2: the live blocks as text.
+fn live_text(blocks: &[cost::LiveBlock], on: &[SourceId], locale: &str) -> String {
+    let zone = DayZone::Local;
+    let safe =
+        |text: &cuotai_core::text::Localized| crate::ui::safe(&text.resolve(locale)).into_owned();
+    let mut out = format!("{}\n", cost::estimate_notice().resolve(locale));
+    if on.is_empty() {
+        out += &format!("\n{}\n", cost::enable_hint().resolve(locale));
+        return out;
+    }
+    for source in on {
+        out.push('\n');
+        let Some(live) = blocks.iter().find(|b| b.block.source == *source) else {
+            out += &format!("{}\n", safe(&cost::live_none_text(*source)));
+            continue;
+        };
+        out += &format!("{}\n", safe(&cost::live_window_text(live, zone)));
+        out += &format!(
+            "  {}\n",
+            safe(&live.block.estimate.line(cost::local_estimate_text()))
+        );
+        match &live.line {
+            Some(line) => out += &format!("  {}\n", safe(line)),
+            None => out += &format!("  {}\n", safe(&cost::live_rate_missing_text())),
+        }
+        if let Some(projection) = &live.projection {
+            out += &format!("  {}\n", safe(projection));
+        }
+        if let Some(window) = &live.block.provider_window {
+            out += &format!("  {}\n", safe(&cost::provider_window_text(window, zone)));
+        }
+    }
+    out
+}
+
+/// PRD 0042 RF5.2: `--cost-live` once, or every `interval` seconds (in
+/// place on a terminal, `q` quits; one JSON object per line with `--json`).
+fn live_loop(
+    scanner: &Scanner,
+    pricing: &PricingFile,
+    only: Option<SourceId>,
+    interval: Option<u64>,
+    json: bool,
+    locale: &str,
+) -> Result<u8, String> {
+    use crossterm::event::{self, Event, KeyCode, KeyModifiers};
+    let l10n = |error: cost::CostError| error.l10n().resolve(locale);
+    let io_error = |error: io::Error| error.to_string();
+    let terminal = interval.is_some() && !json && io::stdout().is_terminal();
+    let raw = terminal && crossterm::terminal::enable_raw_mode().is_ok();
+    let result = (|| -> Result<u8, String> {
+        loop {
+            let now = chrono::Utc::now();
+            let report = scanner.scan(now).map_err(l10n)?;
+            let on: Vec<SourceId> = scanner
+                .settings()
+                .load()
+                .map_err(l10n)?
+                .enabled_sources(scanner.env())
+                .into_iter()
+                .filter(|s| only.is_none_or(|only| only == *s))
+                .collect();
+            let blocks = scanner.live(pricing, only, now, &[]).map_err(l10n)?;
+            let mut stdout = io::stdout().lock();
+            if json {
+                let text = if interval.is_some() {
+                    serde_json::to_string(&blocks)
+                } else {
+                    serde_json::to_string_pretty(&blocks)
+                }
+                .map_err(|e| e.to_string())?;
+                writeln!(stdout, "{text}").map_err(io_error)?;
+            } else if terminal {
+                let text = live_text(&blocks, &on, locale).replace('\n', "\r\n");
+                let quit = tr_in(locale, "cost.live.quit", "q quits");
+                write!(stdout, "\x1b[2J\x1b[H{text}\r\n{quit}\r\n").map_err(io_error)?;
+            } else {
+                write!(stdout, "{}", live_text(&blocks, &on, locale)).map_err(io_error)?;
+            }
+            stdout.flush().map_err(io_error)?;
+            drop(stdout);
+            let Some(seconds) = interval else {
+                return Ok(scan_code(&report));
+            };
+            let deadline = std::time::Instant::now() + Duration::from_secs(seconds);
+            loop {
+                let left = deadline.saturating_duration_since(std::time::Instant::now());
+                if left.is_zero() {
+                    break;
+                }
+                if !raw {
+                    std::thread::sleep(left);
+                    break;
+                }
+                if event::poll(left).map_err(io_error)? {
+                    if let Event::Key(key) = event::read().map_err(io_error)? {
+                        let ctrl_c = key.code == KeyCode::Char('c')
+                            && key.modifiers.contains(KeyModifiers::CONTROL);
+                        if matches!(key.code, KeyCode::Char('q') | KeyCode::Esc) || ctrl_c {
+                            return Ok(scan_code(&report));
+                        }
+                    }
+                }
+            }
+        }
+    })();
+    if raw {
+        let _ = crossterm::terminal::disable_raw_mode();
+    }
+    result
 }
 
 #[cfg(test)]
@@ -1026,5 +1477,97 @@ mod tests {
             "embedded"
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// PRD 0042 RF5: `--cost --by session|block|project` and `--cost-live`
+    /// over a fixture: text and JSON, the `--top` cut and the hint for the
+    /// rest, and the live view with its burn rate and projection.
+    #[test]
+    fn breakdowns_and_the_live_block_print_from_the_index() {
+        let dir = tempfile::tempdir().unwrap();
+        let env = Env::new(Some(dir.path().join("home")), []);
+        let settings = SettingsStore::at(dir.path().join("cost/settings.json"));
+        let index = CostIndex::new(dir.path().join("cost/cost.sqlite3"));
+        let disclosure = settings
+            .load()
+            .unwrap()
+            .disclosure(SourceId::ClaudeCode, &env);
+        settings
+            .enable(
+                SourceId::ClaudeCode,
+                Vec::new(),
+                &disclosure.digest,
+                &env,
+                chrono::Utc::now(),
+            )
+            .unwrap();
+        let logs = dir.path().join("home/.claude/projects/p");
+        std::fs::create_dir_all(&logs).unwrap();
+        let now = chrono::Utc::now();
+        let line = |n: u32, session: &str, cwd: &str, minutes_ago: i64| {
+            let at = (now - chrono::TimeDelta::minutes(minutes_ago)).to_rfc3339();
+            format!(
+                r#"{{"cwd":"{cwd}","sessionId":"{session}","message":{{"id":"m{n}","model":"claude-sonnet-4-5-20250929","usage":{{"input_tokens":1000,"output_tokens":10}}}},"requestId":"r{n}","timestamp":"{at}"}}"#
+            ) + "\n"
+        };
+        std::fs::write(
+            logs.join("a.jsonl"),
+            [
+                line(1, "s-a", "/srv/example/one", 70),
+                line(2, "s-a", "/srv/example/one", 8),
+                line(3, "s-a", "/srv/example/one", 5),
+                line(4, "s-a", "/srv/example/one", 2),
+            ]
+            .concat(),
+        )
+        .unwrap();
+        std::fs::write(logs.join("b.jsonl"), line(5, "s-b", "/srv/example/two", 4)).unwrap();
+        let scanner = Scanner::new(index, settings, env).with_limits(FOREGROUND);
+        scanner.scan(now).unwrap();
+        let pricing = PricingFile::at(dir.path().join("cost/pricing.json"));
+        let span = Span::Days(2);
+        let text = |by, top, json| {
+            breakdown_text(&scanner, &pricing, by, span, top, json, now, "en-US").unwrap()
+        };
+
+        let sessions = text(Breakdown::Session, Some(1), false);
+        assert!(
+            sessions.starts_with("Sessions (Last 2 days)\n"),
+            "{sessions}"
+        );
+        assert!(sessions.contains("Session · "), "{sessions}");
+        assert!(
+            sessions.contains("1 more; --all lists every one."),
+            "{sessions}"
+        );
+        assert!(!sessions.contains("/srv/example"), "{sessions}");
+        let all: serde_json::Value =
+            serde_json::from_str(&text(Breakdown::Session, None, true)).unwrap();
+        assert_eq!(all["count"], 2);
+        assert_eq!(all["sessions"].as_array().unwrap().len(), 2);
+
+        let projects = text(Breakdown::Project, None, false);
+        assert!(
+            projects.starts_with("Projects (Last 2 days)\n"),
+            "{projects}"
+        );
+        assert_eq!(projects.matches("Project ").count(), 2, "{projects}");
+        assert!(projects.contains("session(s)"), "{projects}");
+
+        let blocks = text(Breakdown::Block, None, false);
+        assert!(blocks.contains("Local estimate"), "{blocks}");
+        assert!(blocks.contains("· active ·"), "{blocks}");
+        let page: serde_json::Value =
+            serde_json::from_str(&text(Breakdown::Block, None, true)).unwrap();
+        assert_eq!(page["blocks"][0]["active"], true);
+
+        let live = scanner.live(&pricing, None, now, &[]).unwrap();
+        let shown = live_text(&live, &[SourceId::ClaudeCode], "en-US");
+        assert!(shown.contains("local estimate"), "{shown}");
+        assert!(shown.contains("tok/min"), "{shown}");
+        let none = live_text(&[], &[SourceId::CodexCli], "en-US");
+        assert!(none.contains("Codex CLI: no active block."), "{none}");
+        let off = live_text(&[], &[], "en-US");
+        assert!(off.contains("cuotai --cost-enable"), "{off}");
     }
 }
