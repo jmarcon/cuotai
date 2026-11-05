@@ -107,6 +107,10 @@ The TUI and the CLI read the same status only when you ask (`--status`, or `CUOT
 
 When an account has no usage query in its mode, its card says why instead of showing a generic error, and when an internal interface stops matching, the card says it may have changed and names the public contract Cuotai follows. How each integration reads usage is documented in [`providers.md`](providers.md#usage-access-matrix), not in the app; the "Add account" list shows provider names only and leaves out providers that have no usage query at all.
 
+## Agent-fed accounts and the live session
+
+A Claude account can take its windows from Claude Code's own status line (**Source › Fed by Claude Code** in the account dialog, preselected when Claude Code is detected) and a ChatGPT / Codex account from Codex CLI's local logs (**Fed by Codex CLI**): no network request, no token. While an agent session sent a reading in the last 10 minutes, the card shows a **Live session** block: the model, "ctx 8%" (the context window share, warning from 70 % and red from 90 %, information only and never an alert) and "≈ $0.42 this session" (the agent's own estimate at list price, not a charge); several sessions stack, five at most. The tray row shows one "ctx 8%" chip. **Settings › Dashboard › Show live agent session** turns both off. When Claude Code sends readings that no account uses, a banner offers **Add account**, prefilled; dismissing it hides it for 7 days. The `~/.claude/settings.json` snippet is in **Settings › Advanced › Integrations › Claude Code** with **Copy**. See [`integrations/claude-code.md`](integrations/claude-code.md).
+
 ## Account details and history
 
 The magnifier on a card opens the account details: every quota with its bar, the pace mark, the reset time, buttons to hide or mute a single quota, the models catalog and the history.

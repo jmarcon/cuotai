@@ -81,6 +81,10 @@ In the JSON output, each metric carries a `kind` (`quota`, `rate_limit`, `balanc
 
 `cuotai --json-v1` prints the versioned `export::v1` contract, which Rust integrations can also build from `cuotai-core`: the last known state of every account with its age, freshness, preserved stale reading, binding metric, pace and usage access level, with no credentials, credential variable names or e-mails, and `null` for anything unknown. See [`export-v1.md`](export-v1.md).
 
+## Claude Code and Codex CLI feeds
+
+A Claude account can be fed by Claude Code's own status line (`params = { query_mode = "claude_code" }`, or `claude_code_or_api` to fall back to the query when the feed is older than the refresh interval), and a ChatGPT / Codex account by Codex CLI's local session logs (`codex_cli` or `codex_cli_or_api`; it needs the Codex CLI local cost source on). Neither makes a network request or reuses a token, the reading ages from the agent's own time and a window the agent dropped stays unknown. A query-mode account can bind a feed for its live session with `params = { feed = "claude_code" }`; one account at most reads each feed. Set-up, the status-line commands and the privacy statement are in [`integrations/claude-code.md`](integrations/claude-code.md).
+
 ## Local server
 
 `cuotai --serve [--port N] [--token-file FILE | --no-token]` (or, with the core's `serve` feature, `serve::LocalServer`) publishes the export read-only on `127.0.0.1:6738` (`/health`, `/v1/snapshot`, `/v1/accounts/{key}`, `/v1/limits`) from the state the refresh cycle already holds, never querying a provider per request, with DNS-rebinding and browser protection and a bearer token required by default (created on the first start in `<OS local data dir>/cuotai/serve/token`, readable only by you; `--no-token` opts out and lets any local user read); it is off until you start it, and stops cleanly on `SIGINT`/`SIGTERM`. The desktop app runs the same server from **Settings › Advanced › Integrations**. See [`local-server.md`](local-server.md).

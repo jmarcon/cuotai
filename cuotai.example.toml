@@ -71,12 +71,17 @@ provider = "chat_gpt"
 credential_env = "CHATGPT_ACCESS_TOKEN"
 # Internal interface: Codex windows, NOT the web chat quota.
 # params = { account_id = "your-account-id" }
+# Fed by Codex CLI's local session logs instead (no network, no token; needs the
+# Codex CLI local cost source): params = { query_mode = "codex_cli" } (or "codex_cli_or_api").
 
 [[accounts]]
 # No name: shown as "Claude", the only account of its provider here.
 provider = "claude"
 credential_env = "CLAUDE_OAUTH_TOKEN"
 # Interface not officially documented, subject to change.
+# Recommended when Claude Code is installed: fed by its documented status line, no
+# token and no network (see docs/integrations/claude-code.md). Drop credential_env and set
+# params = { query_mode = "claude_code" }   # or "claude_code_or_api" to fall back to the query
 
 [[accounts]]
 name = "Gemini API"

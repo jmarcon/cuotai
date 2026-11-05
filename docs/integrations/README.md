@@ -9,6 +9,8 @@ Recipes that show Cuotai's tightest quota in a status bar. Each reads `GET /v1/l
 | tmux | [tmux.md](tmux.md) | `tmux.sh` |
 | i3bar / sway | [i3status.md](i3status.md) | `i3status.sh` |
 
+Claude Code's own status line is a different integration: Claude Code feeds Cuotai, and `cuotai --statusline-claude` prints Claude's windows plus the tightest other account in its footer. See [claude-code.md](claude-code.md).
+
 ## What they read
 
 All of them need a Cuotai whose `/v1/limits` carries the `summary` object and the per-account `incident` (PRD 0031 RF4; the first release after 0.80.0, see [`CHANGELOG.md`](../../CHANGELOG.md)). They use only `summary.tightest` (`name`, `used_ratio`, `resets_at`), `summary.worst_class` and `summary.worst_incident`, all documented in [`export-v1.md`](../export-v1.md#limits-summary-limits). Treat an unknown `worst_class` or incident state as "other", as the contract policy says.

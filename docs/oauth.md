@@ -2,6 +2,10 @@
 
 Cuotai supports native authentication flows (browser OAuth, Device Code, AWS SSO and assisted import) in both the TUI and the desktop app. Tokens are stored in the operating system's native vault (`cuotai.oauth`), and `cuotai.toml` stays free of secrets.
 
+## Claude: prefer the Claude Code feed
+
+Anthropic's legal and compliance documentation says that the OAuth tokens of the Free, Pro and Max plans are meant for Claude Code and Claude.ai only. The native Claude login and a pasted Claude token therefore carry the highest policy risk of every account. When Claude Code is installed, set the Claude account's source to **Fed by Claude Code** (`params = { query_mode = "claude_code" }`): Claude Code hands its own 5-hour and weekly windows to Cuotai through its documented status line, with no network request and no token reuse. See [`integrations/claude-code.md`](integrations/claude-code.md). The query modes stay available with their warnings; the feed is documented by Anthropic, which is not the same as approved.
+
 ## Overview by provider
 
 | Provider | Login offered | Prerequisite |
