@@ -100,7 +100,6 @@
   "settings.claudeCode.copy": "Sao chép",
   "settings.claudeCode.desc": "Cấp dữ liệu cho tài khoản Claude mà không cần yêu cầu mạng và không tái sử dụng token.",
   "settings.claudeCode.privacy": "Dán đoạn mã vào ~/.claude/settings.json. Cuotai chỉ giữ các cửa sổ giới hạn, tỉ lệ ngữ cảnh, ước tính chi phí, mô hình và bản tóm tắt id phiên; thư mục làm việc, đường dẫn bản ghi và lời nhắc bị loại bỏ trước khi ghi. Cuotai không bao giờ sửa cài đặt của tác tử.",
-  "settings.claudeCode.show": "Đoạn mã cài đặt",
   "settings.claudeCode.title": "Claude Code",
   "settings.doctor.help": "Kiểm tra cài đặt của máy này ở chế độ ngoại tuyến và không thay đổi gì: tệp tài khoản, biến của từng tài khoản (đã đặt hay chưa, không bao giờ hiện giá trị), cơ sở dữ liệu, hook, cài đặt và máy chủ cục bộ. Mỗi vấn đề kèm cách xử lý. Giống cuotai --doctor.",
   "settings.doctor.run": "Kiểm tra",

@@ -88,7 +88,6 @@
   "settings.claudeCode.copy": "Copiar",
   "settings.claudeCode.desc": "Alimenta a conta Claude sem requisição de rede e sem reutilizar tokens.",
   "settings.claudeCode.privacy": "Cole o trecho em ~/.claude/settings.json. O Cuotai guarda só as janelas de limite, a parcela de contexto, a estimativa de custo, o modelo e um resumo do id da sessão; a pasta de trabalho, o caminho da transcrição e os prompts são descartados antes de qualquer gravação. O Cuotai nunca edita as configurações do agente.",
-  "settings.claudeCode.show": "Trecho de configuração",
   "settings.claudeCode.title": "Claude Code",
   "settings.doctor.help": "Verifica a instalação deste computador offline e sem alterar nada: o arquivo de contas, a variável de cada conta (definida ou não, nunca o valor), os bancos de dados, hooks, configurações e o servidor local. Cada problema vem com o que fazer. O mesmo que cuotai --doctor.",
   "settings.doctor.run": "Verificar",

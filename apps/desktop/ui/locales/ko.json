@@ -100,7 +100,6 @@
   "settings.claudeCode.copy": "복사",
   "settings.claudeCode.desc": "네트워크 요청과 토큰 재사용 없이 Claude 계정에 데이터를 공급합니다.",
   "settings.claudeCode.privacy": "스니펫을 ~/.claude/settings.json에 붙여 넣으세요. Cuotai는 한도 창, 컨텍스트 비율, 비용 추정치, 모델, 세션 id 다이제스트만 보관하며 작업 폴더, 대화 기록 경로, 프롬프트는 저장 전에 버립니다. Cuotai는 에이전트 설정을 수정하지 않습니다.",
-  "settings.claudeCode.show": "설정 스니펫",
   "settings.claudeCode.title": "Claude Code",
   "settings.doctor.help": "이 컴퓨터의 설정을 오프라인으로, 아무것도 바꾸지 않고 점검합니다: 계정 파일, 각 계정의 변수(설정 여부만, 값은 절대 표시 안 함), 데이터베이스, 훅, 설정, 로컬 서버. 문제마다 해야 할 일을 알려 줍니다. cuotai --doctor와 같습니다.",
   "settings.doctor.run": "점검",

@@ -99,7 +99,6 @@
   "settings.claudeCode.copy": "Copy",
   "settings.claudeCode.desc": "Feeds the Claude account with no network request and no token reuse.",
   "settings.claudeCode.privacy": "Paste the snippet into ~/.claude/settings.json. Cuotai keeps only the rate-limit windows, the context share, the cost estimate, the model and a digest of the session id; the working folder, transcript path and prompts are dropped before anything is written. Cuotai never edits the agent's settings.",
-  "settings.claudeCode.show": "Settings snippet",
   "settings.claudeCode.title": "Claude Code",
   "settings.doctor.help": "Checks this computer's setup offline and without changing anything: the accounts file, each account's variable (set or not, never its value), the databases, hooks, settings and the local server. Each problem comes with what to do. Same as cuotai --doctor.",
   "settings.doctor.run": "Check",

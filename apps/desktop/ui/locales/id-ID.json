@@ -100,7 +100,6 @@
   "settings.claudeCode.copy": "Salin",
   "settings.claudeCode.desc": "Mengumpan akun Claude tanpa permintaan jaringan dan tanpa memakai ulang token.",
   "settings.claudeCode.privacy": "Tempel cuplikan ke ~/.claude/settings.json. Cuotai hanya menyimpan jendela batas laju, porsi konteks, perkiraan biaya, model, dan digest id sesi; folder kerja, jalur transkrip, dan prompt dibuang sebelum apa pun ditulis. Cuotai tidak pernah mengubah pengaturan agen.",
-  "settings.claudeCode.show": "Cuplikan pengaturan",
   "settings.claudeCode.title": "Claude Code",
   "settings.doctor.help": "Memeriksa penyiapan komputer ini secara offline tanpa mengubah apa pun: file akun, variabel tiap akun (disetel atau tidak, tidak pernah nilainya), basis data, hook, pengaturan, dan server lokal. Setiap masalah disertai langkah perbaikannya. Sama seperti cuotai --doctor.",
   "settings.doctor.run": "Periksa",

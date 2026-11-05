@@ -8,7 +8,7 @@ Claude Code runs a command you choose as its [status line](https://code.claude.c
 
 ### Set it up
 
-1. Add this to `~/.claude/settings.json` (Cuotai never edits it for you; `cuotai --feed claude-statusline --setup` prints the same text, and the desktop has it with **Copy** under Settings › Integrations › Claude Code):
+1. Add this to `~/.claude/settings.json` (Cuotai never edits it for you; `cuotai --feed claude-statusline --setup` prints the same text, and the desktop has it with **Copy** under Settings › Dashboard › More display options › Claude Code):
 
    ```json
    {

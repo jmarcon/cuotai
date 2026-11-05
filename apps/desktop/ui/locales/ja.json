@@ -100,7 +100,6 @@
   "settings.claudeCode.copy": "コピー",
   "settings.claudeCode.desc": "ネットワーク要求もトークンの再利用もなしに Claude アカウントへ測定値を渡します。",
   "settings.claudeCode.privacy": "スニペットを ~/.claude/settings.json に貼り付けてください。Cuotai が保持するのはレート制限ウィンドウ、コンテキスト使用率、コスト見積もり、モデル、セッション ID のダイジェストだけで、作業フォルダー、トランスクリプトのパス、プロンプトは書き込む前に破棄します。Cuotai がエージェントの設定を編集することはありません。",
-  "settings.claudeCode.show": "設定スニペット",
   "settings.claudeCode.title": "Claude Code",
   "settings.doctor.help": "このコンピューターのセットアップを、オフラインで何も変更せずに確認します: アカウントファイル、各アカウントの変数（設定の有無のみで値は表示しません）、データベース、フック、設定、ローカルサーバー。問題ごとに対処方法を示します。cuotai --doctor と同じです。",
   "settings.doctor.run": "確認",
