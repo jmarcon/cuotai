@@ -86,3 +86,12 @@ base64 = "0.22"
 # PRD 0018 RF4.3: local TLS server with a self-signed certificate for the refusal test.
 rcgen = "0.13"
 tauri = { version = "2", features = ["test"] }
+
+# Lean development builds (owner request of 2026-11-05: every worktree builds
+# its own target directory). Our crates keep file and line in panics and
+# backtraces; dependencies carry no debug info. Release builds are unchanged.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
