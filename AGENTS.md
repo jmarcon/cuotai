@@ -59,6 +59,7 @@ Use `--once` instead of `--json` for human-readable, single-refresh output (`--j
 ## Runtime/Tooling Preferences
 
 - Use the repository-pinned Rust 1.99.1 toolchain (`rust-toolchain.toml`). No JavaScript package manager is used. Default OAuth storage uses the OS credential vault; AWS Bedrock needs AWS CLI v2 and an explicitly configured profile. Config lookup (CLI/TUI): `--config`, then `CUOTAI_CONFIG`, then an existing `./cuotai.toml`, then `<OS config dir>/cuotai/config.toml`. The desktop app reads `CUOTAI_CONFIG`, then the file chosen in its settings, then the OS path, and never `./cuotai.toml`. `.env` is not loaded. `run.sh` selects `--dev-credentials-sqlite ./cuotai-dev.sqlite3`: this debug-only store contains plaintext tokens; release builds reject the flag. Local `cuotai.toml`, `.env*`, SQLite files, and `target/` are git-ignored; do not publish secrets.
+- Build environment for agents: every worktree compiles its own `target/`, so build with `CARGO_INCREMENTAL=0` (an agent builds a worktree only a few times, and the incremental cache only grows). Do not use `sccache` for this: its Rust cache keys include the absolute target path, so separate worktrees never share an entry (measured 2026-11-05: 0 Rust hits) and the cache only adds disk. The `dev` profile of both workspaces already drops dependency debug info and keeps only line tables for our crates; do not raise it. Cleanup at the end of a task is step 9 of "How to deliver a change".
 
 ## Documentation Language
 

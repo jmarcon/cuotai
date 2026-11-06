@@ -8,6 +8,7 @@ Until the first packaged release is published (see [`installing.md`](installing.
 - *(Optional)* **AWS CLI v2** on your `PATH` for `aws_bedrock` accounts.
 - *(Optional)* **Bailian CLI (`bl`)** for the console login of `alibaba_token_plan`.
 - **Linux, desktop app only:** the Tauri build libraries. The release workflow installs, on Ubuntu, `libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf` (plus `rpm` to build the `.rpm`); other distributions have equivalent packages.
+- **Build size:** development builds keep only line tables for Cuotai's crates and no debug info for dependencies, which keeps `target/` small; release builds are unchanged. With several worktrees, `CARGO_INCREMENTAL=0` also stops the incremental cache from growing in each of them.
 
 ## Desktop app (Tauri)
 
