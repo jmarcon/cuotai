@@ -50,6 +50,7 @@
   "common.showHidden": "छिपे हुए दिखाएँ",
   "common.copyLabel": "{label} कॉपी करें",
   "common.unexpected": "अनपेक्षित विफलता।",
+  "coreText.toolMissing": "यह खाता जिस कमांड-लाइन टूल का उपयोग करता है, वह नहीं मिला। उसे इंस्टॉल करें, या संपादित करें में उसका पथ सेट करें।",
   "desktop.error.config_not_loaded": "कॉन्फ़िगरेशन लोड नहीं हुआ।",
   "desktop.error.oauth_session_missing": "OAuth सत्र शुरू नहीं हुआ है।",
   "desktop.error.no_account": "खाता मौजूद नहीं है।",

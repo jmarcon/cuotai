@@ -50,6 +50,7 @@
   "common.showHidden": "Gizlenenleri göster",
   "common.copyLabel": "{label} öğesini kopyala",
   "common.unexpected": "Beklenmeyen bir hata oluştu.",
+  "coreText.toolMissing": "Bu hesabın kullandığı komut satırı aracı bulunamadı. Kurun ya da Düzenle bölümünde yolunu ayarlayın.",
   "desktop.error.config_not_loaded": "Yapılandırma yüklenmedi.",
   "desktop.error.oauth_session_missing": "OAuth oturumu başlatılmadı.",
   "desktop.error.no_account": "Hesap yok.",

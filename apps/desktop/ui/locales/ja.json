@@ -50,6 +50,7 @@
   "common.showHidden": "非表示を表示",
   "common.copyLabel": "{label}をコピー",
   "common.unexpected": "予期しないエラーです。",
+  "coreText.toolMissing": "このアカウントが使うコマンドラインツールが見つかりません。インストールするか、「編集」でパスを設定してください。",
   "desktop.error.config_not_loaded": "設定が読み込まれていません。",
   "desktop.error.oauth_session_missing": "OAuth セッションが初期化されていません。",
   "desktop.error.no_account": "アカウントが存在しません。",

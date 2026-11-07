@@ -50,6 +50,7 @@
   "common.showHidden": "Afficher les masqués",
   "common.copyLabel": "Copier {label}",
   "common.unexpected": "Échec inattendu.",
+  "coreText.toolMissing": "L’outil en ligne de commande de ce compte est introuvable. Installez-le ou indiquez son chemin dans Modifier.",
   "desktop.error.config_not_loaded": "Configuration non chargée.",
   "desktop.error.oauth_session_missing": "Session OAuth non initialisée.",
   "desktop.error.no_account": "Le compte n’existe pas.",

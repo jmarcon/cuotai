@@ -50,6 +50,7 @@
   "common.showHidden": "Tampilkan yang disembunyikan",
   "common.copyLabel": "Salin {label}",
   "common.unexpected": "Terjadi kegagalan tak terduga.",
+  "coreText.toolMissing": "Alat baris perintah yang dipakai akun ini tidak ditemukan. Instal alat itu, atau atur jalurnya di Edit.",
   "desktop.error.config_not_loaded": "Konfigurasi belum dimuat.",
   "desktop.error.oauth_session_missing": "Sesi OAuth belum diinisialisasi.",
   "desktop.error.no_account": "Akun tidak ada.",
