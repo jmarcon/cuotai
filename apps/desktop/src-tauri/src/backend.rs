@@ -50,7 +50,7 @@ use std::{
 use tauri::{async_runtime::Mutex, AppHandle, Emitter};
 use tokio::sync::{mpsc, oneshot};
 
-fn l10n_to_json(note: &cuotai_core::text::Localized) -> String {
+pub(crate) fn l10n_to_json(note: &cuotai_core::text::Localized) -> String {
     serde_json::to_string(note).unwrap_or_else(|_| note.fallback.to_string())
 }
 
@@ -1202,6 +1202,17 @@ pub struct View {
     /// PRD 0040 RF8.1: "Claude Code is sending readings; add an account".
     #[serde(skip_serializing_if = "Vec::is_empty")]
     feed_banners: Vec<FeedBannerView>,
+    /// PRD 0052 RF7.2: the core's server-clock warning (advice only; no
+    /// reading changes), `None` while the clocks agree.
+    clock_skew: Option<cuotai_core::text::Localized>,
+}
+
+/// PRD 0052 RF7.2: the process-wide clock warning the core raises from the
+/// providers' `Date` headers, as its localized advice.
+fn clock_skew_warning() -> Option<cuotai_core::text::Localized> {
+    cuotai_core::network::clock_skew()
+        .warning()
+        .map(|skew| skew.l10n())
 }
 
 /// PRD 0025 RF2.3: what the popover needs from the menu-bar selection.
@@ -1841,6 +1852,7 @@ impl Inner {
                 tray: TrayView::default(),
                 tray_accounts: Vec::new(),
                 feed_banners: Vec::new(),
+                clock_skew: clock_skew_warning(),
             };
         };
         // Per-account report lookup that mirrors the cycle's slots. Even
@@ -2014,6 +2026,7 @@ impl Inner {
             tray: TrayView::default(),
             tray_accounts,
             feed_banners: feed_banners(&l.file.config, clock),
+            clock_skew: clock_skew_warning(),
         }
     }
 
@@ -2410,6 +2423,56 @@ impl Backend {
     pub fn resume_after_failed_restart(&self) {
         self.stopping.store(false, Ordering::Relaxed);
         self.resumed.notify_waiters();
+    }
+
+    /// PRD 0052 RF5.2: the accounts TOML this app reads, for the erase-all
+    /// inventory (kept unless the person asks to delete it too).
+    pub async fn accounts_path(&self) -> Option<std::path::PathBuf> {
+        let g = self.inner.lock().await;
+        g.loaded
+            .as_ref()
+            .filter(|l| l.file.exists)
+            .map(|l| l.file.path.clone())
+    }
+
+    /// PRD 0052 RF5.2: stop every writer this backend owns before the data
+    /// is erased, and never start them again in this process: the loops
+    /// hold (as for an update restart), the local server and the hooks stop
+    /// without saving their switches, the widget publisher goes quiet and
+    /// the history stops recording after flushing what it queued. Nothing
+    /// here writes a file.
+    pub async fn stop_for_erase(&self) {
+        self.prepare_for_restart();
+        {
+            let mut serve = self.serve.lock().await;
+            let prefs = ServePrefs {
+                enabled: false,
+                ..serve.prefs()
+            };
+            self.serving.store(false, Ordering::Relaxed);
+            self.feed.publish(None);
+            serve.apply(prefs, &self.feed).await;
+        }
+        let path = self.inner.lock().await.hooks_path();
+        {
+            let mut hooks = self.hooks.lock().await;
+            hooks.set_enabled(false);
+            hooks.reconcile(path.as_deref());
+            self.hooks_on.store(false, Ordering::Relaxed);
+        }
+        self.widgets.set_enabled(false);
+        self.widgets.reset();
+        let monitor = {
+            let g = self.inner.lock().await;
+            g.loaded.as_ref().map(|l| Arc::clone(&l.monitor))
+        };
+        if let Some(monitor) = monitor {
+            monitor.set_history_recording(false);
+            let _ = tokio::task::spawn_blocking(move || {
+                monitor.flush_history(Duration::from_secs(2));
+            })
+            .await;
+        }
     }
 
     /// Where a background loop waits while the restart is under way. It must
@@ -3189,7 +3252,9 @@ impl Backend {
     /// Loads the configuration if there is no valid one in memory yet.
     async fn ensure_loaded(&self) {
         let mut g = self.inner.lock().await;
-        if g.loaded.is_some() {
+        // PRD 0052 RF5.2: after an erase began, loading would recreate the
+        // last-config record and the data folders.
+        if g.loaded.is_some() || crate::erase_data::locked() {
             return;
         }
         let chosen = crate::settings::chosen_config();

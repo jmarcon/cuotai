@@ -42,7 +42,6 @@
   "cli.erase_needs_yes": "No hay terminal para confirmar: no se borró nada. Vuelve a ejecutarlo con --yes para confirmar.",
   "cli.erase_plan_header": "Cuotai borrará:",
   "cli.erase_prompt": "Escribe {word} para confirmar: ",
-  "cli.erase_word": "BORRAR",
   "cli.history_erase_account": "Se borrará el historial de {name}.",
   "cli.history_erase_all": "Se borrará el historial de todas las cuentas de este dispositivo.",
   "cli.history_erased": "{count} muestras del historial borradas.",

@@ -45,7 +45,6 @@
   "cli.erase_needs_yes": "Onaylanacak terminal yok: hiçbir şey silinmedi. Onaylamak için --yes ile yeniden çalıştırın.",
   "cli.erase_plan_header": "Cuotai şunları silecek:",
   "cli.erase_prompt": "Onaylamak için {word} yazın: ",
-  "cli.erase_word": "SİL",
   "cli.history_erase_account": "{name} geçmişi silinecek.",
   "cli.history_erase_all": "Bu cihazdaki tüm hesapların geçmişi silinecek.",
   "cli.history_erased": "{count} geçmiş örneği silindi.",

@@ -45,7 +45,6 @@
   "cli.erase_needs_yes": "पुष्टि के लिए कोई टर्मिनल नहीं: कुछ भी नहीं मिटाया गया। पुष्टि के लिए --yes के साथ फिर से चलाएँ।",
   "cli.erase_plan_header": "Cuotai यह मिटाएगा:",
   "cli.erase_prompt": "पुष्टि के लिए {word} लिखें: ",
-  "cli.erase_word": "मिटाएँ",
   "cli.history_erase_account": "{name} का इतिहास मिटा दिया जाएगा।",
   "cli.history_erase_all": "इस डिवाइस पर सभी खातों का इतिहास मिटा दिया जाएगा।",
   "cli.history_erased": "{count} इतिहास नमूने मिटाए गए।",

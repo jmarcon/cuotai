@@ -45,7 +45,6 @@
   "cli.erase_needs_yes": "Tidak ada terminal untuk konfirmasi: tidak ada yang dihapus. Jalankan lagi dengan --yes untuk mengonfirmasi.",
   "cli.erase_plan_header": "Cuotai akan menghapus:",
   "cli.erase_prompt": "Ketik {word} untuk mengonfirmasi: ",
-  "cli.erase_word": "HAPUS",
   "cli.history_erase_account": "Riwayat {name} akan dihapus.",
   "cli.history_erase_all": "Riwayat semua akun di perangkat ini akan dihapus.",
   "cli.history_erased": "{count} sampel riwayat dihapus.",

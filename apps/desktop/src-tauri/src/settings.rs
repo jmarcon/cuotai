@@ -1289,6 +1289,11 @@ static WRITES: Mutex<()> = Mutex::new(());
 /// then fails.
 fn update(file: &Path, change: impl FnOnce(&mut Stored)) -> Result<(), &'static str> {
     use cuotai_core::private_fs::{update_locked, UpdateError};
+    // PRD 0052 RF5.2: once erase-all began, nothing writes `desktop.json`
+    // again in this process (the window geometry saved on quit included).
+    if crate::erase_data::locked() {
+        return Err("erasing");
+    }
     let _writing = WRITES.lock().unwrap_or_else(PoisonError::into_inner);
     let result = update_locked(file, |bytes| {
         let mut stored = match bytes {

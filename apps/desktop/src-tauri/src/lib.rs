@@ -4,6 +4,7 @@ mod about;
 mod autostart;
 mod backend;
 mod desk_text;
+mod erase_data;
 mod hooks;
 mod local_cost;
 mod local_server;
@@ -1421,6 +1422,52 @@ async fn history_erase(
     generation: Option<u64>,
 ) -> Result<usize, String> {
     b.history_erase(&app, index, generation).await
+}
+
+/// PRD 0052 RF5.3: the ordered inventory of Erase all Cuotai data (what
+/// goes and what is kept) and the word to type, in the desktop language.
+#[tauri::command]
+async fn erase_all_plan(b: Shared<'_>) -> Result<erase_data::PlanView, String> {
+    let roots = erase_data::roots(b.accounts_path().await);
+    Ok(erase_data::plan_view(roots, &native_confirm::locale()))
+}
+
+/// PRD 0052 RF5.2/RF5.3: erase all Cuotai data. The webview sends only the
+/// typed word and whether the accounts file goes too; Rust re-checks the
+/// word, asks natively, stops every writer and erases. A complete erase
+/// quits the app after a closing message. Errors (as JSON):
+/// `privacy.erase.word_mismatch`, `privacy.erase.declined`,
+/// `privacy.erase.vault_unavailable`, `execution.pending`.
+#[tauri::command]
+async fn erase_all_data(
+    app: AppHandle,
+    b: Shared<'_>,
+    cost: Cost<'_>,
+    include_config: bool,
+    word: String,
+) -> Result<erase_data::EraseResult, String> {
+    // Read before erasing: `desktop.json` holds the language.
+    let locale = native_confirm::locale();
+    let roots = erase_data::roots(b.accounts_path().await);
+    let writers = erase_data::AppWriters {
+        backend: Arc::clone(b.inner()),
+        cost: Arc::clone(cost.inner()),
+    };
+    let result = erase_data::run(
+        &word,
+        include_config,
+        roots,
+        &locale,
+        &native_confirm::DialogConfirmer::new(&app),
+        &writers,
+        &cuotai_core::privacy::erase::SystemVault,
+    )
+    .await
+    .map_err(|e| backend::l10n_to_json(&e))?;
+    if result.complete {
+        erase_data::quit(&app, &locale);
+    }
+    Ok(result)
 }
 
 /// PRD 0006 RF5.3: record new readings on this device or not (saved in
@@ -2854,6 +2901,8 @@ pub fn run() -> std::process::ExitCode {
             set_history_days,
             history_export,
             history_erase,
+            erase_all_plan,
+            erase_all_data,
             set_history_recording,
             set_status_enabled,
             serve_status,

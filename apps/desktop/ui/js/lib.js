@@ -80,6 +80,11 @@ const paths = {
 };
 export const icon = (name, cls = "") => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${paths[name]}</svg>`;
 
+/** PRD 0052 RF7.2 (DS-CMP-MSG-2): the core's server-clock advice as a main-window banner while the clocks disagree;
+ *  it only advises, never changes a reading, and goes away by itself once two responses agree again. */
+export const clockSkewBannerHtml = (view) => view?.clock_skew
+  ? `<div class="banner bad" role="status" data-clock-skew>${icon("warn")} ${esc(tl(view.clock_skew))}</div>` : "";
+
 // ---------- API (Tauri ou demo no navegador) ----------
 const T = window.__TAURI__;
 export const isDesktop = !!T;
@@ -273,6 +278,10 @@ export const setHistoryDays = (days) => call("set_history_days", { days });
 // PRD 0006 RF4.4: one account (`index`) is named with the configuration `generation` its index was read from.
 export const historyExport = (index, days, format, path, generation = null) => call("history_export", { index, generation, days, format, path });
 export const historyErase = (index, generation = null) => call("history_erase", { index, generation });
+// PRD 0052 RF5.3: Erase all Cuotai data. The plan is the core's ordered inventory plus the word to type; the erase
+// sends only the typed word and the accounts-file choice (Rust re-checks the word and asks natively).
+export const eraseAllPlan = () => call("erase_all_plan");
+export const eraseAllData = (includeConfig, word) => call("erase_all_data", { includeConfig, word });
 // PRD 0006 RF5: the recording switch (desktop.json), the file's size on disk and an account's recorded history
 // (`range`: day, week or month; `metricKey` null = every metric), bound to the view's `generation` like the models.
 export const setHistoryRecording = (on) => call("set_history_recording", { on });
@@ -2388,6 +2397,17 @@ const demo = {
   // erased account (or everything) leaves the synthetic history of `account_history`.
   history_export: async ({ index, generation }) => { if (index != null && generation !== demoSettings.generation) throw STALE; return index == null ? 42 : 7; },
   history_erase: async ({ index, generation }) => { if (index != null && generation !== demoSettings.generation) throw STALE; demoSettings.historyErased.add(index ?? "all"); demoSettings.historyEpoch++; return index == null ? 42 : 7; },
+  erase_all_plan: async () => ({ word: "ERASE", items: [
+    { id: "history.db", location: "~/Library/Application Support/cuotai/history/history.sqlite3", kind: "file", erase: true },
+    { id: "desktop.settings", location: "~/Library/Application Support/cuotai/desktop.json", kind: "file", erase: true },
+    { id: "vault.oauth", location: "cuotai.oauth", kind: "vault_service", erase: true },
+    { id: "config.accounts", location: "~/.config/cuotai/config.toml", kind: "file", erase: false },
+  ] }),
+  // The demo never erases anything: it answers as a partial erase so the page stays usable.
+  erase_all_data: async ({ word }) => {
+    if (word.trim() !== "ERASE") throw JSON.stringify({ id: "privacy.erase.word_mismatch", params: {}, fallback: "The confirmation word does not match; nothing was erased." });
+    return { complete: false, removed: 0, absent: 0, failed: ["demo"] };
+  },
   set_history_recording: async ({ on }) => { demoSettings.historyRecording = on; demoSettings.historyEpoch++; },
   set_status_enabled: async ({ on }) => { demoSettings.statusQueries = on; },
   serve_status: async () => demoServeView(),

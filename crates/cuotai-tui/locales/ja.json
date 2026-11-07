@@ -45,7 +45,6 @@
   "cli.erase_needs_yes": "確認できる端末がないため、何も消去していません。確認するには --yes を付けて再実行してください。",
   "cli.erase_plan_header": "Cuotai は次を消去します:",
   "cli.erase_prompt": "確認するには {word} と入力してください: ",
-  "cli.erase_word": "削除",
   "cli.history_erase_account": "{name} の履歴を消去します。",
   "cli.history_erase_all": "このデバイスのすべてのアカウントの履歴を消去します。",
   "cli.history_erased": "履歴のサンプル {count} 件を消去しました。",

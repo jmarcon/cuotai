@@ -45,7 +45,6 @@
   "cli.erase_needs_yes": "没有可用于确认的终端：未删除任何内容。请加上 --yes 重新运行以确认。",
   "cli.erase_plan_header": "Cuotai 将删除：",
   "cli.erase_prompt": "输入 {word} 以确认：",
-  "cli.erase_word": "删除",
   "cli.history_erase_account": "将删除 {name} 的历史记录。",
   "cli.history_erase_all": "将删除此设备上所有账户的历史记录。",
   "cli.history_erased": "已删除 {count} 条历史样本。",

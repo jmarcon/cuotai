@@ -165,6 +165,18 @@ impl LocalCost {
         *self.worker.lock().unwrap_or_else(|e| e.into_inner()) = Some(worker);
     }
 
+    /// PRD 0052 RF5.2: a scan is writing the index right now.
+    pub fn scanning(&self) -> bool {
+        self.worker_status().state == WorkerState::Scanning
+    }
+
+    /// PRD 0052 RF5.2: end the background scan for good (erase all data):
+    /// dropping the worker ends its thread, and no command starts another.
+    /// The caller first waits for [`Self::scanning`] to clear.
+    pub fn stop(&self) {
+        drop(self.worker.lock().unwrap_or_else(|e| e.into_inner()).take());
+    }
+
     fn stores(&self) -> Result<&Stores, String> {
         self.stores
             .as_ref()

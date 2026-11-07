@@ -1,8 +1,10 @@
-// Settings › Data & privacy (PRD 0020 RF2.5): the measurement history and the provider status pages.
+// Settings › Data & privacy (PRD 0020 RF2.5): the measurement history, the provider status pages and, last, erasing
+// all Cuotai data (PRD 0052 RF5.3).
 import { t, te } from "../i18n.js";
 import { STALE, brand, esc, historyErase, historyExport, historySize, icon, pickExportFile, setDetectEnabled, setHistoryDays, setHistoryRecording, setStatusEnabled } from "../lib.js";
 import { errorText, fmtBytes, group, l10nError } from "./common.js";
 import { buttons, commitField, disc, num, row, rowError, select, sw, toast } from "./rows.js";
+import { bindErase, eraseHtml } from "./erase.js";
 
 /** Accounts of the loaded configuration that have a report, as `[index, label]` for the history scope. */
 const historyAccounts = (view) => (view?.reports ?? []).map((r) => [r.index, `${brand(r.provider).label} · ${r.account}`]);
@@ -41,7 +43,8 @@ function privacyHtml(s, view) {
       : te("settings.status.none")}</p>`), "data-privacy");
 }
 
-/** RF3.4/RF5.2: export and erasure, collapsed in their own group at the end of the page; erasing keeps its question. */
+/** RF3.4/RF5.2: export and erasure, collapsed in their own group at the end of the page; erasing keeps its question.
+ *  PRD 0052 RF5.3: Erase all Cuotai data closes the group. */
 function historyDataHtml(view) {
   const accounts = [["", te("settings.history.allAccounts")], ...historyAccounts(view).map(([index, label]) => [index, esc(label)])];
   return group("history-data", "", disc("history-data", te("settings.history.data"),
@@ -55,11 +58,15 @@ function historyDataHtml(view) {
         <p id="history-confirm-text"></p>
         <div class="dlg-actions left"><button class="btn danger-btn" data-erase-confirm>${te("settings.history.eraseConfirm")}</button>
           <button class="btn" data-erase-cancel>${te("common.cancel")}</button></div>
-      </div>` })));
+      </div>` })
+    // PRD 0052 RF5.3: everything Cuotai keeps, after the history alone.
+    + eraseHtml()));
 }
 
 export function bind(root, ctx) {
   bindHistory(root, ctx);
+  // PRD 0052 RF5.3: Erase all Cuotai data.
+  bindErase(root);
   // PRD 0011 RF4.3: saved in desktop.json; on failure the switch goes back to the saved value.
   root.querySelector("#status-queries").onchange = (e) => setStatusEnabled(e.target.checked).then(
     () => { rowError(e.target, ""); toast(); ctx.changed("status_queries"); },

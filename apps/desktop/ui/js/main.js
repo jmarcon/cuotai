@@ -18,7 +18,7 @@ import {
   accountLabel, billingOverage, fmtExtra, overageLineText, isRecharging, resetsText, bestChipHtml, cardPace, forecastChipHtml, renewedText, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, setPoolAlerts, setBreakdownAlerts, openAggregatorDashboard, incidentHtml, bindStatusLinks, costUsage, paceHtml, paceLineLabel, costPlans,
   openSettingsWindow, bindSettingsShortcut, onSettingsChanged, onAccountAction, listExtensions, extensionSecrets,
   planBadgeHtml, scopeBlocksHtml, budgetSuggestion,
-  sessionAction, liveSessionHtml, dismissFeedBanner, historyRelocation, relocationBannerHtml,
+  sessionAction, liveSessionHtml, dismissFeedBanner, historyRelocation, relocationBannerHtml, clockSkewBannerHtml,
 } from "./lib.js";
 import { fold, patch } from "./util.js";
 import { initRowLayout } from "./density.js";
@@ -530,6 +530,7 @@ function render() {
     ${userContent.errors.map((e) => `<div class="banner">${esc(skippedMessage(e))}</div>`).join("")}
     ${updateBannerHtml()}
     ${feedBannersHtml(view)}
+    ${clockSkewBannerHtml(view)}
     ${view?.history_warning ? `<div class="banner bad" role="status" data-history-warning>${icon("warn")} ${esc(tl(view.history_warning))}</div>` : ""}
     ${(view?.config_notices ?? []).map((note) => `<div class="banner bad" role="status" data-config-notice>${icon("warn")} ${esc(tl(note))}</div>`).join("")}
     ${view?.serve?.state === "error" ? `<div class="banner bad" role="status" data-serve-error>${icon("warn")} ${te("serve.banner")} ${esc(tl(view.serve.error))}${

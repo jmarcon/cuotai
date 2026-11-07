@@ -17,7 +17,7 @@
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Arc, OnceLock};
 
 use serde::Serialize;
@@ -94,6 +94,20 @@ fn app_kind(fallback: AppKind) -> AppKind {
     }
 }
 static LOG_FILE: OnceLock<PathBuf> = OnceLock::new();
+/// Set by [`suspend`]: nothing reaches the file any more.
+static SUSPENDED: AtomicBool = AtomicBool::new(false);
+
+/// Stop writing the app log for the rest of this process (PRD 0052 RF5.2:
+/// the desktop's erase-all removes the log and must not recreate it before
+/// it quits). Events are still accepted and dropped.
+pub fn suspend() {
+    SUSPENDED.store(true, Ordering::SeqCst);
+}
+
+/// Whether [`suspend`] ran.
+pub fn is_suspended() -> bool {
+    SUSPENDED.load(Ordering::SeqCst)
+}
 
 fn set_health(health: LogHealth) {
     HEALTH.store(health as u8, Ordering::Relaxed);
@@ -278,6 +292,9 @@ struct AppLog {
 
 impl<S: Subscriber> Layer<S> for AppLog {
     fn on_event(&self, event: &Event<'_>, _ctx: Context<'_, S>) {
+        if is_suspended() {
+            return;
+        }
         let level = *event.metadata().level();
         let mut line = Line {
             keep_account: level >= TracingLevel::DEBUG,
