@@ -5846,6 +5846,10 @@ pub struct AccountForm {
 pub struct BudgetCheck {
     sentences: Vec<cuotai_core::text::Localized>,
     problems: Vec<BudgetProblemView>,
+    /// RF5.1: the metric choices the provider can report (every one when
+    /// the core does not know its shapes) and the floor kinds.
+    targets: Vec<cuotai_core::budget::editor::Target>,
+    floor_targets: Vec<cuotai_core::budget::editor::FloorTarget>,
 }
 
 #[derive(Serialize)]
@@ -5863,6 +5867,8 @@ pub fn check_budgets(
     floors: &[cuotai_core::budget::Floor],
 ) -> BudgetCheck {
     BudgetCheck {
+        targets: cuotai_core::budget::editor::targets(provider, "", "en-US"),
+        floor_targets: cuotai_core::budget::editor::floor_targets(provider),
         sentences: budgets
             .iter()
             .map(|budget| {

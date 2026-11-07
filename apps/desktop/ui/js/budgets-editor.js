@@ -94,6 +94,8 @@ export function mountBudgets(host, { provider, budgets = [], floors = [], budget
   let fRows = floors.map(floorRow);
   let touched = false;
   let seq = 0;
+  // RF5.1: the provider's metric choices from the last check; a new row starts on the first one.
+  let targets = null;
   if (budgetDraft && bRows.length < MAX_BUDGETS) {
     const row = budgetRow(budgetDraft);
     // RF6: a reference, never a saved amount; the row is written only by Save.
@@ -128,6 +130,14 @@ export function mountBudgets(host, { provider, budgets = [], floors = [], budget
       return;
     }
     if (mine !== seq) return;
+    targets = Array.isArray(result.targets) ? result.targets : null;
+    // RF5.1: the metric picker offers what the provider can report (the row's own choice stays visible).
+    const offered = (rows, list) => el.querySelectorAll(`${rows} select[data-k="kind"]`).forEach((select) => {
+      if (!Array.isArray(list)) return;
+      for (const opt of select.options) opt.hidden = !list.includes(opt.value === "" ? "any" : opt.value) && opt.value !== select.value;
+    });
+    offered("[data-budget-row]", result.targets);
+    offered("[data-floor-row]", result.floor_targets);
     el.querySelectorAll("[data-budget-row]").forEach((li, i) => {
       const sentence = result.sentences[i];
       li.querySelector("[data-sentence]").textContent = sentence ? tl(sentence) : "";
@@ -143,7 +153,12 @@ export function mountBudgets(host, { provider, budgets = [], floors = [], budget
 
   el.addEventListener("click", (e) => {
     const tgt = e.target;
-    if (tgt.closest("[data-add-budget]")) { bRows.push(budgetRow()); touched = true; return render(); }
+    if (tgt.closest("[data-add-budget]")) {
+      const first = targets?.[0];
+      bRows.push(budgetRow(first === "account" ? { scope: "account" } : first ? { kind: first } : {}));
+      touched = true;
+      return render();
+    }
     if (tgt.closest("[data-add-floor]")) { fRows.push(floorRow()); touched = true; return render(); }
     const rb = tgt.closest("[data-remove-budget]");
     if (rb) { bRows.splice(Number(rb.dataset.removeBudget), 1); touched = true; return render(); }
