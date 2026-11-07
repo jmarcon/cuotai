@@ -114,11 +114,12 @@ pub fn read_token_file(path: &std::path::Path) -> Result<Token, ServeError> {
     Token::parse(&text)
 }
 
-/// On Unix, whether users other than the owner may read (or write) the
-/// file at `path`; always `false` elsewhere and for a file that cannot be
-/// inspected (reading it fails on its own).
+/// Whether users other than the owner may read (or write) the file at
+/// `path`: Unix group/other bits, or a Windows DACL granting a broad
+/// principal access; `false` for a file that cannot be found (reading it
+/// fails on its own).
 pub fn token_file_exposed(path: &std::path::Path) -> bool {
-    std::fs::metadata(path).is_ok_and(|meta| crate::private_fs::open_to_others(&meta))
+    std::fs::metadata(path).is_ok_and(|meta| crate::private_fs::open_to_others(path, &meta))
 }
 
 /// INT-04: the token in `path`, created on first use. A missing file gets a
@@ -140,11 +141,19 @@ pub fn ensure_token_file(path: &std::path::Path) -> Result<Token, ServeError> {
                 if !meta.is_file() || crate::private_fs::foreign_owner(&meta) {
                     return Err(ServeError::TokenFile);
                 }
-                #[cfg(unix)]
-                if crate::private_fs::open_to_others(&meta) {
-                    use std::os::unix::fs::PermissionsExt;
-                    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
+                if crate::private_fs::open_to_others(path, &meta) {
+                    #[cfg(unix)]
+                    {
+                        use std::os::unix::fs::PermissionsExt;
+                        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
+                            .map_err(|_| ServeError::TokenFile)?;
+                    }
+                    crate::private_fs::make_private(path, false)
                         .map_err(|_| ServeError::TokenFile)?;
+                    #[cfg(windows)]
+                    if crate::private_fs::open_to_others(path, &meta) {
+                        return Err(ServeError::TokenFile);
+                    }
                 }
                 return read_token_file(path);
             }
@@ -158,6 +167,10 @@ pub fn ensure_token_file(path: &std::path::Path) -> Result<Token, ServeError> {
         std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
         match options.open(path) {
             Ok(mut file) => {
+                // Windows: the private DACL before the secret is written
+                // (the folder's inherited one already is, when it was made
+                // by `ensure_dir`); best effort for volumes without ACLs.
+                let _ = crate::private_fs::make_private(path, false);
                 let written = file
                     .write_all(format!("{}\n", token.expose()).as_bytes())
                     .and_then(|()| file.sync_all());
