@@ -427,6 +427,7 @@ mod tests {
                 check("port", CheckStatus::Warn, None),
             ],
             tools: Default::default(),
+            artifacts: Vec::new(),
         };
         let draft = app_draft(&app()).with_setup_check(&report);
         assert!(draft.body.contains(
@@ -441,6 +442,7 @@ mod tests {
             schema: 1,
             checks: vec![check("version", CheckStatus::Ok, None)],
             tools: Default::default(),
+            artifacts: Vec::new(),
         };
         assert_eq!(
             app_draft(&app()).with_setup_check(&clean),

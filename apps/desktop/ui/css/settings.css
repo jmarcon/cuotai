@@ -1430,3 +1430,7 @@ li.mb-sub + .mb-acc {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+/* PRD 0052 RF3.4: Check setup's diagnostics preview and its Copy button */
+.set-sec .doctor-copy {
+  margin-top: var(--space-2);
+}

@@ -153,6 +153,7 @@ mod tests {
                 check("second", CheckStatus::Fail, Some("do this")),
             ],
             tools: Default::default(),
+            artifacts: Vec::new(),
         };
         assert_eq!(
             render(&report, false, "en-US"),

@@ -46,6 +46,9 @@ impl Fixture {
             notifications: None,
             locale: "pt-BR".into(),
             now: Utc::now(),
+            log_health: LogHealth::Ok,
+            proxy: crate::network::proxy_state_from(|_| None),
+            trust_roots: Some(42),
         }
     }
 }
@@ -394,5 +397,110 @@ fn each_channel_reports_its_last_outcome_without_its_label_or_host() {
     assert!(
         !json.contains("SEEDED") && !json.contains("seeded.example.com"),
         "{json}"
+    );
+}
+
+/// PRD 0052 RF3 (option A): the log, proxy, trust-store and file
+/// checks join the doctor without leaking proxy userinfo, the `NO_PROXY`
+/// list, account names, e-mails or variable values.
+#[test]
+fn diagnostics_show_log_proxy_trust_and_files_without_secrets() {
+    let fixture = Fixture::new(Some(
+        "[[accounts]]\nname = \"me@example.com\"\nprovider = \"groq\"\ncredential_env = \"MY_GROQ\"\n\n[[accounts]]\nname = \"Personal Groq\"\nprovider = \"mistral\"\n",
+    ));
+    let mut inputs = fixture.inputs(&[("MY_GROQ", "sk-live-SEEDED-VALUE")], free_port());
+    inputs.proxy = crate::network::proxy_state_from(|name| match name {
+        "HTTPS_PROXY" => Some("http://alice:SEEDED-PASS@proxy.example:3128/path?q=SEEDED-Q".into()),
+        "NO_PROXY" => Some("secret-host.internal,10.9.8.0/24".into()),
+        _ => None,
+    });
+    let report = run(&inputs);
+    for id in ["log", "proxy", "trust_store", "artifacts"] {
+        assert_eq!(status(&report, id), CheckStatus::Ok, "{id}");
+    }
+    assert_eq!(
+        report.artifacts.len(),
+        crate::privacy::artifacts().len(),
+        "every registry entry is listed"
+    );
+    let json = serde_json::to_string(&report).unwrap();
+    assert!(
+        json.contains("\"artifacts\":[{\"id\":\"config.accounts\""),
+        "{json}"
+    );
+    let text: String = report
+        .checks
+        .iter()
+        .flat_map(|c| [Some(&c.title), c.detail.as_ref(), c.fix.as_ref()])
+        .flatten()
+        .map(|note| note.resolve("en-US") + "\n")
+        .collect();
+    assert!(
+        text.contains("http://proxy.example:3128 (from HTTPS_PROXY)"),
+        "{text}"
+    );
+    assert!(text.contains("A NO_PROXY list is set."), "{text}");
+    assert!(text.contains("42 certificates"), "{text}");
+    for leak in [
+        "SEEDED",
+        "alice",
+        "secret-host",
+        "10.9.8.0",
+        "me@example.com",
+        "Personal Groq",
+        "/path",
+    ] {
+        assert!(!json.contains(leak), "{leak} in {json}");
+        assert!(!text.contains(leak), "{leak} in {text}");
+    }
+}
+
+/// No root certificates and an unwritable log are reported; a missing
+/// trust store is the one failure (the server-clock warning is the
+/// `clock` check, tested above).
+#[test]
+fn an_empty_trust_store_and_a_broken_log_are_reported() {
+    let fixture = Fixture::new(Some(TWO_ACCOUNTS));
+    let mut inputs = fixture.inputs(&[("MY_GROQ", "x"), ("MISTRAL_API_KEY", "y")], free_port());
+    assert_eq!(run(&inputs).exit_code(), 0);
+    inputs.log_health = LogHealth::Error;
+    let report = run(&inputs);
+    assert_eq!(status(&report, "log"), CheckStatus::Warn);
+    assert_eq!(report.exit_code(), 0, "warnings only");
+    inputs.log_health = LogHealth::Off;
+    inputs.trust_roots = None;
+    let report = run(&inputs);
+    assert_eq!(status(&report, "log"), CheckStatus::Skip);
+    assert_eq!(status(&report, "trust_store"), CheckStatus::Fail);
+    assert_eq!(report.exit_code(), 2);
+    inputs.proxy = crate::network::proxy_state_from(|name| {
+        (name == "https_proxy").then(|| "http://".to_string())
+    });
+    assert_eq!(status(&run(&inputs), "proxy"), CheckStatus::Warn);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_cuotai_file_open_to_others_warns_by_id() {
+    use std::os::unix::fs::PermissionsExt;
+    let fixture = Fixture::new(Some(TWO_ACCOUNTS));
+    let ledger = fixture.dir.path().join("data/notified.json");
+    std::fs::write(&ledger, "{}").unwrap();
+    std::fs::set_permissions(&ledger, std::fs::Permissions::from_mode(0o644)).unwrap();
+    let report = run(&fixture.inputs(&[], free_port()));
+    let check = report.checks.iter().find(|c| c.id == "artifacts").unwrap();
+    assert_eq!(check.status, CheckStatus::Warn);
+    assert!(check
+        .detail
+        .as_ref()
+        .unwrap()
+        .resolve("en-US")
+        .contains("notifications.ledger"));
+    std::fs::set_permissions(&ledger, std::fs::Permissions::from_mode(0o400)).unwrap();
+    let report = run(&fixture.inputs(&[], free_port()));
+    assert_eq!(
+        status(&report, "artifacts"),
+        CheckStatus::Ok,
+        "narrower is fine"
     );
 }

@@ -1,6 +1,6 @@
 // Settings › Advanced › Files (PRD 0020 RF2.5): the accounts file and the themes-and-languages folder, as path rows
 // (RF3.2) whose full path sits in a remembered disclosure (RF5.2).
-import { te, tl } from "../i18n.js";
+import { t, te, tl } from "../i18n.js";
 import { THEMES } from "../themes.js";
 import { LOCALES, skippedMessage, userContent } from "../usercontent.js";
 import { BACKUP_GUIDE_URL, brand, configLabel, doctorReport, esc, icon, openExternal, openUserDir, otherConfigNotice, pickFolder, pickTomlFile, setConfigFile, setDataDir, setUserDir, vaultAudit, vaultPrune } from "../lib.js";
@@ -79,7 +79,35 @@ const DOCTOR_ORDER = ["fail", "warn", "ok", "skip"];
 /** The doctor's report, problems first; the status is a word, never only a color. */
 export function doctorHtml(report) {
   const checks = [...(report?.checks ?? [])].sort((a, b) => DOCTOR_ORDER.indexOf(a.status) - DOCTOR_ORDER.indexOf(b.status));
-  return `<ul class="hook-runs">${checks.map((c) => `<li><strong>${te(`settings.doctor.status.${c.status}`)}</strong> — ${esc(tl(c.title))}${c.detail ? `: ${esc(tl(c.detail))}` : ""}${c.fix ? `<br><small>${esc(tl(c.fix))}</small>` : ""}</li>`).join("")}</ul>`;
+  return `<ul class="hook-runs">${checks.map((c) => `<li><strong>${te(`settings.doctor.status.${c.status}`)}</strong> — ${esc(tl(c.title))}${c.detail ? `: ${esc(tl(c.detail))}` : ""}${c.fix ? `<br><small>${esc(tl(c.fix))}</small>` : ""}</li>`).join("")}</ul>`
+    + diagnosticsHtml(report);
+}
+
+/** PRD 0052 RF3.4: the exact text "Copy diagnostics" writes (the same JSON as `cuotai --doctor --json`). */
+export const diagnosticsText = (report) => JSON.stringify(report, null, 2);
+
+/** The preview, visible before anything reaches the clipboard; nothing is sent or opened. */
+function diagnosticsHtml(report) {
+  return `<div class="doctor-copy" data-doctor-copy-box>
+    <p class="hint">${te("settings.doctor.copyHelp")}</p>
+    <pre class="snippet" data-doctor-json tabindex="0" aria-label="${te("settings.doctor.preview")}">${esc(diagnosticsText(report))}</pre>
+    <span class="set-btns"><button class="btn sm" data-doctor-copy>${icon("copy")} ${te("settings.doctor.copy")}</button></span>
+    <p class="hint" id="doctor-copy-msg" role="status"></p>
+  </div>`;
+}
+
+/** Copies the previewed text; a failure is said in place. */
+export function bindDiagnostics(box, report, clipboard = navigator.clipboard) {
+  const button = box.querySelector("[data-doctor-copy]");
+  const msg = box.querySelector("#doctor-copy-msg");
+  if (!button) return;
+  button.onclick = async () => {
+    try {
+      if (!clipboard?.writeText) throw new Error("no clipboard");
+      await clipboard.writeText(diagnosticsText(report));
+      msg.textContent = t("settings.doctor.copied");
+    } catch { msg.textContent = t("settings.doctor.copyFailed"); }
+  };
 }
 
 export function bind(root, ctx) {
@@ -138,7 +166,7 @@ export function bind(root, ctx) {
   const doctor = root.querySelector("[data-doctor]");
   const runDoctor = async () => {
     doctor.innerHTML = `<p class="hint">${te("settings.doctor.running")}</p>`;
-    try { doctor.innerHTML = doctorHtml(await doctorReport()); }
+    try { const report = await doctorReport(); doctor.innerHTML = doctorHtml(report); bindDiagnostics(doctor, report); }
     catch (e) { doctor.innerHTML = `<p class="hint warn-txt">${esc(errorText(e))}</p>`; }
   };
   root.querySelector("[data-doctor-run]").onclick = runDoctor;
