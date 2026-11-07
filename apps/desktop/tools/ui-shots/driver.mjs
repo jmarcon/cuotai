@@ -24,18 +24,19 @@ const freePort = () => new Promise((res, rej) => {
   s.listen(0, "127.0.0.1", () => { const { port } = s.address(); s.close(() => res(port)); });
 });
 
-/** Starts the server and the browser; returns `{ open, shot, evaluate, click, close }`. */
-export async function launch({ port, cdp } = {}) {
+/** Starts the server and the browser; returns `{ open, shot, evaluate, click, send, close }`. `serve: false` skips the
+ * static server: the caller serves the repository root on `port` itself (csp-smoke.mjs adds the CSP header). */
+export async function launch({ port, cdp, serve = true } = {}) {
   port ??= process.env.UI_SHOTS_PORT ? Number(process.env.UI_SHOTS_PORT) : await freePort();
   // Chrome picks its own DevTools port (0) and writes it to DevToolsActivePort in the fresh profile.
   cdp ??= process.env.UI_SHOTS_CDP ? Number(process.env.UI_SHOTS_CDP) : 0;
   const python = process.platform === "win32" ? "python" : "python3";
-  const server = spawn(python, ["-m", "http.server", String(port), "--bind", "127.0.0.1", "--directory", ROOT], { stdio: "ignore" });
+  const server = serve ? spawn(python, ["-m", "http.server", String(port), "--bind", "127.0.0.1", "--directory", ROOT], { stdio: "ignore" }) : null;
   const profile = mkdtempSync(join(tmpdir(), "cuotai-ui-shots-"));
   const chromePath = process.env.CHROME ?? (CHROMES[process.platform] ?? [])[0];
   const chrome = spawn(chromePath, ["--headless=new", "--disable-gpu", "--hide-scrollbars", `--remote-debugging-port=${cdp}`,
     `--user-data-dir=${profile}`, "--no-first-run", "--no-default-browser-check", "about:blank"], { stdio: "ignore" });
-  const stop = () => { server.kill(); chrome.kill(); try { rmSync(profile, { recursive: true, force: true }); } catch {} };
+  const stop = () => { server?.kill(); chrome.kill(); try { rmSync(profile, { recursive: true, force: true }); } catch {} };
   process.on("exit", stop);
 
   for (let i = 0; i < 80 && !cdp; i++) {
@@ -102,5 +103,5 @@ export async function launch({ port, cdp } = {}) {
     const { writeFileSync } = await import("node:fs");
     writeFileSync(file, Buffer.from(r.result.data, "base64"));
   }
-  return { open, click, press, shot, evaluate, close: () => { ws.close(); stop(); } };
+  return { open, click, press, shot, evaluate, send, close: () => { ws.close(); stop(); } };
 }
