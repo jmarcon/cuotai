@@ -3,7 +3,11 @@
     "name": "Türkçe",
     "status": "machine-translated, needs native review",
     "reviewed": false,
-    "machine_reviewed": "2026-10-25"
+    "machine_reviewed": "2026-10-25",
+    "pending_review": [
+      "note.nine_router.version_untested",
+      "test.nine_router.connected_untested"
+    ]
   },
   "access.confirm_unavailable": "{reason} Hesap kaydedilecek, ancak sayılar yerine bu nedeni gösterecek.",
   "access.cost_advisory": "Sağlayıcı sorgu başına ücretlendirilir: sorgu başına yaklaşık bir Cost Explorer isteği. Aralık yoksa Cuotai saatte bir sorgular; etkin alt sınır 15 dakikadır (5 ile 14 dakika arasındaki aralıklar 15'e çıkarılır, daha düşük değerler reddedilir). Birden çok pencere veya komut, aralık başına tek bir isteği paylaşır. Elle yenilemeler açık kalır.",
@@ -1310,6 +1314,7 @@
   "note.nine_router.summary": "{total} 9router bağlantısından {ready} tanesinin kullanım verisi var.",
   "note.nine_router.truncated": "9router, okunan sınırdan (1000) fazla bağlantıya sahip; kalanlar dışarıda bırakıldı.",
   "note.nine_router.version": "9router {version}.",
+  "note.nine_router.version_untested": "9router {version}, Cuotai'nin test edildiği en eski sürüm olan {min} sürümünden eski; güncelleyene kadar bazı okumalar başarısız olabilir.",
   "note.nine_router.zero_caveat": "Değerler 9router tarafından normalleştirildiği gibidir; eksik bir değer 0 olarak görünebilir.",
   "note.open_router.activity_failed": "Kaynağa göre harcama şu anda kullanılamıyor; bakiye yine de doğru.",
   "note.open_router.activity_window": "Kaynağa göre harcama yalnızca tamamlanmış UTC günlerini kapsar ve UTC gece yarısından sonra güncellenir.",
@@ -1877,6 +1882,7 @@
   "test.litellm.not_litellm": "Adres yanıt veriyor, ancak bir LiteLLM proxy'sine benzemiyor (/provider/budgets yok).",
   "test.nine_router.certificate_changed": "Örneğin sertifikası değişti ve artık sabitlenenle eşleşmiyor. Yeni SHA-256 parmak izi: {fingerprint}. Güvenmeden önce sunucuda kontrol edin.",
   "test.nine_router.connected": "9router {version}: kullanım verisi olan {connections} bağlantı bulundu.",
+  "test.nine_router.connected_untested": "9router {version}: kullanımı olan {connections} bağlantı bulundu. Bu sürüm, Cuotai'nin test edildiği en eski sürüm olan {min} sürümünden eski; bazı okumalar başarısız olabilir.",
   "test.nine_router.not_nine_router": "Adres yanıt veriyor, ancak bir 9router'a benzemiyor.",
   "test.nine_router.password_required": "Bu örnek pano parolası gerektiriyor; \"Pano parolası\" seçeneğini seçin.",
   "test.nine_router.unreachable": "Verilen adrese ulaşılamadı.",

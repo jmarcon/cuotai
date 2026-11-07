@@ -49,6 +49,12 @@ use url::{Host, Url};
 /// and shapes were observed at (`f39d8f07481ae8518e93175f0ecaaafa61573c6c`,
 /// PRD 0036 RF3.8).
 pub(crate) const VIA: &str = "https://github.com/decolua/9router/blob/f39d8f07481ae8518e93175f0ecaaafa61573c6c/open-sse/services/usage.js";
+/// The oldest 9router version verified against the revision of [`VIA`] (PRD
+/// 0036 RF3.8, decision D8). It is filled only after the owner's local
+/// verification (task T2, Appendix B); while it is `None` no version is
+/// called untested. An older instance still runs: the test and the reading
+/// only add a warning.
+pub(crate) const TESTED_MIN: Option<&str> = None;
 /// Where an instance listens by default.
 pub(crate) const DEFAULT_BASE_URL: &str = "http://127.0.0.1:20128";
 
@@ -1293,6 +1299,9 @@ pub(crate) async fn fetch_at(
             params([("version", ParamValue::from(version.clone()))]),
             "9router {version}.",
         );
+        if let Some(note) = untested_version_note(&version, TESTED_MIN) {
+            notes.push_note(note);
+        }
     }
     if truncated {
         notes.push(
@@ -1332,6 +1341,48 @@ async fn best_effort_version(instance: &Instance<'_>, token: Option<&str>) -> Op
             .chars()
             .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '-' | '+')))
     .then_some(version)
+}
+
+/// The numeric parts of a version ("v0.5.109-beta" → `[0, 5, 109]`), or
+/// `None` when it does not start with a number.
+fn version_parts(version: &str) -> Option<Vec<u64>> {
+    let core = version.trim().trim_start_matches(['v', 'V']);
+    let core = core.split(['-', '+']).next().unwrap_or_default();
+    let parts: Vec<u64> = core
+        .split('.')
+        .map(str::parse)
+        .collect::<Result<_, _>>()
+        .ok()?;
+    (!parts.is_empty()).then_some(parts)
+}
+
+/// PRD 0036 RF2.2/RF3.8: true when `version` is older than `min`. An
+/// unparsable version is never called older (no warning without evidence),
+/// and neither is any version while `min` is `None`.
+pub(crate) fn below_tested_min(version: &str, min: Option<&str>) -> bool {
+    let (Some(have), Some(want)) = (version_parts(version), min.and_then(version_parts)) else {
+        return false;
+    };
+    let len = have.len().max(want.len());
+    let pad = |parts: &[u64]| -> Vec<u64> {
+        (0..len)
+            .map(|i| parts.get(i).copied().unwrap_or(0))
+            .collect()
+    };
+    pad(&have) < pad(&want)
+}
+
+/// The reading's warning for an instance older than `min` (RF3.8).
+fn untested_version_note(version: &str, min: Option<&str>) -> Option<Localized> {
+    let min = min.filter(|_| below_tested_min(version, min))?;
+    Some(Localized::with_params(
+        "note.nine_router.version_untested",
+        params([
+            ("version", ParamValue::from(version.to_owned())),
+            ("min", ParamValue::from(min.to_owned())),
+        ]),
+        "9router {version} is older than {min}, the oldest version Cuotai was tested with; some readings may fail until you update it.",
+    ))
 }
 
 // ---------------------------------------------------------------------------
@@ -1400,7 +1451,25 @@ pub(crate) fn litellm_outcome_text(outcome: &TestOutcome) -> Option<Localized> {
 
 /// The localized sentence of an outcome (no URL, no body).
 pub(crate) fn outcome_text(outcome: &TestOutcome) -> Localized {
+    outcome_text_with_min(outcome, TESTED_MIN)
+}
+
+/// [`outcome_text`] against an explicit tested minimum (RF2.2: a version
+/// below it is a warning, never a block).
+fn outcome_text_with_min(outcome: &TestOutcome, min: Option<&str>) -> Localized {
     match outcome {
+        TestOutcome::Connected {
+            version: Some(version),
+            connections,
+        } if below_tested_min(version, min) => Localized::with_params(
+            "test.nine_router.connected_untested",
+            params([
+                ("connections", ParamValue::from(*connections as u64)),
+                ("version", ParamValue::from(version.clone())),
+                ("min", ParamValue::from(min.unwrap_or_default().to_owned())),
+            ]),
+            "9router {version}: {connections} connections with usage found. This version is older than {min}, the oldest one Cuotai was tested with; some readings may fail.",
+        ),
         TestOutcome::Connected {
             version,
             connections,
@@ -1628,6 +1697,35 @@ mod tests {
     use super::*;
     use crate::Credentials;
     use serde_json::json;
+
+    /// PRD 0036 RF2.2/RF3.8: the version-below-minimum warning compares
+    /// numeric parts, stays silent without evidence and while `TESTED_MIN`
+    /// is unset (until the owner's verification T2 fills it).
+    #[test]
+    fn the_untested_version_warning_needs_a_tested_minimum() {
+        assert!(below_tested_min("0.5.35", Some("0.5.109")));
+        assert!(below_tested_min("v0.4", Some("0.5.0")));
+        assert!(below_tested_min("0.5.108-beta.1", Some("0.5.109")));
+        assert!(!below_tested_min("0.5.109", Some("0.5.109")));
+        assert!(!below_tested_min("0.5.109+build", Some("0.5.109")));
+        assert!(!below_tested_min("0.6", Some("0.5.109")));
+        assert!(!below_tested_min("1.0.0", Some("0.5.109")));
+        assert!(!below_tested_min("main", Some("0.5.109")), "unparsable");
+        assert!(
+            !below_tested_min("0.1.0", Some("next")),
+            "unparsable minimum"
+        );
+        assert!(!below_tested_min("0.1.0", None));
+        let note = untested_version_note("0.5.35", Some("0.5.109")).unwrap();
+        assert_eq!(note.id, "note.nine_router.version_untested");
+        assert!(note
+            .resolve("en-US")
+            .contains("0.5.35 is older than 0.5.109"));
+        assert!(untested_version_note("0.5.109", Some("0.5.109")).is_none());
+        if TESTED_MIN.is_none() {
+            assert!(untested_version_note("0.0.1", TESTED_MIN).is_none());
+        }
+    }
 
     /// 9router normalizes a missing value to 0, and without a total the
     /// other fields may be in another unit: on a percentage meter only the
@@ -2770,6 +2868,15 @@ mod tests {
             }
         );
         assert_eq!(outcome_text(&outcome).id, "test.nine_router.connected");
+        // RF2.2/RF3.8: below the tested minimum it still connects, with a
+        // warning in the sentence; at or above it, the plain sentence.
+        let old = outcome_text_with_min(&outcome, Some("0.6.0"));
+        assert_eq!(old.id, "test.nine_router.connected_untested");
+        assert!(old.resolve("en-US").contains("older than 0.6.0"), "{old:?}");
+        assert_eq!(
+            outcome_text_with_min(&outcome, Some("0.5.109")).id,
+            "test.nine_router.connected"
+        );
 
         // Not a 9router.
         let server = MockServer::start().await;

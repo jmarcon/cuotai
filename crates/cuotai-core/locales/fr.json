@@ -3,7 +3,11 @@
     "name": "Français",
     "status": "machine-translated, needs native review",
     "reviewed": false,
-    "machine_reviewed": "2026-10-25"
+    "machine_reviewed": "2026-10-25",
+    "pending_review": [
+      "note.nine_router.version_untested",
+      "test.nine_router.connected_untested"
+    ]
   },
   "access.confirm_unavailable": "{reason} Le compte sera enregistré, mais affichera ce motif au lieu de chiffres.",
   "access.cost_advisory": "Fournisseur facturé à la requête : environ une demande à Cost Explorer par requête. Sans intervalle, Cuotai interroge une fois par heure ; le minimum effectif est de 15 minutes (les intervalles de 5 à 14 minutes sont portés à 15 et les plus courts sont refusés). Plusieurs fenêtres ou commandes partagent une demande par intervalle. Les actualisations manuelles restent explicites.",
@@ -1310,6 +1314,7 @@
   "note.nine_router.summary": "{ready} connexions 9router sur {total} avec utilisation.",
   "note.nine_router.truncated": "9router a plus de connexions que la limite lue (1000) ; le reste a été omis.",
   "note.nine_router.version": "9router {version}.",
+  "note.nine_router.version_untested": "9router {version} est antérieur à {min}, la plus ancienne version avec laquelle Cuotai a été testé ; certaines lectures peuvent échouer tant que vous ne l’avez pas mis à jour.",
   "note.nine_router.zero_caveat": "Valeurs telles que normalisées par 9router ; une valeur absente peut apparaître comme 0.",
   "note.open_router.activity_failed": "Les dépenses par origine sont indisponibles pour le moment ; le solde reste correct.",
   "note.open_router.activity_window": "Les dépenses par origine ne couvrent que des jours UTC complets et sont mises à jour après minuit UTC.",
@@ -1877,6 +1882,7 @@
   "test.litellm.not_litellm": "L’adresse répond, mais ne ressemble pas à un proxy LiteLLM (pas de /provider/budgets).",
   "test.nine_router.certificate_changed": "Le certificat de l’instance a changé et ne correspond plus à celui épinglé. Nouvelle empreinte SHA-256 : {fingerprint}. Vérifiez-la sur le serveur avant de lui faire confiance.",
   "test.nine_router.connected": "9router {version} : {connections} connexions avec utilisation trouvées.",
+  "test.nine_router.connected_untested": "9router {version} : {connections} connexions avec utilisation trouvées. Cette version est antérieure à {min}, la plus ancienne avec laquelle Cuotai a été testé ; certaines lectures peuvent échouer.",
   "test.nine_router.not_nine_router": "L’adresse répond, mais ne ressemble pas à un 9router.",
   "test.nine_router.password_required": "Cette instance exige le mot de passe du tableau de bord ; choisissez « Mot de passe du tableau de bord ».",
   "test.nine_router.unreachable": "Impossible d’atteindre l’adresse indiquée.",

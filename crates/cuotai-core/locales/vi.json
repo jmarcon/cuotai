@@ -3,7 +3,11 @@
     "name": "Tiếng Việt",
     "status": "machine-translated, needs native review",
     "reviewed": false,
-    "machine_reviewed": "2026-10-25"
+    "machine_reviewed": "2026-10-25",
+    "pending_review": [
+      "note.nine_router.version_untested",
+      "test.nine_router.connected_untested"
+    ]
   },
   "access.confirm_unavailable": "{reason} Tài khoản sẽ được lưu, nhưng sẽ hiện lý do này thay cho số liệu.",
   "access.cost_advisory": "Nhà cung cấp tính phí theo truy vấn: khoảng một yêu cầu Cost Explorer cho mỗi truy vấn. Không đặt chu kỳ thì Cuotai truy vấn mỗi giờ một lần; mức tối thiểu hiệu lực là 15 phút (chu kỳ từ 5 đến 14 phút được nâng lên 15, giá trị thấp hơn bị từ chối). Nhiều khung hoặc lệnh dùng chung một yêu cầu cho mỗi chu kỳ. Làm mới thủ công vẫn là thao tác rõ ràng.",
@@ -1302,6 +1306,7 @@
   "note.nine_router.summary": "{ready} trên {total} kết nối 9router có mức sử dụng.",
   "note.nine_router.truncated": "9router có nhiều kết nối hơn giới hạn được đọc (1000); phần còn lại đã bị bỏ qua.",
   "note.nine_router.version": "9router {version}.",
+  "note.nine_router.version_untested": "9router {version} cũ hơn {min}, phiên bản cũ nhất mà Cuotai đã được kiểm thử; một số lần đọc có thể thất bại cho đến khi bạn cập nhật.",
   "note.nine_router.zero_caveat": "Giá trị như đã được 9router chuẩn hóa; giá trị thiếu có thể hiện là 0.",
   "note.open_router.activity_failed": "Chi tiêu theo nguồn hiện không khả dụng; số dư vẫn đúng.",
   "note.open_router.activity_window": "Chi tiêu theo nguồn chỉ gồm các ngày UTC đã hoàn tất và cập nhật sau nửa đêm UTC.",
@@ -1865,6 +1870,7 @@
   "test.litellm.not_litellm": "Địa chỉ có phản hồi, nhưng trông không giống proxy LiteLLM (không có /provider/budgets).",
   "test.nine_router.certificate_changed": "Chứng chỉ của phiên bản đã thay đổi và không còn khớp với chứng chỉ được ghim. Dấu vân tay SHA-256 mới: {fingerprint}. Hãy kiểm tra trên máy chủ trước khi tin cậy.",
   "test.nine_router.connected": "9router {version}: tìm thấy {connections} kết nối có mức sử dụng.",
+  "test.nine_router.connected_untested": "9router {version}: tìm thấy {connections} kết nối có mức sử dụng. Phiên bản này cũ hơn {min}, phiên bản cũ nhất mà Cuotai đã được kiểm thử; một số lần đọc có thể thất bại.",
   "test.nine_router.not_nine_router": "Địa chỉ có phản hồi, nhưng trông không giống 9router.",
   "test.nine_router.password_required": "Phiên bản này cần mật khẩu bảng điều khiển; hãy chọn \"Mật khẩu bảng điều khiển\".",
   "test.nine_router.unreachable": "Không kết nối được địa chỉ đã nhập.",

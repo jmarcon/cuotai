@@ -3,7 +3,11 @@
     "name": "Deutsch",
     "status": "machine-translated, needs native review",
     "reviewed": false,
-    "machine_reviewed": "2026-10-25"
+    "machine_reviewed": "2026-10-25",
+    "pending_review": [
+      "note.nine_router.version_untested",
+      "test.nine_router.connected_untested"
+    ]
   },
   "access.confirm_unavailable": "{reason} Das Konto wird gespeichert, zeigt aber diesen Grund statt Zahlen an.",
   "access.cost_advisory": "Pro Abfrage abgerechneter Anbieter: etwa eine Anfrage an Cost Explorer pro Abfrage. Ohne Intervall fragt Cuotai einmal pro Stunde ab; das wirksame Minimum beträgt 15 Minuten (Intervalle von 5 bis 14 Minuten werden auf 15 angehoben, kleinere werden abgelehnt). Mehrere Fenster oder Befehle teilen sich eine Anfrage pro Intervall. Manuelle Aktualisierungen bleiben ausdrücklich möglich.",
@@ -1310,6 +1314,7 @@
   "note.nine_router.summary": "{ready} von {total} 9router-Verbindungen mit Nutzung.",
   "note.nine_router.truncated": "9router hat mehr Verbindungen als das gelesene Limit (1000); die übrigen wurden weggelassen.",
   "note.nine_router.version": "9router {version}.",
+  "note.nine_router.version_untested": "9router {version} ist älter als {min}, die älteste Version, mit der Cuotai getestet wurde; einige Abfragen können fehlschlagen, bis Sie es aktualisieren.",
   "note.nine_router.zero_caveat": "Werte, wie 9router sie normalisiert; ein fehlender Wert kann als 0 erscheinen.",
   "note.open_router.activity_failed": "Die Ausgaben nach Herkunft sind derzeit nicht verfügbar; das Guthaben bleibt korrekt.",
   "note.open_router.activity_window": "Die Ausgaben nach Herkunft umfassen nur abgeschlossene UTC-Tage und werden nach Mitternacht UTC aktualisiert.",
@@ -1877,6 +1882,7 @@
   "test.litellm.not_litellm": "Die Adresse antwortet, scheint aber kein LiteLLM-Proxy zu sein (kein /provider/budgets).",
   "test.nine_router.certificate_changed": "Das Zertifikat der Instanz hat sich geändert und stimmt nicht mit dem angehefteten überein. Neuer SHA-256-Fingerabdruck: {fingerprint}. Prüfen Sie ihn auf dem Server, bevor Sie ihm vertrauen.",
   "test.nine_router.connected": "9router {version}: {connections} Verbindungen mit Nutzung gefunden.",
+  "test.nine_router.connected_untested": "9router {version}: {connections} Verbindungen mit Nutzung gefunden. Diese Version ist älter als {min}, die älteste, mit der Cuotai getestet wurde; einige Abfragen können fehlschlagen.",
   "test.nine_router.not_nine_router": "Die Adresse antwortet, scheint aber kein 9router zu sein.",
   "test.nine_router.password_required": "Diese Instanz verlangt das Dashboard-Passwort; wählen Sie „Dashboard-Passwort“.",
   "test.nine_router.unreachable": "Die angegebene Adresse war nicht erreichbar.",

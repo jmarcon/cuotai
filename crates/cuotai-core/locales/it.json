@@ -1,6 +1,10 @@
 {
   "_meta": {
-    "name": "Italiano"
+    "name": "Italiano",
+    "pending_review": [
+      "note.nine_router.version_untested",
+      "test.nine_router.connected_untested"
+    ]
   },
   "access.confirm_unavailable": "{reason} L'account verrà salvato, ma mostrerà questo motivo invece dei numeri.",
   "access.cost_advisory": "Il provider fattura per query: circa una richiesta a Cost Explorer per query. Senza intervallo Cuotai interroga una volta all'ora; il minimo effettivo è 15 minuti (gli intervalli da 5 a 14 minuti vengono portati a 15, quelli inferiori vengono rifiutati). Più finestre o comandi condividono una richiesta per intervallo. Gli aggiornamenti manuali restano espliciti.",
@@ -1836,6 +1840,7 @@
   "note.nine_router.off": "Disattivata in 9router.",
   "note.nine_router.summary": "{ready} di {total} connessioni di 9router con uso.",
   "note.nine_router.version": "9router {version}.",
+  "note.nine_router.version_untested": "9router {version} è precedente a {min}, la versione più vecchia con cui Cuotai è stato provato; alcune letture potrebbero non riuscire finché non lo aggiorni.",
   "note.nine_router.truncated": "9router ha più connessioni del limite letto (1000); le altre sono state omesse.",
   "note.nine_router.exposed": "Questa istanza di 9router risponde alle richieste di gestione senza password. Chiunque la raggiunga può leggere e modificare le sue connessioni.",
   "note.nine_router.private_http": "Connessione non cifrata nella rete privata, per tua scelta.",
@@ -1844,6 +1849,7 @@
   "test.litellm.key_wrong": "La chiave di LiteLLM è stata rifiutata.",
   "test.litellm.key_required": "Inserisci la master key o una chiave virtuale di LiteLLM.",
   "test.nine_router.connected": "9router {version}: trovate {connections} connessioni con uso.",
+  "test.nine_router.connected_untested": "9router {version}: trovate {connections} connessioni con utilizzo. Questa versione è precedente a {min}, la più vecchia con cui Cuotai è stato provato; alcune letture potrebbero non riuscire.",
   "test.nine_router.not_nine_router": "L'indirizzo risponde, ma non sembra un 9router.",
   "test.nine_router.password_required": "Questa istanza richiede la password del pannello; scegli \"Password del pannello\".",
   "test.nine_router.unreachable": "Impossibile raggiungere l'indirizzo indicato.",

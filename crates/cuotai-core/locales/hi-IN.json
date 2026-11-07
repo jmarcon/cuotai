@@ -3,7 +3,11 @@
     "name": "हिन्दी",
     "status": "machine-translated, needs native review",
     "reviewed": false,
-    "machine_reviewed": "2026-10-25"
+    "machine_reviewed": "2026-10-25",
+    "pending_review": [
+      "note.nine_router.version_untested",
+      "test.nine_router.connected_untested"
+    ]
   },
   "access.confirm_unavailable": "{reason} खाता सहेजा जाएगा, पर संख्याओं की जगह यह कारण दिखाएगा।",
   "access.cost_advisory": "प्रति जाँच बिल करने वाला प्रदाता: हर जाँच पर Cost Explorer को लगभग एक अनुरोध जाता है। अंतराल न देने पर Cuotai घंटे में एक बार जाँच करता है; प्रभावी न्यूनतम 15 मिनट है (5 से 14 मिनट के अंतराल 15 हो जाते हैं और उससे छोटे मान अस्वीकार होते हैं)। कई विंडो या कमांड हर अंतराल में एक अनुरोध साझा करते हैं। मैन्युअल रीफ़्रेश फिर भी अलग से चलते हैं।",
@@ -1310,6 +1314,7 @@
   "note.nine_router.summary": "उपयोग वाले 9router कनेक्शन: {total} में से {ready}।",
   "note.nine_router.truncated": "9router में पढ़ने की सीमा (1000) से ज़्यादा कनेक्शन हैं; बाकी छोड़ दिए गए।",
   "note.nine_router.version": "9router {version}।",
+  "note.nine_router.version_untested": "9router {version}, {min} से पुराना है, जो Cuotai द्वारा जाँचा गया सबसे पुराना संस्करण है; इसे अपडेट करने तक कुछ रीडिंग विफल हो सकती हैं।",
   "note.nine_router.zero_caveat": "मान 9router द्वारा सामान्यीकृत हैं; कोई मान न होने पर 0 दिख सकता है।",
   "note.open_router.activity_failed": "स्रोत के अनुसार खर्च अभी उपलब्ध नहीं; बैलेंस फिर भी सही है।",
   "note.open_router.activity_window": "स्रोत के अनुसार खर्च केवल पूरे हुए UTC दिनों को कवर करता है और UTC आधी रात के बाद अपडेट होता है।",
@@ -1877,6 +1882,7 @@
   "test.litellm.not_litellm": "पता जवाब देता है, पर LiteLLM प्रॉक्सी जैसा नहीं दिखता (/provider/budgets नहीं है)।",
   "test.nine_router.certificate_changed": "इंस्टेंस का प्रमाणपत्र बदल गया है और पिन किए प्रमाणपत्र से मेल नहीं खाता। नया SHA-256 फ़िंगरप्रिंट: {fingerprint}। भरोसा करने से पहले उसे सर्वर पर जाँचें।",
   "test.nine_router.connected": "9router {version}: उपयोग वाले {connections} कनेक्शन मिले।",
+  "test.nine_router.connected_untested": "9router {version}: उपयोग वाले {connections} कनेक्शन मिले। यह संस्करण {min} से पुराना है, जो Cuotai द्वारा जाँचा गया सबसे पुराना संस्करण है; कुछ रीडिंग विफल हो सकती हैं।",
   "test.nine_router.not_nine_router": "पता जवाब देता है, पर 9router जैसा नहीं दिखता।",
   "test.nine_router.password_required": "इस इंस्टेंस को डैशबोर्ड का पासवर्ड चाहिए; \"डैशबोर्ड का पासवर्ड\" चुनें।",
   "test.nine_router.unreachable": "दिए गए पते तक पहुँचा नहीं जा सका।",
