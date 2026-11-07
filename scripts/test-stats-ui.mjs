@@ -79,6 +79,15 @@ assert.ok(demo.summary.daily.some((d) => d.share == null), "the demo history has
 const lanes = await lib.resetTimeline("days7", (await lib.getView()).generation);
 assert.ok(lanes.lanes.length > 0 && lanes.lanes.every((l) => l.returns_at), "demo lanes are plotted only with a known return");
 
+// PRD 0026 §7: the 7 d / 30 d and 24 h / 7 d toggles are remembered (`desktop.json` `stats`); the defaults are not stored.
+assert.deepEqual(await lib.statsPrefs(), {}, "nothing remembered yet");
+await lib.setStatsPrefs({ range: "days30" });
+await lib.setStatsPrefs({ timeline: "days7" });
+assert.deepEqual(await lib.statsPrefs(), { range: "days30", timeline: "days7" }, "each toggle keeps the other");
+await lib.setStatsPrefs({ range: "days7", timeline: "hours24" });
+assert.deepEqual(await lib.statsPrefs(), {}, "the defaults remove the stored choice");
+assert.equal(await lib.setStatsPrefs({ range: "days90" }).then(() => null, (e) => e), "invalid_stats_range");
+
 for (const { code } of i18n.LOCALES) {
   await i18n.setLocale(code);
   const label = (key) => i18n.t(key);

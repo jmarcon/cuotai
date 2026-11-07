@@ -5,7 +5,7 @@
 // which reads its summary and an equivalent table (DS-CHT-10).
 import { currentLocale, t, te, tl } from "./i18n.js";
 import { monograms, repeatedProviders, tileHtml } from "./components.js";
-import { STALE, brand, errText, esc, fmtNumber, getView, icon, openSettingsWindow, reportKey, stats } from "./lib.js";
+import { STALE, brand, errText, esc, fmtNumber, getView, icon, openSettingsWindow, reportKey, setStatsPrefs, stats, statsPrefs } from "./lib.js";
 
 const RANGES = ["days7", "days30"];
 const REFRESH_MS = 30_000;
@@ -239,6 +239,13 @@ export function mountStats({ tray = false, onOpenFull = null } = {}) {
   const body = el.querySelector(".st-body");
   const select = scopeEl.querySelector("select");
   let range = "days7", scope = "all", data = null, error = null, epoch = 0, stamp = null, generation = null, view = null, at = 0;
+  // PRD 0026 §7: the remembered 7 d / 30 d choice; a toggle before it arrives wins.
+  let touched = false;
+  statsPrefs().then((p) => {
+    if (touched || !RANGES.includes(p.range) || p.range === range) return;
+    range = p.range; data = null; paint();
+    if (generation != null) load();
+  });
 
   /** The select lists "All accounts", then each account (DS-CMP-STATS-2); a scope that vanished falls back to all. */
   function fillScope() {
@@ -288,7 +295,8 @@ export function mountStats({ tray = false, onOpenFull = null } = {}) {
     const r = e.target.closest("[data-stats-range]");
     if (r) {
       if (r.dataset.statsRange === range) return;
-      range = r.dataset.statsRange; data = null; paint(); load();
+      range = r.dataset.statsRange; touched = true; data = null; paint(); load();
+      setStatsPrefs({ range }).catch(() => {});
       return;
     }
     if (e.target.closest("[data-stats-history-settings]")) return openSettingsWindow({ page: "data" });

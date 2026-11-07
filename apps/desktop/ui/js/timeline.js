@@ -3,7 +3,7 @@
 // beyond the range, and accounts whose return is unknown, are listed as text below and never plotted at an edge.
 // This module only draws; the chart is hidden from assistive technology, which reads one named button per lane.
 import { currentLocale, t, te } from "./i18n.js";
-import { STALE, brand, errText, esc, fmtCountdown, getView, logo, reportKey, resetTimeline } from "./lib.js";
+import { STALE, brand, errText, esc, fmtCountdown, getView, logo, reportKey, resetTimeline, setStatsPrefs, statsPrefs } from "./lib.js";
 
 const RANGES = ["hours24", "days7"];
 const REFRESH_MS = 30_000;
@@ -72,6 +72,13 @@ export function mountTimeline({ onSelect = () => {}, compact = false, only = () 
   const status = el.querySelector(".tl-status");
   const body = el.querySelector(".tl-body");
   let range = "hours24", data = null, error = null, epoch = 0, stamp = null, generation = null, reports = [], at = 0;
+  // PRD 0026 §7: the remembered 24 h / 7 d choice; a toggle before it arrives wins.
+  let touched = false;
+  statsPrefs().then((p) => {
+    if (touched || !RANGES.includes(p.timeline) || p.timeline === range) return;
+    range = p.timeline; data = null; paint();
+    if (generation != null) load();
+  });
 
   function paint() {
     for (const b of el.querySelectorAll("[data-timeline-range]")) b.setAttribute("aria-pressed", String(b.dataset.timelineRange === range));
@@ -116,7 +123,8 @@ export function mountTimeline({ onSelect = () => {}, compact = false, only = () 
     const r = e.target.closest("[data-timeline-range]");
     if (r) {
       if (r.dataset.timelineRange === range) return;
-      range = r.dataset.timelineRange; data = null; paint(); load();
+      range = r.dataset.timelineRange; touched = true; data = null; paint(); load();
+      setStatsPrefs({ timeline: range }).catch(() => {});
       return;
     }
     const lane = e.target.closest("[data-timeline-account]");

@@ -936,6 +936,28 @@ fn set_advanced_open(open: bool) -> Result<(), String> {
     settings::write_advanced_open(&file, open).map_err(str::to_owned)
 }
 
+/// PRD 0026 §7: remember the Stats view's 7 d / 30 d toggle (`range`) and
+/// the reset timeline's 24 h / 7 d toggle (`timeline`); a `null` argument
+/// keeps the stored choice. Errors: `invalid_stats_range`,
+/// `invalid_timeline_range`, `unwritable`.
+#[tauri::command]
+fn set_stats_prefs(range: Option<String>, timeline: Option<String>) -> Result<(), String> {
+    fn parse<T: serde::de::DeserializeOwned>(
+        value: Option<String>,
+        code: &'static str,
+    ) -> Result<Option<T>, String> {
+        value
+            .map(|v| {
+                serde_json::from_value(serde_json::Value::String(v)).map_err(|_| code.to_owned())
+            })
+            .transpose()
+    }
+    let range = parse(range, "invalid_stats_range")?;
+    let timeline = parse(timeline, "invalid_timeline_range")?;
+    let file = settings::file().map_err(str::to_owned)?;
+    settings::write_stats(&file, range, timeline).map_err(str::to_owned)
+}
+
 /// PRD 0025 RF9.5: store the row display (`tray`, `window`, `separate`);
 /// read leniently, so an unknown preset is Standard. Every window follows
 /// through `settings-changed`. Error: `unwritable`.
@@ -2367,6 +2389,7 @@ pub fn run() -> std::process::ExitCode {
             tray_accounts,
             set_tray_prefs,
             set_advanced_open,
+            set_stats_prefs,
             set_rows,
             autostart_status,
             autostart_set,

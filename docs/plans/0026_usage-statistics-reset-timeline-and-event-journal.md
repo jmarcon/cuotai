@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0026 |
-| Status | In progress |
+| Status | Implemented |
 | Owner | `cuotai-core` (`stats`, `resets::timeline`, event journal in the history store), desktop and TUI |
 | Consumers | `apps/desktop` (Stats view, tray popover timeline), `crates/cuotai-tui` (stats screen, `--stats`, `--timeline`), PRD 0025 (popover) |
 | Depends on | PRD 0006 (RF1–RF4: `HistoryStore`, `windows`, retention, erase); PRD 0013 (RF1: `events::diff`) and PRD 0029 (stable account identity) for RF3 |
@@ -13,17 +13,28 @@
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable. A **limit hit** is a window instance of a plan limit whose recorded peak reached its limit. The **tightest limit** of an account is its binding metric (PRD 0009).
 
-## Implementation status (2026-10-22)
+## Implementation status (2026-10-22, completed 2026-11-07)
 
 | RF | Version | Delivery |
 |---|---|---|
 | RF1 | 0.81.0 | Core `stats::summarize` (hits, average peak, daily peaks, coverage, retention note) and RF1.5 "extra spent" (`Metric.billing == Overage`, stored per series since schema version 3, summed per unit). |
 | RF2 | 0.81.0 | Core `resets::timeline` (lanes, later, unknown, share level) and `timeline_of_config`. |
 | RF3 | 0.81.0 | `journal` table (schema version 4), `HistoryStore::journal_record`/`journal`, written by the desktop, the interactive TUI and `--watch`/`--serve` through `watch::JournalTap`; retention, erase and the JSON and CSV exports (the CSV carries the journal as a second table after a blank line, with its own header). Schema version 5 adds `parent_digest`: an event of a 9router connection keeps its aggregator (`JournalEntry::parent`, the `parent` field of the exports, `--events-log`), and erasing the aggregator erases its connections' events. `quota_exhaustion_projected` is journaled by every front end (the desktop, `--watch`/`--serve` and, since 0.81.0, the interactive dashboard, which now passes the same pace input). The overage events of PRD 0023 fill the optional `spent` (finite amounts only; unknown stays empty) and `currency` (ISO 4217 when the amount is money; provider units leave it empty) columns (0.81.0); the extra spent of the Stats view still comes from the overage series (RF1.5). The RNF performance budget (`stats::summarize` over 30 days of 20 accounts under 100 ms) has a guard test. |
-| RF4 | 0.81.0 | Desktop Stats view in the main window and the compact popover drill-in; Tauri `stats` command guarded by the generation. |
-| RF5 | 0.81.0 | Reset timeline in the Stats view and under the popover accounts; a lane opens its account. The popover timeline follows the PRD 0025 menu-bar selection (every account in Auto). |
+| RF4 | 0.81.0 | Desktop Stats view in the main window and the compact popover drill-in; Tauri `stats` command guarded by the generation. vNEXT: the 7 d / 30 d toggle is remembered per device in `desktop.json` `stats.range` (§7), through the Tauri command `set_stats_prefs` and `get_settings` `stats`. |
+| RF5 | 0.81.0 | Reset timeline in the Stats view and under the popover accounts; a lane opens its account. The popover timeline follows the PRD 0025 menu-bar selection (every account in Auto). vNEXT: the 24 h / 7 d toggle is remembered beside it in `desktop.json` `stats.timeline` (decision 2 below). |
 | RF6 | 0.81.0 | TUI screen (`S`) and `--stats`, `--timeline`, `--events-log`. |
 | RF7 | 0.81.0 | `docs/tui.md`, `docs/events.md`, `docs/gui-features.md` and the README. |
+
+### Completion review (2026-11-07)
+
+Every RF was checked against the code: the core aggregates and timeline (`crates/cuotai-core/src/stats.rs`, `resets/timeline.rs`) with the RF1 and RF2 acceptance tables (DST, compaction parity, two currencies, the 100 ms budget guard); the journal (`history/journal.rs`) with its migration, no-leak, retention/erase/export and two-writer tests, and the `spent`/`currency` columns filled from the overage events; the desktop Stats view and timeline with the browser-free smoke `scripts/test-stats-ui.mjs` in all 14 languages; the TUI screen and the three CLI flags with `TestBackend` and binary tests (`crates/cuotai-tui/tests/stored_views.rs`); and the documentation. The one gap was §7's remembered range toggles, delivered in vNEXT.
+
+**Decisions and deviations (owner said not to stop and ask; the conservative option was taken):**
+
+1. **Range memory scope.** §7 names `desktop.json` `stats.range`; the reset timeline's 24 h / 7 d toggle is remembered in the same object as `stats.timeline`, so both toggles of the feature behave alike. Only non-default choices are stored (7 days and 24 hours remove the key), unknown values read as the default, and a toggle made before the stored choice arrives wins. Each window reads the choice when its view mounts; an open window does not follow a change made in another one.
+2. **Per-generation cache (RNF performance).** The cache lives in the interface: a Stats view or timeline reads the core again only when the generation, the history epoch or a reading changes, or after 30 seconds; the backend computes each answer off the UI thread and keeps no copy. The 100 ms budget test bounds the cost of a fresh read.
+3. **Languages.** The RNF "four languages" predates PRD 0034/0035: every Stats, timeline and journal string is in all 14 catalogs, and the smoke checks key and placeholder parity across them.
+4. **Owner verification.** None is specific to this PRD: the visual and screen-reader passes of the desktop are covered by the PRD 0022 items of `0000_control.md` §2.1.
 
 ## 1. Context
 
@@ -119,7 +130,7 @@ The binding metric (PRD 0009) knows each account's return time (`resets_at` or `
 - **Privacy:** the journal follows PRD 0006's digest model and never stores provider text; erasing history erases it.
 - **Performance:** `summarize` over 30 days and 20 accounts completes in under 100 ms on the reference machine; it runs off the UI thread; results are cached per generation.
 - **Cost:** no provider query.
-- **i18n and accessibility:** four languages; charts with tables (DS-CHT-10); day labels in the locale.
+- **i18n and accessibility:** four languages (now all 14, decision 3); charts with tables (DS-CHT-10); day labels in the locale.
 
 ## 7. Data and contract changes
 
