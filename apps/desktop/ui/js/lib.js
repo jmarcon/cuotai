@@ -185,6 +185,10 @@ export const trayAccounts = () => call("tray_accounts");
 export const setTrayPrefs = ({ style, colored, accounts = null, popover_view = null, popoverView = popover_view }) =>
   call("set_tray_prefs", { style, colored, accounts, popoverView });
 export const setAdvancedOpen = (open) => call("set_advanced_open", { open });
+/** PRD 0026 §7: the Stats view's 7 d / 30 d toggle (`range`) and the reset timeline's 24 h / 7 d toggle (`timeline`),
+ *  remembered in `desktop.json` `stats`; `null` keeps the stored choice. `statsPrefs()` never fails (defaults: `{}`). */
+export const setStatsPrefs = ({ range = null, timeline = null } = {}) => call("set_stats_prefs", { range, timeline });
+export const statsPrefs = () => getSettings().then((s) => s?.stats ?? {}, () => ({}));
 /** PRD 0019 RF7.7: "Show what's new after an update" (Settings > About), and the note that this version's notes were
  *  shown. The shell decides when they are due (`whats_new_due` in `get_settings`: a changed version, not a first
  *  install, the switch on). */
@@ -1568,7 +1572,7 @@ const demoSessionNotice = (state) => state && { level: dl("access.credential.use
   warning: state === "vault"
     ? dl("user_session.warning", "This is a full login session. Cuotai stores it in the system vault and uses it only to query this service.")
     : dl("user_session.warning_env", "This is a full login session. Cuotai reads it from an environment variable and uses it only to query this service; move it to the system vault in the account wizard.") };
-const demoSettings = { monograms: {}, profileExisted: new URLSearchParams(location.search).has("profile-existed"), whatsNewDue: new URLSearchParams(location.search).has("whats-new"), tray: { style: "tightest_percent", colored: false, accounts: null, popover_view: null }, advancedOpen: false,
+const demoSettings = { monograms: {}, profileExisted: new URLSearchParams(location.search).has("profile-existed"), whatsNewDue: new URLSearchParams(location.search).has("whats-new"), tray: { style: "tightest_percent", colored: false, accounts: null, popover_view: null }, advancedOpen: false, stats: {},
   // `?first-run` shows the first-run step (PRD 0025 RF6) in the demo.
   onboarding: new URLSearchParams(location.search).has("first-run") ? 0 : 1,
   custom: null, config: null, generation: 1, historyRecording: true, historyEpoch: 0, historyErased: new Set(), sessionMigrated: new Set(), sessionForgotten: new Set(),
@@ -2188,7 +2192,7 @@ const demo = {
     live_session: get(LIVE_KEY, "on") !== "off", history_days: demoSettings.historyDays ?? 90, history_days_min: 7, history_days_max: 365, history_recording: demoSettings.historyRecording, status_queries: demoSettings.statusQueries,
     notify: { ...demoSettings.notify }, notify_leads: [0, 5, 15, 60], notify_whens: ["used", "exhausted", "always"],
     alerts: structuredClone(demoSettings.alerts), quiet: structuredClone(demoSettings.quiet), alert_min: 10, alert_max: 99, detect: structuredClone(demoSettings.detect), 
-    tray: { ...demoSettings.tray }, advanced_open: !!demoSettings.advancedOpen,
+    tray: { ...demoSettings.tray }, advanced_open: !!demoSettings.advancedOpen, stats: { ...demoSettings.stats },
     profile_existed: !!demoSettings.profileExisted, whats_new_auto: demoSettings.whatsNewAuto !== false, whats_new_due: demoSettings.whatsNewDue === true, monograms: { ...demoSettings.monograms }, rows: structuredClone(demoSettings.rows ?? {}), onboarding: demoSettings.onboarding, onboarding_version: 1, version: "demo" }),
   set_user_dir: async ({ path }) => { demoSettings.custom = path ?? null; },
   set_motion: async ({ motion }) => { if (!MOTIONS.includes(motion)) throw "invalid_motion"; },
@@ -2209,6 +2213,14 @@ const demo = {
     demoSettings.tray = { style, colored, accounts: accounts ?? null, popover_view: popover_view ?? null };
   },
   set_advanced_open: async ({ open }) => { demoSettings.advancedOpen = open; },
+  set_stats_prefs: async ({ range, timeline }) => {
+    if (range != null && !["days7", "days30"].includes(range)) throw "invalid_stats_range";
+    if (timeline != null && !["hours24", "days7"].includes(timeline)) throw "invalid_timeline_range";
+    const next = { ...demoSettings.stats, ...(range != null && { range }), ...(timeline != null && { timeline }) };
+    if (next.range === "days7") delete next.range;
+    if (next.timeline === "hours24") delete next.timeline;
+    demoSettings.stats = next;
+  },
   set_whats_new_auto: async ({ on }) => { demoSettings.whatsNewAuto = !!on; },
   whats_new_seen: async () => { demoSettings.whatsNewDue = false; },
   set_account_monogram: async ({ accountId, monogram }) => {

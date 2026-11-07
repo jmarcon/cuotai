@@ -6,6 +6,8 @@ use cuotai_core::{
     history::Retention,
     pace::PaceUnit,
     quiet::QuietSchedule,
+    resets::TimelineRange,
+    stats::StatsRange,
     tray::{TraySelection, TrayStyle},
 };
 use serde::{Deserialize, Serialize};
@@ -166,6 +168,11 @@ struct Stored {
     /// leniently ([`monograms_of`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     monograms: Option<serde_json::Value>,
+    /// PRD 0026 §7: the Stats view's remembered toggles (`range`,
+    /// `timeline`); absent = 7 days and 24 hours. Read leniently
+    /// ([`StatsPrefs::from_value`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    stats: Option<serde_json::Value>,
     /// PRD 0051 RF3.4/RF4.2: members a newer release wrote (its `schema`
     /// and `schema_revision` included) are kept through every write.
     #[serde(flatten)]
@@ -317,6 +324,70 @@ impl TrayPrefs {
             ..self.clone()
         })
     }
+}
+
+/// PRD 0026 §7: the 7 d / 30 d toggle of the Stats view and the 24 h / 7 d
+/// toggle of the reset timeline, remembered per device. `None` is the
+/// default (7 days, 24 hours); only a non-default choice is stored.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+pub struct StatsPrefs {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub range: Option<StatsRange>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeline: Option<TimelineRange>,
+}
+
+impl StatsPrefs {
+    /// Each field on its own: an unknown or mistyped value is its default.
+    fn from_value(value: &serde_json::Value) -> Self {
+        Self {
+            range: serde_json::from_value(value["range"].clone()).ok(),
+            timeline: serde_json::from_value(value["timeline"].clone()).ok(),
+        }
+    }
+
+    /// The stored form: the defaults are dropped, so a default choice
+    /// removes the key.
+    fn normalized(self) -> Self {
+        Self {
+            range: self.range.filter(|r| *r != StatsRange::Days7),
+            timeline: self.timeline.filter(|r| *r != TimelineRange::Hours24),
+        }
+    }
+}
+
+/// PRD 0026 §7: the Stats toggles stored in `file`.
+#[cfg(test)]
+pub fn read_stats(file: &Path) -> StatsPrefs {
+    read(file)
+        .stats
+        .as_ref()
+        .map(StatsPrefs::from_value)
+        .unwrap_or_default()
+}
+
+/// Store the Stats toggles in `file`: a `None` field keeps the stored
+/// choice, and the defaults remove the key. Error: `unwritable`.
+pub fn write_stats(
+    file: &Path,
+    range: Option<StatsRange>,
+    timeline: Option<TimelineRange>,
+) -> Result<(), &'static str> {
+    update(file, |s| {
+        let old = s
+            .stats
+            .as_ref()
+            .map(StatsPrefs::from_value)
+            .unwrap_or_default();
+        let prefs = StatsPrefs {
+            range: range.or(old.range),
+            timeline: timeline.or(old.timeline),
+        }
+        .normalized();
+        s.stats = (prefs != StatsPrefs::default())
+            .then(|| serde_json::to_value(prefs).ok())
+            .flatten();
+    })
 }
 
 /// PRD 0025 RF9.1 (DS-CMP-DENS-1): the row presets.
@@ -1727,6 +1798,8 @@ pub struct SettingsView {
     tray: TrayPrefs,
     /// PRD 0025 RF5.3: the Advanced group is open.
     advanced_open: bool,
+    /// PRD 0026 §7: the Stats view's remembered toggles.
+    stats: StatsPrefs,
     /// PRD 0025 RF9.5: the row display.
     rows: RowsPrefs,
     /// PRD 0025 RF6.4: the first-run version seen (0 = never) and the current one.
@@ -1808,6 +1881,11 @@ pub fn view() -> SettingsView {
             .as_ref()
             .and_then(|v| v["advanced_open"].as_bool())
             .unwrap_or(false),
+        stats: stored
+            .stats
+            .as_ref()
+            .map(StatsPrefs::from_value)
+            .unwrap_or_default(),
         rows: stored
             .rows
             .as_ref()
@@ -2152,6 +2230,39 @@ mod tests {
         assert_eq!(pruned.pruned(&existing), None);
         // Auto never changes (new accounts appear only there).
         assert_eq!(TrayPrefs::default().pruned(&existing), None);
+    }
+
+    #[test]
+    fn stats_toggles_are_remembered_and_defaults_remove_the_key() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        assert_eq!(read_stats(&file), StatsPrefs::default());
+        write_stats(&file, Some(StatsRange::Days30), None).unwrap();
+        write_stats(&file, None, Some(TimelineRange::Days7)).unwrap();
+        assert_eq!(
+            read_stats(&file),
+            StatsPrefs {
+                range: Some(StatsRange::Days30),
+                timeline: Some(TimelineRange::Days7),
+            }
+        );
+        let raw: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&file).unwrap()).unwrap();
+        assert_eq!(
+            raw["stats"],
+            serde_json::json!({ "range": "days30", "timeline": "days7" })
+        );
+        // Back to the defaults: the key goes away.
+        write_stats(&file, Some(StatsRange::Days7), Some(TimelineRange::Hours24)).unwrap();
+        assert_eq!(read_stats(&file), StatsPrefs::default());
+        let raw: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&file).unwrap()).unwrap();
+        assert!(raw.get("stats").is_none());
+        // A mistyped value is its default, the other field is kept.
+        let lenient =
+            StatsPrefs::from_value(&serde_json::json!({ "range": "days90", "timeline": "days7" }));
+        assert_eq!(lenient.range, None);
+        assert_eq!(lenient.timeline, Some(TimelineRange::Days7));
     }
 
     #[test]
