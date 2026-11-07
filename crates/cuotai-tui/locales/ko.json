@@ -395,6 +395,8 @@
   "ui.no_history": "로컬 기록을 사용할 수 없습니다. 기록이 없으면 통계도 없습니다.",
   "ui.refresh_account_failed": "조회에 실패했습니다. R로 다시 시도하세요.",
   "ui.refresh_task_failed": "조회 작업이 실패했습니다. r로 다시 시도하세요.",
+  "ui.relocation.footer": "y 그 기록을 여기서 사용 • n/Esc 따로 유지 • Ctrl-C 종료",
+  "ui.relocation.title": "이동한 파일의 기록",
   "vault.audit.empty": "색인된 자격 증명이 없습니다. 색인에는 이 버전부터 Cuotai가 저장하는 항목이 기록됩니다.",
   "vault.audit.orphans": "고아 {count}개: cuotai --vault-prune으로 삭제합니다.",
   "vault.audit.title": "CUOTAI • Cuotai가 보관소에 둔 자격 증명",

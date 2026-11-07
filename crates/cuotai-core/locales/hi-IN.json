@@ -433,6 +433,7 @@
   "credential_help.xiaomi_mimo": "बैलेंस/Token Plan: platform.xiaomimimo.com का वेब सत्र खाता विज़ार्ड में पेस्ट करें (सिस्टम वॉल्ट) या platform_session_env में वेरिएबल का नाम दें। नेटिव कोड इन्फ़रेंस कुंजी देता है, कुकी नहीं। Xiaomi खाते का सत्र (session_env) अलग है: MiMo Desktop का साप्ताहिक कोटा।",
   "credential_help.zed": "ZED_ACCESS_TOKEN (zed.dev के नेटिव लॉगिन प्रवाह का क्लाउड एक्सेस टोकन)। संख्यात्मक user_id भी लिखें — वह `Authorization: <user_id> <token>` के रूप में भेजा जाता है।",
   "data_dir.error.relative": "CUOTAI_DATA_DIR एक पूर्ण (absolute) पथ होना चाहिए; इसे ठीक करने या हटाने तक Cuotai कोई डेटा नहीं रखता।",
+  "data_dir.error.setting": "सेटिंग्स में चुना गया डेटा फ़ोल्डर आपकी अपनी किसी निर्देशिका का पूर्ण पथ होना चाहिए जो लिंक न हो; उसे ठीक या रीसेट करने तक Cuotai कोई डेटा नहीं रखता।",
   "data_dir.error.unusable": "CUOTAI_DATA_DIR आपका अपना फ़ोल्डर होना चाहिए जो लिंक न हो; इसे ठीक करने या हटाने तक Cuotai कोई डेटा नहीं रखता।",
   "detect.consent.aws_profile": "Cuotai प्रोफ़ाइल चुनते समय केवल ~/.aws/config के प्रोफ़ाइल नाम पढ़ेगा; कोई कुंजी नहीं पढ़ी जाती।",
   "detect.consent.cursor_import": "Cuotai आपका उपयोग जाँचने के लिए स्थानीय Cursor डेटाबेस से लॉगिन टोकन एक बार पढ़ेगा। वह सिस्टम के क्रेडेंशियल वॉल्ट में रखा जाता है।",
@@ -954,6 +955,8 @@
   "history.error.export": "इतिहास का निर्यात लिखा नहीं जा सका।",
   "history.error.retention_bounds": "इतिहास रखने की अवधि {min} से {max} दिन तक होती है।",
   "history.error.storage": "स्थानीय माप इतिहास पढ़ने या लिखने में विफल।",
+  "history.relocation.adopted": "इतिहास स्थानांतरित किया गया; रीडिंग: {count}।",
+  "history.relocation.prompt": "कॉन्फ़िगरेशन फ़ाइल स्थानांतरित हो गई: {path} अब मौजूद नहीं है और इसके इतिहास (रीडिंग: {count}; खाते: {accounts}) में ठीक इसी फ़ाइल के खाते हैं। क्या वह इतिहास यहाँ उपयोग करें?",
   "history.warning.ceiling": "इतिहास {max} MiB से बड़ा हो गया: सबसे पुराने {removed} माप मिटा दिए गए।",
   "history.warning.dropped": {
     "one": "{count} रीडिंग इतिहास में नहीं आ सकी: डिस्क ने जवाब देने में देर की।",

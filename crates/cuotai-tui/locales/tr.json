@@ -395,6 +395,8 @@
   "ui.no_history": "Yerel geçmiş kullanılamıyor; onsuz istatistik yok.",
   "ui.refresh_account_failed": "Sorgu başarısız oldu; yeniden denemek için R.",
   "ui.refresh_task_failed": "Sorgu görevi başarısız oldu; yeniden denemek için r.",
+  "ui.relocation.footer": "y bu geçmişi burada kullanır • n/Esc ayrı tutar • Ctrl-C çıkar",
+  "ui.relocation.title": "Taşınan dosyanın geçmişi",
   "vault.audit.empty": "Dizinlenmiş kimlik bilgisi yok. Dizin, Cuotai'nin bu sürümden itibaren sakladıklarını kaydeder.",
   "vault.audit.orphans": "{count} sahipsiz: cuotai --vault-prune bunları siler.",
   "vault.audit.title": "CUOTAI • Cuotai'nin kasada tuttuğu kimlik bilgileri",

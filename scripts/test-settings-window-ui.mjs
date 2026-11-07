@@ -231,10 +231,11 @@ for (const { code } of i18n.LOCALES) {
     total += words;
   }
   // Budget 450 -> 490 (audit #16: helper lines show as text; the setup row moved to About): the Startup group of mockup 50-settings-general (audit #37) adds one heading and one row.
+  // 490 -> 505: PRD 0051 RF5.2 adds the Data folder row to Advanced › Files (label, source and two buttons).
   // PRD 0035 RF9.1: Hindi and Indonesian run longer than English in words (separate particles and
   // postpositions) but short per word, so their page-text budget counts 10 % more words.
   const wordy = { "hi-IN": 1.1, "id-ID": 1.1 }[code] ?? 1;
-  assert.ok(total <= Math.round(490 * wordy) * (SYLLABLE_FACTOR[code] ?? 1), `${code}: ${total} words shown across the pages`);
+  assert.ok(total <= Math.round(505 * wordy) * (SYLLABLE_FACTOR[code] ?? 1), `${code}: ${total} words shown across the pages`);
   // PRD 0032 RF2.3/RF7.1: the quiet-hours row (with its search keywords) and its weekday editor, and the private
   // switch, render translated: seven weekday rows, labelled time fields, "Same every day", up to three intervals.
   const alertsPage = rendered.get("alerts");

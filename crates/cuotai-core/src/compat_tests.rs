@@ -470,3 +470,29 @@ fn generate_compat_fixtures() {
         .unwrap();
     }
 }
+
+/// PRD 0051 RF5.1: two TOMLs with the same account names never share
+/// reset marks, alert marks, bells or mutes: every one of them is keyed by
+/// the account id, which an account without an `id` line derives from the
+/// file's identity (and a saved one draws at random).
+#[test]
+fn two_files_with_the_same_account_names_keep_their_state_apart() {
+    let text = "[[accounts]]\nname = \"Work\"\nprovider = \"groq\"\ncredential_env = \"K\"\n";
+    let keys: Vec<String> = ["/a/cuotai.toml", "/b/cuotai.toml"]
+        .iter()
+        .map(|path| {
+            let mut config = crate::Config::from_toml(text).unwrap();
+            config.resolve_ids(Some(&crate::config_file::ConfigIdentity::File(
+                PathBuf::from(path),
+            )));
+            config.accounts[0].state_key()
+        })
+        .collect();
+    assert_ne!(keys[0], keys[1]);
+    // The same file read twice keeps its key.
+    let mut again = crate::Config::from_toml(text).unwrap();
+    again.resolve_ids(Some(&crate::config_file::ConfigIdentity::File(
+        PathBuf::from("/a/cuotai.toml"),
+    )));
+    assert_eq!(again.accounts[0].state_key(), keys[0]);
+}

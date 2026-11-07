@@ -395,6 +395,8 @@
   "ui.no_history": "Lịch sử cục bộ không khả dụng; không có nó thì không có thống kê.",
   "ui.refresh_account_failed": "Truy vấn không thành công; nhấn R để thử lại.",
   "ui.refresh_task_failed": "Tác vụ truy vấn không thành công; nhấn r để thử lại.",
+  "ui.relocation.footer": "y dùng lịch sử đó ở đây • n/Esc giữ riêng • Ctrl-C thoát",
+  "ui.relocation.title": "Lịch sử của tệp đã di chuyển",
   "vault.audit.empty": "Chưa có thông tin xác thực nào được lập chỉ mục. Chỉ mục ghi lại những gì Cuotai lưu từ phiên bản này trở đi.",
   "vault.audit.orphans": "{count} mục mồ côi: cuotai --vault-prune sẽ xóa chúng.",
   "vault.audit.title": "CUOTAI • thông tin xác thực Cuotai giữ trong kho",

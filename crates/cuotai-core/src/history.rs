@@ -27,6 +27,8 @@ pub mod aliases;
 mod journal;
 mod limits;
 mod recorder;
+mod relocation;
+pub use relocation::{relocation_offer, Relocation};
 mod retention;
 mod trend;
 

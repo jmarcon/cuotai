@@ -100,3 +100,13 @@ for (const locale of ["pt-BR", "en-US", "es", "it"]) {
   assert.ok(catalog["config.other"] && catalog["common.dismiss"], `${locale}: missing banner strings`);
 }
 console.log("other-config banner smoke: ok");
+
+// PRD 0051 RF5.4: the moved-file banner shows the core's question with one action and a dismiss; none without an offer.
+const offer = { history_relocation: { id: "history.relocation.prompt", params: {}, fallback: "The configuration file moved: ~/old.toml no longer exists." } };
+assert.equal(lib.relocationBannerHtml({}), "", "no offer, no banner");
+const relocation = lib.relocationBannerHtml(offer);
+assert.match(relocation, /old\.toml/);
+assert.match(relocation, /data-relocation-adopt/);
+assert.match(relocation, /data-relocation-decline/);
+assert.match(relocation, /role="status"/);
+console.log("relocation banner smoke: ok");

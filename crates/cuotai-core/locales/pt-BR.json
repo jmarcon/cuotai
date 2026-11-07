@@ -430,6 +430,7 @@
   "credential_help.xiaomi_mimo": "Saldo/Token Plan: cole a sessão web de platform.xiaomimimo.com no assistente da conta (cofre do sistema) ou nomeie a variável em platform_session_env. O código nativo entrega chave de inferência, não cookie. A sessão da conta Xiaomi (session_env) é separada: quota semanal do MiMo Desktop.",
   "credential_help.zed": "ZED_ACCESS_TOKEN (cloud access token do fluxo de login nativo zed.dev). Informe também o user_id numérico — é enviado como `Authorization: <user_id> <token>`.",
   "data_dir.error.relative": "CUOTAI_DATA_DIR precisa ser um caminho absoluto; o Cuotai não guarda dados até ele ser corrigido ou removido.",
+  "data_dir.error.setting": "A pasta de dados escolhida em Ajustes deve ser um caminho absoluto para uma pasta sua que não seja um link; o Cuotai não guarda dados até que ela seja corrigida ou redefinida.",
   "data_dir.error.unusable": "CUOTAI_DATA_DIR precisa ser uma pasta sua que não seja um link; o Cuotai não guarda dados até ele ser corrigido ou removido.",
   "detect.consent.aws_profile": "O Cuotai vai ler só os nomes dos perfis em ~/.aws/config quando você escolher o perfil; nenhuma chave é lida.",
   "detect.consent.cursor_import": "O Cuotai vai ler uma vez o token de login do banco local do Cursor, para consultar seu uso. Ele fica guardado no cofre de credenciais do sistema.",
@@ -951,6 +952,8 @@
   "history.error.export": "Falha ao gravar a exportação do histórico.",
   "history.error.retention_bounds": "A retenção do histórico vai de {min} a {max} dias.",
   "history.error.storage": "Falha ao ler ou gravar o histórico local de medições.",
+  "history.relocation.adopted": "Histórico transferido; leituras: {count}.",
+  "history.relocation.prompt": "O arquivo de configuração foi movido: {path} não existe mais e o histórico dele (leituras: {count}; contas: {accounts}) tem exatamente as contas deste arquivo. Usar esse histórico aqui?",
   "history.warning.ceiling": "O histórico passou de {max} MiB: as {removed} medições mais antigas foram apagadas.",
   "history.warning.dropped": {
     "one": "{count} leitura não entrou no histórico: o disco demorou a responder.",

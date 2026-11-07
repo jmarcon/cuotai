@@ -395,6 +395,8 @@
   "ui.no_history": "El historial local no está disponible; sin él no hay estadísticas.",
   "ui.refresh_account_failed": "Falló la consulta; R para intentarlo de nuevo.",
   "ui.refresh_task_failed": "Falló la tarea de consulta; r para intentarlo de nuevo.",
+  "ui.relocation.footer": "y usa ese historial aquí • n/Esc lo mantiene aparte • Ctrl-C sale",
+  "ui.relocation.title": "Historial de un archivo movido",
   "vault.audit.empty": "Ninguna credencial indexada. El índice registra lo que Cuotai guarda a partir de esta versión.",
   "vault.audit.orphans": "{count} huérfana(s): cuotai --vault-prune las borra.",
   "vault.audit.title": "CUOTAI • credenciales que Cuotai guarda en el almacén",

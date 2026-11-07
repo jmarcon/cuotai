@@ -395,6 +395,8 @@
   "ui.no_history": "स्थानीय इतिहास उपलब्ध नहीं है; उसके बिना आँकड़े नहीं हैं।",
   "ui.refresh_account_failed": "जाँच विफल रही; फिर कोशिश के लिए R।",
   "ui.refresh_task_failed": "जाँच का कार्य विफल रहा; फिर कोशिश के लिए r।",
+  "ui.relocation.footer": "y वह इतिहास यहाँ उपयोग करता है • n/Esc उसे अलग रखता है • Ctrl-C बाहर निकलता है",
+  "ui.relocation.title": "स्थानांतरित फ़ाइल का इतिहास",
   "vault.audit.empty": "कोई इंडेक्स किया क्रेडेंशियल नहीं। इंडेक्स में वही दर्ज होता है जो Cuotai इस संस्करण से सहेजता है।",
   "vault.audit.orphans": "{count} अनाथ: cuotai --vault-prune उन्हें मिटाता है।",
   "vault.audit.title": "CUOTAI • वे क्रेडेंशियल जो Cuotai वॉल्ट में रखता है",

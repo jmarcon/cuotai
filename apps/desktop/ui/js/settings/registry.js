@@ -20,7 +20,7 @@ export const PAGES = [
   { id: "integrations", group: ADVANCED, icon: "plug", label: "settings.page.integrations", load: () => import("./integrations.js"), sections: ["serve", "hooks", "widgets"] },
   { id: "cost", group: ADVANCED, icon: "coins", label: "settings.page.cost", load: () => import("./cost.js"), sections: ["cost"] },
   { id: "extensions", group: ADVANCED, icon: "puzzle", label: "settings.page.extensions", load: () => import("./extensions.js"), sections: ["extensions"] },
-  { id: "files", group: ADVANCED, icon: "folder", label: "settings.page.files", load: () => import("./files.js"), sections: ["config", "folder", "credentials", "doctor"] },
+  { id: "files", group: ADVANCED, icon: "folder", label: "settings.page.files", load: () => import("./files.js"), sections: ["config", "folder", "datadir", "credentials", "doctor"] },
   { id: "about", bottom: true, icon: "info", label: "settings.page.about", load: () => import("./about.js"), sections: ["about", "updates"] },
 ];
 
@@ -116,6 +116,8 @@ export const CONTROLS = [
   { section: "folder", page: "files", selector: "data-pick" },
   { section: "folder", page: "files", selector: "data-reset" },
   { section: "folder", page: "files", selector: "data-open-dir" },
+  { section: "datadir", page: "files", selector: "data-pick-data-dir" },
+  { section: "datadir", page: "files", selector: "data-reset-data-dir" },
   { section: "credentials", page: "files", selector: "data-vault" },
   { section: "doctor", page: "files", selector: "data-doctor-run" },
   { section: "about", page: "about", selector: "data-libraries" },

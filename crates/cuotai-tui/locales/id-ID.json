@@ -395,6 +395,8 @@
   "ui.no_history": "Riwayat lokal tidak tersedia; tanpa itu tidak ada statistik.",
   "ui.refresh_account_failed": "Kueri gagal; tekan R untuk mencoba lagi.",
   "ui.refresh_task_failed": "Tugas kueri gagal; tekan r untuk mencoba lagi.",
+  "ui.relocation.footer": "y memakai riwayat itu di sini • n/Esc menyimpannya terpisah • Ctrl-C keluar",
+  "ui.relocation.title": "Riwayat berkas yang dipindahkan",
   "vault.audit.empty": "Tidak ada kredensial terindeks. Indeks mencatat apa yang disimpan Cuotai mulai dari versi ini.",
   "vault.audit.orphans": "{count} yatim: cuotai --vault-prune menghapusnya.",
   "vault.audit.title": "CUOTAI • kredensial yang disimpan Cuotai di brankas",

@@ -433,6 +433,7 @@
   "credential_help.xiaomi_mimo": "Solde/Token Plan : collez la session web de platform.xiaomimimo.com dans l’assistant du compte (coffre du système) ou indiquez la variable dans platform_session_env. Le code natif fournit une clé d’inférence, pas un cookie. La session du compte Xiaomi (session_env) est distincte : quota hebdomadaire de MiMo Desktop.",
   "credential_help.zed": "ZED_ACCESS_TOKEN (token d’accès cloud du flux de connexion native de zed.dev). Indiquez aussi le user_id numérique — il est envoyé comme `Authorization: <user_id> <token>`.",
   "data_dir.error.relative": "CUOTAI_DATA_DIR doit être un chemin absolu ; Cuotai ne conserve aucune donnée tant qu'il n'est pas corrigé ou supprimé.",
+  "data_dir.error.setting": "Le dossier de données choisi dans Réglages doit être un chemin absolu vers un dossier à vous qui n’est pas un lien ; Cuotai ne garde aucune donnée tant qu’il n’est pas corrigé ou réinitialisé.",
   "data_dir.error.unusable": "CUOTAI_DATA_DIR doit être un dossier qui vous appartient et qui n'est pas un lien ; Cuotai ne conserve aucune donnée tant qu'il n'est pas corrigé ou supprimé.",
   "detect.consent.aws_profile": "Cuotai lira uniquement les noms des profils de ~/.aws/config quand vous choisirez le profil ; aucune clé n’est lue.",
   "detect.consent.cursor_import": "Cuotai lira une fois le token de connexion dans la base de données locale de Cursor pour interroger votre utilisation. Il est enregistré dans le coffre du système.",
@@ -954,6 +955,8 @@
   "history.error.export": "Impossible d’écrire l’export de l’historique.",
   "history.error.retention_bounds": "La conservation de l’historique va de {min} à {max} jours.",
   "history.error.storage": "Impossible de lire ou d’écrire l’historique local des mesures.",
+  "history.relocation.adopted": "Historique repris ; relevés : {count}.",
+  "history.relocation.prompt": "Le fichier de configuration a été déplacé : {path} n’existe plus et son historique (relevés : {count} ; comptes : {accounts}) a exactement les comptes de ce fichier. Utiliser cet historique ici ?",
   "history.warning.ceiling": "L’historique a dépassé {max} Mio : ses {removed} mesures les plus anciennes ont été supprimées.",
   "history.warning.dropped": {
     "one": "{count} relevé n’est pas entré dans l’historique : le disque a tardé à répondre.",

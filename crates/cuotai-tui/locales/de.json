@@ -395,6 +395,8 @@
   "ui.no_history": "Der lokale Verlauf ist nicht verfügbar; ohne ihn gibt es keine Statistik.",
   "ui.refresh_account_failed": "Abfrage fehlgeschlagen; R versucht es erneut.",
   "ui.refresh_task_failed": "Abfrageaufgabe fehlgeschlagen; r versucht es erneut.",
+  "ui.relocation.footer": "y verwendet diesen Verlauf hier • n/Esc hält ihn getrennt • Strg-C beendet",
+  "ui.relocation.title": "Verlauf einer verschobenen Datei",
   "vault.audit.empty": "Keine Zugangsdaten indiziert. Der Index erfasst, was Cuotai ab dieser Version speichert.",
   "vault.audit.orphans": "{count} verwaist: cuotai --vault-prune löscht sie.",
   "vault.audit.title": "CUOTAI • von Cuotai im Tresor gespeicherte Zugangsdaten",

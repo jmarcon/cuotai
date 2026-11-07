@@ -431,6 +431,7 @@
   "credential_help.xiaomi_mimo": "Số dư/Token Plan: dán phiên web platform.xiaomimimo.com vào trình hướng dẫn tài khoản (kho của hệ thống) hoặc nêu biến trong platform_session_env. Mã gốc cấp khóa suy luận, không phải cookie. Phiên tài khoản Xiaomi (session_env) là riêng: hạn mức tuần của MiMo Desktop.",
   "credential_help.zed": "ZED_ACCESS_TOKEN (token truy cập đám mây từ luồng đăng nhập gốc của zed.dev). Cũng hãy nhập user_id dạng số — nó được gửi dưới dạng `Authorization: <user_id> <token>`.",
   "data_dir.error.relative": "CUOTAI_DATA_DIR phải là đường dẫn tuyệt đối; Cuotai không lưu dữ liệu cho đến khi nó được sửa hoặc bỏ đi.",
+  "data_dir.error.setting": "Thư mục dữ liệu chọn trong Cài đặt phải là đường dẫn tuyệt đối đến một thư mục của bạn và không phải liên kết; Cuotai không lưu dữ liệu cho đến khi sửa hoặc đặt lại.",
   "data_dir.error.unusable": "CUOTAI_DATA_DIR phải là thư mục của chính bạn và không phải liên kết; Cuotai không lưu dữ liệu cho đến khi nó được sửa hoặc bỏ đi.",
   "detect.consent.aws_profile": "Cuotai chỉ đọc tên các hồ sơ trong ~/.aws/config khi bạn chọn hồ sơ; không đọc khóa nào.",
   "detect.consent.cursor_import": "Cuotai sẽ đọc token đăng nhập từ cơ sở dữ liệu cục bộ của Cursor một lần, để truy vấn mức sử dụng của bạn. Token được lưu trong kho thông tin xác thực của hệ thống.",
@@ -948,6 +949,8 @@
   "history.error.export": "Không ghi được bản xuất lịch sử.",
   "history.error.retention_bounds": "Thời gian lưu lịch sử nằm trong khoảng từ {min} đến {max} ngày.",
   "history.error.storage": "Không đọc hoặc ghi được lịch sử số đo cục bộ.",
+  "history.relocation.adopted": "Đã chuyển lịch sử; số lần đọc: {count}.",
+  "history.relocation.prompt": "Tệp cấu hình đã được di chuyển: {path} không còn tồn tại và lịch sử của nó (số lần đọc: {count}; tài khoản: {accounts}) có đúng các tài khoản của tệp này. Dùng lịch sử đó ở đây?",
   "history.warning.ceiling": "Lịch sử vượt quá {max} MiB: {removed} số đo cũ nhất đã bị xóa.",
   "history.warning.dropped": {
     "other": "{count} lần đọc không vào được lịch sử: đĩa phản hồi chậm."
