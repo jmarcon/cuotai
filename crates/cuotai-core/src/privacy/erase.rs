@@ -359,8 +359,12 @@ mod tests {
         let left = files_left(dir.path());
         let accounts = options.roots.accounts.clone().unwrap();
         let hooks = accounts.with_file_name("hooks.toml");
-        assert_eq!(left.len(), 2, "{left:?}");
+        // The kept files keep their own copies (`.bak`) too.
+        assert_eq!(left.len(), 4, "{left:?}");
         assert!(left.contains(&accounts) && left.contains(&hooks));
+        assert!(left
+            .iter()
+            .all(|path| path.starts_with(accounts.parent().unwrap())));
         assert!(
             !dir.path().join("local").join("cuotai").exists(),
             "emptied directories go"
@@ -369,6 +373,39 @@ mod tests {
         let again = erase_all(&options, &vault).unwrap();
         assert!(again.complete());
         assert_eq!(again.count(Outcome::Removed), 0);
+    }
+
+    /// PRD 0051 RF3.3 / PRD 0003 COMP-02: the backups and set-aside copies
+    /// Cuotai keeps of a file go with it.
+    #[test]
+    fn backups_and_set_aside_copies_are_erased_with_their_file() {
+        let (dir, options) = tree();
+        let at = |file: &str| {
+            artifacts()
+                .iter()
+                .find(|artifact| artifact.path.ends_with(file))
+                .and_then(|artifact| options.roots.path_of(artifact))
+                .unwrap()
+        };
+        let sibling = |path: PathBuf, suffix: &str| {
+            let mut name = path.into_os_string();
+            name.push(suffix);
+            PathBuf::from(name)
+        };
+        let extra = [
+            sibling(at("notified.json"), ".corrupt-20261107T120000Z"),
+            sibling(at("notified.json"), ".corrupt-20261107T120000Z-1"),
+            sibling(at("history.sqlite3"), ".bak"),
+        ];
+        for path in &extra {
+            std::fs::write(path, b"x").unwrap();
+        }
+        let desktop = sibling(at("desktop.json"), ".bak.3");
+        std::fs::write(&desktop, b"x").unwrap();
+        erase_all(&options, &vault()).unwrap();
+        for path in extra.iter().chain([&desktop]) {
+            assert!(!path.exists(), "{} left", path.display());
+        }
     }
 
     #[test]

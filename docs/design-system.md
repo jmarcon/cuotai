@@ -571,7 +571,7 @@ Locales without a region (fr, de, ja, ko, ru, tr, vi) resolve through `flagCount
 ### 4.23 Messages: banners, toasts and inline feedback (`MSG`)
 
 - **DS-CMP-MSG-1** Prefer inline feedback next to the control that caused it (field error under the field, row error in the row).
-- **DS-CMP-MSG-2 Banner** (`.banner`): window-level and persistent conditions (backend error, server port taken, hooks unconfirmed, other config file). Full width, `--radius-md`, callout fill of its tone, icon + text + at most one link action + dismiss when dismissable; `role="status"` (or `role="alert"` for failures that block the app).
+- **DS-CMP-MSG-2 Banner** (`.banner`): window-level and persistent conditions (backend error, server port taken, hooks unconfirmed, other config file, the history of a moved config file with its one "Use this history" action). Full width, `--radius-md`, callout fill of its tone, icon + text + at most one link action + dismiss when dismissable; `role="status"` (or `role="alert"` for failures that block the app).
 - **DS-CMP-MSG-3 Toast**: only to confirm a completed action ("Saved", "Account removed"); bottom corner, `role="status"`, auto-dismiss after 4–6 s, pausing on hover/focus. Errors and anything needing a decision MUST NOT be toasts.
 - **DS-CMP-MSG-4** At most one toast at a time; a new one replaces the old.
 

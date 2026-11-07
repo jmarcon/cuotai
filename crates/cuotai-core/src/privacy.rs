@@ -489,6 +489,27 @@ pub fn companions(artifact: &Artifact, path: &Path) -> Vec<PathBuf> {
     if artifact.schema == Schema::SqliteUserVersion {
         out.extend(["-wal", "-shm", "-journal"].map(with));
     }
+    // PRD 0051 RF3.3/RF4.2 and PRD 0003 COMP-02: the copies Cuotai keeps of
+    // the file (`<file>.bak`, the numbered `desktop.json.bak.N`, the
+    // `notified.json.corrupt-<time>` set-asides) hold the same data.
+    out.push(with(".bak"));
+    if let (Some(dir), Some(name)) = (path.parent(), path.file_name()) {
+        let name = name.to_string_lossy();
+        let (bak, corrupt) = (format!("{name}.bak."), format!("{name}.corrupt"));
+        if let Ok(entries) = std::fs::read_dir(dir) {
+            let mut copies: Vec<PathBuf> = entries
+                .filter_map(Result::ok)
+                .filter(|entry| {
+                    let entry = entry.file_name();
+                    let entry = entry.to_string_lossy();
+                    entry.starts_with(&bak) || entry.starts_with(&corrupt)
+                })
+                .map(|entry| entry.path())
+                .collect();
+            copies.sort();
+            out.extend(copies);
+        }
+    }
     out
 }
 
