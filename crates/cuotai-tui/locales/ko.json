@@ -45,7 +45,6 @@
   "cli.erase_needs_yes": "확인할 터미널이 없어 아무것도 지우지 않았습니다. 확인하려면 --yes를 붙여 다시 실행하세요.",
   "cli.erase_plan_header": "Cuotai가 지울 항목:",
   "cli.erase_prompt": "확인하려면 {word}을(를) 입력하세요: ",
-  "cli.erase_word": "삭제",
   "cli.history_erase_account": "{name}의 기록이 지워집니다.",
   "cli.history_erase_all": "이 기기의 모든 계정 기록이 지워집니다.",
   "cli.history_erased": "기록 샘플 {count}개를 지웠습니다.",

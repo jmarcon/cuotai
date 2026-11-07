@@ -42,7 +42,6 @@
   "cli.erase_needs_yes": "Nessun terminale per confermare: non è stato cancellato nulla. Esegui di nuovo con --yes per confermare.",
   "cli.erase_plan_header": "Cuotai cancellerà:",
   "cli.erase_prompt": "Digita {word} per confermare: ",
-  "cli.erase_word": "CANCELLA",
   "cli.history_erase_account": "Verrà cancellata la cronologia di {name}.",
   "cli.history_erase_all": "Verrà cancellata la cronologia di tutti gli account su questo dispositivo.",
   "cli.history_erased": "{count} campioni di cronologia cancellati.",

@@ -45,7 +45,6 @@
   "cli.erase_needs_yes": "Aucun terminal pour confirmer : rien n’a été effacé. Relancez avec --yes pour confirmer.",
   "cli.erase_plan_header": "Cuotai va effacer :",
   "cli.erase_prompt": "Tapez {word} pour confirmer : ",
-  "cli.erase_word": "EFFACER",
   "cli.history_erase_account": "L’historique de {name} sera effacé.",
   "cli.history_erase_all": "L’historique de tous les comptes de cet appareil sera effacé.",
   "cli.history_erased": "{count} échantillons d’historique effacés.",

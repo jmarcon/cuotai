@@ -369,6 +369,9 @@ jobs:
       - run: node scripts/test-profile-prefs-ui.mjs
       - run: node scripts/test-pseudo-core-ui.mjs
       - run: node scripts/test-demo-fixture-ui.mjs
+      # PRD 0052 RF5.3/RF7.2: the erase-all inventory, its off-by-default
+      # accounts-file box and exact word, and the clock-skew banner.
+      - run: node scripts/test-erase-all-ui.mjs
       # PRD 0022 RF1.9/RF15.5: literal colors, durations and keyframes in the
       # UI, the theme contract, and strict contrast against the baseline.
       - if: runner.os == 'Linux'

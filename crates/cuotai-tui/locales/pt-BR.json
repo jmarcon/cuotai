@@ -42,7 +42,6 @@
   "cli.erase_needs_yes": "Sem terminal para confirmar: nada foi apagado. Execute de novo com --yes para confirmar.",
   "cli.erase_plan_header": "O Cuotai vai apagar:",
   "cli.erase_prompt": "Digite {word} para confirmar: ",
-  "cli.erase_word": "APAGAR",
   "cli.history_erase_account": "O histórico de {name} será apagado.",
   "cli.history_erase_all": "O histórico de todas as contas deste dispositivo será apagado.",
   "cli.history_erased": "{count} amostras do histórico apagadas.",

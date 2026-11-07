@@ -45,7 +45,6 @@
   "cli.erase_needs_yes": "Нет терминала для подтверждения: ничего не удалено. Запустите снова с --yes для подтверждения.",
   "cli.erase_plan_header": "Cuotai удалит:",
   "cli.erase_prompt": "Введите {word} для подтверждения: ",
-  "cli.erase_word": "УДАЛИТЬ",
   "cli.history_erase_account": "История {name} будет удалена.",
   "cli.history_erase_all": "История всех учётных записей на этом устройстве будет удалена.",
   "cli.history_erased": "Удалено записей истории: {count}.",

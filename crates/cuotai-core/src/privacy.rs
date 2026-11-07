@@ -867,8 +867,10 @@ fn purpose_id(purpose: Purpose) -> String {
 
 fn erase_text(artifact: &Artifact) -> &'static str {
     match (artifact.erase, artifact.kind) {
-        (Erase::WithConfig, _) => "`--erase-all-data --include-config`",
-        (Erase::Always, _) => "`--erase-all-data`",
+        (Erase::WithConfig, _) => {
+            "`--erase-all-data --include-config`; desktop: **Erase all Cuotai data** with the accounts-file box"
+        }
+        (Erase::Always, _) => "`--erase-all-data`; desktop: **Erase all Cuotai data**",
     }
 }
 

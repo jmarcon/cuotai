@@ -63,6 +63,63 @@ fn selected(artifact: &Artifact, options: &EraseOptions) -> bool {
     artifact.erase == Erase::Always || options.include_config
 }
 
+/// The word a person types to confirm erasing everything (the CLI prompt
+/// and the desktop dialog), compared exactly after trimming.
+pub fn confirmation_word() -> Localized {
+    Localized::fixed("privacy.erase.word", "ERASE")
+}
+
+/// Whether `typed` is exactly the confirmation word of `locale` (spaces
+/// around it ignored).
+pub fn word_matches(typed: &str, locale: &str) -> bool {
+    typed.trim() == confirmation_word().resolve(locale)
+}
+
+/// The typed word was not the confirmation word: nothing was erased.
+pub fn word_mismatch() -> Localized {
+    Localized::fixed(
+        "privacy.erase.word_mismatch",
+        "The confirmation word does not match; nothing was erased.",
+    )
+}
+
+/// The native confirmation was cancelled or could not be shown.
+pub fn declined() -> Localized {
+    Localized::fixed(
+        "privacy.erase.declined",
+        "Not confirmed in the system dialog; nothing was erased.",
+    )
+}
+
+/// The title of the desktop's native confirmation.
+pub fn confirm_title() -> Localized {
+    Localized::fixed("privacy.erase.confirm.title", "Erase all Cuotai data?")
+}
+
+/// The body of the desktop's native confirmation, from `plan`'s counts.
+pub fn confirm_body(plan: &[PlanItem]) -> Localized {
+    let erased = plan.iter().filter(|item| item.erase).count();
+    let kept = plan.len() - erased;
+    Localized::with_params(
+        "privacy.erase.confirm.body",
+        crate::text::params([("erased", erased.into()), ("kept", kept.into())]),
+        "Cuotai will stop its background work and erase {erased} items: history, settings, logs, local cost data and the sign-ins it saved in the system credential vault. {kept} items are kept. This cannot be undone.",
+    )
+}
+
+/// The accepting button of the desktop's native confirmation.
+pub fn confirm_accept() -> Localized {
+    Localized::fixed("privacy.erase.confirm.accept", "Erase everything")
+}
+
+/// The desktop's closing message after a complete erase.
+pub fn done() -> Localized {
+    Localized::fixed(
+        "privacy.erase.done",
+        "All Cuotai data was erased. Cuotai will now quit.",
+    )
+}
+
 /// A vault operation failed (the class only: no backend text).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VaultFailure;
@@ -258,6 +315,22 @@ mod tests {
     use super::*;
     use std::cell::RefCell;
     use std::collections::BTreeMap;
+
+    #[test]
+    fn the_confirmation_word_is_exact_and_localized() {
+        assert!(word_matches("ERASE", "en-US"));
+        assert!(word_matches("  ERASE\n", "en-US"));
+        assert!(!word_matches("erase", "en-US"));
+        assert!(!word_matches("", "en-US"));
+        assert!(word_matches("APAGAR", "pt-BR"));
+        assert!(!word_matches("ERASE", "pt-BR"));
+        let plan = plan(&EraseOptions {
+            roots: Roots::default(),
+            include_config: false,
+        });
+        let body = confirm_body(&plan).resolve("en-US");
+        assert!(body.contains(&plan.iter().filter(|i| i.erase).count().to_string()));
+    }
 
     /// A vault with entries per service, that can be made to fail.
     #[derive(Default)]

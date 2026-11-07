@@ -19,10 +19,10 @@ use crate::l10n::{tr, trf};
 
 type Res = Result<u8, Box<dyn std::error::Error>>;
 
-/// The confirmation word, localized; compared exactly (the CLI and the
-/// TUI history erase share it).
-pub(crate) fn word() -> &'static str {
-    tr("cli.erase_word", "ERASE")
+/// The core's confirmation word (shared with the desktop and the TUI
+/// history erase), localized; compared exactly.
+pub(crate) fn word() -> String {
+    erase::confirmation_word().resolve(crate::ui::tui_locale())
 }
 
 /// Ask for the exact word on a terminal; without one, refuse unless `yes`.
@@ -51,7 +51,7 @@ fn confirmed(yes: bool, input: &mut dyn BufRead, interactive: bool) -> Result<bo
     input
         .read_line(&mut typed)
         .map_err(|_| tr("cli.erase_cancelled", "Nothing was erased.").to_string())?;
-    Ok(typed.trim() == word())
+    Ok(typed.trim() == word().as_str())
 }
 
 fn terminal() -> bool {

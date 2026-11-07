@@ -45,7 +45,6 @@
   "cli.erase_needs_yes": "Không có terminal để xác nhận: chưa xóa gì. Chạy lại với --yes để xác nhận.",
   "cli.erase_plan_header": "Cuotai sẽ xóa:",
   "cli.erase_prompt": "Nhập {word} để xác nhận: ",
-  "cli.erase_word": "XÓA",
   "cli.history_erase_account": "Lịch sử của {name} sẽ bị xóa.",
   "cli.history_erase_all": "Lịch sử của mọi tài khoản trên thiết bị này sẽ bị xóa.",
   "cli.history_erased": "Đã xóa {count} mẫu lịch sử.",

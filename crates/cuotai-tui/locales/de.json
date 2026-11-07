@@ -45,7 +45,6 @@
   "cli.erase_needs_yes": "Kein Terminal zur Bestätigung: Nichts wurde gelöscht. Führen Sie den Befehl mit --yes erneut aus.",
   "cli.erase_plan_header": "Cuotai löscht:",
   "cli.erase_prompt": "Geben Sie {word} zur Bestätigung ein: ",
-  "cli.erase_word": "LÖSCHEN",
   "cli.history_erase_account": "Der Verlauf von {name} wird gelöscht.",
   "cli.history_erase_all": "Der Verlauf aller Konten auf diesem Gerät wird gelöscht.",
   "cli.history_erased": "{count} Verlaufsmesswerte gelöscht.",
