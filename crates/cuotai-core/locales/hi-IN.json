@@ -1899,6 +1899,7 @@
   "tray.item.unknown": "{name} का डेटा नहीं",
   "tray.join": "{first}; {rest}",
   "tray.outage": "{item}; प्रदाता में घटना",
+  "tray.strip": "{item}; पिछले 24 घंटे घंटेवार बार में",
   "tray.tooltip": "Cuotai — {label}",
   "update.notice": "Cuotai {version} उपलब्ध है: {command}",
   "update.notice_download": "Cuotai {version} उपलब्ध है: {url}",

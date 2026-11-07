@@ -12,14 +12,17 @@
 //! figure (two digits, "!" for an alert) is drawn into the icon and the
 //! summary lives in the tooltip (RF3.3). The colored variant (RF3.6) uses a
 //! non-template image whose meters take the level colors. Changes reach the
-//! menu bar at most once per second (RF3.5). Per-platform behavior:
-//! `docs/platforms.md`.
+//! menu bar at most once per second (RF3.5). PRD 0043 RF4.2: on macOS the
+//! **24-hour strip** style draws the tightest account's last 24 hours as
+//! hourly bars ([`set_strip`] receives them from the backend, at most once
+//! a minute); elsewhere that style falls back to the icon and the tooltip.
+//! Per-platform behavior: `docs/platforms.md`.
 
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use cuotai_core::tray::{
-    self, AccountView, Badge, Level, TrayItem, TraySelection, TrayStyle, TraySummary,
+    self, AccountView, Badge, Level, StripBar, TrayItem, TraySelection, TrayStyle, TraySummary,
 };
 use tauri::{image::Image, AppHandle};
 
@@ -36,6 +39,10 @@ struct State {
     /// RF3.5: when the menu bar last changed, and whether a delayed redraw waits.
     last_at: Option<Instant>,
     pending: bool,
+    /// PRD 0043 RF4.2: the hourly bars of the strip style and when they
+    /// were last computed.
+    strip: Vec<StripBar>,
+    strip_at: Option<Instant>,
 }
 
 #[derive(PartialEq, Clone)]
@@ -52,7 +59,31 @@ static STATE: Mutex<State> = Mutex::new(State {
     applied: None,
     last_at: None,
     pending: false,
+    strip: Vec::new(),
+    strip_at: None,
 });
+
+/// PRD 0043 RF4.2: the strip is computed again at most this often.
+const STRIP_EVERY: Duration = Duration::from_secs(60);
+
+/// Whether the strip's bars are due for a new computation.
+pub fn strip_due() -> bool {
+    lock().strip_at.is_none_or(|at| at.elapsed() >= STRIP_EVERY)
+}
+
+/// PRD 0043 RF4.2: new hourly bars of the strip style (empty: no history
+/// or no account); redraws when they changed.
+pub fn set_strip(app: &AppHandle, bars: Vec<StripBar>) {
+    {
+        let mut state = lock();
+        state.strip_at = Some(Instant::now());
+        if state.strip == bars {
+            return;
+        }
+        state.strip = bars;
+    }
+    redraw(app, &settings::tray_prefs());
+}
 
 /// RF3.5: the menu-bar item changes at most once per second.
 const MIN_GAP: Duration = Duration::from_secs(1);
@@ -132,6 +163,7 @@ pub fn redraw(app: &AppHandle, prefs: &TrayPrefs) {
         &locale,
         &state.menu_tooltip,
         Platform::current(),
+        &state.strip,
     );
     if state.applied.as_ref() == Some(&next) {
         return;
@@ -190,20 +222,25 @@ struct Platform {
     template: bool,
     /// A text title beside the icon (macOS, Linux AppIndicator labels).
     title: bool,
+    /// PRD 0043 RF4.2: a wide image for the 24-hour strip (macOS menu bar).
+    strip: bool,
 }
 
 impl Platform {
     const MACOS: Self = Self {
         template: true,
         title: true,
+        strip: true,
     };
     const LINUX: Self = Self {
         template: false,
         title: true,
+        strip: false,
     };
     const WINDOWS: Self = Self {
         template: false,
         title: false,
+        strip: false,
     };
 
     fn current() -> Self {
@@ -239,16 +276,21 @@ fn render(
     locale: &str,
     menu_tooltip: &str,
     platform: Platform,
+    strip: &[StripBar],
 ) -> Applied {
     // The template image only exists on macOS; elsewhere the colored logo stays.
     let template = platform.template && !colored;
     let (mut rgba, w, h) = match summary.style {
         TrayStyle::Meters if !summary.items.is_empty() => meters(&summary.items, colored),
+        TrayStyle::HourlyStrip if platform.strip && !summary.items.is_empty() => {
+            let level = summary.items.first().and_then(|item| item.level);
+            strip_image(strip, colored.then_some(level).flatten())
+        }
         _ => logo(summary.badge, template),
     };
     // RF3.3/RF3.4: without a title, a text style draws its tightest figure into
-    // the icon; Meters falls back to the icon and the tooltip.
-    if !platform.title && summary.style != TrayStyle::Meters {
+    // the icon; Meters and the strip fall back to the icon and the tooltip.
+    if !platform.title && !matches!(summary.style, TrayStyle::Meters | TrayStyle::HourlyStrip) {
         if let Some(figure) = icon_figure(summary) {
             draw_figure(&mut rgba, w, h, &figure);
         }
@@ -440,6 +482,56 @@ pub(crate) fn cut_notch(rgba: &mut [u8], width: u32, height: u32, hollow: bool) 
     }
 }
 
+/// PRD 0043 RF4.2: the 24-hour strip, one column per hour (oldest left),
+/// each as tall as its consumption against the busiest hour; an hour with
+/// no use is a solid baseline, a gap (no reading) only a faint one, and a
+/// reset hour carries a dot at the top. Monochrome (a template image)
+/// unless `level` gives the colored variant. 36 px high like the meters.
+pub(crate) fn strip_image(bars: &[StripBar], level: Option<Level>) -> (Vec<u8>, u32, u32) {
+    const H: u32 = 36;
+    const BAR: u32 = 2;
+    const GAP: u32 = 1;
+    let n = bars.len().clamp(1, 24) as u32;
+    let w = n * (BAR + GAP) - GAP;
+    let rgb = level.map_or([0, 0, 0], |level| level_rgb(Some(level)));
+    let mut rgba = vec![0u8; (w * H * 4) as usize];
+    let busiest = bars
+        .iter()
+        .filter_map(|bar| bar.consumption)
+        .filter(|c| c.is_finite())
+        .fold(0.0_f64, f64::max);
+    // The column area: 2 px at the top for the reset dot, 1 px between.
+    let area = H - 4;
+    let mut put = |x: u32, y: u32, alpha: u8| {
+        let at = ((y * w + x) * 4) as usize;
+        rgba[at..at + 4].copy_from_slice(&[rgb[0], rgb[1], rgb[2], alpha]);
+    };
+    for (i, bar) in bars.iter().take(n as usize).enumerate() {
+        let x0 = i as u32 * (BAR + GAP);
+        let (height, alpha) = match bar.consumption.filter(|c| c.is_finite()) {
+            Some(c) if c > 0.0 && busiest > 0.0 => (
+                ((c / busiest) * f64::from(area)).round().max(2.0) as u32,
+                0xff,
+            ),
+            Some(_) => (1, 0xff),
+            None => (1, 0x55),
+        };
+        for y in H - height.min(area)..H {
+            for x in x0..x0 + BAR {
+                put(x, y, alpha);
+            }
+        }
+        if bar.reset {
+            for y in 0..2 {
+                for x in x0..x0 + BAR {
+                    put(x, y, 0xff);
+                }
+            }
+        }
+    }
+    (rgba, w, H)
+}
+
 /// RF3.2: up to four continuous bars, one per item, each the remaining share
 /// (a sliver below 1 %), an exhausted bar as an outline and an unknown one as
 /// its faint track only. Monochrome unless `colored`. 36 px high (18 pt at 2×).
@@ -599,7 +691,7 @@ mod tests {
         }];
         let s = summarize(&accounts, TrayStyle::TightestPercent, &TraySelection::Auto);
         let p = Platform::current();
-        let a = render(&s, false, "en-US", "oldest reading: 2 min ago", p);
+        let a = render(&s, false, "en-US", "oldest reading: 2 min ago", p, &[]);
         assert_eq!(a.template, cfg!(target_os = "macos"));
         if cfg!(target_os = "windows") {
             assert_eq!(a.title, None);
@@ -610,7 +702,7 @@ mod tests {
             a.tooltip,
             "Cuotai — Work 22% left\noldest reading: 2 min ago"
         );
-        let colored = render(&s, true, "en-US", "", p);
+        let colored = render(&s, true, "en-US", "", p, &[]);
         assert!(!colored.template);
         let m = render(
             &summarize(&accounts, TrayStyle::Meters, &TraySelection::Auto),
@@ -618,6 +710,7 @@ mod tests {
             "en-US",
             "",
             p,
+            &[],
         );
         assert_eq!(m.title, None);
         assert_eq!(image_size(&m.image), (44, 36));
@@ -644,26 +737,26 @@ mod tests {
             TrayStyle::TightestPercent,
             &TraySelection::Auto,
         );
-        let mac = render(&s, false, "en-US", "", Platform::MACOS);
+        let mac = render(&s, false, "en-US", "", Platform::MACOS, &[]);
         assert!(mac.template);
         assert_eq!(mac.title.as_deref(), Some("22% · Work"));
-        let linux = render(&s, false, "en-US", "", Platform::LINUX);
+        let linux = render(&s, false, "en-US", "", Platform::LINUX, &[]);
         assert!(!linux.template);
         assert_eq!(linux.title.as_deref(), Some("22% · Work"));
-        let win = render(&s, false, "en-US", "", Platform::WINDOWS);
+        let win = render(&s, false, "en-US", "", Platform::WINDOWS, &[]);
         assert_eq!(win.title, None);
         assert!(!win.template);
         assert_ne!(win.image, linux.image, "the figure is drawn into the icon");
         assert_eq!(win.tooltip, "Cuotai — Work 22% left");
         let meters = summarize(&work(Some(0.22)), TrayStyle::Meters, &TraySelection::Auto);
         assert_eq!(
-            render(&meters, false, "en-US", "", Platform::WINDOWS).image,
-            render(&meters, false, "en-US", "", Platform::LINUX).image,
+            render(&meters, false, "en-US", "", Platform::WINDOWS, &[]).image,
+            render(&meters, false, "en-US", "", Platform::LINUX, &[]).image,
             "Meters falls back to the icon and the tooltip"
         );
         // The colored variant is never a template, on any platform.
         for p in [Platform::MACOS, Platform::LINUX, Platform::WINDOWS] {
-            assert!(!render(&s, true, "en-US", "", p).template);
+            assert!(!render(&s, true, "en-US", "", p, &[]).template);
         }
     }
 
@@ -702,6 +795,60 @@ mod tests {
         assert_eq!(px(0, 0), vec![0, 0, 0, 0], "the top-left stays the mark");
         assert_eq!(px(w - 1, h - 1), vec![0x1e, 0x1e, 0x24, 0xff]);
         assert!(rgba.chunks(4).any(|p| p == [0xff, 0xff, 0xff, 0xff]));
+    }
+
+    fn bar(consumption: Option<f64>, reset: bool) -> StripBar {
+        StripBar { consumption, reset }
+    }
+
+    /// PRD 0043 RF4.2: one column per hour scaled to the busiest one, a
+    /// faint baseline for a gap, a solid one for an hour without use, a dot
+    /// for a reset; monochrome unless colored.
+    #[test]
+    fn the_strip_draws_hours_gaps_and_resets() {
+        let mut bars = vec![bar(None, false); 24];
+        bars[0] = bar(Some(4.0), false);
+        bars[1] = bar(Some(2.0), true);
+        bars[2] = bar(Some(0.0), false);
+        let (rgba, w, h) = strip_image(&bars, None);
+        assert_eq!((w, h), (71, 36));
+        let alpha = |x: u32, y: u32| rgba[((y * w + x) * 4 + 3) as usize];
+        let column = |x: u32| (0..h).filter(|y| alpha(x, *y) == 0xff).count();
+        assert_eq!(column(0), 32, "the busiest hour fills the column area");
+        assert_eq!(column(3), 16 + 2, "half as tall, plus the reset dot");
+        assert_eq!(alpha(3, 0), 0xff);
+        assert_eq!(column(6), 1, "an hour without use is a solid baseline");
+        assert_eq!(alpha(9, h - 1), 0x55, "a gap is only a faint baseline");
+        assert_eq!(column(9), 0);
+        assert!(rgba.chunks(4).all(|p| p[3] == 0 || p[..3] == [0, 0, 0]));
+        let (colored, _, _) = strip_image(&bars, Some(Level::Bad));
+        assert!(colored
+            .chunks(4)
+            .any(|p| p[3] == 0xff && p[..3] == level_rgb(Some(Level::Bad))));
+    }
+
+    /// PRD 0043 RF4.2: the strip is a macOS menu-bar style; Windows and
+    /// Linux keep the icon (and the tooltip names the account).
+    #[test]
+    fn the_strip_style_draws_on_macos_only() {
+        let s = summarize(
+            &work(Some(0.4)),
+            TrayStyle::HourlyStrip,
+            &TraySelection::Auto,
+        );
+        let bars = vec![bar(Some(1.0), false); 24];
+        let mac = render(&s, false, "en-US", "", Platform::MACOS, &bars);
+        assert_eq!(image_size(&mac.image), (71, 36));
+        assert!(mac.template);
+        assert_eq!(mac.title, None);
+        assert_eq!(
+            mac.tooltip,
+            "Cuotai — Work 40% left; the last 24 hours as hourly bars"
+        );
+        for p in [Platform::LINUX, Platform::WINDOWS] {
+            let other = render(&s, false, "en-US", "", p, &bars);
+            assert_eq!(image_size(&other.image), (44, 44), "{p:?}");
+        }
     }
 
     /// RF3.5: at most one change per second.
@@ -744,6 +891,6 @@ mod tests {
         );
         assert_eq!((w, h), (44, 44));
         let s = summarize(&work(Some(0.5)), TrayStyle::IconOnly, &TraySelection::Auto);
-        assert!(render(&s, false, "en-US", "", Platform::MACOS).template);
+        assert!(render(&s, false, "en-US", "", Platform::MACOS, &[]).template);
     }
 }

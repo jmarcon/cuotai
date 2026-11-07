@@ -364,6 +364,15 @@ impl LocalCost {
         })
     }
 
+    /// PRD 0041 RF6.1: the plan price saved for `account`, if any (also
+    /// under a legacy key). A settings file that cannot be read has none.
+    pub fn plan_of(&self, accounts: &[Account], account: &Account) -> Option<cost::PlanSetting> {
+        let stores = self.stores().ok()?;
+        let _ = stores.settings.migrate_plans(accounts);
+        let saved = stores.settings.load().ok()?;
+        saved.plans.get(&account.state_key()).cloned()
+    }
+
     /// PRD 0030 RF1.1: save (`price` given) or clear the plan of the
     /// account `id`; refused unless a configured account has that id.
     /// Error: `cost.error.invalid_plan` as JSON.

@@ -1896,6 +1896,7 @@
   "tray.join": "{first}; {rest}",
   "tray.empty": "Ninguna cuenta en la barra de menús",
   "tray.outage": "{item}; incidente del proveedor",
+  "tray.strip": "{item}; las últimas 24 horas en barras por hora",
   "tray.tooltip": "Cuotai — {label}",
   "journal.removed_account": "Cuenta eliminada",
   "edit_error.config_group": "El grupo de una cuenta y cada id de [[groups]] deben tener de 1 a 32 letras minúsculas, números, - o _, y los id de [[groups]] no pueden repetirse.",

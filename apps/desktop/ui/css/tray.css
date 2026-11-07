@@ -322,6 +322,16 @@ body {
   color: var(--fg-muted);
   font-size: var(--text-sm);
 }
+/* PRD 0043 RF4.2 (DS-CHT-12): the 24-hour strip under the account rows, a disclosure labelled by its summary. */
+.pop-strip {
+  margin: 0 var(--space-1) var(--space-2);
+}
+.pop-strip > summary {
+  cursor: pointer;
+}
+.pop-strip .rhythm {
+  margin: 0;
+}
 /* PRD 0036 RF8.3: the grouped aggregator row of "All" expands in place (DS-CMP-NAV-2); RF8.1/RF8.2: the 9router view. */
 .agg-row .row .chev {
   transition: transform var(--motion-fast) var(--ease-out);

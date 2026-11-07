@@ -66,6 +66,7 @@ function budgetHtml(row, i) {
       <label class="f"><span>${te("budget.editor.filter")}</span><input data-k="filter" maxlength="64" placeholder="${te("budget.editor.filterPlaceholder")}" value="${esc(row.filter)}" /></label>
       <label class="f"><span>${te("budget.editor.label")}</span><input data-k="label" maxlength="32" value="${esc(row.label)}" /></label>
     </div>
+    ${(row.hints ?? []).map((h) => `<p class="hint" data-budget-hint>${esc(tl(h))}</p>`).join("")}
     <p class="hint" data-sentence role="status" aria-live="polite"></p>
     <small class="field-err" role="alert" hidden></small>
     <button type="button" class="btn sm" data-remove-budget="${i}">${icon("x")}${te("budget.editor.remove")}</button>
@@ -85,14 +86,21 @@ function floorHtml(row, i) {
   </li>`;
 }
 
-/** Mounts the section in `host`. `budgetDraft` / `floorDraft` (RF5.3) add one prefilled row and open the section.
+/** Mounts the section in `host`. `budgetDraft` / `floorDraft` (RF5.3) add one prefilled row and open the section;
+ *  `budgetHint` (RF6) carries the core's "From your plan price…" and "Last 30 days…" lines shown under that row.
  *  `rows()` returns `{ budgets, floors }` once the person touched the section, else `null` (the account keeps its own). */
-export function mountBudgets(host, { provider, budgets = [], floors = [], budgetDraft = null, floorDraft = null }) {
+export function mountBudgets(host, { provider, budgets = [], floors = [], budgetDraft = null, budgetHint = null, floorDraft = null }) {
   let bRows = budgets.map(budgetRow);
   let fRows = floors.map(floorRow);
   let touched = false;
   let seq = 0;
-  if (budgetDraft && bRows.length < MAX_BUDGETS) { bRows.push(budgetRow(budgetDraft)); touched = true; }
+  if (budgetDraft && bRows.length < MAX_BUDGETS) {
+    const row = budgetRow(budgetDraft);
+    // RF6: a reference, never a saved amount; the row is written only by Save.
+    row.hints = [budgetHint?.from_plan, budgetHint?.reference].filter(Boolean);
+    bRows.push(row);
+    touched = true;
+  }
   if (floorDraft && fRows.length < MAX_FLOORS) { fRows.push(floorRow(floorDraft)); touched = true; }
   const el = document.createElement("details");
   el.className = "session-box budgets-box";

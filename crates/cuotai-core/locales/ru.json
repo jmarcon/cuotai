@@ -1923,6 +1923,7 @@
   "tray.item.unknown": "{name}: нет данных",
   "tray.join": "{first}; {rest}",
   "tray.outage": "{item}; инцидент у провайдера",
+  "tray.strip": "{item}; последние 24 часа по часам",
   "tray.tooltip": "Cuotai — {label}",
   "update.notice": "Доступен Cuotai {version}: {command}",
   "update.notice_download": "Доступен Cuotai {version}: {url}",

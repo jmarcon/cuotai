@@ -334,3 +334,63 @@ fn level_thresholds_are_70_and_30_and_match_the_desktop_ui() {
     );
     assert!(line.contains(&expected), "{line}");
 }
+
+/// PRD 0043 RF4.2: the hourly strip has no title, one item (the tightest
+/// account) and a label that says what the bars are.
+#[test]
+fn the_hourly_strip_shows_the_tightest_account_without_a_title() {
+    let accounts = [
+        acc("a", "Claude", "Work", Some(0.8)),
+        acc("b", "Codex", "Home", Some(0.2)),
+        acc("c", "Gemini", "Lab", None),
+    ];
+    let s = auto(&accounts, TrayStyle::HourlyStrip);
+    assert_eq!(s.title, None);
+    assert_eq!(s.items.len(), 1);
+    assert_eq!(s.items[0].key, "b");
+    assert_eq!(s.hidden, 2);
+    assert_eq!(
+        s.accessible_label.resolve("en-US"),
+        "Home 20% left; the last 24 hours as hourly bars"
+    );
+    assert_eq!(
+        strip_account(&accounts, &TraySelection::Auto).as_deref(),
+        Some("b")
+    );
+    let only_a = TraySelection::Custom(vec!["a".into()]);
+    assert_eq!(strip_account(&accounts, &only_a).as_deref(), Some("a"));
+    let empty = auto(&[], TrayStyle::HourlyStrip);
+    assert!(empty.items.is_empty());
+    assert_eq!(
+        empty.accessible_label.resolve("en-US"),
+        "No accounts in the menu bar"
+    );
+}
+
+#[test]
+fn strip_bars_keep_gaps_and_resets() {
+    use crate::insights::{Rhythm, RhythmBucket, RhythmRange};
+    let bucket = |consumption, reset| RhythmBucket {
+        start: now(),
+        hour: Some(0),
+        day: None,
+        consumption,
+        samples: usize::from(consumption.is_some()),
+        reset,
+        day_off: false,
+    };
+    let rhythm = Rhythm {
+        range: RhythmRange::Last24h,
+        buckets: vec![
+            bucket(Some(2.5), false),
+            bucket(None, false),
+            bucket(Some(0.0), true),
+        ],
+        metrics: Vec::new(),
+    };
+    let bars = strip_bars(&rhythm);
+    assert_eq!(bars.len(), 3);
+    assert_eq!(bars[0].consumption, Some(2.5));
+    assert_eq!(bars[1].consumption, None, "a gap stays a gap");
+    assert!(bars[2].reset);
+}

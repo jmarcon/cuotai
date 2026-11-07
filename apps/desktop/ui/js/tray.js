@@ -7,14 +7,14 @@ import { boot } from "./boot.js";
 import { te, t } from "./i18n.js";
 import { detailHtml, mountModels } from "./detail.js";
 import { syncTrayMenu, trayUpdateLine } from "./tray-menu.js";
-import { mountStats } from "./stats.js";
+import { mountStats, rhythmChartHtml } from "./stats.js";
 import { mountTimeline } from "./timeline.js";
 import { costLineHtml, sourceFor } from "./cost.js";
 import {
   accountLabel, bestChipHtml, liveChipHtml, costUsage, bindStatusLinks, bindThemeSwitch, bindSettingsShortcut, brand, createStore, disabledAccounts, esc, fmtAge, icon,
   initOrderSync, initTheme, initTrayView, level, nextNoticeText, noteText, onDisabledChange, onHiddenChange, onSettingsChanged, onTrayViewChange,
   openAggregatorDashboard, openMainWindow, openSettingsWindow, overageChipHtml, reportKey, setMetricAlert, sortReports, statusLabel, trayViewPref, wordmark,
-  errText, isDesktop,
+  errText, isDesktop, hourlyStrip,
 } from "./lib.js";
 import {
   accountMeterHtml, accountState, announceChanges, clearChange, figureHtml, figureOf, filterTabsHtml, fitStatusLines, inTabFilter, meterHtml, monograms,
@@ -56,6 +56,28 @@ const statsHost = () => (statsMount ??= mountStats({ tray: true, onOpenFull: ope
 // PRD 0025 RF2.3: the popover's timeline follows the menu-bar selection (every account in Auto). A lane opens its account.
 let timelineOnly = null;
 const timelineHost = () => (timelineMount ??= mountTimeline({ compact: true, only: () => timelineOnly, onSelect: (key) => { expanded = key; statsOpen = false; render(); } }));
+
+// PRD 0043 RF4.2: the 24-hour strip of the account the menu bar follows, under the account rows (collapsible, its
+// state remembered on this device). Read at most once a minute; nothing shows without history.
+const STRIP_OPEN_KEY = "cuotai.popStripOpen";
+let strip = null, stripAt = 0;
+let stripOpen = (() => { try { return localStorage.getItem(STRIP_OPEN_KEY) !== "0"; } catch { return true; } })();
+async function loadStrip() {
+  if (Date.now() - stripAt < 60_000) return;
+  stripAt = Date.now();
+  try { strip = await hourlyStrip(); } catch { strip = null; }
+  render();
+}
+function stripHtml() {
+  if (!strip?.rhythm?.buckets?.length) return "";
+  return `<details class="pop-strip" data-pop-strip ${stripOpen ? "open" : ""}><summary class="pop-sub">${te("tray.strip.title", { name: strip.name })}</summary>
+    ${rhythmChartHtml(strip.rhythm, "pop-strip", "day")}</details>`;
+}
+root.addEventListener("toggle", (e) => {
+  if (!e.target.matches?.("[data-pop-strip]")) return;
+  stripOpen = e.target.open;
+  try { localStorage.setItem(STRIP_OPEN_KEY, stripOpen ? "1" : "0"); } catch {}
+}, true);
 
 /** The menu-bar selection the shell sent with the state (`view.tray`), or after a change in Settings. */
 let traySel = null;
@@ -271,7 +293,8 @@ function render() {
   else if (showStats) body = `<div data-stats-slot></div>`;
   // PRD 0036 RF8.1: an aggregator's own tab shows its instance view (pools and connections), whatever "All" does.
   else if (filter.startsWith("agg:") && reports[0]) body = aggregatorViewHtml(reports[0], view);
-  else body = `${listOf(inBar)}${rest.length ? notInHtml() + listOf(rest) : ""}${reports.length ? `<div data-timeline-slot></div>` : ""}`;
+  else body = `${listOf(inBar)}${rest.length ? notInHtml() + listOf(rest) : ""}${reports.length ? `${stripHtml()}<div data-timeline-slot></div>` : ""}`;
+  if (view && all.length) loadStrip();
   syncTrayMenu(view);
   // DS-CMP-HEAD-2 and PRD 0022 RF7.3: the overview header holds only the filter tabs (no logotype); a drill-in
   // header has the back control, the title, the logotype and the esc keycap.

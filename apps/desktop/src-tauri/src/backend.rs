@@ -2399,6 +2399,8 @@ impl Backend {
         }
         // PRD 0025 RF3: the menu bar follows every state (title, image, badge).
         crate::tray_bar::update(app, std::mem::take(&mut view.tray_accounts));
+        // PRD 0043 RF4.2: the strip style's bars, at most once a minute.
+        self.refresh_strip(app, false).await;
         view.tray = tray_view();
         let _ = app.emit(EVENT, view);
         self.notice_nudge.notify_one();
@@ -4554,6 +4556,126 @@ impl Backend {
         ))
     }
 
+    /// PRD 0043 RF4.2: the last 24 hours of the account the menu-bar strip
+    /// follows (the tightest of the menu-bar selection), as hourly buckets
+    /// from the local history. `None` without history or without an
+    /// account. Reads only.
+    pub async fn hourly_strip(&self) -> Option<StripView> {
+        let prefs = crate::settings::tray_prefs();
+        let views = crate::tray_bar::accounts();
+        let key = cuotai_core::tray::strip_account(&views, &prefs.selection())?;
+        let view = views.iter().find(|view| view.key == key)?;
+        let (monitor, accounts, index, days_off) = {
+            let g = self.inner.lock().await;
+            let l = g.loaded.as_ref()?;
+            let accounts = l.file.config.accounts.clone();
+            let index = accounts.iter().position(|a| a.state_key() == key)?;
+            (
+                Arc::clone(&l.monitor),
+                accounts,
+                index,
+                g.notices.prefs().days_off,
+            )
+        };
+        let store = monitor.history()?;
+        let rhythm = tauri::async_runtime::spawn_blocking(move || {
+            monitor.flush_history(HISTORY_FLUSH);
+            cuotai_core::insights::rhythm(
+                &store,
+                &accounts,
+                &cuotai_core::insights::RhythmQuery {
+                    scope: Some(index),
+                    metric: None,
+                    range: cuotai_core::insights::RhythmRange::Last24h,
+                    days_off,
+                },
+                chrono::Utc::now(),
+                &chrono::Local,
+            )
+            .ok()
+        })
+        .await
+        .ok()
+        .flatten()?;
+        Some(StripView {
+            key,
+            provider: view.provider.clone(),
+            name: view.name.clone(),
+            rhythm,
+        })
+    }
+
+    /// PRD 0043 RF4.2: give the menu bar new strip bars while that style is
+    /// chosen, at most once a minute unless `force` (a style change).
+    pub async fn refresh_strip(&self, app: &AppHandle, force: bool) {
+        let style = crate::settings::tray_prefs().style;
+        if style != cuotai_core::tray::TrayStyle::HourlyStrip
+            || !(force || crate::tray_bar::strip_due())
+        {
+            return;
+        }
+        let bars = self
+            .hourly_strip()
+            .await
+            .map(|view| cuotai_core::tray::strip_bars(&view.rhythm))
+            .unwrap_or_default();
+        crate::tray_bar::set_strip(app, bars);
+    }
+
+    /// PRD 0041 RF6: what **Set a budget…** opens with for the metric
+    /// labelled `label` of account `index`: the core's draft, prefilled from
+    /// `plan` (the account's plan price, PRD 0030) and with the "Last 30
+    /// days" reference line from the history. Reads only; nothing is saved.
+    pub async fn budget_suggestion(
+        &self,
+        index: usize,
+        label: &str,
+        plan: Option<cuotai_core::cost::PlanSetting>,
+    ) -> Result<cuotai_core::budget::editor::Suggestion, String> {
+        let (monitor, metric) = {
+            let g = self.inner.lock().await;
+            let l = g
+                .loaded
+                .as_ref()
+                .ok_or_else(crate::desk_text::config_not_loaded)?;
+            let invalid = || l10n_to_json(&ModelError::InvalidIndex.l10n());
+            if index >= l.file.config.accounts.len() {
+                return Err(invalid());
+            }
+            let report = l
+                .cycle
+                .account_report(index)
+                .or_else(|| l.cycle.last_good_report(index))
+                .ok_or_else(invalid)?;
+            let metric = report
+                .metrics
+                .iter()
+                .find(|metric| metric.label == label && !metric.is_derived())
+                .cloned()
+                .ok_or_else(invalid)?;
+            (Arc::clone(&l.monitor), metric)
+        };
+        let key = cuotai_core::history::metric_key(&metric);
+        let to = chrono::Utc::now();
+        let from = to - chrono::TimeDelta::days(30);
+        let points = tauri::async_runtime::spawn_blocking(move || {
+            monitor.flush_history(HISTORY_FLUSH);
+            monitor
+                .account_history(index, from..=to)
+                .ok()
+                .and_then(|metrics| metrics.into_iter().find(|m| m.key == key))
+                .map(|m| m.points)
+                .unwrap_or_default()
+        })
+        .await
+        .unwrap_or_default();
+        Ok(cuotai_core::budget::editor::suggest(
+            &metric,
+            plan.as_ref(),
+            &points,
+        ))
+    }
+
     /// PRD 0026 RF4.6: the usage statistics of `account` (every account with
     /// `None`) over `range`, with the recent journal events, read from the
     /// history store off the UI thread. A result for another generation
@@ -5437,6 +5559,17 @@ pub struct StatsView {
     /// PRD 0043 RF4.1: the rhythm of the same scope: the last 24 hours, the
     /// last 7 days (days off marked) and the typical day over 30 days.
     rhythm: RhythmView,
+}
+
+/// PRD 0043 RF4.2: the 24-hour strip of one account (the menu bar's and
+/// the popover's). Only numbers, the provider and the account name.
+#[derive(Debug, Serialize)]
+pub struct StripView {
+    /// The stable account id.
+    key: String,
+    provider: String,
+    name: String,
+    rhythm: cuotai_core::insights::Rhythm,
 }
 
 /// PRD 0043 RF4.1: the three rhythm charts of the Stats view.

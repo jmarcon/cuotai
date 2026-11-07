@@ -1896,6 +1896,7 @@
   "tray.join": "{first}; {rest}",
   "tray.empty": "Nessun account nella barra dei menu",
   "tray.outage": "{item}; incidente del fornitore",
+  "tray.strip": "{item}; le ultime 24 ore in barre orarie",
   "tray.tooltip": "Cuotai — {label}",
   "journal.removed_account": "Account rimosso",
   "edit_error.config_group": "Il gruppo di un account e ogni id di [[groups]] devono avere da 1 a 32 lettere minuscole, cifre, - o _, e gli id di [[groups]] non possono ripetersi.",

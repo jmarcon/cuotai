@@ -28,6 +28,28 @@ pub trait Notifier {
     fn deliver(&self, title: &str, body: &str) -> Result<(), String>;
 }
 
+/// PRD 0043 RF4.3: for this long after a digest was posted, the next time
+/// the main window gains focus (a click on the notification activates the
+/// app; the notification plugin offers no click action on desktop) it
+/// opens the Stats view, once.
+pub const DIGEST_OPENS_STATS_FOR: std::time::Duration = std::time::Duration::from_secs(30 * 60);
+
+static DIGEST_POSTED_AT: std::sync::Mutex<Option<std::time::Instant>> = std::sync::Mutex::new(None);
+
+/// Whether a digest posted at `posted` still opens the Stats view at `now`.
+fn digest_opens_stats(posted: Option<std::time::Instant>, now: std::time::Instant) -> bool {
+    posted.is_some_and(|at| now.saturating_duration_since(at) <= DIGEST_OPENS_STATS_FOR)
+}
+
+/// PRD 0043 RF4.3: the main window gained focus; `true` (once) when a
+/// digest posted within [`DIGEST_OPENS_STATS_FOR`] should open Stats.
+pub fn take_digest_open() -> bool {
+    let mut posted = DIGEST_POSTED_AT.lock().unwrap_or_else(|e| e.into_inner());
+    let open = digest_opens_stats(*posted, std::time::Instant::now());
+    *posted = None;
+    open
+}
+
 /// The system notification center, through `tauri-plugin-notification`.
 pub struct SystemNotifier(pub tauri::AppHandle);
 
@@ -689,9 +711,14 @@ impl Notices {
             .iter()
             .map(|line| line.resolve(locale))
             .collect();
-        notifier
+        let posted = notifier
             .deliver(&digest.title().resolve(locale), &body.join("\n"))
-            .is_ok()
+            .is_ok();
+        if posted {
+            *DIGEST_POSTED_AT.lock().unwrap_or_else(|e| e.into_inner()) =
+                Some(std::time::Instant::now());
+        }
+        posted
     }
 
     /// PRD 0032 RF3.3/RF3.4: the digest that closes quiet hours, one
@@ -828,6 +855,17 @@ mod tests {
         fn titles(&self) -> Vec<String> {
             self.0.borrow().iter().map(|(t, _)| t.clone()).collect()
         }
+    }
+
+    /// PRD 0043 RF4.3: a posted digest opens the Stats view on the next
+    /// focus only within its window.
+    #[test]
+    fn a_posted_digest_opens_stats_only_for_a_while() {
+        let now = std::time::Instant::now();
+        assert!(!digest_opens_stats(None, now));
+        assert!(digest_opens_stats(Some(now), now));
+        let later = now + DIGEST_OPENS_STATS_FOR + std::time::Duration::from_secs(1);
+        assert!(!digest_opens_stats(Some(now), later));
     }
 
     /// PRD 0043 RF3.2: the weekly digest goes out once per slot (the shared

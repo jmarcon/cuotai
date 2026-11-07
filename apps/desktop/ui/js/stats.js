@@ -125,7 +125,7 @@ const hourLabel = (h) => `${String(h).padStart(2, "0")}`;
 /** One rhythm chart: equal columns scaled to its largest bucket; a bucket without samples is a hatched ghost column
  *  (never a zero bar), a reset is marked under its column, a day off is dimmed. Hidden from assistive technology,
  *  which reads the summary and the table (DS-CHT-10). */
-function rhythmChartHtml(rhythm, id, kind) {
+export function rhythmChartHtml(rhythm, id, kind) {
   const buckets = rhythm.buckets ?? [];
   const max = Math.max(0, ...buckets.map((b) => b.consumption ?? 0));
   const labelOf = (b) => (b.day ? dayName(b.day) : hourLabel(b.hour));

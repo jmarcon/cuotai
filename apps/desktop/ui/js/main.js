@@ -16,7 +16,7 @@ import {
   currentSort, initOrderSync, staleView, configChangedOnDisk, reloadConfig, configLabel, errText, otherConfigNotice, otherConfigBanner, dismissOtherConfig, returnText, splitRecharging,
   accountLabel, billingOverage, fmtExtra, overageLineText, isRecharging, resetsText, bestChipHtml, cardPace, forecastChipHtml, renewedText, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, setPoolAlerts, openAggregatorDashboard, incidentHtml, bindStatusLinks, costUsage, paceHtml, paceLineLabel, costPlans,
   openSettingsWindow, bindSettingsShortcut, onSettingsChanged, onAccountAction, listExtensions, extensionSecrets,
-  planBadgeHtml, scopeBlocksHtml,
+  planBadgeHtml, scopeBlocksHtml, budgetSuggestion,
   sessionAction, liveSessionHtml, dismissFeedBanner,
 } from "./lib.js";
 import { fold, patch } from "./util.js";
@@ -368,7 +368,12 @@ const editAccount = (index) =>
 /** SES-01: "Paste a new session" opens the account's editor on its paste box. */
 const pasteSession = (index) => openAccountDialog(index, { onSaved, pasteSession: true });
 /** PRD 0041 RF5.3: "Set a budget…" / "Set a floor…" open the editor at the budgets section with the core's draft row. */
-const setBudget = (index, draft) => openAccountDialog(index, { onSaved, budgetDraft: draft });
+/** PRD 0041 RF6: the core's suggestion (plan price, "Last 30 days") when it answers, else the card's own draft. */
+const setBudget = async (index, draft, label) => {
+  let suggestion = null;
+  try { suggestion = await budgetSuggestion(index, label); } catch {}
+  openAccountDialog(index, { onSaved, budgetDraft: suggestion?.budget ?? draft, budgetHint: suggestion });
+};
 const setFloor = (index, draft) => openAccountDialog(index, { onSaved, floorDraft: draft });
 
 const detailsContext = {
@@ -444,6 +449,8 @@ function consumeOpenView() {
   if (want === "stats") setPage("stats");
 }
 addEventListener("storage", (e) => { if (e.key === OPEN_VIEW_KEY && e.newValue) consumeOpenView(); });
+// PRD 0043 RF4.3: the shell asks for the Stats view when the window is focused soon after a weekly digest.
+if (window.__TAURI__) window.__TAURI__.event.listen("open-view", (e) => { if (e.payload === "stats") setPage("stats"); });
 
 let dragKey = null;
 let renderPending = false;

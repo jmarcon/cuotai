@@ -100,4 +100,21 @@ const tray = await readFile(ui("js/tray.js"), "utf8");
 assert.match(tray, /r\.account_id === k/);
 assert.ok(!tray.includes("localStorage.setItem(VIEW_KEY"), "the popover view no longer lives in localStorage");
 
+// PRD 0043 RF4.2: the 24-hour strip is a macOS style only; its preview scales each hour to the busiest one, keeps a
+// gap faint (never a zero bar) and marks a reset; without history it shows faint columns only.
+assert.deepEqual(menubar.stylesFor(false), menubar.STYLES);
+assert.deepEqual(menubar.stylesFor(true), [...menubar.STYLES, "hourly_strip"]);
+const hours = [{ consumption: 4 }, { consumption: 2, reset: true }, { consumption: null }, { consumption: 0 }];
+const stripPreview = menubar.previewHtml({ style: "hourly_strip", items: [{ level: "bad" }] }, true, { rhythm: { buckets: hours } });
+assert.match(stripPreview, /mb-strip colored bad/);
+assert.match(stripPreview, /mb-col "><i style="height:100%"/);
+assert.match(stripPreview, /mb-col  reset"><i style="height:50%"/);
+assert.match(stripPreview, /mb-col gap"><i style="height:0%"/);
+assert.match(stripPreview, /mb-col zero"><i style="height:0%"/);
+const emptyStrip = menubar.previewHtml({ style: "hourly_strip", items: [] }, false, null);
+assert.equal((emptyStrip.match(/mb-col gap/g) ?? []).length, 24);
+// The popover strip sits under the account rows, collapsible, its state kept on this device.
+assert.match(tray, /data-pop-strip/);
+assert.match(tray, /rhythmChartHtml\(strip\.rhythm/);
+
 console.log("PASS: Settings › Menu bar, the popover split and the first-run step render in pt-BR, en-US, es and it");

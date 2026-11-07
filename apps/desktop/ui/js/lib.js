@@ -275,6 +275,10 @@ export const setInsightPrefs = ({ limitChanges, daysOff, digestEnabled, digestWe
 export const sendTestDigest = () => call("send_test_digest");
 // PRD 0041 RF5.1: the core's live sentences and problems of the dialog's budget and floor rows.
 export const checkBudgets = (provider, budgets, floors) => call("check_budgets", { provider, budgets, floors });
+/** PRD 0041 RF6: the draft of "Set a budget…" (plan-price prefill, "Last 30 days" line) for one metric; saves nothing. */
+export const budgetSuggestion = (index, label) => call("budget_suggestion", { index, label });
+/** PRD 0043 RF4.2: the last 24 hours of the account the menu-bar strip follows (`null` without history). */
+export const hourlyStrip = () => call("hourly_strip");
 // PRD 0008 RF3: usage alerts (desktop.json; the backend judges each reading and sends them). `setAlertsEnabled` asks
 // the same system permission as reset notices and resolves to `granted`, `denied`, `prompt` or `off`.
 export const setAlertsEnabled = (on) => call("set_alerts_enabled", { on });
@@ -2504,6 +2508,13 @@ const demo = {
     problems: [...budgets.map((b, i) => ["budgets", i, b]), ...floors.map((f, i) => ["floors", i, f])]
       .filter(([, , row]) => !(row.amount > 0 && row.amount <= 1e9))
       .map(([list, i]) => ({ field: `${list}[${i}].amount`, note: { id: "budget.error.amount", params: { field: `${list}[${i}].amount` }, fallback: `${list}[${i}].amount: the amount must be greater than 0 and at most 1,000,000,000.` } })),
+  }),
+  // Demo: no history, so no strip.
+  hourly_strip: async () => null,
+  // Demo: a draft with the reference line only (no plan price in the demo).
+  budget_suggestion: async () => ({
+    budget: { kind: "spend", amount: 0, unit: "USD", period: "monthly" },
+    reference: { id: "budget.reference.last_30_days", params: { amount: "$38.20" }, fallback: "Last 30 days: $38.20" },
   }),
   history_size: async () => (demoSettings.historyErased.has("all") ? 4096 : 1887437),
   account_history: demoHistory,

@@ -3,20 +3,24 @@
 // (DS-CMP-CHK-1, DS-CMP-DRAG, "Not in menu bar" per DS-CMP-LIST-3). Figures, levels, marks and the width budget come
 // from the core through `tray_preview`; this page only lays them out and saves the choice.
 import { t, te, tl } from "../i18n.js";
-import { esc, getSettings, icon, logo, setTrayPrefs, trayAccounts, trayPreview } from "../lib.js";
+import { esc, getSettings, hourlyStrip, icon, logo, setTrayPrefs, trayAccounts, trayPreview } from "../lib.js";
 import { errorText, group } from "./common.js";
 import { check, row, rowError, sw, toast } from "./rows.js";
 
 // Mockup order (`50-settings-menubar`): Meters, Logos + %, Tightest % (the default, decision N), Icon only.
 export const STYLES = ["meters", "logos_percent", "tightest_percent", "icon_only"];
+const isMac = () => (globalThis.document?.documentElement?.dataset?.platform ?? "") === "mac";
+/** PRD 0043 RF4.2: the 24-hour strip is a macOS menu-bar style (Windows and Linux have the popover strip only). */
+export const stylesFor = (mac = isMac()) => (mac ? [...STYLES, "hourly_strip"] : STYLES);
 
 /** The page as in the approved mockup: the live preview on top, the four style cards with how many accounts the menu
  *  bar shows, Appearance (the colored variant) and the account list with its count. Search keywords come only from
  *  the catalogs (`settings.kw.<row>`, through `row()`). */
 export function html({ settings: s }) {
   const tray = s.tray ?? {};
-  const style = STYLES.includes(tray.style) ? tray.style : "tightest_percent";
-  const cards = `<div class="seg opt-cards mb-cards" role="radiogroup" id="tray-style" aria-labelledby="tray-style-label">${STYLES.map((v) => {
+  const styles = stylesFor();
+  const style = styles.includes(tray.style) ? tray.style : "tightest_percent";
+  const cards = `<div class="seg opt-cards mb-cards" role="radiogroup" id="tray-style" aria-labelledby="tray-style-label">${styles.map((v) => {
     const on = v === style;
     return `<button type="button" role="radio" data-value="${v}" aria-checked="${on}" tabindex="${on ? 0 : -1}">
       <span class="opt-preview" data-tray-preview="${v}" aria-hidden="true"></span><span class="opt-label">${te(`settings.menubar.style.${v}`)}</span></button>`;
@@ -24,6 +28,7 @@ export function html({ settings: s }) {
   return `<div class="prev-card mb-live" data-tray-live role="img" aria-label=""><span class="prev-label">${te("settings.menubar.preview")}</span><span class="prev-out" data-tray-live-out></span></div>`
     + group("menubar-style", te("settings.menubar.style"),
       row({ key: "tray-style", label: te("settings.menubar.style"), info: te("settings.menubar.style.help"), attrs: "data-bare", body: cards })
+      + (styles.includes("hourly_strip") ? `<p class="hint">${te("settings.menubar.strip_hint")}</p>` : "")
       + `<p class="hint mb-showing" data-tray-showing></p>`)
     + group("menubar-look", te("settings.menubar.appearance"),
       row({ key: "tray-colored", label: te("settings.menubar.colored"), desc: te("settings.menubar.colored.desc"), info: te("settings.menubar.colored.help"),
@@ -42,9 +47,20 @@ export function accountStatus(a) {
   return a.stale ? `${t("freshness.stale")} · ${left}` : left;
 }
 
-/** RF4.1: the preview of one style: the title as system text beside the mark, or continuous meters. */
-export function previewHtml(summary, colored) {
+/** RF4.1: the preview of one style: the title as system text beside the mark, continuous meters, or (PRD 0043
+ *  RF4.2) the 24-hour strip from `strip`'s hourly buckets (faint columns while there is no history). */
+export function previewHtml(summary, colored, strip = null) {
   if (!summary) return "";
+  if (summary.style === "hourly_strip") {
+    const buckets = strip?.rhythm?.buckets?.length ? strip.rhythm.buckets : Array.from({ length: 24 }, () => ({ consumption: null }));
+    const top = Math.max(0, ...buckets.map((b) => b.consumption ?? 0));
+    const level = colored ? summary.items?.[0]?.level ?? "" : "";
+    return `<span class="mb-strip${colored ? " colored" : ""}${level ? ` ${level}` : ""}">${buckets.map((b) => {
+      const cls = b.consumption == null ? "gap" : b.consumption > 0 ? "" : "zero";
+      const h = b.consumption > 0 && top > 0 ? Math.max(12, Math.round((b.consumption / top) * 100)) : 0;
+      return `<span class="mb-col ${cls}${b.reset ? " reset" : ""}"><i style="height:${h}%"></i></span>`;
+    }).join("")}</span>`;
+  }
   if (summary.style === "meters") {
     const bars = summary.items.length ? summary.items : [{ remaining: null }];
     return `<span class="mb-meters${colored ? " colored" : ""}">${bars.map((i) => {
@@ -86,8 +102,9 @@ export function moved(order, key, step) {
 
 export function bind(root, ctx) {
   const tray = ctx.settings.tray ?? {};
+  const styles = stylesFor();
   const state = {
-    style: STYLES.includes(tray.style) ? tray.style : "tightest_percent",
+    style: styles.includes(tray.style) ? tray.style : "tightest_percent",
     colored: !!tray.colored,
     accounts: tray.accounts ?? null,
     popover_view: tray.popover_view ?? null,
@@ -100,15 +117,16 @@ export function bind(root, ctx) {
 
   const paintPreviews = async () => {
     const accounts = state.accounts;
-    const out = await Promise.all(STYLES.map((style) => trayPreview(style, accounts).catch(() => null)));
-    STYLES.forEach((style, i) => {
+    const out = await Promise.all(styles.map((style) => trayPreview(style, accounts).catch(() => null)));
+    const strip = styles.includes("hourly_strip") ? await hourlyStrip().catch(() => null) : null;
+    styles.forEach((style, i) => {
       const el = root.querySelector(`[data-tray-preview="${style}"]`);
-      if (el) el.innerHTML = previewHtml(out[i], state.colored);
+      if (el) el.innerHTML = previewHtml(out[i], state.colored, strip);
     });
-    const live = out[STYLES.indexOf(state.style)];
+    const live = out[styles.indexOf(state.style)];
     const card = root.querySelector("[data-tray-live]");
     if (card) {
-      card.querySelector("[data-tray-live-out]").innerHTML = previewHtml(live, state.colored);
+      card.querySelector("[data-tray-live-out]").innerHTML = previewHtml(live, state.colored, strip);
       card.setAttribute("aria-label", `${t("settings.menubar.preview")}: ${live ? tl(live.accessible_label) : ""}`);
     }
   };

@@ -1887,6 +1887,7 @@
   "tray.item.unknown": "{name}：无数据",
   "tray.join": "{first}；{rest}",
   "tray.outage": "{item}；提供商故障",
+  "tray.strip": "{item}；最近 24 小时的每小时柱状图",
   "tray.tooltip": "Cuotai — {label}",
   "update.notice": "Cuotai {version} 可用：{command}",
   "update.notice_download": "Cuotai {version} 可用：{url}",

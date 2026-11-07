@@ -120,6 +120,14 @@ drawn once, after the second).
 | Linux, GNOME with the AppIndicator extension | Title shown as the indicator label | Meter image | The icon | Colored dot | Tooltip |
 | Linux, other trays (XFCE, Cinnamon, MATE, plain XEmbed) | The label is ignored where the tray does not support it; the full summary stays in the tooltip | Meter image | The icon | Colored dot | Tooltip |
 
+The **24-hour strip** style (PRD 0043 RF4.2) is offered on macOS only: a
+monochrome template image of 24 hourly bars of the tightest chosen account
+(in its level color with the colored variant), recomputed from the local
+history at most once a minute, with no title and the summary in the tooltip
+and the accessibility label. Windows and Linux do not offer the style (a
+stored choice falls back to the icon and the tooltip); there the same chart
+shows in the tray popover, which every system has.
+
 "Use color in the menu bar" (off by default) draws the meters and the mark in
 the level colors on every platform; figures, the stale mark and the alert mark
 carry the same meaning without color.

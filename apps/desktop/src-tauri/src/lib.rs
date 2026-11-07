@@ -416,6 +416,23 @@ async fn save_account(
 
 /// PRD 0041 RF5.1: the live sentences and problems of the dialog's budget
 /// and floor rows (no save).
+/// PRD 0041 RF6: the draft **Set a budget…** opens with for the metric
+/// `label` of account `index` (plan-price prefill and the "Last 30 days"
+/// reference line). Saves nothing.
+#[tauri::command]
+async fn budget_suggestion(
+    cost: Cost<'_>,
+    b: Shared<'_>,
+    index: usize,
+    label: String,
+) -> Result<cuotai_core::budget::editor::Suggestion, String> {
+    let accounts = b.accounts().await;
+    let plan = accounts
+        .get(index)
+        .and_then(|account| cost.plan_of(&accounts, account));
+    b.budget_suggestion(index, &label, plan).await
+}
+
 #[tauri::command]
 fn check_budgets(
     provider: Provider,
@@ -858,6 +875,7 @@ fn tray_accounts() -> Vec<cuotai_core::tray::AccountView> {
 #[tauri::command]
 fn set_tray_prefs(
     app: AppHandle,
+    b: Shared<'_>,
     style: String,
     colored: bool,
     accounts: Option<Vec<serde_json::Value>>,
@@ -886,8 +904,21 @@ fn set_tray_prefs(
     };
     settings::save_tray(&prefs).map_err(str::to_owned)?;
     tray_bar::redraw(&app, &prefs);
+    // PRD 0043 RF4.2: the strip style draws its bars right away.
+    if style == cuotai_core::tray::TrayStyle::HourlyStrip {
+        let backend = Arc::clone(b.inner());
+        let app = app.clone();
+        tauri::async_runtime::spawn(async move { backend.refresh_strip(&app, true).await });
+    }
     let _ = app.emit("tray-prefs-changed", backend::tray_view());
     Ok(())
+}
+
+/// PRD 0043 RF4.2: the last 24 hours of the account the menu-bar strip
+/// follows, for the popover's strip. `None` without history or account.
+#[tauri::command]
+async fn hourly_strip(b: Shared<'_>) -> Result<Option<backend::StripView>, String> {
+    Ok(b.hourly_strip().await)
 }
 
 /// PRD 0022 (audit #37): whether the system starts Cuotai at login, as the system reports it.
@@ -2435,6 +2466,8 @@ pub fn run() -> std::process::ExitCode {
             open_aggregator_dashboard,
             save_account,
             check_budgets,
+            budget_suggestion,
+            hourly_strip,
             delete_account,
             retry_purge,
             set_refresh_seconds,
@@ -2583,6 +2616,13 @@ pub fn run() -> std::process::ExitCode {
                 // since nothing else could bring it back.
                 let handle = w.clone();
                 w.on_window_event(move |e| {
+                    // PRD 0043 RF4.3: focused soon after a weekly digest
+                    // (e.g. by a click on it): the Stats view, once.
+                    if let WindowEvent::Focused(true) = e {
+                        if notify::take_digest_open() {
+                            let _ = handle.emit_to("main", "open-view", "stats");
+                        }
+                    }
                     if let WindowEvent::CloseRequested { api, .. } = e {
                         api.prevent_close();
                         let _ = handle.hide();
