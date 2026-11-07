@@ -122,6 +122,8 @@ impl TokenStore for IndexedStore {
 pub enum Kind {
     Oauth,
     Session,
+    /// PRD 0044: a notification channel's address or signing key.
+    Channel,
 }
 
 /// One indexed vault entry. Never carries the value.
@@ -158,21 +160,53 @@ fn references(config: &crate::Config) -> BTreeMap<String, (Kind, &crate::Account
     keys
 }
 
+/// The channel ids the preferences file defines (PRD 0044), whose vault
+/// entries are never orphans while the channel exists.
+fn channel_ids() -> std::collections::BTreeSet<String> {
+    crate::notify_prefs::settings_path()
+        .map(|path| crate::channels::read(&path))
+        .unwrap_or_default()
+        .into_iter()
+        .map(|channel| channel.id)
+        .collect()
+}
+
+/// The channel a vault key belongs to: `channel_<id>` or
+/// `channel_<id>_secret`.
+fn channel_of(key: &str) -> Option<&str> {
+    let rest = key.strip_prefix("channel_")?;
+    Some(rest.strip_suffix("_secret").unwrap_or(rest))
+}
+
 /// The entries of the index at `path`, matched against `config`.
 pub async fn audit(session: &OAuthSession, path: &Path, config: &crate::Config) -> Vec<AuditEntry> {
+    audit_with(session, path, config, &channel_ids()).await
+}
+
+async fn audit_with(
+    session: &OAuthSession,
+    path: &Path,
+    config: &crate::Config,
+    channels: &std::collections::BTreeSet<String>,
+) -> Vec<AuditEntry> {
     let index = read(path);
     let references = references(config);
     let mut entries = Vec::with_capacity(index.entries.len());
     for (key, entry) in index.entries {
         let present = !matches!(session.load_by_key(&key).await, Ok(None));
         let reference = references.get(&key);
+        let channel = channel_of(&key).is_some_and(|id| channels.contains(id));
         entries.push(AuditEntry {
             created_at: entry.created_at,
-            kind: reference.map(|(kind, _)| *kind),
+            kind: if channel {
+                Some(Kind::Channel)
+            } else {
+                reference.map(|(kind, _)| *kind)
+            },
             provider: reference.map(|(_, account)| account.provider),
             account_id: reference.map(|(_, account)| account.state_key()),
             account: reference.map(|(_, account)| account.display_name().into_owned()),
-            orphan: reference.is_none(),
+            orphan: reference.is_none() && !channel,
             present,
             key,
         });

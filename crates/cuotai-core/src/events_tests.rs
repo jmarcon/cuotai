@@ -1096,5 +1096,9 @@ fn the_new_events_are_known_by_name() {
         EventKind::from_name("balance_below_floor"),
         Some(BalanceBelowFloor)
     );
-    assert_eq!(EventKind::ALL.len(), 21);
+    assert_eq!(EventKind::ALL.len(), 22);
+    assert_eq!(
+        EventKind::from_name("notification_sent"),
+        Some(NotificationSent)
+    );
 }

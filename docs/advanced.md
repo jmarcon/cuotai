@@ -96,6 +96,23 @@ A Claude account can be fed by Claude Code's own status line (`params = { query_
 
 `cuotai --watch --hooks` also runs your own commands on those events, from a `hooks.toml` next to the accounts' TOML (off by default): each rule lists its events, optional provider/account/threshold filters and a command as an argument list, never a shell string. The exact commands run only after you confirm them in a terminal, again after any change; a hook gets the event as JSON on stdin and in `CUOTAI_*` variables, an environment reduced to `PATH`, `HOME` and `LANG` (no credentials), a time limit that kills it, bounded output and concurrency, and its failure never stops the watch. See [`events.md`](events.md#hooks-cuotai---watch---hooks). The desktop app edits the same rules in **Settings › Advanced › Integrations › Hooks**.
 
+## Notification channels
+
+PRD 0044 sends the notifications Cuotai shows to destinations you own: a generic webhook, an ntfy topic, a Slack incoming webhook or a Discord webhook. Up to 5 channels can exist, and each one is off until you add it. The full guide, with the payloads, is [`notifications.md`](notifications.md).
+
+```sh
+# Add a channel. The address comes from standard input or a prompt, never an argument.
+cuotai --channel-add ntfy --label Phone --filter kinds=threshold,exhausted,floor
+printf '%s\n' "$SLACK_WEBHOOK" | cuotai --channel-add slack --label Team --filter names=on --yes
+cuotai --channel-add webhook --label Relay --sign      # prints the signing secret once
+cuotai --channel-list [--json]                         # host, filters, last delivery; never the address
+cuotai --channel-test <id|label>                       # exit 0 accepted, 2 refused or unreachable
+cuotai --channel-log [--json]                          # the delivery log of the last 7 days
+cuotai --channel-remove <id|label>                     # also deletes the address from the vault
+```
+
+`--filter` repeats: `kinds=` (comma-separated, or `all`), `accounts=` (account ids, or `all`), `min_severity=info|warning|critical` and `names=on|off|default`. The address goes to the system vault (`channel_<id>`). `desktop.json` keeps only the kind, the name, the host, the filters and the switch. `cuotai --notify` delivers to the channels what it announces, and it shares `notified.json` with the desktop, so one crossing is sent once.
+
 ## Script extensions
 
 Script extensions (PRD 0017) add your own usage sources without recompiling Cuotai: a folder under `<OS local data dir>/cuotai/extensions/<id>/` holds a `manifest.toml` (id, name, version, `schema = 1`, the command as an argument list whose program is a file inside the folder, the interval — 60 s at least — and time limit, and the **names** of the environment variables the extension asks for) and a local program that prints one JSON object (`{ "schema": 1, "status", "metrics", "notes" }`) to stdout. Every extension is born disabled: `cuotai --extension-check <id>` lists the exact command, the directory, the requested variables and the interval, (and, for a script, its `#!` interpreter) and runs only after you type the confirmation — and only while the whole extension folder keeps the SHA-256 recorded at the approval, so any change to any of its files disables it again until you approve it anew (on macOS and Linux a folder other users can write is refused). The run has no shell, a closed stdin, the extension's folder as working directory, an environment reduced to `PATH`, `HOME`, `LANG` and the approved variables (Cuotai never hands it credentials, and its stderr never reaches a report), a time limit that kills the whole process tree, bounded output and at most two extensions at once. **Cuotai does not restrict the extension's network or files — it runs with your user's powers, so review the code before approving it** — and Cuotai never installs, downloads or updates an extension. Exit codes: `0` when the reading is ready, `2` when the run failed or the output broke the contract, `1` for local errors; `--json` prints the same result as JSON. The full contract is in [`extensions.md`](extensions.md).

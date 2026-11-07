@@ -371,6 +371,9 @@ pub async fn run(
                 cuotai_core::resets::SharedLedger::open_default(),
             )
             .with_projected(projected)
+            // PRD 0044 RF5.3: the channels receive what this session
+            // announces.
+            .with_channels(crate::channels_cli::dispatcher(&session))
         }),
         incidents: Vec::new(),
         local_cost: None,

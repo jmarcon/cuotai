@@ -9,6 +9,7 @@ import { uiPath } from "../util.js";
 import { buttons, disc, row, rowError, select, seg, sw, toast } from "./rows.js";
 import { bindQuiet, quietHtml } from "./quiet.js";
 import { bindInsights, insightsHtml } from "./insights.js";
+import { bindChannels, channelsHtml, channelsRowHtml } from "./channels.js";
 
 export { quietDaysHtml, quietSummary } from "./quiet.js";
 
@@ -49,9 +50,12 @@ export function html({ settings: s }) {
         control: (x) => sw("projected-on", lead != null, x),
         body: `<div class="projected-lead"><span id="projected-lead-label">${te("settings.alerts.projectedLead")}</span>${seg("projected-lead", projectedLeads, lead ?? 60, 'aria-labelledby="projected-lead-label"')}</div>` })
       + row({ key: "private", label: te("settings.notify.private"), info: te("settings.notify.privateHelp"),
-        control: (x) => sw("notify-private", n.private, x) }))
+        control: (x) => sw("notify-private", n.private, x) })
+      // PRD 0044 RF5.1: the notification channels open as a sub-page.
+      + channelsRowHtml())
     + quietHtml(s.quiet)
     + insightsHtml(n)
+    + channelsHtml()
     + row({ key: "test", label: te("settings.notify.test"), info: te("settings.notify.accounts"), msg: "notify-msg", msgRole: "status",
       control: () => buttons(`<button class="btn" data-notify-test aria-labelledby="test-label" ${n.enabled || a.enabled || lead != null ? "" : "disabled"}>${icon("bell")}</button>`),
       body: disc("notify-preview", te("settings.notify.preview"), previewHtml()) }), "data-notify");
@@ -114,6 +118,8 @@ export function bind(root, ctx) {
   bindPrivate(root, ctx);
   bindQuiet(root, ctx, s.quiet);
   bindInsights(root, ctx);
+  bindChannels(root, ctx);
+  bindChannels(root, ctx);
   test.onclick = () =>
     sendTestNotification(t("notify.test.title"), t("notify.test.body")).then(
       () => { rowError(test, ""); toast(t("settings.notify.testSent")); },

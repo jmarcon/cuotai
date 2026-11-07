@@ -195,6 +195,29 @@ pub struct ObservedEvent {
     pub transition: Transition,
 }
 
+impl ObservedEvent {
+    /// PRD 0044 RF6.2: the `notification_sent` of one channel delivery,
+    /// identified by the channel, the kind, the account and the time it
+    /// was rendered, so the hook claims run it once.
+    pub fn notification_sent(
+        sent: &crate::channels::delivery::Sent,
+        account: Option<&crate::Account>,
+    ) -> Self {
+        let event = Event::notification_sent(sent, account);
+        let key = [
+            event.event.name(),
+            sent.channel.as_str(),
+            sent.kind,
+            event.account_id.as_str(),
+        ]
+        .join("\u{1e}");
+        Self {
+            transition: Transition::observed(key, sent.at),
+            event,
+        }
+    }
+}
+
 /// What makes two observations the same transition, in this process or in
 /// another one: the event kind, the account, the metric and threshold, and
 /// the instance: the window's reset time for an event about a window

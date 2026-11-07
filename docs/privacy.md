@@ -22,6 +22,7 @@ Cuotai is a read-only monitor that runs on your computer. It has no telemetry, n
 | `extensions` | whatever an approved extension program contacts, with your network | each refresh of an extension account | decided by the program you approved; Cuotai passes it only its configured parameters | off until you approve an extension | 0017 |
 | `hooks` | whatever a confirmed hook command contacts, with your network | each event a confirmed rule matches | decided by the command you confirmed; it receives the event on standard input | off until you confirm the rules | 0013 |
 | `local_server` | inbound: clients on this computer (loopback unless you allow more with a token) | while `--serve` or Settings → Integration runs it | the readings already shown, without credentials; a bearer token is required by default | off | 0012 |
+| `notification_channels` | only the webhook, ntfy, Slack or Discord address you add as a channel | a notification Cuotai would show on this computer, after the same preferences and quiet hours, at most 20 per hour per channel; Send test | the notification's title and text (account names only if you choose), its kind and severity; never readings in bulk or a credential | off: nothing until you add a channel | 0044 |
 
 ### Local data
 
@@ -52,7 +53,8 @@ Cuotai is a read-only monitor that runs on your computer. It has no telemetry, n
 | `update.check` | `<local data>/cuotai/update-check.json` | the latest version seen by the terminal update notice and when | `0600` | unversioned | 24 hours | `--erase-all-data` | 0028 |
 | `metered.records` | `<local data>/cuotai/metered` | time of the last query of each metered account (digest-named) | `0700` | — | until erased | `--erase-all-data` | 0033 |
 | `canary.records` | `<local data>/cuotai/canary` | maintainer canary runs: response shapes without values | `0700` | — | until erased | `--erase-all-data` | 0028 |
-| `vault.oauth` | `vault service cuotai.oauth` | OAuth tokens, pasted sessions and keys saved in the app | — | — | until the account is removed or signed out | `--erase-all-data` | 0001 |
+| `channels.log` | `<local data>/cuotai/channels/log.jsonl` | time, channel id, notification kind, outcome, HTTP status and attempt of each channel delivery; never the body, address or label | `0600` | unversioned | 7 days | `--erase-all-data` | 0044 |
+| `vault.oauth` | `vault service cuotai.oauth` | OAuth tokens, pasted sessions, keys saved in the app and notification channel addresses (`channel_<id>`) | — | — | until the account is removed or signed out | `--erase-all-data` | 0001 |
 | `vault.serve` | `vault service cuotai.serve` | the local server's bearer token | — | — | until the account is removed or signed out | `--erase-all-data` | 0012 |
 <!-- privacy-inventory:end -->
 

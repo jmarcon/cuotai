@@ -297,6 +297,18 @@ impl Integration {
         }
     }
 
+    /// PRD 0044 RF6.2: a `notification_sent` of a channel delivery, run by
+    /// the confirmed rules that match it (claimed across processes like
+    /// any event).
+    pub fn submit_notification(&mut self, observed: &cuotai_core::watch::ObservedEvent) {
+        let Some(active) = &self.active else {
+            return;
+        };
+        let in_quiet = self.quiet.quiet_at(observed.event.occurred_at);
+        let submitted = active.runner.submit_in(observed, in_quiet);
+        self.dropped += submitted.dropped;
+    }
+
     /// RF4.1: run the confirmed rule `name` alone with its sample event.
     /// Errors: `hooks_off` (no confirmed rule runs), `hook_unknown` (not
     /// among the confirmed rules: unsaved or changed).

@@ -1113,3 +1113,46 @@ dialog.dlg.dlg-shell:popover-open {
   overflow: hidden;
   clip-path: inset(50%);
 }
+
+/* PRD 0044: Settings › Alerts › Notification channels: the editor dialog, its consent step and the example. */
+.channel-dlg fieldset.f {
+  margin: 0;
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.channel-dlg fieldset.f legend {
+  padding: 0 calc(var(--space-1) + var(--space-0));
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+.channel-dlg [hidden] {
+  display: none;
+}
+.channel-consent {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  font-size: var(--text-md);
+}
+.channel-consent dt {
+  color: var(--fg-muted);
+}
+.channel-consent dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.channel-example {
+  max-height: 220px;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--input-bg);
+  font: var(--text-sm) var(--font-mono), var(--font-script);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

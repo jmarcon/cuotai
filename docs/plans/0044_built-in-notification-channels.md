@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0044 |
-| Status | Planned (next version) |
+| Status | Awaiting owner verification |
 | Owner | `cuotai-core` (`channels` module: definitions, payloads, delivery, consent state, vault references), desktop (Settings › Alerts › Channels), `cuotai-tui` (`--channel-*`, `--notify` delivery) |
 | Consumers | PRD 0003/0008/0023/0024/0032 notifications, PRD 0043 digest, PRD 0041 floors |
 | Depends on | PRD 0032 (single preference source, delivery decision, quiet hours, private texts, cross-process ledger), PRD 0029 (account id in payloads), the OAuth vault store (URL with an embedded secret kept in the vault) |
@@ -13,11 +13,39 @@
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable. A **channel** is a destination the person owns (a webhook URL, an ntfy topic, a Slack or Discord incoming webhook) to which Cuotai delivers the **same notifications** it would show on the system, after the same policy. It is not a general event stream: that is `--watch` and hooks (PRD 0013).
 
-## Implementation status (2026-10-25)
+## Implementation status (2026-11-07)
 
 | RF | Version | Delivery |
 |---|---|---|
-| RF1–RF7 | — | Proposed. |
+| RF1 | vNEXT | `cuotai_core::channels`: `Channel`, `ChannelKind`, `Filters` (kinds, accounts, minimum severity, names), at most 5. The definitions go in the `channels` member of `desktop.json`, written under the shared lock and kept by the desktop's writes. The URL goes in the vault (`channels::Vault`, the session's store, so the debug-only SQLite store follows the OAuth rules). `validate_url` is the boundary: HTTPS, loopback/RFC 1918 HTTP for ntfy with a warning, no userinfo or fragment, 2048 bytes, provider API hosts refused, and the Slack, Discord and ntfy shapes. `--vault-audit` lists channel entries as channels, never as orphans. |
+| RF2 | vNEXT | `channels::payload`: one `Outgoing` rendered from the same sources as the system notice (`alerts::notice_with`, `ResetEvent::notice_with`, `quiet::digest`, the weekly digest) per channel, in the person's language, with the channel's names choice. E-mail and URL scrubbing, the webhook JSON (schema 1, optional `X-Cuotai-Signature` HMAC-SHA256), ntfy headers (RFC 2047 for non-ASCII titles), Slack text plus blocks, Discord content with mentions disabled, and the body caps. Tests: goldens for threshold, exhaustion and digest; redaction over every payload and kind; the HMAC vector. |
+| RF3 | vNEXT | `channels::Dispatcher`: background delivery on the captured runtime, 2 in flight, 10 s timeout, 3 attempts (5 s/30 s) on network errors and 5xx, no retry on 4xx or redirects (no redirect is followed). 20 per channel per hour with the end-of-hour summary, critical-only first minute, `channels/log.jsonl` (0600, 7 days, never a body, URL or label) and the 24-hour failing notice. It is called after PRD 0032's decision and the shared-ledger claim in the desktop and `--notify`. Tests (wiremock and a local endpoint): every kind, the retry matrix, the cap and summary, the startup grace, the quiet-hours hold and break-through, two processes sharing the ledger (core, and desktop + `--notify` sessions in the TUI), log redaction, the failing notice. |
+| RF4 | vNEXT | `channels::consent` (kind, host, masked URL, warning, filters in words, the example payload, the sentence), `needs_consent` for edits, Save as consent (enabled at once), **Send test** (`sample: true`, `kind: test`) in the desktop and `cuotai --channel-test`. |
+| RF5 | vNEXT | Desktop Settings › Alerts › **Notification channels**: list with kind, label, host, filters, last delivery and outcome, the switch, Send test, Edit, Remove (confirmation; the vault entries go), Add channel (kind, name, masked URL, filters), the consent step, the signing secret shown once, the failing banner and the delivery log. CLI `--channel-add <kind> --label L [--filter k=v]… [--sign] [--yes]` (URL from stdin or a prompt), `--channel-list`, `--channel-remove`, `--channel-test`, `--channel-log`. `cuotai --notify` delivers to the channels. |
+| RF6 | vNEXT | The weekly digest is the `digest` kind (info, Markdown for webhook/Slack/Discord, plain for ntfy, off by default per channel). `notification_sent` (additive; `current.notification` and `current.channel`) reaches the desktop's hooks through the claimed runner. |
+| RF7 | vNEXT | `docs/notifications.md`, `docs/advanced.md` (CLI), `docs/events.md` (`notification_sent`), `docs/tui.md`, `docs/gui-features.md`, `SECURITY.md`, the privacy inventory (network row `notification_channels`, artifact `channels.log`). |
+
+### Decisions and deviations (2026-11-07)
+
+The owner said not to stop and ask, so the recommended or most conservative option was taken:
+
+- **Definitions in a top-level `channels` member of `desktop.json`, not `notify.channels[]`.** The desktop rewrites the whole `notify` member from its typed preferences, which would drop a list written by the CLI. The top-level member is kept by every writer (PRD 0051 unknown-member rule) and is written by the core under the same lock.
+- **Vault keys `channel_<id>` and `channel_<id>_secret` in the `cuotai.oauth` service**, the store that OAuth tokens and extension secrets already share, instead of `cuotai/channel/<id>`: the store's id alphabet has no `/`, and one store keeps the debug-only SQLite rule identical (§12).
+- **No deep link yet.** `cuotai://` is not registered (PRD 0025), so `link` and ntfy's `Click` are omitted, as §12 recommends.
+- **HMAC signing is off by default**: one switch per webhook channel, with a secret Cuotai generates and shows once (§12).
+- **Telegram and Pushover are not kinds** (§12); a generic webhook covers them through relays.
+- **The hourly cap and the startup grace are per process.** Each crossing reaches only one process through the shared ledger, so a per-process window bounds what a channel receives. The log is shared and drives the last delivery and the failing notice across processes.
+- **"A host that is not an IP literal of a Cuotai-known provider"** is read as "not a provider API host": a fixed list of provider API domains is refused, so a provider credential URL pasted by mistake never receives notifications.
+- **Plain HTTP is accepted only for ntfy** (loopback, RFC 1918, `localhost`, IPv6 loopback and unique local), with a warning, as RF1.2 says. Webhook, Slack and Discord are HTTPS only.
+- **Discord messages disable mentions** (`allowed_mentions.parse = []`), so a notification never pings a channel.
+- **Grouped desktop alerts reach channels as one message per account**, so each channel's account filter applies; the system notification keeps its grouping.
+- **`notification_sent` reaches the desktop's hooks.** `cuotai --watch --hooks` does not deliver to channels, so it never emits the event.
+- **`--label` and `--filter`** are the CLI names from RF5.2; both require `--channel-add`.
+
+### Left for the owner (§2.1 of the control file)
+
+- The real-destination smoke of §11: a self-hosted ntfy on loopback and a Discord test webhook, with the desktop and `cuotai --notify` both running; one message per crossing with the name hidden; a `grep` for the addresses in the preferences and logs finds nothing.
+- The system vault prompt on the packaged macOS app when the first channel is saved.
 
 ## 1. Context
 
@@ -154,7 +182,7 @@ At each step: `cargo fmt`, `clippy -D warnings`, workspace and desktop tests; a 
 | Telegram bot or Pushover as fifth and sixth kinds? | Later; both need tokens beyond a URL. Generic webhook covers them through relays. |
 | Should channels be allowed without a vault (CLI-only, headless Linux server)? | Yes with `--dev-credentials-sqlite` in debug builds only, as OAuth today; release builds need Secret Service or a file-based keyring decision (§12 of PRD 0012 history). |
 | HMAC signing default | Off; one switch per webhook channel, secret generated by Cuotai and shown once. |
-| Deep link scheme `cuotai://` | Register it in the desktop (Tauri) with PRD 0025; until then the link is omitted. |
+| Deep link scheme `cuotai://` | Register it in the desktop (Tauri) with PRD 0025; until then the link is omitted. **Taken (2026-11-07):** omitted. |
 
 ### Owner decisions (2026-10-25)
 

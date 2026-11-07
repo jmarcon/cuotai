@@ -404,10 +404,19 @@ static ARTIFACTS: &[Artifact] = &[
         UNTIL_ERASED,
         "0028",
     ),
+    file(
+        "channels.log",
+        LocalData,
+        "channels/log.jsonl",
+        "time, channel id, notification kind, outcome, HTTP status and attempt of each channel delivery; never the body, address or label",
+        Unversioned,
+        "7 days",
+        "0044",
+    ),
     vault(
         "vault.oauth",
         "cuotai.oauth",
-        "OAuth tokens, pasted sessions and keys saved in the app",
+        "OAuth tokens, pasted sessions, keys saved in the app and notification channel addresses (`channel_<id>`)",
         "0001",
     ),
     vault(
@@ -702,10 +711,12 @@ pub enum Purpose {
     Hooks,
     /// The optional read-only local server (inbound, loopback by default).
     LocalServer,
+    /// PRD 0044: notification channels the person added.
+    NotificationChannels,
 }
 
 impl Purpose {
-    pub const ALL: [Purpose; 10] = [
+    pub const ALL: [Purpose; 11] = [
         Self::ProviderApi,
         Self::OAuth,
         Self::PublicStatus,
@@ -716,6 +727,7 @@ impl Purpose {
         Self::Extensions,
         Self::Hooks,
         Self::LocalServer,
+        Self::NotificationChannels,
     ];
 }
 
@@ -802,6 +814,13 @@ pub fn flow(purpose: Purpose) -> Flow {
             "the readings already shown, without credentials; a bearer token is required by default",
             "off",
             "0012",
+        ),
+        Purpose::NotificationChannels => (
+            "only the webhook, ntfy, Slack or Discord address you add as a channel",
+            "a notification Cuotai would show on this computer, after the same preferences and quiet hours, at most 20 per hour per channel; Send test",
+            "the notification's title and text (account names only if you choose), its kind and severity; never readings in bulk or a credential",
+            "off: nothing until you add a channel",
+            "0044",
         ),
     };
     Flow {
@@ -946,6 +965,7 @@ mod tests {
             "app.log",
             "vault.oauth",
             "vault.serve",
+            "channels.log",
         ] {
             assert!(artifact(id).is_some(), "{id}");
         }

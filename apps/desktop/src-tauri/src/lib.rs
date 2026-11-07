@@ -194,6 +194,56 @@ async fn set_extension_secret(
     b.set_extension_secret(&id, &name, &value).await
 }
 
+// ---------- PRD 0044: notification channels ----------
+
+#[tauri::command]
+async fn channels_view(b: Shared<'_>) -> Result<backend::ChannelsView, String> {
+    b.channels_view().await
+}
+
+#[tauri::command]
+async fn channel_consent(
+    b: Shared<'_>,
+    draft: cuotai_core::channels::Draft,
+    url: String,
+) -> Result<cuotai_core::channels::Consent, String> {
+    b.channel_consent(draft, url).await
+}
+
+#[tauri::command]
+async fn channel_add(
+    b: Shared<'_>,
+    draft: cuotai_core::channels::Draft,
+    url: String,
+) -> Result<backend::ChannelSaved, String> {
+    b.channel_add(draft, url).await
+}
+
+#[tauri::command]
+async fn channel_edit(
+    b: Shared<'_>,
+    id: String,
+    draft: cuotai_core::channels::Draft,
+    url: Option<String>,
+) -> Result<backend::ChannelSaved, String> {
+    b.channel_edit(id, draft, url).await
+}
+
+#[tauri::command]
+async fn channel_set_enabled(b: Shared<'_>, id: String, on: bool) -> Result<(), String> {
+    b.channel_set_enabled(id, on).await
+}
+
+#[tauri::command]
+async fn channel_remove(b: Shared<'_>, id: String) -> Result<(), String> {
+    b.channel_remove(id).await
+}
+
+#[tauri::command]
+async fn channel_test(b: Shared<'_>, id: String) -> Result<cuotai_core::channels::Outcome, String> {
+    b.channel_test(id).await
+}
+
 #[tauri::command]
 fn open_extensions_folder() -> Result<(), String> {
     about::open_extensions_folder().map_err(str::to_owned)
@@ -2469,6 +2519,13 @@ pub fn run() -> std::process::ExitCode {
             extension_secrets,
             set_extension_secret,
             forget_extension_secrets,
+            channels_view,
+            channel_consent,
+            channel_add,
+            channel_edit,
+            channel_set_enabled,
+            channel_remove,
+            channel_test,
             open_extensions_folder,
             set_extension_override,
             form_schema,

@@ -6,6 +6,7 @@ mod canary;
 #[cfg(test)]
 mod capture;
 mod changelog_view;
+mod channels_cli;
 mod cli;
 mod config_check;
 mod cost;
@@ -435,6 +436,43 @@ struct Args {
     /// a confirmation in the terminal (without a terminal: error).
     #[arg(long, conflicts_with_all = VAULT_CONFLICTS, conflicts_with = "vault_audit")]
     vault_prune: bool,
+    /// Adds a notification channel of KIND (webhook, ntfy, slack or
+    /// discord) that receives the notifications Cuotai shows. The address
+    /// is read from standard input or a prompt, never from an argument, and
+    /// kept in the system vault; the consent text is shown and saving asks
+    /// for a confirmation in the terminal (--yes when the address is piped).
+    /// Needs --label.
+    #[arg(long, value_name = "KIND", conflicts_with_all = VAULT_CONFLICTS, group = "channel_cmd")]
+    channel_add: Option<String>,
+    /// With --channel-add: the channel's name.
+    #[arg(long, value_name = "NAME", requires = "channel_add")]
+    label: Option<String>,
+    /// With --channel-add: what the channel receives, repeatable:
+    /// kinds=threshold,exhausted,… (or all), accounts=<id>,… (or all),
+    /// min_severity=info|warning|critical, names=on|off|default.
+    #[arg(long = "filter", value_name = "KEY=VALUE", requires = "channel_add")]
+    channel_filter: Vec<String>,
+    /// With --channel-add webhook: sign each body (X-Cuotai-Signature,
+    /// HMAC-SHA256) with a secret Cuotai generates and shows once.
+    #[arg(long, requires = "channel_add")]
+    sign: bool,
+    /// Lists the notification channels, their host, filters and last
+    /// delivery; never an address. With --json, as JSON.
+    #[arg(long, conflicts_with_all = VAULT_CONFLICTS, group = "channel_cmd")]
+    channel_list: bool,
+    /// Removes the channel with this id (or label) and its address from
+    /// the vault.
+    #[arg(long, value_name = "ID", conflicts_with_all = VAULT_CONFLICTS, group = "channel_cmd")]
+    channel_remove: Option<String>,
+    /// Sends a test notification to the channel with this id (or label)
+    /// and reports the answer. Exit 0 when accepted, 2 otherwise.
+    #[arg(long, value_name = "ID", conflicts_with_all = VAULT_CONFLICTS, group = "channel_cmd")]
+    channel_test: Option<String>,
+    /// Prints the channels' delivery log of the last 7 days (time, channel,
+    /// kind, outcome, status; never a body or address). With --json, as
+    /// JSON.
+    #[arg(long, conflicts_with_all = VAULT_CONFLICTS, group = "channel_cmd")]
+    channel_log: bool,
     /// Turns the TUI's animations off (also: CUOTAI_NO_ANIMATIONS=1).
     #[arg(long)]
     no_animations: bool,
@@ -1344,6 +1382,37 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         } else {
             vault::audit(&session, &file.config, args.json).await
         };
+    }
+    // PRD 0044 RF5.2: the notification channels.
+    if args.channel_list {
+        return channels_cli::list(args.json);
+    }
+    if args.channel_log {
+        return channels_cli::log(args.json);
+    }
+    if args.channel_add.is_some() || args.channel_remove.is_some() || args.channel_test.is_some() {
+        let session = Arc::new(match &args.dev_credentials_sqlite {
+            Some(path) => OAuthSession::development_sqlite(path)?,
+            None => OAuthSession::system()?,
+        });
+        if let Some(kind) = &args.channel_add {
+            return channels_cli::add(
+                &session,
+                channels_cli::AddArgs {
+                    kind,
+                    label: args.label.as_deref(),
+                    filters: &args.channel_filter,
+                    sign: args.sign,
+                    yes: args.yes,
+                },
+            );
+        }
+        if let Some(id) = &args.channel_remove {
+            return channels_cli::remove(&session, id);
+        }
+        if let Some(id) = &args.channel_test {
+            return channels_cli::test(&session, id).await;
+        }
     }
     if args.stats || args.timeline || args.events_log || args.digest {
         return stored_view(&args);

@@ -63,9 +63,15 @@ fn audit_text(entries: &[AuditEntry]) -> String {
         let kind = match entry.kind {
             Some(Kind::Oauth) => "OAuth",
             Some(Kind::Session) => tr("vault.kind.session", "web session"),
+            Some(Kind::Channel) => tr("vault.kind.channel", "channel"),
             None => tr("vault.kind.unused", "unused"),
         };
         let owner = match (&entry.account, entry.provider) {
+            _ if entry.kind == Some(Kind::Channel) => tr(
+                "vault.owner.channel",
+                "a notification channel (--channel-list)",
+            )
+            .to_owned(),
             (Some(account), Some(provider)) => {
                 format!(
                     "{} / {}",

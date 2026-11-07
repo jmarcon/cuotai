@@ -64,6 +64,9 @@ pub(crate) struct Notices {
     /// PRD 0041 RF3: the balance floors of the configuration's accounts
     /// (from the TOML, refreshed on every pass).
     floors: AlertPrefs,
+    /// PRD 0044 RF5.3: the notification channels, given what this session
+    /// announces (after quiet hours and the shared ledger).
+    channels: Option<cuotai_core::channels::Dispatcher>,
 }
 
 impl Notices {
@@ -85,6 +88,24 @@ impl Notices {
             banner: None,
             zone: None,
             floors: AlertPrefs::default(),
+            channels: None,
+        }
+    }
+
+    /// PRD 0044 RF5.3: also deliver to the notification channels.
+    pub(crate) fn with_channels(
+        mut self,
+        channels: Option<cuotai_core::channels::Dispatcher>,
+    ) -> Self {
+        self.channels = channels;
+        self
+    }
+
+    /// PRD 0044: hand `source` (a notice just announced) to the channels,
+    /// with the private setting of `desktop.json`.
+    fn to_channels(&self, source: cuotai_core::channels::Source, now: DateTime<Utc>, locale: &str) {
+        if let Some(channels) = &self.channels {
+            channels.dispatch(&source, self.loaded.notify.private, locale, now);
         }
     }
 
@@ -272,6 +293,14 @@ impl Notices {
         let mut lines = Vec::new();
         for event in self.ledger.claim_resets(deliver, skipped, now) {
             let account = expanded.display(event.account_index);
+            self.to_channels(
+                cuotai_core::channels::Source::Reset {
+                    account: account.clone(),
+                    event: event.clone(),
+                },
+                now,
+                locale,
+            );
             let notice = event.notice(account, now);
             lines.push(format!(
                 "{} ({})",
@@ -302,6 +331,13 @@ impl Notices {
         }
         self.deliver_digest(&expanded.config, now, locale, &mut out, &mut lines);
         self.deliver_alerts(&expanded, now, window, locale, &mut out, &mut lines);
+        // PRD 0044 RF3.2/RF3.4: the hourly summaries, and a channel failing
+        // for 24 hours shown once.
+        if let Some(channels) = &self.channels {
+            for failing in channels.tick(locale, now) {
+                lines.push(safe(&failing.text().resolve(locale)).into_owned());
+            }
+        }
         if lines.is_empty() {
             return out;
         }
@@ -349,6 +385,16 @@ impl Notices {
         let Some(notice) = notice else {
             return;
         };
+        self.to_channels(
+            cuotai_core::channels::Source::QuietDigest {
+                groups: groups
+                    .iter()
+                    .map(|(account, events)| ((*account).clone(), events.clone()))
+                    .collect(),
+            },
+            now,
+            locale,
+        );
         let title = notice.title.resolve(locale);
         lines.push(safe(&title).into_owned());
         if self.osc9 {
@@ -397,6 +443,14 @@ impl Notices {
             let Some(notice) = alerts::notice(&groups, now, &chrono::Local) else {
                 continue;
             };
+            self.to_channels(
+                cuotai_core::channels::Source::Alerts {
+                    account: account.clone(),
+                    events: groups[0].1.clone(),
+                },
+                now,
+                locale,
+            );
             let text = format!(
                 "{} — {}",
                 notice.title.resolve(locale),
@@ -959,3 +1013,7 @@ mod tests {
 #[cfg(test)]
 #[path = "notify_policy_tests.rs"]
 mod policy_tests;
+
+#[cfg(test)]
+#[path = "notify_channel_tests.rs"]
+mod channel_tests;

@@ -294,6 +294,10 @@ struct Inner {
     loaded: Option<Loaded>,
     load_error: Option<String>,
     session: Option<Arc<OAuthSession>>,
+    /// PRD 0044 RF6.2: what the channels delivered, waiting to reach the
+    /// hooks as `notification_sent`, and the nudge of the notice loop.
+    channel_sent: Arc<std::sync::Mutex<Vec<cuotai_core::channels::delivery::Sent>>>,
+    channel_wake: Arc<tokio::sync::Notify>,
     /// Login RF2 in progress; at most one at a time (the dialog is modal).
     login: Option<PendingLogin>,
     /// Monotonic counter: each `login_start` gets a unique id that
@@ -722,6 +726,59 @@ fn breakdown_view(report: &Report) -> Option<BreakdownView> {
         top: breakdown::top_line(&report.breakdown, breakdown::CARD_ROWS),
         truncated: breakdown::truncated_note(&report.breakdown),
     })
+}
+
+/// PRD 0044: how many log entries Settings shows.
+const CHANNEL_LOG_SHOWN: usize = 30;
+
+/// PRD 0044 RF5.1: the Channels page.
+#[derive(Debug, Clone, Serialize)]
+pub struct ChannelsView {
+    pub channels: Vec<cuotai_core::channels::delivery::ChannelView>,
+    pub max: usize,
+    pub kinds: Vec<&'static str>,
+    pub notice_kinds: Vec<ChannelChoice>,
+    pub accounts: Vec<ChannelAccount>,
+    /// PRD 0032 RF7.1: names hidden by default.
+    pub private: bool,
+    /// Newest first.
+    pub log: Vec<cuotai_core::channels::log::Entry>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ChannelChoice {
+    pub id: &'static str,
+    pub label: cuotai_core::text::Localized,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ChannelAccount {
+    pub id: String,
+    pub name: String,
+}
+
+/// A saved channel; `signing_secret` only right after it was generated.
+#[derive(Clone, Serialize)]
+pub struct ChannelSaved {
+    pub channel: cuotai_core::channels::Channel,
+    pub signing_secret: Option<String>,
+}
+
+impl From<cuotai_core::channels::Saved> for ChannelSaved {
+    fn from(saved: cuotai_core::channels::Saved) -> Self {
+        Self {
+            channel: saved.channel,
+            signing_secret: saved.signing_secret,
+        }
+    }
+}
+
+impl std::fmt::Debug for ChannelSaved {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ChannelSaved")
+            .field("channel", &self.channel)
+            .finish_non_exhaustive()
+    }
 }
 
 /// PRD 0040 RF7.1: the live-session block of one account, every text from
@@ -2056,6 +2113,27 @@ impl Inner {
                 s
             }
         };
+        // PRD 0044: the notification channels share the session's vault.
+        if self.notices.channels().is_none() {
+            let dispatcher = crate::settings::settings_path().and_then(|path| {
+                cuotai_core::channels::Dispatcher::new(
+                    path,
+                    cuotai_core::channels::Vault::new(session.token_store()),
+                    chrono::Utc::now(),
+                )
+            });
+            if let Some(dispatcher) = &dispatcher {
+                let sent = Arc::clone(&self.channel_sent);
+                let wake = Arc::clone(&self.channel_wake);
+                dispatcher.set_on_sent(Arc::new(move |delivery| {
+                    sent.lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .push(delivery);
+                    wake.notify_one();
+                }));
+            }
+            self.notices.set_channels(dispatcher);
+        }
         let monitor = Monitor::with_login_session(
             file.config.clone(),
             Arc::new(EnvironmentCredentials),
@@ -2931,6 +3009,8 @@ impl Backend {
                     let readings = notice_readings(&l.cycle);
                     let now = chrono::Utc::now();
                     let mut tick = notices.tick(&l.file.config, &readings, now, &notifier);
+                    // PRD 0044 RF3.2/RF3.4: hourly summaries and failing channels.
+                    notices.channel_tick(now, &notifier);
                     // PRD 0043 RF3.2: the opt-in weekly digest, once per slot.
                     let store = l.monitor.history();
                     let (sent, held) = notices.weekly_digest(
@@ -2953,6 +3033,8 @@ impl Backend {
                 let view = self.inner.lock().await.view();
                 let _ = app.emit(EVENT, view);
             }
+            self.channel_events_to_hooks().await;
+            let channel_wake = Arc::clone(&self.inner.lock().await.channel_wake);
             let nudged = self.notice_nudge.notified();
             match tick.and_then(|tick| tick.next) {
                 Some(at) => {
@@ -2963,10 +3045,49 @@ impl Backend {
                     tokio::select! {
                         () = tokio::time::sleep_until(tokio::time::Instant::now() + wait) => {}
                         () = nudged => {}
+                        () = channel_wake.notified() => {}
                     }
                 }
-                None => nudged.await,
+                None => {
+                    tokio::select! {
+                        () = nudged => {}
+                        () = channel_wake.notified() => {}
+                    }
+                }
             }
+        }
+    }
+
+    /// PRD 0044 RF6.2: the deliveries the channels accepted since the last
+    /// pass reach the running hooks as `notification_sent` (the hooks lock
+    /// is taken after `inner` is released, never with it).
+    async fn channel_events_to_hooks(&self) {
+        let (sent, accounts) = {
+            let g = self.inner.lock().await;
+            let sent = std::mem::take(
+                &mut *g
+                    .channel_sent
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner),
+            );
+            let accounts = g
+                .loaded
+                .as_ref()
+                .map(|l| l.file.config.accounts.clone())
+                .unwrap_or_default();
+            (sent, accounts)
+        };
+        if sent.is_empty() || !self.hooks_on.load(Ordering::Relaxed) {
+            return;
+        }
+        let mut hooks = self.hooks.lock().await;
+        for delivery in &sent {
+            let account = delivery
+                .account_id
+                .as_deref()
+                .and_then(|id| accounts.iter().find(|a| a.state_key() == id));
+            let observed = cuotai_core::watch::ObservedEvent::notification_sent(delivery, account);
+            hooks.submit_notification(&observed);
         }
     }
 
@@ -3779,6 +3900,156 @@ impl Backend {
         let session = g.session.as_ref().ok_or("extensions_unavailable")?;
         manager
             .forget_secrets(id, session.token_store().as_ref())
+            .map_err(|note| l10n_to_json(&note))
+    }
+
+    // ---------- PRD 0044: notification channels ----------
+
+    /// The definitions file and the session's vault.
+    async fn channel_store(&self) -> Result<(PathBuf, cuotai_core::channels::Vault), String> {
+        self.ensure_loaded().await;
+        let g = self.inner.lock().await;
+        let path = crate::settings::settings_path().ok_or("unwritable")?;
+        let session = g.session.as_ref().ok_or_else(|| {
+            l10n_to_json(&cuotai_core::text::Localized::fixed(
+                "channels.error.vault",
+                "The system vault is unavailable, so the channel's address could not be read or saved.",
+            ))
+        })?;
+        Ok((
+            path,
+            cuotai_core::channels::Vault::new(session.token_store()),
+        ))
+    }
+
+    /// RF5.1: the channels with their last delivery, the choices of the
+    /// editor and the latest log entries.
+    pub async fn channels_view(&self) -> Result<ChannelsView, String> {
+        self.ensure_loaded().await;
+        let g = self.inner.lock().await;
+        let path = crate::settings::settings_path().ok_or("unwritable")?;
+        let private = g.notices.prefs().private;
+        let log = cuotai_core::channels::log::DeliveryLog::in_data_dir();
+        let now = chrono::Utc::now();
+        let channels = cuotai_core::channels::delivery::views(&path, log.as_ref(), private, now);
+        let mut entries = log.map(|log| log.read()).unwrap_or_default();
+        entries.reverse();
+        entries.truncate(CHANNEL_LOG_SHOWN);
+        let accounts = g
+            .loaded
+            .as_ref()
+            .map(|l| {
+                l.file
+                    .config
+                    .accounts
+                    .iter()
+                    .map(|a| ChannelAccount {
+                        id: a.state_key(),
+                        name: a.display_name().into_owned(),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        Ok(ChannelsView {
+            channels,
+            max: cuotai_core::channels::MAX_CHANNELS,
+            kinds: cuotai_core::channels::ChannelKind::ALL
+                .iter()
+                .map(|k| k.slug())
+                .collect(),
+            notice_kinds: cuotai_core::channels::NoticeKind::ALL
+                .iter()
+                .map(|k| ChannelChoice {
+                    id: k.slug(),
+                    label: k.label(),
+                })
+                .collect(),
+            accounts,
+            private,
+            log: entries,
+        })
+    }
+
+    /// RF4.1: what the consent dialog shows for `draft` at `url`.
+    pub async fn channel_consent(
+        &self,
+        draft: cuotai_core::channels::Draft,
+        url: String,
+    ) -> Result<cuotai_core::channels::Consent, String> {
+        let g = self.inner.lock().await;
+        let private = g.notices.prefs().private;
+        let locale = g.notices.language().to_owned();
+        drop(g);
+        cuotai_core::channels::consent(&draft, &url, private, &locale, chrono::Utc::now())
+            .map_err(|note| l10n_to_json(&note))
+    }
+
+    /// RF4.1: save a new channel (Save is the consent). The signing
+    /// secret, when asked for, is returned once.
+    pub async fn channel_add(
+        &self,
+        draft: cuotai_core::channels::Draft,
+        url: String,
+    ) -> Result<ChannelSaved, String> {
+        let (path, vault) = self.channel_store().await?;
+        let saved = tokio::task::spawn_blocking(move || {
+            cuotai_core::channels::add(&path, &vault, &draft, &url, chrono::Utc::now())
+        })
+        .await
+        .map_err(|_| "unwritable")?
+        .map_err(|note| l10n_to_json(&note))?;
+        Ok(ChannelSaved::from(saved))
+    }
+
+    /// RF4.3: edit a channel; a new `url` was consented again in the UI.
+    pub async fn channel_edit(
+        &self,
+        id: String,
+        draft: cuotai_core::channels::Draft,
+        url: Option<String>,
+    ) -> Result<ChannelSaved, String> {
+        let (path, vault) = self.channel_store().await?;
+        let saved = tokio::task::spawn_blocking(move || {
+            let url = url.filter(|url| !url.trim().is_empty());
+            cuotai_core::channels::edit(&path, &vault, &id, &draft, url.as_deref())
+        })
+        .await
+        .map_err(|_| "unwritable")?
+        .map_err(|note| l10n_to_json(&note))?;
+        Ok(ChannelSaved::from(saved))
+    }
+
+    /// RF4.3: on or off, no dialog.
+    pub async fn channel_set_enabled(&self, id: String, on: bool) -> Result<(), String> {
+        let path = crate::settings::settings_path().ok_or("unwritable")?;
+        cuotai_core::channels::set_enabled(&path, &id, on)
+            .map(|_| ())
+            .map_err(|note| l10n_to_json(&note))
+    }
+
+    /// RF5.1: remove a channel and its vault entries.
+    pub async fn channel_remove(&self, id: String) -> Result<(), String> {
+        let (path, vault) = self.channel_store().await?;
+        tokio::task::spawn_blocking(move || cuotai_core::channels::remove(&path, &vault, &id))
+            .await
+            .map_err(|_| "unwritable")?
+            .map_err(|note| l10n_to_json(&note))
+    }
+
+    /// RF4.2: **Send test**, awaited, with the destination's answer.
+    pub async fn channel_test(&self, id: String) -> Result<cuotai_core::channels::Outcome, String> {
+        self.ensure_loaded().await;
+        let (dispatcher, locale) = {
+            let g = self.inner.lock().await;
+            (
+                g.notices.channels().cloned(),
+                g.notices.language().to_owned(),
+            )
+        };
+        let dispatcher = dispatcher.ok_or("channels_unavailable")?;
+        dispatcher
+            .test(&id, &locale, chrono::Utc::now())
+            .await
             .map_err(|note| l10n_to_json(&note))
     }
 
