@@ -3,8 +3,8 @@
 //! tests, and passes on the repository itself.
 
 use xtask::security::{
-    check_csp, check_gitignore, check_html, check_registry, check_tauri_config, markers,
-    parse_registry, EXPECTED_CSP,
+    check_client_builders, check_csp, check_gitignore, check_html, check_registry,
+    check_tauri_config, markers, parse_registry, strip_cfg_test, EXPECTED_CSP,
 };
 
 fn baseline_csp() -> String {
@@ -174,6 +174,66 @@ fn the_registry_detects_undocumented_markers_and_stale_tests() {
     assert_eq!(markers(&marker("SEC-A-1")), ["SEC-A-1"]);
     assert!(check_gitignore("target/\ncuotai-dev.sqlite3\n").is_empty());
     assert!(!check_gitignore("target/\n").is_empty());
+}
+
+// security-invariant: SEC-REDIRECT
+#[test]
+fn http_clients_built_outside_the_seam_are_refused() {
+    let file = |path: &str, text: &str| vec![(path.to_string(), text.to_string())];
+    let direct = "fn f() { let c = reqwest::Client::builder().build(); }\n";
+    let problems = check_client_builders(&file("crates/cuotai-core/src/providers/x.rs", direct));
+    assert_eq!(problems.len(), 1, "{problems:?}");
+    assert!(problems[0].contains("x.rs:1"), "{problems:?}");
+
+    for bad in [
+        "fn f() { reqwest::Client::new(); }",
+        "fn f() { reqwest::ClientBuilder::new(); }",
+        "fn f() { reqwest::blocking::Client::new(); }",
+        "use reqwest::{Client, Method};\nfn f() { Client::builder(); }",
+        "use reqwest::Client;\nfn f() { Client::new(); }",
+    ] {
+        let problems = check_client_builders(&file("apps/desktop/src-tauri/src/a.rs", bad));
+        assert!(!problems.is_empty(), "{bad}");
+    }
+
+    // The seam, test modules, test files, comments and other crates' types pass.
+    assert!(check_client_builders(&file("crates/cuotai-core/src/network.rs", direct)).is_empty());
+    let tested = "fn f() {}\n#[cfg(test)]\nmod tests {\n    const J: &str = r#\"{\"a\": \"}\"}\"#;\n    fn t() { reqwest::Client::new(); }\n}\n";
+    assert!(check_client_builders(&file("crates/c/src/a.rs", tested)).is_empty());
+    let helper = "#[cfg(test)]\nfn helper() { let _ = '{'; reqwest::Client::new(); }\nfn product() { reqwest::Client::new(); }\n";
+    let problems = check_client_builders(&file("crates/c/src/a.rs", helper));
+    assert_eq!(problems.len(), 1, "{problems:?}");
+    assert!(problems[0].contains("a.rs:3"), "{problems:?}");
+    for path in [
+        "crates/c/tests/proxy.rs",
+        "crates/c/src/serve/tests.rs",
+        "crates/c/src/hooks_tests.rs",
+    ] {
+        assert!(
+            check_client_builders(&file(path, direct)).is_empty(),
+            "{path}"
+        );
+    }
+    let declared = vec![
+        (
+            "crates/c/src/lib.rs".to_string(),
+            "#[cfg(test)]\nmod fixtures;\n".to_string(),
+        ),
+        ("crates/c/src/fixtures.rs".to_string(), direct.to_string()),
+    ];
+    assert!(check_client_builders(&declared).is_empty());
+    assert!(check_client_builders(&file(
+        "crates/c/src/a.rs",
+        "// reqwest::Client::new()\nfn f() { serve::Client::new(); }"
+    ))
+    .is_empty());
+    assert!(check_client_builders(&file("xtask/src/a.rs", direct)).is_empty());
+    assert_eq!(
+        strip_cfg_test("a\n#[cfg(test)]\nmod t { x }\nb")
+            .lines()
+            .count(),
+        4
+    );
 }
 
 #[test]

@@ -109,12 +109,10 @@ fn provider() -> Arc<CryptoProvider> {
     Arc::new(rustls::crypto::ring::default_provider())
 }
 
+/// The shared seam without the OS roots: a CA file or a pin is the whole
+/// trust of this client (PRD 0050 RF7.2).
 fn builder(timeout: Duration) -> reqwest::ClientBuilder {
-    reqwest::Client::builder()
-        .timeout(timeout)
-        .connect_timeout(Duration::from_secs(10))
-        .redirect(reqwest::redirect::Policy::none())
-        .user_agent(concat!("cuotai/", env!("CARGO_PKG_VERSION")))
+    crate::network::builder_with_own_roots(crate::network::ClientPurpose::Provider, timeout)
 }
 
 fn config_error(id: &'static str, message: &str) -> QueryError {
