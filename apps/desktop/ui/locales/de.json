@@ -50,6 +50,7 @@
   "common.showHidden": "Ausgeblendete zeigen",
   "common.copyLabel": "{label} kopieren",
   "common.unexpected": "Unerwarteter Fehler.",
+  "coreText.toolMissing": "Das Befehlszeilenwerkzeug dieses Kontos wurde nicht gefunden. Installiere es oder gib seinen Pfad unter Bearbeiten an.",
   "desktop.error.config_not_loaded": "Konfiguration nicht geladen.",
   "desktop.error.oauth_session_missing": "OAuth-Sitzung nicht initialisiert.",
   "desktop.error.no_account": "Das Konto existiert nicht.",

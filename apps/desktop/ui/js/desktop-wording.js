@@ -12,6 +12,8 @@ const SETTING_INVALID = w("coreText.settingInvalid", "A setting of this account 
 const SETTING_MISSING = w("coreText.settingMissing", "This account needs one more setting to show usage. Open Edit to add it.");
 const LOGIN_SECRET = w("coreText.loginSecretMissing", "The sign-in setup of this account is incomplete. Check it in Edit.");
 const KEY_REQUIRED = w("coreText.keyRequired", "Type the key for this account.");
+// PRD 0054 RF6.3: the provider's command-line tool (aws, bl) was not found.
+const TOOL_MISSING = w("coreText.toolMissing", "The command-line tool this account uses was not found. Install it, or set its path in Edit.");
 
 /** Core id → the desktop's own wording (and, when it has one, the fix the card offers). */
 export const DESKTOP_WORDING = {
@@ -49,6 +51,8 @@ export const DESKTOP_WORDING = {
   "query.alibaba_plans.invalid_region": SETTING_INVALID,
   "query.alibaba_plans.invalid_cli_profile": SETTING_INVALID,
   "query.cloud.invalid_aws_profile": SETTING_INVALID,
+  "tool.error.invalid_path": SETTING_INVALID,
+  "tool.error.missing": TOOL_MISSING,
   "query.cloud.invalid_azure_resource_id": SETTING_INVALID,
   "query.cloud.invalid_resource_identifier": SETTING_INVALID,
   "query.coding.invalid_organization_id": SETTING_INVALID,

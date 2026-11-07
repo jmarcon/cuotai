@@ -50,6 +50,7 @@
   "common.showHidden": "显示已隐藏",
   "common.copyLabel": "复制{label}",
   "common.unexpected": "意外失败。",
+  "coreText.toolMissing": "未找到此账户使用的命令行工具。请安装它，或在“编辑”中设置其路径。",
   "desktop.error.config_not_loaded": "未加载配置。",
   "desktop.error.oauth_session_missing": "OAuth 会话未初始化。",
   "desktop.error.no_account": "账户不存在。",

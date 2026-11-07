@@ -50,6 +50,7 @@
   "common.showHidden": "Показать скрытые",
   "common.copyLabel": "Копировать: {label}",
   "common.unexpected": "Непредвиденный сбой.",
+  "coreText.toolMissing": "Инструмент командной строки, который использует эта учётная запись, не найден. Установите его или укажите путь в разделе «Изменить».",
   "desktop.error.config_not_loaded": "Конфигурация не загружена.",
   "desktop.error.oauth_session_missing": "Сеанс OAuth не инициализирован.",
   "desktop.error.no_account": "Учётная запись не существует.",

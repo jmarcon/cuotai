@@ -47,6 +47,7 @@
   "common.showHidden": "Mostrar ocultas",
   "common.copyLabel": "Copiar {label}",
   "common.unexpected": "Error inesperado.",
+  "coreText.toolMissing": "No se encontró la herramienta de línea de comandos que usa esta cuenta. Instálala o indica su ruta en Editar.",
   "desktop.error.config_not_loaded": "Configuración no cargada.",
   "desktop.error.oauth_session_missing": "Sesión OAuth no inicializada.",
   "desktop.error.no_account": "La cuenta no existe.",

@@ -50,6 +50,7 @@
   "common.showHidden": "Hiện mục đã ẩn",
   "common.copyLabel": "Sao chép {label}",
   "common.unexpected": "Đã xảy ra lỗi không mong đợi.",
+  "coreText.toolMissing": "Không tìm thấy công cụ dòng lệnh mà tài khoản này dùng. Hãy cài đặt nó, hoặc đặt đường dẫn trong Chỉnh sửa.",
   "desktop.error.config_not_loaded": "Cấu hình chưa được tải.",
   "desktop.error.oauth_session_missing": "Phiên OAuth chưa được khởi tạo.",
   "desktop.error.no_account": "Tài khoản không tồn tại.",
