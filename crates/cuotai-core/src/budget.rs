@@ -1160,6 +1160,9 @@ pub fn recent_reference(samples: &[Point], unit: &str) -> Option<Localized> {
     ))
 }
 
+#[path = "budget_editor.rs"]
+pub mod editor;
+
 #[cfg(test)]
 #[path = "budget_tests.rs"]
 mod tests;

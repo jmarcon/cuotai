@@ -170,6 +170,7 @@ pub(crate) fn source_ids() -> BTreeMap<String, String> {
         ("vault.rs", include_str!("vault.rs")),
         ("watch.rs", include_str!("watch.rs")),
         ("wizard.rs", include_str!("wizard.rs")),
+        ("wizard_budgets.rs", include_str!("wizard_budgets.rs")),
     ];
     let mut ids = BTreeMap::new();
     for (file, source) in SOURCES {
