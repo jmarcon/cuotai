@@ -438,6 +438,8 @@ fn tasks(step: Step, context: &Context) -> Option<Vec<Task>> {
                 Task::new("node", &[&script("check.mjs"), "--selftest"]),
                 Task::new("node", &[&script("locale-smoke.mjs")]),
                 Task::new("node", &[&script("keyboard.mjs")]),
+                // PRD 0050 RF1.4: the three pages under the real CSP.
+                Task::new("node", &[&script("csp-smoke.mjs")]),
                 a11y,
                 Task::new("node", &[&script("perf.mjs"), "--strict"]),
             ]

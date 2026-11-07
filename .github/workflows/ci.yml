@@ -424,6 +424,8 @@ jobs:
         run: node apps/desktop/tools/ui-shots/locale-smoke.mjs
       - name: Quiet-hours editor works from the keyboard (PRD 0032)
         run: node apps/desktop/tools/ui-shots/keyboard.mjs
+      - name: Main, tray and Settings under the real CSP (PRD 0050 RF1.4)
+        run: node apps/desktop/tools/ui-shots/csp-smoke.mjs
       # Blocking on serious/critical violations; exit 3 (axe-core could not be fetched from the CDN or failed its
       # checksum) is reported as a warning rather than failing the run on a network hiccup.
       - name: Accessibility pass (axe-core)
