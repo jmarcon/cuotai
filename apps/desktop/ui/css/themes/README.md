@@ -145,8 +145,10 @@ Windows `%APPDATA%\cuotai`, Linux `~/.config/cuotai`, or `CUOTAI_USER_DIR`) and 
 
 * `id` = the file name (`[a-z0-9-]`, up to 32 characters) and it cannot repeat that of a built-in theme.
 * An optional header on the first line: `/*! cuotai-theme {"label":"Name","group":"custom","modes":["dark","light"]} */`.
-  Without it, the name is the id, the group is "My themes" and the modes are deduced from the selectors.
-* The same contract as the built-in ones, with stricter validation on load: no `@import`, `@font-face`, external URLs
-  or any other at-rule, and every selector must start with `:root[data-theme="<id>"]`. Themes outside this are ignored and the
-  reason appears in a warning in the main window.
+  Without it, the name is the id and the group is "My themes".
+* Tokens only (PRD 0050 RF3.1/RF3.2): `cuotai_core::user_theme` parses the file before the webview sees it. Exactly one
+  dark and one light `:root[data-theme="<id>"][data-mode="…"]` rule, only `color-scheme` and the tokens above, values
+  from the token grammar; no component selectors, `!important`, at-rules, escapes, `url()` or image functions. Only CSS
+  rebuilt from the parsed tokens is inserted. The grammar and the refusal reasons are in [`docs/themes.md`](../../../../../docs/themes.md#the-theme-contract);
+  a refused theme is ignored and the reason appears in a warning in the main window.
 * Example: `apps/desktop/examples/user/themes/ocean.css`.

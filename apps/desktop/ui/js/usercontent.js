@@ -1,6 +1,7 @@
-// User themes and languages. The shell (Rust) reads <config folder>/cuotai/{themes,locales} and hands over the texts,
-// with the protected security ids of each language pack already removed (PRD 0050 RF3.3); here they are VALIDATED and
-// registered. Invalid items are ignored and listed in `userContent.errors`.
+// User themes and languages. The shell (Rust) reads <config folder>/cuotai/{themes,locales} and hands them over:
+// each theme already PARSED by the core (PRD 0050 RF3.1/RF3.2: only its canonical token CSS and registry entry arrive,
+// refused files come as errors with the parser's reason), each language pack with its protected security ids already
+// removed (PRD 0050 RF3.3). Here they are registered; invalid items are ignored and listed in `userContent.errors`.
 //
 // Theme:    themes/<id>.css  — optional header  /*! cuotai-theme {"label":"Name","group":"custom","modes":["dark","light"]} */
 // Language: locales/<code>.json — { "_meta": { "name": "Name" }, "key": "text" }
@@ -10,47 +11,20 @@ import { isBuiltinTheme, registerTheme, THEMES } from "./themes.js";
 const T = window.__TAURI__;
 export const userContent = { dir: null, errors: [] };
 
-const ID_RE = /^[a-z0-9][a-z0-9-]{0,31}$/;
 const LOCALE_RE = /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/;
 const MAX_BYTES = 256 * 1024;
 
 class Skip extends Error {}
 
-/** Rules: no @import/@font-face/external URLs, no @-rules, and every selector inside :root[data-theme="<id>"]. */
-export function validateThemeCss(id, css) {
-  const body = css.replace(/\/\*[\s\S]*?\*\//g, "");
-  if (/@import|@font-face|@charset|@namespace/i.test(body) ||
-      /url\(\s*['"]?\s*(https?:|\/\/|file:|javascript:)/i.test(body) ||
-      /expression\(|javascript:|behavior\s*:|-moz-binding/i.test(body)) throw new Skip("externalUrl");
-  if (/@[a-z-]+/i.test(body.replace(/"[^"]*"|'[^']*'/g, ""))) throw new Skip("atRule");
-  const prefix = `:root[data-theme="${id}"]`;
-  for (const m of body.matchAll(/([^{}]+)\{[^{}]*\}/g)) {
-    for (const sel of m[1].split(",")) if (!sel.trim().startsWith(prefix)) throw new Skip("scope");
-  }
-}
-
-function themeMeta(id, css) {
-  const m = css.match(/\/\*!\s*cuotai-theme\s*(\{[\s\S]*?\})\s*\*\//);
-  let meta = {};
-  if (m) { try { meta = JSON.parse(m[1]); } catch { throw new Skip("invalidMeta"); } }
-  const inferred = ["dark", "light"].filter((mode) => css.includes(`[data-mode="${mode}"]`));
-  const modes = Array.isArray(meta.modes) ? meta.modes.filter((x) => x === "dark" || x === "light") : inferred;
-  if (!modes.length) throw new Skip("invalidMeta");
-  return { id, label: String(meta.label || id).slice(0, 48), group: String(meta.group || "custom").slice(0, 32), modes };
-}
-
+// The theme was parsed in the core; only the built-in ids (known here) can still collide.
 function addTheme(file) {
-  const id = file.name.replace(/\.css$/i, "");
-  if (!ID_RE.test(id)) throw new Skip("invalidId");
+  const { id, label, group, modes, text } = file;
   if (isBuiltinTheme(id) || THEMES.some((x) => x.id === id)) throw new Skip("duplicate");
-  if (file.text.length > MAX_BYTES) throw new Skip("tooLarge");
-  validateThemeCss(id, file.text);
-  const meta = themeMeta(id, file.text);
   const style = document.createElement("style");
   style.dataset.userTheme = id;
-  style.textContent = file.text;
+  style.textContent = text;
   document.head.append(style);
-  registerTheme(meta);
+  registerTheme({ id, label, group, modes });
 }
 
 function addLocale(file) {

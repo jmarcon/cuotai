@@ -1,5 +1,8 @@
-//! User themes and languages: reads `<config folder>/cuotai/{themes,locales}` and hands the texts to the UI,
-//! which validates and registers them. Read-only; no file is executed.
+//! User themes and languages: reads `<config folder>/cuotai/{themes,locales}` and hands them to the UI, which
+//! registers them. Read-only; no file is executed.
+//!
+//! PRD 0050 RF3.1/RF3.2: a theme is parsed by `cuotai_core::user_theme` here; only its canonical CSS, rebuilt
+//! from tokens, reaches the webview, and a refused file is reported with the parser's reason.
 //!
 //! PRD 0050 RF3.3/RF3.4: each folder lists at most [`MAX_FILES`] eligible regular files (symbolic links refused),
 //! sorted by name before the cap so the same files always win, and the excess is reported by name. A language
@@ -14,6 +17,17 @@ const MAX_FILES: usize = 64;
 #[derive(Serialize)]
 pub struct UserFile {
     name: String,
+    text: String,
+}
+
+/// An accepted user theme: its registry entry and the canonical CSS (`text`).
+#[derive(Serialize)]
+pub struct UserTheme {
+    name: String,
+    id: String,
+    label: String,
+    group: String,
+    modes: Vec<&'static str>,
     text: String,
 }
 
@@ -41,7 +55,7 @@ impl UserError {
 #[derive(Serialize)]
 pub struct UserContent {
     dir: String,
-    themes: Vec<UserFile>,
+    themes: Vec<UserTheme>,
     locales: Vec<UserFile>,
     errors: Vec<UserError>,
 }
@@ -106,6 +120,30 @@ fn read_dir(
     files
 }
 
+/// PRD 0050 RF3.1/RF3.2: parse each theme in the core; a refused file never reaches the webview.
+fn parse_themes(files: Vec<UserFile>, errors: &mut Vec<UserError>) -> Vec<UserTheme> {
+    files
+        .into_iter()
+        .filter_map(|file| {
+            let id = file.name.strip_suffix(".css").unwrap_or(&file.name);
+            match cuotai_core::user_theme::parse(id, &file.text) {
+                Ok(theme) => Some(UserTheme {
+                    name: file.name,
+                    id: theme.id,
+                    label: theme.label,
+                    group: theme.group,
+                    modes: theme.modes,
+                    text: theme.css,
+                }),
+                Err(error) => {
+                    errors.push(UserError::new("theme", file.name, error.reason()));
+                    None
+                }
+            }
+        })
+        .collect()
+}
+
 /// PRD 0050 RF3.3: drop the protected ids of each pack and report them (the pack itself still loads).
 fn strip_locales(files: Vec<UserFile>, errors: &mut Vec<UserError>) -> Vec<UserFile> {
     files
@@ -130,6 +168,7 @@ pub fn load() -> Option<UserContent> {
     let base = user_dir()?;
     let mut errors = Vec::new();
     let themes = read_dir(base.join("themes"), "css", "theme", &mut errors);
+    let themes = parse_themes(themes, &mut errors);
     let locales = read_dir(base.join("locales"), "json", "locale", &mut errors);
     let locales = strip_locales(locales, &mut errors);
     Some(UserContent {
@@ -212,6 +251,37 @@ mod tests {
         assert!(files.is_empty());
         assert_eq!(errors[0].name, "linked.css");
         assert_eq!(errors[0].reason, "symlink");
+    }
+
+    /// PRD 0050 RF3.1/RF3.2: only parsed, canonical theme CSS reaches the
+    /// webview; a refused theme is reported with the parser's reason.
+    #[test]
+    fn a_theme_reaches_the_webview_only_as_canonical_css() {
+        let ok = ":root[data-theme=\"ocean\"][data-mode=\"dark\"] { --bg: #000; /* note */ }\n\
+                  :root[data-theme=\"ocean\"][data-mode=\"light\"] { --bg: #FFF; }";
+        let files = vec![
+            UserFile {
+                name: "ocean.css".into(),
+                text: ok.into(),
+            },
+            UserFile {
+                name: "pixel.css".into(),
+                text: ok
+                    .replace("ocean", "pixel")
+                    .replace("#000", "url(https://example.com/pixel)"),
+            },
+        ];
+        let mut errors = Vec::new();
+        let themes = parse_themes(files, &mut errors);
+        assert_eq!(themes.len(), 1);
+        assert_eq!(themes[0].id, "ocean");
+        assert!(!themes[0].text.contains("note"));
+        assert!(themes[0].text.contains("--bg: #fff;"));
+        assert_eq!(errors.len(), 1);
+        assert_eq!(
+            (errors[0].name.as_str(), errors[0].reason),
+            ("pixel.css", "externalUrl")
+        );
     }
 
     /// PRD 0050 RF3.3: a pack keeps its ordinary texts, loses its
