@@ -28,7 +28,7 @@ export function html({ settings: s }) {
   return `<div class="prev-card mb-live" data-tray-live role="img" aria-label=""><span class="prev-label">${te("settings.menubar.preview")}</span><span class="prev-out" data-tray-live-out></span></div>`
     + group("menubar-style", te("settings.menubar.style"),
       row({ key: "tray-style", label: te("settings.menubar.style"), info: te("settings.menubar.style.help"), attrs: "data-bare", body: cards })
-      + (styles.includes("hourly_strip") ? `<p class="hint">${te("settings.menubar.strip_hint")}</p>` : "")
+      + (styles.includes("hourly_strip") ? `<p class="hint mb-showing">${te("settings.menubar.strip_hint")}</p>` : "")
       + `<p class="hint mb-showing" data-tray-showing></p>`)
     + group("menubar-look", te("settings.menubar.appearance"),
       row({ key: "tray-colored", label: te("settings.menubar.colored"), desc: te("settings.menubar.colored.desc"), info: te("settings.menubar.colored.help"),

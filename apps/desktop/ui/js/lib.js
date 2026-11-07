@@ -2504,6 +2504,8 @@ const demo = {
   },
   // Demo: the core's checks, reduced to the amount rule and the monthly sentence.
   check_budgets: async ({ budgets, floors }) => ({
+    targets: ["spend", "usage", "credits", "account"],
+    floor_targets: ["any", "balance", "credits"],
     sentences: budgets.map((b) => ({ id: "budget.describe.monthly", params: { amount: `${b.amount} ${b.unit ?? ""}`.trim(), start: "1" }, fallback: `Cuotai will show a Budget quota of ${b.amount} a month, starting on day 1.` })),
     problems: [...budgets.map((b, i) => ["budgets", i, b]), ...floors.map((f, i) => ["floors", i, f])]
       .filter(([, , row]) => !(row.amount > 0 && row.amount <= 1e9))
