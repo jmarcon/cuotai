@@ -542,6 +542,10 @@ pub struct ArtifactState {
     pub mode: Option<String>,
     /// The expected mode, when it differs from [`ArtifactState::mode`].
     pub mode_expected: Option<String>,
+    /// Windows permission summary (`private`, `open_to_others`,
+    /// `writable_by_others` or `unknown`: whether a broad principal such as
+    /// Everyone or Users can reach it); `None` elsewhere or when absent.
+    pub acl: Option<&'static str>,
     /// `user_version` or JSON `schema`; `unversioned`/`not_applicable`/
     /// `unreadable` otherwise.
     pub schema: String,
@@ -570,6 +574,7 @@ fn inspect_one(artifact: &'static Artifact, roots: &Roots) -> ArtifactState {
             bytes: None,
             mode: None,
             mode_expected: None,
+            acl: None,
             schema: "not_applicable".to_string(),
         };
     };
@@ -615,6 +620,9 @@ fn inspect_one(artifact: &'static Artifact, roots: &Roots) -> ArtifactState {
         bytes,
         mode,
         mode_expected,
+        acl: meta
+            .as_ref()
+            .and_then(|_| crate::private_fs::acl_summary(&path)),
         schema,
     }
 }

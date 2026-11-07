@@ -87,7 +87,7 @@ pub(crate) fn scan(dir: &Path) -> Result<String, Refused> {
     if !meta.is_dir() {
         return Err(Refused::Unreadable);
     }
-    guard(&meta)?;
+    guard(dir, &meta)?;
     let mut walk = Walk {
         root: dir,
         hasher: Sha256::new(),
@@ -119,14 +119,15 @@ pub(crate) fn scan_within(dir: &Path, root: &Path) -> Result<String, Refused> {
     }
     for ancestor in above {
         let meta = std::fs::symlink_metadata(ancestor).map_err(|_| Refused::Unreadable)?;
-        guard(&meta)?;
+        guard(ancestor, &meta)?;
     }
     scan(dir)
 }
 
-/// The Unix ownership and permission rule, for one entry.
-fn guard(meta: &std::fs::Metadata) -> Result<(), Refused> {
-    if writable_by_others(meta) || foreign_owner(meta) {
+/// The ownership and permission rule, for one entry: Unix mode and owner,
+/// or a Windows DACL that lets a broad principal change it.
+fn guard(path: &Path, meta: &std::fs::Metadata) -> Result<(), Refused> {
+    if writable_by_others(path, meta) || foreign_owner(meta) {
         return Err(Refused::Exposed);
     }
     Ok(())
@@ -195,7 +196,7 @@ impl Walk<'_> {
             self.record(b'L', relative, target.as_encoded_bytes());
             return Ok(());
         }
-        guard(&meta)?;
+        guard(path, &meta)?;
         if kind.is_dir() {
             self.record(b'D', relative, &[]);
             return self.folder(path, relative, depth + 1);

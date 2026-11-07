@@ -652,14 +652,18 @@ fn check_ledger(root: Option<&Path>) -> Check {
 
 fn check_serve_token(root: Option<&Path>) -> Check {
     let title = fixed("doctor.title.serve_token", "Local server token");
-    let Some(meta) = root
+    let Some((path, meta)) = root
         .map(|root| root.join("serve").join("token"))
-        .and_then(|path| std::fs::symlink_metadata(path).ok())
+        .and_then(|path| {
+            std::fs::symlink_metadata(&path)
+                .ok()
+                .map(|meta| (path, meta))
+        })
     else {
         return Check::new("serve_token", CheckStatus::Skip, title).detail(absent());
     };
     if !meta.is_file()
-        || crate::private_fs::open_to_others(&meta)
+        || crate::private_fs::open_to_others(&path, &meta)
         || crate::private_fs::foreign_owner(&meta)
     {
         Check::new("serve_token", CheckStatus::Fail, title)

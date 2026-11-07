@@ -54,6 +54,24 @@ direct remedy on a headless machine is to configure the account with
 `credential_env = "VARIABLE"` (see [`cuotai.example.toml`](../cuotai.example.toml))
 and export that variable in the shell or service that runs `cuotai`.
 
+## Private files and folders (PRD 0050 §13)
+
+Cuotai keeps its state, logs, the local-server token and the extension
+consent in private files. On macOS and Linux they are `0600` files in
+`0700` folders owned by the current user. On Windows a new private folder
+or file gets a protected access list with only the current user, SYSTEM
+and Administrators. The checks that guard running an extension (its folder
+and every parent up to the extensions root) and the local-server token
+refuse a file or folder whose access list lets a broad group (Everyone,
+Authenticated Users, Users, Guests, Anonymous, INTERACTIVE, NETWORK) write,
+delete or change its permissions, and treat a missing or unreadable access
+list the same way. The default access list of a Windows profile folder
+(owner, SYSTEM, Administrators) is accepted; other individual accounts or
+groups added by hand are not judged. A volume without access lists (FAT,
+exFAT) can still hold Cuotai's data, but an extension or a `--token-file`
+on it is refused. The local-data inspection used by diagnostics
+(`cuotai_core::privacy::inspect`) reports each file's summary as `acl` (`private`, `open_to_others`, `writable_by_others` or `unknown`).
+
 ## Network: trust store and proxies (PRD 0052 RF6)
 
 Every core client (provider APIs, model lists, status pages, OAuth and the

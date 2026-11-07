@@ -19,11 +19,11 @@ pub(crate) fn ensure_dir(dir: &Path) -> io::Result<()> {
     let mut builder = std::fs::DirBuilder::new();
     #[cfg(unix)]
     std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
-    match builder.create(dir) {
-        Ok(()) => {}
-        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+    let created = match builder.create(dir) {
+        Ok(()) => true,
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => false,
         Err(error) => return Err(error),
-    }
+    };
     let meta = std::fs::symlink_metadata(dir)?;
     if !meta.is_dir() {
         return Err(io::Error::other("not a private directory"));
@@ -41,6 +41,16 @@ pub(crate) fn ensure_dir(dir: &Path) -> io::Result<()> {
             std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))?;
         }
     }
+    // Windows: a new folder gets the private DACL, and an existing one is
+    // narrowed only when a broad principal can reach it. Best effort, so a
+    // volume without ACLs (FAT, exFAT) stays usable; the checks that guard
+    // execution and the server token still refuse an exposed path.
+    #[cfg(windows)]
+    if created || open_to_others(dir, &meta) {
+        let _ = make_private(dir, true);
+    }
+    #[cfg(not(windows))]
+    let _ = created;
     Ok(())
 }
 
@@ -582,36 +592,91 @@ pub(crate) fn sqlite_backup(db: &rusqlite::Connection, path: &Path) -> io::Resul
     sync_dir(dir)
 }
 
-/// On Unix, whether the group or other users may write what `meta`
-/// describes. Always `false` elsewhere (ACLs are out of scope).
-pub(crate) fn writable_by_others(meta: &Metadata) -> bool {
+/// Whether users other than the owner may change what `path` (described by
+/// `meta`) holds or names: on Unix the group or other write bits; on
+/// Windows a DACL that grants a broad principal (Everyone, Authenticated
+/// Users, Users, Guests, Anonymous, INTERACTIVE, NETWORK) a write, delete
+/// or re-permission right, a NULL DACL, or a descriptor that cannot be
+/// read (fail closed). `false` on other platforms.
+pub(crate) fn writable_by_others(path: &Path, meta: &Metadata) -> bool {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
+        let _ = path;
         meta.permissions().mode() & 0o022 != 0
     }
-    #[cfg(not(unix))]
+    #[cfg(windows)]
     {
         let _ = meta;
+        matches!(
+            windows_acl::exposure(path),
+            windows_acl::Exposure::WritableByOthers | windows_acl::Exposure::Unknown
+        )
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = (path, meta);
         false
     }
 }
 
-/// On Unix, whether the group or other users may read, write or traverse
-/// what `meta` describes. Always `false` elsewhere.
-#[cfg_attr(not(feature = "serve"), allow(dead_code))]
-pub(crate) fn open_to_others(meta: &Metadata) -> bool {
+/// Whether users other than the owner may read, write or traverse what
+/// `path` (described by `meta`) is: on Unix any group or other bit; on
+/// Windows any read or write grant to a broad principal (see
+/// [`writable_by_others`]) or an unreadable descriptor. `false` on other
+/// platforms.
+pub(crate) fn open_to_others(path: &Path, meta: &Metadata) -> bool {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
+        let _ = path;
         meta.permissions().mode() & 0o077 != 0
     }
-    #[cfg(not(unix))]
+    #[cfg(windows)]
     {
         let _ = meta;
+        windows_acl::exposure(path) != windows_acl::Exposure::Private
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = (path, meta);
         false
     }
 }
+
+/// The Windows permission summary of `path` for `privacy::inspect`:
+/// `private`, `open_to_others`, `writable_by_others` or `unknown`. `None`
+/// on other platforms (they report the octal mode instead).
+pub(crate) fn acl_summary(path: &Path) -> Option<&'static str> {
+    #[cfg(windows)]
+    {
+        Some(windows_acl::exposure(path).as_str())
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = path;
+        None
+    }
+}
+
+/// On Windows, give `path` a protected DACL with only the current user,
+/// SYSTEM and Administrators (inherited by a folder's new children), the
+/// counterpart of `0700`/`0600`. A no-op elsewhere.
+#[cfg_attr(not(any(windows, feature = "serve")), allow(dead_code))]
+pub(crate) fn make_private(path: &Path, is_dir: bool) -> io::Result<()> {
+    #[cfg(windows)]
+    {
+        windows_acl::make_private(path, is_dir)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (path, is_dir);
+        Ok(())
+    }
+}
+
+#[cfg(windows)]
+mod windows_acl;
 
 /// On Unix, whether what `meta` describes belongs to neither the current
 /// user nor root (another user could change it at will). Always `false`
@@ -758,10 +823,36 @@ mod tests {
         ] {
             std::fs::set_permissions(&path, std::fs::Permissions::from_mode(bits)).unwrap();
             let meta = std::fs::metadata(&path).unwrap();
-            assert_eq!(writable_by_others(&meta), writable, "{bits:o}");
-            assert_eq!(open_to_others(&meta), bits != 0o600, "{bits:o}");
+            assert_eq!(writable_by_others(&path, &meta), writable, "{bits:o}");
+            assert_eq!(open_to_others(&path, &meta), bits != 0o600, "{bits:o}");
             assert!(!foreign_owner(&meta));
         }
+    }
+}
+
+/// Every platform: what `private_fs` creates passes its own checks (on
+/// Windows the protected DACL, on Unix `0700`/`0600`).
+#[cfg(test)]
+mod created_private_tests {
+    use super::*;
+
+    #[test]
+    fn a_folder_and_a_file_created_here_are_private() {
+        let root = tempfile::tempdir().unwrap();
+        let dir = root.path().join("private");
+        ensure_dir(&dir).unwrap();
+        let meta = std::fs::symlink_metadata(&dir).unwrap();
+        assert!(!open_to_others(&dir, &meta));
+        assert!(!writable_by_others(&dir, &meta));
+        let file = dir.join("state.json");
+        write_file(&file, b"{}").unwrap();
+        let meta = std::fs::symlink_metadata(&file).unwrap();
+        assert!(!open_to_others(&file, &meta));
+        assert!(!writable_by_others(&file, &meta));
+        #[cfg(windows)]
+        assert_eq!(acl_summary(&file), Some("private"));
+        #[cfg(not(windows))]
+        assert_eq!(acl_summary(&file), None);
     }
 }
 
