@@ -190,24 +190,26 @@ unsafe fn classify(dacl: *const ACL, broad: &[Vec<u8>]) -> Option<Exposure> {
     }
     let mut result = Exposure::Private;
     for index in 0..info.AceCount {
-        let mut ace: *mut core::ffi::c_void = std::ptr::null_mut();
+        let mut raw: *mut core::ffi::c_void = std::ptr::null_mut();
         // SAFETY: `index` is below the ACL's entry count.
-        if unsafe { GetAce(dacl, index, &mut ace) } == 0 || ace.is_null() {
+        if unsafe { GetAce(dacl, index, &mut raw) } == 0 {
             return None;
         }
-        // SAFETY: every ACE starts with an `ACE_HEADER`.
-        let header = unsafe { *(ace as *const ACE_HEADER) };
+        let ace = std::ptr::NonNull::new(raw)?;
+        // SAFETY: GetAce succeeded, so `ace` points to an entry inside the
+        // ACL, and every ACE starts with an `ACE_HEADER`.
+        let header = unsafe { ace.cast::<ACE_HEADER>().as_ptr().read_unaligned() };
         if header.AceType != ACCESS_ALLOWED_ACE_TYPE
             || u32::from(header.AceFlags) & INHERIT_ONLY_ACE != 0
         {
             continue;
         }
-        let allowed = ace as *const ACCESS_ALLOWED_ACE;
+        let allowed = ace.cast::<ACCESS_ALLOWED_ACE>().as_ptr();
         // SAFETY: an ACCESS_ALLOWED_ACE has its mask after the header and
         // its SID starting at `SidStart`.
         let (mask, sid) = unsafe {
             (
-                (*allowed).Mask,
+                std::ptr::addr_of!((*allowed).Mask).read_unaligned(),
                 std::ptr::addr_of!((*allowed).SidStart) as PSID,
             )
         };

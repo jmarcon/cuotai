@@ -552,7 +552,7 @@ mod tests {
                 .iter()
                 .any(|needle| text.contains(needle))
         };
-        let with_secrets = |purpose: ClientPurpose| {
+        let seeded_request = |purpose: ClientPurpose| {
             client(purpose, Duration::from_secs(5))
                 .unwrap()
                 .get(&url)
@@ -561,13 +561,13 @@ mod tests {
         };
 
         let error =
-            crate::providers::json::<serde_json::Value>(with_secrets(ClientPurpose::Provider))
+            crate::providers::json::<serde_json::Value>(seeded_request(ClientPurpose::Provider))
                 .await
                 .unwrap_err();
         assert!(!leaks(&format!("{error:?}")), "{error:?}");
         assert!(!leaks(&error.note.to_string()), "{}", error.note);
 
-        let response = crate::oauth::send_secure(with_secrets(ClientPurpose::OAuth))
+        let response = crate::oauth::send_secure(seeded_request(ClientPurpose::OAuth))
             .await
             .unwrap();
         assert_eq!(response.status().as_u16(), 302);
@@ -575,7 +575,7 @@ mod tests {
         assert!(!leaks(&format!("{error} {error:?}")), "{error:?}");
 
         for purpose in ClientPurpose::ALL {
-            let response = with_secrets(purpose).send().await.unwrap();
+            let response = seeded_request(purpose).send().await.unwrap();
             assert_eq!(response.status().as_u16(), 302, "{purpose:?}");
         }
         assert!(

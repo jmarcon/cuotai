@@ -93,7 +93,7 @@ async fn answering(status: u16) -> MockServer {
     server
 }
 
-fn with_secrets(purpose: ClientPurpose, url: &str) -> reqwest::RequestBuilder {
+fn seeded_request(purpose: ClientPurpose, url: &str) -> reqwest::RequestBuilder {
     client(purpose, Duration::from_secs(5))
         .unwrap()
         .get(url)
@@ -103,7 +103,7 @@ fn with_secrets(purpose: ClientPurpose, url: &str) -> reqwest::RequestBuilder {
 async fn transport_rows() -> Vec<Exposed> {
     let mut rows = Vec::new();
     // Plain HTTP to a non-loopback host: refused before the network.
-    let error = crate::providers::json::<serde_json::Value>(with_secrets(
+    let error = crate::providers::json::<serde_json::Value>(seeded_request(
         ClientPurpose::Provider,
         &sentinel_url("http", URL_HOST),
     ))
@@ -119,7 +119,7 @@ async fn transport_rows() -> Vec<Exposed> {
     for status in [400, 401, 429, 500, 302] {
         let server = answering(status).await;
         let url = format!("{}/{URL_PATH}?token={QUERY}", server.uri());
-        let error = crate::providers::json::<serde_json::Value>(with_secrets(
+        let error = crate::providers::json::<serde_json::Value>(seeded_request(
             ClientPurpose::Provider,
             &url,
         ))
@@ -132,7 +132,7 @@ async fn transport_rows() -> Vec<Exposed> {
         );
     }
     // A host that does not answer at all (closed loopback port).
-    let error = crate::providers::json::<serde_json::Value>(with_secrets(
+    let error = crate::providers::json::<serde_json::Value>(seeded_request(
         ClientPurpose::Provider,
         &format!("http://127.0.0.1:1/{URL_PATH}?token={QUERY}"),
     ))
@@ -148,7 +148,7 @@ async fn transport_rows() -> Vec<Exposed> {
 
 async fn oauth_rows() -> Vec<Exposed> {
     let mut rows = Vec::new();
-    let error = crate::oauth::send_secure(with_secrets(
+    let error = crate::oauth::send_secure(seeded_request(
         ClientPurpose::OAuth,
         &sentinel_url("http", URL_HOST),
     ))
@@ -162,7 +162,7 @@ async fn oauth_rows() -> Vec<Exposed> {
     );
     for status in [400, 401, 403, 429, 500, 302] {
         let server = answering(status).await;
-        let response = crate::oauth::send_secure(with_secrets(
+        let response = crate::oauth::send_secure(seeded_request(
             ClientPurpose::OAuth,
             &format!("{}/{URL_PATH}?token={QUERY}", server.uri()),
         ))
