@@ -223,7 +223,14 @@ fn confirm(
         Err(hooks) => hooks,
     };
     let io_error = |error: io::Error| error.to_string();
-    for line in hooks.listing() {
+    // PRD 0050 RF2.4: the listing and the digest confirmed come from one
+    // resolution of the programs; one that cannot be pinned is listed as
+    // such and refused.
+    let (lines, shown) = match hooks.approval() {
+        Ok((lines, digest)) => (lines, Ok(digest)),
+        Err(error) => (hooks.listing(), Err(error)),
+    };
+    for line in lines {
         let indent = match &*line.id {
             "hooks.confirm.header" => "",
             "hooks.confirm.rule" => "  ",
@@ -231,6 +238,7 @@ fn confirm(
         };
         writeln!(out, "{indent}{}", line.resolve(locale)).map_err(io_error)?;
     }
+    let shown = shown.map_err(|error| error.resolve(locale))?;
     if !interactive {
         return Err(hooks::not_confirmed(&hooks).resolve(locale));
     }
@@ -243,7 +251,7 @@ fn confirm(
         return Err(hooks::declined().resolve(locale));
     }
     consent
-        .confirm(hooks)
+        .confirm_shown(hooks, &shown)
         .map_err(|error| error.resolve(locale))
 }
 
@@ -368,6 +376,43 @@ mod tests {
             ),
         )
         .unwrap()
+        // PRD 0050 RF2.4: `say` is the fixture program in `dir`.
+        .with_search_path(Some(dir.as_os_str().to_owned()))
+    }
+
+    fn fixture_program(dir: &Path) {
+        let say = dir.join("say");
+        std::fs::write(&say, "fixture").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&say, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+    }
+
+    /// PRD 0050 RF2.4: a program not found on the captured `PATH` is
+    /// listed as such and refused before any question.
+    #[test]
+    fn an_unresolved_program_is_refused_before_asking() {
+        let dir = tempfile::tempdir().unwrap();
+        let consent = Consent::at(dir.path().join("consent.json"));
+        let mut out = Vec::new();
+        let error = confirm(
+            &consent,
+            rules(dir.path(), r#"["say"]"#),
+            true,
+            &mut "yes\n".as_bytes(),
+            &mut out,
+            "en-US",
+        )
+        .unwrap_err();
+        assert!(
+            error.contains("not an executable file found on PATH"),
+            "{error}"
+        );
+        let out = String::from_utf8(out).unwrap();
+        assert!(out.contains("program: not found on PATH"), "{out}");
+        assert!(!out.contains("type"), "nothing asked: {out}");
     }
 
     /// PRD 0013 RF3.2: unconfirmed rules are listed with their exact
@@ -377,6 +422,7 @@ mod tests {
     fn hooks_run_only_after_the_typed_confirmation() {
         let dir = std::env::temp_dir().join(format!("cuotai-tui-hooks-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
+        fixture_program(&dir);
         let consent = Consent::at(dir.join("consent.json"));
         let original = r#"["say", "a; b"]"#;
         let ask = |interactive, typed: &str, command| {

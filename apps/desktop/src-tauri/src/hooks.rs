@@ -364,13 +364,12 @@ impl Integration {
     /// run them when on. Errors: the core's `hooks.error.*` text.
     pub fn confirm(&mut self, path: Option<&Path>, digest: &str) -> Result<(), Localized> {
         let shown = Document::read(path.ok_or_else(hooks::changed)?).into_hooks()?;
-        if shown.digest() != digest {
-            return Err(hooks::changed());
-        }
+        // PRD 0050 RF2.4: the rules and each program file must still have
+        // the digest shown, checked and recorded from one resolution.
         self.consent
             .as_ref()
             .ok_or_else(hooks::consent_storage)?
-            .confirm(shown)?;
+            .confirm_shown(shown, digest)?;
         self.reconcile(path);
         Ok(())
     }

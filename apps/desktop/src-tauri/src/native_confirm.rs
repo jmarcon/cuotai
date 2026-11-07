@@ -141,8 +141,12 @@ pub async fn approve_hooks(
     path: &Path,
 ) -> Result<String, Localized> {
     let shown = Document::read(path).into_hooks()?;
-    confirmed(confirmer, Review::ApproveHooks, &shown.review(), locale).await?;
-    Ok(shown.digest())
+    // PRD 0050 RF2.4: the lines and the digest come from one resolution
+    // of the programs, so a file swapped while the dialog is open fails the
+    // commit; a program that cannot be pinned asks nothing.
+    let (lines, digest) = shown.approval()?;
+    confirmed(confirmer, Review::ApproveHooks, &lines, locale).await?;
+    Ok(digest)
 }
 
 /// RF2.3: before turning hooks on, show the approved rules (`approved`, the
@@ -154,7 +158,10 @@ pub async fn enable_hooks(
     approved: Option<&Hooks>,
 ) -> Result<(), Localized> {
     match approved {
-        Some(hooks) => confirmed(confirmer, Review::EnableHooks, &hooks.review(), locale).await,
+        Some(hooks) => {
+            let (lines, _) = hooks.approval()?;
+            confirmed(confirmer, Review::EnableHooks, &lines, locale).await
+        }
         None => Ok(()),
     }
 }
@@ -169,9 +176,9 @@ pub async fn test_hook(
     approved: &Hooks,
     name: &str,
 ) -> Result<String, Localized> {
-    let lines = approved.rule_review(name).ok_or_else(unknown_hook)?;
+    let (lines, digest) = approved.rule_approval(name).ok_or_else(unknown_hook)??;
     confirmed(confirmer, Review::TestHook, &lines, locale).await?;
-    Ok(approved.digest())
+    Ok(digest)
 }
 
 /// RF2.5: show an extension's review natively before `review` is acted on.
@@ -250,6 +257,14 @@ mod tests {
         .unwrap()
     }
 
+    /// PRD 0050 RF2.4: a fixture program (never run) at an absolute path,
+    /// so approvals can pin it.
+    fn tool(dir: &Path, name: &str) -> String {
+        let path = dir.join(name);
+        std::fs::write(&path, name).unwrap();
+        path.display().to_string()
+    }
+
     fn write(path: &Path, drafts: Vec<RuleDraft>) {
         let revision = Document::read(path).revision().map(str::to_owned);
         Document::save(path, revision.as_deref(), drafts).unwrap();
@@ -298,6 +313,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("hooks.toml");
         let declined = execution_review::declined();
+        let true_tool = tool(dir.path(), "true-tool");
 
         let cancel = Fake::new(false);
         let error = save_hooks(
@@ -305,14 +321,14 @@ mod tests {
             "en-US",
             &path,
             None,
-            vec![draft("a", &["true-tool"])],
+            vec![draft("a", &[&true_tool])],
         )
         .await
         .unwrap_err();
         assert_eq!(error, declined);
         assert!(!path.exists(), "nothing written");
 
-        write(&path, vec![draft("a", &["true-tool"])]);
+        write(&path, vec![draft("a", &[&true_tool])]);
         let error = approve_hooks(&Fake::new(false), "en-US", &path)
             .await
             .unwrap_err();
@@ -349,10 +365,12 @@ mod tests {
     async fn a_file_changed_while_the_dialog_is_open_is_not_approved() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("hooks.toml");
-        write(&path, vec![draft("a", &["echo-tool", "shown"])]);
+        let echo_tool = tool(dir.path(), "echo-tool");
+        let sh_tool = tool(dir.path(), "sh-tool");
+        write(&path, vec![draft("a", &[&echo_tool, "shown"])]);
         let swapped = path.clone();
         let fake = Fake::new(true).while_open(move || {
-            write(&swapped, vec![draft("a", &["sh-tool", "-c", "unseen"])]);
+            write(&swapped, vec![draft("a", &[&sh_tool, "-c", "unseen"])]);
         });
         let mut integration = crate::hooks::Integration::new(
             true,
@@ -382,11 +400,50 @@ mod tests {
         assert_eq!(error, hooks::changed());
     }
 
+    /// PRD 0050 RF2.4: the program file changes while the dialog is open
+    /// (same rules, new bytes): the commit refuses it, and a program that
+    /// cannot be pinned asks nothing at all.
+    #[tokio::test]
+    async fn a_program_changed_while_the_dialog_is_open_is_not_approved() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("hooks.toml");
+        let program = tool(dir.path(), "echo-tool");
+        write(&path, vec![draft("a", &[&program, "shown"])]);
+        let swapped = program.clone();
+        let fake = Fake::new(true).while_open(move || {
+            std::fs::write(&swapped, "other bytes").unwrap();
+        });
+        let mut integration = crate::hooks::Integration::new(
+            true,
+            Some(hooks::Consent::at(dir.path().join("consent.json"))),
+            None,
+        );
+        let digest = approve_hooks(&fake, "en-US", &path).await.unwrap();
+        assert_eq!(
+            fake.asked.lock().unwrap()[0]
+                .body
+                .matches("SHA-256")
+                .count(),
+            1,
+            "the dialog names the pinned program"
+        );
+        let error = integration.confirm(Some(&path), &digest).unwrap_err();
+        assert_eq!(error, hooks::changed());
+        assert!(!integration.view(Some(&path)).confirmed);
+
+        std::fs::remove_file(&program).unwrap();
+        let none = Fake::new(true);
+        let error = approve_hooks(&none, "en-US", &path).await.unwrap_err();
+        assert_eq!(error.id, "hooks.error.unresolved");
+        assert_eq!(none.questions(), 0);
+    }
+
     #[tokio::test]
     async fn an_accepted_approval_commits_exactly_what_was_shown() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("hooks.toml");
-        write(&path, vec![draft("a", &["echo-tool", "ok"])]);
+        let echo_tool = tool(dir.path(), "echo-tool");
+        write(&path, vec![draft("a", &[&echo_tool, "ok"])]);
         let mut integration = crate::hooks::Integration::new(
             true,
             Some(hooks::Consent::at(dir.path().join("consent.json"))),
