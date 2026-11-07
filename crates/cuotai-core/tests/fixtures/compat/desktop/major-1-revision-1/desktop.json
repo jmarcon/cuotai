@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "schema_revision": 1,
+  "locale": "fr",
+  "later": {
+    "kept": [
+      1,
+      2
+    ]
+  }
+}

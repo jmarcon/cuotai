@@ -1,0 +1,12 @@
+{
+  "contract": "config",
+  "major": 1,
+  "revision": 1,
+  "writer": "vNEXT",
+  "expected": "newer_revision",
+  "reader": "n_minus_1::config",
+  "backup": false,
+  "files": {
+    "proposed.toml": "8e4df08afa1610b51462b2c94e061f2ed44cd25fa7e256d6dd52b14b68792aaf"
+  }
+}

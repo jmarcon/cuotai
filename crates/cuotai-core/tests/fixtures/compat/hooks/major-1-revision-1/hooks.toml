@@ -1,0 +1,8 @@
+schema = 1
+schema_revision = 1
+
+[[hooks]]
+name = "notify"
+events = ["quota_exhausted"]
+command = ["true"]
+retries = 2 # a later key

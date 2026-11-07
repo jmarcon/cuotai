@@ -586,7 +586,7 @@ impl ModelCache {
         Ok(db)
     }
 
-    fn state(&self, account: &Account) -> Result<Option<ModelState>, ModelError> {
+    pub(crate) fn state(&self, account: &Account) -> Result<Option<ModelState>, ModelError> {
         read(&self.open()?, &self.config_key, &account_key(account))
     }
 

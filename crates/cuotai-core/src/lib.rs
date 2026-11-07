@@ -67,6 +67,8 @@ pub(crate) fn assert_within_budget(
         "{what}: {best:?} over the budget of {budget:?}"
     );
 }
+#[cfg(test)]
+mod compat_tests;
 pub mod install_source;
 pub mod last_config;
 mod metered_record;

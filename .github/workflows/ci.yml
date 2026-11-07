@@ -572,6 +572,24 @@ jobs:
           else
             cargo run -p xtask --locked -- changelog-gate --before "$BEFORE" --head "$AFTER"
           fi
+      # PRD 0051 RF6.4: every compatibility fixture is declared and hashed,
+      # and a shipped one is never edited (the matrix itself runs with the
+      # workspace tests on every OS).
+      - name: compatibility fixtures (PRD 0051 RF6.4)
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = pull_request ]; then
+            cargo run -p xtask --locked -- compat-check --base "$BASE_SHA"
+          elif [ -n "${BEFORE:-}" ] && [ "$BEFORE" != 0000000000000000000000000000000000000000 ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            cargo run -p xtask --locked -- compat-check --base "$BEFORE"
+          else
+            cargo run -p xtask --locked -- compat-check
+          fi
       - name: next release (job summary)
         if: github.event_name == 'push'
         shell: bash

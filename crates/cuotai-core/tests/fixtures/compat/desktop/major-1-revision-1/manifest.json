@@ -1,0 +1,12 @@
+{
+  "contract": "desktop.json",
+  "major": 1,
+  "revision": 1,
+  "writer": "vNEXT",
+  "expected": "newer_revision",
+  "reader": "desktop",
+  "backup": false,
+  "files": {
+    "desktop.json": "22a5bf3fee811e6299e95ec6721282d36d849ff99984043bd5a00415fe3cd531"
+  }
+}

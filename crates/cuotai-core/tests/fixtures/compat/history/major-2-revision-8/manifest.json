@@ -1,0 +1,12 @@
+{
+  "contract": "history.sqlite3",
+  "major": 2,
+  "revision": 8,
+  "writer": "vNEXT",
+  "expected": "newer_major",
+  "reader": "n_minus_1::history",
+  "backup": false,
+  "files": {
+    "history.sql": "6f493c1c68958693059da0ebc21d9bcb5303b1554b15ada00d738edf0b1693e1"
+  }
+}

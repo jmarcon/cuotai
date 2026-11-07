@@ -17,6 +17,7 @@ pub mod changelog;
 pub mod changelog_gate;
 pub mod check;
 pub mod commits;
+pub mod compat;
 pub mod example_config;
 pub mod external_rules;
 pub mod git;
