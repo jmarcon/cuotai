@@ -241,3 +241,18 @@ fn a_cli_backed_account_reports_its_program() {
     assert_eq!(tools["aws"]["status"], "found");
     assert_eq!(tools["aws"]["source"], "path");
 }
+
+/// PRD 0003 COMP-02: a set-aside ledger is reported until it is deleted.
+#[test]
+fn a_set_aside_ledger_is_reported() {
+    let fixture = Fixture::new(Some(TWO_ACCOUNTS));
+    let data = fixture.dir.path().join("data");
+    let report = run(&fixture.inputs(&[], free_port()));
+    assert_eq!(status(&report, "ledger"), CheckStatus::Skip);
+    std::fs::write(data.join("notified.json"), "{}").unwrap();
+    let report = run(&fixture.inputs(&[], free_port()));
+    assert_eq!(status(&report, "ledger"), CheckStatus::Ok);
+    std::fs::write(data.join("notified.json.corrupt-20261107T120000Z"), "x").unwrap();
+    let report = run(&fixture.inputs(&[], free_port()));
+    assert_eq!(status(&report, "ledger"), CheckStatus::Warn);
+}

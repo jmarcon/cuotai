@@ -38,6 +38,11 @@ use crate::{Metric, MetricWindow, Provider, Report, Status};
 /// field or changing its meaning needs `2`.
 pub const SCHEMA: u32 = 1;
 
+/// PRD 0051 RF3.1: the additive revision of [`SCHEMA`] this release writes.
+/// Revision 0 writes no `schema_revision` member, as every release before
+/// the envelope did.
+pub const SCHEMA_REVISION: u32 = 0;
+
 /// Largest file written: 256 KiB (RF1.2). Accounts beyond the cap are
 /// dropped from the tail of the binding order.
 pub const MAX_BYTES: usize = 256 * 1024;
@@ -214,6 +219,7 @@ impl WidgetSnapshot {
     /// Unix (`0600`, also when the file already existed).
     pub fn write(&self, path: &Path) -> std::io::Result<WriteOutcome> {
         let (json, accounts, truncated) = self.fitted_json();
+        keep_other_version(path)?;
         write_atomic(path, &json)?;
         Ok(WriteOutcome {
             bytes: json.len(),
@@ -226,6 +232,24 @@ impl WidgetSnapshot {
 /// The snapshot of `export`, capped at `max_accounts`, written at `path`.
 pub fn write(export: &Export, path: &Path, max_accounts: usize) -> std::io::Result<WriteOutcome> {
     WidgetSnapshot::from_export(export, max_accounts).write(path)
+}
+
+/// PRD 0051 RF3.4: before the first replacement of a `widget.json` that
+/// another schema or revision wrote, keep it as `widget.json.bak` (a widget
+/// of that version may still read it). A file of this version, an
+/// unreadable one or none is simply replaced.
+fn keep_other_version(path: &Path) -> std::io::Result<()> {
+    let ours = crate::private_fs::StateVersion {
+        major: SCHEMA,
+        revision: SCHEMA_REVISION,
+    };
+    let Ok(bytes) = std::fs::read(path) else {
+        return Ok(());
+    };
+    match crate::private_fs::json_state_version(&bytes, SCHEMA) {
+        Some(version) if version != ours => crate::private_fs::backup_file(path),
+        _ => Ok(()),
+    }
 }
 
 /// Atomic write of `bytes` at `path`: a temporary file in the same
@@ -248,6 +272,10 @@ fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     {
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
+    }
+    // PRD 0051 RF3.3: the rename itself reaches stable storage.
+    if let Some(dir) = dir {
+        crate::private_fs::sync_dir(dir)?;
     }
     Ok(())
 }
@@ -758,6 +786,36 @@ mod tests {
         assert_eq!(mode, 0o600);
         let leftovers = std::fs::read_dir(dir.path()).unwrap().count();
         assert_eq!(leftovers, 1, "only widget.json remains");
+    }
+
+    /// PRD 0051 RF3.4: a `widget.json` of another schema or revision is
+    /// kept once as `widget.json.bak`, byte for byte; ours is just replaced.
+    #[test]
+    fn another_version_is_kept_as_a_backup_before_the_first_replacement() {
+        let export = ready_export(&[("Work", 40.0, 100.0)]);
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("widget.json");
+        let bak = dir.path().join("widget.json.bak");
+        write(&export, &path, 6).unwrap();
+        write(&export, &path, 6).unwrap();
+        assert!(!bak.exists(), "same version: no backup");
+        let newer = br#"{"schema":1,"schema_revision":3,"accounts":[],"later":true}"#;
+        std::fs::write(&path, newer).unwrap();
+        write(&export, &path, 6).unwrap();
+        assert_eq!(std::fs::read(&bak).unwrap(), newer);
+        let json: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert_eq!(json["schema"], SCHEMA);
+        assert!(
+            json.get("schema_revision").is_none(),
+            "revision 0 writes none"
+        );
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&bak).unwrap().permissions().mode() & 0o777;
+            assert_eq!(mode, 0o600);
+        }
     }
 
     #[test]

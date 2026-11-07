@@ -1277,3 +1277,42 @@ fn a_rule_on_an_aggregator_covers_its_connections() {
     assert!(!rule.matches(&connection));
     assert!(rule.matches(&event(EventKind::PoolExhausted, "home", None)));
 }
+
+/// PRD 0051 RF3: a later revision of this schema is read without its new
+/// keys, and an editor save keeps them; a later major is refused and never
+/// rewritten; this revision stays strict.
+#[test]
+fn hooks_toml_reads_a_later_revision_and_refuses_a_later_major() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("hooks.toml");
+    let later = "schema = 1\nschema_revision = 2\nfuture_top = true\n\n[[hooks]]\nname = \"sound\"\nevents = [\"quota_exhausted\"]\ncommand = [\"true\"]\nretries = 3 # a key of a later revision\n";
+    std::fs::write(&path, later).unwrap();
+    let document = Document::read(&path);
+    assert_eq!(document.hooks().as_ref().unwrap().rules().len(), 1);
+    let mut drafts = document.drafts().unwrap().to_vec();
+    drafts[0].timeout_seconds = Some(5);
+    Document::save(&path, document.revision(), drafts).unwrap();
+    let saved = std::fs::read_to_string(&path).unwrap();
+    assert!(
+        saved.contains("retries = 3 # a key of a later revision"),
+        "{saved}"
+    );
+    assert!(saved.contains("schema_revision = 2") && saved.contains("future_top = true"));
+    assert!(saved.contains("timeout_seconds = 5"));
+
+    let newer = "schema = 2\n[[hooks]]\nname = \"x\"\n";
+    std::fs::write(&path, newer).unwrap();
+    let document = Document::read(&path);
+    assert_eq!(
+        document.hooks().as_ref().unwrap_err().id,
+        "state.error.newer_major"
+    );
+    assert!(Document::save(&path, document.revision(), vec![draft("x", &["true"])]).is_err());
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), newer);
+
+    assert_eq!(
+        error_id("schema = 1\n[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\ncommand = [\"true\"]\nretries = 3\n"),
+        "hooks.error.toml",
+        "the current revision is strict"
+    );
+}

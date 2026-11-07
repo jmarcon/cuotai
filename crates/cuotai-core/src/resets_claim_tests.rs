@@ -212,7 +212,61 @@ fn a_corrupt_ledger_is_set_aside_and_recreated() {
     let ledger = Ledger::load(&path);
     assert_eq!(ledger, Ledger::default());
     assert!(!path.exists());
-    assert!(dir.path().join("notified.json.corrupt").exists());
     ledger.save(&path).unwrap();
     assert!(path.exists());
+    // PRD 0003 COMP-02: a second corruption never overwrites the first
+    // set-aside file, and each keeps its bytes.
+    std::fs::write(&path, "{second").unwrap();
+    let _ = Ledger::load(&path);
+    let mut aside: Vec<_> = std::fs::read_dir(dir.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .filter(|name| name.starts_with("notified.json.corrupt-"))
+        .collect();
+    aside.sort();
+    assert_eq!(aside.len(), 2, "{aside:?}");
+    let contents: Vec<_> = aside
+        .iter()
+        .map(|name| std::fs::read_to_string(dir.path().join(name)).unwrap())
+        .collect();
+    assert!(contents.contains(&"{not json".to_owned()));
+    assert!(contents.contains(&"{second".to_owned()));
+}
+
+/// PRD 0051 RF3.2/RF3.4: unknown members of a later revision survive a
+/// write; a later major is read as empty and never rewritten.
+#[test]
+fn the_ledger_keeps_a_later_revision_and_refuses_a_later_major() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("notified.json");
+    std::fs::write(
+        &path,
+        r#"{"schema":1,"schema_revision":2,"notified":[],"future":{"kept":[1,2]}}"#,
+    )
+    .unwrap();
+    let mut ledger = Ledger::load(&path);
+    assert!(!ledger.is_frozen());
+    ledger.claim(&path, |_| ());
+    let saved: serde_json::Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    assert_eq!(saved["future"]["kept"][1], 2);
+    assert_eq!(saved["schema_revision"], 2);
+
+    let newer = r#"{"schema":2,"entries":{"x":1}}"#;
+    std::fs::write(&path, newer).unwrap();
+    let mut ledger = Ledger::load(&path);
+    assert!(ledger.is_frozen());
+    ledger.claim(&path, |_| ());
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), newer, "untouched");
+    let damaged = std::fs::read_dir(dir.path())
+        .unwrap()
+        .filter(|entry| {
+            entry
+                .as_ref()
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .contains("corrupt")
+        })
+        .count();
+    assert_eq!(damaged, 0, "a newer file is not damaged");
 }

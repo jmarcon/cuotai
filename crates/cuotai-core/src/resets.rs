@@ -23,7 +23,6 @@ use crate::text::{params, provider_l10n, Localized};
 use chrono::{DateTime, TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 
 /// Two `resets_at` of the same metric this close are the same reset
@@ -362,6 +361,23 @@ pub fn passed(prev: &Report, next: &Report) -> Vec<ResetMetric> {
         .collect()
 }
 
+/// PRD 0003 COMP-02: where a damaged ledger is set aside: a name with the
+/// UTC time that no earlier set-aside file has.
+fn quarantine_path(path: &Path, now: DateTime<Utc>) -> PathBuf {
+    let stamp = now.format("%Y%m%dT%H%M%SZ");
+    let mut candidate = path.as_os_str().to_owned();
+    candidate.push(format!(".corrupt-{stamp}"));
+    let mut candidate = PathBuf::from(candidate);
+    let mut n = 1;
+    while candidate.exists() {
+        let mut next = path.as_os_str().to_owned();
+        next.push(format!(".corrupt-{stamp}-{n}"));
+        candidate = PathBuf::from(next);
+        n += 1;
+    }
+    candidate
+}
+
 /// PRD 0043 RF3.2: the ledger entry of a delivered weekly digest (never a
 /// metric digest, which is hexadecimal).
 const WEEKLY_DIGEST_MARK: &str = "weekly_digest";
@@ -372,11 +388,28 @@ const WEEKLY_DIGEST_MARK: &str = "weekly_digest";
 /// after [`LEDGER_KEEP`].
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Ledger {
+    /// PRD 0051 RF3.1: the schema major; absent means 1 (every release
+    /// before the envelope). This release writes what it read.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    schema: Option<u32>,
+    /// The additive revision; absent means 0.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    schema_revision: Option<u32>,
     #[serde(default)]
     notified: Vec<Notified>,
     #[serde(default, skip_serializing_if = "AlertState::is_empty")]
     alerts: AlertState,
+    /// PRD 0051 RF3.4: members a later revision added, kept on save.
+    #[serde(flatten)]
+    extra: serde_json::Map<String, serde_json::Value>,
+    /// PRD 0051 RF3.2: read from a later schema major: kept in memory,
+    /// never written back.
+    #[serde(skip)]
+    frozen: bool,
 }
+
+/// PRD 0051 RF3.1: the `notified.json` schema major this release reads.
+pub const LEDGER_SCHEMA: u32 = 1;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct Notified {
@@ -394,32 +427,43 @@ impl Ledger {
         crate::data_dir::root().map(|dir| dir.join("notified.json"))
     }
 
-    /// A missing file is an empty ledger. A file that cannot be parsed is
-    /// set aside as `notified.json.corrupt` and read as empty, so the next
-    /// save recreates it (PRD 0032 §6).
+    /// A missing file is an empty ledger. PRD 0051 RF3 and PRD 0003
+    /// COMP-02: a file of a later schema major is read as empty and never
+    /// rewritten; a file that cannot be parsed is set aside, never
+    /// overwritten, as `notified.json.corrupt-<UTC time>` (which `cuotai
+    /// --doctor` reports) and read as empty, so the next save recreates it.
     pub fn load(path: &Path) -> Self {
         let Ok(bytes) = std::fs::read(path) else {
             return Self::default();
         };
+        if crate::private_fs::json_state_version(&bytes, LEDGER_SCHEMA)
+            .is_some_and(|version| version.major > LEDGER_SCHEMA)
+        {
+            return Self {
+                frozen: true,
+                ..Self::default()
+            };
+        }
         serde_json::from_slice(&bytes).unwrap_or_else(|_| {
-            let mut aside = path.as_os_str().to_owned();
-            aside.push(".corrupt");
-            let _ = std::fs::rename(path, aside);
+            let _ = std::fs::rename(path, quarantine_path(path, Utc::now()));
             Self::default()
         })
     }
 
-    /// Atomic write (temporary file + rename), readable by its owner only
-    /// on Unix.
+    /// Whether the file was written by a later schema major (read-only).
+    pub fn is_frozen(&self) -> bool {
+        self.frozen
+    }
+
+    /// Durable atomic write (temporary file, sync, rename, directory sync),
+    /// readable by its owner only on Unix. A ledger read from a later
+    /// schema major is not written.
     pub fn save(&self, path: &Path) -> std::io::Result<()> {
-        let dir = path.parent().ok_or(std::io::ErrorKind::InvalidInput)?;
-        std::fs::create_dir_all(dir)?;
+        if self.frozen {
+            return Ok(());
+        }
         let body = serde_json::to_vec(self)?;
-        // tempfile creates 0600 files on Unix.
-        let mut tmp = tempfile::NamedTempFile::new_in(dir)?;
-        tmp.write_all(&body)?;
-        tmp.as_file().sync_all()?;
-        crate::private_fs::persist(tmp, path)
+        crate::private_fs::write_private_atomic(path, &body)
     }
 
     /// The same reset (within [`DRIFT_TOLERANCE`]) of the metric behind

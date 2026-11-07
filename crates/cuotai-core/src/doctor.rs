@@ -511,6 +511,57 @@ fn check_desktop_settings(path: Option<&Path>) -> Check {
     }
 }
 
+/// PRD 0003 COMP-02 / PRD 0051 RF3: the notice ledger. A damaged one was
+/// set aside as `notified.json.corrupt-<time>`, which stays until the user
+/// deletes it; a later schema major is never rewritten.
+fn check_ledger(root: Option<&Path>) -> Check {
+    let title = fixed("doctor.title.ledger", "Sent-notice ledger (notified.json)");
+    let Some(root) = root else {
+        return Check::new("ledger", CheckStatus::Skip, title).detail(absent());
+    };
+    let mut aside: Vec<String> = std::fs::read_dir(root)
+        .map(|entries| {
+            entries
+                .filter_map(Result::ok)
+                .map(|entry| entry.file_name().to_string_lossy().into_owned())
+                .filter(|name| name.starts_with("notified.json.corrupt"))
+                .collect()
+        })
+        .unwrap_or_default();
+    aside.sort();
+    if let Some(latest) = aside.last() {
+        return Check::new("ledger", CheckStatus::Warn, title)
+            .detail(Localized::with_params(
+                "doctor.ledger.quarantined",
+                params([
+                    ("count", ParamValue::from(aside.len())),
+                    ("file", ParamValue::from(latest.clone())),
+                ]),
+                "A damaged ledger was set aside ({count} file(s), the latest {file}); a notice may repeat once.",
+            ))
+            .fix(fixed(
+                "doctor.fix.ledger",
+                "Nothing to restore: delete the notified.json.corrupt-* files in the data folder once you have looked at them.",
+            ));
+    }
+    match std::fs::read(root.join("notified.json")) {
+        Err(_) => Check::new("ledger", CheckStatus::Skip, title).detail(absent()),
+        Ok(bytes) => {
+            match crate::private_fs::json_state_version(&bytes, crate::resets::LEDGER_SCHEMA) {
+                Some(version) if version.major > crate::resets::LEDGER_SCHEMA => {
+                    Check::new("ledger", CheckStatus::Warn, title)
+                        .detail(newer())
+                        .fix(update_fix())
+                }
+                Some(_) => Check::new("ledger", CheckStatus::Ok, title),
+                None => Check::new("ledger", CheckStatus::Warn, title)
+                    .detail(damaged())
+                    .fix(damaged_fix()),
+            }
+        }
+    }
+}
+
 fn check_serve_token(root: Option<&Path>) -> Check {
     let title = fixed("doctor.title.serve_token", "Local server token");
     let Some(meta) = root
@@ -615,6 +666,7 @@ pub fn run(inputs: &Inputs) -> Report {
     ));
     checks.push(check_hooks(&inputs.config.path));
     checks.push(check_desktop_settings(inputs.desktop_settings.as_deref()));
+    checks.push(check_ledger(root));
     checks.push(check_serve_token(root));
     checks.push(check_port(inputs.port));
     Report {

@@ -314,7 +314,10 @@ impl CostIndex {
         crate::private_fs::sqlite_busy_wait(&db)?;
         wal(&db)?;
         db.pragma_update(None, "secure_delete", true)?;
-        migrate(&mut db, &MIGRATIONS).map_err(|_| CostError::Storage)?;
+        migrate(&mut db, &MIGRATIONS).map_err(|error| match error {
+            crate::history::HistoryError::NewerMajor => CostError::NewerMajor,
+            _ => CostError::Storage,
+        })?;
         Ok(db)
     }
 

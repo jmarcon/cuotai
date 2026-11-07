@@ -389,12 +389,17 @@ pub enum CostError {
     /// PRD 0042 RF3.1: a block length out of bounds.
     #[error("The block length ranges from 1 to 24 hours.")]
     BlockHours,
+    /// PRD 0051 RF3.5: the index was written by a later schema major; it
+    /// is left untouched.
+    #[error("The local cost index was written by a newer version of Cuotai that changed its format; it is kept untouched. Update Cuotai to use it.")]
+    NewerMajor,
 }
 
 impl CostError {
     pub fn l10n(&self) -> Localized {
         match self {
             Self::Storage => Localized::fixed("cost.error.storage", self.to_string()),
+            Self::NewerMajor => crate::private_fs::newer_major_note("cost.sqlite3"),
             Self::Settings => Localized::fixed("cost.error.settings", self.to_string()),
             Self::RetentionBounds => Localized::with_params(
                 "cost.error.retention_bounds",

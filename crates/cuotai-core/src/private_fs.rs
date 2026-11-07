@@ -116,7 +116,7 @@ fn lock_file(lock: &Path, wait: std::time::Duration) -> io::Result<Option<std::f
 
 /// Flush the directory entry of a rename to stable storage where the
 /// platform can (Unix); elsewhere the rename is already durable enough.
-fn sync_dir(dir: &Path) -> io::Result<()> {
+pub(crate) fn sync_dir(dir: &Path) -> io::Result<()> {
     #[cfg(unix)]
     {
         std::fs::File::open(dir)?.sync_all()
@@ -288,13 +288,46 @@ pub(crate) fn update_locked_with<E>(
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(tmp.path(), std::fs::Permissions::from_mode(0o600))?;
     }
+    fault::at(fault::Step::Write)?;
     io::Write::write_all(&mut tmp, &bytes)?;
     io::Write::flush(&mut tmp)?;
+    fault::at(fault::Step::Sync)?;
     tmp.as_file().sync_all()?;
+    fault::at(fault::Step::Rename)?;
     persist(tmp, path)?;
     sync_dir(dir)?;
     clean_orphans(path);
     Ok(())
+}
+
+/// PRD 0051 RF4 acceptance: test-only failures injected at the write, sync
+/// and rename steps of [`update_locked`]; a no-op outside tests.
+mod fault {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(super) enum Step {
+        Write,
+        Sync,
+        Rename,
+    }
+
+    #[cfg(test)]
+    thread_local! {
+        pub(super) static FAIL_AT: std::cell::Cell<Option<Step>> = const { std::cell::Cell::new(None) };
+    }
+
+    #[cfg(test)]
+    pub(super) fn at(step: Step) -> std::io::Result<()> {
+        if FAIL_AT.with(|fail| fail.get()) == Some(step) {
+            return Err(std::io::Error::other("injected fault"));
+        }
+        Ok(())
+    }
+
+    #[cfg(not(test))]
+    #[inline(always)]
+    pub(super) fn at(_: Step) -> std::io::Result<()> {
+        Ok(())
+    }
 }
 
 /// PRD 0051 RF3.1: the version of a local-state contract. A `major` change
@@ -332,6 +365,68 @@ impl StateVersion {
             (Equal, Greater) => StateCompatibility::NewerRevision,
         }
     }
+}
+
+/// PRD 0051 RF3.1: the `schema` (major) and `schema_revision` (absent
+/// means 0) of a JSON state file, reading only those two members. `None`
+/// when the bytes are not a JSON object; a file without `schema` is major
+/// `unversioned_major` (the files written before the envelope).
+pub(crate) fn json_state_version(bytes: &[u8], unversioned_major: u32) -> Option<StateVersion> {
+    #[derive(serde::Deserialize)]
+    struct Envelope {
+        schema: Option<u32>,
+        schema_revision: Option<u32>,
+    }
+    let envelope: Envelope = serde_json::from_slice(bytes).ok()?;
+    Some(StateVersion {
+        major: envelope.schema.unwrap_or(unversioned_major),
+        revision: envelope.schema_revision.unwrap_or(0),
+    })
+}
+
+/// Durably replace `path` with `bytes`: a uniquely named `0600` temporary
+/// file in the same directory, written, synced and renamed, then the
+/// directory synced (PRD 0051 RF3.3/RF4.3).
+pub(crate) fn write_private_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    let dir = path
+        .parent()
+        .filter(|dir| !dir.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    std::fs::create_dir_all(dir)?;
+    let mut tmp = tempfile::NamedTempFile::new_in(dir)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        tmp.as_file()
+            .set_permissions(std::fs::Permissions::from_mode(0o600))?;
+    }
+    io::Write::write_all(&mut tmp, bytes)?;
+    io::Write::flush(&mut tmp)?;
+    tmp.as_file().sync_all()?;
+    persist(tmp, path)?;
+    sync_dir(dir)
+}
+
+/// PRD 0051 RF3.3: replace `<file>.bak` with the exact current bytes of
+/// `path` (private, synced), before a schema-changing write. Nothing to do
+/// when `path` does not exist.
+pub(crate) fn backup_file(path: &Path) -> io::Result<()> {
+    match std::fs::read(path) {
+        Ok(bytes) => write_private_atomic(&backup_path(path), &bytes),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    }
+}
+
+/// PRD 0051 RF3.2: the refusal of a state file written by a later schema
+/// major. `file` is the file's name, never its path or content.
+pub fn newer_major_note(file: &'static str) -> crate::text::Localized {
+    crate::text::Localized::with_param(
+        "state.error.newer_major",
+        "file",
+        file,
+        "{file} was written by a newer version of Cuotai that changed its format; it is kept untouched. Update Cuotai to use it.",
+    )
 }
 
 /// The schema major of every SQLite store this release writes.
@@ -692,6 +787,34 @@ mod update_tests {
             map.insert(key, serde_json::Value::Bool(true));
             Ok(serde_json::to_vec(&map).unwrap())
         })
+    }
+
+    /// PRD 0051 RF4 acceptance: a failure at the write, the sync or the
+    /// rename leaves the previous file byte for byte, and the next write
+    /// still works (no lock or temporary file is left in the way).
+    #[test]
+    fn a_fault_at_any_step_keeps_the_previous_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("desktop.json");
+        add_key(&path, "first".into()).unwrap();
+        let before = std::fs::read(&path).unwrap();
+        for step in [fault::Step::Write, fault::Step::Sync, fault::Step::Rename] {
+            fault::FAIL_AT.with(|fail| fail.set(Some(step)));
+            let result = add_key(&path, format!("{step:?}"));
+            fault::FAIL_AT.with(|fail| fail.set(None));
+            assert!(matches!(result, Err(UpdateError::Io(_))), "{step:?}");
+            assert_eq!(std::fs::read(&path).unwrap(), before, "{step:?}");
+        }
+        let names: Vec<_> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+            .filter(|name| name != "desktop.json" && name != ".desktop.json.lock")
+            .collect();
+        assert!(names.is_empty(), "no temporary file is left: {names:?}");
+        add_key(&path, "after".into()).unwrap();
+        let map: serde_json::Map<String, serde_json::Value> =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert!(map.contains_key("first") && map.contains_key("after"));
     }
 
     #[test]
