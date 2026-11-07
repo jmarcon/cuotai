@@ -11,6 +11,11 @@
 //!   rules the user confirmed for each `hooks.toml`; a [`Confirmed`] set
 //!   (the only input [`Runner::start`] takes) exists only when the current
 //!   rules match a confirmation, so any change to them needs a new one.
+//!   Since PRD 0050 RF2.4 the digest also covers each rule's program as
+//!   resolved on the captured `PATH` ([`Pin`]: canonical path, SHA-256 and
+//!   a script's `#!` interpreter), and every spawn runs that exact file
+//!   only after resolving and hashing it again ([`Outcome::Changed`]
+//!   otherwise, which suspends the rule).
 //! - [`Runner`] runs the matching rules of each event: the event as JSON
 //!   on stdin and in `CUOTAI_*` variables (always data, never part of the
 //!   command), an environment reduced to [`INHERITED_ENV`], a private
@@ -37,7 +42,7 @@
 //! See `docs/events.md`.
 
 use std::collections::{BTreeMap, VecDeque};
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::io::{self, Write};
 use std::path::{Component, Path, PathBuf};
 use std::process::Stdio;
@@ -62,6 +67,10 @@ mod claims;
 pub use claims::{
     unavailable as claims_unavailable, Claim, HookClaims, FILE_NAME as CLAIMS_FILE_NAME,
 };
+
+#[path = "hook_pin.rs"]
+mod pin;
+pub use pin::{Interpreter, Pin, Unresolved};
 
 /// The rules' file, in the directory of the accounts' TOML.
 pub const FILE_NAME: &str = "hooks.toml";
@@ -445,6 +454,9 @@ pub struct RuleDraft {
 pub struct Hooks {
     path: PathBuf,
     rules: Vec<Rule>,
+    /// PRD 0050 RF2.4: the `PATH` bare programs are looked up on and the
+    /// hooks run with, captured when the rules were read.
+    search_path: Option<OsString>,
 }
 
 impl Hooks {
@@ -490,7 +502,77 @@ impl Hooks {
             }
             rules.push(rule);
         }
-        Ok(Self { path, rules })
+        Ok(Self {
+            path,
+            rules,
+            search_path: std::env::var_os("PATH"),
+        })
+    }
+
+    /// The same rules looked up on, and run with, `search_path` instead of
+    /// the process `PATH`.
+    pub fn with_search_path(mut self, search_path: Option<OsString>) -> Self {
+        self.search_path = search_path;
+        self
+    }
+
+    /// PRD 0050 RF2.4: the `PATH` the programs are resolved on.
+    pub fn search_path(&self) -> Option<&OsStr> {
+        self.search_path.as_deref()
+    }
+
+    /// PRD 0050 RF2.4: each rule's program pinned now, in order (an error
+    /// for a program that cannot be found or read).
+    pub fn pins(&self) -> Vec<Result<Pin, Unresolved>> {
+        self.rules
+            .iter()
+            .map(|rule| pin::resolve(&rule.command[0], self.search_path()))
+            .collect()
+    }
+
+    /// PRD 0050 RF2.4: every rule's pinned program, or the fixed error
+    /// naming the first rule whose program cannot be pinned (nothing can be
+    /// approved then).
+    pub fn pinned(&self) -> Result<Vec<Pin>, Localized> {
+        self.rules
+            .iter()
+            .zip(self.pins())
+            .map(|(rule, pin)| pin.map_err(|_| unresolved(&rule.name)))
+            .collect()
+    }
+
+    /// PRD 0050 RF2.4: what an approval shows and the digest it approves,
+    /// both from one resolution of the programs, so a file swapped while
+    /// the dialog is open is not approved under the digest shown. Refused
+    /// when a program cannot be pinned.
+    pub fn approval(&self) -> Result<(Vec<Localized>, String), Localized> {
+        let resolved: Vec<_> = self.pinned()?.into_iter().map(Ok).collect();
+        let mut lines = self.listing_with(&resolved);
+        lines.extend(run_context());
+        Ok((lines, self.digest_with(&resolved)))
+    }
+
+    /// [`Self::approval`] of the single rule `name`, with the digest of all
+    /// the rules (what [`Consent`] recorded); `None` when no rule has that
+    /// name.
+    pub fn rule_approval(&self, name: &str) -> Option<Result<(Vec<Localized>, String), Localized>> {
+        let index = self.rules.iter().position(|rule| rule.name == name)?;
+        Some(self.pinned().map(|pins| {
+            let resolved: Vec<_> = pins.into_iter().map(Ok).collect();
+            let single = self.single(name).unwrap_or_else(|| self.clone());
+            let mut lines = single.listing_with(&resolved[index..=index]);
+            lines.extend(run_context());
+            (lines, self.digest_with(&resolved))
+        }))
+    }
+
+    fn single(&self, name: &str) -> Option<Self> {
+        let rule = self.rules.iter().find(|rule| rule.name == name)?;
+        Some(Self {
+            path: self.path.clone(),
+            rules: vec![rule.clone()],
+            search_path: self.search_path.clone(),
+        })
     }
 
     pub fn path(&self) -> &Path {
@@ -502,11 +584,26 @@ impl Hooks {
     }
 
     /// SHA-256 (lowercase hex) of every rule's name, events, filters,
-    /// command and timeout: what a confirmation covers. Comments and layout
-    /// do not change it.
+    /// command and timeout, and (PRD 0050 RF2.4) of each rule's pinned
+    /// program, interpreter and their hashes as they are now: what a
+    /// confirmation covers. Comments and layout do not change it; another
+    /// program file does.
     pub fn digest(&self) -> String {
+        self.digest_with(&self.pins())
+    }
+
+    fn digest_with(&self, pins: &[Result<Pin, Unresolved>]) -> String {
         use sha2::{Digest, Sha256};
-        let canonical = serde_json::to_vec(&self.rules).unwrap_or_default();
+        #[derive(Serialize)]
+        struct Covered<'a> {
+            rules: &'a [Rule],
+            pins: Vec<Option<&'a Pin>>,
+        }
+        let covered = Covered {
+            rules: &self.rules,
+            pins: pins.iter().map(|pin| pin.as_ref().ok()).collect(),
+        };
+        let canonical = serde_json::to_vec(&covered).unwrap_or_default();
         format!("{:x}", Sha256::digest(canonical))
     }
 
@@ -514,6 +611,10 @@ impl Hooks {
     /// name, events, filters, time limit and exact command (as a JSON array,
     /// so quotes, spaces and control characters stay visible).
     pub fn listing(&self) -> Vec<Localized> {
+        self.listing_with(&self.pins())
+    }
+
+    fn listing_with(&self, pins: &[Result<Pin, Unresolved>]) -> Vec<Localized> {
         let path = self.path.display().to_string();
         let mut lines = vec![Localized::with_param(
             "hooks.confirm.header",
@@ -521,7 +622,7 @@ impl Hooks {
             path.as_str(),
             "The hooks in {path} run these commands when the listed events happen:",
         )];
-        for (index, rule) in self.rules.iter().enumerate() {
+        for (index, (rule, pin)) in self.rules.iter().zip(pins).enumerate() {
             let index = index + 1;
             let name = rule.name.as_str();
             lines.push(Localized::with_params(
@@ -579,9 +680,59 @@ impl Hooks {
                 command.as_str(),
                 "command: {command}",
             ));
+            lines.extend(pin_lines(pin));
         }
         lines
     }
+}
+
+/// PRD 0050 RF2.4: the listing lines of a rule's pinned program.
+fn pin_lines(pin: &Result<Pin, Unresolved>) -> Vec<Localized> {
+    let file = |id: &'static str, program: &Path, sha256: &str, fallback: &'static str| {
+        let program = program.display().to_string();
+        Localized::with_params(
+            id,
+            params([
+                ("program", program.as_str().into()),
+                ("sha256", sha256.into()),
+            ]),
+            fallback,
+        )
+    };
+    match pin {
+        Ok(pin) => {
+            let mut lines = vec![file(
+                "hooks.confirm.program",
+                &pin.program,
+                &pin.sha256,
+                "program: {program} (SHA-256 {sha256})",
+            )];
+            if let Some(interpreter) = &pin.interpreter {
+                lines.push(file(
+                    "hooks.confirm.interpreter",
+                    &interpreter.program,
+                    &interpreter.sha256,
+                    "interpreter: {program} (SHA-256 {sha256})",
+                ));
+            }
+            lines
+        }
+        Err(_) => vec![Localized::fixed(
+            "hooks.confirm.unresolved",
+            "program: not found on PATH (it cannot be approved)",
+        )],
+    }
+}
+
+/// PRD 0050 RF2.4: the program of rule `name` (or its script's
+/// interpreter) cannot be pinned, so the rules cannot be approved.
+pub fn unresolved(name: &str) -> Localized {
+    Localized::with_param(
+        "hooks.error.unresolved",
+        "name",
+        name,
+        "The program of the rule \"{name}\" (or its script's interpreter) is not an executable file found on PATH; install it or write its absolute path, then approve the hooks again.",
+    )
 }
 
 impl Hooks {
@@ -596,12 +747,7 @@ impl Hooks {
 
     /// PRD 0050 RF2.3: the review of the single rule `name`, or `None`.
     pub fn rule_review(&self, name: &str) -> Option<Vec<Localized>> {
-        let rule = self.rules.iter().find(|rule| rule.name == name)?;
-        let single = Self {
-            path: self.path.clone(),
-            rules: vec![rule.clone()],
-        };
-        Some(single.review())
+        Some(self.single(name)?.review())
     }
 }
 
@@ -1131,11 +1277,21 @@ pub fn log_unwritable(path: &Path) -> Localized {
 /// Rules the user confirmed exactly as they are: the only way to start a
 /// [`Runner`].
 #[derive(Debug, Clone)]
-pub struct Confirmed(Hooks);
+pub struct Confirmed {
+    hooks: Hooks,
+    /// PRD 0050 RF2.4: each rule's program as it was when the
+    /// confirmation was checked, rechecked before every spawn.
+    pins: Vec<Pin>,
+}
 
 impl Confirmed {
     pub fn hooks(&self) -> &Hooks {
-        &self.0
+        &self.hooks
+    }
+
+    /// The pinned program of each rule, in order.
+    pub fn pins(&self) -> &[Pin] {
+        &self.pins
     }
 }
 
@@ -1154,23 +1310,51 @@ impl Consent {
 
     /// `hooks` confirmed when its rules are the ones last confirmed for its
     /// file; otherwise `hooks` back, still to confirm.
+    ///
+    /// PRD 0050 RF2.4: the digest covers each rule's resolved program and
+    /// its hash, so a program that cannot be found, another file earlier
+    /// on `PATH` or new bytes (and a confirmation recorded before pinning
+    /// existed) all come back to confirm again.
     pub fn check(&self, hooks: Hooks) -> Result<Confirmed, Hooks> {
+        let Ok(pins) = hooks.pinned() else {
+            return Err(hooks);
+        };
+        let digest = hooks.digest_with(&pins.iter().cloned().map(Ok).collect::<Vec<_>>());
         let confirmed =
-            key(&hooks).is_some_and(|key| self.read().confirmed.get(&key) == Some(&hooks.digest()));
+            key(&hooks).is_some_and(|key| self.read().confirmed.get(&key) == Some(&digest));
         if confirmed {
-            Ok(Confirmed(hooks))
+            Ok(Confirmed { hooks, pins })
         } else {
             Err(hooks)
         }
     }
 
-    /// Record that the user confirmed `hooks` as they are now.
+    /// Record that the user confirmed `hooks` as they are now. Refused
+    /// (PRD 0050 RF2.4) when a program cannot be pinned.
     pub fn confirm(&self, hooks: Hooks) -> Result<Confirmed, Localized> {
+        let pins = hooks.pinned()?;
+        let digest = hooks.digest_with(&pins.iter().cloned().map(Ok).collect::<Vec<_>>());
+        self.record(hooks, pins, digest)
+    }
+
+    /// [`Self::confirm`] only while `hooks` still have the digest the user
+    /// was shown (`shown`, from [`Hooks::approval`]): rules or program
+    /// files changed since return [`changed`] and record nothing.
+    pub fn confirm_shown(&self, hooks: Hooks, shown: &str) -> Result<Confirmed, Localized> {
+        let pins = hooks.pinned()?;
+        let digest = hooks.digest_with(&pins.iter().cloned().map(Ok).collect::<Vec<_>>());
+        if digest != shown {
+            return Err(changed());
+        }
+        self.record(hooks, pins, digest)
+    }
+
+    fn record(&self, hooks: Hooks, pins: Vec<Pin>, digest: String) -> Result<Confirmed, Localized> {
         let key = key(&hooks).ok_or_else(consent_storage)?;
         let mut record = self.read();
-        record.confirmed.insert(key, hooks.digest());
+        record.confirmed.insert(key, digest);
         self.write(&record).map_err(|_| consent_storage())?;
-        Ok(Confirmed(hooks))
+        Ok(Confirmed { hooks, pins })
     }
 
     /// An unreadable or damaged record holds no confirmation.
@@ -1213,6 +1397,11 @@ pub enum Outcome {
     TimedOut,
     /// The program could not be started (missing, not executable).
     NotStarted,
+    /// PRD 0050 RF2.4: not started because the program (or its script's
+    /// interpreter) resolved to another file or other bytes than the ones
+    /// confirmed; the rule stays suspended until the hooks are confirmed
+    /// again.
+    Changed,
 }
 
 /// One run of one rule for one event.
@@ -1308,6 +1497,11 @@ impl LoggedRun {
                 common(),
                 "{rule} ({event}): the command could not be started",
             ),
+            (Outcome::Changed, _) => Localized::with_params(
+                "hooks.run.changed",
+                common(),
+                "{rule} ({event}): not run, its program changed since the hooks were confirmed; confirm them again",
+            ),
         }
     }
 }
@@ -1389,6 +1583,12 @@ struct Shared {
 
 struct Context {
     rules: Vec<Rule>,
+    /// PRD 0050 RF2.4: each rule's confirmed program, and whether a recheck
+    /// found it changed (sticky: only a new confirmation clears it).
+    pins: Vec<Pin>,
+    suspended: Vec<std::sync::atomic::AtomicBool>,
+    /// The `PATH` the pins were resolved on, which the hooks also get.
+    search_path: Option<OsString>,
     inherited: Vec<(OsString, OsString)>,
     /// The private working directory ([`work_dir`]).
     work_dir: Option<PathBuf>,
@@ -1459,15 +1659,28 @@ impl Runner {
         work_dir: Option<PathBuf>,
         claims: Option<HookClaims>,
     ) -> Self {
+        let Confirmed { hooks, pins } = hooks;
+        let resolved: Vec<_> = pins.iter().cloned().map(Ok).collect();
         let claims = ClaimScope {
             store: claims,
-            file_identity: key(&hooks.0),
-            rules_digest: hooks.0.digest(),
+            file_identity: key(&hooks),
+            rules_digest: hooks.digest_with(&resolved),
         };
-        let rules = hooks.0.rules;
-        let inherited = parent
+        let search_path = hooks.search_path;
+        let rules = hooks.rules;
+        // PRD 0050 RF2.4: the hooks get the `PATH` their programs were
+        // pinned on, not whatever the parent has now.
+        let mut inherited: Vec<(OsString, OsString)> = parent
             .into_iter()
+            .filter(|(name, _)| name != "PATH")
             .filter(|(name, _)| INHERITED_ENV.iter().any(|allowed| name == allowed))
+            .collect();
+        if let Some(path) = &search_path {
+            inherited.insert(0, ("PATH".into(), path.clone()));
+        }
+        let suspended = rules
+            .iter()
+            .map(|_| std::sync::atomic::AtomicBool::new(false))
             .collect();
         let shared = Arc::new(Shared {
             queue: Mutex::new(VecDeque::new()),
@@ -1475,6 +1688,9 @@ impl Runner {
         });
         let context = Arc::new(Context {
             rules: rules.clone(),
+            pins,
+            suspended,
+            search_path,
             inherited,
             work_dir,
             log,
@@ -1677,7 +1893,22 @@ async fn execute(context: &Context, job: &Job) -> Run {
     else {
         return run(Outcome::NotStarted, None, Captured::default());
     };
-    let mut command = tokio::process::Command::new(&rule.command[0]);
+    // PRD 0050 RF2.4: resolve and hash again right before the spawn; any
+    // difference from the confirmed pin runs nothing and suspends the rule.
+    let pin = &context.pins[job.rule];
+    let suspended = &context.suspended[job.rule];
+    let same =
+        || pin::resolve(&rule.command[0], context.search_path.as_deref()).as_ref() == Ok(pin);
+    if suspended.load(std::sync::atomic::Ordering::Relaxed) || !same() {
+        suspended.store(true, std::sync::atomic::Ordering::Relaxed);
+        return run(Outcome::Changed, None, Captured::default());
+    }
+    let mut command = tokio::process::Command::new(&pin.program);
+    // The program sees the name it was written with (a multi-call binary
+    // such as busybox dispatches on it), while the pinned file is what
+    // runs.
+    #[cfg(unix)]
+    command.arg0(&rule.command[0]);
     command
         .args(&rule.command[1..])
         .env_clear()

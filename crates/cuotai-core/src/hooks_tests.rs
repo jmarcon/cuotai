@@ -33,8 +33,35 @@ fn event(kind: EventKind, account: &str, threshold: Option<u8>) -> Event {
     }
 }
 
+/// The rules of `text` with no `PATH`, so a bare program never resolves
+/// and the listing does not depend on the machine.
 fn hooks(text: &str) -> Hooks {
-    Hooks::from_toml(PathBuf::from("/nowhere/hooks.toml"), text).unwrap()
+    Hooks::from_toml(PathBuf::from("/nowhere/hooks.toml"), text)
+        .unwrap()
+        .with_search_path(None)
+}
+
+/// PRD 0050 RF2.4: a directory of fixture "programs" (never run here),
+/// executable on Unix, to put on a rule's `PATH`.
+fn bin_dir(names: &[&str]) -> tempfile::TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    for name in names {
+        write_program(&dir.path().join(name), name.as_bytes());
+    }
+    dir
+}
+
+fn write_program(path: &Path, bytes: &[u8]) {
+    std::fs::write(path, bytes).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+}
+
+fn on(dirs: &[&Path]) -> Option<OsString> {
+    Some(std::env::join_paths(dirs).unwrap())
 }
 
 fn error_id(text: &str) -> String {
@@ -187,9 +214,14 @@ fn confirmation_is_mandatory_and_follows_the_rules() {
     let dir = tempfile::tempdir().unwrap();
     let consent = Consent::at(dir.path().join("data/consent.json"));
     let path = dir.path().join("hooks.toml");
+    let bin = bin_dir(&["echo"]);
     let text =
         "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\ncommand = [\"echo\", \"one\"]\n";
-    let load = |text: &str| Hooks::from_toml(path.clone(), text).unwrap();
+    let load = |text: &str| {
+        Hooks::from_toml(path.clone(), text)
+            .unwrap()
+            .with_search_path(on(&[bin.path()]))
+    };
 
     let unconfirmed = consent.check(load(text)).unwrap_err();
     assert_eq!(
@@ -213,7 +245,9 @@ fn confirmation_is_mandatory_and_follows_the_rules() {
     ] {
         assert!(again.check(load(&changed)).is_err(), "{changed}");
     }
-    let elsewhere = Hooks::from_toml(dir.path().join("other/hooks.toml"), text).unwrap();
+    let elsewhere = Hooks::from_toml(dir.path().join("other/hooks.toml"), text)
+        .unwrap()
+        .with_search_path(on(&[bin.path()]));
     assert!(
         again.check(elsewhere).is_err(),
         "confirmations are per file"
@@ -231,11 +265,13 @@ fn a_damaged_consent_record_confirms_nothing() {
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("consent.json");
     std::fs::write(&file, "{not json").unwrap();
+    let bin = bin_dir(&["true"]);
     let hooks = Hooks::from_toml(
         dir.path().join("hooks.toml"),
         "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\ncommand = [\"true\"]\n",
     )
-    .unwrap();
+    .unwrap()
+    .with_search_path(on(&[bin.path()]));
     let consent = Consent::at(&file);
     assert!(consent.check(hooks.clone()).is_err());
     consent.confirm(hooks.clone()).unwrap();
@@ -269,7 +305,187 @@ command = ["notify", "it's \"done\"; rm -rf ~", "$(id)"]
             "filters: account = \"Work \\\"main\\\"\", min_threshold = 90",
             "time limit: 10 s",
             r#"command: ["notify","it's \"done\"; rm -rf ~","$(id)"]"#,
+            "program: not found on PATH (it cannot be approved)",
         ]
+    );
+}
+
+/// PRD 0050 RF2.4: a bare program is the first executable regular file of
+/// that name on the captured `PATH` (relative entries skipped), pinned by
+/// its canonical path and SHA-256; an absolute one is itself; neither
+/// found is unresolved.
+#[test]
+fn a_bare_program_is_pinned_on_the_captured_path() {
+    use sha2::{Digest, Sha256};
+    let first = bin_dir(&["tool"]);
+    let second = bin_dir(&["tool", "other"]);
+    let search = on(&[Path::new("relative"), first.path(), second.path()]);
+    let pin = pin::resolve("tool", search.as_deref()).unwrap();
+    let expected = std::fs::canonicalize(first.path().join("tool")).unwrap();
+    assert_eq!(pin.program, expected);
+    assert_eq!(pin.sha256, format!("{:x}", Sha256::digest(b"tool")));
+    assert_eq!(pin.interpreter, None);
+    assert_eq!(
+        pin::resolve("other", search.as_deref()).unwrap().program,
+        std::fs::canonicalize(second.path().join("other")).unwrap()
+    );
+    let absolute = second.path().join("other").display().to_string();
+    assert_eq!(
+        pin::resolve(&absolute, None).unwrap().program,
+        std::fs::canonicalize(&absolute).unwrap()
+    );
+    assert_eq!(
+        pin::resolve("absent", search.as_deref()),
+        Err(Unresolved::Program)
+    );
+    assert_eq!(pin::resolve("tool", None), Err(Unresolved::Program));
+    assert_eq!(
+        pin::resolve(&second.path().join("absent").display().to_string(), None),
+        Err(Unresolved::Program)
+    );
+    assert_eq!(
+        pin::resolve(&first.path().display().to_string(), None),
+        Err(Unresolved::Program),
+        "a directory is no program"
+    );
+    #[cfg(unix)]
+    {
+        // Not executable: skipped, as a shell would.
+        use std::os::unix::fs::PermissionsExt;
+        let plain = first.path().join("tool");
+        std::fs::set_permissions(&plain, std::fs::Permissions::from_mode(0o644)).unwrap();
+        assert_eq!(
+            pin::resolve("tool", search.as_deref()).unwrap().program,
+            std::fs::canonicalize(second.path().join("tool")).unwrap()
+        );
+    }
+}
+
+/// PRD 0050 RF2.4: a script's `#!` interpreter is pinned too: an absolute
+/// one as itself, `env NAME` as NAME on the same `PATH`; one that cannot
+/// be found leaves the program unresolved.
+#[test]
+fn a_script_pins_its_interpreter() {
+    let bin = bin_dir(&["interp"]);
+    let interp = std::fs::canonicalize(bin.path().join("interp")).unwrap();
+    let search = on(&[bin.path()]);
+    let scripts = tempfile::tempdir().unwrap();
+    let script = |name: &str, line: &str| {
+        let path = scripts.path().join(name);
+        write_program(&path, format!("{line}\necho hi\n").as_bytes());
+        path.display().to_string()
+    };
+    let direct = script("direct", &format!("#!{} -x", interp.display()));
+    let via_env = script("via-env", "#!/usr/bin/env -S interp -u");
+    let missing = script("missing", "#!/usr/bin/env not-there");
+    let relative = script("relative", "#! interp");
+
+    let pinned = pin::resolve(&direct, search.as_deref()).unwrap();
+    let interpreter = pinned.interpreter.unwrap();
+    assert_eq!(interpreter.program, interp);
+    assert_eq!(
+        Some(interpreter),
+        pin::resolve(&via_env, search.as_deref())
+            .unwrap()
+            .interpreter
+    );
+    assert_eq!(
+        pin::resolve(&missing, search.as_deref()),
+        Err(Unresolved::Interpreter)
+    );
+    assert_eq!(
+        pin::resolve(&relative, search.as_deref()),
+        Err(Unresolved::Interpreter)
+    );
+}
+
+/// PRD 0050 RF2.4: the listing names each pinned program and interpreter
+/// with its hash; the consent digest follows their bytes and which file
+/// `PATH` finds, so a confirmation stops matching (and asks again) when
+/// either changes; an unresolved program cannot be confirmed at all.
+// security-invariant: SEC-HOOK-PIN
+#[test]
+fn the_digest_covers_the_resolved_program_and_its_bytes() {
+    let dir = tempfile::tempdir().unwrap();
+    let consent = Consent::at(dir.path().join("consent.json"));
+    let early = tempfile::tempdir().unwrap();
+    let bin = bin_dir(&["tool", "interp"]);
+    let interp = std::fs::canonicalize(bin.path().join("interp")).unwrap();
+    write_program(
+        &bin.path().join("tool"),
+        format!("#!{}\nrun\n", interp.display()).as_bytes(),
+    );
+    let text = "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\ncommand = [\"tool\"]\n";
+    let load = || {
+        Hooks::from_toml(dir.path().join("hooks.toml"), text)
+            .unwrap()
+            .with_search_path(on(&[early.path(), bin.path()]))
+    };
+
+    let hooks = load();
+    let pins = hooks.pinned().unwrap();
+    let lines: Vec<String> = hooks
+        .listing()
+        .iter()
+        .map(|line| line.resolve("en-US"))
+        .collect();
+    let tool = std::fs::canonicalize(bin.path().join("tool")).unwrap();
+    assert!(
+        lines.contains(&format!(
+            "program: {} (SHA-256 {})",
+            tool.display(),
+            pins[0].sha256
+        )),
+        "{lines:?}"
+    );
+    assert!(
+        lines.contains(&format!(
+            "interpreter: {} (SHA-256 {})",
+            interp.display(),
+            pins[0].interpreter.as_ref().unwrap().sha256
+        )),
+        "{lines:?}"
+    );
+    let (shown, digest) = hooks.approval().unwrap();
+    assert_eq!(digest, hooks.digest());
+    assert!(shown.starts_with(&hooks.listing()));
+    assert!(
+        consent.check(load()).is_err(),
+        "a confirmation of the rules alone (before pinning) asks again"
+    );
+    consent.confirm_shown(load(), &digest).unwrap();
+    let confirmed = consent.check(load()).unwrap();
+    assert_eq!(confirmed.pins(), pins.as_slice());
+
+    // New bytes in the interpreter.
+    write_program(&interp, b"other interpreter");
+    assert_ne!(load().digest(), digest);
+    assert!(consent.check(load()).is_err());
+    assert_eq!(
+        consent.confirm_shown(load(), &digest).unwrap_err(),
+        changed(),
+        "what was shown is not what would be approved"
+    );
+    write_program(&interp, b"interp");
+    assert!(consent.check(load()).is_ok(), "the same bytes again");
+
+    // Another file of that name earlier on PATH.
+    write_program(&early.path().join("tool"), b"impostor");
+    assert_ne!(load().digest(), digest);
+    assert!(consent.check(load()).is_err());
+    std::fs::remove_file(early.path().join("tool")).unwrap();
+
+    // The program disappears: nothing can be confirmed.
+    std::fs::remove_file(bin.path().join("tool")).unwrap();
+    assert!(consent.check(load()).is_err());
+    assert_eq!(
+        consent.confirm(load()).unwrap_err().id,
+        "hooks.error.unresolved"
+    );
+    assert_eq!(load().approval().unwrap_err(), unresolved("a"));
+    assert_eq!(
+        load().rule_approval("a").unwrap().unwrap_err(),
+        unresolved("a")
     );
 }
 
@@ -333,7 +549,23 @@ fn every_message_reads_in_each_catalog() {
         run(Outcome::Terminated, None).summary(),
         run(Outcome::TimedOut, None).summary(),
         run(Outcome::NotStarted, None).summary(),
+        run(Outcome::Changed, None).summary(),
+        unresolved("a"),
     ]);
+    // PRD 0050 RF2.4: the lines of a pinned program and interpreter.
+    let bin = bin_dir(&["interp"]);
+    let interp = std::fs::canonicalize(bin.path().join("interp")).unwrap();
+    write_program(
+        &bin.path().join("tool"),
+        format!("#!{}\n", interp.display()).as_bytes(),
+    );
+    let resolved = Hooks::from_toml(
+        PathBuf::from("/nowhere/hooks.toml"),
+        "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\ncommand = [\"tool\"]\n",
+    )
+    .unwrap()
+    .with_search_path(on(&[bin.path()]));
+    messages.extend(resolved.approval().unwrap().0);
     let invalid = [
         "",
         "x =",
@@ -361,7 +593,7 @@ fn every_message_reads_in_each_catalog() {
     std::fs::write(&blocked, "").unwrap();
     messages.push(
         Consent::at(blocked.join("consent.json"))
-            .confirm(hooks)
+            .confirm(resolved)
             .unwrap_err(),
     );
     messages.push(changed());
@@ -658,7 +890,9 @@ mod running {
                     )
                 })
                 .collect();
-            let hooks = Hooks::from_toml(self.path("hooks.toml"), &text).unwrap();
+            let hooks = Hooks::from_toml(self.path("hooks.toml"), &text)
+                .unwrap()
+                .with_search_path(Some("/usr/bin:/bin".into()));
             Consent::at(self.path("consent.json"))
                 .confirm(hooks)
                 .unwrap()
@@ -885,16 +1119,14 @@ pwd -P > "$out/pwd"
         );
         let chatty = rig.script("chatty.sh", "head -c 40000 /dev/zero | tr '\\0' a\n");
         let failing = rig.script("fail.sh", "echo 'oops' >&2\nexit 3\n");
+        // Present when confirmed, gone when its event comes (PRD 0050
+        // RF2.4: a program that no longer resolves to its pin never runs).
+        let absent = rig.script("absent", "exit 0\n");
         let confirmed = rig.confirmed(&[
             ("sleep", "\"quota_exhausted\"", sh(&sleeper, &[]), 1),
             ("chatty", "\"quota_reset\"", sh(&chatty, &[]), 10),
             ("fail", "\"refresh_failed\"", sh(&failing, &[]), 10),
-            (
-                "missing",
-                "\"auth_required\"",
-                vec![rig.path("absent").display().to_string()],
-                10,
-            ),
+            ("missing", "\"auth_required\"", vec![absent.clone()], 10),
             (
                 "after",
                 "\"usage_updated\"",
@@ -903,6 +1135,7 @@ pwd -P > "$out/pwd"
             ),
         ]);
         let (runner, mut runs) = rig.start(confirmed, vec![("PATH", "/usr/bin:/bin")]);
+        std::fs::remove_file(&absent).unwrap();
 
         submit(&runner, &event(EventKind::QuotaExhausted, "Work", None));
         let run = next(&mut runs).await;
@@ -928,7 +1161,7 @@ pwd -P > "$out/pwd"
         assert!(!run.truncated);
 
         submit(&runner, &event(EventKind::AuthRequired, "Work", None));
-        assert_eq!(next(&mut runs).await.outcome, Outcome::NotStarted);
+        assert_eq!(next(&mut runs).await.outcome, Outcome::Changed);
 
         submit(&runner, &event(EventKind::UsageUpdated, "Work", None));
         assert!(next(&mut runs).await.succeeded(), "the runner goes on");
@@ -940,8 +1173,94 @@ pwd -P > "$out/pwd"
             .collect();
         assert_eq!(
             outcomes,
-            ["timed_out", "exited", "exited", "not_started", "exited"]
+            ["timed_out", "exited", "exited", "changed", "exited"]
         );
+    }
+
+    /// PRD 0050 RF2.4: a hook runs the exact file pinned at consent. A bare
+    /// name found on the captured `PATH` runs (with its written name as
+    /// `argv[0]`); new bytes in a pinned program, or another file of the
+    /// name appearing earlier on `PATH`, run nothing and suspend the rule,
+    /// which stays suspended even when the original comes back.
+    // security-invariant: SEC-HOOK-PIN
+    #[tokio::test]
+    async fn a_swapped_program_never_runs_and_the_rule_stays_suspended() {
+        let rig = Rig::new();
+        let (early, bin) = (rig.path("early"), rig.path("bin"));
+        std::fs::create_dir(&early).unwrap();
+        std::fs::create_dir(&bin).unwrap();
+        // A link to the system shell: what runs is never a file this test
+        // wrote.
+        std::os::unix::fs::symlink("/bin/sh", bin.join("tool")).unwrap();
+        // A copy that is changed before it would ever run.
+        std::fs::copy("/bin/sh", bin.join("copy")).unwrap();
+        let ran = rig.path("ran");
+        let copied = rig.path("copied");
+        let rule = |name: &str, event: &str, program: &str, marker: &Path| {
+            format!(
+                "[[hooks]]\nname = \"{name}\"\nevents = [\"{event}\"]\ncommand = {}\n",
+                serde_json::to_string(&[
+                    program,
+                    "-c",
+                    &format!("printf '%s' \"$0\" > '{}'", marker.display()),
+                ])
+                .unwrap()
+            )
+        };
+        let text = rule("pinned", "quota_exhausted", "tool", &ran)
+            + &rule("copied", "quota_reset", "copy", &copied);
+        let search =
+            std::env::join_paths([&early, &bin, Path::new("/usr/bin"), Path::new("/bin")]).unwrap();
+        let hooks = Hooks::from_toml(rig.path("hooks.toml"), &text)
+            .unwrap()
+            .with_search_path(Some(search.clone()));
+        let confirmed = Consent::at(rig.path("consent.json"))
+            .confirm(hooks)
+            .unwrap();
+        assert_eq!(
+            confirmed.pins()[0].program,
+            std::fs::canonicalize("/bin/sh").unwrap()
+        );
+        // The parent's own PATH is not what the hooks get.
+        let (runner, mut runs) = rig.start(confirmed, vec![("PATH", "/nowhere")]);
+
+        submit(&runner, &event(EventKind::QuotaExhausted, "Work", None));
+        let run = next(&mut runs).await;
+        assert!(run.succeeded(), "{run:?}");
+        assert_eq!(std::fs::read_to_string(&ran).unwrap(), "tool", "argv[0]");
+        std::fs::remove_file(&ran).unwrap();
+
+        // New bytes in the pinned copy.
+        let mut file = std::fs::OpenOptions::new()
+            .append(true)
+            .open(bin.join("copy"))
+            .unwrap();
+        file.write_all(b"\n").unwrap();
+        drop(file);
+        submit(&runner, &event(EventKind::QuotaReset, "Work", None));
+        let run = next(&mut runs).await;
+        assert_eq!(
+            (run.rule.as_str(), run.outcome),
+            ("copied", Outcome::Changed)
+        );
+        assert!(!copied.exists(), "the changed program never ran");
+
+        // Another file of the same name earlier on PATH.
+        std::os::unix::fs::symlink("/usr/bin/touch", early.join("tool")).unwrap();
+        submit(&runner, &event(EventKind::QuotaExhausted, "Work", None));
+        let run = next(&mut runs).await;
+        assert_eq!(
+            (run.rule.as_str(), run.outcome),
+            ("pinned", Outcome::Changed)
+        );
+        // Gone again: the rule stays suspended until a new confirmation.
+        std::fs::remove_file(early.join("tool")).unwrap();
+        submit(&runner, &event(EventKind::QuotaExhausted, "Work", None));
+        assert_eq!(next(&mut runs).await.outcome, Outcome::Changed);
+        assert!(!ran.exists(), "nothing ran after the swap");
+
+        let log = std::fs::read_to_string(rig.path("runs.log")).unwrap();
+        assert_eq!(log.matches("\"outcome\":\"changed\"").count(), 3, "{log}");
     }
 
     /// RF3.4: at most four hooks at once; submitting never waits, and past
