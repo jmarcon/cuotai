@@ -21,7 +21,7 @@
 │█████████████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  3d 03h  36% rimanente   │
 │↑ 9 punti sopra il ritmo · si esaurisce alle 2026-01-03 01:17, 22h 45m prima del reset   ·   previsto 55% usato ·     │
 │stima lineare                                                                                                         │
-│                                                                                                                      │
+│⌁ ≈ 12%/giorno fino al rinnovo                                                                                        │
 │                                                                                                                      │
 │                                                                                                                      │
 │                                                                                                                      │

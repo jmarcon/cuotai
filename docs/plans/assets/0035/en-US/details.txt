@@ -21,7 +21,7 @@
 │█████████████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  3d 03h  36% left        │
 │↑ 9 points above the pace · runs out at 2026-01-03 01:17, 22h 45m before the reset   ·   expected 55% used · linear   │
 │estimate                                                                                                              │
-│                                                                                                                      │
+│⌁ ≈ 12%/day to the reset                                                                                              │
 │                                                                                                                      │
 │                                                                                                                      │
 │                                                                                                                      │

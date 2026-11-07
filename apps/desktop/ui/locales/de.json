@@ -742,7 +742,7 @@
   "settings.hooks.help": "Hooks führen eigene Befehle aus, wenn mit einem Konto etwas geschieht (ein Kontingent überschreitet eine Schwelle, ist erschöpft oder wird zurückgesetzt, eine Abfrage schlägt fehl…); erkannt werden sie anhand der eigenen Messwerte dieser App, sie verursachen also keine Abfrage. Der Befehl erhält das Ereignis als JSON auf der Standardeingabe sowie in CUOTAI_EVENT, CUOTAI_ACCOUNT, CUOTAI_PROVIDER und CUOTAI_METRIC, läuft ohne Shell und erbt nur PATH, HOME und LANG. Die Regeln liegen in hooks.toml neben der Kontodatei, gemeinsam mit cuotai --watch --hooks.",
   "settings.hooks.on": "Hooks ausführen",
   "settings.hooks.state.on": {
-    "one": "An: 1 Regel läuft bei ihren Ereignissen.",
+    "one": "An: {count} Regel läuft bei ihren Ereignissen.",
     "other": "An: {count} Regeln laufen bei ihren Ereignissen."
   },
   "settings.hooks.state.off": "Aus: Es läuft kein Befehl.",

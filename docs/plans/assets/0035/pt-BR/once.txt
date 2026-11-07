@@ -1,0 +1,18 @@
+
+Personal / Claude — Atualizado · consultado agora
+  Window5h: 31.00 % / 100.00
+    Renova: 2026-01-01T03:05:00+00:00
+    Ritmo: 7 pontos de reserva · dura até a renovação (estimativa linear)
+  Weekly: 64.00 % / 100.00
+    Renova: 2026-01-04T00:00:00+00:00
+    Ritmo: 7 pontos acima do ritmo · acaba às 06:00, 18h antes da renovação (estimativa linear)
+    Cota diária: ≈ 12%/dia até a renovação
+
+Work / ChatGPT / Codex — Atualizado · consultado agora
+  Window5h: 100.00 % / 100.00
+    Renova: 2026-01-01T03:05:00+00:00
+    Ritmo: Limite atingido até a renovação (estimativa linear)
+
+Team / Claude — Rate limit · consultado agora
+
+API / Claude — Autenticação · consultado agora

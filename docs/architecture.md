@@ -88,25 +88,42 @@ Structured texts emitted by the core carry `Localized { id, params, fallback }`:
   code is the English text: constructors take the English template and
   interpolate the parameters into it. New texts are written in English
   first and added to every catalog.
+- **The locale registry (PRD 0035 RF1)**, `cuotai_core::text::LOCALES`
+  (`text/registry.rs`), is the one list of languages: fourteen rows
+  (pt-BR, en-US, es, it, zh-CN, fr, de, ja, ru, ko, hi-IN, id-ID, tr, vi)
+  with code, endonym, flag, script, aliases, plural rule and status.
+  `text::normalize` maps system and BCP 47 forms (`pt_BR.UTF-8`,
+  `zh-Hans`, `in`) to a row; the TUI, `CUOTAI_LANG`, `--fallback-locale`
+  and the desktop (`locale_registry` command and its generated static
+  copies) all read it. Development builds add the `en-XA` pseudo-locale.
 - The **core owns the catalog of the ids it emits**:
-  `crates/cuotai-core/locales/{pt-BR,es,it}.json` (loaded through
-  `include_str!` and `serde_json` behind a `LazyLock`). Every core id
-  (field.*, native.*, login.*, credential_help.*, oauth.*,
-  access.*, edit_error.*, query.*, note.*, remove_error.*,
-  remove.kept.*, status.*, provider.*, binding.*, metric_window.*, pace.*, alerts.*, incident.*) lives in all three
-  with the same set of keys; en-US has no catalog and renders the English
-  `fallback`. Resolution (`Localized::resolve`, `cuotai_core::text::core_catalog`)
+  `crates/cuotai-core/locales/<code>.json`, one per registry row except
+  en-US (thirteen files, loaded through `include_str!` and `serde_json`
+  behind a `LazyLock`). Every core id (field.*, native.*, login.*,
+  credential_help.*, oauth.*, access.*, edit_error.*, query.*, note.*,
+  remove_error.*, remove.kept.*, status.*, provider.*, binding.*,
+  metric_window.*, pace.*, alerts.*, incident.*, text.duration.*) lives in
+  every catalog with the same set of keys; en-US has no catalog and renders
+  the English `fallback`. A text with a counted noun is a plural object
+  with the categories of the language's rule (`Localized::plural`).
+  Resolution (`Localized::resolve`, `cuotai_core::text::core_catalog`)
   follows the order exact locale → same language → `fallback`.
-- The core tests enforce the catalogs: equal key sets, equal placeholder
-  names, and no Portuguese marker in an English fallback (every
-  `Localized` built in the core tests passes `text::portuguese_markers`).
+- The core tests enforce the catalogs (`text::parity`): equal key sets,
+  equal placeholder names, plural shapes, no markup, NFC text, the `_meta`
+  shape, the length budgets of `docs/i18n-length-budgets.md`, every plural
+  rendering the counts 0, 1, 2, 5, 11, 21, 22 and 1.5, and no Portuguese
+  marker in an English fallback (every `Localized` built in the core tests
+  passes `text::portuguese_markers`). The process for translators (glossary,
+  register, review checklist, status table) is in
+  `apps/desktop/ui/locales/README.md`.
 - The desktop app receives the core catalog through the Tauri command
   `core_catalog(locale)`, and `js/i18n.js` merges it under the UI catalog
   (`apps/desktop/ui/locales/*.json`); user packs (in
   `<user dir>/locales/<code>.json`) override both. Front ends **never match
   on text**: `t()` and `tl()` look the id up in the catalog.
 - The TUI resolves the core's `Localized` values through `Localized::resolve` in the
-  active locale (`CUOTAI_LANG`, default `pt-BR`); Ratatui's own captions
+  active locale (`CUOTAI_LANG`, else the system locale, normalized through
+  the registry; English when it names no known language); Ratatui's own captions
   (shortcuts, frames, ...) are the TUI's own texts (PRD 0034 RF2): English in
   code through `l10n::tr`/`trf`, translated in `crates/cuotai-tui/locales/`.
   Metric labels, units and periods stay the adapters' strings (they key the

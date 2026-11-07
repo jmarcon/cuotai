@@ -2498,6 +2498,93 @@ mod tests {
         );
     }
 
+    /// PRD 0035 RF10.2 and RF13.2: the `--once` blocks have the same shape
+    /// in every language (lines, indentation, the 24-hour `HH:MM` times),
+    /// so scripts can read them whatever `CUOTAI_LANG` says. With
+    /// `CUOTAI_TUI_LOCALE_SNAPSHOTS=<dir>` the text of each language is
+    /// written to `<dir>/<code>/once.txt` as review evidence.
+    #[test]
+    fn once_text_has_the_same_shape_in_every_language() {
+        let now = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+        let soon = Some(now + chrono::Duration::minutes(185));
+        let later = Some(now + chrono::Duration::days(3));
+        let mut exhausted = report(
+            "Work",
+            Status::Ready,
+            vec![quota(MetricWindow::Window5h, 100.0, soon)],
+        );
+        exhausted.provider = Provider::ChatGpt;
+        let reports = [
+            report(
+                "Personal",
+                Status::Ready,
+                vec![
+                    quota(MetricWindow::Window5h, 31.0, soon),
+                    quota(MetricWindow::Weekly, 64.0, later),
+                ],
+            ),
+            exhausted,
+            report("Team", Status::RateLimited, Vec::new()),
+            report("API", Status::AuthenticationError, Vec::new()),
+        ];
+        let at = |t: DateTime<Utc>| t.format("%H:%M").to_string();
+        let times = |text: &str| -> Vec<String> {
+            let chars: Vec<char> = text.chars().collect();
+            chars
+                .windows(5)
+                .filter(|w| {
+                    w[0].is_ascii_digit()
+                        && w[1].is_ascii_digit()
+                        && w[2] == ':'
+                        && w[3].is_ascii_digit()
+                        && w[4].is_ascii_digit()
+                })
+                .map(|w| w.iter().collect())
+                .collect()
+        };
+        let shape = |text: &str| -> Vec<usize> {
+            text.lines()
+                .map(|line| line.len() - line.trim_start().len())
+                .collect()
+        };
+        let snapshots =
+            std::env::var_os("CUOTAI_TUI_LOCALE_SNAPSHOTS").map(std::path::PathBuf::from);
+        let mut reference: Option<(String, Vec<usize>, Vec<String>)> = None;
+        for row in cuotai_core::text::LOCALES
+            .iter()
+            .filter(|row| row.is_translated())
+        {
+            let text: String = crate::l10n::with_locale(row.code, || {
+                reports
+                    .iter()
+                    .map(|report| report_text(report, &[], None, FIVE_MIN, now, row.code, at))
+                    .collect()
+            });
+            if let Some(dir) = &snapshots {
+                let out = dir.join(row.code);
+                std::fs::create_dir_all(&out).unwrap();
+                std::fs::write(out.join("once.txt"), &text).unwrap();
+            }
+            assert!(
+                !text.contains('{'),
+                "{}: unfilled placeholder\n{text}",
+                row.code
+            );
+            match &reference {
+                None => reference = Some((text.clone(), shape(&text), times(&text))),
+                Some((first, lines, clock)) => {
+                    assert_eq!(
+                        &shape(&text),
+                        lines,
+                        "{} lines\n{text}\n---\n{first}",
+                        row.code
+                    );
+                    assert_eq!(&times(&text), clock, "{} times\n{text}", row.code);
+                }
+            }
+        }
+    }
+
     /// PRD 0036 RF9.3: an aggregator account prints its pools and every
     /// connection indented under it; any other account prints nothing extra.
     #[test]
@@ -2602,7 +2689,7 @@ mod tests {
         let recent = [vec![point(40, 10.0), point(20, 25.0), point(0, 40.0)]];
         assert!(
             report_text(&report, &recent, None, FIVE_MIN, now, "en-US", at).contains(
-                "Pace: 20 points in reserve · runs out at 01:20, 40m 00s before the reset"
+                "Pace: 20 points in reserve · runs out at 01:20, 40 min before the reset"
             )
         );
     }

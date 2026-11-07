@@ -1,0 +1,18 @@
+
+Personal / Claude — Up to date · queried now
+  Window5h: 31.00 % / 100.00
+    Renews: 2026-01-01T03:05:00+00:00
+    Pace: 7 points in reserve · lasts until the reset (linear estimate)
+  Weekly: 64.00 % / 100.00
+    Renews: 2026-01-04T00:00:00+00:00
+    Pace: 7 points above the pace · runs out at 06:00, 18h before the reset (linear estimate)
+    Allowance: ≈ 12%/day to the reset
+
+Work / ChatGPT / Codex — Up to date · queried now
+  Window5h: 100.00 % / 100.00
+    Renews: 2026-01-01T03:05:00+00:00
+    Pace: Limit reached until the reset (linear estimate)
+
+Team / Claude — Rate limited · queried now
+
+API / Claude — Authentication · queried now

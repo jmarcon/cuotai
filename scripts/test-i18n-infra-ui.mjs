@@ -99,3 +99,58 @@ for (const { code } of REGISTRY) {
   assert.equal(new Intl.DateTimeFormat(code).resolvedOptions().numberingSystem, "latn", `${code} dates`);
 }
 console.log("PASS: Latin digits in Intl output for every registry locale");
+
+// PRD 0035 RF10.1 and decision 8: the registry code reaches `Intl` as is, so the decimal separator and the grouping
+// follow the language: a decimal comma in de, fr, ru, tr, vi and id-ID, lakh grouping in hi-IN, a dot elsewhere.
+{
+  const plain = (s) => s.replace(/[\s  ]/g, " ");
+  const decimal = (code) => plain(new Intl.NumberFormat(code, { minimumFractionDigits: 2 }).format(1.5));
+  for (const code of ["de", "fr", "ru", "tr", "vi", "id-ID", "es", "it", "pt-BR"]) {
+    assert.equal(decimal(code), "1,50", `${code} decimal comma`);
+  }
+  for (const code of ["en-US", "zh-CN", "ja", "ko", "hi-IN"]) {
+    assert.equal(decimal(code), "1.50", `${code} decimal dot`);
+  }
+  assert.equal(new Intl.NumberFormat("hi-IN").format(1234567), "12,34,567", "hi-IN lakh grouping");
+  assert.equal(new Intl.NumberFormat("id-ID").format(1234567), "1.234.567", "id-ID dot grouping");
+  assert.equal(plain(new Intl.NumberFormat("de", { style: "percent" }).format(0.82)), "82 %", "de percent");
+  assert.equal(new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(6.25), "$6.25");
+}
+console.log("PASS: decimal separators and grouping follow the registry locale");
+
+// PRD 0035 RF13.3: every desktop plural text renders the counts 0, 1, 2, 5, 11, 21, 22 and 1.5 in every shipped
+// language through `t()`, with no placeholder left and the number shown (exactly 1 may be named in words).
+{
+  const { readFileSync } = await import("node:fs");
+  const english = JSON.parse(readFileSync(new URL("../apps/desktop/ui/locales/en-US.json", import.meta.url), "utf8"));
+  const plurals = Object.keys(english).filter((key) => english[key] && typeof english[key] === "object" && key !== "_meta");
+  assert.ok(plurals.length >= 10, `${plurals.length} plural ids`);
+  for (const { code } of REGISTRY) {
+    await i18n.setLocale(code);
+    assert.equal(i18n.currentLocale(), code);
+    for (const key of plurals) {
+      for (const count of [0, 1, 2, 5, 11, 21, 22, 1.5]) {
+        const text = i18n.t(key, { count: String(count) });
+        assert.ok(text && text !== key, `${code} ${key} ${count}: no text`);
+        assert.ok(!/\{count\}/.test(text), `${code} ${key} ${count}: ${text}`);
+        if (count !== 1) assert.ok(text.includes(String(count)), `${code} ${key} ${count} hides the number: ${text}`);
+      }
+    }
+  }
+  await i18n.setLocale("en-US");
+}
+console.log("PASS: desktop plural texts render every RF13.3 count in every language");
+
+// PRD 0035 RF10.3: the pace outlook carries the margin as the core's localized duration, resolved in the UI language.
+{
+  const outlook = {
+    id: "pace.runs_out_at",
+    params: { at: "06:00", margin: { id: "text.duration.hours", params: { h: "18" }, fallback: "18h" } },
+    fallback: "runs out at 06:00, 18h before the reset",
+  };
+  assert.equal(i18n.tl(outlook), "runs out at 06:00, 18h before the reset");
+  await i18n.setLocale("ja");
+  assert.ok(i18n.tl(outlook).includes("18時間"), i18n.tl(outlook));
+  await i18n.setLocale("en-US");
+}
+console.log("PASS: the pace margin reads in the UI language");

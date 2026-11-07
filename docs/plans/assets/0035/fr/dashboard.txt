@@ -5,15 +5,15 @@
 ┌ Personal ────────────────────────────────────────────────┐┌ Work ────────────────────────────────────────────────────┐
 │Claude · À jour · Disponible · il y a 7 s                 ││ChatGPT / Codex · À jour · Disponible · il y a 7 s        │
 │↑ Weekly: 64.00 % / 100.00                                ││↑ Weekly: 41.00 % / 100.00                                │
-│███████████████     36%                   renouvelle 3d 03││███████████████████ 59% █                 renouvelle 5d 00│
+│███████████████     36%                   réinit. 3d 03h  ││███████████████████ 59% █                 réinit. 5d 00h  │
 │↓ Session (5h): 31.00 % / 100.00                          ││↓ Session (5h): 12.00 % / 100.00                          │
-│███████████████████ 69% █████             renouvelle 3h 04││███████████████████ 88% █████████████     renouvelle 3h 59│
+│███████████████████ 69% █████             réinit. 3h 04m  ││███████████████████ 88% █████████████     réinit. 3h 59m  │
 │                                                          ││                                                          │
 └──────────────────────────────────────────────────────────┘└──────────────────────────────────────────────────────────┘
 ┌ Editor ──────────────────────────────────────────────────┐┌ Team ────────────────────────────────────────────────────┐
 │Cursor · À jour · Épuisé · il y a 7 s                     ││GitHub Copilot · À jour · Disponible · il y a 7 s         │
 │✕ Requests: 500.00 req / 500.00                           ││↓ Premium requests: 120.00 req / 300.00                   │
-│                  épuisé                  renouvelle 19h 5││███████████████████ 60% █                 renouvelle 11d 2│
+│                  épuisé                  réinit. 19h 58m ││███████████████████ 60% █                 réinit. 11d 23h │
 │                                                          ││                                                          │
 │                                                          ││                                                          │
 │                                                          ││                                                          │
@@ -21,7 +21,7 @@
 ┌ API ─────────────────────────────────────────────────────┐┌ Research ────────────────────────────────────────────────┐
 │OpenAI API · À jour · Disponible · il y a 7 s             ││Groq · À jour · Disponible · il y a 7 s                   │
 │Spend this month: 42.70 USD                               ││↑ Daily requests: 9650.00 req / 10000.00                  │
-│limite non communiquée                                    ││█                    4%                   renouvelle 5h 28│
+│limite non communiquée                                    ││█                    4%                   réinit. 5h 28m  │
 │                                                          ││                                                          │
 │                                                          ││                                                          │
 │                                                          ││                                                          │

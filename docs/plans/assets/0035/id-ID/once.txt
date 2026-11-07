@@ -1,0 +1,18 @@
+
+Personal / Claude — Terbaru · dikueri baru saja
+  Window5h: 31.00 % / 100.00
+    Diperbarui: 2026-01-01T03:05:00+00:00
+    Laju: 7 poin cadangan · cukup hingga reset (perkiraan linear)
+  Weekly: 64.00 % / 100.00
+    Diperbarui: 2026-01-04T00:00:00+00:00
+    Laju: 7 poin di atas laju · habis pukul 06:00, 18j sebelum reset (perkiraan linear)
+    Jatah: ≈ 12%/hari hingga reset
+
+Work / ChatGPT / Codex — Terbaru · dikueri baru saja
+  Window5h: 100.00 % / 100.00
+    Diperbarui: 2026-01-01T03:05:00+00:00
+    Laju: Batas tercapai hingga reset (perkiraan linear)
+
+Team / Claude — Dibatasi laju · dikueri baru saja
+
+API / Claude — Autentikasi · dikueri baru saja

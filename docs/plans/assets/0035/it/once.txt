@@ -1,0 +1,18 @@
+
+Personal / Claude — Aggiornato · interrogato ora
+  Window5h: 31.00 % / 100.00
+    Rinnova: 2026-01-01T03:05:00+00:00
+    Ritmo: 7 punti di riserva · dura fino al reset (stima lineare)
+  Weekly: 64.00 % / 100.00
+    Rinnova: 2026-01-04T00:00:00+00:00
+    Ritmo: 7 punti sopra il ritmo · si esaurisce alle 06:00, 18h prima del reset (stima lineare)
+    Margine: ≈ 12%/giorno fino al rinnovo
+
+Work / ChatGPT / Codex — Aggiornato · interrogato ora
+  Window5h: 100.00 % / 100.00
+    Rinnova: 2026-01-01T03:05:00+00:00
+    Ritmo: Limite raggiunto fino al reset (stima lineare)
+
+Team / Claude — Limite di frequenza · interrogato ora
+
+API / Claude — Autenticazione · interrogato ora

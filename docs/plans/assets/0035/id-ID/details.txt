@@ -19,9 +19,9 @@
 │Weekly   ◆ pengikat                                                                                                   │
 │64.00 % / 100.00                                                                                                      │
 │█████████████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  3d 03h sisa  36%        │
-│↑ 9 poin di atas laju · habis pukul 2026-01-03 01:17, 22h 45m sebelum reset   ·   diharapkan 55% terpakai · perkiraan │
-│linear                                                                                                                │
-│                                                                                                                      │
+│↑ 9 poin di atas laju · habis pukul 2026-01-03 01:17, 22j 45mnt sebelum reset   ·   diharapkan 55% terpakai ·         │
+│perkiraan linear                                                                                                      │
+│⌁ ≈ 12%/hari hingga reset                                                                                             │
 │                                                                                                                      │
 │                                                                                                                      │
 │                                                                                                                      │
