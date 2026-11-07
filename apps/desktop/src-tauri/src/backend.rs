@@ -453,7 +453,9 @@ fn pace_view(pace: Pace) -> PaceView {
     use cuotai_core::pace::PaceUnit;
     PaceView {
         label: pace.stage_label(),
-        outlook: pace.outlook_label(local_at, compact_span),
+        // PRD 0035 RF10.3: the margin is the core's duration pattern, a
+        // nested text the UI resolves in its own language.
+        outlook: pace.outlook_label(local_at, cuotai_core::text::duration),
         chips: PaceChips {
             points: pace.chip(PaceUnit::Points),
             percent: pace.chip(PaceUnit::Percent),
@@ -469,19 +471,6 @@ fn local_at(at: chrono::DateTime<chrono::Utc>) -> String {
     local
         .format(if today { "%H:%M" } else { "%Y-%m-%d %H:%M" })
         .to_string()
-}
-
-/// `1d 4h`, `2h 10m`, `40m`: the UI's countdown style.
-fn compact_span(span: chrono::TimeDelta) -> String {
-    let minutes = span.num_minutes().max(0);
-    let (days, hours, mins) = (minutes / 1440, minutes / 60 % 24, minutes % 60);
-    if days > 0 {
-        format!("{days}d {hours}h")
-    } else if hours > 0 {
-        format!("{hours}h {mins}m")
-    } else {
-        format!("{mins}m")
-    }
 }
 
 #[derive(Serialize, Clone)]
@@ -7666,7 +7655,10 @@ mod tests {
         // 138 h of 168 h gone, 88% used: ahead, runs out ~11 h before the reset.
         assert_eq!(m[1]["pace"]["stage"], "ahead");
         assert_eq!(m[1]["pace"]["outlook"]["id"], "pace.runs_out_at");
-        assert_eq!(m[1]["pace"]["outlook"]["params"]["margin"], "11h 10m");
+        // PRD 0035 RF10.3: the margin is the core's localized duration.
+        let margin = &m[1]["pace"]["outlook"]["params"]["margin"];
+        assert_eq!(margin["id"], "text.duration.hours_minutes");
+        assert_eq!(margin["fallback"], "11h 10m");
         // No uniform window, and a freshly opened one: no invented pace.
         assert!(m[2]["pace"].is_null());
         assert!(m[3]["pace"].is_null());

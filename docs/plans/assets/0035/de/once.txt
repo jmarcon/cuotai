@@ -1,0 +1,18 @@
+
+Personal / Claude — Aktuell · abgefragt jetzt
+  Window5h: 31.00 % / 100.00
+    Erneuert: 2026-01-01T03:05:00+00:00
+    Tempo: 7 Punkte Reserve · reicht bis zur Zurücksetzung (lineare Schätzung)
+  Weekly: 64.00 % / 100.00
+    Erneuert: 2026-01-04T00:00:00+00:00
+    Tempo: 7 Punkte über dem Tempo · erschöpft um 06:00, 18 Std. vor der Zurücksetzung (lineare Schätzung)
+    Kontingent: ≈ 12%/Tag bis zur Erneuerung
+
+Work / ChatGPT / Codex — Aktuell · abgefragt jetzt
+  Window5h: 100.00 % / 100.00
+    Erneuert: 2026-01-01T03:05:00+00:00
+    Tempo: Limit erreicht bis zur Zurücksetzung (lineare Schätzung)
+
+Team / Claude — Ratenlimit · abgefragt jetzt
+
+API / Claude — Authentifizierung · abgefragt jetzt

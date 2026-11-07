@@ -1,0 +1,18 @@
+
+Personal / Claude — Al día · consultado ahora
+  Window5h: 31.00 % / 100.00
+    Renueva: 2026-01-01T03:05:00+00:00
+    Ritmo: 7 puntos de reserva · dura hasta el reinicio (estimación lineal)
+  Weekly: 64.00 % / 100.00
+    Renueva: 2026-01-04T00:00:00+00:00
+    Ritmo: 7 puntos por encima del ritmo · se agota a las 06:00, 18h antes del reinicio (estimación lineal)
+    Margen: ≈ 12%/día hasta la renovación
+
+Work / ChatGPT / Codex — Al día · consultado ahora
+  Window5h: 100.00 % / 100.00
+    Renueva: 2026-01-01T03:05:00+00:00
+    Ritmo: Límite alcanzado hasta el reinicio (estimación lineal)
+
+Team / Claude — Limitado · consultado ahora
+
+API / Claude — Autenticación · consultado ahora

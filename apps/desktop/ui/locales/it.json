@@ -739,7 +739,7 @@
   "settings.hooks.help": "Gli hook eseguono comandi tuoi quando succede qualcosa a un account (una quota supera una soglia, si esaurisce o si azzera, una query fallisce…), rilevato dalle letture di questa stessa app, quindi non aggiungono query. Il comando riceve l'evento come JSON sullo standard input e in CUOTAI_EVENT, CUOTAI_ACCOUNT, CUOTAI_PROVIDER e CUOTAI_METRIC, viene eseguito senza shell ed eredita solo PATH, HOME e LANG. Le regole risiedono in hooks.toml accanto al file degli account, condiviso con cuotai --watch --hooks.",
   "settings.hooks.on": "Esegui gli hook",
   "settings.hooks.state.on": {
-    "one": "Attivi: 1 regola viene eseguita sui suoi eventi.",
+    "one": "Attivi: {count} regola viene eseguita sui suoi eventi.",
     "other": "Attivi: {count} regole vengono eseguite sui rispettivi eventi."
   },
   "settings.hooks.state.off": "Disattivati: nessun comando viene eseguito.",

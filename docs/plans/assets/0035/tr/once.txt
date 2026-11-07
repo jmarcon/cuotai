@@ -1,0 +1,18 @@
+
+Personal / Claude — Güncel · sorgulandı şimdi
+  Window5h: 31.00 % / 100.00
+    Yenilenir: 2026-01-01T03:05:00+00:00
+    Hız: 7 puan yedekte · sıfırlanmaya kadar yeter (doğrusal tahmin)
+  Weekly: 64.00 % / 100.00
+    Yenilenir: 2026-01-04T00:00:00+00:00
+    Hız: Hızın 7 puan üzerinde · 06:00 saatinde tükenir, sıfırlanmadan 18sa önce (doğrusal tahmin)
+    Pay: ≈ yenilenmeye kadar günde 12%
+
+Work / ChatGPT / Codex — Güncel · sorgulandı şimdi
+  Window5h: 100.00 % / 100.00
+    Yenilenir: 2026-01-01T03:05:00+00:00
+    Hız: Sıfırlanmaya kadar sınıra ulaşıldı (doğrusal tahmin)
+
+Team / Claude — Hız sınırlı · sorgulandı şimdi
+
+API / Claude — Kimlik doğrulama · sorgulandı şimdi

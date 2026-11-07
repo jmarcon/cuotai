@@ -345,10 +345,13 @@ impl Pace {
     /// Outlook text: `pace.lasts_until_reset`, or `pace.runs_out_at` with
     /// `at` (the projected time) and `margin` (how long before the reset),
     /// both formatted by the caller's clock and style. `None` when exhausted.
-    pub fn outlook_label(
+    /// The margin may be a text or a localized duration
+    /// ([`crate::text::duration`], PRD 0035 RF10.3), which then resolves in
+    /// the reader's language.
+    pub fn outlook_label<M: Into<crate::text::ParamValue>>(
         &self,
         at: impl FnOnce(DateTime<Utc>) -> String,
-        margin: impl FnOnce(TimeDelta) -> String,
+        margin: impl FnOnce(TimeDelta) -> M,
     ) -> Option<Localized> {
         if self.lasts_until_reset {
             return Some(Localized::fixed(

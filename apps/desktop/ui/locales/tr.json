@@ -742,7 +742,7 @@
   "settings.hooks.help": "Kancalar, bir hesapta bir şey olduğunda (bir kota eşiği geçer, tükenir veya sıfırlanır, bir sorgu başarısız olur…) kendi komutlarınızı çalıştırır; bu olaylar uygulamanın kendi okumalarından algılanır, bu yüzden ek sorgu yapmazlar. Komut olayı standart girdisinde JSON olarak ve CUOTAI_EVENT, CUOTAI_ACCOUNT, CUOTAI_PROVIDER ve CUOTAI_METRIC içinde alır, kabuk olmadan çalışır ve yalnızca PATH, HOME ve LANG'ı devralır. Kurallar, hesaplar dosyasının yanındaki hooks.toml içinde durur ve cuotai --watch --hooks ile paylaşılır.",
   "settings.hooks.on": "Kancaları çalıştır",
   "settings.hooks.state.on": {
-    "one": "Açık: 1 kural olaylarında çalışır.",
+    "one": "Açık: {count} kural olaylarında çalışır.",
     "other": "Açık: {count} kural olaylarında çalışır."
   },
   "settings.hooks.state.off": "Kapalı: hiçbir komut çalışmaz.",

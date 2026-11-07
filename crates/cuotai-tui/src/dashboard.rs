@@ -387,7 +387,7 @@ fn advice_sentence(
 }
 
 /// PRD 0007 RF4: the core's pace texts joined as "stage · outlook", with
-/// `at` formatting the projected time and the margin as `11h 10m`.
+/// `at` formatting the projected time and the margin as the core's duration.
 pub(crate) fn pace_text(
     pace: &Pace,
     locale: &str,
@@ -399,8 +399,9 @@ pub(crate) fn pace_text(
         pace::PaceUnit::Points => pace.stage_label().resolve(locale),
         unit => pace.chip(unit).text.resolve(locale),
     };
-    let margin = |span: chrono::TimeDelta| format_reset_remaining(span.num_seconds().max(0));
-    match pace.outlook_label(at, margin) {
+    // PRD 0035 RF10.3: the margin is the core's duration pattern, worded in
+    // the reader's language ("18時間", "18 ч").
+    match pace.outlook_label(at, cuotai_core::text::duration) {
         Some(outlook) => format!("{stage} · {}", outlook.resolve(locale)),
         None => stage,
     }

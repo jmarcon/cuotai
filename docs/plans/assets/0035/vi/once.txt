@@ -1,0 +1,18 @@
+
+Personal / Claude — Mới nhất · truy vấn vừa xong
+  Window5h: 31.00 % / 100.00
+    Làm mới: 2026-01-01T03:05:00+00:00
+    Nhịp độ: Dư 7 điểm · đủ đến lần đặt lại (ước tính tuyến tính)
+  Weekly: 64.00 % / 100.00
+    Làm mới: 2026-01-04T00:00:00+00:00
+    Nhịp độ: Vượt nhịp độ 7 điểm · hết lúc 06:00, sớm hơn 18 giờ so với lần đặt lại (ước tính tuyến tính)
+    Hạn mức: ≈ 12%/ngày đến lần đặt lại
+
+Work / ChatGPT / Codex — Mới nhất · truy vấn vừa xong
+  Window5h: 100.00 % / 100.00
+    Làm mới: 2026-01-01T03:05:00+00:00
+    Nhịp độ: Đã chạm giới hạn cho đến lần đặt lại (ước tính tuyến tính)
+
+Team / Claude — Bị giới hạn tốc độ · truy vấn vừa xong
+
+API / Claude — Xác thực · truy vấn vừa xong

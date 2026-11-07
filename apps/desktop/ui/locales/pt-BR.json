@@ -746,7 +746,7 @@
   "settings.hooks.help": "Hooks executam comandos seus quando algo acontece com uma conta (uma cota passa de um patamar, se esgota ou renova, uma consulta falha…), percebido nas próprias leituras deste app, sem nenhuma consulta a mais. O comando recebe o evento como JSON na entrada padrão e em CUOTAI_EVENT, CUOTAI_ACCOUNT, CUOTAI_PROVIDER e CUOTAI_METRIC, roda sem shell e herda só PATH, HOME e LANG. As regras ficam no hooks.toml ao lado do arquivo de contas, o mesmo do cuotai --watch --hooks.",
   "settings.hooks.on": "Executar hooks",
   "settings.hooks.state.on": {
-    "one": "Ativos: 1 regra roda nos seus eventos.",
+    "one": "Ativos: {count} regra roda nos seus eventos.",
     "other": "Ativos: {count} regras rodam nos seus eventos."
   },
   "settings.hooks.state.off": "Desativados: nenhum comando roda.",

@@ -951,7 +951,7 @@
 <text x="912" y="273.25" fill="#6272a4">前</text>
 <text x="1083" y="273.25" fill="#6272a4">|</text>
 <text x="12" y="292.25" fill="#6272a4">|</text>
-<text x="21" y="292.25" fill="#ff5555" font-weight="bold">✕</text>
+<text x="21" y="292.25" fill="#ff5555" font-weight="bold">x</text>
 <text x="39" y="292.25" fill="#e6e6e6" font-weight="bold">R</text>
 <text x="48" y="292.25" fill="#e6e6e6" font-weight="bold">e</text>
 <text x="57" y="292.25" fill="#e6e6e6" font-weight="bold">q</text>

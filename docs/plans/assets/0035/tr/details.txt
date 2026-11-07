@@ -19,9 +19,9 @@
 │Weekly   ◆ bağlayıcı                                                                                                  │
 │64.00 % / 100.00                                                                                                      │
 │█████████████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  3d 03h % 36 kaldı       │
-│↑ Hızın 9 puan üzerinde · 2026-01-03 01:17 saatinde tükenir, sıfırlanmadan 22h 45m önce   ·   beklenen %55 kullanım · │
-│doğrusal tahmin                                                                                                       │
-│                                                                                                                      │
+│↑ Hızın 9 puan üzerinde · 2026-01-03 01:17 saatinde tükenir, sıfırlanmadan 22sa 45dk önce   ·   beklenen %55 kullanım │
+│· doğrusal tahmin                                                                                                     │
+│⌁ ≈ yenilenmeye kadar günde 12%                                                                                       │
 │                                                                                                                      │
 │                                                                                                                      │
 │                                                                                                                      │

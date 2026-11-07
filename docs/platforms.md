@@ -231,6 +231,35 @@ that owner-blocked marker exists.
 Verification: **CI** path/boundary tests on all three OSes and an offline CLI
 process smoke; live package-manager installations remain **code**-level only.
 
+## Fonts and scripts (PRD 0035)
+
+The interface ships in 14 languages, written in Latin, Cyrillic, Han
+(Simplified Chinese), Japanese kana and Han, Hangul and Devanagari. Cuotai
+bundles no font: each script uses a system font stack (`--font-script` in
+`apps/desktop/ui/css/themes.css`), and the TUI uses whatever font the
+terminal is set to.
+
+| Script | macOS | Windows | Linux |
+|---|---|---|---|
+| Simplified Chinese | PingFang SC | Microsoft YaHei UI | Noto Sans CJK SC (package `fonts-noto-cjk`, `google-noto-sans-cjk-fonts` or `noto-fonts-cjk`) |
+| Japanese | Hiragino Sans | Yu Gothic UI | Noto Sans CJK JP (same package) |
+| Korean | Apple SD Gothic Neo | Malgun Gothic | Noto Sans CJK KR (same package) |
+| Devanagari (Hindi) | Kohinoor Devanagari | Nirmala UI | Noto Sans Devanagari (`fonts-noto-core` or `google-noto-sans-devanagari-fonts`) |
+| Latin and Cyrillic | System UI font | System UI font | System UI font |
+
+macOS and Windows include these fonts. On Linux, without the Noto CJK
+package the desktop falls back to whatever `fontconfig` finds for the
+script: Japanese text may then be drawn with Chinese glyph variants, or a
+script with no installed font shows empty boxes. Install the packages above
+for the languages you use. Digits stay Latin and tabular in every language.
+
+The TUI needs a UTF-8 terminal and a font with the script's glyphs; see
+[`tui.md`](tui.md) for the terminals that draw CJK, Hangul and Devanagari
+and for the ASCII fallback of ambiguous-width glyphs. Verification: **code**
+(the font stacks and the script rules are checked by core tests); the
+per-platform glyph check with and without Noto CJK (RF13.4) is an owner
+step.
+
 ## TUI smoke (PRD 0019 RF5.2)
 
 CI builds the TUI binary on Ubuntu, macOS and Windows and runs it without

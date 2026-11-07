@@ -739,7 +739,7 @@
   "settings.hooks.help": "Hooks run commands of your own when something happens to an account (a quota crosses a threshold, runs out or resets, a query fails…), detected from this app's own readings, so they add no query. The command gets the event as JSON on its standard input and in CUOTAI_EVENT, CUOTAI_ACCOUNT, CUOTAI_PROVIDER and CUOTAI_METRIC, runs without a shell and inherits only PATH, HOME and LANG. The rules live in hooks.toml next to the accounts' file, shared with cuotai --watch --hooks.",
   "settings.hooks.on": "Run hooks",
   "settings.hooks.state.on": {
-    "one": "On: 1 rule runs on its events.",
+    "one": "On: {count} rule runs on its events.",
     "other": "On: {count} rules run on their events."
   },
   "settings.hooks.state.off": "Off: no command runs.",

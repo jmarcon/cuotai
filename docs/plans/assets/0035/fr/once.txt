@@ -1,0 +1,18 @@
+
+Personal / Claude — À jour · interrogé maintenant
+  Window5h: 31.00 % / 100.00
+    Réinitialisation : 2026-01-01T03:05:00+00:00
+    Rythme : 7 points de réserve · tient jusqu’à la réinitialisation (estimation linéaire)
+  Weekly: 64.00 % / 100.00
+    Réinitialisation : 2026-01-04T00:00:00+00:00
+    Rythme : 7 points au-dessus du rythme · s’épuise à 06:00, 18 h avant la réinitialisation (estimation linéaire)
+    Allocation : ≈ 12%/jour jusqu’au renouvellement
+
+Work / ChatGPT / Codex — À jour · interrogé maintenant
+  Window5h: 100.00 % / 100.00
+    Réinitialisation : 2026-01-01T03:05:00+00:00
+    Rythme : Limite atteinte jusqu’à la réinitialisation (estimation linéaire)
+
+Team / Claude — Limité · interrogé maintenant
+
+API / Claude — Authentification · interrogé maintenant

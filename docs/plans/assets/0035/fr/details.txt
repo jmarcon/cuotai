@@ -20,9 +20,9 @@
 │Weekly   ◆ contraignante                                                                                              │
 │64.00 % / 100.00                                                                                                      │
 │█████████████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  3d 03h  36 % restant    │
-│↑ 9 points au-dessus du rythme · s’épuise à 2026-01-03 01:17, 22h 45m avant la réinitialisation   ·   55 % utilisé    │
+│↑ 9 points au-dessus du rythme · s’épuise à 2026-01-03 01:17, 22 h 45 min avant la réinitialisation   ·   55 % utilisé│
 │attendu · estimation linéaire                                                                                         │
-│                                                                                                                      │
+│⌁ ≈ 12%/jour jusqu’au renouvellement                                                                                  │
 │                                                                                                                      │
 │                                                                                                                      │
 │                                                                                                                      │
