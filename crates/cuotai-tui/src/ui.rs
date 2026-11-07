@@ -7,6 +7,7 @@ use crate::{
     cost::LocalCost,
     dashboard::{self, FooterAction},
     extensions_view::{Action as ExtensionAction, ExtensionsView},
+    history_actions::{HistoryActions, Mode as HistoryMode, Reply as HistoryReply},
     models_view::{ModelsView, Reply},
     motion::{self, Anim},
     notify::{self, Notices},
@@ -414,6 +415,8 @@ pub async fn run(
     let mut stats: Option<StatsView> = None;
     // PRD 0019 RF7.7: "Novidades", opened from "Sobre" (`n`); read-only.
     let mut changelog: Option<ChangelogView> = None;
+    // PRD 0052 RF5.1: the details' history export or erase screen.
+    let mut history_actions: Option<HistoryActions> = None;
     // PRD 0011 RF5: the status read in flight and when the next one is due.
     let mut status_job: Option<JoinHandle<Vec<ProviderStatus>>> = None;
     let mut status_due = Instant::now();
@@ -472,6 +475,8 @@ pub async fn run(
         Stats,
         /// PRD 0006 RF6.1: span of the details' history (1, 2, 3).
         HistoryRange(HistoryRange),
+        /// PRD 0052 RF5.1: export (`X`) or erase (`D`) the recorded history.
+        HistoryAction(HistoryMode),
         /// SES-01: "Paste a new session" for the selected account whose
         /// vault session the provider rejected (the core decides).
         PasteSession,
@@ -498,6 +503,8 @@ pub async fn run(
             KeyCode::Char('1') if details => Command::HistoryRange(HistoryRange::Day),
             KeyCode::Char('2') if details => Command::HistoryRange(HistoryRange::Week),
             KeyCode::Char('3') if details => Command::HistoryRange(HistoryRange::Month),
+            KeyCode::Char('X') if details => Command::HistoryAction(HistoryMode::Export),
+            KeyCode::Char('D') if details => Command::HistoryAction(HistoryMode::Erase),
             KeyCode::Char('?') => Command::About,
             KeyCode::Char('S') => Command::Stats,
             KeyCode::Char('x') => Command::Extensions,
@@ -1184,6 +1191,17 @@ pub async fn run(
                     }
                 },
                 Command::HistoryRange(range) => state.history_range = range,
+                Command::HistoryAction(mode) => {
+                    let account = state
+                        .selected_account(&cycle_slot_reports(&refresh_cycle))
+                        .and_then(|index| {
+                            file.config
+                                .accounts
+                                .get(index)
+                                .map(|account| (index, account.display_name().into_owned()))
+                        });
+                    history_actions = Some(HistoryActions::new(mode, account));
+                }
                 Command::Models => {
                     if let Some(index) = state.selected_account(&cycle_slot_reports(&refresh_cycle))
                     {
@@ -1620,6 +1638,12 @@ pub async fn run(
                     task.draw(frame);
                     palette::finish(frame.buffer_mut());
                 })?;
+            } else if let Some(view) = &history_actions {
+                terminal.draw(|frame| {
+                    frame_area = frame.area();
+                    view.draw(frame);
+                    palette::finish(frame.buffer_mut());
+                })?;
             } else if let Some(view) = &mut changelog {
                 let locale = tui_locale();
                 terminal.draw(|frame| {
@@ -1778,6 +1802,12 @@ pub async fn run(
                     }
                     continue;
                 }
+                if let Some(view) = &mut history_actions {
+                    if view.mouse(mouse.kind) == HistoryReply::Close {
+                        history_actions = None;
+                    }
+                    continue;
+                }
                 if let Some(view) = &mut changelog {
                     if view.mouse(mouse.kind, mouse.column, mouse.row) == ChangelogReply::Close {
                         changelog = None;
@@ -1924,6 +1954,16 @@ pub async fn run(
                         KeyCode::Down => task.scroll(true),
                         KeyCode::Up => task.scroll(false),
                         _ => task.input(key),
+                    }
+                    continue;
+                }
+                if let Some(view) = &mut history_actions {
+                    let store = monitor.history();
+                    match view.key(key.code, store.as_ref(), &file.config.accounts) {
+                        HistoryReply::Close => history_actions = None,
+                        // The details and the pace read the history again.
+                        HistoryReply::Erased => state.history = HistoryView::default(),
+                        HistoryReply::Stay => {}
                     }
                     continue;
                 }

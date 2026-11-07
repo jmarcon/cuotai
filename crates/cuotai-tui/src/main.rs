@@ -18,6 +18,7 @@ mod extensions_view;
 mod feed_cli;
 mod glyphs;
 mod headless;
+mod history_actions;
 mod insights_cli;
 mod l10n;
 mod models_view;

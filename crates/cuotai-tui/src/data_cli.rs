@@ -19,8 +19,9 @@ use crate::l10n::{tr, trf};
 
 type Res = Result<u8, Box<dyn std::error::Error>>;
 
-/// The confirmation word, localized; compared exactly.
-fn word() -> &'static str {
+/// The confirmation word, localized; compared exactly (the CLI and the
+/// TUI history erase share it).
+pub(crate) fn word() -> &'static str {
     tr("cli.erase_word", "ERASE")
 }
 
@@ -73,42 +74,51 @@ pub(crate) fn history_export(
     let start = days.map_or(Bound::Unbounded, |days| {
         Bound::Included(Utc::now() - TimeDelta::days(i64::from(days)))
     });
-    let handle = private_file(out).map_err(|_| {
-        cuotai_core::history::HistoryError::Export
-            .l10n()
-            .resolve(locale)
-    })?;
-    let mut writer = io::BufWriter::new(handle);
     let rows = store
-        .export(
-            &accounts,
-            None,
-            (start, Bound::Unbounded),
-            format,
-            &mut writer,
-        )
+        .export_to_file(&accounts, start, format, out)
         .map_err(|e| e.l10n().resolve(locale))?;
-    writer.flush()?;
     cli::message_with(
         Level::Info,
         "history.exported",
         &[("rows", Field::Count(rows as u64))],
-        trf(
-            "cli.history_exported",
-            "{rows} history rows written to {path}.",
-            &[("rows", &rows), ("path", &out.display())],
-        ),
+        exported_text(rows, &out.display()),
     );
     Ok(0)
 }
 
-/// A new file only the user can read; an existing file is replaced.
-fn private_file(path: &Path) -> io::Result<std::fs::File> {
-    let mut options = std::fs::OpenOptions::new();
-    options.write(true).create(true).truncate(true);
-    #[cfg(unix)]
-    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
-    options.open(path)
+/// "N history rows written to PATH." (CLI and TUI).
+pub(crate) fn exported_text(rows: usize, path: &dyn std::fmt::Display) -> String {
+    trf(
+        "cli.history_exported",
+        "{rows} history rows written to {path}.",
+        &[("rows", &rows), ("path", path)],
+    )
+}
+
+/// What a history erase will remove: one account (`name`, already made
+/// safe for display) or every account (CLI and TUI).
+pub(crate) fn erase_notice(name: Option<&str>) -> String {
+    match name {
+        None => tr(
+            "cli.history_erase_all",
+            "The history of every account on this device will be erased.",
+        )
+        .to_string(),
+        Some(name) => trf(
+            "cli.history_erase_account",
+            "The history of {name} will be erased.",
+            &[("name", &name)],
+        ),
+    }
+}
+
+/// "N history samples erased." (CLI and TUI).
+pub(crate) fn erased_text(count: usize) -> String {
+    trf(
+        "cli.history_erased",
+        "{count} history samples erased.",
+        &[("count", &count)],
+    )
 }
 
 fn select(file: &ConfigFile, name: Option<&str>) -> Result<Vec<cuotai_core::Account>, String> {
@@ -140,22 +150,8 @@ pub(crate) fn history_erase(config: Option<PathBuf>, target: &str, yes: bool) ->
     } else {
         select(&file, Some(target))?
     };
-    eprintln!(
-        "{}",
-        if all {
-            tr(
-                "cli.history_erase_all",
-                "The history of every account on this device will be erased.",
-            )
-            .to_string()
-        } else {
-            trf(
-                "cli.history_erase_account",
-                "The history of {name} will be erased.",
-                &[("name", &crate::ui::safe(target))],
-            )
-        }
-    );
+    let safe = crate::ui::safe(target);
+    eprintln!("{}", erase_notice((!all).then_some(&*safe)));
     match confirmed(yes, &mut io::stdin().lock(), terminal()) {
         Ok(true) => {}
         Ok(false) => {
@@ -177,11 +173,7 @@ pub(crate) fn history_erase(config: Option<PathBuf>, target: &str, yes: bool) ->
         Level::Info,
         "history.erased",
         &[("samples", Field::Count(removed as u64))],
-        trf(
-            "cli.history_erased",
-            "{count} history samples erased.",
-            &[("count", &removed)],
-        ),
+        erased_text(removed),
     );
     Ok(0)
 }

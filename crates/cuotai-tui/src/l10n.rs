@@ -161,6 +161,7 @@ pub(crate) fn source_ids() -> BTreeMap<String, String> {
         ("motion.rs", include_str!("motion.rs")),
         ("notify.rs", include_str!("notify.rs")),
         ("report_problem.rs", include_str!("report_problem.rs")),
+        ("history_actions.rs", include_str!("history_actions.rs")),
         ("report_view.rs", include_str!("report_view.rs")),
         ("serve.rs", include_str!("serve.rs")),
         ("stats_view.rs", include_str!("stats_view.rs")),
