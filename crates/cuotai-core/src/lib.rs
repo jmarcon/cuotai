@@ -89,6 +89,7 @@ pub mod resets;
 pub mod secret_input;
 #[cfg(feature = "serve")]
 pub mod serve;
+pub mod state_contracts;
 pub mod stats;
 pub mod support;
 pub mod text;

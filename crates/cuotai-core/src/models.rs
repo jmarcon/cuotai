@@ -95,6 +95,9 @@ pub enum ModelError {
     NoCache,
     #[error("Could not read or write the model cache; no result was saved.")]
     Storage,
+    /// PRD 0051 RF3.5: written by a later schema major; left untouched.
+    #[error("The model cache was written by a newer version of Cuotai that changed its format; it is kept untouched. Update Cuotai to use it.")]
+    NewerMajor,
 }
 
 impl ModelError {
@@ -103,6 +106,7 @@ impl ModelError {
             Self::InvalidIndex => "models.error.invalid_index",
             Self::NoCache => "models.error.no_cache",
             Self::Storage => "models.error.storage",
+            Self::NewerMajor => return crate::private_fs::newer_major_note("models.sqlite3"),
         };
         Localized::fixed(id, self.to_string())
     }
@@ -574,6 +578,7 @@ impl ModelCache {
                     && crate::private_fs::sqlite_major(&tx)?
                         == Some(crate::private_fs::SQLITE_MAJOR) => {}
             // Written by a newer Cuotai with another layout: never guess it.
+            version if version > SCHEMA_VERSION => return Err(ModelError::NewerMajor),
             _ => return Err(ModelError::Storage),
         }
         crate::private_fs::ensure_sqlite_meta(&tx)?;

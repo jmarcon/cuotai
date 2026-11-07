@@ -919,6 +919,7 @@ mod tests {
             crate::models::ModelError::InvalidIndex,
             crate::models::ModelError::NoCache,
             crate::models::ModelError::Storage,
+            crate::models::ModelError::NewerMajor,
         ] {
             ids.push(error.l10n().id.to_string());
         }

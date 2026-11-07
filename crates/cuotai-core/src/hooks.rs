@@ -375,9 +375,37 @@ const SAMPLE_METRIC: &str = "sample (5h)";
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RawFile {
+    /// PRD 0051 RF3.1: the schema major (absent: 1) and its additive
+    /// revision (absent: 0). This release writes neither.
+    #[serde(default)]
+    #[allow(dead_code)]
+    schema: Option<u32>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    schema_revision: Option<u32>,
     #[serde(default)]
     hooks: Vec<RuleDraft>,
 }
+
+/// PRD 0051 RF3.1: the `hooks.toml` schema this release reads and writes.
+pub const FILE_SCHEMA: crate::private_fs::StateVersion = crate::private_fs::StateVersion {
+    major: 1,
+    revision: 0,
+};
+
+/// The keys of one `[[hooks]]` rule this release knows (an editor save
+/// keeps any other key of a later revision as written).
+const RULE_KEYS: [&str; 9] = [
+    "name",
+    "events",
+    "provider",
+    "account",
+    "account_id",
+    "min_threshold",
+    "command",
+    "timeout_seconds",
+    "quiet",
+];
 
 /// One `[[hooks]]` rule as written, before validation: what an editor
 /// reads ([`Document::drafts`]) and saves ([`Document::save`]).
@@ -602,7 +630,42 @@ fn run_context() -> Vec<Localized> {
 
 /// The rules of `text` as written; an error names the line, never echoes
 /// the file.
+///
+/// PRD 0051 RF3: a file of a later schema major is refused
+/// (`state.error.newer_major`); a later revision of this major is read
+/// without the keys this release does not know. A file of this revision
+/// stays strict, so a typo is still an error.
 fn parse(text: &str) -> Result<Vec<RuleDraft>, Localized> {
+    use crate::private_fs::{StateCompatibility, StateVersion};
+    if let Ok(mut table) = text.parse::<toml::Table>() {
+        let number = |key: &str| {
+            table
+                .get(key)
+                .and_then(toml::Value::as_integer)
+                .and_then(|value| u32::try_from(value).ok())
+        };
+        let version = StateVersion {
+            major: number("schema").unwrap_or(FILE_SCHEMA.major),
+            revision: number("schema_revision").unwrap_or(0),
+        };
+        match version.compatibility(FILE_SCHEMA) {
+            StateCompatibility::NewerMajor => {
+                return Err(crate::private_fs::newer_major_note(FILE_NAME))
+            }
+            StateCompatibility::NewerRevision => {
+                table.retain(|key, _| matches!(key, "hooks" | "schema" | "schema_revision"));
+                if let Some(rules) = table.get_mut("hooks").and_then(toml::Value::as_array_mut) {
+                    for rule in rules.iter_mut().filter_map(toml::Value::as_table_mut) {
+                        rule.retain(|key, _| RULE_KEYS.contains(&key));
+                    }
+                }
+                if let Ok(raw) = RawFile::deserialize(toml::Value::Table(table)) {
+                    return Ok(raw.hooks);
+                }
+            }
+            _ => {}
+        }
+    }
     toml::from_str::<RawFile>(text)
         .map(|raw| raw.hooks)
         .map_err(|error| {
@@ -761,10 +824,12 @@ fn render(existing: Option<&str>, drafts: &[RuleDraft]) -> Option<String> {
             })
             .cloned()
             .unwrap_or_default();
+        // PRD 0051 RF3.4: only known keys the rule dropped are removed; a key
+        // of a later revision stays as written.
         let gone: Vec<String> = table
             .iter()
             .map(|(key, _)| key.to_owned())
-            .filter(|key| !fresh.contains_key(key))
+            .filter(|key| !fresh.contains_key(key) && RULE_KEYS.contains(&key.as_str()))
             .collect();
         for key in gone {
             table.remove(&key);
