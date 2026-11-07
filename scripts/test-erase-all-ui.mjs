@@ -64,7 +64,11 @@ const partial = erase.partialHtml({ complete: false, failed: ["history.db", "cos
 assert.match(partial, /history\.db, cost\.index/);
 assert.match(partial, /data-erase-retry/);
 assert.match(partial, /data-erase-quit/);
-assert.doesNotMatch(partial.replace(/<[^>]*>/g, ""), /[/\\~]/, "no path in the failure");
+{
+  // Text outside the tags only: split on tag boundaries instead of stripping.
+  const text = partial.split("<").map((part) => part.slice(part.indexOf(">") + 1)).join(" ");
+  assert.doesNotMatch(text, /[/\\~]/, "no path in the failure");
+}
 
 // RF7.2: the clock-skew banner shows the core's advice and nothing while the clocks agree.
 const skew = { id: "network.clock_ahead", params: { minutes: 12 }, fallback: "This computer's clock is about {minutes} min ahead of the providers' servers." };
