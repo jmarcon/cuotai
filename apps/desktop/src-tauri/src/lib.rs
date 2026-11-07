@@ -486,6 +486,16 @@ async fn reload_config(app: AppHandle, b: Shared<'_>) -> Result<backend::View, S
     b.reload_config(&app).await
 }
 
+/// PRD 0051 RF5.4: use (`adopt`) or decline the history of the moved file.
+#[tauri::command]
+async fn history_relocation(
+    app: AppHandle,
+    b: Shared<'_>,
+    adopt: bool,
+) -> Result<Option<cuotai_core::text::Localized>, String> {
+    b.answer_relocation(&app, adopt).await
+}
+
 /// RF4: returns `true` when the file on disk differs from the
 /// snapshot the backend last loaded/saved. Cheap (byte comparison,
 /// not mtime) so the UI can poll on window focus / before opening
@@ -790,6 +800,17 @@ fn set_user_dir(app: AppHandle, path: Option<String>) -> Result<(), String> {
     settings::save_user_dir(dir.as_deref()).map_err(str::to_owned)?;
     let _ = app.emit("user-content-changed", ());
     Ok(())
+}
+
+/// PRD 0051 RF5.2: save the data folder (`None`: the OS default); it
+/// applies at the next start. Refused while `CUOTAI_DATA_DIR` is set.
+#[tauri::command]
+fn set_data_dir(path: Option<String>) -> Result<(), String> {
+    if std::env::var_os(cuotai_core::data_dir::ENV).is_some_and(|value| !value.is_empty()) {
+        return Err("env_locked".into());
+    }
+    let dir = path.map(std::path::PathBuf::from);
+    settings::save_data_dir(dir.as_deref()).map_err(str::to_owned)
 }
 
 #[tauri::command]
@@ -2346,6 +2367,9 @@ fn single_instance_applies(debug_build: bool, dev_store: bool) -> bool {
 }
 
 pub fn run() -> std::process::ExitCode {
+    // PRD 0051 RF5.2: the data folder chosen in Settings, before any store
+    // (the app log included) resolves its directory; `CUOTAI_DATA_DIR` wins.
+    cuotai_core::data_dir::set_app_override(settings::custom_data_dir());
     // PRD 0052 RF1/RF2: the redacted app log and the panic record start
     // before `Backend` or Tauri exist, so their failures are recorded too.
     cuotai_core::diagnostics::logging::init_default(
@@ -2473,6 +2497,7 @@ pub fn run() -> std::process::ExitCode {
             set_refresh_seconds,
             move_account,
             reload_config,
+            history_relocation,
             set_config_file,
             updater_status,
             updater_set_automatic,
@@ -2503,6 +2528,7 @@ pub fn run() -> std::process::ExitCode {
             set_account_monogram,
             set_tray_menu,
             set_user_dir,
+            set_data_dir,
             open_user_dir,
             set_motion,
             set_show_pace,

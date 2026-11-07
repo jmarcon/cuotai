@@ -23,6 +23,10 @@ use std::{
 struct Stored {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     user_dir: Option<String>,
+    /// PRD 0051 RF5.2: the folder of every local store for this app, below
+    /// `CUOTAI_DATA_DIR`; read once at start (the CLI and TUI never read it).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    data_dir: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     config_file: Option<String>,
     /// Animations (PRD 0004 RF1.2); absent = `system`. Free text on read: an unknown
@@ -1327,6 +1331,22 @@ pub fn save_user_dir(dir: Option<&Path>) -> Result<(), &'static str> {
     update(&file, |s| s.user_dir = dir.map(|d| d.display().to_string()))
 }
 
+/// PRD 0051 RF5.2: the data folder saved in Settings (`None`: the OS
+/// default), whatever `CUOTAI_DATA_DIR` says.
+pub fn custom_data_dir() -> Option<PathBuf> {
+    load().data_dir.map(PathBuf::from)
+}
+
+/// Save (or, with `None`, remove) the data folder; it applies at the next
+/// start. Only an absolute path is accepted; the core checks the rest then.
+pub fn save_data_dir(dir: Option<&Path>) -> Result<(), &'static str> {
+    if dir.is_some_and(|d| !d.is_absolute()) {
+        return Err("invalid_path");
+    }
+    let file = settings_file().ok_or("unwritable")?;
+    update(&file, |s| s.data_dir = dir.map(|d| d.display().to_string()))
+}
+
 /// `cuotai.toml` chosen in settings (ignoring `CUOTAI_CONFIG`).
 pub fn chosen_config() -> Option<PathBuf> {
     load()
@@ -1743,6 +1763,15 @@ pub struct SettingsView {
     custom_dir: Option<String>,
     /// `CUOTAI_USER_DIR` is set: the choice made through the interface has no effect.
     env_locked: bool,
+    /// PRD 0051 RF5.2: the data folder in use by this run (`None` when the
+    /// override is invalid), the rule that chose it, the saved choice
+    /// (applies at the next start), whether `CUOTAI_DATA_DIR` locks it and
+    /// why the override in use is refused.
+    data_dir: Option<String>,
+    data_dir_source: cuotai_core::data_dir::DataDirSource,
+    data_dir_custom: Option<String>,
+    data_dir_env_locked: bool,
+    data_dir_error: Option<cuotai_core::text::Localized>,
     /// Chosen `cuotai.toml` (empty = OS default).
     config_file: Option<String>,
     /// `CUOTAI_CONFIG` is set: it takes priority over the chosen file.
@@ -1829,6 +1858,14 @@ pub fn view() -> SettingsView {
         default_dir: default_dir().map(|p| p.display().to_string()),
         custom_dir: custom_user_dir().map(|p| p.display().to_string()),
         env_locked: env_user_dir().is_some(),
+        data_dir: cuotai_core::data_dir::root().map(|p| p.display().to_string()),
+        data_dir_source: cuotai_core::data_dir::source(),
+        data_dir_custom: stored.data_dir.clone(),
+        data_dir_env_locked: std::env::var_os(cuotai_core::data_dir::ENV)
+            .is_some_and(|value| !value.is_empty()),
+        data_dir_error: cuotai_core::data_dir::check_override()
+            .err()
+            .map(|error| error.l10n()),
         config_file: chosen_config().map(|p| p.display().to_string()),
         config_env_locked: cuotai_core::config_file::Locations::from_process()
             .env

@@ -326,6 +326,18 @@ pub async fn run(
     let _restore = Restore;
     execute!(io::stdout(), EnterAlternateScreen, EnableMouseCapture)?;
     let mut terminal = Terminal::new(CrosstermBackend::new(io::stdout()))?;
+    // PRD 0051 RF5.4: the path this TUI opened last is read before
+    // `location` records the current one; a moved file with exactly the same
+    // account ids is offered its history. Tests never touch the data dir.
+    let mut relocation = (!cfg!(test))
+        .then(|| {
+            cuotai_core::history::relocation_offer(
+                &file,
+                cuotai_core::last_config::previous(cuotai_core::last_config::Frontend::Tui)
+                    .as_deref(),
+            )
+        })
+        .flatten();
     let mut state = State {
         accounts: file.config.accounts.clone(),
         refresh_seconds: file.config.refresh_seconds,
@@ -1644,6 +1656,36 @@ pub async fn run(
                     wizard.draw(frame, &file.path);
                     palette::finish(frame.buffer_mut());
                 })?;
+            } else if let Some((_, offer)) = &relocation {
+                terminal.draw(|frame| {
+                    frame_area = frame.area();
+                    frame.render_widget(
+                        Block::default().style(Style::default().bg(DRACULA_BG).fg(DRACULA_FG)),
+                        frame.area(),
+                    );
+                    let areas = Layout::vertical([Constraint::Min(3), Constraint::Length(3)])
+                        .split(frame.area());
+                    frame.render_widget(
+                        Paragraph::new(resolve_l10n(&offer.prompt()))
+                            .wrap(Wrap { trim: true })
+                            .block(
+                                Block::default()
+                                    .borders(Borders::ALL)
+                                    .title(tr("ui.relocation.title", "History of a moved file")),
+                            ),
+                        areas[0],
+                    );
+                    frame.render_widget(
+                        Paragraph::new(tr(
+                            "ui.relocation.footer",
+                            "y uses that history here • n/Esc keeps it apart • Ctrl-C quits",
+                        ))
+                        .wrap(Wrap { trim: true })
+                        .style(Style::default().fg(DRACULA_YELLOW)),
+                        areas[1],
+                    );
+                    palette::finish(frame.buffer_mut());
+                })?;
             } else if let Some(state_) = &deletion {
                 terminal.draw(|frame| {
                     frame_area = frame.area();
@@ -2178,6 +2220,26 @@ pub async fn run(
                 if let Some(active) = &mut wizard {
                     let action = active.handle(key);
                     dispatch_wizard_action!(action);
+                    continue;
+                }
+                if relocation.is_some() {
+                    // PRD 0051 RF5.4: only an explicit yes adopts; anything
+                    // else leaves both histories as they are.
+                    match key.code {
+                        KeyCode::Char('y' | 'Y' | 's' | 'S') => {
+                            if let Some((store, offer)) = relocation.take() {
+                                state.error = Some(match store.adopt(&offer) {
+                                    Ok(moved) => resolve_l10n(
+                                        &cuotai_core::history::Relocation::adopted(moved),
+                                    ),
+                                    Err(error) => resolve_l10n(&error.l10n()),
+                                });
+                            }
+                        }
+                        KeyCode::Char('n' | 'N') | KeyCode::Esc => relocation = None,
+                        _ => {}
+                    }
+                    dirty = true;
                     continue;
                 }
                 if let Some(state_) = &mut deletion {

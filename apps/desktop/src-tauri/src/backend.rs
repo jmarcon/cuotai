@@ -270,6 +270,12 @@ struct Loaded {
     pending_recovery: Vec<RecoveryEntry>,
     /// RF1.2: file last opened by the TUI, when it differs from this one.
     other_config: Option<String>,
+    /// PRD 0051 RF5.4: the history of the file this app opened before,
+    /// gone, with exactly these account ids, until the user answers.
+    relocation: Option<(
+        cuotai_core::history::HistoryStore,
+        cuotai_core::history::Relocation,
+    )>,
 }
 
 /// RF3 recovery primitive stored in the desktop so the UI can retry
@@ -1108,6 +1114,8 @@ pub struct View {
     /// PRD 0054 RF5.1: the system refused the tray icon, so the window is
     /// the only way in (a banner that cannot be dismissed says so).
     tray_unavailable: bool,
+    /// PRD 0051 RF5.4: the question about the history of a moved file.
+    history_relocation: Option<cuotai_core::text::Localized>,
     /// Changes when the history was erased or recording switched (RF5).
     history_epoch: u64,
     notify: NotifyView,
@@ -1748,6 +1756,7 @@ impl Inner {
                 config_notices: Vec::new(),
                 tray_unavailable: crate::window_mode::current()
                     == crate::window_mode::WindowMode::NoTray,
+                history_relocation: None,
                 history_epoch: self.history_epoch,
                 notify: NotifyView {
                     enabled: self.notices.prefs().enabled,
@@ -1914,6 +1923,7 @@ impl Inner {
                 .collect(),
             tray_unavailable: crate::window_mode::current()
                 == crate::window_mode::WindowMode::NoTray,
+            history_relocation: l.relocation.as_ref().map(|(_, offer)| offer.prompt()),
             history_epoch: self.history_epoch,
             notify: NotifyView {
                 enabled: self.notices.prefs().enabled,
@@ -2101,6 +2111,17 @@ impl Inner {
         // account in the new config; the core guard already refuses
         // such retries, but dropping the list here means the UI will
         // not offer a button for a stale handle in the first place.
+        // PRD 0051 RF5.4: the path this app opened last, read before `note`
+        // records the current one. Tests never touch the real OS data dir.
+        let relocation = (!cfg!(test))
+            .then(|| {
+                cuotai_core::history::relocation_offer(
+                    &file,
+                    cuotai_core::last_config::previous(cuotai_core::last_config::Frontend::Desktop)
+                        .as_deref(),
+                )
+            })
+            .flatten();
         // Tests never touch the real OS data dir.
         let other_config = (!cfg!(test))
             .then(|| {
@@ -2121,6 +2142,7 @@ impl Inner {
         cycle.restore_last_good(restored);
         self.loaded = Some(Loaded {
             other_config,
+            relocation,
             cycle,
             file,
             monitor,
@@ -3133,6 +3155,31 @@ impl Backend {
     ///
     /// The new `View` is returned so the frontend can refresh without
     /// a separate round-trip.
+    /// PRD 0051 RF5.4/RF5.5: answer the moved-file question. `adopt`
+    /// carries the old history over (with a `.bak`); declining changes
+    /// nothing. Returns what to tell the user.
+    pub async fn answer_relocation(
+        &self,
+        app: &AppHandle,
+        adopt: bool,
+    ) -> Result<Option<cuotai_core::text::Localized>, String> {
+        let mut g = self.inner.lock().await;
+        let Some((store, offer)) = g.loaded.as_mut().and_then(|l| l.relocation.take()) else {
+            return Ok(None);
+        };
+        drop(g);
+        let note = if adopt {
+            match store.adopt(&offer) {
+                Ok(moved) => Some(cuotai_core::history::Relocation::adopted(moved)),
+                Err(error) => return Err(error.l10n().text().to_owned()),
+            }
+        } else {
+            None
+        };
+        self.emit(app).await;
+        Ok(note)
+    }
+
     pub async fn reload_config(&self, app: &AppHandle) -> Result<View, String> {
         let mut g = self.inner.lock().await;
         if g.loaded.is_none() {
@@ -8353,6 +8400,7 @@ mod tests {
         g.session = Some(session);
         g.loaded = Some(Loaded {
             other_config: None,
+            relocation: None,
             file,
             monitor,
             cycle: RefreshCycle::new(&config, Instant::now()),

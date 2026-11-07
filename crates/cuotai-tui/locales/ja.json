@@ -395,6 +395,8 @@
   "ui.no_history": "ローカルの履歴を利用できません。履歴がないと統計は表示できません。",
   "ui.refresh_account_failed": "照会に失敗しました。R で再試行します。",
   "ui.refresh_task_failed": "照会タスクが失敗しました。r で再試行します。",
+  "ui.relocation.footer": "y でその履歴をここで使用 • n/Esc で別のまま • Ctrl-C で終了",
+  "ui.relocation.title": "移動したファイルの履歴",
   "vault.audit.empty": "インデックス化された認証情報はありません。インデックスには、このバージョン以降に Cuotai が保存したものが記録されます。",
   "vault.audit.orphans": "孤立項目 {count} 件：cuotai --vault-prune で削除できます。",
   "vault.audit.title": "CUOTAI • Cuotai が保管庫に保存している認証情報",

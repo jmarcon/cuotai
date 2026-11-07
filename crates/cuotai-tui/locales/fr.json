@@ -395,6 +395,8 @@
   "ui.no_history": "L’historique local est indisponible ; sans lui, pas de statistiques.",
   "ui.refresh_account_failed": "La requête a échoué ; R pour réessayer.",
   "ui.refresh_task_failed": "La tâche de requête a échoué ; r pour réessayer.",
+  "ui.relocation.footer": "y utilise cet historique ici • n/Échap le garde à part • Ctrl-C quitte",
+  "ui.relocation.title": "Historique d’un fichier déplacé",
   "vault.audit.empty": "Aucun identifiant indexé. L’index enregistre ce que Cuotai stocke à partir de cette version.",
   "vault.audit.orphans": "{count} orphelin(s) : cuotai --vault-prune les supprime.",
   "vault.audit.title": "CUOTAI • identifiants que Cuotai conserve dans le coffre",

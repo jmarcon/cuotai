@@ -433,6 +433,7 @@
   "credential_help.xiaomi_mimo": "Bakiye/Token Plan: platform.xiaomimimo.com web oturumunu hesap sihirbazına (sistem kasası) yapıştırın veya değişkeni platform_session_env içinde belirtin. Yerel kod bir çerez değil, bir çıkarım anahtarı verir. Xiaomi hesabı oturumu (session_env) ayrıdır: MiMo Desktop haftalık kotası.",
   "credential_help.zed": "ZED_ACCESS_TOKEN (zed.dev yerel oturum açma akışından bulut erişim jetonu). Sayısal user_id değerini de girin — `Authorization: <user_id> <token>` olarak gönderilir.",
   "data_dir.error.relative": "CUOTAI_DATA_DIR mutlak bir yol olmalıdır; düzeltilene veya kaldırılana kadar Cuotai veri tutmaz.",
+  "data_dir.error.setting": "Ayarlarda seçilen veri klasörü, bağlantı olmayan ve size ait bir dizinin mutlak yolu olmalıdır; düzeltilene veya sıfırlanana kadar Cuotai veri saklamaz.",
   "data_dir.error.unusable": "CUOTAI_DATA_DIR size ait ve bağlantı olmayan bir klasör olmalıdır; düzeltilene veya kaldırılana kadar Cuotai veri tutmaz.",
   "detect.consent.aws_profile": "Cuotai, profili seçtiğinizde yalnızca ~/.aws/config içindeki profil adlarını okur; hiçbir anahtar okunmaz.",
   "detect.consent.cursor_import": "Cuotai, kullanımınızı sorgulamak için oturum açma jetonunu Cursor'un yerel veritabanından bir kez okur. Jeton, sisteminizin kimlik bilgisi kasasında saklanır.",
@@ -954,6 +955,8 @@
   "history.error.export": "Geçmiş dışa aktarımı yazılamadı.",
   "history.error.retention_bounds": "Geçmiş saklama süresi {min} ile {max} gün arasındadır.",
   "history.error.storage": "Yerel ölçüm geçmişi okunamadı veya yazılamadı.",
+  "history.relocation.adopted": "Geçmiş aktarıldı; ölçüm: {count}.",
+  "history.relocation.prompt": "Yapılandırma dosyası taşındı: {path} artık yok ve geçmişi (ölçüm: {count}; hesap: {accounts}) tam olarak bu dosyanın hesaplarını içeriyor. Bu geçmiş burada kullanılsın mı?",
   "history.warning.ceiling": "Geçmiş {max} MiB'ı aştı: en eski {removed} ölçüm silindi.",
   "history.warning.dropped": {
     "one": "{count} okuma geçmişe girmedi: disk yanıt vermekte gecikti.",

@@ -395,6 +395,8 @@
   "ui.no_history": "本地历史不可用；没有历史就没有统计。",
   "ui.refresh_account_failed": "查询失败；按 R 重试。",
   "ui.refresh_task_failed": "查询任务失败；按 r 重试。",
+  "ui.relocation.footer": "y 在此使用该历史记录 • n/Esc 保持分开 • Ctrl-C 退出",
+  "ui.relocation.title": "已移动文件的历史记录",
   "vault.audit.empty": "没有已索引的凭据。索引记录从此版本起 Cuotai 存储的内容。",
   "vault.audit.orphans": "{count} 个孤立项：cuotai --vault-prune 可删除它们。",
   "vault.audit.title": "CUOTAI • Cuotai 保存在保险库中的凭据",

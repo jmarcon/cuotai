@@ -162,6 +162,10 @@ export const deleteAccount = (index, purge = false) => call("delete_account", { 
 /// succeed against the fresh snapshot, and as the manual path for
 /// external edits the UI detected via `configChangedOnDisk`.
 export const reloadConfig = () => call("reload_config");
+// PRD 0051 RF5.2: the data folder for the next start (`null`: the OS default).
+export const setDataDir = (path) => call("set_data_dir", { path });
+// PRD 0051 RF5.4: use (`adopt`) or decline the history of a moved configuration file.
+export const historyRelocation = (adopt) => call("history_relocation", { adopt });
 /// RF4: cheapest detector for "the file changed under us". Byte
 /// comparison in the core, so it's safe to call on every focus /
 /// before opening the editor without a noticeable cost.
@@ -469,6 +473,11 @@ export async function pickTomlFile(defaultPath) {
 /** Effective path of `cuotai.toml` with its origin (variable, chosen or OS default); unescaped text. */
 export const configLabel = (view) => view?.config_path ? `${view.config_path} · ${t(`settings.config.source.${view.config_source}`)}` : "";
 /** RF1.2: notice when the TUI last used another file; unescaped text. */
+/** PRD 0051 RF5.4: the moved-file question (core text), one action that uses the old history and a dismiss that
+ *  declines it (DS-CMP-MSG-2). Empty without an offer. */
+export const relocationBannerHtml = (view) => view?.history_relocation
+  ? `<div class="banner dismissable" role="status" data-relocation>${icon("info")}<span>${esc(tl(view.history_relocation))} <button class="link" data-relocation-adopt>${te("relocation.use")}</button></span><button class="icon" data-relocation-decline title="${te("common.dismiss")}" aria-label="${te("common.dismiss")}">${icon("x")}</button></div>`
+  : "";
 export const otherConfigNotice = (view) => view?.other_config ? t("config.other", { tui: view.other_config, app: view.config_path }) : "";
 /** RF1.2 banner of the main window (DS-CMP-MSG-2, dismissable): each (TUI path, app path) pair shows in one session
  *  only. The first render while the window is visible records the pair in localStorage, so a later launch does not show
@@ -2186,6 +2195,8 @@ const demo = {
   // contract so the wizard/reloder don't have to guard the
   // non-desktop path.
   reload_config: async () => { demoSettings.generation++; return demoView(); },
+  history_relocation: async () => null,
+  set_data_dir: async () => {},
   model_state: demoModels,
   load_models: demoModels,
   sync_models: demoModels,

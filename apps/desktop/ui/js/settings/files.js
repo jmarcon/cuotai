@@ -3,12 +3,12 @@
 import { te, tl } from "../i18n.js";
 import { THEMES } from "../themes.js";
 import { LOCALES, skippedMessage, userContent } from "../usercontent.js";
-import { brand, configLabel, doctorReport, esc, icon, openUserDir, otherConfigNotice, pickFolder, pickTomlFile, setConfigFile, setUserDir, vaultAudit, vaultPrune } from "../lib.js";
+import { brand, configLabel, doctorReport, esc, icon, openUserDir, otherConfigNotice, pickFolder, pickTomlFile, setConfigFile, setDataDir, setUserDir, vaultAudit, vaultPrune } from "../lib.js";
 import { configErrorText, errorText, group } from "./common.js";
 import { buttons, disc, pathHtml, row } from "./rows.js";
 
 // The last failure of each group, shown once by the next paint.
-const flash = { config: "", folder: "", credentials: "", doctor: "" };
+const flash = { config: "", folder: "", datadir: "", credentials: "", doctor: "" };
 const take = (key) => { const text = flash[key]; flash[key] = ""; return text; };
 
 export function html({ settings: s, view }) {
@@ -28,6 +28,14 @@ export function html({ settings: s, view }) {
       `<button class="btn sm" data-open-dir>${te("settings.folder.open")}</button>`),
     body: `${s.env_locked ? warn(te("settings.folder.env")) : ""}${userContent.errors.map((e) => warn(esc(skippedMessage(e)))).join("")}
       ${disc("folder-path", te("settings.config.path"), pathHtml(s.user_dir))}` });
+  // PRD 0051 RF5.2: the folder of every local store, below CUOTAI_DATA_DIR; a change applies at the next start.
+  const pending = !s.data_dir_env_locked && !s.data_dir_error && (s.data_dir_custom ?? null) !== (s.data_dir_source === "desktop" ? (s.data_dir ?? null) : null);
+  const dataDirRow = row({ key: "data-dir", attrs: 'data-section="datadir"', label: te("settings.dataDir.title"), info: te("settings.dataDir.help"), msg: "datadir-msg",
+    desc: s.data_dir_source === "environment" ? "CUOTAI_DATA_DIR" : s.data_dir_source === "desktop" ? te("settings.folder.custom") : te("settings.folder.default"),
+    control: () => buttons(`<button class="btn sm" data-pick-data-dir ${s.data_dir_env_locked ? "disabled" : ""}>${icon("folder")} ${te("settings.folder.choose")}</button>`,
+      `<button class="btn sm" data-reset-data-dir ${s.data_dir_env_locked || !s.data_dir_custom ? "disabled" : ""}>${te("settings.folder.reset")}</button>`),
+    body: `${s.data_dir_env_locked ? warn(te("settings.dataDir.env")) : ""}${s.data_dir_error ? warn(esc(tl(s.data_dir_error))) : ""}${pending ? warn(te("settings.dataDir.pending")) : ""}
+      ${disc("data-dir-path", te("settings.config.path"), `${pathHtml(s.data_dir)}<p class="hint">${te("settings.dataDir.cli")}</p>`)}` });
   // PRD 0029 RF6.2: what Cuotai stored in the system vault, filled in by `bind` (never a value).
   const vaultRowHtml = row({ key: "vault", attrs: 'data-section="credentials"', label: te("settings.vault.title"), info: te("settings.vault.help"), msg: "vault-msg",
     body: `<div data-vault aria-live="polite"><p class="hint">${te("settings.vault.loading")}</p></div>` });
@@ -35,7 +43,7 @@ export function html({ settings: s, view }) {
   const doctorRowHtml = row({ key: "doctor", attrs: 'data-section="doctor"', label: te("settings.doctor.title"), info: te("settings.doctor.help"), msg: "doctor-msg",
     control: () => buttons(`<button class="btn sm" data-doctor-run>${te("settings.doctor.run")}</button>`),
     body: `<div data-doctor aria-live="polite"></div>` });
-  return group("config", "", configRow + folderRow + vaultRowHtml + doctorRowHtml);
+  return group("config", "", configRow + folderRow + dataDirRow + vaultRowHtml + doctorRowHtml);
 }
 
 /** One indexed entry: what uses it (or that nothing does) and since when. */
@@ -71,7 +79,7 @@ export function doctorHtml(report) {
 export function bind(root, ctx) {
   const s = ctx.settings;
   // A failure is shown in its row after the repaint (RF4.3).
-  for (const [key, id] of [["config", "#config-msg"], ["folder", "#folder-msg"], ["credentials", "#vault-msg"], ["doctor", "#doctor-msg"]]) root.querySelector(id).textContent = take(key);
+  for (const [key, id] of [["config", "#config-msg"], ["folder", "#folder-msg"], ["datadir", "#datadir-msg"], ["credentials", "#vault-msg"], ["doctor", "#doctor-msg"]]) root.querySelector(id).textContent = take(key);
   const fail = (key, text) => { flash[key] = text; ctx.rerender(); };
   root.querySelector("[data-open-dir]").onclick = () => openUserDir().catch((e) => fail("folder", errorText(e)));
   const apply = async (path) => {
@@ -84,6 +92,15 @@ export function bind(root, ctx) {
     if (typeof picked === "string" && picked) apply(picked);
   };
   root.querySelector("[data-reset]").onclick = () => apply(null);
+  const applyDataDir = async (path) => {
+    try { await setDataDir(path); ctx.changed("data_dir"); ctx.rerender(); }
+    catch (e) { fail("datadir", errorText(e)); }
+  };
+  root.querySelector("[data-pick-data-dir]").onclick = async () => {
+    const picked = await pickFolder(s.data_dir_custom ?? s.data_dir);
+    if (typeof picked === "string" && picked) applyDataDir(picked);
+  };
+  root.querySelector("[data-reset-data-dir]").onclick = () => applyDataDir(null);
   const applyConfig = async (path) => {
     try { ctx.setView(await setConfigFile(path)); ctx.changed("config_file"); ctx.rerender(); }
     catch (e) { fail("config", configErrorText(e)); }

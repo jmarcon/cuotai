@@ -395,6 +395,8 @@
   "ui.no_history": "La cronologia locale non è disponibile; senza di essa non ci sono statistiche.",
   "ui.refresh_account_failed": "Interrogazione non riuscita; R per riprovare.",
   "ui.refresh_task_failed": "L'attività di interrogazione non è riuscita; r per riprovare.",
+  "ui.relocation.footer": "y usa quella cronologia qui • n/Esc la tiene separata • Ctrl-C esce",
+  "ui.relocation.title": "Cronologia di un file spostato",
   "vault.audit.empty": "Nessuna credenziale indicizzata. L'indice registra ciò che Cuotai salva a partire da questa versione.",
   "vault.audit.orphans": "{count} orfana/e: cuotai --vault-prune le elimina.",
   "vault.audit.title": "CUOTAI • credenziali che Cuotai conserva nel portachiavi",

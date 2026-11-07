@@ -431,6 +431,7 @@
   "credential_help.xiaomi_mimo": "残高/Token Plan：platform.xiaomimimo.com の Web セッションをアカウントのウィザードに貼り付ける（システムの保管庫）か、platform_session_env に変数を指定してください。ネイティブのコードで得られるのは推論キーで、Cookie ではありません。Xiaomi アカウントのセッション（session_env）は別物で、MiMo Desktop の週間クォータ用です。",
   "credential_help.zed": "ZED_ACCESS_TOKEN（zed.dev のネイティブログインで得られるクラウドのアクセストークン）。数値の user_id も指定してください — `Authorization: <user_id> <token>` として送信されます。",
   "data_dir.error.relative": "CUOTAI_DATA_DIR は絶対パスである必要があります。修正するか削除するまで、Cuotai はデータを保存しません。",
+  "data_dir.error.setting": "設定で選んだデータフォルダーは、リンクではない自分のディレクトリへの絶対パスである必要があります。修正またはリセットするまで、Cuotai はデータを保存しません。",
   "data_dir.error.unusable": "CUOTAI_DATA_DIR は、リンクではない自分のフォルダーである必要があります。修正するか削除するまで、Cuotai はデータを保存しません。",
   "detect.consent.aws_profile": "プロファイルを選ぶとき、Cuotai は ~/.aws/config のプロファイル名のみを読み取ります。キーは読み取りません。",
   "detect.consent.cursor_import": "Cuotai は使用量を照会するため、Cursor のローカルデータベースからログイントークンを一度だけ読み取ります。トークンはシステムの保管庫に保存されます。",
@@ -948,6 +949,8 @@
   "history.error.export": "履歴のエクスポートを書き込めませんでした。",
   "history.error.retention_bounds": "履歴の保持期間は {min}〜{max} 日です。",
   "history.error.storage": "ローカルの測定履歴を読み書きできませんでした。",
+  "history.relocation.adopted": "履歴を引き継ぎました。計測: {count}。",
+  "history.relocation.prompt": "設定ファイルが移動されました。{path} はもう存在せず、その履歴（計測: {count}、アカウント: {accounts}）はこのファイルとまったく同じアカウントを持っています。その履歴をここで使いますか？",
   "history.warning.ceiling": "履歴が {max} MiB を超えたため、最も古い測定 {removed} 件を削除しました。",
   "history.warning.dropped": {
     "other": "{count} 件の読み取りを履歴に記録できませんでした。ディスクの応答が遅れました。"

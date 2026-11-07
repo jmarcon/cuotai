@@ -123,6 +123,13 @@ impl LastConfig {
             .map(|r| r.path)
     }
 
+    /// PRD 0051 RF5.4: the path `me` itself opened last (read before
+    /// [`Self::record`] replaces it), even when it no longer exists; `None`
+    /// when unknown or under the temp dir.
+    pub fn previous(&self, me: Frontend) -> Option<PathBuf> {
+        self.last(me).filter(|path| !self.is_throwaway(path))
+    }
+
     /// Path last opened by the other frontend when it differs from
     /// `current`; `None` when equal, unknown, never recorded, gone or under
     /// the temp dir.
@@ -135,6 +142,12 @@ impl LastConfig {
             || ConfigIdentity::of_path(&other).ok().as_ref() == Some(current);
         (!same).then_some(other)
     }
+}
+
+/// PRD 0051 RF5.4: the path `me` opened last, before [`note`] records the
+/// current one. Best effort.
+pub fn previous(me: Frontend) -> Option<PathBuf> {
+    LastConfig::in_data_dir()?.previous(me)
 }
 
 /// Record `me`'s identity and return the other frontend's differing path.

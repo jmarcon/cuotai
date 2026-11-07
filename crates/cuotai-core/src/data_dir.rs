@@ -1,6 +1,8 @@
 //! PRD 0051 RF5.2/RF5.3: the one place every local store resolves its
 //! directory. The root is `CUOTAI_DATA_DIR` when that is set (and not
-//! empty), else `<OS local data dir>/cuotai`. An override must be an
+//! empty), else the desktop app's own choice (`desktop.json` `data_dir`,
+//! set with [`set_app_override`] before any store opens; the CLI and TUI
+//! never read it), else `<OS local data dir>/cuotai`. An override must be an
 //! absolute path to a private directory of the current user: it is
 //! created as `0700`, a symbolic link, a file or another user's directory
 //! is refused, and an invalid override never falls back to the OS default
@@ -25,6 +27,52 @@ pub enum DataDirError {
     /// Not a directory this user owns privately (a link, a file, another
     /// user's directory), or it could not be created.
     Unusable,
+    /// The desktop app's chosen folder is relative or unusable.
+    Setting,
+}
+
+/// Which rule chose the data folder.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DataDirSource {
+    Environment,
+    Desktop,
+    Default,
+}
+
+/// The desktop app's chosen folder for this process (PRD 0051 RF5.2).
+static APP_OVERRIDE: std::sync::RwLock<Option<PathBuf>> = std::sync::RwLock::new(None);
+
+/// PRD 0051 RF5.2: the data folder the desktop app's settings chose, for
+/// this process; below `CUOTAI_DATA_DIR`, above the OS default. Call it at
+/// start, before any store opens. `None` clears it.
+pub fn set_app_override(path: Option<PathBuf>) {
+    *APP_OVERRIDE
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = path;
+}
+
+fn app_override() -> Option<PathBuf> {
+    APP_OVERRIDE
+        .read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone()
+}
+
+/// Pure precedence: `env` (when not empty), then `app`, then nothing.
+fn resolve(
+    env: Option<&std::ffi::OsStr>,
+    app: Option<&Path>,
+) -> Result<Option<(PathBuf, DataDirSource)>, DataDirError> {
+    if let Some(value) = env.filter(|value| !value.is_empty()) {
+        return open(Path::new(value)).map(|dir| Some((dir, DataDirSource::Environment)));
+    }
+    if let Some(app) = app {
+        return open(app)
+            .map(|dir| Some((dir, DataDirSource::Desktop)))
+            .map_err(|_| DataDirError::Setting);
+    }
+    Ok(None)
 }
 
 impl DataDirError {
@@ -37,6 +85,10 @@ impl DataDirError {
             Self::Unusable => Localized::fixed(
                 "data_dir.error.unusable",
                 "CUOTAI_DATA_DIR must be a directory of your own that is not a link; Cuotai keeps no data until it is fixed or unset.",
+            ),
+            Self::Setting => Localized::fixed(
+                "data_dir.error.setting",
+                "The data folder chosen in Settings must be an absolute path to a directory of your own that is not a link; Cuotai keeps no data until it is fixed or reset.",
             ),
         }
     }
@@ -51,11 +103,22 @@ fn open(value: &Path) -> Result<PathBuf, DataDirError> {
     Ok(value.to_path_buf())
 }
 
-/// The override of `CUOTAI_DATA_DIR`: `Ok(None)` when unset or empty.
+/// The override in effect (`CUOTAI_DATA_DIR`, else the desktop app's
+/// choice): `Ok(None)` when there is none.
 pub fn check_override() -> Result<Option<PathBuf>, DataDirError> {
-    match std::env::var_os(ENV).filter(|value| !value.is_empty()) {
-        Some(value) => open(Path::new(&value)).map(Some),
-        None => Ok(None),
+    let env = std::env::var_os(ENV);
+    resolve(env.as_deref(), app_override().as_deref()).map(|found| found.map(|(dir, _)| dir))
+}
+
+/// Which rule chose the data folder now (an invalid override still names
+/// its rule).
+pub fn source() -> DataDirSource {
+    if std::env::var_os(ENV).is_some_and(|value| !value.is_empty()) {
+        DataDirSource::Environment
+    } else if app_override().is_some() {
+        DataDirSource::Desktop
+    } else {
+        DataDirSource::Default
     }
 }
 
@@ -73,6 +136,32 @@ pub fn root() -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_environment_wins_over_the_desktop_choice_and_never_falls_back() {
+        let root = tempfile::tempdir().unwrap();
+        let env = root.path().join("env");
+        let app = root.path().join("app");
+        assert_eq!(
+            resolve(Some(env.as_os_str()), Some(&app)).unwrap(),
+            Some((env.clone(), DataDirSource::Environment))
+        );
+        assert_eq!(
+            resolve(Some(std::ffi::OsStr::new("")), Some(&app)).unwrap(),
+            Some((app.clone(), DataDirSource::Desktop)),
+            "an empty variable is unset"
+        );
+        assert_eq!(resolve(None, None).unwrap(), None);
+        assert_eq!(
+            resolve(None, Some(Path::new("relative"))),
+            Err(DataDirError::Setting)
+        );
+        assert_eq!(
+            resolve(Some(std::ffi::OsStr::new("relative")), Some(&app)),
+            Err(DataDirError::Relative),
+            "an invalid variable does not fall back to the desktop choice"
+        );
+    }
 
     #[test]
     fn a_relative_override_is_refused() {

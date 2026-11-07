@@ -17,7 +17,7 @@ import {
   accountLabel, billingOverage, fmtExtra, overageLineText, isRecharging, resetsText, bestChipHtml, cardPace, forecastChipHtml, renewedText, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, setPoolAlerts, openAggregatorDashboard, incidentHtml, bindStatusLinks, costUsage, paceHtml, paceLineLabel, costPlans,
   openSettingsWindow, bindSettingsShortcut, onSettingsChanged, onAccountAction, listExtensions, extensionSecrets,
   planBadgeHtml, scopeBlocksHtml, budgetSuggestion,
-  sessionAction, liveSessionHtml, dismissFeedBanner,
+  sessionAction, liveSessionHtml, dismissFeedBanner, historyRelocation, relocationBannerHtml,
 } from "./lib.js";
 import { fold, patch } from "./util.js";
 import { initRowLayout } from "./density.js";
@@ -296,6 +296,17 @@ function settingsBackupHtml() {
   if (!path || path === dismissedBackup) return "";
   return `<div class="banner bad dismissable" role="status" data-settings-backup>${icon("warn")}<span>${te("settings.recovered", { path })}</span><button class="icon" data-dismiss-settings-backup title="${te("common.dismiss")}" aria-label="${te("common.dismiss")}">${icon("x")}</button></div>`;
 }
+// PRD 0051 RF5.4: the configuration file moved and its old history has exactly
+// these accounts; one action uses it here, dismissing leaves both apart.
+async function answerRelocation(adopt) {
+  try {
+    const note = await historyRelocation(adopt);
+    if (note) setNotice("ok", tl(note));
+  } catch (x) {
+    setNotice("bad", errText(x));
+  }
+  store.reload?.();
+}
 // PRD 0054 RF5.1: no tray icon, so this window is the only way in; not dismissable.
 function trayUnavailableHtml() {
   if (!store.view?.tray_unavailable) return "";
@@ -506,6 +517,7 @@ function render() {
     ${error ? `<div class="banner bad">${esc(error)}</div>` : ""}
     ${settingsBackupHtml()}
     ${trayUnavailableHtml()}
+    ${relocationBannerHtml(store.view)}
     ${otherBannerHtml()}
     ${notice ? `<div class="banner ${notice.tone}">${esc(notice.text)}${notice.retry ? ` <button class="link" data-retry-delete>${te("delete.retry")}</button>` : ""} <button class="link" data-dismiss-notice>${te("common.dismiss")}</button></div>` : ""}
     ${userContent.errors.map((e) => `<div class="banner">${esc(skippedMessage(e))}</div>`).join("")}
@@ -559,6 +571,8 @@ root.addEventListener("click", (e) => {
   if (moreFor && !t.closest(".card-more .menu")) { moreFor = null; render(); }
   if (t.closest("[data-dismiss-notice]")) { notice = null; return render(); }
   if (t.closest("[data-dismiss-other-config]")) { dismissOtherConfig(store.view); return render(); }
+  if (t.closest("[data-relocation-adopt]")) return answerRelocation(true);
+  if (t.closest("[data-relocation-decline]")) return answerRelocation(false);
   // PRD 0040 RF8.1: the feed banner's Add account (prefilled) and its dismissal for 7 days.
   const feedAdd = t.closest("[data-feed-add]");
   if (feedAdd) return openAccountDialog(null, { onSaved, onExtension: (id) => openExtensionManager(id), prefill: { provider: feedAdd.dataset.provider, query_mode: feedAdd.dataset.queryMode } });

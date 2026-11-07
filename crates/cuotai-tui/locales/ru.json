@@ -395,6 +395,8 @@
   "ui.no_history": "Локальная история недоступна; без неё статистики нет.",
   "ui.refresh_account_failed": "Запрос не удался; R — повторить.",
   "ui.refresh_task_failed": "Задача запроса не выполнена; r — повторить.",
+  "ui.relocation.footer": "y — использовать эту историю здесь • n/Esc — оставить отдельно • Ctrl-C — выход",
+  "ui.relocation.title": "История перемещённого файла",
   "vault.audit.empty": "Учётные данные не проиндексированы. Индекс фиксирует то, что Cuotai сохраняет начиная с этой версии.",
   "vault.audit.orphans": "Осиротевших: {count}; cuotai --vault-prune удаляет их.",
   "vault.audit.title": "CUOTAI • учётные данные, сохранённые Cuotai в хранилище",

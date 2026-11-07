@@ -431,6 +431,7 @@
   "credential_help.xiaomi_mimo": "Saldo/Token Plan: tempel sesi web platform.xiaomimimo.com di wizard akun (brankas sistem) atau sebutkan variabel di platform_session_env. Kode bawaan menghasilkan kunci inferensi, bukan cookie. Sesi akun Xiaomi (session_env) terpisah: kuota mingguan MiMo Desktop.",
   "credential_help.zed": "ZED_ACCESS_TOKEN (token akses cloud dari alur login bawaan zed.dev). Masukkan juga user_id numerik — dikirim sebagai `Authorization: <user_id> <token>`.",
   "data_dir.error.relative": "CUOTAI_DATA_DIR harus berupa path absolut; Cuotai tidak menyimpan data sampai nilainya diperbaiki atau dihapus.",
+  "data_dir.error.setting": "Folder data yang dipilih di Pengaturan harus berupa jalur absolut ke direktori milik Anda yang bukan tautan; Cuotai tidak menyimpan data sampai diperbaiki atau diatur ulang.",
   "data_dir.error.unusable": "CUOTAI_DATA_DIR harus berupa folder milik Anda yang bukan tautan; Cuotai tidak menyimpan data sampai nilainya diperbaiki atau dihapus.",
   "detect.consent.aws_profile": "Cuotai hanya akan membaca nama profil di ~/.aws/config saat Anda memilih profil; tidak ada kunci yang dibaca.",
   "detect.consent.cursor_import": "Cuotai akan membaca token login dari basis data lokal Cursor satu kali, untuk mengueri penggunaan Anda. Token disimpan di brankas kredensial sistem Anda.",
@@ -948,6 +949,8 @@
   "history.error.export": "Tidak dapat menulis ekspor riwayat.",
   "history.error.retention_bounds": "Retensi riwayat berkisar dari {min} hingga {max} hari.",
   "history.error.storage": "Tidak dapat membaca atau menulis riwayat pengukuran lokal.",
+  "history.relocation.adopted": "Riwayat dipindahkan; pembacaan: {count}.",
+  "history.relocation.prompt": "Berkas konfigurasi dipindahkan: {path} tidak ada lagi dan riwayatnya (pembacaan: {count}; akun: {accounts}) memiliki persis akun berkas ini. Gunakan riwayat itu di sini?",
   "history.warning.ceiling": "Riwayat melampaui {max} MiB: {removed} pengukuran tertua dihapus.",
   "history.warning.dropped": {
     "other": "{count} pembacaan tidak masuk ke riwayat: disk lambat merespons."
