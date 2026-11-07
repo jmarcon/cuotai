@@ -29,6 +29,9 @@ use std::collections::BTreeMap;
 use std::path::Path;
 use std::rc::Rc;
 
+#[path = "wizard_budgets.rs"]
+mod budgets;
+
 /// Single vertical split of the wizard, shared between `draw` and
 /// `handle_mouse` so the hit-test never diverges from the rendering.
 /// Footer with 5 lines: border + clickable button line + keyboard hint.
@@ -149,6 +152,8 @@ enum Step {
     Interval,
     /// PRD 0024 RF7.1: the optional group of comparable accounts.
     Group,
+    /// PRD 0041 RF5.2: the optional budgets and floors.
+    Budgets,
     Summary,
 }
 
@@ -335,6 +340,8 @@ pub(crate) struct Wizard {
     /// the digit of each offered mode); only the ones the draft's mode still
     /// offers are saved.
     breakdown: Vec<cuotai_core::BreakdownKind>,
+    /// PRD 0041 RF5.2: the budgets and floors of the draft.
+    budget_step: budgets::BudgetStep,
     summary_scroll: u16,
     error: Option<String>,
     conflict: Option<String>,
@@ -490,6 +497,7 @@ impl Wizard {
                 .unwrap_or_default(),
             group: existing.and_then(|a| a.group.clone()).unwrap_or_default(),
             breakdown: existing.map(|a| a.breakdown.clone()).unwrap_or_default(),
+            budget_step: budgets::BudgetStep::of(existing),
             summary_scroll: 0,
             error: None,
             conflict: None,
@@ -986,6 +994,8 @@ impl Wizard {
                     self.session_test = None;
                     self.invalidate_oauth();
                     self.peer_name = selected.label().to_string();
+                    // PRD 0041 RF1.3: a provider switch drops the budgets.
+                    self.budget_step = budgets::BudgetStep::default();
                 }
                 self.step = Step::Name;
                 self.peer_focus = false;
@@ -1009,7 +1019,8 @@ impl Wizard {
             }
             Step::Session => self.step = Step::Interval,
             Step::Interval => self.step = Step::Group,
-            Step::Group => self.step = Step::Summary,
+            Step::Group => self.step = Step::Budgets,
+            Step::Budgets => self.step = Step::Summary,
             Step::Summary => {}
         }
     }
@@ -1038,7 +1049,8 @@ impl Wizard {
                 self.step = Step::Params;
             }
             Step::Group => self.step = Step::Interval,
-            Step::Summary => self.step = Step::Group,
+            Step::Budgets => self.step = Step::Group,
+            Step::Summary => self.step = Step::Budgets,
         }
     }
 
@@ -1395,6 +1407,12 @@ impl Wizard {
             if let Some(action) = self.handle_picker_key(key) {
                 return action;
             }
+        }
+        // PRD 0041 RF5.2: the budget step's own keys (Esc while a row is
+        // edited returns to the list instead of cancelling).
+        if self.step == Step::Budgets && self.budget_step.handle_key(key, self.provider).is_some() {
+            self.error = None;
+            return Action::Continue;
         }
         if key.code == KeyCode::Esc {
             return Action::Cancel;
@@ -1945,6 +1963,10 @@ impl Wizard {
             }
             Step::Interval => self.parse_interval().map(|_| ()),
             Step::Group => edit::parse_group(&self.group).map(|_| ()),
+            Step::Budgets => match self.budget_step.problem(self.provider) {
+                Some(note) => Err(note),
+                None => Ok(()),
+            },
             // PRD 0016 RF2.2: a paste the core cannot reduce stops here,
             // with the cookie it is about and never a value.
             Step::Session => {
@@ -2339,6 +2361,13 @@ impl Wizard {
             .collect();
         edit::set_breakdown(&mut account, &chosen)
             .map_err(|e| crate::ui::resolve_l10n(&e.l10n()))?;
+        // PRD 0041 RF5.2: the budgets and floors of the step, checked by
+        // the core before the save.
+        if let Some(note) = self.budget_step.problem(self.provider) {
+            return Err(crate::ui::resolve_l10n(&note));
+        }
+        account.budgets = self.budget_step.budgets();
+        account.floors = self.budget_step.floors();
         base.upsert_account(account, self.editing)
             .map_err(|e| crate::ui::resolve_l10n(&e.l10n()))
     }
@@ -2569,6 +2598,7 @@ impl Wizard {
                     }),
                 ]));
                 lines.extend(self.breakdown_lines(dim));
+                lines.extend(self.budget_step.summary_lines(dim));
             }
             Err(message) => {
                 lines.push(Line::from(Span::styled(
@@ -2721,7 +2751,7 @@ impl Wizard {
         let chunks = wizard_chunks(area);
 
         let has_session = !self.sessions.is_empty();
-        let total = if has_session { 8 } else { 7 };
+        let total = if has_session { 9 } else { 8 };
         let (position, label) = match self.step {
             Step::Provider => (1, tr("wizard.step.provider", "Provider")),
             Step::Name => (2, tr("wizard.step.name", "Account name")),
@@ -2735,6 +2765,10 @@ impl Wizard {
             Step::Group => (
                 6 + usize::from(has_session),
                 tr("wizard.step.group", "Group"),
+            ),
+            Step::Budgets => (
+                7 + usize::from(has_session),
+                tr("wizard.step.budgets", "Budgets"),
             ),
             Step::Summary => (total, tr("wizard.step.summary", "Review")),
         };
@@ -2816,6 +2850,19 @@ impl Wizard {
             Step::Session => self.draw_session(frame, inner),
             Step::Interval => self.draw_interval(frame, inner),
             Step::Group => self.draw_group(frame, inner),
+            Step::Budgets => {
+                let colors = budgets::Colors {
+                    prompt: DRACULA_CYAN,
+                    accent: DRACULA_GREEN,
+                    dim: DRACULA_COMMENT,
+                    bad: DRACULA_RED,
+                };
+                frame.render_widget(
+                    Paragraph::new(self.budget_step.lines(self.provider, &colors))
+                        .wrap(Wrap { trim: false }),
+                    inner,
+                );
+            }
             Step::Summary => {
                 let lines = self.summary_lines(path);
                 let paragraph = Paragraph::new(lines).wrap(Wrap { trim: false });
@@ -2941,6 +2988,7 @@ impl Wizard {
                 "wizard.hint.group",
                 " Enter next  Shift+Tab back  Ctrl+U clear  empty = no group  Esc cancel",
             ),
+            Step::Budgets => self.budget_step.hint(),
             _ => default_hint(),
         };
         let footer = Block::default().borders(Borders::ALL);
@@ -4785,6 +4833,69 @@ mod tests {
         assert_eq!(wiz.step, Step::Interval);
         // A fresh account starts without a group.
         assert_eq!(Wizard::new(&Config::default(), None).group, "");
+    }
+
+    /// PRD 0041 RF5.2: the Budgets step adds, edits and removes rows; the
+    /// save writes them (checked by the core) and an edit keeps the rest of
+    /// the account.
+    #[test]
+    fn the_budget_step_edits_the_budgets_and_floors_of_the_draft() {
+        let mut acc = account("OpenAI", "OPENAI_ADMIN_KEY");
+        acc.floors = vec![cuotai_core::budget::Floor {
+            kind: None,
+            label_contains: None,
+            amount: 5.0,
+            unit: Some("USD".into()),
+        }];
+        let config = Config {
+            accounts: vec![acc.clone()],
+            ..Config::default()
+        };
+        let mut wiz = Wizard::new(&config, Some(0));
+        assert_eq!(
+            wiz.build_config().unwrap().accounts[0].floors,
+            acc.floors,
+            "an edit keeps the floors"
+        );
+        wiz.step = Step::Group;
+        wiz.handle(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        assert_eq!(wiz.step, Step::Budgets);
+        let press = |wiz: &mut Wizard, code| {
+            wiz.handle(KeyEvent::new(code, KeyModifiers::NONE));
+        };
+        press(&mut wiz, KeyCode::Char('a'));
+        // Esc while a row is edited returns to the list, never cancels.
+        press(&mut wiz, KeyCode::Esc);
+        assert_eq!(wiz.step, Step::Budgets);
+        // An amount is missing: Enter stays with the core's note.
+        press(&mut wiz, KeyCode::Enter);
+        assert_eq!(wiz.step, Step::Budgets);
+        assert!(wiz.error.is_some());
+        assert!(wiz.build_config().is_err());
+        press(&mut wiz, KeyCode::Char('e'));
+        press(&mut wiz, KeyCode::Down);
+        for c in "40".chars() {
+            press(&mut wiz, KeyCode::Char(c));
+        }
+        press(&mut wiz, KeyCode::Enter);
+        press(&mut wiz, KeyCode::Enter);
+        assert_eq!(wiz.step, Step::Summary);
+        let saved = wiz.build_config().unwrap();
+        assert_eq!(saved.accounts[0].budgets.len(), 1);
+        assert_eq!(saved.accounts[0].budgets[0].amount, 40.0);
+        assert_eq!(saved.accounts[0].floors, acc.floors);
+        assert_eq!(saved.accounts[0].credential_env, acc.credential_env);
+        wiz.back();
+        assert_eq!(wiz.step, Step::Budgets);
+        // Removing the floor (the second row) saves none.
+        press(&mut wiz, KeyCode::Down);
+        press(&mut wiz, KeyCode::Char('x'));
+        assert!(wiz.build_config().unwrap().accounts[0].floors.is_empty());
+        let mut screen = Wizard::new(&config, Some(0));
+        screen.step = Step::Budgets;
+        let text = screen_of(&mut screen, 100, 30);
+        assert!(text.contains("5 USD"), "{text}");
+        assert!(text.contains("7/8"), "{text}");
     }
 
     #[test]
