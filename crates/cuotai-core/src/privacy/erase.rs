@@ -379,7 +379,7 @@ mod tests {
     /// Cuotai keeps of a file go with it.
     #[test]
     fn backups_and_set_aside_copies_are_erased_with_their_file() {
-        let (dir, options) = tree();
+        let (_dir, options) = tree();
         let at = |file: &str| {
             artifacts()
                 .iter()
