@@ -49,7 +49,7 @@ You can add themes without recompiling Cuotai.
 
 1. Open the folder: `<configuration folder>/cuotai/themes/`. It is `~/Library/Application Support/cuotai/themes` on macOS, `%APPDATA%\cuotai\themes` on Windows and `~/.config/cuotai/themes` on Linux, or the `themes` folder inside the folder named by the `CUOTAI_USER_DIR` environment variable. Create it if it does not exist. (**Settings › Advanced › Files** shows the folder in use, opens it and lets you choose another.)
 2. Put a file there named `<id>.css`. The id (the file name without `.css`) uses only `a-z`, `0-9` and `-`, up to 32 characters, and cannot repeat a built-in theme's id.
-3. Optionally start the file with a header that names the theme and its modes: `/*! cuotai-theme {"label":"My theme","group":"custom","modes":["dark","light"]} */`. Without it the name is the id, the group is "My themes" and the modes are deduced from the selectors.
+3. Optionally start the file with a header that names the theme: `/*! cuotai-theme {"label":"My theme","group":"custom","modes":["dark","light"]} */`. Without it the name is the id and the group is "My themes". Every user theme has both modes.
 4. Restart Cuotai and pick the theme in **Settings › General**. If a file is invalid, it is ignored and the main window shows a warning with the reason.
 
 A theme defines colors (and optionally shape, fonts and effects) as CSS variables, once per mode. A minimal theme named `ocean`:
@@ -74,12 +74,45 @@ A theme defines colors (and optionally shape, fonts and effects) as CSS variable
 }
 ```
 
-Rules enforced when the theme loads:
+### The theme contract
 
-- Every selector must start with `:root[data-theme="<id>"]`.
-- No `@import`, `@font-face`, other at-rules, external URLs or scripts: the app works offline, so use system fonts.
-- Colors are plain `#rrggbb` values.
-- A theme should offer both a dark and a light mode, with the same identity adapted to each.
+A user theme sets theme tokens only. Cuotai parses the file before the interface sees it and inserts a copy rebuilt from what it parsed, so comments and anything it did not understand never reach the window. The rules:
+
+- **Exactly two rules:** one `:root[data-theme="<id>"][data-mode="dark"]` and one `:root[data-theme="<id>"][data-mode="light"]`, where `<id>` is the file name. No other selector, no comma lists, no nested rules. Single or double quotes are accepted around the attribute values.
+- **Only theme tokens:** `color-scheme` and these custom properties:
+  - colors: `--bg`, `--surface`, `--surface-2`, `--border`, `--fg`, `--fg-muted`, `--accent`, `--accent-fg`, `--good`, `--warn`, `--bad`, `--bad-fg`, `--info`, `--track`, `--focus`, `--chart-neutral`, `--scrim`, `--switch-knob`, `--btn-fg`, `--tile-fg`;
+  - fonts: `--font-ui`, `--font-mono`;
+  - shape: `--radius-lg`, `--radius-md`, `--radius-sm`, `--radius-pill`, `--logo-radius`, `--border-w`;
+  - surfaces and effects: `--shadow`, `--shadow-card`, `--shadow-dialog`, `--card-bg`, `--head-bg`, `--topbar-bg`, `--btn-bg`, `--input-bg`, `--body-bg`, `--hatch`;
+  - motion: `--motion-fast`, `--motion-base`, `--motion-slow`, `--motion-spin`, `--ease-out`, `--ease-spring`.
+- **Values by kind:**
+  - a color is one `#rgb`, `#rgba`, `#rrggbb` or `#rrggbbaa` value, a color keyword, `rgb()`, `rgba()`, `hsl()`, `hsla()`, `color-mix()` or `var(--token)`;
+  - a shape token is one number with `px`, `em`, `rem` or `%` (or `var(--token)`);
+  - a motion duration is one value in `ms` or `s`, or `0`;
+  - an easing is a keyword, `cubic-bezier()`, `steps()`, `linear()` or `var(--token)`;
+  - a font is a comma-separated list of quoted family names and keywords (system fonts only, nothing is downloaded);
+  - `color-scheme` is `dark`, `light`, `normal` or `only`;
+  - a surface or effect accepts lists of numbers, colors and keywords plus `linear-gradient()`, `repeating-linear-gradient()`, `radial-gradient()` and `repeating-radial-gradient()`.
+- `var()` names one of the tokens above, with no fallback. Functions nest at most three deep.
+- **Refused:** `!important`, every at-rule (`@import`, `@font-face`, `@media`…), `url(…)` and every other function (`image-set`, `cross-fade`, `element`, `paint`, `image`, `calc`…), backslash escapes and control characters.
+- Plain comments are allowed and dropped; the `cuotai-theme` header may appear once.
+
+When a file breaks a rule it is skipped as a whole and the main window and **Settings › Advanced › Files** name it with one of these reasons:
+
+| Reason shown | What to fix |
+|---|---|
+| invalid file name | Rename the file to `[a-z0-9-]`, up to 32 characters. |
+| invalid CSS syntax or an escape | Unbalanced braces, quotes or parentheses, a missing `:`, a backslash or a control character. |
+| uses @import, fonts or external URLs | Remove `@import`, `@font-face` and every `url(…)`; use system fonts. |
+| uses disallowed @-rules | Remove `@media`, `@supports` and every other at-rule. |
+| uses a CSS function themes may not use | Replace the function with a color, a gradient or a number. |
+| selector outside the theme scope | Keep only the two `:root[data-theme="<id>"][data-mode="…"]` rules; component selectors (`.card`, `body::after`) are for built-in themes. |
+| sets a property that is not a theme token | Remove the property or rename it to a token above. |
+| a value outside the theme grammar | Check the value kind for that token; remove `!important`. |
+| needs exactly one dark and one light rule | Add the missing mode or merge the duplicate rule. |
+| missing or invalid metadata | Make the header a JSON object with string `label` and `group`, and write it once. |
+
+Themes written for earlier versions that relied on component selectors or properties outside this list stop loading with one of these reasons; move their colors into the tokens.
 
 The full token list (colors, shape, surfaces, effects, motion tokens), the quality rules and the contrast and lint tools used for the built-in themes are in [`apps/desktop/ui/css/themes/README.md`](../apps/desktop/ui/css/themes/README.md). A complete example is [`apps/desktop/examples/user/themes/ocean.css`](../apps/desktop/examples/user/themes/ocean.css).
 
