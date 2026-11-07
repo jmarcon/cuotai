@@ -36,6 +36,8 @@ pub enum ClientPurpose {
     UpdateCheck,
     /// A 9router instance on loopback (never through a proxy).
     LocalProbe,
+    /// PRD 0044: the notification channels the person added.
+    Channels,
 }
 
 impl ClientPurpose {
@@ -45,6 +47,7 @@ impl ClientPurpose {
             Self::OAuth => "oauth",
             Self::UpdateCheck => "update_check",
             Self::LocalProbe => "local_probe",
+            Self::Channels => "channels",
         }
     }
 
@@ -55,14 +58,16 @@ impl ClientPurpose {
             Self::OAuth => crate::privacy::Purpose::OAuth,
             Self::UpdateCheck => crate::privacy::Purpose::UpdateCheck,
             Self::LocalProbe => crate::privacy::Purpose::LocalProbe,
+            Self::Channels => crate::privacy::Purpose::NotificationChannels,
         }
     }
 
-    pub const ALL: [ClientPurpose; 4] = [
+    pub const ALL: [ClientPurpose; 5] = [
         Self::Provider,
         Self::OAuth,
         Self::UpdateCheck,
         Self::LocalProbe,
+        Self::Channels,
     ];
 }
 

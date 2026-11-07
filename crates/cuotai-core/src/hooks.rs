@@ -343,6 +343,15 @@ impl Rule {
                 };
                 (true, current, quota(60.0))
             }
+            // PRD 0044 RF6.2: a threshold notification a channel accepted.
+            EventKind::NotificationSent => {
+                let current = Values {
+                    notification: Some("threshold".into()),
+                    channel: Some("0123456789abcdef".into()),
+                    ..Values::default()
+                };
+                (false, current, Values::default())
+            }
         };
         Event {
             schema: SCHEMA,

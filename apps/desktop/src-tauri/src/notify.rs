@@ -118,6 +118,9 @@ pub struct Notices {
     /// PRD 0041 RF3: the balance floors of the loaded configuration (the
     /// TOML is their only source), given to the evaluator.
     floors: BTreeMap<String, Vec<cuotai_core::budget::Floor>>,
+    /// PRD 0044: the notification channels, handed every notice this
+    /// process shows (after quiet hours and the shared ledger).
+    channels: Option<cuotai_core::channels::Dispatcher>,
 }
 
 /// What one pass of the timer did.
@@ -536,6 +539,39 @@ impl Notices {
         self.locale.as_deref().unwrap_or(DEFAULT_LOCALE)
     }
 
+    /// The language of the notices (PRD 0044: the channels' texts too).
+    pub fn language(&self) -> &str {
+        self.locale()
+    }
+
+    /// PRD 0044: deliver to the notification channels too.
+    pub fn set_channels(&mut self, channels: Option<cuotai_core::channels::Dispatcher>) {
+        self.channels = channels;
+    }
+
+    pub fn channels(&self) -> Option<&cuotai_core::channels::Dispatcher> {
+        self.channels.as_ref()
+    }
+
+    /// PRD 0044 RF3.1: hand `source`, a notice just shown, to the channels.
+    fn to_channels(&self, source: cuotai_core::channels::Source, now: DateTime<Utc>) {
+        if let Some(channels) = &self.channels {
+            channels.dispatch(&source, self.prefs.private, self.locale(), now);
+        }
+    }
+
+    /// PRD 0044 RF3.2/RF3.4: the channels' hourly summaries, and the
+    /// channels failing for 24 hours whose system notification is due.
+    pub fn channel_tick(&self, now: DateTime<Utc>, notifier: &dyn Notifier) {
+        let Some(channels) = &self.channels else {
+            return;
+        };
+        let locale = self.locale();
+        for failing in channels.tick(locale, now) {
+            let _ = notifier.deliver("Cuotai", &failing.text().resolve(locale));
+        }
+    }
+
     /// The next notice still ahead of `now` (tray and tooltip) and the
     /// account it names; `None` when notices are off. PRD 0036: for a
     /// connection of an aggregator, `account_index` is the aggregator's and
@@ -622,6 +658,13 @@ impl Notices {
             // most once, never retried into a burst.
             let sent = self.ledger.claim_resets(deliver, skipped, now);
             for event in &sent {
+                self.to_channels(
+                    cuotai_core::channels::Source::Reset {
+                        account: expanded.display(event.account_index).clone(),
+                        event: event.clone(),
+                    },
+                    now,
+                );
                 let notice = event.notice_with(
                     expanded.display(event.account_index),
                     now,
@@ -691,10 +734,13 @@ impl Notices {
         ) else {
             return (0, None);
         };
-        (
-            usize::from(self.deliver_digest_text(&digest, notifier)),
-            None,
-        )
+        let delivered = self.deliver_digest_text(&digest, notifier);
+        // PRD 0044 RF6.1: the digest is a channel kind, off by default.
+        self.to_channels(
+            cuotai_core::channels::Source::WeeklyDigest(Box::new(digest)),
+            now,
+        );
+        (usize::from(delivered), None)
     }
 
     /// PRD 0043 RF4.3: post `digest` now (title and the short lines), as
@@ -759,6 +805,15 @@ impl Notices {
         let Some(notice) = quiet::digest(&groups, now, &chrono::Local, self.prefs.private) else {
             return (0, None);
         };
+        self.to_channels(
+            cuotai_core::channels::Source::QuietDigest {
+                groups: groups
+                    .iter()
+                    .map(|(account, events)| ((*account).clone(), events.clone()))
+                    .collect(),
+            },
+            now,
+        );
         let locale = self.locale();
         let _ = notifier.deliver(&notice.title.resolve(locale), &notice.body.resolve(locale));
         self.last_alert = Some(now);
@@ -815,6 +870,17 @@ impl Notices {
         else {
             return (0, None);
         };
+        // PRD 0044: one channel message per account, so each channel's
+        // account filter applies.
+        for (account, events) in &groups {
+            self.to_channels(
+                cuotai_core::channels::Source::Alerts {
+                    account: (*account).clone(),
+                    events: events.clone(),
+                },
+                now,
+            );
+        }
         let locale = self.locale();
         let _ = notifier.deliver(&notice.title.resolve(locale), &notice.body.resolve(locale));
         self.last_alert = Some(now);

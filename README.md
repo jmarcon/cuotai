@@ -183,7 +183,7 @@ All technical documentation lives in **[`docs/`](docs/)**.
 **Automation and integration**
 
 - [Advanced usage](docs/advanced.md): the configuration file, JSON output, local cost and history from the command line.
-- [Local HTTP server](docs/local-server.md), [events and `--watch` hooks](docs/events.md), [export contract v1](docs/export-v1.md), [executable extensions](docs/extensions.md) and [system widgets](docs/widgets.md).
+- [Local HTTP server](docs/local-server.md), [notification channels (webhook, ntfy, Slack, Discord)](docs/notifications.md), [events and `--watch` hooks](docs/events.md), [export contract v1](docs/export-v1.md), [executable extensions](docs/extensions.md) and [system widgets](docs/widgets.md).
 - [Configuration example](cuotai.example.toml): a commented reference of every account and TOML parameter; [the accounts file across versions](docs/configuration.md) and [local state and downgrades](docs/local-state.md).
 
 **For contributors and maintainers**

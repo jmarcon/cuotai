@@ -277,6 +277,15 @@ export const sendTestNotification = (title, body) => call("send_test_notificatio
 export const setInsightPrefs = ({ limitChanges, daysOff, digestEnabled, digestWeekday, digestHour }) =>
   call("set_insight_prefs", { limitChanges, daysOff, digestEnabled, digestWeekday, digestHour });
 export const sendTestDigest = () => call("send_test_digest");
+// PRD 0044: notification channels. The address goes to the shell once (consent, save) and never comes back; the
+// view carries the host, the filters in words and the last delivery only.
+export const channelsView = () => call("channels_view");
+export const channelConsent = (draft, url) => call("channel_consent", { draft, url });
+export const channelAdd = (draft, url) => call("channel_add", { draft, url });
+export const channelEdit = (id, draft, url) => call("channel_edit", { id, draft, url });
+export const channelSetEnabled = (id, on) => call("channel_set_enabled", { id, on });
+export const channelRemove = (id) => call("channel_remove", { id });
+export const channelTest = (id) => call("channel_test", { id });
 // PRD 0041 RF5.1: the core's live sentences and problems of the dialog's budget and floor rows.
 export const checkBudgets = (provider, budgets, floors) => call("check_budgets", { provider, budgets, floors });
 /** PRD 0041 RF6: the draft of "Set a budget…" (plan-price prefill, "Last 30 days" line) for one metric; saves nothing. */
@@ -1468,7 +1477,7 @@ function demoWidgetsView() {
 // `?hooks=changed` starts with the hooks on and a rule changed since its confirmation (the main-window banner).
 const DEMO_HOOK_EVENTS = ["quota_threshold_crossed", "quota_exhausted", "quota_recovered", "quota_reset", "account_blocked",
   "account_unblocked", "refresh_failed", "refresh_recovered", "auth_required", "provider_incident", "usage_updated", "overage_started", "overage_ended", "session_expiring", "quota_reset_soon",
-  "pool_exhausted", "pool_recovered", "balance_below_floor", "balance_recovered", "limit_changed"];
+  "pool_exhausted", "pool_recovered", "balance_below_floor", "balance_recovered", "limit_changed", "notification_sent"];
 const DEMO_HOOKS_CHANGED = new URLSearchParams(location.search).get("hooks") === "changed";
 const demoHooks = { enabled: DEMO_HOOKS_CHANGED, path: "~/.config/cuotai/hooks.toml (demo)", revision: null, confirmed: null, runs: [],
   rules: DEMO_HOOKS_CHANGED ? [{ name: "sound", events: ["quota_exhausted"], command: ["/usr/bin/afplay", "/System/Library/Sounds/Glass.aiff"] }] : null };
@@ -1990,6 +1999,51 @@ const demoExtensions = () => {
       last_run: null, error: null, catalog: null, account: null, overrides: null, override_targets: [], declares_secrets: false },
   ];
 };
+// ---------- demo: notification channels (PRD 0044) ----------
+let demoChannels = [];
+const demoChannelLog = [];
+const DEMO_NOTICE_KINDS = [["reset", "Resets"], ["threshold", "Thresholds"], ["exhausted", "Exhaustion"], ["recovered", "Recovery"],
+  ["projected", "Projected exhaustion"], ["overage", "Extra usage"], ["floor", "Balance floors"], ["session_expiring", "Session expiry"],
+  ["limit_changed", "Limit changes"], ["digest", "Weekly digest"]];
+function demoFilterWords(filters) {
+  const kinds = filters.kinds.length === DEMO_NOTICE_KINDS.length
+    ? [demoL10n("channels.words.every_kind", {}, "Every notification")]
+    : DEMO_NOTICE_KINDS.filter(([k]) => filters.kinds.includes(k)).map(([k, l]) => demoL10n(`channels.kind.${k}`, {}, l));
+  const accounts = filters.accounts?.length
+    ? demoL10n("channels.words.accounts", { count: String(filters.accounts.length) }, `of ${filters.accounts.length} accounts`)
+    : demoL10n("channels.words.every_account", {}, "of every account");
+  const shown = filters.include_names ?? !demoSettings.notify.private;
+  const names = shown ? demoL10n("channels.words.names_shown", {}, "names shown") : demoL10n("channels.words.names_hidden", {}, "names hidden");
+  const severity = filters.min_severity === "warning" ? demoL10n("channels.severity.warning", {}, "warnings and critical only")
+    : filters.min_severity === "critical" ? demoL10n("channels.severity.critical", {}, "critical only") : null;
+  return { kinds, accounts, names, severity };
+}
+function demoChannelConsent(draft, url) {
+  let parsed;
+  try { parsed = new URL(String(url).trim()); } catch { throw JSON.stringify(demoL10n("channels.error.url_invalid", {}, "That is not a web address (it should start with https://).")); }
+  const host = parsed.hostname;
+  if (parsed.protocol !== "https:" && !(draft.kind === "ntfy" && /^(localhost|127\.|10\.|192\.168\.)/.test(host)))
+    throw JSON.stringify(demoL10n("channels.error.url_http", {}, "Only https:// addresses are accepted (plain http:// only for an ntfy server on this computer or a private network)."));
+  if (draft.kind === "slack" && (host !== "hooks.slack.com" || !parsed.pathname.startsWith("/services/")))
+    throw JSON.stringify(demoL10n("channels.error.url_slack", {}, "A Slack incoming webhook starts with https://hooks.slack.com/services/."));
+  if (draft.kind === "discord" && (!["discord.com", "discordapp.com"].includes(host) || !parsed.pathname.startsWith("/api/webhooks/")))
+    throw JSON.stringify(demoL10n("channels.error.url_discord", {}, "A Discord webhook starts with https://discord.com/api/webhooks/."));
+  const title = "Claude: 90% of the 5-hour window used";
+  const body = (draft.filters.include_names ?? !demoSettings.notify.private) ? "Work: Session (5h) · resets 16:00" : "Resets 16:00";
+  const example = draft.kind === "ntfy" ? `Title: ${title}\nPriority: 4\nTags: warning\n\n${body}`
+    : JSON.stringify(draft.kind === "slack" ? { text: `${title}\n${body}` } : draft.kind === "discord" ? { content: `**${title}**\n${body}` }
+      : { schema: 1, kind: "threshold", severity: "warning", title, body, sample: true }, null, 2);
+  return { kind: draft.kind, host, masked: `${parsed.protocol}//${host}/••••`, warning: parsed.protocol === "http:"
+    ? demoL10n("channels.warning.plain_http", {}, "This address uses plain HTTP: anyone on your network can read the notifications. Use it only for a server on this computer or your private network.") : null,
+  filters: demoFilterWords(draft.filters), example,
+  sentence: demoL10n("channels.consent.sentence", {}, "Cuotai will send these texts to this address when a notification is due. Nothing else leaves this computer.") };
+}
+function demoChannelsView() {
+  return { channels: demoChannels.map((c) => ({ ...c, filters_text: demoFilterWords(c.filters), last: c.last ?? null, failing_since: null, failing_status: null, failing_long: false })),
+    max: 5, kinds: ["webhook", "ntfy", "slack", "discord"], notice_kinds: DEMO_NOTICE_KINDS.map(([id, l]) => ({ id, label: demoL10n(`channels.kind.${id}`, {}, l) })),
+    accounts: [{ id: "acc_demo_work", name: "Work" }, { id: "acc_demo_home", name: "Home" }], private: demoSettings.notify.private, log: demoChannelLog.slice(0, 30) };
+}
+
 const demo = {
   get_view: async () => demoView(),
   refresh_all: async () => {},
@@ -2512,6 +2566,32 @@ const demo = {
   send_test_digest: async () => {
     if (!demoSettings.notify.enabled && !demoSettings.alerts.enabled) throw "notify_off";
     window.__lastTestNotification = { title: "Your week in Cuotai", body: "From the readings recorded on this computer." };
+  },
+  // ponytail: demo mirror of the core's channels (PRD 0044) with the host checks reduced; nothing is sent.
+  channels_view: async () => demoChannelsView(),
+  channel_consent: async ({ draft, url }) => demoChannelConsent(draft, url),
+  channel_add: async ({ draft, url }) => {
+    const consent = demoChannelConsent(draft, url);
+    if (demoChannels.length >= 5) throw JSON.stringify(demoL10n("channels.error.too_many", { max: 5 }, "At most 5 channels; remove one first."));
+    const channel = { id: Math.random().toString(16).slice(2, 18).padEnd(16, "0"), kind: draft.kind, label: draft.label.trim(), host: consent.host,
+      filters: draft.filters, enabled: true, created_at: new Date().toISOString(), signed: !!draft.sign && draft.kind === "webhook" };
+    demoChannels.push(channel);
+    return { channel, signing_secret: channel.signed ? "0".repeat(64) : null };
+  },
+  channel_edit: async ({ id, draft, url }) => {
+    const channel = demoChannels.find((c) => c.id === id);
+    if (!channel) throw JSON.stringify(demoL10n("channels.error.unknown", {}, "There is no such channel."));
+    if (url) channel.host = demoChannelConsent(draft, url).host;
+    Object.assign(channel, { label: draft.label.trim(), filters: draft.filters });
+    return { channel, signing_secret: null };
+  },
+  channel_set_enabled: async ({ id, on }) => { const c = demoChannels.find((x) => x.id === id); if (c) c.enabled = on; },
+  channel_remove: async ({ id }) => { demoChannels = demoChannels.filter((c) => c.id !== id); },
+  channel_test: async ({ id }) => {
+    const c = demoChannels.find((x) => x.id === id);
+    demoChannelLog.unshift({ at: new Date().toISOString(), channel: id, kind: "test", outcome: "delivered", status: 200, attempt: 1 });
+    c.last = { at: new Date().toISOString(), outcome: "delivered", status: 200 };
+    return { outcome: "delivered", status: 200 };
   },
   // Demo: the core's checks, reduced to the amount rule and the monthly sentence.
   check_budgets: async ({ budgets, floors }) => ({

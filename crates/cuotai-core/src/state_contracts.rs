@@ -21,7 +21,7 @@ pub struct StateContract {
 }
 
 /// Every contract, in the order of the table.
-pub const CONTRACTS: [StateContract; 8] = [
+pub const CONTRACTS: [StateContract; 9] = [
     StateContract {
         file: "cuotai.toml",
         location: "`--config`, `CUOTAI_CONFIG`, `./cuotai.toml` or `<config>/config.toml`",
@@ -39,7 +39,7 @@ pub const CONTRACTS: [StateContract; 8] = [
         location: "`<config>/desktop.json`",
         owner: "desktop, through core `private_fs::update_locked`",
         version: "`schema` (absent = 1)",
-        holds: "preferences and window state",
+        holds: "preferences and window state; the notification channels' definitions (`channels`: kind, name, host, filters; never the address, which is in the vault)",
         permissions: "`0600` in a `0700` folder",
         backup: "`desktop.json.bak[.N]`, never overwritten, before a damaged file is replaced",
         damaged: "kept as `.bak`, the app starts with the defaults and says so",
@@ -117,6 +117,18 @@ pub const CONTRACTS: [StateContract; 8] = [
         damaged: "rewritten on the next publish",
         newer: "replaced after the backup",
         erase: "turn widgets off and delete it",
+    },
+    StateContract {
+        file: "channels/log.jsonl",
+        location: "`<data>/channels/`",
+        owner: "core `channels::log`",
+        version: "none (one JSON object per line; unreadable lines are skipped)",
+        holds: "time, channel id, kind, outcome, HTTP status and attempt of each channel delivery; never a body, address or label",
+        permissions: "`0600` in `0700`",
+        backup: "none",
+        damaged: "unreadable lines are skipped; a file over 8 MiB is not read",
+        newer: "lines it cannot read are skipped and kept until they are 7 days old",
+        erase: "`cuotai --erase-all-data`, or delete the file",
     },
 ];
 

@@ -15,6 +15,7 @@ pub mod bundle;
 pub mod canary;
 pub mod catalog;
 pub mod changelog;
+pub mod channels;
 pub mod config_file;
 pub mod cost;
 pub mod data_dir;

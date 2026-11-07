@@ -101,11 +101,15 @@ pub enum EventKind {
     /// PRD 0043 RF2.2: a provider metric's limit changed between two
     /// readings (`previous.limit` → `current.limit`).
     LimitChanged,
+    /// PRD 0044 RF6.2: a notification channel accepted a notification
+    /// (`current.notification` its kind, `current.channel` the channel id);
+    /// additive, so a person can audit both paths.
+    NotificationSent,
 }
 
 impl EventKind {
     /// Every event, in the documented order.
-    pub const ALL: [Self; 21] = [
+    pub const ALL: [Self; 22] = [
         Self::QuotaThresholdCrossed,
         Self::QuotaExhausted,
         Self::QuotaRecovered,
@@ -127,6 +131,7 @@ impl EventKind {
         Self::BalanceBelowFloor,
         Self::BalanceRecovered,
         Self::LimitChanged,
+        Self::NotificationSent,
     ];
 
     /// The stable name, as serialized in the payload's `event`.
@@ -153,6 +158,7 @@ impl EventKind {
             Self::BalanceBelowFloor => "balance_below_floor",
             Self::BalanceRecovered => "balance_recovered",
             Self::LimitChanged => "limit_changed",
+            Self::NotificationSent => "notification_sent",
         }
     }
 
@@ -371,6 +377,12 @@ impl Event {
                     "{metric}: limit changed",
                 ),
             },
+            EventKind::NotificationSent => Localized::with_param(
+                id,
+                "kind",
+                self.current.notification.as_deref().unwrap_or_default(),
+                "Notification sent to a channel ({kind})",
+            ),
         }
     }
 }
@@ -473,6 +485,48 @@ pub struct Values {
     pub cap: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cycle_ends_at: Option<DateTime<Utc>>,
+    /// PRD 0044 RF6.2: the notification kind, for `notification_sent`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notification: Option<String>,
+    /// PRD 0044 RF6.2: the channel id, for `notification_sent`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub channel: Option<String>,
+}
+
+impl Event {
+    /// PRD 0044 RF6.2: the `notification_sent` event of a delivery: the
+    /// kind and the channel id only, with the account when the
+    /// notification was about one. `account` is the configured account
+    /// (for its key and name); never a body, URL or label.
+    pub fn notification_sent(
+        sent: &crate::channels::delivery::Sent,
+        account: Option<&crate::Account>,
+    ) -> Self {
+        Event {
+            schema: SCHEMA,
+            event: EventKind::NotificationSent,
+            occurred_at: sent.at,
+            account_key: account.map(crate::Account::key).unwrap_or_default(),
+            account_id: sent.account_id.clone().unwrap_or_default(),
+            account_name: account
+                .map(|account| account.display_name().into_owned())
+                .unwrap_or_default(),
+            provider: sent
+                .provider
+                .or(account.map(|account| account.provider))
+                .unwrap_or(Provider::ALL[0]),
+            accounts: Vec::new(),
+            parent: None,
+            metric: None,
+            current: Values {
+                notification: Some(sent.kind.to_owned()),
+                channel: Some(sent.channel.clone()),
+                ..Values::default()
+            },
+            previous: None,
+            sample: false,
+        }
+    }
 }
 
 /// One metric's values in `usage_updated`.
