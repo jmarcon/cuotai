@@ -26,4 +26,13 @@ Other files under `<data>`: `serve/token` (the local server token, `0600`; `cuot
 - Install the older version **before** opening the files with it. From this release on, the SQLite stores record their schema major, so a later release that only **adds** tables or columns stays readable and writable by this one. A release that changes the meaning of a file raises the major, and an older Cuotai then refuses that file without touching it (`cuotai --doctor` names it).
 - Releases before this one (0.82.3 and older) refuse any history written by a newer release, and 0.80.0 also refuses the TOML once it uses `[[groups]]` or an account `group`.
 - A `.bak` file is the state **before** the last migration. It is recovery input, never restored automatically: quit Cuotai, move the current file aside, rename the `.bak` copy (for example `history.sqlite3.bak` to `history.sqlite3`) and start the older version.
+- Moving or renaming the accounts file starts an empty history; Cuotai offers to carry the old one over when the accounts match exactly ([`advanced.md`](advanced.md#moving-the-accounts-file)).
 - `cuotai --check-config` names any account or key the running version does not know; `cuotai --doctor` reports every file above with its state.
+
+## For contributors: changing a state file
+
+Every state contract above has immutable fixtures in `crates/cuotai-core/tests/fixtures/compat/<contract>/major-<M>-revision-<R>/`, each with a `manifest.json` (writer release, expected compatibility, SHA-256 of every file, the frozen reader that checks it, and `backup: true` for a fixture this release migrates). The core's `compat_matrix` test runs them on every OS; `cargo xtask compat-check` refuses an undeclared fixture, a changed hash and any edit to a shipped fixture.
+
+- A change that only **adds** (a member, a column, a table, an index) is a new **revision**: the release before it must already read the envelope and ignore the unknown material (every release after 0.83.1 does), and the commit adds a `major-<M>-revision-<R+1>` fixture.
+- A change of meaning, a removal or a rename is a new **major**: the older release then refuses the file untouched, the writer keeps a `.bak` before migrating, and the commit carries `BREAKING CHANGE:` when it breaks a public contract (PRD 0039).
+- Never edit a shipped fixture; add a revision. Cite PRD 0051 and the store's own PRD in `Refs:`, and update `state_contracts::CONTRACTS`, which generates the table above (`CUOTAI_REGENERATE_DOCS=1 cargo test -p cuotai-core local_state_doc_matrix`).
