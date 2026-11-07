@@ -372,6 +372,18 @@ static ARTIFACTS: &[Artifact] = &[
             "0052",
         )
     },
+    Artifact {
+        rotated: true,
+        ..file(
+            "serve.access_log",
+            LocalData,
+            "logs/serve-access.log",
+            "desktop local-server requests: UTC time, loopback or not, method, route template, status, elapsed; no address, header, Origin, token, query or account",
+            Unversioned,
+            "1 MiB plus one rotated copy; none while the desktop access log is off",
+            "0050",
+        )
+    },
     file(
         "vault.index",
         LocalData,
@@ -971,6 +983,7 @@ mod tests {
             "hooks.runs",
             "serve.token_file",
             "app.log",
+            "serve.access_log",
             "vault.oauth",
             "vault.serve",
             "channels.log",
@@ -999,6 +1012,11 @@ mod tests {
             local("hooks").join(crate::hooks::CLAIMS_FILE_NAME)
         );
         assert_eq!(path("serve.token_file"), local("serve").join("token"));
+        #[cfg(feature = "serve")]
+        assert_eq!(
+            path("serve.access_log"),
+            crate::serve::access_log_path(Path::new("/data/cuotai"))
+        );
         assert_eq!(path("config.accounts"), PathBuf::from("/acc/cuotai.toml"));
         assert_eq!(path("config.hooks"), PathBuf::from("/acc/hooks.toml"));
         assert_eq!(

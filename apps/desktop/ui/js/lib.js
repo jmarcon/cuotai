@@ -331,6 +331,9 @@ export const serveStatus = () => call("serve_status");
 export const setServe = (enabled, port, allowBrowsers, allowedOrigins = []) => call("set_serve", { enabled, port, allowBrowsers, allowedOrigins });
 // PRD 0031 RF11.2.5: "Share usage statistics" (`serve.stats`, /v1/stats), answered only with a token.
 export const setServeStats = (stats) => call("set_serve_stats", { stats });
+// PRD 0050 RF6.1/RF6.3: the private access log (`serve.access_log`: off by default, errors, all) and its erasure.
+export const setServeAccessLog = (mode) => call("set_serve_access_log", { mode });
+export const eraseServeAccessLog = () => call("erase_serve_access_log");
 export const generateServeToken = () => call("generate_serve_token");
 export const revokeServeToken = () => call("revoke_serve_token");
 export const copyServeToken = () => call("copy_serve_token");
@@ -1481,6 +1484,7 @@ function demoServeView() {
   const state = !s.enabled ? "off" : taken ? "error" : "on";
   return { state, enabled: s.enabled, port: s.port, allow_browsers: s.allow_browsers, token: s.secret != null, stats: !!s.stats,
     allowed_origins: s.allowed_origins ?? [], origins_notice: false,
+    access_log: s.access_log ?? "off", access_log_bytes: s.access_log_bytes ?? 0,
     url: state === "on" ? `http://127.0.0.1:${s.port}` : null,
     error: taken ? { id: "serve.error.port_taken", params: { port: s.port }, fallback: `Port ${s.port} is in use; choose another port for the local server.` } : null,
     cuotai_on_port: taken, default_port: 6738, port_min: 1024, port_max: 65535,
@@ -2390,6 +2394,14 @@ const demo = {
     return demoServeView();
   },
   set_serve_stats: async ({ stats }) => { demoSettings.serve.stats = stats; return demoServeView(); },
+  set_serve_access_log: async ({ mode }) => {
+    if (!["off", "errors", "all"].includes(mode)) throw "invalid_access_log";
+    demoSettings.serve.access_log = mode;
+    // ponytail: demo stand-in for one recorded entry; nothing is written in the browser.
+    if (mode !== "off" && !demoSettings.serve.access_log_bytes) demoSettings.serve.access_log_bytes = 2048;
+    return demoServeView();
+  },
+  erase_serve_access_log: async () => { demoSettings.serve.access_log_bytes = 0; return demoServeView(); },
   generate_serve_token: async () => { demoSettings.serve.secret = `cuotai_demo_${crypto.randomUUID().replaceAll("-", "")}`; return demoServeView(); },
   // ponytail: demo mirror of the widget snapshot (PRD 0014 RF4.1); nothing is written in the browser. `?widgets`
   // starts with publishing on and an account limit already chosen.

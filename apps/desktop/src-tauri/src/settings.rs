@@ -724,6 +724,9 @@ pub struct ServePrefs {
     /// origins and was turned off on load; Settings says so until the next
     /// choice.
     pub origins_notice: bool,
+    /// PRD 0050 RF6.1/RF6.3: what the private `serve-access.log` records:
+    /// `off` (the default: no entry, no file), `errors` or `all`.
+    pub access_log: String,
 }
 
 impl Default for ServePrefs {
@@ -736,6 +739,7 @@ impl Default for ServePrefs {
             stats: false,
             allowed_origins: Vec::new(),
             origins_notice: false,
+            access_log: cuotai_core::serve::AccessLogMode::Off.name().into(),
         }
     }
 }
@@ -760,6 +764,13 @@ impl ServePrefs {
             stats: flag("stats", default.stats),
             allowed_origins: Vec::new(),
             origins_notice: flag("origins_notice", default.origins_notice),
+            // PRD 0050 RF6.1: an unknown or mistyped mode reads as `off`.
+            access_log: value["access_log"]
+                .as_str()
+                .and_then(cuotai_core::serve::AccessLogMode::parse)
+                .unwrap_or(cuotai_core::serve::AccessLogMode::Off)
+                .name()
+                .into(),
         };
         let mut origins: Vec<cuotai_core::serve::Origin> = Vec::new();
         for entry in value["allowed_origins"].as_array().into_iter().flatten() {
@@ -785,6 +796,23 @@ impl ServePrefs {
     /// migration notice. Errors: `invalid_port`, or the core's typed
     /// refusal as JSON (PRD 0050 RF4.1/RF4.2: browser mode without a token,
     /// an invalid, repeated or missing origin).
+    /// PRD 0050 RF6.1: the access-log mode (`off`, `errors`, `all`).
+    /// Error: `invalid_access_log`.
+    pub fn with_access_log(self, mode: &str) -> Result<Self, String> {
+        let mode = cuotai_core::serve::AccessLogMode::parse(mode)
+            .ok_or_else(|| "invalid_access_log".to_string())?;
+        Ok(Self {
+            access_log: mode.name().into(),
+            ..self
+        })
+    }
+
+    /// The parsed access-log mode (`off` for anything else).
+    pub fn access_log_mode(&self) -> cuotai_core::serve::AccessLogMode {
+        cuotai_core::serve::AccessLogMode::parse(&self.access_log)
+            .unwrap_or(cuotai_core::serve::AccessLogMode::Off)
+    }
+
     pub fn with_choices(
         self,
         enabled: bool,
@@ -2765,6 +2793,7 @@ mod tests {
                 stats: false,
                 allowed_origins: Vec::new(),
                 origins_notice: false,
+                access_log: "off".into(),
             }
         );
         update(&file, |s| s.motion = Some("off".into())).unwrap();
@@ -2815,6 +2844,12 @@ mod tests {
         );
         fs::write(&file, r#"{"serve":{"enabled":true,"port":80}}"#).unwrap();
         assert_eq!(read_serve(&file).port, 6738);
+        // PRD 0050 RF6.1: the access-log mode round-trips; a mistyped one is `off`.
+        let logged = on.clone().with_access_log("all").unwrap();
+        write_serve(&file, &logged).unwrap();
+        assert_eq!(read_serve(&file).access_log, "all");
+        fs::write(&file, r#"{"serve":{"access_log":"verbose"}}"#).unwrap();
+        assert_eq!(read_serve(&file).access_log, "off");
         assert_eq!(motion_of(&read(&file)), "system");
     }
 

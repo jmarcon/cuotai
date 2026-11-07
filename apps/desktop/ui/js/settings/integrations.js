@@ -1,10 +1,10 @@
 // Settings › Advanced › Integrations (PRD 0020 RF2.5): the local server, hooks (`hooks.js`) and widgets, as the old
 // "Integration" section held them, one group each, built from the shared rows (RF3).
 import { t, te, tle } from "../i18n.js";
-import { copyServeToken, deleteWidgetData, esc, generateServeToken, hooksStatus, icon, revokeServeToken, serveStatus, setServe, setServeStats, setWidgets, widgetsStatus } from "../lib.js";
-import { copySecret, group, l10nError, serveErrorText } from "./common.js";
+import { copyServeToken, deleteWidgetData, eraseServeAccessLog, esc, generateServeToken, hooksStatus, icon, revokeServeToken, serveStatus, setServe, setServeAccessLog, setServeStats, setWidgets, widgetsStatus } from "../lib.js";
+import { askDialog, copySecret, fmtBytes, group, l10nError, serveErrorText } from "./common.js";
 import { bindHooks, hooksHtml } from "./hooks.js";
-import { buttons, commitField, disc, num, pathHtml, row, sw, toast } from "./rows.js";
+import { buttons, commitField, disc, num, pathHtml, row, seg, sw, toast } from "./rows.js";
 
 export function html() {
   return group("serve", te("settings.serve.title"), `<div data-serve><p class="hint">${te("common.loading")}</p></div>`, "data-integration")
@@ -59,6 +59,11 @@ export function integrationHtml(sv, message = []) {
       + row({ key: "serve-stats", label: te("settings.serve.stats"), info: te("settings.serve.statsHelp"), msg: "serve-stats-msg",
         desc: sv.stats && !sv.token ? te("settings.serve.statsNeedsToken") : "",
         control: (a) => sw("serve-stats", sv.stats, a, sv.token || sv.stats ? "" : "disabled") })
+      // PRD 0050 RF6.1/RF6.3: the private access log, off by default; route templates only, erasable from the row.
+      + row({ key: "serve-access-log", label: te("settings.serve.accessLog.title"), info: te("settings.serve.accessLog.help"), msg: "serve-access-log-msg",
+        desc: sv.access_log_bytes > 0 ? te("settings.serve.accessLog.size", { size: fmtBytes(sv.access_log_bytes) }) : te("settings.serve.accessLog.empty"),
+        control: (a) => seg("serve-access-log", ["off", "errors", "all"].map((mode) => [mode, te(`settings.serve.accessLog.${mode}`)]), sv.access_log ?? "off", a),
+        body: buttons(`<button class="btn sm danger-btn" data-serve-access-log-erase ${sv.access_log_bytes > 0 ? "" : "disabled"}>${icon("trash")} ${te("settings.serve.accessLog.erase")}</button>`) })
       // PRD 0050 RF4: browsers need the token and the exact origins of the user's pages; the core validates both.
       + row({ key: "browsers", label: te("settings.serve.browsers"), info: te("settings.serve.browsersOff"), msg: "serve-browsers-msg",
         desc: !sv.token && !sv.allow_browsers ? te("settings.serve.browsersNeedsToken") : "",
@@ -105,6 +110,12 @@ async function bindIntegration(sec, ctx) {
     commitField(sec.querySelector("#serve-port"), (value) => setServe(sv.enabled, Number(value), sv.allow_browsers, sv.allowed_origins).then(
       (answer) => { paint(answer); ctx.changed("serve"); }, (e) => { throw serveErrorText(e); }));
     sec.querySelector("#serve-stats").onchange = (e) => run(() => setServeStats(e.target.checked), "serve-stats-msg");
+    sec.querySelector("#serve-access-log").onchange = (e) => run(() => setServeAccessLog(e.currentTarget.value), "serve-access-log-msg");
+    sec.querySelector("[data-serve-access-log-erase]").onclick = async () => {
+      if (!(await askDialog("serve-access-log-erase", te("settings.serve.accessLog.eraseTitle"), `<p>${te("settings.serve.accessLog.eraseBody")}</p>`,
+        te("settings.serve.accessLog.erase")))) return;
+      run(eraseServeAccessLog, "serve-access-log-msg");
+    };
     sec.querySelector("[data-serve-token-new]").onclick = () => run(generateServeToken, "serve-token-msg");
     const revoke = sec.querySelector("[data-serve-token-revoke]");
     if (revoke) revoke.onclick = () => run(revokeServeToken, "serve-token-msg");

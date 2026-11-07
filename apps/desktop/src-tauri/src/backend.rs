@@ -2877,6 +2877,29 @@ impl Backend {
         Ok(self.apply_serve(app, &mut serve, prefs).await)
     }
 
+    /// PRD 0050 RF6.1: what the private access log records (`off`,
+    /// `errors`, `all`), saved as `serve.access_log` in `desktop.json` and
+    /// applied in place to a running server. Errors: `invalid_access_log`,
+    /// `unwritable`.
+    pub async fn set_serve_access_log(
+        &self,
+        app: &AppHandle,
+        mode: &str,
+    ) -> Result<ServeView, String> {
+        let mut serve = self.serve.lock().await;
+        let prefs = serve.prefs().with_access_log(mode)?;
+        crate::settings::save_serve(&prefs).map_err(str::to_owned)?;
+        Ok(self.apply_serve(app, &mut serve, prefs).await)
+    }
+
+    /// PRD 0050 RF6.3: erase `serve-access.log` and its rotated copy.
+    /// Error: `unwritable`.
+    pub async fn erase_serve_access_log(&self) -> Result<ServeView, String> {
+        let serve = self.serve.lock().await;
+        serve.erase_access_log()?;
+        Ok(serve.view())
+    }
+
     /// PRD 0012 RF5.1: generate a token into the OS vault (replacing, and
     /// so invalidating, the previous one) and require it. Errors: the core's
     /// vault error as JSON, `unwritable`.
