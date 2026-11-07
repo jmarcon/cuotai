@@ -3,7 +3,11 @@
     "name": "한국어",
     "status": "machine-translated, needs native review",
     "reviewed": false,
-    "machine_reviewed": "2026-10-25"
+    "machine_reviewed": "2026-10-25",
+    "pending_review": [
+      "note.nine_router.version_untested",
+      "test.nine_router.connected_untested"
+    ]
   },
   "access.confirm_unavailable": "{reason} 계정은 저장되지만 숫자 대신 이 사유가 표시됩니다.",
   "access.cost_advisory": "조회당 과금되는 제공업체입니다. 조회 한 번에 Cost Explorer 요청이 약 한 번 발생합니다. 간격을 지정하지 않으면 Cuotai는 한 시간에 한 번 조회하며, 실제 최소값은 15분입니다(5~14분 간격은 15분으로 올라가고 그보다 짧은 값은 거부됩니다). 여러 창이나 명령은 간격당 요청 하나를 공유합니다. 수동 새로 고침은 계속 명시적으로 실행됩니다.",
@@ -1302,6 +1306,7 @@
   "note.nine_router.summary": "사용량이 있는 9router 연결 {ready}/{total}개.",
   "note.nine_router.truncated": "9router의 연결이 읽기 한도(1000개)보다 많아 나머지는 생략되었습니다.",
   "note.nine_router.version": "9router {version}.",
+  "note.nine_router.version_untested": "9router {version}은(는) Cuotai가 테스트한 가장 오래된 버전인 {min}보다 오래되었습니다. 업데이트하기 전까지 일부 조회가 실패할 수 있습니다.",
   "note.nine_router.zero_caveat": "9router가 정규화한 값입니다. 값이 없으면 0으로 표시될 수 있습니다.",
   "note.open_router.activity_failed": "출처별 지출을 지금은 사용할 수 없습니다. 잔액은 여전히 정확합니다.",
   "note.open_router.activity_window": "출처별 지출은 완료된 UTC 날짜만 포함하며 UTC 자정 이후에 갱신됩니다.",
@@ -1865,6 +1870,7 @@
   "test.litellm.not_litellm": "주소가 응답하지만 LiteLLM 프록시로 보이지 않습니다(/provider/budgets 없음).",
   "test.nine_router.certificate_changed": "인스턴스 인증서가 바뀌었으며 고정된 인증서와 일치하지 않습니다. 새 SHA-256 지문: {fingerprint}. 신뢰하기 전에 서버에서 확인하세요.",
   "test.nine_router.connected": "9router {version}: 사용량이 있는 연결 {connections}개를 찾았습니다.",
+  "test.nine_router.connected_untested": "9router {version}: 사용량이 있는 연결 {connections}개를 찾았습니다. 이 버전은 Cuotai가 테스트한 가장 오래된 버전인 {min}보다 오래되어 일부 조회가 실패할 수 있습니다.",
   "test.nine_router.not_nine_router": "주소가 응답하지만 9router로 보이지 않습니다.",
   "test.nine_router.password_required": "이 인스턴스에는 대시보드 비밀번호가 필요합니다. \"대시보드 비밀번호\"를 선택하세요.",
   "test.nine_router.unreachable": "입력한 주소에 연결할 수 없습니다.",

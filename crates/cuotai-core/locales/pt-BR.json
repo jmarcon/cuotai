@@ -1,6 +1,10 @@
 {
   "_meta": {
-    "name": "Português"
+    "name": "Português",
+    "pending_review": [
+      "note.nine_router.version_untested",
+      "test.nine_router.connected_untested"
+    ]
   },
   "access.confirm_unavailable": "{reason} A conta será gravada, mas mostrará este motivo em vez de números.",
   "access.cost_advisory": "Provedor cobrado por consulta: cerca de uma requisição ao Cost Explorer por consulta. Sem intervalo, o Cuotai consulta uma vez por hora; o mínimo efetivo é de 15 minutos (intervalos de 5 a 14 minutos sobem para 15 e valores menores são rejeitados). Várias janelas ou comandos compartilham uma requisição por intervalo. Atualizações manuais continuam explícitas.",
@@ -1307,6 +1311,7 @@
   "note.nine_router.summary": "{ready} de {total} conexões do 9router com uso.",
   "note.nine_router.truncated": "O 9router tem mais conexões do que o limite lido (1000); as demais foram omitidas.",
   "note.nine_router.version": "9router {version}.",
+  "note.nine_router.version_untested": "O 9router {version} é mais antigo que {min}, a versão mais antiga com que o Cuotai foi testado; algumas leituras podem falhar até você atualizá-lo.",
   "note.nine_router.zero_caveat": "Valores como normalizados pelo 9router; um valor ausente pode aparecer como 0.",
   "note.open_router.activity_failed": "O gasto por origem está indisponível agora; o saldo continua correto.",
   "note.open_router.activity_window": "O gasto por origem cobre apenas dias UTC concluídos e é atualizado depois da meia-noite UTC.",
@@ -1874,6 +1879,7 @@
   "test.litellm.not_litellm": "O endereço responde, mas não parece ser um proxy LiteLLM (sem /provider/budgets).",
   "test.nine_router.certificate_changed": "O certificado da instância mudou e não corresponde ao fixado. Nova impressão digital SHA-256: {fingerprint}. Confira-a no servidor antes de confiar nela.",
   "test.nine_router.connected": "9router {version}: {connections} conexões com uso encontradas.",
+  "test.nine_router.connected_untested": "9router {version}: {connections} conexões com uso encontradas. Esta versão é mais antiga que {min}, a mais antiga com que o Cuotai foi testado; algumas leituras podem falhar.",
   "test.nine_router.not_nine_router": "O endereço responde, mas não parece ser um 9router.",
   "test.nine_router.password_required": "Esta instância exige a senha do painel; escolha \"Senha do painel\".",
   "test.nine_router.unreachable": "Não foi possível alcançar o endereço informado.",

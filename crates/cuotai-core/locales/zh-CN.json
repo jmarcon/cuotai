@@ -3,7 +3,11 @@
     "name": "中文（简体）",
     "status": "machine-translated, needs native review",
     "reviewed": false,
-    "machine_reviewed": "2026-10-25"
+    "machine_reviewed": "2026-10-25",
+    "pending_review": [
+      "note.nine_router.version_untested",
+      "test.nine_router.connected_untested"
+    ]
   },
   "access.confirm_unavailable": "{reason} 账户会被保存，但会显示此原因而不是数字。",
   "access.cost_advisory": "按查询计费的提供商：每次查询约产生一次 Cost Explorer 请求。未设置间隔时，Cuotai 每小时查询一次；实际最小间隔为 15 分钟（5 到 14 分钟的间隔会提高到 15 分钟，更短的会被拒绝）。多个窗口或命令在每个间隔内共享一次请求。手动刷新仍需明确操作。",
@@ -1302,6 +1306,7 @@
   "note.nine_router.summary": "9router 的 {total} 个连接中有 {ready} 个有用量。",
   "note.nine_router.truncated": "9router 的连接数超过了读取上限（1000）；其余的已省略。",
   "note.nine_router.version": "9router {version}。",
+  "note.nine_router.version_untested": "9router {version} 早于 {min}，即 Cuotai 测试过的最旧版本；在更新之前，部分读数可能会失败。",
   "note.nine_router.zero_caveat": "数值为 9router 规范化后的结果；缺失值可能显示为 0。",
   "note.open_router.activity_failed": "按来源的支出暂时不可用；余额仍然正确。",
   "note.open_router.activity_window": "按来源的支出只涵盖完整的 UTC 日，并在 UTC 午夜后更新。",
@@ -1865,6 +1870,7 @@
   "test.litellm.not_litellm": "该地址有响应，但看起来不是 LiteLLM 代理（没有 /provider/budgets）。",
   "test.nine_router.certificate_changed": "实例的证书已更改，与固定的证书不再一致。新的 SHA-256 指纹：{fingerprint}。信任前请在服务器上核对。",
   "test.nine_router.connected": "9router {version}：找到 {connections} 个有用量的连接。",
+  "test.nine_router.connected_untested": "9router {version}：找到 {connections} 个有用量的连接。此版本早于 {min}，即 Cuotai 测试过的最旧版本；部分读数可能会失败。",
   "test.nine_router.not_nine_router": "该地址有响应，但看起来不是 9router。",
   "test.nine_router.password_required": "此实例需要仪表板密码；请选择“仪表板密码”。",
   "test.nine_router.unreachable": "无法访问所填地址。",

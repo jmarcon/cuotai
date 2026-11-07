@@ -3,7 +3,11 @@
     "name": "Bahasa Indonesia",
     "status": "machine-translated, needs native review",
     "reviewed": false,
-    "machine_reviewed": "2026-10-25"
+    "machine_reviewed": "2026-10-25",
+    "pending_review": [
+      "note.nine_router.version_untested",
+      "test.nine_router.connected_untested"
+    ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
   "access.cost_advisory": "Penyedia ditagih per kueri: sekitar satu permintaan Cost Explorer per kueri. Tanpa interval, Cuotai mengueri sekali per jam; minimum efektif adalah 15 menit (interval 5 hingga 14 menit dinaikkan menjadi 15, nilai yang lebih rendah ditolak). Beberapa jendela atau perintah berbagi satu permintaan per interval. Penyegaran manual tetap eksplisit.",
@@ -1302,6 +1306,7 @@
   "note.nine_router.summary": "{ready} dari {total} koneksi 9router dengan data penggunaan.",
   "note.nine_router.truncated": "9router memiliki lebih banyak koneksi daripada batas yang dibaca (1000); sisanya dihilangkan.",
   "note.nine_router.version": "9router {version}.",
+  "note.nine_router.version_untested": "9router {version} lebih lama dari {min}, versi tertua yang pernah diuji dengan Cuotai; beberapa pembacaan mungkin gagal sampai Anda memperbaruinya.",
   "note.nine_router.zero_caveat": "Nilai sesuai normalisasi 9router; nilai yang hilang bisa tampil sebagai 0.",
   "note.open_router.activity_failed": "Pengeluaran per asal tidak tersedia saat ini; saldo tetap benar.",
   "note.open_router.activity_window": "Pengeluaran per asal hanya mencakup hari UTC yang sudah selesai dan diperbarui setelah tengah malam UTC.",
@@ -1865,6 +1870,7 @@
   "test.litellm.not_litellm": "Alamat menjawab, tetapi tidak terlihat seperti proxy LiteLLM (tanpa /provider/budgets).",
   "test.nine_router.certificate_changed": "Sertifikat instans berubah dan tidak lagi cocok dengan yang disematkan. Sidik jari SHA-256 baru: {fingerprint}. Periksa di server sebelum memercayainya.",
   "test.nine_router.connected": "9router {version}: ditemukan {connections} koneksi dengan data penggunaan.",
+  "test.nine_router.connected_untested": "9router {version}: ditemukan {connections} koneksi dengan penggunaan. Versi ini lebih lama dari {min}, versi tertua yang pernah diuji dengan Cuotai; beberapa pembacaan mungkin gagal.",
   "test.nine_router.not_nine_router": "Alamat menjawab, tetapi tidak terlihat seperti 9router.",
   "test.nine_router.password_required": "Instans ini memerlukan kata sandi dasbor; pilih \"Kata sandi dasbor\".",
   "test.nine_router.unreachable": "Alamat yang diberikan tidak dapat dijangkau.",

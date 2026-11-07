@@ -3,7 +3,11 @@
     "name": "Русский",
     "status": "machine-translated, needs native review",
     "reviewed": false,
-    "machine_reviewed": "2026-10-25"
+    "machine_reviewed": "2026-10-25",
+    "pending_review": [
+      "note.nine_router.version_untested",
+      "test.nine_router.connected_untested"
+    ]
   },
   "access.confirm_unavailable": "{reason} Учётная запись будет сохранена, но вместо чисел покажет эту причину.",
   "access.cost_advisory": "Провайдер с оплатой за запрос: примерно один запрос к Cost Explorer на каждый опрос. Без заданного интервала Cuotai опрашивает раз в час; фактический минимум — 15 минут (интервалы от 5 до 14 минут повышаются до 15, меньшие отклоняются). Несколько окон или команд делят один запрос на интервал. Ручные обновления по-прежнему выполняются явно.",
@@ -1326,6 +1330,7 @@
   "note.nine_router.summary": "Подключений 9router с использованием: {ready} из {total}.",
   "note.nine_router.truncated": "В 9router больше подключений, чем прочитанный лимит (1000); остальные опущены.",
   "note.nine_router.version": "9router {version}.",
+  "note.nine_router.version_untested": "9router {version} старше {min} — самой старой версии, с которой тестировался Cuotai; некоторые запросы могут не выполняться, пока вы его не обновите.",
   "note.nine_router.zero_caveat": "Значения в нормализации 9router; отсутствующее значение может отображаться как 0.",
   "note.open_router.activity_failed": "Расходы по источнику сейчас недоступны; баланс остаётся верным.",
   "note.open_router.activity_window": "Расходы по источнику охватывают только завершённые сутки UTC и обновляются после полуночи UTC.",
@@ -1901,6 +1906,7 @@
   "test.litellm.not_litellm": "Адрес отвечает, но, похоже, это не прокси LiteLLM (нет /provider/budgets).",
   "test.nine_router.certificate_changed": "Сертификат экземпляра изменился и не совпадает с закреплённым. Новый отпечаток SHA-256: {fingerprint}. Сверьте его на сервере, прежде чем доверять.",
   "test.nine_router.connected": "9router {version}: найдено подключений с использованием: {connections}.",
+  "test.nine_router.connected_untested": "9router {version}: найдено подключений с использованием: {connections}. Эта версия старше {min} — самой старой, с которой тестировался Cuotai; некоторые запросы могут не выполняться.",
   "test.nine_router.not_nine_router": "Адрес отвечает, но, похоже, это не 9router.",
   "test.nine_router.password_required": "Этот экземпляр требует пароль панели; выберите «Пароль панели».",
   "test.nine_router.unreachable": "Указанный адрес недоступен.",

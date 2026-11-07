@@ -3,7 +3,11 @@
     "name": "日本語",
     "status": "machine-translated, needs native review",
     "reviewed": false,
-    "machine_reviewed": "2026-10-25"
+    "machine_reviewed": "2026-10-25",
+    "pending_review": [
+      "note.nine_router.version_untested",
+      "test.nine_router.connected_untested"
+    ]
   },
   "access.confirm_unavailable": "{reason} アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
   "access.cost_advisory": "照会ごとに課金されるプロバイダーです。1 回の照会でおよそ 1 回の Cost Explorer リクエストが発生します。間隔を指定しない場合、Cuotai は 1 時間に 1 回照会します。実際の最小間隔は 15 分です（5〜14 分は 15 分に引き上げられ、それより短い間隔は拒否されます）。複数のウィンドウやコマンドは間隔ごとに 1 回のリクエストを共有します。手動更新は引き続き明示的な操作が必要です。",
@@ -1302,6 +1306,7 @@
   "note.nine_router.summary": "9router の接続 {total} 件中 {ready} 件に使用量があります。",
   "note.nine_router.truncated": "9router の接続数が読み取りの上限（1000）を超えています。残りは省略しました。",
   "note.nine_router.version": "9router {version}。",
+  "note.nine_router.version_untested": "9router {version} は、Cuotai がテストした最も古いバージョン {min} より古いです。更新するまで一部の取得に失敗することがあります。",
   "note.nine_router.zero_caveat": "値は 9router が正規化したものです。欠損値は 0 と表示されることがあります。",
   "note.open_router.activity_failed": "出所別の支出は現在利用できません。残高は正しいままです。",
   "note.open_router.activity_window": "出所別の支出は UTC の丸 1 日分のみを対象とし、UTC の午前 0 時以降に更新されます。",
@@ -1865,6 +1870,7 @@
   "test.litellm.not_litellm": "アドレスは応答しましたが、LiteLLM プロキシではないようです（/provider/budgets がありません）。",
   "test.nine_router.certificate_changed": "インスタンスの証明書が変更され、固定した証明書と一致しなくなりました。新しい SHA-256 フィンガープリント：{fingerprint}。信頼する前にサーバーで確認してください。",
   "test.nine_router.connected": "9router {version}：使用量のある接続が {connections} 件見つかりました。",
+  "test.nine_router.connected_untested": "9router {version}：使用量のある接続が {connections} 件見つかりました。このバージョンは Cuotai がテストした最も古いバージョン {min} より古いため、一部の取得に失敗することがあります。",
   "test.nine_router.not_nine_router": "アドレスは応答しましたが、9router ではないようです。",
   "test.nine_router.password_required": "このインスタンスにはダッシュボードのパスワードが必要です。「ダッシュボードのパスワード」を選んでください。",
   "test.nine_router.unreachable": "指定したアドレスに接続できませんでした。",
