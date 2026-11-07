@@ -166,6 +166,43 @@ pub struct ParsedConfig {
     pub warnings: Vec<ConfigWarning>,
 }
 
+/// PRD 0051 RF1.1: one `[[accounts]]` table in document order, usable or
+/// set aside.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ConfigEntry<'a> {
+    Ready(&'a crate::Account),
+    NeedsConfiguration(&'a ConfigAccountIssue),
+}
+
+/// Interleave `accounts` (in order, without the set-aside ones) and
+/// `issues` (each with its document index) back into document order.
+pub fn entries<'a>(
+    accounts: &'a [crate::Account],
+    issues: &'a [ConfigAccountIssue],
+) -> Vec<ConfigEntry<'a>> {
+    let mut out = Vec::with_capacity(accounts.len() + issues.len());
+    let mut accounts = accounts.iter();
+    let mut issues = issues.iter().peekable();
+    loop {
+        if let Some(issue) = issues.next_if(|issue| issue.index <= out.len()) {
+            out.push(ConfigEntry::NeedsConfiguration(issue));
+        } else if let Some(account) = accounts.next() {
+            out.push(ConfigEntry::Ready(account));
+        } else if let Some(issue) = issues.next() {
+            out.push(ConfigEntry::NeedsConfiguration(issue));
+        } else {
+            return out;
+        }
+    }
+}
+
+impl ParsedConfig {
+    /// Every account table in document order (PRD 0051 RF1.1).
+    pub fn entries(&self) -> Vec<ConfigEntry<'_>> {
+        entries(&self.config.accounts, &self.issues)
+    }
+}
+
 /// The one-based line and column of byte `offset` in `text`.
 pub(crate) fn position(text: &str, offset: usize) -> (usize, usize) {
     let mut offset = offset.min(text.len());
@@ -448,6 +485,15 @@ credential_env = "GROQ_API_KEY"
             .map(|a| a.name.as_str())
             .collect();
         assert_eq!(names, ["one", "four"]);
+        let order: Vec<_> = parsed
+            .entries()
+            .iter()
+            .map(|entry| match entry {
+                ConfigEntry::Ready(account) => account.name.clone(),
+                ConfigEntry::NeedsConfiguration(issue) => format!("#{}", issue.index),
+            })
+            .collect();
+        assert_eq!(order, ["one", "#1", "#2", "four"], "document order");
         assert_eq!(parsed.issues.len(), 2);
         assert_eq!(parsed.issues[0].index, 1);
         assert_eq!(

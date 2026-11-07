@@ -377,6 +377,9 @@ jobs:
       # never-defined credential variables, so every account is classified
       # missing configuration before any HTTP and the command must exit 2.
       - run: cargo build -p cuotai-tui --locked
+      # PRD 0051 RF2.6: every marked example block of cuotai.example.toml
+      # passes the strict reader (--check-config: no credential, no network).
+      - run: cargo run -p xtask --locked -- check-example-config
       - name: TUI smoke (no network)
         shell: bash
         run: |

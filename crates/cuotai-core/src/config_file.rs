@@ -42,7 +42,8 @@ mod check;
 mod parse;
 pub use check::{check, check_bytes, error_kind, ConfigCheck, ConfigDiagnostic};
 pub use parse::{
-    parse, ConfigAccountIssue, ConfigParseMode, ConfigPath, ConfigWarning, ParsedConfig,
+    entries, parse, ConfigAccountIssue, ConfigEntry, ConfigParseMode, ConfigPath, ConfigWarning,
+    ParsedConfig,
 };
 pub(crate) use parse::{parse_note, position};
 use std::path::{Path, PathBuf};
@@ -329,6 +330,12 @@ impl ConfigFile {
         at(dir.join("cuotai").join("config.toml"), PathSource::System)
     }
 
+    /// PRD 0051 RF1.1: every account table in document order, the set-aside
+    /// ones in their own position.
+    pub fn entries(&self) -> Vec<ConfigEntry<'_>> {
+        entries(&self.config.accounts, &self.issues)
+    }
+
     /// Normalized identity of [`ConfigFile::path`] (see [`ConfigIdentity::of_path`]).
     pub fn identity(&self) -> std::io::Result<ConfigIdentity> {
         ConfigIdentity::of_path(&self.path)
@@ -336,16 +343,6 @@ impl ConfigFile {
 
     /// Validate and durably persist `config`. See module docs for the policy.
     pub fn save(&mut self, mut config: Config) -> Result<(), EditError> {
-        // PRD 0051 RF1.5: the tables this release could not read are kept
-        // byte for byte, so it does not rewrite a file that holds any.
-        if !self.issues.is_empty() {
-            return Err(EditError::Unsupported {
-                note: crate::text::Localized::fixed(
-                    "edit_error.config_newer_accounts",
-                    "This file has accounts that need a newer version of Cuotai, so this version does not change it; update Cuotai or edit the file by hand.",
-                ),
-            });
-        }
         // PRD 0029 RF1.3: an account the front end built without an id gets
         // the effective one a reader of this file would derive; every saved
         // table carries its id from now on.
@@ -425,6 +422,15 @@ impl ConfigFile {
             path: dest.clone(),
             source: e,
         })?;
+        // PRD 0051 RF1.5: the set-aside tables were kept byte for byte; their
+        // positions may have moved with the known accounts around them.
+        if let Ok(parsed) = std::str::from_utf8(&bytes)
+            .map_err(|_| ())
+            .and_then(|text| parse(text, ConfigParseMode::Tolerant).map_err(|_| ()))
+        {
+            self.issues = parsed.issues;
+            self.warnings = parsed.warnings;
+        }
         self.config = config;
         self.exists = true;
         self.original = Some(bytes);
@@ -520,10 +526,15 @@ fn current_permissions(path: &Path) -> Option<fs::Permissions> {
 /// comments and formatting of retained entries survive. The result is parsed
 /// back and must be equivalent to `config`, otherwise the save is refused.
 fn render(config: &Config, previous: Option<&[u8]>) -> Result<Vec<u8>, EditError> {
-    let text = match previous
-        .and_then(|b| std::str::from_utf8(b).ok())
-        .and_then(|s| s.parse::<toml_edit::DocumentMut>().ok())
-    {
+    let previous_text = previous.and_then(|b| std::str::from_utf8(b).ok());
+    // PRD 0051 RF1.5: the `[[accounts]]` tables the tolerant reader set aside
+    // (a provider or key of a newer release) are opaque: they are taken out
+    // before the known accounts are edited and put back untouched.
+    let opaque: Vec<usize> = previous_text
+        .and_then(|text| parse(text, ConfigParseMode::Tolerant).ok())
+        .map(|parsed| parsed.issues.iter().map(|issue| issue.index).collect())
+        .unwrap_or_default();
+    let text = match previous_text.and_then(|s| s.parse::<toml_edit::DocumentMut>().ok()) {
         Some(mut doc) => {
             set_int(&mut doc, "refresh_seconds", config.refresh_seconds as i64);
             set_int(&mut doc, "concurrency", config.concurrency as i64);
@@ -561,7 +572,9 @@ fn render(config: &Config, previous: Option<&[u8]>) -> Result<Vec<u8>, EditError
                     serialize_fresh(config)?
                 }
             } else {
+                let set_aside = take_opaque_accounts(&mut doc, &opaque);
                 update_accounts(&mut doc, &config.accounts)?;
+                restore_opaque_accounts(&mut doc, set_aside);
                 update_groups(&mut doc, &config.groups)?;
                 doc.to_string()
             }
@@ -813,6 +826,51 @@ fn update_accounts(
         first.decor_mut().set_prefix(prefix);
     }
     Ok(())
+}
+
+/// PRD 0051 RF1.5: remove the `[[accounts]]` tables at `indices` (the ones
+/// the tolerant reader set aside) and return them in document order.
+fn take_opaque_accounts(
+    doc: &mut toml_edit::DocumentMut,
+    indices: &[usize],
+) -> Vec<toml_edit::Table> {
+    let Some(array) = doc
+        .get_mut("accounts")
+        .and_then(toml_edit::Item::as_array_of_tables_mut)
+    else {
+        return Vec::new();
+    };
+    let mut taken = Vec::new();
+    for &index in indices.iter().rev() {
+        if let Some(table) = array.get(index) {
+            taken.push(table.clone());
+            array.remove(index);
+        }
+    }
+    taken.reverse();
+    taken
+}
+
+/// Put back the tables of [`take_opaque_accounts`]. Each keeps its document
+/// position, so the encoder writes it where it was, byte for byte, among
+/// the edited known accounts; with no known account left the array still
+/// holds them.
+fn restore_opaque_accounts(doc: &mut toml_edit::DocumentMut, tables: Vec<toml_edit::Table>) {
+    if tables.is_empty() {
+        return;
+    }
+    if !doc
+        .get("accounts")
+        .is_some_and(|item| item.as_array_of_tables().is_some())
+    {
+        doc["accounts"] = toml_edit::Item::ArrayOfTables(toml_edit::ArrayOfTables::new());
+    }
+    let array = doc["accounts"]
+        .as_array_of_tables_mut()
+        .expect("accounts is an array of tables");
+    for table in tables {
+        array.push(table);
+    }
 }
 
 fn is_empty_array(item: &toml_edit::Item) -> bool {
@@ -1170,10 +1228,10 @@ amount = 5
     }
 
     #[test]
-    fn unrelated_unknown_account_keys_isolate_the_account_and_lock_the_file() {
+    fn unrelated_unknown_account_keys_isolate_the_account_and_survive_a_save() {
         // PRD 0051 RF1.2/RF1.5: the account with a key this release does not
         // know is set aside (not the whole file), the strict reader still
-        // names the typo, and no save can drop the table.
+        // names the typo, and a save keeps the table byte for byte.
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("typo.toml");
         let text = FUTURE_KEYS_FIXTURE.replace("floors", "floor");
@@ -1186,9 +1244,150 @@ amount = 5
             Config::from_toml(&text),
             Err(crate::ConfigError::Parse { path: Some(path), .. }) if path.to_string() == "accounts[0].floor"
         ));
-        let error = file.save(file.config.clone()).unwrap_err();
-        assert_eq!(error.l10n().id, "edit_error.config_newer_accounts");
-        assert_eq!(fs::read_to_string(&path).unwrap(), text, "nothing written");
+        let mut changed = file.config.clone();
+        changed.refresh_seconds = 600;
+        file.save(changed).unwrap();
+        let saved = fs::read_to_string(&path).unwrap();
+        assert_eq!(
+            saved,
+            text.replace("refresh_seconds = 300", "refresh_seconds = 600")
+        );
+        assert_eq!(file.issues.len(), 1, "still set aside after the save");
+    }
+
+    /// PRD 0051 RF1.5 golden round trip: a file with set-aside accounts, an
+    /// unknown top-level table and comments. Every known-account edit
+    /// (change, add, move, rename, delete) keeps each opaque range byte for
+    /// byte.
+    const OPAQUE_FIXTURE: &str = r#"# Header comment, kept.
+refresh_seconds = 300 # trailing
+future_top = { mode = "x", list = [1, 2] }
+
+[[accounts]]
+name = "one"
+provider = "open_ai_api"
+credential_env = "ONE_KEY"
+
+# A newer provider, kept as written.
+[[accounts]]
+name = "two"
+provider = "provider-from-the-future"
+credential_env =   "TWO"   # odd spacing
+[accounts.params]
+mystery = 'single'
+
+[[accounts]]
+name = "three"
+provider = "groq"
+credential_env = "THREE_KEY"
+
+[[accounts]]
+name = "four"
+provider = "anthropic_api"
+credential_env = "FOUR_KEY"
+new_key = { nested = true } # a key of a newer release
+
+[later_table]
+x = 1 # kept
+"#;
+
+    const OPAQUE_RANGES: [&str; 4] = [
+        "future_top = { mode = \"x\", list = [1, 2] }\n",
+        "# A newer provider, kept as written.\n[[accounts]]\nname = \"two\"\nprovider = \"provider-from-the-future\"\ncredential_env =   \"TWO\"   # odd spacing\n[accounts.params]\nmystery = 'single'\n",
+        "[[accounts]]\nname = \"four\"\nprovider = \"anthropic_api\"\ncredential_env = \"FOUR_KEY\"\nnew_key = { nested = true } # a key of a newer release\n",
+        "[later_table]\nx = 1 # kept\n",
+    ];
+
+    fn opaque_file() -> (tempfile::TempDir, PathBuf, ConfigFile) {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("opaque.toml");
+        fs::write(&path, OPAQUE_FIXTURE).unwrap();
+        let file = load_at(&path, false).unwrap();
+        (dir, path, file)
+    }
+
+    fn assert_opaque_kept(text: &str) {
+        for range in OPAQUE_RANGES {
+            assert!(text.contains(range), "lost {range:?} in:\n{text}");
+        }
+        assert!(text.starts_with("# Header comment, kept.\n"), "{text}");
+        let parsed = parse(text, ConfigParseMode::Tolerant).unwrap();
+        assert_eq!(parsed.issues.len(), 2, "{text}");
+        assert_eq!(parsed.warnings.len(), 2, "{text}");
+    }
+
+    fn names(file: &ConfigFile) -> Vec<String> {
+        file.config
+            .accounts
+            .iter()
+            .map(|a| a.name.clone())
+            .collect()
+    }
+
+    #[test]
+    fn known_account_edits_keep_every_opaque_range_byte_for_byte() {
+        let (_dir, path, mut file) = opaque_file();
+        assert_eq!(names(&file), ["one", "three"]);
+        let positions: Vec<_> = file.issues.iter().map(|issue| issue.index).collect();
+        assert_eq!(positions, [1, 3]);
+
+        // Change a field of a known account.
+        let mut config = file.config.clone();
+        config.accounts[1].refresh_seconds = Some(120);
+        file.save(config).unwrap();
+        let text = fs::read_to_string(&path).unwrap();
+        assert_opaque_kept(&text);
+        assert!(text.contains("refresh_seconds = 120"));
+        let order: Vec<_> = [
+            "name = \"one\"",
+            "name = \"two\"",
+            "name = \"three\"",
+            "name = \"four\"",
+        ]
+        .iter()
+        .map(|needle| text.find(needle).unwrap())
+        .collect();
+        assert!(
+            order.windows(2).all(|w| w[0] < w[1]),
+            "positions kept:\n{text}"
+        );
+
+        // Rename.
+        let mut config = file.config.clone();
+        config.accounts[0].name = "uno".into();
+        file.save(config).unwrap();
+        let text = fs::read_to_string(&path).unwrap();
+        assert_opaque_kept(&text);
+        assert!(text.contains("name = \"uno\""));
+
+        // Move the two known accounts.
+        let mut config = file.config.clone();
+        config.accounts.swap(0, 1);
+        file.save(config).unwrap();
+        let text = fs::read_to_string(&path).unwrap();
+        assert_opaque_kept(&text);
+        assert_eq!(names(&file), ["three", "uno"]);
+        let reread = load_at(&path, false).unwrap();
+        assert_eq!(names(&reread), ["three", "uno"]);
+
+        // Add one.
+        let mut config = file.config.clone();
+        config.accounts.push(account("five", Some("FIVE_KEY")));
+        file.save(config).unwrap();
+        let text = fs::read_to_string(&path).unwrap();
+        assert_opaque_kept(&text);
+        assert_eq!(
+            names(&load_at(&path, false).unwrap()),
+            ["three", "uno", "five"]
+        );
+
+        // Delete every known account: the opaque ones stay.
+        let mut config = file.config.clone();
+        config.accounts.clear();
+        file.save(config).unwrap();
+        let text = fs::read_to_string(&path).unwrap();
+        assert_opaque_kept(&text);
+        assert!(load_at(&path, false).unwrap().config.accounts.is_empty());
     }
 
     #[test]

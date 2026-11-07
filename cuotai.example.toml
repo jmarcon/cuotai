@@ -10,6 +10,8 @@
 # 9router's native logins do not need your own client_id; Cloud Monitoring/Azure do.
 # oauth and credential_env are mutually exclusive. Safe metadata comes from the login.
 # For AWS Bedrock SSO through the CLI: preconfigured profile, F2. Kiro has its own native login.
+# The "# example: <name>" and "# example-end" lines mark optional blocks that
+# `cargo xtask check-example-config` uncomments one at a time and checks with cuotai --check-config.
 refresh_seconds = 300 # global default for accounts without their own interval
 concurrency = 4
 timeout_seconds = 30
@@ -18,24 +20,30 @@ timeout_seconds = 30
 # digits, - or _). Cuotai then marks the best account now of each group, as advice only. Without a group, only
 # accounts of the same provider are compared. [[groups]] gives a group a display name and a position;
 # membership is the account's group, or the account ids listed in members (optional).
+# example: groups
 # [[groups]]
 # id = "coding"
 # label = "Coding assistants"
 # order = 1
 # members = ["acc_0123456789ab"]
+# example-end
 
 # Opt in to the terminal update notice (off by default; CUOTAI_UPDATE_CHECK=1 does the same).
+# example: updates
 # [updates]
 # check = true
+# example-end
 
 [[accounts]]
 name = "OpenAI API"
 provider = "open_ai_api"
 credential_env = "OPENAI_ADMIN_KEY"
 # A second account of the same provider needs its own variable, e.g. OPENAI_ADMIN_KEY_WORK.
+# example: account-options
 # refresh_seconds = 60 # optional, for this account only (minimum 30 s)
 # group = "coding" # optional, see the note above the first account
 # params = { project_ids = "proj_1,proj_2", models = "gpt-4.1" }
+# example-end
 #
 # Optional budgets (PRD 0041): your own limit on spend, usage or credits the
 # provider reports without one. Each becomes a "Budget" quota with pace,
@@ -45,6 +53,7 @@ credential_env = "OPENAI_ADMIN_KEY"
 # scope = "account" (the account's total spend). period is daily, weekly
 # (starts = "monday".."sunday"), monthly (starts = 1..28, default 1) or
 # window (the provider's own cycle). Boundaries are local midnight.
+# example: budgets
 # [[accounts.budgets]]
 # kind = "spend"
 # amount = 50
@@ -52,25 +61,32 @@ credential_env = "OPENAI_ADMIN_KEY"
 # period = "monthly"
 # starts = 1
 # label = "API budget" # optional, at most 32 characters
+# example-end
 #
 # Optional balance floors (PRD 0041): warn when a balance or credits metric
 # drops below amount (up to 4 per account).
+# example: floors
 # [[accounts.floors]]
 # kind = "balance" # or "credits"; absent: the first of either
 # amount = 5
+# example-end
 
 [[accounts]]
 name = "Anthropic API"
 provider = "anthropic_api"
 credential_env = "ANTHROPIC_ADMIN_KEY"
+# example: anthropic-params
 # params = { workspace_ids = "wrk_1", models = "claude-sonnet-4-6" }
+# example-end
 
 [[accounts]]
 name = "ChatGPT / Codex"
 provider = "chat_gpt"
 credential_env = "CHATGPT_ACCESS_TOKEN"
 # Internal interface: Codex windows, NOT the web chat quota.
+# example: chatgpt-params
 # params = { account_id = "your-account-id" }
+# example-end
 # Fed by Codex CLI's local session logs instead (no network, no token; needs the
 # Codex CLI local cost source): params = { query_mode = "codex_cli" } (or "codex_cli_or_api").
 
@@ -87,20 +103,26 @@ credential_env = "CLAUDE_OAUTH_TOKEN"
 name = "Gemini API"
 provider = "gemini_api"
 credential_env = "GOOGLE_CLOUD_ACCESS_TOKEN"
+# example: gemini-api-params
 # params = { project_id = "your-project" }
+# example-end
 
 [[accounts]]
 name = "Vertex AI"
 provider = "vertex_ai"
 credential_env = "GOOGLE_CLOUD_ACCESS_TOKEN"
+# example: vertex-params
 # params = { project_id = "your-project" }
+# example-end
 
 [[accounts]]
 name = "AWS Bedrock"
 provider = "aws_bedrock"
 # Requires AWS CLI v2. WARNING: Cost Explorer charges per query. Without refresh_seconds this account
 # is queried once an hour (minimum 900 s); every window or command shares that one request.
+# example: bedrock-params
 # params = { profile = "your-profile" }
+# example-end
 # Model catalog (on demand only, no Cost Explorer): the profile's default region,
 # or params = { profile = "your-profile", region = "us-east-1" }; requires bedrock:ListFoundationModels.
 
@@ -108,7 +130,9 @@ provider = "aws_bedrock"
 name = "Azure OpenAI"
 provider = "azure_open_ai"
 credential_env = "AZURE_ACCESS_TOKEN"
+# example: azure-params
 # params = { subscription_id = "your-subscription", resource_id = "/subscriptions/your-subscription/resourceGroups/your-group/providers/Microsoft.CognitiveServices/accounts/your-openai" }
+# example-end
 # The cost belongs to the whole resource; shared Foundry resources include other models.
 
 [[accounts]]
@@ -122,9 +146,13 @@ credential_env = "CURSOR_ADMIN_API_KEY"
 name = "GitHub Copilot"
 provider = "copilot"
 credential_env = "GITHUB_TOKEN"
+# example: copilot-org
 # params = { mode = "org", org = "your-organization", billing = "ai_credits" }
+# example-end
 # Internal personal quota (like 9router): the account's GitHub token, not a copilotToken.
+# example: copilot-quota
 # params = { query_mode = "quota" }
+# example-end
 
 [[accounts]]
 name = "Windsurf"
@@ -144,7 +172,9 @@ name = "Kimi"
 provider = "kimi"
 credential_env = "KIMI_API_KEY"
 # Kimi Coding (instead of the international Moonshot balance):
+# example: kimi-coding
 # params = { product = "coding" }
+# example-end
 
 [[accounts]]
 name = "Qwen"
@@ -168,7 +198,9 @@ credential_env = "META_API_KEY"
 # present. Meta documents no usage or balance API. For usage, sign in to dev.meta.ai with
 # "Sign in" in the desktop account wizard (session kept in the system vault), or name a
 # variable holding the `llama_dev_sess` cookie. Undocumented console interface; it may change.
+# example: meta-session
 # params = { session_env = "META_SESSION", team_id = "<team_id= of dev.meta.ai/usage>", project_id = "<optional>" }
+# example-end
 
 [[accounts]]
 name = "JetBrains AI (organization)"
@@ -186,14 +218,18 @@ name = "Perplexity"
 provider = "perplexity"
 credential_env = "PERPLEXITY_API_KEY"
 # Sonar does not expose a per-key balance. Computer Enterprise is a separate opt-in:
+# example: perplexity-computer
 # params = { product = "computer", analytics_key_env = "PERPLEXITY_COMPUTER_ANALYTICS_KEY" }
+# example-end
 
 [[accounts]]
 name = "Mistral"
 provider = "mistral"
 credential_env = "MISTRAL_API_KEY"
 # The variable must hold an Admin API Key. Optionally use another variable:
+# example: mistral-admin
 # params = { admin_key_env = "MISTRAL_ADMIN_KEY" }
+# example-end
 
 [[accounts]]
 name = "Cloudflare AI"
@@ -215,10 +251,14 @@ credential_env = "XIAOMI_MIMO_API_KEY"
 # the desktop dialog's "Web session" box; the TOML then keeps only a reference:
 # session = { credential_ref = "<uuid generated by Cuotai>", slots = ["platform_session_env"] }
 # Alternative: a variable holding the Cookie, never the cookie itself:
+# example: xiaomi-platform
 # params = { platform_session_env = "XIAOMI_PLATFORM_COOKIE" }
+# example-end
 # The Desktop weekly session (serviceToken) is another service, pasted the same
 # way or named by a variable:
+# example: xiaomi-desktop
 # params = { session_env = "XIAOMI_MIMO_COOKIE", region = "sgp" }
+# example-end
 # The native code authorizes an sk- inference key, not these cookies.
 
 [[accounts]]
@@ -231,23 +271,31 @@ name = "Qoder"
 provider = "qoder"
 credential_env = "QODER_API_KEY"
 # A pt- PAT is exchanged for a job token before the query; region intl or cn.
+# example: qoder
 # params = { credential_type = "auto", region = "intl" }
+# example-end
 
 [[accounts]]
 name = "Gemini AI (API key)"
 provider = "gemini_ai"
 credential_env = "GEMINI_API_KEY"
 # Gemini CLI is another product: a Code Assist OAuth session, not GEMINI_API_KEY.
+# example: gemini-cli
 # params = { product = "cli", session_env = "GEMINI_CLI_ACCESS_TOKEN" }
+# example-end
 
 [[accounts]]
 name = "Grok (xAI)"
 provider = "grok"
 credential_env = "X_GROK_API_KEY"
 # Requires an xAI Management Key, not the inference key or an X social API token.
+# example: grok-management
 # params = { team_id = "your-team-id", management_key_env = "XAI_MANAGEMENT_KEY" }
+# example-end
 # Grok CLI/SuperGrok (another product):
+# example: grok-cli
 # params = { product = "cli", session_env = "GROK_CLI_ACCESS_TOKEN" }
+# example-end
 
 [[accounts]]
 name = "NVidia NIM"
@@ -264,35 +312,45 @@ name = "Kiro (AWS)"
 provider = "kiro"
 credential_env = "KIRO_ACCESS_TOKEN"
 # A Kiro token, not IAM/Bedrock credentials. Internal getUsageLimits query.
+# example: kiro-params
 # params = { auth_method = "builder-id", profile_arn = "arn:aws:codewhisperer:us-east-1:...:profile/..." }
+# example-end
 # Repeat [[accounts]] for another Kiro account with a distinct name and credential_env.
 # Alternatively, use the wizard and sign in separately on each account; each login
 # gets its own credential_id in the vault. Never reuse another account's token.
+# example: kiro-second
 # [[accounts]]
 # name = "Kiro (second account)"
 # provider = "kiro"
 # credential_env = "KIRO_SECOND_ACCESS_TOKEN"
 # params = { auth_method = "builder-id" }
+# example-end
 
 [[accounts]]
 name = "Cline"
 provider = "cline"
 credential_env = "CLINE_API_KEY"
+# example: cline
 # params = { organization_id = "your-organization" }
+# example-end
 
 [[accounts]]
 name = "CodeBuddy"
 provider = "code_buddy"
 credential_env = "CODEBUDDY_ACCESS_TOKEN"
 # CN or international session, internal package quota.
+# example: codebuddy
 # params = { region = "cn" }
+# example-end
 
 [[accounts]]
 name = "Zed"
 provider = "zed"
 credential_env = "ZED_ACCESS_TOKEN"
 # A Zed session, not an LLM inference token; user_id is required.
+# example: zed
 # params = { user_id = "12345" }
+# example-end
 
 # Alibaba: Model Studio, Coding Plan, Token Plan and billing are distinct products.
 [[accounts]]
@@ -341,7 +399,9 @@ name = "Antigravity"
 provider = "antigravity"
 credential_env = "ANTIGRAVITY_ACCESS_TOKEN"
 # Or native login: Antigravity wizard → Credential → Tab.
+# example: antigravity
 # params = { project_id = "optional-code-assist-project" }
+# example-end
 
 [[accounts]]
 name = "Kimchi"
@@ -353,7 +413,9 @@ name = "ElevenLabs"
 provider = "eleven_labs"
 credential_env = "ELEVENLABS_API_KEY"
 # Optional data-residency endpoint: default, us, eu, in or sg.
+# example: elevenlabs-region
 # params = { region = "eu" }
+# example-end
 
 # 9router: the quotas of the connections you already added in your own
 # instance (an aggregator: each connection shows as a sub-account). Leave
@@ -384,19 +446,23 @@ credential_env = "OPENROUTER_API_KEY"
 
 # OpenRouter account balance needs a MANAGEMENT key (it cannot make inference
 # calls but it manages keys; prefer the system vault).
+# example: openrouter-balance
 # [[accounts]]
 # name = "OpenRouter balance"
 # provider = "open_router"
 # credential_env = "OPENROUTER_MANAGEMENT_KEY"
 # params = { product = "account" }  # optional: breakdown = "provider" | "model", low_balance = "5"
 # breakdown = ["keys"]  # PRD 0045: each key's limit, reset and spend (up to 3 extra requests)
+# example-end
 
 # LiteLLM proxy: the USD budget and spend per provider of your own proxy
 # (provider_budget_config), one sub-account per provider. Only the documented
 # GET /provider/budgets is read.
+# example: litellm
 # [[accounts]]
 # name = "litellm"
 # provider = "litellm"
 # credential_env = "LITELLM_API_KEY"   # name of the variable with the master or virtual key
 # params = { base_url = "http://127.0.0.1:4000" }
 # breakdown = ["keys", "teams"]  # optional: spend and budget per virtual key and team (by alias)
+# example-end
