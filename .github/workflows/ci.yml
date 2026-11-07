@@ -668,6 +668,31 @@ jobs:
       - name: end-to-end dry run against the mutated fixture
         run: cargo test --locked -p cuotai-tui --test canary
 
+  # PRD 0050 RF7.3 (SEC-DEV-STORE): the plaintext SQLite development store
+  # is compiled out of release builds. The owning test has a release branch
+  # that only runs with optimizations and no debug assertions, so this job
+  # runs the credential-store tests under `--release` and proves the store
+  # is refused before any filesystem access. Linux only: the branch is
+  # `cfg(debug_assertions)`, not platform code.
+  release-profile:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
+        with:
+          toolchain: 1.99.1
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: release-profile
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: development store refused in a release build
+        run: cargo test --locked -p cuotai-core --release --lib oauth::store
+
   # Release preflight (PRD 0039 RF8.3): read-only, no secrets. Runs actionlint
   # and the checked release policies when a change touches release tooling,
   # and on every release PR (head branch release/v*), where it also proves the
@@ -734,7 +759,7 @@ jobs:
   # succeeded.
   ci-result:
     name: CI result
-    needs: [changes, test, ui-checks, tooling-cache, deny, version-check, changelog-check, access-evidence, canary-dry-run, release-preflight]
+    needs: [changes, test, ui-checks, tooling-cache, deny, version-check, changelog-check, access-evidence, canary-dry-run, release-profile, release-preflight]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5

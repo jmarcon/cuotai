@@ -260,6 +260,11 @@ mod tests {
             };
             assert_eq!(text.id, "oauth_error.store.sqlite_dev_only");
             assert!(!path.exists(), "no filesystem access");
+            // A path whose folder does not exist: nothing is created on the
+            // way to the refusal either (CI's `release-profile` job).
+            let nested = dir.path().join("never").join("cuotai-dev.sqlite3");
+            assert!(development_store(&nested).is_err());
+            assert!(!dir.path().join("never").exists(), "no folder created");
         }
     }
 
