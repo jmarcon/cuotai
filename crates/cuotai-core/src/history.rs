@@ -103,7 +103,7 @@ const WAL_SIZE_LIMIT: i64 = 4 << 20;
 /// PRD 0046 RF4: the migration count this release knows, for `--doctor`.
 pub(crate) const SCHEMA_REVISION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: [&str; 7] = [
+pub(crate) const MIGRATIONS: [&str; 7] = [
     "CREATE TABLE series (
     config_key TEXT NOT NULL,
     account_digest TEXT NOT NULL,

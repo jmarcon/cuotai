@@ -2067,6 +2067,41 @@ mod tests {
         assert_eq!(value["motion"], "off");
     }
 
+    /// PRD 0051 RF6: the core's immutable `desktop.json` fixtures. Every
+    /// value this release knows reads back; a write keeps the members of a
+    /// later revision; a later major is never rewritten.
+    #[test]
+    fn compat_fixtures_of_desktop_json() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../crates/cuotai-core/tests/fixtures/compat/desktop");
+        for (fixture, newer_major) in [
+            ("major-1-revision-0", false),
+            ("major-1-revision-1", false),
+            ("major-2-revision-0", true),
+        ] {
+            let bytes = fs::read(root.join(fixture).join("desktop.json")).unwrap();
+            let dir = tempfile::tempdir().unwrap();
+            let file = dir.path().join("desktop.json");
+            fs::write(&file, &bytes).unwrap();
+            if newer_major {
+                assert_eq!(write_locale(&file, "de"), Err("newer"), "{fixture}");
+                assert_eq!(fs::read(&file).unwrap(), bytes, "{fixture}");
+                continue;
+            }
+            assert_eq!(read(&file).locale.as_deref(), Some("fr"), "{fixture}");
+            write_locale(&file, "de").unwrap();
+            let before: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+            let after: serde_json::Value =
+                serde_json::from_slice(&fs::read(&file).unwrap()).unwrap();
+            assert_eq!(after["locale"], "de");
+            for (key, value) in before.as_object().unwrap() {
+                if key != "locale" {
+                    assert_eq!(after.get(key), Some(value), "{fixture}: {key}");
+                }
+            }
+        }
+    }
+
     /// PRD 0051 RF3.2: a later schema major is read but never rewritten.
     #[test]
     fn a_newer_schema_major_is_never_rewritten() {

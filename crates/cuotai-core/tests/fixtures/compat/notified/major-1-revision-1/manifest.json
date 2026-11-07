@@ -1,0 +1,12 @@
+{
+  "contract": "notified.json",
+  "major": 1,
+  "revision": 1,
+  "writer": "vNEXT",
+  "expected": "newer_revision",
+  "reader": "n_minus_1::notified",
+  "backup": false,
+  "files": {
+    "notified.json": "eae90929fb078f87442e3852d594caa3182461547ceecedc06f98f36bdfb4574"
+  }
+}

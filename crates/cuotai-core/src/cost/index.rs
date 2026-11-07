@@ -33,7 +33,7 @@ use std::path::{Path, PathBuf};
 /// PRD 0046 RF4: the migration count this release knows, for `--doctor`.
 pub(crate) const SCHEMA_REVISION: i64 = MIGRATIONS.len() as i64;
 
-pub(super) const MIGRATIONS: [&str; 3] = [
+pub(crate) const MIGRATIONS: [&str; 3] = [
     "CREATE TABLE usage (
     source TEXT NOT NULL,
     day TEXT NOT NULL,

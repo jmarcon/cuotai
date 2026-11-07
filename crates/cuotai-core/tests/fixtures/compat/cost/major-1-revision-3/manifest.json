@@ -1,0 +1,12 @@
+{
+  "contract": "cost.sqlite3",
+  "major": 1,
+  "revision": 3,
+  "writer": "vNEXT",
+  "expected": "current",
+  "reader": "n_minus_1::cost",
+  "backup": false,
+  "files": {
+    "cost.sql": "ba8156567b5f9ccd8a5509d4a6dc8361929d8e3d1c72516ed0a0f5b64f50eafb"
+  }
+}

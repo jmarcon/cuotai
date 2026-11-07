@@ -1,0 +1,12 @@
+{
+  "contract": "models.sqlite3",
+  "major": 2,
+  "revision": 2,
+  "writer": "vNEXT",
+  "expected": "newer_major",
+  "reader": "n_minus_1::models",
+  "backup": false,
+  "files": {
+    "models.sql": "47110f6065ef541f94d785fcb1326ec7070c10c7fd5025adf8296fea5b9cd8c3"
+  }
+}

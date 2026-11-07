@@ -124,6 +124,10 @@ SUBCOMMANDS:
     --templates-dir DIR      channel templates (default: packaging)
     --out DIR                output directory for the rendered manifests
 
+  compat-check        Verify the compatibility fixtures and their manifests (PRD 0051 RF6.4)
+    --base REF              refuse fixture files changed or removed since REF
+                            (default: origin/main when it exists)
+
   check-example-config
                        Strict-check every marked example block of cuotai.example.toml (PRD 0051 RF2.6)
     --bin PATH              the cuotai binary (default: target/debug/cuotai)
@@ -197,6 +201,7 @@ fn run(args: &[String]) -> Res<()> {
         "package-manifests" => package_manifests(&opts),
         "workflow-check" => workflow_check(&opts),
         "check-example-config" => check_example_config(&opts),
+        "compat-check" => compat_check(&opts),
         "external-rules-check" => external_rules_check(&opts),
         "security-baseline" => security_baseline(&opts),
         "help" | "--help" | "-h" => {
@@ -773,6 +778,32 @@ fn security_baseline(opts: &Opts) -> Res<()> {
     let repo = opts.path("repo").unwrap_or_else(|| PathBuf::from("."));
     let count = xtask::security::run(&repo)?;
     println!("security baseline passed: CSP, desktop pages and {count} invariants");
+    Ok(())
+}
+
+fn compat_check(opts: &Opts) -> Res<()> {
+    let repo = Path::new(".");
+    let matrix = std::fs::read_to_string(xtask::compat::MATRIX)?;
+    let count = xtask::compat::check(Path::new(xtask::compat::FIXTURES), &matrix)?;
+    let base = match opts.get("base") {
+        Some(base) => Some(base),
+        None => xtask::git::run(repo, &["rev-parse", "--verify", "--quiet", "origin/main"])
+            .ok()
+            .map(|_| "origin/main".to_string()),
+    };
+    match base {
+        Some(base) => {
+            let changed = xtask::compat::changed_since(repo, &base)?;
+            if !changed.is_empty() {
+                return err(format!(
+                    "shipped compatibility fixtures changed since {base} (add a new revision instead):\n{}",
+                    changed.join("\n")
+                ));
+            }
+            println!("compat check passed: {count} fixtures, none changed since {base}");
+        }
+        None => println!("compat check passed: {count} fixtures (no base to compare with)"),
+    }
     Ok(())
 }
 

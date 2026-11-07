@@ -1,0 +1,5 @@
+# Hook rules.
+[[hooks]]
+name = "notify"
+events = ["quota_exhausted"]
+command = ["true"]

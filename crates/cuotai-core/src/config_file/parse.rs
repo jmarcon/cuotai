@@ -572,7 +572,8 @@ credential_env = "GROQ_API_KEY"
     /// names its first unsupported path.
     #[test]
     fn the_proposed_key_fixture_passes_the_tolerant_reader() {
-        let text = include_str!("../../tests/fixtures/compat/config/proposed.toml");
+        let text =
+            include_str!("../../tests/fixtures/compat/config/major-1-revision-1/proposed.toml");
         let parsed = parse(text, ConfigParseMode::Tolerant).unwrap();
         parsed.config.validate().unwrap();
         let ids: Vec<_> = parsed

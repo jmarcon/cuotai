@@ -1,0 +1,12 @@
+{
+  "contract": "hooks.toml",
+  "major": 1,
+  "revision": 0,
+  "writer": "vNEXT",
+  "expected": "current",
+  "reader": "n_minus_1::hooks",
+  "backup": false,
+  "files": {
+    "hooks.toml": "8ef83e5940b33d7a0addc1543922d4611a2016739786fa9adb764cce545b7a9b"
+  }
+}
