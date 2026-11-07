@@ -159,6 +159,18 @@ pub(crate) struct QueryError {
     pub diagnostic: Option<Box<crate::diagnostic::Diagnostic>>,
 }
 
+/// PRD 0054 RF6.3: a provider CLI that cannot be found or whose configured
+/// path is invalid is a configuration problem the user can fix.
+impl From<crate::external_tool::ToolError> for QueryError {
+    fn from(error: crate::external_tool::ToolError) -> Self {
+        Self {
+            diagnostic: None,
+            status: Status::NeedsConfiguration,
+            note: error.l10n(),
+        }
+    }
+}
+
 impl QueryError {
     /// Configuration-time mistake. The id distinguishes each callsite so
     /// the frontend can render a specific message instead of a generic one.

@@ -32,6 +32,12 @@ impl Fixture {
             port,
             version: "9.9.9".into(),
             install_source: "test".into(),
+            resolver: crate::external_tool::Resolver {
+                path: self.dir.path().join("path-dir").into_os_string(),
+                home: Some(self.dir.path().join("home")),
+                program_files: None,
+                os: crate::external_tool::Os::Linux,
+            },
         }
     }
 }
@@ -208,4 +214,30 @@ fn an_invalid_data_folder_fails() {
     let report = run(&inputs);
     assert_eq!(status(&report, "data_dir"), CheckStatus::Fail);
     assert_eq!(report.exit_code(), 2);
+}
+
+/// PRD 0054 RF6.3: a CLI-backed account reports where its program is, or
+/// that it is missing, with the home shown as `~` and no PATH value.
+#[cfg(unix)]
+#[test]
+fn a_cli_backed_account_reports_its_program() {
+    use std::os::unix::fs::PermissionsExt;
+    let text = "[[accounts]]\nname = \"Bedrock\"\nprovider = \"aws_bedrock\"\n[accounts.params]\nprofile = \"prod\"\n";
+    let fixture = Fixture::new(Some(text));
+    let report = run(&fixture.inputs(&[], free_port()));
+    assert_eq!(status(&report, "account.1.tool"), CheckStatus::Fail);
+    let tools = serde_json::to_value(&report.tools).unwrap();
+    assert_eq!(tools["aws"]["status"], "missing");
+    let json = serde_json::to_string(&report).unwrap();
+    assert!(!json.contains("path-dir"), "PATH is never printed: {json}");
+
+    let bin = fixture.dir.path().join("path-dir");
+    std::fs::create_dir_all(&bin).unwrap();
+    std::fs::write(bin.join("aws"), b"").unwrap();
+    std::fs::set_permissions(bin.join("aws"), std::fs::Permissions::from_mode(0o755)).unwrap();
+    let report = run(&fixture.inputs(&[], free_port()));
+    assert_eq!(status(&report, "account.1.tool"), CheckStatus::Ok);
+    let tools = serde_json::to_value(&report.tools).unwrap();
+    assert_eq!(tools["aws"]["status"], "found");
+    assert_eq!(tools["aws"]["source"], "path");
 }

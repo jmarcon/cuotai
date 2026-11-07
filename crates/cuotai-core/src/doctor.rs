@@ -71,6 +71,10 @@ impl Check {
 pub struct Report {
     pub schema: u32,
     pub checks: Vec<Check>,
+    /// PRD 0054 RF6.3: how each provider CLI the accounts use resolves
+    /// without a configured path (`tools.aws { status, source, path }`).
+    #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub tools: std::collections::BTreeMap<&'static str, crate::external_tool::ToolReport>,
 }
 
 impl Report {
@@ -105,6 +109,8 @@ pub struct Inputs {
     /// Version, OS and architecture, and where this copy came from.
     pub version: String,
     pub install_source: String,
+    /// PRD 0054 RF6.2: where the provider CLIs are looked for.
+    pub resolver: crate::external_tool::Resolver,
 }
 
 impl Inputs {
@@ -122,6 +128,7 @@ impl Inputs {
             port: 6738,
             version: crate::build_info::display_version(),
             install_source,
+            resolver: crate::external_tool::Resolver::from_process(),
         }
     }
 }
@@ -294,6 +301,43 @@ fn check_account(index: usize, account: &Account, inputs: &Inputs) -> Check {
             ))
             .fix(set_env(default))
     }
+}
+
+/// PRD 0054 RF6.3: the program a CLI-backed account starts, found or not.
+fn check_tool(index: usize, account: &Account, inputs: &Inputs) -> Option<Check> {
+    let tool = crate::external_tool::Tool::for_provider(account.provider)?;
+    let configured = account
+        .params
+        .get(crate::external_tool::CLI_PATH_PARAM)
+        .map(String::as_str);
+    let result = inputs.resolver.resolve(tool, configured);
+    let title = Localized::with_params(
+        "doctor.title.tool",
+        params([
+            ("tool", ParamValue::from(tool.name())),
+            ("number", ParamValue::from(index + 1)),
+        ]),
+        "{tool} program of account {number}",
+    );
+    let id = format!("account.{}.tool", index + 1);
+    Some(match &result {
+        Ok(resolved) => Check::new(id, CheckStatus::Ok, title).detail(Localized::with_params(
+            "doctor.tool.found",
+            params([
+                ("source", ParamValue::from(resolved.source.slug())),
+                ("path", path_param(&resolved.program)),
+            ]),
+            "Found ({source}): {path}.",
+        )),
+        Err(error) => Check::new(id, CheckStatus::Fail, title)
+            .detail(error.l10n())
+            .fix(Localized::with_param(
+                "doctor.fix.tool",
+                "tool",
+                tool.name(),
+                "Install {tool}, or set params.cli_path to the full path of the program in the account editor.",
+            )),
+    })
 }
 
 fn check_data_dir(inputs: &Inputs) -> Check {
@@ -536,14 +580,17 @@ pub fn run(inputs: &Inputs) -> Report {
         ),
     )];
     let config = check_config(inputs, &mut checks);
+    let mut tools = std::collections::BTreeMap::new();
     if let Some(config) = &config {
-        checks.extend(
-            config
-                .accounts
-                .iter()
-                .enumerate()
-                .map(|(index, account)| check_account(index, account, inputs)),
-        );
+        for (index, account) in config.accounts.iter().enumerate() {
+            checks.push(check_account(index, account, inputs));
+            checks.extend(check_tool(index, account, inputs));
+            if let Some(tool) = crate::external_tool::Tool::for_provider(account.provider) {
+                tools.entry(tool.name()).or_insert_with(|| {
+                    crate::external_tool::ToolReport::of(&inputs.resolver.resolve(tool, None))
+                });
+            }
+        }
     }
     checks.push(check_data_dir(inputs));
     let root = inputs.data_root.as_deref();
@@ -573,6 +620,7 @@ pub fn run(inputs: &Inputs) -> Report {
     Report {
         schema: SCHEMA,
         checks,
+        tools,
     }
 }
 

@@ -1432,7 +1432,7 @@ async fn token_plan_at(
         .map(String::as_str)
         .filter(|name| !name.trim().is_empty())
     {
-        Some(profile) => token_plan_via_cli(ctx, profile).await,
+        Some(profile) => token_plan_via_cli(account, ctx, profile).await,
         None => Err(QueryError::config(
             "query.alibaba_plans.token_plan_auth_method_required",
             "Paste the Qwen Cloud session in the account wizard, or configure params.session_env (variable with the cookie) or params.cli_profile (official CLI) for the Qwen Cloud Token Plan.",
@@ -1543,10 +1543,6 @@ async fn alibaba_token_plan(account: &Account, ctx: &Context<'_>) -> Result<Data
         "https://home.qwencloud.com/tool/user/info.json",
     )
     .await
-}
-
-fn is_safe_cli_profile(profile: &str) -> bool {
-    crate::account_edit::is_valid_cli_profile(profile)
 }
 
 fn classify_cli_failure(stderr: &str) -> Status {
@@ -1750,22 +1746,29 @@ fn collect_token_plan_windows<'a>(value: &'a Value, out: &mut Vec<TokenPlanWindo
     }
 }
 
-async fn token_plan_via_cli(ctx: &Context<'_>, profile: &str) -> Result<Data, QueryError> {
-    if !is_safe_cli_profile(profile) {
+async fn token_plan_via_cli(
+    account: &Account,
+    ctx: &Context<'_>,
+    profile: &str,
+) -> Result<Data, QueryError> {
+    if !crate::external_tool::valid_bl_profile(profile) {
         return Err(QueryError::config(
             "query.alibaba_plans.invalid_cli_profile",
             "The `bl` profile name is invalid: letters, digits, '-' or '_', up to 32 characters.",
         ));
     }
-    run_token_plan_cli(ctx, "bl", profile).await
+    // PRD 0054 RF6.1: `params.cli_path`, then PATH, then the install locations.
+    let program =
+        crate::external_tool::resolve_for(crate::external_tool::Tool::Bailian, &account.params)?;
+    run_token_plan_cli(ctx, program.program, profile).await
 }
 
 async fn run_token_plan_cli(
     ctx: &Context<'_>,
-    binary: &str,
+    binary: impl AsRef<std::path::Path>,
     profile: &str,
 ) -> Result<Data, QueryError> {
-    let mut cmd = tokio::process::Command::new(crate::cli_path::resolve(binary));
+    let mut cmd = tokio::process::Command::new(binary.as_ref());
     cmd.args([
         "usage",
         "token-plan",
@@ -2754,7 +2757,7 @@ mod tests {
     fn the_query_accepts_every_profile_the_login_accepts() {
         for name in ["_work", "work", "a-b_c", "-x", "", "a b", "with.dot"] {
             assert_eq!(
-                is_safe_cli_profile(name),
+                crate::external_tool::valid_bl_profile(name),
                 crate::account_edit::is_valid_cli_profile(name),
                 "{name:?}"
             );
@@ -2939,16 +2942,16 @@ mod tests {
 
     #[test]
     fn cli_profile_validador_rejeita_injecao_e_numeros() {
-        assert!(is_safe_cli_profile("default"));
-        assert!(is_safe_cli_profile("work-profile-1_v2"));
-        assert!(!is_safe_cli_profile(""));
-        assert!(!is_safe_cli_profile("-leading"));
-        assert!(!is_safe_cli_profile("with space"));
-        assert!(!is_safe_cli_profile("semi;colon"));
-        assert!(!is_safe_cli_profile("with$shell"));
-        assert!(!is_safe_cli_profile("with.dot"));
-        assert!(!is_safe_cli_profile(&"x".repeat(33)));
-        assert!(!is_safe_cli_profile(&"x".repeat(65)));
+        assert!(crate::external_tool::valid_bl_profile("default"));
+        assert!(crate::external_tool::valid_bl_profile("work-profile-1_v2"));
+        assert!(!crate::external_tool::valid_bl_profile(""));
+        assert!(!crate::external_tool::valid_bl_profile("-leading"));
+        assert!(!crate::external_tool::valid_bl_profile("with space"));
+        assert!(!crate::external_tool::valid_bl_profile("semi;colon"));
+        assert!(!crate::external_tool::valid_bl_profile("with$shell"));
+        assert!(!crate::external_tool::valid_bl_profile("with.dot"));
+        assert!(!crate::external_tool::valid_bl_profile(&"x".repeat(33)));
+        assert!(!crate::external_tool::valid_bl_profile(&"x".repeat(65)));
     }
 
     #[test]
@@ -3176,7 +3179,7 @@ mod tests {
         let creds = MapCredentials(BTreeMap::new());
         let ctx = ctx_with(&http, &creds);
         let path = bin.to_string_lossy().into_owned();
-        let data = run_token_plan_cli(&ctx, &path, "demo").await.unwrap();
+        let data = run_token_plan_cli(&ctx, &*path, "demo").await.unwrap();
         assert_eq!(data.metrics.len(), 1);
         assert_eq!(data.metrics[0].window, Some(MetricWindow::Monthly));
         assert_eq!(data.metrics[0].label, "Token Plan: mensal");
@@ -3207,7 +3210,7 @@ mod tests {
 
         // Missing CLI.
         let missing = dir.path().join("absent").join("bl");
-        let err = run_token_plan_cli(&ctx, &missing.to_string_lossy(), "demo")
+        let err = run_token_plan_cli(&ctx, &missing, "demo")
             .await
             .unwrap_err();
         assert_eq!(err.status, Status::NeedsConfiguration);
@@ -3216,9 +3219,7 @@ mod tests {
         // Present but not executable.
         let broken = dir.path().join("broken");
         std::fs::write(&broken, "not a program").unwrap();
-        let err = run_token_plan_cli(&ctx, &broken.to_string_lossy(), "demo")
-            .await
-            .unwrap_err();
+        let err = run_token_plan_cli(&ctx, &broken, "demo").await.unwrap_err();
         assert_eq!(err.status, Status::Error);
         assert_eq!(err.note.id, "query.alibaba_plans.cli_start_failed");
 
@@ -3227,7 +3228,7 @@ mod tests {
             dir.path(),
             "echo '{\"error\":{\"code\":3,\"message\":\"SECRET_BODY\"}}'\nexit 1",
         );
-        let err = run_token_plan_cli(&ctx, &path, "demo").await.unwrap_err();
+        let err = run_token_plan_cli(&ctx, &*path, "demo").await.unwrap_err();
         assert_eq!(err.status, Status::AuthenticationError);
         assert_eq!(err.note.id, "query.alibaba_plans.cli_auth");
         assert!(err.note.fallback.contains("'demo' is not signed in"));
@@ -3235,7 +3236,7 @@ mod tests {
 
         // Any other failure of the command.
         let path = fake_bl(dir.path(), "echo 'socket hang up SECRET_BODY' >&2\nexit 2");
-        let err = run_token_plan_cli(&ctx, &path, "demo").await.unwrap_err();
+        let err = run_token_plan_cli(&ctx, &*path, "demo").await.unwrap_err();
         assert_eq!(err.status, Status::Error);
         assert_eq!(err.note.id, "query.alibaba_plans.cli_failure");
         assert!(err.note.fallback.contains("`bl usage token-plan` failed"));
@@ -3291,7 +3292,7 @@ mod tests {
             let creds = MapCredentials(BTreeMap::new());
             let ctx = ctx_with(&http, &creds);
             let path = bin.to_string_lossy();
-            let err = run_token_plan_cli(&ctx, &path, "demo").await.unwrap_err();
+            let err = run_token_plan_cli(&ctx, &*path, "demo").await.unwrap_err();
             assert_eq!(err.status, Status::Error, "body {body:?}");
             assert!(err.note.fallback.contains("incompatible"), "body {body:?}");
             if !body.is_empty() {
@@ -3351,7 +3352,7 @@ mod tests {
         let creds = MapCredentials(BTreeMap::new());
         let ctx = ctx_with(&http, &creds);
         let path = bin.to_string_lossy();
-        let err = run_token_plan_cli(&ctx, &path, "demo").await.unwrap_err();
+        let err = run_token_plan_cli(&ctx, &*path, "demo").await.unwrap_err();
         assert_eq!(err.status, Status::AuthenticationError);
         assert!(!err.note.fallback.contains("No console access token found"));
         assert!(!err.note.fallback.contains("Run `bl auth login --console`."));

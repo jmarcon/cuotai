@@ -303,7 +303,7 @@ pub fn managed_keys(provider: Provider) -> &'static [&'static str] {
         Provider::ChatGpt => &["account_id", "query_mode", "feed"],
         Provider::Claude => &["query_mode", "feed"],
         Provider::GeminiApi | Provider::VertexAi => &["project_id"],
-        Provider::AwsBedrock => &["profile"],
+        Provider::AwsBedrock => &["profile", "cli_path"],
         Provider::AzureOpenAi => &["subscription_id", "resource_id"],
         Provider::Copilot => &["mode", "org", "billing", "query_mode"],
         Provider::Cursor => &["query_mode", "device_id", "user_id"],
@@ -350,9 +350,9 @@ pub fn managed_keys(provider: Provider) -> &'static [&'static str] {
         ],
         Provider::Zed => &["user_id", "system_id"],
         Provider::Antigravity => &["project_id"],
-        Provider::AlibabaModelStudio => &["region"],
+        Provider::AlibabaModelStudio => &["region", "cli_path"],
         Provider::AlibabaCodingPlan => &["region", "session_env"],
-        Provider::AlibabaTokenPlan => &["session_env"],
+        Provider::AlibabaTokenPlan => &["session_env", "cli_path"],
         Provider::Meta => &["team_id", "project_id", "session_env"],
         Provider::JetbrainsAi => &["client_secret_env"],
         Provider::AlibabaCloud => &[
@@ -421,6 +421,20 @@ pub fn validate_param(
 ) -> Result<(), crate::text::Localized> {
     use crate::text::{params as l10n_params, Localized as L10n, ParamValue};
     match key {
+        // PRD 0054 RF6.5: a local program path, never a credential. Only the
+        // shape is checked here; the resolver checks the file at query time.
+        "cli_path" => {
+            if std::path::Path::new(value).is_absolute()
+                || (cfg!(windows) && value.get(1..3) == Some(":\\"))
+            {
+                Ok(())
+            } else {
+                Err(L10n::fixed(
+                    "edit_error.param.cli_path",
+                    "Enter the full (absolute) path of the program, or leave the field empty.",
+                ))
+            }
+        }
         "billing_cycle" => {
             if value.len() == 7
                 && chrono::NaiveDate::parse_from_str(&format!("{value}-01"), "%Y-%m-%d").is_ok()
@@ -620,12 +634,7 @@ pub fn parse_group(text: &str) -> Result<Option<String>, crate::text::Localized>
 /// `bl` profile names accept letters, digits, hyphen and underscore; up to
 /// 32 chars; no leading hyphen.
 pub fn is_valid_cli_profile(name: &str) -> bool {
-    !name.is_empty()
-        && name.len() <= 32
-        && !name.starts_with('-')
-        && name
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    crate::external_tool::valid_bl_profile(name)
 }
 
 /// Returns the `bl` profile to use for this account, creating one when none
@@ -1729,7 +1738,22 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
         "Empty tries to obtain the project from the Antigravity session. Not required when using a Gemini API key.",
         false,
     )];
-    const ALIBABA_MODEL_STUDIO: [FieldDescriptor; 2] = [
+    // PRD 0054 RF6.5: an optional program path for the CLI-backed providers,
+    // for an app opened outside a terminal that does not find the CLI.
+    const AWS_CLI_PATH: FieldDescriptor = FieldDescriptor::text(
+        "cli_path",
+        "AWS CLI path (optional)",
+        "Empty = Cuotai looks for aws in PATH and in the usual install folders. Set the full path of the aws program only when it is installed elsewhere.",
+        false,
+    );
+    const BL_CLI_PATH: FieldDescriptor = FieldDescriptor::text(
+        "cli_path",
+        "bl CLI path (optional)",
+        "Empty = Cuotai looks for bl in PATH and in the usual install folders. Set the full path of the bl program only when it is installed elsewhere.",
+        false,
+    );
+    const AWS_BEDROCK: [FieldDescriptor; 1] = [AWS_CLI_PATH];
+    const ALIBABA_MODEL_STUDIO: [FieldDescriptor; 3] = [
         FieldDescriptor::choice(
             "region",
             "Alibaba region",
@@ -1746,6 +1770,7 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
             "Only with the bl CLI profile. Empty = free tier only. Set the workspace ID shown in the Model Studio console to add the calls and tokens of the last 7 days; that overview can take longer to load.",
             false,
         ),
+        BL_CLI_PATH,
     ];
     const ALIBABA_CODING_PLAN: [FieldDescriptor; 2] = [
         FieldDescriptor::choice(
@@ -1765,12 +1790,15 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
             false,
         ),
     ];
-    const ALIBABA_TOKEN_PLAN: [FieldDescriptor; 1] = [FieldDescriptor::text(
-        "session_env",
-        "Qwen Cloud cookie variable (optional)",
-        "Empty = quota through the session pasted in the account wizard (system vault) or, without one, the dedicated `bl` profile (`params.cli_profile`). If you prefer a variable, set the NAME of the variable holding the home.qwencloud.com cookie; never paste the cookie here.",
-        false,
-    )];
+    const ALIBABA_TOKEN_PLAN: [FieldDescriptor; 2] = [
+        FieldDescriptor::text(
+            "session_env",
+            "Qwen Cloud cookie variable (optional)",
+            "Empty = quota through the session pasted in the account wizard (system vault) or, without one, the dedicated `bl` profile (`params.cli_profile`). If you prefer a variable, set the NAME of the variable holding the home.qwencloud.com cookie; never paste the cookie here.",
+            false,
+        ),
+        BL_CLI_PATH,
+    ];
     // PRD 0049 RF8: the console ids are the user's, copied from the usage
     // page address `dev.meta.ai/usage?team_id=<team>&project_id=<project>`.
     const META: [FieldDescriptor; 3] = [
@@ -1837,7 +1865,6 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
         Provider::Claude => &CLAUDE,
         Provider::Cursor
         | Provider::Windsurf
-        | Provider::AwsBedrock
         | Provider::MiniMax
         | Provider::Qwen
         | Provider::Groq
@@ -1867,6 +1894,7 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
         Provider::Antigravity => &ANTIGRAVITY,
         Provider::ElevenLabs => &ELEVEN_LABS,
         Provider::OpenRouter => &OPEN_ROUTER,
+        Provider::AwsBedrock => &AWS_BEDROCK,
         Provider::AlibabaModelStudio => &ALIBABA_MODEL_STUDIO,
         Provider::AlibabaCodingPlan => &ALIBABA_CODING_PLAN,
         Provider::AlibabaTokenPlan => &ALIBABA_TOKEN_PLAN,

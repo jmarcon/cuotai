@@ -132,4 +132,5 @@ and delete the `cuotai.oauth` and `cuotai.serve` entries in your keyring tool. S
 - **An account says "missing configuration".** The account has no key the app can read yet: open **Edit**, then paste the key (or use **Move key into Cuotai**, see the note above).
 - **"No Secret Service provider available".** Start GNOME Keyring or KWallet in your session.
 - **The AppImage does not start.** Install FUSE 2 (`libfuse2`) or run it with `--appimage-extract-and-run`.
+- **AWS Bedrock or an Alibaba plan says its CLI (`aws` or `bl`) was not found.** The app does not inherit your terminal's `PATH`; Cuotai also looks in the usual install folders (`/usr/local/bin`, `/usr/bin` and `~/.local/bin`). If the program is elsewhere, open **Edit** and set **AWS CLI path** or **bl CLI path** to its full path. `cuotai --doctor` shows where each program was found.
 - Something else? Open an [issue](https://github.com/jmarcon/cuotai/issues) (never paste a real token), and see [`platforms.md`](platforms.md) for what is verified on Linux; real GNOME and KDE tray behavior is not exercised in CI.

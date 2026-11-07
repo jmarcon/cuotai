@@ -30,7 +30,7 @@ pub fn is_install_url(url: &str) -> bool {
 /// Whether `bl` is found on this device: the same lookup the query and the
 /// login do before their spawn, without running it.
 pub fn cli_installed() -> bool {
-    crate::cli_path::found("bl")
+    crate::external_tool::found(crate::external_tool::Tool::Bailian)
 }
 
 /// Maximum time for `bl auth login --console`. `bl` may open a browser and
@@ -71,6 +71,11 @@ fn validate_console_site(site: &str) -> Result<(), OAuthError> {
 /// argv argument — never concatenated.
 fn validate_cli_profile(name: &str) -> Result<(), OAuthError> {
     let trimmed = name.trim();
+    // PRD 0054 RF6.4: the shared rule decides; the branches below only pick
+    // the message that names what is wrong.
+    if crate::external_tool::valid_bl_profile(trimmed) {
+        return Ok(());
+    }
     if trimmed.is_empty() {
         return Err(OAuthError::Configuration(crate::text::Localized::fixed(
             "oauth_error.bailian.profile_blank",
@@ -104,17 +109,26 @@ fn validate_cli_profile(name: &str) -> Result<(), OAuthError> {
 /// Spawn do `bl auth login --console --console-site <site> --config <profile>`.
 ///
 /// Dropping the returned future kills the child (`kill_on_drop`).
-pub(crate) async fn console_login(console_site: &str, profile: &str) -> Result<(), OAuthError> {
+pub(crate) async fn console_login(
+    console_site: &str,
+    profile: &str,
+    cli_path: Option<&str>,
+) -> Result<(), OAuthError> {
     use std::process::Stdio;
     use tokio::process::Command;
 
     validate_console_site(console_site)?;
     validate_cli_profile(profile)?;
+    // PRD 0054 RF6.1: the draft's `params.cli_path`, else PATH, else the
+    // install locations: the program the query will start.
+    let program = crate::external_tool::Resolver::from_process()
+        .resolve(crate::external_tool::Tool::Bailian, cli_path)
+        .map_err(|error| OAuthError::Configuration(error.l10n()))?;
 
     // argv is a fixed list: `auth`, `login`, `--console`, `--console-site`,
     // `<site>`, `--config`, `<profile>` — each item separate, no concatenation,
     // no shell. No API key, cookie or token.
-    let mut child = Command::new(crate::cli_path::resolve("bl"))
+    let mut child = Command::new(&program.program)
         .args([
             "auth",
             "login",

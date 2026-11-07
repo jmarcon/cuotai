@@ -64,14 +64,16 @@ pub(super) async fn query(
     ctx: &Context<'_>,
     profile: &str,
 ) -> Result<Data, QueryError> {
-    query_with(account, ctx, profile, "bl").await
+    // PRD 0054 RF6.1: the validations run first, so a bad profile or region
+    // is reported even when `bl` is missing.
+    query_with(account, ctx, profile, None).await
 }
 
 async fn query_with(
     account: &Account,
     ctx: &Context<'_>,
     profile: &str,
-    binary: &str,
+    binary: Option<&std::path::Path>,
 ) -> Result<Data, QueryError> {
     if parse_region(account)? != Region::Intl {
         return Err(QueryError::unsupported(
@@ -79,14 +81,21 @@ async fn query_with(
             "The Model Studio query through `bl` covers only the intl (Singapore) region.",
         ));
     }
-    if !crate::account_edit::is_valid_cli_profile(profile) {
+    if !crate::external_tool::valid_bl_profile(profile) {
         return Err(QueryError::config(
             "query.alibaba_plans.invalid_cli_profile",
             "The `bl` profile name is invalid: letters, digits, '-' or '_', up to 32 characters.",
         ));
     }
     let workspace = workspace_id(account)?;
-    let payload = run(ctx, binary, profile, workspace).await?;
+    let program = match binary {
+        Some(binary) => binary.to_path_buf(),
+        None => {
+            crate::external_tool::resolve_for(crate::external_tool::Tool::Bailian, &account.params)?
+                .program
+        }
+    };
+    let payload = run(ctx, &program, profile, workspace).await?;
     summary_data(payload, profile, workspace.is_some())
 }
 
@@ -120,7 +129,7 @@ fn workspace_id(account: &Account) -> Result<Option<&str>, QueryError> {
 /// the CLI's JSON error code only.
 async fn run(
     ctx: &Context<'_>,
-    binary: &str,
+    binary: &std::path::Path,
     profile: &str,
     workspace: Option<&str>,
 ) -> Result<Value, QueryError> {
@@ -141,7 +150,7 @@ async fn run(
         args.extend(["--workspace-id", workspace]);
     }
     args.extend(["--output", "json", "--quiet"]);
-    let child = tokio::process::Command::new(crate::cli_path::resolve(binary))
+    let child = tokio::process::Command::new(binary)
         .args(&args)
         .env_remove("BAILIAN_WORKSPACE_ID")
         .stdin(std::process::Stdio::null())
@@ -676,7 +685,7 @@ mod tests {
             credentials: &NoCredentials,
             timeout: Duration::from_secs(5),
         };
-        let missing = "/nonexistent/cuotai-test/bl";
+        let missing = Some(std::path::Path::new("/nonexistent/cuotai-test/bl"));
         let cn = account(&[("region", "cn"), ("cli_profile", "p")]);
         let err = query_with(&cn, &ctx, "p", missing).await.unwrap_err();
         assert_eq!(err.status, Status::Unsupported);
@@ -764,7 +773,13 @@ mod tests {
                 credentials: &NoCredentials,
                 timeout,
             };
-            query_with(account, &ctx, "cuotai-demo", &self.path()).await
+            query_with(
+                account,
+                &ctx,
+                "cuotai-demo",
+                Some(std::path::Path::new(&self.path())),
+            )
+            .await
         }
     }
 

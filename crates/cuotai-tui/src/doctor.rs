@@ -77,6 +77,14 @@ pub(crate) fn render(report: &Report, json: bool, locale: &str) -> String {
             }
         }
     }
+    // PRD 0054 RF6.3: one fixed `tool.<name>: …` line per provider CLI.
+    if !report.tools.is_empty() {
+        out.push('\n');
+        for tool in report.tools.values() {
+            out.push_str(&tool.line());
+            out.push('\n');
+        }
+    }
     out
 }
 
@@ -101,6 +109,7 @@ mod tests {
                 check("first", CheckStatus::Ok, None),
                 check("second", CheckStatus::Fail, Some("do this")),
             ],
+            tools: Default::default(),
         };
         assert_eq!(
             render(&report, false, "en-US"),

@@ -5228,6 +5228,13 @@ impl Backend {
         let mut request = LoginRequest::for_account(input.provider, &input.mode, existing);
         request.options = input.options.clone();
         request.registration = input.registration.clone();
+        if let Some(path) = input
+            .cli_path
+            .as_ref()
+            .filter(|path| !path.trim().is_empty())
+        {
+            request.cli_path = Some(path.clone());
+        }
         // Validates the NEW request BEFORE taking over the predecessor.
         let driver =
             login::start_login(session, input.provider, request).map_err(|e| e.to_string())?;
@@ -5777,6 +5784,9 @@ pub struct LoginStartInput {
     pub options: BTreeMap<String, String>,
     #[serde(default)]
     pub registration: BTreeMap<String, String>,
+    /// PRD 0054 RF6.1: the draft's `params.cli_path` (empty = the saved one).
+    #[serde(default)]
+    pub cli_path: Option<String>,
 }
 
 /// PRD 0047 G5: one secret the migration would move, without the
