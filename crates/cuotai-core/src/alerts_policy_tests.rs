@@ -208,6 +208,7 @@ fn event_of(report: &Report, kind: AlertKind, threshold: u8) -> AlertEvent {
         resets_at: Some(window()),
         projection: None,
         limit_change: None,
+        row: None,
     }
 }
 

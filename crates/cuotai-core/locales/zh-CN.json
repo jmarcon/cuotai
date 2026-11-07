@@ -2241,5 +2241,6 @@
   "doctor.channel.failing": "最近的投递失败了。",
   "doctor.channel.ok": "最近一次投递已被接受。",
   "doctor.channel.none": "尚未向其发送任何内容。",
-  "doctor.fix.channel": "在“设置 › 提醒”中打开该渠道，检查地址并发送测试（cuotai --channel-test）。"
+  "doctor.fix.channel": "在“设置 › 提醒”中打开该渠道，检查地址并发送测试（cuotai --channel-test）。",
+  "budget.error.row": "{field}：明细行上的预算需要 kind、行的范围（key、virtual_key、project、workspace 或 team）及其 id，且提供方须支持明细。"
 }

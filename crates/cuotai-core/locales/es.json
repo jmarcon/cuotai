@@ -2252,5 +2252,6 @@
   "doctor.channel.failing": "Sus últimas entregas fallaron.",
   "doctor.channel.ok": "Su última entrega fue aceptada.",
   "doctor.channel.none": "Todavía no se le envió nada.",
-  "doctor.fix.channel": "Abre el canal en Ajustes › Alertas, revisa su dirección y envía una prueba (cuotai --channel-test)."
+  "doctor.fix.channel": "Abre el canal en Ajustes › Alertas, revisa su dirección y envía una prueba (cuotai --channel-test).",
+  "budget.error.row": "{field}: un presupuesto en una fila del desglose necesita un kind, el ámbito de la fila (key, virtual_key, project, workspace o team) y su id, en un proveedor que ofrezca desgloses."
 }

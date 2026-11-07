@@ -1594,5 +1594,17 @@
   "coreText.doctorNoKey": "No key is saved for this account; ignore this if it signs in another way.",
   "coreText.doctorFixKey": "Open the account in Edit and type its key; Cuotai keeps it in the system vault.",
   "coreText.restoreKey": "Type the key of account {number} ({provider}) again.",
-  "settings.kw.backup": "backup restore export import move new computer migrate zip copy settings"
+  "settings.kw.backup": "backup restore export import move new computer migrate zip copy settings",
+  "breakdown.alerts": "Alert on breakdown rows",
+  "breakdown.alertsHelp": "The top 10 rows with a limit alert like the account's own quotas, with the thresholds of Settings → Alerts. Off by default.",
+  "budget.editor.row": "On the breakdown row: {scope} {id}",
+  "budget.editor.rowScope.key": "API key",
+  "budget.editor.rowScope.virtual_key": "virtual key",
+  "budget.editor.rowScope.project": "project",
+  "budget.editor.rowScope.workspace": "workspace",
+  "budget.editor.rowScope.team": "team",
+  "detect.costOffer.open": "Open Local cost",
+  "detect.costOffer.claude_code": "Its local logs can also estimate the cost at API prices; Cuotai reads them only after you turn the Claude Code source on.",
+  "detect.costOffer.codex_cli": "Its local logs can also estimate the cost at API prices; Cuotai reads them only after you turn the Codex CLI source on.",
+  "detect.costOffer.gemini_cli": "Its local logs can also estimate the cost at API prices; Cuotai reads them only after you turn the Gemini CLI source on."
 }

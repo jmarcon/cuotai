@@ -1605,5 +1605,17 @@
   "coreText.doctorNoKey": "Для этого аккаунта не сохранён ключ; не обращайте внимания, если он входит иначе.",
   "coreText.doctorFixKey": "Откройте аккаунт в «Изменить» и введите его ключ; Cuotai хранит его в системном хранилище.",
   "coreText.restoreKey": "Снова введите ключ аккаунта {number} ({provider}).",
-  "settings.kw.backup": "резервная копия бэкап восстановить экспорт импорт переезд новый компьютер zip настройки"
+  "settings.kw.backup": "резервная копия бэкап восстановить экспорт импорт переезд новый компьютер zip настройки",
+  "breakdown.alerts": "Оповещать по строкам детализации",
+  "breakdown.alertsHelp": "Первые 10 строк с лимитом оповещают как квоты самого аккаунта, с порогами из Настройки → Оповещения. По умолчанию выключено.",
+  "budget.editor.row": "На строке детализации: {scope} {id}",
+  "budget.editor.rowScope.key": "API-ключ",
+  "budget.editor.rowScope.virtual_key": "виртуальный ключ",
+  "budget.editor.rowScope.project": "проект",
+  "budget.editor.rowScope.workspace": "рабочее пространство",
+  "budget.editor.rowScope.team": "команда",
+  "detect.costOffer.open": "Открыть «Локальные расходы»",
+  "detect.costOffer.claude_code": "Его локальные журналы также могут оценить стоимость по ценам API; Cuotai читает их только после того, как вы включите источник Claude Code.",
+  "detect.costOffer.codex_cli": "Его локальные журналы также могут оценить стоимость по ценам API; Cuotai читает их только после того, как вы включите источник Codex CLI.",
+  "detect.costOffer.gemini_cli": "Его локальные журналы также могут оценить стоимость по ценам API; Cuotai читает их только после того, как вы включите источник Gemini CLI."
 }

@@ -116,6 +116,11 @@ impl Watch {
         now: DateTime<Utc>,
         pace: &crate::notify::PaceOf,
     ) -> io::Result<bool> {
+        // PRD 0045 RF5.2: rows have events only for the accounts whose
+        // "Alert on breakdown rows" is on in the desktop's settings.
+        self.quiet.refresh();
+        let rows = self.quiet.loaded().alerts.breakdown_each.clone();
+        self.watcher.set_breakdown_alerts(rows);
         let observed = self.watcher.observe_transitions(export, now, pace);
         if observed.is_empty() {
             return Ok(true);
@@ -309,6 +314,7 @@ mod tests {
             },
             previous: None,
             sample: false,
+            row: None,
         }
     }
 

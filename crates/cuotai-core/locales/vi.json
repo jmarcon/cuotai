@@ -2241,5 +2241,6 @@
   "doctor.channel.failing": "Các lần gửi gần đây đã thất bại.",
   "doctor.channel.ok": "Lần gửi gần nhất đã được chấp nhận.",
   "doctor.channel.none": "Chưa gửi gì tới kênh này.",
-  "doctor.fix.channel": "Mở kênh trong Cài đặt › Cảnh báo, kiểm tra địa chỉ và gửi thử (cuotai --channel-test)."
+  "doctor.fix.channel": "Mở kênh trong Cài đặt › Cảnh báo, kiểm tra địa chỉ và gửi thử (cuotai --channel-test).",
+  "budget.error.row": "{field}: ngân sách trên một hàng của bảng chi tiết cần kind, phạm vi của dòng (key, virtual_key, project, workspace hoặc team) và id của nó, ở nhà cung cấp có bảng chi tiết."
 }

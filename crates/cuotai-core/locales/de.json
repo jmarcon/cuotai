@@ -2255,5 +2255,6 @@
   "doctor.channel.failing": "Seine letzten Zustellungen sind fehlgeschlagen.",
   "doctor.channel.ok": "Seine letzte Zustellung wurde angenommen.",
   "doctor.channel.none": "Es wurde noch nichts an ihn gesendet.",
-  "doctor.fix.channel": "Öffne den Kanal unter Einstellungen › Warnungen, prüfe die Adresse und sende einen Test (cuotai --channel-test)."
+  "doctor.fix.channel": "Öffne den Kanal unter Einstellungen › Warnungen, prüfe die Adresse und sende einen Test (cuotai --channel-test).",
+  "budget.error.row": "{field}: Ein Budget auf einer Zeile der Aufschlüsselung braucht ein kind, den Bereich der Zeile (key, virtual_key, project, workspace oder team) und ihre ID, bei einem Anbieter mit Aufschlüsselungen."
 }

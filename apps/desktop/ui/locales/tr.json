@@ -1583,5 +1583,17 @@
   "coreText.doctorNoKey": "Bu hesap için kayıtlı anahtar yok; başka bir yolla oturum açıyorsa bunu yok sayın.",
   "coreText.doctorFixKey": "Hesabı Düzenle'de açıp anahtarını girin; Cuotai onu sistem kasasında saklar.",
   "coreText.restoreKey": "{number}. hesabın ({provider}) anahtarını yeniden girin.",
-  "settings.kw.backup": "yedek yedekleme geri yükle dışa aktar içe aktar taşı yeni bilgisayar zip ayarlar"
+  "settings.kw.backup": "yedek yedekleme geri yükle dışa aktar içe aktar taşı yeni bilgisayar zip ayarlar",
+  "breakdown.alerts": "Döküm satırları için uyar",
+  "breakdown.alertsHelp": "Limiti olan ilk 10 satır, Ayarlar → Uyarılar eşikleriyle hesabın kendi kotaları gibi uyarır. Varsayılan olarak kapalı.",
+  "budget.editor.row": "Döküm satırında: {scope} {id}",
+  "budget.editor.rowScope.key": "API anahtarı",
+  "budget.editor.rowScope.virtual_key": "sanal anahtar",
+  "budget.editor.rowScope.project": "proje",
+  "budget.editor.rowScope.workspace": "çalışma alanı",
+  "budget.editor.rowScope.team": "ekip",
+  "detect.costOffer.open": "Yerel maliyet sayfasını aç",
+  "detect.costOffer.claude_code": "Yerel günlükleri maliyeti API fiyatlarıyla da tahmin edebilir; Cuotai bunları yalnızca Claude Code kaynağını açtıktan sonra okur.",
+  "detect.costOffer.codex_cli": "Yerel günlükleri maliyeti API fiyatlarıyla da tahmin edebilir; Cuotai bunları yalnızca Codex CLI kaynağını açtıktan sonra okur.",
+  "detect.costOffer.gemini_cli": "Yerel günlükleri maliyeti API fiyatlarıyla da tahmin edebilir; Cuotai bunları yalnızca Gemini CLI kaynağını açtıktan sonra okur."
 }

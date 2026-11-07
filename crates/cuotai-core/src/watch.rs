@@ -96,6 +96,13 @@ impl Watcher {
         }
     }
 
+    /// PRD 0045 RF5.2: the account ids whose breakdown rows have events
+    /// (`desktop.json` `alerts.breakdown_each`, read again by the caller
+    /// before each observation).
+    pub fn set_breakdown_alerts(&mut self, accounts: BTreeSet<String>) {
+        self.state.set_breakdown_alerts(accounts);
+    }
+
     /// The selected events of `export` after the export last observed
     /// ([`events::diff`] per account, in configuration order). The first
     /// reading of an account is its baseline; an account no longer in

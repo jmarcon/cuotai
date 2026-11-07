@@ -2241,5 +2241,6 @@
   "doctor.channel.failing": "Pengiriman terakhirnya gagal.",
   "doctor.channel.ok": "Pengiriman terakhirnya diterima.",
   "doctor.channel.none": "Belum ada yang dikirim ke saluran ini.",
-  "doctor.fix.channel": "Buka saluran di Pengaturan › Peringatan, periksa alamatnya, lalu kirim uji coba (cuotai --channel-test)."
+  "doctor.fix.channel": "Buka saluran di Pengaturan › Peringatan, periksa alamatnya, lalu kirim uji coba (cuotai --channel-test).",
+  "budget.error.row": "{field}: anggaran pada baris rincian memerlukan kind, cakupan baris (key, virtual_key, project, workspace, atau team) dan id-nya, pada penyedia yang menawarkan rincian."
 }

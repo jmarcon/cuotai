@@ -2241,5 +2241,6 @@
   "doctor.channel.failing": "直近の配信が失敗しています。",
   "doctor.channel.ok": "直近の配信は受け付けられました。",
   "doctor.channel.none": "まだ何も送信していません。",
-  "doctor.fix.channel": "「設定 › アラート」でチャネルを開き、アドレスを確認してテストを送信してください（cuotai --channel-test）。"
+  "doctor.fix.channel": "「設定 › アラート」でチャネルを開き、アドレスを確認してテストを送信してください（cuotai --channel-test）。",
+  "budget.error.row": "{field}：内訳の行の予算には kind、行のスコープ（key、virtual_key、project、workspace、team）とその id が必要で、内訳に対応したプロバイダーである必要があります。"
 }

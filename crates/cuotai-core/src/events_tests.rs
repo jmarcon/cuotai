@@ -96,6 +96,8 @@ struct Watch {
     statuses: Vec<ProviderStatus>,
     source: String,
     session_expires_at: Option<DateTime<Utc>>,
+    /// PRD 0045 RF5: the breakdown rows of the next reading.
+    rows: Vec<crate::BreakdownRow>,
 }
 
 impl Watch {
@@ -125,6 +127,7 @@ impl Watch {
             statuses: Vec::new(),
             source: String::new(),
             session_expires_at: None,
+            rows: Vec::new(),
         }
     }
 
@@ -149,7 +152,7 @@ impl Watch {
             sub_reports: Vec::new(),
             as_of: None,
             overage_hint: None,
-            breakdown: Vec::new(),
+            breakdown: self.rows.clone(),
         };
         let token = self.cycle.begin(0).unwrap();
         self.cycle
@@ -738,6 +741,7 @@ fn every_summary_reads_in_each_catalog() {
             },
             previous: None,
             sample: false,
+            row: None,
         };
         let summary = event.summary();
         assert!(!summary.fallback.contains('{'), "{kind:?}");
@@ -765,6 +769,7 @@ fn every_summary_reads_in_each_catalog() {
             },
             previous: None,
             sample: false,
+            row: None,
         }
         .summary()
         .resolve("en-US"),
@@ -1101,4 +1106,61 @@ fn the_new_events_are_known_by_name() {
         EventKind::from_name("notification_sent"),
         Some(NotificationSent)
     );
+}
+
+/// PRD 0045 RF5.2/RF5.3: a row's crossing is an event only with "Alert on
+/// breakdown rows" on, and it names the row by scope, id and label.
+#[test]
+fn breakdown_rows_report_through_the_gate_with_their_scope() {
+    let row = |used: f64| crate::BreakdownRow {
+        scope: crate::ScopeKind::Key,
+        id: "k1".into(),
+        label: "Bot".into(),
+        metrics: vec![Metric {
+            limit: Some(100.0),
+            resets_at: Some(cycle_end()),
+            ..Metric::usage(
+                "Limite",
+                used,
+                "USD",
+                MetricKind::Quota,
+                Some(MetricWindow::Monthly),
+            )
+        }],
+        truncated: false,
+        notes: Vec::new(),
+    };
+    let crossings = |on: bool| {
+        let mut watch = Watch::new();
+        let id = watch.prev.id.clone();
+        if on {
+            watch.state.set_breakdown_alerts([id].into_iter().collect());
+        }
+        watch.rows = vec![row(50.0)];
+        assert!(watch.read(0, ready(10.0)).is_empty(), "the baseline");
+        watch.rows = vec![row(92.0)];
+        watch
+            .read(5, ready(11.0))
+            .into_iter()
+            .filter(|event| event.event != UsageUpdated)
+            .collect::<Vec<_>>()
+    };
+    assert!(crossings(false).is_empty());
+    let events = crossings(true);
+    assert_eq!(events.len(), 1, "{events:?}");
+    assert_eq!(events[0].event, QuotaThresholdCrossed);
+    assert_eq!(events[0].current.threshold, Some(90));
+    let json = serde_json::to_value(&events[0]).unwrap();
+    assert_eq!(json["scope"], "key");
+    assert_eq!(json["scope_id"], "k1");
+    assert_eq!(json["scope_label"], "Bot");
+    assert_eq!(json["metric"]["label"], "Limite");
+    // An account's own events carry no scope.
+    let mut watch = Watch::new();
+    watch.read(0, ready(10.0));
+    let own = watch.read(5, ready(80.0));
+    assert!(!own.is_empty());
+    assert!(own.iter().all(|event| event.row.is_none()));
+    let json = serde_json::to_value(&own[0]).unwrap();
+    assert!(json.get("scope").is_none());
 }

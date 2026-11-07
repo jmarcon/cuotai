@@ -1572,5 +1572,17 @@
   "coreText.doctorNoKey": "이 계정에 저장된 키가 없습니다. 다른 방법으로 로그인한다면 무시하세요.",
   "coreText.doctorFixKey": "편집에서 계정을 열고 키를 입력하세요. Cuotai가 시스템 보관함에 보관합니다.",
   "coreText.restoreKey": "계정 {number}({provider})의 키를 다시 입력하세요.",
-  "settings.kw.backup": "백업 복원 내보내기 가져오기 이전 새 컴퓨터 zip 복사 설정"
+  "settings.kw.backup": "백업 복원 내보내기 가져오기 이전 새 컴퓨터 zip 복사 설정",
+  "breakdown.alerts": "세부 내역 행에도 알림",
+  "breakdown.alertsHelp": "한도가 있는 상위 10개 행이 설정 → 알림의 임계값으로 계정 자체 할당량처럼 알립니다. 기본값은 꺼짐입니다.",
+  "budget.editor.row": "세부 내역 행: {scope} {id}",
+  "budget.editor.rowScope.key": "API 키",
+  "budget.editor.rowScope.virtual_key": "가상 키",
+  "budget.editor.rowScope.project": "프로젝트",
+  "budget.editor.rowScope.workspace": "워크스페이스",
+  "budget.editor.rowScope.team": "팀",
+  "detect.costOffer.open": "로컬 비용 열기",
+  "detect.costOffer.claude_code": "로컬 로그로 API 가격 기준 비용도 추정할 수 있습니다. Cuotai는 Claude Code 소스를 켠 뒤에만 읽습니다.",
+  "detect.costOffer.codex_cli": "로컬 로그로 API 가격 기준 비용도 추정할 수 있습니다. Cuotai는 Codex CLI 소스를 켠 뒤에만 읽습니다.",
+  "detect.costOffer.gemini_cli": "로컬 로그로 API 가격 기준 비용도 추정할 수 있습니다. Cuotai는 Gemini CLI 소스를 켠 뒤에만 읽습니다."
 }

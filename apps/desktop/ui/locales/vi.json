@@ -1572,5 +1572,17 @@
   "coreText.doctorNoKey": "Tài khoản này chưa lưu khóa nào; bỏ qua nếu nó đăng nhập theo cách khác.",
   "coreText.doctorFixKey": "Mở tài khoản trong Chỉnh sửa và nhập khóa; Cuotai giữ khóa trong kho bảo mật hệ thống.",
   "coreText.restoreKey": "Nhập lại khóa của tài khoản {number} ({provider}).",
-  "settings.kw.backup": "sao lưu khôi phục xuất nhập chuyển máy tính mới zip cài đặt"
+  "settings.kw.backup": "sao lưu khôi phục xuất nhập chuyển máy tính mới zip cài đặt",
+  "breakdown.alerts": "Cảnh báo cho các hàng của bảng chi tiết",
+  "breakdown.alertsHelp": "10 dòng đầu có giới hạn sẽ cảnh báo như hạn mức của chính tài khoản, theo các ngưỡng trong Cài đặt → Cảnh báo. Tắt theo mặc định.",
+  "budget.editor.row": "Trên hàng của bảng chi tiết: {scope} {id}",
+  "budget.editor.rowScope.key": "khóa API",
+  "budget.editor.rowScope.virtual_key": "khóa ảo",
+  "budget.editor.rowScope.project": "dự án",
+  "budget.editor.rowScope.workspace": "không gian làm việc",
+  "budget.editor.rowScope.team": "nhóm",
+  "detect.costOffer.open": "Mở Chi phí cục bộ",
+  "detect.costOffer.claude_code": "Nhật ký cục bộ của nó cũng có thể ước tính chi phí theo giá API; Cuotai chỉ đọc chúng sau khi bạn bật nguồn Claude Code.",
+  "detect.costOffer.codex_cli": "Nhật ký cục bộ của nó cũng có thể ước tính chi phí theo giá API; Cuotai chỉ đọc chúng sau khi bạn bật nguồn Codex CLI.",
+  "detect.costOffer.gemini_cli": "Nhật ký cục bộ của nó cũng có thể ước tính chi phí theo giá API; Cuotai chỉ đọc chúng sau khi bạn bật nguồn Gemini CLI."
 }

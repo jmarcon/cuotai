@@ -161,6 +161,10 @@ pub struct AlertSettings {
     /// one; every other aggregator alerts only when a whole pool runs out.
     #[serde(skip_serializing_if = "BTreeSet::is_empty")]
     pub pool_each: BTreeSet<String>,
+    /// PRD 0045 RF5.2: accounts whose top breakdown rows alert ("Alert on
+    /// breakdown rows", off by default).
+    #[serde(skip_serializing_if = "BTreeSet::is_empty")]
+    pub breakdown_each: BTreeSet<String>,
     /// PRD 0024 RF4.1: minutes before a projected exhaustion to warn (15,
     /// 30 or 60); absent = off, as the core requires.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -179,6 +183,7 @@ impl Default for AlertSettings {
             overage: core.overage,
             muted: BTreeMap::new(),
             pool_each: BTreeSet::new(),
+            breakdown_each: BTreeSet::new(),
             projected_lead_minutes: None,
         }
     }
@@ -230,6 +235,14 @@ impl AlertSettings {
                         .collect()
                 })
                 .unwrap_or_default(),
+            breakdown_each: value["breakdown_each"]
+                .as_array()
+                .map(|keys| {
+                    keys.iter()
+                        .filter_map(|key| key.as_str().map(str::to_owned))
+                        .collect()
+                })
+                .unwrap_or_default(),
             projected_lead_minutes: value["projected_lead_minutes"]
                 .as_u64()
                 .and_then(Lead::from_minutes)
@@ -256,6 +269,23 @@ impl AlertSettings {
             crate::alerts::PoolAlerts::WholePool => {
                 next.pool_each.remove(account_key);
             }
+        }
+        next
+    }
+
+    /// PRD 0045 RF5.2: whether the breakdown rows of `account_key` alert.
+    pub fn breakdown_alerts(&self, account_key: &str) -> bool {
+        self.breakdown_each.contains(account_key)
+    }
+
+    /// The same settings with the breakdown rows of `account_key` alerting
+    /// (`on`) or not.
+    pub fn with_breakdown_alerts(&self, account_key: &str, on: bool) -> Self {
+        let mut next = self.clone();
+        if on {
+            next.breakdown_each.insert(account_key.to_owned());
+        } else {
+            next.breakdown_each.remove(account_key);
         }
         next
     }
@@ -350,6 +380,7 @@ impl Loaded {
                 overage: recommended.overage,
                 muted: BTreeMap::new(),
                 pool_each: BTreeSet::new(),
+                breakdown_each: BTreeSet::new(),
                 projected_lead_minutes: None,
             },
             quiet: QuietSchedule::default(),
@@ -529,6 +560,26 @@ mod tests {
         assert!(!ea.recovery);
         assert_eq!(a.planner(), b.planner());
         assert_eq!(a.planner().lead, chrono::TimeDelta::minutes(15));
+    }
+
+    /// PRD 0045 RF5.2: "Alert on breakdown rows" is off by default, kept
+    /// per account id and written only when some account has it on.
+    #[test]
+    fn breakdown_alerts_are_per_account_and_off_by_default() {
+        let alerts = AlertSettings::default();
+        assert!(!alerts.breakdown_alerts("org"));
+        let on = alerts.with_breakdown_alerts("org", true);
+        assert!(on.breakdown_alerts("org") && !on.breakdown_alerts("other"));
+        let json = serde_json::to_value(&on).unwrap();
+        assert_eq!(json["breakdown_each"], json!(["org"]));
+        assert_eq!(AlertSettings::from_value(&json), on);
+        let off = on.with_breakdown_alerts("org", false);
+        assert!(serde_json::to_value(&off)
+            .unwrap()
+            .get("breakdown_each")
+            .is_none());
+        let odd = AlertSettings::from_value(&json!({"breakdown_each": "org"}));
+        assert!(odd.breakdown_each.is_empty());
     }
 
     #[test]

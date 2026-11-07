@@ -1572,5 +1572,17 @@
   "coreText.doctorNoKey": "Tidak ada kunci yang tersimpan untuk akun ini; abaikan jika akun masuk dengan cara lain.",
   "coreText.doctorFixKey": "Buka akun di Edit dan ketik kuncinya; Cuotai menyimpannya di brankas sistem.",
   "coreText.restoreKey": "Ketik lagi kunci akun {number} ({provider}).",
-  "settings.kw.backup": "cadangan backup pulihkan ekspor impor pindah komputer baru zip pengaturan"
+  "settings.kw.backup": "cadangan backup pulihkan ekspor impor pindah komputer baru zip pengaturan",
+  "breakdown.alerts": "Beri peringatan untuk baris rincian",
+  "breakdown.alertsHelp": "10 baris teratas yang punya batas memberi peringatan seperti kuota akun itu sendiri, dengan ambang di Pengaturan → Peringatan. Mati secara bawaan.",
+  "budget.editor.row": "Pada baris rincian: {scope} {id}",
+  "budget.editor.rowScope.key": "kunci API",
+  "budget.editor.rowScope.virtual_key": "kunci virtual",
+  "budget.editor.rowScope.project": "proyek",
+  "budget.editor.rowScope.workspace": "workspace",
+  "budget.editor.rowScope.team": "tim",
+  "detect.costOffer.open": "Buka Biaya lokal",
+  "detect.costOffer.claude_code": "Log lokalnya juga dapat memperkirakan biaya dengan harga API; Cuotai hanya membacanya setelah Anda menyalakan sumber Claude Code.",
+  "detect.costOffer.codex_cli": "Log lokalnya juga dapat memperkirakan biaya dengan harga API; Cuotai hanya membacanya setelah Anda menyalakan sumber Codex CLI.",
+  "detect.costOffer.gemini_cli": "Log lokalnya juga dapat memperkirakan biaya dengan harga API; Cuotai hanya membacanya setelah Anda menyalakan sumber Gemini CLI."
 }

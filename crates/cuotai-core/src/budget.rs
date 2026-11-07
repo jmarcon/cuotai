@@ -19,7 +19,7 @@
 //! never `0`.
 
 use crate::model::{
-    Account, Billing, DerivedFrom, Metric, MetricKind, MetricWindow, Provider, Report,
+    Account, Billing, DerivedFrom, Metric, MetricKind, MetricWindow, Provider, Report, ScopeKind,
 };
 use crate::pace::Point;
 use crate::text::{params, Localized, ParamValue};
@@ -182,10 +182,31 @@ pub struct Budget {
     pub starts: Option<BudgetStart>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
+    /// PRD 0045 RF5.2: the breakdown row whose metric the budget follows
+    /// (`row = { scope = "key", id = "..." }`); `None` for the account's
+    /// own metrics.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub row: Option<RowTarget>,
 }
 
 // Validation rejects non-finite amounts, so equality is reflexive.
 impl Eq for Budget {}
+
+/// PRD 0045 RF5.2: a breakdown row by its scope and opaque id, as the
+/// breakdown reports them (never its label).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RowTarget {
+    pub scope: ScopeKind,
+    pub id: String,
+}
+
+impl RowTarget {
+    /// Whether `row` is this one.
+    pub fn matches(&self, row: &crate::BreakdownRow) -> bool {
+        row.scope == self.scope && row.id == self.id && !row.is_others()
+    }
+}
 
 /// RF3.1: one `[[accounts.floors]]` entry, on a `balance` or `credits`
 /// metric (`kind` absent: the first of either).
@@ -252,6 +273,9 @@ pub enum BudgetRule {
     NoWindow,
     /// A label longer than [`LABEL_MAX`] characters, or blank.
     Label,
+    /// PRD 0045 RF5.2: a row target with `scope = "account"`, a `model`
+    /// scope, an empty or too long id, or on a provider without breakdowns.
+    Row,
 }
 
 impl BudgetRule {
@@ -293,6 +317,10 @@ impl BudgetRule {
             Self::Label => (
                 "budget.error.label",
                 "{field}: the label must have 1 to 32 characters.",
+            ),
+            Self::Row => (
+                "budget.error.row",
+                "{field}: a budget on a breakdown row needs a kind, the row's scope (key, virtual_key, project, workspace or team) and its id, on a provider that offers breakdowns.",
             ),
         };
         Localized::with_param(id, "field", field, fallback)
@@ -428,6 +456,17 @@ pub fn problems(provider: Provider, budgets: &[Budget], floors: &[Floor]) -> Vec
         {
             push(at("period"), BudgetRule::NoWindow);
         }
+        if let Some(row) = &budget.row {
+            let offers = crate::access::may_break_down(provider);
+            if budget.scope.is_some()
+                || row.scope == ScopeKind::Model
+                || row.id.trim().is_empty()
+                || row.id.len() > crate::breakdown::ID_MAX
+                || !offers
+            {
+                push(at("row"), BudgetRule::Row);
+            }
+        }
         if budgets[..i].iter().any(|other| same_target(other, budget)) {
             push(at("period"), BudgetRule::Duplicate);
         }
@@ -463,6 +502,7 @@ fn same_target(a: &Budget, b: &Budget) -> bool {
         && folded(&a.label_contains) == folded(&b.label_contains)
         && folded(&a.unit) == folded(&b.unit)
         && a.period == b.period
+        && a.row == b.row
 }
 
 fn label_matches(metric: &Metric, filter: Option<&str>) -> bool {
@@ -756,139 +796,232 @@ pub fn apply<Tz: TimeZone>(
         return;
     }
     let mut added = Vec::new();
+    let mut notes = Vec::new();
     for (index, budget) in account.budgets.iter().enumerate() {
-        let target = target(budget, &report.metrics).cloned();
-        let target_label = target.as_ref().map_or_else(
-            || {
-                budget
-                    .label_contains
-                    .clone()
-                    .or_else(|| budget.kind.map(|k| k.slug().to_owned()))
-                    .unwrap_or_else(|| "spend".into())
-            },
-            |metric| metric.label.clone(),
+        if budget.row.is_none() {
+            added.push(derive(
+                index,
+                budget,
+                &report.metrics,
+                history,
+                now,
+                tz,
+                &mut notes,
+            ));
+        }
+    }
+    report.metrics.extend(added);
+    for note in notes {
+        push_note(report, note);
+    }
+}
+
+/// PRD 0045 RF5.2: the baselines of a row's metric since a time (the row
+/// unit's series).
+pub type RowBaselines<'a> = dyn Fn(&crate::BreakdownRow, &Metric, DateTime<Utc>) -> Vec<Point> + 'a;
+
+/// PRD 0045 RF5.2: the budgets of `account` that follow a breakdown row,
+/// each added to its row as a derived quota (after the row's own metrics,
+/// beyond [`crate::breakdown::MAX_ROW_METRICS`]), with its notes on the
+/// row. `history` gives the baselines of a row's metric (the row unit's
+/// series, [`crate::breakdown::row_account`]). A row absent from the
+/// reading adds the account note `note.budget.target_missing`. Earlier
+/// derived row metrics are dropped first.
+pub fn apply_rows<Tz: TimeZone>(
+    account: &Account,
+    report: &mut Report,
+    history: &RowBaselines,
+    now: DateTime<Utc>,
+    tz: &Tz,
+) {
+    for row in &mut report.breakdown {
+        row.metrics.retain(|metric| metric.derived_from.is_none());
+    }
+    if report.status != crate::Status::Ready {
+        return;
+    }
+    let mut missing = Vec::new();
+    for (index, budget) in account.budgets.iter().enumerate() {
+        let Some(wanted) = &budget.row else {
+            continue;
+        };
+        let Some(row) = report.breakdown.iter_mut().find(|row| wanted.matches(row)) else {
+            let label = metric_label(budget, budget.label_contains.as_deref().unwrap_or("spend"));
+            let display = crate::metric_text::metric_text(&label)
+                .fallback
+                .into_owned();
+            missing.push(note(
+                "note.budget.target_missing",
+                &display,
+                "{budget}: the metric this budget follows is missing from this reading.",
+            ));
+            continue;
+        };
+        let snapshot = row.clone();
+        let baselines = |metric: &Metric, since: DateTime<Utc>| history(&snapshot, metric, since);
+        let mut notes = Vec::new();
+        let metric = derive(
+            index,
+            budget,
+            &snapshot.metrics,
+            &baselines,
+            now,
+            tz,
+            &mut notes,
         );
-        let label = metric_label(budget, &target_label);
-        let display = crate::metric_text::metric_text(&label)
-            .fallback
-            .into_owned();
-        let unit = budget
-            .unit
-            .clone()
-            .or_else(|| target.as_ref().map(|metric| metric.unit.clone()))
-            .unwrap_or_default();
-        let bounds = match budget.period {
-            BudgetPeriod::Window => target.as_ref().and_then(|metric| {
-                let end = metric.resets_at?;
-                Some((
-                    provider_window_start(metric.window, end).unwrap_or(now.min(end)),
-                    end,
-                ))
-            }),
-            period => period_bounds(period, budget.starts, now, tz),
-        };
-        let window = match budget.period {
-            BudgetPeriod::Window => target.as_ref().and_then(|metric| metric.window),
-            period => period.window(),
-        };
-        let mut metric = Metric {
-            label,
-            used: None,
-            limit: Some(budget.amount),
-            remaining: None,
-            unit,
-            kind: MetricKind::Quota,
-            window,
-            period: bounds.map(|(start, _)| start.to_rfc3339()),
-            resets_at: bounds.map(|(_, end)| end),
-            // RF2.4: the budget is a plan limit for every generic engine.
-            billing: Billing::Included,
-            scope: target.as_ref().and_then(|metric| metric.scope.clone()),
-            derived_from: Some(DerivedFrom {
-                kind: target
-                    .as_ref()
-                    .map(|metric| metric.kind)
-                    .or_else(|| budget.kind.map(BudgetKind::metric_kind))
-                    .unwrap_or(MetricKind::Spend),
-                label: target_label,
-                budget: index,
-            }),
-        };
-        match (&target, bounds) {
-            (None, _) => push_note(
-                report,
-                note(
-                    "note.budget.target_missing",
-                    &display,
-                    "{budget}: the metric this budget follows is missing from this reading.",
-                ),
+        row.metrics.push(metric);
+        row.notes.extend(notes);
+    }
+    for note in missing {
+        push_note(report, note);
+    }
+}
+
+fn push_note_to(notes: &mut Vec<Localized>, note: Localized) {
+    notes.push(note);
+}
+
+/// One budget's derived quota over `metrics` (the account's or a row's),
+/// with its notes pushed to `notes`.
+fn derive<Tz: TimeZone>(
+    index: usize,
+    budget: &Budget,
+    metrics: &[Metric],
+    history: &dyn Baselines,
+    now: DateTime<Utc>,
+    tz: &Tz,
+    notes: &mut Vec<Localized>,
+) -> Metric {
+    let target = target(budget, metrics).cloned();
+    let target_label = target.as_ref().map_or_else(
+        || {
+            budget
+                .label_contains
+                .clone()
+                .or_else(|| budget.kind.map(|k| k.slug().to_owned()))
+                .unwrap_or_else(|| "spend".into())
+        },
+        |metric| metric.label.clone(),
+    );
+    let label = metric_label(budget, &target_label);
+    let display = crate::metric_text::metric_text(&label)
+        .fallback
+        .into_owned();
+    let unit = budget
+        .unit
+        .clone()
+        .or_else(|| target.as_ref().map(|metric| metric.unit.clone()))
+        .unwrap_or_default();
+    let bounds = match budget.period {
+        BudgetPeriod::Window => target.as_ref().and_then(|metric| {
+            let end = metric.resets_at?;
+            Some((
+                provider_window_start(metric.window, end).unwrap_or(now.min(end)),
+                end,
+            ))
+        }),
+        period => period_bounds(period, budget.starts, now, tz),
+    };
+    let window = match budget.period {
+        BudgetPeriod::Window => target.as_ref().and_then(|metric| metric.window),
+        period => period.window(),
+    };
+    let mut metric = Metric {
+        label,
+        used: None,
+        limit: Some(budget.amount),
+        remaining: None,
+        unit,
+        kind: MetricKind::Quota,
+        window,
+        period: bounds.map(|(start, _)| start.to_rfc3339()),
+        resets_at: bounds.map(|(_, end)| end),
+        // RF2.4: the budget is a plan limit for every generic engine.
+        billing: Billing::Included,
+        scope: target.as_ref().and_then(|metric| metric.scope.clone()),
+        derived_from: Some(DerivedFrom {
+            kind: target
+                .as_ref()
+                .map(|metric| metric.kind)
+                .or_else(|| budget.kind.map(BudgetKind::metric_kind))
+                .unwrap_or(MetricKind::Spend),
+            label: target_label,
+            budget: index,
+        }),
+    };
+    match (&target, bounds) {
+        (None, _) => push_note_to(
+            notes,
+            note(
+                "note.budget.target_missing",
+                &display,
+                "{budget}: the metric this budget follows is missing from this reading.",
             ),
-            (Some(_), None) => push_note(
-                report,
-                note(
-                    "note.budget.no_window",
-                    &display,
-                    "{budget}: the metric has no reset of its own, so period = \"window\" cannot count.",
-                ),
+        ),
+        (Some(_), None) => push_note_to(
+            notes,
+            note(
+                "note.budget.no_window",
+                &display,
+                "{budget}: the metric has no reset of its own, so period = \"window\" cannot count.",
             ),
-            (Some(target), Some((start, end))) => {
-                if budget.unit.as_deref().is_some_and(|unit| !target.unit.eq_ignore_ascii_case(unit)) {
-                    push_note(
-                        report,
-                        note(
-                            "note.budget.unit_mismatch",
-                            &display,
-                            "{budget}: the metric is reported in another unit, so this budget cannot count.",
-                        ),
-                    );
-                } else {
-                    match used_in_period(budget, target, start, end, history) {
-                        Ok((used, how)) => {
-                            metric.used = Some(used);
-                            metric.remaining = Some((budget.amount - used).max(0.0));
-                            match how {
-                                Derivation::ProviderMonth => push_note(
-                                    report,
-                                    note(
-                                        "note.budget.provider_month",
-                                        &display,
-                                        "{budget}: counted over the provider's billing month, which may start in another time zone.",
-                                    ),
+        ),
+        (Some(target), Some((start, end))) => {
+            if budget.unit.as_deref().is_some_and(|unit| !target.unit.eq_ignore_ascii_case(unit)) {
+                push_note_to(
+                    notes,
+                    note(
+                        "note.budget.unit_mismatch",
+                        &display,
+                        "{budget}: the metric is reported in another unit, so this budget cannot count.",
+                    ),
+                );
+            } else {
+                match used_in_period(budget, target, start, end, history) {
+                    Ok((used, how)) => {
+                        metric.used = Some(used);
+                        metric.remaining = Some((budget.amount - used).max(0.0));
+                        match how {
+                            Derivation::ProviderMonth => push_note_to(
+                                notes,
+                                note(
+                                    "note.budget.provider_month",
+                                    &display,
+                                    "{budget}: counted over the provider's billing month, which may start in another time zone.",
                                 ),
-                                Derivation::Drops { topped_up: true } => push_note(
-                                    report,
-                                    note(
-                                        "note.budget.topup_detected",
-                                        &display,
-                                        "{budget}: a top-up was detected; it does not count as use.",
-                                    ),
+                            ),
+                            Derivation::Drops { topped_up: true } => push_note_to(
+                                notes,
+                                note(
+                                    "note.budget.topup_detected",
+                                    &display,
+                                    "{budget}: a top-up was detected; it does not count as use.",
                                 ),
-                                _ => {}
-                            }
+                            ),
+                            _ => {}
                         }
-                        Err("no_baseline") => push_note(
-                            report,
-                            note(
-                                "note.budget.no_baseline",
-                                &display,
-                                "{budget}: counting starts with the first reading of this period.",
-                            ),
-                        ),
-                        Err(_) => push_note(
-                            report,
-                            note(
-                                "note.budget.target_missing",
-                                &display,
-                                "{budget}: the metric this budget follows is missing from this reading.",
-                            ),
-                        ),
                     }
+                    Err("no_baseline") => push_note_to(
+                        notes,
+                        note(
+                            "note.budget.no_baseline",
+                            &display,
+                            "{budget}: counting starts with the first reading of this period.",
+                        ),
+                    ),
+                    Err(_) => push_note_to(
+                        notes,
+                        note(
+                            "note.budget.target_missing",
+                            &display,
+                            "{budget}: the metric this budget follows is missing from this reading.",
+                        ),
+                    ),
                 }
             }
         }
-        added.push(metric);
     }
-    report.metrics.extend(added);
+    metric
 }
 
 /// A report restored from the history (PRD 0010 RF2.3) carries the budget
@@ -909,7 +1042,12 @@ pub fn mark_restored(account: &Account, report: &mut Report) {
         if metric.derived_from.is_some() || metric.kind != MetricKind::Quota {
             continue;
         }
-        for (index, budget) in account.budgets.iter().enumerate() {
+        for (index, budget) in account
+            .budgets
+            .iter()
+            .enumerate()
+            .filter(|(_, b)| b.row.is_none())
+        {
             let target = target(budget, &originals);
             let label = target.map_or_else(
                 || budget.label.clone().unwrap_or_default(),
@@ -1090,10 +1228,23 @@ pub fn offers_budget(account: &Account, report: &Report, metric: &Metric) -> boo
         MetricKind::Spend | MetricKind::Usage | MetricKind::Credits
     ) && metric.derived_from.is_none()
         && account.budgets.len() < MAX_BUDGETS
+        && !account.budgets.iter().any(|budget| {
+            budget.row.is_none()
+                && target(budget, &report.metrics).is_some_and(|t| t.label == metric.label)
+        })
+}
+
+/// PRD 0045 RF5.2: whether the details offer **Set a budget…** on `row`:
+/// not the "Others" row, the account has room for one more budget and no
+/// budget follows the row yet.
+pub fn offers_row_budget(account: &Account, row: &crate::BreakdownRow) -> bool {
+    !row.is_others()
+        && account.budgets.len() < MAX_BUDGETS
         && !account
             .budgets
             .iter()
-            .any(|budget| target(budget, &report.metrics).is_some_and(|t| t.label == metric.label))
+            .filter_map(|budget| budget.row.as_ref())
+            .any(|wanted| wanted.matches(row))
 }
 
 /// RF5.3: whether the details of `metric` offer **Set a floor…**: a balance
@@ -1131,7 +1282,30 @@ pub fn draft_for(metric: &Metric) -> Budget {
         },
         starts: None,
         label: None,
+        row: None,
     }
+}
+
+/// PRD 0045 RF5.2: a budget prefilled for the primary metric of `row` (its
+/// kind, unit and period, the row's scope and id); `None` for the "Others"
+/// row or a row without a spend, usage or credits metric.
+pub fn draft_for_row(row: &crate::BreakdownRow) -> Option<Budget> {
+    if row.is_others() {
+        return None;
+    }
+    let metric = row.metrics.iter().find(|m| {
+        matches!(
+            m.kind,
+            MetricKind::Spend | MetricKind::Usage | MetricKind::Credits
+        )
+    })?;
+    Some(Budget {
+        row: Some(RowTarget {
+            scope: row.scope,
+            id: row.id.clone(),
+        }),
+        ..draft_for(metric)
+    })
 }
 
 /// RF6.2: the reference line "last 30 days: $38.20" from the recorded

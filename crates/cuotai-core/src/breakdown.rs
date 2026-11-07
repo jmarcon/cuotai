@@ -508,6 +508,157 @@ pub(crate) fn push_notes(notes: &mut crate::text::Notes, list: Vec<Localized>) {
     }
 }
 
+// ------------------------------------------------------------- RF5 units
+
+/// RF5.1: most rows per account the history records and the gated alerts
+/// follow (the first ones in the provider's order, never "Others").
+pub const HISTORY_ROWS: usize = 10;
+
+/// The prefix of a row's series key and of its unit's account id suffix.
+const ROW_KEY_PREFIX: &str = "breakdown:";
+
+/// The snake_case name of a row scope (`virtual_key`).
+pub fn scope_slug(scope: ScopeKind) -> &'static str {
+    match scope {
+        ScopeKind::Model => "model",
+        ScopeKind::Key => "key",
+        ScopeKind::VirtualKey => "virtual_key",
+        ScopeKind::Project => "project",
+        ScopeKind::Workspace => "workspace",
+        ScopeKind::Team => "team",
+    }
+}
+
+/// RF5.1, §6: the series key of a row, `breakdown:<scope>:<digest>`. The
+/// row id is always hashed ([`digest_id`]), so the history never holds a
+/// provider id, opaque or not, nor a label.
+pub fn row_key(row: &BreakdownRow) -> String {
+    format!(
+        "{ROW_KEY_PREFIX}{}:{}",
+        scope_slug(row.scope),
+        digest_id(&row.id)
+    )
+}
+
+/// RF5.1: the rows the history records and the gated alerts follow: the
+/// first [`HISTORY_ROWS`] in the provider's order, "Others" left out.
+pub fn top_rows(rows: &[BreakdownRow]) -> impl Iterator<Item = &BreakdownRow> {
+    rows.iter()
+        .filter(|row| !row.is_others())
+        .take(HISTORY_ROWS)
+}
+
+/// The account id of a row's unit: `<parent id>/breakdown:<scope>:<digest>`
+/// ([`crate::AccountId::connection`]), so its series, alert marks and
+/// first-reading state are its own and follow the parent across renames.
+fn row_unit_id(parent_key: &str, row: &BreakdownRow) -> crate::AccountId {
+    crate::AccountId::connection(parent_key, &row_key(row))
+}
+
+/// RF5: the parent account id of a row unit's key, `None` for any other
+/// key (a direct account or an aggregator connection).
+pub fn row_parent(account_key: &str) -> Option<&str> {
+    let (parent, rest) = account_key.split_once('/')?;
+    rest.starts_with(ROW_KEY_PREFIX).then_some(parent)
+}
+
+/// RF5.1: the keyed account of a row's unit (history and alerts). It
+/// carries no credential, parameter, label or provider id.
+pub fn row_account(parent: &crate::Account, row: &BreakdownRow) -> crate::Account {
+    crate::Account {
+        group: parent.group.clone(),
+        id: Some(row_unit_id(&parent.state_key(), row)),
+        name: format!("{}/{}", parent.name, row_key(row)),
+        provider: parent.provider,
+        credential_env: None,
+        oauth: None,
+        session: None,
+        params: std::collections::BTreeMap::new(),
+        refresh_seconds: parent.refresh_seconds,
+        budgets: Vec::new(),
+        floors: Vec::new(),
+        breakdown: Vec::new(),
+    }
+}
+
+/// RF5: the reading of `row` as a report of [`row_account`]: the row's
+/// metrics at the parent's time and status; no notes, sub-reports or rows.
+pub fn row_as_report(parent: &crate::Report, row: &BreakdownRow) -> crate::Report {
+    crate::Report {
+        account_id: Some(row_unit_id(&parent.state_key(), row)),
+        account: format!("{}/{}", parent.account, row_key(row)),
+        provider: parent.provider,
+        checked_at: parent.checked_at,
+        status: parent.status,
+        metrics: row.metrics.clone(),
+        notes: Vec::new(),
+        notes_l10n: Vec::new(),
+        source: parent.source.clone(),
+        session_expires_at: None,
+        sub_reports: Vec::new(),
+        diagnostic: None,
+        as_of: parent.as_of,
+        overage_hint: None,
+        breakdown: Vec::new(),
+    }
+}
+
+/// RF5.1: the units of `report`'s top rows ([`top_rows`]), plus any other
+/// row a budget of `account` follows (RF5.2, so it has a baseline), as
+/// `(account, report)` pairs for the history recorder. Empty unless the
+/// reading is `Ready`.
+pub fn row_units(
+    account: &crate::Account,
+    report: &crate::Report,
+) -> Vec<(crate::Account, crate::Report)> {
+    if report.status != crate::Status::Ready {
+        return Vec::new();
+    }
+    let top: Vec<&BreakdownRow> = top_rows(&report.breakdown).collect();
+    let budgeted = report.breakdown.iter().filter(|row| {
+        !top.iter()
+            .any(|kept| kept.id == row.id && kept.scope == row.scope)
+            && account
+                .budgets
+                .iter()
+                .filter_map(|budget| budget.row.as_ref())
+                .any(|wanted| wanted.matches(row))
+    });
+    top.iter()
+        .copied()
+        .chain(budgeted)
+        .map(|row| (row_account(account, row), row_as_report(report, row)))
+        .collect()
+}
+
+/// RF5.3: which row an alert or event is about: its scope, id and
+/// redacted label, as the export carries them (never a user).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RowRef {
+    pub scope: ScopeKind,
+    pub id: String,
+    pub label: String,
+}
+
+impl RowRef {
+    pub fn of(row: &BreakdownRow) -> Self {
+        Self {
+            scope: row.scope,
+            id: row.id.clone(),
+            label: row.label.clone(),
+        }
+    }
+}
+
+/// RF5.2: the display form of a row unit's account for a notice:
+/// "<account> · <row label>" under the parent's provider and group.
+pub fn row_display(parent: &crate::Account, row: &RowRef) -> crate::Account {
+    crate::Account {
+        name: format!("{} · {}", parent.name, row.label),
+        ..parent.clone()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -936,3 +1087,7 @@ mod config_tests {
         assert!(fresh.is_ok_and(|account| account.breakdown.is_empty()));
     }
 }
+
+#[cfg(test)]
+#[path = "breakdown_units_tests.rs"]
+mod units_tests;

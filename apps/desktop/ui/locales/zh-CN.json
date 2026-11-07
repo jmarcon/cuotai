@@ -1572,5 +1572,17 @@
   "coreText.doctorNoKey": "此账户未保存密钥；如果它以其他方式登录，可忽略此项。",
   "coreText.doctorFixKey": "在“编辑”中打开该账户并输入其密钥；Cuotai 会将其保存在系统保险库中。",
   "coreText.restoreKey": "请重新输入账户 {number}（{provider}）的密钥。",
-  "settings.kw.backup": "备份 恢复 导出 导入 迁移 新电脑 zip 复制 设置"
+  "settings.kw.backup": "备份 恢复 导出 导入 迁移 新电脑 zip 复制 设置",
+  "breakdown.alerts": "对明细行发出提醒",
+  "breakdown.alertsHelp": "前 10 个有上限的行会像账户自身的配额一样提醒，使用 设置 → 提醒 中的阈值。默认关闭。",
+  "budget.editor.row": "在明细行上：{scope} {id}",
+  "budget.editor.rowScope.key": "API 密钥",
+  "budget.editor.rowScope.virtual_key": "虚拟密钥",
+  "budget.editor.rowScope.project": "项目",
+  "budget.editor.rowScope.workspace": "工作区",
+  "budget.editor.rowScope.team": "团队",
+  "detect.costOffer.open": "打开本地费用",
+  "detect.costOffer.claude_code": "它的本地日志也可以按 API 价格估算费用；只有在你开启 Claude Code 来源后，Cuotai 才会读取。",
+  "detect.costOffer.codex_cli": "它的本地日志也可以按 API 价格估算费用；只有在你开启 Codex CLI 来源后，Cuotai 才会读取。",
+  "detect.costOffer.gemini_cli": "它的本地日志也可以按 API 价格估算费用；只有在你开启 Gemini CLI 来源后，Cuotai 才会读取。"
 }

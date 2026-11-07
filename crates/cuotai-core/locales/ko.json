@@ -2241,5 +2241,6 @@
   "doctor.channel.failing": "최근 전송이 실패했습니다.",
   "doctor.channel.ok": "마지막 전송이 수락되었습니다.",
   "doctor.channel.none": "아직 아무것도 보내지 않았습니다.",
-  "doctor.fix.channel": "설정 › 알림에서 채널을 열고 주소를 확인한 뒤 테스트를 보내세요(cuotai --channel-test)."
+  "doctor.fix.channel": "설정 › 알림에서 채널을 열고 주소를 확인한 뒤 테스트를 보내세요(cuotai --channel-test).",
+  "budget.error.row": "{field}: 세부 내역 행의 예산에는 kind, 행의 범위(key, virtual_key, project, workspace 또는 team)와 그 id가 필요하며, 세부 내역을 제공하는 제공자여야 합니다."
 }

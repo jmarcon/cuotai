@@ -3,7 +3,7 @@
 // events (LoginEvent, no secrets) and sends user input.
 import {
   accountLabel, configChangedOnDisk, deleteAccount, detectSources, forgetExtensionSecrets, dismissDetected, draftAccess, errText, esc, fieldChoices, formSchema, getAccount,
-  getSettings, getView, icon, listProviders, logo, NEW_PROVIDER_URL, openExternal, sessionOpenLinkHtml, keyPageLinkHtml, installLinkHtml, providerModes, setDetectEnabled,
+  getSettings, getView, icon, listProviders, logo, NEW_PROVIDER_URL, openExternal, openSettingsWindow, sessionOpenLinkHtml, keyPageLinkHtml, installLinkHtml, providerModes, setDetectEnabled,
   loginCancel, loginStart, loginSubmitCode, forgetSession, migrateSession, modelSupport, onLogin, previewSession, reloadConfig,
   reportKey, saveAccount, captureSession, cancelSessionCapture, forgetSharedCapture, sessionCaptureHintHtml, sessionNoticeHtml, testAggregator, testSession, validMonogram, visibleFields,
 } from "./lib.js";
@@ -70,6 +70,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       <small class="field-err" hidden></small></div>
     <div class="form-rest" id="form-rest" ${editing ? "" : "hidden"}>
     <p class="cost-advisory offer-consent" id="offer-consent" role="note" hidden></p>
+    <p class="hint offer-cost" id="offer-cost" hidden><span id="offer-cost-text"></span> <button type="button" class="link" data-offer-cost>${te("detect.costOffer.open")}</button></p>
     <label class="f" data-field="name"><span>${te("dialog.nameOptional")}</span><input name="name" value="${esc(existing?.name ?? "")}" aria-describedby="name-hint" /><small class="hint" id="name-hint"></small><small class="field-err" id="name-err" role="alert" hidden></small></label>
     <label class="f" data-field="peer_name" id="peer-row" hidden><span id="peer-label"></span><input name="peer_name" autocomplete="off" aria-describedby="peer-hint" /><small class="hint" id="peer-hint"></small><small class="field-err" role="alert" hidden></small></label>
     <div id="dyn"><div id="dyn-auth"></div>
@@ -1319,6 +1320,10 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   const head = dlg.querySelector("#prov-head");
   const rest = dlg.querySelector("#form-rest");
   const consentLine = dlg.querySelector("#offer-consent");
+  // PRD 0030 RF2.3: a found CLI whose logs can feed the local cost estimate offers Settings → Local cost; the source
+  // stays off until the person gives its own consent there.
+  const costOffer = dlg.querySelector("#offer-cost");
+  costOffer.querySelector("[data-offer-cost]").addEventListener("click", () => openSettingsWindow({ page: "cost", anchor: "cost-sources" }));
   let detected = [];
   const paintHead = (entry, found) => {
     head.innerHTML = `${logo(entry.provider, 32)}<span class="pick-text"><b>${esc(entry.label)}</b>
@@ -1363,6 +1368,8 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     // RF7.2: what the offered flow will read, before anything is read; Change provider (or Cancel) reads nothing.
     consentLine.textContent = found ? tl(found.consent) : "";
     consentLine.hidden = !found;
+    costOffer.querySelector("#offer-cost-text").textContent = found?.local_cost ? t(`detect.costOffer.${found.local_cost}`) : "";
+    costOffer.hidden = !found?.local_cost;
     picker?.closest(".picker").setAttribute("hidden", "");
     dlg.classList.remove("dlg-catalog");
     head.hidden = false;

@@ -1572,5 +1572,17 @@
   "coreText.doctorNoKey": "このアカウントにはキーが保存されていません。別の方法でサインインする場合は無視してください。",
   "coreText.doctorFixKey": "「編集」でアカウントを開いてキーを入力してください。Cuotai はシステムの保管庫に保存します。",
   "coreText.restoreKey": "アカウント {number}（{provider}）のキーをもう一度入力してください。",
-  "settings.kw.backup": "バックアップ 復元 エクスポート インポート 移行 新しいコンピューター zip コピー 設定"
+  "settings.kw.backup": "バックアップ 復元 エクスポート インポート 移行 新しいコンピューター zip コピー 設定",
+  "breakdown.alerts": "内訳の行でも通知する",
+  "breakdown.alertsHelp": "上限のある上位 10 行が、設定 → 通知 のしきい値でアカウント自身のクォータと同じように通知します。既定ではオフです。",
+  "budget.editor.row": "内訳の行：{scope} {id}",
+  "budget.editor.rowScope.key": "API キー",
+  "budget.editor.rowScope.virtual_key": "仮想キー",
+  "budget.editor.rowScope.project": "プロジェクト",
+  "budget.editor.rowScope.workspace": "ワークスペース",
+  "budget.editor.rowScope.team": "チーム",
+  "detect.costOffer.open": "ローカル費用を開く",
+  "detect.costOffer.claude_code": "ローカルのログから API 価格での費用も見積もれます。Cuotai が読むのは Claude Code のソースをオンにした後だけです。",
+  "detect.costOffer.codex_cli": "ローカルのログから API 価格での費用も見積もれます。Cuotai が読むのは Codex CLI のソースをオンにした後だけです。",
+  "detect.costOffer.gemini_cli": "ローカルのログから API 価格での費用も見積もれます。Cuotai が読むのは Gemini CLI のソースをオンにした後だけです。"
 }

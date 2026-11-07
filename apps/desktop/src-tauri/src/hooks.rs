@@ -276,6 +276,11 @@ impl Integration {
         let Some(active) = &mut self.active else {
             return false;
         };
+        // PRD 0045 RF5.2: rows have events only for the accounts whose
+        // "Alert on breakdown rows" is on.
+        self.quiet.refresh();
+        let rows = self.quiet.loaded().alerts.breakdown_each.clone();
+        active.watcher.set_breakdown_alerts(rows);
         for observed in &active.watcher.observe_transitions(export, now, pace) {
             let in_quiet = self.quiet.quiet_at(observed.event.occurred_at);
             let submitted = active.runner.submit_in(observed, in_quiet);

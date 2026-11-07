@@ -1055,6 +1055,11 @@ impl Monitor {
             for unit in aggregators::sub_units(index, account, &report) {
                 recorder.submit(&unit.account, &unit.report);
             }
+            // PRD 0045 RF5.1: the top breakdown rows, each a series of its
+            // own under a digest of its id.
+            for (row_account, row_report) in breakdown::row_units(account, &report) {
+                recorder.submit(&row_account, &row_report);
+            }
         }
         report
     }
@@ -1078,6 +1083,23 @@ impl Monitor {
                 .unwrap_or_default()
         };
         budget::apply(account, report, &baselines, self.now(), &chrono::Local);
+        // PRD 0045 RF5.2: a budget on a breakdown row counts over the row
+        // unit's own series.
+        let row_baselines = |row: &BreakdownRow,
+                             target: &Metric,
+                             since: chrono::DateTime<Utc>|
+         -> Vec<pace::Point> {
+            let unit = breakdown::row_account(account, row);
+            store
+                .as_ref()
+                .and_then(|store| {
+                    store
+                        .series(&unit, &history::metric_key(target), since..)
+                        .ok()
+                })
+                .unwrap_or_default()
+        };
+        budget::apply_rows(account, report, &row_baselines, self.now(), &chrono::Local);
     }
 
     /// PRD 0036 RF4.4: refresh only the connection `sub_id` of the

@@ -191,6 +191,16 @@ impl LocalCost {
         }
     }
 
+    /// PRD 0030 RF2.3: the sources that are on (none when the settings
+    /// cannot be read), for the picker's local cost offer.
+    pub fn enabled_sources(&self) -> Vec<SourceId> {
+        self.stores
+            .as_ref()
+            .and_then(|stores| stores.settings.load().ok())
+            .map(|saved| saved.enabled_sources(&self.env))
+            .unwrap_or_default()
+    }
+
     pub fn view(&self) -> Result<CostView, String> {
         let stores = self.stores()?;
         let saved = stores.settings.load().map_err(l10n)?;

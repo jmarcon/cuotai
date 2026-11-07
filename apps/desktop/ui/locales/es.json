@@ -1580,5 +1580,17 @@
   "coreText.doctorNoKey": "No hay ninguna clave guardada para esta cuenta; ignóralo si inicia sesión de otra forma.",
   "coreText.doctorFixKey": "Abre la cuenta en Editar y escribe su clave; Cuotai la guarda en el almacén seguro del sistema.",
   "coreText.restoreKey": "Vuelve a escribir la clave de la cuenta {number} ({provider}).",
-  "settings.kw.backup": "copia respaldo restaurar exportar importar mover nuevo equipo migrar zip ajustes"
+  "settings.kw.backup": "copia respaldo restaurar exportar importar mover nuevo equipo migrar zip ajustes",
+  "breakdown.alerts": "Avisar de las filas del desglose",
+  "breakdown.alertsHelp": "Las 10 primeras filas con límite avisan como las cuotas de la propia cuenta, con los umbrales de Ajustes → Alertas. Desactivado por defecto.",
+  "budget.editor.row": "En la fila del desglose: {scope} {id}",
+  "budget.editor.rowScope.key": "clave de API",
+  "budget.editor.rowScope.virtual_key": "clave virtual",
+  "budget.editor.rowScope.project": "proyecto",
+  "budget.editor.rowScope.workspace": "espacio de trabajo",
+  "budget.editor.rowScope.team": "equipo",
+  "detect.costOffer.open": "Abrir Costo local",
+  "detect.costOffer.claude_code": "Sus registros locales también pueden estimar el coste a precios de API; Cuotai solo los lee después de que actives la fuente Claude Code.",
+  "detect.costOffer.codex_cli": "Sus registros locales también pueden estimar el coste a precios de API; Cuotai solo los lee después de que actives la fuente Codex CLI.",
+  "detect.costOffer.gemini_cli": "Sus registros locales también pueden estimar el coste a precios de API; Cuotai solo los lee después de que actives la fuente Gemini CLI."
 }

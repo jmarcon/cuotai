@@ -371,6 +371,7 @@ impl Rule {
             current,
             previous: Some(previous),
             sample: true,
+            row: None,
         }
     }
 }

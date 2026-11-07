@@ -1583,5 +1583,17 @@
   "coreText.doctorNoKey": "Für dieses Konto ist kein Schlüssel gespeichert; ignoriere das, wenn es sich anders anmeldet.",
   "coreText.doctorFixKey": "Öffne das Konto unter Bearbeiten und gib seinen Schlüssel ein; Cuotai bewahrt ihn im System-Tresor auf.",
   "coreText.restoreKey": "Gib den Schlüssel von Konto {number} ({provider}) erneut ein.",
-  "settings.kw.backup": "sicherung backup wiederherstellen exportieren importieren umzug neuer computer zip einstellungen"
+  "settings.kw.backup": "sicherung backup wiederherstellen exportieren importieren umzug neuer computer zip einstellungen",
+  "breakdown.alerts": "Bei Zeilen der Aufschlüsselung warnen",
+  "breakdown.alertsHelp": "Die ersten 10 Zeilen mit einem Limit warnen wie die Kontingente des Kontos selbst, mit den Schwellen aus Einstellungen → Warnungen. Standardmäßig aus.",
+  "budget.editor.row": "Auf der Zeile der Aufschlüsselung: {scope} {id}",
+  "budget.editor.rowScope.key": "API-Schlüssel",
+  "budget.editor.rowScope.virtual_key": "virtueller Schlüssel",
+  "budget.editor.rowScope.project": "Projekt",
+  "budget.editor.rowScope.workspace": "Workspace",
+  "budget.editor.rowScope.team": "Team",
+  "detect.costOffer.open": "Lokale Kosten öffnen",
+  "detect.costOffer.claude_code": "Seine lokalen Protokolle können auch die Kosten zu API-Preisen schätzen; Cuotai liest sie erst, wenn du die Quelle Claude Code einschaltest.",
+  "detect.costOffer.codex_cli": "Seine lokalen Protokolle können auch die Kosten zu API-Preisen schätzen; Cuotai liest sie erst, wenn du die Quelle Codex CLI einschaltest.",
+  "detect.costOffer.gemini_cli": "Seine lokalen Protokolle können auch die Kosten zu API-Preisen schätzen; Cuotai liest sie erst, wenn du die Quelle Gemini CLI einschaltest."
 }

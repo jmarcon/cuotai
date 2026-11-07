@@ -2252,5 +2252,6 @@
   "doctor.channel.failing": "Le ultime consegne non sono riuscite.",
   "doctor.channel.ok": "L'ultima consegna è stata accettata.",
   "doctor.channel.none": "Non gli è stato ancora inviato nulla.",
-  "doctor.fix.channel": "Apri il canale in Impostazioni › Avvisi, controlla l'indirizzo e invia una prova (cuotai --channel-test)."
+  "doctor.fix.channel": "Apri il canale in Impostazioni › Avvisi, controlla l'indirizzo e invia una prova (cuotai --channel-test).",
+  "budget.error.row": "{field}: un budget su una riga del dettaglio richiede un kind, l'ambito della riga (key, virtual_key, project, workspace o team) e il suo id, su un provider che offre dettagli."
 }

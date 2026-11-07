@@ -17,7 +17,7 @@ export function orderOf(b, by = sortBy) {
 }
 
 /** One DS-CMP-SUB row. A row with a cap draws the meter of its remaining share; any other row its amount. */
-function rowHtml(row, so, po) {
+function rowHtml(row, so, po, i) {
   const m = row.figure;
   const label = tl(row.label);
   const pct = m ? remainingPct(m) : null;
@@ -33,25 +33,34 @@ function rowHtml(row, so, po) {
   const reset = m && fmtReset(m.resets_at) ? (m.resets_label ? tl(m.resets_label) : t("metric.resetsAt", { when: fmtReset(m.resets_at) })) : "";
   const tip = row.metrics.map((x) => `${tl(x.label_text ?? x.label)}: ${fmtAmount(x)}`).join("\n");
   const notes = row.notes.map((n) => `<span class="brk-note">${esc(tl(n))}</span>`).join("");
+  // PRD 0045 RF5.2: a budget on this row, in the account editor (details dialog only).
+  const budget = row.budget_draft ? `<div class="metric-actions"><button type="button" class="btn sm" data-set-row-budget="${i}">${te("budget.action.set_budget")}</button></div>` : "";
   return `<div class="metric brk-row${row.others ? " others" : ""}" data-breakdown-row="${esc(row.id)}" data-so="${so}" data-po="${po}" title="${esc(tip)}">
     <div class="metric-top"><h3>${esc(label)}</h3><div class="metric-right">${figure}</div></div>
     ${gauge}
     ${reset || notes ? `<div class="metric-meta">${notes || "<span></span>"}${reset ? `<span class="resets">${esc(reset)}</span>` : ""}</div>` : ""}
+    ${budget}
   </div>`;
 }
 
-/** The details' Breakdown section of report `r`; "" without rows. */
-export function breakdownHtml(r) {
+/** The details' Breakdown section of report `r`; "" without rows. `action` (the details dialog) adds the
+ *  "Alert on breakdown rows" switch (PRD 0045 RF5.2) and the rows' "Set a budget…". */
+export function breakdownHtml(r, { action = false } = {}) {
   const b = r?.breakdown;
   if (!b?.rows?.length) return "";
   const percent = orderOf(b, "percent");
-  const rows = orderOf(b).map((i) => rowHtml(b.rows[i], i, percent.indexOf(i))).join("");
+  const rows = orderOf(b).map((i) => rowHtml(action ? b.rows[i] : { ...b.rows[i], budget_draft: null }, i, percent.indexOf(i), i)).join("");
+  const alerts = action
+    ? `<label class="check"><input type="checkbox" data-breakdown-alerts="${esc(r.account_key)}" ${b.alert_rows ? "checked" : ""} /> ${te("breakdown.alerts")}</label>
+    <p class="hint">${te("breakdown.alertsHelp")}</p>`
+    : "";
   const sort = ["spend", "percent"].map((by) =>
     `<button type="button" data-breakdown-sort="${by}" aria-pressed="${by === sortBy}">${te(`breakdown.sort.${by}`)}</button>`).join("");
   return `<section class="breakdown" data-breakdown aria-label="${te("breakdown.title")}">
     <div class="brk-head"><h3>${te("breakdown.title")}</h3><div class="seg" role="group" aria-label="${te("breakdown.sort.label")}">${sort}</div></div>
     <div class="brk-rows">${rows}</div>
     ${b.truncated ? `<p class="sub brk-truncated">${esc(tl(b.truncated))}</p>` : ""}
+    ${alerts}
   </section>`;
 }
 

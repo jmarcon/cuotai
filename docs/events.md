@@ -135,6 +135,8 @@ for (prev, next) in previous.accounts.iter().zip(&current.accounts) {
 
 **Aggregators.** Each connection of an aggregator account (for example every connection of a 9router instance) is diffed like an account of its own: its events carry `account_key` = `<aggregator key>/<sub id>`, `account_name` = the connection's label, `provider` = the mapped provider (the aggregator's when the upstream is unknown) and `parent` = the aggregator account's key. Connections that are off in the aggregator or duplicate a direct account have no events. A hook rule with `account = "<aggregator name>"` also runs on its connections' events.
 
+**Breakdown rows (PRD 0045 RF5).** For an account whose **Alert on breakdown rows** is on (`alerts.breakdown_each` in `desktop.json`, which `--watch` and the desktop's hooks read), each of its first ten breakdown rows with a cap fires `quota_threshold_crossed`, `quota_exhausted` and `quota_recovered` like a quota of the account: the event keeps the account's `account_key`, `account_id` and `account_name`, `metric` is the row's metric, and `scope`, `scope_id` and `scope_label` name the row. A row's first reading is its baseline, and turning the switch on never reports a level already reached; a row that disappears is forgotten.
+
 **Budgets (PRD 0041).** A budget quota (a metric with `derived: true`, see [`export-v1.md`](export-v1.md)) is a quota like any other: it fires `quota_threshold_crossed`, `quota_exhausted`, `quota_recovered`, `quota_reset` and `quota_exhaustion_projected` under its own label ("Budget · …"), and can block the account.
 
 One reading can fire several events; they come in this order: refresh events, `quota_reset`, threshold/exhaustion/recovery events (with `balance_below_floor`, `balance_recovered` and `limit_changed`), blocking events, `overage_ended`, `quota_reset_soon`, `usage_updated`, `provider_incident`. `overage_started` and `session_expiring` come with the threshold events. A reset after an exhaustion, for example, fires `quota_reset`, `quota_recovered` and `account_unblocked` together.
@@ -161,6 +163,7 @@ The event payload follows the same policy as [`export::v1`](export-v1.md#stabili
 | `provider` | string | Provider slug. |
 | `accounts` | array of strings, or absent | `provider_incident` only: the `account_key` of every account that reads the same provider status, in configuration order, the first being `account_key` (additive; PRD 0029 will add account ids beside the keys). |
 | `parent` | string, or absent | Only for an event of an aggregator's connection: the aggregator account's key. |
+| `scope`, `scope_id`, `scope_label` | strings, or absent | PRD 0045 RF5.3: only for an event of a breakdown row: the row's scope (`key`, `virtual_key`, `project`, `workspace`, `team`), its opaque id and its redacted label (never a person). |
 | `metric` | object or `null` | `label` and `window` (`window_5h`, `daily`, `weekly`, `monthly`, `other` or `null`). |
 | `current` | object | The values after the transition. |
 | `previous` | object or `null` | The same values before it; `null` when nothing earlier is known. |

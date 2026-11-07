@@ -71,6 +71,7 @@ fn budget(kind: BudgetKind, amount: f64, period: BudgetPeriod) -> Budget {
         period,
         starts: None,
         label: None,
+        row: None,
     }
 }
 
@@ -754,6 +755,7 @@ fn floor_notices_follow_the_private_mode() {
         projection: None,
         overage: None,
         limit_change: None,
+        row: None,
     };
     let now = at(2026, 10, 21, 12, 0);
     let private = notice(&[(&account, vec![event.clone()])], now, &Utc, true).unwrap();

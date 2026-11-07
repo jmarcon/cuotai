@@ -253,6 +253,7 @@ impl HistoryStore {
                 current: current.clone(),
                 previous: None,
                 sample: false,
+                row: None,
             };
             entries.push(JournalEntry {
                 occurred_at,

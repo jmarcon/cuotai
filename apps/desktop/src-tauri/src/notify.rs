@@ -313,6 +313,19 @@ impl Notices {
         self.set_alerts(self.alerts.with_pool_mode(account_key, mode))
     }
 
+    /// PRD 0045 RF5.2: turn "Alert on breakdown rows" on or off for
+    /// `account_key`.
+    pub fn set_breakdown_alerts(
+        &mut self,
+        account_key: &str,
+        on: bool,
+    ) -> Result<(), &'static str> {
+        if self.alerts.breakdown_alerts(account_key) == on {
+            return Ok(());
+        }
+        self.set_alerts(self.alerts.with_breakdown_alerts(account_key, on))
+    }
+
     /// Whether the metric `label` of `account_key` is muted in the details.
     pub fn metric_muted(&self, account_key: &str, label: &str) -> bool {
         self.alerts
@@ -399,6 +412,7 @@ impl Notices {
         let mut alerts = self.alerts.clone();
         alerts.muted.retain(|key, _| kept(key));
         alerts.pool_each.retain(|key| keys.contains(key));
+        alerts.breakdown_each.retain(|key| keys.contains(key));
         if alerts != self.alerts {
             self.set_alerts(alerts)?;
         }
@@ -438,6 +452,17 @@ impl Notices {
             mode,
             pace,
         );
+        // PRD 0045 RF5.2: the top breakdown rows alert only when the
+        // person turned "Alert on breakdown rows" on for the account.
+        if self.alerts.breakdown_alerts(&next.state_key()) {
+            events.extend(alerts::evaluate_rows(
+                prev,
+                next,
+                &self.evaluator,
+                self.ledger.alerts(),
+                now,
+            ));
+        }
         if !self.alerts.enabled {
             events.retain(|event| event.kind == AlertKind::ProjectedExhaustion);
         }
@@ -792,7 +817,8 @@ impl Notices {
         let evaluator = &self.evaluator;
         let alerts_on = self.alerts.enabled;
         self.digest_pending.retain(|event| {
-            Self::judged(evaluator, alerts_on, event) && keys.contains(&event.account_key)
+            Self::judged(evaluator, alerts_on, event)
+                && alerts::configured_unit(&keys, &event.account_key)
         });
         if self.digest_pending.is_empty() {
             return (0, None);
@@ -802,18 +828,18 @@ impl Notices {
                 return (0, Some(due));
             }
         }
-        let mut pending = std::mem::take(&mut self.digest_pending);
-        let mut groups = Vec::new();
-        for (index, key) in keys.iter().enumerate() {
-            let account = expanded.display(index);
-            let (mine, rest): (Vec<_>, Vec<_>) = pending
-                .into_iter()
-                .partition(|event| event.account_key == *key);
-            pending = rest;
-            if !mine.is_empty() {
-                groups.push((account, mine));
-            }
-        }
+        let pending = std::mem::take(&mut self.digest_pending);
+        // PRD 0045 RF5.2: a breakdown row's events form a group of their own.
+        let owned = alerts::notice_groups(
+            keys.iter()
+                .enumerate()
+                .map(|(index, key)| (key.clone(), expanded.display(index))),
+            pending,
+        );
+        let groups: Vec<(&Account, Vec<AlertEvent>)> = owned
+            .iter()
+            .map(|(account, events)| (account, events.clone()))
+            .collect();
         let Some(notice) = quiet::digest(&groups, now, &chrono::Local, self.prefs.private) else {
             return (0, None);
         };
@@ -852,7 +878,8 @@ impl Notices {
         let evaluator = &self.evaluator;
         let alerts_on = self.alerts.enabled;
         self.pending.retain(|event| {
-            Self::judged(evaluator, alerts_on, event) && keys.contains(&event.account_key)
+            Self::judged(evaluator, alerts_on, event)
+                && alerts::configured_unit(&keys, &event.account_key)
         });
         let (mut pending, held): (Vec<_>, Vec<_>) = std::mem::take(&mut self.pending)
             .into_iter()
@@ -867,17 +894,17 @@ impl Notices {
                 return (0, Some(due));
             }
         }
-        let mut groups = Vec::new();
-        for (index, key) in keys.iter().enumerate() {
-            let account = expanded.display(index);
-            let (mine, rest): (Vec<_>, Vec<_>) = pending
-                .into_iter()
-                .partition(|event| event.account_key == *key);
-            pending = rest;
-            if !mine.is_empty() {
-                groups.push((account, mine));
-            }
-        }
+        // PRD 0045 RF5.2: a breakdown row's events form a group of their own.
+        let owned = alerts::notice_groups(
+            keys.iter()
+                .enumerate()
+                .map(|(index, key)| (key.clone(), expanded.display(index))),
+            pending,
+        );
+        let groups: Vec<(&Account, Vec<AlertEvent>)> = owned
+            .iter()
+            .map(|(account, events)| (account, events.clone()))
+            .collect();
         let Some(notice) = alerts::notice_with(&groups, now, &chrono::Local, self.prefs.private)
         else {
             return (0, None);
@@ -1522,6 +1549,87 @@ mod tests {
         notices.keep_accounts(&config(&["Work"])).unwrap();
         assert!(!notices.metric_muted(&conn, "5h"));
         assert!(notices.alerts().pool_each.is_empty());
+    }
+
+    /// PRD 0045 RF5.2: a breakdown row with a cap alerts only once the
+    /// person turns "Alert on breakdown rows" on, and the notice names the
+    /// row under its account; a save keeps the switch of a configured
+    /// account only.
+    #[test]
+    fn breakdown_rows_alert_only_when_switched_on() {
+        let cfg = Config {
+            accounts: vec![Account {
+                name: "org".into(),
+                provider: Provider::OpenRouter,
+                ..Account::default()
+            }],
+            ..Config::default()
+        };
+        let id = cfg.accounts[0].state_key();
+        let reading = |at: DateTime<Utc>, used: f64| {
+            let mut metric = quota("Limite", MetricWindow::Monthly, w());
+            metric.used = Some(used);
+            metric.unit = "USD".into();
+            Report {
+                account_id: Some(cfg.accounts[0].id()),
+                diagnostic: None,
+                account: "org".into(),
+                provider: Provider::OpenRouter,
+                checked_at: at,
+                status: Status::Ready,
+                metrics: Vec::new(),
+                notes: Vec::new(),
+                notes_l10n: Vec::new(),
+                source: String::new(),
+                session_expires_at: None,
+                sub_reports: Vec::new(),
+                as_of: None,
+                overage_hint: None,
+                breakdown: vec![cuotai_core::BreakdownRow {
+                    scope: cuotai_core::ScopeKind::Key,
+                    id: "k1".into(),
+                    label: "Bot".into(),
+                    metrics: vec![metric],
+                    truncated: false,
+                    notes: Vec::new(),
+                }],
+            }
+        };
+        let a = reading(t0(), 50.0);
+        let b = reading(t0() + mins(5), 80.0);
+        let c = reading(t0() + mins(10), 95.0);
+
+        let fake = FakeNotifier::default();
+        let mut notices = alerting(None);
+        observe(&mut notices, &cfg, None, &a, &fake);
+        assert_eq!(
+            observe(&mut notices, &cfg, Some(&a), &b, &fake).delivered,
+            0
+        );
+        assert!(fake.titles().is_empty(), "off by default");
+
+        notices.set_breakdown_alerts(&id, true).unwrap();
+        assert!(notices.alerts().breakdown_alerts(&id));
+        let events = notices.assess(Some(&b), &c, c.checked_at, None);
+        assert_eq!(events.len(), 1, "{events:?}");
+        assert_eq!(events[0].threshold, 90, "75% was reached while off");
+        assert!(events[0].row.is_some());
+        notices.record(Some(&b), &c, events, c.checked_at, None);
+        let readings = [Some(&c)];
+        assert_eq!(
+            notices.tick(&cfg, &readings, c.checked_at, &fake).delivered,
+            1
+        );
+        assert!(
+            fake.0.borrow()[0].1.starts_with("org · Bot"),
+            "{:?}",
+            fake.0.borrow()
+        );
+
+        notices.keep_accounts(&cfg).unwrap();
+        assert!(notices.alerts().breakdown_alerts(&id));
+        notices.keep_accounts(&config(&["Work"])).unwrap();
+        assert!(notices.alerts().breakdown_each.is_empty());
     }
 
     /// A system that refuses every notice (permission denied).
