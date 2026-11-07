@@ -1,6 +1,7 @@
 //! `cargo xtask security-baseline` (PRD 0050 RF1.4, RF7.1, RF7.3, RF7.5):
 //! the desktop webview policy, the HTML pages it loads, and the registry of
-//! security invariants in `docs/security-baseline.md`, each tied to a test.
+//! security invariants in `docs/security-baseline.md`, each tied to a test,
+//! and the single HTTP client seam of the product code (RF7.2).
 //!
 //! Every check is a pure function over text so the fixture tests can feed it
 //! a broken policy, page or registry; [`run`] only reads the repository.
@@ -378,6 +379,213 @@ pub fn check_gitignore(text: &str) -> Vec<String> {
     }
 }
 
+/// Files allowed to build an HTTP client outside tests (PRD 0050 RF7.2):
+/// the core seam itself. The desktop updater plugin builds its own client
+/// inside `tauri-plugin-updater` (PRD 0018), which this source check cannot
+/// see and `docs/security-baseline.md` records as an exception.
+pub const CLIENT_BUILDER_ALLOW: &[&str] = &["crates/cuotai-core/src/network.rs"];
+
+/// The product source trees the client-builder check covers.
+const PRODUCT_RUST: &[&str] = &["crates/", "apps/desktop/src-tauri/src/"];
+
+/// Whether `path` is a test-only file by its location or name.
+fn test_file(path: &str) -> bool {
+    let name = path.rsplit('/').next().unwrap_or(path);
+    path.contains("/tests/")
+        || name == "tests.rs"
+        || name.ends_with("_tests.rs")
+        || name.starts_with("test_")
+}
+
+/// The files of modules declared `#[cfg(test)] mod name;` in `sources`.
+fn test_module_files(sources: &[(String, String)]) -> BTreeSet<String> {
+    let mut out = BTreeSet::new();
+    for (path, text) in sources {
+        let Some(stem) = path.strip_suffix(".rs") else {
+            continue;
+        };
+        let name = stem.rsplit('/').next().unwrap_or(stem);
+        let dir = if matches!(name, "mod" | "lib" | "main") {
+            stem.rsplit_once('/')
+                .map(|(d, _)| d.to_string())
+                .unwrap_or_default()
+        } else {
+            stem.to_string()
+        };
+        let mut pending = false;
+        for line in text.lines() {
+            let line = line.trim();
+            if line.starts_with("#[cfg(test)]") {
+                pending = true;
+                continue;
+            }
+            if pending && line.starts_with("#[") {
+                continue;
+            }
+            if pending {
+                let rest = line
+                    .strip_prefix("pub(crate) ")
+                    .or_else(|| line.strip_prefix("pub "))
+                    .unwrap_or(line);
+                if let Some(module) = rest.strip_prefix("mod ").and_then(|m| m.strip_suffix(';')) {
+                    out.insert(format!("{dir}/{}.rs", module.trim()));
+                    out.insert(format!("{dir}/{}/mod.rs", module.trim()));
+                }
+            }
+            pending = false;
+        }
+    }
+    out
+}
+
+/// `text` with every item behind `#[cfg(test)]` blanked (lines kept, so
+/// reported line numbers stay right). Braces inside string, raw-string and
+/// char literals and comments are ignored.
+pub fn strip_cfg_test(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut keep = vec![true; bytes.len()];
+    let mut search = 0;
+    while let Some(found) = text[search..].find("#[cfg(test)]") {
+        let start = search + found;
+        let Some(end) = item_end(bytes, start + "#[cfg(test)]".len()) else {
+            for k in keep.iter_mut().skip(start) {
+                *k = false;
+            }
+            break;
+        };
+        for k in &mut keep[start..end] {
+            *k = false;
+        }
+        search = end;
+    }
+    bytes
+        .iter()
+        .zip(keep)
+        .map(|(&b, k)| if k || b == b'\n' { b as char } else { ' ' })
+        .collect()
+}
+
+/// The end (exclusive) of the item starting after an attribute at `from`:
+/// the first `;` at depth 0 or the brace that closes its first `{`.
+fn item_end(bytes: &[u8], from: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    let mut i = from;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'/' if bytes.get(i + 1) == Some(&b'/') => {
+                while i < bytes.len() && bytes[i] != b'\n' {
+                    i += 1;
+                }
+            }
+            b'/' if bytes.get(i + 1) == Some(&b'*') => {
+                i += 2;
+                while i + 1 < bytes.len() && !(bytes[i] == b'*' && bytes[i + 1] == b'/') {
+                    i += 1;
+                }
+                i += 1;
+            }
+            b'r' if matches!(bytes.get(i + 1), Some(b'"' | b'#'))
+                && !bytes
+                    .get(i.wrapping_sub(1))
+                    .is_some_and(|c| c.is_ascii_alphanumeric() || *c == b'_') =>
+            {
+                let mut j = i + 1;
+                let mut hashes = 0;
+                while bytes.get(j) == Some(&b'#') {
+                    hashes += 1;
+                    j += 1;
+                }
+                if bytes.get(j) != Some(&b'"') {
+                    i += 1;
+                    continue;
+                }
+                j += 1;
+                loop {
+                    if j >= bytes.len() {
+                        return None;
+                    }
+                    if bytes[j] == b'"'
+                        && bytes[j + 1..]
+                            .iter()
+                            .take(hashes)
+                            .filter(|c| **c == b'#')
+                            .count()
+                            == hashes
+                    {
+                        i = j + hashes;
+                        break;
+                    }
+                    j += 1;
+                }
+            }
+            b'"' => {
+                i += 1;
+                while i < bytes.len() && bytes[i] != b'"' {
+                    if bytes[i] == b'\\' {
+                        i += 1;
+                    }
+                    i += 1;
+                }
+            }
+            b'\'' if bytes.get(i + 2) == Some(&b'\'') => i += 2,
+            b'\'' if bytes.get(i + 1) == Some(&b'\\') && bytes.get(i + 3) == Some(&b'\'') => i += 3,
+            b';' if depth == 0 => return Some(i + 1),
+            b'{' => depth += 1,
+            b'}' => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    return Some(i + 1);
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    None
+}
+
+/// Direct HTTP client construction in product code outside the core seam
+/// (PRD 0050 RF7.2).
+pub fn check_client_builders(sources: &[(String, String)]) -> Vec<String> {
+    let test_modules = test_module_files(sources);
+    let mut problems = Vec::new();
+    for (path, text) in sources {
+        if !path.ends_with(".rs")
+            || !PRODUCT_RUST.iter().any(|root| path.starts_with(root))
+            || CLIENT_BUILDER_ALLOW.contains(&path.as_str())
+            || test_file(path)
+            || test_modules.contains(path)
+        {
+            continue;
+        }
+        let imports_client = text.lines().any(|line| {
+            let line = line.trim();
+            line.starts_with("use reqwest::")
+                && (line.contains("::Client;")
+                    || line
+                        .split(|c: char| !c.is_alphanumeric() && c != '_')
+                        .any(|word| word == "Client" || word == "ClientBuilder"))
+        });
+        let product = strip_cfg_test(text);
+        for (number, line) in product.lines().enumerate() {
+            let code = line.split("//").next().unwrap_or_default();
+            let direct = code.contains("reqwest::Client::builder(")
+                || code.contains("reqwest::Client::new(")
+                || code.contains("reqwest::blocking::Client")
+                || code.contains("ClientBuilder::new(")
+                || (imports_client
+                    && (code.contains("Client::builder(") || code.contains("Client::new(")));
+            if direct {
+                problems.push(format!(
+                    "{path}:{}: builds an HTTP client outside `network::builder` (PRD 0050 RF7.2)",
+                    number + 1
+                ));
+            }
+        }
+    }
+    problems
+}
+
 /// The source roots scanned for markers.
 const SOURCE_ROOTS: &[&str] = &[
     "crates",
@@ -449,6 +657,7 @@ pub fn run(root: &Path) -> Res<usize> {
         collect_sources(root, &root.join(dir), &mut sources)?;
     }
     problems.extend(check_registry(&rows, &sources));
+    problems.extend(check_client_builders(&sources));
     if problems.is_empty() {
         Ok(rows.len())
     } else {

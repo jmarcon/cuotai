@@ -94,14 +94,10 @@ pub async fn limits_views(
     token: Option<&Token>,
 ) -> Result<Vec<AccountView>, ClientError> {
     let url = limits_url(base)?;
-    let client = reqwest::Client::builder()
-        .timeout(TIMEOUT)
-        .connect_timeout(TIMEOUT)
-        .redirect(reqwest::redirect::Policy::none())
-        .no_proxy()
-        .user_agent(concat!("cuotai/", env!("CARGO_PKG_VERSION")))
-        .build()
-        .map_err(|_| ClientError::Unreachable)?;
+    let client =
+        crate::network::builder_with_own_roots(crate::network::ClientPurpose::LocalServer, TIMEOUT)
+            .build()
+            .map_err(|_| ClientError::Unreachable)?;
     let mut request = client.get(url).header("Accept", "application/json");
     if let Some(token) = token {
         request = request.bearer_auth(token.expose());

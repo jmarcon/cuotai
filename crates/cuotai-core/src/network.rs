@@ -38,6 +38,9 @@ pub enum ClientPurpose {
     LocalProbe,
     /// PRD 0044: the notification channels the person added.
     Channels,
+    /// A running Cuotai local server read back on loopback (the status line
+    /// and the feed reader; never through a proxy).
+    LocalServer,
 }
 
 impl ClientPurpose {
@@ -48,6 +51,7 @@ impl ClientPurpose {
             Self::UpdateCheck => "update_check",
             Self::LocalProbe => "local_probe",
             Self::Channels => "channels",
+            Self::LocalServer => "local_server",
         }
     }
 
@@ -59,15 +63,17 @@ impl ClientPurpose {
             Self::UpdateCheck => crate::privacy::Purpose::UpdateCheck,
             Self::LocalProbe => crate::privacy::Purpose::LocalProbe,
             Self::Channels => crate::privacy::Purpose::NotificationChannels,
+            Self::LocalServer => crate::privacy::Purpose::LocalServer,
         }
     }
 
-    pub const ALL: [ClientPurpose; 5] = [
+    pub const ALL: [ClientPurpose; 6] = [
         Self::Provider,
         Self::OAuth,
         Self::UpdateCheck,
         Self::LocalProbe,
         Self::Channels,
+        Self::LocalServer,
     ];
 }
 
@@ -111,15 +117,29 @@ pub const USER_AGENT: &str = concat!("cuotai/", env!("CARGO_PKG_VERSION"));
 /// A client builder for `purpose` with `timeout` (see the module
 /// documentation). Callers may add purpose-specific settings (a pinned
 /// TLS configuration replaces the roots on its own).
+///
+/// PRD 0050 RF7.2: this and [`builder_with_own_roots`] are the only places
+/// a non-test client may be built (`cargo xtask security-baseline` refuses
+/// any other `reqwest::Client::builder()`), so the redirect policy below
+/// covers every credential-bearing request.
 pub fn builder(purpose: ClientPurpose, timeout: Duration) -> reqwest::ClientBuilder {
+    let mut builder = builder_with_own_roots(purpose, timeout);
+    for root in native_roots().unwrap_or_default() {
+        builder = builder.add_root_certificate(root.clone());
+    }
+    builder
+}
+
+/// [`builder`] without the OS roots, for a client that brings its own trust
+/// (the 9router CA file or certificate pin) or speaks plain HTTP on
+/// loopback. Everything else (redirects, timeouts, user agent, proxies) is
+/// the same.
+pub fn builder_with_own_roots(purpose: ClientPurpose, timeout: Duration) -> reqwest::ClientBuilder {
     let mut builder = reqwest::Client::builder()
         .timeout(timeout)
         .connect_timeout(timeout.min(Duration::from_secs(10)))
         .user_agent(USER_AGENT)
         .tls_built_in_root_certs(false);
-    for root in native_roots().unwrap_or_default() {
-        builder = builder.add_root_certificate(root.clone());
-    }
     builder = match purpose {
         ClientPurpose::UpdateCheck => {
             builder.redirect(reqwest::redirect::Policy::custom(|attempt| {
@@ -132,7 +152,10 @@ pub fn builder(purpose: ClientPurpose, timeout: Duration) -> reqwest::ClientBuil
         }
         _ => builder.redirect(reqwest::redirect::Policy::none()),
     };
-    if purpose == ClientPurpose::LocalProbe {
+    if matches!(
+        purpose,
+        ClientPurpose::LocalProbe | ClientPurpose::LocalServer
+    ) {
         builder = builder.no_proxy();
     }
     builder
@@ -494,5 +517,70 @@ mod tests {
             assert!(!row.host.is_empty());
             assert!(builder(purpose, Duration::from_secs(5)).build().is_ok());
         }
+    }
+
+    /// PRD 0050 RF7.2: through the seam, a 3xx from the first host never
+    /// takes the `Authorization` or `Cookie` header to a second host, for
+    /// every purpose (the update check follows only HTTPS), and the error a
+    /// provider or OAuth caller returns names neither URL nor body.
+    // security-invariant: SEC-REDIRECT
+    #[tokio::test]
+    async fn a_redirect_never_carries_credentials_to_a_second_host() {
+        use wiremock::matchers::any;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        const TOKEN: &str = "sentinel-token-7f3a";
+        const COOKIE: &str = "sid=sentinel-cookie-7f3a";
+        const BODY: &str = "sentinel-body-7f3a";
+        let second = MockServer::start().await;
+        Mock::given(any())
+            .respond_with(ResponseTemplate::new(200).set_body_string("{}"))
+            .mount(&second)
+            .await;
+        let first = MockServer::start().await;
+        Mock::given(any())
+            .respond_with(
+                ResponseTemplate::new(302)
+                    .insert_header("Location", format!("{}/steal", second.uri()).as_str())
+                    .set_body_string(BODY),
+            )
+            .mount(&first)
+            .await;
+        let url = format!("{}/v1/usage?key=sentinel-query-7f3a", first.uri());
+        let leaks = |text: &str| {
+            ["sentinel", "127.0.0.1", "localhost", "/steal", "/v1/usage"]
+                .iter()
+                .any(|needle| text.contains(needle))
+        };
+        let with_secrets = |purpose: ClientPurpose| {
+            client(purpose, Duration::from_secs(5))
+                .unwrap()
+                .get(&url)
+                .bearer_auth(TOKEN)
+                .header(reqwest::header::COOKIE, COOKIE)
+        };
+
+        let error =
+            crate::providers::json::<serde_json::Value>(with_secrets(ClientPurpose::Provider))
+                .await
+                .unwrap_err();
+        assert!(!leaks(&format!("{error:?}")), "{error:?}");
+        assert!(!leaks(&error.note.to_string()), "{}", error.note);
+
+        let response = crate::oauth::send_secure(with_secrets(ClientPurpose::OAuth))
+            .await
+            .unwrap();
+        assert_eq!(response.status().as_u16(), 302);
+        let error = crate::oauth::status_failure(response.status());
+        assert!(!leaks(&format!("{error} {error:?}")), "{error:?}");
+
+        for purpose in ClientPurpose::ALL {
+            let response = with_secrets(purpose).send().await.unwrap();
+            assert_eq!(response.status().as_u16(), 302, "{purpose:?}");
+        }
+        assert!(
+            second.received_requests().await.unwrap().is_empty(),
+            "the second host must receive nothing"
+        );
     }
 }
