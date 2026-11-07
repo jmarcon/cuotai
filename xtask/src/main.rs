@@ -124,6 +124,11 @@ SUBCOMMANDS:
     --templates-dir DIR      channel templates (default: packaging)
     --out DIR                output directory for the rendered manifests
 
+  check-example-config
+                       Strict-check every marked example block of cuotai.example.toml (PRD 0051 RF2.6)
+    --bin PATH              the cuotai binary (default: target/debug/cuotai)
+    --example PATH          the example file (default: cuotai.example.toml)
+
   workflow-check      Enforce GitHub Actions least privilege and cost guardrails (RF9)
     --workflow PATH         workflow to inspect (repeat; default: every .yml/.yaml workflow)
 
@@ -191,6 +196,7 @@ fn run(args: &[String]) -> Res<()> {
         "access-verified" => access_verified(&opts),
         "package-manifests" => package_manifests(&opts),
         "workflow-check" => workflow_check(&opts),
+        "check-example-config" => check_example_config(&opts),
         "external-rules-check" => external_rules_check(&opts),
         "security-baseline" => security_baseline(&opts),
         "help" | "--help" | "-h" => {
@@ -767,6 +773,29 @@ fn security_baseline(opts: &Opts) -> Res<()> {
     let repo = opts.path("repo").unwrap_or_else(|| PathBuf::from("."));
     let count = xtask::security::run(&repo)?;
     println!("security baseline passed: CSP, desktop pages and {count} invariants");
+    Ok(())
+}
+
+fn check_example_config(opts: &Opts) -> Res<()> {
+    let default_bin = if cfg!(windows) {
+        "target/debug/cuotai.exe"
+    } else {
+        "target/debug/cuotai"
+    };
+    let bin = opts.get("bin").unwrap_or_else(|| default_bin.to_string());
+    let example = opts
+        .get("example")
+        .unwrap_or_else(|| "cuotai.example.toml".to_string());
+    let scratch = std::env::temp_dir().join(format!("cuotai-example-{}", std::process::id()));
+    std::fs::create_dir_all(&scratch)?;
+    let result = xtask::example_config::check(Path::new(&example), Path::new(&bin), &scratch);
+    let _ = std::fs::remove_dir_all(&scratch);
+    let names = result?;
+    println!(
+        "example config passed: {} documents ({})",
+        names.len(),
+        names.join(", ")
+    );
     Ok(())
 }
 
