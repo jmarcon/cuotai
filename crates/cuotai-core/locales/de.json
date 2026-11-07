@@ -1899,6 +1899,7 @@
   "tray.item.unknown": "{name} ohne Daten",
   "tray.join": "{first}; {rest}",
   "tray.outage": "{item}; Vorfall beim Anbieter",
+  "tray.strip": "{item}; die letzten 24 Stunden als Stundenbalken",
   "tray.tooltip": "Cuotai — {label}",
   "update.notice": "Cuotai {version} ist verfügbar: {command}",
   "update.notice_download": "Cuotai {version} ist verfügbar: {url}",

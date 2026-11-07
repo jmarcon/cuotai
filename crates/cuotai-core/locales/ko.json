@@ -1887,6 +1887,7 @@
   "tray.item.unknown": "{name} 데이터 없음",
   "tray.join": "{first}, {rest}",
   "tray.outage": "{item}, 제공업체 장애",
+  "tray.strip": "{item}, 최근 24시간 시간별 막대",
   "tray.tooltip": "Cuotai — {label}",
   "update.notice": "Cuotai {version}을(를) 사용할 수 있습니다: {command}",
   "update.notice_download": "Cuotai {version}을(를) 사용할 수 있습니다: {url}",

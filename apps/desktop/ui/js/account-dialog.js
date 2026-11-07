@@ -22,7 +22,7 @@ function open(html) {
   return dlg;
 }
 
-export async function openAccountDialog(index = null, { onSaved = () => {}, pasteSession = false, onExtension = null, budgetDraft = null, floorDraft = null, prefill = null } = {}) {
+export async function openAccountDialog(index = null, { onSaved = () => {}, pasteSession = false, onExtension = null, budgetDraft = null, budgetHint = null, floorDraft = null, prefill = null } = {}) {
   // RF4: cheap external-change detection. If the file on disk
   // changed since the last view render, give the user a chance to
   // reload BEFORE they spend time editing the now-stale draft.
@@ -116,7 +116,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   const form = dlg.querySelector("form");
   // PRD 0041 RF5.1: the person's budgets and floors (the core checks every row; untouched, the account keeps its own).
   const budgetsEditor = mountBudgets(dlg.querySelector("#budgets-host"), {
-    provider, budgets: existing?.budgets ?? [], floors: existing?.floors ?? [], budgetDraft, floorDraft,
+    provider, budgets: existing?.budgets ?? [], floors: existing?.floors ?? [], budgetDraft, budgetHint, floorDraft,
   });
   const dyn = dlg.querySelector("#dyn");
   const dynAuth = dlg.querySelector("#dyn-auth");

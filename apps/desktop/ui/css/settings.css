@@ -943,6 +943,48 @@
 .mb-meters.colored .mb-bar.bad > span {
   background: var(--bad);
 }
+/* PRD 0043 RF4.2: the 24-hour strip preview (DS-CMP-PREV-1, DS-CHT-12): one column per hour against the busiest,
+   a gap is a faint baseline (never a zero bar), an hour without use a solid one, a reset a dot on top. */
+.mb-strip {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 1px;
+  width: 71px;
+  height: 18px;
+}
+.mb-col {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding-top: 3px;
+}
+.mb-col > i {
+  display: block;
+  min-height: 1px;
+  border-radius: 1px 1px 0 0;
+  background: var(--fg);
+}
+.mb-col.gap > i {
+  background: color-mix(in srgb, var(--fg) 30%, transparent);
+}
+.mb-col.reset::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background: var(--fg);
+}
+.mb-strip.colored.good .mb-col:not(.gap) > i {
+  background: var(--good);
+}
+.mb-strip.colored.warn .mb-col:not(.gap) > i {
+  background: var(--warn);
+}
+.mb-strip.colored.bad .mb-col:not(.gap) > i {
+  background: var(--bad);
+}
 /* RF4.2: the menu-bar accounts (DS-CMP-CHK-1, DS-CMP-DRAG-1/2, DS-CMP-LIST-3). */
 .mb-list {
   margin: 0;

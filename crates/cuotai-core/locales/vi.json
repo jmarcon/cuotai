@@ -1887,6 +1887,7 @@
   "tray.item.unknown": "{name}: không có dữ liệu",
   "tray.join": "{first}; {rest}",
   "tray.outage": "{item}; sự cố nhà cung cấp",
+  "tray.strip": "{item}; 24 giờ qua dưới dạng cột theo giờ",
   "tray.tooltip": "Cuotai — {label}",
   "update.notice": "Đã có Cuotai {version}: {command}",
   "update.notice_download": "Đã có Cuotai {version}: {url}",

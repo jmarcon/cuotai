@@ -1896,6 +1896,7 @@
   "tray.item.unknown": "{name} sem dados",
   "tray.join": "{first}; {rest}",
   "tray.outage": "{item}; incidente no provedor",
+  "tray.strip": "{item}; as últimas 24 horas em barras por hora",
   "tray.tooltip": "Cuotai — {label}",
   "update.notice": "Cuotai {version} está disponível: {command}",
   "update.notice_download": "Cuotai {version} está disponível: {url}",

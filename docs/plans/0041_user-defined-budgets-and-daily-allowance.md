@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0041 |
-| Status | In progress |
+| Status | Awaiting owner verification |
 | Owner | `cuotai-core` (`budget` module, synthetic metrics, allowance, validation), `cuotai-tui` (wizard field, details line, `--once`), desktop (account dialog, card chip, details) |
 | Consumers | Every front end; `export::v1`, `--watch` and `/v1/*` consumers; PRD 0026 statistics |
 | Depends on | PRD 0029 (budgets keyed by the stable account id), PRD 0023 RF1 (`Metric::billing`, so a budget on overage spend is possible), PRD 0033 (`measured_at`, for the cycle boundary) |
@@ -13,7 +13,7 @@
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable. A **budget** is a limit the person sets on a metric the provider reports without one (spend, usage, credits); a **floor** is the balance level below which the person wants to be warned; the **allowance** is how much of a quota can be used per day (or per hour) and still reach the reset.
 
-## Implementation status (2026-11-05)
+## Implementation status (2026-11-07)
 
 | RF | Version | Delivery |
 |---|---|---|
@@ -21,10 +21,11 @@
 | RF2 | 0.83.0 | `budget::apply` in `Monitor::refresh_account` (after the adapter, before history and alerts): derived quota with `derived_from`, local-midnight boundaries (DST-safe, tested in New York, Berlin and Santiago), provider-period, baseline and balance-drop derivations, `note.budget.*` notes, restored readings re-marked. The budget metric's `billing` is always `included` (so every engine treats it as a plan limit); a top-up raises the baseline by its amount instead of resetting it, so use before it still counts; no journal entry for top-ups. |
 | RF3 | 0.83.0 | `AlertKind::BalanceBelowFloor`/`BalanceRecovered` (10% hysteresis, top-up re-arm, quiet hours like a threshold, private texts), `budget::floor_statuses` chips and lines, `balance_below_floor`/`balance_recovered` events (floors travel in `AccountExport.floors`). |
 | RF4 | 0.83.0 | `pace::allowance` with `vs_recent`, `Allowance::sentence` (`pace.allowance.*`), desktop details, TUI details, `--once` `Allowance:` and `export::v1` `allowance`. |
-| RF5 | 0.83.0 (partial) | Desktop **Budgets and floors** section with core validation and the live sentence, **Set a budget…**/**Set a floor…** quick actions. The TUI wizard keeps an account's budgets and floors on edit but has no editor yet (the TOML is the terminal's editor). |
-| RF6 | — | Not delivered: no PRD 0030 plan-price API to prefill from; `budget::recent_reference` (the "last 30 days" line) exists in the core but is not shown yet. |
+| RF5 | 0.83.0, vNEXT | Desktop **Budgets and floors** section with core validation and the live sentence, **Set a budget…**/**Set a floor…** quick actions (0.83.0). vNEXT: RF5.2, the TUI wizard's **Budgets** step after **Group** (`a` add a budget, `f` a floor, `e` edit, `x` remove; ←→ choices, typing fills a field and filters the metric picker), drawn from the new core `budget::editor` rows (`BudgetRow`/`FloorRow`, `targets` with type-to-filter, `starts`, the texts and the parsing), checked by `budget::problems` before the step moves on and before the save; the review lists the budgets. Tests: the core rows round trip and the filter, the step's add/edit/remove/limits, and the wizard writing the rows while keeping the rest of the account. |
+| RF6 | vNEXT | `budget::editor::suggest`: **Set a budget…** asks the desktop command `budget_suggestion`, which prefills the amount and the cycle day from the account's PRD 0030 plan price when it is in the metric's currency (labelled "From your plan price… Check it before saving.") and adds the "Last 30 days: $38.20" reference line from 30 days of history for a spend or usage metric, never as the amount. Nothing is written until the dialog is saved; without an answer the card's own draft is used. Tests: prefill only in the same currency, cycle day, the reference line never becoming the amount. |
 | RF7 | 0.83.0 | `cuotai.example.toml`, `docs/advanced.md`, `docs/gui-features.md`, `docs/tui.md`, `docs/export-v1.md` (+ schema), `docs/events.md`. |
-| Open question | 0.83.0 | `advisory = true` (keep a budget out of binding and `best`) is not implemented: every budget counts, the recommended default. |
+| Open question | 0.83.0 | `advisory = true` (keep a budget out of binding and `best`) is not implemented: every budget counts, the recommended default. Decision of 2026-11-07 (owner said not to stop and ask): kept out of this delivery, because `[[accounts.budgets]]` rejects unknown keys, so a new `advisory` key would make the TOML unreadable for 0.83.x; it needs the PRD 0029 RF0 tolerance first, as `budgets` itself had. |
+| Owner verification | — | §11 smoke on a real `open_ai_api` account (a $50 monthly budget shows the budget quota on the card, the 75% alert when crossed and the allowance in the details) and one **Set a budget…** with a plan price saved, on the packaged desktop app (§2.1 of `0000_control.md`). |
 
 ## 1. Context
 

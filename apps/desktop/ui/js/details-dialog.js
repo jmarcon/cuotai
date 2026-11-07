@@ -128,7 +128,7 @@ export function openDetails(key, context, from = null) {
         const m = rep?.metrics?.[Number(budget.dataset.setBudget ?? budget.dataset.setFloor)];
         dlg.close();
         if (!rep || !m) return;
-        if (budget.dataset.setBudget != null) return ctx.onSetBudget?.(rep.index, m.budget_draft);
+        if (budget.dataset.setBudget != null) return ctx.onSetBudget?.(rep.index, m.budget_draft, m.label);
         return ctx.onSetFloor?.(rep.index, { kind: m.kind === "balance" ? "balance" : "credits", amount: 0, unit: m.unit || undefined });
       }
       if (t.closest("[data-edit]")) { const rep = r(); dlg.close(); if (rep) ctx.onEdit(rep.index); }

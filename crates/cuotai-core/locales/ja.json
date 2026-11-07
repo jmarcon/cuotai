@@ -1887,6 +1887,7 @@
   "tray.item.unknown": "{name}：データなし",
   "tray.join": "{first}、{rest}",
   "tray.outage": "{item}、プロバイダーの障害",
+  "tray.strip": "{item}、直近 24 時間の時間別バー",
   "tray.tooltip": "Cuotai — {label}",
   "update.notice": "Cuotai {version} を利用できます：{command}",
   "update.notice_download": "Cuotai {version} を利用できます：{url}",

@@ -31,8 +31,9 @@ pub const STALE_MARK: &str = "·";
 /// Separator between title items.
 const SEPARATOR: &str = " · ";
 
-/// RF1.1: the four menu-bar styles. `TightestPercent` is the default
-/// (decision N).
+/// RF1.1: the menu-bar styles. `TightestPercent` is the default
+/// (decision N). PRD 0043 RF4.2 adds `HourlyStrip` (macOS only): the last
+/// 24 hours of the tightest account as hourly bars.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TrayStyle {
@@ -41,14 +42,16 @@ pub enum TrayStyle {
     #[default]
     TightestPercent,
     IconOnly,
+    HourlyStrip,
 }
 
 impl TrayStyle {
-    pub const ALL: [Self; 4] = [
+    pub const ALL: [Self; 5] = [
         Self::Meters,
         Self::LogosPercent,
         Self::TightestPercent,
         Self::IconOnly,
+        Self::HourlyStrip,
     ];
 
     pub fn slug(self) -> &'static str {
@@ -57,6 +60,7 @@ impl TrayStyle {
             Self::LogosPercent => "logos_percent",
             Self::TightestPercent => "tightest_percent",
             Self::IconOnly => "icon_only",
+            Self::HourlyStrip => "hourly_strip",
         }
     }
 
@@ -445,6 +449,9 @@ pub fn summary(
     let (title, label_views): (Option<String>, Vec<&AccountView>) = match style {
         TrayStyle::Meters => (None, shown.clone()),
         TrayStyle::IconOnly => (None, shown.clone()),
+        // PRD 0043 RF4.2: the image is the tightest account's last 24
+        // hours; no title, the label names that account.
+        TrayStyle::HourlyStrip => (None, tightest(&shown).into_iter().collect()),
         TrayStyle::LogosPercent if !shown.is_empty() => {
             let parts: Vec<String> = shown
                 .iter()
@@ -477,9 +484,21 @@ pub fn summary(
         },
         _ => (None, Vec::new()),
     };
-    let items: Vec<TrayItem> = shown.iter().map(|v| item(v)).collect();
+    let items: Vec<TrayItem> = if style == TrayStyle::HourlyStrip {
+        hidden = refs.len().saturating_sub(label_views.len());
+        label_views.iter().map(|v| item(v)).collect()
+    } else {
+        shown.iter().map(|v| item(v)).collect()
+    };
     let mut label = join(label_views.iter().map(|v| item_label(v, at)).collect())
         .unwrap_or_else(|| Localized::fixed("tray.empty", "No accounts in the menu bar"));
+    if style == TrayStyle::HourlyStrip && !label_views.is_empty() {
+        label = wrap(
+            "tray.strip",
+            label,
+            "{item}; the last 24 hours as hourly bars",
+        );
+    }
     if badge == Badge::Outage {
         label = wrap("tray.outage", label, "{item}; provider incident");
     }
@@ -497,6 +516,34 @@ pub fn summary(
         accessible_label: label,
         tooltip,
     }
+}
+
+/// PRD 0043 RF4.2: the account whose last 24 hours the strip shows: the
+/// tightest of `selection` (as the `TightestPercent` title picks it).
+pub fn strip_account(accounts: &[AccountView], selection: &TraySelection) -> Option<String> {
+    let picked = selection.pick(accounts);
+    tightest(&picked).map(|view| view.key.clone())
+}
+
+/// PRD 0043 RF4.2: the 24 hourly bars of a strip from a `Last24h`
+/// rhythm, oldest first: the consumption of each hour (`None`, a gap,
+/// never 0) and whether a reset happened in it.
+pub fn strip_bars(rhythm: &crate::insights::Rhythm) -> Vec<StripBar> {
+    rhythm
+        .buckets
+        .iter()
+        .map(|bucket| StripBar {
+            consumption: bucket.consumption,
+            reset: bucket.reset,
+        })
+        .collect()
+}
+
+/// One hour of the strip.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+pub struct StripBar {
+    pub consumption: Option<f64>,
+    pub reset: bool,
 }
 
 #[cfg(test)]
