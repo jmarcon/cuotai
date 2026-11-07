@@ -90,6 +90,8 @@ pub mod quiet;
 pub mod refresh;
 pub mod resets;
 pub mod secret_input;
+#[cfg(test)]
+mod security_sentinel_tests;
 #[cfg(feature = "serve")]
 pub mod serve;
 pub mod state_contracts;
