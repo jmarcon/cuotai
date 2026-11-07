@@ -26,10 +26,20 @@ const LOGIN_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 /// through `events`. Dropping this future kills the CLI (kill_on_drop) and
 /// drops the pipe readers; no detached tasks survive. Success means the CLI
 /// finished authentication.
-pub async fn login(profile: &str, events: Sender<String>) -> Result<(), OAuthError> {
+///
+/// `cli_path` is the draft's `params.cli_path` (PRD 0054 RF6.1): the same
+/// resolution the queries use, so login and query start the same program.
+pub async fn login(
+    profile: &str,
+    cli_path: Option<&str>,
+    events: Sender<String>,
+) -> Result<(), OAuthError> {
     validate_profile(profile)?;
+    let program = crate::external_tool::Resolver::from_process()
+        .resolve(crate::external_tool::Tool::Aws, cli_path)
+        .map_err(|error| OAuthError::Configuration(error.l10n()))?;
 
-    let mut child = Command::new(crate::cli_path::resolve("aws"))
+    let mut child = Command::new(&program.program)
         // Fixed argument vector; profile is an argv value, never a shell string.
         .args(["sso", "login", "--profile", profile, "--use-device-code", "--no-browser"])
         .stdin(Stdio::null())
@@ -81,7 +91,7 @@ pub async fn login(profile: &str, events: Sender<String>) -> Result<(), OAuthErr
 }
 
 fn validate_profile(profile: &str) -> Result<(), OAuthError> {
-    if crate::cli_path::valid_aws_profile(profile) {
+    if crate::external_tool::valid_aws_profile(profile) {
         Ok(())
     } else {
         Err(OAuthError::Configuration(crate::text::Localized::fixed(

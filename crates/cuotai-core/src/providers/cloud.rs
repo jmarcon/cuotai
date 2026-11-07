@@ -553,24 +553,32 @@ fn parse_ce(bytes: &[u8]) -> Result<CeParsed, QueryError> {
     }
 }
 
-/// Run the AWS CLI (`binary`, `aws` in production) with the account's named
-/// profile and return stdout. Errors carry only a classification and the
+/// The `aws` program of `account` (PRD 0054 RF6.1).
+fn aws_program(account: &Account) -> Result<std::path::PathBuf, QueryError> {
+    Ok(
+        crate::external_tool::resolve_for(crate::external_tool::Tool::Aws, &account.params)?
+            .program,
+    )
+}
+
+/// Run the AWS CLI (`binary`, resolved by [`aws_program`] in production) with
+/// the account's named profile and return stdout. Errors carry only a classification and the
 /// IAM `permission` hint, never stderr, which may echo ARNs or tokens.
 async fn run_aws(
     ctx: &Context<'_>,
-    binary: &str,
+    binary: impl AsRef<std::path::Path>,
     args: &[&str],
     profile: &str,
     permission: &str,
 ) -> Result<Vec<u8>, QueryError> {
     // PRD 0054 RF6.4: an invalid profile never starts the CLI.
-    if !crate::cli_path::valid_aws_profile(profile) {
+    if !crate::external_tool::valid_aws_profile(profile) {
         return Err(QueryError::config(
             "query.cloud.invalid_aws_profile",
             "params.profile is not a valid AWS profile name: use 1 to 128 characters, not starting with \"-\" and without control characters.",
         ));
     }
-    let mut cmd = tokio::process::Command::new(crate::cli_path::resolve(binary));
+    let mut cmd = tokio::process::Command::new(binary.as_ref());
     cmd.args(args)
         .args(["--output", "json", "--profile", profile])
         .env("AWS_PAGER", "")
@@ -649,7 +657,7 @@ async fn run_aws(
 pub(crate) async fn bedrock_models(
     account: &Account,
     ctx: &Context<'_>,
-    binary: &str,
+    binary: Option<&std::path::Path>,
 ) -> Result<Vec<crate::models::ModelInfo>, QueryError> {
     #[derive(Deserialize)]
     #[serde(rename_all = "camelCase")]
@@ -683,7 +691,11 @@ pub(crate) async fn bedrock_models(
         }
         args.extend(["--region", region]);
     }
-    let stdout = run_aws(ctx, binary, &args, profile, "bedrock:ListFoundationModels").await?;
+    let program = match binary {
+        Some(binary) => binary.to_path_buf(),
+        None => aws_program(account)?,
+    };
+    let stdout = run_aws(ctx, program, &args, profile, "bedrock:ListFoundationModels").await?;
     let list: List = super::decode_bytes(&stdout)?;
     Ok(list
         .model_summaries
@@ -717,7 +729,14 @@ async fn fetch_bedrock(account: &Account, ctx: &Context<'_>) -> Result<Data, Que
         &filter,
         "--no-paginate",
     ];
-    let stdout = run_aws(ctx, "aws", &args, profile, "ce:GetCostAndUsage").await?;
+    let stdout = run_aws(
+        ctx,
+        aws_program(account)?,
+        &args,
+        profile,
+        "ce:GetCostAndUsage",
+    )
+    .await?;
     let parsed = parse_ce(&stdout)?;
     let mut cost = Metric::usage(
         "Custo AWS Bedrock (mês corrente)",
@@ -1145,9 +1164,12 @@ esac
         let dir = tempfile::tempdir().unwrap();
         let aws = fake_aws(dir.path());
         let (http, creds) = (Client::new(), Creds);
+        // PRD 0054 RF6.1: the fake is the account's `params.cli_path`.
         let list = async |params: &[(&str, &str)]| {
-            let acc = account(Provider::AwsBedrock, params);
-            bedrock_models(&acc, &ctx(&http, &creds), &aws).await
+            let mut params = params.to_vec();
+            params.push(("cli_path", aws.as_str()));
+            let acc = account(Provider::AwsBedrock, &params);
+            bedrock_models(&acc, &ctx(&http, &creds), None).await
         };
         let ids = |models: Vec<crate::models::ModelInfo>| -> Vec<String> {
             models.into_iter().map(|m| m.id).collect()
@@ -1200,6 +1222,55 @@ esac
             .all(|l| l.starts_with("bedrock list-foundation-models")));
         assert!(argv.contains("--region eu-west-1 --output json --profile prod"));
         assert!(!argv.contains(" ce "), "never Cost Explorer");
+    }
+
+    /// PRD 0054 RF6: the model list and the Cost Explorer query start the
+    /// same configured program; a missing program never starts anything.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn the_query_and_the_model_list_use_the_same_configured_aws() {
+        let dir = tempfile::tempdir().unwrap();
+        let aws = fake_aws(dir.path());
+        let (http, creds) = (Client::new(), Creds);
+        let acc = account(
+            Provider::AwsBedrock,
+            &[("profile", "prod"), ("cli_path", aws.as_str())],
+        );
+        let _ = fetch_bedrock(&acc, &ctx(&http, &creds)).await;
+        bedrock_models(&acc, &ctx(&http, &creds), None)
+            .await
+            .unwrap();
+        let argv = std::fs::read_to_string(dir.path().join("argv.log")).unwrap();
+        let lines: Vec<_> = argv.lines().collect();
+        assert_eq!(lines.len(), 2);
+        assert!(lines[0].starts_with("ce get-cost-and-usage"));
+        assert!(lines[1].starts_with("bedrock list-foundation-models"));
+
+        let relative = account(
+            Provider::AwsBedrock,
+            &[("profile", "prod"), ("cli_path", "aws")],
+        );
+        let error = fetch_bedrock(&relative, &ctx(&http, &creds))
+            .await
+            .unwrap_err();
+        assert_eq!(error.status, Status::NeedsConfiguration);
+        assert_eq!(error.note.id, "tool.error.invalid_path");
+        let missing = dir.path().join("absent").join("aws");
+        let absent = account(
+            Provider::AwsBedrock,
+            &[("profile", "prod"), ("cli_path", missing.to_str().unwrap())],
+        );
+        let error = bedrock_models(&absent, &ctx(&http, &creds), None)
+            .await
+            .unwrap_err();
+        assert_eq!(error.note.id, "tool.error.invalid_path");
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join("argv.log"))
+                .unwrap()
+                .lines()
+                .count(),
+            2
+        );
     }
 
     #[test]

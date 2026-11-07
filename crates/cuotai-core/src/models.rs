@@ -956,7 +956,7 @@ impl Monitor {
                 let url = providers::cloud_keys::GEMINI_MODELS_URL;
                 providers::cloud_keys::gemini_models(account, ctx, url).await
             }
-            Provider::AwsBedrock => providers::cloud::bedrock_models(account, ctx, "aws").await,
+            Provider::AwsBedrock => providers::cloud::bedrock_models(account, ctx, None).await,
             Provider::Antigravity => {
                 use providers::antigravity::{
                     models, FETCH_AVAILABLE_MODELS_URL, LOAD_CODE_ASSIST_URL,

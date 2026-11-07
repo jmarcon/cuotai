@@ -634,6 +634,10 @@ pub struct LoginRequest {
     pub registration: BTreeMap<String, String>,
     #[serde(default)]
     credential_id: Option<String>,
+    /// PRD 0054 RF6.1: the draft's `params.cli_path` for the CLI logins
+    /// (AWS SSO, `bl`), so the login starts the program the query will.
+    #[serde(default)]
+    pub cli_path: Option<String>,
     /// Existing account being replaced; never accepted from serialized IPC.
     #[serde(skip)]
     replaced_account: Option<crate::Account>,
@@ -664,6 +668,11 @@ impl LoginRequest {
         if account.provider != provider {
             return request;
         }
+        request.cli_path = account
+            .params
+            .get(crate::external_tool::CLI_PATH_PARAM)
+            .filter(|path| !path.trim().is_empty())
+            .cloned();
         if let Some(oauth) = &account.oauth {
             if login_mode(provider, &request.mode)
                 .is_some_and(|mode| mode.credential_store == LoginCredentialStore::CuotaiVault)
@@ -908,11 +917,15 @@ pub fn start_login(
     validate_request(&mode, &request)?;
     match mode.id.as_str() {
         MODE_OAUTH => Ok(start_oauth(session, provider, request)),
-        MODE_AWS_SSO => Ok(start_aws_sso(request.options.get("profile").cloned())),
+        MODE_AWS_SSO => Ok(start_aws_sso(
+            request.options.get("profile").cloned(),
+            request.cli_path.clone(),
+        )),
         MODE_BAILIAN_CONSOLE => Ok(start_bailian_console(
             provider,
             request.options.get("console_site").cloned(),
             request.options.get("profile").cloned(),
+            request.cli_path.clone(),
         )),
         _ => Err(OAuthError::Configuration(crate::text::Localized::fixed(
             "oauth_error.login.unknown_mode",
@@ -1121,10 +1134,10 @@ async fn run_oauth_inner(
     ))
 }
 
-fn start_aws_sso(profile: Option<String>) -> LoginDriver {
+fn start_aws_sso(profile: Option<String>, cli_path: Option<String>) -> LoginDriver {
     let (event_tx, events) = mpsc::channel(16);
     let job = tokio::spawn(async move {
-        let result = run_aws_sso(profile, &event_tx).await;
+        let result = run_aws_sso(profile, cli_path, &event_tx).await;
         match result {
             Ok(login) => {
                 let _ = event_tx
@@ -1149,6 +1162,7 @@ fn start_aws_sso(profile: Option<String>) -> LoginDriver {
 
 async fn run_aws_sso(
     profile: Option<String>,
+    cli_path: Option<String>,
     events: &mpsc::Sender<LoginEvent>,
 ) -> Result<ExternalLogin, OAuthError> {
     let profile = profile.filter(|p| !p.trim().is_empty()).ok_or_else(|| {
@@ -1165,7 +1179,7 @@ async fn run_aws_sso(
         .await;
     let (lines_tx, mut lines_rx) = mpsc::channel(16);
     let result = {
-        let login = aws::login(&profile, lines_tx);
+        let login = aws::login(&profile, cli_path.as_deref(), lines_tx);
         tokio::pin!(login);
         loop {
             tokio::select! {
@@ -1191,13 +1205,15 @@ fn start_bailian_console(
     provider: Provider,
     console_site: Option<String>,
     profile: Option<String>,
+    cli_path: Option<String>,
 ) -> LoginDriver {
     let profile = profile
         .filter(|p| !p.trim().is_empty())
         .unwrap_or_else(|| account_edit::ensure_cli_profile(&mut BTreeMap::new()));
     let (event_tx, events) = mpsc::channel(8);
     let job = tokio::spawn(async move {
-        let result = run_bailian_console(provider, console_site, profile, &event_tx).await;
+        let result =
+            run_bailian_console(provider, console_site, profile, cli_path, &event_tx).await;
         match result {
             Ok(login) => {
                 let _ = event_tx
@@ -1224,6 +1240,7 @@ async fn run_bailian_console(
     provider: Provider,
     console_site: Option<String>,
     profile: String,
+    cli_path: Option<String>,
     events: &mpsc::Sender<LoginEvent>,
 ) -> Result<ExternalLogin, OAuthError> {
     let site = console_site
@@ -1236,7 +1253,7 @@ async fn run_bailian_console(
             "Starting `bl auth login --console`. The browser may open automatically.",
         )))
         .await;
-    bailian::console_login(&site, &profile).await?;
+    bailian::console_login(&site, &profile, cli_path.as_deref()).await?;
     let _ = events
         .send(LoginEvent::progress(Localized::fixed(
             "login.progress.bailian_done",

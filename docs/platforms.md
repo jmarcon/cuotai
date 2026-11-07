@@ -175,18 +175,41 @@ Verification: **CI** (fallback logic) on all three OSes.
 ## Command-line tools (`aws`, `bl`)
 
 - AWS Bedrock requires AWS CLI v2 and an explicitly configured profile
-  (`crates/cuotai-core/src/providers/cloud.rs`, `oauth/aws.rs`). A missing
-  `aws` binary is a configuration error with an install hint
-  (`query.cloud.aws_cli_not_found`, `oauth_error.aws.cli_not_found`), never
-  a silent skip. Note: Cost Explorer bills per query.
-- Alibaba Token Plan uses the official `bl` CLI for usage
-  (`providers/alibaba_plans.rs`) and console login (`oauth/bailian.rs`).
-  Missing `bl` is a configuration error naming the `params.session_env`
-  alternative (`query.alibaba_plans.cli_not_found`,
-  `oauth_error.bailian.cli_not_found`).
+  (`crates/cuotai-core/src/providers/cloud.rs`, `oauth/aws.rs`). Note: Cost
+  Explorer bills per query.
+- Alibaba Token Plan and Model Studio use the official `bl` CLI for usage
+  (`providers/alibaba_plans.rs`) and console login (`oauth/bailian.rs`);
+  `params.session_env` is the documented alternative for the Token Plan.
+- **Finding the program (PRD 0054 RF6).** An app opened from the Finder, the
+  Dock or a desktop launcher does not get the shell's `PATH` (on macOS it gets
+  `/usr/bin:/bin:/usr/sbin:/sbin`). Every query, model list and sign-in goes
+  through one resolver, `cuotai_core::external_tool`, which tries in order:
+  1. the account's `params.cli_path`, when set: the absolute path of the
+     program (an executable file; on Windows an `.exe`). An invalid path is a
+     configuration error, with no fallback;
+  2. the program in `PATH`;
+  3. the usual install locations: macOS `/opt/homebrew/bin`, `/usr/local/bin`
+     and `~/.local/bin`; Linux `/usr/local/bin`, `/usr/bin` and
+     `~/.local/bin`; Windows `%ProgramFiles%\Amazon\AWSCLIV2\aws.exe` (AWS
+     only) and `%USERPROFILE%\.local\bin\<tool>.exe`.
 
-Verification: **CI** (fake-CLI fixture tests, `#[cfg(unix)]` for shell fakes)
-plus error-classification tests on all three OSes.
+  A program found nowhere is a configuration error (`tool.error.missing`)
+  that names the tool, the locations tried and the word `PATH`, never the
+  value of `PATH`. `cuotai --doctor` shows the program of each CLI-backed
+  account (`tool.aws: found (well_known, /opt/homebrew/bin/aws)` or
+  `tool.aws: missing`; JSON `tools.aws { status, source, path }`, the home
+  shown as `~`). Set **AWS CLI path** or **bl CLI path** in the account editor
+  (`params.cli_path`) when the program lives elsewhere.
+- Profile names are checked before any program starts: an AWS profile has 1
+  to 128 characters, does not start with `-` and has no control character
+  (`query.cloud.invalid_aws_profile`); a `bl` profile has 1 to 32 ASCII
+  letters, digits, `-` or `_` and does not start with `-`.
+
+Verification: **CI** (resolver tables with injected PATH, home and OS;
+fake-CLI tests proving query, model list and the configured path start the
+same program, `#[cfg(unix)]` for shell fakes) plus error-classification tests
+on all three OSes. **Owner:** a Finder/Dock launch that finds Homebrew `aws`
+with the minimal PATH.
 
 ## Local cost sources
 

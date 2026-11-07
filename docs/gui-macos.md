@@ -137,4 +137,5 @@ security delete-generic-password -s cuotai.serve
 - **The menu-bar icon is missing.** On a crowded menu bar macOS may hide it behind the notch or under other items; quit some other menu-bar apps or hold Cmd and drag icons to make room.
 - **An account says "missing configuration".** The account has no key the app can read yet: open **Edit**, then paste the key (or use **Move key into Cuotai**, see the note above).
 - **"Keychain unavailable".** Unlock the login keychain (Keychain Access) and retry.
+- **AWS Bedrock or an Alibaba plan says its CLI (`aws` or `bl`) was not found.** The app does not inherit your terminal's `PATH`; Cuotai also looks in the usual install folders (`/opt/homebrew/bin`, `/usr/local/bin` and `~/.local/bin`). If the program is elsewhere, open **Edit** and set **AWS CLI path** or **bl CLI path** to its full path. `cuotai --doctor` shows where each program was found.
 - Something else? Open an [issue](https://github.com/jmarcon/cuotai/issues) (never paste a real token), and see [`platforms.md`](platforms.md) for what is verified on macOS.
