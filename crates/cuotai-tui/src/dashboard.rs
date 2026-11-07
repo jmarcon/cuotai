@@ -1254,6 +1254,14 @@ fn footer_segments(view: &View<'_>) -> [Vec<FooterSegment>; 2] {
         actions.push(plain(tr("dashboard.footer.report", "b report"), None));
         actions.push(separator());
         actions.push(plain(tr("dashboard.footer.history", "1/2/3 history"), None));
+        actions.push(separator());
+        actions.push(plain(
+            tr(
+                "dashboard.footer.history_actions",
+                "X export · D erase history",
+            ),
+            None,
+        ));
     } else {
         actions.push(plain(details_hint(), Some(FooterAction::OpenDetails)));
     }

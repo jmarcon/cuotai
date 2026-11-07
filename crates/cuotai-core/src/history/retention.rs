@@ -128,6 +128,16 @@ pub enum ExportFormat {
     Json,
 }
 
+impl ExportFormat {
+    /// The file extension of this format, without the dot.
+    pub fn extension(self) -> &'static str {
+        match self {
+            Self::Csv => "csv",
+            Self::Json => "json",
+        }
+    }
+}
+
 /// One exported journal entry; no provider text, only names and numbers.
 #[derive(serde::Serialize)]
 struct JournalRow<'a> {
@@ -552,6 +562,34 @@ impl HistoryStore {
             write(out, "\n]}\n")?;
         }
         out.flush().map_err(|_| HistoryError::Export)?;
+        Ok(rows)
+    }
+
+    /// PRD 0052 RF5.1: [`export`](Self::export) into a file at `path`,
+    /// created (or replaced) readable only by the user (`0600` on Unix), from
+    /// `start` to now. The one file writer the CLI `--history-export` and the
+    /// TUI history export share. Returns the rows written.
+    pub fn export_to_file(
+        &self,
+        accounts: &[Account],
+        start: std::ops::Bound<DateTime<Utc>>,
+        format: ExportFormat,
+        path: &std::path::Path,
+    ) -> Result<usize, HistoryError> {
+        let mut options = std::fs::OpenOptions::new();
+        options.write(true).create(true).truncate(true);
+        #[cfg(unix)]
+        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        let file = options.open(path).map_err(|_| HistoryError::Export)?;
+        let mut writer = std::io::BufWriter::new(file);
+        let rows = self.export(
+            accounts,
+            None,
+            (start, std::ops::Bound::Unbounded),
+            format,
+            &mut writer,
+        )?;
+        writer.flush().map_err(|_| HistoryError::Export)?;
         Ok(rows)
     }
 
