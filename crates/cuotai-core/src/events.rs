@@ -275,6 +275,31 @@ pub struct Event {
     /// hook test, [`crate::hooks::Rule::sample`]); present only when true.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub sample: bool,
+    /// PRD 0045 RF5.3: for an event of one breakdown row, `scope`,
+    /// `scope_id` and `scope_label` (redacted) beside the account's own
+    /// fields; absent for the account's metrics.
+    #[serde(flatten, skip_serializing_if = "Option::is_none")]
+    pub row: Option<EventScope>,
+}
+
+/// PRD 0045 RF5.3: the breakdown row of a row-level event.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct EventScope {
+    pub scope: crate::ScopeKind,
+    /// The row's opaque id ([`crate::BreakdownRow::id`]).
+    pub scope_id: String,
+    /// The row's redacted label.
+    pub scope_label: String,
+}
+
+impl From<&crate::breakdown::RowRef> for EventScope {
+    fn from(row: &crate::breakdown::RowRef) -> Self {
+        Self {
+            scope: row.scope,
+            scope_id: row.id.clone(),
+            scope_label: row.label.clone(),
+        }
+    }
 }
 
 impl Event {
@@ -525,6 +550,7 @@ impl Event {
             },
             previous: None,
             sample: false,
+            row: None,
         }
     }
 }
@@ -639,6 +665,9 @@ pub struct EventState {
     incidents: BTreeMap<String, IncidentTrack>,
     /// PRD 0031 RF7.2: how long before `resets_at` `quota_reset_soon` fires.
     reset_lead: TimeDelta,
+    /// PRD 0045 RF5.2: the account ids whose breakdown rows have events
+    /// ("Alert on breakdown rows"); empty by default.
+    breakdown_alerts: BTreeSet<String>,
 }
 
 /// Default for [`EventState::with_reset_lead`] (`--reset-lead`, minutes).
@@ -660,6 +689,8 @@ struct IncidentTrack {
 /// the last known binding metric and the usage last reported.
 #[derive(Debug, Clone)]
 struct Track {
+    /// PRD 0045 RF5: the breakdown rows of the last `Ready` reading.
+    rows: Vec<crate::BreakdownRow>,
     status: Status,
     failure: Option<FailureCategory>,
     ready: Option<Report>,
@@ -717,6 +748,7 @@ impl EventState {
             accounts: BTreeMap::new(),
             incidents: BTreeMap::new(),
             reset_lead: DEFAULT_RESET_LEAD,
+            breakdown_alerts: BTreeSet::new(),
         }
     }
 
@@ -733,6 +765,15 @@ impl EventState {
     pub fn with_reset_lead(mut self, lead: TimeDelta) -> Self {
         self.reset_lead = lead.max(TimeDelta::zero());
         self
+    }
+
+    /// PRD 0045 RF5.2: the account ids whose top breakdown rows report
+    /// `quota_threshold_crossed`, `quota_exhausted` and `quota_recovered`
+    /// (with `scope`, `scope_id` and `scope_label`): the accounts with
+    /// "Alert on breakdown rows" on. Rows of other accounts stay silent but
+    /// their levels are followed, so turning it on never reports the past.
+    pub fn set_breakdown_alerts(&mut self, accounts: BTreeSet<String>) {
+        self.breakdown_alerts = accounts;
     }
 
     /// Forget every account whose id ([`AccountExport::id`]) is not in
@@ -839,7 +880,23 @@ impl Emit<'_> {
             current,
             previous,
             sample: false,
+            row: None,
         });
+    }
+
+    /// [`Self::push`] for a breakdown row's metric (PRD 0045 RF5.3).
+    fn push_row(
+        &mut self,
+        event: EventKind,
+        metric: MetricRef,
+        current: Values,
+        previous: Option<Values>,
+        row: &crate::breakdown::RowRef,
+    ) {
+        self.push(event, Some(metric), current, previous);
+        if let Some(last) = self.events.last_mut() {
+            last.row = Some(EventScope::from(row));
+        }
     }
 }
 
@@ -850,8 +907,10 @@ impl EventState {
             alerts,
             accounts,
             reset_lead,
+            breakdown_alerts,
             ..
         } = self;
+        let rows_on = breakdown_alerts.contains(&out.next.id);
         let now = out.now;
         // PRD 0041 RF3.3: the account's floors travel with its export, so
         // `--watch`, hooks and the local server judge them like the app.
@@ -865,6 +924,7 @@ impl EventState {
         let failure = FailureCategory::of(report);
         let Some(track) = accounts.get_mut(&out.next.id) else {
             let mut track = Track {
+                rows: Vec::new(),
                 status: report.status,
                 failure,
                 ready: None,
@@ -873,6 +933,7 @@ impl EventState {
                 soon: Vec::new(),
             };
             if report.status == Status::Ready {
+                track.rows = out.next.breakdown.clone();
                 track.baseline(report, out.next.binding.as_ref(), prefs, alerts, now);
                 track.reset_soon(report, *reset_lead, now);
             }
@@ -910,6 +971,7 @@ impl EventState {
             return;
         }
         let Some(last) = track.ready.take() else {
+            track.rows = out.next.breakdown.clone();
             track.baseline(report, out.next.binding.as_ref(), prefs, alerts, now);
             // A restart inside the lead reports nothing for those windows.
             track.reset_soon(report, *reset_lead, now);
@@ -1019,6 +1081,7 @@ impl EventState {
             out.push(kind, Some(metric), current, find(&last, &alert.label));
         }
         alerts.update(report, prefs, &crossed, now);
+        track.rows_events(Some(&last), report, rows_on, prefs, alerts, out);
         let state = |report: &Report| overage::assess(report).map(|o| o.state);
         // Ended: it was billing and is now known to be off or empty (an
         // unreadable amount is neither).
@@ -1184,6 +1247,82 @@ impl Track {
         due
     }
 
+    /// PRD 0045 RF5.2/RF5.3: the row-level crossings, exhaustions and
+    /// recoveries of `report` (the export's redacted rows) after `last`
+    /// (the rows kept from the last `Ready` reading) when `on`; the rows'
+    /// levels are recorded either way.
+    fn rows_events(
+        &mut self,
+        last: Option<&Report>,
+        report: &Report,
+        on: bool,
+        prefs: &AlertPrefs,
+        alerts: &mut AlertState,
+        out: &mut Emit,
+    ) {
+        let now = out.now;
+        let mut next = report.clone();
+        next.breakdown = out.next.breakdown.clone();
+        let before = last.map(|last| {
+            let mut before = last.clone();
+            before.breakdown = std::mem::take(&mut self.rows);
+            before
+        });
+        let crossed = if on {
+            alerts::evaluate_rows(before.as_ref(), &next, prefs, alerts, now)
+        } else {
+            Vec::new()
+        };
+        for alert in &crossed {
+            let Some(row) = &alert.row else {
+                continue;
+            };
+            let Some(now_row) = next
+                .breakdown
+                .iter()
+                .find(|r| r.id == row.id && r.scope == row.scope)
+            else {
+                continue;
+            };
+            let unit = crate::breakdown::row_as_report(&next, now_row);
+            let find = |report: &Report| {
+                report
+                    .metrics
+                    .iter()
+                    .find(|metric| metric.label == alert.label)
+                    .map(Values::metric)
+            };
+            let mut current = find(&unit).unwrap_or_default();
+            let kind = match alert.kind {
+                AlertKind::Threshold => {
+                    current.threshold = Some(alert.threshold);
+                    EventKind::QuotaThresholdCrossed
+                }
+                AlertKind::Exhausted => EventKind::QuotaExhausted,
+                AlertKind::Recovered => EventKind::QuotaRecovered,
+                _ => continue,
+            };
+            let previous = before.as_ref().and_then(|before| {
+                before
+                    .breakdown
+                    .iter()
+                    .find(|r| r.id == row.id && r.scope == row.scope)
+                    .and_then(|old| find(&crate::breakdown::row_as_report(before, old)))
+            });
+            let metric = MetricRef::new(alert.label.clone(), alert.window);
+            out.push_row(kind, metric, current, previous, row);
+        }
+        for row in crate::breakdown::top_rows(&next.breakdown) {
+            alerts.update(
+                &crate::breakdown::row_as_report(&next, row),
+                prefs,
+                &crossed,
+                now,
+            );
+        }
+        self.rows = next.breakdown;
+    }
+
     fn baseline(
         &mut self,
         report: &Report,
@@ -1211,9 +1350,21 @@ impl Track {
                 projection: None,
                 overage: None,
                 limit_change: None,
+                row: None,
             })
             .collect();
         alerts.update(report, prefs, &exhausted, now);
+        // PRD 0045 RF5: the rows' first reading is their baseline.
+        let mut rows = report.clone();
+        rows.breakdown = self.rows.clone();
+        for row in crate::breakdown::top_rows(&rows.breakdown) {
+            alerts.update(
+                &crate::breakdown::row_as_report(&rows, row),
+                prefs,
+                &[],
+                now,
+            );
+        }
         self.binding = binding.cloned();
         self.usage = Some(Usage {
             metrics: report.metrics.iter().map(MetricReading::of).collect(),

@@ -1583,5 +1583,17 @@
   "coreText.doctorNoKey": "Aucune clé n'est enregistrée pour ce compte ; ignorez ceci s'il se connecte autrement.",
   "coreText.doctorFixKey": "Ouvrez le compte dans Modifier et saisissez sa clé ; Cuotai la garde dans le coffre du système.",
   "coreText.restoreKey": "Saisissez de nouveau la clé du compte {number} ({provider}).",
-  "settings.kw.backup": "sauvegarde restaurer exporter importer déménager nouvel ordinateur migrer zip copie réglages"
+  "settings.kw.backup": "sauvegarde restaurer exporter importer déménager nouvel ordinateur migrer zip copie réglages",
+  "breakdown.alerts": "Alerter pour les lignes de la ventilation",
+  "breakdown.alertsHelp": "Les 10 premières lignes avec une limite alertent comme les quotas du compte, avec les seuils de Réglages → Alertes. Désactivé par défaut.",
+  "budget.editor.row": "Sur la ligne de la ventilation : {scope} {id}",
+  "budget.editor.rowScope.key": "clé d'API",
+  "budget.editor.rowScope.virtual_key": "clé virtuelle",
+  "budget.editor.rowScope.project": "projet",
+  "budget.editor.rowScope.workspace": "espace de travail",
+  "budget.editor.rowScope.team": "équipe",
+  "detect.costOffer.open": "Ouvrir Coût local",
+  "detect.costOffer.claude_code": "Ses journaux locaux peuvent aussi estimer le coût aux prix de l'API ; Cuotai ne les lit qu'après que vous avez activé la source Claude Code.",
+  "detect.costOffer.codex_cli": "Ses journaux locaux peuvent aussi estimer le coût aux prix de l'API ; Cuotai ne les lit qu'après que vous avez activé la source Codex CLI.",
+  "detect.costOffer.gemini_cli": "Ses journaux locaux peuvent aussi estimer le coût aux prix de l'API ; Cuotai ne les lit qu'après que vous avez activé la source Gemini CLI."
 }

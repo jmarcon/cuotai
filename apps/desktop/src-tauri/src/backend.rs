@@ -675,6 +675,9 @@ pub struct BreakdownView {
     by_percent: Vec<usize>,
     top: Option<cuotai_core::text::Localized>,
     truncated: Option<cuotai_core::text::Localized>,
+    /// PRD 0045 RF5.2: whether "Alert on breakdown rows" is on for the
+    /// account (filled in with the notification settings).
+    alert_rows: bool,
 }
 
 #[derive(Serialize, Clone)]
@@ -688,9 +691,14 @@ pub struct BreakdownRowView {
     /// Every metric of the row, for the tooltip and the meta line.
     metrics: Vec<MetricView>,
     notes: Vec<cuotai_core::text::Localized>,
+    /// PRD 0045 RF5.2: **Set a budget…** on the row (the core's
+    /// `budget::draft_for_row`), when the account has room for one and no
+    /// budget follows the row yet.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    budget_draft: Option<cuotai_core::budget::Budget>,
 }
 
-fn breakdown_view(report: &Report) -> Option<BreakdownView> {
+fn breakdown_view(account: &cuotai_core::Account, report: &Report) -> Option<BreakdownView> {
     use cuotai_core::breakdown::{self, SortBy};
     if report.breakdown.is_empty() {
         return None;
@@ -714,6 +722,9 @@ fn breakdown_view(report: &Report) -> Option<BreakdownView> {
             figure: row.capped().or_else(|| row.primary()).map(view_of),
             metrics: row.metrics.iter().map(view_of).collect(),
             notes: row.notes.clone(),
+            budget_draft: cuotai_core::budget::offers_row_budget(account, row)
+                .then(|| cuotai_core::budget::draft_for_row(row))
+                .flatten(),
         })
         .collect();
     let by_percent = breakdown::sorted(&report.breakdown, SortBy::Percent)
@@ -725,6 +736,7 @@ fn breakdown_view(report: &Report) -> Option<BreakdownView> {
         by_percent,
         top: breakdown::top_line(&report.breakdown, breakdown::CARD_ROWS),
         truncated: breakdown::truncated_note(&report.breakdown),
+        alert_rows: false,
     })
 }
 
@@ -1356,7 +1368,7 @@ fn report_view(
         scope_blocks: scope_block_views(report),
         floors: cuotai_core::budget::floor_statuses(account, report),
         limit_notes: Vec::new(),
-        breakdown: breakdown_view(report),
+        breakdown: breakdown_view(account, report),
         live: live_view(account, now),
     }
 }
@@ -1895,6 +1907,11 @@ impl Inner {
                 view.incident = incident_view(&statuses, view.provider);
                 if let Some(store) = &history {
                     view.limit_notes = limit_notes(store, &l.file.config.accounts[i], clock);
+                }
+                // PRD 0045 RF5.2: the account's "Alert on breakdown rows".
+                if let Some(breakdown) = view.breakdown.as_mut() {
+                    breakdown.alert_rows =
+                        self.notices.alerts().breakdown_alerts(&view.account_key);
                 }
                 // PRD 0036 RF8: an aggregator carries its connections.
                 if l.file.config.accounts[i].provider.is_aggregator() {
@@ -7205,6 +7222,7 @@ mod tests {
             period: BudgetPeriod::Monthly,
             starts: None,
             label: None,
+            row: None,
         };
         let existing = cuotai_core::Account {
             name: "A".into(),
@@ -7524,6 +7542,13 @@ mod tests {
             "Top: Proj-A $412 · Proj-B $92"
         );
         assert!(breakdown["truncated"].is_null());
+        // PRD 0045 RF5.2: the switch starts off and a spend row offers a
+        // budget prefilled with its scope and id; a capped row without a
+        // spend, usage or credits metric offers none.
+        assert_eq!(breakdown["alert_rows"], false);
+        assert_eq!(breakdown["rows"][0]["budget_draft"]["row"]["id"], "a");
+        assert_eq!(breakdown["rows"][0]["budget_draft"]["row"]["scope"], "key");
+        assert!(breakdown["rows"][1].get("budget_draft").is_none());
         let plain = ready("org", Vec::new());
         let view =
             serde_json::to_value(report_view(0, &plain, &config, None, None, 0, &[])).unwrap();
@@ -9662,6 +9687,7 @@ mod tests {
             current: Default::default(),
             previous: None,
             sample: false,
+            row: None,
         };
         store
             .journal_record(&[

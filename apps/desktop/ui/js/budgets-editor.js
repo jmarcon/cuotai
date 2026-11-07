@@ -22,6 +22,8 @@ function budgetRow(b = {}) {
     period: b.period ?? "monthly",
     start: b.starts == null ? "" : String(b.starts),
     label: b.label ?? "",
+    // PRD 0045 RF5.2: a budget on a breakdown row keeps its row (scope and id) untouched.
+    row: b.row ?? null,
   };
 }
 
@@ -35,6 +37,7 @@ function budgetOf(row) {
   if (row.period === "weekly" && WEEKDAYS.includes(row.start)) b.starts = row.start;
   if (row.period === "monthly" && row.start) b.starts = Number(row.start);
   if (row.label.trim()) b.label = row.label.trim();
+  if (row.row) b.row = row.row;
   return b;
 }
 
@@ -67,6 +70,7 @@ function budgetHtml(row, i) {
       <label class="f"><span>${te("budget.editor.label")}</span><input data-k="label" maxlength="32" value="${esc(row.label)}" /></label>
     </div>
     ${(row.hints ?? []).map((h) => `<p class="hint" data-budget-hint>${esc(tl(h))}</p>`).join("")}
+    ${row.row ? `<p class="hint" data-budget-row-target>${esc(t("budget.editor.row", { scope: t(`budget.editor.rowScope.${row.row.scope}`), id: row.row.id }))}</p>` : ""}
     <p class="hint" data-sentence role="status" aria-live="polite"></p>
     <small class="field-err" role="alert" hidden></small>
     <button type="button" class="btn sm" data-remove-budget="${i}">${icon("x")}${te("budget.editor.remove")}</button>

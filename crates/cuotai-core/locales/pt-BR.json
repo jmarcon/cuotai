@@ -2252,5 +2252,6 @@
   "doctor.channel.failing": "As últimas entregas falharam.",
   "doctor.channel.ok": "A última entrega foi aceita.",
   "doctor.channel.none": "Nada foi enviado a ele ainda.",
-  "doctor.fix.channel": "Abra o canal em Configurações › Alertas, confira o endereço e envie um teste (cuotai --channel-test)."
+  "doctor.fix.channel": "Abra o canal em Configurações › Alertas, confira o endereço e envie um teste (cuotai --channel-test).",
+  "budget.error.row": "{field}: um orçamento numa linha do detalhamento precisa de um kind, do escopo da linha (key, virtual_key, project, workspace ou team) e do seu id, num provedor que ofereça detalhamentos."
 }

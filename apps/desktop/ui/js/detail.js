@@ -110,7 +110,7 @@ export function detailHtml(r, { eye = false, action = eye } = {}) {
   const metrics = eye ? r.metrics : r.metrics.filter((m) => !isMetricHidden(r, m));
   // PRD 0043 RF2.2: the limit changes of the last 48 h, as silent notes.
   const changes = (r.limit_notes ?? []).map((n) => `<p class="note limit-note" data-limit-note>${icon("info")}<span>${esc(tl(n))}</span></p>`).join("");
-  return `<div class="detail">${incident}${overageDetailHtml(r)}${scopeBlocksHtml(r)}${changes}${metrics.map((m) => metricCardHtml(r, m, { eye })).join("")}${breakdownHtml(r)}${reading}${notes.map((n) => `<p class="note">${esc(n)}</p>`).join("")}</div>`;
+  return `<div class="detail">${incident}${overageDetailHtml(r)}${scopeBlocksHtml(r)}${changes}${metrics.map((m) => metricCardHtml(r, m, { eye })).join("")}${breakdownHtml(r, { action: eye })}${reading}${notes.map((n) => `<p class="note">${esc(n)}</p>`).join("")}</div>`;
 }
 
 // ---------- modelos (PRD 0002 RF6) ----------

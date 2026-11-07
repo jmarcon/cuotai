@@ -262,6 +262,7 @@ fn event(kind: AlertKind, threshold: u8) -> AlertEvent {
         resets_at: None,
         projection: None,
         limit_change: None,
+        row: None,
     }
 }
 

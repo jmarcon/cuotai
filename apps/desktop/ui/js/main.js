@@ -15,7 +15,7 @@ import {
   fmtNext, fmtAge, ALERTS, overageChipHtml, overageLineHtml, ageHtml, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isBindingMetric, isBlocked, isDesktop, isStaleReading, level, logo, wordmark,
   moveAccount, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
   currentSort, initOrderSync, staleView, configChangedOnDisk, reloadConfig, configLabel, errText, otherConfigNotice, otherConfigBanner, dismissOtherConfig, returnText, splitRecharging,
-  accountLabel, billingOverage, fmtExtra, overageLineText, isRecharging, resetsText, bestChipHtml, cardPace, forecastChipHtml, renewedText, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, setPoolAlerts, openAggregatorDashboard, incidentHtml, bindStatusLinks, costUsage, paceHtml, paceLineLabel, costPlans,
+  accountLabel, billingOverage, fmtExtra, overageLineText, isRecharging, resetsText, bestChipHtml, cardPace, forecastChipHtml, renewedText, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, setPoolAlerts, setBreakdownAlerts, openAggregatorDashboard, incidentHtml, bindStatusLinks, costUsage, paceHtml, paceLineLabel, costPlans,
   openSettingsWindow, bindSettingsShortcut, onSettingsChanged, onAccountAction, listExtensions, extensionSecrets,
   planBadgeHtml, scopeBlocksHtml, budgetSuggestion,
   sessionAction, liveSessionHtml, dismissFeedBanner, historyRelocation, relocationBannerHtml,
@@ -429,6 +429,8 @@ const detailsContext = {
   onSettings: openCostSettings,
   onPoolAlerts: (accountKey, each) =>
     setPoolAlerts(accountKey, each).then(() => isDesktop || store.reload(), (x) => setNotice("bad", errText(x))),
+  onBreakdownAlerts: (accountKey, on) =>
+    setBreakdownAlerts(accountKey, on).then(() => isDesktop || store.reload(), (x) => setNotice("bad", errText(x))),
   onDashboard: (index) => openAggregatorDashboard(index).catch((x) => setNotice("bad", errText(x))),
   onConnectionChange: () => isDesktop || store.reload(),
   onError: (x) => setNotice("bad", errText(x)),

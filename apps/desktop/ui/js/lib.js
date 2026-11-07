@@ -321,6 +321,8 @@ export const setProjectedAlert = (on, minutes) => call("set_projected_alert", { 
 export const setAlertOptions = (thresholds, exhaustion, recovery, overage) => call("set_alert_options", { thresholds, exhaustion, recovery, overage });
 export const setMetricAlert = (accountKey, label, on) => call("set_metric_alert", { accountKey, label, on });
 export const setPoolAlerts = (accountKey, each) => call("set_pool_alerts", { accountKey, each });
+// PRD 0045 RF5.2: "Alert on breakdown rows" for one account.
+export const setBreakdownAlerts = (accountKey, on) => call("set_breakdown_alerts", { accountKey, on });
 // PRD 0011 RF4.3: public provider status queries (desktop.json, off by default; the backend asks the core).
 export const setStatusEnabled = (on) => call("set_status_enabled", { on });
 // PRD 0012 RF5: the local server (desktop.json, off by default); the backend runs the core's server over this app's
@@ -2586,6 +2588,12 @@ const demo = {
     if (each) keys.add(accountKey);
     else keys.delete(accountKey);
     demoSettings.alerts.pool_each = [...keys].sort();
+  },
+  set_breakdown_alerts: async ({ accountKey, on }) => {
+    const keys = new Set(demoSettings.alerts.breakdown_each ?? []);
+    if (on) keys.add(accountKey);
+    else keys.delete(accountKey);
+    demoSettings.alerts.breakdown_each = [...keys].sort();
   },
   set_notify_options: async ({ leadMinutes, when, includeOther }) => {
     if (![0, 5, 15, 60].includes(leadMinutes) || !["used", "exhausted", "always"].includes(when)) throw "invalid_notify";

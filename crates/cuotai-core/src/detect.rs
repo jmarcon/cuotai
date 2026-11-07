@@ -206,6 +206,38 @@ pub struct Detected {
     /// reported (a second account is allowed, and an account added by
     /// another flow does not prove this tool's source is in use, RF6.2).
     pub configured: bool,
+    /// PRD 0030 RF2.3: the local cost source the same tool's logs can feed
+    /// (Claude Code, Codex CLI, Gemini CLI), so the picker may say "Gemini
+    /// CLI found: estimate its cost from local logs?" and open Settings →
+    /// Local cost. Only an offer: the source stays off until the person
+    /// gives that source's own consent there. `None` for other tools, and
+    /// cleared by [`without_enabled_cost`] once the source is on.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub local_cost: Option<crate::cost::SourceId>,
+}
+
+/// PRD 0030 RF2.3: the local cost source of a detected tool, if any.
+pub fn local_cost_source(kind: SourceKind) -> Option<crate::cost::SourceId> {
+    use crate::cost::SourceId;
+    match kind {
+        SourceKind::ClaudeCode => Some(SourceId::ClaudeCode),
+        SourceKind::CodexCli => Some(SourceId::CodexCli),
+        SourceKind::GeminiCli => Some(SourceId::GeminiCli),
+        _ => None,
+    }
+}
+
+/// PRD 0030 RF2.3: drop the local cost offer of the detected tools whose
+/// source is already on (`enabled`).
+pub fn without_enabled_cost(found: &mut [Detected], enabled: &[crate::cost::SourceId]) {
+    for detected in found {
+        if detected
+            .local_cost
+            .is_some_and(|source| enabled.contains(&source))
+        {
+            detected.local_cost = None;
+        }
+    }
 }
 
 /// Environment lookups the path table needs (`CODEX_HOME`, `XDG_*`,
@@ -383,6 +415,7 @@ pub fn local_sources_with(
                 hint,
                 consent,
                 configured: configured.contains(&entry.provider),
+                local_cost: local_cost_source(entry.kind),
             });
         }
     }
@@ -412,6 +445,7 @@ pub fn local_sources_with(
                 "The account will keep only the name {variable}; the value is never read or saved.",
             ),
             configured: configured.contains(&found.provider),
+            local_cost: None,
         });
     }
     out
@@ -464,6 +498,7 @@ async fn probe_nine_router_at(base: &str, configured: &[Provider]) -> Option<Det
             "The address http://127.0.0.1:20128 is filled in. Only 9router's public health route was asked; nothing was read from it.",
         ),
         configured: false,
+        local_cost: None,
     })
 }
 
@@ -830,5 +865,40 @@ mod tests {
                 .iter()
                 .any(|d| d.provider == Provider::OpenRouter && d.configured)
         );
+    }
+}
+
+/// PRD 0030 RF2.3: a detected CLI with a local cost source carries the
+/// offer; enabling stays a separate consent, and the offer goes once the
+/// source is on.
+#[cfg(test)]
+mod local_cost_offer_tests {
+    use super::*;
+    use crate::cost::SourceId;
+
+    #[test]
+    fn a_found_cli_offers_its_local_cost_source_until_it_is_on() {
+        let home = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(home.path().join(".gemini")).unwrap();
+        let no_env = |_: &str| None;
+        let mut found = local_sources(home.path(), Os::Linux, &no_env, &[]);
+        let gemini = found
+            .iter()
+            .find(|d| d.kind == SourceKind::GeminiCli)
+            .expect("Gemini CLI is detected");
+        assert_eq!(gemini.local_cost, Some(SourceId::GeminiCli));
+        let json = serde_json::to_value(gemini).unwrap();
+        assert_eq!(json["local_cost"], "gemini_cli");
+        assert_eq!(local_cost_source(SourceKind::AwsCli), None);
+        without_enabled_cost(&mut found, &[SourceId::GeminiCli]);
+        let gemini = found
+            .iter()
+            .find(|d| d.kind == SourceKind::GeminiCli)
+            .unwrap();
+        assert_eq!(gemini.local_cost, None);
+        assert!(serde_json::to_value(gemini)
+            .unwrap()
+            .get("local_cost")
+            .is_none());
     }
 }

@@ -123,6 +123,7 @@ fn fixture() -> Fixture {
         current: Values::default(),
         previous: None,
         sample: false,
+        row: None,
     };
     store.journal_record(&[event]).unwrap();
     Fixture {

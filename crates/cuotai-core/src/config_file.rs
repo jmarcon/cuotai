@@ -1188,6 +1188,7 @@ amount = 5
                 crate::budget::WeekdayName::Friday,
             )),
             label: Some("Team".into()),
+            row: None,
         });
         file.save(updated.clone()).unwrap();
         let reloaded = load_at(&path, false).unwrap();

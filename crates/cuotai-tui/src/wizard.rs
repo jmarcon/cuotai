@@ -4082,6 +4082,7 @@ mod tests {
             hint: cuotai_core::text::Localized::fixed("detect.hint", "Claude Code está instalado"),
             consent: cuotai_core::text::Localized::fixed("detect.consent.native_login", "Consent"),
             configured: false,
+            local_cost: None,
         }];
         for c in "claude".chars() {
             press(&mut wiz, KeyCode::Char(c));

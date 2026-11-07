@@ -2255,5 +2255,6 @@
   "doctor.channel.failing": "Son gönderimleri başarısız oldu.",
   "doctor.channel.ok": "Son gönderimi kabul edildi.",
   "doctor.channel.none": "Ona henüz bir şey gönderilmedi.",
-  "doctor.fix.channel": "Kanalı Ayarlar › Uyarılar bölümünde açın, adresini denetleyin ve bir test gönderin (cuotai --channel-test)."
+  "doctor.fix.channel": "Kanalı Ayarlar › Uyarılar bölümünde açın, adresini denetleyin ve bir test gönderin (cuotai --channel-test).",
+  "budget.error.row": "{field}: döküm satırındaki bir bütçe için kind, satırın kapsamı (key, virtual_key, project, workspace veya team) ve kimliği gerekir; sağlayıcı döküm sunmalıdır."
 }

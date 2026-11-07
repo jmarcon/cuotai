@@ -540,6 +540,7 @@ pub fn sample_source(now: DateTime<Utc>) -> Source {
         projection: None,
         overage: None,
         limit_change: None,
+        row: None,
     };
     Source::Alerts {
         account,

@@ -411,6 +411,7 @@ mark  label (600)   detail (muted)          reset (mono, muted)
 - **DS-CMP-SUB-1** One per metric in the expanded row and the details: label (`--text-base`/500) + optional "Binding" chip; figure `--text-lg`/700 + unit word; meter; a meta line with the pace stage (core text, tone icon) on the left and "Resets HH:MM · in 1h 35m" (mono, muted) on the right. At narrow widths (the 380 px popover) the meta line MAY wrap to two lines: pace on the first, reset on the second, right-aligned; it never truncates the reset.
 - **DS-CMP-SUB-2** Metrics the user hid are not listed in the popover; in the details they show at 45 % opacity with the show toggle (`.metric.muted`).
 - **DS-CMP-SUB-3** Rate-limit windows are listed after quota windows and never become the row figure (core rule, `planMetrics`).
+- **DS-CMP-SUB-4** The details' Breakdown section (PRD 0045) lists its rows as DS-CMP-SUB rows (label, meter only for a row with a cap, its amount otherwise, reset on the meta line). In the details dialog a row other than "Others" carries **Set a budget…** as a small button in `.metric-actions`, like a metric's quick actions, and the section ends with the opt-in checkbox **Alert on breakdown rows** and its hint (the `label.check` + `p.hint` pattern of the aggregator's "Alert on each connection"). The popover shows neither.
 
 ### 4.9 Callout (`CALL`)
 
@@ -897,6 +898,7 @@ Decisions of the project owner that settled questions raised while drafting this
 | 2026-10-27 | Core texts naming an environment variable or a `params.*` value read in the desktop's own words, with "Connect session" when a web session is the fix (PRD 0047 G7). | DS-MSG-6a |
 | 2026-11-07 | Backup, restore and the setup check in the desktop: plan with a choice per replacement, merges without a choice, next steps that open the account, a "Check setup" link on Needs setup cards; the setup check speaks of keys, never variables (PRD 0047 G1). | DS-CMP-BAK-1..3, DS-CMP-DOC-1 |
 | 2026-10-29 | Tray rows show the shortest window as a thick bar and the next longer one (or the second tightest model) as a thin bar, chosen by the core; the big figure is the thick window's with its name, the thin one's share sits below it; a limiting thin window takes at least the warning role; pace marks become a triangle above the thick bar and a dot on the thin one, with a ↗/↘ points delta beside each share. | DS-CMP-ROW-8, ROW-8a..8d, DS-CMP-MTR-6c, MTR-7 |
+| 2026-11-07 | Breakdown rows reuse the sub-limit row; the details add a per-row **Set a budget…** and an **Alert on breakdown rows** checkbox at the end of the section (PRD 0045 RF5). | DS-CMP-SUB-4 |
 
 ## Appendix A. Candidates (guidelines, not normative)
 

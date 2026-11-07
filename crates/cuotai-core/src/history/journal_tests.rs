@@ -22,6 +22,7 @@ fn event(account: &Account, kind: EventKind, minutes: i64) -> Event {
         },
         previous: None,
         sample: false,
+        row: None,
     }
 }
 

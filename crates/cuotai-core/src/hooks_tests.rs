@@ -29,6 +29,7 @@ fn event(kind: EventKind, account: &str, threshold: Option<u8>) -> Event {
         },
         previous: None,
         sample: false,
+        row: None,
     }
 }
 

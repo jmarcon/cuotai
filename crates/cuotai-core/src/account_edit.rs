@@ -4117,6 +4117,7 @@ mod tests {
                 period: crate::budget::BudgetPeriod::Monthly,
                 starts: None,
                 label: None,
+                row: None,
             }],
             ..Default::default()
         };

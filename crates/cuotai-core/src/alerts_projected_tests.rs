@@ -140,6 +140,7 @@ fn off_by_default_and_recommended_at_60_minutes() {
         resets_at: None,
         projection: None,
         limit_change: None,
+        row: None,
     };
     assert!(on.wants(&event));
     on.muted_metrics
@@ -390,6 +391,7 @@ fn pending(resets_at: DateTime<Utc>) -> AlertEvent {
         resets_at: Some(resets_at),
         projection: None,
         limit_change: None,
+        row: None,
     }
 }
 

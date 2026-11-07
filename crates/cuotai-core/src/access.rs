@@ -241,6 +241,15 @@ pub fn breakdown_none_reason() -> Localized {
     )
 }
 
+/// PRD 0045 RF5.2: whether some mode of `provider` offers a breakdown (the
+/// plain parameters or the OpenRouter management-key product), for the
+/// validation of a budget on a row, which knows only the provider.
+pub fn may_break_down(provider: Provider) -> bool {
+    let management = BTreeMap::from([("product".to_owned(), "account".to_owned())]);
+    !breakdown_modes(provider, false, &BTreeMap::new()).is_empty()
+        || !breakdown_modes(provider, false, &management).is_empty()
+}
+
 /// PRD 0045 RF7: the breakdown modes of `provider` in the interface the
 /// params select. Exhaustive on purpose, like [`classify`]: a new provider
 /// declares whether it can break its total down.

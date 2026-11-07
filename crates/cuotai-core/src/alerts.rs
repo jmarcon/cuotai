@@ -196,7 +196,11 @@ impl AlertPrefs {
     /// Whether `event` reaches the user: alerts on, its account and metric
     /// not muted and its kind wanted.
     pub fn wants(&self, event: &AlertEvent) -> bool {
+        // PRD 0045 RF5.2: a row's alerts follow its account's bell.
+        let parent_muted = crate::breakdown::row_parent(&event.account_key)
+            .is_some_and(|parent| self.muted_accounts.contains(parent));
         self.enabled
+            && !parent_muted
             && !self.muted_accounts.contains(&event.account_key)
             && !self
                 .muted_metrics
@@ -377,6 +381,12 @@ pub struct AlertEvent {
     /// PRD 0043 RF2: the old and new limit, for `LimitChanged` only.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub limit_change: Option<LimitShift>,
+    /// PRD 0045 RF5.3: the breakdown row the event is about (its scope,
+    /// id and redacted label); `account_key` is then the row unit's key
+    /// ([`crate::breakdown::row_parent`] gives the account's). Absent for
+    /// the account's own metrics.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub row: Option<crate::breakdown::RowRef>,
 }
 
 /// PRD 0043 RF2: what a `LimitChanged` alert changed.
@@ -540,6 +550,7 @@ pub fn evaluate_with(
             projection: None,
             overage: None,
             limit_change: None,
+            row: None,
         };
         if let (Some(input), Some(lead)) = (pace, prefs.projected) {
             if let Some(projection) = projected(prev, next, metric, input, lead, state, now) {
@@ -595,6 +606,7 @@ pub fn evaluate_with(
                     to: change.to,
                     unit: change.unit,
                 }),
+                row: None,
             }),
     );
     events.retain(|event| prefs.wants(event));
@@ -676,6 +688,7 @@ fn floor_events(
             projection: None,
             overage: None,
             limit_change: None,
+            row: None,
         };
         match mark {
             None if value < floor.amount && before.is_none_or(|before| before >= floor.amount) => {
@@ -751,6 +764,7 @@ fn overage_events(prev: &Report, next: &Report, state: &AlertState) -> Vec<Alert
         resets_at: now_state.cycle_ends_at,
         overage: Some(OverageExport::from(&now_state)),
         limit_change: None,
+        row: None,
     }]
 }
 
@@ -925,6 +939,7 @@ pub fn evaluate_units(
                     projection: None,
                     overage: None,
                     limit_change: None,
+                    row: None,
                 };
                 if prefs.wants(&event) {
                     events.push(event);
@@ -933,6 +948,98 @@ pub fn evaluate_units(
         }
     }
     events
+}
+
+/// PRD 0045 RF5.2: the threshold, exhaustion and recovery alerts of the
+/// top breakdown rows of `next` ([`crate::breakdown::top_rows`]), each row
+/// against the same row (scope and id) in `prev`, as a report of its own
+/// unit ([`crate::breakdown::row_as_report`]); every event carries its
+/// [`AlertEvent::row`]. The caller asks only for an account whose "Alert on
+/// breakdown rows" switch is on. A row's first reading sets its baseline;
+/// a row that disappears is forgotten, never notified. Projections are not
+/// made for rows (their recent points are not read).
+pub fn evaluate_rows(
+    prev: Option<&Report>,
+    next: &Report,
+    prefs: &AlertPrefs,
+    state: &AlertState,
+    now: DateTime<Utc>,
+) -> Vec<AlertEvent> {
+    if !prefs.enabled || next.status != Status::Ready || now - next.checked_at > CROSSING_GRACE {
+        return Vec::new();
+    }
+    let prev = prev.filter(|prev| {
+        prev.provider == next.provider
+            && prev.state_key() == next.state_key()
+            && prev.status == Status::Ready
+            && prev.checked_at < next.checked_at
+    });
+    let mut events = Vec::new();
+    for row in crate::breakdown::top_rows(&next.breakdown) {
+        let before = prev.and_then(|prev| {
+            prev.breakdown
+                .iter()
+                .find(|old| old.id == row.id && old.scope == row.scope)
+                .map(|old| crate::breakdown::row_as_report(prev, old))
+        });
+        let unit = crate::breakdown::row_as_report(next, row);
+        let reference = crate::breakdown::RowRef::of(row);
+        events.extend(
+            evaluate(before.as_ref(), &unit, prefs, state, now)
+                .into_iter()
+                .filter(|event| event.kind.is_level() || event.kind == AlertKind::Recovered)
+                .map(|event| AlertEvent {
+                    row: Some(reference.clone()),
+                    ..event
+                }),
+        );
+    }
+    events
+}
+
+/// PRD 0045 RF5.2: whether an alert of `account_key` belongs to one of the
+/// configured `keys`: the account itself or one of its breakdown rows.
+pub fn configured_unit(keys: &[String], account_key: &str) -> bool {
+    keys.iter().any(|key| key == account_key)
+        || crate::breakdown::row_parent(account_key)
+            .is_some_and(|parent| keys.iter().any(|key| key == parent))
+}
+
+/// PRD 0045 RF5.2: `pending` grouped for a notice, in the order of `units`
+/// (each account's key and display form): the account's own events, then
+/// one group per breakdown row of it, shown as "<account> · <row label>"
+/// ([`crate::breakdown::row_display`]). Events of no unit are dropped.
+pub fn notice_groups<'a>(
+    units: impl IntoIterator<Item = (String, &'a Account)>,
+    mut pending: Vec<AlertEvent>,
+) -> Vec<(Account, Vec<AlertEvent>)> {
+    let mut groups = Vec::new();
+    for (key, account) in units {
+        let (mine, rest): (Vec<_>, Vec<_>) = pending
+            .into_iter()
+            .partition(|event| event.account_key == key);
+        pending = rest;
+        if !mine.is_empty() {
+            groups.push((account.clone(), mine));
+        }
+        while let Some(first) = pending.iter().find(|event| {
+            event.row.is_some()
+                && crate::breakdown::row_parent(&event.account_key) == Some(key.as_str())
+        }) {
+            let unit = first.account_key.clone();
+            let display = first
+                .row
+                .as_ref()
+                .map(|row| crate::breakdown::row_display(account, row))
+                .unwrap_or_else(|| account.clone());
+            let (mine, rest): (Vec<_>, Vec<_>) = pending
+                .into_iter()
+                .partition(|event| event.account_key == unit);
+            pending = rest;
+            groups.push((display, mine));
+        }
+    }
+    groups
 }
 
 /// Mark of the session expiry in [`AlertState`]: never a metric label.
@@ -966,6 +1073,7 @@ fn session_expiring(next: &Report, state: &AlertState, now: DateTime<Utc>) -> Op
         projection: None,
         overage: None,
         limit_change: None,
+        row: None,
     })
 }
 
@@ -1282,6 +1390,14 @@ impl AlertState {
                     self.update_with(&sub_as_report(next, sub), prefs, events, deferred, now);
             }
         }
+        // PRD 0045 RF5.2: the top rows' levels are known whatever the
+        // switch, so turning it on never notifies the past.
+        if next.status == Status::Ready {
+            for row in crate::breakdown::top_rows(&next.breakdown) {
+                let unit = crate::breakdown::row_as_report(next, row);
+                changed |= self.update_with(&unit, prefs, events, deferred, now);
+            }
+        }
         changed
     }
 
@@ -1331,6 +1447,7 @@ impl AlertState {
                     resets_at: metric.resets_at,
                     projection: None,
                     limit_change: None,
+                    row: None,
                 });
                 let digest = key_digest(&account_key, &metric.label);
                 let handled = self.marks.iter().any(|mark| {
@@ -1524,6 +1641,7 @@ impl AlertState {
                         resets_at: Some(at),
                         projection: None,
                         limit_change: None,
+                        row: None,
                     }),
                 // PRD 0032 RF3: the overage still bills (or is still at
                 // its cap) in the same billing cycle.
@@ -1556,6 +1674,7 @@ impl AlertState {
                         resets_at: overage.cycle_ends_at,
                         overage: Some(OverageExport::from(&overage)),
                         limit_change: None,
+                        row: None,
                     }),
                 // PRD 0032 RF3.3: a held projection still projects before
                 // the reset of the same window instance.
@@ -1588,6 +1707,7 @@ impl AlertState {
                                     ..projection
                                 }),
                                 limit_change: None,
+                                row: None,
                             })
                         })
                 }
@@ -1608,6 +1728,7 @@ impl AlertState {
                         resets_at: None,
                         projection: None,
                         limit_change: None,
+                        row: None,
                     }),
                 kind => report
                     .metrics
@@ -1632,6 +1753,7 @@ impl AlertState {
                             resets_at: metric.resets_at,
                             projection: None,
                             limit_change: None,
+                            row: None,
                         })
                     }),
             };
@@ -3342,6 +3464,7 @@ mod tests {
                 projection: None,
                 overage: None,
                 limit_change: None,
+                row: None,
             }]
         );
     }
@@ -3627,6 +3750,7 @@ mod tests {
             projection: None,
             overage: None,
             limit_change: None,
+            row: None,
         };
         let ninety = event(
             "claude:Work",

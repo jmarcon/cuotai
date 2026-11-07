@@ -121,6 +121,17 @@ export function openDetails(key, context, from = null) {
       if (handleConnectionAction(t, () => { if (t.closest("[data-conn-flag=hidden]")) dlg.close(); ctx.onConnectionChange?.(); }, (x) => ctx.onError?.(x))) return;
       const each = t.closest("[data-pool-each]");
       if (each) return ctx.onPoolAlerts?.(each.dataset.poolEach, each.checked);
+      // PRD 0045 RF5.2: "Alert on breakdown rows", and a budget on one row.
+      const rowAlerts = t.closest("[data-breakdown-alerts]");
+      if (rowAlerts) return ctx.onBreakdownAlerts?.(rowAlerts.dataset.breakdownAlerts, rowAlerts.checked);
+      const rowBudget = t.closest("[data-set-row-budget]");
+      if (rowBudget) {
+        const rep = r();
+        const draft = rep?.breakdown?.rows?.[Number(rowBudget.dataset.setRowBudget)]?.budget_draft;
+        dlg.close();
+        if (rep && draft) return ctx.onSetBudget?.(rep.index, draft);
+        return;
+      }
       // PRD 0041 RF5.3: a quick budget or floor on this metric, in the account editor.
       const budget = t.closest("[data-set-budget],[data-set-floor]");
       if (budget) {

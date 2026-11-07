@@ -2255,5 +2255,6 @@
   "doctor.channel.failing": "Ses dernières livraisons ont échoué.",
   "doctor.channel.ok": "Sa dernière livraison a été acceptée.",
   "doctor.channel.none": "Rien ne lui a encore été envoyé.",
-  "doctor.fix.channel": "Ouvrez le canal dans Réglages › Alertes, vérifiez son adresse et envoyez un test (cuotai --channel-test)."
+  "doctor.fix.channel": "Ouvrez le canal dans Réglages › Alertes, vérifiez son adresse et envoyez un test (cuotai --channel-test).",
+  "budget.error.row": "{field} : un budget sur une ligne de la ventilation a besoin d'un kind, de la portée de la ligne (key, virtual_key, project, workspace ou team) et de son id, chez un fournisseur qui propose des ventilations."
 }

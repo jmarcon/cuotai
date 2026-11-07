@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0030 |
-| Status | In progress |
+| Status | Implemented |
 | Owner | `cuotai-core` (`cost::*`: sources, index, prices, estimate, settings), desktop and TUI |
 | Consumers | `apps/desktop` (cost card and details, Settings → Local cost), `crates/cuotai-tui` (`--cost`, `--cost-prices`, cost panel), `export::v1` `local_cost` consumers |
 | Depends on | PRD 0015 (RF1–RF4: sources and consent, incremental index, price table, display); PRD 0029 (RF1: account `id`) for RF1 |
@@ -13,7 +13,7 @@
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable. The **estimate** is PRD 0015's cost at published API prices of this computer's local CLI logs; it is never a charge. The **plan price** is what the person says they pay for a subscription. Code references are to `origin/main` at `0ba9c9b`.
 
-## Implementation status (2026-10-23)
+## Implementation status (2026-11-07)
 
 | RF | Version | Delivery |
 |---|---|---|
@@ -25,6 +25,7 @@
 | RF6 | 0.81.0 | Delivered. Core and CLI: `display_currency` in the settings, `DisplayCurrency::text` ("at your rate", age, update after 30 days), `--cost-currency CODE RATE` / `off`. Desktop: the rate row in Settings → Local cost → Plans and second currency, a converted amount under each tile and the "at your rate" line on the card and details (display only; the export stays USD-only). TUI: the same line under the period in the account details. |
 | RF7 | 0.81.0 | RF7.1 evidence (fixture `tests/fixtures/cost/claude_streamed_numbers.jsonl`, finding in the `claude.rs` module doc): in 19,918 local assistant lines, 507 of 9,525 `message.id`+`requestId` keys repeat with differing `output_tokens` (for example 3, 3, 1880): first-wins kept partial counts. RF7.2 delivered: `seen` keeps the accepted line's counts and a later line applies only the growth. |
 | RF8 | 0.81.0 | README, `docs/advanced.md`, `docs/tui.md`, `docs/export-v1.md` and `docs/architecture.md` updated for what is delivered. |
+| RF2.3 | vNEXT | Delivered (it was optional; the owner asked to finish every open item). `detect::Detected::local_cost` names the local cost source of a detected Claude Code, Codex CLI or Gemini CLI (`detect::local_cost_source`), and the desktop's `detect_sources` clears it once that source is on (`detect::without_enabled_cost`, `LocalCost::enabled_sources`). The account dialog then adds one line under the offered flow's consent, "Its local logs can also estimate the cost at API prices; Cuotai reads them only after you turn the Gemini CLI source on", with **Open Local cost** (Settings → Local cost, sources anchor). It never enables a source: the source's own disclosure and consent stay the only way on (RF2.2). 14 locales. The TUI wizard shows no offer (decision: it has no Local cost page; `cuotai --cost-sources` stays the way there). OpenCode and Qwen Code re-checked on 2026-11-07 against official documentation: OpenCode's troubleshooting page still names only the database location (`~/.local/share/opencode/opencode.db`, `OPENCODE_DB`) with no schema or token fields; Qwen Code's settings reference still documents `general.chatRecording` and `model.enableOpenAILogging` (JSON files under `logs/openai`) with no layout, schema or token fields. Under the owner rule of 2026-10-25 they are not RF2 gaps but future sources, added when a format is published. |
 
 ## 1. Context
 
@@ -175,6 +176,11 @@ At each step: `cargo fmt`, `clippy -D warnings`, workspace and desktop tests, an
 | A preset list of common plan prices (Claude Pro, Max, ChatGPT Plus) | No: prices change and vary by country; the person types the price. |
 | Which source after the two existing ones | Gemini CLI first (decision Q already puts it in the detection table), then OpenCode. |
 | Should `fx_rate` also convert provider-reported amounts (PRD 0023 overage) | Not in this version; provider amounts stay in their own currency. |
+
+## 12.1 Decisions taken while closing the plan (2026-11-07)
+
+- **RF2.3 is built as an offer that links, never a switch.** The account dialog sends the person to Settings → Local cost, where the source's existing disclosure is accepted; the offer disappears once the source is on. The TUI keeps `cuotai --cost-sources` (most conservative: no new consent path).
+- **OpenCode and Qwen Code are closed as out of scope until a documented format exists** (owner rule of 2026-10-25); this plan is Implemented, and a later source gets its own delivery.
 
 ## 13. Decisions (owner, 2026-10-23)
 

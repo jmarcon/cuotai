@@ -97,7 +97,10 @@ fn provider_modes(provider: cuotai_core::Provider) -> Vec<backend::PickerEntry> 
 /// PRD 0027 RF6.2/RF6.5: presence-only detection, run when the picker opens
 /// and only after this device agreed to it; dismissed kinds are left out.
 #[tauri::command]
-async fn detect_sources(b: Shared<'_>) -> Result<Vec<cuotai_core::detect::Detected>, String> {
+async fn detect_sources(
+    b: Shared<'_>,
+    cost: Cost<'_>,
+) -> Result<Vec<cuotai_core::detect::Detected>, String> {
     let prefs = settings::detect_prefs();
     if prefs.enabled != Some(true) {
         return Ok(Vec::new());
@@ -112,6 +115,8 @@ async fn detect_sources(b: Shared<'_>) -> Result<Vec<cuotai_core::detect::Detect
     .map_err(|_| "detect_failed".to_string())?;
     // PRD 0036 RF2.5: the one consent-gated presence probe (loopback only).
     found.extend(cuotai_core::detect::probe_nine_router(&probe_configured).await);
+    // PRD 0030 RF2.3: no "estimate its cost" offer once the source is on.
+    cuotai_core::detect::without_enabled_cost(&mut found, &cost.enabled_sources());
     Ok(found
         .into_iter()
         .filter(|d| !prefs.dismissed.iter().any(|k| k == d.kind.slug()))
@@ -1680,6 +1685,19 @@ async fn set_pool_alerts(
         .await
 }
 
+/// PRD 0045 RF5.2: whether the top breakdown rows of `account_key` alert
+/// ("Alert on breakdown rows"). Error: `unwritable`.
+#[tauri::command]
+async fn set_breakdown_alerts(
+    app: AppHandle,
+    b: Shared<'_>,
+    account_key: String,
+    on: bool,
+) -> Result<(), String> {
+    b.update_notices(&app, |n| n.set_breakdown_alerts(&account_key, on))
+        .await
+}
+
 /// PRD 0003 RF3.1: lead time (0, 5, 15 or 60 min), filter (`used`,
 /// `exhausted`, `always`) and "other" windows, saved in `desktop.json`.
 /// Errors: `invalid_notify`, `unwritable`.
@@ -2860,6 +2878,7 @@ pub fn run() -> std::process::ExitCode {
             set_alert_options,
             set_metric_alert,
             set_pool_alerts,
+            set_breakdown_alerts,
             set_notify_options,
             set_account_notify,
             set_notify_private,

@@ -1580,5 +1580,17 @@
   "coreText.doctorNoKey": "Nessuna chiave salvata per questo account; ignoralo se accede in un altro modo.",
   "coreText.doctorFixKey": "Apri l'account in Modifica e inserisci la sua chiave; Cuotai la conserva nel portachiavi di sistema.",
   "coreText.restoreKey": "Inserisci di nuovo la chiave dell'account {number} ({provider}).",
-  "settings.kw.backup": "backup ripristino esportare importare spostare nuovo computer migrare zip copia impostazioni"
+  "settings.kw.backup": "backup ripristino esportare importare spostare nuovo computer migrare zip copia impostazioni",
+  "breakdown.alerts": "Avvisa per le righe del dettaglio",
+  "breakdown.alertsHelp": "Le prime 10 righe con un limite avvisano come le quote dell'account, con le soglie di Impostazioni → Avvisi. Disattivato per impostazione predefinita.",
+  "budget.editor.row": "Sulla riga del dettaglio: {scope} {id}",
+  "budget.editor.rowScope.key": "chiave API",
+  "budget.editor.rowScope.virtual_key": "chiave virtuale",
+  "budget.editor.rowScope.project": "progetto",
+  "budget.editor.rowScope.workspace": "workspace",
+  "budget.editor.rowScope.team": "team",
+  "detect.costOffer.open": "Apri Costo locale",
+  "detect.costOffer.claude_code": "I suoi log locali possono anche stimare il costo a prezzi API; Cuotai li legge solo dopo che attivi la fonte Claude Code.",
+  "detect.costOffer.codex_cli": "I suoi log locali possono anche stimare il costo a prezzi API; Cuotai li legge solo dopo che attivi la fonte Codex CLI.",
+  "detect.costOffer.gemini_cli": "I suoi log locali possono anche stimare il costo a prezzi API; Cuotai li legge solo dopo che attivi la fonte Gemini CLI."
 }

@@ -173,6 +173,9 @@ pub struct BudgetRow {
     pub start: Option<BudgetStart>,
     pub filter: String,
     pub label: String,
+    /// PRD 0045 RF5.2: the breakdown row the budget follows, kept as it is
+    /// (the editors never change it).
+    pub row: Option<super::RowTarget>,
 }
 
 impl Default for BudgetRow {
@@ -186,6 +189,7 @@ impl Default for BudgetRow {
             period: BudgetPeriod::Monthly,
             starts: None,
             label: None,
+            row: None,
         })
     }
 }
@@ -209,6 +213,7 @@ impl BudgetRow {
             start: budget.starts,
             filter: budget.label_contains.clone().unwrap_or_default(),
             label: budget.label.clone().unwrap_or_default(),
+            row: budget.row.clone(),
         }
     }
 
@@ -233,6 +238,7 @@ impl BudgetRow {
             period: self.period,
             starts,
             label: some_text(&self.label),
+            row: self.row.clone(),
         }
     }
 }
@@ -435,8 +441,20 @@ mod tests {
             period: BudgetPeriod::Weekly,
             starts: Some(BudgetStart::Weekday(WeekdayName::Friday)),
             label: Some("Team".into()),
+            row: None,
         };
         assert_eq!(BudgetRow::from_budget(&budget).to_budget(), budget);
+        // PRD 0045 RF5.2: a budget on a breakdown row keeps its row.
+        let on_row = Budget {
+            kind: Some(BudgetKind::Spend),
+            scope: None,
+            row: Some(super::super::RowTarget {
+                scope: crate::ScopeKind::Key,
+                id: "k1".into(),
+            }),
+            ..budget.clone()
+        };
+        assert_eq!(BudgetRow::from_budget(&on_row).to_budget(), on_row);
         let mut row = BudgetRow::new(Provider::OpenAiApi);
         assert_eq!(row.target, Target::Spend);
         row.amount = " 12,5 ".into();

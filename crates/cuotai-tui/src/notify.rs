@@ -168,15 +168,28 @@ impl Notices {
         });
         // PRD 0036 RF6.4: an aggregator alerts when a whole pool runs out
         // (the default mode); its connections' levels are still tracked.
-        alerts::evaluate_units(
+        let prefs = self.alert_prefs();
+        let mut events = alerts::evaluate_units(
             prev,
             next,
-            &self.alert_prefs(),
+            &prefs,
             self.ledger.alerts(),
             now,
             PoolAlerts::WholePool,
             input.as_ref(),
-        )
+        );
+        // PRD 0045 RF5.2: the breakdown rows of an account whose "Alert on
+        // breakdown rows" is on in the shared settings.
+        if self.loaded.alerts.breakdown_alerts(&next.state_key()) {
+            events.extend(alerts::evaluate_rows(
+                prev,
+                next,
+                &prefs,
+                self.ledger.alerts(),
+                now,
+            ));
+        }
+        events
     }
 
     /// Remember `next`, the reading the cycle applied, and queue the
@@ -223,7 +236,7 @@ impl Notices {
     pub(crate) fn keep_accounts(&mut self, config: &Config) {
         self.floors = AlertPrefs::default().with_floors(config);
         let keys: Vec<String> = config.accounts.iter().map(Account::state_key).collect();
-        let kept = |event: &AlertEvent| keys.contains(&event.account_key);
+        let kept = |event: &AlertEvent| alerts::configured_unit(&keys, &event.account_key);
         self.pending.retain(kept);
         self.digest_pending.retain(kept);
         self.ledger.mutate(|ledger| {
@@ -358,7 +371,7 @@ impl Notices {
     ) {
         let keys: Vec<String> = config.accounts.iter().map(Account::state_key).collect();
         self.digest_pending
-            .retain(|event| keys.contains(&event.account_key));
+            .retain(|event| alerts::configured_unit(&keys, &event.account_key));
         if self.digest_pending.is_empty()
             || self
                 .last_alert
@@ -366,17 +379,12 @@ impl Notices {
         {
             return;
         }
-        let mut pending = std::mem::take(&mut self.digest_pending);
-        let mut groups = Vec::new();
-        for (account, key) in config.accounts.iter().zip(&keys) {
-            let (mine, rest): (Vec<_>, Vec<_>) = pending
-                .into_iter()
-                .partition(|event| event.account_key == *key);
-            pending = rest;
-            if !mine.is_empty() {
-                groups.push((account, mine));
-            }
-        }
+        let pending = std::mem::take(&mut self.digest_pending);
+        let owned = alerts::notice_groups(keys.iter().cloned().zip(&config.accounts), pending);
+        let groups: Vec<(&Account, Vec<AlertEvent>)> = owned
+            .iter()
+            .map(|(account, events)| (account, events.clone()))
+            .collect();
         let private = self.loaded.notify.private;
         let notice = match &self.zone {
             Some(zone) => quiet::digest(&groups, now, zone, private),
@@ -432,14 +440,18 @@ impl Notices {
             return;
         }
         let private = self.loaded.notify.private;
-        for (index, account) in expanded.config.accounts.iter().enumerate() {
-            let key = account.state_key();
-            let account = expanded.display(index);
-            let (mine, rest): (Vec<_>, Vec<_>) = pending
-                .into_iter()
-                .partition(|event| event.account_key == key);
-            pending = rest;
-            let groups = [(account, mine)];
+        // PRD 0045 RF5.2: one line per account and per breakdown row.
+        let owned = alerts::notice_groups(
+            expanded
+                .config
+                .accounts
+                .iter()
+                .enumerate()
+                .map(|(index, account)| (account.state_key(), expanded.display(index))),
+            pending,
+        );
+        for (account, mine) in owned {
+            let groups = [(&account, mine)];
             let Some(notice) = alerts::notice(&groups, now, &chrono::Local) else {
                 continue;
             };

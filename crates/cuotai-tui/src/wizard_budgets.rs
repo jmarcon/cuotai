@@ -694,6 +694,7 @@ mod tests {
             period: budget::BudgetPeriod::Monthly,
             starts: Some(budget::BudgetStart::Day(3)),
             label: None,
+            row: None,
         }];
         let mut step = BudgetStep::of(Some(&account));
         assert_eq!(step.budgets(), account.budgets);

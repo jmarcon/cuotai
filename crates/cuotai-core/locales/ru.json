@@ -2283,5 +2283,6 @@
   "doctor.channel.failing": "Последние доставки не удались.",
   "doctor.channel.ok": "Последняя доставка принята.",
   "doctor.channel.none": "В него ещё ничего не отправлялось.",
-  "doctor.fix.channel": "Откройте канал в «Настройки › Оповещения», проверьте адрес и отправьте тест (cuotai --channel-test)."
+  "doctor.fix.channel": "Откройте канал в «Настройки › Оповещения», проверьте адрес и отправьте тест (cuotai --channel-test).",
+  "budget.error.row": "{field}: бюджету на строке детализации нужны kind, область строки (key, virtual_key, project, workspace или team) и её id у провайдера, который поддерживает детализацию."
 }
