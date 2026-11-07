@@ -7,8 +7,11 @@
 //! report can be pasted into an issue.
 //!
 //! The configuration check reuses `--check-config`'s strict reader
-//! ([`crate::config_file::check`]); PRD 0052's diagnostics can add their
-//! own checks to the same [`Report`]. The system vault is checked for
+//! ([`crate::config_file::check`]). PRD 0052 RF3 (its §13 option A: this
+//! command is the single diagnostic) adds the app log's health, the
+//! sanitized proxy, the trust store and the privacy artifact registry
+//! ([`crate::privacy::inspect`]) to the same [`Report`]; the server-clock
+//! warning is the `clock` check. The system vault is checked for
 //! availability only (no entry is read, so no token's expiry either; the
 //! next refresh reports an expired sign-in). [`probe`] adds the opt-in
 //! network checks of `--doctor --probe`.
@@ -22,6 +25,9 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 
 use crate::config_file::{self, ConfigFile, ConfigParseMode, PathSource, ResolvedPath};
+use crate::diagnostics::logging::LogHealth;
+use crate::network::ProxyState;
+use crate::privacy::ArtifactState;
 use crate::text::{home_relative, params, Localized, ParamValue};
 use crate::Account;
 
@@ -81,6 +87,12 @@ pub struct Report {
     /// without a configured path (`tools.aws { status, source, path }`).
     #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub tools: std::collections::BTreeMap<&'static str, crate::external_tool::ToolReport>,
+    /// PRD 0052 RF3.3: every [`crate::privacy::artifacts`] entry as it is
+    /// now (home-abbreviated path, existence, kind, bytes, Unix mode with
+    /// the expected one when it differs, schema); no content. Additive to
+    /// schema 1.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub artifacts: Vec<ArtifactState>,
 }
 
 impl Report {
@@ -145,6 +157,13 @@ pub struct Inputs {
     /// The language the front end shows.
     pub locale: String,
     pub now: DateTime<Utc>,
+    /// PRD 0052 RF3.2: the app log's state in this process.
+    pub log_health: LogHealth,
+    /// PRD 0052 RF6.2: the proxy the HTTPS clients use, already sanitized
+    /// (no userinfo, no `NO_PROXY` entries).
+    pub proxy: ProxyState,
+    /// PRD 0052 RF6.1: how many OS root certificates load (`None`: none).
+    pub trust_roots: Option<usize>,
 }
 
 impl Inputs {
@@ -176,6 +195,9 @@ impl Inputs {
             notifications: None,
             locale: String::new(),
             now: Utc::now(),
+            log_health: crate::diagnostics::logging::health(),
+            proxy: crate::network::proxy_state(),
+            trust_roots: crate::network::native_roots().ok().map(<[_]>::len),
         }
     }
 }
@@ -952,6 +974,167 @@ fn check_notifications(granted: bool) -> Check {
     }
 }
 
+fn log_fix() -> Localized {
+    fixed(
+        "doctor.fix.log",
+        "Make sure the data folder exists and is writable, and the disk is not full.",
+    )
+}
+
+/// PRD 0052 RF3.2: whether the app log is being written; never its lines.
+fn check_log(inputs: &Inputs) -> Check {
+    let path = inputs
+        .data_root
+        .as_deref()
+        .map(crate::diagnostics::logging::log_path);
+    let title = Localized::with_param(
+        "doctor.title.log",
+        "path",
+        path.as_deref().map_or(ParamValue::from("—"), path_param),
+        "App log {path}",
+    );
+    match inputs.log_health {
+        LogHealth::Ok => Check::new("log", CheckStatus::Ok, title)
+            .detail(fixed("doctor.log.ok", "Events are being written.")),
+        LogHealth::Off => Check::new("log", CheckStatus::Skip, title).detail(fixed(
+            "doctor.log.off",
+            "Turned off with CUOTAI_LOG or RUST_LOG.",
+        )),
+        LogHealth::Uninitialized => Check::new("log", CheckStatus::Skip, title).detail(fixed(
+            "doctor.log.uninitialized",
+            "Not started by this program.",
+        )),
+        LogHealth::Unavailable => Check::new("log", CheckStatus::Warn, title)
+            .detail(fixed(
+                "doctor.log.unavailable",
+                "There is no data folder, so nothing can be written.",
+            ))
+            .fix(log_fix()),
+        LogHealth::Error => Check::new("log", CheckStatus::Warn, title)
+            .detail(fixed("doctor.log.error", "A write failed."))
+            .fix(log_fix()),
+    }
+}
+
+/// PRD 0052 RF6.2: the effective proxy, sanitized by
+/// [`crate::network::proxy_state`]: the variable's name, `scheme://host:port`
+/// and whether a bypass list is set; never userinfo or the list.
+fn check_proxy(proxy: &ProxyState) -> Check {
+    let title = fixed("doctor.title.proxy", "Network proxy");
+    let bypass = if proxy.bypass_list {
+        fixed("doctor.proxy.bypass", "A NO_PROXY list is set.")
+    } else {
+        fixed("doctor.proxy.no_bypass", "No NO_PROXY list is set.")
+    };
+    match (proxy.state, proxy.source, proxy.endpoint.as_deref()) {
+        ("proxied", Some(source), Some(endpoint)) => Check::new("proxy", CheckStatus::Ok, title)
+            .detail(Localized::with_params(
+                "doctor.proxy.proxied",
+                params([
+                    ("endpoint", ParamValue::from(endpoint)),
+                    ("source", ParamValue::from(source)),
+                    ("bypass", ParamValue::from(bypass)),
+                ]),
+                "HTTPS requests go through {endpoint} (from {source}). {bypass}",
+            )),
+        ("invalid", Some(source), _) => Check::new("proxy", CheckStatus::Warn, title)
+            .detail(Localized::with_param(
+                "doctor.proxy.invalid",
+                "source",
+                source,
+                "{source} is not a valid proxy address.",
+            ))
+            .fix(Localized::with_param(
+                "doctor.fix.proxy",
+                "source",
+                source,
+                "Write it as scheme://host:port, or unset {source}.",
+            )),
+        _ => Check::new("proxy", CheckStatus::Ok, title).detail(Localized::with_param(
+            "doctor.proxy.none",
+            "bypass",
+            bypass,
+            "No proxy variable is set: requests go direct. {bypass}",
+        )),
+    }
+}
+
+/// PRD 0052 RF6.1: the OS trust store the HTTPS clients use (no bundled
+/// roots, no fallback).
+fn check_trust_store(roots: Option<usize>) -> Check {
+    let title = fixed("doctor.title.trust_store", "System root certificates");
+    match roots {
+        Some(count) => Check::new("trust_store", CheckStatus::Ok, title).detail(
+            Localized::with_param(
+                "doctor.trust_store.ok",
+                "count",
+                count,
+                "{count} certificates load from the operating system.",
+            ),
+        ),
+        None => Check::new("trust_store", CheckStatus::Fail, title)
+            .detail(fixed(
+                "doctor.trust_store.empty",
+                "None could be loaded, so every HTTPS request fails.",
+            ))
+            .fix(fixed(
+                "doctor.fix.trust_store",
+                "Install or repair the operating system's root certificates (the ca-certificates package on Linux).",
+            )),
+    }
+}
+
+/// Whether `actual` (octal text) grants a bit `expected` does not.
+fn wider(actual: &str, expected: &str) -> bool {
+    match (
+        u32::from_str_radix(actual, 8),
+        u32::from_str_radix(expected, 8),
+    ) {
+        (Ok(actual), Ok(expected)) => actual & !expected != 0,
+        _ => false,
+    }
+}
+
+/// PRD 0052 RF3.3: a summary of the artifact registry; the rows themselves
+/// go to [`Report::artifacts`].
+fn check_artifacts(states: &[ArtifactState]) -> Check {
+    let title = fixed("doctor.title.artifacts", "Cuotai's files");
+    let present: Vec<&ArtifactState> = states.iter().filter(|s| s.exists == Some(true)).collect();
+    let bytes: u64 = present.iter().filter_map(|s| s.bytes).sum();
+    let open: Vec<&str> = states
+        .iter()
+        .filter(|s| match (&s.mode, &s.mode_expected) {
+            (Some(actual), Some(expected)) => wider(actual, expected),
+            _ => false,
+        })
+        .map(|s| s.id)
+        .collect();
+    let summary = Localized::with_params(
+        "doctor.artifacts.summary",
+        params([
+            ("present", ParamValue::from(present.len())),
+            ("total", ParamValue::from(states.len())),
+            ("size", ParamValue::from(size_text(bytes))),
+        ]),
+        "{present} of {total} present, {size} in all.",
+    );
+    if open.is_empty() {
+        Check::new("artifacts", CheckStatus::Ok, title).detail(summary)
+    } else {
+        Check::new("artifacts", CheckStatus::Warn, title)
+            .detail(Localized::with_param(
+                "doctor.artifacts.open",
+                "ids",
+                open.join(", "),
+                "Other users have more access than expected to: {ids}.",
+            ))
+            .fix(fixed(
+                "doctor.fix.artifacts",
+                "Narrow them to your user (chmod 600 for files, 700 for folders), or erase them with --erase-all-data.",
+            ))
+    }
+}
+
 /// Run every check over `inputs`. Read-only and offline.
 pub fn run(inputs: &Inputs) -> Report {
     let mut checks = vec![Check::new(
@@ -1015,10 +1198,25 @@ pub fn run(inputs: &Inputs) -> Report {
     }
     checks.push(check_clock(inputs));
     checks.push(check_locale(inputs));
+    checks.push(check_log(inputs));
+    checks.push(check_proxy(&inputs.proxy));
+    checks.push(check_trust_store(inputs.trust_roots));
+    let artifacts = crate::privacy::inspect(&crate::privacy::Roots {
+        local_data: inputs.data_root.clone(),
+        config: inputs
+            .desktop_settings
+            .as_deref()
+            .and_then(Path::parent)
+            .and_then(Path::parent)
+            .map(Path::to_path_buf),
+        accounts: Some(inputs.config.path.clone()),
+    });
+    checks.push(check_artifacts(&artifacts));
     Report {
         schema: SCHEMA,
         checks,
         tools,
+        artifacts,
     }
 }
 

@@ -2201,6 +2201,17 @@ const demo = {
       fix: { id: "doctor.fix.set_env", params: { variable: "GROQ_API_KEY" }, fallback: "Set {variable} in the environment that starts Cuotai, or store the key in the vault from the account editor." } },
     { id: "cost_index", status: "skip", title: { id: "doctor.title.cost_index", params: {}, fallback: "Local cost index" },
       detail: { id: "doctor.state.absent", params: {}, fallback: "It has not been created yet." } },
+    // PRD 0052 RF3: the diagnostics the doctor adds (sanitized proxy, trust store, Cuotai's files).
+    { id: "proxy", status: "ok", title: { id: "doctor.title.proxy", params: {}, fallback: "Network proxy" },
+      detail: { id: "doctor.proxy.none", params: { bypass: { id: "doctor.proxy.no_bypass", params: {}, fallback: "No NO_PROXY list is set." } },
+        fallback: "No proxy variable is set: requests go direct. {bypass}" } },
+    { id: "trust_store", status: "ok", title: { id: "doctor.title.trust_store", params: {}, fallback: "System root certificates" },
+      detail: { id: "doctor.trust_store.ok", params: { count: 150 }, fallback: "{count} certificates load from the operating system." } },
+    { id: "artifacts", status: "ok", title: { id: "doctor.title.artifacts", params: {}, fallback: "Cuotai's files" },
+      detail: { id: "doctor.artifacts.summary", params: { present: 2, total: 31, size: "1.5 MiB" }, fallback: "{present} of {total} present, {size} in all." } },
+  ], artifacts: [
+    { id: "history.db", path: "~/.local/share/cuotai/history/history.sqlite3", kind: "file", exists: true, found: "file", bytes: 1536000, mode: "0600", mode_expected: null, schema: "5" },
+    { id: "vault.oauth", path: "cuotai.oauth", kind: "vault_service", exists: null, found: null, bytes: null, mode: null, mode_expected: null, schema: "not_applicable" },
   ] }),
   backup_preview: async ({ withHistory }) => demoBackup(withHistory),
   backup_write: async ({ withHistory }) => demoBackup(withHistory),
