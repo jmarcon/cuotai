@@ -160,6 +160,17 @@ pub struct ServeView {
     pub port_max: u16,
     /// What "allow browsers" means, shown before turning it on.
     pub browsers_warning: Localized,
+    /// PRD 0050 RF6.3: bytes of `serve-access.log` and its rotated copy.
+    pub access_log_bytes: u64,
+}
+
+impl ServeView {
+    fn with_access_log_size(self, bytes: u64) -> Self {
+        Self {
+            access_log_bytes: bytes,
+            ..self
+        }
+    }
 }
 
 impl Default for ServeView {
@@ -189,6 +200,7 @@ fn view_of(
         port_min: *SERVE_PORTS.start(),
         port_max: *SERVE_PORTS.end(),
         browsers_warning: serve::allow_browsers_warning(),
+        access_log_bytes: 0,
     }
 }
 
@@ -199,6 +211,9 @@ pub struct Integration {
     server: Option<LocalServer>,
     error: Option<ServeError>,
     cuotai_on_port: bool,
+    /// PRD 0050 RF6.3: the private `serve-access.log` (under the data
+    /// root); written only while the mode records something.
+    access_file: Option<Arc<serve::AccessLogFile>>,
     /// Cold-restart counter. Increments exactly once per successful
     /// `LocalServer::start`; lets regression tests pin the structural
     /// invariant that a same-port hot swap does not bind a new socket.
@@ -221,9 +236,32 @@ impl Integration {
             server: None,
             error: None,
             cuotai_on_port: false,
+            access_file: serve::default_access_log_path()
+                .map(|path| Arc::new(serve::AccessLogFile::new(path))),
             #[cfg(test)]
             listener_starts: 0,
         }
+    }
+
+    /// The same with the access log at `path` (tests).
+    #[cfg(test)]
+    pub(crate) fn with_access_log_path(mut self, path: std::path::PathBuf) -> Self {
+        self.access_file = Some(Arc::new(serve::AccessLogFile::new(path)));
+        self
+    }
+
+    /// PRD 0050 RF6.3: remove both generations of the access log. Error:
+    /// `unwritable`.
+    pub fn erase_access_log(&self) -> Result<(), String> {
+        match &self.access_file {
+            Some(file) => file.erase().map_err(|_| "unwritable".to_string()),
+            None => Ok(()),
+        }
+    }
+
+    /// Bytes the access log holds now (both generations).
+    pub fn access_log_size(&self) -> u64 {
+        self.access_file.as_ref().map_or(0, |file| file.size())
     }
 
     pub fn prefs(&self) -> ServePrefs {
@@ -242,6 +280,7 @@ impl Integration {
             self.error.as_ref(),
             self.cuotai_on_port,
         )
+        .with_access_log_size(self.access_log_size())
     }
 
     /// Cold starts since construction (test-only). Equals one after the
@@ -278,18 +317,19 @@ impl Integration {
         // Resolve the token once for this `apply`. The resulting
         // `ServeConfig` is used by both the hot-swap and cold paths so the
         // vault is touched at most one time per call.
-        let new_config = match Self::config_for(&prefs, &self.vault).await {
-            Ok(config) => config,
-            Err(error) => {
-                if let Some(server) = self.server.take() {
-                    server.shutdown().await;
+        let new_config =
+            match Self::config_for(&prefs, &self.vault, self.access_file.as_ref()).await {
+                Ok(config) => config,
+                Err(error) => {
+                    if let Some(server) = self.server.take() {
+                        server.shutdown().await;
+                    }
+                    self.prefs = prefs;
+                    self.error = Some(error);
+                    self.cuotai_on_port = false;
+                    return;
                 }
-                self.prefs = prefs;
-                self.error = Some(error);
-                self.cuotai_on_port = false;
-                return;
-            }
-        };
+            };
 
         // Hot swap on the live listener.
         if let Some(server) = self.server.as_ref() {
@@ -351,6 +391,7 @@ impl Integration {
     async fn config_for(
         prefs: &ServePrefs,
         vault: &Arc<dyn TokenVault>,
+        access_file: Option<&Arc<serve::AccessLogFile>>,
     ) -> Result<ServeConfig, ServeError> {
         let token = if prefs.token {
             let vault = Arc::clone(vault);
@@ -376,6 +417,10 @@ impl Integration {
             stats: prefs.stats,
             // PRD 0034 RF5.2: the same variable that the CLI server reads.
             fallback_locale: cuotai_core::text::fallback_locale(None),
+            // PRD 0050 RF6.1/RF6.3: `off` by default on the desktop; `Off`
+            // builds no entry, so the file is never created then.
+            access_log: access_file.map(serve::AccessLogFile::sink),
+            access_log_mode: prefs.access_log_mode(),
             ..ServeConfig::default()
         })
     }
@@ -551,10 +596,10 @@ mod tests {
         let vault: Arc<dyn TokenVault> = Arc::new(MemoryVault::default());
         let prefs = ServePrefs::default();
         std::env::remove_var(cuotai_core::text::FALLBACK_LOCALE_ENV);
-        let config = Integration::config_for(&prefs, &vault).await.unwrap();
+        let config = Integration::config_for(&prefs, &vault, None).await.unwrap();
         assert_eq!(config.fallback_locale, None);
         std::env::set_var(cuotai_core::text::FALLBACK_LOCALE_ENV, "es");
-        let config = Integration::config_for(&prefs, &vault).await.unwrap();
+        let config = Integration::config_for(&prefs, &vault, None).await.unwrap();
         std::env::remove_var(cuotai_core::text::FALLBACK_LOCALE_ENV);
         assert_eq!(config.fallback_locale.as_deref(), Some("es"));
     }
@@ -594,6 +639,62 @@ mod tests {
             .await;
         assert_eq!(integration.view().state, "off");
         assert_eq!(status(port, "/health", &[]).await, None, "port closed");
+    }
+
+    /// PRD 0050 RF6.1/RF6.3: the desktop's access log is off by default and
+    /// creates nothing then; `errors` records a failing request in the
+    /// private file in place (no restart); erasing removes it; back to
+    /// `off`, a failing request recreates nothing.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn the_access_log_is_off_by_default_records_errors_hot_and_erases() {
+        let port = free_port();
+        let slot = FeedSlot::default();
+        slot.publish(Some(feed()));
+        let dir = tempfile::tempdir().unwrap();
+        let path = serve::access_log_path(dir.path());
+        let mut integration = Integration::new(on(port), Arc::new(MemoryVault::default()))
+            .with_access_log_path(path.clone());
+        assert_eq!(integration.prefs().access_log, "off");
+        integration.apply(on(port), &slot).await;
+        assert_eq!(
+            status(port, "/nope?account=a@example.com", &[]).await,
+            Some(404)
+        );
+        assert!(
+            !path.exists() && !dir.path().join("logs").exists(),
+            "off creates nothing"
+        );
+
+        let errors = on(port).with_access_log("errors").unwrap();
+        integration.apply(errors.clone(), &slot).await;
+        assert_eq!(integration.cold_starts(), 1, "the mode changes in place");
+        assert_eq!(status(port, "/health", &[]).await, Some(200));
+        assert_eq!(
+            status(port, "/nope?account=a@example.com", &[]).await,
+            Some(404)
+        );
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(text.lines().count(), 1, "only the failure: {text}");
+        assert!(text.contains(" loopback GET - 404 "), "{text}");
+        assert!(
+            !text.contains("example.com") && !text.contains("nope"),
+            "{text}"
+        );
+        assert!(integration.view().access_log_bytes > 0);
+
+        integration.erase_access_log().unwrap();
+        assert!(!path.exists());
+        assert_eq!(integration.view().access_log_bytes, 0);
+
+        integration
+            .apply(errors.with_access_log("off").unwrap(), &slot)
+            .await;
+        assert_eq!(status(port, "/nope", &[]).await, Some(404));
+        assert!(!path.exists(), "off recreates nothing");
+        assert_eq!(
+            on(port).with_access_log("verbose"),
+            Err("invalid_access_log".into())
+        );
     }
 
     /// Browser mode on `port` with a token and one trusted origin.

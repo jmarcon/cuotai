@@ -1478,6 +1478,23 @@ async fn set_serve_stats(
     b.set_serve_stats(&app, stats).await
 }
 
+/// PRD 0050 RF6.1: the private access log's mode (`off` by default,
+/// `errors`, `all`), saved in `desktop.json` and applied in place.
+#[tauri::command]
+async fn set_serve_access_log(
+    app: AppHandle,
+    b: Shared<'_>,
+    mode: String,
+) -> Result<local_server::ServeView, String> {
+    b.set_serve_access_log(&app, &mode).await
+}
+
+/// PRD 0050 RF6.3: erase `serve-access.log` and its rotated copy.
+#[tauri::command]
+async fn erase_serve_access_log(b: Shared<'_>) -> Result<local_server::ServeView, String> {
+    b.erase_serve_access_log().await
+}
+
 /// PRD 0012 RF5.1: generate the server's token into the OS vault (a new
 /// one invalidates the previous) and require it.
 #[tauri::command]
@@ -2842,6 +2859,8 @@ pub fn run() -> std::process::ExitCode {
             serve_status,
             set_serve,
             set_serve_stats,
+            set_serve_access_log,
+            erase_serve_access_log,
             generate_serve_token,
             revoke_serve_token,
             copy_serve_token,

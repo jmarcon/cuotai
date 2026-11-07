@@ -24,6 +24,7 @@
 //! ([`TokenSource`], [`resolve_token`]). With a token, whoever can read it
 //! (your own user's programs) can still read the data.
 
+mod access_file;
 mod admission;
 pub mod client;
 mod http;
@@ -33,6 +34,9 @@ mod token;
 #[cfg(test)]
 mod tests;
 
+pub use access_file::{
+    access_log_path, default_access_log_path, AccessLogFile, ACCESS_LOG_ROTATE_BYTES,
+};
 pub use origin::{
     check_origin_count, parse_origins, Origin, OriginError, OriginListError, MAX_ORIGINS,
 };
