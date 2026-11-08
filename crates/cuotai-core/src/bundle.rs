@@ -786,6 +786,10 @@ pub struct Plan {
     /// folder of this computer, see [`Locations::for_cli`]).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub unplaced: Vec<String>,
+    /// Bundle paths left untouched because a later schema major wrote the
+    /// file here or the backup's copy (desktop settings, PRD 0051 RF3).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub newer: Vec<String>,
     #[serde(skip)]
     locations: Locations,
     #[serde(skip)]
@@ -821,6 +825,19 @@ impl Part {
         };
         path.starts_with(folder)
     }
+}
+
+/// The `desktop.json` schema major this release reads and writes (the
+/// desktop's `SCHEMA_MAJOR`; an absent `schema` is major 1).
+const DESKTOP_SCHEMA_MAJOR: u64 = 1;
+
+/// Whether `bytes` are desktop settings of a later schema major, which this
+/// release reads but never rewrites.
+fn desktop_newer_major(bytes: &[u8]) -> bool {
+    serde_json::from_slice::<serde_json::Value>(bytes)
+        .ok()
+        .and_then(|value| value.get("schema").and_then(serde_json::Value::as_u64))
+        .is_some_and(|major| major > DESKTOP_SCHEMA_MAJOR)
 }
 
 /// `local` with the members of `incoming` over it, leaving the members that
@@ -982,6 +999,7 @@ pub fn plan(
         known.extend(read_accounts(bytes));
     }
     let mut unplaced = Vec::new();
+    let mut newer = Vec::new();
     for (path, bytes) in &bundle.files {
         if only.is_some_and(|part| !part.holds(path)) {
             continue;
@@ -1011,6 +1029,17 @@ pub fn plan(
                 })
             }
         };
+        // PRD 0051 RF3: desktop settings of a later schema major (here, or
+        // in a backup a newer Cuotai made) are never rewritten or merged.
+        if path == "prefs/desktop.json"
+            && [current.as_deref(), Some(bytes.as_slice())]
+                .into_iter()
+                .flatten()
+                .any(desktop_newer_major)
+        {
+            newer.push(path.clone());
+            continue;
+        }
         let new = if path == "prefs/desktop.json" {
             merge_desktop(current.as_deref(), bytes).ok_or(BundleError::Invalid)?
         } else {
@@ -1067,6 +1096,7 @@ pub fn plan(
         needs,
         next_steps,
         unplaced,
+        newer,
         locations: locations.clone(),
         cost_index,
     })
@@ -1148,9 +1178,17 @@ fn merge_item(
         let Some(account) = account else {
             return Ok(None);
         };
-        let count = store
-            .import_csv(account, bytes, false)
-            .map_err(|_| invalid())?;
+        // A CSV that does not parse is a damaged backup; any other failure
+        // is this computer's history store.
+        let count = store.import_csv(account, bytes, false).map_err(|_| {
+            if crate::history::csv_is_valid(bytes) {
+                BundleError::Io {
+                    path: "history".into(),
+                }
+            } else {
+                invalid()
+            }
+        })?;
         (
             MergeWith::History(Box::new(account.clone())),
             count,

@@ -55,6 +55,7 @@
   "cli.restore.keep": "mantieni (identico)",
   "cli.restore.needs": "I segreti non viaggiano; dopo il ripristino:",
   "cli.restore.needs_terminal": "Il ripristino sostituirebbe dei file: conferma ciascuno in un terminale oppure aggiungi --yes.",
+  "cli.restore.newer": "Lasciati invariati (li ha scritti un Cuotai più recente, qui o nel backup):",
   "cli.restore.nothing": "Niente da ripristinare.",
   "cli.restore.plan": "Piano di ripristino per {path} (creato il {date} da Cuotai {version}):",
   "cli.restore.replace": "sostituisci",

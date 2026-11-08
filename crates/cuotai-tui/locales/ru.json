@@ -58,6 +58,7 @@
   "cli.restore.keep": "оставить (совпадает)",
   "cli.restore.needs": "Секреты не переносятся; после восстановления:",
   "cli.restore.needs_terminal": "Восстановление заменит файлы: подтвердите каждый в терминале или добавьте --yes.",
+  "cli.restore.newer": "Оставлено без изменений (записано более новой версией Cuotai, здесь или в резервной копии):",
   "cli.restore.nothing": "Нечего восстанавливать.",
   "cli.restore.plan": "План восстановления {path} (создан {date} в Cuotai {version}):",
   "cli.restore.replace": "заменить",

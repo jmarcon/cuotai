@@ -58,6 +58,7 @@
   "cli.restore.keep": "koru (aynı)",
   "cli.restore.needs": "Gizli bilgiler taşınmaz; geri yüklemeden sonra:",
   "cli.restore.needs_terminal": "Geri yükleme dosyaları değiştirir: her birini bir terminalde onaylayın veya --yes ekleyin.",
+  "cli.restore.newer": "Olduğu gibi bırakıldı (daha yeni bir Cuotai yazdı, burada ya da yedekte):",
   "cli.restore.nothing": "Geri yüklenecek bir şey yok.",
   "cli.restore.plan": "{path} için geri yükleme planı ({date} tarihinde Cuotai {version} ile alındı):",
   "cli.restore.replace": "değiştir",

@@ -58,6 +58,7 @@
   "cli.restore.keep": "behalten (identisch)",
   "cli.restore.needs": "Geheimnisse werden nicht übertragen; nach der Wiederherstellung:",
   "cli.restore.needs_terminal": "Die Wiederherstellung würde Dateien ersetzen: bestätige jede in einem Terminal oder füge --yes hinzu.",
+  "cli.restore.newer": "Unverändert gelassen (ein neueres Cuotai hat sie geschrieben, hier oder in der Sicherung):",
   "cli.restore.nothing": "Nichts wiederherzustellen.",
   "cli.restore.plan": "Wiederherstellungsplan für {path} (erstellt am {date} von Cuotai {version}):",
   "cli.restore.replace": "ersetzen",

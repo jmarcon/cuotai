@@ -192,6 +192,12 @@ pub fn csv_account(csv: &[u8]) -> Option<(String, String)> {
         .map(|sample| (sample.provider, sample.account))
 }
 
+/// Whether `csv` is a history sample table this release reads, so a
+/// failed import can tell a damaged file from a local storage failure.
+pub fn csv_is_valid(csv: &[u8]) -> bool {
+    parse(csv).is_ok()
+}
+
 impl HistoryStore {
     /// The samples of `account` taken since `since`, as the CSV sample table
     /// of [`Self::export`] (no journal); `None` without any sample.

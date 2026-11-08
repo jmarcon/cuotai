@@ -58,6 +58,7 @@
   "cli.restore.keep": "garder (identique)",
   "cli.restore.needs": "Les secrets ne voyagent pas ; après la restauration :",
   "cli.restore.needs_terminal": "La restauration remplacerait des fichiers : confirmez chacun dans un terminal, ou ajoutez --yes.",
+  "cli.restore.newer": "Laissés tels quels (un Cuotai plus récent les a écrits, ici ou dans la sauvegarde) :",
   "cli.restore.nothing": "Rien à restaurer.",
   "cli.restore.plan": "Plan de restauration de {path} (créé le {date} par Cuotai {version}) :",
   "cli.restore.replace": "remplacer",
