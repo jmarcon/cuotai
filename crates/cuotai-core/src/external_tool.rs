@@ -246,7 +246,9 @@ impl Resolver {
             };
         }
         let names = self.path_names(tool);
-        for dir in std::env::split_paths(&self.path) {
+        // A relative entry (an empty one is the current directory) would
+        // run whatever the working directory holds under the tool's name.
+        for dir in std::env::split_paths(&self.path).filter(|dir| dir.is_absolute()) {
             if let Some(program) = names
                 .iter()
                 .map(|name| dir.join(name))
@@ -582,6 +584,29 @@ mod tests {
         let report = ToolReport::of(&Ok(resolved));
         assert_eq!(report.status, "found");
         assert_eq!(report.source, Some("well_known"));
+    }
+
+    /// A relative PATH entry (here one that leads to a directory holding
+    /// `bl`) is never searched: it would depend on the working directory.
+    #[test]
+    fn a_relative_path_entry_is_never_searched() {
+        let dir = tempfile::tempdir().unwrap();
+        let home = tempfile::tempdir().unwrap();
+        program(dir.path(), "bl", 0o755);
+        let cwd = std::env::current_dir().unwrap();
+        let mut relative = PathBuf::new();
+        for _ in cwd.components().skip(1) {
+            relative.push("..");
+        }
+        let dir = dir.path().canonicalize().unwrap();
+        relative.push(dir.strip_prefix("/").unwrap());
+        assert!(is_program(&relative.join("bl")), "it leads to the program");
+        let mut resolver = linux(&relative, home.path());
+        resolver.sandbox = Some(PathBuf::from(".."));
+        assert!(matches!(
+            resolver.resolve(Tool::Bailian, None),
+            Err(ToolError::Missing { .. })
+        ));
     }
 
     #[test]
