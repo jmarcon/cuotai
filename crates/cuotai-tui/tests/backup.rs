@@ -131,3 +131,111 @@ fn a_backup_restores_on_another_home_and_says_what_is_still_needed() {
     let _ = fs::remove_dir_all(first);
     let _ = fs::remove_dir_all(second);
 }
+
+/// Where `dirs::config_dir()` points for a sandboxed `HOME`.
+fn os_config_dirs(home: &Path) -> [PathBuf; 2] {
+    [
+        home.join("Library/Application Support/cuotai"),
+        home.join("config/cuotai"),
+    ]
+}
+
+#[test]
+fn an_explicit_config_never_touches_this_computers_desktop_settings_or_folders() {
+    let first = home("isolated");
+    fs::write(first.join("cuotai.toml"), CONFIG).unwrap();
+    for dir in os_config_dirs(&first) {
+        fs::create_dir_all(dir.join("themes")).unwrap();
+        fs::write(dir.join("desktop.json"), r#"{"motion":"off"}"#).unwrap();
+        fs::write(dir.join("themes/night.css"), ":root{}").unwrap();
+    }
+    let run_isolated = |args: &[&str]| {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_cuotai"));
+        command
+            .args(["--config", first.join("cuotai.toml").to_str().unwrap()])
+            .args(args)
+            .env("HOME", &first)
+            .env("XDG_DATA_HOME", first.join("data"))
+            .env("XDG_CONFIG_HOME", first.join("config"))
+            .env_remove("CUOTAI_CONFIG")
+            .env_remove("CUOTAI_USER_DIR")
+            .env_remove("CUOTAI_DATA_DIR")
+            .env("CUOTAI_LANG", "en-US")
+            .stdin(Stdio::null());
+        command.output().unwrap()
+    };
+    let archive = first.join("isolated.cuotai-backup.zip");
+    let made = run_isolated(&[
+        "--backup",
+        archive.to_str().unwrap(),
+        "--with-history",
+        "--json",
+    ]);
+    assert_eq!(
+        made.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&made.stderr)
+    );
+    let manifest: serde_json::Value = serde_json::from_slice(&made.stdout).unwrap();
+    let paths: Vec<_> = manifest["files"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|entry| entry["path"].as_str().unwrap().to_owned())
+        .collect();
+    assert_eq!(paths, ["config/cuotai.toml"], "only the named file");
+    assert!(
+        !first.join("data/cuotai").exists(),
+        "no data folder created"
+    );
+
+    // A backup with desktop settings and a theme restored over the
+    // isolated configuration leaves this computer's files alone.
+    let source = home("isolated-source");
+    fs::write(source.join("cuotai.toml"), CONFIG).unwrap();
+    for dir in os_config_dirs(&source) {
+        fs::create_dir_all(dir.join("themes")).unwrap();
+        fs::write(dir.join("desktop.json"), r#"{"motion":"system"}"#).unwrap();
+        fs::write(dir.join("themes/day.css"), ":root{}").unwrap();
+    }
+    let full = source.join("full.cuotai-backup.zip");
+    let mut command = Command::new(env!("CARGO_BIN_EXE_cuotai"));
+    let made = command
+        .args(["--backup", full.to_str().unwrap()])
+        .env("HOME", &source)
+        .env("XDG_DATA_HOME", source.join("data"))
+        .env("XDG_CONFIG_HOME", source.join("config"))
+        .env("CUOTAI_DATA_DIR", source.join("cuotai-data"))
+        .env_remove("CUOTAI_CONFIG")
+        .env_remove("CUOTAI_USER_DIR")
+        .current_dir(&source)
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    assert_eq!(
+        made.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&made.stderr)
+    );
+    let restored = run_isolated(&["--restore", full.to_str().unwrap(), "--yes"]);
+    assert_eq!(
+        restored.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&restored.stderr)
+    );
+    let text = String::from_utf8_lossy(&restored.stdout);
+    assert!(text.contains("Left out"), "{text}");
+    assert!(text.contains("prefs/desktop.json"), "{text}");
+    for dir in os_config_dirs(&first) {
+        assert_eq!(
+            fs::read_to_string(dir.join("desktop.json")).unwrap(),
+            r#"{"motion":"off"}"#
+        );
+        assert!(!dir.join("themes/day.css").exists());
+    }
+    let _ = fs::remove_dir_all(first);
+    let _ = fs::remove_dir_all(source);
+}

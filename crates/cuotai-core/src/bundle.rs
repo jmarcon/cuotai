@@ -219,6 +219,47 @@ impl Locations {
         }
     }
 
+    /// The CLI's locations for the accounts file `resolved`. A file named
+    /// by `--config` or `CUOTAI_CONFIG` is a configuration of its own (a
+    /// test, a second profile): its backup and restore never read or write
+    /// this computer's desktop settings, user folder or data folder, unless
+    /// `CUOTAI_USER_DIR` or `CUOTAI_DATA_DIR` names one explicitly. What
+    /// then has no place here is listed in [`Plan::unplaced`].
+    pub fn for_cli(resolved: crate::config_file::ResolvedPath) -> Self {
+        let env = |name: &str| std::env::var_os(name).filter(|value| !value.is_empty());
+        let data_root = env(crate::data_dir::ENV)
+            .and_then(|_| crate::data_dir::root())
+            .map(Some);
+        Self::for_cli_with(
+            resolved,
+            env("CUOTAI_USER_DIR").map(PathBuf::from),
+            data_root,
+            Self::from_process,
+        )
+    }
+
+    /// [`Self::for_cli`] over injected inputs: `user_dir` is
+    /// `CUOTAI_USER_DIR`, `data_root` is `Some` when `CUOTAI_DATA_DIR` is
+    /// set (holding the folder it resolves to), and `process` gives the
+    /// locations of a configuration found by the default rules.
+    fn for_cli_with(
+        resolved: crate::config_file::ResolvedPath,
+        user_dir: Option<PathBuf>,
+        data_root: Option<Option<PathBuf>>,
+        process: impl FnOnce(PathBuf) -> Self,
+    ) -> Self {
+        use crate::config_file::PathSource;
+        match resolved.source {
+            PathSource::Argument | PathSource::Env => Self {
+                config: resolved.path,
+                desktop_settings: None,
+                user_dir,
+                data_root: data_root.flatten(),
+            },
+            _ => process(resolved.path),
+        }
+    }
+
     /// Where the bundle file at `path` lives on this machine; `None` for a
     /// path outside the allow-list.
     fn target(&self, path: &str) -> Option<PathBuf> {
@@ -729,6 +770,11 @@ pub struct Plan {
     pub needs: Vec<Localized>,
     /// The same, as actions (one per entry of `needs`, in order).
     pub next_steps: Vec<NextStep>,
+    /// Bundle paths left out because this configuration has no place for
+    /// them (a `--config` without the desktop settings, user folder or data
+    /// folder of this computer, see [`Locations::for_cli`]).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub unplaced: Vec<String>,
     #[serde(skip)]
     locations: Locations,
     #[serde(skip)]
@@ -920,11 +966,16 @@ pub fn plan(
     if let Some(bytes) = bundle.files.get("config/cuotai.toml") {
         known.extend(read_accounts(bytes));
     }
+    let mut unplaced = Vec::new();
     for (path, bytes) in &bundle.files {
         if only.is_some_and(|part| !part.holds(path)) {
             continue;
         }
         if path == COST_LABELS || history_id(path).is_some() {
+            if locations.data_root.is_none() {
+                unplaced.push(path.clone());
+                continue;
+            }
             if let Some(item) =
                 merge_item(path, bytes, &known, history.as_ref(), cost_index.as_deref())?
             {
@@ -933,6 +984,7 @@ pub fn plan(
             continue;
         }
         let Some(target) = locations.target(path) else {
+            unplaced.push(path.clone());
             continue;
         };
         let current = match std::fs::read(&target) {
@@ -988,6 +1040,7 @@ pub fn plan(
             .files
             .get("prefs/desktop.json")
             .filter(|_| only.is_none_or(|part| part == Part::Prefs))
+            .filter(|_| locations.desktop_settings.is_some())
             .map(|desktop| channel_needs(desktop))
             .unwrap_or_default(),
     );
@@ -998,6 +1051,7 @@ pub fn plan(
         items,
         needs,
         next_steps,
+        unplaced,
         locations: locations.clone(),
         cost_index,
     })

@@ -62,6 +62,7 @@
   "cli.restore.plan": "{path} 的恢复计划（{date} 由 Cuotai {version} 创建）：",
   "cli.restore.replace": "替换",
   "cli.restore.skip": "跳过（备份后在此处被修改）",
+  "cli.restore.unplaced": "已略过（此配置在这里没有存放它们的位置）：",
   "cli.token_file_needs_mode": "--token-file 需要 --serve 或 --status-line --from-server。",
   "cli.yes_needs_action": "--yes 只能与 --history-erase 或 --erase-all-data 一起使用。",
   "cost.currency.off": "已关闭第二币种；仅显示 USD。",

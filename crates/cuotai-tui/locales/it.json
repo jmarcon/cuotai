@@ -59,6 +59,7 @@
   "cli.restore.plan": "Piano di ripristino per {path} (creato il {date} da Cuotai {version}):",
   "cli.restore.replace": "sostituisci",
   "cli.restore.skip": "salta (modificato qui dopo il backup)",
+  "cli.restore.unplaced": "Esclusi (questa configurazione non ha un posto per loro qui):",
   "cli.token_file_needs_mode": "--token-file richiede --serve o --status-line --from-server.",
   "cli.yes_needs_action": "--yes funziona solo con --history-erase o --erase-all-data.",
   "cost.currency.off": "Seconda valuta disattivata; solo USD.",

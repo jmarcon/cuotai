@@ -62,6 +62,7 @@
   "cli.restore.plan": "Kế hoạch khôi phục cho {path} (tạo ngày {date} bởi Cuotai {version}):",
   "cli.restore.replace": "thay thế",
   "cli.restore.skip": "bỏ qua (đã đổi ở đây sau khi sao lưu)",
+  "cli.restore.unplaced": "Bỏ qua (cấu hình này không có chỗ cho chúng ở đây):",
   "cli.token_file_needs_mode": "--token-file cần --serve hoặc --status-line --from-server.",
   "cli.yes_needs_action": "--yes chỉ dùng được với --history-erase hoặc --erase-all-data.",
   "cost.currency.off": "Đã tắt loại tiền thứ hai; chỉ dùng USD.",

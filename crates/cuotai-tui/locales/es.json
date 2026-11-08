@@ -59,6 +59,7 @@
   "cli.restore.plan": "Plan de restauración de {path} (hecho el {date} por Cuotai {version}):",
   "cli.restore.replace": "reemplazar",
   "cli.restore.skip": "omitir (cambiado aquí después de la copia)",
+  "cli.restore.unplaced": "Omitidos (esta configuración no tiene lugar para ellos aquí):",
   "cli.token_file_needs_mode": "--token-file requiere --serve o --status-line --from-server.",
   "cli.yes_needs_action": "--yes solo funciona con --history-erase o --erase-all-data.",
   "cost.currency.off": "Segunda moneda desactivada; solo USD.",

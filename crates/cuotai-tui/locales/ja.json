@@ -62,6 +62,7 @@
   "cli.restore.plan": "{path} の復元計画（{date} に Cuotai {version} で作成）:",
   "cli.restore.replace": "置換",
   "cli.restore.skip": "スキップ（バックアップ後にここで変更）",
+  "cli.restore.unplaced": "対象外 (この構成にはここに置く場所がありません):",
   "cli.token_file_needs_mode": "--token-file には --serve または --status-line --from-server が必要です。",
   "cli.yes_needs_action": "--yes は --history-erase または --erase-all-data と一緒にのみ使えます。",
   "cost.currency.off": "第2通貨をオフにしました。USD のみ表示します。",

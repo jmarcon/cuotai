@@ -62,6 +62,7 @@
   "cli.restore.plan": "{path} के लिए पुनर्स्थापना योजना ({date} को Cuotai {version} से बनाई गई):",
   "cli.restore.replace": "बदलें",
   "cli.restore.skip": "छोड़ें (बैकअप के बाद यहाँ बदला गया)",
+  "cli.restore.unplaced": "छोड़े गए (इस कॉन्फ़िगरेशन में यहाँ इनके लिए कोई जगह नहीं है):",
   "cli.token_file_needs_mode": "--token-file के लिए --serve या --status-line --from-server चाहिए।",
   "cli.yes_needs_action": "--yes केवल --history-erase या --erase-all-data के साथ काम करता है।",
   "cost.currency.off": "दूसरी मुद्रा बंद की गई; केवल USD।",

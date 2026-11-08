@@ -18,7 +18,7 @@ fn locations(config: Option<PathBuf>) -> Locations {
         Discovery::Cli { config },
         &cuotai_core::config_file::Locations::from_process(),
     );
-    Locations::from_process(resolved.path)
+    Locations::for_cli(resolved)
 }
 
 /// `--backup FILE [--json]`. Exit 0 when written, 1 on a refusal or an
@@ -40,8 +40,10 @@ pub(crate) fn backup(
     }
     let locations = locations(config);
     let now = Utc::now();
-    // RF2.2: the history of the accounts as this computer names them.
-    let history = if with_history {
+    // RF2.2: the history of the accounts as this computer names them. A
+    // configuration with no data folder of its own (`--config` without
+    // `CUOTAI_DATA_DIR`) has no history to carry.
+    let history = if with_history && locations.data_root.is_some() {
         let file = ConfigFile::open(
             ResolvedPath {
                 path: locations.config.clone(),
@@ -183,6 +185,17 @@ pub(crate) fn plan_text(plan: &Plan, file: &Path, locale: &str) -> String {
                 ],
             );
             text.push('\n');
+        }
+    }
+    if !plan.unplaced.is_empty() {
+        text += l10n::tr_in(
+            locale,
+            "cli.restore.unplaced",
+            "Left out (this configuration has no place for them here):",
+        );
+        text.push('\n');
+        for path in &plan.unplaced {
+            text += &format!("  - {path}\n");
         }
     }
     if !plan.needs.is_empty() {
