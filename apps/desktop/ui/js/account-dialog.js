@@ -133,7 +133,6 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     <label class="f" data-field="monogram"><span>${te("dialog.monogram")}</span><input name="monogram" autocomplete="off" spellcheck="false" size="4" placeholder="${te("dialog.monogramPlaceholder")}" value="${esc(existing?.monogram ?? "")}" aria-describedby="monogram-hint" /><small class="field-hint" id="monogram-hint">${te("dialog.monogramHint")}</small><small class="field-err" hidden></small></label>
     <div id="budgets-host"></div>
     <p class="cost-advisory" id="cost-warn" hidden></p>
-    <p class="cost-advisory" id="choice-notice" role="status" aria-live="polite" hidden></p>
     <div id="models-host"></div>
     </div>
     <p class="err" id="err" role="alert"></p>
@@ -150,7 +149,6 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   const nameErr = dlg.querySelector("#name-err");
   const err = dlg.querySelector("#err");
   const costWarn = dlg.querySelector("#cost-warn");
-  const choiceNotice = dlg.querySelector("#choice-notice");
   const nameInput = dlg.querySelector('[name="name"]');
   const peerRow = dlg.querySelector("#peer-row");
   const peerInput = dlg.querySelector('[name="peer_name"]');
@@ -1012,10 +1010,8 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       if (!field) continue;
       field.options = resolved.options;
       values.set(resolved.key, { key: resolved.key, choice: resolved.choice, text: null });
-      if (resolved.notice) notices.push(tl(resolved.notice));
+      if (resolved.notice) notices.push({ key: resolved.key, text: tl(resolved.notice) });
     }
-    choiceNotice.textContent = notices.join(" ");
-    choiceNotice.hidden = notices.length === 0;
     visible = new Set(await visibleFields(provider, choices(), authMode, loginParams()));
     const cred = schema.credential_kind;
     const mode = selectedMode();
@@ -1111,6 +1107,20 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
           : `<input name="f:${esc(f.key)}" value="${esc(v?.text ?? "")}" ${f.required ? "required" : ""} />`;
         return `<label class="f" data-field="f:${esc(f.key)}"><span>${esc(tl(f.label))}${f.required ? " *" : ""}</span>${input}<small class="field-err" hidden></small>${f.help ? `<small>${esc(tl(f.help))}</small>` : ""}</label>`;
       }).join("");
+    // PRD 0001 re-validation (M3): an RF11.3 substitution is explained next to what changed: under the row of the
+    // field the core replaced (a form field, or the same choice shown as a sign-in option of the mode), else under the
+    // Authentication choice that caused it.
+    for (const { key, text } of notices) {
+      const host = dynFields.querySelector(`[data-field="f:${CSS.escape(key)}"]`)
+        ?? dynAuth.querySelector(`[name="o:${CSS.escape(key)}"]`)?.closest(".f")
+        ?? dynAuth.querySelector("fieldset.auth") ?? dynFields;
+      const note = document.createElement("small");
+      note.className = "hint choice-notice";
+      note.setAttribute("role", "status");
+      note.dataset.noticeFor = key;
+      note.textContent = text;
+      host.append(note);
+    }
     for (const [name, value] of optSnapshot) {
       const el = dyn.querySelector(`[name="${name}"]`);
       if (el && value !== "") el.value = value;
