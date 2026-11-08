@@ -557,3 +557,34 @@ fn an_explicit_configuration_keeps_away_from_this_computers_other_files() {
     assert!(!fresh.at("user").exists());
     assert!(!fresh.at("data").exists());
 }
+
+#[test]
+fn machine_members_of_the_desktop_settings_neither_travel_nor_restore() {
+    let source = Tree::new();
+    source.write("config/cuotai.toml", "");
+    source.write(
+        "config/desktop.json",
+        r#"{"motion":"off","data_dir":"/Users/someone/cuotai-data","main_window":{"x":1,"y":2,"width":800,"height":600},"settings_window":{"width":900},"user_dir":"/Users/someone/themes"}"#,
+    );
+    let bundle = collect(&source.locations(), at(), "9.9.9").unwrap();
+    let carried: serde_json::Value =
+        serde_json::from_slice(&bundle.files["prefs/desktop.json"]).unwrap();
+    assert_eq!(
+        carried,
+        serde_json::json!({"motion": "off", "user_dir": "@user"}),
+        "no geometry, no data folder, the path as a marker"
+    );
+
+    // A crafted backup naming real paths and geometry changes none of them.
+    let crafted = br#"{"motion":"off","data_dir":"/tmp/elsewhere","config_file":"/tmp/other.toml","user_dir":"/tmp/themes","main_window":{"x":9},"migrations":{"done":true}}"#;
+    let local = br#"{"motion":"system","data_dir":"/here/data","main_window":{"x":1}}"#;
+    let merged: serde_json::Value =
+        serde_json::from_slice(&merge_desktop(Some(local), crafted).unwrap()).unwrap();
+    assert_eq!(
+        merged,
+        serde_json::json!({"motion": "off", "data_dir": "/here/data", "main_window": {"x": 1}})
+    );
+    let fresh: serde_json::Value =
+        serde_json::from_slice(&merge_desktop(None, crafted).unwrap()).unwrap();
+    assert_eq!(fresh, serde_json::json!({"motion": "off"}));
+}
