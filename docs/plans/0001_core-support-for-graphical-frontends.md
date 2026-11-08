@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0001 |
-| Status | Implemented (RF1–RF11 in 0.1.1 to 0.7.1, internal versions; FIX-08 in 0.80.0; the RF8 catalog wording and the FIX-08 acceptance were later amended by PRDs 0033, 0034 and 0035, see the tables) |
+| Status | Implemented (RF1–RF11 in 0.1.1 to 0.7.1, internal versions; FIX-08 in 0.80.0; COMP-01 in 0.83.0; re-validation fixes in vNEXT; the RF8 catalog wording and the FIX-08 acceptance were later amended by PRDs 0033, 0034 and 0035, see the tables) |
 | Owner | Backend (`cuotai-core`) |
 | Consumers | `apps/desktop` (Tauri), `cuotai-tui` |
 | Extended by | PRD 0029 (stable account `id` in the TOML and the account operations), PRD 0034 (English core fallback of `Localized`), PRD 0051 (tolerant/strict TOML parsing with field-position diagnostics; fix requirement COMP-01), PRD 0054 (RF3: resume- and reconnect-aware refresh deadlines) |
@@ -29,8 +29,30 @@ All RFs were implemented in the core, the TUI and the desktop app, one at a time
 | RF10 | 0.6.0 | `Metric.kind` and `Metric.window` filled in by the adapters; text-based recognition is gone. |
 | RF11 | 0.7.0 | Applicability per option and authentication type, replacement with a warning and validation in `build_account`. |
 | FIX-08 | 0.80.0 | Metered refresh floors are validated per account: an account override is independent of the global interval, and a rejection identifies the field and account through a localized error. |
+| COMP-01 | 0.83.0 | Defined in PRD 0051 (RF4 of this plan): `ConfigFile::open` and `reload` keep the `ConfigError::Parse` line, column and path instead of the generic TOML error. |
+| Re-validation | vNEXT | The fixes of the 2026-11-08 re-validation, listed below. |
 
 Section 2 and the "Technical assessment" describe the situation of 2026-10-01, before the implementation.
+
+### Re-validation (2026-11-08)
+
+A serial re-validation of the delivered plan (visual, security and review passes against v0.84.0) found one critical, three medium and seven low findings. All were fixed in vNEXT:
+
+| ID | Severity | RF | Fix |
+|---|---|---|---|
+| C1 | critical | RF1, RF3 | Edits, removals and sign-ins are bound to the account's stable id (PRD 0029), not just its index. The core's `Config::check_slot(index, id)` refuses with `edit_error.account_moved` when the slot holds another account, and `Config::position_of(id)` finds the account again. The desktop sends the id with save, test, sign-in and delete. Both of its reloads re-resolve the index by id and close the dialog when the account is gone. The TUI checks the id on save and binds the deletion confirmation to it. Before this fix, a Save after the dialog's Reload could overwrite the account that took the old index and delete or reuse its vault secrets. |
+| L4 | low | RF2 | `LoginRequest` never deserializes `credential_id`; only `for_account` picks the vault key a login reuses. |
+| M1 | medium | RF8 | Configuration errors at CLI/TUI startup (`--once`, `--json`, the TUI, the stored views, the watch reload) and the desktop's sign-in refusals are resolved in the chosen language instead of the English fallback. |
+| M2 | medium | RF4, FIX-08 | A refresh interval below the floor of a provider billed per query is refused on the interval field (`edit_error.interval_metered_min`) in both editors. The TUI Interval step enforces the bounds its prompt shows. |
+| L2 | low | RF4 | The core publishes the per-provider interval bounds (`account_edit::interval_bounds`), and the desktop placeholder shows the provider's own default and minimum. |
+| M3 | medium | RF11 | The desktop shows the RF11.3 substitution note under the row of the replaced option, no longer in a box at the end of the dialog. |
+| L1 | low | RF11 | The TUI keeps the substitution note until a parameter is edited or the Parameters step is left, and shows it on that step. |
+| L3 | low | RF5 | The desktop names providers with the core's labels (`provider.<slug>`, English from `list_providers`). The core spells NVIDIA NIM as the vendor does. |
+| L5 | low | RF8 | A nested RF8 note is resolved with its own parameters and escaped once in the desktop. |
+| L6 | low | RF8 | The test-only `note.test.*` ids were removed from the production catalogs. |
+| R2 | low | — | COMP-01 (0.83.0) was added to this status and to the control file. |
+
+C1 keys on the stable id. An account without a stored `id` derives one from its provider and name. If such an account is renamed outside the app while its editor is open, the edit is refused as a different account, and the user reopens it. This is the accepted safe outcome.
 
 ## 1. Context
 
