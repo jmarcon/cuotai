@@ -404,19 +404,19 @@ fn contract(account: &Account) -> Result<(Localized, ModelEvidence), Localized> 
         ),
         Provider::ElevenLabs => reason(
             "eleven_labs",
-            "ElevenLabs offers no model catalog for quota queries; no request is made.",
+            "there is no model catalog for quota queries.",
         ),
         Provider::JetbrainsAi => reason(
             "jetbrains_ai",
-            "the service account reads AI analytics only; JetBrains offers no model list for it, so no request is made.",
+            "the service account reads AI analytics only, and JetBrains offers no model list for it.",
         ),
         Provider::LiteLlm => reason(
             "litellm",
-            "LiteLLM is monitored through its per-provider budgets; no model list is queried.",
+            "LiteLLM is monitored through its per-provider budgets.",
         ),
         Provider::NineRouter => reason(
             "nine_router",
-            "9router is monitored through the quotas of its connections; no model list is queried.",
+            "9router is monitored through the quotas of its connections.",
         ),
         Provider::AlibabaCloud => reason(
             "alibaba_cloud",
