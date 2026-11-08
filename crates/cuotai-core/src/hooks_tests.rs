@@ -363,7 +363,9 @@ fn a_bare_program_is_pinned_on_the_captured_path() {
 
 /// PRD 0050 RF2.4: a script's `#!` interpreter is pinned too: an absolute
 /// one as itself, `env NAME` as NAME on the same `PATH`; one that cannot
-/// be found leaves the program unresolved.
+/// be found leaves the program unresolved. Unix only: Windows never runs a
+/// `#!` line, so it pins no interpreter (see the test below).
+#[cfg(unix)]
 #[test]
 fn a_script_pins_its_interpreter() {
     let bin = bin_dir(&["interp"]);
@@ -397,6 +399,19 @@ fn a_script_pins_its_interpreter() {
         pin::resolve(&relative, search.as_deref()),
         Err(Unresolved::Interpreter)
     );
+}
+
+/// PRD 0050 RF2.4 on Windows: a `#!` line is never run there, so a script
+/// pins only itself.
+#[cfg(windows)]
+#[test]
+fn windows_pins_no_interpreter() {
+    let bin = bin_dir(&["interp"]);
+    let scripts = tempfile::tempdir().unwrap();
+    let path = scripts.path().join("script");
+    write_program(&path, b"#!/usr/bin/env interp\necho hi\n");
+    let pinned = pin::resolve(&path.display().to_string(), on(&[bin.path()]).as_deref()).unwrap();
+    assert_eq!(pinned.interpreter, None);
 }
 
 /// PRD 0050 RF2.4: the listing names each pinned program and interpreter
@@ -438,6 +453,7 @@ fn the_digest_covers_the_resolved_program_and_its_bytes() {
         )),
         "{lines:?}"
     );
+    #[cfg(unix)]
     assert!(
         lines.contains(&format!(
             "interpreter: {} (SHA-256 {})",
@@ -457,8 +473,15 @@ fn the_digest_covers_the_resolved_program_and_its_bytes() {
     let confirmed = consent.check(load()).unwrap();
     assert_eq!(confirmed.pins(), pins.as_slice());
 
-    // New bytes in the interpreter.
-    write_program(&interp, b"other interpreter");
+    // New bytes in the interpreter (Unix: Windows pins no interpreter);
+    // elsewhere, new bytes in the program itself.
+    let changed_file = if cfg!(unix) {
+        interp.clone()
+    } else {
+        tool.clone()
+    };
+    let original = std::fs::read(&changed_file).unwrap();
+    write_program(&changed_file, b"other bytes");
     assert_ne!(load().digest(), digest);
     assert!(consent.check(load()).is_err());
     assert_eq!(
@@ -466,7 +489,7 @@ fn the_digest_covers_the_resolved_program_and_its_bytes() {
         changed(),
         "what was shown is not what would be approved"
     );
-    write_program(&interp, b"interp");
+    write_program(&changed_file, &original);
     assert!(consent.check(load()).is_ok(), "the same bytes again");
 
     // Another file of that name earlier on PATH.
