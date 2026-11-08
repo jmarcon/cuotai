@@ -23,7 +23,8 @@ export const channelsHtml = () => subpage("channels", te("settings.channels.titl
 /** "Thresholds, Exhaustion · of every account · names hidden": the core's words, joined. */
 export const filterWords = (w) => [w.kinds.map((k) => tle(k)).join(", "), tle(w.accounts), w.severity ? tle(w.severity) : "", tle(w.names)].filter(Boolean).join(" · ");
 
-const when = (at) => esc(new Date(at).toLocaleString(currentLocale()));
+/** The local date and time of `at`, raw: `te` escapes it as a value, HTML gets `esc(when(…))`. */
+const when = (at) => new Date(at).toLocaleString(currentLocale());
 
 function lastHtml(c) {
   if (!c.last) return te("settings.channels.never");
@@ -37,7 +38,7 @@ function lastHtml(c) {
 export function listHtml(view) {
   const failing = view.channels.filter((c) => c.failing_long);
   const banner = failing.length
-    ? `<p class="hint warn-txt" role="alert" data-channels-failing>${icon("warn")} ${te("settings.channels.failingBanner", { labels: failing.map((c) => esc(c.label)).join(", ") })}</p>` : "";
+    ? `<p class="hint warn-txt" role="alert" data-channels-failing>${icon("warn")} ${te("settings.channels.failingBanner", { labels: failing.map((c) => c.label).join(", ") })}</p>` : "";
   const rows = view.channels.length
     ? view.channels.map((c) => row({ key: `channel-${c.id}`, kw: "channels", label: `${icon(KIND_ICONS[c.kind])} ${esc(c.label)}`,
       desc: `${esc(KIND_NAMES[c.kind])} · ${esc(c.host)} · ${filterWords(c.filters_text)}`,
@@ -51,7 +52,7 @@ export function listHtml(view) {
   const log = view.log.length
     ? `<ul class="hook-runs" data-channel-log>${view.log.map((e) => {
       const label = view.channels.find((c) => c.id === e.channel)?.label ?? e.channel;
-      return `<li class="${e.outcome === "failed" ? "warn-txt" : ""}"><time datetime="${esc(e.at)}">${when(e.at)}</time> ${esc(label)} · ${esc(e.kind)} · ${te(`settings.channels.outcome.${e.outcome}`)}${e.status ? ` ${e.status}` : ""}</li>`;
+      return `<li class="${e.outcome === "failed" ? "warn-txt" : ""}"><time datetime="${esc(e.at)}">${esc(when(e.at))}</time> ${esc(label)} · ${esc(e.kind)} · ${te(`settings.channels.outcome.${e.outcome}`)}${e.status ? ` ${e.status}` : ""}</li>`;
     }).join("")}</ul>`
     : `<p class="hint" data-channel-log>${te("settings.channels.logEmpty")}</p>`;
   return `${banner}<p class="hint">${te("settings.channels.intro")}</p>${rows}
@@ -91,7 +92,7 @@ export function formHtml(view, channel) {
 
 /** RF4.1: the consent step: kind, host, the filters in words, the example payload and the sentence; Save consents. */
 export function consentHtml(consent) {
-  return `<h2 id="channel-dlg-title">${te("settings.channels.consentTitle", { kind: esc(KIND_NAMES[consent.kind]) })}</h2>
+  return `<h2 id="channel-dlg-title">${te("settings.channels.consentTitle", { kind: KIND_NAMES[consent.kind] })}</h2>
     <dl class="channel-consent">
       <dt>${te("settings.channels.host")}</dt><dd><code>${esc(consent.masked)}</code></dd>
       <dt>${te("settings.channels.sends")}</dt><dd>${filterWords(consent.filters)}</dd></dl>
@@ -220,7 +221,7 @@ export async function bindChannels(root, ctx) {
       if (await openEditor(view, find(target.dataset.channelEdit))) { toast(); await paint(); }
     } else if (target.dataset.channelRemove) {
       const c = find(target.dataset.channelRemove);
-      const ok = await askDialog("channel-remove", te("settings.channels.removeTitle", { label: esc(c.label) }),
+      const ok = await askDialog("channel-remove", te("settings.channels.removeTitle", { label: c.label }),
         `<p>${te("settings.channels.removeBody")}</p>`, te("settings.channels.remove"));
       if (!ok) return;
       try { await channelRemove(c.id); toast(); await paint(); } catch (x) { message(l10nError(x)); }

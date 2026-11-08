@@ -343,6 +343,8 @@ jobs:
       # PRD 0046 RF2/RF3/RF4.4: Back up, the restore plan and next steps
       # (no variable name) and the card's Check setup link, every locale.
       - run: node scripts/test-backup-ui.mjs
+      # PRD 0044 RF5: channel labels escaped once, the list bound once.
+      - run: node scripts/test-channels-ui.mjs
       # PRD 0022 RF2-RF15: meters, rows, the tray shell, motion and the
       # new-install theme default, rendered from the production modules.
       - run: node scripts/test-meter-ui.mjs

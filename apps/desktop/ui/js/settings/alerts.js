@@ -119,7 +119,6 @@ export function bind(root, ctx) {
   bindQuiet(root, ctx, s.quiet);
   bindInsights(root, ctx);
   bindChannels(root, ctx);
-  bindChannels(root, ctx);
   test.onclick = () =>
     sendTestNotification(t("notify.test.title"), t("notify.test.body")).then(
       () => { rowError(test, ""); toast(t("settings.notify.testSent")); },
