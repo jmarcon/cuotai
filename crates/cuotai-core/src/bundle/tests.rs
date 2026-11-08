@@ -648,3 +648,88 @@ fn history_restored_on_a_fresh_computer_follows_the_ids_the_app_derives() {
         "the samples are under the id the app gives the account"
     );
 }
+
+#[test]
+fn desktop_settings_of_a_newer_major_are_left_untouched() {
+    let source = Tree::new();
+    source.write("config/cuotai.toml", "");
+    source.write("config/desktop.json", r#"{"motion":"off"}"#);
+    let bundle = collect(&source.locations(), at(), "9.9.9").unwrap();
+    let none = |_: &str| None;
+
+    let target = Tree::new();
+    let local = r#"{"schema":2,"motion":"system"}"#;
+    target.write("config/desktop.json", local);
+    let plan = plan(&bundle, &target.locations(), Some(Part::Prefs), &none).unwrap();
+    assert!(plan.items.is_empty());
+    assert_eq!(plan.newer, ["prefs/desktop.json"]);
+    plan.apply(|_| true).unwrap();
+    assert_eq!(
+        std::fs::read_to_string(target.at("config/desktop.json")).unwrap(),
+        local,
+        "never rewritten"
+    );
+
+    // A backup whose settings a newer major wrote is not merged either.
+    let mut from_newer = bundle.clone();
+    from_newer.files.insert(
+        "prefs/desktop.json".into(),
+        br#"{"schema":3,"motion":"off"}"#.to_vec(),
+    );
+    let fresh = Tree::new();
+    let plan = super::plan(&from_newer, &fresh.locations(), Some(Part::Prefs), &none).unwrap();
+    assert_eq!(plan.newer, ["prefs/desktop.json"]);
+    assert!(!plan.items.iter().any(|i| i.path == "prefs/desktop.json"));
+}
+
+#[test]
+fn a_local_history_failure_is_not_reported_as_a_damaged_backup() {
+    let source = Tree::new();
+    source.write("config/cuotai.toml", TOML);
+    let locations = source.locations();
+    let config = config_file::parse(TOML, ConfigParseMode::Tolerant)
+        .unwrap()
+        .config;
+    let store = history_store(&locations).unwrap();
+    let now = Utc::now();
+    store
+        .record(
+            &config.accounts[0],
+            now - chrono::TimeDelta::hours(1),
+            &[history_metric(1.0)],
+        )
+        .unwrap();
+    let bundle = collect_with(
+        &locations,
+        at(),
+        "9.9.9",
+        Some(HistorySource {
+            store: &store,
+            accounts: &config.accounts,
+            since: now - chrono::TimeDelta::days(HISTORY_DAYS),
+        }),
+    )
+    .unwrap();
+    let none = |_: &str| None;
+
+    // This computer's history store cannot be opened.
+    let target = Tree::new();
+    target.write("config/cuotai.toml", TOML);
+    std::fs::create_dir_all(target.at("data/history/history.sqlite3")).unwrap();
+    let error = plan(&bundle, &target.locations(), Some(Part::History), &none).unwrap_err();
+    assert!(matches!(error, BundleError::Io { .. }), "{error:?}");
+    assert_eq!(error.exit_code(), 1);
+
+    // A sample table that does not parse is the backup's fault.
+    let mut damaged = bundle.clone();
+    damaged
+        .files
+        .insert("history/acct-one.csv".into(), b"not,a,history\n".to_vec());
+    let fresh = Tree::new();
+    fresh.write("config/cuotai.toml", TOML);
+    std::fs::create_dir_all(fresh.at("data/history/history.sqlite3")).unwrap();
+    assert_eq!(
+        plan(&damaged, &fresh.locations(), Some(Part::History), &none).unwrap_err(),
+        BundleError::Invalid
+    );
+}

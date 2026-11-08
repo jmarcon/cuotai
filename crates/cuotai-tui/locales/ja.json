@@ -58,6 +58,7 @@
   "cli.restore.keep": "保持（同一）",
   "cli.restore.needs": "シークレットは移行されません。復元後に次を行ってください:",
   "cli.restore.needs_terminal": "復元するとファイルが置き換わります。ターミナルで一つずつ確認するか、--yes を付けてください。",
+  "cli.restore.newer": "変更せず保持 (新しいバージョンの Cuotai がここまたはバックアップに書き込みました):",
   "cli.restore.nothing": "復元するものはありません。",
   "cli.restore.plan": "{path} の復元計画（{date} に Cuotai {version} で作成）:",
   "cli.restore.replace": "置換",

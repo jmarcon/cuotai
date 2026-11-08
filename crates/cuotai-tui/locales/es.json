@@ -55,6 +55,7 @@
   "cli.restore.keep": "conservar (idéntico)",
   "cli.restore.needs": "Los secretos no viajan; después de restaurar:",
   "cli.restore.needs_terminal": "La restauración reemplazaría archivos: confirma cada uno en una terminal o añade --yes.",
+  "cli.restore.newer": "Sin cambios (los escribió un Cuotai más reciente, aquí o en la copia):",
   "cli.restore.nothing": "Nada que restaurar.",
   "cli.restore.plan": "Plan de restauración de {path} (hecho el {date} por Cuotai {version}):",
   "cli.restore.replace": "reemplazar",

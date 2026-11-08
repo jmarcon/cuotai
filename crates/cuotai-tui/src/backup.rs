@@ -198,6 +198,17 @@ pub(crate) fn plan_text(plan: &Plan, file: &Path, locale: &str) -> String {
             text += &format!("  - {path}\n");
         }
     }
+    if !plan.newer.is_empty() {
+        text += l10n::tr_in(
+            locale,
+            "cli.restore.newer",
+            "Left untouched (a newer Cuotai wrote it, here or in the backup):",
+        );
+        text.push('\n');
+        for path in &plan.newer {
+            text += &format!("  - {path}\n");
+        }
+    }
     if !plan.needs.is_empty() {
         text += l10n::tr_in(
             locale,

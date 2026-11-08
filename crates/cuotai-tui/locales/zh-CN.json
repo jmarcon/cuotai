@@ -58,6 +58,7 @@
   "cli.restore.keep": "保留（相同）",
   "cli.restore.needs": "机密不会随备份迁移；恢复后请：",
   "cli.restore.needs_terminal": "恢复会替换文件：请在终端中逐个确认，或加上 --yes。",
+  "cli.restore.newer": "保持不变（由较新版本的 Cuotai 写入，在本机或备份中）：",
   "cli.restore.nothing": "没有需要恢复的内容。",
   "cli.restore.plan": "{path} 的恢复计划（{date} 由 Cuotai {version} 创建）：",
   "cli.restore.replace": "替换",

@@ -58,6 +58,7 @@
   "cli.restore.keep": "유지(동일)",
   "cli.restore.needs": "비밀 정보는 옮겨지지 않습니다. 복원 후에 할 일:",
   "cli.restore.needs_terminal": "복원하면 파일이 바뀝니다. 터미널에서 하나씩 확인하거나 --yes를 추가하세요.",
+  "cli.restore.newer": "그대로 둠 (더 새로운 Cuotai가 여기 또는 백업에 기록함):",
   "cli.restore.nothing": "복원할 항목이 없습니다.",
   "cli.restore.plan": "{path}의 복원 계획({date}에 Cuotai {version}로 생성):",
   "cli.restore.replace": "교체",
