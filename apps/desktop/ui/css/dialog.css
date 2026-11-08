@@ -88,6 +88,12 @@ dialog.dlg:popover-open {
 .cost-advisory[hidden] {
   display: none;
 }
+/* PRD 0001 re-validation (M3): the RF11.3 substitution note sits under the
+   row it explains (or under the Authentication choice), in the neutral hint
+   style, never in the advisory box at the end of the form. */
+.choice-notice {
+  display: block;
+}
 .dlg-actions {
   display: flex;
   justify-content: flex-end;

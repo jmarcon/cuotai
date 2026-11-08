@@ -53,6 +53,12 @@ for (const bad of [undefined, null, {}, { install: { url: "http://x.example" } }
 }
 
 const dialog = await readFile(ui("js/account-dialog.js"), "utf8");
+// PRD 0001 re-validation (M3): the RF11.3 substitution note sits under the replaced field's row (or the Authentication
+// choice when that field is hidden), never in an advisory box at the end of the form.
+assert.doesNotMatch(dialog, /id="choice-notice"/);
+assert.match(dialog, /notices\.push\(\{ key: resolved\.key, text: tl\(resolved\.notice\) \}\)/);
+assert.match(dialog, /dynFields\.querySelector\(`\[data-field="f:\$\{CSS\.escape\(key\)\}"\]`\)\s*\?\? dynAuth\.querySelector\(`\[name="o:\$\{CSS\.escape\(key\)\}"\]`\)\?\.closest\("\.f"\)\s*\?\? dynAuth\.querySelector\("fieldset\.auth"\) \?\? dynFields;/);
+assert.match(dialog, /note\.className = "hint choice-notice";\s*note\.setAttribute\("role", "status"\);/);
 // Peer: prefilled whenever the peer changes (never only on a visibility flip), with a placeholder and a hint.
 assert.match(dialog, /const key = peer \? `\$\{provider\}:\$\{peer\.index\}` : null;\s*if \(key !== peerKey\) peerInput\.value = peer \? label : "";/);
 assert.doesNotMatch(dialog, /Boolean\(peer\) !== peerShown/);

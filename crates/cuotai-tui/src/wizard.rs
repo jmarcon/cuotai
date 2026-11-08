@@ -343,6 +343,11 @@ pub(crate) struct Wizard {
     error: Option<String>,
     conflict: Option<String>,
     notice: Option<String>,
+    /// PRD 0001 re-validation (L1): the RF11.3 notes of options the core
+    /// replaced for the selected mode. Unlike the transient `notice`, they
+    /// stay until a parameter is edited or the user leaves the Parameters
+    /// step, and they show on that step, next to the fields they explain.
+    choice_notice: Option<String>,
     /// Core-owned discovery plus the selected credential/mode id.
     login: login::ProviderLogin,
     auth_mode: String,
@@ -459,13 +464,7 @@ impl Wizard {
         );
         let mode = login.modes.iter().find(|mode| mode.id == auth_mode);
         let login_fields = login_fields_for(provider, mode, existing, &fields);
-        let notice = (!notices.is_empty()).then(|| {
-            notices
-                .iter()
-                .map(crate::ui::resolve_l10n)
-                .collect::<Vec<_>>()
-                .join("\n")
-        });
+        let choice_notice = joined_notices(&notices);
         let mut wizard = Self {
             base: config.clone(),
             editing,
@@ -498,7 +497,8 @@ impl Wizard {
             summary_scroll: 0,
             error: None,
             conflict: None,
-            notice,
+            notice: None,
+            choice_notice,
             login,
             auth_mode,
             login_fields,
@@ -913,6 +913,8 @@ impl Wizard {
                 .get_mut(self.session_idx)
                 .map(|paste| &mut paste.text),
             Step::Params => {
+                // L1: editing a parameter retires the substitution note.
+                self.choice_notice = None;
                 let visible = self.visible_fields();
                 let idx = *visible.get(self.field_idx)?;
                 match &mut self.fields[idx].kind {
@@ -979,13 +981,7 @@ impl Wizard {
                             }
                         }
                     }
-                    self.notice = (!notices.is_empty()).then(|| {
-                        notices
-                            .iter()
-                            .map(crate::ui::resolve_l10n)
-                            .collect::<Vec<_>>()
-                            .join("\n")
-                    });
+                    self.choice_notice = joined_notices(&notices);
                     self.reload_login_fields();
                     self.sessions = session_pastes(selected);
                     self.session_idx = 0;
@@ -1009,10 +1005,14 @@ impl Wizard {
             Step::Params => {
                 if self.field_idx + 1 < self.visible_fields().len() {
                     self.field_idx += 1;
-                } else if !self.sessions.is_empty() {
-                    self.step = Step::Session;
                 } else {
-                    self.step = Step::Interval;
+                    // L1: leaving the Parameters step retires the note.
+                    self.choice_notice = None;
+                    self.step = if self.sessions.is_empty() {
+                        Step::Interval
+                    } else {
+                        Step::Session
+                    };
                 }
             }
             Step::Session => self.step = Step::Interval,
@@ -1032,6 +1032,7 @@ impl Wizard {
                 if self.field_idx > 0 {
                     self.field_idx -= 1;
                 } else {
+                    self.choice_notice = None;
                     self.step = Step::Credential;
                 }
             }
@@ -1069,6 +1070,9 @@ impl Wizard {
             None
         };
         if let Some((key, value)) = changed {
+            // L1: the user picked an option; the note about the replaced one
+            // has done its job (a new substitution sets a new note).
+            self.choice_notice = None;
             self.sync_field_choice_to_login(key, value);
         }
     }
@@ -1144,6 +1148,13 @@ impl Wizard {
         self.login_idx = 0;
     }
 
+    /// L1: the RF11.3 substitution note shown on the Parameters step.
+    fn params_notice(&self) -> Option<&str> {
+        self.choice_notice
+            .as_deref()
+            .filter(|_| self.step == Step::Params)
+    }
+
     fn reconcile_field_choices(&mut self) {
         let mut notices = Vec::new();
         for field in &mut self.fields {
@@ -1170,13 +1181,7 @@ impl Wizard {
                 notices.push(notice);
             }
         }
-        self.notice = (!notices.is_empty()).then(|| {
-            notices
-                .iter()
-                .map(crate::ui::resolve_l10n)
-                .collect::<Vec<_>>()
-                .join("\n")
-        });
+        self.choice_notice = joined_notices(&notices);
     }
 
     fn sync_field_choice_to_login(&mut self, key: &str, value: &str) {
@@ -2906,6 +2911,15 @@ impl Wizard {
                 .wrap(Wrap { trim: false }),
                 chunks[2],
             );
+        } else if let Some(notice) = self.params_notice() {
+            frame.render_widget(
+                Paragraph::new(Span::styled(
+                    notice.to_string(),
+                    Style::default().fg(DRACULA_YELLOW),
+                ))
+                .wrap(Wrap { trim: false }),
+                chunks[2],
+            );
         }
 
         let hint = match self.step {
@@ -3837,6 +3851,18 @@ fn login_fields_for(
 
 /// Materialize the core schema for one auth mode. Existing absent choice keys
 /// mean the provider's historical implicit first option; this distinction lets
+/// The RF11.3 notes resolved in the TUI's language, one per line; `None`
+/// when there is none.
+fn joined_notices(notices: &[cuotai_core::text::Localized]) -> Option<String> {
+    (!notices.is_empty()).then(|| {
+        notices
+            .iter()
+            .map(crate::ui::resolve_l10n)
+            .collect::<Vec<_>>()
+            .join("\n")
+    })
+}
+
 /// RF11 surface a notice when that old implicit value is no longer applicable.
 fn default_fields(
     provider: Provider,
@@ -5330,7 +5356,7 @@ mod tests {
         assert_eq!(options[*selected].value, "google");
         assert!(
             wizard
-                .notice
+                .choice_notice
                 .as_deref()
                 .is_some_and(|notice| notice.contains("substituído por Google")),
             "mode switch must visibly explain the substitution"
@@ -5366,6 +5392,58 @@ mod tests {
             panic!("auth_method must be a choice");
         };
         assert_eq!(options[*selected].value, "google");
-        assert!(wizard.notice.is_some());
+        assert!(wizard.choice_notice.is_some());
+        assert!(wizard.notice.is_none());
+    }
+
+    /// PRD 0001 re-validation (L1): the substitution note made when the
+    /// editor opens survives the keys that lead to the Parameters step, shows
+    /// there, and goes once a parameter is edited or the step is left.
+    #[test]
+    fn substitution_notice_waits_for_the_parameters_step() {
+        let config = Config {
+            accounts: vec![Account {
+                id: None,
+                name: "Kiro".into(),
+                provider: Provider::Kiro,
+                credential_env: Some("KIRO_ACCESS_TOKEN".into()),
+                session: None,
+                oauth: None,
+                params: BTreeMap::from([("auth_method".into(), "idc".into())]),
+                refresh_seconds: None,
+                group: None,
+                budgets: Vec::new(),
+                floors: Vec::new(),
+                breakdown: Vec::new(),
+            }],
+            ..Config::default()
+        };
+        let press = |w: &mut Wizard, code| w.handle(KeyEvent::new(code, KeyModifiers::NONE));
+        let mut wizard = Wizard::new(&config, Some(0));
+        let note = wizard
+            .choice_notice
+            .clone()
+            .expect("the opening substitution");
+        // Not shown before the Parameters step...
+        assert_eq!(wizard.params_notice(), None);
+        // ...and not dropped by the keys on the way there.
+        for _ in 0..10 {
+            if wizard.step == Step::Params {
+                break;
+            }
+            press(&mut wizard, KeyCode::Enter);
+        }
+        assert_eq!(wizard.step, Step::Params);
+        assert_eq!(wizard.params_notice(), Some(note.as_str()));
+        let first_line = note.lines().next().unwrap().to_string();
+        let shown = screen_of(&mut wizard, 120, 40);
+        assert!(
+            shown.contains(&first_line[..first_line.len().min(30)]),
+            "{shown}"
+        );
+        // Editing a parameter retires it.
+        press(&mut wizard, KeyCode::Right);
+        assert_eq!(wizard.params_notice(), None);
+        assert!(wizard.choice_notice.is_none());
     }
 }
