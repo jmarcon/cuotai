@@ -27,7 +27,7 @@ use std::{
 use crate::l10n::{tr, trf};
 use chrono::Utc;
 use cuotai_core::{
-    config_file::{ConfigFile, ConfigIdentity},
+    config_file::ConfigIdentity,
     headless::{Driver, TICK},
     Config, Monitor,
 };
@@ -330,7 +330,7 @@ fn hooks_suspended() -> &'static str {
 
 /// The file the process first read, reread with the run's `--interval`.
 fn load(reload: &Reload) -> Result<(Config, ConfigIdentity), String> {
-    let file = ConfigFile::load(Some(reload.path.clone()), false).map_err(|e| e.to_string())?;
+    let file = crate::load_config(Some(reload.path.clone()), false)?;
     let identity = file.identity().map_err(|e| e.to_string())?;
     let config = match reload.interval {
         Some(seconds) => cuotai_core::watch::with_interval(&file.config, seconds)
