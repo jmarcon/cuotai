@@ -429,9 +429,48 @@ fn contract(account: &Account) -> Result<(Localized, ModelEvidence), Localized> 
     }
 }
 
-/// Reject blank ids, then sort by id and keep the first of each duplicate.
-fn normalize(mut models: Vec<ModelInfo>) -> Result<Vec<ModelInfo>, providers::QueryError> {
-    if models.iter().any(|m| m.id.trim().is_empty()) {
+/// Most models one catalog keeps; a longer list is rejected as a schema error.
+const MAX_MODELS: usize = 10_000;
+/// Longest id kept (characters); a longer id rejects the response.
+const MAX_ID: usize = 256;
+/// Name and description are truncated to these many characters.
+const MAX_NAME: usize = 256;
+const MAX_DESCRIPTION: usize = 1_024;
+
+/// Drop control and bidi-override characters (U+202A–U+202E, U+2066–U+2069)
+/// a provider could use to disguise a label, then keep at most `max` chars.
+fn clean(text: &str, max: usize) -> String {
+    text.chars()
+        .filter(|c| {
+            !c.is_control() && !matches!(c, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}')
+        })
+        .take(max)
+        .collect::<String>()
+        .trim()
+        .to_owned()
+}
+
+/// Bound provider-supplied fields (count, id length, labels), reject blank
+/// ids, then sort by id and keep the first of each duplicate.
+fn normalize(models: Vec<ModelInfo>) -> Result<Vec<ModelInfo>, providers::QueryError> {
+    if models.len() > MAX_MODELS || models.iter().any(|m| m.id.chars().count() > MAX_ID) {
+        return Err(providers::QueryError::schema());
+    }
+    let mut models: Vec<ModelInfo> = models
+        .into_iter()
+        .map(|m| ModelInfo {
+            id: clean(&m.id, MAX_ID),
+            name: m
+                .name
+                .map(|n| clean(&n, MAX_NAME))
+                .filter(|n| !n.is_empty()),
+            description: m
+                .description
+                .map(|d| clean(&d, MAX_DESCRIPTION))
+                .filter(|d| !d.is_empty()),
+        })
+        .collect();
+    if models.iter().any(|m| m.id.is_empty()) {
         return Err(providers::QueryError::schema());
     }
     models.sort_by(|a, b| a.id.cmp(&b.id));
@@ -1769,6 +1808,42 @@ credential_env = "ALIBABA_CLOUD_ACCESS_KEY_ID"
         let models = normalize(vec![info("b", "1"), info("A", "2"), info("b", "3")]).unwrap();
         assert_eq!(models, [info("A", "2"), info("b", "1")]);
         assert!(normalize(vec![info(" ", "blank")]).is_err());
+    }
+
+    /// PRD 0002 S-04: provider-supplied fields are bounded and cleaned.
+    #[test]
+    fn normalize_bounds_and_cleans_provider_fields() {
+        let info = |id: String, name: Option<String>, description: Option<String>| ModelInfo {
+            id,
+            name,
+            description,
+        };
+        let huge = "x".repeat(2 * 1024 * 1024);
+        assert!(normalize(vec![info(huge.clone(), None, None)]).is_err());
+        assert!(normalize(vec![info("\u{202E}\u{2066}".into(), None, None)]).is_err());
+        let too_many = (0..=MAX_MODELS)
+            .map(|i| info(format!("m{i}"), None, None))
+            .collect();
+        assert!(normalize(too_many).is_err());
+        let at_limit = (0..MAX_MODELS)
+            .map(|i| info(format!("m{i}"), None, None))
+            .collect();
+        assert_eq!(normalize(at_limit).unwrap().len(), MAX_MODELS);
+
+        let kept = normalize(vec![info(
+            "gpt\u{202E}-x".into(),
+            Some(format!("Name\u{2067}\u{7}{}", "n".repeat(400))),
+            Some(huge),
+        )])
+        .unwrap();
+        assert_eq!(kept[0].id, "gpt-x");
+        let name = kept[0].name.as_deref().unwrap();
+        assert!(name.starts_with("Namenn"));
+        assert_eq!(name.chars().count(), MAX_NAME);
+        assert_eq!(
+            kept[0].description.as_deref().unwrap().chars().count(),
+            MAX_DESCRIPTION
+        );
     }
 
     fn slow(ids: &[&str]) -> ResponseTemplate {
