@@ -140,6 +140,20 @@ fn os_config_dirs(home: &Path) -> [PathBuf; 2] {
     ]
 }
 
+/// What a sandboxed `HOME` holds in the OS data folder (`XDG_DATA_HOME` on
+/// Linux) other than the app log.
+fn data_entries_besides_logs(home: &Path) -> Vec<String> {
+    fs::read_dir(home.join("data/cuotai"))
+        .map(|entries| {
+            entries
+                .filter_map(|entry| entry.ok())
+                .map(|entry| entry.file_name().to_string_lossy().into_owned())
+                .filter(|name| name != "logs")
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 #[test]
 fn an_explicit_config_never_touches_this_computers_desktop_settings_or_folders() {
     let first = home("isolated");
@@ -185,10 +199,10 @@ fn an_explicit_config_never_touches_this_computers_desktop_settings_or_folders()
         .map(|entry| entry["path"].as_str().unwrap().to_owned())
         .collect();
     assert_eq!(paths, ["config/cuotai.toml"], "only the named file");
-    assert!(
-        !first.join("data/cuotai").exists(),
-        "no data folder created"
-    );
+    // The redacted app log lives in the OS data folder (`logs/`, PRD 0052)
+    // and starts before any command; no store may appear beside it.
+    let stores = data_entries_besides_logs(&first);
+    assert!(stores.is_empty(), "no store in the data folder: {stores:?}");
 
     // A backup with desktop settings and a theme restored over the
     // isolated configuration leaves this computer's files alone.
@@ -236,6 +250,8 @@ fn an_explicit_config_never_touches_this_computers_desktop_settings_or_folders()
         );
         assert!(!dir.join("themes/day.css").exists());
     }
+    let stores = data_entries_besides_logs(&first);
+    assert!(stores.is_empty(), "no store in the data folder: {stores:?}");
     let _ = fs::remove_dir_all(first);
     let _ = fs::remove_dir_all(source);
 }
