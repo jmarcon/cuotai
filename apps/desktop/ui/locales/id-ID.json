@@ -616,6 +616,7 @@
   "coreText.bedrockModels": "Model yang dicantumkan AWS CLI untuk profil akun; ini tidak membuktikan akses ke model.",
   "dialog.conflict.reload": "Muat ulang file dari disk",
   "dialog.conflict.reloaded": "File dimuat ulang dari disk; periksa dan simpan lagi bila siap.",
+  "dialog.accountGone": "Akun ini tidak ada lagi di file konfigurasi, jadi tidak ada yang bisa diedit. Daftar sekarang menampilkan file apa adanya.",
   "dialog.external.title": "Konfigurasi berubah di disk",
   "dialog.external.body": "File konfigurasi berubah di luar aplikasi. Memuat ulang akan mengambil versi terbaru; melanjutkan pengeditan pada snapshot lama kemungkinan memerlukan muat ulang sebelum penyimpanan berikutnya.",
   "dialog.external.keep": "Lanjut mengedit",

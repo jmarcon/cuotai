@@ -333,6 +333,14 @@ async fn get_account(b: Shared<'_>, index: usize) -> Result<AccountForm, String>
     b.get_account(index).await
 }
 
+/// PRD 0001 re-validation (C1): where the account with this stable id is in
+/// the loaded configuration (`None` when it is gone), so a dialog finds its
+/// account again after the file was reloaded.
+#[tauri::command]
+async fn account_index(b: Shared<'_>, account_id: String) -> Result<Option<usize>, String> {
+    Ok(b.account_index(&account_id).await)
+}
+
 /// PRD 0016 RF1.2: move the account's session variables into the vault,
 /// called only after the dialog's explicit confirmation.
 #[tauri::command]
@@ -718,9 +726,10 @@ async fn delete_account(
     app: AppHandle,
     b: Shared<'_>,
     index: usize,
+    account_id: Option<String>,
     purge: bool,
 ) -> Result<backend::DeleteResult, String> {
-    b.delete_account(&app, index, purge).await
+    b.delete_account(&app, index, account_id, purge).await
 }
 
 /// RF3: retry a vault purge using the opaque handle the previous
@@ -2830,6 +2839,7 @@ pub fn run() -> std::process::ExitCode {
             field_choices,
             draft_access,
             get_account,
+            account_index,
             migrate_session,
             forget_session,
             vault_audit,

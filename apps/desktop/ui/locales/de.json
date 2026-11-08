@@ -621,6 +621,7 @@
   "coreText.bedrockModels": "Von der AWS CLI für das Kontoprofil gelistete Modelle; das belegt keinen Modellzugriff.",
   "dialog.conflict.reload": "Datei von der Festplatte neu laden",
   "dialog.conflict.reloaded": "Datei von der Festplatte neu geladen; prüfen Sie sie und speichern Sie erneut, wenn Sie bereit sind.",
+  "dialog.accountGone": "Dieses Konto ist nicht mehr in der Konfigurationsdatei, daher gibt es nichts zu bearbeiten. Die Liste zeigt jetzt die Datei, wie sie ist.",
   "dialog.external.title": "Konfiguration auf der Festplatte geändert",
   "dialog.external.body": "Die Konfigurationsdatei wurde außerhalb der App geändert. Neu laden übernimmt die neueste Version; wer weiter mit dem alten Stand arbeitet, muss vor dem nächsten Speichern wahrscheinlich neu laden.",
   "dialog.external.keep": "Weiter bearbeiten",

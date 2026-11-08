@@ -555,6 +555,7 @@
   "edit_error.config_tls": "Akun 9router dengan TLS tidak valid: tls_pin_sha256 harus 64 digit heksadesimal, dan tls_ca_file serta tls_pin_sha256 tidak boleh dipakai bersamaan atau tanpa HTTPS.",
   "edit_error.config_toml_invalid": "File bukan TOML yang valid.",
   "edit_error.conflict": "File {path} berubah sejak dimuat; muat ulang sebelum menyimpan.",
+  "edit_error.account_moved": "Akun yang sedang diedit tidak lagi berada di posisi ini dalam file konfigurasi; muat ulang file lalu buka akun itu lagi.",
   "edit_error.duplicate_name": "Sudah ada akun dengan nama ini.",
   "edit_error.env_invalid": "Nama variabel tidak valid ([A-Za-z_][A-Za-z0-9_]*). Jangan tempel tokennya: masukkan hanya nama variabel yang diekspor.",
   "edit_error.env_required": "Masukkan NAMA variabel lingkungan yang berisi kredensial.",

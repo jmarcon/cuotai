@@ -632,7 +632,10 @@ pub struct LoginRequest {
     pub options: BTreeMap<String, String>,
     #[serde(default)]
     pub registration: BTreeMap<String, String>,
-    #[serde(default)]
+    /// The vault key reused by a reauthentication. Set only by
+    /// [`LoginRequest::for_account`]; never accepted from serialized IPC, so
+    /// a caller cannot aim a new login at another account's stored token.
+    #[serde(skip)]
     credential_id: Option<String>,
     /// PRD 0054 RF6.1: the draft's `params.cli_path` for the CLI logins
     /// (AWS SSO, `bl`), so the login starts the program the query will.
@@ -1981,6 +1984,19 @@ mod tests {
         assert!(!failure.credential_saved);
         assert_eq!(failure.compensation, Compensation::NotNeeded);
         assert!(!path.exists());
+    }
+
+    #[test]
+    fn login_request_never_deserializes_credential_id() {
+        // PRD 0001 re-validation (L4): only `for_account` may pick the vault
+        // key a login reuses; a serialized request cannot name one.
+        let request: LoginRequest = serde_json::from_str(
+            r#"{"mode":"oauth","credential_id":"4be708d8-7073-4d01-85ba-3306cc3cf087"}"#,
+        )
+        .unwrap();
+        assert_eq!(request.credential_id(), None);
+        let json = serde_json::to_value(request_for(Provider::Kiro, None)).unwrap();
+        assert!(json.get("credential_id").is_none(), "{json}");
     }
 
     #[tokio::test]

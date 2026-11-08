@@ -624,6 +624,7 @@
   "coreText.bedrockModels": "Modelos listados pela AWS CLI no perfil da conta; isso não comprova acesso ao modelo.",
   "dialog.conflict.reload": "Recarregar arquivo do disco",
   "dialog.conflict.reloaded": "Arquivo recarregado; revise e salve novamente quando estiver pronto.",
+  "dialog.accountGone": "Esta conta não está mais no arquivo de configuração, então não há o que editar. A lista agora mostra o arquivo como ele está.",
   "dialog.external.title": "Arquivo modificado fora do app",
   "dialog.external.body": "O arquivo de configuração mudou no disco. Recarregar pega as alterações; continuar editando usa a versão antiga e pode exigir recarregar antes de salvar.",
   "dialog.external.keep": "Continuar editando",

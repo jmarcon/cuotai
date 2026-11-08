@@ -555,6 +555,7 @@
   "edit_error.config_tls": "TLS 설정이 올바르지 않은 9router 계정입니다. tls_pin_sha256은 16진수 64자리여야 하며 tls_ca_file과 tls_pin_sha256은 함께 쓰거나 HTTPS 없이 쓸 수 없습니다.",
   "edit_error.config_toml_invalid": "TOML 파일이 올바르지 않습니다",
   "edit_error.conflict": "{path} 파일이 불러온 이후 바뀌었습니다. 저장하기 전에 다시 불러오세요.",
+  "edit_error.account_moved": "편집 중인 계정이 더 이상 설정 파일의 이 위치에 없습니다. 파일을 다시 불러온 뒤 계정을 다시 여세요.",
   "edit_error.duplicate_name": "같은 이름의 계정이 이미 있습니다.",
   "edit_error.env_invalid": "변수 이름이 올바르지 않습니다([A-Za-z_][A-Za-z0-9_]*). 토큰을 붙여 넣지 말고 내보낸 변수의 이름만 입력하세요.",
   "edit_error.env_required": "자격 증명이 들어 있는 환경 변수의 이름을 입력하세요.",

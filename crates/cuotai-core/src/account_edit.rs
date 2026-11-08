@@ -2911,6 +2911,47 @@ impl Config {
         Ok(updated)
     }
 
+    /// PRD 0001 re-validation (C1): the position of the account whose stable
+    /// id (PRD 0029) is `id`, so a frontend whose view went stale (the file
+    /// was reloaded while a dialog was open) finds where that account is now.
+    pub fn position_of(&self, id: &crate::AccountId) -> Option<usize> {
+        self.accounts.iter().position(|account| &account.id() == id)
+    }
+
+    /// PRD 0001 re-validation (C1): refuses an edit, removal or sign-in aimed
+    /// at `index` when that slot no longer holds the account `expected` (the
+    /// file was reloaded and the accounts moved, or the account is gone).
+    /// Frontends call this before anything else so a stale index can never
+    /// overwrite another account or touch its vault secrets. The refusal's
+    /// id is `edit_error.account_moved`; frontends offer the same reload as
+    /// for `edit_error.conflict` and then find the account with
+    /// [`Config::position_of`].
+    ///
+    /// The check keys on the stable id. An account without a stored `id`
+    /// derives it from its provider and name, so an external rename of such
+    /// an account also reads as a different account: the edit is refused and
+    /// the user reopens it, which is the safe outcome.
+    pub fn check_slot(
+        &self,
+        index: usize,
+        expected: &crate::AccountId,
+    ) -> Result<(), crate::edit_error::EditError> {
+        if self
+            .accounts
+            .get(index)
+            .is_some_and(|account| &account.id() == expected)
+        {
+            return Ok(());
+        }
+        Err(crate::edit_error::validation_note(
+            None,
+            crate::text::Localized::fixed(
+                "edit_error.account_moved",
+                "The account being edited is no longer at this place in the configuration file; reload the file and open the account again.",
+            ),
+        ))
+    }
+
     /// PRD 0029 RF3.3: names the unnamed peer at `index` while an account of
     /// the same provider is added beside it. The name is optional: blank
     /// keeps the default the form prefills, the provider's name.
@@ -3676,6 +3717,60 @@ mod tests {
         strip_managed_keys(Provider::AwsBedrock, &mut aws);
         assert!(!aws.contains_key("profile"));
         assert!(aws.contains_key("kept"));
+    }
+
+    #[test]
+    fn check_slot_accepts_the_account_still_at_its_index() {
+        let config = config_with(vec![
+            env_account("Alpha", Provider::OpenAiApi, "A_KEY"),
+            env_account("Beta", Provider::Groq, "B_KEY"),
+        ]);
+        let beta = config.accounts[1].id();
+        assert!(config.check_slot(1, &beta).is_ok());
+        assert_eq!(config.position_of(&beta), Some(1));
+    }
+
+    #[test]
+    fn check_slot_refuses_a_slot_holding_another_account() {
+        // C1: Alpha was removed elsewhere and the file reloaded, so Beta now
+        // sits at Alpha's old index. An edit aimed at index 0 with Alpha's id
+        // must not reach Beta.
+        let before = config_with(vec![
+            env_account("Alpha", Provider::OpenAiApi, "A_KEY"),
+            env_account("Beta", Provider::Groq, "B_KEY"),
+        ]);
+        let alpha = before.accounts[0].id();
+        let beta = before.accounts[1].id();
+        let after = before.without_account(0).unwrap();
+        let error = after.check_slot(0, &alpha).unwrap_err();
+        assert_eq!(error.l10n().id, "edit_error.account_moved");
+        assert_eq!(error.field(), None);
+        assert_eq!(after.position_of(&alpha), None);
+        assert_eq!(after.position_of(&beta), Some(0));
+    }
+
+    #[test]
+    fn check_slot_refuses_an_index_out_of_range() {
+        let config = config_with(vec![env_account("Alpha", Provider::OpenAiApi, "A_KEY")]);
+        let alpha = config.accounts[0].id();
+        let error = config.check_slot(3, &alpha).unwrap_err();
+        assert_eq!(error.l10n().id, "edit_error.account_moved");
+    }
+
+    #[test]
+    fn check_slot_reads_an_external_rename_of_an_id_less_account_as_another_account() {
+        // Documented outcome: without a stored id the id derives from the
+        // provider and name, so a rename made elsewhere refuses the edit
+        // instead of saving over the renamed account.
+        let config = config_with(vec![env_account("Alpha", Provider::OpenAiApi, "A_KEY")]);
+        let alpha = config.accounts[0].id();
+        let renamed = config.rename_account(0, "Gamma").unwrap();
+        // `rename_account` stores the old id, so it still matches...
+        assert!(renamed.check_slot(0, &alpha).is_ok());
+        // ...while a hand edit of the name alone changes the derived id.
+        let mut hand = config.clone();
+        hand.accounts[0].name = "Gamma".into();
+        assert!(hand.check_slot(0, &alpha).is_err());
     }
 
     #[test]

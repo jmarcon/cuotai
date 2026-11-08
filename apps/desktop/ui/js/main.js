@@ -357,10 +357,13 @@ const onSaved = (result) => {
   setTimeout(() => getView().then((v) => maybeShowFirstRun(v, updateState())).catch(() => {}), 400);
 };
 /** PRD 0028 RF7.4: removing an extension's account offers to delete the extension's stored secrets too. */
+/** PRD 0001 C1: the stable id of the account at `index` in the view the user acted on. */
+const accountIdAt = (index) => store.view?.reports.find((r) => r.index === index)?.account_id ?? null;
 const removeExtensionAccount = (index, label, secretsOf = null) =>
     confirmDelete(index, label, {
       usesOauth: false,
       secretsOf,
+      accountId: accountIdAt(index),
       onDone: (result) => {
         onDeleted(result);
         isDesktop || store.reload();
@@ -418,7 +421,7 @@ const detailsContext = {
         if (row && (await extensionSecrets(row.id)).some((item) => item.stored)) secretsOf = row.id;
       } catch { /* the removal still works without the offer */ }
     }
-    confirmDelete(index, label, { usesOauth: !!store.view?.reports.find((r) => r.index === index)?.uses_oauth, secretsOf, onDone: onDeleted });
+    confirmDelete(index, label, { usesOauth: !!store.view?.reports.find((r) => r.index === index)?.uses_oauth, secretsOf, accountId: accountIdAt(index), onDone: onDeleted });
   },
   onChange: () => render(),
   view: () => store.view,

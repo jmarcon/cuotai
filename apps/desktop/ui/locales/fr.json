@@ -621,6 +621,7 @@
   "coreText.bedrockModels": "Modèles listés par l’AWS CLI pour le profil du compte ; cela ne prouve pas l’accès au modèle.",
   "dialog.conflict.reload": "Recharger le fichier depuis le disque",
   "dialog.conflict.reloaded": "Fichier rechargé depuis le disque ; vérifiez-le et enregistrez à nouveau quand vous êtes prêt.",
+  "dialog.accountGone": "Ce compte n’est plus dans le fichier de configuration : il n’y a rien à modifier. La liste affiche maintenant le fichier tel qu’il est.",
   "dialog.external.title": "Configuration modifiée sur le disque",
   "dialog.external.body": "Le fichier de configuration a été modifié hors de l’application. Recharger récupère la dernière version ; continuer à modifier l’ancienne version nécessitera probablement un rechargement avant le prochain enregistrement.",
   "dialog.external.keep": "Continuer la modification",

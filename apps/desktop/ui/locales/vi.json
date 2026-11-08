@@ -616,6 +616,7 @@
   "coreText.bedrockModels": "Các mô hình AWS CLI liệt kê cho hồ sơ của tài khoản; điều này không chứng minh quyền truy cập mô hình.",
   "dialog.conflict.reload": "Tải lại tệp từ đĩa",
   "dialog.conflict.reloaded": "Đã tải lại tệp từ đĩa; hãy xem lại và lưu lại khi sẵn sàng.",
+  "dialog.accountGone": "Tài khoản này không còn trong tệp cấu hình nên không có gì để chỉnh sửa. Danh sách giờ hiển thị tệp đúng như hiện tại.",
   "dialog.external.title": "Cấu hình đã thay đổi trên đĩa",
   "dialog.external.body": "Tệp cấu hình đã thay đổi bên ngoài ứng dụng. Tải lại sẽ lấy phiên bản mới nhất; tiếp tục sửa trên ảnh chụp cũ nhiều khả năng sẽ cần tải lại trước lần lưu tiếp theo.",
   "dialog.external.keep": "Tiếp tục sửa",

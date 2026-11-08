@@ -139,6 +139,8 @@ export const onLogin = (cb) => {
 };
 const demoEmit = (ev) => demoLoginListeners.forEach((cb) => cb(ev));
 export const getAccount = (index) => call("get_account", { index });
+/** PRD 0001 C1: where the account with this stable id is now (`null` when it is gone), after a reload. */
+export const accountIndex = (accountId) => call("account_index", { accountId });
 /** PRD 0016 RF1.2: move the account's session variables into the system vault (after an explicit confirmation). */
 export const migrateSession = (index) => call("migrate_session", { index });
 /** PRD 0016 RF4.2: forget the account's web session, deleting its vault entry (after an explicit confirmation). */
@@ -180,7 +182,8 @@ export const forgetSharedCapture = () => call("forget_shared_capture");
 export const testAggregator = (input) => call("test_aggregator", { input });
 export const openAggregatorDashboard = (index) => call("open_aggregator_dashboard", { index });
 export const saveAccount = (input) => call("save_account", { input });
-export const deleteAccount = (index, purge = false) => call("delete_account", { index, purge });
+/** PRD 0001 C1: `accountId` binds the removal to the account the user picked; another account in that slot is never removed. */
+export const deleteAccount = (index, purge = false, accountId = null) => call("delete_account", { index, accountId, purge });
 /// RF4: re-read the configuration from disk and rebuild the live
 /// state (monitor/cycle/tokens/RF3 recovery). Returns the new
 /// view. Used after an `edit_error.conflict` so the next save can
@@ -2307,6 +2310,10 @@ const demo = {
   },
   login_submit_code: async () => { throw { id: "demo.login_unavailable", params: {}, fallback: "Sign-in is not available in the browser demo." }; },
   login_cancel: async () => {},
+  account_index: async ({ accountId }) => {
+    const found = demoReports.findIndex((_, i) => demoAccountId(i) === accountId);
+    return found < 0 ? null : found;
+  },
   delete_account: async ({ index, purge }) => {
     const oauth = demoReports[index]?.provider === "kiro" || demoReports[index]?.uses_oauth;
     demoReports.splice(index, 1);

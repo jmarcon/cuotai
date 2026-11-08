@@ -66,4 +66,24 @@ assert.match(dialog, /te\("dialog\.session\.orIntro", \{ provider: providerLabel
 // The install link sits beside each mode and opens through the shell allow-list handler.
 assert.equal((dialog.match(/\$\{installLinkHtml\(m\)\}/g) ?? []).length, 2);
 assert.match(dialog, /closest\("\[data-key-url\]"\)[\s\S]{0,160}openExternal\(keyPage\.dataset\.keyUrl\)/);
+// PRD 0001 re-validation (C1): every command aimed at an existing account carries its stable id, and both
+// reloads find the account again by that id (closing with a notice when it is gone) instead of reusing the
+// index of the view from before the reload.
+for (const file of locales) {
+  const catalog = JSON.parse(await readFile(ui(`locales/${file}`), "utf8"));
+  assert.ok(typeof catalog["dialog.accountGone"] === "string" && catalog["dialog.accountGone"].trim(), `${file}: dialog.accountGone`);
+  if (file !== "en-US.json") assert.notEqual(catalog["dialog.accountGone"], en["dialog.accountGone"], `${file}: dialog.accountGone is untranslated`);
+}
+assert.match(dialog, /accountId = \(await getAccount\(index\)\)\?\.account_id \?\? null;/);
+assert.match(dialog, /await reloadConfig\(\);\s*if \(accountId != null\) \{\s*index = await accountIndex\(accountId\);\s*if \(index == null\) \{\s*await noticeAccountGone\(\);\s*return;/);
+assert.match(dialog, /const view = await reloadConfig\(\);[\s\S]{0,200}const found = await accountIndex\(accountId\);\s*if \(found == null\) \{\s*dlg\.close\(\);\s*await noticeAccountGone\(\);\s*return;\s*\}\s*index = found;/);
+assert.match(dialog, /index, accountId, provider, name:/);
+assert.match(dialog, /loginStart\(\{ provider, index, accountId, mode: mode\.id/);
+assert.match(dialog, /deleteAccount\(index, btn\.dataset\.purge === "1", accountId\)/);
+assert.match(dialog, /parsed\.id === "edit_error\.conflict" \|\| parsed\.id === "edit_error\.account_moved"/);
+const main = await readFile(ui("js/main.js"), "utf8");
+assert.equal((main.match(/accountId: accountIdAt\(index\)/g) ?? []).length, 2, "both removal paths bind the account id");
+const lib = await import("../apps/desktop/ui/js/lib.js");
+assert.equal(await lib.accountIndex("acc_demo00000001"), 1);
+assert.equal(await lib.accountIndex("acc_gone"), null);
 console.log("account dialog auth UI: ok");

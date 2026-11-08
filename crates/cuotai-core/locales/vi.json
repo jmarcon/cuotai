@@ -555,6 +555,7 @@
   "edit_error.config_tls": "Tài khoản 9router có TLS không hợp lệ: tls_pin_sha256 phải có 64 chữ số thập lục phân, và tls_ca_file cùng tls_pin_sha256 không được dùng cùng nhau hay thiếu HTTPS.",
   "edit_error.config_toml_invalid": "Tệp không phải TOML hợp lệ.",
   "edit_error.conflict": "Tệp {path} đã thay đổi kể từ khi được tải; hãy tải lại trước khi lưu.",
+  "edit_error.account_moved": "Tài khoản đang chỉnh sửa không còn ở vị trí này trong tệp cấu hình; hãy tải lại tệp và mở lại tài khoản.",
   "edit_error.duplicate_name": "Đã có một tài khoản với tên này.",
   "edit_error.env_invalid": "Tên biến không hợp lệ ([A-Za-z_][A-Za-z0-9_]*). Đừng dán token: chỉ nhập tên của biến đã xuất.",
   "edit_error.env_required": "Hãy nhập TÊN biến môi trường chứa thông tin xác thực.",
