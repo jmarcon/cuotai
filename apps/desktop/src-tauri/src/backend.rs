@@ -8403,6 +8403,24 @@ mod tests {
         );
     }
 
+    /// PRD 0054 RF6.1: the draft's program path arrives as `cliPath`; the
+    /// snake_case key the dialog used to send was silently dropped.
+    #[test]
+    fn login_start_input_reads_the_draft_cli_path() {
+        let read = |body: serde_json::Value| -> LoginStartInput {
+            serde_json::from_value(body).expect("login request")
+        };
+        let sent = read(serde_json::json!({
+            "provider": "kiro", "index": 0, "accountId": "kiro-a", "mode": "cli",
+            "options": {}, "registration": {}, "cliPath": "/opt/kiro/bin/kiro-cli"
+        }));
+        assert_eq!(sent.cli_path.as_deref(), Some("/opt/kiro/bin/kiro-cli"));
+        let dropped = read(serde_json::json!({
+            "provider": "kiro", "index": 0, "mode": "cli", "cli_path": "/opt/kiro/bin/kiro-cli"
+        }));
+        assert_eq!(dropped.cli_path, None, "snake_case is not the IPC contract");
+    }
+
     #[test]
     fn account_input_reads_the_camel_case_fields_the_ui_sends() {
         // Exactly the object that the dialog's `saveAccount` builds when saving after a completed login.

@@ -85,6 +85,9 @@ assert.match(dialog, /await reloadConfig\(\);\s*if \(accountId != null\) \{\s*in
 assert.match(dialog, /const view = await reloadConfig\(\);[\s\S]{0,200}const found = await accountIndex\(accountId\);\s*if \(found == null\) \{\s*dlg\.close\(\);\s*await noticeAccountGone\(\);\s*return;\s*\}\s*index = found;/);
 assert.match(dialog, /index, accountId, provider, name:/);
 assert.match(dialog, /loginStart\(\{ provider, index, accountId, mode: mode\.id/);
+// PRD 0054 RF6.1: `LoginStartInput` is camelCase, so the draft's program path travels as `cliPath`.
+assert.match(dialog, /loginStart\(\{[^}]*\bcliPath \}\)/);
+assert.doesNotMatch(dialog, /cli_path: cliPath/);
 assert.match(dialog, /deleteAccount\(index, btn\.dataset\.purge === "1", accountId\)/);
 assert.match(dialog, /parsed\.id === "edit_error\.conflict" \|\| parsed\.id === "edit_error\.account_moved"/);
 const main = await readFile(ui("js/main.js"), "utf8");

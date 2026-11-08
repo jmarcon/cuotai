@@ -983,7 +983,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     try {
       // PRD 0054 RF6.1: the draft's program path, so the sign-in starts the CLI the query will.
       const cliPath = values.get("cli_path")?.text?.trim() || null;
-      const attempt = await loginStart({ provider, index, accountId, mode: mode.id, options, registration, cli_path: cliPath });
+      const attempt = await loginStart({ provider, index, accountId, mode: mode.id, options, registration, cliPath });
       loginState.attempt = attempt;
       drainPending();
     } catch (x) {
