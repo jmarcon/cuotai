@@ -62,6 +62,7 @@
   "cli.restore.plan": "{path} için geri yükleme planı ({date} tarihinde Cuotai {version} ile alındı):",
   "cli.restore.replace": "değiştir",
   "cli.restore.skip": "atla (yedekten sonra burada değişti)",
+  "cli.restore.unplaced": "Dışarıda bırakıldı (bu yapılandırmanın burada onlar için yeri yok):",
   "cli.token_file_needs_mode": "--token-file, --serve veya --status-line --from-server gerektirir.",
   "cli.yes_needs_action": "--yes yalnızca --history-erase veya --erase-all-data ile çalışır.",
   "cost.currency.off": "İkinci para birimi kapatıldı; yalnızca USD.",

@@ -62,6 +62,7 @@
   "cli.restore.plan": "{path}의 복원 계획({date}에 Cuotai {version}로 생성):",
   "cli.restore.replace": "교체",
   "cli.restore.skip": "건너뜀(백업 후 여기서 변경됨)",
+  "cli.restore.unplaced": "제외됨 (이 구성에는 여기에 둘 위치가 없습니다):",
   "cli.token_file_needs_mode": "--token-file에는 --serve 또는 --status-line --from-server가 필요합니다.",
   "cli.yes_needs_action": "--yes는 --history-erase 또는 --erase-all-data와 함께만 사용할 수 있습니다.",
   "cost.currency.off": "보조 통화를 껐습니다. USD만 사용합니다.",

@@ -62,6 +62,7 @@
   "cli.restore.plan": "Rencana pemulihan untuk {path} (dibuat {date} oleh Cuotai {version}):",
   "cli.restore.replace": "ganti",
   "cli.restore.skip": "lewati (diubah di sini setelah pencadangan)",
+  "cli.restore.unplaced": "Tidak disertakan (konfigurasi ini tidak punya tempat untuknya di sini):",
   "cli.token_file_needs_mode": "--token-file memerlukan --serve atau --status-line --from-server.",
   "cli.yes_needs_action": "--yes hanya berfungsi dengan --history-erase atau --erase-all-data.",
   "cost.currency.off": "Mata uang kedua dinonaktifkan; hanya USD.",

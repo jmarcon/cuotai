@@ -484,3 +484,76 @@ fn channel_definitions_travel_without_their_address_and_merge_by_id() {
         "local first, none lost"
     );
 }
+
+#[test]
+fn an_explicit_configuration_keeps_away_from_this_computers_other_files() {
+    use crate::config_file::{PathSource, ResolvedPath};
+    let tree = Tree::full();
+    let resolved = |source| ResolvedPath {
+        path: tree.at("config/cuotai.toml"),
+        source,
+    };
+    for source in [PathSource::Argument, PathSource::Env] {
+        let isolated = Locations::for_cli_with(resolved(source), None, None, |_| {
+            panic!("the process folders are never consulted")
+        });
+        assert_eq!(isolated.config, tree.at("config/cuotai.toml"));
+        assert!(isolated.desktop_settings.is_none(), "{source:?}");
+        assert!(isolated.user_dir.is_none(), "{source:?}");
+        assert!(isolated.data_root.is_none(), "{source:?}");
+        // The variables name the folders explicitly.
+        let named = Locations::for_cli_with(
+            resolved(source),
+            Some(tree.at("user")),
+            Some(Some(tree.at("data"))),
+            |_| panic!("never consulted"),
+        );
+        assert_eq!(named.user_dir, Some(tree.at("user")));
+        assert_eq!(named.data_root, Some(tree.at("data")));
+        assert!(named.desktop_settings.is_none());
+    }
+    for source in [PathSource::Local, PathSource::System] {
+        let found = Locations::for_cli_with(resolved(source), None, None, |config| Locations {
+            config,
+            desktop_settings: Some(PathBuf::from("desktop.json")),
+            user_dir: None,
+            data_root: None,
+        });
+        assert_eq!(found.desktop_settings, Some(PathBuf::from("desktop.json")));
+    }
+
+    // A backup of an isolated configuration carries the TOML and its hooks
+    // only; its restore lists the rest as left out and writes none of it.
+    let isolated = Locations {
+        desktop_settings: None,
+        user_dir: None,
+        data_root: None,
+        ..tree.locations()
+    };
+    let only_config = collect(&isolated, at(), "9.9.9").unwrap();
+    assert_eq!(only_config.files.len(), 2);
+    let bundle = collect(&tree.locations(), at(), "9.9.9").unwrap();
+    let fresh = Tree::new();
+    let target = Locations {
+        desktop_settings: None,
+        user_dir: None,
+        data_root: None,
+        ..fresh.locations()
+    };
+    let none = |_: &str| None;
+    let plan = plan(&bundle, &target, None, &none).unwrap();
+    assert_eq!(
+        plan.unplaced,
+        [
+            "prefs/cost-settings.json",
+            "prefs/desktop.json",
+            "prefs/pricing.json",
+            "user/locales/xx.json",
+            "user/themes/night.css",
+        ]
+    );
+    assert_eq!(plan.apply(|_| true).unwrap(), 2);
+    assert!(!fresh.at("config/desktop.json").exists());
+    assert!(!fresh.at("user").exists());
+    assert!(!fresh.at("data").exists());
+}
