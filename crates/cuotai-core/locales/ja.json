@@ -6,7 +6,9 @@
     "machine_reviewed": "2026-10-25",
     "pending_review": [
       "note.nine_router.version_untested",
-      "test.nine_router.connected_untested"
+      "test.nine_router.connected_untested",
+      "models.unsupported.reason.admin_key",
+      "models.unsupported.reason.admin_key_only"
     ]
   },
   "access.confirm_unavailable": "{reason} アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
@@ -2174,6 +2176,8 @@
   "metric.label.default_workspace": "デフォルトのワークスペース",
   "provider.jetbrains_ai": "JetBrains AI",
   "models.unsupported.reason.jetbrains_ai": "サービスアカウントは AI analytics のみを読み取ります。JetBrains はこれに対するモデル一覧を提供しないため、リクエストは送信されません。",
+  "models.unsupported.reason.admin_key": "このアカウントには管理・マネジメント・分析用のキーが保存されていますが、プロバイダーはそのキーでのモデル一覧取得を公開していません。そのキーは専用のパラメーターに、推論キーはアカウントの認証情報に設定してください。",
+  "models.unsupported.reason.admin_key_only": "このアカウントには管理キーしか保存されておらず、プロバイダーはそのキーでのモデル一覧取得を公開していません。",
   "query.jetbrains_ai.missing_secret": "認証情報がありません: {env}（サービスアカウントの client secret）。",
   "note.jetbrains_ai.rate_limited": "JetBrains がクエリを制限しました。間隔は自動的に延長されます。",
   "note.jetbrains_ai.client_rejected": "JetBrains がサービスアカウントの client ID または client secret を拒否しました。両方の変数を確認するか、JetBrains Central Console で secret を更新してください。",

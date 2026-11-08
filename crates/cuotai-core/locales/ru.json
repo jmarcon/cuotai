@@ -6,7 +6,9 @@
     "machine_reviewed": "2026-10-25",
     "pending_review": [
       "note.nine_router.version_untested",
-      "test.nine_router.connected_untested"
+      "test.nine_router.connected_untested",
+      "models.unsupported.reason.admin_key",
+      "models.unsupported.reason.admin_key_only"
     ]
   },
   "access.confirm_unavailable": "{reason} Учётная запись будет сохранена, но вместо чисел покажет эту причину.",
@@ -2210,6 +2212,8 @@
   "metric.label.default_workspace": "Рабочее пространство по умолчанию",
   "provider.jetbrains_ai": "JetBrains AI",
   "models.unsupported.reason.jetbrains_ai": "сервисный аккаунт читает только AI analytics; JetBrains не предоставляет для него список моделей, поэтому запрос не отправляется.",
+  "models.unsupported.reason.admin_key": "в аккаунте хранится ключ администратора, управления или аналитики, для которого провайдер не документирует перечень моделей; храните этот ключ в отдельном параметре, а ключ инференса — как учётные данные аккаунта.",
+  "models.unsupported.reason.admin_key_only": "в аккаунте хранится только ключ администратора, для которого провайдер не документирует перечень моделей.",
   "query.jetbrains_ai.missing_secret": "Отсутствуют учётные данные: {env} (client secret сервисного аккаунта).",
   "note.jetbrains_ai.rate_limited": "JetBrains ограничил запросы; интервал будет увеличен автоматически.",
   "note.jetbrains_ai.client_rejected": "JetBrains отклонил client ID или client secret сервисного аккаунта; проверьте обе переменные или смените secret в JetBrains Central Console.",

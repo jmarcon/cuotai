@@ -6,7 +6,9 @@
     "machine_reviewed": "2026-10-25",
     "pending_review": [
       "note.nine_router.version_untested",
-      "test.nine_router.connected_untested"
+      "test.nine_router.connected_untested",
+      "models.unsupported.reason.admin_key",
+      "models.unsupported.reason.admin_key_only"
     ]
   },
   "access.confirm_unavailable": "{reason} Hesap kaydedilecek, ancak sayılar yerine bu nedeni gösterecek.",
@@ -2186,6 +2188,8 @@
   "metric.label.default_workspace": "Varsayılan çalışma alanı",
   "provider.jetbrains_ai": "JetBrains AI",
   "models.unsupported.reason.jetbrains_ai": "hizmet hesabı yalnızca AI analytics okur; JetBrains onun için model listesi sunmaz, bu yüzden istek gönderilmez.",
+  "models.unsupported.reason.admin_key": "hesap bir yönetici, yönetim veya analiz anahtarı saklıyor ve sağlayıcı bu anahtarla model listelemeyi belgelemiyor; bu anahtarı kendi parametresine, bir çıkarım anahtarını da hesabın kimlik bilgisi olarak koyun.",
+  "models.unsupported.reason.admin_key_only": "hesap yalnızca bir yönetici anahtarı saklıyor ve sağlayıcı bu anahtarla model listelemeyi belgelemiyor.",
   "query.jetbrains_ai.missing_secret": "Eksik kimlik bilgisi: {env} (hizmet hesabının client secret'ı).",
   "note.jetbrains_ai.rate_limited": "JetBrains sorguları sınırladı; aralık otomatik olarak artırılacak.",
   "note.jetbrains_ai.client_rejected": "JetBrains hizmet hesabının client ID'sini veya client secret'ını reddetti; iki değişkeni de kontrol edin veya JetBrains Central Console'da secret'ı yenileyin.",

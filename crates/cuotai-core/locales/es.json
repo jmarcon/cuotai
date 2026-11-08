@@ -3,7 +3,9 @@
     "name": "Español",
     "pending_review": [
       "note.nine_router.version_untested",
-      "test.nine_router.connected_untested"
+      "test.nine_router.connected_untested",
+      "models.unsupported.reason.admin_key",
+      "models.unsupported.reason.admin_key_only"
     ]
   },
   "access.confirm_unavailable": "{reason} La cuenta se guardará, pero mostrará este motivo en lugar de números.",
@@ -2183,6 +2185,8 @@
   "metric.label.default_workspace": "Espacio de trabajo predeterminado",
   "provider.jetbrains_ai": "JetBrains AI",
   "models.unsupported.reason.jetbrains_ai": "la cuenta de servicio solo lee AI analytics; JetBrains no ofrece lista de modelos para ella, así que no se envía ninguna solicitud.",
+  "models.unsupported.reason.admin_key": "la cuenta guarda una clave de administración, gestión o analítica, que el proveedor no documenta para listar modelos; pon esa clave en su propio parámetro y una clave de inferencia como credencial de la cuenta.",
+  "models.unsupported.reason.admin_key_only": "la cuenta guarda solo una clave de administración, que el proveedor no documenta para listar modelos.",
   "query.jetbrains_ai.missing_secret": "Falta la credencial: {env} (el client secret de la cuenta de servicio).",
   "note.jetbrains_ai.rate_limited": "JetBrains limitó las consultas; el intervalo se ampliará automáticamente.",
   "note.jetbrains_ai.client_rejected": "JetBrains rechazó el client ID o el client secret de la cuenta de servicio; revise ambas variables o rote el secret en JetBrains Central Console.",

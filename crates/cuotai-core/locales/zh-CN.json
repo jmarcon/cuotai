@@ -6,7 +6,9 @@
     "machine_reviewed": "2026-10-25",
     "pending_review": [
       "note.nine_router.version_untested",
-      "test.nine_router.connected_untested"
+      "test.nine_router.connected_untested",
+      "models.unsupported.reason.admin_key",
+      "models.unsupported.reason.admin_key_only"
     ]
   },
   "access.confirm_unavailable": "{reason} 账户会被保存，但会显示此原因而不是数字。",
@@ -2174,6 +2176,8 @@
   "metric.label.default_workspace": "默认工作区",
   "provider.jetbrains_ai": "JetBrains AI",
   "models.unsupported.reason.jetbrains_ai": "服务账号只读取 AI analytics；JetBrains 未为其提供模型列表，因此不发送任何请求。",
+  "models.unsupported.reason.admin_key": "该账户保存的是管理、管理平台或分析密钥，提供商未公开用它列出模型的方式；请把该密钥放在其专用参数中，把推理密钥作为账户凭据。",
+  "models.unsupported.reason.admin_key_only": "该账户只保存了管理密钥，提供商未公开用它列出模型的方式。",
   "query.jetbrains_ai.missing_secret": "缺少凭据：{env}（服务账号的 client secret）。",
   "note.jetbrains_ai.rate_limited": "JetBrains 限制了查询；间隔将自动延长。",
   "note.jetbrains_ai.client_rejected": "JetBrains 拒绝了服务账号的 client ID 或 client secret；请检查这两个变量，或在 JetBrains Central Console 中轮换 secret。",
