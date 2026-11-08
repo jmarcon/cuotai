@@ -566,6 +566,7 @@
   "edit_error.index_out_of_range": "인덱스 {index}이(가) 범위를 벗어났습니다({count}).",
   "edit_error.interval_invalid": "올바르지 않은 간격입니다.",
   "edit_error.interval_range": "간격은 {min}초에서 {max}초 사이여야 합니다.",
+  "edit_error.interval_metered_min": "이 공급자는 조회마다 요금을 부과합니다. 간격은 {min}초에서 {max}초 사이여야 합니다.",
   "edit_error.io": "{path}에서 입출력 오류가 발생했습니다: {detail}.",
   "edit_error.login_cleanup_failed": "설정과 새 자격 증명을 저장했습니다. 이전 자격 증명은 제거하지 못해 보관소에 남아 있습니다.",
   "edit_error.login_partial_failure": "{detail} 인증은 메모리에 그대로 있습니다. 로그인을 다시 하지 않고 마치려면 저장을 다시 클릭하세요.",

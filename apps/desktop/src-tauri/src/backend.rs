@@ -6979,6 +6979,9 @@ pub struct FormSchema {
     /// form asks for no credential (`{ key, choice }`); absent otherwise.
     #[serde(skip_serializing_if = "Option::is_none")]
     feed_only: Option<FeedOnlySchema>,
+    /// PRD 0001 re-validation (L2): the interval bounds the dialog offers
+    /// (`min`, `max`, the provider's own `default_seconds`), from the core.
+    interval: account_edit::IntervalBounds,
 }
 
 #[derive(Serialize)]
@@ -7068,6 +7071,7 @@ pub fn form_schema(provider: Provider) -> FormSchema {
             .collect(),
         session_notice: user_session::paste_notice(provider),
         aggregator: provider.is_aggregator(),
+        interval: account_edit::interval_bounds(provider),
         secret_inputs: cuotai_core::secret_input::secret_inputs(provider),
         terminal_only_fields: field_descriptors(provider)
             .iter()
@@ -9184,6 +9188,20 @@ mod tests {
         assert!(note["fallback"]
             .as_str()
             .is_some_and(|text| !text.is_empty()));
+    }
+
+    // PRD 0001 re-validation (L2): the dialog's interval placeholder reads the
+    // core's per-provider bounds from the form schema.
+    #[test]
+    fn form_schema_carries_the_core_interval_bounds() {
+        let bedrock = serde_json::to_value(form_schema(Provider::AwsBedrock)).unwrap();
+        assert_eq!(
+            bedrock["interval"],
+            serde_json::json!({ "min": 300, "max": 86400, "default_seconds": 3600 })
+        );
+        let groq = serde_json::to_value(form_schema(Provider::Groq)).unwrap();
+        assert_eq!(groq["interval"]["min"], 30);
+        assert!(groq["interval"]["default_seconds"].is_null());
     }
 
     const TYPED_KEY: &str = "gsk_DESKTOP-TYPED-SECRET";

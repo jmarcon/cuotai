@@ -418,6 +418,7 @@
   "edit_error.index_out_of_range": "Indice {index} fuori intervallo ({count}).",
   "edit_error.interval_invalid": "Intervallo non valido.",
   "edit_error.interval_range": "L'intervallo deve essere compreso tra {min} e {max} secondi.",
+  "edit_error.interval_metered_min": "Questo provider addebita ogni query: l’intervallo deve essere tra {min} e {max} secondi.",
   "edit_error.io": "Errore di I/O in {path}: {detail}.",
   "edit_error.login_cleanup_failed": "La configurazione e la nuova credenziale sono state salvate; la credenziale sostituita resta nel vault perché non è stato possibile rimuoverla.",
   "edit_error.login_partial_failure": "{detail} L'autorizzazione è ancora in memoria: fai di nuovo clic su Salva per terminare senza rifare il login.",

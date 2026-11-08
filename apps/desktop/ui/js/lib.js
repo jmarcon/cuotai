@@ -2151,6 +2151,7 @@ const demo = {
   },
   // PRD 0047: the desktop types the key (`secret_inputs`); the variable-name fields are terminal-only.
   form_schema: async ({ provider }) => provider === "kiro" ? demoKiroSchema() : ({ credential_kind: "env",
+    interval: provider === "aws_bedrock" ? { min: 300, max: 86400, default_seconds: 3600 } : { min: 30, max: 86400, default_seconds: null },
     secret_inputs: [DEMO_KEY_INPUT, ...(provider === "xiaomi_mimo" ? [{ slot: DEMO_SESSION_SLOT.slot, label: DEMO_SESSION_SLOT.label,
       help: DEMO_SESSION_SLOT.instructions, required: false, cookie: true, field: null }] : [])],
     terminal_only_fields: [],

@@ -86,4 +86,18 @@ assert.equal((main.match(/accountId: accountIdAt\(index\)/g) ?? []).length, 2, "
 const lib = await import("../apps/desktop/ui/js/lib.js");
 assert.equal(await lib.accountIndex("acc_demo00000001"), 1);
 assert.equal(await lib.accountIndex("acc_gone"), null);
+// PRD 0001 re-validation (L2): the interval placeholder follows the core's bounds of the provider (`schema.interval`),
+// so a provider billed per query shows its own default and minimum.
+for (const file of locales) {
+  const catalog = JSON.parse(await readFile(ui(`locales/${file}`), "utf8"));
+  const text = catalog["dialog.intervalPlaceholderMetered"];
+  assert.ok(typeof text === "string" && text.includes("{default}") && text.includes("{min}"), `${file}: dialog.intervalPlaceholderMetered`);
+  if (file !== "en-US.json") assert.notEqual(text, en["dialog.intervalPlaceholderMetered"], `${file}: untranslated`);
+}
+assert.match(dialog, /placeholder="\$\{esc\(intervalPlaceholder\(\)\)\}"/);
+assert.match(dialog, /async function renderDynamic\(\) \{\s*form\.querySelector\("\[name=interval\]"\)\.placeholder = intervalPlaceholder\(\);/);
+assert.match(dialog, /t\("dialog\.intervalPlaceholderMetered", \{ default: bounds\.default_seconds, min: bounds\.min \}\)/);
+const bedrockSchema = await lib.formSchema("aws_bedrock");
+assert.deepEqual(bedrockSchema.interval, { min: 300, max: 86400, default_seconds: 3600 });
+assert.equal(i18n.t("dialog.intervalPlaceholderMetered", { default: 3600, min: 300 }), "provider default 3600 (min. 300)");
 console.log("account dialog auth UI: ok");

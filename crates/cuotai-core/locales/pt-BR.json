@@ -568,6 +568,7 @@
   "edit_error.index_out_of_range": "Índice {index} fora de alcance ({count}).",
   "edit_error.interval_invalid": "Intervalo inválido.",
   "edit_error.interval_range": "Intervalo deve ficar entre {min} e {max} segundos.",
+  "edit_error.interval_metered_min": "Este provedor cobra por consulta: o intervalo deve ficar entre {min} e {max} segundos.",
   "edit_error.io": "falha em {path}: {detail}",
   "edit_error.login_cleanup_failed": "Configuração e nova credencial salvas; a credencial anterior permanece no cofre porque não foi possível removê-la.",
   "edit_error.login_partial_failure": "{detail} A autorização continua em memória: clique em Salvar novamente para concluir sem refazer o login.",

@@ -571,6 +571,7 @@
   "edit_error.index_out_of_range": "अनुक्रमांक {index} सीमा से बाहर है ({count})।",
   "edit_error.interval_invalid": "अंतराल अमान्य है।",
   "edit_error.interval_range": "अंतराल {min} और {max} सेकंड के बीच होना चाहिए।",
+  "edit_error.interval_metered_min": "यह प्रदाता हर क्वेरी पर शुल्क लेता है: अंतराल {min} और {max} सेकंड के बीच होना चाहिए।",
   "edit_error.io": "{path} पर I/O विफलता: {detail}।",
   "edit_error.login_cleanup_failed": "कॉन्फ़िगरेशन और नया क्रेडेंशियल सहेजे गए; पिछला क्रेडेंशियल वॉल्ट में बना है क्योंकि उसे हटाया नहीं जा सका।",
   "edit_error.login_partial_failure": "{detail} अधिकरण मेमोरी में बना है: लॉगिन दोबारा किए बिना पूरा करने के लिए फिर से सहेजें पर क्लिक करें।",

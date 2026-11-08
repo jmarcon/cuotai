@@ -119,15 +119,12 @@ pub(crate) enum VaultChange {
 const MAX_INTERVAL: u64 = edit::MAX_REFRESH_SECONDS;
 
 /// Effective minimum interval accepted by the editor for the selected
-/// provider. Metered overrides from 300 through 899 seconds remain valid
-/// configuration and are raised to the 900-second runtime floor with a
-/// report note, matching `Config::validate`.
+/// provider, from the core (`account_edit::interval_bounds`). Metered
+/// overrides from 300 through 899 seconds remain valid configuration and
+/// are raised to the 900-second runtime floor with a report note, matching
+/// `Config::validate`.
 fn min_interval_for(provider: Provider) -> u64 {
-    if provider.is_metered() {
-        Provider::METERED_MIN_CONFIGURED_REFRESH_SECONDS
-    } else {
-        edit::MIN_REFRESH_SECONDS
-    }
+    edit::interval_bounds(provider).min
 }
 
 // Dracula palette for the wizard; the dashboard exposes the same palette at
@@ -1990,7 +1987,9 @@ impl Wizard {
         // bounds stay in sync with `Config::validate`. The wizard contributes
         // only the user-typed text; the TUI resolves the core's structured
         // note (stable id + params) in its locale.
-        edit::parse_refresh_seconds(&self.interval)
+        // PRD 0001 re-validation (M2): the provider-aware parser, so the
+        // step enforces the bounds its prompt shows.
+        edit::parse_refresh_seconds_for(self.provider, &self.interval)
     }
 
     fn env_status(&self) -> (&'static str, Color) {
@@ -4711,6 +4710,22 @@ mod tests {
         assert!(above.parse_interval().is_err());
         let ok = wizard_with("OpenAI", "OPENAI_ADMIN_KEY", "90");
         assert_eq!(ok.parse_interval().unwrap(), Some(90));
+    }
+
+    /// PRD 0001 re-validation (M2): the Interval step of a provider billed
+    /// per query enforces the floor its prompt shows (300 s), not only at
+    /// the summary.
+    #[test]
+    fn parse_interval_enforces_the_metered_floor_of_the_prompt() {
+        let mut bedrock = wizard_with("Bedrock", "", "120");
+        bedrock.provider = Provider::AwsBedrock;
+        let error = bedrock.parse_interval().unwrap_err();
+        assert_eq!(error.id, "edit_error.interval_metered_min");
+        assert_eq!(min_interval_for(Provider::AwsBedrock), 300);
+        bedrock.interval = "300".into();
+        assert_eq!(bedrock.parse_interval().unwrap(), Some(300));
+        let openai = wizard_with("OpenAI", "OPENAI_ADMIN_KEY", "120");
+        assert_eq!(openai.parse_interval().unwrap(), Some(120));
     }
 
     #[test]

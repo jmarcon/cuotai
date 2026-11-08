@@ -189,6 +189,7 @@
   "dialog.peerHint": "Sie haben bereits ein unbenanntes Konto dieses Anbieters; geben Sie ihm einen Namen, um es vom neuen zu unterscheiden. Leer lassen behält den Anbieternamen.",
   "dialog.interval": "Aktualisierungsintervall (s)",
   "dialog.intervalPlaceholder": "Standard global (min. 30)",
+  "dialog.intervalPlaceholderMetered": "Standard des Anbieters {default} (min. {min})",
   "dialog.credProfile": "AWS-Profil",
   "dialog.credNone": "Dieser Tarif nutzt das dedizierte Profil; es sind keine Zugangsdaten einzugeben.",
   "dialog.credOauth": "Das Konto wird per OAuth authentifiziert; die Anmeldung übernimmt der Ablauf der App.",

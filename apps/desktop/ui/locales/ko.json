@@ -187,6 +187,7 @@
   "dialog.peerHint": "이 공급자의 이름 없는 계정이 이미 있습니다. 새 계정과 구분하도록 이름을 지정하세요. 비워 두면 공급자 이름이 유지됩니다.",
   "dialog.interval": "새로 고침 간격(초)",
   "dialog.intervalPlaceholder": "전역 기본값(최소 30)",
+  "dialog.intervalPlaceholderMetered": "공급자 기본값 {default}(최소 {min})",
   "dialog.credProfile": "AWS 프로필",
   "dialog.credNone": "이 요금제는 전용 프로필을 사용하므로 입력할 자격 증명이 없습니다.",
   "dialog.credOauth": "OAuth로 인증된 계정입니다. 로그인은 앱의 흐름에서 처리됩니다.",

@@ -566,6 +566,7 @@
   "edit_error.index_out_of_range": "索引 {index} 超出范围（{count}）。",
   "edit_error.interval_invalid": "间隔无效。",
   "edit_error.interval_range": "间隔必须在 {min} 到 {max} 秒之间。",
+  "edit_error.interval_metered_min": "此提供商按查询计费：间隔必须在 {min} 到 {max} 秒之间。",
   "edit_error.io": "{path} 发生 I/O 错误：{detail}。",
   "edit_error.login_cleanup_failed": "配置和新凭据已保存；之前的凭据因无法删除而仍留在保险库中。",
   "edit_error.login_partial_failure": "{detail} 授权仍在内存中：再次点击“保存”即可完成，无需重新登录。",

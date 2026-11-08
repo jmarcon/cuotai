@@ -418,6 +418,7 @@
   "edit_error.index_out_of_range": "Índice {index} fuera de alcance ({count}).",
   "edit_error.interval_invalid": "Intervalo inválido.",
   "edit_error.interval_range": "El intervalo debe estar entre {min} y {max} segundos.",
+  "edit_error.interval_metered_min": "Este proveedor cobra por consulta: el intervalo debe estar entre {min} y {max} segundos.",
   "edit_error.io": "Fallo de E/S en {path}: {detail}.",
   "edit_error.login_cleanup_failed": "Se guardaron la configuración y la nueva credencial; la credencial anterior permanece en el almacén porque no se pudo eliminar.",
   "edit_error.login_partial_failure": "{detail} La autorización sigue en memoria: haga clic en Guardar de nuevo para terminar sin rehacer el login.",

@@ -187,6 +187,7 @@
   "dialog.peerHint": "このプロバイダーには名前のないアカウントが既にあります。新しいアカウントと区別できるよう名前を付けてください。空欄ならプロバイダー名のままです。",
   "dialog.interval": "更新間隔（秒）",
   "dialog.intervalPlaceholder": "全体の既定値（最小 30）",
+  "dialog.intervalPlaceholderMetered": "プロバイダーの既定値 {default}（最小 {min}）",
   "dialog.credProfile": "AWS プロファイル",
   "dialog.credNone": "このプランは専用プロファイルを使用します。入力する認証情報はありません。",
   "dialog.credOauth": "アカウントは OAuth で認証されています。サインインはアプリのフローで行われます。",
