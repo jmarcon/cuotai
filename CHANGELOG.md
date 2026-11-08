@@ -13,6 +13,62 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.84.0] - 2026-11-08
+
+### Added
+
+- The desktop Stats view and the "Limits come back" timeline remember the range you last picked (PRD 0026 RF4, RF5; af18f4b).
+- The terminal account wizard has a Budgets step to add, edit and remove budgets and balance floors (PRD 0041 RF5; bfe68bc).
+- Set a budget... prefills the amount from your plan price in the same currency and shows what the last 30 days cost (PRD 0041 RF6; PRD 0043 RF4; e7df5f2).
+- The macOS menu bar can show the last 24 hours of the tightest account as hourly bars, and the tray popover shows that chart on every system (PRD 0041 RF6; PRD 0043 RF4; e7df5f2).
+- Clicking the weekly digest notification opens the Stats view (PRD 0041 RF6; PRD 0043 RF4; e7df5f2).
+- The budget editor offers only the metrics the account's provider reports (PRD 0041 RF5; 9ef33a3).
+- Testing a 9router connection warns when the instance is older than the oldest version Cuotai was tested with, once that version is recorded (PRD 0036 RF2.2, RF3.8; 5b81bfd).
+- AWS Bedrock and the Alibaba plans accept an optional CLI path, Cuotai looks for aws and bl in the usual install folders when the app is not started from a terminal, and cuotai --doctor shows where each program was found (PRD 0054 RF6, RF3; 4486740).
+- Accounts can be edited, added, moved and deleted in a file that also holds accounts a newer Cuotai wrote; those accounts are kept exactly as written (PRD 0051 RF1, RF2; 714a73a).
+- A newer Cuotai's notice ledger, hook rules and widget snapshot are kept intact by this version, a damaged notice ledger is set aside without overwriting an earlier one, and cuotai --doctor reports it (PRD 0051 RF3, RF4; PRD 0003 COMP-02; c9b8960).
+- When the accounts file was moved or renamed, Cuotai offers to carry over its history once the accounts match exactly, and the desktop app can keep its data in a folder chosen in Settings (PRD 0051 RF5; 4f6c8f7).
+- You can send Cuotai's notifications to a webhook, an ntfy topic, Slack or Discord (Settings › Alerts › Notification channels or cuotai --channel-add), with the address kept in the system vault (PRD 0044 RF1, RF2, RF3, RF4, RF5, RF6, RF7; cd8fad8).
+- Hooks can react to the new notification_sent event when a notification channel accepts a notification (PRD 0044 RF1, RF2, RF3, RF4, RF5, RF6, RF7; cd8fad8).
+- You can back up and restore your settings in the desktop app (Settings › Advanced › Files) or restore a backup from the first screen, with next steps for the keys and sign-ins to redo (PRD 0046 RF1, RF2, RF3, RF4, RF5, RF6; PRD 0047 G1; b92dae3).
+- Backups can include the last 90 days of history with --with-history, and a restore merges it into this computer's history (PRD 0046 RF1, RF2, RF3, RF4, RF5, RF6; PRD 0047 G1; b92dae3).
+- The `cuotai --doctor` check also covers the system vault, extension approvals, local cost sources and the clock, and `--doctor --probe` checks that each provider host answers without sending a credential (PRD 0046 RF1, RF2, RF3, RF4, RF5, RF6; PRD 0047 G1; b92dae3).
+- A card that needs setup links Check setup, and problem reports include the setup check's findings (PRD 0046 RF1, RF2, RF3, RF4, RF5, RF6; PRD 0047 G1; b92dae3).
+- Backups carry your notification channels without their addresses, and a restore lists each address to type again (PRD 0046 RF1, RF2, RF3, RF4, RF5, RF6; PRD 0047 G1; b92dae3).
+- The desktop's setup check speaks of keys instead of environment variables (PRD 0046 RF1, RF2, RF3, RF4, RF5, RF6; PRD 0047 G1; b92dae3).
+- The first ten breakdown rows of an account are kept in the history, can alert when you turn on "Alert on breakdown rows", can carry a budget of their own, and their events name the row by scope and label (PRD 0045 RF5; PRD 0030 RF2.3; be15ec8).
+- When Add account finds Claude Code, Codex CLI or Gemini CLI, it also offers to open Local cost to estimate that tool's cost from its logs (PRD 0045 RF5; PRD 0030 RF2.3; be15ec8).
+- In the terminal dashboard, the account details export the recorded history with X and erase it with D after you type the confirmation word (PRD 0052 RF5.1; 7786a51).
+- The desktop local server can keep a private, redacted access log (off by default), with an Erase log button beside it (PRD 0050 RF6.1, RF6.3; 74fa868).
+- The self-check (cuotai --doctor and Check setup) also reports the app log, the network proxy, the system root certificates, a clock warning and Cuotai's own files, and the desktop can copy the exact report it previews (PRD 0052 RF3.1, RF3.2, RF3.3, RF3.4, RF7.2; 1c5b89a).
+- Settings can erase all Cuotai data on this computer, including the sign-ins saved in the system vault, after listing everything and asking for a typed word; the app stops its background work first and quits when done (PRD 0052 RF5.2, RF5.3, RF7.2; 41eddd3).
+- The desktop app warns with a banner when this computer's clock disagrees with the providers' servers by more than five minutes (PRD 0052 RF5.2, RF5.3, RF7.2; 41eddd3).
+
+### Fixed
+
+- The pace forecast says how long before the reset a limit runs out in your language, for example 18時間 in Japanese (PRD 0035 RF10.1, RF10.3, RF11.5, RF11.6, RF13.2, RF13.3, RF14.1, RF14.2; 3a8e0c6).
+- The hooks settings line names the number of active rules correctly in Russian, Portuguese and Hindi (PRD 0035 RF10.1, RF10.3, RF11.5, RF11.6, RF13.2, RF13.3, RF14.1, RF14.2; 3a8e0c6).
+- Breakdown row alerts are no longer forgotten between watch cycles or when the configuration is saved, so row crossings and recoveries are reported (e29f896).
+- A hook now runs once for each breakdown row that crosses a level, not once for all rows crossing together (9d2f16c).
+- Send test in Settings › Alerts › Notification channels posts once and Remove asks once, and channel labels with "&" or "<" show as typed (830cfa6).
+- A notification channel edited by hand in desktop.json with a malformed id, name or host is ignored instead of being shown or used (8328364).
+- The notification channel delivery log no longer grows without limit once it gets very large (b3eefe2).
+- A notification channel edit that cannot be saved no longer changes the address the channel posts to (f61d97b).
+- A notification channel to an ntfy server on this computer or your private network over plain http no longer goes through a configured proxy (cd80798).
+- A backup or restore with --config or CUOTAI_CONFIG no longer reads or changes this computer's desktop settings, themes, languages or data folder unless CUOTAI_USER_DIR or CUOTAI_DATA_DIR names one (4c90e46).
+- History restored on a new computer now shows under its accounts when they have no explicit id (3f9fb19).
+- A restore no longer rewrites desktop settings written by a newer Cuotai, and a problem with this computer's history is no longer reported as a damaged backup (5484d5e).
+
+### Security
+
+- Erasing all data (cuotai --erase-all-data) also removes the backup and set-aside copies Cuotai kept of its local files (PRD 0051 RF7; PRD 0052 RF5; dfdb15c).
+- Hooks now confirm the exact program file each rule runs (its path and SHA-256, plus a script's interpreter), and a hook whose program changes is stopped until you confirm it again (PRD 0050 RF2.4; 5929db0).
+- User themes are checked against a strict token-only grammar before they load, and a refused theme names what to fix (PRD 0050 RF3.1, RF3.2; 45398f1).
+- On Windows, Cuotai now gives its private files an access list for you alone and refuses to run an extension or use a server token file that other users of the computer could change (PRD 0050 RF7.5, RF8.1; PRD 0052 RF3.3; c044904).
+- Cuotai no longer looks for the AWS or Bailian command line tools in relative PATH entries, which depended on the folder it was started from (f4ad538).
+- A backup no longer carries the data folder path or the main window's position, and a restore never takes folder paths from a backup (d818dfe).
+- Erasing the history now also removes the backup copy of the history file that an update or a history move left (2bb18d0).
+
 ## [0.83.1] - 2026-11-05
 
 ### Fixed
@@ -518,7 +574,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.83.1...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.84.0...HEAD
+[0.84.0]: https://github.com/jmarcon/cuotai/compare/v0.83.1...v0.84.0
 [0.83.1]: https://github.com/jmarcon/cuotai/compare/v0.83.0...v0.83.1
 [0.83.0]: https://github.com/jmarcon/cuotai/compare/v0.82.4...v0.83.0
 [0.82.4]: https://github.com/jmarcon/cuotai/compare/v0.82.3...v0.82.4
