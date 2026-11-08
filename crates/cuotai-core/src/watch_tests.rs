@@ -400,3 +400,99 @@ async fn the_same_reading_is_the_same_transition_in_two_watchers() {
         .expect("failed again");
     assert_ne!(failed.transition, here[0].transition, "a later reading");
 }
+
+/// PRD 0045 RF5.2/RF5.3: the watcher keeps the alert state of each
+/// breakdown row between observations, so a row crossing after a gap
+/// longer than the crossing grace is still an event, and two rows crossing
+/// together are two transitions, so a hook runs for each.
+#[test]
+fn breakdown_rows_keep_their_state_and_are_distinct_transitions() {
+    use crate::export::v1::Options;
+    use crate::refresh::RefreshCycle;
+    use crate::{Metric, MetricKind, MetricWindow, Report, Status};
+    let resets = t0() + chrono::TimeDelta::days(20);
+    let row = |id: &str, used: f64| crate::BreakdownRow {
+        scope: crate::ScopeKind::Key,
+        id: id.into(),
+        label: format!("Bot {id}"),
+        metrics: vec![Metric {
+            limit: Some(100.0),
+            resets_at: Some(resets),
+            ..Metric::usage(
+                "Limit",
+                used,
+                "USD",
+                MetricKind::Quota,
+                Some(MetricWindow::Monthly),
+            )
+        }],
+        truncated: false,
+        notes: Vec::new(),
+    };
+    let config = Config {
+        accounts: vec![account("Work", Provider::Claude, None)],
+        ..Config::default()
+    };
+    let identity = ConfigIdentity::Explicit("watch".into());
+    let mut cycle = RefreshCycle::new(&config, Instant::now());
+    let mut watcher = Watcher::new(
+        EventState::default().with_reset_lead(chrono::TimeDelta::zero()),
+        None,
+    );
+    let mut read = |minutes: i64, used: f64| {
+        let now = t0() + chrono::TimeDelta::minutes(minutes);
+        let report = Report {
+            account_id: None,
+            diagnostic: None,
+            account: "Work".into(),
+            provider: Provider::Claude,
+            checked_at: now,
+            status: Status::Ready,
+            metrics: vec![Metric {
+                limit: Some(100.0),
+                resets_at: Some(resets),
+                ..Metric::usage(
+                    "Own",
+                    10.0,
+                    "%",
+                    MetricKind::Quota,
+                    Some(MetricWindow::Monthly),
+                )
+            }],
+            notes: Vec::new(),
+            notes_l10n: Vec::new(),
+            source: String::new(),
+            session_expires_at: None,
+            sub_reports: Vec::new(),
+            as_of: None,
+            overage_hint: None,
+            breakdown: vec![row("k1", used), row("k2", used)],
+        };
+        let token = cycle.begin(0).unwrap();
+        cycle.finish_account(0, Some(report), token, Instant::now());
+        let export = Export::from_cycle(&config, &identity, &cycle, &[], now, Options::default());
+        let id = export.accounts[0].id.clone();
+        watcher.set_breakdown_alerts([id].into_iter().collect());
+        watcher
+            .observe_transitions(&export, now, |_, _| None)
+            .into_iter()
+            .filter(|observed| observed.event.event != EventKind::UsageUpdated)
+            .collect::<Vec<_>>()
+    };
+    assert!(read(0, 50.0).is_empty(), "the baseline");
+    assert!(read(5, 55.0).is_empty());
+    // Twenty minutes later: past the crossing grace, which only a row the
+    // watcher had forgotten would fall under.
+    let crossed = read(25, 92.0);
+    assert_eq!(crossed.len(), 2, "{crossed:?}");
+    assert!(crossed
+        .iter()
+        .all(|observed| observed.event.event == EventKind::QuotaThresholdCrossed));
+    let ids: Vec<_> = crossed
+        .iter()
+        .map(|observed| observed.event.row.as_ref().unwrap().scope_id.as_str())
+        .collect();
+    assert_eq!(ids, ["k1", "k2"]);
+    assert_ne!(crossed[0].transition, crossed[1].transition);
+    assert!(read(30, 93.0).is_empty(), "each level fires once");
+}
