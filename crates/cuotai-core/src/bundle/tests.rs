@@ -588,3 +588,63 @@ fn machine_members_of_the_desktop_settings_neither_travel_nor_restore() {
         serde_json::from_slice(&merge_desktop(None, crafted).unwrap()).unwrap();
     assert_eq!(fresh, serde_json::json!({"motion": "off"}));
 }
+
+#[test]
+fn history_restored_on_a_fresh_computer_follows_the_ids_the_app_derives() {
+    // No explicit ids: they derive from the configuration's identity.
+    const NO_IDS: &str =
+        "[[accounts]]\nname = \"Groq\"\nprovider = \"groq\"\ncredential_env = \"GROQ_WORK\"\n";
+    let source = Tree::new();
+    source.write("config/cuotai.toml", NO_IDS);
+    let locations = source.locations();
+    let identity = ConfigIdentity::of_path(&locations.config).unwrap();
+    let mut config = config_file::parse(NO_IDS, ConfigParseMode::Tolerant)
+        .unwrap()
+        .config;
+    config.resolve_ids(Some(&identity));
+    let store = history_store(&locations).unwrap();
+    let now = Utc::now();
+    store
+        .record(
+            &config.accounts[0],
+            now - chrono::TimeDelta::hours(1),
+            &[history_metric(1.0)],
+        )
+        .unwrap();
+    let bundle = collect_with(
+        &locations,
+        at(),
+        "9.9.9",
+        Some(HistorySource {
+            store: &store,
+            accounts: &config.accounts,
+            since: now - chrono::TimeDelta::days(HISTORY_DAYS),
+        }),
+    )
+    .unwrap();
+
+    // The configuration's folder does not exist yet on the new computer.
+    let fresh = Tree::new();
+    let target = Locations {
+        config: fresh.at("new/deep/cuotai.toml"),
+        ..fresh.locations()
+    };
+    let none = |_: &str| None;
+    let plan = plan(&bundle, &target, None, &none).unwrap();
+    plan.apply(|_| true).unwrap();
+
+    // What the app reads once the file exists.
+    let identity = ConfigIdentity::of_path(&target.config).unwrap();
+    let mut restored = config_file::parse(
+        &std::fs::read_to_string(&target.config).unwrap(),
+        ConfigParseMode::Tolerant,
+    )
+    .unwrap()
+    .config;
+    restored.resolve_ids(Some(&identity));
+    let app = HistoryStore::new(fresh.at("data/history/history.sqlite3"), &identity);
+    assert!(
+        app.latest(&restored.accounts[0]).unwrap().is_some(),
+        "the samples are under the id the app gives the account"
+    );
+}
