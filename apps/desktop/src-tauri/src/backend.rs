@@ -5660,8 +5660,8 @@ impl Backend {
         );
         let request = login_request(g.loaded.as_ref().map(|l| &l.file.config), &input)?;
         // Validates the NEW request BEFORE taking over the predecessor.
-        let driver =
-            login::start_login(session, input.provider, request).map_err(|e| e.to_string())?;
+        let driver = login::start_login(session, input.provider, request)
+            .map_err(|e| l10n_to_json(&e.l10n()))?;
         // New validated request: only now discard the terminal predecessor
         // (its forwarder is cancelled so it cannot confuse the new slot).
         if let Some(mut old) = g.login.take() {
@@ -6661,7 +6661,9 @@ fn input_account(
             &input.auth_params,
             input.commit_login,
         )
-        .map_err(|error| error.to_string())?
+        // RF8: the core's note (`oauth_error.login.*`), resolved by the
+        // dialog in the chosen language, never the English fallback text.
+        .map_err(|error| l10n_to_json(&error.l10n()))?
     } else {
         (input.credential.clone(), None)
     };
@@ -9162,6 +9164,26 @@ mod tests {
             floors: None,
             breakdown: None,
         }
+    }
+
+    // PRD 0001 re-validation (M1): a sign-in mode's refusal reaches the dialog
+    // as the core's RF8 note (id + English fallback), which the dialog resolves
+    // in the chosen language, never as bare English text.
+    #[test]
+    fn login_mode_refusal_is_an_rf8_note() {
+        let mut input = pasted_input("");
+        input.index = None;
+        input.sessions = Vec::new();
+        input.provider = Provider::AwsBedrock;
+        input.name = "Bedrock".into();
+        input.credential = String::new();
+        input.auth_mode = login::MODE_AWS_SSO.into();
+        let error = input_account(&Config::default(), &input, None).unwrap_err();
+        let note: serde_json::Value = serde_json::from_str(&error).expect(&error);
+        assert_eq!(note["id"], "oauth_error.login.profile_required_before_save");
+        assert!(note["fallback"]
+            .as_str()
+            .is_some_and(|text| !text.is_empty()));
     }
 
     const TYPED_KEY: &str = "gsk_DESKTOP-TYPED-SECRET";

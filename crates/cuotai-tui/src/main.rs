@@ -1116,6 +1116,16 @@ fn main() -> std::process::ExitCode {
     }
 }
 
+/// PRD 0001 re-validation (M1): [`ConfigFile::load`] with its error resolved
+/// in the run's language (RF8), never the English fallback its `Display`
+/// writes.
+pub(crate) fn load_config(
+    path: Option<std::path::PathBuf>,
+    interactive: bool,
+) -> Result<ConfigFile, String> {
+    ConfigFile::load(path, interactive).map_err(|error| error.l10n().resolve(ui::tui_locale()))
+}
+
 async fn async_main() -> std::process::ExitCode {
     match Box::pin(run()).await {
         Ok(code) => std::process::ExitCode::from(code),
@@ -1344,7 +1354,7 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
     }
     if let Some(account) = &args.history {
         let days = retention(Some(args.history_days.unwrap_or(HISTORY_DEFAULT_DAYS)))?.keep_days();
-        let file = ConfigFile::load(args.config, false)?;
+        let file = load_config(args.config, false)?;
         let store = HistoryStore::in_data_dir(&file)
             .map_err(|error| error.l10n().resolve(ui::tui_locale()))?;
         let now = Utc::now();
@@ -1390,7 +1400,7 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         return Ok(code);
     }
     if args.vault_audit || args.vault_prune {
-        let file = ConfigFile::load(args.config, false)?;
+        let file = load_config(args.config, false)?;
         let session = match &args.dev_credentials_sqlite {
             Some(path) => OAuthSession::development_sqlite(path)?,
             None => OAuthSession::system()?,
@@ -1472,7 +1482,7 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         .transpose()
         .map_err(|error| error.resolve(locale))?;
     let retention = retention(args.history_days)?;
-    let file = ConfigFile::load(args.config, interactive)?;
+    let file = load_config(args.config, interactive)?;
     // PRD 0051 RF1.2/RF1.3: what the tolerant reader set aside; the TUI
     // shows it in its status line.
     if !interactive {
@@ -2191,7 +2201,7 @@ fn stored_view(args: &Args) -> Result<u8, Box<dyn std::error::Error>> {
     }
     let timeline_range = view::timeline_range(args.range.as_deref());
     let events_days = view::event_days(if args.events_log { args.days } else { None });
-    let file = ConfigFile::load(args.config.clone(), false)?;
+    let file = load_config(args.config.clone(), false)?;
     let store = HistoryStore::in_data_dir(&file).map_err(|error| error.l10n().resolve(locale))?;
     let now = Utc::now();
     let mut stdout = io::stdout().lock();

@@ -15,6 +15,10 @@ fn sandbox(name: &str) -> PathBuf {
 }
 
 fn run(dir: &Path, config: &str, args: &[&str]) -> Output {
+    run_in(dir, config, args, "en-US")
+}
+
+fn run_in(dir: &Path, config: &str, args: &[&str], lang: &str) -> Output {
     let home = dir.join("home");
     let path = format!(
         "{}{}{}",
@@ -33,7 +37,7 @@ fn run(dir: &Path, config: &str, args: &[&str]) -> Output {
         .env("PATH", path)
         .env_remove("CUOTAI_CONFIG")
         .env_remove("CUOTAI_STATUS")
-        .env("CUOTAI_LANG", "en-US")
+        .env("CUOTAI_LANG", lang)
         .stdin(Stdio::null())
         .output()
         .unwrap()
@@ -122,4 +126,29 @@ fn a_provider_from_a_newer_release_fails_only_its_account() {
     let strict = run(&dir, config, &["--check-config"]);
     assert_eq!(strict.status.code(), Some(1));
     let _ = fs::remove_dir_all(dir);
+}
+
+/// PRD 0001 re-validation (M1): a configuration error found at startup is
+/// printed in the chosen language, like `--check-config` prints it, by every
+/// command that loads the file (a snapshot, the stored views, the watch).
+#[test]
+fn a_startup_configuration_error_is_printed_in_the_chosen_language() {
+    let dir = sandbox("startup-l10n");
+    let metered = "[[accounts]]\nname = \"Bedrock\"\nprovider = \"aws_bedrock\"\nrefresh_seconds = 120\nparams = { profile = \"fixture-profile\" }\n";
+    for args in [
+        &["--once"][..],
+        &["--json"][..],
+        &["--history", "Bedrock"][..],
+        &["--timeline"][..],
+        &["--history-export", "never-written.csv"][..],
+    ] {
+        let out = run_in(&dir, metered, args, "pt-BR");
+        assert_eq!(out.status.code(), Some(1), "{args:?}");
+        let shown = String::from_utf8_lossy(&out.stderr);
+        assert!(
+            shown.contains("deve ser >= 300 para provedores cobrados por consulta"),
+            "{args:?}: {shown}"
+        );
+        assert!(!shown.contains("must be >="), "{args:?}: {shown}");
+    }
 }

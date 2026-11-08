@@ -67,7 +67,7 @@ pub(crate) fn history_export(
     account: Option<&str>,
     days: Option<u32>,
 ) -> Res {
-    let file = ConfigFile::load(config, false)?;
+    let file = crate::load_config(config, false)?;
     let locale = crate::ui::tui_locale();
     let store = HistoryStore::in_data_dir(&file).map_err(|e| e.l10n().resolve(locale))?;
     let accounts = select(&file, account)?;
@@ -141,7 +141,7 @@ fn select(file: &ConfigFile, name: Option<&str>) -> Result<Vec<cuotai_core::Acco
 
 /// `--history-erase ACCOUNT|all [--yes]`.
 pub(crate) fn history_erase(config: Option<PathBuf>, target: &str, yes: bool) -> Res {
-    let file = ConfigFile::load(config, false)?;
+    let file = crate::load_config(config, false)?;
     let locale = crate::ui::tui_locale();
     let store = HistoryStore::in_data_dir(&file).map_err(|e| e.l10n().resolve(locale))?;
     let all = target == "all";
