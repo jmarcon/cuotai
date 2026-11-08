@@ -314,3 +314,173 @@ fn a_conflicting_local_edit_is_planned_and_only_written_when_confirmed() {
         Err(BundleError::Conflict { .. })
     ));
 }
+
+#[test]
+fn next_steps_follow_the_needs_one_for_one() {
+    let source = Tree::full();
+    let bundle = collect(&source.locations(), at(), "9.9.9").unwrap();
+    let none = |_: &str| None;
+    let plan = plan(&bundle, &Tree::new().locations(), None, &none).unwrap();
+    assert_eq!(
+        plan.next_steps,
+        [
+            NextStep {
+                kind: "env",
+                account: 0,
+                provider: "groq".into()
+            },
+            NextStep {
+                kind: "sign_in",
+                account: 1,
+                provider: "claude".into()
+            },
+        ]
+    );
+    let json = serde_json::to_value(&plan).unwrap();
+    assert_eq!(json["next_steps"][1]["kind"], "sign_in");
+}
+
+fn history_metric(used: f64) -> crate::Metric {
+    crate::Metric {
+        label: "Requests".into(),
+        used: Some(used),
+        limit: Some(10.0),
+        remaining: None,
+        unit: "req".into(),
+        kind: crate::MetricKind::Quota,
+        window: Some(crate::MetricWindow::Daily),
+        period: None,
+        resets_at: None,
+        billing: Default::default(),
+        scope: None,
+        derived_from: None,
+    }
+}
+
+#[test]
+fn the_history_travels_by_account_and_merges_on_restore() {
+    let source = Tree::full();
+    let locations = source.locations();
+    let config = config_file::parse(TOML, ConfigParseMode::Tolerant)
+        .unwrap()
+        .config;
+    // The fixture's placeholder is not a database.
+    std::fs::remove_file(source.at("data/history/history.sqlite3")).unwrap();
+    let store = history_store(&locations).unwrap();
+    let now = Utc::now();
+    for hours in [3, 2] {
+        store
+            .record(
+                &config.accounts[0],
+                now - chrono::TimeDelta::hours(hours),
+                &[history_metric(hours as f64)],
+            )
+            .unwrap();
+    }
+    let bundle = collect_with(
+        &locations,
+        at(),
+        "9.9.9",
+        Some(HistorySource {
+            store: &store,
+            accounts: &config.accounts,
+            since: now - chrono::TimeDelta::days(HISTORY_DAYS),
+        }),
+    )
+    .unwrap();
+    // Only the account with samples has a file, named by its id.
+    let history: Vec<_> = bundle
+        .manifest
+        .files
+        .iter()
+        .filter(|e| e.kind == "history")
+        .map(|e| e.path.as_str())
+        .collect();
+    assert_eq!(history, ["history/acct-one.csv"]);
+    assert!(bundle.history_bytes() > 0 && bundle.history_bytes() < HISTORY_WARN_BYTES);
+    let bundle = Bundle::from_zip(&bundle.to_zip()).unwrap();
+
+    let fresh = Tree::new();
+    let none = |_: &str| None;
+    let plan = plan(&bundle, &fresh.locations(), Some(Part::History), &none).unwrap();
+    assert_eq!(plan.items.len(), 1);
+    let item = &plan.items[0];
+    assert_eq!(
+        (item.action, item.target.as_str()),
+        (Action::Merge, "history")
+    );
+    assert_eq!(item.merge, Some(ImportCount { rows: 2, new: 2 }));
+    assert!(plan.needs.is_empty(), "--only history asks for nothing");
+    assert_eq!(plan.apply(|_| panic!("a merge asks nothing")).unwrap(), 1);
+    let again = super::plan(&bundle, &fresh.locations(), Some(Part::History), &none).unwrap();
+    assert_eq!(again.items[0].action, Action::Keep);
+    assert_eq!(again.items[0].merge, Some(ImportCount { rows: 2, new: 0 }));
+    let merged = history_store(&fresh.locations()).unwrap();
+    let csv = merged
+        .export_account_csv(&config.accounts[0], now - chrono::TimeDelta::days(1))
+        .unwrap()
+        .unwrap();
+    assert_eq!(String::from_utf8(csv).unwrap().lines().count(), 3);
+}
+
+#[test]
+fn history_and_label_paths_are_checked() {
+    for path in [
+        "history/../x.csv",
+        "history/UPPER.csv",
+        "history/acct-one.txt",
+        "history/a/b.csv",
+        "prefs/cost-labels.txt",
+    ] {
+        assert!(!allowed(path), "{path}");
+    }
+    assert!(allowed("history/acct-one.csv"));
+    assert!(allowed("prefs/cost-labels.json"));
+    assert_eq!(Part::parse("history"), Some(Part::History));
+}
+
+#[test]
+fn channel_definitions_travel_without_their_address_and_merge_by_id() {
+    let source = Tree::new();
+    source.write("config/cuotai.toml", "");
+    source.write(
+        "config/desktop.json",
+        r#"{"channels":[{"id":"aaaa000000000001","kind":"ntfy","label":"Phone","host":"ntfy.example.com","created_at":"2026-11-01T00:00:00Z"}]}"#,
+    );
+    let bundle = Bundle::from_zip(
+        &collect(&source.locations(), at(), "9.9.9")
+            .unwrap()
+            .to_zip(),
+    )
+    .unwrap();
+    let carried = String::from_utf8(bundle.files["prefs/desktop.json"].clone()).unwrap();
+    assert!(carried.contains("ntfy.example.com") && !carried.contains("https://"));
+
+    let target = Tree::new();
+    target.write(
+        "config/desktop.json",
+        r#"{"channels":[{"id":"bbbb000000000002","kind":"slack","label":"Team","host":"hooks.slack.com","created_at":"2026-11-02T00:00:00Z"}]}"#,
+    );
+    let none = |_: &str| None;
+    let plan = plan(&bundle, &target.locations(), Some(Part::Prefs), &none).unwrap();
+    let needs: Vec<_> = plan.needs.iter().map(|n| n.resolve("en-US")).collect();
+    assert_eq!(
+        needs,
+        ["Type the address of the notification channel Phone (ntfy) again."]
+    );
+    assert_eq!(plan.next_steps[0].kind, "channel");
+    plan.apply(|_| true).unwrap();
+    let merged: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(target.at("config/desktop.json")).unwrap()).unwrap();
+    let ids: Vec<_> = merged["channels"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| c["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        ids,
+        ["bbbb000000000002", "aaaa000000000001"],
+        "local first, none lost"
+    );
+}

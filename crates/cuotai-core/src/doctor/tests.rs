@@ -39,6 +39,13 @@ impl Fixture {
                 os: crate::external_tool::Os::Linux,
                 sandbox: Some(self.dir.path().to_path_buf()),
             },
+            vault: Box::new(|| true),
+            extensions_dir: Some(self.dir.path().join("extensions")),
+            cost_env: crate::cost::Env::new(Some(self.dir.path().join("home")), []),
+            clock: Box::new(ClockState::default),
+            notifications: None,
+            locale: "pt-BR".into(),
+            now: Utc::now(),
         }
     }
 }
@@ -256,4 +263,136 @@ fn a_set_aside_ledger_is_reported() {
     std::fs::write(data.join("notified.json.corrupt-20261107T120000Z"), "x").unwrap();
     let report = run(&fixture.inputs(&[], free_port()));
     assert_eq!(status(&report, "ledger"), CheckStatus::Warn);
+}
+
+const VAULT_ACCOUNT: &str = "[[accounts]]\nname = \"Mine\"\nprovider = \"chat_gpt\"\n[accounts.oauth]\ncredential_id = \"4be708d8-7073-4d01-85ba-3306cc3cf087\"\n";
+
+#[test]
+fn an_unavailable_vault_fails_only_when_an_account_uses_it() {
+    let fixture = Fixture::new(Some(VAULT_ACCOUNT));
+    let mut inputs = fixture.inputs(&[], free_port());
+    inputs.vault = Box::new(|| false);
+    let report = run(&inputs);
+    assert_eq!(status(&report, "vault"), CheckStatus::Fail);
+    assert_eq!(report.exit_code(), 2);
+    let mut inputs = fixture.inputs(&[], free_port());
+    inputs.vault = Box::new(|| true);
+    assert_eq!(status(&run(&inputs), "vault"), CheckStatus::Ok);
+
+    let fixture = Fixture::new(Some(TWO_ACCOUNTS));
+    let mut inputs = fixture.inputs(&[], free_port());
+    inputs.vault = Box::new(|| panic!("the vault is not asked without a vault account"));
+    assert_eq!(status(&run(&inputs), "vault"), CheckStatus::Skip);
+}
+
+#[test]
+fn the_clock_warns_on_a_server_skew_or_a_reading_from_the_future() {
+    let fixture = Fixture::new(None);
+    let mut inputs = fixture.inputs(&[], free_port());
+    inputs.clock = Box::new(|| ClockState {
+        warning: Some(crate::network::Skew {
+            direction: crate::network::SkewDirection::Behind,
+            minutes: 12,
+        }),
+        observed: true,
+    });
+    assert_eq!(status(&run(&inputs), "clock"), CheckStatus::Warn);
+    let mut inputs = fixture.inputs(&[], free_port());
+    inputs.clock = Box::new(|| ClockState {
+        warning: None,
+        observed: true,
+    });
+    assert_eq!(status(&run(&inputs), "clock"), CheckStatus::Ok);
+    // Nothing compared and no history: not checked.
+    assert_eq!(
+        status(&run(&fixture.inputs(&[], free_port())), "clock"),
+        CheckStatus::Skip
+    );
+    // A stored reading an hour ahead of this clock: it went back.
+    let dir = fixture.dir.path().join("data").join("history");
+    std::fs::create_dir_all(&dir).unwrap();
+    let db = rusqlite::Connection::open(dir.join("history.sqlite3")).unwrap();
+    db.execute_batch("CREATE TABLE samples (series_id INTEGER, taken_at INTEGER);")
+        .unwrap();
+    let ahead = (Utc::now() + chrono::TimeDelta::hours(1)).timestamp_millis();
+    db.execute("INSERT INTO samples VALUES (1, ?1)", [ahead])
+        .unwrap();
+    drop(db);
+    assert_eq!(
+        status(&run(&fixture.inputs(&[], free_port())), "clock"),
+        CheckStatus::Warn
+    );
+}
+
+#[test]
+fn notifications_locale_and_cost_sources_are_reported() {
+    let fixture = Fixture::new(None);
+    let report = run(&fixture.inputs(&[], free_port()));
+    assert!(
+        report.checks.iter().all(|c| c.id != "notifications"),
+        "only the desktop knows the permission"
+    );
+    let locale = report.checks.iter().find(|c| c.id == "locale").unwrap();
+    assert!(locale
+        .title
+        .resolve("en-US")
+        .starts_with("Language pt-BR, time zone UTC"));
+
+    let mut inputs = fixture.inputs(&[], free_port());
+    inputs.notifications = Some(false);
+    assert_eq!(status(&run(&inputs), "notifications"), CheckStatus::Warn);
+    let mut inputs = fixture.inputs(&[], free_port());
+    inputs.notifications = Some(true);
+    assert_eq!(status(&run(&inputs), "notifications"), CheckStatus::Ok);
+
+    // A damaged cost settings file warns; a source that is on is listed.
+    let cost = fixture.dir.path().join("data").join("cost");
+    std::fs::create_dir_all(&cost).unwrap();
+    std::fs::write(cost.join("settings.json"), "{not json").unwrap();
+    assert_eq!(
+        status(&run(&fixture.inputs(&[], free_port())), "cost_settings"),
+        CheckStatus::Warn
+    );
+    std::fs::write(cost.join("settings.json"), "{}").unwrap();
+    let report = run(&fixture.inputs(&[], free_port()));
+    assert!(report
+        .checks
+        .iter()
+        .all(|c| !c.id.starts_with("cost_source") && c.id != "cost_settings"));
+}
+
+#[test]
+fn an_extension_account_needs_its_approval() {
+    let fixture = Fixture::new(Some(
+        "[[accounts]]\nname = \"Ext\"\nprovider = \"extension\"\n[accounts.params]\nextension_id = \"my-ext\"\n",
+    ));
+    let report = run(&fixture.inputs(&[], free_port()));
+    assert_ne!(status(&report, "account.1"), CheckStatus::Ok);
+    assert_ne!(status(&report, "account.1"), CheckStatus::Skip);
+}
+
+#[test]
+fn each_channel_reports_its_last_outcome_without_its_label_or_host() {
+    let fixture = Fixture::new(None);
+    std::fs::write(
+        fixture.dir.path().join("desktop.json"),
+        r#"{"channels":[{"id":"aaaa000000000001","kind":"ntfy","label":"SEEDED label","host":"seeded.example.com","created_at":"2026-11-01T00:00:00Z"},{"id":"bbbb000000000002","kind":"slack","label":"B","host":"hooks.slack.com","created_at":"2026-11-01T00:00:00Z"}]}"#,
+    )
+    .unwrap();
+    let log = fixture.dir.path().join("data").join("channels");
+    std::fs::create_dir_all(&log).unwrap();
+    std::fs::write(
+        log.join("log.jsonl"),
+        "{\"at\":\"2026-11-07T10:00:00Z\",\"channel\":\"aaaa000000000001\",\"kind\":\"threshold\",\"outcome\":\"failed\",\"status\":500}\n\
+         {\"at\":\"2026-11-07T10:00:00Z\",\"channel\":\"bbbb000000000002\",\"kind\":\"threshold\",\"outcome\":\"delivered\",\"status\":200}\n",
+    )
+    .unwrap();
+    let report = run(&fixture.inputs(&[], free_port()));
+    assert_eq!(status(&report, "channel.1"), CheckStatus::Warn);
+    assert_eq!(status(&report, "channel.2"), CheckStatus::Ok);
+    let json = serde_json::to_string(&report).unwrap();
+    assert!(
+        !json.contains("SEEDED") && !json.contains("seeded.example.com"),
+        "{json}"
+    );
 }

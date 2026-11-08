@@ -224,6 +224,12 @@ struct Args {
     /// 0 without a failure, 2 with one, 1 when the doctor itself fails.
     #[arg(long, conflicts_with_all = SETUP_CONFLICTS)]
     doctor: bool,
+    /// With --doctor, also checks the network: one HEAD request to each
+    /// provider host the accounts use (and to their public status pages
+    /// when status queries are on), without any credential, and compares
+    /// the servers' clocks with this one.
+    #[arg(long, requires = "doctor")]
+    probe: bool,
     /// Writes a backup of the settings to FILE (a .cuotai-backup.zip): the
     /// accounts TOML, hooks, desktop and local cost preferences, prices,
     /// user themes and languages. Never a secret: no vault entry, token,
@@ -231,6 +237,10 @@ struct Args {
     /// file looks like it holds a key. Exit 0; 1 on a refusal or an error.
     #[arg(long, value_name = "FILE", conflicts_with_all = SETUP_CONFLICTS, conflicts_with = "doctor")]
     backup: Option<PathBuf>,
+    /// With --backup, also the last 90 days of each account's history (as
+    /// CSV); a backup holding more than 32 MiB of it says so.
+    #[arg(long, requires = "backup")]
+    with_history: bool,
     /// Restores a backup made by --backup: checks it, prints the plan (add,
     /// replace, keep, skip) and the variables and sign-ins still needed,
     /// then writes the additions and each replacement you confirm in the
@@ -246,8 +256,8 @@ struct Args {
     /// With --restore, prints the plan and writes nothing.
     #[arg(long, requires = "restore")]
     check: bool,
-    /// With --restore, only one part: config, prefs or user.
-    #[arg(long, value_name = "PART", value_parser = ["config", "prefs", "user"], requires = "restore")]
+    /// With --restore, only one part: config, prefs, user or history.
+    #[arg(long, value_name = "PART", value_parser = ["config", "prefs", "user", "history"], requires = "restore")]
     only: Option<String>,
     /// Usage statistics from the local history (limits reached, average peak
     /// of the tightest limit, extra spending, peak per day and per account),
@@ -1237,12 +1247,18 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
                 .to_owned()
             })
             .unwrap_or_else(|_| "unknown".to_owned());
+        let status = status_enabled(args.status, args.no_status, |key| std::env::var(key).ok());
         return Ok(doctor::run(
             args.config.take(),
             source,
-            args.json,
+            doctor::Options {
+                json: args.json,
+                probe: args.probe,
+                status,
+            },
             ui::tui_locale(),
-        )?);
+        )
+        .await?);
     }
     // PRD 0051 RF5.2: an invalid CUOTAI_DATA_DIR is a local error, never a
     // silent fallback to the OS directory.
@@ -1255,6 +1271,7 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
             &out,
             args.config.take(),
             args.dev_credentials_sqlite.is_some(),
+            args.with_history,
             args.json,
             ui::tui_locale(),
         )?);
@@ -1509,7 +1526,7 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         .await;
     }
     if let Some(name) = args.report_problem.take() {
-        return report_problem::run(&file.config, &name, session).await;
+        return report_problem::run(&file.config, &file.path, &name, session).await;
     }
     if args.once || args.json || args.json_v1 || args.serve || args.watch || args.status_line {
         let fallback_locale = fallback_locale_of(

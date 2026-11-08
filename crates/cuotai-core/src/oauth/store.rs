@@ -157,6 +157,12 @@ impl SystemTokenStore {
         Ok(deleted)
     }
 
+    /// PRD 0046 RF4.1: whether the platform vault initialized, without
+    /// opening, searching or reading any entry.
+    pub fn available() -> bool {
+        keyring::v1::Entry::store_status().is_ok()
+    }
+
     /// PRD 0052 RF5.4 preflight: whether the vault can enumerate `service`.
     pub fn can_search(service: &str) -> bool {
         Self::search_service(service).is_ok()

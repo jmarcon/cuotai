@@ -12,17 +12,20 @@
 //! | `prefs/desktop.json` | desktop settings | window geometry, one-time records and machine paths dropped (paths become `@config`/`@user` markers) |
 //! | `prefs/cost-settings.json` | local cost settings | the per-machine sources (and their folders) dropped |
 //! | `prefs/pricing.json` | your local prices | verbatim |
+//! | `prefs/cost-labels.json` | the labels and hidden projects of the local cost index | only the person's labels (never a folder name) |
 //! | `user/themes/*.css`, `user/locales/*.json` | user themes and languages | verbatim |
+//! | `history/<account id>.csv` | with `--with-history`: the last 90 days of each account | the PRD 0006 CSV sample table |
 //!
-//! Vault entries, tokens, the server token, the cost index, extensions and
-//! logs are never read. Every candidate is scanned for token-like strings
+//! Vault entries, tokens, the server token, the cost index itself (only its
+//! labels), extensions and logs are never read. Every candidate is scanned for token-like strings
 //! and the backup stops when one is found (defence in depth).
 //!
 //! A restore reads the archive whole, refuses entries outside these
 //! folders, checks every digest, then plans per file: `add`, `replace`,
 //! `keep` (identical) or `skip` (the local file changed after the backup);
 //! it lists the variables to set and the sign-ins to redo, because no
-//! secret travels. It writes nothing to the vault.
+//! secret travels. The history and the cost labels are merged (`merge`):
+//! what this computer already has wins. It writes nothing to the vault.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -31,8 +34,11 @@ use chrono::{DateTime, SecondsFormat, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::config_file::{self, ConfigParseMode};
+use crate::config_file::{self, ConfigIdentity, ConfigParseMode};
+use crate::cost::{CostIndex, Labels};
+use crate::history::{HistoryStore, ImportCount};
 use crate::text::{home_relative, params, Localized, ParamValue};
+use crate::Account;
 
 mod zip;
 
@@ -43,7 +49,13 @@ pub const EXCLUDED: [&str; 5] = ["vault", "serve_token", "cost_index", "extensio
 /// Suggested file name suffix.
 pub const EXTENSION: &str = ".cuotai-backup.zip";
 
+/// How far back `--with-history` reaches (the default retention).
+pub const HISTORY_DAYS: i64 = 90;
+/// Above this many bytes of history the backup warns (RF2.2).
+pub const HISTORY_WARN_BYTES: usize = 32 << 20;
+
 const MANIFEST: &str = "manifest.json";
+const COST_LABELS: &str = "prefs/cost-labels.json";
 
 /// Why a backup or a restore stopped. Never carries a value from a file.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -230,6 +242,23 @@ impl Locations {
     }
 }
 
+/// The account id of a `history/<id>.csv` bundle path.
+fn history_id(path: &str) -> Option<&str> {
+    let id = path.strip_prefix("history/")?.strip_suffix(".csv")?;
+    crate::account_id::AccountId::parse(id).map(|_| id)
+}
+
+/// Whether `path` may appear in a bundle.
+fn allowed(path: &str) -> bool {
+    let probe = Locations {
+        config: PathBuf::from("probe").join("cuotai.toml"),
+        desktop_settings: Some(PathBuf::from("probe")),
+        user_dir: Some(PathBuf::from("probe")),
+        data_root: Some(PathBuf::from("probe")),
+    };
+    path == COST_LABELS || history_id(path).is_some() || probe.target(path).is_some()
+}
+
 /// A file name of a user theme or language: one plain component.
 fn safe_name(name: &str) -> bool {
     !name.is_empty()
@@ -246,6 +275,8 @@ fn kind_of(path: &str) -> &'static str {
         "prefs/desktop.json" => "desktop_settings",
         "prefs/cost-settings.json" => "cost_settings",
         "prefs/pricing.json" => "pricing",
+        COST_LABELS => "cost_labels",
+        path if path.starts_with("history/") => "history",
         path if path.starts_with("user/themes/") => "theme",
         _ => "locale",
     }
@@ -336,12 +367,30 @@ fn scrub_cost_settings(bytes: &[u8]) -> Option<Vec<u8>> {
     serde_json::to_vec_pretty(&value).ok()
 }
 
+/// The history a backup carries (`--with-history`, RF2.2): the samples of
+/// each of `accounts` taken since `since`.
+pub struct HistorySource<'a> {
+    pub store: &'a HistoryStore,
+    pub accounts: &'a [Account],
+    pub since: DateTime<Utc>,
+}
+
 /// Collect the bundle of `locations`. `created_at` and `version` are
 /// parameters so the same tree always gives the same manifest.
 pub fn collect(
     locations: &Locations,
     created_at: DateTime<Utc>,
     version: &str,
+) -> Result<Bundle, BundleError> {
+    collect_with(locations, created_at, version, None)
+}
+
+/// [`collect`], with the history of each account when `history` is set.
+pub fn collect_with(
+    locations: &Locations,
+    created_at: DateTime<Utc>,
+    version: &str,
+    history: Option<HistorySource<'_>>,
 ) -> Result<Bundle, BundleError> {
     let io = |path: &Path| BundleError::Io {
         path: home_relative(path),
@@ -378,6 +427,27 @@ pub fn collect(
             read(&cost.join("settings.json"))?.and_then(|bytes| scrub_cost_settings(&bytes)),
         );
         add("prefs/pricing.json", read(&cost.join("pricing.json"))?);
+        // Only the person's labels: an index that cannot be read (absent,
+        // newer, damaged) simply has none to carry.
+        let labels = CostIndex::new(cost.join("cost.sqlite3"))
+            .labels()
+            .ok()
+            .filter(|labels| !labels.projects.is_empty() || !labels.sessions.is_empty());
+        add(
+            COST_LABELS,
+            labels.and_then(|labels| serde_json::to_vec_pretty(&labels).ok()),
+        );
+    }
+    if let Some(history) = history {
+        for account in history.accounts {
+            let csv = history
+                .store
+                .export_account_csv(account, history.since)
+                .map_err(|_| BundleError::Io {
+                    path: "history".into(),
+                })?;
+            add(&format!("history/{}.csv", account.id().as_str()), csv);
+        }
     }
     if let Some(user) = &locations.user_dir {
         for (folder, extension) in [("themes", "css"), ("locales", "json")] {
@@ -425,6 +495,16 @@ pub fn collect(
 }
 
 impl Bundle {
+    /// Bytes of history the bundle carries (RF2.2 warns above
+    /// [`HISTORY_WARN_BYTES`]).
+    pub fn history_bytes(&self) -> usize {
+        self.files
+            .iter()
+            .filter(|(path, _)| path.starts_with("history/"))
+            .map(|(_, bytes)| bytes.len())
+            .sum()
+    }
+
     /// The archive bytes: `manifest.json` first, then the files by path.
     pub fn to_zip(&self) -> Vec<u8> {
         let mut manifest = serde_json::to_vec_pretty(&self.manifest).expect("serializable");
@@ -458,18 +538,12 @@ impl Bundle {
             return Err(BundleError::Schema { schema });
         }
         let manifest: Manifest = serde_json::from_value(value).map_err(|_| BundleError::Invalid)?;
-        let probe = Locations {
-            config: PathBuf::from("probe").join("cuotai.toml"),
-            desktop_settings: Some(PathBuf::from("probe")),
-            user_dir: Some(PathBuf::from("probe")),
-            data_root: Some(PathBuf::from("probe")),
-        };
         let listed: BTreeSet<&str> = manifest.files.iter().map(|e| e.path.as_str()).collect();
         if listed.len() != manifest.files.len() || listed.len() != files.len() {
             return Err(BundleError::Invalid);
         }
         for entry in &manifest.files {
-            if probe.target(&entry.path).is_none() {
+            if !allowed(&entry.path) {
                 return Err(BundleError::Invalid);
             }
             let data = files.get(&entry.path).ok_or(BundleError::Invalid)?;
@@ -552,6 +626,8 @@ pub enum Action {
     Keep,
     /// Changed here after the backup was made: kept unless confirmed.
     Skip,
+    /// History or cost labels: merged, what this computer has wins.
+    Merge,
 }
 
 /// Accounts of the backup's TOML against this machine's, by stable id.
@@ -572,12 +648,75 @@ pub struct Item {
     pub action: Action,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub accounts: Option<AccountChanges>,
+    /// For a `merge`: the rows in the backup and how many are new here.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub merge: Option<ImportCount>,
+    #[serde(skip)]
+    merge_with: Option<MergeWith>,
     #[serde(skip)]
     target_path: PathBuf,
     #[serde(skip)]
     current: Option<Vec<u8>>,
     #[serde(skip)]
     new: Vec<u8>,
+}
+
+/// What a `merge` item merges into.
+#[derive(Debug, Clone)]
+enum MergeWith {
+    /// The history of this account (as this computer names it).
+    History(Box<Account>),
+    Labels(Labels),
+}
+
+/// One thing to do after the restore (RF3.3 **Next steps**), beside its
+/// text in [`Plan::needs`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct NextStep {
+    /// `env` (a variable to set, or in the desktop a key to type),
+    /// `sign_in`, or `channel` (a notification channel's address to type
+    /// again, PRD 0044).
+    pub kind: &'static str,
+    /// The account's position in the backup's file (0-based); for a
+    /// `channel`, the channel's position in the desktop settings.
+    pub account: usize,
+    /// The provider slug; for a `channel`, its kind (`ntfy`, `slack`…).
+    pub provider: String,
+}
+
+/// RF1.2/RF3.1: the notification channels of the backup's desktop settings
+/// (PRD 0044). Their definitions travel (id, kind, label, host, filters);
+/// the address and signing secret stay in the vault, so each one is a step.
+fn channel_needs(desktop: &[u8]) -> Vec<(Localized, NextStep)> {
+    let Ok(value) = serde_json::from_slice::<serde_json::Value>(desktop) else {
+        return Vec::new();
+    };
+    let Some(channels) = value["channels"].as_array() else {
+        return Vec::new();
+    };
+    channels
+        .iter()
+        .enumerate()
+        .filter_map(|(index, channel)| {
+            let kind = channel["kind"].as_str()?;
+            let label = channel["label"].as_str().unwrap_or(kind);
+            Some((
+                Localized::with_params(
+                    "bundle.need.channel",
+                    params([
+                        ("label", ParamValue::from(label)),
+                        ("kind", ParamValue::from(kind)),
+                    ]),
+                    "Type the address of the notification channel {label} ({kind}) again.",
+                ),
+                NextStep {
+                    kind: "channel",
+                    account: index,
+                    provider: kind.to_owned(),
+                },
+            ))
+        })
+        .collect()
 }
 
 /// What a restore would do, and what the person still has to provide.
@@ -588,6 +727,12 @@ pub struct Plan {
     pub items: Vec<Item>,
     /// Variables to set and sign-ins to redo, from the backup's accounts.
     pub needs: Vec<Localized>,
+    /// The same, as actions (one per entry of `needs`, in order).
+    pub next_steps: Vec<NextStep>,
+    #[serde(skip)]
+    locations: Locations,
+    #[serde(skip)]
+    cost_index: Option<PathBuf>,
 }
 
 /// Which part of a bundle a restore takes (`--only`).
@@ -596,6 +741,7 @@ pub enum Part {
     Config,
     Prefs,
     User,
+    History,
 }
 
 impl Part {
@@ -604,6 +750,7 @@ impl Part {
             "config" => Some(Self::Config),
             "prefs" => Some(Self::Prefs),
             "user" => Some(Self::User),
+            "history" => Some(Self::History),
             _ => None,
         }
     }
@@ -613,6 +760,7 @@ impl Part {
             Self::Config => "config/",
             Self::Prefs => "prefs/",
             Self::User => "user/",
+            Self::History => "history/",
         };
         path.starts_with(folder)
     }
@@ -630,6 +778,23 @@ fn merge_desktop(local: Option<&[u8]>, incoming: &[u8]) -> Option<Vec<u8>> {
     for (key, value) in incoming {
         if matches!(value.as_str(), Some("@config" | "@user")) {
             continue;
+        }
+        // PRD 0044 channels merge by id: this computer's stay (their
+        // addresses are in its vault), the backup adds the ones it lacks.
+        if key == "channels" {
+            if let (Some(local), Some(incoming)) = (
+                merged.get("channels").and_then(|v| v.as_array()).cloned(),
+                value.as_array(),
+            ) {
+                let mut channels = local.clone();
+                for channel in incoming {
+                    if !local.iter().any(|known| known["id"] == channel["id"]) {
+                        channels.push(channel.clone());
+                    }
+                }
+                merged.insert(key, serde_json::Value::Array(channels));
+                continue;
+            }
         }
         merged.insert(key, value);
     }
@@ -674,7 +839,7 @@ fn account_changes(local: Option<&[u8]>, incoming: &[u8]) -> Option<AccountChang
 }
 
 /// The variables and sign-ins the backup's accounts need on this machine.
-fn needs(config: &[u8], var: &dyn Fn(&str) -> Option<String>) -> Vec<Localized> {
+fn needs(config: &[u8], var: &dyn Fn(&str) -> Option<String>) -> Vec<(Localized, NextStep)> {
     let Some(parsed) = std::str::from_utf8(config)
         .ok()
         .and_then(|text| config_file::parse(text, ConfigParseMode::Tolerant).ok())
@@ -682,24 +847,35 @@ fn needs(config: &[u8], var: &dyn Fn(&str) -> Option<String>) -> Vec<Localized> 
         return Vec::new();
     };
     let mut needs = Vec::new();
+    let step = |kind, index: usize, account: &Account| NextStep {
+        kind,
+        account: index,
+        provider: account.provider.slug().to_owned(),
+    };
     for (index, account) in parsed.config.accounts.iter().enumerate() {
         let who = [
             ("number", ParamValue::from(index + 1)),
             ("provider", ParamValue::from(account.provider.slug())),
         ];
         if account.oauth.is_some() || account.session.is_some() {
-            needs.push(Localized::with_params(
-                "bundle.need.sign_in",
-                params(who),
-                "Sign in again to account {number} ({provider}).",
+            needs.push((
+                Localized::with_params(
+                    "bundle.need.sign_in",
+                    params(who),
+                    "Sign in again to account {number} ({provider}).",
+                ),
+                step("sign_in", index, account),
             ));
         } else if let Some(variable) = account.credential_env.as_deref() {
             if var(variable).is_none_or(|value| value.is_empty()) {
                 let [number, provider] = who;
-                needs.push(Localized::with_params(
-                    "bundle.need.env",
-                    params([number, provider, ("variable", ParamValue::from(variable))]),
-                    "Set {variable} for account {number} ({provider}).",
+                needs.push((
+                    Localized::with_params(
+                        "bundle.need.env",
+                        params([number, provider, ("variable", ParamValue::from(variable))]),
+                        "Set {variable} for account {number} ({provider}).",
+                    ),
+                    step("env", index, account),
                 ));
             }
         }
@@ -718,8 +894,42 @@ pub fn plan(
         .map(|at| at.with_timezone(&Utc))
         .ok();
     let mut items = Vec::new();
+    let history = history_store(locations);
+    let cost_index = locations
+        .data_root
+        .as_ref()
+        .map(|root| root.join("cost").join("cost.sqlite3"));
+    // The accounts a history file may belong to: this computer's, then the
+    // backup's (restored in the same run), each with the ids this
+    // computer gives them.
+    let identity = ConfigIdentity::of_path(&locations.config).ok();
+    let read_accounts = |bytes: &[u8]| -> Vec<Account> {
+        std::str::from_utf8(bytes)
+            .ok()
+            .and_then(|text| config_file::parse(text, ConfigParseMode::Tolerant).ok())
+            .map(|parsed| {
+                let mut config = parsed.config;
+                config.resolve_ids(identity.as_ref());
+                config.accounts
+            })
+            .unwrap_or_default()
+    };
+    let mut known = std::fs::read(&locations.config)
+        .map(|bytes| read_accounts(&bytes))
+        .unwrap_or_default();
+    if let Some(bytes) = bundle.files.get("config/cuotai.toml") {
+        known.extend(read_accounts(bytes));
+    }
     for (path, bytes) in &bundle.files {
         if only.is_some_and(|part| !part.holds(path)) {
+            continue;
+        }
+        if path == COST_LABELS || history_id(path).is_some() {
+            if let Some(item) =
+                merge_item(path, bytes, &known, history.as_ref(), cost_index.as_deref())?
+            {
+                items.push(item);
+            }
             continue;
         }
         let Some(target) = locations.target(path) else {
@@ -760,23 +970,122 @@ pub fn plan(
             target: home_relative(&target),
             action,
             accounts,
+            merge: None,
+            merge_with: None,
             target_path: target,
             current,
             new,
         });
     }
-    let needs = bundle
+    let mut steps = bundle
         .files
         .get("config/cuotai.toml")
         .filter(|_| only.is_none_or(|part| part == Part::Config))
         .map(|config| needs(config, var))
         .unwrap_or_default();
+    steps.extend(
+        bundle
+            .files
+            .get("prefs/desktop.json")
+            .filter(|_| only.is_none_or(|part| part == Part::Prefs))
+            .map(|desktop| channel_needs(desktop))
+            .unwrap_or_default(),
+    );
+    let (needs, next_steps) = steps.into_iter().unzip();
     Ok(Plan {
         created_at: bundle.manifest.created_at.clone(),
         cuotai_version: bundle.manifest.cuotai_version.clone(),
         items,
         needs,
+        next_steps,
+        locations: locations.clone(),
+        cost_index,
     })
+}
+
+/// The history store a restore merges into: this configuration's, in the
+/// data folder.
+fn history_store(locations: &Locations) -> Option<HistoryStore> {
+    // A folder that does not exist yet (a fresh computer) is created by
+    // the restore; until then its path stands for itself.
+    let identity = ConfigIdentity::of_path(&locations.config)
+        .unwrap_or_else(|_| ConfigIdentity::File(locations.config.clone()));
+    let root = locations.data_root.as_ref()?;
+    Some(HistoryStore::new(
+        root.join("history").join("history.sqlite3"),
+        &identity,
+    ))
+}
+
+/// The `merge` item of a history file or of the cost labels; `None` when
+/// there is nothing to merge into (no account of that id or name, no data
+/// folder).
+fn merge_item(
+    path: &str,
+    bytes: &[u8],
+    known: &[Account],
+    history: Option<&HistoryStore>,
+    cost_index: Option<&Path>,
+) -> Result<Option<Item>, BundleError> {
+    let invalid = || BundleError::Invalid;
+    let (merge_with, merge, target) = if let Some(id) = history_id(path) {
+        let Some(store) = history else {
+            return Ok(None);
+        };
+        // By id, then (an id derived from another computer's path) by
+        // provider and name, as the rows name them.
+        let by_name = crate::history::csv_account(bytes);
+        let account = known
+            .iter()
+            .find(|account| account.id().as_str() == id)
+            .or_else(|| {
+                let (provider, name) = by_name.as_ref()?;
+                known
+                    .iter()
+                    .find(|a| a.provider.slug() == provider && a.name == *name)
+            });
+        let Some(account) = account else {
+            return Ok(None);
+        };
+        let count = store
+            .import_csv(account, bytes, false)
+            .map_err(|_| invalid())?;
+        (
+            MergeWith::History(Box::new(account.clone())),
+            count,
+            "history",
+        )
+    } else {
+        let Some(index) = cost_index else {
+            return Ok(None);
+        };
+        let labels: Labels = serde_json::from_slice(bytes).map_err(|_| invalid())?;
+        let rows = labels.projects.len() + labels.sessions.len();
+        let new = CostIndex::new(index.to_path_buf())
+            .import_labels(&labels, false)
+            .unwrap_or(0);
+        (
+            MergeWith::Labels(labels),
+            ImportCount { rows, new },
+            "cost_index",
+        )
+    };
+    Ok(Some(Item {
+        path: path.to_owned(),
+        target: target.to_owned(),
+        action: if merge.new == 0 {
+            Action::Keep
+        } else {
+            Action::Merge
+        },
+        accounts: None,
+        merge: Some(merge),
+        merge_with: Some(merge_with),
+        target_path: PathBuf::new(),
+        current: None,
+        // A history item keeps its CSV for the merge.
+        new: bytes.to_vec(),
+    }))
 }
 
 impl Plan {
@@ -789,13 +1098,33 @@ impl Plan {
         for item in &self.items {
             let go = match item.action {
                 Action::Keep => false,
-                Action::Add => true,
+                Action::Add | Action::Merge => true,
                 Action::Replace | Action::Skip => confirm(item),
             };
             if !go {
                 continue;
             }
-            if item.path == "prefs/desktop.json" {
+            if let Some(merge_with) = &item.merge_with {
+                let failed = || BundleError::Io {
+                    path: item.target.clone(),
+                };
+                match merge_with {
+                    MergeWith::History(account) => {
+                        // Again now: the restore may just have created the
+                        // configuration's folder.
+                        let store = history_store(&self.locations).ok_or_else(failed)?;
+                        store
+                            .import_csv(account, &item.new, true)
+                            .map_err(|_| failed())?;
+                    }
+                    MergeWith::Labels(labels) => {
+                        let index = self.cost_index.as_ref().ok_or_else(failed)?;
+                        CostIndex::new(index.clone())
+                            .import_labels(labels, true)
+                            .map_err(|_| failed())?;
+                    }
+                }
+            } else if item.path == "prefs/desktop.json" {
                 let result = crate::private_fs::update_locked(&item.target_path, |current| {
                     if current != item.current {
                         return Err(());

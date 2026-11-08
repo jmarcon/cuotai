@@ -1038,6 +1038,36 @@ fn sessions_and_projects_come_from_the_request_rows() {
 
     // A hidden project is listed but left out of the total.
     index.set_hidden(&prefix, true).unwrap();
+    // PRD 0046: the labels a backup carries come back where none is set.
+    let labels = index.labels().unwrap();
+    assert!(labels
+        .projects
+        .iter()
+        .any(|p| p.hidden && p.label.is_none()));
+    assert_eq!(labels.sessions.len(), 1);
+    let json = serde_json::to_string(&labels).unwrap();
+    assert!(!json.contains("folder"), "{json}");
+    index
+        .set_label(LabelTarget::Session, &newest.short, None)
+        .unwrap();
+    assert_eq!(index.import_labels(&labels, false).unwrap(), 1);
+    assert!(
+        index.session_labels().unwrap().is_empty(),
+        "a dry run writes nothing"
+    );
+    assert_eq!(index.import_labels(&labels, true).unwrap(), 1);
+    assert_eq!(index.import_labels(&labels, true).unwrap(), 0);
+    let mut foreign = labels.clone();
+    foreign.sessions[0].session = "ffff0000".into();
+    foreign.projects.clear();
+    index
+        .set_label(LabelTarget::Session, &newest.short, None)
+        .unwrap();
+    assert_eq!(
+        index.import_labels(&foreign, true).unwrap(),
+        0,
+        "unknown sessions are skipped"
+    );
     let projects = f.scanner.projects(&pricing, span, now()).unwrap();
     assert_eq!(projects.hidden, 1);
     assert_eq!(projects.projects.len(), 2);

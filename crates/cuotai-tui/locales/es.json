@@ -585,5 +585,8 @@
   "channels.cli.unavailable": "Los canales no están disponibles aquí (sin carpeta de configuración o sin TLS).",
   "channels.cli.test_ok": "Enviado: {host} respondió {status}.",
   "channels.cli.test_failed": "No enviado: {host} ({reason}).",
-  "channels.cli.log_empty": "Ninguna entrega en los últimos 7 días."
+  "channels.cli.log_empty": "Ninguna entrega en los últimos 7 días.",
+  "cli.backup.history_large": "La copia guarda {size} MiB de historial; puede tardar en copiarse.",
+  "cli.restore.merge": "fusionar",
+  "cli.restore.rows": "filas: {rows}, nuevas aquí: {new}"
 }

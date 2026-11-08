@@ -101,6 +101,13 @@ export const DESKTOP_WORDING = {
   "user_session.migrate.env_missing": w("coreText.migrateUnavailable", "The session set up in the terminal is not available to the app."),
   "user_session.migrate.nothing": w("coreText.migrateNothing", "This account has no session to move."),
   "secret_input.state.environment": w("dialog.secret.terminal", "Key set up in the terminal"),
+  // PRD 0046: the setup check and the restore's next steps, in the desktop's words.
+  "doctor.account.env_set": w("coreText.doctorKeyTerminal", "Its key is set up in the terminal."),
+  "doctor.account.env_missing": w("coreText.doctorKeyMissing", "No key is saved for this account."),
+  "doctor.account.default_env_missing": w("coreText.doctorNoKey", "No key is saved for this account; ignore this if it signs in another way."),
+  "doctor.fix.set_env": w("coreText.doctorFixKey", "Open the account in Edit and type its key; Cuotai keeps it in the system vault."),
+  "doctor.fix.tool": TOOL_MISSING,
+  "bundle.need.env": w("coreText.restoreKey", "Type the key of account {number} ({provider}) again."),
   // Sign-in.
   "oauth_error.config.client_secret_name_only": LOGIN_SECRET,
   "oauth_error.google.client_secret_env_empty": LOGIN_SECRET,

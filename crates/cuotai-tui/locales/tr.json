@@ -588,5 +588,8 @@
   "channels.cli.unavailable": "Kanallar burada kullanılamıyor (yapılandırma klasörü veya TLS yok).",
   "channels.cli.test_ok": "Gönderildi: {host} {status} yanıtını verdi.",
   "channels.cli.test_failed": "Gönderilmedi: {host} ({reason}).",
-  "channels.cli.log_empty": "Son 7 günde teslimat yok."
+  "channels.cli.log_empty": "Son 7 günde teslimat yok.",
+  "cli.backup.history_large": "Yedek {size} MiB geçmiş içeriyor; kopyalanması yavaş olabilir.",
+  "cli.restore.merge": "birleştir",
+  "cli.restore.rows": "satır: {rows}, burada yeni: {new}"
 }

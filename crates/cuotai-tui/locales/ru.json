@@ -588,5 +588,8 @@
   "channels.cli.unavailable": "Каналы здесь недоступны (нет папки конфигурации или нет TLS).",
   "channels.cli.test_ok": "Отправлено: {host} ответил {status}.",
   "channels.cli.test_failed": "Не отправлено: {host} ({reason}).",
-  "channels.cli.log_empty": "За последние 7 дней доставок не было."
+  "channels.cli.log_empty": "За последние 7 дней доставок не было.",
+  "cli.backup.history_large": "Резервная копия содержит {size} МиБ истории; копирование может занять время.",
+  "cli.restore.merge": "объединить",
+  "cli.restore.rows": "строк: {rows}, новых здесь: {new}"
 }

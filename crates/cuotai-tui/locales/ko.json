@@ -588,5 +588,8 @@
   "channels.cli.unavailable": "여기서는 채널을 사용할 수 없습니다(구성 폴더 또는 TLS 없음).",
   "channels.cli.test_ok": "전송됨: {host}이(가) {status}(으)로 응답했습니다.",
   "channels.cli.test_failed": "전송 안 됨: {host} ({reason}).",
-  "channels.cli.log_empty": "지난 7일 동안 전달 내역이 없습니다."
+  "channels.cli.log_empty": "지난 7일 동안 전달 내역이 없습니다.",
+  "cli.backup.history_large": "백업에 {size} MiB의 기록이 들어 있어 복사가 느릴 수 있습니다.",
+  "cli.restore.merge": "병합",
+  "cli.restore.rows": "행: {rows}, 여기서 새 항목: {new}"
 }

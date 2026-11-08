@@ -235,7 +235,8 @@ for (const { code } of i18n.LOCALES) {
   // PRD 0035 RF9.1: Hindi and Indonesian run longer than English in words (separate particles and
   // postpositions) but short per word, so their page-text budget counts 10 % more words.
   const wordy = { "hi-IN": 1.1, "id-ID": 1.1 }[code] ?? 1;
-  assert.ok(total <= Math.round(505 * wordy) * (SYLLABLE_FACTOR[code] ?? 1), `${code}: ${total} words shown across the pages`);
+  // Budget 505 -> 515: PRD 0046 adds the Backup and restore row (two buttons and the recipes link) to Files.
+  assert.ok(total <= Math.round(515 * wordy) * (SYLLABLE_FACTOR[code] ?? 1), `${code}: ${total} words shown across the pages`);
   // PRD 0032 RF2.3/RF7.1: the quiet-hours row (with its search keywords) and its weekday editor, and the private
   // switch, render translated: seven weekday rows, labelled time fields, "Same every day", up to three intervals.
   const alertsPage = rendered.get("alerts");

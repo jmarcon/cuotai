@@ -259,6 +259,8 @@ impl Skew {
 struct SkewState {
     warning: Option<Skew>,
     agreeing: u8,
+    /// A valid server date was compared at least once.
+    observed: bool,
 }
 
 /// RF7: the server-clock observer. One per process ([`clock_skew`]);
@@ -300,6 +302,7 @@ impl ClockSkew {
         };
         let offset = (received_at - server).num_seconds();
         let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        state.observed = true;
         if offset.unsigned_abs() > SKEW_THRESHOLD.as_secs() {
             let skew = Skew {
                 direction: if offset > 0 {
@@ -336,6 +339,15 @@ impl ClockSkew {
                 logging::event(Level::Info, "network.clock_skew_cleared", &[]);
             }
         }
+    }
+
+    /// PRD 0046 RF4.1: whether any valid server date was compared yet (so
+    /// no warning means the clocks agree, not that nothing was seen).
+    pub fn observed(&self) -> bool {
+        self.state
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .observed
     }
 
     /// The current warning, if any.

@@ -81,7 +81,7 @@ Uninstalling removes the application or binary only. Your configuration (`<OS co
 | `pacman -R cuotai-bin` | packaged files (`/usr/bin/Cuotai`, ...) | `~/.config/cuotai`, `~/.local/share/cuotai`, Secret Service entries |
 | `cargo uninstall cuotai-tui` | `~/.cargo/bin/cuotai` | everything else |
 
-Before you erase anything or move to another computer, `cuotai --backup FILE` keeps your accounts file, hook rules, preferences, prices and user themes and languages in one `.cuotai-backup.zip`. It never contains a secret: no vault entry, token, server token, cost index, extension or log, and it refuses to write when a file looks like it holds a key. `cuotai --restore FILE` puts it back on any OS and lists the variables and sign-ins to redo (see [the backup and restore commands](advanced.md#backup-restore-and-self-check)).
+Before you erase anything or move to another computer, `cuotai --backup FILE` keeps your accounts file, hook rules, preferences, prices and user themes and languages in one `.cuotai-backup.zip`. It never contains a secret: no vault entry, token, server token, cost index, extension or log, and it refuses to write when a file looks like it holds a key. `--with-history` adds the last 90 days of history. `cuotai --restore FILE` puts it back on any OS and lists the variables and sign-ins to redo (see [the backup and restore commands](advanced.md#backup-restore-and-self-check)). The desktop does the same from **Settings › Advanced › Files › Backup and restore**, and offers **Restore from a backup** on its first screen.
 
 To also erase your data, remove it yourself (after quitting Cuotai):
 

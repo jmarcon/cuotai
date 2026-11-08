@@ -55,6 +55,7 @@ pub(crate) fn app_info() -> AppInfo {
 
 pub async fn run(
     config: &Config,
+    config_path: &std::path::Path,
     name: &str,
     session: Arc<OAuthSession>,
 ) -> Result<u8, Box<dyn std::error::Error>> {
@@ -82,7 +83,12 @@ pub async fn run(
             ),
         },
         &app_info(),
-    );
+    )
+    // PRD 0046 RF4.4: the setup check's problems, by id only.
+    .with_setup_check(&crate::doctor::report_for(
+        Some(config_path.to_path_buf()),
+        "en-US",
+    ));
     print!("{}", render(&draft, report.status == Status::Ready));
     Ok(0)
 }

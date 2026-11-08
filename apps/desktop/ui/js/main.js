@@ -10,6 +10,7 @@ import { mountStats } from "./stats.js";
 import { mountTimeline } from "./timeline.js";
 import { bindUpdateBanner, initUpdates, onUpdateState, promptForUpdateConsent, updateBannerHtml, updateState } from "./updater.js";
 import { maybeShowFirstRun } from "./first-run.js";
+import { openRestoreDialog } from "./backup-dialog.js";
 import {
   fmtNext, fmtAge, ALERTS, overageChipHtml, overageLineHtml, ageHtml, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isBindingMetric, isBlocked, isDesktop, isStaleReading, level, logo, wordmark,
   moveAccount, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
@@ -180,7 +181,7 @@ function card(r, ctx, recharging = false, { connection = false } = {}) {
     </div>
     <div class="summary">${stale
       ? `<div class="stale-reading">${summaryHtml(staleView(r), true)}</div><p class="sum-note cause">${icon("warn")}<span>${esc(causeText(r))}</span></p>`
-      : summaryHtml(r)}${pasteSessionHtml(r)}${st.kind === "exhausted" && !billingOverage(r) ? "" : statusLineHtml(r, st, { compact: false, reset: false })}${stale ? "" : scopeBlocksHtml(r)}${liveSessionHtml(r)}${bestChipHtml(r) ? `<div class="card-chips">${bestChipHtml(r)}</div>` : ""}${stale || billingOverage(r) ? "" : overageLineHtml(r)}${incidentHtml(r)}${accessHtml(r)}${costFoldHtml(r)}</div>
+      : summaryHtml(r)}${pasteSessionHtml(r)}${checkSetupHtml(r)}${st.kind === "exhausted" && !billingOverage(r) ? "" : statusLineHtml(r, st, { compact: false, reset: false })}${stale ? "" : scopeBlocksHtml(r)}${liveSessionHtml(r)}${bestChipHtml(r) ? `<div class="card-chips">${bestChipHtml(r)}</div>` : ""}${stale || billingOverage(r) ? "" : overageLineHtml(r)}${incidentHtml(r)}${accessHtml(r)}${costFoldHtml(r)}</div>
     <div class="card-foot">${foot}<span class="grow"></span>
       ${changeMarkHtml(key)}<button class="btn ghost sm details-link" data-details="${esc(key)}">${te("card.details")}${icon("chev")}</button>
     </div>
@@ -241,6 +242,10 @@ function aggregatorSection(r, ctx) {
 /** PRD 0047 G1: a note asking for a web session gets "Connect session", which opens the same paste box. */
 const pasteSessionHtml = (r) => (sessionAction(r)
   ? `<button type="button" class="btn" data-paste-session="${r.index}">${icon("edit")}<span>${te(sessionAction(r) === "paste" ? "card.pasteSession" : "card.connectSession")}</span></button>` : "");
+
+/** PRD 0046 RF4.4 (DS-CMP-DOC-1): a "Needs setup" card links the setup check, which names the cause and its fix. */
+const checkSetupHtml = (r) => (r.status === "needs_configuration"
+  ? `<button type="button" class="link" data-settings="files" data-settings-anchor="doctor">${icon("wrench")}<span>${te("card.checkSetup")}</span></button>` : "");
 
 /** Account with no report yet ("Waiting"): skeleton with shimmer until the data arrives (RF2.3). */
 const skeleton = (index) => `<section class="card skeleton" data-card="skeleton:${index}" aria-busy="true">
@@ -529,7 +534,7 @@ function render() {
       view.serve.cuotai_on_port ? ` ${te("settings.serve.cuotaiOnPort", { port: view.serve.port })}` : ""} <button class="link" data-settings="integrations" data-settings-anchor="serve">${te("serve.bannerOpen")}</button></div>` : ""}
     ${["unconfirmed", "invalid"].includes(view?.hooks?.state) ? `<div class="banner bad" role="status" data-hooks-banner>${icon("warn")} ${te(`hooks.banner.${view.hooks.state}`)} <button class="link" data-settings="integrations" data-settings-anchor="hooks">${te("serve.bannerOpen")}</button></div>` : ""}
     ${!view && !error ? `<div class="empty">${te("common.loading")}</div>` : ""}${view && !view.loaded && !error && !waiting.length ? `<div class="empty">${te("common.querying")}</div>` : ""}
-    ${view && view.loaded && !reports.length ? `<div class="empty empty-state">${icon("plus")}<p>${te("account.empty")}</p><button class="btn primary" data-add>${te("common.add")}</button><small>${esc(configLabel(view))}</small></div>` : ""}
+    ${view && view.loaded && !reports.length ? `<div class="empty empty-state">${icon("plus")}<p>${te("account.empty")}</p><div class="dlg-actions"><button class="btn" data-restore-backup>${te("firstrun.restore")}</button><button class="btn primary" data-add>${te("common.add")}</button></div><small>${esc(configLabel(view))}</small></div>` : ""}
     ${view && view.loaded && reports.length && !sorted.length ? `<div class="empty empty-state"><p>${te("filter.none")}</p><button class="btn outline" data-clear-filters>${te("tray.showAll")}</button></div>` : ""}
     ${statsPage ? `<main class="stats-page" data-stats-page>
       <div class="stats-back"><button type="button" class="btn" data-stats-back>${icon("back")}<span>${te("stats.back")}</span></button></div>
@@ -589,6 +594,9 @@ root.addEventListener("click", (e) => {
   if (t.closest("[data-stats-toggle]")) return setPage(page === "stats" ? "grid" : "stats");
   if (t.closest("[data-stats-back]")) return setPage("grid");
   if (t.closest("[data-add]")) return openAccountDialog(null, { onSaved, onExtension: (id) => openExtensionManager(id) });
+  // PRD 0046 RF3.3: the first run offers a restore before the first account.
+  const restore = t.closest("[data-restore-backup]");
+  if (restore) return openRestoreDialog(restore, { onOpenAccount: (index) => editAccount(index) });
   const paste = t.closest("[data-paste-session]");
   if (paste) return pasteSession(Number(paste.dataset.pasteSession));
   const settings = t.closest("[data-settings]");

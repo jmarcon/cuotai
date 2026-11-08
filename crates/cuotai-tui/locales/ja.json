@@ -588,5 +588,8 @@
   "channels.cli.unavailable": "ここではチャンネルを利用できません（設定フォルダーまたは TLS がありません）。",
   "channels.cli.test_ok": "送信しました: {host} が {status} を返しました。",
   "channels.cli.test_failed": "送信できませんでした: {host}（{reason}）。",
-  "channels.cli.log_empty": "過去 7 日間に配信はありません。"
+  "channels.cli.log_empty": "過去 7 日間に配信はありません。",
+  "cli.backup.history_large": "バックアップには {size} MiB の履歴が含まれます。コピーに時間がかかる場合があります。",
+  "cli.restore.merge": "統合",
+  "cli.restore.rows": "行: {rows}、ここでの新規: {new}"
 }

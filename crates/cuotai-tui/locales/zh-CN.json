@@ -588,5 +588,8 @@
   "channels.cli.unavailable": "此处无法使用渠道（没有配置文件夹或没有 TLS）。",
   "channels.cli.test_ok": "已发送：{host} 返回 {status}。",
   "channels.cli.test_failed": "未发送：{host}（{reason}）。",
-  "channels.cli.log_empty": "过去 7 天内没有投递。"
+  "channels.cli.log_empty": "过去 7 天内没有投递。",
+  "cli.backup.history_large": "备份包含 {size} MiB 的历史记录；复制可能较慢。",
+  "cli.restore.merge": "合并",
+  "cli.restore.rows": "行：{rows}，此处新增：{new}"
 }

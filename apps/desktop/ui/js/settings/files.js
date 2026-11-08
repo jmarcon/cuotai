@@ -3,12 +3,13 @@
 import { te, tl } from "../i18n.js";
 import { THEMES } from "../themes.js";
 import { LOCALES, skippedMessage, userContent } from "../usercontent.js";
-import { brand, configLabel, doctorReport, esc, icon, openUserDir, otherConfigNotice, pickFolder, pickTomlFile, setConfigFile, setDataDir, setUserDir, vaultAudit, vaultPrune } from "../lib.js";
+import { BACKUP_GUIDE_URL, brand, configLabel, doctorReport, esc, icon, openExternal, openUserDir, otherConfigNotice, pickFolder, pickTomlFile, setConfigFile, setDataDir, setUserDir, vaultAudit, vaultPrune } from "../lib.js";
+import { openBackupDialog, openRestoreDialog } from "../backup-dialog.js";
 import { configErrorText, errorText, group } from "./common.js";
 import { buttons, disc, pathHtml, row } from "./rows.js";
 
 // The last failure of each group, shown once by the next paint.
-const flash = { config: "", folder: "", datadir: "", credentials: "", doctor: "" };
+const flash = { config: "", folder: "", datadir: "", credentials: "", doctor: "", backup: "" };
 const take = (key) => { const text = flash[key]; flash[key] = ""; return text; };
 
 export function html({ settings: s, view }) {
@@ -39,11 +40,16 @@ export function html({ settings: s, view }) {
   // PRD 0029 RF6.2: what Cuotai stored in the system vault, filled in by `bind` (never a value).
   const vaultRowHtml = row({ key: "vault", attrs: 'data-section="credentials"', label: te("settings.vault.title"), info: te("settings.vault.help"), msg: "vault-msg",
     body: `<div data-vault aria-live="polite"><p class="hint">${te("settings.vault.loading")}</p></div>` });
+  // PRD 0046 RF2.1/RF3.3/RF5.2: a secret-free backup of these settings, its restore, and the recipes.
+  const backupRowHtml = row({ key: "backup", attrs: 'data-section="backup"', label: te("settings.backup.title"), info: te("settings.backup.help"), msg: "backup-msg",
+    control: () => buttons(`<button class="btn sm" data-backup>${icon("download")} ${te("settings.backup.backup")}</button>`,
+      `<button class="btn sm" data-restore>${te("settings.backup.restore")}</button>`),
+    body: `<p class="hint"><button class="link" data-backup-guide>${te("settings.backup.guide")} ${icon("ext")}</button></p>` });
   // PRD 0046 RF4.4: the core's self-check, run on demand and listed by status with each fix.
   const doctorRowHtml = row({ key: "doctor", attrs: 'data-section="doctor"', label: te("settings.doctor.title"), info: te("settings.doctor.help"), msg: "doctor-msg",
     control: () => buttons(`<button class="btn sm" data-doctor-run>${te("settings.doctor.run")}</button>`),
     body: `<div data-doctor aria-live="polite"></div>` });
-  return group("config", "", configRow + folderRow + dataDirRow + vaultRowHtml + doctorRowHtml);
+  return group("config", "", configRow + folderRow + dataDirRow + vaultRowHtml + backupRowHtml + doctorRowHtml);
 }
 
 /** One indexed entry: what uses it (or that nothing does) and since when. */
@@ -79,7 +85,7 @@ export function doctorHtml(report) {
 export function bind(root, ctx) {
   const s = ctx.settings;
   // A failure is shown in its row after the repaint (RF4.3).
-  for (const [key, id] of [["config", "#config-msg"], ["folder", "#folder-msg"], ["datadir", "#datadir-msg"], ["credentials", "#vault-msg"], ["doctor", "#doctor-msg"]]) root.querySelector(id).textContent = take(key);
+  for (const [key, id] of [["config", "#config-msg"], ["folder", "#folder-msg"], ["datadir", "#datadir-msg"], ["credentials", "#vault-msg"], ["backup", "#backup-msg"], ["doctor", "#doctor-msg"]]) root.querySelector(id).textContent = take(key);
   const fail = (key, text) => { flash[key] = text; ctx.rerender(); };
   root.querySelector("[data-open-dir]").onclick = () => openUserDir().catch((e) => fail("folder", errorText(e)));
   const apply = async (path) => {
@@ -124,10 +130,18 @@ export function bind(root, ctx) {
     };
   }).catch((e) => { vault.innerHTML = `<p class="hint warn-txt">${esc(errorText(e))}</p>`; });
   showVault();
+  const backupButton = root.querySelector("[data-backup]");
+  backupButton.onclick = () => openBackupDialog(backupButton);
+  const restoreButton = root.querySelector("[data-restore]");
+  restoreButton.onclick = () => openRestoreDialog(restoreButton);
+  root.querySelector("[data-backup-guide]").onclick = () => openExternal(BACKUP_GUIDE_URL).catch((e) => fail("backup", errorText(e)));
   const doctor = root.querySelector("[data-doctor]");
-  root.querySelector("[data-doctor-run]").onclick = async () => {
+  const runDoctor = async () => {
     doctor.innerHTML = `<p class="hint">${te("settings.doctor.running")}</p>`;
     try { doctor.innerHTML = doctorHtml(await doctorReport()); }
     catch (e) { doctor.innerHTML = `<p class="hint warn-txt">${esc(errorText(e))}</p>`; }
   };
+  root.querySelector("[data-doctor-run]").onclick = runDoctor;
+  // PRD 0046 RF4.4: arriving from a card's "Check setup" runs it at once.
+  if (ctx.anchor === "doctor") { ctx.anchor = null; return runDoctor(); }
 }

@@ -112,6 +112,8 @@ export const setExtensionSecret = (id, name, value) =>
 /** PRD 0035 RF11.5: where a machine-translated language asks for review; `TRANSLATION_GUIDE` in about.rs. */
 export const TRANSLATION_GUIDE_URL = "https://github.com/jmarcon/cuotai/blob/main/apps/desktop/ui/locales/README.md";
 export const EXTENSIONS_GUIDE_URL = "https://github.com/jmarcon/cuotai/blob/main/docs/extensions.md";
+/** PRD 0046 RF5.2: the backup recipes (`BACKUP_GUIDE` in about.rs, the only other copy). */
+export const BACKUP_GUIDE_URL = "https://github.com/jmarcon/cuotai/blob/main/docs/advanced.md#backup-restore-and-self-check";
 export const openExtensionsFolder = () => (isDesktop ? call("open_extensions_folder") : Promise.resolve());
 export const forgetExtensionSecrets = (id) => call("forget_extension_secrets", { id });
 export const formSchema = (provider) => call("form_schema", { provider });
@@ -141,6 +143,24 @@ export const vaultAudit = () => call("vault_audit");
 export const vaultPrune = () => call("vault_prune");
 /** PRD 0046 RF4.4: the core's read-only, offline self-check (statuses, details and fixes, never a value). */
 export const doctorReport = () => call("doctor_report");
+/** PRD 0046 RF2.1: what Back up… would write (files in, what stays out and why), then the write itself. */
+export const backupPreview = (withHistory) => call("backup_preview", { withHistory });
+export const backupWrite = (path, withHistory) => call("backup_write", { path, withHistory });
+/** PRD 0046 RF3.3: the restore plan of a backup file, and its application (`accept`: the replacements chosen). */
+export const restorePlan = (path) => call("restore_plan", { path });
+export const restoreApply = (path, accept) => call("restore_apply", { path, accept });
+/** PRD 0046 RF3.3: restart the app so restored settings apply. */
+export const restartApp = () => call("restart_app");
+/** Native save dialog for a backup, with the suggested name. */
+export async function pickBackupSave(defaultPath) {
+  if (isDesktop && T.dialog) return T.dialog.save({ defaultPath, filters: [{ name: "Cuotai backup", extensions: ["zip"] }] });
+  return `/Users/demo/${defaultPath}`; // navegador (demo)
+}
+/** Native open dialog for a backup file. */
+export async function pickBackupFile() {
+  if (isDesktop && T.dialog) return T.dialog.open({ multiple: false, directory: false, filters: [{ name: "Cuotai backup", extensions: ["zip"] }] });
+  return "/Users/demo/cuotai-backup-2026-11-07.cuotai-backup.zip"; // navegador (demo)
+}
 /** PRD 0016 RF2.2: what a paste keeps (names, counts, expiry), never the value. */
 export const previewSession = (provider, slot, paste) => call("preview_session", { provider, slot, paste });
 /** PRD 0016 RF2.1: one read-only query of the draft with its pasted sessions; nothing is stored. */
@@ -2044,6 +2064,20 @@ function demoChannelsView() {
     accounts: [{ id: "acc_demo_work", name: "Work" }, { id: "acc_demo_home", name: "Home" }], private: demoSettings.notify.private, log: demoChannelLog.slice(0, 30) };
 }
 
+/** PRD 0046 demo: what a backup of the demo profile would hold. */
+const demoBackup = (withHistory) => ({
+  files: [
+    { path: "config/cuotai.toml", sha256: "0".repeat(64), kind: "config" },
+    { path: "prefs/desktop.json", sha256: "1".repeat(64), kind: "desktop_settings" },
+    { path: "user/themes/night.css", sha256: "2".repeat(64), kind: "theme" },
+    ...(withHistory ? [{ path: "history/acc_demo00000001.csv", sha256: "3".repeat(64), kind: "history" }] : []),
+  ],
+  excluded: ["vault", "serve_token", "cost_index", "extensions", "logs"].map((item) => ({ id: `bundle.excluded.${item}`, params: {}, fallback: item })),
+  history_bytes: withHistory ? 48_000 : 0,
+  history_large: false,
+  default_name: "cuotai-backup-2026-11-07.cuotai-backup.zip",
+});
+
 const demo = {
   get_view: async () => demoView(),
   refresh_all: async () => {},
@@ -2162,6 +2196,25 @@ const demo = {
     { id: "cost_index", status: "skip", title: { id: "doctor.title.cost_index", params: {}, fallback: "Local cost index" },
       detail: { id: "doctor.state.absent", params: {}, fallback: "It has not been created yet." } },
   ] }),
+  backup_preview: async ({ withHistory }) => demoBackup(withHistory),
+  backup_write: async ({ withHistory }) => demoBackup(withHistory),
+  restore_plan: async () => ({
+    created_at: "2026-11-01T09:30:00Z", cuotai_version: "0.83.1",
+    items: [
+      { path: "config/cuotai.toml", target: "~/.config/cuotai/config.toml", action: "replace", accounts: { added: 1, changed: 1, removed: 0 } },
+      { path: "config/hooks.toml", target: "~/.config/cuotai/hooks.toml", action: "add" },
+      { path: "history/acc_demo00000001.csv", target: "history", action: "merge", merge: { rows: 120, new: 80 } },
+      { path: "prefs/desktop.json", target: "~/Library/Application Support/cuotai/desktop.json", action: "skip" },
+      { path: "user/themes/night.css", target: "~/.config/cuotai/themes/night.css", action: "keep" },
+    ],
+    needs: [
+      { id: "bundle.need.env", params: { number: 1, provider: "groq", variable: "GROQ_API_KEY" }, fallback: "Set {variable} for account {number} ({provider})." },
+      { id: "bundle.need.sign_in", params: { number: 2, provider: "claude" }, fallback: "Sign in again to account {number} ({provider})." },
+    ],
+    next_steps: [{ kind: "env", account: 0, provider: "groq" }, { kind: "sign_in", account: 1, provider: "claude" }],
+  }),
+  restore_apply: async ({ accept }) => ({ written: 2 + accept.length, restart: accept.includes("prefs/desktop.json") }),
+  restart_app: async () => location.reload(),
   vault_prune: async () => { const n = demoSettings.vaultPruned ? 0 : 1; demoSettings.vaultPruned = true; return n; },
   forget_session: async ({ index }) => {
     demoSettings.sessionForgotten.add(demoReports[index]);

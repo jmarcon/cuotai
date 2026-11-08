@@ -1,11 +1,13 @@
-//! PRD 0046 RF2/RF3/RF5: `cuotai --backup FILE` and `cuotai --restore FILE
-//! [--check] [--yes] [--only config|prefs|user]`, over the core's `bundle`.
+//! PRD 0046 RF2/RF3/RF5: `cuotai --backup FILE [--with-history]` and
+//! `cuotai --restore FILE [--check] [--yes] [--only
+//! config|prefs|user|history]`, over the core's `bundle`.
 //! `--restore FILE --check` is also the way to see what differs between a
 //! backup and this computer (RF5.1).
 
 use chrono::Utc;
 use cuotai_core::bundle::{self, Action, Bundle, BundleError, Locations, Part, Plan};
-use cuotai_core::config_file::{ConfigFile, Discovery};
+use cuotai_core::config_file::{ConfigFile, Discovery, PathSource, ResolvedPath};
+use cuotai_core::history::HistoryStore;
 use std::io::{self, BufRead, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 
@@ -25,6 +27,7 @@ pub(crate) fn backup(
     out: &Path,
     config: Option<PathBuf>,
     dev_store: bool,
+    with_history: bool,
     json: bool,
     locale: &str,
 ) -> io::Result<u8> {
@@ -35,16 +38,61 @@ pub(crate) fn backup(
     if dev_store {
         return fail(BundleError::DevStore);
     }
-    let bundle = match bundle::collect(
-        &locations(config),
-        Utc::now(),
+    let locations = locations(config);
+    let now = Utc::now();
+    // RF2.2: the history of the accounts as this computer names them.
+    let history = if with_history {
+        let file = ConfigFile::open(
+            ResolvedPath {
+                path: locations.config.clone(),
+                source: PathSource::Argument,
+            },
+            true,
+        );
+        let store = file
+            .as_ref()
+            .ok()
+            .and_then(|file| HistoryStore::in_data_dir(file).ok());
+        match (file, store) {
+            (Ok(file), Some(store)) => Some((file.config.accounts, store)),
+            _ => {
+                return fail(BundleError::Io {
+                    path: "history".into(),
+                })
+            }
+        }
+    } else {
+        None
+    };
+    let source = history
+        .as_ref()
+        .map(|(accounts, store)| bundle::HistorySource {
+            store,
+            accounts,
+            since: now - chrono::TimeDelta::days(bundle::HISTORY_DAYS),
+        });
+    let bundle = match bundle::collect_with(
+        &locations,
+        now,
         &cuotai_core::build_info::display_version(),
+        source,
     ) {
         Ok(bundle) => bundle,
         Err(error) => return fail(error),
     };
     if let Err(error) = bundle::write_file(out, &bundle.to_zip()) {
         return fail(error);
+    }
+    if bundle.history_bytes() > bundle::HISTORY_WARN_BYTES {
+        eprintln!(
+            "cuotai: {}",
+            l10n::trf_in(
+                locale,
+                "cli.backup.history_large",
+                "The backup holds {size} MiB of history; it may be slow to copy.",
+                &[("size", &(bundle.history_bytes() >> 20))],
+            )
+        );
     }
     let mut stdout = io::stdout().lock();
     if json {
@@ -86,6 +134,7 @@ fn action_label(action: Action, locale: &str) -> &'static str {
             "cli.restore.skip",
             "skip (changed here after the backup)",
         ),
+        Action::Merge => l10n::tr_in(locale, "cli.restore.merge", "merge"),
     }
 }
 
@@ -111,6 +160,16 @@ pub(crate) fn plan_text(plan: &Plan, file: &Path, locale: &str) -> String {
             item.path,
             item.target
         );
+        if let Some(merge) = &item.merge {
+            text += "             ";
+            text += &l10n::trf_in(
+                locale,
+                "cli.restore.rows",
+                "rows: {rows}, new here: {new}",
+                &[("rows", &merge.rows), ("new", &merge.new)],
+            );
+            text.push('\n');
+        }
         if let Some(accounts) = &item.accounts {
             text += "             ";
             text += &l10n::trf_in(

@@ -588,5 +588,8 @@
   "channels.cli.unavailable": "Les canaux sont indisponibles ici (pas de dossier de configuration ou pas de TLS).",
   "channels.cli.test_ok": "Envoyé : {host} a répondu {status}.",
   "channels.cli.test_failed": "Non envoyé : {host} ({reason}).",
-  "channels.cli.log_empty": "Aucune livraison ces 7 derniers jours."
+  "channels.cli.log_empty": "Aucune livraison ces 7 derniers jours.",
+  "cli.backup.history_large": "La sauvegarde contient {size} Mio d'historique ; sa copie peut être lente.",
+  "cli.restore.merge": "fusionner",
+  "cli.restore.rows": "lignes : {rows}, nouvelles ici : {new}"
 }
