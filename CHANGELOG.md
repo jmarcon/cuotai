@@ -13,6 +13,20 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.84.1] - 2026-11-08
+
+### Changed
+
+- The desktop app names providers the same way as the terminal and the menu bar, and NVIDIA NIM is spelled as the vendor spells it (PRD 0001 RF5; 19bee1e).
+
+### Fixed
+
+- Saving, removing or signing in to an account no longer changes a different account when the configuration file was edited elsewhere while the editor was open (PRD 0001 RF1, RF3; c18590a).
+- Configuration and sign-in errors are shown in the chosen language in the terminal and the desktop app (PRD 0001 RF8; 24a9330).
+- The account editors flag a refresh interval below the minimum of a provider billed per query on the interval field itself (PRD 0001 RF4, FIX-08; ec04735).
+- When switching how an account signs in replaces an option, the explanation now appears next to that option (PRD 0001 RF11; 81dd29a).
+- Account and channel names with symbols such as & are no longer shown with escape codes in some desktop messages (PRD 0001 RF8; 5db909d).
+
 ## [0.84.0] - 2026-11-08
 
 ### Added
@@ -574,7 +588,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.84.0...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.84.1...HEAD
+[0.84.1]: https://github.com/jmarcon/cuotai/compare/v0.84.0...v0.84.1
 [0.84.0]: https://github.com/jmarcon/cuotai/compare/v0.83.1...v0.84.0
 [0.83.1]: https://github.com/jmarcon/cuotai/compare/v0.83.0...v0.83.1
 [0.83.0]: https://github.com/jmarcon/cuotai/compare/v0.82.4...v0.83.0
