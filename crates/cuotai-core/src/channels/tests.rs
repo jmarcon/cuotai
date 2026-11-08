@@ -324,6 +324,36 @@ fn at_most_five_channels_and_a_later_schema_is_never_rewritten() {
     assert_eq!(std::fs::read_to_string(&later).unwrap(), r#"{"schema":2}"#);
 }
 
+/// An edit the preferences file refuses (here a later schema) leaves the
+/// vault as it was: the old address, no new signing key.
+#[test]
+fn a_failed_edit_restores_the_vault() {
+    let dir = tempfile::tempdir().unwrap();
+    let settings = dir.path().join("desktop.json");
+    let (store, vault) = memory();
+    let mut draft = Draft {
+        kind: ChannelKind::Webhook,
+        label: "Relay".into(),
+        filters: Filters::default(),
+        sign: false,
+    };
+    let old = "https://relay.example.com/old";
+    let channel = add(&settings, &vault, &draft, old, t0()).unwrap().channel;
+    let mut document: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&settings).unwrap()).unwrap();
+    document["schema"] = serde_json::json!(2);
+    std::fs::write(&settings, serde_json::to_vec(&document).unwrap()).unwrap();
+    draft.sign = true;
+    let new = "https://relay.example.com/new";
+    assert!(edit(&settings, &vault, &channel.id, &draft, Some(new)).is_err());
+    assert_eq!(vault.url(&channel).unwrap().expose().as_str(), old);
+    assert!(!store
+        .0
+        .lock()
+        .unwrap()
+        .contains_key(&Vault::secret_key(&channel.id)));
+}
+
 /// A hand-edited `desktop.json` entry whose id, label or host Cuotai
 /// would not have written is skipped, so it never reaches a vault key,
 /// an HTML attribute or the terminal.
