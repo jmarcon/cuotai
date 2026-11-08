@@ -1599,6 +1599,15 @@ fn live_lines(
     lines
 }
 
+/// The report's first note in the interface language (PRD 0035 RF5.1): the
+/// structured sidecar when present, the English fallback otherwise.
+fn first_note_text(report: &Report) -> Option<String> {
+    match report.notes_l10n.first() {
+        Some(note) => Some(resolve_l10n(note)),
+        None => report.notes.first().cloned(),
+    }
+}
+
 fn render_card(
     frame: &mut Frame,
     area: Rect,
@@ -1649,7 +1658,7 @@ fn render_card(
         explanation
             .clone()
             .or_else(|| report.and_then(aggregator_summary))
-            .or_else(|| report.and_then(|report| report.notes.first().cloned()))
+            .or_else(|| report.and_then(first_note_text))
     } else {
         None
     };
@@ -5651,6 +5660,47 @@ mod tests {
         assert!(!rows.contains("Resposta incompatível"));
         // A failure the descriptor does not explain keeps its own note.
         assert!(rows.contains("Falha de rede ou tempo limite"));
+    }
+
+    #[test]
+    fn card_note_follows_the_interface_language() {
+        let (mut accounts, _) = access_fixture();
+        accounts.truncate(1);
+        accounts[0].provider = Provider::Groq;
+        let note = cuotai_core::text::Localized::with_params(
+            "query.missing_credential",
+            cuotai_core::text::params([(
+                "name",
+                cuotai_core::text::ParamValue::from("CUOTAI_FIXTURE_UNSET"),
+            )]),
+            "Missing credential: {name}.",
+        );
+        let reports = vec![Some(Report {
+            provider: Provider::Groq,
+            notes: vec![note.fallback.to_string()],
+            notes_l10n: vec![note],
+            ..report(Status::NeedsConfiguration, Vec::new())
+        })];
+        let card = |locale| render_for_test(&accounts, &reports, &[], &[0], at_min(0), locale);
+        let pt = card("pt-BR");
+        assert!(
+            pt.contains("Credencial ausente: CUOTAI_FIXTURE_UNSET"),
+            "{pt}"
+        );
+        assert!(!pt.contains("Missing credential"), "{pt}");
+        let en = card("en-US");
+        assert!(
+            en.contains("Missing credential: CUOTAI_FIXTURE_UNSET."),
+            "{en}"
+        );
+        // A report without the sidecar keeps the plain note.
+        let plain = vec![Some(Report {
+            provider: Provider::Groq,
+            notes: vec!["plain adapter note".into()],
+            ..report(Status::NeedsConfiguration, Vec::new())
+        })];
+        let pt = render_for_test(&accounts, &plain, &[], &[0], at_min(0), "pt-BR");
+        assert!(pt.contains("plain adapter note"), "{pt}");
     }
 
     #[test]
