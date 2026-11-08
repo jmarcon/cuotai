@@ -1179,3 +1179,32 @@ fn the_log_keeps_seven_days() {
     log.prune(t0());
     assert_eq!(log.read().len(), 2);
 }
+
+/// A log grown past the size it is read at is cut to its newest lines
+/// when pruned, so it is readable again and never grows without end.
+#[test]
+fn an_oversized_log_is_cut_to_its_newest_lines() {
+    let dir = tempfile::tempdir().unwrap();
+    let log = DeliveryLog::at(dir.path().join("log.jsonl"));
+    let entry = |attempt: u8| log::Entry {
+        at: t0() - TimeDelta::minutes(1),
+        channel: "0123456789abcdef".into(),
+        kind: "threshold".into(),
+        outcome: LogOutcome::Delivered,
+        status: Some(200),
+        attempt,
+        error: None,
+    };
+    let mut line = serde_json::to_vec(&entry(1)).unwrap();
+    line.push(b'\n');
+    let copies = (9 * 1024 * 1024) / line.len() + 1;
+    std::fs::write(log.path(), line.repeat(copies)).unwrap();
+    log.append(&entry(2));
+    assert!(log.read().is_empty(), "too large to read");
+    log.prune(t0());
+    let size = std::fs::metadata(log.path()).unwrap().len();
+    assert!(size <= 4 * 1024 * 1024, "{size}");
+    let entries = log.read();
+    assert!(!entries.is_empty());
+    assert_eq!(entries.last().unwrap().attempt, 2, "the newest line stays");
+}
