@@ -886,21 +886,39 @@ pub fn edit(
         ));
     }
     let valid = url.map(|url| validate_url(draft.kind, url)).transpose()?;
-    if let Some(valid) = &valid {
-        vault.put(&Vault::url_key(id), valid.expose().as_str())?;
-    }
     let sign = draft.sign && draft.kind == ChannelKind::Webhook;
-    let signing_secret = if sign && !current.signed {
+    let new_secret = sign && !current.signed;
+    // As `add` does: a failed edit leaves the vault as it found it.
+    let (url_key, secret_key) = (Vault::url_key(id), Vault::secret_key(id));
+    let previous_url = valid.as_ref().map(|_| vault.get(&url_key)).transpose()?;
+    let previous_secret = new_secret.then(|| vault.get(&secret_key)).transpose()?;
+    let restore = || {
+        for (key, previous) in [(&url_key, &previous_url), (&secret_key, &previous_secret)] {
+            match previous {
+                Some(Some(value)) => {
+                    let _ = vault.put(key, value);
+                }
+                Some(None) => {
+                    let _ = vault.0.delete(key);
+                }
+                None => {}
+            }
+        }
+    };
+    if let Some(valid) = &valid {
+        vault.put(&url_key, valid.expose().as_str())?;
+    }
+    let signing_secret = if new_secret {
         let secret = generate_secret();
-        vault.put(&Vault::secret_key(id), &secret)?;
+        if let Err(error) = vault.put(&secret_key, &secret) {
+            restore();
+            return Err(error);
+        }
         Some(secret)
     } else {
         None
     };
-    if !sign && current.signed {
-        let _ = vault.0.delete(&Vault::secret_key(id));
-    }
-    mutate(path, |channels| {
+    let saved = mutate(path, |channels| {
         let channel = channels
             .iter_mut()
             .find(|channel| channel.id == id)
@@ -915,7 +933,21 @@ pub fn edit(
             channel: channel.clone(),
             signing_secret,
         })
-    })
+    });
+    match saved {
+        Ok(saved) => {
+            // Signing turned off: the key goes once the channel no longer
+            // needs it.
+            if !sign && current.signed {
+                let _ = vault.0.delete(&secret_key);
+            }
+            Ok(saved)
+        }
+        Err(error) => {
+            restore();
+            Err(error)
+        }
+    }
 }
 
 /// RF4.3: turn a channel on or off (no dialog).
