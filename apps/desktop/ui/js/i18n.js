@@ -260,14 +260,17 @@ function isL10n(value) {
 }
 
 /** Substitute `{name}` placeholders in a translated template. Values may be
- *  strings or nested RF8 notes, which are resolved recursively. */
+ *  strings or nested RF8 notes, which are resolved recursively with their own
+ *  parameters only (an outer parameter never overrides a nested one), escaped
+ *  once by that inner call when `escape` is set. */
 function substitute(template, vars, escape) {
   return template.replace(/\{(\w+)\}/g, (m, n) => {
     if (!(n in vars)) return m;
     const v = vars[n];
     if (v == null) return "";
     if (isL10n(v)) {
-      return escape ? esc(tl(v, vars, true)) : tl(v, vars, true);
+      // PRD 0001 re-validation (L5): one escape, the nested note's own parameters.
+      return tl(v, {}, escape);
     }
     return escape ? esc(String(v)) : String(v);
   });

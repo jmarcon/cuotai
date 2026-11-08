@@ -154,3 +154,13 @@ console.log("PASS: desktop plural texts render every RF13.3 count in every langu
   await i18n.setLocale("en-US");
 }
 console.log("PASS: the pace margin reads in the UI language");
+
+// PRD 0001 re-validation (L5): a nested RF8 note is resolved with its own parameters and escaped once.
+{
+  const nested = { id: "test.l5.outer", params: { a: { id: "test.l5.inner", params: { name: "R&D" }, fallback: "{name}" }, name: "outer" }, fallback: "[{a}]" };
+  assert.equal(i18n.tle(nested), "[R&amp;D]", "escaped once in HTML");
+  assert.equal(i18n.tl(nested), "[R&D]", "plain text keeps the raw value");
+  const clash = { id: "test.l5.clash", params: { a: { id: "test.l5.inner2", params: { name: "inner" }, fallback: "{name}" }, name: "outer" }, fallback: "{a}/{name}" };
+  assert.equal(i18n.tl(clash), "inner/outer", "an outer parameter never overrides the nested note's own");
+}
+console.log("PASS: nested notes keep their own parameters and one escape");
