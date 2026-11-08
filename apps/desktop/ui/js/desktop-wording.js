@@ -107,6 +107,10 @@ export const DESKTOP_WORDING = {
   "doctor.account.default_env_missing": w("coreText.doctorNoKey", "No key is saved for this account; ignore this if it signs in another way."),
   "doctor.fix.set_env": w("coreText.doctorFixKey", "Open the account in Edit and type its key; Cuotai keeps it in the system vault."),
   "doctor.fix.tool": TOOL_MISSING,
+  // PRD 0052 RF3: the proxy check names the variable that sets the proxy.
+  "doctor.proxy.none": w("coreText.doctorProxyNone", "No proxy is set: requests go direct."),
+  "doctor.proxy.proxied": w("coreText.doctorProxied", "HTTPS requests go through a proxy."),
+  "doctor.fix.proxy": w("coreText.doctorFixProxy", "Fix the proxy address set on this computer, then restart Cuotai."),
   "bundle.need.env": w("coreText.restoreKey", "Type the key of account {number} ({provider}) again."),
   // Sign-in.
   "oauth_error.config.client_secret_name_only": LOGIN_SECRET,
