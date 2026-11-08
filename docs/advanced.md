@@ -30,7 +30,8 @@ cuotai --config cuotai.toml --check-config
 cuotai --list-providers --json
 
 # Export the local history (CSV or JSON; one account with --history, the last
-# N days with --history-days), or erase it after a typed confirmation
+# N days with --history-days), or erase it after a typed confirmation (erasing
+# also removes the history.sqlite3.bak copy a migration or a history move left)
 cuotai --history-export history.csv --history-format csv [--history ACCOUNT] [--history-days 30]
 cuotai --history-erase ACCOUNT    # or: --history-erase all; --yes skips the question
 

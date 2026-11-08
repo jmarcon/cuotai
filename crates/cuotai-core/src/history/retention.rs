@@ -593,12 +593,26 @@ impl HistoryStore {
         Ok(rows)
     }
 
+    /// The `history.sqlite3.bak` a migration or a relocation left: a full
+    /// copy of the history as it was, so erasing removes it too.
+    fn remove_backup(&self) -> Result<(), HistoryError> {
+        match std::fs::remove_file(crate::private_fs::backup_path(&self.path)) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(_) => Err(HistoryError::Storage),
+        }
+    }
+
     /// RF4.4: erase the history of `account` in this configuration, plus the
     /// series of this configuration already marked removed (orphans).
     /// Deleted content is overwritten (`secure_delete`) and the WAL is
-    /// truncated. Returns the samples removed; never creates the file.
+    /// truncated. The `.bak` copy a migration or relocation left is
+    /// removed too: it holds every account, so no copy of the erased one
+    /// survives (the others lose that rollback copy, not their history).
+    /// Returns the samples removed; never creates the file.
     pub fn erase_account(&self, account: &Account) -> Result<usize, HistoryError> {
         let Some(mut db) = self.open_existing()? else {
+            self.remove_backup()?;
             return Ok(0);
         };
         db.pragma_update(None, "secure_delete", true)?;
@@ -624,22 +638,27 @@ impl HistoryStore {
         drop_orphan_series(&tx)?;
         tx.commit()?;
         db.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")?;
+        self.remove_backup()?;
         Ok(removed)
     }
 
     /// RF4.4: erase the whole history file (every configuration on this
     /// device), then rewrite it (`VACUUM`) and truncate the WAL so nothing
-    /// of it stays on disk. Returns the samples removed; never creates the
-    /// file.
+    /// of it stays on disk; the `.bak` copy a migration or relocation left
+    /// is removed. Returns the samples removed; never creates the file.
     pub fn erase_all(&self) -> Result<usize, HistoryError> {
         let Some(mut db) = self.open_existing()? else {
+            self.remove_backup()?;
             return Ok(0);
         };
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let removed = tx.execute("DELETE FROM samples", [])?;
-        tx.execute_batch("DELETE FROM series; DELETE FROM meta; DELETE FROM journal;")?;
+        tx.execute_batch(
+            "DELETE FROM series; DELETE FROM meta; DELETE FROM journal; DELETE FROM aliases;",
+        )?;
         tx.commit()?;
         db.execute_batch("VACUUM; PRAGMA wal_checkpoint(TRUNCATE);")?;
+        self.remove_backup()?;
         Ok(removed)
     }
 
@@ -1073,6 +1092,42 @@ mod tests {
             Ok(0)
         );
         assert!(!dir.path().join("absent.sqlite3").exists());
+    }
+
+    #[test]
+    fn erasing_removes_the_backup_copy_a_migration_left() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("history.sqlite3");
+        let bak = crate::private_fs::backup_path(&db);
+        let history = store(&db, "one");
+        let alpha = first_account(config(CONFIG));
+        history
+            .record(&alpha, t0(), &[quota("5h", Some(1.0), None)])
+            .unwrap();
+        // The copy a migration or a relocation writes beside the file.
+        crate::private_fs::sqlite_backup(&Connection::open(&db).unwrap(), &db).unwrap();
+        assert!(bak.exists());
+        assert_eq!(history.erase_account(&alpha), Ok(1));
+        assert!(!bak.exists(), "no copy of the erased account survives");
+
+        history
+            .record(&alpha, t0(), &[quota("5h", Some(2.0), None)])
+            .unwrap();
+        crate::private_fs::sqlite_backup(&Connection::open(&db).unwrap(), &db).unwrap();
+        assert_eq!(history.erase_all(), Ok(1));
+        assert!(!bak.exists());
+        let aliases: i64 = Connection::open(&db)
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM aliases", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(aliases, 0);
+
+        // A copy left beside a history file that is already gone goes too.
+        std::fs::remove_file(&db).unwrap();
+        std::fs::write(&bak, "old copy").unwrap();
+        assert_eq!(history.erase_all(), Ok(0));
+        assert!(!bak.exists());
+        assert!(!db.exists(), "never created");
     }
 
     #[test]
