@@ -73,6 +73,14 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       ? ((schema.login?.modes ?? []).find((m) => !m.unavailable_reason)?.id ?? "credential")
       : "credential");
   let visible = new Set();
+  // PRD 0001 re-validation (L2): the interval placeholder follows the core's bounds for the provider (a provider
+  // billed per query has its own default and minimum).
+  const intervalPlaceholder = () => {
+    const bounds = schema?.interval;
+    return bounds?.default_seconds != null
+      ? t("dialog.intervalPlaceholderMetered", { default: bounds.default_seconds, min: bounds.min })
+      : t("dialog.intervalPlaceholder");
+  };
   // RF2 login state: null or { phase, lines, url, userCode, params, codeError, attempt }.
   // phase: "running" | "done" | "failed". The token NEVER passes through here.
   let loginState = null;
@@ -119,7 +127,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       <div class="dlg-actions"><button type="button" class="btn" id="aggregator-test">${te("dialog.aggregator.test")}</button></div>
       <p class="hint" id="aggregator-status" role="status" aria-live="polite"></p>
     </div>
-    <label class="f" data-field="interval"><span>${te("dialog.interval")}</span><input name="interval" inputmode="numeric" placeholder="${te("dialog.intervalPlaceholder")}" value="${esc(existing?.interval ?? "")}" /><small class="field-err" hidden></small></label>
+    <label class="f" data-field="interval"><span>${te("dialog.interval")}</span><input name="interval" inputmode="numeric" placeholder="${esc(intervalPlaceholder())}" value="${esc(existing?.interval ?? "")}" /><small class="field-err" hidden></small></label>
     <label class="f" data-field="group"><span>${te("dialog.group")}</span><input name="group" autocomplete="off" maxlength="32" spellcheck="false" placeholder="${te("dialog.groupPlaceholder")}" value="${esc(existing?.group ?? "")}" /><small class="field-hint">${te("dialog.groupHint")}</small><small class="field-err" hidden></small></label>
     <fieldset class="f brk-field" data-field="breakdown" id="breakdown-box" hidden><legend>${te("dialog.breakdown")}</legend><div id="breakdown-options"></div><small class="field-hint" id="breakdown-hint"></small><small class="field-err" hidden></small></fieldset>
     <label class="f" data-field="monogram"><span>${te("dialog.monogram")}</span><input name="monogram" autocomplete="off" spellcheck="false" size="4" placeholder="${te("dialog.monogramPlaceholder")}" value="${esc(existing?.monogram ?? "")}" aria-describedby="monogram-hint" /><small class="field-hint" id="monogram-hint">${te("dialog.monogramHint")}</small><small class="field-err" hidden></small></label>
@@ -989,6 +997,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   }
 
   async function renderDynamic() {
+    form.querySelector("[name=interval]").placeholder = intervalPlaceholder();
     const optSnapshot = new Map();
     for (const el of dyn.querySelectorAll("[name^='o:'],[name^='r:']")) {
       optSnapshot.set(el.name, el.value);

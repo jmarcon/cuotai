@@ -571,6 +571,7 @@
   "edit_error.index_out_of_range": "Index {index} hors limites ({count}).",
   "edit_error.interval_invalid": "Intervalle invalide.",
   "edit_error.interval_range": "L’intervalle doit être compris entre {min} et {max} secondes.",
+  "edit_error.interval_metered_min": "Ce fournisseur facture chaque requête : l’intervalle doit être compris entre {min} et {max} secondes.",
   "edit_error.io": "Erreur d’E/S sur {path} : {detail}.",
   "edit_error.login_cleanup_failed": "La configuration et le nouvel identifiant ont été enregistrés ; l’identifiant précédent reste dans le coffre car il n’a pas pu être supprimé.",
   "edit_error.login_partial_failure": "{detail} L’autorisation reste en mémoire : cliquez à nouveau sur Enregistrer pour terminer sans refaire la connexion.",

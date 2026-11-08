@@ -189,6 +189,7 @@
   "dialog.peerHint": "Bu sağlayıcının adsız bir hesabı zaten var; yenisinden ayırmak için ona bir ad verin. Boş bırakılırsa sağlayıcının adı kalır.",
   "dialog.interval": "Yenileme aralığı (sn)",
   "dialog.intervalPlaceholder": "genel varsayılan (en az 30)",
+  "dialog.intervalPlaceholderMetered": "sağlayıcı varsayılanı {default} (en az {min})",
   "dialog.credProfile": "AWS profili",
   "dialog.credNone": "Bu plan özel profili kullanır; girilecek bir kimlik bilgisi yok.",
   "dialog.credOauth": "Hesap OAuth ile doğrulandı; oturum açma uygulamanın akışıyla yürütülür.",

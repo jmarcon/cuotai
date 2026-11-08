@@ -566,6 +566,7 @@
   "edit_error.index_out_of_range": "インデックス {index} が範囲外です（{count}）。",
   "edit_error.interval_invalid": "間隔が無効です。",
   "edit_error.interval_range": "間隔は {min}〜{max} 秒にしてください。",
+  "edit_error.interval_metered_min": "このプロバイダーはクエリごとに課金されます。間隔は {min} 〜 {max} 秒にしてください。",
   "edit_error.io": "{path} で入出力エラー：{detail}。",
   "edit_error.login_cleanup_failed": "設定と新しい認証情報を保存しました。以前の認証情報は削除できなかったため、保管庫に残っています。",
   "edit_error.login_partial_failure": "{detail} 承認はメモリに残っています。もう一度「保存」をクリックすると、ログインをやり直さずに完了できます。",

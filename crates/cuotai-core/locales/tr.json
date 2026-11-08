@@ -571,6 +571,7 @@
   "edit_error.index_out_of_range": "{index} dizini aralık dışında ({count}).",
   "edit_error.interval_invalid": "Geçersiz aralık.",
   "edit_error.interval_range": "Aralık {min} ile {max} saniye arasında olmalıdır.",
+  "edit_error.interval_metered_min": "Bu sağlayıcı her sorgu için ücret alır: aralık {min} ile {max} saniye arasında olmalıdır.",
   "edit_error.io": "{path} konumunda G/Ç hatası: {detail}.",
   "edit_error.login_cleanup_failed": "Yapılandırma ve yeni kimlik bilgisi kaydedildi; önceki kimlik bilgisi silinemediği için kasada kalıyor.",
   "edit_error.login_partial_failure": "{detail} Yetkilendirme hâlâ bellekte: oturum açmayı yinelemeden tamamlamak için yeniden Kaydet'e tıklayın.",

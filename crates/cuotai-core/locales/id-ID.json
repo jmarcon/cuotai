@@ -566,6 +566,7 @@
   "edit_error.index_out_of_range": "Indeks {index} di luar jangkauan ({count}).",
   "edit_error.interval_invalid": "Interval tidak valid.",
   "edit_error.interval_range": "Interval harus antara {min} dan {max} detik.",
+  "edit_error.interval_metered_min": "Penyedia ini menagih per kueri: interval harus antara {min} dan {max} detik.",
   "edit_error.io": "Kegagalan I/O di {path}: {detail}.",
   "edit_error.login_cleanup_failed": "Konfigurasi dan kredensial baru disimpan; kredensial sebelumnya tetap ada di brankas karena tidak dapat dihapus.",
   "edit_error.login_partial_failure": "{detail} Otorisasi masih ada di memori: klik Simpan lagi untuk menyelesaikan tanpa mengulang login.",

@@ -189,6 +189,7 @@
   "dialog.peerHint": "Vous avez déjà un compte sans nom de ce fournisseur ; nommez-le pour le distinguer du nouveau. Vide, il garde le nom du fournisseur.",
   "dialog.interval": "Intervalle d’actualisation (s)",
   "dialog.intervalPlaceholder": "valeur globale (min. 30)",
+  "dialog.intervalPlaceholderMetered": "valeur du fournisseur {default} (min. {min})",
   "dialog.credProfile": "Profil AWS",
   "dialog.credNone": "Ce forfait utilise le profil dédié ; aucun identifiant à saisir.",
   "dialog.credOauth": "Compte authentifié via OAuth ; la connexion est gérée par le flux de l’application.",

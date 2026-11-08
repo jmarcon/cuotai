@@ -581,6 +581,7 @@
   "edit_error.index_out_of_range": "Индекс {index} вне диапазона ({count}).",
   "edit_error.interval_invalid": "Недопустимый интервал.",
   "edit_error.interval_range": "Интервал должен быть от {min} до {max} секунд.",
+  "edit_error.interval_metered_min": "Этот провайдер берёт плату за каждый запрос: интервал должен быть от {min} до {max} секунд.",
   "edit_error.io": "Ошибка ввода-вывода в {path}: {detail}.",
   "edit_error.login_cleanup_failed": "Конфигурация и новые учётные данные сохранены; прежние учётные данные остались в хранилище, так как удалить их не удалось.",
   "edit_error.login_partial_failure": "{detail} Авторизация сохранена в памяти: нажмите «Сохранить» ещё раз, чтобы завершить без повторного входа.",

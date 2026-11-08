@@ -187,6 +187,7 @@
   "dialog.peerHint": "Bạn đã có một tài khoản chưa đặt tên của nhà cung cấp này; hãy đặt tên để phân biệt với tài khoản mới. Để trống sẽ giữ tên nhà cung cấp.",
   "dialog.interval": "Chu kỳ làm mới (giây)",
   "dialog.intervalPlaceholder": "mặc định chung (tối thiểu 30)",
+  "dialog.intervalPlaceholderMetered": "mặc định của nhà cung cấp {default} (tối thiểu {min})",
   "dialog.credProfile": "Hồ sơ AWS",
   "dialog.credNone": "Gói này dùng hồ sơ riêng; không có thông tin xác thực để nhập.",
   "dialog.credOauth": "Tài khoản được xác thực qua OAuth; việc đăng nhập do luồng của ứng dụng xử lý.",

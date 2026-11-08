@@ -571,6 +571,7 @@
   "edit_error.index_out_of_range": "Index {index} außerhalb des Bereichs ({count}).",
   "edit_error.interval_invalid": "Ungültiges Intervall.",
   "edit_error.interval_range": "Das Intervall muss zwischen {min} und {max} Sekunden liegen.",
+  "edit_error.interval_metered_min": "Dieser Anbieter berechnet jede Abfrage: Das Intervall muss zwischen {min} und {max} Sekunden liegen.",
   "edit_error.io": "E/A-Fehler bei {path}: {detail}.",
   "edit_error.login_cleanup_failed": "Konfiguration und neue Zugangsdaten gespeichert; die vorherigen Zugangsdaten bleiben im Tresor, weil sie sich nicht entfernen ließen.",
   "edit_error.login_partial_failure": "{detail} Die Autorisierung bleibt im Speicher: Klicken Sie erneut auf „Speichern“, um ohne neue Anmeldung abzuschließen.",

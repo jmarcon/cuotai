@@ -612,6 +612,60 @@ pub fn parse_refresh_seconds(text: &str) -> Result<Option<u64>, crate::text::Loc
     Ok(Some(seconds))
 }
 
+/// The interval bounds the account editors offer for `provider` (PRD 0001
+/// re-validation M2/L2): the smallest override accepted, the largest, and
+/// the interval used when the field is blank and the provider has its own
+/// default (a provider billed per query); `None` inherits the global one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+pub struct IntervalBounds {
+    pub min: u64,
+    pub max: u64,
+    pub default_seconds: Option<u64>,
+}
+
+/// [`IntervalBounds`] of `provider`, the single source for the editors'
+/// prompts, placeholders and the per-field check of
+/// [`parse_refresh_seconds_for`] (the same floor `Config::validate` keeps).
+pub fn interval_bounds(provider: Provider) -> IntervalBounds {
+    if provider.is_metered() {
+        IntervalBounds {
+            min: Provider::METERED_MIN_CONFIGURED_REFRESH_SECONDS,
+            max: MAX_REFRESH_SECONDS,
+            default_seconds: Some(Provider::METERED_DEFAULT_REFRESH_SECONDS),
+        }
+    } else {
+        IntervalBounds {
+            min: MIN_REFRESH_SECONDS,
+            max: MAX_REFRESH_SECONDS,
+            default_seconds: None,
+        }
+    }
+}
+
+/// [`parse_refresh_seconds`] plus the provider's own floor: a provider
+/// billed per query refuses an override below
+/// `Provider::METERED_MIN_CONFIGURED_REFRESH_SECONDS` with a note worded for
+/// the form (`edit_error.interval_metered_min`), so the editors flag the
+/// interval field itself instead of a document-wide error.
+pub fn parse_refresh_seconds_for(
+    provider: Provider,
+    text: &str,
+) -> Result<Option<u64>, crate::text::Localized> {
+    let seconds = parse_refresh_seconds(text)?;
+    let bounds = interval_bounds(provider);
+    match seconds {
+        Some(value) if value < bounds.min => Err(crate::text::Localized::with_params(
+            "edit_error.interval_metered_min",
+            crate::text::params([
+                ("min", crate::text::ParamValue::from(bounds.min)),
+                ("max", crate::text::ParamValue::from(bounds.max)),
+            ]),
+            "This provider is billed per query: the interval must be between {min} and {max} seconds.",
+        )),
+        other => Ok(other),
+    }
+}
+
 /// PRD 0024 RF7.1: parses the optional group text. Blank means no group;
 /// anything else must be a slug of at most 32 characters (the error is the
 /// `edit_error.group_invalid` text and never echoes the input).
@@ -2731,7 +2785,7 @@ pub fn build_account_with_secrets(
     validate_account_choice_params(*provider, &params, auth_mode)
         .map_err(|message| build_account_field_error("params", message))?;
 
-    let refresh_seconds = parse_refresh_seconds(interval_text)
+    let refresh_seconds = parse_refresh_seconds_for(*provider, interval_text)
         .map_err(|message| build_account_field_error("interval", message))?;
     let group = match group_text {
         Some(text) => {
@@ -2905,8 +2959,20 @@ impl Config {
             Some(idx) => updated.accounts[idx] = account,
             None => updated.accounts.push(account),
         }
+        let edited = editing.unwrap_or(self.accounts.len());
         updated.validate().map_err(|e| {
-            crate::edit_error::validation_note(None, crate::edit_error::config_error_note(&e))
+            // PRD 0001 re-validation (M2): the edited account's own interval
+            // floor belongs to its interval field; any other rule stays
+            // document-wide.
+            let field = match &e {
+                crate::ConfigError::MeteredRefreshFloor { field, .. }
+                    if *field == format!("accounts[{edited}].refresh_seconds") =>
+                {
+                    Some("interval")
+                }
+                _ => None,
+            };
+            crate::edit_error::validation_note(field, crate::edit_error::config_error_note(&e))
         })?;
         Ok(updated)
     }
@@ -3663,6 +3729,81 @@ mod tests {
         let fresh = ensure_cli_profile(&mut params);
         assert!(is_valid_cli_profile(&fresh));
         assert_ne!(fresh, "!!!");
+    }
+
+    #[test]
+    fn parse_refresh_seconds_for_applies_the_metered_floor_to_the_field() {
+        let error = parse_refresh_seconds_for(Provider::AwsBedrock, "120").unwrap_err();
+        assert_eq!(error.id, "edit_error.interval_metered_min");
+        assert_eq!(
+            error.params.get("min"),
+            Some(&crate::text::ParamValue::from(300u64))
+        );
+        assert_eq!(
+            parse_refresh_seconds_for(Provider::AwsBedrock, "300").unwrap(),
+            Some(300)
+        );
+        assert_eq!(
+            parse_refresh_seconds_for(Provider::AwsBedrock, "").unwrap(),
+            None
+        );
+        assert_eq!(
+            parse_refresh_seconds_for(Provider::OpenAiApi, "120").unwrap(),
+            Some(120)
+        );
+        // The generic bounds still apply first.
+        let error = parse_refresh_seconds_for(Provider::AwsBedrock, "20").unwrap_err();
+        assert_eq!(error.id, "edit_error.interval_range");
+        let bounds = interval_bounds(Provider::AwsBedrock);
+        assert_eq!(
+            (bounds.min, bounds.max, bounds.default_seconds),
+            (300, 86_400, Some(3600))
+        );
+        assert_eq!(interval_bounds(Provider::OpenAiApi).default_seconds, None);
+    }
+
+    #[test]
+    fn build_account_flags_a_metered_interval_below_the_floor_on_the_field() {
+        let config = config_with(Vec::new());
+        let draft = |interval_text| AccountDraft {
+            provider: Provider::AwsBedrock,
+            name: "Bedrock",
+            credential: "fixture-profile",
+            auth_mode: AUTH_MODE_CREDENTIAL,
+            oauth_mode: false,
+            oauth_existing: None,
+            oauth_authorized: None,
+            oauth_login_params: BTreeMap::new(),
+            existing_params: None,
+            credential_params: None,
+            fields: &[],
+            interval_text,
+            group_text: None,
+        };
+        let error = build_account(&draft("120"), &config, None).unwrap_err();
+        assert_eq!(error.field(), Some("interval"));
+        assert_eq!(error.l10n().id, "edit_error.interval_metered_min");
+        let built = build_account(&draft("300"), &config, None).unwrap();
+        assert_eq!(built.refresh_seconds, Some(300));
+    }
+
+    #[test]
+    fn upsert_puts_the_edited_accounts_metered_floor_on_its_interval_field() {
+        let config = config_with(vec![env_account("Plain", Provider::OpenAiApi, "A_KEY")]);
+        let mut bedrock = env_account("Bedrock", Provider::AwsBedrock, "B_KEY");
+        bedrock.credential_env = None;
+        bedrock.params.insert("profile".into(), "fixture".into());
+        bedrock.refresh_seconds = Some(120);
+        let error = config.upsert_account(bedrock.clone(), None).unwrap_err();
+        assert_eq!(error.field(), Some("interval"));
+        assert_eq!(error.l10n().id, "edit_error.config_metered_refresh_floor");
+        // Another account's floor is not the edited account's field.
+        let mut stale = config.clone();
+        stale.accounts.push(bedrock);
+        let error = stale
+            .upsert_account(env_account("Plain", Provider::OpenAiApi, "A_KEY"), Some(0))
+            .unwrap_err();
+        assert_eq!(error.field(), None);
     }
 
     #[test]

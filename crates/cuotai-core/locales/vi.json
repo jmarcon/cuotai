@@ -566,6 +566,7 @@
   "edit_error.index_out_of_range": "Chỉ số {index} nằm ngoài phạm vi ({count}).",
   "edit_error.interval_invalid": "Chu kỳ không hợp lệ.",
   "edit_error.interval_range": "Chu kỳ phải nằm trong khoảng {min} đến {max} giây.",
+  "edit_error.interval_metered_min": "Nhà cung cấp này tính phí theo từng truy vấn: khoảng thời gian phải từ {min} đến {max} giây.",
   "edit_error.io": "Lỗi I/O tại {path}: {detail}.",
   "edit_error.login_cleanup_failed": "Đã lưu cấu hình và thông tin xác thực mới; thông tin xác thực trước vẫn ở trong kho vì không xóa được.",
   "edit_error.login_partial_failure": "{detail} Ủy quyền vẫn còn trong bộ nhớ: nhấp Lưu lần nữa để hoàn tất mà không phải đăng nhập lại.",

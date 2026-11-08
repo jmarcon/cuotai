@@ -192,6 +192,7 @@
   "dialog.peerHint": "Você já tem uma conta deste provedor sem nome; dê um nome a ela para distinguir das novas. Em branco, fica o nome do provedor.",
   "dialog.interval": "Intervalo de atualização (s)",
   "dialog.intervalPlaceholder": "padrão global (mín. 30)",
+  "dialog.intervalPlaceholderMetered": "padrão do provedor {default} (mín. {min})",
   "dialog.credProfile": "Perfil AWS",
   "dialog.credNone": "Este plano usa o perfil dedicado; não há credencial a informar.",
   "dialog.credOauth": "Conta autenticada via OAuth; o login é feito pelo fluxo do app.",

@@ -186,6 +186,7 @@
   "dialog.peerHint": "Hai già un account senza nome di questo provider; dagli un nome per distinguerlo dal nuovo. Vuoto, resta il nome del provider.",
   "dialog.interval": "Intervallo di aggiornamento (s)",
   "dialog.intervalPlaceholder": "predefinito globale (min. 30)",
+  "dialog.intervalPlaceholderMetered": "predefinito del provider {default} (min. {min})",
   "dialog.credProfile": "Profilo AWS",
   "dialog.credNone": "Questo piano usa il profilo dedicato; non c'è nessuna credenziale da inserire.",
   "dialog.credOauth": "Account autenticato tramite OAuth; l'accesso è gestito dal flusso dell'app.",

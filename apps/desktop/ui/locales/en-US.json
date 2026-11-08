@@ -186,6 +186,7 @@
   "dialog.peerHint": "You already have an unnamed account of this provider; give it a name to tell it apart from the new one. Leave blank to keep the provider's name.",
   "dialog.interval": "Refresh interval (s)",
   "dialog.intervalPlaceholder": "global default (min. 30)",
+  "dialog.intervalPlaceholderMetered": "provider default {default} (min. {min})",
   "dialog.credProfile": "AWS profile",
   "dialog.credNone": "This plan uses the dedicated profile; there is no credential to enter.",
   "dialog.credOauth": "Account authenticated via OAuth; sign-in is handled by the app's flow.",
