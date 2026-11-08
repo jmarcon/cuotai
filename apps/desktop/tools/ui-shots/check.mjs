@@ -46,6 +46,8 @@ const PAGES = zoom ? ZOOM_PAGES : [
   ["settings-about", "settings.html?page=about", 640, 460, {}],
   ["main-stats", "index.html", 1200, 820, { "cuotai.openView": "stats" }],
   ["tray-stats", "tray.html", 380, 600, {}, "[data-open-stats]"],
+  // PRD 0002 V-01: an account expanded with Models open (the demo's failed-sync fixture), so the sync bar is checked.
+  ["tray-models", "tray.html?models=failed", 380, 600, {}, "[data-open]", true],
   ["details-short", "index.html", 1200, 500, {}, "[data-details]"],
   ["details-narrow", "index.html", 520, 600, {}, "[data-details]"],
   ["catalog-short", "index.html", 1200, 500, {}, "[data-add]"],
@@ -151,15 +153,20 @@ const PAGE_JS = `(() => {
   return out;
 })()`;
 
+// Opens the Models disclosure, gives its first read a moment and scrolls it into view (the `tray-models` page).
+const OPEN_MODELS = `(async () => { const d = document.querySelector("details.models"); if (!d) return; d.open = true;
+  await new Promise((r) => setTimeout(r, 400)); d.scrollIntoView({ block: "start" }); })()`;
+
 const ui = await launch();
 const report = {};
 let problems = 0;
 try {
   for (const locale of LOCALES) {
-    for (const [name, page, w, h, storage, click] of PAGES) {
+    for (const [name, page, w, h, storage, click, openModels] of PAGES) {
       const target = locale === "en-XA" ? `${page}${page.includes("?") ? "&" : "?"}pseudo` : page;
       await ui.open(target, { w, h, scale: 1, locale: locale === "en-XA" ? "en-US" : locale, storage });
       if (click) await ui.click(click);
+      if (openModels) await ui.evaluate(OPEN_MODELS);
       if (selftest) {
         if (!page.startsWith("tray") || storage["cuotai.trayView"]) continue;
         await ui.evaluate(`(() => { const f = document.querySelector(".fig b"); if (f) f.textContent = "W".repeat(60); })()`);

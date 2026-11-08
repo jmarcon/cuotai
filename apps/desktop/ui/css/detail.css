@@ -254,6 +254,7 @@
 }
 .models-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-end;
   gap: var(--space-2);
   margin-top: var(--space-2);
@@ -264,7 +265,7 @@
 }
 .models-search {
   display: flex;
-  flex: 1;
+  flex: 1 1 12rem;
   flex-direction: column;
   gap: var(--space-1);
   font-size: var(--text-sm);
@@ -282,6 +283,8 @@
 }
 .models-sync {
   display: inline-flex;
+  flex: none;
+  white-space: nowrap;
   align-items: center;
   gap: calc(var(--space-1) + var(--space-0));
   background: var(--btn-bg);
@@ -294,6 +297,23 @@
 .models-meta {
   margin: var(--space-2) 0 0;
   font-size: var(--text-sm);
+}
+/* DS-COL-3: a failed or interrupted query carries the status role on its icon, plus the label text. */
+.models-status[data-tone] {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+  --c: var(--fg-muted);
+}
+.models-status[data-tone="bad"] { --c: var(--bad); }
+.models-status[data-tone="warn"] { --c: var(--warn); }
+.models-status[data-tone="accent"] { --c: var(--accent); }
+.models-status[data-tone] > svg.i {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 1px;
+  color: var(--c);
 }
 .models-list {
   max-height: 240px;

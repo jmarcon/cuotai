@@ -1650,11 +1650,17 @@ const demoSettings = { monograms: {}, profileExisted: new URLSearchParams(locati
   widgets: { enabled: DEMO_WIDGETS, include_identity: false, max_accounts: 6, written: false } };
 const demoPermission = (on) => (!on ? "off" : new URLSearchParams(location.search).has("notify-denied") ? "denied" : "granted");
 // Models in the demo: same validation (index + generation) and the `unsupported` state with an explicit demonstration reason;
-// no invented catalog is shown as real.
+// no invented catalog is shown as real. `?models=failed` (the ui-shots overflow check) shows a failed sync over a catalog
+// whose ids and source say it is a demo fixture, so the sync bar and the status role render.
+const DEMO_MODELS_FAILED = new URLSearchParams(location.search).get("models") === "failed";
 const demoModels = async ({ index, generation }) => {
   if (generation !== demoSettings.generation) throw STALE;
   if (!demoReports[index]) throw JSON.stringify({ id: "models.error.invalid_index", params: {}, fallback: "Account does not exist in this configuration." });
-  return { state: "unsupported", reason: { id: "models.demo", params: {}, fallback: "Browser demo: the model catalog is only queried in the desktop app." } };
+  const demo = { id: "models.demo", params: {}, fallback: "Browser demo: the model catalog is only queried in the desktop app." };
+  if (!DEMO_MODELS_FAILED) return { state: "unsupported", reason: demo };
+  const at = new Date(Date.now() - 2 * 3600e3).toISOString();
+  const previous = { models: ["demo-model-a", "demo-model-b", "demo-model-c"].map((id) => ({ id, name: null, description: null })), source: demo, fetched_at: new Date(Date.now() - 3 * 864e5).toISOString() };
+  return { state: "failed", status: "authentication_error", error: { id: "query.http", params: { code: 401 }, fallback: "Query returned HTTP 401. Check access and permissions." }, at, previous };
 };
 // ponytail: demo mirror of `HistoryStore::account_history` + `MetricHistory::{trend, chart}` over synthetic samples:
 // every 20 minutes for 10 days with a day missing (days 6 to 5 ago), 5-hour windows that refill, weekly and longer
