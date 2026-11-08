@@ -9,7 +9,7 @@
 //! |---|---|---|
 //! | `config/cuotai.toml` | the accounts TOML | verbatim (it names variables, never values) |
 //! | `config/hooks.toml` | beside the TOML | verbatim |
-//! | `prefs/desktop.json` | desktop settings | window geometry, one-time records and machine paths dropped (paths become `@config`/`@user` markers) |
+//! | `prefs/desktop.json` | desktop settings | window geometry, one-time records and the data folder dropped; the chosen paths become `@config`/`@user` markers, never taken on restore |
 //! | `prefs/cost-settings.json` | local cost settings | the per-machine sources (and their folders) dropped |
 //! | `prefs/pricing.json` | your local prices | verbatim |
 //! | `prefs/cost-labels.json` | the labels and hidden projects of the local cost index | only the person's labels (never a folder name) |
@@ -377,22 +377,33 @@ pub fn looks_secret(text: &str) -> bool {
     })
 }
 
-/// `desktop.json` without what belongs to this machine: the window
-/// geometry, one-time records, and the chosen paths (kept as markers).
+/// Members of `desktop.json` that belong to one machine: the window
+/// geometry, one-time records and the data folder. A backup drops them and
+/// a restore never takes them, whatever the archive holds.
+const DESKTOP_MACHINE_KEYS: [&str; 8] = [
+    "settings_window",
+    "main_window",
+    "migrations",
+    "profile_existed",
+    "onboarding",
+    "whats_new_seen",
+    "settings",
+    "data_dir",
+];
+
+/// The chosen paths of `desktop.json`, which travel as markers only and
+/// are never taken from a backup.
+const DESKTOP_PATH_KEYS: [(&str, &str); 2] = [("config_file", "@config"), ("user_dir", "@user")];
+
+/// `desktop.json` without what belongs to this machine (see
+/// [`DESKTOP_MACHINE_KEYS`]), and the chosen paths kept as markers.
 fn scrub_desktop(bytes: &[u8]) -> Option<Vec<u8>> {
     let mut value: serde_json::Value = serde_json::from_slice(bytes).ok()?;
     let object = value.as_object_mut()?;
-    for key in [
-        "settings_window",
-        "migrations",
-        "profile_existed",
-        "onboarding",
-        "whats_new_seen",
-        "settings",
-    ] {
+    for key in DESKTOP_MACHINE_KEYS {
         object.remove(key);
     }
-    for (key, marker) in [("config_file", "@config"), ("user_dir", "@user")] {
+    for (key, marker) in DESKTOP_PATH_KEYS {
         if object.contains_key(key) {
             object.insert(key.into(), marker.into());
         }
@@ -822,7 +833,11 @@ fn merge_desktop(local: Option<&[u8]>, incoming: &[u8]) -> Option<Vec<u8>> {
     let incoming: serde_json::Map<String, serde_json::Value> =
         serde_json::from_slice(incoming).ok()?;
     for (key, value) in incoming {
-        if matches!(value.as_str(), Some("@config" | "@user")) {
+        // This machine's members and paths stay as they are here: a
+        // crafted or foreign backup could otherwise move every store.
+        if DESKTOP_MACHINE_KEYS.contains(&key.as_str())
+            || DESKTOP_PATH_KEYS.iter().any(|(path, _)| *path == key)
+        {
             continue;
         }
         // PRD 0044 channels merge by id: this computer's stay (their
