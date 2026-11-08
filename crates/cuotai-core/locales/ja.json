@@ -555,6 +555,7 @@
   "edit_error.config_tls": "9router アカウントの TLS が無効です。tls_pin_sha256 は 16 進数 64 桁にしてください。tls_ca_file と tls_pin_sha256 は同時に使えず、HTTPS なしでも使えません。",
   "edit_error.config_toml_invalid": "ファイルが有効な TOML ではありません。",
   "edit_error.conflict": "ファイル {path} は読み込み後に変更されました。保存する前に再読み込みしてください。",
+  "edit_error.account_moved": "編集中のアカウントは設定ファイルのこの位置にもうありません。ファイルを再読み込みして、アカウントを開き直してください。",
   "edit_error.duplicate_name": "同じ名前のアカウントが既にあります。",
   "edit_error.env_invalid": "変数名が無効です（[A-Za-z_][A-Za-z0-9_]*）。トークンを貼り付けず、エクスポート済み変数の名前のみを入力してください。",
   "edit_error.env_required": "認証情報を保持する環境変数の名前を指定してください。",

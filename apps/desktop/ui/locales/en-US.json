@@ -618,6 +618,7 @@
   "coreText.bedrockModels": "Models listed by the AWS CLI for the account's profile; this does not prove model access.",
   "dialog.conflict.reload": "Reload file from disk",
   "dialog.conflict.reloaded": "File reloaded from disk; review and save again when ready.",
+  "dialog.accountGone": "This account is no longer in the configuration file, so there is nothing to edit. The list now shows the file as it is.",
   "dialog.external.title": "Configuration changed on disk",
   "dialog.external.body": "The configuration file changed outside the app. Reloading picks up the latest version; continuing edits against the old snapshot will likely require a reload before the next save.",
   "dialog.external.keep": "Keep editing",

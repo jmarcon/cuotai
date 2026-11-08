@@ -749,13 +749,14 @@ impl Wizard {
         self.notice = Some(crate::ui::resolve_l10n(&user_session::forgotten_notice()));
     }
 
-    /// Borrowed view of the wizard's editing identity for callers
-    /// that need a `(Provider, &str)` shape without taking ownership
-    /// of the wizard's name. Returns `None` when the wizard is
-    /// creating a brand-new account.
-    pub(crate) fn editing_identity_borrowed(&self) -> Option<(Provider, &str)> {
-        self.editing?;
-        Some((self.provider, self.name.trim()))
+    /// PRD 0001 re-validation (C1): the stable id of the account being
+    /// edited, as it was when the wizard opened; `None` when the wizard is
+    /// creating a brand-new account. The save refuses the write when the
+    /// slot no longer holds this account.
+    pub(crate) fn editing_account_id(&self) -> Option<cuotai_core::AccountId> {
+        self.editing
+            .and_then(|index| self.base.accounts.get(index))
+            .map(|account| account.id())
     }
 
     fn provider_at_sel(&self) -> Provider {

@@ -555,6 +555,7 @@
   "edit_error.config_tls": "9router 账户的 TLS 无效：tls_pin_sha256 必须是 64 位十六进制数字，tls_ca_file 与 tls_pin_sha256 不能同时使用，也不能在没有 HTTPS 时使用。",
   "edit_error.config_toml_invalid": "该文件不是有效的 TOML。",
   "edit_error.conflict": "文件 {path} 在加载后已更改；请在保存前重新加载。",
+  "edit_error.account_moved": "正在编辑的账户已不在配置文件中的这个位置；请重新加载文件并再次打开该账户。",
   "edit_error.duplicate_name": "已存在同名账户。",
   "edit_error.env_invalid": "变量名称无效（[A-Za-z_][A-Za-z0-9_]*）。请勿粘贴令牌：只填写已导出变量的名称。",
   "edit_error.env_required": "请填写保存凭据的环境变量名称。",

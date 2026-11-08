@@ -621,6 +621,7 @@
   "coreText.bedrockModels": "Hesap profili için AWS CLI'nin listelediği modeller; bu, modele erişimi kanıtlamaz.",
   "dialog.conflict.reload": "Dosyayı diskten yeniden yükle",
   "dialog.conflict.reloaded": "Dosya diskten yeniden yüklendi; gözden geçirin ve hazır olduğunuzda yeniden kaydedin.",
+  "dialog.accountGone": "Bu hesap artık yapılandırma dosyasında değil, bu yüzden düzenlenecek bir şey yok. Liste artık dosyayı olduğu gibi gösteriyor.",
   "dialog.external.title": "Yapılandırma diskte değişti",
   "dialog.external.body": "Yapılandırma dosyası uygulama dışında değişti. Yeniden yükleme en son sürümü alır; eski anlık görüntü üzerinde düzenlemeye devam etmek, bir sonraki kayıttan önce büyük olasılıkla yeniden yükleme gerektirir.",
   "dialog.external.keep": "Düzenlemeye devam et",

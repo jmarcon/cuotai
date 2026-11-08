@@ -204,18 +204,25 @@ impl Drop for Refresh {
 enum DeletionState {
     Confirm {
         index: usize,
+        /// PRD 0001 re-validation (C1): the stable id of the account the
+        /// confirmation names; the removal is refused when the slot at
+        /// `index` holds another account by then.
+        account: cuotai_core::AccountId,
     },
     AskPurge {
         index: usize,
+        account: cuotai_core::AccountId,
     },
     /// PRD 0028 RF7.4: the account belongs to an extension whose vault holds
     /// secrets; ask whether to delete them with it.
     AskSecrets {
         index: usize,
+        account: cuotai_core::AccountId,
         extension: String,
     },
     Executing {
         index: usize,
+        account: cuotai_core::AccountId,
         purge: bool,
         /// The extension whose vault secrets are deleted after the removal.
         forget_secrets: Option<String>,
@@ -226,6 +233,15 @@ enum DeletionState {
         /// What happened to the extension's secrets, when they were asked for.
         vault_note: Option<String>,
     },
+}
+
+impl DeletionState {
+    /// The confirmation of removing the account at `index`, bound to its
+    /// stable id; `None` when no account is there.
+    fn confirm(config: &Config, index: usize) -> Option<Self> {
+        let account = config.accounts.get(index)?.id();
+        Some(Self::Confirm { index, account })
+    }
 }
 
 /// PRD 0024 RF2.2: the pace input of account `index`'s `report`: its
@@ -629,10 +645,8 @@ pub async fn run(
                                     completed.clone(),
                                 ));
                             } else {
-                                let expected_identity = wizard
-                                    .as_ref()
-                                    .and_then(|w| w.editing_identity_borrowed())
-                                    .map(|(p, n)| (p, n.to_string()));
+                                let expected_identity =
+                                    wizard.as_ref().and_then(|w| w.editing_account_id());
                                 let before = file.config.clone();
                                 match apply_edit_to_config(
                                     &mut file,
@@ -961,7 +975,7 @@ pub async fn run(
                             job.abort();
                         }
                         account_refresh.abort_all();
-                        deletion = Some(DeletionState::Confirm { index });
+                        deletion = DeletionState::confirm(&file.config, index);
                     }
                 }
                 Command::PasteSession => {
@@ -1247,10 +1261,7 @@ pub async fn run(
                 // Capture the identity BEFORE the mutable borrow of
                 // `wizard` so the borrow does not extend through
                 // `apply_edit_to_config`.
-                let expected_identity = wizard
-                    .as_ref()
-                    .and_then(|w| w.editing_identity_borrowed())
-                    .map(|(p, n)| (p, n.to_string()));
+                let expected_identity = wizard.as_ref().and_then(|w| w.editing_account_id());
                 if let Some(active) = &mut wizard {
                     match outcome {
                         Ok(Outcome::Authorized(completed)) => {
@@ -2260,7 +2271,7 @@ pub async fn run(
                         }
                         ExtensionAction::Remove(index) => {
                             extensions = None;
-                            deletion = Some(DeletionState::Confirm { index });
+                            deletion = DeletionState::confirm(&file.config, index);
                         }
                     }
                     continue;
@@ -2515,25 +2526,19 @@ fn apply_edit_to_config(
     state: &mut State,
     config: Config,
     edit: Option<usize>,
-    expected_identity: Option<(crate::Provider, String)>,
+    expected_identity: Option<cuotai_core::AccountId>,
 ) -> Result<(Arc<Monitor>, Option<usize>), cuotai_core::edit_error::EditError> {
-    // RF1 contract + RF4 reload guard: when the caller is editing
-    // (not appending), the slot at `edit` must still describe the
-    // (provider, name) the wizard is editing. If the file on disk
-    // was renamed externally, refuse the write with `EditError::Conflict`
-    // so the wizard can decide between cancel / reload / retry.
-    if let Some((provider, ref name)) = expected_identity {
-        if let Some(idx) = edit {
-            let matches = file
-                .config
-                .accounts
-                .get(idx)
-                .is_some_and(|a| a.provider == provider && a.name.eq_ignore_ascii_case(name));
-            if !matches {
-                return Err(cuotai_core::edit_error::EditError::Conflict {
-                    path: file.path.clone(),
-                });
-            }
+    // RF1 contract + RF4 reload guard (PRD 0001 re-validation C1): when the
+    // caller is editing (not appending), the slot at `edit` must still hold
+    // the account the wizard opened, by its stable id (the core's
+    // `check_slot`). If the file was changed externally, refuse the write
+    // with `EditError::Conflict` so the wizard can decide between cancel /
+    // reload / retry.
+    if let (Some(expected), Some(idx)) = (expected_identity, edit) {
+        if file.config.check_slot(idx, &expected).is_err() {
+            return Err(cuotai_core::edit_error::EditError::Conflict {
+                path: file.path.clone(),
+            });
         }
     }
     let prev = file.config.clone();
@@ -2725,7 +2730,7 @@ fn render_deletion(state_: &DeletionState, file: &ConfigFile) -> (&'static str, 
             })
     };
     match state_ {
-        DeletionState::Confirm { index } => (
+        DeletionState::Confirm { index, .. } => (
             tr("ui.delete.confirm.title", " Delete account "),
             trf(
                 "ui.delete.confirm.body",
@@ -2741,7 +2746,9 @@ fn render_deletion(state_: &DeletionState, file: &ConfigFile) -> (&'static str, 
             )
             .into(),
         ),
-        DeletionState::AskSecrets { index, extension } => (
+        DeletionState::AskSecrets {
+            index, extension, ..
+        } => (
             tr("ui.delete.secrets.title", " Delete the extension's secrets? "),
             trf(
                 "ui.delete.secrets.body",
@@ -2757,7 +2764,7 @@ fn render_deletion(state_: &DeletionState, file: &ConfigFile) -> (&'static str, 
             )
             .into(),
         ),
-        DeletionState::AskPurge { index } => (
+        DeletionState::AskPurge { index, .. } => (
             tr("ui.delete.purge.title", " Delete the credential from the vault? "),
             trf(
                 "ui.delete.purge.body",
@@ -2912,9 +2919,10 @@ fn handle_deletion_key(
     session: Arc<OAuthSession>,
 ) -> bool {
     match state_ {
-        DeletionState::Confirm { index } => handle_confirm(
+        DeletionState::Confirm { index, account } => handle_confirm(
             code,
             *index,
+            account.clone(),
             state_,
             file,
             monitor,
@@ -2923,9 +2931,10 @@ fn handle_deletion_key(
             state,
             session,
         ),
-        DeletionState::AskPurge { index } => handle_ask_purge(
+        DeletionState::AskPurge { index, account } => handle_ask_purge(
             code,
             *index,
+            account.clone(),
             state_,
             file,
             monitor,
@@ -2934,11 +2943,16 @@ fn handle_deletion_key(
             state,
             session,
         ),
-        DeletionState::AskSecrets { index, extension } => {
-            let (index, extension) = (*index, extension.clone());
+        DeletionState::AskSecrets {
+            index,
+            account,
+            extension,
+        } => {
+            let (index, account, extension) = (*index, account.clone(), extension.clone());
             handle_ask_secrets(
                 code,
                 index,
+                account,
                 extension,
                 state_,
                 file,
@@ -2960,6 +2974,7 @@ fn handle_deletion_key(
 fn handle_confirm(
     code: KeyCode,
     index: usize,
+    account: cuotai_core::AccountId,
     state_: &mut DeletionState,
     file: &mut ConfigFile,
     monitor: &mut Arc<Monitor>,
@@ -2979,12 +2994,17 @@ fn handle_confirm(
             if let Some(extension) =
                 extension_with_stored_secrets(&file.config, index, monitor, session.as_ref())
             {
-                *state_ = DeletionState::AskSecrets { index, extension };
+                *state_ = DeletionState::AskSecrets {
+                    index,
+                    account,
+                    extension,
+                };
             } else if has_oauth {
-                *state_ = DeletionState::AskPurge { index };
+                *state_ = DeletionState::AskPurge { index, account };
             } else {
                 *state_ = DeletionState::Executing {
                     index,
+                    account: account.clone(),
                     purge: false,
                     forget_secrets: None,
                 };
@@ -3024,6 +3044,7 @@ fn extension_with_stored_secrets(
 fn handle_ask_secrets(
     code: KeyCode,
     index: usize,
+    account: cuotai_core::AccountId,
     extension: String,
     state_: &mut DeletionState,
     file: &mut ConfigFile,
@@ -3041,6 +3062,7 @@ fn handle_ask_secrets(
     };
     *state_ = DeletionState::Executing {
         index,
+        account: account.clone(),
         purge: false,
         forget_secrets,
     };
@@ -3060,6 +3082,7 @@ fn handle_ask_secrets(
 fn handle_ask_purge(
     code: KeyCode,
     index: usize,
+    account: cuotai_core::AccountId,
     state_: &mut DeletionState,
     file: &mut ConfigFile,
     monitor: &mut Arc<Monitor>,
@@ -3074,6 +3097,7 @@ fn handle_ask_purge(
             // n = keep the credential in the vault (default safe choice).
             *state_ = DeletionState::Executing {
                 index,
+                account: account.clone(),
                 purge: false,
                 forget_secrets: None,
             };
@@ -3091,6 +3115,7 @@ fn handle_ask_purge(
         KeyCode::Char('s' | 'S') => {
             *state_ = DeletionState::Executing {
                 index,
+                account: account.clone(),
                 purge: true,
                 forget_secrets: None,
             };
@@ -3191,14 +3216,21 @@ fn run_remove_account(
     state: &mut State,
     session: Arc<OAuthSession>,
 ) -> bool {
-    let (index, purge, forget_secrets) = match state_ {
+    let (index, account, purge, forget_secrets) = match state_ {
         DeletionState::Executing {
             index,
+            account,
             purge,
             forget_secrets,
-        } => (*index, *purge, forget_secrets.clone()),
+        } => (*index, account.clone(), *purge, forget_secrets.clone()),
         _ => return false,
     };
+    // PRD 0001 re-validation (C1): the slot must still hold the account the
+    // confirmation named; another account is never removed in its place.
+    if file.config.check_slot(index, &account).is_err() {
+        state.error = Some(already_removed().to_string());
+        return true;
+    }
     let prev = file.config.clone();
     let new_config = match prev.clone().without_account(index) {
         Ok(cfg) => cfg,
@@ -4007,6 +4039,7 @@ mod tests {
         let (title, body, footer) = render_deletion(
             &DeletionState::AskSecrets {
                 index: 0,
+                account: cuotai_core::AccountId::random(),
                 extension: "acme-usage".into(),
             },
             &file,
@@ -4062,6 +4095,131 @@ mod tests {
         // Nothing was stored, so nothing is reported as deleted.
         assert!(note.starts_with("0 segredo(s)"), "{note}");
         let _ = std::fs::remove_file(path);
+    }
+
+    const ALPHA_BETA: &str = "[[accounts]]\nid = \"alpha-account\"\nname = \"Alpha\"\nprovider = \"anthropic_api\"\ncredential_env = \"ALPHA_KEY\"\n\n[[accounts]]\nid = \"beta-account\"\nname = \"Beta\"\nprovider = \"chat_gpt\"\ncredential_env = \"BETA_KEY\"\n";
+    const BETA_ONLY: &str = "[[accounts]]\nid = \"beta-account\"\nname = \"Beta\"\nprovider = \"chat_gpt\"\ncredential_env = \"BETA_KEY\"\n";
+
+    /// A file holding Alpha then Beta, opened, then rewritten elsewhere
+    /// without Alpha and reloaded: Beta now sits at Alpha's old index.
+    fn reloaded_without_alpha(dir: &std::path::Path) -> (ConfigFile, cuotai_core::AccountId) {
+        let path = dir.join("cuotai.toml");
+        std::fs::write(&path, ALPHA_BETA).unwrap();
+        let mut file = ConfigFile::open(
+            cuotai_core::config_file::ResolvedPath {
+                path: path.clone(),
+                source: cuotai_core::config_file::PathSource::Argument,
+            },
+            false,
+        )
+        .unwrap();
+        let alpha = file.config.accounts[0].id();
+        assert_eq!(alpha.as_str(), "alpha-account");
+        std::fs::write(&path, BETA_ONLY).unwrap();
+        file.reload().unwrap();
+        assert_eq!(file.config.accounts[0].name, "Beta");
+        (file, alpha)
+    }
+
+    fn no_vault_session() -> Arc<OAuthSession> {
+        struct NoVault;
+        impl cuotai_core::oauth::TokenStore for NoVault {
+            fn load(
+                &self,
+                _: &str,
+            ) -> Result<Option<cuotai_core::oauth::OAuthToken>, cuotai_core::oauth::OAuthError>
+            {
+                Ok(None)
+            }
+            fn save(
+                &self,
+                _: &str,
+                _: &cuotai_core::oauth::OAuthToken,
+            ) -> Result<(), cuotai_core::oauth::OAuthError> {
+                panic!("no vault write is expected")
+            }
+            fn delete(&self, _: &str) -> Result<(), cuotai_core::oauth::OAuthError> {
+                panic!("no vault deletion is expected")
+            }
+        }
+        Arc::new(
+            OAuthSession::new(
+                Arc::new(NoVault),
+                Arc::new(cuotai_core::EnvironmentCredentials),
+            )
+            .unwrap(),
+        )
+    }
+
+    /// PRD 0001 re-validation (C1): a wizard save aimed at the index the
+    /// edited account had before a reload is refused when another account
+    /// sits there now; the file keeps that account untouched.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn saving_after_a_reload_never_overwrites_the_account_now_at_that_index() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut file, alpha) = reloaded_without_alpha(dir.path());
+        let monitor = Arc::new(Monitor::new(file.config.clone()).unwrap());
+        let mut cycle = RefreshCycle::new(&file.config, Instant::now());
+        let mut refresh = AccountRefresh::new(file.config.accounts.len());
+        let mut state = state_with(file.config.accounts.clone());
+        let mut draft = file.config.clone();
+        draft.accounts[0] = account("Alpha", Provider::AnthropicApi);
+        draft.accounts[0].credential_env = Some("ALPHA_KEY".into());
+        let error = match apply_edit_to_config(
+            &mut file,
+            &monitor,
+            &mut cycle,
+            &mut refresh,
+            &mut state,
+            draft,
+            Some(0),
+            Some(alpha),
+        ) {
+            Err(error) => error,
+            Ok(_) => panic!("the stale save must be refused"),
+        };
+        assert!(error.is_conflict(), "{error}");
+        assert_eq!(std::fs::read_to_string(&file.path).unwrap(), BETA_ONLY);
+        assert_eq!(file.config.accounts[0].name, "Beta");
+    }
+
+    /// PRD 0001 re-validation (C1): a removal confirmed for an account that
+    /// left its slot (the file was reloaded meanwhile) removes nothing.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn removing_after_a_reload_never_removes_the_account_now_at_that_index() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut file, alpha) = reloaded_without_alpha(dir.path());
+        let mut monitor = Arc::new(Monitor::new(file.config.clone()).unwrap());
+        let mut cycle = RefreshCycle::new(&file.config, Instant::now());
+        let mut refresh = AccountRefresh::new(file.config.accounts.len());
+        let mut state = state_with(file.config.accounts.clone());
+        let mut deletion = DeletionState::Executing {
+            index: 0,
+            account: alpha,
+            purge: true,
+            forget_secrets: None,
+        };
+        let close = run_remove_account(
+            &mut deletion,
+            &mut file,
+            &mut monitor,
+            &mut cycle,
+            &mut refresh,
+            &mut state,
+            no_vault_session(),
+        );
+        assert!(close);
+        assert!(state.error.is_some());
+        assert_eq!(std::fs::read_to_string(&file.path).unwrap(), BETA_ONLY);
+        assert_eq!(file.config.accounts.len(), 1);
+        // The confirmation binds the id of the account it names.
+        match DeletionState::confirm(&file.config, 0) {
+            Some(DeletionState::Confirm { account, .. }) => {
+                assert_eq!(account.as_str(), "beta-account")
+            }
+            _ => panic!("a confirmation for index 0"),
+        }
+        assert!(DeletionState::confirm(&file.config, 1).is_none());
     }
 
     #[test]

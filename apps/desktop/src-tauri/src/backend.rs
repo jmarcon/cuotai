@@ -4474,10 +4474,13 @@ impl Backend {
         &self,
         app: &AppHandle,
         index: usize,
+        account_id: Option<String>,
         purge_credentials: bool,
     ) -> Result<DeleteResult, String> {
         self.ensure_loaded().await;
-        let result = self.drive_delete_account(index, purge_credentials).await?;
+        let result = self
+            .drive_delete_account(index, account_id.as_deref(), purge_credentials)
+            .await?;
         self.emit(app).await;
         Ok(result)
     }
@@ -4492,6 +4495,7 @@ impl Backend {
     pub(crate) async fn drive_delete_account(
         &self,
         index: usize,
+        account_id: Option<&str>,
         purge_credentials: bool,
     ) -> Result<DeleteResult, String> {
         // RF3 split: stage the removal under the inner mutex (snapshot
@@ -4517,6 +4521,9 @@ impl Backend {
             if index >= prev.accounts.len() {
                 return Err(crate::desk_text::no_account());
             }
+            // C1: never remove (nor purge the secrets of) another account
+            // that took the slot after a reload.
+            check_target(&prev, Some(index), account_id)?;
             // Pre-compute the new config + cycle + monitor so a
             // failure (cycle refusal, monitor refusal, save failure)
             // short-circuits without ever touching the vault.
@@ -5342,6 +5349,16 @@ impl Backend {
         self.refresh_account(app, index).await
     }
 
+    /// PRD 0001 re-validation (C1): the index of the account whose stable id
+    /// is `account_id` in the loaded configuration (the core's
+    /// `position_of`), `None` when it is gone.
+    pub async fn account_index(&self, account_id: &str) -> Option<usize> {
+        self.ensure_loaded().await;
+        let id = cuotai_core::AccountId::parse(account_id)?;
+        let g = self.inner.lock().await;
+        g.loaded.as_ref()?.file.config.position_of(&id)
+    }
+
     pub async fn get_account(&self, index: usize) -> Result<AccountForm, String> {
         let g = self.inner.lock().await;
         let l = g
@@ -5641,23 +5658,7 @@ impl Backend {
                 .as_ref()
                 .ok_or_else(crate::desk_text::oauth_session_missing)?,
         );
-        // RF2.8: the core helper binds the request to the edited account and
-        // owns credential_id reuse plus the replaced-key cleanup context.
-        let existing = input.index.and_then(|index| {
-            g.loaded
-                .as_ref()
-                .and_then(|loaded| loaded.file.config.accounts.get(index))
-        });
-        let mut request = LoginRequest::for_account(input.provider, &input.mode, existing);
-        request.options = input.options.clone();
-        request.registration = input.registration.clone();
-        if let Some(path) = input
-            .cli_path
-            .as_ref()
-            .filter(|path| !path.trim().is_empty())
-        {
-            request.cli_path = Some(path.clone());
-        }
+        let request = login_request(g.loaded.as_ref().map(|l| &l.file.config), &input)?;
         // Validates the NEW request BEFORE taking over the predecessor.
         let driver =
             login::start_login(session, input.provider, request).map_err(|e| e.to_string())?;
@@ -6127,6 +6128,11 @@ pub struct FieldValue {
 #[serde(rename_all = "camelCase")]
 pub struct AccountInput {
     pub index: Option<usize>,
+    /// PRD 0001 re-validation (C1): the stable id of the account at `index`
+    /// when the dialog opened; the save is refused when that slot holds
+    /// another account by now (the file was reloaded meanwhile).
+    #[serde(default)]
+    pub account_id: Option<String>,
     pub provider: Provider,
     pub name: String,
     /// PRD 0029 RF3.3: the name typed for the provider's existing, unnamed
@@ -6212,6 +6218,10 @@ fn default_credential_mode() -> String {
 pub struct LoginStartInput {
     pub provider: Provider,
     pub index: Option<usize>,
+    /// PRD 0001 re-validation (C1): the stable id of the account at `index`;
+    /// a sign-in never reuses the vault key of another account.
+    #[serde(default)]
+    pub account_id: Option<String>,
     pub mode: String,
     #[serde(default)]
     pub options: BTreeMap<String, String>,
@@ -6564,11 +6574,55 @@ fn with_named_peer(config: &Config, input: &AccountInput) -> Result<Config, Stri
     }
 }
 
+/// The core's login request for `input`, bound to the account it edits
+/// (RF2.8: the core decides on `credential_id` reuse and the replaced-key
+/// cleanup). C1: refused when the slot no longer holds the account the
+/// dialog edits, so a sign-in never reuses another account's vault key.
+fn login_request(config: Option<&Config>, input: &LoginStartInput) -> Result<LoginRequest, String> {
+    if let Some(config) = config {
+        check_target(config, input.index, input.account_id.as_deref())?;
+    }
+    let existing = input
+        .index
+        .and_then(|index| config.and_then(|config| config.accounts.get(index)));
+    let mut request = LoginRequest::for_account(input.provider, &input.mode, existing);
+    request.options = input.options.clone();
+    request.registration = input.registration.clone();
+    if let Some(path) = input
+        .cli_path
+        .as_ref()
+        .filter(|path| !path.trim().is_empty())
+    {
+        request.cli_path = Some(path.clone());
+    }
+    Ok(request)
+}
+
+/// PRD 0001 re-validation (C1): the core's [`Config::check_slot`] for a
+/// command aimed at `index` with the account id the window holds. Without an
+/// index (a new account) or an id (an older caller) there is nothing to bind.
+fn check_target(
+    config: &Config,
+    index: Option<usize>,
+    account_id: Option<&str>,
+) -> Result<(), String> {
+    let (Some(index), Some(id)) = (index, account_id) else {
+        return Ok(());
+    };
+    let Some(expected) = cuotai_core::AccountId::parse(id) else {
+        return Err(crate::desk_text::no_account());
+    };
+    config
+        .check_slot(index, &expected)
+        .map_err(|error| edit_error_to_json(&error))
+}
+
 fn input_account(
     config: &Config,
     input: &AccountInput,
     completed: Option<&CompletedLogin>,
 ) -> Result<cuotai_core::Account, String> {
+    check_target(config, input.index, input.account_id.as_deref())?;
     let existing = input.index.and_then(|i| config.accounts.get(i));
     let had_oauth = existing
         .filter(|a| a.provider == input.provider)
@@ -7323,6 +7377,7 @@ mod tests {
         };
         let input = |budgets: Option<Vec<Budget>>| AccountInput {
             index: Some(0),
+            account_id: None,
             provider: Provider::OpenAiApi,
             name: "A".into(),
             peer_name: None,
@@ -8846,7 +8901,7 @@ mod tests {
             index: usize,
             purge: bool,
         ) -> Result<DeleteResult, String> {
-            self.inner.drive_delete_account(index, purge).await
+            self.inner.drive_delete_account(index, None, purge).await
         }
         pub(crate) async fn drive_retry(&self, handle: &str) -> Result<DeleteResult, String> {
             self.inner.drive_retry(handle).await
@@ -8982,6 +9037,7 @@ mod tests {
             group: Default::default(),
             peer_name: Default::default(),
             index: None,
+            account_id: None,
             provider: Provider::NineRouter,
             name: "home".into(),
             credential: String::new(),
@@ -9052,6 +9108,7 @@ mod tests {
         };
         let input = AccountInput {
             index: Some(0),
+            account_id: None,
             provider: account.provider,
             name: "Renamed".into(),
             peer_name: None,
@@ -9081,6 +9138,7 @@ mod tests {
     fn pasted_input(paste: &str) -> AccountInput {
         AccountInput {
             index: Some(0),
+            account_id: None,
             provider: Provider::XiaomiMimo,
             name: "MiMo".into(),
             peer_name: None,
@@ -9604,7 +9662,7 @@ mod tests {
         let raced = b
             .models(1, 1, |m, i| async move {
                 let result = m.model_state(i);
-                b.drive_delete_account(0, false).await.unwrap();
+                b.drive_delete_account(0, None, false).await.unwrap();
                 result
             })
             .await;
@@ -9708,7 +9766,7 @@ mod tests {
         assert!(err.contains("models.error.invalid_index"), "{err}");
         assert_eq!(b.account_history(0, 0, day, None).await.unwrap_err(), STALE);
         // After a removal the old view's token is stale.
-        b.drive_delete_account(1, false).await.unwrap();
+        b.drive_delete_account(1, None, false).await.unwrap();
         assert_eq!(b.account_history(0, 1, day, None).await.unwrap_err(), STALE);
         let live = b.view().await.generation;
         assert_eq!(
@@ -9820,7 +9878,7 @@ mod tests {
             STALE
         );
         // After a removal the old view's token is stale.
-        b.drive_delete_account(1, false).await.unwrap();
+        b.drive_delete_account(1, None, false).await.unwrap();
         assert_eq!(
             b.stats(StatsRange::Days7, None, 1).await.unwrap_err(),
             STALE
@@ -9862,7 +9920,7 @@ mod tests {
             STALE
         );
         // After a removal, index 0 of the old view is refused; the live one works.
-        b.drive_delete_account(0, false).await.unwrap();
+        b.drive_delete_account(0, None, false).await.unwrap();
         assert_eq!(
             b.history_scope(Some(0), Some(1)).await.err().unwrap(),
             STALE
@@ -9948,6 +10006,148 @@ mod tests {
         cfg.accounts.push(plain_account("gamma"));
         file.save(cfg.clone()).unwrap();
         assert_eq!(file.config.accounts.len(), 2, "gamma now persists");
+    }
+
+    /// C1 fixture: Alpha (0) and Beta (1, an OAuth account whose token is in
+    /// the vault); the file is then rewritten elsewhere without Alpha and the
+    /// backend reloads, so Beta sits at Alpha's old index. Returns Alpha's id,
+    /// Beta's vault key and the file text after the external edit.
+    async fn alpha_removed_elsewhere() -> (TestBackend, Arc<MemoryStore>, String, String, String) {
+        let store = Arc::new(MemoryStore::default());
+        let backend = build_backend(
+            store.clone(),
+            vec![
+                plain_account("alpha"),
+                oauth_account("Beta", Provider::ChatGpt),
+            ],
+        )
+        .await;
+        let config = backend.loaded_config().await;
+        let alpha = config.accounts[0].id().to_string();
+        let beta_key = save_token_for(
+            &store,
+            Provider::ChatGpt,
+            config.accounts[1].oauth.as_ref().unwrap(),
+        )
+        .await;
+        let path = backend.file_path().await;
+        let mut other = ConfigFile::load(Some(path.clone()), false).unwrap();
+        let mut without = other.config.clone();
+        without.accounts.remove(0);
+        other.save(without).unwrap();
+        let reloaded = backend.reload_for_test().await;
+        assert_eq!(reloaded.accounts.len(), 1);
+        assert_eq!(reloaded.accounts[0].name, "Beta");
+        let text = std::fs::read_to_string(&path).unwrap();
+        (backend, store, alpha, beta_key, text)
+    }
+
+    /// The dialog's save of Alpha's draft at `index`, carrying `account_id`.
+    fn alpha_draft(index: usize, account_id: &str) -> AccountInput {
+        let mut input = pasted_input("");
+        input.index = Some(index);
+        input.account_id = Some(account_id.to_string());
+        input.provider = Provider::AlibabaCloud;
+        input.name = "alpha".into();
+        input.credential = "ALPHA_KEY".into();
+        input
+    }
+
+    // PRD 0001 re-validation (C1): Save after Reload with the index the dialog
+    // opened at never overwrites the account that now sits there, nor touches
+    // its vault entry; the dialog finds the account again by its id.
+    #[tokio::test(flavor = "current_thread")]
+    async fn save_after_reload_refuses_the_slot_another_account_took() {
+        let (backend, store, alpha, beta_key, text) = alpha_removed_elsewhere().await;
+        let error = backend
+            .inner
+            .drive_save_account(alpha_draft(0, &alpha), None)
+            .await
+            .unwrap_err();
+        assert!(error.contains("edit_error.account_moved"), "{error}");
+        assert_eq!(
+            std::fs::read_to_string(backend.file_path().await).unwrap(),
+            text
+        );
+        assert!(store.entries.lock().contains_key(&beta_key));
+        assert_eq!(backend.loaded_config().await.accounts[0].name, "Beta");
+        // The dialog re-resolves: Alpha is gone, Beta is at 0.
+        assert_eq!(backend.inner.account_index(&alpha).await, None);
+        let beta = backend.loaded_config().await.accounts[0].id().to_string();
+        assert_eq!(backend.inner.account_index(&beta).await, Some(0));
+    }
+
+    // C1: the edit dialog opened before the reload (the stale view's index)
+    // cannot be used to probe or save another account either.
+    #[tokio::test(flavor = "current_thread")]
+    async fn session_probe_after_reload_refuses_the_slot_another_account_took() {
+        let (backend, _store, alpha, _beta_key, _text) = alpha_removed_elsewhere().await;
+        let mut input = pasted_input("api-platform_serviceToken=x; userId=1");
+        input.index = Some(0);
+        input.account_id = Some(alpha);
+        let error = match backend.inner.session_probe(&input).await {
+            Err(error) => error,
+            Ok(_) => panic!("the stale probe must be refused"),
+        };
+        assert!(error.contains("edit_error.account_moved"), "{error}");
+    }
+
+    // C1: a removal aimed at the old index neither removes Beta nor purges its
+    // vault entry.
+    #[tokio::test(flavor = "current_thread")]
+    async fn delete_after_reload_refuses_the_slot_another_account_took() {
+        let (backend, store, alpha, beta_key, text) = alpha_removed_elsewhere().await;
+        let error = backend
+            .inner
+            .drive_delete_account(0, Some(&alpha), true)
+            .await
+            .unwrap_err();
+        assert!(error.contains("edit_error.account_moved"), "{error}");
+        assert_eq!(
+            std::fs::read_to_string(backend.file_path().await).unwrap(),
+            text
+        );
+        assert!(store.entries.lock().contains_key(&beta_key));
+        // With the id of the account really there, the removal proceeds.
+        let beta = backend.loaded_config().await.accounts[0].id().to_string();
+        backend
+            .inner
+            .drive_delete_account(0, Some(&beta), false)
+            .await
+            .unwrap();
+        assert!(backend.loaded_config().await.accounts.is_empty());
+    }
+
+    // C1: a sign-in started from the stale dialog never reuses Beta's vault
+    // key; with Beta's own id it does (RF2.8 reauthentication).
+    #[tokio::test(flavor = "current_thread")]
+    async fn login_after_reload_never_reuses_another_accounts_credential() {
+        let (backend, _store, alpha, _beta_key, _text) = alpha_removed_elsewhere().await;
+        let config = backend.loaded_config().await;
+        let input = |account_id: String| LoginStartInput {
+            provider: Provider::ChatGpt,
+            index: Some(0),
+            account_id: Some(account_id),
+            mode: "oauth".into(),
+            options: BTreeMap::new(),
+            registration: BTreeMap::new(),
+            cli_path: None,
+        };
+        let error = login_request(Some(&config), &input(alpha)).unwrap_err();
+        assert!(error.contains("edit_error.account_moved"), "{error}");
+        let beta = config.accounts[0].id().to_string();
+        let request = login_request(Some(&config), &input(beta)).unwrap();
+        assert_eq!(
+            request.credential_id(),
+            Some(
+                config.accounts[0]
+                    .oauth
+                    .as_ref()
+                    .unwrap()
+                    .credential_id
+                    .as_str()
+            )
+        );
     }
 
     fn snapshot_of(names: &[&str]) -> cuotai_core::Snapshot {

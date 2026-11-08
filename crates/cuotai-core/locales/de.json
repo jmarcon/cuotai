@@ -560,6 +560,7 @@
   "edit_error.config_tls": "9router-Konto mit ungültigem TLS: tls_pin_sha256 muss 64 Hexadezimalziffern haben, und tls_ca_file und tls_pin_sha256 dürfen weder zusammen noch ohne HTTPS verwendet werden.",
   "edit_error.config_toml_invalid": "Ungültige TOML-Datei.",
   "edit_error.conflict": "Die Datei {path} hat sich seit dem Laden geändert; laden Sie vor dem Speichern neu.",
+  "edit_error.account_moved": "Das bearbeitete Konto steht nicht mehr an dieser Stelle der Konfigurationsdatei; laden Sie die Datei neu und öffnen Sie das Konto erneut.",
   "edit_error.duplicate_name": "Ein Konto mit diesem Namen existiert bereits.",
   "edit_error.env_invalid": "Ungültiger Variablenname ([A-Za-z_][A-Za-z0-9_]*). Fügen Sie nicht das Token ein: Geben Sie nur den Namen der exportierten Variable an.",
   "edit_error.env_required": "Geben Sie den NAMEN der Umgebungsvariable mit den Zugangsdaten an.",

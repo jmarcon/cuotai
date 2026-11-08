@@ -2,7 +2,7 @@
 // RF2: the login is orchestrated by the core; this dialog only renders typed
 // events (LoginEvent, no secrets) and sends user input.
 import {
-  accountLabel, configChangedOnDisk, deleteAccount, detectSources, forgetExtensionSecrets, dismissDetected, draftAccess, errText, esc, fieldChoices, formSchema, getAccount,
+  accountIndex, accountLabel, configChangedOnDisk, deleteAccount, detectSources, forgetExtensionSecrets, dismissDetected, draftAccess, errText, esc, fieldChoices, formSchema, getAccount,
   getSettings, getView, icon, listProviders, logo, NEW_PROVIDER_URL, openExternal, openSettingsWindow, sessionOpenLinkHtml, keyPageLinkHtml, installLinkHtml, providerModes, setDetectEnabled,
   loginCancel, loginStart, loginSubmitCode, forgetSession, migrateSession, modelSupport, onLogin, previewSession, reloadConfig,
   reportKey, saveAccount, captureSession, cancelSessionCapture, forgetSharedCapture, sessionCaptureHintHtml, sessionNoticeHtml, testAggregator, testSession, validMonogram, visibleFields,
@@ -28,10 +28,27 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   // reload BEFORE they spend time editing the now-stale draft.
   // Falls back silently on the browser demo (`configChangedOnDisk`
   // always returns `false` there).
+  // PRD 0001 C1: the stable id of the account being edited, read before any
+  // reload, so the dialog keeps editing that account wherever the reload puts
+  // it, and the backend refuses a save, removal or sign-in aimed at a slot
+  // that holds another account by then.
+  let accountId = null;
+  if (index != null) {
+    try { accountId = (await getAccount(index))?.account_id ?? null; } catch { /* the save still checks the slot */ }
+  }
   try {
     if (await configChangedOnDisk()) {
       const choice = await offerExternalReload();
-      if (choice === "reload") await reloadConfig();
+      if (choice === "reload") {
+        await reloadConfig();
+        if (accountId != null) {
+          index = await accountIndex(accountId);
+          if (index == null) {
+            await noticeAccountGone();
+            return;
+          }
+        }
+      }
       // "keep" leaves the wizard open with the old snapshot — the
       // user gets the typed-conflict banner on save either way.
     }
@@ -314,6 +331,17 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     if (reloadBtn) reloadBtn.disabled = true;
     try {
       const view = await reloadConfig();
+      // PRD 0001 C1: find the edited account again by its id; another
+      // account that took its old place is never edited in its stead.
+      if (accountId != null) {
+        const found = await accountIndex(accountId);
+        if (found == null) {
+          dlg.close();
+          await noticeAccountGone();
+          return;
+        }
+        index = found;
+      }
       // Refresh the "name collision" form baseline in case another
       // account appeared while the dialog was open; renaming the
       // current edit into an existing name still fails at save
@@ -949,7 +977,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     try {
       // PRD 0054 RF6.1: the draft's program path, so the sign-in starts the CLI the query will.
       const cliPath = values.get("cli_path")?.text?.trim() || null;
-      const attempt = await loginStart({ provider, index, mode: mode.id, options, registration, cli_path: cliPath });
+      const attempt = await loginStart({ provider, index, accountId, mode: mode.id, options, registration, cli_path: cliPath });
       loginState.attempt = attempt;
       drainPending();
     } catch (x) {
@@ -1149,7 +1177,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     const mode = selectedMode();
     const { options } = collectModeInputs(mode);
     return {
-      index, provider, name: String(data.get("name") ?? ""),
+      index, accountId, provider, name: String(data.get("name") ?? ""),
       peerName: peerShown ? String(data.get("peer_name") ?? "") : null,
       credential: mode ? "" : credentialText(data),
       fields: draftFields(),
@@ -1264,7 +1292,9 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
         confirmUntested = false;
         ok.textContent = t("common.save");
       }
-      if (parsed && parsed.id === "edit_error.conflict") {
+      // PRD 0001 C1: `account_moved` (the edited account left its place in the
+      // file) offers the same reload, which finds the account again by id.
+      if (parsed && (parsed.id === "edit_error.conflict" || parsed.id === "edit_error.account_moved")) {
         // Offer the reload — the user keeps the dialog draft and
         // can retry the same save afterwards. The button replaces
         // the OK button's role until reload completes, so we
@@ -1454,7 +1484,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
 
 /** Confirms the removal. An account with a credential in the vault asks whether the credential should be deleted too.
  *  `onDone(result)` receives what the core did (removed, deleted from the vault, kept, shared…). */
-export function confirmDelete(index, label, { usesOauth = false, secretsOf = null, onDone = () => {} } = {}) {
+export function confirmDelete(index, label, { usesOauth = false, secretsOf = null, accountId = null, onDone = () => {} } = {}) {
   const buttons = usesOauth
     ? `<button type="button" class="btn" data-purge="0">${te("dialog.deleteVaultKeep")}</button>
        <button type="button" class="btn danger-btn" data-purge="1">${te("dialog.deleteVaultPurge")}</button>`
@@ -1471,7 +1501,7 @@ export function confirmDelete(index, label, { usesOauth = false, secretsOf = nul
     btn.addEventListener("click", async () => {
       dlg.querySelectorAll("button").forEach((b) => (b.disabled = true));
       try {
-        const result = await deleteAccount(index, btn.dataset.purge === "1");
+        const result = await deleteAccount(index, btn.dataset.purge === "1", accountId);
         // The account is gone; deleting the extension's vault secrets is the user's separate, opt-in choice.
         if (secretsOf && dlg.querySelector("#forget-secrets")?.checked) await forgetExtensionSecrets(secretsOf).catch(() => {});
         dlg.close();
@@ -1514,6 +1544,25 @@ function confirmFingerprint(fingerprint) {
       });
     }
     dlg.addEventListener("close", () => { dlg.remove(); resolve(choice); });
+  });
+}
+
+/** PRD 0001 C1: the account a dialog edits is no longer in the file (removed
+ *  elsewhere, found missing after a reload); says so and resolves on close. */
+export function noticeAccountGone() {
+  return new Promise((resolve) => {
+    const dlg = document.createElement("dialog");
+    dlg.className = "dlg";
+    dlg.innerHTML = `<form method="dialog" class="dlg-body">
+      <p role="alert">${te("dialog.accountGone")}</p>
+      <div class="dlg-actions">
+        <button type="button" class="btn primary" data-close>${te("common.close")}</button>
+      </div>
+    </form>`;
+    document.body.append(dlg);
+    showDialog(dlg);
+    dlg.querySelector("[data-close]").addEventListener("click", () => dlg.close());
+    dlg.addEventListener("close", () => { dlg.remove(); resolve(); });
   });
 }
 

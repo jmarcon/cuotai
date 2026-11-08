@@ -560,6 +560,7 @@
   "edit_error.config_tls": "TLS'i geçersiz 9router hesabı: tls_pin_sha256 64 onaltılık basamak olmalı; tls_ca_file ve tls_pin_sha256 birlikte veya HTTPS olmadan kullanılamaz.",
   "edit_error.config_toml_invalid": "Dosya geçerli bir TOML değil.",
   "edit_error.conflict": "{path} dosyası yüklendikten sonra değişti; kaydetmeden önce yeniden yükleyin.",
+  "edit_error.account_moved": "Düzenlenen hesap artık yapılandırma dosyasında bu konumda değil; dosyayı yeniden yükleyin ve hesabı yeniden açın.",
   "edit_error.duplicate_name": "Bu adda bir hesap zaten var.",
   "edit_error.env_invalid": "Geçersiz değişken adı ([A-Za-z_][A-Za-z0-9_]*). Jetonu yapıştırmayın: yalnızca dışa aktarılan değişkenin adını girin.",
   "edit_error.env_required": "Kimlik bilgisini tutan ortam değişkeninin ADINI girin.",

@@ -407,6 +407,7 @@
   "edit_error.config_tls": "TLS non valido nell'account 9router: tls_pin_sha256 deve avere 64 cifre esadecimali, e tls_ca_file e tls_pin_sha256 non possono essere usati insieme né senza HTTPS.",
   "edit_error.config_toml_invalid": "Il file non è un TOML valido.",
   "edit_error.conflict": "Il file {path} è cambiato dopo il caricamento; ricaricalo prima di salvare.",
+  "edit_error.account_moved": "L’account in modifica non si trova più in questo punto del file di configurazione; ricarica il file e riapri l’account.",
   "edit_error.duplicate_name": "Esiste già un account con questo nome.",
   "edit_error.env_invalid": "Nome di variabile non valido ([A-Za-z_][A-Za-z0-9_]*). Non incollare il token: imposta solo il nome della variabile esportata.",
   "edit_error.env_required": "Imposta il NOME della variabile d'ambiente che contiene la credenziale.",
