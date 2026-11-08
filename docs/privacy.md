@@ -11,9 +11,9 @@ Cuotai is a read-only monitor that runs on your computer. It has no telemetry, n
 
 | Purpose | Host | When | What is sent | Default | PRD |
 |---|---|---|---|---|---|
-| `provider_api` | each configured provider's API (or the base URL you set) | each refresh of an account; a model list you open | that account's credential and the parameters the provider needs | on for each account you add | 0001 |
+| `provider_api` | each configured provider's API (or the base URL you set) | each refresh of an account; a model list you open; `cuotai --doctor --probe` (one `HEAD` per host, without the credential) | that account's credential and the parameters the provider needs | on for each account you add | 0001 |
 | `oauth` | the provider's sign-in and token endpoints | signing in, and refreshing an expiring token | authorization codes, refresh tokens and the provider's client id | only for OAuth accounts | 0001 |
-| `public_status` | public status pages of configured providers | every 5 minutes at most, while turned on | nothing but the request (no credential) | off | 0011 |
+| `public_status` | public status pages of configured providers | every 5 minutes at most, while turned on; `cuotai --doctor --probe` while turned on | nothing but the request (no credential) | off | 0011 |
 | `update_check` | GitHub Releases (`latest.json`) | at most once every 24 hours on a terminal | the `User-Agent` `cuotai/<version>` | off | 0028 |
 | `desktop_updater` | GitHub Releases (signed manifest and installers) | on opening and every 24 hours, after you allow it once | nothing about you: a static manifest request, then only the installer you accept | asked once; off for package-manager installs | 0018 |
 | `local_probe` | a 9router instance on this computer (loopback only, no proxy) | account setup detection | a health request without credentials | only while adding accounts | 0036 |
@@ -21,6 +21,7 @@ Cuotai is a read-only monitor that runs on your computer. It has no telemetry, n
 | `extensions` | whatever an approved extension program contacts, with your network | each refresh of an extension account | decided by the program you approved; Cuotai passes it only its configured parameters | off until you approve an extension | 0017 |
 | `hooks` | whatever a confirmed hook command contacts, with your network | each event a confirmed rule matches | decided by the command you confirmed; it receives the event on standard input | off until you confirm the rules | 0013 |
 | `local_server` | inbound: clients on this computer (loopback unless you allow more with a token) | while `--serve` or Settings → Integration runs it | the readings already shown, without credentials; a bearer token is required by default | off | 0012 |
+| `notification_channels` | only the webhook, ntfy, Slack or Discord address you add as a channel | a notification Cuotai would show on this computer, after the same preferences and quiet hours, at most 20 per hour per channel; Send test | the notification's title and text (account names only if you choose), its kind and severity; never readings in bulk or a credential | off: nothing until you add a channel | 0044 |
 
 ### Local data
 
@@ -52,7 +53,8 @@ Cuotai is a read-only monitor that runs on your computer. It has no telemetry, n
 | `update.check` | `<local data>/cuotai/update-check.json` | the latest version seen by the terminal update notice and when | `0600` | unversioned | 24 hours | `--erase-all-data`; desktop: **Erase all Cuotai data** | 0028 |
 | `metered.records` | `<local data>/cuotai/metered` | time of the last query of each metered account (digest-named) | `0700` | — | until erased | `--erase-all-data`; desktop: **Erase all Cuotai data** | 0033 |
 | `canary.records` | `<local data>/cuotai/canary` | maintainer canary runs: response shapes without values | `0700` | — | until erased | `--erase-all-data`; desktop: **Erase all Cuotai data** | 0028 |
-| `vault.oauth` | `vault service cuotai.oauth` | OAuth tokens, pasted sessions and keys saved in the app | — | — | until the account is removed or signed out | `--erase-all-data`; desktop: **Erase all Cuotai data** | 0001 |
+| `channels.log` | `<local data>/cuotai/channels/log.jsonl` | time, channel id, notification kind, outcome, HTTP status and attempt of each channel delivery; never the body, address or label | `0600` | unversioned | 7 days | `--erase-all-data`; desktop: **Erase all Cuotai data** | 0044 |
+| `vault.oauth` | `vault service cuotai.oauth` | OAuth tokens, pasted sessions, keys saved in the app and notification channel addresses (`channel_<id>`) | — | — | until the account is removed or signed out | `--erase-all-data`; desktop: **Erase all Cuotai data** | 0001 |
 | `vault.serve` | `vault service cuotai.serve` | the local server's bearer token | — | — | until the account is removed or signed out | `--erase-all-data`; desktop: **Erase all Cuotai data** | 0012 |
 <!-- privacy-inventory:end -->
 
