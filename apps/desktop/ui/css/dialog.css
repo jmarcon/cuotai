@@ -1155,4 +1155,25 @@ dialog.dlg.dlg-shell:popover-open {
   font: var(--text-sm) var(--font-mono), var(--font-script);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+
+/* PRD 0046 (DS-CMP-BAK-1..2): Back up… and Restore…, plan and next steps. */
+dialog.backup-dlg,
+dialog.restore-dlg {
+  width: min(var(--dialog-md), calc(100vw - 32px));
+}
+.backup-dlg h3.sub,
+.restore-dlg h3.sub {
+  margin: var(--space-2) 0 0;
+  font-weight: 600;
+}
+.backup-dlg code,
+.restore-dlg code {
+  font-family: var(--font-mono), var(--font-script);
+  overflow-wrap: anywhere;
+}
+.restore-dlg li.dim {
+  color: var(--fg-muted);
+}
+.restore-dlg li .btn {
+  margin-inline-start: var(--space-2);
 }

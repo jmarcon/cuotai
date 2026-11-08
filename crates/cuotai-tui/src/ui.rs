@@ -1152,7 +1152,12 @@ pub async fn run(
                                     ),
                                 },
                                 &crate::report_problem::app_info(),
-                            );
+                            )
+                            // PRD 0046 RF4.4: the setup check's problems.
+                            .with_setup_check(&crate::doctor::report_for(
+                                Some(file.path.clone()),
+                                "en-US",
+                            ));
                             report_view = Some(ReportView::new(crate::report_problem::render(
                                 &draft,
                                 report.status == cuotai_core::Status::Ready,

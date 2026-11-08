@@ -192,6 +192,33 @@ pub struct ProjectRow {
     pub hidden: bool,
 }
 
+/// PRD 0046 RF1.1: the labels a backup carries (`prefs/cost-labels.json`).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, serde::Deserialize)]
+pub struct Labels {
+    pub schema: u32,
+    #[serde(default)]
+    pub projects: Vec<ProjectLabel>,
+    #[serde(default)]
+    pub sessions: Vec<SessionLabel>,
+}
+
+/// One project's label and hidden flag, by fingerprint.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, serde::Deserialize)]
+pub struct ProjectLabel {
+    pub project: String,
+    #[serde(default)]
+    pub label: Option<String>,
+    #[serde(default)]
+    pub hidden: bool,
+}
+
+/// One session's label, by digest.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, serde::Deserialize)]
+pub struct SessionLabel {
+    pub session: String,
+    pub label: String,
+}
+
 /// PRD 0042 RF2.2/RF4.2: what a label is attached to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -970,6 +997,75 @@ impl CostIndex {
             )?,
         };
         Ok(digest)
+    }
+
+    /// PRD 0046 RF1.1: the person's labels and hidden projects, as a backup
+    /// carries them (never a folder name). Never creates the file.
+    pub fn labels(&self) -> Result<Labels, CostError> {
+        let projects = self
+            .projects()?
+            .into_iter()
+            .filter(|row| row.label.is_some() || row.hidden)
+            .map(|row| ProjectLabel {
+                project: row.project,
+                label: row.label,
+                hidden: row.hidden,
+            })
+            .collect();
+        let sessions = self
+            .session_labels()?
+            .into_iter()
+            .map(|(session, label)| SessionLabel { session, label })
+            .collect();
+        Ok(Labels {
+            schema: 1,
+            projects,
+            sessions,
+        })
+    }
+
+    /// PRD 0046 RF3.2: merge `labels` from a backup; with `apply` false,
+    /// only count. Only projects and sessions this index already knows
+    /// take them, and only where this computer has no label (or hidden
+    /// flag) of its own: the local choice wins. Returns the rows taken.
+    pub fn import_labels(&self, labels: &Labels, apply: bool) -> Result<usize, CostError> {
+        let Some(mut db) = self.open_existing()? else {
+            return Ok(0);
+        };
+        let digest_ok = |digest: &str| {
+            !digest.is_empty()
+                && digest.len() <= 64
+                && digest.bytes().all(|b| b.is_ascii_hexdigit())
+        };
+        let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let mut taken = 0;
+        for project in &labels.projects {
+            let label = project.label.as_deref().map(clean_label).transpose();
+            let (true, Ok(label)) = (digest_ok(&project.project), label) else {
+                continue;
+            };
+            taken += tx.execute(
+                "UPDATE projects SET label = ?2, hidden = ?3
+                 WHERE project = ?1 AND label IS NULL AND hidden = 0",
+                params![project.project, label, project.hidden],
+            )?;
+        }
+        for session in &labels.sessions {
+            let (true, Ok(label)) = (digest_ok(&session.session), clean_label(&session.label))
+            else {
+                continue;
+            };
+            taken += tx.execute(
+                "INSERT INTO session_labels (session, label)
+                 SELECT ?1, ?2 WHERE EXISTS (SELECT 1 FROM requests WHERE session = ?1)
+                 ON CONFLICT (session) DO NOTHING",
+                params![session.session, label],
+            )?;
+        }
+        if apply {
+            tx.commit()?;
+        }
+        Ok(taken)
     }
 
     /// PRD 0042 RF4.1: hide (or show again) the project whose digest starts

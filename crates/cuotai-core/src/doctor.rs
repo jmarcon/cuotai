@@ -8,11 +8,17 @@
 //!
 //! The configuration check reuses `--check-config`'s strict reader
 //! ([`crate::config_file::check`]); PRD 0052's diagnostics can add their
-//! own checks to the same [`Report`].
+//! own checks to the same [`Report`]. The system vault is checked for
+//! availability only (no entry is read, so no token's expiry either; the
+//! next refresh reports an expired sign-in). [`probe`] adds the opt-in
+//! network checks of `--doctor --probe`.
+
+pub mod probe;
 
 use std::net::{Ipv4Addr, TcpListener};
 use std::path::{Path, PathBuf};
 
+use chrono::{DateTime, Utc};
 use serde::Serialize;
 
 use crate::config_file::{self, ConfigFile, ConfigParseMode, PathSource, ResolvedPath};
@@ -91,6 +97,20 @@ impl Report {
 /// Looks up an environment variable (only whether it is set is used).
 pub type VarLookup = Box<dyn Fn(&str) -> Option<String>>;
 
+/// Whether the system vault answers (no entry is read).
+pub type VaultProbe = Box<dyn Fn() -> bool>;
+
+/// What the process learned of the servers' clocks: the current warning
+/// and whether any server date was compared at all.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ClockState {
+    pub warning: Option<crate::network::Skew>,
+    pub observed: bool,
+}
+
+/// [`ClockState`] when the doctor runs (after `--probe`, if any).
+pub type ClockProbe = Box<dyn Fn() -> ClockState>;
+
 /// What the doctor looks at, injectable so tests never read the real
 /// environment or OS folders.
 pub struct Inputs {
@@ -111,6 +131,20 @@ pub struct Inputs {
     pub install_source: String,
     /// PRD 0054 RF6.2: where the provider CLIs are looked for.
     pub resolver: crate::external_tool::Resolver,
+    /// The system vault's availability, asked only when an account keeps
+    /// its sign-in there.
+    pub vault: VaultProbe,
+    /// [`crate::extensions::default_dir`].
+    pub extensions_dir: Option<PathBuf>,
+    /// The home folder and variables the local cost sources follow.
+    pub cost_env: crate::cost::Env,
+    /// The servers' clock as this process saw it.
+    pub clock: ClockProbe,
+    /// The desktop's notification permission (`None` outside the desktop).
+    pub notifications: Option<bool>,
+    /// The language the front end shows.
+    pub locale: String,
+    pub now: DateTime<Utc>,
 }
 
 impl Inputs {
@@ -129,8 +163,31 @@ impl Inputs {
             version: crate::build_info::display_version(),
             install_source,
             resolver: crate::external_tool::Resolver::from_process(),
+            vault: Box::new(vault_available),
+            extensions_dir: crate::extensions::default_dir(),
+            cost_env: crate::cost::Env::system(),
+            clock: Box::new(|| {
+                let skew = crate::network::clock_skew();
+                ClockState {
+                    warning: skew.warning(),
+                    observed: skew.observed(),
+                }
+            }),
+            notifications: None,
+            locale: String::new(),
+            now: Utc::now(),
         }
     }
+}
+
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+fn vault_available() -> bool {
+    crate::oauth::SystemTokenStore::available()
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+fn vault_available() -> bool {
+    false
 }
 
 fn path_param(path: &Path) -> ParamValue {
@@ -259,6 +316,37 @@ fn check_account(index: usize, account: &Account, inputs: &Inputs) -> Check {
             "doctor.account.vault",
             "It signs in through the system vault, which the next refresh checks.",
         ));
+    }
+    if let Some(extension) = account.extension_id() {
+        let manager = inputs
+            .extensions_dir
+            .as_ref()
+            .map(|dir| crate::extensions::management::Manager::at(dir.clone()));
+        return match manager.map(|manager| manager.is_enabled(extension)) {
+            Some(Ok(true)) => Check::new(id, CheckStatus::Ok, title).detail(fixed(
+                "doctor.account.extension_ok",
+                "Its extension is approved and unchanged since.",
+            )),
+            Some(Ok(false)) => Check::new(id, CheckStatus::Warn, title)
+                .detail(fixed(
+                    "doctor.account.extension_changed",
+                    "Its extension changed since you approved it, or was never approved, so it does not run.",
+                ))
+                .fix(fixed(
+                    "doctor.fix.extension",
+                    "Review and approve the extension again in Extensions, or run cuotai --extension-check with its id.",
+                )),
+            Some(Err(reason)) => Check::new(id, CheckStatus::Fail, title)
+                .detail(reason)
+                .fix(fixed(
+                    "doctor.fix.extension",
+                    "Review and approve the extension again in Extensions, or run cuotai --extension-check with its id.",
+                )),
+            None => Check::new(id, CheckStatus::Fail, title).detail(fixed(
+                "doctor.account.extension_missing",
+                "There is no extensions folder on this computer.",
+            )),
+        };
     }
     if let Some(variable) = account.credential_env.as_deref() {
         let set = (inputs.var)(variable).is_some_and(|value| !value.is_empty());
@@ -614,6 +702,252 @@ fn check_port(port: u16) -> Check {
     }
 }
 
+/// The system vault, when an account keeps its sign-in there.
+fn check_vault(config: Option<&crate::Config>, inputs: &Inputs) -> Check {
+    let title = fixed("doctor.title.vault", "System vault");
+    let uses = config.is_some_and(|config| {
+        config
+            .accounts
+            .iter()
+            .any(|account| account.oauth.is_some() || account.session.is_some())
+    });
+    if !uses {
+        return Check::new("vault", CheckStatus::Skip, title).detail(fixed(
+            "doctor.vault.unused",
+            "No account keeps its sign-in there.",
+        ));
+    }
+    if (inputs.vault)() {
+        Check::new("vault", CheckStatus::Ok, title)
+            .detail(fixed("doctor.vault.ok", "It answers; no entry was read."))
+    } else {
+        Check::new("vault", CheckStatus::Fail, title)
+            .detail(fixed(
+                "doctor.vault.unavailable",
+                "It does not answer, so the accounts that sign in through it cannot be read.",
+            ))
+            .fix(fixed(
+                "doctor.fix.vault",
+                "Unlock the system keychain (on Linux, start a Secret Service such as GNOME Keyring or KWallet), then try again.",
+            ))
+    }
+}
+
+/// The local cost sources that are on, and whether their folders can be
+/// listed (nothing in them is read).
+fn check_cost_sources(inputs: &Inputs) -> Vec<Check> {
+    let Some(root) = inputs.data_root.as_ref() else {
+        return Vec::new();
+    };
+    let store = crate::cost::SettingsStore::at(root.join("cost").join("settings.json"));
+    let Ok(settings) = store.load() else {
+        return vec![Check::new(
+            "cost_settings",
+            CheckStatus::Warn,
+            fixed("doctor.title.cost_settings", "Local cost settings"),
+        )
+        .detail(damaged())
+        .fix(damaged_fix())];
+    };
+    settings
+        .enabled_sources(&inputs.cost_env)
+        .into_iter()
+        .map(|source| {
+            let title = Localized::with_param(
+                "doctor.title.cost_source",
+                "source",
+                source.slug(),
+                "Local cost source {source}",
+            );
+            let id = format!("cost_source.{}", source.slug());
+            let readable = settings
+                .roots(source, &inputs.cost_env)
+                .iter()
+                .any(|dir| std::fs::read_dir(dir).is_ok());
+            if readable {
+                Check::new(id, CheckStatus::Ok, title).detail(fixed(
+                    "doctor.cost_source.ok",
+                    "Its folder can be read.",
+                ))
+            } else {
+                Check::new(id, CheckStatus::Warn, title)
+                    .detail(fixed(
+                        "doctor.cost_source.unreadable",
+                        "None of its folders exists or can be read, so it adds nothing.",
+                    ))
+                    .fix(fixed(
+                        "doctor.fix.cost_source",
+                        "Choose the right folder in Settings › Advanced › Local cost, or turn the source off.",
+                    ))
+            }
+        })
+        .collect()
+}
+
+/// The clock: the servers' dates this process compared (RF7 of PRD 0052),
+/// else the newest stored reading dated more than five minutes ahead.
+fn check_clock(inputs: &Inputs) -> Check {
+    let title = fixed("doctor.title.clock", "Clock");
+    let state = (inputs.clock)();
+    if let Some(skew) = state.warning {
+        return Check::new("clock", CheckStatus::Warn, title)
+            .detail(skew.l10n())
+            .fix(fixed(
+                "doctor.fix.clock",
+                "Turn on automatic date and time in the system settings.",
+            ));
+    }
+    if state.observed {
+        return Check::new("clock", CheckStatus::Ok, title).detail(fixed(
+            "doctor.clock.ok",
+            "It agrees with the servers' clocks.",
+        ));
+    }
+    let newest = inputs
+        .data_root
+        .as_ref()
+        .map(|root| root.join("history").join("history.sqlite3"))
+        .filter(|path| path.is_file())
+        .and_then(|path| {
+            rusqlite::Connection::open_with_flags(
+                path,
+                rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY
+                    | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+            )
+            .ok()
+        })
+        .and_then(|db| {
+            db.query_row("SELECT MAX(taken_at) FROM samples", [], |row| {
+                row.get::<_, Option<i64>>(0)
+            })
+            .ok()
+            .flatten()
+        });
+    let ahead = newest.is_some_and(|newest| {
+        newest > inputs.now.timestamp_millis() + crate::network::SKEW_THRESHOLD.as_millis() as i64
+    });
+    if ahead {
+        Check::new("clock", CheckStatus::Warn, title)
+            .detail(fixed(
+                "doctor.clock.history_ahead",
+                "The newest stored reading is dated more than five minutes from now, so this clock went back.",
+            ))
+            .fix(fixed(
+                "doctor.fix.clock",
+                "Turn on automatic date and time in the system settings.",
+            ))
+    } else {
+        Check::new("clock", CheckStatus::Skip, title).detail(fixed(
+            "doctor.clock.unchecked",
+            "No server's clock was compared in this run; cuotai --doctor --probe compares one.",
+        ))
+    }
+}
+
+/// PRD 0044 channels: each one's last outcome from the delivery log, named
+/// by position and kind (never its label, host or address).
+fn check_channels(inputs: &Inputs) -> Vec<Check> {
+    let Some(path) = inputs.desktop_settings.as_deref() else {
+        return Vec::new();
+    };
+    let channels = crate::channels::read(path);
+    if channels.is_empty() {
+        return Vec::new();
+    }
+    let entries = inputs
+        .data_root
+        .as_ref()
+        .map(|root| {
+            crate::channels::log::DeliveryLog::at(root.join("channels").join("log.jsonl")).read()
+        })
+        .unwrap_or_default();
+    channels
+        .iter()
+        .enumerate()
+        .map(|(index, channel)| {
+            let title = Localized::with_params(
+                "doctor.title.channel",
+                params([
+                    ("number", ParamValue::from(index + 1)),
+                    ("kind", ParamValue::from(channel.kind.slug())),
+                ]),
+                "Notification channel {number} ({kind})",
+            );
+            let id = format!("channel.{}", index + 1);
+            if !channel.enabled {
+                return Check::new(id, CheckStatus::Skip, title)
+                    .detail(fixed("doctor.channel.off", "It is turned off."));
+            }
+            if crate::channels::log::failing_since(&entries, &channel.id).is_some() {
+                return Check::new(id, CheckStatus::Warn, title)
+                    .detail(fixed(
+                        "doctor.channel.failing",
+                        "Its last deliveries failed.",
+                    ))
+                    .fix(fixed(
+                        "doctor.fix.channel",
+                        "Open the channel in Settings › Alerts, check its address and send a test (cuotai --channel-test).",
+                    ));
+            }
+            match crate::channels::log::last_delivery(&entries, &channel.id) {
+                Some(_) => Check::new(id, CheckStatus::Ok, title).detail(fixed(
+                    "doctor.channel.ok",
+                    "Its last delivery was accepted.",
+                )),
+                None => Check::new(id, CheckStatus::Skip, title).detail(fixed(
+                    "doctor.channel.none",
+                    "Nothing was sent to it yet.",
+                )),
+            }
+        })
+        .collect()
+}
+
+/// The language and time zone, for a report.
+fn check_locale(inputs: &Inputs) -> Check {
+    let zone = chrono::Local::now().offset().to_string();
+    Check::new(
+        "locale",
+        CheckStatus::Ok,
+        Localized::with_params(
+            "doctor.title.locale",
+            params([
+                (
+                    "locale",
+                    ParamValue::from(if inputs.locale.is_empty() {
+                        "en-US".to_owned()
+                    } else {
+                        inputs.locale.clone()
+                    }),
+                ),
+                ("zone", ParamValue::from(format!("UTC{zone}"))),
+            ]),
+            "Language {locale}, time zone {zone}",
+        ),
+    )
+}
+
+/// The desktop's notification permission.
+fn check_notifications(granted: bool) -> Check {
+    let title = fixed("doctor.title.notifications", "Notifications");
+    if granted {
+        Check::new("notifications", CheckStatus::Ok, title).detail(fixed(
+            "doctor.notifications.ok",
+            "The system allows Cuotai's notifications.",
+        ))
+    } else {
+        Check::new("notifications", CheckStatus::Warn, title)
+            .detail(fixed(
+                "doctor.notifications.denied",
+                "The system does not allow Cuotai's notifications, so alerts stay silent.",
+            ))
+            .fix(fixed(
+                "doctor.fix.notifications",
+                "Allow notifications for Cuotai in the system settings.",
+            ))
+    }
+}
+
 /// Run every check over `inputs`. Read-only and offline.
 pub fn run(inputs: &Inputs) -> Report {
     let mut checks = vec![Check::new(
@@ -643,6 +977,7 @@ pub fn run(inputs: &Inputs) -> Report {
             }
         }
     }
+    checks.push(check_vault(config.as_ref(), inputs));
     checks.push(check_data_dir(inputs));
     let root = inputs.data_root.as_deref();
     let store = |dir: &str, file: &str| root.map(|root| root.join(dir).join(file));
@@ -669,6 +1004,13 @@ pub fn run(inputs: &Inputs) -> Report {
     checks.push(check_ledger(root));
     checks.push(check_serve_token(root));
     checks.push(check_port(inputs.port));
+    checks.extend(check_cost_sources(inputs));
+    checks.extend(check_channels(inputs));
+    if let Some(granted) = inputs.notifications {
+        checks.push(check_notifications(granted));
+    }
+    checks.push(check_clock(inputs));
+    checks.push(check_locale(inputs));
     Report {
         schema: SCHEMA,
         checks,

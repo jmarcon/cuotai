@@ -62,7 +62,8 @@ pub use breakdown::{
 };
 pub use estimate::{estimate, estimate_notice, Estimate, ModelEstimate, Usd};
 pub use index::{
-    CostIndex, DailyUsage, Indexed, LabelTarget, ProjectRow, Request, MAX_LABEL_CHARS, MIN_PREFIX,
+    CostIndex, DailyUsage, Indexed, LabelTarget, Labels, ProjectLabel, ProjectRow, Request,
+    SessionLabel, MAX_LABEL_CHARS, MIN_PREFIX,
 };
 pub use plan::{
     cycle_start, earliest_cycle, migrate_plan_keys, plan_accounts, plan_values, DisplayCurrency,

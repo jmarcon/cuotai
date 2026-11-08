@@ -588,5 +588,8 @@
   "channels.cli.unavailable": "Kanäle sind hier nicht verfügbar (kein Konfigurationsordner oder kein TLS).",
   "channels.cli.test_ok": "Gesendet: {host} antwortete {status}.",
   "channels.cli.test_failed": "Nicht gesendet: {host} ({reason}).",
-  "channels.cli.log_empty": "Keine Zustellung in den letzten 7 Tagen."
+  "channels.cli.log_empty": "Keine Zustellung in den letzten 7 Tagen.",
+  "cli.backup.history_large": "Die Sicherung enthält {size} MiB Verlauf; das Kopieren kann dauern.",
+  "cli.restore.merge": "zusammenführen",
+  "cli.restore.rows": "Zeilen: {rows}, hier neu: {new}"
 }

@@ -363,22 +363,237 @@ async fn vault_audit(
 /// installation (Settings › Advanced › Files › Check setup), over the file
 /// the app reads and the port of its local server. Never a value.
 #[tauri::command]
-async fn doctor_report() -> Result<cuotai_core::doctor::Report, String> {
-    tauri::async_runtime::spawn_blocking(|| {
-        use cuotai_core::config_file::{ConfigFile, Discovery, Locations};
-        let mut inputs =
-            cuotai_core::doctor::Inputs::from_process(None, updater::detect().as_str().to_owned());
-        inputs.config = ConfigFile::resolve_path(
-            Discovery::Gui {
-                chosen: settings::chosen_config(),
-            },
-            &Locations::from_process(),
-        );
-        inputs.port = settings::serve_prefs().port;
-        cuotai_core::doctor::run(&inputs)
+async fn doctor_report(app: AppHandle) -> Result<cuotai_core::doctor::Report, String> {
+    let notifications = notify::permission_granted(&app);
+    tauri::async_runtime::spawn_blocking(move || {
+        cuotai_core::doctor::run(&desktop_doctor_inputs(notifications))
     })
     .await
     .map_err(|_| "unexpected".to_owned())
+}
+
+/// The doctor's inputs as the desktop sees them: the file it reads, its
+/// server port, its language and (when known) the notification permission.
+pub(crate) fn desktop_doctor_inputs(notifications: Option<bool>) -> cuotai_core::doctor::Inputs {
+    let mut inputs =
+        cuotai_core::doctor::Inputs::from_process(None, updater::detect().as_str().to_owned());
+    inputs.config = desktop_config_path();
+    inputs.desktop_settings = settings::settings_path();
+    inputs.port = settings::serve_prefs().port;
+    inputs.notifications = notifications;
+    inputs.locale = settings::settings_path()
+        .and_then(|file| settings::read_locale(&file))
+        .unwrap_or_default();
+    inputs
+}
+
+/// The accounts file the desktop reads (`CUOTAI_CONFIG`, the chosen file,
+/// then the OS default).
+fn desktop_config_path() -> cuotai_core::config_file::ResolvedPath {
+    use cuotai_core::config_file::{ConfigFile, Discovery, Locations};
+    ConfigFile::resolve_path(
+        Discovery::Gui {
+            chosen: settings::chosen_config(),
+        },
+        &Locations::from_process(),
+    )
+}
+
+/// PRD 0046: where this desktop keeps what a backup carries.
+fn bundle_locations() -> cuotai_core::bundle::Locations {
+    cuotai_core::bundle::Locations {
+        config: desktop_config_path().path,
+        desktop_settings: settings::settings_path(),
+        user_dir: settings::effective_user_dir(),
+        data_root: cuotai_core::data_dir::root(),
+    }
+}
+
+fn bundle_error(error: &cuotai_core::bundle::BundleError) -> String {
+    serde_json::to_string(&error.l10n()).unwrap_or_else(|_| "unexpected".to_owned())
+}
+
+/// One line of the backup preview: a file that goes in, or what stays out
+/// and why.
+#[derive(serde::Serialize)]
+struct BackupView {
+    files: Vec<cuotai_core::bundle::Entry>,
+    excluded: Vec<cuotai_core::text::Localized>,
+    history_bytes: usize,
+    history_large: bool,
+    /// `cuotai-backup-YYYY-MM-DD.cuotai-backup.zip`.
+    default_name: String,
+}
+
+/// The bundle of this desktop, with the history when asked (RF2.2).
+fn desktop_bundle(with_history: bool) -> Result<cuotai_core::bundle::Bundle, String> {
+    use cuotai_core::bundle::{self, BundleError};
+    // RF1.3: the development credential store is never backed up.
+    if std::env::var_os("CUOTAI_DEV_CREDENTIALS_SQLITE").is_some() {
+        return Err(bundle_error(&BundleError::DevStore));
+    }
+    let locations = bundle_locations();
+    let now = chrono::Utc::now();
+    let history = if with_history {
+        let file = cuotai_core::config_file::ConfigFile::open(desktop_config_path(), true)
+            .map_err(|_| {
+                bundle_error(&BundleError::Io {
+                    path: "history".into(),
+                })
+            })?;
+        let store = cuotai_core::history::HistoryStore::in_data_dir(&file).map_err(|_| {
+            bundle_error(&BundleError::Io {
+                path: "history".into(),
+            })
+        })?;
+        Some((file.config.accounts, store))
+    } else {
+        None
+    };
+    let source = history
+        .as_ref()
+        .map(|(accounts, store)| bundle::HistorySource {
+            store,
+            accounts,
+            since: now - chrono::TimeDelta::days(bundle::HISTORY_DAYS),
+        });
+    bundle::collect_with(
+        &locations,
+        now,
+        &cuotai_core::build_info::display_version(),
+        source,
+    )
+    .map_err(|error| bundle_error(&error))
+}
+
+fn backup_view(bundle: &cuotai_core::bundle::Bundle) -> BackupView {
+    BackupView {
+        files: bundle.manifest.files.clone(),
+        excluded: bundle
+            .manifest
+            .excluded
+            .iter()
+            .map(|item| cuotai_core::bundle::excluded_reason(item))
+            .collect(),
+        history_bytes: bundle.history_bytes(),
+        history_large: bundle.history_bytes() > cuotai_core::bundle::HISTORY_WARN_BYTES,
+        default_name: format!(
+            "cuotai-backup-{}{}",
+            chrono::Local::now().format("%Y-%m-%d"),
+            cuotai_core::bundle::EXTENSION
+        ),
+    }
+}
+
+/// PRD 0046 RF2.1: what **Back up…** would write (shown before the save
+/// dialog); nothing is written.
+#[tauri::command]
+async fn backup_preview(with_history: bool) -> Result<BackupView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        desktop_bundle(with_history).map(|bundle| backup_view(&bundle))
+    })
+    .await
+    .map_err(|_| "unexpected".to_owned())?
+}
+
+/// PRD 0046 RF2.1: write the backup to the absolute `path` the person chose
+/// in the save dialog (private, atomic). Returns what went in.
+#[tauri::command]
+async fn backup_write(path: String, with_history: bool) -> Result<BackupView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = std::path::PathBuf::from(path);
+        if !path.is_absolute() {
+            return Err(bundle_error(&cuotai_core::bundle::BundleError::Invalid));
+        }
+        let bundle = desktop_bundle(with_history)?;
+        cuotai_core::bundle::write_file(&path, &bundle.to_zip())
+            .map_err(|error| bundle_error(&error))?;
+        Ok(backup_view(&bundle))
+    })
+    .await
+    .map_err(|_| "unexpected".to_owned())?
+}
+
+/// The restore plan of the backup at `path` over this desktop.
+fn desktop_plan(path: &str) -> Result<cuotai_core::bundle::Plan, String> {
+    use cuotai_core::bundle::{self, Bundle, BundleError};
+    let path = std::path::PathBuf::from(path);
+    if !path.is_absolute() {
+        return Err(bundle_error(&BundleError::Invalid));
+    }
+    let bytes = std::fs::read(&path).map_err(|_| {
+        bundle_error(&BundleError::Io {
+            path: cuotai_core::text::home_relative(&path),
+        })
+    })?;
+    let bundle = Bundle::from_zip(&bytes).map_err(|error| bundle_error(&error))?;
+    // The desktop never reads variables (PRD 0047 G1): every key the
+    // backup's accounts read from one is a key to type again.
+    let var = |_: &str| None;
+    bundle::plan(&bundle, &bundle_locations(), None, &var).map_err(|error| bundle_error(&error))
+}
+
+/// PRD 0046 RF3.3: the plan of **Restore…** (nothing is written).
+#[tauri::command]
+async fn restore_plan(path: String) -> Result<cuotai_core::bundle::Plan, String> {
+    tauri::async_runtime::spawn_blocking(move || desktop_plan(&path))
+        .await
+        .map_err(|_| "unexpected".to_owned())?
+}
+
+/// What **Restore** did.
+#[derive(serde::Serialize)]
+struct RestoreDone {
+    written: usize,
+    /// The desktop settings changed: a restart applies them.
+    restart: bool,
+}
+
+/// PRD 0046 RF3.3: apply the plan of the backup at `path`: additions and
+/// merges always, each replacement only when its bundle path is in
+/// `accept`. The plan is made again, so a file changed since the preview is
+/// planned anew (and every write still refuses a concurrent change). The
+/// accounts are reloaded; nothing is written to the vault.
+#[tauri::command]
+async fn restore_apply(
+    app: AppHandle,
+    b: Shared<'_>,
+    path: String,
+    accept: Vec<String>,
+) -> Result<RestoreDone, String> {
+    let (written, restart, config) = tauri::async_runtime::spawn_blocking(move || {
+        let plan = desktop_plan(&path)?;
+        let mut restart = false;
+        let mut config = false;
+        let written = plan
+            .apply(|item| accept.contains(&item.path))
+            .map_err(|error| bundle_error(&error))?;
+        for item in &plan.items {
+            let taken = match item.action {
+                cuotai_core::bundle::Action::Add => true,
+                cuotai_core::bundle::Action::Replace | cuotai_core::bundle::Action::Skip => {
+                    accept.contains(&item.path)
+                }
+                _ => false,
+            };
+            restart |= taken && item.path == "prefs/desktop.json";
+            config |= taken && item.path == "config/cuotai.toml";
+        }
+        Ok::<_, String>((written, restart, config))
+    })
+    .await
+    .map_err(|_| "unexpected".to_owned())??;
+    if config {
+        // The accounts file changed under the app: read it again.
+        let _ = b.reload_config(&app).await;
+    }
+    Ok(RestoreDone { written, restart })
+}
+
+/// PRD 0046 RF3.3: restart the app to apply restored settings.
+#[tauri::command]
+fn restart_app(app: AppHandle) {
+    updater::restart_on_main_thread(&app);
 }
 
 /// PRD 0029 RF6.2: delete the vault entries no account uses.
@@ -2538,6 +2753,11 @@ pub fn run() -> std::process::ExitCode {
             vault_audit,
             vault_prune,
             doctor_report,
+            backup_preview,
+            backup_write,
+            restore_plan,
+            restore_apply,
+            restart_app,
             preview_session,
             capture_session,
             cancel_session_capture,

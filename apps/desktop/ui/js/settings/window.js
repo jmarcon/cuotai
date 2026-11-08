@@ -71,6 +71,8 @@ async function paintPage({ anchor = null, focusTitle = false, find = null } = {}
   if (token !== paintToken) return;
   ctx.settings = settings;
   ctx.update = update;
+  // The anchor this paint lands on, for a page that acts on arrival (Files › Check setup runs it).
+  ctx.anchor = anchor;
   shown = mod;
   const body = root.querySelector("[data-page-body]");
   body.innerHTML = `<h1 class="set-title" id="set-page-title" tabindex="-1">${te(page.label)}</h1>${mod.html(ctx)}`;

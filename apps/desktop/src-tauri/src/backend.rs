@@ -5821,6 +5821,16 @@ impl Backend {
                 )
             }
         };
+        // PRD 0046 RF4.4: the setup check's problems, by id only.
+        let setup = tauri::async_runtime::spawn_blocking(|| {
+            cuotai_core::doctor::run(&crate::desktop_doctor_inputs(None))
+        })
+        .await
+        .ok();
+        let draft = match setup {
+            Some(report) => draft.with_setup_check(&report),
+            None => draft,
+        };
         Ok(ProblemDraft {
             title: draft.title,
             body: draft.body,

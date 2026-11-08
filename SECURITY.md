@@ -42,7 +42,7 @@ Script extensions (PRD 0017) run as your own user, after you review an exact dis
 
 Notification channels (PRD 0044) are in scope too. A channel's address and signing secret must live only in the system vault: never in `desktop.json`, the TOML, a log, the delivery log or a view. A channel must post only to the address the person added, with HTTPS (plain HTTP only for an ntfy server on loopback or a private network), no redirect followed, and only the notification texts described in [`docs/notifications.md`](docs/notifications.md).
 
-Backups and the self-check are in scope too: a `cuotai --backup` archive must never hold a secret (vault entries, tokens, the local server token or anything shaped like a key; the command refuses to write when a file looks like one), a restore must never write outside its allow-listed files or to the vault, and `cuotai --doctor` and `--check-config` must never print a value, only names, positions and paths.
+Backups and the self-check are in scope too: a `cuotai --backup` archive must never hold a secret (vault entries, tokens, the local server token or anything shaped like a key; the command refuses to write when a file looks like one), a restore must never write outside its allow-listed files or to the vault, and `cuotai --doctor` and `--check-config` must never print a value, only names, positions and paths. `cuotai --doctor --probe` must send no credential, cookie or body (one `HEAD` to a fixed host per provider), and the doctor lines a problem report carries are ids only.
 
 Out of scope:
 - changes to or outages of provider interfaces (open a regular issue);

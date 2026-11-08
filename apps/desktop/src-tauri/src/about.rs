@@ -127,6 +127,7 @@ pub fn is_listed(url: &str) -> bool {
         || url == NEW_PROVIDER_ISSUE
         || url == EXTENSIONS_GUIDE
         || url == TRANSLATION_GUIDE
+        || url == BACKUP_GUIDE
         || url == crate::updater::MANUAL_URL
         || about::libraries().iter().any(|l| l.repository == url)
         || cuotai_core::incidents::is_status_link(url)
@@ -144,6 +145,11 @@ pub const NEW_PROVIDER_ISSUE: &str =
 /// PRD 0017 RF5: the guide the Extensions dialog links ("How extensions work");
 /// `EXTENSIONS_GUIDE_URL` in `js/lib.js`.
 pub const EXTENSIONS_GUIDE: &str = "https://github.com/jmarcon/cuotai/blob/main/docs/extensions.md";
+
+/// PRD 0046 RF5.2: the "Move to a new computer" and "Keep two computers
+/// aligned" recipes the Files page links (`BACKUP_GUIDE_URL` in `js/lib.js`).
+pub const BACKUP_GUIDE: &str =
+    "https://github.com/jmarcon/cuotai/blob/main/docs/advanced.md#backup-restore-and-self-check";
 
 /// PRD 0035 RF11.5: the translation guide the machine-translation notice in
 /// Settings › General links (`TRANSLATION_GUIDE_URL` in `js/lib.js`).
@@ -199,6 +205,7 @@ mod tests {
         assert!(is_listed(NEW_PROVIDER_ISSUE));
         assert!(is_listed(EXTENSIONS_GUIDE));
         assert!(is_listed(TRANSLATION_GUIDE));
+        assert!(is_listed(BACKUP_GUIDE));
         assert!(is_listed(
             "https://platform.xiaomimimo.com/console/plan-manage"
         ));

@@ -588,5 +588,8 @@
   "channels.cli.unavailable": "Kênh không khả dụng ở đây (không có thư mục cấu hình hoặc không có TLS).",
   "channels.cli.test_ok": "Đã gửi: {host} trả lời {status}.",
   "channels.cli.test_failed": "Chưa gửi: {host} ({reason}).",
-  "channels.cli.log_empty": "Không có lần gửi nào trong 7 ngày qua."
+  "channels.cli.log_empty": "Không có lần gửi nào trong 7 ngày qua.",
+  "cli.backup.history_large": "Bản sao lưu chứa {size} MiB lịch sử; việc sao chép có thể chậm.",
+  "cli.restore.merge": "gộp",
+  "cli.restore.rows": "dòng: {rows}, mới ở đây: {new}"
 }

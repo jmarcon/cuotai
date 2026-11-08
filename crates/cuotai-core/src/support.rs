@@ -63,6 +63,72 @@ pub struct IssueDraft {
     pub copy_only: bool,
 }
 
+impl IssueDraft {
+    /// PRD 0046 RF4.4: the draft with the setup check's problems appended:
+    /// one line per `fail` or `warn` check, by its stable ids only (the
+    /// check and what it found), never a path, variable, host or value, so
+    /// the draft stays as private as before. A report without problems
+    /// leaves the draft unchanged.
+    pub fn with_setup_check(self, report: &crate::doctor::Report) -> Self {
+        use crate::doctor::CheckStatus;
+        let lines: Vec<String> = report
+            .checks
+            .iter()
+            .filter(|check| matches!(check.status, CheckStatus::Fail | CheckStatus::Warn))
+            .map(|check| {
+                let status = if check.status == CheckStatus::Fail {
+                    "fail"
+                } else {
+                    "warn"
+                };
+                let found = check
+                    .detail
+                    .as_ref()
+                    .map(|detail| format!(": `{}`", plain_id(&detail.id)))
+                    .unwrap_or_default();
+                format!("- {status} `{}`{found}\n", plain_id(&check.id))
+            })
+            .collect();
+        if lines.is_empty() {
+            return self;
+        }
+        let section = format!("\n## Setup check (cuotai --doctor)\n\n{}", lines.concat());
+        let footer = "\nNo account name, e-mail, organization, credential, URL or response value is included.\n";
+        let body = match self.body.strip_suffix(footer) {
+            Some(head) => format!("{head}{section}{footer}"),
+            None => format!("{}{section}", self.body),
+        };
+        let Some((base, query)) = self.url.split_once('?') else {
+            return Self { body, ..self };
+        };
+        let mut rebuilt = url::form_urlencoded::Serializer::new(String::new());
+        for (key, value) in url::form_urlencoded::parse(query.as_bytes()) {
+            if key == "context" {
+                rebuilt.append_pair("context", &body);
+            } else {
+                rebuilt.append_pair(&key, &value);
+            }
+        }
+        let url = format!("{base}?{}", rebuilt.finish());
+        let copy_only = url.chars().count() > MAX_URL_CHARS;
+        Self {
+            title: self.title,
+            body,
+            url,
+            copy_only,
+        }
+    }
+}
+
+/// A stable id kept to identifier characters (`account.2`,
+/// `doctor.account.env_missing`).
+fn plain_id(id: &str) -> String {
+    id.chars()
+        .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
+        .take(64)
+        .collect()
+}
+
 /// Keep a value shown in a draft to plain, short, identifier-like text.
 fn plain(value: &str) -> String {
     let kept: String = value
@@ -326,6 +392,60 @@ mod tests {
     #[allow(dead_code)]
     struct Window {
         utilization: f64,
+    }
+
+    #[test]
+    fn the_setup_check_adds_its_problems_by_id_only() {
+        use crate::doctor::{Check, CheckStatus, Report};
+        use crate::text::Localized;
+        let check = |id: &str, status, detail: Option<Localized>| Check {
+            id: id.into(),
+            status,
+            title: Localized::with_param("t", "path", "~/SEEDED/cuotai.toml", "{path}"),
+            detail,
+            fix: Some(Localized::with_param(
+                "f",
+                "variable",
+                "SEEDED_KEY",
+                "Set {variable}",
+            )),
+        };
+        let report = Report {
+            schema: 1,
+            checks: vec![
+                check("version", CheckStatus::Ok, None),
+                check(
+                    "account.2",
+                    CheckStatus::Fail,
+                    Some(Localized::with_param(
+                        "doctor.account.env_missing",
+                        "variable",
+                        "SEEDED_KEY",
+                        "It reads {variable}",
+                    )),
+                ),
+                check("port", CheckStatus::Warn, None),
+            ],
+            tools: Default::default(),
+        };
+        let draft = app_draft(&app()).with_setup_check(&report);
+        assert!(draft.body.contains(
+            "## Setup check (cuotai --doctor)\n\n- fail `account.2`: `doctor.account.env_missing`\n- warn `port`\n"
+        ));
+        assert!(draft.body.ends_with("response value is included.\n"));
+        assert!(!draft.body.contains("SEEDED") && !draft.url.contains("SEEDED"));
+        assert!(is_issue_url(&draft.url));
+        assert!(draft.url.contains("Setup+check"));
+        // Nothing to add: the draft is unchanged.
+        let clean = Report {
+            schema: 1,
+            checks: vec![check("version", CheckStatus::Ok, None)],
+            tools: Default::default(),
+        };
+        assert_eq!(
+            app_draft(&app()).with_setup_check(&clean),
+            app_draft(&app())
+        );
     }
 
     #[test]

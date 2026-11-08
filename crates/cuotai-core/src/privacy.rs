@@ -747,7 +747,7 @@ pub fn flow(purpose: Purpose) -> Flow {
     let (host, trigger, sends, default, prd) = match purpose {
         Purpose::ProviderApi => (
             "each configured provider's API (or the base URL you set)",
-            "each refresh of an account; a model list you open",
+            "each refresh of an account; a model list you open; `cuotai --doctor --probe` (one `HEAD` per host, without the credential)",
             "that account's credential and the parameters the provider needs",
             "on for each account you add",
             "0001",
@@ -761,7 +761,7 @@ pub fn flow(purpose: Purpose) -> Flow {
         ),
         Purpose::PublicStatus => (
             "public status pages of configured providers",
-            "every 5 minutes at most, while turned on",
+            "every 5 minutes at most, while turned on; `cuotai --doctor --probe` while turned on",
             "nothing but the request (no credential)",
             "off",
             "0011",

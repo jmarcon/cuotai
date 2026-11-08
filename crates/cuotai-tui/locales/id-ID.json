@@ -588,5 +588,8 @@
   "channels.cli.unavailable": "Saluran tidak tersedia di sini (tidak ada folder konfigurasi atau tidak ada TLS).",
   "channels.cli.test_ok": "Terkirim: {host} menjawab {status}.",
   "channels.cli.test_failed": "Tidak terkirim: {host} ({reason}).",
-  "channels.cli.log_empty": "Tidak ada pengiriman dalam 7 hari terakhir."
+  "channels.cli.log_empty": "Tidak ada pengiriman dalam 7 hari terakhir.",
+  "cli.backup.history_large": "Cadangan memuat {size} MiB riwayat; menyalinnya bisa lambat.",
+  "cli.restore.merge": "gabungkan",
+  "cli.restore.rows": "baris: {rows}, baru di sini: {new}"
 }

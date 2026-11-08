@@ -1,23 +1,66 @@
-//! PRD 0046 RF4: `cuotai --doctor [--json]`, the core's read-only and
-//! offline report of this installation, grouped by status with each fix.
+//! PRD 0046 RF4: `cuotai --doctor [--json] [--probe]`, the core's
+//! read-only report of this installation, grouped by status with each fix.
+//! Offline unless `--probe` adds the network checks (no credential sent).
 //! Exit 0 without a failure, 2 with one, 1 when the doctor itself fails.
 
 use cuotai_core::doctor::{self, CheckStatus, Inputs, Report};
+use cuotai_core::network::{self, ClientPurpose};
 use std::io::{self, Write};
 use std::path::PathBuf;
 
 use crate::l10n;
 
-pub(crate) fn run(
+/// `--json`, `--probe` and whether status queries are on.
+pub(crate) struct Options {
+    pub json: bool,
+    pub probe: bool,
+    pub status: bool,
+}
+
+pub(crate) async fn run(
     config: Option<PathBuf>,
     install_source: String,
-    json: bool,
+    options: Options,
     locale: &str,
 ) -> io::Result<u8> {
-    let report = doctor::run(&Inputs::from_process(config, install_source));
+    let mut inputs = Inputs::from_process(config, install_source);
+    inputs.locale = locale.to_owned();
+    // RF4.3: the probes run first, so the clock check sees their dates.
+    let probes = if options.probe {
+        probe(&inputs, options.status).await
+    } else {
+        Vec::new()
+    };
+    let mut report = doctor::run(&inputs);
+    report.checks.extend(probes);
     let mut stdout = io::stdout().lock();
-    write!(stdout, "{}", render(&report, json, locale))?;
+    write!(stdout, "{}", render(&report, options.json, locale))?;
     Ok(report.exit_code())
+}
+
+/// The setup check of this process, for a problem report (PRD 0028): the
+/// same offline checks, never the network.
+pub(crate) fn report_for(config: Option<PathBuf>, locale: &str) -> Report {
+    let mut inputs = Inputs::from_process(config, "unknown".into());
+    inputs.locale = locale.to_owned();
+    doctor::run(&inputs)
+}
+
+/// One HEAD request per host the configuration uses, without credentials.
+async fn probe(inputs: &Inputs, status: bool) -> Vec<doctor::Check> {
+    let Ok(text) = std::fs::read_to_string(&inputs.config.path) else {
+        return Vec::new();
+    };
+    let Ok(parsed) =
+        cuotai_core::config_file::parse(&text, cuotai_core::config_file::ConfigParseMode::Tolerant)
+    else {
+        return Vec::new();
+    };
+    let targets = doctor::probe::targets(&parsed.config, status);
+    let Some(client) = network::client(ClientPurpose::Provider, doctor::probe::TIMEOUT) else {
+        return Vec::new();
+    };
+    doctor::probe::run(&targets, &client, network::clock_skew()).await
 }
 
 fn heading(status: CheckStatus, locale: &str) -> &'static str {

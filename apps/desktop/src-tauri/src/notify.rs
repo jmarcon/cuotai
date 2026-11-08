@@ -66,6 +66,18 @@ impl Notifier for SystemNotifier {
     }
 }
 
+/// PRD 0046 RF4.1: whether the system lets the app notify, without asking:
+/// `Some(true)` granted, `Some(false)` denied, `None` still undecided or
+/// unknown.
+pub fn permission_granted(app: &tauri::AppHandle) -> Option<bool> {
+    use tauri_plugin_notification::{NotificationExt, PermissionState};
+    match app.notification().permission_state() {
+        Ok(PermissionState::Granted) => Some(true),
+        Ok(PermissionState::Denied) => Some(false),
+        Ok(_) | Err(_) => None,
+    }
+}
+
 /// Ask the operating system to let the app notify: `granted`, `denied` or
 /// `prompt` (still undecided).
 pub fn request_permission(app: &tauri::AppHandle) -> &'static str {

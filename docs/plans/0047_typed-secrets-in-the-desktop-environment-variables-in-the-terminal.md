@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0047 |
-| Status | In progress |
+| Status | Implemented (0.81.0; G1 extended to the setup check and the restore's next steps in vNEXT) |
 | Owner | `cuotai-core` (`secret_input` module, `user_session` vault slots, `account_edit::build_account_with_secrets`, `suggest_env_for`, `detect::desktop_sources_here`), desktop backend (`save_account`, `get_account`, `form_schema`, `change_session`), desktop UI and TUI (follow-up agents) |
 | Consumers | Desktop users adding or editing an account; terminal (TUI/CLI) users with one or several accounts per provider |
 | Depends on | PRD 0016 (vault reference `[accounts.session]`, `stage_pasted`, SES-02 test before save), PRD 0036 RF2.1 (`Delivery::Secret` slots) |
@@ -12,7 +12,7 @@
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement. In this plan **G** numbers the GUI requirements and **T** the terminal requirements; **E** numbers the core enablers, which are not user-facing.
 
-## Implementation status (2026-10-27)
+## Implementation status (2026-11-07)
 
 | Item | Version | Delivery |
 |---|---|---|
@@ -20,6 +20,7 @@
 | G1–G6 (desktop UI) | 0.81.0 | Delivered on `feat/gui-keys-ui`: the add/edit dialog renders `secret_inputs` as masked inputs (show/hide, never prefilled) in place of the variable-name row and the terminal-only fields, sends `secrets` with `credential: ""`, shows "Saved in the system vault" with Replace (blank keeps), "Key set up in the terminal" with **Move key into Cuotai** (`vault_migration`, two-step confirmation, unreadable setups never name the variable), checks missing required secrets in its own words, and the detection consent no longer mentions variables; demo fixtures and the GUI guides follow. |
 | T1–T2 (TUI) | 0.81.0 | Delivered on `feat/gui-keys-tui`: the wizard prefills `suggest_env_for` for a new account, on provider switch and when leaving the name step (a typed variable is kept). |
 | T3–T4 | 0.81.0 | T3: `credential_help.*` and the `query.*`/`note.*` ids stay terminal-worded (the desktop renders `SecretInput.help`); the GUI-neutral split of the remaining shared query notes stays a follow-up. T4: no change needed, vault and `credential_env` accounts load as before. |
+| G1 (setup check and restore) | vNEXT | Verified on 2026-11-07 against `origin/main`: every E, G and T item is in the code and tested (`secret_input_tests.rs`, `backend.rs`, `scripts/test-desktop-wording-ui.mjs`; `account_edit::suggest_env_for` gives `<DEFAULT>_<NAME>` then a numeric suffix, and the TUI wizard prefills it). The one place the desktop still named a variable was PRD 0046's **Check setup** (`doctor.account.env_*`, `doctor.fix.set_env`), kept as a deliberate exception: it now reads in the desktop's own words ("No key is saved for this account", "Open the account in Edit and type its key"), and the restore's next steps say "Type the key of account N again" instead of `bundle.need.env`; the `^doctor\.` and `^bundle\.` exceptions of the wording test are gone, so the test covers them. The desktop restore never reads variables. Status: Implemented. Left out of scope by §6 (follow-ups, not part of this plan): OAuth client secrets and extension manifests' declared variables. |
 | G7 (desktop wording of core texts) | 0.81.0 | Delivered on `integration/next`: `apps/desktop/ui/js/desktop-wording.js` maps, by stable id, every core note, query error, edit/sign-in error, login help and session text that names a variable or a `params.*` value to the desktop's own wording (`coreText.*`, all desktop catalogs); `tl()` applies it, so the TUI/CLI keep the terminal wording. A note asking for a web session (the Xiaomi MiMo native `sk-` key first) offers **Connect session**, which opens the account dialog on the session box. `scripts/test-desktop-wording-ui.mjs` fails when a core text naming a variable is neither mapped nor listed as never rendered, and when a desktop catalog names `_env` or `params.`. |
 
 ## 1. Owner decision (2026-10-27)
