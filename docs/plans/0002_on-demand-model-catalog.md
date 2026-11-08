@@ -45,6 +45,9 @@ A serial re-validation of the delivered plan (visual, security and review passes
 | V-05 | low | RF6.2 | Dates use the shared DS-MSG-8 formatter, and the fr/de/it texts no longer put a time preposition before a full date. |
 | V-06 | low | RF6.2 | The status and meta lines are whole translated keys (`models.state.*`, `models.meta*`), not fragments joined with " · " (DS-MSG-12). |
 | V-07 | low | RF6 | `scripts/test-models-ui.mjs` covers every state, role, date and the search in en-US, pt-BR and es (the RF6 acceptance), through the pure `modelsView`. |
+| R-01 | medium | PRD 0035 RF5.1 | TUI dashboard cards resolve the account's first note in the interface language, as the details and `--once` already did, instead of the English fallback. |
+| V-03 | low | RF5.2 | The TUI Models view of an unsupported account shows only the reason: no "s Sync models" action (the key does nothing) and no "No catalog saved" line, as on the desktop. |
+| R-03 | low | RF3.1, RF5.2 | A TUI store error after a sync is shown in red and no longer replaces the catalog on screen. |
 
 **Open items:**
 
