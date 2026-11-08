@@ -226,10 +226,10 @@ impl ObservedEvent {
 }
 
 /// What makes two observations the same transition, in this process or in
-/// another one: the event kind, the account, the metric and threshold, and
-/// the instance: the window's reset time for an event about a window
-/// (matched within the reset drift tolerance), otherwise the time of the
-/// reading it came from (`Report.checked_at`, or the provider status'
+/// another one: the event kind, the account (and breakdown row), the metric
+/// and threshold, and the instance: the window's reset time for an event
+/// about a window (matched within the reset drift tolerance), otherwise the
+/// time of the reading it came from (`Report.checked_at`, or the provider status'
 /// reading time for an incident). Never `occurred_at`, so two processes
 /// observing the same reading seconds apart agree.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -258,6 +258,16 @@ impl Transition {
                 .unwrap_or_default(),
         ]
         .join("\u{1e}");
+        // PRD 0045 RF5.3: each breakdown row is a transition of its own.
+        // An account's own events keep the key they had before rows.
+        let key = match &event.row {
+            Some(row) => format!(
+                "{key}\u{1e}{}\u{1f}{}",
+                crate::breakdown::scope_slug(row.scope),
+                row.scope_id
+            ),
+            None => key,
+        };
         let window = event
             .metric
             .as_ref()
