@@ -9,13 +9,15 @@ installUiEnv();
 const i18n = await import("../apps/desktop/ui/js/i18n.js");
 await i18n.initI18n();
 const c = await import("../apps/desktop/ui/js/components.js");
+// PRD 0001 re-validation (L3): provider names are the core's, loaded as `boot` does.
+await (await import("../apps/desktop/ui/js/lib.js")).loadProviderLabels();
 
 // RF3.1: figure on line 1, the unit word below it (one block, unit never inline in rows)
 const ok = report({ left: 22 });
 const html = c.rowHtml(ok, { title: "Claude Code", sub: "work@example.com" });
 assert.match(html, /<span class="fig"><b class="">22%<\/b><small>left<\/small><\/span>/, "figure block with the unit below");
 // RF3.2: the whole row header is one button with aria-expanded and a complete accessible name
-assert.match(html, /<button class="rh" data-open="claude::work@example.com" aria-expanded="false" aria-label="Claude Code, work@example.com, 22% left/);
+assert.match(html, /<button class="rh" data-open="claude::work@example.com" aria-expanded="false" aria-label="Claude, work@example.com, 22% left/);
 assert.doesNotMatch(html.replace(/<button class="rh"[^>]*>/, ""), /<button/, "no nested interactive element in the row header");
 // RF3.2 (DS-CMP-ROW-4): a fresh age is never repeated per row; an aging one is
 assert.doesNotMatch(html, /Fresh/);
@@ -120,7 +122,7 @@ assert.match(cHtml, /<span class="pd bad" aria-hidden="true" title="50 pts ahead
 assert.equal(meters(cHtml), 2, "two meters");
 assert.match(cHtml, /<span class="rm dual"><div class="mtr good" role="meter" aria-label="5h"[^>]*aria-valuetext="100% left, 12 pts in reserve, Resets [^"]+">.*?<span class="pm tri" style="left:88%" aria-hidden="true"><\/span><\/div>/);
 assert.match(cHtml, /<div class="mtr warn thin" role="meter" aria-label="Week"[^>]*aria-valuetext="49% left, 50 pts ahead, Most restrictive limit right now, Resets [^"]+">.*?<span class="pm dot" style="left:99%" aria-hidden="true"><\/span><\/div>/);
-assert.match(cHtml, /aria-label="Claude Code, work@example.com, 49% left, [^"]*5h: 100% left, 12 pts in reserve; Week: 49% left, 50 pts ahead, Most restrictive limit right now"/, "the deltas are in the accessible name");
+assert.match(cHtml, /aria-label="Claude, work@example.com, 49% left, [^"]*5h: 100% left, 12 pts in reserve; Week: 49% left, 50 pts ahead, Most restrictive limit right now"/, "the deltas are in the accessible name");
 assert.doesNotMatch(cHtml, /class="pm"/, "no corridor band on the pair");
 // a good limiting thin window still reads as a warning; a non-limiting one stays muted
 assert.match(c.rowHtml(dual([q("5h", "window_5h", 100), q("week", "weekly", 80)], W(0, 1)), { title: "x" }), /<span class="f2 warn">[\s\S]*class="mtr warn thin"/);

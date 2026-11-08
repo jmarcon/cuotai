@@ -133,7 +133,7 @@ impl Provider {
             Self::Qoder => "Qoder",
             Self::GeminiAi => "Gemini AI (API key)",
             Self::Grok => "Grok (xAI)",
-            Self::NvidiaNim => "NVidia NIM",
+            Self::NvidiaNim => "NVIDIA NIM",
             Self::Poolside => "Poolside",
             Self::Kiro => "Kiro (AWS)",
             Self::Cline => "Cline",

@@ -196,7 +196,7 @@ The account pickers (desktop and TUI) list providers from `cuotai_core::account_
 | Gemini AI (API key) | `gemini_ai` | `credential` | API key | API platform | gemini cli, google, ai studio | API key |
 | Grok (xAI) | `grok` | `oauth` | Browser sign-in | API platform | xai, x.ai, grok cli | Sign in with your browser |
 | Grok (xAI) | `grok` | `credential` | API key | API platform | xai, x.ai, grok cli | Admin API key |
-| NVidia NIM | `nvidia_nim` | — | API key | API platform | nvidia, nim | API key |
+| NVIDIA NIM | `nvidia_nim` | — | API key | API platform | nvidia, nim | API key |
 | Poolside | `poolside` | — | API key | API platform | — | API key |
 | Kiro (AWS) | `kiro` | `oauth` | Browser sign-in | Coding tool | codewhisperer | Sign in with your browser |
 | Kiro (AWS) | `kiro` | `credential` | API key | Coding tool | codewhisperer | Account access token |

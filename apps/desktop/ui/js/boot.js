@@ -1,7 +1,7 @@
 // Shared initialization for all windows: user content → preferences → language → theme.
 import { initI18n } from "./i18n.js";
 import { loadUserContent } from "./usercontent.js";
-import { applyTheme, syncPreferences } from "./lib.js";
+import { applyTheme, loadProviderLabels, syncPreferences } from "./lib.js";
 
 export async function boot() {
   await loadUserContent();
@@ -10,5 +10,7 @@ export async function boot() {
   // <head> script already painted from the mirror, so a failure here keeps the mirrored values.
   await syncPreferences({ boot: true });
   await initI18n();
+  // PRD 0001 re-validation (L3): provider names come from the core, loaded before the first render.
+  await loadProviderLabels();
   applyTheme();
 }

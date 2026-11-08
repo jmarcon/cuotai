@@ -193,4 +193,18 @@ const mainSrc = await readFile(fileURLToPath(new URL("apps/desktop/ui/js/main.js
 assert.match(mainSrc, /r\.access\?\.metered \? `<span class="mini warn" data-metered-chip>\$\{icon\("warn"\)\}<span class="mini-t">\$\{te\("dialog\.picker\.metered"\)\}/);
 const bedrockAccess = (await lib.getView()).reports.map((r) => r.access?.metered);
 assert.ok(bedrockAccess.every((m) => m === false), "no demo account is metered by default");
+// PRD 0001 re-validation (L3): the desktop names providers as the core does (`list_providers`, then the core
+// catalog's `provider.<slug>` in other languages); its own map keeps only the color and the mark.
+await lib.loadProviderLabels();
+const unnamedKiro = { provider: "kiro", account: "" };
+assert.equal(lib.accountLabel(unnamedKiro), "Kiro (AWS)");
+assert.equal(lib.brand("nvidia_nim").label, "NVIDIA NIM");
+assert.equal(lib.brand("chat_gpt").label, "ChatGPT / Codex");
+const libSrc = await readFile(fileURLToPath(new URL("apps/desktop/ui/js/lib.js", root)), "utf8");
+assert.doesNotMatch(libSrc, /B\("Kiro AI"|"Claude Code", "#/, "no desktop-only provider names");
+const corePt = JSON.parse(await readFile(fileURLToPath(new URL("crates/cuotai-core/locales/pt-BR.json", root)), "utf8"));
+await i18n.setLocale("pt-BR");
+assert.equal(lib.brand("alibaba_cloud").label, corePt["provider.alibaba_cloud"]);
+await i18n.setLocale("en-US");
+assert.equal(lib.brand("alibaba_cloud").label, "Alibaba Cloud — billing");
 console.log("provider picker UI smoke: ok");
