@@ -166,15 +166,17 @@ fn contract(account: &Account) -> Result<(Localized, ModelEvidence), Localized> 
         evidence: Documentation(url),
         verified_on: MODELS_VERIFIED_ON,
     };
+    // A param naming a credential variable counts only when it is non-empty,
+    // as `providers::inference::resolve_credential` reads it.
+    let set = |key: &str| {
+        account
+            .params
+            .get(key)
+            .is_some_and(|v| !v.trim().is_empty())
+    };
     let verified_live = || ModelEvidence {
         basis: EvidenceBasis::VerifiedLive,
-        // The model listing of a Cursor account uses the personal session, not
-        // the Teams admin key the default quota mode cites.
-        evidence: if provider == Provider::Cursor {
-            crate::access::classify(provider, true, &Default::default()).evidence
-        } else {
-            crate::access::describe(account).evidence
-        },
+        evidence: crate::access::describe(account).evidence,
         verified_on: MODELS_VERIFIED_ON,
     };
     let source = |id: &'static str, text: &'static str, evidence: ModelEvidence| {
@@ -211,6 +213,20 @@ fn contract(account: &Account) -> Result<(Localized, ModelEvidence), Localized> 
             values,
             "{provider}: {reason} No query is made.",
         ))
+    };
+    // Admin, management and analytics keys are never sent to a model listing
+    // (least privilege): no provider documents them for it.
+    let admin_key = || {
+        reason(
+            "admin_key",
+            "the account stores an admin, management or analytics key, which the provider does not document for listing models; keep that key in its own parameter and an inference key as the account credential.",
+        )
+    };
+    let admin_key_only = || {
+        reason(
+            "admin_key_only",
+            "the account stores only an admin key, which the provider does not document for listing models.",
+        )
     };
     let no_evidence = || {
         Err(Localized::with_params(
@@ -270,21 +286,24 @@ fn contract(account: &Account) -> Result<(Localized, ModelEvidence), Localized> 
             )
         }
         Provider::AlibabaModelStudio => no_evidence(),
-        Provider::OpenAiApi => live(
-            "GET /v1/models",
-            false,
-            documented("https://platform.openai.com/docs/api-reference/models/list"),
-        ),
-        Provider::AnthropicApi => live(
-            "GET /v1/models",
-            false,
-            documented("https://docs.anthropic.com/en/api/models-list"),
-        ),
+        // The only credential these accounts store is an admin key.
+        Provider::OpenAiApi | Provider::AnthropicApi => admin_key_only(),
+        // The admin key is the credential variable unless it has its own param.
+        Provider::Mistral if !set("admin_key_env") => admin_key(),
         Provider::Mistral => live(
             "GET /v1/models",
             false,
             documented("https://docs.mistral.ai/api/"),
         ),
+        Provider::Perplexity
+            if account
+                .params
+                .get("product")
+                .is_some_and(|v| v.eq_ignore_ascii_case("computer"))
+                && !set("analytics_key_env") =>
+        {
+            admin_key()
+        }
         Provider::Perplexity => live(
             "GET /v1/models",
             false,
@@ -296,6 +315,7 @@ fn contract(account: &Account) -> Result<(Localized, ModelEvidence), Localized> 
             documented("https://docs.api.nvidia.com/nim/reference/llm-apis"),
         ),
         Provider::Grok if product("cli") || account.oauth.is_some() => no_evidence(),
+        Provider::Grok if !set("management_key_env") => admin_key(),
         Provider::Grok => live(
             "GET /v1/models",
             false,
@@ -322,7 +342,14 @@ fn contract(account: &Account) -> Result<(Localized, ModelEvidence), Localized> 
             false,
             documented("https://www.alibabacloud.com/help/en/model-studio/"),
         ),
-        Provider::Cursor => live("GetUsableModels", true, verified_live()),
+        Provider::Cursor
+            if account.oauth.is_some()
+                || account.params.get("query_mode").is_some_and(|v| v == "personal") =>
+        {
+            live("GetUsableModels", true, verified_live())
+        }
+        // Teams mode stores the Admin API key.
+        Provider::Cursor => admin_key_only(),
         Provider::Kiro => live("ListAvailableModels", true, verified_live()),
         Provider::Zed => live("GET /models", true, verified_live()),
         Provider::GeminiApi => live(
@@ -942,21 +969,6 @@ impl Monitor {
                 let key = secret(account, ctx, "POOLSIDE_API_KEY")?;
                 openai_models(ctx, providers::inference::POOLSIDE_MODELS_URL, &key).await
             }
-            Provider::GeminiAi
-                if account.oauth.is_some()
-                    || account.params.get("product").is_some_and(|v| v == "cli") =>
-            {
-                providers::catalog::bearer_models(
-                    account,
-                    ctx,
-                    format!(
-                        "{}/v1beta/models?pageSize=1000",
-                        providers::catalog::GEMINI_BASE
-                    ),
-                    "GEMINI_API_KEY",
-                )
-                .await
-            }
             Provider::GeminiAi => {
                 let url = providers::cloud_keys::GEMINI_MODELS_URL;
                 providers::cloud_keys::gemini_models(account, ctx, url).await
@@ -979,19 +991,6 @@ impl Monitor {
             {
                 let url = providers::alibaba_plans::MODEL_STUDIO_MODELS_URL;
                 providers::alibaba_plans::model_studio_models(account, ctx, url).await
-            }
-            Provider::OpenAiApi => {
-                providers::catalog::bearer_models(
-                    account,
-                    ctx,
-                    format!("{}/v1/models", providers::catalog::OPENAI_BASE),
-                    "OPENAI_ADMIN_KEY",
-                )
-                .await
-            }
-            Provider::AnthropicApi => {
-                providers::catalog::anthropic_key_models(account, ctx, "https://api.anthropic.com")
-                    .await
             }
             Provider::Mistral => {
                 providers::catalog::bearer_models(
@@ -1021,13 +1020,7 @@ impl Monitor {
                 .await
             }
             Provider::Grok => {
-                providers::catalog::grok_models(
-                    account,
-                    ctx,
-                    providers::catalog::GROK_CLI_BASE,
-                    providers::catalog::XAI_BASE,
-                )
-                .await
+                providers::catalog::grok_models(account, ctx, providers::catalog::XAI_BASE).await
             }
             Provider::OpenRouter => {
                 providers::open_router::models(account, ctx, providers::open_router::BASE).await
@@ -1408,6 +1401,12 @@ credential_env = "ALIBABA_CLOUD_ACCESS_KEY_ID"
             JetbrainsAi,
             NineRouter,
             LiteLlm,
+            // Their default credential is an admin, management or analytics key.
+            OpenAiApi,
+            AnthropicApi,
+            Cursor,
+            Grok,
+            Mistral,
         ];
         let server = MockServer::start().await;
         let dir = tempfile::tempdir().unwrap();
@@ -1464,9 +1463,112 @@ credential_env = "ALIBABA_CLOUD_ACCESS_KEY_ID"
             assert_eq!(evidence(&unverified), None);
         }
         assert_eq!(
-            &*support(&variant(Grok, "x", "y")).unwrap().id,
+            &*support(&variant(Grok, "management_key_env", "M"))
+                .unwrap()
+                .id,
             "models.source.live"
         );
+    }
+
+    /// PRD 0002 S-01: an account whose credential variable holds an admin,
+    /// management or analytics key never sends it to a model listing; the
+    /// split-key and session modes still list.
+    #[tokio::test]
+    async fn admin_keys_never_reach_a_model_listing() {
+        use Provider::*;
+        let fixture = |provider, pairs: &[(&str, &str)], oauth: bool| Account {
+            name: "a".into(),
+            provider,
+            credential_env: Some("K".into()),
+            params: pairs
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
+            oauth: oauth.then(|| {
+                serde_json::from_value(serde_json::json!({ "credential_id": "c" })).unwrap()
+            }),
+            ..Default::default()
+        };
+        let refused = [
+            (fixture(OpenAiApi, &[], false), "admin_key_only"),
+            (fixture(AnthropicApi, &[], false), "admin_key_only"),
+            (fixture(Cursor, &[], false), "admin_key_only"),
+            (
+                fixture(Cursor, &[("query_mode", "team")], false),
+                "admin_key_only",
+            ),
+            (fixture(Grok, &[], false), "admin_key"),
+            (
+                fixture(Grok, &[("management_key_env", " ")], false),
+                "admin_key",
+            ),
+            (fixture(Grok, &[("session_env", "S")], false), "admin_key"),
+            (fixture(Mistral, &[], false), "admin_key"),
+            (
+                fixture(Perplexity, &[("product", "computer")], false),
+                "admin_key",
+            ),
+            (
+                fixture(Perplexity, &[("product", "Computer")], false),
+                "admin_key",
+            ),
+        ];
+        for (case, slug) in &refused {
+            let at = format!("{:?} {:?}", case.provider, case.params.keys());
+            let reason = support(case).unwrap_err();
+            assert_eq!(&*reason.id, "models.unsupported", "{at}");
+            let Some(ParamValue::L10n(nested)) = reason.params.get("reason") else {
+                panic!("{at} names its reason");
+            };
+            assert_eq!(&*nested.id, format!("models.unsupported.reason.{slug}"));
+            assert_eq!(evidence(case), None);
+        }
+        for listed in [
+            fixture(Grok, &[("management_key_env", "M")], false),
+            fixture(Mistral, &[("admin_key_env", "A")], false),
+            fixture(
+                Perplexity,
+                &[("product", "computer"), ("analytics_key_env", "A")],
+                false,
+            ),
+            fixture(Perplexity, &[], false),
+            fixture(Cursor, &[("query_mode", "personal")], false),
+            fixture(Cursor, &[], true),
+        ] {
+            let at = format!("{:?} {:?}", listed.provider, listed.params.keys());
+            assert!(support(&listed).is_ok(), "{at}");
+            assert!(evidence(&listed).is_some(), "{at}");
+        }
+
+        // Nothing is requested for a refused account, through the monitor.
+        let server = MockServer::start().await;
+        let dir = tempfile::tempdir().unwrap();
+        let config = Config {
+            accounts: refused
+                .iter()
+                .enumerate()
+                .map(|(i, (a, _))| Account {
+                    name: format!("a{i}"),
+                    ..a.clone()
+                })
+                .collect(),
+            ..Config::default()
+        };
+        let monitor = monitor_with(
+            &server,
+            &dir.path().join("models.sqlite3"),
+            &ConfigIdentity::Explicit("admin".into()),
+            &toml::to_string(&config).unwrap(),
+        );
+        for index in 0..refused.len() {
+            for state in [
+                monitor.load_models(index).await,
+                monitor.sync_models(index).await,
+            ] {
+                assert!(matches!(state.unwrap(), ModelState::Unsupported { .. }));
+            }
+        }
+        assert_eq!(requests(&server).await, 0);
     }
 
     /// Every account variant that lists has an evidence entry, and only
@@ -1535,12 +1637,18 @@ credential_env = "ALIBABA_CLOUD_ACCESS_KEY_ID"
 
     /// Accounts for every provider and interface-switching mode.
     fn matrix_variants() -> Vec<Account> {
-        let modes: [&[(&str, &str)]; 5] = [
+        let modes: [&[(&str, &str)]; 11] = [
             &[],
             &[("product", "cli")],
             &[("product", "coding")],
+            &[("product", "account")],
+            &[("product", "computer")],
+            &[("product", "computer"), ("analytics_key_env", "X")],
             &[("region", "cn")],
             &[("region", "intl")],
+            &[("query_mode", "personal")],
+            &[("admin_key_env", "X")],
+            &[("management_key_env", "X")],
         ];
         let oauth = serde_json::from_value(serde_json::json!({ "credential_id": "c" })).ok();
         Provider::ALL

@@ -6,7 +6,9 @@
     "machine_reviewed": "2026-10-25",
     "pending_review": [
       "note.nine_router.version_untested",
-      "test.nine_router.connected_untested"
+      "test.nine_router.connected_untested",
+      "models.unsupported.reason.admin_key",
+      "models.unsupported.reason.admin_key_only"
     ]
   },
   "access.confirm_unavailable": "{reason} Tài khoản sẽ được lưu, nhưng sẽ hiện lý do này thay cho số liệu.",
@@ -2174,6 +2176,8 @@
   "metric.label.default_workspace": "Không gian làm việc mặc định",
   "provider.jetbrains_ai": "JetBrains AI",
   "models.unsupported.reason.jetbrains_ai": "tài khoản dịch vụ chỉ đọc AI analytics; JetBrains không cung cấp danh sách mô hình cho nó nên không có yêu cầu nào được gửi.",
+  "models.unsupported.reason.admin_key": "tài khoản lưu khóa quản trị, quản lý hoặc phân tích, mà nhà cung cấp không có tài liệu về việc dùng để liệt kê mô hình; hãy để khóa đó trong tham số riêng và một khóa suy luận làm thông tin xác thực của tài khoản.",
+  "models.unsupported.reason.admin_key_only": "tài khoản chỉ lưu khóa quản trị, mà nhà cung cấp không có tài liệu về việc dùng để liệt kê mô hình.",
   "query.jetbrains_ai.missing_secret": "Thiếu thông tin xác thực: {env} (client secret của tài khoản dịch vụ).",
   "note.jetbrains_ai.rate_limited": "JetBrains đã giới hạn truy vấn; khoảng thời gian sẽ được tự động tăng.",
   "note.jetbrains_ai.client_rejected": "JetBrains đã từ chối client ID hoặc client secret của tài khoản dịch vụ; hãy kiểm tra cả hai biến hoặc đổi secret trong JetBrains Central Console.",

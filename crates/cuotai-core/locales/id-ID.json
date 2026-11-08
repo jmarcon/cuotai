@@ -6,7 +6,9 @@
     "machine_reviewed": "2026-10-25",
     "pending_review": [
       "note.nine_router.version_untested",
-      "test.nine_router.connected_untested"
+      "test.nine_router.connected_untested",
+      "models.unsupported.reason.admin_key",
+      "models.unsupported.reason.admin_key_only"
     ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
@@ -2174,6 +2176,8 @@
   "metric.label.default_workspace": "Workspace default",
   "provider.jetbrains_ai": "JetBrains AI",
   "models.unsupported.reason.jetbrains_ai": "akun layanan hanya membaca AI analytics; JetBrains tidak menyediakan daftar model untuknya, jadi tidak ada permintaan yang dikirim.",
+  "models.unsupported.reason.admin_key": "akun menyimpan kunci admin, manajemen, atau analitik, yang tidak didokumentasikan penyedia untuk mencantumkan model; simpan kunci itu di parameternya sendiri dan kunci inferensi sebagai kredensial akun.",
+  "models.unsupported.reason.admin_key_only": "akun hanya menyimpan kunci admin, yang tidak didokumentasikan penyedia untuk mencantumkan model.",
   "query.jetbrains_ai.missing_secret": "Kredensial tidak ada: {env} (client secret akun layanan).",
   "note.jetbrains_ai.rate_limited": "JetBrains membatasi kueri; interval akan diperpanjang otomatis.",
   "note.jetbrains_ai.client_rejected": "JetBrains menolak client ID atau client secret akun layanan; periksa kedua variabel atau ganti secret di JetBrains Central Console.",

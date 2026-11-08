@@ -404,10 +404,11 @@ Deliberate differences from 9router: missing fields do not become zero or unlimi
 
 ## Model catalog per account
 
-The list is only queried on demand (`load_models`/`sync_models`), never by the quota refresh. **A provider lists only where its listing interface is documented or was verified live**, always read-only and with no inference cost, using the same credential the account already stores for the quota:
+The list is only queried on demand (`load_models`/`sync_models`), never by the quota refresh. **A provider lists only where its listing interface is documented or was verified live**, always read-only and with no inference cost, using the account's credential variable or session:
 
-- **live query:** the provider's listing endpoint. When the credential is not accepted (for example, an admin key where the endpoint asks for an inference key), the account shows the classified failure (authentication, limit, transport, schema) and keeps the previous catalog; nothing is invented;
-- **no list:** Alibaba Cloud (billing AccessKey, no models endpoint) and every provider or mode without evidence of a listing interface (CodeBuddy, Windsurf, Xiaomi MIMO, Qoder, Alibaba Token Plan, Qwen, Kimchi, GitHub Copilot, and the Gemini AI session, Grok CLI and Model Studio non-international modes), with the reason and no request. There are no embedded model lists: Cuotai never invents models from a static table.
+- **live query:** the provider's listing endpoint, with an inference key or a session whose listing is documented or verified live. When the provider refuses it, the account shows the classified failure (authentication, limit, transport, schema) and keeps the previous catalog; nothing is invented;
+- **admin keys are never sent to a listing:** no provider documents its admin, management or analytics keys for listing models, so an account whose credential variable holds one is `Unsupported` for models, with the reason and no request. That covers OpenAI and Anthropic (the account stores only an Admin API key), Cursor in Teams mode (Admin API key), and Mistral, Grok and Perplexity Computer unless the admin, management or analytics key sits in its own parameter (`admin_key_env`, `management_key_env`, `analytics_key_env`), which leaves the credential variable for an inference key that lists;
+- **no list:** Alibaba Cloud (billing AccessKey, no models endpoint) and every provider or mode without evidence of a listing interface (CodeBuddy, Windsurf, Xiaomi MIMO, Qoder, Alibaba Token Plan, Qwen, Kimchi, GitHub Copilot, and the Gemini AI session, Grok CLI or native login and Model Studio non-international modes), with the reason and no request. There are no embedded model lists: Cuotai never invents models from a static table.
 
 Pagination follows tokens to the end (limit of 50 pages, a repeated token is rejected); an invalid/incomplete page, HTTP 401/403/429 or cancellation fail without overwriting the saved catalog. IDs are deduplicated and sorted without rewriting. Response bodies, URLs and tokens never appear in errors.
 
@@ -416,32 +417,33 @@ Endpoints marked **undocumented** come from open-source clients (the vendors' ow
 Details that do not fit in the table:
 
 - **AWS Bedrock:** `aws bedrock list-foundation-models --profile <params.profile>`, with `--region <params.region>` when set; without `params.region`, the profile's default region in the AWS CLI applies. Requires `bedrock:ListFoundationModels`; it is not Cost Explorer and never runs on refresh.
-- **Gemini AI:** with the AI Studio key (default `product`), paginated `models.list`; the ID is the returned `name` (`models/...`). With `product = "cli"` or native login, it tries `GET /v1beta/models` with the session token, which may be refused.
+- **Gemini AI:** with the AI Studio key (default `product`), paginated `models.list`; the ID is the returned `name` (`models/...`). With `product = "cli"` or native login, nothing is listed (no evidence for the session).
 - **Claude (subscription):** `GET https://api.anthropic.com/v1/models?limit=1000` with the OAuth token and the `anthropic-beta: oauth-2025-04-20` and `anthropic-version` headers, paginated by `after_id` while `has_more`; `has_more` without `last_id` rejects the listing.
 - **ChatGPT / Codex (subscription):** `GET https://chatgpt.com/backend-api/codex/models?client_version=<Codex CLI version>` with the session token (and `chatgpt-account-id` if `params.account_id`). Entries whose `visibility` is not `list` are left out, as in Codex's selector.
 - **Antigravity:** same session and `fetchAvailableModels` request as the quota; a free plan or a response without `models` is `Unsupported`.
-- **Alibaba Model Studio:** `region = "intl"` uses Singapore's paginated listing; the other regions try the region's OpenAI-compatible endpoint.
+- **Alibaba Model Studio:** `region = "intl"` uses Singapore's paginated listing; the other regions list nothing (no evidence).
 - **Kimi:** with a platform key, `api.moonshot.ai/v1/models`; with `product = "coding"` or native login, `api.kimi.com/coding/v1/models` (key in `x-api-key`, or OAuth token as Bearer with the quota's device headers).
 - **Kiro:** `ListAvailableModels` on the host of the `profile_arn`'s region (default `us-east-1`), with the same per-authentication-method headers as the quota.
-- **Cursor:** RPC `aiserver.v1.AiService/GetUsableModels` in Connect JSON, with the session token; accounts with only the admin key (Basic) get the provider's refusal.
+- **Cursor:** RPC `aiserver.v1.AiService/GetUsableModels` in Connect JSON, with the session token (native login or `query_mode = "personal"`); a Teams account, which stores only the Admin API key, lists nothing.
 - **Zed:** `users/me` (organization) → `client/llm_tokens` → `cloud.zed.dev/models`; disabled models are left out. Plans without hosted models return an empty list, which is the real result.
 - **Azure OpenAI:** `…/accounts/{resource}/models` of the configured resource, with the ARM token; page links outside the ARM host are rejected.
-- **Grok:** a CLI session (`product = "cli"`) lists through `cli-chat-proxy.grok.com/models` with the client headers; with an API key, `api.x.ai/v1/models`.
+- **Grok:** `api.x.ai/v1/models` with the API key in the credential variable, only when the management key sits in `management_key_env`; a CLI session (`product = "cli"`) or native login lists nothing.
 
 Evidence of each listing (PRD 0028 RF10.1), generated from `models::evidence` and checked by a test; regenerate with `CUOTAI_REGENERATE_DOCS=1 cargo test -p cuotai-core providers_doc_models_matrix`. **documented** cites the vendor's documentation; **verified live** means an undocumented interface confirmed against a real account, citing the public contract the quota query follows. A mode without evidence is `Unsupported` for models.
 
 <!-- models-matrix:start -->
 | Identifier | Mode | Listing | Evidence | Verified on |
 |---|---|---|---|---|
-| `open_ai_api` | any | documented | [reference](https://platform.openai.com/docs/api-reference/models/list) | 2026-10-20 |
-| `anthropic_api` | any | documented | [reference](https://docs.anthropic.com/en/api/models-list) | 2026-10-20 |
+| `open_ai_api` | any | none: `Unsupported` | — | — |
+| `anthropic_api` | any | none: `Unsupported` | — | — |
 | `chat_gpt` | any | verified live | [reference](https://github.com/openai/codex/blob/main/codex-rs/backend-client/src/client/rate_limit_resets.rs) | 2026-10-20 |
 | `claude` | any | verified live | [reference](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/claude.js) | 2026-10-20 |
 | `gemini_api` | any | documented | [reference](https://ai.google.dev/api/models#method:-models.list) | 2026-10-20 |
 | `vertex_ai` | any | documented | [reference](https://cloud.google.com/vertex-ai/docs/reference/rest/v1beta1/publishers.models/list) | 2026-10-20 |
 | `aws_bedrock` | any | documented | [reference](https://docs.aws.amazon.com/cli/latest/reference/bedrock/list-foundation-models.html) | 2026-10-20 |
 | `azure_open_ai` | any | documented | [reference](https://learn.microsoft.com/en-us/rest/api/aiservices/accountmanagement/models/list) | 2026-10-20 |
-| `cursor` | any | verified live | [reference](https://github.com/steipete/CodexBar/blob/main/Sources/CodexBarCore/Providers/Cursor/CursorStatusProbe.swift) | 2026-10-20 |
+| `cursor` | default | none: `Unsupported` | — | — |
+| `cursor` | native login or query_mode = personal | verified live | [reference](https://github.com/steipete/CodexBar/blob/main/Sources/CodexBarCore/Providers/Cursor/CursorStatusProbe.swift) | 2026-10-20 |
 | `copilot` | any | none: `Unsupported` | — | — |
 | `windsurf` | any | none: `Unsupported` | — | — |
 | `mini_max` | any | documented | [reference](https://platform.minimax.io/docs) | 2026-10-20 |
@@ -449,8 +451,10 @@ Evidence of each listing (PRD 0028 RF10.1), generated from `models::evidence` an
 | `kimi` | native login or product = coding | verified live | [reference](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/kimi.js) | 2026-10-20 |
 | `qwen` | any | none: `Unsupported` | — | — |
 | `groq` | any | documented | [reference](https://console.groq.com/docs/api-reference#models-list) | 2026-10-20 |
-| `perplexity` | any | documented | [reference](https://docs.perplexity.ai/) | 2026-10-20 |
-| `mistral` | any | documented | [reference](https://docs.mistral.ai/api/) | 2026-10-20 |
+| `perplexity` | default | documented | [reference](https://docs.perplexity.ai/) | 2026-10-20 |
+| `perplexity` | product = computer | none: `Unsupported` | — | — |
+| `mistral` | default | none: `Unsupported` | — | — |
+| `mistral` | admin_key_env = X | documented | [reference](https://docs.mistral.ai/api/) | 2026-10-20 |
 | `cloudflare_ai` | any | documented | [reference](https://developers.cloudflare.com/api/resources/ai/subresources/models/methods/search/) | 2026-10-20 |
 | `ollama_cloud` | any | documented | [reference](https://docs.ollama.com/api/openai-compatibility) | 2026-10-20 |
 | `xiaomi_mimo` | any | none: `Unsupported` | — | — |
@@ -458,8 +462,8 @@ Evidence of each listing (PRD 0028 RF10.1), generated from `models::evidence` an
 | `qoder` | any | none: `Unsupported` | — | — |
 | `gemini_ai` | default | documented | [reference](https://ai.google.dev/api/models#method:-models.list) | 2026-10-20 |
 | `gemini_ai` | native login or product = cli | none: `Unsupported` | — | — |
-| `grok` | default | documented | [reference](https://docs.x.ai/docs/api-reference) | 2026-10-20 |
-| `grok` | native login or product = cli | none: `Unsupported` | — | — |
+| `grok` | default | none: `Unsupported` | — | — |
+| `grok` | management_key_env = X | documented | [reference](https://docs.x.ai/docs/api-reference) | 2026-10-20 |
 | `nvidia_nim` | any | documented | [reference](https://docs.api.nvidia.com/nim/reference/llm-apis) | 2026-10-20 |
 | `poolside` | any | documented | [reference](https://docs.poolside.ai/) | 2026-10-20 |
 | `kiro` | any | verified live | [reference](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/kiro.js) | 2026-10-20 |
@@ -477,7 +481,8 @@ Evidence of each listing (PRD 0028 RF10.1), generated from `models::evidence` an
 | `meta` | any | documented | [reference](https://dev.meta.ai/docs/api-reference/models/list-models) | 2026-10-20 |
 | `jetbrains_ai` | any | none: `Unsupported` | — | — |
 | `nine_router` | any | none: `Unsupported` | — | — |
-| `open_router` | any | documented | [reference](https://openrouter.ai/docs/api/api-reference/models/get-models) | 2026-10-20 |
+| `open_router` | default | documented | [reference](https://openrouter.ai/docs/api/api-reference/models/get-models) | 2026-10-20 |
+| `open_router` | product = account | none: `Unsupported` | — | — |
 | `litellm` | any | none: `Unsupported` | — | — |
 <!-- models-matrix:end -->
 

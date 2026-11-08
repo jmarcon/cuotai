@@ -6,7 +6,9 @@
     "machine_reviewed": "2026-10-25",
     "pending_review": [
       "note.nine_router.version_untested",
-      "test.nine_router.connected_untested"
+      "test.nine_router.connected_untested",
+      "models.unsupported.reason.admin_key",
+      "models.unsupported.reason.admin_key_only"
     ]
   },
   "access.confirm_unavailable": "{reason} खाता सहेजा जाएगा, पर संख्याओं की जगह यह कारण दिखाएगा।",
@@ -2186,6 +2188,8 @@
   "metric.label.default_workspace": "डिफ़ॉल्ट वर्कस्पेस",
   "provider.jetbrains_ai": "JetBrains AI",
   "models.unsupported.reason.jetbrains_ai": "सेवा खाता केवल AI analytics पढ़ता है; JetBrains इसके लिए मॉडल सूची नहीं देता, इसलिए कोई अनुरोध नहीं भेजा जाता।",
+  "models.unsupported.reason.admin_key": "खाता एडमिन, मैनेजमेंट या एनालिटिक्स कुंजी रखता है, जिससे मॉडल सूचीबद्ध करना प्रदाता के दस्तावेज़ों में नहीं है; उस कुंजी को उसके अपने पैरामीटर में और इन्फ़रेंस कुंजी को खाते के क्रेडेंशियल के रूप में रखें।",
+  "models.unsupported.reason.admin_key_only": "खाता केवल एडमिन कुंजी रखता है, जिससे मॉडल सूचीबद्ध करना प्रदाता के दस्तावेज़ों में नहीं है।",
   "query.jetbrains_ai.missing_secret": "क्रेडेंशियल नहीं मिला: {env} (सेवा खाते का client secret)।",
   "note.jetbrains_ai.rate_limited": "JetBrains ने क्वेरी सीमित कर दीं; अंतराल अपने आप बढ़ा दिया जाएगा।",
   "note.jetbrains_ai.client_rejected": "JetBrains ने सेवा खाते का client ID या client secret अस्वीकार कर दिया; दोनों वेरिएबल जाँचें या JetBrains Central Console में secret बदलें।",

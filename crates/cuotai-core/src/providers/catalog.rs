@@ -1,7 +1,9 @@
 //! Live model listings for the providers whose catalog is not a plain inference-key `/models`.
 //!
-//! Every adapter is read-only and uses the credential the account already stores (the same one
-//! its quota query uses). Endpoints that are not documented for that credential come from
+//! Every adapter is read-only and uses the account's credential variable or session. Admin,
+//! management and analytics keys never reach a listing: `models::support` only lets an account
+//! here when that credential is one the listing accepts (an inference key, or a session whose
+//! listing was verified live). Endpoints that are not documented for that credential come from
 //! public open-source clients (the vendors' own CLIs, 9router) and are listed in
 //! `docs/providers.md`; a response the credential is not accepted for surfaces as the usual
 //! classified failure (authentication, rate limit, transport, schema), never as an invented list.
@@ -9,17 +11,14 @@
 
 use super::{json, param, secret, Context, Miss, QueryError};
 use crate::models::ModelInfo;
-use crate::text::{params, ParamValue};
 use crate::Account;
 use reqwest::RequestBuilder;
 use serde_json::Value;
 
-pub(crate) const OPENAI_BASE: &str = "https://api.openai.com";
 pub(crate) const MISTRAL_BASE: &str = "https://api.mistral.ai";
 pub(crate) const PERPLEXITY_BASE: &str = "https://api.perplexity.ai";
 pub(crate) const NVIDIA_BASE: &str = "https://integrate.api.nvidia.com";
 pub(crate) const XAI_BASE: &str = "https://api.x.ai";
-pub(crate) const GROK_CLI_BASE: &str = "https://cli-chat-proxy.grok.com";
 pub(crate) const CLINE_BASE: &str = "https://api.cline.bot";
 pub(crate) const MINIMAX_BASE: &str = "https://api.minimax.io";
 pub(crate) const MINIMAX_CN_BASE: &str = "https://api.minimaxi.com";
@@ -98,8 +97,8 @@ fn get(ctx: &Context<'_>, url: String, key: &str) -> RequestBuilder {
 
 // ----------------------------------------------------------- inference-key APIs
 
-/// OpenAI-shaped `GET {base}/v1/models` with a Bearer key. The account may store an
-/// administration key, which the provider can refuse: that is reported, not hidden.
+/// OpenAI-shaped `GET {base}/v1/models` with the account's Bearer inference key (the contract
+/// keeps admin keys out); a refusal is reported, not hidden.
 pub(crate) async fn bearer_models(
     account: &Account,
     ctx: &Context<'_>,
@@ -110,46 +109,14 @@ pub(crate) async fn bearer_models(
     list(get(ctx, url, &key), ctx).await
 }
 
-/// Anthropic `GET /v1/models` with an `x-api-key` key (the account may hold an Admin key).
-pub(crate) async fn anthropic_key_models(
-    account: &Account,
-    ctx: &Context<'_>,
-    base: &str,
-) -> Result<Vec<ModelInfo>, QueryError> {
-    let key = secret(account, ctx, "ANTHROPIC_ADMIN_KEY")?;
-    super::subscriptions::anthropic_models(ctx, base, move |request| {
-        request.header("x-api-key", key.trim())
-    })
-    .await
-}
-
-/// Grok: the CLI session (`product = "cli"`, `session_env`) lists through the CLI proxy with the
-/// same client headers its quota query sends; otherwise the account key goes to the xAI API.
+/// Grok: `GET {api_base}/v1/models` with the inference key in the credential variable. The
+/// contract only lets an account with the management key in `management_key_env` get here; a CLI
+/// or native-login session never lists models (no evidence).
 pub(crate) async fn grok_models(
     account: &Account,
     ctx: &Context<'_>,
-    cli_base: &str,
     api_base: &str,
 ) -> Result<Vec<ModelInfo>, QueryError> {
-    if let Some(env) = account.params.get("session_env") {
-        let token = ctx
-            .credentials
-            .get(env)
-            .filter(|v| !v.trim().is_empty())
-            .ok_or_else(|| {
-                QueryError::config_params(
-                    "query.missing_credential",
-                    params([("name", ParamValue::from(env.clone()))]),
-                    "Missing credential: {name}.",
-                )
-            })?;
-        let request = super::router_grok::grok_headers(
-            ctx.http.get(format!("{cli_base}/models")),
-            &token,
-            account,
-        );
-        return list(request, ctx).await;
-    }
     bearer_models(
         account,
         ctx,
@@ -887,21 +854,14 @@ mod tests {
         assert_eq!(&*err.note.id, "query.schema");
     }
 
+    /// PRD 0002 S-02: a `session_env` never sends the CLI session anywhere; the listing always
+    /// goes to the xAI API with the credential variable.
     #[tokio::test]
-    async fn grok_uses_cli_headers_for_sessions_and_the_api_for_keys() {
-        let cli = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(path("/models"))
-            .and(header("x-xai-token-auth", "xai-grok-cli"))
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .set_body_json(serde_json::json!({"data": [{"id": "grok-cli-1"}]})),
-            )
-            .mount(&cli)
-            .await;
+    async fn grok_lists_through_the_api_only_and_ignores_session_env() {
         let api = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/v1/models"))
+            .and(header("authorization", "Bearer secret-token"))
             .respond_with(
                 ResponseTemplate::new(200)
                     .set_body_json(serde_json::json!({"data": [{"id": "grok-api-1"}]})),
@@ -909,19 +869,22 @@ mod tests {
             .mount(&api)
             .await;
         let http = reqwest::Client::new();
-        let session = account(crate::Provider::Grok, &[("session_env", "T")]);
-        assert_eq!(
-            ids(&grok_models(&session, &ctx(&http), &cli.uri(), &api.uri())
-                .await
-                .unwrap()),
-            ["grok-cli-1"]
-        );
-        let key = account(crate::Provider::Grok, &[]);
-        assert_eq!(
-            ids(&grok_models(&key, &ctx(&http), &cli.uri(), &api.uri())
-                .await
-                .unwrap()),
-            ["grok-api-1"]
-        );
+        for params in [
+            &[("management_key_env", "M")][..],
+            &[("management_key_env", "M"), ("session_env", "T")][..],
+        ] {
+            let account = account(crate::Provider::Grok, params);
+            assert_eq!(
+                ids(&grok_models(&account, &ctx(&http), &api.uri())
+                    .await
+                    .unwrap()),
+                ["grok-api-1"]
+            );
+        }
+        let sent = api.received_requests().await.unwrap();
+        assert_eq!(sent.len(), 2);
+        assert!(sent
+            .iter()
+            .all(|r| !r.headers.contains_key("x-xai-token-auth")));
     }
 }
