@@ -589,6 +589,17 @@ fn every_message_reads_in_each_catalog() {
     .unwrap()
     .with_search_path(on(&[bin.path()]));
     messages.extend(resolved.approval().unwrap().0);
+    // Windows pins no interpreter (it never runs a `#!` line); its line is
+    // still in every catalog for Unix.
+    #[cfg(not(unix))]
+    messages.extend(pin_lines(&Ok(pin::Pin {
+        program: interp.clone(),
+        sha256: "0".repeat(64),
+        interpreter: Some(pin::Interpreter {
+            program: interp.clone(),
+            sha256: "0".repeat(64),
+        }),
+    })));
     let invalid = [
         "",
         "x =",
