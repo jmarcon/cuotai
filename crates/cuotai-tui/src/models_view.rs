@@ -45,6 +45,9 @@ pub(crate) struct ModelsView {
     /// `index` (after edit/remove/move/reload) are discarded.
     account: Account,
     state: Outcome,
+    /// A failure to read or save the store after a sync (RF3.1: exposed,
+    /// never hidden); the catalog already on screen stays.
+    failure: Option<ModelError>,
     query: String,
     searching: bool,
     scroll: u16,
@@ -97,6 +100,7 @@ impl ModelsView {
             index,
             account,
             state,
+            failure: None,
             query: String::new(),
             searching: false,
             scroll: 0,
@@ -149,8 +153,20 @@ impl ModelsView {
         if !self.current(accounts) {
             return false;
         }
-        self.state = result;
+        match result {
+            // A store error keeps the state (and catalog) already shown.
+            Err(error) if self.state.is_ok() => self.failure = Some(error),
+            result => {
+                self.state = result;
+                self.failure = None;
+            }
+        }
         true
+    }
+
+    /// The account cannot list models: no sync action is offered.
+    fn unsupported(&self) -> bool {
+        matches!(self.state, Ok(ModelState::Unsupported { .. }))
     }
 
     pub(crate) fn key(&mut self, code: KeyCode, modifiers: KeyModifiers) -> Reply {
@@ -172,7 +188,7 @@ impl ModelsView {
         }
         match code {
             KeyCode::Esc => return Reply::Close,
-            KeyCode::Char('s') => return Reply::Sync,
+            KeyCode::Char('s') if !self.unsupported() => return Reply::Sync,
             KeyCode::Char('/') => self.searching = true,
             KeyCode::Char('c') => {
                 self.query.clear();
@@ -274,6 +290,9 @@ impl ModelsView {
         if let Some(detail) = detail {
             lines.push(Line::styled(detail, Style::default().fg(color)));
         }
+        if let (Some(error), None) = (&self.failure, &self.job) {
+            lines.push(Line::styled(text(&error.l10n()), Style::default().fg(RED)));
+        }
         let catalog = catalog(&self.state);
         let source = catalog
             .map(|c| c.source.clone())
@@ -320,6 +339,10 @@ impl ModelsView {
     }
 
     fn list_lines(&self) -> Vec<Line<'static>> {
+        // The reason is already in the status block.
+        if self.unsupported() {
+            return Vec::new();
+        }
         let Some(catalog) = catalog(&self.state) else {
             return vec![Line::styled(
                 tr("models.no_catalog", "No catalog saved for this account."),
@@ -402,6 +425,7 @@ impl ModelsView {
         self.footer.clear();
         let mut spans = Vec::new();
         let mut x = areas[2].x;
+        let unsupported = self.unsupported();
         for (label, code) in [
             (
                 tr("models.footer.search", " / search"),
@@ -418,6 +442,9 @@ impl ModelsView {
             (tr("models.footer.scroll", "  ↑↓/PgUp/PgDn scroll"), None),
             (tr("about.footer.back", "  Esc back"), Some(KeyCode::Esc)),
         ] {
+            if unsupported && code == Some(KeyCode::Char('s')) {
+                continue;
+            }
             let span = Span::styled(label, Style::default().fg(YELLOW));
             let width = span.width() as u16;
             if let Some(code) = code {
@@ -539,5 +566,73 @@ mod tests {
             Reply::Stay
         );
         assert!(view.query.is_empty());
+    }
+
+    fn screen_text(view: &mut ModelsView) -> String {
+        use ratatui::{backend::TestBackend, Terminal};
+        let mut terminal = Terminal::new(TestBackend::new(100, 20)).unwrap();
+        crate::l10n::with_locale("en-US", || {
+            terminal.draw(|frame| view.draw(frame)).unwrap();
+        });
+        let buffer = terminal.backend().buffer().clone();
+        buffer
+            .content()
+            .chunks(100)
+            .map(|row| row.iter().map(|cell| cell.symbol()).collect::<String>())
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    /// PRD 0002 V-03: an unsupported account shows its reason only, with no
+    /// sync action and no "no catalog" line.
+    #[test]
+    fn unsupported_offers_no_sync_and_no_list() {
+        let reason = Localized::fixed("models.unsupported", "cannot list here");
+        let mut view = ModelsView::new(
+            0,
+            account("a"),
+            Ok(ModelState::Unsupported {
+                reason: reason.clone(),
+            }),
+        );
+        assert!(view.list_lines().is_empty());
+        assert_eq!(
+            view.key(KeyCode::Char('s'), KeyModifiers::NONE),
+            Reply::Stay
+        );
+        let screen = screen_text(&mut view);
+        assert!(screen.contains("cannot list here"), "{screen}");
+        assert!(!screen.contains("Sync models"), "{screen}");
+        assert!(!screen.contains("No catalog saved"), "{screen}");
+        assert!(view
+            .footer
+            .iter()
+            .all(|(_, code)| *code != KeyCode::Char('s')));
+
+        let mut supported = ModelsView::new(0, account("a"), ready(&[]));
+        assert!(screen_text(&mut supported).contains("Sync models"));
+    }
+
+    /// PRD 0002 R-03 (RF3.1): a store error after a sync is shown, and the
+    /// catalog already on screen stays.
+    #[test]
+    fn storage_error_keeps_the_catalog_and_shows_the_error() {
+        let accounts = vec![account("a")];
+        let mut view = ModelsView::new(0, accounts[0].clone(), ready(&[("m1", None)]));
+        assert!(view.finish(Err(ModelError::Storage), &accounts));
+        assert_eq!(catalog(&view.state).map(|c| c.models.len()), Some(1));
+        let screen = screen_text(&mut view);
+        assert!(screen.contains("m1"), "{screen}");
+        assert!(
+            screen.contains("Could not read or write the model cache"),
+            "{screen}"
+        );
+        // The next success clears it.
+        assert!(view.finish(ready(&[("m2", None)]), &accounts));
+        assert!(view.failure.is_none());
+        // With no state to keep, the error is the state.
+        let mut fresh = ModelsView::new(0, accounts[0].clone(), Err(ModelError::NoCache));
+        assert!(fresh.finish(Err(ModelError::Storage), &accounts));
+        assert_eq!(fresh.state, Err(ModelError::Storage));
     }
 }
