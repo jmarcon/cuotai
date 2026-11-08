@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0002 |
-| Status | Implemented (0.14.x) |
+| Status | Implemented (RF1 to RF6 in 0.8.0 to 0.14.0; RF1.2 notice lifetime in 0.80.0; extended by PRD 0028 RF10 in 0.81.0; re-validation fixes in vNEXT, see the tables) |
 | Owner | `cuotai-core`, TUI and desktop |
 | Consumers | `crates/cuotai-tui`, `apps/desktop` |
 | Extended by | PRD 0028 (RF10: model listing gated on evidence, removal of the static 9router lists in `providers/builtin_models.rs` that contradict §4, and of the Copilot token exchange), PRD 0036 (9router and aggregator providers), PRD 0038 (one more verified model-catalog adapter) |
@@ -23,8 +23,28 @@ All RFs were implemented in the core, the TUI and the desktop app, one at a time
 | RF4 | 0.11.0 | Verified adapters (Groq, AWS Bedrock, Antigravity, Gemini AI Studio, Kimi, Poolside, Alibaba Model Studio intl), bounded pagination and the matrix of the 36 providers in `docs/providers.md`. |
 | RF5 | 0.12.0 | Models section in the TUI (details and wizard with a configured account), local search and manual sync. |
 | RF6 | 0.13.0 | Models section in the desktop app (details, popover and account dialog), accessible search, manual sync and discarding of results for an old identity. |
+| Re-validation | vNEXT | The fixes of the 2026-11-08 re-validation, listed below. |
 
 Sections 1 and 2 describe the situation of 2026-10-16, before the implementation. The first set of RF4.1 adapters was extended with Gemini AI Studio, Kimi, Poolside and Alibaba Model Studio (intl), each verified against an official source.
+
+### Re-validation (2026-11-08)
+
+A serial re-validation of the delivered plan (visual, security and review passes against v0.84.1) found three medium and twelve low findings, all fixed in vNEXT:
+
+| ID | Severity | RF | Fix |
+|---|---|---|---|
+| S-01 | medium | RF4.2 | Admin, management and analytics keys are never sent to a model listing (least privilege; no vendor documents them for it, and OpenAI says Admin keys cannot call other endpoints). OpenAI, Anthropic and Cursor Teams accounts, which store only an Admin API key, are `Unsupported` for models (`models.unsupported.reason.admin_key_only`). Mistral, Grok and Perplexity Computer list only when the admin, management or analytics key sits in `admin_key_env`, `management_key_env` or `analytics_key_env`, leaving the credential variable for an inference key (otherwise `models.unsupported.reason.admin_key`). Cursor lists only with native login or `query_mode = "personal"`. |
+| S-02 | low | RF4.2 | A Grok `session_env` no longer sends the CLI session to `cli-chat-proxy.grok.com` when `product` is not `cli`; Grok listings use only the xAI API. |
+| S-03 | low | RF4.2 | The unreachable Gemini AI session listing arm was removed, and `docs/providers.md` no longer describes listings that the matrix refuses (Gemini AI session, Model Studio outside Singapore, Grok CLI). |
+| S-04 | low | RF4.3 | Provider-supplied model fields are bounded: more than 10,000 entries or an id over 256 characters is a schema error; names and descriptions lose control and bidi-override characters and are cut at 256 and 1,024 characters. |
+| R-02 | low | RF4.2 | The generated models matrix walks every mode that changes support (`product = account`/`computer`, `query_mode = personal`, the split-key params), so OpenRouter `product = account` shows as `Unsupported`. |
+| V-02 | low | RF4.2 | The ElevenLabs, JetBrains AI, LiteLLM and 9router reasons no longer repeat that nothing is queried. |
+| R-04 | low | — | This status, the superseded notes on RF2.1, RF4.2 and RF6.2, and the control row were brought up to date. |
+
+**Open items:**
+
+- Listing OpenAI and Anthropic models would need an optional inference-key parameter (for example `models_key_env`) beside the Admin key. That is a possible future feature, not part of this fix (owner decision pending).
+- The TUI does not wait for a model query running in another process (the desktop does); RF3.4 is met, so this is polish only.
 
 ## 1. Context
 
@@ -60,7 +80,7 @@ It is not possible to discover and search the models available to an account in 
 
 ### RF2 — Per-account model contract in the core (high priority)
 
-- **RF2.1** Expose `ModelInfo` (real ID, optional name/description), `ModelCatalog` (models, source/scope, `fetched_at`) and typed states/errors; the texts presented to the front ends use `text::Localized` with a Portuguese fallback. Missing values stay missing; a catalog does not prove authorization for inference, price or current availability.
+- **RF2.1** Expose `ModelInfo` (real ID, optional name/description), `ModelCatalog` (models, source/scope, `fetched_at`) and typed states/errors; the texts presented to the front ends use `text::Localized` with a Portuguese fallback (superseded by PRDs 0034 and 0035: the `Localized` fallback is English). Missing values stay missing; a catalog does not prove authorization for inference, price or current availability.
 - **RF2.2** Expose reading the state without network, and explicit operations `load_models(account_index)` and `sync_models(account_index)`. `load_models`: with no entry it makes the first query; with a success, an empty list or a recorded failure it only reads the state. `sync_models`: the only operation that queries again after the first attempt, preserving the previous catalog if it fails. `Unsupported` makes no network request. An invalid index is a typed error.
 - **RF2.3** Reuse the `Monitor`'s client, `Context`, shared OAuth, timeout and concurrency limit; `Monitor::with_config` keeps access to the same cache. The cache location/identity is configured explicitly from `ConfigFile::path`, without guessing `cwd` and without requiring a cache for the existing `Monitor::refresh`. These operations do not change `RefreshCycle`, `Report`, `Snapshot` or deadlines.
 - **Acceptance criterion:** two accounts of the same provider with distinct credentials/regions return isolated catalogs; the first opening queries once; reopening, restarting, searching or refreshing quota produce no **additional catalog query**. A successful empty result differs from the absence of a query.
@@ -76,7 +96,7 @@ It is not possible to discover and search the models available to an account in 
 ### RF4 — Verified adapters and limitations (high priority)
 
 - **RF4.1** Enable the list only for a read-only endpoint with a proven credential, product, region, permissions, cost and semantics. The first set of contracts to implement/test: Groq (`/openai/v1/models`, already used for headers), Bedrock by profile/region (`aws bedrock list-foundation-models`, different from Cost Explorer) and Antigravity only where `fetchAvailableModels` returns a catalog. **Before enabling each one**, validate that the configured credential gives access. Do not add a call to the existing quota refresh.
-- **RF4.2** Evaluate Gemini AI Studio only with a Gemini API key; `models.list` is paginated and the key is not to be confused with a Cloud Monitoring/CLI token. Do not assume that OpenAI/Anthropic admin keys, Azure or subscription tokens list inference models. For the rest, investigate the endpoint and scope; with no evidence, `Unsupported` with a reason and zero network. Publish the matrix of the 36 `Provider::ALL` with status and source in `docs/providers.md` at implementation.
+- **RF4.2** Evaluate Gemini AI Studio only with a Gemini API key; `models.list` is paginated and the key is not to be confused with a Cloud Monitoring/CLI token. Do not assume that OpenAI/Anthropic admin keys, Azure or subscription tokens list inference models. For the rest, investigate the endpoint and scope; with no evidence, `Unsupported` with a reason and zero network. Publish the matrix of the 36 `Provider::ALL` with status and source in `docs/providers.md` at implementation. (Superseded: `Provider::ALL` now holds 42 providers, and since the 2026-11-08 re-validation, vNEXT, no admin, management or analytics key is sent to a listing, see "Re-validation".)
 - **RF4.3** Paginate to completion with a page limit and repeated-token detection; an incomplete schema/page rejects the sync without overwriting the cache. Deduplicate IDs and sort for presentation without changing the real IDs. Errors do not show bodies, headers, tokens or sensitive URLs.
 - **Acceptance criterion:** local HTTP/CLI fixtures cover a full list, pagination, an invalid/incomplete page, 401/403/429, distinct region/product/credential and `Unsupported`; no adapter invents a list from metrics. [Gemini models.list](https://ai.google.dev/api/models) and [Bedrock ListFoundationModels](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_ListFoundationModels.html) document their contracts; they do not guarantee access to the user's account.
 
@@ -89,7 +109,7 @@ It is not possible to discover and search the models available to an account in 
 ### RF6 — Search in the desktop selection and details (medium priority)
 
 - **RF6.1** Expose through the Tauri backend read/first query/sync per validated account, with no secret in the IPC. In `account-dialog.js`, search the models of the account being edited or explicitly choose an existing account of the provider when creating another; with no account, show guidance. In `detail.js`/`details-dialog.js`, show a searchable section in the window and popover details. `lib.js` reuses the same calls; `localStorage` is not the source of truth.
-- **RF6.2** Local search by ID/name with a labelled `<input type="search">`, keyboard navigation, announced progress (`aria-live`) and a manual sync button disabled during the operation. Render state/source/date/error without discarding the previous catalog; localize in `pt-BR`, `en-US` and `es`. If the configuration changes during a query, discard the old identity's result, never assign it to the new index.
+- **RF6.2** Local search by ID/name with a labelled `<input type="search">`, keyboard navigation, announced progress (`aria-live`) and a manual sync button disabled during the operation. Render state/source/date/error without discarding the previous catalog; localize in `pt-BR`, `en-US` and `es` (superseded by PRD 0035: all 14 languages). If the configuration changes during a query, discard the old identity's result, never assign it to the new index.
 - **Acceptance criterion:** a desktop smoke test in three languages covers the first query, cache after closing/reopening, search without HTTP, manual sync, an error preserving data, a new account with no credential, change/removal/reordering of the account, and access in the popover. The same TOML chosen in the TUI provides the same accounts and cached models.
 
 ## 6. Non-functional requirements
