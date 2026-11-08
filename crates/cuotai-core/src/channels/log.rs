@@ -17,6 +17,9 @@ use std::path::{Path, PathBuf};
 pub const KEEP: TimeDelta = TimeDelta::days(7);
 /// The log is never read past this size (it stays far below it).
 const MAX_READ_BYTES: u64 = 8 * 1024 * 1024;
+/// A log past [`MAX_READ_BYTES`] is cut to its newest lines within this
+/// size when pruned, so it can be read again.
+const TRIM_TO_BYTES: usize = (MAX_READ_BYTES / 2) as usize;
 
 /// What happened to one notification on one channel.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -116,22 +119,43 @@ impl DeliveryLog {
     }
 
     /// Drop the entries older than [`KEEP`] at `now`, under the shared
-    /// lock; nothing happens when none is that old.
+    /// lock; nothing happens when none is that old. A log grown past
+    /// [`MAX_READ_BYTES`] (which [`Self::read`] refuses) also keeps only
+    /// its newest lines within [`TRIM_TO_BYTES`], so it never grows
+    /// without end.
     pub fn prune(&self, now: DateTime<Utc>) {
-        let entries = self.read();
-        if entries.first().is_none_or(|first| now - first.at <= KEEP) {
+        let Ok(meta) = std::fs::symlink_metadata(&self.path) else {
             return;
+        };
+        let oversized = meta.is_file() && meta.len() > MAX_READ_BYTES;
+        if !oversized {
+            let entries = self.read();
+            if entries.first().is_none_or(|first| now - first.at <= KEEP) {
+                return;
+            }
         }
         let _ = crate::private_fs::update_locked::<()>(&self.path, |bytes| {
             let text = bytes.map(|b| String::from_utf8_lossy(&b).into_owned());
+            let kept: Vec<&str> = text
+                .as_deref()
+                .unwrap_or_default()
+                .lines()
+                .filter(|line| {
+                    serde_json::from_str::<Entry>(line).is_ok_and(|entry| now - entry.at <= KEEP)
+                })
+                .collect();
+            let mut size = 0;
+            let start = kept
+                .iter()
+                .rposition(|line| {
+                    size += line.len() + 1;
+                    size > TRIM_TO_BYTES
+                })
+                .map_or(0, |past| past + 1);
             let mut out = Vec::new();
-            for line in text.as_deref().unwrap_or_default().lines() {
-                if let Ok(entry) = serde_json::from_str::<Entry>(line) {
-                    if now - entry.at <= KEEP {
-                        out.extend_from_slice(line.as_bytes());
-                        out.push(b'\n');
-                    }
-                }
+            for line in &kept[start..] {
+                out.extend_from_slice(line.as_bytes());
+                out.push(b'\n');
             }
             Ok(out)
         });
