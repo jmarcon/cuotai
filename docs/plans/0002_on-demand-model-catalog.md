@@ -40,6 +40,11 @@ A serial re-validation of the delivered plan (visual, security and review passes
 | R-02 | low | RF4.2 | The generated models matrix walks every mode that changes support (`product = account`/`computer`, `query_mode = personal`, the split-key params), so OpenRouter `product = account` shows as `Unsupported`. |
 | V-02 | low | RF4.2 | The ElevenLabs, JetBrains AI, LiteLLM and 9router reasons no longer repeat that nothing is queried. |
 | R-04 | low | — | This status, the superseded notes on RF2.1, RF4.2 and RF6.2, and the control row were brought up to date. |
+| V-01 | medium | RF6.2 | The desktop sync bar wraps and the button keeps one line, so "Sync models" no longer spills out of the tray in longer languages (DS-MSG-15); the ui-shots check opens Models in the tray (`tray-models`, demo `?models=failed`). |
+| V-04 | low | RF6.2 | A failed or interrupted query takes the status role and icon from the core's classification (DS-COL-3). |
+| V-05 | low | RF6.2 | Dates use the shared DS-MSG-8 formatter, and the fr/de/it texts no longer put a time preposition before a full date. |
+| V-06 | low | RF6.2 | The status and meta lines are whole translated keys (`models.state.*`, `models.meta*`), not fragments joined with " · " (DS-MSG-12). |
+| V-07 | low | RF6 | `scripts/test-models-ui.mjs` covers every state, role, date and the search in en-US, pt-BR and es (the RF6 acceptance), through the pure `modelsView`. |
 
 **Open items:**
 
