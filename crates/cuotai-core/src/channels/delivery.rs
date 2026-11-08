@@ -125,6 +125,11 @@ struct Shared {
     log: Option<DeliveryLog>,
     vault: Vault,
     http: reqwest::Client,
+    /// The same client without the environment's proxy, for the plain
+    /// `http://` ntfy server on this computer or the private network
+    /// ([`super::validate_url`] allows no other plain address): a proxy
+    /// could not reach it, and would read every notification.
+    direct: reqwest::Client,
     handle: tokio::runtime::Handle,
     permits: tokio::sync::Semaphore,
     windows: Mutex<BTreeMap<String, Window>>,
@@ -173,11 +178,17 @@ impl Dispatcher {
         let handle = tokio::runtime::Handle::try_current().ok()?;
         // No redirect is followed (PRD 0052 RF6.1, §6 Safety).
         let http = crate::network::client(crate::network::ClientPurpose::Channels, timing.timeout)?;
+        let direct =
+            crate::network::builder(crate::network::ClientPurpose::Channels, timing.timeout)
+                .no_proxy()
+                .build()
+                .ok()?;
         Some(Self(Arc::new(Shared {
             settings,
             log,
             vault,
             http,
+            direct,
             handle,
             permits: tokio::sync::Semaphore::new(MAX_IN_FLIGHT),
             windows: Mutex::new(BTreeMap::new()),
@@ -187,6 +198,20 @@ impl Dispatcher {
             last_prune: Mutex::new(None),
             loose: false,
         })))
+    }
+
+    /// Tests: route the HTTPS client through `proxy`.
+    #[cfg(test)]
+    pub(crate) fn proxied(self, proxy: &str) -> Self {
+        let shared = Arc::try_unwrap(self.0).unwrap_or_else(|_| panic!("unshared dispatcher"));
+        let http = crate::network::builder(
+            crate::network::ClientPurpose::Channels,
+            shared.timing.timeout,
+        )
+        .proxy(reqwest::Proxy::all(proxy).unwrap())
+        .build()
+        .unwrap();
+        Self(Arc::new(Shared { http, ..shared }))
     }
 
     #[cfg(test)]
@@ -466,12 +491,15 @@ impl Dispatcher {
             }
         };
         let request = payload::render(channel.kind, out, secret.as_deref());
+        let http = if url.expose().scheme() == "http" {
+            &self.0.direct
+        } else {
+            &self.0.http
+        };
         let mut attempt = 0;
         loop {
             attempt += 1;
-            let mut builder = self
-                .0
-                .http
+            let mut builder = http
                 .post(url.expose().clone())
                 .timeout(self.0.timing.timeout)
                 .body(request.body.clone());
