@@ -407,8 +407,9 @@ impl Notices {
         self.ledger
             .mutate(|ledger| ledger.alerts_mut().retain_config(config));
         self.missed.retain(|key, _| keys.contains(key));
+        // PRD 0045 RF5.2: a deferred row alert stays with its account.
         self.digest_pending
-            .retain(|event| keys.contains(&event.account_key));
+            .retain(|event| alerts::configured_unit(&keys, &event.account_key));
         let mut alerts = self.alerts.clone();
         alerts.muted.retain(|key, _| kept(key));
         alerts.pool_each.retain(|key| keys.contains(key));
@@ -1614,6 +1615,7 @@ mod tests {
         assert_eq!(events.len(), 1, "{events:?}");
         assert_eq!(events[0].threshold, 90, "75% was reached while off");
         assert!(events[0].row.is_some());
+        let held = events.clone();
         notices.record(Some(&b), &c, events, c.checked_at, None);
         let readings = [Some(&c)];
         assert_eq!(
@@ -1626,10 +1628,20 @@ mod tests {
             fake.0.borrow()
         );
 
+        // Saving the configuration keeps the rows' levels and the row
+        // alerts quiet hours deferred for the digest.
+        notices.digest_pending.extend(held.clone());
         notices.keep_accounts(&cfg).unwrap();
         assert!(notices.alerts().breakdown_alerts(&id));
+        assert_eq!(notices.digest_pending, held);
+        let d = reading(t0() + mins(15), 96.0);
+        assert!(
+            notices.assess(Some(&c), &d, d.checked_at, None).is_empty(),
+            "the 90% of the row was notified before the save"
+        );
         notices.keep_accounts(&config(&["Work"])).unwrap();
         assert!(notices.alerts().breakdown_each.is_empty());
+        assert!(notices.digest_pending.is_empty());
     }
 
     /// A system that refuses every notice (permission denied).

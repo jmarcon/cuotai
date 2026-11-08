@@ -413,6 +413,12 @@ pub struct AlertState {
     /// never persisted.
     #[serde(skip)]
     seen: BTreeSet<String>,
+    /// PRD 0045 RF5.2: the parent account digest of each breakdown-row
+    /// unit digest met in [`Self::update`], so [`Self::retain_accounts`]
+    /// keeps the marks and first-reading status of the rows of a kept
+    /// account (row digests cannot be traced back to their account).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    row_parents: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1116,6 +1122,10 @@ impl AlertState {
         let mut changed = false;
         let account_key = next.state_key();
         let account = account_digest(&account_key);
+        if let Some(parent) = crate::breakdown::row_parent(&account_key) {
+            self.row_parents
+                .insert(account.clone(), account_digest(parent));
+        }
         if now - next.checked_at <= CROSSING_GRACE {
             self.seen.insert(account.clone());
         }
@@ -1499,6 +1509,11 @@ impl AlertState {
     /// over to this freshly loaded state.
     pub(crate) fn keep_session_of(&mut self, other: &AlertState) {
         self.seen = other.seen.clone();
+        for (row, parent) in &other.row_parents {
+            self.row_parents
+                .entry(row.clone())
+                .or_insert_with(|| parent.clone());
+        }
     }
 
     /// PRD 0032 RF4: whether the level (or recovery, session expiry or
@@ -1786,14 +1801,19 @@ impl AlertState {
 
     /// Forget every account whose state key is not in `keys` (removed from
     /// the configuration): its levels, recoveries and first-reading status.
-    /// `true` when a mark was dropped. Prefer [`Self::retain_config`], which
-    /// also keeps marks an older release wrote under a legacy key until
-    /// [`Self::adopt_ids`] moves them.
+    /// The breakdown rows of a kept account stay (PRD 0045 RF5.2), as
+    /// [`configured_unit`] keeps their pending alerts. `true` when a mark
+    /// was dropped. Prefer [`Self::retain_config`], which also keeps marks
+    /// an older release wrote under a legacy key until [`Self::adopt_ids`]
+    /// moves them.
     pub fn retain_accounts<'a>(&mut self, keys: impl IntoIterator<Item = &'a str>) -> bool {
         let kept: BTreeSet<String> = keys.into_iter().map(account_digest).collect();
+        self.row_parents.retain(|_, parent| kept.contains(parent));
+        let row_parents = &self.row_parents;
+        let keep = |account: &String| kept.contains(account) || row_parents.contains_key(account);
         let before = self.marks.len();
-        self.marks.retain(|mark| kept.contains(&mark.account));
-        self.seen.retain(|account| kept.contains(account));
+        self.marks.retain(|mark| keep(&mark.account));
+        self.seen.retain(|account| keep(account));
         self.marks.len() != before
     }
 
@@ -1857,6 +1877,9 @@ impl AlertState {
                 .map_or(mark.at, |resets_at| resets_at.max(mark.at))
                 >= now - LEDGER_KEEP
         });
+        let (marks, seen) = (&self.marks, &self.seen);
+        self.row_parents
+            .retain(|row, _| seen.contains(row) || marks.iter().any(|mark| &mark.account == row));
         self.marks.len() != before
     }
 

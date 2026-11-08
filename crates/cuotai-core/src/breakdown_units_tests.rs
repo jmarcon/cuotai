@@ -208,6 +208,34 @@ fn rows_alert_only_through_the_gate_and_never_for_the_past() {
     assert!(event.iter().all(|event| !muted.wants(event)));
 }
 
+/// PRD 0045 RF5.2: keeping an account keeps the levels of its rows, also
+/// after the state was saved and loaded again; removing it drops them.
+#[test]
+fn retaining_an_account_keeps_the_marks_of_its_rows() {
+    let prefs = AlertPrefs::new(true, alerts::DEFAULT_THRESHOLDS).unwrap();
+    let mut state = AlertState::default();
+    let first = report(0, vec![capped("k1", "Bot", 50.0)]);
+    state.update_units(&first, &prefs, &[], at(0));
+    let next = report(5, vec![capped("k1", "Bot", 92.0)]);
+    let events = alerts::evaluate_rows(Some(&first), &next, &prefs, &state, at(5));
+    assert_eq!(events.len(), 1);
+    state.update_units(&next, &prefs, &events, at(5));
+    assert!(!state.retain_accounts(["org-router"]), "the row marks stay");
+    let later = report(10, vec![capped("k1", "Bot", 93.0)]);
+    assert!(
+        alerts::evaluate_rows(Some(&next), &later, &prefs, &state, at(10)).is_empty(),
+        "the row is no first reading and its level is not notified again"
+    );
+    let mut loaded: AlertState =
+        serde_json::from_str(&serde_json::to_string(&state).unwrap()).unwrap();
+    assert!(!loaded.retain_accounts(["org-router"]));
+    assert!(
+        loaded.retain_accounts(["other"]),
+        "a removed account's rows go"
+    );
+    assert!(loaded.is_empty());
+}
+
 #[test]
 fn row_events_group_under_their_account_in_a_notice() {
     let parent = account();
