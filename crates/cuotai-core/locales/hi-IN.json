@@ -1673,7 +1673,7 @@
   "provider.mini_max": "Minimax.io",
   "provider.mistral": "Mistral",
   "provider.nine_router": "9router",
-  "provider.nvidia_nim": "NVidia NIM",
+  "provider.nvidia_nim": "NVIDIA NIM",
   "provider.ollama_cloud": "Ollama Cloud",
   "provider.open_ai_api": "OpenAI API",
   "provider.open_code_go": "Opencode Go",

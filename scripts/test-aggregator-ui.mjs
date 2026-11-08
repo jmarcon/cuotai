@@ -34,6 +34,8 @@ globalThis.fetch = async (relative) => {
 
 const i18n = await import("../apps/desktop/ui/js/i18n.js");
 const lib = await import("../apps/desktop/ui/js/lib.js");
+// PRD 0001 re-validation (L3): provider names are the core's, loaded as `boot` does.
+await lib.loadProviderLabels();
 const agg = await import("../apps/desktop/ui/js/aggregator.js");
 await i18n.initI18n();
 
@@ -62,20 +64,20 @@ assert.equal(agg.poolFigure(router), "1/3");
 assert.equal(connections.filter(agg.activeConnection).length, 3);
 
 const expected = {
-  "en-US": { pool: "Claude · 1 of 2 available", off: "Off in 9router", tight: "Tightest: Claude Code · work" },
-  es: { pool: "Claude · 1 de 2 disponibles", off: "Desactivada en 9router", tight: "La más ajustada: Claude Code · work" },
-  it: { pool: "Claude · 1 di 2 disponibili", off: "Disattivata in 9router", tight: "La più stretta: Claude Code · work" },
-  "pt-BR": { pool: "Claude · 1 de 2 disponíveis", off: "Desligada no 9router", tight: "Mais apertada: Claude Code · work" },
-  de: { pool: "Claude · 1 von 2 verfügbar", off: "In 9router aus", tight: "Am knappsten: Claude Code · work" },
-  ru: { pool: "Claude · доступно 1 из 2", off: "Выключено в 9router", tight: "Самый жёсткий: Claude Code · work" },
-  ko: { pool: "Claude · 2개 중 1개 사용 가능", off: "9router에서 꺼짐", tight: "가장 빠듯함: Claude Code · work" },
-  "hi-IN": { pool: "Claude · 2 में से 1 उपलब्ध", off: "9router में बंद", tight: "सबसे कम: Claude Code · work" },
-  "id-ID": { pool: "Claude · 1 dari 2 tersedia", off: "Nonaktif di 9router", tight: "Paling ketat: Claude Code · work" },
-  tr: { pool: "Claude · 2 içinden 1 kullanılabilir", off: "9router&#39;da kapalı", tight: "En sıkı: Claude Code · work" },
-  vi: { pool: "Claude · 1 trên 2 khả dụng", off: "Tắt trong 9router", tight: "Chặt nhất: Claude Code · work" },
-  "zh-CN": { pool: "Claude · 2 个中 1 个可用", off: "在 9router 中已关闭", tight: "最紧：Claude Code · work" },
-  fr: { pool: "Claude · 1 sur 2 disponibles", off: "Désactivée dans 9router", tight: "Plus serrée : Claude Code · work" },
-  ja: { pool: "Claude · 2 件中 1 件利用可能", off: "9router でオフ", tight: "最も厳しい：Claude Code · work" },
+  "en-US": { pool: "Claude · 1 of 2 available", off: "Off in 9router", tight: "Tightest: Claude · work" },
+  es: { pool: "Claude · 1 de 2 disponibles", off: "Desactivada en 9router", tight: "La más ajustada: Claude · work" },
+  it: { pool: "Claude · 1 di 2 disponibili", off: "Disattivata in 9router", tight: "La più stretta: Claude · work" },
+  "pt-BR": { pool: "Claude · 1 de 2 disponíveis", off: "Desligada no 9router", tight: "Mais apertada: Claude · work" },
+  de: { pool: "Claude · 1 von 2 verfügbar", off: "In 9router aus", tight: "Am knappsten: Claude · work" },
+  ru: { pool: "Claude · доступно 1 из 2", off: "Выключено в 9router", tight: "Самый жёсткий: Claude · work" },
+  ko: { pool: "Claude · 2개 중 1개 사용 가능", off: "9router에서 꺼짐", tight: "가장 빠듯함: Claude · work" },
+  "hi-IN": { pool: "Claude · 2 में से 1 उपलब्ध", off: "9router में बंद", tight: "सबसे कम: Claude · work" },
+  "id-ID": { pool: "Claude · 1 dari 2 tersedia", off: "Nonaktif di 9router", tight: "Paling ketat: Claude · work" },
+  tr: { pool: "Claude · 2 içinden 1 kullanılabilir", off: "9router&#39;da kapalı", tight: "En sıkı: Claude · work" },
+  vi: { pool: "Claude · 1 trên 2 khả dụng", off: "Tắt trong 9router", tight: "Chặt nhất: Claude · work" },
+  "zh-CN": { pool: "Claude · 2 个中 1 个可用", off: "在 9router 中已关闭", tight: "最紧：Claude · work" },
+  fr: { pool: "Claude · 1 sur 2 disponibles", off: "Désactivée dans 9router", tight: "Plus serrée : Claude · work" },
+  ja: { pool: "Claude · 2 件中 1 件利用可能", off: "9router でオフ", tight: "最も厳しい：Claude · work" },
 };
 const untranslated = /\b(agg|settings\.agg)\.[a-zA-Z.]+/;
 for (const { code } of i18n.LOCALES) {

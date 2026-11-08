@@ -11,10 +11,11 @@ globalThis.location = { search: "?fixture=six&bedrock&mono=zq" };
 const i18n = await import("../apps/desktop/ui/js/i18n.js");
 await i18n.initI18n();
 const lib = await import("../apps/desktop/ui/js/lib.js");
+await lib.loadProviderLabels();
 const c = await import("../apps/desktop/ui/js/components.js");
 
 const { reports } = await lib.getView();
-assert.deepEqual([...new Set((await lib.trayAccounts()).map((a) => a.provider_label))], ["Claude Code", "OpenAI Codex", "Cursor", "Kimi", "Groq", "Anthropic API", "AWS Bedrock"], "Menu bar shows brand labels, never provider ids");
+assert.deepEqual([...new Set((await lib.trayAccounts()).map((a) => a.provider_label))], ["Claude", "ChatGPT / Codex", "Cursor", "Kimi", "Groq", "Anthropic API", "AWS Bedrock"], "Menu bar shows the core's provider names, never provider ids");
 assert.deepEqual(reports.map((r) => `${r.provider}:${r.account}`), [
   "claude:work@example.com", "claude:side@example.com", "chat_gpt:me@example.com", "cursor:dev@example.com",
   "kimi:ops@example.com", "groq:team@example.com", "anthropic_api:api@example.com", "aws_bedrock:billing@example.com",

@@ -962,30 +962,37 @@ export function bindStatusLinks(root) {
 export const metricKey = (r, m) => `${reportKey(r)}::${m.label}`;
 
 // ---------- providers ----------
-const B = (label, color, mark) => ({ label, color, mark: mark ?? label[0].toUpperCase() });
-const brands = {
-  open_ai_api: B("OpenAI API", "#10a37f", "O"), anthropic_api: B("Anthropic API", "#d97757", "A"),
-  chat_gpt: B("OpenAI Codex", "#10a37f", "C"), claude: B("Claude Code", "#d97757", "✻"),
-  gemini_api: B("Gemini (Cloud Monitoring)", "#4285f4", "G"), vertex_ai: B("Vertex AI", "#4285f4", "V"),
-  aws_bedrock: B("AWS Bedrock", "#ff9900", "B"), azure_open_ai: B("Azure OpenAI", "#0078d4", "Az"),
-  cursor: B("Cursor", "#8b8b8b", "Cu"), copilot: B("GitHub Copilot", "#6e40c9", "Co"),
-  windsurf: B("Windsurf", "#09b6a2", "W"), mini_max: B("Minimax Coding", "#e73b77", "M"),
-  kimi: B("Kimi", "#1783ff", "K"), qwen: B("Qwen", "#615ced", "Q"), groq: B("Groq", "#f55036", "g"),
-  perplexity: B("Perplexity", "#20b8cd", "P"), mistral: B("Mistral", "#fa520f", "Mi"),
-  cloudflare_ai: B("Cloudflare AI", "#f6821f", "CF"), ollama_cloud: B("Ollama Cloud", "#9a9a9a", "Ol"),
-  xiaomi_mimo: B("Xiaomi MIMO", "#ff6900", "Mi"), open_code_go: B("Opencode Go", "#3b82f6", "OC"),
-  qoder: B("Qoder", "#22c55e", "Qo"), gemini_ai: B("Gemini AI", "#4285f4", "G"), grok: B("Grok (xAI)", "#9a9a9a", "X"),
-  nvidia_nim: B("NVIDIA NIM", "#76b900", "N"), poolside: B("Poolside", "#a855f7", "Po"), kiro: B("Kiro AI", "#8a5cf6", "Ki"),
-  cline: B("Cline", "#22d3ee", "Cl"), code_buddy: B("CodeBuddy", "#6d5cf6", "CB"), zed: B("Zed", "#3b82f6", "Z"),
-  alibaba_model_studio: B("Alibaba Model Studio", "#ff6a00", "Al"), alibaba_coding_plan: B("Alibaba Coding Plan", "#ff6a00", "Al"),
-  alibaba_token_plan: B("Alibaba Token Plan", "#ff6a00", "Al"), alibaba_cloud: B("Alibaba Cloud", "#ff6a00", "Al"),
-  antigravity: B("Antigravity", "#7c6cf0", "Ag"), kimchi: B("Kimchi", "#ef4444", "Km"),
-  meta: B("Meta Model API", "#0866ff", "Me"), open_router: B("OpenRouter", "#6467f2", "OR"),
-  jetbrains_ai: B("JetBrains AI", "#fc801d", "JB"),
-  nine_router: B("9router", "#0369a1", "9r"), litellm: B("LiteLLM proxy", "#14b8a6", "LL"),
-  extension: B("Extension", "#8b5cf6", "Ex"),
+// PRD 0001 re-validation (L3): the desktop keeps only each provider's color and mark; the visible name is the
+// core's (`Provider::label`, translated through the core catalogs' `provider.<slug>`), the same one the terminal
+// and the menu bar show.
+const S = (color, mark) => ({ color, mark });
+const brandStyles = {
+  open_ai_api: S("#10a37f", "O"), anthropic_api: S("#d97757", "A"), chat_gpt: S("#10a37f", "C"),
+  claude: S("#d97757", "✻"), gemini_api: S("#4285f4", "G"), vertex_ai: S("#4285f4", "V"),
+  aws_bedrock: S("#ff9900", "B"), azure_open_ai: S("#0078d4", "Az"), cursor: S("#8b8b8b", "Cu"),
+  copilot: S("#6e40c9", "Co"), windsurf: S("#09b6a2", "W"), mini_max: S("#e73b77", "M"),
+  kimi: S("#1783ff", "K"), qwen: S("#615ced", "Q"), groq: S("#f55036", "g"),
+  perplexity: S("#20b8cd", "P"), mistral: S("#fa520f", "Mi"), cloudflare_ai: S("#f6821f", "CF"),
+  ollama_cloud: S("#9a9a9a", "Ol"), xiaomi_mimo: S("#ff6900", "Mi"), open_code_go: S("#3b82f6", "OC"),
+  qoder: S("#22c55e", "Qo"), gemini_ai: S("#4285f4", "G"), grok: S("#9a9a9a", "X"),
+  nvidia_nim: S("#76b900", "N"), poolside: S("#a855f7", "Po"), kiro: S("#8a5cf6", "Ki"),
+  cline: S("#22d3ee", "Cl"), code_buddy: S("#6d5cf6", "CB"), zed: S("#3b82f6", "Z"),
+  alibaba_model_studio: S("#ff6a00", "Al"), alibaba_coding_plan: S("#ff6a00", "Al"), alibaba_token_plan: S("#ff6a00", "Al"),
+  alibaba_cloud: S("#ff6a00", "Al"), antigravity: S("#7c6cf0", "Ag"), kimchi: S("#ef4444", "Km"),
+  meta: S("#0866ff", "Me"), open_router: S("#6467f2", "OR"), jetbrains_ai: S("#fc801d", "JB"),
+  nine_router: S("#0369a1", "9r"), litellm: S("#14b8a6", "LL"), extension: S("#8b5cf6", "Ex"),
 };
-export const brand = (p) => brands[p] ?? B(p, "#888888");
+// The core's English provider names (`list_providers`), loaded once per window by `loadProviderLabels`.
+const coreLabels = new Map();
+/** Loads the core's provider names; `boot` awaits it before the first render. */
+export async function loadProviderLabels() {
+  try {
+    for (const p of await listProviders()) coreLabels.set(p.id, p.label);
+  } catch { /* the slug stays the fallback */ }
+}
+/** The provider's display name: the core catalog's `provider.<slug>` in the current language, else the core's English. */
+export const providerName = (p) => tl({ id: `provider.${p}`, params: {}, fallback: coreLabels.get(p) ?? p });
+export const brand = (p) => ({ ...(brandStyles[p] ?? S("#888888", String(p ?? "?")[0].toUpperCase())), label: providerName(p) });
 /** PRD 0029 RF3.4: the account's display name, its configured name or else its provider's. */
 export const accountLabel = (r) => (r.account ?? "").trim() || brand(r.provider).label;
 // Provider logos: monochrome SVG glyphs (lobehub/icons, MIT; zed: simple-icons, CC0; see img/providers/NOTICE.md)
@@ -2110,15 +2117,15 @@ const demo = {
     if (r?.last_good) demoReports[index] = { ...r, status: "ready", pending: false, checked_at: ago(0), metrics: r.last_good.metrics, notes: [], last_good: null };
   },
   // Same key as the core's `picker_providers` (lowercased label), pickable first.
-  list_providers: async () => Object.entries(brands).map(([id, b]) => ({ id, label: b.label, pickable: !DEMO_NO_QUERY.includes(id) }))
+  list_providers: async () => Object.entries(DEMO_CORE_LABELS).map(([id, label]) => ({ id, label, pickable: !DEMO_NO_QUERY.includes(id) }))
     .sort((a, b) => (b.pickable - a.pickable) || (a.label.toLowerCase() < b.label.toLowerCase() ? -1 : a.label.toLowerCase() > b.label.toLowerCase() ? 1 : 0)),
   // ponytail: the browser demo has no core; a name/slug filter with one sign-in method stands in for the search.
   search_providers: async ({ query }) => {
     const fold = (v) => String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
     const q = fold(query).trim();
-    return Object.entries(brands).filter(([id]) => !DEMO_NO_QUERY.includes(id) && id !== "extension")
-      .filter(([id, b]) => !q || fold(b.label).includes(q) || id.includes(q))
-      .map(([id, b]) => demoPickerEntry(id, b))
+    return Object.entries(DEMO_CORE_LABELS).filter(([id]) => !DEMO_NO_QUERY.includes(id) && id !== "extension")
+      .filter(([id, label]) => !q || fold(label).includes(q) || id.includes(q))
+      .map(([id]) => demoPickerEntry(id, brand(id)))
       .sort((x, y) => DEMO_METHOD_ORDER.indexOf(x.method) - DEMO_METHOD_ORDER.indexOf(y.method));
   },
   provider_modes: async ({ provider }) => [demoPickerEntry(provider, brand(provider))],
@@ -3084,6 +3091,20 @@ const demoPickerEntry = (id, b) => ({ provider: id, label: b.label, mode: null, 
     : { id: "catalog.hint.api_key", params: {}, fallback: "API key" }, metered: id === "aws_bedrock", recommended: true });
 const DEMO_METHOD_ORDER = ["browser_sign_in", "api_key", "self_hosted_gateway"];
 const DEMO_NO_QUERY = ["qwen", "cloudflare_ai", "nvidia_nim", "poolside"];
+// ponytail: the core's English provider names (`Provider::label`) for the browser demo, which has no core; the
+// app always reads them from `list_providers`.
+const DEMO_CORE_LABELS = {
+  open_ai_api: "OpenAI API", anthropic_api: "Anthropic API", chat_gpt: "ChatGPT / Codex", claude: "Claude",
+  gemini_api: "Gemini (Cloud Monitoring)", vertex_ai: "Vertex AI", aws_bedrock: "AWS Bedrock", azure_open_ai: "Azure OpenAI",
+  cursor: "Cursor", copilot: "GitHub Copilot", windsurf: "Windsurf", mini_max: "Minimax.io", kimi: "Kimi", qwen: "Qwen",
+  groq: "Groq", meta: "Meta Model API", jetbrains_ai: "JetBrains AI", perplexity: "Perplexity", mistral: "Mistral",
+  cloudflare_ai: "Cloudflare AI", ollama_cloud: "Ollama Cloud", xiaomi_mimo: "Xiaomi MIMO", open_code_go: "Opencode Go",
+  qoder: "Qoder", gemini_ai: "Gemini AI (API key)", grok: "Grok (xAI)", nvidia_nim: "NVIDIA NIM", poolside: "Poolside",
+  kiro: "Kiro (AWS)", cline: "Cline", code_buddy: "CodeBuddy", zed: "Zed", alibaba_model_studio: "Alibaba Model Studio / DashScope",
+  alibaba_coding_plan: "Alibaba Coding Plan", alibaba_token_plan: "Alibaba Token Plan (Qwen Cloud)",
+  alibaba_cloud: "Alibaba Cloud — billing", antigravity: "Antigravity", kimchi: "Kimchi", eleven_labs: "ElevenLabs",
+  nine_router: "9router", open_router: "OpenRouter", litellm: "LiteLLM proxy", extension: "Extension",
+};
 const demoLevelOf = (provider) => Object.keys(DEMO_LEVELS).find((level) => DEMO_LEVELS[level].includes(provider)) ?? "undocumented";
 const demoLevel = (level) => dl(`access.level.${level}`, { official: "Official", undocumented: "Undocumented", derived: "Derived", unavailable: "Unavailable" }[level]);
 function demoKiroSchema() {
