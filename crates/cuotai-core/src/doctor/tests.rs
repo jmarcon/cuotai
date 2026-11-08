@@ -37,6 +37,7 @@ impl Fixture {
                 home: Some(self.dir.path().join("home")),
                 program_files: None,
                 os: crate::external_tool::Os::Linux,
+                sandbox: Some(self.dir.path().to_path_buf()),
             },
         }
     }

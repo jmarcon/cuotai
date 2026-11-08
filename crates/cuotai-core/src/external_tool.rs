@@ -164,6 +164,9 @@ pub struct Resolver {
     pub home: Option<PathBuf>,
     pub program_files: Option<PathBuf>,
     pub os: Os,
+    /// Test confinement: when set, only files under it count as programs,
+    /// so a tool installed on the machine running the tests is ignored.
+    pub sandbox: Option<PathBuf>,
 }
 
 impl Resolver {
@@ -173,6 +176,7 @@ impl Resolver {
             home: dirs::home_dir(),
             program_files: std::env::var_os("ProgramFiles").map(PathBuf::from),
             os: Os::current(),
+            sandbox: None,
         }
     }
 
@@ -246,7 +250,7 @@ impl Resolver {
             if let Some(program) = names
                 .iter()
                 .map(|name| dir.join(name))
-                .find(|candidate| is_program(candidate))
+                .find(|candidate| self.is_program(candidate))
             {
                 return Ok(ResolvedTool {
                     tool,
@@ -256,7 +260,10 @@ impl Resolver {
             }
         }
         let candidates = self.well_known(tool);
-        match candidates.iter().find(|candidate| is_program(candidate)) {
+        match candidates
+            .iter()
+            .find(|candidate| self.is_program(candidate))
+        {
             Some(program) => Ok(ResolvedTool {
                 tool,
                 program: program.clone(),
@@ -264,6 +271,13 @@ impl Resolver {
             }),
             None => Err(ToolError::Missing { tool, candidates }),
         }
+    }
+
+    fn is_program(&self, path: &Path) -> bool {
+        self.sandbox
+            .as_ref()
+            .is_none_or(|sandbox| path.starts_with(sandbox))
+            && is_program(path)
     }
 
     fn valid_configured(&self, program: &Path) -> bool {
@@ -275,7 +289,7 @@ impl Resolver {
             || program
                 .extension()
                 .is_some_and(|ext| ext.eq_ignore_ascii_case("exe"));
-        absolute && extension && is_program(program)
+        absolute && extension && self.is_program(program)
     }
 }
 
@@ -432,6 +446,7 @@ mod well_known_tests {
             home: Some(PathBuf::from("/home/someone")),
             program_files: Some(PathBuf::from("C:\\Program Files")),
             os,
+            sandbox: Some(PathBuf::from("/cuotai-test-sandbox")),
         }
     }
 
@@ -481,7 +496,8 @@ mod well_known_tests {
         assert_eq!(note.id, "tool.error.missing");
         let text = note.text().to_owned();
         assert!(text.contains("PATH"), "{text}");
-        assert!(text.contains("/usr/bin/aws"), "{text}");
+        let usr_bin = PathBuf::from("/usr/bin").join("aws").display().to_string();
+        assert!(text.contains(&usr_bin), "{text}");
         assert!(!text.contains("secret-dir-from-path"), "{text}");
         assert_eq!(ToolReport::of(&Err(error)).line(), "tool.aws: missing");
     }
@@ -534,6 +550,7 @@ mod tests {
             home: Some(home.to_path_buf()),
             program_files: None,
             os: Os::Linux,
+            sandbox: Some(std::env::temp_dir()),
         }
     }
 
@@ -628,6 +645,7 @@ mod tests {
             home: None,
             program_files: None,
             os: Os::Windows,
+            sandbox: Some(std::env::temp_dir()),
         };
         assert!(resolver
             .resolve(Tool::Aws, Some(script.to_str().unwrap()))
