@@ -963,7 +963,7 @@ pub fn plan(
     // The accounts a history file may belong to: this computer's, then the
     // backup's (restored in the same run), each with the ids this
     // computer gives them.
-    let identity = ConfigIdentity::of_path(&locations.config).ok();
+    let identity = Some(config_identity(&locations.config));
     let read_accounts = |bytes: &[u8]| -> Vec<Account> {
         std::str::from_utf8(bytes)
             .ok()
@@ -1072,13 +1072,45 @@ pub fn plan(
     })
 }
 
+/// The identity the app gives the accounts file at `config` once it
+/// exists. On a fresh computer its folder may not exist yet (the restore
+/// creates it), so the nearest existing folder is resolved and the missing
+/// components are joined to it, which is what [`ConfigIdentity::of_path`]
+/// gives after the restore: account ids and history series then match.
+fn config_identity(config: &Path) -> ConfigIdentity {
+    if let Ok(identity) = ConfigIdentity::of_path(config) {
+        return identity;
+    }
+    let mut missing = Vec::new();
+    let mut at = config;
+    loop {
+        match std::fs::canonicalize(at) {
+            Ok(real) => {
+                let path = missing
+                    .iter()
+                    .rev()
+                    .fold(real, |path, part| path.join(part));
+                return ConfigIdentity::File(path);
+            }
+            Err(_) => match (at.file_name(), at.parent()) {
+                (Some(name), Some(parent)) => {
+                    missing.push(name.to_owned());
+                    at = if parent.as_os_str().is_empty() {
+                        Path::new(".")
+                    } else {
+                        parent
+                    };
+                }
+                _ => return ConfigIdentity::File(config.to_path_buf()),
+            },
+        }
+    }
+}
+
 /// The history store a restore merges into: this configuration's, in the
 /// data folder.
 fn history_store(locations: &Locations) -> Option<HistoryStore> {
-    // A folder that does not exist yet (a fresh computer) is created by
-    // the restore; until then its path stands for itself.
-    let identity = ConfigIdentity::of_path(&locations.config)
-        .unwrap_or_else(|_| ConfigIdentity::File(locations.config.clone()));
+    let identity = config_identity(&locations.config);
     let root = locations.data_root.as_ref()?;
     Some(HistoryStore::new(
         root.join("history").join("history.sqlite3"),
