@@ -1158,6 +1158,35 @@ async fn a_channel_failing_for_a_day_gets_one_notice_and_stays_enabled() {
     assert!(views[0].failing_long);
 }
 
+/// A plain-http ntfy server on the local network is reached directly,
+/// never through the environment's proxy (here one that is down).
+#[tokio::test]
+async fn a_plain_http_local_server_skips_the_proxy() {
+    let server = MockServer::start().await;
+    Mock::given(path("/topic"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let fx = fixture();
+    let channel = fx.channel(
+        ChannelKind::Ntfy,
+        &format!("{}/topic", server.uri()),
+        Filters::default(),
+    );
+    let dispatcher = fx
+        .dispatcher(
+            t0(),
+            Timing {
+                startup_grace: TimeDelta::hours(1),
+                ..fast()
+            },
+        )
+        .proxied("http://127.0.0.1:9");
+    let outcome = dispatcher.test(&channel.id, "en-US", t0()).await.unwrap();
+    assert_eq!(outcome, Outcome::Delivered { status: 200 });
+}
+
 #[tokio::test]
 async fn send_test_reports_the_status() {
     let server = MockServer::start().await;
