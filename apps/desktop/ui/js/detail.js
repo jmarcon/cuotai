@@ -1,11 +1,11 @@
 // Detail of an account: same component in the popover and in the main window dialog.
 // Single criterion: AVAILABLE percentage, bar = available, amount = used / limit; metrics without a limit become text.
-import { currentLocale, t, te, tl } from "./i18n.js";
+import { t, te, tl } from "./i18n.js";
 import {
   STALE, accessHtml, ageHtml, bindingChipText, causeText, errText, esc, fmtAmount, fmtReset, getView, icon, incidentDetailHtml, isBindingMetric, isMetricHidden, isRenewedWaiting, isStaleReading, level, loadModels, metricAlertHtml, metricKey, modelState, noteText,
   adviceHtml, fmtMetricExtra, forecastHtml, scopeBlocksHtml, isOverage, overageDetailHtml, paceHtml, paceOf, remainingPct, renewedText, reportKey, restNotes, staleView, statusLabel, syncModels, textualMetric,
 } from "./lib.js";
-import { expectedLeft, meterHtml } from "./components.js";
+import { expectedLeft, fmtAt, meterHtml } from "./components.js";
 import { breakdownHtml } from "./breakdown.js";
 import { fold } from "./util.js";
 
@@ -114,23 +114,49 @@ export function detailHtml(r, { eye = false, action = eye } = {}) {
 }
 
 // ---------- modelos (PRD 0002 RF6) ----------
-const when = (iso) => {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "" : d.toLocaleString(currentLocale(), { dateStyle: "short", timeStyle: "short" });
-};
+// DS-MSG-8: the shared time format (time today, weekday within 6 days, otherwise day and month).
+const when = (iso) => fmtAt(iso) ?? "";
 /** Displayable catalog: the current one (`ready`) or the previous one preserved on failure/query/interruption. */
 const catalogOf = (s) => (s?.state === "ready" ? s : s?.previous ?? null);
 const stateText = (s) => {
   switch (s?.state) {
     case "not_fetched": return t("models.notFetched");
     case "ready": return s.models.length ? t("models.count", { count: s.models.length }) : t("models.empty");
-    case "failed": return `${statusLabel(s.status)} · ${tl(s.error)} · ${t("models.attemptAt", { when: when(s.at) })}`;
+    case "failed": return t("models.state.failed", { status: statusLabel(s.status), error: tl(s.error), when: when(s.at) });
     case "fetching": return tl(s.note);
-    case "interrupted": return `${tl(s.note)} · ${t("models.attemptAt", { when: when(s.at) })}`;
+    case "interrupted": return t("models.state.interrupted", { note: tl(s.note), when: when(s.at) });
     case "unsupported": return tl(s.reason);
     default: return "";
   }
 };
+/** DS-COL-3: the role of a status line from the core's classification (`state`, `status`), with its icon; `null` when neutral. */
+const stateTone = (s) => {
+  if (s?.state === "interrupted") return ["warn", "clock"];
+  if (s?.state !== "failed") return null;
+  if (s.status === "authentication_error") return ["accent", "key"];
+  if (s.status === "rate_limited") return ["warn", "clock"];
+  return ["bad", "alert"];
+};
+
+/** What the models section shows for core `state` (pure, no DOM): the status line and its DS-COL-3 `tone`
+ *  (`[role, icon]` or `null`), the meta line, whether the bar and the search field are hidden, and the models matching
+ *  `query` (`noMatch` when a search hides them all). `progress`/`error` are the running-query note and an IPC error. */
+export function modelsView(state, { query = "", gone = false, progress = null, error = null } = {}) {
+  const cat = gone ? null : catalogOf(state);
+  const models = cat?.models ?? [];
+  const q = fold(query.trim());
+  const shown = models.filter((m) => !q || fold(m.id).includes(q) || (m.name != null && fold(m.name).includes(q)));
+  const source = cat && { source: tl(cat.source), when: when(cat.fetched_at) };
+  return {
+    status: gone ? t("models.gone") : progress ?? error ?? stateText(state),
+    tone: gone || progress ? null : error ? ["bad", "alert"] : stateTone(state),
+    meta: !cat ? "" : q ? t("models.meta.filtered", { ...source, shown: shown.length, count: models.length }) : t("models.meta", source),
+    barHidden: gone || state?.state === "unsupported",
+    searchHidden: !models.length,
+    shown,
+    noMatch: Boolean(q && models.length && !shown.length),
+  };
+}
 
 /** Searchable models section of account `key` (`provider::name`) at index `index` of configuration `generation`.
  *  The core cache is the source (nothing in localStorage). The first query only happens when opening the section in state
@@ -153,21 +179,17 @@ export function mountModels({ key, index, generation }) {
   let state = null, error = null, progress = null, busy = false, gone = false, epoch = 0;
 
   function render() {
-    const cat = gone ? null : catalogOf(state);
-    const models = cat?.models ?? [];
-    const q = fold(search.value.trim());
-    const shown = models.filter((m) => !q || fold(m.id).includes(q) || (m.name != null && fold(m.name).includes(q)));
-    el.querySelector(".models-bar").hidden = gone || state?.state === "unsupported";
-    search.closest("label").hidden = !models.length;
+    const v = modelsView(state, { query: search.value, gone, progress, error });
+    el.querySelector(".models-bar").hidden = v.barHidden;
+    search.closest("label").hidden = v.searchHidden;
     sync.disabled = busy;
-    status.textContent = gone ? t("models.gone") : progress ?? error ?? stateText(state);
-    meta.textContent = cat
-      ? [t("models.source", { source: tl(cat.source) }), t("models.fetchedAt", { when: when(cat.fetched_at) }),
-        q ? t("models.shown", { shown: shown.length, count: models.length }) : ""].filter(Boolean).join(" · ")
-      : "";
-    list.innerHTML = q && models.length && !shown.length
+    if (v.tone) status.dataset.tone = v.tone[0];
+    else delete status.dataset.tone;
+    status.innerHTML = v.tone ? `${icon(v.tone[1])}<span>${esc(v.status)}</span>` : esc(v.status);
+    meta.textContent = v.meta;
+    list.innerHTML = v.noMatch
       ? `<li class="sub">${te("models.noMatch")}</li>`
-      : shown.map((m, i) => `<li tabindex="${i ? -1 : 0}"><code>${esc(m.id)}</code>${m.name && m.name !== m.id ? ` <span class="sub">${esc(m.name)}</span>` : ""}</li>`).join("");
+      : v.shown.map((m, i) => `<li tabindex="${i ? -1 : 0}"><code>${esc(m.id)}</code>${m.name && m.name !== m.id ? ` <span class="sub">${esc(m.name)}</span>` : ""}</li>`).join("");
   }
 
   /** A call to the backend; `note` marks a long operation (announced, button disabled). */
