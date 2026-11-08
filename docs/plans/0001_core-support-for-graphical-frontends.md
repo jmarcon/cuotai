@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0001 |
-| Status | Implemented (RF1–RF11 in 0.1.1 to 0.7.1, internal versions; FIX-08 in 0.80.0; COMP-01 in 0.83.0; re-validation fixes in vNEXT; the RF8 catalog wording and the FIX-08 acceptance were later amended by PRDs 0033, 0034 and 0035, see the tables) |
+| Status | Implemented (RF1–RF11 in 0.1.1 to 0.7.1, internal versions; FIX-08 in 0.80.0; COMP-01 in 0.83.0; re-validation fixes in 0.84.1; the RF8 catalog wording and the FIX-08 acceptance were later amended by PRDs 0033, 0034 and 0035, see the tables) |
 | Owner | Backend (`cuotai-core`) |
 | Consumers | `apps/desktop` (Tauri), `cuotai-tui` |
 | Extended by | PRD 0029 (stable account `id` in the TOML and the account operations), PRD 0034 (English core fallback of `Localized`), PRD 0051 (tolerant/strict TOML parsing with field-position diagnostics; fix requirement COMP-01), PRD 0054 (RF3: resume- and reconnect-aware refresh deadlines) |
@@ -30,13 +30,13 @@ All RFs were implemented in the core, the TUI and the desktop app, one at a time
 | RF11 | 0.7.0 | Applicability per option and authentication type, replacement with a warning and validation in `build_account`. |
 | FIX-08 | 0.80.0 | Metered refresh floors are validated per account: an account override is independent of the global interval, and a rejection identifies the field and account through a localized error. |
 | COMP-01 | 0.83.0 | Defined in PRD 0051 (RF4 of this plan): `ConfigFile::open` and `reload` keep the `ConfigError::Parse` line, column and path instead of the generic TOML error. |
-| Re-validation | vNEXT | The fixes of the 2026-11-08 re-validation, listed below. |
+| Re-validation | 0.84.1 | The fixes of the 2026-11-08 re-validation, listed below. |
 
 Section 2 and the "Technical assessment" describe the situation of 2026-10-01, before the implementation.
 
 ### Re-validation (2026-11-08)
 
-A serial re-validation of the delivered plan (visual, security and review passes against v0.84.0) found one critical, three medium and seven low findings. All were fixed in vNEXT:
+A serial re-validation of the delivered plan (visual, security and review passes against v0.84.0) found one critical, three medium and seven low findings. All were fixed in 0.84.1:
 
 | ID | Severity | RF | Fix |
 |---|---|---|---|
