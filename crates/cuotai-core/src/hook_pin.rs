@@ -150,7 +150,16 @@ fn hashed(path: &Path) -> Option<(PathBuf, String, Vec<u8>)> {
 /// Bytes read for the `#!` line.
 const HEAD: usize = 256;
 
+/// The words of a `#!` line, or `None` for a file without one. Windows
+/// never runs a `#!` line (it starts only the program itself), so there it
+/// pins no interpreter.
+#[cfg(not(unix))]
+fn shebang(_head: &[u8]) -> Option<Vec<OsString>> {
+    None
+}
+
 /// The words of a `#!` line, or `None` for a file without one.
+#[cfg(unix)]
 fn shebang(head: &[u8]) -> Option<Vec<OsString>> {
     let rest = head.strip_prefix(b"#!")?;
     let line = rest.split(|byte| *byte == b'\n').next().unwrap_or_default();
