@@ -324,6 +324,36 @@ fn at_most_five_channels_and_a_later_schema_is_never_rewritten() {
     assert_eq!(std::fs::read_to_string(&later).unwrap(), r#"{"schema":2}"#);
 }
 
+/// A hand-edited `desktop.json` entry whose id, label or host Cuotai
+/// would not have written is skipped, so it never reaches a vault key,
+/// an HTML attribute or the terminal.
+#[test]
+fn hand_edited_channels_with_a_bad_id_label_or_host_are_skipped() {
+    let entry = |id: &str, label: &str, host: &str| {
+        serde_json::json!({
+            "id": id, "kind": "webhook", "label": label, "host": host,
+            "created_at": "2026-11-04T12:00:00Z",
+        })
+    };
+    let document = serde_json::json!({ "channels": [
+        entry("0123456789abcdef", "Ops & alerts", "hooks.example.com"),
+        entry("0123456789abcdef", "IPv6", "[::1]:8080"),
+        entry("0123456789ABCDEF", "Upper", "hooks.example.com"),
+        entry("0123456789abcde", "Short", "hooks.example.com"),
+        entry("\" onclick=\"x\"0123", "Quote", "hooks.example.com"),
+        entry("0123456789abcdef", "", "hooks.example.com"),
+        entry("0123456789abcdef", "Bell\u{7}", "hooks.example.com"),
+        entry("0123456789abcdef", "Spaced", "evil.example.com/<b>"),
+        entry("0123456789abcdef", "Escape", "a\u{1b}[2J.example.com"),
+        entry("0123456789abcdef", "Empty host", ""),
+    ]});
+    let labels: Vec<String> = from_document(&document)
+        .into_iter()
+        .map(|channel| channel.label)
+        .collect();
+    assert_eq!(labels, ["Ops & alerts", "IPv6"]);
+}
+
 #[test]
 fn the_consent_shows_host_filters_example_and_the_sentence() {
     let draft = Draft {

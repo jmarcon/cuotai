@@ -657,7 +657,8 @@ fn vault_error() -> Localized {
 // The definitions in `desktop.json`.
 
 /// The channels in the document `value` (the parsed `desktop.json`); an
-/// entry that does not read is skipped.
+/// entry that does not read, or whose id, label or host Cuotai would not
+/// have written ([`well_formed`]), is skipped.
 pub fn from_document(value: &serde_json::Value) -> Vec<Channel> {
     value
         .get(SETTINGS_KEY)
@@ -666,10 +667,31 @@ pub fn from_document(value: &serde_json::Value) -> Vec<Channel> {
             items
                 .iter()
                 .filter_map(|item| serde_json::from_value::<Channel>(item.clone()).ok())
+                .filter(well_formed)
                 .take(MAX_CHANNELS)
                 .collect()
         })
         .unwrap_or_default()
+}
+
+/// A hand-edited `desktop.json` is not trusted: the id builds vault keys
+/// and HTML attributes, the label and host are shown as they are. The id
+/// is [`new_id`]'s 16 lowercase hex characters, the label passes
+/// [`validate_label`] and the host holds only host-name characters (an
+/// IPv6 address keeps its brackets).
+fn well_formed(channel: &Channel) -> bool {
+    let id = channel.id.len() == 16
+        && channel
+            .id
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b));
+    let host = !channel.host.is_empty()
+        && channel.host.len() <= 255
+        && channel
+            .host
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b".-_:[]".contains(&b));
+    id && host && validate_label(&channel.label).is_ok()
 }
 
 /// The channels in `desktop.json` at `path`; none when it is missing or
