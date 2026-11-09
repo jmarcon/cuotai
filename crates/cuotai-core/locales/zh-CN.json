@@ -15,7 +15,7 @@
       "models.unsupported.reason.nine_router"
     ]
   },
-  "access.confirm_unavailable": "{reason} 账户会被保存，但会显示此原因而不是数字。",
+  "access.confirm_unavailable": "{reason}账户会被保存，但会显示此原因而不是数字。",
   "access.cost_advisory": "按查询计费的提供商：每次查询约产生一次 Cost Explorer 请求。未设置间隔时，Cuotai 每小时查询一次；实际最小间隔为 15 分钟（5 到 14 分钟的间隔会提高到 15 分钟，更短的会被拒绝）。多个窗口或命令在每个间隔内共享一次请求。手动刷新仍需明确操作。",
   "access.credential.admin_key": "管理员密钥",
   "access.credential.agent_feed": "代理推送",
@@ -36,7 +36,7 @@
   "access.credential_hint.open_router_account": "需要 OpenRouter 管理密钥，它不进行推理调用；默认视图使用推理密钥。",
   "access.credential_hint.subscription_session": "使用订阅会话（原生登录或其令牌），而不是平台的 API 密钥。",
   "access.credential_hint.user_session": "需要一个网页会话，可粘贴到账户向导中（保存在系统保险库）或导出到变量中；它会过期，且从不自动导入。",
-  "access.interface_changed": "响应不符合已知的内部接口：它可能已在未通知的情况下更改。参考协议：{evidence}",
+  "access.interface_changed": "响应不符合已知的内部接口：它可能已在未通知的情况下更改。",
   "access.level.derived": "推导",
   "access.level.extension": "扩展",
   "access.level.extension_override": "扩展（替代）",
@@ -56,6 +56,7 @@
   "access.reason.poolside": "已知的用量接口需要平台管理员令牌，而不是推理密钥。",
   "access.reason.qwen": "DashScope 密钥只用于推理认证；没有针对它的公开额度查询。",
   "access.reason.qwen_oauth": "Qwen Code 会话没有已确认的额度接口；免费 OAuth 套餐已停止提供。",
+  "access.reference": "参考协议",
   "access.requires_plan": "需要 {plan} 套餐。",
   "access.risk.derived": "用量是从其他来源（指标或速率限制标头）推断的；它不是余额，可能会有延迟。",
   "access.risk.extension": "会运行本地程序；启用前请检查其代码。",

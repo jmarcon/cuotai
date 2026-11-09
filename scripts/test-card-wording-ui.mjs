@@ -42,7 +42,7 @@ globalThis.fetch = async (relative) => {
 };
 
 const i18n = await import("../apps/desktop/ui/js/i18n.js");
-const { metricCardHtml } = await import("../apps/desktop/ui/js/detail.js");
+const { detailHtml, metricCardHtml, openReference, referenceHtml } = await import("../apps/desktop/ui/js/detail.js");
 const { esc } = await import("../apps/desktop/ui/js/lib.js");
 await i18n.initI18n();
 
@@ -285,3 +285,35 @@ for (const { code } of i18n.LOCALES) {
 }
 
 console.log("PASS: remaining-share wording renders in pt-BR, en-US, es and it; UI catalog keys match");
+
+// PRD 0005 RF4.2 (DS-MSG-9): a changed interface explains itself without an address; the details link the core's
+// reference contract, and the link opens through `openExternal` (the shell's `open_external` allow-list), never
+// through `open_dashboard`.
+{
+  const reference = "https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/zed.js";
+  const changed = {
+    index: 0, provider: "zed", account: "Personal", status: "error", class: "unknown", binding: null, metrics: [],
+    notes: ["x"], notes_l10n: [{ id: "query.schema", params: {}, fallback: "x" }], checked_at: new Date().toISOString(),
+    access: {
+      explanation: { id: "access.interface_changed", params: {}, fallback: "The response does not follow the known internal interface: it may have changed without notice." },
+      reference, reference_label: { id: "access.reference", params: {}, fallback: "Reference contract" }, session: null,
+    },
+  };
+  const html = detailHtml(changed, { eye: true });
+  const cause = html.match(/<div class="call [^"]*">[\s\S]*?<div>([^<]*)<\/div><\/div>/)?.[1] ?? "";
+  assert.ok(cause === esc(i18n.tl(changed.access.explanation)) && cause && !cause.includes("https://"), `cause carries no address: ${cause}`);
+  assert.ok(html.includes(`data-reference-url="${reference}"`), "details link the reference");
+  const label = i18n.tl(changed.access.reference_label);
+  assert.ok(label && label !== "access.reference" && html.includes(`<span>${esc(label)}</span>`), "the link is labelled by the core");
+  assert.equal(referenceHtml({ ...changed, access: { ...changed.access, reference: null } }), "", "no reference, no link");
+  let opened = null;
+  globalThis.window.open = (url) => { opened = url; return null; };
+  const button = { dataset: { referenceUrl: reference } };
+  assert.equal(openReference({ closest: (selector) => (selector === "[data-reference-url]" ? button : null) }), true);
+  assert.equal(opened, reference, "the reference opens through openExternal");
+  assert.equal(openReference({ closest: () => null }), false, "other clicks fall through");
+  const detailSource = await readFile(fileURLToPath(new URL("apps/desktop/ui/js/detail.js", root)), "utf8");
+  const opener = detailSource.slice(detailSource.indexOf("export function openReference"), detailSource.indexOf("export function detailHtml"));
+  assert.ok(opener.includes("openExternal(") && !opener.includes("openDashboard") && !opener.includes("open_dashboard"), "reference opener uses openExternal only");
+  console.log("PASS: the changed-interface reference is a details link opened through openExternal");
+}

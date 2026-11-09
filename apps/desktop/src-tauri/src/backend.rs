@@ -1108,6 +1108,11 @@ pub struct ReportAccess {
     descriptor: cuotai_core::access::UsageAccess,
     label: cuotai_core::text::Localized,
     explanation: Option<cuotai_core::text::Localized>,
+    /// PRD 0005 RF4.2 (DS-MSG-9): the public reference contract, set exactly
+    /// when the explanation says the interface may have changed. The details
+    /// link it through `open_external`; cards never show it.
+    reference: Option<&'static str>,
+    reference_label: cuotai_core::text::Localized,
     session: Option<user_session::SessionNotice>,
     /// PRD 0028 RF6.2 (DS-CMP-VER-1): "Verified N months ago" or, when the
     /// evidence is old, "Not verified since {date}". Shown in the details
@@ -1123,6 +1128,8 @@ fn report_access(account: &cuotai_core::Account, report: &Report) -> ReportAcces
     ReportAccess {
         label: descriptor.label(),
         explanation: descriptor.explain(report),
+        reference: descriptor.reference(report),
+        reference_label: cuotai_core::access::reference_label(),
         session: user_session::notice(account),
         verification_stale: verification.id == "access.verification_stale",
         verification,
@@ -8376,14 +8383,16 @@ mod tests {
             zed["access"]["explanation"]["id"],
             "access.interface_changed"
         );
-        assert_eq!(
-            zed["access"]["explanation"]["params"]["evidence"],
-            zed["access"]["evidence"]["url"]
-        );
+        // DS-MSG-9: the address leaves the text and travels as the reference.
+        assert!(zed["access"]["explanation"]["params"].is_null());
+        assert_eq!(zed["access"]["reference"], zed["access"]["evidence"]["url"]);
+        assert_eq!(zed["access"]["reference_label"]["id"], "access.reference");
+        assert!(pool["access"]["reference"].is_null());
         let cloud = view(2);
         assert_eq!(cloud["access"]["level"], "official");
         assert_eq!(cloud["access"]["scope"], "whole_cloud");
         assert!(cloud["access"]["explanation"].is_null());
+        assert!(cloud["access"]["reference"].is_null());
     }
 
     #[test]

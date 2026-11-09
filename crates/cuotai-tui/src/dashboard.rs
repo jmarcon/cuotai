@@ -2352,8 +2352,10 @@ fn ellipsize(text: &str, room: usize) -> String {
     format!("{head}…")
 }
 
-/// `text` wrapped to `width` cells on spaces; a word wider than a line (CJK
-/// text, a URL) breaks at character boundaries instead of being clipped.
+/// `text` wrapped to `width` cells on spaces; Chinese and Japanese text,
+/// which has no spaces, may also break between its wide characters (never
+/// inside a Latin run such as "Gemini"), and a token still wider than a line
+/// (a URL) breaks at character boundaries instead of being clipped.
 fn textwrap_simple(text: &str, width: usize) -> Vec<String> {
     if width == 0 {
         return vec![text.to_string()];
@@ -2362,30 +2364,36 @@ fn textwrap_simple(text: &str, width: usize) -> Vec<String> {
     let mut current = String::new();
     let mut current_cells = 0;
     for word in text.split_whitespace() {
-        let mut word = word;
-        let mut word_cells = cells(word);
-        loop {
-            if current.is_empty() {
-                if word_cells <= width {
-                    current.push_str(word);
-                    current_cells = word_cells;
+        for (index, token) in wrap_tokens(word).into_iter().enumerate() {
+            // Tokens of one word join without a space.
+            let gap = usize::from(index == 0);
+            let mut token = token;
+            let mut token_cells = cells(token);
+            loop {
+                if current.is_empty() {
+                    if token_cells <= width {
+                        current.push_str(token);
+                        current_cells = token_cells;
+                        break;
+                    }
+                    let (head, tail) = split_at_cells(token, width);
+                    lines.push(head.to_string());
+                    token = tail;
+                    token_cells = cells(tail);
+                    if token.is_empty() {
+                        break;
+                    }
+                } else if current_cells + gap + token_cells <= width {
+                    if gap == 1 {
+                        current.push(' ');
+                    }
+                    current.push_str(token);
+                    current_cells += gap + token_cells;
                     break;
+                } else {
+                    lines.push(std::mem::take(&mut current));
+                    current_cells = 0;
                 }
-                let (head, tail) = split_at_cells(word, width);
-                lines.push(head.to_string());
-                word = tail;
-                word_cells = cells(tail);
-                if word.is_empty() {
-                    break;
-                }
-            } else if current_cells + 1 + word_cells <= width {
-                current.push(' ');
-                current.push_str(word);
-                current_cells += 1 + word_cells;
-                break;
-            } else {
-                lines.push(std::mem::take(&mut current));
-                current_cells = 0;
             }
         }
     }
@@ -2396,6 +2404,36 @@ fn textwrap_simple(text: &str, width: usize) -> Vec<String> {
         lines.push(text.to_string());
     }
     lines
+}
+
+/// The unbreakable pieces of a space-free `word`: every run of narrow
+/// characters stays whole, each wide (CJK) character stands alone, and
+/// closing punctuation ("。", "、", "）") and zero-width marks stay with what
+/// precedes them. Hangul is left whole: Korean breaks at its spaces.
+fn wrap_tokens(word: &str) -> Vec<&str> {
+    let breakable = |c: char| {
+        UnicodeWidthChar::width(c) == Some(2)
+            && !matches!(c, '\u{1100}'..='\u{11FF}' | '\u{3130}'..='\u{318F}' | '\u{AC00}'..='\u{D7AF}')
+    };
+    let closing = |c: char| "。、，．！？）」』】〕：；".contains(c);
+    let mut tokens = Vec::new();
+    let mut start = 0;
+    let mut previous_breakable = false;
+    for (offset, c) in word.char_indices() {
+        let zero = UnicodeWidthChar::width(c).unwrap_or(0) == 0;
+        let split = offset > start && !zero && !closing(c) && (breakable(c) || previous_breakable);
+        if split {
+            tokens.push(&word[start..offset]);
+            start = offset;
+        }
+        if !zero {
+            previous_breakable = breakable(c);
+        }
+    }
+    if start < word.len() {
+        tokens.push(&word[start..]);
+    }
+    tokens
 }
 
 fn render_note_lines(frame: &mut Frame, chunks: &[Rect], note: &str) {
@@ -2796,6 +2834,17 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
             safe(&resolve_l10n(explanation)).into_owned(),
             Style::default().fg(YELLOW),
         )));
+    }
+    // PRD 0005 RF4.2 (DS-MSG-9): the reference contract of a changed
+    // interface, on its own line; the card keeps only the explanation.
+    if let Some(url) = access.reference(report) {
+        lines.push(Line::from(vec![
+            Span::styled(
+                format!("{}: ", resolve_l10n(&access::reference_label())),
+                Style::default().fg(MUTED),
+            ),
+            Span::raw(url),
+        ]));
     }
     // PRD 0036 RF2.3/RF2.4: the instance's standing warnings.
     if let Some(chips) = warning_chips(report) {
@@ -5808,6 +5857,8 @@ mod tests {
         // A broken schema on an undocumented interface says it may have changed.
         assert!(rows.contains("A resposta não segue a interface interna"));
         assert!(!rows.contains("Resposta incompatível"));
+        // DS-MSG-9: the reference address stays out of the card.
+        assert!(!rows.contains("github.com"), "{rows}");
         // A failure the descriptor does not explain keeps its own note.
         assert!(rows.contains("Falha de rede ou tempo limite"));
     }
@@ -5875,7 +5926,9 @@ mod tests {
         assert!(pool.contains("Poolside não publica"), "adapter note kept");
         let zed = details(1);
         assert!(zed.contains("pode ter mudado sem aviso"));
-        assert!(zed.contains("github.com/decolua/9router"), "{zed}");
+        // The reference contract has its own labelled line in the details.
+        assert!(zed.contains("Contrato de referência:"), "{zed}");
+        assert!(zed.contains("https://github.com/decolua/9router"), "{zed}");
         let openai = details(2);
         assert!(openai.contains("Provedor sem métricas expostas"));
     }
@@ -6540,6 +6593,40 @@ mod tests {
             vec!["see", "https://exam", "ple.com/a/b"]
         );
         assert_eq!(textwrap_simple("", 8), vec![""]);
+    }
+
+    /// V-01 (PRD 0005 review): Japanese wraps between its characters and
+    /// never cuts a Latin product name; closing punctuation stays on its line.
+    #[test]
+    fn textwrap_breaks_cjk_between_characters_and_keeps_latin_runs() {
+        let text = "AI Studio の無料枠にはGeminiの使用量APIがありません。";
+        for width in 6..=40 {
+            let lines = textwrap_simple(text, width);
+            for line in &lines {
+                assert!(cells(line) <= width, "{width}: {line:?}");
+                assert!(!line.starts_with('。'), "{width}: {lines:?}");
+            }
+            let joined: String = lines.concat();
+            for name in ["Studio", "Gemini", "API"] {
+                assert!(joined.contains(name), "{width}: {lines:?}");
+            }
+        }
+        assert_eq!(
+            textwrap_simple(text, 16),
+            vec![
+                "AI Studio の無料",
+                "枠にはGeminiの使",
+                "用量APIがありま",
+                "せん。"
+            ]
+        );
+        // The first line fills instead of leaving "AI Studio" alone.
+        assert_ne!(textwrap_simple(text, 20)[0], "AI Studio");
+        // Korean keeps breaking at its spaces.
+        assert_eq!(
+            textwrap_simple("계정은 저장되지만", 12),
+            vec!["계정은", "저장되지만"]
+        );
     }
 
     #[test]

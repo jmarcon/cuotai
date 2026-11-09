@@ -1283,9 +1283,10 @@ const demoReports = [
       label: { id: "user_session.expiry.days", params: { days: 2 }, fallback: "Session expires in 2 days." } } },
   // DS-CMP-ROW-8 demo: per-model daily quotas (the tray names the two tightest models) and a day + month pair whose
   // month limits the account (its thin bar warns while the day is free).
-  dr("Personal", "gemini_ai", [{ ...dm("Gemini 2.5 Flash", 35, 100, 9, "quota", "daily"), scope: { kind: "model", id: "gemini-2.5-flash", label: "Gemini 2.5 Flash" } },
-    { ...dm("Gemini 2.5 Pro", 82, 100, 9, "quota", "daily"), scope: { kind: "model", id: "gemini-2.5-pro", label: "Gemini 2.5 Pro" } }]),
-  dr("Work", "qwen", [dm("Daily", 800, 2000, 9, "quota", "daily"), dm("Monthly", 21000, 30000, 300, "quota", "monthly")]),
+  // The Gemini row reads the CLI login (`product = "cli"`), the mode the core classes as Undocumented.
+  { ...dr("Personal", "gemini_ai", [{ ...dm("Gemini 2.5 Flash", 35, 100, 9, "quota", "daily"), scope: { kind: "model", id: "gemini-2.5-flash", label: "Gemini 2.5 Flash" } },
+    { ...dm("Gemini 2.5 Pro", 82, 100, 9, "quota", "daily"), scope: { kind: "model", id: "gemini-2.5-pro", label: "Gemini 2.5 Pro" } }]), demo_level: "undocumented" },
+  dr("Work", "alibaba_coding_plan", [dm("Weekly", 800, 2000, 9, "quota", "weekly"), dm("Monthly", 21000, 30000, 300, "quota", "monthly")]),
 ];
 // PRD 0036 RF8 demo: a local 9router instance with four connections (two Claude, one of them exhausted; a Codex one
 // off in 9router; an unmapped GLM one whose query failed). `?aggregator=off` leaves it out.
@@ -1643,15 +1644,16 @@ function demoNextNotice(reports) {
 // evidence); the app reads both from the core.
 const DEMO_ROUTER = "https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/";
 function demoAccess(r) {
-  const level = demoLevelOf(r.provider);
+  const level = r.demo_level ?? demoLevelOf(r.provider);
   const reason = level === "unavailable" ? dlx(`access.reason.${r.provider}`, "demo.access.reason", "No public usage query for this credential (demo).") : null;
   const url = level === "undocumented" ? `${DEMO_ROUTER}${r.provider}.js` : "https://example.com/docs (demo)";
   const changed = level === "undocumented" && r.status === "error" && r.notes_l10n?.some((n) => n.id === "query.schema")
-    ? { id: "access.interface_changed", params: { evidence: url }, fallback: `The response does not follow the known internal interface: it may have changed without notice. Reference contract: ${url}` }
+    ? { id: "access.interface_changed", params: {}, fallback: "The response does not follow the known internal interface: it may have changed without notice." }
     : null;
   return { level, label: demoLevel(level), summary: dlx(`access.summary.${r.provider}`, "demo.access.summary", "Demo usage query."), reason, metered: r.provider === "aws_bedrock",
     evidence: { kind: level === "undocumented" ? "reference" : "documentation", url },
-    explanation: r.status === "ready" ? null : reason ?? changed, session: demoSessionNotice(demoSessionState(r)) };
+    explanation: r.status === "ready" ? null : reason ?? changed, reference: changed ? url : null,
+    reference_label: { id: "access.reference", params: {}, fallback: "Reference contract" }, session: demoSessionNotice(demoSessionState(r)) };
 }
 // PRD 0016 RF4 demo: the MiMo account reads its platform session from a variable until it is migrated (or pasted), then
 // from the vault until it is forgotten; the card mirrors `user_session::notice`.

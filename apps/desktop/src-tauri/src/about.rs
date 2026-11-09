@@ -135,6 +135,7 @@ pub fn is_listed(url: &str) -> bool {
         || cuotai_core::user_session::is_open_url(url)
         || cuotai_core::secret_input::is_key_page_url(url)
         || cuotai_core::oauth::bailian::is_install_url(url)
+        || cuotai_core::access::is_evidence_url(url)
 }
 
 /// PRD 0027 RF3.5: the new-provider issue template, offered by the picker's
@@ -211,6 +212,23 @@ mod tests {
         ));
         for library in about::libraries() {
             assert!(is_listed(library.repository), "{}", library.name);
+        }
+        // PRD 0005 RF4.2 (DS-MSG-9): the reference contract the account
+        // details link; any other address on the same host stays closed.
+        let reference = cuotai_core::access::describe(&cuotai_core::Account {
+            name: "zed".into(),
+            provider: cuotai_core::Provider::Zed,
+            ..Default::default()
+        })
+        .evidence
+        .url();
+        assert!(is_listed(reference), "{reference}");
+        for url in [
+            "https://github.com/decolua/9router/blob/main/README.md",
+            "https://github.com/decolua/9router/issues/new",
+            &format!("{reference}/x"),
+        ] {
+            assert!(!is_listed(url), "{url}");
         }
         for url in [
             "",
