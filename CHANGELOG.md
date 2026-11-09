@@ -13,6 +13,14 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.84.4] - 2026-11-09
+
+### Fixed
+
+- The terminal dashboard is readable on light terminals: it detects the background through COLORFGBG (or CUOTAI_TUI_PALETTE=light|dark), and gauge percentages stay legible on dark terminals (PRD 0004 RF4; PRD 0022 RF16; 8ea7854).
+- Refresh buttons for 9router instances and connections announce "Refreshing…" while they work, including with reduced motion (PRD 0022 RF12.4; PRD 0004 RF2; 000727d).
+- A user theme with a negative or oversized animation duration is refused instead of breaking dialogs (PRD 0050 RF3.1, RF3.2; 3dbd821).
+
 ## [0.84.3] - 2026-11-09
 
 ### Fixed
@@ -613,7 +621,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.84.3...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.84.4...HEAD
+[0.84.4]: https://github.com/jmarcon/cuotai/compare/v0.84.3...v0.84.4
 [0.84.3]: https://github.com/jmarcon/cuotai/compare/v0.84.2...v0.84.3
 [0.84.2]: https://github.com/jmarcon/cuotai/compare/v0.84.1...v0.84.2
 [0.84.1]: https://github.com/jmarcon/cuotai/compare/v0.84.0...v0.84.1
