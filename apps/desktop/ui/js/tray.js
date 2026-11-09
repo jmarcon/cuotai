@@ -5,7 +5,7 @@
 // Settings, Stats, the age of the last completed refresh, the refresh button and the main window.
 import { boot } from "./boot.js";
 import { te, t } from "./i18n.js";
-import { detailHtml, mountModels } from "./detail.js";
+import { detailHtml, mountModels, openReference } from "./detail.js";
 import { syncTrayMenu, trayUpdateLine } from "./tray-menu.js";
 import { mountStats, rhythmChartHtml } from "./stats.js";
 import { mountTimeline } from "./timeline.js";
@@ -353,6 +353,7 @@ root.addEventListener("click", (e) => {
   const tab = el.closest("[data-tab]");
   if (tab) return select(tab.dataset.tab);
   if (el.closest("[data-more]")) { moreOpen = !moreOpen; return render(); }
+  if (openReference(el)) return;
   const toggle = el.closest("[data-agg-toggle]");
   if (toggle) {
     const key = toggle.dataset.aggToggle;

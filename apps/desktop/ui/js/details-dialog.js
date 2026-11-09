@@ -1,7 +1,7 @@
 // Account details dialog (opened by the card's magnifier): full quotas, history, notes, badges and actions.
 import { te, tl } from "./i18n.js";
 import { acknowledgeMissed, bellHtml, brand, esc, hiddenMetrics, icon, logo, openSettingsWindow, reportKey, sessionAction, statusLabel } from "./lib.js";
-import { detailHtml, mountModels } from "./detail.js";
+import { detailHtml, mountModels, openReference } from "./detail.js";
 import { costDetailHtml, sourceFor } from "./cost.js";
 import { mountHistory } from "./history.js";
 import { showDialog } from "./motion.js";
@@ -87,6 +87,8 @@ export function openDetails(key, context, from = null) {
       const t = e.target;
       const r = () => ctx.reports().find((x) => reportKey(x) === currentKey);
       if (t.closest("[data-close]")) return dlg.close();
+      // PRD 0005 RF4.2: the reference contract of a changed interface, opened by the shell's allow-list.
+      if (openReference(t)) return;
       // PRD 0028 RF2.3: the failing account's secret-free problem report, previewed before anything opens.
       if (t.closest("[data-report]")) { const rep = r(); if (rep) openReportProblem(rep.index, ctx.generation()); return; }
       // PRD 0015 RF4.1: a source that is off points to Settings → Local cost.

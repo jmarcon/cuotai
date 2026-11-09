@@ -623,32 +623,66 @@ impl UsageAccess {
     /// of `report`'s generic failure. An `Unavailable` account gets its
     /// reason whatever the failure; an `Undocumented` one whose response no
     /// longer matched the known schema gets "the interface may have changed"
-    /// with the public reference it follows. `None` for a successful report
-    /// and for every other failure, whose own note already explains it.
+    /// (its public reference is [`Self::reference`], kept out of the text by
+    /// DS-MSG-9). `None` for a successful report and for every other
+    /// failure, whose own note already explains it.
     pub fn explain(&self, report: &Report) -> Option<Localized> {
         if report.status == Status::Ready {
             return None;
         }
         match self.level {
             Level::Unavailable => self.reason.clone(),
-            Level::Undocumented
-                if report.status == Status::Error
-                    && report
-                        .notes_l10n
-                        .iter()
-                        .any(|note| note.id == crate::providers::SCHEMA_NOTE) =>
-            {
-                let evidence = self.evidence.url();
-                Some(Localized::with_param(
-                    "access.interface_changed",
-                    "evidence",
-                    evidence,
-                    "The response does not follow the known internal interface: it may have changed without notice. Reference contract: {evidence}",
-                ))
-            }
+            Level::Undocumented if self.interface_changed(report) => Some(Localized::fixed(
+                "access.interface_changed",
+                "The response does not follow the known internal interface: it may have changed without notice.",
+            )),
             Level::Official | Level::Derived | Level::Undocumented | Level::Extension => None,
         }
     }
+
+    /// The public reference contract an `Undocumented` interface follows,
+    /// exactly when [`Self::explain`] says it may have changed: the account
+    /// details offer it as a link (desktop) or a line (TUI), labelled with
+    /// [`reference_label`]. `None` otherwise.
+    pub fn reference(&self, report: &Report) -> Option<&'static str> {
+        (report.status == Status::Error
+            && self.level == Level::Undocumented
+            && self.interface_changed(report))
+        .then(|| self.evidence.url())
+    }
+
+    /// Whether `report` failed because the response no longer matched the
+    /// known schema.
+    fn interface_changed(&self, report: &Report) -> bool {
+        report.status == Status::Error
+            && report
+                .notes_l10n
+                .iter()
+                .any(|note| note.id == crate::providers::SCHEMA_NOTE)
+    }
+}
+
+/// `access.reference`: the label of [`UsageAccess::reference`].
+pub fn reference_label() -> Localized {
+    Localized::fixed("access.reference", "Reference contract")
+}
+
+/// Whether `url` is exactly one of the evidence addresses [`classify`]
+/// emits for some provider and mode, the only addresses
+/// [`UsageAccess::reference`] can return. The desktop opens a reference only
+/// when this holds (narrower than any host allow-list).
+pub fn is_evidence_url(url: &str) -> bool {
+    Provider::ALL.iter().any(|provider| {
+        EVIDENCE_PARAMS.iter().any(|params| {
+            let params: BTreeMap<String, String> = params
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect();
+            [false, true]
+                .into_iter()
+                .any(|oauth| classify(*provider, oauth, &params).evidence.url() == url)
+        })
+    })
 }
 
 /// How `account`'s usage is obtained. Pure: reads only the provider, the
@@ -994,6 +1028,26 @@ const SWITCHING_PARAMS: [&[(&str, &str)]; 10] = [
     &[("session_env", "X")],
     &[("organization_id", "X")],
     &[("cli_profile", "X")],
+];
+
+/// [`SWITCHING_PARAMS`] plus the modes that switch only the reading source
+/// or the account product, walked by [`is_evidence_url`].
+const EVIDENCE_PARAMS: [&[(&str, &str)]; 15] = [
+    SWITCHING_PARAMS[0],
+    SWITCHING_PARAMS[1],
+    SWITCHING_PARAMS[2],
+    SWITCHING_PARAMS[3],
+    SWITCHING_PARAMS[4],
+    SWITCHING_PARAMS[5],
+    SWITCHING_PARAMS[6],
+    SWITCHING_PARAMS[7],
+    SWITCHING_PARAMS[8],
+    SWITCHING_PARAMS[9],
+    &[("product", "account")],
+    &[("query_mode", crate::feed::MODE_CLAUDE_CODE)],
+    &[("query_mode", crate::feed::MODE_CLAUDE_CODE_OR_API)],
+    &[("query_mode", crate::feed::MODE_CODEX_CLI)],
+    &[("query_mode", crate::feed::MODE_CODEX_CLI_OR_API)],
 ];
 
 /// Whether some mode of `provider` has a usage query, that is, whether it is
@@ -1655,18 +1709,36 @@ mod tests {
         let schema = failed(&claude, QueryError::schema());
         let changed = describe(&claude).explain(&schema).expect("schema mismatch");
         assert_eq!(changed.id, "access.interface_changed");
+        // DS-MSG-9: the text carries no address in any catalog; the
+        // reference travels apart, only for the schema case.
+        for locale in crate::text::catalog_locales() {
+            let text = changed.resolve(locale);
+            assert!(!text.contains("https://"), "{locale}: {text}");
+            assert!(!text.contains('{'), "{locale}: {text}");
+        }
         let en = changed.resolve("en-US");
         assert!(en.contains("may have changed without notice"), "{en}");
-        assert!(en.ends_with(describe(&claude).evidence.url()), "{en}");
+        assert_eq!(
+            describe(&claude).reference(&schema),
+            Some(describe(&claude).evidence.url())
+        );
+        assert_eq!(access.reference(&unsupported), None);
+        assert_eq!(access.reference(&transport), None);
         // Other failures of an Undocumented account keep their own note.
         for error in [QueryError::transport(), QueryError::config("query.x", "x")] {
-            assert_eq!(describe(&claude).explain(&failed(&claude, error)), None);
+            let report = failed(&claude, error);
+            assert_eq!(describe(&claude).explain(&report), None);
+            assert_eq!(describe(&claude).reference(&report), None);
         }
         // A documented or derived interface does not blame a schema change.
         for provider in [OpenAiApi, GeminiApi] {
             let acc = account(provider, &[], false);
             assert_eq!(
                 describe(&acc).explain(&failed(&acc, QueryError::schema())),
+                None
+            );
+            assert_eq!(
+                describe(&acc).reference(&failed(&acc, QueryError::schema())),
                 None
             );
         }
@@ -1677,6 +1749,43 @@ mod tests {
                 ..failed(&acc, QueryError::schema())
             };
             assert_eq!(describe(&acc).explain(&ready), None);
+            assert_eq!(describe(&acc).reference(&ready), None);
+        }
+    }
+
+    /// The desktop opens a reference only through this exact-match check:
+    /// every evidence a reference can carry is listed, a sibling address on
+    /// the same host is not.
+    #[test]
+    fn evidence_urls_are_matched_exactly() {
+        for provider in Provider::ALL {
+            for params in EVIDENCE_PARAMS {
+                let params: BTreeMap<String, String> = params
+                    .iter()
+                    .map(|(k, v)| (k.to_string(), v.to_string()))
+                    .collect();
+                for oauth in [false, true] {
+                    let url = classify(provider, oauth, &params).evidence.url();
+                    assert!(is_evidence_url(url), "{provider:?}: {url}");
+                }
+            }
+        }
+        let claude = describe(&account(Provider::Claude, &[], true))
+            .evidence
+            .url();
+        assert!(claude.starts_with("https://github.com/"), "{claude}");
+        for other in [
+            "https://github.com/jmarcon/cuotai/issues/new",
+            "https://github.com/",
+            "",
+            &format!("{claude}/"),
+            &format!("{claude}?x=1"),
+            &format!("{claude}#x"),
+            &format!(" {claude}"),
+            &claude.replace("https://", "http://"),
+            &claude.to_uppercase(),
+        ] {
+            assert!(!is_evidence_url(other), "{other}");
         }
     }
 

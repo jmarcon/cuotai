@@ -15,7 +15,7 @@
       "models.unsupported.reason.nine_router"
     ]
   },
-  "access.confirm_unavailable": "{reason} アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
+  "access.confirm_unavailable": "{reason}アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
   "access.cost_advisory": "照会ごとに課金されるプロバイダーです。1 回の照会でおよそ 1 回の Cost Explorer リクエストが発生します。間隔を指定しない場合、Cuotai は 1 時間に 1 回照会します。実際の最小間隔は 15 分です（5〜14 分は 15 分に引き上げられ、それより短い間隔は拒否されます）。複数のウィンドウやコマンドは間隔ごとに 1 回のリクエストを共有します。手動更新は引き続き明示的な操作が必要です。",
   "access.credential.admin_key": "管理者キー",
   "access.credential.agent_feed": "エージェントフィード",
@@ -36,7 +36,7 @@
   "access.credential_hint.open_router_account": "推論呼び出しを行わない OpenRouter の管理キーが必要です。既定の表示は推論キーを使用します。",
   "access.credential_hint.subscription_session": "プラットフォームの API キーではなく、サブスクリプションのセッション（ネイティブログインまたはそのトークン）を使用します。",
   "access.credential_hint.user_session": "アカウントのウィザードに貼り付ける（システムの保管庫に保存）か変数にエクスポートする Web セッションが必要です。期限切れになり、自動でインポートされることはありません。",
-  "access.interface_changed": "応答が既知の内部インターフェースに沿っていません。予告なく変更された可能性があります。参照している仕様：{evidence}",
+  "access.interface_changed": "応答が既知の内部インターフェースに沿っていません。予告なく変更された可能性があります。",
   "access.level.derived": "派生",
   "access.level.extension": "拡張機能",
   "access.level.extension_override": "拡張機能（置き換え）",
@@ -56,6 +56,7 @@
   "access.reason.poolside": "既知の使用量エンドポイントには、推論キーではなくプラットフォームの管理者トークンが必要です。",
   "access.reason.qwen": "DashScope のキーは推論の認証にのみ使われ、そのキーのクォータを公開照会する方法はありません。",
   "access.reason.qwen_oauth": "Qwen Code のセッションには確認済みのクォータのエンドポイントがありません。無料の OAuth プランは終了しました。",
+  "access.reference": "参照している仕様",
   "access.requires_plan": "{plan} プランが必要です。",
   "access.risk.derived": "使用量は別のソース（指標やレート制限のヘッダー）から推定されたもので、残高ではなく、遅れることがあります。",
   "access.risk.extension": "ローカルのプログラムを実行します。有効にする前にコードを確認してください。",

@@ -3,7 +3,7 @@
 import { t, te, tl } from "./i18n.js";
 import {
   STALE, accessHtml, ageHtml, bindingChipText, causeText, errText, esc, fmtAmount, fmtReset, getView, icon, incidentDetailHtml, isBindingMetric, isMetricHidden, isRenewedWaiting, isStaleReading, level, loadModels, metricAlertHtml, metricKey, modelState, noteText,
-  adviceHtml, fmtMetricExtra, forecastHtml, scopeBlocksHtml, isOverage, overageDetailHtml, paceHtml, paceOf, remainingPct, renewedText, reportKey, restNotes, staleView, statusLabel, syncModels, textualMetric,
+  adviceHtml, fmtMetricExtra, forecastHtml, scopeBlocksHtml, isOverage, openExternal, overageDetailHtml, paceHtml, paceOf, remainingPct, renewedText, reportKey, restNotes, staleView, statusLabel, syncModels, textualMetric,
 } from "./lib.js";
 import { expectedLeft, fmtAt, meterHtml } from "./components.js";
 import { breakdownHtml } from "./breakdown.js";
@@ -86,6 +86,20 @@ function budgetActionsHtml(r, m) {
   </div>`;
 }
 
+/** PRD 0005 RF4.2 (DS-MSG-9): the public reference contract of an interface that may have changed, as a text link
+ *  under the cause. The address never enters the cause text, and the card never shows it. */
+export const referenceHtml = (r) => r.access?.reference
+  ? `<p class="note det-reference"><button type="button" class="link det-reference-link" data-reference-url="${esc(r.access.reference)}">${icon("ext")}<span>${esc(tl(r.access.reference_label))}</span></button></p>`
+  : "";
+/** Opens the reference link under `target`, if any, through the shell's `open_external` (which opens only the
+ *  core's evidence addresses); `true` when the click was that link. */
+export function openReference(target) {
+  const link = target.closest("[data-reference-url]");
+  if (!link) return false;
+  openExternal(link.dataset.referenceUrl).catch(() => {});
+  return true;
+}
+
 /** Quota list + notes. Without `eye` (popover), hidden ones do not appear. PRD 0010 RF3: the age leads; a failure
  *  with a preserved reading lists the old metrics dimmed under the cause of the failure. PRD 0005 RF4: the core's
  *  access level and summary follow the age, and its explanation, when there is one, is the cause. PRD 0011 RF4.1:
@@ -100,12 +114,12 @@ export function detailHtml(r, { eye = false, action = eye } = {}) {
   if (isStaleReading(r)) {
     const s = staleView(r);
     const metrics = eye ? s.metrics : s.metrics.filter((m) => !isMetricHidden(s, m));
-    return `<div class="detail">${incident}<div class="call warning cause">${icon("clock")}<div>${esc(causeText(r))}</div></div>
+    return `<div class="detail">${incident}<div class="call warning cause">${icon("clock")}<div>${esc(causeText(r))}</div></div>${referenceHtml(r)}
       <div class="detail stale-reading">${metrics.map((m) => metricCardHtml(s, m, { eye, stale: true })).join("")}</div>${reading}${rest}</div>`;
   }
   if (!r.metrics.length) {
     const tone = r.status === "authentication_error" ? "accent" : r.status === "ready" ? "neutral" : "critical";
-    return `<div class="detail">${incident}<div class="call ${tone}">${icon(r.status === "authentication_error" ? "key" : r.status === "ready" ? "info" : "alert")}<div>${esc(causeText(r))}</div></div>${reading}${rest}</div>`;
+    return `<div class="detail">${incident}<div class="call ${tone}">${icon(r.status === "authentication_error" ? "key" : r.status === "ready" ? "info" : "alert")}<div>${esc(causeText(r))}</div></div>${referenceHtml(r)}${reading}${rest}</div>`;
   }
   const metrics = eye ? r.metrics : r.metrics.filter((m) => !isMetricHidden(r, m));
   // PRD 0043 RF2.2: the limit changes of the last 48 h, as silent notes.
