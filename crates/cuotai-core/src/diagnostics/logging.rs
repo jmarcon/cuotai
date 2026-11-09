@@ -474,7 +474,13 @@ pub fn install_panic_hook(kind: AppKind) {
     let prior = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
         record_panic(kind, info);
-        prior(info);
+        // An adapter panic caught by the refresh (`crate::panic_guard`)
+        // becomes that account's failed report: record it, but skip the
+        // prior hook (the default printer would write over a TUI, a
+        // frontend's own hook would tear it down).
+        if !crate::panic_isolated() {
+            prior(info);
+        }
     }));
 }
 

@@ -319,7 +319,9 @@ pub(crate) async fn groq_at(
             .and_then(|v| v.to_str().ok())
             .and_then(parse_groq_duration)
             .and_then(|d| chrono::Duration::from_std(d).ok())
-            .map(|d| now + d);
+            // An absurd reset header must drop the time, not panic the
+            // refresh (PRD 0003 re-validation S-01).
+            .and_then(|d| now.checked_add_signed(d));
         metrics.push(Metric {
             billing: Default::default(),
             scope: None,
@@ -1139,6 +1141,33 @@ mod tests {
             assert!(reset > Utc::now());
             assert!(reset < Utc::now() + chrono::Duration::hours(1));
         }
+    }
+
+    /// PRD 0003 re-validation S-01: a reset header beyond chrono's range
+    /// drops the reset time instead of panicking the refresh.
+    #[tokio::test]
+    async fn groq_reset_fora_do_alcance_nao_entra_em_panico() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({ "data": [] }))
+                    .insert_header("x-ratelimit-limit-requests", "100")
+                    .insert_header("x-ratelimit-remaining-requests", "40")
+                    .insert_header("x-ratelimit-reset-requests", "1000000000000h"),
+            )
+            .mount(&server)
+            .await;
+
+        let http = reqwest::Client::new();
+        let creds = TestCredentials("GROQ_API_KEY", "gsk_test");
+        let acc = account(Provider::Groq, "GROQ_API_KEY");
+        let data = groq_at(&acc, &ctx_with(&http, &creds), &server.uri())
+            .await
+            .expect("sucesso");
+        assert_eq!(data.metrics.len(), 1);
+        assert_eq!(data.metrics[0].used, Some(60.0));
+        assert_eq!(data.metrics[0].resets_at, None);
     }
 
     #[tokio::test]

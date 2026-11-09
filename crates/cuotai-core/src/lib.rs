@@ -82,6 +82,7 @@ pub mod notify_prefs;
 pub mod oauth;
 pub mod overage;
 pub mod pace;
+pub mod panic_guard;
 pub mod privacy;
 pub mod private_fs;
 mod process_tree;
@@ -109,6 +110,7 @@ pub mod widget_snapshot;
 
 /// RF2 shared login driver, re-exported for convenience.
 pub use oauth::login;
+pub use panic_guard::panic_isolated;
 
 pub use account_id::AccountId;
 pub use breakdown::{BreakdownKind, BreakdownRow};
@@ -1528,6 +1530,14 @@ impl Monitor {
             };
             (result, expires_at)
         };
+        // A panic in an adapter or a login flow fails this account only, as
+        // an incompatible answer, and never carries its payload into the
+        // report (PRD 0003 re-validation S-01/R-03).
+        let fetch = async {
+            panic_guard::isolate(fetch)
+                .await
+                .unwrap_or_else(|_| (Err(providers::QueryError::schema()), None))
+        };
         tokio::time::timeout(timeout, fetch)
             .await
             .unwrap_or_else(|_| (Err(providers::QueryError::timeout()), None))
@@ -1538,6 +1548,13 @@ impl Monitor {
         account: &Account,
         ctx: &providers::Context<'_>,
     ) -> Result<providers::Data, providers::QueryError> {
+        // Test-only seam: an account with this name panics inside the query,
+        // as an adapter bug would.
+        #[cfg(test)]
+        if account.name == tests::PANIC_ACCOUNT {
+            tests::PANIC_WAS_ISOLATED.store(panic_isolated(), std::sync::atomic::Ordering::SeqCst);
+            panic!("adapter bug for the isolation test");
+        }
         #[cfg(test)]
         if let (Provider::Groq, Some(url)) = (account.provider, self.groq_url.as_deref()) {
             return providers::router_keys::groq_at(account, ctx, url).await;
@@ -1671,6 +1688,12 @@ impl Credentials for QueryCredentials<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The account name [`Monitor::dispatch`]'s test seam panics for.
+    pub(super) const PANIC_ACCOUNT: &str = "panicking adapter";
+    /// Whether the seam's panic ran under [`panic_guard::isolate`].
+    pub(super) static PANIC_WAS_ISOLATED: std::sync::atomic::AtomicBool =
+        std::sync::atomic::AtomicBool::new(false);
 
     #[test]
     fn rejects_duplicate_account_identity_and_unbounded_queries() {
@@ -1953,6 +1976,70 @@ credential_env = "GROQ_KEY_GAMMA"
         let mut monitor = Monitor::with_login_session(config, creds, session).unwrap();
         monitor.groq_url = Some(server.uri());
         (server, monitor)
+    }
+
+    /// PRD 0003 re-validation S-01/R-03: one adapter panicking fails only
+    /// its own account; the other accounts of the refresh still answer, and
+    /// the panic ran with the isolation mark a frontend's hook reads.
+    #[tokio::test]
+    async fn a_panicking_adapter_fails_only_its_account() {
+        let mut config = three_groq_accounts();
+        config.accounts[1].name = PANIC_ACCOUNT.into();
+        let (_server, monitor) = groq_monitor(config).await;
+        let snapshot = monitor.refresh().await;
+        let statuses: Vec<_> = snapshot.reports.iter().map(|r| r.status).collect();
+        assert_eq!(statuses, [Status::Ready, Status::Error, Status::Ready]);
+        let failed = &snapshot.reports[1];
+        assert_eq!(failed.account, PANIC_ACCOUNT);
+        assert!(failed
+            .notes_l10n
+            .iter()
+            .any(|note| note.id == providers::SCHEMA_NOTE));
+        assert!(failed
+            .notes
+            .iter()
+            .all(|note| !note.contains("adapter bug")));
+        assert!(PANIC_WAS_ISOLATED.load(std::sync::atomic::Ordering::SeqCst));
+        assert!(!panic_isolated());
+    }
+
+    /// PRD 0003 re-validation S-01: an out-of-range Groq reset header on one
+    /// account leaves every account ready; that metric has no reset time.
+    #[tokio::test]
+    async fn an_overflowing_groq_reset_keeps_every_account_ready() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::header(
+                "Authorization",
+                "Bearer gsk_BETA",
+            ))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({ "data": [] }))
+                    .insert_header("x-ratelimit-limit-requests", "100")
+                    .insert_header("x-ratelimit-remaining-requests", "40")
+                    .insert_header("x-ratelimit-reset-requests", "1000000000000h"),
+            )
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({ "data": [] })),
+            )
+            .mount(&server)
+            .await;
+        let creds: Arc<dyn Credentials> = Arc::new(GroqKeys);
+        let store: Arc<dyn oauth::TokenStore> = EmptyStore::new();
+        let session = Arc::new(oauth::OAuthSession::new(store, Arc::clone(&creds)).unwrap());
+        let mut monitor =
+            Monitor::with_login_session(three_groq_accounts(), creds, session).unwrap();
+        monitor.groq_url = Some(server.uri());
+        let snapshot = monitor.refresh().await;
+        assert!(snapshot.reports.iter().all(|r| r.status == Status::Ready));
+        let beta = &snapshot.reports[1];
+        assert_eq!(beta.metrics.len(), 1);
+        assert_eq!(beta.metrics[0].resets_at, None);
     }
 
     /// PRD 0013 RF1.3: a query that runs out of time and one that cannot
