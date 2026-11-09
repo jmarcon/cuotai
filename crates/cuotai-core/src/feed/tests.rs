@@ -259,6 +259,36 @@ fn truncated_and_tampered_files_are_ignored_not_zeroed() {
     assert!(health.note().is_some());
 }
 
+/// RF1.3 (PRD 0007 re-validation): a file dated in the future never
+/// passes for the newest reading; it is counted unreadable. A little clock
+/// skew between the agent and Cuotai is accepted.
+#[test]
+fn a_reading_dated_in_the_future_is_ignored() {
+    let (_dir, store) = store();
+    let current = Utc::now();
+    let good = reading("good", current - TimeDelta::minutes(2));
+    store.write(&good, current).unwrap();
+    let ahead = reading("ahead", current + TimeDelta::minutes(10));
+    assert!(store.write(&ahead, current).is_err(), "never written");
+    // Planted by hand (another writer, a moved clock).
+    let dir = store.dir().join("claude_code");
+    std::fs::write(dir.join("ahead.json"), serde_json::to_vec(&ahead).unwrap()).unwrap();
+    assert_eq!(store.latest(FeedSource::ClaudeCode, current).unwrap(), good);
+    assert_eq!(
+        store.health(current),
+        FeedHealth {
+            readable: 1,
+            unreadable: 1
+        }
+    );
+    let skewed = reading("skewed", current + TimeDelta::seconds(30));
+    store.write(&skewed, current).unwrap();
+    assert_eq!(
+        store.latest(FeedSource::ClaudeCode, current).unwrap(),
+        skewed
+    );
+}
+
 #[test]
 fn an_invalid_reading_is_never_written() {
     let (_dir, store) = store();
@@ -671,6 +701,25 @@ fn codex_logs_with_two_windows_give_both() {
     assert_eq!(metrics[1].window, Some(crate::MetricWindow::Weekly));
 }
 
+/// RF1.3 (PRD 0007 re-validation): a Codex CLI log dated in the future is
+/// ignored, like a stored reading; its own time and a little skew pass.
+#[test]
+fn a_codex_log_dated_in_the_future_gives_no_reading() {
+    let lines = [
+        META.to_owned(),
+        TURN.to_owned(),
+        count(
+            r#"{"primary":{"used_percent":12.5,"window_minutes":300,"resets_in_seconds":3600},"secondary":null}"#,
+        ),
+    ];
+    let (_home, roots) = codex_home(&lines);
+    let written = Utc.with_ymd_and_hms(2026, 10, 25, 13, 5, 0).unwrap();
+    let latest = |now| crate::providers::agent_feed::codex_latest(&roots, now).unwrap();
+    assert_eq!(latest(written).unwrap().written_at, written);
+    assert!(latest(written - TimeDelta::seconds(30)).is_some(), "skew");
+    assert_eq!(latest(written - TimeDelta::minutes(10)), None);
+}
+
 #[test]
 fn codex_logs_with_one_window_leave_the_other_absent() {
     let lines = [
@@ -699,7 +748,7 @@ fn an_unknown_codex_shape_is_refused() {
             "{shape}"
         );
         assert!(matches!(
-            crate::providers::agent_feed::codex_latest(&roots),
+            crate::providers::agent_feed::codex_latest(&roots, now()),
             Err(error) if error.note.id == crate::providers::SCHEMA_NOTE
         ));
     }

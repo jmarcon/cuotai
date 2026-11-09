@@ -172,7 +172,8 @@ pub fn block(readings: &[FeedReading], now: DateTime<Utc>) -> LiveBlock {
     let mut live: Vec<&FeedReading> = readings
         .iter()
         .filter(|reading| {
-            now - reading.written_at < LIVE_FOR && reading.written_at <= now + TimeDelta::minutes(1)
+            now - reading.written_at < LIVE_FOR
+                && reading.written_at <= now + super::FUTURE_TOLERANCE
         })
         .collect();
     live.sort_by_key(|reading| std::cmp::Reverse(reading.written_at));
