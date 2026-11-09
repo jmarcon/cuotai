@@ -157,8 +157,18 @@ fn a_usage_alert_is_delivered_by_one_of_two_processes() {
         Vec::new(),
         t0(),
     );
-    assert_eq!(first, vec![event]);
-    assert!(second.is_empty(), "already notified by the desktop");
+    // PRD 0008 re-validation (S-05): both queue it (nobody showed it yet);
+    // only the first to show it does.
+    assert_eq!(first, vec![event.clone()]);
+    assert_eq!(second, vec![event.clone()]);
+    assert_eq!(
+        desktop.claim_shown(Some(&path), first, None, t0()),
+        vec![event]
+    );
+    assert!(
+        tui.claim_shown(Some(&path), second, None, t0()).is_empty(),
+        "already shown by the desktop"
+    );
 }
 
 #[test]

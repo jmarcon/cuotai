@@ -636,9 +636,13 @@ impl Ledger {
 
     /// PRD 0032 RF4: remember `next` and claim the usage alerts `events` it
     /// deserves (judged on a possibly stale copy): the ones another process
-    /// already notified are dropped, the rest recorded as notified (the
-    /// `deferred` ones, held by quiet hours until their instant, as
-    /// deferred) and returned for delivery. Nothing is locked or written
+    /// already notified are dropped and the rest returned for delivery (the
+    /// `deferred` ones, held by quiet hours until their instant, are saved
+    /// as deferred). The levels `next` reached are recorded, but an event
+    /// counts as notified only once [`Self::claim_shown`] says it was shown
+    /// (PRD 0008 re-validation S-05): an alert queued behind the
+    /// one-minute spacing and lost to a quit stays a "crossed while closed"
+    /// marker instead of a notice nobody saw. Nothing is locked or written
     /// when the reading changes no mark and carries no event. With no
     /// `path` the in-memory state is the truth.
     pub fn claim_alerts(
@@ -651,7 +655,7 @@ impl Ledger {
         now: DateTime<Utc>,
     ) -> Vec<crate::alerts::AlertEvent> {
         let mut probe = self.alerts.clone();
-        let changed = probe.update_units_with(next, prefs, &events, &deferred, now);
+        let changed = probe.update_units_with(next, prefs, &[], &deferred, now);
         let Some(path) = path.filter(|_| changed || !events.is_empty() || !deferred.is_empty())
         else {
             self.alerts = probe;
@@ -670,9 +674,37 @@ impl Ledger {
                 .collect();
             ledger
                 .alerts
-                .update_units_with(next, prefs, &events, &deferred, now);
+                .update_units_with(next, prefs, &[], &deferred, now);
             events
         })
+    }
+
+    /// PRD 0008 re-validation (S-05): the queued alerts `events` are about
+    /// to be shown at `now` (inside the quiet hours `quiet`, for an
+    /// exhaustion breaking through): under the lock, the ones another
+    /// process already showed are dropped and the rest recorded as
+    /// notified ([`AlertState::mark_shown`]) and returned. With no `path`
+    /// the in-memory state is the truth.
+    pub fn claim_shown(
+        &mut self,
+        path: Option<&Path>,
+        events: Vec<crate::alerts::AlertEvent>,
+        quiet: Option<crate::quiet::QuietWindow>,
+        now: DateTime<Utc>,
+    ) -> Vec<crate::alerts::AlertEvent> {
+        if events.is_empty() {
+            return events;
+        }
+        let shown = |ledger: &mut Ledger| -> Vec<crate::alerts::AlertEvent> {
+            events
+                .into_iter()
+                .filter(|event| ledger.alerts.mark_shown(event, quiet, now))
+                .collect()
+        };
+        match path {
+            Some(path) => self.claim(path, shown),
+            None => shown(self),
+        }
     }
 
     /// PRD 0032 RF3.3 and RF4.3: settle the crossings deferred until `now`

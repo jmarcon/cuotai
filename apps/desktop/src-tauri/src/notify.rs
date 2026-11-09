@@ -529,7 +529,9 @@ impl Notices {
         let window = self.window(now);
         let (mut deliver, mut deferred) = (Vec::new(), Vec::new());
         for event in events {
-            match quiet::decide(Subject::Alert(&event), window) {
+            // PRD 0008 re-validation (S-03): an exhaustion breaks through
+            // quiet hours once per metric and period.
+            match self.ledger.alerts().quiet_decision(&event, window) {
                 Decision::Deliver => deliver.push(event),
                 Decision::Defer(until) => deferred.push((event, until)),
                 Decision::Drop => {}
@@ -541,7 +543,13 @@ impl Notices {
             .claim_alerts(next, &self.evaluator, deliver, deferred, now);
         let key = next.state_key();
         if first {
-            let found = self.ledger.alerts().missed(prev, next, &self.evaluator);
+            // The crossings queued now are about to be told, not missed.
+            let mut found = self.ledger.alerts().missed(prev, next, &self.evaluator);
+            found.retain(|crossing| {
+                !sent.iter().any(|event| {
+                    event.label == crossing.label && event.threshold >= crossing.threshold
+                })
+            });
             if found.is_empty() {
                 self.missed.remove(&key);
             } else {
@@ -926,6 +934,12 @@ impl Notices {
                 self.pending.append(&mut pending);
                 return (0, Some(due));
             }
+        }
+        // PRD 0008 re-validation (S-05): recorded as notified only now that
+        // they are shown; another process may have shown them first.
+        let pending = self.ledger.claim_shown(pending, window, now);
+        if pending.is_empty() {
+            return (0, None);
         }
         // PRD 0045 RF5.2: a breakdown row's events form a group of their own.
         let owned = alerts::notice_groups(
@@ -1782,6 +1796,39 @@ mod tests {
             .map(|metric| metric.label.as_str())
             .collect();
         assert_eq!(labels, ["5h"]);
+    }
+
+    /// PRD 0008 re-validation (S-05): an alert held back by the one-minute
+    /// spacing and lost to a quit is not recorded as told: the next start
+    /// shows it as crossed while closed, and sends no stale notice.
+    #[test]
+    fn an_alert_held_by_the_spacing_and_lost_to_a_quit_is_a_missed_crossing() {
+        let dir = tempfile::tempdir().unwrap();
+        let cfg = config(&["Work", "Home"]);
+        let fake = FakeNotifier::default();
+        let mut notices = alerting(Some(store(dir.path())));
+        let work = observe(
+            &mut notices,
+            &cfg,
+            Some(&usage("Work", t0(), 50.0, w())),
+            &usage("Work", t0() + mins(5), 92.0, w()),
+            &fake,
+        );
+        assert_eq!(work.delivered, 1);
+        let home_before = usage("Home", t0() + mins(4), 50.0, w());
+        let home = usage("Home", t0() + mins(5) + TimeDelta::seconds(30), 91.0, w());
+        let held = observe(&mut notices, &cfg, Some(&home_before), &home, &fake);
+        assert_eq!(held.delivered, 0, "held by the spacing");
+        drop(notices);
+        // The next start: the restored reading, then a new one.
+        let mut reopened = alerting(Some(store(dir.path())));
+        let later = usage("Home", t0() + mins(9), 92.0, w());
+        let tick = observe(&mut reopened, &cfg, Some(&home), &later, &fake);
+        assert_eq!(tick.delivered, 0, "no stale notice");
+        let missed = reopened.missed(&later.state_key());
+        assert_eq!(missed.len(), 1, "crossed while closed");
+        assert_eq!(missed[0].threshold, 90);
+        assert_eq!(fake.titles().len(), 1);
     }
 
     #[test]

@@ -130,6 +130,22 @@ impl SharedLedger {
         sent
     }
 
+    /// [`Ledger::claim_shown`] on this ledger's file.
+    pub fn claim_shown(
+        &mut self,
+        events: Vec<AlertEvent>,
+        quiet: Option<crate::quiet::QuietWindow>,
+        now: DateTime<Utc>,
+    ) -> Vec<AlertEvent> {
+        if events.is_empty() {
+            return events;
+        }
+        let path = self.path.clone();
+        let shown = self.ledger.claim_shown(path.as_deref(), events, quiet, now);
+        self.remember_stamp();
+        shown
+    }
+
     /// [`Ledger::claim_digest`] on this ledger's file.
     pub fn claim_digest<'r>(
         &mut self,
