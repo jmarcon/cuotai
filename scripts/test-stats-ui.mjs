@@ -135,4 +135,33 @@ for (const { code } of i18n.LOCALES) {
   for (const key of Object.keys(own)) assert.equal(placeholders(own[key]), placeholders(reference[key]), `${code}: ${key} placeholders drifted`);
 }
 
+// PRD 0006 RF5.2 (re-validation V-02/V-03/V-07): a metric without measured use, or with one reading, shows its
+// sentence and no chart or axis (DS-CHT-11); a drawn chart dates its span like the rest of the app; the empty state is
+// one catalog sentence per span, with no ASCII space joined into Japanese or Chinese.
+{
+  const { metricHtml } = await import("../apps/desktop/ui/js/history.js");
+  const span = { from: "2026-10-22T18:10:00Z", to: "2026-10-23T18:10:00Z" };
+  const chart = { floor: 0, ceiling: 100, heights: [0.2, 0.4], last: { taken_at: span.to, used: 40, x: 0.75, y: 0.4 }, resets: [] };
+  const base = { label: "5h", unit: "%", windows: [], chart };
+  const none = metricHtml({ ...base, trend: null, samples: 3 }, span);
+  assert.ok(!none.includes("hist-chart") && !none.includes("hist-axis"), "no measured use: no chart or axis");
+  assert.ok(none.includes(i18n.t("trend.noUsed")), "no measured use: the sentence");
+  const one = metricHtml({ ...base, trend: { min: 40, max: 40, last: { used: 40 } }, samples: 1 }, span);
+  assert.ok(!one.includes("hist-chart"), "one reading: no chart");
+  const drawn = metricHtml({ ...base, trend: { min: 20, max: 40, last: { used: 40 } }, samples: 2 }, span);
+  assert.ok(drawn.includes("hist-chart") && drawn.includes("hist-axis"), "two readings draw the chart");
+  assert.ok(drawn.includes(lib.fmtDateTime(span.from)), "the axis dates read like the rest of the app");
+  for (const code of ["ja", "zh-CN", "en-US"]) {
+    const catalog = JSON.parse(await readFile(fileURLToPath(new URL(`apps/desktop/ui/locales/${code}.json`, root)), "utf8"));
+    for (const range of ["day", "week", "month"]) {
+      for (const kind of ["emptyWithHelp", "emptyOff"]) {
+        const text = catalog[`trend.${kind}.${range}`];
+        assert.ok(text, `${code}: trend.${kind}.${range} missing`);
+        if (code !== "en-US") assert.ok(!/[。．] /.test(text), `${code}: trend.${kind}.${range} joins with an ASCII space`);
+      }
+    }
+    assert.equal(catalog["trend.emptyHelp"], undefined, `${code}: the joined fragments are gone`);
+  }
+}
+
 console.log("PASS: Stats view and reset timeline render honestly in pt-BR, en-US, es and it; catalog keys match");
