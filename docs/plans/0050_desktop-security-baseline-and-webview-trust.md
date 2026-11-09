@@ -17,7 +17,7 @@
 
 Written on 2026-10-27 as PRD 0040 by the 2026-10-25 PRD audit against `origin/main` (0.80.0) and renumbered 0050 when it moved onto `integration/next`, whose 0040–0049 are other plans. This table was re-evaluated on 2026-10-28 against `integration/next` at `18009a04`, updated on 2026-11-04 with the 0.83.0 delivery on `feat/prd-0050-security-baseline` and on 2026-11-07 with the 0.84.0 completion on `feat/finish-0050-0052`; the §1 code references still point at `origin/main` at `7a1d93c3`, and the current location is named here where it moved. Every RF is delivered; what remains is the packaged-app smokes listed in `0000_control.md` §2.1 and the first Windows CI run of the ACL tests.
 
-vNEXT (PRD 0003 re-validation S-06): the webview's notification grant narrowed from `notification:default` to `notification:allow-is-permission-granted`, the read-only query the plugin's injected `init-iife.js` makes on load; posting notices, asking for permission, channels and listeners are no longer reachable from any window, and the Rust side (`notify.rs`) is not gated by the ACL. `scripts/test-settings-window-ui.mjs` asserts the grant.
+0.84.3 (PRD 0003 re-validation S-06): the webview's notification grant narrowed from `notification:default` to `notification:allow-is-permission-granted`, the read-only query the plugin's injected `init-iife.js` makes on load; posting notices, asking for permission, channels and listeners are no longer reachable from any window, and the Rust side (`notify.rs`) is not gated by the ACL. `scripts/test-settings-window-ui.mjs` asserts the grant.
 
 | RF | Version | Delivery |
 |---|---|---|
