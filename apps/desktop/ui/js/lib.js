@@ -449,7 +449,8 @@ export function bellHtml(view, r) {
 export function metricAlertHtml(r, m) {
   if (!m.alert || !r.account_key) return "";
   const on = !m.alert.muted;
-  const label = t("alerts.metric", { metric: m.label });
+  // PRD 0034 RF2: the name reads in the interface language; `data-metric-label` keeps the raw label (the key).
+  const label = t("alerts.metric", { metric: tl(m.label_text ?? m.label) });
   const state = t(on ? "notify.bell.on" : "notify.bell.off");
   return `<button class="icon bell${on ? " on" : ""}" aria-pressed="${on}" aria-label="${esc(label)}" title="${esc(`${label}: ${state}`)}" data-metric-alert="${esc(r.account_key)}" data-metric-label="${esc(m.label)}" data-metric-on="${on}">${icon(on ? "bell" : "bellOff")}</button>`;
 }
@@ -1467,7 +1468,7 @@ const demoView = () => {
     return { ...r, account: demoName(r.account), connections, index, binding: demoBinding(r), binding_rank: DEMO_BINDINGS.get(r)?.[1] ?? DEMO_BINDINGS.size + index,
       metrics, pace_index: paceIndex, windows: r.status === "ready" ? demoTrayPair(r) : null,
       next_refresh_at_ms: Date.now() + (40 + index * 37) * 1000, uses_oauth: r.provider === "kiro" || r.uses_oauth, access: demoAccess(r),
-      account_key: demoKey(r), notify, usage_alerts: metrics.filter((m) => m.alert?.active).map((m) => m.label), incident,
+      account_key: demoKey(r), notify, usage_alerts: metrics.filter((m) => m.alert?.active).map((m) => m.label_text ?? m.label), incident,
       // PRD 0022 MONO-4: the shell adds the override kept by account id in desktop.json.
       ...(demoSettings.monograms[demoAccountId(index)] ? { monogram: demoSettings.monograms[demoAccountId(index)] } : {}),
       ...(note ? { notes: [...r.notes, note.fallback], notes_l10n: [...r.notes.map((n, i) => r.notes_l10n?.[i] ?? null), note] } : {}) };
@@ -3089,13 +3090,23 @@ export const ALERTS = [
   { id: "auth", icon: "key", tone: "accent", label: () => t("status.authentication_error"), match: (r) => r.status === "authentication_error" },
   { id: "exhausted", icon: "battery", tone: "bad", label: () => t("tray.cat.exhausted"), match: (r) => r.status === "ready" && r.class === "exhausted" },
   // PRD 0008 RF3.4: an active usage alert (the exhausted state above keeps precedence).
-  { id: "usage", icon: "bell", tone: "warn", label: (r) => (r ? t("alerts.active", { metrics: r.usage_alerts.join(", ") }) : t("alerts.activeTitle")),
+  // PRD 0034 RF2: each metric in the reader's language (the core's `metric_text`), listed the locale's way.
+  { id: "usage", icon: "bell", tone: "warn", label: (r) => (r ? t("alerts.active", { metrics: usageAlertList(r) }) : t("alerts.activeTitle")),
     match: (r) => r.status === "ready" && r.class !== "exhausted" && r.usage_alerts?.length > 0 },
   { id: "rate", icon: "gauge", tone: "warn", label: () => t("status.rate_limited"), match: (r) => r.status === "rate_limited" },
   { id: "config", icon: "wrench", tone: "info", label: () => t("status.needs_configuration"), match: (r) => r.status === "needs_configuration" },
   { id: "unsupported", icon: "ban", tone: "muted", label: () => t("status.unsupported"), match: (r) => r.status === "unsupported" },
 ];
 export const alertOf = (r) => ALERTS.find((c) => c.match(r)) ?? null;
+/** PRD 0008 RF3.4: the metrics with an active usage alert, localized and joined with the locale's list format. */
+export function usageAlertList(r) {
+  const names = (r?.usage_alerts ?? []).map((x) => tl(x));
+  try {
+    return new Intl.ListFormat(currentLocale(), { style: "narrow", type: "conjunction" }).format(names);
+  } catch {
+    return names.join(", ");
+  }
+}
 
 // Demo Kiro: one login mode (oauth) and the credential fields, as in the core.
 const dl = (id, fallback) => ({ id, params: {}, fallback });

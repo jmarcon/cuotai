@@ -358,6 +358,11 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* PRD 0008 re-validation V-11: the thresholds' description carries the how-to (remove a chip), so it wraps rather
+   than being cut. */
+.set-row[data-row="thresholds"] .set-row-desc {
+  white-space: normal;
+}
 .set-row-ctl {
   display: flex;
   align-items: center;

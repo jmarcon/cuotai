@@ -539,9 +539,11 @@ pub struct ReportView {
     /// PRD 0003 RF3.2: the account's bell (reset notices and, PRD 0008
     /// RF3.2, usage alerts on).
     notify: bool,
-    /// PRD 0008 RF3.4: labels of the metrics with an active usage alert
-    /// (empty when none); the card and the tray highlight the account.
-    usage_alerts: Vec<String>,
+    /// PRD 0008 RF3.4: the metrics with an active usage alert (empty when
+    /// none), each label in the interface language (PRD 0034 RF2, the same
+    /// shape as a metric's `label_text`); the card and the tray highlight
+    /// the account and name them.
+    usage_alerts: Vec<cuotai_core::text::Localized>,
     /// PRD 0011 RF4.1: the provider's public status, while status queries
     /// are on and the provider has a verified source.
     incident: Option<IncidentView>,
@@ -2127,7 +2129,10 @@ impl Inner {
                 });
             }
         }
-        view.usage_alerts = active.into_iter().map(str::to_owned).collect();
+        view.usage_alerts = active
+            .into_iter()
+            .map(cuotai_core::metric_text::metric_text)
+            .collect();
     }
 
     fn install(&mut self, file: ConfigFile) -> Result<(), String> {
@@ -8150,7 +8155,8 @@ mod tests {
         let view = serde_json::to_value(g.view()).unwrap();
         assert_eq!(view["notify"]["alerts"], true);
         let r = &view["reports"][0];
-        assert_eq!(r["usage_alerts"], serde_json::json!(["5h"]));
+        assert_eq!(r["usage_alerts"].as_array().map(Vec::len), Some(1));
+        assert_eq!(r["usage_alerts"][0], r["metrics"][0]["label_text"]);
         assert_eq!(
             r["metrics"][0]["alert"],
             serde_json::json!({ "muted": false, "active": true })
