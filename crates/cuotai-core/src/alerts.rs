@@ -2210,13 +2210,13 @@ where
         event.kind,
         AlertKind::OverageStarted | AlertKind::OverageCapReached
     ) {
-        return overage_notice(account, event, tz);
+        return overage_notice(account, event, tz, private);
     }
     if matches!(
         event.kind,
         AlertKind::PoolExhausted | AlertKind::PoolRecovered
     ) {
-        return pool_notice(account, event, now, tz);
+        return pool_notice(account, event, now, tz, private);
     }
     if matches!(
         event.kind,
@@ -2240,6 +2240,28 @@ where
     );
     let (window, _) = window_param(event.window, label);
     let title = match (event.kind, known_window) {
+        // PRD 0008 re-validation (S-02): a windowless title names the metric
+        // label, which private texts never show.
+        (AlertKind::Threshold, false) if private => Localized::with_params(
+            "alerts.title.threshold_metric.private",
+            params([
+                ("provider", provider.into()),
+                ("percent", percent.as_str().into()),
+            ]),
+            "{provider}: {percent}% of a quota used",
+        ),
+        (AlertKind::Exhausted, false) if private => Localized::with_param(
+            "alerts.title.exhausted_metric.private",
+            "provider",
+            provider,
+            "{provider}: a quota is at the limit",
+        ),
+        (AlertKind::Recovered, false) if private => Localized::with_param(
+            "alerts.title.recovered_metric.private",
+            "provider",
+            provider,
+            "{provider}: a quota is available again",
+        ),
         (AlertKind::Threshold, true) => Localized::with_params(
             "alerts.title.threshold",
             params([
@@ -2453,17 +2475,20 @@ where
 
 /// PRD 0023 RF4.5: "Claude: extra usage started · $0.40 so far" with
 /// "Work · billing cycle ends 2026-11-01". Only the provider, the account
-/// name, the amount and the cycle date.
-fn overage_notice<Tz>(account: &Account, event: &AlertEvent, tz: &Tz) -> Notice
+/// name, the amount and the cycle date. Private (PRD 0032 RF7, PRD 0008
+/// re-validation S-01): no account name and no amount.
+fn overage_notice<Tz>(account: &Account, event: &AlertEvent, tz: &Tz, private: bool) -> Notice
 where
     Tz: TimeZone,
     Tz::Offset: Display,
 {
     let provider = provider_l10n(account.provider);
-    let title = match (
-        event.kind,
-        event.overage.as_ref().and_then(OverageExport::amount),
-    ) {
+    let amount = event
+        .overage
+        .as_ref()
+        .and_then(OverageExport::amount)
+        .filter(|_| !private);
+    let title = match (event.kind, amount) {
         (AlertKind::OverageStarted, Some(amount)) => Localized::with_params(
             "alerts.title.overage_started",
             params([("provider", provider.into()), ("amount", amount)]),
@@ -2483,6 +2508,13 @@ where
         ),
     };
     let body = match event.resets_at {
+        Some(at) if private => Localized::with_param(
+            "alerts.body.overage.private",
+            "at",
+            at.with_timezone(tz).format("%Y-%m-%d").to_string(),
+            "Billing cycle ends {at}",
+        ),
+        None if private => details_private(),
         Some(at) => {
             let at = at.with_timezone(tz).format("%Y-%m-%d").to_string();
             Localized::with_params(
@@ -2505,14 +2537,51 @@ where
 }
 
 /// PRD 0036 RF6.4: "9router · Claude: all accounts exhausted" with "Home:
-/// one returns 19:30", or "… available again".
-fn pool_notice<Tz>(account: &Account, event: &AlertEvent, now: DateTime<Utc>, tz: &Tz) -> Notice
+/// one returns 19:30", or "… available again". Private (PRD 0032 RF7, PRD
+/// 0008 re-validation S-01): no pool label and no account name.
+fn pool_notice<Tz>(
+    account: &Account,
+    event: &AlertEvent,
+    now: DateTime<Utc>,
+    tz: &Tz,
+    private: bool,
+) -> Notice
 where
     Tz: TimeZone,
     Tz::Offset: Display,
 {
     let provider = provider_l10n(account.provider);
     let pool = event.label.as_str();
+    let returns_at = event
+        .resets_at
+        .filter(|_| event.kind == AlertKind::PoolExhausted);
+    if private {
+        let title = if event.kind == AlertKind::PoolExhausted {
+            Localized::with_param(
+                "alerts.title.pool_exhausted.private",
+                "provider",
+                provider,
+                "{provider}: a shared pool is exhausted",
+            )
+        } else {
+            Localized::with_param(
+                "alerts.title.pool_recovered.private",
+                "provider",
+                provider,
+                "{provider}: a shared pool is available again",
+            )
+        };
+        let body = match returns_at {
+            Some(at) => Localized::with_param(
+                "alerts.body.pool_returns.private",
+                "at",
+                local_time(at, now, tz),
+                "One account returns {at}",
+            ),
+            None => details_private(),
+        };
+        return Notice { title, body };
+    }
     let title = if event.kind == AlertKind::PoolExhausted {
         Localized::with_params(
             "alerts.title.pool_exhausted",
@@ -2526,10 +2595,7 @@ where
             "{provider} · {pool}: an account is available again",
         )
     };
-    let body = match event
-        .resets_at
-        .filter(|_| event.kind == AlertKind::PoolExhausted)
-    {
+    let body = match returns_at {
         Some(at) => {
             let at = local_time(at, now, tz);
             Localized::with_params(
