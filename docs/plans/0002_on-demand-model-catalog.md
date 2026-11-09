@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0002 |
-| Status | Implemented (RF1 to RF6 in 0.8.0 to 0.14.0; RF1.2 notice lifetime in 0.80.0; extended by PRD 0028 RF10 in 0.81.0; re-validation fixes in vNEXT, see the tables) |
+| Status | Implemented (RF1 to RF6 in 0.8.0 to 0.14.0; RF1.2 notice lifetime in 0.80.0; extended by PRD 0028 RF10 in 0.81.0; re-validation fixes in 0.84.2, see the tables) |
 | Owner | `cuotai-core`, TUI and desktop |
 | Consumers | `crates/cuotai-tui`, `apps/desktop` |
 | Extended by | PRD 0028 (RF10: model listing gated on evidence, removal of the static 9router lists in `providers/builtin_models.rs` that contradict §4, and of the Copilot token exchange), PRD 0036 (9router and aggregator providers), PRD 0038 (one more verified model-catalog adapter) |
@@ -23,13 +23,13 @@ All RFs were implemented in the core, the TUI and the desktop app, one at a time
 | RF4 | 0.11.0 | Verified adapters (Groq, AWS Bedrock, Antigravity, Gemini AI Studio, Kimi, Poolside, Alibaba Model Studio intl), bounded pagination and the matrix of the 36 providers in `docs/providers.md`. |
 | RF5 | 0.12.0 | Models section in the TUI (details and wizard with a configured account), local search and manual sync. |
 | RF6 | 0.13.0 | Models section in the desktop app (details, popover and account dialog), accessible search, manual sync and discarding of results for an old identity. |
-| Re-validation | vNEXT | The fixes of the 2026-11-08 re-validation, listed below. |
+| Re-validation | 0.84.2 | The fixes of the 2026-11-08 re-validation, listed below. |
 
 Sections 1 and 2 describe the situation of 2026-10-16, before the implementation. The first set of RF4.1 adapters was extended with Gemini AI Studio, Kimi, Poolside and Alibaba Model Studio (intl), each verified against an official source.
 
 ### Re-validation (2026-11-08)
 
-A serial re-validation of the delivered plan (visual, security and review passes against v0.84.1) found three medium and twelve low findings, all fixed in vNEXT:
+A serial re-validation of the delivered plan (visual, security and review passes against v0.84.1) found three medium and twelve low findings, all fixed in 0.84.2:
 
 | ID | Severity | RF | Fix |
 |---|---|---|---|
@@ -104,7 +104,7 @@ It is not possible to discover and search the models available to an account in 
 ### RF4 — Verified adapters and limitations (high priority)
 
 - **RF4.1** Enable the list only for a read-only endpoint with a proven credential, product, region, permissions, cost and semantics. The first set of contracts to implement/test: Groq (`/openai/v1/models`, already used for headers), Bedrock by profile/region (`aws bedrock list-foundation-models`, different from Cost Explorer) and Antigravity only where `fetchAvailableModels` returns a catalog. **Before enabling each one**, validate that the configured credential gives access. Do not add a call to the existing quota refresh.
-- **RF4.2** Evaluate Gemini AI Studio only with a Gemini API key; `models.list` is paginated and the key is not to be confused with a Cloud Monitoring/CLI token. Do not assume that OpenAI/Anthropic admin keys, Azure or subscription tokens list inference models. For the rest, investigate the endpoint and scope; with no evidence, `Unsupported` with a reason and zero network. Publish the matrix of the 36 `Provider::ALL` with status and source in `docs/providers.md` at implementation. (Superseded: `Provider::ALL` now holds 42 providers, and since the 2026-11-08 re-validation, vNEXT, no admin, management or analytics key is sent to a listing, see "Re-validation".)
+- **RF4.2** Evaluate Gemini AI Studio only with a Gemini API key; `models.list` is paginated and the key is not to be confused with a Cloud Monitoring/CLI token. Do not assume that OpenAI/Anthropic admin keys, Azure or subscription tokens list inference models. For the rest, investigate the endpoint and scope; with no evidence, `Unsupported` with a reason and zero network. Publish the matrix of the 36 `Provider::ALL` with status and source in `docs/providers.md` at implementation. (Superseded: `Provider::ALL` now holds 42 providers, and since the 2026-11-08 re-validation, 0.84.2, no admin, management or analytics key is sent to a listing, see "Re-validation".)
 - **RF4.3** Paginate to completion with a page limit and repeated-token detection; an incomplete schema/page rejects the sync without overwriting the cache. Deduplicate IDs and sort for presentation without changing the real IDs. Errors do not show bodies, headers, tokens or sensitive URLs.
 - **Acceptance criterion:** local HTTP/CLI fixtures cover a full list, pagination, an invalid/incomplete page, 401/403/429, distinct region/product/credential and `Unsupported`; no adapter invents a list from metrics. [Gemini models.list](https://ai.google.dev/api/models) and [Bedrock ListFoundationModels](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_ListFoundationModels.html) document their contracts; they do not guarantee access to the user's account.
 
