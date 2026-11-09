@@ -82,7 +82,10 @@ pub(crate) fn backup(
         Ok(bundle) => bundle,
         Err(error) => return fail(error),
     };
-    if let Err(error) = bundle::write_file(out, &bundle.to_zip()) {
+    // The backup never replaces Cuotai's own files (the accounts TOML, the
+    // history, the data and configuration folders).
+    let protected = cuotai_core::output_file::Protected::system(Some(&locations.config));
+    if let Err(error) = bundle::write_file(out, &bundle.to_zip(), &protected) {
         return fail(error);
     }
     if bundle.history_bytes() > bundle::HISTORY_WARN_BYTES {

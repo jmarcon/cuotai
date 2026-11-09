@@ -1221,7 +1221,8 @@ pub async fn run(
                                 .get(index)
                                 .map(|account| (index, account.display_name().into_owned()))
                         });
-                    history_actions = Some(HistoryActions::new(mode, account));
+                    history_actions =
+                        Some(HistoryActions::new(mode, account, Some(&file.path)));
                 }
                 Command::Models => {
                     if let Some(index) = state.selected_account(&cycle_slot_reports(&refresh_cycle))

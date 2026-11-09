@@ -74,6 +74,9 @@ pub enum BundleError {
     Io { path: String },
     /// A file changed between the plan and the write.
     Conflict { path: String },
+    /// The backup target is one of Cuotai's own files or folders, a folder
+    /// or a special file ([`crate::output_file`]); nothing was written.
+    Target,
 }
 
 impl BundleError {
@@ -116,6 +119,10 @@ impl BundleError {
                 "path",
                 path.as_str(),
                 "{path} changed while the restore ran; run it again.",
+            ),
+            Self::Target => Localized::fixed(
+                "bundle.error.target",
+                "Cuotai does not write a backup over its own history, settings or data files, nor over a folder; choose another file.",
             ),
         }
     }
@@ -609,9 +616,32 @@ impl Bundle {
     }
 }
 
-/// Write `bytes` to `path` atomically, as a private file.
-pub fn write_file(path: &Path, bytes: &[u8]) -> Result<(), BundleError> {
-    replace(path, bytes, None, true)
+/// Write the backup `bytes` to `path` through [`crate::output_file`]: a
+/// target inside `protected` (Cuotai's own files and folders), a folder or
+/// a special file is refused ([`BundleError::Target`]); otherwise a private
+/// temporary file is renamed over it, so the file ends `0600` on Unix even
+/// when it existed, a symbolic link there is replaced rather than followed,
+/// and a failure leaves the previous file intact. The folder is created
+/// when missing.
+pub fn write_file(
+    path: &Path,
+    bytes: &[u8],
+    protected: &crate::output_file::Protected,
+) -> Result<(), BundleError> {
+    use crate::output_file::WriteError;
+    let io = || BundleError::Io {
+        path: home_relative(path),
+    };
+    crate::output_file::check::<()>(path, protected).map_err(|_| BundleError::Target)?;
+    if let Some(dir) = path.parent().filter(|dir| !dir.as_os_str().is_empty()) {
+        std::fs::create_dir_all(dir).map_err(|_| io())?;
+    }
+    crate::output_file::write(path, protected, |out| out.write_all(bytes)).map_err(|error| {
+        match error {
+            WriteError::Refused => BundleError::Target,
+            WriteError::Io | WriteError::Content(_) => io(),
+        }
+    })
 }
 
 /// Replace `path` with `bytes` through a synced temporary file in the same
