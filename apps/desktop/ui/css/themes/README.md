@@ -51,24 +51,28 @@ mode), "uot" takes the theme's text color and "AI" the logo's pink (`#ff79c6` da
 modes points `:root[data-theme="<id>"] .topbar .wm-c` at a brighter arc variant and turns `.wm-ai` white (Windows 98 uses
 `img/logo-on-dark.svg`, Windows XP `img/logo-on-color.svg`). The product name in text stays "Cuotai".
 
-Motion (optional; defaults live in `themes.css`, user themes inherit them):
+Motion (optional; defaults live in `themes.css`, user themes inherit them; the rules are `docs/design-system.md` section 7):
 
 | Token | Default | Use |
 |---|---|---|
-| `--motion-fast` | `150ms` | hover, focus, color changes |
-| `--motion-base` | `250ms` | switch, entrances, dialogs |
-| `--motion-slow` | `400ms` | quota bars and the tray ring |
-| `--motion-spin` | `900ms` | one turn of the refresh-in-progress icon |
-| `--ease-out` | `cubic-bezier(0.22, 1, 0.36, 1)` | default exit curve |
-| `--ease-spring` | `linear(…)` (fallback `cubic-bezier(0.34, 1.56, 0.64, 1)`) | short spring (switch) |
+| `--motion-fast` | `120ms` | hover, focus, color changes, chevrons and switch knobs, the theme and language cross-fade |
+| `--motion-base` | `180ms` | disclosures, view switches, the dialog fade, the FLIP of a card the user moved |
+| `--motion-slow` | `var(--motion-base)` | deprecated alias, kept for older themes |
+| `--motion-spin` | `900ms` | one turn of the refresh-in-progress icon, the only loop |
+| `--ease-out` | `cubic-bezier(0.22, 1, 0.36, 1)` | the one easing curve |
+| `--ease-spring` | `var(--ease-out)` | deprecated alias, kept for older themes |
 
-Retro themes may override them (Win98 uses `steps()`; the CRT uses `0ms`). Always use the tokens, never fixed durations.
-The dashboard effects (`js/motion.js`) derive from these tokens: entrance, FLIP, exit and the chip pulse use `--motion-base`;
-the percentage counting, the "shake" on exhaustion and the level highlight (1.5 × `--motion-slow`) use `--motion-slow`; the button
-spin and the "Waiting" shimmer (2 × `--motion-spin`) use `--motion-spin`. A token at `0ms` = the effect is off.
+A theme may only **lower** these durations or use `steps()` (Win98 uses `steps()`; the CRT uses `0ms`), never raise them
+(DS-MOT-8), and defines no `@keyframes` or `animation` of its own (only `spin` exists, in `main.css`).
+`scripts/test-motion-ui.mjs` checks the built-in themes. A user theme's time value must be between 0 and 2 s or it is
+refused, and the app never runs a dialog or card motion longer than 200 ms whatever the theme sets (DS-MOT-3). Data
+changes never animate: there is no entrance, exit, count-up, flash, shake, pulse or shimmer; a changed value gets a
+static marker instead (DS-MOT-10). What `js/motion.js` runs is the dialog's opacity fade (`--motion-base`), the FLIP of
+a card the user moved (`--motion-base`) and the cross-fade of a theme or language switch (`--motion-fast`); the refresh
+spinner is CSS (`--motion-spin`). A token at `0ms` turns its effect off.
 With `data-motion="reduced"`/`"off"` on `<html>` (Settings › General › Animations) or with
-`prefers-reduced-motion: reduce` (except `data-motion="always"`), `themes.css` forces the durations to `0ms`
-with `!important`, overriding the theme.
+`prefers-reduced-motion: reduce` (except a profile that still has `data-motion="always"`, no longer offered),
+`themes.css` forces the durations to `0ms` with `!important`, overriding the theme.
 
 ## Quality rules
 

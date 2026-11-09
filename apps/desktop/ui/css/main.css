@@ -304,8 +304,7 @@
 .card-foot .chg {
   margin-right: var(--space-1);
 }
-/* RF2.3: "Waiting" account — skeleton with shimmer (transform only; stops with the window hidden and with
-   movimento reduzido/desligado, onde --motion-spin é 0) */
+/* RF2.3: "Waiting" account: a static skeleton (no shimmer, DS-MOT-5) */
 .skeleton .sk {
   position: relative;
   display: block;
