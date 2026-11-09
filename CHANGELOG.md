@@ -13,6 +13,17 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.84.7] - 2026-11-09
+
+### Fixed
+
+- The consumption pace of a Claude Code or Codex CLI reading is now computed at the time of that reading, and it is hidden once the reading is no longer fresh (PRD 0007 RF1; PRD 0024 FIX-11; PRD 0040 RF3; c3d166d).
+- Inside the on-pace band the pace chip now reads On pace instead of a small point count, and a terminal card drops the chip instead of cutting it when it does not fit (PRD 0007 RF4.1; PRD 0024 RF1.1; fd3fda1).
+- The --once output now prints the pace under each aggregator connection and shows reset times in local time (PRD 0007 RF4.2; PRD 0036 RF9.1; a7f1bb6).
+- The tray and the account details now use the same pace arrows as the cards and the terminal, and pace tooltips no longer repeat the stage (PRD 0007 RF3.2, RF3.3; 7b36a10).
+- Claude's 5-hour and weekly limits are now named in your language instead of Portuguese, in the app and in notifications (PRD 0034 RF2; PRD 0007 RF2.1; e08dab3).
+- A Claude Code or Codex CLI reading dated in the future is now ignored instead of being taken as the newest (PRD 0040 RF1.3; 700c06e).
+
 ## [0.84.6] - 2026-11-09
 
 ### Fixed
@@ -650,7 +661,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.84.6...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.84.7...HEAD
+[0.84.7]: https://github.com/jmarcon/cuotai/compare/v0.84.6...v0.84.7
 [0.84.6]: https://github.com/jmarcon/cuotai/compare/v0.84.5...v0.84.6
 [0.84.5]: https://github.com/jmarcon/cuotai/compare/v0.84.4...v0.84.5
 [0.84.4]: https://github.com/jmarcon/cuotai/compare/v0.84.3...v0.84.4
