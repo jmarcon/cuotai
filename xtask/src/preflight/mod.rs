@@ -29,6 +29,22 @@ const SKIP_VARIABLE: &str = "CUOTAI_SKIP";
 const DESKTOP_MANIFEST: &str = "apps/desktop/src-tauri/Cargo.toml";
 const DEFAULT_BASE: &str = "origin/main";
 const NO_VERIFY_NOTE: &str = "`--no-verify` bypasses a hook entirely, and CI still applies.";
+/// The record of the last `--push` run that passed, under the worktree's own
+/// git directory (`git rev-parse --git-path`).
+const PASS_RECORD: &str = "cuotai-preflight-push";
+/// How long the pre-push hook may hold git's connection. Git opens the
+/// connection to the remote before it runs the hook and writes the pack to
+/// it afterwards; the server closes an idle connection after a few minutes,
+/// and git then dies of SIGPIPE (exit 141) without pushing and without a
+/// message. A hook run longer than this stops the push itself, with the pass
+/// recorded, so the next `git push` is instant. Measured on 2026-11-09:
+/// GitHub closed an idle SSH push connection after 361 seconds ("Connection
+/// to github.com closed by remote host"); five minutes leaves room for the
+/// pack.
+const HOOK_WINDOW: Duration = Duration::from_secs(300);
+/// Set by `.githooks/pre-push` to the Unix time the hook started, so the
+/// window also counts building xtask and reading the refs.
+const HOOK_STARTED_VARIABLE: &str = "CUOTAI_HOOK_STARTED";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mode {
@@ -873,12 +889,178 @@ pub fn run(args: &[String]) -> Res<()> {
         dry_run(&context, &plan, &skipped);
         return Ok(());
     }
-    execute(&context, &plan, &skipped)
+    // A `--push` that already passed for exactly these commits, this base
+    // and a clean tree is not run again: `cargo xtask preflight --push`
+    // followed by `git push` keeps the hook instant.
+    let record = (mode == Mode::Push && skipped.is_empty())
+        .then(|| pass_record(&context, &plan))
+        .flatten();
+    if let Some((path, key)) = &record {
+        if std::fs::read_to_string(path).is_ok_and(|saved| saved == *key) {
+            println!(
+                "preflight --push: these commits already passed against {} on a clean tree; \
+                 nothing to run again",
+                context.base
+            );
+            return Ok(());
+        }
+    }
+    let started = Instant::now();
+    execute(&context, &plan, &skipped)?;
+    if let Some((path, key)) = &record {
+        // Best effort: without the record the next push only runs again.
+        let _ = std::fs::write(path, key);
+    }
+    if stdin_refs {
+        hook_window(hook_elapsed(started), record.is_some())?;
+    }
+    Ok(())
+}
+
+/// Time since the hook started ([`HOOK_STARTED_VARIABLE`]), or since `started`
+/// when the variable is missing or malformed.
+fn hook_elapsed(started: Instant) -> Duration {
+    let since_hook = std::env::var(HOOK_STARTED_VARIABLE)
+        .ok()
+        .and_then(|value| value.trim().parse::<u64>().ok())
+        .and_then(|start| {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .ok()?
+                .as_secs();
+            now.checked_sub(start).map(Duration::from_secs)
+        });
+    since_hook.map_or_else(|| started.elapsed(), |hook| hook.max(started.elapsed()))
+}
+
+/// Where the last passing `--push` is recorded and the key of this run: the
+/// head and base commits and the selected steps. `None` (no record) when the
+/// tree has uncommitted changes, since the checks then saw files the commits
+/// do not hold, or when a commit cannot be resolved.
+fn pass_record(context: &Context, plan: &Plan) -> Option<(PathBuf, String)> {
+    let status = git::run(&context.root, &["status", "--porcelain"]).ok()?;
+    if !status.trim().is_empty() {
+        return None;
+    }
+    let resolve = |reference: &str| {
+        git::run(
+            &context.root,
+            &["rev-parse", "--verify", "--quiet", reference],
+        )
+        .ok()
+        .map(|sha| sha.trim().to_string())
+    };
+    let key = record_key(
+        &resolve(&context.head)?,
+        &resolve(&context.base)?,
+        &plan.steps,
+    );
+    let path = git::run(&context.root, &["rev-parse", "--git-path", PASS_RECORD]).ok()?;
+    let path = PathBuf::from(path.trim());
+    let path = if path.is_absolute() {
+        path
+    } else {
+        context.root.join(path)
+    };
+    Some((path, key))
+}
+
+/// The content of the pass record for `head` checked against `base` with
+/// `steps`.
+pub fn record_key(head: &str, base: &str, steps: &[Step]) -> String {
+    let steps: Vec<_> = steps.iter().map(|step| step.id()).collect();
+    format!("v1 {head} {base} {}\n", steps.join(","))
+}
+
+/// The pre-push hook's answer after its checks passed in `elapsed`: past
+/// [`HOOK_WINDOW`] git's connection has most likely been closed by the
+/// server, and letting git go on ends in a silent SIGPIPE (exit 141) with
+/// nothing pushed, so the hook stops the push with what to do instead.
+pub fn hook_window(elapsed: Duration, recorded: bool) -> Res<()> {
+    if elapsed <= HOOK_WINDOW {
+        return Ok(());
+    }
+    let again = if recorded {
+        "Run `git push` again: the pass is recorded, so the hook will not run the checks again."
+    } else {
+        "Commit or stash the uncommitted changes, then run `cargo xtask preflight --push` and \
+         `git push` (the pass is recorded only for a clean tree), or push with `--no-verify`."
+    };
+    err(format!(
+        "preflight --push: every check passed, but they took {}. Git opened its connection to \
+         the remote before running this hook, and the server has most likely closed it by now: \
+         going on would end in SIGPIPE (exit 141) with nothing pushed. {again}",
+        clock(elapsed)
+    ))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The pre-push hook stops a long run itself instead of letting git die
+    /// of SIGPIPE on a connection the server closed (exit 141, nothing
+    /// pushed), and says how to push.
+    #[test]
+    fn a_long_hook_run_stops_the_push_with_what_to_do() {
+        assert!(hook_window(Duration::from_secs(5), true).is_ok());
+        assert!(hook_window(HOOK_WINDOW, true).is_ok());
+        let late = HOOK_WINDOW + Duration::from_secs(1);
+        let recorded = hook_window(late, true).unwrap_err().to_string();
+        assert!(recorded.contains("every check passed"), "{recorded}");
+        assert!(recorded.contains("SIGPIPE (exit 141)"), "{recorded}");
+        assert!(recorded.contains("Run `git push` again"), "{recorded}");
+        let dirty = hook_window(late, false).unwrap_err().to_string();
+        assert!(dirty.contains("--no-verify"), "{dirty}");
+    }
+
+    /// The pass record names the commits, the base and the steps, and only
+    /// a clean tree is recorded, under the worktree's git directory.
+    #[test]
+    fn a_pass_is_recorded_only_for_a_clean_tree() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = dir.path();
+        let git = |args: &[&str]| {
+            let status = Command::new("git")
+                .arg("-C")
+                .arg(repo)
+                .args(args)
+                .env_remove("GIT_DIR")
+                .env_remove("GIT_INDEX_FILE")
+                .env_remove("GIT_WORK_TREE")
+                .stdout(Stdio::null())
+                .status()
+                .unwrap();
+            assert!(status.success(), "git {args:?}");
+        };
+        git(&["init", "-q", "-b", "main"]);
+        git(&["config", "user.name", "Octo"]);
+        git(&["config", "user.email", "octo@users.noreply.github.com"]);
+        git(&["config", "commit.gpgsign", "false"]);
+        std::fs::write(repo.join("a.txt"), "a\n").unwrap();
+        git(&["add", "a.txt"]);
+        git(&["commit", "-q", "-m", "chore: start"]);
+        let context = Context {
+            root: repo.to_path_buf(),
+            base: "main".into(),
+            ..context(Mode::Push, &[])
+        };
+        let plan = Plan {
+            steps: vec![Step::Fmt, Step::Test],
+            packages: Vec::new(),
+        };
+        let (path, key) = pass_record(&context, &plan).expect("clean tree");
+        let sha = git::run(repo, &["rev-parse", "HEAD"]).unwrap();
+        assert_eq!(key, record_key(sha.trim(), sha.trim(), &plan.steps));
+        assert!(key.ends_with(" fmt,test\n"), "{key}");
+        assert!(path.starts_with(repo.join(".git")), "{}", path.display());
+        std::fs::write(repo.join("a.txt"), "changed\n").unwrap();
+        assert_eq!(
+            pass_record(&context, &plan),
+            None,
+            "a dirty tree is not recorded"
+        );
+    }
 
     fn args(list: &[&str]) -> Vec<String> {
         list.iter().map(|arg| arg.to_string()).collect()
