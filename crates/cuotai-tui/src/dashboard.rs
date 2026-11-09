@@ -55,7 +55,7 @@ fn resolve_card_l10n(value: &cuotai_core::text::Localized) -> String {
     resolve_l10n(value)
 }
 
-// Dracula palette: background, foreground, selection, muted, and status accents.
+// Palette roles (Dracula, remapped on light terminals by `palette::finish`).
 const BG: Color = palette::BG;
 const FG: Color = palette::FG;
 const MUTED: Color = palette::MUTED;
@@ -2541,7 +2541,7 @@ fn render_gauge(
         .gauge_style(style)
         .label(Span::styled(
             label_text,
-            Style::default().bg(bar_color).fg(BG),
+            Style::default().bg(bar_color).fg(palette::ON_FILL),
         ));
     frame.render_widget(gauge, chunks[0]);
     if has_reset {
@@ -3935,6 +3935,82 @@ mod tests {
     /// keep the legacy fixture builders.
     fn reports_of(snapshot: &Snapshot) -> Vec<Option<Report>> {
         snapshot.reports.iter().cloned().map(Some).collect()
+    }
+
+    /// V-01/V-02 (PRD 0004 re-validation): the gauge percentage is drawn in
+    /// the fill's own ink, never the terminal's default foreground, in both
+    /// palettes.
+    #[test]
+    fn gauge_labels_use_the_on_fill_ink_in_both_palettes() {
+        let accounts = three_accounts();
+        let snapshot = ready_snapshot();
+        let reports = reports_of(&snapshot);
+        let visible = visible_indices(&accounts, &reports, "", true);
+        let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
+        terminal
+            .draw(|frame| {
+                draw(
+                    frame,
+                    View {
+                        accounts: &accounts,
+                        reports: &reports,
+                        model_counts: &[],
+                        live: &[],
+                        visible: &visible,
+                        selected: None,
+                        details: false,
+                        detail_scroll: 0,
+                        show_unmeasured: true,
+                        refreshing: false,
+                        location: "",
+                        filter: "",
+                        filtering: false,
+                        next_refresh: None,
+                        error: None,
+                        anim: None,
+                        last_good: &[],
+                        recent: &[],
+                        refresh_seconds: 300,
+                        history: None,
+                        banner: None,
+                        incidents: &[],
+                        local_cost: None,
+                        sub_cards: &[],
+                        aggregators_collapsed: false,
+                        connection_focus: None,
+                        access_account: None,
+                        now: Utc::now(),
+                    },
+                );
+            })
+            .unwrap();
+        let mut buffer = terminal.backend().buffer().clone();
+        let fills = [GREEN, YELLOW, RED];
+        let labels = |buffer: &ratatui::buffer::Buffer, fills: &[Color]| {
+            let area = buffer.area;
+            (area.top()..area.bottom())
+                .flat_map(|y| (area.left()..area.right()).map(move |x| (x, y)))
+                // Glyphs on a level fill (a blank cell has no ink to read).
+                .filter(|&(x, y)| {
+                    fills.contains(&buffer[(x, y)].bg) && !buffer[(x, y)].symbol().trim().is_empty()
+                })
+                .map(|(x, y)| buffer[(x, y)].fg)
+                .collect::<Vec<_>>()
+        };
+        let dark = labels(&buffer, &fills);
+        assert!(!dark.is_empty(), "the fixture draws at least one gauge");
+        assert!(dark.iter().all(|fg| *fg == palette::ON_FILL), "{dark:?}");
+
+        palette::lighten(&mut buffer);
+        let light_fills = fills.map(palette::light);
+        let light = labels(&buffer, &light_fills);
+        assert_eq!(light.len(), dark.len());
+        assert!(
+            light
+                .iter()
+                .all(|fg| *fg == palette::light(palette::ON_FILL) && *fg != Color::Reset),
+            "{light:?}"
+        );
     }
 
     #[test]
