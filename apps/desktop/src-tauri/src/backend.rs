@@ -49,6 +49,13 @@ use std::{
 use tauri::{async_runtime::Mutex, AppHandle, Emitter};
 use tokio::sync::{mpsc, oneshot};
 
+/// PRD 0006 RF4.4: what a history export wrote, and where.
+#[derive(Debug, Serialize, PartialEq, Eq)]
+pub struct Exported {
+    pub rows: usize,
+    pub path: String,
+}
+
 pub(crate) fn l10n_to_json(note: &cuotai_core::text::Localized) -> String {
     serde_json::to_string(note).unwrap_or_else(|_| note.fallback.to_string())
 }
@@ -4855,34 +4862,48 @@ impl Backend {
         Ok((store, accounts))
     }
 
-    /// PRD 0006 RF4.4: write the history of account `index` (every account
-    /// with `None`) of the last `days` days (1 to 365; everything with
-    /// `None`) to the absolute `path` the user chose, in `format`, through
-    /// the core's one export writer: private (0600 on Unix), atomic, and
-    /// never over Cuotai's own files or folders. Returns the rows written.
+    /// PRD 0006 RF4.4 / PRD 0050 RF9: write the history of account `index`
+    /// (every account with `None`) of the last `days` days (1 to 365;
+    /// everything with `None`) in `format` to the file the person picks in
+    /// the native save dialog `picker` shows (the webview never supplies a
+    /// path), through the core's one export writer: private (0600 on Unix),
+    /// atomic, and never over Cuotai's own files or folders. The period and
+    /// the scope are checked before the dialog opens. `None` when the person
+    /// cancels: nothing is written.
     pub async fn history_export(
         &self,
+        picker: &dyn crate::file_dialog::FilePicker,
         index: Option<usize>,
         generation: Option<u64>,
         days: Option<u32>,
         format: ExportFormat,
-        path: PathBuf,
-    ) -> Result<usize, String> {
+    ) -> Result<Option<Exported>, String> {
         use cuotai_core::history::{HistoryError, HistoryStore};
         let export_error = || l10n_to_json(&HistoryError::Export.l10n());
-        if !path.is_absolute() {
-            return Err(export_error());
-        }
         let start = HistoryStore::export_start(days, chrono::Utc::now())
             .map_err(|error| l10n_to_json(&error.l10n()))?;
         let (store, accounts) = self.history_scope(index, generation).await?;
+        let extension = format.extension();
+        let request = crate::file_dialog::SaveRequest {
+            name: format!("cuotai-history.{extension}"),
+            filter: extension.to_uppercase(),
+            extension: extension.to_owned(),
+        };
+        let Some(path) = picker.save(request).await else {
+            return Ok(None);
+        };
+        if !path.is_absolute() {
+            return Err(export_error());
+        }
         let protected = self.export_protected().await;
-        tauri::async_runtime::spawn_blocking(move || {
+        let shown = path.display().to_string();
+        let rows = tauri::async_runtime::spawn_blocking(move || {
             store.export_to_file(&accounts, start, format, &path, &protected)
         })
         .await
         .map_err(|_| export_error())?
-        .map_err(|error| l10n_to_json(&error.l10n()))
+        .map_err(|error| l10n_to_json(&error.l10n()))?;
+        Ok(Some(Exported { rows, path: shown }))
     }
 
     /// What a history export may never replace: Cuotai's folders, the
@@ -10010,6 +10031,8 @@ mod tests {
     /// outside 1 to 365 days without writing.
     #[tokio::test]
     async fn history_export_refuses_its_own_store_and_bad_days_and_writes_privately() {
+        // security-invariant: SEC-FILE-DIALOG
+        use crate::file_dialog::tests::FakePicker;
         let backend = build_backend(
             Arc::new(MemoryStore::default()),
             vec![plain_account("alpha")],
@@ -10030,8 +10053,15 @@ mod tests {
             let monitor = l.monitor.with_config(l.file.config.clone()).unwrap();
             l.monitor = Arc::new(monitor.with_history(store));
         }
+        // A dialog pointed at the history itself is refused.
         let refused = b
-            .history_export(None, None, None, ExportFormat::Csv, db.clone())
+            .history_export(
+                &FakePicker::new(Some(db.clone())),
+                None,
+                None,
+                None,
+                ExportFormat::Csv,
+            )
             .await
             .unwrap_err();
         assert!(refused.contains("history.error.export_target"), "{refused}");
@@ -10040,27 +10070,49 @@ mod tests {
             "no path: {refused}"
         );
 
+        // A bad period is refused before any dialog opens.
         let out = dir.path().join("export.csv");
         for days in [0, 366, u32::MAX] {
+            let picker = FakePicker::new(Some(out.clone()));
             let error = b
-                .history_export(None, None, Some(days), ExportFormat::Csv, out.clone())
+                .history_export(&picker, None, None, Some(days), ExportFormat::Csv)
                 .await
                 .unwrap_err();
             assert!(
                 error.contains("history.error.export_days"),
                 "{days}: {error}"
             );
+            assert!(picker.asked.lock().unwrap().is_empty());
             assert!(!out.exists());
         }
+
+        // Cancel writes nothing.
+        let cancelled = b
+            .history_export(
+                &FakePicker::new(None),
+                None,
+                None,
+                Some(7),
+                ExportFormat::Json,
+            )
+            .await
+            .unwrap();
+        assert_eq!(cancelled, None);
+        assert!(!out.exists());
+
         std::fs::write(&out, "old").unwrap();
         #[cfg(unix)]
         std::fs::set_permissions(&out, std::os::unix::fs::PermissionsExt::from_mode(0o644))
             .unwrap();
-        let rows = b
-            .history_export(None, None, Some(1), ExportFormat::Csv, out.clone())
+        let picker = FakePicker::new(Some(out.clone()));
+        let done = b
+            .history_export(&picker, None, None, Some(1), ExportFormat::Csv)
             .await
+            .unwrap()
             .unwrap();
-        assert_eq!(rows, 0);
+        assert_eq!(done.rows, 0);
+        assert_eq!(done.path, out.display().to_string());
+        assert_eq!(picker.asked.lock().unwrap()[0].name, "cuotai-history.csv");
         assert_ne!(std::fs::read_to_string(&out).unwrap(), "old");
         #[cfg(unix)]
         {

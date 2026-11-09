@@ -123,8 +123,17 @@ assert.equal(data.viewChanged({ generation: 2 }, { generation: 1 }), true);
 assert.equal(data.viewChanged({ generation: 2 }, { generation: 2 }), false);
 const live = (await lib.getView()).generation;
 await assert.rejects(lib.historyErase(0, live + 1), (e) => e === lib.STALE, "an erase of another generation must be refused");
-await assert.rejects(lib.historyExport(0, null, "csv", "/tmp/x.csv"), (e) => e === lib.STALE, "an export without its generation must be refused");
-assert.equal(await lib.historyExport(null, null, "csv", "/tmp/x.csv"), 42, "every account needs no generation");
+await assert.rejects(lib.historyExport(0, null, "csv"), (e) => e === lib.STALE, "an export without its generation must be refused");
+assert.equal((await lib.historyExport(null, null, "csv")).rows, 42, "every account needs no generation");
+// PRD 0050 RF9: the shell opens the save, open and restore dialogs itself; no path crosses from the webview.
+{
+  const libSource = await readFile(new URL("../apps/desktop/ui/js/lib.js", import.meta.url), "utf8");
+  for (const command of ["history_export", "backup_write", "restore_plan", "restore_apply"]) {
+    const call = libSource.match(new RegExp(`call\\("${command}"[^)]*\\)`))?.[0] ?? "";
+    assert.ok(call && !/\bpath\b/.test(call), `${command} must not send a path: ${call}`);
+  }
+  assert.ok(!libSource.includes("T.dialog.save"), "the webview must not open a save dialog");
+}
 assert.equal(await lib.historyErase(0, live), 7);
 
 // RF1.5: the browser demo opens settings.html in one named window, with the page and anchor in the query.

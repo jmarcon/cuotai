@@ -5,6 +5,7 @@ mod autostart;
 mod backend;
 mod desk_text;
 mod erase_data;
+mod file_dialog;
 mod hooks;
 mod local_cost;
 mod local_server;
@@ -517,15 +518,40 @@ async fn backup_preview(with_history: bool) -> Result<BackupView, String> {
     .map_err(|_| "unexpected".to_owned())?
 }
 
-/// PRD 0046 RF2.1: write the backup to the absolute `path` the person chose
-/// in the save dialog (private, atomic). Returns what went in.
+/// What **Back up…** wrote, and where (for the confirmation).
+#[derive(serde::Serialize)]
+struct BackupWritten {
+    #[serde(flatten)]
+    view: BackupView,
+    path: String,
+}
+
+/// PRD 0046 RF2.1 / PRD 0050 RF9: open the native save dialog (Rust-owned,
+/// the webview sends no path), then write the backup there (private,
+/// atomic, never over Cuotai's own files). `None` when the person cancels.
 #[tauri::command]
-async fn backup_write(path: String, with_history: bool) -> Result<BackupView, String> {
+async fn backup_write(app: AppHandle, with_history: bool) -> Result<Option<BackupWritten>, String> {
+    backup_with(&file_dialog::DialogPicker::new(&app), with_history).await
+}
+
+async fn backup_with(
+    picker: &dyn file_dialog::FilePicker,
+    with_history: bool,
+) -> Result<Option<BackupWritten>, String> {
+    let name = format!(
+        "cuotai-backup-{}{}",
+        chrono::Local::now().format("%Y-%m-%d"),
+        cuotai_core::bundle::EXTENSION
+    );
+    let request = file_dialog::SaveRequest {
+        name,
+        filter: "Cuotai backup".into(),
+        extension: "zip".into(),
+    };
+    let Some(path) = picker.save(request).await else {
+        return Ok(None);
+    };
     tauri::async_runtime::spawn_blocking(move || {
-        let path = std::path::PathBuf::from(path);
-        if !path.is_absolute() {
-            return Err(bundle_error(&cuotai_core::bundle::BundleError::Invalid));
-        }
         let bundle = desktop_bundle(with_history)?;
         let locations = bundle_locations();
         let mut protected = cuotai_core::output_file::Protected::system(Some(&locations.config));
@@ -534,24 +560,32 @@ async fn backup_write(path: String, with_history: bool) -> Result<BackupView, St
         }
         cuotai_core::bundle::write_file(&path, &bundle.to_zip(), &protected)
             .map_err(|error| bundle_error(&error))?;
-        Ok(backup_view(&bundle))
+        Ok(Some(BackupWritten {
+            view: backup_view(&bundle),
+            path: path.display().to_string(),
+        }))
     })
     .await
     .map_err(|_| "unexpected".to_owned())?
 }
 
-/// The restore plan of the backup at `path` over this desktop.
-fn desktop_plan(path: &str) -> Result<cuotai_core::bundle::Plan, String> {
+/// The restore plan of the backup at `path` over this desktop. Only a
+/// regular file is read (never a folder, a device or a symbolic link).
+fn desktop_plan(path: &std::path::Path) -> Result<cuotai_core::bundle::Plan, String> {
     use cuotai_core::bundle::{self, Bundle, BundleError};
-    let path = std::path::PathBuf::from(path);
+    let io = || {
+        bundle_error(&BundleError::Io {
+            path: cuotai_core::text::home_relative(path),
+        })
+    };
     if !path.is_absolute() {
         return Err(bundle_error(&BundleError::Invalid));
     }
-    let bytes = std::fs::read(&path).map_err(|_| {
-        bundle_error(&BundleError::Io {
-            path: cuotai_core::text::home_relative(&path),
-        })
-    })?;
+    match std::fs::symlink_metadata(path) {
+        Ok(meta) if meta.is_file() => {}
+        _ => return Err(io()),
+    }
+    let bytes = std::fs::read(path).map_err(|_| io())?;
     let bundle = Bundle::from_zip(&bytes).map_err(|error| bundle_error(&error))?;
     // The desktop never reads variables (PRD 0047 G1): every key the
     // backup's accounts read from one is a key to type again.
@@ -559,12 +593,40 @@ fn desktop_plan(path: &str) -> Result<cuotai_core::bundle::Plan, String> {
     bundle::plan(&bundle, &bundle_locations(), None, &var).map_err(|error| bundle_error(&error))
 }
 
-/// PRD 0046 RF3.3: the plan of **Restore…** (nothing is written).
+/// What **Restore…** found in the file the person chose: its plan and the
+/// token the apply names it by.
+#[derive(serde::Serialize)]
+struct RestorePick {
+    token: u64,
+    plan: cuotai_core::bundle::Plan,
+}
+
+/// PRD 0046 RF3.3 / PRD 0050 RF9: open the native open dialog (Rust-owned,
+/// the webview sends no path) and plan the restore of the chosen backup
+/// (nothing is written). `None` when the person cancels.
 #[tauri::command]
-async fn restore_plan(path: String) -> Result<cuotai_core::bundle::Plan, String> {
-    tauri::async_runtime::spawn_blocking(move || desktop_plan(&path))
+async fn restore_plan(
+    app: AppHandle,
+    pending: tauri::State<'_, file_dialog::PendingRestore>,
+) -> Result<Option<RestorePick>, String> {
+    restore_pick(&file_dialog::DialogPicker::new(&app), &pending).await
+}
+
+async fn restore_pick(
+    picker: &dyn file_dialog::FilePicker,
+    pending: &file_dialog::PendingRestore,
+) -> Result<Option<RestorePick>, String> {
+    let Some(path) = picker.open("Cuotai backup".into(), "zip".into()).await else {
+        return Ok(None);
+    };
+    let read = path.clone();
+    let plan = tauri::async_runtime::spawn_blocking(move || desktop_plan(&read))
         .await
-        .map_err(|_| "unexpected".to_owned())?
+        .map_err(|_| "unexpected".to_owned())??;
+    Ok(Some(RestorePick {
+        token: pending.put(path),
+        plan,
+    }))
 }
 
 /// What **Restore** did.
@@ -575,7 +637,8 @@ struct RestoreDone {
     restart: bool,
 }
 
-/// PRD 0046 RF3.3: apply the plan of the backup at `path`: additions and
+/// PRD 0046 RF3.3: apply the plan of the backup chosen under `token` (the
+/// last [`restore_plan`]; any other token is refused): additions and
 /// merges always, each replacement only when its bundle path is in
 /// `accept`. The plan is made again, so a file changed since the preview is
 /// planned anew (and every write still refuses a concurrent change). The
@@ -584,9 +647,28 @@ struct RestoreDone {
 async fn restore_apply(
     app: AppHandle,
     b: Shared<'_>,
-    path: String,
+    pending: tauri::State<'_, file_dialog::PendingRestore>,
+    token: u64,
     accept: Vec<String>,
 ) -> Result<RestoreDone, String> {
+    let (done, config) = restore_chosen(&pending, token, accept).await?;
+    if config {
+        // The accounts file changed under the app: read it again.
+        let _ = b.reload_config(&app).await;
+    }
+    Ok(done)
+}
+
+/// [`restore_apply`] without the reload; `true` when the accounts TOML was
+/// written.
+async fn restore_chosen(
+    pending: &file_dialog::PendingRestore,
+    token: u64,
+    accept: Vec<String>,
+) -> Result<(RestoreDone, bool), String> {
+    let path = pending
+        .get(token)
+        .ok_or_else(|| bundle_error(&cuotai_core::bundle::BundleError::Invalid))?;
     let (written, restart, config) = tauri::async_runtime::spawn_blocking(move || {
         let plan = desktop_plan(&path)?;
         let mut restart = false;
@@ -609,11 +691,8 @@ async fn restore_apply(
     })
     .await
     .map_err(|_| "unexpected".to_owned())??;
-    if config {
-        // The accounts file changed under the app: read it again.
-        let _ = b.reload_config(&app).await;
-    }
-    Ok(RestoreDone { written, restart })
+    pending.forget(token);
+    Ok((RestoreDone { written, restart }, config))
 }
 
 /// PRD 0046 RF3.3: restart the app to apply restored settings.
@@ -1407,26 +1486,28 @@ async fn set_history_days(app: AppHandle, b: Shared<'_>, days: u32) -> Result<()
     b.set_history_days(&app, days).await
 }
 
-/// PRD 0006 RF4.4: export the history of account `index` (`None` = every
-/// account) of the last `days` days (`None` = everything) to the file the
-/// user chose in the native save dialog. Returns the rows written. An account
-/// `index` comes with the configuration `generation` it was read from (any
-/// other one: `stale`).
+/// PRD 0006 RF4.4 / PRD 0050 RF9: export the history of account `index`
+/// (`None` = every account) of the last `days` days (`None` = everything)
+/// to the file the person chooses in the native save dialog, which Rust
+/// opens (the webview sends no path). Returns the rows written and the
+/// path, or `None` when the person cancels. An account `index` comes with
+/// the configuration `generation` it was read from (any other one:
+/// `stale`).
 #[tauri::command]
 async fn history_export(
+    app: AppHandle,
     b: Shared<'_>,
     index: Option<usize>,
     generation: Option<u64>,
     days: Option<u32>,
     format: cuotai_core::history::ExportFormat,
-    path: String,
-) -> Result<usize, String> {
+) -> Result<Option<backend::Exported>, String> {
     b.history_export(
+        &file_dialog::DialogPicker::new(&app),
         index,
         generation,
         days,
         format,
-        std::path::PathBuf::from(path),
     )
     .await
 }
@@ -2803,6 +2884,7 @@ pub fn run() -> std::process::ExitCode {
         .manage(Arc::clone(&backend))
         .manage(local_cost)
         .manage(session_capture::State::default())
+        .manage(file_dialog::PendingRestore::default())
         .manage(Arc::clone(&updates))
         .manage(settings_window::State::new(settings::settings_path()))
         .manage(Arc::new(main_window::State::new(settings::settings_path())))
@@ -3110,6 +3192,51 @@ pub fn run() -> std::process::ExitCode {
 
 #[cfg(test)]
 mod tests {
+    /// PRD 0050 RF9: the backup and restore commands take their file only
+    /// from the native dialog Rust opens. Cancel writes and reads nothing,
+    /// a restore applies only the file its own preview picked, and a link
+    /// or a folder is never read as a backup.
+    #[tokio::test]
+    async fn backup_and_restore_files_come_only_from_the_native_dialog() {
+        // security-invariant: SEC-FILE-DIALOG
+        use crate::file_dialog::{tests::FakePicker, PendingRestore};
+        let cancelled = super::backup_with(&FakePicker::new(None), false).await;
+        assert!(matches!(cancelled, Ok(None)));
+
+        let pending = PendingRestore::default();
+        assert!(matches!(
+            super::restore_pick(&FakePicker::new(None), &pending).await,
+            Ok(None)
+        ));
+        let refused = super::restore_chosen(&pending, 1, Vec::new())
+            .await
+            .err()
+            .unwrap();
+        assert!(refused.contains("bundle.error.invalid"), "{refused}");
+
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path().join("folder.zip");
+        std::fs::create_dir(&folder).unwrap();
+        let error = super::restore_pick(&FakePicker::new(Some(folder)), &pending)
+            .await
+            .err()
+            .unwrap();
+        assert!(error.contains("bundle.error.io"), "{error}");
+        #[cfg(unix)]
+        {
+            let target = dir.path().join("secret");
+            std::fs::write(&target, "not a backup").unwrap();
+            let link = dir.path().join("link.zip");
+            std::os::unix::fs::symlink(&target, &link).unwrap();
+            let error = super::restore_pick(&FakePicker::new(Some(link)), &pending)
+                .await
+                .err()
+                .unwrap();
+            assert!(error.contains("bundle.error.io"), "{error}");
+        }
+        assert_eq!(pending.get(1), None, "a refused pick keeps no token");
+    }
+
     #[test]
     fn only_a_debug_build_on_the_development_store_runs_apart() {
         assert!(super::single_instance_applies(false, false));
