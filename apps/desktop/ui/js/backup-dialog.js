@@ -3,7 +3,7 @@
 // call the shell. No secret is ever in a backup, so the next steps say which keys to type and sign-ins to redo.
 import { t, te, tl } from "./i18n.js";
 import {
-  backupPreview, backupWrite, errText, esc, icon, pickBackupFile, pickBackupSave, requestAccountAction, restartApp,
+  backupPreview, backupWrite, errText, esc, icon, requestAccountAction, restartApp,
   restoreApply, restorePlan,
 } from "./lib.js";
 import { showDialog } from "./motion.js";
@@ -65,14 +65,14 @@ export async function openBackupDialog(from = null, { onDone = null } = {}) {
     box.querySelector("[data-backup-history]").onchange = (e) => { withHistory = e.target.checked; paint(); };
     box.querySelector("[data-backup-save]").onclick = async () => {
       const error = box.querySelector("[data-backup-error]");
-      const path = await pickBackupSave(view.default_name);
-      if (typeof path !== "string" || !path) return;
       try {
-        const written = await backupWrite(path, withHistory);
+        // The shell opens the native save dialog (PRD 0050 RF9); null when cancelled.
+        const written = await backupWrite(withHistory);
+        if (!written || !dlg) return;
         fill(box, {
           id: "backup-title",
           title: t("backup.title"),
-          body: `<p role="status">${te("backup.done", { path, count: written.files.length })}</p><p class="hint">${te("backup.noSecret")}</p>`,
+          body: `<p role="status">${te("backup.done", { path: written.path, count: written.files.length })}</p><p class="hint">${te("backup.noSecret")}</p>`,
           foot: `<button class="btn primary" data-shell-close>${te("common.close")}</button>`,
         });
         onDone?.(written);
@@ -113,19 +113,20 @@ export const nextStepsHtml = (plan, done, accountsRestored) => `<p role="status"
 
 /** RF3.3: choose a backup file, preview the plan, restore, then the next steps. */
 export async function openRestoreDialog(from = null, { onOpenAccount = null } = {}) {
-  const path = await pickBackupFile();
-  if (typeof path !== "string" || !path) return;
+  // The shell opens the native open dialog and plans the chosen file (PRD 0050 RF9); null when cancelled.
+  let picked;
+  let failure = null;
+  try { picked = await restorePlan(); }
+  catch (e) { failure = e; }
+  if (!failure && !picked) return;
   const box = open("restore-dlg", "restore-title", t("restore.title"), from);
   if (!box) return;
-  let plan;
-  try { plan = await restorePlan(path); }
-  catch (e) {
-    if (!dlg) return;
-    fill(box, { id: "restore-title", title: t("restore.title"), body: `<p class="err" role="alert">${esc(errText(e))}</p>`,
+  if (failure) {
+    fill(box, { id: "restore-title", title: t("restore.title"), body: `<p class="err" role="alert">${esc(errText(failure))}</p>`,
       foot: `<button class="btn" data-shell-close>${te("common.close")}</button>` });
     return;
   }
-  if (!dlg) return;
+  const { token, plan } = picked;
   fill(box, {
     id: "restore-title",
     title: t("restore.title"),
@@ -136,7 +137,7 @@ export async function openRestoreDialog(from = null, { onOpenAccount = null } = 
   box.querySelector("[data-restore-go]").onclick = async () => {
     const accept = [...box.querySelectorAll("[data-restore-item]")].filter((c) => c.checked).map((c) => plan.items[Number(c.dataset.restoreItem)].path);
     let done;
-    try { done = await restoreApply(path, accept); }
+    try { done = await restoreApply(token, accept); }
     catch (e) { box.querySelector("[data-restore-error]").textContent = errText(e); return; }
     // The steps open accounts by their position in the backup's file: only once that file is the one in use.
     const config = plan.items.find((i) => i.path === "config/cuotai.toml");

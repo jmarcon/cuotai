@@ -1,7 +1,7 @@
 // Settings › Data & privacy (PRD 0020 RF2.5): the measurement history, the provider status pages and, last, erasing
 // all Cuotai data (PRD 0052 RF5.3).
 import { t, te } from "../i18n.js";
-import { STALE, brand, esc, historyErase, historyExport, historySize, icon, pickExportFile, setDetectEnabled, setHistoryDays, setHistoryRecording, setStatusEnabled } from "../lib.js";
+import { STALE, brand, esc, historyErase, historyExport, historySize, icon, setDetectEnabled, setHistoryDays, setHistoryRecording, setStatusEnabled } from "../lib.js";
 import { errorText, fmtBytes, group, l10nError } from "./common.js";
 import { buttons, commitField, disc, num, row, rowError, select, sw, toast } from "./rows.js";
 import { bindErase, eraseHtml } from "./erase.js";
@@ -105,10 +105,12 @@ function bindHistory(root, ctx) {
     { onSaved: (value) => { toast(t("settings.history.saved", { days: Number(value) })); showSize(); } });
   for (const button of root.querySelectorAll("[data-export]")) button.onclick = async () => {
     const format = button.dataset.export;
-    const path = await pickExportFile(format);
-    if (typeof path !== "string" || !path) return; // cancelled
-    try { exportMsg.textContent = ""; toast(t("settings.history.exported", { count: await historyExport(account(), period(), format, path, generation), path })); }
-    catch (e) { failed(e, exportMsg); }
+    // The shell opens the native save dialog (PRD 0050 RF9); null when cancelled.
+    try {
+      exportMsg.textContent = "";
+      const done = await historyExport(account(), period(), format, generation);
+      if (done) toast(t("settings.history.exported", { count: done.rows, path: done.path }));
+    } catch (e) { failed(e, exportMsg); }
   };
   // The scope is fixed when the confirmation opens, so changing the list afterwards cannot widen it.
   let scope = null;

@@ -155,22 +155,14 @@ export const vaultPrune = () => call("vault_prune");
 export const doctorReport = () => call("doctor_report");
 /** PRD 0046 RF2.1: what Back up… would write (files in, what stays out and why), then the write itself. */
 export const backupPreview = (withHistory) => call("backup_preview", { withHistory });
-export const backupWrite = (path, withHistory) => call("backup_write", { path, withHistory });
-/** PRD 0046 RF3.3: the restore plan of a backup file, and its application (`accept`: the replacements chosen). */
-export const restorePlan = (path) => call("restore_plan", { path });
-export const restoreApply = (path, accept) => call("restore_apply", { path, accept });
+/** PRD 0050 RF9: the shell opens the native save dialog itself (no path crosses from here); null when cancelled. */
+export const backupWrite = (withHistory) => call("backup_write", { withHistory });
+/** PRD 0046 RF3.3: the shell opens the native open dialog and plans the chosen backup ({ token, plan }, null when
+ *  cancelled); the application names that file by its token (`accept`: the replacements chosen). */
+export const restorePlan = () => call("restore_plan");
+export const restoreApply = (token, accept) => call("restore_apply", { token, accept });
 /** PRD 0046 RF3.3: restart the app so restored settings apply. */
 export const restartApp = () => call("restart_app");
-/** Native save dialog for a backup, with the suggested name. */
-export async function pickBackupSave(defaultPath) {
-  if (isDesktop && T.dialog) return T.dialog.save({ defaultPath, filters: [{ name: "Cuotai backup", extensions: ["zip"] }] });
-  return `/Users/demo/${defaultPath}`; // navegador (demo)
-}
-/** Native open dialog for a backup file. */
-export async function pickBackupFile() {
-  if (isDesktop && T.dialog) return T.dialog.open({ multiple: false, directory: false, filters: [{ name: "Cuotai backup", extensions: ["zip"] }] });
-  return "/Users/demo/cuotai-backup-2026-11-07.cuotai-backup.zip"; // navegador (demo)
-}
 /** PRD 0016 RF2.2: what a paste keeps (names, counts, expiry), never the value. */
 export const previewSession = (provider, slot, paste) => call("preview_session", { provider, slot, paste });
 /** PRD 0016 RF2.1: one read-only query of the draft with its pasted sessions; nothing is stored. */
@@ -282,7 +274,8 @@ export const openUserDir = () => call("open_user_dir");
 // PRD 0006 RF4: measurement history retention (desktop.json), export and erasure; the core does the work.
 export const setHistoryDays = (days) => call("set_history_days", { days });
 // PRD 0006 RF4.4: one account (`index`) is named with the configuration `generation` its index was read from.
-export const historyExport = (index, days, format, path, generation = null) => call("history_export", { index, generation, days, format, path });
+/** PRD 0050 RF9: the shell opens the native save dialog itself; { rows, path }, or null when cancelled. */
+export const historyExport = (index, days, format, generation = null) => call("history_export", { index, generation, days, format });
 export const historyErase = (index, generation = null) => call("history_erase", { index, generation });
 // PRD 0052 RF5.3: Erase all Cuotai data. The plan is the core's ordered inventory plus the word to type; the erase
 // sends only the typed word and the accounts-file choice (Rust re-checks the word and asks natively).
@@ -459,12 +452,6 @@ export function metricAlertHtml(r, m) {
   const label = t("alerts.metric", { metric: m.label });
   const state = t(on ? "notify.bell.on" : "notify.bell.off");
   return `<button class="icon bell${on ? " on" : ""}" aria-pressed="${on}" aria-label="${esc(label)}" title="${esc(`${label}: ${state}`)}" data-metric-alert="${esc(r.account_key)}" data-metric-label="${esc(m.label)}" data-metric-on="${on}">${icon(on ? "bell" : "bellOff")}</button>`;
-}
-/** Native "save as" for an export (`csv` or `json`); null when cancelled. */
-export async function pickExportFile(format) {
-  const defaultPath = `cuotai-history.${format}`;
-  if (isDesktop && T.dialog) return T.dialog.save({ defaultPath, filters: [{ name: format.toUpperCase(), extensions: [format] }] });
-  return `/Users/demo/${defaultPath}`; // navegador (demo)
 }
 /** "About": project identity and open-source library list (comes from the core). */
 export const aboutInfo = () => call("about_info");
@@ -2277,8 +2264,8 @@ const demo = {
     { id: "vault.oauth", path: "cuotai.oauth", kind: "vault_service", exists: null, found: null, bytes: null, mode: null, mode_expected: null, schema: "not_applicable" },
   ] }),
   backup_preview: async ({ withHistory }) => demoBackup(withHistory),
-  backup_write: async ({ withHistory }) => demoBackup(withHistory),
-  restore_plan: async () => ({
+  backup_write: async ({ withHistory }) => ({ ...demoBackup(withHistory), path: `/Users/demo/${demoBackup(withHistory).default_name}` }),
+  restore_plan: async () => ({ token: 1, plan: {
     created_at: "2026-11-01T09:30:00Z", cuotai_version: "0.83.1",
     items: [
       { path: "config/cuotai.toml", target: "~/.config/cuotai/config.toml", action: "replace", accounts: { added: 1, changed: 1, removed: 0 } },
@@ -2292,7 +2279,7 @@ const demo = {
       { id: "bundle.need.sign_in", params: { number: 2, provider: "claude" }, fallback: "Sign in again to account {number} ({provider})." },
     ],
     next_steps: [{ kind: "env", account: 0, provider: "groq" }, { kind: "sign_in", account: 1, provider: "claude" }],
-  }),
+  } }),
   restore_apply: async ({ accept }) => ({ written: 2 + accept.length, restart: accept.includes("prefs/desktop.json") }),
   restart_app: async () => location.reload(),
   vault_prune: async () => { const n = demoSettings.vaultPruned ? 0 : 1; demoSettings.vaultPruned = true; return n; },
@@ -2453,7 +2440,7 @@ const demo = {
   set_history_days: async ({ days }) => { if (!(Number.isInteger(days) && days >= 7 && days <= 365)) throw "invalid_history_days"; demoSettings.historyDays = days; },
   // ponytail: the browser demo has no history file; fixed counts let the export and erase flows be driven, and an
   // erased account (or everything) leaves the synthetic history of `account_history`.
-  history_export: async ({ index, generation }) => { if (index != null && generation !== demoSettings.generation) throw STALE; return index == null ? 42 : 7; },
+  history_export: async ({ index, generation, format }) => { if (index != null && generation !== demoSettings.generation) throw STALE; return { rows: index == null ? 42 : 7, path: `/Users/demo/cuotai-history.${format}` }; },
   history_erase: async ({ index, generation }) => { if (index != null && generation !== demoSettings.generation) throw STALE; demoSettings.historyErased.add(index ?? "all"); demoSettings.historyEpoch++; return index == null ? 42 : 7; },
   erase_all_plan: async () => ({ word: "ERASE", items: [
     { id: "history.db", location: "~/Library/Application Support/cuotai/history/history.sqlite3", kind: "file", erase: true },
