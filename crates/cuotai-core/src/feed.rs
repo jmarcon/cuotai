@@ -41,6 +41,10 @@ pub const RETENTION: TimeDelta = TimeDelta::hours(24);
 pub const MAX_FILES: usize = 64;
 /// RF2.1: the largest status-line object accepted on standard input.
 pub const MAX_INPUT: usize = 64 * 1024;
+/// RF1.3: a reading written further ahead of now than this is refused, so
+/// a future-dated file can never pass for the newest (clock skew between
+/// the agent and Cuotai stays well inside it).
+pub const FUTURE_TOLERANCE: TimeDelta = TimeDelta::minutes(1);
 /// RF1.3: a `resets_at` further than this from now is refused.
 const RESET_HORIZON: TimeDelta = TimeDelta::days(400);
 /// RF1.3: the spend limit may exceed 100 % and is kept up to this value.
@@ -184,7 +188,8 @@ impl FeedReading {
         self.windows.iter().find(|window| window.id == id)
     }
 
-    /// RF1.3: whether every field is within its contract at `now`.
+    /// RF1.3: whether every field is within its contract at `now`,
+    /// including `written_at` no later than [`FUTURE_TOLERANCE`] past it.
     pub fn is_valid(&self, now: DateTime<Utc>) -> bool {
         let pct = |value: f64| value.is_finite() && (0.0..=100.0).contains(&value);
         let usd = |value: f64| value.is_finite() && (0.0..=USD_MAX).contains(&value);
@@ -193,6 +198,7 @@ impl FeedReading {
         };
         let session = &self.session;
         self.schema == SCHEMA
+            && self.written_at <= now + FUTURE_TOLERANCE
             && is_digest(&session.digest)
             && session.model_id.as_deref().is_none_or(is_model_text)
             && session.model_name.as_deref().is_none_or(is_model_text)

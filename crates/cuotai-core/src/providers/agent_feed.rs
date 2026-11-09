@@ -219,7 +219,7 @@ pub(crate) fn latest(
                 return Err(no_consent());
             }
             let roots = settings.roots(crate::cost::SourceId::CodexCli, &env);
-            let reading = codex_latest(&roots)?;
+            let reading = codex_latest(&roots, now)?;
             if let (Some(reading), Some(store)) = (&reading, store) {
                 // Best effort: the live block reads it from there.
                 let _ = store.write(reading, now);
@@ -230,11 +230,16 @@ pub(crate) fn latest(
 }
 
 /// RF4.1: the Codex CLI reading below `roots`, an unknown shape being a
-/// schema error.
+/// schema error. RF1.3: it must meet the same contract at `now` as a stored
+/// reading, so a log dated in the future is ignored, never taken as the
+/// newest.
 pub(crate) fn codex_latest(
     roots: &[std::path::PathBuf],
+    now: DateTime<Utc>,
 ) -> Result<Option<FeedReading>, QueryError> {
-    feed::codex::latest(roots).map_err(|_| QueryError::schema())
+    feed::codex::latest(roots)
+        .map(|reading| reading.filter(|reading| reading.is_valid(now)))
+        .map_err(|_| QueryError::schema())
 }
 
 /// RF3.4: whether a hybrid account uses `reading` rather than the query:
