@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 
 use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
 use cuotai_core::history::{ExportFormat, HistoryStore};
+use cuotai_core::output_file::Protected;
 use cuotai_core::Account;
 use ratatui::{
     layout::{Constraint, Layout},
@@ -69,12 +70,15 @@ pub(crate) struct HistoryActions {
     error: Option<String>,
     /// The result; any key then closes.
     done: Option<String>,
+    /// What an export may never replace (Cuotai's own files).
+    protected: Protected,
 }
 
 impl HistoryActions {
     /// `account`: the selected account's index and display name; without
-    /// one the scope is every account.
-    pub(crate) fn new(mode: Mode, account: Option<(usize, String)>) -> Self {
+    /// one the scope is every account. `config`: the accounts TOML in use,
+    /// which an export never replaces.
+    pub(crate) fn new(mode: Mode, account: Option<(usize, String)>, config: Option<&Path>) -> Self {
         let all = account.is_none();
         let mut view = Self {
             mode,
@@ -86,6 +90,7 @@ impl HistoryActions {
             typed: String::new(),
             error: None,
             done: None,
+            protected: Protected::system(config),
         };
         view.path = view.default_path();
         view
@@ -211,7 +216,13 @@ impl HistoryActions {
         }
         let path = resolve(typed);
         let selected: Vec<Account> = self.selected(accounts).into_iter().cloned().collect();
-        match store.export_to_file(&selected, Bound::Unbounded, self.format, &path) {
+        match store.export_to_file(
+            &selected,
+            Bound::Unbounded,
+            self.format,
+            &path,
+            &self.protected,
+        ) {
             Ok(rows) => {
                 self.error = None;
                 self.done = Some(crate::data_cli::exported_text(rows, &shown(&path)));
@@ -541,7 +552,7 @@ credential_env = "GROQ_KEY_HOME"
     #[test]
     fn the_export_prompt_shows_scope_format_and_path() {
         crate::l10n::with_locale("en-US", || {
-            let mut view = HistoryActions::new(Mode::Export, Some((0, "Work".into())));
+            let mut view = HistoryActions::new(Mode::Export, Some((0, "Work".into())), None);
             let text = render(&view);
             assert!(text.contains("EXPORT HISTORY"), "{text}");
             assert!(text.contains("Scope: This account: Work"), "{text}");
@@ -564,9 +575,10 @@ credential_env = "GROQ_KEY_HOME"
     #[test]
     fn export_writes_the_chosen_format_through_the_core_writer() {
         let dir = tempfile::tempdir().expect("dir");
-        let store = store(dir.path());
+        // An export never lands in the history's own folder.
+        let store = store(&dir.path().join("history"));
         for (format, expect) in [(false, "account,"), (true, "{\"version\":1")] {
-            let mut view = HistoryActions::new(Mode::Export, Some((0, "Work".into())));
+            let mut view = HistoryActions::new(Mode::Export, Some((0, "Work".into())), None);
             if format {
                 view.focus = Focus::Format;
                 view.key(KeyCode::Right, Some(&store), &accounts());
@@ -598,7 +610,7 @@ credential_env = "GROQ_KEY_HOME"
     #[test]
     fn an_empty_path_or_no_history_is_an_error_not_a_panic() {
         crate::l10n::with_locale("en-US", || {
-            let mut view = HistoryActions::new(Mode::Export, None);
+            let mut view = HistoryActions::new(Mode::Export, None, None);
             view.key(KeyCode::Enter, None, &accounts());
             assert!(view.error.as_deref().unwrap().contains("unavailable"));
             let dir = tempfile::tempdir().expect("dir");
@@ -613,7 +625,7 @@ credential_env = "GROQ_KEY_HOME"
     #[test]
     fn the_erase_confirmation_lists_the_scope_and_asks_for_the_word() {
         crate::l10n::with_locale("en-US", || {
-            let mut view = HistoryActions::new(Mode::Erase, Some((1, "Home".into())));
+            let mut view = HistoryActions::new(Mode::Erase, Some((1, "Home".into())), None);
             let text = render(&view);
             assert!(text.contains("ERASE HISTORY"), "{text}");
             assert!(
@@ -635,7 +647,7 @@ credential_env = "GROQ_KEY_HOME"
         crate::l10n::with_locale("en-US", || {
             let dir = tempfile::tempdir().expect("dir");
             let store = store(dir.path());
-            let mut view = HistoryActions::new(Mode::Erase, Some((0, "Work".into())));
+            let mut view = HistoryActions::new(Mode::Erase, Some((0, "Work".into())), None);
             type_text(&mut view, "erase", Some(&store));
             assert_eq!(
                 view.key(KeyCode::Enter, Some(&store), &accounts()),
@@ -657,7 +669,7 @@ credential_env = "GROQ_KEY_HOME"
             let dir = tempfile::tempdir().expect("dir");
             let store = store(dir.path());
             for (account, removed) in [(Some((0, "Work".to_owned())), 1), (None, 0)] {
-                let mut view = HistoryActions::new(Mode::Erase, account);
+                let mut view = HistoryActions::new(Mode::Erase, account, None);
                 type_text(&mut view, "ERASE", Some(&store));
                 assert_eq!(
                     view.key(KeyCode::Enter, Some(&store), &accounts()),
@@ -676,7 +688,7 @@ credential_env = "GROQ_KEY_HOME"
     #[test]
     fn the_word_is_localized() {
         crate::l10n::with_locale("pt-BR", || {
-            let mut view = HistoryActions::new(Mode::Erase, None);
+            let mut view = HistoryActions::new(Mode::Erase, None, None);
             let dir = tempfile::tempdir().expect("dir");
             let store = store(dir.path());
             type_text(&mut view, "ERASE", Some(&store));

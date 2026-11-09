@@ -255,3 +255,54 @@ fn an_explicit_config_never_touches_this_computers_desktop_settings_or_folders()
     let _ = fs::remove_dir_all(first);
     let _ = fs::remove_dir_all(source);
 }
+
+/// Re-validation 2026-11 (R-01, S-03, S-07): `--backup` and
+/// `--history-export` never replace Cuotai's own files, and an
+/// out-of-range `--history-days` is a plain error (exit 1), never a panic.
+#[test]
+fn backups_and_exports_refuse_cuotai_files_and_bad_days() {
+    let home = home("targets");
+    fs::write(home.join("cuotai.toml"), CONFIG).unwrap();
+    let history = home.join("cuotai-data/history");
+    fs::create_dir_all(&history).unwrap();
+    fs::write(history.join("history.sqlite3"), "not touched").unwrap();
+    let toml = home.join("cuotai.toml");
+    let db = history.join("history.sqlite3");
+
+    for target in [&toml, &db] {
+        let out = run(&home, &[], &["--backup", target.to_str().unwrap()]);
+        assert_eq!(out.status.code(), Some(1), "{}", target.display());
+        let shown = String::from_utf8_lossy(&out.stderr);
+        assert!(
+            shown.contains("does not write a backup over its own"),
+            "{shown}"
+        );
+    }
+    let out = run(&home, &[], &["--history-export", db.to_str().unwrap()]);
+    assert_eq!(out.status.code(), Some(1));
+    let shown = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        shown.contains("does not write an export over its own"),
+        "{shown}"
+    );
+    assert_eq!(fs::read_to_string(&toml).unwrap(), CONFIG);
+    assert_eq!(fs::read_to_string(&db).unwrap(), "not touched");
+
+    let csv = home.join("out.csv");
+    for days in ["4000000000", "3", "366"] {
+        let out = run(
+            &home,
+            &[],
+            &[
+                "--history-export",
+                csv.to_str().unwrap(),
+                "--history-days",
+                days,
+            ],
+        );
+        assert_eq!(out.status.code(), Some(1), "{days}");
+        let shown = String::from_utf8_lossy(&out.stderr);
+        assert!(!shown.contains("panicked"), "{days}: {shown}");
+        assert!(!csv.exists(), "{days}");
+    }
+}

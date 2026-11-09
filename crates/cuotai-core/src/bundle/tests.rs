@@ -733,3 +733,43 @@ fn a_local_history_failure_is_not_reported_as_a_damaged_backup() {
         BundleError::Invalid
     );
 }
+
+/// Re-validation 2026-11 (R-01): a backup never replaces the accounts TOML,
+/// the history or anything in the data or configuration folders, and a
+/// replaced file ends private.
+#[test]
+fn a_backup_refuses_cuotai_files_and_replaces_others_privately() {
+    let tree = Tree::new();
+    tree.write("config/cuotai.toml", TOML);
+    tree.write("data/history/history.sqlite3", "db");
+    let locations = tree.locations();
+    let protected = crate::output_file::Protected::none()
+        .file(&locations.config)
+        .dir(locations.data_root.clone().unwrap());
+    for target in [
+        locations.config.clone(),
+        tree.at("data/history/history.sqlite3"),
+        tree.at("data/history/history.sqlite3.bak"),
+        tree.at("data"),
+    ] {
+        let error = write_file(&target, b"zip", &protected).unwrap_err();
+        assert_eq!(error, BundleError::Target, "{}", target.display());
+        assert_eq!(error.l10n().id, "bundle.error.target");
+    }
+    assert_eq!(std::fs::read_to_string(&locations.config).unwrap(), TOML);
+    assert_eq!(
+        std::fs::read_to_string(tree.at("data/history/history.sqlite3")).unwrap(),
+        "db"
+    );
+    let out = tree.at("elsewhere/backup.zip");
+    write_file(&out, b"first", &protected).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&out, std::fs::Permissions::from_mode(0o644)).unwrap();
+        write_file(&out, b"second", &protected).unwrap();
+        let mode = std::fs::metadata(&out).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o600);
+        assert_eq!(std::fs::read(&out).unwrap(), b"second");
+    }
+}

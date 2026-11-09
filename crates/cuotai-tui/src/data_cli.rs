@@ -5,12 +5,12 @@
 //! 0 done, 2 partly failed, 1 refused or invalid.
 
 use std::io::{self, BufRead, IsTerminal, Write};
-use std::ops::Bound;
 use std::path::{Path, PathBuf};
 
-use chrono::{TimeDelta, Utc};
+use chrono::Utc;
 use cuotai_core::config_file::ConfigFile;
-use cuotai_core::history::{ExportFormat, HistoryStore};
+use cuotai_core::history::{ExportFormat, HistoryStore, Retention};
+use cuotai_core::output_file::Protected;
 use cuotai_core::privacy::erase::{self, EraseOptions, Outcome, SystemVault};
 use cuotai_core::privacy::Roots;
 
@@ -67,15 +67,20 @@ pub(crate) fn history_export(
     account: Option<&str>,
     days: Option<u32>,
 ) -> Res {
-    let file = crate::load_config(config, false)?;
     let locale = crate::ui::tui_locale();
+    // `--history-days` means 7 to 365 days wherever it appears (`--history`,
+    // the retention); checked before anything is read.
+    if let Some(days) = days {
+        Retention::days(days).map_err(|e| e.l10n().resolve(locale))?;
+    }
+    let start =
+        HistoryStore::export_start(days, Utc::now()).map_err(|e| e.l10n().resolve(locale))?;
+    let file = crate::load_config(config, false)?;
     let store = HistoryStore::in_data_dir(&file).map_err(|e| e.l10n().resolve(locale))?;
     let accounts = select(&file, account)?;
-    let start = days.map_or(Bound::Unbounded, |days| {
-        Bound::Included(Utc::now() - TimeDelta::days(i64::from(days)))
-    });
+    let protected = Protected::system(Some(&file.path));
     let rows = store
-        .export_to_file(&accounts, start, format, out)
+        .export_to_file(&accounts, start, format, out, &protected)
         .map_err(|e| e.l10n().resolve(locale))?;
     cli::message_with(
         Level::Info,

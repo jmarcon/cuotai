@@ -62,6 +62,13 @@ pub enum HistoryError {
     /// it is left untouched.
     #[error("The local history was written by a newer version of Cuotai that changed its format; it is kept untouched. Update Cuotai to use it.")]
     NewerMajor,
+    /// RF4.4: the export target is one of Cuotai's own files or folders, a
+    /// folder or a special file ([`crate::output_file`]); nothing written.
+    #[error("Cuotai does not write an export over its own history, settings or data files, nor over a folder; choose another file.")]
+    ExportTarget,
+    /// RF4.4: an export period outside 1 to 365 days.
+    #[error("A history export covers 1 to 365 days.")]
+    ExportDays,
 }
 
 impl HistoryError {
@@ -70,6 +77,17 @@ impl HistoryError {
             Self::Storage => "history.error.storage",
             Self::Export => "history.error.export",
             Self::NewerMajor => "state.error.newer_major_history",
+            Self::ExportTarget => "history.error.export_target",
+            Self::ExportDays => {
+                return Localized::with_params(
+                    "history.error.export_days",
+                    crate::text::params([
+                        ("min", Retention::EXPORT_MIN_DAYS.into()),
+                        ("max", Retention::MAX_DAYS.into()),
+                    ]),
+                    "A history export covers {min} to {max} days.",
+                )
+            }
         };
         Localized::fixed(id, self.to_string())
     }

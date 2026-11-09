@@ -527,7 +527,12 @@ async fn backup_write(path: String, with_history: bool) -> Result<BackupView, St
             return Err(bundle_error(&cuotai_core::bundle::BundleError::Invalid));
         }
         let bundle = desktop_bundle(with_history)?;
-        cuotai_core::bundle::write_file(&path, &bundle.to_zip())
+        let locations = bundle_locations();
+        let mut protected = cuotai_core::output_file::Protected::system(Some(&locations.config));
+        if let Some(settings) = &locations.desktop_settings {
+            protected = protected.file(settings);
+        }
+        cuotai_core::bundle::write_file(&path, &bundle.to_zip(), &protected)
             .map_err(|error| bundle_error(&error))?;
         Ok(backup_view(&bundle))
     })

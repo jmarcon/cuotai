@@ -39,8 +39,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
     future::Future,
-    ops::Bound,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -52,19 +51,6 @@ use tokio::sync::{mpsc, oneshot};
 
 pub(crate) fn l10n_to_json(note: &cuotai_core::text::Localized) -> String {
     serde_json::to_string(note).unwrap_or_else(|_| note.fallback.to_string())
-}
-
-/// Create (or truncate) the export file at `path`, readable by its owner
-/// only on Unix (even when it already existed): it holds the usage history.
-fn private_file(path: &Path) -> std::io::Result<std::fs::File> {
-    let mut options = std::fs::OpenOptions::new();
-    options.write(true).create(true).truncate(true);
-    #[cfg(unix)]
-    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
-    let file = options.open(path)?;
-    #[cfg(unix)]
-    file.set_permissions(std::os::unix::fs::PermissionsExt::from_mode(0o600))?;
-    Ok(file)
 }
 
 /// Encapsulate an `EditError` for the frontend: the core's RF8
@@ -4870,9 +4856,10 @@ impl Backend {
     }
 
     /// PRD 0006 RF4.4: write the history of account `index` (every account
-    /// with `None`) of the last `days` days (everything with `None`) to the
-    /// absolute `path` the user chose, in `format`; the file is private
-    /// (0600 on Unix). Returns the rows written.
+    /// with `None`) of the last `days` days (1 to 365; everything with
+    /// `None`) to the absolute `path` the user chose, in `format`, through
+    /// the core's one export writer: private (0600 on Unix), atomic, and
+    /// never over Cuotai's own files or folders. Returns the rows written.
     pub async fn history_export(
         &self,
         index: Option<usize>,
@@ -4881,22 +4868,38 @@ impl Backend {
         format: ExportFormat,
         path: PathBuf,
     ) -> Result<usize, String> {
-        let export_error = || l10n_to_json(&cuotai_core::history::HistoryError::Export.l10n());
+        use cuotai_core::history::{HistoryError, HistoryStore};
+        let export_error = || l10n_to_json(&HistoryError::Export.l10n());
         if !path.is_absolute() {
             return Err(export_error());
         }
+        let start = HistoryStore::export_start(days, chrono::Utc::now())
+            .map_err(|error| l10n_to_json(&error.l10n()))?;
         let (store, accounts) = self.history_scope(index, generation).await?;
-        let since = days.map(|days| chrono::Utc::now() - chrono::TimeDelta::days(days.into()));
+        let protected = self.export_protected().await;
         tauri::async_runtime::spawn_blocking(move || {
-            let file =
-                private_file(&path).map_err(|_| cuotai_core::history::HistoryError::Export)?;
-            let mut out = std::io::BufWriter::new(file);
-            let start = since.map_or(Bound::Unbounded, Bound::Included);
-            store.export(&accounts, None, (start, Bound::Unbounded), format, &mut out)
+            store.export_to_file(&accounts, start, format, &path, &protected)
         })
         .await
         .map_err(|_| export_error())?
         .map_err(|error| l10n_to_json(&error.l10n()))
+    }
+
+    /// What a history export may never replace: Cuotai's folders, the
+    /// accounts TOML in use and `desktop.json`.
+    async fn export_protected(&self) -> cuotai_core::output_file::Protected {
+        let config = self
+            .inner
+            .lock()
+            .await
+            .loaded
+            .as_ref()
+            .map(|l| l.file.path.clone());
+        let mut protected = cuotai_core::output_file::Protected::system(config.as_deref());
+        if let Some(settings) = crate::settings::settings_path() {
+            protected = protected.file(settings);
+        }
+        protected
     }
 
     /// PRD 0006 RF4.4: erase the history of account `index` (and the
@@ -9999,6 +10002,72 @@ mod tests {
         let live = b.view().await.generation;
         let (_, one) = b.history_scope(Some(0), Some(live)).await.unwrap();
         assert_eq!(names(one), ["beta"]);
+    }
+
+    /// Re-validation 2026-11 (S-03, S-01, S-07, R-02): the desktop export
+    /// goes through the core writer: it never replaces the history it reads,
+    /// replaces an existing `0644` file as `0600`, and refuses a period
+    /// outside 1 to 365 days without writing.
+    #[tokio::test]
+    async fn history_export_refuses_its_own_store_and_bad_days_and_writes_privately() {
+        let backend = build_backend(
+            Arc::new(MemoryStore::default()),
+            vec![plain_account("alpha")],
+        )
+        .await;
+        let b = &backend.inner;
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("history").join("history.sqlite3");
+        std::fs::create_dir_all(db.parent().unwrap()).unwrap();
+        std::fs::write(&db, "").unwrap();
+        let store = HistoryStore::new(
+            db.clone(),
+            &cuotai_core::config_file::ConfigIdentity::Explicit("one".into()),
+        );
+        {
+            let mut g = b.inner.lock().await;
+            let l = g.loaded.as_mut().unwrap();
+            let monitor = l.monitor.with_config(l.file.config.clone()).unwrap();
+            l.monitor = Arc::new(monitor.with_history(store));
+        }
+        let refused = b
+            .history_export(None, None, None, ExportFormat::Csv, db.clone())
+            .await
+            .unwrap_err();
+        assert!(refused.contains("history.error.export_target"), "{refused}");
+        assert!(
+            !refused.contains(&*dir.path().to_string_lossy()),
+            "no path: {refused}"
+        );
+
+        let out = dir.path().join("export.csv");
+        for days in [0, 366, u32::MAX] {
+            let error = b
+                .history_export(None, None, Some(days), ExportFormat::Csv, out.clone())
+                .await
+                .unwrap_err();
+            assert!(
+                error.contains("history.error.export_days"),
+                "{days}: {error}"
+            );
+            assert!(!out.exists());
+        }
+        std::fs::write(&out, "old").unwrap();
+        #[cfg(unix)]
+        std::fs::set_permissions(&out, std::os::unix::fs::PermissionsExt::from_mode(0o644))
+            .unwrap();
+        let rows = b
+            .history_export(None, None, Some(1), ExportFormat::Csv, out.clone())
+            .await
+            .unwrap();
+        assert_eq!(rows, 0);
+        assert_ne!(std::fs::read_to_string(&out).unwrap(), "old");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&out).unwrap().permissions().mode();
+            assert_eq!(mode & 0o777, 0o600);
+        }
     }
 
     // -------------------------------------------------------------------

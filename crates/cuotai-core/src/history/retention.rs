@@ -42,6 +42,8 @@ impl Retention {
     pub const DEFAULT_DAYS: u16 = 90;
     pub const MIN_DAYS: u16 = 7;
     pub const MAX_DAYS: u16 = 365;
+    /// RF4.4: the shortest export period (the desktop's "last 24 hours").
+    pub const EXPORT_MIN_DAYS: u16 = 1;
     /// Default size ceiling: 64 MiB of used pages.
     pub const DEFAULT_MAX_BYTES: u64 = 64 << 20;
 
@@ -565,32 +567,64 @@ impl HistoryStore {
         Ok(rows)
     }
 
-    /// PRD 0052 RF5.1: [`export`](Self::export) into a file at `path`,
-    /// created (or replaced) readable only by the user (`0600` on Unix), from
-    /// `start` to now. The one file writer the CLI `--history-export` and the
-    /// TUI history export share. Returns the rows written.
+    /// PRD 0052 RF5.1: [`export`](Self::export) into a file at `path`, from
+    /// `start` to now. The one file writer the CLI `--history-export`, the
+    /// TUI history export and the desktop share ([`crate::output_file`]):
+    /// written through a private temporary file and renamed, so the file
+    /// ends readable only by the user (`0600` on Unix) even when it existed,
+    /// a symbolic link there is replaced rather than followed, and a failure
+    /// leaves the previous file intact. A target inside `protected`, inside
+    /// this store's own folder, or that is a folder is refused
+    /// ([`HistoryError::ExportTarget`]) before anything is read or written.
+    /// Returns the rows written.
     pub fn export_to_file(
         &self,
         accounts: &[Account],
         start: std::ops::Bound<DateTime<Utc>>,
         format: ExportFormat,
         path: &std::path::Path,
+        protected: &crate::output_file::Protected,
     ) -> Result<usize, HistoryError> {
-        let mut options = std::fs::OpenOptions::new();
-        options.write(true).create(true).truncate(true);
-        #[cfg(unix)]
-        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
-        let file = options.open(path).map_err(|_| HistoryError::Export)?;
-        let mut writer = std::io::BufWriter::new(file);
-        let rows = self.export(
-            accounts,
-            None,
-            (start, std::ops::Bound::Unbounded),
-            format,
-            &mut writer,
-        )?;
-        writer.flush().map_err(|_| HistoryError::Export)?;
-        Ok(rows)
+        use crate::output_file::WriteError;
+        let mut protected = protected.clone();
+        if let Some(dir) = self.path.parent() {
+            protected = protected.dir(dir);
+        }
+        crate::output_file::write(path, &protected, |out| {
+            self.export(
+                accounts,
+                None,
+                (start, std::ops::Bound::Unbounded),
+                format,
+                &mut *out,
+            )
+        })
+        .map_err(|error| match error {
+            WriteError::Refused => HistoryError::ExportTarget,
+            WriteError::Io => HistoryError::Export,
+            WriteError::Content(error) => error,
+        })
+    }
+
+    /// RF4.4: the start of an export of the last `days` days before `now`
+    /// (everything with `None`). `days` ranges from
+    /// [`Retention::EXPORT_MIN_DAYS`] to [`Retention::MAX_DAYS`]; anything
+    /// else is [`HistoryError::ExportDays`], never an overflow.
+    pub fn export_start(
+        days: Option<u32>,
+        now: DateTime<Utc>,
+    ) -> Result<std::ops::Bound<DateTime<Utc>>, HistoryError> {
+        let Some(days) = days else {
+            return Ok(std::ops::Bound::Unbounded);
+        };
+        let range = u32::from(Retention::EXPORT_MIN_DAYS)..=u32::from(Retention::MAX_DAYS);
+        if !range.contains(&days) {
+            return Err(HistoryError::ExportDays);
+        }
+        TimeDelta::try_days(i64::from(days))
+            .and_then(|span| now.checked_sub_signed(span))
+            .map(std::ops::Bound::Included)
+            .ok_or(HistoryError::ExportDays)
     }
 
     /// The `history.sqlite3.bak` a migration or a relocation left: a full
@@ -1045,6 +1079,127 @@ mod tests {
             .map(|sample| sample["used"].as_f64())
             .collect();
         assert_eq!((rows, used), (Ok(1), vec![Some(10.0)]));
+    }
+
+    /// Re-validation 2026-11 (S-03/S-01): an export aimed at the history
+    /// itself, its side files, its `.bak` or the accounts TOML is refused
+    /// before anything is truncated, and the store stays readable.
+    #[test]
+    fn export_to_file_refuses_cuotai_files_and_keeps_the_store() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("history").join("history.sqlite3");
+        std::fs::create_dir_all(db.parent().unwrap()).unwrap();
+        let history = store(&db, "one");
+        let config = config(CONFIG);
+        history
+            .record(
+                &config.accounts[0],
+                t0(),
+                &[quota("5h", Some(10.0), Some(100.0))],
+            )
+            .unwrap();
+        let toml = dir.path().join("cuotai.toml");
+        std::fs::write(&toml, CONFIG).unwrap();
+        let protected = crate::output_file::Protected::none().file(&toml);
+        let before = std::fs::read(&db).unwrap();
+        for target in [
+            db.clone(),
+            db.with_file_name("history.sqlite3-wal"),
+            db.with_file_name("history.sqlite3-shm"),
+            db.with_file_name("history.sqlite3.bak"),
+            toml.clone(),
+        ] {
+            let result = history.export_to_file(
+                &config.accounts,
+                std::ops::Bound::Unbounded,
+                ExportFormat::Csv,
+                &target,
+                &protected,
+            );
+            assert_eq!(
+                result,
+                Err(HistoryError::ExportTarget),
+                "{}",
+                target.display()
+            );
+        }
+        assert_eq!(std::fs::read(&db).unwrap(), before);
+        assert_eq!(std::fs::read_to_string(&toml).unwrap(), CONFIG);
+        assert_eq!(total(&db), 1, "the store is still a readable database");
+        let out = dir.path().join("export.csv");
+        let rows = history
+            .export_to_file(
+                &config.accounts,
+                std::ops::Bound::Unbounded,
+                ExportFormat::Csv,
+                &out,
+                &protected,
+            )
+            .unwrap();
+        assert_eq!(rows, 1);
+    }
+
+    /// Re-validation 2026-11 (S-01): an existing `0644` file ends `0600`,
+    /// and a symbolic link at the target is replaced, never followed.
+    #[cfg(unix)]
+    #[test]
+    fn export_to_file_replaces_a_wide_file_privately_and_never_follows_a_link() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let history = store(&dir.path().join("h").join("history.sqlite3"), "one");
+        let config = config(CONFIG);
+        let protected = crate::output_file::Protected::none();
+        let out = dir.path().join("export.json");
+        std::fs::write(&out, "old").unwrap();
+        std::fs::set_permissions(&out, std::fs::Permissions::from_mode(0o644)).unwrap();
+        let export = |path: &Path| {
+            history.export_to_file(
+                &config.accounts,
+                std::ops::Bound::Unbounded,
+                ExportFormat::Json,
+                path,
+                &protected,
+            )
+        };
+        export(&out).unwrap();
+        let mode = std::fs::metadata(&out).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o600);
+        assert!(std::fs::read_to_string(&out)
+            .unwrap()
+            .contains("\"journal\""));
+        let precious = dir.path().join("precious");
+        std::fs::write(&precious, "keep").unwrap();
+        let link = dir.path().join("link.json");
+        std::os::unix::fs::symlink(&precious, &link).unwrap();
+        export(&link).unwrap();
+        assert_eq!(std::fs::read_to_string(&precious).unwrap(), "keep");
+        assert!(std::fs::symlink_metadata(&link).unwrap().is_file());
+    }
+
+    /// Re-validation 2026-11 (S-07): the export period is 1 to 365 days and
+    /// a huge value is an error, never an overflow panic.
+    #[test]
+    fn export_start_is_bounded_and_never_overflows() {
+        use std::ops::Bound;
+        let now = t0();
+        assert_eq!(HistoryStore::export_start(None, now), Ok(Bound::Unbounded));
+        assert_eq!(
+            HistoryStore::export_start(Some(1), now),
+            Ok(Bound::Included(now - days(1)))
+        );
+        assert_eq!(
+            HistoryStore::export_start(Some(365), now),
+            Ok(Bound::Included(now - days(365)))
+        );
+        for bad in [0, 366, 4_000_000_000, u32::MAX] {
+            assert_eq!(
+                HistoryStore::export_start(Some(bad), now),
+                Err(HistoryError::ExportDays),
+                "{bad}"
+            );
+        }
+        let text = HistoryError::ExportDays.l10n();
+        assert_eq!(text.id, "history.error.export_days");
     }
 
     #[test]

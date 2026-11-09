@@ -80,6 +80,7 @@ pub mod models;
 pub mod network;
 pub mod notify_prefs;
 pub mod oauth;
+pub mod output_file;
 pub mod overage;
 pub mod pace;
 pub mod panic_guard;
