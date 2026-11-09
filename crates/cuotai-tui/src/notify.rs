@@ -13,7 +13,7 @@
 //! reset that passed before the TUI opened is never announced. No provider
 //! is queried for a notice.
 
-use crate::ui::{local_time, safe};
+use crate::ui::safe;
 use chrono::{DateTime, TimeDelta, Utc};
 use cuotai_core::{
     aggregators,
@@ -355,7 +355,12 @@ impl Notices {
             return out;
         }
         out.push(BEL);
-        self.banner = Some((now, format!("{} · {}", local_time(now), lines.join(" · "))));
+        // The header's clock is in UTC: the banner's time too, labelled
+        // (PRD 0003 re-validation V-07).
+        self.banner = Some((
+            now,
+            format!("{} · {}", now.format("%H:%M UTC"), lines.join(" · ")),
+        ));
         out
     }
 
