@@ -64,7 +64,7 @@ spctl --assess --type execute --verbose=2 "$app"
 # Stapling changes the app bytes, so rebuild and re-sign the DMG before its
 # independent notarization submission.
 rm -f "$dmg"
-hdiutil create -volname Cuotai -srcfolder "$app" -ov -format UDZO "$dmg"
+"$(dirname "$0")/macos-create-dmg.sh" "$app" "$dmg"
 codesign --force --timestamp --sign "$APPLE_SIGNING_IDENTITY" "$dmg"
 codesign --verify --strict --verbose=2 "$dmg"
 xcrun notarytool submit "$dmg" "${auth_args[@]}" --wait
