@@ -151,6 +151,7 @@
   "alerts.body.session_expiring": "{account}: Die Sitzung läuft {at} ab; fügen Sie im Kontoassistenten eine neue ein.",
   "alerts.body.session_expiring.private": "Die Sitzung läuft {at} ab.",
   "alerts.item.account": "{provider} {account}: {items}",
+  "alerts.item.and_count": "{first} +{count}",
   "alerts.item.balance_below_floor": "{metric} unter deiner Untergrenze",
   "alerts.item.balance_recovered": "{metric} wieder über deiner Untergrenze",
   "alerts.item.exhausted": "{metric} am Limit",
@@ -172,7 +173,7 @@
   },
   "alerts.title.balance_below_floor": "{provider}: Guthaben unter deiner Untergrenze",
   "alerts.title.balance_recovered": "{provider}: Guthaben wieder über deiner Untergrenze",
-  "alerts.title.exhausted": "{provider}: Kontingent {window} erschöpft",
+  "alerts.title.exhausted": "{provider}: Kontingent ({window}) erschöpft",
   "alerts.title.exhausted_metric": "{provider}: Limit für {metric} erreicht",
   "alerts.title.exhausted_metric.private": "{provider}: ein Kontingent ist am Limit",
   "alerts.title.limit_changed": "{provider}: ein Limit hat sich geändert",
@@ -189,11 +190,11 @@
   "alerts.title.pool_recovered.private": "{provider}: ein gemeinsamer Pool ist wieder verfügbar",
   "alerts.title.projected": "{provider} · {account}: könnte vor der Zurücksetzung erschöpft sein",
   "alerts.title.projected.private": "{provider}: könnte vor der Zurücksetzung erschöpft sein",
-  "alerts.title.recovered": "{provider}: Kontingent {window} wieder verfügbar",
+  "alerts.title.recovered": "{provider}: Kontingent ({window}) wieder verfügbar",
   "alerts.title.recovered_metric": "{provider}: {metric} wieder verfügbar",
   "alerts.title.recovered_metric.private": "{provider}: ein Kontingent ist wieder verfügbar",
   "alerts.title.session_expiring": "{provider}: Sitzung läuft bald ab",
-  "alerts.title.threshold": "{provider}: {percent}% des Fensters {window} genutzt",
+  "alerts.title.threshold": "{provider}: {percent}% des Kontingents ({window}) genutzt",
   "alerts.title.threshold_metric": "{provider}: {percent}% bei {metric} genutzt",
   "alerts.title.threshold_metric.private": "{provider}: {percent}% eines Kontingents genutzt",
   "auth_mode.aws_sso.label": "AWS SSO",
@@ -2317,5 +2318,12 @@
   "doctor.channel.ok": "Seine letzte Zustellung wurde angenommen.",
   "doctor.channel.none": "Es wurde noch nichts an ihn gesendet.",
   "doctor.fix.channel": "Öffne den Kanal unter Einstellungen › Warnungen, prüfe die Adresse und sende einen Test (cuotai --channel-test).",
-  "budget.error.row": "{field}: Ein Budget auf einer Zeile der Aufschlüsselung braucht ein kind, den Bereich der Zeile (key, virtual_key, project, workspace oder team) und ihre ID, bei einem Anbieter mit Aufschlüsselungen."
+  "budget.error.row": "{field}: Ein Budget auf einer Zeile der Aufschlüsselung braucht ein kind, den Bereich der Zeile (key, virtual_key, project, workspace oder team) und ihre ID, bei einem Anbieter mit Aufschlüsselungen.",
+  "alerts.at.weekday": "{weekday}, {time}",
+  "alerts.at.date": "{day}.{month}., {time}",
+  "alerts.at.day": "{day}.{month}.",
+  "alerts.more": {
+    "one": "und {count} weitere",
+    "other": "und {count} weitere"
+  }
 }

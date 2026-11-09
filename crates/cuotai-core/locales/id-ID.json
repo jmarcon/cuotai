@@ -151,6 +151,7 @@
   "alerts.body.session_expiring": "{account}: sesi kedaluwarsa {at}; tempel yang baru di wizard akun.",
   "alerts.body.session_expiring.private": "Sesi kedaluwarsa {at}.",
   "alerts.item.account": "{provider} {account}: {items}",
+  "alerts.item.and_count": "{first} +{count}",
   "alerts.item.balance_below_floor": "{metric} di bawah batas bawah Anda",
   "alerts.item.balance_recovered": "{metric} kembali di atas batas bawah Anda",
   "alerts.item.exhausted": "{metric} mencapai batas",
@@ -2303,5 +2304,11 @@
   "doctor.channel.ok": "Pengiriman terakhirnya diterima.",
   "doctor.channel.none": "Belum ada yang dikirim ke saluran ini.",
   "doctor.fix.channel": "Buka saluran di Pengaturan › Peringatan, periksa alamatnya, lalu kirim uji coba (cuotai --channel-test).",
-  "budget.error.row": "{field}: anggaran pada baris rincian memerlukan kind, cakupan baris (key, virtual_key, project, workspace, atau team) dan id-nya, pada penyedia yang menawarkan rincian."
+  "budget.error.row": "{field}: anggaran pada baris rincian memerlukan kind, cakupan baris (key, virtual_key, project, workspace, atau team) dan id-nya, pada penyedia yang menawarkan rincian.",
+  "alerts.at.weekday": "{weekday} {time}",
+  "alerts.at.date": "{day}/{month} {time}",
+  "alerts.at.day": "{day}/{month}",
+  "alerts.more": {
+    "other": "dan {count} lainnya"
+  }
 }

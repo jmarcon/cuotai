@@ -2057,11 +2057,12 @@ pub fn eligible(metric: &Metric) -> bool {
 /// events of each account in one group, `groups` in account order (groups
 /// without events are skipped; `None` when nothing is left). One event:
 /// "Claude: 90% of the 5-hour window used" with "Work: Session (5h) ·
-/// resets 14:30" (the reset in `tz`, with the date when it is not today
-/// at `now`). Several events of one account: "Claude: 3 usage alerts" and
-/// one item per metric. Several accounts (alerts held by
-/// [`NOTICE_SPACING`]): "Cuotai: 4 usage alerts" and the items per
-/// account. Only the provider, the account name and metric labels: never
+/// resets 14:30" (the reset in `tz`; on another day, a weekday or a short
+/// date). Several events of one account: "Claude: 3 usage alerts" and
+/// the first [`NOTICE_ITEMS`] items, then "and N more". Several accounts
+/// (alerts held by [`NOTICE_SPACING`]): "Cuotai: 4 usage alerts" and, for
+/// the first [`NOTICE_ITEMS`] accounts, the first item and "+N" (DS-CMP-
+/// NOTIF-1: the body fits 110 characters in every language). Only the provider, the account name and metric labels: never
 /// an e-mail, credential, URL, provider note or usage value beyond the
 /// threshold.
 pub fn notice<Tz>(
@@ -2102,14 +2103,14 @@ where
             Some(single(account, &events[0], now, tz, private))
         }
         [(account, events)] => {
-            let items = join(events.iter().map(|event| item(event, now, tz)))?;
+            let items = join_capped(events.iter().map(|event| item(event, now, tz)))?;
             let body_l10n = if private {
                 details_private()
             } else {
                 Localized::with_params(
                     "alerts.body.many",
                     params([
-                        ("account", account.name.as_str().into()),
+                        ("account", account.display_name().into_owned().into()),
                         ("items", items.into()),
                     ]),
                     "{account}: {items}",
@@ -2132,13 +2133,13 @@ where
             let body = if private {
                 Some(details_private())
             } else {
-                join(groups.iter().filter_map(|(account, events)| {
-                    let items = join(events.iter().map(|event| item(event, now, tz)))?;
+                join_capped(groups.iter().filter_map(|(account, events)| {
+                    let items = first_and_count(events.iter().map(|event| item(event, now, tz)))?;
                     Some(Localized::with_params(
                         "alerts.item.account",
                         params([
                             ("provider", provider_l10n(account.provider).into()),
-                            ("account", account.name.as_str().into()),
+                            ("account", account.display_name().into_owned().into()),
                             ("items", items.into()),
                         ]),
                         "{provider} {account}: {items}",
@@ -2176,7 +2177,7 @@ where
         let at = event
             .resets_at
             .map(|at| local_time(at, now, tz))
-            .unwrap_or_default();
+            .unwrap_or_else(|| "".into());
         return Notice {
             title: Localized::with_param(
                 "alerts.title.session_expiring",
@@ -2188,15 +2189,15 @@ where
                 Localized::with_param(
                     "alerts.body.session_expiring.private",
                     "at",
-                    at.as_str(),
+                    at,
                     "The session expires {at}.",
                 )
             } else {
                 Localized::with_params(
                     "alerts.body.session_expiring",
                     params([
-                        ("account", account.name.as_str().into()),
-                        ("at", at.as_str().into()),
+                        ("account", account.display_name().into_owned().into()),
+                        ("at", at),
                     ]),
                     "{account}: the session expires {at}; paste a new one in the account wizard.",
                 )
@@ -2342,9 +2343,9 @@ where
             Localized::with_params(
                 "alerts.body",
                 params([
-                    ("account", account.name.as_str().into()),
+                    ("account", account.display_name().into_owned().into()),
                     ("metric", metric_param(label)),
-                    ("at", at.as_str().into()),
+                    ("at", at),
                 ]),
                 "{account}: {metric} · resets {at}",
             )
@@ -2352,7 +2353,7 @@ where
         None => Localized::with_params(
             "alerts.body.no_reset",
             params([
-                ("account", account.name.as_str().into()),
+                ("account", account.display_name().into_owned().into()),
                 ("metric", metric_param(label)),
             ]),
             "{account}: {metric}",
@@ -2387,7 +2388,7 @@ fn floor_notice(account: &Account, event: &AlertEvent, private: bool) -> Notice 
         Localized::with_params(
             "alerts.body.no_reset",
             params([
-                ("account", account.name.as_str().into()),
+                ("account", account.display_name().into_owned().into()),
                 ("metric", metric_param(&event.label)),
             ]),
             "{account}: {metric}",
@@ -2409,7 +2410,7 @@ fn limit_notice(account: &Account, event: &AlertEvent, private: bool) -> Notice 
         (Some(change), false) => Localized::with_params(
             "alerts.body.limit_changed",
             params([
-                ("account", account.name.as_str().into()),
+                ("account", account.display_name().into_owned().into()),
                 ("metric", metric_param(&event.label)),
                 ("from", crate::insights::plain(change.from).into()),
                 ("to", crate::insights::plain(change.to).into()),
@@ -2449,7 +2450,7 @@ where
             ),
             body: Localized::with_params(
                 "alerts.body.projected.private",
-                params([("at", at.as_str().into()), ("margin", margin.into())]),
+                params([("at", at), ("margin", margin.into())]),
                 "At this rate it runs out ≈{at}, {margin} before the reset",
             ),
         };
@@ -2459,7 +2460,7 @@ where
             "alerts.title.projected",
             params([
                 ("provider", provider_l10n(account.provider).into()),
-                ("account", account.name.as_str().into()),
+                ("account", account.display_name().into_owned().into()),
             ]),
             "{provider} · {account}: may run out before the reset",
         ),
@@ -2511,17 +2512,17 @@ where
         Some(at) if private => Localized::with_param(
             "alerts.body.overage.private",
             "at",
-            at.with_timezone(tz).format("%Y-%m-%d").to_string(),
+            local_day(at, tz),
             "Billing cycle ends {at}",
         ),
         None if private => details_private(),
         Some(at) => {
-            let at = at.with_timezone(tz).format("%Y-%m-%d").to_string();
+            let at = local_day(at, tz);
             Localized::with_params(
                 "alerts.body.overage",
                 params([
-                    ("account", account.name.as_str().into()),
-                    ("at", at.as_str().into()),
+                    ("account", account.display_name().into_owned().into()),
+                    ("at", at),
                 ]),
                 "{account} · billing cycle ends {at}",
             )
@@ -2529,7 +2530,7 @@ where
         None => Localized::with_param(
             "alerts.body.overage_no_cycle",
             "account",
-            account.name.as_str(),
+            account.display_name().into_owned(),
             "{account}",
         ),
     };
@@ -2601,8 +2602,8 @@ where
             Localized::with_params(
                 "alerts.body.pool_returns",
                 params([
-                    ("account", account.name.as_str().into()),
-                    ("at", at.as_str().into()),
+                    ("account", account.display_name().into_owned().into()),
+                    ("at", at),
                 ]),
                 "{account}: one returns {at}",
             )
@@ -2610,7 +2611,7 @@ where
         None => Localized::with_param(
             "alerts.body.pool",
             "account",
-            account.name.as_str(),
+            account.display_name().into_owned(),
             "{account}",
         ),
     };
@@ -2658,7 +2659,7 @@ where
         "alerts.body.projected",
         params([
             ("metric", metric_param(label)),
-            ("at", at.as_str().into()),
+            ("at", at),
             ("margin", margin.into()),
         ]),
         "At this rate {metric} runs out ≈{at}, {margin} before the reset",
@@ -2690,19 +2691,19 @@ where
         AlertKind::Threshold => Localized::with_params(
             "alerts.item.threshold",
             params([
-                ("metric", metric_param(label)),
+                ("metric", item_metric(label)),
                 ("percent", percent.as_str().into()),
             ]),
             "{metric} {percent}%",
         ),
         AlertKind::Exhausted => Localized::with_params(
             "alerts.item.exhausted",
-            params([("metric", metric_param(label))]),
+            params([("metric", item_metric(label))]),
             "{metric} at the limit",
         ),
         AlertKind::Recovered => Localized::with_params(
             "alerts.item.recovered",
-            params([("metric", metric_param(label))]),
+            params([("metric", item_metric(label))]),
             "{metric} available again",
         ),
         AlertKind::SessionExpiring => {
@@ -2712,10 +2713,10 @@ where
             let at = event
                 .projection
                 .map(|projection| local_time(projection.projected_at, now, tz))
-                .unwrap_or_default();
+                .unwrap_or_else(|| "".into());
             Localized::with_params(
                 "alerts.item.projected",
-                params([("metric", metric_param(label)), ("at", at.as_str().into())]),
+                params([("metric", item_metric(label)), ("at", at)]),
                 "{metric} runs out ≈{at}",
             )
         }
@@ -2772,6 +2773,59 @@ where
     }
 }
 
+/// [`metric_param`] for an item that states its own percentage: an
+/// adapter's " (%)" suffix ("Session (5 hours) (%) 75%") is dropped
+/// (DS-CMP-NOTIF-1 length budget, PRD 0008 re-validation V-07).
+fn item_metric(label: &str) -> ParamValue {
+    metric_param(label.strip_suffix(" (%)").unwrap_or(label))
+}
+
+/// How many items a grouped notice lists before "and N more", so it fits
+/// DS-CMP-NOTIF-1's 110-character body in every language.
+const NOTICE_ITEMS: usize = 2;
+
+/// [`join`] of the first [`NOTICE_ITEMS`] items, then "and N more".
+fn join_capped(items: impl Iterator<Item = Localized>) -> Option<Localized> {
+    let items: Vec<Localized> = items.collect();
+    let more = items.len().saturating_sub(NOTICE_ITEMS);
+    let shown = join(items.into_iter().take(NOTICE_ITEMS))?;
+    if more == 0 {
+        return Some(shown);
+    }
+    Some(Localized::with_params(
+        "alerts.join",
+        params([
+            ("first", shown.into()),
+            (
+                "rest",
+                Localized::plural(
+                    "alerts.more",
+                    params([("count", more.into())]),
+                    "and {count} more",
+                    "and {count} more",
+                )
+                .into(),
+            ),
+        ]),
+        "{first}; {rest}",
+    ))
+}
+
+/// The first item and "+N" for the others (one account among several in a
+/// notice, DS-CMP-NOTIF-1 length budget).
+fn first_and_count(mut items: impl Iterator<Item = Localized>) -> Option<Localized> {
+    let first = items.next()?;
+    let more = items.count();
+    if more == 0 {
+        return Some(first);
+    }
+    Some(Localized::with_params(
+        "alerts.item.and_count",
+        params([("first", first.into()), ("count", more.into())]),
+        "{first} +{count}",
+    ))
+}
+
 /// The items separated by "; "; `None` without items.
 fn join(mut items: impl Iterator<Item = Localized>) -> Option<Localized> {
     let first = items.next()?;
@@ -2784,17 +2838,72 @@ fn join(mut items: impl Iterator<Item = Localized>) -> Option<Localized> {
     }))
 }
 
-/// `HH:MM` in `tz`, with the date when it is not the day of `now` there.
-fn local_time<Tz>(at: DateTime<Utc>, now: DateTime<Utc>, tz: &Tz) -> String
+/// `HH:MM` in `tz`; on another day than `now` there (DS-MSG-8, PRD 0008
+/// re-validation V-09), "Monday 14:30" within the next six days and a
+/// short date in the reader's order ("11/03 14:30", "03.11. 14:30")
+/// otherwise, never an ISO date.
+fn local_time<Tz>(at: DateTime<Utc>, now: DateTime<Utc>, tz: &Tz) -> ParamValue
 where
     Tz: TimeZone,
     Tz::Offset: Display,
 {
     let local = at.with_timezone(tz);
-    let today = local.date_naive() == now.with_timezone(tz).date_naive();
-    local
-        .format(if today { "%H:%M" } else { "%Y-%m-%d %H:%M" })
-        .to_string()
+    let time = local.format("%H:%M").to_string();
+    let days = (local.date_naive() - now.with_timezone(tz).date_naive()).num_days();
+    if days == 0 {
+        return time.into();
+    }
+    if (1..=6).contains(&days) {
+        return ParamValue::l10n(Localized::with_params(
+            "alerts.at.weekday",
+            params([
+                ("weekday", ParamValue::l10n(weekday_text(local.weekday()))),
+                ("time", time.into()),
+            ]),
+            "{weekday} {time}",
+        ));
+    }
+    ParamValue::l10n(Localized::with_params(
+        "alerts.at.date",
+        params([
+            ("day", local.format("%d").to_string().into()),
+            ("month", local.format("%m").to_string().into()),
+            ("time", time.into()),
+        ]),
+        "{month}/{day} {time}",
+    ))
+}
+
+/// A day in `tz` as a short date in the reader's order ("11/03"), for the
+/// end of a billing cycle (never an ISO date, DS-MSG-8).
+fn local_day<Tz>(at: DateTime<Utc>, tz: &Tz) -> ParamValue
+where
+    Tz: TimeZone,
+    Tz::Offset: Display,
+{
+    let local = at.with_timezone(tz);
+    ParamValue::l10n(Localized::with_params(
+        "alerts.at.day",
+        params([
+            ("day", local.format("%d").to_string().into()),
+            ("month", local.format("%m").to_string().into()),
+        ]),
+        "{month}/{day}",
+    ))
+}
+
+/// The localized name of `day` (the catalogs' `budget.weekday.*`).
+fn weekday_text(day: chrono::Weekday) -> Localized {
+    use crate::budget::WeekdayName;
+    crate::budget::weekday_text(match day {
+        chrono::Weekday::Mon => WeekdayName::Monday,
+        chrono::Weekday::Tue => WeekdayName::Tuesday,
+        chrono::Weekday::Wed => WeekdayName::Wednesday,
+        chrono::Weekday::Thu => WeekdayName::Thursday,
+        chrono::Weekday::Fri => WeekdayName::Friday,
+        chrono::Weekday::Sat => WeekdayName::Saturday,
+        chrono::Weekday::Sun => WeekdayName::Sunday,
+    })
 }
 
 #[cfg(test)]
@@ -3269,7 +3378,7 @@ mod tests {
         );
         assert_eq!(
             started.body.resolve("en-US"),
-            "Work · billing cycle ends 2026-03-01"
+            "Work · billing cycle ends 03/01"
         );
         // Provider units, no cycle end.
         let mut units_prev = extra(0, Some(0.0), None, None);
@@ -3923,7 +4032,7 @@ mod tests {
             text(&[(&work, vec![premium])], "en-US"),
             (
                 "Claude: 75% of Premium used".into(),
-                "Work: Premium · resets 2026-02-17 12:00".into()
+                "Work: Premium · resets Tuesday 12:00".into()
             )
         );
         // One account, several alerts: one notice.

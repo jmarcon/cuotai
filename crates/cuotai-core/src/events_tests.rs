@@ -751,6 +751,35 @@ fn every_summary_reads_in_each_catalog() {
             assert!(!text.contains('{'), "{text}");
         }
     }
+    // PRD 0034 RF2 (PRD 0008 re-validation V-05): an adapter's Portuguese
+    // label reads in the reader's language in the summary.
+    let crossed = Event {
+        schema: SCHEMA,
+        event: QuotaThresholdCrossed,
+        occurred_at: t0(),
+        account_key: "claude:Work".into(),
+        account_id: "acc_test00000000".into(),
+        account_name: "Work".into(),
+        provider: Provider::Claude,
+        accounts: Vec::new(),
+        parent: None,
+        metric: Some(MetricRef::new(
+            "Sessão (5 horas) (%)",
+            Some(MetricWindow::Window5h),
+        )),
+        current: Values {
+            threshold: Some(90),
+            ..Values::default()
+        },
+        previous: None,
+        sample: false,
+        row: None,
+    }
+    .summary();
+    let english = crossed.resolve("en-US");
+    assert!(english.ends_with(": 90% used"), "{english}");
+    assert!(!english.contains("Sessão"), "{english}");
+    assert!(crossed.resolve("pt-BR").contains("Sessão"));
     assert_eq!(
         Event {
             schema: SCHEMA,

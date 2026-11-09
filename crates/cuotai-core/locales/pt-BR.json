@@ -148,6 +148,7 @@
   "alerts.body.session_expiring": "{account}: a sessão expira {at}; cole uma nova no assistente da conta.",
   "alerts.body.session_expiring.private": "A sessão expira {at}.",
   "alerts.item.account": "{provider} {account}: {items}",
+  "alerts.item.and_count": "{first} +{count}",
   "alerts.item.balance_below_floor": "{metric} abaixo do seu piso",
   "alerts.item.balance_recovered": "{metric} acima do seu piso de novo",
   "alerts.item.exhausted": "{metric} no limite",
@@ -2314,5 +2315,12 @@
   "doctor.channel.ok": "A última entrega foi aceita.",
   "doctor.channel.none": "Nada foi enviado a ele ainda.",
   "doctor.fix.channel": "Abra o canal em Configurações › Alertas, confira o endereço e envie um teste (cuotai --channel-test).",
-  "budget.error.row": "{field}: um orçamento numa linha do detalhamento precisa de um kind, do escopo da linha (key, virtual_key, project, workspace ou team) e do seu id, num provedor que ofereça detalhamentos."
+  "budget.error.row": "{field}: um orçamento numa linha do detalhamento precisa de um kind, do escopo da linha (key, virtual_key, project, workspace ou team) e do seu id, num provedor que ofereça detalhamentos.",
+  "alerts.at.weekday": "{weekday} {time}",
+  "alerts.at.date": "{day}/{month} {time}",
+  "alerts.at.day": "{day}/{month}",
+  "alerts.more": {
+    "one": "e mais {count}",
+    "other": "e mais {count}"
+  }
 }

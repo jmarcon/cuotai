@@ -363,7 +363,9 @@ mod tests {
         .unwrap();
         let text = String::from_utf8(out).unwrap();
         assert!(
-            text.ends_with("  Work (Claude): Semanal: 90% used\n"),
+            // PRD 0008 re-validation V-05: the adapter's label reads in the
+            // chosen language.
+            text.ends_with("  Work (Claude): Weekly: 90% used\n"),
             "{text:?}"
         );
     }

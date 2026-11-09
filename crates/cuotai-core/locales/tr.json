@@ -151,6 +151,7 @@
   "alerts.body.session_expiring": "{account}: oturumun süresi {at} dolacak; hesap sihirbazına yenisini yapıştırın.",
   "alerts.body.session_expiring.private": "Oturumun süresi {at} dolacak.",
   "alerts.item.account": "{provider} {account}: {items}",
+  "alerts.item.and_count": "{first} +{count}",
   "alerts.item.balance_below_floor": "{metric} alt sınırının altında",
   "alerts.item.balance_recovered": "{metric} yeniden alt sınırının üstünde",
   "alerts.item.exhausted": "{metric} sınırda",
@@ -172,7 +173,7 @@
   },
   "alerts.title.balance_below_floor": "{provider}: bakiye alt sınırının altında",
   "alerts.title.balance_recovered": "{provider}: bakiye yeniden alt sınırının üstünde",
-  "alerts.title.exhausted": "{provider}: {window} kotası tükendi",
+  "alerts.title.exhausted": "{provider}: {window} kota tükendi",
   "alerts.title.exhausted_metric": "{provider}: {metric} sınırına ulaşıldı",
   "alerts.title.exhausted_metric.private": "{provider}: bir kota sınıra ulaştı",
   "alerts.title.limit_changed": "{provider}: bir limit değişti",
@@ -189,11 +190,11 @@
   "alerts.title.pool_recovered.private": "{provider}: paylaşılan bir havuz yeniden kullanılabilir",
   "alerts.title.projected": "{provider} · {account}: sıfırlanmadan önce tükenebilir",
   "alerts.title.projected.private": "{provider}: sıfırlanmadan önce tükenebilir",
-  "alerts.title.recovered": "{provider}: {window} kotası yeniden kullanılabilir",
+  "alerts.title.recovered": "{provider}: {window} kota yeniden kullanılabilir",
   "alerts.title.recovered_metric": "{provider}: {metric} yeniden kullanılabilir",
   "alerts.title.recovered_metric.private": "{provider}: bir kota yeniden kullanılabilir",
   "alerts.title.session_expiring": "{provider}: oturumun süresi yakında dolacak",
-  "alerts.title.threshold": "{provider}: {window} penceresinin %{percent} kadarı kullanıldı",
+  "alerts.title.threshold": "{provider}: {window} kotanın %{percent} kadarı kullanıldı",
   "alerts.title.threshold_metric": "{provider}: {metric} için %{percent} kullanıldı",
   "alerts.title.threshold_metric.private": "{provider}: bir kotanın %{percent} kadarı kullanıldı",
   "auth_mode.aws_sso.label": "AWS SSO profili",
@@ -2317,5 +2318,12 @@
   "doctor.channel.ok": "Son gönderimi kabul edildi.",
   "doctor.channel.none": "Ona henüz bir şey gönderilmedi.",
   "doctor.fix.channel": "Kanalı Ayarlar › Uyarılar bölümünde açın, adresini denetleyin ve bir test gönderin (cuotai --channel-test).",
-  "budget.error.row": "{field}: döküm satırındaki bir bütçe için kind, satırın kapsamı (key, virtual_key, project, workspace veya team) ve kimliği gerekir; sağlayıcı döküm sunmalıdır."
+  "budget.error.row": "{field}: döküm satırındaki bir bütçe için kind, satırın kapsamı (key, virtual_key, project, workspace veya team) ve kimliği gerekir; sağlayıcı döküm sunmalıdır.",
+  "alerts.at.weekday": "{weekday} {time}",
+  "alerts.at.date": "{day}.{month} {time}",
+  "alerts.at.day": "{day}.{month}",
+  "alerts.more": {
+    "one": "ve {count} tane daha",
+    "other": "ve {count} tane daha"
+  }
 }

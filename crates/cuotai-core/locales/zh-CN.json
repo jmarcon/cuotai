@@ -151,6 +151,7 @@
   "alerts.body.session_expiring": "{account}：会话将于 {at} 过期；请在账户向导中粘贴新会话。",
   "alerts.body.session_expiring.private": "会话将于 {at} 过期。",
   "alerts.item.account": "{provider} {account}：{items}",
+  "alerts.item.and_count": "{first} +{count}",
   "alerts.item.balance_below_floor": "{metric} 低于你的下限",
   "alerts.item.balance_recovered": "{metric} 已回到你的下限以上",
   "alerts.item.exhausted": "{metric} 已达限额",
@@ -171,7 +172,7 @@
   },
   "alerts.title.balance_below_floor": "{provider}：余额低于你的下限",
   "alerts.title.balance_recovered": "{provider}：余额已回到你的下限以上",
-  "alerts.title.exhausted": "{provider}：{window} 额度已用尽",
+  "alerts.title.exhausted": "{provider}：{window}额度已用尽",
   "alerts.title.exhausted_metric": "{provider}：{metric} 已达限额",
   "alerts.title.exhausted_metric.private": "{provider}：某项额度已达上限",
   "alerts.title.limit_changed": "{provider}：有上限发生变化",
@@ -187,11 +188,11 @@
   "alerts.title.pool_recovered.private": "{provider}：共享池重新可用",
   "alerts.title.projected": "{provider} · {account}：可能在重置前用尽",
   "alerts.title.projected.private": "{provider}：可能在重置前用尽",
-  "alerts.title.recovered": "{provider}：{window} 额度重新可用",
+  "alerts.title.recovered": "{provider}：{window}额度重新可用",
   "alerts.title.recovered_metric": "{provider}：{metric} 重新可用",
   "alerts.title.recovered_metric.private": "{provider}：某项额度重新可用",
   "alerts.title.session_expiring": "{provider}：会话即将过期",
-  "alerts.title.threshold": "{provider}：{window} 窗口已用 {percent}%",
+  "alerts.title.threshold": "{provider}：{window}窗口已用 {percent}%",
   "alerts.title.threshold_metric": "{provider}：{metric} 已用 {percent}%",
   "alerts.title.threshold_metric.private": "{provider}：某项额度已用 {percent}%",
   "auth_mode.aws_sso.label": "AWS SSO 配置文件",
@@ -2303,5 +2304,11 @@
   "doctor.channel.ok": "最近一次投递已被接受。",
   "doctor.channel.none": "尚未向其发送任何内容。",
   "doctor.fix.channel": "在“设置 › 提醒”中打开该渠道，检查地址并发送测试（cuotai --channel-test）。",
-  "budget.error.row": "{field}：明细行上的预算需要 kind、行的范围（key、virtual_key、project、workspace 或 team）及其 id，且提供方须支持明细。"
+  "budget.error.row": "{field}：明细行上的预算需要 kind、行的范围（key、virtual_key、project、workspace 或 team）及其 id，且提供方须支持明细。",
+  "alerts.at.weekday": "{weekday} {time}",
+  "alerts.at.date": "{month}/{day} {time}",
+  "alerts.at.day": "{month}/{day}",
+  "alerts.more": {
+    "other": "还有 {count} 条"
+  }
 }

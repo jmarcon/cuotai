@@ -151,6 +151,7 @@
   "alerts.body.session_expiring": "{account}：セッションは {at} に期限切れになります。アカウントのウィザードに新しいセッションを貼り付けてください。",
   "alerts.body.session_expiring.private": "セッションは {at} に期限切れになります。",
   "alerts.item.account": "{provider} {account}：{items}",
+  "alerts.item.and_count": "{first} +{count}",
   "alerts.item.balance_below_floor": "{metric} が下限を下回りました",
   "alerts.item.balance_recovered": "{metric} が再び下限を上回りました",
   "alerts.item.exhausted": "{metric} が上限",
@@ -171,7 +172,7 @@
   },
   "alerts.title.balance_below_floor": "{provider}：残高が設定した下限を下回りました",
   "alerts.title.balance_recovered": "{provider}：残高が再び下限を上回りました",
-  "alerts.title.exhausted": "{provider}：{window} のクォータが上限に到達",
+  "alerts.title.exhausted": "{provider}：{window}のクォータが上限に到達",
   "alerts.title.exhausted_metric": "{provider}：{metric} が上限に到達",
   "alerts.title.exhausted_metric.private": "{provider}：クォータが上限に到達",
   "alerts.title.limit_changed": "{provider}：上限が変わりました",
@@ -187,11 +188,11 @@
   "alerts.title.pool_recovered.private": "{provider}：共有プールが再び利用可能",
   "alerts.title.projected": "{provider} · {account}：リセット前に上限に達する可能性",
   "alerts.title.projected.private": "{provider}：リセット前に上限に達する可能性",
-  "alerts.title.recovered": "{provider}：{window} のクォータが再び利用可能",
+  "alerts.title.recovered": "{provider}：{window}のクォータが再び利用可能",
   "alerts.title.recovered_metric": "{provider}：{metric} が再び利用可能",
   "alerts.title.recovered_metric.private": "{provider}：クォータが再び利用可能",
   "alerts.title.session_expiring": "{provider}：セッションがまもなく期限切れ",
-  "alerts.title.threshold": "{provider}：{window} ウィンドウの {percent}% を使用",
+  "alerts.title.threshold": "{provider}：{window}ウィンドウの{percent}%を使用",
   "alerts.title.threshold_metric": "{provider}：{metric} の {percent}% を使用",
   "alerts.title.threshold_metric.private": "{provider}：クォータの {percent}% を使用",
   "auth_mode.aws_sso.label": "AWS SSO プロファイル",
@@ -2303,5 +2304,11 @@
   "doctor.channel.ok": "直近の配信は受け付けられました。",
   "doctor.channel.none": "まだ何も送信していません。",
   "doctor.fix.channel": "「設定 › アラート」でチャネルを開き、アドレスを確認してテストを送信してください（cuotai --channel-test）。",
-  "budget.error.row": "{field}：内訳の行の予算には kind、行のスコープ（key、virtual_key、project、workspace、team）とその id が必要で、内訳に対応したプロバイダーである必要があります。"
+  "budget.error.row": "{field}：内訳の行の予算には kind、行のスコープ（key、virtual_key、project、workspace、team）とその id が必要で、内訳に対応したプロバイダーである必要があります。",
+  "alerts.at.weekday": "{weekday} {time}",
+  "alerts.at.date": "{month}/{day} {time}",
+  "alerts.at.day": "{month}/{day}",
+  "alerts.more": {
+    "other": "ほか {count} 件"
+  }
 }

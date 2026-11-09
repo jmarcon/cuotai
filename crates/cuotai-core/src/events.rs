@@ -307,13 +307,16 @@ impl Event {
     /// transition (the account is not part of it), as `cuotai --watch`
     /// prints it without `--jsonl`. Carries only the payload's data.
     pub fn summary(&self) -> Localized {
-        let metric = self
-            .metric
-            .as_ref()
-            .map_or_else(String::new, |metric| metric.label.clone());
+        // PRD 0034 RF2 (PRD 0008 re-validation V-05): the metric reads in
+        // the reader's language, as on every other surface.
+        let metric = ParamValue::l10n(metric_text(
+            self.metric
+                .as_ref()
+                .map_or("", |metric| metric.label.as_str()),
+        ));
         let id = format!("events.summary.{}", self.event.name());
         let with_metric = |template: &'static str| {
-            Localized::with_param(id.clone(), "metric", metric.as_str(), template)
+            Localized::with_param(id.clone(), "metric", metric.clone(), template)
         };
         match self.event {
             EventKind::QuotaThresholdCrossed => {
@@ -321,7 +324,7 @@ impl Event {
                 Localized::with_params(
                     id,
                     params([
-                        ("metric", ParamValue::from(metric.as_str())),
+                        ("metric", metric.clone()),
                         ("threshold", ParamValue::from(u64::from(threshold))),
                     ]),
                     "{metric}: {threshold}% used",
@@ -389,7 +392,7 @@ impl Event {
                 (Some(from), Some(to)) => Localized::with_params(
                     id,
                     params([
-                        ("metric", ParamValue::from(metric.as_str())),
+                        ("metric", metric.clone()),
                         ("from", ParamValue::from(crate::insights::plain(from))),
                         ("to", ParamValue::from(crate::insights::plain(to))),
                     ]),
@@ -398,7 +401,7 @@ impl Event {
                 _ => Localized::with_param(
                     "events.summary.limit_changed_unknown",
                     "metric",
-                    metric.as_str(),
+                    metric.clone(),
                     "{metric}: limit changed",
                 ),
             },

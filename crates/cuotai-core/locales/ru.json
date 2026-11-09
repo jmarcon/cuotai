@@ -151,6 +151,7 @@
   "alerts.body.session_expiring": "{account}: сеанс истекает {at}; вставьте новый в мастере учётных записей.",
   "alerts.body.session_expiring.private": "Сеанс истекает {at}.",
   "alerts.item.account": "{provider} {account}: {items}",
+  "alerts.item.and_count": "{first} +{count}",
   "alerts.item.balance_below_floor": "{metric} ниже вашего порога",
   "alerts.item.balance_recovered": "{metric} снова выше вашего порога",
   "alerts.item.exhausted": "{metric}: лимит достигнут",
@@ -174,7 +175,7 @@
   },
   "alerts.title.balance_below_floor": "{provider}: баланс ниже вашего порога",
   "alerts.title.balance_recovered": "{provider}: баланс снова выше вашего порога",
-  "alerts.title.exhausted": "{provider}: квота {window} исчерпана",
+  "alerts.title.exhausted": "{provider}: {window} квота исчерпана",
   "alerts.title.exhausted_metric": "{provider}: достигнут лимит {metric}",
   "alerts.title.exhausted_metric.private": "{provider}: квота исчерпана",
   "alerts.title.limit_changed": "{provider}: лимит изменился",
@@ -193,11 +194,11 @@
   "alerts.title.pool_recovered.private": "{provider}: общий пул снова доступен",
   "alerts.title.projected": "{provider} · {account}: может закончиться до сброса",
   "alerts.title.projected.private": "{provider}: может закончиться до сброса",
-  "alerts.title.recovered": "{provider}: квота {window} снова доступна",
+  "alerts.title.recovered": "{provider}: {window} квота снова доступна",
   "alerts.title.recovered_metric": "{provider}: {metric} снова доступна",
   "alerts.title.recovered_metric.private": "{provider}: квота снова доступна",
   "alerts.title.session_expiring": "{provider}: сеанс скоро истечёт",
-  "alerts.title.threshold": "{provider}: использовано {percent}% окна {window}",
+  "alerts.title.threshold": "{provider}: {window} квота использована на {percent}%",
   "alerts.title.threshold_metric": "{provider}: использовано {percent}% по {metric}",
   "alerts.title.threshold_metric.private": "{provider}: использовано {percent}% квоты",
   "auth_mode.aws_sso.label": "AWS SSO",
@@ -2345,5 +2346,14 @@
   "doctor.channel.ok": "Последняя доставка принята.",
   "doctor.channel.none": "В него ещё ничего не отправлялось.",
   "doctor.fix.channel": "Откройте канал в «Настройки › Оповещения», проверьте адрес и отправьте тест (cuotai --channel-test).",
-  "budget.error.row": "{field}: бюджету на строке детализации нужны kind, область строки (key, virtual_key, project, workspace или team) и её id у провайдера, который поддерживает детализацию."
+  "budget.error.row": "{field}: бюджету на строке детализации нужны kind, область строки (key, virtual_key, project, workspace или team) и её id у провайдера, который поддерживает детализацию.",
+  "alerts.at.weekday": "{weekday} {time}",
+  "alerts.at.date": "{day}.{month} {time}",
+  "alerts.at.day": "{day}.{month}",
+  "alerts.more": {
+    "one": "и ещё {count}",
+    "few": "и ещё {count}",
+    "many": "и ещё {count}",
+    "other": "и ещё {count}"
+  }
 }
