@@ -1883,7 +1883,7 @@ fn report_text(
             out += "\n";
         }
         if let Some(reset) = metric.resets_at {
-            out += &renews_line(locale, "    ", &reset.to_rfc3339());
+            out += &renews_line(locale, "    ", &at(reset));
         }
         if metric.derived_from.is_some() {
             out += &format!(
@@ -1892,33 +1892,9 @@ fn report_text(
             );
         }
         let points = recent.get(index).map(Vec::as_slice);
-        if let Some(pace) = pace::assess_reading(metric, reading_at, interval, now, points) {
-            let text = dashboard::pace_text(&pace, locale, &at);
-            out += &l10n::trf_in(
-                locale,
-                "once.pace",
-                "    Pace: {text} (linear estimate)",
-                &[("text", &text)],
-            );
-            out += "\n";
-        }
-        // PRD 0041 RF4.3: the allowance, from a fresh reading like the pace.
-        let fresh = cuotai_core::freshness::assess(reading_at, interval, now)
-            == cuotai_core::freshness::Freshness::Fresh;
-        if let Some(allowance) = fresh
-            .then(|| pace::allowance(metric, reading_at, points))
-            .flatten()
-        {
-            out += &l10n::trf_in(
-                locale,
-                "once.allowance",
-                "    Allowance: {text}",
-                &[("text", &allowance.sentence().resolve(locale))],
-            );
-            out += "\n";
-        }
+        out += &pace_lines(metric, reading_at, points, interval, now, locale, &at);
     }
-    out += &sub_reports_text(report, locale, &at);
+    out += &sub_reports_text(report, interval, now, locale, &at);
     out += &breakdown_view::once_text(report, locale);
     for (idx, fallback_text) in report.notes.iter().enumerate() {
         let text = report
@@ -1940,6 +1916,47 @@ fn report_text(
     out
 }
 
+/// The `Pace:` and `Allowance:` lines of one `--once` metric (4-space
+/// indent), from a reading measured at `reading_at`
+/// ([`cuotai_core::freshness::reading_time`]): only while that reading is
+/// fresh for `interval` at `now` (PRD 0024 FIX-11, PRD 0041 RF4.3).
+fn pace_lines(
+    metric: &cuotai_core::Metric,
+    reading_at: DateTime<Utc>,
+    points: Option<&[Point]>,
+    interval: Duration,
+    now: DateTime<Utc>,
+    locale: &str,
+    at: &impl Fn(DateTime<Utc>) -> String,
+) -> String {
+    let mut out = String::new();
+    if let Some(pace) = pace::assess_reading(metric, reading_at, interval, now, points) {
+        let text = dashboard::pace_text(&pace, locale, at);
+        out += &l10n::trf_in(
+            locale,
+            "once.pace",
+            "    Pace: {text} (linear estimate)",
+            &[("text", &text)],
+        );
+        out += "\n";
+    }
+    let fresh = cuotai_core::freshness::assess(reading_at, interval, now)
+        == cuotai_core::freshness::Freshness::Fresh;
+    if let Some(allowance) = fresh
+        .then(|| pace::allowance(metric, reading_at, points))
+        .flatten()
+    {
+        out += &l10n::trf_in(
+            locale,
+            "once.allowance",
+            "    Allowance: {text}",
+            &[("text", &allowance.sentence().resolve(locale))],
+        );
+        out += "\n";
+    }
+    out
+}
+
 /// "    Renews: <time>" under a metric of `--once`.
 fn renews_line(locale: &str, indent: &str, at: &str) -> String {
     format!(
@@ -1953,6 +1970,8 @@ fn renews_line(locale: &str, indent: &str, at: &str) -> String {
 /// connection with its status and metrics. Empty for any other account.
 fn sub_reports_text(
     report: &Report,
+    interval: Duration,
+    now: DateTime<Utc>,
     locale: &str,
     at: &impl Fn(DateTime<Utc>) -> String,
 ) -> String {
@@ -2002,6 +2021,10 @@ fn sub_reports_text(
             ui::status_label(sub.status),
             flags
         );
+        // PRD 0007 RF4.2: a connection is paced like the TUI card and
+        // `export::v1` pace it, from its own reading.
+        let reading = cuotai_core::aggregators::sub_as_report(report, sub);
+        let reading_at = cuotai_core::freshness::reading_time(&reading);
         for metric in &sub.metrics {
             out += &format!(
                 "      {}: {}\n",
@@ -2010,6 +2033,12 @@ fn sub_reports_text(
             );
             if let Some(reset) = metric.resets_at {
                 out += &renews_line(locale, "        ", &at(reset));
+            }
+            if sub.status == cuotai_core::Status::Ready {
+                let lines = pace_lines(metric, reading_at, None, interval, now, locale, at);
+                for line in lines.lines() {
+                    out += &format!("    {line}\n");
+                }
             }
         }
         if sub.status != cuotai_core::Status::Ready {
@@ -2744,6 +2773,50 @@ mod tests {
         );
     }
 
+    /// PRD 0007 RF4.2 (re-validation V-01): a connection's eligible metric
+    /// gets the same `Pace:` line as a direct account, indented under it,
+    /// and its reset is in local time like the direct account's.
+    #[test]
+    fn once_paces_the_connections_of_an_aggregator() {
+        let now = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+        let mut router = report("home", Status::Ready, Vec::new());
+        router.provider = Provider::NineRouter;
+        router.sub_reports = vec![cuotai_core::SubReport {
+            id: "a".into(),
+            upstream: "claude".into(),
+            provider: Some(Provider::Claude),
+            label: "conn-a".into(),
+            status: Status::Ready,
+            metrics: vec![quota(
+                MetricWindow::Window5h,
+                40.0,
+                Some(now + chrono::Duration::minutes(120)),
+            )],
+            notes_l10n: Vec::new(),
+            checked_at: now,
+            as_of: None,
+            enabled_upstream: Some(true),
+            duplicate_of: None,
+            plan: None,
+            via: None,
+            identity: None,
+        }];
+        let at = |t: DateTime<Utc>| t.format("%H:%M").to_string();
+        let text = report_text(&router, &[], None, FIVE_MIN, now, "en-US", at);
+        assert!(
+            text.contains(
+                "      Window5h: 40.00 % / 100.00\n\
+                 \x20       Renews: 02:00\n\
+                 \x20       Pace: 20 points in reserve · lasts until the reset (linear estimate)\n"
+            ),
+            "{text}"
+        );
+        // Not fresh any more: no pace for the connection either.
+        let late = now + chrono::Duration::minutes(20);
+        let text = report_text(&router, &[], None, FIVE_MIN, late, "en-US", at);
+        assert!(!text.contains("Pace:"), "{text}");
+    }
+
     #[test]
     fn once_prints_the_pace_line_under_each_eligible_metric() {
         let now = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
@@ -2764,14 +2837,14 @@ mod tests {
             report_text(&report, &[], None, FIVE_MIN, now, "en-US", at),
             "\nWork / Claude — Atualizado · consultado agora\n\
              \x20 Window5h: 40.00 % / 100.00\n\
-             \x20   Renews: 2026-01-01T02:00:00+00:00\n\
+             \x20   Renews: 02:00\n\
              \x20   Pace: 20 points in reserve · lasts until the reset (linear estimate)\n\
              \x20 Weekly: 88.00 % / 100.00\n\
-             \x20   Renews: 2026-01-02T06:00:00+00:00\n\
+             \x20   Renews: 06:00\n\
              \x20   Pace: 6 points above the pace · runs out at 18:49, 11h 10m before the reset (linear estimate)\n\
              \x20   Allowance: ≈ 0.4%/h to the reset\n\
              \x20 Daily: 1.00 % / 100.00\n\
-             \x20   Renews: 2026-01-01T23:55:00+00:00\n\
+             \x20   Renews: 23:55\n\
              \x20   Allowance: ≈ 4.1%/h to the reset\n\
              \x20 Monthly: 10.00 % / 100.00\n"
         );
