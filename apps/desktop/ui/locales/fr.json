@@ -135,6 +135,8 @@
   "settings.liveSession.show": "Afficher la session en direct de l’agent",
   "time.now": "maintenant",
   "time.today": "Aujourd’hui {time}",
+  "time.weekdayTime": "{day} {time}",
+  "time.dateTime": "{date}, {time}",
   "metric.resetsAt": "Réinitialisation {when}",
   "metric.balance": "Solde : {amount}",
   "metric.usage": "Utilisation : {amount}",

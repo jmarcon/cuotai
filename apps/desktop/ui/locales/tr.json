@@ -135,6 +135,8 @@
   "settings.liveSession.show": "Canlı ajan oturumunu göster",
   "time.now": "şimdi",
   "time.today": "Bugün {time}",
+  "time.weekdayTime": "{day} {time}",
+  "time.dateTime": "{date} {time}",
   "metric.resetsAt": "Sıfırlanma: {when}",
   "metric.balance": "Bakiye: {amount}",
   "metric.usage": "Kullanım: {amount}",

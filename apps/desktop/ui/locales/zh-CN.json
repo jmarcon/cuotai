@@ -133,6 +133,8 @@
   "settings.liveSession.show": "显示代理实时会话",
   "time.now": "现在",
   "time.today": "今天 {time}",
+  "time.weekdayTime": "{day} {time}",
+  "time.dateTime": "{date} {time}",
   "metric.resetsAt": "{when}重置",
   "metric.balance": "余额：{amount}",
   "metric.usage": "用量：{amount}",

@@ -132,6 +132,8 @@
   "settings.liveSession.show": "Show live agent session",
   "time.now": "now",
   "time.today": "Today {time}",
+  "time.weekdayTime": "{day} {time}",
+  "time.dateTime": "{date}, {time}",
   "metric.resetsAt": "Resets {when}",
   "metric.balance": "Balance: {amount}",
   "metric.usage": "Usage: {amount}",

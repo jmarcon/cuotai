@@ -12,7 +12,7 @@ import { mountTimeline } from "./timeline.js";
 import { costLineHtml, sourceFor } from "./cost.js";
 import {
   accountLabel, bestChipHtml, liveChipHtml, costUsage, bindStatusLinks, bindThemeSwitch, bindSettingsShortcut, brand, createStore, disabledAccounts, esc, fmtAge, icon,
-  initOrderSync, initTheme, initTrayView, level, nextNoticeText, noteText, onDisabledChange, onHiddenChange, onSettingsChanged, onTrayViewChange,
+  initOrderSync, initTheme, initTrayView, level, nextNoticeParts, noteText, onDisabledChange, onHiddenChange, onSettingsChanged, onTrayViewChange,
   openAggregatorDashboard, openMainWindow, openSettingsWindow, overageChipHtml, reportKey, setMetricAlert, sortReports, statusLabel, trayViewPref, wordmark,
   errText, isDesktop, hourlyStrip,
 } from "./lib.js";
@@ -217,8 +217,11 @@ function context(view) {
 /** DS-CMP-FOOT-4: one notice above the footer at a time, highest priority first (error > reset notice > update). */
 function noticeHtml(view, error) {
   if (error && view?.reports?.length) return `<p class="pop-notice bad" role="alert">${icon("alert")}<span>${esc(error)}</span></p>`;
-  const next = nextNoticeText(view);
-  if (next) return `<p class="pop-notice" data-next-notice>${icon("bell")}<span>${esc(next)}</span></p>`;
+  const next = nextNoticeParts(view);
+  if (next) {
+    const when = next.when ? `<span class="pop-notice-when">${esc(next.when)}</span>` : "";
+    return `<p class="pop-notice" data-next-notice title="${esc(next.text)}">${icon("bell")}<span>${esc(next.when ? next.head.trimEnd() : next.head)}</span>${when}</p>`;
+  }
   const update = trayUpdateLine();
   if (update) return `<p class="pop-notice" data-update-notice><button class="link" data-open-main>${icon("download")}<span>${esc(update)}</span></button></p>`;
   return "";

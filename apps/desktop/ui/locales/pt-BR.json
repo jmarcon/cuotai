@@ -138,6 +138,8 @@
   "quota.na": "N/D",
   "time.now": "agora",
   "time.today": "Hoje {time}",
+  "time.weekdayTime": "{day} {time}",
+  "time.dateTime": "{date}, {time}",
   "metric.resetsAt": "Reinicia {when}",
   "metric.balance": "Saldo: {amount}",
   "metric.usage": "Uso: {amount}",

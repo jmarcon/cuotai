@@ -133,6 +133,8 @@
   "settings.liveSession.show": "에이전트 실시간 세션 표시",
   "time.now": "지금",
   "time.today": "오늘 {time}",
+  "time.weekdayTime": "{day} {time}",
+  "time.dateTime": "{date} {time}",
   "metric.resetsAt": "{when}에 초기화",
   "metric.balance": "잔액: {amount}",
   "metric.usage": "사용량: {amount}",

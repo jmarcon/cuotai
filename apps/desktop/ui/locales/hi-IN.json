@@ -135,6 +135,8 @@
   "settings.liveSession.show": "लाइव एजेंट सत्र दिखाएँ",
   "time.now": "अभी",
   "time.today": "आज {time}",
+  "time.weekdayTime": "{day} {time}",
+  "time.dateTime": "{date}, {time}",
   "metric.resetsAt": "{when} पर रीसेट",
   "metric.balance": "बैलेंस: {amount}",
   "metric.usage": "उपयोग: {amount}",

@@ -295,16 +295,7 @@ where
     I::Item: Into<Option<&'a Report>>,
 {
     let mut plan = Plan::default();
-    for mut event in upcoming(config, reports, now - MISSED_GRACE, prefs) {
-        let account_key = &event.account_key;
-        event.metrics.retain(|metric| {
-            !ledger.notified(&key_digest(account_key, &metric.label), metric.resets_at)
-        });
-        let Some(first) = event.metrics.first() else {
-            continue;
-        };
-        event.resets_at = first.resets_at;
-        event.notify_at = event.resets_at - prefs.lead;
+    for event in unnotified(config, reports, now, prefs, ledger) {
         if event.notify_at > now {
             if plan
                 .next
@@ -328,6 +319,63 @@ where
     }
     plan.due.sort_by_key(|event| event.account_index);
     plan
+}
+
+/// [`upcoming`] (from [`MISSED_GRACE`] ago) without the metrics `ledger`
+/// already notified, each event's times recomputed from what is left.
+fn unnotified<'a, I>(
+    config: &Config,
+    reports: I,
+    now: DateTime<Utc>,
+    prefs: &Prefs,
+    ledger: &Ledger,
+) -> Vec<ResetEvent>
+where
+    I: IntoIterator,
+    I::Item: Into<Option<&'a Report>>,
+{
+    upcoming(config, reports, now - MISSED_GRACE, prefs)
+        .into_iter()
+        .filter_map(|mut event| {
+            let account_key = &event.account_key;
+            event.metrics.retain(|metric| {
+                !ledger.notified(&key_digest(account_key, &metric.label), metric.resets_at)
+            });
+            event.resets_at = event.metrics.first()?.resets_at;
+            event.notify_at = event.resets_at - prefs.lead;
+            Some(event)
+        })
+        .collect()
+}
+
+/// PRD 0003 RF3.4: the next notice that will really be shown after `now`,
+/// for the tray and the tooltip. `shown_at` says when the notice of an
+/// event is shown (`None`: never, quiet hours drop it; see
+/// [`crate::quiet::reset_shown_at`]); the returned event's `notify_at` is
+/// that time. Events are tried in `notify_at` order, and the shown time
+/// never moves before the planned one, so the first survivor is the
+/// earliest notice.
+pub fn next_shown<'a, I>(
+    config: &Config,
+    reports: I,
+    now: DateTime<Utc>,
+    prefs: &Prefs,
+    ledger: &Ledger,
+    shown_at: impl Fn(&ResetEvent) -> Option<DateTime<Utc>>,
+) -> Option<ResetEvent>
+where
+    I: IntoIterator,
+    I::Item: Into<Option<&'a Report>>,
+{
+    let mut ahead: Vec<_> = unnotified(config, reports, now, prefs, ledger)
+        .into_iter()
+        .filter(|event| event.notify_at > now)
+        .collect();
+    ahead.sort_by_key(|event| (event.notify_at, event.account_index));
+    ahead.into_iter().find_map(|mut event| {
+        event.notify_at = shown_at(&event)?;
+        Some(event)
+    })
 }
 
 /// The quota resets two consecutive readings of one account reveal (PRD
