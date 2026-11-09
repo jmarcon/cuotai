@@ -13,6 +13,22 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.84.6] - 2026-11-09
+
+### Fixed
+
+- History exports and backups are written through a private temporary file and refuse to overwrite Cuotai's own history, configuration or data files (PRD 0006 RF4; PRD 0052 RF5; PRD 0046 RF2; e26a182).
+- The --history-export option accepts only --history-days from 7 to 365 instead of crashing on a huge value (PRD 0006 RF4; PRD 0052 RF5; PRD 0046 RF2; e26a182).
+- The copy of the history kept before an upgrade is removed after 7 days, counts in "On disk" and yields to the size cap (PRD 0006 RF4; PRD 0051 RF3; c46d1dc).
+- Erasing everything also works when the history file is damaged, and an erasure that another open Cuotai window keeps from wiping the disk says so (PRD 0006 RF4; PRD 0051 RF3; c46d1dc).
+- History charts and sparklines of metrics without a limit start at zero, so a small change no longer looks like a full rise (PRD 0006 RF5, RF6; 87fbef0).
+- A metric with no measured use shows a sentence instead of empty axes, and history dates read like "22 Oct, 18:10" (PRD 0006 RF5, RF6; 87fbef0).
+- The terminal history heading is spaced and its spans are translated in every language, --history shows its end time in local time, and a metric without measured values says so (PRD 0006 RF6; 18a8385).
+
+### Security
+
+- The desktop app now chooses export, backup and restore files only through its own system dialog (PRD 0050 RF9; PRD 0006 RF4; 5a523e7).
+
 ## [0.84.5] - 2026-11-09
 
 ### Fixed
@@ -634,7 +650,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.84.5...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.84.6...HEAD
+[0.84.6]: https://github.com/jmarcon/cuotai/compare/v0.84.5...v0.84.6
 [0.84.5]: https://github.com/jmarcon/cuotai/compare/v0.84.4...v0.84.5
 [0.84.4]: https://github.com/jmarcon/cuotai/compare/v0.84.3...v0.84.4
 [0.84.3]: https://github.com/jmarcon/cuotai/compare/v0.84.2...v0.84.3
