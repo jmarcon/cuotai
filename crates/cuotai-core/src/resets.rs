@@ -487,8 +487,8 @@ pub struct Ledger {
     /// PRD 0051 RF3.4: members a later revision added, kept on save.
     #[serde(flatten)]
     extra: serde_json::Map<String, serde_json::Value>,
-    /// PRD 0051 RF3.2: read from a later schema major: kept in memory,
-    /// never written back.
+    /// PRD 0051 RF3.2: read from a later schema major, or from a file
+    /// that exists but cannot be read: kept in memory, never written back.
     #[serde(skip)]
     frozen: bool,
 }
@@ -517,9 +517,22 @@ impl Ledger {
     /// rewritten; a file that cannot be parsed is set aside, never
     /// overwritten, as `notified.json.corrupt-<UTC time>` (which `cuotai
     /// --doctor` reports) and read as empty, so the next save recreates it.
+    ///
+    /// A file that exists but cannot be read (permissions, an I/O error)
+    /// is read as empty and frozen too: overwriting it would lose what it
+    /// holds (PRD 0003 re-validation S-03).
     pub fn load(path: &Path) -> Self {
-        let Ok(bytes) = std::fs::read(path) else {
-            return Self::default();
+        let bytes = match std::fs::read(path) {
+            Ok(bytes) => bytes,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Self::default();
+            }
+            Err(_) => {
+                return Self {
+                    frozen: true,
+                    ..Self::default()
+                };
+            }
         };
         if crate::private_fs::json_state_version(&bytes, LEDGER_SCHEMA)
             .is_some_and(|version| version.major > LEDGER_SCHEMA)
@@ -592,9 +605,7 @@ impl Ledger {
     /// freshest copy (a rare duplicate is the worst case).
     pub fn claim<R>(&mut self, path: &Path, change: impl FnOnce(&mut Ledger) -> R) -> R {
         let _lock = LedgerLock::acquire(path);
-        let mut fresh = Self::load(path);
-        fresh.alerts.keep_session_of(&self.alerts);
-        *self = fresh;
+        self.adopt(Self::load(path));
         let result = change(self);
         // A failed write only risks repeating a notice after a restart.
         let _ = self.save(path);
@@ -605,8 +616,21 @@ impl Ledger {
     /// atomic renames), keeping the in-memory first-reading set. Call it
     /// when the file's modification time changed.
     pub fn reload(&mut self, path: &Path) {
-        let mut fresh = Self::load(path);
-        fresh.alerts.keep_session_of(&self.alerts);
+        self.adopt(Self::load(path));
+    }
+
+    /// Take `fresh`, just read from disk, keeping the in-memory
+    /// first-reading set. A frozen read (a later major, an unreadable file)
+    /// holds nothing usable and is never written, so this process's own
+    /// records stay the truth: they are kept, and a notice it sent is not
+    /// sent again (PRD 0003 re-validation S-02).
+    fn adopt(&mut self, mut fresh: Self) {
+        if fresh.frozen {
+            fresh.notified = std::mem::take(&mut self.notified);
+            fresh.alerts = std::mem::take(&mut self.alerts);
+        } else {
+            fresh.alerts.keep_session_of(&self.alerts);
+        }
         *self = fresh;
     }
 

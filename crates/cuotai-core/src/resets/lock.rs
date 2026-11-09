@@ -17,10 +17,25 @@ pub const STALE_AFTER: Duration = Duration::from_secs(10);
 pub const WAIT: Duration = Duration::from_secs(2);
 const POLL: Duration = Duration::from_millis(10);
 
-/// A held lock; dropping it releases the file.
+/// A held lock; dropping it releases the file, unless another holder
+/// took it over meanwhile (PRD 0003 re-validation S-07).
 #[derive(Debug)]
 pub struct LedgerLock {
     path: PathBuf,
+    /// What this holder wrote into the file: its PID and a per-process
+    /// counter, so two holders of one process differ too.
+    token: String,
+}
+
+/// A fresh token for a new holder.
+fn token() -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    format!(
+        "{}:{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    )
 }
 
 /// `notified.lock` next to `ledger` (`notified.json`).
@@ -43,12 +58,13 @@ impl LedgerLock {
         loop {
             match OpenOptions::new().write(true).create_new(true).open(&path) {
                 Ok(mut file) => {
-                    let _ = write!(file, "{}", std::process::id());
-                    return Some(Self { path });
+                    let token = token();
+                    let _ = write!(file, "{token}");
+                    return Some(Self { path, token });
                 }
                 Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
                     if is_stale(&path, stale) {
-                        let _ = std::fs::remove_file(&path);
+                        break_stale(&path, stale);
                         continue;
                     }
                 }
@@ -69,17 +85,43 @@ impl LedgerLock {
     }
 }
 
+/// Older than `stale`, or modified in the future (a clock set back, a file
+/// copied from another machine): such a lock would otherwise never age.
 fn is_stale(path: &Path, stale: Duration) -> bool {
     std::fs::metadata(path)
         .and_then(|meta| meta.modified())
         .ok()
-        .and_then(|modified| SystemTime::now().duration_since(modified).ok())
-        .is_some_and(|age| age > stale)
+        .is_some_and(
+            |modified| match SystemTime::now().duration_since(modified) {
+                Ok(age) => age > stale,
+                Err(_) => true,
+            },
+        )
+}
+
+/// Break a stale lock without removing a fresh one another waiter created
+/// in between: move it aside under a name of this holder's own, and put it
+/// back if what was moved turns out not to be stale.
+fn break_stale(path: &Path, stale: Duration) {
+    let aside = path.with_extension(format!("lock.stale-{}", token().replace(':', "-")));
+    if std::fs::rename(path, &aside).is_err() {
+        return;
+    }
+    if !is_stale(&aside, stale) {
+        // Someone else broke it first and took the lock: give theirs back
+        // (a hard link fails, keeping the newer lock, when one exists).
+        let _ = std::fs::hard_link(&aside, path);
+    }
+    let _ = std::fs::remove_file(&aside);
 }
 
 impl Drop for LedgerLock {
     fn drop(&mut self) {
-        let _ = std::fs::remove_file(&self.path);
+        // Only this holder's own file: a lock taken over as stale belongs
+        // to its new holder.
+        if std::fs::read_to_string(&self.path).is_ok_and(|held| held == self.token) {
+            let _ = std::fs::remove_file(&self.path);
+        }
     }
 }
 
@@ -118,6 +160,31 @@ mod tests {
         std::thread::sleep(Duration::from_millis(20));
         let lock = LedgerLock::acquire_with(&ledger, Duration::from_millis(500), Duration::ZERO);
         assert!(lock.is_some(), "the dead process's lock is taken over");
+    }
+
+    /// PRD 0003 re-validation S-07: a lock dated in the future is stale at
+    /// once, and dropping a lock leaves another holder's file in place.
+    #[test]
+    fn a_future_lock_is_broken_and_drop_keeps_another_holders_lock() {
+        let dir = tempfile::tempdir().unwrap();
+        let ledger = dir.path().join("notified.json");
+        let path = lock_path(&ledger);
+        std::fs::write(&path, "999999:0").unwrap();
+        let future = SystemTime::now() + Duration::from_secs(3600);
+        std::fs::File::options()
+            .write(true)
+            .open(&path)
+            .unwrap()
+            .set_modified(future)
+            .unwrap();
+        let held = LedgerLock::acquire_with(&ledger, Duration::from_millis(100), STALE_AFTER)
+            .expect("a future lock is broken at once");
+        // Another process takes it over (as if this one were stale).
+        std::fs::write(&path, "424242:7").unwrap();
+        drop(held);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "424242:7");
+        let leftovers = std::fs::read_dir(dir.path()).unwrap().count();
+        assert_eq!(leftovers, 1, "nothing but the other holder's lock");
     }
 
     #[test]
