@@ -218,7 +218,9 @@ impl Notices {
         let window = self.window(now);
         let (mut deliver, mut deferred) = (Vec::new(), Vec::new());
         for event in events {
-            match quiet::decide(Subject::Alert(&event), window) {
+            // PRD 0008 re-validation (S-03): an exhaustion breaks through
+            // quiet hours once per metric and period.
+            match self.ledger.alerts().quiet_decision(&event, window) {
                 Decision::Deliver => deliver.push(event),
                 Decision::Defer(until) => deferred.push((event, until)),
                 Decision::Drop => {}
@@ -442,6 +444,12 @@ impl Notices {
             .is_some_and(|last| now < last + NOTICE_SPACING)
         {
             self.pending.append(&mut pending);
+            return;
+        }
+        // PRD 0008 re-validation (S-05): recorded as notified only now that
+        // they are shown; another process may have shown them first.
+        let pending = self.ledger.claim_shown(pending, window, now);
+        if pending.is_empty() {
             return;
         }
         let private = self.loaded.notify.private;
@@ -1048,6 +1056,45 @@ mod tests {
         for word in ["Secret", "1234", "1,234"] {
             assert!(!osc.contains(word), "{osc}");
         }
+    }
+
+    /// PRD 0008 re-validation (S-05): an alert held by the one-minute
+    /// spacing counts as told only once it is shown.
+    #[test]
+    fn a_held_alert_is_recorded_as_told_only_once_shown() {
+        let config = config(vec![account("a"), account("b")]);
+        let window = start() + TimeDelta::hours(3);
+        let mut cycle = RefreshCycle::new(&config, Instant::now());
+        let mut notices = Notices::new(start(), false);
+        for index in 0..2 {
+            answer(
+                &mut cycle,
+                &mut notices,
+                index,
+                measured(&config.accounts[index], 50.0, start() + mins(1), window),
+            );
+        }
+        let at = start() + mins(2);
+        answer(
+            &mut cycle,
+            &mut notices,
+            0,
+            measured(&config.accounts[0], 92.0, at, window),
+        );
+        assert_eq!(pass(&mut notices, &config, &cycle, at), vec![BEL]);
+        let soon = at + TimeDelta::seconds(30);
+        answer(
+            &mut cycle,
+            &mut notices,
+            1,
+            measured(&config.accounts[1], 92.0, soon, window),
+        );
+        assert!(pass(&mut notices, &config, &cycle, soon).is_empty(), "held");
+        let held = notices.pending[0].clone();
+        assert!(!notices.ledger.alerts().notified(&held), "not told yet");
+        let due = at + NOTICE_SPACING;
+        assert_eq!(pass(&mut notices, &config, &cycle, due), vec![BEL]);
+        assert!(notices.ledger.alerts().notified(&held));
     }
 
     #[test]

@@ -352,7 +352,8 @@ impl MissedCrossing {
     /// belongs to: the marker lives until that instance ends.
     pub fn is_current(&self, report: &Report) -> bool {
         report.metrics.iter().any(|metric| {
-            metric.label == self.label && same_instance(metric.resets_at, self.resets_at)
+            metric.label == self.label
+                && same_instance(metric.window, metric.resets_at, self.resets_at)
         })
     }
 }
@@ -405,9 +406,17 @@ pub struct LimitShift {
 /// `notified.json`), it carries only the marks: the first-reading set
 /// starts empty in every process.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(from = "AlertStateWire", into = "AlertStateWire")]
 pub struct AlertState {
-    #[serde(default)]
     marks: Vec<Mark>,
+    /// PRD 0008 re-validation (S-04): marks this release cannot read (a
+    /// kind a later release added, or a malformed entry), kept verbatim
+    /// and written back so an older Cuotai never discards a newer one's
+    /// history. At most [`UNKNOWN_MARKS_KEEP`].
+    unknown: Vec<serde_json::Value>,
+    /// PRD 0008 re-validation (S-03): per metric digest, the last
+    /// exhaustion notice and the quiet period one broke through.
+    cooldowns: BTreeMap<String, Cooldown>,
     /// Account digests with a recent `Ready` reading since this state was
     /// created: their next reading is not a first reading. Per process,
     /// never persisted.
@@ -420,6 +429,96 @@ pub struct AlertState {
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     row_parents: BTreeMap<String, String>,
 }
+
+/// How [`AlertState`] is written: its marks one by one, so a mark this
+/// release cannot read is skipped on load instead of failing the file.
+#[derive(Default, Serialize, Deserialize)]
+struct AlertStateWire {
+    #[serde(default)]
+    marks: Vec<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    row_parents: BTreeMap<String, String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    cooldowns: BTreeMap<String, Cooldown>,
+}
+
+/// How many unreadable marks [`AlertState`] keeps for write-back.
+const UNKNOWN_MARKS_KEEP: usize = 256;
+
+impl From<AlertStateWire> for AlertState {
+    fn from(wire: AlertStateWire) -> Self {
+        let mut marks = Vec::new();
+        let mut unknown = Vec::new();
+        for value in wire.marks {
+            match serde_json::from_value::<Mark>(value.clone()) {
+                Ok(mark) => marks.push(mark),
+                Err(_) if unknown.len() < UNKNOWN_MARKS_KEEP => unknown.push(value),
+                Err(_) => {}
+            }
+        }
+        Self {
+            marks,
+            unknown,
+            cooldowns: wire.cooldowns,
+            seen: BTreeSet::new(),
+            row_parents: wire.row_parents,
+        }
+    }
+}
+
+impl From<AlertState> for AlertStateWire {
+    fn from(state: AlertState) -> Self {
+        let marks = state
+            .marks
+            .iter()
+            .filter_map(|mark| serde_json::to_value(mark).ok())
+            .chain(state.unknown)
+            .collect();
+        Self {
+            marks,
+            row_parents: state.row_parents,
+            cooldowns: state.cooldowns,
+        }
+    }
+}
+
+/// PRD 0008 re-validation (S-03): a metric's last exhaustion and recovery
+/// notices, and the end of the quiet period an exhaustion of it already
+/// broke through.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+struct Cooldown {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    exhausted: Option<Told>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    recovered: Option<Told>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    quiet_until: Option<DateTime<Utc>>,
+}
+
+/// When a notice went out and the window instance it was about.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+struct Told {
+    at: DateTime<Utc>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    resets_at: Option<DateTime<Utc>>,
+}
+
+impl Cooldown {
+    fn last(&self) -> Option<DateTime<Utc>> {
+        [
+            self.exhausted.map(|told| told.at),
+            self.recovered.map(|told| told.at),
+            self.quiet_until,
+        ]
+        .into_iter()
+        .flatten()
+        .max()
+    }
+}
+
+/// How many marks [`AlertState`] keeps per metric (the newest), so a
+/// flapping or hostile upstream cannot grow `notified.json` without bound.
+const MARKS_PER_METRIC: usize = 16;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct Mark {
@@ -475,8 +574,10 @@ pub(crate) struct Consumption {
 /// otherwise `Recovered` when the metric's exhaustion was notified in an
 /// earlier instance, and `Threshold` with the highest crossed threshold
 /// above every level already reached in this instance. Instances are told
-/// apart by `resets_at` beyond [`DRIFT_TOLERANCE`]; an unknown `resets_at`
-/// is the same instance. Only what [`AlertPrefs::wants`] is returned (a
+/// apart by `resets_at` moving by at least [`instance_tolerance`] (half the
+/// window); an unknown `resets_at` is the same instance. An exhaustion or
+/// a recovery told less than that tolerance ago in the same instance stays
+/// silent (PRD 0008 re-validation S-03). Only what [`AlertPrefs::wants`] is returned (a
 /// muted account or metric, or an unwanted kind, stays silent).
 ///
 /// Never a [`AlertKind::ProjectedExhaustion`], which needs the recent
@@ -538,13 +639,15 @@ pub fn evaluate_with(
                     .iter()
                     .filter(|before| {
                         before.label == metric.label
-                            && same_instance(before.resets_at, metric.resets_at)
+                            && same_instance(metric.window, before.resets_at, metric.resets_at)
                     })
                     .filter_map(|before| level(self::consumption(before)?, prefs))
                     .max()
             })
             .flatten();
-        let highest = state.highest(&digest, metric.resets_at).max(known);
+        let highest = state
+            .highest(&digest, metric.window, metric.resets_at)
+            .max(known);
         let event = |kind, threshold| AlertEvent {
             account_key: account_key.clone(),
             label: metric.label.clone(),
@@ -569,7 +672,17 @@ pub fn evaluate_with(
         if consumption.exhausted {
             if highest.is_none_or(|level| level < EXHAUSTED) {
                 if prefs.exhaustion {
-                    events.push(event(AlertKind::Exhausted, EXHAUSTED));
+                    // PRD 0008 re-validation (S-03): one exhaustion notice
+                    // per metric and half window at most.
+                    if !state.cooling(
+                        &digest,
+                        AlertKind::Exhausted,
+                        metric.window,
+                        metric.resets_at,
+                        now,
+                    ) {
+                        events.push(event(AlertKind::Exhausted, EXHAUSTED));
+                    }
                 } else if let Some(threshold) = prefs
                     .thresholds()
                     .next_back()
@@ -581,8 +694,20 @@ pub fn evaluate_with(
             continue;
         }
         if state
-            .awaiting_recovery(&digest, metric.resets_at, consumption.percent)
+            .awaiting_recovery(
+                &digest,
+                metric.window,
+                metric.resets_at,
+                consumption.percent,
+            )
             .is_some_and(|exhausted| exhausted.notified)
+            && !state.cooling(
+                &digest,
+                AlertKind::Recovered,
+                metric.window,
+                metric.resets_at,
+                now,
+            )
         {
             events.push(event(AlertKind::Recovered, EXHAUSTED));
         }
@@ -736,7 +861,7 @@ fn overage_events(prev: &Report, next: &Report, state: &AlertState) -> Vec<Alert
     let cycle = overage_cycle(&now_state, next.checked_at);
     let marked = |kind| {
         state.marks.iter().any(|mark| {
-            mark.metric == digest && mark.kind == kind && same_instance(mark.resets_at, Some(cycle))
+            mark.metric == digest && mark.kind == kind && same_cycle(mark.resets_at, Some(cycle))
         })
     };
     let started =
@@ -807,7 +932,7 @@ fn projected(
     now: DateTime<Utc>,
 ) -> Option<Projection> {
     let digest = key_digest(&next.state_key(), &metric.label);
-    if state.has_projection(&digest, metric.resets_at) {
+    if state.has_projection(&digest, metric.window, metric.resets_at) {
         return None;
     }
     let points = input.points(next, &metric.label);
@@ -828,7 +953,7 @@ fn projected(
         .metrics
         .iter()
         .find(|before| before.label == metric.label)
-        .filter(|before| same_instance(before.resets_at, metric.resets_at))?;
+        .filter(|before| same_instance(metric.window, before.resets_at, metric.resets_at))?;
     forecast(
         before,
         crate::freshness::reading_time(prev),
@@ -865,7 +990,7 @@ pub fn cancels(pending: &AlertEvent, next: &Report, pace: &PaceInput, now: DateT
     else {
         return true;
     };
-    if !same_instance(metric.resets_at, pending.resets_at)
+    if !same_instance(metric.window, metric.resets_at, pending.resets_at)
         || consumption(metric).is_none_or(|consumption| consumption.exhausted)
     {
         return true;
@@ -1096,8 +1221,8 @@ impl AlertState {
     /// in its window instance (with the thresholds of `prefs`), notified or
     /// not, so a crossing seen without a notice (first reading, alerts
     /// off) is not notified later; recoveries seen; the levels re-armed by
-    /// falling [`HYSTERESIS_POINTS`] below them; and a `resets_at` drifting
-    /// within [`DRIFT_TOLERANCE`], which follows the reading so gradual
+    /// falling [`HYSTERESIS_POINTS`] below them; and a `resets_at` moving
+    /// within [`instance_tolerance`], which follows the reading so gradual
     /// drift stays one instance. A recent `Ready` reading also makes the
     /// account's next reading a non-first one. `true` when what persists
     /// (the marks, not the first-reading set) changed.
@@ -1177,7 +1302,7 @@ impl AlertState {
                 let has = self.marks.iter().any(|mark| {
                     mark.metric == digest
                         && mark.kind == kind
-                        && same_instance(mark.resets_at, Some(cycle))
+                        && same_cycle(mark.resets_at, Some(cycle))
                 });
                 if !has {
                     let notified = events
@@ -1263,13 +1388,23 @@ impl AlertState {
             };
             let digest = key_digest(&account_key, &metric.label);
             let at = metric.resets_at;
+            // PRD 0008 re-validation (S-03): an exhaustion silenced by its
+            // cooldown was told less than half a window ago: it counts as
+            // known (its recovery is still told).
+            let cooling = |kind| self.cooling(&digest, kind, metric.window, at, now);
+            let (cooling_exhausted, cooling_recovered) = (
+                prefs.exhaustion && cooling(AlertKind::Exhausted),
+                cooling(AlertKind::Recovered),
+            );
             let notified = |kind: AlertKind, threshold: u8| {
-                events.iter().any(|event| {
-                    event.account_key == account_key
-                        && event.label == metric.label
-                        && event.kind == kind
-                        && event.threshold == threshold
-                })
+                (kind == AlertKind::Exhausted && cooling_exhausted)
+                    || (kind == AlertKind::Recovered && cooling_recovered)
+                    || events.iter().any(|event| {
+                        event.account_key == account_key
+                            && event.label == metric.label
+                            && event.kind == kind
+                            && event.threshold == threshold
+                    })
             };
             let held = |kind: AlertKind, threshold: u8| {
                 deferred
@@ -1287,7 +1422,7 @@ impl AlertState {
                 let rearmed = mark.metric == digest
                     && mark.kind.is_level()
                     && !mark.lapsed
-                    && same_instance(mark.resets_at, at)
+                    && same_instance(metric.window, mark.resets_at, at)
                     && consumption.percent
                         <= f64::from(mark.threshold) - HYSTERESIS_POINTS + EPSILON;
                 // PRD 0032 RF9: the notified exhaustion of a metric without
@@ -1310,7 +1445,8 @@ impl AlertState {
                 for mark in &mut self.marks {
                     if mark.metric == digest
                         && mark.resets_at.is_some_and(|resets_at| {
-                            resets_at != at && (resets_at - at).abs() <= DRIFT_TOLERANCE
+                            resets_at != at
+                                && (resets_at - at).abs() < instance_tolerance(metric.window)
                         })
                     {
                         mark.resets_at = Some(at);
@@ -1344,7 +1480,7 @@ impl AlertState {
                 })
                 .and_then(|(event, _)| event.projection);
             if (notified(AlertKind::ProjectedExhaustion, 0) || held_projection.is_some())
-                && !self.has_projection(&digest, at)
+                && !self.has_projection(&digest, metric.window, at)
             {
                 let mut projected = mark(AlertKind::ProjectedExhaustion, 0);
                 if projected.deferred_until.is_some() {
@@ -1353,28 +1489,74 @@ impl AlertState {
                 self.marks.push(projected);
             }
             if consumption.exhausted {
-                if !self.has_level(&digest, at, EXHAUSTED) {
+                if !self.has_level(&digest, metric.window, at, EXHAUSTED) {
                     self.marks.retain(|old| {
                         !(old.metric == digest && old.kind == AlertKind::Exhausted && old.lapsed)
                     });
                     self.marks.push(mark(AlertKind::Exhausted, EXHAUSTED));
                 }
             } else if self
-                .awaiting_recovery(&digest, at, consumption.percent)
+                .awaiting_recovery(&digest, metric.window, at, consumption.percent)
                 .is_some()
             {
                 self.marks.push(mark(AlertKind::Recovered, EXHAUSTED));
             }
             for threshold in prefs.thresholds() {
                 if reached(consumption.percent, f64::from(threshold))
-                    && !self.has_level(&digest, at, threshold)
+                    && !self.has_level(&digest, metric.window, at, threshold)
                 {
                     self.marks.push(mark(AlertKind::Threshold, threshold));
                 }
             }
             changed |= self.marks.len() != before;
         }
+        for event in events
+            .iter()
+            .filter(|event| event.account_key == account_key)
+        {
+            if matches!(event.kind, AlertKind::Exhausted | AlertKind::Recovered) {
+                self.note_told(event, None, now);
+                changed = true;
+            }
+        }
+        changed |= self.cap_marks();
         changed
+    }
+
+    /// Keep the newest [`MARKS_PER_METRIC`] marks of each metric; `true`
+    /// when one was dropped.
+    fn cap_marks(&mut self) -> bool {
+        let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
+        for mark in &self.marks {
+            *counts.entry(mark.metric.as_str()).or_default() += 1;
+        }
+        let over: Vec<String> = counts
+            .into_iter()
+            .filter(|(_, count)| *count > MARKS_PER_METRIC)
+            .map(|(metric, _)| metric.to_owned())
+            .collect();
+        if over.is_empty() {
+            return false;
+        }
+        for metric in over {
+            let mut dates: Vec<DateTime<Utc>> = self
+                .marks
+                .iter()
+                .filter(|mark| mark.metric == metric)
+                .map(|mark| mark.at)
+                .collect();
+            dates.sort_unstable();
+            let cutoff = dates[dates.len() - MARKS_PER_METRIC];
+            let mut extra = dates.iter().filter(|at| **at < cutoff).count();
+            self.marks.retain(|mark| {
+                if extra > 0 && mark.metric == metric && mark.at < cutoff {
+                    extra -= 1;
+                    return false;
+                }
+                true
+            });
+        }
+        true
     }
 
     /// [`Self::update`] for `next` and each of its active sub-accounts
@@ -1471,7 +1653,7 @@ impl AlertState {
                     mark.metric == digest
                         && mark.kind.is_level()
                         && mark.threshold == threshold
-                        && same_instance(mark.resets_at, metric.resets_at)
+                        && same_instance(metric.window, mark.resets_at, metric.resets_at)
                         && (mark.notified || mark.deferred_until.is_some() || mark.acknowledged)
                 });
                 (wanted && !handled).then(|| MissedCrossing {
@@ -1495,7 +1677,7 @@ impl AlertState {
                 if mark.metric == digest
                     && mark.kind.is_level()
                     && mark.threshold == crossing.threshold
-                    && same_instance(mark.resets_at, crossing.resets_at)
+                    && same_instance(crossing.window, mark.resets_at, crossing.resets_at)
                     && !mark.acknowledged
                 {
                     mark.acknowledged = true;
@@ -1539,13 +1721,13 @@ impl AlertState {
                 mark.metric == key_digest(&event.account_key, &event.label)
                     && mark.kind == AlertKind::ProjectedExhaustion
                     && mark.notified
-                    && same_instance(mark.resets_at, event.resets_at)
+                    && same_instance(event.window, mark.resets_at, event.resets_at)
             }),
             AlertKind::Recovered => self.marks.iter().any(|mark| {
                 mark.metric == key_digest(&event.account_key, &event.label)
                     && mark.kind == AlertKind::Recovered
                     && mark.notified
-                    && same_instance(mark.resets_at, event.resets_at)
+                    && same_instance(event.window, mark.resets_at, event.resets_at)
             }),
             AlertKind::Threshold | AlertKind::Exhausted => self.marks.iter().any(|mark| {
                 mark.metric == key_digest(&event.account_key, &event.label)
@@ -1553,7 +1735,7 @@ impl AlertState {
                     && !mark.lapsed
                     && mark.threshold >= event.threshold
                     && mark.notified
-                    && same_instance(mark.resets_at, event.resets_at)
+                    && same_instance(event.window, mark.resets_at, event.resets_at)
             }),
             // PRD 0023 RF4: once per billing cycle, marked on the account.
             AlertKind::OverageStarted | AlertKind::OverageCapReached => {
@@ -1563,7 +1745,7 @@ impl AlertState {
                         && mark.notified
                         && event
                             .resets_at
-                            .is_none_or(|at| same_instance(mark.resets_at, Some(at)))
+                            .is_none_or(|at| same_cycle(mark.resets_at, Some(at)))
                 })
             }
             // PRD 0036 RF6.4: a pool notice follows the pool's transition
@@ -1596,7 +1778,7 @@ impl AlertState {
                 && mark.metric == key_digest(&event.account_key, label)
                 && mark.kind == event.kind
                 && mark.threshold == event.threshold
-                && same_instance(mark.resets_at, event.resets_at)
+                && same_instance(event.window, mark.resets_at, event.resets_at)
         })
     }
 
@@ -1673,7 +1855,7 @@ impl AlertState {
                         _ => overage.state.is_billing(),
                     })
                     .filter(|overage| {
-                        same_instance(
+                        same_cycle(
                             mark.resets_at,
                             Some(overage_cycle(overage, report.checked_at)),
                         )
@@ -1706,7 +1888,9 @@ impl AlertState {
                         .metrics
                         .iter()
                         .filter(|metric| key_digest(&account_key, &metric.label) == mark.metric)
-                        .filter(|metric| same_instance(mark.resets_at, metric.resets_at))
+                        .filter(|metric| {
+                            same_instance(metric.window, mark.resets_at, metric.resets_at)
+                        })
                         .find_map(|metric| {
                             let projection = projection?;
                             let consumption = consumption(metric)?;
@@ -1756,7 +1940,7 @@ impl AlertState {
                     .metrics
                     .iter()
                     .filter(|metric| key_digest(&account_key, &metric.label) == mark.metric)
-                    .filter(|metric| same_instance(mark.resets_at, metric.resets_at))
+                    .filter(|metric| same_instance(metric.window, mark.resets_at, metric.resets_at))
                     .find_map(|metric| {
                         let consumption = consumption(metric)?;
                         let holds = match kind {
@@ -1818,10 +2002,15 @@ impl AlertState {
         self.row_parents.retain(|_, parent| kept.contains(parent));
         let row_parents = &self.row_parents;
         let keep = |account: &String| kept.contains(account) || row_parents.contains_key(account);
-        let before = self.marks.len();
+        let before = self.marks.len() + self.unknown.len();
         self.marks.retain(|mark| keep(&mark.account));
+        self.unknown.retain(|raw| {
+            raw.get("account")
+                .and_then(serde_json::Value::as_str)
+                .is_none_or(|account| keep(&account.to_owned()))
+        });
         self.seen.retain(|account| keep(account));
-        self.marks.len() != before
+        self.marks.len() + self.unknown.len() != before
     }
 
     /// [`Self::retain_accounts`] for the accounts of `config`: their state
@@ -1878,21 +2067,183 @@ impl AlertState {
     /// Forget marks whose window instance and date are both more than
     /// [`LEDGER_KEEP`] (8 days) before `now`; `true` when one was dropped.
     pub fn prune(&mut self, now: DateTime<Utc>) -> bool {
-        let before = self.marks.len();
+        let before = self.marks.len() + self.unknown.len() + self.cooldowns.len();
         self.marks.retain(|mark| {
             mark.resets_at
                 .map_or(mark.at, |resets_at| resets_at.max(mark.at))
                 >= now - LEDGER_KEEP
         });
+        // An unreadable mark ages out by the same dates when it has them.
+        self.unknown.retain(|raw| {
+            let date = |key: &str| {
+                raw.get(key)
+                    .and_then(|value| serde_json::from_value::<DateTime<Utc>>(value.clone()).ok())
+            };
+            match (date("at"), date("resets_at")) {
+                (None, None) => true,
+                (at, resets_at) => at
+                    .max(resets_at)
+                    .is_some_and(|last| last >= now - LEDGER_KEEP),
+            }
+        });
+        self.cooldowns.retain(|_, cooldown| {
+            cooldown
+                .last()
+                .is_some_and(|last| last >= now - LEDGER_KEEP)
+        });
         let (marks, seen) = (&self.marks, &self.seen);
         self.row_parents
             .retain(|row, _| seen.contains(row) || marks.iter().any(|mark| &mark.account == row));
-        self.marks.len() != before
+        self.marks.len() + self.unknown.len() + self.cooldowns.len() != before
     }
 
     /// Nothing to persist.
     pub fn is_empty(&self) -> bool {
-        self.marks.is_empty()
+        self.marks.is_empty() && self.unknown.is_empty() && self.cooldowns.is_empty()
+    }
+
+    /// PRD 0008 re-validation (S-03): a `kind` notice (`Exhausted` or
+    /// `Recovered`) of `metric` was told in the same window instance less
+    /// than [`instance_tolerance`] ago, so consumption flapping around the
+    /// limit stays silent: one of each per metric and half window.
+    fn cooling(
+        &self,
+        metric: &str,
+        kind: AlertKind,
+        window: Option<MetricWindow>,
+        resets_at: Option<DateTime<Utc>>,
+        now: DateTime<Utc>,
+    ) -> bool {
+        let Some(cooldown) = self.cooldowns.get(metric) else {
+            return false;
+        };
+        let told = match kind {
+            AlertKind::Exhausted => cooldown.exhausted,
+            AlertKind::Recovered => cooldown.recovered,
+            _ => None,
+        };
+        told.is_some_and(|told| {
+            same_instance(window, told.resets_at, resets_at)
+                && now - told.at < instance_tolerance(window)
+        })
+    }
+
+    /// Remember that `event` (an exhaustion or a recovery) was shown at
+    /// `now`, and for an exhaustion inside quiet hours `quiet`, which
+    /// period it broke through.
+    fn note_told(
+        &mut self,
+        event: &AlertEvent,
+        quiet: Option<crate::quiet::QuietWindow>,
+        now: DateTime<Utc>,
+    ) {
+        if !matches!(event.kind, AlertKind::Exhausted | AlertKind::Recovered) {
+            return;
+        }
+        let entry = self
+            .cooldowns
+            .entry(key_digest(&event.account_key, &event.label))
+            .or_default();
+        let told = Some(Told {
+            at: now,
+            resets_at: event.resets_at,
+        });
+        if event.kind == AlertKind::Recovered {
+            entry.recovered = told;
+            return;
+        }
+        entry.exhausted = told;
+        if let Some(window) = quiet {
+            entry.quiet_until = Some(window.ends_at);
+        }
+    }
+
+    /// PRD 0032 RF3.1 with the PRD 0008 re-validation (S-03): what quiet
+    /// hours `window` do with `event` ([`crate::quiet::decide`]), except
+    /// that an exhaustion breaks through at most once per metric and quiet
+    /// period; the next ones wait for the digest.
+    pub fn quiet_decision(
+        &self,
+        event: &AlertEvent,
+        window: Option<crate::quiet::QuietWindow>,
+    ) -> crate::quiet::Decision {
+        let decision = crate::quiet::decide(crate::quiet::Subject::Alert(event), window);
+        match (decision, window) {
+            (crate::quiet::Decision::Deliver, Some(window))
+                if event.kind == AlertKind::Exhausted
+                    && self
+                        .cooldowns
+                        .get(&key_digest(&event.account_key, &event.label))
+                        .is_some_and(|cooldown| cooldown.quiet_until == Some(window.ends_at)) =>
+            {
+                crate::quiet::Decision::Defer(window.ends_at)
+            }
+            _ => decision,
+        }
+    }
+
+    /// PRD 0008 re-validation (S-05): `event` (queued by
+    /// [`crate::resets::Ledger::claim_alerts`]) is being shown now: `false`
+    /// when another process already showed it, otherwise its marks become
+    /// notified (no longer waiting for a digest) and an exhaustion starts
+    /// its cooldown (`quiet`: the quiet hours it breaks through, if any).
+    pub fn mark_shown(
+        &mut self,
+        event: &AlertEvent,
+        quiet: Option<crate::quiet::QuietWindow>,
+        now: DateTime<Utc>,
+    ) -> bool {
+        if self.notified(event) {
+            return false;
+        }
+        let floor;
+        let label = match event.kind {
+            AlertKind::OverageStarted | AlertKind::OverageCapReached => OVERAGE_MARK,
+            AlertKind::BalanceBelowFloor => {
+                floor = floor_mark(&event.label);
+                floor.as_str()
+            }
+            AlertKind::SessionExpiring => SESSION_MARK,
+            _ => event.label.as_str(),
+        };
+        let digest = key_digest(&event.account_key, label);
+        let mut found = false;
+        for mark in &mut self.marks {
+            let same = match event.kind {
+                AlertKind::OverageStarted | AlertKind::OverageCapReached => event
+                    .resets_at
+                    .is_none_or(|at| same_cycle(mark.resets_at, Some(at))),
+                AlertKind::SessionExpiring => mark.resets_at == event.resets_at,
+                _ => same_instance(event.window, mark.resets_at, event.resets_at),
+            };
+            if mark.metric == digest
+                && mark.kind == event.kind
+                && mark.threshold == event.threshold
+                && same
+            {
+                mark.notified = true;
+                mark.deferred_until = None;
+                found = true;
+            }
+        }
+        // PRD 0024 RF2.3: a projection is marked only once it is told.
+        if !found && event.kind == AlertKind::ProjectedExhaustion {
+            self.marks.push(Mark {
+                account: account_digest(&event.account_key),
+                metric: digest,
+                kind: AlertKind::ProjectedExhaustion,
+                threshold: 0,
+                resets_at: event.resets_at,
+                notified: true,
+                at: now,
+                lapsed: false,
+                deferred_until: None,
+                acknowledged: false,
+                projection: None,
+            });
+        }
+        self.note_told(event, quiet, now);
+        true
     }
 
     /// The metrics of `report` with an active alert (PRD 0008 RF3.4): a
@@ -1908,43 +2259,60 @@ impl AlertState {
                     && mark.metric == digest
                     && mark.kind.is_level()
                     && !mark.lapsed
-                    && same_instance(mark.resets_at, metric.resets_at)
+                    && same_instance(metric.window, mark.resets_at, metric.resets_at)
             })
         })
     }
 
     /// PRD 0024 RF2.3: a projection was delivered in the instance of
     /// `resets_at`.
-    fn has_projection(&self, metric: &str, resets_at: Option<DateTime<Utc>>) -> bool {
+    fn has_projection(
+        &self,
+        metric: &str,
+        window: Option<MetricWindow>,
+        resets_at: Option<DateTime<Utc>>,
+    ) -> bool {
         self.marks.iter().any(|mark| {
             mark.metric == metric
                 && mark.kind == AlertKind::ProjectedExhaustion
-                && same_instance(mark.resets_at, resets_at)
+                && same_instance(window, mark.resets_at, resets_at)
         })
     }
 
     /// Highest level reached in the instance of `resets_at`.
-    fn highest(&self, metric: &str, resets_at: Option<DateTime<Utc>>) -> Option<u8> {
-        self.levels(metric, resets_at)
+    fn highest(
+        &self,
+        metric: &str,
+        window: Option<MetricWindow>,
+        resets_at: Option<DateTime<Utc>>,
+    ) -> Option<u8> {
+        self.levels(metric, window, resets_at)
             .map(|mark| mark.threshold)
             .max()
     }
 
-    fn has_level(&self, metric: &str, resets_at: Option<DateTime<Utc>>, level: u8) -> bool {
-        self.levels(metric, resets_at)
+    fn has_level(
+        &self,
+        metric: &str,
+        window: Option<MetricWindow>,
+        resets_at: Option<DateTime<Utc>>,
+        level: u8,
+    ) -> bool {
+        self.levels(metric, window, resets_at)
             .any(|mark| mark.threshold == level)
     }
 
     fn levels<'s>(
         &'s self,
         metric: &'s str,
+        window: Option<MetricWindow>,
         resets_at: Option<DateTime<Utc>>,
     ) -> impl Iterator<Item = &'s Mark> + 's {
         self.marks.iter().filter(move |mark| {
             mark.metric == metric
                 && mark.kind.is_level()
                 && !mark.lapsed
-                && same_instance(mark.resets_at, resets_at)
+                && same_instance(window, mark.resets_at, resets_at)
         })
     }
 
@@ -1954,6 +2322,7 @@ impl AlertState {
     fn awaiting_recovery(
         &self,
         metric: &str,
+        window: Option<MetricWindow>,
         resets_at: Option<DateTime<Utc>>,
         percent: f64,
     ) -> Option<&Mark> {
@@ -1983,9 +2352,9 @@ impl AlertState {
             .max_by_key(|mark| mark.at)
             .filter(|mark| {
                 mark.kind == AlertKind::Exhausted
-                    && mark
-                        .resets_at
-                        .is_some_and(|exhausted| resets_at - exhausted > DRIFT_TOLERANCE)
+                    && mark.resets_at.is_some_and(|exhausted| {
+                        resets_at - exhausted >= instance_tolerance(window)
+                    })
             })
     }
 }
@@ -1994,9 +2363,41 @@ fn account_digest(account_key: &str) -> String {
     crate::models::digest(account_key.as_bytes())
 }
 
-/// Two `resets_at` within [`DRIFT_TOLERANCE`] are one window instance; an
-/// unknown one cannot tell instances apart.
-fn same_instance(a: Option<DateTime<Utc>>, b: Option<DateTime<Utc>>) -> bool {
+/// PRD 0008 re-validation (S-03, a documented deviation from RF1.4's two
+/// minutes): how far a metric's `resets_at` may move and still be the same
+/// window instance: half the window's nominal length (2 h 30 for the
+/// 5-hour window, 12 h daily, 3.5 days weekly, 14 days monthly), 1 hour
+/// when the length is unknown. A real reset moves `resets_at` by about one
+/// whole window at once; jitter and rolling resets ("now + 5 h" on every
+/// reading) move it by at most the refresh interval, so they stay one
+/// instance and never repeat a notice.
+fn instance_tolerance(window: Option<MetricWindow>) -> TimeDelta {
+    match window {
+        Some(MetricWindow::Window5h) => TimeDelta::minutes(150),
+        Some(MetricWindow::Daily) => TimeDelta::hours(12),
+        Some(MetricWindow::Weekly) => TimeDelta::hours(84),
+        Some(MetricWindow::Monthly) => TimeDelta::days(14),
+        Some(MetricWindow::Other) | None => TimeDelta::hours(1),
+    }
+}
+
+/// Two `resets_at` of a metric of `window` closer than
+/// [`instance_tolerance`] are one window instance; an unknown one cannot
+/// tell instances apart.
+fn same_instance(
+    window: Option<MetricWindow>,
+    a: Option<DateTime<Utc>>,
+    b: Option<DateTime<Utc>>,
+) -> bool {
+    match (a, b) {
+        (Some(a), Some(b)) => (a - b).abs() < instance_tolerance(window),
+        _ => true,
+    }
+}
+
+/// Two billing-cycle ends (paid extra usage) within [`DRIFT_TOLERANCE`]
+/// are one cycle; an unknown one cannot tell cycles apart.
+fn same_cycle(a: Option<DateTime<Utc>>, b: Option<DateTime<Utc>>) -> bool {
     match (a, b) {
         (Some(a), Some(b)) => (a - b).abs() <= DRIFT_TOLERANCE,
         _ => true,
@@ -3499,6 +3900,236 @@ mod tests {
         }
     }
 
+    /// PRD 0008 re-validation (S-03): a provider whose `resets_at` rolls
+    /// with every reading ("now + 5 h") is one window instance: one notice.
+    #[test]
+    fn a_rolling_reset_is_one_window() {
+        let readings: Vec<Report> = (0..24)
+            .map(|i| {
+                let at = t0() + mins(5 * i);
+                let used = if i == 0 { 70.0 } else { 92.0 };
+                report(
+                    "Work",
+                    at,
+                    vec![quota(Some(used), at + TimeDelta::hours(5))],
+                )
+            })
+            .collect();
+        let fired: Vec<Fired> = run(&on(), &mut AlertState::default(), &readings)
+            .into_iter()
+            .filter(|f| !f.is_empty())
+            .collect();
+        assert_eq!(fired, vec![vec![(T, 90)]]);
+    }
+
+    /// PRD 0008 re-validation (S-03): consumption flapping between 100% and
+    /// 60% with a drifting reset tells the exhaustion once per half window
+    /// (2 h 30 for the 5-hour window), and its marks stay bounded.
+    #[test]
+    fn flapping_exhaustion_is_told_once_per_half_window() {
+        // A weekly window, so 10 hours of flapping stay in one instance.
+        let weekly = |used: f64, at: DateTime<Utc>| Metric {
+            window: Some(MetricWindow::Weekly),
+            ..quota(Some(used), t0() + TimeDelta::days(5) + (at - t0()) / 60)
+        };
+        let readings: Vec<Report> = (0..120)
+            .map(|i| {
+                let at = t0() + mins(5 * i);
+                let used = if i % 2 == 0 { 60.0 } else { 100.0 };
+                report("Work", at, vec![weekly(used, at)])
+            })
+            .collect();
+        let mut state = AlertState::default();
+        let fired = run(&on(), &mut state, &readings);
+        let told: Vec<DateTime<Utc>> = fired
+            .iter()
+            .zip(&readings)
+            .filter(|(f, _)| f.contains(&(X, 100)))
+            .map(|(_, r)| r.checked_at)
+            .collect();
+        // 10 hours, half a week apart at most once: only the first one.
+        assert_eq!(told, vec![t0() + mins(5)], "{fired:?}");
+        assert!(
+            state.marks.len() <= MARKS_PER_METRIC + 4,
+            "{}",
+            state.marks.len()
+        );
+        // A 5-hour window: once per 2 h 30.
+        let readings: Vec<Report> = (0..72)
+            .map(|i| {
+                let at = t0() + mins(5 * i);
+                let used = if i % 2 == 0 { 60.0 } else { 100.0 };
+                report(
+                    "Work",
+                    at,
+                    vec![quota(Some(used), t0() + TimeDelta::hours(100))],
+                )
+            })
+            .collect();
+        let fired = run(&on(), &mut AlertState::default(), &readings);
+        let told: Vec<i64> = fired
+            .iter()
+            .zip(&readings)
+            .filter(|(f, _)| f.contains(&(X, 100)))
+            .map(|(_, r)| (r.checked_at - t0()).num_minutes())
+            .collect();
+        assert_eq!(told, vec![5, 155, 305], "{fired:?}");
+    }
+
+    /// PRD 0008 re-validation (S-03): inside one quiet period an exhaustion
+    /// breaks through once per metric; the next one waits for the digest.
+    #[test]
+    fn exhaustion_breaks_quiet_hours_once_per_metric_and_period() {
+        let quiet = crate::quiet::QuietWindow {
+            ends_at: t0() + TimeDelta::hours(8),
+        };
+        let next_night = crate::quiet::QuietWindow {
+            ends_at: t0() + TimeDelta::hours(32),
+        };
+        let reading = report("Work", t0(), vec![quota(Some(100.0), window())]);
+        let event = AlertEvent {
+            account_key: reading.state_key(),
+            label: "5h".into(),
+            window: Some(MetricWindow::Window5h),
+            kind: X,
+            threshold: 100,
+            consumed: 1.0,
+            resets_at: Some(window()),
+            projection: None,
+            overage: None,
+            limit_change: None,
+            row: None,
+        };
+        let mut state = AlertState::default();
+        use crate::quiet::Decision;
+        assert_eq!(state.quiet_decision(&event, Some(quiet)), Decision::Deliver);
+        assert!(state.mark_shown(&event, Some(quiet), t0()));
+        assert_eq!(
+            state.quiet_decision(&event, Some(quiet)),
+            Decision::Defer(quiet.ends_at),
+            "the second one waits for the digest"
+        );
+        let other = AlertEvent {
+            label: "week".into(),
+            ..event.clone()
+        };
+        assert_eq!(state.quiet_decision(&other, Some(quiet)), Decision::Deliver);
+        assert_eq!(state.quiet_decision(&event, None), Decision::Deliver);
+        assert_eq!(
+            state.quiet_decision(&event, Some(next_night)),
+            Decision::Deliver,
+            "a new quiet period"
+        );
+        let threshold = AlertEvent {
+            kind: T,
+            threshold: 90,
+            ..event
+        };
+        assert_eq!(
+            state.quiet_decision(&threshold, Some(quiet)),
+            Decision::Defer(quiet.ends_at)
+        );
+    }
+
+    /// PRD 0008 re-validation (S-04): a mark this release cannot read (a
+    /// kind a later release added) is skipped, kept and written back; the
+    /// readable marks still load.
+    #[test]
+    fn unknown_marks_are_kept_and_written_back() {
+        let reading = report("Work", t0(), vec![quota(Some(92.0), window())]);
+        let mut state = AlertState::default();
+        state.update(&reading, &on(), &[], t0());
+        let mut json = serde_json::to_value(&state).unwrap();
+        let known = json["marks"].as_array().unwrap().len();
+        assert!(known > 0);
+        let future = serde_json::json!({
+            "account": "abc", "metric": "def", "kind": "a_kind_from_the_future",
+            "threshold": 7, "resets_at": null, "notified": true,
+            "at": t0().to_rfc3339(), "extra": [1, 2]
+        });
+        json["marks"].as_array_mut().unwrap().push(future.clone());
+        json["marks"]
+            .as_array_mut()
+            .unwrap()
+            .push(serde_json::json!("garbage"));
+        let back: AlertState = serde_json::from_value(json).unwrap();
+        assert_eq!(back.marks.len(), known, "the readable marks load");
+        let written = serde_json::to_value(&back).unwrap();
+        let marks = written["marks"].as_array().unwrap();
+        assert_eq!(marks.len(), known + 2);
+        assert!(marks.contains(&future), "the unknown mark round-trips");
+        assert!(!back.is_empty());
+        // It ages out with the others when it has dates.
+        let mut pruned = back.clone();
+        pruned.prune(window() + LEDGER_KEEP + TimeDelta::days(1));
+        let left = serde_json::to_value(&pruned).unwrap();
+        assert_eq!(left["marks"], serde_json::json!(["garbage"]));
+    }
+
+    /// PRD 0008 re-validation (S-05): an alert counts as notified only
+    /// once it is shown; one queued behind the spacing and lost to a quit
+    /// is a "crossed while closed" marker on the next start, and a second
+    /// process never shows it twice.
+    #[test]
+    fn alerts_count_as_notified_only_once_shown() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("notified.json");
+        let prefs = on();
+        let before = report("Work", t0(), vec![quota(Some(70.0), window())]);
+        let next = report("Work", t0() + mins(5), vec![quota(Some(92.0), window())]);
+        let mut ledger = crate::resets::Ledger::load(&path);
+        ledger.claim_alerts(Some(&path), &before, &prefs, Vec::new(), Vec::new(), t0());
+        let events = evaluate(
+            Some(&before),
+            &next,
+            &prefs,
+            ledger.alerts(),
+            next.checked_at,
+        );
+        assert_eq!(fired(&events), [(T, 90)]);
+        let queued = ledger.claim_alerts(
+            Some(&path),
+            &next,
+            &prefs,
+            events.clone(),
+            Vec::new(),
+            next.checked_at,
+        );
+        assert_eq!(queued.len(), 1);
+        // Quit before the spacing let it out: the next process sees it as
+        // missed, and never as told.
+        let restarted = crate::resets::Ledger::load(&path);
+        assert!(!restarted.alerts().notified(&events[0]));
+        let later = report("Work", t0() + mins(10), vec![quota(Some(93.0), window())]);
+        assert!(
+            evaluate(
+                Some(&next),
+                &later,
+                &prefs,
+                restarted.alerts(),
+                later.checked_at
+            )
+            .is_empty(),
+            "the level is known: no second notice"
+        );
+        let missed = restarted.alerts().missed(Some(&next), &later, &prefs);
+        assert_eq!(missed.len(), 1);
+        assert_eq!(missed[0].threshold, 90);
+        // Shown by one process: recorded, and the other drops it.
+        let mut other = crate::resets::Ledger::load(&path);
+        let shown = ledger.claim_shown(Some(&path), queued.clone(), None, next.checked_at);
+        assert_eq!(shown.len(), 1);
+        assert!(other
+            .claim_shown(Some(&path), queued, None, next.checked_at)
+            .is_empty());
+        let reread = crate::resets::Ledger::load(&path);
+        assert!(reread.alerts().notified(&events[0]));
+        assert!(reread
+            .alerts()
+            .missed(Some(&next), &later, &prefs)
+            .is_empty());
+    }
+
     #[test]
     fn sequence_table() {
         let some = |values: &[f64]| values.iter().map(|v| Some(*v)).collect::<Vec<_>>();
@@ -3541,16 +4172,12 @@ mod tests {
                 vec![vec![], vec![(T, 90)], vec![], vec![], vec![]],
             ),
             (
+                // Re-armed at 95, but PRD 0008 re-validation (S-03): one
+                // exhaustion notice per half window (see
+                // `flapping_exhaustion_is_told_once_per_half_window`).
                 "exhaustion re-arms at 95",
                 same_window(&some(&[90.0, 100.0, 96.0, 100.0, 95.0, 100.0])),
-                vec![
-                    vec![],
-                    vec![(X, 100)],
-                    vec![],
-                    vec![],
-                    vec![],
-                    vec![(X, 100)],
-                ],
+                vec![vec![], vec![(X, 100)], vec![], vec![], vec![], vec![]],
             ),
             (
                 "a missing value is skipped, not zero",
@@ -3578,8 +4205,10 @@ mod tests {
                 ]),
                 vec![vec![], vec![(T, 90)], vec![], vec![], vec![]],
             ),
+            // PRD 0008 re-validation (S-03): RF1.4's two minutes became
+            // half the window's length (2 h 30 for the 5-hour window).
             (
-                "resets_at jumping beyond 2 minutes is a new window",
+                "a reset moving less than half a window is the same window",
                 series(&[
                     (Some(70.0), window()),
                     (Some(91.0), window()),
@@ -3587,6 +4216,17 @@ mod tests {
                         Some(91.0),
                         window() + DRIFT_TOLERANCE + TimeDelta::seconds(1),
                     ),
+                    (Some(92.0), window() + TimeDelta::minutes(149)),
+                    (Some(93.0), window() + TimeDelta::minutes(100)),
+                ]),
+                vec![vec![], vec![(T, 90)], vec![], vec![], vec![]],
+            ),
+            (
+                "a reset moving half a window or more is a new window",
+                series(&[
+                    (Some(70.0), window()),
+                    (Some(91.0), window()),
+                    (Some(91.0), window() + TimeDelta::minutes(150)),
                 ]),
                 vec![vec![], vec![(T, 90)], vec![(T, 90)]],
             ),

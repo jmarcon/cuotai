@@ -62,13 +62,18 @@ type Fired = Vec<(AlertKind, u8)>;
 
 /// One reading every 5 minutes, judged against the previous one and recorded.
 fn run(used: &[f64], resets_at: Option<DateTime<Utc>>) -> Vec<Fired> {
+    run_every(5, used, resets_at)
+}
+
+/// One reading every `step` minutes.
+fn run_every(step: i64, used: &[f64], resets_at: Option<DateTime<Utc>>) -> Vec<Fired> {
     let prefs = on();
     let mut state = AlertState::default();
     let mut prev: Option<Report> = None;
     used.iter()
         .enumerate()
         .map(|(i, used)| {
-            let next = report(t0() + mins(5 * i as i64), quota(*used, resets_at));
+            let next = report(t0() + mins(step * i as i64), quota(*used, resets_at));
             let events = evaluate(prev.as_ref(), &next, &prefs, &state, next.checked_at);
             state.update(&next, &prefs, &events, next.checked_at);
             prev = Some(next);
@@ -92,18 +97,26 @@ fn without_a_reset_date_a_20_point_drop_recovers_once() {
 
 #[test]
 fn a_direct_fall_to_79_recovers_and_a_new_exhaustion_notifies_again() {
-    let fired = run(&[50.0, 100.0, 79.0, 100.0], None);
+    // PRD 0008 re-validation (S-03): once the 5-hour window's half (2 h 30)
+    // has passed since the first exhaustion notice.
+    let fired = run_every(90, &[50.0, 100.0, 79.0, 100.0], None);
     assert_eq!(fired[2], vec![(R, 100)]);
     assert_eq!(fired[3], vec![(X, 100)]);
+    // Within it, the flapping stays silent.
+    let fired = run(&[50.0, 100.0, 79.0, 100.0], None);
+    assert_eq!(fired[2], vec![(R, 100)]);
+    assert_eq!(fired[3], vec![]);
 }
 
 #[test]
 fn rising_back_before_the_drop_never_recovers_in_between() {
     // 100 -> 85 -> 100 re-arms the exhaustion (the 5-point hysteresis) and
-    // never recovers: the metric did not fall 20 points.
-    let fired = run(&[50.0, 100.0, 85.0, 100.0], None);
+    // never recovers: the metric did not fall 20 points. PRD 0008
+    // re-validation (S-03): told again only after half the window.
+    let fired = run_every(90, &[50.0, 100.0, 85.0, 100.0], None);
     assert_eq!(fired[2], vec![]);
     assert_eq!(fired[3], vec![(X, 100)]);
+    assert_eq!(run(&[50.0, 100.0, 85.0, 100.0], None)[3], vec![]);
 }
 
 #[test]
