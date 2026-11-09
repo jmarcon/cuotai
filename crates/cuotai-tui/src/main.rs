@@ -2327,7 +2327,7 @@ fn history_text(
     let mut out = l10n::trf(
         "history.heading",
         "CUOTAI • {days}-day history until {until}",
-        &[("days", &days), ("until", &now.to_rfc3339())],
+        &[("days", &days), ("until", &at(now))],
     );
     out += "\n";
     if found.is_empty() {
@@ -2997,6 +2997,11 @@ mod tests {
                 .count(),
             2
         );
+        // Re-validation 2026-11 (V-06): the heading's end time uses the
+        // same local formatter as every other time, never RFC 3339.
+        let heading = text.lines().next().unwrap();
+        assert!(heading.ends_with("01-02 00:00"), "{heading}");
+        assert!(!heading.contains("T00:00:00"), "{heading}");
         assert!(!path.exists());
         assert!(account_histories(&store, &config, Some("Nope"), since, now)
             .unwrap_err()
@@ -3020,7 +3025,7 @@ mod tests {
         assert_eq!(
             history_text(&found, since, now, 7, at),
             format!(
-                "CUOTAI • histórico de 7 dias até 2026-01-02T00:00:00+00:00\n\
+                "CUOTAI • histórico de 7 dias até 01-02 00:00\n\
                  \nWork / {}\n\
                  \x20 Window5h: 3 medições · mín 5 · máx 70 · último 5 % (01-01 23:00)\n\
                  \x20   {}▂▆\n\
