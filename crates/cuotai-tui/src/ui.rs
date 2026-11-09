@@ -3846,8 +3846,9 @@ fn restores_terminal_on_panic() -> bool {
 }
 
 pub(crate) fn safe(text: &str) -> Cow<'_, str> {
-    if text.chars().any(char::is_control) {
-        Cow::Owned(text.chars().filter(|c| !c.is_control()).collect())
+    use cuotai_core::text::is_disguising;
+    if text.chars().any(is_disguising) {
+        Cow::Owned(text.chars().filter(|c| !is_disguising(*c)).collect())
     } else {
         Cow::Borrowed(text)
     }

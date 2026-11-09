@@ -1866,16 +1866,19 @@
   "remove_error.purge_vault.storage": "无法清除保险库：{detail}",
   "remove_error.save": "无法保存配置：{detail}。",
   "remove_error.session": "无法从系统保险库中删除此账户的网页会话，因此未移除该账户：{detail}",
-  "resets.body": "{account}：{metrics}。依据提供商报告的时间；新余额将在下次刷新时显示。",
-  "resets.body.private": "依据提供商报告的时间；新余额将在下次刷新时显示。",
+  "resets.body": "{account}：{metrics}。时间以提供商为准；新余额在下次刷新时显示。",
+  "resets.body.private": "时间以提供商为准；新余额在下次刷新时显示。",
+  "resets.metrics.list": "{head}、{tail}",
+  "resets.title.reset_other": "{provider}：额度已重置",
+  "resets.title.soon_other": "{provider}：额度将在 {minutes} 分钟后重置",
   "resets.chip.return_unknown": "恢复时间不确定",
   "resets.chip.returns": "{at} 恢复",
   "resets.pair": "{at} 重置 · {in}",
-  "resets.title.reset": "{provider}：{window} 额度已重置",
+  "resets.title.reset": "{provider}：{window}额度已重置",
   "resets.title.reset_many": {
     "other": "{provider}：{count} 项额度已重置"
   },
-  "resets.title.soon": "{provider}：{window} 额度将在 {minutes} 分钟后重置",
+  "resets.title.soon": "{provider}：{window}额度将在 {minutes} 分钟后重置",
   "resets.title.soon_many": {
     "other": "{provider}：{count} 项额度将在 {minutes} 分钟后重置"
   },

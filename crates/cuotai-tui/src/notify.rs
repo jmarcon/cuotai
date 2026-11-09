@@ -502,8 +502,15 @@ impl Notices {
 
 /// One OSC 9 notification with `text` (control characters removed).
 fn osc9(out: &mut Vec<u8>, text: &str) {
+    use cuotai_core::text::{notice_safe, NoticeMarkup, NOTICE_BODY_MAX, NOTICE_TITLE_MAX};
+    // The terminal shows title and body as one line: one cap for both.
+    let shown = notice_safe(
+        text,
+        NOTICE_TITLE_MAX + NOTICE_BODY_MAX,
+        NoticeMarkup::Plain,
+    );
     out.extend_from_slice(b"\x1b]9;");
-    out.extend_from_slice(safe(text).as_bytes());
+    out.extend_from_slice(shown.as_bytes());
     out.extend_from_slice(b"\x1b\\");
 }
 
@@ -744,6 +751,20 @@ mod tests {
         let banner = notices.banner(at + mins(5)).unwrap();
         assert!(banner.contains("(a[2J) · "), "{banner}");
         assert!(banner.ends_with("(b)"), "{banner}");
+    }
+
+    /// PRD 0003 re-validation S-04: the OSC 9 text and the banner drop
+    /// controls and bidi overrides; the OSC 9 text is capped.
+    #[test]
+    fn osc9_and_banner_text_drop_controls_and_bidi() {
+        let mut out = Vec::new();
+        osc9(&mut out, "Work\u{202E}\x1b]0;x\x07 reset");
+        let text = String::from_utf8(out).unwrap();
+        assert_eq!(text, "\x1b]9;Work]0;x reset\x1b\\");
+        let mut long = Vec::new();
+        osc9(&mut long, &"y".repeat(1000));
+        assert!(long.len() < 300);
+        assert_eq!(safe("a\u{2066}b\nc"), "abc");
     }
 
     #[test]

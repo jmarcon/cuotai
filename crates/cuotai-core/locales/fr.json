@@ -1876,17 +1876,20 @@
   "remove_error.purge_vault.storage": "Impossible de purger le coffre : {detail}",
   "remove_error.save": "Impossible d’enregistrer la configuration : {detail}.",
   "remove_error.session": "Impossible de supprimer du coffre du système la session web de ce compte, donc le compte n’a pas été retiré : {detail}",
-  "resets.body": "{account} : {metrics}. D’après l’heure indiquée par le fournisseur ; le nouveau solde apparaît à la prochaine actualisation.",
-  "resets.body.private": "D’après l’heure indiquée par le fournisseur ; le nouveau solde apparaît à la prochaine actualisation.",
+  "resets.body": "{account} : {metrics}. Heure du fournisseur ; nouveau solde à la prochaine actualisation.",
+  "resets.body.private": "Heure du fournisseur ; nouveau solde à la prochaine actualisation.",
+  "resets.metrics.list": "{head}, {tail}",
+  "resets.title.reset_other": "{provider} : quota renouvelé",
+  "resets.title.soon_other": "{provider} : quota renouvelé dans {minutes} min",
   "resets.chip.return_unknown": "Retour incertain",
   "resets.chip.returns": "Retour {at}",
   "resets.pair": "Réinitialisation {at} · {in}",
-  "resets.title.reset": "{provider} : quota {window} réinitialisé",
+  "resets.title.reset": "{provider} : quota {window} renouvelé",
   "resets.title.reset_many": {
     "one": "{provider} : {count} quota réinitialisé",
     "other": "{provider} : {count} quotas réinitialisés"
   },
-  "resets.title.soon": "{provider} : le quota {window} se réinitialise dans {minutes} min",
+  "resets.title.soon": "{provider} : quota {window} renouvelé dans {minutes} min",
   "resets.title.soon_many": {
     "one": "{provider} : {count} quota se réinitialise dans {minutes} min",
     "other": "{provider} : {count} quotas se réinitialisent dans {minutes} min"

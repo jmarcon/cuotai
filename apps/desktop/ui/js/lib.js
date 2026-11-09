@@ -420,7 +420,7 @@ export function nextNoticeParts(view, now = new Date()) {
   const n = view?.notify?.next;
   if (!n) return null;
   const key = `card.binding.${n.window}`;
-  const window = t(key) === key ? n.label : t(key);
+  const window = t(key) === key ? tl(n.label_text ?? n.label) : t(key);
   const when = fmtNoticeTime(n.at, now);
   if (!when) return null;
   const text = t("notify.next", { name: `${brand(n.provider).label} ${window}`, when });
@@ -444,7 +444,7 @@ export function fmtNoticeTime(iso, now = new Date()) {
  *  it mutes both. `aria-pressed` is its state. */
 export function bellHtml(view, r) {
   if (!(view?.notify?.enabled || view?.notify?.alerts) || !r.account_key) return "";
-  const label = t("notify.bell", { account: r.account });
+  const label = t("notify.bell", { account: accountLabel(r) });
   const state = t(r.notify ? "notify.bell.on" : "notify.bell.off");
   return `<button class="icon bell${r.notify ? " on" : ""}" aria-pressed="${r.notify}" aria-label="${esc(label)}" title="${esc(`${label}: ${state}`)}" data-bell="${esc(r.account_key)}" data-bell-on="${r.notify}">${icon(r.notify ? "bell" : "bellOff")}</button>`;
 }

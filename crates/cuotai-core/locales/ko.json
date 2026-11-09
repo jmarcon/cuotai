@@ -1866,8 +1866,11 @@
   "remove_error.purge_vault.storage": "보관소를 정리하지 못했습니다: {detail}",
   "remove_error.save": "설정을 저장하지 못했습니다: {detail}",
   "remove_error.session": "이 계정의 웹 세션을 시스템 보관소에서 삭제하지 못해 계정을 제거하지 않았습니다: {detail}",
-  "resets.body": "{account}: {metrics}. 제공업체가 알려 준 시각 기준이며 새 잔액은 다음 새로 고침에 표시됩니다.",
-  "resets.body.private": "제공업체가 알려 준 시각 기준이며 새 잔액은 다음 새로 고침에 표시됩니다.",
+  "resets.body": "{account}: {metrics}. 시각은 제공업체 기준이며 새 잔액은 다음 새로 고침에 표시됩니다.",
+  "resets.body.private": "시각은 제공업체 기준이며 새 잔액은 다음 새로 고침에 표시됩니다.",
+  "resets.metrics.list": "{head}, {tail}",
+  "resets.title.reset_other": "{provider}: 할당량 초기화됨",
+  "resets.title.soon_other": "{provider}: 할당량 {minutes}분 후 초기화",
   "resets.chip.return_unknown": "복귀 불확실",
   "resets.chip.returns": "{at}에 복귀",
   "resets.pair": "{at}에 초기화 · {in}",
@@ -1875,7 +1878,7 @@
   "resets.title.reset_many": {
     "other": "{provider}: 할당량 {count}개 초기화됨"
   },
-  "resets.title.soon": "{provider}: {window} 할당량이 {minutes}분 후 초기화됩니다",
+  "resets.title.soon": "{provider}: {window} 할당량 {minutes}분 후 초기화",
   "resets.title.soon_many": {
     "other": "{provider}: 할당량 {count}개가 {minutes}분 후 초기화됩니다"
   },

@@ -1876,17 +1876,20 @@
   "remove_error.purge_vault.storage": "वॉल्ट साफ़ नहीं किया जा सका: {detail}",
   "remove_error.save": "कॉन्फ़िगरेशन सहेजने में विफल: {detail}",
   "remove_error.session": "इस खाते का वेब सत्र सिस्टम वॉल्ट से मिटाया नहीं जा सका, इसलिए खाता हटाया नहीं गया: {detail}",
-  "resets.body": "{account}: {metrics}। प्रदाता द्वारा बताए समय के अनुसार; नया बैलेंस अगले रीफ़्रेश में दिखेगा।",
-  "resets.body.private": "प्रदाता द्वारा बताए समय के अनुसार; नया बैलेंस अगले रीफ़्रेश में दिखेगा।",
+  "resets.body": "{account}: {metrics}। समय प्रदाता के अनुसार; नया बैलेंस अगले रीफ़्रेश में।",
+  "resets.body.private": "समय प्रदाता के अनुसार; नया बैलेंस अगले रीफ़्रेश में।",
+  "resets.metrics.list": "{head}, {tail}",
+  "resets.title.reset_other": "{provider}: सीमा रीसेट हुई",
+  "resets.title.soon_other": "{provider}: सीमा {minutes} मिनट में रीसेट होगी",
   "resets.chip.return_unknown": "वापसी अनिश्चित",
   "resets.chip.returns": "{at} को वापसी",
   "resets.pair": "{at} को रीसेट · {in}",
-  "resets.title.reset": "{provider}: {window} कोटा रीसेट हुआ",
+  "resets.title.reset": "{provider}: {window} सीमा रीसेट हुई",
   "resets.title.reset_many": {
     "one": "{provider}: {count} कोटा रीसेट हुआ",
     "other": "{provider}: {count} कोटे रीसेट हुए"
   },
-  "resets.title.soon": "{provider}: {window} कोटा {minutes} मिनट में रीसेट होगा",
+  "resets.title.soon": "{provider}: {window} सीमा {minutes} मिनट में रीसेट होगी",
   "resets.title.soon_many": {
     "one": "{provider}: {count} कोटा {minutes} मिनट में रीसेट होगा",
     "other": "{provider}: {count} कोटे {minutes} मिनट में रीसेट होंगे"

@@ -1876,20 +1876,23 @@
   "remove_error.purge_vault.storage": "Der Tresor konnte nicht geleert werden: {detail}",
   "remove_error.save": "Konfiguration konnte nicht gespeichert werden: {detail}.",
   "remove_error.session": "Die Websitzung dieses Kontos konnte nicht aus dem Systemtresor gelöscht werden, daher wurde das Konto nicht entfernt: {detail}",
-  "resets.body": "{account}: {metrics}. Nach der vom Anbieter gemeldeten Zeit; das neue Guthaben erscheint bei der nächsten Aktualisierung.",
-  "resets.body.private": "Nach der vom Anbieter gemeldeten Zeit; das neue Guthaben erscheint bei der nächsten Aktualisierung.",
+  "resets.body": "{account}: {metrics}. Zeit laut Anbieter; neues Guthaben bei der nächsten Aktualisierung.",
+  "resets.body.private": "Zeit laut Anbieter; neues Guthaben bei der nächsten Aktualisierung.",
+  "resets.metrics.list": "{head}, {tail}",
+  "resets.title.reset_other": "{provider}: Kontingent zurückgesetzt",
+  "resets.title.soon_other": "{provider}: Kontingent in {minutes} Min. zurück",
   "resets.chip.return_unknown": "Rückkehr ungewiss",
   "resets.chip.returns": "Zurück {at}",
   "resets.pair": "Zurücksetzung {at} · {in}",
-  "resets.title.reset": "{provider}: Kontingent {window} zurückgesetzt",
+  "resets.title.reset": "{provider}: Kontingent ({window}) zurückgesetzt",
   "resets.title.reset_many": {
     "one": "{provider}: {count} Kontingent zurückgesetzt",
     "other": "{provider}: {count} Kontingente zurückgesetzt"
   },
-  "resets.title.soon": "{provider}: Kontingent {window} wird in {minutes} Min. zurückgesetzt",
+  "resets.title.soon": "{provider}: Kontingent ({window}) in {minutes} Min. zurück",
   "resets.title.soon_many": {
-    "one": "{provider}: {count} Kontingent wird in {minutes} Min. zurückgesetzt",
-    "other": "{provider}: {count} Kontingente werden in {minutes} Min. zurückgesetzt"
+    "one": "{provider}: {count} Kontingent in {minutes} Min. zurück",
+    "other": "{provider}: {count} Kontingente in {minutes} Min. zurück"
   },
   "serve.allow_browsers.warning": "Mit erlaubten Browsern können die Seiten der vertrauenswürdigen Origins, die das Zugriffstoken kennen, Ihre Nutzung vom lokalen Server lesen. Fügen Sie nur Origins hinzu, die Sie kontrollieren.",
   "serve.error.browser_token_required": "Browser zu erlauben erfordert ein Zugriffstoken für den lokalen Server: Erzeugen Sie zuerst eines.",

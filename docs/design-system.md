@@ -664,7 +664,7 @@ Shared with the TUI and the menu bar. The shapes come from the TUI's pace vocabu
 
 **Notifications (PRD 0024, `NOTIF`; also 0003/0008/0023 alerts)**
 
-- **DS-CMP-NOTIF-1** OS notifications carry plain text from the core (`alerts.*`): title "{Account}: {what}" ≤ 50 characters ("Claude · Work: may run out before the reset"); body one sentence ≤ 110 characters with absolute local times, "≈" for projections and the margin ("At this rate Session (5h) runs out ≈18:53, 37 min before the reset"). No emoji, no color reliance, no URLs or tokens.
+- **DS-CMP-NOTIF-1** OS notifications carry plain text from the core (`alerts.*` and the reset notices' `resets.*`): title "{Account}: {what}" ≤ 50 characters ("Claude · Work: may run out before the reset"); body one sentence ≤ 110 characters with absolute local times, "≈" for projections and the margin ("At this rate Session (5h) runs out ≈18:53, 37 min before the reset"). No emoji, no color reliance, no URLs or tokens. The budgets hold for every locale with a short provider name ("Claude"); the core caps what it delivers (64 / 160 characters, controls and bidi overrides removed, markup escaped on Linux) so a long account or provider name cannot overflow.
 - **DS-CMP-NOTIF-2** The image, where the OS allows one, is the 16 px account-state ring (DS-CMP-RING-6) or the provider tile; otherwise the app icon. One notification per account per pass (existing grouping); the projection is listed first. Clicking opens the popover on that account.
 
 **Dependent settings (PRD 0024 RF4, 0020 RF3.3, `DEP`)**

@@ -137,11 +137,24 @@ impl ResetEvent {
     /// [`Self::notice`], and with `private` on (PRD 0032 RF7) a body with
     /// neither the account name nor the metric labels.
     pub fn notice_with(&self, account: &Account, now: DateTime<Utc>, private: bool) -> Notice {
+        use crate::metric_text::metric_text;
+        use crate::text::ParamValue;
         let provider = provider_l10n(account.provider);
-        // Distinct windows in reset order; an `other` window is its label.
-        let mut windows: Vec<(crate::text::ParamValue, String)> = Vec::new();
+        // Distinct windows in reset order; an `other` window is its label,
+        // shown in the interface language (PRD 0034 RF2).
+        let mut windows: Vec<(ParamValue, String)> = Vec::new();
+        let mut other = false;
         for metric in &self.metrics {
-            let window = window_param(Some(metric.window), &metric.label);
+            let window = match metric.window {
+                MetricWindow::Other => {
+                    other = true;
+                    (
+                        ParamValue::l10n(metric_text(&metric.label)),
+                        metric.label.clone(),
+                    )
+                }
+                known => window_param(Some(known), &metric.label),
+            };
             if !windows.iter().any(|(_, pt)| *pt == window.1) {
                 windows.push(window);
             }
@@ -151,6 +164,9 @@ impl ResetEvent {
         let minutes = (ahead.num_seconds() + 59).div_euclid(60).max(1) as u64;
         let count = self.metrics.len();
         let single = (windows.len() == 1).then(|| windows.remove(0));
+        // With private texts an `other` window's label could name the plan
+        // or the account (PRD 0032 RF7): the title leaves it out.
+        let single = single.filter(|_| !(private && other));
         let title = match (single, ahead > TimeDelta::zero()) {
             (Some((window, _)), false) => Localized::with_params(
                 "resets.title.reset",
@@ -165,6 +181,16 @@ impl ResetEvent {
                     ("minutes", minutes.into()),
                 ]),
                 "{provider}: {window} quota resets in {minutes} min",
+            ),
+            (None, false) if count == 1 => Localized::with_params(
+                "resets.title.reset_other",
+                params([("provider", provider.into())]),
+                "{provider}: quota reset",
+            ),
+            (None, true) if count == 1 => Localized::with_params(
+                "resets.title.soon_other",
+                params([("provider", provider.into()), ("minutes", minutes.into())]),
+                "{provider}: quota resets in {minutes} min",
             ),
             (_, false) => Localized::plural(
                 "resets.title.reset_many",
@@ -188,23 +214,34 @@ impl ResetEvent {
                 title,
                 body: Localized::fixed(
                     "resets.body.private",
-                    "Per the time the provider reported; the new balance shows on the next refresh.",
+                    "Time from the provider; new balance on the next refresh.",
                 ),
             };
         }
+        // "a, b, c" with the separator of the interface language.
         let labels = self
             .metrics
             .iter()
-            .map(|metric| metric.label.as_str())
-            .collect::<Vec<_>>()
-            .join(", ");
+            .rev()
+            .map(|metric| metric_text(&metric.label))
+            .reduce(|tail, head| {
+                Localized::with_params(
+                    "resets.metrics.list",
+                    params([
+                        ("head", ParamValue::l10n(head)),
+                        ("tail", ParamValue::l10n(tail)),
+                    ]),
+                    "{head}, {tail}",
+                )
+            })
+            .unwrap_or_else(|| Localized::fixed("metric.verbatim", ""));
         let body = Localized::with_params(
             "resets.body",
             params([
-                ("account", account.name.as_str().into()),
-                ("metrics", labels.as_str().into()),
+                ("account", (&*account.display_name()).into()),
+                ("metrics", ParamValue::l10n(labels)),
             ]),
-            "{account}: {metrics}. Per the time the provider reported; the new balance shows on the next refresh.",
+            "{account}: {metrics}. Time from the provider; new balance on the next refresh.",
         );
         Notice { title, body }
     }
@@ -1237,6 +1274,99 @@ mod tests {
             other.notice(&account(), now()).title.resolve("pt-BR"),
             "Claude: cota Credits renovada"
         );
+    }
+
+    /// PRD 0003 re-validation V-01/S-05/V-05: labels in the interface
+    /// language, a private title without an `other` label, and an unnamed
+    /// account named by its provider.
+    #[test]
+    fn notice_texts_translate_labels_and_keep_private_titles_generic() {
+        let weekly = event(&[
+            ("Gemini (Semanal)", MetricWindow::Weekly, now()),
+            ("Sessão (5 horas)", MetricWindow::Window5h, now()),
+        ]);
+        let notice = weekly.notice(&account(), now());
+        let body = notice.body.resolve("en-US");
+        assert!(body.starts_with("Work: Gemini (Weekly), "), "{body}");
+        assert!(!body.contains("Semanal"), "{body}");
+        for locale in ["de", "ja"] {
+            let body = notice.body.resolve(locale);
+            assert!(!body.contains("Semanal"), "{locale}: {body}");
+        }
+        assert!(
+            notice.body.resolve("ja").contains("、"),
+            "translated list separator"
+        );
+        // An `other` window: its title is the translated label...
+        let other = event(&[("Gemini (Semanal)", MetricWindow::Other, now())]);
+        let open = other.notice_with(&account(), now(), false);
+        assert_eq!(
+            open.title.resolve("en-US"),
+            "Claude: Gemini (Weekly) quota reset"
+        );
+        // ...and private texts leave the label and the account out.
+        let private = other.notice_with(&account(), now(), true);
+        for locale in ["en-US", "pt-BR", "de", "ja"] {
+            let text = format!(
+                "{} {}",
+                private.title.resolve(locale),
+                private.body.resolve(locale)
+            );
+            assert!(!text.contains("Gemini") && !text.contains("Work"), "{text}");
+        }
+        assert_eq!(private.title.resolve("en-US"), "Claude: quota reset");
+        // An unnamed account is its provider.
+        let unnamed = Account {
+            name: String::new(),
+            ..account()
+        };
+        let body = event(&[("Session (5h)", MetricWindow::Window5h, now())])
+            .notice(&unnamed, now())
+            .body
+            .resolve("en-US");
+        assert!(body.starts_with("Claude: Session (5h). "), "{body}");
+    }
+
+    /// DS-CMP-NOTIF-1 (re-validation V-09): with a short provider name,
+    /// every locale's reset title fits 50 characters and the body 110.
+    #[test]
+    fn notice_texts_fit_the_notification_length_budget() {
+        let soon = now() - TimeDelta::minutes(15);
+        let mut over = Vec::new();
+        let mut locales = crate::text::catalog_locales();
+        locales.push("en-US");
+        for locale in locales {
+            for window in [
+                MetricWindow::Window5h,
+                MetricWindow::Daily,
+                MetricWindow::Weekly,
+                MetricWindow::Monthly,
+            ] {
+                let one = event(&[("Session (5h)", window, now())]);
+                let two = event(&[
+                    ("Session (5h)", window, now()),
+                    ("Week (all)", MetricWindow::Weekly, now()),
+                ]);
+                for at in [now(), soon] {
+                    for private in [false, true] {
+                        for reset in [&one, &two] {
+                            let notice = reset.notice_with(&account(), at, private);
+                            let title = notice.title.resolve(locale);
+                            let body = notice.body.resolve(locale);
+                            if title.chars().count() > 50 {
+                                over.push(format!("{locale}: {title}"));
+                            }
+                            if body.chars().count() > 110 {
+                                over.push(format!("{locale}: {body}"));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        over.sort();
+        over.dedup();
+        assert!(over.is_empty(), "{over:#?}");
     }
 
     #[test]
