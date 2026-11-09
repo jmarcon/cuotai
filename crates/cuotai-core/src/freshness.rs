@@ -46,6 +46,29 @@ pub fn assess(checked_at: DateTime<Utc>, interval: Duration, now: DateTime<Utc>)
     }
 }
 
+/// The instant `report`'s values were measured: the one time every pace,
+/// allowance, forecast and history sample of the reading is taken at (PRD
+/// 0024 FIX-11: an old `used` is never paired with a later clock).
+///
+/// * An agent-fed reading (Claude Code status line, Codex CLI logs; PRD
+///   0040, `Report::source` starting with `feed:`) was measured when the
+///   agent wrote it, its `as_of`, not when Cuotai read the file.
+/// * Every other adapter was measured at its query, `checked_at`. Its
+///   `as_of` (PRD 0033), when stated, is a completeness horizon (OpenAI
+///   Costs: the end of the last complete daily bucket) while `used` still
+///   counts the partial current day, so it is never the measurement time.
+///
+/// Never later than `checked_at`: a feed time ahead of it reads as
+/// `checked_at`.
+pub fn reading_time(report: &crate::Report) -> DateTime<Utc> {
+    match report.as_of {
+        Some(as_of) if report.source.starts_with(crate::feed::REPORT_SOURCE_PREFIX) => {
+            as_of.min(report.checked_at)
+        }
+        _ => report.checked_at,
+    }
+}
+
 /// PRD 0033 RF3.2: gap after which a card names the data time.
 pub const AS_OF_LAG: Duration = Duration::from_secs(15 * 60);
 
@@ -187,5 +210,40 @@ mod tests {
         assert_eq!(lagging_as_of(&report), None, "10 minutes is not lag");
         report.as_of = Some(at(10_000 - 7_200));
         assert_eq!(lagging_as_of(&report), Some(at(10_000 - 7_200)));
+    }
+
+    #[test]
+    fn reading_time_is_the_feed_time_only_for_agent_feeds() {
+        let mut report = crate::Report {
+            overage_hint: Default::default(),
+            account_id: None,
+            diagnostic: None,
+            sub_reports: Vec::new(),
+            account: "a".into(),
+            provider: crate::Provider::OpenAiApi,
+            checked_at: at(10_000),
+            status: crate::Status::Ready,
+            metrics: Vec::new(),
+            notes: Vec::new(),
+            notes_l10n: Vec::new(),
+            source: "api".into(),
+            session_expires_at: None,
+            as_of: None,
+            breakdown: Vec::new(),
+        };
+        assert_eq!(reading_time(&report), at(10_000), "no as_of");
+        // OpenAI Costs: `as_of` is the end of the last complete bucket, not
+        // the measurement time, so the query time stays.
+        report.as_of = Some(at(10_000 - 86_400));
+        assert_eq!(reading_time(&report), at(10_000));
+        for source in ["feed:claude_code", "feed:codex_cli"] {
+            report.source = source.into();
+            report.as_of = Some(at(10_000 - 2_400));
+            assert_eq!(reading_time(&report), at(10_000 - 2_400), "{source}");
+            report.as_of = Some(at(10_600));
+            assert_eq!(reading_time(&report), at(10_000), "{source}: clamped");
+            report.as_of = None;
+            assert_eq!(reading_time(&report), at(10_000), "{source}: no as_of");
+        }
     }
 }

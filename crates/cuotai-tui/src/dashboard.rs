@@ -223,11 +223,12 @@ struct MetricRow {
     pace: Option<Pace>,
 }
 
-/// The reading a pace is read from (PRD 0024 FIX-11): its `checked_at`,
-/// the account's effective refresh `interval` and the drawing clock `now`.
+/// The reading a pace is read from (PRD 0024 FIX-11): its measurement time
+/// ([`cuotai_core::freshness::reading_time`]), the account's effective
+/// refresh `interval` and the drawing clock `now`.
 #[derive(Debug, Clone, Copy)]
 struct PaceClock {
-    checked_at: DateTime<Utc>,
+    reading_at: DateTime<Utc>,
     interval: std::time::Duration,
     now: DateTime<Utc>,
 }
@@ -248,14 +249,14 @@ fn pace_clock(
             account.effective_refresh_seconds(view.refresh_seconds)
         });
     (!preserved).then_some(PaceClock {
-        checked_at: report.checked_at,
+        reading_at: cuotai_core::freshness::reading_time(report),
         interval: std::time::Duration::from_secs(seconds),
         now,
     })
 }
 
 /// `clock` is the reading the pace is read from; `None` shows no pace. The
-/// core evaluates it at the reading's `checked_at` and only while the
+/// core evaluates it at the reading's measurement time and only while the
 /// reading is fresh. `recent` are the recorded points of the metric (PRD
 /// 0006), which project the pace from the recent slope when there are
 /// enough of them (PRD 0007 RF1.5).
@@ -269,7 +270,7 @@ fn metric_row(metric: &Metric, clock: Option<PaceClock>, recent: &[Point]) -> Me
         pace: clock.and_then(|clock| {
             pace::assess_reading(
                 metric,
-                clock.checked_at,
+                clock.reading_at,
                 clock.interval,
                 clock.now,
                 Some(recent),
@@ -2960,10 +2961,10 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
             // PRD 0041 RF4.3: the allowance, from a fresh reading like the pace.
             let allowance = clock
                 .filter(|clock| {
-                    cuotai_core::freshness::assess(clock.checked_at, clock.interval, clock.now)
+                    cuotai_core::freshness::assess(clock.reading_at, clock.interval, clock.now)
                         == cuotai_core::freshness::Freshness::Fresh
                 })
-                .and_then(|clock| pace::allowance(metric, clock.checked_at, Some(recent)));
+                .and_then(|clock| pace::allowance(metric, clock.reading_at, Some(recent)));
             if let Some(allowance) = allowance {
                 lines.push(Line::from(Span::styled(
                     format!("  ⌁ {}", safe(&resolve_l10n(&allowance.sentence()))),

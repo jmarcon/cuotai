@@ -1301,6 +1301,8 @@ fn report_view(
     let refresh_seconds = account.effective_refresh_seconds(config.refresh_seconds);
     let interval = Duration::from_secs(refresh_seconds);
     let now = chrono::Utc::now();
+    // PRD 0024 FIX-11: the reading's own time (an agent feed's `as_of`).
+    let reading_at = cuotai_core::freshness::reading_time(report);
     let metrics: Vec<MetricView> = report
         .metrics
         .iter()
@@ -1309,11 +1311,11 @@ fn report_view(
             let points = recent.get(i).map(Vec::as_slice);
             MetricView {
                 // PRD 0024 FIX-11: at the reading's time, only while fresh.
-                pace: pace::assess_reading(metric, report.checked_at, interval, now, points)
+                pace: pace::assess_reading(metric, reading_at, interval, now, points)
                     .map(pace_view),
                 forecast: forecast_view(
                     metric,
-                    report.checked_at,
+                    reading_at,
                     interval,
                     now,
                     points.unwrap_or_default(),
@@ -1323,8 +1325,8 @@ fn report_view(
                     .filter(|at| *at > now)
                     .map(|at| cuotai_core::resets::pair_label(&local_at(at), at - now)),
                 // PRD 0041 RF4.3: like the pace, only while the reading is fresh.
-                allowance: (assess(report.checked_at, interval, now) == Freshness::Fresh)
-                    .then(|| pace::allowance(metric, report.checked_at, points))
+                allowance: (assess(reading_at, interval, now) == Freshness::Fresh)
+                    .then(|| pace::allowance(metric, reading_at, points))
                     .flatten()
                     .map(|allowance| allowance.sentence()),
                 budget_draft: cuotai_core::budget::offers_budget(account, report, metric)
@@ -1709,7 +1711,11 @@ fn notice_pace(
     let account = config.accounts.get(index)?;
     Some(NoticePace {
         interval: Duration::from_secs(account.effective_refresh_seconds(config.refresh_seconds)),
-        recent: monitor.recent_points(index, &report.metrics, report.checked_at),
+        recent: monitor.recent_points(
+            index,
+            &report.metrics,
+            cuotai_core::freshness::reading_time(report),
+        ),
     })
 }
 
@@ -7681,6 +7687,37 @@ mod tests {
     /// PRD 0045 RF6.1: the view carries the breakdown rows in the core's
     /// spend order, the percentage order, the card line and the truncation
     /// note; an account without rows carries none.
+    /// PRD 0007 re-validation (V-04): the pace of an agent-fed reading is
+    /// taken at the agent's own time, so a Claude Code reading written 40
+    /// minutes before the query shows none, while a 2-minute-old one does.
+    #[test]
+    fn an_agent_fed_reading_is_paced_at_its_own_time() {
+        use cuotai_core::{MetricKind, MetricWindow};
+        let config = Config {
+            accounts: vec![plain_account("code")],
+            refresh_seconds: 300,
+            ..Config::default()
+        };
+        let pace_of = |written_minutes: i64| {
+            let now = chrono::Utc::now();
+            let five = Metric {
+                limit: Some(100.0),
+                window: Some(MetricWindow::Window5h),
+                resets_at: Some(now + chrono::TimeDelta::minutes(150)),
+                ..Metric::usage("Sessão (5 horas)", 50.0, "%", MetricKind::Quota, None)
+            };
+            let mut fed = ready("code", vec![five]);
+            fed.source = "feed:claude_code".into();
+            fed.as_of = Some(now - chrono::TimeDelta::minutes(written_minutes));
+            let view =
+                serde_json::to_value(report_view(0, &fed, &config, None, None, 0, &[])).unwrap();
+            view["metrics"][0]["pace"].clone()
+        };
+        assert!(pace_of(40).is_null(), "40 minutes old is not fresh");
+        let pace = pace_of(2);
+        assert_eq!(pace["stage"], "on_pace", "{pace}");
+    }
+
     #[test]
     fn view_carries_the_breakdown_in_both_orders() {
         use cuotai_core::{BreakdownRow, MetricKind, ScopeKind};

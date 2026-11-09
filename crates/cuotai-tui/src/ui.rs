@@ -256,7 +256,11 @@ pub(crate) fn pace_input(
     let account = config.accounts.get(index)?;
     let interval =
         std::time::Duration::from_secs(account.effective_refresh_seconds(config.refresh_seconds));
-    let recent = monitor.recent_points(index, &report.metrics, report.checked_at);
+    let recent = monitor.recent_points(
+        index,
+        &report.metrics,
+        cuotai_core::freshness::reading_time(report),
+    );
     Some((interval, recent))
 }
 
@@ -3569,7 +3573,13 @@ impl HistoryView {
             let stamp = report.map(|report| report.checked_at);
             if stamp != self.read_for[index] {
                 self.recent[index] = report
-                    .map(|report| monitor.recent_points(index, &report.metrics, report.checked_at))
+                    .map(|report| {
+                        monitor.recent_points(
+                            index,
+                            &report.metrics,
+                            cuotai_core::freshness::reading_time(report),
+                        )
+                    })
                     .unwrap_or_default();
                 self.read_for[index] = stamp;
             }

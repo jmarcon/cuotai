@@ -1676,7 +1676,11 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
                 .iter()
                 .enumerate()
                 .map(|(index, report)| {
-                    monitor.recent_points(index, &report.metrics, report.checked_at)
+                    monitor.recent_points(
+                        index,
+                        &report.metrics,
+                        cuotai_core::freshness::reading_time(report),
+                    )
                 })
                 .collect();
             print_snapshot(
@@ -1861,6 +1865,8 @@ fn report_text(
         );
         out += "\n";
     }
+    // PRD 0024 FIX-11: the reading's own time (an agent feed's `as_of`).
+    let reading_at = cuotai_core::freshness::reading_time(report);
     for (index, metric) in report.metrics.iter().enumerate() {
         out += &format!(
             "  {}: {}\n",
@@ -1886,7 +1892,7 @@ fn report_text(
             );
         }
         let points = recent.get(index).map(Vec::as_slice);
-        if let Some(pace) = pace::assess_reading(metric, report.checked_at, interval, now, points) {
+        if let Some(pace) = pace::assess_reading(metric, reading_at, interval, now, points) {
             let text = dashboard::pace_text(&pace, locale, &at);
             out += &l10n::trf_in(
                 locale,
@@ -1897,10 +1903,10 @@ fn report_text(
             out += "\n";
         }
         // PRD 0041 RF4.3: the allowance, from a fresh reading like the pace.
-        let fresh = cuotai_core::freshness::assess(report.checked_at, interval, now)
+        let fresh = cuotai_core::freshness::assess(reading_at, interval, now)
             == cuotai_core::freshness::Freshness::Fresh;
         if let Some(allowance) = fresh
-            .then(|| pace::allowance(metric, report.checked_at, points))
+            .then(|| pace::allowance(metric, reading_at, points))
             .flatten()
         {
             out += &l10n::trf_in(
@@ -2789,6 +2795,37 @@ mod tests {
                 "Pace: 20 points in reserve · runs out at 01:20, 40 min before the reset"
             )
         );
+    }
+
+    /// PRD 0007 re-validation (V-04): a Claude Code reading written 40
+    /// minutes before the query keeps its metric but shows no pace and no allowance; a 2-minute-old one is paced at
+    /// its own time.
+    #[test]
+    fn once_paces_an_agent_fed_reading_at_its_own_time() {
+        let now = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+        let fed = |written_minutes: i64| {
+            let mut fed = report(
+                "Work",
+                Status::Ready,
+                vec![quota(
+                    MetricWindow::Window5h,
+                    40.0,
+                    Some(now + chrono::Duration::minutes(120)),
+                )],
+            );
+            fed.checked_at = now;
+            fed.source = "feed:claude_code".into();
+            fed.as_of = Some(now - chrono::Duration::minutes(written_minutes));
+            fed
+        };
+        let at = |t: DateTime<Utc>| t.format("%H:%M").to_string();
+        let aged = report_text(&fed(40), &[], None, FIVE_MIN, now, "en-US", at);
+        assert!(aged.contains("Window5h: 40.00 % / 100.00"), "{aged}");
+        assert!(!aged.contains("Pace:"), "{aged}");
+        assert!(!aged.contains("Allowance:"), "{aged}");
+        let recent = report_text(&fed(2), &[], None, FIVE_MIN, now, "en-US", at);
+        // At 23:58 the window had 2 h 2 min left of 5 h: 59.3% elapsed.
+        assert!(recent.contains("Pace: 19 points in reserve"), "{recent}");
     }
 
     /// PRD 0023 RF8.2: `--once` prints `Extra usage: <summary>` under the
