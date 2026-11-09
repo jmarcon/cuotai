@@ -135,6 +135,14 @@ const PAGE_JS = `(() => {
     if (!box.width) continue;
     for (const e of s.querySelectorAll("h2, h3, p, button, pre, code")) { if (e.closest("[hidden], dialog, .set-pop, .menu, summary") || !e.textContent.trim()) continue; const r = e.getBoundingClientRect(), inset = e.matches("button") ? 0 : parseFloat(getComputedStyle(e).paddingLeft); if (r.width && (e.matches("h2") ? r.bottom > box.top + 1 : r.left + inset < box.left + 8)) out.push({ kind: "flush-to-group-edge", ok: false, sel: sel(e), text: e.textContent.trim().slice(0, 50) }); }
   }
+  // A Settings row's label never runs under its control (the control drops below when both do not fit).
+  for (const row of document.querySelectorAll(".set-row")) {
+    const l = row.querySelector(":scope > .set-row-text > .set-row-label"), c = row.querySelector(":scope > .set-row-ctl");
+    if (!l || !c || !l.textContent.trim() || row.closest("[hidden]")) continue;
+    const cr = c.getBoundingClientRect(), rg = document.createRange();
+    rg.selectNodeContents(l);
+    if (cr.width && [...rg.getClientRects()].some((x) => Math.min(x.right, cr.right) - Math.max(x.left, cr.left) > 1 && Math.min(x.bottom, cr.bottom) - Math.max(x.top, cr.top) > 1)) out.push({ kind: "label-under-control", ok: false, sel: sel(l), text: l.textContent.trim().slice(0, 40) });
+  }
   for (const b of document.querySelectorAll("button, input, select")) {
     if (b.closest("[hidden], dialog:not([open]), .menu, .lang-menu, .set-pop")) continue;
     const r = b.getBoundingClientRect();
