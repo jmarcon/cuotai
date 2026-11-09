@@ -13,6 +13,20 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.84.2] - 2026-11-09
+
+### Fixed
+
+- The reason a provider cannot list models no longer says twice that nothing is queried (PRD 0002 RF4.2; 5925381).
+- The Sync models button no longer spills out of the tray in longer languages, and a failed model sync now stands out from a fresh catalog with the usual date format (PRD 0002 RF6.2; 6648538).
+- Signing in from the account dialog now starts the CLI at the program path typed in the form (PRD 0054 RF6.1; 5c93aa3).
+- Dashboard cards in the terminal show the account's note in the interface language instead of English (PRD 0035 RF5.1; 58012bc).
+- The terminal Models view no longer offers to sync an account that cannot list models, and keeps the catalog on screen when saving a sync fails (PRD 0002 RF5.2, RF3.1; 73fd512).
+
+### Security
+
+- OpenAI, Anthropic and Cursor Teams accounts no longer send their admin key to the model list, and Mistral, xAI and Perplexity Computer accounts list models only when that key is kept in its own parameter; the Models section explains why (PRD 0002 RF4.2; PRD 0028 RF10.1; 8a966a6).
+
 ## [0.84.1] - 2026-11-08
 
 ### Changed
@@ -588,7 +602,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.84.1...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.84.2...HEAD
+[0.84.2]: https://github.com/jmarcon/cuotai/compare/v0.84.1...v0.84.2
 [0.84.1]: https://github.com/jmarcon/cuotai/compare/v0.84.0...v0.84.1
 [0.84.0]: https://github.com/jmarcon/cuotai/compare/v0.83.1...v0.84.0
 [0.83.1]: https://github.com/jmarcon/cuotai/compare/v0.83.0...v0.83.1
