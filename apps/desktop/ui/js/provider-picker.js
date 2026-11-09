@@ -1,7 +1,7 @@
 // PRD 0027 RF3: the Add-account catalog picker. Search, ranking, grouping by sign-in method, hints and the
 // recommended mode all come from the core (`search_providers`); this module only renders them (DS-CMP-SRCH,
 // DS-CMP-CAT, DS-CMP-LIST-6). It never shows an integration-status label (owner rule).
-import { esc, icon, logo, searchProviders } from "./lib.js";
+import { esc, icon, logo, pickerHiddenNotice, searchProviders } from "./lib.js";
 import { currentLocale, t, te, tl } from "./i18n.js";
 
 let seq = 0;
@@ -45,6 +45,8 @@ export function mountPicker(root, { onChoose, detected = () => [], onDismiss = (
   const empty = root.querySelector("#picker-empty");
   const count = root.querySelector("#picker-count");
   let entries = [];
+  // V-02 (PRD 0005 review): the core's reason when the query names a provider the picker leaves out.
+  let hidden = null;
   const foot = root.querySelector("#picker-foot");
   let active = -1; // no row is highlighted on open (mockup 31); the first arrow key or a query selects one
   const foundFor = (provider) => detected().find((d) => d.provider === provider) ?? null;
@@ -69,8 +71,11 @@ export function mountPicker(root, { onChoose, detected = () => [], onDismiss = (
     // DS-CMP-CAT-1: search results are always a list; the grouped catalog is a grid when wide enough.
     list.classList.toggle("is-grouped", grouped);
     empty.hidden = entries.length > 0;
-    root.querySelector("#picker-empty-text").textContent = t("dialog.picker.empty", { query });
-    count.textContent = entries.length ? t("dialog.picker.count", { count: entries.length }) : t("dialog.picker.empty", { query });
+    const emptyText = hidden ? tl(hidden) : t("dialog.picker.empty", { query });
+    root.querySelector("#picker-empty-text").textContent = emptyText;
+    // A provider left out on purpose is not a request to make.
+    root.querySelector("#picker-request").hidden = Boolean(hidden);
+    count.textContent = entries.length ? t("dialog.picker.count", { count: entries.length }) : emptyText;
     if (!grouped) {
       list.innerHTML = entries.map(option).join("");
     } else {
@@ -105,8 +110,11 @@ export function mountPicker(root, { onChoose, detected = () => [], onDismiss = (
     const mine = ++seq;
     const result = await searchProviders(input.value, currentLocale());
     if (mine !== seq) return; // a newer keystroke won
+    const notice = !result.length && input.value.trim() ? await pickerHiddenNotice(input.value, currentLocale()).catch(() => null) : null;
+    if (mine !== seq) return;
     // The empty search lists the whole catalog, grouped; typing narrows it (owner decision 2026-10-26).
     entries = result;
+    hidden = notice;
     // Mockup 31: the empty search names how many providers it covers.
     if (!input.value.trim()) input.placeholder = t("dialog.picker.searchCount", { count: result.length });
     active = input.value.trim() ? 0 : -1;

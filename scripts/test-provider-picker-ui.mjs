@@ -207,4 +207,45 @@ await i18n.setLocale("pt-BR");
 assert.equal(lib.brand("alibaba_cloud").label, corePt["provider.alibaba_cloud"]);
 await i18n.setLocale("en-US");
 assert.equal(lib.brand("alibaba_cloud").label, "Alibaba Cloud — billing");
+// V-02 (PRD 0005 review): a search only a provider without any usage query answers shows the core's reason
+// (`picker_hidden_notice`) and hides "Request a provider"; a search nothing answers keeps the request.
+{
+  const fake = () => {
+    const el = { hidden: false, value: "", textContent: "", innerHTML: "", placeholder: "", dataset: {}, listeners: {},
+      classList: { toggle: () => {} }, addEventListener: (type, fn) => { el.listeners[type] = fn; },
+      setAttribute: () => {}, removeAttribute: () => {}, querySelectorAll: () => [], querySelector: () => null, focus: () => {} };
+    return el;
+  };
+  const els = new Map();
+  const root = { addEventListener: () => {}, querySelector: (sel) => { if (!els.has(sel)) els.set(sel, fake()); return els.get(sel); } };
+  const handle = picker.mountPicker(root, { onChoose: () => {} });
+  const search = async (query) => { root.querySelector("#picker-q").value = query; await handle.reload(); };
+  await search("poolside");
+  const text = root.querySelector("#picker-empty-text").textContent;
+  assert.ok(!root.querySelector("#picker-empty").hidden, "the empty state shows");
+  assert.ok(text.includes("Poolside") && !text.includes("{"), `the reason is shown: ${text}`);
+  assert.equal(root.querySelector("#picker-request").hidden, true, "no request for a provider left out on purpose");
+  await search("zzzz-none");
+  assert.equal(root.querySelector("#picker-request").hidden, false, "a real miss keeps the request");
+  assert.equal(root.querySelector("#picker-empty-text").textContent, i18n.t("dialog.picker.empty", { query: "zzzz-none" }));
+  assert.equal(await lib.pickerHiddenNotice("openai", "en-US"), null, "an offered provider has no notice");
+}
+// R-02 / V-04 (PRD 0005 review): the "Save anyway" prompt is set in the warning role with the warn icon and cleared
+// when a change withdraws it; the first submit relabels Save as "Save anyway".
+{
+  const dialogSrc = await readFile(fileURLToPath(new URL("apps/desktop/ui/js/account-dialog.js", root)), "utf8");
+  const prompt = dialogSrc.slice(dialogSrc.indexOf("function setSavePrompt"), dialogSrc.indexOf("async function renderAccess"));
+  assert.match(prompt, /classList\.toggle\("warn", text != null\)/, "the prompt takes the warning role");
+  assert.match(prompt, /icon\("warn"\)/, "the warn icon is the non-color cue");
+  assert.match(dialogSrc, /if \(latest\.save_confirmation && !confirmUnavailable\) \{\s*confirmUnavailable = true;\s*setSavePrompt\(tl\(latest\.save_confirmation\)\);\s*ok\.textContent = t\("dialog\.saveAnyway"\);/,
+    "the first submit of an Unavailable draft shows the core's prompt and relabels Save");
+  assert.match(dialogSrc, /if \(confirmUnavailable\) setSavePrompt\(null\);\s*confirmUnavailable = false;/, "a change withdraws the prompt");
+  assert.match(dialogSrc, /dlg\.querySelector\("#ok"\)\.textContent = t\("common\.save"\);/, "a change restores Save");
+  const css = await readFile(fileURLToPath(new URL("apps/desktop/ui/css/dialog.css", root)), "utf8");
+  assert.match(css, /\.err\.warn \{[^}]*color: var\(--warn\);/, "the warning role's color");
+  for (const { code } of i18n.LOCALES) {
+    const catalog = JSON.parse(await readFile(fileURLToPath(new URL(`apps/desktop/ui/locales/${code}.json`, root)), "utf8"));
+    assert.ok(catalog["dialog.saveAnyway"], `${code}: dialog.saveAnyway`);
+  }
+}
 console.log("provider picker UI smoke: ok");

@@ -255,6 +255,7 @@
   "catalog.category.extension": "扩展",
   "catalog.category.router": "路由器",
   "catalog.category.subscription": "订阅",
+  "catalog.hidden_provider": "{provider} 没有用量查询，因此 Cuotai 不提供它：{reason}",
   "catalog.hint.access_token": "账户访问令牌",
   "catalog.hint.admin_key": "管理 API 密钥",
   "catalog.hint.aggregator_login": "仪表板密码（可选）",

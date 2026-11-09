@@ -2520,25 +2520,54 @@ pub fn picker_providers(current: Option<Provider>) -> Vec<Provider> {
 /// core's grouping by sign-in method (one entry per provider, its
 /// recommended mode); a non-empty query keeps the core's ranking.
 pub fn picker_search(query: &str, locale: &str) -> Vec<CatalogMatch> {
-    picker_search_with_extensions(query, locale, &[])
+    picker_search_with_extensions(query, locale, &[], None)
 }
 
 /// PRD 0027 RF1.3: [`picker_search`] with the discovered extensions that can
 /// still be added (`extensions::management::Manager::picker_entries`), each
 /// as an "Extension: {name}" entry; choosing one opens the extension's
-/// consent flow, never a form.
+/// consent flow, never a form. `current` is the provider of the account
+/// being edited: [`picker_providers`] keeps it even without a usage query, so
+/// it sits in its own sign-in group and matches a filter like any other.
 pub fn picker_search_with_extensions(
     query: &str,
     locale: &str,
     extensions: &[crate::extensions::CatalogEntry],
+    current: Option<Provider>,
 ) -> Vec<CatalogMatch> {
-    let offered = picker_providers(None);
+    let offered = picker_providers(current);
     let empty = query.trim().is_empty();
     crate::catalog::search_with_extensions(query, locale, extensions)
         .into_iter()
         .filter(|m| m.entry.extension.is_some() || offered.contains(&m.entry.provider))
         .filter(|m| !empty || m.entry.recommended)
         .collect()
+}
+
+/// PRD 0005 RF3.4 / PRD 0027 RF3.5: why a search that the picker answers
+/// with nothing has no result, when the catalog knows a matching provider
+/// that the picker leaves out for lacking any usage query
+/// ([`crate::access::has_usage_query`]): `catalog.hidden_provider`, naming
+/// the provider and its `access.reason.<slug>`. The editors show it in place
+/// of "No provider matches" and its new-provider request. `None` for an
+/// empty query, a search with results, or a query that matches no provider.
+pub fn picker_hidden_notice(query: &str, locale: &str) -> Option<crate::text::Localized> {
+    if query.trim().is_empty() || !picker_search(query, locale).is_empty() {
+        return None;
+    }
+    let provider = crate::catalog::search(query, locale)
+        .into_iter()
+        .map(|m| m.entry.provider)
+        .find(|p| !crate::access::has_usage_query(*p))?;
+    let reason = crate::access::classify(provider, false, &BTreeMap::new()).reason?;
+    Some(crate::text::Localized::with_params(
+        "catalog.hidden_provider",
+        crate::text::params([
+            ("provider", crate::text::ParamValue::from(provider.label())),
+            ("reason", crate::text::ParamValue::from(reason)),
+        ]),
+        "{provider} has no usage query, so Cuotai does not offer it: {reason}",
+    ))
 }
 
 /// PRD 0027 RF5.1: the mode a provider opens with (`None` when it has a
@@ -3614,6 +3643,57 @@ mod tests {
         let codex = picker_search("codex", "en-US");
         assert_eq!(codex[0].entry.provider, Provider::ChatGpt);
         assert!(picker_search("poolside", "en-US").is_empty());
+    }
+
+    /// V-02 (PRD 0005 review): a search that only a hidden provider answers
+    /// says why it is not offered, instead of suggesting a request.
+    #[test]
+    fn hidden_provider_searches_explain_why() {
+        let notice = picker_hidden_notice("poolside", "en-US").expect("Poolside is hidden");
+        assert_eq!(notice.id, "catalog.hidden_provider");
+        let en = notice.resolve("en-US");
+        assert!(en.starts_with("Poolside has no usage query"), "{en}");
+        let reason = crate::access::classify(Provider::Poolside, false, &BTreeMap::new())
+            .reason
+            .unwrap();
+        assert!(en.ends_with(&reason.resolve("en-US")), "{en}");
+        for locale in crate::text::catalog_locales() {
+            let text = notice.resolve(locale);
+            assert!(
+                text.contains("Poolside") && !text.contains('{'),
+                "{locale}: {text}"
+            );
+        }
+        // A provider the picker offers, an empty query and a query that
+        // matches nothing get no notice.
+        for query in ["openai", "", "  ", "zzzz-no-provider"] {
+            assert_eq!(picker_hidden_notice(query, "en-US"), None, "{query:?}");
+        }
+    }
+
+    /// V-03 (PRD 0005 review): editing an account of a hidden provider keeps
+    /// it in its own sign-in group, once, and lets a filter find it.
+    #[test]
+    fn edited_hidden_provider_stays_in_its_group() {
+        let all = picker_search_with_extensions("", "en-US", &[], Some(Provider::Poolside));
+        let methods: Vec<_> = all.iter().map(|m| m.entry.method).collect();
+        let mut sorted = methods.clone();
+        sorted.sort_by_key(|m| SignInMethod::ALL.iter().position(|x| x == m));
+        assert_eq!(methods, sorted, "the edited provider sits in its group");
+        assert_eq!(
+            all.iter()
+                .filter(|m| m.entry.provider == Provider::Poolside)
+                .count(),
+            1
+        );
+        let filtered =
+            picker_search_with_extensions("pool", "en-US", &[], Some(Provider::Poolside));
+        assert!(filtered
+            .iter()
+            .any(|m| m.entry.provider == Provider::Poolside));
+        assert!(picker_search_with_extensions("pool", "en-US", &[], None)
+            .iter()
+            .all(|m| m.entry.provider != Provider::Poolside));
     }
 
     #[test]

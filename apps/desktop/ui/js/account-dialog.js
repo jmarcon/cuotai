@@ -413,11 +413,20 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   // SES-02: set when the core's test before save could not reach the provider; the next save is "Save anyway".
   let confirmUntested = false;
   let accessSeq = 0;
+  /** RF3.4 (DS-COL-3): the "Save anyway" prompt is a decision, shown in the warning role with the warn icon as the
+   *  non-color cue; `null` clears it. Any other message written to `#err` replaces it. */
+  function setSavePrompt(text) {
+    err.classList.toggle("warn", text != null);
+    if (text == null) { err.textContent = ""; return; }
+    err.innerHTML = `${icon("warn")}<span>${esc(text)}</span>`;
+  }
   async function renderAccess() {
     const seq = ++accessSeq;
     const access = await draftAccess(provider, authMode, draftFields(), sessionSlots());
     if (seq !== accessSeq) return; // a newer change is already being described
-    confirmUnavailable = false; // any change withdraws a pending "Save anyway"
+    // Any change withdraws a pending "Save anyway", and with it the prompt that asked for it.
+    if (confirmUnavailable) setSavePrompt(null);
+    confirmUnavailable = false;
     confirmUntested = false;
     dlg.querySelector("#ok").textContent = t("common.save");
     costWarn.textContent = tl(access.cost_advisory);
@@ -1231,6 +1240,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     collect();
     const ok = dlg.querySelector("#ok");
     err.textContent = "";
+    err.classList.remove("warn");
     clearFieldErrors();
     if (!validMonogram(new FormData(form).get("monogram"))) {
       setFieldError("monogram", t("dialog.monogram.invalid"));
@@ -1259,7 +1269,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     const latest = await draftAccess(provider, authMode, draftFields(), sessionSlots());
     if (latest.save_confirmation && !confirmUnavailable) {
       confirmUnavailable = true;
-      err.textContent = tl(latest.save_confirmation);
+      setSavePrompt(tl(latest.save_confirmation));
       ok.textContent = t("dialog.saveAnyway");
       return;
     }

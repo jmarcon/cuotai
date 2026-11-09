@@ -255,6 +255,7 @@
   "catalog.category.extension": "확장 기능",
   "catalog.category.router": "라우터",
   "catalog.category.subscription": "구독",
+  "catalog.hidden_provider": "{provider}에는 사용량 조회가 없어 Cuotai에서 제공하지 않습니다: {reason}",
   "catalog.hint.access_token": "계정 액세스 토큰",
   "catalog.hint.admin_key": "관리자 API 키",
   "catalog.hint.aggregator_login": "대시보드 비밀번호(선택)",

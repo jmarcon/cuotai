@@ -255,6 +255,7 @@
   "catalog.category.extension": "Tiện ích mở rộng",
   "catalog.category.router": "Bộ định tuyến",
   "catalog.category.subscription": "Gói đăng ký",
+  "catalog.hidden_provider": "{provider} không có truy vấn mức sử dụng, nên Cuotai không cung cấp: {reason}",
   "catalog.hint.access_token": "Token truy cập của tài khoản",
   "catalog.hint.admin_key": "Khóa API quản trị",
   "catalog.hint.aggregator_login": "Mật khẩu bảng điều khiển (không bắt buộc)",

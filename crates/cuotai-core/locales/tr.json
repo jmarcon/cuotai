@@ -257,6 +257,7 @@
   "catalog.category.extension": "Uzantı",
   "catalog.category.router": "Yönlendirici",
   "catalog.category.subscription": "Abonelik",
+  "catalog.hidden_provider": "{provider} için kullanım sorgusu yok, bu yüzden Cuotai bunu sunmuyor: {reason}",
   "catalog.hint.access_token": "Hesap erişim jetonu",
   "catalog.hint.admin_key": "Yönetici API anahtarı",
   "catalog.hint.aggregator_login": "Pano parolası (isteğe bağlı)",

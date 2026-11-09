@@ -261,6 +261,7 @@
   "catalog.category.extension": "Расширение",
   "catalog.category.router": "Маршрутизатор",
   "catalog.category.subscription": "Подписка",
+  "catalog.hidden_provider": "У {provider} нет запроса использования, поэтому Cuotai его не предлагает: {reason}",
   "catalog.hint.access_token": "Токен доступа учётной записи",
   "catalog.hint.admin_key": "Ключ API администратора",
   "catalog.hint.aggregator_login": "Пароль панели (необязательно)",

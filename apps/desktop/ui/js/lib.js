@@ -97,6 +97,9 @@ export const setConnectionFlag = (index, key, sub, on) => call("set_connection_f
 export const listProviders = () => call("list_providers");
 // PRD 0027: the Add-account catalog (core search, ranking and grouping), its modes and the consented detection.
 export const searchProviders = (query, locale) => call("search_providers", { query, locale });
+/** V-02 (PRD 0005 review): why a search with no result names a provider the picker leaves out (core
+ *  `account_edit::picker_hidden_notice`), or null. */
+export const pickerHiddenNotice = (query, locale) => call("picker_hidden_notice", { query, locale });
 export const providerModes = (provider) => call("provider_modes", { provider });
 export const detectSources = () => call("detect_sources");
 export const setDetectEnabled = (on) => call("set_detect_enabled", { on });
@@ -2157,6 +2160,16 @@ const demo = {
       .filter(([id, label]) => !q || fold(label).includes(q) || id.includes(q))
       .map(([id]) => demoPickerEntry(id, brand(id)))
       .sort((x, y) => DEMO_METHOD_ORDER.indexOf(x.method) - DEMO_METHOD_ORDER.indexOf(y.method));
+  },
+  // ponytail: demo mirror of `picker_hidden_notice` for the providers without any usage query.
+  picker_hidden_notice: async ({ query }) => {
+    const fold = (v) => String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const q = fold(query).trim();
+    const id = q && DEMO_NO_QUERY.find((p) => fold(DEMO_CORE_LABELS[p]).includes(q) || p.includes(q));
+    if (!id) return null;
+    const reason = dlx(`access.reason.${id}`, "demo.access.reason", "No public usage query for this credential (demo).");
+    return { id: "catalog.hidden_provider", params: { provider: DEMO_CORE_LABELS[id], reason },
+      fallback: `${DEMO_CORE_LABELS[id]} has no usage query, so Cuotai does not offer it: ${reason.fallback}` };
   },
   provider_modes: async ({ provider }) => [demoPickerEntry(provider, brand(provider))],
   detect_sources: async () => (demoSettings.detect.enabled ? [{ provider: "cursor", kind: "cursor_app", mode: "oauth",

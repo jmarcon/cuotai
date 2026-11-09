@@ -89,6 +89,13 @@ async fn search_providers(
     Ok(b.search_providers(&query, &locale).await)
 }
 
+/// V-02 (PRD 0005 review): why a search with no result names a provider the
+/// picker leaves out for lacking any usage query; `None` otherwise.
+#[tauri::command]
+fn picker_hidden_notice(query: String, locale: String) -> Option<cuotai_core::text::Localized> {
+    cuotai_core::account_edit::picker_hidden_notice(&query, &locale)
+}
+
 /// PRD 0027 RF5.1: every way to connect a provider, recommended first.
 #[tauri::command]
 fn provider_modes(provider: cuotai_core::Provider) -> Vec<backend::PickerEntry> {
@@ -2813,6 +2820,7 @@ pub fn run() -> std::process::ExitCode {
             set_connection_flag,
             list_providers,
             search_providers,
+            picker_hidden_notice,
             provider_modes,
             detect_sources,
             set_detect_enabled,

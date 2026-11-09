@@ -257,6 +257,7 @@
   "catalog.category.extension": "Erweiterung",
   "catalog.category.router": "Router",
   "catalog.category.subscription": "Abonnement",
+  "catalog.hidden_provider": "{provider} hat keine Nutzungsabfrage, deshalb bietet Cuotai es nicht an: {reason}",
   "catalog.hint.access_token": "Zugriffstoken des Kontos",
   "catalog.hint.admin_key": "Administrations-API-Schlüssel",
   "catalog.hint.aggregator_login": "Dashboard-Passwort (optional)",
