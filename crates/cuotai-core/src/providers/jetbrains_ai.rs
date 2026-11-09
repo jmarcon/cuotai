@@ -42,6 +42,8 @@ const PERIOD: &str = "mês corrente";
 const DEFAULT_LIFETIME: u64 = 3600;
 /// A cached token is renewed this long before it expires.
 const RENEW_MARGIN: u64 = 60;
+/// Upper bound for a token lifetime, as the OAuth flows use (one year).
+const MAX_LIFETIME: u64 = 365 * 24 * 3600;
 
 /// In-memory tokens per (token URL, client ID, secret) fingerprint.
 static TOKENS: LazyLock<tokio::sync::Mutex<HashMap<String, (String, Instant)>>> =
@@ -202,7 +204,10 @@ async fn token_fresh(client: &Client<'_>, ctx: &Context<'_>) -> Result<(String, 
     let lifetime = value
         .get("expires_in")
         .and_then(Value::as_u64)
-        .unwrap_or(DEFAULT_LIFETIME);
+        .unwrap_or(DEFAULT_LIFETIME)
+        // An absurd lifetime must not overflow `Instant` and panic the
+        // refresh (PRD 0003 re-validation R-01).
+        .min(MAX_LIFETIME);
     let until = Instant::now() + Duration::from_secs(lifetime.saturating_sub(RENEW_MARGIN));
     TOKENS
         .lock()
@@ -631,6 +636,37 @@ mod tests {
         );
         assert!(find(&data, "Créditos de IA — GitHub Copilot").is_none());
         assert!(data.metrics.iter().all(|m| !m.label.contains("Bad Name")));
+    }
+
+    /// PRD 0003 re-validation R-01: a huge `expires_in` is clamped, so the
+    /// token cache never overflows `Instant` and the query still answers.
+    #[tokio::test]
+    async fn a_huge_token_lifetime_does_not_panic() {
+        let server = MockServer::start().await;
+        mount_token(
+            &server,
+            ResponseTemplate::new(200).set_body_json(json!({
+                "access_token": TOKEN, "token_type": "Bearer",
+                "expires_in": u64::MAX, "scope": "jcp-public"
+            })),
+        )
+        .await;
+        mount_usage(
+            &server,
+            ResponseTemplate::new(200).set_body_json(json!({
+                "items": [{"tool": "junie", "tariff": 1, "topup": 0}]
+            })),
+        )
+        .await;
+        let data = call(
+            &server,
+            &TestCredentials {
+                secret: Some(SECRET),
+            },
+        )
+        .await
+        .expect("ok");
+        assert!(find(&data, "Créditos de IA — Junie").is_some());
     }
 
     #[tokio::test]

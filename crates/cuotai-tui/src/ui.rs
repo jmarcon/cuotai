@@ -329,6 +329,13 @@ pub async fn run(
     let mut wizard = first_run.then(|| Wizard::new(&file.config, None));
     let previous_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
+        // A panic the core isolates to one account (PRD 0003 re-validation
+        // R-03) becomes that account's failed report; the dashboard goes on,
+        // so the terminal must stay as it is.
+        if !restores_terminal_on_panic() {
+            previous_hook(info);
+            return;
+        }
         let _ = disable_raw_mode();
         let _ = execute!(
             io::stdout(),
@@ -3832,6 +3839,12 @@ impl State {
 }
 
 /// Strip terminal controls from account names and remote labels.
+/// Whether the panic hook must leave raw mode and the alternate screen: not
+/// for a panic the core isolates to one account's query.
+fn restores_terminal_on_panic() -> bool {
+    !cuotai_core::panic_isolated()
+}
+
 pub(crate) fn safe(text: &str) -> Cow<'_, str> {
     if text.chars().any(char::is_control) {
         Cow::Owned(text.chars().filter(|c| !c.is_control()).collect())
@@ -4005,6 +4018,37 @@ mod tests {
 
     /// PRD 0029 RF5.3: the removal message names the stored session apart
     /// from the OAuth credential.
+    /// PRD 0003 re-validation R-03: a panic the core isolates to one
+    /// account does not tear the terminal down; any other panic does.
+    #[test]
+    fn the_panic_hook_keeps_the_terminal_for_an_isolated_panic() {
+        use std::sync::{Arc, Mutex};
+        const SENTINEL: &str = "isolated adapter panic for the hook test";
+        assert!(restores_terminal_on_panic());
+        let seen: Arc<Mutex<Option<bool>>> = Arc::default();
+        let record = Arc::clone(&seen);
+        let prior = Arc::new(std::panic::take_hook());
+        let chained = Arc::clone(&prior);
+        std::panic::set_hook(Box::new(move |info| {
+            if info.payload().downcast_ref::<&str>() == Some(&SENTINEL) {
+                *record.lock().unwrap() = Some(restores_terminal_on_panic());
+            } else {
+                chained(info);
+            }
+        }));
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let result = runtime.block_on(cuotai_core::panic_guard::isolate(async {
+            std::panic::panic_any(SENTINEL);
+        }));
+        let _ = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |info| prior(info)));
+        assert_eq!(result, Err(cuotai_core::panic_guard::Panicked));
+        assert_eq!(*seen.lock().unwrap(), Some(false));
+        assert!(restores_terminal_on_panic());
+    }
+
     #[test]
     fn the_removal_message_names_the_deleted_session() {
         let removed = |sessions_removed| RemovedAccount {

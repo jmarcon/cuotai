@@ -298,9 +298,18 @@ impl RefreshCycle {
             .take_while(|at| *at - first <= crate::resets::DRIFT_TOLERANCE)
             .last()
             .unwrap_or(first);
-        let target = (last + RESET_QUERY_DELAY - wall)
-            .to_std()
-            .map_or(now, |d| now + d);
+        // A provider time near chrono's maximum must not panic the cycle
+        // (PRD 0003 re-validation R-02): such a reset arms nothing.
+        let Some(after) = last.checked_add_signed(RESET_QUERY_DELAY) else {
+            return;
+        };
+        let target = match (after - wall).to_std() {
+            Ok(d) => match now.checked_add(d) {
+                Some(target) => target,
+                None => return,
+            },
+            Err(_) => now,
+        };
         let target = match self.reset_queries.get(&key) {
             Some(done) => target.max(done.armed_at + RESET_QUERY_SPACING),
             None => target,
@@ -3317,6 +3326,17 @@ mod prd0033_rf2_tests {
     fn finish_one(cycle: &mut RefreshCycle, report: Report, now: Instant) {
         let token = cycle.begin(0).unwrap();
         assert!(cycle.finish_account(0, Some(report), token, now));
+    }
+
+    /// PRD 0003 re-validation R-02: a reset at chrono's maximum arms no
+    /// query and does not panic the cycle.
+    #[test]
+    fn a_reset_at_the_maximum_time_arms_nothing() {
+        let (mut cycle, now) = cycle_with(Provider::Claude, 3600);
+        let mut report = quota_report(Provider::Claude, &[TimeDelta::minutes(10)]);
+        report.metrics[0].resets_at = Some(chrono::DateTime::<Utc>::MAX_UTC);
+        finish_one(&mut cycle, report, now);
+        assert_eq!(cycle.next_refresh_in(0, now), Duration::from_secs(3600));
     }
 
     #[test]
