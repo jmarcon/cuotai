@@ -220,6 +220,12 @@ fn replace(tmp: &Path, path: &Path) -> io::Result<()> {
     })
 }
 
+/// [`clean_orphans`] for the temporary files of a writer of `path` outside
+/// this module ([`sqlite_backup`]'s copy, for instance).
+pub(crate) fn clean_temporaries(path: &Path) {
+    clean_orphans(path);
+}
+
 /// Remove this writer's temporary files left by a crash, once they are a
 /// day old. Anything else in the directory is never touched.
 fn clean_orphans(path: &Path) {

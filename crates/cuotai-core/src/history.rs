@@ -69,6 +69,14 @@ pub enum HistoryError {
     /// RF4.4: an export period outside 1 to 365 days.
     #[error("A history export covers 1 to 365 days.")]
     ExportDays,
+    /// RF4.4: the history file is not a readable database, so one account
+    /// cannot be picked out of it; erasing everything still works.
+    #[error("The local history file is damaged, so one account cannot be erased from it; erase the whole history instead.")]
+    Damaged,
+    /// RF4.4: the rows were erased, but another open Cuotai kept the old
+    /// pages in the write-ahead log, so they are not wiped from disk yet.
+    #[error("The history was erased, but another open Cuotai window still holds a copy of the old data; close the other Cuotai windows and erase again to wipe it from disk.")]
+    EraseIncomplete,
 }
 
 impl HistoryError {
@@ -78,6 +86,8 @@ impl HistoryError {
             Self::Export => "history.error.export",
             Self::NewerMajor => "state.error.newer_major_history",
             Self::ExportTarget => "history.error.export_target",
+            Self::Damaged => "history.error.damaged",
+            Self::EraseIncomplete => "history.error.erase_incomplete",
             Self::ExportDays => {
                 return Localized::with_params(
                     "history.error.export_days",

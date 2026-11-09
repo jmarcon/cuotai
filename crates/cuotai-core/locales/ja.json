@@ -980,6 +980,8 @@
   "field.meta.session_env.label": "dev.meta.ai セッションの変数（任意）",
   "field.meta.session_env.help": "空欄 = アカウントウィザードの「サインイン」で取得したセッション（システムの保管庫）。変数を使う場合は dev.meta.ai の Cookie（llama_dev_sess）を保持する変数の名前を入力してください。Cookie をここに貼り付けないでください。",
   "history.error.export": "履歴のエクスポートを書き込めませんでした。",
+  "history.error.damaged": "ローカルの履歴ファイルが破損しているため、1 つのアカウントだけを消去できません。代わりに履歴をすべて消去してください。",
+  "history.error.erase_incomplete": "履歴は消去されましたが、開いている別の Cuotai ウィンドウが古いデータのコピーをまだ保持しています。ほかの Cuotai ウィンドウを閉じてから、もう一度消去するとディスクから消えます。",
   "history.error.export_target": "Cuotai は自身の履歴・設定・データファイルやフォルダーを上書きしてエクスポートしません。別のファイルを選んでください。",
   "history.error.export_days": "履歴のエクスポートは {min}〜{max} 日の範囲です。",
   "history.error.retention_bounds": "履歴の保持期間は {min}〜{max} 日です。",

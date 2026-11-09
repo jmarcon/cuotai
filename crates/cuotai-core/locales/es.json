@@ -596,6 +596,8 @@
   "field.zed.user_id.help": "Obligatorio; enviado como \"Authorization: <user_id> <access_token>\".",
   "field.zed.user_id.label": "ID numérico del usuario Zed",
   "history.error.export": "No se pudo escribir la exportación del historial.",
+  "history.error.damaged": "El archivo de historial local está dañado, así que no se puede borrar una sola cuenta; borra todo el historial.",
+  "history.error.erase_incomplete": "Se borró el historial, pero otra ventana abierta de Cuotai aún conserva una copia de los datos antiguos; cierra las demás ventanas de Cuotai y vuelve a borrar para eliminarla del disco.",
   "history.error.export_target": "Cuotai no escribe una exportación sobre sus propios archivos de historial, configuración o datos, ni sobre una carpeta; elige otro archivo.",
   "history.error.export_days": "Una exportación del historial abarca de {min} a {max} días.",
   "history.error.retention_bounds": "La retención del historial va de {min} a {max} días.",

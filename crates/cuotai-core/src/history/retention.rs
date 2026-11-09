@@ -25,6 +25,10 @@ const HOUR_MS: i64 = 3_600_000;
 /// A series marked removed is pruned once the mark is this old, so an
 /// account renamed back (or a TOML briefly edited by hand) keeps its data.
 const REMOVED_GRACE: TimeDelta = TimeDelta::hours(24);
+/// PRD 0006 RF4.3 / PRD 0051 RF3.3 (re-validation decision, 2026-11): the
+/// pre-upgrade copy `history.sqlite3.bak` is kept this long after it was
+/// written (the rollback window of the previous release), then removed.
+pub const BACKUP_KEEP: TimeDelta = TimeDelta::days(7);
 /// After a ceiling prune the file is brought this far below the ceiling, so
 /// the next readings do not trigger another prune at once.
 const CEILING_TARGET_PERCENT: u64 = 90;
@@ -274,6 +278,18 @@ fn used_bytes(db: &Connection) -> rusqlite::Result<u64> {
     Ok(u64::try_from(pages.max(0)).unwrap_or(0) * u64::try_from(pragma("page_size")?).unwrap_or(0))
 }
 
+/// RF4.4: wipe the write-ahead log after an erasure. A checkpoint that
+/// another connection still blocks (`busy`, after the busy handler's wait)
+/// is [`HistoryError::EraseIncomplete`]: the rows are gone, but old pages
+/// may remain in the log until that connection closes.
+fn truncate_wal(db: &Connection) -> Result<(), HistoryError> {
+    let busy: i64 = db.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |row| row.get(0))?;
+    if busy != 0 {
+        return Err(HistoryError::EraseIncomplete);
+    }
+    Ok(())
+}
+
 fn drop_orphan_series(db: &Connection) -> rusqlite::Result<usize> {
     db.execute(
         "DELETE FROM series WHERE NOT EXISTS (SELECT 1 FROM samples x WHERE x.series_id = series.id)",
@@ -325,6 +341,7 @@ impl HistoryStore {
     /// silent). Each step deletes in short batches. Never creates the file.
     pub fn prune(&self, now: DateTime<Utc>) -> Result<PruneReport, HistoryError> {
         let Some(mut db) = self.open_existing()? else {
+            self.prune_backup(now, 0)?;
             return Ok(PruneReport::default());
         };
         let mut report = PruneReport {
@@ -351,7 +368,35 @@ impl HistoryStore {
         report.reduced = self.reduce(&mut db, now)?;
         report.ceiling = self.enforce_ceiling(&mut db)?;
         drop_orphan_series(&db)?;
+        self.prune_backup(now, used_bytes(&db)?)?;
         Ok(report)
+    }
+
+    /// The pre-upgrade copy (`history.sqlite3.bak`, written by a migration
+    /// or a relocation) is removed once it is older than [`BACKUP_KEEP`], or
+    /// earlier when it and the `live` bytes of the history together exceed
+    /// the size ceiling. The temporary files of an interrupted copy are
+    /// removed once they are a day old. Returns whether the copy was
+    /// removed.
+    fn prune_backup(&self, now: DateTime<Utc>, live: u64) -> Result<bool, HistoryError> {
+        let bak = crate::private_fs::backup_path(&self.path);
+        crate::private_fs::clean_temporaries(&bak);
+        let meta = match std::fs::symlink_metadata(&bak) {
+            Ok(meta) => meta,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+            Err(_) => return Err(HistoryError::Storage),
+        };
+        let written = meta
+            .modified()
+            .map(DateTime::<Utc>::from)
+            .unwrap_or(DateTime::<Utc>::MIN_UTC);
+        let expired = now.signed_duration_since(written) > BACKUP_KEEP;
+        let over = live.saturating_add(meta.len()) > self.retention.max_bytes();
+        if !(expired || over) {
+            return Ok(false);
+        }
+        self.remove_backup()?;
+        Ok(true)
     }
 
     /// RF4.2 over the samples not reduced yet (from the `meta` mark to the
@@ -645,7 +690,11 @@ impl HistoryStore {
     /// survives (the others lose that rollback copy, not their history).
     /// Returns the samples removed; never creates the file.
     pub fn erase_account(&self, account: &Account) -> Result<usize, HistoryError> {
-        let Some(mut db) = self.open_existing()? else {
+        let opened = self.open_existing();
+        if opened.is_err() && self.damaged() {
+            return Err(HistoryError::Damaged);
+        }
+        let Some(mut db) = opened? else {
             self.remove_backup()?;
             return Ok(0);
         };
@@ -671,8 +720,8 @@ impl HistoryStore {
         super::journal::erase_account(&tx, &self.config_key, &account.state_key())?;
         drop_orphan_series(&tx)?;
         tx.commit()?;
-        db.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")?;
         self.remove_backup()?;
+        truncate_wal(&db)?;
         Ok(removed)
     }
 
@@ -681,7 +730,13 @@ impl HistoryStore {
     /// of it stays on disk; the `.bak` copy a migration or relocation left
     /// is removed. Returns the samples removed; never creates the file.
     pub fn erase_all(&self) -> Result<usize, HistoryError> {
-        let Some(mut db) = self.open_existing()? else {
+        let opened = self.open_existing();
+        if opened.is_err() && self.damaged() {
+            // Nothing in a damaged file can be read or kept: it goes whole.
+            self.remove_damaged()?;
+            return Ok(0);
+        }
+        let Some(mut db) = opened? else {
             self.remove_backup()?;
             return Ok(0);
         };
@@ -691,17 +746,61 @@ impl HistoryStore {
             "DELETE FROM series; DELETE FROM meta; DELETE FROM journal; DELETE FROM aliases;",
         )?;
         tx.commit()?;
-        db.execute_batch("VACUUM; PRAGMA wal_checkpoint(TRUNCATE);")?;
+        db.execute_batch("VACUUM;")?;
         self.remove_backup()?;
+        truncate_wal(&db)?;
         Ok(removed)
     }
 
+    /// Whether the history file exists but is not a readable SQLite
+    /// database (another file written over it, or real corruption).
+    fn damaged(&self) -> bool {
+        use std::io::Read;
+        let mut header = [0u8; 16];
+        let read = std::fs::File::open(&self.path).and_then(|mut file| {
+            let mut filled = 0;
+            while filled < header.len() {
+                match file.read(&mut header[filled..])? {
+                    0 => break,
+                    n => filled += n,
+                }
+            }
+            Ok(filled)
+        });
+        match read {
+            Ok(0) | Err(_) => false,
+            Ok(n) if n < header.len() || &header != b"SQLite format 3\0" => true,
+            Ok(_) => {
+                Connection::open_with_flags(&self.path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+                    .and_then(|db| {
+                        db.query_row("PRAGMA quick_check", [], |row| row.get::<_, String>(0))
+                    })
+                    .map_or(true, |answer| answer != "ok")
+            }
+        }
+    }
+
+    /// Remove a damaged history file, its side files and its `.bak` copy.
+    fn remove_damaged(&self) -> Result<(), HistoryError> {
+        for suffix in ["", "-wal", "-shm"] {
+            let mut path = self.path.clone().into_os_string();
+            path.push(suffix);
+            match std::fs::remove_file(&path) {
+                Ok(()) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(_) => return Err(HistoryError::Storage),
+            }
+        }
+        self.remove_backup()
+    }
+
     /// RF5.3: bytes the history file takes on disk with its WAL and shared
-    /// memory side files (the whole per-device file, every configuration);
-    /// 0 before anything was recorded. Never creates the file.
+    /// memory side files and its pre-upgrade copy (`.bak`, the whole
+    /// per-device file, every configuration); 0 before anything was
+    /// recorded. Never creates the file.
     pub fn size_on_disk(&self) -> Result<u64, HistoryError> {
         let mut total = 0;
-        for suffix in ["", "-wal", "-shm"] {
+        for suffix in ["", "-wal", "-shm", ".bak"] {
             let mut path = self.path.clone().into_os_string();
             path.push(suffix);
             match std::fs::metadata(&path) {
@@ -1283,6 +1382,112 @@ mod tests {
         assert_eq!(history.erase_all(), Ok(0));
         assert!(!bak.exists());
         assert!(!db.exists(), "never created");
+    }
+
+    fn age(path: &Path, by: std::time::Duration) {
+        std::fs::File::options()
+            .write(true)
+            .open(path)
+            .unwrap()
+            .set_modified(std::time::SystemTime::now() - by)
+            .unwrap();
+    }
+
+    /// Re-validation 2026-11 (S-02): the pre-upgrade copy is kept 7 days,
+    /// counts in the size on disk, yields to the ceiling, and the temporary
+    /// files of an interrupted copy are swept after a day.
+    #[test]
+    fn the_backup_copy_is_kept_seven_days_counted_and_yields_to_the_ceiling() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("history.sqlite3");
+        let bak = crate::private_fs::backup_path(&db);
+        let history = store(&db, "one");
+        let alpha = first_account(config(CONFIG));
+        history
+            .record(&alpha, t0(), &[quota("5h", Some(1.0), None)])
+            .unwrap();
+        crate::private_fs::sqlite_backup(&Connection::open(&db).unwrap(), &db).unwrap();
+        let before = history.size_on_disk().unwrap();
+        let bak_len = std::fs::metadata(&bak).unwrap().len();
+        assert!(bak_len > 0);
+        let main_len = std::fs::metadata(&db).unwrap().len();
+        assert!(before >= main_len + bak_len, "the copy counts on disk");
+
+        let now = Utc::now();
+        history.prune(now).unwrap();
+        assert!(bak.exists(), "a fresh copy is kept");
+        age(&bak, std::time::Duration::from_secs(6 * 86_400));
+        history.prune(now).unwrap();
+        assert!(bak.exists(), "six days old: kept");
+        age(&bak, std::time::Duration::from_secs(8 * 86_400));
+        history.prune(now).unwrap();
+        assert!(!bak.exists(), "eight days old: removed");
+        assert!(history.size_on_disk().unwrap() < before);
+
+        // Over the ceiling, a fresh copy goes first.
+        crate::private_fs::sqlite_backup(&Connection::open(&db).unwrap(), &db).unwrap();
+        let tight = history.with_retention(Retention::default().with_max_bytes(bak_len));
+        tight.prune(now).unwrap();
+        assert!(!bak.exists(), "the copy yields to the size cap");
+
+        // Orphan temporaries of an interrupted copy: a day old goes.
+        let old = dir.path().join(".history.sqlite3.bak.abc.tmp");
+        let young = dir.path().join(".history.sqlite3.bak.def.tmp");
+        std::fs::write(&old, "x").unwrap();
+        std::fs::write(&young, "x").unwrap();
+        age(&old, std::time::Duration::from_secs(25 * 3_600));
+        store(&db, "one").prune(now).unwrap();
+        assert!(!old.exists());
+        assert!(young.exists());
+        assert!(db.exists(), "the history itself stays");
+    }
+
+    /// Re-validation 2026-11 (S-05): a history file that is not a database
+    /// (another file written over it) is erased whole by "erase
+    /// everything"; erasing one account says it is damaged.
+    #[test]
+    fn a_damaged_history_file_is_erased_whole_and_one_account_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("history.sqlite3");
+        let bak = crate::private_fs::backup_path(&db);
+        std::fs::write(&db, b"PK\x03\x04 not a database at all, a zip").unwrap();
+        std::fs::write(&bak, b"old copy").unwrap();
+        let history = store(&db, "one");
+        let alpha = first_account(config(CONFIG));
+        assert_eq!(history.erase_account(&alpha), Err(HistoryError::Damaged));
+        assert!(db.exists(), "one account never removes the whole file");
+        assert_eq!(history.erase_all(), Ok(0));
+        assert!(!db.exists());
+        assert!(!bak.exists());
+        assert_eq!(HistoryError::Damaged.l10n().id, "history.error.damaged");
+    }
+
+    /// Re-validation 2026-11 (S-06): while another connection keeps a read
+    /// snapshot, the log cannot be wiped: the erasure says so instead of
+    /// reporting a clean success, and a second erase after it closes wipes
+    /// it.
+    #[test]
+    fn an_erase_blocked_by_another_reader_says_so() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("history.sqlite3");
+        let history = store(&db, "one");
+        let alpha = first_account(config(CONFIG));
+        history
+            .record(&alpha, t0(), &[quota("5h", Some(1.0), None)])
+            .unwrap();
+        let reader = Connection::open(&db).unwrap();
+        reader.execute_batch("BEGIN").unwrap();
+        reader
+            .query_row("SELECT COUNT(*) FROM samples", [], |r| r.get::<_, i64>(0))
+            .unwrap();
+        assert_eq!(
+            history.erase_account(&alpha),
+            Err(HistoryError::EraseIncomplete)
+        );
+        reader.execute_batch("COMMIT").unwrap();
+        drop(reader);
+        assert_eq!(history.erase_account(&alpha), Ok(0));
+        assert_eq!(total(&db), 0);
     }
 
     #[test]
