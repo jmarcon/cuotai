@@ -5,7 +5,7 @@ import {
   STALE, accessHtml, ageHtml, bindingChipText, causeText, errText, esc, fmtAmount, fmtReset, getView, icon, incidentDetailHtml, isBindingMetric, isMetricHidden, isRenewedWaiting, isStaleReading, level, loadModels, metricAlertHtml, metricKey, modelState, noteText,
   adviceHtml, fmtMetricExtra, forecastHtml, scopeBlocksHtml, isOverage, openExternal, overageDetailHtml, paceHtml, paceOf, remainingPct, renewedText, reportKey, restNotes, staleView, statusLabel, syncModels, textualMetric,
 } from "./lib.js";
-import { expectedLeft, fmtAt, meterHtml } from "./components.js";
+import { expectedLeft, fmtAt, meterHtml, stageChip, TONE_ROLE } from "./components.js";
 import { breakdownHtml } from "./breakdown.js";
 import { fold } from "./util.js";
 
@@ -47,7 +47,8 @@ export function metricCardHtml(r, m, { eye = false, stale = false } = {}) {
   const binding = isBindingMetric(r, m);
   // DS-CMP-SUB-1 (mockup 03): label + tag, the figure with its unit inline; the meter; the pace stage on the left and
   // "Resets 20:32 · in 2h 11m" (mono, muted) on the right. Counts and the expected share live in the tooltips.
-  const paceTip = pace ? [tl(pace.label), t("metric.pace.expected", { pct: Math.round(pace.expected_used_fraction * 100) }), pace.outlook ? tl(pace.outlook) : "", t("card.pace.estimate")].filter(Boolean).join(". ") : "";
+  // The parts are catalog phrases, not sentences: joined with " · " like every other compound text, never ". ".
+  const paceTip = pace ? [tl(pace.label), t("metric.pace.expected", { pct: Math.round(pace.expected_used_fraction * 100) }), pace.outlook ? tl(pace.outlook) : "", t("card.pace.estimate")].filter(Boolean).join(" · ") : "";
   const resetText = reset && !renewed ? (m.resets_label ? tl(m.resets_label) : t("metric.resetsAt", { when: reset })) : "";
   // PRD 0041 RF2: a budget quota is the person's number, labelled as such on every surface (never a provider limit).
   const budget = m.budget_badge ? tl(m.budget_badge) : "";
@@ -61,7 +62,7 @@ export function metricCardHtml(r, m, { eye = false, stale = false } = {}) {
       </div>
     </div>
     ${gauge}
-    ${pace || resetText ? `<div class="metric-meta">${pace ? `<span class="pace-line" data-pace="${esc(pace.stage)}" title="${esc(paceTip)}">${icon({ good: "check", neutral: "clock", warn: "warn", bad: "xcircle" }[pace.tone] ?? "clock", pace.tone)}<span>${esc(tl(pace.label))}</span></span>` : "<span></span>"}${resetText ? `<span class="resets">${esc(resetText)}</span>` : ""}</div>` : ""}
+    ${pace || resetText ? `<div class="metric-meta">${pace ? `<span class="pace-line" data-pace="${esc(pace.stage)}" title="${esc(paceTip)}"><span class="pg ${TONE_ROLE[pace.tone] ?? "muted"}" aria-hidden="true">${esc(stageChip(pace)?.glyph ?? "")}</span><span>${esc(tl(pace.label))}</span></span>` : "<span></span>"}${resetText ? `<span class="resets">${esc(resetText)}</span>` : ""}</div>` : ""}
     ${stale || !m.allowance ? "" : `<p class="sub allowance-line" data-allowance title="${te("card.pace.estimate")}">${icon("clock")}<span>${esc(tl(m.allowance))}</span></p>`}
     ${stale ? "" : floorLinesHtml(r, m)}
     ${stale ? "" : forecastHtml(m, r)}

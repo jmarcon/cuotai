@@ -967,6 +967,11 @@
 .metric-meta .pace-line .good, .metric-meta .pace-line svg.good { color: var(--good); }
 .metric-meta .pace-line svg.warn { color: var(--warn); }
 .metric-meta .pace-line svg.bad { color: var(--bad); }
+/* DS-CMP-SUB-1: the core's stage glyph (↓ → ↑ ✕), in the role of the core's tone; the words stay muted. */
+.metric-meta .pace-line .pg { flex: none; font-weight: 600; }
+.metric-meta .pace-line .pg.warn { color: var(--warn); }
+.metric-meta .pace-line .pg.bad { color: var(--bad); }
+.metric-meta .pace-line .pg.muted { color: var(--fg-muted); }
 .metric-meta .resets {
   margin: 0 0 0 auto;
   color: var(--fg-muted);

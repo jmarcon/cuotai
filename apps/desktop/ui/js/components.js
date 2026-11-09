@@ -216,8 +216,9 @@ export function statusParts(r, st = accountState(r)) {
   } else if (pace) {
     // DS-CMP-STL-3: the pace stage names the line; the core's sentence stays in the tooltip.
     label = t(`stage.${pace.stage}`);
-    role = { good: "good", warn: "warn", bad: "bad", neutral: "muted" }[pace.tone] ?? "muted";
-    detail = [tl(pace.label), pace.outlook ? tl(pace.outlook) : ""].filter(Boolean).join(" · ");
+    role = TONE_ROLE[pace.tone] ?? "muted";
+    // On pace the core's sentence is the stage name itself: say it once ("On pace · lasts until the reset").
+    detail = [pace.stage === "on_pace" ? "" : tl(pace.label), pace.outlook ? tl(pace.outlook) : ""].filter(Boolean).join(" · ");
     reset = binding.resets_at;
   } else if (binding) {
     // Fa gap 1: without a pace the line names the level (never the window, which the meter's limit already is); the
@@ -239,7 +240,10 @@ export function statusParts(r, st = accountState(r)) {
 }
 
 // ---------- DS-CMP-TIME: time chips (core texts, TUI shapes) ----------
-const CHIP_ROLE = { "↑": "warn", "↓": "good", "→": "good", "✕": "bad", "↺": "muted" };
+// The outlook chips carry no tone of their own; a stage chip takes its role from the core's tone (TONE_ROLE).
+const CHIP_ROLE = { "↑": "warn", "↓": "good", "→": "muted", "✕": "bad", "↺": "muted" };
+/** The role of the core's pace tone: "→ on pace" is muted, never a success. */
+export const TONE_ROLE = { good: "good", warn: "warn", bad: "bad", neutral: "muted" };
 /** A time chip: glyph + text from the core (`Chip`), compact form when asked (DS-CMP-TIME-3); the full text is
  *  the tooltip and the accessible name. */
 export function timeChipHtml(chip, { compact = false, role = null } = {}) {
@@ -261,7 +265,7 @@ export function outlookChip(m, pace) {
 export function paceChipsHtml(m, pace) {
   if (!pace || pace.stage === "exhausted") return "";
   const outlook = outlookChip(m, pace);
-  const stage = pace.stage !== "on_pace" && !m?.forecast ? timeChipHtml(stageChip(pace)) : "";
+  const stage = pace.stage !== "on_pace" && !m?.forecast ? timeChipHtml(stageChip(pace), { role: TONE_ROLE[pace.tone] }) : "";
   return stage + timeChipHtml(outlook);
 }
 
@@ -545,19 +549,22 @@ export function windowBars(r, st = accountState(r)) {
 }
 /** The level role of a bar; the thin bar that limits the account is at least a warning (DS-CMP-ROW-8b). */
 const barRole = (w, thin) => (w.exhausted ? "bad" : thin && w.limiting && level(w.pct) === "good" ? "warn" : level(w.pct));
-/** DS-CMP-ROW-8c: the pace delta of one window from the core's pace: ↗ +12 in reserve (good), ↘ −50 above the pace
- *  (warning; danger when the core projects the run-out before the reset), → on pace. Points by default; in percent
+/** DS-CMP-ROW-8c: the pace delta of one window from the core's pace, with the core's stage glyph (DS §TIME, the
+ *  cards' and the terminal's): ↓ +12 in reserve (good), ↑ −50 above the pace (the core's tone, warning; danger when
+ *  the core projects the run-out before the reset), → on pace (muted). Points by default; in percent
  *  the core's compact form ("20%", DS-CMP-TIME-1), never a signed bare percent. Null without a core pace. */
 export function paceDelta(w) {
   const p = w?.pace;
   if (!p || p.stage === "exhausted" || !Number.isFinite(p.delta_points)) return null;
   const chip = stageChip(p);
   const full = [chip ? tl(chip.text) : tl(p.label), p.outlook ? tl(p.outlook) : ""].filter(Boolean).join(" · ");
-  if (p.stage === "on_pace") return { glyph: "→", text: "", role: "muted", full };
+  const role = TONE_ROLE[p.tone] ?? "muted";
+  if (p.stage === "on_pace") return { glyph: chip?.glyph ?? "→", text: "", role, full };
   const reserve = p.stage === "reserve";
   const points = `${reserve ? "+" : "−"}${Math.round(Math.abs(p.delta_points))}`;
   const text = paceUnit() === "percent" && p.delta_ratio != null && chip?.compact ? chip.compact : points;
-  return { glyph: reserve ? "↗" : "↘", text, role: reserve ? "good" : p.projected_exhaustion_at ? "bad" : "warn", full };
+  const glyph = chip?.glyph ?? (reserve ? "↓" : "↑");
+  return { glyph, text, role: !reserve && role === "warn" && p.projected_exhaustion_at ? "bad" : role, full };
 }
 const paceDeltaHtml = (d) => (d ? `<span class="pd ${d.role}" aria-hidden="true" title="${esc(d.full)}"><span class="pg">${d.glyph}</span>${d.text ? `<span>${esc(d.text)}</span>` : ""}</span>` : "");
 /** The spoken form of one window: "Week: 49% left, 50 pts ahead, Most restrictive limit right now". */

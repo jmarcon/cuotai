@@ -219,4 +219,14 @@ for (const { code } of i18n.LOCALES) {
   console.log(`${code}: ${want.points} | ${want.percent} | ${want.chip}`);
 }
 
+// PRD 0007 re-validation: the details' pace line leads with the core's stage glyph (the cards' and the terminal's
+// arrows), in the role of the core's tone; its tooltip joins catalog phrases with " · ", never ". ".
+await i18n.setLocale("en-US");
+const meta = metricCardHtml(report, { ...metric, forecast: null });
+assert.match(meta, /<span class="pace-line" data-pace="ahead" title="10 points above the pace · [^"]+"><span class="pg warn" aria-hidden="true">↑<\/span><span>10 points above the pace<\/span>/, meta);
+assert.doesNotMatch(meta, /\. /, "no sentence period between catalog phrases");
+const onPaceMetric = { ...metric, forecast: null, pace: { ...metric.pace, stage: "on_pace", tone: "neutral", label: text("pace.on_pace", {}, "On pace"),
+  chips: { points: { glyph: "→", text: text("pace.chip.on_pace", {}, "On pace") }, percent: { glyph: "→", text: text("pace.chip.on_pace", {}, "On pace") } } } };
+assert.match(metricCardHtml(report, onPaceMetric), /<span class="pg muted" aria-hidden="true">→<\/span><span>On pace<\/span>/);
+
 console.log("PASS: pace chips (points and percent), forecast callout, reset pair and best-account advice render in pt-BR, en-US, es and it");
