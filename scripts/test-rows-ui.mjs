@@ -117,8 +117,8 @@ const claude = dual([q("session (5h)", "window_5h", 100, 4, { pace: pace("reserv
 const cHtml = c.rowHtml(claude, { title: "Claude Code" });
 assert.match(cHtml, /<span class="fig dual"><span class="f1"><b class="">100%<\/b><span class="wl"[^>]*>5h<\/span>/, "the thick window's share and name");
 assert.match(cHtml, /<span class="f2 warn"><span class="fv">49%<\/span><span class="wl"[^>]*>Week<\/span>/, "the limiting thin window in the warning role");
-assert.match(cHtml, /<span class="pd good" aria-hidden="true" title="12 pts in reserve"><span class="pg">↗<\/span><span>\+12<\/span>/, "ahead of pace: ↗ +12 in the success role");
-assert.match(cHtml, /<span class="pd bad" aria-hidden="true" title="50 pts ahead"><span class="pg">↘<\/span><span>−50<\/span>/, "running out before the reset: ↘ −50 in the danger role");
+assert.match(cHtml, /<span class="pd good" aria-hidden="true" title="12 pts in reserve"><span class="pg">↓<\/span><span>\+12<\/span>/, "in reserve: the core's ↓ +12 in the success role");
+assert.match(cHtml, /<span class="pd bad" aria-hidden="true" title="50 pts ahead"><span class="pg">↑<\/span><span>−50<\/span>/, "running out before the reset: the core's ↑ −50 in the danger role");
 assert.equal(meters(cHtml), 2, "two meters");
 assert.match(cHtml, /<span class="rm dual"><div class="mtr good" role="meter" aria-label="5h"[^>]*aria-valuetext="100% left, 12 pts in reserve, Resets [^"]+">.*?<span class="pm tri" style="left:88%" aria-hidden="true"><\/span><\/div>/);
 assert.match(cHtml, /<div class="mtr warn thin" role="meter" aria-label="Week"[^>]*aria-valuetext="49% left, 50 pts ahead, Most restrictive limit right now, Resets [^"]+">.*?<span class="pm dot" style="left:99%" aria-hidden="true"><\/span><\/div>/);
@@ -166,9 +166,17 @@ assert.deepEqual([c.fmtShare(0.4), c.fmtShare(99.6), c.fmtShare(100), c.fmtShare
 // the pace unit: percent shows the core's compact form (never a signed bare percent); early windows stay in points
 await lib.setPaceUnit("percent");
 const pctHtml = c.rowHtml(dual([q("5h", "window_5h", 60, 4, { pace: pace("reserve", 0.5, 0.4, { ratio: -0.2 }) }), q("week", "weekly", 90, 70, { pace: pace("ahead", 0.05, 0.1) })], W(0, 1)), { title: "x" });
-assert.match(pctHtml, /<span class="pd good"[^>]*><span class="pg">↗<\/span><span>20%<\/span>/);
-assert.match(pctHtml, /<span class="pd warn"[^>]*><span class="pg">↘<\/span><span>−5<\/span>/, "too early for a ratio: points; a warning without a projected run-out");
+assert.match(pctHtml, /<span class="pd good"[^>]*><span class="pg">↓<\/span><span>20%<\/span>/);
+assert.match(pctHtml, /<span class="pd warn"[^>]*><span class="pg">↑<\/span><span>−5<\/span>/, "too early for a ratio: points; a warning without a projected run-out");
 await lib.setPaceUnit("points");
+// PRD 0007 re-validation: one arrow set (DS §TIME) on every surface; on pace is → alone, muted, and its words read
+// "On pace" (the core chip inside the band), never a small point count.
+const onPace = c.rowHtml(dual([q("5h", "window_5h", 50, 4, { pace: pace("on_pace", 0.48, 0.5) }), q("week", "weekly", 90, 70)], W(0, 1)), { title: "x" });
+assert.match(onPace, /<span class="pd muted" aria-hidden="true" title="On pace"><span class="pg">→<\/span><\/span>/);
+assert.doesNotMatch(onPace + cHtml + pctHtml, /[↗↘]/, "no second arrow vocabulary");
+const onPaceParts = c.statusParts(dual([q("5h", "window_5h", 50, 4, { pace: pace("on_pace", 0.48, 0.5) })], W(0)));
+assert.equal(onPaceParts.label, "On pace");
+assert.equal((onPaceParts.full.match(/On pace/g) ?? []).length, 1, `the stage is said once: ${onPaceParts.full}`);
 // hiding pace (Settings › Show consumption pace) removes the marks and the deltas
 await lib.setShowPace(false);
 assert.doesNotMatch(c.rowHtml(claude, { title: "x" }), /class="pm|class="pd/);
