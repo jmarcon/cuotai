@@ -17,7 +17,7 @@ use crate::model::{Account, Metric, MetricWindow, Report, Status};
 use crate::overage::{self, OverageExport, OverageState};
 use crate::pace::{self, Pace, PaceSource, PaceStage, Point};
 use crate::resets::{key_digest, Notice, DRIFT_TOLERANCE, LEDGER_KEEP};
-use crate::text::{params, provider_l10n, Localized};
+use crate::text::{params, provider_l10n, Localized, ParamValue};
 use chrono::{DateTime, Datelike, TimeDelta, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -2254,7 +2254,7 @@ where
             params([
                 ("provider", provider.into()),
                 ("percent", percent.as_str().into()),
-                ("metric", label.into()),
+                ("metric", metric_param(label)),
             ]),
             "{provider}: {percent}% of {metric} used",
         ),
@@ -2265,7 +2265,10 @@ where
         ),
         (AlertKind::Exhausted, false) => Localized::with_params(
             "alerts.title.exhausted_metric",
-            params([("provider", provider.into()), ("metric", label.into())]),
+            params([
+                ("provider", provider.into()),
+                ("metric", metric_param(label)),
+            ]),
             "{provider}: {metric} limit reached",
         ),
         (AlertKind::Recovered, true) => Localized::with_params(
@@ -2275,7 +2278,10 @@ where
         ),
         (AlertKind::Recovered, false) => Localized::with_params(
             "alerts.title.recovered_metric",
-            params([("provider", provider.into()), ("metric", label.into())]),
+            params([
+                ("provider", provider.into()),
+                ("metric", metric_param(label)),
+            ]),
             "{provider}: {metric} available again",
         ),
         // Returned above (a projection always carries its `projection`).
@@ -2284,7 +2290,7 @@ where
             params([
                 ("provider", provider.into()),
                 ("percent", percent.as_str().into()),
-                ("metric", label.into()),
+                ("metric", metric_param(label)),
             ]),
             "{provider}: {percent}% of {metric} used",
         ),
@@ -2315,7 +2321,7 @@ where
                 "alerts.body",
                 params([
                     ("account", account.name.as_str().into()),
-                    ("metric", label.into()),
+                    ("metric", metric_param(label)),
                     ("at", at.as_str().into()),
                 ]),
                 "{account}: {metric} · resets {at}",
@@ -2325,7 +2331,7 @@ where
             "alerts.body.no_reset",
             params([
                 ("account", account.name.as_str().into()),
-                ("metric", label.into()),
+                ("metric", metric_param(label)),
             ]),
             "{account}: {metric}",
         ),
@@ -2360,7 +2366,7 @@ fn floor_notice(account: &Account, event: &AlertEvent, private: bool) -> Notice 
             "alerts.body.no_reset",
             params([
                 ("account", account.name.as_str().into()),
-                ("metric", event.label.as_str().into()),
+                ("metric", metric_param(&event.label)),
             ]),
             "{account}: {metric}",
         )
@@ -2382,7 +2388,7 @@ fn limit_notice(account: &Account, event: &AlertEvent, private: bool) -> Notice 
             "alerts.body.limit_changed",
             params([
                 ("account", account.name.as_str().into()),
-                ("metric", event.label.as_str().into()),
+                ("metric", metric_param(&event.label)),
                 ("from", crate::insights::plain(change.from).into()),
                 ("to", crate::insights::plain(change.to).into()),
             ]),
@@ -2585,7 +2591,7 @@ where
     Localized::with_params(
         "alerts.body.projected",
         params([
-            ("metric", label.into()),
+            ("metric", metric_param(label)),
             ("at", at.as_str().into()),
             ("margin", margin.into()),
         ]),
@@ -2597,6 +2603,12 @@ where
 /// its title.
 fn details_private() -> Localized {
     Localized::fixed("alerts.body.details.private", "Open Cuotai for details.")
+}
+
+/// PRD 0034 RF2 (PRD 0007 re-validation): a metric label inside a notice,
+/// in the reader's language like on every other surface.
+fn metric_param(label: &str) -> ParamValue {
+    ParamValue::l10n(crate::metric_text::metric_text(label))
 }
 
 /// "Session (5h) 90%", "… at the limit", "… available again", "… runs
@@ -2612,21 +2624,19 @@ where
         AlertKind::Threshold => Localized::with_params(
             "alerts.item.threshold",
             params([
-                ("metric", label.into()),
+                ("metric", metric_param(label)),
                 ("percent", percent.as_str().into()),
             ]),
             "{metric} {percent}%",
         ),
-        AlertKind::Exhausted => Localized::with_param(
+        AlertKind::Exhausted => Localized::with_params(
             "alerts.item.exhausted",
-            "metric",
-            label,
+            params([("metric", metric_param(label))]),
             "{metric} at the limit",
         ),
-        AlertKind::Recovered => Localized::with_param(
+        AlertKind::Recovered => Localized::with_params(
             "alerts.item.recovered",
-            "metric",
-            label,
+            params([("metric", metric_param(label))]),
             "{metric} available again",
         ),
         AlertKind::SessionExpiring => {
@@ -2639,7 +2649,7 @@ where
                 .unwrap_or_default();
             Localized::with_params(
                 "alerts.item.projected",
-                params([("metric", label.into()), ("at", at.as_str().into())]),
+                params([("metric", metric_param(label)), ("at", at.as_str().into())]),
                 "{metric} runs out ≈{at}",
             )
         }
@@ -2667,32 +2677,29 @@ where
             label,
             "{pool} available again",
         ),
-        AlertKind::BalanceBelowFloor => Localized::with_param(
+        AlertKind::BalanceBelowFloor => Localized::with_params(
             "alerts.item.balance_below_floor",
-            "metric",
-            label,
+            params([("metric", metric_param(label))]),
             "{metric} below your floor",
         ),
-        AlertKind::BalanceRecovered => Localized::with_param(
+        AlertKind::BalanceRecovered => Localized::with_params(
             "alerts.item.balance_recovered",
-            "metric",
-            label,
+            params([("metric", metric_param(label))]),
             "{metric} back above your floor",
         ),
         AlertKind::LimitChanged => match &event.limit_change {
             Some(change) => Localized::with_params(
                 "alerts.item.limit_changed",
                 params([
-                    ("metric", label.into()),
+                    ("metric", metric_param(label)),
                     ("from", crate::insights::plain(change.from).into()),
                     ("to", crate::insights::plain(change.to).into()),
                 ]),
                 "{metric} limit {from} → {to}",
             ),
-            None => Localized::with_param(
+            None => Localized::with_params(
                 "alerts.item.limit_changed_unknown",
-                "metric",
-                label,
+                params([("metric", metric_param(label))]),
                 "{metric} limit changed",
             ),
         },

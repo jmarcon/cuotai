@@ -515,6 +515,13 @@ fn the_callout_reads_like_the_notification_body() {
     let text = forecast_text("Session (5h)", &pace, at, &chrono::Utc).unwrap();
     assert_eq!(text.id, "alerts.body.projected");
     assert!(text.fallback.contains("Session (5h)"), "{}", text.fallback);
+    // PRD 0007 re-validation: a Claude label written in Portuguese by the
+    // adapter reads in the notice's language.
+    let claude = forecast_text("Semana (7 dias) (%)", &pace, at, &chrono::Utc).unwrap();
+    assert!(claude
+        .resolve("en-US")
+        .starts_with("At this rate Week (7 days) (%) runs out"));
+    assert!(claude.resolve("es").contains("Semana (7 días) (%)"));
     // A pace that lasts until the reset has no callout.
     let calm = quota(10.0, resets_at);
     let calm_points = [Point {
