@@ -290,6 +290,11 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* DS-MSG-15: the time of the next notice never truncates; only the name before it shrinks. */
+.pop-notice .pop-notice-when {
+  flex: none;
+  overflow: visible;
+}
 .pop-notice .link {
   min-width: 0;
   padding: 0;

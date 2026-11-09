@@ -293,6 +293,26 @@ pub fn decide(subject: Subject<'_>, window: Option<QuietWindow>) -> Decision {
     }
 }
 
+/// When a reset notice planned for `notify_at` is shown (PRD 0003 RF3.4
+/// with RF3.1): then outside quiet hours, at the window's end when the
+/// reset comes after it, never (`None`) when the reset happens inside the
+/// window. The same rule as [`decide`], for a notice still ahead.
+pub fn reset_shown_at<Tz: TimeZone>(
+    schedule: &QuietSchedule,
+    tz: &Tz,
+    notify_at: DateTime<Utc>,
+    resets_at: DateTime<Utc>,
+) -> Option<DateTime<Utc>> {
+    match decide(
+        Subject::Reset { resets_at },
+        window_at(schedule, notify_at, tz),
+    ) {
+        Decision::Deliver => Some(notify_at),
+        Decision::Defer(at) => Some(at),
+        Decision::Drop => None,
+    }
+}
+
 /// RF3.3: the one notification that lists the `groups` of alerts that still
 /// hold when quiet hours end: at most [`DIGEST_LINES`] lines (one per
 /// event, in account order) plus "and N more". With `private` on the lines

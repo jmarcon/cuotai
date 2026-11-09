@@ -139,6 +139,8 @@
   "settings.liveSession.show": "Показывать текущий сеанс агента",
   "time.now": "сейчас",
   "time.today": "Сегодня {time}",
+  "time.weekdayTime": "{day} {time}",
+  "time.dateTime": "{date}, {time}",
   "metric.resetsAt": "Сброс {when}",
   "metric.balance": "Баланс: {amount}",
   "metric.usage": "Использование: {amount}",

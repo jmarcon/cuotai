@@ -412,11 +412,33 @@ export const onUpdate = (cb) => {
 const demoUpdateEmit = (view) => demoUpdateListeners.forEach((cb) => cb(view));
 /** RF3.4: "Next notice: Claude 5h · today, 14:30" from the view, or null when none is ahead. */
 export function nextNoticeText(view) {
+  return nextNoticeParts(view)?.text ?? null;
+}
+/** RF3.4: the next notice as its full sentence, split around the time so the tray can let the name shrink and keep
+ *  the time whole (DS-MSG-15): `head` is everything before `{when}`, `when` the time and what follows it. */
+export function nextNoticeParts(view, now = new Date()) {
   const n = view?.notify?.next;
   if (!n) return null;
   const key = `card.binding.${n.window}`;
   const window = t(key) === key ? n.label : t(key);
-  return t("notify.next", { name: `${brand(n.provider).label} ${window}`, when: fmtReset(n.at) });
+  const when = fmtNoticeTime(n.at, now);
+  if (!when) return null;
+  const text = t("notify.next", { name: `${brand(n.provider).label} ${window}`, when });
+  const at = text.lastIndexOf(when);
+  return at < 0 ? { text, head: text, when: "" } : { text, head: text.slice(0, at), when: text.slice(at) };
+}
+/** DS-MSG-8 for a time ahead: today the time, within 6 days the short weekday and time, otherwise the short date and
+ *  time; the joins are translated patterns (DS-MSG-12). */
+export function fmtNoticeTime(iso, now = new Date()) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const time = fmtLocal(d, HHMM);
+  if (d.toDateString() === now.toDateString()) return t("time.today", { time });
+  const startOfDay = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const days = Math.round((startOfDay(d) - startOfDay(now)) / 86400000);
+  if (days > 0 && days <= 6) return t("time.weekdayTime", { day: fmtLocal(d, { weekday: "short" }), time });
+  return t("time.dateTime", { date: fmtLocal(d, { day: "numeric", month: "short" }), time });
 }
 /** RF3.2: the account's bell (card and details), only while reset notices or usage alerts (PRD 0008 RF3.2) are on;
  *  it mutes both. `aria-pressed` is its state. */

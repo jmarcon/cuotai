@@ -133,6 +133,8 @@
   "settings.liveSession.show": "Tampilkan sesi agen langsung",
   "time.now": "sekarang",
   "time.today": "Hari ini {time}",
+  "time.weekdayTime": "{day} {time}",
+  "time.dateTime": "{date}, {time}",
   "metric.resetsAt": "Reset {when}",
   "metric.balance": "Saldo: {amount}",
   "metric.usage": "Penggunaan: {amount}",

@@ -611,7 +611,8 @@ impl Notices {
     }
 
     /// The next notice still ahead of `now` (tray and tooltip) and the
-    /// account it names; `None` when notices are off. PRD 0036: for a
+    /// account it names, at the time it will really be shown (quiet hours
+    /// skip or hold it); `None` when notices are off. PRD 0036: for a
     /// connection of an aggregator, `account_index` is the aggregator's and
     /// the account is the connection's display form.
     pub fn next(
@@ -625,14 +626,27 @@ impl Notices {
         }
         let prefs = self.prefs.planner();
         let expanded = aggregators::expand(config, readings);
-        let mut event = resets::plan(
+        // PRD 0032 RF3.1: a notice quiet hours drop is not announced, one
+        // they hold is announced at the window's end.
+        let shown_at = |event: &ResetEvent| match &self.zone {
+            Some(zone) => {
+                quiet::reset_shown_at(&self.quiet, zone, event.notify_at, event.resets_at)
+            }
+            None => quiet::reset_shown_at(
+                &self.quiet,
+                &chrono::Local,
+                event.notify_at,
+                event.resets_at,
+            ),
+        };
+        let mut event = resets::next_shown(
             &expanded.config,
             expanded.readings(),
             now,
             &prefs,
             &self.ledger,
-        )
-        .next?;
+            shown_at,
+        )?;
         let account = expanded.display(event.account_index).clone();
         if let Some(unit) = expanded
             .origin

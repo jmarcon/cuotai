@@ -133,6 +133,8 @@
   "settings.liveSession.show": "エージェントのライブセッションを表示",
   "time.now": "今",
   "time.today": "今日 {time}",
+  "time.weekdayTime": "{day} {time}",
+  "time.dateTime": "{date} {time}",
   "metric.resetsAt": "{when}にリセット",
   "metric.balance": "残高：{amount}",
   "metric.usage": "使用量：{amount}",

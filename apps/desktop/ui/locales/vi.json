@@ -133,6 +133,8 @@
   "settings.liveSession.show": "Hiện phiên trực tiếp của tác tử",
   "time.now": "bây giờ",
   "time.today": "Hôm nay {time}",
+  "time.weekdayTime": "{time} {day}",
+  "time.dateTime": "{time}, {date}",
   "metric.resetsAt": "Đặt lại {when}",
   "metric.balance": "Số dư: {amount}",
   "metric.usage": "Mức sử dụng: {amount}",

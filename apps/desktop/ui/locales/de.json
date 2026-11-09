@@ -135,6 +135,8 @@
   "settings.liveSession.show": "Live-Agentensitzung anzeigen",
   "time.now": "jetzt",
   "time.today": "Heute {time}",
+  "time.weekdayTime": "{day} {time}",
+  "time.dateTime": "{date}, {time}",
   "metric.resetsAt": "Zurücksetzung {when}",
   "metric.balance": "Guthaben: {amount}",
   "metric.usage": "Nutzung: {amount}",

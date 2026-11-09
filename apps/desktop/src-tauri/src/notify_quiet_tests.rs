@@ -321,3 +321,34 @@ fn the_quiet_hours_round_trip_through_desktop_json() {
         "the default removes the key: {text}"
     );
 }
+
+/// PRD 0003 RF3.4 with PRD 0032 RF3.1 (re-validation V-04): the tray's next
+/// notice skips a reset quiet hours drop and shows the following one, and
+/// a notice held by quiet hours is announced at the window's end.
+#[test]
+fn the_next_notice_follows_quiet_hours() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut notices = process(dir.path(), false, false);
+    let now = at(3, 21, 0);
+    // A reset at 02:30, inside 22:00–08:00: dropped, so nothing to announce.
+    let inside = reading(now, 40.0, at(4, 2, 30));
+    assert!(notices.next(&config(), &[Some(&inside)], now).is_none());
+    // Plus a weekly reset at 09:00 the next day: that one is announced.
+    let mut both = inside.clone();
+    let mut weekly = both.metrics[0].clone();
+    weekly.label = "Weekly".into();
+    weekly.window = Some(MetricWindow::Weekly);
+    weekly.resets_at = Some(at(4, 9, 0));
+    both.metrics.push(weekly);
+    let (event, _) = notices.next(&config(), &[Some(&both)], now).unwrap();
+    assert_eq!(event.notify_at, at(4, 9, 0));
+    assert_eq!(event.metrics[0].label, "Weekly");
+    // A reset at 08:20 with a 60-minute lead: held until 08:00.
+    let mut prefs = notices.prefs().clone();
+    prefs.lead_minutes = 60;
+    notices.set_prefs(prefs).unwrap();
+    let after = reading(now, 40.0, at(4, 8, 20));
+    let (event, _) = notices.next(&config(), &[Some(&after)], now).unwrap();
+    assert_eq!(event.notify_at, at(4, 8, 0));
+    assert_eq!(event.resets_at, at(4, 8, 20));
+}
