@@ -630,7 +630,7 @@ impl ModelCache {
     fn open(&self) -> Result<Connection, ModelError> {
         create_private_file(&self.path).map_err(|_| ModelError::Storage)?;
         let mut db = Connection::open(&self.path)?;
-        crate::private_fs::sqlite_busy_wait(&db)?;
+        crate::private_fs::sqlite_busy_wait(&mut db)?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         match tx.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))? {
             0 => tx.execute_batch(SCHEMA)?,
