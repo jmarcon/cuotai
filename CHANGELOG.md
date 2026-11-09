@@ -13,6 +13,19 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.84.5] - 2026-11-09
+
+### Fixed
+
+- The "interface may have changed" message no longer embeds a web address; the account details link the reference instead (desktop) or list it (terminal) (PRD 0005 RF4.2; 5e31b62).
+- Japanese and Chinese text on terminal cards wraps between characters instead of cutting product names (PRD 0005 RF4.2; 5e31b62).
+- Searching the Add account list for a provider Cuotai cannot query now says why it is not offered instead of suggesting a new-provider request (PRD 0005 RF3.4; PRD 0027 RF3.5; 3df1372).
+- The "Save anyway" prompt for an account without a usage query is shown as a warning, not an error (PRD 0005 RF3.4; PRD 0027 RF3.5; 3df1372).
+
+### Security
+
+- The bundled SQLite is updated to a release that fixes a memory disclosure with crafted write-ahead-log files (RUSTSEC-2026-0459) (a81201d).
+
 ## [0.84.4] - 2026-11-09
 
 ### Fixed
@@ -621,7 +634,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.84.4...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.84.5...HEAD
+[0.84.5]: https://github.com/jmarcon/cuotai/compare/v0.84.4...v0.84.5
 [0.84.4]: https://github.com/jmarcon/cuotai/compare/v0.84.3...v0.84.4
 [0.84.3]: https://github.com/jmarcon/cuotai/compare/v0.84.2...v0.84.3
 [0.84.2]: https://github.com/jmarcon/cuotai/compare/v0.84.1...v0.84.2
