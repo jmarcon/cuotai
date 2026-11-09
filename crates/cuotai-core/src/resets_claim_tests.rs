@@ -271,3 +271,71 @@ fn the_ledger_keeps_a_later_revision_and_refuses_a_later_major() {
         .count();
     assert_eq!(damaged, 0, "a newer file is not damaged");
 }
+
+/// PRD 0003 re-validation S-02: a frozen ledger (a later major) keeps this
+/// process's claims in memory, so the same reset is claimed once.
+#[test]
+fn a_frozen_ledger_still_claims_each_reset_once() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("notified.json");
+    let newer = r#"{"schema":2,"entries":{"x":1}}"#;
+    std::fs::write(&path, newer).unwrap();
+    let mut ledger = Ledger::load(&path);
+    let event = |label: &str| ResetEvent {
+        account_index: 0,
+        account_key: "claude:Work".into(),
+        resets_at: window(),
+        notify_at: window(),
+        metrics: vec![ResetMetric {
+            label: label.into(),
+            window: crate::MetricWindow::Window5h,
+            resets_at: window(),
+        }],
+    };
+    let sent = ledger.claim_resets(Some(&path), vec![event("a")], Vec::new(), t0());
+    assert_eq!(sent.len(), 1);
+    let sent = ledger.claim_resets(Some(&path), vec![event("b")], Vec::new(), t0());
+    assert_eq!(sent.len(), 1);
+    let sent = ledger.claim_resets(Some(&path), vec![event("a")], Vec::new(), t0());
+    assert!(sent.is_empty(), "a is not sent twice");
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), newer, "untouched");
+}
+
+/// PRD 0003 re-validation S-03: a ledger that exists but cannot be read is
+/// never overwritten, and the process still claims each reset once.
+#[cfg(unix)]
+#[test]
+fn an_unreadable_ledger_is_not_overwritten() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("notified.json");
+    std::fs::write(&path, r#"{"notified":[]}"#).unwrap();
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o000)).unwrap();
+    if std::fs::read(&path).is_ok() {
+        // Running as root: permissions do not apply.
+        return;
+    }
+    let mut ledger = Ledger::load(&path);
+    assert!(ledger.is_frozen());
+    let mut changed = 0;
+    for _ in 0..2 {
+        ledger.claim(&path, |ledger| {
+            let digest = key_digest("claude:Work", "a");
+            if !ledger.notified(&digest, window()) {
+                changed += 1;
+                ledger.notified.push(Notified {
+                    digest,
+                    resets_at: window(),
+                    at: t0(),
+                    skipped: false,
+                });
+            }
+        });
+    }
+    assert_eq!(changed, 1, "claimed once per process");
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+    assert_eq!(
+        std::fs::read_to_string(&path).unwrap(),
+        r#"{"notified":[]}"#
+    );
+}
