@@ -153,7 +153,9 @@ fn limit_changes_alert_only_when_opted_in_and_become_events() {
     assert_eq!(private.title.resolve("en"), "Claude: a limit changed");
     assert!(!private.body.resolve("en").contains("Work"));
     let open = notice_with(&[(&account, events)], at(20, 10, 5), &Utc, false).unwrap();
-    assert_eq!(open.body.resolve("en"), "Work: Semanal 100 → 150");
+    // The metric label is localized in a notice like everywhere else.
+    assert_eq!(open.body.resolve("en"), "Work: Weekly 100 → 150");
+    assert_eq!(open.body.resolve("pt-BR"), "Work: Semanal 100 → 150");
 }
 
 #[test]

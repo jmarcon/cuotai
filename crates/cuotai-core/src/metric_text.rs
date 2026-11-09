@@ -393,6 +393,19 @@ pub(crate) const TABLE: &[(&str, &str, &str)] = &[
         "metric.label.session_5h",
         "Session (5 hours)",
     ),
+    // PRD 0007 re-validation (V-05): Claude's weekly windows (OAuth usage
+    // and the Claude Code feed), read by the pace line in every language.
+    ("Semana (7 dias)", "metric.label.week_7d", "Week (7 days)"),
+    (
+        "Semana — Opus (7 dias)",
+        "metric.label.week_opus_7d",
+        "Week — Opus (7 days)",
+    ),
+    (
+        "Semana — Sonnet (7 dias)",
+        "metric.label.week_sonnet_7d",
+        "Week — Sonnet (7 days)",
+    ),
     (
         "Ollama Cloud: sessão",
         "metric.label.ollama_session",
@@ -536,6 +549,10 @@ pub(crate) const TABLE: &[(&str, &str, &str)] = &[
         "metric.label.budget_of",
         "Budget · {label}",
     ),
+    // A percent window of a named limit ("Sessão (5 horas) (%)"). Last:
+    // the first match wins, so every specific "… (%)" template above it
+    // keeps its own text.
+    ("{label} (%)", "metric.label.percent_of", "{label} (%)"),
 ];
 
 /// The display text of a metric label, unit or period.
@@ -635,6 +652,50 @@ mod tests {
 
     /// Every adapter text is in every catalog with its slots, and pt-BR
     /// renders the adapter's own text (unchanged for Portuguese users).
+    /// PRD 0007 re-validation (V-05): Claude's 5-hour and weekly labels, as
+    /// the OAuth adapter and the Claude Code feed write them, are named in
+    /// the reader's language (they lead the pace line), never left in
+    /// Portuguese.
+    #[test]
+    fn claude_window_labels_are_translated() {
+        let cases = [
+            (
+                "Sessão (5 horas) (%)",
+                "Session (5 hours) (%)",
+                "Sesión (5 horas) (%)",
+            ),
+            (
+                "Semana (7 dias) (%)",
+                "Week (7 days) (%)",
+                "Semana (7 días) (%)",
+            ),
+            (
+                "Semana — Opus (7 dias) (%)",
+                "Week — Opus (7 days) (%)",
+                "Semana — Opus (7 días) (%)",
+            ),
+            (
+                "Semana — Sonnet (7 dias) (%)",
+                "Week — Sonnet (7 days) (%)",
+                "Semana — Sonnet (7 días) (%)",
+            ),
+            ("Semana (7 dias)", "Week (7 days)", "Semana (7 días)"),
+        ];
+        for (raw, english, spanish) in cases {
+            let text = metric_text(raw);
+            assert_ne!(text.id, "metric.verbatim", "{raw}");
+            assert_eq!(text.resolve("en-US"), english, "{raw}");
+            assert_eq!(text.resolve("es"), spanish, "{raw}");
+            assert_eq!(text.resolve("pt-BR"), raw, "{raw}");
+            assert!(!text.resolve("ja").contains("Semana"), "{raw}");
+        }
+        // A specific "… (%)" template still wins over the generic one.
+        assert_eq!(
+            metric_text("Claude — janela de 5 hora(s) (%)").id,
+            "metric.label.window_hours"
+        );
+    }
+
     #[test]
     fn every_entry_is_translated_and_pt_br_is_the_adapter_text() {
         let mut ids = std::collections::BTreeSet::new();
