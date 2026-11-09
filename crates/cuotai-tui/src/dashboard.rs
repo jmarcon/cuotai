@@ -967,7 +967,10 @@ pub(crate) fn draw(frame: &mut Frame, view: View) -> Targets {
         );
         return targets;
     }
-    let header = HEADER_HEIGHT + u16::from(view.banner.is_some());
+    let banner_rows = view.banner.map_or(0, |banner| {
+        banner_lines(&safe(banner), usize::from(area.width.saturating_sub(2))).len()
+    });
+    let header = HEADER_HEIGHT + u16::try_from(banner_rows).unwrap_or(0);
     let footer = footer_rows(&view, usize::from(area.width));
     let areas = Layout::vertical([
         Constraint::Length(header),
@@ -1110,10 +1113,13 @@ fn render_header(frame: &mut Frame, area: Rect, view: &View<'_>) {
         .title_style(Style::default().fg(CYAN).add_modifier(Modifier::BOLD));
     let mut lines: Vec<Line> = Vec::new();
     if let Some(banner) = view.banner {
-        lines.push(Line::styled(
-            safe(banner),
-            Style::default().fg(YELLOW).add_modifier(Modifier::BOLD),
-        ));
+        let width = usize::from(area.width.saturating_sub(2));
+        for row in banner_lines(&safe(banner), width) {
+            lines.push(Line::styled(
+                row,
+                Style::default().fg(YELLOW).add_modifier(Modifier::BOLD),
+            ));
+        }
     }
     lines.extend(view.location.lines().map(|part| Line::from(safe(part))));
     if view.filtering || !view.filter.is_empty() {
@@ -1137,6 +1143,50 @@ fn render_header(frame: &mut Frame, area: Rect, view: &View<'_>) {
         lines.push(Line::styled(safe(error), Style::default().fg(RED)));
     }
     frame.render_widget(Paragraph::new(lines).block(block), area);
+}
+
+/// The reset banner in at most two header rows of `width` columns (PRD
+/// 0003 RF4, re-validation V-08): what does not fit on the first row goes
+/// on the second, broken at a space when there is one; a second row still
+/// too long ends in "…".
+fn banner_lines(banner: &str, width: usize) -> Vec<String> {
+    use unicode_width::UnicodeWidthChar;
+    let width = width.max(2);
+    let fits = |text: &str| text.chars().map(|c| c.width().unwrap_or(0)).sum::<usize>() <= width;
+    if fits(banner) {
+        return vec![banner.to_string()];
+    }
+    // The longest prefix that fits, then back to its last space.
+    let mut used = 0;
+    let mut end = 0;
+    for (index, c) in banner.char_indices() {
+        used += c.width().unwrap_or(0);
+        if used > width {
+            break;
+        }
+        end = index + c.len_utf8();
+    }
+    let cut = banner[..end]
+        .rfind(' ')
+        .filter(|space| *space > 0)
+        .unwrap_or(end);
+    let first = banner[..cut].trim_end().to_string();
+    let rest = banner[cut..].trim_start();
+    let second = if fits(rest) {
+        rest.to_string()
+    } else {
+        let mut used = 1;
+        let mut kept = String::new();
+        for c in rest.chars() {
+            used += c.width().unwrap_or(0);
+            if used > width {
+                break;
+            }
+            kept.push(c);
+        }
+        format!("{}…", kept.trim_end())
+    };
+    vec![first, second]
 }
 
 /// One styled footer span plus the action clicking it triggers, if any.
@@ -4569,6 +4619,30 @@ mod tests {
             header_text.contains("Consultando"),
             "expected querying hint in header, got: {header_text:?}"
         );
+    }
+
+    /// PRD 0003 re-validation V-08: a banner too long for a narrow
+    /// terminal continues on a second row instead of losing the account
+    /// and the verb.
+    #[test]
+    fn a_long_reset_banner_wraps_to_two_rows() {
+        let banner = "22:17 UTC · Alibaba Token Plan (Qwen Cloud)：2 件のクォータがリセットされました (Work)";
+        let rows = banner_lines(banner, 58);
+        assert_eq!(rows.len(), 2, "{rows:?}");
+        let joined = rows.join(" ");
+        assert!(joined.contains("(Work)"), "{rows:?}");
+        assert!(joined.contains("リセット"), "{rows:?}");
+        for row in &rows {
+            assert!(
+                unicode_width::UnicodeWidthStr::width(row.as_str()) <= 58,
+                "{row}"
+            );
+        }
+        assert_eq!(banner_lines("14:30 UTC · Claude", 58).len(), 1);
+        let long = "x ".repeat(100);
+        let rows = banner_lines(&long, 20);
+        assert_eq!(rows.len(), 2);
+        assert!(rows[1].ends_with('…'));
     }
 
     #[test]
