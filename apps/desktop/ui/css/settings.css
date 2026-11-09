@@ -310,6 +310,20 @@
   min-height: 52px;
   padding: var(--space-2) var(--space-4);
 }
+/* A segmented control is wide: when it and the label do not fit side by side, at any width or in any language, it
+   drops below the label instead of covering it (DS-MSG-15/16). Alone on its line it starts at the left. */
+.set-row:has(> .set-row-ctl > .seg) {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  row-gap: var(--space-2);
+}
+.set-row:has(> .set-row-ctl > .seg) > .set-row-text {
+  flex: 1 1 10rem;
+}
+.set-row:has(> .set-row-ctl > .seg) > .set-row-body {
+  flex-basis: 100%;
+}
 .set-sec > .set-row + .set-row,
 .set-sec > * + .set-row,
 .set-sec > * + .set-disc,

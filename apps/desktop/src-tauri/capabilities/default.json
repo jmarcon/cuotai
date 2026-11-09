@@ -12,6 +12,6 @@
     "core:event:default",
     "dialog:allow-open",
     "dialog:allow-save",
-    "notification:default"
+    "notification:allow-is-permission-granted"
   ]
 }

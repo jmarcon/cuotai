@@ -144,6 +144,11 @@ for (const page of [html, index]) {
 }
 const capability = JSON.parse(await readFile(fileURLToPath(new URL("apps/desktop/src-tauri/capabilities/default.json", root)), "utf8"));
 assert.deepEqual(capability.windows, ["main", "tray", "settings"]);
+// PRD 0003 re-validation S-06: the webviews keep only the read-only permission query the notification plugin's
+// injected script makes on load; showing notices and asking for permission stay in Rust.
+assert.ok(capability.permissions.includes("notification:allow-is-permission-granted"));
+assert.ok(!capability.permissions.some((p) => p === "notification:default" || /^notification:allow-(notify|show|batch|request-permission)/.test(p)),
+  "the webview cannot post notifications or ask for permission");
 // RF10.1 (as far as RF1 needs): the old dialog and its event are gone.
 for (const file of await readdir(ui("js"))) {
   if (!file.endsWith(".js")) continue;
