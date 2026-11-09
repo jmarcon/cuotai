@@ -17,9 +17,6 @@ use std::{
 const TWEEN: Duration = Duration::from_millis(300);
 const SPINNER: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 const PARTIAL: [char; 7] = ['▏', '▎', '▍', '▌', '▋', '▊', '▉'];
-const RED: (u8, u8, u8) = palette::BAD_RGB;
-const YELLOW: (u8, u8, u8) = palette::WARN_RGB;
-const GREEN: (u8, u8, u8) = palette::GOOD_RGB;
 
 /// `--no-animations` and `CUOTAI_NO_ANIMATIONS` always win; `TERM=dumb` is
 /// always off; SSH is off unless `CUOTAI_ANIMATIONS` forces it on.
@@ -57,8 +54,9 @@ fn spinner(elapsed: Duration) -> char {
 }
 
 /// Level colour blended towards the core `tray::Level` thresholds: red up to
-/// 15% left, yellow from 30% (`Warn`) to 55%, green from 70% (`Good`).
-fn gradient(ratio: f64) -> Color {
+/// 15% left, yellow from 30% (`Warn`) to 55%, green from 70% (`Good`), using
+/// the active palette's level roles (`palette::levels`).
+fn gradient(ratio: f64, [red, yellow, green]: [(u8, u8, u8); 3]) -> Color {
     let mix = |a: (u8, u8, u8), b: (u8, u8, u8), t: f64| {
         let ch = |x: u8, y: u8| (f64::from(x) + (f64::from(y) - f64::from(x)) * t).round() as u8;
         palette::rgb((ch(a.0, b.0), ch(a.1, b.1), ch(a.2, b.2)))
@@ -70,11 +68,11 @@ fn gradient(ratio: f64) -> Color {
         cuotai_core::tray::Level::GOOD_AT,
     );
     if r < warn + (good - warn - BLEND) / 2.0 {
-        mix(RED, YELLOW, ((r - (warn - BLEND)) / BLEND).clamp(0.0, 1.0))
+        mix(red, yellow, ((r - (warn - BLEND)) / BLEND).clamp(0.0, 1.0))
     } else {
         mix(
-            YELLOW,
-            GREEN,
+            yellow,
+            green,
             ((r - (good - BLEND)) / BLEND).clamp(0.0, 1.0),
         )
     }
@@ -112,6 +110,8 @@ impl Card {
 
 pub(crate) struct Anim {
     truecolor: bool,
+    /// The level roles the truecolor blend runs between.
+    levels: [(u8, u8, u8); 3],
     epoch: Instant,
     pub(crate) now: Instant,
     /// Keyed by account name (unique per config) so reorders never tween.
@@ -126,6 +126,7 @@ impl Anim {
         let now = Instant::now();
         Self {
             truecolor,
+            levels: palette::levels(palette::scheme()),
             epoch: now,
             now,
             cards: HashMap::new(),
@@ -176,8 +177,11 @@ impl Anim {
             }
             if !card.to.iter().copied().eq(targets()) {
                 let to: Vec<_> = targets().collect();
+                // A bar that was not drawn (unmeasured, uncapped) has no
+                // start value: it shows the new fill at once instead of
+                // sliding up from an empty bar (absent is never zero).
                 card.from = (0..to.len())
-                    .map(|metric| Some(card.value(metric, now).unwrap_or(0.0)))
+                    .map(|metric| card.value(metric, now))
                     .collect();
                 card.to = to;
                 card.start = now;
@@ -205,7 +209,7 @@ impl Anim {
 
     pub(crate) fn color(&self, ratio: f64, fallback: Color) -> Color {
         if self.truecolor {
-            gradient(ratio)
+            gradient(ratio, self.levels)
         } else {
             fallback
         }
@@ -255,13 +259,19 @@ mod tests {
 
     #[test]
     fn gradient_follows_dashboard_thresholds() {
-        assert_eq!(gradient(0.0), palette::BAD);
-        assert_eq!(gradient(0.15), palette::BAD);
-        assert_eq!(gradient(0.30), palette::WARN);
-        assert_eq!(gradient(0.55), palette::WARN);
-        assert_eq!(gradient(0.70), palette::GOOD);
-        assert_eq!(gradient(1.0), palette::GOOD);
-        assert_ne!(gradient(0.22), gradient(0.30));
+        let dark = palette::levels(palette::Scheme::Dark);
+        assert_eq!(gradient(0.0, dark), palette::BAD);
+        assert_eq!(gradient(0.15, dark), palette::BAD);
+        assert_eq!(gradient(0.30, dark), palette::WARN);
+        assert_eq!(gradient(0.55, dark), palette::WARN);
+        assert_eq!(gradient(0.70, dark), palette::GOOD);
+        assert_eq!(gradient(1.0, dark), palette::GOOD);
+        assert_ne!(gradient(0.22, dark), gradient(0.30, dark));
+        // The light palette blends between its own level roles.
+        let light = palette::levels(palette::Scheme::Light);
+        assert_eq!(gradient(0.0, light), palette::light(palette::BAD));
+        assert_eq!(gradient(0.55, light), palette::light(palette::WARN));
+        assert_eq!(gradient(1.0, light), palette::light(palette::GOOD));
     }
 
     #[test]
@@ -378,6 +388,29 @@ mod tests {
         assert_eq!(anim.bar(&key(), 0, -1.0), 0.2);
         assert!(!anim.active(), "idle after the tween: no redraws");
         assert_eq!(anim.bar("missing", 0, 0.5), 0.5);
+    }
+
+    fn unmeasured() -> Option<Report> {
+        let mut report = ready(0.0);
+        let metric = &mut report.as_mut().unwrap().metrics[0];
+        (metric.used, metric.limit, metric.remaining) = (None, None, None);
+        report
+    }
+
+    #[test]
+    fn a_bar_that_was_absent_shows_its_value_at_once_with_the_tween_on() {
+        let mut anim = Anim::new(false).with_tween();
+        let start = anim.now;
+        anim.observe(&accounts(), &[unmeasured()]);
+        assert_eq!(anim.bar(&key(), 0, -1.0), -1.0, "no bar is drawn");
+        anim.observe(&accounts(), &[ready(6.0)]);
+        assert_eq!(
+            anim.bar(&key(), 0, -1.0),
+            0.6,
+            "t=0 already shows the target, never an empty bar"
+        );
+        at(&mut anim, start, 100);
+        assert_eq!(anim.bar(&key(), 0, -1.0), 0.6);
     }
 
     #[test]

@@ -1,6 +1,6 @@
 # Themes
 
-The Cuotai desktop app ships 15 built-in themes. **Every theme offers both a dark and a light mode**, and the mode follows your system unless you pick one. Choose the theme in **Settings › General** and the mode (system, light, dark) with the switch there. The terminal dashboard has its own fixed Dracula palette.
+The Cuotai desktop app ships 15 built-in themes. **Every theme offers both a dark and a light mode**, and the mode follows your system unless you pick one. Choose the theme in **Settings › General** and the mode (system, light, dark) with the switch there. The terminal dashboard has its own palette: Dracula on dark terminals and a light variant on light ones, detected through `COLORFGBG` (force it with `CUOTAI_TUI_PALETTE=light` or `dark`; see [`tui.md`](tui.md#animations)).
 
 The screenshots below are the browser demo of the interface with made-up accounts (`example.com` addresses), captured at the same window size in each theme and mode.
 

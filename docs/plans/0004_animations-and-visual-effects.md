@@ -6,7 +6,7 @@
 | Status | Implemented (0.17.0 to 0.20.0); the desktop motion of RF1.1, RF2 and RF3 was later reduced by PRD 0022 RF12 to the design system's rules (see the delivery table) |
 | Owner | Desktop (primary) and TUI |
 | Consumers | `apps/desktop/ui`, `crates/cuotai-tui` |
-| Extended by | PRD 0022 (UI refresh: with reduced motion, a static "changed" marker for one refresh and a polite `aria-live` region on the cards; the TUI respects `NO_COLOR` and takes its colors from the theme instead of fixed RGB values) |
+| Extended by | PRD 0022 (UI refresh: with reduced motion, a static "changed" marker for one refresh and a polite `aria-live` region on the cards; the TUI respects `NO_COLOR` and keeps the terminal's own foreground and background; its role colors are the Dracula values on dark terminals and, since the PRD 0004 re-validation (V-02, vNEXT), a light variant on light terminals detected through `COLORFGBG` or forced with `CUOTAI_TUI_PALETTE`) |
 | Date | 2026-10-19 |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
