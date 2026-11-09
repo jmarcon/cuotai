@@ -151,6 +151,7 @@
   "alerts.body.session_expiring": "{account}: सत्र {at} को समाप्त होता है; खाता विज़ार्ड में नया पेस्ट करें।",
   "alerts.body.session_expiring.private": "सत्र {at} को समाप्त होता है।",
   "alerts.item.account": "{provider} {account}: {items}",
+  "alerts.item.and_count": "{first} +{count}",
   "alerts.item.balance_below_floor": "{metric} आपकी न्यूनतम सीमा से नीचे",
   "alerts.item.balance_recovered": "{metric} फिर आपकी न्यूनतम सीमा से ऊपर",
   "alerts.item.exhausted": "{metric} सीमा पर",
@@ -2317,5 +2318,12 @@
   "doctor.channel.ok": "इसकी पिछली डिलीवरी स्वीकार हुई।",
   "doctor.channel.none": "इसे अभी तक कुछ नहीं भेजा गया।",
   "doctor.fix.channel": "सेटिंग्स › अलर्ट में चैनल खोलें, पता जाँचें और एक परीक्षण भेजें (cuotai --channel-test)।",
-  "budget.error.row": "{field}: विवरण पंक्ति पर बजट के लिए kind, पंक्ति का दायरा (key, virtual_key, project, workspace या team) और उसका id चाहिए, ऐसे प्रदाता पर जो विवरण देता हो।"
+  "budget.error.row": "{field}: विवरण पंक्ति पर बजट के लिए kind, पंक्ति का दायरा (key, virtual_key, project, workspace या team) और उसका id चाहिए, ऐसे प्रदाता पर जो विवरण देता हो।",
+  "alerts.at.weekday": "{weekday} {time}",
+  "alerts.at.date": "{day}/{month} {time}",
+  "alerts.at.day": "{day}/{month}",
+  "alerts.more": {
+    "one": "और {count}",
+    "other": "और {count}"
+  }
 }

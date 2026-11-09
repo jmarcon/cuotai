@@ -624,3 +624,149 @@ fn a_held_overage_notice_waits_for_the_digest() {
     assert_eq!(digest[0].overage.as_ref().and_then(|o| o.spent), Some(6.0));
     assert!(state.notified(&digest[0]));
 }
+
+/// DS-CMP-NOTIF-1 (PRD 0008 re-validation V-07): with a short provider name,
+/// every locale's alert title fits 50 characters and the body 110, for one
+/// event, for one account's four windows and for several accounts.
+#[test]
+fn alert_notices_fit_the_notification_length_budget() {
+    let work = account("Work");
+    let home = account("Home");
+    let reading = report(t0(), quota(92.0, Some(window())));
+    let base = event_of(&reading, AlertKind::Threshold, 75);
+    let labels = [
+        ("Sessão (5 horas) (%)", MetricWindow::Window5h),
+        ("Semana (7 dias) (%)", MetricWindow::Weekly),
+        ("Semana — Opus (7 dias) (%)", MetricWindow::Weekly),
+        ("Semana — Sonnet (7 dias) (%)", MetricWindow::Weekly),
+    ];
+    let four: Vec<AlertEvent> = labels
+        .iter()
+        .map(|(label, window)| AlertEvent {
+            label: (*label).into(),
+            window: Some(*window),
+            ..base.clone()
+        })
+        .collect();
+    let later = t0() + TimeDelta::days(9);
+    let mut singles = Vec::new();
+    for window in [
+        MetricWindow::Window5h,
+        MetricWindow::Daily,
+        MetricWindow::Weekly,
+        MetricWindow::Monthly,
+    ] {
+        for (kind, threshold) in [
+            (AlertKind::Threshold, 90),
+            (AlertKind::Exhausted, 100),
+            (AlertKind::Recovered, 100),
+        ] {
+            for resets_at in [Some(window_at(window)), Some(later), None] {
+                singles.push(vec![AlertEvent {
+                    kind,
+                    threshold,
+                    window: Some(window),
+                    label: "Sessão (5 horas) (%)".into(),
+                    resets_at,
+                    ..base.clone()
+                }]);
+            }
+        }
+    }
+    let mut over = Vec::new();
+    for locale in crate::text::LOCALES.iter().map(|row| row.code) {
+        for private in [false, true] {
+            let mut cases: Vec<Notice> = singles
+                .iter()
+                .map(|events| notice_with(&[(&work, events.clone())], t0(), &Utc, private).unwrap())
+                .collect();
+            cases.push(notice_with(&[(&work, four.clone())], t0(), &Utc, private).unwrap());
+            cases.push(
+                notice_with(
+                    &[(&work, four.clone()), (&home, four[..2].to_vec())],
+                    t0(),
+                    &Utc,
+                    private,
+                )
+                .unwrap(),
+            );
+            for notice in cases {
+                let title = notice.title.resolve(locale);
+                let body = notice.body.resolve(locale);
+                if title.chars().count() > 50 {
+                    over.push(format!("{locale} title: {title}"));
+                }
+                if body.chars().count() > 110 {
+                    over.push(format!("{locale} body: {body}"));
+                }
+            }
+        }
+    }
+    over.sort();
+    over.dedup();
+    assert!(over.is_empty(), "{over:#?}");
+}
+
+fn window_at(window: MetricWindow) -> DateTime<Utc> {
+    match window {
+        MetricWindow::Window5h => t0() + TimeDelta::hours(3),
+        _ => t0() + TimeDelta::hours(5),
+    }
+}
+
+/// PRD 0008 re-validation V-08 and V-09: an unnamed account is named after
+/// its provider, and a reset on another day reads as a weekday or a short
+/// date in the reader's order, never an ISO date.
+#[test]
+fn unnamed_accounts_and_later_resets_read_naturally() {
+    let unnamed = account("");
+    let reading = report(t0(), quota(92.0, Some(window())));
+    let one = event_of(&reading, AlertKind::Threshold, 90);
+    let body = notice_with(&[(&unnamed, vec![one.clone()])], t0(), &Utc, false)
+        .unwrap()
+        .body
+        .resolve("en-US");
+    assert!(body.starts_with("Claude: "), "{body}");
+    let tomorrow = AlertEvent {
+        resets_at: Some(t0() + TimeDelta::days(1)),
+        ..one.clone()
+    };
+    let far = AlertEvent {
+        resets_at: Some(t0() + TimeDelta::days(9)),
+        ..one.clone()
+    };
+    // 2026-02-15 is a Sunday.
+    let at = |event: &AlertEvent, locale| {
+        notice_with(
+            &[(&account("Work"), vec![event.clone()])],
+            t0(),
+            &Utc,
+            false,
+        )
+        .unwrap()
+        .body
+        .resolve(locale)
+    };
+    assert!(
+        at(&tomorrow, "en-US").ends_with("resets Monday 12:00"),
+        "{}",
+        at(&tomorrow, "en-US")
+    );
+    assert!(
+        at(&far, "en-US").ends_with("resets 02/24 12:00"),
+        "{}",
+        at(&far, "en-US")
+    );
+    assert!(
+        at(&far, "pt-BR").ends_with("24/02 12:00"),
+        "{}",
+        at(&far, "pt-BR")
+    );
+    for locale in crate::text::LOCALES.iter().map(|row| row.code) {
+        for event in [&tomorrow, &far] {
+            let text = at(event, locale);
+            assert!(!text.contains("2026-"), "{locale}: {text}");
+            assert!(!text.contains('{'), "{locale}: {text}");
+        }
+    }
+}

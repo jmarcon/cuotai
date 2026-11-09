@@ -457,7 +457,9 @@ impl Notices {
         );
         for (account, mine) in owned {
             let groups = [(&account, mine)];
-            let Some(notice) = alerts::notice(&groups, now, &chrono::Local) else {
+            // PRD 0008 re-validation V-04: the banner line shares the
+            // banner's labelled UTC clock; OSC 9 stays in local time.
+            let Some(notice) = alerts::notice(&groups, now, &chrono::Utc) else {
                 continue;
             };
             self.to_channels(
@@ -866,6 +868,10 @@ mod tests {
             banner.contains("Claude: 90% of the 5-hour window used — Pessoal: 5h · resets "),
             "{banner}"
         );
+        // PRD 0008 re-validation V-04: the reset time shares the banner's
+        // labelled UTC clock, whatever the machine's zone.
+        assert!(banner.starts_with("12:02 UTC · "), "{banner}");
+        assert!(banner.ends_with("resets 15:00"), "{banner}");
 
         // Oscillating around 90% in the same window stays silent.
         for (minute, used) in [(4, 88.0), (6, 93.0), (8, 89.0), (10, 91.0)] {

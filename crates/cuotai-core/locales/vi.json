@@ -151,6 +151,7 @@
   "alerts.body.session_expiring": "{account}: phiên hết hạn {at}; hãy dán phiên mới trong trình hướng dẫn tài khoản.",
   "alerts.body.session_expiring.private": "Phiên hết hạn {at}.",
   "alerts.item.account": "{provider} {account}: {items}",
+  "alerts.item.and_count": "{first} +{count}",
   "alerts.item.balance_below_floor": "{metric} dưới mức sàn của bạn",
   "alerts.item.balance_recovered": "{metric} đã trở lại trên mức sàn của bạn",
   "alerts.item.exhausted": "{metric} đã chạm giới hạn",
@@ -2303,5 +2304,11 @@
   "doctor.channel.ok": "Lần gửi gần nhất đã được chấp nhận.",
   "doctor.channel.none": "Chưa gửi gì tới kênh này.",
   "doctor.fix.channel": "Mở kênh trong Cài đặt › Cảnh báo, kiểm tra địa chỉ và gửi thử (cuotai --channel-test).",
-  "budget.error.row": "{field}: ngân sách trên một hàng của bảng chi tiết cần kind, phạm vi của dòng (key, virtual_key, project, workspace hoặc team) và id của nó, ở nhà cung cấp có bảng chi tiết."
+  "budget.error.row": "{field}: ngân sách trên một hàng của bảng chi tiết cần kind, phạm vi của dòng (key, virtual_key, project, workspace hoặc team) và id của nó, ở nhà cung cấp có bảng chi tiết.",
+  "alerts.at.weekday": "{weekday} {time}",
+  "alerts.at.date": "{day}/{month} {time}",
+  "alerts.at.day": "{day}/{month}",
+  "alerts.more": {
+    "other": "và {count} mục nữa"
+  }
 }

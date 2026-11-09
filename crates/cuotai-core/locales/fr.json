@@ -151,6 +151,7 @@
   "alerts.body.session_expiring": "{account} : la session expire {at} ; collez-en une nouvelle dans l’assistant du compte.",
   "alerts.body.session_expiring.private": "La session expire {at}.",
   "alerts.item.account": "{provider} {account} : {items}",
+  "alerts.item.and_count": "{first} +{count}",
   "alerts.item.balance_below_floor": "{metric} sous votre plancher",
   "alerts.item.balance_recovered": "{metric} de nouveau au-dessus de votre plancher",
   "alerts.item.exhausted": "{metric} à la limite",
@@ -172,7 +173,7 @@
   },
   "alerts.title.balance_below_floor": "{provider} : solde sous votre plancher",
   "alerts.title.balance_recovered": "{provider} : solde de nouveau au-dessus de votre plancher",
-  "alerts.title.exhausted": "{provider} : quota {window} épuisé",
+  "alerts.title.exhausted": "{provider} : fenêtre {window} épuisée",
   "alerts.title.exhausted_metric": "{provider} : limite de {metric} atteinte",
   "alerts.title.exhausted_metric.private": "{provider} : un quota a atteint sa limite",
   "alerts.title.limit_changed": "{provider} : une limite a changé",
@@ -189,11 +190,11 @@
   "alerts.title.pool_recovered.private": "{provider} : un pool partagé est de nouveau disponible",
   "alerts.title.projected": "{provider} · {account} : risque d’épuisement avant la réinitialisation",
   "alerts.title.projected.private": "{provider} : risque d’épuisement avant la réinitialisation",
-  "alerts.title.recovered": "{provider} : quota {window} de nouveau disponible",
+  "alerts.title.recovered": "{provider} : fenêtre {window} rétablie",
   "alerts.title.recovered_metric": "{provider} : {metric} de nouveau disponible",
   "alerts.title.recovered_metric.private": "{provider} : un quota est de nouveau disponible",
   "alerts.title.session_expiring": "{provider} : la session expire bientôt",
-  "alerts.title.threshold": "{provider} : {percent} % de la fenêtre {window} utilisés",
+  "alerts.title.threshold": "{provider} : fenêtre {window} utilisée à {percent} %",
   "alerts.title.threshold_metric": "{provider} : {percent} % de {metric} utilisé",
   "alerts.title.threshold_metric.private": "{provider} : {percent} % d’un quota utilisés",
   "auth_mode.aws_sso.label": "Profil AWS SSO",
@@ -2317,5 +2318,12 @@
   "doctor.channel.ok": "Sa dernière livraison a été acceptée.",
   "doctor.channel.none": "Rien ne lui a encore été envoyé.",
   "doctor.fix.channel": "Ouvrez le canal dans Réglages › Alertes, vérifiez son adresse et envoyez un test (cuotai --channel-test).",
-  "budget.error.row": "{field} : un budget sur une ligne de la ventilation a besoin d'un kind, de la portée de la ligne (key, virtual_key, project, workspace ou team) et de son id, chez un fournisseur qui propose des ventilations."
+  "budget.error.row": "{field} : un budget sur une ligne de la ventilation a besoin d'un kind, de la portée de la ligne (key, virtual_key, project, workspace ou team) et de son id, chez un fournisseur qui propose des ventilations.",
+  "alerts.at.weekday": "{weekday} {time}",
+  "alerts.at.date": "{day}/{month} {time}",
+  "alerts.at.day": "{day}/{month}",
+  "alerts.more": {
+    "one": "et {count} de plus",
+    "other": "et {count} de plus"
+  }
 }

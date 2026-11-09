@@ -151,6 +151,7 @@
   "alerts.body.session_expiring": "{account}: 세션이 {at}에 만료됩니다. 계정 마법사에 새 세션을 붙여 넣으세요.",
   "alerts.body.session_expiring.private": "세션이 {at}에 만료됩니다.",
   "alerts.item.account": "{provider} {account}: {items}",
+  "alerts.item.and_count": "{first} +{count}",
   "alerts.item.balance_below_floor": "{metric}이(가) 하한선 아래로 내려감",
   "alerts.item.balance_recovered": "{metric}이(가) 다시 하한선 위로 올라감",
   "alerts.item.exhausted": "{metric} 한도 도달",
@@ -2303,5 +2304,11 @@
   "doctor.channel.ok": "마지막 전송이 수락되었습니다.",
   "doctor.channel.none": "아직 아무것도 보내지 않았습니다.",
   "doctor.fix.channel": "설정 › 알림에서 채널을 열고 주소를 확인한 뒤 테스트를 보내세요(cuotai --channel-test).",
-  "budget.error.row": "{field}: 세부 내역 행의 예산에는 kind, 행의 범위(key, virtual_key, project, workspace 또는 team)와 그 id가 필요하며, 세부 내역을 제공하는 제공자여야 합니다."
+  "budget.error.row": "{field}: 세부 내역 행의 예산에는 kind, 행의 범위(key, virtual_key, project, workspace 또는 team)와 그 id가 필요하며, 세부 내역을 제공하는 제공자여야 합니다.",
+  "alerts.at.weekday": "{weekday} {time}",
+  "alerts.at.date": "{month}/{day} {time}",
+  "alerts.at.day": "{month}/{day}",
+  "alerts.more": {
+    "other": "외 {count}건"
+  }
 }
