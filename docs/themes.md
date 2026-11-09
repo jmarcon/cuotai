@@ -88,7 +88,7 @@ A user theme sets theme tokens only. Cuotai parses the file before the interface
 - **Values by kind:**
   - a color is one `#rgb`, `#rgba`, `#rrggbb` or `#rrggbbaa` value, a color keyword, `rgb()`, `rgba()`, `hsl()`, `hsla()`, `color-mix()` or `var(--token)`;
   - a shape token is one number with `px`, `em`, `rem` or `%` (or `var(--token)`);
-  - a motion duration is one value in `ms` or `s`, or `0`;
+  - a motion duration is one value in `ms` or `s`, or `0`, between 0 and 2 s (a negative or longer value is refused); the app never runs a dialog or card motion longer than 200 ms, whatever the theme sets;
   - an easing is a keyword, `cubic-bezier()`, `steps()`, `linear()` or `var(--token)`;
   - a font is a comma-separated list of quoted family names and keywords (system fonts only, nothing is downloaded);
   - `color-scheme` is `dark`, `light`, `normal` or `only`;

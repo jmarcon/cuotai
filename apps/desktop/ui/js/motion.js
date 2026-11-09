@@ -6,11 +6,13 @@
 // short-lived Web Animations: an idle window has `document.getAnimations().length === 0` (DS-MOT-9).
 
 const rootStyle = () => getComputedStyle(document.documentElement);
-/** Effective duration of a motion token, in ms; 0 = no effect. */
+/** Effective duration of a motion token, in ms; 0 = no effect. A negative or non-finite value is 0 and the result
+ *  never exceeds 200 ms (DS-MOT-3; PRD 0004 re-validation S-01), whatever a user theme sets. */
 export function motionMs(token) {
   if (document.hidden) return 0;
   const v = rootStyle().getPropertyValue(token).trim();
-  return parseFloat(v) * (v.endsWith("ms") ? 1 : v.endsWith("s") ? 1000 : 0) || 0;
+  const ms = parseFloat(v) * (v.endsWith("ms") ? 1 : v.endsWith("s") ? 1000 : 0);
+  return Number.isFinite(ms) && ms > 0 ? Math.min(ms, 200) : 0;
 }
 // User themes may bring an invalid curve; `animate()` would throw, so it falls back to the default.
 export const easeOut = (v = rootStyle().getPropertyValue("--ease-out").trim()) => (CSS.supports("transition-timing-function", v) ? v : "ease-out");
