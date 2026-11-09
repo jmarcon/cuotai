@@ -1,7 +1,7 @@
 //! PRD 0024 RF1: chips in both units, countdown and catalog budgets.
 
 use super::*;
-use crate::text::{countdown, duration};
+use crate::text::{countdown, duration, ParamValue};
 use chrono::TimeZone;
 
 fn pace(used: f64, expected: f64) -> Pace {
@@ -46,6 +46,12 @@ fn stage_chips_in_both_units() {
         (0.3, 0.5, Percent, "↓", "40% slower than pace"),
         (0.502, 0.5, Points, "→", "On pace"),
         (0.501, 0.5, Percent, "→", "On pace"),
+        // PRD 0007 re-validation (V-03): inside the ±5 band the chip
+        // agrees with the stage, never "2 pts ahead" beside →.
+        (0.52, 0.5, Points, "→", "On pace"),
+        (0.54, 0.5, Percent, "→", "On pace"),
+        (0.46, 0.5, Points, "→", "On pace"),
+        (0.47, 0.5, Percent, "→", "On pace"),
         (1.0, 0.5, Points, "✕", "Exhausted"),
         (1.0, 0.5, Percent, "✕", "Exhausted"),
         // Used 0 with at least 10% expected.
@@ -71,6 +77,31 @@ fn stage_chips_in_both_units() {
         pace(0.6, 0.5).chip(PaceUnit::Percent).compact.as_deref(),
         Some("20%")
     );
+}
+
+/// Outside the band a shown point count is always at least 5, so "1 pts"
+/// is unreachable and the chip catalogs need no plural forms.
+#[test]
+fn a_shown_point_count_is_never_below_five() {
+    for used in 0..1000 {
+        for expected in [0.0, 0.05, 0.2, 0.5, 0.8, 0.999] {
+            let pace = pace(f64::from(used) / 1000.0, expected);
+            for unit in [PaceUnit::Points, PaceUnit::Percent] {
+                let chip = pace.chip(unit);
+                if let Some(ParamValue::Text(d)) = chip.text.params.get("d") {
+                    let d: f64 = d.parse().unwrap();
+                    assert!(d >= 5.0, "{used} {expected} {unit:?}: {d}");
+                }
+                if let Some(ParamValue::Text(p)) = chip.text.params.get("p") {
+                    let p: f64 = p.parse().unwrap();
+                    assert!(p >= 1.0, "{used} {expected} {unit:?}: {p}");
+                }
+                if pace.stage == PaceStage::OnPace {
+                    assert_eq!(chip.text.id, "pace.chip.on_pace");
+                }
+            }
+        }
+    }
 }
 
 #[test]

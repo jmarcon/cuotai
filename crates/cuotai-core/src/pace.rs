@@ -427,9 +427,11 @@ pub const GLYPH_RETURNS: &str = "↺";
 impl Pace {
     /// PRD 0024 RF1.1/RF1.3: the stage chip in `unit`. Points: "{d} pts in
     /// reserve", "On pace", "{d} pts ahead", "Exhausted", where `{d}` is the
-    /// rounded absolute `delta_points` (a rounded 0 reads "On pace").
+    /// rounded absolute `delta_points`. The chip follows the stage: inside
+    /// the ±5-point band (`OnPace`) it reads "On pace" in both units, so a
+    /// shown `{d}` is always at least 5 (no singular form is ever needed).
     /// Percent: "{p}% faster than pace"/"{p}% slower than pace" from
-    /// [`Pace::delta_ratio`] (capped at 999, a rounded 0 reads "On pace");
+    /// [`Pace::delta_ratio`] (capped at 999);
     /// without a ratio (expected share below 10%) the points form, with the
     /// hint "Too early in the window for a percentage".
     pub fn chip(&self, unit: PaceUnit) -> Chip {
@@ -450,6 +452,8 @@ impl Pace {
         let mut hint = None;
         if unit == PaceUnit::Percent {
             match self.delta_ratio {
+                // Inside the ±5-point band the chip agrees with the stage.
+                Some(_) if self.stage == PaceStage::OnPace => return on_pace(),
                 Some(ratio) => {
                     let percent = (ratio.abs() * 100.0).round().min(MAX_CHIP_PERCENT);
                     if percent < 1.0 {
@@ -481,7 +485,7 @@ impl Pace {
             }
         }
         let points = self.delta_points.abs().round();
-        if !points.is_finite() || points < 1.0 {
+        if self.stage == PaceStage::OnPace || !points.is_finite() || points < 1.0 {
             return Chip { hint, ..on_pace() };
         }
         let d = format!("{points:.0}");

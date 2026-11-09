@@ -2492,17 +2492,19 @@ fn render_metric_block(
         ));
     }
     // PRD 0024 RF6.2: the core's pace chip beside the stage icon when the
-    // card is wide enough to keep the metric text readable.
+    // card is wide enough to keep the metric text readable, and only when
+    // the whole chip fits on the line: a chip is dropped, never cut.
     if let Some(pace) = metric
         .pace
         .as_ref()
         .filter(|_| text_area.width >= CHIP_MIN_WIDTH)
     {
         let chip = pace.chip(pace_unit()).text.resolve(tui_locale());
-        text_spans.push(Span::styled(
-            format!("  {}", safe(&chip)),
-            Style::default().fg(MUTED),
-        ));
+        let chip = Span::styled(format!("  {}", safe(&chip)), Style::default().fg(MUTED));
+        let used = Line::from(text_spans.clone()).width();
+        if used + chip.width() <= usize::from(text_area.width) {
+            text_spans.push(chip);
+        }
     }
     frame.render_widget(
         Paragraph::new(Line::from(text_spans)).wrap(Wrap { trim: true }),
@@ -5603,6 +5605,39 @@ mod tests {
         let rows = rows.join("\n");
         assert!(rows.contains("Semana:") && !rows.contains("↑ Semana:"));
         assert!(rows.contains("Sessao:") && !rows.contains("↓ Sessao:"));
+    }
+
+    /// PRD 0007 re-validation (V-02): a card shows the whole pace chip or
+    /// none, never a chip cut at the card edge; (V-03) inside the on-pace
+    /// band it reads "on pace", not a small point count.
+    #[test]
+    fn the_card_chip_is_whole_or_absent_and_on_pace_inside_the_band() {
+        const LABEL: &str = "Sessao com um rotulo bem comprido de verdade";
+        let mut long = paced();
+        long[0].as_mut().unwrap().metrics[0].label = LABEL.into();
+        let wide = render_sized(&long, &[], &[], false, at_min(0), (220, 30)).join("\n");
+        let row = wide.lines().find(|row| row.contains(LABEL)).unwrap();
+        let chip = "20 pts de reserva";
+        let end = row.find(chip).expect("the full chip at 220 columns") - 2;
+        let start = row.find(LABEL).unwrap();
+        let prefix = row[start..end].to_owned();
+        for width in (90..=220).step_by(2) {
+            let text = render_sized(&long, &[], &[], false, at_min(0), (width, 30)).join("\n");
+            let Some(row) = text.lines().find(|row| row.contains(&prefix)) else {
+                continue;
+            };
+            let after = row.find(&prefix).unwrap() + prefix.len();
+            let rest = row[after..].trim_matches(|c: char| c.is_whitespace() || "│┃║|".contains(c));
+            assert!(rest.is_empty() || rest == chip, "{width}: {row:?}");
+        }
+
+        let mut on_pace = paced();
+        // 60% of the 5-hour window elapsed, 62% used: 2 points over, on pace.
+        on_pace[0].as_mut().unwrap().metrics[0].used = Some(62.0);
+        let text = render_sized(&on_pace, &[], &[], false, at_min(0), (220, 30)).join("\n");
+        let row = text.lines().find(|row| row.contains("Sessao:")).unwrap();
+        assert!(row.contains("→ Sessao:"), "{row}");
+        assert!(!row.contains("pts"), "{row}");
     }
 
     #[test]
