@@ -199,7 +199,8 @@ For each delivery run workspace and desktop formatting, Clippy and tests; `node 
 |---|---|
 | Should tolerant mode query an account with an unknown account key | No; isolate it as `NeedsConfiguration`, because the field may alter credentials, endpoint or cost. |
 | Should a desktop-selected data directory silently apply to CLI/TUI | No; use `CUOTAI_DATA_DIR` for cross-frontend sharing and show that instruction in the picker. |
-| How long should `.bak` and `.corrupt-*` files remain | Keep one `.bak` until the next migration; keep quarantine until explicit user deletion or erase-all policy. |
+| How long should `.bak` and `.corrupt-*` files remain | Keep one `.bak` until the next migration; keep quarantine until explicit user deletion or erase-all policy. **Amended vNEXT (PRD 0006 re-validation):** `history.sqlite3.bak` is kept 7 days, or less under the size cap (RF3 row). |
+| Open item (PRD 0006 re-validation S-08, cross-PRD `SEC-PRIVATE-FS`) | `models::create_private_file`/`private()` checks permissions with `metadata`, which follows a symbolic link, checks no owner, and sets no DACL on Windows. It serves the history, model and cost stores (PRDs 0006, 0002, 0015, 0052). Fix it once with `symlink_metadata`, an owner check and `private_fs::make_private` on Windows, under this PRD or PRD 0050. |
 | Can a same-major SQLite revision alter an existing column | No; additions only. Any semantic or destructive change is a major bump. |
 | Should config relocation carry model cache and notification marks too | No in this PRD; models refetch, and scoped marks/preferences stay with the original identity. |
 

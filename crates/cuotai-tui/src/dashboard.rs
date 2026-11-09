@@ -441,11 +441,12 @@ pub(crate) struct DetailHistory {
     pub(crate) metrics: Result<Vec<MetricHistory>, String>,
 }
 
+/// RF6.1: the short name of a span in the TUI locale ("24 h", "7 d").
 pub(crate) fn range_label(range: HistoryRange) -> &'static str {
     match range {
-        HistoryRange::Day => "24 h",
-        HistoryRange::Week => "7 d",
-        HistoryRange::Month => "30 d",
+        HistoryRange::Day => tr("dashboard.history.range.day", "24 h"),
+        HistoryRange::Week => tr("dashboard.history.range.week", "7 d"),
+        HistoryRange::Month => tr("dashboard.history.range.month", "30 d"),
     }
 }
 
@@ -505,14 +506,22 @@ fn history_line(
 ) -> Line<'static> {
     let range = range_label(detail.range);
     let Some((metric, trend)) = metric.and_then(|m| m.trend().map(|trend| (m, trend))) else {
-        return Line::styled(
+        // Samples without a measured `used` (only `remaining`, say) are not
+        // "nothing recorded": the CLI makes the same distinction.
+        let text = if metric.is_some() {
+            trf(
+                "dashboard.history.no_measured",
+                "  history {range}: no measured values",
+                &[("range", &range)],
+            )
+        } else {
             trf(
                 "dashboard.history.empty",
                 "  history {range}: no recorded measurements",
                 &[("range", &range)],
-            ),
-            Style::default().fg(MUTED),
-        );
+            )
+        };
+        return Line::styled(text, Style::default().fg(MUTED));
     };
     let summary = trend_text(&trend, &metric.unit);
     let cells = usize::from(width)
@@ -541,7 +550,8 @@ fn history_line(
 /// RF6.1: the span picker of the details, the chosen one highlighted.
 fn history_heading(detail: &DetailHistory) -> Line<'static> {
     let mut spans = vec![Span::styled(
-        tr("dashboard.history.heading", "  HISTORY  "),
+        // The separator is the code's, so no catalog can lose it.
+        format!("  {}  ", tr("dashboard.history.heading", "HISTORY").trim()),
         Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
     )];
     for (index, range) in HistoryRange::ALL.into_iter().enumerate() {
@@ -6013,6 +6023,62 @@ mod tests {
         );
         assert!(week.contains(&line), "{week}");
         assert!(week.contains("histórico 7 d: sem medições registradas"));
+    }
+
+    /// Re-validation 2026-11 (V-04, V-05, V-08): the heading keeps its
+    /// separator in every language, the spans are translated, and a metric
+    /// with samples but no measured use says so instead of "nothing
+    /// recorded".
+    #[test]
+    fn history_heading_spans_and_unmeasured_metrics_read_right_in_every_language() {
+        for (code, heading) in [("it", "CRONOLOGIA"), ("ru", "ИСТОРИЯ"), ("vi", "LỊCH SỬ")]
+        {
+            let text = crate::l10n::with_locale(code, || {
+                render_history(&session_history(HistoryRange::Day), 120)
+            });
+            let found = text
+                .lines()
+                .find(|line| line.contains(heading))
+                .unwrap_or_else(|| panic!("{code}: {text}"));
+            assert!(
+                found.contains(&format!("{heading}  [1 ")),
+                "{code}: the heading runs into the spans: {found}"
+            );
+        }
+        let german = crate::l10n::with_locale("de", || {
+            render_history(&session_history(HistoryRange::Week), 120)
+        });
+        assert!(german.contains("[2 7 T]"), "{german}");
+        assert!(!german.contains("7 d"), "{german}");
+
+        let mut detail = session_history(HistoryRange::Day);
+        let daily = blocked_by_week()[0].as_ref().unwrap().metrics[1].clone();
+        if let Ok(metrics) = &mut detail.metrics {
+            metrics.push(MetricHistory {
+                key: history::metric_key(&daily),
+                label: daily.label.clone(),
+                unit: daily.unit.clone(),
+                kind: daily.kind,
+                window: daily.window,
+                billing: cuotai_core::Billing::Included,
+                scoped: false,
+                limit: Some(100.0),
+                points: Vec::new(),
+                windows: Vec::new(),
+            });
+        }
+        let text = crate::l10n::with_locale("en-US", || render_history(&detail, 120));
+        assert_eq!(
+            text.matches("history 24 h: no measured values").count(),
+            1,
+            "{text}"
+        );
+        assert_eq!(
+            text.matches("history 24 h: no recorded measurements")
+                .count(),
+            1,
+            "{text}"
+        );
     }
 
     #[test]
