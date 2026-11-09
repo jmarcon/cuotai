@@ -146,6 +146,20 @@ fn every_hook_calls_the_preflight() {
     }
 }
 
+/// The pre-push hook stamps its start before building xtask, so the
+/// preflight can stop a run that outlived git's connection (SIGPIPE, 141).
+#[test]
+fn the_pre_push_hook_stamps_its_start_before_the_preflight() {
+    let text = std::fs::read_to_string(hooks_dir().join("pre-push")).unwrap();
+    let stamp = text
+        .find("export CUOTAI_HOOK_STARTED")
+        .expect("exported start");
+    let source = text.find(". \"$(dirname \"$0\")/lib.sh\"").expect("lib.sh");
+    let run = text.find("preflight --push --stdin-refs").unwrap();
+    assert!(stamp < source && source < run, "{text}");
+    assert!(text.contains("CUOTAI_HOOK_STARTED=$(date +%s)"), "{text}");
+}
+
 #[cfg(unix)]
 #[test]
 fn hooks_are_executable() {

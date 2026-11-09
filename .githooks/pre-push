@@ -1,5 +1,13 @@
 #!/bin/sh
 # Two to ten minutes: what CI would run for origin/main...HEAD, on this
 # machine. Git passes the pushed refs on standard input.
+#
+# Git opens its connection to the remote before it runs this hook, and the
+# server drops an idle connection after about six minutes; git then dies of
+# SIGPIPE (exit 141) without pushing. The preflight records a pass, stops a
+# run that outlived the window with "run git push again", and skips commits
+# that already passed, so `cargo xtask preflight --push && git push` stays fast.
+CUOTAI_HOOK_STARTED=$(date +%s)
+export CUOTAI_HOOK_STARTED
 . "$(dirname "$0")/lib.sh"
 preflight --push --stdin-refs
