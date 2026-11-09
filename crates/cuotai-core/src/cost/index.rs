@@ -338,7 +338,7 @@ impl CostIndex {
     pub(crate) fn open(&self) -> Result<Connection, CostError> {
         create_private_file(&self.path).map_err(|_| CostError::Storage)?;
         let mut db = Connection::open(&self.path)?;
-        crate::private_fs::sqlite_busy_wait(&db)?;
+        crate::private_fs::sqlite_busy_wait(&mut db)?;
         wal(&db)?;
         db.pragma_update(None, "secure_delete", true)?;
         migrate(&mut db, &MIGRATIONS).map_err(|error| match error {

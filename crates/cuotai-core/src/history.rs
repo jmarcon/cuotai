@@ -688,7 +688,7 @@ impl HistoryStore {
     fn open(&self) -> Result<Connection, HistoryError> {
         create_private_file(&self.path).map_err(|_| HistoryError::Storage)?;
         let mut db = Connection::open(&self.path)?;
-        crate::private_fs::sqlite_busy_wait(&db)?;
+        crate::private_fs::sqlite_busy_wait(&mut db)?;
         wal(&db)?;
         db.pragma_update(None, "journal_size_limit", WAL_SIZE_LIMIT)?;
         if migrate_from(&mut db, &MIGRATIONS)?.is_some_and(|from| from < COMPACT_BELOW) {

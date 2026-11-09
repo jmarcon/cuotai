@@ -473,7 +473,7 @@ thread_local! {
 /// starved past the 5 s timeout with SQLite's handler or the same schedule
 /// in Rust, 3 of 600 when polling every 1 to 5 ms, none of 1,200 when
 /// polling every millisecond (which was also faster overall).
-pub(crate) fn sqlite_busy_wait(db: &rusqlite::Connection) -> rusqlite::Result<()> {
+pub(crate) fn sqlite_busy_wait(db: &mut rusqlite::Connection) -> rusqlite::Result<()> {
     db.busy_handler(Some(busy_handler))
 }
 
@@ -1076,8 +1076,8 @@ mod update_tests {
         let waiter = std::thread::spawn({
             let path = path.clone();
             move || {
-                let db = rusqlite::Connection::open(path).unwrap();
-                sqlite_busy_wait(&db).unwrap();
+                let mut db = rusqlite::Connection::open(path).unwrap();
+                sqlite_busy_wait(&mut db).unwrap();
                 let start = std::time::Instant::now();
                 db.execute("INSERT INTO t VALUES (1)", []).unwrap();
                 start.elapsed()
