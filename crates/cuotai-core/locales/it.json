@@ -596,6 +596,8 @@
   "field.zed.user_id.help": "Obbligatorio; inviato come \"Authorization: <user_id> <access_token>\".",
   "field.zed.user_id.label": "ID utente numerico di Zed",
   "history.error.export": "Impossibile scrivere l'esportazione della cronologia.",
+  "history.error.damaged": "Il file della cronologia locale è danneggiato, quindi non si può cancellare un solo account; cancella invece tutta la cronologia.",
+  "history.error.erase_incomplete": "La cronologia è stata cancellata, ma un'altra finestra di Cuotai aperta conserva ancora una copia dei vecchi dati; chiudi le altre finestre di Cuotai e cancella di nuovo per rimuoverla dal disco.",
   "history.error.export_target": "Cuotai non scrive un'esportazione sopra i propri file di cronologia, impostazioni o dati, né sopra una cartella; scegli un altro file.",
   "history.error.export_days": "Un'esportazione della cronologia copre da {min} a {max} giorni.",
   "history.error.retention_bounds": "La conservazione della cronologia va da {min} a {max} giorni.",

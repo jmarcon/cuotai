@@ -986,6 +986,8 @@
   "field.meta.session_env.label": "dev.meta.ai oturum değişkeni (isteğe bağlı)",
   "field.meta.session_env.help": "Boş = hesap sihirbazında \"Oturum aç\" ile yakalanan oturum (sistem kasası). Değişken tercih ederseniz dev.meta.ai çerezini (llama_dev_sess) tutan değişkenin ADINI girin; çerezi asla buraya yapıştırmayın.",
   "history.error.export": "Geçmiş dışa aktarımı yazılamadı.",
+  "history.error.damaged": "Yerel geçmiş dosyası bozuk, bu yüzden içinden tek bir hesap silinemez; bunun yerine tüm geçmişi silin.",
+  "history.error.erase_incomplete": "Geçmiş silindi, ancak açık başka bir Cuotai penceresi eski verilerin bir kopyasını hâlâ tutuyor; diğer Cuotai pencerelerini kapatıp diskten silmek için yeniden silin.",
   "history.error.export_target": "Cuotai dışa aktarımı kendi geçmiş, ayar veya veri dosyalarının ya da bir klasörün üzerine yazmaz; başka bir dosya seçin.",
   "history.error.export_days": "Geçmiş dışa aktarımı {min} ile {max} gün arasını kapsar.",
   "history.error.retention_bounds": "Geçmiş saklama süresi {min} ile {max} gün arasındadır.",

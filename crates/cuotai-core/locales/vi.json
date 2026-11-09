@@ -980,6 +980,8 @@
   "field.meta.session_env.label": "Biến phiên dev.meta.ai (tùy chọn)",
   "field.meta.session_env.help": "Để trống = phiên đã thu bằng \"Đăng nhập\" trong trình hướng dẫn tài khoản (kho bí mật hệ thống). Nếu muốn dùng biến, nhập TÊN biến chứa cookie dev.meta.ai (llama_dev_sess); không bao giờ dán cookie vào đây.",
   "history.error.export": "Không ghi được bản xuất lịch sử.",
+  "history.error.damaged": "Tệp lịch sử cục bộ bị hỏng nên không thể xóa riêng một tài khoản; hãy xóa toàn bộ lịch sử.",
+  "history.error.erase_incomplete": "Lịch sử đã được xóa, nhưng một cửa sổ Cuotai khác đang mở vẫn giữ bản sao dữ liệu cũ; hãy đóng các cửa sổ Cuotai khác và xóa lại để xóa nó khỏi ổ đĩa.",
   "history.error.export_target": "Cuotai không ghi bản xuất đè lên các tệp lịch sử, cài đặt hoặc dữ liệu của chính nó, cũng không đè lên một thư mục; hãy chọn tệp khác.",
   "history.error.export_days": "Bản xuất lịch sử bao gồm từ {min} đến {max} ngày.",
   "history.error.retention_bounds": "Thời gian lưu lịch sử nằm trong khoảng từ {min} đến {max} ngày.",

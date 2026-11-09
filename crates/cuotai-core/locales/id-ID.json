@@ -980,6 +980,8 @@
   "field.meta.session_env.label": "Variabel sesi dev.meta.ai (opsional)",
   "field.meta.session_env.help": "Kosong = sesi yang ditangkap dengan \"Masuk\" di wizard akun (brankas sistem). Jika memilih variabel, isi NAMA variabel yang menyimpan cookie dev.meta.ai (llama_dev_sess); jangan pernah menempelkan cookie di sini.",
   "history.error.export": "Tidak dapat menulis ekspor riwayat.",
+  "history.error.damaged": "File riwayat lokal rusak, jadi satu akun tidak dapat dihapus darinya; hapus seluruh riwayat sebagai gantinya.",
+  "history.error.erase_incomplete": "Riwayat telah dihapus, tetapi jendela Cuotai lain yang terbuka masih menyimpan salinan data lama; tutup jendela Cuotai lainnya dan hapus lagi untuk menghapusnya dari disk.",
   "history.error.export_target": "Cuotai tidak menulis ekspor di atas file riwayat, pengaturan, atau datanya sendiri, maupun di atas folder; pilih file lain.",
   "history.error.export_days": "Ekspor riwayat mencakup {min} hingga {max} hari.",
   "history.error.retention_bounds": "Retensi riwayat berkisar dari {min} hingga {max} hari.",

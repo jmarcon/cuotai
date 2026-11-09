@@ -986,6 +986,8 @@
   "field.meta.session_env.label": "Variable der dev.meta.ai-Sitzung (optional)",
   "field.meta.session_env.help": "Leer = die mit „Anmelden“ im Kontoassistenten erfasste Sitzung (Systemtresor). Wenn Sie eine Variable bevorzugen, geben Sie den NAMEN der Variable mit dem dev.meta.ai-Cookie (llama_dev_sess) an; fügen Sie das Cookie nie hier ein.",
   "history.error.export": "Der Export des Verlaufs konnte nicht geschrieben werden.",
+  "history.error.damaged": "Die lokale Verlaufsdatei ist beschädigt, daher kann kein einzelnes Konto daraus gelöscht werden; lösche stattdessen den gesamten Verlauf.",
+  "history.error.erase_incomplete": "Der Verlauf wurde gelöscht, aber ein anderes offenes Cuotai-Fenster hält noch eine Kopie der alten Daten; schließe die anderen Cuotai-Fenster und lösche erneut, um sie vom Datenträger zu entfernen.",
   "history.error.export_target": "Cuotai schreibt keinen Export über seine eigenen Verlaufs-, Einstellungs- oder Datendateien und auch nicht über einen Ordner; wähle eine andere Datei.",
   "history.error.export_days": "Ein Verlaufsexport umfasst {min} bis {max} Tage.",
   "history.error.retention_bounds": "Die Aufbewahrung des Verlaufs reicht von {min} bis {max} Tage.",

@@ -986,6 +986,8 @@
   "field.meta.session_env.label": "Variable de la session dev.meta.ai (facultative)",
   "field.meta.session_env.help": "Vide = la session capturée avec « Se connecter » dans l'assistant du compte (coffre du système). Si vous préférez une variable, indiquez le NOM de la variable contenant le cookie dev.meta.ai (llama_dev_sess) ; ne collez jamais le cookie ici.",
   "history.error.export": "Impossible d’écrire l’export de l’historique.",
+  "history.error.damaged": "Le fichier d’historique local est endommagé, un seul compte ne peut donc pas en être effacé ; effacez plutôt tout l’historique.",
+  "history.error.erase_incomplete": "L’historique a été effacé, mais une autre fenêtre Cuotai ouverte garde encore une copie des anciennes données ; fermez les autres fenêtres Cuotai et effacez à nouveau pour l’ôter du disque.",
   "history.error.export_target": "Cuotai n’écrit pas d’export par-dessus ses propres fichiers d’historique, de réglages ou de données, ni par-dessus un dossier ; choisissez un autre fichier.",
   "history.error.export_days": "Un export de l’historique couvre de {min} à {max} jours.",
   "history.error.retention_bounds": "La conservation de l’historique va de {min} à {max} jours.",

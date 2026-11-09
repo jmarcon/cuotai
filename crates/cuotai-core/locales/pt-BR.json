@@ -983,6 +983,8 @@
   "field.meta.session_env.label": "Variável da sessão do dev.meta.ai (opcional)",
   "field.meta.session_env.help": "Vazio = a sessão capturada com \"Entrar\" no assistente da conta (cofre do sistema). Se preferir uma variável, informe o NOME da variável com o cookie do dev.meta.ai (llama_dev_sess); nunca cole o cookie aqui.",
   "history.error.export": "Falha ao gravar a exportação do histórico.",
+  "history.error.damaged": "O arquivo de histórico local está danificado, então não dá para apagar só uma conta; apague todo o histórico.",
+  "history.error.erase_incomplete": "O histórico foi apagado, mas outra janela aberta do Cuotai ainda guarda uma cópia dos dados antigos; feche as outras janelas do Cuotai e apague de novo para tirá-la do disco.",
   "history.error.export_target": "O Cuotai não grava uma exportação por cima dos próprios arquivos de histórico, configurações ou dados, nem por cima de uma pasta; escolha outro arquivo.",
   "history.error.export_days": "Uma exportação do histórico abrange de {min} a {max} dias.",
   "history.error.retention_bounds": "A retenção do histórico vai de {min} a {max} dias.",
