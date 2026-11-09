@@ -159,6 +159,8 @@ function card(r, ctx, recharging = false, { connection = false } = {}) {
   const sub = repeated ? brand(r.provider).label : accountLabel(r);
   const st = accountState(r);
   const refreshName = isBusy ? te("tray.refreshing") : te("common.refresh");
+  // RF12.4 / DS-MOT-7: under reduced motion the spin stops, so the busy name and aria-busy say "Refreshing…".
+  const connName = isBusy ? te("tray.refreshing") : te("agg.refreshConnection");
   // PRD 0036 RF5.2: a connection that duplicates a direct account stays listed, dimmed, with its "also direct" chip.
   const dup = connection && r.connection.duplicate_of ? " dup" : "";
   return `<section class="card ${on ? "" : "off"} ${alert?.id === "exhausted" ? "exhausted" : ""} ${stripeOf(r, alert)}${dup}" data-card="${esc(key)}">
@@ -167,7 +169,7 @@ function card(r, ctx, recharging = false, { connection = false } = {}) {
       ${tileHtml(r.provider, 40, ctx.monos.get(key) ?? "")}
       <div class="who"><div class="who-t"><h2 title="${esc(title)}">${esc(title)}</h2>${planBadgeHtml(r)}</div>${sub ? `<p title="${esc(sub)}">${esc(sub)}</p>` : ""}</div>
       <div class="actions">
-        ${connection && r.connection.sub ? `<button class="icon" title="${te("agg.refreshConnection")}" aria-label="${te("agg.refreshConnection")}" data-conn-refresh data-index="${index}" data-sub="${esc(r.connection.sub)}" ${isBusy ? "disabled" : ""}>${icon("refresh", isBusy ? "spin" : "")}</button>` : ""}
+        ${connection && r.connection.sub ? `<button class="icon" title="${connName}" aria-label="${connName}" data-conn-refresh data-index="${index}" data-sub="${esc(r.connection.sub)}" ${isBusy ? 'disabled aria-busy="true"' : ""}>${icon("refresh", isBusy ? "spin" : "")}</button>` : ""}
         ${connection ? "" : `<button class="icon" title="${refreshName}" aria-label="${refreshName}" data-refresh="${index}" ${!on || isBusy ? "disabled" : ""} ${isBusy ? 'aria-busy="true"' : ""}>${icon("refresh", isBusy ? "spin" : "")}</button>`}
         <span class="card-more">
           <button class="icon" data-card-more="${esc(key)}" aria-haspopup="menu" aria-expanded="${moreFor === key}" title="${te("card.more")}" aria-label="${te("card.more")}">${icon("more")}</button>
@@ -221,10 +223,11 @@ function aggregatorSection(r, ctx) {
     .map((g) => ({ ...g, items: instanceMatches ? g.items : g.items.filter(matchesFilter) }))
     .filter((g) => g.items.length);
   const failed = r.status !== "ready";
+  const refreshName = isBusy ? te("tray.refreshing") : te("common.refresh");
   return `<section class="agg-section${disabled.has(key) ? " off" : ""}" data-card="${esc(key)}" aria-label="${esc(`${brand(r.provider).label} · ${r.account}`)}">
     <header class="agg-head">${instanceHeadHtml(r)}
       <div class="actions">
-        <button class="icon" title="${te("common.refresh")}" aria-label="${te("common.refresh")}" data-refresh="${r.index}" ${isBusy ? "disabled" : ""}>${icon("refresh", isBusy ? "spin" : "")}</button>
+        <button class="icon" title="${refreshName}" aria-label="${refreshName}" data-refresh="${r.index}" ${isBusy ? 'disabled aria-busy="true"' : ""}>${icon("refresh", isBusy ? "spin" : "")}</button>
         ${bellHtml(store.view, r)}
         <button class="icon" title="${te("card.details")}" aria-label="${te("card.details")}" data-details="${esc(key)}">${icon("search")}</button>
         ${r.aggregator.dashboard ? `<button class="link" data-agg-dashboard="${r.index}">${icon("window")}<span>${te("agg.openDashboard")}</span></button>` : ""}
