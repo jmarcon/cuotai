@@ -2,18 +2,16 @@
 // chart (24 h, 7 days, 30 days) with the last point highlighted and a marker at each reset, all placed by the core
 // (`account_history`): this module only draws. The chart is hidden from assistive technology, which reads the
 // equivalent table (window by window: start, end, initial, final and peak use) instead.
-import { currentLocale, t, te } from "./i18n.js";
-import { STALE, accountHistory, errText, esc, fmtValue, getView, reportKey } from "./lib.js";
+import { t, te } from "./i18n.js";
+import { STALE, accountHistory, errText, esc, fmtDateTime, fmtValue, getView, reportKey } from "./lib.js";
 
 const RANGES = ["day", "week", "month"];
 // viewBox of the chart; the SVG stretches to the width, so only the paths live in it (markers are HTML).
 const W = 300, H = 60;
 let uid = 0;
 
-const when = (iso) => {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "" : d.toLocaleString(currentLocale(), { dateStyle: "short", timeStyle: "short" });
-};
+// The app's one date-time format ("22 Oct, 18:10"), as elsewhere in the details.
+const when = (iso) => fmtDateTime(iso) ?? "";
 const pct = (fraction) => `${(fraction * 100).toFixed(2)}%`;
 const n = (v) => v.toFixed(2);
 
@@ -51,7 +49,15 @@ function tableHtml(m) {
     <thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`;
 }
 
-function metricHtml(m, view) {
+export function metricHtml(m, view) {
+  // DS-CHT-11: a metric without measured use, or a single reading, has no line to draw: only its sentence, never
+  // empty axes that could read as zero.
+  if (!m.trend || m.samples < 2) {
+    return `<figure class="hist-metric">
+    <figcaption><span class="hist-label">${esc(m.label)}</span><span class="sub">${esc(summary(m))}</span></figcaption>
+    ${tableHtml(m)}
+  </figure>`;
+  }
   const { area, line } = chartPaths(m.chart.heights);
   const end = m.chart.last;
   return `<figure class="hist-metric">
@@ -89,9 +95,10 @@ export function mountHistory({ key, index, generation, stamp }) {
   /** The status line: loading, the failure, the explained empty state, or that recording is off. */
   function showStatus() {
     for (const b of el.querySelectorAll("[data-range]")) b.setAttribute("aria-pressed", String(b.dataset.range === range));
-    const off = view && !view.recording ? t("trend.off") : "";
+    const off = view && !view.recording;
+    // One catalog sentence per span and recording state, so every language words it whole (no joined fragments).
     status.textContent = loading && !view ? t("trend.loading")
-      : error ?? (view && !view.metrics.length ? `${t(`trend.empty.${range}`)} ${off || t("trend.emptyHelp")}` : off);
+      : error ?? (view && !view.metrics.length ? t(`trend.${off ? "emptyOff" : "emptyWithHelp"}.${range}`) : off ? t("trend.off") : "");
   }
   /** Draws the answer at once: charts have no entrance (PRD 0022 RF11.4, DS-CHT-2). */
   function paint() {

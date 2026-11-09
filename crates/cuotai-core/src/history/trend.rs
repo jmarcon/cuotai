@@ -86,8 +86,10 @@ const CHART_JOIN: TimeDelta = TimeDelta::hours(1);
 pub struct Chart {
     /// The value axis: from zero (or the lowest value when negative) to the
     /// limit (or the highest value when above it) for a metric with a
-    /// limit; from the lowest to the highest value without one. Equal
-    /// bounds (a flat series) put every value on the floor.
+    /// limit; from zero (or the lowest value when negative) to the highest
+    /// value (or zero when every value is negative) without one, so a small
+    /// change never reads as a full rise (DS-CHT-4). Equal bounds (a flat
+    /// zero) put every value on the floor.
     pub floor: f64,
     pub ceiling: f64,
     /// The highest `used` of each equal time bucket (the peak, as the
@@ -210,7 +212,7 @@ impl MetricHistory {
         let (min, max) = range.unwrap_or((0.0, 0.0));
         let (floor, ceiling) = match self.limit.filter(|limit| *limit > 0.0) {
             Some(limit) => (min.min(0.0), limit.max(max)),
-            None => (min, max),
+            None => (min.min(0.0), max.max(0.0)),
         };
         let mut chart = Chart {
             floor,
@@ -410,12 +412,18 @@ mod tests {
             metric.levels(start, end, 4, 8),
             [Some(4), None, Some(7), Some(4)]
         );
-        // Without a limit the scale runs from the lowest to the highest
-        // value, so a growing spend shows its trend.
+        // Without a limit the scale runs from zero to the highest value
+        // (DS-CHT-4), so doubling a spend reads as half the height to full.
         let spend = history(&[(0, 2.0), (3, 4.0)], None);
         assert_eq!(
             spend.levels(start, end, 4, 8),
-            [Some(0), None, None, Some(7)]
+            [Some(4), None, None, Some(7)]
+        );
+        // A small change of a large balance stays nearly flat.
+        let balance = history(&[(0, 230.0), (3, 240.0)], None);
+        assert_eq!(
+            balance.levels(start, end, 4, 8),
+            [Some(7), None, None, Some(7)]
         );
         // Use above the limit is never cut: the scale grows to it.
         let over = history(&[(0, 50.0), (3, 200.0)], Some(100.0));
@@ -432,7 +440,7 @@ mod tests {
         assert_eq!(outside.levels(start, end, 2, 8), [Some(1), None]);
         // Only the span sets the scale.
         let spend = history(&[(-2, 1000.0), (1, 10.0), (3, 20.0)], None);
-        assert_eq!(spend.levels(start, end, 2, 8), [Some(0), Some(7)]);
+        assert_eq!(spend.levels(start, end, 2, 8), [Some(4), Some(7)]);
     }
 
     #[test]
@@ -469,14 +477,21 @@ mod tests {
                 None
             ]
         );
-        // Without a limit the axis runs from the lowest to the highest
-        // value; a lone value sits on the floor.
+        // Without a limit the axis runs from zero to the highest value
+        // (DS-CHT-4); a lone value sits at the top; a negative value moves
+        // the floor below zero.
         let spend = history(&[(0, 2.0), (4, 4.0)], None).chart(start, end, 2);
-        assert_eq!((spend.floor, spend.ceiling), (2.0, 4.0));
-        assert_eq!(spend.heights, [Some(0.0), Some(1.0)]);
+        assert_eq!((spend.floor, spend.ceiling), (0.0, 4.0));
+        assert_eq!(spend.heights, [Some(0.5), Some(1.0)]);
         let lone = history(&[(1, 7.0)], None).chart(start, end, 2);
-        assert_eq!(lone.heights, [Some(0.0), None]);
-        assert_eq!(lone.last.map(|p| p.y), Some(0.0));
+        assert_eq!(lone.heights, [Some(1.0), None]);
+        assert_eq!(lone.last.map(|p| p.y), Some(1.0));
+        let negative = history(&[(0, -2.0), (4, 3.0)], None).chart(start, end, 2);
+        assert_eq!((negative.floor, negative.ceiling), (-2.0, 3.0));
+        assert_eq!(negative.heights, [Some(0.0), Some(1.0)]);
+        let flat = history(&[(0, 0.0), (4, 0.0)], None).chart(start, end, 2);
+        assert_eq!((flat.floor, flat.ceiling), (0.0, 0.0));
+        assert_eq!(flat.heights, [Some(0.0), Some(0.0)]);
         // Nothing in the span: only gaps and no end point, never zero.
         let empty = history(&[(-3, 50.0)], Some(100.0)).chart(start, end, 3);
         assert_eq!(empty.heights, [None; 3]);
