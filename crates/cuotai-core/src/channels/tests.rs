@@ -570,6 +570,53 @@ fn golden_payloads_for_a_threshold_an_exhaustion_and_a_digest() {
     );
 }
 
+/// PRD 0008 re-validation (S-01): a channel with `include_names: false`
+/// gets the private overage and pool texts: no account name, no amount and
+/// no pool label in the title or the body.
+#[test]
+fn hidden_names_keep_overage_and_pool_alerts_private() {
+    let secret = account("Secret Corp");
+    let overage = AlertEvent {
+        kind: AlertKind::OverageStarted,
+        label: "Extra".into(),
+        window: Some(MetricWindow::Monthly),
+        overage: Some(crate::overage::OverageExport {
+            state: crate::overage::OverageState::Active,
+            spent: Some(1234.56),
+            unit: Some("USD".into()),
+            currency: Some("USD".into()),
+            cap: None,
+            cycle_ends_at: None,
+        }),
+        ..alert(&secret, AlertKind::Threshold, 90)
+    };
+    let pool = AlertEvent {
+        kind: AlertKind::PoolExhausted,
+        label: "Hidden Pool".into(),
+        window: None,
+        ..alert(&secret, AlertKind::Threshold, 90)
+    };
+    for event in [overage, pool] {
+        let source = Source::Alerts {
+            account: secret.clone(),
+            events: vec![event],
+        };
+        let named = outgoing(&source, true);
+        assert!(
+            format!("{} {}", named.title, named.body).contains("Secret"),
+            "names shown when allowed"
+        );
+        let hidden = outgoing(&source, false);
+        let text = format!("{} {}", hidden.title, hidden.body);
+        for word in ["Secret", "1234", "1,234", "Hidden"] {
+            assert!(
+                !text.contains(word),
+                "{word} reached a channel with names hidden"
+            );
+        }
+    }
+}
+
 #[test]
 fn filters_keep_kinds_accounts_and_severity() {
     let work = account("Work");

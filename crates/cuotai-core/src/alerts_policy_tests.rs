@@ -390,6 +390,94 @@ fn private_texts_carry_no_account_name_in_any_language() {
     );
 }
 
+/// PRD 0008 re-validation (S-01, S-02): the overage, pool and windowless
+/// notices honour private texts too, in every language: no account name,
+/// no amount, no pool or metric label, in the notice and in the quiet-hours
+/// digest that reuses its title.
+#[test]
+fn private_overage_pool_and_windowless_texts_carry_no_names_or_amounts() {
+    use crate::overage::{OverageExport, OverageState};
+    let secret = account("Secret Corp");
+    let reading = report(t0(), quota(92.0, Some(window())));
+    let base = event_of(&reading, AlertKind::Threshold, 90);
+    let spent = OverageExport {
+        state: OverageState::Active,
+        spent: Some(1234.56),
+        unit: Some("USD".into()),
+        currency: Some("USD".into()),
+        cap: Some(5000.0),
+        cycle_ends_at: Some(window()),
+    };
+    let overage = |kind| AlertEvent {
+        kind,
+        label: "Extra".into(),
+        window: Some(MetricWindow::Monthly),
+        overage: Some(spent.clone()),
+        ..base.clone()
+    };
+    let pool = |kind| AlertEvent {
+        kind,
+        label: "Hidden Pool".into(),
+        window: None,
+        ..base.clone()
+    };
+    let windowless = |kind, threshold, window| AlertEvent {
+        kind,
+        threshold,
+        label: "Hidden Metric".into(),
+        window,
+        ..base.clone()
+    };
+    let mut cases = vec![
+        overage(AlertKind::OverageStarted),
+        overage(AlertKind::OverageCapReached),
+        AlertEvent {
+            resets_at: None,
+            ..overage(AlertKind::OverageStarted)
+        },
+        pool(AlertKind::PoolExhausted),
+        pool(AlertKind::PoolRecovered),
+        AlertEvent {
+            resets_at: None,
+            ..pool(AlertKind::PoolExhausted)
+        },
+    ];
+    for window in [None, Some(MetricWindow::Other)] {
+        cases.push(windowless(AlertKind::Threshold, 90, window));
+        cases.push(windowless(AlertKind::Exhausted, 100, window));
+        cases.push(windowless(AlertKind::Recovered, 100, window));
+    }
+    let forbidden = ["Secret", "1234", "1,234", "1.234", "Hidden", "Extra"];
+    for event in cases {
+        let public = notice_with(&[(&secret, vec![event.clone()])], t0(), &Utc, false).unwrap();
+        let public = format!(
+            "{} | {}",
+            public.title.resolve("en-US"),
+            public.body.resolve("en-US")
+        );
+        assert!(
+            public.contains("Secret") || public.contains("Hidden"),
+            "the public text names the account or the label: {public}"
+        );
+        let private = notice_with(&[(&secret, vec![event.clone()])], t0(), &Utc, true).unwrap();
+        let digest =
+            crate::quiet::digest(&[(&secret, vec![event.clone()])], t0(), &Utc, true).unwrap();
+        for locale in crate::text::LOCALES.iter().map(|row| row.code) {
+            let text = format!(
+                "{} | {} | {} | {}",
+                private.title.resolve(locale),
+                private.body.resolve(locale),
+                digest.title.resolve(locale),
+                digest.body.resolve(locale)
+            );
+            for word in forbidden {
+                assert!(!text.contains(word), "{locale} {:?}: {text}", event.kind);
+            }
+            assert!(!text.contains('{'), "{locale} {:?}: {text}", event.kind);
+        }
+    }
+}
+
 #[test]
 fn private_reset_notices_carry_no_account_or_metric_names() {
     use crate::resets::{ResetEvent, ResetMetric};

@@ -1000,6 +1000,50 @@ mod tests {
         assert!(!banner.contains("— b:"), "{banner}");
     }
 
+    /// PRD 0008 re-validation (S-01): with private texts on, the OSC 9 text
+    /// of an extra-usage alert names neither the account nor the amount
+    /// (the in-terminal banner keeps them, like every other alert).
+    #[test]
+    fn private_osc9_of_an_overage_alert_has_no_name_or_amount() {
+        use cuotai_core::alerts::AlertKind;
+        use cuotai_core::overage::{OverageExport, OverageState};
+        let config = config(vec![account("Secret Corp")]);
+        let mut notices = Notices::new(start(), true);
+        notices.loaded.notify.private = true;
+        notices.pending.push(AlertEvent {
+            account_key: config.accounts[0].state_key(),
+            label: "Extra".into(),
+            window: Some(MetricWindow::Monthly),
+            kind: AlertKind::OverageStarted,
+            threshold: 0,
+            consumed: 0.0,
+            resets_at: Some(start() + TimeDelta::days(9)),
+            projection: None,
+            overage: Some(OverageExport {
+                state: OverageState::Active,
+                spent: Some(1234.56),
+                unit: Some("USD".into()),
+                currency: Some("USD".into()),
+                cap: None,
+                cycle_ends_at: None,
+            }),
+            limit_change: None,
+            row: None,
+        });
+        let reading = report(&config.accounts[0], 10.0, start() + TimeDelta::hours(3));
+        let out = notices.tick(&config, &[Some(&reading)], start() + mins(2), "en-US");
+        let text = String::from_utf8(out).unwrap();
+        let osc = text
+            .split("\x1b]9;")
+            .nth(1)
+            .and_then(|rest| rest.split("\x1b\\").next())
+            .expect("an OSC 9 notice");
+        assert!(osc.contains("extra usage started"), "{osc}");
+        for word in ["Secret", "1234", "1,234"] {
+            assert!(!osc.contains(word), "{osc}");
+        }
+    }
+
     #[test]
     fn a_stale_restored_reading_or_a_removed_account_never_rings() {
         let remaining = config(vec![account("a")]);
