@@ -784,7 +784,7 @@ Shared with the TUI and the menu bar. The shapes come from the TUI's pace vocabu
 ### 7.1 Policy
 
 - **DS-MOT-1** Motion is allowed only to show **continuity of a direct user action** (a disclosure opening, a view replacing another, a dragged item settling) or a **state in progress** (a refresh running). Data changes are not animated: new values appear at once.
-- **DS-MOT-2** Allowed properties: `opacity`, and `height`/`grid-template-rows` for disclosures. No `transform` on data, no scale, no shake, no bounce, no spring overshoot.
+- **DS-MOT-2** Allowed properties: `opacity`, and `height`/`grid-template-rows` for disclosures. No `transform` on data, no scale, no shake, no bounce, no spring overshoot. UI chrome MAY transition `transform` at `--motion-fast` with `--ease-out`: a disclosure chevron rotating and a switch knob sliding. The FLIP of a card the user moved MAY translate it (section 7.2 item 16). Never on data.
 - **DS-MOT-3** Durations: `--motion-fast` (redefined to 120 ms) for hover, focus and color; `--motion-base` (redefined to 180 ms) for disclosures, view switches and dialog fade. Nothing exceeds 200 ms. `--motion-slow` and `--ease-spring` are deprecated aliases of `--motion-base` and `--ease-out`, removed once unused.
 - **DS-MOT-4** Easing: `--ease-out` only. Exits are instant or `--motion-fast`.
 - **DS-MOT-5 Forbidden:** looping or ambient animation (except DS-MOT-7), shimmer, pulses, count-up numbers, level flashes, shakes, staggered entrances, exit ghosts, animated gradients, chart entrances, decorative parallax.
@@ -792,6 +792,7 @@ Shared with the TUI and the menu bar. The shapes come from the TUI's pace vocabu
 - **DS-MOT-7** The only loop is the refresh spinner (`.spin`, `--motion-spin`) on the control whose work is in progress, while it is in progress. With reduced motion it is replaced by the static icon plus the text "Refreshing…" in the accessible name.
 - **DS-MOT-8 Reduced motion.** `prefers-reduced-motion: reduce` and **Settings → Animations: Reduced/Off** zero every duration (existing `themes.css` mechanism, `!important`). "Reduced" MAY keep opacity fades ≤ 120 ms; "Off" keeps nothing. Themes may lower durations (Win98 `steps()`, CRT 0 ms) and MUST NOT raise them.
 - **DS-MOT-9** An idle window has `document.getAnimations().length === 0` (PRD 0004 acceptance rule, kept).
+- **DS-MOT-10 Change marker.** A figure or level that changed in the last refresh gets a static 6 px `--accent` dot, `aria-hidden`, with the previous value in its tooltip ("Was 31%"), paired with the polite live region that announces the change once (DS-A11Y-3). It stays until the next refresh or until the user opens the account. It sits beside the figure in rows and in the card foot, before **Details**, in main-window cards (a card can show several figures, while the marker follows the account). It never moves, fades or pulses. A figure that becomes absent is announced by its state's name, never as 0 %.
 
 ### 7.2 Inventory of current motion (input for the PRD)
 
@@ -899,6 +900,7 @@ Decisions of the project owner that settled questions raised while drafting this
 | 2026-11-07 | Backup, restore and the setup check in the desktop: plan with a choice per replacement, merges without a choice, next steps that open the account, a "Check setup" link on Needs setup cards; the setup check speaks of keys, never variables (PRD 0047 G1). | DS-CMP-BAK-1..3, DS-CMP-DOC-1 |
 | 2026-10-29 | Tray rows show the shortest window as a thick bar and the next longer one (or the second tightest model) as a thin bar, chosen by the core; the big figure is the thick window's with its name, the thin one's share sits below it; a limiting thin window takes at least the warning role; pace marks become a triangle above the thick bar and a dot on the thin one, with a ↗/↘ points delta beside each share. | DS-CMP-ROW-8, ROW-8a..8d, DS-CMP-MTR-6c, MTR-7 |
 | 2026-11-07 | Breakdown rows reuse the sub-limit row; the details add a per-row **Set a budget…** and an **Alert on breakdown rows** checkbox at the end of the section (PRD 0045 RF5). | DS-CMP-SUB-4 |
+| 2026-11-09 | Motion amendments from the PRD 0004 re-validation: chevrons, switch knobs and the user-move FLIP may transition `transform` (DS-MOT-2); the change marker gets its own rule and its main-window placement in the card foot (DS-MOT-10, replacing the "section 7" reference of the 2026-10-25 row); theme files are checked for motion by `scripts/test-motion-ui.mjs`. | DS-MOT-2, DS-MOT-10 |
 
 ## Appendix A. Candidates (guidelines, not normative)
 

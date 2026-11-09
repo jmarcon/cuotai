@@ -9,7 +9,7 @@ export const esc = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
 /** Makes `el` equal to `html` touching only what changed (PRD 0004 RF1.3): kept nodes preserve focus,
- *  scroll and CSS transitions (e.g. `.bar > span` animates the new width). Children with `data-card` match by
+ *  scroll and the open state of disclosures (values change at once, DS-MOT-1). Children with `data-card` match by
  *  key (created, moved or removed); the others, by position and type. */
 export function patch(el, html) {
   const t = document.createElement("template");

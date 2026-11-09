@@ -24,6 +24,25 @@ for (const f of cssFiles) {
   assert.doesNotMatch(css, /scale\(1\.01\)/, `${f}: hover scale`);
   assert.doesNotMatch(css, /backdrop-filter/, `${f}: component blur`);
 }
+// PRD 0004 re-validation V-07 (DS-MOT-8): a built-in theme adds no keyframes or animation and may only lower the
+// motion durations (or set 0), never raise them; easings are free (Win98 uses steps()).
+const defaults = { "--motion-fast": 120, "--motion-base": 180, "--motion-slow": 180, "--motion-spin": 900 };
+const themeFiles = (await readdir(new URL("css/themes/", ui))).filter((f) => f.endsWith(".css"));
+assert.ok(themeFiles.length >= 15, "the built-in themes are found");
+for (const f of themeFiles) {
+  const css = strip(await read(`css/themes/${f}`));
+  for (const [, name] of css.matchAll(/@keyframes\s+([\w-]+)/g)) assert.equal(name, "spin", `${f}: @keyframes ${name}`);
+  for (const [, value] of css.matchAll(/(?<![\w-])animation(?:-name)?\s*:([^;]+);/g)) assert.match(value, /^\s*(none|spin\b)/, `${f}: animation ${value}`);
+  for (const [, token, value] of css.matchAll(/(--motion-(?:fast|base|slow|spin))\s*:\s*([^;]+);/g)) {
+    const v = value.trim();
+    if (/^var\(--motion-[\w-]+\)$/.test(v)) continue;
+    const m = /^(\d*\.?\d+)(ms|s)?$/.exec(v);
+    assert.ok(m && (m[2] || Number(m[1]) === 0), `${f}: ${token}: ${v} is not a duration`);
+    const ms = Number(m[1]) * (m[2] === "s" ? 1000 : 1);
+    assert.ok(ms <= defaults[token], `${f}: ${token}: ${v} raises the default ${defaults[token]}ms`);
+  }
+}
+
 const themes = strip(await read("css/themes.css"));
 assert.match(themes, /--motion-fast: 120ms;/);
 assert.match(themes, /--motion-base: 180ms;/);

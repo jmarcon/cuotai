@@ -250,7 +250,7 @@ const pasteSessionHtml = (r) => (sessionAction(r)
 const checkSetupHtml = (r) => (r.status === "needs_configuration"
   ? `<button type="button" class="link" data-settings="files" data-settings-anchor="doctor">${icon("wrench")}<span>${te("card.checkSetup")}</span></button>` : "");
 
-/** Account with no report yet ("Waiting"): skeleton with shimmer until the data arrives (RF2.3). */
+/** Account with no report yet ("Waiting"): a static skeleton until the data arrives (RF2.3; no shimmer, DS-MOT-5). */
 const skeleton = (index) => `<section class="card skeleton" data-card="skeleton:${index}" aria-busy="true">
     <div class="card-head"><span class="sk sk-logo"></span><div class="who"><h2>${te("card.waiting")}</h2><span class="sk"></span></div></div>
     <div class="summary"><span class="sk"></span><span class="sk sk-short"></span></div>
