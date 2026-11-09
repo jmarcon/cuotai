@@ -13,6 +13,17 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.84.3] - 2026-11-09
+
+### Fixed
+
+- A malformed rate-limit or token lifetime from a provider now fails only that account instead of stopping the whole refresh (PRD 0033 RF1.2; PRD 0055 RF2; cb32741).
+- The tray's next-notice line now accounts for quiet hours and always shows the time in full (PRD 0003 RF3.4; PRD 0032 RF3.1; 370f9a4).
+- Reset notices now show metric names in your language, name unnamed accounts correctly and fit the system's notification length (PRD 0003 RF2.2; PRD 0034 RF2; PRD 0032 RF7; f5841b7).
+- Settings › Alerts no longer clips the Notify label in narrow windows (PRD 0003 RF2.2, RF3.1; PRD 0050 RF1.1; 6b7faf2).
+- Reset and usage notices are no longer repeated when the notice record cannot be read or was written by a newer version (PRD 0003 RF2.3; PRD 0032 RF4.2; PRD 0051 RF3.2; ab7b483).
+- The terminal's reset banner keeps the account name visible in narrow terminals (PRD 0003 RF4; 30062b9).
+
 ## [0.84.2] - 2026-11-09
 
 ### Fixed
@@ -602,7 +613,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.84.2...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.84.3...HEAD
+[0.84.3]: https://github.com/jmarcon/cuotai/compare/v0.84.2...v0.84.3
 [0.84.2]: https://github.com/jmarcon/cuotai/compare/v0.84.1...v0.84.2
 [0.84.1]: https://github.com/jmarcon/cuotai/compare/v0.84.0...v0.84.1
 [0.84.0]: https://github.com/jmarcon/cuotai/compare/v0.83.1...v0.84.0
