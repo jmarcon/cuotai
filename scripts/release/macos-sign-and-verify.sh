@@ -48,7 +48,7 @@ codesign -d --entitlements - --xml "$plugin" 2>/dev/null | grep -q 'com.apple.se
 # Recreate the image only after the final app signature exists, so the payload
 # users install is byte-for-byte the payload verified above.
 rm -f "$dmg"
-hdiutil create -volname Cuotai -srcfolder "$app" -ov -format UDZO "$dmg"
+"$(dirname "$0")/macos-create-dmg.sh" "$app" "$dmg"
 codesign "${sign_args[@]}" "$dmg"
 codesign --verify --strict --verbose=2 "$dmg"
 echo "applied and verified $description signatures on the app payload and DMG container"
