@@ -1342,13 +1342,13 @@
   "query.transport": "Errore di rete o timeout della query.",
   "query.timeout": "La query è scaduta.",
   "query.insecure_transport": "Endpoint rifiutato: le credenziali vengono inviate solo tramite HTTPS. Nulla è stato inviato.",
-  "resets.body": "{account}: {metrics}. Secondo l'orario riportato dal provider; il nuovo saldo compare al prossimo aggiornamento.",
+  "resets.body": "{account}: {metrics}. Orario del provider; nuovo saldo al prossimo aggiornamento.",
   "resets.title.reset": "{provider}: quota {window} azzerata",
   "resets.title.reset_many": {
     "one": "{provider}: {count} quota azzerata",
     "other": "{provider}: {count} quote azzerate"
   },
-  "resets.title.soon": "{provider}: la quota {window} si azzera tra {minutes} min",
+  "resets.title.soon": "{provider}: quota {window} si azzera tra {minutes} min",
   "resets.title.soon_many": {
     "one": "{provider}: {count} quota si azzera tra {minutes} min",
     "other": "{provider}: {count} quote si azzerano tra {minutes} min"
@@ -1975,7 +1975,10 @@
   "alerts.body.session_expiring.private": "La sessione scade {at}.",
   "alerts.title.projected.private": "{provider}: potrebbe esaurirsi prima del rinnovo",
   "alerts.body.projected.private": "A questo ritmo finisce ≈{at}, {margin} prima del rinnovo",
-  "resets.body.private": "Secondo l'orario riportato dal provider; il nuovo saldo compare al prossimo aggiornamento.",
+  "resets.body.private": "Orario del provider; nuovo saldo al prossimo aggiornamento.",
+  "resets.metrics.list": "{head}, {tail}",
+  "resets.title.reset_other": "{provider}: quota azzerata",
+  "resets.title.soon_other": "{provider}: quota si azzera tra {minutes} min",
   "quiet.digest.title": {
     "one": "Cuotai: {count} avviso di utilizzo trattenuto durante le ore di silenzio",
     "other": "Cuotai: {count} avvisi di utilizzo trattenuti durante le ore di silenzio"

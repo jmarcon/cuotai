@@ -1866,16 +1866,19 @@
   "remove_error.purge_vault.storage": "保管庫を消去できませんでした：{detail}",
   "remove_error.save": "設定を保存できませんでした：{detail}。",
   "remove_error.session": "このアカウントの Web セッションをシステムの保管庫から削除できなかったため、アカウントは削除していません：{detail}",
-  "resets.body": "{account}：{metrics}。プロバイダーが報告した時刻に基づきます。新しい残高は次回の更新で表示されます。",
-  "resets.body.private": "プロバイダーが報告した時刻に基づきます。新しい残高は次回の更新で表示されます。",
+  "resets.body": "{account}：{metrics}。時刻はプロバイダー基準。新しい残高は次回の更新で表示。",
+  "resets.body.private": "時刻はプロバイダー基準。新しい残高は次回の更新で表示。",
+  "resets.metrics.list": "{head}、{tail}",
+  "resets.title.reset_other": "{provider}：クォータがリセットされました",
+  "resets.title.soon_other": "{provider}：クォータは{minutes}分後にリセット",
   "resets.chip.return_unknown": "回復時期不明",
   "resets.chip.returns": "{at} に回復",
   "resets.pair": "{at} にリセット · {in}",
-  "resets.title.reset": "{provider}：{window} のクォータがリセットされました",
+  "resets.title.reset": "{provider}：{window}のクォータがリセットされました",
   "resets.title.reset_many": {
     "other": "{provider}：{count} 件のクォータがリセットされました"
   },
-  "resets.title.soon": "{provider}：{window} のクォータは {minutes} 分後にリセット",
+  "resets.title.soon": "{provider}：{window}のクォータは{minutes}分後にリセット",
   "resets.title.soon_many": {
     "other": "{provider}：{count} 件のクォータは {minutes} 分後にリセット"
   },

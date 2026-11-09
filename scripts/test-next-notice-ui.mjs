@@ -28,6 +28,16 @@ assert.equal(parts.when, later, "the time is the tail");
 assert.ok(parts.head.startsWith("Next notice: "));
 assert.equal(lib.nextNoticeParts({ notify: {} }), null);
 
+// An `other` window shows the core's translated label, never the adapter's text (re-validation V-01).
+const other = lib.nextNoticeParts({ notify: { next: { provider: "claude", window: "other", label: "Gemini (Semanal)",
+  label_text: { id: "x.unknown", params: {}, fallback: "Gemini (Weekly)" }, at: at(0, 14, 30) } } }, now);
+assert.match(other.text, /Gemini \(Weekly\)/);
+assert.doesNotMatch(other.text, /Semanal/);
+// An unnamed account's bell names its provider (re-validation V-05).
+const bell = lib.bellHtml({ notify: { enabled: true } }, { account: "", provider: "claude", account_key: "k", notify: true });
+assert.doesNotMatch(bell, /aria-label="[^"]*for "/);
+assert.match(bell, /aria-label="[^"]*claude/i);
+
 // Every catalog has the two joins, with both placeholders.
 for (const code of ["pt-BR", "en-US", "es", "it", "zh-CN", "fr", "de", "ja", "ko", "hi-IN", "id-ID", "ru", "tr", "vi"]) {
   const catalog = JSON.parse(await readFile(new URL(`../apps/desktop/ui/locales/${code}.json`, import.meta.url), "utf8"));

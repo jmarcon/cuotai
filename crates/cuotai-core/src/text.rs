@@ -265,6 +265,52 @@ impl From<Localized> for String {
 
 /// `status.<snake_case>` — the same ids the desktop catalog already uses
 /// for the serialized [`crate::Status`] enum.
+/// Whether `c` can disguise text on screen: a control character or a bidi
+/// override/isolate (U+202A–U+202E, U+2066–U+2069).
+pub fn is_disguising(c: char) -> bool {
+    c.is_control() || matches!(c, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}')
+}
+
+/// How a system notification renders its text (PRD 0003 re-validation
+/// S-04).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NoticeMarkup {
+    /// Shown as written (macOS, Windows, terminals).
+    Plain,
+    /// Read as markup (Linux notification daemons): `&`, `<` and `>` are
+    /// escaped.
+    Escape,
+}
+
+/// Longest notification title kept, in characters (DS-CMP-NOTIF-1 asks
+/// for 50; the cap only stops a long provider value).
+pub const NOTICE_TITLE_MAX: usize = 64;
+/// Longest notification body kept, in characters (DS-CMP-NOTIF-1: 110).
+pub const NOTICE_BODY_MAX: usize = 160;
+
+/// A system notification's text made safe to show: controls and bidi
+/// overrides dropped, at most `max` characters (the last one "…" when
+/// cut), then escaped for `markup`. Account names and metric labels come
+/// from configuration and providers, so every notice goes through here.
+pub fn notice_safe(text: &str, max: usize, markup: NoticeMarkup) -> String {
+    let kept: Vec<char> = text.chars().filter(|c| !is_disguising(*c)).collect();
+    let mut cut: String = if kept.len() > max {
+        let mut head: String = kept[..max.saturating_sub(1)].iter().collect();
+        head.truncate(head.trim_end().len());
+        head.push('…');
+        head
+    } else {
+        kept.into_iter().collect()
+    };
+    if markup == NoticeMarkup::Escape {
+        cut = cut
+            .replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('>', "&gt;");
+    }
+    cut
+}
+
 pub fn status_l10n(status: crate::Status) -> Localized {
     use crate::Status::*;
     let slug = match status {
@@ -884,6 +930,32 @@ mod tests {
     /// Every id the descriptor APIs emit for any provider must be translated
     /// in every shipped catalog; otherwise that frontend locale silently
     /// shows the English fallback.
+    /// PRD 0003 re-validation S-04: notices lose controls and bidi
+    /// overrides, are capped, and escape markup only where it is read.
+    #[test]
+    fn notice_text_is_cleaned_capped_and_escaped() {
+        assert_eq!(
+            notice_safe("Work\u{202E}gnp.exe\n\x07", 64, NoticeMarkup::Plain),
+            "Workgnp.exe"
+        );
+        assert_eq!(
+            notice_safe("Claude & GPT <b>", 64, NoticeMarkup::Plain),
+            "Claude & GPT <b>"
+        );
+        assert_eq!(
+            notice_safe("Claude & GPT <b>", 64, NoticeMarkup::Escape),
+            "Claude &amp; GPT &lt;b&gt;"
+        );
+        let long = "a".repeat(200);
+        let cut = notice_safe(&long, NOTICE_TITLE_MAX, NoticeMarkup::Plain);
+        assert_eq!(cut.chars().count(), NOTICE_TITLE_MAX);
+        assert!(cut.ends_with('…'));
+        assert_eq!(
+            notice_safe("short", NOTICE_BODY_MAX, NoticeMarkup::Plain),
+            "short"
+        );
+    }
+
     #[test]
     fn every_descriptor_id_is_translated_in_every_catalog() {
         use crate::account_edit::{self as edit, FieldDescriptorKind};

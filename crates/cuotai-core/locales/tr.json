@@ -1876,17 +1876,20 @@
   "remove_error.purge_vault.storage": "Kasa temizlenemedi: {detail}",
   "remove_error.save": "Yapılandırma kaydedilemedi: {detail}.",
   "remove_error.session": "Bu hesabın web oturumu sistem kasasından silinemedi, bu yüzden hesap kaldırılmadı: {detail}",
-  "resets.body": "{account}: {metrics}. Sağlayıcının bildirdiği zamana göre; yeni bakiye sonraki yenilemede görünür.",
-  "resets.body.private": "Sağlayıcının bildirdiği zamana göre; yeni bakiye sonraki yenilemede görünür.",
+  "resets.body": "{account}: {metrics}. Saat sağlayıcıdan; yeni bakiye sonraki yenilemede.",
+  "resets.body.private": "Saat sağlayıcıdan; yeni bakiye sonraki yenilemede.",
+  "resets.metrics.list": "{head}, {tail}",
+  "resets.title.reset_other": "{provider}: kota sıfırlandı",
+  "resets.title.soon_other": "{provider}: kota {minutes} dk içinde sıfırlanacak",
   "resets.chip.return_unknown": "Dönüş belirsiz",
   "resets.chip.returns": "{at} dönüyor",
   "resets.pair": "Sıfırlanma {at} · {in}",
-  "resets.title.reset": "{provider}: {window} kotası sıfırlandı",
+  "resets.title.reset": "{provider}: {window} kota sıfırlandı",
   "resets.title.reset_many": {
     "one": "{provider}: {count} kota sıfırlandı",
     "other": "{provider}: {count} kota sıfırlandı"
   },
-  "resets.title.soon": "{provider}: {window} kotası {minutes} dk içinde sıfırlanacak",
+  "resets.title.soon": "{provider}: {window} kota {minutes} dk içinde sıfırlanacak",
   "resets.title.soon_many": {
     "one": "{provider}: {count} kota {minutes} dk içinde sıfırlanacak",
     "other": "{provider}: {count} kota {minutes} dk içinde sıfırlanacak"

@@ -1342,7 +1342,7 @@
   "query.transport": "Fallo de red o tiempo de espera agotado en la consulta.",
   "query.timeout": "Se agotó el tiempo de espera de la consulta.",
   "query.insecure_transport": "Endpoint rechazado: las credenciales solo viajan por HTTPS. No se envió nada.",
-  "resets.body": "{account}: {metrics}. Según la hora informada por el proveedor; el nuevo saldo aparece en la próxima actualización.",
+  "resets.body": "{account}: {metrics}. Hora del proveedor; nuevo saldo en la próxima actualización.",
   "resets.title.reset": "{provider}: cuota {window} renovada",
   "resets.title.reset_many": {
     "one": "{provider}: {count} cuota renovada",
@@ -1975,7 +1975,10 @@
   "alerts.body.session_expiring.private": "La sesión caduca {at}.",
   "alerts.title.projected.private": "{provider}: puede agotarse antes del reinicio",
   "alerts.body.projected.private": "A este ritmo se agota ≈{at}, {margin} antes del reinicio",
-  "resets.body.private": "Según la hora informada por el proveedor; el nuevo saldo aparece en la próxima actualización.",
+  "resets.body.private": "Hora del proveedor; nuevo saldo en la próxima actualización.",
+  "resets.metrics.list": "{head}, {tail}",
+  "resets.title.reset_other": "{provider}: cuota renovada",
+  "resets.title.soon_other": "{provider}: cuota se renueva en {minutes} min",
   "quiet.digest.title": {
     "one": "Cuotai: {count} alerta de uso retenida durante las horas de silencio",
     "other": "Cuotai: {count} alertas de uso retenidas durante las horas de silencio"

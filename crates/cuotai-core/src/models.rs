@@ -441,9 +441,7 @@ const MAX_DESCRIPTION: usize = 1_024;
 /// a provider could use to disguise a label, then keep at most `max` chars.
 fn clean(text: &str, max: usize) -> String {
     text.chars()
-        .filter(|c| {
-            !c.is_control() && !matches!(c, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}')
-        })
+        .filter(|c| !crate::text::is_disguising(*c))
         .take(max)
         .collect::<String>()
         .trim()

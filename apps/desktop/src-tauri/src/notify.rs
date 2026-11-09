@@ -56,6 +56,7 @@ pub struct SystemNotifier(pub tauri::AppHandle);
 impl Notifier for SystemNotifier {
     fn deliver(&self, title: &str, body: &str) -> Result<(), String> {
         use tauri_plugin_notification::NotificationExt;
+        let (title, body) = shown_text(title, body);
         self.0
             .notification()
             .builder()
@@ -64,6 +65,23 @@ impl Notifier for SystemNotifier {
             .show()
             .map_err(|e| e.to_string())
     }
+}
+
+/// Every system notification (reset notices, usage alerts, digests, channel
+/// failures) without controls or bidi overrides, capped, and escaped where
+/// the notification daemon reads markup (Linux). PRD 0003 re-validation
+/// S-04.
+fn shown_text(title: &str, body: &str) -> (String, String) {
+    use cuotai_core::text::{notice_safe, NoticeMarkup, NOTICE_BODY_MAX, NOTICE_TITLE_MAX};
+    let markup = if cfg!(target_os = "linux") {
+        NoticeMarkup::Escape
+    } else {
+        NoticeMarkup::Plain
+    };
+    (
+        notice_safe(title, NOTICE_TITLE_MAX, markup),
+        notice_safe(body, NOTICE_BODY_MAX, markup),
+    )
 }
 
 /// PRD 0046 RF4.1: whether the system lets the app notify, without asking:
@@ -979,6 +997,15 @@ mod tests {
 
     /// PRD 0043 RF4.3: a posted digest opens the Stats view on the next
     /// focus only within its window.
+    /// PRD 0003 re-validation S-04: what reaches the notification center
+    /// has no bidi override or control and is capped.
+    #[test]
+    fn shown_text_is_cleaned_and_capped() {
+        let (title, body) = shown_text("Claude\u{202E}: reset", &"x".repeat(400));
+        assert_eq!(title, "Claude: reset");
+        assert_eq!(body.chars().count(), cuotai_core::text::NOTICE_BODY_MAX);
+    }
+
     #[test]
     fn a_posted_digest_opens_stats_only_for_a_while() {
         let now = std::time::Instant::now();

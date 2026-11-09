@@ -1089,6 +1089,9 @@ pub struct NextNoticeView {
     /// Window and label of the group's first metric.
     window: MetricWindow,
     label: String,
+    /// `label` in the interface language (PRD 0034 RF2), for an `other`
+    /// window the UI does not name.
+    label_text: cuotai_core::text::Localized,
     /// When the notice is due (`resets_at − lead`).
     at: chrono::DateTime<chrono::Utc>,
     resets_at: chrono::DateTime<chrono::Utc>,
@@ -1721,6 +1724,7 @@ fn next_notice_view(
         account: account.name.clone(),
         window: first.window,
         label: first.label.clone(),
+        label_text: cuotai_core::metric_text::metric_text(&first.label),
         at: event.notify_at,
         resets_at: event.resets_at,
     }
