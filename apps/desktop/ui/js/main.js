@@ -140,6 +140,9 @@ function card(r, ctx, recharging = false, { connection = false } = {}) {
   const chips = [
     // PRD 0027 RF3.1 (DS-CMP-BADGE-2): the warning the catalog showed stays on the account: every query is billed.
     r.access?.metered ? `<span class="mini warn" data-metered-chip>${icon("warn")}<span class="mini-t">${te("dialog.picker.metered")}</span></span>` : "",
+    // PRD 0008 RF3.4 (DS-A11Y-5): an active usage alert has an icon and a word, never the stripe alone; the
+    // tooltip lists the metrics.
+    alert?.id === "usage" ? `<span class="mini warn" data-usage-alert-chip title="${esc(alert.label(r))}">${icon("bell")}<span class="mini-t">${te("alerts.activeTitle")}</span></span>` : "",
     connection ? connectionChips(r) : "",
     recharging ? `<span class="mini bad" data-return>${icon("clock")}<span class="mini-t">${esc(returnText(r))}</span></span>` : "",
     stale || hasExtraColumn(r) ? "" : overageChipHtml(r),

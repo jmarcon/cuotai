@@ -191,5 +191,29 @@ assert.match(css0, /:root\[data-rows-hide~="corridor"\] \.mtr \.pm,\n:root\[data
 const css = await readFile(new URL("../apps/desktop/ui/css/components.css", import.meta.url), "utf8");
 assert.match(css, /\.stl \{[^}]*height: 20px;[^}]*white-space: nowrap;/);
 
+// PRD 0008 RF3.4 (re-validation V-01, V-02, V-03): the usage-alert line names each metric in the interface language
+// (the core's `metric_text`, never the adapter's raw label), keeps its full text as a tooltip and is part of the row's
+// accessible name; the details tag and the card chip give it a word and an icon, not the stripe alone.
+const session = { id: "metric.label.session_5h", params: {}, fallback: "Session (5 hours)" };
+const weekText = { id: "metric.label.week_7d", params: {}, fallback: "Week (7 days)" };
+const alerting = { ...report({ left: 30 }), account_key: "claude:work", usage_alerts: [session, weekText] };
+const usageLine = c.extraLineHtml(alerting);
+assert.match(usageLine, /<span class="xline warn" data-usage-alert title="Usage alert: Session \(5 hours\), Week \(7 days\)">/, usageLine);
+assert.doesNotMatch(usageLine, /object Object|Sessão/);
+assert.match(c.rowName(alerting), /, Usage alert: Session \(5 hours\), Week \(7 days\)$/);
+assert.doesNotMatch(c.rowName(report({ left: 30 })), /Usage alert/);
+const raw = { label: "Sessão (5 horas) (%)", label_text: session, alert: { muted: false, active: true } };
+const bell = lib.metricAlertHtml(alerting, raw);
+assert.match(bell, /aria-label="Usage alerts for Session \(5 hours\)"/, bell);
+assert.match(bell, /data-metric-label="Sessão \(5 horas\) \(%\)"/, "the key stays the raw label");
+const { metricCardHtml: alertCard } = await import("../apps/desktop/ui/js/detail.js");
+const alertMetric = { ...report({ left: 30 }).metrics[0], ...raw };
+assert.match(alertCard(alerting, alertMetric), /<span class="btag warn" data-usage-alert-chip><svg[^>]*>.*<\/svg>Usage alert<\/span>/);
+assert.doesNotMatch(alertCard(alerting, { ...alertMetric, alert: { muted: false, active: false } }), /data-usage-alert-chip/);
+const mainSrc = await readFile(new URL("../apps/desktop/ui/js/main.js", import.meta.url), "utf8");
+assert.match(mainSrc, /alert\?\.id === "usage" \? `<span class="mini warn" data-usage-alert-chip title="\$\{esc\(alert\.label\(r\)\)\}">\$\{icon\("bell"\)\}<span class="mini-t">\$\{te\("alerts\.activeTitle"\)\}/);
+const detailCss = await readFile(new URL("../apps/desktop/ui/css/detail.css", import.meta.url), "utf8");
+assert.match(detailCss, /\.metric\.usage-alert \{[^}]*padding-right: calc\(3px \+ var\(--space-2\)\);/, "the stripe never covers the texts");
+
 console.log("PASS: rows, figure block, monograms, status line fitting, state ring and honest marks");
 process.exit(0); // the shared modules keep a BroadcastChannel open

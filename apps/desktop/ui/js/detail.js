@@ -54,7 +54,7 @@ export function metricCardHtml(r, m, { eye = false, stale = false } = {}) {
   const budget = m.budget_badge ? tl(m.budget_badge) : "";
   return `<div class="metric ${hid ? "muted" : ""} ${binding ? "binding" : ""} ${budget ? "budget" : ""} ${m.alert?.active ? "usage-alert" : ""}" title="${esc(fmtAmount(m))}">
     <div class="metric-top">
-      <h3>${esc(limitLabel(r, m))}${budget ? ` <span class="btag budget" data-budget-chip>${esc(budget)}</span>` : ""}${binding ? ` <span class="btag" data-binding-chip title="${esc(`${t("card.binding.title")}: ${bindingChipText(r)}`)}">${te("binding.tag")}</span>` : ""}</h3>
+      <h3>${esc(limitLabel(r, m))}${budget ? ` <span class="btag budget" data-budget-chip>${esc(budget)}</span>` : ""}${m.alert?.active ? ` <span class="btag warn" data-usage-alert-chip>${icon("bell")}${te("alerts.activeTitle")}</span>` : ""}${binding ? ` <span class="btag" data-binding-chip title="${esc(`${t("card.binding.title")}: ${bindingChipText(r)}`)}">${te("binding.tag")}</span>` : ""}</h3>
       <div class="metric-right">
         ${text == null && pct != null ? `<span class="pct" title="${te(`metric.level.${lv}`, { pct: Math.round(pct) })}">${Math.round(pct)}%<small>${te("card.available")}</small></span>` : ""}
         ${eye ? metricAlertHtml(r, m) : ""}

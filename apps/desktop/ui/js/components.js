@@ -467,8 +467,9 @@ export function extraLineHtml(r, st = accountState(r)) {
     return `<span class="xline warn" data-age>${icon("clock")}<span>${esc(text)}</span></span>`;
   }
   if (r.usage_alerts?.length) {
-    const a = ALERTS.find((c) => c.id === "usage");
-    return `<span class="xline warn">${icon("bell")}<span>${esc(a.label(r))}</span></span>`;
+    // DS-MSG-15: the line may be cut, so the full text is its tooltip (and part of the row's accessible name).
+    const text = ALERTS.find((c) => c.id === "usage").label(r);
+    return `<span class="xline warn" data-usage-alert title="${esc(text)}">${icon("bell")}<span>${esc(text)}</span></span>`;
   }
   // PRD 0025 RF9.2: "Freshness age" on shows how old a fresh reading is, too.
   if (rowLayout().elements.age && !st.stale && r.status === "ready" && shownAt(r)) {
@@ -502,7 +503,9 @@ export function oneStatusHtml(r, st = accountState(r)) {
 export function rowName(r, st = accountState(r)) {
   const f = figureOf(r, st), p = statusParts(r, st);
   const value = f.unit ? t("meter.left", { pct: Math.round(st.pct) }) : f.fig;
-  return [brand(r.provider).label, r.account, value, p.label !== f.fig ? p.label : "", p.detail, p.resetFull].filter(Boolean).join(", ");
+  // PRD 0008 RF3.4: an active usage alert is part of the name, since the row's label overrides its content.
+  const usage = r.usage_alerts?.length ? ALERTS.find((c) => c.id === "usage").label(r) : "";
+  return [brand(r.provider).label, r.account, value, p.label !== f.fig ? p.label : "", p.detail, p.resetFull, usage].filter(Boolean).join(", ");
 }
 /** Fa gap 9 (mockup 06): an aging reading is drawn like a stale one: dimmed figure, dotted meter, no pace mark. */
 const isAging = (r) => r.status === "ready" && r.freshness === "aging";

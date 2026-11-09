@@ -37,7 +37,7 @@ export function html({ settings: s }) {
     + row({ key: "other", label: te("settings.notify.other"), dep: true, control: (x) => sw("notify-other", n.include_other, x) })
     + row({ key: "alerts", label: te("settings.alerts.on"), info: te("settings.alerts.help"), attrs: "data-alerts", control: (x) => sw("alerts-on", a.enabled, x) })
     + row({ key: "thresholds", label: te("settings.alerts.thresholds"), dep: true, desc: te("settings.alerts.thresholdsHelp", { min: s.alert_min, max: s.alert_max }),
-      body: `<div class="thresholds" role="group" aria-labelledby="thresholds-label"><span id="alert-chips"></span>
+      body: `<div class="thresholds" role="group" aria-labelledby="thresholds-label" aria-describedby="thresholds-desc"><span id="alert-chips"></span>
           <input id="alert-new" type="number" min="${s.alert_min}" max="${s.alert_max}" step="1" inputmode="numeric" aria-label="${te("settings.alerts.new")}" placeholder="%" />
           <button class="btn sm" type="button" data-alert-add>${te("settings.alerts.add")}</button></div>` })
     + disc("alerts-more", te("settings.alerts.more"),
