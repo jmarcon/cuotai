@@ -1164,7 +1164,13 @@ fn account_export(
                 .enumerate()
                 .map(|(i, metric)| {
                     let points = recent.get(i).map(Vec::as_slice);
-                    pace::assess_reading(metric, report.checked_at, interval, now, points)
+                    pace::assess_reading(
+                        metric,
+                        freshness::reading_time(report),
+                        interval,
+                        now,
+                        points,
+                    )
                 })
                 .collect()
         }),
@@ -1187,7 +1193,8 @@ fn account_export(
         aggregator: None,
         // PRD 0041 RF4.3: from the same fresh reading the pace uses.
         allowance: report.map_or_else(Vec::new, |report| {
-            let fresh = freshness::assess(report.checked_at, interval, now) == Freshness::Fresh;
+            let reading_at = freshness::reading_time(report);
+            let fresh = freshness::assess(reading_at, interval, now) == Freshness::Fresh;
             report
                 .metrics
                 .iter()
@@ -1195,7 +1202,7 @@ fn account_export(
                 .map(|(i, metric)| {
                     let points = recent.get(i).map(Vec::as_slice);
                     fresh
-                        .then(|| pace::allowance(metric, report.checked_at, points))
+                        .then(|| pace::allowance(metric, reading_at, points))
                         .flatten()
                         .map(AllowanceExport::from)
                 })
@@ -1975,6 +1982,37 @@ mod tests {
             assert_ne!(freshness, "fresh");
             assert!(pace.is_null(), "{age} minutes");
         }
+    }
+
+    /// PRD 0007 re-validation (V-04): an agent-fed reading's pace and
+    /// allowance are evaluated at the agent's own time (`as_of`), so a
+    /// 40-minute-old Claude Code reading queried just now has neither.
+    #[test]
+    fn an_agent_fed_reading_is_paced_at_its_own_time() {
+        let config = Config {
+            accounts: vec![account("Personal", Provider::Claude)],
+            refresh_seconds: 300,
+            ..Config::default()
+        };
+        let json_of = |written_minutes: i64| {
+            let mut cycle = RefreshCycle::new(&config, Instant::now());
+            let mut ready = report(&config.accounts[0], Status::Ready, minutes_ago(0));
+            ready.source = "feed:claude_code".into();
+            ready.as_of = Some(minutes_ago(written_minutes));
+            ready.metrics = vec![Metric {
+                resets_at: Some(now() + chrono::TimeDelta::minutes(150)),
+                ..quota("Sessão (5 horas)", 50.0, MetricWindow::Window5h, 0)
+            }];
+            finish(&mut cycle, 0, ready);
+            export(&config, &cycle, Options::default())["accounts"][0].clone()
+        };
+        let aged = json_of(40);
+        assert_eq!(aged["freshness"], "fresh", "the query itself is fresh");
+        assert!(aged["pace"][0].is_null());
+        assert!(aged["allowance"][0].is_null());
+        let recent = json_of(2);
+        assert_eq!(recent["pace"][0]["stage"], "on_pace");
+        assert!(recent["pace"][0]["elapsed_fraction"].as_f64().unwrap() < 0.5);
     }
 
     /// PRD 0015 RF4.3: `local_cost` travels beside the accounts, never in a

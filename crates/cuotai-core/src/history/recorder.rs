@@ -216,8 +216,9 @@ impl HistoryRecorder {
     }
 
     /// RF2.2: queue `report` of `account` when it is `Ready`, with its
-    /// metrics that carry a finite `used` or `remaining` (taken at its
-    /// `checked_at`). Any other status, no such metric, or recording
+    /// metrics that carry a finite `used` or `remaining`, taken at its
+    /// [`crate::freshness::reading_time`] (an agent feed's own time, so a
+    /// feed reading read again is the same sample, not a new one). Any other status, no such metric, or recording
     /// switched off records nothing. Never waits: a full queue drops the
     /// reading (RF2.4).
     pub fn submit(&self, account: &Account, report: &Report) {
@@ -236,7 +237,7 @@ impl HistoryRecorder {
         }
         self.enqueue(Job::Record {
             account: Box::new(account.clone()),
-            taken_at: report.checked_at,
+            taken_at: crate::freshness::reading_time(report),
             metrics,
         });
     }
@@ -355,6 +356,40 @@ mod tests {
             .collect();
         assert_eq!(labels, ["5h", "left"]);
         assert_eq!(recorder.status().warning(), None);
+    }
+
+    /// PRD 0007 re-validation (V-04): an agent-fed reading is recorded at
+    /// the agent's own time, so querying the same feed reading again adds
+    /// no sample, and the recent slope matches the displayed pace.
+    #[test]
+    fn a_feed_reading_is_recorded_at_its_own_time_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let history = store(&dir.path().join("history.sqlite3"), "one");
+        let alpha = first_account(config(CONFIG));
+        let recorder = HistoryRecorder::spawn(history.clone());
+        let minutes = chrono::TimeDelta::minutes;
+        let fed = |written: i64, queried: i64, used: f64| Report {
+            checked_at: t0() + minutes(queried),
+            as_of: Some(t0() + minutes(written)),
+            source: "feed:claude_code".into(),
+            ..report(Status::Ready, vec![quota("5h", Some(used), Some(100.0))])
+        };
+        // One reading queried three times, past the 15-minute compaction.
+        for queried in [1, 16, 31] {
+            recorder.submit(&alpha, &fed(0, queried, 10.0));
+        }
+        recorder.submit(&alpha, &fed(35, 36, 20.0));
+        assert!(recorder.flush(Duration::from_secs(10)));
+        let key = history.latest(&alpha).unwrap().unwrap().metrics[0]
+            .key
+            .clone();
+        let points: Vec<_> = history
+            .series(&alpha, &key, ..)
+            .unwrap()
+            .into_iter()
+            .map(|p| (p.taken_at, p.used))
+            .collect();
+        assert_eq!(points, [(t0(), 10.0), (t0() + minutes(35), 20.0)]);
     }
 
     #[test]

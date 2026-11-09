@@ -174,7 +174,11 @@ pub fn assess(metric: &Metric, now: DateTime<Utc>, recent: Option<&[Point]>) -> 
 
 /// Pace of `metric` as measured by a reading taken at `checked_at`, for a
 /// surface that shows it at `now` (PRD 0024 FIX-11, RF6.4). The one rule
-/// every surface (dashboard, `--once`, `export::v1`, desktop) applies:
+/// every surface (dashboard, `--once`, `export::v1`, desktop) applies.
+/// Callers pass the reading's measurement time,
+/// [`freshness::reading_time`] of its report: the query time, or an agent
+/// feed's own time (so an idle agent's reading loses its pace once it is no
+/// longer fresh, and its age stays shown).
 ///
 /// * the reading must be [`Freshness::Fresh`] against the account's
 ///   effective refresh `interval` at `now` (PRD 0010); an `Aging` or `Stale`
@@ -1171,6 +1175,76 @@ mod tests {
         .unwrap();
         assert_eq!(pace.source, PaceSource::Recent);
         assert_eq!(Some(pace), assess(&metric, checked_at, Some(&recent)));
+    }
+
+    fn report(source: &str, as_of: Option<DateTime<Utc>>, metric: Metric) -> crate::Report {
+        crate::Report {
+            account_id: None,
+            diagnostic: None,
+            account: "a".into(),
+            provider: crate::Provider::Claude,
+            checked_at: now(),
+            status: crate::Status::Ready,
+            metrics: vec![metric],
+            notes: Vec::new(),
+            notes_l10n: Vec::new(),
+            source: source.into(),
+            session_expires_at: None,
+            sub_reports: Vec::new(),
+            as_of,
+            overage_hint: None,
+            breakdown: Vec::new(),
+        }
+    }
+
+    /// PRD 0007 re-validation (V-04): an agent-fed reading is evaluated at
+    /// the time the agent wrote it, and only while that time is fresh. The
+    /// 40-minute-old Claude Code reading of the Visual pass, queried now
+    /// with a 300 s interval, used to project from the current clock.
+    #[test]
+    fn an_agent_fed_reading_is_paced_at_its_own_time_and_only_when_fresh() {
+        let interval = Duration::from_secs(300);
+        let pace_of = |report: &crate::Report| {
+            assess_reading(
+                &report.metrics[0],
+                freshness::reading_time(report),
+                interval,
+                now(),
+                None,
+            )
+        };
+        for source in ["feed:claude_code", "feed:codex_cli"] {
+            let aged = report(source, Some(now() - mins(40)), five_h(50.0));
+            assert_eq!(pace_of(&aged), None, "{source}: 40 min old is not fresh");
+            let recent = report(source, Some(now() - mins(2)), five_h(50.0));
+            let at_own_time = assess(&recent.metrics[0], now() - mins(2), None);
+            assert!(at_own_time.is_some());
+            assert_eq!(pace_of(&recent), at_own_time, "{source}");
+            assert_ne!(
+                pace_of(&recent),
+                assess(&recent.metrics[0], now(), None),
+                "{source}: not the query clock"
+            );
+        }
+    }
+
+    /// OpenAI Costs states `as_of` as the end of the last complete daily
+    /// bucket while `used` counts the current day: its budget pace stays at
+    /// the query time.
+    #[test]
+    fn a_queried_reading_with_a_completeness_horizon_keeps_the_query_time() {
+        let mut budget = quota(MetricWindow::Monthly, 40.0, ts(2026, 3, 1, 0));
+        budget.unit = "USD".into();
+        let costs = report("api", Some(now() - TimeDelta::hours(30)), budget);
+        let pace = assess_reading(
+            &costs.metrics[0],
+            freshness::reading_time(&costs),
+            Duration::from_secs(3600),
+            now(),
+            None,
+        );
+        assert!(pace.is_some());
+        assert_eq!(pace, assess(&costs.metrics[0], now(), None));
     }
 }
 

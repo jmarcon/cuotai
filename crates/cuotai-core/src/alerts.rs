@@ -811,7 +811,13 @@ fn projected(
         return None;
     }
     let points = input.points(next, &metric.label);
-    let pace = forecast(metric, next.checked_at, input.interval, now, points)?;
+    let pace = forecast(
+        metric,
+        crate::freshness::reading_time(next),
+        input.interval,
+        now,
+        points,
+    )?;
     let projected_at = pace.projected_exhaustion_at?;
     let margin = pace.resets_at - projected_at;
     if projected_at <= now || projected_at > now + lead.span() || margin < PROJECTED_MIN_MARGIN {
@@ -825,9 +831,9 @@ fn projected(
         .filter(|before| same_instance(before.resets_at, metric.resets_at))?;
     forecast(
         before,
-        prev.checked_at,
+        crate::freshness::reading_time(prev),
         input.interval,
-        next.checked_at,
+        crate::freshness::reading_time(next),
         points,
     )?;
     Some(Projection {
@@ -865,7 +871,8 @@ pub fn cancels(pending: &AlertEvent, next: &Report, pace: &PaceInput, now: DateT
         return true;
     }
     let points = pace.points(next, &metric.label);
-    match pace::assess_reading(metric, next.checked_at, pace.interval, now, Some(points)) {
+    let reading_at = crate::freshness::reading_time(next);
+    match pace::assess_reading(metric, reading_at, pace.interval, now, Some(points)) {
         None => true,
         Some(pace) => pace.stage == PaceStage::Exhausted || pace.lasts_until_reset,
     }
