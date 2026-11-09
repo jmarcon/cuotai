@@ -587,6 +587,23 @@ fn is_func(comp: &Comp, set: &[&str]) -> bool {
     matches!(comp, Comp::Func(name, _) if set.contains(&name.as_str()))
 }
 
+/// The longest duration a theme's time token may set (PRD 0004 re-validation
+/// S-01): room for the 900 ms spin and the old 400 ms defaults, never a
+/// negative or effectively endless animation.
+const MAX_TIME_MS: f64 = 2000.0;
+
+/// A time value in milliseconds: a number in `ms` or `s`, or a bare zero.
+fn time_ms(value: &str, unit: &str) -> Option<f64> {
+    let number: f64 = value.parse().ok()?;
+    let ms = match unit {
+        "ms" => number,
+        "s" => number * 1000.0,
+        "" if number == 0.0 => 0.0,
+        _ => return None,
+    };
+    ms.is_finite().then_some(ms)
+}
+
 fn check_class(class: Class, comps: &[Comp]) -> Result<(), ThemeError> {
     let ok = match class {
         Class::Color => matches!(comps, [c] if matches!(c, Comp::Hash(_) | Comp::Ident(_)) || is_func(c, COLOR_FUNCTIONS)),
@@ -594,7 +611,7 @@ fn check_class(class: Class, comps: &[Comp]) -> Result<(), ThemeError> {
             matches!(comps, [c] if matches!(c, Comp::Num { .. }) || is_func(c, &["var"]))
         }
         Class::Time => matches!(comps, [c] if match c {
-            Comp::Num { value, unit } => unit == "ms" || unit == "s" || (unit.is_empty() && value.trim_start_matches(['+', '-']).chars().all(|d| d == '0' || d == '.')),
+            Comp::Num { value, unit } => time_ms(value, unit).is_some_and(|ms| (0.0..=MAX_TIME_MS).contains(&ms)),
             other => is_func(other, &["var"]),
         }),
         Class::Easing => {

@@ -186,6 +186,28 @@ fn properties_outside_the_tokens_and_important_are_refused() {
     assert_eq!(reason("t", &with("--bg #000;")), "syntax");
 }
 
+/// PRD 0004 re-validation S-01: a time token is between 0 and 2 s.
+#[test]
+fn time_tokens_are_bounded_to_two_seconds() {
+    assert_eq!(reason("t", &with("--motion-base: -1s;")), "value");
+    assert_eq!(reason("t", &with("--motion-fast: -120ms;")), "value");
+    assert_eq!(reason("t", &with("--motion-base: 2001ms;")), "value");
+    assert_eq!(reason("t", &with("--motion-base: 2.5s;")), "value");
+    let huge = format!("--motion-base: {}s;", "9".repeat(400));
+    assert_eq!(reason("t", &with(&huge)), "value");
+    for ok in [
+        "--motion-spin: 900ms;",
+        "--motion-spin: 2s;",
+        "--motion-slow: 400ms;",
+        "--motion-fast: 0;",
+        "--motion-fast: 0ms;",
+        "--motion-base: 0.18s;",
+        "--motion-base: var(--motion-fast);",
+    ] {
+        assert_eq!(reason("t", &with(ok)), "ok", "{ok}");
+    }
+}
+
 #[test]
 fn at_rules_and_imports_are_refused() {
     assert_eq!(

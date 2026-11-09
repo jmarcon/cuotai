@@ -58,6 +58,19 @@ if (python) {
   console.log("note: no Python 3 found; lint_ui.py checks skipped");
 }
 
+// PRD 0004 re-validation S-01: motionMs bounds whatever a theme sets to 0..200 ms.
+{
+  installUiEnv();
+  globalThis.document.hidden = false;
+  let value = "";
+  globalThis.getComputedStyle = () => ({ getPropertyValue: () => value });
+  const { motionMs } = await import("../apps/desktop/ui/js/motion.js");
+  for (const [raw, ms] of [["-1s", 0], [`${"9".repeat(400)}s`, 0], ["1e400s", 0], ["5s", 200], ["180ms", 180], ["0.12s", 120], ["0", 0], ["", 0], ["fast", 0]]) {
+    value = raw;
+    assert.equal(motionMs("--motion-base"), ms, `motionMs(${JSON.stringify(raw)})`);
+  }
+}
+
 // PRD 0022 RF12.3/RF13.4 (PRD 0004 re-validation R-05): the static change marker, its tooltip and the polite
 // announcement, rendered by the production component module in Node. An absent figure is never announced as 0%.
 installUiEnv();
