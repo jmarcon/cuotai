@@ -6451,7 +6451,7 @@ fn search_providers_with(
     locale: &str,
     extensions: &[cuotai_core::extensions::CatalogEntry],
 ) -> Vec<PickerEntry> {
-    account_edit::picker_search_with_extensions(query, locale, extensions)
+    account_edit::picker_search_with_extensions(query, locale, extensions, None)
         .into_iter()
         .map(|m| {
             let name = m

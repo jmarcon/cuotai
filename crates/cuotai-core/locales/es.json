@@ -1782,6 +1782,7 @@
   "catalog.method.self_hosted_gateway": "Gateway autoalojado",
   "catalog.method.extension": "Extensión",
   "catalog.category.subscription": "Suscripción",
+  "catalog.hidden_provider": "{provider} no tiene consulta de uso, por eso Cuotai no lo ofrece: {reason}",
   "catalog.category.api_platform": "Plataforma de API",
   "catalog.category.cloud": "Nube",
   "catalog.category.coding_tool": "Herramienta de código",

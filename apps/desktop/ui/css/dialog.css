@@ -463,6 +463,19 @@ dialog.dlg.details > .dlg-body {
 .err.ok {
   color: var(--good);
 }
+/* PRD 0005 RF3.4 (DS-COL-3): the "Save anyway" prompt is a decision, not a failure. */
+.err.warn {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  color: var(--warn);
+}
+.err.warn svg.i {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+}
 
 /* About › open-source libraries */
 dialog.libs {

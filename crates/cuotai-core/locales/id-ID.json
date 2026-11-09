@@ -255,6 +255,7 @@
   "catalog.category.extension": "Ekstensi",
   "catalog.category.router": "Router",
   "catalog.category.subscription": "Langganan",
+  "catalog.hidden_provider": "{provider} tidak punya kueri penggunaan, jadi Cuotai tidak menawarkannya: {reason}",
   "catalog.hint.access_token": "Token akses akun",
   "catalog.hint.admin_key": "Kunci API admin",
   "catalog.hint.aggregator_login": "Kata sandi dasbor (opsional)",

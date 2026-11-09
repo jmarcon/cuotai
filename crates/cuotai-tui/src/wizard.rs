@@ -3153,7 +3153,18 @@ impl Wizard {
                 Style::default().fg(DRACULA_CYAN),
             ),
         ]));
-        if rows.is_empty() {
+        // V-02 (PRD 0005 review): a provider left out for lacking any usage
+        // query says why, instead of suggesting a new-provider request.
+        let hidden = rows
+            .is_empty()
+            .then(|| edit::picker_hidden_notice(&self.filter, crate::ui::tui_locale()))
+            .flatten();
+        if let Some(notice) = &hidden {
+            lines.push(Line::from(Span::styled(
+                crate::ui::safe(&crate::ui::resolve_l10n(notice)).into_owned(),
+                Style::default().fg(DRACULA_YELLOW),
+            )));
+        } else if rows.is_empty() {
             lines.push(Line::from(Span::styled(
                 trf(
                     "wizard.provider.no_match",
@@ -3713,27 +3724,17 @@ enum PickerRow {
 }
 
 /// RF4.1: the picker's entries for `filter` from the core search; the
-/// provider of the account being edited stays listed with an empty filter.
+/// provider of the account being edited stays listed, in its own sign-in
+/// group, even when the picker would leave it out.
 fn picker_entries(
     filter: &str,
     current: Option<Provider>,
     extensions: &[cuotai_core::extensions::CatalogEntry],
 ) -> Vec<edit::CatalogEntry> {
-    let mut entries: Vec<_> =
-        edit::picker_search_with_extensions(filter, crate::ui::tui_locale(), extensions)
-            .into_iter()
-            .map(|m| m.entry)
-            .collect();
-    if let Some(current) = current {
-        if filter.trim().is_empty() && !entries.iter().any(|e| e.provider == current) {
-            entries.extend(
-                edit::catalog()
-                    .into_iter()
-                    .filter(|e| e.provider == current && e.recommended),
-            );
-        }
-    }
-    entries
+    edit::picker_search_with_extensions(filter, crate::ui::tui_locale(), extensions, current)
+        .into_iter()
+        .map(|m| m.entry)
+        .collect()
 }
 
 /// Whether `mode` (a catalog `auth_mode`) is offered by this provider now.
@@ -4204,6 +4205,75 @@ mod tests {
         ] {
             assert!(!screen.contains(label), "`{label}`: {screen}");
         }
+    }
+
+    fn picker_screen(wiz: &mut Wizard) -> String {
+        use ratatui::{backend::TestBackend, Terminal};
+        let mut terminal = Terminal::new(TestBackend::new(100, 60)).unwrap();
+        terminal
+            .draw(|frame| wiz.draw(frame, Path::new("cuotai.toml")))
+            .unwrap();
+        terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect()
+    }
+
+    /// V-02 (PRD 0005 review): typing a provider the picker leaves out says
+    /// why, not "ask for a new provider on GitHub".
+    #[test]
+    fn a_hidden_provider_search_shows_the_reason() {
+        let mut wiz = Wizard::new(&Config::default(), None);
+        for c in "poolside".chars() {
+            wiz.handle(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
+        }
+        assert!(wiz.picker.is_empty());
+        let screen = picker_screen(&mut wiz);
+        assert!(screen.contains("Poolside"), "{screen}");
+        assert!(!screen.contains("GitHub"), "{screen}");
+        // A query nothing answers keeps the request suggestion.
+        let mut wiz = Wizard::new(&Config::default(), None);
+        for c in "zzzz".chars() {
+            wiz.handle(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
+        }
+        assert!(picker_screen(&mut wiz).contains("GitHub"));
+    }
+
+    /// V-03 (PRD 0005 review): editing a hidden provider's account keeps it
+    /// in its own group (one heading per method) and findable by a filter.
+    #[test]
+    fn an_edited_hidden_provider_sits_in_its_group() {
+        let mut pool = account("pool", "POOLSIDE_API_KEY");
+        pool.provider = Provider::Poolside;
+        let config = Config {
+            accounts: vec![pool],
+            ..Config::default()
+        };
+        let mut wiz = Wizard::new(&config, Some(0));
+        assert_eq!(
+            wiz.picker
+                .iter()
+                .filter(|p| **p == Provider::Poolside)
+                .count(),
+            1
+        );
+        let headings: Vec<_> = wiz
+            .picker_rows()
+            .into_iter()
+            .filter_map(|row| match row {
+                PickerRow::Heading(method) => Some(method),
+                PickerRow::Entry(_) => None,
+            })
+            .collect();
+        let mut unique = headings.clone();
+        unique.dedup();
+        assert_eq!(headings, unique, "one heading per sign-in method");
+        wiz.filter = "pool".into();
+        wiz.refilter();
+        assert!(wiz.picker.contains(&Provider::Poolside));
     }
 
     /// PRD 0036 RF2.2: an aggregator is saved only after a successful

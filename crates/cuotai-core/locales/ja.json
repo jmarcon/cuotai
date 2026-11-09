@@ -255,6 +255,7 @@
   "catalog.category.extension": "拡張機能",
   "catalog.category.router": "ルーター",
   "catalog.category.subscription": "サブスクリプション",
+  "catalog.hidden_provider": "{provider} には使用量の照会がないため、Cuotai では提供していません：{reason}",
   "catalog.hint.access_token": "アカウントのアクセストークン",
   "catalog.hint.admin_key": "管理用 API キー",
   "catalog.hint.aggregator_login": "ダッシュボードのパスワード（任意）",

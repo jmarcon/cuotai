@@ -257,6 +257,7 @@
   "catalog.category.extension": "एक्सटेंशन",
   "catalog.category.router": "राउटर",
   "catalog.category.subscription": "सदस्यता",
+  "catalog.hidden_provider": "{provider} के लिए उपयोग क्वेरी नहीं है, इसलिए Cuotai इसे पेश नहीं करता: {reason}",
   "catalog.hint.access_token": "खाते का एक्सेस टोकन",
   "catalog.hint.admin_key": "एडमिन API कुंजी",
   "catalog.hint.aggregator_login": "डैशबोर्ड का पासवर्ड (वैकल्पिक)",
