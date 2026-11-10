@@ -134,7 +134,11 @@ pub async fn run(
             skew.observe(
                 response.headers(),
                 chrono::Utc::now(),
-                ClientPurpose::Provider,
+                if target.status {
+                    ClientPurpose::PublicStatus
+                } else {
+                    ClientPurpose::Provider
+                },
             );
         }
         (target, sent.is_ok())

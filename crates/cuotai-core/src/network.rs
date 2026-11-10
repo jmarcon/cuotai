@@ -28,8 +28,12 @@ use crate::text::{params, Localized};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ClientPurpose {
-    /// Provider APIs, model lists and public status pages.
+    /// Provider APIs and model lists.
     Provider,
+    /// Public provider status pages (opt-in incident status, PRD 0011). The
+    /// requests themselves go through the Monitor's shared client (RF2.1);
+    /// this purpose labels their observations and probes.
+    PublicStatus,
     /// Sign-in and token refresh.
     OAuth,
     /// The terminal's update notice.
@@ -47,6 +51,7 @@ impl ClientPurpose {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Provider => "provider",
+            Self::PublicStatus => "public_status",
             Self::OAuth => "oauth",
             Self::UpdateCheck => "update_check",
             Self::LocalProbe => "local_probe",
@@ -59,6 +64,7 @@ impl ClientPurpose {
     pub fn privacy_purpose(self) -> crate::privacy::Purpose {
         match self {
             Self::Provider => crate::privacy::Purpose::ProviderApi,
+            Self::PublicStatus => crate::privacy::Purpose::PublicStatus,
             Self::OAuth => crate::privacy::Purpose::OAuth,
             Self::UpdateCheck => crate::privacy::Purpose::UpdateCheck,
             Self::LocalProbe => crate::privacy::Purpose::LocalProbe,
@@ -67,8 +73,9 @@ impl ClientPurpose {
         }
     }
 
-    pub const ALL: [ClientPurpose; 6] = [
+    pub const ALL: [ClientPurpose; 7] = [
         Self::Provider,
+        Self::PublicStatus,
         Self::OAuth,
         Self::UpdateCheck,
         Self::LocalProbe,
@@ -517,6 +524,12 @@ mod tests {
             assert!(!row.host.is_empty());
             assert!(builder(purpose, Duration::from_secs(5)).build().is_ok());
         }
+        // PRD 0011 re-validation (S-02): status pages have their own row.
+        assert_eq!(
+            ClientPurpose::PublicStatus.privacy_purpose(),
+            crate::privacy::Purpose::PublicStatus
+        );
+        assert_eq!(ClientPurpose::PublicStatus.as_str(), "public_status");
     }
 
     /// PRD 0050 RF7.2: through the seam, a 3xx from the first host never

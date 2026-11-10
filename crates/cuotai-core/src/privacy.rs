@@ -780,9 +780,9 @@ pub fn flow(purpose: Purpose) -> Flow {
             "0001",
         ),
         Purpose::PublicStatus => (
-            "public status pages of configured providers",
-            "every 5 minutes at most, while turned on; `cuotai --doctor --probe` while turned on",
-            "nothing but the request (no credential)",
+            "public status pages of configured providers, listed in `docs/providers.md` (public incident source registry) and in Settings › Data & privacy",
+            "every 5 minutes at most, while turned on; `cuotai --doctor --probe` while turned on; `cuotai --canary --status`",
+            "a `GET` with the `User-Agent` `cuotai/<version> (+https://github.com/jmarcon/cuotai)`; no credential, cookie or account data",
             "off",
             "0011",
         ),
