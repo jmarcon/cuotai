@@ -1691,14 +1691,8 @@ fn errors_and_warning_are_translated() {
     assert!(texts[0].resolve("es").contains("192.0.2.10"));
     assert!(texts[2].resolve("pt-BR").contains("6738 a 6747"));
     // Only the requested port was tried: no "6738 to 6738".
-    assert_eq!(
-        texts[8].resolve("en-US"),
-        "Port 6738 is in use; choose another port for the local server."
-    );
-    assert_eq!(
-        texts[8].resolve("pt-BR"),
-        "A porta 6738 está em uso; escolha outra porta para o servidor local."
-    );
+    assert_eq!(texts[8].resolve("en-US"), "Port 6738 is in use.");
+    assert_eq!(texts[8].resolve("pt-BR"), "A porta 6738 está em uso.");
 }
 
 /// A free loopback port: bound once by the system, then released.

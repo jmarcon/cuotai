@@ -712,7 +712,7 @@ pub fn no_token_warning() -> Localized {
 
 fn port_in_use_text(first: u16, last: u16) -> String {
     if first == last {
-        format!("Port {first} is in use; choose another port for the local server.")
+        format!("Port {first} is in use.")
     } else {
         format!("Ports {first} to {last} are in use; choose another port for the local server.")
     }

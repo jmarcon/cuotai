@@ -1921,7 +1921,7 @@
   "serve.error.invalid_token": "Token máy chủ cục bộ không hợp lệ: hãy dùng 16 đến 512 ký tự, không có dấu cách (chữ cái, chữ số và - . _ ~ + /).",
   "serve.error.non_loopback": "Máy chủ cục bộ chỉ lắng nghe trên loopback (127.0.0.1 hoặc ::1); địa chỉ {addr} cần tùy chọn rõ ràng cho ngoài loopback.",
   "serve.error.port_in_use": "Các cổng {first} đến {last} đang được dùng; hãy chọn cổng khác cho máy chủ cục bộ.",
-  "serve.error.port_taken": "Cổng {port} đang được dùng; hãy chọn cổng khác cho máy chủ cục bộ.",
+  "serve.error.port_taken": "Cổng {port} đang được dùng.",
   "serve.error.random": "Bộ tạo số ngẫu nhiên của hệ thống không khả dụng; token chưa được tạo.",
   "serve.error.token_file": "Không đọc hoặc tạo được tệp token của máy chủ cục bộ (phải là tệp thường của bạn, chỉ chứa một token).",
   "serve.error.token_missing": "Token máy chủ cục bộ không còn trong kho của hệ thống; hãy tạo token mới hoặc thu hồi token.",

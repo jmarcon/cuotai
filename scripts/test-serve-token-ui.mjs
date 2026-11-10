@@ -33,10 +33,22 @@ assert.match(html, /data-serve-token-notice/, "Settings shows the token notice")
 const main = readFileSync(new URL("../apps/desktop/ui/js/main.js", import.meta.url), "utf8");
 assert.match(main, /data-serve-token-notice/, "the main window shows the token notice too");
 
+// PRD 0012 re-validation V-02/V-06: a taken port gets one hint (the Cuotai-holder text or "choose another port here"),
+// and the browsers row's help does not depend on the switch state.
+const taken = { ...sv, state: "error", error: { id: "serve.error.port_taken", params: { port: 6738 }, fallback: "Port 6738 is in use." } };
+assert.match(integrationHtml(taken), /Choose another port here\./);
+const held = integrationHtml({ ...taken, cuotai_on_port: true });
+assert.doesNotMatch(held, /Choose another port here\./, "the Cuotai-holder text is the only hint");
+assert.match(held, /Another Cuotai server/);
+const browsersHelp = (state) => integrationHtml({ ...state, state: "on", enabled: true, token: true, url: "http://127.0.0.1:6738" })
+  .includes(i18n.t?.("settings.serve.browsersHelp") ?? "When on, only the web pages");
+assert.ok(browsersHelp({ ...sv, allow_browsers: false }) && browsersHelp({ ...sv, allow_browsers: true, allowed_origins: ["https://example.com"] }));
+
 for (const { code } of i18n.LOCALES) {
   const catalog = JSON.parse(readFileSync(new URL(`../apps/desktop/ui/locales/${code}.json`, import.meta.url), "utf8"));
   assert.equal(catalog["settings.serve.token.off"], undefined, `${code}: the tokenless text is gone`);
-  for (const key of ["settings.serve.token.notice", "settings.serve.token.revokeHelp", "settings.serve.privacy"]) {
+  assert.equal(catalog["settings.serve.browsersOff"], undefined, `${code}: the state-bound browsers text is gone`);
+  for (const key of ["settings.serve.token.notice", "settings.serve.token.revokeHelp", "settings.serve.privacy", "settings.serve.browsersHelp", "settings.serve.portHint"]) {
     assert.ok(catalog[key], `${code}: ${key}`);
     if (code !== "en-US") assert.notEqual(catalog[key], JSON.parse(readFileSync(new URL("../apps/desktop/ui/locales/en-US.json", import.meta.url), "utf8"))[key], `${code}: ${key} translated`);
   }

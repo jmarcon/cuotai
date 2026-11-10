@@ -1449,7 +1449,7 @@
   "serve.error.non_loopback": "Il server locale ascolta solo su loopback (127.0.0.1 o ::1); l'indirizzo {addr} richiede l'opzione esplicita non-loopback.",
   "serve.error.token_required": "Un indirizzo non-loopback richiede un token di accesso per il server locale.",
   "serve.error.port_in_use": "Le porte da {first} a {last} sono in uso; scegli un'altra porta per il server locale.",
-  "serve.error.port_taken": "La porta {port} è in uso; scegli un'altra porta per il server locale.",
+  "serve.error.port_taken": "La porta {port} è in uso.",
   "serve.error.bind": "Impossibile aprire la porta {port} per il server locale.",
   "serve.error.bounds": "Un limite del server locale è fuori dall’intervallo consentito.",
   "serve.error.invalid_token": "Token del server locale non valido: usa da 16 a 512 caratteri senza spazi (lettere, cifre e - . _ ~ + /).",

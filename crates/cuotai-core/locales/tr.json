@@ -1933,7 +1933,7 @@
   "serve.error.invalid_token": "Geçersiz yerel sunucu jetonu: 16 ile 512 karakter kullanın, boşluk olmadan (harf, rakam ve - . _ ~ + /).",
   "serve.error.non_loopback": "Yerel sunucu yalnızca loopback üzerinde dinler (127.0.0.1 veya ::1); {addr} adresi, loopback dışı için açık seçenek gerektirir.",
   "serve.error.port_in_use": "{first} ile {last} arasındaki bağlantı noktaları kullanımda; yerel sunucu için başka bir bağlantı noktası seçin.",
-  "serve.error.port_taken": "{port} bağlantı noktası kullanımda; yerel sunucu için başka bir bağlantı noktası seçin.",
+  "serve.error.port_taken": "{port} bağlantı noktası kullanımda.",
   "serve.error.random": "Sistemin rastgele üreteci kullanılamıyor; jeton oluşturulmadı.",
   "serve.error.token_file": "Yerel sunucu jeton dosyası okunamadı veya oluşturulamadı (size ait, tek jetonlu sıradan bir dosya olmalıdır).",
   "serve.error.token_missing": "Yerel sunucu jetonu artık sistem kasasında değil; yenisini oluşturun veya jetonu iptal edin.",
