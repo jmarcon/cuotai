@@ -353,3 +353,32 @@ console.log("PASS: remaining-share wording renders in pt-BR, en-US, es and it; U
   }
   console.log("PASS: binding names are translated, shares are rounded honestly and the demo follows the core rule");
 }
+
+// PRD 0011 re-validation V-01, V-03, V-04: a status page never read is not called a "previous reading", the badge
+// writes the reading age in lowercase mid-line, and the status settings name the domain list once, under the switch.
+{
+  const lib = await import("../apps/desktop/ui/js/lib.js");
+  await i18n.setLocale("en-US");
+  const readAt = new Date(Date.now() - 120_000).toISOString();
+  const status = (extra) => ({ state: "unknown", label: { id: "incident.state.unknown", params: {}, fallback: "Unknown" },
+    incident: null, page_url: "https://status.example.com/", read_at: null, stale: false, expired: false, ...extra });
+  const facts = (s) => /<p class="hint">([^<]*)<\/p>/.exec(lib.incidentDetailHtml({ incident: s }))[1];
+  const unread = facts(status({ stale: true }));
+  assert.ok(unread.includes(i18n.t("incident.failedUnread")), `unread failure: ${unread}`);
+  assert.ok(!unread.includes(i18n.t("incident.stale")) && !unread.includes(i18n.t("incident.notRead")), `unread failure: ${unread}`);
+  assert.equal(facts(status({})), i18n.t("incident.notRead"));
+  const previous = facts(status({ stale: true, read_at: readAt }));
+  assert.ok(previous.includes(i18n.t("incident.stale")) && !previous.includes(i18n.t("incident.failedUnread")), `stale: ${previous}`);
+  const badge = lib.incidentBadge({ incident: status({ stale: true, read_at: readAt }) });
+  assert.match(badge.text, /^Status page unavailable · read /, badge.text);
+  for (const code of i18n.LOCALES.map((l) => l.code)) {
+    await i18n.setLocale(code);
+    for (const key of ["incident.checkedInline", "incident.failedUnread"]) assert.notEqual(i18n.t(key, { age: "x" }), key, `${code}: ${key}`);
+  }
+  await i18n.setLocale("en-US");
+  const data = await readFile(fileURLToPath(new URL("apps/desktop/ui/js/settings/data.js", root)), "utf8");
+  const privacy = data.slice(data.indexOf("function privacyHtml"), data.indexOf("function historyDataHtml"));
+  assert.ok(!privacy.includes('te("settings.status.domains")'), "the domain list repeats no heading");
+  assert.ok(privacy.indexOf('"status-domains"') < privacy.indexOf('key: "detect"'), "the domains follow the status switch");
+  console.log("PASS: status wording distinguishes an unread page, keeps the age lowercase and lists the domains once");
+}

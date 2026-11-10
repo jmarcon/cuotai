@@ -897,7 +897,8 @@ const isNotice = (s) => s.state !== "operational" && s.state !== "unknown";
 export function incidentBadge(r) {
   const s = r.incident;
   if (!s || (!isNotice(s) && !s.stale && !s.expired)) return null;
-  const checked = s.read_at ? t("incident.checked", { age: fmtAge(s.read_at) }) : "";
+  // Mid-line after " · ", so the lowercase form (PRD 0011 re-validation, V-04).
+  const checked = s.read_at ? t("incident.checkedInline", { age: fmtAge(s.read_at) }) : "";
   if (s.expired) {
     return { tone: "muted", glyph: "clock", text: [tl(s.label), checked].filter(Boolean).join(" · "),
       url: s.page_url, outage: false };
@@ -965,7 +966,9 @@ export function incidentDetailHtml(r) {
   if (!s) return "";
   const [tone, glyph] = INCIDENT_LOOK[s.state] ?? INCIDENT_LOOK.unknown;
   const facts = [s.incident?.started_at ? t("incident.since", { time: fmtReset(s.incident.started_at) }) : "",
-    s.read_at ? t("incident.checked", { age: fmtAge(s.read_at) }) : t("incident.notRead"), s.stale ? t("incident.stale") : ""].filter(Boolean);
+    // A failed query with no earlier reading has no "previous reading" to point at (V-01).
+    s.read_at ? t("incident.checked", { age: fmtAge(s.read_at) }) : t(s.stale ? "incident.failedUnread" : "incident.notRead"),
+    s.read_at && s.stale ? t("incident.stale") : ""].filter(Boolean);
   return `<div class="incident-detail" data-incident="${esc(s.state)}"><h4>${te("incident.title")}</h4>
     <p class="incident-line ${tone}">${icon(glyph)}<span class="incident-t"><b>${esc(tl(s.label))}</b>${s.incident?.title ? ` · ${esc(s.incident.title)}` : ""}</span></p>
     <p class="hint">${esc(facts.join(" · "))}</p><p class="incident-link">${statusLinkHtml(s.incident?.url ?? s.page_url)}</p></div>`;

@@ -35,12 +35,13 @@ function privacyHtml(s, view) {
   return group("privacy", te("settings.privacy.title"),
     row({ key: "status", label: te("settings.status.on"), info: te("settings.status.help"), msg: "status-msg",
       control: (a) => sw("status-queries", s.status_queries, a) })
+    // Right under the switch it explains; the summary already names the list (PRD 0011 re-validation, V-03).
+    + disc("status-domains", te("settings.status.domainsTitle"), `<p class="hint" data-status-domains>${domains.length
+      ? domains.map((d) => `<code>${esc(d)}</code>`).join(", ")
+      : te("settings.status.none")}</p>`)
     // PRD 0027 RF6.5: the Add-account question, changeable here; off (or unanswered) checks nothing.
     + row({ key: "detect", label: te("settings.detect.on"), info: te("settings.detect.help"), msg: "detect-msg",
-      control: (a) => sw("detect-enabled", s.detect?.enabled === true, a) })
-    + disc("status-domains", te("settings.status.domainsTitle"), `<p class="hint" data-status-domains>${domains.length
-      ? `${te("settings.status.domains")} ${domains.map((d) => `<code>${esc(d)}</code>`).join(", ")}`
-      : te("settings.status.none")}</p>`), "data-privacy");
+      control: (a) => sw("detect-enabled", s.detect?.enabled === true, a) }), "data-privacy");
 }
 
 /** RF3.4/RF5.2: export and erasure, collapsed in their own group at the end of the page; erasing keeps its question.
