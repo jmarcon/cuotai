@@ -151,7 +151,8 @@ function card(r, ctx, recharging = false, { connection = false } = {}) {
     missedLevel ? `<span class="mini info" data-missed-chip title="${te("alerts.missed", { percent: missedLevel })}">${icon("clock")}<span class="mini-t">${te("alerts.missedChip")}</span></span>` : "",
     r.session_expiry ? `<span class="mini ${r.session_expiry.soon ? "warn" : ""}" data-session-expiry title="${esc(tl(r.session_expiry.label))}">${icon("clock")}<span class="mini-t">${esc(tl(r.session_expiry.label))}</span></span>` : "",
     rate != null && level(rate) !== "good" ? `<span class="mini ${level(rate)}" title="${te("card.rateLimit", { pct: Math.round(rate) })}">${icon("gauge")}${Math.round(rate)}%</span>` : "",
-    (r.status === "ready" && r.freshness !== "fresh") || stale ? ageHtml(r) : "",
+    // PRD 0010 re-validation V-02: a stale card's status line already carries "Stale · age".
+    !stale && r.status === "ready" && r.freshness !== "fresh" ? ageHtml(r) : "",
     isBusy ? `<span class="next"><span class="nt">${te("card.refreshing")}</span></span>` : "",
   ].filter(Boolean);
   const counts = [n ? te("card.limits", { count: n }) : "", r.model_count != null ? (r.model_count ? te("card.modelCount", { count: r.model_count }) : te("card.noModels")) : ""].filter(Boolean);
@@ -185,7 +186,7 @@ function card(r, ctx, recharging = false, { connection = false } = {}) {
       </div>
     </div>
     <div class="summary">${stale
-      ? `<div class="stale-reading">${summaryHtml(staleView(r), true)}</div><p class="sum-note cause">${icon("warn")}<span>${esc(causeText(r))}</span></p>`
+      ? `<div class="stale-reading">${summaryHtml(staleView(r), true)}</div>${r.pending ? "" : `<p class="sum-note cause">${icon("warn")}<span>${esc(causeText(r))}</span></p>`}`
       : summaryHtml(r)}${pasteSessionHtml(r)}${checkSetupHtml(r)}${st.kind === "exhausted" && !billingOverage(r) ? "" : statusLineHtml(r, st, { compact: false, reset: false })}${stale ? "" : scopeBlocksHtml(r)}${liveSessionHtml(r)}${bestChipHtml(r) ? `<div class="card-chips">${bestChipHtml(r)}</div>` : ""}${stale || billingOverage(r) ? "" : overageLineHtml(r)}${incidentHtml(r)}${accessHtml(r)}${costFoldHtml(r)}</div>
     <div class="card-foot">${foot}<span class="grow"></span>
       ${changeMarkHtml(key)}<button class="btn ghost sm details-link" data-details="${esc(key)}">${te("card.details")}${icon("chev")}</button>

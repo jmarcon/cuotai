@@ -819,8 +819,11 @@ export const blockedText = (r) => {
 /** Chip text "Week · 100%" (consumed share of the binding window, rounded honestly). */
 export const bindingChipText = (r) => `${bindingLabel(r)} · ${fmtShare(r.binding.used_ratio * 100)}`;
 export const isBindingMetric = (r, m) => r.binding != null && r.metrics[r.binding.index] === m;
-/** PRD 0010 RF4.1: the current reading is exhausted or blocked; a failure (even with a preserved reading) is not. */
-export const isRecharging = (r) => r.status === "ready" && (r.class === "exhausted" || isBlocked(r));
+/** PRD 0010 RF4.1: the current reading is exhausted or blocked; a failure (even with a preserved reading) is not.
+ *  An account usable now on paid extra usage (the core's overage state `armed` or `active`) is not recharging;
+ *  `cap_reached`, `disabled`, `unknown` (amount missing, usability not confirmed) or no overage keep it in. */
+export const isRecharging = (r) =>
+  r.status === "ready" && (r.class === "exhausted" || isBlocked(r)) && !["armed", "active"].includes(overageOf(r)?.state);
 /** "Returns Today 14:30", or "Return unknown" when the core knows no `blocked_until`. */
 export const returnText = (r) => {
   const at = isBlocked(r) ? fmtReset(r.binding.blocked_until) : null;

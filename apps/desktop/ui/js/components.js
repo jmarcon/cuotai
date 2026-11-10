@@ -5,7 +5,7 @@
 // the core (`tl`) or from the UI catalogs.
 import { t, te, tl } from "./i18n.js";
 import {
-  ALERTS, billingOverage, bindingLabel, bindingPct, brand, fmtShare, fmtExtra, fmtLocal, paceUnit, esc, fmtAge, icon, incidentBadge, isBlocked, isMetricHidden, isStaleReading, level, logo,
+  ALERTS, billingOverage, bindingLabel, causeText, bindingPct, brand, fmtShare, fmtExtra, fmtLocal, paceUnit, esc, fmtAge, icon, incidentBadge, isBlocked, isMetricHidden, isStaleReading, level, logo,
   paceLabelOf, paceOf, remainingPct, reportKey, shownAt, staleView, statusLabel, summaryOf, windowsOf,
   planBadgeHtml,
 } from "./lib.js";
@@ -200,11 +200,13 @@ export function fmtAt(iso, now = Date.now()) {
 export function statusParts(r, st = accountState(r)) {
   const binding = r.status === "ready" && r.binding ? r.metrics[r.binding.index] : null;
   const pace = binding ? paceOf(binding) : null;
-  let label = "", role = st.role, detail = "", reset = null, resetFull = null;
+  let label = "", role = st.role, detail = "", reset = null, resetFull = null, cause = "";
   if (st.kind === "stale") {
     label = t("freshness.stale");
     role = "warn";
     detail = fmtAge(shownAt(r));
+    // PRD 0010 RF3.3 (re-validation V-04, DS-CMP-ROW-4): why the reading is old; none while the first query runs.
+    if (!r.pending) cause = causeText(r);
   } else if (st.kind === "status") {
     label = r.status === "authentication_error" ? t("state.auth") : statusLabel(r.status);
   } else if (st.kind === "exhausted") {
@@ -234,8 +236,8 @@ export function statusParts(r, st = accountState(r)) {
   }
   const at = fmtAt(reset);
   if (at) resetFull = t("stl.resets", { time: at });
-  const full = [label, detail, resetFull].filter(Boolean).join(" · ");
-  return { label, role, detail, reset: at, resetFull, full, pace, binding };
+  const full = [label, detail, resetFull, cause].filter(Boolean).join(" · ");
+  return { label, role, detail, reset: at, resetFull, full, pace, binding, cause };
 }
 
 // ---------- DS-CMP-TIME: time chips (core texts, TUI shapes) ----------
@@ -504,7 +506,7 @@ export function rowName(r, st = accountState(r)) {
   const value = f.unit ? t("meter.left", { pct: Math.round(st.pct) }) : f.fig;
   // PRD 0008 RF3.4: an active usage alert is part of the name, since the row's label overrides its content.
   const usage = r.usage_alerts?.length ? ALERTS.find((c) => c.id === "usage").label(r) : "";
-  return [brand(r.provider).label, r.account, value, p.label !== f.fig ? p.label : "", p.detail, p.resetFull, usage].filter(Boolean).join(", ");
+  return [brand(r.provider).label, r.account, value, p.label !== f.fig ? p.label : "", p.detail, p.resetFull, p.cause, usage].filter(Boolean).join(", ");
 }
 /** Fa gap 9 (mockup 06): an aging reading is drawn like a stale one: dimmed figure, dotted meter, no pace mark. */
 const isAging = (r) => r.status === "ready" && r.freshness === "aging";

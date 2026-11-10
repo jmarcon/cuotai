@@ -290,6 +290,9 @@ jobs:
       # PRD 0022 RF17.7: render the remaining-share unit in every built-in
       # locale and keep the UI-owned catalog key sets in parity.
       - run: node scripts/test-card-wording-ui.mjs
+      # PRD 0010 RF4: "Recharging" membership (paid extra usage stays out),
+      # order inside each list, and the stale row's cause.
+      - run: node scripts/test-recharging-ui.mjs
       # PRD 0047 G1: no core text naming an environment variable or a
       # params.* name reaches the desktop; its own wording replaces it.
       - run: node scripts/test-desktop-wording-ui.mjs
