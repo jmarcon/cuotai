@@ -13,6 +13,14 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.84.9] - 2026-11-10
+
+### Fixed
+
+- An impossible reset time from a provider no longer crashes the terminal app, --once or the desktop app; the reset reads as unknown (PRD 0009 RF1; ff86368).
+- Limit summaries in the terminal and in --once now name every limit in your language, never round a limit that is not reached up to 100% and show return dates in your locale's format (PRD 0009 RF3, RF4; c976e65).
+- The desktop app names every binding limit in your language and never shows a limit that is not reached as 100% or a limit with a sliver left as 0% (PRD 0009 RF2; 687ec71).
+
 ## [0.84.8] - 2026-11-10
 
 ### Fixed
@@ -673,7 +681,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.84.8...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.84.9...HEAD
+[0.84.9]: https://github.com/jmarcon/cuotai/compare/v0.84.8...v0.84.9
 [0.84.8]: https://github.com/jmarcon/cuotai/compare/v0.84.7...v0.84.8
 [0.84.7]: https://github.com/jmarcon/cuotai/compare/v0.84.6...v0.84.7
 [0.84.6]: https://github.com/jmarcon/cuotai/compare/v0.84.5...v0.84.6
