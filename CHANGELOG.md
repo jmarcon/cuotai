@@ -13,6 +13,20 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.85.0] - 2026-11-10
+
+### Fixed
+
+- Danger buttons such as Revoke token and Erase log are readable again in the Windows 98, Windows XP and GitHub dark themes (PRD 0022 RF15.5; 5b2fe10).
+- The port-taken message no longer repeats its advice, and the local-server help texts match what the server does (PRD 0012 RF4.1, RF5.2; 14fbbf2).
+
+### Security
+
+- The local server now holds its port on both loopback addresses and --from-server reads localhost as 127.0.0.1, so another user of the computer can no longer pose as the server and capture its token (PRD 0012 RF3.1; PRD 0031 RF2.1; 6f962b4).
+- A port whose IPv6 loopback side is already taken now counts as taken, and the local server reports it instead of starting (PRD 0012 RF3.1; PRD 0031 RF2.1; 6f962b4).
+- **Breaking**: The desktop local server now always requires its access token; a server that ran without one gets a token on its next start, and Settings › Advanced › Integrations says where to copy it. Migration: scripts that read the desktop local server without a token now get 401; copy the token with Settings › Advanced › Integrations › Copy token and send it as Authorization: Bearer <token> (PRD 0012 RF5, RF3.2; PRD 0052 RF4; e37526e).
+- Requests the local server refuses no longer use up the rate limit of clients that send the token, and slow half-open connections can no longer block them (PRD 0050 RF5; PRD 0012 RF2.4; 1a4073c).
+
 ## [0.84.11] - 2026-11-10
 
 ### Fixed
@@ -700,7 +714,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.84.11...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.85.0...HEAD
+[0.85.0]: https://github.com/jmarcon/cuotai/compare/v0.84.11...v0.85.0
 [0.84.11]: https://github.com/jmarcon/cuotai/compare/v0.84.10...v0.84.11
 [0.84.10]: https://github.com/jmarcon/cuotai/compare/v0.84.9...v0.84.10
 [0.84.9]: https://github.com/jmarcon/cuotai/compare/v0.84.8...v0.84.9
