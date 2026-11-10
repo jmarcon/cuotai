@@ -22,6 +22,8 @@
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable.
 **Fix requirements (2026-10-21 review), delivered in 0.77.1:** FIX-01 — a hook's whole process tree (its own process group on Unix, a kill-on-close Job Object on Windows, the `process_tree` helper shared with the extension runner) is killed on timeout, on exit and when the runner stops, so no grandchild escapes the four-at-once limit; FIX-02 — hooks run in the private `<data dir>/cuotai/hooks/work` (`0700`, never a symbolic link) instead of the shared temporary directory, and do not start when it cannot be made private.
 
+**Re-validation fixes (2026-11-10, delivered in vNEXT):** S-01/S-03 — a hook program, a script's interpreter or `hooks.toml` that another user could change (the file or any folder above it, through the rule shared with the extensions guard, `private_fs::exposed`, with the sticky-folder and privileged-group exceptions) is refused at approval and at load, and suspends the rule at spawn (`Outcome::Exposed`); a script runs from a verified private copy through its pinned interpreter; only `#!/abs/interp`, `#!/usr/bin/env NAME` and `#!/usr/bin/env -S NAME` are pinned (other `env` options and nested interpreters are refused).
+
 ## 1. Context
 
 Cuotai only reacts to state changes inside its interfaces: the card changes color, the tray updates the ring. Anyone who wants to trigger another tool (play a sound, switch agents, write to a file, notify a chat of their own) has to poll `--json` in a loop and compare results by hand, repeating queries and losing the notion of a transition.

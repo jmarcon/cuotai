@@ -537,7 +537,7 @@ impl Hooks {
         self.rules
             .iter()
             .zip(self.pins())
-            .map(|(rule, pin)| pin.map_err(|_| unresolved(&rule.name)))
+            .map(|(rule, pin)| pin.map_err(|why| refused(&rule.name, why)))
             .collect()
     }
 
@@ -717,11 +717,50 @@ fn pin_lines(pin: &Result<Pin, Unresolved>) -> Vec<Localized> {
             }
             lines
         }
+        Err(Unresolved::Exposed) => vec![Localized::fixed(
+            "hooks.confirm.exposed",
+            "program: another user can change it (it cannot be approved)",
+        )],
+        Err(Unresolved::Shebang) => vec![Localized::fixed(
+            "hooks.confirm.shebang",
+            "program: its #! line cannot be pinned (it cannot be approved)",
+        )],
         Err(_) => vec![Localized::fixed(
             "hooks.confirm.unresolved",
             "program: not found on PATH (it cannot be approved)",
         )],
     }
+}
+
+/// Why the program of rule `name` cannot be pinned, as the error that
+/// refuses the approval.
+pub fn refused(name: &str, why: Unresolved) -> Localized {
+    match why {
+        Unresolved::Program | Unresolved::Interpreter => unresolved(name),
+        Unresolved::Shebang => Localized::with_param(
+            "hooks.error.shebang",
+            "name",
+            name,
+            "The #! line of the rule \"{name}\"'s script takes a form Cuotai cannot pin; use #!/absolute/interpreter, #!/usr/bin/env NAME or #!/usr/bin/env -S NAME, then approve the hooks again.",
+        ),
+        Unresolved::Exposed => Localized::with_param(
+            "hooks.error.exposed",
+            "name",
+            name,
+            "The program of the rule \"{name}\" (or its script's interpreter), or a folder above it, can be changed by another user; make it writable only by you or root (chmod go-w), then approve the hooks again.",
+        ),
+    }
+}
+
+/// PRD 0013 S-01: `hooks.toml` at `shown` (or a folder above it) can be
+/// changed by another user, so its rules are refused.
+fn exposed_file(shown: &str) -> Localized {
+    Localized::with_param(
+        "hooks.error.exposed_file",
+        "path",
+        shown,
+        "{path}, or a folder above it, can be changed by another user; make it writable only by you or root (chmod go-w).",
+    )
 }
 
 /// PRD 0050 RF2.4: the program of rule `name` (or its script's
@@ -892,9 +931,13 @@ impl Document {
         Self {
             path: path.to_path_buf(),
             revision,
-            hooks: drafts
-                .clone()
-                .and_then(|drafts| Hooks::from_drafts(path.to_path_buf(), drafts)),
+            hooks: drafts.clone().and_then(|drafts| {
+                // PRD 0013 S-01: rules another user could rewrite never run.
+                if crate::private_fs::exposed_chain(path) {
+                    return Err(exposed_file(&shown));
+                }
+                Hooks::from_drafts(path.to_path_buf(), drafts)
+            }),
             drafts: drafts.ok(),
         }
     }
@@ -1402,6 +1445,10 @@ pub enum Outcome {
     /// confirmed; the rule stays suspended until the hooks are confirmed
     /// again.
     Changed,
+    /// PRD 0013 S-01: not started because the program, its script's
+    /// interpreter or a folder above either can now be changed by another
+    /// user; the rule stays suspended like [`Self::Changed`].
+    Exposed,
 }
 
 /// One run of one rule for one event.
@@ -1501,6 +1548,11 @@ impl LoggedRun {
                 "hooks.run.changed",
                 common(),
                 "{rule} ({event}): not run, its program changed since the hooks were confirmed; confirm them again",
+            ),
+            (Outcome::Exposed, _) => Localized::with_params(
+                "hooks.run.exposed",
+                common(),
+                "{rule} ({event}): not run, another user can now change its program; fix its permissions and confirm the hooks again",
             ),
         }
     }
@@ -1870,6 +1922,76 @@ enum Waited {
     TimedOut,
 }
 
+/// Why a script could not be copied for a run.
+enum Copied {
+    /// The copy's bytes are not the confirmed ones.
+    Changed,
+    /// The private folder or the copy could not be written.
+    Failed,
+}
+
+/// PRD 0013 S-01: a verified private copy of a hook script, in its own
+/// `0700` folder under `<data>/cuotai/hooks/exec`, removed when dropped
+/// (after the run).
+struct ScriptCopy {
+    folder: tempfile::TempDir,
+    name: OsString,
+    interpreter: PathBuf,
+    line: pin::Shebang,
+}
+
+impl ScriptCopy {
+    fn new(context: &Context, pin: &Pin, interpreter: &Interpreter) -> Result<Self, Copied> {
+        let exec = context
+            .work_dir
+            .as_deref()
+            .and_then(Path::parent)
+            .map(|hooks| hooks.join("exec"))
+            .ok_or(Copied::Failed)?;
+        crate::private_fs::ensure_dir(&exec).map_err(|_| Copied::Failed)?;
+        let folder = tempfile::Builder::new()
+            .prefix("run-")
+            .tempdir_in(&exec)
+            .map_err(|_| Copied::Failed)?;
+        let name = pin
+            .program
+            .file_name()
+            .map_or_else(|| OsString::from("hook"), OsStr::to_os_string);
+        let path = folder.path().join(&name);
+        copy_private(&pin.program, &path).map_err(|_| Copied::Failed)?;
+        let (_, sha256, head) = pin::hashed(&path).ok_or(Copied::Failed)?;
+        if sha256 != pin.sha256 {
+            return Err(Copied::Changed);
+        }
+        let Some(Ok(line)) = pin::shebang(&head) else {
+            return Err(Copied::Changed);
+        };
+        Ok(Self {
+            folder,
+            name,
+            interpreter: interpreter.program.clone(),
+            line,
+        })
+    }
+
+    fn path(&self) -> PathBuf {
+        self.folder.path().join(&self.name)
+    }
+}
+
+/// Copy `from` to the new file `to`, readable only by the user (`0500` on
+/// Unix; nobody writes it after the copy).
+fn copy_private(from: &Path, to: &Path) -> io::Result<()> {
+    let mut source = std::fs::File::open(from)?;
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o500);
+    let mut target = options.open(to)?;
+    io::copy(&mut source, &mut target)?;
+    target.sync_all()
+}
+
 async fn execute(context: &Context, job: &Job) -> Run {
     let rule = &context.rules[job.rule];
     let started_at = Utc::now();
@@ -1897,18 +2019,48 @@ async fn execute(context: &Context, job: &Job) -> Run {
     // difference from the confirmed pin runs nothing and suspends the rule.
     let pin = &context.pins[job.rule];
     let suspended = &context.suspended[job.rule];
-    let same =
-        || pin::resolve(&rule.command[0], context.search_path.as_deref()).as_ref() == Ok(pin);
-    if suspended.load(std::sync::atomic::Ordering::Relaxed) || !same() {
+    let suspend = |outcome| {
         suspended.store(true, std::sync::atomic::Ordering::Relaxed);
-        return run(Outcome::Changed, None, Captured::default());
+        run(outcome, None, Captured::default())
+    };
+    if suspended.load(std::sync::atomic::Ordering::Relaxed) {
+        return suspend(Outcome::Changed);
     }
-    let mut command = tokio::process::Command::new(&pin.program);
-    // The program sees the name it was written with (a multi-call binary
-    // such as busybox dispatches on it), while the pinned file is what
-    // runs.
-    #[cfg(unix)]
-    command.arg0(&rule.command[0]);
+    match pin::resolve(&rule.command[0], context.search_path.as_deref()) {
+        Err(Unresolved::Exposed) => return suspend(Outcome::Exposed),
+        Ok(now) if now == *pin => {}
+        _ => return suspend(Outcome::Changed),
+    }
+    // PRD 0013 S-01: a script runs from a private copy whose hash is
+    // checked, started through its pinned interpreter, so nothing swapped
+    // at its path after the check can run.
+    let copy = match &pin.interpreter {
+        None => None,
+        Some(interpreter) => match ScriptCopy::new(context, pin, interpreter) {
+            Ok(copy) => Some(copy),
+            Err(Copied::Changed) => return suspend(Outcome::Changed),
+            Err(Copied::Failed) => return run(Outcome::NotStarted, None, Captured::default()),
+        },
+    };
+    let mut command = match &copy {
+        Some(copy) => {
+            let mut command = tokio::process::Command::new(&copy.interpreter);
+            #[cfg(unix)]
+            command.arg0(&copy.line.arg0);
+            command.args(&copy.line.args).arg(copy.path());
+            command
+        }
+        None => {
+            #[cfg_attr(not(unix), allow(unused_mut))]
+            let mut command = tokio::process::Command::new(&pin.program);
+            // The program sees the name it was written with (a multi-call
+            // binary such as busybox dispatches on it), while the pinned
+            // file is what runs.
+            #[cfg(unix)]
+            command.arg0(&rule.command[0]);
+            command
+        }
+    };
     command
         .args(&rule.command[1..])
         .env_clear()
