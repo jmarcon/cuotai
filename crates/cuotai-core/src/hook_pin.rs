@@ -11,10 +11,26 @@
 //! bytes, a new interpreter) runs nothing and suspends the rule until the
 //! hooks are confirmed again.
 //!
+//! PRD 0013 re-validation (S-01): a program or interpreter that another
+//! user could change, replace or rename (itself, or any folder above it:
+//! [`crate::private_fs::exposed_chain`]) is never pinned, so it can be
+//! neither approved nor run. A script is never run by its path: the runner
+//! copies it into a private folder, checks the copy's hash and starts the
+//! pinned interpreter on the copy, so a swap after the check cannot run.
+//!
+//! The `#!` lines accepted are `#!/abs/interpreter [args]`,
+//! `#!/usr/bin/env NAME [args]` and `#!/usr/bin/env -S NAME [args]`
+//! (`--split-string`, and `--` before `NAME`, too). Any other `env` option,
+//! a `NAME` holding `=` or `$`, `$` or `\` in a `-S` line, and an
+//! interpreter that is itself a `#!` script are refused
+//! ([`Unresolved::Shebang`]): what they would run cannot be pinned.
+//!
 //! Limits: arguments are not pinned (a script passed to `sh` as an argument
-//! is data, not the program); a file swapped between the last hash and the
-//! `exec` itself is not detected (the window is the spawn call). Relative
-//! and empty `PATH` entries are skipped, since a hook runs in a private
+//! is data, not the program); a native program (and a script's
+//! interpreter) is still started by its path, so a file swapped between the
+//! last hash and the `exec` by someone who may write it (the user
+//! themselves, since others are refused) is not detected. Relative and
+//! empty `PATH` entries are skipped, since a hook runs in a private
 //! working directory. On Windows a bare name also tries each `PATHEXT`
 //! extension, as the shell does.
 
@@ -50,6 +66,11 @@ pub enum Unresolved {
     Program,
     /// Its `#!` interpreter could not be found or read.
     Interpreter,
+    /// Its `#!` line takes a form whose program cannot be pinned.
+    Shebang,
+    /// It, its interpreter or a folder above either can be changed by
+    /// another user.
+    Exposed,
 }
 
 /// Pin `program` (a rule's `command[0]`: absolute, or a bare name looked up
@@ -57,9 +78,12 @@ pub enum Unresolved {
 pub fn resolve(program: &str, search_path: Option<&OsStr>) -> Result<Pin, Unresolved> {
     let found = locate(program, search_path).ok_or(Unresolved::Program)?;
     let (program, sha256, head) = hashed(&found).ok_or(Unresolved::Program)?;
+    if crate::private_fs::exposed_chain(&program) {
+        return Err(Unresolved::Exposed);
+    }
     let interpreter = match shebang(&head) {
         None => None,
-        Some(line) => Some(interpreter(&line, search_path).ok_or(Unresolved::Interpreter)?),
+        Some(line) => Some(interpreter(&line?, search_path)?),
     };
     Ok(Pin {
         program,
@@ -120,7 +144,7 @@ fn executable(path: &Path) -> bool {
 
 /// The canonical path of `path`, the SHA-256 of its bytes and their first
 /// [`HEAD`] bytes; `None` unless it is a readable regular file.
-fn hashed(path: &Path) -> Option<(PathBuf, String, Vec<u8>)> {
+pub(crate) fn hashed(path: &Path) -> Option<(PathBuf, String, Vec<u8>)> {
     use sha2::{Digest, Sha256};
     let canonical = std::fs::canonicalize(path).ok()?;
     let mut file = std::fs::File::open(&canonical).ok()?;
@@ -150,39 +174,128 @@ fn hashed(path: &Path) -> Option<(PathBuf, String, Vec<u8>)> {
 /// Bytes read for the `#!` line.
 const HEAD: usize = 256;
 
-/// The words of a `#!` line, or `None` for a file without one. Windows
-/// never runs a `#!` line (it starts only the program itself), so there it
-/// pins no interpreter.
+/// What a `#!` line runs: the interpreter, how to find it, the `argv[0]`
+/// it is started with and the arguments before the script.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(not(unix), allow(dead_code))]
+pub(crate) struct Shebang {
+    /// An absolute path, or for `env` the name looked up on `PATH`.
+    target: String,
+    pub(crate) arg0: OsString,
+    pub(crate) args: Vec<OsString>,
+}
+
+/// The `#!` line of a file starting with `head`: `None` without one,
+/// `Some(Err)` for a form that cannot be pinned. Windows never runs a `#!`
+/// line (it starts only the program itself), so there it is always `None`.
 #[cfg(not(unix))]
-fn shebang(_head: &[u8]) -> Option<Vec<OsString>> {
+pub(crate) fn shebang(_head: &[u8]) -> Option<Result<Shebang, Unresolved>> {
     None
 }
 
-/// The words of a `#!` line, or `None` for a file without one.
+/// The `#!` line of a file starting with `head`: `None` without one,
+/// `Some(Err)` for a form that cannot be pinned.
 #[cfg(unix)]
-fn shebang(head: &[u8]) -> Option<Vec<OsString>> {
+pub(crate) fn shebang(head: &[u8]) -> Option<Result<Shebang, Unresolved>> {
     let rest = head.strip_prefix(b"#!")?;
     let line = rest.split(|byte| *byte == b'\n').next().unwrap_or_default();
-    let line = String::from_utf8_lossy(line);
-    Some(line.split_whitespace().map(OsString::from).collect())
+    Some(parse_shebang(&String::from_utf8_lossy(line)).ok_or(Unresolved::Shebang))
 }
 
-/// The interpreter a `#!` line runs: its absolute first word, or for
-/// `env` the first non-option word found on `search_path`.
-fn interpreter(words: &[OsString], search_path: Option<&OsStr>) -> Option<Interpreter> {
-    let first = Path::new(words.first()?);
-    if !first.is_absolute() {
+#[cfg_attr(not(unix), allow(dead_code))]
+fn parse_shebang(line: &str) -> Option<Shebang> {
+    let line = line.trim();
+    let first = line.split_whitespace().next()?;
+    if !Path::new(first).is_absolute() {
         return None;
     }
-    let target = if first.file_name() == Some(OsStr::new("env")) {
-        let name = words[1..]
-            .iter()
-            .map(|word| word.to_string_lossy())
-            .find(|word| !word.starts_with('-'))?;
-        locate(&name, search_path)?
-    } else {
-        first.to_path_buf()
-    };
-    let (program, sha256, _) = hashed(&target)?;
-    Some(Interpreter { program, sha256 })
+    if Path::new(first).file_name() != Some(OsStr::new("env")) {
+        // Linux passes the rest of the line as one argument; the BSDs and
+        // macOS split it on blanks.
+        let tail = line[first.len()..].trim();
+        let args = if tail.is_empty() {
+            Vec::new()
+        } else if cfg!(any(target_os = "linux", target_os = "android")) {
+            vec![OsString::from(tail)]
+        } else {
+            tail.split_whitespace().map(OsString::from).collect()
+        };
+        return Some(Shebang {
+            target: first.to_owned(),
+            arg0: OsString::from(first),
+            args,
+        });
+    }
+    let mut words = line.split_whitespace().skip(1).peekable();
+    let split = matches!(words.peek(), Some(&("-S" | "--split-string")));
+    if split {
+        words.next();
+    }
+    if words.peek() == Some(&"--") {
+        words.next();
+    }
+    let name = words.next()?;
+    if name.starts_with('-') || name.contains(['=', '$']) {
+        return None;
+    }
+    let args: Vec<&str> = words.collect();
+    if split && args.iter().any(|word| word.contains(['$', '\\'])) {
+        return None;
+    }
+    Some(Shebang {
+        target: name.to_owned(),
+        arg0: OsString::from(name),
+        args: args.into_iter().map(OsString::from).collect(),
+    })
+}
+
+/// The interpreter `line` runs, pinned: its absolute path, or the name
+/// found on `search_path`; refused when it is itself a `#!` script or
+/// another user can change it.
+fn interpreter(line: &Shebang, search_path: Option<&OsStr>) -> Result<Interpreter, Unresolved> {
+    let target = locate(&line.target, search_path).ok_or(Unresolved::Interpreter)?;
+    let (program, sha256, head) = hashed(&target).ok_or(Unresolved::Interpreter)?;
+    if head.starts_with(b"#!") {
+        return Err(Unresolved::Shebang);
+    }
+    if crate::private_fs::exposed_chain(&program) {
+        return Err(Unresolved::Exposed);
+    }
+    Ok(Interpreter { program, sha256 })
+}
+
+/// Unix paths: Windows never reads a `#!` line, and `/bin/sh` is not
+/// absolute there.
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_the_env_forms_that_can_be_pinned_are_accepted() {
+        let target = |line: &str| parse_shebang(line).map(|s| (s.target, s.args.len()));
+        for (line, expected) in [
+            ("/bin/sh", Some(("/bin/sh", 0))),
+            ("/usr/bin/env python3", Some(("python3", 0))),
+            ("/usr/bin/env -S python3 -u", Some(("python3", 1))),
+            (
+                "/usr/bin/env --split-string python3 -u -B",
+                Some(("python3", 2)),
+            ),
+            ("/usr/bin/env -- python3", Some(("python3", 0))),
+            ("/usr/bin/env -S -- python3", Some(("python3", 0))),
+            ("/usr/bin/env -P /tmp/evil python3", None),
+            ("/usr/bin/env -i python3", None),
+            ("/usr/bin/env -u HOME python3", None),
+            ("/usr/bin/env -C /tmp python3", None),
+            ("/usr/bin/env PATH=/tmp python3", None),
+            ("/usr/bin/env -S $SHELL", None),
+            ("/usr/bin/env -S python3 ${X}", None),
+            ("/usr/bin/env -S python3 \\_x", None),
+            ("/usr/bin/env", None),
+            ("python3", None),
+        ] {
+            let expected = expected.map(|(name, args)| (name.to_owned(), args));
+            assert_eq!(target(line), expected, "{line}");
+        }
+    }
 }

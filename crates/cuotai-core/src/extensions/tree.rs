@@ -16,9 +16,11 @@
 //! - anything else (a FIFO, a socket, a device) is refused.
 //!
 //! On Unix the folder and everything in it must belong to the current user
-//! (or root) and must not be writable by the group or by others: otherwise
-//! another account could swap a file between the verification and the
-//! spawn of a run, so the extension is refused instead. The walk is bounded
+//! (or root) and must not be writable by the group or by others (the rule
+//! shared with the hooks, [`crate::private_fs::exposed`], which accepts a
+//! sticky folder and the privileged groups): otherwise another account
+//! could swap a file between the verification and the spawn of a run, so
+//! the extension is refused instead. The walk is bounded
 //! ([`MAX_ENTRIES`], [`MAX_BYTES`], [`MAX_DEPTH`]); a larger folder is
 //! refused rather than hashed partially.
 
@@ -27,7 +29,7 @@ use std::path::{Path, PathBuf};
 
 use sha2::{Digest, Sha256};
 
-use crate::private_fs::{foreign_owner, writable_by_others};
+use crate::private_fs::exposed;
 use crate::text::Localized;
 
 /// Most entries (files, folders and links) a folder may hold.
@@ -124,10 +126,12 @@ pub(crate) fn scan_within(dir: &Path, root: &Path) -> Result<String, Refused> {
     scan(dir)
 }
 
-/// The ownership and permission rule, for one entry: Unix mode and owner,
-/// or a Windows DACL that lets a broad principal change it.
+/// The ownership and permission rule, for one entry: the rule shared with
+/// the hooks ([`exposed`]: Unix mode and owner, with the sticky-folder and
+/// privileged-group exceptions, or a Windows DACL that lets a broad
+/// principal change it).
 fn guard(path: &Path, meta: &std::fs::Metadata) -> Result<(), Refused> {
-    if writable_by_others(path, meta) || foreign_owner(meta) {
+    if exposed(path, meta) {
         return Err(Refused::Exposed);
     }
     Ok(())

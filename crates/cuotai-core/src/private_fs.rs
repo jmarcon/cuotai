@@ -604,6 +604,7 @@ pub(crate) fn sqlite_backup(db: &rusqlite::Connection, path: &Path) -> io::Resul
 /// Users, Users, Guests, Anonymous, INTERACTIVE, NETWORK) a write, delete
 /// or re-permission right, a NULL DACL, or a descriptor that cannot be
 /// read (fail closed). `false` on other platforms.
+#[cfg_attr(not(any(windows, test)), allow(dead_code))]
 pub(crate) fn writable_by_others(path: &Path, meta: &Metadata) -> bool {
     #[cfg(unix)]
     {
@@ -700,6 +701,74 @@ pub(crate) fn foreign_owner(meta: &Metadata) -> bool {
         let _ = meta;
         false
     }
+}
+
+/// The one ownership and permission rule for files Cuotai runs (hook
+/// programs and their interpreters, `hooks.toml`, extension trees): whether
+/// another user could change, replace or rename what `path` (described by
+/// `meta`, a link not followed) holds or names.
+///
+/// - Owned by neither the current user nor root ([`foreign_owner`]).
+/// - Unix: writable by others, or by a group other than a privileged one
+///   (`root`/`wheel`, gid 0, and on macOS `admin`, gid 80, whose members can
+///   already act as root). A folder with the sticky bit is the exception:
+///   others may add entries but never rename or remove one they do not own,
+///   and each entry is checked by this same rule on its own (`/tmp`, the
+///   Nix store).
+/// - Windows: a broad principal may write, delete or re-permission a file
+///   ([`writable_by_others`]); for a folder, may delete or rename its
+///   entries, delete or rename it, or re-permission it (adding an entry,
+///   which the volume root allows, replaces nothing).
+pub(crate) fn exposed(path: &Path, meta: &Metadata) -> bool {
+    foreign_owner(meta) || replaceable_by_others(path, meta)
+}
+
+#[cfg(unix)]
+fn replaceable_by_others(_path: &Path, meta: &Metadata) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    let mode = meta.mode();
+    let world = mode & 0o002 != 0;
+    let group = mode & 0o020 != 0 && !privileged_group(meta.gid());
+    (world || group) && !(meta.is_dir() && mode & 0o1000 != 0)
+}
+
+/// Groups whose members can already act as root.
+#[cfg(unix)]
+fn privileged_group(gid: u32) -> bool {
+    gid == 0 || (cfg!(target_os = "macos") && gid == 80)
+}
+
+#[cfg(windows)]
+fn replaceable_by_others(path: &Path, meta: &Metadata) -> bool {
+    if meta.is_dir() {
+        matches!(
+            windows_acl::exposure_with(path, windows_acl::REPLACE_RIGHTS),
+            windows_acl::Exposure::WritableByOthers | windows_acl::Exposure::Unknown
+        )
+    } else {
+        writable_by_others(path, meta)
+    }
+}
+
+#[cfg(not(any(unix, windows)))]
+fn replaceable_by_others(_path: &Path, _meta: &Metadata) -> bool {
+    false
+}
+
+/// [`exposed`] for `path` resolved (links followed) and every folder above
+/// it up to the root: what lets another user swap the file by renaming a
+/// folder on its way. A path that cannot be resolved or read counts as
+/// exposed (fail closed).
+pub(crate) fn exposed_chain(path: &Path) -> bool {
+    let Ok(canonical) = path.canonicalize() else {
+        return true;
+    };
+    canonical
+        .ancestors()
+        .any(|entry| match std::fs::symlink_metadata(entry) {
+            Ok(meta) => exposed(entry, &meta),
+            Err(_) => true,
+        })
 }
 
 /// A private append-only log with one rotated generation (PRD 0013 RF3's
@@ -833,6 +902,72 @@ mod tests {
             assert_eq!(open_to_others(&path, &meta), bits != 0o600, "{bits:o}");
             assert!(!foreign_owner(&meta));
         }
+    }
+}
+
+/// The shared exposure rule (PRD 0013 S-01, extensions FIX-05).
+#[cfg(all(test, unix))]
+mod exposure_tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+
+    fn set(path: &Path, mode: u32) {
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).unwrap();
+    }
+
+    /// A group the tests can give a folder that is not a privileged one
+    /// (`None` when running as root, whose group is privileged).
+    fn plain_group(path: &Path) -> Option<()> {
+        // SAFETY: `getegid` cannot fail and has no side effects.
+        let gid = unsafe { libc::getegid() };
+        if privileged_group(gid) {
+            return None;
+        }
+        std::os::unix::fs::chown(path, None, Some(gid)).unwrap();
+        Some(())
+    }
+
+    #[test]
+    fn a_folder_others_can_write_exposes_what_is_below_it() {
+        let root = tempfile::tempdir().unwrap();
+        let dir = root.path().join("bin");
+        std::fs::create_dir(&dir).unwrap();
+        let file = dir.join("hook");
+        std::fs::write(&file, "#!/bin/sh\n").unwrap();
+        set(&dir, 0o755);
+        set(&file, 0o755);
+        assert!(!exposed_chain(&file), "private");
+        for mode in [0o777, 0o757] {
+            set(&dir, mode);
+            assert!(exposed_chain(&file), "{mode:o}");
+        }
+        set(&dir, 0o755);
+        set(&file, 0o757);
+        assert!(exposed_chain(&file), "the file itself");
+        set(&file, 0o755);
+        if plain_group(&dir).is_some() {
+            set(&dir, 0o775);
+            assert!(exposed_chain(&file), "group-writable");
+        }
+        set(&dir, 0o755);
+        assert!(exposed_chain(&dir.join("missing")), "fail closed");
+    }
+
+    /// A sticky folder (as `/tmp`) lets nobody rename or remove an entry
+    /// they do not own, so a private entry inside it stays private.
+    #[test]
+    fn a_sticky_folder_keeps_its_own_entries_private() {
+        let root = tempfile::tempdir().unwrap();
+        let dir = root.path().join("tmp");
+        std::fs::create_dir(&dir).unwrap();
+        let file = dir.join("hook");
+        std::fs::write(&file, "#!/bin/sh\n").unwrap();
+        set(&file, 0o755);
+        set(&dir, 0o1777);
+        assert!(!exposed_chain(&file));
+        set(&file, 0o777);
+        assert!(exposed_chain(&file), "a writable entry is still exposed");
+        set(&dir, 0o755);
     }
 }
 

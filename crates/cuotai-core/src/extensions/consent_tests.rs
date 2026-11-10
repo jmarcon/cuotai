@@ -428,6 +428,21 @@ mod unix {
     use super::*;
     use std::os::unix::fs::PermissionsExt;
 
+    /// Give `paths` the process group, which these tests make writable: a
+    /// privileged group (gid 0, and `admin` on macOS) is trusted by the
+    /// shared rule, so a test run as root skips the group cases (`false`).
+    fn plain_group(paths: &[&Path]) -> bool {
+        // SAFETY: `getegid` cannot fail and has no side effects.
+        let gid = unsafe { libc::getegid() };
+        if gid == 0 || (cfg!(target_os = "macos") && gid == 80) {
+            return false;
+        }
+        for path in paths {
+            std::os::unix::fs::chown(path, None, Some(gid)).unwrap();
+        }
+        true
+    }
+
     fn rejected_id(rig: &Rig) -> String {
         let discovery = discover(&rig.root);
         assert!(discovery.get("proxy").is_none());
@@ -472,6 +487,9 @@ mod unix {
         let manifest = rig.manifest();
         let approved = rig.consent.approve(&manifest).unwrap();
         assert!(approved.verify());
+        if !plain_group(&[&manifest.dir]) {
+            return;
+        }
 
         fs::set_permissions(&manifest.dir, fs::Permissions::from_mode(0o775)).unwrap();
         assert!(!approved.verify(), "the run would be refused");
@@ -517,6 +535,9 @@ mod unix {
             }
             discovery
         };
+        if !plain_group(&[&root, &nested]) {
+            return;
+        }
         let manifest = found(&root).get("proxy").expect("private parents").clone();
         let approved = consent.approve(&manifest).unwrap();
         assert!(approved.verify());

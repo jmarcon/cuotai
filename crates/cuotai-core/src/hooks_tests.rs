@@ -397,7 +397,7 @@ fn a_script_pins_its_interpreter() {
     );
     assert_eq!(
         pin::resolve(&relative, search.as_deref()),
-        Err(Unresolved::Interpreter)
+        Err(Unresolved::Shebang)
     );
 }
 
@@ -573,8 +573,14 @@ fn every_message_reads_in_each_catalog() {
         run(Outcome::TimedOut, None).summary(),
         run(Outcome::NotStarted, None).summary(),
         run(Outcome::Changed, None).summary(),
+        run(Outcome::Exposed, None).summary(),
         unresolved("a"),
+        refused("a", Unresolved::Shebang),
+        refused("a", Unresolved::Exposed),
+        exposed_file("/x/hooks.toml"),
     ]);
+    messages.extend(pin_lines(&Err(Unresolved::Exposed)));
+    messages.extend(pin_lines(&Err(Unresolved::Shebang)));
     // PRD 0050 RF2.4: the lines of a pinned program and interpreter.
     let bin = bin_dir(&["interp"]);
     let interp = std::fs::canonicalize(bin.path().join("interp")).unwrap();
@@ -882,6 +888,102 @@ fn saving_keeps_the_comments_of_the_rules_it_keeps() {
         "{written}"
     );
     assert_eq!(Document::read(&path).drafts().unwrap(), drafts.as_slice());
+}
+
+/// PRD 0013 S-01: a program, a script's interpreter or `hooks.toml` that
+/// another user could change (itself or a folder above it) is never
+/// pinned, so it can be neither approved nor listed as approvable; a
+/// sticky folder (as `/tmp`) holding the user's own file is fine; an
+/// interpreter that is itself a `#!` script and the `env` options that
+/// change what runs are refused.
+#[cfg(unix)]
+#[test]
+fn an_exposed_program_interpreter_or_rules_file_is_never_approved() {
+    use std::os::unix::fs::PermissionsExt;
+    let set = |path: &Path, mode: u32| {
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).unwrap();
+    };
+    let root = tempfile::tempdir().unwrap();
+    let bin = root.path().join("bin");
+    std::fs::create_dir(&bin).unwrap();
+    write_program(&bin.join("interp"), b"interp");
+    write_program(&bin.join("tool"), b"tool");
+    let interp = std::fs::canonicalize(bin.join("interp")).unwrap();
+    let scripts = root.path().join("scripts");
+    std::fs::create_dir(&scripts).unwrap();
+    let script = scripts.join("hook");
+    write_program(&script, format!("#!{}\n", interp.display()).as_bytes());
+    let search = on(&[&bin]);
+    let rules = |program: &str| {
+        Hooks::from_toml(
+            root.path().join("hooks.toml"),
+            &format!("[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\ncommand = [{program:?}]\n"),
+        )
+        .unwrap()
+        .with_search_path(search.clone())
+    };
+    let script_path = script.display().to_string();
+    assert!(rules("tool").approval().is_ok());
+    assert!(rules(&script_path).approval().is_ok());
+
+    // The program itself, then a folder above it.
+    set(&bin.join("tool"), 0o757);
+    assert_eq!(rules("tool").pins()[0], Err(Unresolved::Exposed));
+    assert_eq!(
+        rules("tool").approval().unwrap_err().id,
+        "hooks.error.exposed"
+    );
+    assert_eq!(
+        rules("tool").listing().last().unwrap().id,
+        "hooks.confirm.exposed"
+    );
+    set(&bin.join("tool"), 0o755);
+    set(&bin, 0o777);
+    assert_eq!(rules("tool").pins()[0], Err(Unresolved::Exposed));
+    // The interpreter's folder exposes the script.
+    assert_eq!(rules(&script_path).pins()[0], Err(Unresolved::Exposed));
+    set(&bin, 0o755);
+    // A sticky folder holding the user's own script is fine.
+    set(&scripts, 0o1777);
+    assert!(rules(&script_path).approval().is_ok(), "sticky");
+    set(&scripts, 0o755);
+
+    // A nested interpreter, and `env -P`, cannot be pinned.
+    write_program(
+        &bin.join("nested"),
+        format!("#!{}\n", interp.display()).as_bytes(),
+    );
+    write_program(
+        &script,
+        format!("#!{}\n", bin.join("nested").display()).as_bytes(),
+    );
+    assert_eq!(
+        rules(&script_path).approval().unwrap_err().id,
+        "hooks.error.shebang"
+    );
+    write_program(&script, b"#!/usr/bin/env -P /tmp interp\n");
+    assert_eq!(rules(&script_path).pins()[0], Err(Unresolved::Shebang));
+
+    // hooks.toml (or its folder) writable by others is refused on load.
+    let file = root.path().join("hooks.toml");
+    std::fs::write(
+        &file,
+        "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\ncommand = [\"tool\"]\n",
+    )
+    .unwrap();
+    set(&file, 0o644);
+    assert!(Hooks::load(&file).is_ok());
+    set(&file, 0o666);
+    assert_eq!(
+        Hooks::load(&file).unwrap_err().id,
+        "hooks.error.exposed_file"
+    );
+    let document = Document::read(&file);
+    assert!(
+        document.drafts().is_some(),
+        "the editor still shows the rules"
+    );
+    set(&file, 0o644);
 }
 
 #[cfg(unix)]
@@ -1587,6 +1689,112 @@ rm '{running}/'$$
         assert_eq!((submitted.queued, submitted.unclaimed), (0, 1));
         tokio::time::sleep(Duration::from_millis(200)).await;
         assert!(!ran.exists());
+    }
+
+    /// One rule running `program` alone for `quota_exhausted`, confirmed.
+    fn script_rule(rig: &Rig, program: &Path) -> Confirmed {
+        let text = format!(
+            "[[hooks]]\nname = \"s\"\nevents = [\"quota_exhausted\"]\ncommand = [{:?}, \"arg\"]\n",
+            program.display().to_string()
+        );
+        let hooks = Hooks::from_toml(rig.path("hooks.toml"), &text)
+            .unwrap()
+            .with_search_path(Some("/usr/bin:/bin".into()));
+        Consent::at(rig.path("consent.json"))
+            .confirm(hooks)
+            .unwrap()
+    }
+
+    fn write_script(path: &Path, body: &str) {
+        use std::os::unix::fs::PermissionsExt;
+        let tmp = path.with_extension("tmp");
+        std::fs::write(&tmp, format!("#!/bin/sh\n{body}\n")).unwrap();
+        std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o755)).unwrap();
+        std::fs::rename(&tmp, path).unwrap();
+    }
+
+    /// PRD 0013 S-01: a script runs from a private verified copy through
+    /// its pinned interpreter (its `$0` is the copy, its arguments are the
+    /// rule's), and the copy is gone after the run.
+    // security-invariant: SEC-HOOK-PIN
+    #[tokio::test]
+    async fn a_script_runs_from_a_private_copy() {
+        let rig = Rig::new();
+        let script = rig.path("hook");
+        let marker = rig.path("marker");
+        write_script(
+            &script,
+            &format!("printf '%s %s' \"$0\" \"$1\" > '{}'", marker.display()),
+        );
+        let (runner, mut runs) = rig.start(script_rule(&rig, &script), Vec::new());
+        submit(&runner, &event(EventKind::QuotaExhausted, "Work", None));
+        let run = next(&mut runs).await;
+        assert!(run.succeeded(), "{run:?}");
+        let seen = std::fs::read_to_string(&marker).unwrap();
+        let exec = rig.path("data").join("hooks").join("exec");
+        let (zero, arg) = seen.rsplit_once(' ').unwrap();
+        assert!(Path::new(zero).starts_with(&exec), "{seen}");
+        assert!(zero.ends_with("/hook"), "{seen}");
+        assert_eq!(arg, "arg");
+        assert_eq!(std::fs::read_dir(&exec).unwrap().count(), 0, "copy removed");
+    }
+
+    /// PRD 0013 S-01: a script made writable by others after approval is
+    /// not run, and its rule stays suspended.
+    #[tokio::test]
+    async fn a_program_exposed_after_approval_never_runs() {
+        use std::os::unix::fs::PermissionsExt;
+        let rig = Rig::new();
+        let script = rig.path("hook");
+        let marker = rig.path("marker");
+        write_script(&script, &format!(": > '{}'", marker.display()));
+        let (runner, mut runs) = rig.start(script_rule(&rig, &script), Vec::new());
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o757)).unwrap();
+        submit(&runner, &event(EventKind::QuotaExhausted, "Work", None));
+        assert_eq!(next(&mut runs).await.outcome, Outcome::Exposed);
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        submit(&runner, &event(EventKind::QuotaExhausted, "Work", None));
+        assert_eq!(
+            next(&mut runs).await.outcome,
+            Outcome::Changed,
+            "still suspended"
+        );
+        assert!(!marker.exists());
+    }
+
+    /// PRD 0013 S-01, the Security harness: a script swapped back and forth
+    /// with another while its rule runs never runs the other one (0 of N),
+    /// since the interpreter reads a verified private copy.
+    // security-invariant: SEC-HOOK-PIN
+    #[tokio::test]
+    async fn a_script_swapped_while_running_never_runs_the_swapped_bytes() {
+        let rig = Rig::new();
+        let script = rig.path("hook");
+        let (good, evil) = (rig.path("good"), rig.path("evil"));
+        write_script(&script, &format!("echo x >> '{}'", good.display()));
+        let (runner, mut runs) = rig.start(script_rule(&rig, &script), Vec::new());
+        let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let swapper = {
+            let (stop, script) = (Arc::clone(&stop), script.clone());
+            let (good, evil) = (good.clone(), evil.clone());
+            std::thread::spawn(move || {
+                while !stop.load(std::sync::atomic::Ordering::Relaxed) {
+                    write_script(&script, &format!("echo x >> '{}'", evil.display()));
+                    write_script(&script, &format!("echo x >> '{}'", good.display()));
+                }
+            })
+        };
+        let mut outcomes = Vec::new();
+        for _ in 0..20 {
+            submit(&runner, &event(EventKind::QuotaExhausted, "Work", None));
+            outcomes.push(next(&mut runs).await.outcome);
+        }
+        stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        swapper.join().unwrap();
+        assert!(!evil.exists(), "the swapped script ran: {outcomes:?}");
+        assert!(outcomes
+            .iter()
+            .all(|outcome| matches!(outcome, Outcome::Exited | Outcome::Changed)));
     }
 }
 

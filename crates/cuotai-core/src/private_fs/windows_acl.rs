@@ -135,6 +135,18 @@ impl Drop for Local {
 /// Classify the DACL of `path` (the object itself, following no link
 /// differently from `CreateFile`).
 pub(crate) fn exposure(path: &Path) -> Exposure {
+    exposure_with(path, WRITE_RIGHTS)
+}
+
+/// Rights that let another principal replace what a folder names: delete
+/// or rename its entries or itself, or change who may (adding an entry is
+/// not one of them).
+pub(crate) const REPLACE_RIGHTS: u32 =
+    GENERIC_ALL | GENERIC_WRITE | DELETE | WRITE_DAC | WRITE_OWNER | FILE_DELETE_CHILD;
+
+/// [`exposure`], counting `write_rights` as the rights that make a path
+/// writable by others.
+pub(crate) fn exposure_with(path: &Path, write_rights: u32) -> Exposure {
     let name = wide(path);
     let mut dacl: *mut ACL = std::ptr::null_mut();
     let mut descriptor: PSECURITY_DESCRIPTOR = std::ptr::null_mut();
@@ -164,7 +176,7 @@ pub(crate) fn exposure(path: &Path) -> Exposure {
         return Exposure::Unknown;
     }
     // SAFETY: `dacl` is a valid ACL inside the live descriptor.
-    match unsafe { classify(dacl, &broad) } {
+    match unsafe { classify(dacl, &broad, write_rights) } {
         Some(exposure) => exposure,
         None => Exposure::Unknown,
     }
@@ -174,7 +186,7 @@ pub(crate) fn exposure(path: &Path) -> Exposure {
 ///
 /// # Safety
 /// `dacl` must point to a valid ACL that outlives the call.
-unsafe fn classify(dacl: *const ACL, broad: &[Vec<u8>]) -> Option<Exposure> {
+unsafe fn classify(dacl: *const ACL, broad: &[Vec<u8>], write_rights: u32) -> Option<Exposure> {
     let mut info = ACL_SIZE_INFORMATION::default();
     // SAFETY: `info` is the structure `AclSizeInformation` fills.
     let ok = unsafe {
@@ -220,7 +232,7 @@ unsafe fn classify(dacl: *const ACL, broad: &[Vec<u8>]) -> Option<Exposure> {
         if !is_broad {
             continue;
         }
-        if mask & WRITE_RIGHTS != 0 {
+        if mask & write_rights != 0 {
             return Some(Exposure::WritableByOthers);
         }
         if mask & READ_RIGHTS != 0 {
