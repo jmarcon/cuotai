@@ -56,7 +56,7 @@ export function html({ settings: s }) {
     + quietHtml(s.quiet)
     + insightsHtml(n)
     + channelsHtml()
-    + row({ key: "test", label: te("settings.notify.test"), info: te("settings.notify.accounts"), msg: "notify-msg", msgRole: "status",
+    + row({ key: "test", label: te("settings.notify.test"), info: te("settings.notify.accounts"), msgRole: "status",
       control: () => buttons(`<button class="btn" data-notify-test aria-labelledby="test-label" ${n.enabled || a.enabled || lead != null ? "" : "disabled"}>${icon("bell")}</button>`),
       body: disc("notify-preview", te("settings.notify.preview"), previewHtml()) }), "data-notify");
 }

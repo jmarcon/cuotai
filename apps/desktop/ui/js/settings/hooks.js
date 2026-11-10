@@ -37,7 +37,7 @@ export function hooksHtml(hv, drafts, dirty) {
     + subpage("hooks-rules", te("settings.hooks.rules"), `
         ${hv.path ? pathHtml(hv.path) : ""}
         ${editor}
-        <p class="err" id="hooks-msg" role="status"></p>
+        <p class="err" id="hooks-page-msg" role="status"></p>
         <h5>${te("settings.hooks.runs.title")}</h5>
         ${runs}`);
 }
@@ -77,7 +77,9 @@ export async function bindHooks(box, ctx) {
   const paint = (next, message = "") => {
     if (next) { hv = next; if (!dirty) drafts = structuredClone(hv.rules ?? []); }
     box.innerHTML = hooksHtml(hv, drafts, dirty);
-    box.querySelector("#hooks-msg").textContent = message;
+    // The row line shows errors of the switch and Review commands while the sub-page is closed; the sub-page line
+    // shows them (and Save, Test) where the user acts, so both get the message (PRD 0013 re-validation V-01).
+    for (const id of ["#hooks-msg", "#hooks-page-msg"]) box.querySelector(id).textContent = message;
     bind();
   };
   // The state is read again (a refused confirmation or save may mean the file changed); unsaved edits stay.
