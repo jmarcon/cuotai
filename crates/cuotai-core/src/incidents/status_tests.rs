@@ -764,6 +764,25 @@ fn failure_notes_by_status_and_incident_state() {
     );
 }
 
+/// S-01 (PRD 0011 re-validation): a scoped incident whose name carries a
+/// right-to-left override reaches every frontend (desktop badge,
+/// `export::v1`, feeds) without it.
+#[tokio::test]
+async fn an_incident_title_loses_bidi_overrides_before_any_frontend() {
+    let server = MockServer::start().await;
+    let spoofed = CLAUDE_INCIDENT.replace(
+        "<b>Elevated errors</b> on **claude.ai** &amp; Claude Code",
+        "Elevated errors\\u202e on claude.ai\\u2067",
+    );
+    serve(&server, Provider::Claude, body(&spoofed)).await;
+    let monitor = only(&[Provider::Claude], &server);
+    let statuses = monitor.refresh_incidents().await;
+    let claude = status_of(&statuses, Provider::Claude);
+    let incident = claude.incident.as_ref().unwrap();
+    assert_eq!(incident.title, "Elevated errors on claude.ai");
+    assert!(!incident.title.chars().any(crate::text::is_disguising));
+}
+
 #[test]
 fn provider_text_loses_markup_and_is_truncated() {
     assert_eq!(
@@ -778,6 +797,9 @@ fn provider_text_loses_markup_and_is_truncated() {
         "alert(1) Title"
     );
     assert_eq!(plain_text("a\u{0}b\u{7}c", 200), "a b c");
+    // Bidi embeddings, overrides and isolates are dropped, not spaced.
+    assert_eq!(plain_text("API\u{202E} errors\u{2066}", 200), "API errors");
+    assert_eq!(plain_text("a\u{202A}b\u{2069}c", 200), "abc");
     let long = "word ".repeat(40);
     let truncated = plain_text(&long, 20);
     assert_eq!(truncated.chars().count(), 20);
