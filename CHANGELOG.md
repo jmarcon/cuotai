@@ -13,6 +13,19 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.85.1] - 2026-11-10
+
+### Fixed
+
+- Hook rule errors and the test confirmation now appear in the hooks Rules page instead of staying hidden (PRD 0013 RF4; 0bcd7e9).
+- Hooks no longer receive a made-up provider for notifications that are not about an account (PRD 0044 RF6; 6ea0b3b).
+- The --watch help now says SIGHUP reloads the configuration, the --hooks help lists CUOTAI_ACCOUNT_ID, and the interval error also covers values that are too large (PRD 0013 RF2; db8ad85).
+
+### Security
+
+- Hooks refuse a program, interpreter or hooks.toml that another user can change, and scripts run from a private verified copy so a file swapped after approval never runs (PRD 0013 RF3; PRD 0050 RF2.4; e0831a7).
+- The hooks confirmation can no longer be disguised by control characters in file names or rules, and account names with control characters are refused (PRD 0013 RF3; 07547b9).
+
 ## [0.85.0] - 2026-11-10
 
 ### Fixed
@@ -714,7 +727,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.85.0...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.85.1...HEAD
+[0.85.1]: https://github.com/jmarcon/cuotai/compare/v0.85.0...v0.85.1
 [0.85.0]: https://github.com/jmarcon/cuotai/compare/v0.84.11...v0.85.0
 [0.84.11]: https://github.com/jmarcon/cuotai/compare/v0.84.10...v0.84.11
 [0.84.10]: https://github.com/jmarcon/cuotai/compare/v0.84.9...v0.84.10
