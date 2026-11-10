@@ -13,6 +13,15 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.84.10] - 2026-11-10
+
+### Fixed
+
+- After you change an account's key, login or provider, Cuotai no longer shows the old reading as its last valid one, and a reading rejected by the provider no longer returns after a restart (PRD 0010 RF2.1, RF2.3, RF2.4; 0aaa421).
+- The terminal dashboard no longer cuts words in half on narrow cards and counts accounts with the right plural in every language (PRD 0010 RF5.1, RF5.2; dbccb76).
+- An account that is already paying for extra usage no longer appears under "Recharging", and a stale card shows its age once and no longer shows "Waiting" as an error (PRD 0010 RF3.3, RF4.1; 69991ee).
+- A stale reading whose time lies ahead of your clock is now marked as clock adjusted (PRD 0010 RF1.2; 811f3db).
+
 ## [0.84.9] - 2026-11-10
 
 ### Fixed
@@ -681,7 +690,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.84.9...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.84.10...HEAD
+[0.84.10]: https://github.com/jmarcon/cuotai/compare/v0.84.9...v0.84.10
 [0.84.9]: https://github.com/jmarcon/cuotai/compare/v0.84.8...v0.84.9
 [0.84.8]: https://github.com/jmarcon/cuotai/compare/v0.84.7...v0.84.8
 [0.84.7]: https://github.com/jmarcon/cuotai/compare/v0.84.6...v0.84.7
