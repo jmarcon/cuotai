@@ -1924,7 +1924,7 @@
   "serve.origin.error.too_many": "En fazla 16 güvenilen kaynağa izin verilir.",
   "serve.client.incompatible": "Yerel sunucunun yanıtı uyumlu bir /v1/limits değil.",
   "serve.client.invalid_url": "Geçersiz yerel sunucu adresi: http://127.0.0.1:PORT kullanın.",
-  "serve.client.not_loopback": "Yerel sunucu yalnızca loopback üzerinden okunur (127.0.0.1, ::1 veya localhost).",
+  "serve.client.not_loopback": "Yerel sunucu yalnızca loopback üzerinden okunur (127.0.0.1 veya ::1; localhost 127.0.0.1 olarak okunur).",
   "serve.client.not_ready": "Yerel sunucuda henüz okuma yok; birazdan yeniden deneyin.",
   "serve.client.unauthorized": "Yerel sunucu jetonu reddetti (--serve ile aynı dosyayla --token-file kullanın).",
   "serve.client.unreachable": "Yerel sunucu yanıt vermedi; çalışıyor mu (cuotai --serve)?",

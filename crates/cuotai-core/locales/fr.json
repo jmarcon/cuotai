@@ -1924,7 +1924,7 @@
   "serve.origin.error.too_many": "16 origines de confiance au maximum sont autorisées.",
   "serve.client.incompatible": "La réponse du serveur local n’est pas un /v1/limits compatible.",
   "serve.client.invalid_url": "Adresse du serveur local invalide : utilisez http://127.0.0.1:PORT.",
-  "serve.client.not_loopback": "Le serveur local ne se lit qu’en boucle locale (127.0.0.1, ::1 ou localhost).",
+  "serve.client.not_loopback": "Le serveur local ne se lit qu’en boucle locale (127.0.0.1 ou ::1 ; localhost est lu comme 127.0.0.1).",
   "serve.client.not_ready": "Le serveur local n’a pas encore de relevés ; réessayez dans quelques instants.",
   "serve.client.unauthorized": "Le serveur local a refusé le token (utilisez --token-file avec le même fichier que --serve).",
   "serve.client.unreachable": "Le serveur local n’a pas répondu ; est-il en cours d’exécution (cuotai --serve) ?",

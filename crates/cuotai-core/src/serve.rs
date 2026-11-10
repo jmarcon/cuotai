@@ -440,7 +440,8 @@ pub type AccessLog = Arc<dyn Fn(&AccessEntry) + Send + Sync>;
 /// How the server listens and whom it answers.
 #[derive(Clone)]
 pub struct ServeConfig {
-    /// `127.0.0.1` by default; `::1` is also loopback.
+    /// `127.0.0.1` by default; `::1` is also loopback. On either one the
+    /// server also holds the same port of the other (PRD 0012 RF3.1).
     pub bind: IpAddr,
     /// [`DEFAULT_PORT`] by default; `0` lets the system pick one.
     pub port: u16,
@@ -766,17 +767,23 @@ impl LocalServer {
     pub async fn start(config: ServeConfig, source: impl Source) -> Result<Self, ServeError> {
         config.validate()?;
         let requested_port = config.port;
-        let listener = bind(config.bind, config.port, config.port_fallback).await?;
-        let addr = listener
+        let listeners = bind(config.bind, config.port, config.port_fallback).await?;
+        let addr = listeners[0]
             .local_addr()
             .map_err(|_| ServeError::Bind { port: config.port })?;
         let initial = Arc::new(Snapshot::new(config, source));
-        Ok(Self::from_listener(listener, addr, requested_port, initial))
+        Ok(Self::from_listeners(
+            listeners,
+            addr,
+            requested_port,
+            initial,
+        ))
     }
 
-    /// Build a server around an already-bound, validated listener.
-    fn from_listener(
-        listener: TcpListener,
+    /// Build a server around already-bound listeners (the configured address
+    /// first) and a validated snapshot.
+    fn from_listeners(
+        listeners: Vec<TcpListener>,
         addr: SocketAddr,
         requested_port: u16,
         initial: Arc<Snapshot>,
@@ -789,7 +796,7 @@ impl LocalServer {
             pending: Arc::default(),
             buckets: std::sync::Mutex::default(),
         });
-        let task = tokio::spawn(accept_loop(listener, state.clone(), stopped));
+        let task = tokio::spawn(accept_loop(listeners, state.clone(), stopped));
         Self {
             addr,
             requested_port,
@@ -867,20 +874,84 @@ impl Drop for LocalServer {
     }
 }
 
-async fn bind(ip: IpAddr, port: u16, fallback: bool) -> Result<TcpListener, ServeError> {
-    let last = if port == 0 || !fallback {
-        port
-    } else {
+/// How many ephemeral ports to try when `port` is `0` and the other
+/// loopback address refuses the one the system picked.
+const EPHEMERAL_ATTEMPTS: usize = 8;
+
+/// PRD 0012 RF3.1: the other loopback address of `ip` (`::1` for
+/// `127.0.0.1` and the other way round); `None` off loopback or for other
+/// `127.x` addresses.
+fn loopback_partner(ip: IpAddr) -> Option<IpAddr> {
+    match ip {
+        IpAddr::V4(v4) if v4 == Ipv4Addr::LOCALHOST => Some(IpAddr::V6(Ipv6Addr::LOCALHOST)),
+        IpAddr::V6(v6) if v6 == Ipv6Addr::LOCALHOST => Some(IpAddr::V4(Ipv4Addr::LOCALHOST)),
+        _ => None,
+    }
+}
+
+/// Bind `ip` on `port` (or the next ports when `fallback` allows) and, on
+/// loopback, the same port of the other loopback address too (PRD 0012
+/// RF3.1): `localhost` may resolve to either, so another local user must not
+/// be able to hold the free side and answer in Cuotai's name. A taken side
+/// counts as a taken port; a host without that address family (IPv6 turned
+/// off) keeps the configured address alone. The configured address comes
+/// first in the result.
+async fn bind(ip: IpAddr, port: u16, fallback: bool) -> Result<Vec<TcpListener>, ServeError> {
+    let partner = loopback_partner(ip);
+    if port == 0 {
+        for _ in 0..EPHEMERAL_ATTEMPTS {
+            let primary = TcpListener::bind(SocketAddr::new(ip, 0))
+                .await
+                .map_err(|_| ServeError::Bind { port: 0 })?;
+            let chosen = primary
+                .local_addr()
+                .map_err(|_| ServeError::Bind { port: 0 })?
+                .port();
+            match bind_partner(partner, chosen).await {
+                Ok(second) => return Ok([primary].into_iter().chain(second).collect()),
+                Err(PartnerTaken) => continue,
+            }
+        }
+        return Err(ServeError::PortInUse { first: 0, last: 0 });
+    }
+    let last = if fallback {
         port.saturating_add(PORT_ATTEMPTS - 1)
+    } else {
+        port
     };
     for candidate in port..=last {
-        match TcpListener::bind(SocketAddr::new(ip, candidate)).await {
-            Ok(listener) => return Ok(listener),
+        let primary = match TcpListener::bind(SocketAddr::new(ip, candidate)).await {
+            Ok(listener) => listener,
             Err(error) if error.kind() == ErrorKind::AddrInUse => continue,
             Err(_) => return Err(ServeError::Bind { port: candidate }),
+        };
+        match bind_partner(partner, candidate).await {
+            Ok(second) => return Ok([primary].into_iter().chain(second).collect()),
+            Err(PartnerTaken) => continue,
         }
     }
     Err(ServeError::PortInUse { first: port, last })
+}
+
+/// The partner address's port is held by another program.
+struct PartnerTaken;
+
+/// Bind `partner:port`: `Ok(None)` when there is no partner or the host
+/// cannot bind that address (no IPv6 loopback, for example).
+async fn bind_partner(
+    partner: Option<IpAddr>,
+    port: u16,
+) -> Result<Option<TcpListener>, PartnerTaken> {
+    let Some(partner) = partner else {
+        return Ok(None);
+    };
+    match TcpListener::bind(SocketAddr::new(partner, port)).await {
+        Ok(listener) => Ok(Some(listener)),
+        Err(error) if error.kind() == ErrorKind::AddrInUse => Err(PartnerTaken),
+        // EADDRNOTAVAIL, EAFNOSUPPORT and the like: this host has no such
+        // loopback address, so nobody else can listen there either.
+        Err(_) => Ok(None),
+    }
 }
 
 /// PRD 0012 RF5.2: whether the program listening on `127.0.0.1:port` is a
@@ -1016,7 +1087,25 @@ impl Snapshot {
     }
 }
 
-async fn accept_loop(listener: TcpListener, state: Arc<State>, mut stopped: watch::Receiver<bool>) {
+/// The next connection of any of `listeners` (one or both loopback
+/// addresses). `TcpListener::accept` is cancel safe, so racing them loses
+/// nothing.
+async fn accept_any(listeners: &[TcpListener]) -> std::io::Result<(TcpStream, SocketAddr)> {
+    match listeners {
+        [only] => only.accept().await,
+        [first, second, ..] => tokio::select! {
+            accepted = first.accept() => accepted,
+            accepted = second.accept() => accepted,
+        },
+        [] => std::future::pending().await,
+    }
+}
+
+async fn accept_loop(
+    listeners: Vec<TcpListener>,
+    state: Arc<State>,
+    mut stopped: watch::Receiver<bool>,
+) {
     // `max_connections` cannot change live; the accept_loop owns the
     // semaphore for the server's lifetime. Reconfigure forces a restart when
     // this field differs.
@@ -1027,7 +1116,7 @@ async fn accept_loop(listener: TcpListener, state: Arc<State>, mut stopped: watc
         tokio::select! {
             biased;
             _ = stopped.changed() => break,
-            accepted = listener.accept() => match accepted {
+            accepted = accept_any(&listeners) => match accepted {
                 Ok((stream, peer)) => {
                     let snapshot = state.snapshot.read().await.clone();
                     let bounds = snapshot.config.bounds;
@@ -1053,7 +1142,7 @@ async fn accept_loop(listener: TcpListener, state: Arc<State>, mut stopped: watc
             },
         }
     }
-    drop(listener);
+    drop(listeners);
     let drain = async { while connections.join_next().await.is_some() {} };
     if tokio::time::timeout(drain_timeout, drain).await.is_err() {
         connections.shutdown().await;

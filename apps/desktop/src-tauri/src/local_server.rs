@@ -895,6 +895,17 @@ mod tests {
         integration.apply(on(port), &slot).await;
         assert_eq!(integration.view().state, "on");
         integration.apply(ServePrefs::default(), &slot).await;
+
+        // PRD 0012 RF3.1: another program on the `[::1]` side of the port
+        // is a taken port too, never a half-claimed one.
+        if let Ok(squatter) = TcpListener::bind("[::1]:0") {
+            let port = squatter.local_addr().unwrap().port();
+            integration.apply(on(port), &slot).await;
+            let view = integration.view();
+            assert_eq!(view.state, "error");
+            assert_eq!(view.url, None);
+            assert_eq!(view.error.unwrap().id, "serve.error.port_taken");
+        }
     }
 
     /// `Integration::apply` is the lifecycle boundary Settings → Integration

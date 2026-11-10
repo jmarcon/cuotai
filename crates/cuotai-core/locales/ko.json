@@ -1912,7 +1912,7 @@
   "serve.origin.error.too_many": "신뢰할 수 있는 출처는 최대 16개까지 허용됩니다.",
   "serve.client.incompatible": "로컬 서버의 응답이 호환되는 /v1/limits가 아닙니다.",
   "serve.client.invalid_url": "로컬 서버 주소가 올바르지 않습니다. http://127.0.0.1:PORT 형식을 사용하세요.",
-  "serve.client.not_loopback": "로컬 서버는 루프백(127.0.0.1, ::1 또는 localhost)에서만 읽습니다.",
+  "serve.client.not_loopback": "로컬 서버는 루프백(127.0.0.1 또는 ::1)에서만 읽습니다. localhost는 127.0.0.1로 읽습니다.",
   "serve.client.not_ready": "로컬 서버에 아직 조회값이 없습니다. 잠시 후 다시 시도하세요.",
   "serve.client.unauthorized": "로컬 서버가 토큰을 거부했습니다(--serve와 같은 파일로 --token-file을 사용하세요).",
   "serve.client.unreachable": "로컬 서버가 응답하지 않았습니다. 실행 중인가요(cuotai --serve)?",

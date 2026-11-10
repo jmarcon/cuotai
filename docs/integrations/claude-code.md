@@ -68,7 +68,7 @@ cuotai --statusline-claude [--account ID]... [--from-server [URL]] [--max-width 
 
 Reads the status-line JSON on standard input (like `--feed`), stores it and prints one line: `5h 24% · Wk 41% ↺ 19:30 · Codex 64% left · ctx 8%`.
 
-- The other accounts come from a running `cuotai --serve` or the desktop's local server with `--from-server` (loopback only, the token from `--token-file` or the server's default file), or else from the last reading recorded in the history, marked with its age (`(3m)`). It **never queries a provider**: Claude Code calls it often.
+- The other accounts come from a running `cuotai --serve` or the desktop's local server with `--from-server` (loopback only, `localhost` read as `127.0.0.1`, the token from `--token-file` or the server's default file), or else from the last reading recorded in the history, marked with its age (`(3m)`). It **never queries a provider**: Claude Code calls it often.
 - `--account ID` limits the other accounts; Claude accounts are left out (their windows come from the feed).
 - `--max-width N` drops the context share first, then the other account, then cuts Claude's windows with "…".
 - Colour only with `--color`, on a terminal, with `NO_COLOR` unset.

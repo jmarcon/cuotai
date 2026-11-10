@@ -1924,7 +1924,7 @@
   "serve.origin.error.too_many": "अधिकतम 16 विश्वसनीय ऑरिजिन की अनुमति है।",
   "serve.client.incompatible": "स्थानीय सर्वर का जवाब संगत /v1/limits नहीं है।",
   "serve.client.invalid_url": "स्थानीय सर्वर का पता अमान्य है: http://127.0.0.1:PORT इस्तेमाल करें।",
-  "serve.client.not_loopback": "स्थानीय सर्वर केवल लूपबैक (127.0.0.1, ::1 या localhost) पर पढ़ा जाता है।",
+  "serve.client.not_loopback": "स्थानीय सर्वर केवल लूपबैक (127.0.0.1 या ::1) पर पढ़ा जाता है; localhost को 127.0.0.1 माना जाता है।",
   "serve.client.not_ready": "स्थानीय सर्वर के पास अभी कोई रीडिंग नहीं; कुछ देर में फिर कोशिश करें।",
   "serve.client.unauthorized": "स्थानीय सर्वर ने टोकन अस्वीकार कर दिया (--serve वाली ही फ़ाइल के साथ --token-file इस्तेमाल करें)।",
   "serve.client.unreachable": "स्थानीय सर्वर ने जवाब नहीं दिया; क्या वह चल रहा है (cuotai --serve)?",

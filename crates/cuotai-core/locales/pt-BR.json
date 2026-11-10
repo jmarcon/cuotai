@@ -1921,7 +1921,7 @@
   "serve.origin.error.too_many": "São permitidas no máximo 16 origens confiáveis.",
   "serve.client.incompatible": "A resposta do servidor local não é um /v1/limits compatível.",
   "serve.client.invalid_url": "Endereço do servidor local inválido: use http://127.0.0.1:PORTA.",
-  "serve.client.not_loopback": "O servidor local só é lido em loopback (127.0.0.1, ::1 ou localhost).",
+  "serve.client.not_loopback": "O servidor local só é lido em loopback (127.0.0.1 ou ::1; localhost é lido como 127.0.0.1).",
   "serve.client.not_ready": "O servidor local ainda não tem leituras; tente de novo em instantes.",
   "serve.client.unauthorized": "O servidor local recusou o token (use --token-file com o mesmo arquivo do --serve).",
   "serve.client.unreachable": "O servidor local não respondeu; ele está rodando (cuotai --serve)?",

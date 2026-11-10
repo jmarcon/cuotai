@@ -1924,7 +1924,7 @@
   "serve.origin.error.too_many": "Höchstens 16 vertrauenswürdige Origins sind erlaubt.",
   "serve.client.incompatible": "Die Antwort des lokalen Servers ist kein kompatibles /v1/limits.",
   "serve.client.invalid_url": "Ungültige Adresse des lokalen Servers: Verwenden Sie http://127.0.0.1:PORT.",
-  "serve.client.not_loopback": "Der lokale Server wird nur über Loopback gelesen (127.0.0.1, ::1 oder localhost).",
+  "serve.client.not_loopback": "Der lokale Server wird nur über Loopback gelesen (127.0.0.1 oder ::1; localhost wird als 127.0.0.1 gelesen).",
   "serve.client.not_ready": "Der lokale Server hat noch keine Messwerte; versuchen Sie es gleich noch einmal.",
   "serve.client.unauthorized": "Der lokale Server hat das Token abgelehnt (verwenden Sie --token-file mit derselben Datei wie bei --serve).",
   "serve.client.unreachable": "Der lokale Server hat nicht geantwortet; läuft er (cuotai --serve)?",
