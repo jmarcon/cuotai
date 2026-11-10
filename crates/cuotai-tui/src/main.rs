@@ -574,12 +574,13 @@ struct Args {
     /// blocked, a query failed or recovered, authentication needed, provider
     /// status, usage updated at most every 10 min). The first reading of each
     /// account is only the baseline. Combines with --serve in the same cycle.
-    /// SIGINT/SIGTERM/SIGHUP stop it, with exit 0 (with --strict-exit: 2 when
-    /// an account ended failing); 1 on a local error.
+    /// SIGINT/SIGTERM stop it, with exit 0 (with --strict-exit: 2 when an
+    /// account ended failing); 1 on a local error. On Unix, SIGHUP rereads
+    /// the configuration and hooks.toml instead of stopping it.
     #[arg(long, conflicts_with_all = ["once", "json", "json_v1", "history", "notify"])]
     watch: bool,
-    /// The --watch interval in seconds (60 to 86400; lower is an error,
-    /// never adjusted): replaces the global refresh_seconds in this run;
+    /// The --watch interval in seconds (60 to 86400; a value outside is an
+    /// error, never adjusted): replaces the global refresh_seconds in this run;
     /// accounts with their own refresh_seconds keep it and AWS Bedrock never
     /// goes below 300.
     #[arg(long, value_name = "SECONDS", requires = "watch")]
@@ -610,7 +611,8 @@ struct Args {
     /// With --watch, runs the rules of hooks.toml (in the TOML file's
     /// directory) on every event: the command is a list of arguments, no
     /// shell; the event arrives as JSON on stdin and in CUOTAI_EVENT,
-    /// CUOTAI_ACCOUNT, CUOTAI_PROVIDER and CUOTAI_METRIC; the environment is
+    /// CUOTAI_ACCOUNT, CUOTAI_ACCOUNT_ID, CUOTAI_PROVIDER and CUOTAI_METRIC;
+    /// the environment is
     /// reduced to PATH, HOME and LANG. The first time, and after any change
     /// to the rules, lists the commands and asks for confirmation in the
     /// terminal (without a terminal: error). Without --jsonl, stdout stays

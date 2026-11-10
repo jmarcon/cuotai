@@ -1504,7 +1504,7 @@
   "events.summary.usage_updated": "Utilizzo aggiornato: {usage}",
   "events.summary.session_expiring": "La sessione scade tra {days} giorno/i",
   "events.summary.quota_reset_soon": "{metric}: la quota si rinnova a breve",
-  "watch.error.interval_range": "L'intervallo di watch deve essere compreso tra {min} e {max} secondi; i valori più piccoli vengono rifiutati, non adattati.",
+  "watch.error.interval_range": "L'intervallo di watch deve essere compreso tra {min} e {max} secondi; i valori fuori da questo intervallo vengono rifiutati, non adattati.",
   "watch.error.unknown_event": "Evento sconosciuto: \"{name}\". Eventi validi: {known}.",
   "changelog.category.added": "Aggiunto",
   "changelog.category.changed": "Modificato",

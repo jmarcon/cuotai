@@ -2024,7 +2024,7 @@
   "user_session.slot.xiaomi_mimo.session_env": "Sesi akun Xiaomi (kuota mingguan MiMo Desktop)",
   "user_session.warning": "Ini adalah sesi login lengkap. Cuotai menyimpannya di brankas sistem dan hanya memakainya untuk mengueri layanan ini.",
   "user_session.warning_env": "Ini adalah sesi login lengkap. Cuotai membacanya dari variabel lingkungan dan hanya memakainya untuk mengueri layanan ini; pindahkan ke brankas sistem di wizard akun.",
-  "watch.error.interval_range": "Interval watch harus antara {min} dan {max} detik; nilai yang lebih kecil ditolak, tidak disesuaikan.",
+  "watch.error.interval_range": "Interval watch harus antara {min} dan {max} detik; nilai di luar rentang ini ditolak, tidak disesuaikan.",
   "watch.error.unknown_event": "Peristiwa tidak dikenal: \"{name}\". Peristiwa valid: {known}.",
   "oauth.xiaomi.invalid_code": "Kode tidak valid atau dari sesi lain; salin kode dari percobaan ini.",
   "login.progress.cursor_import": "Membaca sesi Cursor yang diotorisasi, hanya-baca...",

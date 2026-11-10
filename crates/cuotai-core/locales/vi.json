@@ -2024,7 +2024,7 @@
   "user_session.slot.xiaomi_mimo.session_env": "Phiên tài khoản Xiaomi (hạn mức tuần của MiMo Desktop)",
   "user_session.warning": "Đây là một phiên đăng nhập đầy đủ. Cuotai lưu nó trong kho của hệ thống và chỉ dùng để truy vấn dịch vụ này.",
   "user_session.warning_env": "Đây là một phiên đăng nhập đầy đủ. Cuotai đọc nó từ biến môi trường và chỉ dùng để truy vấn dịch vụ này; hãy chuyển nó vào kho của hệ thống trong trình hướng dẫn tài khoản.",
-  "watch.error.interval_range": "Chu kỳ watch phải nằm trong khoảng {min} đến {max} giây; giá trị nhỏ hơn bị từ chối, không được điều chỉnh.",
+  "watch.error.interval_range": "Chu kỳ watch phải nằm trong khoảng {min} đến {max} giây; giá trị nằm ngoài khoảng này bị từ chối, không được điều chỉnh.",
   "watch.error.unknown_event": "Sự kiện không xác định: \"{name}\". Các sự kiện hợp lệ: {known}.",
   "oauth.xiaomi.invalid_code": "Mã không hợp lệ hoặc của phiên khác; hãy sao chép mã của lần thử này.",
   "login.progress.cursor_import": "Đang đọc phiên Cursor đã ủy quyền, ở chế độ chỉ-đọc...",
