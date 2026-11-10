@@ -2082,6 +2082,12 @@ pub fn validate_name(
     editing: Option<usize>,
 ) -> Result<String, crate::text::Localized> {
     let trimmed = name.trim();
+    if trimmed.chars().any(crate::text::is_disguising) {
+        return Err(crate::text::Localized::fixed(
+            "edit_error.name_characters",
+            "Remove the control or text-direction characters from the name.",
+        ));
+    }
     if trimmed.is_empty() {
         let has_peer = config.accounts.iter().enumerate().any(|(i, a)| {
             Some(i) != editing && a.provider == provider && provider != Provider::Extension

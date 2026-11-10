@@ -307,6 +307,38 @@ mod tests {
         assert_ne!(pt.title, "Approve commands");
     }
 
+    /// PRD 0013 S-02: a newline, an escape sequence or a bidi override in
+    /// a rule's command or filter never reaches the dialog raw, so no line
+    /// of it can be forged; only the joining newlines remain.
+    #[tokio::test]
+    async fn the_dialog_body_holds_no_raw_control_character() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("hooks.toml");
+        let fake = Fake::new(true);
+        let mut rule = draft(
+            "notify",
+            &["notify-tool", "a\nprogram: /bin/ok\u{1b}[2K\u{202e}"],
+        );
+        rule.account = Some("Work\u{202e}\rx".into());
+        save_hooks(&fake, "en-US", &path, None, vec![rule])
+            .await
+            .unwrap();
+        let question = fake.asked.lock().unwrap()[0].clone();
+        assert!(
+            !question
+                .body
+                .chars()
+                .any(|c| c != '\n' && cuotai_core::text::is_disguising(c)),
+            "{:?}",
+            question.body
+        );
+        assert!(
+            question.body.contains(r"Work\u{202e}\rx"),
+            "{}",
+            question.body
+        );
+    }
+
     // security-invariant: SEC-NATIVE-CONFIRM
     #[tokio::test]
     async fn cancel_saves_approves_enables_and_runs_nothing() {

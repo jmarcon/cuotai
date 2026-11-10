@@ -71,6 +71,9 @@ pub enum Unresolved {
     /// It, its interpreter or a folder above either can be changed by
     /// another user.
     Exposed,
+    /// PRD 0013 S-02: its path (or its interpreter's) holds a control or
+    /// text-direction character that could disguise it in the listing.
+    Disguised,
 }
 
 /// Pin `program` (a rule's `command[0]`: absolute, or a bare name looked up
@@ -78,6 +81,7 @@ pub enum Unresolved {
 pub fn resolve(program: &str, search_path: Option<&OsStr>) -> Result<Pin, Unresolved> {
     let found = locate(program, search_path).ok_or(Unresolved::Program)?;
     let (program, sha256, head) = hashed(&found).ok_or(Unresolved::Program)?;
+    disguised(&program)?;
     if crate::private_fs::exposed_chain(&program) {
         return Err(Unresolved::Exposed);
     }
@@ -90,6 +94,19 @@ pub fn resolve(program: &str, search_path: Option<&OsStr>) -> Result<Pin, Unreso
         sha256,
         interpreter,
     })
+}
+
+/// PRD 0013 S-02: a path holding a control or text-direction character is
+/// refused, never shown stripped (which would misstate what runs).
+fn disguised(path: &Path) -> Result<(), Unresolved> {
+    if path
+        .to_string_lossy()
+        .chars()
+        .any(crate::text::is_disguising)
+    {
+        return Err(Unresolved::Disguised);
+    }
+    Ok(())
 }
 
 /// The file `program` names: itself when absolute, else the first
@@ -258,6 +275,7 @@ fn interpreter(line: &Shebang, search_path: Option<&OsStr>) -> Result<Interprete
     if head.starts_with(b"#!") {
         return Err(Unresolved::Shebang);
     }
+    disguised(&program)?;
     if crate::private_fs::exposed_chain(&program) {
         return Err(Unresolved::Exposed);
     }

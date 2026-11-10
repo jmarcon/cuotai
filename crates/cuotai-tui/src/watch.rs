@@ -236,7 +236,9 @@ fn confirm(
             "hooks.confirm.rule" => "  ",
             _ => "     ",
         };
-        writeln!(out, "{indent}{}", line.resolve(locale)).map_err(io_error)?;
+        // PRD 0013 S-02: the core already escapes what it lists; this
+        // keeps any other character from moving the cursor.
+        writeln!(out, "{indent}{}", safe(&line.resolve(locale))).map_err(io_error)?;
     }
     let shown = shown.map_err(|error| error.resolve(locale))?;
     if !interactive {

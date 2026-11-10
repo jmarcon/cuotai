@@ -271,6 +271,25 @@ pub fn is_disguising(c: char) -> bool {
     c.is_control() || matches!(c, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}')
 }
 
+/// `text` with every [`is_disguising`] character written visibly as
+/// `\u{…}` (its code point in hex) instead of stripped, so a listing shows
+/// exactly what a name, a path or a value holds and no line can be forged
+/// or reordered by a newline, an escape sequence or a bidi override.
+pub fn escape_disguising(text: &str) -> std::borrow::Cow<'_, str> {
+    if !text.chars().any(is_disguising) {
+        return std::borrow::Cow::Borrowed(text);
+    }
+    let mut out = String::with_capacity(text.len() + 8);
+    for c in text.chars() {
+        if is_disguising(c) {
+            out.push_str(&format!("\\u{{{:x}}}", u32::from(c)));
+        } else {
+            out.push(c);
+        }
+    }
+    std::borrow::Cow::Owned(out)
+}
+
 /// How a system notification renders its text (PRD 0003 re-validation
 /// S-04).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -924,6 +943,15 @@ mod budget_tests;
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn disguising_characters_are_escaped_visibly() {
+        assert_eq!(super::escape_disguising("plain"), "plain");
+        assert_eq!(
+            super::escape_disguising("a\nb\u{1b}[2K\u{202e}c\u{7f}"),
+            "a\\u{a}b\\u{1b}[2K\\u{202e}c\\u{7f}"
+        );
+    }
+
     use super::*;
     use std::collections::BTreeSet;
 

@@ -42,6 +42,7 @@ pub fn error_kind(error: &ConfigError) -> &'static str {
         ConfigError::Bounds => "bounds",
         ConfigError::MeteredRefreshFloor { .. } => "metered_refresh_floor",
         ConfigError::AccountNames => "account_names",
+        ConfigError::AccountNameCharacters => "account_name_characters",
         ConfigError::AccountIds { .. } => "account_ids",
         ConfigError::Client => "client",
         ConfigError::OAuth => "oauth",

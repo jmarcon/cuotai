@@ -168,6 +168,12 @@ pub enum ConfigError {
         "Configured account names must be unique; an unnamed account is valid only when it is the provider's only account."
     )]
     AccountNames,
+    /// PRD 0013 S-04: an account name holds a control or text-direction
+    /// character (it would break hook variables and disguise listings).
+    #[error(
+        "An account name holds a control or text-direction character; remove it from the name."
+    )]
+    AccountNameCharacters,
     /// PRD 0029 RF1.2: two accounts share an `id`.
     #[error(
         "The field {field} repeats another account's id (a copied [[accounts]] block is the usual cause); delete the duplicated id line."
@@ -284,6 +290,13 @@ impl Config {
         // default, not the global interval. Explicit overrides preserve the
         // former 300-second configuration boundary for compatibility and are
         // raised later when they fall below the effective 900-second floor.
+        if self
+            .accounts
+            .iter()
+            .any(|account| account.name.chars().any(crate::text::is_disguising))
+        {
+            return Err(ConfigError::AccountNameCharacters);
+        }
         let invalid_names = self.accounts.iter().enumerate().any(|(index, account)| {
             let name = account.name.trim();
             if name.is_empty() {
@@ -1710,6 +1723,27 @@ mod tests {
     /// Whether the seam's panic ran under [`panic_guard::isolate`].
     pub(super) static PANIC_WAS_ISOLATED: std::sync::atomic::AtomicBool =
         std::sync::atomic::AtomicBool::new(false);
+
+    /// PRD 0013 S-04: an account name with a control or text-direction
+    /// character is refused when the configuration loads and in the form.
+    #[test]
+    fn account_names_with_disguising_characters_are_refused() {
+        for name in ["Wo\0rk", "Wo\nrk", "Work\u{202e}", "W\u{1b}[2K"] {
+            let mut config = Config::default();
+            config.accounts[0].name = name.into();
+            assert!(
+                matches!(config.validate(), Err(ConfigError::AccountNameCharacters)),
+                "{name:?}"
+            );
+            let provider = config.accounts[0].provider;
+            let error = account_edit::validate_name(name, provider, &Config::default(), Some(0))
+                .unwrap_err();
+            assert_eq!(error.id, "edit_error.name_characters", "{name:?}");
+        }
+        let mut config = Config::default();
+        config.accounts[0].name = "Trabalho é ação".into();
+        assert!(config.validate().is_ok());
+    }
 
     #[test]
     fn rejects_duplicate_account_identity_and_unbounded_queries() {
