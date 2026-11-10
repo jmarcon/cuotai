@@ -254,7 +254,9 @@ pub struct Event {
     /// PRD 0029 RF4.3: [`crate::Account::state_key`], stable across renames.
     pub account_id: String,
     pub account_name: String,
-    pub provider: Provider,
+    /// The account's provider; `null` only for a `notification_sent`
+    /// that is not about an account (PRD 0013 re-validation V-05).
+    pub provider: Option<Provider>,
     /// `provider_incident` only (PRD 0031 RF8.1): the keys of every
     /// account that reads the same provider status, in configuration
     /// order, the first being `account_key`. Absent for other events.
@@ -539,10 +541,9 @@ impl Event {
             account_name: account
                 .map(|account| account.display_name().into_owned())
                 .unwrap_or_default(),
-            provider: sent
-                .provider
-                .or(account.map(|account| account.provider))
-                .unwrap_or(Provider::ALL[0]),
+            // PRD 0013 re-validation V-05: no account, no provider (never a
+            // made-up one).
+            provider: sent.provider.or(account.map(|account| account.provider)),
             accounts: Vec::new(),
             parent: None,
             metric: None,
@@ -876,7 +877,7 @@ impl Emit<'_> {
             account_key: self.next.key.clone(),
             account_id: self.next.id.clone(),
             account_name: self.next.name.clone(),
-            provider: self.next.provider,
+            provider: Some(self.next.provider),
             accounts: Vec::new(),
             parent: None,
             metric,

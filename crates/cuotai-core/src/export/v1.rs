@@ -2880,7 +2880,7 @@ mod tests {
             .expect("a1 ran out");
         assert_eq!(exhausted.account_key, "nine_router:home/a1");
         assert_eq!(exhausted.parent.as_deref(), Some("nine_router:home"));
-        assert_eq!(exhausted.provider, Provider::Claude);
+        assert_eq!(exhausted.provider, Some(Provider::Claude));
         let json = serde_json::to_value(exhausted).unwrap();
         assert_eq!(json["parent"], "nine_router:home");
         // A direct account's event has no `parent` at all.

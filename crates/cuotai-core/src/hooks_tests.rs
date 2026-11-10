@@ -17,7 +17,7 @@ fn event(kind: EventKind, account: &str, threshold: Option<u8>) -> Event {
         account_key: format!("claude:{account}"),
         account_id: "acc_test00000000".into(),
         account_name: account.into(),
-        provider: Provider::Claude,
+        provider: Some(Provider::Claude),
         accounts: Vec::new(),
         parent: None,
         metric: Some(MetricRef::new("Sessão (5h)", Some(MetricWindow::Window5h))),
@@ -770,7 +770,7 @@ fn a_sample_passes_its_rule_and_says_it_is_one() {
         ),
         (
             EventKind::QuotaThresholdCrossed,
-            Provider::Groq,
+            Some(Provider::Groq),
             "Work",
             Some(95)
         )
@@ -1041,6 +1041,39 @@ fn a_program_whose_path_disguises_it_cannot_be_approved() {
         assert_eq!(rules.pins()[0], Err(Unresolved::Disguised), "{name:?}");
         assert_eq!(rules.approval().unwrap_err().id, "hooks.error.disguised");
     }
+}
+
+/// PRD 0013 re-validation V-05: a `notification_sent` about no account
+/// carries no provider (`null`, never a made-up one), so a rule filtered
+/// by provider does not run on it and `CUOTAI_PROVIDER` would be empty;
+/// with an account, its provider is kept.
+#[test]
+fn an_account_less_notification_names_no_provider() {
+    let sent = crate::channels::delivery::Sent {
+        channel: "phone".into(),
+        kind: "digest",
+        account_id: None,
+        provider: None,
+        at: Utc::now(),
+    };
+    let event = Event::notification_sent(&sent, None);
+    assert_eq!(event.provider, None);
+    let json = serde_json::to_value(&event).unwrap();
+    assert_eq!(json["provider"], serde_json::Value::Null);
+    let rules = hooks(
+        "[[hooks]]\nname = \"a\"\nevents = [\"notification_sent\"]\nprovider = \"open_ai_api\"\ncommand = [\"true\"]\n[[hooks]]\nname = \"b\"\nevents = [\"notification_sent\"]\ncommand = [\"true\"]\n",
+    );
+    assert!(!rules.rules()[0].matches(&event), "provider filter");
+    assert!(rules.rules()[1].matches(&event), "no filter");
+    let about = Event::notification_sent(
+        &crate::channels::delivery::Sent {
+            provider: Some(Provider::OpenAiApi),
+            ..sent
+        },
+        None,
+    );
+    assert_eq!(about.provider, Some(Provider::OpenAiApi));
+    assert!(rules.rules()[0].matches(&about));
 }
 
 #[cfg(unix)]

@@ -178,7 +178,7 @@ impl Rule {
         self.events.contains(&event.event)
             && self
                 .provider
-                .is_none_or(|provider| provider == event.provider)
+                .is_none_or(|provider| Some(provider) == event.provider)
             && self
                 .account
                 .as_ref()
@@ -372,7 +372,7 @@ impl Rule {
                 .clone()
                 .unwrap_or_else(|| "acc_sample000000".into()),
             account_name,
-            provider,
+            provider: Some(provider),
             accounts: Vec::new(),
             parent: None,
             metric: about_metric
@@ -1853,7 +1853,12 @@ impl Runner {
             ("CUOTAI_EVENT", event.event.name().to_owned()),
             ("CUOTAI_ACCOUNT", env(&event.account_name)),
             ("CUOTAI_ACCOUNT_ID", env(&event.account_id)),
-            ("CUOTAI_PROVIDER", event.provider.slug().to_owned()),
+            (
+                "CUOTAI_PROVIDER",
+                event
+                    .provider
+                    .map_or_else(String::new, |p| p.slug().to_owned()),
+            ),
             (
                 "CUOTAI_METRIC",
                 event

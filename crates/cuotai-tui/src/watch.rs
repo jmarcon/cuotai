@@ -287,12 +287,17 @@ fn write_events(
 fn summary_line(event: &Event, locale: &str) -> String {
     let at =
         cuotai_core::instant::format_local(event.occurred_at, &chrono::Local, "%Y-%m-%d %H:%M:%S");
-    format!(
-        "{at}  {} ({}): {}",
-        safe(&event.account_name),
-        provider_l10n(event.provider).resolve(locale),
-        safe(&event.summary().resolve(locale))
-    )
+    let summary = safe(&event.summary().resolve(locale)).into_owned();
+    // An account-less `notification_sent` has neither a name nor a provider.
+    match event.provider {
+        Some(provider) => format!(
+            "{at}  {} ({}): {summary}",
+            safe(&event.account_name),
+            provider_l10n(provider).resolve(locale),
+        ),
+        None if event.account_name.is_empty() => format!("{at}  {summary}"),
+        None => format!("{at}  {}: {summary}", safe(&event.account_name)),
+    }
 }
 
 #[cfg(test)]
@@ -313,7 +318,7 @@ mod tests {
             account_id: "acc_test00000000".into(),
             account_name: name.into(),
             accounts: Vec::new(),
-            provider: Provider::Claude,
+            provider: Some(Provider::Claude),
             parent: None,
             metric: Some(MetricRef::new("Semanal", Some(MetricWindow::Weekly))),
             current: Values {
