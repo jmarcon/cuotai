@@ -428,10 +428,11 @@
     },
     "LastGood": {
       "type": "object",
-      "required": ["checked_at", "age_seconds", "metrics"],
+      "required": ["checked_at", "age_seconds", "clock_adjusted", "metrics"],
       "properties": {
         "checked_at": { "type": "string", "format": "date-time", "description": "Original measurement time." },
         "age_seconds": { "type": "integer", "minimum": 0 },
+        "clock_adjusted": { "type": "boolean", "description": "checked_at lies ahead of the clock (it was set back), so age_seconds reads 0. Additive." },
         "metrics": { "type": "array", "items": { "$ref": "#/$defs/LastGoodMetric" } }
       }
     },

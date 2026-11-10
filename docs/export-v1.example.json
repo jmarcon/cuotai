@@ -261,6 +261,7 @@
       "last_good": {
         "checked_at": "2026-10-20T11:18:00Z",
         "age_seconds": 2520,
+        "clock_adjusted": false,
         "metrics": [
           {
             "label": "Gasto do mês",

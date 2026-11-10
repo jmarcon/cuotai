@@ -427,6 +427,9 @@ pub struct LastGood {
     /// Original measurement time, never refreshed.
     pub checked_at: DateTime<Utc>,
     pub age_seconds: u64,
+    /// PRD 0010 RF1.2: `checked_at` lies ahead of the clock (the clock was
+    /// set back), so `age_seconds` reads zero. Additive.
+    pub clock_adjusted: bool,
     /// Expired metrics are collapsed (PRD 0033 RF2.1).
     pub metrics: Vec<LastGoodMetric>,
 }
@@ -662,6 +665,7 @@ impl SubScope<'_> {
             last_good: last_good.map(|good| LastGood {
                 checked_at: good.checked_at,
                 age_seconds: age(good.checked_at),
+                clock_adjusted: freshness::clock_adjusted(good.checked_at, now),
                 metrics: last_good_metrics(&good.metrics, now),
             }),
             binding: reading.and_then(metrics::binding),
@@ -1154,6 +1158,7 @@ fn account_export(
         last_good: last_good.map(|reading| LastGood {
             checked_at: reading.checked_at,
             age_seconds: age(reading.checked_at),
+            clock_adjusted: freshness::clock_adjusted(reading.checked_at, now),
             metrics: last_good_metrics(&reading.metrics, now),
         }),
         binding: report.and_then(metrics::binding),
@@ -1805,6 +1810,33 @@ mod tests {
              field needs schema 2) and regenerate with \
              `{REGENERATE}=1 cargo test -p cuotai-core export_v1_reference`"
         );
+    }
+
+    /// PRD 0010 RF1.2 (re-validation S-02): a kept reading from ahead of
+    /// the clock reads zero seconds old and says the clock was adjusted.
+    #[test]
+    fn a_kept_reading_from_the_future_is_marked_clock_adjusted() {
+        let config = Config {
+            accounts: vec![account("Work", Provider::OpenAiApi)],
+            ..Config::default()
+        };
+        let mut cycle = RefreshCycle::new(&config, Instant::now());
+        let mut good = report(&config.accounts[0], Status::Ready, minutes_ago(-2));
+        good.metrics = vec![quota("Semana", 40.0, MetricWindow::Weekly, 48)];
+        finish(&mut cycle, 0, good);
+        finish(
+            &mut cycle,
+            0,
+            report(&config.accounts[0], Status::Error, minutes_ago(1)),
+        );
+        let json = export(&config, &cycle, Options::default());
+        let work = &json["accounts"][0];
+        assert_eq!(work["clock_adjusted"], false, "the failed query is not");
+        assert_eq!(work["last_good"]["clock_adjusted"], true);
+        assert_eq!(work["last_good"]["age_seconds"], 0);
+        let (config, cycle) = reference();
+        let json = export(&config, &cycle, Options::default());
+        assert_eq!(json["accounts"][1]["last_good"]["clock_adjusted"], false);
     }
 
     #[test]

@@ -1136,12 +1136,15 @@ fn report_access(account: &cuotai_core::Account, report: &Report) -> ReportAcces
 #[derive(Serialize, Clone)]
 pub struct LastGoodView {
     checked_at: chrono::DateTime<chrono::Utc>,
+    /// PRD 0010 RF1.2: the kept reading lies ahead of the clock (set back).
+    clock_adjusted: bool,
     metrics: Vec<MetricView>,
 }
 
 fn last_good_view(report: &Report, now: chrono::DateTime<chrono::Utc>) -> LastGoodView {
     LastGoodView {
         checked_at: report.checked_at,
+        clock_adjusted: cuotai_core::freshness::clock_adjusted(report.checked_at, now),
         metrics: report
             .metrics
             .iter()
@@ -7564,6 +7567,17 @@ mod tests {
         assert!(view["metrics"][0]["used"].is_null());
         assert!(view["metrics"][1].get("expired").is_none());
         assert_eq!(view["metrics"][1]["used"], 100.0);
+        assert_eq!(view["clock_adjusted"], false);
+        // PRD 0010 RF1.2 (re-validation S-02): a kept reading from ahead of
+        // the clock is marked so the card's tooltip can say why it reads "now".
+        let ahead = Report {
+            checked_at: now + chrono::Duration::minutes(2),
+            ..report
+        };
+        assert_eq!(
+            serde_json::to_value(last_good_view(&ahead, now)).unwrap()["clock_adjusted"],
+            true
+        );
     }
 
     #[test]
