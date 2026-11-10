@@ -783,6 +783,51 @@ async fn an_incident_title_loses_bidi_overrides_before_any_frontend() {
     assert!(!incident.title.chars().any(crate::text::is_disguising));
 }
 
+/// S-04 (PRD 0011 re-validation): AWS feed items are grouped by event in
+/// linear time; order of first appearance and newest-update-wins hold for a
+/// feed far larger than the real one.
+#[test]
+fn a_large_aws_feed_is_grouped_in_linear_time() {
+    use super::super::parse::parse;
+    use crate::incidents::FeedFormat;
+    let mut feed = String::from("<?xml version='1.0'?><rss version=\"2.0\"><channel>");
+    // 50 000 distinct resolved events, then one active Bedrock event whose
+    // newer update comes after its older one in the feed.
+    for n in 0..50_000 {
+        feed.push_str(&format!(
+            "<item><title>Service is operating normally: [RESOLVED] x</title>\
+             <pubDate>Tue, 20 Oct 2026 10:00:00 GMT</pubDate>\
+             <guid>https://status.aws.amazon.com/#svc{n}-us-east-1_{n}</guid></item>"
+        ));
+    }
+    feed.push_str(
+        "<item><title>Informational message: older</title>\
+         <pubDate>Tue, 20 Oct 2026 09:00:00 GMT</pubDate>\
+         <guid>https://status.aws.amazon.com/#bedrock-us-east-1_1</guid></item>\
+         <item><title>Service degradation: Bedrock errors</title>\
+         <pubDate>Tue, 20 Oct 2026 11:00:00 GMT</pubDate>\
+         <guid>https://status.aws.amazon.com/#bedrock-us-east-1_2</guid></item>\
+         </channel></rss>",
+    );
+    let started = std::time::Instant::now();
+    let reading = parse(
+        Format::AtomRss(FeedFormat::AwsHealth),
+        feed.as_bytes(),
+        "status.aws.amazon.com",
+    )
+    .unwrap();
+    // Quadratic grouping took seconds here; linear takes milliseconds even
+    // unoptimized. The bound is generous to stay deterministic on slow CI.
+    assert!(started.elapsed() < std::time::Duration::from_secs(2));
+    let [event] = &reading.events[..] else {
+        panic!("{} events", reading.events.len());
+    };
+    assert_eq!(event.components, vec![("bedrock".to_owned(), None)]);
+    assert_eq!(event.impact, IncidentState::PartialOutage);
+    assert_eq!(event.title, "Bedrock errors");
+    assert_eq!(event.started_at, at("2026-10-20T09:00:00Z"));
+}
+
 #[test]
 fn provider_text_loses_markup_and_is_truncated() {
     assert_eq!(

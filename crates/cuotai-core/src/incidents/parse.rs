@@ -458,12 +458,14 @@ fn xml_text(raw: &str) -> String {
 /// service/region event decides whether it is still active.
 fn aws(items: Vec<Item>) -> Reading {
     struct Group {
-        key: String,
         service: String,
         latest: Item,
         first_seen: Option<DateTime<Utc>>,
     }
+    // Groups keep their first-seen order; the index keeps the grouping
+    // linear even for a huge or hostile feed.
     let mut groups: Vec<Group> = Vec::new();
+    let mut index: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
     for item in items {
         let Some(key) = item
             .guid
@@ -475,7 +477,7 @@ fn aws(items: Vec<Item>) -> Reading {
         else {
             continue;
         };
-        match groups.iter_mut().find(|group| group.key == key) {
+        match index.get(&key).map(|&at| &mut groups[at]) {
             Some(group) => {
                 if item.published.is_some()
                     && (group.first_seen.is_none() || item.published < group.first_seen)
@@ -486,12 +488,15 @@ fn aws(items: Vec<Item>) -> Reading {
                     group.latest = item;
                 }
             }
-            None => groups.push(Group {
-                service: key.split('-').next().unwrap_or_default().to_owned(),
-                key,
-                first_seen: item.published,
-                latest: item,
-            }),
+            None => {
+                let service = key.split('-').next().unwrap_or_default().to_owned();
+                index.insert(key, groups.len());
+                groups.push(Group {
+                    service,
+                    first_seen: item.published,
+                    latest: item,
+                });
+            }
         }
     }
     let events = groups
