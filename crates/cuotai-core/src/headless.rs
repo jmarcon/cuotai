@@ -226,3 +226,7 @@ impl Drop for Driver {
 fn lock(cycle: &Mutex<RefreshCycle>) -> MutexGuard<'_, RefreshCycle> {
     cycle.lock().unwrap_or_else(PoisonError::into_inner)
 }
+
+#[cfg(test)]
+#[path = "headless_restore_tests.rs"]
+mod restore_tests;

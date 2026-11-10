@@ -557,6 +557,36 @@ pub(crate) fn account_key(account: &Account) -> String {
     digest(&identity)
 }
 
+/// PRD 0010 RF2.1/RF2.3: the settings a kept reading depends on, so a
+/// reading restored from the history after a restart belongs to the account
+/// as it is configured now: provider, credential reference (env name, OAuth
+/// config, web-session reference) and the params selecting credential,
+/// product, region or profile. The id, display name, refresh cadence, group,
+/// budgets, floors, breakdown and [`DISPLAY_PARAMS`] are excluded: a rename
+/// or a cosmetic edit keeps the reading (PRD 0029). [`account_key`] is not
+/// reused because it hashes the display name and omits the web session.
+/// Only this digest is stored, never a secret or a name.
+pub(crate) fn restore_fingerprint(account: &Account) -> String {
+    let params: std::collections::BTreeMap<_, _> = account
+        .params
+        .iter()
+        .filter(|(key, _)| !DISPLAY_PARAMS.contains(&key.as_str()))
+        .collect();
+    let settings = serde_json::to_vec(&(
+        "cuotai.restore.v1",
+        account.provider,
+        &account.credential_env,
+        &account.oauth,
+        account
+            .session
+            .as_ref()
+            .map(|session| &session.credential_ref),
+        params,
+    ))
+    .expect("account settings serialize");
+    digest(&settings)
+}
+
 /// Drop group/other permission bits of our directory or database file.
 #[cfg(unix)]
 fn private(path: &Path, dir: bool) -> std::io::Result<()> {
