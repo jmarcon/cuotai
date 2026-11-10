@@ -97,6 +97,51 @@ pub(crate) fn trf(id: &str, en: &'static str, params: &[(&str, &dyn Display)]) -
     substitute(tr(id, en), params)
 }
 
+/// PRD 0035 RF4 (PRD 0010 re-validation R-04): a text that embeds
+/// `count`, from the catalog's plural object by the locale's CLDR rule;
+/// `one`/`other` by the English rule otherwise (English, a missing id, the
+/// `en-XA` pseudo-locale). `params` need not carry `count`.
+pub(crate) fn trp(
+    id: &str,
+    one: &'static str,
+    other: &'static str,
+    count: usize,
+    params: &[(&str, &dyn Display)],
+) -> String {
+    trp_in(crate::ui::tui_locale(), id, one, other, count, params)
+}
+
+/// [`trp`] for an explicit locale.
+pub(crate) fn trp_in(
+    locale: &str,
+    id: &str,
+    one: &'static str,
+    other: &'static str,
+    count: usize,
+    params: &[(&str, &dyn Display)],
+) -> String {
+    let number = count.to_string();
+    let english = match cuotai_core::text::plural_category(
+        cuotai_core::text::source_locale().plural_rule,
+        &number,
+    ) {
+        "one" => one,
+        _ => other,
+    };
+    let mut all: Vec<(&str, &dyn Display)> = vec![("count", &count)];
+    all.extend_from_slice(params);
+    let template = if cuotai_core::text::is_pseudo(locale) {
+        pseudo(english)
+    } else {
+        let resolved = Locale::resolve(locale);
+        catalog(locale)
+            .and_then(|catalog| catalog.get(id))
+            .and_then(|message| message.template(resolved.row().plural_rule, Some(&number)))
+            .unwrap_or(english)
+    };
+    substitute(template, &all)
+}
+
 /// [`trf`] for an explicit locale.
 pub(crate) fn trf_in(
     locale: &str,
@@ -191,6 +236,13 @@ pub(crate) fn source_ids() -> BTreeMap<String, String> {
                     Some(comma) => &args[comma + 1..],
                     None => continue,
                 }
+            } else if let Some(args) = tail.strip_prefix("trp_in(") {
+                match args.find(',') {
+                    Some(comma) => &args[comma + 1..],
+                    None => continue,
+                }
+            } else if let Some(args) = tail.strip_prefix("trp(") {
+                args
             } else if let Some(args) = tail.strip_prefix("trf(") {
                 args
             } else if let Some(args) = tail.strip_prefix("tr(") {
@@ -276,14 +328,16 @@ mod tests {
         for locale in EMBEDDED {
             let catalog = catalog(locale).expect("catalog");
             for (id, english) in &ids {
-                let Some(text) = catalog.get(id).and_then(Message::as_text) else {
+                let Some(message) = catalog.get(id) else {
                     panic!("{locale}: id {id:?} ({english:?}) is missing");
                 };
-                assert_eq!(
-                    placeholders(text),
-                    placeholders(english),
-                    "{locale}: placeholders of {id:?}"
-                );
+                for text in message.templates() {
+                    assert_eq!(
+                        placeholders(text),
+                        placeholders(english),
+                        "{locale}: placeholders of {id:?}"
+                    );
+                }
             }
             for id in catalog.keys() {
                 assert!(ids.contains_key(id), "{locale}: stale id {id:?}");
@@ -302,16 +356,18 @@ mod tests {
         for locale in EMBEDDED {
             let catalog = catalog(locale).expect("catalog");
             for (id, english) in &source_ids() {
-                let Some(text) = catalog.get(id).and_then(Message::as_text) else {
+                let Some(message) = catalog.get(id) else {
                     continue;
                 };
-                let trailing = if english.ends_with(' ') {
-                    text.ends_with(' ') || text.ends_with('：')
-                } else {
-                    !text.ends_with(' ')
-                };
-                if lead(text) != lead(english) || !trailing {
-                    wrong.push(format!("{locale} {id}"));
+                for text in message.templates() {
+                    let trailing = if english.ends_with(' ') {
+                        text.ends_with(' ') || text.ends_with('：')
+                    } else {
+                        !text.ends_with(' ')
+                    };
+                    if lead(text) != lead(english) || !trailing {
+                        wrong.push(format!("{locale} {id}"));
+                    }
                 }
             }
         }
@@ -328,14 +384,15 @@ mod tests {
             assert!(markers.is_empty(), "{id}: {markers:?} in {english:?}");
         }
         for locale in ["es", "it"] {
-            for (id, text) in catalog(locale).unwrap().iter() {
-                let text = text.as_text().expect("TUI texts are strings");
-                // "está" is Spanish too.
-                let markers: Vec<_> = cuotai_core::text::portuguese_markers(text)
-                    .into_iter()
-                    .filter(|marker| !(locale == "es" && *marker == "está"))
-                    .collect();
-                assert!(markers.is_empty(), "{locale} {id}: {markers:?} in {text:?}");
+            for (id, message) in catalog(locale).unwrap().iter() {
+                for text in message.templates() {
+                    // "está" is Spanish too.
+                    let markers: Vec<_> = cuotai_core::text::portuguese_markers(text)
+                        .into_iter()
+                        .filter(|marker| !(locale == "es" && *marker == "está"))
+                        .collect();
+                    assert!(markers.is_empty(), "{locale} {id}: {markers:?} in {text:?}");
+                }
             }
         }
     }
@@ -377,6 +434,42 @@ mod tests {
         assert!(problems.is_empty(), "{problems:#?}");
         // A missing id renders the English source in every language.
         assert_eq!(with_locale("ko", || tr("x.missing", "Hello")), "Hello");
+    }
+
+    /// PRD 0010 re-validation R-04: account counts follow each language's
+    /// CLDR plural rule; English and missing ids use one/other.
+    #[test]
+    fn account_counts_take_the_plural_form_of_each_language() {
+        let header = |locale: &str, count| {
+            trp_in(
+                locale,
+                "dashboard.footer.count.many",
+                "{count} account",
+                "{count} accounts",
+                count,
+                &[],
+            )
+        };
+        assert_eq!(header("en-US", 1), "1 account");
+        assert_eq!(header("en-US", 2), "2 accounts");
+        assert_eq!(header("de", 1), "1 Konto");
+        assert_eq!(header("pt-BR", 0), "0 conta");
+        assert_eq!(header("ja", 3), "3 アカウント");
+        for (count, form) in [(1, "запись"), (2, "записи"), (5, "записей"), (21, "запись")]
+        {
+            assert_eq!(header("ru", count), format!("{count} уч. {form}"));
+        }
+        assert_eq!(
+            trp_in(
+                "en-US",
+                "x.missing",
+                "{count} item of {n}",
+                "{count} items of {n}",
+                1,
+                &[("n", &3)]
+            ),
+            "1 item of 3"
+        );
     }
 
     #[test]

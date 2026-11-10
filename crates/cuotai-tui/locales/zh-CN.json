@@ -139,7 +139,9 @@
   "dashboard.footer.add": "a 添加",
   "dashboard.footer.back": "Enter/Esc 返回",
   "dashboard.footer.clear": "c 清除",
-  "dashboard.footer.count.many": "{count} 个账户",
+  "dashboard.footer.count.many": {
+    "other": "{count} 个账户"
+  },
   "dashboard.footer.count.one": "1 个账户",
   "dashboard.footer.count.zero": "0 个账户",
   "dashboard.footer.delete": "d/Del 删除",
@@ -169,7 +171,9 @@
   "dashboard.header.not_checked": "尚未查询",
   "dashboard.header.partial": "部分更新（部分账户待查询）",
   "dashboard.header.refreshing": "查询中（下方为之前的数据）",
-  "dashboard.header.title": " CUOTAI  |  {count} 个账户  |  {checked}  |  {refresh} ",
+  "dashboard.header.title": {
+    "other": " CUOTAI  |  {count} 个账户  |  {checked}  |  {refresh} "
+  },
   "dashboard.hint.more_many": "+{count} 项指标 • ",
   "dashboard.hint.more_one": "+1 项指标 • ",
   "dashboard.history.empty": "  历史 {range}：没有记录的测量值",
@@ -578,7 +582,9 @@
   "wizard.summary.breakdown.hint": "  按数字键开启或关闭某项明细；各行从不按用户划分。",
   "wizard.title": "向导 — {position}/{total} {label}",
   "wizard.too_small": "向导：请将终端加宽到至少 60 × 20。Esc 取消。",
-  "dashboard.footer.count.position": "{position}/{count} 个账户",
+  "dashboard.footer.count.position": {
+    "other": "{position}/{count} 个账户"
+  },
   "dashboard.footer.next_connection": "n 连接",
   "dashboard.footer.aggregator_filter": "f 聚合器",
   "vault.kind.channel": "渠道",

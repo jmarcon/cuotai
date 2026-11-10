@@ -139,7 +139,10 @@
   "dashboard.footer.add": "a ajouter",
   "dashboard.footer.back": "Enter/Esc retour",
   "dashboard.footer.clear": "c effacer",
-  "dashboard.footer.count.many": "{count} comptes",
+  "dashboard.footer.count.many": {
+    "one": "{count} compte",
+    "other": "{count} comptes"
+  },
   "dashboard.footer.count.one": "1 compte",
   "dashboard.footer.count.zero": "0 compte",
   "dashboard.footer.delete": "d/Del supprimer",
@@ -169,7 +172,10 @@
   "dashboard.header.not_checked": "pas encore interrogé",
   "dashboard.header.partial": "mise à jour partielle (comptes en attente)",
   "dashboard.header.refreshing": "Interrogation (données précédentes ci-dessous)",
-  "dashboard.header.title": " CUOTAI  |  {count} comptes  |  {checked}  |  {refresh} ",
+  "dashboard.header.title": {
+    "one": " CUOTAI  |  {count} compte  |  {checked}  |  {refresh} ",
+    "other": " CUOTAI  |  {count} comptes  |  {checked}  |  {refresh} "
+  },
   "dashboard.hint.more_many": "+{count} métriques • ",
   "dashboard.hint.more_one": "+1 métrique • ",
   "dashboard.history.empty": "  historique {range} : aucune mesure enregistrée",
@@ -578,7 +584,10 @@
   "wizard.summary.breakdown.hint": "  Appuyez sur un chiffre pour activer ou désactiver une ventilation ; les lignes ne sont jamais par utilisateur.",
   "wizard.title": "Assistant — {position}/{total} {label}",
   "wizard.too_small": "Assistant : élargissez le terminal à au moins 60 × 20. Esc annule.",
-  "dashboard.footer.count.position": "{position}/{count} comptes",
+  "dashboard.footer.count.position": {
+    "one": "{position}/{count} compte",
+    "other": "{position}/{count} comptes"
+  },
   "dashboard.footer.next_connection": "n connexion",
   "dashboard.footer.aggregator_filter": "f agrégateur",
   "vault.kind.channel": "canal",

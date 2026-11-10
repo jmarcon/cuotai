@@ -139,7 +139,10 @@
   "dashboard.footer.add": "a ekle",
   "dashboard.footer.back": "Enter/Esc geri",
   "dashboard.footer.clear": "c temizle",
-  "dashboard.footer.count.many": "{count} hesap",
+  "dashboard.footer.count.many": {
+    "one": "{count} hesap",
+    "other": "{count} hesap"
+  },
   "dashboard.footer.count.one": "1 hesap",
   "dashboard.footer.count.zero": "0 hesap",
   "dashboard.footer.delete": "d/Del sil",
@@ -169,7 +172,10 @@
   "dashboard.header.not_checked": "henüz sorgulanmadı",
   "dashboard.header.partial": "kısmi güncelleme (bazı hesaplar bekliyor)",
   "dashboard.header.refreshing": "Sorgulanıyor (önceki veriler aşağıda)",
-  "dashboard.header.title": " CUOTAI  |  {count} hesap  |  {checked}  |  {refresh} ",
+  "dashboard.header.title": {
+    "one": " CUOTAI  |  {count} hesap  |  {checked}  |  {refresh} ",
+    "other": " CUOTAI  |  {count} hesap  |  {checked}  |  {refresh} "
+  },
   "dashboard.hint.more_many": "+{count} metrik • ",
   "dashboard.hint.more_one": "+1 metrik • ",
   "dashboard.history.empty": "  geçmiş {range}: kayıtlı ölçüm yok",
@@ -578,7 +584,10 @@
   "wizard.summary.breakdown.hint": "  Bir dökümü açmak veya kapatmak için bir rakama basın; satırlar asla kullanıcı bazlı değildir.",
   "wizard.title": "Sihirbaz — {position}/{total} {label}",
   "wizard.too_small": "Sihirbaz: terminali en az 60 × 20 olacak şekilde genişletin. Esc iptal eder.",
-  "dashboard.footer.count.position": "{position}/{count} hesap",
+  "dashboard.footer.count.position": {
+    "one": "{position}/{count} hesap",
+    "other": "{position}/{count} hesap"
+  },
   "dashboard.footer.next_connection": "n bağlantı",
   "dashboard.footer.aggregator_filter": "f toplayıcı",
   "vault.kind.channel": "kanal",

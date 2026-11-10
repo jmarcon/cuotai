@@ -139,7 +139,9 @@
   "dashboard.footer.add": "a thêm",
   "dashboard.footer.back": "Enter/Esc quay lại",
   "dashboard.footer.clear": "c xóa",
-  "dashboard.footer.count.many": "{count} tài khoản",
+  "dashboard.footer.count.many": {
+    "other": "{count} tài khoản"
+  },
   "dashboard.footer.count.one": "1 tài khoản",
   "dashboard.footer.count.zero": "0 tài khoản",
   "dashboard.footer.delete": "d/Del xóa",
@@ -169,7 +171,9 @@
   "dashboard.header.not_checked": "chưa truy vấn",
   "dashboard.header.partial": "cập nhật một phần (một số tài khoản đang chờ)",
   "dashboard.header.refreshing": "Đang truy vấn (dữ liệu trước ở bên dưới)",
-  "dashboard.header.title": " CUOTAI  |  {count} tài khoản  |  {checked}  |  {refresh} ",
+  "dashboard.header.title": {
+    "other": " CUOTAI  |  {count} tài khoản  |  {checked}  |  {refresh} "
+  },
   "dashboard.hint.more_many": "+{count} chỉ số • ",
   "dashboard.hint.more_one": "+1 chỉ số • ",
   "dashboard.history.empty": "  lịch sử {range}: không có số đo nào được ghi",
@@ -578,7 +582,9 @@
   "wizard.summary.breakdown.hint": "  Nhấn một số để bật hoặc tắt một bảng chi tiết; các hàng không bao giờ theo người dùng.",
   "wizard.title": "Trình hướng dẫn — {position}/{total} {label}",
   "wizard.too_small": "Trình hướng dẫn: hãy mở rộng terminal tối thiểu 60 × 20. Esc để hủy.",
-  "dashboard.footer.count.position": "{position}/{count} tài khoản",
+  "dashboard.footer.count.position": {
+    "other": "{position}/{count} tài khoản"
+  },
   "dashboard.footer.next_connection": "n kết nối",
   "dashboard.footer.aggregator_filter": "f bộ tổng hợp",
   "vault.kind.channel": "kênh",

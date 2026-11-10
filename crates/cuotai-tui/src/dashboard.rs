@@ -6,7 +6,7 @@
 //! colors, labels, layout, and the unmeasured toggle. No credentials are read
 //! or stored here.
 
-use crate::l10n::{tr, trf};
+use crate::l10n::{tr, trf, trp};
 use crate::motion::{eighth_bar, Anim};
 use crate::palette;
 use crate::ui::{
@@ -1108,14 +1108,12 @@ fn render_header(frame: &mut Frame, area: Rect, view: &View<'_>) {
             None => tr("dashboard.header.no_refresh", "Update: —").to_string(),
         }
     };
-    let title = trf(
+    let title = trp(
         "dashboard.header.title",
+        " CUOTAI  |  {count} account  |  {checked}  |  {refresh} ",
         " CUOTAI  |  {count} accounts  |  {checked}  |  {refresh} ",
-        &[
-            ("count", &view.accounts.len()),
-            ("checked", &checked),
-            ("refresh", &refresh_state),
-        ],
+        view.accounts.len(),
+        &[("checked", &checked), ("refresh", &refresh_state)],
     );
     let block = Block::default()
         .borders(Borders::ALL)
@@ -1228,19 +1226,20 @@ fn footer_segments(view: &View<'_>) -> [Vec<FooterSegment>; 2] {
     {
         // The selected card's place among the visible ones: with more
         // accounts than a page holds, the only sign of where the list is.
-        trf(
+        trp(
             "dashboard.footer.count.position",
+            "{position}/{count} account",
             "{position}/{count} accounts",
-            &[
-                ("position", &(position + 1)),
-                ("count", &view.visible.len()),
-            ],
+            view.visible.len(),
+            &[("position", &(position + 1))],
         )
     } else {
-        trf(
+        trp(
             "dashboard.footer.count.many",
+            "{count} account",
             "{count} accounts",
-            &[("count", &view.visible.len())],
+            view.visible.len(),
+            &[],
         )
     };
     let navigation = vec![
@@ -1835,91 +1834,62 @@ fn render_card(
     let chunks = Layout::vertical(constraints).split(inner);
 
     let mut chunk_index = 0;
-    let separator = || Span::styled(" · ", Style::default().fg(MUTED));
-    let mut status_spans = vec![
-        Span::styled(
-            crate::ui::provider_label(account.provider),
+    let status = match report {
+        Some(report) => Span::styled(
+            crate::ui::status_label(report.status),
+            Style::default().fg(status_color(report.status)),
+        ),
+        None => Span::styled(
+            tr("dashboard.card.waiting", "Waiting"),
             Style::default().fg(MUTED),
         ),
-        separator(),
-        match report {
-            Some(report) => Span::styled(
-                crate::ui::status_label(report.status),
-                Style::default().fg(status_color(report.status)),
-            ),
-            None => Span::styled(
-                tr("dashboard.card.waiting", "Waiting"),
-                Style::default().fg(MUTED),
-            ),
-        },
-    ];
-    let suffix = match stale {
-        Some(stale) => Some(Span::styled(
-            trf(
-                "dashboard.card.stale",
-                "(stale) {age}",
-                &[("age", &age_text(stale.checked_at, view.now))],
-            ),
-            Style::default().fg(YELLOW).add_modifier(Modifier::BOLD),
-        )),
-        None => {
-            status_spans.push(separator());
-            status_spans.push(Span::styled(
+    };
+    let (class_span, suffix) = match stale {
+        Some(stale) => {
+            let age = age_text(stale.checked_at, view.now);
+            let style = Style::default().fg(YELLOW).add_modifier(Modifier::BOLD);
+            let full = trf("dashboard.card.stale", "(stale) {age}", &[("age", &age)]);
+            (
+                None,
+                Some((Span::styled(full, style), Span::styled(age, style))),
+            )
+        }
+        None => (
+            Some(Span::styled(
                 class_label(class),
                 Style::default()
                     .fg(class_color(class))
                     .add_modifier(Modifier::BOLD),
-            ));
+            )),
             report.map(|report| {
-                Span::styled(
-                    format!(
-                        "{}{}{}",
-                        age_text(report.checked_at, view.now),
-                        data_as_of_suffix(report),
-                        live_suffix(view, account_index)
-                    ),
-                    Style::default().fg(MUTED),
+                let age = age_text(report.checked_at, view.now);
+                let full = format!(
+                    "{age}{}{}",
+                    data_as_of_suffix(report),
+                    live_suffix(view, account_index)
+                );
+                (
+                    Span::styled(full, Style::default().fg(MUTED)),
+                    Span::styled(age, Style::default().fg(MUTED)),
                 )
-            })
-        }
+            }),
+        ),
     };
-    if let Some(count) = view.model_counts.get(account_index).copied().flatten() {
-        let count_spans = vec![
-            separator(),
-            Span::styled(model_count_label(count), Style::default().fg(MUTED)),
-        ];
-        let suffix_width = suffix
-            .as_ref()
-            .map(|span| Line::from(vec![separator(), span.clone()]).width())
-            .unwrap_or(0);
-        if Line::from(status_spans.clone()).width()
-            + Line::from(count_spans.clone()).width()
-            + suffix_width
-            <= usize::from(inner.width)
-        {
-            status_spans.splice(3..3, count_spans);
-        }
-    }
-    let prefix = Line::from(status_spans);
-    if let Some(suffix) = suffix {
-        let suffix = Line::from(vec![separator(), suffix]);
-        let suffix_width = u16::try_from(suffix.width())
-            .unwrap_or(u16::MAX)
-            .min(inner.width);
-        let prefix_width = u16::try_from(prefix.width())
-            .unwrap_or(u16::MAX)
-            .min(inner.width.saturating_sub(suffix_width));
-        let status_chunks = Layout::horizontal([
-            Constraint::Length(prefix_width),
-            Constraint::Length(suffix_width),
-            Constraint::Min(0),
-        ])
-        .split(chunks[chunk_index]);
-        frame.render_widget(Paragraph::new(prefix), status_chunks[0]);
-        frame.render_widget(Paragraph::new(suffix), status_chunks[1]);
-    } else {
-        frame.render_widget(Paragraph::new(prefix), chunks[chunk_index]);
-    }
+    let count = view
+        .model_counts
+        .get(account_index)
+        .copied()
+        .flatten()
+        .map(|count| Span::styled(model_count_label(count), Style::default().fg(MUTED)));
+    let line = fit_status_line(
+        &crate::ui::provider_label(account.provider),
+        status,
+        class_span,
+        count,
+        suffix,
+        usize::from(inner.width),
+    );
+    frame.render_widget(Paragraph::new(line), chunks[chunk_index]);
     chunk_index += 1;
     if extra_rows > 0 {
         if let Some(text) = &extra_text {
@@ -2354,6 +2324,119 @@ fn split_at_cells(text: &str, width: usize) -> (&str, &str) {
 }
 
 /// `text` cut to `room` cells, ending in "…" when something was cut.
+/// PRD 0010 re-validation V-01: `text` within `room` cells, cut only at a
+/// word boundary (or between wide CJK characters, as [`wrap_tokens`]
+/// breaks them) and ended by "…"; `None` when not even one word fits.
+fn ellipsize_words(text: &str, room: usize) -> Option<String> {
+    if cells(text) <= room {
+        return Some(text.to_string());
+    }
+    let mut head = String::new();
+    'words: for (word_index, word) in text.split_whitespace().enumerate() {
+        for (index, token) in wrap_tokens(word).into_iter().enumerate() {
+            let gap = if word_index > 0 && index == 0 {
+                " "
+            } else {
+                ""
+            };
+            let next = format!("{head}{gap}{token}");
+            if cells(&next) + 1 > room {
+                break 'words;
+            }
+            head = next;
+        }
+    }
+    // A dangling dash or other punctuation word never ends the cut.
+    while let Some((rest, last)) = head.rsplit_once(' ') {
+        if last.chars().any(char::is_alphanumeric) {
+            break;
+        }
+        head = rest.to_string();
+    }
+    (!head.is_empty()).then(|| format!("{head}…"))
+}
+
+/// PRD 0010 RF5.1 (re-validation V-01): the card status line, "provider ·
+/// status · class [· models] · age", within `width` cells without ever
+/// cutting a word. It gives way in this order: the model count, the
+/// provider (shortened at a word, then dropped), the age's long form (the
+/// stale case keeps the age alone, in its style), and last the class or the
+/// status, shortened at a word with "…".
+fn fit_status_line(
+    provider: &str,
+    status: Span<'static>,
+    class: Option<Span<'static>>,
+    count: Option<Span<'static>>,
+    suffix: Option<(Span<'static>, Span<'static>)>,
+    width: usize,
+) -> Line<'static> {
+    let separator = || Span::styled(" · ", Style::default().fg(MUTED));
+    let provider_style = Style::default().fg(MUTED);
+    let build = |provider: Option<String>,
+                 body: &[Span<'static>],
+                 count: Option<&Span<'static>>,
+                 suffix: Option<&Span<'static>>| {
+        let mut spans = Vec::new();
+        for span in provider
+            .map(|text| Span::styled(text, provider_style))
+            .into_iter()
+            .chain(body.iter().cloned())
+            .chain(count.cloned())
+            .chain(suffix.cloned())
+        {
+            if !spans.is_empty() {
+                spans.push(separator());
+            }
+            spans.push(span);
+        }
+        Line::from(spans)
+    };
+    let body: Vec<Span<'static>> = std::iter::once(status.clone())
+        .chain(class.clone())
+        .collect();
+    let (full, short) = match &suffix {
+        Some((full, short)) => (Some(full), Some(short)),
+        None => (None, None),
+    };
+    let whole = Some(provider.to_string());
+    for (count, suffix) in [(count.as_ref(), full), (None, full)] {
+        let line = build(whole.clone(), &body, count, suffix);
+        if line.width() <= width {
+            return line;
+        }
+    }
+    for suffix in [full, short] {
+        let rest = build(None, &body, None, suffix).width() + 3;
+        if let Some(provider) = width
+            .checked_sub(rest)
+            .and_then(|room| ellipsize_words(provider, room))
+        {
+            return build(Some(provider), &body, None, suffix);
+        }
+        let line = build(None, &body, None, suffix);
+        if line.width() <= width {
+            return line;
+        }
+    }
+    // Last resort: the class, then the status, shortened at a word.
+    let tail = short.map_or(0, |short| Line::from(short.clone()).width() + 3);
+    let room = width.saturating_sub(tail);
+    if let Some(class) = &class {
+        let head = Line::from(vec![status.clone(), separator()]).width();
+        if let Some(text) = room
+            .checked_sub(head)
+            .and_then(|room| ellipsize_words(&class.content, room))
+        {
+            let class = Span::styled(text, class.style);
+            return build(None, &[status, class], None, short);
+        }
+    }
+    match ellipsize_words(&status.content, room) {
+        Some(text) => build(None, &[Span::styled(text, status.style)], None, short),
+        None => build(None, &[], None, short),
+    }
+}
+
 fn ellipsize(text: &str, room: usize) -> String {
     if cells(text) <= room {
         return text.to_string();
@@ -3456,7 +3539,8 @@ mod tests {
             "pt-BR",
         );
         assert!(screen.contains("Créditos do plano"), "{screen}");
-        assert!(screen.contains("Alibaba Cloud — faturamento"), "{screen}");
+        // The narrow card shortens the provider at a word, never mid-word.
+        assert!(screen.contains("Alibaba Cloud… · Atualizado"), "{screen}");
     }
 
     #[test]
@@ -6736,6 +6820,151 @@ mod tests {
             textwrap_simple("계정은 저장되지만", 12),
             vec!["계정은", "저장되지만"]
         );
+    }
+
+    /// PRD 0010 re-validation V-01: the status line never cuts a word.
+    /// PRD 0010 re-validation R-04: the header counts accounts in the
+    /// singular for one.
+    #[test]
+    fn the_header_counts_one_account_in_the_singular() {
+        let now = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+        let accounts = three_accounts();
+        let one = render_for_test(&accounts[..1], &[None], &[], &[0], now, "en-US");
+        assert!(one.contains("CUOTAI  |  1 account  |"), "{one}");
+        let two = render_for_test(&accounts[..2], &[None, None], &[], &[0, 1], now, "en-US");
+        assert!(two.contains("CUOTAI  |  2 accounts  |"), "{two}");
+        let ru = render_for_test(&accounts[..2], &[None, None], &[], &[0, 1], now, "ru");
+        assert!(ru.contains("CUOTAI  |  2 уч. записи  |"), "{ru}");
+    }
+
+    #[test]
+    fn ellipsize_words_cuts_only_between_words() {
+        assert_eq!(
+            ellipsize_words("Necesita configuración", 30).as_deref(),
+            Some("Necesita configuración")
+        );
+        assert_eq!(
+            ellipsize_words("Necesita configuración", 12).as_deref(),
+            Some("Necesita…")
+        );
+        assert_eq!(ellipsize_words("Necesita configuración", 8), None);
+        assert_eq!(
+            ellipsize_words("Alibaba Cloud — faturamento", 20).as_deref(),
+            Some("Alibaba Cloud…")
+        );
+        assert_eq!(
+            ellipsize_words("認証に失敗しました", 7).as_deref(),
+            Some("認証に…")
+        );
+    }
+
+    #[test]
+    fn the_card_status_line_gives_way_without_cutting_words() {
+        let plain = |line: &Line| {
+            line.spans
+                .iter()
+                .map(|s| s.content.as_ref())
+                .collect::<String>()
+        };
+        let span = |text: &str| Span::raw(text.to_string());
+        let stale = || Some((span("(desactualizada) hace 2 min"), span("hace 2 min")));
+        // Room for everything.
+        let line = fit_status_line(
+            "Groq",
+            span("Necesita configuración"),
+            None,
+            None,
+            stale(),
+            60,
+        );
+        assert_eq!(
+            plain(&line),
+            "Groq · Necesita configuración · (desactualizada) hace 2 min"
+        );
+        // The provider shortens at a word, then goes.
+        let line = fit_status_line(
+            "Anthropic API",
+            span("Necesita configuración"),
+            None,
+            None,
+            stale(),
+            66,
+        );
+        assert_eq!(
+            plain(&line),
+            "Anthropic… · Necesita configuración · (desactualizada) hace 2 min"
+        );
+        let line = fit_status_line(
+            "Anthropic API",
+            span("Necesita configuración"),
+            None,
+            None,
+            stale(),
+            50,
+        );
+        assert_eq!(
+            plain(&line),
+            "Anthropic… · Necesita configuración · hace 2 min"
+        );
+        let line = fit_status_line(
+            "Anthropic API",
+            span("Necesita configuración"),
+            None,
+            None,
+            stale(),
+            36,
+        );
+        assert_eq!(plain(&line), "Necesita configuración · hace 2 min");
+        // Last resort: the status shortens at a word, the age stays.
+        let line = fit_status_line(
+            "Anthropic API",
+            span("Necesita configuración"),
+            None,
+            None,
+            stale(),
+            30,
+        );
+        assert_eq!(plain(&line), "Necesita… · hace 2 min");
+        // The class shortens before the status; the model count goes first.
+        let line = fit_status_line(
+            "OpenAI API",
+            span("Sẵn sàng"),
+            Some(span("Không có dữ liệu")),
+            Some(span("3 mô hình")),
+            Some((span("2 phút trước"), span("2 phút trước"))),
+            52,
+        );
+        assert_eq!(
+            plain(&line),
+            "OpenAI… · Sẵn sàng · Không có dữ liệu · 2 phút trước"
+        );
+        let line = fit_status_line(
+            "OpenAI API",
+            span("Sẵn sàng"),
+            Some(span("Không có dữ liệu")),
+            None,
+            Some((span("2 phút trước"), span("2 phút trước"))),
+            37,
+        );
+        assert_eq!(plain(&line), "Sẵn sàng · Không có… · 2 phút trước");
+        for width in 0..60 {
+            let line = fit_status_line(
+                "Anthropic API",
+                span("Necesita configuración"),
+                None,
+                None,
+                stale(),
+                width,
+            );
+            for word in plain(&line).split([' ', '…']).filter(|w| !w.is_empty()) {
+                assert!(
+                    "Anthropic API · Necesita configuración · (desactualizada) hace 2 min"
+                        .split(' ')
+                        .any(|whole| whole == word),
+                    "{width}: {word:?} is a cut word"
+                );
+            }
+        }
     }
 
     #[test]
