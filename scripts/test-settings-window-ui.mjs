@@ -166,6 +166,18 @@ for (const file of await readdir(ui("js"))) {
   assert.ok(!text.includes('"open-settings"'), `${file} still listens to open-settings`);
 }
 
+// PRD 0013 re-validation V-01: the hooks Rules sub-page has its own message line (Save, Test and refused
+// confirmations show there, where the user acts), and the row keeps its line for the switch.
+{
+  const hv = await lib.hooksStatus();
+  const html = hooksHtml(hv, hv.rules ?? [], false);
+  const sub = html.slice(html.indexOf('data-subpage="hooks-rules"'));
+  assert.ok(sub.includes('id="hooks-page-msg"'), "the Rules sub-page has no message line");
+  assert.ok(html.slice(0, html.indexOf('data-subpage="hooks-rules"')).includes('id="hooks-msg"'), "the row lost its line");
+  const source = await readFile(ui("js/settings/hooks.js"), "utf8");
+  assert.match(source, /\["#hooks-msg", "#hooks-page-msg"\]/, "paint must write both message lines");
+}
+
 // Every control of the old dialog renders on its page, in every built-in catalog, with no raw key shown.
 const view = await lib.getView();
 const states = {
@@ -220,6 +232,10 @@ for (const { code } of i18n.LOCALES) {
       assert.ok(out.includes(state), `${code}/${page.id}: ${f[i]} not filled`);
     }
     filled.set(page.id, out);
+    // PRD 0013 re-validation V-01: ids are unique on a page, so a message lands where its `querySelector` looks.
+    const ids = [...out.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]);
+    const repeated = ids.filter((id, i) => ids.indexOf(id) !== i);
+    assert.deepEqual(repeated, [], `${code}/${page.id}: repeated ids ${repeated}`);
     // RF3.1/RF3.2: no raw check box (only switches and membership checks), no old Apply/Save buttons (RF4.2).
     for (const box of out.match(/<input[^>]*type="checkbox"[^>]*>/g) ?? []) {
       assert.ok(/class="(sw|chk)"/.test(box), `${code}/${page.id}: raw check box ${box}`);
