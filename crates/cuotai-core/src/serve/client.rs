@@ -34,7 +34,7 @@ pub fn default_url() -> String {
 pub enum ClientError {
     #[error("Invalid local server address: use http://127.0.0.1:PORT.")]
     InvalidUrl,
-    #[error("The local server is only read over loopback (127.0.0.1, ::1 or localhost).")]
+    #[error("The local server is only read over loopback (127.0.0.1 or ::1; localhost is read as 127.0.0.1).")]
     NotLoopback,
     #[error("The local server did not answer; is it running (cuotai --serve)?")]
     Unreachable,
@@ -75,8 +75,17 @@ pub fn limits_url(base: &str) -> Result<url::Url, ClientError> {
     {
         return Err(ClientError::InvalidUrl);
     }
+    let mut url = url;
     let loopback = match url.host() {
-        Some(url::Host::Domain(name)) => name.eq_ignore_ascii_case("localhost"),
+        Some(url::Host::Domain(name)) if name.eq_ignore_ascii_case("localhost") => {
+            // PRD 0012 RF3.1: `localhost` is read as `127.0.0.1` and never
+            // resolved, so the token goes to the address the server holds
+            // and not to whatever the resolver lists first.
+            url.set_ip_host(IpAddr::V4(Ipv4Addr::LOCALHOST))
+                .map_err(|_| ClientError::InvalidUrl)?;
+            true
+        }
+        Some(url::Host::Domain(_)) => false,
         Some(url::Host::Ipv4(ip)) => IpAddr::V4(ip).is_loopback(),
         Some(url::Host::Ipv6(ip)) => IpAddr::V6(ip).is_loopback(),
         None => return Err(ClientError::InvalidUrl),
@@ -193,7 +202,10 @@ mod tests {
             limits_url("http://127.0.0.1:7878").unwrap().as_str(),
             "http://127.0.0.1:7878/v1/limits"
         );
-        assert!(limits_url("http://localhost:7878/").is_ok());
+        assert_eq!(
+            limits_url("http://LocalHost:7878/").unwrap().as_str(),
+            "http://127.0.0.1:7878/v1/limits"
+        );
         assert!(limits_url("http://[::1]:7878").is_ok());
         assert!(limits_url(&default_url()).is_ok());
         assert_eq!(
@@ -213,6 +225,24 @@ mod tests {
         ] {
             assert_eq!(limits_url(bad), Err(ClientError::InvalidUrl), "{bad}");
         }
+    }
+
+    /// PRD 0012 RF3.1: a process holding only `[::1]:port` never receives
+    /// the request (and its token) for `http://localhost:port`.
+    #[tokio::test]
+    async fn localhost_never_reaches_an_ipv6_only_listener() {
+        let Ok(squatter) = std::net::TcpListener::bind("[::1]:0") else {
+            return; // no IPv6 loopback on this host
+        };
+        squatter.set_nonblocking(true).unwrap();
+        let port = squatter.local_addr().unwrap().port();
+        let token = Token::generate().unwrap();
+        let _ = limits_views(&format!("http://localhost:{port}"), Some(&token)).await;
+        assert_eq!(
+            squatter.accept().map(|_| ()).unwrap_err().kind(),
+            std::io::ErrorKind::WouldBlock,
+            "the [::1] listener must not receive the request"
+        );
     }
 
     #[test]

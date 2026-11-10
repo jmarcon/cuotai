@@ -1912,7 +1912,7 @@
   "serve.origin.error.too_many": "信頼するオリジンは最大 16 個までです。",
   "serve.client.incompatible": "ローカルサーバーの応答が互換性のある /v1/limits ではありません。",
   "serve.client.invalid_url": "ローカルサーバーのアドレスが無効です。http://127.0.0.1:ポート を使用してください。",
-  "serve.client.not_loopback": "ローカルサーバーはループバック（127.0.0.1、::1、localhost）でのみ読み取れます。",
+  "serve.client.not_loopback": "ローカルサーバーはループバック（127.0.0.1、::1）でのみ読み取れます。localhost は 127.0.0.1 として扱います。",
   "serve.client.not_ready": "ローカルサーバーにはまだ読み取りがありません。しばらくしてからもう一度お試しください。",
   "serve.client.unauthorized": "ローカルサーバーがトークンを拒否しました（--token-file には --serve と同じファイルを使用してください）。",
   "serve.client.unreachable": "ローカルサーバーが応答しませんでした。実行中ですか（cuotai --serve）？",

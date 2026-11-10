@@ -1912,7 +1912,7 @@
   "serve.origin.error.too_many": "Cho phép tối đa 16 nguồn gốc tin cậy.",
   "serve.client.incompatible": "Phản hồi của máy chủ cục bộ không phải /v1/limits tương thích.",
   "serve.client.invalid_url": "Địa chỉ máy chủ cục bộ không hợp lệ: hãy dùng http://127.0.0.1:CỔNG.",
-  "serve.client.not_loopback": "Máy chủ cục bộ chỉ được đọc qua loopback (127.0.0.1, ::1 hoặc localhost).",
+  "serve.client.not_loopback": "Máy chủ cục bộ chỉ được đọc qua loopback (127.0.0.1 hoặc ::1; localhost được đọc là 127.0.0.1).",
   "serve.client.not_ready": "Máy chủ cục bộ chưa có lần đọc nào; hãy thử lại sau giây lát.",
   "serve.client.unauthorized": "Máy chủ cục bộ đã từ chối token (hãy dùng --token-file với cùng tệp như --serve).",
   "serve.client.unreachable": "Máy chủ cục bộ không phản hồi; nó có đang chạy không (cuotai --serve)?",

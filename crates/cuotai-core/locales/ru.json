@@ -1948,7 +1948,7 @@
   "serve.origin.error.too_many": "Допускается не более 16 доверенных источников.",
   "serve.client.incompatible": "Ответ локального сервера не является совместимым /v1/limits.",
   "serve.client.invalid_url": "Недопустимый адрес локального сервера: используйте http://127.0.0.1:ПОРТ.",
-  "serve.client.not_loopback": "Локальный сервер читается только через loopback (127.0.0.1, ::1 или localhost).",
+  "serve.client.not_loopback": "Локальный сервер читается только через loopback (127.0.0.1 или ::1; localhost читается как 127.0.0.1).",
   "serve.client.not_ready": "У локального сервера пока нет показаний; повторите через некоторое время.",
   "serve.client.unauthorized": "Локальный сервер отклонил токен (используйте --token-file с тем же файлом, что и у --serve).",
   "serve.client.unreachable": "Локальный сервер не ответил; он запущен (cuotai --serve)?",

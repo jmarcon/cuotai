@@ -1125,6 +1125,62 @@ async fn a_taken_port_falls_back_to_the_next_one_unless_strict() {
     assert!(!ephemeral.fell_back());
 }
 
+/// Whether this host can listen on `[::1]` (some containers turn IPv6 off).
+fn ipv6_loopback() -> bool {
+    std::net::TcpListener::bind("[::1]:0").is_ok()
+}
+
+/// PRD 0012 RF3.1: another program holding `[::1]:port` makes the port
+/// taken; the server never runs with that side in someone else's hands.
+#[tokio::test]
+async fn a_held_ipv6_loopback_side_makes_the_port_taken() {
+    if !ipv6_loopback() {
+        return;
+    }
+    let squatter = std::net::TcpListener::bind("[::1]:0").unwrap();
+    let port = squatter.local_addr().unwrap().port();
+    let started = LocalServer::start(
+        ServeConfig {
+            port,
+            ..ServeConfig::default()
+        },
+        fixture_source(),
+    )
+    .await;
+    assert_eq!(
+        started.err(),
+        Some(ServeError::PortInUse {
+            first: port,
+            last: port
+        })
+    );
+}
+
+/// PRD 0012 RF3.1: both loopback addresses answer on the same port (an
+/// ephemeral one too), the URL stays `127.0.0.1` and shutdown closes both.
+#[tokio::test]
+async fn both_loopback_addresses_answer_and_close_together() {
+    let server = start(ServeConfig::default(), fixture_source()).await;
+    let port = server.addr().port();
+    assert_eq!(server.url(), format!("http://127.0.0.1:{port}"));
+    let v4 = SocketAddr::from(([127, 0, 0, 1], port));
+    let health = |host: &str| {
+        format!("GET /health HTTP/1.1\r\nHost: {host}:{port}\r\nConnection: close\r\n\r\n")
+    };
+    assert!(raw(v4, health("127.0.0.1").as_bytes())
+        .await
+        .starts_with("HTTP/1.1 200"));
+    let v6 = SocketAddr::from((std::net::Ipv6Addr::LOCALHOST, port));
+    if ipv6_loopback() {
+        assert!(raw(v6, health("[::1]").as_bytes())
+            .await
+            .starts_with("HTTP/1.1 200"));
+    }
+    server.shutdown().await;
+    assert!(TcpStream::connect(v4).await.is_err());
+    assert!(TcpStream::connect(v6).await.is_err());
+}
+
 /// RF3.4: neither answers nor the access log carry the token, credentials,
 /// credential variable names or query parameters.
 // security-invariant: SEC-ERRORS (PRD 0050 RF7.1)

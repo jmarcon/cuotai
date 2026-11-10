@@ -402,6 +402,28 @@ fn local_errors_exit_1() {
     assert_eq!(sandbox.aws_calls(), 0, "no query before a local error");
 }
 
+/// PRD 0012 RF3.1: another program on the `[::1]` side of the port makes
+/// `--serve` a port-taken local error; nothing is served and no token is
+/// printed.
+#[test]
+fn a_held_ipv6_loopback_side_is_a_taken_port() {
+    let Ok(squatter) = TcpListener::bind("[::1]:0") else {
+        return; // no IPv6 loopback on this host
+    };
+    let sandbox = Sandbox::new("ipv6-taken");
+    let config = sandbox.config("dev");
+    let port = squatter.local_addr().unwrap().port().to_string();
+    let status = run(
+        &sandbox,
+        &["--config", arg(&config), "--serve", "--port", &port],
+    );
+    assert_eq!(status.code(), Some(1));
+    let stderr = sandbox.stderr();
+    assert!(stderr.contains(&port), "{stderr}");
+    assert!(!stderr.contains("cuotai_"), "no token printed: {stderr}");
+    assert_eq!(sandbox.aws_calls(), 0);
+}
+
 /// PRD 0031 RF11: `/v1/stats` exists only with `--serve-stats` and a token;
 /// it answers from the local history and never queries a provider.
 #[test]

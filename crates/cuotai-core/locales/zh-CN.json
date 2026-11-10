@@ -1912,7 +1912,7 @@
   "serve.origin.error.too_many": "最多允许 16 个受信任来源。",
   "serve.client.incompatible": "本地服务器的响应不是兼容的 /v1/limits。",
   "serve.client.invalid_url": "本地服务器地址无效：请使用 http://127.0.0.1:端口。",
-  "serve.client.not_loopback": "本地服务器只能通过回环地址读取（127.0.0.1、::1 或 localhost）。",
+  "serve.client.not_loopback": "本地服务器只能通过回环地址读取（127.0.0.1 或 ::1；localhost 按 127.0.0.1 读取）。",
   "serve.client.not_ready": "本地服务器还没有读数；请稍后重试。",
   "serve.client.unauthorized": "本地服务器拒绝了该令牌（请对 --token-file 使用与 --serve 相同的文件）。",
   "serve.client.unreachable": "本地服务器没有响应；它是否正在运行（cuotai --serve）？",
