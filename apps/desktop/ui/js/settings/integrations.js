@@ -32,7 +32,8 @@ const withError = (html, [id, text] = []) => (id ? html.replace(`id="${id}" role
 
 /** PRD 0012 RF5: the local server, off by default. The switch, the state (the effective address, or why it is not
  *  serving, naming another Cuotai server on the port), then the connection details collapsed (RF5.2): the port
- *  (bound exactly), the token (generated into the system vault, copied, renewed or revoked; never shown) and "allow
+ *  (bound exactly), the token (always required: created when the server is turned on, copied, renewed, or revoked,
+ *  which turns the server off; never shown) and "allow
  *  browsers" behind the core's warning, with its trusted origins (PRD 0050 RF4.4). Every change restarts the server and the group repaints from the state the
  *  backend answers. */
 export function integrationHtml(sv, message = []) {
@@ -43,18 +44,20 @@ export function integrationHtml(sv, message = []) {
       ? `<p class="hint warn-txt" data-serve-state role="alert">${icon("warn")} <strong>${te("settings.serve.state.error")}</strong> ${tle(sv.error)}${
         sv.cuotai_on_port ? ` ${te("settings.serve.cuotaiOnPort", { port: sv.port })}` : ""}</p>`
       : `<p class="hint" data-serve-state><strong>${te("settings.serve.state.off")}</strong></p>`;
+  // PRD 0012 RF5: a server that ran without a token got one; say where to copy it until the user does.
+  const notice = sv.token_notice ? `<p class="hint warn-txt" role="status" data-serve-token-notice>${icon("warn")} ${te("settings.serve.token.notice")}</p>` : "";
   const token = sv.token
     ? buttons(`<button class="btn sm" data-serve-token-copy>${icon("copy")} ${te("settings.serve.token.copy")}</button>`,
       `<button class="btn sm" data-serve-token-new>${te("settings.serve.token.renew")}</button>`,
       `<button class="btn sm danger-btn" data-serve-token-revoke>${te("settings.serve.token.revoke")}</button>`)
     : buttons(`<button class="btn sm" data-serve-token-new>${te("settings.serve.token.generate")}</button>`);
   return withError(row({ key: "serve", label: te("settings.serve.on"), info: `${te("settings.serve.help")}<br />${te("settings.serve.privacy")}`, msg: "serve-msg",
-    control: (a) => sw("serve-on", sv.enabled, a), body: state })
+    control: (a) => sw("serve-on", sv.enabled, a), body: state + notice })
     + disc("serve-connection", te("settings.serve.connection"),
       row({ key: "port", label: te("settings.serve.port"), info: te("settings.serve.portHelp", { port: sv.default_port, min: sv.port_min, max: sv.port_max }), msg: "serve-port-msg",
         control: (a) => num("serve-port", { value: sv.port, min: sv.port_min, max: sv.port_max, apply: "data-serve-port" }, a) })
       + row({ key: "token", label: te("settings.serve.token.title"), msg: "serve-token-msg", control: () => token,
-        info: `${te(sv.token ? "settings.serve.token.on" : "settings.serve.token.off")}${sv.token ? `<br />${te("settings.serve.token.revokeHelp")}` : ""}` })
+        info: `${te("settings.serve.token.on")}${sv.token ? `<br />${te("settings.serve.token.revokeHelp")}` : ""}` })
       // PRD 0031 RF11.2.5: /v1/stats is a separate opt-in that the server answers only with a token.
       + row({ key: "serve-stats", label: te("settings.serve.stats"), info: te("settings.serve.statsHelp"), msg: "serve-stats-msg",
         desc: sv.stats && !sv.token ? te("settings.serve.statsNeedsToken") : "",
@@ -121,7 +124,7 @@ async function bindIntegration(sec, ctx) {
     if (revoke) revoke.onclick = () => run(revokeServeToken, "serve-token-msg");
     const copied = (btn) => { const prev = btn.innerHTML; btn.textContent = t("settings.serve.copied"); setTimeout(() => { btn.innerHTML = prev; }, 1500); };
     const copyToken = sec.querySelector("[data-serve-token-copy]");
-    if (copyToken) copyToken.onclick = () => copySecret(copyServeToken).then(() => copied(copyToken), (e) => { sec.querySelector("#serve-token-msg").textContent = serveErrorText(e); });
+    if (copyToken) copyToken.onclick = () => copySecret(copyServeToken).then(() => { copied(copyToken); sec.querySelector("[data-serve-token-notice]")?.remove(); sv = { ...sv, token_notice: false }; }, (e) => { sec.querySelector("#serve-token-msg").textContent = serveErrorText(e); });
     const copyUrl = sec.querySelector("[data-serve-copy-url]");
     if (copyUrl) copyUrl.onclick = () => navigator.clipboard?.writeText(sv.url).then(() => copied(copyUrl), () => { sec.querySelector("#serve-msg").textContent = t("settings.serve.copyFailed"); });
     // PRD 0012 RF3.3: pages are only let in after the warning was read and confirmed.

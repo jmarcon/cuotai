@@ -704,8 +704,9 @@ pub fn write_alerts(file: &Path, alerts: &AlertSettings) -> Result<(), &'static 
 pub const SERVE_PORTS: std::ops::RangeInclusive<u16> = 1024..=u16::MAX;
 
 /// PRD 0012 RF5.1: the local server of this device. Off by default, on the
-/// core's suggested port, refusing web pages and without a token; the token
-/// itself lives in the OS vault, `token` only says one is required.
+/// core's suggested port and refusing web pages; the token itself lives in
+/// the OS vault, `token` only says one is required. The server never runs
+/// without one: turning it on creates the token when the vault has none.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ServePrefs {
     pub enabled: bool,
@@ -724,6 +725,10 @@ pub struct ServePrefs {
     /// origins and was turned off on load; Settings says so until the next
     /// choice.
     pub origins_notice: bool,
+    /// PRD 0012 RF5 (re-validation): the server was stored on without a
+    /// token, from a version that served tokenless; it gets a token on its
+    /// next start and Settings says where to copy it until the next choice.
+    pub token_notice: bool,
     /// PRD 0050 RF6.1/RF6.3: what the private `serve-access.log` records:
     /// `off` (the default: no entry, no file), `errors` or `all`.
     pub access_log: String,
@@ -739,6 +744,7 @@ impl Default for ServePrefs {
             stats: false,
             allowed_origins: Vec::new(),
             origins_notice: false,
+            token_notice: false,
             access_log: cuotai_core::serve::AccessLogMode::Off.name().into(),
         }
     }
@@ -764,6 +770,7 @@ impl ServePrefs {
             stats: flag("stats", default.stats),
             allowed_origins: Vec::new(),
             origins_notice: flag("origins_notice", default.origins_notice),
+            token_notice: flag("token_notice", default.token_notice),
             // PRD 0050 RF6.1: an unknown or mistyped mode reads as `off`.
             access_log: value["access_log"]
                 .as_str()
@@ -787,6 +794,11 @@ impl ServePrefs {
         if prefs.allow_browsers && (!prefs.token || prefs.allowed_origins.is_empty()) {
             prefs.allow_browsers = false;
             prefs.origins_notice = true;
+        }
+        // PRD 0012 RF5: a server left on without a token is the legacy
+        // tokenless state; it starts with a token and the notice.
+        if prefs.enabled && !prefs.token {
+            prefs.token_notice = true;
         }
         prefs
     }
@@ -846,6 +858,7 @@ impl ServePrefs {
             allow_browsers,
             allowed_origins: origins.iter().map(ToString::to_string).collect(),
             origins_notice: false,
+            token_notice: false,
             ..self
         })
     }
@@ -2798,6 +2811,7 @@ mod tests {
                 stats: false,
                 allowed_origins: Vec::new(),
                 origins_notice: false,
+                token_notice: false,
                 access_log: "off".into(),
             }
         );
@@ -2938,6 +2952,31 @@ mod tests {
             .unwrap();
             assert!(!next.origins_notice);
         }
+    }
+
+    /// PRD 0012 RF5 (re-validation): a server stored on without a token
+    /// (the old tokenless mode) loads on with the token notice; the notice
+    /// round-trips and any choice clears it.
+    #[test]
+    fn a_tokenless_server_loads_with_the_token_notice() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        fs::write(&file, r#"{"serve":{"enabled":true,"token":false}}"#).unwrap();
+        let legacy = read_serve(&file);
+        assert!(legacy.enabled);
+        assert!(legacy.token_notice);
+        // Started with its new token, the notice is kept until a choice.
+        let started = ServePrefs {
+            token: true,
+            ..legacy
+        };
+        write_serve(&file, &started).unwrap();
+        assert_eq!(read_serve(&file), started);
+        let next = started.with_choices(true, 6738, false, &[]).unwrap();
+        assert!(!next.token_notice);
+        // Off without a token is not the legacy state.
+        fs::write(&file, r#"{"serve":{"enabled":false,"token":false}}"#).unwrap();
+        assert!(!read_serve(&file).token_notice);
     }
 
     #[test]

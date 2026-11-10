@@ -2991,16 +2991,18 @@ impl Backend {
             .map_err(|e| l10n_to_json(&e.l10n()))?;
         let prefs = ServePrefs {
             token: true,
+            token_notice: false,
             ..serve.prefs()
         };
         crate::settings::save_serve(&prefs).map_err(str::to_owned)?;
         Ok(self.apply_serve(app, &mut serve, prefs).await)
     }
 
-    /// PRD 0012 RF5.1: revoke the token: remove it from the vault and serve
-    /// without one (loopback programs only, never web pages). Errors:
-    /// `browsers_need_token` while browsers are allowed (PRD 0050 RF4.1),
-    /// the core's vault error as JSON, `unwritable`.
+    /// PRD 0012 RF5.1: revoke the token: remove it from the vault and turn
+    /// the server off, since it never serves without one ("Generate new
+    /// token" is the rotation). Errors: `browsers_need_token` while
+    /// browsers are allowed (PRD 0050 RF4.1), the core's vault error as
+    /// JSON, `unwritable`.
     pub async fn revoke_serve_token(&self, app: &AppHandle) -> Result<ServeView, String> {
         let mut serve = self.serve.lock().await;
         // PRD 0050 RF4.1: browser mode never runs without its token.
@@ -3012,7 +3014,9 @@ impl Backend {
             .await
             .map_err(|e| l10n_to_json(&e.l10n()))?;
         let prefs = ServePrefs {
+            enabled: false,
             token: false,
+            token_notice: false,
             ..serve.prefs()
         };
         crate::settings::save_serve(&prefs).map_err(str::to_owned)?;
@@ -3022,15 +3026,22 @@ impl Backend {
     /// PRD 0012 RF5.1: the stored token, only when the user asks to copy it.
     /// Error: the core's vault error as JSON.
     pub async fn copy_serve_token(&self) -> Result<String, String> {
-        let serve = self.serve.lock().await;
+        let mut serve = self.serve.lock().await;
         let token = if serve.prefs().token {
             serve.stored_token().await
         } else {
             Err(cuotai_core::serve::ServeError::TokenMissing)
         };
-        token
+        let token = token
             .map(|token| token.expose().to_owned())
-            .map_err(|e| l10n_to_json(&e.l10n()))
+            .map_err(|e| l10n_to_json(&e.l10n()))?;
+        // PRD 0012 RF5: copying the token answers the token notice.
+        if serve.prefs().token_notice {
+            serve.dismiss_token_notice();
+            let _ = crate::settings::save_serve(&serve.prefs());
+            self.inner.lock().await.serve = serve.view();
+        }
+        Ok(token)
     }
 
     /// Restart the local server with `prefs` over the app's own state and
@@ -3047,7 +3058,12 @@ impl Backend {
             self.serving.store(prefs.enabled, Ordering::Relaxed);
             self.feed.publish(g.feed().filter(|_| prefs.enabled));
         }
-        serve.apply(prefs, &self.feed).await;
+        serve.apply(prefs.clone(), &self.feed).await;
+        // PRD 0012 RF5: turning the server on may have created its token;
+        // keep `desktop.json` saying that one is required.
+        if serve.prefs() != prefs {
+            let _ = crate::settings::save_serve(&serve.prefs());
+        }
         let view = serve.view();
         {
             let mut g = self.inner.lock().await;

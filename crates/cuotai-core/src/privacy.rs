@@ -431,12 +431,17 @@ static ARTIFACTS: &[Artifact] = &[
         "OAuth tokens, pasted sessions, keys saved in the app and notification channel addresses (`channel_<id>`)",
         "0001",
     ),
-    vault(
-        "vault.serve",
-        "cuotai.serve",
-        "the local server's bearer token",
-        "0012",
-    ),
+    Artifact {
+        // The serve token belongs to no account: it lasts until it is
+        // revoked or replaced (PRD 0012 RF5).
+        retention: "until revoked or replaced",
+        ..vault(
+            "vault.serve",
+            "cuotai.serve",
+            "the local server's bearer token",
+            "0012",
+        )
+    },
 ];
 
 /// Every Cuotai-owned data artifact, in a stable order.
@@ -829,9 +834,9 @@ pub fn flow(purpose: Purpose) -> Flow {
             "0013",
         ),
         Purpose::LocalServer => (
-            "inbound: clients on this computer (loopback unless you allow more with a token)",
+            "inbound: programs on this computer (loopback only)",
             "while `--serve` or Settings → Integration runs it",
-            "the readings already shown, without credentials; a bearer token is required by default",
+            "the readings already shown, without credentials; a bearer token is always required by the desktop and by default by `--serve`",
             "off",
             "0012",
         ),
