@@ -858,7 +858,7 @@ const FRESHNESS_ICON = { fresh: "check", aging: "clock", stale: "warn" };
 /** Age chip with the freshness icon and text (never color alone); the absolute time is in the tooltip. */
 export function ageHtml(r) {
   const f = freshnessOf(r);
-  const title = [t("age.measuredAt", { time: fmtReset(shownAt(r)) ?? "—" }), r.clock_adjusted && !isStaleReading(r) ? t("age.clockAdjusted") : ""]
+  const title = [t("age.measuredAt", { time: fmtReset(shownAt(r)) ?? "—" }), (isStaleReading(r) ? r.last_good.clock_adjusted : r.clock_adjusted) ? t("age.clockAdjusted") : ""]
     .filter(Boolean).join(" · ");
   return `<span class="age ${f ?? ""}" data-age data-freshness="${f ?? ""}" title="${esc(title)}">${icon(FRESHNESS_ICON[f] ?? "clock")}<span>${esc(ageText(r))}</span></span>`;
 }
