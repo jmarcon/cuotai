@@ -291,6 +291,36 @@ mod tests {
         }
     }
 
+    /// PRD 0009 re-validation V-03: the padding that separates headings
+    /// and labels ("  LIMIT  value") survives translation. The leading
+    /// spaces match the English source; a trailing space stays (a CJK
+    /// full-width colon stands in for it).
+    #[test]
+    fn translations_keep_the_padding_of_the_english_source() {
+        let lead = |text: &str| text.len() - text.trim_start_matches(' ').len();
+        let mut wrong = Vec::new();
+        for locale in EMBEDDED {
+            let catalog = catalog(locale).expect("catalog");
+            for (id, english) in &source_ids() {
+                let Some(text) = catalog.get(id).and_then(Message::as_text) else {
+                    continue;
+                };
+                let trailing = if english.ends_with(' ') {
+                    text.ends_with(' ') || text.ends_with('：')
+                } else {
+                    !text.ends_with(' ')
+                };
+                if lead(text) != lead(english) || !trailing {
+                    wrong.push(format!("{locale} {id}"));
+                }
+            }
+        }
+        assert!(
+            wrong.is_empty(),
+            "padding differs from the English source: {wrong:#?}"
+        );
+    }
+
     #[test]
     fn english_sources_and_es_it_texts_carry_no_portuguese() {
         for (id, english) in source_ids() {

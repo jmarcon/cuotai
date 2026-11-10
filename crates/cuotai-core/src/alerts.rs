@@ -3243,7 +3243,7 @@ fn join(mut items: impl Iterator<Item = Localized>) -> Option<Localized> {
 /// re-validation V-09), "Monday 14:30" within the next six days and a
 /// short date in the reader's order ("11/03 14:30", "03.11. 14:30")
 /// otherwise, never an ISO date.
-fn local_time<Tz>(at: DateTime<Utc>, now: DateTime<Utc>, tz: &Tz) -> ParamValue
+pub fn local_time<Tz>(at: DateTime<Utc>, now: DateTime<Utc>, tz: &Tz) -> ParamValue
 where
     Tz: TimeZone,
     Tz::Offset: Display,

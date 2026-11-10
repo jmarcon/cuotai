@@ -397,7 +397,7 @@
   "ui.delete.secrets.done": "{count} Geheimnis(se) der Erweiterung aus dem Systemtresor gelöscht.",
   "ui.delete.secrets.failed": "Die Geheimnisse der Erweiterung konnten NICHT gelöscht werden: {error}",
   "ui.delete.secrets.footer": "s löscht Geheimnisse • n behält sie • Esc bricht ab",
-  "ui.delete.secrets.title": " Geheimnisse der Erweiterung löschen?",
+  "ui.delete.secrets.title": " Geheimnisse der Erweiterung löschen? ",
   "ui.delete.secrets.unavailable": "Die Geheimnisse der Erweiterung konnten nicht gelöscht werden.",
   "ui.delete.session_removed": "Die im Tresor gespeicherte Websitzung wurde ebenfalls gelöscht.",
   "ui.extension_test.failed": "Testaufgabe der Erweiterung fehlgeschlagen.",
