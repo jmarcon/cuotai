@@ -2053,8 +2053,13 @@ fn session_expiry_title(expiry: &cuotai_core::user_session::SessionExpiry) -> Li
 pub(crate) struct IncidentBadge {
     pub(crate) glyph: &'static str,
     pub(crate) color: Color,
-    /// The core's state label (or "page unavailable"), plus the stale mark.
+    /// The core's state label (or "page unavailable"), plus the stale mark
+    /// and the reading age.
     pub(crate) label: String,
+    /// Byte lengths of the shorter labels that end on a whole segment
+    /// (" · last reading", " · read 2 min ago"), longest first: a narrow card
+    /// drops whole trailing segments before cutting any text (DS-MSG-15).
+    pub(crate) shorter: Vec<usize>,
     /// The active incident's title, without terminal controls.
     pub(crate) title: Option<String>,
     /// The incident page, or the status page without one.
@@ -2092,42 +2097,53 @@ pub(crate) fn incident_badge(
     let checked = status.read_at.map(|read_at| read_text(read_at, now));
     if status.expired {
         let mut label = status.state.label().resolve(locale);
+        let mut shorter = Vec::new();
         if let Some(checked) = checked {
+            shorter.push(label.len());
             label.push_str(&format!(" · {checked}"));
         }
         return Some(IncidentBadge {
             glyph: "?",
             color: MUTED,
             label,
+            shorter,
             title: None,
             url,
         });
     }
     if !notice {
         let mut label = tr("dashboard.incident.unavailable", "Status page unavailable").to_owned();
+        let mut shorter = Vec::new();
         if let Some(checked) = checked {
+            shorter.push(label.len());
             label.push_str(&format!(" · {checked}"));
         }
         return Some(IncidentBadge {
             glyph: "?",
             color: MUTED,
             label,
+            shorter,
             title: None,
             url,
         });
     }
     let (glyph, color) = incident_look(status.state);
     let mut label = status.state.label().resolve(locale);
+    let mut shorter = Vec::new();
     if status.stale {
+        shorter.push(label.len());
         label.push_str(tr("dashboard.incident.last_reading", " · last reading"));
         if let Some(checked) = checked {
+            shorter.push(label.len());
             label.push_str(&format!(" · {checked}"));
         }
     }
+    shorter.reverse();
     Some(IncidentBadge {
         glyph,
         color,
         label,
+        shorter,
         title: status
             .incident
             .as_ref()
@@ -2136,19 +2152,30 @@ pub(crate) fn incident_badge(
     })
 }
 
-/// The card's badge in at most `room` cells: the whole label, a cut one or
-/// only the shape.
+/// The card's badge in at most `room` cells: the whole label, the label
+/// without its last whole segments (never a cut reading age), the state
+/// label cut by cells, or only the shape.
 fn badge_title(badge: &IncidentBadge, room: usize) -> Option<Line<'static>> {
-    let full = format!(" {} {} ", badge.glyph, badge.label);
-    let text = if Span::raw(full.as_str()).width() <= room {
-        full
+    let fits = |label: &str| cells(&format!(" {} {} ", badge.glyph, label)) <= room;
+    let whole = std::iter::once(badge.label.len())
+        .chain(badge.shorter.iter().copied())
+        .filter_map(|end| badge.label.get(..end))
+        .find(|label| fits(label));
+    // The state label alone, the only part ever cut.
+    let head = badge
+        .shorter
+        .last()
+        .and_then(|&end| badge.label.get(..end))
+        .unwrap_or(&badge.label);
+    let text = if let Some(label) = whole {
+        format!(" {} {} ", badge.glyph, label)
     } else if room >= 6
-        && cells(split_at_cells(&badge.label, room - 4 - cells(badge.glyph)).0)
+        && cells(split_at_cells(head, room - 4 - cells(badge.glyph)).0)
             <= room - 4 - cells(badge.glyph)
     {
         // Cut by cells (PRD 0035 RF6.1): a wide character that would cross
         // the edge is left out rather than overflowing the border.
-        let (cut, _) = split_at_cells(&badge.label, room - 4 - cells(badge.glyph));
+        let (cut, _) = split_at_cells(head, room - 4 - cells(badge.glyph));
         format!(" {} {}… ", badge.glyph, cut.trim_end())
     } else if room >= 3 {
         format!(" {} ", badge.glyph)
@@ -7005,6 +7032,42 @@ mod tests {
         assert_eq!(text, "");
     }
 
+    /// PRD 0011 re-validation V-02: a narrow card drops the reading age and
+    /// then the stale mark whole; it never shows a partial age.
+    #[test]
+    fn badge_title_drops_whole_segments_before_cutting() {
+        let badge = IncidentBadge {
+            glyph: "✕",
+            color: Color::Red,
+            label: "Major outage · last reading · read 2 min ago".to_owned(),
+            shorter: vec!["Major outage · last reading".len(), "Major outage".len()],
+            title: None,
+            url: String::new(),
+        };
+        let text = |room| {
+            badge_title(&badge, room)
+                .map(|line| {
+                    line.spans
+                        .iter()
+                        .map(|s| s.content.to_string())
+                        .collect::<String>()
+                })
+                .unwrap_or_default()
+        };
+        assert_eq!(text(60), " ✕ Major outage · last reading · read 2 min ago ");
+        for room in 3..60 {
+            let shown = text(room);
+            assert!(cells(&shown) <= room, "room {room}: {shown}");
+            if shown.contains(" · read") && !shown.contains("2 min ago") {
+                panic!("room {room}: partial age {shown:?}");
+            }
+            assert!(!shown.contains("last rea…"), "room {room}: {shown:?}");
+        }
+        assert_eq!(text(40), " ✕ Major outage · last reading ");
+        assert_eq!(text(20), " ✕ Major outage ");
+        assert_eq!(text(10), " ✕ Major… ");
+    }
+
     /// A CJK incident label is cut by cells, so the badge never overflows.
     #[test]
     fn badge_title_cuts_wide_labels_by_cells() {
@@ -7012,6 +7075,7 @@ mod tests {
             glyph: "▲",
             color: Color::Yellow,
             label: "部分的な障害が発生中".to_owned(),
+            shorter: Vec::new(),
             title: None,
             url: String::new(),
         };
