@@ -593,6 +593,42 @@ mod tests {
         assert_eq!(credits.used, credits.limit);
     }
 
+    /// S-01 (PRD 0009 re-validation): an epoch near chrono's limit (year
+    /// 262142) used to reach the local clock and panic. The refresh drops
+    /// it at the provider boundary, so the binding limit reads as an
+    /// unknown return.
+    #[tokio::test]
+    async fn an_impossible_reset_reads_as_unknown_after_the_boundary() {
+        let mut body = base(10000, 10000);
+        body["next_character_count_reset_unix"] = json!(8_210_266_876_000_i64);
+        let data = ok(body).await;
+        assert!(data.metrics.iter().any(|m| m.resets_at.is_some()));
+        let mut report = crate::Report {
+            account_id: None,
+            diagnostic: None,
+            account: "acc".into(),
+            provider: crate::Provider::ElevenLabs,
+            checked_at: Utc::now(),
+            status: crate::Status::Ready,
+            metrics: data.metrics,
+            notes: Vec::new(),
+            notes_l10n: Vec::new(),
+            source: String::new(),
+            session_expires_at: None,
+            sub_reports: Vec::new(),
+            as_of: Some(DateTime::<Utc>::MAX_UTC),
+            overage_hint: None,
+            breakdown: Vec::new(),
+        };
+        report.drop_implausible_instants();
+        assert!(report.metrics.iter().all(|m| m.resets_at.is_none()));
+        assert_eq!(report.as_of, None);
+        let binding = crate::metrics::binding(&report).expect("binding");
+        assert_eq!(binding.blocked_until, None);
+        let text = binding.summary(|_| unreachable!()).resolve("en-US");
+        assert!(text.contains("return time unknown"), "{text}");
+    }
+
     #[tokio::test]
     async fn armed_reports_zero_extra_credits_against_the_cap() {
         let mut body = base(4000, 10000);

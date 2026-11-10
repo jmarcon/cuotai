@@ -3961,7 +3961,10 @@ pub(crate) fn resolve_l10n(note: &cuotai_core::text::Localized) -> String {
 
 /// Local `HH:MM` for an instant today, `YYYY-MM-DD HH:MM` otherwise.
 pub(crate) fn local_time(at: chrono::DateTime<chrono::Utc>) -> String {
-    let local = at.with_timezone(&chrono::Local);
+    // An instant whose local clock is out of range reads in UTC.
+    let Some(local) = cuotai_core::instant::checked_local(at, &chrono::Local) else {
+        return format!("{} UTC", at.format("%Y-%m-%d %H:%M"));
+    };
     if local.date_naive() == chrono::Local::now().date_naive() {
         local.format("%H:%M").to_string()
     } else {
@@ -4027,6 +4030,34 @@ mod tests {
     use super::*;
     use crate::Provider;
     use std::collections::BTreeMap;
+
+    /// S-01 (PRD 0009 re-validation): under a positive UTC offset, the
+    /// local clock of an instant near chrono's limit is out of range and
+    /// used to panic. It now reads in UTC. The test reruns itself with
+    /// `TZ=Asia/Tokyo`, since the CI clock is UTC.
+    #[cfg(unix)]
+    #[test]
+    fn local_time_of_an_extreme_instant_reads_in_utc_under_tokyo() {
+        const CHILD: &str = "CUOTAI_TEST_TZ_CHILD";
+        if std::env::var_os(CHILD).is_none() {
+            let status = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "ui::tests::local_time_of_an_extreme_instant_reads_in_utc_under_tokyo",
+                    "--quiet",
+                ])
+                .env(CHILD, "1")
+                .env("TZ", "Asia/Tokyo")
+                .status()
+                .unwrap();
+            assert!(status.success());
+            return;
+        }
+        let text = local_time(chrono::DateTime::<chrono::Utc>::MAX_UTC);
+        assert!(text.ends_with(" UTC"), "{text}");
+        let ok = chrono::DateTime::parse_from_rfc3339("2026-06-01T00:00:00Z").unwrap();
+        assert_eq!(local_time(ok.into()), "2026-06-01 09:00");
+    }
 
     /// PRD 0029 RF5.3: the removal message names the stored session apart
     /// from the OAuth credential.

@@ -469,7 +469,10 @@ fn pace_view(pace: Pace) -> PaceView {
 
 /// Local `HH:MM`, with the date when it is not today (as the TUI does).
 fn local_at(at: chrono::DateTime<chrono::Utc>) -> String {
-    let local = at.with_timezone(&chrono::Local);
+    // An instant whose local clock is out of range reads in UTC.
+    let Some(local) = cuotai_core::instant::checked_local(at, &chrono::Local) else {
+        return format!("{} UTC", at.format("%Y-%m-%d %H:%M"));
+    };
     let today = local.date_naive() == chrono::Local::now().date_naive();
     local
         .format(if today { "%H:%M" } else { "%Y-%m-%d %H:%M" })
@@ -651,11 +654,7 @@ fn read_limit_notes(
         .iter()
         .filter(|change| change.shows_at(now))
         .map(|change| {
-            change.note(|at| {
-                at.with_timezone(&chrono::Local)
-                    .format("%Y-%m-%d")
-                    .to_string()
-            })
+            change.note(|at| cuotai_core::instant::format_local(at, &chrono::Local, "%Y-%m-%d"))
         })
         .collect()
 }
@@ -7384,6 +7383,20 @@ pub fn tray_view() -> TrayView {
 
 #[cfg(test)]
 mod tests {
+    /// S-01 (PRD 0009 re-validation): the local clock of an instant near
+    /// chrono's limit reads in UTC instead of panicking, under any zone.
+    #[test]
+    fn local_formatters_of_an_extreme_instant_read_in_utc() {
+        let max = chrono::DateTime::<chrono::Utc>::MAX_UTC;
+        let min = chrono::DateTime::<chrono::Utc>::MIN_UTC;
+        for at in [max, min] {
+            let _ = super::local_at(at);
+            let _ = crate::tray_bar::local_hhmm(at);
+        }
+        let east = chrono::FixedOffset::east_opt(14 * 3600).unwrap();
+        assert!(cuotai_core::instant::format_local(max, &east, "%H:%M").ends_with(" UTC"));
+    }
+
     /// PRD 0005/0027: the desktop provider list is in the core's picker
     /// order, the one the TUI wizard uses, so the two clients agree.
     #[test]

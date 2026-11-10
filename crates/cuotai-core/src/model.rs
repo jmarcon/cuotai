@@ -601,6 +601,20 @@ fn account_key(provider: Provider, name: &str) -> String {
 pub const RETRY_AFTER_MAX_SECONDS: u64 = 86_400;
 
 impl Report {
+    /// Drop instants no provider can mean (outside 1970-9999 UTC; see
+    /// [`crate::instant::plausible_instant`]) from the metrics, the
+    /// sub-reports and the data date. A dropped reset reads as unknown.
+    pub fn drop_implausible_instants(&mut self) {
+        for metric in &mut self.metrics {
+            metric.drop_implausible_instants();
+        }
+        for sub in &mut self.sub_reports {
+            sub.drop_implausible_instants();
+        }
+        self.as_of = crate::instant::plausible(self.as_of);
+        self.session_expires_at = crate::instant::plausible(self.session_expires_at);
+    }
+
     /// Name of the note parameter that carries a provider's `Retry-After`
     /// (whole seconds) on a `RateLimited` report. Adapters set it with
     /// [`crate::providers::QueryError::with_retry_after`]; the refresh cycle
@@ -970,6 +984,11 @@ pub enum ScopeKind {
 }
 
 impl Metric {
+    /// Forget a reset outside 1970-9999 UTC (it reads as unknown).
+    pub fn drop_implausible_instants(&mut self) {
+        self.resets_at = crate::instant::plausible(self.resets_at);
+    }
+
     /// PRD 0033 RF2.1: the metric's window renewed before `now`, so a
     /// preserved or restored value of it no longer describes anything.
     pub fn is_expired(&self, now: DateTime<Utc>) -> bool {
@@ -1154,6 +1173,16 @@ pub struct SubReport {
     /// serialized, exported or shown.
     #[serde(skip)]
     pub identity: Option<String>,
+}
+
+impl SubReport {
+    /// [`Report::drop_implausible_instants`] for one sub-report.
+    pub fn drop_implausible_instants(&mut self) {
+        for metric in &mut self.metrics {
+            metric.drop_implausible_instants();
+        }
+        self.as_of = crate::instant::plausible(self.as_of);
+    }
 }
 
 /// Hand-written so the in-memory `identity` (an e-mail) never reaches logs

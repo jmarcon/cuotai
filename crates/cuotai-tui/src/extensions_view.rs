@@ -477,9 +477,7 @@ impl ExtensionsView {
                     let last = item
                         .last_run
                         .map(|at| {
-                            at.with_timezone(&Local)
-                                .format("%Y-%m-%d %H:%M:%S")
-                                .to_string()
+                            cuotai_core::instant::format_local(at, &Local, "%Y-%m-%d %H:%M:%S")
                         })
                         .unwrap_or_else(|| tr("extensions.last_run.never", "never").into());
                     detail.push(Line::styled(

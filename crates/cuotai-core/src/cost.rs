@@ -314,8 +314,11 @@ pub enum DayZone {
 impl DayZone {
     pub fn day(self, at: DateTime<Utc>) -> NaiveDate {
         match self {
-            Self::Local => at.with_timezone(&Local).date_naive(),
-            Self::Fixed(offset) => at.with_timezone(&offset).date_naive(),
+            // An out-of-range local clock falls back to the UTC day.
+            Self::Local => crate::instant::checked_local(at, &Local)
+                .map_or_else(|| at.date_naive(), |local| local.date_naive()),
+            Self::Fixed(offset) => crate::instant::checked_local(at, &offset)
+                .map_or_else(|| at.date_naive(), |local| local.date_naive()),
         }
     }
 

@@ -437,6 +437,12 @@ fn future_sample_cutoff(now: DateTime<Utc>) -> i64 {
     millis(now).saturating_add(FUTURE_SAMPLE_TOLERANCE_MS)
 }
 
+/// A stored reset, dropped when it falls outside 1970-9999 UTC (a value
+/// written before the boundary check must not come back on restore).
+fn reset_instant(ms: Option<i64>) -> Option<DateTime<Utc>> {
+    crate::instant::plausible(ms.and_then(DateTime::from_timestamp_millis))
+}
+
 fn instant(ms: i64) -> rusqlite::Result<DateTime<Utc>> {
     DateTime::from_timestamp_millis(ms).ok_or(rusqlite::Error::IntegralValueOutOfRange(0, ms))
 }
@@ -1002,7 +1008,7 @@ impl HistoryStore {
                                 .map(untag::<MetricWindow>)
                                 .transpose()?,
                             period: None,
-                            resets_at: row.get::<_, Option<i64>>(9)?.map(instant).transpose()?,
+                            resets_at: reset_instant(row.get(9)?),
                             derived_from: None,
                         },
                     })
@@ -1148,7 +1154,7 @@ impl HistoryStore {
                     taken_at: instant(row.get(0)?)?,
                     used: row.get(1)?,
                     limit: row.get(2)?,
-                    resets_at: row.get::<_, Option<i64>>(3)?.map(instant).transpose()?,
+                    resets_at: reset_instant(row.get(3)?),
                 })
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -1587,6 +1593,22 @@ credential_env = "GROQ_KEY_BETA"
             history.series(&alpha, &five_h, ..=t0()).unwrap()[0].used,
             0.0
         );
+    }
+
+    /// S-01 (PRD 0009 re-validation): a reset stored before the boundary
+    /// check (year 262142) does not come back on restore; it reads as
+    /// unknown.
+    #[test]
+    fn an_impossible_stored_reset_reads_as_unknown_on_restore() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("history.sqlite3");
+        let history = store(&db, "one");
+        let alpha = first_account(config(CONFIG));
+        let mut extreme = quota("5h", Some(10.0), Some(100.0));
+        extreme.resets_at = Some(DateTime::<Utc>::MAX_UTC);
+        history.record(&alpha, t0(), &[extreme]).unwrap();
+        let latest = history.latest(&alpha).unwrap().unwrap();
+        assert_eq!(latest.metrics[0].metric.resets_at, None);
     }
 
     #[test]

@@ -100,8 +100,8 @@ fn lock() -> std::sync::MutexGuard<'static, State> {
 }
 
 /// Local `HH:MM` (the title is narrow; the date is never needed there).
-fn local_hhmm(at: chrono::DateTime<chrono::Utc>) -> String {
-    at.with_timezone(&chrono::Local).format("%H:%M").to_string()
+pub(crate) fn local_hhmm(at: chrono::DateTime<chrono::Utc>) -> String {
+    cuotai_core::instant::format_local(at, &chrono::Local, "%H:%M")
 }
 
 /// The summary of `accounts` for `style` and `selection`, now.

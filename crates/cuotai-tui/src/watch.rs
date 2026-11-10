@@ -283,10 +283,8 @@ fn write_events(
 /// `2026-10-20 14:02:11  Work (Claude): Sessão (5h): 90% usado`, in local
 /// time and `locale`, without terminal controls.
 fn summary_line(event: &Event, locale: &str) -> String {
-    let at = event
-        .occurred_at
-        .with_timezone(&chrono::Local)
-        .format("%Y-%m-%d %H:%M:%S");
+    let at =
+        cuotai_core::instant::format_local(event.occurred_at, &chrono::Local, "%Y-%m-%d %H:%M:%S");
     format!(
         "{at}  {} ({}): {}",
         safe(&event.account_name),
