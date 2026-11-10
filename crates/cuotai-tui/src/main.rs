@@ -1773,7 +1773,9 @@ fn print_snapshot(
     println!("CUOTAI • {}", snapshot.finished_at.to_rfc3339());
     print!(
         "\n{}",
-        summary_lines(snapshot, ui::tui_locale(), ui::local_time)
+        summary_lines(snapshot, ui::tui_locale(), |at| {
+            cuotai_core::alerts::local_time(at, Utc::now(), &chrono::Local)
+        })
     );
     let feed = cuotai_core::feed::FeedStore::in_data_dir();
     for (index, report) in snapshot.reports.iter().enumerate() {
@@ -2095,7 +2097,7 @@ fn incident_line(
 fn summary_lines(
     snapshot: &Snapshot,
     locale: &str,
-    at: impl Fn(DateTime<Utc>) -> String,
+    at: impl Fn(DateTime<Utc>) -> cuotai_core::text::ParamValue,
 ) -> String {
     let mut out = String::new();
     for report in &snapshot.reports {
@@ -2605,7 +2607,7 @@ mod tests {
                 report("Empty", Status::Ready, Vec::new()),
             ],
         };
-        let at = |t: DateTime<Utc>| t.format("%H:%M").to_string();
+        let at = |t: DateTime<Utc>| t.format("%H:%M").to_string().into();
         assert_eq!(
             summary_lines(&snapshot, "en-US", at),
             "Claude  blocked until 14:30 by the weekly window\n\

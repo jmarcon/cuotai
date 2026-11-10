@@ -2770,7 +2770,10 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
                 Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
             ),
             Span::styled(
-                safe(&resolve_l10n(&limit.summary(local_time))).into_owned(),
+                safe(&resolve_l10n(&limit.summary(|at| {
+                    cuotai_core::alerts::local_time(at, chrono::Utc::now(), &Local)
+                })))
+                .into_owned(),
                 Style::default().fg(PINK).add_modifier(Modifier::BOLD),
             ),
         ]));

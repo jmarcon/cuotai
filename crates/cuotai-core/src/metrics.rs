@@ -679,36 +679,79 @@ pub fn cmp_binding(a: Option<&Report>, b: Option<&Report>) -> Ordering {
 
 impl Binding {
     /// One-line summary (`binding.blocked_until`, `binding.blocked`,
-    /// `binding.tightest`). `at` formats `blocked_until` in the caller's
-    /// clock and style (e.g. local `HH:MM`).
-    pub fn summary(&self, at: impl FnOnce(DateTime<Utc>) -> String) -> Localized {
-        let (window, _) = window_param(self.window, &self.label);
-        match (self.reason, self.blocked_until) {
-            (BindingReason::Exhausted, Some(until)) => {
-                let at = at(until);
-                let params = params([("at", at.into()), ("window", window)]);
-                Localized::with_params(
-                    "binding.blocked_until",
-                    params,
-                    "blocked until {at} by the {window} window",
-                )
-            }
-            (BindingReason::Exhausted, None) => Localized::with_param(
+    /// `binding.tightest`, or their `*_metric` forms naming the metric when
+    /// the window is not one of the four known ones). `at` renders
+    /// `blocked_until` in the caller's clock and locale (for example
+    /// [`crate::alerts::local_time`]).
+    pub fn summary(&self, at: impl FnOnce(DateTime<Utc>) -> ParamValue) -> Localized {
+        let known = matches!(
+            self.window,
+            Some(
+                MetricWindow::Window5h
+                    | MetricWindow::Daily
+                    | MetricWindow::Weekly
+                    | MetricWindow::Monthly
+            )
+        );
+        // PRD 0034 RF2: a metric outside the known windows is named by its
+        // translated label, never the raw adapter text.
+        let (slot, value) = if known {
+            ("window", window_param(self.window, &self.label).0)
+        } else {
+            (
+                "metric",
+                ParamValue::l10n(crate::metric_text::metric_text(&self.label)),
+            )
+        };
+        let (id, english) = match (self.reason, self.blocked_until, known) {
+            (BindingReason::Exhausted, Some(_), true) => (
+                "binding.blocked_until",
+                "blocked until {at} by the {window} window",
+            ),
+            (BindingReason::Exhausted, Some(_), false) => (
+                "binding.blocked_until_metric",
+                "blocked until {at} by {metric}",
+            ),
+            (BindingReason::Exhausted, None, true) => (
                 "binding.blocked",
-                "window",
-                window,
                 "blocked by the {window} window; return time unknown",
             ),
+            (BindingReason::Exhausted, None, false) => (
+                "binding.blocked_metric",
+                "blocked by {metric}; return time unknown",
+            ),
+            (BindingReason::Tightest, _, true) => (
+                "binding.tightest",
+                "most restrictive: {window} window at {used}%",
+            ),
+            (BindingReason::Tightest, _, false) => (
+                "binding.tightest_metric",
+                "most restrictive: {metric} at {used}%",
+            ),
+        };
+        let mut values = vec![(slot, value)];
+        match (self.reason, self.blocked_until) {
+            (BindingReason::Exhausted, Some(until)) => values.push(("at", at(until))),
+            (BindingReason::Exhausted, None) => {}
             (BindingReason::Tightest, _) => {
-                let used = format!("{:.0}", self.used_ratio * 100.0);
-                let params = params([("window", window), ("used", used.into())]);
-                Localized::with_params(
-                    "binding.tightest",
-                    params,
-                    "most restrictive: {window} window at {used}%",
-                )
+                values.push(("used", used_percent(self.used_ratio).into()));
             }
         }
+        let values = values.into_iter().map(|(k, v)| (k.to_owned(), v)).collect();
+        Localized::with_params(id, values, english)
+    }
+}
+
+/// The consumed share as a whole percentage, rounded honestly: a share
+/// above 0 and below 1 % reads "<1", and one below 100 % never reads 100.
+pub fn used_percent(ratio: f64) -> String {
+    let p = ratio.clamp(0.0, 1.0) * 100.0;
+    if p > 0.0 && p < 1.0 {
+        "<1".to_owned()
+    } else if p < 100.0 && p.round() >= 100.0 {
+        "99".to_owned()
+    } else {
+        format!("{:.0}", p.round())
     }
 }
 
@@ -1221,7 +1264,7 @@ mod tests {
         }
         let texts: Vec<Localized> = summaries
             .iter()
-            .map(|b| b.summary(|t| t.format("%H:%M").to_string()))
+            .map(|b| b.summary(|t| t.format("%H:%M").to_string().into()))
             .collect();
         for locale in crate::text::catalog_locales() {
             let catalog = crate::text::core_catalog(locale).unwrap();
@@ -1230,19 +1273,32 @@ mod tests {
                     ParamValue::L10n(l) => Some(&*l.id),
                     ParamValue::Text(_) => None,
                 });
+                // A label no catalog knows is shown as it is.
+                let nested = nested.filter(|id| *id != "metric.verbatim");
                 for id in std::iter::once(&*text.id).chain(nested) {
                     assert!(catalog.contains_key(id), "{locale} lacks {id}");
                 }
             }
         }
-        assert_eq!(
-            texts[0].resolve("en-US"),
-            "blocked until 14:30 by the Opus window"
-        );
+        // V-01 / R-02: a metric outside the known windows is named by its
+        // label (translated when the catalogs know it), with no "window".
+        assert_eq!(texts[0].resolve("en-US"), "blocked until 14:30 by Opus");
         assert_eq!(
             texts[1].resolve("pt-BR"),
-            "bloqueada pela janela Opus; horário de retorno desconhecido"
+            "bloqueada por Opus; horário de retorno desconhecido"
         );
+        assert_eq!(texts[6].resolve("en-US"), "most restrictive: Opus at 62%");
+        let rolling = Binding {
+            label: "Janela móvel".into(),
+            window: Some(MetricWindow::Other),
+            ..blocked(Some(at(14)))
+        }
+        .summary(|t| t.format("%H:%M").to_string().into());
+        assert_eq!(
+            rolling.resolve("en-US"),
+            "blocked until 14:30 by Rolling window"
+        );
+        assert!(!rolling.resolve("de").contains("Janela"));
         assert_eq!(
             texts[4].resolve("en-US"),
             "most restrictive: weekly window at 62%"
@@ -1254,6 +1310,32 @@ mod tests {
         assert_eq!(
             texts[4].resolve("pt-BR"),
             "mais restritiva: janela semanal em 62%"
+        );
+    }
+
+    /// V-04: the consumed share never rounds a sliver to 0 or an unreached
+    /// limit to 100.
+    #[test]
+    fn used_percent_rounds_honestly() {
+        assert_eq!(used_percent(0.0), "0");
+        assert_eq!(used_percent(0.004), "<1");
+        assert_eq!(used_percent(0.62), "62");
+        assert_eq!(used_percent(0.996), "99");
+        assert_eq!(used_percent(1.0), "100");
+        let b = Binding {
+            label: "x".into(),
+            window: WEEK,
+            used_ratio: 0.996,
+            remaining: 0.4,
+            resets_at: None,
+            reason: BindingReason::Tightest,
+            blocked_until: None,
+            index: 0,
+            label_text: crate::metric_text::metric_text("x"),
+        };
+        assert_eq!(
+            b.summary(|_| unreachable!()).resolve("en-US"),
+            "most restrictive: weekly window at 99%"
         );
     }
 
