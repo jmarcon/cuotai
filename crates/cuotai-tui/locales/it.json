@@ -136,9 +136,15 @@
   "dashboard.footer.add": "a aggiungi",
   "dashboard.footer.back": "Enter/Esc indietro",
   "dashboard.footer.clear": "c svuota",
-  "dashboard.footer.count.many": "{count} account",
+  "dashboard.footer.count.many": {
+    "one": "{count} account",
+    "other": "{count} account"
+  },
   "dashboard.footer.count.one": "1 account",
-  "dashboard.footer.count.position": "{position}/{count} account",
+  "dashboard.footer.count.position": {
+    "one": "{position}/{count} account",
+    "other": "{position}/{count} account"
+  },
   "dashboard.footer.count.zero": "0 account",
   "dashboard.footer.delete": "d/Del elimina",
   "dashboard.footer.details": "Enter dettagli",
@@ -169,7 +175,10 @@
   "dashboard.header.not_checked": "non ancora interrogato",
   "dashboard.header.partial": "aggiornamento parziale (alcuni account in attesa)",
   "dashboard.header.refreshing": "Interrogazione in corso (dati precedenti sotto)",
-  "dashboard.header.title": " CUOTAI  |  {count} account  |  {checked}  |  {refresh} ",
+  "dashboard.header.title": {
+    "one": " CUOTAI  |  {count} account  |  {checked}  |  {refresh} ",
+    "other": " CUOTAI  |  {count} account  |  {checked}  |  {refresh} "
+  },
   "dashboard.hint.more_many": "+{count} metriche • ",
   "dashboard.hint.more_one": "+1 metrica • ",
   "dashboard.history.empty": "  cronologia {range}: nessuna misurazione registrata",

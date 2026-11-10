@@ -108,7 +108,7 @@
   "dashboard.class.unmeasured": "데이터 없음",
   "dashboard.detail.account": " 계정  ",
   "dashboard.detail.binding": "   ◆ 가장 제한적",
-  "dashboard.detail.checked": "   ·   조회 {age} ({utc} · 현지 {local}){as_of}",
+  "dashboard.detail.checked": "   ·   {age} 조회 ({utc} · 현지 {local}){as_of}",
   "dashboard.detail.group": "  그룹   ",
   "dashboard.detail.invalid": "잘못된 선택입니다.",
   "dashboard.detail.limit": "  한도  ",
@@ -139,7 +139,9 @@
   "dashboard.footer.add": "a 추가",
   "dashboard.footer.back": "Enter/Esc 뒤로",
   "dashboard.footer.clear": "c 지우기",
-  "dashboard.footer.count.many": "계정 {count}개",
+  "dashboard.footer.count.many": {
+    "other": "계정 {count}개"
+  },
   "dashboard.footer.count.one": "계정 1개",
   "dashboard.footer.count.zero": "계정 0개",
   "dashboard.footer.delete": "d/Del 삭제",
@@ -169,7 +171,9 @@
   "dashboard.header.not_checked": "아직 조회 안 함",
   "dashboard.header.partial": "부분 업데이트(일부 계정 대기 중)",
   "dashboard.header.refreshing": "조회 중(이전 데이터는 아래에 표시)",
-  "dashboard.header.title": " CUOTAI  |  계정 {count}개  |  {checked}  |  {refresh} ",
+  "dashboard.header.title": {
+    "other": " CUOTAI  |  계정 {count}개  |  {checked}  |  {refresh} "
+  },
   "dashboard.hint.more_many": "+지표 {count}개 • ",
   "dashboard.hint.more_one": "+지표 1개 • ",
   "dashboard.history.empty": "  기록 {range}: 기록된 측정값 없음",
@@ -308,7 +312,7 @@
   "once.allowance": "    허용량: {text}",
   "once.extra_usage": "  추가 사용량: {text}",
   "once.floor": "  {metric}: {text}",
-  "once.heading": "{account} / {provider} — {status} · 조회 {age}{as_of}",
+  "once.heading": "{account} / {provider} — {status} · {age} 조회{as_of}",
   "once.pace": "    페이스: {text}(선형 추정)",
   "once.period": "    기간: {period}",
   "once.pool": "  풀: {summary}",
@@ -578,7 +582,9 @@
   "wizard.summary.breakdown.hint": "  숫자를 눌러 세부 내역을 켜거나 끕니다. 행은 사용자별이 아닙니다.",
   "wizard.title": "마법사 — {position}/{total} {label}",
   "wizard.too_small": "마법사: 터미널을 60 × 20 이상으로 넓혀 주세요. Esc로 취소합니다.",
-  "dashboard.footer.count.position": "{position}/{count}개 계정",
+  "dashboard.footer.count.position": {
+    "other": "{position}/{count}개 계정"
+  },
   "dashboard.footer.next_connection": "n 연결",
   "dashboard.footer.aggregator_filter": "f 애그리게이터",
   "vault.kind.channel": "채널",

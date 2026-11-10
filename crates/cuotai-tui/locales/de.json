@@ -108,7 +108,7 @@
   "dashboard.class.unmeasured": "Keine Daten",
   "dashboard.detail.account": " KONTO  ",
   "dashboard.detail.binding": "   ◆ maßgeblich",
-  "dashboard.detail.checked": "   ·   abgefragt {age} ({utc} · {local} lokal){as_of}",
+  "dashboard.detail.checked": "   ·   {age} abgefragt ({utc} · {local} lokal){as_of}",
   "dashboard.detail.group": "  GRUPPE  ",
   "dashboard.detail.invalid": "Ungültige Auswahl.",
   "dashboard.detail.limit": "  LIMIT  ",
@@ -139,7 +139,10 @@
   "dashboard.footer.add": "a hinzufügen",
   "dashboard.footer.back": "Enter/Esc zurück",
   "dashboard.footer.clear": "c leeren",
-  "dashboard.footer.count.many": "{count} Konten",
+  "dashboard.footer.count.many": {
+    "one": "{count} Konto",
+    "other": "{count} Konten"
+  },
   "dashboard.footer.count.one": "1 Konto",
   "dashboard.footer.count.zero": "0 Konten",
   "dashboard.footer.delete": "d/Entf löschen",
@@ -169,7 +172,10 @@
   "dashboard.header.not_checked": "noch nicht abgefragt",
   "dashboard.header.partial": "Teilaktualisierung (einige Konten ausstehend)",
   "dashboard.header.refreshing": "Abfrage läuft (frühere Daten unten)",
-  "dashboard.header.title": " CUOTAI  |  {count} Konten  |  {checked}  |  {refresh} ",
+  "dashboard.header.title": {
+    "one": " CUOTAI  |  {count} Konto  |  {checked}  |  {refresh} ",
+    "other": " CUOTAI  |  {count} Konten  |  {checked}  |  {refresh} "
+  },
   "dashboard.hint.more_many": "+{count} Messwerte • ",
   "dashboard.hint.more_one": "+1 Messwert • ",
   "dashboard.history.empty": "  Verlauf {range}: keine Messungen erfasst",
@@ -308,7 +314,7 @@
   "once.allowance": "    Kontingent: {text}",
   "once.extra_usage": "  Zusatznutzung: {text}",
   "once.floor": "  {metric}: {text}",
-  "once.heading": "{account} / {provider} — {status} · abgefragt {age}{as_of}",
+  "once.heading": "{account} / {provider} — {status} · {age} abgefragt{as_of}",
   "once.pace": "    Tempo: {text} (lineare Schätzung)",
   "once.period": "    Zeitraum: {period}",
   "once.pool": "  Pool: {summary}",
@@ -580,7 +586,10 @@
   "wizard.too_small": "Assistent: Vergrößern Sie das Terminal auf mindestens 60 × 20. Esc bricht ab.",
   "dashboard.footer.next_connection": "n Verbindung",
   "dashboard.footer.aggregator_filter": "f Aggregator",
-  "dashboard.footer.count.position": "{position}/{count} Konten",
+  "dashboard.footer.count.position": {
+    "one": "{position}/{count} Konto",
+    "other": "{position}/{count} Konten"
+  },
   "vault.kind.channel": "Kanal",
   "vault.owner.channel": "ein Benachrichtigungskanal (--channel-list)",
   "channels.cli.no_settings": "Kein Konfigurationsordner auf diesem System, daher können Kanäle nicht gespeichert werden.",

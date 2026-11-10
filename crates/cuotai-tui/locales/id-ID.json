@@ -139,7 +139,9 @@
   "dashboard.footer.add": "a tambah",
   "dashboard.footer.back": "Enter/Esc kembali",
   "dashboard.footer.clear": "c hapus",
-  "dashboard.footer.count.many": "{count} akun",
+  "dashboard.footer.count.many": {
+    "other": "{count} akun"
+  },
   "dashboard.footer.count.one": "1 akun",
   "dashboard.footer.count.zero": "0 akun",
   "dashboard.footer.delete": "d/Del hapus",
@@ -169,7 +171,9 @@
   "dashboard.header.not_checked": "belum dikueri",
   "dashboard.header.partial": "pembaruan sebagian (beberapa akun menunggu)",
   "dashboard.header.refreshing": "Mengkueri (data sebelumnya di bawah)",
-  "dashboard.header.title": " CUOTAI  |  {count} akun  |  {checked}  |  {refresh} ",
+  "dashboard.header.title": {
+    "other": " CUOTAI  |  {count} akun  |  {checked}  |  {refresh} "
+  },
   "dashboard.hint.more_many": "+{count} metrik • ",
   "dashboard.hint.more_one": "+1 metrik • ",
   "dashboard.history.empty": "  riwayat {range}: tidak ada pengukuran tercatat",
@@ -578,7 +582,9 @@
   "wizard.summary.breakdown.hint": "  Tekan angka untuk menyalakan atau mematikan rincian; baris tidak pernah per pengguna.",
   "wizard.title": "Wizard — {position}/{total} {label}",
   "wizard.too_small": "Wizard: lebarkan terminal hingga minimal 60 × 20. Esc membatalkan.",
-  "dashboard.footer.count.position": "{position}/{count} akun",
+  "dashboard.footer.count.position": {
+    "other": "{position}/{count} akun"
+  },
   "dashboard.footer.next_connection": "n koneksi",
   "dashboard.footer.aggregator_filter": "f agregator",
   "vault.kind.channel": "saluran",

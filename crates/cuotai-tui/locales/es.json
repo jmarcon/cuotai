@@ -136,9 +136,15 @@
   "dashboard.footer.add": "a añadir",
   "dashboard.footer.back": "Enter/Esc volver",
   "dashboard.footer.clear": "c limpiar",
-  "dashboard.footer.count.many": "{count} cuentas",
+  "dashboard.footer.count.many": {
+    "one": "{count} cuenta",
+    "other": "{count} cuentas"
+  },
   "dashboard.footer.count.one": "1 cuenta",
-  "dashboard.footer.count.position": "{position}/{count} cuentas",
+  "dashboard.footer.count.position": {
+    "one": "{position}/{count} cuenta",
+    "other": "{position}/{count} cuentas"
+  },
   "dashboard.footer.count.zero": "0 cuentas",
   "dashboard.footer.delete": "d/Del eliminar",
   "dashboard.footer.details": "Enter detalles",
@@ -169,7 +175,10 @@
   "dashboard.header.not_checked": "aún no consultado",
   "dashboard.header.partial": "actualización parcial (algunas cuentas pendientes)",
   "dashboard.header.refreshing": "Consultando (datos anteriores abajo)",
-  "dashboard.header.title": " CUOTAI  |  {count} cuentas  |  {checked}  |  {refresh} ",
+  "dashboard.header.title": {
+    "one": " CUOTAI  |  {count} cuenta  |  {checked}  |  {refresh} ",
+    "other": " CUOTAI  |  {count} cuentas  |  {checked}  |  {refresh} "
+  },
   "dashboard.hint.more_many": "+{count} métricas • ",
   "dashboard.hint.more_one": "+1 métrica • ",
   "dashboard.history.empty": "  historial {range}: sin mediciones registradas",

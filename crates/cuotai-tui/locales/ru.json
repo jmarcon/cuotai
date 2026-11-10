@@ -139,7 +139,12 @@
   "dashboard.footer.add": "a добавить",
   "dashboard.footer.back": "Enter/Esc назад",
   "dashboard.footer.clear": "c сбросить",
-  "dashboard.footer.count.many": "{count} уч. записей",
+  "dashboard.footer.count.many": {
+    "one": "{count} уч. запись",
+    "few": "{count} уч. записи",
+    "many": "{count} уч. записей",
+    "other": "{count} уч. записи"
+  },
   "dashboard.footer.count.one": "1 уч. запись",
   "dashboard.footer.count.zero": "0 уч. записей",
   "dashboard.footer.delete": "d/Del удалить",
@@ -169,7 +174,12 @@
   "dashboard.header.not_checked": "ещё не запрашивалось",
   "dashboard.header.partial": "частичное обновление (часть записей ожидает)",
   "dashboard.header.refreshing": "Запрос выполняется (ниже прежние данные)",
-  "dashboard.header.title": " CUOTAI  |  уч. записей: {count}  |  {checked}  |  {refresh} ",
+  "dashboard.header.title": {
+    "one": " CUOTAI  |  {count} уч. запись  |  {checked}  |  {refresh} ",
+    "few": " CUOTAI  |  {count} уч. записи  |  {checked}  |  {refresh} ",
+    "many": " CUOTAI  |  {count} уч. записей  |  {checked}  |  {refresh} ",
+    "other": " CUOTAI  |  {count} уч. записи  |  {checked}  |  {refresh} "
+  },
   "dashboard.hint.more_many": "+{count} метрик • ",
   "dashboard.hint.more_one": "+1 метрика • ",
   "dashboard.history.empty": "  история {range}: измерений не записано",
@@ -580,7 +590,12 @@
   "wizard.too_small": "Мастер: увеличьте терминал минимум до 60 × 20. Esc — отмена.",
   "dashboard.footer.next_connection": "n подключение",
   "dashboard.footer.aggregator_filter": "f агрегатор",
-  "dashboard.footer.count.position": "{position}/{count} аккаунтов",
+  "dashboard.footer.count.position": {
+    "one": "{position}/{count} уч. запись",
+    "few": "{position}/{count} уч. записи",
+    "many": "{position}/{count} уч. записей",
+    "other": "{position}/{count} уч. записи"
+  },
   "vault.kind.channel": "канал",
   "vault.owner.channel": "канал уведомлений (--channel-list)",
   "channels.cli.no_settings": "В этой системе нет папки конфигурации, поэтому каналы нельзя сохранить.",

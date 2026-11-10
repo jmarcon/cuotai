@@ -139,7 +139,10 @@
   "dashboard.footer.add": "a जोड़ें",
   "dashboard.footer.back": "Enter/Esc वापस",
   "dashboard.footer.clear": "c साफ़",
-  "dashboard.footer.count.many": "{count} खाते",
+  "dashboard.footer.count.many": {
+    "one": "{count} खाता",
+    "other": "{count} खाते"
+  },
   "dashboard.footer.count.one": "1 खाता",
   "dashboard.footer.count.zero": "0 खाते",
   "dashboard.footer.delete": "d/Del हटाएँ",
@@ -169,7 +172,10 @@
   "dashboard.header.not_checked": "अभी जाँचा नहीं गया",
   "dashboard.header.partial": "आंशिक अपडेट (कुछ खाते बाकी)",
   "dashboard.header.refreshing": "जाँच हो रही है (पिछला डेटा नीचे)",
-  "dashboard.header.title": " CUOTAI  |  {count} खाते  |  {checked}  |  {refresh} ",
+  "dashboard.header.title": {
+    "one": " CUOTAI  |  {count} खाता  |  {checked}  |  {refresh} ",
+    "other": " CUOTAI  |  {count} खाते  |  {checked}  |  {refresh} "
+  },
   "dashboard.hint.more_many": "+{count} मीट्रिक • ",
   "dashboard.hint.more_one": "+1 मीट्रिक • ",
   "dashboard.history.empty": "  इतिहास {range}: कोई दर्ज माप नहीं",
@@ -578,7 +584,10 @@
   "wizard.summary.breakdown.hint": "  किसी विवरण को चालू या बंद करने के लिए कोई अंक दबाएँ; पंक्तियाँ कभी प्रति-उपयोगकर्ता नहीं होतीं।",
   "wizard.title": "विज़ार्ड — {position}/{total} {label}",
   "wizard.too_small": "विज़ार्ड: टर्मिनल को कम से कम 60 × 20 तक चौड़ा करें। Esc रद्द करता है।",
-  "dashboard.footer.count.position": "{position}/{count} खाते",
+  "dashboard.footer.count.position": {
+    "one": "{position}/{count} खाता",
+    "other": "{position}/{count} खाते"
+  },
   "dashboard.footer.next_connection": "n कनेक्शन",
   "dashboard.footer.aggregator_filter": "f एग्रीगेटर",
   "vault.kind.channel": "चैनल",

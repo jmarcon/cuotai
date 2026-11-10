@@ -2676,6 +2676,9 @@ mod tests {
             report_heading(&report, now),
             "Work / Claude — Rate limit · consultado há 2 min"
         );
+        // PRD 0010 re-validation V-05: the age reads naturally in ja.
+        let heading = crate::l10n::with_locale("ja", || report_heading(&report, report.checked_at));
+        assert!(heading.ends_with("たった今照会"), "{heading}");
     }
 
     /// PRD 0035 RF10.2 and RF13.2: the `--once` blocks have the same shape

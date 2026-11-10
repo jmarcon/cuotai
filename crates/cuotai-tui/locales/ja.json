@@ -108,7 +108,7 @@
   "dashboard.class.unmeasured": "データなし",
   "dashboard.detail.account": " アカウント ",
   "dashboard.detail.binding": "   ◆ 制約",
-  "dashboard.detail.checked": "   ·   {age}に照会（{utc} · ローカル {local}）{as_of}",
+  "dashboard.detail.checked": "   ·   {age}照会（{utc} · ローカル {local}）{as_of}",
   "dashboard.detail.group": "  グループ ",
   "dashboard.detail.invalid": "選択が無効です。",
   "dashboard.detail.limit": "  制限   ",
@@ -139,7 +139,9 @@
   "dashboard.footer.add": "a 追加",
   "dashboard.footer.back": "Enter/Esc 戻る",
   "dashboard.footer.clear": "c 解除",
-  "dashboard.footer.count.many": "{count} アカウント",
+  "dashboard.footer.count.many": {
+    "other": "{count} アカウント"
+  },
   "dashboard.footer.count.one": "1 アカウント",
   "dashboard.footer.count.zero": "0 アカウント",
   "dashboard.footer.delete": "d/Del 削除",
@@ -169,7 +171,9 @@
   "dashboard.header.not_checked": "未照会",
   "dashboard.header.partial": "一部更新（未完了のアカウントあり）",
   "dashboard.header.refreshing": "照会中（以下は前回のデータ）",
-  "dashboard.header.title": " CUOTAI  |  {count} アカウント  |  {checked}  |  {refresh} ",
+  "dashboard.header.title": {
+    "other": " CUOTAI  |  {count} アカウント  |  {checked}  |  {refresh} "
+  },
   "dashboard.hint.more_many": "+{count} 指標 • ",
   "dashboard.hint.more_one": "+1 指標 • ",
   "dashboard.history.empty": "  履歴 {range}：記録された測定値はありません",
@@ -308,7 +312,7 @@
   "once.allowance": "    使用可能量: {text}",
   "once.extra_usage": "  追加使用量：{text}",
   "once.floor": "  {metric}：{text}",
-  "once.heading": "{account} / {provider} — {status} · {age}に照会{as_of}",
+  "once.heading": "{account} / {provider} — {status} · {age}照会{as_of}",
   "once.pace": "    ペース：{text}（線形推定）",
   "once.period": "    期間：{period}",
   "once.pool": "  プール：{summary}",
@@ -578,7 +582,9 @@
   "wizard.summary.breakdown.hint": "  数字キーで内訳のオン／オフを切り替えます。行がユーザー単位になることはありません。",
   "wizard.title": "ウィザード — {position}/{total} {label}",
   "wizard.too_small": "ウィザード：ターミナルを 60 × 20 以上に広げてください。Esc でキャンセルします。",
-  "dashboard.footer.count.position": "{position}/{count} アカウント",
+  "dashboard.footer.count.position": {
+    "other": "{position}/{count} アカウント"
+  },
   "dashboard.footer.next_connection": "n 接続",
   "dashboard.footer.aggregator_filter": "f アグリゲーター",
   "vault.kind.channel": "チャンネル",
