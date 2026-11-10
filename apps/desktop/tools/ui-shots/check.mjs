@@ -7,7 +7,11 @@
 // and names, the status label after its fitting, one-line notices) are reported as allowed.
 // Usage: node apps/desktop/tools/ui-shots/check.mjs [--json] [--selftest] [--zoom] [locale ...]   Exit: 0 clean, 1 with problems.
 // `--selftest` forces a long string into a figure and a tab of the tray and passes only when the check catches it.
+// Every full run also measures a danger button (Revoke token, Erase log, Remove) in every built-in theme and mode:
+// its computed text color on its computed fill must reach 4.5:1 (DS-COL-6), which no token-level gate can see when a
+// theme's selector repaints buttons.
 import { launch } from "./driver.mjs";
+import { THEMES } from "../../ui/js/themes.js";
 
 const args = process.argv.slice(2);
 const json = args.includes("--json");
@@ -165,6 +169,38 @@ const PAGE_JS = `(() => {
 const OPEN_MODELS = `(async () => { const d = document.querySelector("details.models"); if (!d) return; d.open = true;
   await new Promise((r) => setTimeout(r, 400)); d.scrollIntoView({ block: "start" }); })()`;
 
+// A danger button placed in a Settings group and on the page body, per built-in theme and mode.
+const DANGER_JS = `(() => {
+  const rgb = (c) => (c.match(/rgba?\\(([^)]+)\\)/) || [, ""])[1].split(/[ ,\\/]+/).map(Number).slice(0, 3);
+  const lum = (p) => { const f = p.map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * f[0] + 0.7152 * f[1] + 0.0722 * f[2]; };
+  const out = [];
+  for (const host of [document.querySelector(".set-content .set-sec"), document.body]) {
+    if (!host) continue;
+    const b = document.createElement("button");
+    b.className = "btn danger-btn";
+    b.textContent = "Revoke token";
+    host.append(b);
+    const c = getComputedStyle(b), [x, y] = [lum(rgb(c.color)), lum(rgb(c.backgroundColor))];
+    out.push((Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05));
+    b.remove();
+  }
+  return out;
+})()`;
+
+async function dangerButtons() {
+  let bad = 0;
+  for (const theme of THEMES.filter((t) => !t.user)) {
+    for (const mode of theme.modes) {
+      await ui.open("settings.html?page=general", { w: 640, h: 460, scale: 1, locale: "en-US", storage: { "cuotai.theme": theme.id, "cuotai.themeMode": mode } });
+      const ratios = (await ui.evaluate(DANGER_JS)) ?? [0];
+      const worst = Math.min(...ratios);
+      if (worst < 4.5) bad++;
+      if (!json || worst < 4.5) console.log(`${worst < 4.5 ? "FAIL" : "ok  "} danger button ${theme.id} ${mode}: ${worst.toFixed(2)}:1`);
+    }
+  }
+  return bad;
+}
+
 const ui = await launch();
 const report = {};
 let problems = 0;
@@ -187,6 +223,7 @@ try {
       if (!json) for (const f of bad) console.log(`       ${f.kind}: ${f.sel} "${f.text}"`);
     }
   }
+  if (!zoom && !selftest) problems += await dangerButtons();
 } finally {
   ui.close();
 }

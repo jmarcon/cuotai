@@ -177,10 +177,13 @@
   color: #ffffff;
 }
 
-/* Gray controls on the bar (a primary button keeps the accent's own text color) */
+/* Gray controls on the bar (a primary button keeps the accent's own text color, a danger button its --bad-fg) */
 :root[data-theme="win98"][data-mode="light"] .btn:not(.primary),
 :root[data-theme="win98"][data-mode="light"] .segmented button {
   color: #000000;
+}
+:root[data-theme="win98"][data-mode="light"] .btn.danger-btn {
+  color: var(--bad-fg);
 }
 :root[data-theme="win98"][data-mode="light"] .segmented {
   background: #c0c0c0;
@@ -192,6 +195,9 @@
 :root[data-theme="win98"][data-mode="dark"] .btn:not(.primary),
 :root[data-theme="win98"][data-mode="dark"] .segmented button {
   color: #ffffff;
+}
+:root[data-theme="win98"][data-mode="dark"] .btn.danger-btn {
+  color: var(--bad-fg);
 }
 :root[data-theme="win98"][data-mode="dark"] .segmented {
   background: #2b2b2b;
