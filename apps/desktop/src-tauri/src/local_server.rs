@@ -314,6 +314,30 @@ impl Integration {
             return;
         }
 
+        // PRD 0012 RF5 (re-validation): the desktop never serves without a
+        // token. Turning it on (or a server left on by a version that served
+        // tokenless) creates one when the vault has none, or reuses the
+        // stored one; a vault failure keeps the server off.
+        let prefs = if prefs.token {
+            prefs
+        } else {
+            match self.ensure_token().await {
+                Ok(()) => ServePrefs {
+                    token: true,
+                    ..prefs
+                },
+                Err(error) => {
+                    if let Some(server) = self.server.take() {
+                        server.shutdown().await;
+                    }
+                    self.prefs = prefs;
+                    self.error = Some(error);
+                    self.cuotai_on_port = false;
+                    return;
+                }
+            }
+        };
+
         // Resolve the token once for this `apply`. The resulting
         // `ServeConfig` is used by both the hot-swap and cold paths so the
         // vault is touched at most one time per call.
@@ -399,6 +423,9 @@ impl Integration {
                 .await?
                 .ok_or(ServeError::TokenMissing)?;
             Some(raw)
+        } else if prefs.enabled {
+            // Defensive: `apply` always resolves a token before this.
+            return Err(ServeError::TokenMissing);
         } else {
             None
         };
@@ -431,6 +458,18 @@ impl Integration {
         let token = Token::generate()?;
         let vault = Arc::clone(&self.vault);
         blocking(move || vault.save(&token)).await
+    }
+
+    /// The stored token, or a new one saved in the vault when it has none.
+    async fn ensure_token(&self) -> Result<(), ServeError> {
+        let vault = Arc::clone(&self.vault);
+        blocking(move || serve::ensure_token(&*vault).map(|_| ())).await
+    }
+
+    /// PRD 0012 RF5: the token notice was read (the user copied the token);
+    /// the server keeps running as it is.
+    pub fn dismiss_token_notice(&mut self) {
+        self.prefs.token_notice = false;
     }
 
     /// Revoke: remove the token from the vault.
@@ -589,6 +628,14 @@ mod tests {
         get(port, path, headers).await.map(|(status, _)| status)
     }
 
+    /// `Bearer <token>` for the token `integration` keeps in its vault.
+    async fn bearer_of(integration: &Integration) -> String {
+        format!(
+            "Bearer {}",
+            integration.stored_token().await.unwrap().expose()
+        )
+    }
+
     /// PRD 0034 RF7: the app's server renders its `fallback` texts in the language
     /// of `CUOTAI_FALLBACK_LOCALE`, like `cuotai --serve`; nothing set keeps English.
     #[tokio::test]
@@ -626,7 +673,14 @@ mod tests {
             view.url.as_deref(),
             Some(&*format!("http://127.0.0.1:{port}"))
         );
-        assert_eq!(status(port, "/health", &[]).await, Some(200));
+        // PRD 0012 RF5: turning it on created the token it requires.
+        assert!(integration.prefs().token);
+        let bearer = bearer_of(&integration).await;
+        assert_eq!(status(port, "/health", &[]).await, Some(401));
+        assert_eq!(
+            status(port, "/health", &[("Authorization", &bearer)]).await,
+            Some(200)
+        );
 
         integration
             .apply(
@@ -656,8 +710,10 @@ mod tests {
             .with_access_log_path(path.clone());
         assert_eq!(integration.prefs().access_log, "off");
         integration.apply(on(port), &slot).await;
+        let bearer = bearer_of(&integration).await;
+        let auth = [("Authorization", bearer.as_str())];
         assert_eq!(
-            status(port, "/nope?account=a@example.com", &[]).await,
+            status(port, "/nope?account=a@example.com", &auth).await,
             Some(404)
         );
         assert!(
@@ -668,9 +724,9 @@ mod tests {
         let errors = on(port).with_access_log("errors").unwrap();
         integration.apply(errors.clone(), &slot).await;
         assert_eq!(integration.cold_starts(), 1, "the mode changes in place");
-        assert_eq!(status(port, "/health", &[]).await, Some(200));
+        assert_eq!(status(port, "/health", &auth).await, Some(200));
         assert_eq!(
-            status(port, "/nope?account=a@example.com", &[]).await,
+            status(port, "/nope?account=a@example.com", &auth).await,
             Some(404)
         );
         let text = std::fs::read_to_string(&path).unwrap();
@@ -689,7 +745,7 @@ mod tests {
         integration
             .apply(errors.with_access_log("off").unwrap(), &slot)
             .await;
-        assert_eq!(status(port, "/nope", &[]).await, Some(404));
+        assert_eq!(status(port, "/nope", &auth).await, Some(404));
         assert!(!path.exists(), "off recreates nothing");
         assert_eq!(
             on(port).with_access_log("verbose"),
@@ -713,14 +769,16 @@ mod tests {
         let slot = FeedSlot::default();
         let mut integration = Integration::new(on(port), Arc::new(MemoryVault::default()));
         integration.apply(on(port), &slot).await;
+        let bearer = bearer_of(&integration).await;
+        let auth = [("Authorization", bearer.as_str())];
         // Nothing published yet (no configuration loaded): 503, no query.
-        assert_eq!(status(port, "/v1/snapshot", &[]).await, Some(503));
+        assert_eq!(status(port, "/v1/snapshot", &auth).await, Some(503));
         slot.publish(Some(feed()));
-        let (code, answer) = get(port, "/v1/snapshot", &[]).await.unwrap();
+        let (code, answer) = get(port, "/v1/snapshot", &auth).await.unwrap();
         assert_eq!(code, 200);
         assert!(answer.contains("\"name\":\"Personal Max\""), "{answer}");
         assert_eq!(
-            status(port, "/v1/accounts/claude:Personal%20Max", &[]).await,
+            status(port, "/v1/accounts/claude:Personal%20Max", &auth).await,
             Some(200)
         );
         let page = [("Origin", "https://example.com")];
@@ -785,16 +843,83 @@ mod tests {
             status(port, "/health", &[("Authorization", &bearer(&second))]).await,
             Some(200)
         );
-        // Revoked: gone from the vault, and the server no longer asks for one.
+        // Revoked (as `Backend::revoke_serve_token` does): gone from the
+        // vault and the server off; it never serves without a token.
         integration.forget_token().await.unwrap();
-        integration.apply(on(0), &slot).await;
-        port = bound_port(&integration);
+        integration
+            .apply(
+                ServePrefs {
+                    enabled: false,
+                    token: false,
+                    ..on(0)
+                },
+                &slot,
+            )
+            .await;
+        assert_eq!(integration.view().state, "off");
+        assert_eq!(status(port, "/health", &[]).await, None, "port closed");
         assert_eq!(
             integration.stored_token().await,
             Err(ServeError::TokenMissing)
         );
-        assert_eq!(status(port, "/health", &[]).await, Some(200));
+        // Turned on again, it gets a new token and still refuses requests
+        // without it.
+        integration.apply(on(0), &slot).await;
+        port = bound_port(&integration);
+        let third = integration.stored_token().await.unwrap();
+        assert_ne!(third, second);
+        assert!(integration.prefs().token);
+        assert_eq!(status(port, "/health", &[]).await, Some(401));
+        assert_eq!(
+            status(port, "/health", &[("Authorization", &bearer(&third))]).await,
+            Some(200)
+        );
         integration.apply(ServePrefs::default(), &slot).await;
+    }
+
+    /// PRD 0012 RF5 (re-validation): a `desktop.json` from a version that
+    /// served tokenless (`enabled` without `token`) starts with a new token
+    /// and the notice, and refuses requests without it; a broken vault on
+    /// that path keeps the server off instead of serving tokenless.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_server_left_on_without_a_token_starts_with_one() {
+        let slot = FeedSlot::default();
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        std::fs::write(
+            &file,
+            r#"{"serve":{"enabled":true,"token":false,"port":1024}}"#,
+        )
+        .unwrap();
+        let legacy = ServePrefs {
+            port: 0,
+            ..crate::settings::read_serve(&file)
+        };
+        assert!(legacy.token_notice && !legacy.token);
+        let mut integration = Integration::new(legacy.clone(), Arc::new(MemoryVault::default()));
+        integration.apply(legacy.clone(), &slot).await;
+        let port = bound_port(&integration);
+        let prefs = integration.prefs();
+        assert!(prefs.token, "now required");
+        assert!(prefs.token_notice, "kept until the user copies or chooses");
+        assert_eq!(status(port, "/health", &[]).await, Some(401));
+        let bearer = bearer_of(&integration).await;
+        assert_eq!(
+            status(port, "/health", &[("Authorization", &bearer)]).await,
+            Some(200)
+        );
+        integration.dismiss_token_notice();
+        assert!(!integration.view().prefs.token_notice);
+        integration.apply(ServePrefs::default(), &slot).await;
+
+        let port = free_port();
+        let legacy = ServePrefs { port, ..legacy };
+        let mut broken = Integration::new(legacy.clone(), Arc::new(BrokenVault));
+        broken.apply(legacy, &slot).await;
+        let view = broken.view();
+        assert_eq!(view.state, "error");
+        assert_eq!(view.error.unwrap().id, "serve.error.vault");
+        assert_eq!(status(port, "/health", &[]).await, None, "never tokenless");
     }
 
     /// PRD 0031 RF11.2.5: "Share usage statistics" turns `/v1/stats` on,

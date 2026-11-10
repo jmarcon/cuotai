@@ -1529,7 +1529,7 @@ function demoServeView() {
   const taken = s.enabled && DEMO_SERVE_TAKEN && s.port === 6738;
   const state = !s.enabled ? "off" : taken ? "error" : "on";
   return { state, enabled: s.enabled, port: s.port, allow_browsers: s.allow_browsers, token: s.secret != null, stats: !!s.stats,
-    allowed_origins: s.allowed_origins ?? [], origins_notice: false,
+    allowed_origins: s.allowed_origins ?? [], origins_notice: false, token_notice: false,
     access_log: s.access_log ?? "off", access_log_bytes: s.access_log_bytes ?? 0,
     url: state === "on" ? `http://127.0.0.1:${s.port}` : null,
     error: taken ? { id: "serve.error.port_taken", params: { port: s.port }, fallback: `Port ${s.port} is in use; choose another port for the local server.` } : null,
@@ -1674,7 +1674,7 @@ const demoSettings = { monograms: {}, profileExisted: new URLSearchParams(locati
   notify: { enabled: false, lead_minutes: 0, when: "used", include_other: false, off_accounts: [], private: true, days_off: ["sat", "sun"], limit_changes: false, digest: { enabled: false, weekday: 0, hour: 9 } },
   quiet: { enabled: false, days: {}, digest: true }, missedSeen: new Set(),
   alerts: { enabled: false, thresholds: [75, 90], exhaustion: true, recovery: true, overage: true, muted: {} }, statusQueries: DEMO_STATUS != null, detect: { enabled: new URLSearchParams(location.search).get("detect") === "ask" ? null : true, dismissed: [] },
-  serve: { enabled: DEMO_SERVE_TAKEN, port: 6738, allow_browsers: false, secret: null },
+  serve: { enabled: DEMO_SERVE_TAKEN, port: 6738, allow_browsers: false, secret: DEMO_SERVE_TAKEN ? "cuotai_demo_taken" : null },
   widgets: { enabled: DEMO_WIDGETS, include_identity: false, max_accounts: 6, written: false } };
 const demoPermission = (on) => (!on ? "off" : new URLSearchParams(location.search).has("notify-denied") ? "denied" : "granted");
 // Models in the demo: same validation (index + generation) and the `unsupported` state with an explicit demonstration reason;
@@ -2481,6 +2481,8 @@ const demo = {
     if (allowBrowsers && !list.length) fail("serve.origin.error.empty", "Add at least one trusted origin before allowing browsers.");
     if (allowBrowsers && demoSettings.serve.secret == null) fail("serve.error.browser_token_required", "Allowing browsers needs an access token for the local server: generate one first.");
     Object.assign(demoSettings.serve, { enabled, port, allow_browsers: allowBrowsers, allowed_origins: list.map((o) => o.replace(/\/$/, "").toLowerCase()) });
+    // PRD 0012 RF5: turning the server on creates its token when there is none.
+    if (enabled && demoSettings.serve.secret == null) demoSettings.serve.secret = `cuotai_demo_${crypto.randomUUID().replaceAll("-", "")}`;
     return demoServeView();
   },
   set_serve_stats: async ({ stats }) => { demoSettings.serve.stats = stats; return demoServeView(); },
@@ -2502,7 +2504,8 @@ const demo = {
     return demoWidgetsView();
   },
   delete_widget_data: async () => { demoSettings.widgets.written = false; },
-  revoke_serve_token: async () => { if (demoSettings.serve.allow_browsers) throw "browsers_need_token"; demoSettings.serve.secret = null; return demoServeView(); },
+  // PRD 0012 RF5: revoking turns the server off; it never serves without a token.
+  revoke_serve_token: async () => { if (demoSettings.serve.allow_browsers) throw "browsers_need_token"; demoSettings.serve.secret = null; demoSettings.serve.enabled = false; return demoServeView(); },
   copy_serve_token: async () => {
     if (demoSettings.serve.secret == null) throw JSON.stringify({ id: "serve.error.token_missing", params: {}, fallback: "The local server token is no longer in the system vault; generate a new one or revoke the token." });
     return demoSettings.serve.secret;
