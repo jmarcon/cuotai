@@ -10008,7 +10008,7 @@ mod tests {
             account_key: account.key(),
             account_id: account.state_key(),
             account_name: account.name.clone(),
-            provider: account.provider,
+            provider: Some(account.provider),
             accounts: Vec::new(),
             metric: None,
             current: Default::default(),

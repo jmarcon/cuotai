@@ -117,7 +117,7 @@ fn fixture() -> Fixture {
         account_key: alpha.key(),
         account_id: alpha.state_key(),
         account_name: alpha.name.clone(),
-        provider: alpha.provider,
+        provider: Some(alpha.provider),
         accounts: Vec::new(),
         metric: Some(MetricRef::new("5h", None)),
         current: Values::default(),

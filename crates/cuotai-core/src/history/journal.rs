@@ -12,7 +12,7 @@ use crate::events::{Event, EventKind, FailureCategory, MetricRef, Values};
 use crate::incidents::IncidentState;
 use crate::models::digest;
 use crate::text::Localized;
-use crate::{Account, Provider};
+use crate::Account;
 use chrono::{DateTime, Utc};
 use rusqlite::Connection;
 use serde::Serialize;
@@ -248,7 +248,8 @@ impl HistoryStore {
                 account_key: String::new(),
                 account_id: String::new(),
                 account_name: String::new(),
-                provider: Provider::ALL[0],
+                // Only its summary is used, which never names the provider.
+                provider: None,
                 accounts: Vec::new(),
                 metric: metric_label
                     .clone()
