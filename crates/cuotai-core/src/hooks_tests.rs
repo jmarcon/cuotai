@@ -577,10 +577,12 @@ fn every_message_reads_in_each_catalog() {
         unresolved("a"),
         refused("a", Unresolved::Shebang),
         refused("a", Unresolved::Exposed),
+        refused("a", Unresolved::Disguised),
         exposed_file("/x/hooks.toml"),
     ]);
     messages.extend(pin_lines(&Err(Unresolved::Exposed)));
     messages.extend(pin_lines(&Err(Unresolved::Shebang)));
+    messages.extend(pin_lines(&Err(Unresolved::Disguised)));
     // PRD 0050 RF2.4: the lines of a pinned program and interpreter.
     let bin = bin_dir(&["interp"]);
     let interp = std::fs::canonicalize(bin.path().join("interp")).unwrap();
@@ -984,6 +986,61 @@ fn an_exposed_program_interpreter_or_rules_file_is_never_approved() {
         "the editor still shows the rules"
     );
     set(&file, 0o644);
+}
+
+/// PRD 0013 S-02: no free text reaches the listing raw. A filter value or
+/// a header path with a newline, an escape sequence or a bidi override is
+/// shown escaped; a rule name with one is refused; a program whose real
+/// path holds one cannot be pinned at all (stripping it would misstate
+/// what runs).
+#[test]
+fn the_listing_shows_disguising_characters_escaped() {
+    let rules = Hooks::from_toml(
+        PathBuf::from("/x/\u{1b}[2K\rhooks.toml"),
+        "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\naccount = \"Work\\u202e\"\ncommand = [\"true\", \"x\\u0085y\"]\n",
+    )
+    .unwrap()
+    .with_search_path(None);
+    let shown: Vec<String> = rules
+        .listing()
+        .iter()
+        .map(|line| line.resolve("en-US"))
+        .collect();
+    for line in &shown {
+        assert!(!line.chars().any(crate::text::is_disguising), "{line:?}");
+    }
+    let all = shown.join("\n");
+    assert!(all.contains("\\u{1b}[2K\\u{d}hooks.toml"), "{all}");
+    assert!(all.contains("Work\\u{202e}"), "{all}");
+    assert!(all.contains("x\\u{85}y"), "{all}");
+    assert_eq!(
+        error_id("[[hooks]]\nname = \"a\\u202e\"\nevents = [\"quota_exhausted\"]\ncommand = [\"true\"]\n"),
+        "hooks.error.name"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_program_whose_path_disguises_it_cannot_be_approved() {
+    let root = tempfile::tempdir().unwrap();
+    for name in ["evil\u{1b}[2K\rtool", "tool\u{202e}txt.sh"] {
+        let real = root.path().join(name);
+        write_program(&real, b"x");
+        let link = root.path().join("link");
+        let _ = std::fs::remove_file(&link);
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        let rules = Hooks::from_toml(
+            root.path().join("hooks.toml"),
+            &format!(
+                "[[hooks]]\nname = \"a\"\nevents = [\"quota_exhausted\"]\ncommand = [{:?}]\n",
+                link.display().to_string()
+            ),
+        )
+        .unwrap()
+        .with_search_path(None);
+        assert_eq!(rules.pins()[0], Err(Unresolved::Disguised), "{name:?}");
+        assert_eq!(rules.approval().unwrap_err().id, "hooks.error.disguised");
+    }
 }
 
 #[cfg(unix)]
@@ -1795,6 +1852,30 @@ rm '{running}/'$$
         assert!(outcomes
             .iter()
             .all(|outcome| matches!(outcome, Outcome::Exited | Outcome::Changed)));
+    }
+
+    /// PRD 0013 S-04: a NUL (or another control character) in the metric
+    /// label, which the provider controls, no longer stops the hook from
+    /// starting: the variable gets U+FFFD, the payload the exact text.
+    #[tokio::test]
+    async fn a_control_character_in_a_label_still_starts_the_hook() {
+        let rig = Rig::new();
+        let out = rig.path("out");
+        let script = rig.script(
+            "env.sh",
+            &format!("printf '%s' \"$CUOTAI_METRIC\" > '{}'", out.display()),
+        );
+        let confirmed = rig.confirmed(&[("env", "\"quota_exhausted\"", sh(&script, &[]), 10)]);
+        let (runner, mut runs) = rig.start(confirmed, Vec::new());
+        let mut sent = event(EventKind::QuotaExhausted, "Work", None);
+        sent.metric = Some(MetricRef::new("a\0b\nc", None));
+        submit(&runner, &sent);
+        let run = next(&mut runs).await;
+        assert!(run.succeeded(), "{run:?}");
+        assert_eq!(
+            std::fs::read_to_string(&out).unwrap(),
+            "a\u{fffd}b\u{fffd}c"
+        );
     }
 }
 

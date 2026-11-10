@@ -616,7 +616,10 @@ impl Consent {
 /// environment variable names it asks for, its interval and time limit and
 /// the residual risk.
 pub fn disclosure(manifest: &Manifest) -> Vec<Localized> {
-    let name = format!("{} {}", manifest.name, manifest.version);
+    // PRD 0013 S-02 (same pattern): free text is shown with its disguising
+    // characters written visibly, so the native review cannot be forged.
+    let vis = |text: &str| crate::text::escape_disguising(text).into_owned();
+    let name = vis(&format!("{} {}", manifest.name, manifest.version));
     let mut lines = vec![Localized::with_params(
         "extensions.consent.header",
         params([
@@ -625,7 +628,7 @@ pub fn disclosure(manifest: &Manifest) -> Vec<Localized> {
         ]),
         "The extension {id} ({name}) runs a local program with your user's powers:",
     )];
-    let command = serde_json::to_string(&manifest.command).unwrap_or_default();
+    let command = vis(&serde_json::to_string(&manifest.command).unwrap_or_default());
     lines.push(Localized::with_param(
         "extensions.consent.command",
         "command",
@@ -638,11 +641,11 @@ pub fn disclosure(manifest: &Manifest) -> Vec<Localized> {
         lines.push(Localized::with_param(
             "extensions.consent.interpreter",
             "interpreter",
-            interpreter.as_str(),
+            vis(interpreter).as_str(),
             "interpreter (the program's #! line): {interpreter}",
         ));
     }
-    let dir = manifest.dir.display().to_string();
+    let dir = vis(&manifest.dir.display().to_string());
     lines.push(Localized::with_param(
         "extensions.consent.directory",
         "dir",
@@ -669,9 +672,9 @@ pub fn disclosure(manifest: &Manifest) -> Vec<Localized> {
         lines.push(Localized::with_params(
             "extensions.consent.secret",
             params([
-                ("name", secret.name.as_str().into()),
-                ("env", secret.env.as_str().into()),
-                ("description", secret.description.as_str().into()),
+                ("name", vis(&secret.name).into()),
+                ("env", vis(&secret.env).into()),
+                ("description", vis(&secret.description).into()),
             ]),
             "secret {name} (variable {env}), kept in the system vault: {description}",
         ));

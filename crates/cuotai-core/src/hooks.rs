@@ -615,7 +615,10 @@ impl Hooks {
     }
 
     fn listing_with(&self, pins: &[Result<Pin, Unresolved>]) -> Vec<Localized> {
-        let path = self.path.display().to_string();
+        // PRD 0013 S-02: every free text is escaped where it enters the
+        // listing, so the CLI, the TUI and the native dialog all show it
+        // the same way and no newline or escape sequence forges a line.
+        let path = visible(&self.path.display().to_string());
         let mut lines = vec![Localized::with_param(
             "hooks.confirm.header",
             "path",
@@ -624,7 +627,8 @@ impl Hooks {
         )];
         for (index, (rule, pin)) in self.rules.iter().zip(pins).enumerate() {
             let index = index + 1;
-            let name = rule.name.as_str();
+            let name = visible(&rule.name);
+            let name = name.as_str();
             lines.push(Localized::with_params(
                 "hooks.confirm.rule",
                 params([("index", index.into()), ("name", name.into())]),
@@ -659,7 +663,7 @@ impl Hooks {
                 filters.push(format!("quiet = {}", quoted(rule.quiet.name())));
             }
             if !filters.is_empty() {
-                let filters = filters.join(", ");
+                let filters = visible(&filters.join(", "));
                 lines.push(Localized::with_param(
                     "hooks.confirm.filters",
                     "filters",
@@ -673,7 +677,7 @@ impl Hooks {
                 rule.timeout_seconds,
                 "time limit: {seconds} s",
             ));
-            let command = serde_json::to_string(&rule.command).unwrap_or_default();
+            let command = visible(&serde_json::to_string(&rule.command).unwrap_or_default());
             lines.push(Localized::with_param(
                 "hooks.confirm.command",
                 "command",
@@ -689,7 +693,7 @@ impl Hooks {
 /// PRD 0050 RF2.4: the listing lines of a rule's pinned program.
 fn pin_lines(pin: &Result<Pin, Unresolved>) -> Vec<Localized> {
     let file = |id: &'static str, program: &Path, sha256: &str, fallback: &'static str| {
-        let program = program.display().to_string();
+        let program = visible(&program.display().to_string());
         Localized::with_params(
             id,
             params([
@@ -721,6 +725,10 @@ fn pin_lines(pin: &Result<Pin, Unresolved>) -> Vec<Localized> {
             "hooks.confirm.exposed",
             "program: another user can change it (it cannot be approved)",
         )],
+        Err(Unresolved::Disguised) => vec![Localized::fixed(
+            "hooks.confirm.disguised",
+            "program: its path holds hidden characters (it cannot be approved)",
+        )],
         Err(Unresolved::Shebang) => vec![Localized::fixed(
             "hooks.confirm.shebang",
             "program: its #! line cannot be pinned (it cannot be approved)",
@@ -742,6 +750,12 @@ pub fn refused(name: &str, why: Unresolved) -> Localized {
             "name",
             name,
             "The #! line of the rule \"{name}\"'s script takes a form Cuotai cannot pin; use #!/absolute/interpreter, #!/usr/bin/env NAME or #!/usr/bin/env -S NAME, then approve the hooks again.",
+        ),
+        Unresolved::Disguised => Localized::with_param(
+            "hooks.error.disguised",
+            "name",
+            name,
+            "The path of the rule \"{name}\"'s program (or its script's interpreter) holds control or text-direction characters that could disguise it in the confirmation; rename the file, then approve the hooks again.",
         ),
         Unresolved::Exposed => Localized::with_param(
             "hooks.error.exposed",
@@ -800,7 +814,7 @@ pub const GENERATED_ENV: [&str; 5] = [
 ];
 
 fn run_context() -> Vec<Localized> {
-    let dir = work_dir().map_or_else(|| "-".to_owned(), |dir| dir.display().to_string());
+    let dir = work_dir().map_or_else(|| "-".to_owned(), |dir| visible(&dir.display().to_string()));
     let env = INHERITED_ENV
         .iter()
         .chain(GENERATED_ENV.iter())
@@ -1086,6 +1100,12 @@ fn unwritable(path: &Path) -> Localized {
     )
 }
 
+/// PRD 0013 S-02: `text` as a listing shows it, its disguising characters
+/// written visibly.
+fn visible(text: &str) -> String {
+    crate::text::escape_disguising(text).into_owned()
+}
+
 fn quoted(text: &str) -> String {
     serde_json::to_string(text).unwrap_or_default()
 }
@@ -1098,7 +1118,7 @@ fn validate(index: usize, raw: RuleDraft) -> Result<Rule, Localized> {
     let name = raw.name.trim().to_owned();
     if name.is_empty()
         || name.chars().count() > NAME_MAX_CHARS
-        || name.chars().any(char::is_control)
+        || name.chars().any(crate::text::is_disguising)
     {
         return Err(Localized::with_params(
             "hooks.error.name",
@@ -1821,17 +1841,25 @@ impl Runner {
         };
         payload.push(b'\n');
         let payload: Arc<[u8]> = payload.into();
+        // PRD 0013 S-04: a variable cannot hold a NUL (the spawn would
+        // fail) and should not carry control characters into a script, so
+        // they become U+FFFD there; the stdin payload keeps the exact text.
+        let env = |text: &str| -> String {
+            text.chars()
+                .map(|c| if c.is_control() { '\u{FFFD}' } else { c })
+                .collect()
+        };
         let vars: Arc<[(&'static str, String)]> = Arc::new([
             ("CUOTAI_EVENT", event.event.name().to_owned()),
-            ("CUOTAI_ACCOUNT", event.account_name.clone()),
-            ("CUOTAI_ACCOUNT_ID", event.account_id.clone()),
+            ("CUOTAI_ACCOUNT", env(&event.account_name)),
+            ("CUOTAI_ACCOUNT_ID", env(&event.account_id)),
             ("CUOTAI_PROVIDER", event.provider.slug().to_owned()),
             (
                 "CUOTAI_METRIC",
                 event
                     .metric
                     .as_ref()
-                    .map_or_else(String::new, |metric| metric.label.clone()),
+                    .map_or_else(String::new, |metric| env(&metric.label)),
             ),
         ]);
         let mut dropped = 0;
