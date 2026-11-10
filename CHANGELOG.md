@@ -13,6 +13,18 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.84.8] - 2026-11-10
+
+### Fixed
+
+- Usage alerts on the desktop now name limits in your language, show a bell chip on the account card, and keep the full alert text in the tray tooltip and the screen-reader name (PRD 0008 RF3.4; PRD 0034 RF2; eea2b44).
+- Usage alert notifications now fit in every language, name unnamed accounts, and show reset dates in your language; the terminal banner shows reset times in the same time zone as its clock, and `--watch` summaries and the desktop journal name limits in your language (PRD 0008 RF2.3; PRD 0013 RF2.3; 6b2615f).
+- Usage alerts no longer repeat when a provider's reset time drifts, an alert held back by the one-minute spacing is no longer lost when Cuotai quits, and notice history written by a newer Cuotai is no longer discarded by an older one (PRD 0008 RF1.4, RF2.1; PRD 0051 RF3; 1e3af4e).
+
+### Security
+
+- With private notification texts on, extra-usage and shared-pool alerts no longer show the account name or the amount spent, and alerts for limits without a known window no longer show the limit's name (PRD 0008 RF2.3; PRD 0023 RF4.5; PRD 0036 RF6.4; PRD 0032 RF7; 6b2342f).
+
 ## [0.84.7] - 2026-11-09
 
 ### Fixed
@@ -661,7 +673,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.84.7...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.84.8...HEAD
+[0.84.8]: https://github.com/jmarcon/cuotai/compare/v0.84.7...v0.84.8
 [0.84.7]: https://github.com/jmarcon/cuotai/compare/v0.84.6...v0.84.7
 [0.84.6]: https://github.com/jmarcon/cuotai/compare/v0.84.5...v0.84.6
 [0.84.5]: https://github.com/jmarcon/cuotai/compare/v0.84.4...v0.84.5
