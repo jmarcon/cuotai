@@ -38,6 +38,7 @@ pub mod hooks;
 pub mod identity;
 pub mod incidents;
 pub mod insights;
+pub mod instant;
 
 /// RNF performance budgets in tests: the PRD figure in an optimized build,
 /// twenty times it in a debug build (CI runs the debug suite on shared
@@ -1036,6 +1037,7 @@ impl Monitor {
                     // Another process paid for this interval's query.
                     metered_record::Decision::Reuse(report) => {
                         let mut report = *report;
+                        report.drop_implausible_instants();
                         self.apply_budgets(account, &mut report);
                         return report;
                     }
@@ -1134,10 +1136,13 @@ impl Monitor {
             .await;
         let mut report = previous.clone();
         match result {
-            Ok(Some(sub)) => match report.sub_reports.iter_mut().find(|old| old.id == sub.id) {
-                Some(old) => *old = sub,
-                None => report.sub_reports.push(sub),
-            },
+            Ok(Some(mut sub)) => {
+                sub.drop_implausible_instants();
+                match report.sub_reports.iter_mut().find(|old| old.id == sub.id) {
+                    Some(old) => *old = sub,
+                    None => report.sub_reports.push(sub),
+                }
+            }
             Ok(None) => report.sub_reports.retain(|old| old.id != sub_id),
             Err(_) => return self.refresh_account(index).await,
         }
@@ -1302,7 +1307,10 @@ impl Monitor {
                 .await
             {
                 Ok(checked) => {
-                    checked.into_report(account.name.clone(), Provider::Extension, checked_at)
+                    let mut report =
+                        checked.into_report(account.name.clone(), Provider::Extension, checked_at);
+                    report.drop_implausible_instants();
+                    report
                 }
                 Err(note) => unavailable(note),
             };
@@ -1361,7 +1369,7 @@ impl Monitor {
             notes.push(note.text().to_owned());
             notes_l10n.push(note);
         }
-        Report {
+        let mut report = Report {
             account_id: None,
             diagnostic,
             account: account.name.clone(),
@@ -1377,7 +1385,11 @@ impl Monitor {
             as_of,
             overage_hint,
             breakdown,
-        }
+        };
+        // AGENTS.md "Validate at boundaries": an impossible reset from a
+        // provider reads as unknown instead of crashing a local clock.
+        report.drop_implausible_instants();
+        report
     }
 
     /// Run `run` under one query slot and the account deadline, with OAuth

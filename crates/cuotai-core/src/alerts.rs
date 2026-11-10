@@ -3248,9 +3248,15 @@ where
     Tz: TimeZone,
     Tz::Offset: Display,
 {
-    let local = at.with_timezone(tz);
+    // An instant whose local clock is out of range reads in UTC.
+    let (Some(local), Some(today)) = (
+        crate::instant::checked_local(at, tz),
+        crate::instant::checked_local(now, tz),
+    ) else {
+        return format!("{} UTC", at.format("%Y-%m-%d %H:%M")).into();
+    };
     let time = local.format("%H:%M").to_string();
-    let days = (local.date_naive() - now.with_timezone(tz).date_naive()).num_days();
+    let days = (local.date_naive() - today.date_naive()).num_days();
     if days == 0 {
         return time.into();
     }
@@ -3282,7 +3288,9 @@ where
     Tz: TimeZone,
     Tz::Offset: Display,
 {
-    let local = at.with_timezone(tz);
+    let Some(local) = crate::instant::checked_local(at, tz) else {
+        return format!("{} UTC", at.format("%Y-%m-%d")).into();
+    };
     ParamValue::l10n(Localized::with_params(
         "alerts.at.day",
         params([
@@ -3316,6 +3324,24 @@ mod tests {
     }
     use crate::model::{MetricKind, Provider};
     use chrono::TimeZone;
+
+    /// S-01 (PRD 0009 re-validation): an alert time near chrono's limit
+    /// under a +14:00 zone reads in UTC instead of panicking.
+    #[test]
+    fn alert_times_at_the_limits_read_in_utc_without_panicking() {
+        let east = chrono::FixedOffset::east_opt(14 * 3600).unwrap();
+        let west = chrono::FixedOffset::west_opt(11 * 3600).unwrap();
+        let now = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+        let text = |value: ParamValue| match value {
+            ParamValue::Text(text) => text,
+            ParamValue::L10n(note) => note.resolve("en-US"),
+        };
+        let max = DateTime::<Utc>::MAX_UTC;
+        assert!(text(local_time(max, now, &east)).ends_with(" UTC"));
+        assert!(text(local_day(max, &east)).ends_with(" UTC"));
+        assert!(text(local_day(DateTime::<Utc>::MIN_UTC, &west)).ends_with(" UTC"));
+        assert_eq!(text(local_time(now, now, &east)), "14:00");
+    }
 
     fn t0() -> DateTime<Utc> {
         Utc.with_ymd_and_hms(2026, 2, 15, 12, 0, 0).unwrap()

@@ -134,8 +134,8 @@ pub fn duration_text(minutes: u64) -> Localized {
 
 fn local_text(zone: DayZone, at: DateTime<Utc>, format: &str) -> String {
     match zone {
-        DayZone::Local => at.with_timezone(&Local).format(format).to_string(),
-        DayZone::Fixed(offset) => at.with_timezone(&offset).format(format).to_string(),
+        DayZone::Local => crate::instant::format_local(at, &Local, format),
+        DayZone::Fixed(offset) => crate::instant::format_local(at, &offset, format),
     }
 }
 

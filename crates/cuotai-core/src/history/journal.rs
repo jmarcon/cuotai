@@ -231,7 +231,10 @@ impl HistoryStore {
                     .get::<_, Option<i64>>(4)?
                     .and_then(|value| u8::try_from(value).ok()),
                 used_ratio: row.get(5)?,
-                resets_at: row.get::<_, Option<i64>>(6)?.map(instant).transpose()?,
+                resets_at: crate::instant::plausible(
+                    row.get::<_, Option<i64>>(6)?
+                        .and_then(DateTime::from_timestamp_millis),
+                ),
                 category,
                 incident,
                 projected_at: row.get::<_, Option<i64>>(9)?.map(instant).transpose()?,

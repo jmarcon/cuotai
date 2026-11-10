@@ -2715,7 +2715,7 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
                     ("utc", &report.checked_at.format("%H:%M:%S UTC")),
                     (
                         "local",
-                        &report.checked_at.with_timezone(&Local).format("%H:%M:%S"),
+                        &cuotai_core::instant::format_local(report.checked_at, &Local, "%H:%M:%S"),
                     ),
                     ("as_of", &data_as_of_suffix(report)),
                 ],
@@ -2750,7 +2750,11 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
                         ("utc", &stale.checked_at.format("%H:%M:%S UTC")),
                         (
                             "local",
-                            &stale.checked_at.with_timezone(&Local).format("%H:%M:%S"),
+                            &cuotai_core::instant::format_local(
+                                stale.checked_at,
+                                &Local,
+                                "%H:%M:%S",
+                            ),
                         ),
                     ],
                 ),
