@@ -612,7 +612,8 @@ fn decode_entities(text: &str) -> String {
 
 /// Provider free text made safe for any frontend (RF2.3): entities decoded,
 /// HTML tags and Markdown emphasis/links removed, control characters and
-/// runs of whitespace collapsed, then truncated to `max` characters with an
+/// runs of whitespace collapsed, bidi control characters
+/// (`text::is_disguising`) dropped, then truncated to `max` characters with an
 /// ellipsis.
 pub(crate) fn plain_text(raw: &str, max: usize) -> String {
     let decoded = decode_entities(raw);
@@ -643,6 +644,9 @@ pub(crate) fn plain_text(raw: &str, max: usize) -> String {
             }
             '[' => {}
             ch if ch.is_control() || ch.is_whitespace() => text.push(' '),
+            // Bidi embeddings, overrides and isolates would reorder the
+            // words around them in any frontend: drop them outright.
+            ch if crate::text::is_disguising(ch) => {}
             ch => text.push(ch),
         }
     }

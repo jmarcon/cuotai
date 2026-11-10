@@ -90,6 +90,20 @@ fn a_valid_output_becomes_a_ready_report_of_the_extension() {
 }
 
 #[test]
+fn bidi_controls_never_reach_extension_texts() {
+    let output = edited(|v| {
+        v["notes"] = json!(["Proxy \u{2067}online\u{2069}."]);
+        v["metrics"][0]["label"] = json!("Bal\u{202E}ance");
+        v["metrics"][1]["period"] = json!("Oct\u{202D}ober");
+    });
+    let report = report(check("proxy", &output));
+    assert_eq!(report.notes, ["Proxy online."]);
+    assert_eq!(report.notes_l10n[0].resolve("en-US"), "Proxy online.");
+    assert_eq!(report.metrics[0].label, "Balance");
+    assert_eq!(report.metrics[1].period.as_deref(), Some("October"));
+}
+
+#[test]
 fn billing_and_scope_are_optional_and_unknown_values_are_rejected() {
     let with = |metric: Value| {
         json!({"schema": 1, "status": "ready", "metrics": [metric]})
