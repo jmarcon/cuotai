@@ -754,7 +754,7 @@ Shared with the TUI and the menu bar. The shapes come from the TUI's pace vocabu
 | `freshness.aging` | Aging | In invecchiamento (it) | ≈ 3× |
 | `settings.title` | Settings | Configurações (pt-BR) | +60 % |
 | `common.refresh` | Refresh | Actualizar (es) | +40 % |
-| `incident.trayTitle` | Provider status | Estado de los proveedores (es) | +65 % |
+| `incident.unavailable` | Status page unavailable | Pagina di stato non disponibile (it) | +35 % |
 | core `pace.ahead` | {delta} points above the pace | {delta} puntos por encima del ritmo (es) | +20 % |
 | core `pace.runs_out_at` | runs out at {at}, {margin} before the reset | se agota a las {at}, {margin} antes del reinicio (es) | +15 % |
 | core `incident.state.degraded` | Degraded performance | Prestazioni degradate (it) | +5 % |
