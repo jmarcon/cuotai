@@ -13,6 +13,16 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.84.11] - 2026-11-10
+
+### Fixed
+
+- Provider incident titles and extension texts no longer keep invisible text-direction characters that could reorder the words around them (PRD 0011 RF2.3; 3547c7b).
+- The privacy inventory now states the User-Agent status requests send, that cuotai --canary --status also reads status pages, and where the queried domains are listed (PRD 0011 RF2.1; 8ee045f).
+- The local canary (cuotai --canary --status) reads each provider status page once per run instead of twice (PRD 0011 RF2.2; fc95a2c).
+- The desktop no longer calls a status page that was never read a "previous reading", and Settings › Data & privacy lists the queried status domains right under the status switch without repeating the heading (PRD 0011 RF4.1, RF4.3; 6403180).
+- On narrow TUI cards the provider status badge leaves out the reading age whole instead of cutting it mid-word (PRD 0011 RF5.2; cf8cba3).
+
 ## [0.84.10] - 2026-11-10
 
 ### Fixed
@@ -690,7 +700,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.84.10...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.84.11...HEAD
+[0.84.11]: https://github.com/jmarcon/cuotai/compare/v0.84.10...v0.84.11
 [0.84.10]: https://github.com/jmarcon/cuotai/compare/v0.84.9...v0.84.10
 [0.84.9]: https://github.com/jmarcon/cuotai/compare/v0.84.8...v0.84.9
 [0.84.8]: https://github.com/jmarcon/cuotai/compare/v0.84.7...v0.84.8
