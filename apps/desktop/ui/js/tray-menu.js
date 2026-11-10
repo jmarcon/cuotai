@@ -1,7 +1,7 @@
 // Right-click menu on the tray icon: plain text, one line per account ("name: % available").
 // The lines follow the same order and filters as the popover; the shell only builds the native menu.
 import { t, tl } from "./i18n.js";
-import { adviceShown, ageText, bindingPct, blockedText, brand, disabledAccounts, nextNoticeText, reportKey, setTrayMenu, shownAt, sortReports, statusLabel } from "./lib.js";
+import { adviceShown, ageText, bindingPct, blockedText, brand, disabledAccounts, fmtShare, nextNoticeText, reportKey, setTrayMenu, shownAt, sortReports, statusLabel } from "./lib.js";
 import { updateState } from "./updater.js";
 
 let last = "";
@@ -18,7 +18,7 @@ export function trayMenuLines(reports) {
     const label = repeated.has(r.provider) ? `${brand(r.provider).label} · ${r.account}` : brand(r.provider).label;
     const name = r.usage_alerts?.length ? `▲ ${label}` : label;
     const pct = bindingPct(r);
-    const value = r.status !== "ready" ? statusLabel(r.status) : blockedText(r) ?? (pct != null ? `${Math.round(pct)}%` : "—");
+    const value = r.status !== "ready" ? statusLabel(r.status) : blockedText(r) ?? (pct != null ? fmtShare(pct) : "—");
     // Keep the required value and age when an arbitrary account name would exceed the native 80-character limit.
     const suffix = `: ${value} · ${ageText(r)}`;
     const chars = [...name], max = 80 - [...suffix].length;

@@ -798,11 +798,17 @@ export const worstRemaining = (r) => {
 };
 /** PRD 0009 RF2: % still available on the core's binding metric (`r.binding`); null without one. */
 export const bindingPct = (r) => (r.status === "ready" && r.binding ? (1 - r.binding.used_ratio) * 100 : null);
-/** Short name of the binding window ("Week"); windows the UI does not name use the metric label. */
+/** Short name of the binding window ("Week"); windows the UI does not name use the metric's translated label
+ *  (`label_text`, PRD 0034 RF2), never the adapter's raw text when the core sent the translation. */
 export const bindingLabel = (r) => {
   const w = r.binding?.window;
-  return w && w !== "other" ? t(`card.binding.${w}`) : r.binding?.label ?? "";
+  if (w && w !== "other") return t(`card.binding.${w}`);
+  return r.binding?.label_text ? tl(r.binding.label_text) : r.binding?.label ?? "";
 };
+/** A metric's display name: its translated label (`label_text`) when the core sent one, else the raw label. */
+export const metricName = (m) => (m?.label_text ? tl(m.label_text) : m?.label ?? "");
+/** DS-CMP-MTR-4: a share in % rounded honestly: above 0 and below 1 reads "< 1%", below 100 never reads "100%". */
+export const fmtShare = (p) => (p > 0 && p < 1 ? "< 1%" : `${p < 100 ? Math.min(99, Math.round(p)) : Math.round(p)}%`);
 export const isBlocked = (r) => r.status === "ready" && r.binding?.reason === "exhausted";
 /** "Blocked until Today 14:30" (unknown return stays unknown, never "now"); null when not blocked. */
 export const blockedText = (r) => {
@@ -810,8 +816,8 @@ export const blockedText = (r) => {
   const at = fmtReset(r.binding.blocked_until);
   return at ? t("card.blockedUntil", { time: at }) : t("card.blocked");
 };
-/** Chip text "Week · 100%" (consumed share of the binding window). */
-export const bindingChipText = (r) => `${bindingLabel(r)} · ${Math.round(r.binding.used_ratio * 100)}%`;
+/** Chip text "Week · 100%" (consumed share of the binding window, rounded honestly). */
+export const bindingChipText = (r) => `${bindingLabel(r)} · ${fmtShare(r.binding.used_ratio * 100)}`;
 export const isBindingMetric = (r, m) => r.binding != null && r.metrics[r.binding.index] === m;
 /** PRD 0010 RF4.1: the current reading is exhausted or blocked; a failure (even with a preserved reading) is not. */
 export const isRecharging = (r) => r.status === "ready" && (r.class === "exhausted" || isBlocked(r));
@@ -1248,7 +1254,8 @@ const demoReports = [
   { ...dr("Personal", "mini_max", [dm("M-series (5h)", 6, 100, 2.6, "quota", "window_5h"), dm("M-series (7d)", 60, 100, 98.6, "quota", "weekly"), dm("Video (5h)", 0, 100, 2.6, "quota", "window_5h")]),
     scope_blocks: [{ index: 2, label: "Video", resets_at: h(2.6), text: { id: "metrics.scope_blocked", params: { model: "Video", at: new Date(h(2.6)).toTimeString().slice(0, 5) }, fallback: `Video at its limit until ${new Date(h(2.6)).toTimeString().slice(0, 5)}` } }] },
   dr("Account 2", "code_buddy", [dm("Monthly", 0, 100, 757, "quota", "monthly"), dm("Bonus Pack 1", 0, 250, 62, "quota", null)]),
-  dr("Account 1", "kimi", [dm("Weekly", 100, 100, 109, "quota", "weekly"), dm("Ratelimit", 0, 100, 4.8, "rate_limit", "other")]),
+  // The exhausted week is the binding limit, so the core classifies the account as exhausted.
+  { ...dr("Account 1", "kimi", [dm("Weekly", 100, 100, 109, "quota", "weekly"), dm("Ratelimit", 0, 100, 4.8, "rate_limit", "other")]), class: "exhausted" },
   dr("Personal", "ollama_cloud", [dm("Monthly", 0, 100, 248, "quota", "monthly")]),
   drn("Personal", "anthropic_api", [], demoNote("auth", "Credential missing or expired."), "authentication_error"),
   drn("Personal", "mistral", [], demoNote("rate", "HTTP 429: rate limit reached."), "rate_limited"),
@@ -1258,7 +1265,7 @@ const demoReports = [
   { ...dr("Account 3", "kiro", [dm("credit", 596.15, 10000, 360, "quota", "other", "credits")]),
     identity: { email: null, copy: { label: { id: "identity.profile_arn", params: {}, fallback: "Profile ARN" }, value: "arn:aws:codewhisperer:us-east-1:123456789012:profile/EXAMPLEPROFILE" },
       badges: [{ tone: "accent", text: "IAM Identity Center" }, { tone: "info", text: "us-east-1" }, { tone: "good", text: { id: "demo.kiro.badge.active", params: {}, fallback: "active" } }] } },
-  { ...dr("alex@example.com", "grok", [dm("On-demand", 1, 1, 100, "quota", "monthly")]), identity: { email: "alex@example.com", badges: [], copy: null } },
+  { ...dr("alex@example.com", "grok", [dm("On-demand", 1, 1, 100, "quota", "monthly")]), class: "exhausted", identity: { email: "alex@example.com", badges: [], copy: null } },
   dr("Personal", "deepseek_demo", [{ label: "Balance", used: null, limit: null, remaining: 0, unit: "USD", kind: "balance", window: null, period: null, resets_at: null, state: "available", ratio: null, uncapped: true, no_cap: false }]),
   // PRD 0005 RF4.2 fixtures: an Unavailable provider (no query) and an Undocumented one whose response broke the schema.
   drn("Work", "poolside", [], demoNote("poolside", "Poolside publishes no usage or balance endpoint per key."), "unsupported"),
@@ -1326,7 +1333,7 @@ const DEMO_SESSION_SLOT = { slot: "platform_session_env", open_url: "https://pla
 const DEMO_BINDINGS = new Map([
   [0, [2, 5]], [1, [1, 0]], [2, [0, 6]], [3, [1, 1]], [4, [null, 10]], [5, [1, 4]], [6, [0, 8]], [7, [0, 2]],
   [8, [0, 9]], [9, [null, 11]], [10, [null, 12]], [11, [null, 13]], [12, [null, 14]], [13, [0, 7]], [14, [0, 3]], [15, [null, 15]],
-  [20, [null, 16]], [21, [1, 17]],
+  [19, [0, 18]], [20, [null, 16]], [21, [1, 17]],
 ].map(([index, binding]) => [demoReports[index], binding]));
 // ponytail: the core's tray pair (`windows`, `metrics::window_pair`) of each demo account, fixed like the bindings:
 // [thick, thin, by model]. Accounts without an entry keep the single summary bar.

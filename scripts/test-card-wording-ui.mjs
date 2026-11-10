@@ -317,3 +317,39 @@ console.log("PASS: remaining-share wording renders in pt-BR, en-US, es and it; U
   assert.ok(opener.includes("openExternal(") && !opener.includes("openDashboard") && !opener.includes("open_dashboard"), "reference opener uses openExternal only");
   console.log("PASS: the changed-interface reference is a details link opened through openExternal");
 }
+
+// PRD 0009 re-validation V-01, V-04, V-05, V-07: binding names come from the core's translated label, shares are
+// rounded honestly, and the browser demo agrees with the core's binding rule.
+{
+  const lib = await import("../apps/desktop/ui/js/lib.js");
+  const label_text = { id: "metric.label.rolling_window", params: {}, fallback: "Rolling window" };
+  const report = (used_ratio, extra = {}) => ({ status: "ready", metrics: [], binding: { index: 0, label: "Janela móvel", label_text, window: "other",
+    used_ratio, remaining: 1, resets_at: null, reason: used_ratio >= 1 ? "exhausted" : "tightest", blocked_until: null, ...extra } });
+  for (const locale of ["en-US", "de", "pt-BR"]) {
+    await i18n.setLocale(locale);
+    const name = i18n.tl(label_text);
+    assert.ok(name && !name.includes("metric.label"), `${locale}: the catalog names the rolling window`);
+    assert.equal(lib.bindingLabel(report(0.5)), name, `${locale}: the binding name is the translated label`);
+    if (locale !== "pt-BR") assert.ok(!lib.bindingLabel(report(0.5)).includes("Janela"), `${locale}: no raw adapter label`);
+    assert.equal(lib.metricName({ label: "Janela móvel", label_text }), name, `${locale}: column names use the translated label`);
+  }
+  await i18n.setLocale("en-US");
+  assert.equal(lib.bindingLabel(report(0.5, { label_text: undefined })), "Janela móvel", "without a translation the raw label stays");
+  assert.ok(lib.bindingChipText(report(0.996)).endsWith(" · 99%"), "99.6 % used never reads 100%");
+  assert.ok(lib.bindingChipText(report(0.004)).endsWith(" · < 1%"), "a sliver used reads < 1%");
+  assert.ok(lib.bindingChipText(report(1)).endsWith(" · 100%"), "an exhausted limit reads 100%");
+  assert.deepEqual([lib.fmtShare(0.4), lib.fmtShare(99.6), lib.fmtShare(100), lib.fmtShare(0)], ["< 1%", "99%", "100%", "0%"]);
+  const src = async (file) => readFile(fileURLToPath(new URL(`apps/desktop/ui/js/${file}`, root)), "utf8");
+  const main = await src("main.js"), tray = await src("tray-menu.js"), comp = await src("components.js");
+  assert.ok(!main.includes("${m.label} ·") && !main.includes("s.m.label, s.m") && !main.includes("Math.round(pct)}%`"), "card columns use metricName and fmtShare");
+  assert.ok(tray.includes("fmtShare(pct)") && !tray.includes("Math.round(pct)}%"), "the native menu rounds honestly");
+  assert.ok(!comp.includes("r.binding.label ??"), "the status line uses the translated binding name");
+  // V-07: the demo follows `metrics::binding` / `classify_report`.
+  const { reports } = await lib.getView();
+  for (const r of reports.filter((x) => x.status === "ready")) {
+    if (r.binding?.reason === "exhausted") assert.equal(r.class, "exhausted", `${r.provider}: a blocked binding implies the exhausted class`);
+    const measurable = r.metrics.some((m) => m.kind === "quota" && !m.scope && m.limit > 0 && m.used != null);
+    if (measurable && !r.scope_blocks) assert.ok(r.binding, `${r.provider}: a measurable quota has a binding`);
+  }
+  console.log("PASS: binding names are translated, shares are rounded honestly and the demo follows the core rule");
+}
