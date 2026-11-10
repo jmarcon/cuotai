@@ -1095,8 +1095,9 @@ async fn a_scoped_component_the_page_no_longer_lists_is_reported_by_name() {
     };
     let slots = Semaphore::new(1);
     let http = reqwest::Client::new();
+    let cache = IncidentMonitor::new();
     assert_eq!(
-        missing_components(&http, &slots, source).await,
+        cache.missing_components(source, &http, &slots).await,
         Some(vec!["Renamed"])
     );
     // Formats that do not list components cannot be checked.
@@ -1104,11 +1105,48 @@ async fn a_scoped_component_the_page_no_longer_lists_is_reported_by_name() {
         format: Format::AtomRss(FeedFormat::Xai),
         ..source
     };
-    assert_eq!(missing_components(&http, &slots, rss).await, None);
+    assert_eq!(cache.missing_components(rss, &http, &slots).await, None);
     // An unreadable page is not a finding.
     let down = StatusSource {
         url: "http://127.0.0.1:1/summary.json",
         ..source
     };
-    assert_eq!(missing_components(&http, &slots, down).await, None);
+    assert_eq!(cache.missing_components(down, &http, &slots).await, None);
+}
+
+/// PRD 0011 re-validation (S-03): `cuotai --canary --status` checks the
+/// components, then refreshes the statuses; both read the page once.
+#[tokio::test]
+async fn the_canary_reads_each_status_page_once() {
+    let server = MockServer::start().await;
+    serve(&server, Provider::Claude, body(CLAUDE_INCIDENT)).await;
+    let monitor = only(&[Provider::Claude, Provider::AnthropicApi], &server);
+    // The fixture does not list every scoped component.
+    let missing = monitor.missing_status_components().await;
+    assert!(missing[0].1.contains(&"Claude Code"), "{missing:?}");
+    let statuses = monitor.refresh_incidents().await;
+    assert_eq!(requests(&server).await, 1, "one request for the whole run");
+    assert_eq!(
+        status_of(&statuses, Provider::Claude).state,
+        IncidentState::PartialOutage
+    );
+}
+
+/// A page whose latest read failed reports no missing component, even with
+/// an earlier reading in the cache.
+#[tokio::test]
+async fn a_failed_status_page_reports_no_missing_component() {
+    let server = MockServer::start().await;
+    let monitor = only(&[Provider::Claude], &server);
+    monitor.incidents().set_test_knobs(TestKnobs {
+        base: Some(server.uri()),
+        ttl: Some(Duration::ZERO),
+        ..TestKnobs::default()
+    });
+    serve(&server, Provider::Claude, body(CLAUDE_INCIDENT)).await;
+    assert_eq!(monitor.missing_status_components().await.len(), 1);
+    server.reset().await;
+    serve(&server, Provider::Claude, ResponseTemplate::new(500)).await;
+    assert!(monitor.missing_status_components().await.is_empty());
+    assert!(status_of(&monitor.incident_statuses(), Provider::Claude).stale);
 }

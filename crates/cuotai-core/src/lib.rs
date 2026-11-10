@@ -851,9 +851,11 @@ impl Monitor {
 
     /// PRD 0028 RF4.5: for each configured provider with a Statuspage source,
     /// the display names of the fixed components its public page no longer
-    /// lists (only providers with something missing appear). One request per
-    /// distinct page, independent of the status preference: the caller (the
-    /// local canary) decides whether status pages may be contacted.
+    /// lists (only providers with something missing appear). At most one
+    /// request per distinct page, through the status cache, so a following
+    /// [`Monitor::refresh_incidents`] reuses it. Independent of the status
+    /// preference: the caller (the local canary) decides whether status
+    /// pages may be contacted.
     pub async fn missing_status_components(&self) -> Vec<(Provider, Vec<&'static str>)> {
         let mut urls = HashSet::new();
         let sources: Vec<_> = self
@@ -863,7 +865,8 @@ impl Monitor {
             .collect();
         let checked =
             futures_util::future::join_all(sources.iter().map(|(provider, source)| async move {
-                incidents::missing_components(&self.http, &self.query_slots, *source)
+                self.incidents
+                    .missing_components(*source, &self.http, &self.query_slots)
                     .await
                     .filter(|missing| !missing.is_empty())
                     .map(|missing| (*provider, missing))

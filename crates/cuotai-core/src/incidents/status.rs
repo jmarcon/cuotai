@@ -289,6 +289,42 @@ impl IncidentMonitor {
         }
     }
 
+    /// PRD 0028 RF4.5: the names of the components of `source`'s fixed scope
+    /// that the live page no longer lists (renamed or removed ids), or `None`
+    /// when the format does not list its components (only Statuspage does) or
+    /// the page could not be read (a stale reading is never a finding). Used
+    /// by the local canary. Reads through the cache, so a later
+    /// `refresh_incidents` in the same run reuses the reading instead of
+    /// fetching the page again; independent of the preference (the caller
+    /// decides whether status pages may be contacted).
+    pub(crate) async fn missing_components(
+        &self,
+        source: StatusSource,
+        http: &reqwest::Client,
+        slots: &Semaphore,
+    ) -> Option<Vec<&'static str>> {
+        if source.format != Format::StatuspageV2 {
+            return None;
+        }
+        self.ensure(source, http, slots).await;
+        let known = lock(&self.cache(source.url).known).clone();
+        if known.failed {
+            return None;
+        }
+        let reading = known.reading?;
+        if reading.baseline != Baseline::Components {
+            return None;
+        }
+        Some(
+            source
+                .scope
+                .iter()
+                .filter(|component| !reading.components.iter().any(|(id, _)| *id == component.id))
+                .map(|component| component.name)
+                .collect(),
+        )
+    }
+
     /// The cached status of `provider` (no network), assessed against the UTC
     /// wall clock because `read_at` is an absolute timestamp shared by every
     /// frontend.
@@ -374,41 +410,6 @@ async fn fetch(
     tokio::time::timeout(timeout, request)
         .await
         .unwrap_or(Err(parse::Invalid))
-}
-
-/// PRD 0028 RF4.5: the names of the components of `source`'s fixed scope
-/// that the live page no longer lists (renamed or removed ids), or `None`
-/// when the format does not list its components (only Statuspage does) or
-/// the page could not be read. Used by the local canary; one request.
-pub(crate) async fn missing_components(
-    http: &reqwest::Client,
-    slots: &Semaphore,
-    source: StatusSource,
-) -> Option<Vec<&'static str>> {
-    if source.format != Format::StatuspageV2 {
-        return None;
-    }
-    let reading = fetch(
-        http,
-        slots,
-        source.url,
-        source.format,
-        source.host(),
-        REQUEST_TIMEOUT,
-    )
-    .await
-    .ok()?;
-    if reading.baseline != Baseline::Components {
-        return None;
-    }
-    Some(
-        source
-            .scope
-            .iter()
-            .filter(|component| !reading.components.iter().any(|(id, _)| *id == component.id))
-            .map(|component| component.name)
-            .collect(),
-    )
 }
 
 fn page_url(source: StatusSource) -> String {

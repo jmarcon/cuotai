@@ -72,18 +72,15 @@ pub async fn run(
     let app = crate::report_problem::app_info();
     // RF4.5: public status pages are contacted only when status queries are
     // on (`--status` / CUOTAI_STATUS), like everywhere else (PRD 0011 RF5).
-    let status_missing = if args.status {
-        monitor.missing_status_components().await
-    } else {
-        Vec::new()
-    };
     // PRD 0028 RF2.2: the drafts state whether an incident is active, from
-    // the same consented status queries.
-    let statuses = if args.status {
+    // the same consented status queries; both go through the status cache,
+    // so each page is read once per run.
+    let (status_missing, statuses) = if args.status {
         monitor.incidents().set_enabled(true);
-        monitor.refresh_incidents().await
+        let missing = monitor.missing_status_components().await;
+        (missing, monitor.refresh_incidents().await)
     } else {
-        Vec::new()
+        (Vec::new(), Vec::new())
     };
     let outcome = canary::analyze_with(
         previous.as_ref(),
