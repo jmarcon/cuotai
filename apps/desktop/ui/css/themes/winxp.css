@@ -128,7 +128,7 @@
   color: #ffffff;
 }
 
-/* Beige controls on the bar (light; a primary button keeps the accent's fill and text color) */
+/* Beige controls on the bar (light; a primary button keeps the accent's fill and text color, a danger button its own) */
 :root[data-theme="winxp"][data-mode="light"] .btn:not(.primary),
 :root[data-theme="winxp"][data-mode="light"] .theme-switch select {
   border-color: #003c74;
@@ -137,6 +137,14 @@
 :root[data-theme="winxp"][data-mode="light"] .btn:not(.primary):hover:not(:disabled) {
   background: linear-gradient(#fff8e0, #ffe9a8 85%, #f8d36a);
   border-color: #e5a50a;
+}
+:root[data-theme="winxp"][data-mode="light"] .btn.danger-btn {
+  border-color: var(--bad);
+  color: var(--bad-fg);
+}
+:root[data-theme="winxp"][data-mode="light"] .btn.danger-btn:hover:not(:disabled) {
+  background: var(--bad);
+  border-color: var(--bad);
 }
 :root[data-theme="winxp"][data-mode="light"] .segmented {
   background: #ece9d8;
@@ -170,6 +178,14 @@
 :root[data-theme="winxp"][data-mode="dark"] .btn:not(.primary):hover:not(:disabled) {
   background: linear-gradient(#3d5a99, #26457a);
   border-color: #6cb4ff;
+}
+:root[data-theme="winxp"][data-mode="dark"] .btn.danger-btn {
+  border-color: var(--bad);
+  color: var(--bad-fg);
+}
+:root[data-theme="winxp"][data-mode="dark"] .btn.danger-btn:hover:not(:disabled) {
+  background: var(--bad);
+  border-color: var(--bad);
 }
 :root[data-theme="winxp"][data-mode="dark"] .segmented {
   background: #1a2030;

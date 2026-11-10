@@ -29,7 +29,10 @@ STRICT = [
 ] + [(k,bg,4.5,f"DS-COL-7 {k} como texto sobre {bg}") for k in ("--good","--warn","--bad","--info") for bg in ("--surface","--bg")] + [
     ("--accent","--bg",3.0,"DS-COL-7 destaque sobre o fundo"),
 ]
-# Optional derived roles (DS-COL-6/7): checked only when the theme defines them as #rrggbb.
+# Derived roles that fall back to a base token in css/themes.css when a theme leaves them out; they are resolved
+# through that fallback so the pair is always checked (the danger button paints --bad-fg on --bad).
+FALLBACK = {"--bad-fg": "--accent-fg", "--focus": "--accent"}
+# Optional derived roles (DS-COL-6/7): checked when the theme defines them as #rrggbb or they resolve through FALLBACK.
 OPTIONAL = [
     ("--bad-fg","--bad",4.5,"DS-COL-6 texto sobre o estado ruim"),
     ("--focus","--surface",3.0,"anel de foco sobre cards"),
@@ -56,6 +59,8 @@ if not blocks:
 bad=0
 for tid,mode,body in blocks:
     tok=dict(re.findall(r"(-{0,2}[a-z][a-z0-9-]*)\s*:\s*([^;]+);",body))
+    for k,base in FALLBACK.items():
+        if k not in tok and base in tok: tok[k]=tok[base]
     print(f"== {tid} / {mode}")
     for k in REQUIRED:
         v=tok.get(k,"").strip()
