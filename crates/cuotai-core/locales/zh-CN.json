@@ -2024,7 +2024,7 @@
   "user_session.slot.xiaomi_mimo.session_env": "小米账户会话（MiMo Desktop 每周额度）",
   "user_session.warning": "这是一个完整的登录会话。Cuotai 将其保存在系统保险库中，只用于查询此服务。",
   "user_session.warning_env": "这是一个完整的登录会话。Cuotai 从环境变量中读取它，只用于查询此服务；请在账户向导中将其移到系统保险库。",
-  "watch.error.interval_range": "watch 的间隔必须在 {min} 到 {max} 秒之间；更小的值会被拒绝，而不是自动调整。",
+  "watch.error.interval_range": "watch 的间隔必须在 {min} 到 {max} 秒之间；超出此范围的值会被拒绝，而不是自动调整。",
   "watch.error.unknown_event": "未知事件：\"{name}\"。有效事件：{known}。",
   "oauth.xiaomi.invalid_code": "代码无效或属于其他会话；请复制本次尝试的代码。",
   "login.progress.cursor_import": "正在以只读模式读取已授权的 Cursor 会话...",

@@ -2024,7 +2024,7 @@
   "user_session.slot.xiaomi_mimo.session_env": "Xiaomi 계정 세션(MiMo Desktop 주간 할당량)",
   "user_session.warning": "이것은 전체 로그인 세션입니다. Cuotai는 이를 시스템 보관소에 저장하고 이 서비스를 조회하는 데만 사용합니다.",
   "user_session.warning_env": "이것은 전체 로그인 세션입니다. Cuotai는 환경 변수에서 읽어 이 서비스를 조회하는 데만 사용합니다. 계정 마법사에서 시스템 보관소로 옮기세요.",
-  "watch.error.interval_range": "watch 간격은 {min}초에서 {max}초 사이여야 합니다. 더 작은 값은 조정되지 않고 거부됩니다.",
+  "watch.error.interval_range": "watch 간격은 {min}초에서 {max}초 사이여야 합니다. 이 범위를 벗어난 값은 조정되지 않고 거부됩니다.",
   "watch.error.unknown_event": "알 수 없는 이벤트: \"{name}\". 올바른 이벤트: {known}.",
   "oauth.xiaomi.invalid_code": "올바르지 않은 코드이거나 다른 세션의 코드입니다. 이번 시도의 코드를 복사하세요.",
   "login.progress.cursor_import": "승인된 Cursor 세션을 읽기 전용으로 읽는 중...",

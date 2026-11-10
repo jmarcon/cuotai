@@ -27,6 +27,21 @@ fn help_is_english_in_every_locale() {
     }
 }
 
+/// PRD 0013 re-validation R-02: the help follows the behavior. SIGHUP
+/// reloads `--watch` (PRD 0031 RF12) and `--hooks` names every variable a
+/// hook receives (the core's list).
+#[test]
+fn the_watch_and_hooks_help_match_the_behavior() {
+    let output = run("en-US", &["--help"]);
+    let help = String::from_utf8(output.stdout).expect("UTF-8");
+    let flat = help.split_whitespace().collect::<Vec<_>>().join(" ");
+    assert!(!flat.contains("SIGHUP stop"), "{flat}");
+    assert!(flat.contains("SIGHUP rereads the configuration"), "{flat}");
+    for name in cuotai_core::hooks::GENERATED_ENV {
+        assert!(flat.contains(name), "{name} missing from --hooks help");
+    }
+}
+
 #[test]
 fn argument_errors_follow_the_language() {
     let english = run("en-US", &["--days", "7"]);

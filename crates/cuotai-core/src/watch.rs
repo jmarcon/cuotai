@@ -36,7 +36,7 @@ pub fn with_interval(config: &Config, seconds: u64) -> Result<Config, Localized>
                 ("min", ParamValue::from(MIN_INTERVAL_SECONDS)),
                 ("max", ParamValue::from(MAX_REFRESH_SECONDS)),
             ]),
-            "The watch interval must be between {min} and {max} seconds; smaller values are rejected, not adjusted.",
+            "The watch interval must be between {min} and {max} seconds; values outside this range are rejected, not adjusted.",
         ));
     }
     let mut config = config.clone();

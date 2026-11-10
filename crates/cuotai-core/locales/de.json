@@ -2036,7 +2036,7 @@
   "user_session.slot.xiaomi_mimo.session_env": "Sitzung des Xiaomi-Kontos (Wochenkontingent von MiMo Desktop)",
   "user_session.warning": "Dies ist eine vollständige Anmeldesitzung. Cuotai speichert sie im Systemtresor und nutzt sie nur, um diesen Dienst abzufragen.",
   "user_session.warning_env": "Dies ist eine vollständige Anmeldesitzung. Cuotai liest sie aus einer Umgebungsvariable und nutzt sie nur, um diesen Dienst abzufragen; verschieben Sie sie im Kontoassistenten in den Systemtresor.",
-  "watch.error.interval_range": "Das Intervall von watch muss zwischen {min} und {max} Sekunden liegen; kleinere Werte werden abgelehnt, nicht angepasst.",
+  "watch.error.interval_range": "Das Intervall von watch muss zwischen {min} und {max} Sekunden liegen; Werte außerhalb dieses Bereichs werden abgelehnt, nicht angepasst.",
   "watch.error.unknown_event": "Unbekanntes Ereignis: „{name}“. Gültige Ereignisse: {known}.",
   "oauth.xiaomi.invalid_code": "Ungültiger Code oder von einer anderen Sitzung; kopieren Sie den Code dieses Versuchs.",
   "login.progress.cursor_import": "Autorisierte Cursor-Sitzung wird schreibgeschützt gelesen...",

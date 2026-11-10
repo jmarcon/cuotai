@@ -2024,7 +2024,7 @@
   "user_session.slot.xiaomi_mimo.session_env": "Xiaomi アカウントのセッション（MiMo Desktop の週間クォータ）",
   "user_session.warning": "これは完全なログインセッションです。Cuotai はシステムの保管庫に保存し、このサービスの照会にのみ使用します。",
   "user_session.warning_env": "これは完全なログインセッションです。Cuotai は環境変数から読み取り、このサービスの照会にのみ使用します。アカウントのウィザードでシステムの保管庫に移動してください。",
-  "watch.error.interval_range": "watch の間隔は {min}〜{max} 秒にしてください。それより小さい値は調整されず、拒否されます。",
+  "watch.error.interval_range": "watch の間隔は {min}〜{max} 秒にしてください。この範囲外の値は調整されず、拒否されます。",
   "watch.error.unknown_event": "不明なイベント：\"{name}\"。有効なイベント：{known}。",
   "oauth.xiaomi.invalid_code": "コードが無効か、別のセッションのものです。今回の試行のコードをコピーしてください。",
   "login.progress.cursor_import": "承認済みの Cursor のセッションを読み取り専用で読み取っています...",

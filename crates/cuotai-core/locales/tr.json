@@ -2036,7 +2036,7 @@
   "user_session.slot.xiaomi_mimo.session_env": "Xiaomi hesabı oturumu (MiMo Desktop haftalık kotası)",
   "user_session.warning": "Bu tam bir oturum açma oturumudur. Cuotai onu sistem kasasında saklar ve yalnızca bu hizmeti sorgulamak için kullanır.",
   "user_session.warning_env": "Bu tam bir oturum açma oturumudur. Cuotai onu bir ortam değişkeninden okur ve yalnızca bu hizmeti sorgulamak için kullanır; hesap sihirbazında sistem kasasına taşıyın.",
-  "watch.error.interval_range": "İzleme aralığı {min} ile {max} saniye arasında olmalıdır; daha küçük değerler ayarlanmaz, reddedilir.",
+  "watch.error.interval_range": "İzleme aralığı {min} ile {max} saniye arasında olmalıdır; bu aralığın dışındaki değerler ayarlanmaz, reddedilir.",
   "watch.error.unknown_event": "Bilinmeyen olay: \"{name}\". Geçerli olaylar: {known}.",
   "oauth.xiaomi.invalid_code": "Geçersiz kod veya başka bir oturumun kodu; bu denemenin kodunu kopyalayın.",
   "login.progress.cursor_import": "Yetkilendirilmiş Cursor oturumu salt okunur kipte okunuyor...",

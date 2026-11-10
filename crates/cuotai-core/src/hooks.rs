@@ -1849,24 +1849,21 @@ impl Runner {
                 .map(|c| if c.is_control() { '\u{FFFD}' } else { c })
                 .collect()
         };
-        let vars: Arc<[(&'static str, String)]> = Arc::new([
-            ("CUOTAI_EVENT", event.event.name().to_owned()),
-            ("CUOTAI_ACCOUNT", env(&event.account_name)),
-            ("CUOTAI_ACCOUNT_ID", env(&event.account_id)),
-            (
-                "CUOTAI_PROVIDER",
-                event
-                    .provider
-                    .map_or_else(String::new, |p| p.slug().to_owned()),
-            ),
-            (
-                "CUOTAI_METRIC",
-                event
-                    .metric
-                    .as_ref()
-                    .map_or_else(String::new, |metric| env(&metric.label)),
-            ),
-        ]);
+        // In the order of [`GENERATED_ENV`], the one list the review and
+        // the `--hooks` help name too.
+        let values = [
+            event.event.name().to_owned(),
+            env(&event.account_name),
+            env(&event.account_id),
+            event
+                .provider
+                .map_or_else(String::new, |p| p.slug().to_owned()),
+            event
+                .metric
+                .as_ref()
+                .map_or_else(String::new, |metric| env(&metric.label)),
+        ];
+        let vars: Arc<[(&'static str, String)]> = GENERATED_ENV.into_iter().zip(values).collect();
         let mut dropped = 0;
         {
             let mut queue = self
