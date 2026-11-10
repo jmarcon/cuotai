@@ -12,7 +12,7 @@ import { bindUpdateBanner, initUpdates, onUpdateState, promptForUpdateConsent, u
 import { maybeShowFirstRun } from "./first-run.js";
 import { openRestoreDialog } from "./backup-dialog.js";
 import {
-  fmtNext, fmtAge, ALERTS, overageChipHtml, overageLineHtml, ageHtml, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isBindingMetric, isBlocked, isDesktop, isStaleReading, level, logo, wordmark,
+  fmtNext, fmtAge, fmtShare, metricName, ALERTS, overageChipHtml, overageLineHtml, ageHtml, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isBindingMetric, isBlocked, isDesktop, isStaleReading, level, logo, wordmark,
   moveAccount, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
   currentSort, initOrderSync, staleView, configChangedOnDisk, reloadConfig, configLabel, errText, otherConfigNotice, otherConfigBanner, dismissOtherConfig, returnText, splitRecharging,
   accountLabel, billingOverage, fmtExtra, overageLineText, isRecharging, resetsText, bestChipHtml, cardPace, forecastChipHtml, renewedText, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, setPoolAlerts, setBreakdownAlerts, openAggregatorDashboard, incidentHtml, bindStatusLinks, costUsage, paceHtml, paceLineLabel, costPlans,
@@ -58,7 +58,7 @@ const openCostSettings = () => openSettingsWindow({ page: "cost" });
 const costContext = { summary: () => localCost, onSettings: openCostSettings };
 
 /** PRD 0022 RF2: the card's continuous meter; `stale` draws the preserved reading (no pace mark). */
-const cardMeter = (m, pct, stale, name = m.label) =>
+const cardMeter = (m, pct, stale, name = metricName(m)) =>
   meterHtml(pct, { state: stale ? "stale" : m.state === "exhausted" ? "exhausted" : "fresh", expected: expectedLeft(m), name });
 /** One limit of a card (mockup 10): the micro label with the "Binding" tag, the figure with its unit below, the
  *  meter, then "Resets 20:32 · in 2h 11m" once, under the bar. Counts ("15 / 1,000") are in the tooltip. */
@@ -66,9 +66,9 @@ function limitColumn(r, label, m, pct, stale) {
   const binding = isBindingMetric(r, m);
   const exhausted = m.state === "exhausted";
   const reset = resetsText(m);
-  return `<div class="win${binding ? " binding" : ""}" title="${esc(`${m.label} · ${fmtAmount(m)}`)}">
+  return `<div class="win${binding ? " binding" : ""}" title="${esc(`${metricName(m)} · ${fmtAmount(m)}`)}">
     <div class="win-top"><span class="win-name">${esc(label)}</span>${binding ? `<span class="btag" data-binding-chip>${te("binding.tag")}</span>` : ""}</div>
-    ${exhausted ? figureHtml(t("metric.exhausted"), "", { role: "bad", cls: "left wordfig", dim: stale }) : figureHtml(`${Math.round(pct)}%`, t("card.available"), { cls: "left", dim: stale })}
+    ${exhausted ? figureHtml(t("metric.exhausted"), "", { role: "bad", cls: "left wordfig", dim: stale }) : figureHtml(fmtShare(pct), t("card.available"), { cls: "left", dim: stale })}
     ${cardMeter(m, pct, stale, label)}
     <div class="win-reset">${reset ? esc(reset) : `<em>${te("quota.na")}</em>`}</div></div>`;
 }
@@ -104,7 +104,7 @@ function summaryHtml(r, stale = false) {
   const extra = stale ? "" : extraColumn(r);
   if (win.h5 || win.week) return `<div class="wins${extra ? " three" : ""}">${windowSlot(r, "h5", win.h5, stale)}${windowSlot(r, "week", win.week, stale)}${extra}</div>`;
   const s = summaryOf(r);
-  if (s.kind === "bar") return `<div class="wins">${limitColumn(r, s.m.label, s.m, s.pct, stale)}${extra}</div>`;
+  if (s.kind === "bar") return `<div class="wins">${limitColumn(r, metricName(s.m), s.m, s.pct, stale)}${extra}</div>`;
   if (s.kind === "text") {
     return `<div class="sum-text">
       <div class="win-top"><span class="win-name">${esc(s.m.label)}</span></div>

@@ -2,7 +2,7 @@
 // core's spend order, the core's percentage order (`by_percent`), the card line and the truncation note; this module
 // only lays them out (DS-CMP-SUB rows: label, meter when the row has a cap, its amount otherwise, reset chip).
 import { t, te, tl } from "./i18n.js";
-import { esc, fmtAmount, fmtReset, remainingPct, textualMetric } from "./lib.js";
+import { esc, fmtAmount, fmtReset, fmtShare, remainingPct, textualMetric } from "./lib.js";
 import { expectedLeft, meterHtml } from "./components.js";
 
 /** The order the person chose in this window ("spend" or "percent"); kept across redraws. */
@@ -25,7 +25,7 @@ function rowHtml(row, so, po, i) {
   const amount = m ? fmtAmount(m) : "—";
   const state = m?.state === "exhausted" ? "exhausted" : pct == null ? "unknown" : "fresh";
   const figure = m && text == null && pct != null
-    ? `<span class="pct">${Math.round(pct)}%<small>${te("card.available")}</small></span>`
+    ? `<span class="pct">${fmtShare(pct)}<small>${te("card.available")}</small></span>`
     : `<span class="brk-amount">${esc(text ?? amount)}</span>`;
   const gauge = m && text == null && pct != null
     ? `<div class="gauge">${meterHtml(pct, { state, expected: expectedLeft(m), text: t("meter.left", { pct: Math.round(pct) }), name: label })}</div>`

@@ -2,7 +2,7 @@
 // Single criterion: AVAILABLE percentage, bar = available, amount = used / limit; metrics without a limit become text.
 import { t, te, tl } from "./i18n.js";
 import {
-  STALE, accessHtml, ageHtml, bindingChipText, causeText, errText, esc, fmtAmount, fmtReset, getView, icon, incidentDetailHtml, isBindingMetric, isMetricHidden, isRenewedWaiting, isStaleReading, level, loadModels, metricAlertHtml, metricKey, modelState, noteText,
+  STALE, accessHtml, ageHtml, bindingChipText, fmtShare, causeText, errText, esc, fmtAmount, fmtReset, getView, icon, incidentDetailHtml, isBindingMetric, isMetricHidden, isRenewedWaiting, isStaleReading, level, loadModels, metricAlertHtml, metricKey, modelState, noteText,
   adviceHtml, fmtMetricExtra, forecastHtml, scopeBlocksHtml, isOverage, openExternal, overageDetailHtml, paceHtml, paceOf, remainingPct, renewedText, reportKey, restNotes, staleView, statusLabel, syncModels, textualMetric,
 } from "./lib.js";
 import { expectedLeft, fmtAt, meterHtml, stageChip, TONE_ROLE } from "./components.js";
@@ -56,7 +56,7 @@ export function metricCardHtml(r, m, { eye = false, stale = false } = {}) {
     <div class="metric-top">
       <h3>${esc(limitLabel(r, m))}${budget ? ` <span class="btag budget" data-budget-chip>${esc(budget)}</span>` : ""}${m.alert?.active ? ` <span class="btag warn" data-usage-alert-chip>${icon("bell")}${te("alerts.activeTitle")}</span>` : ""}${binding ? ` <span class="btag" data-binding-chip title="${esc(`${t("card.binding.title")}: ${bindingChipText(r)}`)}">${te("binding.tag")}</span>` : ""}</h3>
       <div class="metric-right">
-        ${text == null && pct != null ? `<span class="pct" title="${te(`metric.level.${lv}`, { pct: Math.round(pct) })}">${Math.round(pct)}%<small>${te("card.available")}</small></span>` : ""}
+        ${text == null && pct != null ? `<span class="pct" title="${te(`metric.level.${lv}`, { pct: Math.round(pct) })}">${fmtShare(pct)}<small>${te("card.available")}</small></span>` : ""}
         ${eye ? metricAlertHtml(r, m) : ""}
         ${eye ? `<button class="icon" data-hide="${esc(metricKey(r, m))}" title="${te(hid ? "common.show" : "common.hide")}" aria-label="${te(hid ? "common.show" : "common.hide")}">${icon(hid ? "eye" : "eyeOff")}</button>` : ""}
       </div>

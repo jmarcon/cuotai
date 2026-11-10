@@ -5,7 +5,7 @@
 // the core (`tl`) or from the UI catalogs.
 import { t, te, tl } from "./i18n.js";
 import {
-  ALERTS, billingOverage, bindingPct, brand, fmtExtra, fmtLocal, paceUnit, esc, fmtAge, icon, incidentBadge, isBlocked, isMetricHidden, isStaleReading, level, logo,
+  ALERTS, billingOverage, bindingLabel, bindingPct, brand, fmtShare, fmtExtra, fmtLocal, paceUnit, esc, fmtAge, icon, incidentBadge, isBlocked, isMetricHidden, isStaleReading, level, logo,
   paceLabelOf, paceOf, remainingPct, reportKey, shownAt, staleView, statusLabel, summaryOf, windowsOf,
   planBadgeHtml,
 } from "./lib.js";
@@ -223,11 +223,10 @@ export function statusParts(r, st = accountState(r)) {
   } else if (binding) {
     // Fa gap 1: without a pace the line names the level (never the window, which the meter's limit already is); the
     // window stays in the detail and the tooltip.
-    const w = r.binding.window;
     const lv = st.role === "good" || st.role === "warn" || st.role === "bad" ? st.role : null;
-    label = lv ? t(`stage.level.${lv}`) : w && w !== "other" ? t(`card.binding.${w}`) : r.binding.label ?? binding.label;
+    label = lv ? t(`stage.level.${lv}`) : bindingLabel(r) || binding.label;
     role = lv ?? "fg";
-    if (lv) detail = w && w !== "other" ? t(`card.binding.${w}`) : r.binding.label ?? binding.label ?? "";
+    if (lv) detail = bindingLabel(r) || binding.label || "";
     reset = binding.resets_at;
   } else if (st.kind === "unknown") {
     label = t("meter.noData");
@@ -523,7 +522,7 @@ export function accountMeterHtml(r, st = accountState(r), { thin = false } = {})
 }
 // ---------- DS-CMP-ROW-8: the tray row's two windows ----------
 /** "22%" with the honest rounding of DS-CMP-MTR-4: a sliver reads "< 1%", an unfinished window never "100%". */
-export const fmtShare = (p) => (p > 0 && p < 1 ? "< 1%" : `${p < 100 ? Math.min(99, Math.round(p)) : Math.round(p)}%`);
+export { fmtShare };
 /** The name of one bar: the model (a scoped limit, PRD 0023) or the window ("5h", "Week"), from the core's data. */
 const windowName = (m, byModel) => (byModel && m.scope?.label ? m.scope.label : paceLabelOf(m));
 /** One bar of the pair: the metric, its remaining share, its name, its core pace and whether it limits the account. */
