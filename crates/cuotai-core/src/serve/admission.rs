@@ -2,16 +2,23 @@
 //!
 //! [`Pending`] counts the connections still sending their head, in all and
 //! per peer address, so one peer (all of loopback is one peer, by design)
-//! holding slow heads cannot take every slot. [`Buckets`] rate-limits the
-//! completed heads per peer and in all, before any validation or export.
-//! Both are pure: time is passed in (`tokio::time::Instant`, so tests can
-//! pause the clock).
+//! holding slow heads cannot take every slot. A connection over either
+//! limit waits, first come first served and for at most the head deadline,
+//! for a slot that frees ([`PendingSlot::enter_or_queue`]), so a client
+//! that keeps refreshing half-open sockets queues behind the clients that
+//! were already waiting instead of taking every freed slot. [`Buckets`]
+//! rate-limits the completed heads per peer and in all; the server keeps
+//! one set for admitted heads and another for refused ones, so refused
+//! requests never spend the budget of the clients that send the token.
+//! The buckets are pure: time is passed in (`tokio::time::Instant`, so
+//! tests can pause the clock).
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::net::IpAddr;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
+use tokio::sync::oneshot;
 use tokio::time::Instant;
 
 use super::Rate;
@@ -23,11 +30,23 @@ pub const MAX_PEERS: usize = 256;
 /// How long a [`Buckets`] remembers an idle peer.
 pub const PEER_MEMORY: Duration = Duration::from_secs(600);
 
-/// Connections still reading their head.
+/// Connections still reading their head, and those waiting for a slot.
 #[derive(Debug, Default)]
 pub struct Pending {
     total: usize,
     per_peer: HashMap<IpAddr, usize>,
+    waiting: VecDeque<Waiter>,
+    next_id: u64,
+}
+
+/// A connection waiting for a pending slot, with the limits of its accept.
+#[derive(Debug)]
+struct Waiter {
+    id: u64,
+    peer: IpAddr,
+    max: usize,
+    max_per_peer: usize,
+    granted: oneshot::Sender<()>,
 }
 
 impl Pending {
@@ -43,7 +62,14 @@ impl Pending {
         true
     }
 
+    /// Give a slot of `peer` back and hand it to the oldest waiter that
+    /// fits.
     pub fn leave(&mut self, peer: IpAddr) {
+        self.release(peer);
+        self.hand_off();
+    }
+
+    fn release(&mut self, peer: IpAddr) {
         self.total = self.total.saturating_sub(1);
         if let Some(held) = self.per_peer.get_mut(&peer) {
             *held -= 1;
@@ -51,6 +77,41 @@ impl Pending {
                 self.per_peer.remove(&peer);
             }
         }
+    }
+
+    /// Grant free slots to the waiters, oldest first; a waiter whose peer
+    /// is still at its limit keeps its place, and one that gave up leaves.
+    fn hand_off(&mut self) {
+        let mut at = 0;
+        while at < self.waiting.len() {
+            let (peer, max, max_per_peer, gone) = {
+                let waiter = &self.waiting[at];
+                (
+                    waiter.peer,
+                    waiter.max,
+                    waiter.max_per_peer,
+                    waiter.granted.is_closed(),
+                )
+            };
+            if gone {
+                self.waiting.remove(at);
+            } else if self.try_enter(peer, max, max_per_peer) {
+                let waiter = self.waiting.remove(at).expect("index in range");
+                if waiter.granted.send(()).is_err() {
+                    self.release(peer);
+                }
+            } else {
+                at += 1;
+            }
+        }
+    }
+
+    /// Whether a live waiter of `peer` is queued, so a newcomer of the same
+    /// peer must queue behind it.
+    fn peer_waiting(&self, peer: IpAddr) -> bool {
+        self.waiting
+            .iter()
+            .any(|waiter| waiter.peer == peer && !waiter.granted.is_closed())
     }
 
     #[cfg(test)]
@@ -65,7 +126,86 @@ pub struct PendingSlot {
     peer: IpAddr,
 }
 
+/// What [`PendingSlot::enter_or_queue`] gives a new connection.
+pub enum Entry {
+    /// A slot, now.
+    Slot(PendingSlot),
+    /// A place in the queue; [`Ticket::wait`] for the slot.
+    Queued(Ticket),
+    /// The queue is full too: close the connection.
+    Full,
+}
+
+/// A connection's place in the [`Pending`] queue.
+pub struct Ticket {
+    pending: Arc<Mutex<Pending>>,
+    peer: IpAddr,
+    id: u64,
+    granted: oneshot::Receiver<()>,
+}
+
+impl Ticket {
+    /// The slot, once one is handed to this ticket within `limit`; `None`
+    /// when the limit passes first (the place in the queue is given up).
+    pub async fn wait(mut self, limit: Duration) -> Option<PendingSlot> {
+        let slot = |ticket: &Self| PendingSlot {
+            pending: Arc::clone(&ticket.pending),
+            peer: ticket.peer,
+        };
+        if let Ok(Ok(())) = tokio::time::timeout(limit, &mut self.granted).await {
+            return Some(slot(&self));
+        }
+        self.pending
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .waiting
+            .retain(|waiter| waiter.id != self.id);
+        // Granted between the deadline and the lock: the slot is counted.
+        self.granted.try_recv().is_ok().then(|| slot(&self))
+    }
+}
+
 impl PendingSlot {
+    /// PRD 0050 RF5.2: a slot of `peer` now, or a place in the queue while
+    /// fewer than `max_waiting` connections wait, or `Full`. A newcomer
+    /// queues behind a waiter of its own peer even if a slot is free.
+    pub fn enter_or_queue(
+        pending: &Arc<Mutex<Pending>>,
+        peer: IpAddr,
+        max: usize,
+        max_per_peer: usize,
+        max_waiting: usize,
+    ) -> Entry {
+        let mut guard = pending.lock().unwrap_or_else(PoisonError::into_inner);
+        guard.waiting.retain(|waiter| !waiter.granted.is_closed());
+        if !guard.peer_waiting(peer) && guard.try_enter(peer, max, max_per_peer) {
+            return Entry::Slot(Self {
+                pending: Arc::clone(pending),
+                peer,
+            });
+        }
+        if guard.waiting.len() >= max_waiting {
+            return Entry::Full;
+        }
+        let (granted, receiver) = oneshot::channel();
+        guard.next_id += 1;
+        let id = guard.next_id;
+        guard.waiting.push_back(Waiter {
+            id,
+            peer,
+            max,
+            max_per_peer,
+            granted,
+        });
+        Entry::Queued(Ticket {
+            pending: Arc::clone(pending),
+            peer,
+            id,
+            granted: receiver,
+        })
+    }
+
+    #[cfg(test)]
     pub fn enter(
         pending: &Arc<Mutex<Pending>>,
         peer: IpAddr,
@@ -222,6 +362,49 @@ mod tests {
         }
         assert!(!full.try_enter(ip(9), 16, 4));
         assert_eq!(full.total(), 16);
+    }
+
+    /// PRD 0050 RF5.2: over the limit a connection waits for a freed slot,
+    /// first come first served; a newcomer of the same peer queues behind
+    /// the waiters, another peer with room is not held up, and a full queue
+    /// closes the connection.
+    #[tokio::test]
+    async fn freed_slots_go_to_the_oldest_waiter_and_the_queue_is_bounded() {
+        let pending = Arc::new(Mutex::new(Pending::default()));
+        let enter = |peer| PendingSlot::enter_or_queue(&pending, peer, 16, 2, 2);
+        let mut held: Vec<_> = (0..2)
+            .map(|_| match enter(ip(1)) {
+                Entry::Slot(slot) => slot,
+                _ => panic!("room for two"),
+            })
+            .collect();
+        let Entry::Queued(first) = enter(ip(1)) else {
+            panic!("over the peer limit it queues");
+        };
+        assert!(
+            matches!(enter(ip(2)), Entry::Slot(_)),
+            "another peer has room"
+        );
+        let Entry::Queued(second) = enter(ip(1)) else {
+            panic!("queues behind the first waiter");
+        };
+        assert!(matches!(enter(ip(1)), Entry::Full), "the queue holds two");
+
+        drop(held.pop());
+        let first = first.wait(Duration::from_millis(50)).await;
+        assert!(first.is_some(), "the oldest waiter gets the freed slot");
+        assert!(
+            second.wait(Duration::from_millis(50)).await.is_none(),
+            "the next one gives up at its deadline"
+        );
+        assert_eq!(pending.lock().unwrap().waiting.len(), 0);
+        assert!(
+            matches!(enter(ip(1)), Entry::Queued(_)),
+            "both slots of the peer are still held"
+        );
+        drop((held, first));
+        assert_eq!(pending.lock().unwrap().total(), 0);
+        assert!(matches!(enter(ip(1)), Entry::Slot(_)));
     }
 
     #[test]

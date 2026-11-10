@@ -454,9 +454,9 @@ credential_env = "GROQ_KEY"
 }
 
 /// PRD 0050 RF5.2: idle connections hold pending-head slots, at most
-/// `max_pending_heads_per_peer` of one peer (all of loopback); one more is
-/// closed unanswered until a slot frees, and a slot frees at the head
-/// deadline.
+/// `max_pending_heads_per_peer` of one peer (all of loopback); one more
+/// waits its turn for a freed slot instead of being closed, a slot frees at
+/// the head deadline, and only a full queue closes a connection unanswered.
 // security-invariant: SEC-SERVE-ADMISSION
 #[tokio::test]
 async fn pending_heads_are_bounded_per_peer_and_freed_at_their_deadline() {
@@ -467,32 +467,40 @@ async fn pending_heads_are_bounded_per_peer_and_freed_at_their_deadline() {
         idle.push(TcpStream::connect(server.addr()).await.unwrap());
     }
     tokio::time::sleep(Duration::from_millis(100)).await;
-    assert!(
-        request(&server, Method::GET, "/health")
-            .send()
-            .await
-            .is_err(),
-        "a fifth connection of the same peer is closed unanswered"
-    );
-
+    let waiting = tokio::spawn({
+        let url = format!("{}/health", server.url());
+        async move { client().get(url).send().await.map(|r| r.status()) }
+    });
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert!(!waiting.is_finished(), "a fifth connection waits its turn");
     drop(idle.pop());
-    let mut served = None;
-    for _ in 0..100 {
-        if let Ok(response) = request(&server, Method::GET, "/health").send().await {
-            served = Some(response.status());
-            break;
-        }
-        tokio::time::sleep(Duration::from_millis(20)).await;
-    }
-    assert_eq!(served, Some(StatusCode::OK), "the freed slot serves again");
+    let served = tokio::time::timeout(Duration::from_secs(2), waiting).await;
+    assert_eq!(
+        served.unwrap().unwrap().ok(),
+        Some(StatusCode::OK),
+        "the freed slot goes to the waiting client"
+    );
 
     // The other three idle heads are cut at the one-second head deadline.
     let mut idle = Vec::new();
     for _ in 0..4 {
         idle.push(TcpStream::connect(server.addr()).await.unwrap());
     }
-    let started = Instant::now();
+    // Sixteen more wait for a slot; the next one finds the queue full.
+    let mut queued = Vec::new();
+    for _ in 0..16 {
+        queued.push(TcpStream::connect(server.addr()).await.unwrap());
+    }
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    let mut refused = TcpStream::connect(server.addr()).await.unwrap();
     let mut buf = [0u8; 16];
+    let read = tokio::time::timeout(Duration::from_millis(500), refused.read(&mut buf)).await;
+    assert!(
+        matches!(read, Ok(Ok(0)) | Ok(Err(_))),
+        "a full queue closes the connection unanswered"
+    );
+    drop(queued);
+    let started = Instant::now();
     for stream in &mut idle {
         let read = tokio::time::timeout(Duration::from_secs(3), stream.read(&mut buf)).await;
         assert!(matches!(read, Ok(Ok(0)) | Ok(Err(_))), "closed unanswered");
@@ -503,6 +511,108 @@ async fn pending_heads_are_bounded_per_peer_and_freed_at_their_deadline() {
         started.elapsed()
     );
     assert_eq!(get(&server, "/health").await.status(), StatusCode::OK);
+}
+
+/// PRD 0050 RF5.2 (PRD 0012 re-validation S-02): a client that keeps four
+/// half-open heads alive by refreshing them before their deadline no longer
+/// starves the clients that send the token: they queue ahead of the
+/// refreshed sockets and are served.
+// security-invariant: SEC-SERVE-ADMISSION
+#[tokio::test]
+async fn refreshed_half_open_heads_do_not_starve_token_holders() {
+    let token = Token::generate().unwrap();
+    let server = start_exact(
+        ServeConfig {
+            token: Some(token.clone()),
+            ..ServeConfig::default()
+        },
+        fixture_source(),
+    )
+    .await;
+    let addr = server.addr();
+    let attacker = tokio::spawn(async move {
+        loop {
+            let mut held = Vec::new();
+            for _ in 0..4 {
+                if let Ok(mut stream) = TcpStream::connect(addr).await {
+                    let _ = stream.write_all(b"GET /health HTTP/1.1\r\n").await;
+                    held.push(stream);
+                }
+            }
+            tokio::time::sleep(Duration::from_millis(900)).await;
+        }
+    });
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    for _ in 0..3 {
+        let response = request(&server, Method::GET, "/v1/limits")
+            .bearer_auth(token.expose())
+            .timeout(Duration::from_secs(4))
+            .send()
+            .await
+            .expect("a token holder is served while half-open heads refresh");
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+    attacker.abort();
+}
+
+/// PRD 0012 RF2.4: once `max_connections` authenticated requests are being
+/// served, one more gets `503 busy` with `Retry-After: 1`.
+#[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+async fn authenticated_requests_over_the_serving_cap_get_busy() {
+    let gate = Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new()));
+    let entered = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let source = {
+        let (gate, entered) = (Arc::clone(&gate), Arc::clone(&entered));
+        move || {
+            entered.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            // The wait blocks a runtime worker: hand its queued tasks to
+            // another worker first, and never wait past 10 s, so the test
+            // cannot hang.
+            tokio::task::block_in_place(|| {
+                let (open, wake) = &*gate;
+                let open = open.lock().unwrap();
+                let _ = wake
+                    .wait_timeout_while(open, Duration::from_secs(10), |open| !*open)
+                    .unwrap();
+            });
+            None
+        }
+    };
+    let server = start(
+        ServeConfig {
+            bounds: Bounds {
+                max_connections: 4,
+                ..Bounds::default()
+            },
+            ..ServeConfig::default()
+        },
+        source,
+    )
+    .await;
+    let blocked: Vec<_> = (0..4)
+        .map(|_| {
+            let url = format!("{}/v1/snapshot", server.url());
+            tokio::spawn(async move { client().get(url).send().await.map(|r| r.status()) })
+        })
+        .collect();
+    for _ in 0..200 {
+        if entered.load(std::sync::atomic::Ordering::SeqCst) == 4 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    assert_eq!(entered.load(std::sync::atomic::Ordering::SeqCst), 4);
+    let busy = get(&server, "/v1/snapshot").await;
+    assert_eq!(busy.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(busy.headers()[header::RETRY_AFTER], "1");
+    assert_eq!(json(busy).await["error"], "busy");
+    *gate.0.lock().unwrap() = true;
+    gate.1.notify_all();
+    for request in blocked {
+        let status = request.await.unwrap().unwrap();
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "no data yet");
+    }
+    assert_eq!(entered.load(std::sync::atomic::Ordering::SeqCst), 4);
 }
 
 /// PRD 0050 RF5.1: limits outside their ranges are refused.
@@ -553,8 +663,9 @@ fn bounds_outside_their_ranges_are_refused() {
 }
 
 /// PRD 0050 RF5.2/RF5.3: refused heads never build an export: 61 wrong
-/// tokens from one peer get `401` for its burst of 20, then `429` with a
-/// bounded `Retry-After`, and the source is never asked.
+/// tokens from one peer get `401` for the refused burst of 20, then `429`
+/// with a bounded `Retry-After`, and the source is never asked. The flood
+/// draws only on the refused buckets: the token holder is still served.
 // security-invariant: SEC-SERVE-ADMISSION
 #[tokio::test]
 async fn rejected_and_rate_limited_heads_never_build_an_export() {
@@ -567,7 +678,7 @@ async fn rejected_and_rate_limited_heads_never_build_an_export() {
     let token = Token::generate().unwrap();
     let server = start_exact(
         ServeConfig {
-            token: Some(token),
+            token: Some(token.clone()),
             ..ServeConfig::default()
         },
         source,
@@ -599,6 +710,55 @@ async fn rejected_and_rate_limited_heads_never_build_an_export() {
         0,
         "no export built"
     );
+    let holder = request(&server, Method::GET, "/v1/snapshot")
+        .bearer_auth(token.expose())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(holder.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(
+        json(holder).await["error"],
+        "no_data",
+        "admitted, not limited"
+    );
+    assert_eq!(built.load(std::sync::atomic::Ordering::SeqCst), 1);
+}
+
+/// PRD 0012 re-validation S-02: page requests a browser sends on its own
+/// (`no-cors`) are refused from their own budget; past it they get `429`,
+/// and the token holder's `/v1/limits` is still answered.
+// security-invariant: SEC-SERVE-ADMISSION
+#[tokio::test]
+async fn refused_page_requests_do_not_spend_the_token_holders_budget() {
+    let token = Token::generate().unwrap();
+    let server = start_exact(
+        ServeConfig {
+            token: Some(token.clone()),
+            ..ServeConfig::default()
+        },
+        fixture_source(),
+    )
+    .await;
+    let mut limited = 0;
+    for _ in 0..25 {
+        let response = request(&server, Method::GET, "/v1/limits")
+            .header("sec-fetch-site", "cross-site")
+            .send()
+            .await
+            .unwrap();
+        match response.status() {
+            StatusCode::FORBIDDEN => {}
+            StatusCode::TOO_MANY_REQUESTS => limited += 1,
+            other => panic!("{other}"),
+        }
+    }
+    assert_eq!(limited, 5, "the refused burst is 20");
+    let response = request(&server, Method::GET, "/v1/limits")
+        .bearer_auth(token.expose())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
 }
 
 #[tokio::test]

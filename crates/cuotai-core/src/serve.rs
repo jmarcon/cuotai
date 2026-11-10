@@ -795,6 +795,7 @@ impl LocalServer {
             stats_asked: std::sync::Mutex::new(std::collections::HashMap::new()),
             pending: Arc::default(),
             buckets: std::sync::Mutex::default(),
+            refused: std::sync::Mutex::default(),
         });
         let task = tokio::spawn(accept_loop(listeners, state.clone(), stopped));
         Self {
@@ -999,9 +1000,13 @@ struct State {
     serving: Arc<Semaphore>,
     /// PRD 0050 RF5.2: connections still sending their head.
     pending: Arc<std::sync::Mutex<admission::Pending>>,
-    /// PRD 0050 RF5.3: completed heads per peer and in all; outlives a
+    /// PRD 0050 RF5.3: admitted heads per peer and in all; outlives a
     /// reconfigure like `stats_asked`.
     buckets: std::sync::Mutex<admission::Buckets>,
+    /// ... and refused heads (wrong or missing token, foreign `Host`, a
+    /// page, a preflight), at the same rates but in buckets of their own,
+    /// so a refused flood never spends the budget of the token holders.
+    refused: std::sync::Mutex<admission::Buckets>,
 }
 
 impl State {
@@ -1122,18 +1127,33 @@ async fn accept_loop(
                     let bounds = snapshot.config.bounds;
                     // PRD 0050 RF5.2: a pending-head slot, in all and for
                     // this peer, at accept; over either limit the
-                    // connection is closed at once.
+                    // connection waits its turn (first come, first served)
+                    // for at most the head deadline, and while
+                    // `max_pending_heads` connections already wait it is
+                    // closed at once.
                     let peer = peer.ip().to_canonical();
-                    let Some(pending) = admission::PendingSlot::enter(
+                    let entry = admission::PendingSlot::enter_or_queue(
                         &state.pending,
                         peer,
                         bounds.max_pending_heads,
                         bounds.max_pending_heads_per_peer,
-                    ) else {
+                        bounds.max_pending_heads,
+                    );
+                    if matches!(entry, admission::Entry::Full) {
                         continue;
-                    };
+                    }
                     let state = Arc::clone(&state);
                     connections.spawn(async move {
+                        let pending = match entry {
+                            admission::Entry::Slot(slot) => slot,
+                            admission::Entry::Queued(ticket) => {
+                                match ticket.wait(bounds.head_timeout).await {
+                                    Some(slot) => slot,
+                                    None => return,
+                                }
+                            }
+                            admission::Entry::Full => return,
+                        };
                         serve_connection(stream, peer, pending, &state, &snapshot).await;
                     });
                 }
@@ -1223,10 +1243,11 @@ fn log(
 }
 
 impl State {
-    /// PRD 0050 RF5: the rate of completed heads, then the RF3 checks while
-    /// the head still holds its pending slot, then (with the slot given
-    /// back) an authenticated-serving slot and the route. A refused head
-    /// never reaches the source.
+    /// PRD 0050 RF5: the RF3 checks while the head still holds its pending
+    /// slot, then the rate, charged to the admitted or to the refused
+    /// buckets, then (with the slot given back) an authenticated-serving
+    /// slot and the route. A refused head never reaches the source, and
+    /// past its own budget it gets `429` like an admitted one.
     fn respond(
         &self,
         head: &Head,
@@ -1235,8 +1256,13 @@ impl State {
         snapshot: &Snapshot,
     ) -> Response {
         let bounds = snapshot.config.bounds;
-        let rate = self
-            .buckets
+        let admitted = self.admit(head, peer, snapshot);
+        let buckets = if admitted.is_ok() {
+            &self.buckets
+        } else {
+            &self.refused
+        };
+        let rate = buckets
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .take(
@@ -1250,7 +1276,7 @@ impl State {
             return Response::error(429, "rate_limited")
                 .header("Retry-After", seconds.clamp(1, 60).to_string());
         }
-        if let Err(refused) = self.admit(head, peer, snapshot) {
+        if let Err(refused) = admitted {
             return refused;
         }
         drop(pending);
