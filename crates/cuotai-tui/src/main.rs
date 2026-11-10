@@ -531,7 +531,7 @@ struct Args {
     json_v1: bool,
     /// Read-only local HTTP server on 127.0.0.1, without opening the TUI and
     /// without needing a terminal: keeps the refresh cycle and serves the v1
-    /// export (/health, /v1/snapshot, /v1/accounts/{key}, /v1/limits)
+    /// export (/health, /v1/snapshot, /v1/accounts/{id_or_key}, /v1/limits)
     /// without querying the providers per request. SIGINT/SIGTERM stop it,
     /// with exit 0 (with --strict-exit: 2 when no account was healthy until
     /// the shutdown); 1 on a local error (port taken, configuration, token).
@@ -557,7 +557,7 @@ struct Args {
     /// statistics from the local history (peaks, times a limit was reached,
     /// no raw samples, e-mails or URLs). Off by default; requires the token
     /// (does not combine with --no-token), loopback only, 6 requests per
-    /// minute per origin, and answers 503 history_off without a recorded
+    /// minute per peer, and answers 503 history_off without a recorded
     /// history.
     #[arg(long, requires = "serve", conflicts_with = "no_token")]
     serve_stats: bool,

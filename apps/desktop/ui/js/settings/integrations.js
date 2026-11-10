@@ -42,7 +42,8 @@ export function integrationHtml(sv, message = []) {
         <button class="btn sm" data-serve-copy-url>${icon("copy")} ${te("settings.serve.copyUrl")}</button></p>`
     : sv.state === "error"
       ? `<p class="hint warn-txt" data-serve-state role="alert">${icon("warn")} <strong>${te("settings.serve.state.error")}</strong> ${tle(sv.error)}${
-        sv.cuotai_on_port ? ` ${te("settings.serve.cuotaiOnPort", { port: sv.port })}` : ""}</p>`
+        sv.cuotai_on_port ? ` ${te("settings.serve.cuotaiOnPort", { port: sv.port })}`
+          : sv.error?.id === "serve.error.port_taken" ? ` ${te("settings.serve.portHint")}` : ""}</p>`
       : `<p class="hint" data-serve-state><strong>${te("settings.serve.state.off")}</strong></p>`;
   // PRD 0012 RF5: a server that ran without a token got one; say where to copy it until the user does.
   const notice = sv.token_notice ? `<p class="hint warn-txt" role="status" data-serve-token-notice>${icon("warn")} ${te("settings.serve.token.notice")}</p>` : "";
@@ -68,7 +69,7 @@ export function integrationHtml(sv, message = []) {
         control: (a) => seg("serve-access-log", ["off", "errors", "all"].map((mode) => [mode, te(`settings.serve.accessLog.${mode}`)]), sv.access_log ?? "off", a),
         body: buttons(`<button class="btn sm danger-btn" data-serve-access-log-erase ${sv.access_log_bytes > 0 ? "" : "disabled"}>${icon("trash")} ${te("settings.serve.accessLog.erase")}</button>`) })
       // PRD 0050 RF4: browsers need the token and the exact origins of the user's pages; the core validates both.
-      + row({ key: "browsers", label: te("settings.serve.browsers"), info: te("settings.serve.browsersOff"), msg: "serve-browsers-msg",
+      + row({ key: "browsers", label: te("settings.serve.browsers"), info: te("settings.serve.browsersHelp"), msg: "serve-browsers-msg",
         desc: !sv.token && !sv.allow_browsers ? te("settings.serve.browsersNeedsToken") : "",
         control: (a) => sw("serve-browsers", sv.allow_browsers, a),
         // RF5.3: the warning shows only in the state it applies to.

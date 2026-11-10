@@ -1532,7 +1532,7 @@ function demoServeView() {
     allowed_origins: s.allowed_origins ?? [], origins_notice: false, token_notice: false,
     access_log: s.access_log ?? "off", access_log_bytes: s.access_log_bytes ?? 0,
     url: state === "on" ? `http://127.0.0.1:${s.port}` : null,
-    error: taken ? { id: "serve.error.port_taken", params: { port: s.port }, fallback: `Port ${s.port} is in use; choose another port for the local server.` } : null,
+    error: taken ? { id: "serve.error.port_taken", params: { port: s.port }, fallback: `Port ${s.port} is in use.` } : null,
     cuotai_on_port: taken, default_port: 6738, port_min: 1024, port_max: 65535,
     browsers_warning: { id: "serve.allow_browsers.warning", params: {}, fallback: "With browsers allowed, the pages of the trusted origins that know the access token can read your usage from the local server. Add only origins you control." } };
 }

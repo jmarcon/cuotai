@@ -1921,7 +1921,7 @@
   "serve.error.invalid_token": "로컬 서버 토큰이 올바르지 않습니다. 공백 없이 16~512자를 사용하세요(영문자, 숫자, - . _ ~ + /).",
   "serve.error.non_loopback": "로컬 서버는 루프백(127.0.0.1 또는 ::1)에서만 수신합니다. {addr} 주소는 루프백 밖으로 열겠다는 명시적 옵션이 필요합니다.",
   "serve.error.port_in_use": "{first}~{last} 포트가 모두 사용 중입니다. 로컬 서버에 다른 포트를 고르세요.",
-  "serve.error.port_taken": "{port} 포트가 사용 중입니다. 로컬 서버에 다른 포트를 고르세요.",
+  "serve.error.port_taken": "{port} 포트가 사용 중입니다.",
   "serve.error.random": "시스템 난수 생성기를 사용할 수 없어 토큰을 만들지 않았습니다.",
   "serve.error.token_file": "로컬 서버 토큰 파일을 읽거나 만들지 못했습니다(토큰 하나만 담긴, 내 소유의 일반 파일이어야 합니다).",
   "serve.error.token_missing": "로컬 서버 토큰이 시스템 보관소에 더 이상 없습니다. 새로 생성하거나 토큰을 폐기하세요.",

@@ -1921,7 +1921,7 @@
   "serve.error.invalid_token": "本地服务器令牌无效：请使用 16 到 512 个不含空格的字符（字母、数字以及 - . _ ~ + /）。",
   "serve.error.non_loopback": "本地服务器只在回环地址上监听（127.0.0.1 或 ::1）；地址 {addr} 需要回环之外的明确选项。",
   "serve.error.port_in_use": "端口 {first} 到 {last} 均已被占用；请为本地服务器选择其他端口。",
-  "serve.error.port_taken": "端口 {port} 已被占用；请为本地服务器选择其他端口。",
+  "serve.error.port_taken": "端口 {port} 已被占用。",
   "serve.error.random": "系统的随机数生成器不可用；未创建令牌。",
   "serve.error.token_file": "无法读取或创建本地服务器的令牌文件（必须是您自己的普通文件，且只包含一个令牌）。",
   "serve.error.token_missing": "本地服务器令牌已不在系统保险库中；请生成新令牌或撤销该令牌。",

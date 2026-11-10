@@ -1921,7 +1921,7 @@
   "serve.error.invalid_token": "Token server lokal tidak valid: gunakan 16 hingga 512 karakter, tanpa spasi (huruf, angka, dan - . _ ~ + /).",
   "serve.error.non_loopback": "Server lokal hanya mendengarkan di loopback (127.0.0.1 atau ::1); alamat {addr} memerlukan opsi eksplisit di luar loopback.",
   "serve.error.port_in_use": "Port {first} hingga {last} sedang dipakai; pilih port lain untuk server lokal.",
-  "serve.error.port_taken": "Port {port} sedang dipakai; pilih port lain untuk server lokal.",
+  "serve.error.port_taken": "Port {port} sedang dipakai.",
   "serve.error.random": "Generator acak sistem tidak tersedia; token tidak dibuat.",
   "serve.error.token_file": "Tidak dapat membaca atau membuat file token server lokal (harus berupa file biasa milik Anda, dengan satu token).",
   "serve.error.token_missing": "Token server lokal sudah tidak ada di brankas sistem; buat yang baru atau cabut token.",

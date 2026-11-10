@@ -1930,7 +1930,7 @@
   "serve.error.invalid_token": "Token do servidor local inválido: use de 16 a 512 caracteres, sem espaços (letras, números e - . _ ~ + /).",
   "serve.error.non_loopback": "O servidor local só escuta em loopback (127.0.0.1 ou ::1); o endereço {addr} exige a opção explícita para fora do loopback.",
   "serve.error.port_in_use": "As portas {first} a {last} estão em uso; escolha outra porta para o servidor local.",
-  "serve.error.port_taken": "A porta {port} está em uso; escolha outra porta para o servidor local.",
+  "serve.error.port_taken": "A porta {port} está em uso.",
   "serve.error.random": "O gerador aleatório do sistema está indisponível; o token não foi criado.",
   "serve.error.token_file": "Não foi possível ler ou criar o arquivo de token do servidor local (ele deve ser um arquivo comum seu, com um único token).",
   "serve.error.token_missing": "O token do servidor local não está mais no cofre do sistema; gere um novo ou revogue o token.",
