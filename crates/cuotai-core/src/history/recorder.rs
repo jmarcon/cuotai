@@ -28,6 +28,10 @@ enum Job {
         metrics: Vec<Metric>,
     },
     MarkRemoved(Box<Config>),
+    Invalidate {
+        account: Box<Account>,
+        at: DateTime<Utc>,
+    },
     Prune,
     Flush(mpsc::Sender<()>),
 }
@@ -127,6 +131,9 @@ impl Shared {
                 }) => {
                     self.outcome(self.store().record(&account, taken_at, &metrics));
                 }
+                Ok(Job::Invalidate { account, at }) => {
+                    self.outcome(self.store().invalidate(&account, at));
+                }
                 Ok(Job::MarkRemoved(saved)) => {
                     self.outcome(self.store().mark_removed(&saved, Utc::now()));
                 }
@@ -221,7 +228,18 @@ impl HistoryRecorder {
     /// feed reading read again is the same sample, not a new one). Any other status, no such metric, or recording
     /// switched off records nothing. Never waits: a full queue drops the
     /// reading (RF2.4).
+    ///
+    /// PRD 0010 RF2.4: an `AuthenticationError` queues
+    /// [`HistoryStore::invalidate`] instead, recording on or off, so the
+    /// rejected reading does not come back after a restart.
     pub fn submit(&self, account: &Account, report: &Report) {
+        if report.status == Status::AuthenticationError {
+            self.enqueue(Job::Invalidate {
+                account: Box::new(account.clone()),
+                at: report.checked_at,
+            });
+            return;
+        }
         if report.status != Status::Ready || !self.is_recording() {
             return;
         }
@@ -430,6 +448,35 @@ mod tests {
         recorder.submit(&alpha, &reading(40, 50.0));
         assert!(recorder.flush(Duration::from_secs(10)));
         assert_eq!(used(), [10.0, 50.0]);
+    }
+
+    /// PRD 0010 RF2.4: a rejected credential hides the kept reading from the
+    /// next launch's restore, even with recording switched off.
+    #[test]
+    fn an_authentication_failure_invalidates_even_when_switched_off() {
+        let dir = tempfile::tempdir().unwrap();
+        let history = store(&dir.path().join("history.sqlite3"), "one");
+        let config = config(CONFIG);
+        let alpha = config.accounts[0].clone();
+        let recorder = HistoryRecorder::spawn(history.clone());
+        recorder.submit(
+            &alpha,
+            &report(Status::Ready, vec![quota("5h", Some(10.0), Some(100.0))]),
+        );
+        assert!(recorder.flush(Duration::from_secs(10)));
+        assert!(history.latest_reports(&config).unwrap()[0].is_some());
+        recorder.set_recording(false);
+        recorder.submit(
+            &alpha,
+            &Report {
+                checked_at: t0() + chrono::TimeDelta::minutes(1),
+                ..report(Status::AuthenticationError, Vec::new())
+            },
+        );
+        assert!(recorder.flush(Duration::from_secs(10)));
+        assert!(history.latest_reports(&config).unwrap()[0].is_none());
+        assert!(history.latest(&alpha).unwrap().is_some(), "series kept");
+        assert_eq!(recorder.status().error, None);
     }
 
     #[test]

@@ -40,7 +40,7 @@ pub use transfer::{csv_account, csv_is_valid, ImportCount};
 pub use trend::{Chart, ChartPoint, ChartReset, HistoryRange, MetricHistory, Trend};
 
 use crate::config_file::{ConfigFile, ConfigIdentity};
-use crate::models::{account_key, create_private_file, digest};
+use crate::models::{account_key, create_private_file, digest, restore_fingerprint};
 use crate::pace::Point;
 use crate::resets::DRIFT_TOLERANCE;
 use crate::text::Localized;
@@ -238,6 +238,24 @@ const ALIASES: &str = "CREATE TABLE IF NOT EXISTS aliases (
     legacy_digest TEXT NOT NULL,
     account_id TEXT NOT NULL,
     PRIMARY KEY (config_key, legacy_digest)
+) WITHOUT ROWID;";
+
+/// PRD 0010 RF2.1/RF2.3/RF2.4: per account series, the settings digest
+/// ([`restore_fingerprint`]) of its last recorded reading, that reading's
+/// time, and the time an authentication failure invalidated it. Only
+/// [`HistoryStore::latest_reports`] reads it: a reading taken with other
+/// settings, written without a mark (before this table existed, or by an
+/// older release after a downgrade) or rejected by the provider is never
+/// restored as the last valid one. Series and charts ignore it. Created on
+/// open without a `user_version` step, like [`ALIASES`], so an older
+/// release keeps opening the file.
+const RESTORE_MARKS: &str = "CREATE TABLE IF NOT EXISTS restore_marks (
+    config_key TEXT NOT NULL,
+    account_digest TEXT NOT NULL,
+    fingerprint TEXT NOT NULL,
+    taken_at INTEGER NOT NULL,
+    invalidated_at INTEGER,
+    PRIMARY KEY (config_key, account_digest)
 ) WITHOUT ROWID;";
 
 /// PRD 0029 RF2.2: the series identity of `account`, a digest of its id
@@ -731,6 +749,7 @@ impl HistoryStore {
             let _ = db.execute_batch("VACUUM");
         }
         db.execute_batch(ALIASES)?;
+        db.execute_batch(RESTORE_MARKS)?;
         aliases::apply(&db, aliases::METRIC_ALIASES)?;
         Ok(db)
     }
@@ -858,8 +877,43 @@ impl HistoryStore {
                 ])?;
             }
         }
+        // PRD 0010: the settings of the newest reading; a later reading
+        // clears an earlier invalidation.
+        tx.execute(
+            "INSERT INTO restore_marks (config_key, account_digest, fingerprint, taken_at)
+             VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT (config_key, account_digest) DO UPDATE SET
+                fingerprint = CASE WHEN excluded.taken_at >= taken_at
+                    THEN excluded.fingerprint ELSE fingerprint END,
+                taken_at = MAX(taken_at, excluded.taken_at),
+                invalidated_at = CASE WHEN invalidated_at < excluded.taken_at
+                    THEN NULL ELSE invalidated_at END",
+            rusqlite::params![
+                self.config_key,
+                account_digest,
+                restore_fingerprint(account),
+                at
+            ],
+        )?;
         tx.commit()?;
         Ok(added)
+    }
+
+    /// PRD 0010 RF2.4: the provider rejected the credentials of `account`
+    /// at `at`, so no reading taken at or before it is restored after a
+    /// restart (series and charts keep it). Never creates the store, and
+    /// runs whether recording is on or off, since it only hides data.
+    pub fn invalidate(&self, account: &Account, at: DateTime<Utc>) -> Result<(), HistoryError> {
+        let Some(db) = self.open_existing()? else {
+            return Ok(());
+        };
+        let account_digest = series_digest(&db, &self.config_key, account)?;
+        db.execute(
+            "UPDATE restore_marks SET invalidated_at = MAX(COALESCE(invalidated_at, ?3), ?3)
+             WHERE config_key = ?1 AND account_digest = ?2",
+            rusqlite::params![self.config_key, account_digest, millis(at)],
+        )?;
+        Ok(())
     }
 
     /// Mark for pruning the series of this configuration whose account
@@ -916,7 +970,8 @@ impl HistoryStore {
     /// `config`, in its order, as a `Ready` [`Report`] with its original
     /// `checked_at` (no notes, no source) for
     /// [`crate::refresh::RefreshCycle::restore_last_good`]. All `None` when
-    /// nothing was recorded yet (the file is not created).
+    /// nothing was recorded yet (the file is not created); `None` for an
+    /// account whose reading is not [`Self::restorable`].
     pub fn latest_reports(&self, config: &Config) -> Result<Vec<Option<Report>>, HistoryError> {
         let Some(db) = self.open_existing()? else {
             return Ok(vec![None; config.accounts.len()]);
@@ -926,14 +981,51 @@ impl HistoryStore {
             .accounts
             .iter()
             .map(|account| {
-                Ok(self.latest_in(&db, account, now)?.map(|stored| {
-                    let mut report = stored.into_report(account);
-                    // PRD 0041: budget metrics come back marked as such.
-                    crate::budget::mark_restored(account, &mut report);
-                    report
-                }))
+                let Some(stored) = self.latest_in(&db, account, now)? else {
+                    return Ok(None);
+                };
+                if !self.restorable(&db, account, millis(stored.checked_at))? {
+                    return Ok(None);
+                }
+                let mut report = stored.into_report(account);
+                // PRD 0041: budget metrics come back marked as such.
+                crate::budget::mark_restored(account, &mut report);
+                Ok(Some(report))
             })
             .collect()
+    }
+
+    /// PRD 0010: whether the reading of `account` seen at `seen_at` may
+    /// come back as its last valid one: its mark exists, carries the
+    /// settings the account has now, is not older than the reading (a
+    /// downgraded build wrote later samples without a mark) and no
+    /// authentication failure at or after the reading invalidated it.
+    fn restorable(
+        &self,
+        db: &Connection,
+        account: &Account,
+        seen_at: i64,
+    ) -> rusqlite::Result<bool> {
+        let account_digest = series_digest(db, &self.config_key, account)?;
+        let mark = db
+            .query_row(
+                "SELECT fingerprint, taken_at, invalidated_at FROM restore_marks
+                 WHERE config_key = ?1 AND account_digest = ?2",
+                rusqlite::params![self.config_key, account_digest],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, i64>(1)?,
+                        row.get::<_, Option<i64>>(2)?,
+                    ))
+                },
+            )
+            .optional()?;
+        Ok(mark.is_some_and(|(fingerprint, taken_at, invalidated_at)| {
+            fingerprint == restore_fingerprint(account)
+                && taken_at >= seen_at
+                && invalidated_at.is_none_or(|invalidated| invalidated < seen_at)
+        }))
     }
 
     fn latest_in(
@@ -1331,7 +1423,7 @@ credential_env = "GROQ_KEY_BETA"
         assert_eq!(billing, 1, "v1 files gain the billing column");
         // PRD 0026 RF3 and PRD 0029 RF2.2: the same upgrade adds the event
         // journal (version 4) and the unversioned id aliases.
-        for table in ["journal", "aliases"] {
+        for table in ["journal", "aliases", "restore_marks"] {
             let found: i64 = raw(&empty)
                 .query_row(
                     "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?1",
@@ -2337,6 +2429,136 @@ credential_env = "GROQ_KEY_BETA"
         );
         assert_eq!(beta.metrics[0].used, Some(42.0));
         assert!(beta.notes.is_empty() && beta.source.is_empty());
+    }
+
+    /// A configuration holding `account` alone.
+    fn only(account: &Account) -> Config {
+        let mut config = config(CONFIG);
+        config.accounts = vec![account.clone()];
+        config
+    }
+
+    fn identified() -> Account {
+        let mut account = first_account(config(CONFIG));
+        account.id = crate::AccountId::parse("acc_0123456789ab");
+        account
+    }
+
+    fn restored(history: &HistoryStore, account: &Account) -> Option<Report> {
+        history.latest_reports(&only(account)).unwrap().remove(0)
+    }
+
+    /// PRD 0010 RF2.1/RF2.3 (re-validation S-01): a reading comes back after
+    /// a restart only for the settings it was taken with; a rename or a
+    /// display-only edit keeps it (PRD 0029), and the series stays either way.
+    #[test]
+    fn a_kept_reading_is_restored_only_for_the_same_account_settings() {
+        let dir = tempfile::tempdir().unwrap();
+        let history = store(&dir.path().join("history.sqlite3"), "one");
+        let account = identified();
+        history
+            .record(&account, t0(), &[quota("5h", Some(42.0), Some(100.0))])
+            .unwrap();
+        assert!(restored(&history, &account).is_some());
+
+        let mut renamed = account.clone();
+        renamed.name = "renamed".into();
+        let mut filtered = account.clone();
+        filtered.params.insert("models".into(), "gpt-5".into());
+        let mut slower = account.clone();
+        slower.refresh_seconds = Some(900);
+        for (edit, kept) in [
+            ("rename", renamed),
+            ("models", filtered),
+            ("refresh", slower),
+        ] {
+            assert!(
+                restored(&history, &kept).is_some(),
+                "{edit} keeps the reading"
+            );
+        }
+
+        let mut credential = account.clone();
+        credential.credential_env = Some("GROQ_KEY_OTHER".into());
+        let mut provider = account.clone();
+        provider.provider = crate::Provider::OpenAiApi;
+        let mut session = account.clone();
+        session.session = Some(crate::user_session::SessionConfig {
+            credential_ref: "11111111-1111-4111-8111-111111111111".into(),
+            slots: Default::default(),
+        });
+        let mut region = account.clone();
+        region.params.insert("region".into(), "eu".into());
+        for (edit, changed) in [
+            ("credential", credential),
+            ("provider", provider),
+            ("session", session),
+            ("param", region),
+        ] {
+            assert!(restored(&history, &changed).is_none(), "{edit} drops it");
+            assert!(
+                history.latest(&changed).unwrap().is_some(),
+                "{edit} keeps the series"
+            );
+        }
+    }
+
+    /// Rows written before the mark existed, or after it by a build that
+    /// skips it, are not trusted.
+    #[test]
+    fn a_reading_without_a_current_mark_is_not_restored() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("history.sqlite3");
+        let history = store(&db, "one");
+        let account = identified();
+        history
+            .record(&account, t0(), &[quota("5h", Some(42.0), Some(100.0))])
+            .unwrap();
+        raw(&db)
+            .execute("UPDATE restore_marks SET taken_at = taken_at - 60000", [])
+            .unwrap();
+        assert!(restored(&history, &account).is_none(), "mark older than it");
+        raw(&db).execute("DELETE FROM restore_marks", []).unwrap();
+        assert!(restored(&history, &account).is_none(), "pre-mark row");
+        assert!(history.latest(&account).unwrap().is_some());
+        history
+            .record(
+                &account,
+                t0() + mins(1),
+                &[quota("5h", Some(43.0), Some(100.0))],
+            )
+            .unwrap();
+        let back = restored(&history, &account).expect("a new reading restores");
+        assert_eq!(back.checked_at, t0() + mins(1));
+    }
+
+    /// PRD 0010 RF2.4 (re-validation R-01): an authentication failure hides
+    /// the reading across a restart until a newer reading is recorded.
+    #[test]
+    fn an_authentication_failure_invalidates_the_reading_across_restarts() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("history.sqlite3");
+        let history = store(&db, "one");
+        let account = identified();
+        history.invalidate(&account, t0()).unwrap();
+        assert!(!db.exists(), "invalidating never creates the store");
+        history
+            .record(&account, t0(), &[quota("5h", Some(42.0), Some(100.0))])
+            .unwrap();
+        history.invalidate(&account, t0() - mins(1)).unwrap();
+        assert!(restored(&history, &account).is_some(), "an older failure");
+        history.invalidate(&account, t0() + mins(1)).unwrap();
+        assert!(restored(&history, &account).is_none());
+        assert!(history.latest(&account).unwrap().is_some(), "series kept");
+        history
+            .record(
+                &account,
+                t0() + mins(2),
+                &[quota("5h", Some(50.0), Some(100.0))],
+            )
+            .unwrap();
+        let back = restored(&history, &account).expect("a later reading restores");
+        assert_eq!(back.metrics[0].used, Some(50.0));
     }
 
     #[test]

@@ -214,7 +214,7 @@ static ARTIFACTS: &[Artifact] = &[
         "history.db",
         LocalData,
         "history/history.sqlite3",
-        "readings per account and metric (digests of names, numbers, times)",
+        "readings per account and metric (digests of names, numbers, times), plus a settings digest per account that decides whether its last reading may be shown after a restart (no secret)",
         SqliteUserVersion,
         "90 days by default (7 to 365), 64 MiB cap; its pre-upgrade copy `history.sqlite3.bak` is kept 7 days within the cap",
         "0006",

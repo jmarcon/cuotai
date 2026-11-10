@@ -2573,6 +2573,52 @@ mod tests {
         assert_eq!(failed["last_good"]["age_seconds"], 600);
     }
 
+    /// PRD 0010 RF2.1 (re-validation S-01): `--json-v1` restores the
+    /// recorded reading only for the account settings it was taken with.
+    #[test]
+    fn json_v1_drops_a_recorded_reading_after_a_credential_edit() {
+        let dir = tempfile::tempdir().unwrap();
+        let identity = ConfigIdentity::Explicit("test".into());
+        let history =
+            cuotai_core::history::HistoryStore::new(dir.path().join("history.sqlite3"), &identity);
+        let config = Config::from_toml(
+            "[[accounts]]\nid = \"acc_0123456789ab\"\nname = \"Work\"\n\
+             provider = \"groq\"\ncredential_env = \"GROQ_KEY_A\"\n",
+        )
+        .unwrap();
+        let now = Utc::now();
+        history
+            .record(
+                &config.accounts[0],
+                now - chrono::TimeDelta::minutes(1),
+                &[quota(MetricWindow::Weekly, 40.0, None)],
+            )
+            .unwrap();
+        let mut rekeyed = config.clone();
+        rekeyed.accounts[0].credential_env = Some("GROQ_KEY_B".into());
+        for (config, restores) in [(config, true), (rekeyed, false)] {
+            let monitor = Monitor::new(config.clone())
+                .unwrap()
+                .with_history(history.clone());
+            let snapshot = Snapshot {
+                started_at: now,
+                finished_at: now,
+                reports: vec![report("Work", Status::Error, Vec::new())],
+            };
+            let export = single_export(
+                &config,
+                &identity,
+                monitor.restored_readings(),
+                snapshot,
+                &[],
+                now,
+                |_, _, _| Vec::new(),
+            );
+            let json = serde_json::to_value(&export).unwrap();
+            assert_eq!(!json["accounts"][0]["last_good"].is_null(), restores);
+        }
+    }
+
     #[test]
     fn once_summary_shows_binding_limit_per_account() {
         let week_reset = Utc.with_ymd_and_hms(2026, 1, 3, 14, 30, 0).unwrap();
