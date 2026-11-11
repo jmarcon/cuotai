@@ -26,6 +26,25 @@ struct EmptyStateView: View {
     }
 }
 
+/// RF3.2: the pinned account is not in the file. Said plainly, never
+/// replaced by another account's numbers.
+struct AccountUnavailableView: View {
+    var body: some View {
+        VStack(spacing: 4) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.title3)
+            Text("Account unavailable")
+                .font(.caption)
+            Text("It was removed or is not published. No other account is shown here.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityElement(children: .combine)
+    }
+}
+
 // MARK: - One account
 
 /// How much room an account gets. `row` is one line of the Summary list
@@ -46,9 +65,29 @@ struct AccountRowView: View {
     /// its own only when the reading is old (stale or aging).
     var ageInHeader = false
 
+    /// The binding metric's share. Only an account with a plan or rate
+    /// limit has one: another metric's share is not the account's quota.
     private var percent: Int {
-        let ratio = account.binding?.usedRatio ?? account.metrics.first?.usedFraction ?? 0
-        return Int((ratio * 100).rounded())
+        Int(((account.binding?.usedRatio ?? 0).safeFraction * 100).rounded())
+    }
+
+    /// Whether the headline is a percentage (else "Unavailable" or "No plan
+    /// limit", set smaller).
+    private var showsPercent: Bool { !account.isUnavailable && account.hasPlanLimit }
+
+    private var tone: UsageTone {
+        UsageTone(usedFraction: account.binding?.usedRatio ?? 0,
+                  exhausted: account.binding?.isExhausted ?? false,
+                  pace: account.metrics.first?.pace?.tone)
+    }
+
+    /// The binding metric's bar; without one, an invisible bar keeps the
+    /// layout instead of an empty bar beside a figure.
+    private var bar: some View {
+        UsageBar(usedFraction: account.binding?.usedRatio ?? 0,
+                 stale: account.isStale,
+                 tone: tone)
+            .opacity(account.hasPlanLimit ? 1 : 0)
     }
 
     var body: some View {
@@ -70,12 +109,9 @@ struct AccountRowView: View {
                 name
                 Spacer(minLength: 4)
                 headline
-                    .font(.system(account.isUnavailable ? .caption : .callout, design: .rounded).weight(.semibold))
+                    .font(.system(showsPercent ? .callout : .caption, design: .rounded).weight(.semibold))
             }
-            UsageBar(usedFraction: account.binding?.usedRatio ?? 0,
-                     stale: account.isStale,
-                     exhausted: account.binding?.isExhausted ?? false,
-                     tone: account.metrics.first?.pace?.tone)
+            bar
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 metricLabel
                     .layoutPriority(-1)
@@ -93,16 +129,13 @@ struct AccountRowView: View {
         VStack(alignment: .leading, spacing: 2) {
             name
             headline
-                .font(.system(size: account.isUnavailable ? 17 : 32, weight: .semibold, design: .rounded))
+                .font(.system(size: showsPercent ? 32 : 17, weight: .semibold, design: .rounded))
                 .minimumScaleFactor(0.6)
                 .lineLimit(1)
             metricLabel
                 .lineLimit(2)
             Spacer(minLength: 4)
-            UsageBar(usedFraction: account.binding?.usedRatio ?? 0,
-                     stale: account.isStale,
-                     exhausted: account.binding?.isExhausted ?? false,
-                     tone: account.metrics.first?.pace?.tone)
+            bar
                 .padding(.bottom, 2)
             MeasurementAge(checkedAt: account.checkedAt, freshness: account.freshness, stale: account.isStale)
         }
@@ -125,9 +158,17 @@ struct AccountRowView: View {
     }
 
     private var headline: some View {
-        Group { account.isUnavailable ? Text("Unavailable") : Text("\(percent)%") }
-            .monospacedDigit()
-            .foregroundStyle(account.isUnavailable ? .secondary : headlineColor)
+        Group {
+            if account.isUnavailable {
+                Text("Unavailable")
+            } else if !account.hasPlanLimit {
+                Text("No plan limit")
+            } else {
+                Text("\(percent)%")
+            }
+        }
+        .monospacedDigit()
+        .foregroundStyle(showsPercent ? tone.headlineColor : .secondary)
     }
 
     @ViewBuilder
@@ -145,22 +186,48 @@ struct AccountRowView: View {
         if account.isUnavailable {
             return String(localized: "\(account.name). Unavailable")
         }
+        if !account.hasPlanLimit {
+            return String(localized: "\(account.name). No plan limit")
+        }
         return account.isStale
             ? String(localized: "\(account.name). \(percent) percent used. Stale.")
             : String(localized: "\(account.name). \(percent) percent used. Current.")
     }
+}
 
-    private var headlineColor: Color {
-        if account.binding?.isExhausted ?? false { return .red }
-        if let tone = account.metrics.first?.pace?.tone {
-            switch tone {
-            case "good": return .green
-            case "warn": return .orange
-            case "bad": return .red
-            default: return .primary
-            }
+/// One colour rule for a share, so the bar and the figure beside it always
+/// agree: over the limit or exhausted is bad; then the pace tone (PRD 0007);
+/// 90% or more is a warning even when the pace is fine.
+enum UsageTone {
+    case neutral, good, warn, bad
+
+    init(usedFraction: Double, exhausted: Bool = false, pace: String? = nil) {
+        let used = usedFraction.safeFraction
+        if exhausted || used > 1 || pace == "bad" {
+            self = .bad
+        } else if used >= 0.9 || pace == "warn" {
+            self = .warn
+        } else if pace == "good" {
+            self = .good
+        } else {
+            self = .neutral
         }
-        return .primary
+    }
+
+    var headlineColor: Color {
+        switch self {
+        case .bad: return .red
+        case .warn: return .orange
+        case .good: return .green
+        case .neutral: return .primary
+        }
+    }
+
+    var barColor: Color {
+        switch self {
+        case .neutral: return .accentColor
+        default: return headlineColor
+        }
     }
 }
 
@@ -169,12 +236,11 @@ struct AccountRowView: View {
 struct UsageBar: View {
     let usedFraction: Double
     var stale = false
-    var exhausted = false
-    /// The pace tone (PRD 0007), so the bar agrees with the percentage.
-    var tone: String? = nil
+    /// The same tone as the percentage beside it.
+    var tone: UsageTone? = nil
     var height: CGFloat = 5
 
-    private var clamped: Double { min(max(usedFraction, 0), 1) }
+    private var clamped: Double { min(usedFraction.safeFraction, 1) }
 
     var body: some View {
         // The fill is a share of the bar's own track, never of the widget:
@@ -186,20 +252,13 @@ struct UsageBar: View {
             .overlay(alignment: .leading) {
                 GeometryReader { proxy in
                     Capsule()
-                        .fill(barColor)
+                        .fill((tone ?? UsageTone(usedFraction: usedFraction)).barColor)
                         .frame(width: max(proxy.size.width * clamped, clamped > 0 ? height : 0))
                 }
             }
             .frame(height: height)
             .opacity(stale ? 0.5 : 1)
             .accessibilityHidden(true)
-    }
-
-    private var barColor: Color {
-        if exhausted || usedFraction > 1 { return .red }
-        if usedFraction >= 0.9 || tone == "warn" { return .orange }
-        if tone == "bad" { return .red }
-        return .accentColor
     }
 }
 

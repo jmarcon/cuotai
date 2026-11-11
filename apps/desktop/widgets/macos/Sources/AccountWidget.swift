@@ -85,7 +85,11 @@ struct AccountWidgetEntryView: View {
     let entry: SummaryEntry
 
     var body: some View {
-        if let account = entry.accounts.first {
+        if entry.snapshot == nil {
+            // No file: widgets are off or the app never published one
+            // (RF3.5). Not the same as an account that went away.
+            EmptyStateView()
+        } else if let account = entry.accounts.first {
             if family == .systemSmall {
                 VStack(alignment: .leading, spacing: 6) {
                     WidgetHeader(title: Text("Account"))
@@ -97,12 +101,13 @@ struct AccountWidgetEntryView: View {
                     HStack(alignment: .top, spacing: 16) {
                         AccountRowView(account: account, style: .hero)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                        if account.metrics.count > 1 {
+                        // Without a plan limit every metric is "other".
+                        if account.metrics.count > (account.hasPlanLimit ? 1 : 0) {
                             OtherMetrics(account: account)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
-                    if let pace = account.metrics.first?.pace {
+                    if account.hasPlanLimit, let pace = account.metrics.first?.pace {
                         PaceLine(pace: pace)
                     }
                 }
@@ -110,17 +115,7 @@ struct AccountWidgetEntryView: View {
         } else {
             // The pinned account is not in the file: say it, never draw
             // someone else's numbers (RF3.2).
-            VStack(spacing: 4) {
-                Image(systemName: "exclamationmark.triangle")
-                    .font(.title3)
-                Text("Account unavailable")
-                    .font(.caption)
-                Text("It was removed or is not published. No other account is shown here.")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-            .accessibilityElement(children: .combine)
+            AccountUnavailableView()
         }
     }
 }
@@ -130,6 +125,8 @@ struct AccountWidgetEntryView: View {
 struct OtherMetrics: View {
     let account: WidgetAccount
 
+    /// `binding.index` points into the file's `metrics` (the binding one
+    /// goes first); without a binding every metric is listed.
     private var others: [WidgetAccount.Metric] {
         let binding = account.binding?.index
         return account.metrics.enumerated()
@@ -150,7 +147,7 @@ struct OtherMetrics: View {
                             .lineLimit(1)
                             .layoutPriority(-1)
                         Spacer(minLength: 4)
-                        Text("\(Int((metric.usedFraction * 100).rounded()))%")
+                        Text("\(Int((metric.usedFraction.safeFraction * 100).rounded()))%")
                             .font(.system(.caption, design: .rounded).weight(.semibold))
                             .monospacedDigit()
                     }
@@ -177,15 +174,19 @@ struct PaceLine: View {
         }
     }
 
+    /// Whole points apart from the average, bounded so a wild value in the
+    /// file can never trap the conversion.
+    private var points: Int { Int(abs(pace.deltaPoints.safePoints).rounded()) }
+
     var body: some View {
         HStack(spacing: 3) {
-            Image(systemName: pace.tone == "bad" ? "xcircle"
+            Image(systemName: pace.tone == "bad" ? "xmark.circle"
                   : pace.tone == "warn" ? "exclamationmark.triangle"
                   : pace.tone == "good" ? "checkmark" : "clock")
                 .font(.caption2)
             (stage + (pace.deltaPoints < 0
-                 ? Text(" · \(abs(Int(pace.deltaPoints.rounded()))) points in reserve")
-                 : Text(" · \(abs(Int(pace.deltaPoints.rounded()))) points ahead")))
+                 ? Text(" · \(points) points in reserve")
+                 : Text(" · \(points) points ahead")))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)

@@ -95,6 +95,32 @@ func shots(_ snapshot: WidgetSnapshot, now: Date) -> [Shot] {
     ]
 }
 
+/// `--states`: the states the docs do not show, for review rather than the
+/// docs — no file at all, a pinned account that went away, and every account
+/// of the fixture pinned in turn (pair it with `fixtures/widget-edge.json`
+/// for an account without a plan limit and extreme readings).
+func stateShots(_ snapshot: WidgetSnapshot, now: Date) -> [Shot] {
+    let noFile = SummaryEntry(date: now, snapshot: nil, pinnedKey: "claude:Work")
+    var result = [
+        Shot(name: "state-account-no-file", family: .systemSmall,
+             view: AnyView(AccountWidgetEntryView(entry: noFile))),
+        Shot(name: "state-history-no-file", family: .systemMedium,
+             view: AnyView(HistoryWidgetEntryView(entry: HistoryEntry(date: now, snapshot: nil, pinnedKey: "claude:Work")))),
+        Shot(name: "state-history-removed", family: .systemMedium,
+             view: AnyView(HistoryWidgetEntryView(entry: HistoryEntry(date: now, snapshot: snapshot, pinnedKey: "claude:Removed")))),
+    ]
+    for (offset, account) in snapshot.accounts.enumerated() {
+        let pinned = SummaryEntry(date: now, snapshot: snapshot, pinnedKey: account.id)
+        result.append(Shot(name: "state-account-\(offset)-small", family: .systemSmall,
+                           view: AnyView(AccountWidgetEntryView(entry: pinned))))
+        result.append(Shot(name: "state-account-\(offset)-medium", family: .systemMedium,
+                           view: AnyView(AccountWidgetEntryView(entry: pinned))))
+        result.append(Shot(name: "state-history-\(offset)", family: .systemMedium,
+                           view: AnyView(HistoryWidgetEntryView(entry: HistoryEntry(date: now, snapshot: snapshot, pinnedKey: account.id)))))
+    }
+    return result
+}
+
 /// The docs' overview: a few widgets on a plain desktop-like gradient.
 struct Gallery: View {
     let snapshot: WidgetSnapshot
@@ -184,10 +210,11 @@ struct RenderWidgetShots {
     @MainActor
     static func main() throws {
         let arguments = CommandLine.arguments
-        guard arguments.count == 3 else {
-            FileHandle.standardError.write(Data("usage: render <widget.json> <out-dir>\n".utf8))
+        guard arguments.count == 3 || (arguments.count == 4 && arguments[3] == "--states") else {
+            FileHandle.standardError.write(Data("usage: render <widget.json> <out-dir> [--states]\n".utf8))
             exit(1)
         }
+        let states = arguments.count == 4
         let now = Date()
         let snapshot = try loadFixture(arguments[1], now: now)
         let out = URL(fileURLWithPath: arguments[2], isDirectory: true)
@@ -195,7 +222,7 @@ struct RenderWidgetShots {
 
         for scheme in [ColorScheme.light, .dark] {
             let suffix = scheme == .dark ? "dark" : "light"
-            for shot in shots(snapshot, now: now) {
+            for shot in shots(snapshot, now: now) + (states ? stateShots(snapshot, now: now) : []) {
                 let card = WidgetCard(family: shot.family, scheme: scheme) { shot.view }
                     .padding(12)
                 try write(card, to: out.appendingPathComponent("macos-\(shot.name)-\(suffix).png"))

@@ -2305,7 +2305,9 @@ fn attach_history(
         .map(|account| (account.key.as_str(), account))
         .collect();
     for published in &mut snapshot.accounts {
-        let Some(binding) = published.binding.as_ref().map(|binding| binding.index) else {
+        // The binding's index in the reading the core projected; the
+        // file's own `binding.index` points into its `metrics` instead.
+        let Some(binding) = published.binding_source else {
             continue;
         };
         let Some(exported) = exported.get(published.key.as_str()) else {

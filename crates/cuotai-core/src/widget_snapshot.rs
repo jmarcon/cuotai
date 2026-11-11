@@ -55,6 +55,15 @@ pub const MAX_METRICS: usize = 4;
 /// longer series is decimated evenly, keeping the oldest and newest.
 pub const MAX_HISTORY_POINTS: usize = 96;
 
+/// Ceiling of every `used_fraction` in the file (metrics, pace and
+/// history): above 1 means over the limit, and ten times the limit is
+/// already "far over", so a reader never meets a huge or non-finite value.
+pub const MAX_USED_FRACTION: f64 = 10.0;
+
+/// Bound of a pace's `delta_points` (and `delta_ratio`) in the file, for
+/// the same reason: a reader converting it to an integer never overflows.
+pub const MAX_DELTA_POINTS: f64 = 1000.0;
+
 /// What the file says about an account's data.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -105,7 +114,16 @@ pub struct WidgetAccount {
     pub freshness: Option<Freshness>,
     /// The binding metric of the reading shown (recomputed over the
     /// preserved metrics while stale, so an old bar can be drawn dimmed).
+    /// Its `index` is the metric's position in [`Self::metrics`] (always 0:
+    /// the binding metric goes first), not in the report. `null` when the
+    /// account has no plan or rate limit, or its binding metric has no
+    /// fraction to publish.
     pub binding: Option<Binding>,
+    /// Where the binding metric sits in the reading it was projected from
+    /// (the report's metrics, or the preserved ones while stale), for
+    /// whoever attaches the history series. Not written to the file.
+    #[serde(skip)]
+    pub binding_source: Option<usize>,
     /// Up to [`MAX_METRICS`] metrics with a fraction, the binding one
     /// first. Empty while `unavailable`.
     pub metrics: Vec<WidgetMetric>,
@@ -130,7 +148,7 @@ pub struct WidgetAccount {
 #[derive(Debug, Clone, Serialize)]
 pub struct WidgetMetric {
     pub label: String,
-    /// `used / limit`, unclamped (overuse reads above 1).
+    /// `used / limit` in `0..=`[`MAX_USED_FRACTION`] (overuse reads above 1).
     pub used_fraction: f64,
     /// The capacity the fraction came from, so a panel can also draw the
     /// amount. Always present here: the metric has no fraction without it.
@@ -351,6 +369,20 @@ fn project(account: &AccountExport) -> WidgetAccount {
         .metrics
         .map(|metrics| widget_metrics(metrics, reading.binding.as_ref(), reading.pace))
         .unwrap_or_default();
+    // The binding goes to the file only with its metric, which is then the
+    // first one: its `index` points into the file's `metrics`.
+    let published = reading.binding.filter(|binding| {
+        reading
+            .metrics
+            .and_then(|metrics| metrics.get(binding.index))
+            .and_then(fraction)
+            .is_some()
+    });
+    let binding_source = published.as_ref().map(|binding| binding.index);
+    let binding = published.map(|binding| Binding {
+        index: 0,
+        ..binding
+    });
     WidgetAccount {
         id: account.id.clone(),
         key: account.key.clone(),
@@ -360,7 +392,8 @@ fn project(account: &AccountExport) -> WidgetAccount {
         state: reading.state,
         checked_at: reading.checked_at,
         freshness: reading.freshness,
-        binding: reading.binding,
+        binding,
+        binding_source,
         metrics,
         overage: match reading.state {
             WidgetState::Ready => account.overage.clone(),
@@ -406,13 +439,48 @@ fn fraction(metric: &Metric) -> Option<f64> {
     if metric.billing == crate::Billing::Overage {
         return None;
     }
-    let used = metric
-        .used
-        .filter(|used| used.is_finite() && *used >= 0.0)?;
-    let limit = metric
-        .limit
-        .filter(|limit| limit.is_finite() && *limit > 0.0)?;
-    Some(used / limit)
+    used_fraction(metric.used?, metric.limit?)
+}
+
+/// The `used_fraction` the file carries for `used` of `limit`: `None`
+/// unless `used` is finite and non-negative, `limit` finite and positive,
+/// and their quotient finite; capped at [`MAX_USED_FRACTION`]. The history
+/// series (RF3.2) goes through the same rule.
+pub fn used_fraction(used: f64, limit: f64) -> Option<f64> {
+    if !(used.is_finite() && used >= 0.0 && limit.is_finite() && limit > 0.0) {
+        return None;
+    }
+    let fraction = used / limit;
+    fraction
+        .is_finite()
+        .then(|| fraction.min(MAX_USED_FRACTION))
+}
+
+/// A pace as the file carries it: its fractions within
+/// `0..=`[`MAX_USED_FRACTION`] and its deltas within
+/// `±`[`MAX_DELTA_POINTS`], so a reader never meets a huge value.
+fn bounded_pace(pace: Pace) -> Pace {
+    let fraction = |value: f64| clamp_finite(value, 0.0, MAX_USED_FRACTION);
+    let delta = |value: f64| clamp_finite(value, -MAX_DELTA_POINTS, MAX_DELTA_POINTS);
+    Pace {
+        elapsed_fraction: fraction(pace.elapsed_fraction),
+        expected_used_fraction: fraction(pace.expected_used_fraction),
+        used_fraction: fraction(pace.used_fraction),
+        delta_points: delta(pace.delta_points),
+        delta_ratio: pace.delta_ratio.map(delta),
+        ..pace
+    }
+}
+
+/// `value` within `min..=max`; a non-finite one (never produced by the
+/// core, but a reader must not trap on it) becomes the nearest bound, NaN
+/// the lower one.
+fn clamp_finite(value: f64, min: f64, max: f64) -> f64 {
+    if value.is_nan() {
+        min
+    } else {
+        value.clamp(min, max)
+    }
 }
 
 /// Up to [`MAX_METRICS`] metrics with a fraction, the binding one first,
@@ -449,7 +517,7 @@ fn widget_metrics(
                 unit: metric.unit.clone(),
                 window: metric.window,
                 resets_at: metric.resets_at,
-                pace: pace.get(index).cloned().flatten(),
+                pace: pace.get(index).cloned().flatten().map(bounded_pace),
             }
         })
         .collect()
@@ -767,6 +835,85 @@ mod tests {
         assert!(snapshot.accounts[0].metrics.is_empty());
         assert!(snapshot.accounts[0].binding.is_none());
         assert_eq!(snapshot.accounts[0].state, WidgetState::Ready);
+    }
+
+    fn one_account(metrics: Vec<Metric>) -> WidgetAccount {
+        let a = account("Work", Provider::Groq);
+        let config = Config {
+            accounts: vec![a.clone()],
+            ..Config::default()
+        };
+        let mut cycle = RefreshCycle::new(&config, Instant::now());
+        finish(&mut cycle, 0, report(&a, Status::Ready, metrics, 3));
+        let export = build(&config, &cycle, Options::default());
+        WidgetSnapshot::from_export(&export, 6).accounts.remove(0)
+    }
+
+    #[test]
+    fn the_binding_index_points_into_the_files_metrics() {
+        // The report's second metric binds; the file puts it first.
+        let work = one_account(vec![
+            quota("Day", 10.0, 100.0, 4),
+            quota("Week", 90.0, 100.0, 24),
+        ]);
+        let binding = work.binding.as_ref().expect("a binding");
+        assert_eq!(binding.label, "Week");
+        assert_eq!(binding.index, 0, "an index into the file, not the report");
+        assert_eq!(work.metrics[binding.index].label, "Week");
+        assert_eq!(work.metrics[1].label, "Day");
+        assert_eq!(work.binding_source, Some(1), "the report's own index");
+        let json = serde_json::to_value(&work).unwrap();
+        assert_eq!(json["binding"]["index"], 0);
+        assert!(json.get("binding_source").is_none(), "never written");
+    }
+
+    #[test]
+    fn a_counter_without_a_plan_limit_is_published_without_a_binding() {
+        let counter = Metric {
+            limit: Some(1000.0),
+            ..Metric::usage("Free requests", 1000.0, "", MetricKind::Usage, None)
+        };
+        let work = one_account(vec![counter]);
+        assert!(work.binding.is_none());
+        assert!(work.binding_source.is_none());
+        assert_eq!(work.metrics.len(), 1);
+        assert_eq!(work.metrics[0].used_fraction, 1.0);
+    }
+
+    #[test]
+    fn extreme_readings_stay_finite_and_bounded() {
+        assert_eq!(used_fraction(1e20, 1.0), Some(MAX_USED_FRACTION));
+        assert_eq!(used_fraction(f64::MAX, f64::MIN_POSITIVE), None, "overflow");
+        assert_eq!(used_fraction(f64::NAN, 1.0), None);
+        assert_eq!(used_fraction(1.0, 0.0), None);
+        assert_eq!(used_fraction(-1.0, 1.0), None);
+        assert_eq!(used_fraction(25.0, 100.0), Some(0.25));
+
+        let work = one_account(vec![
+            quota("Week", 1e20, 1.0, 24),
+            quota("Day", f64::MAX, f64::MIN_POSITIVE, 4),
+        ]);
+        assert_eq!(work.metrics.len(), 1, "an infinite quotient is no fraction");
+        assert_eq!(work.metrics[0].used_fraction, MAX_USED_FRACTION);
+        let text = serde_json::to_string(&work).unwrap();
+        assert!(
+            !text.contains("e+"),
+            "no huge number reaches the file: {text}"
+        );
+    }
+
+    #[test]
+    fn a_pace_is_bounded_before_it_reaches_the_file() {
+        let huge = crate::pace::assess(&quota("Week", 1e300, 1e-5, 24), now(), None)
+            .expect("a weekly quota with a reset has a pace");
+        assert!(huge.used_fraction > MAX_USED_FRACTION);
+        let bounded = bounded_pace(huge);
+        assert_eq!(bounded.used_fraction, MAX_USED_FRACTION);
+        assert!(bounded.delta_points.abs() <= MAX_DELTA_POINTS);
+        assert!(bounded.expected_used_fraction <= 1.0);
+        assert_eq!(clamp_finite(f64::NAN, -1.0, 1.0), -1.0);
+        assert_eq!(clamp_finite(f64::INFINITY, -1.0, 1.0), 1.0);
+        assert_eq!(clamp_finite(f64::NEG_INFINITY, -1.0, 1.0), -1.0);
     }
 
     #[test]
