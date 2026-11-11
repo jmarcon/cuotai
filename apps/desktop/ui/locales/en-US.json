@@ -1360,8 +1360,8 @@
     "other": "{count} limits"
   },
   "card.more": "More actions",
-  "cost.fold.summary": "≈{today} today · {span} ≈{period}",
-  "cost.line": "Local cost · ≈{today} today · {span} ≈{period} (estimate)",
+  "cost.fold.summary": "{today} today · {span} {period}",
+  "cost.line": "Local cost · {today} today · {span} {period} (estimate)",
   "common.details": "Details",
   "login.demo.oauth.label": "OAuth sign-in (demo)",
   "login.demo.oauth.help": "The browser demo does not run the sign-in.",

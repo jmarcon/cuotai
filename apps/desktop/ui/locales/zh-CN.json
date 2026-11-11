@@ -1338,8 +1338,8 @@
     "other": "{count} 项限额"
   },
   "card.more": "更多操作",
-  "cost.fold.summary": "今天 ≈{today} · {span} ≈{period}",
-  "cost.line": "本地费用 · 今天 ≈{today} · {span} ≈{period}（估算）",
+  "cost.fold.summary": "今天 {today} · {span} {period}",
+  "cost.line": "本地费用 · 今天 {today} · {span} {period}（估算）",
   "common.details": "详情",
   "login.demo.oauth.label": "OAuth 登录（演示）",
   "login.demo.oauth.help": "浏览器演示不会执行登录。",

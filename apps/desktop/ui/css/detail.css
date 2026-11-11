@@ -753,7 +753,9 @@
 .lc-models code,
 .cost-price-table code {
   font: var(--text-sm) var(--font-mono), var(--font-script);
-  word-break: break-all;
+  /* V-06: a model name breaks only at the <wbr> after its separators. */
+  word-break: keep-all;
+  overflow-wrap: normal;
 }
 
 /* PRD 0042 RF6.2: the active block's line under a card's local usage. */

@@ -1349,8 +1349,8 @@
     "other": "{count} सीमाएँ"
   },
   "card.more": "और कार्रवाइयाँ",
-  "cost.fold.summary": "आज ≈{today} · {span} ≈{period}",
-  "cost.line": "स्थानीय लागत · आज ≈{today} · {span} ≈{period} (अनुमान)",
+  "cost.fold.summary": "आज {today} · {span} {period}",
+  "cost.line": "स्थानीय लागत · आज {today} · {span} {period} (अनुमान)",
   "common.details": "विवरण",
   "login.demo.oauth.label": "OAuth साइन-इन (डेमो)",
   "login.demo.oauth.help": "ब्राउज़र डेमो साइन-इन नहीं चलाता।",

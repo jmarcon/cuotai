@@ -1346,8 +1346,8 @@
     "other": "{count} límites"
   },
   "card.more": "Más acciones",
-  "cost.fold.summary": "≈{today} hoy · {span} ≈{period}",
-  "cost.line": "Coste local · ≈{today} hoy · {span} ≈{period} (estimación)",
+  "cost.fold.summary": "{today} hoy · {span} {period}",
+  "cost.line": "Coste local · {today} hoy · {span} {period} (estimación)",
   "common.details": "Detalles",
   "login.demo.oauth.label": "Inicio de sesión OAuth (demo)",
   "login.demo.oauth.help": "La demo del navegador no ejecuta el inicio de sesión.",

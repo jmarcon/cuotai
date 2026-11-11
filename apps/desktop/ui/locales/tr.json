@@ -1349,8 +1349,8 @@
     "other": "{count} sınır"
   },
   "card.more": "Diğer eylemler",
-  "cost.fold.summary": "≈{today} bugün · {span} ≈{period}",
-  "cost.line": "Yerel maliyet · ≈{today} bugün · {span} ≈{period} (tahmin)",
+  "cost.fold.summary": "{today} bugün · {span} {period}",
+  "cost.line": "Yerel maliyet · {today} bugün · {span} {period} (tahmin)",
   "common.details": "Ayrıntılar",
   "login.demo.oauth.label": "OAuth ile oturum açma (demo)",
   "login.demo.oauth.help": "Tarayıcı demosu oturum açmayı çalıştırmaz.",

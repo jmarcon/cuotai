@@ -48,6 +48,10 @@ const PAGES = zoom ? ZOOM_PAGES : [
   ["settings-alerts", "settings.html?page=alerts", 640, 460, {}],
   ["settings-menubar", "settings.html?page=menubar", 640, 460, {}],
   ["settings-about", "settings.html?page=about", 640, 460, {}],
+  // PRD 0015 V-02: the Local cost page with its sources on, and the worker paused (the status line inside its group).
+  ["settings-cost", "settings.html?page=cost&cost", 640, 460, {}],
+  ["settings-cost-paused", "settings.html?page=cost&cost&cost-paused", 640, 460, {}],
+  ["main-cost", "index.html?cost", 1200, 820, {}],
   ["main-stats", "index.html", 1200, 820, { "cuotai.openView": "stats" }],
   ["tray-stats", "tray.html", 380, 600, {}, "[data-open-stats]"],
   // PRD 0002 V-01: an account expanded with Models open (the demo's failed-sync fixture), so the sync bar is checked.

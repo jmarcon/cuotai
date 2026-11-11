@@ -37,8 +37,9 @@ export function costHtml(cv, prices, plans = null) {
         <button class="btn primary" data-cost-paths-save="${esc(s.source)}">${te("settings.cost.pathsSave")}</button></div>
       <p class="err" id="cost-paths-${esc(s.source)}-msg" role="alert"></p>
     </div>`).join("");
-  return `${state ? `<p class="hint${cv.state === "paused" ? " warn-txt" : ""}" data-cost-worker role="status">${te(state)}</p>` : ""}
-    ${cv.error ? `<p class="hint warn-txt" role="alert">${tle(cv.error)}</p>` : ""}
+  // V-02: the worker state and the error sit inside the group, with the rows' insets.
+  return `${state ? `<div class="set-row" data-row="cost-worker"><div class="set-row-text"><p class="hint${cv.state === "paused" ? " warn-txt" : ""}" data-cost-worker role="status">${te(state)}</p></div></div>` : ""}
+    ${cv.error ? `<div class="set-row" data-row="cost-error"><div class="set-row-text"><p class="hint warn-txt" role="alert">${tle(cv.error)}</p></div></div>` : ""}
     ${sources}
     ${row({ key: "cost-period-row", label: te("settings.cost.period"), msg: "cost-period-msg",
       control: (a) => select("cost-period", cv.periods.map((p) => [p.id, tle(p.label)]), cv.period, a) })}

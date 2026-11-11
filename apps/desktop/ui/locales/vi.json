@@ -1338,8 +1338,8 @@
     "other": "{count} giới hạn"
   },
   "card.more": "Thao tác khác",
-  "cost.fold.summary": "≈{today} hôm nay · {span} ≈{period}",
-  "cost.line": "Chi phí cục bộ · ≈{today} hôm nay · {span} ≈{period} (ước tính)",
+  "cost.fold.summary": "{today} hôm nay · {span} {period}",
+  "cost.line": "Chi phí cục bộ · {today} hôm nay · {span} {period} (ước tính)",
   "common.details": "Chi tiết",
   "login.demo.oauth.label": "Đăng nhập OAuth (demo)",
   "login.demo.oauth.help": "Bản demo trên trình duyệt không chạy đăng nhập.",
