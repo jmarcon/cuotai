@@ -724,7 +724,7 @@ pub fn not_approved(id: &str) -> Localized {
         "extensions.consent.not_approved",
         "id",
         id,
-        "The extension {id} was not approved yet, or a file of its folder changed since the approval; review and approve it in a terminal with cuotai --extension-check {id}.",
+        "The extension {id} was not approved yet, or a file of its folder changed since the approval; review and approve it on the Extensions screen or with cuotai --extension-check {id}.",
     )
 }
 
