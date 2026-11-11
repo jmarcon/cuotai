@@ -380,6 +380,9 @@ pub(crate) struct Wizard {
     sessions: Vec<SessionPaste>,
     session_idx: usize,
     session_test: Option<(bool, String)>,
+    /// SES-01: the failing report said the vault entry is gone, so the paste
+    /// step does not claim a session is kept there.
+    vault_missing: bool,
     /// SES-02: the running test was started by Enter on the summary, so a
     /// cleared result saves. Any key withdraws it.
     test_then_save: bool,
@@ -514,6 +517,7 @@ impl Wizard {
             sessions: session_pastes(provider),
             session_idx: 0,
             session_test: None,
+            vault_missing: false,
             test_then_save: false,
             confirm_untested: None,
             aggregator_test: None,
@@ -532,10 +536,27 @@ impl Wizard {
     /// SES-01: the editor of the account at `index` opened straight on its
     /// paste step ("Paste a new session" on the card or the details). Other
     /// providers open on the first step, as the editor does.
-    pub(crate) fn paste_session(config: &Config, index: usize) -> Self {
+    /// `report` is the account's failing report: the step opens on the
+    /// session the account keeps in the vault (the one that failed), and
+    /// does not claim it is still there when the vault entry is gone.
+    pub(crate) fn paste_session(config: &Config, index: usize, report: Option<&Report>) -> Self {
         let mut wizard = Self::new(config, Some(index));
         if !wizard.sessions.is_empty() {
             wizard.step = Step::Session;
+            let stored = wizard.stored_slots();
+            if let Some(slot) = wizard
+                .sessions
+                .iter()
+                .position(|paste| stored.iter().any(|s| s == paste.descriptor.slot))
+            {
+                wizard.session_idx = slot;
+            }
+            wizard.vault_missing = report.is_some_and(|report| {
+                report
+                    .notes_l10n
+                    .first()
+                    .is_some_and(|note| note.id == "user_session.not_found")
+            });
         }
         wizard
     }
@@ -1700,7 +1721,7 @@ impl Wizard {
         }
         entries.push((
             match self.step {
-                Step::Summary if self.confirm_save => {
+                Step::Summary if self.confirm_save || self.confirm_untested.is_some() => {
                     tr("wizard.button.save_anyway", "Save anyway")
                 }
                 Step::Summary => tr("wizard.button.save", "Save"),
@@ -3607,7 +3628,10 @@ impl Wizard {
                 )));
             }
             let chars = paste.text.chars().count();
-            let field = if chars == 0 && stored.iter().any(|s| s == paste.descriptor.slot) {
+            let field = if chars == 0
+                && !self.vault_missing
+                && stored.iter().any(|s| s == paste.descriptor.slot)
+            {
                 tr(
                     "wizard.session.stored",
                     "> (session in the vault; pasting another one replaces it)",
@@ -4591,7 +4615,7 @@ mod tests {
             accounts: vec![mimo],
             ..Config::default()
         };
-        let mut wiz = Wizard::paste_session(&config, 0);
+        let mut wiz = Wizard::paste_session(&config, 0, None);
         assert_eq!(wiz.step, Step::Session, "SES-01 opens on the paste step");
         wiz.session_idx = 1;
         wiz.paste("api-platform_serviceToken=SECRET-TOKEN; userId=7");
@@ -4629,6 +4653,15 @@ mod tests {
         let unreachable = test_report(&account, Status::Error, "query.transport");
         assert!(wiz.session_tested(&unreachable).is_none());
         assert!(wiz.error.as_deref().unwrap().contains("Enter"));
+        let labels: Vec<_> = wiz
+            .footer_buttons(Rect::new(0, 0, 120, 3))
+            .into_iter()
+            .map(|(_, _, label)| label)
+            .collect();
+        assert!(
+            labels.contains(&tr("wizard.button.save_anyway", "Save anyway")),
+            "{labels:?}"
+        );
         // Any other key withdraws "Save anyway".
         press(&mut wiz, KeyCode::Down);
         let account = test(&mut wiz);
@@ -4671,7 +4704,7 @@ mod tests {
             accounts: vec![web],
             ..Config::default()
         };
-        let mut wiz = Wizard::paste_session(&config, 0);
+        let mut wiz = Wizard::paste_session(&config, 0, None);
         assert_eq!(wiz.credential, "", "no default key is prefilled");
         wiz.session_idx = 1;
         wiz.paste("api-platform_serviceToken=SECRET-TOKEN; userId=7");
@@ -4682,6 +4715,33 @@ mod tests {
         }
     }
 
+    // SES-01 (2026-11 review): "Paste a new session" opens the session the
+    // account keeps (the one that failed), and does not claim it is in the
+    // vault when the report says the entry is gone.
+    #[test]
+    fn paste_a_new_session_opens_the_kept_slot_and_trusts_the_report() {
+        let mut web = account("MiMo", "");
+        web.provider = Provider::XiaomiMimo;
+        web.credential_env = None;
+        web.session = Some(user_session::SessionConfig {
+            credential_ref: "6f1c2b9e-3c1d-4f7a-9a51-0e7b2d5c8a11".into(),
+            slots: ["platform_session_env".to_string()].into(),
+        });
+        let config = Config {
+            accounts: vec![web.clone()],
+            ..Config::default()
+        };
+        let wiz = Wizard::paste_session(&config, 0, None);
+        assert_eq!(
+            wiz.sessions[wiz.session_idx].descriptor.slot,
+            "platform_session_env"
+        );
+        assert!(!wiz.vault_missing);
+        let missing = test_report(&web, Status::NeedsConfiguration, "user_session.not_found");
+        let wiz = Wizard::paste_session(&config, 0, Some(&missing));
+        assert!(wiz.vault_missing);
+    }
+
     // SES-01: only providers with a session open on the paste step.
     #[test]
     fn paste_a_new_session_opens_the_paste_step_of_that_account() {
@@ -4689,7 +4749,7 @@ mod tests {
             accounts: vec![account("OpenAI", "OPENAI_ADMIN_KEY")],
             ..Config::default()
         };
-        let wiz = Wizard::paste_session(&config, 0);
+        let wiz = Wizard::paste_session(&config, 0, None);
         assert_eq!(wiz.step, Step::Provider);
         let wiz = mimo_with_paste();
         assert_eq!(wiz.editing, Some(0));

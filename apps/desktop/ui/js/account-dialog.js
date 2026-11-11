@@ -1494,7 +1494,11 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   await renderDynamic();
   renderModels();
   // SES-01: "Paste a new session" opens this editor on the account's paste box.
-  const pasteField = pasteSession ? sessionBox.querySelector(".session-paste[data-slot]") : null;
+  // The box opens on the session the account keeps (the one that failed), else the first one.
+  const keptSlot = (existing?.session_slots ?? []).find((slot) => sessionBox.querySelector(`.session-paste[data-slot="${CSS.escape(slot)}"]`));
+  const pasteField = pasteSession
+    ? (keptSlot ? sessionBox.querySelector(`.session-paste[data-slot="${CSS.escape(keptSlot)}"]`) : null) ?? sessionBox.querySelector(".session-paste[data-slot]")
+    : null;
   if (pasteField) {
     // PRD 0047 G1: "Connect session" (no session saved yet) does not speak of a rejected one.
     const hasSaved = (existing?.session_slots ?? []).some((slot) => (schema.sessions ?? []).some((s) => s.slot === slot));
