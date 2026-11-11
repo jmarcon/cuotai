@@ -724,6 +724,7 @@
   "extensions.error.tree_unreadable": "Impossible de lire tous les fichiers du dossier de l’extension.",
   "extensions.error.unknown_field": "Le manifest.toml contient le champ inconnu {field} ; les champs acceptés sont {keys}.",
   "extensions.error.unreadable": "Impossible de lire le manifest.toml comme texte UTF-8.",
+  "extensions.error.windows_exe": "Windows exécuterait {exe} au lieu du programme {program} du command ; indiquez {exe} dans command[0] ou supprimez-le.",
   "extensions.output.choice": "Le champ {field} doit être l’une de ces valeurs : {values}.",
   "extensions.output.date": "Le champ {field} doit être une date RFC 3339, comme 2026-10-21T12:00:00Z, ou null.",
   "extensions.output.empty": "L’extension n’a rien écrit sur la sortie standard.",

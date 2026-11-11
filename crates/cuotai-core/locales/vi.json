@@ -718,6 +718,7 @@
   "extensions.error.tree_unreadable": "Không đọc được toàn bộ tệp trong thư mục tiện ích mở rộng.",
   "extensions.error.unknown_field": "manifest.toml có trường không xác định {field}; các trường được nhận là {keys}.",
   "extensions.error.unreadable": "Không đọc được manifest.toml dưới dạng văn bản UTF-8.",
+  "extensions.error.windows_exe": "Windows sẽ chạy {exe} thay cho chương trình {program} của command; hãy ghi {exe} trong command[0] hoặc xóa nó.",
   "extensions.output.choice": "Trường {field} phải là một trong: {values}.",
   "extensions.output.date": "Trường {field} phải là ngày RFC 3339, như 2026-10-21T12:00:00Z, hoặc null.",
   "extensions.output.empty": "Tiện ích mở rộng không in gì ra đầu ra chuẩn.",

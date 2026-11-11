@@ -1725,6 +1725,7 @@
   "extensions.action.candidate_expired": "Questa conferma non è più valida; rivedi di nuovo l'estensione prima di approvarla.",
   "extensions.error.rejected_many": "Più di una cartella rivendica questo id; nessuna di esse può essere abilitata.",
   "extensions.error.interpreted": "Il programma di command termina in .{suffix} e verrebbe interpretato da un interprete di comandi; command[0] deve essere un file eseguibile.",
+  "extensions.error.windows_exe": "Windows eseguirebbe {exe} al posto del programma {program} del command; indica {exe} in command[0] o rimuovilo.",
   "extensions.action.rollback_conflict": "L'estensione {id} è stata approvata di nuovo dopo questo passaggio; l'operazione è stata annullata, ma la nuova approvazione è stata mantenuta.",
   "extensions.action.rollback_failed": "Impossibile salvare l'account e annullare l'approvazione.",
   "extensions.action.missing": "L'estensione {id} non è stata trovata; nessun programma è stato eseguito.",

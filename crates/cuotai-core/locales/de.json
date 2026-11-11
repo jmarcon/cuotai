@@ -724,6 +724,7 @@
   "extensions.error.tree_unreadable": "Nicht alle Dateien im Ordner der Erweiterung konnten gelesen werden.",
   "extensions.error.unknown_field": "Die manifest.toml enthält das unbekannte Feld {field}; akzeptierte Felder sind {keys}.",
   "extensions.error.unreadable": "Die manifest.toml konnte nicht als UTF-8-Text gelesen werden.",
+  "extensions.error.windows_exe": "Windows würde {exe} statt des Programms {program} des command ausführen; nennen Sie {exe} in command[0] oder entfernen Sie die Datei.",
   "extensions.output.choice": "Das Feld {field} muss eines dieser sein: {values}.",
   "extensions.output.date": "Das Feld {field} muss ein RFC-3339-Datum sein, etwa 2026-10-21T12:00:00Z, oder null.",
   "extensions.output.empty": "Die Erweiterung hat nichts auf die Standardausgabe geschrieben.",

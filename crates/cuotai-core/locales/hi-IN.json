@@ -724,6 +724,7 @@
   "extensions.error.tree_unreadable": "एक्सटेंशन के फ़ोल्डर की सभी फ़ाइलें पढ़ी नहीं जा सकीं।",
   "extensions.error.unknown_field": "manifest.toml में अज्ञात फ़ील्ड {field} है; स्वीकृत फ़ील्ड {keys} हैं।",
   "extensions.error.unreadable": "manifest.toml को UTF-8 टेक्स्ट के रूप में पढ़ा नहीं जा सका।",
+  "extensions.error.windows_exe": "Windows command के प्रोग्राम {program} की जगह {exe} चलाएगा; command[0] में {exe} लिखें या उसे हटा दें।",
   "extensions.output.choice": "फ़ील्ड {field} इनमें से एक होना चाहिए: {values}।",
   "extensions.output.date": "फ़ील्ड {field} RFC 3339 तारीख होनी चाहिए, जैसे 2026-10-21T12:00:00Z, या null।",
   "extensions.output.empty": "एक्सटेंशन ने स्टैंडर्ड आउटपुट में कुछ नहीं छापा।",
