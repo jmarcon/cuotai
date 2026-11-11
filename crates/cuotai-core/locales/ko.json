@@ -660,6 +660,7 @@
   "extensions.action.invalid_account": "확장 기능 계정의 신원이 올바르지 않습니다.",
   "extensions.action.missing": "확장 기능 {id}을(를) 찾을 수 없습니다. 실행된 프로그램은 없습니다.",
   "extensions.action.not_an_override": "확장 기능 {id}은(는) {provider} 연동을 대체하지 않습니다.",
+  "extensions.action.reapproved": "확장 기능 {id}을(를) 켰습니다. 계정은 그대로 유지됩니다.",
   "extensions.action.rollback_conflict": "확장 기능 {id}의 승인이 다시 바뀌었습니다. 여기까지의 작업은 되돌렸지만 가장 최근 승인은 유지했습니다.",
   "extensions.action.rollback_failed": "계정을 저장하지 못했고 승인도 되돌리지 못했습니다.",
   "extensions.action.secret_empty": "비밀 {name}의 값을 입력하세요.",

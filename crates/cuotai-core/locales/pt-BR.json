@@ -663,6 +663,7 @@
   "extensions.action.invalid_account": "A conta de extensão não tem uma identidade válida.",
   "extensions.action.missing": "A extensão {id} não foi encontrada; nenhum programa foi executado.",
   "extensions.action.not_an_override": "A extensão {id} não substitui a integração {provider}.",
+  "extensions.action.reapproved": "Extensão {id} ativada; a conta foi mantida.",
   "extensions.action.rollback_conflict": "A aprovação da extensão {id} mudou de novo; a operação foi desfeita até aqui, mas a aprovação mais recente foi mantida.",
   "extensions.action.rollback_failed": "Não foi possível salvar a conta nem desfazer a aprovação.",
   "extensions.action.secret_empty": "Informe um valor para o segredo {name}.",

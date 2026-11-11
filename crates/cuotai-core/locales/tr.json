@@ -666,6 +666,7 @@
   "extensions.action.invalid_account": "Uzantı hesabının geçerli bir kimliği yok.",
   "extensions.action.missing": "{id} uzantısı bulunamadı; hiçbir program çalıştırılmadı.",
   "extensions.action.not_an_override": "{id} uzantısı {provider} entegrasyonunun yerini almıyor.",
+  "extensions.action.reapproved": "{id} uzantısı etkinleştirildi; hesabı korundu.",
   "extensions.action.rollback_conflict": "{id} uzantısı bu adımdan sonra yeniden onaylandı; işlem geri alındı, ancak daha yeni onay korundu.",
   "extensions.action.rollback_failed": "Hesap kaydedilemedi ve onay da geri alınamadı.",
   "extensions.action.secret_empty": "{name} gizli bilgisi için bir değer girin.",

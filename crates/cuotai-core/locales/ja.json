@@ -660,6 +660,7 @@
   "extensions.action.invalid_account": "拡張機能のアカウントに有効な ID がありません。",
   "extensions.action.missing": "拡張機能 {id} が見つかりません。プログラムは実行されていません。",
   "extensions.action.not_an_override": "拡張機能 {id} は {provider} の連携を置き換えません。",
+  "extensions.action.reapproved": "拡張機能 {id} を有効化しました。アカウントはそのまま保持されています。",
   "extensions.action.rollback_conflict": "拡張機能 {id} はこの手順の後に再承認されました。操作は元に戻しましたが、最新の承認は残しています。",
   "extensions.action.rollback_failed": "アカウントを保存できず、承認を元に戻すこともできませんでした。",
   "extensions.action.secret_empty": "シークレット {name} の値を入力してください。",

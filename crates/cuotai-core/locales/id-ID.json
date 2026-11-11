@@ -660,6 +660,7 @@
   "extensions.action.invalid_account": "Akun ekstensi tidak memiliki identitas yang valid.",
   "extensions.action.missing": "Ekstensi {id} tidak ditemukan; tidak ada program yang dijalankan.",
   "extensions.action.not_an_override": "Ekstensi {id} tidak menggantikan integrasi {provider}.",
+  "extensions.action.reapproved": "Ekstensi {id} diaktifkan; akunnya tetap dipertahankan.",
   "extensions.action.rollback_conflict": "Ekstensi {id} disetujui lagi setelah langkah ini; operasi dibatalkan, tetapi persetujuan yang lebih baru dipertahankan.",
   "extensions.action.rollback_failed": "Tidak dapat menyimpan akun dan juga tidak dapat membatalkan persetujuan.",
   "extensions.action.secret_empty": "Masukkan nilai untuk rahasia {name}.",

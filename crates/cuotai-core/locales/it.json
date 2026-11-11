@@ -1658,6 +1658,7 @@
   "extensions.error.secrets_count": "Il manifest.toml dichiara al massimo {max} secrets.",
   "extensions.error.secret": "Il secret {name} richiede un name univoco (lettere minuscole, cifre e \"_\", fino a 32) e un env proprio, fuori da env e da PATH, HOME, LANG e SystemRoot.",
   "extensions.consent.secret": "segreto {name} (variabile {env}), conservato nel portachiavi di sistema: {description}",
+  "extensions.action.reapproved": "Estensione {id} abilitata; il suo account è stato mantenuto.",
   "extensions.action.secret_saved": "Segreto {name} salvato nel portachiavi di sistema.",
   "extensions.action.secret_missing": "L'estensione {id} richiede il segreto {name}; inseriscilo nella schermata delle estensioni. Nessun programma è stato eseguito.",
   "extensions.action.secret_unknown": "L'estensione {id} non dichiara il segreto {name}.",

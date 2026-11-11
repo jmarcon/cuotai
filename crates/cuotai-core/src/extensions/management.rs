@@ -836,7 +836,12 @@ impl Manager {
             .accounts
             .iter()
             .position(|account| account.extension_id() == Some(&id));
-        let account = extension_account(&manifest, config, editing);
+        // A re-approval (the account exists) keeps the person's settings:
+        // only the provider and the extension id are enforced.
+        let account = match editing {
+            Some(index) => kept_account(&config.accounts[index], &manifest),
+            None => extension_account(&manifest, config),
+        };
         let updated = config.upsert_account(account, editing).map_err(|_| {
             Localized::fixed(
                 "extensions.action.account_invalid",
@@ -855,12 +860,21 @@ impl Manager {
             config: updated,
             action: ActionResult {
                 id: id.clone(),
-                message: Localized::with_param(
-                    "extensions.action.enabled",
-                    "id",
-                    id.as_str(),
-                    "Extension {id} enabled and account created.",
-                ),
+                message: if editing.is_some() {
+                    Localized::with_param(
+                        "extensions.action.reapproved",
+                        "id",
+                        id.as_str(),
+                        "Extension {id} enabled; its account was kept.",
+                    )
+                } else {
+                    Localized::with_param(
+                        "extensions.action.enabled",
+                        "id",
+                        id.as_str(),
+                        "Extension {id} enabled and account created.",
+                    )
+                },
                 account: Some(identity),
             },
             consent_rollback: rollback,
@@ -1218,23 +1232,35 @@ impl Manager {
     }
 }
 
-fn extension_account(manifest: &Manifest, config: &Config, editing: Option<usize>) -> Account {
-    let collision = config.accounts.iter().enumerate().any(|(index, account)| {
-        Some(index) != editing && account.name.eq_ignore_ascii_case(&manifest.name)
-    });
+/// The account of a re-approved extension: the existing one with only the
+/// provider and the extension id enforced. Its id, name, group, budgets,
+/// floors, breakdown and refresh interval are the person's and stay; the
+/// credential fields an extension account cannot have are cleared.
+fn kept_account(existing: &Account, manifest: &Manifest) -> Account {
+    Account {
+        id: Some(existing.id()),
+        provider: Provider::Extension,
+        credential_env: None,
+        oauth: None,
+        session: None,
+        params: BTreeMap::from([(EXTENSION_ID_PARAM.to_owned(), manifest.id.clone())]),
+        ..existing.clone()
+    }
+}
+
+/// The account of a newly enabled extension.
+fn extension_account(manifest: &Manifest, config: &Config) -> Account {
+    let collision = config
+        .accounts
+        .iter()
+        .any(|account| account.name.eq_ignore_ascii_case(&manifest.name));
     let name = if collision {
         format!("{} ({})", manifest.name, manifest.id)
     } else {
         manifest.name.clone()
     };
     Account {
-        // PRD 0029 RF1.3: re-adding keeps the edited account's id.
-        id: Some(
-            editing
-                .and_then(|index| config.accounts.get(index))
-                .map(Account::id)
-                .unwrap_or_else(crate::AccountId::random),
-        ),
+        id: Some(crate::AccountId::random()),
         name,
         provider: Provider::Extension,
         credential_env: None,

@@ -666,6 +666,7 @@
   "extensions.action.invalid_account": "Le compte de l’extension n’a pas d’identité valide.",
   "extensions.action.missing": "Extension {id} introuvable ; aucun programme n’a été exécuté.",
   "extensions.action.not_an_override": "L’extension {id} ne remplace pas l’intégration {provider}.",
+  "extensions.action.reapproved": "Extension {id} activée ; son compte a été conservé.",
   "extensions.action.rollback_conflict": "L’extension {id} a été de nouveau approuvée après cette étape ; l’opération a été annulée, mais l’approbation la plus récente a été conservée.",
   "extensions.action.rollback_failed": "Impossible d’enregistrer le compte et impossible d’annuler l’approbation.",
   "extensions.action.secret_empty": "Saisissez une valeur pour le secret {name}.",

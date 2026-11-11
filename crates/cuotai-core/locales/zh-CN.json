@@ -660,6 +660,7 @@
   "extensions.action.invalid_account": "扩展的账户没有有效的身份。",
   "extensions.action.missing": "未找到扩展 {id}；未运行任何程序。",
   "extensions.action.not_an_override": "扩展 {id} 不替代 {provider} 集成。",
+  "extensions.action.reapproved": "扩展 {id} 已启用，其账户已保留。",
   "extensions.action.rollback_conflict": "扩展 {id} 在此步骤之后再次获得批准；操作已撤销，但保留了最新的批准。",
   "extensions.action.rollback_failed": "无法保存账户，也无法撤销批准。",
   "extensions.action.secret_empty": "请为密钥 {name} 输入一个值。",

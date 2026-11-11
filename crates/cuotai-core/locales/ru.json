@@ -678,6 +678,7 @@
   "extensions.action.invalid_account": "У записи расширения нет допустимой идентичности.",
   "extensions.action.missing": "Расширение {id} не найдено; ни одна программа не запускалась.",
   "extensions.action.not_an_override": "Расширение {id} не заменяет интеграцию {provider}.",
+  "extensions.action.reapproved": "Расширение {id} включено; его запись сохранена.",
   "extensions.action.rollback_conflict": "Одобрение расширения {id} снова изменилось; операция отменена до этого места, но самое последнее одобрение сохранено.",
   "extensions.action.rollback_failed": "Не удалось ни сохранить запись, ни отменить одобрение.",
   "extensions.action.secret_empty": "Укажите значение для секрета {name}.",
