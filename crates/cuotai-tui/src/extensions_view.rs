@@ -464,6 +464,18 @@ impl ExtensionsView {
                         Style::default().fg(color),
                     ),
                 ]);
+                // An enabled row whose last run failed says so even when it
+                // is not selected (its detail lines name the cause).
+                let header = if item.state == ExtensionState::Enabled && item.error.is_some() {
+                    let mut header = header;
+                    header.spans.push(Span::styled(
+                        format!(" · {}", crate::ui::status_label(cuotai_core::Status::Error)),
+                        Style::default().fg(RED),
+                    ));
+                    header
+                } else {
+                    header
+                };
                 visual = visual.saturating_add(height(&header));
                 lines.push(header);
                 if selected {
@@ -659,6 +671,32 @@ mod tests {
             screen.contains("A extensão saiu com o código 3."),
             "the last error shows: {screen}"
         );
+    }
+
+    /// An enabled row whose last run failed is marked even when another
+    /// row is selected; a healthy enabled row is not.
+    #[test]
+    fn a_failing_enabled_row_is_marked_when_not_selected() {
+        let mut healthy = item(ExtensionState::Enabled, true, true);
+        healthy.id = "ok".into();
+        healthy.name = "saudavel".into();
+        healthy.error = None;
+        let mut view = ExtensionsView::new(vec![
+            item(ExtensionState::Disabled, false, false),
+            item(ExtensionState::Enabled, true, true),
+            healthy,
+        ]);
+        let screen = render(&mut view, 100, 24);
+        let error = crate::ui::status_label(cuotai_core::Status::Error);
+        let row = |name: &str| {
+            screen
+                .lines()
+                .find(|line| line.contains(name))
+                .unwrap_or_default()
+                .to_owned()
+        };
+        assert!(row("quota").contains(&format!("· {error}")), "{screen}");
+        assert!(!row("saudavel").contains(&format!("· {error}")), "{screen}");
     }
 
     /// RF5.9: the disclosure is only approvable after it was shown, and
