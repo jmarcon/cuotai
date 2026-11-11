@@ -11,7 +11,9 @@
 # `@Environment(\.widgetFamily)` read becomes `@Environment(\.shotFamily)`,
 # because `widgetFamily` cannot be set outside a widget extension.
 #
-# Usage: apps/desktop/tools/widget-shots/macos/render.sh [widget.json] [out-dir]
+# Usage: apps/desktop/tools/widget-shots/macos/render.sh [widget.json] [out-dir] [--states]
+# (`--states` adds review shots of the empty, removed and per-account states;
+# pair it with `fixtures/widget-edge.json`.)
 set -eu
 
 here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -43,4 +45,4 @@ swiftc -O -parse-as-library -sdk "$sdk" \
     "$build"/src/*.swift -o "$build/render"
 
 mkdir -p "$out"
-"$build/render" "$fixture" "$out"
+"$build/render" "$fixture" "$out" ${3:+"$3"}

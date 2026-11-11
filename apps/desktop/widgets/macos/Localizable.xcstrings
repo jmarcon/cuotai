@@ -823,6 +823,50 @@
     },
     "·": {
       "shouldTranslate": false
+    },
+    "No plan limit": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sem limite de plano"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin límite de plan"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nessun limite del piano"
+          }
+        }
+      }
+    },
+    "%@. No plan limit": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@. Sem limite de plano"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@. Sin límite de plan"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@. Nessun limite del piano"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

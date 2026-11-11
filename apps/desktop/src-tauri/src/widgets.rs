@@ -237,14 +237,12 @@ pub fn history(
     points: &[cuotai_core::pace::Point],
     limit: Option<f64>,
 ) -> Vec<widget_snapshot::HistoryPoint> {
-    let limit = limit.filter(|limit| limit.is_finite() && *limit > 0.0);
     let mut series: Vec<widget_snapshot::HistoryPoint> = points
         .iter()
         .filter_map(|point| {
-            let limit = limit?;
-            (point.used.is_finite() && point.used >= 0.0).then(|| widget_snapshot::HistoryPoint {
+            Some(widget_snapshot::HistoryPoint {
                 taken_at: point.taken_at,
-                used_fraction: point.used / limit,
+                used_fraction: widget_snapshot::used_fraction(point.used, limit?)?,
             })
         })
         .collect();
@@ -339,6 +337,12 @@ mod tests {
             Some(10.0),
         );
         assert_eq!(series.len(), 3);
+        let huge = history(&[point(1e20)], Some(1.0));
+        assert_eq!(
+            huge[0].used_fraction,
+            widget_snapshot::MAX_USED_FRACTION,
+            "an extreme sample is capped, never huge"
+        );
         assert!(
             series[0].used_fraction < series[2].used_fraction,
             "the series is the history's own order"

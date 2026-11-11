@@ -62,6 +62,11 @@ struct WidgetAccount: Codable, Identifiable {
     /// An account that cannot be drawn: no reading, current or preserved.
     var isUnavailable: Bool { state == State.unavailable || metrics.isEmpty }
 
+    /// Whether the account has a plan or rate limit to headline. Without
+    /// one the file still lists the metrics it can draw, but none of them
+    /// is the account's quota, so no percentage stands for the account.
+    var hasPlanLimit: Bool { binding != nil }
+
     /// Data older than the current query: dimmed, with its original age.
     var isStale: Bool { state == State.stale }
 
@@ -152,6 +157,23 @@ struct WidgetAccount: Codable, Identifiable {
     }
 }
 
+extension Double {
+    /// A used fraction safe to draw and to turn into an integer: within
+    /// `0...10` (the core's own ceiling, `MAX_USED_FRACTION`), `0` when not
+    /// a number. The app never writes more, but the file is only data.
+    var safeFraction: Double {
+        guard !isNaN else { return 0 }
+        return min(max(self, 0), 10)
+    }
+
+    /// Pace points apart from the average, within `±1000` (the core's
+    /// `MAX_DELTA_POINTS`), `0` when not a number.
+    var safePoints: Double {
+        guard !isNaN else { return 0 }
+        return min(max(self, -1000), 1000)
+    }
+}
+
 extension String {
     /// `Week (7 days) (%)` → `Week (7 days)`; any other label is unchanged.
     var strippingPercentHint: String {
@@ -177,10 +199,20 @@ struct WidgetSnapshot: Codable {
     /// unknown rather than half-interpreted.
     static let supportedSchema = 1
 
+    /// The largest file read. The app writes at most 256 KiB; anything far
+    /// larger is not its file, and reading it could exhaust the extension's
+    /// memory, so it reads as unreadable (the empty state).
+    static let maxBytes = 1024 * 1024
+
     /// The file as it is now, `nil` when it is absent (the empty state) or
     /// unreadable: a widget never draws made-up numbers.
     static func load(from url: URL? = SnapshotLocation.url) -> WidgetSnapshot? {
-        guard let url, let data = try? Data(contentsOf: url) else { return nil }
+        guard let url,
+              let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize,
+              size <= maxBytes,
+              let data = try? Data(contentsOf: url),
+              data.count <= maxBytes
+        else { return nil }
         let decoder = JSONDecoder()
         // The core serializes RFC 3339 with sub-second precision
         // (`2026-10-20T12:00:00.123456Z`); `.iso8601` alone rejects the

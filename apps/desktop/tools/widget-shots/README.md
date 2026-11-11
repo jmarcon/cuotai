@@ -11,6 +11,14 @@ talks to a provider or reads a credential: every image is drawn from
 Run both from the repository root; each takes an optional fixture path and
 output directory.
 
+For review rather than the docs, `render.sh <fixture> <out-dir> --states`
+adds `macos-state-*` shots: the Account and History widgets with no file and
+with a pinned account that went away, and every account of the fixture
+pinned in turn. Pair it with
+[`fixtures/widget-edge.json`](fixtures/widget-edge.json) (an account without
+a plan limit, and readings far over the limit that a foreign or hand-edited
+file could carry) and write it outside `docs/`.
+
 | Platform | Command | What it produces | Real or rendered |
 |---|---|---|---|
 | macOS | `sh apps/desktop/tools/widget-shots/macos/render.sh` | `macos-<widget>-<family>-<light\|dark>.png` and `macos-gallery-<light\|dark>.png` | The shipped SwiftUI views, drawn off-screen (see below) |
@@ -36,9 +44,6 @@ What differs from a live widget, and why:
 - **Family.** Outside a widget extension `\.widgetFamily` cannot be set, so
   the copy reads `\.shotFamily` instead (a `sed` rewrite; the script fails if
   the rewrite stops matching).
-- **Bar fill.** `containerRelativeFrame` has no container under
-  `ImageRenderer`, so the usage bar's fill is rewritten to a `GeometryReader`
-  fraction of its own track.
 - **Background and size.** `.containerBackground(.fill.tertiary, for: .widget)`
   is not drawn outside an extension; the harness draws a solid rounded card
   at the macOS widget point sizes (small 170x170, medium 364x170, large
