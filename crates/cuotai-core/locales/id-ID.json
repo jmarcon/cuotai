@@ -304,6 +304,7 @@
   "cost.confirm.answer": "ya",
   "cost.confirm.question": "Untuk mengaktifkan, ketik \"{answer}\" lalu tekan Enter (jawaban lain menolak):",
   "cost.disabled": "{source} dinonaktifkan; {removed} catatan turunan dihapus.",
+  "cost.disclosure.accept": "Aktifkan pembacaan",
   "cost.disclosure.directories": "Hanya membaca file {pattern} dari direktori ini:",
   "cost.disclosure.directory": "{path}",
   "cost.disclosure.extracted_v2": "Hanya angka yang diekstrak: waktu, model, jumlah token (input, output, baca cache, dan tulis cache), ringkasan anonim sesi, dan sidik jari satu arah dari folder proyek, agar Anda bisa memberinya label.",

@@ -2106,17 +2106,26 @@ async fn cost_set_display(
     cost.set_display(&b.accounts().await, code.map(|code| (code, rate)))
 }
 
-/// PRD 0015 RF1.1: turn `source` on after the user accepted the
-/// disclosure `digest` the dialog showed. Error: the core's
-/// `cost.error.*` text as JSON (`consent_changed` when the directories
-/// changed since).
+/// PRD 0015 RF1.1: turn `source` on after the user accepted its
+/// disclosure in a native dialog Rust builds and shows (PRD 0050 RF2); the
+/// webview sends only the source. Errors as JSON: `execution.declined`,
+/// `execution.pending`, or the core's `cost.error.*` text
+/// (`consent_changed` when the directories changed while it was open).
 #[tauri::command]
 async fn cost_enable(
+    app: AppHandle,
+    b: Shared<'_>,
     cost: Cost<'_>,
     source: cuotai_core::cost::SourceId,
-    digest: String,
 ) -> Result<local_cost::CostView, String> {
-    cost.enable(source, &digest)
+    // PRD 0050 RF2: one native confirmation at a time, owned by Rust.
+    let _gate = b
+        .confirm_gate()
+        .enter()
+        .map_err(|e| backend::l10n_to_json(&e))?;
+    let confirmer = native_confirm::DialogConfirmer::new(&app);
+    cost.enable(&confirmer, &native_confirm::locale(), source)
+        .await
 }
 
 /// PRD 0015 RF2.4: turn `source` off and erase everything derived from it.

@@ -210,6 +210,11 @@ fn roots(source: SourceId, chosen: &[PathBuf], env: &Env) -> Vec<PathBuf> {
     }
 }
 
+/// RF1.1: the accepting button of the disclosure's native dialog.
+pub fn consent_accept() -> Localized {
+    Localized::fixed("cost.disclosure.accept", "Turn reading on")
+}
+
 /// RF1.1: what turning one source on means, shown before the consent:
 /// exactly which directories are read, what for, and that only numbers
 /// are extracted.

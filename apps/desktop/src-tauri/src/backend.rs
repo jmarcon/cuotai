@@ -2379,6 +2379,11 @@ impl Inner {
 }
 
 impl Backend {
+    /// PRD 0050 RF2: the gate every native confirmation goes through.
+    pub(crate) fn confirm_gate(&self) -> &crate::native_confirm::Gate {
+        &self.confirm_gate
+    }
+
     /// The app's backend with this device's reset notice state (PRD 0003),
     /// status preference (PRD 0011 RF4.3, off until the user opts in),
     /// local server preferences (PRD 0012 RF5, off by default; started by

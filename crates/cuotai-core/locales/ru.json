@@ -310,6 +310,7 @@
   "cost.confirm.answer": "да",
   "cost.confirm.question": "Чтобы включить, введите «{answer}» и нажмите Enter (любой другой ответ — отказ):",
   "cost.disabled": "{source} выключен; удалено производных записей: {removed}.",
+  "cost.disclosure.accept": "Включить чтение",
   "cost.disclosure.directories": "Читает только файлы {pattern} из этих каталогов:",
   "cost.disclosure.directory": "{path}",
   "cost.disclosure.extracted_v2": "Извлекаются только числа: время, модель, количество токенов (ввод, вывод, чтение и запись кэша), анонимный дайджест сеанса и односторонний отпечаток папки проекта, чтобы вы могли дать ему метку.",

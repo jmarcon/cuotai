@@ -48,7 +48,7 @@ for (const by of TABS) {
 
 // Partial: one source on. Full: both.
 const status = await lib.costStatus();
-const enable = async (id) => lib.costEnable(id, status.sources.find((s) => s.source === id).disclosure.digest);
+const enable = async (id) => lib.costEnable(id);
 await enable("claude_code");
 const partial = breakdownPanelHtml("session", await lib.costBreakdown("session"));
 await enable("codex_cli");

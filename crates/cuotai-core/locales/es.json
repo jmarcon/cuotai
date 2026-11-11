@@ -1518,6 +1518,7 @@
   "changelog.unknown_version": "La versión \"{wanted}\" no está en el registro de cambios. Versiones conocidas: {known}.",
   "cost.confirm.answer": "sí",
   "cost.confirm.question": "Para activarla, escriba \"{answer}\" y pulse Enter (cualquier otra respuesta la rechaza):",
+  "cost.disclosure.accept": "Activar la lectura",
   "cost.disclosure.directories": "Solo lee los archivos {pattern} de estos directorios:",
   "cost.disclosure.directory": "{path}",
   "cost.disclosure.extracted_v2": "Solo se extraen números: la hora, el modelo, los conteos de tokens (entrada, salida, lectura y escritura de caché), un resumen anónimo de la sesión y una huella unidireccional de la carpeta del proyecto, para que pueda etiquetarla.",

@@ -304,6 +304,7 @@
   "cost.confirm.answer": "はい",
   "cost.confirm.question": "有効にするには「{answer}」と入力して Enter を押してください（それ以外の回答は拒否として扱います）：",
   "cost.disabled": "{source} をオフにしました。派生レコード {removed} 件を削除しました。",
+  "cost.disclosure.accept": "読み取りをオンにする",
   "cost.disclosure.directories": "次のディレクトリの {pattern} ファイルのみを読み取ります：",
   "cost.disclosure.directory": "{path}",
   "cost.disclosure.extracted_v2": "抽出するのは数値だけです: 時刻、モデル、トークン数（入力、出力、キャッシュ読み取り、キャッシュ書き込み）、セッションの匿名ダイジェスト、そしてラベルを付けられるようにプロジェクトフォルダーの一方向フィンガープリント。",

@@ -8,6 +8,7 @@
 //! local server publishes it as `local_cost` (RF4.3). The worker runs on a
 //! thread of its own, never on the refresh cycle.
 
+use crate::native_confirm::{NativeConfirmer, Question};
 use cuotai_core::cost::{
     self, Breakdown, CostError, CostIndex, CostStatus, CostSummary, CostWorker, Disclosure, Env,
     Indexed, LabelTarget, Period, PriceRow, Prices, PricingFile, Retention, Scanner, SettingsStore,
@@ -16,6 +17,7 @@ use cuotai_core::cost::{
 
 /// PRD 0042 RF6.1: the sessions the Sessions tab lists (newest first).
 const SESSION_ROWS: usize = 100;
+use cuotai_core::execution_review;
 use cuotai_core::text::Localized;
 use cuotai_core::Account;
 use serde::Serialize;
@@ -126,6 +128,23 @@ pub struct PlansView {
     display: Option<DisplayView>,
     /// One line per source with a plan (RF1.2/RF1.3).
     values: Vec<cost::PlanValue>,
+}
+
+/// RF1.1: the disclosure as a native question: its header as the title,
+/// then the purpose, the directories, what is extracted, what never is and
+/// what turning it off does.
+fn consent_question(disclosure: &Disclosure, locale: &str) -> Question {
+    let mut lines = disclosure
+        .lines()
+        .into_iter()
+        .map(|line| line.resolve(locale));
+    let title = lines.next().unwrap_or_default();
+    Question {
+        title,
+        body: lines.collect::<Vec<_>>().join("\n"),
+        accept: cost::consent_accept().resolve(locale),
+        cancel: execution_review::cancel().resolve(locale),
+    }
 }
 
 fn l10n(error: CostError) -> String {
@@ -444,10 +463,25 @@ impl LocalCost {
         self.usage().ok().filter(CostSummary::any_on)
     }
 
-    /// RF1.1: the user accepted the disclosure `digest` the UI showed for
-    /// `source`; refused when the directories changed since.
-    pub fn enable(&self, source: SourceId, digest: &str) -> Result<CostView, String> {
+    /// RF1.1 with PRD 0050 RF2: show the core's disclosure of `source`, for
+    /// its directories now, in a Rust-owned operating-system dialog, and
+    /// turn the source on with the digest of what that dialog showed, only
+    /// on its "accept". The webview supplies neither the words nor a digest.
+    /// Cancel, a closed dialog or a failure to show it is the fixed
+    /// `execution.declined` error; directories changed while the dialog was
+    /// open give `consent_changed`.
+    pub async fn enable(
+        &self,
+        confirmer: &dyn NativeConfirmer,
+        locale: &str,
+        source: SourceId,
+    ) -> Result<CostView, String> {
         let settings = &self.stores()?.settings;
+        let shown = settings.load().map_err(l10n)?.disclosure(source, &self.env);
+        if !confirmer.ask(consent_question(&shown, locale)).await {
+            return Err(crate::backend::l10n_to_json(&execution_review::declined()));
+        }
+        // Re-read: the consent covers only the directories shown.
         let chosen = settings
             .load()
             .map_err(l10n)?
@@ -456,7 +490,7 @@ impl LocalCost {
             .map(|s| s.paths.clone())
             .unwrap_or_default();
         settings
-            .enable(source, chosen, digest, &self.env, chrono::Utc::now())
+            .enable(source, chosen, &shown.digest, &self.env, chrono::Utc::now())
             .map_err(l10n)?;
         self.wake();
         self.view()
@@ -634,5 +668,66 @@ mod tests {
         assert_eq!(display.age_days, 0);
         assert!(!display.stale);
         assert!(cost.set_display(&[], None).unwrap().display.is_none());
+    }
+
+    /// PRD 0050 RF2 for local cost: only the native dialog's answer turns a
+    /// source on; the webview sends no digest and no words.
+    // security-invariant: SEC-NATIVE-CONFIRM
+    #[tokio::test]
+    async fn a_source_turns_on_only_on_the_native_answer() {
+        use crate::native_confirm::fake::Fake;
+        let dir = tempfile::tempdir().unwrap();
+        let cost = local(dir.path());
+        let source = SourceId::ClaudeCode;
+        let on = |cost: &LocalCost| cost.enabled_sources().contains(&source);
+
+        let cancel = Fake::new(false);
+        let Err(declined) = cost.enable(&cancel, "en-US", source).await else {
+            panic!("Cancel must fail");
+        };
+        assert!(declined.contains("execution.declined"), "{declined}");
+        assert_eq!(cancel.questions(), 1);
+        assert!(!on(&cost), "Cancel turns nothing on");
+
+        let accept = Fake::new(true);
+        cost.enable(&accept, "en-US", source).await.unwrap();
+        assert!(on(&cost));
+        let question = accept.asked.lock().unwrap()[0].clone();
+        assert!(question.title.contains("Claude Code"), "{}", question.title);
+        let home = dir.path().join("home");
+        assert!(
+            question
+                .body
+                .contains(&home.join(".claude").display().to_string()),
+            "the directories read are shown: {}",
+            question.body
+        );
+        assert_eq!(question.accept, "Turn reading on");
+    }
+
+    /// The consent covers the directories the dialog showed: a list changed
+    /// while it was open is refused and the source stays off.
+    // security-invariant: SEC-NATIVE-CONFIRM
+    #[tokio::test]
+    async fn directories_changed_while_the_dialog_is_open_are_refused() {
+        use crate::native_confirm::fake::Fake;
+        let dir = tempfile::tempdir().unwrap();
+        let cost = local(dir.path());
+        let root = dir.path().to_path_buf();
+        let edit = Fake::new(true).while_open(move || {
+            cost::choose_paths(
+                &SettingsStore::at(root.join("settings.json")),
+                &CostIndex::new(root.join("index.sqlite3")),
+                SourceId::ClaudeCode,
+                vec![root.join("elsewhere")],
+                &Env::new(Some(root.join("home")), []),
+            )
+            .unwrap();
+        });
+        let Err(error) = cost.enable(&edit, "en-US", SourceId::ClaudeCode).await else {
+            panic!("a changed list must fail");
+        };
+        assert!(error.contains("consent_changed"), "{error}");
+        assert!(cost.enabled_sources().is_empty());
     }
 }

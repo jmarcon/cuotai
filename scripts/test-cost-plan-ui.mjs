@@ -35,7 +35,7 @@ await i18n.setLocale("en-US");
 // The demo's Claude Code source is on, so the card has numbers.
 const status = await lib.costStatus();
 const claude = status.sources.find((s) => s.source === "claude_code");
-await lib.costEnable("claude_code", claude.disclosure.digest);
+await lib.costEnable("claude_code");
 const load = async () => {
   const usage = await lib.costUsage();
   const plans = await lib.costPlans();

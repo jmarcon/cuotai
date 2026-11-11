@@ -306,6 +306,7 @@
   "cost.confirm.answer": "ja",
   "cost.confirm.question": "Geben Sie zum Einschalten „{answer}“ ein und drücken Sie Enter (jede andere Antwort lehnt ab):",
   "cost.disabled": "{source} ausgeschaltet; {removed} abgeleitete(r) Datensatz/Datensätze gelöscht.",
+  "cost.disclosure.accept": "Lesen einschalten",
   "cost.disclosure.directories": "Liest nur die {pattern}-Dateien dieser Verzeichnisse:",
   "cost.disclosure.directory": "{path}",
   "cost.disclosure.extracted_v2": "Es werden nur Zahlen extrahiert: Zeitpunkt, Modell, Token-Zählungen (Eingabe, Ausgabe, Cache-Lesen und -Schreiben), eine anonyme Sitzungskennung und ein Einweg-Fingerabdruck des Projektordners, damit Sie ihn benennen können.",

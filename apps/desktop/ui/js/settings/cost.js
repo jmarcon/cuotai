@@ -16,8 +16,8 @@ export function bind(root, ctx) {
 }
 
 /** PRD 0015 RF1/RF2/RF4.1: local cost from the logs of command-line tools, off by default. Per source a switch that
- *  first shows the core's disclosure (exactly the directories read, what for, and that only numbers are extracted)
- *  and turns on with its digest; turning off confirms that everything derived is erased; the directories it reads
+ *  asks Rust, which shows the core's disclosure (exactly the directories read, what for, and that only numbers are
+ *  extracted) in a system dialog and turns on only on its answer (PRD 0050 RF2); turning off confirms that everything derived is erased; the directories it reads
  *  (a different list turns a source that is on off, so its new disclosure is reviewed). Then the period, the index
  *  retention, the prices in effect (the embedded table under the user's pricing.json), the index size and its
  *  erasure; the state the core's background scan last reported (paused while saving energy). */
@@ -164,7 +164,8 @@ async function bindCost(box, ctx) {
       input.checked = source.enabled; // only the confirmed answer changes it
       const line = `cost-src-${source.source}-msg`;
       if (!source.enabled) {
-        if (await confirmDisclosure(source.disclosure)) run(() => costEnable(source.source, source.disclosure.digest), line);
+        // PRD 0050 RF2: Rust shows the disclosure in a system dialog and turns the source on only on its answer.
+        run(() => costEnable(source.source), line);
       } else if (await confirmCostOff(source)) run(() => costDisable(source.source), line);
     };
     // PRD 0042 RF3.1/RF4.3: the block length and the folder-name hint of one source.
@@ -240,16 +241,6 @@ async function bindCost(box, ctx) {
     prices = answer;
     if (box.isConnected) paint(cv, true);
   }, (e) => { const slot = box.querySelector("[data-cost-prices]"); if (slot) slot.innerHTML = `<p class="hint warn-txt">${esc(l10nError(e))}</p>`; });
-}
-
-/** RF1.1: the core's disclosure of one source before it is turned on; resolves to the user's answer. */
-function confirmDisclosure(d) {
-  return askDialog("cost-confirm", te("settings.cost.confirm.title", { source: d.label }), `<p>${tle(d.purpose)}</p>
-      <p>${te("settings.cost.confirm.dirs", { pattern: d.pattern })}</p>
-      <ul class="cost-dirs" data-cost-dirs>${d.directories.map((dir) => `<li><code>${esc(dir)}</code></li>`).join("")}</ul>
-      <p>${tle(d.extracted)}</p>
-      <p class="hint">${tle(d.never)}</p>
-      <p class="hint">${tle(d.off)}</p>`, te("settings.cost.confirm.yes"));
 }
 
 /** RF6.3: what the search indexes for this page: the rows drawn from the core's state, by the same function. */

@@ -303,6 +303,7 @@
   "cost.confirm.answer": "sim",
   "cost.confirm.question": "Para ligar, digite \"{answer}\" e Enter (qualquer outra resposta recusa):",
   "cost.disabled": "{source} desligado; {removed} registro(s) derivado(s) apagado(s).",
+  "cost.disclosure.accept": "Ligar a leitura",
   "cost.disclosure.directories": "Lê apenas os arquivos {pattern} destes diretórios:",
   "cost.disclosure.directory": "{path}",
   "cost.disclosure.extracted_v2": "Só números são extraídos: a hora, o modelo, as contagens de tokens (entrada, saída, leitura e escrita de cache), um resumo anônimo da sessão e uma impressão digital de mão única da pasta do projeto, para você poder rotulá-la.",
