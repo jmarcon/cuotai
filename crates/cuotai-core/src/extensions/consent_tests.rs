@@ -561,6 +561,46 @@ mod unix {
         assert!(discover(&nested).get("proxy").is_some());
     }
 
+    /// FIX-05 / PRD 0050 RF8.1: a folder linked into the root from
+    /// elsewhere has every folder above it checked, not only its parent: a
+    /// grandparent others can write lets them swap the whole branch.
+    #[test]
+    fn a_linked_folder_checks_every_folder_above_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("extensions");
+        fs::create_dir_all(&root).unwrap();
+        let shared = dir.path().join("shared");
+        let vendor = shared.join("vendor");
+        Rig::with_manifest(&vendor, "proxy", MANIFEST);
+        std::os::unix::fs::symlink(vendor.join("proxy"), root.join("proxy")).unwrap();
+        for folder in [&root, &shared, &vendor] {
+            fs::set_permissions(folder, fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        let consent = Consent::at(dir.path().join("consent.json"));
+        let manifest = discover(&root).get("proxy").expect("private chain").clone();
+        let approved = consent.approve(&manifest).unwrap();
+        assert!(approved.verify());
+
+        // The parent stays private; the grandparent becomes world-writable.
+        fs::set_permissions(&shared, fs::Permissions::from_mode(0o757)).unwrap();
+        assert!(!approved.verify(), "the run would be refused");
+        let discovery = discover(&root);
+        assert!(discovery.get("proxy").is_none());
+        assert_eq!(
+            discovery.rejected[0].reason.id,
+            "extensions.error.tree_exposed"
+        );
+
+        if plain_group(&[&shared]) {
+            fs::set_permissions(&shared, fs::Permissions::from_mode(0o775)).unwrap();
+            assert!(!approved.verify(), "a group-writable grandparent too");
+        }
+
+        fs::set_permissions(&shared, fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(approved.verify(), "fixed permissions verify again");
+        assert!(discover(&root).get("proxy").is_some());
+    }
+
     /// FIX-04: special files (here a FIFO, which would block a read) are
     /// refused, never opened.
     #[test]
