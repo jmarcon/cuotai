@@ -879,7 +879,7 @@ pub fn flow(purpose: Purpose) -> Flow {
         Purpose::Extensions => (
             "whatever an approved extension program contacts, with your network",
             "each refresh of an extension account",
-            "decided by the program you approved; Cuotai passes it only its configured parameters",
+            "decided by the program you approved; Cuotai passes it only `PATH`, `HOME`, `LANG` (`SystemRoot` on Windows), the environment variables you approved and the extension's own declared secrets",
             "off until you approve an extension",
             "0017",
         ),
