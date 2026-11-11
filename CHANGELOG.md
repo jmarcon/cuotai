@@ -13,6 +13,21 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.85.4] - 2026-11-11
+
+### Fixed
+
+- Local cost now stays off when it is turned off at the same moment as another change, counts every line again after the index is erased during a background read, counts a final log line without a newline once the file is quiet, and reports an empty log folder as no logs (PRD 0015 RF1.1, RF1.4, RF2.1; 8e32462).
+- The local cost row and tray line show "≈" only before an amount, never before "no usage" or "cost unknown", and the Settings › Local cost status line sits inside its group (PRD 0015 RF4.1; 99ad4c7).
+- The local cost span of a single day reads "Last day" instead of "Last 1 days", with proper plural forms in every language (PRD 0015 RF4.2; d002349).
+
+### Security
+
+- Erasing the local cost index or turning a source off now also deletes the copy of the index kept before an upgrade, and that copy is removed after 7 days (PRD 0015 RF2.4; 537bb00).
+- A log line with impossible token counts is now skipped as invalid instead of breaking the local cost figures, and an unreadable cost index is shown as an error in --cost, --json-v1 and the desktop app instead of looking like every source is off (PRD 0015 RF1.3, RF4.3; d7e435c).
+- Turning on a local cost source in the desktop app now asks for consent in a system dialog, outside the app's window content (PRD 0015 RF1.1; PRD 0050 RF2; 9df429a).
+- Project fingerprints in the local cost index and its exports are now keyed to this computer, so a guessed folder path can no longer be confirmed from them; the short project codes change once (PRD 0015 RF1.3; PRD 0042 RF1.1; b39aa2d).
+
 ## [0.85.3] - 2026-11-11
 
 Version 0.85.2 was never published because a release check failed before publishing. This release ships its changes, repeated here.
@@ -745,7 +760,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.85.3...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.85.4...HEAD
+[0.85.4]: https://github.com/jmarcon/cuotai/compare/v0.85.3...v0.85.4
 [0.85.3]: https://github.com/jmarcon/cuotai/compare/v0.85.2...v0.85.3
 [0.85.2]: https://github.com/jmarcon/cuotai/compare/v0.85.1...v0.85.2
 [0.85.1]: https://github.com/jmarcon/cuotai/compare/v0.85.0...v0.85.1
