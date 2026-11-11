@@ -13,6 +13,19 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.85.5] - 2026-11-11
+
+### Fixed
+
+- An account that reads its usage through a web session no longer needs an API key, and pasting a new session no longer adds one (PRD 0016 RF2.1, RF4.2; b6ed021).
+- After "Forget this session", an account that reads its usage through a web session waits for a new session instead of reading the provider's default API key variable (PRD 0016 RF2.1, RF4.2; b6ed021).
+- The session paste preview no longer says the session is saved before it is tested and saved (PRD 0016 RF2.1, RF4.1; e2eaeef).
+- Session messages in the desktop app no longer mention the terminal wizard or the TOML file (PRD 0016 RF2.1, RF4.1; e2eaeef).
+- The terminal dashboard shows the whole cause of a failed web session on its card, and "Paste a new session" opens the session that failed (PRD 0016 RF4.1, SES-01, SES-02; 5d609f9).
+- A pasted web session too large to send is refused with a clear message instead of being stored (PRD 0016 RF2.2, RF1.3; b16d779).
+- A credential too large for Windows Credential Manager now says so instead of reporting the vault as unavailable (PRD 0016 RF2.2, RF1.3; b16d779).
+- Settings files that use Cuotai's internal credential names are refused (PRD 0016 RF2.2, RF1.3; b16d779).
+
 ## [0.85.4] - 2026-11-11
 
 ### Fixed
@@ -760,7 +773,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.85.4...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.85.5...HEAD
+[0.85.5]: https://github.com/jmarcon/cuotai/compare/v0.85.4...v0.85.5
 [0.85.4]: https://github.com/jmarcon/cuotai/compare/v0.85.3...v0.85.4
 [0.85.3]: https://github.com/jmarcon/cuotai/compare/v0.85.2...v0.85.3
 [0.85.2]: https://github.com/jmarcon/cuotai/compare/v0.85.1...v0.85.2
