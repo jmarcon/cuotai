@@ -807,7 +807,7 @@ pub async fn run(
                             .focused(Some(id.as_str()));
                         // The consent screen opens at once: choosing the
                         // entry is the request to enable it.
-                        match manager.disclosure(&id) {
+                        match extension_disclosure(manager, &id, &file.config) {
                             Ok(disclosure) => {
                                 view.show_disclosure(disclosure.lines, disclosure.candidate)
                             }
@@ -2038,7 +2038,7 @@ pub async fn run(
                         ExtensionAction::Close => extensions = None,
                         ExtensionAction::Disclose(id) => {
                             if let Some(manager) = monitor.extension_manager() {
-                                match manager.disclosure(&id) {
+                                match extension_disclosure(manager, &id, &file.config) {
                                     Ok(disclosure) => {
                                         if let Some(view) = &mut extensions {
                                             view.show_disclosure(
@@ -4029,6 +4029,16 @@ pub(crate) fn metric_text(metric: &Metric) -> String {
     text
 }
 
+/// PRD 0050 RF8.2: the TUI consent screen lists the requested variables
+/// another configured account reads its credential from, like the desktop.
+fn extension_disclosure(
+    manager: &cuotai_core::extensions::management::Manager,
+    id: &str,
+    config: &Config,
+) -> Result<cuotai_core::extensions::management::Disclosure, cuotai_core::text::Localized> {
+    manager.disclosure_for(id, config)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -4110,6 +4120,55 @@ mod tests {
         let (body, _) =
             render_deletion_result(0, &RemoveOutcome::RemovedNoCredential(removed(false)));
         assert!(!body.contains("sessão web"), "{body}");
+    }
+
+    /// PRD 0050 RF8.2: the TUI consent screen names the accounts whose
+    /// credential variable the extension asks for.
+    #[test]
+    fn the_extension_disclosure_names_the_credential_risks() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("extensions");
+        let folder = root.join("proxy");
+        std::fs::create_dir_all(&folder).unwrap();
+        let program = if cfg!(windows) {
+            "program.exe"
+        } else {
+            "run.sh"
+        };
+        std::fs::write(
+            folder.join("manifest.toml"),
+            format!(
+                "id = \"proxy\"\nname = \"Proxy\"\nversion = \"1\"\nschema = 1\n\
+                 command = [\"./{program}\"]\ninterval_seconds = 60\n\
+                 env = [\"OPENAI_ADMIN_KEY\"]\n"
+            ),
+        )
+        .unwrap();
+        std::fs::write(folder.join(program), "#!/bin/sh\necho '{}'\n").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(folder.join(program), std::fs::Permissions::from_mode(0o755))
+                .unwrap();
+        }
+        let manager = cuotai_core::extensions::management::Manager::at(&root);
+        let config = Config {
+            accounts: vec![Account {
+                name: "Work OpenAI".into(),
+                provider: Provider::OpenAiApi,
+                credential_env: Some("OPENAI_ADMIN_KEY".into()),
+                ..Account::default()
+            }],
+            ..Config::default()
+        };
+        let disclosure = extension_disclosure(&manager, "proxy", &config).unwrap();
+        assert_eq!(disclosure.risks.len(), 1, "{:?}", disclosure.risks);
+        assert_eq!(disclosure.risks[0].accounts, vec!["Work OpenAI".to_owned()]);
+        let lines: Vec<String> = disclosure.lines.iter().map(resolve_l10n).collect();
+        assert!(
+            lines.iter().any(|line| line.contains("Work OpenAI")),
+            "{lines:?}"
+        );
     }
 
     /// PRD 0028 RF7.4: the removal of an extension account asks about the
