@@ -245,6 +245,7 @@ mod tests {
             local_data: Some(data),
             config: Some(dir.path().join("config")),
             accounts: Some(accounts.clone()),
+            mac_home: None,
         };
         (dir, roots, history, accounts)
     }

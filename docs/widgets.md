@@ -12,9 +12,9 @@ The file is a projection of [`export::v1`](export-v1.md) with **its own** `schem
 | Windows | `%LOCALAPPDATA%\cuotai\widget.json` | third-party panels and scripts |
 | Linux | `~/.local/share/cuotai/widget.json` | third-party panels and scripts (Waybar, GNOME, KDE) |
 
-The extension is sandboxed, so `CuotaiWidgets.entitlements` gives it a read-only exception for this one file and no other. Settings › Advanced › Integrations › Widgets shows the path and says whether the extension reads it.
+The extension is sandboxed, so `CuotaiWidgets.entitlements` gives it a read-only exception for this one file and no other. On macOS the file therefore **stays at that path when you move the data folder** (`CUOTAI_DATA_DIR` or Settings › Advanced › Files › Data folder); on Windows and Linux it follows the data folder. Settings › Advanced › Integrations › Widgets shows the path and says whether the extension reads it.
 
-With the feature off, **no file is written and an existing one is deleted** (RF2.2). Settings › Advanced › Integrations › Widgets also has a "Delete widget data" button.
+With the feature off, **no file is written and every copy is deleted** (RF2.2): the file, its `widget.json.bak`, the copy an earlier release left in a moved data folder and, on macOS, the group-container file of releases before 0.82.2. Cuotai also deletes them when it starts with the feature off. Settings › Advanced › Integrations › Widgets has a "Delete widget data" button that removes the same copies, and erasing all data removes them too.
 
 > macOS: an *app group* needs a provisioning profile outside the App Store: without one, macOS logs that it ignores the entitlement and the extension reads nothing. Releases before 0.82.2 relied on it, so their widgets stayed empty. "Delete widget data" also removes the file those releases could leave in the group container.
 

@@ -32,6 +32,10 @@ pub enum Root {
     AccountsDir,
     /// A service of the OS credential vault (no path).
     Vault,
+    /// The user's home directory, for the few macOS paths that stay put
+    /// when the data folder moves (the widget extension can read only
+    /// those).
+    MacHome,
 }
 
 impl Root {
@@ -41,6 +45,7 @@ impl Root {
             Self::Config => "<config>/cuotai/",
             Self::AccountsDir => "<accounts dir>/",
             Self::Vault => "vault service ",
+            Self::MacHome => "~/",
         }
     }
 }
@@ -169,7 +174,7 @@ const fn vault(
     }
 }
 
-use Root::{AccountsDir, Config, LocalData};
+use Root::{AccountsDir, Config, LocalData, MacHome};
 use Schema::{JsonSchema, SqliteUserVersion, Unversioned};
 
 const UNTIL_ERASED: &str = "until erased";
@@ -268,9 +273,27 @@ static ARTIFACTS: &[Artifact] = &[
         "widgets.snapshot",
         LocalData,
         "widget.json",
-        "the latest readings shown by system widgets (desktop)",
+        "the latest readings, a short history of each account's tightest quota, any paid extra usage and, if turned on, account e-mails, for system widgets (desktop)",
         JsonSchema,
         "replaced on each refresh; 256 KiB cap",
+        "0014",
+    ),
+    file(
+        "widgets.snapshot_macos",
+        MacHome,
+        crate::widget_snapshot::MACOS_PATH,
+        "the widget snapshot on macOS, where the widget extension reads it; it stays here when the data folder moves (macOS desktop)",
+        JsonSchema,
+        "replaced on each refresh; 256 KiB cap",
+        "0014",
+    ),
+    file(
+        "widgets.snapshot_legacy",
+        MacHome,
+        crate::widget_snapshot::MACOS_LEGACY_PATH,
+        "the snapshot as releases before 0.82.2 wrote it (macOS desktop)",
+        JsonSchema,
+        "no longer written; removed with the widget data",
         "0014",
     ),
     file(
@@ -464,6 +487,9 @@ pub struct Roots {
     pub config: Option<PathBuf>,
     /// The accounts TOML in use.
     pub accounts: Option<PathBuf>,
+    /// The home directory, on macOS only ([`Root::MacHome`]); `None`
+    /// elsewhere, where those artifacts do not exist.
+    pub mac_home: Option<PathBuf>,
 }
 
 impl Roots {
@@ -473,6 +499,11 @@ impl Roots {
             local_data: crate::data_dir::root(),
             config: dirs::config_dir(),
             accounts,
+            mac_home: if cfg!(target_os = "macos") {
+                dirs::home_dir()
+            } else {
+                None
+            },
         }
     }
 
@@ -496,6 +527,17 @@ impl Roots {
                 .and_then(Path::parent)
                 .map(|d| join(d, artifact.path)),
             Root::Vault => None,
+            // A home path inside the data root is that root's own artifact
+            // (the default macOS data folder), listed once.
+            Root::MacHome => self
+                .mac_home
+                .as_deref()
+                .map(|d| join(d, artifact.path))
+                .filter(|path| {
+                    self.local_data
+                        .as_deref()
+                        .is_none_or(|data| !path.starts_with(data))
+                }),
         }
     }
 }
@@ -573,7 +615,13 @@ const WALK_LIMIT: usize = 10_000;
 
 /// Inspect every artifact under `roots` (no network, no secret read).
 pub fn inspect(roots: &Roots) -> Vec<ArtifactState> {
-    ARTIFACTS.iter().map(|a| inspect_one(a, roots)).collect()
+    ARTIFACTS
+        .iter()
+        // macOS-only paths: absent from the report elsewhere, and while
+        // they are the data root's own files.
+        .filter(|a| a.root != Root::MacHome || roots.path_of(a).is_some())
+        .map(|a| inspect_one(a, roots))
+        .collect()
 }
 
 fn inspect_one(artifact: &'static Artifact, roots: &Roots) -> ArtifactState {
@@ -1006,6 +1054,7 @@ mod tests {
             local_data: Some(PathBuf::from("/data/cuotai")),
             config: Some(PathBuf::from("/conf")),
             accounts: Some(PathBuf::from("/acc/cuotai.toml")),
+            mac_home: None,
         };
         let path = |id: &str| roots.path_of(artifact(id).unwrap()).unwrap();
         let local = |rel: &str| Path::new("/data").join("cuotai").join(rel);
@@ -1038,12 +1087,56 @@ mod tests {
     }
 
     #[test]
+    fn macos_widget_copies_live_below_the_home_unless_the_data_root_holds_them() {
+        let moved = Roots {
+            local_data: Some(PathBuf::from("/moved/cuotai")),
+            config: None,
+            accounts: None,
+            mac_home: Some(PathBuf::from("/home/ana")),
+        };
+        let path = |roots: &Roots, id: &str| roots.path_of(artifact(id).unwrap());
+        let fixed = Path::new("/home/ana/Library/Application Support/cuotai/widget.json");
+        assert_eq!(
+            path(&moved, "widgets.snapshot_macos").as_deref(),
+            Some(fixed)
+        );
+        assert_eq!(
+            path(&moved, "widgets.snapshot_legacy").as_deref(),
+            Some(Path::new(
+                "/home/ana/Library/Group Containers/WL9XSC6H36.dev.cuotai.desktop/widget.json"
+            ))
+        );
+        // The default macOS data folder already is that folder: one row.
+        let default = Roots {
+            local_data: Some(PathBuf::from(
+                "/home/ana/Library/Application Support/cuotai",
+            )),
+            ..moved.clone()
+        };
+        assert_eq!(path(&default, "widgets.snapshot_macos"), None);
+        assert_eq!(path(&default, "widgets.snapshot").as_deref(), Some(fixed));
+        let ids: Vec<_> = inspect(&default).iter().map(|s| s.id).collect();
+        assert!(!ids.contains(&"widgets.snapshot_macos"));
+        assert!(ids.contains(&"widgets.snapshot_legacy"));
+        // Elsewhere there is no such path at all.
+        let other = Roots {
+            mac_home: None,
+            ..moved
+        };
+        assert_eq!(path(&other, "widgets.snapshot_legacy"), None);
+        assert!(!inspect(&other)
+            .iter()
+            .any(|s| s.id.starts_with("widgets.snapshot_")));
+    }
+
+    #[test]
     fn inspection_reports_kind_size_mode_and_schema_without_content() {
         let dir = tempfile::tempdir().unwrap();
         let roots = Roots {
             local_data: Some(dir.path().join("cuotai")),
             config: Some(dir.path().join("conf")),
             accounts: None,
+            mac_home: None,
         };
         let base = dir.path().join("cuotai");
         std::fs::create_dir_all(base.join("history")).unwrap();

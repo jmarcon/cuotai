@@ -8,7 +8,7 @@
 //! [`MIN_INTERVAL`]. With the switch off nothing is written and an existing
 //! file is deleted.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
@@ -22,10 +22,6 @@ use crate::settings::{WidgetPrefs, MAX_WIDGET_ACCOUNTS};
 /// coalesced into the next write instead of lost.
 pub const MIN_INTERVAL: Duration = Duration::from_secs(15);
 
-/// The *app group* of earlier releases (see [`legacy_snapshot_path`]).
-#[cfg(target_os = "macos")]
-const LEGACY_APP_GROUP: &str = "WL9XSC6H36.dev.cuotai.desktop";
-
 /// PRD 0014 RF3.1: the extension the release embeds in the app bundle.
 #[cfg(target_os = "macos")]
 const EXTENSION: &str = "CuotaiWidgets.appex";
@@ -33,31 +29,85 @@ const EXTENSION: &str = "CuotaiWidgets.appex";
 /// PRD 0014 RF5: the file name every consumer looks for.
 pub const FILE_NAME: &str = "widget.json";
 
-/// Where the snapshot lives: this user's local data directory on every
-/// system. The macOS extension reads this one file through a read-only
-/// sandbox exception (`CuotaiWidgets.entitlements`).
-pub fn snapshot_path() -> Option<PathBuf> {
-    Some(data_dir()?.join(FILE_NAME))
+/// Where the widget file lives and every place an earlier copy may be,
+/// built from a home directory and a data root so the tests use temporary
+/// folders and never this user's real files.
+#[derive(Debug, Clone, Default)]
+pub struct Locations {
+    pub home: Option<PathBuf>,
+    /// The data root ([`cuotai_core::data_dir::root`]): `CUOTAI_DATA_DIR`
+    /// or the Settings data folder, else the OS default.
+    pub data_root: Option<PathBuf>,
+    pub macos: bool,
 }
 
-/// The *app group* file of earlier releases. macOS ignores that entitlement
-/// without a provisioning profile, so nothing reads it; it only goes away
-/// with the data.
-fn legacy_snapshot_path() -> Option<PathBuf> {
-    #[cfg(target_os = "macos")]
-    {
-        Some(
-            dirs::home_dir()?
-                .join("Library")
-                .join("Group Containers")
-                .join(LEGACY_APP_GROUP)
-                .join(FILE_NAME),
-        )
+impl Locations {
+    /// This user's home and data root.
+    #[cfg(not(test))]
+    pub fn system() -> Self {
+        Self {
+            home: dirs::home_dir(),
+            data_root: cuotai_core::data_dir::root(),
+            macos: cfg!(target_os = "macos"),
+        }
     }
-    #[cfg(not(target_os = "macos"))]
-    {
-        None
+
+    /// Under test, a fixed temporary home and data root: no test can reach
+    /// the real widget file, whatever code path it drives.
+    #[cfg(test)]
+    pub fn system() -> Self {
+        let base = std::env::temp_dir().join("cuotai-widget-tests");
+        Self {
+            home: Some(base.join("home")),
+            data_root: Some(base.join("data")),
+            macos: cfg!(target_os = "macos"),
+        }
     }
+
+    /// Where the app writes the snapshot. PRD 0014 RF2.1: on macOS always
+    /// `~/Library/Application Support/cuotai/widget.json`, the one file the
+    /// extension's sandbox may read (`CuotaiWidgets.entitlements`), even
+    /// when the data folder moves; elsewhere the data root (RF5).
+    pub fn snapshot(&self) -> Option<PathBuf> {
+        if self.macos {
+            Some(self.home.as_deref()?.join(widget_snapshot::MACOS_PATH))
+        } else {
+            Some(self.data_root.as_deref()?.join(FILE_NAME))
+        }
+    }
+
+    /// RF2.2: every copy turning widgets off removes: the file, the one an
+    /// earlier release left in a moved data root, the *app group* file of
+    /// releases before 0.82.2, and the `.bak` kept beside each of the
+    /// first two (PRD 0051 RF3.4).
+    pub fn copies(&self) -> Vec<PathBuf> {
+        let mut files: Vec<PathBuf> = Vec::new();
+        files.extend(self.snapshot());
+        files.extend(self.data_root.as_deref().map(|root| root.join(FILE_NAME)));
+        files.dedup();
+        let backups: Vec<PathBuf> = files
+            .iter()
+            .map(|file| {
+                let mut name = file.as_os_str().to_os_string();
+                name.push(".bak");
+                PathBuf::from(name)
+            })
+            .collect();
+        files.extend(backups);
+        if self.macos {
+            files.extend(
+                self.home
+                    .as_deref()
+                    .map(|home| home.join(widget_snapshot::MACOS_LEGACY_PATH)),
+            );
+        }
+        files
+    }
+}
+
+/// Where the snapshot lives on this system ([`Locations::snapshot`]).
+pub fn snapshot_path() -> Option<PathBuf> {
+    Locations::system().snapshot()
 }
 
 /// Whether this executable runs from a bundle that embeds the widget
@@ -67,18 +117,13 @@ fn embeds_extension() -> bool {
     {
         std::env::current_exe()
             .ok()
-            .and_then(|exe| exe.parent()?.parent().map(Path::to_path_buf))
+            .and_then(|exe| exe.parent()?.parent().map(std::path::Path::to_path_buf))
             .is_some_and(|contents| contents.join("PlugIns").join(EXTENSION).is_dir())
     }
     #[cfg(not(target_os = "macos"))]
     {
         false
     }
-}
-
-/// The per-user data directory (RF5.1; `CUOTAI_DATA_DIR` moves it, PRD 0051 RF5).
-fn data_dir() -> Option<PathBuf> {
-    cuotai_core::data_dir::root()
 }
 
 /// The snapshot path as Settings shows it, and whether a WidgetKit extension
@@ -207,15 +252,20 @@ impl Publisher {
     }
 }
 
-/// PRD 0014 RF2.2: remove the snapshot (an absent file is not an error).
-pub fn delete(path: Option<&Path>) -> bool {
-    if let Some(legacy) = legacy_snapshot_path() {
-        let _ = std::fs::remove_file(legacy);
+/// PRD 0014 RF2.2: remove every copy of the snapshot at `locations`
+/// ([`Locations::copies`]). `true` when one was there; an absent file is
+/// not an error.
+pub fn delete(locations: &Locations) -> bool {
+    let mut removed = false;
+    for path in locations.copies() {
+        removed |= std::fs::remove_file(path).is_ok();
     }
-    match path {
-        Some(path) => std::fs::remove_file(path).is_ok(),
-        None => false,
-    }
+    removed
+}
+
+/// [`delete`] at this system's [`Locations`].
+pub fn delete_all() -> bool {
+    delete(&Locations::system())
 }
 
 /// Write `snapshot` at `path` off the async runtime (the write is small,
@@ -306,15 +356,88 @@ mod tests {
         assert!(!publisher.is_dirty(), "off: nothing stays pending");
     }
 
+    fn temp_locations(dir: &std::path::Path, macos: bool, moved: bool) -> Locations {
+        let home = dir.join("home");
+        let data_root = if moved {
+            dir.join("moved")
+        } else if macos {
+            home.join("Library")
+                .join("Application Support")
+                .join("cuotai")
+        } else {
+            dir.join("data")
+        };
+        Locations {
+            home: Some(home),
+            data_root: Some(data_root),
+            macos,
+        }
+    }
+
     #[test]
-    fn deleting_an_absent_file_is_not_a_failure() {
+    fn the_macos_file_stays_where_the_extension_reads_it() {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join(FILE_NAME);
-        assert!(!delete(Some(&path)));
-        std::fs::write(&path, b"{}").unwrap();
-        assert!(delete(Some(&path)));
-        assert!(!path.exists());
-        assert!(!delete(None));
+        let fixed = dir
+            .path()
+            .join("home/Library/Application Support/cuotai")
+            .join(FILE_NAME);
+        let moved = temp_locations(dir.path(), true, true);
+        assert_eq!(moved.snapshot(), Some(fixed.clone()), "a moved data folder");
+        let default = temp_locations(dir.path(), true, false);
+        assert_eq!(default.snapshot(), Some(fixed));
+        let linux = temp_locations(dir.path(), false, true);
+        assert_eq!(
+            linux.snapshot(),
+            Some(dir.path().join("moved").join(FILE_NAME)),
+            "elsewhere the file follows the data root"
+        );
+        assert_eq!(Locations::default().snapshot(), None);
+    }
+
+    #[test]
+    fn deleting_removes_every_copy_and_an_absent_file_is_not_a_failure() {
+        let dir = tempfile::tempdir().unwrap();
+        let locations = temp_locations(dir.path(), true, true);
+        assert!(!delete(&locations), "nothing there yet");
+        let copies = locations.copies();
+        let expected = [
+            "home/Library/Application Support/cuotai/widget.json",
+            "moved/widget.json",
+            "home/Library/Application Support/cuotai/widget.json.bak",
+            "moved/widget.json.bak",
+            "home/Library/Group Containers/WL9XSC6H36.dev.cuotai.desktop/widget.json",
+        ]
+        .map(|rel| dir.path().join(rel));
+        assert_eq!(copies, expected);
+        for copy in &copies {
+            std::fs::create_dir_all(copy.parent().unwrap()).unwrap();
+            std::fs::write(copy, b"{}").unwrap();
+        }
+        assert!(delete(&locations));
+        assert!(copies.iter().all(|copy| !copy.exists()));
+        assert!(!delete(&locations));
+
+        // The default macOS data folder is the fixed one: listed once.
+        let default = temp_locations(dir.path(), true, false);
+        assert_eq!(default.copies().len(), 3);
+        // Elsewhere: the file and its backup in the data root.
+        let linux = temp_locations(dir.path(), false, false);
+        assert_eq!(
+            linux.copies(),
+            vec![
+                dir.path().join("data").join(FILE_NAME),
+                dir.path().join("data").join("widget.json.bak"),
+            ]
+        );
+        assert!(!delete(&Locations::default()));
+    }
+
+    #[test]
+    fn tests_never_reach_the_real_home() {
+        let system = Locations::system();
+        let base = std::env::temp_dir();
+        assert!(system.home.unwrap().starts_with(&base));
+        assert!(system.data_root.unwrap().starts_with(&base));
     }
 
     #[test]
