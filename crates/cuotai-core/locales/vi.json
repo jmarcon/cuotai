@@ -2327,5 +2327,8 @@
   "alerts.at.day": "{day}/{month}",
   "alerts.more": {
     "other": "và {count} mục nữa"
-  }
+  },
+  "user_session.needed": "Cần phiên: tài khoản này đọc mức sử dụng qua một phiên web; hãy dán phiên mới.",
+  "user_session.forget.awaiting": "Đã quên phiên: mục trong kho của hệ thống đã bị xóa. Tài khoản không đọc khóa API nào và chờ một phiên mới.",
+  "edit_error.key_or_session_required": "Nhập khóa API hoặc dán một phiên web."
 }

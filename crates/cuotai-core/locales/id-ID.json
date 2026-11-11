@@ -2327,5 +2327,8 @@
   "alerts.at.day": "{day}/{month}",
   "alerts.more": {
     "other": "dan {count} lainnya"
-  }
+  },
+  "user_session.needed": "Sesi diperlukan: akun ini membaca penggunaannya melalui sesi web; tempelkan sesi baru.",
+  "user_session.forget.awaiting": "Sesi dilupakan: entri brankas sistem dihapus. Akun tidak membaca kunci API dan menunggu sesi baru.",
+  "edit_error.key_or_session_required": "Masukkan kunci API atau tempelkan sesi web."
 }

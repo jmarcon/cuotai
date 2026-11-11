@@ -2327,5 +2327,8 @@
   "alerts.at.day": "{month}/{day}",
   "alerts.more": {
     "other": "외 {count}건"
-  }
+  },
+  "user_session.needed": "세션 필요: 이 계정은 웹 세션으로 사용량을 읽습니다. 새 세션을 붙여 넣으세요.",
+  "user_session.forget.awaiting": "세션을 삭제했습니다. 시스템 보관소 항목이 삭제되었습니다. 이 계정은 API 키를 읽지 않고 새 세션을 기다립니다.",
+  "edit_error.key_or_session_required": "API 키를 입력하거나 웹 세션을 붙여 넣으세요."
 }

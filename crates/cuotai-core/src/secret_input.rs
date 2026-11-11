@@ -409,7 +409,9 @@ pub fn secret_inputs(provider: Provider) -> Vec<SecretInput> {
             label: declared.map_or_else(|| credential_label(provider), |d| d.label()),
             help: secret_help(),
             // PRD 0036 RF2.1: a 9router instance may have login disabled.
-            required: provider != Provider::NineRouter,
+            // PRD 0016: a provider that reads usage through a web session
+            // takes a key or a session; the core checks one is there.
+            required: provider != Provider::NineRouter && !user_session::session_or_key(provider),
             cookie: false,
             field: None,
             default_env: account_edit::default_env(provider),

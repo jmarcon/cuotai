@@ -1080,6 +1080,9 @@ mod tests {
             ids.push(crate::user_session::migrated_notice().id.to_string());
             ids.push(crate::user_session::forgotten_notice().id.to_string());
             ids.push("user_session.forget.nothing".to_string());
+            ids.push("user_session.forget.awaiting".to_string());
+            ids.push(crate::user_session::needed().id.to_string());
+            ids.push("edit_error.key_or_session_required".to_string());
             for d in edit::field_descriptors(provider) {
                 ids.push(edit::field_label_id(provider, d.key));
                 ids.push(edit::field_help_id(provider, d.key));

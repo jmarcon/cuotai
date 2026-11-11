@@ -9774,6 +9774,38 @@ mod tests {
         assert!(after.session_slots.is_empty());
     }
 
+    // PRD 0016 (2026-11 review): a web-session account saves without an API
+    // key, and forgetting its session keeps only the reference so it waits
+    // for a new one instead of reading the default key variable.
+    #[tokio::test(flavor = "current_thread")]
+    async fn a_session_only_account_saves_without_a_key_and_waits_after_forget() {
+        let store = Arc::new(MemoryStore::default());
+        let backend = build_backend(store.clone(), vec![session_env_account("MIMO_COOKIE")]).await;
+        let mut input = pasted_input("api-platform_serviceToken=DESKTOP-SECRET; userId=1");
+        input.credential = String::new();
+        backend
+            .inner
+            .drive_save_account(input, cleared())
+            .await
+            .unwrap();
+        let path = backend.file_path().await;
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(!text.contains("credential_env"), "{text}");
+        assert_eq!(store.entries.lock().len(), 1);
+
+        backend
+            .inner
+            .drive_session_change(0, SessionChange::Forget)
+            .await
+            .unwrap();
+        assert!(store.entries.lock().is_empty());
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(!text.contains("credential_env"), "{text}");
+        let account = &backend.loaded_config().await.accounts[0];
+        assert!(account.session.as_ref().is_some_and(|s| s.slots.is_empty()));
+        assert!(cuotai_core::user_session::session_only(account));
+    }
+
     // RF1.2: desktop precedence env > chosen > OS, never `./cuotai.toml`;
     // switching reloads accounts and drops per-config state.
     #[tokio::test(flavor = "current_thread")]

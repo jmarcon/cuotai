@@ -2343,5 +2343,8 @@
   "alerts.more": {
     "one": "ve {count} tane daha",
     "other": "ve {count} tane daha"
-  }
+  },
+  "user_session.needed": "Oturum gerekli: bu hesap kullanımını bir web oturumuyla okur; yeni bir oturum yapıştırın.",
+  "user_session.forget.awaiting": "Oturum unutuldu: sistem kasasındaki kayıt silindi. Hesap hiçbir API anahtarı okumaz ve yeni bir oturum bekler.",
+  "edit_error.key_or_session_required": "Bir API anahtarı girin veya bir web oturumu yapıştırın."
 }

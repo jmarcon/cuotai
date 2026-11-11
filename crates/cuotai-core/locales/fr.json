@@ -2343,5 +2343,8 @@
   "alerts.more": {
     "one": "et {count} de plus",
     "other": "et {count} de plus"
-  }
+  },
+  "user_session.needed": "Session requise : ce compte lit son usage via une session web ; collez-en une nouvelle.",
+  "user_session.forget.awaiting": "Session oubliée : l’entrée du coffre du système a été supprimée. Le compte ne lit aucune clé d’API et attend une nouvelle session.",
+  "edit_error.key_or_session_required": "Saisissez une clé d’API ou collez une session web."
 }

@@ -2343,5 +2343,8 @@
   "alerts.more": {
     "one": "und {count} weitere",
     "other": "und {count} weitere"
-  }
+  },
+  "user_session.needed": "Sitzung erforderlich: Dieses Konto liest seine Nutzung über eine Websitzung; fügen Sie eine neue ein.",
+  "user_session.forget.awaiting": "Sitzung vergessen: Der Eintrag im Systemtresor wurde gelöscht. Das Konto liest keinen API-Schlüssel und wartet auf eine neue Sitzung.",
+  "edit_error.key_or_session_required": "Geben Sie einen API-Schlüssel ein oder fügen Sie eine Websitzung ein."
 }

@@ -46,7 +46,7 @@ In the desktop GUI, adding an account never mentions environment variables. The 
 
 ## 4. Terminal requirements (TUI/CLI user)
 
-- **T1 — Default variable per provider.** The TUI keeps suggesting `account_edit::default_env(provider)` (for example `XIAOMI_MIMO_API_KEY`) for the first account of a provider.
+- **T1 — Default variable per provider.** The TUI keeps suggesting `account_edit::default_env(provider)` (for example `XIAOMI_MIMO_API_KEY`) for the first account of a provider. The default variable applies to key-based accounts only: an account that reads its usage through a web session and names no key never falls back to it (PRD 0016, decision of 2026-11-11).
 - **T2 — One variable per account.** For a further account of the same provider the TUI suggests a distinct name, `<DEFAULT>_<ACCOUNT NAME>` (then a numeric suffix), and the user may type any valid name.
 - **T3 — Terminal wording.** Terminal help and errors keep naming variables; they are separate texts from the GUI ones, so changing one surface never changes the other.
 - **T4 — Vault accounts in the terminal.** An account created in the desktop (vault reference) works unchanged in the TUI and CLI; existing TOML files with `credential_env` work unchanged everywhere.

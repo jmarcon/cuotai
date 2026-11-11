@@ -2340,5 +2340,8 @@
   "alerts.more": {
     "one": "e un altro",
     "other": "e altri {count}"
-  }
+  },
+  "user_session.needed": "Sessione necessaria: questo account legge l’utilizzo tramite una sessione web; incollane una nuova.",
+  "user_session.forget.awaiting": "Sessione dimenticata: la voce del vault di sistema è stata eliminata. L’account non legge alcuna chiave API e attende una nuova sessione.",
+  "edit_error.key_or_session_required": "Inserisci una chiave API o incolla una sessione web."
 }
