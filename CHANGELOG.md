@@ -13,6 +13,22 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.85.6] - 2026-11-11
+
+### Fixed
+
+- On Windows, an extension whose program has a same-named .exe beside it is refused, so the file the disclosure shows is the one that runs (PRD 0017 RF3.1; dfd26c7).
+- The terminal's extension consent screen now warns when the extension asks for another account's credential variable, as the desktop does (PRD 0050 RF8.2; 552d370).
+- Approving a changed extension again keeps its account's name, group, budgets, floors and refresh interval, and says the account was kept (PRD 0017 RF4.2; 93b5c04).
+- Extension and LiteLLM accounts now show their provider name in your language (PRD 0017 RF5.1; 7928fc0).
+- An extension that needs approval now points to the Extensions screen, not only to a terminal command (PRD 0017 RF5.1; 7928fc0).
+- The terminal's extension list marks an enabled extension whose last run failed, without selecting it first (PRD 0017 RF5.1; 93e96ec).
+- The privacy inventory now says exactly which environment values an extension receives (PRD 0017 RF5.2; fa4f2b5).
+
+### Security
+
+- An extension folder linked from elsewhere is now refused when any folder above it, not only its parent, can be written by other users (PRD 0017 FIX-05; PRD 0050 RF8.1; e818ada).
+
 ## [0.85.5] - 2026-11-11
 
 ### Fixed
@@ -773,7 +789,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.85.5...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.85.6...HEAD
+[0.85.6]: https://github.com/jmarcon/cuotai/compare/v0.85.5...v0.85.6
 [0.85.5]: https://github.com/jmarcon/cuotai/compare/v0.85.4...v0.85.5
 [0.85.4]: https://github.com/jmarcon/cuotai/compare/v0.85.3...v0.85.4
 [0.85.3]: https://github.com/jmarcon/cuotai/compare/v0.85.2...v0.85.3
