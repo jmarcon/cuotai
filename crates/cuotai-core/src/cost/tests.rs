@@ -485,6 +485,7 @@ fn a_commit_after_the_source_was_turned_off_writes_nothing() {
         replayed: 0,
         folders: Vec::new(),
         read_at: 0,
+        started: None,
     };
     assert_eq!(CostIndex::commit(&mut db, chunk, || false).unwrap(), None);
     assert_eq!(f.rows("usage") + f.rows("files"), 0);
@@ -1499,4 +1500,105 @@ fn an_unreadable_index_is_reported_per_source_not_as_off() {
     );
     let json = serde_json::to_value(&summary).unwrap();
     assert_eq!(json["sources"][0]["state"], "unreadable");
+}
+
+/// The 0.57.0 decision: a source that stays on reads its logs again from
+/// the start after an erase. An erase between a read and its commit must
+/// not leave the control row at the advanced position.
+#[test]
+fn an_erase_during_a_read_does_not_skip_the_lines_before_it() {
+    let f = fixture();
+    f.enable(SourceId::ClaudeCode);
+    let log = f.claude_log("a");
+    write(&log, &claude_line(1, 10, 2));
+    f.scan();
+    append(&log, &claude_line(2, 10, 2));
+    let index = f.scanner.index();
+    let mut db = index.open().unwrap();
+    let file = {
+        let mut stmt = db.prepare("SELECT file FROM files").unwrap();
+        stmt.query_row([], |r| r.get::<_, String>(0)).unwrap()
+    };
+    let known = CostIndex::file(&db, SourceId::ClaudeCode, &file)
+        .unwrap()
+        .unwrap();
+    let started = Some((known.identity.clone(), known.position));
+    // The read of the new line is done; the index is erased before it lands.
+    index.erase().unwrap();
+    let entry = source::Entry {
+        at: now(),
+        model: "m".into(),
+        tokens: Tokens {
+            input: 1,
+            ..Tokens::default()
+        },
+        session: String::new(),
+        dedup: None,
+        project: None,
+    };
+    let size = std::fs::metadata(&log).unwrap().len();
+    let chunk = index::Chunk {
+        source: SourceId::ClaudeCode,
+        file: &file,
+        restart: false,
+        row: index::FileRow {
+            examined: size,
+            position: size,
+            ..known
+        },
+        entries: vec![(now().date_naive(), entry)],
+        replayed: 0,
+        folders: Vec::new(),
+        read_at: 0,
+        started,
+    };
+    let committed = CostIndex::commit(&mut db, chunk, || true).unwrap().unwrap();
+    assert!(committed.dropped);
+    drop(db);
+    assert_eq!(f.rows("usage") + f.rows("files"), 0, "nothing written");
+    f.scan();
+    assert_eq!(f.requests(), 2, "every line is counted again");
+}
+
+/// RF2.1: a final line without a newline waits, and is counted once the
+/// file has been quiet for 10 minutes, without any new write.
+#[test]
+fn a_final_line_without_newline_is_counted_once_the_file_is_quiet() {
+    let f = fixture();
+    f.enable(SourceId::ClaudeCode);
+    let log = f.claude_log("a");
+    let tail = claude_line(2, 10, 2);
+    write(&log, &(claude_line(1, 10, 2) + tail.trim_end()));
+    let age = |minutes: i64| {
+        let at = std::time::SystemTime::from(now() - chrono::TimeDelta::minutes(minutes));
+        std::fs::File::options()
+            .write(true)
+            .open(&log)
+            .unwrap()
+            .set_modified(at)
+            .unwrap();
+    };
+    age(5);
+    f.scan();
+    assert_eq!(f.requests(), 1, "the tail is still being written");
+    age(20);
+    f.scan();
+    assert_eq!(f.requests(), 2, "a quiet file's tail is counted");
+    f.scan();
+    assert_eq!(f.requests(), 2, "and only once");
+}
+
+/// V-04: an existing but empty log folder is no logs, not ready.
+#[test]
+fn an_empty_log_folder_is_no_logs() {
+    let f = fixture();
+    f.enable(SourceId::CodexCli);
+    std::fs::create_dir_all(f.home().join(".codex/sessions")).unwrap();
+    let report = f.scan();
+    let codex = report
+        .sources
+        .iter()
+        .find(|s| s.source == SourceId::CodexCli)
+        .unwrap();
+    assert_eq!(codex.state, SourceState::NoLogs);
 }
