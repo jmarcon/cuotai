@@ -40,7 +40,9 @@ codesign --force --deep "${identity_args[@]}" "$app"
 codesign --force "${identity_args[@]}" --entitlements "$widgets_dir/CuotaiWidgets.entitlements" "$plugin"
 codesign --force "${identity_args[@]}" "$app"
 codesign --verify --deep --strict --verbose=2 "$app"
-codesign -d --entitlements - --xml "$plugin" 2>/dev/null | grep -q 'com.apple.security.app-sandbox' || {
+# Capture first: `| grep -q` under pipefail turns SIGPIPE into a false failure.
+plugin_entitlements="$(codesign -d --entitlements - --xml "$plugin" 2>/dev/null || true)"
+grep -q 'com.apple.security.app-sandbox' <<<"$plugin_entitlements" || {
   echo "the widget extension is not sandboxed" >&2
   exit 1
 }

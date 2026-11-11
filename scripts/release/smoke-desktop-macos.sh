@@ -90,7 +90,10 @@ grep -q '/Library/Application Support/cuotai/widget.json' <<<"$plugin_entitlemen
 # launch, so the widget gallery stays empty while every check above passes.
 plugin_binary="$plugin/Contents/MacOS/CuotaiWidgets"
 for arch in arm64 x86_64; do
-  nm -arch "$arch" -u "$plugin_binary" | grep -q '^_NSExtensionMain$' || {
+  # Capture first: `nm | grep -q` under pipefail fails when grep exits on the
+  # first match and nm dies of SIGPIPE.
+  undefined="$(nm -arch "$arch" -u "$plugin_binary" || true)"
+  grep -q '^_NSExtensionMain$' <<<"$undefined" || {
     echo "the widget extension ($arch) is not linked with the _NSExtensionMain entry point" >&2
     exit 1
   }

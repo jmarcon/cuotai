@@ -20,7 +20,9 @@ mkdir -p "$dist"
 name="cuotai-${version}-${target}.tar.gz"
 # GNU tar normalizes ordering and ownership; bsdtar on macOS gets an explicit
 # file order. Checksums authenticate the exact archive produced by this run.
-if tar --version 2>/dev/null | grep -q GNU; then
+# Capture first: `| grep -q` under pipefail turns SIGPIPE into a false failure.
+tar_version="$(tar --version 2>/dev/null || true)"
+if grep -q GNU <<<"$tar_version"; then
   tar -czf "${dist}/${name}" \
     --sort=name --owner=0 --group=0 --numeric-owner \
     -C "$staging" cuotai LICENSE-APACHE LICENSE-MIT

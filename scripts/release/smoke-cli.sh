@@ -132,8 +132,10 @@ echo "ok: --version -> $reported"
 # 2. --list-providers: exit 0 and lists the providers the sample uses.
 cli --list-providers
 [ "$status" -eq 0 ] || fail "--list-providers exited $status"
+# Capture first: `| grep -q` under pipefail turns SIGPIPE into a false failure.
+listed="$(tr -d '\r' < "$work/out")"
 while read -r provider; do
-  tr -d '\r' < "$work/out" | grep -q "^$provider " || fail "--list-providers does not list $provider"
+  grep -q "^$provider " <<<"$listed" || fail "--list-providers does not list $provider"
 done < <(sed -n 's/^provider *= *"\([a-z0-9_]*\)".*/\1/p' "$config" | sort -u)
 echo "ok: --list-providers ($(grep -c . "$work/out") providers)"
 

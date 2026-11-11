@@ -54,7 +54,9 @@ read -r package deb_version deb_arch < <(dpkg-deb -W --showformat='${Package} ${
 [ "$deb_version" = "$VERSION" ] || { echo "deb Version is $deb_version, expected $VERSION" >&2; exit 1; }
 [ "$deb_arch" = "amd64" ] || { echo "deb Architecture is $deb_arch, expected amd64" >&2; exit 1; }
 apt_get install -y -qq --no-install-recommends "$deb" >/dev/null
-dpkg -s "$package" | grep -q '^Status: install ok installed' || { echo "$package is not installed" >&2; exit 1; }
+# Capture first: `| grep -q` under pipefail turns SIGPIPE into a false failure.
+package_status="$(dpkg -s "$package" || true)"
+grep -q '^Status: install ok installed' <<<"$package_status" || { echo "$package is not installed" >&2; exit 1; }
 mapfile -t deb_bins < <(dpkg -L "$package" | grep '^/usr/bin/' || true)
 [ "${#deb_bins[@]}" -ge 1 ] || { echo "$package installs nothing under /usr/bin" >&2; exit 1; }
 missing="$(missing_libraries "${deb_bins[0]}")"
