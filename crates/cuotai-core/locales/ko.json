@@ -2330,5 +2330,9 @@
   },
   "user_session.needed": "세션 필요: 이 계정은 웹 세션으로 사용량을 읽습니다. 새 세션을 붙여 넣으세요.",
   "user_session.forget.awaiting": "세션을 삭제했습니다. 시스템 보관소 항목이 삭제되었습니다. 이 계정은 API 키를 읽지 않고 새 세션을 기다립니다.",
-  "edit_error.key_or_session_required": "API 키를 입력하거나 웹 세션을 붙여 넣으세요."
+  "edit_error.key_or_session_required": "API 키를 입력하거나 웹 세션을 붙여 넣으세요.",
+  "user_session.paste.too_long": "붙여 넣은 텍스트가 너무 깁니다. Cookie 헤더, cURL 형식의 요청 또는 쿠키 표만 복사하세요.",
+  "user_session.paste.cookie_too_long": "세션 쿠키가 너무 길어 보낼 수 없습니다. 다시 로그인한 뒤 다시 복사하세요.",
+  "oauth_error.store.too_long": "이 자격 증명은 시스템 보관소에 넣기에 너무 큽니다.",
+  "edit_error.config_reserved_name": "필드 {field}에 Cuotai용으로 예약된 이름(__CUOTAI_로 시작)이 쓰였습니다. 직접 만든 환경 변수의 이름을 지정하거나 계정 마법사에서 비밀 값을 붙여 넣으세요."
 }

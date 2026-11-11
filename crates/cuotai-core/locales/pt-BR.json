@@ -2343,5 +2343,9 @@
   },
   "user_session.needed": "Sessão necessária: esta conta lê o uso por uma sessão web; cole uma nova.",
   "user_session.forget.awaiting": "Sessão esquecida: a entrada do cofre do sistema foi apagada. A conta não lê nenhuma chave de API e aguarda uma nova sessão.",
-  "edit_error.key_or_session_required": "Informe uma chave de API ou cole uma sessão web."
+  "edit_error.key_or_session_required": "Informe uma chave de API ou cole uma sessão web.",
+  "user_session.paste.too_long": "O texto colado é longo demais; copie só o cabeçalho Cookie, a requisição como cURL ou a tabela de cookies.",
+  "user_session.paste.cookie_too_long": "Os cookies da sessão são longos demais para enviar; copie-os de novo depois de entrar outra vez.",
+  "oauth_error.store.too_long": "Esta credencial é grande demais para o cofre do sistema.",
+  "edit_error.config_reserved_name": "O campo {field} usa um nome reservado ao Cuotai (começa com __CUOTAI_); informe o nome da sua própria variável de ambiente ou cole o segredo no assistente da conta."
 }

@@ -2343,5 +2343,9 @@
   },
   "user_session.needed": "Sessione necessaria: questo account legge l’utilizzo tramite una sessione web; incollane una nuova.",
   "user_session.forget.awaiting": "Sessione dimenticata: la voce del vault di sistema è stata eliminata. L’account non legge alcuna chiave API e attende una nuova sessione.",
-  "edit_error.key_or_session_required": "Inserisci una chiave API o incolla una sessione web."
+  "edit_error.key_or_session_required": "Inserisci una chiave API o incolla una sessione web.",
+  "user_session.paste.too_long": "Il testo incollato è troppo lungo; copia solo l’intestazione Cookie, la richiesta come cURL o la tabella dei cookie.",
+  "user_session.paste.cookie_too_long": "I cookie della sessione sono troppo lunghi da inviare; copiali di nuovo dopo un nuovo accesso.",
+  "oauth_error.store.too_long": "Questa credenziale è troppo grande per il vault di sistema.",
+  "edit_error.config_reserved_name": "Il campo {field} usa un nome riservato a Cuotai (inizia con __CUOTAI_); indica il nome di una tua variabile d’ambiente, oppure incolla il segreto nell’assistente dell’account."
 }

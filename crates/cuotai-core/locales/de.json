@@ -2346,5 +2346,9 @@
   },
   "user_session.needed": "Sitzung erforderlich: Dieses Konto liest seine Nutzung über eine Websitzung; fügen Sie eine neue ein.",
   "user_session.forget.awaiting": "Sitzung vergessen: Der Eintrag im Systemtresor wurde gelöscht. Das Konto liest keinen API-Schlüssel und wartet auf eine neue Sitzung.",
-  "edit_error.key_or_session_required": "Geben Sie einen API-Schlüssel ein oder fügen Sie eine Websitzung ein."
+  "edit_error.key_or_session_required": "Geben Sie einen API-Schlüssel ein oder fügen Sie eine Websitzung ein.",
+  "user_session.paste.too_long": "Der eingefügte Text ist zu lang; kopieren Sie nur den Cookie-Header, die Anfrage als cURL oder die Cookie-Tabelle.",
+  "user_session.paste.cookie_too_long": "Die Cookies der Sitzung sind zu lang zum Senden; kopieren Sie sie nach einer neuen Anmeldung erneut.",
+  "oauth_error.store.too_long": "Diese Zugangsdaten sind zu groß für den Systemtresor.",
+  "edit_error.config_reserved_name": "Das Feld {field} verwendet einen für Cuotai reservierten Namen (er beginnt mit __CUOTAI_); geben Sie den Namen Ihrer eigenen Umgebungsvariable an oder fügen Sie das Geheimnis im Kontoassistenten ein."
 }

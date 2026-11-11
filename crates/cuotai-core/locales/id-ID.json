@@ -2330,5 +2330,9 @@
   },
   "user_session.needed": "Sesi diperlukan: akun ini membaca penggunaannya melalui sesi web; tempelkan sesi baru.",
   "user_session.forget.awaiting": "Sesi dilupakan: entri brankas sistem dihapus. Akun tidak membaca kunci API dan menunggu sesi baru.",
-  "edit_error.key_or_session_required": "Masukkan kunci API atau tempelkan sesi web."
+  "edit_error.key_or_session_required": "Masukkan kunci API atau tempelkan sesi web.",
+  "user_session.paste.too_long": "Teks yang ditempel terlalu panjang; salin hanya header Cookie, permintaan sebagai cURL, atau tabel cookie.",
+  "user_session.paste.cookie_too_long": "Cookie sesi terlalu panjang untuk dikirim; salin lagi setelah masuk kembali.",
+  "oauth_error.store.too_long": "Kredensial ini terlalu besar untuk brankas sistem.",
+  "edit_error.config_reserved_name": "Kolom {field} memakai nama yang dicadangkan untuk Cuotai (diawali __CUOTAI_); isi nama variabel lingkungan Anda sendiri, atau tempel rahasianya di asisten akun."
 }

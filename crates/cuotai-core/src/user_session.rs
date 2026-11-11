@@ -75,6 +75,11 @@ pub const NINE_ROUTER_SSO_SLOT: &str = "auth_session_env";
 
 /// Longest secret value accepted from a paste.
 const MAX_SECRET_LEN: usize = 4096;
+/// 2026-11 review (S-02): the largest paste the reduction reads (a whole
+/// request copied as cURL fits easily) and the largest reduced cookie it
+/// keeps (well under what a `Cookie` header and the vaults accept).
+const MAX_PASTE_LEN: usize = 64 * 1024;
+const MAX_COOKIE_LEN: usize = 8 * 1024;
 
 /// PRD 0048 RF1: where a desktop sign-in window captures a session: the
 /// page it opens, the address whose cookies it reads, and the sign-in
@@ -1867,6 +1872,12 @@ pub fn reduce(
     if descriptor.delivery == Delivery::Secret {
         return reduce_secret(descriptor, paste);
     }
+    if paste.len() > MAX_PASTE_LEN {
+        return Err(Localized::fixed(
+            "user_session.paste.too_long",
+            "The pasted text is too long; copy only the Cookie header, the request as cURL or the cookie table.",
+        ));
+    }
     let pairs = paste_pairs(paste);
     if pairs.is_empty() {
         return Err(Localized::fixed(
@@ -1979,6 +1990,12 @@ pub fn reduce(
             "names",
             names.as_str(),
             "This session's cookies are missing: {names}.",
+        ));
+    }
+    if reduced.cookie.len() > MAX_COOKIE_LEN {
+        return Err(Localized::fixed(
+            "user_session.paste.cookie_too_long",
+            "The session's cookies are too long to send; copy them again from a fresh sign-in.",
         ));
     }
     if reduced.kept.is_empty() {

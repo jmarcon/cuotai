@@ -2330,5 +2330,9 @@
   },
   "user_session.needed": "セッションが必要です。このアカウントは Web セッションで使用状況を読み取ります。新しいセッションを貼り付けてください。",
   "user_session.forget.awaiting": "セッションを消去しました。システムの保管庫の項目は削除されました。このアカウントは API キーを読み取らず、新しいセッションを待ちます。",
-  "edit_error.key_or_session_required": "API キーを入力するか、Web セッションを貼り付けてください。"
+  "edit_error.key_or_session_required": "API キーを入力するか、Web セッションを貼り付けてください。",
+  "user_session.paste.too_long": "貼り付けたテキストが長すぎます。Cookie ヘッダー、cURL 形式のリクエスト、または Cookie の表だけをコピーしてください。",
+  "user_session.paste.cookie_too_long": "セッションの Cookie が長すぎて送信できません。サインインし直してからもう一度コピーしてください。",
+  "oauth_error.store.too_long": "この資格情報はシステムの保管庫には大きすぎます。",
+  "edit_error.config_reserved_name": "フィールド {field} は Cuotai 用に予約された名前（__CUOTAI_ で始まる）を使っています。自分の環境変数の名前を指定するか、アカウントウィザードでシークレットを貼り付けてください。"
 }

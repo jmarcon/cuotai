@@ -203,6 +203,14 @@ pub fn config_error_note(error: &crate::ConfigError) -> Localized {
         );
     }
 
+    if let crate::ConfigError::ReservedName { field } = error {
+        return Localized::with_params(
+            "edit_error.config_reserved_name",
+            params([("field", ParamValue::from(field.clone()))]),
+            "The field {field} uses a name reserved for Cuotai (it starts with __CUOTAI_); set the name of your own environment variable, or paste the secret in the account wizard.",
+        );
+    }
+
     let id = match error {
         crate::ConfigError::Bounds => "edit_error.config_bounds",
         crate::ConfigError::AccountNames => "edit_error.config_account_names",
@@ -219,6 +227,7 @@ pub fn config_error_note(error: &crate::ConfigError) -> Localized {
         | crate::ConfigError::AccountIds { .. }
         | crate::ConfigError::Budget { .. }
         | crate::ConfigError::Breakdown { .. }
+        | crate::ConfigError::ReservedName { .. }
         | crate::ConfigError::Parse { .. } => {
             unreachable!()
         }

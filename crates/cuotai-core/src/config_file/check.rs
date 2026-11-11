@@ -55,6 +55,7 @@ pub fn error_kind(error: &ConfigError) -> &'static str {
         ConfigError::OpenRouter => "open_router",
         ConfigError::Budget { .. } => "budget",
         ConfigError::Breakdown { .. } => "breakdown",
+        ConfigError::ReservedName { .. } => "reserved_name",
         ConfigError::Feed => "feed",
     }
 }
@@ -69,7 +70,8 @@ fn diagnostic(error: &ConfigError) -> ConfigDiagnostic {
         ConfigError::MeteredRefreshFloor { field, .. }
         | ConfigError::AccountIds { field }
         | ConfigError::Budget { field, .. }
-        | ConfigError::Breakdown { field } => (None, None, Some(field.clone())),
+        | ConfigError::Breakdown { field }
+        | ConfigError::ReservedName { field } => (None, None, Some(field.clone())),
         _ => (None, None, None),
     };
     ConfigDiagnostic {

@@ -2343,5 +2343,9 @@
   },
   "user_session.needed": "Se necesita una sesión: esta cuenta lee su uso mediante una sesión web; pega una nueva.",
   "user_session.forget.awaiting": "Sesión olvidada: la entrada de la bóveda del sistema se eliminó. La cuenta no lee ninguna clave de API y espera una nueva sesión.",
-  "edit_error.key_or_session_required": "Introduce una clave de API o pega una sesión web."
+  "edit_error.key_or_session_required": "Introduce una clave de API o pega una sesión web.",
+  "user_session.paste.too_long": "El texto pegado es demasiado largo; copia solo el encabezado Cookie, la solicitud como cURL o la tabla de cookies.",
+  "user_session.paste.cookie_too_long": "Las cookies de la sesión son demasiado largas para enviarlas; cópialas de nuevo tras iniciar sesión otra vez.",
+  "oauth_error.store.too_long": "Esta credencial es demasiado grande para la bóveda del sistema.",
+  "edit_error.config_reserved_name": "El campo {field} usa un nombre reservado para Cuotai (empieza por __CUOTAI_); indica el nombre de tu propia variable de entorno o pega el secreto en el asistente de la cuenta."
 }

@@ -2330,5 +2330,9 @@
   },
   "user_session.needed": "需要会话：此账户通过网页会话读取用量；请粘贴新的会话。",
   "user_session.forget.awaiting": "会话已忘记：系统保险库中的条目已删除。此账户不读取任何 API 密钥，正在等待新的会话。",
-  "edit_error.key_or_session_required": "请输入 API 密钥或粘贴网页会话。"
+  "edit_error.key_or_session_required": "请输入 API 密钥或粘贴网页会话。",
+  "user_session.paste.too_long": "粘贴的文本过长；请只复制 Cookie 请求头、cURL 格式的请求或 Cookie 表格。",
+  "user_session.paste.cookie_too_long": "会话的 Cookie 太长，无法发送；请重新登录后再复制。",
+  "oauth_error.store.too_long": "此凭据对系统保险库来说过大。",
+  "edit_error.config_reserved_name": "字段 {field} 使用了为 Cuotai 保留的名称（以 __CUOTAI_ 开头）；请填写你自己的环境变量名称，或在账户向导中粘贴密钥。"
 }
