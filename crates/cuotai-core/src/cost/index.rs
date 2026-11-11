@@ -31,6 +31,9 @@ use std::path::{Path, PathBuf};
 /// `n + 1`. Append new steps, never edit a shipped one. Days are local
 /// `YYYY-MM-DD`; times are UTC unix milliseconds.
 /// PRD 0046 RF4: the migration count this release knows, for `--doctor`.
+/// How long the pre-upgrade copy of the index is kept (as the history's).
+pub const BACKUP_KEEP: chrono::TimeDelta = chrono::TimeDelta::days(7);
+
 pub(crate) const SCHEMA_REVISION: i64 = MIGRATIONS.len() as i64;
 
 pub(crate) const MIGRATIONS: [&str; 3] = [
@@ -829,7 +832,25 @@ impl CostIndex {
         tx.commit()?;
         // The deleted pages were zeroed; drop the WAL copies too.
         db.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(()))?;
+        // RF2.4: the pre-upgrade copy a migration left holds every source,
+        // so a full or per-source erase drops it whole.
+        crate::private_fs::remove_backup(&self.path).map_err(|_| CostError::Storage)?;
         Ok(removed)
+    }
+
+    /// The pre-upgrade copy (`cost.sqlite3.bak`, written by a migration) is
+    /// removed once it is older than [`BACKUP_KEEP`]. Returns whether it was.
+    pub fn prune_backup(&self, now: DateTime<Utc>) -> Result<bool, CostError> {
+        let Some(written) =
+            crate::private_fs::backup_written(&self.path).map_err(|_| CostError::Storage)?
+        else {
+            return Ok(false);
+        };
+        if now.signed_duration_since(DateTime::<Utc>::from(written)) <= BACKUP_KEEP {
+            return Ok(false);
+        }
+        crate::private_fs::remove_backup(&self.path).map_err(|_| CostError::Storage)?;
+        Ok(true)
     }
 
     /// How many log files of `source` the index follows and the invalid

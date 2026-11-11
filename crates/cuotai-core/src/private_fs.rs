@@ -553,6 +553,30 @@ pub(crate) fn ensure_sqlite_meta(db: &rusqlite::Connection) -> rusqlite::Result<
     Ok(())
 }
 
+/// Remove the `<file>.bak` copy beside the database `path` and the stale
+/// temporaries of an interrupted copy. An absent copy is not an error.
+pub(crate) fn remove_backup(path: &Path) -> std::io::Result<()> {
+    let bak = backup_path(path);
+    clean_orphans(&bak);
+    match std::fs::remove_file(&bak) {
+        Err(error) if error.kind() != std::io::ErrorKind::NotFound => Err(error),
+        _ => Ok(()),
+    }
+}
+
+/// When the `<file>.bak` copy beside `path` was last written, or `None`
+/// when there is no copy. The stale temporaries of an interrupted copy
+/// are removed on the way.
+pub(crate) fn backup_written(path: &Path) -> std::io::Result<Option<std::time::SystemTime>> {
+    let bak = backup_path(path);
+    clean_orphans(&bak);
+    match std::fs::symlink_metadata(&bak) {
+        Ok(meta) => Ok(Some(meta.modified().unwrap_or(std::time::UNIX_EPOCH))),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
 /// `<file>.bak` beside the database `path`.
 pub(crate) fn backup_path(path: &Path) -> std::path::PathBuf {
     let mut name = path.file_name().unwrap_or_default().to_os_string();
