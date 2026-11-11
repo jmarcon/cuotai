@@ -50,6 +50,13 @@ use tauri::{async_runtime::Mutex, AppHandle, Emitter};
 use tokio::sync::{mpsc, oneshot};
 
 /// PRD 0006 RF4.4: what a history export wrote, and where.
+/// PRD 0050 RF2.5: what the webview receives to show an extension's
+/// disclosure: its lines only, never the approval candidate.
+#[derive(Debug, Serialize, PartialEq, Eq)]
+pub struct ExtensionReview {
+    pub lines: Vec<cuotai_core::text::Localized>,
+}
+
 #[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct Exported {
     pub rows: usize,
@@ -3721,20 +3728,21 @@ impl Backend {
         Ok(manager.list(&loaded.file.config))
     }
 
-    pub async fn extension_disclosure(
-        &self,
-        id: &str,
-    ) -> Result<cuotai_core::extensions::management::Disclosure, String> {
+    /// The disclosure lines of `id`, for the webview to show. It never gets
+    /// an approval candidate (PRD 0050 RF2.5): [`Self::enable_extension`]
+    /// takes its own in Rust, so no token is issued here.
+    pub async fn extension_disclosure(&self, id: &str) -> Result<ExtensionReview, String> {
         self.ensure_loaded().await;
         let g = self.inner.lock().await;
         let loaded = g.loaded.as_ref().ok_or("config_unavailable")?;
         // PRD 0050 RF8.2: names another account reads its credential from.
-        loaded
+        let lines = loaded
             .monitor
             .extension_manager()
             .ok_or("extensions_unavailable")?
-            .disclosure_for(id, &loaded.file.config)
-            .map_err(|note| l10n_to_json(&note))
+            .review(id, &loaded.file.config)
+            .map_err(|note| l10n_to_json(&note))?;
+        Ok(ExtensionReview { lines })
     }
 
     /// PRD 0050 RF2.5: approve and use the extension `id`. Rust takes a
@@ -7414,6 +7422,19 @@ pub fn tray_view() -> TrayView {
 
 #[cfg(test)]
 mod tests {
+    /// PRD 0050 RF2.5 (PRD 0017 re-validation S-03): the disclosure the
+    /// webview receives holds the lines only, never a candidate token.
+    #[test]
+    fn the_webview_disclosure_carries_no_candidate() {
+        let review = super::ExtensionReview {
+            lines: vec![cuotai_core::text::Localized::fixed("a", "A line")],
+        };
+        let json = serde_json::to_value(&review).unwrap();
+        let keys: Vec<&String> = json.as_object().unwrap().keys().collect();
+        assert_eq!(keys, ["lines"]);
+        assert!(!json.to_string().contains("token"));
+    }
+
     /// S-01 (PRD 0009 re-validation): the local clock of an instant near
     /// chrono's limit reads in UTC instead of panicking, under any zone.
     #[test]
