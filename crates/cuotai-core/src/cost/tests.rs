@@ -1303,3 +1303,81 @@ fn a_source_on_under_the_first_disclosure_is_asked_again() {
         .unwrap()
         .needs_reconsent(SourceId::CodexCli, &f.env));
 }
+
+/// A schema-2 index with data, opened once so the migration writes its
+/// pre-upgrade copy. Returns the path of that `.bak`.
+fn migrated_with_backup(f: &Fixture) -> PathBuf {
+    let path = f.scanner.index().path().to_path_buf();
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    {
+        let db = rusqlite::Connection::open(&path).unwrap();
+        db.execute_batch(super::index::MIGRATIONS[0]).unwrap();
+        db.execute_batch(super::index::MIGRATIONS[1]).unwrap();
+        db.pragma_update(None, "user_version", 2).unwrap();
+        db.execute(
+            "INSERT INTO files VALUES ('codex_cli','f','id',90,90,'{}',0,0)",
+            [],
+        )
+        .unwrap();
+    }
+    drop(f.scanner.index().open().unwrap());
+    let bak = crate::private_fs::backup_path(&path);
+    assert!(bak.exists(), "the migration leaves a pre-upgrade copy");
+    bak
+}
+
+#[test]
+fn erasing_the_index_removes_the_pre_upgrade_copy() {
+    let f = fixture();
+    let bak = migrated_with_backup(&f);
+    f.scanner.index().erase().unwrap();
+    assert!(!bak.exists(), "S-01: the .bak survived Erase the index");
+}
+
+#[test]
+fn turning_a_source_off_removes_the_pre_upgrade_copy() {
+    let f = fixture();
+    let bak = migrated_with_backup(&f);
+    turn_off(f.scanner.settings(), f.scanner.index(), SourceId::CodexCli).unwrap();
+    assert!(
+        !bak.exists(),
+        "S-01: the .bak survived turning a source off"
+    );
+}
+
+#[test]
+fn choosing_other_folders_removes_the_pre_upgrade_copy() {
+    let f = fixture();
+    f.enable(SourceId::CodexCli);
+    let bak = migrated_with_backup(&f);
+    let other = f.dir.path().join("elsewhere");
+    std::fs::create_dir_all(&other).unwrap();
+    choose_paths(
+        f.scanner.settings(),
+        f.scanner.index(),
+        SourceId::CodexCli,
+        vec![other],
+        &f.env,
+    )
+    .unwrap();
+    assert!(!bak.exists(), "S-01: the .bak survived a folder change");
+}
+
+#[test]
+fn the_pre_upgrade_copy_expires_after_seven_days() {
+    let f = fixture();
+    let bak = migrated_with_backup(&f);
+    let written = DateTime::<Utc>::from(std::fs::metadata(&bak).unwrap().modified().unwrap());
+    let index = f.scanner.index();
+    assert!(!index
+        .prune_backup(written + chrono::TimeDelta::days(6))
+        .unwrap());
+    assert!(bak.exists(), "kept for 7 days");
+    assert!(index
+        .prune_backup(written + chrono::TimeDelta::days(8))
+        .unwrap());
+    assert!(!bak.exists(), "removed after 7 days");
+    assert!(!index
+        .prune_backup(written + chrono::TimeDelta::days(9))
+        .unwrap());
+}

@@ -341,6 +341,7 @@ impl Scanner {
             self.index
                 .prune(window.first_day, (now - kept).timestamp_millis())?;
         }
+        self.index.prune_backup(now)?;
         Ok(ScanReport {
             scanned_at: now,
             complete: sources.iter().all(|s| s.complete),

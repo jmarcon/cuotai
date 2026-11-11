@@ -239,7 +239,7 @@ static ARTIFACTS: &[Artifact] = &[
         "cost/cost.sqlite3",
         "index of local coding-tool usage logs (tokens, models, times, session and project fingerprints), your session and project labels, and the last folder name of a project only if you turned that on",
         SqliteUserVersion,
-        "rebuilt from the tools' logs; labels kept until erased",
+        "rebuilt from the tools' logs; labels kept until erased; its pre-upgrade copy `cost.sqlite3.bak` is kept 7 days and removed on erase or turn-off",
         "0015, 0042",
     ),
     file(
