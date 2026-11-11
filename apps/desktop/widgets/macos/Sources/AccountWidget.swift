@@ -18,6 +18,7 @@ struct AccountEntity: AppEntity, Identifiable {
     let id: String
     let key: String
     let name: String
+    /// The provider's display name (its id in an older file).
     let provider: String
 
     var displayRepresentation: DisplayRepresentation {
@@ -44,7 +45,8 @@ struct AccountQuery: EntityQuery {
 extension AccountEntity {
     static var all: [AccountEntity] {
         (WidgetSnapshot.load()?.accounts ?? [])
-            .map { AccountEntity(id: $0.id, key: $0.key, name: $0.name, provider: $0.provider) }
+            .map { AccountEntity(id: $0.id, key: $0.key, name: $0.name,
+                                 provider: $0.providerName ?? $0.provider) }
     }
 }
 

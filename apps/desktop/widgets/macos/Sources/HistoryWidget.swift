@@ -96,11 +96,23 @@ struct HistoryWidgetEntryView: View {
     }
 
     /// The span the series covers, as the file published it.
+    /// In the system's own abbreviated units ("23 h", "2 d", or the
+    /// language's own), whole hours below a day and whole days above.
     private var spanLabel: String {
-        guard let first = entry.points.first?.takenAt else { return "24 h" }
-        let hours = Int(entry.date.timeIntervalSince(first) / 3600)
-        if hours >= 24 { return "\(hours / 24) d" }
-        return "\(max(hours, 1)) h"
+        let hours = entry.points.first
+            .map { Int(entry.date.timeIntervalSince($0.takenAt) / 3600) } ?? 24
+        let formatter = DateComponentsFormatter()
+        formatter.unitsStyle = .abbreviated
+        formatter.maximumUnitCount = 1
+        var span = DateComponents()
+        if hours >= 24 {
+            formatter.allowedUnits = [.day]
+            span.day = hours / 24
+        } else {
+            formatter.allowedUnits = [.hour]
+            span.hour = max(hours, 1)
+        }
+        return formatter.string(from: span) ?? ""
     }
 
     /// The labelled marks: quarters of the limit, or the limit and the top

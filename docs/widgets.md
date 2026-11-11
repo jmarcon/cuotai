@@ -112,6 +112,7 @@ write(&export, std::path::Path::new("widget.json"), 6)?;
 | `id` | string | The stable account id (PRD 0029), the same `id` as in `export::v1`. A pinned widget matches on it, so a rename keeps the pin; when the account is gone the widget shows it as unavailable and never another account. |
 | `key` | string | `<provider slug>:<name>` (`claude:Work`), the same key as in `export::v1`; a rename changes it. Widgets pinned before ids still match on it. |
 | `name`, `provider` | string | Display name (the configured name, or the provider's name for an unnamed account) and provider slug. |
+| `provider_name` | string | The provider's display name (`GitHub Copilot` for `copilot`), which the account picker shows. Absent in files written before it was added. |
 | `email` | string | Only when the user turned identity on; absent otherwise. |
 | `state` | `ready` / `stale` / `unavailable` | `stale`: the current query failed (or is pending) and the metrics are the preserved reading. `unavailable`: nothing to show, current or preserved. |
 | `checked_at` | RFC 3339 or `null` | When the reading shown was **measured**. While stale it is the original time of the preserved reading, never the time the file was written. `null` while `unavailable`. |
