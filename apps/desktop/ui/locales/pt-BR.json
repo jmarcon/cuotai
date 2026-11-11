@@ -550,7 +550,7 @@
   "dialog.save.profileChanged": "O perfil mudou após o login; refaça o login antes de salvar.",
   "dialog.session.title": "Sessão web",
   "dialog.session.orIntro": "Ou use a sessão web de {provider}:",
-  "dialog.session.stored": "Sessão guardada no cofre do sistema; o TOML guarda só a referência.",
+  "dialog.session.stored": "Sessão guardada no cofre do sistema; as configurações guardam só uma referência.",
   "dialog.session.placeholder": "Linha Cookie: …, lista nome=valor; …, a tabela de cookies ou um cURL copiado",
   "dialog.session.hosts": "Enviada só a: {hosts}",
   "dialog.session.open": "Abrir {site}",
@@ -576,7 +576,7 @@
   "dialog.session.pasteNew": "O provedor recusou a sessão salva. Cole uma nova abaixo; ela é testada antes de substituir a do cofre.",
   "dialog.session.forget": "Esquecer esta sessão",
   "dialog.session.forgetConfirm": "Confirmar: esquecer a sessão",
-  "dialog.session.forgetHint": "Clique de novo para confirmar: a sessão é apagada do cofre do sistema e o TOML perde a referência.",
+  "dialog.session.forgetHint": "Clique de novo para confirmar: a sessão é apagada do cofre do sistema e as configurações perdem a referência.",
   "dialog.session.forgotten": "Sessão esquecida: a entrada do cofre do sistema foi apagada.",
   "dialog.credKey": "Chave de API",
   "dialog.secret.placeholder": "Cole ou digite o valor",
@@ -1643,5 +1643,6 @@
   "detect.costOffer.open": "Abrir Custo local",
   "detect.costOffer.claude_code": "Os logs locais também podem estimar o custo a preços de API; o Cuotai só os lê depois que você ligar a fonte Claude Code.",
   "detect.costOffer.codex_cli": "Os logs locais também podem estimar o custo a preços de API; o Cuotai só os lê depois que você ligar a fonte Codex CLI.",
-  "detect.costOffer.gemini_cli": "Os logs locais também podem estimar o custo a preços de API; o Cuotai só os lê depois que você ligar a fonte Gemini CLI."
+  "detect.costOffer.gemini_cli": "Os logs locais também podem estimar o custo a preços de API; o Cuotai só os lê depois que você ligar a fonte Gemini CLI.",
+  "coreText.sessionIncomplete": "Faltam à sessão web guardada os cookies {names}. Cole uma nova."
 }

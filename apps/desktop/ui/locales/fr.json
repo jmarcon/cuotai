@@ -547,7 +547,7 @@
   "dialog.save.profileChanged": "Le profil a changé après la connexion ; reconnectez-vous avant d’enregistrer.",
   "dialog.session.title": "Session web",
   "dialog.session.orIntro": "Ou utilisez la session web de {provider} :",
-  "dialog.session.stored": "Session conservée dans le coffre du système ; le TOML ne garde que la référence.",
+  "dialog.session.stored": "Session conservée dans le coffre du système ; les réglages ne gardent qu’une référence.",
   "dialog.session.placeholder": "Ligne Cookie: …, liste name=value; …, tableau des cookies ou cURL copié",
   "dialog.session.hosts": "Envoyée uniquement à : {hosts}",
   "dialog.session.open": "Ouvrir {site}",
@@ -573,7 +573,7 @@
   "dialog.session.pasteNew": "Le fournisseur a refusé la session enregistrée. Collez-en une nouvelle ci-dessous ; elle est testée avant de remplacer celle du coffre.",
   "dialog.session.forget": "Oublier cette session",
   "dialog.session.forgetConfirm": "Confirmer : oublier la session",
-  "dialog.session.forgetHint": "Cliquez à nouveau pour confirmer : la session est supprimée du coffre du système et le TOML retire sa référence.",
+  "dialog.session.forgetHint": "Cliquez à nouveau pour confirmer : la session est supprimée du coffre du système et les réglages retirent sa référence.",
   "dialog.session.forgotten": "Session oubliée : l’entrée du coffre du système a été supprimée.",
   "dialog.credKey": "Clé d’API",
   "dialog.secret.placeholder": "Collez ou saisissez la valeur",
@@ -1639,5 +1639,6 @@
   "detect.costOffer.open": "Ouvrir Coût local",
   "detect.costOffer.claude_code": "Ses journaux locaux peuvent aussi estimer le coût aux prix de l'API ; Cuotai ne les lit qu'après que vous avez activé la source Claude Code.",
   "detect.costOffer.codex_cli": "Ses journaux locaux peuvent aussi estimer le coût aux prix de l'API ; Cuotai ne les lit qu'après que vous avez activé la source Codex CLI.",
-  "detect.costOffer.gemini_cli": "Ses journaux locaux peuvent aussi estimer le coût aux prix de l'API ; Cuotai ne les lit qu'après que vous avez activé la source Gemini CLI."
+  "detect.costOffer.gemini_cli": "Ses journaux locaux peuvent aussi estimer le coût aux prix de l'API ; Cuotai ne les lit qu'après que vous avez activé la source Gemini CLI.",
+  "coreText.sessionIncomplete": "Il manque à la session web enregistrée les cookies {names}. Collez-en une nouvelle."
 }

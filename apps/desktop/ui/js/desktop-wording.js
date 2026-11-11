@@ -35,9 +35,15 @@ export const DESKTOP_WORDING = {
   "query.router_grok.missing_oauth_token": SESSION_NEEDED,
   "query.session.variable_missing": SESSION_NEEDED,
   "query.session.missing_cookies_env": SESSION_NEEDED,
+  // PRD 0016: vault session texts point to the terminal's account wizard.
+  "user_session.not_found": SESSION_NEEDED,
+  "user_session.invalid_reference": SESSION_NEEDED,
+  "user_session.needed": SESSION_NEEDED,
+  "query.session.missing_cookies": w("coreText.sessionIncomplete", "The saved web session lacks the cookies {names}. Paste a new one.", "session"),
   // The web session expired.
   "query.router_keys.xiaomi_session_expired": SESSION_EXPIRED,
   "query.alibaba_plans.console_login_required": SESSION_EXPIRED,
+  "user_session.rejected": SESSION_EXPIRED,
   "query.alibaba_plans.qwen_cloud_missing_sec_token": SESSION_EXPIRED,
   "query.alibaba_plans.qwen_cloud_session_invalid": SESSION_EXPIRED,
   "query.alibaba_plans.token_plan_session_expired": SESSION_EXPIRED,

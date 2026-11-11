@@ -542,7 +542,7 @@
   "dialog.save.profileChanged": "Hồ sơ đã thay đổi sau khi đăng nhập; hãy đăng nhập lại trước khi lưu.",
   "dialog.session.title": "Phiên web",
   "dialog.session.orIntro": "Hoặc dùng phiên web {provider}:",
-  "dialog.session.stored": "Phiên được giữ trong kho của hệ thống; TOML chỉ giữ tham chiếu.",
+  "dialog.session.stored": "Phiên được giữ trong kho của hệ thống; phần cài đặt chỉ giữ tham chiếu.",
   "dialog.session.placeholder": "Dòng Cookie: …, danh sách tên=giá trị; …, bảng cookie hoặc cURL đã sao chép",
   "dialog.session.hosts": "Chỉ gửi đến: {hosts}",
   "dialog.session.open": "Mở {site}",
@@ -568,7 +568,7 @@
   "dialog.session.pasteNew": "Nhà cung cấp đã từ chối phiên đã lưu. Hãy dán phiên mới bên dưới; phiên này được kiểm tra trước khi thay thế phiên trong kho.",
   "dialog.session.forget": "Quên phiên này",
   "dialog.session.forgetConfirm": "Xác nhận: quên phiên",
-  "dialog.session.forgetHint": "Nhấp lần nữa để xác nhận: phiên bị xóa khỏi kho của hệ thống và TOML bỏ tham chiếu của nó.",
+  "dialog.session.forgetHint": "Nhấp lần nữa để xác nhận: phiên bị xóa khỏi kho của hệ thống và phần cài đặt bỏ tham chiếu của nó.",
   "dialog.session.forgotten": "Đã quên phiên: mục trong kho của hệ thống đã bị xóa.",
   "dialog.credKey": "Khóa API",
   "dialog.secret.placeholder": "Dán hoặc nhập giá trị",
@@ -1628,5 +1628,6 @@
   "detect.costOffer.open": "Mở Chi phí cục bộ",
   "detect.costOffer.claude_code": "Nhật ký cục bộ của nó cũng có thể ước tính chi phí theo giá API; Cuotai chỉ đọc chúng sau khi bạn bật nguồn Claude Code.",
   "detect.costOffer.codex_cli": "Nhật ký cục bộ của nó cũng có thể ước tính chi phí theo giá API; Cuotai chỉ đọc chúng sau khi bạn bật nguồn Codex CLI.",
-  "detect.costOffer.gemini_cli": "Nhật ký cục bộ của nó cũng có thể ước tính chi phí theo giá API; Cuotai chỉ đọc chúng sau khi bạn bật nguồn Gemini CLI."
+  "detect.costOffer.gemini_cli": "Nhật ký cục bộ của nó cũng có thể ước tính chi phí theo giá API; Cuotai chỉ đọc chúng sau khi bạn bật nguồn Gemini CLI.",
+  "coreText.sessionIncomplete": "Phiên web đã lưu thiếu cookie {names}. Hãy dán phiên mới."
 }

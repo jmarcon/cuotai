@@ -542,7 +542,7 @@
   "dialog.save.profileChanged": "Profil berubah setelah masuk; masuk lagi sebelum menyimpan.",
   "dialog.session.title": "Sesi web",
   "dialog.session.orIntro": "Atau gunakan sesi web {provider}:",
-  "dialog.session.stored": "Sesi disimpan di brankas sistem; TOML hanya menyimpan referensinya.",
+  "dialog.session.stored": "Sesi disimpan di brankas sistem; pengaturan hanya menyimpan referensinya.",
   "dialog.session.placeholder": "Baris Cookie: …, daftar nama=nilai; …, tabel cookie, atau cURL yang disalin",
   "dialog.session.hosts": "Hanya dikirim ke: {hosts}",
   "dialog.session.open": "Buka {site}",
@@ -568,7 +568,7 @@
   "dialog.session.pasteNew": "Penyedia menolak sesi yang tersimpan. Tempel yang baru di bawah; sesi itu diuji sebelum menggantikan yang ada di brankas.",
   "dialog.session.forget": "Lupakan sesi ini",
   "dialog.session.forgetConfirm": "Konfirmasi: lupakan sesi",
-  "dialog.session.forgetHint": "Klik lagi untuk mengonfirmasi: sesi dihapus dari brankas sistem dan TOML membuang referensinya.",
+  "dialog.session.forgetHint": "Klik lagi untuk mengonfirmasi: sesi dihapus dari brankas sistem dan pengaturan membuang referensinya.",
   "dialog.session.forgotten": "Sesi dilupakan: entri brankas sistem telah dihapus.",
   "dialog.credKey": "Kunci API",
   "dialog.secret.placeholder": "Tempel atau ketik nilainya",
@@ -1628,5 +1628,6 @@
   "detect.costOffer.open": "Buka Biaya lokal",
   "detect.costOffer.claude_code": "Log lokalnya juga dapat memperkirakan biaya dengan harga API; Cuotai hanya membacanya setelah Anda menyalakan sumber Claude Code.",
   "detect.costOffer.codex_cli": "Log lokalnya juga dapat memperkirakan biaya dengan harga API; Cuotai hanya membacanya setelah Anda menyalakan sumber Codex CLI.",
-  "detect.costOffer.gemini_cli": "Log lokalnya juga dapat memperkirakan biaya dengan harga API; Cuotai hanya membacanya setelah Anda menyalakan sumber Gemini CLI."
+  "detect.costOffer.gemini_cli": "Log lokalnya juga dapat memperkirakan biaya dengan harga API; Cuotai hanya membacanya setelah Anda menyalakan sumber Gemini CLI.",
+  "coreText.sessionIncomplete": "Sesi web yang disimpan tidak memiliki cookie {names}. Tempelkan sesi baru."
 }

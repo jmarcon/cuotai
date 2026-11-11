@@ -1425,7 +1425,7 @@
   "user_session.save.unreachable": "No se pudo probar la sesión ({cause}); no se guardó nada. Elija \"Guardar de todos modos\" para conservarla sin probar, o inténtelo de nuevo.",
   "user_session.save.rejected": "La prueba de la sesión falló ({cause}); no se guardó nada. Pegue una sesión válida e inténtelo de nuevo.",
   "user_session.save.untested": "Pruebe la sesión pegada antes de guardarla; no se guardó nada.",
-  "user_session.paste.summary": "Guardadas: {kept}. Descartadas: {discarded}. {expiry}",
+  "user_session.paste.summary": "Conservadas: {kept}. Descartadas: {discarded}. {expiry}",
   "user_session.paste.empty": "No hay cookies en el texto pegado; copie el encabezado Cookie, la solicitud como cURL o la tabla de cookies.",
   "user_session.paste.duplicate": "La cookie {name} aparece más de una vez con valores distintos; copie de una sola solicitud.",
   "user_session.paste.fragment_missing": "La cookie {name} vino en partes y falta la parte {part}; copie todas las partes.",

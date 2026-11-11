@@ -544,7 +544,7 @@
   "dialog.save.profileChanged": "The profile changed after sign-in; sign in again before saving.",
   "dialog.session.title": "Web session",
   "dialog.session.orIntro": "Or use the {provider} web session:",
-  "dialog.session.stored": "Session kept in the system vault; the TOML keeps only the reference.",
+  "dialog.session.stored": "Session kept in the system vault; the settings keep only a reference.",
   "dialog.session.placeholder": "Cookie: … line, name=value; … list, the cookie table or a copied cURL",
   "dialog.session.hosts": "Sent only to: {hosts}",
   "dialog.session.open": "Open {site}",
@@ -570,7 +570,7 @@
   "dialog.session.pasteNew": "The provider rejected the saved session. Paste a new one below; it is tested before it replaces the one in the vault.",
   "dialog.session.forget": "Forget this session",
   "dialog.session.forgetConfirm": "Confirm: forget the session",
-  "dialog.session.forgetHint": "Click again to confirm: the session is deleted from the system vault and the TOML drops its reference.",
+  "dialog.session.forgetHint": "Click again to confirm: the session is deleted from the system vault and the settings drop its reference.",
   "dialog.session.forgotten": "Session forgotten: the system vault entry was deleted.",
   "dialog.credKey": "API key",
   "dialog.secret.placeholder": "Paste or type the value",
@@ -1650,5 +1650,6 @@
   "detect.costOffer.open": "Open Local cost",
   "detect.costOffer.claude_code": "Its local logs can also estimate the cost at API prices; Cuotai reads them only after you turn the Claude Code source on.",
   "detect.costOffer.codex_cli": "Its local logs can also estimate the cost at API prices; Cuotai reads them only after you turn the Codex CLI source on.",
-  "detect.costOffer.gemini_cli": "Its local logs can also estimate the cost at API prices; Cuotai reads them only after you turn the Gemini CLI source on."
+  "detect.costOffer.gemini_cli": "Its local logs can also estimate the cost at API prices; Cuotai reads them only after you turn the Gemini CLI source on.",
+  "coreText.sessionIncomplete": "The saved web session lacks the cookies {names}. Paste a new one."
 }

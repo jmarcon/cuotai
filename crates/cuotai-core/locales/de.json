@@ -2027,7 +2027,7 @@
   "user_session.paste.missing": "Es fehlen Cookies dieser Sitzung: {names}.",
   "user_session.paste.none_accepted": "Kein Cookie dieser Sitzung im eingefügten Text; sie verwendet: {names}.",
   "user_session.paste.secret_invalid": "Der eingefügte Wert ist leer, zu lang oder enthält ungültige Zeichen; kopieren Sie ihn erneut.",
-  "user_session.paste.summary": "Gespeichert: {kept}. Verworfen: {discarded}. {expiry}",
+  "user_session.paste.summary": "Behalten: {kept}. Verworfen: {discarded}. {expiry}",
   "user_session.rejected": "Sitzung abgelaufen oder widerrufen; fügen Sie im Kontoassistenten eine neue ein.",
   "user_session.save.rejected": "Der Test der Sitzung ist fehlgeschlagen ({cause}); nichts wurde gespeichert. Fügen Sie eine gültige Sitzung ein und versuchen Sie es erneut.",
   "user_session.save.unreachable": "Die Sitzung konnte nicht getestet werden ({cause}); nichts wurde gespeichert. Wählen Sie „Trotzdem speichern“, um sie ohne Test zu speichern, oder versuchen Sie es erneut.",

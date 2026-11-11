@@ -2027,7 +2027,7 @@
   "user_session.paste.missing": "Bu oturumun çerezleri eksik: {names}.",
   "user_session.paste.none_accepted": "Yapıştırılan metinde bu oturumun çerezi yok; şunları kullanır: {names}.",
   "user_session.paste.secret_invalid": "Yapıştırılan değer boş, çok uzun veya geçersiz karakterler içeriyor; yeniden kopyalayın.",
-  "user_session.paste.summary": "Saklananlar: {kept}. Atılanlar: {discarded}. {expiry}",
+  "user_session.paste.summary": "Tutulanlar: {kept}. Atılanlar: {discarded}. {expiry}",
   "user_session.rejected": "Oturumun süresi dolmuş veya iptal edilmiş; hesap sihirbazına yenisini yapıştırın.",
   "user_session.save.rejected": "Oturum testi başarısız oldu ({cause}); hiçbir şey kaydedilmedi. Geçerli bir oturum yapıştırın ve yeniden deneyin.",
   "user_session.save.unreachable": "Oturum test edilemedi ({cause}); hiçbir şey kaydedilmedi. Test edilmeden saklamak için \"Yine de kaydet\"i seçin veya yeniden deneyin.",

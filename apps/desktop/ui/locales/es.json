@@ -544,7 +544,7 @@
   "dialog.save.profileChanged": "El perfil cambió tras iniciar sesión; inicia sesión de nuevo antes de guardar.",
   "dialog.session.title": "Sesión web",
   "dialog.session.orIntro": "O usa la sesión web de {provider}:",
-  "dialog.session.stored": "Sesión guardada en la bóveda del sistema; el TOML guarda solo la referencia.",
+  "dialog.session.stored": "Sesión guardada en la bóveda del sistema; la configuración guarda solo una referencia.",
   "dialog.session.placeholder": "Línea Cookie: …, lista nombre=valor; …, la tabla de cookies o un cURL copiado",
   "dialog.session.hosts": "Se envía solo a: {hosts}",
   "dialog.session.open": "Abrir {site}",
@@ -570,7 +570,7 @@
   "dialog.session.pasteNew": "El proveedor rechazó la sesión guardada. Pegue una nueva abajo; se prueba antes de reemplazar la de la bóveda.",
   "dialog.session.forget": "Olvidar esta sesión",
   "dialog.session.forgetConfirm": "Confirmar: olvidar la sesión",
-  "dialog.session.forgetHint": "Haga clic de nuevo para confirmar: la sesión se elimina de la bóveda del sistema y el TOML pierde su referencia.",
+  "dialog.session.forgetHint": "Haga clic de nuevo para confirmar: la sesión se elimina de la bóveda del sistema y la configuración pierde su referencia.",
   "dialog.session.forgotten": "Sesión olvidada: la entrada de la bóveda del sistema se eliminó.",
   "dialog.credKey": "Clave de API",
   "dialog.secret.placeholder": "Pega o escribe el valor",
@@ -1636,5 +1636,6 @@
   "detect.costOffer.open": "Abrir Costo local",
   "detect.costOffer.claude_code": "Sus registros locales también pueden estimar el coste a precios de API; Cuotai solo los lee después de que actives la fuente Claude Code.",
   "detect.costOffer.codex_cli": "Sus registros locales también pueden estimar el coste a precios de API; Cuotai solo los lee después de que actives la fuente Codex CLI.",
-  "detect.costOffer.gemini_cli": "Sus registros locales también pueden estimar el coste a precios de API; Cuotai solo los lee después de que actives la fuente Gemini CLI."
+  "detect.costOffer.gemini_cli": "Sus registros locales también pueden estimar el coste a precios de API; Cuotai solo los lee después de que actives la fuente Gemini CLI.",
+  "coreText.sessionIncomplete": "A la sesión web guardada le faltan las cookies {names}. Pega una nueva."
 }

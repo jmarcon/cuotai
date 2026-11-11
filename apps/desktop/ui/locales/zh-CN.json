@@ -542,7 +542,7 @@
   "dialog.save.profileChanged": "登录后配置文件已更改；请在保存前重新登录。",
   "dialog.session.title": "网页会话",
   "dialog.session.orIntro": "或使用 {provider} 网页会话：",
-  "dialog.session.stored": "会话保存在系统保险库中；TOML 只保存引用。",
+  "dialog.session.stored": "会话保存在系统保险库中；设置中只保存引用。",
   "dialog.session.placeholder": "Cookie: … 行、name=value; … 列表、Cookie 表或复制的 cURL",
   "dialog.session.hosts": "仅发送至：{hosts}",
   "dialog.session.open": "打开 {site}",
@@ -568,7 +568,7 @@
   "dialog.session.pasteNew": "提供商拒绝了已保存的会话。请在下方粘贴新会话；替换保险库中的会话前会先进行测试。",
   "dialog.session.forget": "忘记此会话",
   "dialog.session.forgetConfirm": "确认：忘记会话",
-  "dialog.session.forgetHint": "再次点击以确认：会话将从系统保险库中删除，TOML 也会移除其引用。",
+  "dialog.session.forgetHint": "再次点击以确认：会话将从系统保险库中删除，设置中也会移除其引用。",
   "dialog.session.forgotten": "会话已忘记：系统保险库中的条目已删除。",
   "dialog.credKey": "API 密钥",
   "dialog.secret.placeholder": "粘贴或输入该值",
@@ -1628,5 +1628,6 @@
   "detect.costOffer.open": "打开本地费用",
   "detect.costOffer.claude_code": "它的本地日志也可以按 API 价格估算费用；只有在你开启 Claude Code 来源后，Cuotai 才会读取。",
   "detect.costOffer.codex_cli": "它的本地日志也可以按 API 价格估算费用；只有在你开启 Codex CLI 来源后，Cuotai 才会读取。",
-  "detect.costOffer.gemini_cli": "它的本地日志也可以按 API 价格估算费用；只有在你开启 Gemini CLI 来源后，Cuotai 才会读取。"
+  "detect.costOffer.gemini_cli": "它的本地日志也可以按 API 价格估算费用；只有在你开启 Gemini CLI 来源后，Cuotai 才会读取。",
+  "coreText.sessionIncomplete": "已保存的网页会话缺少 Cookie {names}。请粘贴新的会话。"
 }

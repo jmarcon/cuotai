@@ -2014,7 +2014,7 @@
   "user_session.paste.missing": "缺少此会话的 Cookie：{names}。",
   "user_session.paste.none_accepted": "粘贴的文本中没有此会话的 Cookie；请使用：{names}。",
   "user_session.paste.secret_invalid": "粘贴的值为空、过长或包含无效字符；请重新复制。",
-  "user_session.paste.summary": "已保存：{kept}。已丢弃：{discarded}。{expiry}",
+  "user_session.paste.summary": "已保留：{kept}。已丢弃：{discarded}。{expiry}",
   "user_session.rejected": "会话已过期或被撤销；请在账户向导中粘贴新会话。",
   "user_session.save.rejected": "会话测试失败（{cause}）；未保存任何内容。请粘贴有效的会话后重试。",
   "user_session.save.unreachable": "无法测试会话（{cause}）；未保存任何内容。选择“仍然保存”可不经测试保留它，或重试。",

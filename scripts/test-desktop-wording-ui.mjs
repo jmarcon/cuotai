@@ -121,6 +121,18 @@ for (const { code } of i18n.LOCALES) {
 }
 await i18n.setLocale("pt-BR");
 assert.equal(noteText(xiaomi, 0), "Esta chave não mostra o consumo. Para ver a quota, conecte a sessão da sua conta Xiaomi.");
+// PRD 0016 re-validation (V-04): the vault session texts the core words for the terminal's account wizard, and the
+// session strings of the dialog, never mention the wizard or the TOML file in the desktop.
+for (const id of ["user_session.rejected", "user_session.not_found", "user_session.invalid_reference", "user_session.needed", "query.session.missing_cookies"]) {
+  assert.ok(DESKTOP_WORDING[id], `${id} is not mapped`);
+  assert.equal(desktopAction({ id }), "session", id);
+}
+for (const file of uiFiles) {
+  const catalog = await readJson(`apps/desktop/ui/locales/${file}`);
+  for (const [id, value] of Object.entries(catalog)) {
+    if (/^(dialog\.session\.|coreText\.session)/.test(id)) assert.ok(!/TOML|wizard/i.test(value), `${file}: ${id}: ${value}`);
+  }
+}
 console.log("desktop wording: ok");
 
 // PRD 0016 RF2.1: the paste box's "Open {site}" link carries only the descriptor's HTTPS page.
