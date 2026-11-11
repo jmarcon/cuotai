@@ -111,6 +111,9 @@ pub struct WidgetAccount {
     pub key: String,
     pub name: String,
     pub provider: Provider,
+    /// The provider's display name ([`Provider::label`]), so a widget
+    /// shows "GitHub Copilot" instead of the `copilot` id (additive).
+    pub provider_name: &'static str,
     /// Present only when the export included identity; `null` when the
     /// e-mail is unknown.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -398,6 +401,7 @@ fn project(account: &AccountExport) -> WidgetAccount {
         key: account.key.clone(),
         name: account.name.clone(),
         provider: account.provider,
+        provider_name: account.provider.label(),
         email: account.email.clone(),
         state: reading.state,
         checked_at: reading.checked_at,
@@ -640,6 +644,7 @@ mod tests {
         assert_eq!(json["truncated"], false);
         let work = &json["accounts"][0];
         assert_eq!(work["key"], "groq:Work");
+        assert_eq!(work["provider_name"], "Groq");
         assert_eq!(work["state"], "ready");
         assert_eq!(work["binding"]["used_ratio"], 0.4);
         assert_eq!(work["metrics"][0]["used_fraction"], 0.4);

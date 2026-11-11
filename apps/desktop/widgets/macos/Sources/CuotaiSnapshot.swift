@@ -29,6 +29,9 @@ struct WidgetAccount: Codable, Identifiable {
     let key: String
     let name: String
     let provider: String
+    /// The provider's display name; absent in a file written by an older
+    /// app, which then shows the provider id.
+    let providerName: String?
     /// The e-mail, only when the user turned identity on *and* the account
     /// has one; absent or `null` otherwise, which both mean "no e-mail".
     let email: String?
@@ -43,6 +46,7 @@ struct WidgetAccount: Codable, Identifiable {
     /// `checkedAt`, so every key is declared here.
     enum CodingKeys: String, CodingKey {
         case accountId = "id", key, name, provider, email, state, checkedAt = "checked_at"
+        case providerName = "provider_name"
         case freshness, binding, metrics, history
     }
 
