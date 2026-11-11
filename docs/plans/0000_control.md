@@ -5,7 +5,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | Field | Value |
 |---|---|
 | Last updated | 2026-11-11 |
-| Cuotai version at that date | 0.85.2 |
+| Cuotai version at that date | 0.85.3 |
 | Plans | 56 (21 implemented, 34 awaiting owner verification, 0 in progress, 0 planned for the next version, 1 proposed) |
 
 ## 1. How to maintain it
