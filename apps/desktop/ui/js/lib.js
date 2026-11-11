@@ -2059,6 +2059,21 @@ const demoUpdateView = () => {
 };
 // Mockup 40: one approved and one not yet approved extension (`cuotai.demoExtras=1` adds the
 // secrets and override controls); example.com identities only.
+const demoExtensionDisclosure = (id) => {
+  const line = (key, params, fallback) => ({ id: `extensions.consent.${key}`, params, fallback });
+  return [
+    line("header", { id, name: "Acme usage 1.2.0" }, `The extension ${id} (Acme usage 1.2.0) runs a local program with your user's powers:`),
+    line("command", { command: '["./quota.py","--json"]' }, 'command: ["./quota.py","--json"]'),
+    line("interpreter", { interpreter: "/usr/bin/env python3" }, "interpreter (the program's #! line): /usr/bin/env python3"),
+    line("directory", { dir: `~/.local/share/cuotai/extensions/${id}` }, `directory: ~/.local/share/cuotai/extensions/${id}`),
+    line("env", { env: "ACME_TOKEN, OPENAI_ADMIN_KEY" }, "environment variables it asks for: ACME_TOKEN, OPENAI_ADMIN_KEY"),
+    line("credential_risk", { name: "OPENAI_ADMIN_KEY", accounts: "OpenAI (work)" },
+      "May expose another account credential: OPENAI_ADMIN_KEY is the credential variable of OpenAI (work)."),
+    line("interval", { seconds: 300, timeout: 30 }, "it runs every 300 s, with a 30 s limit each time"),
+    line("risk", {}, "Cuotai passes only the requested values it inherited; it passes neither vault data nor other accounts' credentials and restricts neither network nor files: review the code before approving it."),
+  ];
+};
+
 const demoExtensions = () => {
   let extras = false;
   try { extras = localStorage.getItem("cuotai.demoExtras") === "1"; } catch { /* storage may be blocked */ }
@@ -2184,7 +2199,8 @@ const demo = {
   set_detect_enabled: async ({ on }) => { demoSettings.detect.enabled = on; },
   dismiss_detected: async ({ kind }) => { demoSettings.detect.dismissed.push(kind); },
   list_extensions: async () => demoExtensions(),
-  extension_disclosure: async () => ({ lines: [] }),
+  // Demo mirror of core `consent::disclosure` (plus one PRD 0050 RF8.2 risk line), so the consent box has content.
+  extension_disclosure: async ({ id } = {}) => ({ lines: demoExtensionDisclosure(id ?? "acme-usage") }),
   enable_extension: async ({ id }) => ({ id: id ?? "demo", message: dl("extensions.action.enabled", "Extension enabled."), account: null }),
   disable_extension: async ({ id }) => ({ id, message: dl("extensions.action.disabled", `Extension ${id} disabled.`), account: null }),
   test_extension: async ({ id }) => ({ source: `extension:${id}`, status: "ready", metrics: [], notes: [], violations: [] }),
