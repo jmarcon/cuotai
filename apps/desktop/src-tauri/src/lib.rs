@@ -155,7 +155,7 @@ async fn list_extensions(
 async fn extension_disclosure(
     b: Shared<'_>,
     id: String,
-) -> Result<cuotai_core::extensions::management::Disclosure, String> {
+) -> Result<backend::ExtensionReview, String> {
     b.extension_disclosure(&id).await
 }
 

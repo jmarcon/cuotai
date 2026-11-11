@@ -2184,7 +2184,7 @@ const demo = {
   set_detect_enabled: async ({ on }) => { demoSettings.detect.enabled = on; },
   dismiss_detected: async ({ kind }) => { demoSettings.detect.dismissed.push(kind); },
   list_extensions: async () => demoExtensions(),
-  extension_disclosure: async () => ({ lines: [], candidate: { token: "demo" } }),
+  extension_disclosure: async () => ({ lines: [] }),
   enable_extension: async ({ id }) => ({ id: id ?? "demo", message: dl("extensions.action.enabled", "Extension enabled."), account: null }),
   disable_extension: async ({ id }) => ({ id, message: dl("extensions.action.disabled", `Extension ${id} disabled.`), account: null }),
   test_extension: async ({ id }) => ({ source: `extension:${id}`, status: "ready", metrics: [], notes: [], violations: [] }),
