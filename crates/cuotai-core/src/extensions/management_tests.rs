@@ -251,6 +251,56 @@ fn a_candidate_is_single_use_and_binds_to_the_reviewed_files() {
     assert_eq!(spent.id, "extensions.action.candidate_expired");
 }
 
+/// RF4.2: approving a changed extension again keeps the account the person
+/// configured (name, group, refresh interval, budgets, floors, breakdown);
+/// only the approval changes, and the message says the account was kept.
+#[test]
+fn reapproval_keeps_the_account_settings() {
+    let rig = Rig::new();
+    rig.extension("proxy", "");
+    let disclosure = rig.manager.disclosure("proxy").unwrap();
+    let enabled = rig
+        .manager
+        .enable(&disclosure.candidate, true, &base())
+        .unwrap();
+    assert_eq!(enabled.action.message.id, "extensions.action.enabled");
+    let mut config = enabled.config;
+    let account = &mut config.accounts[0];
+    account.name = "My proxy".into();
+    account.group = Some("team".into());
+    account.refresh_seconds = Some(900);
+    account.budgets = vec![crate::budget::Budget {
+        kind: Some(crate::budget::BudgetKind::Spend),
+        scope: None,
+        label_contains: None,
+        amount: 50.0,
+        unit: Some("USD".into()),
+        period: crate::budget::BudgetPeriod::Monthly,
+        starts: None,
+        label: None,
+        row: None,
+    }];
+    account.floors = vec![crate::budget::Floor {
+        kind: Some(crate::budget::FloorKind::Credits),
+        label_contains: None,
+        amount: 5.0,
+        unit: None,
+    }];
+    config.validate().expect("the edited account is valid");
+    let before = config.accounts[0].clone();
+
+    // The extension changes; the person reviews and approves it again.
+    rig.rewrite("proxy", "changed");
+    assert!(!rig.manager.is_enabled("proxy").unwrap(), "approval lapsed");
+    let fresh = rig.manager.disclosure("proxy").unwrap();
+    let again = rig.manager.enable(&fresh.candidate, true, &config).unwrap();
+    assert_eq!(again.action.message.id, "extensions.action.reapproved");
+    assert_eq!(again.config.accounts.len(), 1, "no second account");
+    assert_eq!(again.config.accounts[0], before, "the settings are kept");
+    assert_eq!(again.action.account.as_ref().unwrap().index, 0);
+    assert!(rig.manager.is_enabled("proxy").unwrap());
+}
+
 /// RF5.10: reapproval clears the cached failure and the backoff, so the new
 /// version runs at once. The first program runs and fails (an exit code
 /// other than zero), never a file change, so the approval stays valid.

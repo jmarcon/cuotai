@@ -666,6 +666,7 @@
   "extensions.action.invalid_account": "एक्सटेंशन खाते की पहचान मान्य नहीं है।",
   "extensions.action.missing": "एक्सटेंशन {id} नहीं मिला; कोई प्रोग्राम नहीं चला।",
   "extensions.action.not_an_override": "एक्सटेंशन {id} इंटीग्रेशन {provider} की जगह नहीं लेता।",
+  "extensions.action.reapproved": "एक्सटेंशन {id} चालू हुआ; उसका खाता बना रहा।",
   "extensions.action.rollback_conflict": "एक्सटेंशन {id} की मंज़ूरी फिर बदल गई; यहाँ तक की कार्रवाई वापस की गई, पर सबसे नई मंज़ूरी रखी गई।",
   "extensions.action.rollback_failed": "खाता सहेजा नहीं जा सका और मंज़ूरी भी वापस नहीं की जा सकी।",
   "extensions.action.secret_empty": "गोपनीय मान {name} के लिए एक मान दें।",

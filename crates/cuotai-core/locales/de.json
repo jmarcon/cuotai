@@ -666,6 +666,7 @@
   "extensions.action.invalid_account": "Das Erweiterungskonto hat keine gültige Identität.",
   "extensions.action.missing": "Die Erweiterung {id} wurde nicht gefunden; es wurde kein Programm ausgeführt.",
   "extensions.action.not_an_override": "Die Erweiterung {id} ersetzt die Integration {provider} nicht.",
+  "extensions.action.reapproved": "Erweiterung {id} aktiviert; ihr Konto wurde beibehalten.",
   "extensions.action.rollback_conflict": "Die Freigabe der Erweiterung {id} hat sich erneut geändert; der Vorgang wurde bis hierher zurückgenommen, aber die neueste Freigabe blieb erhalten.",
   "extensions.action.rollback_failed": "Das Konto konnte weder gespeichert noch die Freigabe zurückgenommen werden.",
   "extensions.action.secret_empty": "Geben Sie einen Wert für das Geheimnis {name} an.",

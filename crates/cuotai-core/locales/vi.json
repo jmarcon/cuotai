@@ -660,6 +660,7 @@
   "extensions.action.invalid_account": "Tài khoản tiện ích mở rộng không có danh tính hợp lệ.",
   "extensions.action.missing": "Không tìm thấy tiện ích mở rộng {id}; không chạy chương trình nào.",
   "extensions.action.not_an_override": "Tiện ích mở rộng {id} không thay thế tích hợp {provider}.",
+  "extensions.action.reapproved": "Đã bật tiện ích mở rộng {id}; tài khoản của nó được giữ nguyên.",
   "extensions.action.rollback_conflict": "Tiện ích mở rộng {id} đã được phê duyệt lại sau bước này; thao tác đã được hoàn tác, nhưng phê duyệt mới hơn được giữ lại.",
   "extensions.action.rollback_failed": "Không lưu được tài khoản và cũng không hoàn tác được phê duyệt.",
   "extensions.action.secret_empty": "Hãy nhập giá trị cho bí mật {name}.",
