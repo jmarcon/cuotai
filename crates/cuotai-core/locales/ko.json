@@ -365,6 +365,7 @@
   "cost.view.enable_hint": "소스를 켜려면 cuotai --cost-sources로 각 소스가 읽는 내용을 확인하고 cuotai --cost-enable 소스로 확인을 진행하세요.",
   "cost.view.heading": "이 컴퓨터의 {source} 로컬 사용량",
   "cost.view.no_access": "{source}: 로그 디렉터리에 접근할 수 없습니다. 우회하지 않았습니다. 숫자는 색인에 이미 있던 값입니다.",
+  "cost.view.unreadable": "{source}: 로컬 비용 인덱스를 읽을 수 없습니다. 설정 › 로컬 비용에서 또는 --cost-erase로 지우세요.",
   "cost.view.not_read": "{source}: 이번 실행에서는 로그를 아직 읽지 않았습니다. 숫자는 색인에 이미 있던 값입니다.",
   "cost.view.partial": "{source}: 로그 읽기가 아직 끝나지 않았습니다. 숫자가 더 늘어날 수 있습니다.",
   "cost.view.yesterday": "어제",

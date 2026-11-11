@@ -367,6 +367,7 @@
   "cost.view.enable_hint": "Bir kaynağı açmak için: cuotai --cost-sources her birinin neyi okuyacağını gösterir ve cuotai --cost-enable SOURCE onay ister.",
   "cost.view.heading": "Bu bilgisayarda {source} yerel kullanımı",
   "cost.view.no_access": "{source}: günlük dizinlerine erişim yok; hiçbir yol aşılmaya çalışılmadı. Sayılar, dizinin zaten tuttuklarıdır.",
+  "cost.view.unreadable": "{source}: yerel maliyet dizini okunamadı; Ayarlar › Yerel maliyet bölümünden veya --cost-erase ile silin.",
   "cost.view.not_read": "{source}: günlükler bu çalıştırmada henüz okunmadı; sayılar, dizinin zaten tuttuklarıdır.",
   "cost.view.partial": "{source}: günlüklerin okunması henüz bitmedi; sayılar hâlâ artabilir.",
   "cost.view.yesterday": "Dün",

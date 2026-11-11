@@ -206,7 +206,7 @@ impl Source for CodexCli {
                     return Line::Skip;
                 }
                 let session = state.session.clone().unwrap_or_default();
-                Line::Usage(Entry {
+                Line::usage(Entry {
                     at,
                     model: state
                         .model
@@ -337,5 +337,20 @@ mod tests {
         assert!(CodexCli.is_log("rollout-2025-10-02T09-00-00-0199a.jsonl"));
         assert!(!CodexCli.is_log("rollout-2025-10-02.jsonl.zst"));
         assert!(!CodexCli.is_log("history.jsonl"));
+    }
+
+    #[test]
+    fn impossible_counts_are_invalid_lines() {
+        for huge in [u64::MAX, i64::MAX as u64] {
+            let mut state = FileState::default();
+            for line in [META, TURN] {
+                CodexCli.parse(line.as_bytes(), &mut state);
+            }
+            assert_eq!(
+                CodexCli.parse(count(5, huge, 0, 0).as_bytes(), &mut state),
+                Line::Invalid,
+                "{huge}"
+            );
+        }
     }
 }

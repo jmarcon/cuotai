@@ -1571,6 +1571,7 @@
   "cost.view.empty": "{source}: ningún uso en los registros leídos ({period}).",
   "cost.view.partial": "{source}: la lectura de los registros aún no terminó; los números pueden crecer.",
   "cost.view.no_access": "{source}: sin acceso a los directorios de los registros; no se intentó sortearlo. Los números son los que el índice ya tenía.",
+  "cost.view.unreadable": "{source}: no se pudo leer el índice de costo local; bórralo en Configuración › Costo local o con --cost-erase.",
   "cost.view.not_read": "{source}: los registros aún no se leyeron en esta ejecución; los números son los que el índice ya tenía.",
   "cost.view.yesterday": "Ayer",
   "cost.view.heading": "Uso local de {source} en este equipo",

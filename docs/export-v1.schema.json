@@ -659,7 +659,7 @@
         "source": { "anyOf": [{ "enum": ["claude_code", "codex_cli", "gemini_cli"] }, { "type": "string" }], "description": "New sources add values." },
         "label": { "type": "string" },
         "providers": { "type": "array", "items": { "$ref": "#/$defs/Provider" }, "description": "The accounts of these providers show this source." },
-        "state": { "anyOf": [{ "enum": ["off", "ready", "partial", "no_logs", "no_access", "not_read"] }, { "type": "string" }] },
+        "state": { "anyOf": [{ "enum": ["off", "ready", "partial", "no_logs", "no_access", "not_read", "unreadable"] }, { "type": "string" }] },
         "note": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Localized" }], "description": "Why there are no numbers or what limits them; null when they are complete." },
         "usage": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/CostUsage" }], "description": "null while the source is off." },
         "reconsent": { "type": "boolean", "description": "PRD 0042 RF1.2 (additive, absent when false): the source was on under an earlier disclosure and reads nothing until it is accepted again." }

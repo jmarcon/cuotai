@@ -43,6 +43,32 @@ pub(crate) enum Line {
     Invalid,
 }
 
+/// RF1.3: the largest count one field of one request may hold, a thousand
+/// times the largest context window. A line above it is not a real request:
+/// it is skipped and counted as invalid, so it can never overflow the
+/// index's sums.
+pub(crate) const MAX_TOKENS_PER_FIELD: u64 = 1_000_000_000;
+
+impl Line {
+    /// `Usage(entry)`, or `Invalid` when a count of `entry` is impossible
+    /// (above [`MAX_TOKENS_PER_FIELD`]). Every adapter builds usage here.
+    pub(crate) fn usage(entry: Entry) -> Self {
+        let t = &entry.tokens;
+        let counts = [
+            t.input,
+            t.output,
+            t.cache_read,
+            t.cache_write,
+            t.cache_write_1h,
+        ];
+        if counts.iter().any(|&count| count > MAX_TOKENS_PER_FIELD) {
+            Line::Invalid
+        } else {
+            Line::Usage(entry)
+        }
+    }
+}
+
 /// One request's usage: the only values a parser hands on.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Entry {

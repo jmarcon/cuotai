@@ -365,6 +365,7 @@
   "cost.view.enable_hint": "Để bật một nguồn: cuotai --cost-sources cho biết mỗi nguồn đọc gì và cuotai --cost-enable SOURCE yêu cầu xác nhận.",
   "cost.view.heading": "Mức sử dụng cục bộ của {source} trên máy tính này",
   "cost.view.no_access": "{source}: không có quyền truy cập các thư mục nhật ký; không có cách nào được dùng để vượt qua. Các con số là những gì chỉ mục đã có.",
+  "cost.view.unreadable": "{source}: không thể đọc chỉ mục chi phí cục bộ; hãy xóa nó trong Cài đặt › Chi phí cục bộ hoặc bằng --cost-erase.",
   "cost.view.not_read": "{source}: nhật ký chưa được đọc trong lần chạy này; các con số là những gì chỉ mục đã có.",
   "cost.view.partial": "{source}: việc đọc nhật ký chưa xong; các con số có thể còn tăng.",
   "cost.view.yesterday": "Hôm qua",

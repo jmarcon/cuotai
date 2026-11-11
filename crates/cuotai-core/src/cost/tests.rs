@@ -1381,3 +1381,122 @@ fn the_pre_upgrade_copy_expires_after_seven_days() {
         .prune_backup(written + chrono::TimeDelta::days(9))
         .unwrap());
 }
+
+/// S-02: a sum past `i64::MAX` saturates in SQL instead of turning REAL.
+#[test]
+fn sql_sums_saturate_instead_of_overflowing() {
+    let db = rusqlite::Connection::open_in_memory().unwrap();
+    let sum = |a: i64, b: i64| -> rusqlite::types::Value {
+        db.query_row(
+            &format!("SELECT {}", super::index::add("?1", "?2")),
+            [a, b],
+            |r| r.get(0),
+        )
+        .unwrap()
+    };
+    assert_eq!(
+        sum(i64::MAX - 1, 10),
+        rusqlite::types::Value::Integer(i64::MAX)
+    );
+    assert_eq!(
+        sum(i64::MAX, i64::MAX),
+        rusqlite::types::Value::Integer(i64::MAX)
+    );
+    assert_eq!(sum(5, 10), rusqlite::types::Value::Integer(15));
+}
+
+/// S-02: rows already at the ceiling add up without failing the read.
+#[test]
+fn usage_rows_at_the_ceiling_read_back_saturated() {
+    let f = fixture();
+    let index = f.scanner.index();
+    let db = index.open().unwrap();
+    for file in ["a", "b"] {
+        db.execute(
+            "INSERT INTO usage VALUES ('claude_code','2025-10-02','m',?1,
+                 9223372036854775807,1,0,0,1,0)",
+            [file],
+        )
+        .unwrap();
+    }
+    drop(db);
+    let usage = index
+        .usage(None, None, NaiveDate::from_ymd_opt(2025, 10, 3).unwrap())
+        .unwrap();
+    assert_eq!(usage.len(), 1, "one day and model");
+    assert_eq!(usage[0].tokens.input, 2 * i64::MAX as u64);
+    assert_eq!(usage[0].tokens.output, 2);
+}
+
+/// S-02: an index poisoned before the fix (a REAL count) is clamped by
+/// the migration and read, not left unreadable until erased.
+#[test]
+fn a_count_that_overflowed_into_real_is_clamped_on_upgrade() {
+    let f = fixture();
+    let path = f.scanner.index().path().to_path_buf();
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    {
+        let db = rusqlite::Connection::open(&path).unwrap();
+        for step in &super::index::MIGRATIONS[..3] {
+            db.execute_batch(step).unwrap();
+        }
+        db.pragma_update(None, "user_version", 3).unwrap();
+        db.execute(
+            "INSERT INTO usage VALUES ('claude_code','2025-10-02','m','f',1.0e19,1,0,0,1,0)",
+            [],
+        )
+        .unwrap();
+        db.execute(
+            "INSERT INTO usage VALUES ('claude_code','2025-10-02','m','g',5,1,0,0,1,0)",
+            [],
+        )
+        .unwrap();
+    }
+    let usage = f
+        .scanner
+        .index()
+        .usage(None, None, NaiveDate::from_ymd_opt(2025, 10, 3).unwrap())
+        .unwrap();
+    assert_eq!(usage[0].tokens.input, i64::MAX as u64 + 5);
+    let kind: String = rusqlite::Connection::open(&path)
+        .unwrap()
+        .query_row(
+            "SELECT typeof(input) FROM usage WHERE file = 'f'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(kind, "integer");
+}
+
+/// S-02: an index that cannot be read is an `unreadable` source with a
+/// note, never a summary that looks like every source is off.
+#[test]
+fn an_unreadable_index_is_reported_per_source_not_as_off() {
+    let f = fixture();
+    f.enable(SourceId::ClaudeCode);
+    write(&f.claude_log("a"), &claude_line(1, 10, 2));
+    f.scan();
+    let path = f.scanner.index().path().to_path_buf();
+    for companion in ["-wal", "-shm"] {
+        let mut name = path.clone().into_os_string();
+        name.push(companion);
+        let _ = std::fs::remove_file(name);
+    }
+    write(&path, &"not a database ".repeat(400));
+    let summary = f.scanner.summary(&pricing(&f), None, None, now()).unwrap();
+    assert!(summary.any_on(), "never shown as off");
+    let claude = summary.source(SourceId::ClaudeCode).unwrap();
+    assert_eq!(claude.state, CostState::Unreadable);
+    assert!(claude.usage.is_none());
+    assert_eq!(claude.note.as_ref().unwrap().id, "cost.view.unreadable");
+    assert_eq!(summary.unreadable(), claude.note.as_ref());
+    let codex = summary.source(SourceId::CodexCli).unwrap();
+    assert_eq!(
+        codex.state,
+        CostState::Off,
+        "a source that is off stays off"
+    );
+    let json = serde_json::to_value(&summary).unwrap();
+    assert_eq!(json["sources"][0]["state"], "unreadable");
+}

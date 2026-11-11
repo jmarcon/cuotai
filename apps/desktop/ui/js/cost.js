@@ -63,7 +63,7 @@ const approxUsd = (amount) => (amount > 0 && amount < 0.005 ? fmtUsd(amount) : `
 /** RF4.1: the source the accounts of `provider` show, if the summary has one. */
 export const sourceFor = (summary, provider) => summary?.sources.find((s) => s.providers.includes(provider)) ?? null;
 
-const TONES = { partial: "warn", no_logs: "warn", no_access: "bad" };
+const TONES = { partial: "warn", no_logs: "warn", no_access: "bad", unreadable: "bad" };
 const noteHtml = (sc) => (sc.note ? `<p class="lc-note ${TONES[sc.state] ?? ""}" data-cost-note>${esc(tl(sc.note))}</p>` : "");
 
 const tile = (label, e, display) => `<div class="lc-tile"><span class="lc-label">${esc(label)}</span>
@@ -81,6 +81,10 @@ export function costSummary(sc, summary) {
 /** One muted line for the tray's expanded row: "Local cost · ≈$0.11 today · Last 7 days ≈$1.41 (estimate)". */
 export function costLineHtml(sc, summary) {
   const v = costSummary(sc, summary);
+  // S-02: an index that cannot be read says so; it never looks like "off".
+  if (!v && sc?.state === "unreadable" && sc.note) {
+    return `<p class="cost-line bad" data-local-cost="${esc(sc.source)}" data-cost-note>${icon("dollar")}<span>${esc(tl(sc.note))}</span></p>`;
+  }
   return v ? `<p class="cost-line" data-local-cost="${esc(sc.source)}">${icon("dollar")}<span>${te("cost.line", v)}</span></p>` : "";
 }
 
@@ -93,9 +97,15 @@ export function liveLineHtml(sc, summary) {
   return `<p class="lc-live-line" data-cost-live="${esc(sc.source)}" title="${esc(tip)}">${esc(tl(live.line))}</p>`;
 }
 
-/** The block inside an account card; nothing while the source is off. */
+/** The block inside an account card; nothing while the source is off, only the note while the index cannot be
+ *  read (S-02). */
 export function costCardHtml(sc, summary) {
-  if (!sc?.usage) return "";
+  if (!sc?.usage) {
+    if (sc?.state !== "unreadable") return "";
+    return `<div class="local-cost" data-local-cost="${esc(sc.source)}">
+    <div class="lc-head">${icon("monitor")}<span class="lc-title">${te("cost.card.title", { source: sc.label })}</span></div>
+    ${noteHtml(sc)}</div>`;
+  }
   return `<div class="local-cost" data-local-cost="${esc(sc.source)}">
     <div class="lc-head">${icon("monitor")}<span class="lc-title">${te("cost.card.title", { source: sc.label })}</span>
       <button class="icon" data-cost-details="${esc(sc.source)}" title="${te("cost.card.details")}" aria-label="${te("cost.card.details")}">${icon("search")}</button></div>

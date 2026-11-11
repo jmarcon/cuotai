@@ -364,6 +364,7 @@
   "cost.view.enable_hint": "Para ligar uma fonte: cuotai --cost-sources mostra o que cada uma lê e cuotai --cost-enable FONTE pede a confirmação.",
   "cost.view.heading": "Uso local do {source} neste computador",
   "cost.view.no_access": "{source}: sem acesso aos diretórios dos logs; nada foi contornado. Os números são os que o índice já tinha.",
+  "cost.view.unreadable": "{source}: não foi possível ler o índice de custo local; apague-o em Configurações › Custo local ou com --cost-erase.",
   "cost.view.not_read": "{source}: os logs ainda não foram lidos nesta execução; os números são os que o índice já tinha.",
   "cost.view.partial": "{source}: a leitura dos logs ainda não terminou; os números podem crescer.",
   "cost.view.yesterday": "Ontem",

@@ -97,6 +97,9 @@ pub enum CostState {
     /// On, but not scanned yet by this process; the numbers are what the
     /// index held.
     NotRead,
+    /// S-02: on, but the index could not be read; nothing is shown until
+    /// it is erased. Never shown as off.
+    Unreadable,
 }
 
 /// One local day of a [`SourceUsage`].
@@ -272,6 +275,39 @@ pub fn unpriced_text(models: &[String]) -> Localized {
 
 /// RF4: the summary of `input`. Pure: the same input always gives the same
 /// summary.
+/// S-02: the note of a source that is on while the index cannot be read.
+pub fn unreadable_text(label: &str) -> Localized {
+    Localized::with_param(
+        "cost.view.unreadable",
+        "source",
+        label,
+        "{source}: the local cost index could not be read; erase it in Settings › Local cost or with --cost-erase.",
+    )
+}
+
+impl CostSummary {
+    /// S-02: every source that is on is [`CostState::Unreadable`], with its
+    /// note and no usage, so an unreadable index never looks like "off".
+    pub fn mark_unreadable(&mut self) {
+        for source in &mut self.sources {
+            if source.state != CostState::Off {
+                source.state = CostState::Unreadable;
+                source.note = Some(unreadable_text(source.label));
+                source.usage = None;
+            }
+        }
+    }
+
+    /// The note of the first unreadable source, if the index could not be
+    /// read.
+    pub fn unreadable(&self) -> Option<&Localized> {
+        self.sources
+            .iter()
+            .find(|source| source.state == CostState::Unreadable)
+            .and_then(|source| source.note.as_ref())
+    }
+}
+
 pub fn summarize(input: &SummaryInput<'_>) -> CostSummary {
     let today = input.today;
     let yesterday = today - Days::days(1);
@@ -402,6 +438,7 @@ fn source_cost(
             label,
             "{source}: no access to the log directories; nothing was worked around. The numbers are what the index already held.",
         )),
+        CostState::Unreadable => Some(unreadable_text(label)),
         CostState::NotRead => Some(Localized::with_param(
             "cost.view.not_read",
             "source",
@@ -501,10 +538,16 @@ impl Scanner {
         let first = span
             .first_day(today)
             .map(|first| first.min(today - Days::days(1)));
-        let usage = if enabled.is_empty() {
-            Vec::new()
+        // S-02: an index that cannot be read is reported per source, never
+        // as an error every front end would turn into "off".
+        let (usage, unreadable) = if enabled.is_empty() {
+            (Vec::new(), false)
         } else {
-            self.index().usage(None, first, today)?
+            match self.index().usage(None, first, today) {
+                Ok(usage) => (usage, false),
+                Err(CostError::Storage) => (Vec::new(), true),
+                Err(error) => return Err(error),
+            }
         };
         let (prices, pricing_error) = Prices::with_user_file(pricing);
         let mut summary = summarize(&SummaryInput {
@@ -521,6 +564,10 @@ impl Scanner {
                 source.reconsent = true;
                 source.note = Some(reconsent_text(source.label));
             }
+        }
+        if unreadable {
+            summary.mark_unreadable();
+            return Ok(summary);
         }
         if !enabled.is_empty() {
             summary.blocks = self.blocks(pricing, None, Span::Days(7), now, &[])?.blocks;

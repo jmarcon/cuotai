@@ -147,7 +147,7 @@ impl Source for GeminiCli {
         let dedup = record
             .id
             .map(|id| anonymous(self.id(), &format!("{session}\0{id}")));
-        Line::Usage(Entry {
+        Line::usage(Entry {
             at,
             model,
             tokens,
@@ -245,5 +245,13 @@ mod tests {
         assert!(GeminiCli.is_log("session-2026-10-01T09-00-abc12345.jsonl"));
         assert!(!GeminiCli.is_log("session-x.jsonl.unreadable-1"));
         assert!(!GeminiCli.is_log("session-x.json"));
+    }
+
+    #[test]
+    fn impossible_counts_are_invalid_lines() {
+        for huge in [u64::MAX, i64::MAX as u64] {
+            let line = GEMINI.replace(r#""output":200"#, &format!(r#""output":{huge}"#));
+            assert_eq!(parse(&[HEADER, &line])[1], Line::Invalid, "{huge}");
+        }
     }
 }

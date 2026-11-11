@@ -1571,6 +1571,7 @@
   "cost.view.empty": "{source}: nessun utilizzo nei log letti ({period}).",
   "cost.view.partial": "{source}: la lettura dei log non è ancora terminata; i numeri potrebbero ancora crescere.",
   "cost.view.no_access": "{source}: nessun accesso alle directory dei log; nulla è stato aggirato. I numeri sono quelli già presenti nell'indice.",
+  "cost.view.unreadable": "{source}: impossibile leggere l’indice dei costi locali; cancellalo in Impostazioni › Costo locale o con --cost-erase.",
   "cost.view.not_read": "{source}: i log non sono ancora stati letti in questa esecuzione; i numeri sono quelli già presenti nell'indice.",
   "cost.view.yesterday": "Ieri",
   "cost.view.heading": "Utilizzo locale di {source} su questo computer",
