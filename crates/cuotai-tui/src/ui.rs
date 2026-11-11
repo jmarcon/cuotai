@@ -1008,7 +1008,11 @@ pub async fn run(
                             job.abort();
                         }
                         account_refresh.abort_all();
-                        wizard = Some(Wizard::paste_session(&file.config, index));
+                        wizard = Some(Wizard::paste_session(
+                            &file.config,
+                            index,
+                            reports.get(index).and_then(Option::as_ref),
+                        ));
                         authorized = None;
                     }
                 }

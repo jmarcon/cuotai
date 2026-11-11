@@ -2383,3 +2383,23 @@ fn only_google_sign_in_popups_open_in_place() {
         assert!(!g.opens_in_place(refused), "{refused}");
     }
 }
+
+/// SES-02 (2026-11 review): the cause, which ends with its own period, comes
+/// last in the refusal, never inside parentheses.
+#[test]
+fn the_save_refusal_puts_the_cause_last() {
+    for id in [
+        "user_session.save.unreachable",
+        "user_session.save.rejected",
+    ] {
+        let note = Localized::with_params(
+            id,
+            params([("cause", ParamValue::from("CAUSE-X."))]),
+            "fallback {cause}",
+        );
+        for locale in crate::text::catalog_locales() {
+            let text = note.resolve(locale);
+            assert!(text.ends_with("CAUSE-X."), "{locale}: {text}");
+        }
+    }
+}

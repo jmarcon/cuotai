@@ -1353,7 +1353,7 @@ pub fn clear_for_save(
             note: Localized::with_params(
                 "user_session.save.unreachable",
                 cause,
-                "The session could not be tested ({cause}); nothing was saved. Choose \"Save anyway\" to keep it untested, or try again.",
+                "The session could not be tested; nothing was saved. Choose \"Save anyway\" to keep it untested, or try again. Cause: {cause}",
             ),
             save_anyway: true,
         }
@@ -1362,7 +1362,7 @@ pub fn clear_for_save(
             note: Localized::with_params(
                 "user_session.save.rejected",
                 cause,
-                "The session test failed ({cause}); nothing was saved. Paste a valid session and try again.",
+                "The session test failed; nothing was saved. Paste a valid session and try again. Cause: {cause}",
             ),
             save_anyway: false,
         }

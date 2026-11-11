@@ -1012,6 +1012,28 @@ pub(crate) fn render_for_test(
     now: DateTime<Utc>,
     locale: &'static str,
 ) -> String {
+    render_for_test_sized(
+        accounts,
+        reports,
+        model_counts,
+        visible,
+        now,
+        locale,
+        (120, 30),
+    )
+}
+
+/// [`render_for_test`] on a terminal of `size` (columns, rows).
+#[cfg(test)]
+pub(crate) fn render_for_test_sized(
+    accounts: &[Account],
+    reports: &[Option<Report>],
+    model_counts: &[Option<usize>],
+    visible: &[usize],
+    now: DateTime<Utc>,
+    locale: &'static str,
+    size: (u16, u16),
+) -> String {
     struct LocaleGuard(Option<&'static str>);
     impl Drop for LocaleGuard {
         fn drop(&mut self) {
@@ -1020,7 +1042,7 @@ pub(crate) fn render_for_test(
     }
     let _locale = LocaleGuard(crate::l10n::TEST_LOCALE.with(|slot| slot.replace(Some(locale))));
     use ratatui::{backend::TestBackend, Terminal};
-    let mut terminal = Terminal::new(TestBackend::new(120, 30)).unwrap();
+    let mut terminal = Terminal::new(TestBackend::new(size.0, size.1)).unwrap();
     let empty_history: &[Option<&Report>] = &[];
     let empty_recent: &[Vec<Vec<Point>>] = &[];
     let view = View {
@@ -1061,7 +1083,7 @@ pub(crate) fn render_for_test(
     let buffer = terminal.backend().buffer().clone();
     buffer
         .content()
-        .chunks(120)
+        .chunks(usize::from(size.0))
         .map(|row| row.iter().map(|cell| cell.symbol()).collect::<String>())
         .collect::<Vec<_>>()
         .join("\n")
@@ -1732,6 +1754,19 @@ fn render_card(
                 .len()
                 .min(usize::from(free))
         }
+        // PRD 0016 RF4.1 (2026-11 review): with a web session warning, the
+        // failure cause takes its wrapped rows first and the warning keeps
+        // the last free row, so the actionable half of the cause is shown.
+        _ if session_notice.is_some() && rows.is_empty() => match first_note.as_deref() {
+            Some(text) if !text.trim().is_empty() => {
+                let free = area.height.saturating_sub(4 + hint_rows as u16);
+                let width = area.width.saturating_sub(2).max(20);
+                textwrap_simple(text, usize::from(width))
+                    .len()
+                    .min(usize::from(free))
+            }
+            _ => 0,
+        },
         _ => note_row_count(first_note.as_deref(), area.width),
     };
 
@@ -2562,7 +2597,8 @@ fn render_note_lines(frame: &mut Frame, chunks: &[Rect], note: &str) {
         .first()
         .map(|rect| rect.width.max(20) as usize)
         .unwrap_or(40);
-    let lines = textwrap_simple(note, width);
+    // A cause cut to the card ends with "…"; the details carry it in full.
+    let lines = clipped_lines(note, width, chunks.len());
     for (chunk, line) in chunks.iter().zip(
         lines
             .iter()
@@ -3462,6 +3498,56 @@ mod tests {
             as_of: None,
             overage_hint: None,
             breakdown: Vec::new(),
+        }
+    }
+
+    /// PRD 0016 RF4.1 (2026-11 review): a failed web-session card shows the
+    /// whole cause first (cut with "…" only when the card is too small) and
+    /// the session warning keeps the last free row.
+    #[test]
+    fn a_failed_session_card_shows_the_whole_cause_before_the_warning() {
+        let account = Account {
+            name: "acc".into(),
+            provider: Provider::XiaomiMimo,
+            session: Some(cuotai_core::user_session::SessionConfig {
+                credential_ref: "6f1c2b9e-3c1d-4f7a-9a51-0e7b2d5c8a11".into(),
+                slots: ["platform_session_env".to_string()].into(),
+            }),
+            ..Account::default()
+        };
+        let cause = "Session expired or revoked; paste a new one in the account wizard.";
+        let mut failed = report(Status::AuthenticationError, Vec::new());
+        failed.provider = Provider::XiaomiMimo;
+        failed.notes = vec![cause.into()];
+        for (columns, rows) in [(100, 30), (80, 30), (60, 30), (45, 18)] {
+            let screen = crate::dashboard::render_for_test_sized(
+                std::slice::from_ref(&account),
+                &[Some(failed.clone())],
+                &[],
+                &[0],
+                Utc.with_ymd_and_hms(2026, 1, 1, 0, 3, 0).unwrap(),
+                "en-US",
+                (columns, rows),
+            );
+            let flat: String = screen
+                .lines()
+                .map(|line| line.trim_matches(|c: char| c == '│' || c.is_whitespace()))
+                .collect::<Vec<_>>()
+                .join(" ");
+            let shown = flat.contains("account wizard.");
+            let clipped = flat.contains("…");
+            assert!(shown || clipped, "{columns}×{rows}:\n{screen}");
+            assert!(
+                flat.contains("Session expired"),
+                "{columns}×{rows}:\n{screen}"
+            );
+            if rows == 30 {
+                assert!(shown, "a tall card shows the whole cause:\n{screen}");
+                assert!(
+                    flat.contains("full login"),
+                    "the warning follows:\n{screen}"
+                );
+            }
         }
     }
 
