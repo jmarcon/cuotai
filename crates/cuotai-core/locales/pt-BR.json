@@ -358,7 +358,10 @@
   "cost.scan.off": "{source}: desligado; nada é lido.",
   "cost.scan.partial": "{source}: {files} log(s); {requests} requisição(ões) nova(s); {invalid} linha(s) inválida(s) ignorada(s); a leitura continua no próximo ciclo.",
   "cost.scan.ready": "{source}: {files} log(s); {requests} requisição(ões) nova(s); {invalid} linha(s) inválida(s) ignorada(s).",
-  "cost.span.days": "Últimos {days} dias",
+  "cost.span.days": {
+    "one": "Último {count} dia",
+    "other": "Últimos {count} dias"
+  },
   "cost.view.by_day": "Por dia",
   "cost.view.by_model": "Por modelo ({period})",
   "cost.view.empty": "{source}: nenhum uso nos logs lidos ({period}).",

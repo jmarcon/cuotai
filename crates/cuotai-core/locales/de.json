@@ -361,7 +361,10 @@
   "cost.scan.off": "{source}: ausgeschaltet; nichts wird gelesen.",
   "cost.scan.partial": "{source}: {files} Log(s); {requests} neue Anfrage(n); {invalid} ungültige Zeile(n) ignoriert; das Lesen wird im nächsten Zyklus fortgesetzt.",
   "cost.scan.ready": "{source}: {files} Log(s); {requests} neue Anfrage(n); {invalid} ungültige Zeile(n) ignoriert.",
-  "cost.span.days": "Letzte {days} Tage",
+  "cost.span.days": {
+    "one": "Letzter Tag",
+    "other": "Letzte {count} Tage"
+  },
   "cost.view.by_day": "Nach Tag",
   "cost.view.by_model": "Nach Modell ({period})",
   "cost.view.empty": "{source}: keine Nutzung in den gelesenen Logs ({period}).",

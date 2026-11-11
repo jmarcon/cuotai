@@ -365,7 +365,12 @@
   "cost.scan.off": "{source}: выключено; ничего не читается.",
   "cost.scan.partial": "{source}: логов: {files}; новых запросов: {requests}; пропущено недопустимых строк: {invalid}; чтение продолжится в следующем цикле.",
   "cost.scan.ready": "{source}: логов: {files}; новых запросов: {requests}; пропущено недопустимых строк: {invalid}.",
-  "cost.span.days": "Последние дни: {days}",
+  "cost.span.days": {
+    "one": "Последний {count} день",
+    "few": "Последние {count} дня",
+    "many": "Последние {count} дней",
+    "other": "Последние {count} дня"
+  },
   "cost.view.by_day": "По дням",
   "cost.view.by_model": "По моделям ({period})",
   "cost.view.empty": "{source}: нет использования в прочитанных логах ({period}).",

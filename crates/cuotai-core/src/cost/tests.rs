@@ -1766,3 +1766,16 @@ fn a_backup_key_is_adopted_by_a_new_computer() {
     b.scanner.index().import_labels(&other, true).unwrap();
     assert_eq!(b.scanner.index().fingerprint_key().unwrap(), own);
 }
+
+/// V-03: the span of one day is singular in every language with a "one"
+/// form ("Last day", "Último 1 dia"), plural otherwise.
+#[test]
+fn a_one_day_span_reads_singular() {
+    let one = Span::days(1).unwrap().label();
+    assert_eq!(one.resolve("en-US"), "Last day");
+    assert_eq!(one.resolve("pt-BR"), "Último 1 dia");
+    let seven = Span::days(7).unwrap().label();
+    assert_eq!(seven.resolve("en-US"), "Last 7 days");
+    assert_eq!(seven.resolve("pt-BR"), "Últimos 7 dias");
+    assert_eq!(seven.resolve("ru"), "Последние 7 дней");
+}

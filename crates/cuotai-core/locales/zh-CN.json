@@ -359,7 +359,9 @@
   "cost.scan.off": "{source}：已关闭；不读取任何内容。",
   "cost.scan.partial": "{source}：{files} 个日志；{requests} 个新请求；已忽略 {invalid} 行无效内容；下个周期继续读取。",
   "cost.scan.ready": "{source}：{files} 个日志；{requests} 个新请求；已忽略 {invalid} 行无效内容。",
-  "cost.span.days": "最近 {days} 天",
+  "cost.span.days": {
+    "other": "最近 {count} 天"
+  },
   "cost.view.by_day": "按日",
   "cost.view.by_model": "按模型（{period}）",
   "cost.view.empty": "{source}：已读取的日志中没有用量（{period}）。",

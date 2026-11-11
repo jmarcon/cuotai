@@ -359,7 +359,9 @@
   "cost.scan.off": "{source}: tắt; không đọc gì.",
   "cost.scan.partial": "{source}: {files} nhật ký; {requests} yêu cầu mới; bỏ qua {invalid} dòng không hợp lệ; việc đọc tiếp tục ở chu kỳ sau.",
   "cost.scan.ready": "{source}: {files} nhật ký; {requests} yêu cầu mới; bỏ qua {invalid} dòng không hợp lệ.",
-  "cost.span.days": "{days} ngày qua",
+  "cost.span.days": {
+    "other": "{count} ngày qua"
+  },
   "cost.view.by_day": "Theo ngày",
   "cost.view.by_model": "Theo mô hình ({period})",
   "cost.view.empty": "{source}: không có mức sử dụng nào trong nhật ký đã đọc ({period}).",

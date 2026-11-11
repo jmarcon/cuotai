@@ -55,11 +55,16 @@ impl Span {
     pub fn label(self) -> Localized {
         match self {
             Self::Period(period) => period.label(),
-            Self::Days(days) => Localized::with_param(
+            // V-03: "Last day", never "Last 1 days".
+            Self::Days(days) => Localized::plural(
                 "cost.span.days",
-                "days",
-                u64::from(days),
-                "Last {days} days",
+                // `days` stays for consumers of the export written for it.
+                params([
+                    ("count", u64::from(days).into()),
+                    ("days", u64::from(days).into()),
+                ]),
+                "Last day",
+                "Last {count} days",
             ),
         }
     }
