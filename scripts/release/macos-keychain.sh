@@ -54,7 +54,9 @@ security set-key-partition-list -S apple-tool:,apple:,codesign: \
 rm -f "$p12"
 security list-keychains -d user -s "$keychain" $(security list-keychains -d user | sed 's/"//g')
 
-if ! security find-identity -v "$keychain" | grep -qF "$APPLE_SIGNING_IDENTITY"; then
+# Capture first: `| grep -q` under pipefail turns SIGPIPE into a false failure.
+identities="$(security find-identity -v "$keychain" || true)"
+if ! grep -qF "$APPLE_SIGNING_IDENTITY" <<<"$identities"; then
   echo "configured Apple signing identity not found in the imported certificate" >&2
   exit 1
 fi
