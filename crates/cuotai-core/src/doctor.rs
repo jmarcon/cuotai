@@ -1210,6 +1210,8 @@ pub fn run(inputs: &Inputs) -> Report {
             .and_then(Path::parent)
             .map(Path::to_path_buf),
         accounts: Some(inputs.config.path.clone()),
+        // The doctor reports the data root it was given, not the home.
+        mac_home: None,
     });
     checks.push(check_artifacts(&artifacts));
     Report {

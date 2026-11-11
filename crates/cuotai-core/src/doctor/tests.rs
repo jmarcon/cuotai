@@ -420,8 +420,11 @@ fn diagnostics_show_log_proxy_trust_and_files_without_secrets() {
     }
     assert_eq!(
         report.artifacts.len(),
-        crate::privacy::artifacts().len(),
-        "every registry entry is listed"
+        crate::privacy::artifacts()
+            .iter()
+            .filter(|a| a.root != crate::privacy::Root::MacHome)
+            .count(),
+        "every registry entry is listed (the macOS home copies are not the doctor's)"
     );
     let json = serde_json::to_string(&report).unwrap();
     assert!(

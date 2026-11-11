@@ -10,7 +10,8 @@
 //! The history, model cache, reset marks, cost index and settings, prices,
 //! hook consent/log/work folders, extensions, serve token, last-config
 //! records, vault index, metered records, canary records, update-check
-//! cache and the desktop widget fallback all live under it.
+//! cache and the desktop widget file (on Windows and Linux; on macOS it
+//! stays at `widget_snapshot::MACOS_PATH`) all live under it.
 
 use std::path::{Path, PathBuf};
 

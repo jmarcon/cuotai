@@ -360,6 +360,9 @@ mod tests {
             local_data: Some(dir.path().join("local")),
             config: Some(dir.path().join("config")),
             accounts: Some(dir.path().join("config").join("cuotai").join("config.toml")),
+            // The macOS widget copies, in a home of their own (never the
+            // real one).
+            mac_home: Some(dir.path().join("home")),
         };
         for artifact in artifacts() {
             let Some(path) = roots.path_of(artifact) else {

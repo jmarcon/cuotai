@@ -43,6 +43,16 @@ pub const SCHEMA: u32 = 1;
 /// the envelope did.
 pub const SCHEMA_REVISION: u32 = 0;
 
+/// PRD 0014 RF2.1: on macOS the file always lives here, below the home
+/// directory, whatever the data folder is: the widget extension's sandbox
+/// may read this one path and no other (`CuotaiWidgets.entitlements`).
+pub const MACOS_PATH: &str = "Library/Application Support/cuotai/widget.json";
+
+/// The *app group* file of releases before 0.82.2, below the home
+/// directory. Nothing reads it any more; it only goes away with the data.
+pub const MACOS_LEGACY_PATH: &str =
+    "Library/Group Containers/WL9XSC6H36.dev.cuotai.desktop/widget.json";
+
 /// Largest file written: 256 KiB (RF1.2). Accounts beyond the cap are
 /// dropped from the tail of the binding order.
 pub const MAX_BYTES: usize = 256 * 1024;

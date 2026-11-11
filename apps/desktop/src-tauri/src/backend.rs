@@ -2620,14 +2620,13 @@ impl Backend {
             .map_err(str::to_owned)?;
         crate::settings::save_widgets(&prefs).map_err(str::to_owned)?;
         self.widgets.set_enabled(enabled);
-        let path = widgets::snapshot_path();
         if enabled {
             self.widgets.mark_dirty();
         } else {
             // RF2.2: with the feature off no file is written and an
             // existing one is gone.
             self.widgets.reset();
-            widgets::delete(path.as_deref());
+            widgets::delete_all();
         }
         self.emit(app).await;
         Ok(widgets::view(prefs))
@@ -2636,7 +2635,7 @@ impl Backend {
     /// PRD 0014 RF4.1: "Delete widget data". Removes the file now; while
     /// publishing is on the next state change writes it again.
     pub async fn delete_widget_data(&self, app: &AppHandle) -> Result<(), String> {
-        let deleted = widgets::delete(widgets::snapshot_path().as_deref());
+        let deleted = widgets::delete_all();
         self.widgets.mark_dirty();
         self.emit(app).await;
         if !deleted {
@@ -2658,6 +2657,12 @@ impl Backend {
     /// coalesced into the next write, and while the switch is off the task
     /// stays quiet and the file stays deleted.
     pub async fn run_widgets(self: Arc<Self>) {
+        if !self.widgets.is_enabled() {
+            // RF2.2: off at startup, so no copy may linger (a crash between
+            // a write and the switch, an earlier release's file in a moved
+            // data folder, a hand-edited `desktop.json`).
+            let _ = tauri::async_runtime::spawn_blocking(widgets::delete_all).await;
+        }
         loop {
             if !self.widgets.is_dirty() {
                 self.widgets.wait_nudged().await;
@@ -2726,7 +2731,7 @@ impl Backend {
             true
         } else {
             // The switch turned off while the payload was being built.
-            widgets::delete(Some(&path));
+            widgets::delete_all();
             false
         }
     }
