@@ -2340,5 +2340,8 @@
   "alerts.more": {
     "one": "y {count} más",
     "other": "y {count} más"
-  }
+  },
+  "user_session.needed": "Se necesita una sesión: esta cuenta lee su uso mediante una sesión web; pega una nueva.",
+  "user_session.forget.awaiting": "Sesión olvidada: la entrada de la bóveda del sistema se eliminó. La cuenta no lee ninguna clave de API y espera una nueva sesión.",
+  "edit_error.key_or_session_required": "Introduce una clave de API o pega una sesión web."
 }

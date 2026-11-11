@@ -358,12 +358,24 @@ fn config_rejects_invalid_or_shared_session_references() {
     assert!(config(vec![with("A", reference("session_env"))])
         .validate()
         .is_ok());
+    // A web-session account awaiting a new session keeps its reference
+    // with no slot; other providers need a slot.
+    let awaiting = SessionConfig {
+        slots: BTreeSet::new(),
+        ..reference("session_env")
+    };
+    assert!(config(vec![with("A", awaiting.clone())]).validate().is_ok());
+    assert!(matches!(
+        config(vec![Account {
+            provider: Provider::LiteLlm,
+            session: Some(awaiting),
+            ..mimo(&[])
+        }])
+        .validate(),
+        Err(crate::ConfigError::Session)
+    ));
     for bad in [
         reference("unknown_slot"),
-        SessionConfig {
-            slots: BTreeSet::new(),
-            ..reference("session_env")
-        },
         SessionConfig {
             credential_ref: "not-a-uuid".into(),
             ..reference("session_env")
@@ -1026,6 +1038,11 @@ async fn forgetting_deletes_the_vault_entry_and_the_reference_of_that_account_on
     let oauth = session(&store);
     let mut file = two_pasted(&store, &dir).await;
     let kept = file.config.accounts[1].session.clone();
+    let reference = file.config.accounts[0]
+        .session
+        .clone()
+        .unwrap()
+        .credential_ref;
 
     let staged = stage_forget(&oauth, &file.config, 0).await.unwrap();
     file.save(staged.config().clone()).unwrap();
@@ -1035,9 +1052,19 @@ async fn forgetting_deletes_the_vault_entry_and_the_reference_of_that_account_on
         ["api-platform_serviceToken=SECRET-B; userId=7"]
     );
     let reloaded = ConfigFile::load(Some(file.path.clone()), false).unwrap();
-    assert_eq!(reloaded.config.accounts[0].session, None);
+    // A web-session account without a key keeps the reference, with no
+    // slot, and waits for a new session.
+    let forgotten = &reloaded.config.accounts[0];
+    let awaiting = forgotten.session.as_ref().expect("reference kept");
+    assert!(awaiting.slots.is_empty());
+    assert_eq!(awaiting.credential_ref, reference);
+    assert!(session_only(forgotten));
+    assert_eq!(
+        forgotten_notice_for(forgotten).id,
+        "user_session.forget.awaiting"
+    );
     assert_eq!(reloaded.config.accounts[1].session, kept);
-    assert_eq!(super::notice(&reloaded.config.accounts[0]), None);
+    assert_eq!(super::notice(forgotten), None);
     // Nothing left to forget.
     let error = stage_forget(&oauth, &reloaded.config, 0)
         .await
@@ -1257,11 +1284,52 @@ async fn forgetting_a_reference_without_its_entry_only_drops_the_reference() {
         credential_ref: uuid::Uuid::new_v4().to_string(),
         slots: [PLATFORM.to_string()].into(),
     });
+    // An account that names a key drops the reference and keeps the key.
+    account.credential_env = Some("MY_KEY".into());
     let staged = stage_forget(&session(&store), &config(vec![account]), 0)
         .await
         .unwrap();
-    assert_eq!(staged.config().accounts[0].session, None);
+    let forgotten = &staged.config().accounts[0];
+    assert_eq!(forgotten.session, None);
+    assert_eq!(forgotten.credential_env.as_deref(), Some("MY_KEY"));
+    assert_eq!(
+        forgotten_notice_for(forgotten).id,
+        "user_session.forget.done"
+    );
     assert!(store.entries.lock().is_empty());
+}
+
+#[tokio::test]
+async fn a_forgotten_web_session_waits_for_a_new_one_and_cannot_be_forgotten_twice() {
+    let store = Arc::new(MemoryStore::default());
+    let oauth = session(&store);
+    let mut accounts = config(vec![mimo(&[])]);
+    let paste = "api-platform_serviceToken=SECRET-A; userId=7";
+    let reduced = reduce(Provider::XiaomiMimo, PLATFORM, paste, now()).unwrap();
+    accounts = stage_pasted(&oauth, &accounts, 0, &[reduced], Some(&cleared()))
+        .await
+        .unwrap()
+        .config()
+        .clone();
+    let reference = accounts.accounts[0].session.clone().unwrap().credential_ref;
+    let staged = stage_forget(&oauth, &accounts, 0).await.unwrap();
+    let forgotten = staged.config().clone();
+    assert!(store.entries.lock().is_empty());
+    assert!(forgotten.validate().is_ok());
+    let awaiting = forgotten.accounts[0].session.clone().unwrap();
+    assert_eq!(awaiting.credential_ref, reference);
+    assert!(awaiting.slots.is_empty());
+    // Nothing is left to forget.
+    let again = stage_forget(&oauth, &forgotten, 0).await.err().unwrap();
+    assert_eq!(again.id, "user_session.forget.nothing");
+    // A new paste goes under the same reference (RF3.4).
+    let reduced = reduce(Provider::XiaomiMimo, PLATFORM, paste, now()).unwrap();
+    let pasted = stage_pasted(&oauth, &forgotten, 0, &[reduced], Some(&cleared()))
+        .await
+        .unwrap();
+    let session = pasted.config().accounts[0].session.clone().unwrap();
+    assert_eq!(session.credential_ref, reference);
+    assert!(session.slots.contains(PLATFORM));
 }
 
 // ------------------------------------- SES-01, SES-02: test before save

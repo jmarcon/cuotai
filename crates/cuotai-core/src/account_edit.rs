@@ -2624,6 +2624,8 @@ pub fn stored_credential(account: &Account) -> String {
         CredentialKind::EnvVar if provider == Provider::NineRouter => {
             account.credential_env.clone().unwrap_or_default()
         }
+        // A web-session account without a key stays without one.
+        CredentialKind::EnvVar if crate::user_session::session_only(account) => String::new(),
         CredentialKind::EnvVar => account
             .credential_env
             .clone()
@@ -2752,15 +2754,45 @@ pub fn build_account_with_secrets(
     // PRD 0040 RF3.1/RF4.2: an agent-fed account needs no credential.
     let feed_without_key =
         oauth.is_none() && credential.trim().is_empty() && feed_only(*provider, fields);
+    // PRD 0016 (2026-11 review): an account that reads its usage through a
+    // web session needs no key: a session pasted or kept in the vault, the
+    // reference it keeps after "Forget this session", or a session variable.
+    let web_session = |slot: &str| {
+        slot != crate::user_session::CREDENTIAL_SLOT
+            && crate::user_session::descriptor(*provider, slot).is_some()
+    };
+    let session_without_key = oauth.is_none()
+        && credential.trim().is_empty()
+        && crate::user_session::session_or_key(*provider)
+        && (vault.iter().any(|slot| web_session(slot))
+            || editing
+                .and_then(|i| config.accounts.get(i))
+                .is_some_and(|account| account.provider == *provider && account.session.is_some())
+            || fields.iter().any(|field| {
+                web_session(field.key)
+                    && matches!(&field.value, DraftValue::Text(name) if !name.trim().is_empty())
+            }));
     let credential_env = if (oauth.is_none()
         && vault.contains(crate::user_session::CREDENTIAL_SLOT))
         || cli_login_without_key
         || feed_without_key
+        || session_without_key
     {
         None
     } else {
-        resolve_credential_env(*provider, credential, oauth.as_ref())
-            .map_err(|message| build_account_field_error("credential_env", message))?
+        resolve_credential_env(*provider, credential, oauth.as_ref()).map_err(|message| {
+            let message = if message.id == "edit_error.env_required"
+                && crate::user_session::session_or_key(*provider)
+            {
+                crate::text::Localized::fixed(
+                    "edit_error.key_or_session_required",
+                    "Enter an API key or paste a web session.",
+                )
+            } else {
+                message
+            };
+            build_account_field_error("credential_env", message)
+        })?
     };
 
     // Start from the credential-enriched params when Bailian F2 mutated
@@ -2838,7 +2870,10 @@ pub fn build_account_with_secrets(
     // persisting and roll back when the save fails).
     let session = editing_account
         .filter(|account| account.provider == *provider)
-        .and_then(|account| account.session.clone());
+        .and_then(|account| account.session.clone())
+        // A reference with no slot only marks an account awaiting a new
+        // session; once the account names a key it has no use.
+        .filter(|session| !session.slots.is_empty() || credential_env.is_none());
 
     // PRD 0029 RF1.3: an edit keeps the account's id, so its state follows
     // a rename or a parameter change; a new account gets a random one.

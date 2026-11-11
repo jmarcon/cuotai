@@ -685,6 +685,47 @@ pub fn descriptors(provider: Provider) -> &'static [SessionDescriptor] {
     }
 }
 
+/// Whether `provider` reads its usage either through a web session or
+/// through an API key (Xiaomi MiMo, the Alibaba plans, Meta): such an
+/// account may keep no key at all, and one whose usage comes from a web
+/// session never falls back to the provider's default key variable.
+pub fn session_or_key(provider: Provider) -> bool {
+    provider != Provider::NineRouter
+        && descriptors(provider)
+            .iter()
+            .any(|descriptor| descriptor.slot != CREDENTIAL_SLOT)
+}
+
+/// PRD 0016 (2026-11 review): whether `account` reads its usage through a
+/// web session and names no key: it keeps (or awaits, after "Forget this
+/// session") a vault session, or names a session variable, and sets no
+/// `credential_env`. Such an account never reads the provider's default
+/// key variable; without a session it needs one.
+pub fn session_only(account: &Account) -> bool {
+    session_or_key(account.provider)
+        && account.credential_env.is_none()
+        && (account
+            .session
+            .as_ref()
+            .is_some_and(|session| !session.slots.contains(CREDENTIAL_SLOT))
+            || descriptors(account.provider).iter().any(|descriptor| {
+                descriptor.slot != CREDENTIAL_SLOT
+                    && account
+                        .params
+                        .get(descriptor.slot)
+                        .is_some_and(|name| !name.trim().is_empty())
+            }))
+}
+
+/// The note of a web-session account that keeps no session (it was
+/// forgotten): the query waits for a new one instead of reading a key.
+pub(crate) fn needed() -> Localized {
+    Localized::fixed(
+        "user_session.needed",
+        "Session needed: this account reads its usage through a web session; paste a new one.",
+    )
+}
+
 /// The descriptor of `slot` for `provider`.
 pub fn descriptor(provider: Provider, slot: &str) -> Option<&'static SessionDescriptor> {
     descriptors(provider).iter().find(|d| d.slot == slot)
@@ -785,10 +826,12 @@ impl SessionConfig {
         }
     }
 
-    /// A UUID reference and at least one slot, each declared for `provider`.
+    /// A UUID reference whose slots are each declared for `provider`. No
+    /// slot at all is valid only for a web-session account awaiting a new
+    /// session after "Forget this session" ([`session_or_key`]).
     pub(crate) fn is_valid(&self, provider: Provider) -> bool {
         uuid::Uuid::parse_str(&self.credential_ref).is_ok()
-            && !self.slots.is_empty()
+            && (!self.slots.is_empty() || session_or_key(provider))
             && self
                 .slots
                 .iter()
@@ -1211,6 +1254,7 @@ pub fn offers_new_paste(report: &crate::Report) -> bool {
         "user_session.rejected",
         "user_session.not_found",
         "user_session.invalid_reference",
+        "user_session.needed",
         "query.session.missing_cookies",
     ];
     (!descriptors(report.provider).is_empty()
@@ -2132,6 +2176,20 @@ pub fn forgotten_notice() -> Localized {
     )
 }
 
+/// RF4.2: the notice after forgetting the session of `account` (the account
+/// as saved afterwards): a web-session account without a key keeps its
+/// reference and waits for a new session.
+pub fn forgotten_notice_for(account: &Account) -> Localized {
+    if account.session.is_some() {
+        Localized::fixed(
+            "user_session.forget.awaiting",
+            "Session forgotten: the system vault entry was deleted. The account reads no API key and waits for a new session.",
+        )
+    } else {
+        forgotten_notice()
+    }
+}
+
 /// RF4.2: "forget this session" for the account at `index`: every vault
 /// entry of its `[accounts.session]` is deleted and the staged
 /// configuration drops the reference. Persist [`StagedSession::config`]
@@ -2143,14 +2201,24 @@ pub async fn stage_forget(
     index: usize,
 ) -> Result<StagedSession, Localized> {
     let account = config.accounts.get(index).ok_or_else(no_account)?;
-    let session = account.session.as_ref().ok_or_else(|| {
-        Localized::fixed(
-            "user_session.forget.nothing",
-            "This account keeps no session in the system vault.",
-        )
-    })?;
+    let session = account
+        .session
+        .as_ref()
+        .filter(|session| !session.slots.is_empty())
+        .ok_or_else(|| {
+            Localized::fixed(
+                "user_session.forget.nothing",
+                "This account keeps no session in the system vault.",
+            )
+        })?;
     let mut updated = config.clone();
-    updated.accounts[index].session = None;
+    // A web-session account without a key keeps its reference with no
+    // slot: it waits for a new session instead of falling back to the
+    // provider's default key variable.
+    updated.accounts[index].session = session_only(account).then(|| SessionConfig {
+        credential_ref: session.credential_ref.clone(),
+        slots: BTreeSet::new(),
+    });
     updated
         .validate()
         .map_err(|error| crate::edit_error::config_error_note(&error))?;

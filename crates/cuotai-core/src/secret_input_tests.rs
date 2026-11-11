@@ -468,3 +468,74 @@ fn every_typed_key_has_a_page_or_an_exemption() {
         );
     }
 }
+
+/// PRD 0016 (2026-11 review): an account that reads its usage through a web
+/// session needs no API key, and editing it never writes the default one.
+#[test]
+fn a_web_session_account_needs_no_api_key() {
+    use crate::account_edit::stored_credential;
+    use crate::user_session::SessionConfig;
+    for provider in [
+        Provider::XiaomiMimo,
+        Provider::AlibabaCodingPlan,
+        Provider::Meta,
+    ] {
+        let key = secret_inputs(provider);
+        assert!(!key[0].required, "{provider:?}");
+        // New account: a pasted session alone builds, without a key.
+        let session_slot = crate::user_session::descriptors(provider)
+            .iter()
+            .find(|d| d.slot != CREDENTIAL_SLOT)
+            .unwrap()
+            .slot;
+        let account =
+            build_account_with_secrets(&draft(provider, ""), &empty(), None, &[session_slot])
+                .unwrap();
+        assert_eq!(account.credential_env, None);
+        // Neither a key nor a session: the neutral error.
+        let error =
+            build_account_with_secrets(&draft(provider, ""), &empty(), None, &[]).unwrap_err();
+        assert_eq!(error.l10n().id, "edit_error.key_or_session_required");
+        // Editing a session-only account keeps it without a key.
+        let saved = Config {
+            accounts: vec![Account {
+                name: "Web".into(),
+                provider,
+                session: Some(SessionConfig {
+                    credential_ref: uuid::Uuid::new_v4().to_string(),
+                    slots: [session_slot.to_string()].into(),
+                }),
+                ..Default::default()
+            }],
+            ..Config::default()
+        };
+        assert_eq!(stored_credential(&saved.accounts[0]), "");
+        let edited =
+            build_account_with_secrets(&draft(provider, ""), &saved, Some(0), &[]).unwrap();
+        assert_eq!(edited.credential_env, None);
+        assert_eq!(edited.session, saved.accounts[0].session);
+        // A key typed later is kept, and a forgotten reference goes with it.
+        let mut forgotten = saved.clone();
+        forgotten.accounts[0]
+            .session
+            .as_mut()
+            .unwrap()
+            .slots
+            .clear();
+        let keyed =
+            build_account_with_secrets(&draft(provider, "MY_KEY"), &forgotten, Some(0), &[])
+                .unwrap();
+        assert_eq!(keyed.credential_env.as_deref(), Some("MY_KEY"));
+        assert_eq!(keyed.session, None);
+    }
+    // A plain key-based account still gets the default suggestion and
+    // still needs its key.
+    let plain = Account {
+        provider: Provider::XiaomiMimo,
+        ..Default::default()
+    };
+    assert_eq!(stored_credential(&plain), "XIAOMI_MIMO_API_KEY");
+    let error =
+        build_account_with_secrets(&draft(Provider::Groq, ""), &empty(), None, &[]).unwrap_err();
+    assert_eq!(error.l10n().id, "edit_error.env_required");
+}

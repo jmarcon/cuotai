@@ -491,6 +491,16 @@ pub(crate) fn secret(
     ctx: &Context<'_>,
     default: &str,
 ) -> Result<String, QueryError> {
+    // PRD 0016 (2026-11 review): an account that reads its usage through a
+    // web session and names no key never falls back to the default key
+    // variable; without its session it needs a new one.
+    if crate::user_session::session_only(account) {
+        return Err(QueryError {
+            diagnostic: None,
+            status: Status::NeedsConfiguration,
+            note: crate::user_session::needed(),
+        });
+    }
     let name = account.credential_env.as_deref().unwrap_or(default);
     ctx.credentials
         .get(name)
@@ -840,6 +850,73 @@ mod tests {
         };
         web_session(&account, &ctx, slot)
             .map(|session| session.map(|s| (s.cookie.clone(), s.vault)))
+    }
+
+    /// PRD 0016 (2026-11 review): a web-session account without a key never
+    /// reads the provider's default key variable, before or after "Forget
+    /// this session"; an account that names a key keeps reading it.
+    #[test]
+    fn a_web_session_account_without_a_key_never_reads_the_default_variable() {
+        struct Recorded(parking_lot::Mutex<Vec<String>>);
+        impl Credentials for Recorded {
+            fn get(&self, name: &str) -> Option<String> {
+                self.0.lock().push(name.to_string());
+                Some("FAKE-KEY".to_string())
+            }
+        }
+        let awaiting = crate::user_session::SessionConfig {
+            credential_ref: uuid::Uuid::new_v4().to_string(),
+            slots: Default::default(),
+        };
+        let read = |account: &Account| {
+            let credentials = Recorded(parking_lot::Mutex::new(Vec::new()));
+            let http = Client::new();
+            let ctx = Context {
+                http: &http,
+                credentials: &credentials,
+                timeout: Duration::from_secs(1),
+            };
+            let result = secret(account, &ctx, "XIAOMI_MIMO_API_KEY");
+            (result, credentials.0.into_inner())
+        };
+        for provider in [
+            crate::Provider::XiaomiMimo,
+            crate::Provider::AlibabaCodingPlan,
+            crate::Provider::Meta,
+        ] {
+            // Forgotten: the reference stays with no slot.
+            let forgotten = Account {
+                provider,
+                session: Some(awaiting.clone()),
+                ..Default::default()
+            };
+            let (result, names) = read(&forgotten);
+            let error = result.expect_err("a session is needed");
+            assert_eq!(error.status, Status::NeedsConfiguration);
+            assert_eq!(&*error.note.id, "user_session.needed");
+            assert!(names.is_empty(), "{provider:?} read {names:?}");
+            // A session variable without a key does not fall back either.
+            let from_env = Account {
+                provider,
+                params: [("session_env".to_string(), "SESSION_VAR".to_string())].into(),
+                ..Default::default()
+            };
+            assert!(read(&from_env).1.is_empty());
+            // An explicit key is still read.
+            let explicit = Account {
+                credential_env: Some("MY_KEY".into()),
+                ..forgotten
+            };
+            let (result, names) = read(&explicit);
+            assert_eq!(result.unwrap(), "FAKE-KEY");
+            assert_eq!(names, ["MY_KEY"]);
+        }
+        // A key-based account keeps the provider's default variable.
+        let plain = Account {
+            provider: crate::Provider::XiaomiMimo,
+            ..Default::default()
+        };
+        assert_eq!(read(&plain).1, ["XIAOMI_MIMO_API_KEY"]);
     }
 
     /// PRD 0016 RF5.1: the three migrated providers read their sessions

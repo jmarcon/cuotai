@@ -2327,5 +2327,8 @@
   "alerts.at.day": "{month}/{day}",
   "alerts.more": {
     "other": "ほか {count} 件"
-  }
+  },
+  "user_session.needed": "セッションが必要です。このアカウントは Web セッションで使用状況を読み取ります。新しいセッションを貼り付けてください。",
+  "user_session.forget.awaiting": "セッションを消去しました。システムの保管庫の項目は削除されました。このアカウントは API キーを読み取らず、新しいセッションを待ちます。",
+  "edit_error.key_or_session_required": "API キーを入力するか、Web セッションを貼り付けてください。"
 }

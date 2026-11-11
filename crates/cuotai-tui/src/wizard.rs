@@ -734,8 +734,12 @@ impl Wizard {
     /// PRD 0016 RF4.2: the saved account keeps a session in the vault that
     /// F5 on the summary can forget.
     fn has_vault_session(&self) -> bool {
-        self.saved_account()
-            .is_some_and(|account| account.session.is_some())
+        self.saved_account().is_some_and(|account| {
+            account
+                .session
+                .as_ref()
+                .is_some_and(|session| !session.slots.is_empty())
+        })
     }
 
     /// After a forgotten session was saved: the base is the new file, so
@@ -743,7 +747,11 @@ impl Wizard {
     pub(crate) fn session_forgotten(&mut self, config: &Config) {
         self.replace_base(config);
         self.error = None;
-        self.notice = Some(crate::ui::resolve_l10n(&user_session::forgotten_notice()));
+        let notice = self.saved_account().map_or_else(
+            user_session::forgotten_notice,
+            user_session::forgotten_notice_for,
+        );
+        self.notice = Some(crate::ui::resolve_l10n(&notice));
     }
 
     /// PRD 0001 re-validation (C1): the stable id of the account being
@@ -2354,7 +2362,11 @@ impl Wizard {
                 .map_err(|e| crate::ui::resolve_l10n(&e.l10n()))?,
             None => self.base.clone(),
         };
-        let mut account = edit::build_account(&draft, &base, self.editing)
+        // PRD 0016: a pasted session counts as the account's credential, so
+        // a web-session account needs no key.
+        let pasted = self.reduced_sessions();
+        let pasted: Vec<&str> = pasted.iter().map(ReducedSession::slot).collect();
+        let mut account = edit::build_account_with_secrets(&draft, &base, self.editing, &pasted)
             .map_err(|e| crate::ui::resolve_l10n(&e.l10n()))?;
         // PRD 0045 RF6.3: the chosen breakdowns the built mode offers.
         let offered = cuotai_core::access::describe(&account).breakdowns;
@@ -4641,6 +4653,33 @@ mod tests {
         assert!(wiz
             .session_tested(&test_report(&account, Status::Ready, ""))
             .is_none());
+    }
+
+    // PRD 0016 (2026-11 review): pasting a new session into an account
+    // that reads its usage through a web session writes no API key.
+    #[test]
+    fn a_new_paste_into_a_session_only_account_writes_no_api_key() {
+        let press = |w: &mut Wizard, code| w.handle(KeyEvent::new(code, KeyModifiers::NONE));
+        let mut web = account("MiMo", "");
+        web.provider = Provider::XiaomiMimo;
+        web.credential_env = None;
+        web.session = Some(user_session::SessionConfig {
+            credential_ref: "6f1c2b9e-3c1d-4f7a-9a51-0e7b2d5c8a11".into(),
+            slots: ["session_env".to_string()].into(),
+        });
+        let config = Config {
+            accounts: vec![web],
+            ..Config::default()
+        };
+        let mut wiz = Wizard::paste_session(&config, 0);
+        assert_eq!(wiz.credential, "", "no default key is prefilled");
+        wiz.session_idx = 1;
+        wiz.paste("api-platform_serviceToken=SECRET-TOKEN; userId=7");
+        wiz.step = Step::Summary;
+        match press(&mut wiz, KeyCode::Enter) {
+            Action::TestSession { account, .. } => assert_eq!(account.credential_env, None),
+            _ => panic!("the save starts the test"),
+        }
     }
 
     // SES-01: only providers with a session open on the paste step.

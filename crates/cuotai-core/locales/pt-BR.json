@@ -2340,5 +2340,8 @@
   "alerts.more": {
     "one": "e mais {count}",
     "other": "e mais {count}"
-  }
+  },
+  "user_session.needed": "Sessão necessária: esta conta lê o uso por uma sessão web; cole uma nova.",
+  "user_session.forget.awaiting": "Sessão esquecida: a entrada do cofre do sistema foi apagada. A conta não lê nenhuma chave de API e aguarda uma nova sessão.",
+  "edit_error.key_or_session_required": "Informe uma chave de API ou cole uma sessão web."
 }

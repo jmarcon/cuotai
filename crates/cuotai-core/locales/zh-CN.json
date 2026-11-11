@@ -2327,5 +2327,8 @@
   "alerts.at.day": "{month}/{day}",
   "alerts.more": {
     "other": "还有 {count} 条"
-  }
+  },
+  "user_session.needed": "需要会话：此账户通过网页会话读取用量；请粘贴新的会话。",
+  "user_session.forget.awaiting": "会话已忘记：系统保险库中的条目已删除。此账户不读取任何 API 密钥，正在等待新的会话。",
+  "edit_error.key_or_session_required": "请输入 API 密钥或粘贴网页会话。"
 }
