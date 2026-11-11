@@ -211,6 +211,11 @@ pub enum ConfigError {
     /// offer (metered providers offer none), or a repeated one.
     #[error("The field {field} lists a breakdown this account cannot read, or repeats one; the values allowed come from the provider and its mode.")]
     Breakdown { field: String },
+    /// 2026-11 review (R-03): `credential_env` or a `params.*_env` value
+    /// names one of Cuotai's internal credential names, which only the
+    /// query itself may use.
+    #[error("The field {field} uses a name reserved for Cuotai (it starts with __CUOTAI_); set the name of your own environment variable, or paste the secret in the account wizard.")]
+    ReservedName { field: String },
     /// PRD 0040 RF8: a `feed` binding that is not the provider's agent, or
     /// two accounts bound to the same agent feed.
     #[error("An account's params.feed must name its provider's agent (claude_code for claude, codex_cli for chat_gpt), and only one account may read each agent feed (its feed mode or its feed binding).")]
@@ -219,6 +224,24 @@ pub enum ConfigError {
 
 /// PRD 0045 RF1.4: the path of the first `breakdown` value of `account`
 /// its access descriptor does not offer, or that repeats an earlier one.
+/// Prefix of the credential names only a query uses (a vault session, an
+/// OAuth access token, an account without a key).
+const RESERVED_NAME: &str = "__CUOTAI_";
+
+/// 2026-11 review (R-03): the first field of `account` that names a
+/// reserved credential name in the TOML.
+fn reserved_name_error(index: usize, account: &Account) -> Option<String> {
+    let reserved = |name: &str| name.trim().starts_with(RESERVED_NAME);
+    if account.credential_env.as_deref().is_some_and(reserved) {
+        return Some(format!("accounts[{index}].credential_env"));
+    }
+    account
+        .params
+        .iter()
+        .find(|(key, value)| key.ends_with("_env") && reserved(value))
+        .map(|(key, _)| format!("accounts[{index}].params.{key}"))
+}
+
 fn breakdown_error(index: usize, account: &Account) -> Option<String> {
     if account.breakdown.is_empty() {
         return None;
@@ -416,6 +439,9 @@ impl Config {
             }
             if let Some(field) = breakdown_error(index, account) {
                 return Err(ConfigError::Breakdown { field });
+            }
+            if let Some(field) = reserved_name_error(index, account) {
+                return Err(ConfigError::ReservedName { field });
             }
             if account.provider == Provider::Extension
                 && (account

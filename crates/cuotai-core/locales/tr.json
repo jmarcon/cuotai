@@ -2346,5 +2346,9 @@
   },
   "user_session.needed": "Oturum gerekli: bu hesap kullanımını bir web oturumuyla okur; yeni bir oturum yapıştırın.",
   "user_session.forget.awaiting": "Oturum unutuldu: sistem kasasındaki kayıt silindi. Hesap hiçbir API anahtarı okumaz ve yeni bir oturum bekler.",
-  "edit_error.key_or_session_required": "Bir API anahtarı girin veya bir web oturumu yapıştırın."
+  "edit_error.key_or_session_required": "Bir API anahtarı girin veya bir web oturumu yapıştırın.",
+  "user_session.paste.too_long": "Yapıştırılan metin çok uzun; yalnızca Cookie başlığını, isteği cURL olarak veya çerez tablosunu kopyalayın.",
+  "user_session.paste.cookie_too_long": "Oturumun çerezleri gönderilemeyecek kadar uzun; yeniden oturum açtıktan sonra tekrar kopyalayın.",
+  "oauth_error.store.too_long": "Bu kimlik bilgisi sistem kasası için çok büyük.",
+  "edit_error.config_reserved_name": "{field} alanı Cuotai için ayrılmış bir ad kullanıyor (__CUOTAI_ ile başlıyor); kendi ortam değişkeninizin adını girin veya gizli bilgiyi hesap sihirbazında yapıştırın."
 }

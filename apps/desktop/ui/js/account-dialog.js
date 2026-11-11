@@ -579,7 +579,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
             ${s.secret
               // PRD 0036 RF2.1: a vault password or key is a masked one-line field, never a cookie box.
               ? `<input type="password" class="session-paste" data-slot="${esc(s.slot)}" autocomplete="new-password" autocapitalize="off" spellcheck="false">`
-              : `<textarea class="session-paste" data-slot="${esc(s.slot)}" rows="3" autocomplete="off" autocapitalize="off" spellcheck="false"
+              : `<textarea class="session-paste" data-slot="${esc(s.slot)}" rows="3" maxlength="65536" autocomplete="off" autocapitalize="off" spellcheck="false"
               placeholder="${te("dialog.session.placeholder")}"></textarea>`}
             <small class="hint">${esc(tl(s.instructions))}</small>
             ${sessionOpenLinkHtml(s, sessionRegion())}

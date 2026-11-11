@@ -2403,3 +2403,73 @@ fn the_save_refusal_puts_the_cause_last() {
         }
     }
 }
+
+/// 2026-11 review (S-02): a paste or a reduced cookie too large to send is
+/// refused before anything is written, without the value in the error; a
+/// large paste with small kept cookies still reduces.
+#[test]
+fn oversized_pastes_and_cookies_are_refused_without_their_value() {
+    let huge = format!("junk={}", "SECRETX".repeat(8 * 1024 * 1024 / 7));
+    let error = reduce(Provider::XiaomiMimo, PLATFORM, &huge, now())
+        .err()
+        .unwrap();
+    assert_eq!(error.id, "user_session.paste.too_long");
+    assert!(!format!("{error:?}").contains("SECRETX"));
+
+    let long_cookie = format!(
+        "api-platform_serviceToken={}; userId=7",
+        "SECRETY".repeat(9 * 1024 / 7)
+    );
+    let error = reduce(Provider::XiaomiMimo, PLATFORM, &long_cookie, now())
+        .err()
+        .unwrap();
+    assert_eq!(error.id, "user_session.paste.cookie_too_long");
+    assert!(!format!("{error:?}").contains("SECRETY"));
+
+    let large = format!(
+        "junk={}; api-platform_serviceToken=T; userId=7",
+        "j".repeat(60 * 1024)
+    );
+    let reduced = reduce(Provider::XiaomiMimo, PLATFORM, &large, now()).unwrap();
+    assert_eq!(reduced.cookie(), "api-platform_serviceToken=T; userId=7");
+}
+
+/// 2026-11 review (R-03): a hand-edited TOML cannot name Cuotai's internal
+/// credential names; the query's own overlay is never validated.
+#[test]
+fn the_toml_cannot_name_internal_credential_names() {
+    let platform = format!("{VAULT_NAME}session_env");
+    for (account, field) in [
+        (
+            mimo(&[("platform_session_env", platform.as_str())]),
+            "accounts[0].params.platform_session_env",
+        ),
+        (
+            Account {
+                credential_env: Some("__CUOTAI_OAUTH_ACCESS".into()),
+                ..mimo(&[])
+            },
+            "accounts[0].credential_env",
+        ),
+        (
+            Account {
+                credential_env: Some(" __CUOTAI_NO_API_KEY".into()),
+                ..mimo(&[])
+            },
+            "accounts[0].credential_env",
+        ),
+    ] {
+        let error = config(vec![account]).validate().unwrap_err();
+        let crate::ConfigError::ReservedName { field: got } = &error else {
+            panic!("{error:?}");
+        };
+        assert_eq!(got, field);
+        let note = crate::edit_error::config_error_note(&error);
+        assert_eq!(note.id, "edit_error.config_reserved_name");
+    }
+    assert!(
+        config(vec![mimo(&[("platform_session_env", "MIMO_COOKIE")])])
+            .validate()
+            .is_ok()
+    );
+}

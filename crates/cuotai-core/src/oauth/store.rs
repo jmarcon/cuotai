@@ -214,6 +214,20 @@ fn storage_error() -> OAuthError {
     }
 }
 
+/// A refused vault write: an entry larger than the vault accepts (Windows
+/// Credential Manager keeps at most 2560 bytes) says so; anything else is
+/// the vault being unavailable. Never carries the value.
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+fn save_error(error: &keyring::v1::Error) -> OAuthError {
+    match error {
+        keyring::v1::Error::TooLong(..) => OAuthError::Storage(crate::text::Localized::fixed(
+            "oauth_error.store.too_long",
+            "This credential is too large for the system vault.",
+        )),
+        _ => storage_error(),
+    }
+}
+
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
 impl TokenStore for SystemTokenStore {
     fn load(&self, id: &str) -> Result<Option<OAuthToken>, OAuthError> {
@@ -228,7 +242,9 @@ impl TokenStore for SystemTokenStore {
     fn save(&self, id: &str, token: &OAuthToken) -> Result<(), OAuthError> {
         let entry = Self::entry(id)?;
         let payload = encode(token)?;
-        entry.set_password(&payload).map_err(|_| storage_error())
+        entry
+            .set_password(&payload)
+            .map_err(|error| save_error(&error))
     }
 
     fn delete(&self, id: &str) -> Result<(), OAuthError> {
@@ -243,6 +259,24 @@ impl TokenStore for SystemTokenStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 2026-11 review (R-02): an entry too large for the vault says so
+    /// instead of reporting the vault as unavailable; other refusals keep
+    /// the unavailable text. Neither carries the value.
+    #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+    #[test]
+    fn a_too_large_entry_is_named_as_such() {
+        let OAuthError::Storage(text) =
+            save_error(&keyring::v1::Error::TooLong("password".into(), 2560))
+        else {
+            panic!("a storage error");
+        };
+        assert_eq!(text.id, "oauth_error.store.too_long");
+        let OAuthError::Storage(text) = save_error(&keyring::v1::Error::NoEntry) else {
+            panic!("a storage error");
+        };
+        assert_ne!(text.id, "oauth_error.store.too_long");
+    }
 
     /// PRD 0050 RF7.3: a release build refuses the plaintext development
     /// store before it touches the filesystem (the path is never created).
