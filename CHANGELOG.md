@@ -13,6 +13,16 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.85.3] - 2026-11-11
+
+Version 0.85.2 was never published because a release check failed before publishing. This release ships its changes, repeated here.
+
+### Fixed
+
+- The macOS Account widget no longer repeats the main quota in place of another one, the Account and History widgets show the right empty or unavailable state, and an extreme reading can no longer crash or blank the widgets (PRD 0014 RF1.1, RF3.2, RF3.5).
+- The macOS widgets keep showing your data after you move the data folder, and turning widgets off, deleting widget data or erasing all data now removes every copy of the widget file (PRD 0014 RF2.1, RF2.2).
+- The macOS widgets use correct singular and plural forms, translate the account picker and show the provider's name instead of its internal id (PRD 0014 RF3.4).
+
 ## [0.85.2] - 2026-11-11
 
 ### Fixed
@@ -735,7 +745,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.85.2...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.85.3...HEAD
+[0.85.3]: https://github.com/jmarcon/cuotai/compare/v0.85.2...v0.85.3
 [0.85.2]: https://github.com/jmarcon/cuotai/compare/v0.85.1...v0.85.2
 [0.85.1]: https://github.com/jmarcon/cuotai/compare/v0.85.0...v0.85.1
 [0.85.0]: https://github.com/jmarcon/cuotai/compare/v0.84.11...v0.85.0
