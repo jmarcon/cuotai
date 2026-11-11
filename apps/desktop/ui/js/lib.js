@@ -365,7 +365,7 @@ export const onHookRun = (cb) => {
   return Promise.resolve(() => demoHookListeners.delete(cb));
 };
 // PRD 0015 RF1/RF2/RF4: local cost from the logs of command-line tools (off by default; the core's preferences, index,
-// background scan and summary). `costEnable` sends the digest of the disclosure the dialog showed; each settings call
+// background scan and summary). `costEnable` sends only the source: Rust asks in a system dialog; each settings call
 // answers the new state. `costUsage` is the core's CostSummary the cards and details show.
 export const costStatus = () => call("cost_status");
 export const costUsage = () => call("cost_usage");
@@ -375,7 +375,7 @@ export const costUsage = () => call("cost_usage");
 export const costPlans = () => call("cost_plans");
 export const costSetPlan = (id, price, currency, cycleDay) => call("cost_set_plan", { id, price, currency, cycleDay });
 export const costSetDisplay = (code, rate) => call("cost_set_display", { code, rate });
-export const costEnable = (source, digest) => call("cost_enable", { source, digest });
+export const costEnable = (source) => call("cost_enable", { source });
 export const costDisable = (source) => call("cost_disable", { source });
 export const costSetPaths = (source, paths) => call("cost_set_paths", { source, paths });
 export const costSetOptions = (period, retentionDays) => call("cost_set_options", { period, retentionDays });
@@ -2538,8 +2538,9 @@ const demo = {
     if (chosen.length) demoCost.paths[source] = chosen; else delete demoCost.paths[source];
     return demoCostView();
   },
-  cost_enable: async ({ source, digest }) => {
-    if (!DEMO_COST[source] || digest !== demoDisclosure(source).digest) {
+  // The demo stands in for the native dialog by accepting it.
+  cost_enable: async ({ source }) => {
+    if (!DEMO_COST[source]) {
       throw JSON.stringify(demoL10n("cost.error.consent_changed", {}, "The directories of this source changed since they were shown; review and confirm again."));
     }
     demoCost.on[source] = new Date().toISOString();

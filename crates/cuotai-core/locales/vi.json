@@ -304,6 +304,7 @@
   "cost.confirm.answer": "có",
   "cost.confirm.question": "Để bật, hãy gõ \"{answer}\" rồi nhấn Enter (câu trả lời khác là từ chối):",
   "cost.disabled": "Đã tắt {source}; đã xóa {removed} bản ghi phát sinh.",
+  "cost.disclosure.accept": "Bật việc đọc",
   "cost.disclosure.directories": "Chỉ đọc các tệp {pattern} trong những thư mục này:",
   "cost.disclosure.directory": "{path}",
   "cost.disclosure.extracted_v2": "Chỉ trích xuất số liệu: thời gian, mô hình, số token (đầu vào, đầu ra, đọc và ghi bộ nhớ đệm), bản tóm lược ẩn danh của phiên và dấu vân tay một chiều của thư mục dự án để bạn có thể gắn nhãn.",

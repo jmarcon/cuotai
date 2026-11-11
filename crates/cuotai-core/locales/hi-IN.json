@@ -306,6 +306,7 @@
   "cost.confirm.answer": "हां",
   "cost.confirm.question": "चालू करने के लिए \"{answer}\" टाइप करें और Enter दबाएँ (कोई और जवाब मना माना जाता है):",
   "cost.disabled": "{source} बंद किया गया; {removed} व्युत्पन्न रिकॉर्ड मिटाए गए।",
+  "cost.disclosure.accept": "पढ़ना चालू करें",
   "cost.disclosure.directories": "केवल इन डायरेक्टरी की {pattern} फ़ाइलें पढ़ता है:",
   "cost.disclosure.directory": "{path}",
   "cost.disclosure.extracted_v2": "केवल संख्याएँ निकाली जाती हैं: समय, मॉडल, टोकन गणना (इनपुट, आउटपुट, कैश पढ़ना और कैश लिखना), सत्र का एक गुमनाम डाइजेस्ट और प्रोजेक्ट फ़ोल्डर का एकतरफ़ा फ़िंगरप्रिंट, ताकि आप उसे लेबल दे सकें।",

@@ -306,6 +306,7 @@
   "cost.confirm.answer": "evet",
   "cost.confirm.question": "Açmak için \"{answer}\" yazın ve Enter'a basın (başka herhangi bir yanıt reddeder):",
   "cost.disabled": "{source} kapatıldı; {removed} türetilmiş kayıt silindi.",
+  "cost.disclosure.accept": "Okumayı aç",
   "cost.disclosure.directories": "Yalnızca şu dizinlerdeki {pattern} dosyalarını okur:",
   "cost.disclosure.directory": "{path}",
   "cost.disclosure.extracted_v2": "Yalnızca sayılar çıkarılır: zaman, model, token sayıları (girdi, çıktı, önbellek okuma ve yazma), oturumun anonim bir özeti ve etiketleyebilmeniz için proje klasörünün tek yönlü bir parmak izi.",

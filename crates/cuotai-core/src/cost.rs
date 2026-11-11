@@ -75,7 +75,8 @@ pub use prices::{
 };
 pub use scan::{Limits, RootScan, RootState, ScanReport, Scanner, SourceScan, SourceState};
 pub use settings::{
-    CostSettings, Disclosure, Env, SettingsStore, SourceSettings, BLOCK_HOURS_MAX, BLOCK_HOURS_MIN,
+    consent_accept, CostSettings, Disclosure, Env, SettingsStore, SourceSettings, BLOCK_HOURS_MAX,
+    BLOCK_HOURS_MIN,
 };
 pub use system::energy_saving;
 pub use view::{

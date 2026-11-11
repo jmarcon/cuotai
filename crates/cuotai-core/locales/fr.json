@@ -306,6 +306,7 @@
   "cost.confirm.answer": "oui",
   "cost.confirm.question": "Pour l’activer, tapez « {answer} » et appuyez sur Entrée (toute autre réponse la refuse) :",
   "cost.disabled": "{source} désactivé ; {removed} enregistrement(s) dérivé(s) supprimé(s).",
+  "cost.disclosure.accept": "Activer la lecture",
   "cost.disclosure.directories": "Ne lit que les fichiers {pattern} de ces dossiers :",
   "cost.disclosure.directory": "{path}",
   "cost.disclosure.extracted_v2": "Seuls des chiffres sont extraits : l’heure, le modèle, le nombre de jetons (entrée, sortie, lecture et écriture du cache), une empreinte anonyme de la session et une empreinte à sens unique du dossier du projet, pour que vous puissiez le nommer.",

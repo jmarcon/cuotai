@@ -1518,6 +1518,7 @@
   "changelog.unknown_version": "La versione \"{wanted}\" non è nel registro delle modifiche. Versioni note: {known}.",
   "cost.confirm.answer": "sì",
   "cost.confirm.question": "Per attivarla, digita \"{answer}\" e premi Invio (qualsiasi altra risposta rifiuta):",
+  "cost.disclosure.accept": "Attiva la lettura",
   "cost.disclosure.directories": "Legge solo i file {pattern} di queste directory:",
   "cost.disclosure.directory": "{path}",
   "cost.disclosure.extracted_v2": "Vengono estratti solo numeri: l’ora, il modello, i conteggi dei token (input, output, lettura e scrittura della cache), un riepilogo anonimo della sessione e un’impronta unidirezionale della cartella del progetto, così puoi etichettarla.",
