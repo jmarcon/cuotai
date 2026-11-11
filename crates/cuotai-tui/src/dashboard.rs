@@ -3710,10 +3710,15 @@ mod tests {
                 Utc.with_ymd_and_hms(2026, 1, 1, 0, 1, 0).unwrap(),
                 locale,
             );
+            let provider =
+                crate::l10n::with_locale(locale, || crate::ui::provider_label(Provider::Extension));
             assert!(
-                screen.contains(Provider::Extension.label()),
+                screen.contains(&provider),
                 "{locale}: the card names the provider:\n{screen}"
             );
+            if locale != "en-US" && locale != "fr" {
+                assert_ne!(provider, Provider::Extension.label(), "{locale}");
+            }
             for label in ACCESS_LABELS {
                 assert!(
                     !screen.contains(label),
