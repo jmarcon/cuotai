@@ -202,7 +202,8 @@ impl CostPanel {
 
 /// RF4.3: `local_cost` of a one-shot export (`--json-v1`): a scan bounded by
 /// the background limits, then the summary; `None` while every source is
-/// off (nothing is read) or without a local data directory.
+/// off (nothing is read) or without a local data directory. An index that
+/// cannot be read is a summary whose sources that are on are `unreadable`.
 pub(crate) fn one_shot_export() -> Option<CostSummary> {
     let (settings, index) = stores().ok()?;
     let scanner = Scanner::new(index, settings, Env::system());
@@ -429,6 +430,10 @@ pub(crate) fn run(
             let summary = scanner
                 .summary(&pricing, Some(&report), span, now)
                 .map_err(l10n)?;
+            // S-02: an unreadable index stays an error (exit 1) with its note.
+            if let Some(note) = summary.unreadable() {
+                return Err(note.resolve(locale));
+            }
             if json {
                 serde_json::to_writer_pretty(&mut stdout, &summary).map_err(|e| e.to_string())?;
                 writeln!(stdout).map_err(io_error)?;

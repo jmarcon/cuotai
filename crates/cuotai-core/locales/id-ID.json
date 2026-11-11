@@ -365,6 +365,7 @@
   "cost.view.enable_hint": "Untuk mengaktifkan sumber: cuotai --cost-sources menampilkan apa yang dibaca tiap sumber dan cuotai --cost-enable SOURCE meminta konfirmasi.",
   "cost.view.heading": "Penggunaan lokal {source} di komputer ini",
   "cost.view.no_access": "{source}: tidak ada akses ke direktori log; tidak ada yang disiasati. Angka-angkanya adalah yang sudah ada di indeks.",
+  "cost.view.unreadable": "{source}: indeks biaya lokal tidak dapat dibaca; hapus di Pengaturan › Biaya lokal atau dengan --cost-erase.",
   "cost.view.not_read": "{source}: log belum dibaca pada proses ini; angka-angkanya adalah yang sudah ada di indeks.",
   "cost.view.partial": "{source}: pembacaan log belum selesai; angka-angkanya masih bisa bertambah.",
   "cost.view.yesterday": "Kemarin",

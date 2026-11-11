@@ -365,6 +365,7 @@
   "cost.view.enable_hint": "开启来源：cuotai --cost-sources 显示每个来源读取的内容，cuotai --cost-enable 来源 会请求确认。",
   "cost.view.heading": "{source} 在此电脑上的本地用量",
   "cost.view.no_access": "{source}：无法访问日志目录；未尝试绕过。数字为索引中已有的数据。",
+  "cost.view.unreadable": "{source}：无法读取本地费用索引；请在 设置 › 本地费用 中或使用 --cost-erase 清除它。",
   "cost.view.not_read": "{source}：本次运行尚未读取日志；数字为索引中已有的数据。",
   "cost.view.partial": "{source}：日志读取尚未完成；数字可能还会增加。",
   "cost.view.yesterday": "昨天",

@@ -340,11 +340,15 @@ pub(crate) mod n_minus_1 {
                 );
                 assert_eq!(std::fs::read(&path).unwrap(), before);
             }
-            expected => {
+            _ => {
                 let indexed = index.indexed(crate::cost::SourceId::CodexCli).unwrap();
                 assert_eq!(indexed.files, 1);
+                // A shipped manifest keeps the `expected` of the release that
+                // wrote it; once the index gains a revision, a fixture below
+                // it is migrated (with its .bak) whatever its label says.
+                let older = i64::from(m.revision) < crate::cost::index::SCHEMA_REVISION;
                 let bak = crate::private_fs::backup_path(&path);
-                assert_eq!(bak.exists(), expected == "older", "{}", dir.display());
+                assert_eq!(bak.exists(), older, "{}", dir.display());
             }
         }
     }

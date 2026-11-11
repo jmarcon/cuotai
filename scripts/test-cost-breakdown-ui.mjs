@@ -95,6 +95,19 @@ const noRate = { ...usage, live: usage.live.map((l) => ({ ...l, line: null, proj
 assert.equal(liveLineHtml(claude, noRate), "");
 assert.ok(!costCardHtml(claude, { ...usage, live: [] }).includes("data-cost-live"));
 
+// S-02: an unreadable index shows its note in the card and the tray line, never nothing (as when off).
+{
+  const { costLineHtml } = await import("../apps/desktop/ui/js/cost.js");
+  const note = { id: "cost.view.unreadable", params: { source: "Claude Code" }, fallback: "Claude Code: the local cost index could not be read; erase it in Settings › Local cost or with --cost-erase." };
+  const unreadable = { ...claude, state: "unreadable", note, usage: null };
+  const card = costCardHtml(unreadable, usage);
+  assert.match(card, /lc-note bad/);
+  assert.match(card, /could not be read/);
+  assert.ok(!card.includes("lc-tiles"), "no tiles without usage");
+  assert.match(costLineHtml(unreadable, usage), /cost-line bad/);
+  assert.equal(costCardHtml({ ...claude, state: "off", usage: null }, usage), "");
+}
+
 // Every built-in locale renders the sub-page, the tabs and the source options without raw keys.
 const view = await lib.costStatus();
 for (const { code } of i18n.LOCALES) {

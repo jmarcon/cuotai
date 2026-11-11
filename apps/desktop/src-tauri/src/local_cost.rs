@@ -439,7 +439,7 @@ impl LocalCost {
     }
 
     /// RF4.3: the local server's `local_cost`, `None` while every source
-    /// is off or the index cannot be read.
+    /// is off; an index that cannot be read gives `unreadable` sources.
     pub fn export(&self) -> Option<CostSummary> {
         self.usage().ok().filter(CostSummary::any_on)
     }

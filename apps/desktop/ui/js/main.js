@@ -38,7 +38,7 @@ const store = createStore(() => render());
 const busy = (i) => store.view?.busy.includes(i);
 
 
-// PRD 0015 RF4.1: the core's local cost summary (null before the first answer or when the index cannot be read). It
+// PRD 0015 RF4.1: the core's local cost summary (null before the first answer; an unreadable index is a state). It
 // is read again every 30 s (the background scan runs every 5 min), when the window comes back and after Settings.
 let localCost = null;
 async function loadLocalCost() {
@@ -510,7 +510,7 @@ function render() {
     timelineMount ??= mountTimeline({ onSelect: (key) => focusAccount(key) });
   }
   // PRD 0015 RF4.1: a source that is on with no configured account of its tool gets a card of its own.
-  const solo = view?.loaded ? (localCost?.sources ?? []).filter((s) => s.usage && !reports.some((r) => s.providers.includes(r.provider))
+  const solo = view?.loaded ? (localCost?.sources ?? []).filter((s) => (s.usage || s.state === "unreadable") && !reports.some((r) => s.providers.includes(r.provider))
     && (!filterText.trim() || norm(s.label).includes(norm(filterText.trim())))) : [];
   // Per-card reconciliation (`data-card`): focus, filter cursor, scroll and bars survive the redraw.
   patch(root, `<div class="shell">

@@ -36,7 +36,7 @@ pub const BACKUP_KEEP: chrono::TimeDelta = chrono::TimeDelta::days(7);
 
 pub(crate) const SCHEMA_REVISION: i64 = MIGRATIONS.len() as i64;
 
-pub(crate) const MIGRATIONS: [&str; 3] = [
+pub(crate) const MIGRATIONS: [&str; 4] = [
     "CREATE TABLE usage (
     source TEXT NOT NULL,
     day TEXT NOT NULL,
@@ -132,6 +132,23 @@ CREATE TABLE session_labels (
 ) WITHOUT ROWID;
 ALTER TABLE files ADD COLUMN backfill INTEGER NOT NULL DEFAULT 0;
 UPDATE files SET backfill = position, position = 0, examined = 0;",
+    // S-02: a count past i64::MAX once overflowed the sums into REAL and
+    // made the index unreadable; such counts saturate.
+    "UPDATE usage SET input = 9223372036854775807 WHERE typeof(input) = 'real';
+UPDATE usage SET output = 9223372036854775807 WHERE typeof(output) = 'real';
+UPDATE usage SET cache_read = 9223372036854775807 WHERE typeof(cache_read) = 'real';
+UPDATE usage SET cache_write = 9223372036854775807 WHERE typeof(cache_write) = 'real';
+UPDATE usage SET cache_write_1h = 9223372036854775807 WHERE typeof(cache_write_1h) = 'real';
+UPDATE seen SET input = 9223372036854775807 WHERE typeof(input) = 'real';
+UPDATE seen SET output = 9223372036854775807 WHERE typeof(output) = 'real';
+UPDATE seen SET cache_read = 9223372036854775807 WHERE typeof(cache_read) = 'real';
+UPDATE seen SET cache_write = 9223372036854775807 WHERE typeof(cache_write) = 'real';
+UPDATE seen SET cache_write_1h = 9223372036854775807 WHERE typeof(cache_write_1h) = 'real';
+UPDATE requests SET input = 9223372036854775807 WHERE typeof(input) = 'real';
+UPDATE requests SET output = 9223372036854775807 WHERE typeof(output) = 'real';
+UPDATE requests SET cache_read = 9223372036854775807 WHERE typeof(cache_read) = 'real';
+UPDATE requests SET cache_write = 9223372036854775807 WHERE typeof(cache_write) = 'real';
+UPDATE requests SET cache_write_1h = 9223372036854775807 WHERE typeof(cache_write_1h) = 'real';",
 ];
 
 /// Tables whose rows all derive from the logs, per source and file.
@@ -321,6 +338,32 @@ fn stored(value: u64) -> i64 {
     i64::try_from(value).unwrap_or(i64::MAX)
 }
 
+/// S-02: `column + value` in SQL, saturating at `i64::MAX` instead of
+/// overflowing into REAL (both are never negative).
+pub(super) fn add(column: &str, value: &str) -> String {
+    format!(
+        "CASE WHEN {column} > 9223372036854775807 - {value} THEN 9223372036854775807 \
+         ELSE {column} + {value} END"
+    )
+}
+
+/// A stored count, tolerant of a REAL left by an overflow before S-02 was
+/// fixed (saturated) and of a negative value (zero).
+fn tolerant(row: &rusqlite::Row<'_>, index: usize) -> rusqlite::Result<u64> {
+    use rusqlite::types::ValueRef;
+    match row.get_ref(index)? {
+        ValueRef::Integer(value) => Ok(count(value)),
+        // `as` saturates and maps NaN to zero.
+        ValueRef::Real(value) => Ok(value as u64),
+        ValueRef::Null => Ok(0),
+        other => Err(rusqlite::Error::InvalidColumnType(
+            index,
+            String::new(),
+            other.data_type(),
+        )),
+    }
+}
+
 impl CostIndex {
     pub fn new(path: PathBuf) -> Self {
         Self { path }
@@ -446,28 +489,34 @@ impl CostIndex {
                 "SELECT file, day, model, input, output, cache_read, cache_write, cache_write_1h
                  FROM seen WHERE source = ?1 AND key = ?2",
             )?;
-            let mut grow = tx.prepare_cached(
-                "UPDATE usage SET input = input + ?5, output = output + ?6,
-                     cache_read = cache_read + ?7, cache_write = cache_write + ?8,
-                     cache_write_1h = cache_write_1h + ?9
-                 WHERE source = ?1 AND day = ?2 AND model = ?3 AND file = ?4",
-            )?;
+            let mut grow = tx.prepare_cached(&format!(
+                "UPDATE usage SET input = {}, output = {}, cache_read = {}, cache_write = {},
+                         cache_write_1h = {}
+                     WHERE source = ?1 AND day = ?2 AND model = ?3 AND file = ?4",
+                add("input", "?5"),
+                add("output", "?6"),
+                add("cache_read", "?7"),
+                add("cache_write", "?8"),
+                add("cache_write_1h", "?9"),
+            ))?;
             let mut remember = tx.prepare_cached(
                 "UPDATE seen SET input = ?3, output = ?4, cache_read = ?5, cache_write = ?6,
                      cache_write_1h = ?7 WHERE source = ?1 AND key = ?2",
             )?;
-            let mut usage = tx.prepare_cached(
+            let mut usage = tx.prepare_cached(&format!(
                 "INSERT INTO usage (source, day, model, file, input, output, cache_read,
-                     cache_write, cache_write_1h, requests)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 1)
-                 ON CONFLICT (source, day, model, file) DO UPDATE SET
-                     input = input + excluded.input,
-                     output = output + excluded.output,
-                     cache_read = cache_read + excluded.cache_read,
-                     cache_write = cache_write + excluded.cache_write,
-                     cache_write_1h = cache_write_1h + excluded.cache_write_1h,
-                     requests = requests + 1",
-            )?;
+                         cache_write, cache_write_1h, requests)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 1)
+                     ON CONFLICT (source, day, model, file) DO UPDATE SET
+                         input = {}, output = {}, cache_read = {}, cache_write = {},
+                         cache_write_1h = {}, requests = {}",
+                add("input", "excluded.input"),
+                add("output", "excluded.output"),
+                add("cache_read", "excluded.cache_read"),
+                add("cache_write", "excluded.cache_write"),
+                add("cache_write_1h", "excluded.cache_write_1h"),
+                add("requests", "1"),
+            ))?;
             let mut sessions = tx.prepare_cached(
                 "INSERT OR IGNORE INTO sessions (source, day, model, session, file)
                  VALUES (?1, ?2, ?3, ?4, ?5)",
@@ -477,12 +526,16 @@ impl CostIndex {
                      input, output, cache_read, cache_write, cache_write_1h)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
             )?;
-            let mut grow_request = tx.prepare_cached(
-                "UPDATE requests SET input = input + ?3, output = output + ?4,
-                     cache_read = cache_read + ?5, cache_write = cache_write + ?6,
-                     cache_write_1h = cache_write_1h + ?7
-                 WHERE source = ?1 AND key = ?2",
-            )?;
+            let mut grow_request = tx.prepare_cached(&format!(
+                "UPDATE requests SET input = {}, output = {}, cache_read = {},
+                         cache_write = {}, cache_write_1h = {}
+                     WHERE source = ?1 AND key = ?2",
+                add("input", "?3"),
+                add("output", "?4"),
+                add("cache_read", "?5"),
+                add("cache_write", "?6"),
+                add("cache_write_1h", "?7"),
+            ))?;
             let mut has_request =
                 tx.prepare_cached("SELECT 1 FROM requests WHERE source = ?1 AND key = ?2 LIMIT 1")?;
             let mut project = tx.prepare_cached(
@@ -708,14 +761,12 @@ impl CostIndex {
         };
         let first = first.map(day_text).unwrap_or_default();
         let mut query = db.prepare(
-            "SELECT u.source, u.day, u.model, SUM(u.input), SUM(u.output), SUM(u.cache_read),
-                 SUM(u.cache_write), SUM(u.requests),
-                 SUM(u.cache_write_1h),
+            "SELECT u.source, u.day, u.model, u.input, u.output, u.cache_read,
+                 u.cache_write, u.requests, u.cache_write_1h,
                  (SELECT COUNT(*) FROM sessions s
                   WHERE s.source = u.source AND s.day = u.day AND s.model = u.model)
              FROM usage u
              WHERE u.day >= ?1 AND u.day <= ?2 AND (?3 IS NULL OR u.source = ?3)
-             GROUP BY u.source, u.day, u.model
              ORDER BY u.day, u.source, u.model",
         )?;
         let rows = query.query_map(
@@ -728,30 +779,39 @@ impl CostIndex {
                     day_of(&day)?,
                     row.get::<_, String>(2)?,
                     Tokens {
-                        input: count(row.get(3)?),
-                        output: count(row.get(4)?),
-                        cache_read: count(row.get(5)?),
-                        cache_write: count(row.get(6)?),
-                        cache_write_1h: count(row.get(8)?),
+                        input: tolerant(row, 3)?,
+                        output: tolerant(row, 4)?,
+                        cache_read: tolerant(row, 5)?,
+                        cache_write: tolerant(row, 6)?,
+                        cache_write_1h: tolerant(row, 8)?,
                     },
-                    count(row.get(7)?),
-                    count(row.get(9)?),
+                    tolerant(row, 7)?,
+                    tolerant(row, 9)?,
                 ))
             },
         )?;
-        let mut usage = Vec::new();
+        // S-02: summed here with saturation, one row per file; SQL's SUM
+        // fails on an overflow and would make the whole index unreadable.
+        let mut usage: Vec<DailyUsage> = Vec::new();
         for row in rows {
             let (slug, day, model, tokens, requests, sessions) = row?;
             // Rows of a source this version does not know are left alone.
-            if let Some(source) = SourceId::from_slug(&slug) {
-                usage.push(DailyUsage {
+            let Some(source) = SourceId::from_slug(&slug) else {
+                continue;
+            };
+            match usage.last_mut() {
+                Some(last) if last.source == source && last.day == day && last.model == model => {
+                    last.tokens.add(&tokens);
+                    last.requests = last.requests.saturating_add(requests);
+                }
+                _ => usage.push(DailyUsage {
                     source,
                     day,
                     model,
                     tokens,
                     requests,
                     sessions,
-                });
+                }),
             }
         }
         Ok(usage)

@@ -535,8 +535,8 @@ pub(crate) fn migrate(db: &mut Connection, migrations: &[&str]) -> Result<(), Hi
 /// PRD 0051 RF3: a higher `user_version` is a later revision of the same
 /// schema when `state_meta` says major [`SQLITE_MAJOR`]: it only added
 /// tables, columns or indexes, so this release keeps reading and writing
-/// what it knows. Without that record, or with a later major, the file is
-/// [`HistoryError::NewerMajor`] and left untouched. Before migrating a
+/// what it knows. Without that record, or with a later major (at any
+/// revision), the file is [`HistoryError::NewerMajor`] and left untouched. Before migrating a
 /// file that holds data, `<file>.bak` is replaced with a consistent copy.
 fn migrate_from(db: &mut Connection, migrations: &[&str]) -> Result<Option<i64>, HistoryError> {
     use crate::private_fs::{ensure_sqlite_meta, sqlite_backup, sqlite_major, SQLITE_MAJOR};
@@ -552,6 +552,11 @@ fn migrate_from(db: &mut Connection, migrations: &[&str]) -> Result<Option<i64>,
     let before = version(db)?;
     if before > latest {
         return newer(db);
+    }
+    // A later major is refused at any revision: its revision numbers are
+    // not this major's, so neither "current" nor "older" applies.
+    if sqlite_major(db)?.is_some_and(|major| major != SQLITE_MAJOR) {
+        return Err(HistoryError::NewerMajor);
     }
     if before == latest {
         ensure_sqlite_meta(db)?;

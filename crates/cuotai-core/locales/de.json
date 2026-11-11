@@ -367,6 +367,7 @@
   "cost.view.enable_hint": "Um eine Quelle einzuschalten: cuotai --cost-sources zeigt, was jede liest, und cuotai --cost-enable QUELLE fragt nach der Bestätigung.",
   "cost.view.heading": "Lokale Nutzung von {source} auf diesem Computer",
   "cost.view.no_access": "{source}: kein Zugriff auf die Log-Verzeichnisse; nichts wurde umgangen. Die Zahlen sind die, die der Index schon hatte.",
+  "cost.view.unreadable": "{source}: Der lokale Kostenindex konnte nicht gelesen werden; lösche ihn unter Einstellungen › Lokale Kosten oder mit --cost-erase.",
   "cost.view.not_read": "{source}: Die Logs wurden in diesem Lauf noch nicht gelesen; die Zahlen sind die, die der Index schon hatte.",
   "cost.view.partial": "{source}: Das Lesen der Logs ist noch nicht abgeschlossen; die Zahlen können noch wachsen.",
   "cost.view.yesterday": "Gestern",

@@ -367,6 +367,7 @@
   "cost.view.enable_hint": "Pour activer une source : cuotai --cost-sources montre ce que lit chacune et cuotai --cost-enable SOURCE demande la confirmation.",
   "cost.view.heading": "Utilisation locale de {source} sur cet ordinateur",
   "cost.view.no_access": "{source} : pas d’accès aux dossiers des journaux ; aucun contournement n’a été tenté. Les chiffres sont ceux que l’index avait déjà.",
+  "cost.view.unreadable": "{source} : impossible de lire l’index des coûts locaux ; effacez-le dans Réglages › Coût local ou avec --cost-erase.",
   "cost.view.not_read": "{source} : les journaux n’ont pas encore été lus dans cette exécution ; les chiffres sont ceux que l’index avait déjà.",
   "cost.view.partial": "{source} : la lecture des journaux n’est pas terminée ; les chiffres peuvent augmenter.",
   "cost.view.yesterday": "Hier",

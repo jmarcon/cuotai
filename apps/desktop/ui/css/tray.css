@@ -414,6 +414,7 @@ body {
   color: var(--fg-muted);
   font-size: var(--text-sm);
 }
+.cost-line.bad { color: var(--bad); }
 .cost-line svg.i {
   flex: none;
   width: 14px;

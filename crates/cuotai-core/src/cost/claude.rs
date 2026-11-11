@@ -163,7 +163,7 @@ impl Source for ClaudeCode {
             (Some(id), None) => Some(anonymous(source, id)),
             _ => None,
         };
-        Line::Usage(Entry {
+        Line::usage(Entry {
             at,
             model,
             tokens,
@@ -267,5 +267,21 @@ mod tests {
         );
         assert!(ClaudeCode.is_log("2f1c.jsonl"));
         assert!(!ClaudeCode.is_log("notes.json"));
+    }
+
+    #[test]
+    fn impossible_counts_are_invalid_lines() {
+        for huge in [u64::MAX, i64::MAX as u64, 1_000_000_001] {
+            let line = ASSISTANT.replace(
+                r#""output_tokens":56"#,
+                &format!(r#""output_tokens":{huge}"#),
+            );
+            assert_eq!(parse(&line), Line::Invalid, "{huge}");
+        }
+        let line = ASSISTANT.replace(r#""output_tokens":56"#, r#""output_tokens":1000000000"#);
+        assert!(
+            matches!(parse(&line), Line::Usage(_)),
+            "the bound itself is a count"
+        );
     }
 }
