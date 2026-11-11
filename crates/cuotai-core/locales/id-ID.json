@@ -718,6 +718,7 @@
   "extensions.error.tree_unreadable": "Tidak semua file di folder ekstensi dapat dibaca.",
   "extensions.error.unknown_field": "manifest.toml memiliki kolom tak dikenal {field}; kolom yang diterima adalah {keys}.",
   "extensions.error.unreadable": "Tidak dapat membaca manifest.toml sebagai teks UTF-8.",
+  "extensions.error.windows_exe": "Windows akan menjalankan {exe} alih-alih program {program} dari command; sebutkan {exe} di command[0] atau hapus file itu.",
   "extensions.output.choice": "Kolom {field} harus salah satu dari: {values}.",
   "extensions.output.date": "Kolom {field} harus berupa tanggal RFC 3339, seperti 2026-10-21T12:00:00Z, atau null.",
   "extensions.output.empty": "Ekstensi tidak mencetak apa pun ke keluaran standar.",

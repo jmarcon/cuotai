@@ -736,6 +736,7 @@
   "extensions.error.tree_unreadable": "Не удалось прочитать все файлы в папке расширения.",
   "extensions.error.unknown_field": "В manifest.toml есть неизвестное поле {field}; допустимые поля: {keys}.",
   "extensions.error.unreadable": "Не удалось прочитать manifest.toml как текст UTF-8.",
+  "extensions.error.windows_exe": "Windows запустит {exe} вместо программы {program} из command; укажите {exe} в command[0] или удалите его.",
   "extensions.output.choice": "Поле {field} должно быть одним из: {values}.",
   "extensions.output.date": "Поле {field} должно быть датой RFC 3339, например 2026-10-21T12:00:00Z, или null.",
   "extensions.output.empty": "Расширение ничего не вывело в стандартный вывод.",

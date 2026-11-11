@@ -718,6 +718,7 @@
   "extensions.error.tree_unreadable": "无法读取扩展文件夹中的所有文件。",
   "extensions.error.unknown_field": "manifest.toml 包含未知字段 {field}；可接受的字段为 {keys}。",
   "extensions.error.unreadable": "无法以 UTF-8 文本读取 manifest.toml。",
+  "extensions.error.windows_exe": "Windows 会运行 {exe} 而不是 command 的程序 {program}；请在 command[0] 中写明 {exe}，或删除它。",
   "extensions.output.choice": "字段 {field} 必须是以下之一：{values}。",
   "extensions.output.date": "字段 {field} 必须是 RFC 3339 日期，例如 2026-10-21T12:00:00Z，或为 null。",
   "extensions.output.empty": "扩展没有向标准输出打印任何内容。",

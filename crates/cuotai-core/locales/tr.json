@@ -724,6 +724,7 @@
   "extensions.error.tree_unreadable": "Uzantı klasöründeki tüm dosyalar okunamadı.",
   "extensions.error.unknown_field": "manifest.toml içinde bilinmeyen {field} alanı var; kabul edilen alanlar {keys}.",
   "extensions.error.unreadable": "manifest.toml UTF-8 metni olarak okunamadı.",
+  "extensions.error.windows_exe": "Windows, command programı {program} yerine {exe} dosyasını çalıştırır; command[0] içinde {exe} belirtin veya onu kaldırın.",
   "extensions.output.choice": "{field} alanı şunlardan biri olmalıdır: {values}.",
   "extensions.output.date": "{field} alanı 2026-10-21T12:00:00Z gibi bir RFC 3339 tarihi veya null olmalıdır.",
   "extensions.output.empty": "Uzantı standart çıktıya hiçbir şey yazmadı.",

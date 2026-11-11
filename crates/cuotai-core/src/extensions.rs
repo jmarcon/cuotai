@@ -733,6 +733,25 @@ fn resolve_program(dir: &Path, command: &[String]) -> Result<(PathBuf, PathBuf),
     if let Some(suffix) = interpreted_suffix(&resolved.to_string_lossy()) {
         return Err(interpreted_program(suffix));
     }
+    // Windows `CreateProcess` (through std) tries `<program>.exe` first when
+    // the path does not already end in `.exe`: a sibling of that name would
+    // run instead of the file the disclosure shows, so it is refused.
+    #[cfg(windows)]
+    {
+        let is_exe = resolved
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("exe"));
+        let mut sibling = resolved.clone().into_os_string();
+        sibling.push(".exe");
+        let sibling = PathBuf::from(sibling);
+        if !is_exe && sibling.exists() {
+            let exe = sibling
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            return Err(windows_exe_sibling(program, &exe));
+        }
+    }
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -750,6 +769,20 @@ fn resolve_program(dir: &Path, command: &[String]) -> Result<(PathBuf, PathBuf),
         }
     }
     Ok((dir, resolved))
+}
+
+/// Windows would run `exe` (the program's name plus `.exe`) instead of the
+/// disclosed `program`.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn windows_exe_sibling(program: &str, exe: &str) -> Localized {
+    Localized::with_params(
+        "extensions.error.windows_exe",
+        params([
+            ("program", quoted(program).into()),
+            ("exe", quoted(exe).into()),
+        ]),
+        "Windows would run {exe} instead of the command's program {program}; name {exe} in command[0] or remove it.",
+    )
 }
 
 fn quoted(text: &str) -> String {

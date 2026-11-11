@@ -721,6 +721,7 @@
   "extensions.error.tree_unreadable": "Não foi possível ler todos os arquivos da pasta da extensão.",
   "extensions.error.unknown_field": "O manifest.toml tem o campo desconhecido {field}; os campos aceitos são {keys}.",
   "extensions.error.unreadable": "Não foi possível ler o manifest.toml como texto UTF-8.",
+  "extensions.error.windows_exe": "O Windows executaria {exe} em vez do programa {program} do command; indique {exe} em command[0] ou remova-o.",
   "extensions.output.choice": "O campo {field} deve ser um destes: {values}.",
   "extensions.output.date": "O campo {field} deve ser uma data RFC 3339, como 2026-10-21T12:00:00Z, ou null.",
   "extensions.output.empty": "A extensão não imprimiu nada na saída padrão.",

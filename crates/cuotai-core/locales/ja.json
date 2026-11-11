@@ -718,6 +718,7 @@
   "extensions.error.tree_unreadable": "拡張機能のフォルダー内のすべてのファイルを読み取れませんでした。",
   "extensions.error.unknown_field": "manifest.toml に不明な項目 {field} があります。受け付ける項目は {keys} です。",
   "extensions.error.unreadable": "manifest.toml を UTF-8 のテキストとして読み取れませんでした。",
+  "extensions.error.windows_exe": "Windows は command のプログラム {program} ではなく {exe} を実行します。command[0] に {exe} を指定するか、削除してください。",
   "extensions.output.choice": "{field} は次のいずれかにしてください：{values}。",
   "extensions.output.date": "{field} は 2026-10-21T12:00:00Z のような RFC 3339 の日付か null にしてください。",
   "extensions.output.empty": "拡張機能は標準出力に何も出力しませんでした。",

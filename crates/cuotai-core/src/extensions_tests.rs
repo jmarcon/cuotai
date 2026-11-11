@@ -100,6 +100,20 @@ fn an_interpreted_wrapper_is_refused_and_a_direct_executable_is_not() {
     assert!(discovery.get("proxy").is_some());
 }
 
+/// W-01: Windows tries `<program>.exe` before the program itself, so a
+/// sibling of that name would run instead of the disclosed file: refused.
+#[cfg(windows)]
+#[test]
+fn a_sibling_exe_that_windows_would_run_instead_is_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let dir = extension(root.path(), "proxy", VALID);
+    script(&dir.join("run.sh.exe"));
+    assert_eq!(rejection(root.path()), "extensions.error.windows_exe");
+
+    fs::remove_file(dir.join("run.sh.exe")).unwrap();
+    assert!(discover(root.path()).get("proxy").is_some());
+}
+
 /// The suffix check runs on the **resolved** program: a symlink named
 /// `run.exe` pointing at `script.cmd` would be handed to `cmd.exe` with our
 /// exact argv, so it is refused too.
