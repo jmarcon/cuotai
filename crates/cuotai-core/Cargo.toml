@@ -48,7 +48,7 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "std"
 rsa = "0.9"
 x25519-dalek = { version = "2", features = ["static_secrets"] }
 aes-gcm = "0.10"
-rusqlite = { version = "0.41", features = ["bundled"] }
+rusqlite = { version = "0.41", features = ["bundled", "functions"] }
 dirs = "6"
 # PRD 0012 RF2: HTTP/1.x request parsing for the optional local server.
 httparse = { version = "=1.10.1", optional = true }

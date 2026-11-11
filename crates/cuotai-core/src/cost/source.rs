@@ -106,6 +106,56 @@ pub(crate) struct FileState {
     /// unless the source keeps folder names.
     #[serde(skip)]
     pub folder: Option<String>,
+    /// S-03: the key of this installation's project fingerprints, set by
+    /// the scanner before each read. Never serialized.
+    #[serde(skip)]
+    pub key: Option<ProjectKey>,
+}
+
+/// S-03: the per-installation key of the project fingerprints
+/// (`cost/fingerprint.key`). A fingerprint is
+/// `HMAC-SHA256(key, sha256(normalized folder)[..16])[..16]`, so a guessed
+/// folder path cannot be confirmed from it without the key.
+#[derive(Clone, PartialEq, Eq)]
+pub(crate) struct ProjectKey(std::sync::Arc<[u8; 32]>);
+
+impl std::fmt::Debug for ProjectKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("ProjectKey(..)")
+    }
+}
+
+impl ProjectKey {
+    pub(crate) fn new(bytes: [u8; 32]) -> Self {
+        Self(std::sync::Arc::new(bytes))
+    }
+
+    pub(crate) fn bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+
+    /// The keyed fingerprint of an unkeyed one (`legacy`, 16 hex).
+    pub(crate) fn fingerprint(&self, legacy: &str) -> String {
+        use hmac::{Hmac, Mac};
+        let mut mac = Hmac::<sha2::Sha256>::new_from_slice(self.0.as_slice())
+            .expect("HMAC takes a key of any length");
+        mac.update(legacy.as_bytes());
+        let mut text: String = mac
+            .finalize()
+            .into_bytes()
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
+        text.truncate(16);
+        text
+    }
+}
+
+/// [`project_digest`] keyed with `key` (unkeyed only without one, which
+/// only the adapters' unit tests do).
+pub(crate) fn keyed_project(key: Option<&ProjectKey>, cwd: &str) -> Option<String> {
+    let legacy = project_digest(cwd)?;
+    Some(key.map_or(legacy.clone(), |key| key.fingerprint(&legacy)))
 }
 
 /// The model name recorded for usage whose model the log did not name.
@@ -177,7 +227,7 @@ pub(crate) fn folder_name(cwd: &str) -> Option<String> {
 /// PRD 0042 RF1.1: record `cwd` in `state` as a fingerprint (and the
 /// transient folder name); the path is not kept.
 pub(crate) fn note_project(state: &mut FileState, cwd: Option<&str>) {
-    if let Some(project) = cwd.and_then(project_digest) {
+    if let Some(project) = cwd.and_then(|cwd| keyed_project(state.key.as_ref(), cwd)) {
         state.project = Some(project);
         state.folder = cwd.and_then(folder_name);
     }

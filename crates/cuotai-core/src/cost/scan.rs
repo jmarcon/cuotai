@@ -12,7 +12,7 @@
 //! a "no access" state; nothing tries to get around it.
 
 use super::index::{Chunk, CostIndex, FileRow};
-use super::source::{anonymous, Entry, FileState, Line};
+use super::source::{anonymous, Entry, FileState, Line, ProjectKey};
 use super::{CostError, DayZone, Env, SettingsStore, SourceId};
 use crate::models::digest;
 use crate::text::{params, Localized};
@@ -310,6 +310,7 @@ impl Scanner {
             first_day: retention.first_day(self.zone.day(now)),
             oldest: SystemTime::from(now - kept),
             keep_folders: false,
+            key: self.index.fingerprint_key()?,
         };
         let mut budget = Budget {
             deadline: Instant::now() + self.limits.max_duration,
@@ -333,7 +334,7 @@ impl Scanner {
                 .is_some_and(|s| !s.paths.is_empty());
             let window = Window {
                 keep_folders: settings.folder_hint(source),
-                ..window
+                ..window.clone()
             };
             sources.push(self.scan_source(db, source, &roots, custom, &window, &mut budget)?);
         }
@@ -590,6 +591,7 @@ impl Scanner {
         let settled = SystemTime::from(window.now)
             .duration_since(meta.modified().unwrap_or(SystemTime::UNIX_EPOCH))
             .is_ok_and(|age| age >= SETTLED);
+        row.state.key = Some(window.key.clone());
         let mut reader = BufReader::with_capacity(64 << 10, handle);
         let adapter = source.adapter();
         let mut buf = Vec::new();
@@ -669,7 +671,7 @@ impl Scanner {
 }
 
 /// The span of one scan.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct Window {
     now: DateTime<Utc>,
     /// The oldest local day kept.
@@ -678,6 +680,8 @@ struct Window {
     oldest: SystemTime,
     /// PRD 0042 RF4.3: the source keeps the last folder name of projects.
     keep_folders: bool,
+    /// S-03: the key of the project fingerprints.
+    key: ProjectKey,
 }
 
 impl FileRow {

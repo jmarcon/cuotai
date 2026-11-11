@@ -18,7 +18,7 @@
 //! every followed file once from its start: lines already counted only add
 //! their request rows (`files.backfill`), so the day totals do not change.
 
-use super::source::{Entry, FileState};
+use super::source::{Entry, FileState, ProjectKey};
 use super::{CostError, Period, SourceId, Tokens};
 use crate::history::{migrate, wal};
 use crate::models::create_private_file;
@@ -36,7 +36,7 @@ pub const BACKUP_KEEP: chrono::TimeDelta = chrono::TimeDelta::days(7);
 
 pub(crate) const SCHEMA_REVISION: i64 = MIGRATIONS.len() as i64;
 
-pub(crate) const MIGRATIONS: [&str; 4] = [
+pub(crate) const MIGRATIONS: [&str; 5] = [
     "CREATE TABLE usage (
     source TEXT NOT NULL,
     day TEXT NOT NULL,
@@ -149,6 +149,14 @@ UPDATE requests SET output = 9223372036854775807 WHERE typeof(output) = 'real';
 UPDATE requests SET cache_read = 9223372036854775807 WHERE typeof(cache_read) = 'real';
 UPDATE requests SET cache_write = 9223372036854775807 WHERE typeof(cache_write) = 'real';
 UPDATE requests SET cache_write_1h = 9223372036854775807 WHERE typeof(cache_write_1h) = 'real';",
+    // S-03: project fingerprints keyed to this installation. Each stored
+    // unkeyed fingerprint becomes HMAC(key, it) (`cuotai_fingerprint`,
+    // registered by `CostIndex::open`), with no path and no log replay, so
+    // labels, hidden flags and folder hints keep their projects.
+    "UPDATE requests SET project = cuotai_fingerprint(project) WHERE project IS NOT NULL;
+UPDATE projects SET project = cuotai_fingerprint(project);
+UPDATE files SET state = json_set(state, '$.project', cuotai_fingerprint(json_extract(state, '$.project')))
+    WHERE json_extract(state, '$.project') IS NOT NULL;",
 ];
 
 /// Tables whose rows all derive from the logs, per source and file.
@@ -216,6 +224,11 @@ pub struct ProjectRow {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, serde::Deserialize)]
 pub struct Labels {
     pub schema: u32,
+    /// S-03: the fingerprint key (hex) of these project fingerprints, so a
+    /// restore on another computer adopts it while that computer holds no
+    /// fingerprint of its own yet.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub key: Option<String>,
     #[serde(default)]
     pub projects: Vec<ProjectLabel>,
     #[serde(default)]
@@ -273,6 +286,22 @@ fn clean_label(label: &str) -> Result<String, CostError> {
         return Err(CostError::InvalidLabel);
     }
     Ok(label.to_owned())
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// A 32-byte key written as 64 hex characters.
+fn unhex(text: &str) -> Option<[u8; 32]> {
+    if text.len() != 64 || !text.is_ascii() {
+        return None;
+    }
+    let mut out = [0u8; 32];
+    for (i, byte) in out.iter_mut().enumerate() {
+        *byte = u8::from_str_radix(&text[2 * i..2 * i + 2], 16).ok()?;
+    }
+    Some(out)
 }
 
 fn instant_of(millis: i64) -> DateTime<Utc> {
@@ -386,6 +415,82 @@ impl CostIndex {
         &self.path
     }
 
+    /// S-03: `fingerprint.key` beside the index.
+    fn key_path(&self) -> PathBuf {
+        self.path.with_file_name("fingerprint.key")
+    }
+
+    /// S-03: the key of this installation's project fingerprints, created
+    /// on first use (32 random bytes, `0600` in the `0700` folder). Two
+    /// processes creating it at once agree: the first file written wins.
+    pub(crate) fn fingerprint_key(&self) -> Result<ProjectKey, CostError> {
+        if let Some(key) = self.stored_key()? {
+            return Ok(key);
+        }
+        let mut bytes = [0u8; 32];
+        rand::RngCore::fill_bytes(&mut rand::rngs::OsRng, &mut bytes);
+        self.install_key(&bytes, false)?;
+        self.stored_key()?.ok_or(CostError::Storage)
+    }
+
+    fn stored_key(&self) -> Result<Option<ProjectKey>, CostError> {
+        match std::fs::read(self.key_path()) {
+            Ok(bytes) => <[u8; 32]>::try_from(bytes.as_slice())
+                .map(|bytes| Some(ProjectKey::new(bytes)))
+                .map_err(|_| CostError::Storage),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(_) => Err(CostError::Storage),
+        }
+    }
+
+    /// Write `bytes` as the fingerprint key: only when there is none yet,
+    /// or replacing it with `replace`.
+    fn install_key(&self, bytes: &[u8; 32], replace: bool) -> Result<(), CostError> {
+        use std::io::Write;
+        let path = self.key_path();
+        let dir = path.parent().ok_or(CostError::Storage)?;
+        crate::private_fs::ensure_dir(dir).map_err(|_| CostError::Storage)?;
+        let mut tmp = tempfile::Builder::new()
+            .prefix(".fingerprint.key.")
+            .suffix(".tmp")
+            .tempfile_in(dir)
+            .map_err(|_| CostError::Storage)?;
+        tmp.write_all(bytes).map_err(|_| CostError::Storage)?;
+        tmp.as_file().sync_all().map_err(|_| CostError::Storage)?;
+        let kept = if replace {
+            tmp.persist(&path).map(drop).is_ok()
+        } else {
+            match tmp.persist_noclobber(&path) {
+                Ok(_) => true,
+                // Another process wrote it first: that key stands.
+                Err(error) => error.error.kind() == std::io::ErrorKind::AlreadyExists,
+            }
+        };
+        if kept {
+            Ok(())
+        } else {
+            Err(CostError::Storage)
+        }
+    }
+
+    /// Whether the index holds any project fingerprint.
+    fn has_fingerprints(&self) -> Result<bool, CostError> {
+        let Some(db) = self.open_existing()? else {
+            return Ok(false);
+        };
+        Ok(db.query_row(
+            "SELECT EXISTS (SELECT 1 FROM projects)
+                 OR EXISTS (SELECT 1 FROM requests WHERE project IS NOT NULL)
+                 OR EXISTS (SELECT 1 FROM files WHERE json_extract(state, '$.project') IS NOT NULL)",
+            [],
+            |row| row.get(0),
+        )?)
+    }
+
+    fn key_hex(&self) -> Result<String, CostError> {
+        Ok(hex(self.fingerprint_key()?.bytes()))
+    }
+
     /// Open (creating privately: directory 0700, file 0600 on Unix) and
     /// migrate the index.
     pub(crate) fn open(&self) -> Result<Connection, CostError> {
@@ -394,6 +499,18 @@ impl CostIndex {
         crate::private_fs::sqlite_busy_wait(&mut db)?;
         wal(&db)?;
         db.pragma_update(None, "secure_delete", true)?;
+        let key = self.fingerprint_key()?;
+        db.create_scalar_function(
+            "cuotai_fingerprint",
+            1,
+            rusqlite::functions::FunctionFlags::SQLITE_UTF8
+                | rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
+            move |ctx| {
+                Ok(ctx
+                    .get::<Option<String>>(0)?
+                    .map(|legacy| key.fingerprint(&legacy)))
+            },
+        )?;
         migrate(&mut db, &MIGRATIONS).map_err(|error| match error {
             crate::history::HistoryError::NewerMajor => CostError::NewerMajor,
             _ => CostError::Storage,
@@ -925,6 +1042,16 @@ impl CostIndex {
         // RF2.4: the pre-upgrade copy a migration left holds every source,
         // so a full or per-source erase drops it whole.
         crate::private_fs::remove_backup(&self.path).map_err(|_| CostError::Storage)?;
+        // S-03: Erase the index rotates the fingerprint key (a per-source
+        // erase keeps it: the other sources' fingerprints still use it).
+        if source.is_none() {
+            match std::fs::remove_file(self.key_path()) {
+                Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
+                    return Err(CostError::Storage);
+                }
+                _ => {}
+            }
+        }
         Ok(removed)
     }
 
@@ -1130,6 +1257,7 @@ impl CostIndex {
             .collect();
         Ok(Labels {
             schema: 1,
+            key: Some(self.key_hex()?),
             projects,
             sessions,
         })
@@ -1140,8 +1268,29 @@ impl CostIndex {
     /// take them, and only where this computer has no label (or hidden
     /// flag) of its own: the local choice wins. Returns the rows taken.
     pub fn import_labels(&self, labels: &Labels, apply: bool) -> Result<usize, CostError> {
-        let Some(mut db) = self.open_existing()? else {
-            return Ok(0);
+        // S-03: a backup's key is adopted while this index holds no
+        // fingerprint of its own (a new computer), so its labels find their
+        // projects once the logs are read; their projects are kept waiting.
+        let foreign = labels.key.as_deref().and_then(unhex).filter(|key| {
+            self.stored_key()
+                .ok()
+                .flatten()
+                .is_none_or(|own| own.bytes() != key)
+        });
+        let adopt = match &foreign {
+            Some(_) => !self.has_fingerprints()?,
+            None => false,
+        };
+        if let (true, true, Some(key)) = (adopt, apply, &foreign) {
+            self.install_key(key, true)?;
+        }
+        let db = if adopt && apply {
+            Some(self.open()?)
+        } else {
+            self.open_existing()?
+        };
+        let Some(mut db) = db else {
+            return Ok(if adopt { labels.projects.len() } else { 0 });
         };
         let digest_ok = |digest: &str| {
             !digest.is_empty()
@@ -1155,11 +1304,24 @@ impl CostIndex {
             let (true, Ok(label)) = (digest_ok(&project.project), label) else {
                 continue;
             };
-            taken += tx.execute(
-                "UPDATE projects SET label = ?2, hidden = ?3
-                 WHERE project = ?1 AND label IS NULL AND hidden = 0",
-                params![project.project, label, project.hidden],
-            )?;
+            taken += if adopt {
+                // Waiting for its first request: the commit's MIN/MAX turn
+                // these placeholder times into the real ones.
+                tx.execute(
+                    "INSERT INTO projects (project, label, first_seen, last_seen, hidden)
+                     VALUES (?1, ?2, 9223372036854775807, 0, ?3)
+                     ON CONFLICT (project) DO UPDATE SET label = excluded.label,
+                         hidden = excluded.hidden
+                     WHERE label IS NULL AND hidden = 0",
+                    params![project.project, label, project.hidden],
+                )?
+            } else {
+                tx.execute(
+                    "UPDATE projects SET label = ?2, hidden = ?3
+                     WHERE project = ?1 AND label IS NULL AND hidden = 0",
+                    params![project.project, label, project.hidden],
+                )?
+            };
         }
         for session in &labels.sessions {
             let (true, Ok(label)) = (digest_ok(&session.session), clean_label(&session.label))

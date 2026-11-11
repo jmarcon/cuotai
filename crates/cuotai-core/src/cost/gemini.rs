@@ -25,7 +25,7 @@
 //! Google's prompt count includes the cached part, so `input` here is
 //! `input - cached + tool`; thinking tokens are billed as output.
 
-use super::source::{anonymous, instant, is_object, model_name, project_digest, under_home, Entry};
+use super::source::{anonymous, instant, is_object, keyed_project, model_name, under_home, Entry};
 use super::source::{FileState, Line, Source, UNKNOWN_MODEL};
 use super::{SourceId, Tokens};
 use serde::Deserialize;
@@ -113,7 +113,7 @@ impl Source for GeminiCli {
             if let Some(project) = record
                 .project_hash
                 .as_deref()
-                .and_then(|hash| project_digest(&format!("gemini:{hash}")))
+                .and_then(|hash| keyed_project(state.key.as_ref(), &format!("gemini:{hash}")))
             {
                 state.project = Some(project);
             }

@@ -12,7 +12,7 @@
 //! | `prefs/desktop.json` | desktop settings | window geometry, one-time records and the data folder dropped; the chosen paths become `@config`/`@user` markers, never taken on restore |
 //! | `prefs/cost-settings.json` | local cost settings | the per-machine sources (and their folders) dropped |
 //! | `prefs/pricing.json` | your local prices | verbatim |
-//! | `prefs/cost-labels.json` | the labels and hidden projects of the local cost index | only the person's labels (never a folder name) |
+//! | `prefs/cost-labels.json` | the labels and hidden projects of the local cost index | only the person's labels (never a folder name) and the key of the project fingerprints, adopted on restore by a computer with no fingerprint of its own |
 //! | `user/themes/*.css`, `user/locales/*.json` | user themes and languages | verbatim |
 //! | `history/<account id>.csv` | with `--with-history`: the last 90 days of each account | the PRD 0006 CSV sample table |
 //!

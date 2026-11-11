@@ -1602,3 +1602,167 @@ fn an_empty_log_folder_is_no_logs() {
         .unwrap();
     assert_eq!(codex.state, SourceState::NoLogs);
 }
+
+/// S-03: one key serves every source, and another key gives other
+/// fingerprints.
+#[test]
+fn project_fingerprints_are_keyed_to_the_installation() {
+    let a = source::ProjectKey::new([1; 32]);
+    let b = source::ProjectKey::new([2; 32]);
+    let cwd = "/Users/ana/project";
+    let keyed = source::keyed_project(Some(&a), cwd).unwrap();
+    assert_eq!(keyed.len(), 16);
+    assert_eq!(
+        keyed,
+        source::keyed_project(Some(&a), "/Users/ana/project/").unwrap()
+    );
+    assert_ne!(keyed, source::keyed_project(Some(&b), cwd).unwrap());
+    assert_ne!(
+        keyed,
+        source::project_digest(cwd).unwrap(),
+        "not the plain digest"
+    );
+}
+
+/// S-03: the plain digest of a project path (which a guessed path would
+/// confirm) appears neither in the index nor in the summary.
+#[test]
+fn the_plain_path_digest_never_reaches_the_index_or_the_summary() {
+    let f = fixture();
+    f.enable(SourceId::ClaudeCode);
+    write(&f.claude_log("a"), &claude_line(1, 10, 2));
+    f.scan();
+    let plain = source::project_digest(&format!("/Users/ana/{SECRET}")).unwrap();
+    let index = f.scanner.index();
+    rusqlite::Connection::open(index.path())
+        .unwrap()
+        .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(()))
+        .unwrap();
+    let bytes = std::fs::read(index.path()).unwrap();
+    assert!(!bytes.windows(16).any(|w| w == plain.as_bytes()));
+    let projects = index.projects().unwrap();
+    assert_eq!(projects.len(), 1);
+    assert_eq!(
+        projects[0].project,
+        index.fingerprint_key().unwrap().fingerprint(&plain)
+    );
+    let summary = f.scanner.summary(&pricing(&f), None, None, now()).unwrap();
+    let json = serde_json::to_string(&summary).unwrap();
+    assert!(!json.contains(&plain[..8]), "the short code is keyed too");
+}
+
+/// S-03: the schema 5 migration keys every stored fingerprint, so labels,
+/// hidden flags and the files' parser state keep their projects.
+#[test]
+fn stored_fingerprints_are_keyed_on_upgrade_and_keep_their_labels() {
+    let f = fixture();
+    let path = f.scanner.index().path().to_path_buf();
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    let plain = source::project_digest("/Users/ana/work").unwrap();
+    {
+        let db = rusqlite::Connection::open(&path).unwrap();
+        for step in &super::index::MIGRATIONS[..4] {
+            db.execute_batch(step).unwrap();
+        }
+        db.pragma_update(None, "user_version", 4).unwrap();
+        db.execute(
+            "INSERT INTO projects (project, label, first_seen, last_seen, hidden)
+             VALUES (?1, 'Work', 1, 2, 1)",
+            [&plain],
+        )
+        .unwrap();
+        db.execute(
+            "INSERT INTO requests VALUES ('claude_code','f','k',1,'2025-10-02','m','s',?1,1,0,0,0,0)",
+            [&plain],
+        )
+        .unwrap();
+        db.execute(
+            "INSERT INTO files VALUES ('claude_code','f','id',9,9,?1,0,0,0)",
+            [format!(r#"{{"project":"{plain}"}}"#)],
+        )
+        .unwrap();
+    }
+    let index = f.scanner.index();
+    let keyed = index.fingerprint_key().unwrap().fingerprint(&plain);
+    let projects = index.projects().unwrap();
+    assert_eq!(projects.len(), 1);
+    assert_eq!(projects[0].project, keyed);
+    assert_eq!(projects[0].label.as_deref(), Some("Work"));
+    assert!(projects[0].hidden);
+    let db = rusqlite::Connection::open(&path).unwrap();
+    let request: String = db
+        .query_row("SELECT project FROM requests", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(request, keyed);
+    let state: String = db
+        .query_row("SELECT state FROM files", [], |r| r.get(0))
+        .unwrap();
+    assert!(state.contains(&keyed) && !state.contains(&plain), "{state}");
+}
+
+/// S-03: Erase the index rotates the key (a private file); erasing one
+/// source keeps it.
+#[test]
+fn erasing_the_index_rotates_the_fingerprint_key() {
+    let f = fixture();
+    let index = f.scanner.index();
+    let first = index.fingerprint_key().unwrap();
+    let key_file = index.path().with_file_name("fingerprint.key");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = std::fs::metadata(&key_file).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o600);
+    }
+    drop(index.open().unwrap());
+    index.erase_source(SourceId::ClaudeCode).unwrap();
+    assert_eq!(
+        index.fingerprint_key().unwrap(),
+        first,
+        "a source erase keeps it"
+    );
+    index.erase().unwrap();
+    assert!(!key_file.exists());
+    assert_ne!(
+        index.fingerprint_key().unwrap(),
+        first,
+        "Erase the index rotates it"
+    );
+}
+
+/// S-03 with PRD 0046: a backup's labels carry the key; a computer with no
+/// fingerprint of its own adopts it, so the labels meet their projects once
+/// the logs are read.
+#[test]
+fn a_backup_key_is_adopted_by_a_new_computer() {
+    let a = fixture();
+    a.enable(SourceId::ClaudeCode);
+    write(&a.claude_log("a"), &claude_line(1, 10, 2));
+    a.scan();
+    let project = a.scanner.index().projects().unwrap()[0].project.clone();
+    a.scanner
+        .index()
+        .set_label(LabelTarget::Project, &project, Some("Work"))
+        .unwrap();
+    let labels = a.scanner.index().labels().unwrap();
+    assert!(labels.key.is_some());
+
+    let b = fixture();
+    b.enable(SourceId::ClaudeCode);
+    assert_eq!(b.scanner.index().import_labels(&labels, true).unwrap(), 1);
+    write(&b.claude_log("a"), &claude_line(1, 10, 2));
+    b.scan();
+    let projects = b.scanner.index().projects().unwrap();
+    assert_eq!(projects.len(), 1);
+    assert_eq!(projects[0].project, project);
+    assert_eq!(projects[0].label.as_deref(), Some("Work"));
+
+    // A computer with fingerprints of its own keeps its key.
+    let own = b.scanner.index().fingerprint_key().unwrap();
+    let other = Labels {
+        key: Some("ab".repeat(32)),
+        ..labels
+    };
+    b.scanner.index().import_labels(&other, true).unwrap();
+    assert_eq!(b.scanner.index().fingerprint_key().unwrap(), own);
+}
