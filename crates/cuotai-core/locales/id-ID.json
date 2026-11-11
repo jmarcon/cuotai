@@ -359,7 +359,9 @@
   "cost.scan.off": "{source}: nonaktif; tidak ada yang dibaca.",
   "cost.scan.partial": "{source}: {files} log; {requests} permintaan baru; {invalid} baris tidak valid diabaikan; pembacaan dilanjutkan pada siklus berikutnya.",
   "cost.scan.ready": "{source}: {files} log; {requests} permintaan baru; {invalid} baris tidak valid diabaikan.",
-  "cost.span.days": "{days} hari terakhir",
+  "cost.span.days": {
+    "other": "{count} hari terakhir"
+  },
   "cost.view.by_day": "Per hari",
   "cost.view.by_model": "Per model ({period})",
   "cost.view.empty": "{source}: tidak ada penggunaan di log yang dibaca ({period}).",

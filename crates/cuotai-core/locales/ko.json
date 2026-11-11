@@ -359,7 +359,9 @@
   "cost.scan.off": "{source}: 꺼짐. 아무것도 읽지 않습니다.",
   "cost.scan.partial": "{source}: 로그 {files}개, 새 요청 {requests}개, 잘못된 줄 {invalid}개 무시됨. 읽기는 다음 주기에 계속됩니다.",
   "cost.scan.ready": "{source}: 로그 {files}개, 새 요청 {requests}개, 잘못된 줄 {invalid}개 무시됨.",
-  "cost.span.days": "최근 {days}일",
+  "cost.span.days": {
+    "other": "최근 {count}일"
+  },
   "cost.view.by_day": "일별",
   "cost.view.by_model": "모델별({period})",
   "cost.view.empty": "{source}: 읽은 로그에 사용량이 없습니다({period}).",

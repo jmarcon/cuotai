@@ -359,7 +359,9 @@
   "cost.scan.off": "{source}：オフです。何も読み取りません。",
   "cost.scan.partial": "{source}：ログ {files} 件、新しいリクエスト {requests} 件、無効な行 {invalid} 行を無視。読み取りは次のサイクルで続きます。",
   "cost.scan.ready": "{source}：ログ {files} 件、新しいリクエスト {requests} 件、無効な行 {invalid} 行を無視。",
-  "cost.span.days": "過去 {days} 日間",
+  "cost.span.days": {
+    "other": "過去 {count} 日間"
+  },
   "cost.view.by_day": "日別",
   "cost.view.by_model": "モデル別（{period}）",
   "cost.view.empty": "{source}：読み取ったログに使用はありません（{period}）。",

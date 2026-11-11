@@ -361,7 +361,10 @@
   "cost.scan.off": "{source} : désactivée ; rien n’est lu.",
   "cost.scan.partial": "{source} : {files} journal(aux) ; {requests} nouvelle(s) requête(s) ; {invalid} ligne(s) invalide(s) ignorée(s) ; la lecture reprend au prochain cycle.",
   "cost.scan.ready": "{source} : {files} journal(aux) ; {requests} nouvelle(s) requête(s) ; {invalid} ligne(s) invalide(s) ignorée(s).",
-  "cost.span.days": "{days} derniers jours",
+  "cost.span.days": {
+    "one": "{count} dernier jour",
+    "other": "{count} derniers jours"
+  },
   "cost.view.by_day": "Par jour",
   "cost.view.by_model": "Par modèle ({period})",
   "cost.view.empty": "{source} : aucune utilisation dans les journaux lus ({period}).",

@@ -1568,7 +1568,10 @@
   "cost.pricing.error.syntax": "pricing.json non valido alla riga {line}, colonna {column}.",
   "cost.pricing.error.unreadable": "Impossibile leggere pricing.json.",
   "cost.pricing.ignored": "{error} Viene usata solo la tabella incorporata finché il file non viene corretto.",
-  "cost.span.days": "Ultimi {days} giorni",
+  "cost.span.days": {
+    "one": "Ultimo giorno",
+    "other": "Ultimi {count} giorni"
+  },
   "cost.view.empty": "{source}: nessun utilizzo nei log letti ({period}).",
   "cost.view.partial": "{source}: la lettura dei log non è ancora terminata; i numeri potrebbero ancora crescere.",
   "cost.view.no_access": "{source}: nessun accesso alle directory dei log; nulla è stato aggirato. I numeri sono quelli già presenti nell'indice.",

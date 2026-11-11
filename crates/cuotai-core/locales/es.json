@@ -1568,7 +1568,10 @@
   "cost.pricing.error.syntax": "pricing.json inválido en la línea {line}, columna {column}.",
   "cost.pricing.error.unreadable": "No se pudo leer pricing.json.",
   "cost.pricing.ignored": "{error} Solo se usa la tabla integrada hasta que se corrija el archivo.",
-  "cost.span.days": "Últimos {days} días",
+  "cost.span.days": {
+    "one": "Último día",
+    "other": "Últimos {count} días"
+  },
   "cost.view.empty": "{source}: ningún uso en los registros leídos ({period}).",
   "cost.view.partial": "{source}: la lectura de los registros aún no terminó; los números pueden crecer.",
   "cost.view.no_access": "{source}: sin acceso a los directorios de los registros; no se intentó sortearlo. Los números son los que el índice ya tenía.",

@@ -469,6 +469,7 @@
       "label": {
         "id": "cost.span.days",
         "params": {
+          "count": "3",
           "days": "3"
         },
         "fallback": "Last 3 days"

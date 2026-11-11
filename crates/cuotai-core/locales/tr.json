@@ -361,7 +361,10 @@
   "cost.scan.off": "{source}: kapalı; hiçbir şey okunmuyor.",
   "cost.scan.partial": "{source}: {files} günlük; {requests} yeni istek; {invalid} geçersiz satır yok sayıldı; okuma sonraki döngüde sürer.",
   "cost.scan.ready": "{source}: {files} günlük; {requests} yeni istek; {invalid} geçersiz satır yok sayıldı.",
-  "cost.span.days": "Son {days} gün",
+  "cost.span.days": {
+    "one": "Son {count} gün",
+    "other": "Son {count} gün"
+  },
   "cost.view.by_day": "Güne göre",
   "cost.view.by_model": "Modele göre ({period})",
   "cost.view.empty": "{source}: okunan günlüklerde kullanım yok ({period}).",

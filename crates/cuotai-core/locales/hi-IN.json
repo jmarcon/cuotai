@@ -361,7 +361,10 @@
   "cost.scan.off": "{source}: बंद; कुछ नहीं पढ़ा जाता।",
   "cost.scan.partial": "{source}: {files} लॉग; {requests} नए अनुरोध; {invalid} अमान्य पंक्तियाँ अनदेखी; पढ़ना अगले चक्र में जारी रहेगा।",
   "cost.scan.ready": "{source}: {files} लॉग; {requests} नए अनुरोध; {invalid} अमान्य पंक्तियाँ अनदेखी।",
-  "cost.span.days": "पिछले {days} दिन",
+  "cost.span.days": {
+    "one": "पिछला {count} दिन",
+    "other": "पिछले {count} दिन"
+  },
   "cost.view.by_day": "दिन के अनुसार",
   "cost.view.by_model": "मॉडल के अनुसार ({period})",
   "cost.view.empty": "{source}: पढ़े गए लॉग में कोई उपयोग नहीं ({period})।",
