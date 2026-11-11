@@ -931,7 +931,7 @@ export function sessionCaptureHintHtml(slot, region = null) {
   const shared = captureSharedOf(slot, region) === "google";
   return `<span class="session-capture-hint" data-capture-hint="${esc(slot.slot)}">`
     + (shared
-      ? `<small class="hint">${te("dialog.session.captureSharedHint")}</small>`
+      ? `<small class="hint">${te("dialog.session.captureSharedHint")}</small> `
         + `<small class="hint">${te("dialog.session.capturePasskeyHint")}</small>`
         + `<button type="button" class="link" data-capture-forget>${te("dialog.session.captureForget")}</button>`
       : `<small class="hint">${te("dialog.session.captureHint")}</small>`)

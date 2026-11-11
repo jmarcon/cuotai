@@ -60,6 +60,8 @@ assert.match(sharedHint, /data-capture-forget/);
 // No catalog is loaded here, so the texts render as their ids.
 assert.match(sharedHint, /dialog\.session\.captureSharedHint[\s\S]*dialog\.session\.capturePasskeyHint[\s\S]*dialog\.session\.captureForget/);
 assert.doesNotMatch(sharedHint, /dialog\.session\.captureHint\b/);
+// PRD 0016 re-validation (V-08): the two inline hints are separated by a space.
+assert.match(sharedHint, /<\/small> <small class="hint">/);
 const privateHint = lib.sessionCaptureHintHtml(shared, "cn");
 assert.doesNotMatch(privateHint, /data-capture-forget|capturePasskeyHint|captureSharedHint/);
 assert.match(privateHint, /dialog\.session\.captureHint\b/);

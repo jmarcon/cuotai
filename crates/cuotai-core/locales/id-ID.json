@@ -2014,7 +2014,7 @@
   "user_session.paste.missing": "Cookie sesi ini tidak lengkap: {names}.",
   "user_session.paste.none_accepted": "Tidak ada cookie sesi ini dalam teks yang ditempel; sesi ini memakai: {names}.",
   "user_session.paste.secret_invalid": "Nilai yang ditempel kosong, terlalu panjang, atau berisi karakter tidak valid; salin lagi.",
-  "user_session.paste.summary": "Disimpan: {kept}. Dibuang: {discarded}. {expiry}",
+  "user_session.paste.summary": "Dipertahankan: {kept}. Dibuang: {discarded}. {expiry}",
   "user_session.rejected": "Sesi kedaluwarsa atau dicabut; tempel yang baru di wizard akun.",
   "user_session.save.rejected": "Pengujian sesi gagal ({cause}); tidak ada yang disimpan. Tempel sesi yang valid dan coba lagi.",
   "user_session.save.unreachable": "Sesi tidak dapat diuji ({cause}); tidak ada yang disimpan. Pilih \"Tetap simpan\" untuk menyimpannya tanpa uji, atau coba lagi.",

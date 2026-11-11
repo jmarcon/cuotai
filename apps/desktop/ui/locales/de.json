@@ -547,7 +547,7 @@
   "dialog.save.profileChanged": "Das Profil hat sich nach der Anmeldung geändert; melden Sie sich vor dem Speichern erneut an.",
   "dialog.session.title": "Websitzung",
   "dialog.session.orIntro": "Oder nutzen Sie die Websitzung von {provider}:",
-  "dialog.session.stored": "Sitzung im Systemtresor gespeichert; die TOML behält nur den Verweis.",
+  "dialog.session.stored": "Sitzung im Systemtresor gespeichert; die Einstellungen behalten nur einen Verweis.",
   "dialog.session.placeholder": "Zeile Cookie: …, Liste name=value; …, Cookie-Tabelle oder kopiertes cURL",
   "dialog.session.hosts": "Gesendet nur an: {hosts}",
   "dialog.session.open": "{site} öffnen",
@@ -573,7 +573,7 @@
   "dialog.session.pasteNew": "Der Anbieter hat die gespeicherte Sitzung abgelehnt. Fügen Sie unten eine neue ein; sie wird getestet, bevor sie die im Tresor ersetzt.",
   "dialog.session.forget": "Diese Sitzung vergessen",
   "dialog.session.forgetConfirm": "Bestätigen: Sitzung vergessen",
-  "dialog.session.forgetHint": "Klicken Sie erneut zum Bestätigen: Die Sitzung wird aus dem Systemtresor gelöscht, und die TOML entfernt ihren Verweis.",
+  "dialog.session.forgetHint": "Klicken Sie erneut zum Bestätigen: Die Sitzung wird aus dem Systemtresor gelöscht, und die Einstellungen entfernen ihren Verweis.",
   "dialog.session.forgotten": "Sitzung vergessen: Der Eintrag im Systemtresor wurde gelöscht.",
   "dialog.credKey": "API-Schlüssel",
   "dialog.secret.placeholder": "Wert einfügen oder eingeben",
@@ -1639,5 +1639,6 @@
   "detect.costOffer.open": "Lokale Kosten öffnen",
   "detect.costOffer.claude_code": "Seine lokalen Protokolle können auch die Kosten zu API-Preisen schätzen; Cuotai liest sie erst, wenn du die Quelle Claude Code einschaltest.",
   "detect.costOffer.codex_cli": "Seine lokalen Protokolle können auch die Kosten zu API-Preisen schätzen; Cuotai liest sie erst, wenn du die Quelle Codex CLI einschaltest.",
-  "detect.costOffer.gemini_cli": "Seine lokalen Protokolle können auch die Kosten zu API-Preisen schätzen; Cuotai liest sie erst, wenn du die Quelle Gemini CLI einschaltest."
+  "detect.costOffer.gemini_cli": "Seine lokalen Protokolle können auch die Kosten zu API-Preisen schätzen; Cuotai liest sie erst, wenn du die Quelle Gemini CLI einschaltest.",
+  "coreText.sessionIncomplete": "Der gespeicherten Websitzung fehlen die Cookies {names}. Fügen Sie eine neue ein."
 }

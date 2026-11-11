@@ -2014,7 +2014,7 @@
   "user_session.paste.missing": "このセッションの Cookie がありません：{names}。",
   "user_session.paste.none_accepted": "貼り付けたテキストにこのセッションの Cookie がありません。次を使用してください：{names}。",
   "user_session.paste.secret_invalid": "貼り付けた値が空か、長すぎるか、無効な文字を含んでいます。もう一度コピーしてください。",
-  "user_session.paste.summary": "保存：{kept}。破棄：{discarded}。{expiry}",
+  "user_session.paste.summary": "保持：{kept}。破棄：{discarded}。{expiry}",
   "user_session.rejected": "セッションが期限切れか取り消されています。アカウントのウィザードに新しいセッションを貼り付けてください。",
   "user_session.save.rejected": "セッションのテストに失敗しました（{cause}）。何も保存していません。有効なセッションを貼り付けて、もう一度お試しください。",
   "user_session.save.unreachable": "セッションをテストできませんでした（{cause}）。何も保存していません。テストせずに残すには「このまま保存」を選ぶか、もう一度お試しください。",

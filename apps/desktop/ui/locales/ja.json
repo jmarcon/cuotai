@@ -542,7 +542,7 @@
   "dialog.save.profileChanged": "サインイン後にプロファイルが変更されました。保存する前に再度サインインしてください。",
   "dialog.session.title": "Web セッション",
   "dialog.session.orIntro": "または {provider} のウェブセッションを使用：",
-  "dialog.session.stored": "セッションはシステムの保管庫に保存され、TOML には参照のみが残ります。",
+  "dialog.session.stored": "セッションはシステムの保管庫に保存され、設定には参照のみが残ります。",
   "dialog.session.placeholder": "Cookie: … の行、name=value; … のリスト、Cookie の表、またはコピーした cURL",
   "dialog.session.hosts": "送信先：{hosts} のみ",
   "dialog.session.open": "{site} を開く",
@@ -568,7 +568,7 @@
   "dialog.session.pasteNew": "プロバイダーが保存済みのセッションを拒否しました。下に新しいセッションを貼り付けてください。保管庫のセッションを置き換える前にテストします。",
   "dialog.session.forget": "このセッションを消去",
   "dialog.session.forgetConfirm": "確定：セッションを消去",
-  "dialog.session.forgetHint": "もう一度クリックして確定します。セッションはシステムの保管庫から削除され、TOML からも参照が消えます。",
+  "dialog.session.forgetHint": "もう一度クリックして確定します。セッションはシステムの保管庫から削除され、設定からも参照が消えます。",
   "dialog.session.forgotten": "セッションを消去しました。システムの保管庫の項目は削除されました。",
   "dialog.credKey": "API キー",
   "dialog.secret.placeholder": "値を貼り付けるか入力してください",
@@ -1628,5 +1628,6 @@
   "detect.costOffer.open": "ローカル費用を開く",
   "detect.costOffer.claude_code": "ローカルのログから API 価格での費用も見積もれます。Cuotai が読むのは Claude Code のソースをオンにした後だけです。",
   "detect.costOffer.codex_cli": "ローカルのログから API 価格での費用も見積もれます。Cuotai が読むのは Codex CLI のソースをオンにした後だけです。",
-  "detect.costOffer.gemini_cli": "ローカルのログから API 価格での費用も見積もれます。Cuotai が読むのは Gemini CLI のソースをオンにした後だけです。"
+  "detect.costOffer.gemini_cli": "ローカルのログから API 価格での費用も見積もれます。Cuotai が読むのは Gemini CLI のソースをオンにした後だけです。",
+  "coreText.sessionIncomplete": "保存されたウェブセッションに Cookie {names} がありません。新しいセッションを貼り付けてください。"
 }

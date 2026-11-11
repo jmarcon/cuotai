@@ -547,7 +547,7 @@
   "dialog.save.profileChanged": "साइन-इन के बाद प्रोफ़ाइल बदल गई; सहेजने से पहले फिर से साइन इन करें।",
   "dialog.session.title": "वेब सत्र",
   "dialog.session.orIntro": "या {provider} वेब सत्र का उपयोग करें:",
-  "dialog.session.stored": "सत्र सिस्टम वॉल्ट में रखा है; TOML में केवल संदर्भ रहता है।",
+  "dialog.session.stored": "सत्र सिस्टम वॉल्ट में रखा है; सेटिंग्स में केवल संदर्भ रहता है।",
   "dialog.session.placeholder": "Cookie: … पंक्ति, name=value; … सूची, कुकी तालिका या कॉपी किया गया cURL",
   "dialog.session.hosts": "केवल यहाँ भेजा जाता है: {hosts}",
   "dialog.session.open": "{site} खोलें",
@@ -573,7 +573,7 @@
   "dialog.session.pasteNew": "प्रदाता ने सहेजा हुआ सत्र अस्वीकार कर दिया। नीचे नया सत्र पेस्ट करें; वॉल्ट वाले को बदलने से पहले उसे जाँचा जाता है।",
   "dialog.session.forget": "यह सत्र भूल जाएँ",
   "dialog.session.forgetConfirm": "पुष्टि करें: सत्र भूल जाएँ",
-  "dialog.session.forgetHint": "पुष्टि के लिए फिर क्लिक करें: सत्र सिस्टम वॉल्ट से मिट जाता है और TOML से उसका संदर्भ हट जाता है।",
+  "dialog.session.forgetHint": "पुष्टि के लिए फिर क्लिक करें: सत्र सिस्टम वॉल्ट से मिट जाता है और सेटिंग्स से उसका संदर्भ हट जाता है।",
   "dialog.session.forgotten": "सत्र भुला दिया गया: सिस्टम वॉल्ट की प्रविष्टि मिटा दी गई।",
   "dialog.credKey": "API कुंजी",
   "dialog.secret.placeholder": "मान चिपकाएँ या टाइप करें",
@@ -1639,5 +1639,6 @@
   "detect.costOffer.open": "स्थानीय लागत खोलें",
   "detect.costOffer.claude_code": "इसके स्थानीय लॉग API कीमतों पर लागत का अनुमान भी दे सकते हैं; Cuotai उन्हें तभी पढ़ता है जब आप Claude Code स्रोत चालू करते हैं।",
   "detect.costOffer.codex_cli": "इसके स्थानीय लॉग API कीमतों पर लागत का अनुमान भी दे सकते हैं; Cuotai उन्हें तभी पढ़ता है जब आप Codex CLI स्रोत चालू करते हैं।",
-  "detect.costOffer.gemini_cli": "इसके स्थानीय लॉग API कीमतों पर लागत का अनुमान भी दे सकते हैं; Cuotai उन्हें तभी पढ़ता है जब आप Gemini CLI स्रोत चालू करते हैं।"
+  "detect.costOffer.gemini_cli": "इसके स्थानीय लॉग API कीमतों पर लागत का अनुमान भी दे सकते हैं; Cuotai उन्हें तभी पढ़ता है जब आप Gemini CLI स्रोत चालू करते हैं।",
+  "coreText.sessionIncomplete": "सहेजे गए वेब सत्र में कुकीज़ {names} नहीं हैं। नया सत्र पेस्ट करें।"
 }

@@ -2053,7 +2053,7 @@
   "user_session.paste.missing": "Не хватает cookie этого сеанса: {names}.",
   "user_session.paste.none_accepted": "В вставленном тексте нет cookie этого сеанса; он использует: {names}.",
   "user_session.paste.secret_invalid": "Вставленное значение пусто, слишком длинное или содержит недопустимые символы; скопируйте его заново.",
-  "user_session.paste.summary": "Сохранено: {kept}. Отброшено: {discarded}. {expiry}",
+  "user_session.paste.summary": "Оставлено: {kept}. Отброшено: {discarded}. {expiry}",
   "user_session.rejected": "Сеанс истёк или отозван; вставьте новый в мастере учётных записей.",
   "user_session.save.rejected": "Проверка сеанса не пройдена ({cause}); ничего не сохранено. Вставьте действительный сеанс и повторите попытку.",
   "user_session.save.unreachable": "Сеанс проверить не удалось ({cause}); ничего не сохранено. Выберите «Всё равно сохранить», чтобы сохранить его без проверки, либо повторите попытку.",

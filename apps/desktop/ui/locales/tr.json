@@ -547,7 +547,7 @@
   "dialog.save.profileChanged": "Profil oturum açıldıktan sonra değişti; kaydetmeden önce yeniden oturum açın.",
   "dialog.session.title": "Web oturumu",
   "dialog.session.orIntro": "Ya da {provider} web oturumunu kullanın:",
-  "dialog.session.stored": "Oturum sistem kasasında saklanır; TOML yalnızca başvuruyu tutar.",
+  "dialog.session.stored": "Oturum sistem kasasında saklanır; ayarlar yalnızca bir başvuru tutar.",
   "dialog.session.placeholder": "Cookie: … satırı, ad=değer; … listesi, çerez tablosu veya kopyalanmış bir cURL",
   "dialog.session.hosts": "Yalnızca şuraya gönderilir: {hosts}",
   "dialog.session.open": "{site} sayfasını aç",
@@ -573,7 +573,7 @@
   "dialog.session.pasteNew": "Sağlayıcı kayıtlı oturumu reddetti. Aşağıya yeni bir tane yapıştırın; kasadakinin yerine geçmeden önce test edilir.",
   "dialog.session.forget": "Bu oturumu unut",
   "dialog.session.forgetConfirm": "Onayla: oturumu unut",
-  "dialog.session.forgetHint": "Onaylamak için yeniden tıklayın: oturum sistem kasasından silinir ve TOML başvurusunu bırakır.",
+  "dialog.session.forgetHint": "Onaylamak için yeniden tıklayın: oturum sistem kasasından silinir ve ayarlar başvurusunu bırakır.",
   "dialog.session.forgotten": "Oturum unutuldu: sistem kasasındaki kayıt silindi.",
   "dialog.credKey": "API anahtarı",
   "dialog.secret.placeholder": "Değeri yapıştırın veya yazın",
@@ -1639,5 +1639,6 @@
   "detect.costOffer.open": "Yerel maliyet sayfasını aç",
   "detect.costOffer.claude_code": "Yerel günlükleri maliyeti API fiyatlarıyla da tahmin edebilir; Cuotai bunları yalnızca Claude Code kaynağını açtıktan sonra okur.",
   "detect.costOffer.codex_cli": "Yerel günlükleri maliyeti API fiyatlarıyla da tahmin edebilir; Cuotai bunları yalnızca Codex CLI kaynağını açtıktan sonra okur.",
-  "detect.costOffer.gemini_cli": "Yerel günlükleri maliyeti API fiyatlarıyla da tahmin edebilir; Cuotai bunları yalnızca Gemini CLI kaynağını açtıktan sonra okur."
+  "detect.costOffer.gemini_cli": "Yerel günlükleri maliyeti API fiyatlarıyla da tahmin edebilir; Cuotai bunları yalnızca Gemini CLI kaynağını açtıktan sonra okur.",
+  "coreText.sessionIncomplete": "Kaydedilen web oturumunda {names} çerezleri eksik. Yeni bir oturum yapıştırın."
 }

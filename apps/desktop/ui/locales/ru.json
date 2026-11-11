@@ -557,7 +557,7 @@
   "dialog.save.profileChanged": "Профиль изменился после входа; войдите снова перед сохранением.",
   "dialog.session.title": "Веб-сеанс",
   "dialog.session.orIntro": "Или используйте веб-сессию {provider}:",
-  "dialog.session.stored": "Сеанс хранится в системном хранилище; в TOML остаётся только ссылка.",
+  "dialog.session.stored": "Сеанс хранится в системном хранилище; в настройках остаётся только ссылка.",
   "dialog.session.placeholder": "Строка Cookie: …, список name=value; …, таблица cookie или скопированный cURL",
   "dialog.session.hosts": "Отправляется только на: {hosts}",
   "dialog.session.open": "Открыть {site}",
@@ -583,7 +583,7 @@
   "dialog.session.pasteNew": "Провайдер отклонил сохранённый сеанс. Вставьте новый ниже; он будет проверен, прежде чем заменит сеанс в хранилище.",
   "dialog.session.forget": "Забыть этот сеанс",
   "dialog.session.forgetConfirm": "Подтвердить: забыть сеанс",
-  "dialog.session.forgetHint": "Нажмите ещё раз для подтверждения: сеанс будет удалён из системного хранилища, а ссылка на него — из TOML.",
+  "dialog.session.forgetHint": "Нажмите ещё раз для подтверждения: сеанс будет удалён из системного хранилища, а ссылка на него — из настроек.",
   "dialog.session.forgotten": "Сеанс забыт: запись в системном хранилище удалена.",
   "dialog.credKey": "API-ключ",
   "dialog.secret.placeholder": "Вставьте или введите значение",
@@ -1661,5 +1661,6 @@
   "detect.costOffer.open": "Открыть «Локальные расходы»",
   "detect.costOffer.claude_code": "Его локальные журналы также могут оценить стоимость по ценам API; Cuotai читает их только после того, как вы включите источник Claude Code.",
   "detect.costOffer.codex_cli": "Его локальные журналы также могут оценить стоимость по ценам API; Cuotai читает их только после того, как вы включите источник Codex CLI.",
-  "detect.costOffer.gemini_cli": "Его локальные журналы также могут оценить стоимость по ценам API; Cuotai читает их только после того, как вы включите источник Gemini CLI."
+  "detect.costOffer.gemini_cli": "Его локальные журналы также могут оценить стоимость по ценам API; Cuotai читает их только после того, как вы включите источник Gemini CLI.",
+  "coreText.sessionIncomplete": "В сохранённом веб-сеансе нет файлов cookie {names}. Вставьте новый."
 }
