@@ -1338,8 +1338,8 @@
     "other": "{count} 件の制限"
   },
   "card.more": "その他の操作",
-  "cost.fold.summary": "今日 ≈{today} · {span} ≈{period}",
-  "cost.line": "ローカル費用 · 今日 ≈{today} · {span} ≈{period}（見積もり）",
+  "cost.fold.summary": "今日 {today} · {span} {period}",
+  "cost.line": "ローカル費用 · 今日 {today} · {span} {period}（見積もり）",
   "common.details": "詳細",
   "login.demo.oauth.label": "OAuth サインイン（デモ）",
   "login.demo.oauth.help": "ブラウザーのデモではサインインは実行されません。",

@@ -1371,8 +1371,8 @@
     "other": "{count} лимита"
   },
   "card.more": "Другие действия",
-  "cost.fold.summary": "≈{today} сегодня · {span} ≈{period}",
-  "cost.line": "Локальные расходы · ≈{today} сегодня · {span} ≈{period} (оценка)",
+  "cost.fold.summary": "{today} сегодня · {span} {period}",
+  "cost.line": "Локальные расходы · {today} сегодня · {span} {period} (оценка)",
   "common.details": "Подробнее",
   "login.demo.oauth.label": "Вход через OAuth (демо)",
   "login.demo.oauth.help": "Демо в браузере не выполняет вход.",

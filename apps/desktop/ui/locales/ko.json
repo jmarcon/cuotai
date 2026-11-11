@@ -1338,8 +1338,8 @@
     "other": "한도 {count}개"
   },
   "card.more": "더 많은 작업",
-  "cost.fold.summary": "오늘 ≈{today} · {span} ≈{period}",
-  "cost.line": "로컬 비용 · 오늘 ≈{today} · {span} ≈{period}(추정)",
+  "cost.fold.summary": "오늘 {today} · {span} {period}",
+  "cost.line": "로컬 비용 · 오늘 {today} · {span} {period}(추정)",
   "common.details": "상세",
   "login.demo.oauth.label": "OAuth 로그인(데모)",
   "login.demo.oauth.help": "브라우저 데모에서는 로그인을 실행하지 않습니다.",

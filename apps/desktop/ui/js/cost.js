@@ -5,7 +5,7 @@
 // model without a price reads "cost unknown", never zero. A source that is off shows nothing on the cards and, in
 // the details, why and where to turn it on.
 import { currentLocale, t, te, tl, tle } from "./i18n.js";
-import { esc, fmtDate, icon, logo } from "./lib.js";
+import { esc, fmtDate, fmtNumber, icon, logo } from "./lib.js";
 import { showDialog } from "./motion.js";
 
 const sum = (tokens) => tokens.input + tokens.output + tokens.cache_read + tokens.cache_write + (tokens.cache_write_1h ?? 0);
@@ -60,6 +60,9 @@ export function approxText(e) {
 }
 const approxUsd = (amount) => (amount > 0 && amount < 0.005 ? fmtUsd(amount) : `≈${fmtUsd(amount)}`);
 
+/** A model name that breaks only after its separators ("-", "/", "."), never inside a word (V-06). */
+const modelName = (name) => esc(name).replace(/([-/.])/g, "$1<wbr>");
+
 /** RF4.1: the source the accounts of `provider` show, if the summary has one. */
 export const sourceFor = (summary, provider) => summary?.sources.find((s) => s.providers.includes(provider)) ?? null;
 
@@ -72,11 +75,11 @@ const tile = (label, e, display) => `<div class="lc-tile"><span class="lc-label"
 
 const tilesHtml = (sc, summary) => `<div class="lc-tiles">${tile(t("cost.today"), sc.usage.today, summary.display)}${tile(t("cost.yesterday"), sc.usage.yesterday, summary.display)}${tile(tl(summary.span.label), sc.usage.period, summary.display)}</div>${displayLine(sc.usage.period.total, summary.display)}${planHtml(sc, summary)}`;
 
-/** PRD 0022 (mockups 03, 10): the values of the folded local-cost row: today and the period, with "≈" (always an
- *  estimate, DS-CMP-HON-2); null while the source is off. */
+/** PRD 0022 (mockups 03, 10): the values of the folded local-cost row: today and the period, with "≈" only before a
+ *  priced amount (DS-CMP-HON-2: never before "no usage", "cost unknown" or "< $0.01"); null while the source is off. */
 export function costSummary(sc, summary) {
   if (!sc?.usage) return null;
-  return { today: costText(sc.usage.today), period: costText(sc.usage.period), span: tl(summary.span.label) };
+  return { today: approxText(sc.usage.today), period: approxText(sc.usage.period), span: tl(summary.span.label) };
 }
 /** One muted line for the tray's expanded row: "Local cost · ≈$0.11 today · Last 7 days ≈$1.41 (estimate)". */
 export function costLineHtml(sc, summary) {
@@ -154,7 +157,7 @@ function chartHtml(sc, summary) {
     const tip = `${d.day === today ? `${t("cost.today")} · ` : ""}${date(d.day)}: ${d.cost == null && sum(d.tokens) ? t("cost.unknown") : shown(d)}`;
     return `<span class="lc-bar${cls ? ` ${cls}` : ""}" style="height:${height(d).toFixed(1)}%" title="${esc(tip)}"></span>`;
   }).join("");
-  const rows = days.map((d) => `<tr><th scope="row">${esc(date(d.day))}</th><td title="${esc(breakdown(d.tokens))}">${esc(fmtTokens(sum(d.tokens)))}</td><td>${esc(String(d.requests))}</td><td>${esc(costText(d))}</td></tr>`).join("");
+  const rows = days.map((d) => `<tr><th scope="row">${esc(date(d.day))}</th><td title="${esc(breakdown(d.tokens))}">${esc(fmtTokens(sum(d.tokens)))}</td><td>${esc(fmtNumber(d.requests, 0))}</td><td>${esc(costText(d))}</td></tr>`).join("");
   return `<figure class="lc-chart"><figcaption>${te("cost.detail.byDay", { period: tl(summary.span.label) })}</figcaption>
     <div class="lc-bars" role="img" aria-label="${esc(label)}">${bars}</div>
     <div class="lc-axis sub" aria-hidden="true"><span>${esc(date(days[0].day))}</span><span class="${days.at(-1).day === today ? "today" : ""}">${days.at(-1).day === today ? te("cost.today") : esc(date(days.at(-1).day))}</span></div>
@@ -166,7 +169,7 @@ function chartHtml(sc, summary) {
 function modelsHtml(sc, summary) {
   const models = sc.usage.period.models;
   if (!models.length) return "";
-  const rows = models.map((m) => `<tr><th scope="row"><code>${esc(m.model)}</code></th><td title="${esc(breakdown(m.tokens))}">${esc(fmtTokens(sum(m.tokens)))}</td><td>${esc(String(m.requests))}</td>
+  const rows = models.map((m) => `<tr><th scope="row"><code>${modelName(m.model)}</code></th><td title="${esc(breakdown(m.tokens))}">${esc(fmtTokens(sum(m.tokens)))}</td><td>${esc(fmtNumber(m.requests, 0))}</td>
     <td class="${m.cost == null ? "dim" : ""}">${esc(m.cost == null ? t("cost.unknown") : fmtUsd(m.cost))}</td>
     <td>${m.price ? te(`cost.origin.${m.price.origin}`) : "—"}</td></tr>`).join("");
   return `<table class="lc-models"><caption>${te("cost.detail.byModel", { period: tl(summary.span.label) })}</caption>

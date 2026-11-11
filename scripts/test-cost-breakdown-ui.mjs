@@ -108,6 +108,26 @@ assert.ok(!costCardHtml(claude, { ...usage, live: [] }).includes("data-cost-live
   assert.equal(costCardHtml({ ...claude, state: "off", usage: null }, usage), "");
 }
 
+// V-01 (DS-CMP-HON-2): the folded row and the tray line put "≈" only before a priced amount.
+{
+  const { costLineHtml, costSummary } = await import("../apps/desktop/ui/js/cost.js");
+  await i18n.setLocale("en-US");
+  const zero = { input: 0, output: 0, cache_read: 0, cache_write: 0, cache_write_1h: 0 };
+  const some = { ...zero, input: 1000 };
+  const est = (tokens, total) => ({ tokens, total, unknown_tokens: total == null ? tokens : zero });
+  const line = (today, period) => {
+    const sc = { ...claude, usage: { today, yesterday: today, period } };
+    return { v: costSummary(sc, usage), html: costLineHtml(sc, usage) };
+  };
+  for (const [today, label] of [[est(zero, null), "no usage"], [est(some, null), "unknown"], [est(some, 0.001), "sub-cent"]]) {
+    const { v, html } = line(today, today);
+    assert.ok(!v.today.includes("≈") && !v.period.includes("≈"), `${label}: no ≈ in ${JSON.stringify(v)}`);
+    assert.ok(!html.includes("≈"), `${label}: no ≈ in the tray line ${html}`);
+  }
+  const { v } = line(est(some, 1.5), est(some, 12));
+  assert.ok(v.today.startsWith("≈") && v.period.startsWith("≈"), `a priced amount keeps ≈: ${JSON.stringify(v)}`);
+}
+
 // Every built-in locale renders the sub-page, the tabs and the source options without raw keys.
 const view = await lib.costStatus();
 for (const { code } of i18n.LOCALES) {

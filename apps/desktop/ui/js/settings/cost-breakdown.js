@@ -6,7 +6,7 @@
 // 30 s while the tab is shown (no extra scan); the provider window sits beside it with distinct words, never merged.
 // Every figure comes from the core (`cost_breakdown`); nothing is computed here but display formatting.
 import { t, te, tle } from "../i18n.js";
-import { costBreakdown, costSetHidden, costSetLabel, esc, fmtDate } from "../lib.js";
+import { costBreakdown, costSetHidden, costSetLabel, esc, fmtDate, fmtNumber } from "../lib.js";
 import { approxText, fmtTokens } from "../cost.js";
 import { l10nError } from "./common.js";
 import { seg, toast } from "./rows.js";
@@ -26,7 +26,7 @@ const kpi = (label, figure, caption, unknown = false) => `<div class="lc-kpi${un
 function kpisHtml(e) {
   const priced = sum(e.tokens) ? e.total != null : true;
   return `<div class="lc-kpis" data-cost-kpis>${kpi(t("settings.costBy.kpi.total"), sum(e.tokens) ? approxText(e) : "—", t("settings.costBy.kpi.estimate"), !priced || !sum(e.tokens))}
-    ${kpi(t("settings.costBy.kpi.requests"), String(e.requests), t("settings.costBy.kpi.requestsCaption"))}
+    ${kpi(t("settings.costBy.kpi.requests"), fmtNumber(e.requests, 0), t("settings.costBy.kpi.requestsCaption"))}
     ${kpi(t("settings.costBy.kpi.tokens"), fmtTokens(sum(e.tokens)), t("settings.costBy.kpi.tokensCaption"))}</div>`;
 }
 

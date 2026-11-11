@@ -1349,8 +1349,8 @@
     "other": "{count} Limits"
   },
   "card.more": "Weitere Aktionen",
-  "cost.fold.summary": "≈{today} heute · {span} ≈{period}",
-  "cost.line": "Lokale Kosten · ≈{today} heute · {span} ≈{period} (Schätzung)",
+  "cost.fold.summary": "{today} heute · {span} {period}",
+  "cost.line": "Lokale Kosten · {today} heute · {span} {period} (Schätzung)",
   "common.details": "Details",
   "login.demo.oauth.label": "OAuth-Anmeldung (Demo)",
   "login.demo.oauth.help": "Die Browser-Demo führt die Anmeldung nicht aus.",

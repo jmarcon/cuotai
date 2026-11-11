@@ -1346,8 +1346,8 @@
     "other": "{count} limiti"
   },
   "card.more": "Altre azioni",
-  "cost.fold.summary": "≈{today} oggi · {span} ≈{period}",
-  "cost.line": "Costo locale · ≈{today} oggi · {span} ≈{period} (stima)",
+  "cost.fold.summary": "{today} oggi · {span} {period}",
+  "cost.line": "Costo locale · {today} oggi · {span} {period} (stima)",
   "common.details": "Dettagli",
   "login.demo.oauth.label": "Accesso OAuth (demo)",
   "login.demo.oauth.help": "La demo nel browser non esegue l'accesso.",

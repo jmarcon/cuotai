@@ -1338,8 +1338,8 @@
     "other": "{count} batas"
   },
   "card.more": "Tindakan lainnya",
-  "cost.fold.summary": "≈{today} hari ini · {span} ≈{period}",
-  "cost.line": "Biaya lokal · ≈{today} hari ini · {span} ≈{period} (perkiraan)",
+  "cost.fold.summary": "{today} hari ini · {span} {period}",
+  "cost.line": "Biaya lokal · {today} hari ini · {span} {period} (perkiraan)",
   "common.details": "Detail",
   "login.demo.oauth.label": "Masuk OAuth (demo)",
   "login.demo.oauth.help": "Demo peramban tidak menjalankan proses masuk.",
