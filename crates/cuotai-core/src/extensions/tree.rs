@@ -104,8 +104,9 @@ pub(crate) fn scan(dir: &Path) -> Result<String, Refused> {
 /// extensions `root` (the root included) is writable by the group or by
 /// others or owned by another user (Unix): otherwise the extension's folder
 /// could be swapped by a rename between the verification and a run. A
-/// folder that resolves outside `root` (a symbolic link in it) has its own
-/// parent and the root checked.
+/// folder that resolves outside `root` (a symbolic link in it) has every
+/// folder above it checked, up to the file-system root, as the hooks'
+/// [`crate::private_fs::exposed_chain`] does, and the extensions root too.
 pub(crate) fn scan_within(dir: &Path, root: &Path) -> Result<String, Refused> {
     let root = root.canonicalize().map_err(|_| Refused::Unreadable)?;
     let mut above: Vec<&Path> = Vec::new();
@@ -116,7 +117,7 @@ pub(crate) fn scan_within(dir: &Path, root: &Path) -> Result<String, Refused> {
                 .take_while(|ancestor| ancestor.starts_with(&root)),
         );
     } else {
-        above.extend(dir.parent());
+        above.extend(dir.ancestors().skip(1));
         above.push(&root);
     }
     for ancestor in above {
