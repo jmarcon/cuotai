@@ -311,6 +311,10 @@ pub(crate) struct Chunk<'a> {
     /// source keeps folder names.
     pub folders: Vec<(String, String)>,
     pub read_at: i64,
+    /// The control row's identity and position this read started from
+    /// (`None`: not followed yet). A different row at commit time means the
+    /// index was erased (or the file restarted) meanwhile.
+    pub started: Option<(String, u64)>,
 }
 
 /// What a committed chunk added.
@@ -318,6 +322,9 @@ pub(crate) struct Chunk<'a> {
 pub(crate) struct Committed {
     pub requests: u64,
     pub duplicates: u64,
+    /// Nothing was written: the control row changed since the read began
+    /// (an erase meanwhile), so the next scan reads the file from its start.
+    pub dropped: bool,
 }
 
 fn day_text(day: NaiveDate) -> String {
@@ -403,6 +410,18 @@ impl CostIndex {
         self.open().map(Some)
     }
 
+    /// Whether the index follows any log file of `source`.
+    pub(crate) fn follows_any(db: &Connection, source: SourceId) -> Result<bool, CostError> {
+        Ok(db
+            .query_row(
+                "SELECT 1 FROM files WHERE source = ?1 LIMIT 1",
+                [source.slug()],
+                |_| Ok(()),
+            )
+            .optional()?
+            .is_some())
+    }
+
     pub(crate) fn file(
         db: &Connection,
         source: SourceId,
@@ -468,6 +487,17 @@ impl CostIndex {
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         if !still_on() {
             return Ok(None);
+        }
+        // An erase between the read and this commit deleted the file's rows
+        // and its control row; writing the advanced position now would skip
+        // everything before it forever.
+        let now =
+            Self::file(&tx, chunk.source, chunk.file)?.map(|row| (row.identity, row.position));
+        if now != chunk.started {
+            return Ok(Some(Committed {
+                dropped: true,
+                ..Committed::default()
+            }));
         }
         let source = chunk.source.slug();
         if chunk.restart {

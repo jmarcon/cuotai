@@ -367,7 +367,11 @@ impl Scanner {
                 state,
             });
         }
-        scan.state = if scan.roots.iter().any(|r| r.state == RootState::Readable) {
+        // An empty log folder is no logs, unless the index still follows
+        // files of this source.
+        scan.state = if scan.roots.iter().any(|r| r.state == RootState::Readable)
+            && (!candidates.is_empty() || CostIndex::follows_any(db, source)?)
+        {
             SourceState::Ready
         } else if scan.roots.iter().any(|r| r.state == RootState::NoAccess) {
             SourceState::NoAccess
@@ -404,6 +408,9 @@ impl Scanner {
             }
             budget.files -= 1;
             let started = Instant::now();
+            let from = known
+                .as_ref()
+                .map(|row| (row.identity.clone(), row.position));
             let row = match known {
                 // PRD 0042 RF1.1: a file read again from its start after the
                 // schema 2 migration starts from a fresh parser state.
@@ -444,6 +451,7 @@ impl Scanner {
                     replayed: found.replayed,
                     folders: std::mem::take(&mut found.folders),
                     read_at: window.now.timestamp_millis(),
+                    started: from,
                 },
                 || self.still_on(source),
             )?;
@@ -451,6 +459,10 @@ impl Scanner {
                 // Turned off meanwhile: nothing more is read or reported.
                 return Ok(SourceScan::new(source, SourceState::Off));
             };
+            if committed.dropped {
+                // Erased meanwhile: the next scan reads it from the start.
+                continue;
+            }
             scan.read += 1;
             scan.restarted += usize::from(found.restarted);
             scan.lines += found.lines;
@@ -581,6 +593,7 @@ impl Scanner {
         let mut reader = BufReader::with_capacity(64 << 10, handle);
         let adapter = source.adapter();
         let mut buf = Vec::new();
+        let mut waiting = false;
         loop {
             let lines = usize::try_from(found.lines).unwrap_or(usize::MAX);
             if lines >= self.limits.max_lines
@@ -594,7 +607,13 @@ impl Scanner {
                     Next::Line { consumed, too_long } => (consumed, too_long),
                     // The tool finished the file without a final newline.
                     Next::Partial { consumed, too_long } if settled => (consumed, too_long),
-                    Next::Partial { .. } | Next::End => break,
+                    // A tail still being written: the next scan reopens the
+                    // file until a newline arrives or it settles.
+                    Next::Partial { .. } => {
+                        waiting = true;
+                        break;
+                    }
+                    Next::End => break,
                 };
             row.position += consumed;
             found.lines += 1;
@@ -639,7 +658,7 @@ impl Scanner {
         if row.position >= row.backfill {
             row.backfill = 0;
         }
-        row.examined = if found.stopped {
+        row.examined = if found.stopped || waiting {
             row.position
         } else {
             size.max(row.position)

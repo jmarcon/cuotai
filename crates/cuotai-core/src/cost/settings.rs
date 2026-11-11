@@ -7,8 +7,7 @@
 use super::plan::{DisplayCurrency, PlanSetting};
 use super::source::expand_home;
 use super::{CostError, Period, Retention, SourceId};
-use crate::hooks::write_atomically;
-use crate::models::{create_private_file, digest};
+use crate::models::digest;
 use crate::text::{params, Localized};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -350,12 +349,25 @@ impl SettingsStore {
         &self,
         change: impl FnOnce(&mut CostSettings) -> Result<(), CostError>,
     ) -> Result<CostSettings, CostError> {
-        let mut settings = self.load()?;
-        change(&mut settings)?;
-        let bytes = serde_json::to_vec_pretty(&settings).map_err(|_| CostError::Settings)?;
-        create_private_file(&self.path).map_err(|_| CostError::Settings)?;
-        write_atomically(&self.path, &bytes).map_err(|_| CostError::Settings)?;
-        Ok(settings)
+        // The read, the change and the replace run under the file's lock,
+        // so a concurrent writer (another front end turning a source off)
+        // is never undone by a copy read before it wrote.
+        let mut saved = None;
+        crate::private_fs::update_locked(&self.path, |current| {
+            let mut settings = match current {
+                Some(bytes) => serde_json::from_slice(&bytes).map_err(|_| CostError::Settings)?,
+                None => CostSettings::default(),
+            };
+            change(&mut settings)?;
+            let bytes = serde_json::to_vec_pretty(&settings).map_err(|_| CostError::Settings)?;
+            saved = Some(settings);
+            Ok(bytes)
+        })
+        .map_err(|error| match error {
+            crate::private_fs::UpdateError::Refused(error) => error,
+            _ => CostError::Settings,
+        })?;
+        saved.ok_or(CostError::Settings)
     }
 
     /// RF1.1: the user accepted the disclosure `digest` of `source` reading
@@ -683,5 +695,41 @@ mod tests {
             [(account.state_key(), plan)]
         );
         assert!(!store.migrate_plans(&accounts).unwrap());
+    }
+
+    /// A turn-off written while another writer's change is in flight is
+    /// never undone by that writer's copy read before it.
+    #[test]
+    fn a_concurrent_turn_off_survives_another_change() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("cost/settings.json");
+        let env = env("/home/ana");
+        let a = SettingsStore::at(path.clone());
+        let b = SettingsStore::at(path.clone());
+        let digest = a
+            .load()
+            .unwrap()
+            .disclosure(SourceId::ClaudeCode, &env)
+            .digest;
+        a.enable(SourceId::ClaudeCode, Vec::new(), &digest, &env, Utc::now())
+            .unwrap();
+        let mut turning_off = None;
+        a.update(|settings| {
+            // The other front end turns the source off while this change
+            // (a period) is being computed.
+            let b = b.clone();
+            turning_off = Some(std::thread::spawn(move || b.disable(SourceId::ClaudeCode)));
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            settings.period = Period::CurrentMonth;
+            Ok(())
+        })
+        .unwrap();
+        turning_off.unwrap().join().unwrap().unwrap();
+        let saved = SettingsStore::at(path).load().unwrap();
+        assert_eq!(saved.period, Period::CurrentMonth);
+        assert!(
+            !saved.enabled(SourceId::ClaudeCode, &env),
+            "the turn-off was undone by a stale copy"
+        );
     }
 }
