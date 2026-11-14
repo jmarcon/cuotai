@@ -14,7 +14,7 @@ import { openRestoreDialog } from "./backup-dialog.js";
 import {
   fmtNext, fmtAge, fmtShare, metricName, ALERTS, overageChipHtml, overageLineHtml, ageHtml, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isBindingMetric, isBlocked, isDesktop, isStaleReading, level, logo, wordmark,
   moveAccount, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
-  currentSort, initOrderSync, staleView, configChangedOnDisk, reloadConfig, configLabel, errText, otherConfigNotice, otherConfigBanner, dismissOtherConfig, returnText, splitRecharging,
+  currentSort, initOrderSync, staleView, configChangedOnDisk, reloadConfig, configLabel, errText, updateErrText, otherConfigNotice, otherConfigBanner, dismissOtherConfig, returnText, splitRecharging,
   accountLabel, billingOverage, fmtExtra, overageLineText, isRecharging, resetsText, bestChipHtml, cardPace, forecastChipHtml, renewedText, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, setPoolAlerts, setBreakdownAlerts, openAggregatorDashboard, incidentHtml, bindStatusLinks, costUsage, paceHtml, paceLineLabel, costPlans,
   openSettingsWindow, bindSettingsShortcut, onSettingsChanged, onAccountAction, listExtensions, extensionSecrets,
   planBadgeHtml, scopeBlocksHtml, budgetSuggestion,
@@ -787,7 +787,10 @@ onAccountAction(({ action, index, secretsOf = null }) => {
 // PRD 0018 RF2.2/RF2.6: the backend state repaints update notices, while the main
 // window alone hosts the one-time consent dialog. Its native modal layer does not
 // block backend or tray startup; closing it records nothing and sends nothing.
-bindUpdateBanner(root, { rerender: () => render(), onError: (e) => setNotice("bad", errText(e)) });
+// R-0018-01: refusals read as sentences; a failure the backend also records as the `failed` phase already has its
+// own notice, so it raises no second one.
+const PHASE_FAILURES = new Set(["network", "timeout", "signature", "io", "other"]);
+bindUpdateBanner(root, { rerender: () => render(), onError: (e) => { if (!PHASE_FAILURES.has(e)) setNotice("bad", updateErrText(e)); } });
 await initUpdates();
 onUpdateState(() => render());
 // PRD 0025 RF6/RF6.5: the first-run step asks the update question itself; otherwise the separate dialog does.
