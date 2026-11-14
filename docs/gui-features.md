@@ -43,8 +43,8 @@ When the providers' servers report a time more than five minutes away from this 
 **Settings › Dashboard** can also group exhausted or blocked accounts in a collapsible "Recharging" section that shows each return time ("Returns Today 14:30", or "Return unknown"). It is off by default and only changes the display: the manual order holds inside each group and the order saved in `cuotai.toml` never changes.
 
 <div align="center">
-  <img src="assets/screenshots/desktop-settings-appearance.png" alt="Settings, Appearance section" width="420" />
-  <p><em>Settings → Appearance: color mode, theme, animations, the "Recharging" group and the consumption pace.</em></p>
+  <img src="assets/screenshots/desktop-settings-appearance.png" alt="Settings, General page" width="640" />
+  <p><em>Settings › General: color mode, theme, language and startup. The "Recharging" group and the pace display are in Settings › Dashboard.</em></p>
 </div>
 
 ## Consumption pace
@@ -92,8 +92,8 @@ The same section turns on **usage alerts** (off by default, with the same permis
 **Notification channels** (PRD 0044, in **Settings › Alerts › Notification channels**) send the same notifications to up to 5 destinations you own: a webhook, an ntfy topic, Slack or Discord. Each channel is off until you add it. Adding one shows the host, what it will receive in words and an example payload before **Save**. The address stays in the system vault and the list shows only its host, the filters and the last delivery. Each channel has **Send test**, **Edit**, **Remove** and a switch, and the **Delivery log** shows what went out (never the text or the address). A channel failing for a day gets one notification and a banner, and it stays on. See [`notifications.md`](notifications.md).
 
 <div align="center">
-  <img src="assets/screenshots/desktop-settings-notify.png" alt="Settings, Notifications and History sections" width="420" />
-  <p><em>Settings → Notifications (and, below it, History).</em></p>
+  <img src="assets/screenshots/desktop-settings-notify.png" alt="Settings, Alerts page" width="640" />
+  <p><em>Settings › Alerts: reset notices, usage alerts, more alerts, quiet hours and a test notification.</em></p>
 </div>
 
 ## Providers' public status
@@ -103,8 +103,8 @@ The same section turns on **usage alerts** (off by default, with the same permis
 The TUI and the CLI read the same status only when you ask (`--status`, or `CUOTAI_STATUS=1` in the environment); `--no-status` always turns it off, also in scripts that inherit the variable. A card then shows the badge on its top border (`▲ Partial outage`, `? Status page unavailable`), the details list the provider's full status with the incident, its start, when it was read and the page, and `--once` prints a `Provider status:` line under the affected account. `--json` keeps its shape.
 
 <div align="center">
-  <img src="assets/screenshots/desktop-settings-privacy.png" alt="Settings, Privacy section" width="420" />
-  <p><em>Settings → Privacy: the provider status switch lists the domains it would read.</em></p>
+  <img src="assets/screenshots/desktop-settings-privacy.png" alt="Settings, Data and privacy page" width="640" />
+  <p><em>Settings › Data &amp; privacy: history, the provider status switch (with the domains it would read) and local tool detection.</em></p>
 </div>
 
 ## How each account's usage is read
@@ -146,7 +146,7 @@ Every successful reading (TUI, desktop app, `--once`, `--json`, `--json-v1`, `--
 
 An organizational account that opts into a breakdown (OpenRouter keys with a management key, LiteLLM virtual keys and teams, OpenAI projects or API keys, Anthropic workspaces) gets a **Breakdown** section in its details: one sub-limit row per key, project, workspace or team, with a meter when the row has a cap (an OpenRouter key limit, a LiteLLM budget) and its spend otherwise, the reset beside it and a disabled key's note. A toggle sorts the rows by spend or by percentage used. Past 25 rows the rest are summed into "Others (N)" and the section says how many were folded. With the Detailed display preset, the card adds one line, "Top: Proj-A $412 · Proj-B $298". The account dialog has a **Breakdown** field listing the values the account's mode offers with the extra requests each one adds to a refresh; a provider billed per query shows the field disabled with the reason. Rows are never per user, and the labels are redacted (see [`providers.md`](providers.md#breakdowns-by-key-project-workspace-and-team-prd-0045)).
 
-In the details the section ends with **Alert on breakdown rows** (off by default): with it on, the first ten rows that have a cap alert like the account's own quotas, at the thresholds of Settings → Alerts, and the notification names the row. Each row other than "Others" offers **Set a budget…**, which opens the account's **Budgets and floors** with a budget prefilled for that row; the row then shows its budget as one more meter. The history keeps the first ten rows (by a digest of their id) so a budget on a row has a baseline.
+In the details the section ends with **Alert on breakdown rows** (off by default): with it on, the first ten rows that have a cap alert like the account's own quotas, at the thresholds of **Settings › Alerts**, and the notification names the row. Each row other than "Others" offers **Set a budget…**, which opens the account's **Budgets and floors** with a budget prefilled for that row; the row then shows its budget as one more meter. The history keeps the first ten rows (by a digest of their id) so a budget on a row has a baseline.
 
 ## Local cost
 
@@ -155,8 +155,8 @@ In the details the section ends with **Alert on breakdown rows** (off by default
 **Sessions, blocks and projects** (PRD 0042), a sub-page of the same section, sets each source's block length (5 hours by default, 24 for Gemini CLI) and the opt-in "Keep the last folder name of each project" (off by default; turning it off deletes the names kept), then shows the local cost as **Days · Models · Sessions · Blocks · Projects**, each with the total (≈, an estimate at API prices), the requests and the tokens. Sessions and projects are labelled inline (Enter or leaving the field saves; an empty label removes it), and **Hide** leaves a project out of the totals while it stays listed. Blocks shows the active 5-hour block first: its window, time elapsed and left, the burn rate and "At this rate ≈ $6.40 by 18:53", with the provider's own window beside it in its own words, read again from the index every 30 seconds. The card of a Claude or ChatGPT / Codex account adds "This block ≈ $4.10 · 38K tok/min" under its local usage while the active block has a burn rate; its tooltip says it is a local estimate, not a charge. A source turned on before this version shows "What is read changed" and asks for the new disclosure (it names the project fingerprint) before reading again.
 
 <div align="center">
-  <img src="assets/screenshots/desktop-settings-cost.png" alt="Settings, Local cost and Integration sections" width="420" />
-  <p><em>Settings → Local cost (and, below it, Integration).</em></p>
+  <img src="assets/screenshots/desktop-settings-cost.png" alt="Settings, Local cost page" width="640" />
+  <p><em>Settings › Local cost, under Advanced.</em></p>
 </div>
 
 ## Tray popover and tray menu
