@@ -13,6 +13,19 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.85.7] - 2026-11-14
+
+### Changed
+
+- The privacy inventory now names the update check's User-Agent and no longer calls the release manifest signed (PRD 0018 RF3.3; 9102530).
+
+### Fixed
+
+- The menu-bar popover shows a single scroll bar again, inside its account list (de4edcb).
+- An update check or download that gets no answer now gives up after a short wait instead of stopping later checks (PRD 0018 RF2.1, RF2.3, RF3.2; fb14ff8).
+- A failed background update check no longer puts a red alert on the dashboard, and a failed download can be retried (PRD 0018 RF2.1, RF2.3, RF3.2; fb14ff8).
+- Settings › Updates lets you turn update checks on or off before you answered the first-run question, and updater messages are translated in every language (PRD 0018 RF2.4, RF2.6, RF3.1, RF3.3; dd5c271).
+
 ## [0.85.6] - 2026-11-11
 
 ### Fixed
@@ -789,7 +802,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.85.6...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.85.7...HEAD
+[0.85.7]: https://github.com/jmarcon/cuotai/compare/v0.85.6...v0.85.7
 [0.85.6]: https://github.com/jmarcon/cuotai/compare/v0.85.5...v0.85.6
 [0.85.5]: https://github.com/jmarcon/cuotai/compare/v0.85.4...v0.85.5
 [0.85.4]: https://github.com/jmarcon/cuotai/compare/v0.85.3...v0.85.4
