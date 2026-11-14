@@ -856,9 +856,9 @@ pub fn flow(purpose: Purpose) -> Flow {
             "0028",
         ),
         Purpose::DesktopUpdater => (
-            "GitHub Releases (signed manifest and installers)",
+            "GitHub Releases and its asset download host (release manifest `latest.json` and signed installers)",
             "on opening and every 24 hours, after you allow it once",
-            "nothing about you: a static manifest request, then only the installer you accept",
+            "a `GET` with `accept` and the `User-Agent` `tauri-plugin-updater/<version>` (the updater plugin's, not Cuotai's); no query, body, cookie or identifier. Then only the installer you accept",
             "asked once; off for package-manager installs",
             "0018",
         ),

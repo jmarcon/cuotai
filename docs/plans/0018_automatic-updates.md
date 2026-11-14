@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0018 |
-| Status | Awaiting owner verification (RF1–RF4 delivered in 0.74.0–0.75.1, the shared install-source contract adopted in 0.77.0 and RF2.6's pre-request consent gate delivered in 0.80.0; the acceptance criteria that need a real signed release and native/package-manager runners stay owner-blocked, and the winget installer receipt marker of RF3.2 is delivered in 0.81.0) |
+| Status | Awaiting owner verification (RF1–RF4 delivered in 0.74.0–0.75.1, the shared install-source contract adopted in 0.77.0 and RF2.6's pre-request consent gate delivered in 0.80.0; the acceptance criteria that need a real signed release and native/package-manager runners stay owner-blocked, and the winget installer receipt marker of RF3.2 is delivered in 0.81.0; the 2026-11 re-validation fixes are delivered in vNEXT) |
 | Owner | Desktop (`apps/desktop`) and the release pipeline |
 | Consumers | `apps/desktop/src-tauri`, `apps/desktop/ui` (Settings → Updates and About) |
 | Depends on | PRD 0019 (RF2: CI) and PRD 0021 (RF1–RF4, which supersede PRD 0019 RF3: signed packages and artifact hosting) |
@@ -18,9 +18,10 @@
 |---|---|---|
 | RF1 (mechanism and keys) | 0.74.0, 0.75.0 and 0.75.1 | Delivered — in the app in 0.74.0 (`tauri-plugin-updater` 2.14.0 pinned and initialized, the public key committed in `tauri.conf.json`, no capability permission because the web UI only calls shell commands), in the pipeline in 0.75.0 (`xtask updater-manifest` renders `latest.json`), and hardened in 0.75.1 (one artifact carries its platform/checksum proof plus its detached updater proof without duplicate signing records). |
 | RF2 (flow in the app) | 0.74.0, 0.75.1 and 0.77.0 | Delivered except the cross-OS acceptance smoke, which needs a signed release (owner). In 0.75.1 cancellation restores the retained update and verified bytes wait for the restart/login gate; in 0.77.0 the desktop consumes the core's typed install-source result without changing its installability, guidance or request policy. |
-| RF3 (Settings and About) | 0.74.0, 0.75.1 and 0.77.0 | Delivered; the four-language UI smoke and zero-request test are automated. In 0.75.1 malformed persisted dates, preference re-enabling, Scoop boundaries and Linux guidance were corrected. In 0.77.0 package-manager ownership/reasons and upgrade commands come from the same core function exposed by the offline CLI, with Cargo and Homebrew Cellar included. |
-| RF2.6 (ask before the first check) | 0.80.0 | Delivered — a persisted answer gates the scheduler, the manual command and the request boundary in Rust. The one-time dialog discloses the exact request fields and click-only download/install in all four UI languages; its Yes, No and close paths are exercised through the production UI modules. A request-counting backend test proves zero requests while unanswered, after No and under every existing off policy, and one scheduled check after Yes; legacy profiles with an explicit off preference migrate as answered and stay off. |
+| RF3 (Settings and About) | 0.74.0, 0.75.1 and 0.77.0 | Delivered; the UI smoke (now over all 14 built-in languages) and zero-request test are automated. In 0.75.1 malformed persisted dates, preference re-enabling, Scoop boundaries and Linux guidance were corrected. In 0.77.0 package-manager ownership/reasons and upgrade commands come from the same core function exposed by the offline CLI, with Cargo and Homebrew Cellar included. |
+| RF2.6 (ask before the first check) | 0.80.0 | Delivered — a persisted answer gates the scheduler, the manual command and the request boundary in Rust. The one-time dialog discloses the exact request fields and click-only download/install in every UI language (14 since PRD 0034); its Yes, No and close paths are exercised through the production UI modules. A request-counting backend test proves zero requests while unanswered, after No and under every existing off policy, and one scheduled check after Yes; legacy profiles with an explicit off preference migrate as answered and stay off. |
 | RF4 (operational security) | 0.74.0–0.75.1 | Delivered — HTTPS endpoint and real untrusted-certificate coverage in 0.74.0/0.75.1, artifact URLs restricted to this repository's HTTPS release downloads in 0.75.1, and key custody, leak/loss procedures plus the pipeline review in 0.75.0 ([`docs/updater-security.md`](../updater-security.md)). |
+| Re-validation (2026-11-14) | vNEXT | Fixes of the 2026-11 re-validation (Visual, Security, Review): S-0018-01 the check request gives up after 30 s and a download after 60 s without progress (no total cap), both with the translated, retryable `timeout` code, tested against a server that accepts and never answers; V-0018-02 the failed phase records its stage, so a failed check (background or manual) is a quiet status in Settings and About while a failed download or install is a dismissable `role="status"` notice (DS-CMP-MSG-2); R-0018-02 a failed download keeps the announced update and offers **Try again** (not after a signature failure); S-0018-04 `install` repeats the request gate and turning checks off drops an announced update, cancels a download and clears a kept failure; V-0018-07 while the question is unanswered the Settings switch answers it; R-0018-01 every updater refusal code goes through one helper with `update.error.*` sentences in all 14 catalogs, including RF2.4's sign-in notice; V-0018-01, V-0018-03 to V-0018-06 the phase lines carry their values, the About row names the failed stage, the off reason shows once, the switch reads off under an external policy, the progress line moves, and the downloading, ready and managed notices have their tone and icon; S-0018-02, S-0018-03, S-0018-05 [`docs/updater-security.md`](../updater-security.md), [`docs/privacy.md`](../privacy.md) and [`docs/advanced.md`](../advanced.md) list exactly what a check sends (HTTP/1.1, `accept`, the plugin's `User-Agent`, the redirect to GitHub's asset host, the IP address GitHub sees), call only the installers signed, and describe the winget receipt. |
 | RF3.2 (winget ownership) | 0.81.0 | Delivered — the winget installer manifest passes `/WINGET=1`; an NSIS installer hook writes an `install-source.txt` receipt beside `Cuotai.exe` (a manual install removes it, and so does the uninstaller) and `cuotai_core::install_source` reads it as `Winget` after the path rules, so the internal updater stays off beside the package manager. A live `winget install` is an owner check. |
 
 Open or owner-blocked, and not claimed as delivered:
@@ -36,6 +37,8 @@ Open or owner-blocked, and not claimed as delivered:
   `install-source.txt` beside `Cuotai.exe` (0.81.0), which a live winget install
   must still confirm;
 - the **`release` environment protection** is on (a required reviewer and a deployment branch policy, checked on 2026-10-25), as documented in [`docs/updater-security.md`](../updater-security.md); whether the branch policy admits only tags is worth one look in the repository settings.
+
+**Open items (2026-11-14 re-validation):** (1) the download's 60-second idle bound and the check's 30-second bound were chosen by the owner, not measured on slow real links. (2) The updater still sends the plugin's own `User-Agent` (`tauri-plugin-updater/2.14.0`) by owner decision; it is now documented rather than replaced. (3) The RF2 cross-OS update proof (`v0.80.0` → `v0.80.1`) and the live package-manager installs stay owner checks (`0000_control.md` §2.1).
 
 ## 1. Context
 
@@ -86,8 +89,8 @@ In the 2026-10-19 market analysis: CodexBar uses Sparkle and Homebrew for update
 
 - **RF3.1** **Settings → Updates**: a switch to check automatically, a **Check now** button, the date of the last check, the current version and the channel (stable). The About screen shows the version and the state.
 - **RF3.2** When the feature is off, the app makes no update request. An installation managed by Homebrew, winget or AUR must be able to turn the internal updater off (an environment variable or a build key), so it does not compete with the manager.
-- **RF3.3** Preferences in `desktop.json`, texts in the three languages.
-- **Acceptance criterion:** a smoke test in three languages; with the feature off, a network capture shows zero updater requests.
+- **RF3.3** Preferences in `desktop.json`, texts in the three languages (every built-in language since PRD 0034: 14).
+- **Acceptance criterion:** a smoke test in three languages (now all 14); with the feature off, a network capture shows zero updater requests.
 
 ### RF4 — Operational security (high priority)
 
@@ -131,7 +134,7 @@ Verified in the repository, on every push:
   schedule and produces one request when due, and every environment, build and
   package-manager policy continues to produce zero requests. The production UI
   smoke covers Yes, No and close (which records no answer), renders the dialog
-  in all four built-in languages and keeps the question hidden for managed
+  in every built-in language (14) and keeps the question hidden for managed
   installs.
 - the 0.77.0 shared-source regression: core path/environment tests cover every
   source and its boundaries, while the desktop view receives the same disable
@@ -143,7 +146,7 @@ Verified in the repository, on every push:
   real self-signed certificate that fails as untrusted;
 - `cargo deny` over both manifests, which is why the plugin's `zip` feature is
   off (see [`docs/updater-security.md`](../updater-security.md));
-- the four-language smoke of Settings → Updates and the banner, including the
+- the smoke of Settings → Updates and the banner in every built-in language (14), including the
   distinction between a user-disabled (re-enableable) switch and an external
   policy lock;
 - the updater's manifest renderer against real ephemeral-key signatures, and
@@ -155,8 +158,8 @@ Not verified here, and therefore not claimed:
 
 - an installed app on an earlier version downloading and applying a real signed
   release on each of the three operating systems;
-- live Homebrew, Scoop, winget or AUR installs; normal winget ownership is not
-  implemented because its NSIS path is also used by manual installs and the
-  repository has no durable ownership marker;
+- live Homebrew, Scoop, winget or AUR installs; normal winget ownership has
+  been read from the `install-source.txt` installer receipt since 0.81.0 (RF3.2),
+  which a live winget install must still confirm;
 - the key rotation of the leak procedure, which needs a second key pair and a
   public release.

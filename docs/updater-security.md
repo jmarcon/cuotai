@@ -322,31 +322,55 @@ Each result must name the new certificate and have `Status` equal to `Valid`.
 
 This section covers the updater only; [`privacy.md`](privacy.md) is the generated inventory of every network flow and local file.
 
-Checking for updates is a plain `GET` of the endpoint:
+Checking for updates is a plain `GET` of the endpoint, over HTTPS (HTTP/1.1;
+the updater's HTTP client is built without HTTP/2):
 
 ```text
-GET /jmarcon/cuotai/releases/latest/download/latest.json HTTP/2
-Host: github.com
+GET /jmarcon/cuotai/releases/latest/download/latest.json HTTP/1.1
+host: github.com
+accept: application/json
+user-agent: tauri-plugin-updater/2.14.0
 ```
 
-There is **no request body, no query string and no header carrying user data**
-— no identifier, no account, no machine ID, no usage data, no IP-derived
-tracking. The manifest is a static file identical for every user; the app
-decides what to download by looking up its own platform key locally, so the
-`{os}-{arch}` of the requester is never transmitted. Only when the user
-consents to an update is the platform artifact downloaded from
-`github.com/jmarcon/cuotai/releases/download/<tag>/<asset>` — the same file a
-browser would fetch.
+These are all the request headers. The `User-Agent` is the updater plugin's
+own (its crate name and pinned version), so it names the plugin release, not
+Cuotai's version, the user or the machine. There is **no request body, no
+query string, no cookie and no other header**: no identifier, no account, no
+machine ID and no usage data. The manifest is a static file identical for every
+user; the app looks up its own platform key in it locally, so the `{os}-{arch}`
+of the requester is never transmitted.
+
+GitHub answers that address with a redirect to its release-asset download host
+(today `release-assets.githubusercontent.com` or `objects.githubusercontent.com`),
+and the client follows it with the same headers. Both GitHub and that host see
+the request's IP address and the time of the check, as for any download from
+GitHub; Cuotai adds nothing that would link two checks together.
+
+Only when the user clicks **Update now** is the platform package downloaded
+from `github.com/jmarcon/cuotai/releases/download/<tag>/<asset>` (the app
+refuses any other host, path or scheme before the request). That request is
+the same `GET` with `accept: application/octet-stream` and the same
+`User-Agent`, and it follows the same redirect to the asset host. It is the
+same file a browser would fetch, and its signature is checked before anything
+is installed.
+
+The check request gives up after 30 seconds, and the download after 60 seconds
+without receiving a byte (no total limit, so a slow link still finishes). Both
+end with a retryable "did not answer in time" message instead of blocking later
+checks.
 
 The user can turn the feature off entirely (**Settings › About › Updates**), after
-which the app makes no updater request at all. The desktop detects Homebrew
-Caskroom, the exact Scoop `apps\cuotai` component, winget's package-cache path
-and Linux system package roots, and turns the in-app updater off for those
-installs. With Tauri's default current-user NSIS mode, a normal winget install
-shares `%LocalAppData%\Cuotai` with a manual NSIS install, so it cannot be
-classified safely until the packaging contract defines a durable ownership
-marker; `CUOTAI_UPDATER=off` is the honest override in the meantime (PRD 0018
-RF3.2, PRD 0021 RF8.1).
+which the app makes no updater request at all; turning it off also drops an
+announced update and cancels a download in progress. The desktop detects
+Homebrew Caskroom, the exact Scoop `apps\cuotai` component, winget installs and
+Linux system package roots, and turns the in-app updater off for those
+installs. With Tauri's default current-user NSIS mode a winget install and a
+manual install share the same folder, so the winget manifest passes
+`/WINGET=1` and the NSIS installer writes the receipt `install-source.txt`
+(containing `winget`) beside the executable; a manual install removes it
+(`apps/desktop/src-tauri/windows/hooks.nsh`).
+`CUOTAI_UPDATER=off` remains an extra override for any other managed install
+(PRD 0018 RF3.2, PRD 0021 RF8.1).
 
 ## What the pipeline does per platform
 
