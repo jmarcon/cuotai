@@ -33,6 +33,10 @@ const PAGES = zoom ? ZOOM_PAGES : [
   ["tray", "tray.html", 380, 600, {}],
   ["tray-rings", "tray.html", 380, 600, { "cuotai.trayView": "rings" }],
   ["tray-compact", "tray.html", 380, 600, { "cuotai.trayView": "compact" }],
+  // The 24-hour strip under the rows (with its hidden table), with many accounts and with few: the popover's list is
+  // its only scroll container, the document never scrolls.
+  ["tray-strip", "tray.html?strip", 380, 600, {}],
+  ["tray-strip-few", "tray.html?fixture=six&strip", 380, 600, {}],
   ["main-narrow", "index.html", 520, 820, {}],
   ["main-narrow-cost", "index.html?cost", 520, 820, {}],
   ["main-two-columns-cost", "index.html?cost", 820, 820, {}],
@@ -166,6 +170,15 @@ const PAGE_JS = `(() => {
   // The details dialog and the Add-account catalog scroll inside only, never around it and never sideways.
   if (modal && (modal.scrollHeight > modal.clientHeight + 1 || modal.scrollWidth > modal.clientWidth + 1)) out.push({ kind: "nested-scroll", ok: false, sel: "dialog." + modal.className.replaceAll(" ", "."), text: modal.scrollWidth + "x" + modal.scrollHeight + " > " + modal.clientWidth + "x" + modal.clientHeight });
   if (document.documentElement.scrollWidth > vw + 1) out.push({ kind: "horizontal-scroll", ok: false, sel: "html", text: document.documentElement.scrollWidth + " > " + vw });
+  // The tray popover scrolls inside its list only: a scrolling document draws a second scroll bar beside the panel.
+  // The live region (components.js) joins the body, after the full-height root, once a refresh announces a change.
+  if (document.querySelector(".pop") && !document.getElementById("cuotai-live")) {
+    const live = document.createElement("div");
+    live.id = "cuotai-live"; live.className = "sr-only"; live.textContent = "Claude: 98% left, was 99%";
+    document.body.append(live);
+  }
+  const doc = document.scrollingElement;
+  if (document.querySelector(".pop") && doc.scrollHeight > innerHeight + 1) out.push({ kind: "document-scroll", ok: false, sel: "html", text: doc.scrollHeight + " > " + innerHeight });
   return out;
 })()`;
 

@@ -2785,8 +2785,8 @@ const demo = {
       .filter(([, , row]) => !(row.amount > 0 && row.amount <= 1e9))
       .map(([list, i]) => ({ field: `${list}[${i}].amount`, note: { id: "budget.error.amount", params: { field: `${list}[${i}].amount` }, fallback: `${list}[${i}].amount: the amount must be greater than 0 and at most 1,000,000,000.` } })),
   }),
-  // Demo: no history, so no strip.
-  hourly_strip: async () => null,
+  // Demo: no history, so no strip; `?strip` shows the 24-hour strip of the first account (PRD 0043 RF4.2).
+  hourly_strip: async () => (DEMO_QUERY.has("strip") ? { name: "Claude", rhythm: demoRhythm(false).last_24h } : null),
   // Demo: a draft with the reference line only (no plan price in the demo).
   budget_suggestion: async () => ({
     budget: { kind: "spend", amount: 0, unit: "USD", period: "monthly" },

@@ -8,13 +8,20 @@
 .lbl.accent, .sg.accent { color: var(--accent); }
 .lbl.muted, .lbl.unknown, .sg.muted, .sg.unknown { color: var(--fg-muted); }
 .lbl.fg { color: var(--fg); }
+/* Visually hidden, still read by screen readers. Always a block: a table ignores `height: 1px` and grows to its rows,
+   so a hidden table goes inside a `div.sr-only`. The -1px margin keeps the 1px box inside its container, so a hidden
+   element after a full-height root (the live region) never makes the document scroll. */
 .sr-only {
   position: absolute;
   left: 0;
   width: 1px;
   height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
   overflow: hidden;
   clip: rect(0 0 0 0);
+  clip-path: inset(50%);
   white-space: nowrap;
 }
 
