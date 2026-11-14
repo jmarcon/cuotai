@@ -377,4 +377,4 @@ function plain(html) {
   assert.match(stepHtml({ updatePending: true }), /dlg-shell-head[\s\S]*dlg-shell-body[\s\S]*first-run-update[\s\S]*dlg-shell-foot[\s\S]*data-first-on/);
 }
 assert.deepEqual(long, [], "row labels over 4 words");
-console.log("PASS: Settings window pages follow DS-CMP-SEG-5, the sidebar navigates, every old dialog control renders on its page, and the rows keep the RF3/RF5 limits in pt-BR, en-US, es and it");
+console.log("PASS: Settings window pages follow DS-CMP-SEG-5, the sidebar navigates, every old dialog control renders on its page, and the rows keep the RF3/RF5 limits in every built-in language");

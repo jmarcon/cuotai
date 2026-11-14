@@ -588,6 +588,19 @@ export const errText = (e) => {
   return t("common.unexpected");
 };
 
+/**
+ * R-0018-01: an updater command's refusal (`login_in_progress`, `unwritable`, `stale`, …) or failure code
+ * (`network`, `io`, …) through its `update.error.*` sentence; anything else goes through `errText`.
+ */
+export const updateErrText = (e) => {
+  if (typeof e === "string" && /^[a-z_]+$/.test(e)) {
+    const key = `update.error.${e}`;
+    const text = t(key);
+    if (text !== key) return text;
+  }
+  return errText(e);
+};
+
 // ---------- formatting ----------
 /** Remaining percentage (0–100) per the core's classification; null = no measure/limit. */
 export function remainingPct(m) {

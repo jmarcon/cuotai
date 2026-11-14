@@ -4,7 +4,7 @@
 // 0018 RF2.6 as a separate question with its own buttons. Closing records nothing: the step returns next launch.
 // What **Turn on** writes is decided by the shell and the core (`first_run_turn_on`, `AlertPrefs::recommended`).
 import { t, te } from "./i18n.js";
-import { errText, esc, firstRunRecord, firstRunTurnOn, getSettings, icon, updaterAnswerAutomatic } from "./lib.js";
+import { errText, esc, firstRunRecord, firstRunTurnOn, getSettings, icon, updateErrText, updaterAnswerAutomatic } from "./lib.js";
 import { showDialog } from "./motion.js";
 import { bindShell, shellHtml } from "./dialog-shell.js";
 import { maybeShowWhatsNew } from "./whats-new-dialog.js";
@@ -96,7 +96,7 @@ export async function maybeShowFirstRun(view, update) {
       updateDone = true;
       answered([...box.querySelectorAll("button")], t(yes ? "firstrun.update.on" : "firstrun.update.off"));
       finish();
-    } catch (x) { box.querySelector("[data-first-update-error]").textContent = errText(x); }
+    } catch (x) { box.querySelector("[data-first-update-error]").textContent = updateErrText(x); }
   };
   dlg.querySelector("[data-first-update-yes]")?.addEventListener("click", updateAnswer(true));
   dlg.querySelector("[data-first-update-no]")?.addEventListener("click", updateAnswer(false));

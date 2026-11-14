@@ -38,7 +38,7 @@ const menubar = await import("../apps/desktop/ui/js/settings/menubar.js");
 const firstRun = await import("../apps/desktop/ui/js/first-run.js");
 await i18n.initI18n();
 
-// Catalog parity: every new key in the four catalogs.
+// Catalog parity: every new key in every built-in catalog.
 const catalogs = {};
 for (const { code } of i18n.LOCALES) catalogs[code] = JSON.parse(await readFile(ui(`locales/${code}.json`), "utf8"));
 const ours = Object.keys(catalogs["en-US"]).filter((k) => /^(settings\.menubar|settings\.setup|settings\.page\.menubar|firstrun\.)/.test(k));
@@ -117,4 +117,4 @@ assert.equal((emptyStrip.match(/mb-col gap/g) ?? []).length, 24);
 assert.match(tray, /data-pop-strip/);
 assert.match(tray, /rhythmChartHtml\(strip\.rhythm/);
 
-console.log("PASS: Settings › Menu bar, the popover split and the first-run step render in pt-BR, en-US, es and it");
+console.log("PASS: Settings › Menu bar, the popover split and the first-run step render in every built-in language");

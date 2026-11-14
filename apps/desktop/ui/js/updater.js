@@ -1,12 +1,12 @@
 // PRD 0018 RF2/RF3 — the update notice and the "Updates" section of the settings.
 // The interface never sees a manifest URL, a signature or a key: the backend
 // hands over only what to show (phase, version, notes, progress, reason). All texts
-// live in the four catalogs.
+// live in every built-in catalog.
 import { te, t, currentLocale } from "./i18n.js";
 import { showDialog } from "./motion.js";
 import { row, sw } from "./settings/rows.js";
 import {
-  esc, errText, fmtDate, icon, onUpdate, openExternal, updaterAnswerAutomatic, updaterCancelDownload, updaterCheckNow,
+  esc, fmtDate, icon, onUpdate, openExternal, updateErrText, updaterAnswerAutomatic, updaterCancelDownload, updaterCheckNow,
   updaterDismiss, updaterInstall, updaterRestart, updaterStatus, setUpdaterAutomatic,
 } from "./lib.js";
 
@@ -54,7 +54,7 @@ export function updateBannerHtml() {
     case "downloading":
       return downloadingHtml(s);
     case "installing":
-      return `<div class="banner" role="status" data-update-banner>${icon("refresh")} ${te("update.installing", { version: s.version })}</div>`;
+      return `<div class="banner info" role="status" data-update-banner>${icon("refresh")} ${te("update.installing", { version: s.version })}</div>`;
     case "ready":
       return readyHtml(s);
     case "failed":
@@ -108,7 +108,7 @@ export async function promptForUpdateConsent() {
     } catch (reason) {
       no.disabled = false;
       yes.disabled = false;
-      error.textContent = errText(reason);
+      error.textContent = updateErrText(reason);
     }
   };
   dlg.addEventListener("close", () => dlg.remove(), { once: true });
@@ -133,21 +133,21 @@ const availableHtml = (s) => {
 };
 
 /** PRD 0018 RF2.5 / PRD 0021 RF8.1: managed or non-writable installation. */
-const managedHtml = (s) => `<div class="banner" role="status" data-update-banner data-update="managed">
-  <b>${te("update.available", { version: s.version })}</b>
+const managedHtml = (s) => `<div class="banner info" role="status" data-update-banner data-update="managed">
+  ${icon("download")}<b>${te("update.available", { version: s.version })}</b>
   <p class="hint">${te(`update.cannot.${s.upgrade_command ? "managed" : "place"}`)}</p>
   ${s.upgrade_command ? `<code class="update-cmd">${esc(s.upgrade_command)}</code>` : ""}
   <div class="dlg-actions left"><button class="btn" data-update-manual>${te("update.manual")}</button></div>
 </div>`;
 
-const downloadingHtml = (s) => `<div class="banner" role="status" data-update-banner data-update="downloading">
-  <b>${te("update.downloading", { version: s.version })}</b>
+const downloadingHtml = (s) => `<div class="banner info" role="status" data-update-banner data-update="downloading">
+  ${icon("download")}<b>${te("update.downloading", { version: s.version })}</b>
   ${s.progress == null ? "" : `<progress class="update-progress" max="100" value="${s.progress}"></progress><span class="hint">${s.progress}%</span>`}
   <div class="dlg-actions left"><button class="btn" data-update-cancel>${te("update.cancel")}</button></div>
 </div>`;
 
-const readyHtml = (s) => `<div class="banner" role="status" data-update-banner data-update="ready">
-  <b>${te("update.ready", { version: s.version })}</b>
+const readyHtml = (s) => `<div class="banner info" role="status" data-update-banner data-update="ready">
+  ${icon("refresh")}<b>${te("update.ready", { version: s.version })}</b>
   <div class="dlg-actions left"><button class="btn primary" data-update-restart>${te("update.restart")}</button></div>
 </div>`;
 
@@ -191,15 +191,18 @@ export function updatesSectionHtml(s, message = "") {
   const pending = !!s?.consent_pending;
   const off = s && !s.enabled;
   // A user's answered preference must never lock the control needed to turn
-  // checks back on. The unanswered gate and external policies stay read-only.
-  const switchLocked = pending || (off && s.disabled_reason !== "preference");
+  // checks back on, and while the first-run question is unanswered the switch
+  // answers it (V-0018-07). Only external policies stay read-only.
+  const switchLocked = off && !pending && s.disabled_reason !== "preference";
+  // V-0018-04: an external policy keeps checks off whatever the stored preference says.
+  const checked = !!(s?.automatic && s?.enabled);
   const last = s?.last_check ? t("update.lastCheckAt", { date: new Date(s.last_check).toLocaleString(currentLocale()) }) : t("update.lastCheckNever");
   const offText = pending ? te("update.consent.pending") : off ? te(`update.off.${s.disabled_reason}`) : "";
   return `<section class="set-sec" data-updates>
     <h2>${te("update.title")}</h2>
     <div data-update-body>
       ${privacyNoteHtml()}
-      ${row({ key: "update-auto", label: te("update.automatic"), msg: "update-auto-msg", control: (a) => sw("update-automatic", s?.automatic, a, switchLocked ? "disabled" : "") })}
+      ${row({ key: "update-auto", label: te("update.automatic"), msg: "update-auto-msg", control: (a) => sw("update-automatic", checked, a, switchLocked ? "disabled" : "") })}
       ${off ? `<p class="hint warn-txt" data-update-off>${offText}</p>` : ""}
       <p class="hint">${te("update.version", { version: `${s?.current_version ?? "—"}${s?.build ? ` (${s.build})` : ""}` })} · ${te("update.channel", { channel: s?.channel ?? "stable" })}</p>
       <p class="hint" id="update-last-check">${last}</p>
@@ -214,25 +217,35 @@ export function updatesSectionHtml(s, message = "") {
   </section>`;
 }
 
-/** An honest line about what is happening now. */
-const phaseText = (s) => {
-  if (!s) return t("common.loading");
-  if (s.consent_pending) return t("update.consent.pending");
-  if (!s.enabled) return t(`update.off.${s.disabled_reason}`);
-  switch (s.phase) {
+/** PRD 0018 RF3.1: the phase in one short sentence (Settings › About's version row). */
+export const updateStateText = (s) => {
+  switch (s?.phase) {
     case "checking": return t("update.state.checking");
     case "uptodate": return t("update.state.uptodate");
     case "available": return t("update.state.available", { version: s.version });
-    case "downloading": return t("update.state.downloading", { version: s.version, progress: s.progress ?? "" });
-    case "installing": return t("update.state.installing");
-    case "ready": return t("update.state.ready");
-    case "failed": return t(`update.error.${s.error ?? "other"}`);
+    case "downloading": return s.progress == null
+      ? t("update.state.downloadingUnknown", { version: s.version })
+      : t("update.state.downloading", { version: s.version, progress: s.progress });
+    case "installing": return t("update.state.installing", { version: s.version });
+    case "ready": return t("update.state.ready", { version: s.version });
+    case "failed": return t(s.failed_stage === "download" ? "update.state.downloadFailed"
+      : s.failed_stage === "install" ? "update.state.installFailed" : "update.state.failed");
     default: return t("update.state.idle");
   }
 };
 
-/** PRD 0018 RF3.1: the section's controls, each change saved immediately. */
-export async function bindUpdates(sec) {
+/** An honest line about what is happening now. While checks are off the reason
+ *  above already says why, so the line stays empty instead of repeating it (V-0018-03). */
+const phaseText = (s) => {
+  if (!s) return t("common.loading");
+  if (s.consent_pending || !s.enabled) return "";
+  if (s.phase === "failed") return updateErrText(s.error ?? "other");
+  return updateStateText(s);
+};
+
+/** PRD 0018 RF3.1: the section's controls, each change saved immediately. Returns
+ *  the unsubscribe of the live phase line (a download's progress, V-0018-05). */
+export function bindUpdates(sec) {
   const automatic = sec.querySelector("#update-automatic");
   const msg = sec.querySelector("#update-msg");
   const last = sec.querySelector("#update-last-check");
@@ -246,11 +259,14 @@ export async function bindUpdates(sec) {
   };
   automatic?.addEventListener("change", async (e) => {
     try {
-      const view = await setUpdaterAutomatic(e.target.checked);
+      // V-0018-07: while the first-run question is unanswered, the switch is the answer.
+      const view = status?.consent_pending
+        ? await updaterAnswerAutomatic(e.target.checked)
+        : await setUpdaterAutomatic(e.target.checked);
       repaint(view);
     } catch (err) {
       e.target.checked = !e.target.checked;
-      repaint(status, errText(err));
+      repaint(status, updateErrText(err));
     }
   });
   sec.querySelector("[data-update-check]")?.addEventListener("click", async (e) => {
@@ -261,12 +277,13 @@ export async function bindUpdates(sec) {
       const view = await updaterCheckNow();
       repaint(view);
     } catch (err) {
-      repaint(status, errText(err));
+      repaint(status, updateErrText(err));
     } finally {
       button.disabled = false;
     }
   });
   sec.querySelector("[data-update-manual]")?.addEventListener("click", (e) => {
-    openExternal(status?.manual_url).catch((err) => repaint(status, errText(err)));
+    openExternal(status?.manual_url).catch((err) => repaint(status, updateErrText(err)));
   });
+  return onUpdateState((view) => { if (phase) phase.textContent = phaseText(view); });
 }

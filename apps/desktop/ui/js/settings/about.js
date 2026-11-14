@@ -4,14 +4,14 @@ import { esc, firstRunRecord, setWhatsNewAuto } from "../lib.js";
 import { openLibraries } from "../about-dialog.js";
 import { openWhatsNew } from "../whats-new-dialog.js";
 import { openReportProblem } from "../report-dialog.js";
-import { bindUpdates, onUpdateState, updatesSectionHtml } from "../updater.js";
+import { bindUpdates, onUpdateState, updateStateText, updatesSectionHtml } from "../updater.js";
 import { errorText, group } from "./common.js";
 import { buttons, row, rowError, sw, toast } from "./rows.js";
 
 export function html({ settings: s, update }) {
   return group("about", te("settings.about"),
     row({ key: "version", label: `Cuotai ${esc(s.version)}${update?.build ? ` (${esc(update.build)})` : ""}`,
-      desc: `${te("about.license", { license: "MIT" })} · ${te("about.updateState", { state: t("update.state." + (update?.phase ?? "idle"), { version: update?.version ?? "" }) })}`,
+      desc: `${te("about.license", { license: "MIT" })} · ${te("about.updateState", { state: updateStateText(update) })}`,
       control: () => buttons(`<button class="btn sm" data-libraries>${te("about.libraries")}</button><button class="btn sm" data-whats-new>${te("about.whatsNew")}</button><button class="btn sm" data-report-problem>${te("report.action")}</button>`) })
     // PRD 0019 RF7.7: the notes open once by themselves after an update; on by default.
     + row({ key: "whats-new-auto", label: te("settings.whatsnew.auto"), desc: te("settings.whatsnew.auto.desc"),
@@ -25,7 +25,7 @@ export function html({ settings: s, update }) {
 }
 
 /** What the page shows of the updater; another change (a download's progress) does not redraw it. */
-const shownState = (s) => JSON.stringify([s?.phase, s?.version, s?.enabled, s?.automatic, s?.consent_pending, s?.disabled_reason, s?.last_check, s?.error]);
+const shownState = (s) => JSON.stringify([s?.phase, s?.version, s?.enabled, s?.automatic, s?.consent_pending, s?.disabled_reason, s?.last_check, s?.error, s?.failed_stage]);
 
 export function bind(root, ctx) {
   root.querySelector("[data-libraries]").onclick = () => openLibraries();
@@ -41,13 +41,14 @@ export function bind(root, ctx) {
     (x) => rowError(again, errorText(x)));
   // PRD 0018 RF3.1: updater controls use the state fetched for this page; a change made elsewhere (the main
   // window's banner, the consent question, the daily check) redraws the page while it is shown.
-  bindUpdates(root.querySelector("[data-update-body]"));
+  const unbindUpdates = bindUpdates(root.querySelector("[data-update-body]"));
   const drawn = shownState(ctx.update);
   let stop = null;
   stop = onUpdateState((next) => {
     if (shownState(next) === drawn) return;
     stop?.();
+    unbindUpdates();
     ctx.rerender();
   });
-  ctx.onLeave?.(() => stop?.());
+  ctx.onLeave?.(() => { stop?.(); unbindUpdates(); });
 }

@@ -38,7 +38,7 @@ Object.defineProperty(globalThis, "navigator", {
   value: { languages: ["en-US"], language: "en-US" },
   configurable: true,
 });
-globalThis.location = { search: consentMode === "managed" ? "?update=managed" : consentMode === "yes" ? "?update=consent&update-consent-race" : consentMode ? "?update=consent" : "" };
+globalThis.location = { search: consentMode === "managed" ? "?update=managed" : consentMode === "yes" || consentMode === "switch" ? "?update=consent&update-consent-race" : consentMode ? "?update=consent" : "" };
 globalThis.localStorage = {
   getItem: (key) => storage.get(key) ?? null,
   setItem: (key, value) => storage.set(key, value),
@@ -60,6 +60,50 @@ const aboutPage = await import("../apps/desktop/ui/js/settings/about.js");
 await i18n.initI18n();
 await updater.initUpdates();
 await new Promise((resolve) => setTimeout(resolve, 0));
+
+/** A minimal element for `bindUpdates`: listeners, `textContent`, `checked` and `disabled`. */
+const fakeElement = (extra = {}) => ({
+  textContent: "", checked: false, disabled: false, listeners: {},
+  addEventListener(type, cb) { this.listeners[type] = cb; },
+  ...extra,
+});
+
+if (consentMode === "switch") {
+  // V-0018-07: while the question is unanswered, the Settings switch answers it; V-0018-05: the phase line follows
+  // a download's progress without a page redraw.
+  await i18n.setLocale("en-US");
+  const pending = updater.updatesSectionHtml(updater.updateState());
+  const pendingSwitch = pending.match(/<input id="update-automatic"[^>]*>/)?.[0] ?? "";
+  assert.ok(!pendingSwitch.includes("disabled"), "the unanswered switch must answer the question");
+  const elements = {
+    "#update-automatic": fakeElement(),
+    "#update-msg": fakeElement(),
+    "#update-last-check": fakeElement(),
+    "[data-update-phase]": fakeElement(),
+    "[data-update-check]": fakeElement(),
+  };
+  const unbind = updater.bindUpdates({ querySelector: (selector) => elements[selector] ?? null });
+  const automatic = elements["#update-automatic"];
+  automatic.checked = true;
+  await automatic.listeners.change({ target: automatic });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(updater.updateState().consent_pending, false, "the switch did not answer the question");
+  assert.equal(updater.updateState().automatic, true, "the switch's answer was not yes");
+  assert.equal(elements["#update-msg"].textContent, "", "answering through the switch showed an error");
+  const phase = elements["[data-update-phase]"];
+  const seen = new Set();
+  const install = lib.updaterInstall();
+  for (let i = 0; i < 40 && updater.updateState().phase !== "ready"; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    seen.add(phase.textContent);
+  }
+  await install;
+  assert.ok([...seen].some((text) => /18%/.test(text)) && [...seen].some((text) => /78%/.test(text)), `the progress line did not move: ${[...seen].join(" | ")}`);
+  assert.ok([...seen].every((text) => !text.includes("{")), `a placeholder leaked: ${[...seen].join(" | ")}`);
+  unbind();
+  console.log("PASS: the Settings switch answers the update question and the progress line moves");
+  process.exit(0);
+}
 
 if (consentMode) {
   assert.ok(["close", "no", "yes", "managed"].includes(consentMode), `unknown consent mode: ${consentMode}`);
@@ -272,8 +316,9 @@ for (const { code } of i18n.LOCALES) {
     consent_pending: true,
   });
   const pendingSwitch = pending.match(/<input id="update-automatic"[^>]*>/)?.[0] ?? "";
-  assert.ok(pendingSwitch.includes("disabled"), `${code}: unanswered switch must stay locked`);
-  assert.ok(pending.includes(catalog["update.consent.pending"]), `${code}: pending answer is not visible`);
+  assert.ok(!pendingSwitch.includes("disabled"), `${code}: unanswered switch must answer the question (V-0018-07)`);
+  assert.equal(pending.split(lib.esc(catalog["update.consent.pending"])).length - 1, 1, `${code}: the pending answer must show once`);
+  assert.equal(preferenceOff.split(lib.esc(catalog["update.off.preference"])).length - 1, 1, `${code}: the off reason must show once`);
 
   const policyOff = updater.updatesSectionHtml({
     ...base,
@@ -282,11 +327,38 @@ for (const { code } of i18n.LOCALES) {
   });
   const policySwitch = policyOff.match(/<input id="update-automatic"[^>]*>/)?.[0] ?? "";
   assert.ok(policySwitch.includes("disabled"), `${code}: external policy switch must stay locked`);
+  assert.ok(!/\bchecked\b/.test(policySwitch), `${code}: a policy that keeps checks off must not show the switch on (V-0018-04)`);
+
+  // V-0018-01 / R-0018-01: every phase and every refusal renders as a translated sentence, with no placeholder or
+  // raw code left.
+  const raw = /\{[a-z]+\}|\b[a-z]+_[a-z_]+\b/;
+  const phases = [
+    { phase: "idle" }, { phase: "checking" }, { phase: "uptodate" }, { phase: "available" },
+    { phase: "downloading", progress: 42 }, { phase: "downloading", progress: null }, { phase: "installing" }, { phase: "ready" },
+    { phase: "failed", error: "timeout", failed_stage: "check" }, { phase: "failed", error: "network", failed_stage: "download", can_retry: true },
+    { phase: "failed", error: "io", failed_stage: "install" },
+  ];
+  for (const extra of phases) {
+    const view = { ...base, ...extra };
+    const line = updater.updatesSectionHtml(view).match(/<p class="hint" data-update-phase>([^<]*)<\/p>/)?.[1] ?? "";
+    assert.ok(line && !raw.test(line), `${code}: Settings phase line for ${JSON.stringify(extra)}: ${line}`);
+    const about = updater.updateStateText(view);
+    assert.ok(about && !raw.test(about), `${code}: About state for ${JSON.stringify(extra)}: ${about}`);
+    if (extra.phase === "installing" || extra.phase === "ready") assert.ok(about.includes("1.2.4"), `${code}: ${extra.phase} lacks the version`);
+  }
+  assert.ok(updater.updateStateText({ ...base, phase: "failed", failed_stage: "download" }) !== updater.updateStateText({ ...base, phase: "failed", failed_stage: "check" }),
+    `${code}: a failed download must not read as a failed check`);
+  for (const refusal of ["login_in_progress", "no_update", "stale", "unavailable", "already_running", "updater_off",
+    "updater_consent_required", "unwritable", "network", "timeout", "signature", "io", "insecure_endpoint", "other"]) {
+    const text = lib.updateErrText(refusal);
+    assert.equal(text, catalog[`update.error.${refusal}`], `${code}: ${refusal} is not translated`);
+    assert.ok(!raw.test(text), `${code}: ${refusal} renders a raw code: ${text}`);
+  }
   assert.ok(policyOff.includes("CUOTAI_UPDATER=off"), `${code}: environment override is not visible`);
 }
 
 const consentSmokes = [];
-for (const mode of ["close", "no", "yes", "managed"]) {
+for (const mode of ["close", "no", "yes", "managed", "switch"]) {
   const child = spawnSync(process.execPath, [fileURLToPath(import.meta.url), "--consent", mode], {
     encoding: "utf8",
   });
@@ -297,4 +369,4 @@ console.log(consentSmokes.join("\n"));
 
 console.log(`Rendered updater headings: ${renderedHeadings.join(" | ")}`);
 console.log(`Rendered release dates: ${renderedDates.join(" | ")}`);
-console.log("PASS: updater Settings renders one heading and a localized release date in pt-BR, en-US, es and it");
+console.log(`PASS: updater Settings renders one heading, a localized release date and translated states in all ${i18n.LOCALES.length} languages`);
