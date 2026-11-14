@@ -1072,6 +1072,8 @@
   "update.error.insecure_endpoint": "L’adresse de vérification n’est pas en HTTPS ; la vérification a été refusée.",
   "update.error.unconfigured": "Cette copie n’a pas été compilée avec le canal de mise à jour.",
   "update.error.other": "La mise à jour a échoué. Vous pouvez la télécharger manuellement.",
+  "update.error.timeout": "Le serveur des versions n'a pas répondu à temps. Réessayez plus tard ou téléchargez-la manuellement.",
+  "update.retry": "Réessayer",
   "about.updateState": "mise à jour : {state}",
   "report.action": "Signaler un problème",
   "report.title": "Signaler un problème",

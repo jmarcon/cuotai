@@ -1070,6 +1070,8 @@
   "update.error.insecure_endpoint": "L'indirizzo della verifica non è HTTPS; la verifica è stata rifiutata.",
   "update.error.unconfigured": "Questa copia non è stata compilata con il canale di aggiornamento.",
   "update.error.other": "L'aggiornamento non è riuscito. Puoi scaricarlo manualmente.",
+  "update.error.timeout": "Il server delle versioni non ha risposto in tempo. Riprova più tardi oppure scaricalo manualmente.",
+  "update.retry": "Riprova",
   "report.action": "Segnala un problema",
   "report.title": "Segnala un problema",
   "report.intro": "Questo testo verrà aperto come issue su GitHub",

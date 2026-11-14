@@ -1072,6 +1072,8 @@
   "update.error.insecure_endpoint": "Die Prüfadresse ist nicht HTTPS; die Prüfung wurde abgelehnt.",
   "update.error.unconfigured": "Diese Kopie wurde nicht mit dem Update-Kanal gebaut.",
   "update.error.other": "Das Update ist fehlgeschlagen. Sie können es manuell herunterladen.",
+  "update.error.timeout": "Der Release-Server hat nicht rechtzeitig geantwortet. Versuchen Sie es später erneut oder laden Sie es manuell herunter.",
+  "update.retry": "Erneut versuchen",
   "about.updateState": "Update: {state}",
   "report.action": "Problem melden",
   "report.title": "Problem melden",

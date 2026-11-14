@@ -1065,6 +1065,8 @@
   "update.error.insecure_endpoint": "Alamat pemeriksaan bukan HTTPS; pemeriksaan ditolak.",
   "update.error.unconfigured": "Salinan ini tidak dibangun dengan kanal pembaruan.",
   "update.error.other": "Pembaruan gagal. Anda dapat mengunduhnya secara manual.",
+  "update.error.timeout": "Server rilis tidak menjawab tepat waktu. Coba lagi nanti, atau unduh secara manual.",
+  "update.retry": "Coba lagi",
   "about.updateState": "pembaruan: {state}",
   "report.action": "Laporkan masalah",
   "report.title": "Laporkan masalah",

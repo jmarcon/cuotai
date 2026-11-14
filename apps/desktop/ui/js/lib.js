@@ -2029,18 +2029,19 @@ const demoPrices = () => {
     pricing_file: { path: "/Users/demo/Library/Application Support/cuotai/cost/pricing.json", used: false, error: null }, models };
 };
 // PRD 0018 RF2.6/RF3.1/RF2.5 browser demo: the same `UpdateView` fields.
-// `?update=consent` shows the question without a request; `off`, `managed` and
-// `error` exercise the other states.
+// `?update=consent` shows the question without a request; `off`, `managed`,
+// `error` (a failed check) and `download-error` exercise the other states.
 const DEMO_UPDATE = new URLSearchParams(location.search).get("update");
 const DEMO_NOTES = "Measurement fixes and a new automatic update option (PRD 0018).";
 const demoUpdate = {
   automatic: !["off", "consent"].includes(DEMO_UPDATE),
   consentAnswered: DEMO_UPDATE !== "consent",
   lastCheck: null,
-  phase: DEMO_UPDATE === "error" ? "failed" : DEMO_UPDATE === "fresh" || DEMO_UPDATE === "off" || DEMO_UPDATE === "consent" ? "uptodate" : "available",
+  phase: DEMO_UPDATE === "error" || DEMO_UPDATE === "download-error" ? "failed" : DEMO_UPDATE === "fresh" || DEMO_UPDATE === "off" || DEMO_UPDATE === "consent" ? "uptodate" : "available",
   version: "0.72.0", notes: DEMO_NOTES, date: "2026-10-22T00:00:00Z",
   canInstall: DEMO_UPDATE !== "managed", upgradeCommand: DEMO_UPDATE === "managed" ? "brew upgrade --cask cuotai-app" : null,
-  progress: null, dismissed: false, error: DEMO_UPDATE === "error" ? "network" : null,
+  progress: null, dismissed: false, error: DEMO_UPDATE === "error" || DEMO_UPDATE === "download-error" ? "network" : null,
+  failedStage: DEMO_UPDATE === "error" ? "check" : DEMO_UPDATE === "download-error" ? "download" : null,
   disabledReason: DEMO_UPDATE === "managed" ? "homebrew" : DEMO_UPDATE === "off" ? "preference" : null,
 };
 const demoWait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -2050,10 +2051,13 @@ const demoUpdateView = () => {
     enabled, automatic: demoUpdate.automatic, disabled_reason: demoUpdate.disabledReason,
     channel: "stable", current_version: "0.71.1", build: null, last_check: demoUpdate.lastCheck,
     consent_pending: !demoUpdate.consentAnswered && !demoUpdate.disabledReason,
-    phase: demoUpdate.phase, version: demoUpdate.phase === "idle" || demoUpdate.phase === "failed" ? null : demoUpdate.version,
+    phase: demoUpdate.phase,
+    version: demoUpdate.phase === "idle" || (demoUpdate.phase === "failed" && demoUpdate.failedStage !== "download") ? null : demoUpdate.version,
     notes: demoUpdate.phase === "available" ? DEMO_NOTES : null, date: demoUpdate.phase === "available" ? demoUpdate.date : null,
     can_install: demoUpdate.canInstall, upgrade_command: demoUpdate.upgradeCommand, progress: demoUpdate.progress,
     dismissed: demoUpdate.dismissed, error: demoUpdate.error,
+    failed_stage: demoUpdate.phase === "failed" ? demoUpdate.failedStage : null,
+    can_retry: demoUpdate.phase === "failed" && demoUpdate.failedStage === "download",
     manual_url: "https://github.com/jmarcon/cuotai/releases/latest",
   };
 };
@@ -2596,6 +2600,8 @@ const demo = {
     if (!demoUpdate.consentAnswered) throw "updater_consent_required";
     demoUpdate.automatic = on;
     demoUpdate.disabledReason = on ? null : "preference";
+    // S-0018-04: off drops the announced update, a download and a failure kept for a retry.
+    if (!on && ["available", "downloading", "failed"].includes(demoUpdate.phase)) demoUpdate.phase = "idle";
     demoUpdateEmit(demoUpdateView());
     return demoUpdateView();
   },
@@ -2624,7 +2630,8 @@ const demo = {
   },
   updater_install: async () => {
     const view = demoUpdateView();
-    if (view.phase !== "available") throw "no_update";
+    if (!view.enabled) throw "updater_off";
+    if (view.phase !== "available" && !view.can_retry) throw "no_update";
     Object.assign(demoUpdate, { phase: "downloading", progress: 0, dismissed: false });
     demoUpdateEmit(demoUpdateView());
     for (const progress of [18, 47, 78, 100]) {

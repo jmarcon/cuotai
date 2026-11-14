@@ -1072,6 +1072,8 @@
   "update.error.insecure_endpoint": "Denetim adresi HTTPS değil; denetim reddedildi.",
   "update.error.unconfigured": "Bu kopya güncelleme kanalıyla derlenmedi.",
   "update.error.other": "Güncelleme başarısız oldu. Elle indirebilirsiniz.",
+  "update.error.timeout": "Sürüm sunucusu zamanında yanıt vermedi. Daha sonra yeniden deneyin veya elle indirin.",
+  "update.retry": "Yeniden dene",
   "about.updateState": "güncelleme: {state}",
   "report.action": "Sorun bildir",
   "report.title": "Sorun bildir",

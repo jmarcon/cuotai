@@ -1065,6 +1065,8 @@
   "update.error.insecure_endpoint": "Địa chỉ kiểm tra không phải HTTPS; việc kiểm tra bị từ chối.",
   "update.error.unconfigured": "Bản sao này không được dựng cùng kênh cập nhật.",
   "update.error.other": "Cập nhật không thành công. Bạn có thể tải xuống thủ công.",
+  "update.error.timeout": "Máy chủ phát hành không phản hồi kịp. Hãy thử lại sau hoặc tải xuống thủ công.",
+  "update.retry": "Thử lại",
   "about.updateState": "cập nhật: {state}",
   "report.action": "Báo cáo sự cố",
   "report.title": "Báo cáo sự cố",

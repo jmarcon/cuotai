@@ -58,7 +58,10 @@ export function updateBannerHtml() {
     case "ready":
       return readyHtml(s);
     case "failed":
-      return failedHtml(s);
+      // V-0018-02 (DS-CMP-MSG-2): a failed check, background or manual, is a quiet
+      // status in Settings and About; only a failed download or install raises a
+      // dismissable notice here, and a download that kept its update offers a retry.
+      return (s.failed_stage === "download" || s.failed_stage === "install") && !s.dismissed ? failedHtml(s) : "";
     default:
       return "";
   }
@@ -148,9 +151,12 @@ const readyHtml = (s) => `<div class="banner" role="status" data-update-banner d
   <div class="dlg-actions left"><button class="btn primary" data-update-restart>${te("update.restart")}</button></div>
 </div>`;
 
-const failedHtml = (s) => `<div class="banner bad" role="alert" data-update-banner data-update="failed">
-  ${icon("warn")} ${te(`update.error.${s.error ?? "other"}`)}
-  <div class="dlg-actions left"><button class="btn" data-update-manual>${te("update.manual")}</button></div>
+const failedHtml = (s) => `<div class="banner bad" role="status" data-update-banner data-update="failed">
+  ${icon("warn")}<div class="banner-main">${te(`update.error.${s.error ?? "other"}`)}</div>
+  <div class="banner-acts">
+    ${s.can_retry ? `<button class="btn" data-update-now>${te("update.retry")}</button>` : `<button class="btn" data-update-manual>${te("update.manual")}</button>`}
+    <button class="icon" data-update-dismiss title="${te("common.dismiss")}" aria-label="${te("common.dismiss")}">${icon("x")}</button>
+  </div>
 </div>`;
 
 /**
@@ -162,7 +168,7 @@ export function bindUpdateBanner(root, { rerender, onError }) {
   root.addEventListener("click", async (e) => {
     const t = e.target;
     if (t.closest("[data-update-now]")) return updaterInstall().then(rerender, onError);
-    if (t.closest("[data-update-later]")) return updaterDismiss().then(rerender, onError);
+    if (t.closest("[data-update-later]") || t.closest("[data-update-dismiss]")) return updaterDismiss().then(rerender, onError);
     if (t.closest("[data-update-cancel]")) return updaterCancelDownload().then(rerender, onError);
     if (t.closest("[data-update-manual]")) return openExternal(status?.manual_url).catch(onError);
     if (t.closest("[data-update-restart]")) {

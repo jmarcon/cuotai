@@ -237,6 +237,26 @@ for (const { code } of i18n.LOCALES) {
   }
   updateState.date = releaseDate;
   renderedDates.push(`${code}: ${renderedDate}`);
+  // V-0018-02 / R-0018-02: a failed check stays off the dashboard; a failed download or install is a dismissable
+  // status (not an alert), and a download that kept its update offers a retry.
+  {
+    const saved = { ...updateState };
+    Object.assign(updateState, { phase: "failed", error: "timeout", failed_stage: "check", can_retry: false, dismissed: false });
+    assert.equal(updater.updateBannerHtml(), "", `${code}: a failed check must not raise a dashboard notice`);
+    Object.assign(updateState, { error: "network", failed_stage: "download", can_retry: true });
+    const failed = updater.updateBannerHtml();
+    assert.match(failed, /role="status"/, `${code}: a failed download is a status, not an alert`);
+    assert.doesNotMatch(failed, /role="alert"/, `${code}: a failed download must not be an alert`);
+    assert.ok(failed.includes(lib.esc(catalog["update.error.network"])), `${code}: download failure text missing`);
+    assert.ok(failed.includes(lib.esc(catalog["update.retry"])), `${code}: retry action missing`);
+    assert.match(failed, /data-update-dismiss[^>]*aria-label=/, `${code}: dismiss lacks an accessible name`);
+    Object.assign(updateState, { error: "io", failed_stage: "install", can_retry: false });
+    assert.match(updater.updateBannerHtml(), /data-update-manual/, `${code}: a failed install offers the manual link`);
+    updateState.dismissed = true;
+    assert.equal(updater.updateBannerHtml(), "", `${code}: a dismissed failure must stay closed`);
+    for (const key of Object.keys(updateState)) delete updateState[key];
+    Object.assign(updateState, saved);
+  }
   const preferenceOff = updater.updatesSectionHtml({
     ...base,
     enabled: false,
