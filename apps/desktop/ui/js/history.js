@@ -45,8 +45,8 @@ function tableHtml(m) {
   const rows = m.windows.map((w) => `<tr><td>${esc(when(w.started_at))}</td><td>${esc(when(w.ended_at))}</td>
     <td>${esc(fmtValue(w.initial_used, m.unit))}</td><td>${esc(fmtValue(w.final_used, m.unit))}</td>
     <td>${esc(fmtValue(w.peak_used, m.unit))}</td><td>${esc(when(w.peak_at))}</td></tr>`).join("");
-  return `<table class="sr-only"><caption>${esc(m.label)}: ${esc(summary(m))} ${te("trend.table.resets", { count: m.chart.resets.length })}</caption>
-    <thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`;
+  return `<div class="sr-only"><table><caption>${esc(m.label)}: ${esc(summary(m))} ${te("trend.table.resets", { count: m.chart.resets.length })}</caption>
+    <thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 export function metricHtml(m, view) {

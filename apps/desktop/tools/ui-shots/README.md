@@ -14,7 +14,7 @@ repository root.
 |---|---|
 | `sh apps/desktop/tools/ui-shots/capture.sh [--out DIR] [name-prefix …]` | Renders every screen of [`screens.tsv`](screens.tsv) at 2x into `docs/plans/assets/0022/delivered/` (same names as the mockups in `assets/0022/after/`) |
 | `node apps/desktop/tools/ui-shots/docs-shots.mjs [--out DIR] [name-prefix …]` | Regenerates the images of `docs/assets/screenshots/` that `README.md`, `docs/` and `site/` share and the demo can draw: `desktop-hero` (composed from the main window and the tray), `desktop-dashboard`, `desktop-dashboard-light`, `desktop-details` and `theme-<id>-<mode>`. Names and pixel sizes stay fixed, because `site/index.html` declares them |
-| `node apps/desktop/tools/ui-shots/check.mjs [--json] [locale …]` | Runs the overflow check on the tray (380 × 600, List, Rings and Compact), the main window (520 and 1200 wide, plus 520 and 820 with the local-cost rows, 905 and 1105 for the one-row topbar, and the Win98 and XP themes in both modes), the account details dialog and the Add-account catalog at short heights (which must scroll inside only) and four Settings pages (640 × 460) in en-US, pt-BR, es, it and the `en-XA` pseudo-locale; exits 1 on any problem outside the allowed list |
+| `node apps/desktop/tools/ui-shots/check.mjs [--json] [locale …]` | Runs the overflow check on the tray (380 × 600, List, Rings and Compact, and List with the 24-hour strip, `?strip`, with many and few accounts), the main window (520 and 1200 wide, plus 520 and 820 with the local-cost rows, 905 and 1105 for the one-row topbar, and the Win98 and XP themes in both modes), the account details dialog and the Add-account catalog at short heights (which must scroll inside only) and four Settings pages (640 × 460) in en-US, pt-BR, es, it and the `en-XA` pseudo-locale; exits 1 on any problem outside the allowed list |
 | `node apps/desktop/tools/ui-shots/locale-smoke.mjs [locale …]` | PRD 0034 RF7: renders the tray, the main window, the Settings pages and the dialogs in en-US, es and it with the core catalogs; exits 1 on any Portuguese word, or on a catalog key shown instead of its text |
 | `node apps/desktop/tools/ui-shots/check.mjs --zoom [locale …]` | The 200 % zoom pass (PRD 0020 RNF): the same overflow check on the main window at 640 × 410 and four Settings pages at 640 × 360, the CSS viewports a 1280-wide screen leaves at 200 % |
 | `node apps/desktop/tools/ui-shots/a11y.mjs [--json] [--all]` | axe-core (pinned 4.10.2 from cdnjs, SHA-256 verified before it runs) over the tray, main window and four Settings pages, light and dark in en-US and dark in every other shipped language; fails on serious/critical violations (`--all`: every impact; `color-contrast` stays advisory, `contrast_gate.py` owns contrast); exit 3 when axe could not be fetched |
@@ -31,7 +31,7 @@ Demo switches (URL query, no app file edited, RF18.4): `?fixture=six` swaps the 
 the `*.fixture` captures compare with `assets/0022/after/` (01, 03, 10, 11); `&bedrock` adds an AWS Bedrock account
 (the "Billed per query" chip); `?mono=XY` gives the first account a monogram override (DS-CMP-MONO-4); `?aggwarn` gives
 the 9router instance both standing warnings (PRD 0036 RF2.3/RF2.4); `?paste-session` makes the core offer the Xiaomi MiMo
-account a new paste, so its card and details show Paste session (not with `?fixture=six`, which has no MiMo account).
+account a new paste, so its card and details show Paste session (not with `?fixture=six`, which has no MiMo account).; `?strip` gives the tray the 24-hour strip of the account the menu bar follows (PRD 0043 RF4.2).
 
 [`components.html`](components.html) is the PRD 0022 RF10.5 component fixture page: meters, state rings, the extra-usage
 chip and sub-row, the forecast callout, rows with monograms, the filter tabs with an aggregator tab and the chips, drawn
@@ -53,7 +53,7 @@ app never registers it.
 The checker reports, per page and language: (a) text wider than its box with an ellipsis or hidden
 overflow, (b) text or controls outside the window, (c) text clipped by an ancestor, (d) text
 spilling out of a chip, button, tab, option card or figure, (e) overlapping text, (f) a status line
-taller than one line, and a horizontal scroll. What may truncate by design (DS-MSG-15: account
+taller than one line, a horizontal scroll, and a tray document that scrolls (the popover scrolls inside its list only). What may truncate by design (DS-MSG-15: account
 labels and names, the status label after its fitting, account names in the Stats rows, one-line notices and access lines, the
 Settings sidebar labels in its icon-rail width) is listed as allowed in `ALLOWED`.
 

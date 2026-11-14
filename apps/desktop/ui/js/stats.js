@@ -113,8 +113,8 @@ function chartHtml(data, id, range) {
   const alt = t("stats.chart.alt", { days: s.daily.length, peak: pct(peak), today: today == null ? t("stats.chart.noData") : pct(today) });
   const rows = s.daily.map((d) => `<tr><td>${esc(dayName(d.day))}</td><td>${d.share == null ? te("stats.chart.noData") : pct(d.share)}</td></tr>`).join("");
   return `<section class="st-card">${head}<div role="img" aria-label="${esc(alt)}" aria-describedby="${id}-table">${barsHtml(s.daily)}</div>
-    <table class="sr-only" id="${id}-table"><caption>${esc(alt)}</caption>
-      <thead><tr><th scope="col">${te("stats.table.day")}</th><th scope="col">${te("stats.table.peak")}</th></tr></thead><tbody>${rows}</tbody></table></section>`;
+    <div class="sr-only"><table id="${id}-table"><caption>${esc(alt)}</caption>
+      <thead><tr><th scope="col">${te("stats.table.day")}</th><th scope="col">${te("stats.table.peak")}</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
 }
 
 // ---------- rhythm (PRD 0043 RF4.1) ----------
@@ -147,8 +147,8 @@ export function rhythmChartHtml(rhythm, id, kind) {
   const rows = buckets.map((b) => `<tr><td>${esc(labelOf(b))}</td><td>${b.consumption == null ? te("stats.chart.noData") : esc(pts(b.consumption))}</td><td>${[b.reset ? te("stats.rhythm.reset") : "", b.day_off ? te("stats.rhythm.dayOff") : "", kind === "typical" && b.consumption != null ? te("stats.rhythm.samples", { count: b.samples }) : ""].filter(Boolean).join(" · ")}</td></tr>`).join("");
   return `<figure class="rhythm" data-rhythm="${kind}"><figcaption class="micro">${te(`stats.rhythm.${kind}`)}</figcaption>
     <div role="img" aria-label="${esc(alt)}" aria-describedby="${id}-${kind}-table">${known.length ? `<div class="bars rhythm-bars" aria-hidden="true"><ul style="--n:${buckets.length}">${cols}</ul></div>` : `<p class="sub st-empty">${esc(alt)}</p>`}</div>
-    <table class="sr-only" id="${id}-${kind}-table"><caption>${esc(alt)}</caption>
-      <thead><tr><th scope="col">${te(kind === "week" ? "stats.table.day" : "stats.rhythm.hour")}</th><th scope="col">${te("stats.rhythm.use")}</th><th scope="col">${te("stats.rhythm.marks")}</th></tr></thead><tbody>${rows}</tbody></table></figure>`;
+    <div class="sr-only"><table id="${id}-${kind}-table"><caption>${esc(alt)}</caption>
+      <thead><tr><th scope="col">${te(kind === "week" ? "stats.table.day" : "stats.rhythm.hour")}</th><th scope="col">${te("stats.rhythm.use")}</th><th scope="col">${te("stats.rhythm.marks")}</th></tr></thead><tbody>${rows}</tbody></table></div></figure>`;
 }
 
 /** PRD 0043 RF4.1: the Rhythm card: the last 24 hours, the last 7 days (days off dimmed) and a typical day. */

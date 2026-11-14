@@ -111,7 +111,7 @@ for (const { code } of i18n.LOCALES) {
   assert.equal((bars.match(/class="full"/g) ?? []).length, 1, `${code}: only the day at the limit is full`);
   assert.ok(bars.includes(`>${label("stats.chart.today")}<`), `${code}: today is labelled`);
   const body = statsBodyHtml(week, view, "t");
-  assert.ok(body.includes('role="img"') && body.includes('class="sr-only" id="t-table"'), `${code}: chart text alternative and table`);
+  assert.ok(body.includes('role="img"') && body.includes('<div class="sr-only"><table id="t-table"'), `${code}: chart text alternative and table`);
   assert.ok(body.includes(label("stats.events.today")), `${code}: journal day header`);
   assert.ok(body.includes(i18n.tl(week.removed_account)), `${code}: removed account label`);
   assert.ok(body.includes(i18n.tl(kept)), `${code}: coverage footnote`);

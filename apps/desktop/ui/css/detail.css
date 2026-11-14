@@ -335,15 +335,6 @@
   font-family: var(--font-mono), var(--font-script);
   font-size: var(--text-sm);
 }
-/* Visually hidden, still read by screen readers (the history table). */
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
 /* History (PRD 0006 RF5.2): one compact area chart per metric, in the details dialog. */
 .history {
   margin-top: var(--space-2);
