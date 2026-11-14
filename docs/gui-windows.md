@@ -69,7 +69,7 @@ The magnifier on a card opens the details: each window with its bar, expected-us
 
 <div align="center">
   <img src="assets/screenshots/desktop-details.png" alt="Account details" width="48%" />
-  <img src="assets/screenshots/desktop-settings-history.png" alt="Settings, History" width="30%" />
+  <img src="assets/screenshots/desktop-settings-history.png" alt="Settings, Data and privacy page with History" width="48%" />
 </div>
 
 ## Notifications
@@ -83,7 +83,7 @@ Turn them on in **Settings › Alerts** (reset notices, and optionally usage ale
 Notices come while the window is hidden in the tray, but not after you Quit. The app never queries a provider to notify you.
 
 <div align="center">
-  <img src="assets/screenshots/desktop-settings-notify.png" alt="Settings, Notifications" width="30%" />
+  <img src="assets/screenshots/desktop-settings-notify.png" alt="Settings, Alerts page" width="60%" />
 </div>
 
 ## Themes and languages
