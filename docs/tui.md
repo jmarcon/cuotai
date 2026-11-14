@@ -18,7 +18,7 @@ Looking for the desktop app? See the [desktop feature reference](gui-features.md
 
 ## Running
 
-Install the `cuotai` binary from a release archive, `cargo install` or a source checkout (see [`installing.md`](installing.md#channel-status) for what is available and [`building.md`](building.md) for building). The examples below use `cargo run -p cuotai-tui --`, which you can replace with `cuotai` once it is installed. AWS Bedrock also requires AWS CLI v2 on your `PATH`.
+Install the `cuotai` binary from a release archive, Homebrew, Scoop, `cargo install --git` or a source checkout (see [`installing.md`](installing.md#channel-status) for what is available and [`building.md`](building.md) for building). The examples below use `cargo run -p cuotai-tui --`, which you can replace with `cuotai` once it is installed. AWS Bedrock also requires AWS CLI v2 on your `PATH`.
 
 ```sh
 cargo run -p cuotai-tui -- --list-providers

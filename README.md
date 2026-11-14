@@ -36,77 +36,62 @@ It is made for developers, teams and heavy users of coding assistants and AI API
 
 **What you get**
 
-- **Every limit in one window.** One card per account with the 5-hour, weekly and monthly windows, rate limits, balances and spend, each with its reset time. Supports **40 services**, including Claude, ChatGPT / Codex, GitHub Copilot, Cursor, Gemini, Kiro, Windsurf, OpenAI and Anthropic admin APIs, AWS Bedrock, Azure OpenAI and many more ([full list](#supported-services)).
-- **Paid extra usage.** When an account keeps working past its plan and bills the excess (Claude extra usage, Cursor and Grok on-demand, Kiro overage), Cuotai shows what you have spent so far apart from the plan limits and notifies you once per billing cycle when it starts. It only reads; it never changes billing settings.
-- **Fresh after a reset, careful with costs.** About 30 seconds after a quota resets Cuotai asks once more, so a card stops saying "blocked" as soon as the new window opens, and a reading kept from before a reset says "Renewed at 14:30; waiting for a reading" instead of pretending to know. Services that bill per query (AWS Bedrock through Cost Explorer) are read once an hour by default, never more than every 15 minutes, and never after a reset.
-- **Pace and "runs out" warnings.** Cuotai compares what you used so far with a steady pace until the reset and tells you when you are on track ("8 points in reserve") or will run out early ("runs out at 16:40, 2h 10m before the reset").
-- **Alerts that matter.** Optional system notifications when a quota resets, crosses a threshold you choose, runs out or has slack again, and an optional warning 15, 30 or 60 minutes before the recent pace would use the whole quota. That warning is a linear estimate from recent readings, never from an average or a single reading, and is off until you turn it on. Nothing is sent to anyone: the app just tells you. Set **quiet hours** per weekday and everything but an exhausted quota waits for one summary when they end; texts leave account names out by default, so a locked screen reveals nothing; and the app and `cuotai --notify` never announce the same event twice.
-- **Which account has room right now.** Put accounts that can replace each other in a group (`group = "coding"`) and Cuotai marks the best one, as advice only: it never switches accounts for you.
-- **History and local cost.** Charts of how each quota moved over the last 24 hours, 7 days or 30 days, and an optional estimate of what your Claude Code, Codex CLI and Gemini CLI token use would cost at API prices, read from your own local logs.
-- **Fed by the agent itself.** Claude Code's status line and Codex CLI's local logs can feed your Claude and Codex accounts, with no network request and no token reuse, and show each live session's context share and cost estimate.
-- **Private by design.** Cuotai is read-only and spends no tokens: it only asks your providers for quota and billing numbers, never for an AI answer. Sign-ins and tokens are kept in your operating system's vault (macOS Keychain, Windows Credential Manager, Linux Secret Service), your settings file never contains a secret, and there is no Cuotai account or cloud service in the middle.
-- **Your own gateways too.** Point Cuotai at a self-hosted 9router or LiteLLM proxy and it shows every connection inside it as a card of its own, grouped by upstream provider, and warns when a whole pool runs out.
-- **Runs where you work.** Windows, macOS and Linux, with a tray or menu-bar popover for a quick look (the menu-bar title can show your tightest limit). A terminal dashboard and a command line for scripts are included.
-- **Scriptable.** `cuotai --json`, an opt-in read-only local HTTP server, events and hooks with `--watch`, status-bar recipes (Waybar, SketchyBar, tmux, i3bar), shell completions and executable extensions for services Cuotai does not know yet.
-- **Yours to shape.** 15 built-in themes (dark and light), your own themes, and an interface in 14 languages: English, Portuguese, Spanish, Italian, German, French, Russian, Turkish, Japanese, Korean, Simplified Chinese, Hindi, Indonesian and Vietnamese. Ten of them are machine-drafted and waiting for native proofreading, which is marked in their language files.
+- **Every limit in one window.** One card per account with its 5-hour, weekly and monthly windows, rate limits, balances and spend, each with its reset time. **42 services** are supported, including Claude, ChatGPT / Codex, GitHub Copilot, Cursor, Gemini, Kiro, Windsurf, the OpenAI and Anthropic admin APIs, AWS Bedrock and Azure OpenAI ([full list](#supported-services)).
+- **Pace and "runs out" warnings.** Cuotai compares what you used with a steady pace until the reset and tells you whether you are on track ("8 points in reserve") or will run out early ("runs out at 16:40, 2h 10m before the reset").
+- **Paid extra usage.** When an account keeps working past its plan and bills the excess (Claude extra usage, Cursor and Grok on-demand, Kiro overage), Cuotai shows the spend apart from the plan limits. It only reads; it never changes billing settings.
+- **Alerts that matter.** Optional system notifications when a quota resets, crosses a threshold you choose, runs out or has room again, with quiet hours, texts that leave account names out, and optional channels you own (webhook, ntfy, Slack, Discord).
+- **Which account has room right now.** Put accounts that can replace each other in a group and Cuotai marks the best one, as advice only: it never switches accounts for you.
+- **History and local cost.** Charts of each quota over 24 hours, 7 days or 30 days, and an optional estimate of what your Claude Code, Codex CLI and Gemini CLI token use would cost at API prices, read from your own local logs.
+- **Fed by the agent itself.** Claude Code's status line and Codex CLI's local logs can feed your Claude and Codex accounts with no network request, and show each live session's context share and cost estimate.
+- **Careful with paid queries.** Services that bill per query (AWS Bedrock through Cost Explorer) are read once an hour by default and never more than every 15 minutes.
+- **Private by design.** Cuotai is read-only and spends no tokens: it asks your providers only for quota and billing numbers. Sign-ins and keys stay in your system's vault (macOS Keychain, Windows Credential Manager, Linux Secret Service), the settings file never holds a secret, and there is no Cuotai account or cloud service in the middle ([privacy inventory](docs/privacy.md)).
+- **Your own gateways too.** A self-hosted 9router or LiteLLM proxy shows each connection inside it as a card of its own.
+- **Runs where you work.** Windows, macOS and Linux, with a tray or menu-bar popover for a quick look, plus a terminal dashboard and a command line for scripts (`--json`, a local HTTP server, `--watch` hooks, status-bar recipes and extensions).
+- **Yours to shape.** 15 built-in themes in dark and light, your own themes, and an interface in 14 languages.
 - **Free and open source**, under the MIT or Apache-2.0 license.
 
 ## Install
 
-> **Status.** Every release is published on [GitHub Releases](https://github.com/jmarcon/cuotai/releases), the Homebrew tap and the Scoop bucket. On Releases, the macOS `.dmg` is signed and notarized, the Windows installers are **not code-signed yet** (SmartScreen will warn), and the Linux packages and the terminal archives are covered by the signed `SHA256SUMS`. winget, the AUR and crates.io are marked "coming soon" below: they are **not live yet**, so use Releases or build from source ([build guide](docs/building.md)). [`docs/installing.md`](docs/installing.md) records the status of every channel.
+Every release is on [GitHub Releases](https://github.com/jmarcon/cuotai/releases), the Homebrew tap and the Scoop bucket.
 
-| System | Package manager | Direct download | Works today |
-|---|---|---|---|
-| **macOS** (Apple silicon and Intel) | Homebrew: `brew tap jmarcon/cuotai && brew trust jmarcon/cuotai`, then `brew install --cask jmarcon/cuotai/cuotai-app` | `.dmg` from [Releases](https://github.com/jmarcon/cuotai/releases) | Homebrew, [download from Releases](https://github.com/jmarcon/cuotai/releases) or [build from source](docs/building.md#desktop-app-tauri) |
-| **Windows** (x64; ARM64 optional) | winget: `winget install Cuotai.Cuotai` (coming soon) | `.exe` or `.msi` installer from [Releases](https://github.com/jmarcon/cuotai/releases) | [Download from Releases](https://github.com/jmarcon/cuotai/releases) or [build from source](docs/building.md#desktop-app-tauri) |
-| **Linux** (x64; ARM64 optional) | AUR: `yay -S cuotai-bin` (coming soon) | `.deb`, `.rpm` or `.AppImage` from [Releases](https://github.com/jmarcon/cuotai/releases) | [Download from Releases](https://github.com/jmarcon/cuotai/releases) or [build from source](docs/building.md#desktop-app-tauri) |
-| **Any system, terminal only** | `cargo install cuotai-tui --locked` or `cargo binstall cuotai-tui` (coming soon, once the crates are published) | CLI archive from [Releases](https://github.com/jmarcon/cuotai/releases) | The archive, or `cargo install --git https://github.com/jmarcon/cuotai cuotai-tui --locked` |
+| System | Direct download | Package manager |
+|---|---|---|
+| **macOS** (Apple silicon and Intel) | `.dmg` from [Releases](https://github.com/jmarcon/cuotai/releases), signed and notarized | `brew tap jmarcon/cuotai && brew trust jmarcon/cuotai`, then `brew install --cask jmarcon/cuotai/cuotai-app` |
+| **Windows** (x64, optional ARM64) | `.exe` or `.msi` from [Releases](https://github.com/jmarcon/cuotai/releases) | winget (coming soon) |
+| **Linux** (x64, optional ARM64) | `.deb`, `.rpm` or `.AppImage` from [Releases](https://github.com/jmarcon/cuotai/releases) | AUR (coming soon) |
+| **Terminal only**, any system | CLI archive from [Releases](https://github.com/jmarcon/cuotai/releases) | Homebrew: `brew install jmarcon/cuotai/cuotai` (after the tap and trust steps); Scoop: `scoop bucket add cuotai https://github.com/jmarcon/scoop-cuotai`, then `scoop install cuotai`; or `cargo install --git https://github.com/jmarcon/cuotai cuotai-tui --locked` |
 
-For the terminal version: Homebrew (`brew install jmarcon/cuotai/cuotai`, after the same tap and trust steps) and Scoop (`scoop bucket add cuotai https://github.com/jmarcon/scoop-cuotai` then `scoop install cuotai`). The full channel status, with how each one is checked, is in [`docs/installing.md`](docs/installing.md).
+You can also [build from source](docs/building.md). [`docs/installing.md`](docs/installing.md) has the status of every channel, what each download contains and how to uninstall (your accounts file, history and vault entries stay until you delete them).
 
 **Good to know**
 
-- **macOS.** Builds that are not notarized by Apple are blocked the first time you open them: open **System Settings → Privacy & Security** and choose **Open Anyway** (older macOS versions: Control-click the app, choose **Open**, then confirm). Each release's notes say whether its macOS build is signed and notarized ([details](docs/gui-macos.md#first-launch-and-gatekeeper)).
-- **Windows.** Installers that are not code-signed trigger a SmartScreen "unknown publisher" warning: choose **More info**, then **Run anyway**. Each release's notes say whether the build is signed ([details](docs/gui-windows.md#first-launch-and-smartscreen)).
-- **Linux.** The `.deb` and `.rpm` declare the libraries they need, so your package manager installs them. On GNOME, the tray icon needs the AppIndicator extension ([details](docs/gui-linux.md#tray-icon)).
-- **Verify what you downloaded.** Every release ships `SHA256SUMS` (signed) and build provenance: see [how to verify a download](docs/installing.md#verify-your-download).
-- **Uninstalling** removes the app only; your accounts file, history and vault entries stay until you delete them ([how](docs/installing.md#uninstalling)).
+- **Windows.** The installers are **not code-signed yet**, so SmartScreen warns about an "unknown publisher": choose **More info**, then **Run anyway** ([details](docs/gui-windows.md#first-launch-and-smartscreen)).
+- **macOS.** If a build is ever not notarized, macOS blocks it the first time: open **System Settings › Privacy & Security** and choose **Open Anyway** ([details](docs/gui-macos.md#first-launch-and-gatekeeper)). Each release's notes say what is signed.
+- **Linux.** The `.deb` and `.rpm` pull in the libraries they need. On GNOME, the tray icon needs the AppIndicator extension ([details](docs/gui-linux.md#tray-icon)).
+- **Verify what you downloaded** with the signed `SHA256SUMS` and the build provenance of every release ([how](docs/installing.md#verify-your-download)).
 
 ## A tour of the desktop app
 
-Open Cuotai, press **Add account**, pick a provider and either sign in with your browser or paste your API key; Cuotai checks it with the provider and keeps it in your system's credential vault, never in the accounts file. From then on it refreshes in the background. A name is optional until you add a second account of the same provider, and renaming an account later keeps its alerts, muted quotas and history.
+Open Cuotai, press **Add account**, pick a provider and either sign in with your browser or paste your API key. Cuotai checks it with the provider, keeps it in your system's vault and refreshes in the background from then on.
 
 <div align="center">
   <img src="docs/assets/screenshots/desktop-dashboard.png" alt="Cuotai desktop dashboard with quota cards" width="100%" />
 </div>
 
-| Feature | What it does |
+| Where | What you see |
 |---|---|
-| **Dashboard** | One card per account, ordered the way you like (drag to reorder, or "most restrictive first"), highlighting the limit that blocks you right now and how old each reading is. |
-| **Tray or menu bar** | Left click opens a popover with quota rings or a list; right click opens a quick menu. Closing the window keeps Cuotai running in the tray. The menu-bar title can show your tightest limit, one figure per account, small meters or just the icon, for the accounts you choose. |
-| **Account details** | Every window with its bar, reset time and pace mark; hide or mute single quotas; browse the provider's model catalog. |
-| **Pace and warnings** | Whether you will make it to the reset, as an estimate, in points or in percent, with a forecast and an opt-in "warn before running out". |
-| **Best account** | The account of a group with the most room right now, marked "Best now". |
-| **Notifications and alerts** | Opt-in system notices for resets, thresholds (75% and 90% by default), exhaustion and recovery, with quiet hours and a summary, texts without account names and a test button. |
-| **History** | Area charts of each metric over 24 hours, 7 days or 30 days, with export to CSV or JSON. |
-| **Statistics and limits coming back** | A Stats view (limit hits, average peak, extra spent, peak per day, recent events) and a "limits come back" timeline, from the history stored on your computer; `S` and `--stats`/`--timeline`/`--events-log` in the terminal. |
-| **Local cost** | Opt-in token and estimated API-price cost for Claude Code, Codex CLI and Gemini CLI, from local logs only. Optionally compares the estimate with the plan price you type and shows a second currency at a rate you type; both are estimates at API prices, never a charge, and never leave your computer. |
-| **Provider status** | Opt-in badge when a provider reports an incident, so you know a failure may not be your account. |
-| **Themes and languages** | 15 themes in dark and light, custom themes, 14 languages. |
-| **Updates** | An optional daily check that sends only the version, system and architecture. |
+| **Dashboard** | One card per account, in your order or "most restrictive first", with the limit that blocks you right now, the pace and how old each reading is. |
+| **Tray or menu bar** | Left click opens a popover in a list, rings or compact view; right click opens a quick menu. The menu-bar title can show your tightest limit. Closing the window keeps Cuotai running there. |
+| **Account details** | Every window with its bar, reset time and pace mark, a history chart, per-quota hide and mute, and the provider's model catalog. |
+| **Stats** | Limit hits, average peak, extra spent, peak per day and when each limit comes back, from the history kept on your computer. |
+| **Settings** | General (theme, language, startup), Dashboard, Menu bar, Alerts, Data & privacy, and under Advanced: Integrations, Local cost, Extensions and Files. |
 
 <div align="center">
   <img src="docs/assets/screenshots/desktop-details.png" alt="Account details with pace marks" width="48%" />
   <img src="docs/assets/screenshots/desktop-tray-list.png" alt="Tray popover in list view" width="30%" />
 </div>
 
-**Guides for your system**, with screenshots, where things are stored, notification permissions and how to uninstall:
-
-- [Cuotai on macOS](docs/gui-macos.md): menu bar, Keychain, Gatekeeper.
-- [Cuotai on Windows](docs/gui-windows.md): notification area, Credential Manager, SmartScreen.
-- [Cuotai on Linux](docs/gui-linux.md): AppIndicator, Secret Service, `.deb` / `.rpm` / AppImage.
-
-The complete list of desktop features and every setting is in the [desktop feature reference](docs/gui-features.md).
+Guides with screenshots, file locations, notification permissions and uninstall steps: [macOS](docs/gui-macos.md) · [Windows](docs/gui-windows.md) · [Linux](docs/gui-linux.md). Every feature and setting is in the [desktop feature reference](docs/gui-features.md).
 
 ## Terminal dashboard
 
@@ -140,17 +125,17 @@ See all of them, in both modes, and learn how to add your own in [`docs/themes.m
 
 ## Supported services
 
-Cuotai ships **40 integrations**. For what each one reads, the credential it needs and its limitations, see [`docs/providers.md`](docs/providers.md).
+Cuotai ships **42 integrations**. For what each one reads, the credential it needs and its limitations, see [`docs/providers.md`](docs/providers.md).
 
 | Category | Services |
 |---|---|
 | **Assistants and subscriptions** | Claude, OpenAI Codex / ChatGPT, GitHub Copilot, Cursor (personal and Teams), Windsurf, Kiro / AWS, Antigravity, Cline, Zed, CodeBuddy, Qoder, OpenCode Go |
 | **CLIs and coding plans** | Gemini CLI, Grok CLI / xAI, Kimi Coding and API, MiniMax Token / Coding Plan, Alibaba Coding Plan, Alibaba Token Plan / Qwen Cloud, Xiaomi MiMo, Ollama Cloud, Qwen Code |
-| **Cloud billing and admin APIs** | OpenAI Admin API, Anthropic Admin API, Google Gemini API Monitoring, Google Vertex AI, AWS Bedrock Cost Explorer, Azure OpenAI Cost Management, Alibaba Cloud BSS, Mistral Admin, Perplexity Computer Analytics, Kimchi, Groq, ElevenLabs, OpenRouter, JetBrains AI (organization) |
-| **Aggregators** | 9router and LiteLLM proxy (the quotas or budgets of the connections inside your own instance) |
+| **Cloud billing and admin APIs** | OpenAI Admin API, Anthropic Admin API, Google Gemini API Monitoring, Google Vertex AI, AWS Bedrock Cost Explorer, Azure OpenAI Cost Management, Alibaba Cloud BSS, Mistral Admin, Perplexity Computer Analytics, Kimchi, Groq, ElevenLabs, Meta Model API, JetBrains AI (organization) |
+| **Aggregators and routers** | OpenRouter; 9router and LiteLLM proxy (the quotas or budgets of the connections inside your own instance) |
 | **Additional catalog** | Alibaba Model Studio, Cloudflare AI, NVIDIA NIM, Poolside |
 
-Some providers expose usage only through interfaces the vendor does not document, and a few cost money per query (AWS Cost Explorer). [`docs/providers.md`](docs/providers.md) records how each integration is read, how far to trust it and its limitations; the app itself keeps these levels out of the cards and details.
+Some providers expose usage only through interfaces the vendor does not document, and AWS Cost Explorer costs money per query; [`docs/providers.md`](docs/providers.md) records how each integration is read and how far to trust it.
 
 ## Help Cuotai grow
 
