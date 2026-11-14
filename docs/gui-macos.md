@@ -28,7 +28,7 @@ You only do this once per installed copy. Cuotai never asks you to disable Gatek
 ## Add your first account
 
 1. Press **Add account** (or the **+** in the top bar).
-2. Choose the **provider** and give the account a **name** (it must be unique).
+2. Choose the **provider**. A **name** is optional until you add a second account of the same provider.
 3. Choose how to authenticate. Where the provider supports it, pick **browser sign-in** and press **Sign in**: Cuotai opens your browser, you approve, and the token is stored in the Keychain. Otherwise, paste the provider's **API key** (or the token or secret the form asks for) into the masked field (the eye button shows what you typed). Where the provider can be queried, Cuotai checks it with one read-only query before saving, and keeps it in the Keychain; the accounts file stores only a reference. When you edit the account later the key shows as **Saved in the system vault** with a **Replace** button; leave the field blank to keep it. How each provider's usage is read is documented in [`providers.md`](providers.md#usage-access-matrix).
 4. Press **Save**. The card appears and fills in on the next refresh.
 

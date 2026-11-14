@@ -1,6 +1,6 @@
 # Building Cuotai from source
 
-Until the first packaged release is published (see [`installing.md`](installing.md#channel-status)), building from source is the way to run Cuotai. It is also the starting point for contributors; the rules for changing the code are in [`../CONTRIBUTING.md`](../CONTRIBUTING.md) and [`../AGENTS.md`](../AGENTS.md).
+Most people install a release (see [`installing.md`](installing.md#channel-status)). Building from source runs the latest `main` or a platform without a package, and is also the starting point for contributors; the rules for changing the code are in [`../CONTRIBUTING.md`](../CONTRIBUTING.md) and [`../AGENTS.md`](../AGENTS.md).
 
 ## Prerequisites
 

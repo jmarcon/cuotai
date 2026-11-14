@@ -9,13 +9,13 @@ A walkthrough of the Cuotai desktop app on Linux: installing it, adding accounts
 
 ## Install
 
-Cuotai 0.80.0 is on [GitHub Releases](https://github.com/jmarcon/cuotai/releases); the package-manager channels are not live yet, so check [`installing.md`](installing.md#channel-status) for what is available:
+Cuotai is on [GitHub Releases](https://github.com/jmarcon/cuotai/releases), and its terminal version is also in the Homebrew tap; [`installing.md`](installing.md#channel-status) lists every channel:
 
 - **Debian, Ubuntu and derivatives:** download `Cuotai_<version>_amd64.deb` from [GitHub Releases](https://github.com/jmarcon/cuotai/releases) and run `sudo apt install ./Cuotai_<version>_amd64.deb`; apt installs the libraries the package declares.
 - **Fedora and derivatives:** download `Cuotai_<version>_amd64.rpm` and run `sudo dnf install ./Cuotai_<version>_amd64.rpm`.
 - **Arch:** `yay -S cuotai-bin` from the AUR (planned, not live yet; it repackages the release `.deb`).
 - **Any distribution:** `Cuotai_<version>_amd64.AppImage`: `chmod +x` it and run it. Some distributions need FUSE 2 installed to run AppImages. ARM64 PCs use the `_aarch64` files when the release includes them.
-- **Terminal version only:** the `cuotai-<version>-x86_64-unknown-linux-gnu.tar.gz` (or `-musl`) archive, Homebrew (`brew install jmarcon/cuotai/cuotai`) or `cargo install`.
+- **Terminal version only:** the `cuotai-<version>-x86_64-unknown-linux-gnu.tar.gz` (or `-musl`) archive, Homebrew (`brew install jmarcon/cuotai/cuotai`, after `brew tap jmarcon/cuotai` and `brew trust jmarcon/cuotai`) or `cargo install --git https://github.com/jmarcon/cuotai cuotai-tui --locked`.
 - **From source today:** see [`building.md`](building.md#desktop-app-tauri).
 
 [Verify the download](installing.md#verify-your-download) first if you like (`sha256sum -c` also works instead of `shasum -a 256 -c`). The Linux files are not individually signed; trust comes from the signed `SHA256SUMS`.
@@ -23,7 +23,7 @@ Cuotai 0.80.0 is on [GitHub Releases](https://github.com/jmarcon/cuotai/releases
 ## Add your first account
 
 1. Press **Add account** (or the **+** in the top bar).
-2. Choose the **provider** and give the account a unique **name**.
+2. Choose the **provider**. A **name** is optional until you add a second account of the same provider.
 3. Choose how to authenticate. Where the provider supports it, pick **browser sign-in** and press **Sign in**: Cuotai opens your browser with `xdg-open` (if that fails it shows the address to copy), you approve, and the token is stored in the Secret Service keyring. Otherwise, paste the provider's **API key** (or the token or secret the form asks for) into the masked field (the eye button shows what you typed). Where the provider can be queried, Cuotai checks it with one read-only query before saving, and keeps it in the Secret Service keyring; the accounts file stores only a reference. When you edit the account later the key shows as **Saved in the system vault** with a **Replace** button; leave the field blank to keep it.
 4. Press **Save**. The card appears and fills in on the next refresh.
 

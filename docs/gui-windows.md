@@ -9,11 +9,11 @@ A walkthrough of the Cuotai desktop app on Windows: installing it, the first lau
 
 ## Install
 
-Cuotai 0.80.0 is on [GitHub Releases](https://github.com/jmarcon/cuotai/releases); the package-manager channels are not live yet, so check [`installing.md`](installing.md#channel-status) for what is available:
+Cuotai is on [GitHub Releases](https://github.com/jmarcon/cuotai/releases), and its terminal version is also in the Scoop bucket; [`installing.md`](installing.md#channel-status) lists every channel:
 
 - **winget:** `winget install Cuotai.Cuotai` (planned, not live yet; the first submission to the winget repository is a manual step).
 - **Direct download:** from [GitHub Releases](https://github.com/jmarcon/cuotai/releases), either `Cuotai_<version>_x64-setup.exe` (the installer; installs for the current user, no administrator rights needed) or `Cuotai_<version>_x64_en-US.msi`. ARM64 PCs may use `Cuotai_<version>_arm64-setup.exe` when the release includes it. [Verify the download](installing.md#verify-your-download) first if you like (`Get-FileHash` in PowerShell, compared with `SHA256SUMS`).
-- **Terminal version only:** Scoop (`scoop bucket add cuotai`, then `scoop install cuotai`; planned) or the `cuotai-<version>-x86_64-pc-windows-msvc.zip` archive.
+- **Terminal version only:** Scoop (`scoop bucket add cuotai https://github.com/jmarcon/scoop-cuotai`, then `scoop install cuotai`) or the `cuotai-<version>-x86_64-pc-windows-msvc.zip` archive.
 - **From source today:** see [`building.md`](building.md#desktop-app-tauri).
 
 ### First launch and SmartScreen
@@ -28,7 +28,7 @@ Nothing about this weakens Windows; it only reflects that the file has no publis
 ## Add your first account
 
 1. Press **Add account** (or the **+** in the top bar).
-2. Choose the **provider** and give the account a unique **name**.
+2. Choose the **provider**. A **name** is optional until you add a second account of the same provider.
 3. Choose how to authenticate. Where the provider supports it, pick **browser sign-in** and press **Sign in**: Cuotai opens your default browser, you approve, and the token is stored in Credential Manager. Otherwise, paste the provider's **API key** (or the token or secret the form asks for) into the masked field (the eye button shows what you typed). Where the provider can be queried, Cuotai checks it with one read-only query before saving, and keeps it in the Credential Manager; the accounts file stores only a reference. When you edit the account later the key shows as **Saved in the system vault** with a **Replace** button; leave the field blank to keep it.
 4. Press **Save**. The card appears and fills in on the next refresh.
 
