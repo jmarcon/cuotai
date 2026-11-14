@@ -1065,6 +1065,8 @@
   "update.error.insecure_endpoint": "確認先のアドレスが HTTPS ではないため、確認を拒否しました。",
   "update.error.unconfigured": "このコピーはアップデートチャンネルなしでビルドされています。",
   "update.error.other": "アップデートに失敗しました。手動でダウンロードできます。",
+  "update.error.timeout": "リリースサーバーが時間内に応答しませんでした。後でもう一度試すか、手動でダウンロードしてください。",
+  "update.retry": "再試行",
   "about.updateState": "アップデート：{state}",
   "report.action": "問題を報告",
   "report.title": "問題を報告",

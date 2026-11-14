@@ -1069,6 +1069,8 @@
   "update.error.insecure_endpoint": "La dirección de comprobación no es HTTPS; se rechazó la comprobación.",
   "update.error.unconfigured": "Esta copia no se compiló con el canal de actualización.",
   "update.error.other": "La actualización falló. Puedes descargarla manualmente.",
+  "update.error.timeout": "El servidor de versiones no respondió a tiempo. Vuelve a intentarlo más tarde o descárgala manualmente.",
+  "update.retry": "Reintentar",
   "about.updateState": "actualización: {state}",
   "report.action": "Informar de un problema",
   "report.title": "Informar de un problema",

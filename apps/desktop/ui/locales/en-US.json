@@ -1069,6 +1069,8 @@
   "update.error.insecure_endpoint": "The check address is not HTTPS; the check was refused.",
   "update.error.unconfigured": "This copy was not built with the update channel.",
   "update.error.other": "The update failed. You can download it manually.",
+  "update.error.timeout": "The release server did not answer in time. Try again later, or download it manually.",
+  "update.retry": "Try again",
   "about.updateState": "update: {state}",
   "report.action": "Report a problem",
   "report.title": "Report a problem",

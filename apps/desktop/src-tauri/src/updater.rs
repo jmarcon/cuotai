@@ -43,6 +43,14 @@ pub const CHECK_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
 /// stops during a system suspension, so the next pass rereads the wall clock
 /// soon after waking instead of adding the suspended time to the day.
 const CHECK_NAP: Duration = Duration::from_secs(60);
+/// S-0018-01: the longest an update check may take. A server that accepts the
+/// connection and never answers (a captive portal, a broken proxy, a half-open
+/// socket after sleep) ends the check with the retryable `timeout` code instead
+/// of holding the phase at `checking` for the rest of the session.
+pub const CHECK_TIMEOUT: Duration = Duration::from_secs(30);
+/// S-0018-01: a download gives up after this long without receiving a byte. There
+/// is no total cap, so a slow but healthy link still finishes.
+pub const DOWNLOAD_IDLE_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// RF2.3/RF2.5: the manual link the app offers when something fails (network, signature,
 /// space, permission) or when the installation cannot update in place.
@@ -210,13 +218,19 @@ fn endpoints_for<R: Runtime>(app: &AppHandle<R>) -> Result<Vec<Url>, &'static st
 /// The plugin's `Updater` with the validated endpoints; `None` when the origin and the public
 /// key are not configured (build without `plugins.updater`) or when some endpoint
 /// does not pass [`validate_endpoint`].
-fn updater_for<R: Runtime>(app: &AppHandle<R>) -> Option<tauri_plugin_updater::Updater> {
+/// `timeout` bounds the check request (S-0018-01); the download builds its own
+/// request without it and is bounded by [`until_idle`] instead.
+fn updater_for<R: Runtime>(
+    app: &AppHandle<R>,
+    timeout: Duration,
+) -> Option<tauri_plugin_updater::Updater> {
     ensure_crypto_provider();
     let endpoints = endpoints_for(app).ok()?;
     let handle = app.clone();
     app.updater_builder()
         .endpoints(endpoints)
         .ok()?
+        .timeout(timeout)
         // The plugin's own hook (run on Windows just before the installer ends
         // the process) calls `cleanup_before_exit` on the installing thread;
         // this one moves it to the main thread, where the tray icon lives.
@@ -265,6 +279,7 @@ fn cleanup_on_main_thread<R: Runtime>(app: &AppHandle<R>) {
 pub fn error_code(error: &tauri_plugin_updater::Error) -> &'static str {
     use tauri_plugin_updater::Error as E;
     match error {
+        E::Reqwest(error) if error.is_timeout() => "timeout",
         E::Reqwest(_) | E::Network(_) | E::ReleaseNotFound => "network",
         E::InsecureTransportProtocol => "insecure_endpoint",
         E::Minisign(_)
@@ -285,6 +300,35 @@ pub fn error_code(error: &tauri_plugin_updater::Error) -> &'static str {
         // the variant does not even exist and falls into `other`.
         _ => "other",
     }
+}
+
+/// Which step of an update failed (V-0018-02): a failed background check is a
+/// quiet status, while a failed download or install is worth a notice.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Stage {
+    Check,
+    Download,
+    Install,
+}
+
+impl Stage {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Check => "check",
+            Self::Download => "download",
+            Self::Install => "install",
+        }
+    }
+}
+
+/// An announced update, kept after a failed download so the user can retry
+/// without another check (R-0018-02).
+#[derive(Clone)]
+struct Found {
+    version: String,
+    notes: Option<String>,
+    date: Option<String>,
+    raw: serde_json::Value,
 }
 
 /// Internal updater state. The raw manifest (`raw`) lets us rebuild the
@@ -317,9 +361,7 @@ enum Phase {
         total: Option<u64>,
     },
     /// Local installation in progress after the restart gate passed.
-    Installing {
-        version: String,
-    },
+    Installing { version: String },
     /// Package downloaded and verified; no installer has been started yet.
     Ready {
         version: String,
@@ -328,7 +370,23 @@ enum Phase {
     },
     Failed {
         code: &'static str,
+        stage: Stage,
+        /// The update a failed download was fetching; `install` retries it.
+        retry: Option<Found>,
+        /// The user closed the notice; the status stays in Settings and About.
+        dismissed: bool,
     },
+}
+
+impl Phase {
+    fn failed(code: &'static str, stage: Stage) -> Self {
+        Self::Failed {
+            code,
+            stage,
+            retry: None,
+            dismissed: false,
+        }
+    }
 }
 
 /// PRD 0018 RF2.2/RF2.6/RF3.1: the UI view, without an endpoint, signature or key.
@@ -360,6 +418,10 @@ pub struct UpdateView {
     pub progress: Option<u8>,
     pub dismissed: bool,
     pub error: Option<&'static str>,
+    /// With `phase: "failed"`: `check`, `download` or `install` (V-0018-02).
+    pub failed_stage: Option<&'static str>,
+    /// A failed download kept the announced update: "Update now" retries it.
+    pub can_retry: bool,
     pub manual_url: &'static str,
 }
 
@@ -379,6 +441,10 @@ pub struct Service {
     /// reached `prefs_file`: a store that refuses writes must not make every
     /// pass of the timer look like the first.
     last_attempt: Mutex<Option<chrono::DateTime<chrono::Utc>>>,
+    /// The check request bound ([`CHECK_TIMEOUT`]; shorter in tests).
+    check_timeout: Duration,
+    /// The download's no-progress bound ([`DOWNLOAD_IDLE_TIMEOUT`]; shorter in tests).
+    idle_timeout: Duration,
     /// `CUOTAI_UPDATER=off` no ambiente (RF3.2).
     env_off: bool,
     /// `CUOTAI_UPDATER_DEFAULT=off` no build do empacotador (RF3.2).
@@ -414,6 +480,8 @@ impl Service {
             prefs_file,
             memory_prefs: Mutex::new(UpdaterPrefs::default()),
             last_attempt: Mutex::new(None),
+            check_timeout: CHECK_TIMEOUT,
+            idle_timeout: DOWNLOAD_IDLE_TIMEOUT,
             env_off,
             build_off,
             stopping: Arc::new(AtomicBool::new(false)),
@@ -474,6 +542,7 @@ impl Service {
         let reason = disabled_reason(&prefs, self.env_off, self.build_off, self.source);
         let source = self.source;
         let phase = self.phase.lock();
+        let (mut failed_stage, mut can_retry) = (None, false);
         let (name, version, notes, date, progress, dismissed, error) = match &*phase {
             Phase::Idle => ("idle", None, None, None, None, false, None),
             Phase::Checking => ("checking", None, None, None, None, false, None),
@@ -532,7 +601,24 @@ impl Service {
                 false,
                 None,
             ),
-            Phase::Failed { code } => ("failed", None, None, None, None, false, Some(*code)),
+            Phase::Failed {
+                code,
+                stage,
+                retry,
+                dismissed,
+            } => {
+                failed_stage = Some(stage.name());
+                can_retry = retry.is_some();
+                (
+                    "failed",
+                    retry.as_ref().map(|found| found.version.clone()),
+                    retry.as_ref().and_then(|found| found.notes.clone()),
+                    retry.as_ref().and_then(|found| found.date.clone()),
+                    None,
+                    *dismissed,
+                    Some(*code),
+                )
+            }
         };
         drop(phase);
         UpdateView {
@@ -553,6 +639,8 @@ impl Service {
             progress,
             dismissed,
             error,
+            failed_stage,
+            can_retry,
             manual_url: MANUAL_URL,
         }
     }
@@ -575,9 +663,29 @@ impl Service {
         }
         prefs.automatic = on;
         self.save_prefs(&prefs).map_err(str::to_owned)?;
+        if !on {
+            self.clear_pending();
+        }
         self.emit(app);
         self.nudge.notify_one();
         Ok(self.view())
+    }
+
+    /// S-0018-04: turning checks off drops what would lead to another request:
+    /// an announced update, a download in progress (cancelled) and a failure
+    /// kept for a retry. A verified package waiting for the restart stays, since
+    /// installing it sends nothing.
+    fn clear_pending(&self) {
+        if let Some(handle) = self.download.lock().take() {
+            handle.abort();
+        }
+        let mut phase = self.phase.lock();
+        if matches!(
+            &*phase,
+            Phase::Available { .. } | Phase::Downloading { .. } | Phase::Failed { .. }
+        ) {
+            *phase = Phase::Idle;
+        }
     }
 
     /// RF2.6: persists the one-time answer. "Yes" enables the schedule; "No"
@@ -591,14 +699,20 @@ impl Service {
         prefs.consent_answered = true;
         prefs.automatic = on;
         self.save_prefs(&prefs).map_err(str::to_owned)?;
+        if !on {
+            self.clear_pending();
+        }
         self.emit(app);
         self.nudge.notify_one();
         Ok(self.view())
     }
 
     /// RF2.2: "Remind me later" — the notice goes away until the next check.
+    /// It also closes a failed download or install notice (V-0018-02).
     pub fn dismiss<R: Runtime>(&self, app: &AppHandle<R>) -> UpdateView {
-        if let Phase::Available { dismissed, .. } = &mut *self.phase.lock() {
+        if let Phase::Available { dismissed, .. } | Phase::Failed { dismissed, .. } =
+            &mut *self.phase.lock()
+        {
             *dismissed = true;
         }
         self.emit(app);
@@ -652,7 +766,12 @@ impl Service {
         }
         self.emit(app);
         let outcome = self.check_inner(app).await;
-        *self.phase.lock() = outcome;
+        // Checks turned off while this one ran: nothing it found is offered.
+        *self.phase.lock() = if self.requests_allowed() {
+            outcome
+        } else {
+            Phase::Idle
+        };
         self.note_check_finished(chrono::Utc::now());
         self.emit(app);
     }
@@ -668,15 +787,21 @@ impl Service {
     }
 
     async fn check_inner<R: Runtime>(&self, app: &AppHandle<R>) -> Phase {
-        let Some(updater) = updater_for(app) else {
-            return Phase::Failed {
-                code: "unconfigured",
-            };
+        let Some(updater) = updater_for(app, self.check_timeout) else {
+            return Phase::failed("unconfigured", Stage::Check);
         };
-        match updater.check().await {
+        // The request carries the same bound; this one also covers the parts of
+        // the check outside reqwest's timer.
+        let checked =
+            tokio::time::timeout(self.check_timeout + Duration::from_secs(5), updater.check())
+                .await;
+        let Ok(checked) = checked else {
+            return Phase::failed("timeout", Stage::Check);
+        };
+        match checked {
             Ok(Some(update)) => {
                 if let Err(code) = validate_download_url(&update.download_url) {
-                    return Phase::Failed { code };
+                    return Phase::failed(code, Stage::Check);
                 }
                 Phase::Available {
                     version: update.version.clone(),
@@ -692,9 +817,7 @@ impl Service {
                 }
             }
             Ok(None) => Phase::UpToDate,
-            Err(error) => Phase::Failed {
-                code: error_code(&error),
-            },
+            Err(error) => Phase::failed(error_code(&error), Stage::Check),
         }
     }
 
@@ -702,7 +825,12 @@ impl Service {
     /// cancellable progress and the plugin verifies the signature. The bytes stay
     /// in `Ready`; installing and restarting only happens in [`Self::restart`],
     /// after the login gate and after the state is persisted.
+    /// S-0018-04: it repeats the RF2.6 request gate, since the download is a
+    /// request too. A download that failed and kept the update retries it.
     pub fn install<R: Runtime>(self: &Arc<Self>, app: &AppHandle<R>) -> Result<UpdateView, String> {
+        if !self.requests_allowed() {
+            return Err("updater_off".to_string());
+        }
         let (raw, version, notes, date) = {
             let phase = self.phase.lock();
             match &*phase {
@@ -712,6 +840,16 @@ impl Service {
                     notes,
                     date,
                     ..
+                }
+                | Phase::Failed {
+                    retry:
+                        Some(Found {
+                            raw,
+                            version,
+                            notes,
+                            date,
+                        }),
+                    ..
                 } => (raw.clone(), version.clone(), notes.clone(), date.clone()),
                 Phase::Downloading { .. } | Phase::Installing { .. } => {
                     return Err("already_running".to_string())
@@ -719,13 +857,19 @@ impl Service {
                 _ => return Err("no_update".to_string()),
             }
         };
-        let Some(updater) = updater_for(app) else {
+        let Some(updater) = updater_for(app, self.check_timeout) else {
             return Err("unavailable".to_string());
         };
         let Ok(Some(update)) = updater.restore_update(raw.clone()) else {
             return Err("stale".to_string());
         };
         validate_download_url(&update.download_url).map_err(str::to_owned)?;
+        let found = Found {
+            version: version.clone(),
+            notes: notes.clone(),
+            date: date.clone(),
+            raw: raw.clone(),
+        };
         *self.phase.lock() = Phase::Downloading {
             version: version.clone(),
             notes,
@@ -738,15 +882,22 @@ impl Service {
 
         let service = ServiceHandle(Arc::clone(self));
         let app = app.clone();
+        let idle = self.idle_timeout;
         let handle = tauri::async_runtime::spawn(async move {
+            let progress = Mutex::new(std::time::Instant::now());
             // `download` checks the signature (RF2.3). It does not call `install`
             // here: on Windows that starts the installer and ends the process.
-            match update
-                .download(|chunk, total| service.chunk(&app, chunk, total), || {})
-                .await
-            {
-                Err(error) => service.fail(&app, error_code(&error)),
-                Ok(bytes) => service.set_phase(
+            let download = update.download(
+                |chunk, total| {
+                    *progress.lock() = std::time::Instant::now();
+                    service.chunk(&app, chunk, total);
+                },
+                || {},
+            );
+            match until_idle(download, &progress, idle).await {
+                None => service.download_failed(&app, "timeout", found),
+                Some(Err(error)) => service.download_failed(&app, error_code(&error), found),
+                Some(Ok(bytes)) => service.finish_download(
                     &app,
                     Phase::Ready {
                         version,
@@ -822,7 +973,7 @@ impl Service {
                 }
             }
         };
-        let Some(updater) = updater_for(app) else {
+        let Some(updater) = updater_for(app, self.check_timeout) else {
             *self.phase.lock() = Phase::Ready {
                 version,
                 raw,
@@ -866,7 +1017,7 @@ impl Service {
                 self.stopping.store(false, Ordering::Relaxed);
                 resume();
                 let code = error_code(&error);
-                *self.phase.lock() = Phase::Failed { code };
+                *self.phase.lock() = Phase::failed(code, Stage::Install);
                 self.emit(app);
                 Err(code.to_string())
             }
@@ -941,13 +1092,53 @@ impl ServiceHandle {
         self.0.emit(app);
     }
 
-    fn set_phase<R: Runtime>(&self, app: &AppHandle<R>, next: Phase) {
-        *self.0.phase.lock() = next;
+    /// Stores the download's outcome only while the phase is still that
+    /// download: a cancel or a switch-off that raced it wins.
+    fn finish_download<R: Runtime>(&self, app: &AppHandle<R>, next: Phase) {
+        {
+            let mut phase = self.0.phase.lock();
+            if !matches!(&*phase, Phase::Downloading { .. }) {
+                return;
+            }
+            *phase = next;
+        }
         self.0.emit(app);
     }
 
-    fn fail<R: Runtime>(&self, app: &AppHandle<R>, code: &'static str) {
-        self.set_phase(app, Phase::Failed { code });
+    /// R-0018-02: a failed download keeps the update so "Update now" can retry
+    /// it, except when the package's signature failed: the same bytes would
+    /// fail again, so only the manual link is offered.
+    fn download_failed<R: Runtime>(&self, app: &AppHandle<R>, code: &'static str, found: Found) {
+        let retry = (code != "signature").then_some(found);
+        self.finish_download(
+            app,
+            Phase::Failed {
+                code,
+                stage: Stage::Download,
+                retry,
+                dismissed: false,
+            },
+        );
+    }
+}
+
+/// S-0018-01: runs `work` until it ends, or until `progress` (the instant of the
+/// last received bytes) is older than `idle`; `None` means it went quiet.
+async fn until_idle<F: std::future::Future>(
+    work: F,
+    progress: &Mutex<std::time::Instant>,
+    idle: Duration,
+) -> Option<F::Output> {
+    tokio::pin!(work);
+    loop {
+        let quiet = progress.lock().elapsed();
+        if quiet >= idle {
+            return None;
+        }
+        tokio::select! {
+            output = &mut work => return Some(output),
+            () = tokio::time::sleep(idle - quiet) => {}
+        }
     }
 }
 
@@ -1493,7 +1684,7 @@ mod contract {
     fn check(
         app: &tauri::App<tauri::test::MockRuntime>,
     ) -> tauri_plugin_updater::Result<Option<tauri_plugin_updater::Update>> {
-        let updater = updater_for(app.handle()).expect("updater");
+        let updater = updater_for(app.handle(), CHECK_TIMEOUT).expect("updater");
         tauri::async_runtime::block_on(updater.check())
     }
 
@@ -1623,7 +1814,7 @@ mod contract {
         // The production configuration is HTTPS; the plugin refuses HTTP in release and this
         // guard refuses in any build, so nothing leaves from here.
         let app = app(&key.pubkey, "http://releases.example.invalid/latest.json");
-        assert!(updater_for(app.handle()).is_none());
+        assert!(updater_for(app.handle(), CHECK_TIMEOUT).is_none());
         let url: tauri::Url = "http://releases.example.invalid/latest.json"
             .parse()
             .unwrap();
@@ -1941,7 +2132,7 @@ mod contract {
         // The plugin itself accepts the untrusted URL from the unsigned
         // manifest; seed the state as though it had been retained/restored.
         let update = check(&app).expect("manifest read").expect("newer version");
-        let service = Arc::new(Service::build(InstallSource::Direct, None, false, false));
+        let service = answered_service(CHECK_TIMEOUT);
         *service.phase.lock() = Phase::Available {
             version: update.version,
             notes: update.body,
@@ -2187,6 +2378,173 @@ mod contract {
         );
         assert_eq!(service.view().disabled_reason, Some("homebrew"));
         assert_eq!(server.count(), 0);
+    }
+
+    /// A server that accepts every connection and never answers, counting them.
+    fn silent() -> Local {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+        let address = listener.local_addr().expect("addr");
+        let requests = Arc::new(AtomicUsize::new(0));
+        let counter = Arc::clone(&requests);
+        std::thread::spawn(move || {
+            let mut held = Vec::new();
+            for connection in listener.incoming() {
+                counter.fetch_add(1, Ordering::SeqCst);
+                if let Ok(socket) = connection {
+                    held.push(socket);
+                }
+            }
+        });
+        Local {
+            url: format!("http://{address}/latest.json"),
+            requests,
+        }
+    }
+
+    fn answered_service(timeout: Duration) -> Arc<Service> {
+        let mut service = Service::build(InstallSource::Direct, None, false, false);
+        service.check_timeout = timeout;
+        service.memory_prefs.lock().consent_answered = true;
+        service.memory_prefs.lock().automatic = true;
+        Arc::new(service)
+    }
+
+    /// S-0018-01: a check whose server never answers ends within the bound,
+    /// with the translated `timeout` code, and leaves the phase retryable.
+    #[test]
+    fn a_silent_server_ends_the_check_and_a_later_check_can_retry() {
+        let key = keypair();
+        let server = silent();
+        let app = app(&key.pubkey, &server.url);
+        let service = answered_service(Duration::from_secs(1));
+
+        let started = std::time::Instant::now();
+        let view =
+            tauri::async_runtime::block_on(service.check_now(app.handle())).expect("check now");
+        assert!(
+            started.elapsed() < Duration::from_secs(15),
+            "{:?}",
+            started.elapsed()
+        );
+        assert_eq!(view.phase, "failed", "{view:?}");
+        assert_eq!(view.error, Some("timeout"));
+        assert_eq!(view.failed_stage, Some("check"));
+        assert!(!view.can_retry);
+        assert_eq!(server.count(), 1);
+
+        let again =
+            tauri::async_runtime::block_on(service.check_now(app.handle())).expect("check now");
+        assert_eq!(again.phase, "failed");
+        assert_eq!(server.count(), 2, "the second check must reach the server");
+    }
+
+    /// S-0018-01: the download gives up when no byte arrives for the idle
+    /// bound, and never while bytes keep coming, however long it takes.
+    #[test]
+    fn a_download_stops_only_when_it_goes_quiet() {
+        tauri::async_runtime::block_on(async {
+            let idle = Duration::from_millis(150);
+            let progress = Mutex::new(std::time::Instant::now());
+            let started = std::time::Instant::now();
+            let stalled = until_idle(std::future::pending::<()>(), &progress, idle).await;
+            assert!(stalled.is_none());
+            assert!(started.elapsed() < Duration::from_secs(2));
+
+            let progress = Mutex::new(std::time::Instant::now());
+            let slow = async {
+                for _ in 0..8 {
+                    tokio::time::sleep(Duration::from_millis(60)).await;
+                    *progress.lock() = std::time::Instant::now();
+                }
+                "done"
+            };
+            assert_eq!(until_idle(slow, &progress, idle).await, Some("done"));
+        });
+    }
+
+    /// S-0018-04: `install` repeats the request gate, and turning checks off
+    /// drops the announced update and any download.
+    #[test]
+    fn install_repeats_the_gate_and_switching_off_clears_the_update() {
+        let key = keypair();
+        let server = Local::http(r#"{"version":"0.2.0","platforms":{}}"#.to_string());
+        let app = app(&key.pubkey, &server.url);
+        let service = answered_service(CHECK_TIMEOUT);
+        let found = || Phase::Available {
+            version: "0.2.0".into(),
+            notes: None,
+            date: None,
+            raw: serde_json::json!({"version": "0.2.0", "platforms": {}}),
+            dismissed: false,
+        };
+        *service.phase.lock() = found();
+        let view = service.set_automatic(app.handle(), false).expect("off");
+        assert_eq!(view.phase, "idle");
+
+        *service.phase.lock() = found();
+        assert_eq!(service.install(app.handle()), Err("updater_off".into()));
+        assert_eq!(service.view().phase, "available");
+
+        *service.phase.lock() = Phase::Downloading {
+            version: "0.2.0".into(),
+            notes: None,
+            date: None,
+            raw: serde_json::json!({}),
+            downloaded: 1,
+            total: Some(2),
+        };
+        service.set_automatic(app.handle(), true).expect("on");
+        assert_eq!(service.view().phase, "downloading");
+        service.set_automatic(app.handle(), false).expect("off");
+        assert_eq!(service.view().phase, "idle");
+        assert_eq!(server.count(), 0);
+    }
+
+    /// R-0018-02 / V-0018-02: a failed download keeps the update for a retry
+    /// and names its stage; a signature failure offers no retry; the notice
+    /// can be dismissed.
+    #[test]
+    fn a_failed_download_keeps_the_update_for_a_retry() {
+        let key = keypair();
+        let app = app(&key.pubkey, "http://127.0.0.1:1/latest.json");
+        let service = answered_service(CHECK_TIMEOUT);
+        let handle = ServiceHandle(Arc::clone(&service));
+        let downloading = || Phase::Downloading {
+            version: "0.2.0".into(),
+            notes: Some("notes".into()),
+            date: None,
+            raw: serde_json::json!({"version": "0.2.0", "platforms": {}}),
+            downloaded: 1,
+            total: Some(2),
+        };
+        let found = || Found {
+            version: "0.2.0".into(),
+            notes: Some("notes".into()),
+            date: None,
+            raw: serde_json::json!({"version": "0.2.0", "platforms": {}}),
+        };
+
+        *service.phase.lock() = downloading();
+        handle.download_failed(app.handle(), "network", found());
+        let view = service.view();
+        assert_eq!(view.phase, "failed");
+        assert_eq!(view.failed_stage, Some("download"));
+        assert_eq!(view.error, Some("network"));
+        assert!(view.can_retry);
+        assert_eq!(view.version.as_deref(), Some("0.2.0"));
+        // The retry goes past the phase check (the stale manifest stops it there).
+        assert_eq!(service.install(app.handle()), Err("stale".into()));
+        assert!(service.dismiss(app.handle()).dismissed);
+
+        *service.phase.lock() = downloading();
+        handle.download_failed(app.handle(), "signature", found());
+        assert!(!service.view().can_retry);
+        assert_eq!(service.install(app.handle()), Err("no_update".into()));
+
+        // A cancel that raced the failure wins.
+        *service.phase.lock() = Phase::Idle;
+        handle.download_failed(app.handle(), "network", found());
+        assert_eq!(service.view().phase, "idle");
     }
 
     /// Um servidor TLS local com certificado autoassinado (RF4.3).

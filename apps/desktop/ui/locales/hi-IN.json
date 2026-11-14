@@ -1072,6 +1072,8 @@
   "update.error.insecure_endpoint": "जाँच का पता HTTPS नहीं है; जाँच अस्वीकार कर दी गई।",
   "update.error.unconfigured": "यह प्रति अपडेट चैनल के साथ नहीं बनाई गई थी।",
   "update.error.other": "अपडेट विफल रहा। आप उसे खुद डाउनलोड कर सकते हैं।",
+  "update.error.timeout": "रिलीज़ सर्वर ने समय पर जवाब नहीं दिया। बाद में फिर कोशिश करें या उसे खुद डाउनलोड करें।",
+  "update.retry": "फिर से कोशिश करें",
   "about.updateState": "अपडेट: {state}",
   "report.action": "समस्या बताएँ",
   "report.title": "समस्या बताएँ",
