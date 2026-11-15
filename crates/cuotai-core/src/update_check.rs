@@ -171,13 +171,10 @@ pub async fn newer_version(
 /// page when the channel has none.
 pub fn notice(latest: Version, source: InstallSource) -> Localized {
     let version = ParamValue::from(latest.to_string());
-    match source.upgrade_command() {
+    match source.upgrade_command(Some(latest)) {
         Some(command) => Localized::with_params(
             "update.notice",
-            params([
-                ("version", version),
-                ("command", ParamValue::from(command.to_string())),
-            ]),
+            params([("version", version), ("command", ParamValue::from(command))]),
             "Cuotai {version} is available: {command}",
         ),
         None => Localized::with_params(
@@ -250,6 +247,11 @@ mod tests {
         assert_eq!(
             brew.resolve("en-US"),
             "Cuotai 0.81.0 is available: brew upgrade cuotai"
+        );
+        let cargo = notice(latest, InstallSource::Cargo);
+        assert_eq!(
+            cargo.resolve("en-US"),
+            "Cuotai 0.81.0 is available: cargo install --git https://github.com/jmarcon/cuotai --tag v0.81.0 cuotai-tui --locked"
         );
         let direct = notice(latest, InstallSource::Direct);
         assert!(direct.resolve("en-US").contains(RELEASES_URL));

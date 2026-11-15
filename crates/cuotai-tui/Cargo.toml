@@ -13,10 +13,19 @@ rust-version.workspace = true
 repository.workspace = true
 homepage.workspace = true
 
-# `cargo binstall cuotai-tui` downloads the release tarballs built by the
-# release pipeline instead of compiling (PRD 0021 RF5.4).
+# Ready for the crates.io channel (PRD 0021 RF5.4): once the crate is
+# published, cargo-binstall downloads the release archives built by the
+# release pipeline instead of compiling. Windows archives are zips.
 [package.metadata.binstall]
 pkg-url = "{ repo }/releases/download/v{ version }/cuotai-{ version }-{ target }.tar.gz"
+
+[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
+pkg-url = "{ repo }/releases/download/v{ version }/cuotai-{ version }-{ target }.zip"
+pkg-fmt = "zip"
+
+[package.metadata.binstall.overrides.aarch64-pc-windows-msvc]
+pkg-url = "{ repo }/releases/download/v{ version }/cuotai-{ version }-{ target }.zip"
+pkg-fmt = "zip"
 
 [[bin]]
 name = "cuotai"
