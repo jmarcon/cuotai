@@ -13,6 +13,24 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.86.0] - 2026-11-15
+
+### Added
+
+- The menu-bar popover has a Cuotai button at the top left that opens the full window (PRD 0022 RF7.3; c932ca1).
+
+### Fixed
+
+- What's new now shows only the improvements of the version you are running, with a link to the full changelog on GitHub (PRD 0019 RF7.7; dafdf30).
+- Times in the dashboard, notices and --once follow your language's clock and show a weekday or a short date instead of an ISO date (PRD 0024 RF1.2, RF1.3, RF1.5, RF6.1, RF7.3; 09dce54).
+- The pace line no longer says "On pace" next to a projection that runs out before the reset, and marks a pace taken from recent readings (PRD 0024 RF1.2, RF1.3, RF1.5, RF6.1, RF7.3; 09dce54).
+- The terminal shows the reset countdown in your language and suggests a better account only when the recent pace really runs out (PRD 0024 RF1.2, RF1.3, RF1.5, RF6.1, RF7.3; 09dce54).
+- The desktop details hide "On pace" next to a projection that runs out before the reset, follow the "Show pace as" choice and mark a pace taken from recent readings (PRD 0024 RF1.3, RF1.5, RF6.1, RF7.3; 24988ea).
+- A long account name in the best-account advice no longer squeezes the sentence (PRD 0024 RF1.3, RF1.5, RF6.1, RF7.3; 24988ea).
+- A notice that an account is running out or exhausted also names the best account of its group, unless notices are private (PRD 0024 RF7.3; 5817d14).
+- The terminal app refuses --notify-projected together with --once, --json or --history instead of ignoring it (PRD 0024 RF1.3, RF3.4; 4a182b0).
+- The German, Russian and Chinese pace texts and the "Show pace as" example read more clearly (PRD 0024 RF1.3, RF3.4; 4a182b0).
+
 ## [0.85.12] - 2026-11-15
 
 ### Fixed
@@ -855,7 +873,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.85.12...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.86.0...HEAD
+[0.86.0]: https://github.com/jmarcon/cuotai/compare/v0.85.12...v0.86.0
 [0.85.12]: https://github.com/jmarcon/cuotai/compare/v0.85.11...v0.85.12
 [0.85.11]: https://github.com/jmarcon/cuotai/compare/v0.85.10...v0.85.11
 [0.85.10]: https://github.com/jmarcon/cuotai/compare/v0.85.9...v0.85.10
