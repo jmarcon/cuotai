@@ -8,7 +8,7 @@ import { group } from "./common.js";
 import { row } from "./rows.js";
 
 export function html() {
-  return group("extensions", "", row({ key: "extensions", label: te("settings.page.extensions"), desc: te("extensions.help"), msg: "extensions-msg",
+  return group("extensions", te("settings.extensions.group"), row({ key: "extensions", label: te("settings.page.extensions"), desc: te("extensions.help"), msg: "extensions-msg",
     body: `<div class="extensions-dlg ext-page" data-ext-body><p class="hint">${te("common.loading")}</p></div>` }));
 }
 

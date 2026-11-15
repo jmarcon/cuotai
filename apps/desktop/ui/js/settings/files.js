@@ -49,7 +49,9 @@ export function html({ settings: s, view }) {
   const doctorRowHtml = row({ key: "doctor", attrs: 'data-section="doctor"', label: te("settings.doctor.title"), info: te("settings.doctor.help"), msg: "doctor-msg",
     control: () => buttons(`<button class="btn sm" data-doctor-run>${te("settings.doctor.run")}</button>`),
     body: `<div data-doctor aria-live="polite"></div>` });
-  return group("config", "", configRow + folderRow + dataDirRow + vaultRowHtml + backupRowHtml + doctorRowHtml);
+  // RF2.2 (PRD 0020 re-validation V-14): two labelled groups, the files Cuotai reads and its upkeep.
+  return group("config", te("settings.files.group.files"), configRow + folderRow + dataDirRow + vaultRowHtml)
+    + group("maintenance", te("settings.files.group.maintenance"), backupRowHtml + doctorRowHtml);
 }
 
 /** One indexed entry: what uses it (or that nothing does) and since when. */
