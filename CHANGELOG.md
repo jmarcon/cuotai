@@ -13,6 +13,17 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.85.11] - 2026-11-15
+
+### Fixed
+
+- Status chips, links, the authentication label and stale figures are readable in every theme, and Win98 light shows the reset timeline on a card (7ee845a).
+- An exhausted account reads "Exhausted" in the tray as in the window, hide buttons in the details name their limit, and Stats keeps the plain track of retro themes (PRD 0022 RF7; 8ccf6b7).
+
+### Security
+
+- Names and texts from hooks, language packs and providers are always shown as plain text, and the app's windows can no longer be navigated away from the app (0dcdc4c).
+
 ## [0.85.10] - 2026-11-15
 
 ### Security
@@ -832,7 +843,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.85.10...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.85.11...HEAD
+[0.85.11]: https://github.com/jmarcon/cuotai/compare/v0.85.10...v0.85.11
 [0.85.10]: https://github.com/jmarcon/cuotai/compare/v0.85.9...v0.85.10
 [0.85.9]: https://github.com/jmarcon/cuotai/compare/v0.85.8...v0.85.9
 [0.85.8]: https://github.com/jmarcon/cuotai/compare/v0.85.7...v0.85.8
