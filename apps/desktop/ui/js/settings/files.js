@@ -61,7 +61,7 @@ function vaultRow(e) {
     : `${esc(e.account ?? "")} · ${esc(brand(e.provider).label)}`;
   const kind = e.kind ? te(`settings.vault.kind.${e.kind}`) : te("settings.vault.kind.unused");
   const date = new Date(e.created_at).toLocaleDateString(document.documentElement.lang || undefined);
-  return `<li><strong>${kind}</strong> — ${owner}${e.present ? "" : ` · ${te("settings.vault.gone")}`} <small>${esc(te("settings.vault.created", { date }))}</small></li>`;
+  return `<li><strong>${kind}</strong> — ${owner}${e.present ? "" : ` · ${te("settings.vault.gone")}`} <small>${te("settings.vault.created", { date })}</small></li>`;
 }
 
 export function vaultHtml(entries) {

@@ -754,7 +754,7 @@ setInterval(() => {
     const text = fmtNext(Number(el.dataset.nextAt));
     const nt = el.querySelector(".nt");
     if (nt && nt.textContent !== text) nt.textContent = text;
-    el.title = te("card.nextRefresh", { time: text });
+    el.title = t("card.nextRefresh", { time: text });
   }
 }, 1000);
 initOrderSync(render);

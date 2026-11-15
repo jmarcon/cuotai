@@ -11,6 +11,7 @@ mod local_cost;
 mod local_server;
 mod main_window;
 mod native_confirm;
+mod nav_guard;
 mod notify;
 mod session_capture;
 mod settings;
@@ -2967,6 +2968,8 @@ pub fn run() -> std::process::ExitCode {
         }
     });
     let app = builder
+        // PRD 0022 re-validation S-04: the main, tray and Settings windows stay on the bundle.
+        .plugin(nav_guard::plugin())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         // PRD 0022 (audit #37): official autostart plugin. The web UI never calls it (the shell's
@@ -3171,6 +3174,14 @@ pub fn run() -> std::process::ExitCode {
             #[cfg(debug_assertions)]
             if std::env::var_os("CUOTAI_TEST_STARTUP_ERROR").is_some() {
                 return Err("injected startup failure".into());
+            }
+            // PRD 0022 re-validation S-04: the windows of `tauri.conf.json` (`create: false`) are
+            // built here, before anything looks them up, so they carry the new-window guard.
+            for config in app.config().app.windows.clone() {
+                let label = config.label.clone();
+                tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?
+                    .on_new_window(move |_, _| nav_guard::new_window_response(&label))
+                    .build()?;
             }
             // PRD 0054 RF5.1: a tray the system refuses leaves a working window.
             let mode = match build_tray(app) {

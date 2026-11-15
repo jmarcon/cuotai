@@ -23,8 +23,8 @@ export async function openExtensionsDialog({ onChanged = () => {}, onRemove = ()
   const close = el("button", "icon");
   close.innerHTML = icon("x");
   close.type = "button";
-  close.title = te("common.close");
-  close.setAttribute("aria-label", te("common.close"));
+  close.title = t("common.close");
+  close.setAttribute("aria-label", t("common.close"));
   close.addEventListener("click", () => dlg.close());
   header.append(close);
   dlg.append(header);
@@ -192,7 +192,7 @@ export async function mountExtensions(host, { onChanged = () => {}, onRemove = (
       const { lines } = await extensionDisclosure(id);
       const box = el("section", "extension-consent");
       box.setAttribute("role", "alertdialog");
-      box.setAttribute("aria-label", te("extensions.consentTitle"));
+      box.setAttribute("aria-label", t("extensions.consentTitle"));
       box.append(el("h3", "", t("extensions.consentTitle")));
       // PRD 0050 RF8.3: a requested name that is another account's credential variable stands apart, with an icon
       // and its own words, never by color alone.
@@ -244,7 +244,7 @@ export async function mountExtensions(host, { onChanged = () => {}, onRemove = (
         return;
       }
       const box = el("section", "extension-consent extension-secrets");
-      box.setAttribute("aria-label", te("extensions.secretsTitle"));
+      box.setAttribute("aria-label", t("extensions.secretsTitle"));
       box.append(el("h3", "", t("extensions.secretsTitle")));
       box.append(el("p", "help", t("extensions.secretsHelp")));
       for (const item of items) {

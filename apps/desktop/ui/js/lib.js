@@ -3141,7 +3141,14 @@ let sortOpen = false;
 /** Button + ordering menu (custom, reset, % available). */
 export function sortMenuHtml() {
   const label = (m) => (m === "custom" ? t("sort.custom") : t(`sort.${m}`));
-  const items = SORT_MODES.map((m) => `<button role="menuitemradio" aria-checked="${m === sortMode}" class="${m === sortMode ? "on" : ""}" data-sort="${m}"><span>${label(m)}</span>${m === sortMode ? icon("tick", "sel-tick") : ""}</button>`).join("");
+  // PRD 0022 re-validation (S-02): a catalog (a user language pack included) is untrusted text, so each item's label
+  // is set with `textContent` and serialized by the DOM, never spliced into the markup raw.
+  const text = (m) => {
+    const span = document.createElement("span");
+    span.textContent = label(m);
+    return span.outerHTML;
+  };
+  const items = SORT_MODES.map((m) => `<button role="menuitemradio" aria-checked="${m === sortMode}" class="${m === sortMode ? "on" : ""}" data-sort="${m}">${text(m)}${m === sortMode ? icon("tick", "sel-tick") : ""}</button>`).join("");
   return `<div class="sortmenu lang">
     <button class="btn outline sort-btn" data-sort-toggle title="${te("sort.label")}: ${esc(label(sortMode))}" aria-label="${te("sort.label")}: ${esc(label(sortMode))}" aria-haspopup="menu" aria-expanded="${sortOpen}">${icon("sort")}${icon("chevDown")}</button>
     <div class="lang-menu" role="menu" ${sortOpen ? "" : "hidden"}>${items}</div>

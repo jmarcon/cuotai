@@ -373,6 +373,9 @@ jobs:
       - run: node scripts/test-level-thresholds-ui.mjs
       - run: node scripts/test-profile-prefs-ui.mjs
       - run: node scripts/test-pseudo-core-ui.mjs
+      # PRD 0022 re-validation (S-01/S-02/S-03): catalogs and core texts are
+      # escaped exactly once by the HTML-safe helpers and never reach markup raw.
+      - run: node scripts/test-text-safety-ui.mjs
       - run: node scripts/test-demo-fixture-ui.mjs
       # PRD 0052 RF5.3/RF7.2: the erase-all inventory, its off-by-default
       # accounts-file box and exact word, and the clock-skew banner.

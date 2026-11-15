@@ -144,7 +144,9 @@ pub fn open<R: Runtime>(app: &AppHandle<R>, target: Target) -> tauri::Result<()>
         .inner_size(size.0, size.1)
         .min_inner_size(MIN_SIZE.0, MIN_SIZE.1)
         .resizable(true)
-        .disable_drag_drop_handler();
+        .disable_drag_drop_handler()
+        // PRD 0022 re-validation S-04: navigation is guarded globally (`nav_guard::plugin`).
+        .on_new_window(|_, _| crate::nav_guard::new_window_response(LABEL));
     builder = match position {
         Some((x, y)) => builder.position(x, y),
         None => builder.center(),

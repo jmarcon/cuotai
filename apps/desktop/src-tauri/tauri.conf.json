@@ -11,6 +11,7 @@
     "windows": [
       {
         "label": "main",
+        "create": false,
         "title": "Cuotai",
         "url": "index.html",
         "width": 1200,
@@ -24,6 +25,7 @@
       },
       {
         "label": "tray",
+        "create": false,
         "url": "tray.html",
         "width": 380,
         "height": 600,
