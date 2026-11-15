@@ -1281,6 +1281,7 @@
   "timeline.left": "sisa {pct}%",
   "timeline.stale": "pembacaan sudah usang",
   "tray.stats": "Statistik",
+  "tray.openWindow": "Buka jendela Cuotai",
   "tray.strip.title": "24 jam terakhir · {name}",
   "settings.alerts.projected": "Peringatkan sebelum habis",
   "settings.alerts.projectedHelp": "Pemberitahuan sistem sesaat sebelum kuota diproyeksikan habis sebelum direset, sekali per jendela dan hanya dari penggunaan terkini yang stabil. Berfungsi sendiri, meski peringatan penggunaan nonaktif. Nonaktif secara bawaan. Perkiraan linear dari pembacaan terbaru.",

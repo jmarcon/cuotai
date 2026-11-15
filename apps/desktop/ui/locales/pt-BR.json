@@ -1303,6 +1303,7 @@
   "timeline.left": "{pct}% restante",
   "timeline.stale": "leitura desatualizada",
   "tray.stats": "Estatísticas",
+  "tray.openWindow": "Abrir a janela do Cuotai",
   "tray.strip.title": "Últimas 24 horas · {name}",
   "settings.alerts.projected": "Avisar antes de acabar",
   "settings.alerts.projectedHelp": "Um aviso do sistema pouco antes de uma cota acabar antes de renovar, uma vez por janela e só com consumo recente constante. Funciona sozinho, com os alertas de uso desligados. Desligado por padrão. Estimativa linear das leituras recentes.",

@@ -1296,6 +1296,7 @@
   "timeline.left": "{pct}% restante",
   "timeline.stale": "lectura desactualizada",
   "tray.stats": "Estadísticas",
+  "tray.openWindow": "Abrir la ventana de Cuotai",
   "tray.strip.title": "Últimas 24 horas · {name}",
   "settings.alerts.projected": "Aviso previo",
   "settings.alerts.projectedHelp": "Un aviso del sistema poco antes de que una cuota se agote antes de renovarse, una vez por ventana y solo con un consumo reciente constante. Funciona por sí solo, con las alertas de uso desactivadas. Desactivado por defecto. Estimación lineal de las lecturas recientes.",

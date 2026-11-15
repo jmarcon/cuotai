@@ -1299,6 +1299,7 @@
   "timeline.left": "{pct} % restant",
   "timeline.stale": "le relevé n’est plus à jour",
   "tray.stats": "Stats",
+  "tray.openWindow": "Ouvrir la fenêtre de Cuotai",
   "tray.strip.title": "Dernières 24 heures · {name}",
   "settings.alerts.projected": "Prévenir avant l’épuisement",
   "settings.alerts.projectedHelp": "Une notification système peu avant qu’un quota ne soit prévu épuisé avant sa réinitialisation, une fois par fenêtre et uniquement d’après une utilisation récente régulière. Elle fonctionne seule, même avec les alertes d’utilisation désactivées. Désactivée par défaut. Estimation linéaire d’après les relevés récents.",

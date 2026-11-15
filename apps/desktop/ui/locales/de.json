@@ -1299,6 +1299,7 @@
   "timeline.left": "{pct}% übrig",
   "timeline.stale": "Messwert ist veraltet",
   "tray.stats": "Statistik",
+  "tray.openWindow": "Cuotai-Fenster öffnen",
   "tray.strip.title": "Letzte 24 Stunden · {name}",
   "settings.alerts.projected": "Vor dem Ende warnen",
   "settings.alerts.projectedHelp": "Ein Systemhinweis kurz bevor ein Kontingent voraussichtlich vor seiner Zurücksetzung erschöpft ist, einmal pro Fenster und nur bei gleichmäßiger jüngster Nutzung. Funktioniert eigenständig, auch bei ausgeschalteten Nutzungswarnungen. Standardmäßig aus. Lineare Schätzung aus jüngsten Messwerten.",

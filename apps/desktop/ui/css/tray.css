@@ -43,6 +43,17 @@ body {
   height: 28px;
   margin-left: calc(-1 * var(--space-1));
 }
+/* DS-CMP-HEAD-2: the Cuotai mark button (opens the main window) before the filter tabs; a 28 px popover icon
+   button (DS-TOK-HIT-1) with the 18 px mark (DS-TOK-ICO-2), never shrunk by the tabs. */
+.pop-head .pop-home {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  margin-left: calc(-1 * var(--space-1));
+}
+.pop-home .wm-c {
+  font-size: 24px;
+}
 .pop-head .wordmark.sm {
   flex: none;
   font-size: var(--text-md);
