@@ -255,15 +255,15 @@ Verification: **CI** on all three OSes.
 ## Installation source
 
 `cuotai --install-source` reports `source`, `updater_disabled_reason` and
-`upgrade_command` as stable `key=value` lines. A Cargo copy reports
-`upgrade_command=none`: its command is pinned to the new release tag, which
-this offline report does not know, so only the update notice and the desktop
-updater (which know the newer version) show it. It reads only the executable
+`upgrade_command` as stable `key=value` lines. It reads only the executable
 path, the relevant process environment and local directory writability: it
 does not load account configuration, query a provider or invoke a package
 manager. The desktop updater consumes the same
 `cuotai_core::install_source::detect_install_source` result, so a managed copy
-cannot be classified differently by the two frontends.
+cannot be classified differently by the two frontends. A Cargo copy reports
+`upgrade_command=none`: its command is pinned to the new release tag, which
+this offline report does not know, so only the update notice and the desktop
+updater (which know the newer version) show it.
 
 Durable paths identify Homebrew Caskroom/Cellar, Cuotai's exact Scoop
 component, winget's package cache, Linux distribution/AUR roots, Cargo's
