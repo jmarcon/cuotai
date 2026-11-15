@@ -132,6 +132,7 @@
   "access.verified_months": "{months} महीने पहले सत्यापित।",
   "access.verified_recent": "इस महीने सत्यापित।",
   "advice.best": "अभी सर्वश्रेष्ठ",
+  "advice.notice": "{body} · {advice}",
   "advice.switch": "{from} ≈{at} पर खत्म होगा · {to} में {pct}% बचा है",
   "advice.switch.exhausted": "{from} खत्म हो गया · {to} में {pct}% बचा है",
   "alerts.body": "{account}: {metric} · {at} को रीसेट",

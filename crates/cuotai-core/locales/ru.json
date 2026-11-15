@@ -132,6 +132,7 @@
   "access.verified_months": "Проверено {months} мес. назад.",
   "access.verified_recent": "Проверено в этом месяце.",
   "advice.best": "Лучшая сейчас",
+  "advice.notice": "{body} · {advice}",
   "advice.switch": "{from} закончится ≈{at} · у {to} осталось {pct}%",
   "advice.switch.exhausted": "{from} исчерпан · у {to} осталось {pct}%",
   "alerts.body": "{account}: {metric} · сброс {at}",

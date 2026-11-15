@@ -132,6 +132,7 @@
   "access.verified_months": "{months} か月前に検証済み。",
   "access.verified_recent": "今月検証済み。",
   "advice.best": "今のおすすめ",
+  "advice.notice": "{body} · {advice}",
   "advice.switch": "{from} は ≈{at} に上限到達 · {to} は残り {pct}%",
   "advice.switch.exhausted": "{from} は上限到達 · {to} は残り {pct}%",
   "alerts.body": "{account}：{metric} · {at}にリセット",

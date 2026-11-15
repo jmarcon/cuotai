@@ -1080,6 +1080,12 @@ pub fn read_locale(file: &Path) -> Option<String> {
     read(file).locale
 }
 
+/// PRD 0024 RF7.5: whether "Show the best account" is on in `file` (the
+/// default), for the advice line of a notice (re-validation R-02).
+pub fn read_advice(file: &Path) -> bool {
+    advice_of(&read(file))
+}
+
 /// `desktop.json` of this device.
 pub fn settings_path() -> Option<PathBuf> {
     settings_file()

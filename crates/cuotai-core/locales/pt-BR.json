@@ -129,6 +129,7 @@
   "access.verified_months": "Verificada há {months} meses.",
   "access.verified_recent": "Verificada neste mês.",
   "advice.best": "Melhor agora",
+  "advice.notice": "{body} · {advice}",
   "advice.switch": "{from} acaba ≈{at} · {to} tem {pct}% sobrando",
   "advice.switch.exhausted": "{from} esgotou · {to} tem {pct}% sobrando",
   "alerts.body": "{account}: {metric} · renova {at}",

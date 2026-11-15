@@ -132,6 +132,7 @@
   "access.verified_months": "{months} ay önce doğrulandı.",
   "access.verified_recent": "Bu ay doğrulandı.",
   "advice.best": "Şimdi en iyi",
+  "advice.notice": "{body} · {advice}",
   "advice.switch": "{from} ≈{at} tükenir · {to} için %{pct} kaldı",
   "advice.switch.exhausted": "{from} tükendi · {to} için %{pct} kaldı",
   "alerts.body": "{account}: {metric} · sıfırlanma {at}",

@@ -132,6 +132,7 @@
   "access.verified_months": "Diverifikasi {months} bulan lalu.",
   "access.verified_recent": "Diverifikasi bulan ini.",
   "advice.best": "Terbaik sekarang",
+  "advice.notice": "{body} · {advice}",
   "advice.switch": "{from} habis ≈{at} · {to} tersisa {pct}%",
   "advice.switch.exhausted": "{from} habis · {to} tersisa {pct}%",
   "alerts.body": "{account}: {metric} · reset {at}",

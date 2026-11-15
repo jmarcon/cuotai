@@ -132,6 +132,7 @@
   "access.verified_months": "Vérifiée il y a {months} mois.",
   "access.verified_recent": "Vérifiée ce mois-ci.",
   "advice.best": "Le meilleur maintenant",
+  "advice.notice": "{body} · {advice}",
   "advice.switch": "{from} s’épuise ≈{at} · {to} a {pct} % disponible",
   "advice.switch.exhausted": "{from} est épuisé · {to} a {pct} % disponible",
   "alerts.body": "{account} : {metric} · se réinitialise {at}",
