@@ -28,6 +28,13 @@ const ZOOM_PAGES = [
   ["zoom200-settings-dashboard", "settings.html?page=dashboard", 640, 360, {}],
   ["zoom200-settings-alerts", "settings.html?page=alerts", 640, 360, {}],
   ["zoom200-settings-menubar", "settings.html?page=menubar", 640, 360, {}],
+  // PRD 0020 re-validation V-15: every Settings page at the 200 % viewport.
+  ["zoom200-settings-data", "settings.html?page=data", 640, 360, {}],
+  ["zoom200-settings-integrations", "settings.html?page=integrations", 640, 360, {}],
+  ["zoom200-settings-cost", "settings.html?page=cost&cost", 640, 360, {}],
+  ["zoom200-settings-extensions", "settings.html?page=extensions", 640, 360, {}],
+  ["zoom200-settings-files", "settings.html?page=files", 640, 360, {}],
+  ["zoom200-settings-about", "settings.html?page=about", 640, 360, {}],
 ];
 const PAGES = zoom ? ZOOM_PAGES : [
   ["tray", "tray.html", 380, 600, {}],
@@ -52,6 +59,12 @@ const PAGES = zoom ? ZOOM_PAGES : [
   ["settings-alerts", "settings.html?page=alerts", 640, 460, {}],
   ["settings-menubar", "settings.html?page=menubar", 640, 460, {}],
   ["settings-about", "settings.html?page=about", 640, 460, {}],
+  // PRD 0020 re-validation V-15: the other pages, Integrations also with its disclosures open.
+  ["settings-data", "settings.html?page=data", 640, 460, {}],
+  ["settings-integrations", "settings.html?page=integrations", 640, 460, {}],
+  ["settings-integrations-open", "settings.html?page=integrations", 640, 460, { "cuotai.settings.disc.serve-connection": "open", "cuotai.settings.disc.widgets-path": "open" }],
+  ["settings-extensions", "settings.html?page=extensions", 640, 460, {}],
+  ["settings-files", "settings.html?page=files", 640, 460, {}],
   // PRD 0015 V-02: the Local cost page with its sources on, and the worker paused (the status line inside its group).
   ["settings-cost", "settings.html?page=cost&cost", 640, 460, {}],
   ["settings-cost-paused", "settings.html?page=cost&cost&cost-paused", 640, 460, {}],

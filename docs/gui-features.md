@@ -43,7 +43,7 @@ When the providers' servers report a time more than five minutes away from this 
 **Settings › Dashboard** can also group exhausted or blocked accounts in a collapsible "Recharging" section that shows each return time ("Returns Today 14:30", or "Return unknown"). It is off by default and only changes the display: the manual order holds inside each group and the order saved in `cuotai.toml` never changes.
 
 <div align="center">
-  <img src="assets/screenshots/desktop-settings-appearance.png" alt="Settings, General page" width="640" />
+  <img src="assets/screenshots/desktop-settings-general.png" alt="Settings, General page" width="640" />
   <p><em>Settings › General: color mode, theme, language and startup. The "Recharging" group and the pace display are in Settings › Dashboard.</em></p>
 </div>
 
@@ -92,7 +92,7 @@ The same section turns on **usage alerts** (off by default, with the same permis
 **Notification channels** (PRD 0044, in **Settings › Alerts › Notification channels**) send the same notifications to up to 5 destinations you own: a webhook, an ntfy topic, Slack or Discord. Each channel is off until you add it. Adding one shows the host, what it will receive in words and an example payload before **Save**. The address stays in the system vault and the list shows only its host, the filters and the last delivery. Each channel has **Send test**, **Edit**, **Remove** and a switch, and the **Delivery log** shows what went out (never the text or the address). A channel failing for a day gets one notification and a banner, and it stays on. See [`notifications.md`](notifications.md).
 
 <div align="center">
-  <img src="assets/screenshots/desktop-settings-notify.png" alt="Settings, Alerts page" width="640" />
+  <img src="assets/screenshots/desktop-settings-alerts.png" alt="Settings, Alerts page" width="640" />
   <p><em>Settings › Alerts: reset notices, usage alerts, more alerts, quiet hours and a test notification.</em></p>
 </div>
 
@@ -103,7 +103,7 @@ The same section turns on **usage alerts** (off by default, with the same permis
 The TUI and the CLI read the same status only when you ask (`--status`, or `CUOTAI_STATUS=1` in the environment); `--no-status` always turns it off, also in scripts that inherit the variable. A card then shows the badge on its top border (`▲ Partial outage`, `? Status page unavailable`), the details list the provider's full status with the incident, its start, when it was read and the page, and `--once` prints a `Provider status:` line under the affected account. `--json` keeps its shape.
 
 <div align="center">
-  <img src="assets/screenshots/desktop-settings-privacy.png" alt="Settings, Data and privacy page" width="640" />
+  <img src="assets/screenshots/desktop-settings-data.png" alt="Settings, Data and privacy page" width="640" />
   <p><em>Settings › Data &amp; privacy: history, the provider status switch (with the domains it would read) and local tool detection.</em></p>
 </div>
 
