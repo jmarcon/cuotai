@@ -378,13 +378,15 @@ manual install share the same folder, so the winget manifest passes
 |---|---|---|
 | macOS | `Cuotai.app.tar.gz` of the **notarized** app | `collect-macos.sh`, after notarization, with `cargo tauri signer sign` |
 | Windows | `Cuotai_<v>_x64-setup.exe` (NSIS), `Cuotai_<v>_x64_en-US.msi`, `Cuotai_<v>_arm64-setup.exe` | `scripts/release/updater-sign.sh`, after Authenticode |
-| Linux | `Cuotai_<v>_amd64.AppImage`, `.deb`, `.rpm` (and the `aarch64` set) | the Tauri bundler, through `tauri.updater.conf.json` |
+| Linux | `Cuotai_<v>_amd64.AppImage`, `.deb`, `.rpm` (and the `aarch64` set) | `scripts/release/updater-sign.sh`, in its own step after the build |
 
 The signing point differs on purpose: each signature must cover the **final**
 bytes of the file a user downloads. macOS notarization and Windows Authenticode
 both rewrite the artifact after bundling, so an updater signature computed at
-bundle time would not verify — while the Linux packages are not touched after
-bundling, so the bundler's signature is already final.
+bundle time would not verify. The Linux packages are not rewritten, but they
+are also signed in a separate step, after the build: the build compiles every
+dependency and runs their build scripts, and the key must never be in the
+environment of that code.
 
 Every artifact above is shipped **uncompressed**: a `.tar.gz` on macOS (which
 the plugin extracts with `tar`, not `zip`), and the raw `.exe`, `.msi`,

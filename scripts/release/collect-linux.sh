@@ -2,7 +2,9 @@
 # Collects the Linux Tauri bundle outputs into dist/ under their stable
 # names (PRD 0021 RF2) and writes the signing fragment. Linux artifacts are
 # unsigned files whose trust comes from the signed SHA256SUMS (RF3.1); the
-# merge resolves their final state. Usage: collect-linux.sh <x64|arm64>
+# merge resolves their final state. The updater signatures are added by the
+# separate `updater-sign.sh` step afterwards, so this script never sees the
+# updater key. Usage: collect-linux.sh <x64|arm64>
 set -euo pipefail
 
 : "${VERSION:?}"
@@ -70,44 +72,23 @@ collect() { # <bundle-subdirectory> <expected-extension> <stable-destination-nam
   src="$(select_final_package "$dir" "$expected_ext")"
   cp "$src" "dist/$dest"
   echo "collected dist/$dest"
-  # Updater signature (PRD 0018 RF1.1): with
-  # `--config src-tauri/tauri.updater.conf.json` the Tauri bundler signs every
-  # Linux package in place while bundling, and nothing rewrites those bytes
-  # afterwards, so the signature is final here. Without the overlay there is
-  # no `.sig` beside the package, which is the honest unsigned state.
-  #
-  # The package is ONE artifact with TWO proofs: the checksum record every
-  # Linux package has (RF3.1) and, when the bundler signed it, the detached
-  # updater signature. Recording the payload a second time as a
-  # `tauri-updater-key` entry is what `signing::merge` rejects, so it is only
-  # ever attached to the record the payload already has.
-  if [ -f "${src}.sig" ]; then
-    cp "${src}.sig" "dist/${dest}.sig"
-    echo "collected dist/${dest}.sig"
-    updater_entries="$(jq -c --arg a "$dest" --arg s "${dest}.sig" '
-      . + [$a, $s]
-    ' <<<"$updater_entries")"
-  fi
 }
 
 appimage="Cuotai_${VERSION}_${stable_arch}.AppImage"
 deb="Cuotai_${VERSION}_${stable_arch}.deb"
 rpm="Cuotai_${VERSION}_${stable_arch}.rpm"
-updater_entries='[]'
 collect appimage "AppImage" "$appimage"
 collect deb     "deb"     "$deb"
 collect rpm     "rpm"     "$rpm"
 
-# The updater state follows the signatures: available with exactly the signed
-# payloads and their detached signatures, or unavailable with the reason the
-# key was not configured. Every package has exactly one record, and the ones
-# the bundler signed carry the detached signature as their updater proof.
+# Every package has exactly one record. The updater starts unavailable;
+# `updater-sign.sh` attaches each detached signature to its record and marks
+# the updater available, or keeps it unavailable with its own reason.
 jq -n \
   --arg a "$appimage" \
   --arg d "$deb" \
   --arg r "$rpm" \
-  --arg reason "complete Tauri updater signing credentials are not configured in the release environment" \
-  --argjson updater "$updater_entries" \
+  --arg reason "the Linux packages are not updater-signed yet" \
   '
   {
     artifacts: ([$a, $d, $r] | map(. as $name | {
@@ -116,12 +97,9 @@ jq -n \
       method: "checksum-signature",
       status: "unsigned",
       note: "unsigned payload; integrity is authenticated through SHA256SUMS when its signature is available"
-    } + if ($updater | index($name)) then {updater_signature: "\($name).sig"} else {} end))
+    })),
+    updater: {available: false, artifacts: [], reason: $reason}
   }
-  | .updater = (if ($updater | length) == 0
-      then {available: false, artifacts: [], reason: $reason}
-      else {available: true, artifacts: $updater}
-      end)
   ' > "fragments/linux-${arch}.json"
 
 echo "wrote fragments/linux-${arch}.json"
