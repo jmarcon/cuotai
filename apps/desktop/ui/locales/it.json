@@ -1056,6 +1056,11 @@
   "update.off.other": "Questa installazione non usa l'aggiornatore integrato.",
   "update.available": "Aggiornamento {version} disponibile",
   "update.notes": "Novità",
+  "update.notesMore": {
+    "one": "e {count} altra",
+    "other": "e altre {count}"
+  },
+  "update.notesFull": "Note di rilascio complete",
   "update.date": "pubblicato il {date}",
   "update.now": "Aggiorna ora",
   "update.later": "Ricordamelo più tardi",

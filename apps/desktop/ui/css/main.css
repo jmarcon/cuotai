@@ -158,8 +158,39 @@
 .update-notes[open] .upd-chev {
   transform: rotate(90deg);
 }
-.update-notes > p {
+/* PRD 0019 RF7.7: the update's notes, drawn from the core's structured view (same scale as What's new). */
+.upd-notes-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  max-height: 280px;
+  overflow-y: auto;
+}
+.upd-rel h4 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 650;
+  color: var(--fg);
+}
+.upd-rel h4 small {
+  font-weight: 400;
+  color: var(--fg-muted);
+}
+.upd-cat {
   margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.upd-list {
+  margin: var(--space-0) 0 0;
+  padding-left: var(--space-5);
+}
+.upd-list li {
+  margin: var(--space-0) 0;
 }
 :root[data-motion="off"] .update-notes .upd-chev,
 :root[data-motion="reduced"] .update-notes .upd-chev {

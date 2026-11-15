@@ -1051,6 +1051,10 @@
   "update.off.other": "Instalasi ini tidak memakai pembaru dalam aplikasi.",
   "update.available": "Pembaruan {version} tersedia",
   "update.notes": "Yang baru",
+  "update.notesMore": {
+    "other": "dan {count} lainnya"
+  },
+  "update.notesFull": "Catatan rilis lengkap",
   "update.date": "dirilis pada {date}",
   "update.now": "Perbarui sekarang",
   "update.later": "Ingatkan saya nanti",

@@ -1062,6 +1062,11 @@
   "update.off.other": "Esta instalação não usa o atualizador interno.",
   "update.available": "Atualização {version} disponível",
   "update.notes": "O que há de novo",
+  "update.notesMore": {
+    "one": "e mais {count}",
+    "other": "e mais {count}"
+  },
+  "update.notesFull": "Notas completas da versão",
   "update.date": "publicada em {date}",
   "update.now": "Atualizar agora",
   "update.later": "Lembrar depois",

@@ -1051,6 +1051,10 @@
   "update.off.other": "Bản cài đặt này không dùng trình cập nhật trong ứng dụng.",
   "update.available": "Có bản cập nhật {version}",
   "update.notes": "Có gì mới",
+  "update.notesMore": {
+    "other": "và {count} mục khác"
+  },
+  "update.notesFull": "Ghi chú phát hành đầy đủ",
   "update.date": "phát hành ngày {date}",
   "update.now": "Cập nhật ngay",
   "update.later": "Nhắc tôi sau",

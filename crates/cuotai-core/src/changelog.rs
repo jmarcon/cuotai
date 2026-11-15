@@ -246,6 +246,66 @@ pub struct Entry {
     pub hashes: Vec<String>,
 }
 
+impl Entry {
+    /// The sentence for a reader, without the traceability tail: the last
+    /// `(…)` group is dropped when it cites a plan or a commit, keeping the
+    /// final period (`Fixed X (PRD 0019 RF7.5; abc1234).` → `Fixed X.`).
+    /// Interfaces show this; [`Entry::text`] keeps the full line.
+    pub fn display_text(&self) -> String {
+        let text = self.text.trim_end();
+        let (body, period) = match text.strip_suffix('.') {
+            Some(body) => (body, "."),
+            None => (text, ""),
+        };
+        let Some(inner) = body.strip_suffix(')') else {
+            return text.to_string();
+        };
+        let Some(open) = matching_open(inner) else {
+            return text.to_string();
+        };
+        let tail = parse_entry(&body[open..]);
+        if tail.refs.is_empty() && tail.hashes.is_empty() {
+            return text.to_string();
+        }
+        format!("{}{period}", body[..open].trim_end())
+    }
+}
+
+/// The byte index of the `(` that opens the group closed at the end of
+/// `inner` (which has its final `)` already removed).
+fn matching_open(inner: &str) -> Option<usize> {
+    let mut depth = 1usize;
+    for (index, ch) in inner.char_indices().rev() {
+        match ch {
+            ')' => depth += 1,
+            '(' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(index);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// Lenient parse of release *notes* (PRD 0019 RF7.5/RF7.7): one or more
+/// `## [X.Y.Z] - YYYY-MM-DD` sections as the release workflow writes them
+/// into the GitHub Release body and `latest.json`, newest first, with no
+/// `[Unreleased]` section and no footer. Every section keeps the strict
+/// format rules of [`parse`]. `None` when the text is not in that shape;
+/// the interface then shows no body, only a link to the release page.
+pub fn parse_notes(text: &str) -> Option<Vec<Release>> {
+    if !text.trim_start().starts_with("## [") {
+        return None;
+    }
+    let wrapped = format!("## [Unreleased]\n\n{text}");
+    let changelog = parse(&wrapped).ok()?;
+    (!changelog.releases.is_empty() && changelog.pre_release.is_none())
+        .then_some(changelog.releases)
+}
+
 /// One plan-requirement reference: `PRD 0019 RF7.4` → `prd` "0019",
 /// `rf` "RF7.4".
 #[derive(Debug, Clone, PartialEq, Eq)]

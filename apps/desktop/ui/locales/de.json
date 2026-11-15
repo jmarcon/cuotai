@@ -1058,6 +1058,11 @@
   "update.off.other": "Diese Installation nutzt den In-App-Updater nicht.",
   "update.available": "Update {version} verfügbar",
   "update.notes": "Neuerungen",
+  "update.notesMore": {
+    "one": "und {count} weiterer",
+    "other": "und {count} weitere"
+  },
+  "update.notesFull": "Vollständige Versionshinweise",
   "update.date": "veröffentlicht am {date}",
   "update.now": "Jetzt aktualisieren",
   "update.later": "Später erinnern",

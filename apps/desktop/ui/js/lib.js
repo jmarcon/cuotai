@@ -2045,7 +2045,19 @@ const demoPrices = () => {
 // `?update=consent` shows the question without a request; `off`, `managed`,
 // `error` (a failed check) and `download-error` exercise the other states.
 const DEMO_UPDATE = new URLSearchParams(location.search).get("update");
-const DEMO_NOTES = "Measurement fixes and a new automatic update option (PRD 0018).";
+// The structured notes the shell sends (PRD 0019 RF7.7): two sections, as after an unpublished tag.
+const DEMO_NOTES = {
+  releases: [
+    { version: "0.72.0", date: "2026-10-22", categories: [
+      { label: { id: "changelog.category.added", fallback: "Added" }, entries: ["A new automatic update option."] },
+      { label: { id: "changelog.category.fixed", fallback: "Fixed" }, entries: ["Measurement fixes for the weekly quota.", "The tray icon keeps its color after sleep."] },
+    ] },
+    { version: "0.71.1", date: "2026-10-20", categories: [
+      { label: { id: "changelog.category.fixed", fallback: "Fixed" }, entries: ["The account dialog keeps its scroll position."] },
+    ] },
+  ],
+  more: 3,
+};
 const demoUpdate = {
   automatic: !["off", "consent"].includes(DEMO_UPDATE),
   consentAnswered: DEMO_UPDATE !== "consent",
@@ -2433,7 +2445,7 @@ const demo = {
     notify: { ...demoSettings.notify }, notify_leads: [0, 5, 15, 60], notify_whens: ["used", "exhausted", "always"],
     alerts: structuredClone(demoSettings.alerts), quiet: structuredClone(demoSettings.quiet), alert_min: 10, alert_max: 99, detect: structuredClone(demoSettings.detect), 
     tray: { ...demoSettings.tray }, advanced_open: !!demoSettings.advancedOpen, stats: { ...demoSettings.stats },
-    profile_existed: !!demoSettings.profileExisted, whats_new_auto: demoSettings.whatsNewAuto !== false, whats_new_due: demoSettings.whatsNewDue === true, monograms: { ...demoSettings.monograms }, rows: structuredClone(demoSettings.rows ?? {}), onboarding: demoSettings.onboarding, onboarding_version: 1, version: "demo" }),
+    profile_existed: !!demoSettings.profileExisted, whats_new_auto: demoSettings.whatsNewAuto !== false, whats_new_due: demoSettings.whatsNewDue === true, monograms: { ...demoSettings.monograms }, rows: structuredClone(demoSettings.rows ?? {}), onboarding: demoSettings.onboarding, onboarding_version: 1, version: "demo", license: "MIT OR Apache-2.0" }),
   set_user_dir: async ({ path }) => { demoSettings.custom = path ?? null; },
   set_motion: async ({ motion }) => { if (!MOTIONS.includes(motion)) throw "invalid_motion"; },
   set_show_pace: async () => {},
@@ -2839,7 +2851,7 @@ const demo = {
     copy_only: false,
   }),
   about_info: async () => ({
-    name: "Cuotai", version: "demo", license: "MIT", repository: "https://github.com/jmarcon/cuotai",
+    name: "Cuotai", version: "demo", license: "MIT OR Apache-2.0", repository: "https://github.com/jmarcon/cuotai",
     libraries: [
       { name: "tokio", license: "MIT", repository: "https://github.com/tokio-rs/tokio", role: "runtime", used_by: ["core", "tui", "desktop"] },
       { name: "tauri", license: "Apache-2.0 OR MIT", repository: "https://github.com/tauri-apps/tauri", role: "runtime", used_by: ["desktop"], from_brazil: true },

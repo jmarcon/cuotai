@@ -1058,6 +1058,11 @@
   "update.off.other": "Cette installation n’utilise pas le système de mise à jour intégré.",
   "update.available": "Mise à jour {version} disponible",
   "update.notes": "Nouveautés",
+  "update.notesMore": {
+    "one": "et {count} autre",
+    "other": "et {count} autres"
+  },
+  "update.notesFull": "Notes de version complètes",
   "update.date": "publiée le {date}",
   "update.now": "Mettre à jour",
   "update.later": "Me le rappeler plus tard",

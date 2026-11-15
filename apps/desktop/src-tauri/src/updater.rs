@@ -26,7 +26,9 @@ use std::{
     time::Duration,
 };
 
+use cuotai_core::changelog::{self, Entry};
 use cuotai_core::install_source::{detect_install_source, InstallSource};
+use cuotai_core::text::{changelog_category_l10n, Localized};
 use parking_lot::Mutex;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Runtime, Url};
@@ -389,6 +391,75 @@ impl Phase {
     }
 }
 
+/// Entries shown in the update banner before "and N more" (PRD 0019
+/// re-validation, V-01); the rest is one click away on the release page.
+pub const NOTES_LIMIT: usize = 12;
+
+/// PRD 0019 RF7.5/RF7.7 (re-validation, V-01): the update's release notes,
+/// parsed by the core and shaped for the banner. The interface never parses
+/// Markdown: it draws versions, localized category labels and plain entries.
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct UpdateNotes {
+    pub releases: Vec<UpdateNotesRelease>,
+    /// Entries left out after [`NOTES_LIMIT`].
+    pub more: usize,
+}
+
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct UpdateNotesRelease {
+    pub version: String,
+    pub date: String,
+    pub categories: Vec<UpdateNotesCategory>,
+}
+
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct UpdateNotesCategory {
+    pub label: Localized,
+    /// Reader text: the traceability tail (plans, commits) is removed.
+    pub entries: Vec<String>,
+}
+
+/// The notes of `latest.json` (`update.body`) as [`UpdateNotes`], or `None`
+/// when they are not release sections (the banner then offers only the
+/// release page).
+pub fn notes_view(raw: &str) -> Option<UpdateNotes> {
+    let releases = changelog::parse_notes(raw)?;
+    let mut budget = NOTES_LIMIT;
+    let mut more = 0usize;
+    let mut out = Vec::new();
+    for release in releases {
+        let mut categories = Vec::new();
+        for block in &release.section.categories {
+            let total = block.entries.len();
+            let shown: Vec<String> = block
+                .entries
+                .iter()
+                .take(budget)
+                .map(Entry::display_text)
+                .collect();
+            budget -= shown.len();
+            more += total - shown.len();
+            if !shown.is_empty() {
+                categories.push(UpdateNotesCategory {
+                    label: changelog_category_l10n(block.category),
+                    entries: shown,
+                });
+            }
+        }
+        if !categories.is_empty() {
+            out.push(UpdateNotesRelease {
+                version: release.version,
+                date: release.date,
+                categories,
+            });
+        }
+    }
+    (!out.is_empty()).then_some(UpdateNotes {
+        releases: out,
+        more,
+    })
+}
+
 /// PRD 0018 RF2.2/RF2.6/RF3.1: the UI view, without an endpoint, signature or key.
 #[derive(Serialize, Clone, Debug, PartialEq)]
 pub struct UpdateView {
@@ -409,7 +480,8 @@ pub struct UpdateView {
     /// ou `failed`.
     pub phase: &'static str,
     pub version: Option<String>,
-    pub notes: Option<String>,
+    /// The release notes, structured (PRD 0019 RF7.7); never raw Markdown.
+    pub notes: Option<UpdateNotes>,
     pub date: Option<String>,
     /// This installation can be updated in place (RF2.5).
     pub can_install: bool,
@@ -632,7 +704,7 @@ impl Service {
             consent_pending: reason.is_none() && !prefs.consent_answered,
             phase: name,
             version,
-            notes,
+            notes: notes.as_deref().and_then(notes_view),
             date,
             can_install: source.can_install(),
             upgrade_command: source.upgrade_command(),
@@ -1317,6 +1389,40 @@ mod detector {
 }
 
 #[cfg(test)]
+mod notes {
+    use super::{notes_view, NOTES_LIMIT};
+
+    /// PRD 0019 re-validation (V-01): the banner never receives raw Markdown,
+    /// plan references or commit hashes, and long notes are bounded.
+    #[test]
+    fn update_notes_are_structured_reader_text_and_bounded() {
+        let raw = "## [0.86.0] - 2026-11-15\n\n### Added\n\n- One (PRD 0019 RF7.7; abc1234).\n\n### Fixed\n\n- Two (def5678).\n\n## [0.85.9] - 2026-11-14\n\n### Fixed\n\n- Three (PRD 0018 RF2.2).\n";
+        let notes = notes_view(raw).expect("sections");
+        assert_eq!(notes.more, 0);
+        assert_eq!(notes.releases.len(), 2);
+        assert_eq!(notes.releases[0].version, "0.86.0");
+        assert_eq!(
+            notes.releases[0].categories[0].label.id,
+            "changelog.category.added"
+        );
+        assert_eq!(notes.releases[0].categories[1].entries, ["Two."]);
+        assert_eq!(notes.releases[1].categories[0].entries, ["Three."]);
+        let json = serde_json::to_string(&notes).unwrap();
+        for leak in ["##", "PRD", "abc1234", "def5678"] {
+            assert!(!json.contains(leak), "{leak} in {json}");
+        }
+
+        let many: String = (1..=20).map(|n| format!("- Entry {n}.\n")).collect();
+        let long = notes_view(&format!("## [0.86.0] - 2026-11-15\n\n### Fixed\n\n{many}")).unwrap();
+        assert_eq!(long.releases[0].categories[0].entries.len(), NOTES_LIMIT);
+        assert_eq!(long.more, 20 - NOTES_LIMIT);
+
+        assert_eq!(notes_view("Correções e melhorias desta versão."), None);
+        assert_eq!(notes_view(""), None);
+    }
+}
+
+#[cfg(test)]
 mod schedule {
     use super::{parse_instant, Duration, Service, UpdaterPrefs, CHECK_NAP};
 
@@ -1669,7 +1775,7 @@ mod contract {
         let target = tauri_plugin_updater::target().expect("alvo suportado");
         serde_json::json!({
             "version": version,
-            "notes": "Correções e melhorias desta versão.",
+            "notes": format!("## [{version}] - 2026-10-22\n\n### Fixed\n\n- Fixes and improvements (PRD 0018 RF2.2; abc1234)."),
             "pub_date": "2026-10-22T12:00:00Z",
             "platforms": { target: { "signature": signature, "url": download } }
         })
@@ -1708,8 +1814,10 @@ mod contract {
         assert_eq!(update.version, newer);
         assert_eq!(update.current_version, CURRENT);
         assert_eq!(
-            update.body.as_deref(),
-            Some("Correções e melhorias desta versão.")
+            update.body,
+            Some(format!(
+                "## [{newer}] - 2026-10-22\n\n### Fixed\n\n- Fixes and improvements (PRD 0018 RF2.2; abc1234)."
+            ))
         );
         // The signature is valid for the package bytes (RF1.4) and is refused if they change.
         update.verify(payload).expect("assinatura válida");
@@ -2158,7 +2266,7 @@ mod contract {
         let raw = serde_json::json!({"version": "0.2.0", "platforms": {}});
         *service.phase.lock() = Phase::Downloading {
             version: "0.2.0".into(),
-            notes: Some("notes".into()),
+            notes: Some("## [0.2.0] - 2026-10-22\n\n### Added\n\n- Notes.".into()),
             date: Some("2026-10-22T12:00:00Z".into()),
             raw: raw.clone(),
             downloaded: 9,
@@ -2168,7 +2276,9 @@ mod contract {
         let view = service.cancel_download(app.handle());
         assert_eq!(view.phase, "available");
         assert_eq!(view.version.as_deref(), Some("0.2.0"));
-        assert_eq!(view.notes.as_deref(), Some("notes"));
+        let notes = view.notes.as_ref().expect("structured notes");
+        assert_eq!(notes.releases[0].version, "0.2.0");
+        assert_eq!(notes.releases[0].categories[0].entries, ["Notes."]);
         assert_eq!(view.date.as_deref(), Some("2026-10-22T12:00:00Z"));
         match &*service.phase.lock() {
             Phase::Available {

@@ -11,7 +11,7 @@ import { buttons, row, rowError, sw, toast } from "./rows.js";
 export function html({ settings: s, update }) {
   return group("about", te("settings.about"),
     row({ key: "version", label: `Cuotai ${esc(s.version)}${update?.build ? ` (${esc(update.build)})` : ""}`,
-      desc: `${te("about.license", { license: "MIT" })} · ${te("about.updateState", { state: updateStateText(update) })}`,
+      desc: `${te("about.license", { license: s.license ?? "" })} · ${te("about.updateState", { state: updateStateText(update) })}`,
       control: () => buttons(`<button class="btn sm" data-libraries>${te("about.libraries")}</button><button class="btn sm" data-whats-new>${te("about.whatsNew")}</button><button class="btn sm" data-report-problem>${te("report.action")}</button>`) })
     // PRD 0019 RF7.7: the notes open once by themselves after an update; on by default.
     + row({ key: "whats-new-auto", label: te("settings.whatsnew.auto"), desc: te("settings.whatsnew.auto.desc"),

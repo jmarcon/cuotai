@@ -1058,6 +1058,11 @@
   "update.off.other": "Bu kurulum uygulama içi güncelleyiciyi kullanmıyor.",
   "update.available": "{version} güncellemesi mevcut",
   "update.notes": "Yenilikler",
+  "update.notesMore": {
+    "one": "ve {count} tane daha",
+    "other": "ve {count} tane daha"
+  },
+  "update.notesFull": "Tüm sürüm notları",
   "update.date": "{date} tarihinde yayımlandı",
   "update.now": "Şimdi güncelle",
   "update.later": "Daha sonra hatırlat",

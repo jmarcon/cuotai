@@ -1881,6 +1881,9 @@ pub struct SettingsView {
     onboarding: u64,
     onboarding_version: u64,
     version: &'static str,
+    /// PRD 0019 RF1.1: the project licence Settings › About shows (the core's
+    /// `PROJECT_LICENSE`, never a literal in the interface).
+    license: &'static str,
     /// PRD 0022 RF15.1: a profile existed before this build's first launch.
     profile_existed: bool,
     /// PRD 0019 RF7.7: the Settings › About switch and whether the notes are due now.
@@ -1981,6 +1984,7 @@ pub fn view() -> SettingsView {
             .unwrap_or(0),
         onboarding_version: ONBOARDING_VERSION,
         version: env!("CARGO_PKG_VERSION"),
+        license: cuotai_core::about::PROJECT_LICENSE,
         profile_existed: stored.profile_existed == Some(true),
         whats_new_auto: stored.whats_new_auto != Some(false),
         whats_new_due: whats_new_due_of(&stored, env!("CARGO_PKG_VERSION")),
