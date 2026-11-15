@@ -253,8 +253,18 @@ pub(crate) fn print(version: Option<&str>, locale: &str) -> Result<u8, Box<dyn s
             selected
         }
     };
-    print!("{}", render_text(version, &selected, locale));
+    let text = render_text(version, &selected, locale);
+    write_quietly(&mut std::io::stdout().lock(), &text)?;
     Ok(0)
+}
+
+/// Writes `text`; a reader that stopped early (`| head`, quitting `less`)
+/// is a normal end, not an error (PRD 0019 re-validation, V-06).
+fn write_quietly(out: &mut impl std::io::Write, text: &str) -> std::io::Result<()> {
+    match out.write_all(text.as_bytes()).and_then(|()| out.flush()) {
+        Err(error) if error.kind() == std::io::ErrorKind::BrokenPipe => Ok(()),
+        other => other,
+    }
 }
 
 /// The text `--changelog` prints for `selected`.
@@ -262,8 +272,9 @@ fn render_text(version: Option<&str>, selected: &Selection<'_>, locale: &str) ->
     let mut out = format!("Cuotai {CURRENT}\n\n");
     out.push_str(&resolve(&changelog_entries_language_l10n(), locale));
     out.push('\n');
+    // The headings below name each version; only the pre-release note needs
+    // the requested one (an untranslated `VERSION:` label was dropped, V-08).
     if let Some(version) = version {
-        out.push_str(&format!("\nVERSION: {version}\n"));
         if let Some(history) = selected.pre_release {
             out.push_str(&format!(
                 "\n{}\n",
@@ -584,7 +595,7 @@ mod tests {
         }
         // The text names the history and explains why.
         let text = render_text(Some("0.5.0"), &matching(&changelog, "0.5.0"), "en-US");
-        assert!(text.contains("VERSION: 0.5.0"), "{text}");
+        assert!(!text.contains("VERSION:"), "{text}");
         assert!(
             text.contains("\"0.5.0\" was an internal build and was never published"),
             "{text}"
@@ -633,5 +644,33 @@ mod tests {
             .or_else(|| changelog.releases.first().map(|r| r.version.clone()))
             .unwrap();
         assert!(error.contains(&range_or_version), "{error}");
+    }
+    /// PRD 0019 re-validation (V-06): `cuotai --changelog | head -1` ends
+    /// quietly with exit 0 instead of a panic.
+    #[test]
+    fn a_closed_reader_ends_the_changelog_quietly() {
+        struct Closed;
+        impl std::io::Write for Closed {
+            fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+                Err(std::io::ErrorKind::BrokenPipe.into())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        struct Full;
+        impl std::io::Write for Full {
+            fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+                Err(std::io::ErrorKind::StorageFull.into())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        assert!(write_quietly(&mut Closed, "text").is_ok());
+        assert!(write_quietly(&mut Full, "text").is_err());
+        let mut buffer = Vec::new();
+        write_quietly(&mut buffer, "text").unwrap();
+        assert_eq!(buffer, b"text");
     }
 }
