@@ -574,6 +574,11 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* The raw vault service name under its friendly label (Erase all). */
+.set-path.secondary {
+  color: var(--fg-muted);
+  font-size: var(--text-sm, 12px);
+}
 
 /* RF5.3: the ⓘ button and its popover. */
 .set-info {

@@ -1692,6 +1692,8 @@
   "privacy.erase.confirm.body": "Cuotai가 백그라운드 작업을 멈추고 {erased}개 항목을 지웁니다: 기록, 설정, 로그, 로컬 비용 데이터, 시스템 자격 증명 보관함에 저장한 로그인. {kept}개 항목은 유지됩니다. 되돌릴 수 없습니다.",
   "privacy.erase.confirm.accept": "모두 지우기",
   "privacy.erase.done": "Cuotai 데이터를 모두 지웠습니다. 이제 Cuotai가 종료됩니다.",
+  "privacy.erase.label.vault_oauth": "저장된 로그인, 키 및 채널 주소",
+  "privacy.erase.label.vault_serve": "로컬 서버 액세스 토큰",
   "provider.alibaba_cloud": "Alibaba Cloud — 청구",
   "provider.alibaba_coding_plan": "Alibaba Coding Plan",
   "provider.alibaba_model_studio": "Alibaba Model Studio / DashScope",

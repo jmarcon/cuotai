@@ -2504,7 +2504,7 @@ const demo = {
   erase_all_plan: async () => ({ word: "ERASE", items: [
     { id: "history.db", location: "~/Library/Application Support/cuotai/history/history.sqlite3", kind: "file", erase: true },
     { id: "desktop.settings", location: "~/Library/Application Support/cuotai/desktop.json", kind: "file", erase: true },
-    { id: "vault.oauth", location: "cuotai.oauth", kind: "vault_service", erase: true },
+    { id: "vault.oauth", location: "cuotai.oauth", kind: "vault_service", erase: true, label: "Saved sign-ins, keys and channel addresses" },
     { id: "config.accounts", location: "~/.config/cuotai/config.toml", kind: "file", erase: false },
   ] }),
   // The demo never erases anything: it answers as a partial erase so the page stays usable.

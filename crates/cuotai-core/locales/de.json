@@ -1704,6 +1704,8 @@
   "privacy.erase.confirm.body": "Cuotai beendet seine Hintergrundarbeit und löscht {erased} Elemente: Verlauf, Einstellungen, Protokolle, lokale Kostendaten und die Anmeldungen, die es im Anmeldedatenspeicher des Systems abgelegt hat. {kept} Elemente bleiben erhalten. Das kann nicht rückgängig gemacht werden.",
   "privacy.erase.confirm.accept": "Alles löschen",
   "privacy.erase.done": "Alle Cuotai-Daten wurden gelöscht. Cuotai wird jetzt beendet.",
+  "privacy.erase.label.vault_oauth": "Gespeicherte Anmeldungen, Schlüssel und Kanaladressen",
+  "privacy.erase.label.vault_serve": "Zugriffstoken des lokalen Servers",
   "provider.alibaba_cloud": "Alibaba Cloud — Abrechnung",
   "provider.alibaba_coding_plan": "Alibaba Coding Plan",
   "provider.alibaba_model_studio": "Alibaba Model Studio / DashScope",

@@ -1692,6 +1692,8 @@
   "privacy.erase.confirm.body": "Cuotai 将停止后台工作并删除 {erased} 项：历史记录、设置、日志、本地费用数据以及保存在系统凭据库中的登录信息。保留 {kept} 项。此操作无法撤销。",
   "privacy.erase.confirm.accept": "全部删除",
   "privacy.erase.done": "Cuotai 的所有数据已删除。Cuotai 现在将退出。",
+  "privacy.erase.label.vault_oauth": "已保存的登录、密钥和渠道地址",
+  "privacy.erase.label.vault_serve": "本地服务器访问令牌",
   "provider.alibaba_cloud": "Alibaba Cloud — 计费",
   "provider.alibaba_coding_plan": "Alibaba Coding Plan",
   "provider.alibaba_model_studio": "Alibaba Model Studio / DashScope",

@@ -1728,6 +1728,8 @@
   "privacy.erase.confirm.body": "Cuotai остановит фоновую работу и удалит {erased} элементов: историю, настройки, журналы, данные локальных расходов и входы, сохранённые в системном хранилище учётных данных. Сохраняется элементов: {kept}. Это нельзя отменить.",
   "privacy.erase.confirm.accept": "Удалить всё",
   "privacy.erase.done": "Все данные Cuotai удалены. Сейчас Cuotai закроется.",
+  "privacy.erase.label.vault_oauth": "Сохранённые входы, ключи и адреса каналов",
+  "privacy.erase.label.vault_serve": "Токен доступа локального сервера",
   "provider.alibaba_cloud": "Alibaba Cloud — биллинг",
   "provider.alibaba_coding_plan": "Alibaba Coding Plan",
   "provider.alibaba_model_studio": "Alibaba Model Studio / DashScope",

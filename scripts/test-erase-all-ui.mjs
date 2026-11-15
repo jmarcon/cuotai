@@ -36,6 +36,11 @@ for (const item of kept) {
 }
 const order = [...list("data-erase-list").matchAll(/<small>([^<]+)<\/small>/g)].map((m) => m[1]);
 assert.deepEqual(order, erased.map((i) => i.id), "the core's order is kept");
+// A vault service leads with its friendly name; the raw service name stays as secondary text.
+const vaultItem = plan.items.find((i) => i.kind === "vault_service");
+assert.ok(vaultItem?.label, "the demo plan labels its vault service");
+assert.match(list("data-erase-list"), new RegExp(`<span data-erase-label>${vaultItem.label}</span> <code class="set-path secondary">${vaultItem.location.replace(".", "\\.")}</code>`));
+for (const item of plan.items.filter((i) => !i.label)) assert.ok(!html.includes(`data-erase-label>${item.location}`));
 assert.match(html, /<input type="checkbox" class="chk" data-erase-config\s*\/>/, "the accounts-file box starts off");
 assert.match(html, /data-erase-all-confirm disabled/, "the confirm button starts disabled");
 assert.ok(html.includes(i18n.te("settings.erase.word", { word: plan.word })), "the word to type is shown");

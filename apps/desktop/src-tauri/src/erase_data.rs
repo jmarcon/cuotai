@@ -46,7 +46,18 @@ pub struct PlanView {
     word: String,
     /// Every artifact in the core's order; `erase: false` is kept unless
     /// the accounts-file box is ticked.
-    items: Vec<PlanItem>,
+    items: Vec<PlanItemView>,
+}
+
+/// One inventory line: the core item plus, for a credential-vault service,
+/// its friendly name in the desktop language (the raw service name stays in
+/// `location`, shown as secondary text).
+#[derive(Debug, Serialize)]
+pub struct PlanItemView {
+    #[serde(flatten)]
+    item: PlanItem,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    label: Option<String>,
 }
 
 /// The inventory over `roots`, the accounts TOML marked as kept.
@@ -56,7 +67,13 @@ pub fn plan_view(roots: Roots, locale: &str) -> PlanView {
         items: erase::plan(&EraseOptions {
             roots,
             include_config: false,
-        }),
+        })
+        .into_iter()
+        .map(|item| PlanItemView {
+            label: erase::item_label(item.id).map(|label| label.resolve(locale)),
+            item,
+        })
+        .collect(),
     }
 }
 
@@ -423,9 +440,29 @@ mod tests {
         let accounts = view
             .items
             .iter()
-            .find(|i| i.id == "config.accounts")
+            .find(|i| i.item.id == "config.accounts")
             .unwrap();
-        assert!(!accounts.erase);
-        assert!(view.items.iter().any(|i| i.erase));
+        assert!(!accounts.item.erase);
+        assert!(accounts.label.is_none());
+        assert!(view.items.iter().any(|i| i.item.erase));
+    }
+
+    #[tokio::test]
+    async fn vault_items_carry_a_localized_label_beside_the_service_name() {
+        let (_dir, roots, _, _) = tree();
+        let view = plan_view(roots, "pt-BR");
+        let oauth = view
+            .items
+            .iter()
+            .find(|i| i.item.id == "vault.oauth")
+            .unwrap();
+        assert_eq!(oauth.item.location, "cuotai.oauth");
+        assert_eq!(
+            oauth.label.as_deref(),
+            Some("Logins, chaves e endereços de canais salvos")
+        );
+        let json = serde_json::to_value(oauth).unwrap();
+        assert_eq!(json["location"], "cuotai.oauth");
+        assert_eq!(json["label"], "Logins, chaves e endereços de canais salvos");
     }
 }
