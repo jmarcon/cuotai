@@ -230,6 +230,11 @@ fn renders_every_channel_deterministically_from_one_manifest() {
     // PRD 0018 RF3.2: the switch that makes the installer write the marker.
     assert!(installer.contains("Custom: /WINGET=1"));
 
+    // Dual-licensed: the licence URL names both licences, not one file.
+    let locale = content_of(&first, "winget/Cuotai.Cuotai.locale.en-US.yaml");
+    assert!(locale.contains("License: MIT OR Apache-2.0"));
+    assert!(locale.contains(&format!("LicenseUrl: https://github.com/{REPO}#license")));
+
     let scoop = content_of(&first, SCOOP);
     assert!(scoop.contains(&format!("\"hash\": \"{zip_sha}\"")));
 

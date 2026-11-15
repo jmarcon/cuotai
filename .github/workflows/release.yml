@@ -1490,6 +1490,17 @@ jobs:
           if (-not $installerUrl) { throw "INSTALLER_URL is not set" }
           $installer = Join-Path $env:RUNNER_TEMP 'Cuotai-setup.exe'
           Invoke-WebRequest -Uri $installerUrl -OutFile $installer
+          # The installer must be the one the validated manifest names: this
+          # runner later receives WINGET_SUBMIT_TOKEN (PRD 0021 re-validation S-03).
+          $manifest = Get-Content -Raw 'rendered/winget/Cuotai.Cuotai.installer.yaml'
+          $entry = [regex]::Match($manifest, '(?ms)^\s*-\s*Architecture:\s*x64\s*$(.*?)(?=^\s*-\s*Architecture:|\z)')
+          if (-not $entry.Success) { throw "the rendered winget manifest has no x64 installer" }
+          $manifestUrl = [regex]::Match($entry.Groups[1].Value, '(?m)^\s*InstallerUrl:\s*(\S+)\s*$').Groups[1].Value
+          $expected = [regex]::Match($entry.Groups[1].Value, '(?m)^\s*InstallerSha256:\s*([0-9A-Fa-f]{64})\s*$').Groups[1].Value
+          if (-not $expected) { throw "the rendered winget manifest has no x64 InstallerSha256" }
+          if ($manifestUrl -ne $installerUrl) { throw "the downloaded URL is not the manifest's x64 InstallerUrl" }
+          $actual = (Get-FileHash -Algorithm SHA256 $installer).Hash
+          if ($actual -ine $expected) { throw "the x64 installer does not match InstallerSha256 in the rendered manifest" }
           Start-Process -FilePath $installer -ArgumentList '/S' -Wait
           $installDir = "$env:LOCALAPPDATA\Cuotai"
           if (-not (Test-Path "$installDir\Cuotai.exe")) {
@@ -1643,7 +1654,12 @@ jobs:
         # documented state, not a pipeline failure.
         continue-on-error: true
         run: cargo publish --dry-run --locked -p cuotai-tui
-      - name: Publish cuotai-core, then cuotai-tui (tag runs only)
+      # The token reaches only the two upload steps. Both publish with
+      # --no-verify, so no dependency build script or proc macro runs while
+      # it is in the environment: the token-free dry runs before and between
+      # them are the build verification (PRD 0021 re-validation S-02;
+      # `cargo xtask workflow-check` enforces it).
+      - name: Publish cuotai-core (tag runs only)
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
@@ -1654,13 +1670,24 @@ jobs:
           }
           # A published crate cannot depend on a path-only crate, so the
           # library goes first (RF5.4).
-          cargo publish --locked -p cuotai-core
-          # crates.io needs a moment before the index serves the new crate.
+          cargo publish --no-verify --locked -p cuotai-core
+      - name: Wait for cuotai-core in the index, then verify cuotai-tui
+        run: |
+          set -euo pipefail
+          # crates.io needs a moment before the index serves the new crate;
+          # this token-free dry run also builds cuotai-tui against it.
           for _ in $(seq 1 12); do
-            if cargo publish --dry-run --locked -p cuotai-tui; then break; fi
+            if cargo publish --dry-run --locked -p cuotai-tui; then exit 0; fi
             sleep 15
           done
-          cargo publish --locked -p cuotai-tui
+          echo "::error::cuotai-tui did not verify against the published cuotai-core $VERSION"
+          exit 1
+      - name: Publish cuotai-tui (tag runs only)
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          set -euo pipefail
+          cargo publish --no-verify --locked -p cuotai-tui
       - name: Channel status
         run: |
           echo "**crates.io**: packaging checked; published only on a tag run with CARGO_REGISTRY_TOKEN." >> "$GITHUB_STEP_SUMMARY"

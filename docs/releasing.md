@@ -529,9 +529,9 @@ and `.SRCINFO` agreement). The templates live in
 | Channel | Renders | Own linter in CI | Publishes to |
 |---|---|---|---|
 | Homebrew tap (RF5.1) | `Casks/cuotai-app.rb` (desktop), `Formula/cuotai.rb` (CLI) | `brew style`, `brew audit --strict --online`, `brew install --cask` | `jmarcon/homebrew-cuotai` |
-| winget (RF5.2) | `Cuotai.Cuotai{,.installer,.locale.en-US}.yaml` | `winget validate`, silent install/uninstall | `microsoft/winget-pkgs` |
+| winget (RF5.2) | `Cuotai.Cuotai{,.installer,.locale.en-US}.yaml` | `winget validate`, silent install/uninstall of the installer whose SHA-256 matches the rendered `InstallerSha256` | `microsoft/winget-pkgs` |
 | Scoop (RF5.3) | `bucket/cuotai.json` (CLI zip, `checkver: github`) | JSON validation, `scoop install` | `jmarcon/scoop-cuotai` |
-| Cargo (RF5.4) | nothing: crate metadata in `crates/*/Cargo.toml` | `cargo publish --dry-run` | crates.io (`cuotai-core` before `cuotai-tui`) |
+| Cargo (RF5.4) | nothing: crate metadata in `crates/*/Cargo.toml` | `cargo publish --dry-run`, without the token | crates.io (`cuotai-core` before `cuotai-tui`; each upload is a short step holding `CARGO_REGISTRY_TOKEN` that runs only `cargo publish --no-verify`, so no build script sees the token; `workflow-check` enforces it) |
 | AUR (RF5.5) | `PKGBUILD` + generated `.SRCINFO` (desktop `.deb`) | `bash -n`, source/checksum agreement | `ssh://aur@aur.archlinux.org/cuotai-bin.git` |
 
 Workflow behaviour (RF5.7):
