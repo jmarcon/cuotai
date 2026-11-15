@@ -173,7 +173,7 @@ export function sidebarHtml(current, advancedOpen) {
   return `${selectHtml(current)}<nav class="set-nav" aria-label="${te("settings.nav.label")}">
     <ul class="set-nav-list">${top.map((p) => entryHtml(p, current)).join("")}</ul>
     <div class="set-nav-group">
-      <button type="button" class="set-nav-item set-nav-toggle set-nav-grouplabel" data-advanced-toggle aria-expanded="${advancedOpen}" aria-controls="set-nav-advanced">
+      <button type="button" class="set-nav-item set-nav-toggle set-nav-grouplabel" data-advanced-toggle aria-expanded="${advancedOpen}" aria-controls="set-nav-advanced" title="${te("settings.page.advanced")}">
         ${icon("chev", "set-nav-chev")}${icon("wrench", "set-nav-rail")}<span>${te("settings.page.advanced")}</span></button>
       <ul class="set-nav-list set-nav-sub" id="set-nav-advanced">${advanced.map((p) => entryHtml(p, current)).join("")}</ul>
     </div>

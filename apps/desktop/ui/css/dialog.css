@@ -700,11 +700,12 @@ dialog.extensions-dlg {
 }
 .extension-state svg.i {
   width: 14px;
+  color: var(--chip);
   height: 14px;
   margin-right: var(--space-1);
 }
 .extension-state.disabled {
-  color: var(--info);
+  --chip: var(--info);
 }
 .extensions-dlg .ext-note {
   margin: var(--space-3) 0 0;
@@ -764,19 +765,22 @@ dialog.extensions-dlg {
   height: 20px;
   padding: 0 var(--space-2);
   border-radius: var(--radius-pill);
-  background: color-mix(in srgb, currentColor 16%, transparent);
-  color: var(--fg-muted);
+  /* PRD 0020 re-validation V-13: the text stays --fg on the role-tinted fill (4.5:1 in every theme); the icon and
+     the fill carry the role. */
+  --chip: var(--fg-muted);
+  background: color-mix(in srgb, var(--chip) 16%, transparent);
+  color: var(--fg);
   font-size: var(--text-sm);
   font-weight: 600;
   white-space: nowrap;
 }
 .extension-state.enabled {
-  color: var(--good);
+  --chip: var(--good);
 }
 .extension-state.changed,
 .extension-state.invalid,
 .extension-state.error {
-  color: var(--bad);
+  --chip: var(--bad);
 }
 .extension-runtime {
   color: var(--fg-muted);
