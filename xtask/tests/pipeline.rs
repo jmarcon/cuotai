@@ -815,6 +815,23 @@ fn release_notes_combine_changelog_signing_and_verification() {
     assert!(body.contains("shasum -a 256 -c --ignore-missing SHA256SUMS"));
     assert!(!body.contains("gh attestation verify"));
     assert!(body.contains("Cuotai_0.68.0_arm64-setup.exe")); // missing optional listed
+                                                             // V-04: a target no leg builds is never listed as "not produced".
+    assert!(!body.contains("aarch64-unknown-linux-musl"), "{body}");
+    assert!(!body.contains("no ARM64 runner"));
+    // V-05: main downloads first, readable platforms, no plan reference.
+    let row = |name: &str| {
+        body.find(&format!("| `{name}`"))
+            .unwrap_or_else(|| panic!("row {name}"))
+    };
+    assert!(row("Cuotai_0.68.0_universal.dmg") < row("Cuotai_0.68.0_x64-setup.exe"));
+    assert!(row("Cuotai_0.68.0_x64-setup.exe") < row("Cuotai_0.68.0_amd64.deb"));
+    assert!(row("Cuotai_0.68.0_amd64.rpm") < row("cuotai-0.68.0-aarch64-apple-darwin.tar.gz"));
+    assert!(row("cuotai-0.68.0-x86_64-pc-windows-msvc.zip") < row("sbom.cdx.json"));
+    assert!(body.contains("| macOS (universal) |"), "{body}");
+    assert!(body.contains("| Windows x64 |"), "{body}");
+    assert!(body.contains("| any |"), "{body}");
+    assert!(!body.contains("macos/universal"));
+    assert!(!body.contains("PRD 0018"));
     assert!(body.contains("updater artifacts were **not** produced"));
     assert!(body.contains("Provenance attestations are also not published"));
     assert!(!body.contains("cosign verify-blob"));

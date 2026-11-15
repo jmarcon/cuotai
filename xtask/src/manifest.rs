@@ -193,12 +193,9 @@ fn expected(version: &str) -> Vec<Expected> {
             "linux",
             "aarch64",
         ),
-        opt(
-            format!("cuotai-{v}-aarch64-unknown-linux-musl.tar.gz"),
-            "cli-archive",
-            "linux",
-            "aarch64",
-        ),
+        // No `aarch64-unknown-linux-musl` entry: no matrix leg builds it (the
+        // hosted runners have no cross toolchain, `docs/releasing.md`), and
+        // an entry here would list it as "not produced" on every release.
         opt(
             format!("cuotai-{v}-aarch64-pc-windows-msvc.zip"),
             "cli-archive",
