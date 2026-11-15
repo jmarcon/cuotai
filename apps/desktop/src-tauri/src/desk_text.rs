@@ -50,6 +50,7 @@ texts! {
     finish_login_first => ("finish_login_first", "Finish the sign-in before saving (or go back to the manual credential).");
     invalid_monogram => ("invalid_monogram", "A monogram has one or two characters, without spaces.");
     config_folder_unavailable => ("config_folder_unavailable", "Configuration folder unavailable.");
+    wrong_window => ("wrong_window", "This window cannot do that; use the window that offers it.");
 }
 
 #[cfg(test)]

@@ -1,11 +1,14 @@
 //! PRD 0050 RF2: what a front end asks, in a native operating-system dialog
 //! it opens itself, before an action saves, approves, enables or tests a
-//! local command (hooks and extensions). The texts are core-owned and typed,
-//! so a webview never supplies the words of the question nor its answer.
+//! local command (hooks and extensions), and (PRD 0020 RF3.4) before a
+//! Settings action that breaks what other programs rely on: renewing or
+//! revoking the local server's token and deleting the widget data. The texts
+//! are core-owned and typed, so a webview never supplies the words of the
+//! question nor its answer.
 //!
 //! The body of each dialog is [`Review::intro`] followed by the core's own
 //! listing of the commands ([`crate::hooks::Hooks::review`],
-//! [`crate::extensions::management::Manager::review`]).
+//! [`crate::extensions::management::Manager::review`]), or the intro alone.
 
 use crate::text::Localized;
 
@@ -24,6 +27,12 @@ pub enum Review {
     EnableExtension,
     /// Run an extension once now.
     TestExtension,
+    /// Replace the local server's token (the current one stops working).
+    RenewServeToken,
+    /// Delete the local server's token and turn the server off.
+    RevokeServeToken,
+    /// Delete the widget snapshot file now.
+    DeleteWidgetData,
 }
 
 impl Review {
@@ -48,6 +57,17 @@ impl Review {
             Self::TestExtension => Localized::fixed(
                 "execution.review.test_extension.title",
                 "Run an extension now",
+            ),
+            Self::RenewServeToken => Localized::fixed(
+                "execution.review.renew_serve_token.title",
+                "Generate a new token",
+            ),
+            Self::RevokeServeToken => {
+                Localized::fixed("execution.review.revoke_serve_token.title", "Revoke token")
+            }
+            Self::DeleteWidgetData => Localized::fixed(
+                "execution.review.delete_widget_data.title",
+                "Delete widget data",
             ),
         }
     }
@@ -79,6 +99,18 @@ impl Review {
                 "execution.review.test_extension.intro",
                 "Cuotai will run this extension's program on your computer once now.",
             ),
+            Self::RenewServeToken => Localized::fixed(
+                "execution.review.renew_serve_token.intro",
+                "Cuotai will replace the local server's token. Scripts, widgets and pages that use the current token stop working until you give them the new one.",
+            ),
+            Self::RevokeServeToken => Localized::fixed(
+                "execution.review.revoke_serve_token.intro",
+                "Cuotai will delete the local server's token and turn the server off. Scripts, widgets and pages that use it stop working.",
+            ),
+            Self::DeleteWidgetData => Localized::fixed(
+                "execution.review.delete_widget_data.intro",
+                "Cuotai will delete the widget file now. Widgets show no usage until it is published again.",
+            ),
         }
     }
 
@@ -97,6 +129,15 @@ impl Review {
             }
             Self::EnableExtension => {
                 Localized::fixed("execution.review.enable_extension.accept", "Approve")
+            }
+            Self::RenewServeToken => {
+                Localized::fixed("execution.review.renew_serve_token.accept", "Generate")
+            }
+            Self::RevokeServeToken => {
+                Localized::fixed("execution.review.revoke_serve_token.accept", "Revoke")
+            }
+            Self::DeleteWidgetData => {
+                Localized::fixed("execution.review.delete_widget_data.accept", "Delete")
             }
         }
     }
@@ -137,6 +178,9 @@ mod tests {
             Review::TestHook,
             Review::EnableExtension,
             Review::TestExtension,
+            Review::RenewServeToken,
+            Review::RevokeServeToken,
+            Review::DeleteWidgetData,
         ];
         let titles: std::collections::BTreeSet<_> = all.iter().map(|r| r.title().id).collect();
         assert_eq!(titles.len(), all.len());
@@ -147,5 +191,22 @@ mod tests {
             assert!(!review.accept().fallback.is_empty());
         }
         assert_eq!(declined().id, "execution.declined");
+    }
+
+    /// PRD 0020 RF3.4: the Settings confirmations are translated in every
+    /// core catalog, not only in the English fallback.
+    #[test]
+    fn the_settings_confirmations_are_translated() {
+        for review in [
+            Review::RenewServeToken,
+            Review::RevokeServeToken,
+            Review::DeleteWidgetData,
+        ] {
+            for code in crate::text::catalog_locales() {
+                for note in [review.title(), review.intro(), review.accept()] {
+                    assert_ne!(note.resolve(code), note.fallback, "{code}: {}", note.id);
+                }
+            }
+        }
     }
 }

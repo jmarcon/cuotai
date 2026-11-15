@@ -333,6 +333,7 @@
 [data-hooks] > * + .set-row,
 [data-widgets] > * + *,
 [data-update-body] > * + *,
+[data-integrations-danger] > * + *,
 [data-cost-body] > .set-row + .set-row,
 [data-cost-body] > .set-subpage + .set-row {
   border-top: var(--border-w) solid var(--border);
