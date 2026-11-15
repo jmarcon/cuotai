@@ -9,13 +9,13 @@ A walkthrough of the Cuotai desktop app on Linux: installing it, adding accounts
 
 ## Install
 
-Cuotai is on [GitHub Releases](https://github.com/jmarcon/cuotai/releases), and its terminal version is also in the Homebrew tap; [`installing.md`](installing.md#channel-status) lists every channel:
+Cuotai is on [GitHub Releases](https://github.com/jmarcon/cuotai/releases); [`installing.md`](installing.md#channel-status) lists every channel:
 
 - **Debian, Ubuntu and derivatives:** download `Cuotai_<version>_amd64.deb` from [GitHub Releases](https://github.com/jmarcon/cuotai/releases) and run `sudo apt install ./Cuotai_<version>_amd64.deb`; apt installs the libraries the package declares.
 - **Fedora and derivatives:** download `Cuotai_<version>_amd64.rpm` and run `sudo dnf install ./Cuotai_<version>_amd64.rpm`.
 - **Arch:** `yay -S cuotai-bin` from the AUR (planned, not live yet; it repackages the release `.deb`).
 - **Any distribution:** `Cuotai_<version>_amd64.AppImage`: `chmod +x` it and run it. Some distributions need FUSE 2 installed to run AppImages. ARM64 PCs use the `_aarch64` files when the release includes them.
-- **Terminal version only:** the `cuotai-<version>-x86_64-unknown-linux-gnu.tar.gz` (or `-musl`) archive, Homebrew (`brew install jmarcon/cuotai/cuotai`, after `brew tap jmarcon/cuotai` and `brew trust jmarcon/cuotai`) or `cargo install --git https://github.com/jmarcon/cuotai cuotai-tui --locked`.
+- **Terminal version only:** the `cuotai-<version>-x86_64-unknown-linux-gnu.tar.gz` (or `-musl`) archive or `cargo install --git https://github.com/jmarcon/cuotai cuotai-tui --locked`. The Homebrew formula is macOS-only.
 - **From source today:** see [`building.md`](building.md#desktop-app-tauri).
 
 [Verify the download](installing.md#verify-your-download) first if you like (`sha256sum -c` also works instead of `shasum -a 256 -c`). The Linux files are not individually signed; trust comes from the signed `SHA256SUMS`.

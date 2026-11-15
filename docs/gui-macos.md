@@ -9,7 +9,7 @@ A walkthrough of the Cuotai desktop app on macOS: installing it, the first launc
 
 ## Install
 
-Cuotai is on [GitHub Releases](https://github.com/jmarcon/cuotai/releases) and the Homebrew tap; [`installing.md`](installing.md#channel-status) lists every channel:
+Cuotai is on [GitHub Releases](https://github.com/jmarcon/cuotai/releases) and the Homebrew tap; [`installing.md`](installing.md#channel-status) lists every channel. It needs macOS 12 (Monterey) or later; the widgets need macOS 14 (Sonoma) or later.
 
 - **Homebrew:** `brew tap jmarcon/cuotai`, then `brew trust jmarcon/cuotai` (once; Homebrew refuses a third-party tap until you trust it), then `brew install --cask jmarcon/cuotai/cuotai-app`.
 - **Direct download:** the `Cuotai_<version>_universal.dmg` from [GitHub Releases](https://github.com/jmarcon/cuotai/releases). It is one universal build for Apple silicon and Intel. Open the disk image and drag **Cuotai** to **Applications**. [Verify the download](installing.md#verify-your-download) first if you like.
@@ -67,7 +67,7 @@ Cuotai has three WidgetKit widgets: **Summary** (small, medium, large), **Accoun
   <img src="assets/screenshots/widgets/macos-gallery-dark.png" alt="Cuotai macOS widgets, dark mode" width="48%" />
 </div>
 
-The extension ships inside the app, so there is nothing else to install. To add a widget, turn the option on, then right-click the desktop and choose **Edit Widgets**, or open **Edit Widgets** at the bottom of Notification Center, and search for Cuotai. Releases before 0.82.1 embedded an extension that crashed at launch, so the gallery did not list it.
+The extension ships inside the app, so there is nothing else to install; it needs macOS 14 (Sonoma) or later, and on macOS 12 and 13 the app runs without it. To add a widget, turn the option on, then right-click the desktop and choose **Edit Widgets**, or open **Edit Widgets** at the bottom of Notification Center, and search for Cuotai. Releases before 0.82.1 embedded an extension that crashed at launch, so the gallery did not list it.
 
 These images are the widgets' SwiftUI views rendered off-screen from an example file, not a desktop capture. Every family, the states and how the images are made are in [widgets.md](widgets.md#widgets).
 

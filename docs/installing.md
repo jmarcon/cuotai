@@ -10,7 +10,7 @@ Cuotai is published on GitHub Releases, the Homebrew tap and the Scoop bucket. E
 |---|---|---|---|
 | GitHub Releases (direct download) | download from the [Releases page](https://github.com/jmarcon/cuotai/releases) | **Live** | Each release is published with the desktop installers, the terminal archives and the integrity files (the release pipeline `.github/workflows/release.yml` is tag-driven). The macOS `.dmg` is signed and notarized; the Windows installers are not code-signed yet. |
 | Homebrew cask (desktop, macOS) | `brew tap jmarcon/cuotai`, `brew trust jmarcon/cuotai`, then `brew install --cask jmarcon/cuotai/cuotai-app` | **Live** | The tap `jmarcon/homebrew-cuotai` holds the cask. Homebrew refuses a third-party tap until you trust it, once. The cask was named `cuotai` in 0.81.0; the tap's `cask_renames.json` moves those installs to `cuotai-app` on their next `brew upgrade`. |
-| Homebrew formula (terminal, macOS/Linux) | `brew install jmarcon/cuotai/cuotai`, after the tap and trust steps above | **Live** | Same tap. |
+| Homebrew formula (terminal, macOS) | `brew install jmarcon/cuotai/cuotai`, after the tap and trust steps above | **Live** | Same tap. The formula is macOS-only; on Linux use the release archives or packages. |
 | winget (desktop, Windows) | `winget install Cuotai.Cuotai` | **Not yet** | The first submission to `microsoft/winget-pkgs` is a manual owner step and has not happened. |
 | Scoop (terminal, Windows) | `scoop bucket add cuotai https://github.com/jmarcon/scoop-cuotai` then `scoop install cuotai` | **Live** | The bucket `jmarcon/scoop-cuotai` holds the manifest of the latest release. |
 | AUR `cuotai-bin` (desktop, Arch) | `yay -S cuotai-bin` | **Not yet** | The AUR RPC finds no `cuotai-bin` package. |
@@ -19,6 +19,8 @@ Cuotai is published on GitHub Releases, the Homebrew tap and the Scoop bucket. E
 | Build from source (desktop and terminal) | see [`building.md`](building.md) | **Works today** | |
 
 Debian/Ubuntu (`.deb`), Fedora (`.rpm`), AppImage, macOS `.dmg`, Windows `.exe`/`.msi` and the terminal archives all come from the GitHub release; they are not separate channels.
+
+The desktop app needs **macOS 12 (Monterey) or later**; its widgets need **macOS 14 (Sonoma) or later** (on macOS 12 and 13 the app runs without them).
 
 Shell completions: the Homebrew formula installs the bash, zsh and fish scripts from `cuotai --completions SHELL`; the Scoop manifest prints the PowerShell one-liner in its notes. For the other channels, see [Shell completions](tui.md#shell-completions).
 
@@ -75,15 +77,17 @@ Uninstalling removes the application or binary only. Your configuration (`<OS co
 | Channel | What uninstall removes | What it always keeps |
 |---|---|---|
 | `brew uninstall --cask cuotai-app` | `/Applications/Cuotai.app` | config, databases, Keychain entries |
+| `brew uninstall cuotai` (formula) | the `cuotai` binary and its shell completions | config, databases, Keychain entries |
 | `brew zap --cask cuotai-app` (opt-in) | also the app's web caches and preference plist, and only that | config, databases, Keychain entries |
 | `winget uninstall Cuotai.Cuotai` | the installed program files | `%APPDATA%\cuotai`, `%LOCALAPPDATA%\cuotai`, Credential Manager entries |
 | `scoop uninstall cuotai` | the binary | the same folders and entries |
+| `sudo apt remove cuotai` (`.deb`) or `sudo dnf remove cuotai` (`.rpm`) | the packaged files | `~/.config/cuotai`, `~/.local/share/cuotai`, Secret Service entries |
 | `pacman -R cuotai-bin` | packaged files (`/usr/bin/Cuotai`, ...) | `~/.config/cuotai`, `~/.local/share/cuotai`, Secret Service entries |
 | `cargo uninstall cuotai-tui` | `~/.cargo/bin/cuotai` | everything else |
 
 Before you erase anything or move to another computer, `cuotai --backup FILE` keeps your accounts file, hook rules, preferences, prices and user themes and languages in one `.cuotai-backup.zip`. It never contains a secret: no vault entry, token, server token, cost index, extension or log, and it refuses to write when a file looks like it holds a key. `--with-history` adds the last 90 days of history. `cuotai --restore FILE` puts it back on any OS and lists the variables and sign-ins to redo (see [the backup and restore commands](advanced.md#backup-restore-and-self-check)). The desktop does the same from **Settings › Advanced › Files › Backup and restore**, and offers **Restore from a backup** on its first screen.
 
-To also erase your data, remove it yourself (after quitting Cuotai):
+To also erase your data, run `cuotai --erase-all-data` before you uninstall: it lists every file, folder and vault entry Cuotai keeps, asks for a confirmation word and removes them; `--include-config` also removes the accounts file and `hooks.toml` (see [`advanced.md`](advanced.md)). Without the terminal version, remove them yourself (after quitting Cuotai):
 
 ```sh
 # macOS: configuration + local databases, then the vault entries

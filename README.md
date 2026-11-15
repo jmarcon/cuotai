@@ -59,7 +59,7 @@ Every release is on [GitHub Releases](https://github.com/jmarcon/cuotai/releases
 | **macOS** (Apple silicon and Intel) | `.dmg` from [Releases](https://github.com/jmarcon/cuotai/releases), signed and notarized | `brew tap jmarcon/cuotai && brew trust jmarcon/cuotai`, then `brew install --cask jmarcon/cuotai/cuotai-app` |
 | **Windows** (x64, optional ARM64) | `.exe` or `.msi` from [Releases](https://github.com/jmarcon/cuotai/releases) | winget (coming soon) |
 | **Linux** (x64, optional ARM64) | `.deb`, `.rpm` or `.AppImage` from [Releases](https://github.com/jmarcon/cuotai/releases) | AUR (coming soon) |
-| **Terminal only**, any system | CLI archive from [Releases](https://github.com/jmarcon/cuotai/releases) | Homebrew: `brew install jmarcon/cuotai/cuotai` (after the tap and trust steps); Scoop: `scoop bucket add cuotai https://github.com/jmarcon/scoop-cuotai`, then `scoop install cuotai`; or `cargo install --git https://github.com/jmarcon/cuotai cuotai-tui --locked` |
+| **Terminal only**, any system | CLI archive from [Releases](https://github.com/jmarcon/cuotai/releases) | Homebrew (macOS): `brew install jmarcon/cuotai/cuotai` (after the tap and trust steps); Scoop (Windows): `scoop bucket add cuotai https://github.com/jmarcon/scoop-cuotai`, then `scoop install cuotai`; or `cargo install --git https://github.com/jmarcon/cuotai cuotai-tui --locked` |
 
 You can also [build from source](docs/building.md). [`docs/installing.md`](docs/installing.md) has the status of every channel, what each download contains and how to uninstall (your accounts file, history and vault entries stay until you delete them).
 
