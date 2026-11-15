@@ -480,7 +480,21 @@ when an entry describes a file that does not exist, or when an entry claims
 - The release body is the version's `CHANGELOG.md` section, followed by the
   signing-state table, the list of unproduced optional artifacts and the
   verification commands. A missing or empty changelog section fails the
-  release.
+  release. When a tag's release never published (a failed run), its sections
+  belong to the next release that does: the `assemble` job finds the last
+  published release with `gh release list` (stable releases only for a
+  stable tag, any for an rc) and passes it as `--since-version` to
+  `release-check --changelog-out` and `release-notes`, so the body and the
+  `latest.json` notes carry every section after it, newest first, each under
+  its own heading.
+- The signing table states two facts per file: its **payload signature**
+  (Developer ID + notarized, Authenticode, the updater key, or none) and its
+  **checksum** (listed in the signed or the unsigned `SHA256SUMS`). A
+  checksum is never shown as a signature of the file.
+- A section's date is the day `release prepare` ran. `cargo xtask release
+  tag` warns when that date is not today (UTC); the release page then shows
+  the preparation date. Only a `docs(changelog)` commit with a
+  `Changelog-Edit:` trailer can reword a released date.
 - The publish job creates a **draft**, uploads every desired asset, downloads
   the complete draft set, rejects missing or extra names and compares every
   byte with the local assembly. It also rechecks payload checksums, verifies
@@ -617,14 +631,17 @@ read before the first signed release.
 ## Verifying a download (what users do)
 
 ```sh
-shasum -a 256 -c SHA256SUMS
-gh attestation verify Cuotai_0.68.0_universal.dmg --repo jmarcon/cuotai
 cosign verify-blob \
   --bundle SHA256SUMS.sigstore.json \
   --certificate-identity-regexp '^https://github\.com/jmarcon/cuotai/\.github/workflows/release\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   SHA256SUMS
+shasum -a 256 -c --ignore-missing SHA256SUMS
+gh attestation verify Cuotai_0.68.0_universal.dmg --repo jmarcon/cuotai
 ```
+
+The order matters: a matching checksum proves nothing until `cosign` has
+verified `SHA256SUMS` itself.
 
 ## Owner prerequisites (one-time, RF9.1)
 

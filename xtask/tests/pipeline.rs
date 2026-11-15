@@ -809,9 +809,10 @@ fn release_notes_combine_changelog_signing_and_verification() {
         "owner/cuotai",
     );
     assert!(body.contains("- Something new (PRD 0001 RF1)."));
-    assert!(body.contains("| Artifact | Platform | Signed | Method / status |"));
-    assert!(body.contains("**no**"));
-    assert!(body.contains("shasum -a 256 -c SHA256SUMS"));
+    assert!(body.contains("| Artifact | Platform | Payload signature | Checksum | Notes |"));
+    assert!(body.contains("in unsigned `SHA256SUMS`"));
+    assert!(!body.contains("in signed `SHA256SUMS`"));
+    assert!(body.contains("shasum -a 256 -c --ignore-missing SHA256SUMS"));
     assert!(!body.contains("gh attestation verify"));
     assert!(body.contains("Cuotai_0.68.0_arm64-setup.exe")); // missing optional listed
     assert!(body.contains("updater artifacts were **not** produced"));
@@ -819,10 +820,18 @@ fn release_notes_combine_changelog_signing_and_verification() {
     assert!(!body.contains("cosign verify-blob"));
 
     // Signed checksums switch the verification block to cosign.
+    let mut fragment = unsigned_fragment(&manifest);
+    for artifact in &mut fragment.artifacts {
+        if artifact.name.ends_with(".deb") {
+            artifact.note = Some(
+                "unsigned payload; integrity is authenticated through SHA256SUMS when its signature is available".into(),
+            );
+        }
+    }
     let state = signing::merge(
         VERSION,
         Channel::Stable,
-        vec![unsigned_fragment(&manifest)],
+        vec![fragment],
         &manifest,
         ChecksumSigning {
             signed: true,
@@ -832,6 +841,31 @@ fn release_notes_combine_changelog_signing_and_verification() {
     )
     .unwrap();
     let body = xtask::notes::render_body("### Added\n\n- X.", &state, &manifest, "owner/cuotai");
+    // V-04/S-04: a checksum entry is never shown as a payload signature, and
+    // the hedge "when its signature is available" is gone once it is signed.
+    let linux_row = body
+        .lines()
+        .find(|line| line.starts_with("| `Cuotai_0.68.0_amd64.deb`"))
+        .expect("deb row");
+    assert!(
+        linux_row.contains("| **none** | in signed `SHA256SUMS` (cosign) |"),
+        "{linux_row}"
+    );
+    assert!(
+        !linux_row.contains("when its signature is available"),
+        "{linux_row}"
+    );
+    assert!(!body.contains("| yes |"));
+    // Verification order: cosign, then the checksums, then provenance.
+    let cosign = body.find("cosign verify-blob").expect("cosign step");
+    let shasum = body
+        .find("shasum -a 256 -c --ignore-missing SHA256SUMS")
+        .expect("checksum step");
+    let attest = body
+        .find("gh attestation verify <file> --repo owner/cuotai")
+        .expect("attestation step");
+    assert!(cosign < shasum && shasum < attest);
+    assert!(body.contains("proves nothing on its own"));
     assert!(body.contains("cosign verify-blob"));
     assert!(body.contains("--bundle SHA256SUMS.sigstore.json"));
     assert!(!body.contains("SHA256SUMS.sig "));

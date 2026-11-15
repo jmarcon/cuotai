@@ -85,6 +85,15 @@ pub fn run(repo: &Path, rc: bool, main_ref: &str) -> Res<Tagged> {
     let report = crate::check::run_files(&crate::check::Files::Rev(repo, &sha), Some(&tag))
         .map_err(|e| Error::Msg(format!("release commit {}: {e}", &sha[..7])))?;
     let (date, body) = (report.changelog_date, report.changelog_body);
+    // The section date is the preparation date (PRD 0019 re-validation,
+    // V-07). Tagging on a later day leaves it behind the tag; say so, since
+    // only a `docs(changelog)` commit with `Changelog-Edit:` can reword it.
+    let today = super::prepare::today_utc();
+    if date != today {
+        eprintln!(
+            "warning: the CHANGELOG section of {version} is dated {date}, but today (UTC) is {today}; the release page will show {date}"
+        );
+    }
     let message = format!("{tag}\n\n## [{version}] - {date}\n\n{body}\n");
     let message = crate::commits::neutralize_skip_markers(&message) + "\n";
     super::git_with_message(

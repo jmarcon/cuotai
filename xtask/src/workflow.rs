@@ -313,6 +313,11 @@ const SECRET_OWNERS: &[(&str, &str, &str)] = &[
     ),
     (
         "GITHUB_TOKEN",
+        "assemble",
+        "Previous published release (notes base)",
+    ),
+    (
+        "GITHUB_TOKEN",
         "publish",
         "Create or update the draft and upload assets",
     ),
