@@ -1312,7 +1312,7 @@
   "settings.alerts.projectedLead60": "1 Std.",
   "settings.error.invalid_lead": "Wählen Sie 15 Minuten, 30 Minuten oder 1 Stunde.",
   "settings.pace.unit": "Tempo anzeigen als",
-  "settings.pace.unitHelp": "Punkte: Abweichung vom erwarteten Anteil. Prozent: wie viel schneller oder langsamer als erwartet. Beispiel: 50 % erwartet und 60 % genutzt ergibt „10 Pkt. voraus“ in Punkten und „20 % schneller als das Tempo“ in Prozent.",
+  "settings.pace.unitHelp": "Punkte: Abweichung vom erwarteten Anteil. Prozent: wie viel schneller oder langsamer als erwartet. Beispiel: 50 % erwartet und 60 % genutzt ergibt „10 Pkt. voraus“ in Punkten und „20% über dem Tempo“ in Prozent.",
   "settings.pace.unitExample": "Beispiel: 50 % erwartet und 60 % genutzt ergibt „10 Pkt. voraus“ in Punkten und „20 % schneller als das Tempo“ in Prozent.",
   "settings.kw.pace-unit": "tempo abweichung prozent punkte voraus reserve",
   "settings.pace.points": "Punkte",

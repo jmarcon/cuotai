@@ -1701,7 +1701,7 @@
   "pace.allowance.day_recent": "≈ {value}/день до обновления · недавно {recent}%/день",
   "pace.allowance.hour": "≈ {value}/ч до обновления",
   "pace.allowance.hour_recent": "≈ {value}/ч до обновления · недавно {recent}%/ч",
-  "pace.chip.ahead": "+{d} п. п.",
+  "pace.chip.ahead": "выше на {d} п. п.",
   "pace.chip.ahead_pct": "на {p}% выше темпа",
   "pace.chip.approx": "≈{at}",
   "pace.chip.exhausted": "Исчерпано",

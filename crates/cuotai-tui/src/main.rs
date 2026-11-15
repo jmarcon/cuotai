@@ -510,7 +510,11 @@ struct Args {
         num_args = 0..=1,
         default_missing_value = "60",
         value_parser = ["15", "30", "60"],
-        requires = "notify"
+        requires = "notify",
+        // PRD 0024 re-validation (V-09): clap waives `requires` when its
+        // target conflicts with a present argument, so the same conflicts
+        // as `--notify` refuse `--once`/`--json`/`--history` clearly.
+        conflicts_with_all = ["once", "json", "history"]
     )]
     notify_projected: Option<String>,
     /// How to show the pace deviation: `points` (percentage points, the
@@ -2495,6 +2499,13 @@ mod tests {
         let watch = parse(&["--watch", "--projected-lead", "30"]).unwrap();
         assert_eq!(lead(watch.projected_lead.as_deref()), Some(Lead::Min30));
         assert!(parse(&["--projected-lead", "30"]).is_err());
+        // V-09: refused with a one-shot output, as `--notify` is.
+        for one_shot in ["--once", "--json", "--history"] {
+            assert!(
+                parse(&["--notify-projected", "15", one_shot]).is_err(),
+                "{one_shot}"
+            );
+        }
     }
 
     /// The default refresh interval of the `--once` block tests.

@@ -1309,7 +1309,7 @@
   "settings.alerts.projectedLead60": "1 h",
   "settings.error.invalid_lead": "Scegli 15 minuti, 30 minuti o 1 ora.",
   "settings.pace.unit": "Mostra il ritmo in",
-  "settings.pace.unitHelp": "Punti: differenza dalla quota attesa. Percentuale: quanto più veloce o più lento del previsto. Esempio: 50% atteso e 60% usato si legge \"10 pt sopra\" in punti e \"20% più veloce del ritmo\" in percentuale.",
+  "settings.pace.unitHelp": "Punti: differenza dalla quota attesa. Percentuale: quanto più veloce o più lento del previsto. Esempio: 50% atteso e 60% usato si legge \"10 pt sopra\" in punti e \"20% sopra il ritmo\" in percentuale.",
   "settings.pace.unitExample": "Esempio: 50% atteso e 60% usato si legge \"10 pt sopra\" in punti e \"20% più veloce del ritmo\" in percentuale.",
   "settings.kw.pace-unit": "ritmo scostamento percentuale punti sopra riserva",
   "settings.pace.points": "Punti",
