@@ -208,6 +208,10 @@ impl Localized {
         if let Some(text) = number::render(self, locale) {
             return text;
         }
+        // PRD 0024 re-validation (V-01): clock times are formatted too.
+        if let Some(text) = clock::render(self, locale) {
+            return text;
+        }
         // PRD 0035 RF9.4: development builds render `en-XA` from the English
         // source, placeholders kept.
         if is_pseudo(locale) {
@@ -458,12 +462,14 @@ pub fn countdown(span: chrono::TimeDelta) -> Localized {
 // ---------------------------------------------------------------------------
 
 mod case;
+pub mod clock;
 mod fold;
 pub mod number;
 pub mod parity;
 mod pseudo;
 mod registry;
 pub use case::uppercase;
+pub use clock::{clock, clock_short};
 pub use fold::{answer_matches, fold};
 pub use pseudo::{is_pseudo, pseudo_text, registered_locales, PSEUDO_LOCALE};
 pub use registry::{
@@ -945,6 +951,8 @@ fn assert_english(template: &str) {
 #[cfg(test)]
 #[path = "text/budget_tests.rs"]
 mod budget_tests;
+#[cfg(test)]
+pub(crate) use budget_tests::display_width as budget_width;
 
 #[cfg(test)]
 mod tests {

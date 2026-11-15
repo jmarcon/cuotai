@@ -19,7 +19,7 @@ pub use timeline::{
 use crate::alerts::AlertState;
 use crate::metrics::{classify_metric, window_param, MetricState};
 use crate::model::{Account, Config, Metric, MetricWindow, Report};
-use crate::text::{params, provider_l10n, Localized};
+use crate::text::{params, provider_l10n, Localized, ParamValue};
 use chrono::{DateTime, TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -138,7 +138,6 @@ impl ResetEvent {
     /// neither the account name nor the metric labels.
     pub fn notice_with(&self, account: &Account, now: DateTime<Utc>, private: bool) -> Notice {
         use crate::metric_text::metric_text;
-        use crate::text::ParamValue;
         let provider = provider_l10n(account.provider);
         // Distinct windows in reset order; an `other` window is its label,
         // shown in the interface language (PRD 0034 RF2).
@@ -888,16 +887,22 @@ pub(crate) fn eligible(metric: &Metric, now: DateTime<Utc>, prefs: &Prefs) -> Op
 
 /// PRD 0024 RF1.2: ↺ "Returns {at}" for the time the quota comes back
 /// (`blocked_until` or the binding reset), already formatted by the
-/// caller; `None` (an unknown return) reads "Return unknown", never a time.
-pub fn returns_chip(at: Option<&str>) -> crate::pace::Chip {
-    let text = match at {
-        Some(at) => Localized::with_param("resets.chip.returns", "at", at, "Returns {at}"),
+/// caller (normally [`crate::text::clock_short`]); `None` (an unknown
+/// return) reads "Return unknown", never a time. The compact form is the
+/// time itself.
+pub fn returns_chip(at: Option<ParamValue>) -> crate::pace::Chip {
+    let text = match &at {
+        Some(at) => Localized::with_param("resets.chip.returns", "at", at.clone(), "Returns {at}"),
         None => Localized::fixed("resets.chip.return_unknown", "Return unknown"),
     };
+    let compact = at.map(|at| match at {
+        ParamValue::L10n(note) => *note,
+        ParamValue::Text(text) => crate::text::clock::worded(text),
+    });
     crate::pace::Chip {
         glyph: crate::pace::GLYPH_RETURNS,
         text,
-        compact: at.map(str::to_owned),
+        compact,
         hint: None,
     }
 }
@@ -905,7 +910,7 @@ pub fn returns_chip(at: Option<&str>) -> crate::pace::Chip {
 /// PRD 0024 RF1.4: "Resets {at} · {in}" for the details, with `at` the
 /// clock time formatted by the caller (DS-MSG-8) and `in` the core
 /// [`crate::text::countdown`] of the time left.
-pub fn pair_label(at: &str, left: TimeDelta) -> Localized {
+pub fn pair_label(at: impl Into<ParamValue>, left: TimeDelta) -> Localized {
     let countdown = crate::text::countdown(left);
     Localized::with_params(
         "resets.pair",

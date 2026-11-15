@@ -8,7 +8,7 @@
 
 use crate::freshness::{self, Freshness};
 use crate::model::{Metric, MetricWindow};
-use crate::text::{params, Localized};
+use crate::text::{params, Localized, ParamValue};
 use chrono::{DateTime, Months, TimeDelta, Utc};
 use serde::Serialize;
 use std::time::Duration;
@@ -255,7 +255,9 @@ fn recent_slope(
     let samples = || {
         points
             .iter()
-            .filter(move |p| p.used.is_finite() && p.taken_at >= start && p.taken_at <= now)
+            // A negative reading is no use measure (PRD 0024 re-validation
+            // S-02), so it never drives a projection.
+            .filter(move |p| usable(p) && p.taken_at >= start && p.taken_at <= now)
             .map(move |p| (secs(p.taken_at - now), p.used / limit))
             .filter(move |(x, y)| *x >= -lookback && y.is_finite())
     };
@@ -273,6 +275,13 @@ fn recent_slope(
         )
     });
     (sxx > 0.0).then(|| sxy / sxx)
+}
+
+/// A recorded sample a projection may read: a finite, non-negative use, as
+/// [`assess`] requires of the current reading. The recorder keeps every
+/// value, since a negative one may be legitimate outside a quota.
+fn usable(point: &Point) -> bool {
+    point.used.is_finite() && point.used >= 0.0
 }
 
 fn delta_ratio(used: f64, expected: f64) -> Option<f64> {
@@ -301,7 +310,7 @@ pub fn alert_grade(metric: &Metric, pace: &Pace, at: DateTime<Utc>, recent: &[Po
     let lookback = (secs(pace.resets_at - start) * 0.1).max(MIN_LOOKBACK_SECS);
     let taken: Vec<DateTime<Utc>> = recent
         .iter()
-        .filter(|p| p.used.is_finite() && p.taken_at >= start && p.taken_at <= at)
+        .filter(|p| usable(p) && p.taken_at >= start && p.taken_at <= at)
         .filter(|p| secs(p.taken_at - at) >= -lookback)
         .map(|p| p.taken_at)
         .collect();
@@ -352,9 +361,9 @@ impl Pace {
     /// The margin may be a text or a localized duration
     /// ([`crate::text::duration`], PRD 0035 RF10.3), which then resolves in
     /// the reader's language.
-    pub fn outlook_label<M: Into<crate::text::ParamValue>>(
+    pub fn outlook_label<A: Into<ParamValue>, M: Into<ParamValue>>(
         &self,
-        at: impl FnOnce(DateTime<Utc>) -> String,
+        at: impl FnOnce(DateTime<Utc>) -> A,
         margin: impl FnOnce(TimeDelta) -> M,
     ) -> Option<Localized> {
         if self.lasts_until_reset {
@@ -371,6 +380,100 @@ impl Pace {
             params,
             "runs out at {at}, {margin} before the reset",
         ))
+    }
+
+    /// PRD 0024 re-validation (D-01): whether a surface shows the stage
+    /// beside the outlook. "On pace" is hidden when the core projects
+    /// exhaustion before the reset, so only the projection shows (↑).
+    pub fn shows_stage(&self) -> bool {
+        !(self.stage == PaceStage::OnPace && self.projected_exhaustion_at.is_some())
+    }
+
+    /// The glyph of the pace line: the stage's, or ↑ when only the
+    /// projection shows ([`Pace::shows_stage`]).
+    pub fn glyph(&self) -> &'static str {
+        match self.stage {
+            _ if !self.shows_stage() => GLYPH_AHEAD,
+            PaceStage::Reserve => GLYPH_RESERVE,
+            PaceStage::OnPace => GLYPH_ON_PACE,
+            PaceStage::Ahead => GLYPH_AHEAD,
+            PaceStage::Exhausted => GLYPH_EXHAUSTED,
+        }
+    }
+
+    /// PRD 0024 RF1.5 (decision D): the muted "recent" marker a surface
+    /// shows after the pace when the recent slope drove the projection;
+    /// `None` for an average-based one.
+    pub fn source_marker(&self) -> Option<Localized> {
+        (self.source == PaceSource::Recent)
+            .then(|| Localized::fixed("pace.source.recent", "recent"))
+    }
+
+    /// The stage words of the pace line in `unit` (RF1.3): percent names the
+    /// comparison with the core's chip ("20% faster than pace") only when
+    /// the ratio exists and the stage is ahead or in reserve; on pace and
+    /// exhausted keep their stage sentence, and without a ratio the points
+    /// sentence carries the hint ("13 points above the pace (too early for
+    /// a percentage)").
+    pub fn stage_text(&self, unit: PaceUnit) -> Localized {
+        let ranked = matches!(self.stage, PaceStage::Ahead | PaceStage::Reserve);
+        if unit == PaceUnit::Percent && ranked {
+            let chip = self.chip(unit);
+            if chip.hint.is_none() && chip.glyph != GLYPH_ON_PACE {
+                return chip.text;
+            }
+            if chip.hint.is_some() {
+                return Localized::with_params(
+                    "pace.hinted",
+                    params([
+                        ("text", self.stage_label().into()),
+                        (
+                            "hint",
+                            Localized::fixed(
+                                "pace.chip.too_early_short",
+                                "too early for a percentage",
+                            )
+                            .into(),
+                        ),
+                    ]),
+                    "{text} ({hint})",
+                );
+            }
+        }
+        self.stage_label()
+    }
+
+    /// The whole pace line as the TUI, `--once` and the desktop details
+    /// show it: "stage · outlook", or the outlook alone, sentence-initial,
+    /// when the stage is hidden ([`Pace::shows_stage`], D-01). `at` and
+    /// `margin` word the projected time and how long before the reset.
+    pub fn summary<A: Into<ParamValue>, M: Into<ParamValue>>(
+        &self,
+        unit: PaceUnit,
+        at: impl FnOnce(DateTime<Utc>) -> A,
+        margin: impl FnOnce(TimeDelta) -> M,
+    ) -> Localized {
+        if !self.shows_stage() {
+            if let Some(when) = self.projected_exhaustion_at {
+                return Localized::with_params(
+                    "pace.runs_out_at_alone",
+                    params([
+                        ("at", at(when).into()),
+                        ("margin", margin(self.resets_at - when).into()),
+                    ]),
+                    "Runs out at {at}, {margin} before the reset",
+                );
+            }
+        }
+        let stage = self.stage_text(unit);
+        match self.outlook_label(at, margin) {
+            Some(outlook) => Localized::with_params(
+                "pace.line",
+                params([("stage", stage.into()), ("outlook", outlook.into())]),
+                "{stage} · {outlook}",
+            ),
+            None => stage,
+        }
     }
 }
 
@@ -407,8 +510,9 @@ pub struct Chip {
     pub glyph: &'static str,
     pub text: Localized,
     /// The compact form after the glyph; `None` when the chip has none
-    /// (the full text is short already).
-    pub compact: Option<String>,
+    /// (the full text is short already). Localized, so a clock time or a
+    /// percent follows the reader's language (R-06).
+    pub compact: Option<Localized>,
     /// A tooltip beyond the text: why the percent form fell back to points.
     pub hint: Option<Localized>,
 }
@@ -472,7 +576,12 @@ impl Pace {
                     return Chip {
                         glyph,
                         text: Localized::with_param(id, "p", p.as_str(), fallback),
-                        compact: Some(format!("{p}%")),
+                        compact: Some(Localized::with_param(
+                            "pace.chip.percent",
+                            "p",
+                            p.as_str(),
+                            "{p}%",
+                        )),
                         hint: None,
                     };
                 }
@@ -497,31 +606,35 @@ impl Pace {
         Chip {
             glyph,
             text: Localized::with_param(id, "d", d.as_str(), fallback),
-            compact: Some(format!("{d} pts")),
+            // The points text is short already (R-06).
+            compact: None,
             hint,
         }
     }
 
     /// PRD 0024 RF1.2 (DS-CMP-TIME-4): ↑ "Runs out ≈{at}" when the core
     /// projects exhaustion before the reset, otherwise ↓ "Lasts to reset";
-    /// `None` for an exhausted metric. `at` formats the projected time in
-    /// the caller's locale and clock.
-    pub fn outlook_chip(&self, at: impl FnOnce(DateTime<Utc>) -> String) -> Option<Chip> {
+    /// `None` for an exhausted metric. `at` words the projected time,
+    /// normally [`crate::text::clock_short`] so the chip fits its budget.
+    pub fn outlook_chip<A: Into<ParamValue>>(
+        &self,
+        at: impl FnOnce(DateTime<Utc>) -> A,
+    ) -> Option<Chip> {
         if self.stage == PaceStage::Exhausted {
             return None;
         }
         match self.projected_exhaustion_at {
             Some(when) => {
-                let at = at(when);
+                let at: ParamValue = at(when).into();
                 Some(Chip {
                     glyph: GLYPH_AHEAD,
                     text: Localized::with_param(
                         "pace.chip.runs_out",
                         "at",
-                        at.as_str(),
+                        at.clone(),
                         "Runs out ≈{at}",
                     ),
-                    compact: Some(format!("≈{at}")),
+                    compact: Some(Localized::with_param("pace.chip.approx", "at", at, "≈{at}")),
                     hint: None,
                 })
             }
@@ -982,6 +1095,40 @@ mod tests {
             let pace = assess(metric, now(), Some(points)).unwrap();
             assert_eq!(pace.source, PaceSource::Average);
         }
+    }
+
+    /// PRD 0024 re-validation (S-02): a negative recorded sample never
+    /// drives a projection or counts toward the alert span.
+    #[test]
+    fn a_negative_sample_is_not_a_measure() {
+        let point = |ago: i64, used| Point {
+            taken_at: now() - mins(ago),
+            used,
+        };
+        let metric = five_h(50.0);
+        let spike = [point(60, -500.0), point(30, 35.0), point(0, 50.0)];
+        let pace = assess(&metric, now(), Some(&spike)).unwrap();
+        assert_eq!(pace.source, PaceSource::Average);
+        assert_eq!(pace.projected_exhaustion_at, None);
+        // Early in a day: only the negative sample stretches the span to 30 min.
+        let daily = quota(MetricWindow::Daily, 30.0, now() + mins(22 * 60));
+        let points = [
+            point(40, -500.0),
+            point(20, 10.0),
+            point(10, 20.0),
+            point(0, 30.0),
+        ];
+        let pace = assess(&daily, now(), Some(&points)).unwrap();
+        assert_eq!(pace.source, PaceSource::Recent);
+        assert!(!alert_grade(&daily, &pace, now(), &points));
+        let longer = [
+            point(40, 0.0),
+            point(20, 10.0),
+            point(10, 20.0),
+            point(0, 30.0),
+        ];
+        let pace = assess(&daily, now(), Some(&longer)).unwrap();
+        assert!(alert_grade(&daily, &pace, now(), &longer));
     }
 
     #[test]

@@ -206,6 +206,21 @@ pub fn group_label<'a>(config: &'a Config, account: &'a Account) -> Option<&'a s
     )
 }
 
+/// RF7.3 (PRD 0024 re-validation V-05): when `metric`, read at
+/// `checked_at`, runs out for the advice: the same strict forecast the
+/// projected warning and the desktop callout use ([`alerts::forecast`]: a
+/// fresh reading, a recent slope with the alert span, at least 25% used), so
+/// an average-only projection never names a better account.
+pub fn running_out(
+    metric: &crate::Metric,
+    checked_at: DateTime<Utc>,
+    interval: Duration,
+    now: DateTime<Utc>,
+    recent: &[crate::pace::Point],
+) -> Option<DateTime<Utc>> {
+    alerts::forecast(metric, checked_at, interval, now, recent)?.projected_exhaustion_at
+}
+
 /// The "Best now" chip (`advice.best`).
 pub fn best_chip() -> Localized {
     Localized::fixed("advice.best", "Best now")
@@ -217,7 +232,12 @@ pub fn best_chip() -> Localized {
 /// the account is already exhausted, "Work is exhausted · Personal has 64%
 /// left" (`advice.switch.exhausted`). `left` is the best account's
 /// [`Candidate::remaining`].
-pub fn switch_text(from: &str, to: &str, left: f64, runs_out_at: Option<&str>) -> Localized {
+pub fn switch_text(
+    from: &str,
+    to: &str,
+    left: f64,
+    runs_out_at: Option<crate::text::ParamValue>,
+) -> Localized {
     let percent = (left * 100.0).round().clamp(0.0, 100.0);
     let pct = format!("{percent:.0}");
     match runs_out_at {
@@ -225,7 +245,7 @@ pub fn switch_text(from: &str, to: &str, left: f64, runs_out_at: Option<&str>) -
             "advice.switch",
             params([
                 ("from", from.into()),
-                ("at", at.into()),
+                ("at", at),
                 ("to", to.into()),
                 ("pct", pct.as_str().into()),
             ]),

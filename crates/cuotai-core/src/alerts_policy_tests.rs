@@ -761,12 +761,12 @@ fn unnamed_accounts_and_later_resets_read_naturally() {
         .resolve(locale)
     };
     assert!(
-        at(&tomorrow, "en-US").ends_with("resets Monday 12:00"),
+        at(&tomorrow, "en-US").ends_with("resets Monday 12:00\u{a0}PM"),
         "{}",
         at(&tomorrow, "en-US")
     );
     assert!(
-        at(&far, "en-US").ends_with("resets 02/24 12:00"),
+        at(&far, "en-US").ends_with("resets 02/24 12:00\u{a0}PM"),
         "{}",
         at(&far, "en-US")
     );

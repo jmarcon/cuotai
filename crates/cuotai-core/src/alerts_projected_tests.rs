@@ -479,7 +479,7 @@ fn the_projection_comes_first_and_has_its_own_notice() {
     // 25 left at 1 point a minute: 12:30, 2.5 hours before the reset.
     assert_eq!(
         one.body.resolve("en-US"),
-        "At this rate Session (5h) runs out ≈12:10, 2h 50m before the reset"
+        "At this rate Session (5h) runs out ≈12:10\u{a0}PM, 2h 50m before the reset"
     );
     assert_eq!(
         one.body.resolve("pt-BR"),
@@ -492,7 +492,7 @@ fn the_projection_comes_first_and_has_its_own_notice() {
     let both = notice(&[(&account, last)], now, &Utc).unwrap();
     let body = both.body.resolve("en-US");
     assert!(
-        body.starts_with("Work: Session (5h) runs out ≈12:10; Session (5h) 75%"),
+        body.starts_with("Work: Session (5h) runs out ≈12:10\u{a0}PM; Session (5h) 75%"),
         "{body}"
     );
 }

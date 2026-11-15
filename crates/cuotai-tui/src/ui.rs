@@ -3963,17 +3963,23 @@ pub(crate) fn resolve_l10n(note: &cuotai_core::text::Localized) -> String {
     note.resolve(tui_locale())
 }
 
-/// Local `HH:MM` for an instant today, `YYYY-MM-DD HH:MM` otherwise.
+/// PRD 0024 re-validation (V-01): `at` in the local zone as the core's
+/// clock words it (DS-MSG-8): the time in the reader's hour cycle today, the
+/// weekday or a short date otherwise, never an ISO date. An instant whose
+/// local clock is out of range reads in UTC.
+pub(crate) fn clock(at: chrono::DateTime<chrono::Utc>) -> cuotai_core::text::Localized {
+    cuotai_core::text::clock(at, chrono::Utc::now(), &chrono::Local)
+}
+
+/// [`clock`] as a chip shows it: only the short weekday or date beyond
+/// today (DS-CMP-TIME-1).
+pub(crate) fn clock_short(at: chrono::DateTime<chrono::Utc>) -> cuotai_core::text::Localized {
+    cuotai_core::text::clock_short(at, chrono::Utc::now(), &chrono::Local)
+}
+
+/// [`clock`] in the TUI locale.
 pub(crate) fn local_time(at: chrono::DateTime<chrono::Utc>) -> String {
-    // An instant whose local clock is out of range reads in UTC.
-    let Some(local) = cuotai_core::instant::checked_local(at, &chrono::Local) else {
-        return format!("{} UTC", at.format("%Y-%m-%d %H:%M"));
-    };
-    if local.date_naive() == chrono::Local::now().date_naive() {
-        local.format("%H:%M").to_string()
-    } else {
-        local.format("%Y-%m-%d %H:%M").to_string()
-    }
+    resolve_l10n(&clock(at))
 }
 
 /// PRD 0010 RF5 / PRD 0034 RF2.2: measurement age from the core's
@@ -4070,7 +4076,8 @@ mod tests {
         let text = local_time(chrono::DateTime::<chrono::Utc>::MAX_UTC);
         assert!(text.ends_with(" UTC"), "{text}");
         let ok = chrono::DateTime::parse_from_rfc3339("2026-06-01T00:00:00Z").unwrap();
-        assert_eq!(local_time(ok.into()), "2026-06-01 09:00");
+        // V-01: the core's clock, a short date in the reader's order, no ISO.
+        assert_eq!(local_time(ok.into()), "01/06 09:00");
     }
 
     /// PRD 0029 RF5.3: the removal message names the stored session apart
