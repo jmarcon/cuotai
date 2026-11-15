@@ -956,6 +956,28 @@ impl Notices {
         else {
             return (0, None);
         };
+        // PRD 0024 RF7.3 (re-validation R-02): a notice about one account
+        // that runs out carries the best account of its group as its second
+        // line, while "Show the best account" is on and never when private.
+        let advice_on = self
+            .store
+            .as_ref()
+            .is_none_or(|store| settings::read_advice(&store.settings));
+        let notice = match groups.as_slice() {
+            [(_, events)] if advice_on => {
+                let readings = expanded.readings();
+                let line = cuotai_core::advice::notice_line(
+                    config,
+                    |index| readings.get(index).copied().flatten(),
+                    events,
+                    self.prefs.private,
+                    now,
+                    &chrono::Local,
+                );
+                cuotai_core::advice::with_line(notice, line)
+            }
+            _ => notice,
+        };
         // PRD 0044: one channel message per account, so each channel's
         // account filter applies.
         for (account, events) in &groups {

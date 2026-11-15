@@ -2037,6 +2037,7 @@
   "edit_error.config_breakdown": "El campo {field} indica un desglose que esta cuenta no puede leer, o repite uno; los valores permitidos dependen del proveedor y su modo.",
   "edit_error.breakdown_value": "Esta cuenta no puede desglosar su total por {value}.",
   "advice.best": "Mejor ahora",
+  "advice.notice": "{body} · {advice}",
   "advice.switch": "{from} se agota ≈{at} · {to} tiene {pct}% disponible",
   "advice.switch.exhausted": "{from} está agotada · {to} tiene {pct}% disponible",
   "alerts.body.private": "Se reinicia {at}",

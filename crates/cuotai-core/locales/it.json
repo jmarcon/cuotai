@@ -2037,6 +2037,7 @@
   "edit_error.config_breakdown": "Il campo {field} indica un dettaglio che questo account non può leggere, o ne ripete uno; i valori ammessi dipendono dal provider e dalla modalità.",
   "edit_error.breakdown_value": "Questo account non può dettagliare il totale per {value}.",
   "advice.best": "Migliore ora",
+  "advice.notice": "{body} · {advice}",
   "advice.switch": "{from} si esaurisce ≈{at} · {to} ha il {pct}% disponibile",
   "advice.switch.exhausted": "{from} è esaurito · {to} ha il {pct}% disponibile",
   "alerts.body.private": "Si rinnova {at}",

@@ -484,9 +484,39 @@ impl Notices {
                 notice.body.resolve(locale)
             );
             lines.push(safe(&text).into_owned());
+            // PRD 0024 RF7.3 (re-validation R-02): the best account of the
+            // group as the banner's second line (after " · " in OSC 9),
+            // never a notice of its own and never when private.
+            let readings = expanded.readings();
+            let advice = |tz_local: bool| {
+                let reading = |index: usize| readings.get(index).copied().flatten();
+                if tz_local {
+                    cuotai_core::advice::notice_line(
+                        &expanded.config,
+                        reading,
+                        &groups[0].1,
+                        private,
+                        now,
+                        &chrono::Local,
+                    )
+                } else {
+                    cuotai_core::advice::notice_line(
+                        &expanded.config,
+                        reading,
+                        &groups[0].1,
+                        false,
+                        now,
+                        &chrono::Utc,
+                    )
+                }
+            };
+            if let Some(line) = advice(false) {
+                lines.push(safe(&line.resolve(locale)).into_owned());
+            }
             if self.osc9 {
                 let shown =
                     alerts::notice_with(&groups, now, &chrono::Local, private).unwrap_or(notice);
+                let shown = cuotai_core::advice::with_line(shown, advice(true));
                 osc9(
                     out,
                     &format!(

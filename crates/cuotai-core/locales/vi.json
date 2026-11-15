@@ -132,6 +132,7 @@
   "access.verified_months": "Đã xác minh {months} tháng trước.",
   "access.verified_recent": "Đã xác minh trong tháng này.",
   "advice.best": "Tốt nhất lúc này",
+  "advice.notice": "{body} · {advice}",
   "advice.switch": "{from} hết khoảng {at} · {to} còn {pct}%",
   "advice.switch.exhausted": "{from} đã hết · {to} còn {pct}%",
   "alerts.body": "{account}: {metric} · đặt lại {at}",

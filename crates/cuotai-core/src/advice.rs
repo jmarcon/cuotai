@@ -263,6 +263,77 @@ pub fn switch_text(
     }
 }
 
+/// RF7.3 (PRD 0024 re-validation R-02): the advice a notice about one
+/// account carries as its second line, never a notification of its own:
+/// when `events` (one account's, as a notice groups them) tell that its
+/// metric runs out ([`alerts::AlertKind::ProjectedExhaustion`]) or is
+/// exhausted, and another account of its group is the best now, "Work runs
+/// out ≈18:53 · Personal has 64% left". `None` otherwise, for a breakdown
+/// row, and when `private` (PRD 0032 RF7 hides account names on the lock
+/// screen). `reading(index)` is the current report of `config.accounts[index]`.
+pub fn notice_line<'a, Tz>(
+    config: &'a Config,
+    reading: impl Fn(usize) -> Option<&'a Report>,
+    events: &[alerts::AlertEvent],
+    private: bool,
+    now: DateTime<Utc>,
+    tz: &Tz,
+) -> Option<Localized>
+where
+    Tz: chrono::TimeZone,
+    Tz::Offset: std::fmt::Display,
+{
+    if private {
+        return None;
+    }
+    let event = events.iter().find(|event| {
+        event.row.is_none()
+            && matches!(
+                event.kind,
+                alerts::AlertKind::ProjectedExhaustion | alerts::AlertKind::Exhausted
+            )
+    })?;
+    let index = config
+        .accounts
+        .iter()
+        .position(|account| account.state_key() == event.account_key)?;
+    let views = views(config, reading, |_| true, now);
+    let groups = best(&views, now);
+    let group = groups
+        .iter()
+        .find(|group| group.candidate(index).is_some() && group.best != index)?;
+    let left = group.candidate(group.best)?.remaining;
+    let at = match event.kind {
+        alerts::AlertKind::ProjectedExhaustion => {
+            Some(crate::text::clock(event.projection.as_ref()?.projected_at, now, tz).into())
+        }
+        _ => None,
+    };
+    Some(switch_text(
+        &config.accounts[index].display_name(),
+        &config.accounts.get(group.best)?.display_name(),
+        left,
+        at,
+    ))
+}
+
+/// R-02: `notice` with `line` (from [`notice_line`]) after its body, set
+/// apart by " · " (a notice drops line breaks with the other control
+/// characters, PRD 0003 S-04); unchanged without one.
+pub fn with_line(notice: crate::resets::Notice, line: Option<Localized>) -> crate::resets::Notice {
+    match line {
+        Some(line) => crate::resets::Notice {
+            body: Localized::with_params(
+                "advice.notice",
+                params([("body", notice.body.into()), ("advice", line.into())]),
+                "{body} · {advice}",
+            ),
+            title: notice.title,
+        },
+        None => notice,
+    }
+}
+
 #[cfg(test)]
 #[path = "advice_tests.rs"]
 mod tests;

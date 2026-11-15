@@ -132,6 +132,7 @@
   "access.verified_months": "{months}개월 전에 확인했습니다.",
   "access.verified_recent": "이번 달에 확인했습니다.",
   "advice.best": "지금 최적",
+  "advice.notice": "{body} · {advice}",
   "advice.switch": "{from}은(는) ≈{at}에 소진 · {to}은(는) {pct}% 남음",
   "advice.switch.exhausted": "{from}은(는) 소진됨 · {to}은(는) {pct}% 남음",
   "alerts.body": "{account}: {metric} · {at}에 초기화",

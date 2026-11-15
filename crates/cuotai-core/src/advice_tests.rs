@@ -363,3 +363,78 @@ fn only_the_strict_forecast_runs_out_for_the_advice() {
     let steep = [point(40, 40.0), point(20, 60.0), point(0, 80.0)];
     assert!(running_out(&metric, checked, interval, now(), &steep).is_some());
 }
+
+/// PRD 0024 re-validation (R-02): a projected or exhausted notice about one
+/// account carries the best account of its group as a second line, never
+/// when private, for the best account itself or for another kind.
+#[test]
+fn a_notice_carries_the_advice_as_its_second_line() {
+    let account = |name: &str| Account {
+        name: name.into(),
+        provider: Provider::Claude,
+        ..Account::default()
+    };
+    let config = Config {
+        accounts: vec![account("Work"), account("Personal")],
+        ..Config::default()
+    };
+    let reports = [
+        report(
+            "Work",
+            Status::Ready,
+            vec![limit("Session", 80.0, hours(3))],
+        ),
+        report(
+            "Personal",
+            Status::Ready,
+            vec![limit("Session", 36.0, hours(3))],
+        ),
+    ];
+    let event = |index: usize, kind| crate::alerts::AlertEvent {
+        overage: Default::default(),
+        account_key: config.accounts[index].state_key(),
+        label: "Session".into(),
+        window: Some(MetricWindow::Window5h),
+        kind,
+        threshold: 0,
+        consumed: 0.8,
+        resets_at: Some(now() + hours(3)),
+        projection: (kind == crate::alerts::AlertKind::ProjectedExhaustion).then(|| {
+            crate::alerts::Projection {
+                projected_at: now() + minutes(40),
+                lead_minutes: 60,
+                margin_seconds: 8_000,
+                source: crate::pace::PaceSource::Recent,
+            }
+        }),
+        limit_change: None,
+        row: None,
+    };
+    let reading = |index: usize| reports.get(index);
+    let line = |events: &[crate::alerts::AlertEvent], private| {
+        notice_line(&config, reading, events, private, now(), &Utc)
+    };
+    use crate::alerts::AlertKind::{Exhausted, ProjectedExhaustion, Threshold};
+    let projected = line(&[event(0, ProjectedExhaustion)], false).unwrap();
+    assert_eq!(
+        projected.fallback,
+        "Work runs out ≈12:40\u{a0}PM · Personal has 64% left"
+    );
+    assert_eq!(
+        line(&[event(0, Exhausted)], false).unwrap().fallback,
+        "Work is exhausted · Personal has 64% left"
+    );
+    assert_eq!(line(&[event(0, ProjectedExhaustion)], true), None);
+    assert_eq!(line(&[event(1, ProjectedExhaustion)], false), None);
+    assert_eq!(line(&[event(0, Threshold)], false), None);
+    let notice = crate::resets::Notice {
+        title: Localized::fixed("x.title", "Title"),
+        body: Localized::fixed("x.body", "Body"),
+    };
+    let both = with_line(notice.clone(), Some(projected));
+    assert_eq!(
+        both.body.fallback,
+        "Body · Work runs out ≈12:40\u{a0}PM · Personal has 64% left"
+    );
+    assert_eq!(with_line(notice.clone(), None), notice);
+}
