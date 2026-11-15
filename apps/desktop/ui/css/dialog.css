@@ -541,7 +541,7 @@ dialog.libs {
   text-decoration: underline;
 }
 
-/* PRD 0019 RF7.7: Sobre › Novidades (the changelog, newest first). */
+/* PRD 0019 RF7.7: About › What's new (the running version's section and a link to the full changelog). */
 dialog.whats-new {
   width: min(var(--dialog-lg), calc(100vw - 32px));
 }
@@ -562,8 +562,9 @@ dialog.whats-new {
   font-weight: 400;
   color: var(--fg-muted);
 }
-.wn-history h3 {
-  color: var(--fg-muted);
+.wn-full {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-md);
 }
 .wn-cat {
   margin-top: var(--space-2);

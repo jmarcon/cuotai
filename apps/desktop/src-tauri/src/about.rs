@@ -30,17 +30,22 @@ pub fn view() -> AboutView {
     }
 }
 
-/// PRD 0019 RF7.7 "What's new": the core's parsed changelog, projected for the window. The
-/// core owns parsing and the category ids; this only shapes them for rendering (labels stay
-/// `Localized`, so the frontend resolves them with the core catalog like every other core text).
+/// PRD 0019 RF7.7 "What's new": the section of the running version from the core's parsed
+/// changelog, projected for the window, plus the address of the full changelog. The core owns
+/// parsing and the category ids; this only picks the one section and shapes it for rendering
+/// (labels stay `Localized`, so the frontend resolves them with the core catalog like every other
+/// core text). The release page and the updater's notes keep every section since the last
+/// published release (PRD 0019); only this dialog shows one version.
 #[derive(Debug, Serialize)]
 pub struct WhatsNewView {
-    pub current: &'static str,
+    pub current: String,
     pub title: Localized,
     pub entries_language: Localized,
-    pub releases: Vec<ReleaseView>,
-    /// The internal builds (never published, PRD 0039 D11), shown last when the changelog has them.
-    pub history: Option<HistoryView>,
+    /// The running version's section, or the newest one when the running version has none
+    /// (a build between releases); `None` only for an empty changelog.
+    pub release: Option<ReleaseView>,
+    /// The full changelog on GitHub (`CHANGELOG_URL`, allow-listed by `is_listed`).
+    pub full_changelog: &'static str,
 }
 
 #[derive(Debug, Serialize)]
@@ -49,13 +54,6 @@ pub struct ReleaseView {
     pub date: String,
     /// Marks the section of the running version.
     pub current: bool,
-    #[serde(flatten)]
-    pub notes: NotesView,
-}
-
-#[derive(Debug, Serialize)]
-pub struct HistoryView {
-    pub title: String,
     #[serde(flatten)]
     pub notes: NotesView,
 }
@@ -90,32 +88,38 @@ fn notes(section: &Section) -> NotesView {
     }
 }
 
-fn release_view(release: &Release) -> ReleaseView {
+fn release_view(release: &Release, running: &str) -> ReleaseView {
     ReleaseView {
         version: release.version.clone(),
         date: release.date.clone(),
-        current: release.version == env!("CARGO_PKG_VERSION"),
+        current: release.version == running,
         notes: notes(&release.section),
     }
 }
 
-/// The What's new view of `changelog` (the embedded one in production).
-pub fn whats_new_from(changelog: &Changelog) -> WhatsNewView {
+/// The What's new view of `changelog` for the `running` version: only that version's section
+/// (or the newest one when it has none), never the whole history.
+pub fn whats_new_for(changelog: &Changelog, running: &str) -> WhatsNewView {
+    let release = changelog
+        .find(running)
+        .or_else(|| changelog.releases.first())
+        .map(|release| release_view(release, running));
     WhatsNewView {
-        current: env!("CARGO_PKG_VERSION"),
+        current: running.to_owned(),
         title: changelog_title_l10n(),
         entries_language: changelog_entries_language_l10n(),
-        releases: changelog.releases.iter().map(release_view).collect(),
-        history: changelog.pre_release.as_ref().map(|history| HistoryView {
-            title: history.title.clone(),
-            notes: notes(&history.section),
-        }),
+        release,
+        full_changelog: CHANGELOG_URL,
     }
 }
 
 pub fn whats_new() -> WhatsNewView {
-    whats_new_from(changelog::entries())
+    whats_new_for(changelog::entries(), env!("CARGO_PKG_VERSION"))
 }
+
+/// PRD 0019 RF7.7: the full changelog the What's new dialog links (`CHANGELOG_URL` in
+/// `js/lib.js`). The branch file, not a release page: a tag may never be published.
+pub const CHANGELOG_URL: &str = "https://github.com/jmarcon/cuotai/blob/main/CHANGELOG.md";
 
 /// Only addresses that Cuotai itself publishes (the project, the releases page the
 /// updater offers when something fails — PRD 0018 RF2.3/RF2.5 — and the core list) or,
@@ -128,6 +132,7 @@ pub fn is_listed(url: &str) -> bool {
         || url == EXTENSIONS_GUIDE
         || url == TRANSLATION_GUIDE
         || url == BACKUP_GUIDE
+        || url == CHANGELOG_URL
         || url == crate::updater::MANUAL_URL
         || about::libraries().iter().any(|l| l.repository == url)
         || cuotai_core::incidents::is_status_link(url)
@@ -207,6 +212,7 @@ mod tests {
         assert!(is_listed(EXTENSIONS_GUIDE));
         assert!(is_listed(TRANSLATION_GUIDE));
         assert!(is_listed(BACKUP_GUIDE));
+        assert!(is_listed(CHANGELOG_URL));
         assert!(is_listed(
             "https://platform.xiaomimimo.com/console/plan-manage"
         ));
@@ -294,35 +300,56 @@ mod tests {
     }
 
     #[test]
-    fn whats_new_mirrors_the_core_changelog() {
-        let core = changelog::entries();
-        let view = whats_new();
-        assert_eq!(view.releases.len(), core.releases.len());
-        assert_eq!(
-            view.releases.iter().filter(|r| r.current).count(),
-            usize::from(core.knows(env!("CARGO_PKG_VERSION")))
-        );
-        for (shown, source) in view.releases.iter().zip(&core.releases) {
-            assert_eq!(shown.version, source.version);
-            assert_eq!(shown.date, source.date);
-            let shown_entries: usize = shown.notes.categories.iter().map(|c| c.entries.len()).sum();
-            let source_entries: usize = source
-                .section
-                .categories
-                .iter()
-                .map(|b| b.entries.len())
-                .sum();
-            assert_eq!(shown_entries, source_entries, "{}", source.version);
-        }
-        assert_eq!(view.history.is_some(), core.pre_release.is_some());
+    fn whats_new_shows_only_the_running_version() {
+        let core = changelog::parse(
+            "# Changelog\n\n## [Unreleased]\n\n## [0.3.0] - 2026-11-03\n\n### Added\n\n- Third.\n- Third again.\n\n\
+             ## [0.2.0] - 2026-11-02\n\n### Fixed\n\n- Second.\n\n## [0.1.0] - 2026-11-01\n\n### Added\n\n- First.\n",
+        )
+        .unwrap();
+        let view = whats_new_for(&core, "0.2.0");
+        let release = view.release.as_ref().unwrap();
+        assert_eq!(release.version, "0.2.0");
+        assert!(release.current);
+        assert_eq!(release.notes.categories.len(), 1);
+        assert_eq!(release.notes.categories[0].entries, ["Second."]);
+        assert_eq!(view.full_changelog, CHANGELOG_URL);
         let json = serde_json::to_value(&view).unwrap();
-        let first = &json["releases"][0];
-        assert!(first["categories"][0]["label"]["id"]
+        assert!(json.get("releases").is_none() && json.get("history").is_none());
+        assert!(json["release"]["categories"][0]["label"]["id"]
             .as_str()
             .unwrap()
             .starts_with("changelog.category."));
-        assert!(first.get("current").is_some());
-        // Category labels stay the core's ids, one per fixed category.
+        // A build between releases (no section of its own) shows the newest section, not marked current.
+        let between = whats_new_for(&core, "0.3.1");
+        let newest = between.release.unwrap();
+        assert_eq!(newest.version, "0.3.0");
+        assert!(!newest.current);
+        assert_eq!(newest.notes.categories[0].entries.len(), 2);
+    }
+
+    #[test]
+    fn whats_new_mirrors_the_embedded_changelog() {
+        let core = changelog::entries();
+        let view = whats_new();
+        let release = view.release.expect("the embedded changelog has a release");
+        let source = core
+            .find(env!("CARGO_PKG_VERSION"))
+            .unwrap_or(&core.releases[0]);
+        assert_eq!(release.version, source.version);
+        assert_eq!(release.date, source.date);
+        let shown: usize = release
+            .notes
+            .categories
+            .iter()
+            .map(|c| c.entries.len())
+            .sum();
+        let expected: usize = source
+            .section
+            .categories
+            .iter()
+            .map(|b| b.entries.len())
+            .sum();
+        assert_eq!(shown, expected);
         assert!(changelog::Category::ALL
             .iter()
             .all(|c| c.l10n_id().starts_with("changelog.category.")));

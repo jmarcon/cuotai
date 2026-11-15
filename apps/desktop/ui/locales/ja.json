@@ -696,6 +696,7 @@
   "about.libraries": "オープンソースライブラリ",
   "about.whatsNew": "新機能",
   "about.whatsNew.current": "このバージョン",
+  "about.whatsNew.full": "GitHub で全変更履歴を見る",
   "about.loading": "読み込み中…",
   "about.libraries.help": "Cuotai は各コミュニティが保守するオープンソースプロジェクトの上に成り立っています。開発者の皆さんに感謝します。ロゴは各所有者の商標です。",
   "about.open": "リポジトリをブラウザーで開く",
