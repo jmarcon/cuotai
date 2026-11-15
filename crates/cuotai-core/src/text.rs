@@ -204,6 +204,10 @@ impl Localized {
     /// [`Localized`] parameters are recursively resolved against the same
     /// locale.
     pub fn resolve(&self, locale: &str) -> String {
+        // PRD 0023 re-validation (V-02): amounts are formatted, not looked up.
+        if let Some(text) = number::render(self, locale) {
+            return text;
+        }
         // PRD 0035 RF9.4: development builds render `en-XA` from the English
         // source, placeholders kept.
         if is_pseudo(locale) {
@@ -455,6 +459,7 @@ pub fn countdown(span: chrono::TimeDelta) -> Localized {
 
 mod case;
 mod fold;
+pub mod number;
 pub mod parity;
 mod pseudo;
 mod registry;

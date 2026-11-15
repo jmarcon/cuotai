@@ -543,6 +543,33 @@ pub(crate) const TABLE: &[(&str, &str, &str)] = &[
         "metric.label.rate_limit_of",
         "{label} (rate limit)",
     ),
+    // PRD 0023 re-validation (V-04, R-01): the paid extra usage of Claude
+    // and Kiro, named in the reader's language.
+    (
+        "Uso extra — utilizado",
+        "metric.label.extra_usage_used",
+        "Extra usage — used",
+    ),
+    (
+        "unid. provedor",
+        "metric.unit.provider_units",
+        "provider units",
+    ),
+    (
+        "{label} (excedente cobrado)",
+        "metric.label.overage_charged_of",
+        "{label} (overage charged)",
+    ),
+    (
+        "{label} (excedente)",
+        "metric.label.overage_of",
+        "{label} (overage)",
+    ),
+    (
+        "{label} (teste gratuito)",
+        "metric.label.free_trial_of",
+        "{label} (free trial)",
+    ),
     // PRD 0041 RF2.1: the default label of a budget metric.
     (
         "Orçamento · {label}",
@@ -694,6 +721,35 @@ mod tests {
             metric_text("Claude — janela de 5 hora(s) (%)").id,
             "metric.label.window_hours"
         );
+    }
+
+    /// PRD 0023 re-validation (V-04, R-01): Claude's and Kiro's extra
+    /// usage labels and unit are translated, never left in Portuguese.
+    #[test]
+    fn extra_usage_labels_are_translated() {
+        let cases = [
+            ("Uso extra — utilizado", "Extra usage — used"),
+            ("unid. provedor", "provider units"),
+            ("Kiro: credit (excedente)", "Kiro: credit (overage)"),
+            (
+                "Kiro: credit (excedente cobrado)",
+                "Kiro: credit (overage charged)",
+            ),
+            ("Kiro: credit (teste gratuito)", "Kiro: credit (free trial)"),
+        ];
+        for (raw, english) in cases {
+            let text = metric_text(raw);
+            assert_ne!(text.id, "metric.verbatim", "{raw}");
+            assert_eq!(text.resolve("en-US"), english, "{raw}");
+            assert_eq!(text.resolve("pt-BR"), raw, "{raw}");
+            for locale in crate::text::catalog_locales() {
+                let shown = text.resolve(locale);
+                if locale != "pt-BR" && locale != "es" {
+                    assert!(!shown.contains("excedente"), "{locale}: {shown}");
+                    assert!(!shown.contains("provedor"), "{locale}: {shown}");
+                }
+            }
+        }
     }
 
     #[test]

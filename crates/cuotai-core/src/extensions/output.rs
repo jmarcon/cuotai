@@ -372,7 +372,8 @@ impl Violations {
 
     fn unit(&mut self, value: &Value, path: String) -> Option<String> {
         let unit = value.as_str().map(str::trim).filter(|unit| {
-            unit.chars().count() <= UNIT_MAX_CHARS && !unit.chars().any(char::is_control)
+            // PRD 0023 re-validation (S-01): no bidi override either.
+            unit.chars().count() <= UNIT_MAX_CHARS && !unit.chars().any(crate::text::is_disguising)
         });
         match unit {
             Some(unit) => Some(unit.to_owned()),

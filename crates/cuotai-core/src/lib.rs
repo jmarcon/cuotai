@@ -1180,6 +1180,7 @@ impl Monitor {
         match result {
             Ok(Some(mut sub)) => {
                 sub.drop_implausible_instants();
+                sub.strip_disguising_text();
                 match report.sub_reports.iter_mut().find(|old| old.id == sub.id) {
                     Some(old) => *old = sub,
                     None => report.sub_reports.push(sub),
@@ -1280,6 +1281,9 @@ impl Monitor {
     ) -> Report {
         let mut report = self.query_unlabelled(account, pasted).await;
         report.account_id = Some(account.id());
+        // PRD 0023 re-validation (S-01): one boundary for adapters and
+        // extensions alike.
+        report.strip_disguising_text();
         report
     }
 

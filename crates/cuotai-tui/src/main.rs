@@ -2993,6 +2993,19 @@ mod tests {
             text.find("Extra usage").unwrap() < text.find("Monthly").unwrap(),
             "under the account heading, before the metrics"
         );
+        // PRD 0023 re-validation (V-02, V-03): the amount in the reader's
+        // language, and a capped budget is "used up", never "on extra".
+        let text = report_text(&active, &[], None, FIVE_MIN, now, "pt-BR", at);
+        assert!(text.contains("US$\u{a0}6,25"), "{text}");
+        let mut capped_metric = extra.clone();
+        capped_metric.used = Some(50.0);
+        let capped = report("Work", Status::Ready, vec![capped_metric]);
+        let text = report_text(&capped, &[], None, FIVE_MIN, now, "en-US", at);
+        assert!(
+            text.contains("  Extra usage: Extra budget used up\n"),
+            "{text}"
+        );
+        assert!(!text.contains("on extra"), "{text}");
         extra.used = Some(0.0);
         let armed = report("Work", Status::Ready, vec![extra]);
         assert!(!report_text(&armed, &[], None, FIVE_MIN, now, "en-US", at).contains("Uso extra"));

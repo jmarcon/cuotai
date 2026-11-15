@@ -1931,7 +1931,9 @@ fn render_card(
             frame.render_widget(
                 Paragraph::new(Line::styled(
                     safe(text).into_owned(),
-                    Style::default().fg(PINK).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(extra_usage_color(report))
+                        .add_modifier(Modifier::BOLD),
                 )),
                 chunks[chunk_index],
             );
@@ -1978,8 +1980,9 @@ fn render_card(
 }
 
 /// PRD 0023 RF8: the core's one-line summary of paid extra usage while it
-/// bills (`Active` or `CapReached`), "Limite atingido · no extra $6.25" when
-/// the account is also at its limit; `None` otherwise.
+/// bills (`Active` or `CapReached`), "Limit hit · on extra $6.25" when
+/// the account is also at its limit, "Extra budget used up" at the cap
+/// (PRD 0023 re-validation V-03); `None` otherwise.
 pub(crate) fn extra_usage_text(report: &Report, locale: &str) -> Option<String> {
     let state = overage::assess(report).filter(|state| state.state.is_billing())?;
     let blocks = scope_blocks(report);
@@ -1992,6 +1995,19 @@ pub(crate) fn extra_usage_text(report: &Report, locale: &str) -> Option<String> 
         state.text()
     };
     Some(text.resolve(locale))
+}
+
+/// The colour of the extra-usage text: the critical role once the extra
+/// budget is used up (PRD 0023 re-validation V-03, DS-CMP-EXTRA-2).
+fn extra_usage_color(report: Option<&Report>) -> Color {
+    let capped = report
+        .and_then(overage::assess)
+        .is_some_and(|state| state.state == overage::OverageState::CapReached);
+    if capped {
+        RED
+    } else {
+        PINK
+    }
 }
 
 /// The details lines of the "USO EXTRA" section (PRD 0023 RF8.1): the
@@ -2020,7 +2036,7 @@ fn extra_usage_lines(report: &Report, locale: &str) -> Vec<Line<'static>> {
         Span::styled(tr("dashboard.extra.heading", "  EXTRA USAGE  "), heading),
         Span::styled(
             safe(&parts.join(" · ")).into_owned(),
-            Style::default().fg(PINK),
+            Style::default().fg(extra_usage_color(Some(report))),
         ),
     ])];
     if let Some(caveat) = state.units_caveat() {
@@ -5591,13 +5607,16 @@ mod tests {
             "
 ",
         );
-        assert!(card.contains("No extra · $6.25"), "{card}");
+        assert!(card.contains("No extra · US$\u{a0}6,25"), "{card}");
         let details = render_rows(&on_extra(true, 12.5), true).join(
             "
 ",
         );
         assert!(details.contains("USO EXTRA"), "{details}");
-        assert!(details.contains("No extra · 12.5 unid. provedor"));
+        assert!(
+            details.contains("No extra · 12,5 unid. provedor"),
+            "{details}"
+        );
         assert!(details.contains("teto 50 unid. provedor"));
         assert!(details.contains("não em dinheiro"));
         // Nothing billed yet: no card line.
@@ -5628,6 +5647,19 @@ mod tests {
             extra_usage_text(report, "en-US").as_deref(),
             Some("Limit hit · on extra $6.25")
         );
+        assert_eq!(
+            extra_usage_text(report, "de").as_deref(),
+            Some("Limit erreicht · im Zusatz 6,25\u{a0}$")
+        );
+        assert_eq!(extra_usage_color(Some(report)), PINK);
+        // PRD 0023 re-validation (V-03): at the cap the account is not on
+        // extra any more; the line says so in the critical role.
+        report.metrics[1].used = Some(50.0);
+        assert_eq!(
+            extra_usage_text(report, "en-US").as_deref(),
+            Some("Extra budget used up")
+        );
+        assert_eq!(extra_usage_color(Some(report)), RED);
     }
 
     /// PRD 0023 RF10.3: a model at its limit names itself in the summary

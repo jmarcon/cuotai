@@ -81,16 +81,16 @@
           {
             "label": "Uso extra — utilizado",
             "label_text": {
-              "id": "metric.verbatim",
-              "fallback": "Uso extra — utilizado"
+              "id": "metric.label.extra_usage_used",
+              "fallback": "Extra usage — used"
             },
             "used": 12.5,
             "limit": 50.0,
             "remaining": 37.5,
             "unit": "unid. provedor",
             "unit_text": {
-              "id": "metric.verbatim",
-              "fallback": "unid. provedor"
+              "id": "metric.unit.provider_units",
+              "fallback": "provider units"
             },
             "kind": "quota",
             "window": "monthly",
