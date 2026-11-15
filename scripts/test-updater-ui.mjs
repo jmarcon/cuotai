@@ -266,6 +266,28 @@ for (const { code } of i18n.LOCALES) {
   assert.match(banner, /data-update="available"/, `${code}: available banner missing`);
   assert.ok(banner.includes(catalog["update.now"]), `${code}: update action did not render`);
 
+  // PRD 0019 RF7.7 (re-validation V-01): the notes are drawn from the structured view, never raw Markdown or refs.
+  const notesBody = banner.match(/<div class="upd-notes-body" data-update-notes>[\s\S]*<\/div>/)?.[0] ?? "";
+  assert.ok(notesBody, `${code}: structured notes missing`);
+  assert.match(notesBody, /<h4>0\.72\.0 <small>2026-10-22<\/small><\/h4>/, `${code}: newest version heading missing`);
+  assert.match(notesBody, /<h4>0\.71\.1 /, `${code}: second section missing`);
+  assert.equal((notesBody.match(/<li>/g) ?? []).length, 4, `${code}: entries not listed`);
+  assert.doesNotMatch(notesBody, /##|PRD \d|\{count\}|changelog\.category/, `${code}: raw Markdown, refs or keys leaked`);
+  assert.ok(notesBody.includes(lib.esc(catalog["update.notesFull"])), `${code}: release-page link missing`);
+  assert.match(notesBody, /data-update-manual/, `${code}: the link must open the release page`);
+  assert.match(notesBody, /<p class="hint">[^<]*3[^<]*<\/p>/, `${code}: "and N more" missing`);
+  {
+    const st = updater.updateState();
+    const saved = st.notes;
+    st.notes = null;
+    const bare = updater.updateBannerHtml();
+    assert.doesNotMatch(bare, /<li>|<h4>/, `${code}: unreadable notes must show no body`);
+    assert.ok(bare.includes(lib.esc(catalog["update.notesFull"])), `${code}: unreadable notes keep the link`);
+    st.notes = saved;
+  }
+  // PRD 0019 RF1.1 (re-validation V-02): Settings › About shows the dual licence from the shell.
+  assert.ok(page.includes("MIT OR Apache-2.0"), `${code}: About must show the dual licence`);
+
   const renderedDate = banner.match(/<span class="hint">([^<]+)<\/span>/)?.[1] ?? "";
   assert.equal(renderedDate, expectedReleaseDates[code], `${code}: release date is not localized`);
   assert.doesNotMatch(banner, /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/, `${code}: raw ISO release timestamp rendered`);

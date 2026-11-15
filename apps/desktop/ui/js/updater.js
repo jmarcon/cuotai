@@ -2,7 +2,7 @@
 // The interface never sees a manifest URL, a signature or a key: the backend
 // hands over only what to show (phase, version, notes, progress, reason). All texts
 // live in every built-in catalog.
-import { te, t, currentLocale } from "./i18n.js";
+import { te, t, tl, currentLocale } from "./i18n.js";
 import { showDialog } from "./motion.js";
 import { row, sw } from "./settings/rows.js";
 import {
@@ -120,11 +120,24 @@ export async function promptForUpdateConsent() {
   return true;
 }
 
+/** PRD 0019 RF7.7 (re-validation V-01): the notes arrive parsed by the core (versions, localized category labels,
+ *  plain entries without plan references); this only draws them. Nothing here parses Markdown, and every string goes
+ *  through `esc`. Notes the core could not read show only the release-page link. */
+const notesBodyHtml = (notes) => {
+  const releases = (notes?.releases ?? []).map((r) => `<div class="upd-rel">
+    <h4>${esc(r.version)}${r.date ? ` <small>${esc(r.date)}</small>` : ""}</h4>
+    ${r.categories.map((c) => `<p class="upd-cat">${esc(tl(c.label))}</p>
+    <ul class="upd-list">${c.entries.map((e) => `<li>${esc(e)}</li>`).join("")}</ul>`).join("")}</div>`).join("");
+  const more = notes?.more > 0 ? `<p class="hint">${te("update.notesMore", { count: notes.more })}</p>` : "";
+  return `<div class="upd-notes-body" data-update-notes>${releases}${more}
+    <button type="button" class="btn ghost sm" data-update-manual>${te("update.notesFull")}</button></div>`;
+};
+
 const availableHtml = (s) => {
   const releaseDate = fmtDate(s.date);
   return `<div class="banner info" role="status" data-update-banner data-update="available">
   ${icon("download")}<div class="banner-main"><b>${te("update.available", { version: s.version })}</b>${releaseDate ? `<span class="hint">${te("update.date", { date: releaseDate })}</span>` : ""}
-  <details class="update-notes"><summary>${icon("chev", "upd-chev")}${te("update.notes")}</summary><p>${esc(s.notes ?? "")}</p></details></div>
+  <details class="update-notes"><summary>${icon("chev", "upd-chev")}${te("update.notes")}</summary>${notesBodyHtml(s.notes)}</details></div>
   <div class="banner-acts">
     <button class="btn ghost" data-update-later>${te("update.later")}</button>
     <button class="btn primary" data-update-now>${te("update.now")}</button>

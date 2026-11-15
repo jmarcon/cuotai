@@ -1051,6 +1051,10 @@
   "update.off.other": "此安装不使用应用内更新程序。",
   "update.available": "更新 {version} 可用",
   "update.notes": "更新内容",
+  "update.notesMore": {
+    "other": "另有 {count} 项"
+  },
+  "update.notesFull": "完整发行说明",
   "update.date": "发布于 {date}",
   "update.now": "立即更新",
   "update.later": "稍后提醒我",

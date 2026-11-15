@@ -1051,6 +1051,10 @@
   "update.off.other": "このインストールはアプリ内アップデーターを使用しません。",
   "update.available": "アップデート {version} を利用できます",
   "update.notes": "更新内容",
+  "update.notesMore": {
+    "other": "ほか {count} 件"
+  },
+  "update.notesFull": "リリースノート全文",
   "update.date": "{date}リリース",
   "update.now": "今すぐ更新",
   "update.later": "後で通知",

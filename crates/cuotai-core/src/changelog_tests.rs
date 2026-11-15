@@ -358,3 +358,45 @@ fn grouped_requirements_continue_their_plan() {
     );
     assert_eq!(loose.references().len(), 1);
 }
+
+/// PRD 0019 re-validation (V-01): the update banner shows release notes as
+/// structured text, so the notes the release workflow writes (one or several
+/// sections, no `[Unreleased]`, no footer) parse here, in Rust.
+#[test]
+fn release_notes_parse_into_sections_with_reader_text() {
+    let notes = "## [0.85.3] - 2026-11-03\n\n### Fixed\n\n- The banner fits (PRD 0019 RF7.5; abc1234).\n- Plain sentence without a tail.\n\n## [0.85.2] - 2026-11-02\n\n### Added\n\n- A setting (see Settings (General)) (PRD 0018 RF1.2, RF1.3; PRD 0021 RF2; def5678).\n- Keeps (useful) words\n";
+    let releases = parse_notes(notes).expect("notes parse");
+    assert_eq!(releases.len(), 2);
+    assert_eq!(releases[0].version, "0.85.3");
+    assert_eq!(releases[1].date, "2026-11-02");
+    let shown: Vec<String> = releases
+        .iter()
+        .flat_map(|r| r.section.categories.iter())
+        .flat_map(|block| block.entries.iter().map(Entry::display_text))
+        .collect();
+    assert_eq!(
+        shown,
+        [
+            "The banner fits.",
+            "Plain sentence without a tail.",
+            "A setting (see Settings (General)).",
+            "Keeps (useful) words",
+        ]
+    );
+    for text in &shown {
+        assert!(!text.contains("PRD") && !text.contains("abc1234"), "{text}");
+    }
+}
+
+#[test]
+fn release_notes_that_are_not_sections_do_not_parse() {
+    for text in [
+        "",
+        "Correções e melhorias desta versão.",
+        "### Fixed\n\n- No heading.",
+        "## [Unreleased]\n\n## [0.1.0] - 2026-10-20\n\n### Fixed\n\n- X.",
+        "## [0.1.0] - 2026-10-20\n\n### Unknown\n\n- X.",
+    ] {
+        assert!(parse_notes(text).is_none(), "{text:?}");
+    }
+}

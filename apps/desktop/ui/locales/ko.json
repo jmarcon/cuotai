@@ -1051,6 +1051,10 @@
   "update.off.other": "이 설치본은 앱 내 업데이트를 사용하지 않습니다.",
   "update.available": "업데이트 {version} 사용 가능",
   "update.notes": "변경 사항",
+  "update.notesMore": {
+    "other": "외 {count}개"
+  },
+  "update.notesFull": "전체 릴리스 노트",
   "update.date": "{date} 출시",
   "update.now": "지금 업데이트",
   "update.later": "나중에 알림",

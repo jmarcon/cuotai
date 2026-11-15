@@ -1055,6 +1055,11 @@
   "update.off.other": "This installation does not use the in-app updater.",
   "update.available": "Update {version} available",
   "update.notes": "What's new",
+  "update.notesMore": {
+    "one": "and {count} more",
+    "other": "and {count} more"
+  },
+  "update.notesFull": "Full release notes",
   "update.date": "released on {date}",
   "update.now": "Update now",
   "update.later": "Remind me later",

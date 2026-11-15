@@ -1058,6 +1058,11 @@
   "update.off.other": "यह इंस्टॉलेशन ऐप के भीतर के अपडेटर का उपयोग नहीं करता।",
   "update.available": "अपडेट {version} उपलब्ध",
   "update.notes": "नया क्या है",
+  "update.notesMore": {
+    "one": "और {count} अन्य",
+    "other": "और {count} अन्य"
+  },
+  "update.notesFull": "पूरे रिलीज़ नोट्स",
   "update.date": "{date} को जारी",
   "update.now": "अभी अपडेट करें",
   "update.later": "बाद में याद दिलाएँ",

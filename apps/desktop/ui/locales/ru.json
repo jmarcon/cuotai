@@ -1072,6 +1072,13 @@
   "update.off.other": "Эта установка не использует встроенное средство обновления.",
   "update.available": "Доступно обновление {version}",
   "update.notes": "Что нового",
+  "update.notesMore": {
+    "one": "и ещё {count}",
+    "few": "и ещё {count}",
+    "many": "и ещё {count}",
+    "other": "и ещё {count}"
+  },
+  "update.notesFull": "Полные примечания к выпуску",
   "update.date": "выпущено {date}",
   "update.now": "Обновить сейчас",
   "update.later": "Напомнить позже",
