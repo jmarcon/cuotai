@@ -17,7 +17,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 THEMES = os.path.join(HERE, "..", "ui", "css", "themes")
 BASELINE = os.path.join(HERE, "contrast-baseline.txt")
-LINE = re.compile(r"^\s+FALHA (\S+) × (\S+): ([\d.]+) \(mín ([\d.]+)\)")
+LINE = re.compile(r"^\s+FAIL (\S+) × (\S+): ([\d.]+) \(min ([\d.]+)\)")
 HEAD = re.compile(r"^== (\S+) / (dark|light)")
 
 
@@ -32,7 +32,7 @@ def failures(path):
         m = LINE.match(line)
         if m and where:
             found[f"{where} {m.group(1)}×{m.group(2)}"] = float(m.group(3))
-        elif "FALHA" in line or "FALTA" in line:
+        elif "FAIL" in line or "MISSING" in line:
             found[f"{where} {line.strip()}"] = 0.0
     return found
 

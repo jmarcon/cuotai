@@ -5,7 +5,10 @@
 .lbl.warn, .sg.warn { color: var(--warn); }
 .lbl.bad, .sg.bad { color: var(--bad); }
 .lbl.info, .sg.info { color: var(--info); }
-.lbl.accent, .sg.accent { color: var(--accent); }
+/* PRD 0022 re-validation V-02: --accent is a graphic role (3:1), never body text; an accent label is --fg text with
+   its icon in --accent (DS-COL-7). */
+.sg.accent, .lbl.accent svg.i { color: var(--accent); }
+.lbl.accent { color: var(--fg); }
 .lbl.muted, .lbl.unknown, .sg.muted, .sg.unknown { color: var(--fg-muted); }
 .lbl.fg { color: var(--fg); }
 /* Visually hidden, still read by screen readers. Always a block: a table ignores `height: 1px` and grows to its rows,
@@ -94,7 +97,7 @@
 }
 .fig b.bad { color: var(--bad); }
 .fig b.warn { color: var(--warn); }
-.fig b.accent { color: var(--accent); }
+.fig b.accent { color: var(--fg); } /* V-02: the word carries the state; --accent is not text */
 .fig.wordfig b {
   font-size: var(--text-base);
   font-weight: 600;
@@ -107,7 +110,8 @@
   line-height: 1.1;
 }
 .fig.left { align-items: flex-start; }
-.fig.stale b { opacity: 0.5; }
+/* DS-CMP-HON-3: a stale figure (number and unit) is dimmed once, to 50 % (PRD 0022 re-validation V-01). */
+.fig.stale { opacity: 0.5; }
 
 /* ---- DS-CMP-RING-6: the static C-ring glyph ---- */
 svg.ring { flex: none; vertical-align: -2px; }
@@ -205,7 +209,22 @@ svg.i.sg { width: 12px; height: 12px; }
 .xline.info { color: var(--info); }
 .xline.muted { color: var(--fg-muted); }
 
-/* ---- DS-CMP-BADGE-2: status chips (`.mini` of the cards, chips on tray rows) ---- */
+/* ---- DS-CMP-BADGE-2: status chips (`.mini` of the cards, chips on tray rows, `.schip`, `.badge`, `.btag`) ----
+   PRD 0022 re-validation V-02: the text is always --fg on a 16 % tint of the chip's role (`--chip`), and the role
+   colors the icon; role-colored text on its own tint falls below 4.5:1 in most themes. `contrast.py --strict`
+   measures --fg on every role's tint over --surface, --bg and --surface-2. */
+.mini, .schip, .badge, .btag, .tchip {
+  --chip: var(--fg-muted);
+  background: color-mix(in srgb, var(--chip) 16%, transparent);
+  color: var(--fg);
+}
+.mini svg.i, .schip svg.i, .badge svg.i, .btag svg.i, .tchip .tg { color: var(--chip); }
+.mini.good, .schip.good, .badge.good, .tchip.good { --chip: var(--good); }
+.mini.warn, .schip.warn, .badge.warn, .btag.warn, .tchip.warn { --chip: var(--warn); }
+.mini.bad, .schip.bad, .badge.bad, .tchip.bad { --chip: var(--bad); }
+.mini.info, .schip.info, .badge.info, .tchip.info { --chip: var(--info); }
+.mini.accent, .schip.accent, .badge.accent, .btag { --chip: var(--accent); }
+.mini.muted, .schip.muted, .badge.muted, .tchip.muted { --chip: var(--fg-muted); }
 .mini {
   display: inline-flex;
   align-items: center;
@@ -213,18 +232,11 @@ svg.i.sg { width: 12px; height: 12px; }
   min-height: 20px;
   padding: 0 var(--space-2);
   border-radius: var(--radius-pill);
-  background: color-mix(in srgb, currentColor 16%, transparent);
   font-size: var(--text-sm);
   font-weight: 600;
   white-space: nowrap;
 }
 .mini svg.i { width: 14px; height: 14px; }
-.mini.good { color: var(--good); }
-.mini.warn { color: var(--warn); }
-.mini.bad { color: var(--bad); }
-.mini.info { color: var(--info); }
-.mini.accent { color: var(--accent); }
-.mini.muted { color: var(--fg-muted); }
 .row-chips, .agg-chips {
   display: flex;
   flex-wrap: wrap;
@@ -243,17 +255,10 @@ svg.i.sg { width: 12px; height: 12px; }
   height: 20px;
   padding: 0 var(--space-2);
   border-radius: var(--radius-pill);
-  background: color-mix(in srgb, currentColor 16%, transparent);
-  color: var(--fg-muted);
   font-size: var(--text-sm);
   font-weight: 600;
   white-space: nowrap;
 }
-.schip.good { color: var(--good); }
-.schip.warn { color: var(--warn); }
-.schip.bad { color: var(--bad); }
-.schip.info { color: var(--info); }
-.schip.accent { color: var(--accent); }
 .schip svg.i { width: 14px; height: 14px; }
 
 /* ---- DS-CMP-CALL: callout ---- */
@@ -475,16 +480,10 @@ dialog:focus-visible {
   height: 20px;
   padding: 0 var(--space-2);
   border-radius: var(--radius-pill);
-  background: color-mix(in srgb, currentColor 16%, transparent);
-  color: var(--fg-muted);
   font: 600 var(--text-sm) var(--font-ui), var(--font-script);
   white-space: nowrap;
 }
 .tchip[hidden] { display: none; }
-.tchip.good { color: var(--good); }
-.tchip.warn { color: var(--warn); }
-.tchip.bad { color: var(--bad); }
-.tchip.info { color: var(--info); }
 .fig b.warn { color: var(--warn); }
 
 /* ---- PRD 0025 RF9 / PRD 0022 RF8.2 (DS-CMP-DENS-1..5): the row display ----

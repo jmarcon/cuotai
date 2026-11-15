@@ -498,16 +498,6 @@
   border-radius: var(--radius-pill);
   font-size: var(--text-sm);
   font-weight: 500;
-  background: color-mix(in srgb, currentColor 16%, transparent);
-}
-.badge.accent {
-  color: var(--accent);
-}
-.badge.info {
-  color: var(--info);
-}
-.badge.good {
-  color: var(--good);
 }
 .copy-row {
   padding: 0 var(--space-4) var(--space-3);
@@ -686,25 +676,10 @@
 .card-foot .grow {
   flex: 1;
 }
+/* The main window's chips keep a little vertical padding; their colors come from components.css (DS-CMP-BADGE-2). */
 .mini {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
   padding: var(--space-0) var(--space-2);
-  border-radius: var(--radius-pill);
-  background: color-mix(in srgb, currentColor 16%, transparent);
-  font-weight: 600;
 }
-.mini svg.i {
-  width: 14px;
-  height: 14px;
-}
-.mini.good { color: var(--good); }
-.mini.warn { color: var(--warn); }
-.mini.bad { color: var(--bad); }
-.mini.info { color: var(--info); }
-.mini.accent { color: var(--accent); }
-.mini.muted { color: var(--fg-muted); }
 .card-foot .move {
   width: 26px;
   height: 26px;

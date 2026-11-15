@@ -251,7 +251,7 @@ export function timeChipHtml(chip, { compact = false, role = null } = {}) {
   if (!chip) return "";
   const full = tl(chip.text);
   const text = compact && chip.compact ? chip.compact : full;
-  return `<span class="tchip ${role ?? CHIP_ROLE[chip.glyph] ?? "muted"}" title="${esc(full)}" aria-label="${esc(full)}"><span aria-hidden="true">${esc(chip.glyph)}</span><span>${esc(text)}</span></span>`;
+  return `<span class="tchip ${role ?? CHIP_ROLE[chip.glyph] ?? "muted"}" title="${esc(full)}" aria-label="${esc(full)}"><span class="tg" aria-hidden="true">${esc(chip.glyph)}</span><span>${esc(text)}</span></span>`;
 }
 /** The stage chip in the user's unit (points by default, DS-CMP-TIME-6). */
 export const stageChip = (pace) => pace?.chips?.[paceUnit()] ?? null;

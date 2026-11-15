@@ -212,7 +212,7 @@ body {
 }
 .crow .cf b.bad { color: var(--bad); }
 .crow .cf b.warn { color: var(--warn); }
-.crow .cf b.accent { color: var(--accent); font-weight: 600; }
+.crow .cf b.accent { color: var(--fg); font-weight: 600; } /* V-02: the word carries the state */
 .crow .cf small {
   margin-left: 3px;
   color: var(--fg-muted);

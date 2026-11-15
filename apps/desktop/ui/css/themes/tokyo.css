@@ -26,7 +26,7 @@
   --surface: #eceef4;
   --surface-2: #d5d6db;
   --border: #b4b8cc;
-  --fg: #2f56b0;
+  --fg: #26458d; /* PRD 0022 re-validation V-02: 4.5:1 on every chip tint over --surface-2 */
   --fg-muted: #495a92;
   --accent: #2e5fc9;
   --accent-fg: #ffffff;
