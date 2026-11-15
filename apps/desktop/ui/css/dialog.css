@@ -528,7 +528,8 @@ dialog.libs {
   padding: 0;
   border: 0;
   background: none;
-  color: var(--accent);
+  color: var(--fg); /* V-02: links are --fg and underlined */
+  text-decoration: underline;
   cursor: pointer;
   overflow: hidden;
   font: var(--text-sm) var(--font-mono), var(--font-script);
@@ -926,7 +927,7 @@ dialog.dlg.dlg-catalog:has(#picker:not([hidden])) {
   padding: 0;
   border: 0;
   background: none;
-  color: var(--accent);
+  color: var(--fg); /* V-02: links are --fg and underlined */
   font-size: var(--text-sm);
   text-decoration: underline;
   cursor: pointer;
@@ -978,7 +979,7 @@ dialog.dlg.dlg-catalog:has(#picker:not([hidden])) {
   display: none;
 }
 .text-link {
-  color: var(--accent);
+  color: var(--fg); /* V-02: links are --fg and underlined */
   text-decoration: underline;
   text-underline-offset: 2px;
 }

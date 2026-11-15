@@ -370,7 +370,7 @@
   padding: 0;
   border: 0;
   background: none;
-  color: var(--accent);
+  color: var(--fg); /* V-02: links are --fg and underlined */
   text-decoration: underline;
   font: inherit;
 }
@@ -588,8 +588,13 @@
 .stats-back {
   margin-block: var(--space-4);
 }
+/* PRD 0022 re-validation V-03: in the main window the timeline sits on a surface card like the KPI and chart blocks
+   (DS-CMP-STATS), never on the page background (`--body-bg`, a picture in some themes). */
 .stats-page .timeline {
-  padding-top: 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
 }
 
 /* The popover shows the Stats view under its own header, which names it and holds the scope select. */

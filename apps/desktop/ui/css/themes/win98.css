@@ -33,7 +33,7 @@
   --btn-fg: #000000;
   --input-bg: #ffffff;
   --switch-knob: #c0c0c0;
-  --body-bg: #008080;
+  --body-bg: #66c2c2; /* PRD 0022 re-validation V-03: a lighter desktop teal, so --fg and --fg-muted read on it */
 }
 
 :root[data-theme="win98"][data-mode="dark"] {

@@ -64,21 +64,19 @@
   align-items: center;
   padding: var(--space-0) var(--space-2);
   border-radius: var(--radius-pill);
-  background: color-mix(in srgb, currentColor 16%, transparent);
   font-size: var(--text-sm);
   font-weight: 600;
   white-space: nowrap;
   vertical-align: middle;
 }
-.mini.binding.bad { color: var(--bad); }
-.mini.binding.warn { color: var(--warn); }
-.mini.binding.good { color: var(--good); }
+/* V-02: the binding window's name stays --fg; the dot after it carries the accent. */
 .win.binding .win-name,
 .sum-bar.binding .lt {
-  color: var(--accent);
+  color: var(--fg);
 }
 .win.binding .win-name::after {
   content: " \25CF";
+  color: var(--accent);
 }
 /* PRD 0010 RF3: measurement age with the freshness icon and text (never color alone) */
 .age {
@@ -99,12 +97,14 @@
   padding: var(--space-0) var(--space-2);
   border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--warn) 16%, transparent);
-  color: var(--warn);
+  color: var(--fg); /* V-02 (DS-CMP-BADGE-2): --fg text on the tint, the icon carries the role */
   font-weight: 600;
 }
+.age.stale svg.i { color: var(--warn); }
 /* PRD 0010 RF3.2, DS-CMP-HON-3: the preserved reading's figures are dimmed; its meters carry the stale
-   treatment themselves (50 % and a dotted outline) and nothing moves. */
-.stale-reading :is(.pct, .win-pct, .big, .fig, .balance) {
+   treatment themselves (50 % and a dotted outline) and nothing moves. The figure (`.fig.stale`) dims itself too, so
+   it is left out here: dimmed once, to 50 % (PRD 0022 re-validation V-01). */
+.stale-reading :is(.pct, .win-pct, .big, .balance) {
   opacity: 0.5;
 }
 /* `.sum-note.cause`: main.css (loaded later) styles `.sum-note` as a clamped muted box */
@@ -217,9 +217,6 @@
 .mini.time {
   margin-top: calc(var(--space-1) + var(--space-0));
   font-size: var(--text-sm);
-}
-.mini.time.warn {
-  color: var(--warn);
 }
 .metric-right {
   display: flex;
@@ -512,7 +509,7 @@
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--accent);
+  color: var(--fg); /* V-02: links are --fg and underlined (DS-COL-7) */
   font: inherit;
   font-size: var(--text-sm);
   font-weight: 500;
@@ -699,7 +696,7 @@
   font: var(--text-micro) var(--font-mono), var(--font-script);
 }
 .lc-axis .today {
-  color: var(--accent);
+  color: var(--fg); /* V-02: micro text; --accent is not a text role */
 }
 .lc-table summary {
   margin: calc(var(--space-1) + var(--space-0)) 0 0;
@@ -900,7 +897,7 @@
 .mini.best-now {
   margin-top: calc(var(--space-1) + var(--space-0));
   font-size: var(--text-sm);
-  color: var(--good);
+  --chip: var(--good);
 }
 .call .btn {
   margin-left: auto;
@@ -981,8 +978,6 @@
   height: 22px;
   padding: 0 var(--space-2);
   border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-  color: var(--accent);
   font-size: var(--text-sm);
   font-weight: 600;
   letter-spacing: 0;
@@ -1003,8 +998,6 @@
 }
 .btag.warn {
   gap: var(--space-1);
-  background: color-mix(in srgb, var(--warn) 18%, transparent);
-  color: var(--warn);
 }
 .btag.warn svg.i { width: 14px; height: 14px; }
 .allowance-line,
