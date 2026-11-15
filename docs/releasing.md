@@ -588,33 +588,31 @@ rm -rf ~/.config/cuotai ~/.local/share/cuotai
 Remove-Item -Recurse -Force "$env:APPDATA\cuotai", "$env:LOCALAPPDATA\cuotai"
 ```
 
-The desktop currently recognises the exact Homebrew Caskroom and Scoop
-`apps\cuotai` paths, winget's package-cache path, and Linux system package
-roots (`/usr/bin`, `/usr/sbin`, `/usr/lib`). PRD 0018 turns the in-app updater
-off for those detected installs and shows the manager's command when one is
-unambiguous. With Tauri's default current-user NSIS mode, a normal winget
-install under `%LocalAppData%\Cuotai` is indistinguishable by path from a
-manual NSIS install, and Cargo-installed copies are not yet detected. The winget
-template invokes the same release installer with `/S`; `tauri.conf.json`
-defines no custom NSIS hook, so both routes create the same standard Tauri
-uninstall entry and shortcuts. There is no repository-defined receipt, file,
-registry value or shortcut that proves winget ownership.
+The desktop and the CLI share one detector
+(`cuotai_core::install_source`). It recognises the exact Homebrew Caskroom and
+Cellar paths, the Scoop `apps\cuotai` path, winget's package-cache path, Linux
+system package roots (`/usr/bin`, `/usr/sbin`, `/usr/lib`) and Cargo's
+configured or default `bin` directory. PRD 0018 turns the in-app updater off
+for those installs and shows the manager's command when one is unambiguous.
 
-Normal winget users must set `CUOTAI_UPDATER=off` for now; Settings → Updates
-then names that override as its disabled reason. Completing RF8.1 needs an
-owner packaging decision:
+With Tauri's default current-user NSIS mode, a normal winget install under
+`%LocalAppData%\Cuotai` shares its path with a manual NSIS install, so the
+path alone cannot tell them apart. Since 0.81.0 the installer itself records
+the owner (PRD 0021 RF8.1, PRD 0018 RF3.2):
 
-1. ship a dedicated winget installer artifact, or add a winget-only installer
-   switch/hook that writes and removes a Cuotai-owned source marker; this is
-   reliable but adds an artifact or installer contract and requires a winget
-   manifest update and moderator review; or
-2. keep the shared installer unchanged and retain the documented environment
-   override; this avoids false positives but requires user configuration.
+1. the winget installer manifest passes `/WINGET=1` (`Custom` switch);
+2. the NSIS hook `apps/desktop/src-tauri/windows/hooks.nsh`
+   (`bundle.windows.nsis.installerHooks` in `tauri.conf.json`) then writes
+   `install-source.txt`, containing `winget`, beside `Cuotai.exe`;
+3. a manual install (no switch) removes any old marker, and the uninstaller
+   removes it;
+4. the detector reads the marker (at most 64 bytes) after the path rules, and
+   only a marker naming `winget` changes the classification, which turns the
+   in-app updater off and shows `winget upgrade Cuotai.Cuotai`.
 
-Classifying the shared path or Tauri's generic uninstall entry as winget is
-not an option: it would wrongly turn off in-app updates for manual NSIS
-installs. Until a marker contract is chosen, normal winget ownership remains
-an explicit PRD 0021 RF8.1 blocker rather than delivered behaviour.
+`CUOTAI_UPDATER=off` stays available as the generic override for any
+packager or managed fleet; Settings › About › Updates then names it as the
+disabled reason.
 
 ## Updater (PRD 0018)
 
@@ -680,8 +678,9 @@ Before the first real release:
    `HOMEBREW_TAP_TOKEN` (a fine-grained token scoped only to the tap
    repository, contents: write), `SCOOP_BUCKET_TOKEN` (a different
    fine-grained token scoped only to the bucket repository, contents: write),
-   `WINGET_SUBMIT_TOKEN` (a token scoped only to the owner's `winget-pkgs`
-   fork, with the contents/pull-request access required by `wingetcreate`),
+   `WINGET_SUBMIT_TOKEN` (see "The winget submit token" below: `wingetcreate`
+   accepts only a classic token with `public_repo`, so it must come from a
+   dedicated bot account),
    `AUR_SSH_PRIVATE_KEY` (only the AUR account's SSH key) and
    `CARGO_REGISTRY_TOKEN` (only the crates.io scopes needed to publish
    `cuotai-core` and `cuotai-tui`). Set them, verify the new environment, then
@@ -726,11 +725,32 @@ secrets go in the `channels` environment. No value is ever committed.
 
 | Channel | Accounts and repositories to create | Secret (`channels` environment) | Variables |
 |---|---|---|---|
-| winget | A fork of `microsoft/winget-pkgs` under the owner's account; make the **first** submission by hand (PRD 0021 RF5.2) | `WINGET_SUBMIT_TOKEN`: token scoped to that fork only | `PUBLISH_WINGET=true`; later `WINGET_SUBMIT=true` for unattended pull requests |
+| winget | A dedicated GitHub bot account that owns a fork of `microsoft/winget-pkgs` and has no write access to `jmarcon/*`; make the **first** submission by hand (PRD 0021 RF5.2) | `WINGET_SUBMIT_TOKEN`: a classic token of that bot account with `public_repo` only (see below) | `PUBLISH_WINGET=true`; later `WINGET_SUBMIT=true` for unattended pull requests |
 | AUR | An AUR account and the `cuotai-bin` package (first push by hand), with a dedicated SSH key registered on the account | `AUR_SSH_PRIVATE_KEY`: that key's private half | `PUBLISH_AUR=true` |
 | crates.io | A crates.io account; confirm `cuotai-core` and `cuotai-tui` are free; first publication by hand is acceptable | `CARGO_REGISTRY_TOKEN`: scoped to publish these two crates | `PUBLISH_CARGO=true` |
-| Scoop | Repository `jmarcon/scoop-cuotai` | `SCOOP_BUCKET_TOKEN` | `PUBLISH_SCOOP=true` |
+| Scoop | Repository `jmarcon/scoop-cuotai` | `SCOOP_BUCKET_TOKEN` (contents: write on the bucket only) | `PUBLISH_SCOOP=true` (set) |
 | Homebrew | Repository `jmarcon/homebrew-cuotai` | `HOMEBREW_TAP_TOKEN` (contents: write on the tap only) | `PUBLISH_HOMEBREW=true` (set) |
+
+#### The winget submit token
+
+`wingetcreate` does not support fine-grained tokens: its documentation asks
+for a **classic** personal access token with the `public_repo` scope (and
+`delete_repo` only to clean up its fork, which Cuotai does not need). A
+classic `public_repo` token can push to every public repository its account
+can write to, so a token of the owner's account would reach `jmarcon/cuotai`,
+the tap and the bucket. That would break the one-token-per-destination rule
+(RF9.2). Therefore:
+
+- create the token on a **dedicated GitHub account** (a bot) that owns only
+  its fork of `microsoft/winget-pkgs` and is not a collaborator on any
+  `jmarcon/*` repository, so `public_repo` reaches nothing else;
+- give it `public_repo` only: no `repo`, `workflow` or `delete_repo`;
+- store it as `WINGET_SUBMIT_TOKEN` in `channels`.
+
+Before setting `WINGET_SUBMIT=true`: the `channels` environment must accept
+only `v*` tags (deployment rule), the bot account and its fork must exist,
+and the first `Cuotai.Cuotai` submission must have been made and reviewed by
+hand.
 
 A skipped channel job is therefore the expected state of an off channel. To
 re-run one alone after fixing it, use "Re-run failed/skipped jobs" on the

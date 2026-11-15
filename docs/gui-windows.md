@@ -96,7 +96,7 @@ Turn on **Settings › General › Startup › Open at login**. Cuotai then adds
 
 ## Updates
 
-**Settings › About › Updates** checks once a day (you can turn it off) and sends only the version, system and architecture. A copy installed by Scoop or winget is updated by that tool and the in-app updater shows the command; for winget installs set `CUOTAI_UPDATER=off` for now so the app does not also offer its own update (a durable marker is still pending, see [`releasing.md`](releasing.md#uninstall-keeps-your-data-rf82)).
+**Settings › About › Updates** checks once a day (you can turn it off) and sends only the version, system and architecture. A copy installed by Scoop or winget is updated by that tool, so the in-app updater stays off and shows the command. The winget installer leaves a small `install-source.txt` beside `Cuotai.exe` that tells Cuotai it was installed by winget (a manual install removes it). `CUOTAI_UPDATER=off` turns the in-app updater off for any other managed install ([details](releasing.md#uninstall-keeps-your-data-rf82)).
 
 ## Credential vault: Credential Manager
 

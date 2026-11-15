@@ -269,9 +269,11 @@ Durable paths identify Homebrew Caskroom/Cellar, Cuotai's exact Scoop
 component, winget's package cache, Linux distribution/AUR roots, Cargo's
 configured or default `bin` directory, AppImage, mounted DMGs and App
 Translocation. A normal winget NSIS install and a manual current-user NSIS
-install both use `%LocalAppData%\Cuotai`; neither is called winget without a
-future installer-owned marker. Packagers can use `CUOTAI_UPDATER=off` until
-that owner-blocked marker exists.
+install both use `%LocalAppData%\Cuotai`, so the winget manifest passes
+`/WINGET=1` and the NSIS hook writes `install-source.txt` (containing
+`winget`) beside the executable; a manual install and the uninstaller remove
+it. The marker is read after the path rules. `CUOTAI_UPDATER=off` remains the
+generic override for other packagers.
 
 Verification: **CI** path/boundary tests on all three OSes and an offline CLI
 process smoke; live package-manager installations remain **code**-level only.
