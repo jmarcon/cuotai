@@ -465,6 +465,7 @@
   "card.binding.monthly": "Месяц",
   "card.binding.title": "Самый жёсткий лимит сейчас",
   "card.extra.title": "Дополнительное использование",
+  "card.extra.meterLeft": "Осталось {pct}% дополнительного бюджета",
   "metric.overage": "доп. {amount}",
   "metric.overageCap": "доп. {amount} из {cap}",
   "detail.extra.cap": "Дополнительный бюджет: {cap}",

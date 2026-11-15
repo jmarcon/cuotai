@@ -80,7 +80,7 @@ fn locale_format(code: &str) -> Format {
         "ru" => format(",", NBSP, Three, false, NBSP, "$"),
         "fr" => format(",", NNBSP, Three, false, NBSP, "$US"),
         "vi" => format(",", ".", Three, false, NBSP, "US$"),
-        "id-ID" => format(",", ".", Three, true, NBSP, "US$"),
+        "id-ID" => format(",", ".", Three, true, "", "US$"),
         "tr" => format(",", ".", Three, true, "", "$"),
         "ko" | "zh-CN" => format(".", ",", Three, true, "", "US$"),
         "hi-IN" => format(".", ",", Indian, true, "", "$"),

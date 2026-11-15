@@ -760,6 +760,17 @@ export function fmtExtra(value, unit, currency) {
   }
   return `${fmtNumber(value)}${unit ? ` ${unit}` : ""}`;
 }
+/** PRD 0023 re-validation (V-01): the card figure of an extra amount: the number alone in the figure, its unit word
+ *  on the small line (money: "extra"; provider units: the core's translated word; other units: the unit), so the
+ *  one-third column never clips the number in any language. */
+export function extraFigure(o) {
+  if (o.spent == null) return { fig: "—", unit: t("figure.extra") };
+  if (o.currency) return { fig: fmtExtra(o.spent, o.unit, o.currency), unit: t("figure.extra") };
+  const unit = o.unit === "unid. provedor"
+    ? tl({ id: "metric.unit.provider_units", params: {}, fallback: "provider units" })
+    : o.unit || t("figure.extra");
+  return { fig: fmtNumber(o.spent), unit };
+}
 /** Figure first (DS-MSG-4): "$6.25 extra of $50" for one overage metric. */
 export function fmtMetricExtra(m) {
   if (m.used == null) return "—";
@@ -777,12 +788,17 @@ export function overageLineText(o) {
   }
   return tl(o.text);
 }
-/** Card chip: the core's summary ("Limit hit · on extra $6.25"), icon plus text, warning role (money is charged). */
+/** DS-CMP-EXTRA-2: the chip role of each overage state; disabled has no chip. */
+const OVERAGE_CHIP = { active: "warn", cap_reached: "bad", armed: "muted", unknown: "muted unknown" };
+/** Card chip: the core's summary ("Limit hit · on extra $6.25", "Extra budget used up", "Extra usage on · nothing
+ *  spent", "Extra usage amount unknown"), icon plus text: warning while money is charged, critical at the cap
+ *  (PRD 0023 re-validation V-03), muted when armed and muted dashed when the amount is unknown (V-05). */
 export function overageChipHtml(r) {
-  const o = billingOverage(r);
-  if (!o) return "";
+  const o = overageOf(r);
+  const role = o && OVERAGE_CHIP[o.state];
+  if (!role) return "";
   const text = tl(o.summary);
-  return `<span class="mini warn" data-overage-chip title="${esc(text)}" aria-label="${esc(`${t("card.extra.title")}: ${text}`)}">${icon("coins")}<span class="mini-t">${esc(text)}</span></span>`;
+  return `<span class="mini ${role}" data-overage-chip data-overage-state="${esc(o.state)}" title="${esc(text)}" aria-label="${esc(`${t("card.extra.title")}: ${text}`)}">${icon("coins")}<span class="mini-t">${esc(text)}</span></span>`;
 }
 /** Card row under the plan meters: textual, never a meter that implies "left" (DS-CMP-MTR-5). */
 export function overageLineHtml(r) {
@@ -798,7 +814,7 @@ export function overageDetailHtml(r) {
   const cycle = fmtReset(o.cycle_ends_at);
   const cap = o.cap > 0 ? fmtExtra(o.cap, o.unit, o.currency) : null;
   return `<div class="metric extra-detail" data-overage-detail>
-    <div class="metric-top"><div><h3>${te("card.extra.title")}</h3><span class="sub">${esc(tl(o.text))}</span></div></div>
+    <div class="metric-top"><div><h3>${te("card.extra.title")}</h3>${o.state === "active" ? "" : `<span class="sub">${esc(tl(o.text))}</span>`}</div></div>
     ${o.state === "active" || o.state === "cap_reached" ? `<div class="balance">${esc(overageLineText(o))}</div>` : ""}
     ${cap && !(o.state === "active" || o.state === "cap_reached") ? `<div class="resets">${te("detail.extra.cap", { cap })}</div>` : ""}
     ${cycle ? `<div class="resets">${te("detail.extra.cycle", { when: cycle })}</div>` : ""}
@@ -1255,6 +1271,8 @@ const dr = (account, provider, metrics, notes = [], status = "ready") => ({
 // Demo notes are catalog texts (`demo.note.*`), so every language renders its own.
 const demoNote = (id, fallback) => ({ id: `demo.note.${id}`, params: {}, fallback });
 const drn = (account, provider, metrics, note, status) => ({ ...dr(account, provider, metrics, [note.fallback], status), notes_l10n: [note] });
+// The core's amount (PRD 0023 re-validation V-02): machine params, formatted by `tl` in the UI locale.
+const demoMoney = (value, currency = "USD") => ({ id: "amount.money", params: { value: String(value), currency }, fallback: `$${value.toFixed(2)}` });
 const demoReports = [
   dr("alex@example.com", "antigravity", [dm("Gemini (5h)", 15, 1000, 0.37, "quota", "window_5h"), dm("Claude & GPT (5h)", 0, 1000, 5, "quota", "window_5h"), dm("Gemini (Weekly)", 120, 1000, 151, "quota", "weekly"), dm("Claude & GPT (Weekly)", 0, 1000, 151.9, "quota", "weekly")]),
   // PRD 0023: the exhausted week is also paying for extra usage ("Limit hit · on extra $6.25").
@@ -1263,8 +1281,8 @@ const demoReports = [
         state: "available", ratio: null, uncapped: true, no_cap: false }]),
     class: "exhausted", model_count: 1, plan: "Max",
     overage: { state: "active", spent: 6.25, unit: "USD", currency: "USD", cap: 50, cycle_ends_at: h(300),
-      text: { id: "overage.on_extra", params: { amount: "$6.25" }, fallback: "On extra · $6.25" },
-      summary: { id: "overage.limit_hit_on_extra", params: { amount: "$6.25" }, fallback: "Limit hit · on extra $6.25" }, caveat: null } },
+      text: { id: "overage.on_extra", params: { amount: demoMoney(6.25) }, fallback: "On extra · $6.25" },
+      summary: { id: "overage.limit_hit_on_extra", params: { amount: demoMoney(6.25) }, fallback: "Limit hit · on extra $6.25" }, caveat: null } },
   // PRD 0010 RF3 fixtures: an aging reading (10 min against 300 s) and a failure that kept its last valid reading.
   { ...dr("alex@example.com", "chat_gpt", [dm("5h", 6, 100, 67.6, "quota", "window_5h", "%")]), checked_at: ago(10), freshness: "aging", plan: "Plus" },
   { ...dr("octo-dev", "copilot", [dm("chat", 0, 0, 2.6, "quota", "other"), dm("Premium requests", 7026, 7000, 2.6, "quota", "other")]), class: "exhausted" },
@@ -1431,8 +1449,8 @@ const DEMO_PACES = new Map([
 const DEMO_QUERY = new URLSearchParams(globalThis.location?.search ?? "");
 if (DEMO_QUERY.get("fixture") === "six") {
   const overage = (amount) => ({ state: "active", spent: amount, unit: "USD", currency: "USD", cap: 50, cycle_ends_at: h(300),
-    text: { id: "overage.on_extra", params: { amount: `$${amount.toFixed(2)}` }, fallback: `On extra · $${amount.toFixed(2)}` },
-    summary: { id: "overage.limit_hit_on_extra", params: { amount: `$${amount.toFixed(2)}` }, fallback: `Limit hit · on extra $${amount.toFixed(2)}` }, caveat: null });
+    text: { id: "overage.on_extra", params: { amount: demoMoney(amount) }, fallback: `On extra · $${amount.toFixed(2)}` },
+    summary: { id: "overage.limit_hit_on_extra", params: { amount: demoMoney(amount) }, fallback: `Limit hit · on extra $${amount.toFixed(2)}` }, caveat: null });
   const six = [
     [{ ...dr("work@example.com", "claude", [dm("session (5h)", 78, 100, 1.2, "quota", "window_5h", "%"), dm("weekly (7d)", 41, 100, 70, "quota", "weekly", "%")]), plan: "Max", model_count: 3 },
       [0, 0], [0, { 0: dp("ahead", "warn", 0.62, 0.78, 1.2, 0.4), 1: dp("reserve", "good", 0.58, 0.41, 70) }], [0, 1]],
@@ -1453,6 +1471,40 @@ if (DEMO_QUERY.get("fixture") === "six") {
     DEMO_BINDINGS.set(r, binding);
     if (pace) DEMO_PACES.set(r, pace);
     if (windows) DEMO_WINDOWS.set(r, windows);
+  }
+}
+// PRD 0023 re-validation (V-01, V-03, V-05, V-09): `?overage` adds the extra-usage states the default demo lacks (a
+// Claude account billing in provider units, a capped budget, an unknown amount and an armed one; example.com only), so
+// `check.mjs` renders them for overflow, zoom and contrast.
+if (DEMO_QUERY.has("overage")) {
+  const units = (v) => ({ id: "overage.amount.provider_units",
+    params: { value: { id: "amount.number", params: { value: String(v) }, fallback: v.toLocaleString("en-US") } }, fallback: `${v.toLocaleString("en-US")} provider units` });
+  const fixed = (id, fallback) => ({ id, params: {}, fallback });
+  const extra = (used, limit, unit, kind) => ({ label: "Extra usage", used, limit, remaining: null, unit, kind, window: "monthly", period: null,
+    resets_at: h(300), billing: "overage", state: "available", ratio: null, uncapped: true, no_cap: false });
+  const spentWeek = () => [dm("session (5h)", 0, 100, 4.5, "quota", "window_5h", "%"), dm("weekly (7d)", 100, 100, 24.6, "quota", "weekly", "%")];
+  const cap = fixed("overage.cap_reached", "Extra budget used up");
+  const unknown = fixed("overage.unknown", "Extra usage amount unknown");
+  const armed = fixed("overage.armed", "Extra usage on · nothing spent");
+  const variants = [
+    [{ ...dr("units@example.com", "claude", [...spentWeek(), extra(1234.5, 5000, "unid. provedor", "quota")]), class: "exhausted", plan: "Max",
+      overage: { state: "active", spent: 1234.5, unit: "unid. provedor", currency: null, cap: 5000, cycle_ends_at: h(300),
+        text: { id: "overage.on_extra", params: { amount: units(1234.5) }, fallback: "On extra · 1,234.5 provider units" },
+        summary: { id: "overage.limit_hit_on_extra", params: { amount: units(1234.5) }, fallback: "Limit hit · on extra 1,234.5 provider units" },
+        caveat: fixed("overage.units_caveat", "Amounts are in provider units, not money.") } }, [1, 30], [0, 1]],
+    [{ ...dr("capped@example.com", "cursor", [dm("Fast requests", 500, 500, 200, "quota", "monthly"), extra(50, 50, "USD", "spend")]), class: "exhausted", plan: "Pro",
+      overage: { state: "cap_reached", spent: 50, unit: "USD", currency: "USD", cap: 50, cycle_ends_at: h(300), text: cap, summary: cap, caveat: null } }, [0, 31], [0]],
+    [{ ...dr("unknown@example.com", "claude", [dm("session (5h)", 20, 100, 3, "quota", "window_5h", "%"), dm("weekly (7d)", 40, 100, 90, "quota", "weekly", "%"),
+      extra(null, null, "unid. provedor", "quota")]), plan: "Pro",
+      overage: { state: "unknown", spent: null, unit: "unid. provedor", currency: null, cap: null, cycle_ends_at: null, text: unknown, summary: unknown, caveat: null } }, [1, 32], [0, 1]],
+    [{ ...dr("armed@example.com", "claude", [dm("session (5h)", 30, 100, 2, "quota", "window_5h", "%"), dm("weekly (7d)", 55, 100, 70, "quota", "weekly", "%"),
+      extra(0, 50, "USD", "spend")]), plan: "Max",
+      overage: { state: "armed", spent: 0, unit: "USD", currency: "USD", cap: 50, cycle_ends_at: h(300), text: armed, summary: armed, caveat: null } }, [1, 33], [0, 1]],
+  ];
+  for (const [r, binding, windows] of variants) {
+    demoReports.push(r);
+    DEMO_BINDINGS.set(r, binding);
+    DEMO_WINDOWS.set(r, windows);
   }
 }
 if (DEMO_QUERY.get("mono") && demoReports[0]) demoReports[0].monogram = DEMO_QUERY.get("mono");

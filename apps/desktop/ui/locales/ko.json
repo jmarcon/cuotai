@@ -447,6 +447,7 @@
   "card.binding.monthly": "월간",
   "card.binding.title": "현재 가장 제한적인 한도",
   "card.extra.title": "추가 사용량",
+  "card.extra.meterLeft": "추가 예산 {pct}% 남음",
   "metric.overage": "추가 {amount}",
   "metric.overageCap": "추가 {amount} / {cap}",
   "detail.extra.cap": "추가 예산: {cap}",

@@ -290,6 +290,10 @@ export function tl(value, vars = {}, escape = false) {
   if (!isL10n(value)) {
     return escape ? esc(String(value)) : String(value);
   }
+  // PRD 0023 re-validation (V-02): a core amount (`amount.money`, `amount.number`, `amount.units`) carries machine
+  // params and is formatted here in the UI locale, so it matches every other figure of the screen.
+  const amount = amountText(value);
+  if (amount != null) return escape ? esc(amount) : amount;
   // PRD 0047 G1: a core text naming a terminal variable or `params.*` reads in the desktop's own words.
   value = desktopWording(value);
   const allVars = { ...(value.params ?? {}), ...vars };
@@ -304,6 +308,26 @@ export function tl(value, vars = {}, escape = false) {
   // template comes from a catalog (a user pack included), and the core fallback is already interpolated, so its
   // params are inside it. Escaping first and substituting escaped params after keeps a single escape.
   return substitute(escape ? esc(resolved) : resolved, allVars, escape);
+}
+
+/** Intl locale of the UI: the pseudo-locale formats like en-US. */
+const intlLocale = () => (current === PSEUDO ? FALLBACK : current);
+/** The text of a core `amount.*` note in the UI locale; null for any other note or a malformed value (the caller
+ *  then shows the core's en-US fallback). */
+function amountText(value) {
+  if (typeof value.id !== "string" || !value.id.startsWith("amount.")) return null;
+  const p = value.params ?? {};
+  const n = typeof p.value === "string" && p.value.trim() !== "" ? Number(p.value) : NaN;
+  if (!Number.isFinite(n)) return null;
+  try {
+    if (value.id === "amount.money" && /^[A-Za-z]{3}$/.test(p.currency ?? "")) {
+      return new Intl.NumberFormat(intlLocale(), { style: "currency", currency: p.currency.toUpperCase() }).format(n);
+    }
+    const number = new Intl.NumberFormat(intlLocale(), { maximumFractionDigits: 2 }).format(n);
+    if (value.id === "amount.number") return number;
+    if (value.id === "amount.units" && typeof p.unit === "string") return `${number} ${p.unit}`;
+  } catch { /* an unknown code: the fallback */ }
+  return null;
 }
 
 /** HTML-safe variant of `tl`: the template (or the core fallback) and every param are escaped exactly once. */

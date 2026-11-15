@@ -447,6 +447,7 @@
   "card.binding.monthly": "Bulan",
   "card.binding.title": "Batas paling membatasi saat ini",
   "card.extra.title": "Penggunaan ekstra",
+  "card.extra.meterLeft": "Sisa {pct}% anggaran ekstra",
   "metric.overage": "{amount} ekstra",
   "metric.overageCap": "{amount} ekstra dari {cap}",
   "detail.extra.cap": "Anggaran ekstra: {cap}",
