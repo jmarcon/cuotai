@@ -35,7 +35,7 @@ How to read the history:
 - The `cuotai --changelog` and `cuotai --help` commands end quietly when piped into a command that stops reading early (PRD 0019 RF7.7; 4b6c2d2).
 - The output of `cuotai --version` names the program `cuotai` (PRD 0019 RF7.7; 4b6c2d2).
 - The update banner shows the release notes as headings and lists, without internal references (PRD 0019 RF1.1, RF7.7; 335c7ab).
-- Settings > About shows the project licence as MIT OR Apache-2.0 (PRD 0019 RF1.1, RF7.7; 335c7ab).
+- Settings › About shows the project licence as MIT OR Apache-2.0 (PRD 0019 RF1.1, RF7.7; 335c7ab).
 
 ## [0.85.7] - 2026-11-14
 
@@ -488,7 +488,7 @@ Version 0.85.2 was never published because a release check failed before publish
 ### Added
 
 - ElevenLabs provider: credits used, plan limit, next reset and extra usage, read with an API key (PRD 0037 RF1, RF2, RF3, RF4, RF5, RF6, RF7, RF9, RF10; 95f731a).
-- You can read the full changelog in the desktop app from Settings > About with What's new (PRD 0019 RF7.7; b2d8cbd).
+- You can read the full changelog in the desktop app from Settings › About with What's new (PRD 0019 RF7.7; b2d8cbd).
 - The page the browser shows after signing in is now a clean Cuotai page with the logo, in your language and theme (1db9df9).
 - Each account in the configuration gets a stable `id` line on its next save; 0.80.0 is the oldest release that reads such a file, and to go further back delete the `id` lines and name every account (PRD 0029 RF1; b784dfb).
 - Renaming an account keeps its bell, muted metrics, alert and reset notice history and usage history, and editing its credential or parameters keeps its history series (PRD 0029 RF2, RF4; a6a760f).
@@ -549,16 +549,16 @@ Version 0.85.2 was never published because a release check failed before publish
 - You can open usage statistics with the S key in the terminal dashboard, and read them, the reset timeline and the event journal with --stats, --timeline and --events-log (PRD 0026 RF6.1, RF6.2; 450b389).
 - You can see usage statistics (limit hits, average peak, extra spent, peak per day, recent events) in a new Stats view, and when each account's tightest limit comes back in the tray popover (PRD 0026 RF4.1, RF4.2, RF4.3, RF4.4, RF4.5, RF5.1, RF5.2; 85d0ed2).
 - The desktop app can warn you 15, 30 or 60 minutes before a quota is projected to run out, and hooks can react to it (PRD 0024 RF3.2, RF5; 53802ba).
-- Settings > Alerts has a "Warn before running out" switch with a 15 min, 30 min or 1 h lead, and cards and details say when a quota is projected to run out before its reset (PRD 0024 RF4; ddae534).
-- You can show the consumption pace in percentage points or in percent (Settings > Dashboard, or --pace-unit in the terminal), and reset times read the same on every surface (PRD 0024 RF1.3, RF1.4, RF6; a659393).
+- Settings › Alerts has a "Warn before running out" switch with a 15 min, 30 min or 1 h lead, and cards and details say when a quota is projected to run out before its reset (PRD 0024 RF4; ddae534).
+- You can show the consumption pace in percentage points or in percent (Settings › Dashboard, or --pace-unit in the terminal), and reset times read the same on every surface (PRD 0024 RF1.3, RF1.4, RF6; a659393).
 - Accounts can be put in a group in the TOML (group = "coding") so Cuotai can tell which of them has the most room right now; the export and /v1/limits list it as best (PRD 0024 RF7.1, RF7.2, RF7.4; 9f45749).
-- The desktop app marks the best account of each group of comparable accounts ("Best now") and tells you what it has left when another one runs out; Settings > Dashboard can turn it off (PRD 0024 RF7.3, RF7.5; 8da15ed).
+- The desktop app marks the best account of each group of comparable accounts ("Best now") and tells you what it has left when another one runs out; Settings › Dashboard can turn it off (PRD 0024 RF7.3, RF7.5; 8da15ed).
 - The account wizard and dialog have an optional Group field, and the terminal dashboard marks the best account of each group (PRD 0024 RF7.1, RF7.5; b8a1042).
 - A quota without a reset date now sends a recovery notice once usage falls to 80% or below (PRD 0032 RF3.2, RF8.1, RF9; 9329847).
 - Notifications can follow quiet hours with a summary when they end, hide account names by default, and are never sent twice when the app and the terminal dashboard are both open (PRD 0032 RF1, RF2, RF3, RF4, RF7.1, RF8.1; 0b57bfe).
 - The terminal dashboard's --notify now shares your desktop notification settings, quiet hours and sent-notice history, so the same crossing is not announced twice (PRD 0032 RF1.2, RF4.1, RF4.3, RF6.1, RF7.2; 8857393).
 - A hook rule can set quiet = "skip" to stay silent during your quiet hours (PRD 0032 RF5.1; c34aeb4).
-- Settings > Alerts has quiet hours per weekday with an end-of-night summary, a switch to hide account names in notifications, and cards mark quotas that crossed a limit while Cuotai was closed (PRD 0032 RF2.3, RF5.2, RF7.1, RF8.2; f050efc).
+- Settings › Alerts has quiet hours per weekday with an end-of-night summary, a switch to hide account names in notifications, and cards mark quotas that crossed a limit while Cuotai was closed (PRD 0032 RF2.3, RF5.2, RF7.1, RF8.2; f050efc).
 - You can monitor OpenRouter: an API key shows its limit, spend and free-model requests, and a management key shows the credit balance (PRD 0038 RF1, RF2, RF3, RF4, RF5, RF6, RF7, RF8, RF9, RF11, RF12; 72ee36f).
 - You can sign in to OpenRouter from the browser instead of pasting an API key (PRD 0038 RF1, RF14; 4b40079).
 - When you allow device checks, adding an account also offers OpenRouter if OPENROUTER_API_KEY is set; only the variable's name is stored (PRD 0038 RF5; PRD 0027 RF6; 52149a7).
@@ -568,7 +568,7 @@ Version 0.85.2 was never published because a release check failed before publish
 - The tightest account in /v1/limits now carries its stable id (PRD 0031 RF4; adf71af).
 - You can serve usage statistics at /v1/stats with cuotai --serve --serve-stats, behind the access token (PRD 0031 RF11; 7788f0c).
 - The status line can read a running local server: cuotai --status-line --from-server reads a running cuotai --serve instead of querying the providers again (PRD 0031 RF2; 289dc63).
-- The desktop app can share usage statistics on its local server (/v1/stats) from Settings > Advanced > Integrations (PRD 0031 RF11; e586170).
+- The desktop app can share usage statistics on its local server (/v1/stats) from Settings › Advanced › Integrations (PRD 0031 RF11; e586170).
 - The terminal dashboard shows your plan price and the amount at your own exchange rate in the local cost of each account (PRD 0030 RF1, RF6; 198062a).
 - You can type what you pay for each plan and an exchange rate in Settings to see the local cost next to your plan price and in your own currency (PRD 0030 RF1, RF6; 7c6962d).
 - Gemini CLI can now be added as a local cost source, with the same opt-in consent and numbers-only reading as the other tools (PRD 0030 RF2, RF8; ffbbd62).
@@ -599,7 +599,7 @@ Version 0.85.2 was never published because a release check failed before publish
 - The terminal dashboard honors NO_COLOR, uses your terminal's own text and background colors, and no longer flashes or wipes (PRD 0022 RF16; 87c920d).
 - The menu bar settings, statistics, 9router and new dialogs follow the same calm design as the rest of the app (PRD 0022 RF8.1, RF14, RF18.3; b01922b).
 - Account rows and cards show pace stages with time chips, one reset line per limit and extra usage as its own column (PRD 0022 RF3, RF4, RF8.1; 2be2331).
-- Settings > General shows labelled mode choices, a theme swatch and a single language field (PRD 0022 RF9; 5e3e4fb).
+- Settings › General shows labelled mode choices, a theme swatch and a single language field (PRD 0022 RF9; 5e3e4fb).
 - The Add-account catalog lists providers grouped by sign-in method (PRD 0022 RF11, RF18.2; 1a132ce).
 - Removing an extension account now offers to delete that extension's saved secrets from the vault (PRD 0028 RF7.4; 96fcce4).
 - The Extensions dialog and the Add account picker follow the refreshed design, with a link to add a provider with an extension (PRD 0022 RF18; PRD 0028 RF7.4; 118dab0).
@@ -614,14 +614,14 @@ Version 0.85.2 was never published because a release check failed before publish
 - You can add, edit, remove and reorder accounts in Settings › Dashboard (PRD 0025 RF5.2, RF9; PRD 0022 RF8.2, RF8.3; 1100dc9).
 - You can choose how much each account row shows, from Detailed to Minimal or element by element (PRD 0025 RF5.2, RF9; PRD 0022 RF8.2, RF8.3; 1100dc9).
 - The first-run, What's new and Report a problem dialogs, the update banner and the Settings sidebar now follow the refreshed design (PRD 0022 RF9, RF10; 044ccfb).
-- Settings > General has a Start at login switch that starts Cuotai in the tray when you sign in (PRD 0022 RF9, RF10; 778e00d).
+- Settings › General has a Start at login switch that starts Cuotai in the tray when you sign in (PRD 0022 RF9, RF10; 778e00d).
 - The plan prices and quiet hours settings use the same card rows as the rest of Settings, and a plan converted to your second currency is marked as an estimate (PRD 0022 RF9, RF10; 63a88b2).
 - The Add-account catalog lists 9router and the LiteLLM proxy under their own "Self-hosted gateway" group (PRD 0036 RF10; f200a36).
 - Rows and cards show the plan the provider reports, such as Max or Plus (PRD 0022 RF4; PRD 0023 RF10.3; PRD 0036 RF4.4, RF8.5; PRD 0039 RF10; dffb7af).
 - Cards and details name a model that is at its limit and when it returns (PRD 0022 RF4; PRD 0023 RF10.3; PRD 0036 RF4.4, RF8.5; PRD 0039 RF10; dffb7af).
 - The run-out warning in an expanded account has an "Alert me" button (PRD 0022 RF4; PRD 0023 RF10.3; PRD 0036 RF4.4, RF8.5; PRD 0039 RF10; dffb7af).
 - Each 9router or LiteLLM connection can be refreshed, hidden or shown beside its direct account (PRD 0022 RF4; PRD 0023 RF10.3; PRD 0036 RF4.4, RF8.5; PRD 0039 RF10; dffb7af).
-- On macOS, you can hide Cuotai from the Dock in Settings > General so it lives only in the menu bar (PRD 0022 RF9; 1a9b9fd).
+- On macOS, you can hide Cuotai from the Dock in Settings › General so it lives only in the menu bar (PRD 0022 RF9; 1a9b9fd).
 - **Breaking**: Texts that Cuotai's core delivers are written in English, with Portuguese, Spanish and Italian as catalogs, so a missing translation now shows English instead of Portuguese. Migration: the fallback values of --json, --json-v1 (export::v1), the local server and Report.notes are English instead of Portuguese (shapes, ids, params and schema unchanged); resolve id in a catalog (crates/cuotai-core/locales/*.json) or set CUOTAI_FALLBACK_LOCALE=pt-BR (or --fallback-locale pt-BR) to keep Portuguese fallbacks (PRD 0034 RF1, RF4, RF5; 25e0a98).
 - **Breaking**: The JSON outputs, the local server and the event stream carry English fallback texts; --fallback-locale pt-BR or CUOTAI_FALLBACK_LOCALE=pt-BR renders them in Portuguese. Migration: the fallback values of --json, --json-v1 (export::v1), the local server and Report.notes are English instead of Portuguese (shapes, ids, params and schema unchanged); resolve id in a catalog (crates/cuotai-core/locales/*.json) or set CUOTAI_FALLBACK_LOCALE=pt-BR (or --fallback-locale pt-BR) to keep Portuguese fallbacks (PRD 0034 RF1, RF4, RF5; 25e0a98).
 - The desktop app no longer shows Portuguese error texts, demo data or pseudo-locale gaps when it runs in another language, and its local server renders the fallback texts in the language named by CUOTAI_FALLBACK_LOCALE (PRD 0034 RF7; c084ac9).
@@ -634,8 +634,8 @@ Version 0.85.2 was never published because a release check failed before publish
 - The JSON outputs add label_text, unit_text and period_text next to each metric's label, unit and period, in English by default or in the fallback locale (PRD 0034 RF2; e7e000e).
 - In the terminal dashboard you can refresh a single 9router or LiteLLM connection, filter by aggregator, and see warnings for instances without a password or on unencrypted http (PRD 0036 RF4.4, RF9.1, RF2.3, RF2.4; 16275fb).
 - The macOS widgets now speak English, Portuguese, Spanish and Italian (PRD 0014 RF3.4; 98aa4fa).
-- Settings > Advanced now has an Extensions page, searchable like every other setting (PRD 0020 RF2.5; bb8c0d2).
-- The release notes now open once after you update Cuotai, with a switch in Settings > About to turn that off, and you can set a one or two character monogram for an account (PRD 0019 RF7.7; PRD 0022 MONO-4, RF15.1; 0a931fa).
+- Settings › Advanced now has an Extensions page, searchable like every other setting (PRD 0020 RF2.5; bb8c0d2).
+- The release notes now open once after you update Cuotai, with a switch in Settings › About to turn that off, and you can set a one or two character monogram for an account (PRD 0019 RF7.7; PRD 0022 MONO-4, RF15.1; 0a931fa).
 - A 9router account shows a persistent chip when the instance has no password or uses unencrypted HTTP on your network (PRD 0036 RF2.3, RF2.4, RF8.1; 796d8b1).
 - The tray has a tab of its own for each 9router instance (PRD 0036 RF2.3, RF2.4, RF8.1; 796d8b1).
 - Local-cost amounts on the cards and in the daily chart show "≈" to mark them as estimates (PRD 0022 RF6.1; e66911f).
@@ -658,7 +658,7 @@ Version 0.85.2 was never published because a release check failed before publish
 - The interface, messages and terminal dashboard are available in Simplified Chinese (machine-translated, pending native review) (PRD 0035 RF2, RF3, RF5; b3de314).
 - The interface, messages and terminal dashboard are available in Japanese (machine-translated, pending native review) (PRD 0035 RF2, RF3, RF5; b158d24).
 - The interface, messages and terminal dashboard are available in French (machine-translated, pending native review) (PRD 0035 RF2, RF3, RF5; cf0306b).
-- Settings > General says when the interface language is a machine translation and links the guide for reviewing it (PRD 0035 RF11.5; 4b06f7b).
+- Settings › General says when the interface language is a machine translation and links the guide for reviewing it (PRD 0035 RF11.5; 4b06f7b).
 - The event journal records how much extra usage was spent, and in which currency, when paid extra usage starts or ends (PRD 0026 RF3.1; 631e1e0).
 - On Chinese, Japanese and Korean terminals, and on terminals without UTF-8, the TUI draws its shapes and borders in ASCII so columns stay aligned; CUOTAI_AMBIGUOUS_WIDTH and CUOTAI_GLYPHS override the choice (PRD 0035 RF6.3, RF6.7; e753b02).
 - Chinese, Japanese, Korean, Hindi and Vietnamese text in the desktop app gets taller lines and no artificial letter spacing, so accents and vowel marks are never clipped (PRD 0035 RF8.3, RF8.4, RF8.5; 3930a02).
@@ -813,7 +813,7 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 - **Model catalogs:** on-demand model lists per account, cached locally, with search, source and date in the TUI and in the desktop app (PRD 0002 RF2, RF3, RF5, RF6).
 - **Reading the quotas:** each account's most restrictive limit, the consumption pace until the reset, how old each reading is, how each provider's usage is read (official, undocumented, derived or unavailable), and the providers' public status, off until you turn it on (PRD 0009 RF1; PRD 0007 RF3; PRD 0010 RF1; PRD 0005 RF1; PRD 0011 RF1).
 - **History and notifications:** a local measurement history, shown as sparklines in the TUI and as charts in the desktop app, plus quota reset notices and usage alerts in the desktop app and with `cuotai --notify` (PRD 0006 RF1; PRD 0003 RF1; PRD 0008 RF1).
-- **Automation:** the versioned `export::v1` contract, the read-only local server (`cuotai --serve` and the desktop's Settings → Integration), `cuotai --watch` with event hooks, a widget snapshot for macOS widgets and desktop panels, and script extensions that run only after your explicit consent (PRD 0012 RF1; PRD 0013 RF1; PRD 0014 RF1; PRD 0017 RF1).
+- **Automation:** the versioned `export::v1` contract, the read-only local server (`cuotai --serve` and the desktop's Settings › Integration), `cuotai --watch` with event hooks, a widget snapshot for macOS widgets and desktop panels, and script extensions that run only after your explicit consent (PRD 0012 RF1; PRD 0013 RF1; PRD 0014 RF1; PRD 0017 RF1).
 - **Costs and web sessions:** an estimated cost at API prices from the local logs of Claude Code and Codex CLI, off until you turn a source on, and pasted web sessions kept in the system vault for the providers that need one, with their risk spelled out (PRD 0015 RF1; PRD 0016 RF1).
 - **Languages:** the interface in Portuguese, English, Spanish and Italian, with the TUI starting in the system's language when it is supported.
 - **Distribution:** the `MIT OR Apache-2.0` license, the What's new screen and `cuotai --changelog`, a release pipeline with signed artifacts, checksums, an SBOM and provenance, Homebrew, winget, Scoop and AUR manifests, a daily update check in the desktop app, and `cuotai --install-source` (PRD 0019 RF1, RF7.7; PRD 0021 RF2; PRD 0018 RF1.1).
