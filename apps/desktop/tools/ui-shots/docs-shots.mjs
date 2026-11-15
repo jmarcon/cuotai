@@ -51,7 +51,29 @@ async function hero() {
   }
 }
 
+/** PRD 0020 re-validation V-15/R-07: the Settings pages (1290 × 960) and the tray popover views (570 × 900) that
+ *  README.md, docs/gui-*.md and site/index.html show, named after the page or view. */
+const SETTINGS_PAGES = [["general", "general"], ["alerts", "alerts"], ["data", "data"], ["cost", "cost&cost"]];
+const TRAY_VIEWS = [["list", "list"], ["donut", "rings"]];
+async function settingsShots() {
+  for (const [name, page] of SETTINGS_PAGES) {
+    const file = `desktop-settings-${name}`;
+    if (!wanted(file)) continue;
+    await ui.open(`settings.html?page=${page}&update=fresh`, { w: 860, h: 640, scale: 1.5, theme: "dracula", mode: "dark" });
+    await ui.shot(join(out, `${file}.png`));
+    console.log(`${file}.png`);
+  }
+  for (const [name, view] of TRAY_VIEWS) {
+    const file = `desktop-tray-${name}`;
+    if (!wanted(file)) continue;
+    await ui.open("tray.html?update=fresh", { w: 380, h: 600, scale: 1.5, theme: "dracula", mode: "dark", storage: { "cuotai.trayView": view } });
+    await ui.shot(join(out, `${file}.png`));
+    console.log(`${file}.png`);
+  }
+}
+
 try {
+  await settingsShots();
   if (wanted("desktop-hero")) await hero();
   if (wanted("desktop-dashboard")) await dashboard("desktop-dashboard", "dark");
   if (wanted("desktop-dashboard-light")) await dashboard("desktop-dashboard-light", "light");

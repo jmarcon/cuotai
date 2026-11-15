@@ -20,6 +20,13 @@ const PAGES = [
   ["settings-dashboard", "settings.html?page=dashboard", 760, 560],
   ["settings-alerts", "settings.html?page=alerts", 760, 560],
   ["settings-menubar", "settings.html?page=menubar", 760, 560],
+  // PRD 0020 re-validation V-15: every Settings page.
+  ["settings-data", "settings.html?page=data", 760, 560],
+  ["settings-integrations", "settings.html?page=integrations", 760, 560],
+  ["settings-cost", "settings.html?page=cost&cost", 760, 560],
+  ["settings-extensions", "settings.html?page=extensions", 760, 560],
+  ["settings-files", "settings.html?page=files", 760, 560],
+  ["settings-about", "settings.html?page=about", 760, 560],
 ];
 // Contrast is judged per theme by contrast_gate.py against the theme contract; axe's own color-contrast rule is
 // reported too, but it cannot see through gradients and image backgrounds, so it stays advisory (listed, not failing).
