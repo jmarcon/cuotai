@@ -591,7 +591,25 @@ pub fn lint_sentence(sentence: &str) -> Vec<String> {
     if has_skip_marker(sentence) {
         problems.push("sentence carries a skip-CI marker".to_string());
     }
+    if has_ascii_ui_path(sentence) {
+        problems.push(format!(
+            "sentence '{sentence}' writes a UI path with '>' or '→': use › (Settings › About)"
+        ));
+    }
     problems
+}
+
+/// `Settings > About` or `Settings → About`: a word, the separator, then a
+/// capitalised word. UI paths use "›" (PRD 0021 re-validation V-06c); a
+/// comparison such as "5 > 3" is not a path.
+fn has_ascii_ui_path(sentence: &str) -> bool {
+    [" > ", " → "].iter().any(|separator| {
+        sentence.match_indices(separator).any(|(at, _)| {
+            let before = sentence[..at].chars().next_back();
+            let after = sentence[at + separator.len()..].chars().next();
+            before.is_some_and(char::is_alphabetic) && after.is_some_and(char::is_uppercase)
+        })
+    })
 }
 
 /// 7–40 lowercase hex characters with at least one digit and one letter.
@@ -945,5 +963,9 @@ mod tests {
         assert_eq!(lint_sentence(&format!("A{}.", "a".repeat(600))).len(), 1);
         // Plain words made of hex letters are not hashes.
         assert!(lint_sentence("Faded decaf beef added.").is_empty());
+        assert_eq!(lint_sentence("Open Settings > About to see it.").len(), 1);
+        assert_eq!(lint_sentence("Open Settings → Integration now.").len(), 1);
+        assert!(lint_sentence("Open Settings › About to see it.").is_empty());
+        assert!(lint_sentence("Alerts fire when used > 90 percent.").is_empty());
     }
 }
