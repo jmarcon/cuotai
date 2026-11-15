@@ -74,6 +74,9 @@ fn build_version() -> &'static str {
 
 #[derive(Parser)]
 #[command(
+    // The binary is `cuotai`; without this clap prints the package name
+    // (`cuotai-tui 0.85.7`) for `--version` (PRD 0019 re-validation, V-09).
+    name = "cuotai",
     version = build_version(),
     about = "AI quota and usage: APIs and subscriptions, without generating tokens.",
     // PRD 0015: one local cost action at a time, never with a query mode.
@@ -1168,13 +1171,23 @@ async fn run_agent_side(args: Args) -> u8 {
     }
 }
 
+/// clap's `--help`/`--version` text, or its usage error. A reader that
+/// stopped early (`cuotai --help | head -1`) is a normal end (V-06); SIGPIPE
+/// stays ignored, so `--serve` and hooks still see write errors.
+fn print_clap(error: &clap::Error) -> io::Result<()> {
+    match error.print() {
+        Err(error) if error.kind() == io::ErrorKind::BrokenPipe => Ok(()),
+        other => other,
+    }
+}
+
 async fn run() -> Result<u8, Box<dyn std::error::Error>> {
     if feed_cli::requested() {
         feed_cli::install_panic_hook();
         let args = match Args::try_parse() {
             Ok(args) => args,
             Err(error) => {
-                error.print()?;
+                print_clap(&error)?;
                 return Ok(u8::from(error.use_stderr()));
             }
         };
@@ -1202,7 +1215,7 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         // `--help`/`--version` succeed; an invalid argument is a local error
         // (1), never the 2 that `--once`/`--json`/`--serve` keep for accounts.
         Err(error) => {
-            error.print()?;
+            print_clap(&error)?;
             return Ok(u8::from(error.use_stderr()));
         }
     };
