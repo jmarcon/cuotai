@@ -250,6 +250,12 @@ for (const { code } of i18n.LOCALES) {
   assert.deepEqual(headings, [catalog["update.title"]], `${code}: the About page must render exactly one updater heading`);
   renderedHeadings.push(`${code}: ${headings[0]}`);
   assert.match(section, /id="update-automatic"/, `${code}: settings switch missing`);
+  // PRD 0020 re-validation V-11/V-09: the privacy text is a one-line summary that opens the full text in place; the
+  // version, channel and last check are a row with Check now; the channel is a translated name, not its id.
+  assert.match(section, /<details class="set-disc" data-disc="update-privacy"[^>]*><summary>[\s\S]*?<\/summary><div class="set-disc-body"><p class="hint" data-update-privacy>/, `${code}: privacy summary and disclosure missing`);
+  assert.ok(section.includes(lib.esc(catalog["update.privacy.summary"])) && section.includes(lib.esc(catalog["update.privacy"])), `${code}: privacy texts missing`);
+  assert.match(section, /data-row="update-version"[\s\S]*?id="update-last-check"[\s\S]*?data-update-check/, `${code}: version row missing`);
+  assert.ok(section.includes(lib.esc(catalog["update.channel.stable"])), `${code}: channel not translated`);
   assert.ok(!section.includes("update."), `${code}: untranslated updater key rendered`);
   const consent = updater.updateConsentDialogHtml();
   assert.ok(consent.includes(catalog["update.consent.title"]), `${code}: consent question missing`);

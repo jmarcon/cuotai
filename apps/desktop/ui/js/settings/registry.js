@@ -20,7 +20,7 @@ export const PAGES = [
   { id: "integrations", group: ADVANCED, icon: "plug", label: "settings.page.integrations", load: () => import("./integrations.js"), sections: ["serve", "hooks", "widgets"] },
   { id: "cost", group: ADVANCED, icon: "coins", label: "settings.page.cost", load: () => import("./cost.js"), sections: ["cost"] },
   { id: "extensions", group: ADVANCED, icon: "puzzle", label: "settings.page.extensions", load: () => import("./extensions.js"), sections: ["extensions"] },
-  { id: "files", group: ADVANCED, icon: "folder", label: "settings.page.files", load: () => import("./files.js"), sections: ["config", "folder", "datadir", "credentials", "backup", "doctor"] },
+  { id: "files", group: ADVANCED, icon: "folder", label: "settings.page.files", load: () => import("./files.js"), sections: ["config", "folder", "datadir", "credentials", "maintenance", "backup", "doctor"] },
   { id: "about", bottom: true, icon: "info", label: "settings.page.about", load: () => import("./about.js"), sections: ["about", "updates"] },
 ];
 

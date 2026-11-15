@@ -4,7 +4,7 @@
 // live in every built-in catalog.
 import { te, t, tl, currentLocale } from "./i18n.js";
 import { showDialog } from "./motion.js";
-import { row, sw } from "./settings/rows.js";
+import { buttons, disc, row, sw } from "./settings/rows.js";
 import {
   esc, fmtDate, icon, onUpdate, openExternal, updateErrText, updaterAnswerAutomatic, updaterCancelDownload, updaterCheckNow,
   updaterDismiss, updaterInstall, updaterRestart, updaterStatus, setUpdaterAutomatic,
@@ -195,12 +195,20 @@ export function bindUpdateBanner(root, { rerender, onError }) {
   });
 }
 
-/** PRD 0018 RF2.1/RF3.1: what the check sends (first run and Settings). */
-export const privacyNoteHtml = () => `<p class="hint" data-update-privacy>${te("update.privacy")}</p>`;
+/** PRD 0018 RF2.1/RF3.1: what the check sends. In Settings a one-line summary opens the full text in place (PRD 0020
+ *  re-validation V-11), so it stays readable offline and no paragraph runs over one line. */
+export const privacyNoteHtml = () => disc("update-privacy", te("update.privacy.summary"), `<p class="hint" data-update-privacy>${te("update.privacy")}</p>`);
+
+/** The release channel's name; an unknown id shows as it is rather than a missing key. */
+const channelName = (id) => {
+  const key = `update.channel.${id}`;
+  const text = t(key);
+  return text === key ? id : text;
+};
 
 /** PRD 0018 RF3.1/RF2.5: the complete Settings "Updates" section, including its
  * single heading, switch, last check, current version, channel and disabled reason. */
-export function updatesSectionHtml(s, message = "") {
+export function updatesSectionHtml(s) {
   const pending = !!s?.consent_pending;
   const off = s && !s.enabled;
   // A user's answered preference must never lock the control needed to turn
@@ -217,15 +225,12 @@ export function updatesSectionHtml(s, message = "") {
       ${privacyNoteHtml()}
       ${row({ key: "update-auto", label: te("update.automatic"), msg: "update-auto-msg", control: (a) => sw("update-automatic", checked, a, switchLocked ? "disabled" : "") })}
       ${off ? `<p class="hint warn-txt" data-update-off>${offText}</p>` : ""}
-      <p class="hint">${te("update.version", { version: `${s?.current_version ?? "—"}${s?.build ? ` (${s.build})` : ""}` })} · ${te("update.channel", { channel: s?.channel ?? "stable" })}</p>
-      <p class="hint" id="update-last-check">${last}</p>
-      <div class="dlg-actions left">
-        <button class="btn" data-update-check ${off ? "disabled" : ""}>${te("update.checkNow")}</button>
-        ${s?.upgrade_command ? `<code class="update-cmd">${esc(s.upgrade_command)}</code>` : ""}
-        ${!off && !s?.can_install ? `<button class="btn" data-update-manual>${te("update.manual")}</button>` : ""}
-      </div>
-      <p class="hint" data-update-phase>${phaseText(s)}</p>
-      <p class="err" id="update-msg" role="alert">${esc(message)}</p>
+      ${row({ key: "update-version", label: te("update.version", { version: `${s?.current_version ?? "—"}${s?.build ? ` (${s.build})` : ""}` }),
+        desc: `${te("update.channel", { channel: channelName(s?.channel ?? "stable") })} · <span id="update-last-check">${esc(last)}</span>`,
+        msg: "update-msg",
+        control: () => buttons(`<button class="btn sm" data-update-check ${off ? "disabled" : ""}>${te("update.checkNow")}</button>`,
+          !off && !s?.can_install ? `<button class="btn sm" data-update-manual>${te("update.manual")}</button>` : ""),
+        body: `${s?.upgrade_command ? `<code class="update-cmd">${esc(s.upgrade_command)}</code>` : ""}<p class="hint" data-update-phase>${phaseText(s)}</p>` })}
     </div>
   </section>`;
 }
