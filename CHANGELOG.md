@@ -13,6 +13,12 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.85.10] - 2026-11-15
+
+### Security
+
+- The update notice and the desktop updater show a Cargo command that installs the new release from its GitHub tag, because Cuotai is not on crates.io yet (PRD 0021 RF5.4, RF8.1; 2f5299b).
+
 ## [0.85.9] - 2026-11-15
 
 ### Fixed
@@ -826,7 +832,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.85.9...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.85.10...HEAD
+[0.85.10]: https://github.com/jmarcon/cuotai/compare/v0.85.9...v0.85.10
 [0.85.9]: https://github.com/jmarcon/cuotai/compare/v0.85.8...v0.85.9
 [0.85.8]: https://github.com/jmarcon/cuotai/compare/v0.85.7...v0.85.8
 [0.85.7]: https://github.com/jmarcon/cuotai/compare/v0.85.6...v0.85.7
