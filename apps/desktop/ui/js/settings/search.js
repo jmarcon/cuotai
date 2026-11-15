@@ -54,15 +54,35 @@ export async function buildIndex(ctx) {
 }
 export const forget = () => { cache = null; };
 
-/** RF6.1: rows where every word of `query` occurs in the label, description or keywords; label hits first, then by page order. */
+const wordsOf = (text) => text.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+
+/** How well `row` matches: 0 the label is the query, 1 the label starts with it, 2 every word is a whole word of the
+ *  label, 3 every word is inside the label, 4 every word is a whole word of the row's text, 5 anywhere. */
+export function rankOf(row, words) {
+  const query = words.join(" ");
+  if (row.head === query) return 0;
+  if (row.head.startsWith(query)) return 1;
+  const head = wordsOf(row.head);
+  if (words.every((w) => head.includes(w))) return 2;
+  if (words.every((w) => row.head.includes(w))) return 3;
+  const text = wordsOf(row.text);
+  return words.every((w) => text.includes(w)) ? 4 : 5;
+}
+
+/** RF6.1: rows where every word of `query` occurs in the label, description or keywords, best match first (see
+ *  `rankOf`; PRD 0020 re-validation V-06), then by page order. `resultsHtml` groups by page in this order, so a
+ *  page's group comes where its best row ranks. */
 export function search(rows, query) {
   const words = fold(query).split(/\s+/).filter(Boolean);
   if (!words.length) return [];
   const order = new Map(PAGES.map((p, i) => [p.id, i]));
-  return rows
+  const hits = rows
     .filter((r) => words.every((w) => r.text.includes(w)))
-    .map((r) => ({ ...r, rank: words.every((w) => r.head.includes(w)) ? 0 : 1 }))
-    .sort((a, b) => order.get(a.page) - order.get(b.page) || a.rank - b.rank);
+    .map((r, i) => ({ ...r, rank: rankOf(r, words), at: i }));
+  const best = new Map();
+  for (const r of hits) best.set(r.page, Math.min(best.get(r.page) ?? 9, r.rank));
+  return hits.sort((a, b) => best.get(a.page) - best.get(b.page) || order.get(a.page) - order.get(b.page) || a.rank - b.rank || a.at - b.at)
+    .map(({ at, ...r }) => r);
 }
 
 /** RF6.2: the results replace the page area, grouped by page; each shows the row's label (and description) and, by its
@@ -93,6 +113,11 @@ export function reveal(body, key, ms = 1500) {
   const sub = row.closest("[data-subpage]");
   if (sub) body.querySelector(`[data-open-sub="${CSS.escape(sub.dataset.subpage)}"]`)?.click();
   row.scrollIntoView({ block: "center" });
+  // PRD 0020 re-validation V-05: keyboard focus lands on the found row (its control, else its label), not on <body>.
+  const control = row.querySelector(".set-row-ctl :is(input, select, textarea, button, [role=radio][tabindex='0']):not(:disabled)");
+  const label = row.querySelector(".set-row-label");
+  if (control) control.focus({ preventScroll: true });
+  else if (label) { label.tabIndex = -1; label.focus({ preventScroll: true }); }
   row.classList.add("found");
   setTimeout(() => row.classList.remove("found"), ms);
   return row;

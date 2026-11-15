@@ -68,6 +68,26 @@ for (const { code } of i18n.LOCALES) {
   assert.match(grouped, /role="status"/);
   assert.match(grouped, /<section class="set-sec set-results" aria-label="/);
 }
+// RF6 acceptance (PRD 0020 re-validation R-04, V-06): each term finds its row, the best match first; the page of the
+// best match leads; "sound" has no row.
+{
+  const { rankOf } = searchModule;
+  for (const [code, q, first] of [["en-US", "port", "port"], ["en-US", "retention", "cost-retention-row"], ["en-US", "token", "token"],
+    ["en-US", "theme", "theme"], ["pt-BR", "tema", "theme"], ["pt-BR", "porta", "port"], ["de", "Port", "port"]]) {
+    await i18n.setLocale(code); forget();
+    const rows = await buildIndex({ settings: await lib.getSettings(), update: await lib.updaterStatus(), view: () => view, changed: () => {}, rerender: () => {} });
+    const hits = search(rows, q);
+    assert.equal(hits[0]?.key, first, `${code}: "${q}" lists ${hits.slice(0, 3).map((r) => r.key)} first`);
+    if (q === "retention") assert.ok(hits.some((r) => r.key === "days"), "retention also finds the history days");
+    if (code === "en-US" && q === "theme") assert.equal(search(rows, "sound").length, 0, "sound has no row");
+  }
+  const row = { head: "port", text: "port serve local" };
+  assert.equal(rankOf(row, ["port"]), 0);
+  assert.equal(rankOf({ head: "portable mode", text: "portable mode" }, ["port"]), 1);
+  assert.equal(rankOf({ head: "server port", text: "server port" }, ["port"]), 2);
+  assert.equal(rankOf({ head: "export", text: "export" }, ["port"]), 3);
+  assert.equal(rankOf({ head: "language", text: "language portugues" }, ["port"]), 5);
+}
 // Accents: "configuracao" finds pt-BR "configuração" keywords; the empty state offers to clear.
 await i18n.setLocale("pt-BR");
 forget();

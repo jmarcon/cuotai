@@ -198,7 +198,11 @@ addEventListener("keydown", (e) => {
     if (isDesktop) T.core.invoke("close_settings_window").catch(() => {});
   } else if (e.key === "Escape" && e.target === field() && !document.querySelector("dialog[open]")) {
     e.preventDefault();
-    if (field().value) { clearSearch(); paintPage(); } else field().blur();
+    // PRD 0020 re-validation V-05: leaving the empty field moves focus to the page title, not to <body>.
+    if (field().value) { clearSearch(); paintPage(); } else {
+      const title = root.querySelector("#set-page-title");
+      if (title) title.focus({ preventScroll: true }); else field().blur();
+    }
   }
 });
 

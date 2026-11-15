@@ -146,7 +146,42 @@ try {
     await eq(`document.activeElement.hasAttribute('${opener}')`, true, `Escape returns focus to ${opener}`);
     ok(`${dialog}: focus survives the content replacement`);
   }
-  console.log("PASS: the quiet-hours weekday editor and the loading dialogs work from the keyboard");
+  // 11. PRD 0020 RF4.3 (re-validation R-04): a refused value keeps focus in its field, shows the row's error and
+  //     returns to the saved value.
+  await browser.open("settings.html?page=integrations", { w: 900, h: 760, scale: 1 });
+  await sleep(400);
+  await browser.evaluate(`(() => { const d = document.querySelector('[data-disc="serve-connection"]'); d.open = true; const f = document.querySelector('#serve-port'); f.focus(); f.select(); })()`);
+  for (const ch of "80") await browser.press(ch);
+  await browser.press("Enter");
+  await sleep(400);
+  await eq(`document.querySelector('#serve-port').value`, "6738", "a refused port returns to the saved value");
+  await eq(`document.querySelector('#serve-port-msg').textContent.trim().length > 0`, true, "the row shows why");
+  await expectFocus("#serve-port", "refused port");
+  ok("a refused value keeps its row's error and the focus");
+
+  // 12. RF6.2 (re-validation R-04, V-05): a search result inside a closed disclosure opens it, highlights the row and
+  //     moves focus into the row; a second Esc in the empty field moves focus to the page title.
+  await browser.open("settings.html?page=general", { w: 900, h: 760, scale: 1 });
+  await sleep(400);
+  await browser.evaluate(`localStorage.removeItem("cuotai.settings.disc.serve-connection")`);
+  await browser.press("/");
+  for (const ch of "port") await browser.press(ch);
+  await sleep(600);
+  await eq(`document.querySelector('.set-result')?.dataset.rowKey`, "port", "the exact match comes first");
+  await browser.evaluate(`document.querySelector('.set-result').focus()`);
+  await browser.press("Enter");
+  await sleep(900);
+  await eq(`document.querySelector('[data-row="port"]').closest('details')?.open`, true, "the disclosure holding the row opens");
+  await eq(`document.querySelector('[data-row="port"]').classList.contains('found')`, true, "the row is highlighted");
+  await expectFocus("#serve-port", "after choosing a result");
+  await browser.evaluate(`document.querySelector('[data-search]').focus()`);
+  for (let i = 0; i < 2 && (await browser.evaluate(`document.activeElement.matches('[data-search]')`)); i++) {
+    await browser.press("Escape");
+    await sleep(300);
+  }
+  await expectFocus("#set-page-title", "second Esc in the search");
+  ok("a search result reveals its row and focus follows");
+  console.log("PASS: the quiet-hours weekday editor, the loading dialogs, a refused value and a search result work from the keyboard");
 } catch (error) {
   console.error(error.message ?? error);
   process.exitCode = 1;
