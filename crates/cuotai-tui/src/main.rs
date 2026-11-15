@@ -1034,10 +1034,12 @@ fn print_install_source() -> io::Result<()> {
         "updater_disabled_reason={}",
         source.updater_disabled_reason().unwrap_or("none")
     )?;
+    // No network by contract, so no target version: a Cargo copy reports
+    // `none` here and gets its pinned command in the update notice.
     writeln!(
         stdout,
         "upgrade_command={}",
-        source.upgrade_command().unwrap_or("none")
+        source.upgrade_command(None).as_deref().unwrap_or("none")
     )
 }
 

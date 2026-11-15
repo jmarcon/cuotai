@@ -486,7 +486,7 @@ pub struct UpdateView {
     /// This installation can be updated in place (RF2.5).
     pub can_install: bool,
     /// Package manager command, when it is the one that updates (RF8.1).
-    pub upgrade_command: Option<&'static str>,
+    pub upgrade_command: Option<String>,
     pub progress: Option<u8>,
     pub dismissed: bool,
     pub error: Option<&'static str>,
@@ -693,6 +693,13 @@ impl Service {
             }
         };
         drop(phase);
+        // A Cargo copy's command is pinned to the announced release tag, so it
+        // needs the phase's version; without one it has none (S-01).
+        let upgrade_command = source.upgrade_command(
+            version
+                .as_deref()
+                .and_then(cuotai_core::update_check::Version::parse),
+        );
         UpdateView {
             enabled: prefs.consent_answered && reason.is_none(),
             automatic: prefs.automatic,
@@ -707,7 +714,7 @@ impl Service {
             notes: notes.as_deref().and_then(notes_view),
             date,
             can_install: source.can_install(),
-            upgrade_command: source.upgrade_command(),
+            upgrade_command,
             progress,
             dismissed,
             error,
@@ -1342,7 +1349,7 @@ mod detector {
         for (source, reason, command, can_install) in cases {
             let view = Service::build(source, None, false, false).view();
             assert_eq!(view.disabled_reason, reason, "{source:?}");
-            assert_eq!(view.upgrade_command, command, "{source:?}");
+            assert_eq!(view.upgrade_command.as_deref(), command, "{source:?}");
             assert_eq!(view.can_install, can_install, "{source:?}");
         }
     }
@@ -2476,7 +2483,10 @@ mod contract {
         let service = Service::build(InstallSource::Homebrew, None, false, false);
         let view = service.view();
         assert_eq!(view.disabled_reason, Some("homebrew"));
-        assert_eq!(view.upgrade_command, Some("brew upgrade --cask cuotai-app"));
+        assert_eq!(
+            view.upgrade_command.as_deref(),
+            Some("brew upgrade --cask cuotai-app")
+        );
         assert!(!view.can_install);
         assert!(!view.enabled);
         assert!(!view.consent_pending, "managed installs are never asked");

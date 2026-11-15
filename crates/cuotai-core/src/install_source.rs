@@ -8,7 +8,21 @@
 //! durable marker [`MARKER_FILE`] (containing `winget`) beside the executable;
 //! a manual install removes it (PRD 0018 RF3.2).
 
+use crate::update_check::Version;
 use std::{ffi::OsString, io::Read, path::Path};
+
+/// The project's source repository, the only place Cuotai builds come from.
+pub const REPOSITORY_URL: &str = "https://github.com/jmarcon/cuotai";
+
+/// Whether `cuotai-core` and `cuotai-tui` are published on crates.io.
+///
+/// Flip it only after the first crates.io publication of **both** crates
+/// (PRD 0021 RF5.4). Until then the names are not ours, so Cuotai never
+/// suggests `cargo install cuotai-tui` or `cargo binstall`: a Cargo copy is
+/// pointed at the release tag in [`REPOSITORY_URL`] instead (PRD 0021
+/// re-validation S-01). `xtask/tests/crates_io_commands.rs` reads this line
+/// and fails on any bare crates.io command in the docs while it is false.
+pub const CRATES_IO_PUBLISHED: bool = false;
 
 /// The installer-written receipt beside the executable that names its owner
 /// (`apps/desktop/src-tauri/windows/hooks.nsh`).
@@ -84,19 +98,32 @@ impl InstallSource {
         }
     }
 
-    /// The command that upgrades this package-manager-owned installation.
+    /// The command that upgrades this package-manager-owned installation to
+    /// `target`, the newer release when one is known.
     ///
     /// A generic Linux package can be deb, rpm or AUR, so it intentionally
-    /// does not prescribe a distribution-specific command.
-    pub const fn upgrade_command(self) -> Option<&'static str> {
-        match self {
-            Self::Homebrew => Some("brew upgrade --cask cuotai-app"),
-            Self::HomebrewFormula => Some("brew upgrade cuotai"),
-            Self::Scoop => Some("scoop update cuotai"),
-            Self::Winget => Some("winget upgrade Cuotai.Cuotai"),
-            Self::Cargo => Some("cargo install cuotai-tui --locked"),
-            _ => None,
-        }
+    /// does not prescribe a distribution-specific command. While the crates
+    /// are not on crates.io ([`CRATES_IO_PUBLISHED`]), a Cargo copy gets the
+    /// `--git` command pinned to the target's release tag, rebuilt from the
+    /// three parsed numbers so no remote text reaches it, and no command at
+    /// all without a target: callers then show the releases page.
+    pub fn upgrade_command(self, target: Option<Version>) -> Option<String> {
+        let command = match self {
+            Self::Homebrew => "brew upgrade --cask cuotai-app",
+            Self::HomebrewFormula => "brew upgrade cuotai",
+            Self::Scoop => "scoop update cuotai",
+            Self::Winget => "winget upgrade Cuotai.Cuotai",
+            Self::Cargo if CRATES_IO_PUBLISHED => "cargo install cuotai-tui --locked",
+            Self::Cargo => {
+                return target.map(|version| {
+                    format!(
+                        "cargo install --git {REPOSITORY_URL} --tag v{version} cuotai-tui --locked"
+                    )
+                })
+            }
+            _ => return None,
+        };
+        Some(command.to_string())
     }
 }
 
@@ -348,13 +375,13 @@ mod tests {
                 "/Users/demo/.cargo/bin/cuotai",
                 &[("HOME", "/Users/demo")][..],
                 InstallSource::Cargo,
-                Some("cargo install cuotai-tui --locked"),
+                None,
             ),
             (
                 "D:\\cargo\\bin\\cuotai.exe",
                 &[("CARGO_HOME", "D:\\cargo")][..],
                 InstallSource::Cargo,
-                Some("cargo install cuotai-tui --locked"),
+                None,
             ),
         ];
 
@@ -362,12 +389,50 @@ mod tests {
             let source = detect(path, environment, true);
             assert_eq!(source, expected, "{path}");
             assert!(!source.can_install(), "{path}");
-            assert_eq!(source.upgrade_command(), command, "{path}");
+            assert_eq!(source.upgrade_command(None).as_deref(), command, "{path}");
             assert_eq!(
                 source.updater_disabled_reason(),
                 Some(source.as_str()),
                 "{path}"
             );
+        }
+    }
+
+    #[test]
+    fn a_cargo_copy_is_pointed_at_the_release_tag_not_at_crates_io() {
+        const { assert!(!CRATES_IO_PUBLISHED, "flip this test with the constant") };
+        let target = Version::parse("0.86.0");
+        assert_eq!(
+            InstallSource::Cargo.upgrade_command(target).as_deref(),
+            Some("cargo install --git https://github.com/jmarcon/cuotai --tag v0.86.0 cuotai-tui --locked")
+        );
+        assert_eq!(InstallSource::Cargo.upgrade_command(None), None);
+        let every = [
+            InstallSource::Direct,
+            InstallSource::AppImage,
+            InstallSource::DiskImage,
+            InstallSource::Translocated,
+            InstallSource::ReadOnly,
+            InstallSource::Homebrew,
+            InstallSource::HomebrewFormula,
+            InstallSource::Scoop,
+            InstallSource::Winget,
+            InstallSource::LinuxPackage,
+            InstallSource::Cargo,
+        ];
+        for source in every {
+            for target in [None, target] {
+                let Some(command) = source.upgrade_command(target) else {
+                    continue;
+                };
+                if command.contains("cargo") {
+                    assert!(
+                        command.contains(&format!("--git {REPOSITORY_URL} --tag v")),
+                        "{source:?}: {command}"
+                    );
+                }
+                assert!(!command.contains("binstall"), "{source:?}: {command}");
+            }
         }
     }
 

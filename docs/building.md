@@ -45,11 +45,11 @@ cargo run -p cuotai-tui -- --notify
 cargo run -p cuotai-tui -- --status
 ```
 
-Install the `cuotai` binary locally, or straight from the repository:
+Install the `cuotai` binary from your checkout, or a release straight from the repository (replace `vX.Y.Z` with the [latest release](https://github.com/jmarcon/cuotai/releases/latest) tag):
 
 ```sh
 cargo install --path crates/cuotai-tui --locked
-cargo install --git https://github.com/jmarcon/cuotai cuotai-tui --locked
+cargo install --git https://github.com/jmarcon/cuotai --tag vX.Y.Z cuotai-tui --locked
 ```
 
 The command-line recipes (`--list-providers`, `--once`, `--json`, `--json-v1`, `--serve`, `--watch`, `--history`, the cost commands) are in [`advanced.md`](advanced.md) and [`tui.md`](tui.md).
