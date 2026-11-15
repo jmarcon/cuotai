@@ -37,7 +37,7 @@ The Linux terminal archives are built on the oldest supported Ubuntu runner; the
 
 ## Signing: what to expect
 
-Each release records, per file, whether it is signed (`signing-state.json`, quoted in the release notes). Nothing claims a signature a file does not have.
+Each release records, per file, whether the file itself is signed and whether its checksum is in the signed `SHA256SUMS` (`signing-state.json`, quoted in the release notes as two columns, "Payload signature" and "Checksum"). Nothing claims a signature a file does not have.
 
 - **macOS:** builds are signed and notarized only when the maintainer's Apple Developer ID credentials were available for that release. Otherwise the app is ad-hoc signed and Gatekeeper blocks it until you allow it ([steps](gui-macos.md#first-launch-and-gatekeeper)).
 - **Windows:** the installers are Authenticode-signed only when a code-signing certificate was available. Otherwise Windows SmartScreen warns about an unknown publisher ([steps](gui-windows.md#first-launch-and-smartscreen)).
@@ -46,22 +46,22 @@ Each release records, per file, whether it is signed (`signing-state.json`, quot
 
 ## Verify your download
 
-Every release publishes `SHA256SUMS`, signed with Sigstore (keyless, tied to this repository's GitHub Actions workflow), and a GitHub build-provenance attestation for each file.
+Every release publishes `SHA256SUMS`, signed with Sigstore (keyless, tied to this repository's GitHub Actions workflow), and a GitHub build-provenance attestation for each file. Check them in this order: a matching checksum proves nothing on its own, only after step 1 passed.
 
 ```sh
-# every downloaded asset in one go (run in the folder with the files)
-shasum -a 256 -c SHA256SUMS                        # macOS / Linux
-# Windows PowerShell: (Get-FileHash .\<file>).Hash and compare with the line in SHA256SUMS
-
-# the build provenance of one file (needs the GitHub CLI)
-gh attestation verify Cuotai_<version>_universal.dmg --repo jmarcon/cuotai
-
-# the signature of the checksum file itself (needs cosign v3 or later)
+# 1. the signature of the checksum file itself (needs cosign v3 or later)
 cosign verify-blob \
   --bundle SHA256SUMS.sigstore.json \
   --certificate-identity-regexp '^https://github\.com/jmarcon/cuotai/\.github/workflows/release\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   SHA256SUMS
+
+# 2. the files you downloaded (run in the folder with the files)
+shasum -a 256 -c --ignore-missing SHA256SUMS        # macOS / Linux
+# Windows PowerShell: (Get-FileHash .\<file>).Hash and compare with the line in SHA256SUMS
+
+# 3. optionally, the build provenance of any file (needs the GitHub CLI)
+gh attestation verify <file> --repo jmarcon/cuotai
 ```
 
 `SHA256SUMS.sigstore.json` is a Sigstore bundle: it holds the signature, the short-lived signing certificate and the transparency-log proof in one file.

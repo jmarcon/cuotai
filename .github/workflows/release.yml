@@ -849,13 +849,46 @@ jobs:
           pattern: optional-*
           path: .
           merge-multiple: true
+      # PRD 0019 RF7.5 (re-validation, V-05): the notes cover every version
+      # since the last *published* release, because a tag whose release never
+      # published shipped nothing. A stable tag counts only stable releases; an
+      # rc counts any. The highest one below this tag wins; none means "this
+      # version's section only". `xtask` re-validates the value.
+      - name: Previous published release (notes base)
+        id: since
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PRERELEASE: ${{ needs.check.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+          since="$(gh release list --repo "$REPO" --exclude-drafts --limit 200 \
+              --json tagName,isPrerelease \
+            | jq -r --arg tag "$TAG" --arg rc "$PRERELEASE" '
+              def key: capture("^v(?<a>[0-9]+)\\.(?<b>[0-9]+)\\.(?<c>[0-9]+)(-rc\\.(?<r>[0-9]+))?$")
+                | [(.a|tonumber), (.b|tonumber), (.c|tonumber),
+                   (if .r then 0 else 1 end), ((.r // "0")|tonumber)];
+              ($tag | key) as $current
+              | [ .[]
+                  | select(.tagName | test("^v[0-9]+\\.[0-9]+\\.[0-9]+(-rc\\.[0-9]+)?$"))
+                  | select($rc == "true" or (.isPrerelease | not))
+                  | select((.tagName | key) < $current) ]
+              | max_by(.tagName | key)
+              | if . == null then "" else (.tagName | ltrimstr("v") | sub("-rc\\.[0-9]+$"; "")) end')"
+          case "$since" in
+            ''|[0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "::error::unexpected previous release '$since'"; exit 1 ;;
+          esac
+          echo "notes since the last published release: ${since:-none (this section only)}"
+          echo "version=$since" >> "$GITHUB_OUTPUT"
       - name: Updater manifest (only when the updater artifacts are signed)
+        env:
+          SINCE: ${{ steps.since.outputs.version }}
         run: |
           set -euo pipefail
           mkdir -p fragments
-          # Changelog section is regenerated in this job's workspace and
-          # becomes the release notes shown by the updater (PRD 0018 RF2.2).
-          ./target/debug/xtask release-check --changelog-out notes.txt
+          # Changelog notes are regenerated in this job's workspace and
+          # become the release notes shown by the updater (PRD 0018 RF2.2).
+          ./target/debug/xtask release-check --changelog-out notes.txt --since-version "$SINCE"
           # One manifest for every platform this run produced (RF1.3). A
           # platform whose updater artifact was not signed is simply absent;
           # a collected artifact with no signature fails the xtask call.
@@ -970,7 +1003,9 @@ jobs:
             --checksums "$checksums" --checksums-status "$status" \
             --out dist/signing-state.json
       - name: Release notes
-        run: ./target/debug/xtask release-notes --changelog CHANGELOG.md --version "$VERSION" --manifest dist/manifest.json --signing-state dist/signing-state.json --repo "$REPO" --out dist/release-body.md
+        env:
+          SINCE: ${{ steps.since.outputs.version }}
+        run: ./target/debug/xtask release-notes --changelog CHANGELOG.md --version "$VERSION" --since-version "$SINCE" --manifest dist/manifest.json --signing-state dist/signing-state.json --repo "$REPO" --out dist/release-body.md
       - name: Dry-run attestation note
         if: needs.check.outputs.dry_run == 'true'
         run: |

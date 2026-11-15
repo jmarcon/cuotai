@@ -337,6 +337,49 @@ fn check_tauri_conf(files: &Files, version: &Version) -> Res<()> {
     Ok(())
 }
 
+/// The release notes of `version` (PRD 0019 RF7.5): its own section, plus,
+/// when `since` is given, every released section after `since`, newest first,
+/// each under its own `## [X.Y.Z] - YYYY-MM-DD` heading.
+///
+/// `since` is the last *published* release (PRD 0019 re-validation, V-05):
+/// a tag whose release never published shipped nothing, so its sections
+/// belong to the next release that does. Internal versions (up to
+/// [`crate::release::LAST_INTERNAL_VERSION`]) are never included. A `since`
+/// equal to `version` (the next rc of the same version) gives the single
+/// section; a `since` above `version` is an error.
+pub fn changelog_notes(text: &str, version: &Version, since: Option<&Version>) -> Res<String> {
+    let (date, body) = changelog_section(text, version)?;
+    let mut out = format!("## [{version}] - {date}\n\n{}", body.trim());
+    let Some(since) = since else {
+        return Ok(out);
+    };
+    if since > version {
+        return err(format!(
+            "--since-version {since} is newer than the release version {version}"
+        ));
+    }
+    let changelog = crate::changelog::parse(text).map_err(|e| Error::Msg(e.to_string()))?;
+    for release in changelog.releases.iter().skip(1) {
+        let parsed = Version::parse(&release.version)?;
+        if parsed <= *since || parsed <= crate::release::LAST_INTERNAL_VERSION {
+            continue;
+        }
+        if parsed >= *version {
+            return err(format!(
+                "CHANGELOG.md: section {} is out of order below {version}",
+                release.version
+            ));
+        }
+        out.push_str(&format!(
+            "\n\n## [{}] - {}\n\n{}",
+            release.version,
+            release.date,
+            release.body.trim()
+        ));
+    }
+    Ok(out)
+}
+
 /// Extracts the first released `## [X.Y.Z] - YYYY-MM-DD` section immediately
 /// after `[Unreleased]` from the shared parser (PRD 0019 RF7.4/RF7.5).
 /// Returns `(date, body)` and rejects a workspace version that appears

@@ -21,6 +21,8 @@ SUBCOMMANDS:
     --require-main REF      also require the annotated tag's commit in REF (e.g. origin/main)
     --json-out PATH         write the machine-readable result (version/channel/tag)
     --changelog-out PATH      write the version's changelog section (updater notes)
+    --since-version X.Y.Z   with --changelog-out: also every section after this
+                            last published release (unpublished tags' notes)
 
   release-manifest    Classify artifacts, write manifest.json and SHA256SUMS (RF2)
     --artifacts-dir DIR     flat directory with the collected build artifacts
@@ -44,6 +46,7 @@ SUBCOMMANDS:
     --signing-state PATH
     --repo SLUG             owner/name (used in verification commands)
     --tag TAG
+    --since-version X.Y.Z   also every section after this last published release
     --out PATH
 
   updater-manifest    Emit latest.json when updater signing was available (RF2)
@@ -232,13 +235,12 @@ fn release_check(opts: &Opts) -> Res<()> {
         write_json(Path::new(&path), &json)?;
     }
     if let Some(path) = opts.get("changelog-out") {
-        std::fs::write(
-            &path,
-            format!(
-                "## [{}] - {}\n\n{}\n",
-                report.version, report.changelog_date, report.changelog_body
-            ),
-        )?;
+        let since = since_version(opts)?;
+        let changelog = std::fs::read_to_string(repo.join("CHANGELOG.md"))?;
+        let notes = xtask::check::changelog_notes(&changelog, &report.version, since.as_ref())?;
+        std::fs::write(&path, format!("{notes}\n"))?;
+    } else if opts.get("since-version").is_some() {
+        return err("--since-version needs --changelog-out");
     }
     Ok(())
 }
@@ -329,13 +331,24 @@ fn release_notes(opts: &Opts) -> Res<()> {
     let repo = opts.need("repo")?;
     let changelog = std::fs::read_to_string(&changelog_path)
         .map_err(|e| Error::Msg(format!("cannot read {}: {e}", changelog_path.display())))?;
-    let (date, body) = xtask::check::changelog_section(&changelog, &version)?;
-    let section = format!("## [{version}] - {date}\n\n{body}");
+    let since = since_version(opts)?;
+    let section = xtask::check::changelog_notes(&changelog, &version, since.as_ref())?;
     let rendered = xtask::notes::render_body(&section, &state, &manifest, &repo);
     let out = PathBuf::from(opts.need("out")?);
     std::fs::write(&out, rendered)?;
     println!("release notes written to {}", out.display());
     Ok(())
+}
+
+/// `--since-version`: the last published release. An empty value (no
+/// published release found) means "this version's section only".
+fn since_version(opts: &Opts) -> Res<Option<Version>> {
+    match opts.get("since-version").as_deref() {
+        None | Some("") => Ok(None),
+        Some(value) => Version::parse(value)
+            .map(Some)
+            .map_err(|e| Error::Msg(format!("--since-version: {e}"))),
+    }
 }
 
 fn updater_manifest(opts: &Opts) -> Res<()> {

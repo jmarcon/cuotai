@@ -376,3 +376,47 @@ fn an_internal_version_is_covered_by_the_pre_release_history() {
         "unexpected error: {err}"
     );
 }
+
+/// PRD 0019 RF7.5 (re-validation, V-05): the notes cover every version since
+/// the last published release, newest first, each under its own heading.
+const MULTI: &str = "# Changelog\n\n## [Unreleased]\n\n## [0.85.3] - 2026-11-03\n\n### Fixed\n\n- Third.\n\n## [0.85.2] - 2026-11-02\n\n### Added\n\n- Second, never published.\n\n## [0.85.1] - 2026-11-01\n\n### Fixed\n\n- First.\n\n## [0.79.0] - 2026-10-01\n\n### Added\n\n- Internal.\n";
+
+fn notes(since: Option<&str>) -> xtask::Res<String> {
+    let version = xtask::Version::parse("0.85.3").unwrap();
+    let since = since.map(|s| xtask::Version::parse(s).unwrap());
+    xtask::check::changelog_notes(MULTI, &version, since.as_ref())
+}
+
+#[test]
+fn notes_include_the_sections_of_unpublished_tags() {
+    let text = notes(Some("0.85.1")).unwrap();
+    assert!(text.starts_with("## [0.85.3] - 2026-11-03\n\n### Fixed\n\n- Third."));
+    assert!(
+        text.contains("\n\n## [0.85.2] - 2026-11-02\n\n### Added\n\n- Second, never published.")
+    );
+    assert!(text.find("0.85.3").unwrap() < text.find("0.85.2").unwrap());
+    assert!(!text.contains("0.85.1"), "{text}");
+    assert!(!text.contains("First."), "{text}");
+}
+
+#[test]
+fn notes_since_the_previous_version_or_without_a_base_are_one_section() {
+    for since in [None, Some("0.85.2"), Some("0.85.3")] {
+        let text = notes(since).unwrap();
+        assert_eq!(
+            text, "## [0.85.3] - 2026-11-03\n\n### Fixed\n\n- Third.",
+            "{since:?}"
+        );
+    }
+}
+
+#[test]
+fn notes_never_reach_internal_versions_or_a_newer_base() {
+    let text = notes(Some("0.70.0")).unwrap();
+    assert!(
+        text.contains("0.85.1") && !text.contains("0.79.0"),
+        "{text}"
+    );
+    let err = notes(Some("0.86.0")).unwrap_err();
+    assert!(err.to_string().contains("newer than"), "{err}");
+}
