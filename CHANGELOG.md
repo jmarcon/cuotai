@@ -13,6 +13,18 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.85.12] - 2026-11-15
+
+### Fixed
+
+- Extra usage at its cap now reads "Extra budget used up" in the critical colour in the terminal dashboard and `--once`, instead of "on extra" (PRD 0023 RF1, RF2, RF3, RF8; d592ca8).
+- Extra usage and budget amounts in the terminal, notifications, the weekly digest and event summaries use the number format of your language (PRD 0023 RF1, RF2, RF3, RF8; d592ca8).
+- Claude and Kiro extra-usage metric names are translated in every language (PRD 0023 RF1, RF2, RF3, RF8; d592ca8).
+- Kiro extra usage reported as 0 shows as on with nothing spent instead of unknown, and its allowance left no longer goes below zero (PRD 0023 RF1, RF2, RF3, RF8; d592ca8).
+- Extra usage at its cap now reads "Extra budget used up" in the critical colour on desktop cards, the status line and the menu bar, instead of "on extra balance" (PRD 0023 RF7; df3b53a).
+- Extra-usage amounts on desktop chips, tooltips and details use the number format of your language, like the figures beside them (PRD 0023 RF7; df3b53a).
+- A Claude extra-usage amount in provider units is no longer cut off on the card, and armed or unknown extra usage now shows a chip (PRD 0023 RF7; df3b53a).
+
 ## [0.85.11] - 2026-11-15
 
 ### Fixed
@@ -843,7 +855,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.85.11...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.85.12...HEAD
+[0.85.12]: https://github.com/jmarcon/cuotai/compare/v0.85.11...v0.85.12
 [0.85.11]: https://github.com/jmarcon/cuotai/compare/v0.85.10...v0.85.11
 [0.85.10]: https://github.com/jmarcon/cuotai/compare/v0.85.9...v0.85.10
 [0.85.9]: https://github.com/jmarcon/cuotai/compare/v0.85.8...v0.85.9
