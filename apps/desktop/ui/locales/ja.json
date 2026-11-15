@@ -447,6 +447,7 @@
   "card.binding.monthly": "月",
   "card.binding.title": "現在最も厳しい制限",
   "card.extra.title": "追加使用量",
+  "card.extra.meterLeft": "追加予算の残り {pct}%",
   "metric.overage": "追加 {amount}",
   "metric.overageCap": "追加 {amount} / {cap}",
   "detail.extra.cap": "追加予算：{cap}",

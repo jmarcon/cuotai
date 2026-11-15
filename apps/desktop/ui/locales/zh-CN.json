@@ -447,6 +447,7 @@
   "card.binding.monthly": "月",
   "card.binding.title": "当前最严格的限额",
   "card.extra.title": "额外用量",
+  "card.extra.meterLeft": "额外预算剩余 {pct}%",
   "metric.overage": "额外 {amount}",
   "metric.overageCap": "额外 {amount} / {cap}",
   "detail.extra.cap": "额外预算：{cap}",

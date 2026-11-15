@@ -225,6 +225,9 @@ svg.i.sg { width: 12px; height: 12px; }
 .mini.info, .schip.info, .badge.info, .tchip.info { --chip: var(--info); }
 .mini.accent, .schip.accent, .badge.accent, .btag { --chip: var(--accent); }
 .mini.muted, .schip.muted, .badge.muted, .tchip.muted { --chip: var(--fg-muted); }
+/* DS-CMP-EXTRA-2 / DS-CMP-HON-1 (PRD 0023 re-validation V-05): an unknown extra amount is a muted chip with a dashed
+   edge, the honest-data mark of a chip (a hatch under text would fail 4.5:1). */
+.mini.unknown { outline: 1px dashed var(--fg-muted); outline-offset: -1px; }
 .mini {
   display: inline-flex;
   align-items: center;
@@ -248,6 +251,10 @@ svg.i.sg { width: 12px; height: 12px; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* PRD 0023 re-validation (V-05): the extra-usage chip of a tray row is the only place that state is said, so its text
+   wraps instead of being cut ("Extra usage on · nothing spent" is long in ru and id-ID). */
+.row-chips .mini[data-overage-chip] { white-space: normal; padding-block: 2px; }
+.row-chips .mini[data-overage-chip] .mini-t { overflow: visible; text-overflow: clip; }
 .schip {
   display: inline-flex;
   align-items: center;

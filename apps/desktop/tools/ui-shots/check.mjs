@@ -27,6 +27,8 @@ const LOCALES = locales.length ? locales : selftest ? ["en-US"] : ["en-US", "pt-
 const ZOOM_PAGES = [
   ["zoom200-main", "index.html", 640, 410, {}],
   ["zoom200-main-stats", "index.html", 640, 410, { "cuotai.openView": "stats" }],
+  // PRD 0023 re-validation (V-01, V-09): the extra-usage states (provider units, capped, unknown, armed) at 200 %.
+  ["zoom200-main-overage", "index.html?overage", 640, 410, {}],
   ["zoom200-settings-general", "settings.html?page=general", 640, 360, {}],
   ["zoom200-settings-dashboard", "settings.html?page=dashboard", 640, 360, {}],
   ["zoom200-settings-alerts", "settings.html?page=alerts", 640, 360, {}],
@@ -53,6 +55,10 @@ const PAGES = zoom ? ZOOM_PAGES : [
   ["main-one-row-topbar", "index.html", 905, 600, {}],
   ["main-one-row-topbar-wide", "index.html", 1105, 600, {}],
   ["main", "index.html", 1200, 820, {}],
+  // PRD 0023 re-validation (V-01, V-03, V-05, V-09): every extra-usage state on the card and the tray.
+  ["main-overage", "index.html?overage", 1200, 820, {}],
+  ["main-overage-narrow", "index.html?overage", 520, 820, {}],
+  ["tray-overage", "tray.html?overage", 380, 600, {}],
   ["main-win98-light", "index.html?fixture=six", 1200, 820, { "cuotai.theme": "win98", "cuotai.themeMode": "light" }],
   ["main-win98-dark", "index.html?fixture=six", 1200, 820, { "cuotai.theme": "win98", "cuotai.themeMode": "dark" }],
   ["main-winxp-light", "index.html?fixture=six", 1200, 820, { "cuotai.theme": "winxp", "cuotai.themeMode": "light" }],

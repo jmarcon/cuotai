@@ -453,6 +453,7 @@
   "card.binding.monthly": "महीना",
   "card.binding.title": "इस समय सबसे सीमित सीमा",
   "card.extra.title": "अतिरिक्त उपयोग",
+  "card.extra.meterLeft": "अतिरिक्त बजट का {pct}% बाकी",
   "metric.overage": "{amount} अतिरिक्त",
   "metric.overageCap": "{cap} में से {amount} अतिरिक्त",
   "detail.extra.cap": "अतिरिक्त बजट: {cap}",

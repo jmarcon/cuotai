@@ -5,7 +5,7 @@
 // the core (`tl`) or from the UI catalogs.
 import { t, te, tl } from "./i18n.js";
 import {
-  ALERTS, billingOverage, bindingLabel, causeText, bindingPct, brand, fmtShare, fmtExtra, fmtLocal, paceUnit, esc, fmtAge, icon, incidentBadge, isBlocked, isMetricHidden, isStaleReading, level, logo,
+  ALERTS, billingOverage, bindingLabel, causeText, bindingPct, brand, extraFigure, fmtShare, fmtExtra, fmtLocal, fmtReset, paceUnit, esc, fmtAge, icon, incidentBadge, isBlocked, isMetricHidden, isStaleReading, level, logo,
   paceLabelOf, paceOf, remainingPct, reportKey, shownAt, staleView, statusLabel, summaryOf, windowsOf,
   planBadgeHtml,
 } from "./lib.js";
@@ -60,6 +60,27 @@ export const expectedLeft = (m) => {
 /** DS-CMP-ROW-1b: figure on line 1, the unit word below it at --text-2xs; a word figure has no unit line. */
 export const figureHtml = (figure, unit = "", { role = "", dim = false, cls = "" } = {}) =>
   `<span class="fig${dim ? " stale" : ""}${cls ? ` ${cls}` : ""}"><b class="${role}">${esc(figure)}</b>${unit ? `<small>${esc(unit)}</small>` : ""}</span>`;
+
+/** PRD 0023 (mockup 10): paid extra usage as a column beside the exhausted limit: the amount, a meter of the extra
+ *  budget left only when the cap is known (never a pace mark), and the cap under it. Re-validation: the number is the
+ *  figure and its unit the small line (V-01); the cap is critical (V-03); the meter is named (V-06); the line under
+ *  it gives the cap, not the amount again (V-07). */
+export function extraColumnHtml(r) {
+  const o = billingOverage(r);
+  if (!o) return "";
+  const capped = o.state === "cap_reached";
+  const cap = o.cap > 0 ? o.cap : null;
+  const left = cap != null && o.spent != null ? Math.max(0, ((cap - o.spent) / cap) * 100) : null;
+  const { fig, unit } = extraFigure(o);
+  const title = t("card.extra.title");
+  const cycle = fmtReset(o.cycle_ends_at);
+  const under = cap != null ? t("detail.extra.cap", { cap: fmtExtra(cap, o.unit, o.currency) }) : cycle ? t("detail.extra.cycle", { when: cycle }) : "";
+  return `<div class="win extra" data-overage-row data-overage-state="${esc(o.state)}" title="${esc(tl(o.text))}">
+    <div class="win-top"><span class="win-name">${esc(title)}</span></div>
+    ${figureHtml(fig, unit, { role: capped ? "bad" : "warn", cls: "left" })}
+    ${left != null ? meterHtml(left, { state: "overage", role: capped ? "bad" : "warn", name: title, text: t("card.extra.meterLeft", { pct: Math.round(left) }) }) : ""}
+    <div class="win-reset">${esc(under)}</div></div>`;
+}
 
 // ---------- DS-CMP-RING-6: the static C-ring as the account-state glyph ----------
 const RING_R = 11, RING_A0 = 45, RING_A1 = 315;
@@ -214,7 +235,9 @@ export function statusParts(r, st = accountState(r)) {
     role = "bad";
     reset = isBlocked(r) ? r.binding.blocked_until : binding?.resets_at ?? null;
     // Fa gap 4: on paid extra usage the one line says so ("Limit hit · on extra balance"); the money is the figure.
-    if (billingOverage(r)) detail = t("stl.onExtra");
+    // PRD 0023 re-validation (V-03): a used-up extra budget is not "on extra": the line says "Extra budget used up".
+    const extra = billingOverage(r);
+    if (extra) detail = extra.state === "cap_reached" ? tl(extra.text) : t("stl.onExtra");
   } else if (pace) {
     // DS-CMP-STL-3: the pace stage names the line; the core's sentence stays in the tooltip.
     label = t(`stage.${pace.stage}`);
@@ -448,7 +471,8 @@ export function figureOf(r, st = accountState(r)) {
   if (st.kind === "exhausted") {
     // DS-CMP-ROW-2, DS-COL-3: on extra balance the figure is the money being charged ("$6.25 extra").
     const o = billingOverage(r);
-    if (o?.spent != null) return { fig: fmtExtra(o.spent, o.unit, o.currency), unit: t("figure.extra"), role: "warn" };
+    // PRD 0023 re-validation (V-01, V-03): the number alone with its unit below; critical once the budget is used up.
+    if (o?.spent != null) return { ...extraFigure(o), role: o.state === "cap_reached" ? "bad" : "warn" };
     // DS-CMP-ROW-1a (PRD 0022 re-validation V-04): the word "Exhausted" replaces the figure, as on the card.
     return { fig: t("metric.exhausted"), unit: "", role: "bad", word: true };
   }

@@ -450,6 +450,7 @@
   "card.binding.monthly": "Mese",
   "card.binding.title": "Limite più restrittivo in questo momento",
   "card.extra.title": "Uso extra",
+  "card.extra.meterLeft": "{pct}% del budget extra rimanente",
   "metric.overage": "{amount} extra",
   "metric.overageCap": "{amount} extra su {cap}",
   "detail.extra.cap": "Budget extra: {cap}",

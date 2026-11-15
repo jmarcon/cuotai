@@ -12,10 +12,10 @@ import { bindUpdateBanner, initUpdates, onUpdateState, promptForUpdateConsent, u
 import { maybeShowFirstRun } from "./first-run.js";
 import { openRestoreDialog } from "./backup-dialog.js";
 import {
-  fmtNext, fmtAge, fmtShare, metricName, ALERTS, overageChipHtml, overageLineHtml, ageHtml, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isBindingMetric, isBlocked, isDesktop, isStaleReading, level, logo, wordmark,
+  fmtNext, fmtAge, fmtShare, metricName, ALERTS, overageChipHtml, ageHtml, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isBindingMetric, isBlocked, isDesktop, isStaleReading, level, logo, wordmark,
   moveAccount, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
   currentSort, initOrderSync, staleView, configChangedOnDisk, reloadConfig, configLabel, errText, updateErrText, otherConfigNotice, otherConfigBanner, dismissOtherConfig, returnText, splitRecharging,
-  accountLabel, billingOverage, fmtExtra, overageLineText, isRecharging, resetsText, bestChipHtml, cardPace, forecastChipHtml, renewedText, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, setPoolAlerts, setBreakdownAlerts, openAggregatorDashboard, incidentHtml, bindStatusLinks, costUsage, paceHtml, paceLineLabel, costPlans,
+  accountLabel, billingOverage, isRecharging, resetsText, bestChipHtml, cardPace, forecastChipHtml, renewedText, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, setPoolAlerts, setBreakdownAlerts, openAggregatorDashboard, incidentHtml, bindStatusLinks, costUsage, paceHtml, paceLineLabel, costPlans,
   openSettingsWindow, bindSettingsShortcut, onSettingsChanged, onAccountAction, listExtensions, extensionSecrets,
   planBadgeHtml, scopeBlocksHtml, budgetSuggestion,
   sessionAction, liveSessionHtml, dismissFeedBanner, historyRelocation, relocationBannerHtml, clockSkewBannerHtml,
@@ -24,7 +24,7 @@ import { fold, patch } from "./util.js";
 import { initRowLayout } from "./density.js";
 import { connectionChips, groupsOf, handleConnectionAction, instanceHeadHtml, isAggregator, poolLineHtml, warningChipsHtml, withConnections } from "./aggregator.js";
 import {
-  accountState, announceChanges, filterTabsHtml, changeMarkHtml, clearChange, expectedLeft, figureHtml, fitStatusLines, fmtAt, meterHtml, monograms,
+  accountState, announceChanges, extraColumnHtml, filterTabsHtml, changeMarkHtml, clearChange, expectedLeft, figureHtml, fitStatusLines, fmtAt, meterHtml, monograms,
   repeatedProviders, statusLineHtml, tileHtml, trackChanges,
 } from "./components.js";
 import * as motion from "./motion.js";
@@ -72,19 +72,6 @@ function limitColumn(r, label, m, pct, stale) {
     ${cardMeter(m, pct, stale, label)}
     <div class="win-reset">${reset ? esc(reset) : `<em>${te("quota.na")}</em>`}</div></div>`;
 }
-/** PRD 0023 (mockup 10): paid extra usage as a column beside the exhausted limit: the money, a budget meter only
- *  when the cap is known (never a pace mark), and the core's sentence. */
-function extraColumn(r) {
-  const o = billingOverage(r);
-  if (!o) return "";
-  const cap = o.cap > 0 ? o.cap : null;
-  const left = cap != null && o.spent != null ? Math.max(0, ((cap - o.spent) / cap) * 100) : null;
-  return `<div class="win extra" data-overage-row title="${esc(tl(o.text))}">
-    <div class="win-top"><span class="win-name">${te("card.extra.title")}</span></div>
-    ${figureHtml(o.spent == null ? "—" : fmtExtra(o.spent, o.unit, o.currency), t("figure.extra"), { role: "warn", cls: "left" })}
-    ${left != null ? meterHtml(left, { state: "overage", role: o.state === "cap_reached" ? "bad" : "warn" }) : ""}
-    <div class="win-reset">${esc(overageLineText(o))}</div></div>`;
-}
 /** One window of the card (5 h or weekly); a missing window keeps its slot with "—" (DS-CMP-CARD-2). */
 function windowSlot(r, name, w, stale = false) {
   const label = t(`card.window.long.${name}`);
@@ -101,7 +88,7 @@ function windowSlot(r, name, w, stale = false) {
 function summaryHtml(r, stale = false) {
   const win = windowsOf(r);
   // Fa gap 4: paid extra usage is its own limit column (mockup 10), never a repeated chip.
-  const extra = stale ? "" : extraColumn(r);
+  const extra = stale ? "" : extraColumnHtml(r);
   if (win.h5 || win.week) return `<div class="wins${extra ? " three" : ""}">${windowSlot(r, "h5", win.h5, stale)}${windowSlot(r, "week", win.week, stale)}${extra}</div>`;
   const s = summaryOf(r);
   if (s.kind === "bar") return `<div class="wins">${limitColumn(r, metricName(s.m), s.m, s.pct, stale)}${extra}</div>`;
@@ -187,7 +174,7 @@ function card(r, ctx, recharging = false, { connection = false } = {}) {
     </div>
     <div class="summary">${stale
       ? `<div class="stale-reading">${summaryHtml(staleView(r), true)}</div>${r.pending ? "" : `<p class="sum-note cause">${icon("warn")}<span>${esc(causeText(r))}</span></p>`}`
-      : summaryHtml(r)}${pasteSessionHtml(r)}${checkSetupHtml(r)}${st.kind === "exhausted" && !billingOverage(r) ? "" : statusLineHtml(r, st, { compact: false, reset: false })}${stale ? "" : scopeBlocksHtml(r)}${liveSessionHtml(r)}${bestChipHtml(r) ? `<div class="card-chips">${bestChipHtml(r)}</div>` : ""}${stale || billingOverage(r) ? "" : overageLineHtml(r)}${incidentHtml(r)}${accessHtml(r)}${costFoldHtml(r)}</div>
+      : summaryHtml(r)}${pasteSessionHtml(r)}${checkSetupHtml(r)}${st.kind === "exhausted" && !billingOverage(r) ? "" : statusLineHtml(r, st, { compact: false, reset: false })}${stale ? "" : scopeBlocksHtml(r)}${liveSessionHtml(r)}${bestChipHtml(r) ? `<div class="card-chips">${bestChipHtml(r)}</div>` : ""}${incidentHtml(r)}${accessHtml(r)}${costFoldHtml(r)}</div>
     <div class="card-foot">${foot}<span class="grow"></span>
       ${changeMarkHtml(key)}<button class="btn ghost sm details-link" data-details="${esc(key)}">${te("card.details")}${icon("chev")}</button>
     </div>

@@ -453,6 +453,7 @@
   "card.binding.monthly": "Ay",
   "card.binding.title": "Şu anda en kısıtlayıcı sınır",
   "card.extra.title": "Ek kullanım",
+  "card.extra.meterLeft": "Ek bütçeden %{pct} kaldı",
   "metric.overage": "{amount} ek",
   "metric.overageCap": "{cap} içinden {amount} ek",
   "detail.extra.cap": "Ek bütçe: {cap}",

@@ -447,6 +447,7 @@
   "card.binding.monthly": "Tháng",
   "card.binding.title": "Giới hạn hạn chế nhất hiện tại",
   "card.extra.title": "Sử dụng thêm",
+  "card.extra.meterLeft": "Còn {pct}% ngân sách thêm",
   "metric.overage": "Thêm {amount}",
   "metric.overageCap": "Thêm {amount} trên {cap}",
   "detail.extra.cap": "Ngân sách thêm: {cap}",

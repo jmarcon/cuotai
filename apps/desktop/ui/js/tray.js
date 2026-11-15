@@ -13,7 +13,7 @@ import { costLineHtml, sourceFor } from "./cost.js";
 import {
   accountLabel, bestChipHtml, liveChipHtml, costUsage, bindStatusLinks, bindThemeSwitch, bindSettingsShortcut, brand, createStore, disabledAccounts, esc, fmtAge, icon,
   initOrderSync, initTheme, initTrayView, level, nextNoticeParts, noteText, onDisabledChange, onHiddenChange, onSettingsChanged, onTrayViewChange,
-  openAggregatorDashboard, openMainWindow, openSettingsWindow, overageChipHtml, reportKey, setMetricAlert, sortReports, statusLabel, trayViewPref, wordmark,
+  billingOverage, openAggregatorDashboard, openMainWindow, openSettingsWindow, overageChipHtml, reportKey, setMetricAlert, sortReports, statusLabel, trayViewPref, wordmark,
   errText, isDesktop, hourlyStrip,
 } from "./lib.js";
 import {
@@ -94,8 +94,9 @@ const notInHtml = () => `<p class="pop-sub" role="presentation">${te("settings.m
 
 /** The chips a row carries besides its status line: extra usage (PRD 0023), the best account (PRD 0024 RF7) and a
  *  9router connection's own state (PRD 0036). */
-// Fa gap 4: an exhausted account on extra usage says so on its status line, so the extra chip stays off the row.
-const rowChips = (r, via = false) => `${isConnection(r) ? connectionChips(r, { via }) : ""}${accountState(r).kind === "exhausted" ? "" : overageChipHtml(r)}${bestChipHtml(r)}${liveChipHtml(r)}`;
+// Fa gap 4: an exhausted account on extra usage says so on its status line, so the extra chip stays off the row. An
+// armed or unknown extra state has no status-line word, so its chip stays (PRD 0023 re-validation V-05).
+const rowChips = (r, via = false) => `${isConnection(r) ? connectionChips(r, { via }) : ""}${accountState(r).kind === "exhausted" && billingOverage(r) ? "" : overageChipHtml(r)}${bestChipHtml(r)}${liveChipHtml(r)}`;
 
 /** The row of one account, with the multi-account title rule (DS-CMP-ROW-1) and its monogram. */
 function row(r, ctx, open = null, { via = false } = {}) {
