@@ -299,10 +299,14 @@ export function tl(value, vars = {}, escape = false) {
   // PRD 0034 RF7: the core's English fallbacks are the source of its en-US texts (there is no en-US core catalog), so the
   // pseudo-locale derives its core texts from them, as it does from the UI catalog.
   const text = template ?? (current === PSEUDO && typeof value.fallback === "string" ? pseudoText(value.fallback) : value.fallback);
-  return substitute(typeof text === "string" ? text : value.fallback, allVars, escape);
+  const resolved = typeof text === "string" ? text : String(value.fallback ?? "");
+  // PRD 0022 re-validation (S-01): the HTML-safe path escapes the whole resolved text, not only the params. The
+  // template comes from a catalog (a user pack included), and the core fallback is already interpolated, so its
+  // params are inside it. Escaping first and substituting escaped params after keeps a single escape.
+  return substitute(escape ? esc(resolved) : resolved, allVars, escape);
 }
 
-/** HTML-safe variant of `tl`. */
+/** HTML-safe variant of `tl`: the template (or the core fallback) and every param are escaped exactly once. */
 export function tle(value, vars = {}) {
   return tl(value, vars, true);
 }

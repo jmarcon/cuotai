@@ -570,7 +570,7 @@ export function paceDelta(w) {
   const glyph = chip?.glyph ?? (reserve ? "↓" : "↑");
   return { glyph, text, role: !reserve && role === "warn" && p.projected_exhaustion_at ? "bad" : role, full };
 }
-const paceDeltaHtml = (d) => (d ? `<span class="pd ${d.role}" aria-hidden="true" title="${esc(d.full)}"><span class="pg">${d.glyph}</span>${d.text ? `<span>${esc(d.text)}</span>` : ""}</span>` : "");
+const paceDeltaHtml = (d) => (d ? `<span class="pd ${d.role}" aria-hidden="true" title="${esc(d.full)}"><span class="pg">${esc(d.glyph)}</span>${d.text ? `<span>${esc(d.text)}</span>` : ""}</span>` : "");
 /** The spoken form of one window: "Week: 49% left, 50 pts ahead, Most restrictive limit right now". */
 function windowSpoken(w, thin) {
   const d = paceDelta(w);
