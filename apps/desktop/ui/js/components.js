@@ -449,8 +449,8 @@ export function figureOf(r, st = accountState(r)) {
     // DS-CMP-ROW-2, DS-COL-3: on extra balance the figure is the money being charged ("$6.25 extra").
     const o = billingOverage(r);
     if (o?.spent != null) return { fig: fmtExtra(o.spent, o.unit, o.currency), unit: t("figure.extra"), role: "warn" };
-    // Fa gap 5: the figure stays a number ("0% left"); the status line already names the state in its role.
-    return { fig: "0%", unit: t("card.available"), role: "" };
+    // DS-CMP-ROW-1a (PRD 0022 re-validation V-04): the word "Exhausted" replaces the figure, as on the card.
+    return { fig: t("metric.exhausted"), unit: "", role: "bad", word: true };
   }
   if (st.pct != null) return { fig: `${Math.round(st.pct)}%`, unit: t("card.available"), role: "", dim: st.kind === "stale" || isAging(r) };
   const s = summaryOf(r);

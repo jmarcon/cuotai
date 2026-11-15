@@ -140,6 +140,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
+  min-height: var(--space-6); /* DS-TOK-HIT-1: at least 24 px (PRD 0022 re-validation V-10) */
   list-style: none;
   cursor: pointer;
 }
@@ -553,7 +554,7 @@
 /* reordenar contas */
 .grip {
   flex: none;
-  width: 22px;
+  width: var(--space-6); /* DS-TOK-HIT-1: at least 24 px (PRD 0022 re-validation V-10) */
   margin-left: calc(-1 * calc(var(--space-1) + var(--space-0)));
   cursor: grab;
   touch-action: none;

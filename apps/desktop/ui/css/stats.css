@@ -8,7 +8,6 @@
   --sp-2: var(--space-2, 8px);
   --sp-3: var(--space-3, 12px);
   --sp-4: var(--space-4, 16px);
-  --hatch: repeating-linear-gradient(135deg, var(--track) 0 2px, transparent 2px 5px);
   --bar: var(--chart-neutral, color-mix(in srgb, var(--fg-muted) 70%, var(--track)));
 }
 .stats .sub,
@@ -154,34 +153,33 @@
   height: 4px;
   margin-top: var(--sp-1);
   border-radius: var(--radius-xs);
-  background: var(--hatch);
-  opacity: 0.8;
-}
-:root[data-hatch="none"] .kpi.unknown::after {
-  background: var(--track);
-  opacity: 0.4;
+  /* DS-CMP-HON-1 (PRD 0022 re-validation V-08): the theme's hatch over the 40 % track; `--hatch: none` (CRT, Win98,
+     WinXP) leaves the plain dim track, never an empty strip. */
+  background: var(--hatch), color-mix(in srgb, var(--track) 40%, transparent);
 }
 
 /* Daily bars (DS-CHT-5, DS-CHT-4: 0-100 axis, dashed lines at 50 and 100). */
 .bars {
   position: relative;
   height: 170px;
-  padding: 20px 0 var(--space-5) 30px; /* room for the value over a bar and the 0/50/100 axis */
+  /* Room for the value over a bar and the 0/50/100 axis (PRD 0022 re-validation V-11: on the space scale). */
+  --axis: calc(var(--space-6) + var(--space-1) + var(--space-0));
+  padding: var(--space-5) 0 var(--space-5) var(--axis);
 }
 .bars .grid-line {
   position: absolute;
-  left: 30px;
+  left: var(--axis);
   right: 0;
   border-top: 1px dashed var(--border);
 }
 .bars .g100 {
-  top: 20px;
+  top: var(--space-5);
 }
 .bars .g50 {
-  top: calc(20px + (100% - 40px) / 2);
+  top: calc(var(--space-5) + (100% - 2 * var(--space-5)) / 2);
 }
 .bars .g0 {
-  top: calc(100% - 20px);
+  top: calc(100% - var(--space-5));
   border-top-style: solid;
 }
 .bars .grid-line em {
@@ -189,14 +187,14 @@
   right: calc(100% + 6px);
   top: -7px;
   color: var(--fg-muted);
-  font: normal 11px var(--font-mono);
+  font: normal var(--text-micro) var(--font-mono), var(--font-script);
 }
 .bars .x-val {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
   color: var(--fg);
-  font: 11px/14px var(--font-mono);
+  font: var(--text-micro) / 14px var(--font-mono), var(--font-script);
   white-space: nowrap;
 }
 .bars ul {
@@ -330,8 +328,7 @@
 }
 .mini-bar.gap {
   height: 100%;
-  background: var(--hatch);
-  opacity: 0.5;
+  background: var(--hatch), color-mix(in srgb, var(--track) 40%, transparent); /* DS-CMP-HON-1, as above */
 }
 .st-sum {
   color: var(--fg-muted);
@@ -475,7 +472,7 @@
   top: calc(50% - 7px);
   margin-left: var(--space-2);
   color: var(--fg);
-  font: 11px/14px var(--font-mono);
+  font: var(--text-micro) / 14px var(--font-mono), var(--font-script);
   white-space: nowrap;
 }
 .tl-time.flip {
@@ -487,11 +484,12 @@
   margin: calc(-1 * var(--sp-2)) 0 0;
   font-size: var(--text-sm);
 }
+/* DS-TOK-HIT-1 (PRD 0022 re-validation V-10): the icon-only lane button is a 24 px square. */
 .timeline.compact .tl-axis {
-  padding-left: calc(20px + var(--sp-2));
+  padding-left: calc(var(--space-6) + var(--sp-2));
 }
 .timeline.compact .tl-lane {
-  grid-template-columns: 20px minmax(0, 1fr);
+  grid-template-columns: var(--space-6) minmax(0, 1fr);
   gap: var(--sp-2);
 }
 .timeline.compact .tl-who {
@@ -523,8 +521,9 @@
 }
 .timeline.compact .tl-who {
   align-self: end;
-  min-height: 0;
-  margin-bottom: 5px;
+  min-width: var(--space-6);
+  min-height: var(--space-6);
+  margin-bottom: 0;
 }
 .timeline.compact .tl-lanes {
   margin-top: var(--sp-1);

@@ -58,7 +58,7 @@ export function metricCardHtml(r, m, { eye = false, stale = false } = {}) {
       <div class="metric-right">
         ${text == null && pct != null ? `<span class="pct" title="${te(`metric.level.${lv}`, { pct: Math.round(pct) })}">${fmtShare(pct)}<small>${te("card.available")}</small></span>` : ""}
         ${eye ? metricAlertHtml(r, m) : ""}
-        ${eye ? `<button class="icon" data-hide="${esc(metricKey(r, m))}" title="${te(hid ? "common.show" : "common.hide")}" aria-label="${te(hid ? "common.show" : "common.hide")}">${icon(hid ? "eye" : "eyeOff")}</button>` : ""}
+        ${eye ? `<button class="icon" data-hide="${esc(metricKey(r, m))}" title="${te(hid ? "common.show" : "common.hide")}" aria-label="${te(hid ? "detail.metric.show" : "detail.metric.hide", { name: limitLabel(r, m) })}">${icon(hid ? "eye" : "eyeOff")}</button>` : ""}
       </div>
     </div>
     ${gauge}
