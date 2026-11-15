@@ -359,8 +359,20 @@
   "cost.scan.no_access": "{source}: kein Zugriff auf die Verzeichnisse ({paths}); nichts wurde umgangen.",
   "cost.scan.no_logs": "{source}: keine Logs in den Verzeichnissen gefunden.",
   "cost.scan.off": "{source}: ausgeschaltet; nichts wird gelesen.",
-  "cost.scan.partial": "{source}: {files} Log(s); {requests} neue Anfrage(n); {invalid} ungültige Zeile(n) ignoriert; das Lesen wird im nächsten Zyklus fortgesetzt.",
-  "cost.scan.ready": "{source}: {files} Log(s); {requests} neue Anfrage(n); {invalid} ungültige Zeile(n) ignoriert.",
+  "cost.scan.partial": "{source}: {files}; {requests}; {invalid}; das Lesen wird im nächsten Zyklus fortgesetzt.",
+  "cost.scan.ready": "{source}: {files}; {requests}; {invalid}.",
+  "cost.scan.files": {
+    "one": "{count} Log",
+    "other": "{count} Logs"
+  },
+  "cost.scan.requests": {
+    "one": "{count} neue Anfrage",
+    "other": "{count} neue Anfragen"
+  },
+  "cost.scan.invalid": {
+    "one": "{count} ungültige Zeile ignoriert",
+    "other": "{count} ungültige Zeilen ignoriert"
+  },
   "cost.span.days": {
     "one": "Letzter Tag",
     "other": "Letzte {count} Tage"

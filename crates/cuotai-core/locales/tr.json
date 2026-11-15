@@ -359,8 +359,20 @@
   "cost.scan.no_access": "{source}: dizinlere erişim yok ({paths}); hiçbir yol aşılmaya çalışılmadı.",
   "cost.scan.no_logs": "{source}: dizinlerde günlük bulunamadı.",
   "cost.scan.off": "{source}: kapalı; hiçbir şey okunmuyor.",
-  "cost.scan.partial": "{source}: {files} günlük; {requests} yeni istek; {invalid} geçersiz satır yok sayıldı; okuma sonraki döngüde sürer.",
-  "cost.scan.ready": "{source}: {files} günlük; {requests} yeni istek; {invalid} geçersiz satır yok sayıldı.",
+  "cost.scan.partial": "{source}: {files}; {requests}; {invalid}; okuma sonraki döngüde sürer.",
+  "cost.scan.ready": "{source}: {files}; {requests}; {invalid}.",
+  "cost.scan.files": {
+    "one": "{count} günlük",
+    "other": "{count} günlük"
+  },
+  "cost.scan.requests": {
+    "one": "{count} yeni istek",
+    "other": "{count} yeni istek"
+  },
+  "cost.scan.invalid": {
+    "one": "{count} geçersiz satır yok sayıldı",
+    "other": "{count} geçersiz satır yok sayıldı"
+  },
   "cost.span.days": {
     "one": "Son {count} gün",
     "other": "Son {count} gün"

@@ -329,7 +329,13 @@
   "settings.folder.env": "CUOTAI_USER_DIR 変数で設定されています。ここでの選択は、変数を削除した後に有効になります。",
   "settings.folder.custom": "カスタムフォルダー",
   "settings.folder.default": "既定のフォルダー",
-  "settings.folder.loaded": "テーマ {themes} 件と言語 {locales} 件を読み込みました",
+  "settings.folder.loaded": "{themes}と{locales}を読み込みました",
+  "settings.folder.themes": {
+    "other": "テーマ {count} 件"
+  },
+  "settings.folder.locales": {
+    "other": "言語 {count} 件"
+  },
   "settings.folder.choose": "フォルダーを選択…",
   "settings.folder.reset": "既定に戻す",
   "settings.folder.open": "フォルダーを開く",
@@ -847,7 +853,13 @@
   "settings.cost.since": "{at} からオン。",
   "settings.cost.off": "オフ：何も読み取りません。",
   "settings.cost.dirs": "次の場所の {pattern} ファイルを読み取ります：",
-  "settings.cost.indexed": "インデックス内：ログ {files} 件、無効な行 {invalid} 行を無視。",
+  "settings.cost.indexed": "インデックス内：{files}、{invalid}。",
+  "settings.cost.indexedFiles": {
+    "other": "ログ {count} 件"
+  },
+  "settings.cost.indexedInvalid": {
+    "other": "無効な行 {count} 行を無視"
+  },
   "settings.cost.state.starting": "読み取りを開始しています…",
   "settings.cost.state.scanning": "ログの増えた部分を読み取っています…",
   "settings.cost.state.paused": "一時停止中：コンピューターが省電力中です。終わると読み取りを再開します。",
@@ -858,7 +870,9 @@
   "settings.cost.erase": "インデックスを消去",
   "settings.cost.eraseText": "ローカル費用のインデックスをすべて消去しますか？オンのままのソースは最初からログを読み直します。",
   "settings.cost.eraseConfirm": "インデックスを消去",
-  "settings.cost.erased": "インデックスを消去しました：{count} 件。",
+  "settings.cost.erased": {
+    "other": "インデックスを消去しました：{count} 件。"
+  },
   "settings.cost.plans": "プランと第2通貨",
   "settings.kw.cost-plans": "ローカル 費用 プラン 第2通貨 価格 為替レート",
   "settings.kw.cost-plan": "ローカル 費用 プラン 価格 サブスクリプション 支払い 月額 価値",
@@ -926,7 +940,9 @@
   "settings.cost.prices": "価格表",
   "settings.cost.pricesHelp": "100 万トークンあたりの USD。何もダウンロードしません。同じ形式で手動編集した pricing.json がモデルごとに組み込みの価格表より優先されます。無効なファイルは全体が無視されます。",
   "settings.cost.pricesEmbedded": "組み込みの価格表：{date} 時点の価格。出典：{source}。",
-  "settings.cost.pricesUser": "独自の価格表：{date} 時点の価格。出典：{source}。組み込みより優先されるモデル {count} 件。",
+  "settings.cost.pricesUser": {
+    "other": "独自の価格表：{date} 時点の価格。出典：{source}。組み込みより優先されるモデル {count} 件。"
+  },
   "settings.cost.pricesMissing": "pricing.json がありません。同じ形式で作成すると価格を確認・変更できます。",
   "settings.cost.pricesFile": "独自の価格表：",
   "settings.cost.col.model": "モデル",
@@ -966,7 +982,9 @@
   "settings.costBy.col.project": "プロジェクト",
   "settings.costBy.minutes": "{m}分",
   "settings.costBy.hours": "{h}時間{m}分",
-  "settings.costBy.moreSessions": "古いセッション {count} 件は表示していません。",
+  "settings.costBy.moreSessions": {
+    "other": "古いセッション {count} 件は表示していません。"
+  },
   "settings.costBy.providerWindow": "プロバイダーの枠: {pct}% 使用、{at} にリセット",
   "settings.costBy.providerReset": "プロバイダーの枠: {at} にリセット",
   "settings.costBy.liveTitle": "進行中のブロック · {source}",
@@ -978,7 +996,9 @@
   "settings.costBy.hide": "非表示",
   "settings.costBy.show": "合計に含める",
   "settings.costBy.hidden": "非表示",
-  "settings.costBy.hiddenNote": "非表示のプロジェクト {count} 件: 一覧には残りますが、合計には含まれません。",
+  "settings.costBy.hiddenNote": {
+    "other": "非表示のプロジェクト {count} 件: 一覧には残りますが、合計には含まれません。"
+  },
   "settings.costBy.blockDefault": "ブロックの長さ（既定 {hours} 時間）",
   "settings.costBy.blockHours": "{source} のブロックの長さ（時間）",
   "settings.costBy.hoursUnit": "時間",

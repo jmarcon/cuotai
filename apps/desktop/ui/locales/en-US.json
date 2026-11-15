@@ -329,7 +329,15 @@
   "settings.folder.env": "Set by the CUOTAI_USER_DIR variable; the choice here only applies once it is removed.",
   "settings.folder.custom": "Custom folder",
   "settings.folder.default": "Default folder",
-  "settings.folder.loaded": "{themes} themes and {locales} languages loaded",
+  "settings.folder.loaded": "{themes} and {locales} loaded",
+  "settings.folder.themes": {
+    "one": "{count} theme",
+    "other": "{count} themes"
+  },
+  "settings.folder.locales": {
+    "one": "{count} language",
+    "other": "{count} languages"
+  },
   "settings.folder.choose": "Choose folder…",
   "settings.folder.reset": "Restore default",
   "settings.folder.open": "Open folder",
@@ -851,7 +859,15 @@
   "settings.cost.since": "On since {at}.",
   "settings.cost.off": "Off: nothing is read.",
   "settings.cost.dirs": "Reads the {pattern} files of:",
-  "settings.cost.indexed": "In the index: {files} log(s), {invalid} invalid line(s) ignored.",
+  "settings.cost.indexed": "In the index: {files}, {invalid}.",
+  "settings.cost.indexedFiles": {
+    "one": "{count} log",
+    "other": "{count} logs"
+  },
+  "settings.cost.indexedInvalid": {
+    "one": "{count} invalid line ignored",
+    "other": "{count} invalid lines ignored"
+  },
   "settings.cost.state.starting": "Starting to read…",
   "settings.cost.state.scanning": "Reading what grew in the logs…",
   "settings.cost.state.paused": "Paused: the computer is saving energy; reading resumes when it stops.",
@@ -862,7 +878,10 @@
   "settings.cost.erase": "Erase the index",
   "settings.cost.eraseText": "Erase the whole local cost index? Sources that stay on read their logs again from the start.",
   "settings.cost.eraseConfirm": "Erase the index",
-  "settings.cost.erased": "Index erased: {count} record(s).",
+  "settings.cost.erased": {
+    "one": "Index erased: {count} record.",
+    "other": "Index erased: {count} records."
+  },
   "settings.cost.plans": "Plans and second currency",
   "settings.kw.cost-plans": "local cost plans second currency plan price exchange rate",
   "settings.kw.cost-plan": "local cost plan price subscription pay monthly worth",
@@ -930,7 +949,10 @@
   "settings.cost.prices": "Price table",
   "settings.cost.pricesHelp": "USD per million tokens. Nothing is downloaded: your pricing.json, edited by hand in the same format, wins over the embedded table model by model; an invalid file is ignored as a whole.",
   "settings.cost.pricesEmbedded": "Embedded table: prices of {date}; source: {source}.",
-  "settings.cost.pricesUser": "Your table: prices of {date}; source: {source}; {count} model(s) over the embedded table.",
+  "settings.cost.pricesUser": {
+    "one": "Your table: prices of {date}; source: {source}; {count} model over the embedded table.",
+    "other": "Your table: prices of {date}; source: {source}; {count} models over the embedded table."
+  },
   "settings.cost.pricesMissing": "You have no pricing.json; create it in the same format to review or change prices.",
   "settings.cost.pricesFile": "Your table:",
   "settings.cost.col.model": "Model",
@@ -970,7 +992,10 @@
   "settings.costBy.col.project": "Project",
   "settings.costBy.minutes": "{m} min",
   "settings.costBy.hours": "{h} h {m} min",
-  "settings.costBy.moreSessions": "{count} older session(s) not listed.",
+  "settings.costBy.moreSessions": {
+    "one": "{count} older session not listed.",
+    "other": "{count} older sessions not listed."
+  },
   "settings.costBy.providerWindow": "Provider window: {pct}% used, resets at {at}",
   "settings.costBy.providerReset": "Provider window: resets at {at}",
   "settings.costBy.liveTitle": "Active block · {source}",
@@ -982,7 +1007,10 @@
   "settings.costBy.hide": "Hide",
   "settings.costBy.show": "Count",
   "settings.costBy.hidden": "Hidden",
-  "settings.costBy.hiddenNote": "{count} hidden project(s): listed, but left out of the totals.",
+  "settings.costBy.hiddenNote": {
+    "one": "{count} hidden project: listed, but left out of the totals.",
+    "other": "{count} hidden projects: listed, but left out of the totals."
+  },
   "settings.costBy.blockDefault": "Block length; default {hours} h",
   "settings.costBy.blockHours": "Block length of {source}, in hours",
   "settings.costBy.hoursUnit": "h",

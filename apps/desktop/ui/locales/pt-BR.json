@@ -335,7 +335,15 @@
   "settings.folder.env": "Definida pela variável CUOTAI_USER_DIR; a escolha por aqui só vale depois de removê-la.",
   "settings.folder.custom": "Pasta personalizada",
   "settings.folder.default": "Pasta padrão",
-  "settings.folder.loaded": "{themes} temas e {locales} idiomas carregados",
+  "settings.folder.loaded": "{themes} e {locales} carregados",
+  "settings.folder.themes": {
+    "one": "{count} tema",
+    "other": "{count} temas"
+  },
+  "settings.folder.locales": {
+    "one": "{count} idioma",
+    "other": "{count} idiomas"
+  },
   "settings.folder.choose": "Escolher pasta…",
   "settings.folder.reset": "Restaurar padrão",
   "settings.folder.open": "Abrir pasta",
@@ -858,7 +866,15 @@
   "settings.cost.since": "Ligado desde {at}.",
   "settings.cost.off": "Desligado: nada é lido.",
   "settings.cost.dirs": "Lê os arquivos {pattern} de:",
-  "settings.cost.indexed": "No índice: {files} log(s), {invalid} linha(s) inválida(s) ignorada(s).",
+  "settings.cost.indexed": "No índice: {files}, {invalid}.",
+  "settings.cost.indexedFiles": {
+    "one": "{count} log",
+    "other": "{count} logs"
+  },
+  "settings.cost.indexedInvalid": {
+    "one": "{count} linha inválida ignorada",
+    "other": "{count} linhas inválidas ignoradas"
+  },
   "settings.cost.state.starting": "Iniciando a leitura…",
   "settings.cost.state.scanning": "Lendo o que cresceu nos logs…",
   "settings.cost.state.paused": "Pausado: o computador está em modo de economia de energia; a leitura volta quando ele sair.",
@@ -869,7 +885,10 @@
   "settings.cost.erase": "Apagar o índice",
   "settings.cost.eraseText": "Apagar todo o índice de custo local? As fontes que continuarem ligadas leem seus logs de novo desde o início.",
   "settings.cost.eraseConfirm": "Apagar o índice",
-  "settings.cost.erased": "Índice apagado: {count} registro(s).",
+  "settings.cost.erased": {
+    "one": "Índice apagado: {count} registro.",
+    "other": "Índice apagado: {count} registros."
+  },
   "settings.cost.plans": "Planos e segunda moeda",
   "settings.kw.cost-plans": "custo local planos segunda moeda preço do plano câmbio",
   "settings.kw.cost-plan": "custo local plano preço assinatura pago mensal vale",
@@ -937,7 +956,10 @@
   "settings.cost.prices": "Tabela de preços",
   "settings.cost.pricesHelp": "USD por milhão de tokens. Nada é baixado: o seu pricing.json, editado à mão no mesmo formato, vale sobre a tabela embutida modelo a modelo; um arquivo inválido é ignorado por inteiro.",
   "settings.cost.pricesEmbedded": "Tabela embutida: preços de {date}; fonte: {source}.",
-  "settings.cost.pricesUser": "Sua tabela: preços de {date}; fonte: {source}; {count} modelo(s) sobre a embutida.",
+  "settings.cost.pricesUser": {
+    "one": "Sua tabela: preços de {date}; fonte: {source}; {count} modelo sobre a embutida.",
+    "other": "Sua tabela: preços de {date}; fonte: {source}; {count} modelos sobre a embutida."
+  },
   "settings.cost.pricesMissing": "Você não tem pricing.json; crie-o no mesmo formato para revisar ou trocar preços.",
   "settings.cost.pricesFile": "Sua tabela:",
   "settings.cost.col.model": "Modelo",
@@ -977,7 +999,10 @@
   "settings.costBy.col.project": "Projeto",
   "settings.costBy.minutes": "{m} min",
   "settings.costBy.hours": "{h} h {m} min",
-  "settings.costBy.moreSessions": "{count} sessão(ões) mais antiga(s) não listada(s).",
+  "settings.costBy.moreSessions": {
+    "one": "{count} sessão mais antiga não listada.",
+    "other": "{count} sessões mais antigas não listadas."
+  },
   "settings.costBy.providerWindow": "Janela do provedor: {pct}% usado, reinicia às {at}",
   "settings.costBy.providerReset": "Janela do provedor: reinicia às {at}",
   "settings.costBy.liveTitle": "Bloco ativo · {source}",
@@ -989,7 +1014,10 @@
   "settings.costBy.hide": "Ocultar",
   "settings.costBy.show": "Contar",
   "settings.costBy.hidden": "Oculto",
-  "settings.costBy.hiddenNote": "{count} projeto(s) oculto(s): listado(s), mas fora dos totais.",
+  "settings.costBy.hiddenNote": {
+    "one": "{count} projeto oculto: listado, mas fora dos totais.",
+    "other": "{count} projetos ocultos: listados, mas fora dos totais."
+  },
   "settings.costBy.blockDefault": "Duração do bloco; padrão {hours} h",
   "settings.costBy.blockHours": "Duração do bloco de {source}, em horas",
   "settings.costBy.hoursUnit": "h",

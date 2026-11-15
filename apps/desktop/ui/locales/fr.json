@@ -332,7 +332,15 @@
   "settings.folder.env": "Défini par la variable CUOTAI_USER_DIR ; le choix ici ne s’applique qu’une fois celle-ci retirée.",
   "settings.folder.custom": "Dossier personnalisé",
   "settings.folder.default": "Dossier par défaut",
-  "settings.folder.loaded": "{themes} thèmes et {locales} langues chargés",
+  "settings.folder.loaded": "{themes} et {locales} chargés",
+  "settings.folder.themes": {
+    "one": "{count} thème",
+    "other": "{count} thèmes"
+  },
+  "settings.folder.locales": {
+    "one": "{count} langue",
+    "other": "{count} langues"
+  },
   "settings.folder.choose": "Choisir un dossier…",
   "settings.folder.reset": "Rétablir par défaut",
   "settings.folder.open": "Ouvrir le dossier",
@@ -854,7 +862,15 @@
   "settings.cost.since": "Activé depuis {at}.",
   "settings.cost.off": "Désactivé : rien n’est lu.",
   "settings.cost.dirs": "Lit les fichiers {pattern} de :",
-  "settings.cost.indexed": "Dans l’index : {files} journal(aux), {invalid} ligne(s) invalide(s) ignorée(s).",
+  "settings.cost.indexed": "Dans l’index : {files}, {invalid}.",
+  "settings.cost.indexedFiles": {
+    "one": "{count} journal",
+    "other": "{count} journaux"
+  },
+  "settings.cost.indexedInvalid": {
+    "one": "{count} ligne invalide ignorée",
+    "other": "{count} lignes invalides ignorées"
+  },
   "settings.cost.state.starting": "Début de la lecture…",
   "settings.cost.state.scanning": "Lecture de ce qui a été ajouté aux journaux…",
   "settings.cost.state.paused": "En pause : l’ordinateur économise l’énergie ; la lecture reprend quand il s’arrête.",
@@ -865,7 +881,10 @@
   "settings.cost.erase": "Effacer l’index",
   "settings.cost.eraseText": "Effacer tout l’index du coût local ? Les sources qui restent activées relisent leurs journaux depuis le début.",
   "settings.cost.eraseConfirm": "Effacer l’index",
-  "settings.cost.erased": "Index effacé : {count} enregistrement(s).",
+  "settings.cost.erased": {
+    "one": "Index effacé : {count} enregistrement.",
+    "other": "Index effacé : {count} enregistrements."
+  },
   "settings.cost.plans": "Forfaits et deuxième devise",
   "settings.kw.cost-plans": "coût local forfaits deuxième devise prix du forfait taux de change",
   "settings.kw.cost-plan": "coût local forfait prix abonnement payer mensuel rentable",
@@ -933,7 +952,10 @@
   "settings.cost.prices": "Table des prix",
   "settings.cost.pricesHelp": "USD par million de tokens. Rien n’est téléchargé : votre pricing.json, modifié à la main au même format, l’emporte sur la table intégrée modèle par modèle ; un fichier invalide est ignoré en entier.",
   "settings.cost.pricesEmbedded": "Table intégrée : prix du {date} ; source : {source}.",
-  "settings.cost.pricesUser": "Votre table : prix du {date} ; source : {source} ; {count} modèle(s) prioritaires sur la table intégrée.",
+  "settings.cost.pricesUser": {
+    "one": "Votre table : prix du {date} ; source : {source} ; {count} modèle prioritaire sur la table intégrée.",
+    "other": "Votre table : prix du {date} ; source : {source} ; {count} modèles prioritaires sur la table intégrée."
+  },
   "settings.cost.pricesMissing": "Vous n’avez pas de pricing.json ; créez-le au même format pour revoir ou modifier les prix.",
   "settings.cost.pricesFile": "Votre table :",
   "settings.cost.col.model": "Modèle",
@@ -973,7 +995,10 @@
   "settings.costBy.col.project": "Projet",
   "settings.costBy.minutes": "{m} min",
   "settings.costBy.hours": "{h} h {m} min",
-  "settings.costBy.moreSessions": "{count} session(s) plus ancienne(s) non listée(s).",
+  "settings.costBy.moreSessions": {
+    "one": "{count} session plus ancienne non listée.",
+    "other": "{count} sessions plus anciennes non listées."
+  },
   "settings.costBy.providerWindow": "Fenêtre du fournisseur : {pct} % utilisés, réinitialisation à {at}",
   "settings.costBy.providerReset": "Fenêtre du fournisseur : réinitialisation à {at}",
   "settings.costBy.liveTitle": "Bloc actif · {source}",
@@ -985,7 +1010,10 @@
   "settings.costBy.hide": "Masquer",
   "settings.costBy.show": "Compter",
   "settings.costBy.hidden": "Masqué",
-  "settings.costBy.hiddenNote": "{count} projet(s) masqué(s) : listé(s), mais exclu(s) des totaux.",
+  "settings.costBy.hiddenNote": {
+    "one": "{count} projet masqué : listé, mais exclu des totaux.",
+    "other": "{count} projets masqués : listés, mais exclus des totaux."
+  },
   "settings.costBy.blockDefault": "Durée du bloc ; par défaut {hours} h",
   "settings.costBy.blockHours": "Durée du bloc de {source}, en heures",
   "settings.costBy.hoursUnit": "h",

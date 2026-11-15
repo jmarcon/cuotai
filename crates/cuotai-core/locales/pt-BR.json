@@ -356,8 +356,20 @@
   "cost.scan.no_access": "{source}: sem acesso aos diretórios ({paths}); nada foi contornado.",
   "cost.scan.no_logs": "{source}: nenhum log encontrado nos diretórios.",
   "cost.scan.off": "{source}: desligado; nada é lido.",
-  "cost.scan.partial": "{source}: {files} log(s); {requests} requisição(ões) nova(s); {invalid} linha(s) inválida(s) ignorada(s); a leitura continua no próximo ciclo.",
-  "cost.scan.ready": "{source}: {files} log(s); {requests} requisição(ões) nova(s); {invalid} linha(s) inválida(s) ignorada(s).",
+  "cost.scan.partial": "{source}: {files}; {requests}; {invalid}; a leitura continua no próximo ciclo.",
+  "cost.scan.ready": "{source}: {files}; {requests}; {invalid}.",
+  "cost.scan.files": {
+    "one": "{count} log",
+    "other": "{count} logs"
+  },
+  "cost.scan.requests": {
+    "one": "{count} requisição nova",
+    "other": "{count} requisições novas"
+  },
+  "cost.scan.invalid": {
+    "one": "{count} linha inválida ignorada",
+    "other": "{count} linhas inválidas ignoradas"
+  },
   "cost.span.days": {
     "one": "Último {count} dia",
     "other": "Últimos {count} dias"

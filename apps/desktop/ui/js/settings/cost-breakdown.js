@@ -5,7 +5,7 @@
 // Blocks shows the active block first with its live figures (the core's `LiveBlock`), read again from the index every
 // 30 s while the tab is shown (no extra scan); the provider window sits beside it with distinct words, never merged.
 // Every figure comes from the core (`cost_breakdown`); nothing is computed here but display formatting.
-import { t, te, tle } from "../i18n.js";
+import { t, te, tl } from "../i18n.js";
 import { costBreakdown, costSetHidden, costSetLabel, esc, fmtDate, fmtNumber } from "../lib.js";
 import { approxText, fmtTokens } from "../cost.js";
 import { l10nError } from "./common.js";
@@ -52,7 +52,7 @@ function modelsHtml(summary) {
 }
 
 function sessionsHtml(page) {
-  const rows = page.sessions.map((s) => `<tr data-session="${esc(s.session)}"><th scope="row">${labelField("session", s.session, s.label, tle(s.name))}
+  const rows = page.sessions.map((s) => `<tr data-session="${esc(s.session)}"><th scope="row">${labelField("session", s.session, s.label, tl(s.name))}
       <span class="sub">${esc(stamp(s.first))}–${esc(time(s.last))}</span></th><td>${esc(SOURCE_LABELS[s.source] ?? s.source)}</td><td>${esc(minutes(s.duration_minutes))}</td>
     <td>${esc(fmtTokens(sum(s.estimate.tokens)))}</td><td>${esc(approxText(s.estimate))}</td></tr>`);
   const more = page.count > page.sessions.length ? `<p class="hint">${te("settings.costBy.moreSessions", { count: page.count - page.sessions.length })}</p>` : "";
@@ -72,8 +72,8 @@ function liveHtml(live) {
       <h4>${te("settings.costBy.liveTitle", { source: SOURCE_LABELS[b.source] ?? b.source })}</h4>
       <p>${te("settings.costBy.liveWindow", { start: time(b.start), end: time(b.end), elapsed: minutes(l.elapsed_minutes), left: minutes(l.left_minutes) })}</p>
       <p><b>${esc(approxText(b.estimate))}</b> · ${te("cost.tokens", { amount: fmtTokens(sum(b.estimate.tokens)) })}</p>
-      <p>${l.line ? esc(tle(l.line)) : te("settings.costBy.noRate")}</p>
-      ${l.projection ? `<p data-cost-projection>${esc(tle(l.projection))}</p>` : ""}${provider}
+      <p>${l.line ? esc(tl(l.line)) : te("settings.costBy.noRate")}</p>
+      ${l.projection ? `<p data-cost-projection>${esc(tl(l.projection))}</p>` : ""}${provider}
       <p class="hint">${te("settings.costBy.localEstimate")}</p></section>`;
   }).join("");
 }
@@ -88,7 +88,8 @@ function blocksHtml(page) {
 
 function projectsHtml(page) {
   const rows = page.projects.map((p) => {
-    const name = tle(p.name);
+    // PRD 0020 re-validation R-06: plain text here, escaped once where it is written.
+    const name = tl(p.name);
     const hide = p.project ? `<button type="button" class="btn sm" aria-pressed="${p.hidden}" data-cost-hide="${esc(p.project)}">${te(p.hidden ? "settings.costBy.show" : "settings.costBy.hide")}</button>` : "";
     const cell = p.project ? labelField("project", p.project, p.label, p.folder_hint ?? name) : esc(name);
     return `<tr class="${p.hidden ? "lc-hidden" : ""}"><th scope="row">${cell}${p.hidden ? ` <span class="badge">${te("settings.costBy.hidden")}</span>` : ""}</th>

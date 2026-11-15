@@ -332,7 +332,15 @@
   "settings.folder.env": "CUOTAI_USER_DIR वेरिएबल से सेट है; यहाँ का चयन तभी लागू होगा जब उसे हटाया जाए।",
   "settings.folder.custom": "अपना फ़ोल्डर",
   "settings.folder.default": "डिफ़ॉल्ट फ़ोल्डर",
-  "settings.folder.loaded": "{themes} थीम और {locales} भाषाएँ लोड हुईं",
+  "settings.folder.loaded": "{themes} और {locales} लोड हुईं",
+  "settings.folder.themes": {
+    "one": "{count} थीम",
+    "other": "{count} थीम"
+  },
+  "settings.folder.locales": {
+    "one": "{count} भाषा",
+    "other": "{count} भाषाएँ"
+  },
   "settings.folder.choose": "फ़ोल्डर चुनें…",
   "settings.folder.reset": "डिफ़ॉल्ट बहाल करें",
   "settings.folder.open": "फ़ोल्डर खोलें",
@@ -854,7 +862,15 @@
   "settings.cost.since": "{at} से चालू।",
   "settings.cost.off": "बंद: कुछ नहीं पढ़ा जाता।",
   "settings.cost.dirs": "इनकी {pattern} फ़ाइलें पढ़ता है:",
-  "settings.cost.indexed": "इंडेक्स में: {files} लॉग, {invalid} अमान्य पंक्तियाँ अनदेखी।",
+  "settings.cost.indexed": "इंडेक्स में: {files}, {invalid}।",
+  "settings.cost.indexedFiles": {
+    "one": "{count} लॉग",
+    "other": "{count} लॉग"
+  },
+  "settings.cost.indexedInvalid": {
+    "one": "{count} अमान्य पंक्ति अनदेखी",
+    "other": "{count} अमान्य पंक्तियाँ अनदेखी"
+  },
   "settings.cost.state.starting": "पढ़ना शुरू हो रहा है…",
   "settings.cost.state.scanning": "लॉग में जो बढ़ा है वह पढ़ा जा रहा है…",
   "settings.cost.state.paused": "रुका हुआ: कंप्यूटर ऊर्जा बचा रहा है; रुकने पर पढ़ना फिर शुरू होगा।",
@@ -865,7 +881,10 @@
   "settings.cost.erase": "इंडेक्स मिटाएँ",
   "settings.cost.eraseText": "पूरा स्थानीय लागत इंडेक्स मिटाएँ? जो स्रोत चालू रहते हैं वे लॉग को शुरू से फिर पढ़ते हैं।",
   "settings.cost.eraseConfirm": "इंडेक्स मिटाएँ",
-  "settings.cost.erased": "इंडेक्स मिटा दिया गया: {count} रिकॉर्ड।",
+  "settings.cost.erased": {
+    "one": "इंडेक्स मिटा दिया गया: {count} रिकॉर्ड।",
+    "other": "इंडेक्स मिटा दिया गया: {count} रिकॉर्ड।"
+  },
   "settings.cost.plans": "प्लान और दूसरी मुद्रा",
   "settings.kw.cost-plans": "स्थानीय लागत प्लान दूसरी मुद्रा प्लान की कीमत विनिमय दर",
   "settings.kw.cost-plan": "स्थानीय लागत प्लान कीमत सदस्यता भुगतान मासिक मूल्य",
@@ -933,7 +952,10 @@
   "settings.cost.prices": "कीमत तालिका",
   "settings.cost.pricesHelp": "प्रति दस लाख टोकन USD में। कुछ डाउनलोड नहीं होता: उसी फ़ॉर्मैट में हाथ से संपादित आपकी pricing.json मॉडल दर मॉडल अंतर्निहित तालिका पर भारी पड़ती है; अमान्य फ़ाइल पूरी की पूरी अनदेखी की जाती है।",
   "settings.cost.pricesEmbedded": "अंतर्निहित तालिका: {date} की कीमतें; स्रोत: {source}।",
-  "settings.cost.pricesUser": "आपकी तालिका: {date} की कीमतें; स्रोत: {source}; अंतर्निहित तालिका पर भारी {count} मॉडल।",
+  "settings.cost.pricesUser": {
+    "one": "आपकी तालिका: {date} की कीमतें; स्रोत: {source}; अंतर्निहित तालिका पर भारी {count} मॉडल।",
+    "other": "आपकी तालिका: {date} की कीमतें; स्रोत: {source}; अंतर्निहित तालिका पर भारी {count} मॉडल।"
+  },
   "settings.cost.pricesMissing": "आपके पास pricing.json नहीं है; कीमतें जाँचने या बदलने के लिए उसे इसी फ़ॉर्मैट में बनाएँ।",
   "settings.cost.pricesFile": "आपकी तालिका:",
   "settings.cost.col.model": "मॉडल",
@@ -973,7 +995,10 @@
   "settings.costBy.col.project": "प्रोजेक्ट",
   "settings.costBy.minutes": "{m} मि॰",
   "settings.costBy.hours": "{h} घं॰ {m} मि॰",
-  "settings.costBy.moreSessions": "{count} पुराने सत्र सूची में नहीं।",
+  "settings.costBy.moreSessions": {
+    "one": "{count} पुराना सत्र सूची में नहीं।",
+    "other": "{count} पुराने सत्र सूची में नहीं।"
+  },
   "settings.costBy.providerWindow": "प्रदाता विंडो: {pct}% उपयोग, {at} पर रीसेट",
   "settings.costBy.providerReset": "प्रदाता विंडो: {at} पर रीसेट",
   "settings.costBy.liveTitle": "सक्रिय ब्लॉक · {source}",
@@ -985,7 +1010,10 @@
   "settings.costBy.hide": "छिपाएँ",
   "settings.costBy.show": "गिनें",
   "settings.costBy.hidden": "छिपा हुआ",
-  "settings.costBy.hiddenNote": "{count} छिपे प्रोजेक्ट: सूची में हैं, पर कुल में शामिल नहीं।",
+  "settings.costBy.hiddenNote": {
+    "one": "{count} छिपा प्रोजेक्ट: सूची में है, पर कुल में शामिल नहीं।",
+    "other": "{count} छिपे प्रोजेक्ट: सूची में हैं, पर कुल में शामिल नहीं।"
+  },
   "settings.costBy.blockDefault": "ब्लॉक की लंबाई; डिफ़ॉल्ट {hours} घं॰",
   "settings.costBy.blockHours": "{source} के ब्लॉक की लंबाई, घंटों में",
   "settings.costBy.hoursUnit": "घं॰",

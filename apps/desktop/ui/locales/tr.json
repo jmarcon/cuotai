@@ -332,7 +332,15 @@
   "settings.folder.env": "CUOTAI_USER_DIR değişkeniyle ayarlanmış; buradaki seçim yalnızca değişken kaldırıldığında geçerli olur.",
   "settings.folder.custom": "Özel klasör",
   "settings.folder.default": "Varsayılan klasör",
-  "settings.folder.loaded": "{themes} tema ve {locales} dil yüklendi",
+  "settings.folder.loaded": "{themes} ve {locales} yüklendi",
+  "settings.folder.themes": {
+    "one": "{count} tema",
+    "other": "{count} tema"
+  },
+  "settings.folder.locales": {
+    "one": "{count} dil",
+    "other": "{count} dil"
+  },
   "settings.folder.choose": "Klasör seç…",
   "settings.folder.reset": "Varsayılanı geri yükle",
   "settings.folder.open": "Klasörü aç",
@@ -854,7 +862,15 @@
   "settings.cost.since": "{at} tarihinden beri açık.",
   "settings.cost.off": "Kapalı: hiçbir şey okunmuyor.",
   "settings.cost.dirs": "Şu konumlardaki {pattern} dosyalarını okur:",
-  "settings.cost.indexed": "Dizinde: {files} günlük, {invalid} geçersiz satır yok sayıldı.",
+  "settings.cost.indexed": "Dizinde: {files}, {invalid}.",
+  "settings.cost.indexedFiles": {
+    "one": "{count} günlük",
+    "other": "{count} günlük"
+  },
+  "settings.cost.indexedInvalid": {
+    "one": "{count} geçersiz satır yok sayıldı",
+    "other": "{count} geçersiz satır yok sayıldı"
+  },
   "settings.cost.state.starting": "Okumaya başlanıyor…",
   "settings.cost.state.scanning": "Günlüklerde büyüyen kısım okunuyor…",
   "settings.cost.state.paused": "Duraklatıldı: bilgisayar enerji tasarrufu yapıyor; durduğunda okuma devam eder.",
@@ -865,7 +881,10 @@
   "settings.cost.erase": "Dizini sil",
   "settings.cost.eraseText": "Tüm yerel maliyet dizini silinsin mi? Açık kalan kaynaklar günlüklerini baştan yeniden okur.",
   "settings.cost.eraseConfirm": "Dizini sil",
-  "settings.cost.erased": "Dizin silindi: {count} kayıt.",
+  "settings.cost.erased": {
+    "one": "Dizin silindi: {count} kayıt.",
+    "other": "Dizin silindi: {count} kayıt."
+  },
   "settings.cost.plans": "Planlar, ikinci para birimi",
   "settings.kw.cost-plans": "yerel maliyet planlar ikinci para birimi plan fiyatı döviz kuru",
   "settings.kw.cost-plan": "yerel maliyet plan fiyat abonelik öde aylık değer",
@@ -933,7 +952,10 @@
   "settings.cost.prices": "Fiyat tablosu",
   "settings.cost.pricesHelp": "Milyon token başına USD. Hiçbir şey indirilmez: aynı biçimde elle düzenlediğiniz pricing.json, yerleşik tablonun yerine model model geçer; geçersiz bir dosya bütünüyle yok sayılır.",
   "settings.cost.pricesEmbedded": "Yerleşik tablo: {date} tarihli fiyatlar; kaynak: {source}.",
-  "settings.cost.pricesUser": "Sizin tablonuz: {date} tarihli fiyatlar; kaynak: {source}; yerleşik tablonun üzerine {count} model.",
+  "settings.cost.pricesUser": {
+    "one": "Sizin tablonuz: {date} tarihli fiyatlar; kaynak: {source}; yerleşik tablonun üzerine {count} model.",
+    "other": "Sizin tablonuz: {date} tarihli fiyatlar; kaynak: {source}; yerleşik tablonun üzerine {count} model."
+  },
   "settings.cost.pricesMissing": "pricing.json dosyanız yok; fiyatları gözden geçirmek veya değiştirmek için aynı biçimde oluşturun.",
   "settings.cost.pricesFile": "Sizin tablonuz:",
   "settings.cost.col.model": "Model",
@@ -973,7 +995,10 @@
   "settings.costBy.col.project": "Proje",
   "settings.costBy.minutes": "{m} dk",
   "settings.costBy.hours": "{h} sa {m} dk",
-  "settings.costBy.moreSessions": "{count} eski oturum listelenmedi.",
+  "settings.costBy.moreSessions": {
+    "one": "{count} eski oturum listelenmedi.",
+    "other": "{count} eski oturum listelenmedi."
+  },
   "settings.costBy.providerWindow": "Sağlayıcı penceresi: %{pct} kullanıldı, {at} saatinde sıfırlanır",
   "settings.costBy.providerReset": "Sağlayıcı penceresi: {at} saatinde sıfırlanır",
   "settings.costBy.liveTitle": "Etkin blok · {source}",
@@ -985,7 +1010,10 @@
   "settings.costBy.hide": "Gizle",
   "settings.costBy.show": "Say",
   "settings.costBy.hidden": "Gizli",
-  "settings.costBy.hiddenNote": "{count} gizli proje: listelenir ama toplamlara katılmaz.",
+  "settings.costBy.hiddenNote": {
+    "one": "{count} gizli proje: listelenir ama toplamlara katılmaz.",
+    "other": "{count} gizli proje: listelenir ama toplamlara katılmaz."
+  },
   "settings.costBy.blockDefault": "Blok uzunluğu; varsayılan {hours} sa",
   "settings.costBy.blockHours": "{source} blok uzunluğu, saat",
   "settings.costBy.hoursUnit": "sa",

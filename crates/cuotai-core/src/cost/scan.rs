@@ -172,16 +172,45 @@ impl SourceScan {
                 } else {
                     "cost.scan.partial"
                 },
+                // PRD 0020 re-validation V-10: each count is its own plural
+                // text (DS-MSG-12), never "log(s)".
                 params([
                     ("source", label.into()),
-                    ("files", self.files.into()),
-                    ("requests", self.requests.into()),
-                    ("invalid", self.invalid.into()),
+                    (
+                        "files",
+                        Localized::plural(
+                            "cost.scan.files",
+                            params([("count", self.files.into())]),
+                            "{count} log",
+                            "{count} logs",
+                        )
+                        .into(),
+                    ),
+                    (
+                        "requests",
+                        Localized::plural(
+                            "cost.scan.requests",
+                            params([("count", self.requests.into())]),
+                            "{count} new request",
+                            "{count} new requests",
+                        )
+                        .into(),
+                    ),
+                    (
+                        "invalid",
+                        Localized::plural(
+                            "cost.scan.invalid",
+                            params([("count", self.invalid.into())]),
+                            "{count} invalid line ignored",
+                            "{count} invalid lines ignored",
+                        )
+                        .into(),
+                    ),
                 ]),
                 if self.complete {
-                    "{source}: {files} log(s); {requests} new request(s); {invalid} invalid line(s) ignored."
+                    "{source}: {files}; {requests}; {invalid}."
                 } else {
-                    "{source}: {files} log(s); {requests} new request(s); {invalid} invalid line(s) ignored; reading continues in the next cycle."
+                    "{source}: {files}; {requests}; {invalid}; reading continues in the next cycle."
                 },
             ),
         }

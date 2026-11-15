@@ -329,7 +329,13 @@
   "settings.folder.env": "Được đặt bởi biến CUOTAI_USER_DIR; lựa chọn ở đây chỉ có hiệu lực khi biến đó được gỡ.",
   "settings.folder.custom": "Thư mục tùy chọn",
   "settings.folder.default": "Thư mục mặc định",
-  "settings.folder.loaded": "Đã tải {themes} giao diện và {locales} ngôn ngữ",
+  "settings.folder.loaded": "Đã tải {themes} và {locales}",
+  "settings.folder.themes": {
+    "other": "{count} giao diện"
+  },
+  "settings.folder.locales": {
+    "other": "{count} ngôn ngữ"
+  },
   "settings.folder.choose": "Chọn thư mục…",
   "settings.folder.reset": "Khôi phục mặc định",
   "settings.folder.open": "Mở thư mục",
@@ -847,7 +853,13 @@
   "settings.cost.since": "Bật từ {at}.",
   "settings.cost.off": "Tắt: không đọc gì.",
   "settings.cost.dirs": "Đọc các tệp {pattern} trong:",
-  "settings.cost.indexed": "Trong chỉ mục: {files} nhật ký, bỏ qua {invalid} dòng không hợp lệ.",
+  "settings.cost.indexed": "Trong chỉ mục: {files}, {invalid}.",
+  "settings.cost.indexedFiles": {
+    "other": "{count} nhật ký"
+  },
+  "settings.cost.indexedInvalid": {
+    "other": "bỏ qua {count} dòng không hợp lệ"
+  },
   "settings.cost.state.starting": "Đang bắt đầu đọc…",
   "settings.cost.state.scanning": "Đang đọc phần nhật ký đã tăng thêm…",
   "settings.cost.state.paused": "Đã tạm dừng: máy tính đang tiết kiệm điện; việc đọc sẽ tiếp tục khi nó ngừng.",
@@ -858,7 +870,9 @@
   "settings.cost.erase": "Xóa chỉ mục",
   "settings.cost.eraseText": "Xóa toàn bộ chỉ mục chi phí cục bộ? Các nguồn vẫn bật sẽ đọc lại nhật ký từ đầu.",
   "settings.cost.eraseConfirm": "Xóa chỉ mục",
-  "settings.cost.erased": "Đã xóa chỉ mục: {count} bản ghi.",
+  "settings.cost.erased": {
+    "other": "Đã xóa chỉ mục: {count} bản ghi."
+  },
   "settings.cost.plans": "Gói và loại tiền thứ hai",
   "settings.kw.cost-plans": "chi phí cục bộ gói loại tiền thứ hai giá gói tỷ giá",
   "settings.kw.cost-plan": "chi phí cục bộ gói giá đăng ký trả hàng tháng đáng giá",
@@ -926,7 +940,9 @@
   "settings.cost.prices": "Bảng giá",
   "settings.cost.pricesHelp": "USD trên một triệu token. Không có gì được tải xuống: pricing.json của bạn, sửa thủ công theo cùng định dạng, ghi đè bảng tích hợp theo từng mô hình; tệp không hợp lệ bị bỏ qua toàn bộ.",
   "settings.cost.pricesEmbedded": "Bảng tích hợp: giá tại {date}; nguồn: {source}.",
-  "settings.cost.pricesUser": "Bảng của bạn: giá tại {date}; nguồn: {source}; {count} mô hình ghi đè bảng tích hợp.",
+  "settings.cost.pricesUser": {
+    "other": "Bảng của bạn: giá tại {date}; nguồn: {source}; {count} mô hình ghi đè bảng tích hợp."
+  },
   "settings.cost.pricesMissing": "Bạn chưa có pricing.json; hãy tạo theo cùng định dạng để xem hoặc đổi giá.",
   "settings.cost.pricesFile": "Bảng của bạn:",
   "settings.cost.col.model": "Mô hình",
@@ -966,7 +982,9 @@
   "settings.costBy.col.project": "Dự án",
   "settings.costBy.minutes": "{m} phút",
   "settings.costBy.hours": "{h} giờ {m} phút",
-  "settings.costBy.moreSessions": "{count} phiên cũ hơn không được liệt kê.",
+  "settings.costBy.moreSessions": {
+    "other": "{count} phiên cũ hơn không được liệt kê."
+  },
   "settings.costBy.providerWindow": "Cửa sổ của nhà cung cấp: đã dùng {pct}%, đặt lại lúc {at}",
   "settings.costBy.providerReset": "Cửa sổ của nhà cung cấp: đặt lại lúc {at}",
   "settings.costBy.liveTitle": "Khối đang diễn ra · {source}",
@@ -978,7 +996,9 @@
   "settings.costBy.hide": "Ẩn",
   "settings.costBy.show": "Tính",
   "settings.costBy.hidden": "Đã ẩn",
-  "settings.costBy.hiddenNote": "{count} dự án đã ẩn: vẫn được liệt kê nhưng không tính vào tổng.",
+  "settings.costBy.hiddenNote": {
+    "other": "{count} dự án đã ẩn: vẫn được liệt kê nhưng không tính vào tổng."
+  },
   "settings.costBy.blockDefault": "Độ dài khối; mặc định {hours} giờ",
   "settings.costBy.blockHours": "Độ dài khối của {source}, tính bằng giờ",
   "settings.costBy.hoursUnit": "giờ",

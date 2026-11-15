@@ -329,7 +329,15 @@
   "settings.folder.env": "Definida por la variable CUOTAI_USER_DIR; la elección aquí solo se aplica si la eliminas.",
   "settings.folder.custom": "Carpeta personalizada",
   "settings.folder.default": "Carpeta predeterminada",
-  "settings.folder.loaded": "{themes} temas y {locales} idiomas cargados",
+  "settings.folder.loaded": "{themes} y {locales} cargados",
+  "settings.folder.themes": {
+    "one": "{count} tema",
+    "other": "{count} temas"
+  },
+  "settings.folder.locales": {
+    "one": "{count} idioma",
+    "other": "{count} idiomas"
+  },
   "settings.folder.choose": "Elegir carpeta…",
   "settings.folder.reset": "Restaurar valor predeterminado",
   "settings.folder.open": "Abrir carpeta",
@@ -851,7 +859,15 @@
   "settings.cost.since": "Activado desde {at}.",
   "settings.cost.off": "Desactivado: no se lee nada.",
   "settings.cost.dirs": "Lee los archivos {pattern} de:",
-  "settings.cost.indexed": "En el índice: {files} registro(s), {invalid} línea(s) inválida(s) ignorada(s).",
+  "settings.cost.indexed": "En el índice: {files}, {invalid}.",
+  "settings.cost.indexedFiles": {
+    "one": "{count} registro",
+    "other": "{count} registros"
+  },
+  "settings.cost.indexedInvalid": {
+    "one": "{count} línea inválida ignorada",
+    "other": "{count} líneas inválidas ignoradas"
+  },
   "settings.cost.state.starting": "Iniciando la lectura…",
   "settings.cost.state.scanning": "Leyendo lo que creció en los registros…",
   "settings.cost.state.paused": "En pausa: el equipo está en modo de ahorro de energía; la lectura sigue cuando salga de él.",
@@ -862,7 +878,10 @@
   "settings.cost.erase": "Borrar el índice",
   "settings.cost.eraseText": "¿Borrar todo el índice de costo local? Las fuentes que sigan activadas vuelven a leer sus registros desde el principio.",
   "settings.cost.eraseConfirm": "Borrar el índice",
-  "settings.cost.erased": "Índice borrado: {count} registro(s).",
+  "settings.cost.erased": {
+    "one": "Índice borrado: {count} registro.",
+    "other": "Índice borrado: {count} registros."
+  },
   "settings.cost.plans": "Planes y segunda moneda",
   "settings.kw.cost-plans": "coste local planes segunda moneda precio del plan tipo de cambio",
   "settings.kw.cost-plan": "coste local plan precio suscripción pago mensual vale",
@@ -930,7 +949,10 @@
   "settings.cost.prices": "Tabla de precios",
   "settings.cost.pricesHelp": "USD por millón de tokens. No se descarga nada: su pricing.json, editado a mano con el mismo formato, prevalece sobre la tabla integrada modelo a modelo; un archivo inválido se ignora entero.",
   "settings.cost.pricesEmbedded": "Tabla integrada: precios del {date}; fuente: {source}.",
-  "settings.cost.pricesUser": "Su tabla: precios del {date}; fuente: {source}; {count} modelo(s) sobre la integrada.",
+  "settings.cost.pricesUser": {
+    "one": "Su tabla: precios del {date}; fuente: {source}; {count} modelo sobre la integrada.",
+    "other": "Su tabla: precios del {date}; fuente: {source}; {count} modelos sobre la integrada."
+  },
   "settings.cost.pricesMissing": "No tiene pricing.json; créelo con el mismo formato para revisar o cambiar precios.",
   "settings.cost.pricesFile": "Su tabla:",
   "settings.cost.col.model": "Modelo",
@@ -970,7 +992,10 @@
   "settings.costBy.col.project": "Proyecto",
   "settings.costBy.minutes": "{m} min",
   "settings.costBy.hours": "{h} h {m} min",
-  "settings.costBy.moreSessions": "{count} sesión(es) más antigua(s) sin listar.",
+  "settings.costBy.moreSessions": {
+    "one": "{count} sesión más antigua sin listar.",
+    "other": "{count} sesiones más antiguas sin listar."
+  },
   "settings.costBy.providerWindow": "Ventana del proveedor: {pct}% usado, se reinicia a las {at}",
   "settings.costBy.providerReset": "Ventana del proveedor: se reinicia a las {at}",
   "settings.costBy.liveTitle": "Bloque activo · {source}",
@@ -982,7 +1007,10 @@
   "settings.costBy.hide": "Ocultar",
   "settings.costBy.show": "Contar",
   "settings.costBy.hidden": "Oculto",
-  "settings.costBy.hiddenNote": "{count} proyecto(s) oculto(s): se listan, pero quedan fuera de los totales.",
+  "settings.costBy.hiddenNote": {
+    "one": "{count} proyecto oculto: se lista, pero queda fuera de los totales.",
+    "other": "{count} proyectos ocultos: se listan, pero quedan fuera de los totales."
+  },
   "settings.costBy.blockDefault": "Duración del bloque; predeterminada {hours} h",
   "settings.costBy.blockHours": "Duración del bloque de {source}, en horas",
   "settings.costBy.hoursUnit": "h",

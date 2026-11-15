@@ -332,7 +332,15 @@
   "settings.folder.env": "Von der Variable CUOTAI_USER_DIR festgelegt; die Auswahl hier gilt erst, wenn sie entfernt wird.",
   "settings.folder.custom": "Eigener Ordner",
   "settings.folder.default": "Standardordner",
-  "settings.folder.loaded": "{themes} Themen und {locales} Sprachen geladen",
+  "settings.folder.loaded": "{themes} und {locales} geladen",
+  "settings.folder.themes": {
+    "one": "{count} Thema",
+    "other": "{count} Themen"
+  },
+  "settings.folder.locales": {
+    "one": "{count} Sprache",
+    "other": "{count} Sprachen"
+  },
   "settings.folder.choose": "Ordner wählen…",
   "settings.folder.reset": "Standard wiederherstellen",
   "settings.folder.open": "Ordner öffnen",
@@ -854,7 +862,15 @@
   "settings.cost.since": "Aktiv seit {at}.",
   "settings.cost.off": "Aus: Es wird nichts gelesen.",
   "settings.cost.dirs": "Liest die {pattern}-Dateien aus:",
-  "settings.cost.indexed": "Im Index: {files} Log(s), {invalid} ungültige Zeile(n) ignoriert.",
+  "settings.cost.indexed": "Im Index: {files}, {invalid}.",
+  "settings.cost.indexedFiles": {
+    "one": "{count} Log",
+    "other": "{count} Logs"
+  },
+  "settings.cost.indexedInvalid": {
+    "one": "{count} ungültige Zeile ignoriert",
+    "other": "{count} ungültige Zeilen ignoriert"
+  },
   "settings.cost.state.starting": "Lesen beginnt…",
   "settings.cost.state.scanning": "Neu Hinzugekommenes in den Logs wird gelesen…",
   "settings.cost.state.paused": "Pausiert: Der Computer spart Energie; das Lesen wird fortgesetzt, wenn er damit aufhört.",
@@ -865,7 +881,10 @@
   "settings.cost.erase": "Index löschen",
   "settings.cost.eraseText": "Den gesamten lokalen Kostenindex löschen? Aktive Quellen lesen ihre Logs wieder von Anfang an.",
   "settings.cost.eraseConfirm": "Index löschen",
-  "settings.cost.erased": "Index gelöscht: {count} Eintrag/Einträge.",
+  "settings.cost.erased": {
+    "one": "Index gelöscht: {count} Eintrag.",
+    "other": "Index gelöscht: {count} Einträge."
+  },
   "settings.cost.plans": "Tarife und zweite Währung",
   "settings.kw.cost-plans": "lokale kosten tarife zweite währung tarif preis wechselkurs",
   "settings.kw.cost-plan": "lokale kosten tarif preis abonnement zahlen monatlich wert",
@@ -933,7 +952,10 @@
   "settings.cost.prices": "Preistabelle",
   "settings.cost.pricesHelp": "USD pro Million Tokens. Es wird nichts heruntergeladen: Ihre pricing.json, von Hand im selben Format bearbeitet, hat modellweise Vorrang vor der eingebauten Tabelle; eine ungültige Datei wird als Ganzes ignoriert.",
   "settings.cost.pricesEmbedded": "Eingebaute Tabelle: Preise vom {date}; Quelle: {source}.",
-  "settings.cost.pricesUser": "Ihre Tabelle: Preise vom {date}; Quelle: {source}; {count} Modell(e) gehen der eingebauten Tabelle vor.",
+  "settings.cost.pricesUser": {
+    "one": "Ihre Tabelle: Preise vom {date}; Quelle: {source}; {count} Modell geht der eingebauten Tabelle vor.",
+    "other": "Ihre Tabelle: Preise vom {date}; Quelle: {source}; {count} Modelle gehen der eingebauten Tabelle vor."
+  },
   "settings.cost.pricesMissing": "Sie haben keine pricing.json; legen Sie sie im selben Format an, um Preise zu prüfen oder zu ändern.",
   "settings.cost.pricesFile": "Ihre Tabelle:",
   "settings.cost.col.model": "Modell",
@@ -973,7 +995,10 @@
   "settings.costBy.col.project": "Projekt",
   "settings.costBy.minutes": "{m} Min.",
   "settings.costBy.hours": "{h} Std. {m} Min.",
-  "settings.costBy.moreSessions": "{count} ältere Sitzung(en) nicht aufgeführt.",
+  "settings.costBy.moreSessions": {
+    "one": "{count} ältere Sitzung nicht aufgeführt.",
+    "other": "{count} ältere Sitzungen nicht aufgeführt."
+  },
   "settings.costBy.providerWindow": "Anbieterfenster: {pct}% verbraucht, Reset um {at}",
   "settings.costBy.providerReset": "Anbieterfenster: Reset um {at}",
   "settings.costBy.liveTitle": "Aktiver Block · {source}",
@@ -985,7 +1010,10 @@
   "settings.costBy.hide": "Ausblenden",
   "settings.costBy.show": "Mitzählen",
   "settings.costBy.hidden": "Ausgeblendet",
-  "settings.costBy.hiddenNote": "{count} ausgeblendete(s) Projekt(e): aufgeführt, aber nicht in den Summen.",
+  "settings.costBy.hiddenNote": {
+    "one": "{count} ausgeblendetes Projekt: aufgeführt, aber nicht in den Summen.",
+    "other": "{count} ausgeblendete Projekte: aufgeführt, aber nicht in den Summen."
+  },
   "settings.costBy.blockDefault": "Blocklänge; Standard {hours} Std.",
   "settings.costBy.blockHours": "Blocklänge von {source} in Stunden",
   "settings.costBy.hoursUnit": "Std.",

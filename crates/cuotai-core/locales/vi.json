@@ -357,8 +357,17 @@
   "cost.scan.no_access": "{source}: không có quyền truy cập các thư mục ({paths}); không có cách nào được dùng để vượt qua.",
   "cost.scan.no_logs": "{source}: không tìm thấy nhật ký trong các thư mục.",
   "cost.scan.off": "{source}: tắt; không đọc gì.",
-  "cost.scan.partial": "{source}: {files} nhật ký; {requests} yêu cầu mới; bỏ qua {invalid} dòng không hợp lệ; việc đọc tiếp tục ở chu kỳ sau.",
-  "cost.scan.ready": "{source}: {files} nhật ký; {requests} yêu cầu mới; bỏ qua {invalid} dòng không hợp lệ.",
+  "cost.scan.partial": "{source}: {files}; {requests}; {invalid}; việc đọc tiếp tục ở chu kỳ sau.",
+  "cost.scan.ready": "{source}: {files}; {requests}; {invalid}.",
+  "cost.scan.files": {
+    "other": "{count} nhật ký"
+  },
+  "cost.scan.requests": {
+    "other": "{count} yêu cầu mới"
+  },
+  "cost.scan.invalid": {
+    "other": "bỏ qua {count} dòng không hợp lệ"
+  },
   "cost.span.days": {
     "other": "{count} ngày qua"
   },

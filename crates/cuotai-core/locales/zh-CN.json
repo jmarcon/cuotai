@@ -357,8 +357,17 @@
   "cost.scan.no_access": "{source}：无法访问目录（{paths}）；未尝试绕过。",
   "cost.scan.no_logs": "{source}：在目录中未找到任何日志。",
   "cost.scan.off": "{source}：已关闭；不读取任何内容。",
-  "cost.scan.partial": "{source}：{files} 个日志；{requests} 个新请求；已忽略 {invalid} 行无效内容；下个周期继续读取。",
-  "cost.scan.ready": "{source}：{files} 个日志；{requests} 个新请求；已忽略 {invalid} 行无效内容。",
+  "cost.scan.partial": "{source}：{files}；{requests}；{invalid}；下个周期继续读取。",
+  "cost.scan.ready": "{source}：{files}；{requests}；{invalid}。",
+  "cost.scan.files": {
+    "other": "{count} 个日志"
+  },
+  "cost.scan.requests": {
+    "other": "{count} 个新请求"
+  },
+  "cost.scan.invalid": {
+    "other": "已忽略 {count} 行无效内容"
+  },
   "cost.span.days": {
     "other": "最近 {count} 天"
   },

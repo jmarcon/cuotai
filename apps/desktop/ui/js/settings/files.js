@@ -23,7 +23,7 @@ export function html({ settings: s, view }) {
     body: `${otherConfigNotice(v) ? warn(esc(otherConfigNotice(v))) : ""}${s.config_env_locked ? warn(te("settings.config.env")) : ""}
       ${disc("config-path", te("settings.config.path"), pathHtml(configLabel(v)))}` });
   const folderRow = row({ key: "user-dir", attrs: 'id="set-folder" data-section="folder"', label: te("settings.folder.title"), info: te("settings.folder.help"), msg: "folder-msg",
-    desc: `${s.custom_dir ? te("settings.folder.custom") : te("settings.folder.default")} · ${te("settings.folder.loaded", { themes: nThemes, locales: nLocales })}`,
+    desc: `${s.custom_dir ? te("settings.folder.custom") : te("settings.folder.default")} · ${te("settings.folder.loaded", { themes: t("settings.folder.themes", { count: nThemes }), locales: t("settings.folder.locales", { count: nLocales }) })}`,
     control: () => buttons(`<button class="btn sm" data-pick ${s.env_locked ? "disabled" : ""}>${icon("folder")} ${te("settings.folder.choose")}</button>`,
       `<button class="btn sm" data-reset ${s.env_locked || !s.custom_dir ? "disabled" : ""}>${te("settings.folder.reset")}</button>`,
       `<button class="btn sm" data-open-dir>${te("settings.folder.open")}</button>`),
