@@ -436,10 +436,18 @@ fn kiro_data(body: Value) -> Result<Data, QueryError> {
         .and_then(Value::as_array)
         .unwrap_or(&empty);
     for breakdown in breakdowns {
+        // PRD 0023 re-validation (S-01): the resource names metric labels;
+        // controls and bidi overrides are dropped.
         let resource = breakdown
             .get("resourceType")
             .and_then(Value::as_str)
-            .map(str::to_lowercase)
+            .map(|s| {
+                s.chars()
+                    .filter(|c| !crate::text::is_disguising(*c))
+                    .collect::<String>()
+                    .trim()
+                    .to_lowercase()
+            })
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| "unknown".into());
         let reset_at = parse_reset(breakdown.get("nextDateReset")).or(top_reset);
@@ -471,15 +479,22 @@ fn kiro_data(body: Value) -> Result<Data, QueryError> {
             Some(true) => number(breakdown.get("overageCapWithPrecision")),
             _ => None,
         };
-        if let Some(metric) = quota_metric(
+        // PRD 0023 re-validation (S-02): with overage ENABLED a reported 0
+        // is a known amount (armed), not a missing one; otherwise a 0 is
+        // no overage at all.
+        let overage_reading = overage_used.filter(|v| *v > 0.0 || overage_status == Some(true));
+        if let Some(mut metric) = quota_metric(
             format!("Kiro: {resource} (excedente)"),
-            overage_used.filter(|v| *v > 0.0),
+            overage_reading,
             overage_cap,
             "créditos",
             None,
             Some(MetricWindow::Other),
             reset_at,
         ) {
+            // RF1.4 (re-validation R-02): the overage allowance left never
+            // goes below zero; `used` keeps the provider's value.
+            metric.remaining = metric.remaining.map(|left| left.max(0.0));
             metrics.push(metric.overage());
         }
         if overage_status == Some(true) {
@@ -490,10 +505,13 @@ fn kiro_data(body: Value) -> Result<Data, QueryError> {
                     "Overage enabled for {resource}, but the API did not return the cap.",
                 );
             }
+            // PRD 0023 re-validation (S-01): only an ISO 4217-shaped code
+            // is a currency.
             let currency = breakdown
                 .get("currency")
                 .and_then(Value::as_str)
-                .filter(|s| !s.trim().is_empty())
+                .map(str::trim)
+                .filter(|s| crate::budget::is_currency(s))
                 .unwrap_or("USD");
             if let Some(charges) = number(breakdown.get("overageCharges")) {
                 // Money charged so far, only with an explicit currency.
@@ -501,7 +519,7 @@ fn kiro_data(body: Value) -> Result<Data, QueryError> {
                     .get("currency")
                     .and_then(Value::as_str)
                     .map(str::trim)
-                    .filter(|s| !s.is_empty());
+                    .filter(|s| crate::budget::is_currency(s));
                 if let (Some(code), true) = (explicit, charges.is_finite() && charges >= 0.0) {
                     let mut spend = Metric::usage(
                         format!("Kiro: {resource} (excedente cobrado)"),
@@ -1462,6 +1480,112 @@ mod tests {
             .iter()
             .any(|n| n.contains("6.01 USD") && n.contains("0.04 USD")));
         assert!(!data.notes.iter().any(|n| n.contains("não informou o teto")));
+    }
+
+    async fn kiro_body(body: serde_json::Value) -> Data {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(body))
+            .mount(&server)
+            .await;
+        let http = reqwest::Client::new();
+        kiro(
+            &account(Provider::Kiro, &[]),
+            &ctx(&http, &Creds),
+            &server.uri(),
+            &server.uri(),
+            &server.uri(),
+        )
+        .await
+        .unwrap()
+    }
+
+    /// PRD 0023 re-validation (S-02, R-02, R-03, S-01): the RF2 fixture
+    /// matrix of Kiro: armed (a reported 0), past the cap, a missing
+    /// amount, a malformed currency and a disguised resource name.
+    #[tokio::test]
+    async fn kiro_overage_matrix() {
+        use crate::overage::{assess_metrics, OverageState};
+        let breakdown = |overage: serde_json::Value, extra: serde_json::Value| {
+            let mut item = serde_json::json!({
+                "resourceType": "CREDIT",
+                "currentUsageWithPrecision": 500,
+                "usageLimitWithPrecision": 500,
+                "overageCapWithPrecision": 200
+            });
+            if !overage.is_null() {
+                item["currentOveragesWithPrecision"] = overage;
+            }
+            for (key, value) in extra.as_object().unwrap() {
+                item[key] = value.clone();
+            }
+            serde_json::json!({
+                "overageConfiguration": {"overageStatus": "ENABLED"},
+                "usageBreakdownList": [item]
+            })
+        };
+        // Armed: ENABLED with a reported 0 is a known amount.
+        let data = kiro_body(breakdown(serde_json::json!(0), serde_json::json!({}))).await;
+        let overage = data
+            .metrics
+            .iter()
+            .find(|m| m.billing == crate::Billing::Overage)
+            .unwrap();
+        assert_eq!(overage.used, Some(0.0));
+        assert_eq!(overage.remaining, Some(200.0));
+        let state = assess_metrics(&data.metrics, data.overage_hint).unwrap();
+        assert_eq!(state.state, OverageState::Armed);
+        assert_eq!(state.spent, Some(0.0));
+        // Past the cap: `used` kept, the allowance left clamped at 0.
+        let mut body = breakdown(serde_json::json!(250), serde_json::json!({}));
+        body["usageBreakdownList"][0]["currentUsageWithPrecision"] = serde_json::json!(750);
+        let data = kiro_body(body).await;
+        let overage = data
+            .metrics
+            .iter()
+            .find(|m| m.billing == crate::Billing::Overage)
+            .unwrap();
+        assert_eq!(overage.used, Some(250.0));
+        assert_eq!(overage.remaining, Some(0.0));
+        let state = assess_metrics(&data.metrics, data.overage_hint).unwrap();
+        assert_eq!(state.state, OverageState::CapReached);
+        // Missing (absent or null) amount: unknown, never zero.
+        for missing in [
+            serde_json::Value::Null,
+            serde_json::json!({"currentOveragesWithPrecision": null}),
+        ] {
+            let extra = if missing.is_null() {
+                serde_json::json!({})
+            } else {
+                missing
+            };
+            let data = kiro_body(breakdown(serde_json::Value::Null, extra)).await;
+            let state = assess_metrics(&data.metrics, data.overage_hint).unwrap();
+            assert_eq!(state.state, OverageState::Unknown);
+            assert_eq!(state.spent, None);
+        }
+        // A currency that is not ISO 4217 is not money: no charged metric.
+        let data = kiro_body(breakdown(
+            serde_json::json!(10),
+            serde_json::json!({"overageCharges": 0.4, "currency": "US$\u{202e}"}),
+        ))
+        .await;
+        assert!(data.metrics.iter().all(|m| m.kind != MetricKind::Spend));
+        let state = assess_metrics(&data.metrics, data.overage_hint).unwrap();
+        assert_eq!(state.currency, None);
+        // A resource name cannot carry controls or bidi overrides.
+        let data = kiro_body(breakdown(
+            serde_json::json!(10),
+            serde_json::json!({"resourceType": "CRE\u{202e}DIT\n"}),
+        ))
+        .await;
+        assert!(
+            data.metrics
+                .iter()
+                .all(|m| m.label.starts_with("Kiro: credit")),
+            "{:?}",
+            data.metrics
+        );
     }
 
     #[tokio::test]

@@ -292,14 +292,16 @@ fn day_text(day: NaiveDate, locale: &str) -> String {
     format!("{} {}", name.resolve(locale), day.format("%Y-%m-%d"))
 }
 
-fn amounts(extra: &[ExtraSpent]) -> String {
+/// The extra amounts in the reader's language (PRD 0023 re-validation
+/// V-02).
+fn amounts(extra: &[ExtraSpent], locale: &str) -> String {
     extra
         .iter()
         .map(|e| {
             let currency = crate::budget::is_currency(&e.unit).then_some(e.unit.as_str());
             match crate::overage::format_amount(e.amount, &e.unit, currency) {
                 ParamValue::Text(text) => text,
-                ParamValue::L10n(text) => text.fallback.into_owned(),
+                ParamValue::L10n(text) => text.resolve(locale),
             }
         })
         .collect::<Vec<_>>()
@@ -345,7 +347,7 @@ impl Digest {
             lines.push(Localized::with_param(
                 "digest.line.extra",
                 "amounts",
-                amounts(extra),
+                amounts(extra, locale),
                 "Extra spent: {amounts}",
             ));
         }

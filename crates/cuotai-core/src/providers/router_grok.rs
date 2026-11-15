@@ -681,15 +681,34 @@ mod tests {
         assert!(parsed.on_demand_exhausted);
         let state = assess_metrics(&parsed.metrics, None).unwrap();
         assert_eq!(state.state, OverageState::Disabled);
-        // A positive cap in use is active; a spent cap is reached.
-        for (used, want) in [
-            (2.0, OverageState::Active),
-            (10.0, OverageState::CapReached),
+        // A positive cap: nothing spent is armed, in use is active, a spent
+        // (or overspent) cap is reached, and the allowance left never goes
+        // below zero (RF1.4; PRD 0023 re-validation R-03).
+        for (used, want, left) in [
+            (0.0, OverageState::Armed, 10.0),
+            (2.0, OverageState::Active, 8.0),
+            (10.0, OverageState::CapReached, 0.0),
+            (15.0, OverageState::CapReached, 0.0),
         ] {
             let billing = serde_json::json!({"config":{
                 "onDemandCap":{"val":10},"onDemandUsed":{"val":used}}});
             let parsed = parse_billing(&billing, Some(&user));
-            assert_eq!(assess_metrics(&parsed.metrics, None).unwrap().state, want);
+            let state = assess_metrics(&parsed.metrics, None).unwrap();
+            assert_eq!(state.state, want, "{used}");
+            assert_eq!(state.spent, Some(used), "{used}");
+            let overage = parsed
+                .metrics
+                .iter()
+                .find(|m| m.billing == crate::Billing::Overage)
+                .unwrap();
+            assert_eq!(overage.remaining, Some(left), "{used}");
+        }
+        // A cap without the amount used is unknown, never zero.
+        let billing = serde_json::json!({"config":{"onDemandCap":{"val":10}}});
+        let parsed = parse_billing(&billing, Some(&user));
+        if let Some(state) = assess_metrics(&parsed.metrics, None) {
+            assert_eq!(state.state, OverageState::Unknown);
+            assert_eq!(state.spent, None);
         }
     }
 

@@ -344,6 +344,11 @@ fn outputs_are_checked_against_the_contract() {
             Err(vec!["extensions.output.unit"]),
         ),
         (
+            "unit with a bidi override (PRD 0023 re-validation S-01)",
+            edited(|v| v["metrics"][0]["unit"] = json!("US\u{202e}D")),
+            Err(vec!["extensions.output.unit"]),
+        ),
+        (
             "label missing",
             edited(|v| drop(v["metrics"][0].as_object_mut().unwrap().remove("label"))),
             Err(vec!["extensions.output.missing"]),

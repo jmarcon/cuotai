@@ -615,6 +615,21 @@ impl Report {
         self.session_expires_at = crate::instant::plausible(self.session_expires_at);
     }
 
+    /// PRD 0023 re-validation (S-01): drop control characters and bidi
+    /// overrides ([`crate::text::is_disguising`]) from every metric's label,
+    /// unit and period, here and in the sub-reports, so no provider or
+    /// extension text can reorder or forge a line in a front end, a JSON
+    /// export or a hook payload. Visible text is unchanged, so history keys
+    /// of ordinary labels stay the same.
+    pub fn strip_disguising_text(&mut self) {
+        for metric in &mut self.metrics {
+            metric.strip_disguising_text();
+        }
+        for sub in &mut self.sub_reports {
+            sub.strip_disguising_text();
+        }
+    }
+
     /// Name of the note parameter that carries a provider's `Retry-After`
     /// (whole seconds) on a `RateLimited` report. Adapters set it with
     /// [`crate::providers::QueryError::with_retry_after`]; the refresh cycle
@@ -989,6 +1004,20 @@ impl Metric {
         self.resets_at = crate::instant::plausible(self.resets_at);
     }
 
+    /// [`Report::strip_disguising_text`] for one metric.
+    pub fn strip_disguising_text(&mut self) {
+        fn strip(text: &mut String) {
+            if text.chars().any(crate::text::is_disguising) {
+                text.retain(|c| !crate::text::is_disguising(c));
+            }
+        }
+        strip(&mut self.label);
+        strip(&mut self.unit);
+        if let Some(period) = &mut self.period {
+            strip(period);
+        }
+    }
+
     /// PRD 0033 RF2.1: the metric's window renewed before `now`, so a
     /// preserved or restored value of it no longer describes anything.
     pub fn is_expired(&self, now: DateTime<Utc>) -> bool {
@@ -1183,6 +1212,13 @@ impl SubReport {
         }
         self.as_of = crate::instant::plausible(self.as_of);
     }
+
+    /// [`Report::strip_disguising_text`] for one sub-report.
+    pub fn strip_disguising_text(&mut self) {
+        for metric in &mut self.metrics {
+            metric.strip_disguising_text();
+        }
+    }
 }
 
 /// Hand-written so the in-memory `identity` (an e-mail) never reaches logs
@@ -1230,6 +1266,32 @@ pub struct Snapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// PRD 0023 re-validation (S-01): controls and bidi overrides leave
+    /// labels, units and periods; visible text is kept.
+    #[test]
+    fn disguising_characters_leave_metric_texts() {
+        let mut metric = Metric::usage(
+            "Kiro: cre\u{202e}dit",
+            1.0,
+            "US\u{2066}D\n",
+            MetricKind::Spend,
+            None,
+        );
+        metric.period = Some("month\u{1b}[2K".into());
+        let plain = Metric::usage("Semana (7 dias)", 1.0, "%", MetricKind::Quota, None);
+        let mut metric_copy = plain.clone();
+        metric_copy.strip_disguising_text();
+        assert_eq!(
+            (metric_copy.label, metric_copy.unit),
+            (plain.label, plain.unit),
+            "ordinary text is unchanged"
+        );
+        metric.strip_disguising_text();
+        assert_eq!(metric.label, "Kiro: credit");
+        assert_eq!(metric.unit, "USD");
+        assert_eq!(metric.period.as_deref(), Some("month[2K"));
+    }
 
     #[test]
     fn sub_report_debug_redacts_identity() {

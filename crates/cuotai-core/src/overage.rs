@@ -6,7 +6,7 @@
 //! never turns a missing amount into zero.
 
 use crate::model::{Billing, Metric, MetricKind, OverageHint, Report};
-use crate::text::{params, Localized, ParamValue};
+use crate::text::{number, params, Localized, ParamValue};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 
@@ -117,6 +117,13 @@ fn is_money(metric: &Metric) -> bool {
     metric.kind == MetricKind::Spend
 }
 
+/// PRD 0023 re-validation (S-01): the ISO 4217 code of a money metric; a
+/// unit that is not three ASCII letters is a plain provider unit.
+fn money_code(metric: &Metric) -> Option<String> {
+    (is_money(metric) && crate::budget::is_currency(&metric.unit))
+        .then(|| metric.unit.to_ascii_uppercase())
+}
+
 /// Reads the overage state of a report. `None` when the provider exposes no
 /// overage data at all.
 pub fn assess(report: &Report) -> Option<Overage> {
@@ -149,7 +156,7 @@ pub fn assess(report: &Report) -> Option<Overage> {
             spent: m.used.filter(|v| v.is_finite()),
             cap: m.limit.filter(|v| v.is_finite()),
             unit: m.unit.clone(),
-            currency: is_money(m).then(|| m.unit.to_ascii_uppercase()),
+            currency: money_code(m),
         })
         .collect();
     // The headline group: money when any metric is money (the amount a
@@ -190,7 +197,9 @@ pub fn assess(report: &Report) -> Option<Overage> {
     Some(Overage {
         state,
         spent,
-        currency: (addable && !money.is_empty()).then(|| unit.to_ascii_uppercase()),
+        currency: (addable && !money.is_empty())
+            .then(|| unit.to_ascii_uppercase())
+            .filter(|code| crate::budget::is_currency(code)),
         unit: if addable { unit } else { String::new() },
         cap,
         cycle_ends_at: group.iter().find_map(|m| m.resets_at),
@@ -262,26 +271,24 @@ fn classify(spent: Option<f64>, cap: Option<f64>, hint: Option<OverageHint>) -> 
     }
 }
 
-/// Formats an amount for a person: `$6.25`, `6.25 EUR`, `12.5 unid. provedor`.
-/// Provider units get a localizable wrapper.
+/// Formats an amount for a person, in the reader's language (PRD 0023
+/// re-validation V-02): `$6.25` / `6,25 $`, `12.5 provider units`,
+/// `1,234.5 credits`. The amount is a nested [`Localized`] with machine
+/// params (`amount.money`, `amount.number`, `amount.units`, see
+/// [`crate::text::number`]); its fallback is the en-US form. A `currency`
+/// that is not an ISO 4217 code is treated as a plain unit.
 pub fn format_amount(value: f64, unit: &str, currency: Option<&str>) -> ParamValue {
-    match currency {
-        Some(code) if code.eq_ignore_ascii_case("USD") => ParamValue::Text(format!("${value:.2}")),
-        Some(code) => ParamValue::Text(format!("{value:.2} {code}")),
+    match currency.filter(|code| crate::budget::is_currency(code)) {
+        Some(code) => ParamValue::l10n(number::money(value, code)),
         None if unit == PROVIDER_UNIT => ParamValue::l10n(Localized::with_param(
             "overage.amount.provider_units",
             "value",
-            plain_number(value),
+            number::number(value),
             "{value} provider units",
         )),
-        None if unit.is_empty() => ParamValue::Text(plain_number(value)),
-        None => ParamValue::Text(format!("{} {unit}", plain_number(value))),
+        None if unit.is_empty() => ParamValue::l10n(number::number(value)),
+        None => ParamValue::l10n(number::units(value, unit)),
     }
-}
-
-fn plain_number(value: f64) -> String {
-    let text = format!("{value:.2}");
-    text.trim_end_matches('0').trim_end_matches('.').to_owned()
 }
 
 impl Overage {
@@ -336,10 +343,12 @@ impl Overage {
 
     /// The combined card summary with the binding state:
     /// "Limit hit · on extra $6.25". Falls back to [`Self::text`] when the
-    /// amount is missing or nothing is being billed.
+    /// amount is missing or nothing is being billed. A capped extra budget
+    /// is not billing any more (PRD 0023 re-validation V-03): it reads
+    /// "Extra budget used up".
     pub fn summary_with_limit_hit(&self) -> Localized {
-        match (self.state.is_billing(), self.amount()) {
-            (true, Some(amount)) => on_extra(
+        match (self.state, self.amount()) {
+            (OverageState::Active, Some(amount)) => on_extra(
                 "overage.limit_hit_on_extra",
                 amount,
                 "Limit hit · on extra {amount}",
@@ -360,8 +369,8 @@ impl Overage {
             .map(|block| block.label.as_str())
             .collect::<Vec<_>>()
             .join(", ");
-        match (self.state.is_billing(), self.amount(), models.is_empty()) {
-            (true, Some(amount), false) => Localized::with_params(
+        match (self.state, self.amount(), models.is_empty()) {
+            (OverageState::Active, Some(amount), false) => Localized::with_params(
                 "overage.scope_limit_hit_on_extra",
                 params([("model", models.as_str().into()), ("amount", amount)]),
                 "{model} limit hit · on extra {amount}",
@@ -511,15 +520,24 @@ mod tests {
         let active = assess(&report(vec![spend("a", Some(6.25), None, "USD")], None)).unwrap();
         let text = active.summary_with_scope_hit(&blocks);
         assert_eq!(text.id, "overage.scope_limit_hit_on_extra");
-        assert_eq!(text.resolve("pt-BR"), "Opus no limite · no extra $6.25");
+        assert_eq!(
+            text.resolve("pt-BR"),
+            "Opus no limite · no extra US$\u{a0}6,25"
+        );
         assert_eq!(text.resolve("en-US"), "Opus limit hit · on extra $6.25");
         assert_eq!(
             text.resolve("es"),
-            "Límite de Opus alcanzado · en extra $6.25"
+            "Límite de Opus alcanzado · en extra 6,25\u{a0}US$"
         );
         assert_eq!(
             text.resolve("it"),
-            "Limite di Opus raggiunto · in extra $6.25"
+            "Limite di Opus raggiunto · in extra 6,25\u{a0}USD"
+        );
+        // A capped extra budget is not "on extra" (V-03).
+        let capped = assess(&report(vec![spend("a", Some(5.0), Some(5.0), "USD")], None)).unwrap();
+        assert_eq!(
+            capped.summary_with_scope_hit(&blocks).id,
+            "overage.cap_reached"
         );
         // Nothing blocked, or nothing billing: the plain state line.
         assert_eq!(active.summary_with_scope_hit(&[]).id, "overage.on_extra");
@@ -562,28 +580,38 @@ mod tests {
     }
 
     #[test]
-    fn texts_in_the_four_languages() {
+    fn texts_in_every_language() {
         let active = assess(&report(
             vec![spend("a", Some(6.25), Some(50.0), "USD")],
             None,
         ))
         .unwrap();
         let t = active.text();
-        assert_eq!(t.resolve("pt-BR"), "No extra · $6.25");
+        assert_eq!(t.resolve("pt-BR"), "No extra · US$\u{a0}6,25");
         assert_eq!(t.resolve("en-US"), "On extra · $6.25");
-        assert_eq!(t.resolve("es"), "En extra · $6.25");
-        assert_eq!(t.resolve("it"), "Extra in uso · $6.25");
+        assert_eq!(t.resolve("es"), "En extra · 6,25\u{a0}US$");
+        assert_eq!(t.resolve("it"), "Extra in uso · 6,25\u{a0}USD");
+        assert!(
+            t.resolve("de").contains("6,25\u{a0}$"),
+            "{}",
+            t.resolve("de")
+        );
+        assert!(t.resolve("ja").contains("$6.25"), "{}", t.resolve("ja"));
         let s = active.summary_with_limit_hit();
-        assert_eq!(s.resolve("pt-BR"), "Limite atingido · no extra $6.25");
+        assert_eq!(
+            s.resolve("pt-BR"),
+            "Limite atingido · no extra US$\u{a0}6,25"
+        );
         assert_eq!(s.resolve("en-US"), "Limit hit · on extra $6.25");
-        assert_eq!(s.resolve("es"), "Límite alcanzado · en extra $6.25");
-        assert_eq!(s.resolve("it"), "Limite raggiunto · in extra $6.25");
+        assert_eq!(s.resolve("es"), "Límite alcanzado · en extra 6,25\u{a0}US$");
+        assert_eq!(s.resolve("it"), "Limite raggiunto · in extra 6,25\u{a0}USD");
 
-        let units_active = assess(&report(vec![units(Some(12.5), None)], None)).unwrap();
+        let units_active = assess(&report(vec![units(Some(1234.5), None)], None)).unwrap();
         assert_eq!(
             units_active.text().resolve("en-US"),
-            "On extra · 12.5 provider units"
+            "On extra · 1,234.5 provider units"
         );
+        assert!(units_active.text().resolve("de").contains("1.234,5"));
 
         let cases = [
             (units(Some(0.0), Some(5.0)), "overage.armed"),
@@ -599,5 +627,46 @@ mod tests {
                 assert_ne!(text.resolve(locale), text.fallback, "{id} in {locale}");
             }
         }
+    }
+
+    /// PRD 0023 re-validation (V-03): a capped extra budget reads "Extra
+    /// budget used up" on the card summary, never "on extra".
+    #[test]
+    fn a_capped_budget_is_used_up_not_on_extra() {
+        let capped = assess(&report(
+            vec![spend("a", Some(50.0), Some(50.0), "USD")],
+            None,
+        ))
+        .unwrap();
+        assert_eq!(capped.state, OverageState::CapReached);
+        let summary = capped.summary_with_limit_hit();
+        assert_eq!(summary.id, "overage.cap_reached");
+        assert_eq!(summary.resolve("en-US"), "Extra budget used up");
+        for locale in crate::text::catalog_locales() {
+            assert_ne!(summary.resolve(locale), summary.fallback, "{locale}");
+        }
+    }
+
+    /// PRD 0023 re-validation (S-01): a money metric whose unit is not an
+    /// ISO 4217 code is not published as a currency.
+    #[test]
+    fn a_non_iso_currency_is_a_plain_unit() {
+        for unit in ["US$", "dollars", "U\u{202e}SD", "EU"] {
+            let o = assess(&report(vec![spend("a", Some(2.0), None, unit)], None)).unwrap();
+            assert_eq!(o.currency, None, "{unit:?}");
+            assert!(
+                o.items.iter().all(|item| item.currency.is_none()),
+                "{unit:?}"
+            );
+        }
+        let o = assess(&report(vec![spend("a", Some(2.0), None, "eur")], None)).unwrap();
+        assert_eq!(o.currency.as_deref(), Some("EUR"));
+        // A non-ISO code handed to the formatter is shown as a unit.
+        let amount = format_amount(2.0, "points", Some("points"));
+        let ParamValue::L10n(note) = amount else {
+            panic!()
+        };
+        assert_eq!(note.id, "amount.units");
+        assert_eq!(note.fallback, "2 points");
     }
 }
