@@ -92,7 +92,7 @@ Metric fields:
 | `window` | Optional: `window_5h`, `daily`, `weekly`, `monthly`, or `other`. |
 | `period` | Optional text; cleaned and limited to 64 characters. |
 | `resets_at` | Optional RFC 3339 timestamp. |
-| `billing` | Optional: `included` (default) or `overage` for paid extra usage, which never counts as a plan limit. Other values make the output invalid. |
+| `billing` | Optional: `included` (default) or `overage` for paid extra usage, which never counts as a plan limit. Other values make the output invalid. The account then gets an `overage` object in `export::v1`, while its static `access.overage` descriptor stays `not_reported`. |
 | `scope` | Optional object `{ "kind": "model", "id": "...", "label": "..." }` for a limit that applies to one model only; such a limit never blocks the whole account. Unknown kinds make the output invalid. |
 
 Standard output is limited to 256 KiB. Notes are cleaned and limited to 500 characters. Invalid JSON, non-finite numbers, wrong field shapes and contract violations become an `Error` report; diagnostics name fields but never reproduce raw output. Standard error is always discarded.
