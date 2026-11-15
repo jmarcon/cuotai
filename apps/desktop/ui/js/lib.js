@@ -120,6 +120,8 @@ export const setExtensionSecret = (id, name, value) =>
 /** PRD 0035 RF11.5: where a machine-translated language asks for review; `TRANSLATION_GUIDE` in about.rs. */
 export const TRANSLATION_GUIDE_URL = "https://github.com/jmarcon/cuotai/blob/main/apps/desktop/ui/locales/README.md";
 export const EXTENSIONS_GUIDE_URL = "https://github.com/jmarcon/cuotai/blob/main/docs/extensions.md";
+/** PRD 0019 RF7.7: the full changelog the What's new dialog links (`CHANGELOG_URL` in about.rs, the only other copy). */
+export const CHANGELOG_URL = "https://github.com/jmarcon/cuotai/blob/main/CHANGELOG.md";
 /** PRD 0046 RF5.2: the backup recipes (`BACKUP_GUIDE` in about.rs, the only other copy). */
 export const BACKUP_GUIDE_URL = "https://github.com/jmarcon/cuotai/blob/main/docs/advanced.md#backup-restore-and-self-check";
 export const openExtensionsFolder = () => (isDesktop ? call("open_extensions_folder") : Promise.resolve());
@@ -2882,17 +2884,15 @@ const demo = {
   reset_timeline: demoTimeline,
   set_config_file: async ({ path }) => { demoSettings.config = path ?? null; demoSettings.generation++; return demoView(); },
   open_user_dir: async () => {},
-  // Demo: history sample (in the app, the core delivers the embedded changelog).
+  // Demo: one sample section (in the app, the shell picks the running version's section of the embedded changelog).
   whats_new: async () => ({
     current: "demo",
     title: { id: "changelog.title", params: {}, fallback: "What's new" },
     entries_language: { id: "changelog.entries_language", params: {}, fallback: "The entries stay in English, the language of the changelog." },
-    releases: [
-      { version: "demo", date: "2026-10-25", current: true, paragraphs: [], categories: [
-        { label: { id: "changelog.category.added", params: {}, fallback: "Added" }, entries: ["Sample entry for the What's new screen in the browser demo."] },
-      ] },
-    ],
-    history: null,
+    release: { version: "demo", date: "2026-10-25", current: true, paragraphs: [], categories: [
+      { label: { id: "changelog.category.added", params: {}, fallback: "Added" }, entries: ["Sample entry for the What's new screen in the browser demo."] },
+    ] },
+    full_changelog: CHANGELOG_URL,
   }),
   // Demo: sample of the real list (in the app, the full list comes from the core).
   // Demo: the report text is the core's; here, an example with no data at all.

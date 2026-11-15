@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Browser-free UI smoke for three desktop.json-backed behaviours:
 //  - PRD 0019 RF7.7: "What's new" opens by itself after a version change (the shell decides, the UI asks once),
-//    with a Settings > About switch (on by default) and search keywords in every catalog;
+//    with a Settings > About switch (on by default) and search keywords in every catalog; it shows only the running
+//    version's section plus a link to the full changelog (allow-listed by the shell);
 //  - PRD 0022 MONO-4: the monogram override of the account form (at most two characters, validated, sent with the
 //    save, stored per account id);
 //  - PRD 0022 RF15.1: a profile that existed before this build keeps its theme even when web storage was cleared.
@@ -79,6 +80,40 @@ await i18n.initI18n();
   assert.match(dialog, /if \(checked\) return false;/, "asked once per session");
   assert.match(dialog, /!settings\?\.whats_new_due \|\| settings\.whats_new_auto === false/, "due and the switch decide");
   assert.match(dialog, /querySelector\("dialog\[open\]"\)/, "another dialog is never covered");
+
+  // One version only: the running version's section (escaped text) and the full-changelog link, in every catalog.
+  const wn = await import("../apps/desktop/ui/js/whats-new-dialog.js");
+  const label = (id) => ({ id, params: {}, fallback: id });
+  const view = {
+    current: "1.2.3",
+    title: label("changelog.title"),
+    entries_language: label("changelog.entries_language"),
+    release: { version: "1.2.3", date: "2026-11-15", current: true, paragraphs: [], categories: [
+      { label: label("changelog.category.added"), entries: ["New <b>thing</b>.", "Another thing."] },
+    ] },
+    full_changelog: lib.CHANGELOG_URL,
+  };
+  for (const { code } of i18n.LOCALES) {
+    await i18n.setLocale(code);
+    const body = wn.whatsNewBody(view);
+    assert.equal((body.match(/class="wn-sec"/g) ?? []).length, 1, `${code}: exactly one version section`);
+    assert.match(body, /<h3>1\.2\.3 <small>2026-11-15/, `${code}: the running version`);
+    assert.equal((body.match(/class="wn-entry"/g) ?? []).length, 2, `${code}: its entries`);
+    assert.ok(body.includes("New &lt;b&gt;thing&lt;/b&gt;.") && !body.includes("<b>"), `${code}: entries are escaped text`);
+    assert.ok(!/wn-history/.test(body), `${code}: no pre-release history`);
+    const link = `<a class="text-link" href="${lib.CHANGELOG_URL}" data-full-changelog>`;
+    assert.ok(body.includes(link), `${code}: the full-changelog link`);
+    assert.ok(body.slice(body.indexOf(link) + link.length).split("</a>")[0].trim().length >= 6, `${code}: the link has a label`);
+    assert.ok(!body.includes("about.whatsNew.full"), `${code}: link label translated`);
+  }
+  await i18n.setLocale("en-US");
+  // The demo shell answers with one section too, and the shell allow-lists the address the link opens.
+  const demo = await lib.whatsNew();
+  assert.ok(demo.release && !("releases" in demo), "the demo view carries one section");
+  const aboutRs = await readFile(fileURLToPath(new URL("apps/desktop/src-tauri/src/about.rs", root)), "utf8");
+  assert.ok(aboutRs.includes(`pub const CHANGELOG_URL: &str = "${lib.CHANGELOG_URL}";`), "the changelog link is the shell's copy");
+  assert.match(aboutRs, /\|\| url == CHANGELOG_URL\n/, "the changelog link is allow-listed");
+  assert.match(dialog, /openExternal\(CHANGELOG_URL\)/, "the link opens through the allow-listed command");
 }
 
 // ---- PRD 0022 MONO-4 -----------------------------------------------------------------------------------------------

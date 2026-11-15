@@ -704,6 +704,7 @@
   "about.libraries": "Bibliothèques open source",
   "about.whatsNew": "Nouveautés",
   "about.whatsNew.current": "cette version",
+  "about.whatsNew.full": "Journal complet des modifications sur GitHub",
   "about.loading": "Chargement…",
   "about.libraries.help": "Cuotai repose sur des projets open source maintenus par leurs communautés. Merci à toutes celles et ceux qui les construisent. Les logos sont des marques de leurs propriétaires respectifs.",
   "about.open": "Ouvrir le dépôt dans le navigateur",

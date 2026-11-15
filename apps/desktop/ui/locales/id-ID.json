@@ -696,6 +696,7 @@
   "about.libraries": "Pustaka sumber terbuka",
   "about.whatsNew": "Yang baru",
   "about.whatsNew.current": "versi ini",
+  "about.whatsNew.full": "Log perubahan lengkap di GitHub",
   "about.loading": "Memuat…",
   "about.libraries.help": "Cuotai dibangun di atas proyek sumber terbuka yang dikelola komunitasnya. Terima kasih kepada semua yang membangunnya. Logo adalah merek dagang milik pemiliknya masing-masing.",
   "about.open": "Buka repositori di peramban",

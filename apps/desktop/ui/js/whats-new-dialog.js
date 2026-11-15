@@ -1,8 +1,10 @@
-// "About › What's new" (PRD 0019 RF7.7): the CHANGELOG.md history, already parsed by the core (`whats_new`).
-// The UI only draws: titles and labels come as core texts (`tl`); the entries stay in English, as the dialog itself says.
+// "About › What's new" (PRD 0019 RF7.7): the running version's CHANGELOG.md section, already parsed and picked by
+// the shell (`whats_new`), plus a link to the full changelog on GitHub. One version only: the release page and the
+// update banner keep every section since the last published release. The UI only draws: titles and labels come as
+// core texts (`tl`); the entries stay in English, as the dialog itself says.
 import { t, te, tl } from "./i18n.js";
 import { bindShell, focusFirst, shellHtml } from "./dialog-shell.js";
-import { getSettings, whatsNew, whatsNewSeen } from "./lib.js";
+import { CHANGELOG_URL, getSettings, openExternal, whatsNew, whatsNewSeen } from "./lib.js";
 import { esc } from "./util.js";
 import { showDialog } from "./motion.js";
 
@@ -20,14 +22,23 @@ const release = (r) => `<section class="wn-sec">
   <h3>${esc(r.version)} <small>${esc(r.date)}${r.current ? ` · ${te("about.whatsNew.current")}` : ""}</small></h3>
   ${notes(r)}</section>`;
 
-const history = (h) => `<section class="wn-sec wn-history">
-  <h3>${esc(h.title)}</h3>${notes(h)}</section>`;
-
 const shell = (body, foot = `<button class="btn primary" data-shell-close>${te("common.close")}</button>`) =>
   shellHtml({ id: "whats-new-title", title: t("about.whatsNew"), body, foot });
 
-const render = (view) => shell(`<p class="hint">${esc(tl(view.entries_language))}</p>
-    <div class="wn-scroll">${view.releases.map(release).join("")}${view.history ? history(view.history) : ""}</div>`);
+/** The dialog body: the one section the shell picked and the full-changelog link (the shell's allow-listed address;
+ *  the UI never builds it from the view). Exported for the UI tests. */
+export const whatsNewBody = (view) => `<p class="hint">${esc(tl(view.entries_language))}</p>
+    <div class="wn-scroll">${view.release ? release(view.release) : ""}</div>
+    <p class="wn-full"><a class="text-link" href="${esc(CHANGELOG_URL)}" data-full-changelog>${te("about.whatsNew.full")}</a></p>`;
+
+const render = (view) => shell(whatsNewBody(view));
+
+function bindLinks(root) {
+  root.querySelector("[data-full-changelog]")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    openExternal(CHANGELOG_URL).catch(() => {});
+  });
+}
 
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 let checked = false;
@@ -70,5 +81,6 @@ export async function openWhatsNew() {
     ? render(view)
     : shell(`<p class="err" role="alert">${te("common.unexpected")}</p>`);
   bindShell(dlg);
+  bindLinks(dlg);
   focusFirst(dlg);
 }

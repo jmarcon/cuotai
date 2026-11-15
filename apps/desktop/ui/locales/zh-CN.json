@@ -696,6 +696,7 @@
   "about.libraries": "开源库",
   "about.whatsNew": "新功能",
   "about.whatsNew.current": "当前版本",
+  "about.whatsNew.full": "在 GitHub 上查看完整更新日志",
   "about.loading": "加载中…",
   "about.libraries.help": "Cuotai 建立在由各自社区维护的开源项目之上。感谢所有开发者。各标志均为其各自所有者的商标。",
   "about.open": "在浏览器中打开仓库",
