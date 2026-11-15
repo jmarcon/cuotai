@@ -74,8 +74,11 @@ fn stage_chips_in_both_units() {
         "999% faster than pace"
     );
     assert_eq!(
-        pace(0.6, 0.5).chip(PaceUnit::Percent).compact.as_deref(),
-        Some("20%")
+        pace(0.6, 0.5)
+            .chip(PaceUnit::Percent)
+            .compact
+            .map(|c| c.resolve("fr")),
+        Some("20 %".to_owned())
     );
 }
 
@@ -130,14 +133,17 @@ fn outlook_chips() {
     let chip = runs_out.outlook_chip(hhmm).unwrap();
     assert_eq!(chip.glyph, "↑");
     assert_eq!(chip.text.resolve("en-US"), "Runs out ≈18:53");
-    assert_eq!(chip.compact.as_deref(), Some("≈18:53"));
+    assert_eq!(
+        chip.compact.map(|c| c.resolve("en-US")),
+        Some("≈18:53".to_owned())
+    );
     let lasts = pace(0.3, 0.5).outlook_chip(hhmm).unwrap();
     assert_eq!(
         (lasts.glyph, lasts.text.resolve("en-US").as_str()),
         ("↓", "Lasts to reset")
     );
     assert_eq!(pace(1.0, 0.5).outlook_chip(hhmm), None);
-    let returns = crate::resets::returns_chip(Some("19:30"));
+    let returns = crate::resets::returns_chip(Some("19:30".into()));
     assert_eq!(returns.glyph, "↺");
     assert_eq!(returns.text.resolve("en-US"), "Returns 19:30");
     assert_eq!(
@@ -186,7 +192,7 @@ fn chip_texts_fit_the_budget_in_every_language() {
         pace(0.0, 0.99).chip(PaceUnit::Points),
         pace(0.5, 0.5).chip(PaceUnit::Points),
         pace(1.0, 0.5).chip(PaceUnit::Points),
-        crate::resets::returns_chip(Some(wide_at)),
+        crate::resets::returns_chip(Some(wide_at.into())),
         crate::resets::returns_chip(None),
     ];
     let mut wide_points = pace(0.5, 0.5);
@@ -215,4 +221,104 @@ fn chip_texts_fit_the_budget_in_every_language() {
             assert!(text.contains("999"), "{locale}: {text}");
         }
     }
+}
+
+/// PRD 0024 re-validation (V-01): with the core clock in every language, a
+/// chip shows the time today and only the short weekday or the short date
+/// beyond, within the DS-CMP-TIME-1 budget of 18 columns.
+#[test]
+fn clock_chips_fit_the_budget_in_every_language() {
+    use crate::text::{catalog_locales, clock_short};
+    let now = Utc.with_ymd_and_hms(2026, 11, 16, 0, 30, 0).unwrap(); // Monday
+    let mut forms = vec![Utc.with_ymd_and_hms(2026, 11, 16, 12, 59, 0).unwrap()];
+    // Every weekday ahead (the widest short name), then a two-digit date.
+    forms.extend((1..=6).map(|d| now + TimeDelta::days(d)));
+    forms.push(Utc.with_ymd_and_hms(2026, 12, 28, 23, 59, 0).unwrap());
+    let mut runs_out = pace(0.8, 0.5);
+    runs_out.lasts_until_reset = false;
+    for locale in std::iter::once("en-US").chain(catalog_locales()) {
+        for at in &forms {
+            let short = clock_short(*at, now, &Utc);
+            runs_out.projected_exhaustion_at = Some(*at);
+            let chips = [
+                runs_out.outlook_chip(|_| short.clone()).unwrap(),
+                crate::resets::returns_chip(Some(short.clone().into())),
+            ];
+            for chip in chips {
+                let text = chip.text.resolve(locale);
+                let width = crate::text::budget_width(&text);
+                assert!(width <= 18, "{locale}: {text} ({width})");
+                assert!(!text.contains("2026"), "{locale}: {text}");
+            }
+        }
+    }
+}
+
+/// PRD 0024 re-validation (D-01, V-03, V-09, R-01): the pace line hides "On
+/// pace" beside a projection, keeps the stage sentences in percent, and
+/// says why the percent form fell back.
+#[test]
+fn the_pace_line_follows_the_stage_and_the_unit() {
+    let at = |t: DateTime<Utc>| t.format("%H:%M").to_string();
+    let margin = |_| "2h".to_owned();
+    let mut on_pace = pace(0.52, 0.5);
+    on_pace.lasts_until_reset = false;
+    on_pace.projected_exhaustion_at = Some(Utc.with_ymd_and_hms(2026, 2, 1, 18, 53, 0).unwrap());
+    on_pace.resets_at = Utc.with_ymd_and_hms(2026, 2, 1, 20, 53, 0).unwrap();
+    assert!(!on_pace.shows_stage());
+    assert_eq!(on_pace.glyph(), GLYPH_AHEAD);
+    for unit in [PaceUnit::Points, PaceUnit::Percent] {
+        assert_eq!(
+            on_pace.summary(unit, at, margin).resolve("en-US"),
+            "Runs out at 18:53, 2h before the reset"
+        );
+    }
+    assert_eq!(
+        on_pace
+            .summary(PaceUnit::Points, at, margin)
+            .resolve("pt-BR"),
+        "Acaba às 18:53, 2h antes da renovação"
+    );
+    let lasting = pace(0.52, 0.5);
+    assert!(lasting.shows_stage());
+    assert_eq!(
+        lasting
+            .summary(PaceUnit::Points, at, margin)
+            .resolve("en-US"),
+        "On pace · lasts until the reset"
+    );
+    // Exhausted keeps its sentence in both units.
+    let mut exhausted = pace(1.0, 0.5);
+    exhausted.lasts_until_reset = false;
+    for unit in [PaceUnit::Points, PaceUnit::Percent] {
+        assert_eq!(
+            exhausted.summary(unit, at, margin).resolve("en-US"),
+            "Limit reached until the reset"
+        );
+    }
+    // Percent with a ratio names the comparison; without one the points
+    // sentence carries the hint.
+    assert_eq!(
+        pace(0.6, 0.5)
+            .summary(PaceUnit::Percent, at, margin)
+            .resolve("en-US"),
+        "20% faster than pace · lasts until the reset"
+    );
+    assert_eq!(
+        pace(0.18, 0.05)
+            .stage_text(PaceUnit::Percent)
+            .resolve("en-US"),
+        "13 points above the pace (too early for a percentage)"
+    );
+    assert_eq!(
+        pace(0.18, 0.05)
+            .stage_text(PaceUnit::Points)
+            .resolve("en-US"),
+        "13 points above the pace"
+    );
+    // The muted marker only for a recent-slope projection.
+    assert_eq!(pace(0.6, 0.5).source_marker(), None);
+    let mut recent = pace(0.6, 0.5);
+    recent.source = PaceSource::Recent;
+    assert_eq!(recent.source_marker().unwrap().resolve("en-US"), "recent");
 }

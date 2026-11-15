@@ -273,7 +273,7 @@ fn groups_compare_across_providers_only_when_the_user_says_so() {
 fn the_texts_carry_the_names_and_percentages_and_never_write_anything() {
     let chip = best_chip();
     assert_eq!(chip.id, "advice.best");
-    let runs_out = switch_text("Work", "Personal", 0.64, Some("18:53"));
+    let runs_out = switch_text("Work", "Personal", 0.64, Some("18:53".into()));
     assert_eq!(runs_out.id, "advice.switch");
     assert!(runs_out.fallback.contains("Work") && runs_out.fallback.contains("64%"));
     assert_eq!(
@@ -342,4 +342,24 @@ members = ["home-claude"]
         Config::from_toml(&clash),
         Err(crate::ConfigError::Group)
     ));
+}
+
+/// PRD 0024 re-validation (V-05): the advice reads the strict forecast, so
+/// an average-only projection never counts as running out, while a steep
+/// recent slope does.
+#[test]
+fn only_the_strict_forecast_runs_out_for_the_advice() {
+    // 80 used with half of the 5-hour window left: the average runs out early.
+    let metric = limit("5h", 80.0, TimeDelta::minutes(150));
+    let interval = Duration::from_secs(300);
+    let checked = now() - TimeDelta::minutes(1);
+    let average = crate::pace::assess(&metric, checked, None).unwrap();
+    assert!(average.projected_exhaustion_at.is_some());
+    assert_eq!(running_out(&metric, checked, interval, now(), &[]), None);
+    let point = |ago: i64, used| crate::pace::Point {
+        taken_at: checked - TimeDelta::minutes(ago),
+        used,
+    };
+    let steep = [point(40, 40.0), point(20, 60.0), point(0, 80.0)];
+    assert!(running_out(&metric, checked, interval, now(), &steep).is_some());
 }

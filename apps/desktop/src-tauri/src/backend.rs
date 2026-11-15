@@ -408,10 +408,12 @@ pub struct MetricView {
 pub struct ForecastView {
     /// "At this rate Session (5h) runs out at 18:53, 37 min before the reset".
     callout: cuotai_core::text::Localized,
-    /// The outlook chip: "Runs out at 18:53".
+    /// The outlook chip: "Runs out ≈18:53" (only the weekday or the date
+    /// beyond today, DS-CMP-TIME-1).
     chip: cuotai_core::pace::Chip,
-    /// The projected time, local ("18:53"), for the advice of the group.
-    at: String,
+    /// The projected time, the core's local clock ("18:53", "Tuesday
+    /// 15:37"), for the advice of the group.
+    at: cuotai_core::text::Localized,
 }
 
 fn forecast_view(
@@ -424,7 +426,7 @@ fn forecast_view(
     let pace = alerts::forecast(metric, checked_at, interval, now, recent)?;
     Some(ForecastView {
         callout: alerts::forecast_text(&metric.label, &pace, now, &chrono::Local)?,
-        chip: pace.outlook_chip(local_at)?,
+        chip: pace.outlook_chip(local_at_short)?,
         at: local_at(pace.projected_exhaustion_at?),
     })
 }
@@ -474,16 +476,16 @@ fn pace_view(pace: Pace) -> PaceView {
     }
 }
 
-/// Local `HH:MM`, with the date when it is not today (as the TUI does).
-fn local_at(at: chrono::DateTime<chrono::Utc>) -> String {
-    // An instant whose local clock is out of range reads in UTC.
-    let Some(local) = cuotai_core::instant::checked_local(at, &chrono::Local) else {
-        return format!("{} UTC", at.format("%Y-%m-%d %H:%M"));
-    };
-    let today = local.date_naive() == chrono::Local::now().date_naive();
-    local
-        .format(if today { "%H:%M" } else { "%Y-%m-%d %H:%M" })
-        .to_string()
+/// PRD 0024 re-validation (V-01): the core's local clock (DS-MSG-8), never
+/// an ISO date. The UI renders its `at.*` ids with `Intl.DateTimeFormat`.
+fn local_at(at: chrono::DateTime<chrono::Utc>) -> cuotai_core::text::Localized {
+    cuotai_core::text::clock(at, chrono::Utc::now(), &chrono::Local)
+}
+
+/// [`local_at`] as a chip shows it: only the weekday or the date beyond
+/// today (DS-CMP-TIME-1).
+fn local_at_short(at: chrono::DateTime<chrono::Utc>) -> cuotai_core::text::Localized {
+    cuotai_core::text::clock_short(at, chrono::Utc::now(), &chrono::Local)
 }
 
 #[derive(Serialize, Clone)]
@@ -709,7 +711,7 @@ fn breakdown_view(account: &cuotai_core::Account, report: &Report) -> Option<Bre
         resets_label: metric
             .resets_at
             .filter(|at| *at > now)
-            .map(|at| cuotai_core::resets::pair_label(&local_at(at), at - now)),
+            .map(|at| cuotai_core::resets::pair_label(local_at(at), at - now)),
         ..metric_view(metric)
     };
     let ordered = breakdown::sorted(&report.breakdown, SortBy::Spend);
@@ -1334,7 +1336,7 @@ fn report_view(
                 resets_label: metric
                     .resets_at
                     .filter(|at| *at > now)
-                    .map(|at| cuotai_core::resets::pair_label(&local_at(at), at - now)),
+                    .map(|at| cuotai_core::resets::pair_label(local_at(at), at - now)),
                 // PRD 0041 RF4.3: like the pace, only while the reading is fresh.
                 allowance: (assess(reading_at, interval, now) == Freshness::Fresh)
                     .then(|| pace::allowance(metric, reading_at, points))
@@ -1584,7 +1586,7 @@ fn mark_best(
                     &view.account,
                     &best_name,
                     left,
-                    runs_out.as_deref().filter(|_| !exhausted),
+                    runs_out.filter(|_| !exhausted).map(Into::into),
                 ),
                 best_index: best.best,
                 best_name: best_name.clone(),

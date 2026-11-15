@@ -21,7 +21,7 @@ use cuotai_core::metrics::{
     binding, classify_metric, classify_report, scope_blocks, AccountClass, MetricState,
 };
 use cuotai_core::overage;
-use cuotai_core::pace::{self, Pace, PaceStage, PaceTone, Point};
+use cuotai_core::pace::{self, Pace, PaceTone, Point};
 #[cfg(test)]
 use cuotai_core::Snapshot;
 use cuotai_core::{Account, Metric, Provider, Report, Status};
@@ -195,20 +195,12 @@ fn render_reset(resets_at: DateTime<Utc>, now: DateTime<Utc>) -> Line<'static> {
     ])
 }
 
+/// PRD 0024 RF6 (re-validation V-04): the time left as the core's duration
+/// in the TUI locale ("1h 35m", "3d 15h", "37 min"), as the desktop shows it.
 fn format_reset_remaining(total: i64) -> String {
-    let days = total / 86_400;
-    let hours = (total % 86_400) / 3_600;
-    let minutes = (total % 3_600) / 60;
-    let seconds = total % 60;
-    if days > 0 {
-        format!("{days}d {hours:02}h")
-    } else if hours > 0 {
-        format!("{hours}h {minutes:02}m")
-    } else if minutes > 0 {
-        format!("{minutes}m {seconds:02}s")
-    } else {
-        format!("{seconds}s")
-    }
+    resolve_l10n(&cuotai_core::text::duration(chrono::TimeDelta::seconds(
+        total,
+    )))
 }
 
 #[derive(Debug, Clone)]
@@ -221,6 +213,9 @@ struct MetricRow {
     /// PRD 0007 RF4: the core's pace; `None` for ineligible metrics, freshly
     /// opened windows and the preserved (stale) reading.
     pace: Option<Pace>,
+    /// PRD 0024 RF7.3 (re-validation V-05): when the core's strict forecast
+    /// says the metric runs out, for the advice ([`cuotai_core::advice::running_out`]).
+    runs_out_at: Option<DateTime<Utc>>,
 }
 
 /// The reading a pace is read from (PRD 0024 FIX-11): its measurement time
@@ -274,6 +269,15 @@ fn metric_row(metric: &Metric, clock: Option<PaceClock>, recent: &[Point]) -> Me
                 clock.interval,
                 clock.now,
                 Some(recent),
+            )
+        }),
+        runs_out_at: clock.and_then(|clock| {
+            cuotai_core::advice::running_out(
+                metric,
+                clock.reading_at,
+                clock.interval,
+                clock.now,
+                recent,
             )
         }),
     }
@@ -363,13 +367,13 @@ fn advice_sentence(
     if group.best == account_index {
         return Some(cuotai_core::advice::best_chip().resolve(tui_locale()));
     }
+    // V-05: the core's strict forecast decides, as on the desktop; an
+    // average-only projection never names a better account.
     let runs_out = rows
         .iter()
-        .filter_map(|row| row.pace.as_ref())
-        .filter(|pace| !pace.lasts_until_reset)
-        .filter_map(|pace| pace.projected_exhaustion_at)
+        .filter_map(|row| row.runs_out_at)
         .min()
-        .map(local_time);
+        .map(crate::ui::clock);
     if !exhausted && runs_out.is_none() {
         return None;
     }
@@ -381,49 +385,46 @@ fn advice_sentence(
             &from.name,
             &best.name,
             left,
-            runs_out.as_deref().filter(|_| !exhausted),
+            runs_out.filter(|_| !exhausted).map(Into::into),
         )
         .resolve(tui_locale()),
     )
 }
 
-/// PRD 0007 RF4: the core's pace texts joined as "stage · outlook", with
-/// `at` formatting the projected time and the margin as the core's duration.
-pub(crate) fn pace_text(
+/// PRD 0007 RF4: the core's pace line ([`Pace::summary`]): "stage ·
+/// outlook", or the projection alone when "On pace" would sit beside it
+/// (PRD 0024 re-validation D-01), with `at` wording the projected time and
+/// the margin as the core's duration. Percent names the comparison only for
+/// a ranked stage, and says why it fell back (RF1.3, V-03, V-09). A recent
+/// slope adds the muted "recent" marker (RF1.5).
+pub(crate) fn pace_text<A: Into<cuotai_core::text::ParamValue>>(
     pace: &Pace,
     locale: &str,
-    at: impl FnOnce(DateTime<Utc>) -> String,
+    at: impl FnOnce(DateTime<Utc>) -> A,
 ) -> String {
-    // Points keep the stage sentence; percent names the comparison with the
-    // core's chip ("20% faster than pace"), PRD 0024 RF1.3.
-    let stage = match pace_unit() {
-        pace::PaceUnit::Points => pace.stage_label().resolve(locale),
-        unit => pace.chip(unit).text.resolve(locale),
-    };
     // PRD 0035 RF10.3: the margin is the core's duration pattern, worded in
     // the reader's language ("18時間", "18 ч").
-    match pace.outlook_label(at, cuotai_core::text::duration) {
-        Some(outlook) => format!("{stage} · {}", outlook.resolve(locale)),
-        None => stage,
+    let line = pace
+        .summary(pace_unit(), at, cuotai_core::text::duration)
+        .resolve(locale);
+    match pace.source_marker() {
+        Some(marker) => format!("{line} · {}", marker.resolve(locale)),
+        None => line,
     }
 }
 
 /// Discreet stage icon: the shape carries the stage, the color only repeats it.
+/// ↑ replaces → when only the projection shows (D-01).
 fn pace_icon(pace: &Pace) -> Span<'static> {
-    let icon = match pace.stage {
-        PaceStage::Reserve => "↓ ",
-        PaceStage::OnPace => "→ ",
-        PaceStage::Ahead => "↑ ",
-        PaceStage::Exhausted => "✕ ",
-    };
     let color = match pace.tone {
+        _ if !pace.shows_stage() => YELLOW,
         PaceTone::Good => GREEN,
         PaceTone::Neutral => FG,
         PaceTone::Warn => YELLOW,
         PaceTone::Bad => RED,
     };
     Span::styled(
-        icon,
+        format!("{} ", pace.glyph()),
         Style::default().fg(color).add_modifier(Modifier::BOLD),
     )
 }
@@ -2661,7 +2662,14 @@ fn render_metric_block(
         .as_ref()
         .filter(|_| text_area.width >= CHIP_MIN_WIDTH)
     {
-        let chip = pace.chip(pace_unit()).text.resolve(tui_locale());
+        // D-01: beside a projection the outlook chip replaces "On pace".
+        let chip = if pace.shows_stage() {
+            pace.chip(pace_unit()).text
+        } else {
+            pace.outlook_chip(crate::ui::clock_short)
+                .map_or_else(|| pace.chip(pace_unit()).text, |chip| chip.text)
+        };
+        let chip = chip.resolve(tui_locale());
         let chip = Span::styled(format!("  {}", safe(&chip)), Style::default().fg(MUTED));
         let used = Line::from(text_spans.clone()).width();
         if used + chip.width() <= usize::from(text_area.width) {
@@ -2932,9 +2940,9 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
                 Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
             ),
             Span::styled(
-                safe(&resolve_l10n(&limit.summary(|at| {
-                    cuotai_core::alerts::local_time(at, chrono::Utc::now(), &Local)
-                })))
+                safe(&resolve_l10n(
+                    &limit.summary(|at| crate::ui::clock(at).into()),
+                ))
                 .into_owned(),
                 Style::default().fg(PINK).add_modifier(Modifier::BOLD),
             ),
@@ -2949,7 +2957,7 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
                 Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
             ),
             Span::styled(
-                safe(&resolve_l10n(&block.summary(local_time))).into_owned(),
+                safe(&resolve_l10n(&block.summary(crate::ui::clock))).into_owned(),
                 Style::default().fg(PINK),
             ),
         ]));
@@ -3752,13 +3760,19 @@ mod tests {
     fn a_passed_reset_reads_renova_agora_once() {
         let at = Utc.with_ymd_and_hms(2026, 1, 1, 12, 0, 0).unwrap();
         let line = |now| render_reset(at, now).to_string();
-        assert_eq!(line(at - chrono::Duration::seconds(47)), "renova 47s");
+        // V-04: the core's duration, so under a minute reads "1 min".
+        assert_eq!(line(at - chrono::Duration::seconds(47)), "renova 1 min");
         assert_eq!(line(at), "renova agora");
         assert_eq!(line(at + chrono::Duration::minutes(5)), "renova agora");
         assert_eq!(format_reset_line(at, at), "renova agora");
         assert_eq!(
             format_reset_line(at, at - chrono::Duration::seconds(47)),
-            "47s"
+            "1 min"
+        );
+        // The core's duration in the TUI locale, as the desktop shows it.
+        assert_eq!(
+            format_reset_line(at, at - chrono::Duration::minutes(95)),
+            "1h 35m"
         );
     }
 
@@ -5877,8 +5891,44 @@ mod tests {
         on_pace[0].as_mut().unwrap().metrics[0].used = Some(62.0);
         let text = render_sized(&on_pace, &[], &[], false, at_min(0), (220, 30)).join("\n");
         let row = text.lines().find(|row| row.contains("Sessao:")).unwrap();
-        assert!(row.contains("→ Sessao:"), "{row}");
         assert!(!row.contains("pts"), "{row}");
+        // PRD 0024 re-validation (D-01): on pace but projected to run out
+        // before the reset, only the projection shows, with ↑.
+        assert!(row.contains("↑ Sessao:"), "{row}");
+        assert!(
+            row.contains("Acaba ≈") && !row.contains("No ritmo"),
+            "{row}"
+        );
+    }
+
+    /// PRD 0024 re-validation (R-01, D-01): the TUI pace line carries the
+    /// muted "recent" marker for a recent-slope projection and hides "On
+    /// pace" beside a projection.
+    #[test]
+    fn the_pace_line_marks_a_recent_slope_and_hides_on_pace_beside_a_projection() {
+        let resets_at = Utc.with_ymd_and_hms(2026, 1, 1, 20, 0, 0).unwrap();
+        let mut pace = Pace {
+            elapsed_fraction: 0.5,
+            expected_used_fraction: 0.5,
+            used_fraction: 0.52,
+            delta_points: 2.0,
+            delta_ratio: Some(0.04),
+            stage: pace::PaceStage::OnPace,
+            tone: PaceTone::Neutral,
+            source: pace::PaceSource::Recent,
+            resets_at,
+            projected_exhaustion_at: Some(resets_at - chrono::Duration::hours(2)),
+            lasts_until_reset: false,
+        };
+        let text = pace_text(&pace, "en-US", |_| "6:00 PM".to_owned());
+        assert_eq!(text, "Runs out at 6:00 PM, 2h before the reset · recent");
+        pace.source = pace::PaceSource::Average;
+        pace.projected_exhaustion_at = None;
+        pace.lasts_until_reset = true;
+        assert_eq!(
+            pace_text(&pace, "en-US", |_| "6:00 PM".to_owned()),
+            "On pace · lasts until the reset"
+        );
     }
 
     #[test]
@@ -5897,7 +5947,7 @@ mod tests {
         assert!(!text.contains("Semana: 6 pontos"), "{text}");
         assert!(text.contains("esperado 82% usado"));
         // Freshly opened and `other` windows invent nothing.
-        assert_eq!(text.matches("estimativa linear").count(), 2);
+        assert_eq!(text.matches("   ·   esperado ").count(), 2, "{text}");
         // Narrow details wrap the line instead of cutting the stage.
         let narrow = render_sized(&paced(), &[], &[], true, at_min(0), (45, 40)).join("\n");
         assert!(narrow.contains("20 pontos de reserva"), "{narrow}");

@@ -3239,46 +3239,15 @@ fn join(mut items: impl Iterator<Item = Localized>) -> Option<Localized> {
     }))
 }
 
-/// `HH:MM` in `tz`; on another day than `now` there (DS-MSG-8, PRD 0008
-/// re-validation V-09), "Monday 14:30" within the next six days and a
-/// short date in the reader's order ("11/03 14:30", "03.11. 14:30")
-/// otherwise, never an ISO date.
-pub fn local_time<Tz>(at: DateTime<Utc>, now: DateTime<Utc>, tz: &Tz) -> ParamValue
+/// `at` in `tz` as [`crate::text::clock`] words it at `now` (DS-MSG-8,
+/// PRD 0024 re-validation V-01): the time in the reader's hour cycle, with
+/// the weekday or a short date when not today, never an ISO date.
+fn local_time<Tz>(at: DateTime<Utc>, now: DateTime<Utc>, tz: &Tz) -> ParamValue
 where
     Tz: TimeZone,
     Tz::Offset: Display,
 {
-    // An instant whose local clock is out of range reads in UTC.
-    let (Some(local), Some(today)) = (
-        crate::instant::checked_local(at, tz),
-        crate::instant::checked_local(now, tz),
-    ) else {
-        return format!("{} UTC", at.format("%Y-%m-%d %H:%M")).into();
-    };
-    let time = local.format("%H:%M").to_string();
-    let days = (local.date_naive() - today.date_naive()).num_days();
-    if days == 0 {
-        return time.into();
-    }
-    if (1..=6).contains(&days) {
-        return ParamValue::l10n(Localized::with_params(
-            "alerts.at.weekday",
-            params([
-                ("weekday", ParamValue::l10n(weekday_text(local.weekday()))),
-                ("time", time.into()),
-            ]),
-            "{weekday} {time}",
-        ));
-    }
-    ParamValue::l10n(Localized::with_params(
-        "alerts.at.date",
-        params([
-            ("day", local.format("%d").to_string().into()),
-            ("month", local.format("%m").to_string().into()),
-            ("time", time.into()),
-        ]),
-        "{month}/{day} {time}",
-    ))
+    crate::text::clock(at, now, tz).into()
 }
 
 /// A day in `tz` as a short date in the reader's order ("11/03"), for the
@@ -3299,20 +3268,6 @@ where
         ]),
         "{month}/{day}",
     ))
-}
-
-/// The localized name of `day` (the catalogs' `budget.weekday.*`).
-fn weekday_text(day: chrono::Weekday) -> Localized {
-    use crate::budget::WeekdayName;
-    crate::budget::weekday_text(match day {
-        chrono::Weekday::Mon => WeekdayName::Monday,
-        chrono::Weekday::Tue => WeekdayName::Tuesday,
-        chrono::Weekday::Wed => WeekdayName::Wednesday,
-        chrono::Weekday::Thu => WeekdayName::Thursday,
-        chrono::Weekday::Fri => WeekdayName::Friday,
-        chrono::Weekday::Sat => WeekdayName::Saturday,
-        chrono::Weekday::Sun => WeekdayName::Sunday,
-    })
 }
 
 #[cfg(test)]
@@ -3340,7 +3295,7 @@ mod tests {
         assert!(text(local_time(max, now, &east)).ends_with(" UTC"));
         assert!(text(local_day(max, &east)).ends_with(" UTC"));
         assert!(text(local_day(DateTime::<Utc>::MIN_UTC, &west)).ends_with(" UTC"));
-        assert_eq!(text(local_time(now, now, &east)), "14:00");
+        assert_eq!(text(local_time(now, now, &east)), "2:00\u{a0}PM");
     }
 
     fn t0() -> DateTime<Utc> {
@@ -4671,7 +4626,7 @@ mod tests {
             text(&one, "en-US"),
             (
                 "Claude: 90% of the 5-hour window used".into(),
-                "Work: Session (5h) · resets 14:30".into()
+                "Work: Session (5h) · resets 2:30\u{a0}PM".into()
             )
         );
         assert_eq!(
@@ -4698,7 +4653,7 @@ mod tests {
             text(&[(&work, vec![premium])], "en-US"),
             (
                 "Claude: 75% of Premium used".into(),
-                "Work: Premium · resets Tuesday 12:00".into()
+                "Work: Premium · resets Tuesday 12:00\u{a0}PM".into()
             )
         );
         // One account, several alerts: one notice.

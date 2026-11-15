@@ -1790,9 +1790,7 @@ fn print_snapshot(
     println!("CUOTAI • {}", snapshot.finished_at.to_rfc3339());
     print!(
         "\n{}",
-        summary_lines(snapshot, ui::tui_locale(), |at| {
-            cuotai_core::alerts::local_time(at, Utc::now(), &chrono::Local)
-        })
+        summary_lines(snapshot, ui::tui_locale(), |at| ui::clock(at).into())
     );
     let feed = cuotai_core::feed::FeedStore::in_data_dir();
     for (index, report) in snapshot.reports.iter().enumerate() {

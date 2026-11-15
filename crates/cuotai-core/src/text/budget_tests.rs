@@ -127,7 +127,7 @@ fn is_combining(c: char) -> bool {
 }
 
 /// Display width in columns (see the module docs).
-pub(super) fn display_width(text: &str) -> usize {
+pub(crate) fn display_width(text: &str) -> usize {
     text.chars()
         .map(|c| {
             if is_combining(c) {
@@ -168,7 +168,7 @@ fn text_of(class: &Class, code: &str, id: &str, ui: &Option<Catalog>) -> Option<
             // The time chips are not in it: take them from the core's code.
             None => match id {
                 "resets.chip.returns" => Some(
-                    crate::resets::returns_chip(Some("{at}"))
+                    crate::resets::returns_chip(Some("{at}".into()))
                         .text
                         .text()
                         .to_owned(),

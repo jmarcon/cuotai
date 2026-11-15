@@ -229,4 +229,29 @@ const onPaceMetric = { ...metric, forecast: null, pace: { ...metric.pace, stage:
   chips: { points: { glyph: "→", text: text("pace.chip.on_pace", {}, "On pace") }, percent: { glyph: "→", text: text("pace.chip.on_pace", {}, "On pace") } } } };
 assert.match(metricCardHtml(report, onPaceMetric), /<span class="pg muted" aria-hidden="true">→<\/span><span>On pace<\/span>/);
 
+// PRD 0024 re-validation (V-01): the core's clock ids render with Intl in every locale and its hour cycle, never as
+// an ISO date; without `hour` the chip form is the short weekday or the date alone.
+for (const { code } of i18n.LOCALES) {
+  await i18n.setLocale(code);
+  const intl = (shape, date) => new Intl.DateTimeFormat(code, shape).format(date);
+  const time = { hour: "numeric", minute: "2-digit" };
+  const cases = [
+    [text("at.time", { hour: "15", minute: "37" }, "3:37 PM"), intl(time, new Date(2024, 0, 1, 15, 37))],
+    [text("at.weekday", { weekday: "2", hour: "15", minute: "37" }, "Tuesday 3:37 PM"),
+      intl({ weekday: "long", ...time }, new Date(2024, 0, 2, 15, 37))],
+    [text("at.weekday", { weekday: "2" }, "Tue"), intl({ weekday: "short" }, new Date(2024, 0, 2))],
+    [text("at.date", { day: "28", month: "11", hour: "9", minute: "5" }, "11/28 9:05 AM"),
+      intl({ day: "2-digit", month: "2-digit", ...time }, new Date(2024, 10, 28, 9, 5))],
+    [text("at.date", { day: "28", month: "11" }, "11/28"), intl({ day: "2-digit", month: "2-digit" }, new Date(2024, 10, 28))],
+  ];
+  for (const [value, want] of cases) {
+    assert.equal(i18n.tl(value), want, `${code}: ${value.id}`);
+    assert.doesNotMatch(i18n.tl(value), /\d{4}-\d{2}-\d{2}/, `${code}: no ISO date`);
+  }
+  // Nested in a chip, the clock follows the UI locale; a malformed param keeps the core's fallback.
+  const chip = text("pace.chip.runs_out", { at: cases[2][0] }, "Runs out ≈Tue");
+  assert.ok(i18n.tl(chip).includes(cases[2][1]), `${code}: nested clock: ${i18n.tl(chip)}`);
+  assert.equal(i18n.tl(text("at.time", { hour: "25", minute: "0" }, "fallback")), "fallback");
+}
+
 console.log("PASS: pace chips (points and percent), forecast callout, reset pair and best-account advice render in pt-BR, en-US, es and it");

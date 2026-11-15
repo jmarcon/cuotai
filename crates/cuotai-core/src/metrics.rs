@@ -85,7 +85,7 @@ impl ScopeBlock {
     /// "{model} at its limit until 19:30" (`metrics.scope_blocked`), or
     /// "{model} at its limit" (`metrics.scope_blocked_unknown`) when the
     /// return is unknown. `at` formats the time in the caller's clock.
-    pub fn summary(&self, at: impl FnOnce(DateTime<Utc>) -> String) -> Localized {
+    pub fn summary<A: Into<ParamValue>>(&self, at: impl FnOnce(DateTime<Utc>) -> A) -> Localized {
         match self.resets_at {
             Some(until) => {
                 let at = at(until);

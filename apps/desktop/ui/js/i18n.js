@@ -292,7 +292,7 @@ export function tl(value, vars = {}, escape = false) {
   }
   // PRD 0023 re-validation (V-02): a core amount (`amount.money`, `amount.number`, `amount.units`) carries machine
   // params and is formatted here in the UI locale, so it matches every other figure of the screen.
-  const amount = amountText(value);
+  const amount = amountText(value) ?? clockText(value);
   if (amount != null) return escape ? esc(amount) : amount;
   // PRD 0047 G1: a core text naming a terminal variable or `params.*` reads in the desktop's own words.
   value = desktopWording(value);
@@ -328,6 +328,46 @@ function amountText(value) {
     if (value.id === "amount.units" && typeof p.unit === "string") return `${number} ${p.unit}`;
   } catch { /* an unknown code: the fallback */ }
   return null;
+}
+
+/** PRD 0024 re-validation (V-01): the text of a core clock (`at.time` `{hour, minute}`, `at.weekday` `{weekday,
+ *  hour?, minute?}` with an ISO weekday, `at.date` `{day, month, hour?, minute?}`) in the UI locale and its hour
+ *  cycle, never an ISO date (DS-MSG-8). Without `hour` it is the chip form: the short weekday or the date alone.
+ *  Null for any other note or a malformed param (the caller then shows the core's en-US fallback). */
+function clockText(value) {
+  if (!["at.time", "at.weekday", "at.date"].includes(value.id)) return null;
+  const p = value.params ?? {};
+  const int = (key, lo, hi) => {
+    const n = typeof p[key] === "string" && /^\d{1,2}$/.test(p[key]) ? Number(p[key]) : NaN;
+    return n >= lo && n <= hi ? n : null;
+  };
+  const timed = p.hour != null || p.minute != null;
+  const [hour, minute] = [int("hour", 0, 23), int("minute", 0, 59)];
+  if ((timed || value.id === "at.time") && (hour == null || minute == null)) return null;
+  const time = timed ? { hour: "numeric", minute: "2-digit" } : {};
+  let date;
+  let shape;
+  if (value.id === "at.time") {
+    date = new Date(2024, 0, 1, hour, minute);
+    shape = time;
+  } else if (value.id === "at.weekday") {
+    const weekday = int("weekday", 1, 7);
+    if (weekday == null) return null;
+    // 2024-01-01 is a Monday, so day `weekday` of January 2024 has that ISO weekday.
+    date = new Date(2024, 0, weekday, hour ?? 0, minute ?? 0);
+    shape = { weekday: timed ? "long" : "short", ...time };
+  } else {
+    const [day, month] = [int("day", 1, 31), int("month", 1, 12)];
+    if (day == null || month == null) return null;
+    // A leap year, so 29 February is a date.
+    date = new Date(2024, month - 1, day, hour ?? 0, minute ?? 0);
+    shape = { day: "2-digit", month: "2-digit", ...time };
+  }
+  try {
+    return new Intl.DateTimeFormat(intlLocale(), shape).format(date);
+  } catch {
+    return null;
+  }
 }
 
 /** HTML-safe variant of `tl`: the template (or the core fallback) and every param are escaped exactly once. */

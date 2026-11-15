@@ -879,7 +879,7 @@ mod tests {
         // PRD 0008 re-validation V-04: the reset time shares the banner's
         // labelled UTC clock, whatever the machine's zone.
         assert!(banner.starts_with("12:02 UTC · "), "{banner}");
-        assert!(banner.ends_with("resets 15:00"), "{banner}");
+        assert!(banner.ends_with("resets 3:00\u{a0}PM"), "{banner}");
 
         // Oscillating around 90% in the same window stays silent.
         for (minute, used) in [(4, 88.0), (6, 93.0), (8, 89.0), (10, 91.0)] {
