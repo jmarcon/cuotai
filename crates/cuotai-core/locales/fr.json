@@ -1704,6 +1704,8 @@
   "privacy.erase.confirm.body": "Cuotai va arrêter son travail en arrière-plan et effacer {erased} éléments : historique, préférences, journaux, données de coût local et les connexions enregistrées dans le coffre d’identifiants du système. {kept} éléments sont conservés. Cette action est irréversible.",
   "privacy.erase.confirm.accept": "Tout effacer",
   "privacy.erase.done": "Toutes les données de Cuotai ont été effacées. Cuotai va maintenant se fermer.",
+  "privacy.erase.label.vault_oauth": "Connexions, clés et adresses de canaux enregistrées",
+  "privacy.erase.label.vault_serve": "Jeton d'accès du serveur local",
   "provider.alibaba_cloud": "Alibaba Cloud — facturation",
   "provider.alibaba_coding_plan": "Alibaba Coding Plan",
   "provider.alibaba_model_studio": "Alibaba Model Studio / DashScope",

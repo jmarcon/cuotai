@@ -1197,6 +1197,8 @@
   "privacy.erase.confirm.body": "Cuotai detendrá su trabajo en segundo plano y borrará {erased} elementos: historial, preferencias, registros, datos de coste local y los inicios de sesión que guardó en el almacén de credenciales del sistema. Se conservan {kept} elementos. Esto no se puede deshacer.",
   "privacy.erase.confirm.accept": "Borrar todo",
   "privacy.erase.done": "Se borraron todos los datos de Cuotai. Cuotai se cerrará ahora.",
+  "privacy.erase.label.vault_oauth": "Inicios de sesión, claves y direcciones de canales guardados",
+  "privacy.erase.label.vault_serve": "Token de acceso del servidor local",
   "provider.alibaba_cloud": "Alibaba Cloud — facturación",
   "provider.alibaba_coding_plan": "Alibaba Coding Plan",
   "provider.alibaba_model_studio": "Alibaba Model Studio / DashScope",

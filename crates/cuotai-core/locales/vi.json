@@ -1692,6 +1692,8 @@
   "privacy.erase.confirm.body": "Cuotai sẽ dừng công việc nền và xóa {erased} mục: lịch sử, cài đặt, nhật ký, dữ liệu chi phí cục bộ và các phiên đăng nhập đã lưu trong kho thông tin xác thực của hệ thống. Giữ lại {kept} mục. Không thể hoàn tác.",
   "privacy.erase.confirm.accept": "Xóa tất cả",
   "privacy.erase.done": "Đã xóa toàn bộ dữ liệu Cuotai. Cuotai sẽ thoát ngay bây giờ.",
+  "privacy.erase.label.vault_oauth": "Thông tin đăng nhập, khóa và địa chỉ kênh đã lưu",
+  "privacy.erase.label.vault_serve": "Mã truy cập của máy chủ cục bộ",
   "provider.alibaba_cloud": "Alibaba Cloud — thanh toán",
   "provider.alibaba_coding_plan": "Alibaba Coding Plan",
   "provider.alibaba_model_studio": "Alibaba Model Studio / DashScope",

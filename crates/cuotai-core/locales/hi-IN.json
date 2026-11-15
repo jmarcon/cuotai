@@ -1704,6 +1704,8 @@
   "privacy.erase.confirm.body": "Cuotai अपना बैकग्राउंड काम रोककर {erased} आइटम मिटाएगा: इतिहास, सेटिंग्स, लॉग, स्थानीय लागत डेटा और सिस्टम क्रेडेंशियल वॉल्ट में सहेजे गए साइन-इन। {kept} आइटम रखे जाएँगे। इसे पूर्ववत नहीं किया जा सकता।",
   "privacy.erase.confirm.accept": "सब मिटाएँ",
   "privacy.erase.done": "Cuotai का सारा डेटा मिटा दिया गया। Cuotai अब बंद होगा।",
+  "privacy.erase.label.vault_oauth": "सहेजे गए साइन-इन, कुंजियाँ और चैनल पते",
+  "privacy.erase.label.vault_serve": "लोकल सर्वर का एक्सेस टोकन",
   "provider.alibaba_cloud": "Alibaba Cloud — बिलिंग",
   "provider.alibaba_coding_plan": "Alibaba Coding Plan",
   "provider.alibaba_model_studio": "Alibaba Model Studio / DashScope",

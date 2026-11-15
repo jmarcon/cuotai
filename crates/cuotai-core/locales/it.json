@@ -1197,6 +1197,8 @@
   "privacy.erase.confirm.body": "Cuotai interromperà il lavoro in background e cancellerà {erased} elementi: cronologia, preferenze, log, dati dei costi locali e gli accessi salvati nel portachiavi del sistema. {kept} elementi vengono mantenuti. L'operazione non può essere annullata.",
   "privacy.erase.confirm.accept": "Cancella tutto",
   "privacy.erase.done": "Tutti i dati di Cuotai sono stati cancellati. Cuotai ora si chiuderà.",
+  "privacy.erase.label.vault_oauth": "Accessi, chiavi e indirizzi dei canali salvati",
+  "privacy.erase.label.vault_serve": "Token di accesso del server locale",
   "provider.alibaba_cloud": "Alibaba Cloud — fatturazione",
   "provider.alibaba_coding_plan": "Alibaba Coding Plan",
   "provider.alibaba_model_studio": "Alibaba Model Studio / DashScope",

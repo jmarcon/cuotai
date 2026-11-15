@@ -1704,6 +1704,8 @@
   "privacy.erase.confirm.body": "Cuotai arka plan işlerini durduracak ve {erased} öğeyi silecek: geçmiş, ayarlar, günlükler, yerel maliyet verileri ve sistemin kimlik bilgisi kasasına kaydettiği oturum açmalar. {kept} öğe korunur. Bu işlem geri alınamaz.",
   "privacy.erase.confirm.accept": "Tümünü sil",
   "privacy.erase.done": "Tüm Cuotai verileri silindi. Cuotai şimdi kapanacak.",
+  "privacy.erase.label.vault_oauth": "Kayıtlı oturum açmalar, anahtarlar ve kanal adresleri",
+  "privacy.erase.label.vault_serve": "Yerel sunucu erişim belirteci",
   "provider.alibaba_cloud": "Alibaba Cloud — faturalama",
   "provider.alibaba_coding_plan": "Alibaba Coding Plan",
   "provider.alibaba_model_studio": "Alibaba Model Studio / DashScope",

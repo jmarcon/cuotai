@@ -69,6 +69,23 @@ pub fn confirmation_word() -> Localized {
     Localized::fixed("privacy.erase.word", "ERASE")
 }
 
+/// A person-facing name for an inventory item, when its location alone is
+/// a technical name: the credential-vault services. Surfaces show it first
+/// and the raw service name as secondary text.
+pub fn item_label(id: &str) -> Option<Localized> {
+    match id {
+        "vault.oauth" => Some(Localized::fixed(
+            "privacy.erase.label.vault_oauth",
+            "Saved sign-ins, keys and channel addresses",
+        )),
+        "vault.serve" => Some(Localized::fixed(
+            "privacy.erase.label.vault_serve",
+            "Local server access token",
+        )),
+        _ => None,
+    }
+}
+
 /// Whether `typed` is exactly the confirmation word of `locale` (spaces
 /// around it ignored).
 pub fn word_matches(typed: &str, locale: &str) -> bool {
@@ -315,6 +332,22 @@ mod tests {
     use super::*;
     use std::cell::RefCell;
     use std::collections::BTreeMap;
+
+    #[test]
+    fn vault_services_have_a_friendly_label_and_files_do_not() {
+        for artifact in artifacts() {
+            let label = item_label(artifact.id);
+            assert_eq!(
+                label.is_some(),
+                artifact.kind == Kind::VaultService,
+                "{}",
+                artifact.id
+            );
+        }
+        let label = item_label("vault.oauth").unwrap();
+        assert_ne!(label.resolve("pt-BR"), label.resolve("en-US"));
+        assert!(!label.resolve("en-US").contains("cuotai.oauth"));
+    }
 
     #[test]
     fn the_confirmation_word_is_exact_and_localized() {

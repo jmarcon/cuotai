@@ -1692,6 +1692,8 @@
   "privacy.erase.confirm.body": "Cuotai はバックグラウンドの処理を止め、{erased} 個の項目を削除します: 履歴、設定、ログ、ローカルコストのデータ、システムの資格情報保管庫に保存したサインイン。{kept} 個の項目は残ります。元に戻せません。",
   "privacy.erase.confirm.accept": "すべて削除",
   "privacy.erase.done": "Cuotai のデータをすべて削除しました。Cuotai を終了します。",
+  "privacy.erase.label.vault_oauth": "保存したサインイン、キー、チャネルのアドレス",
+  "privacy.erase.label.vault_serve": "ローカルサーバーのアクセストークン",
   "provider.alibaba_cloud": "Alibaba Cloud — 請求",
   "provider.alibaba_coding_plan": "Alibaba Coding Plan",
   "provider.alibaba_model_studio": "Alibaba Model Studio / DashScope",

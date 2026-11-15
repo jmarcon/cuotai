@@ -1692,6 +1692,8 @@
   "privacy.erase.confirm.body": "Cuotai akan menghentikan pekerjaan latar belakangnya dan menghapus {erased} item: riwayat, pengaturan, log, data biaya lokal, dan info masuk yang disimpannya di brankas kredensial sistem. {kept} item dipertahankan. Tindakan ini tidak dapat dibatalkan.",
   "privacy.erase.confirm.accept": "Hapus semuanya",
   "privacy.erase.done": "Semua data Cuotai telah dihapus. Cuotai akan ditutup sekarang.",
+  "privacy.erase.label.vault_oauth": "Info masuk, kunci, dan alamat saluran yang tersimpan",
+  "privacy.erase.label.vault_serve": "Token akses server lokal",
   "provider.alibaba_cloud": "Alibaba Cloud — penagihan",
   "provider.alibaba_coding_plan": "Alibaba Coding Plan",
   "provider.alibaba_model_studio": "Alibaba Model Studio / DashScope",
