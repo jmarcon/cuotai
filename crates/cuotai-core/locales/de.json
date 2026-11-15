@@ -1686,7 +1686,7 @@
   "pace.chip.percent": "{p}%",
   "pace.chip.reserve": "{d} Pkt. Reserve",
   "pace.chip.reserve_pct": "{p}% unter dem Tempo",
-  "pace.chip.runs_out": "Reicht bis ≈{at}",
+  "pace.chip.runs_out": "Leer ≈{at}",
   "pace.chip.too_early": "Zu früh im Fenster für einen Prozentwert",
   "pace.chip.too_early_short": "zu früh für einen Prozentwert",
   "pace.exhausted": "Limit erreicht bis zur Zurücksetzung",

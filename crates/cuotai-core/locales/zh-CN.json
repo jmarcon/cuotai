@@ -133,7 +133,7 @@
   "access.verified_recent": "本月已验证。",
   "advice.best": "当前最佳",
   "advice.notice": "{body} · {advice}",
-  "advice.switch": "{from} 约 ≈{at} 用尽 · {to} 剩余 {pct}%",
+  "advice.switch": "{from} ≈{at} 用尽 · {to} 剩余 {pct}%",
   "advice.switch.exhausted": "{from} 已用尽 · {to} 剩余 {pct}%",
   "alerts.body": "{account}：{metric} · {at}重置",
   "alerts.body.details.private": "打开 Cuotai 查看详情。",
