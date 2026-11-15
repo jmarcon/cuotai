@@ -9,7 +9,10 @@
 // `--selftest` forces a long string into a figure and a tab of the tray and passes only when the check catches it.
 // Every full run also measures a danger button (Revoke token, Erase log, Remove) in every built-in theme and mode:
 // its computed text color on its computed fill must reach 4.5:1 (DS-COL-6), which no token-level gate can see when a
-// theme's selector repaints buttons.
+// theme's selector repaints buttons. It also renders the dashboard, Stats and the tray in the reference themes
+// (PRD 0022 re-validation V-09) and measures what the token gate cannot: a stale figure's effective opacity (50 %,
+// DS-CMP-HON-3) and the rendered contrast of chip text on its tint and of Stats text on the page (DS-CMP-BADGE-2,
+// DS-COL-5/7).
 import { launch } from "./driver.mjs";
 import { THEMES } from "../../ui/js/themes.js";
 
@@ -77,7 +80,20 @@ const PAGES = zoom ? ZOOM_PAGES : [
   ["details-narrow", "index.html", 520, 600, {}, "[data-details]"],
   ["catalog-short", "index.html", 1200, 500, {}, "[data-add]"],
   ["catalog-minimum", "index.html", 520, 480, {}, "[data-add]"],
+  // PRD 0022 re-validation V-09: every other dialog, each over its own window (an array of clicks runs in order).
+  ["dialog-extensions", "index.html", 1200, 820, {}, "[data-extensions]"],
+  ["dialog-report", "index.html", 1200, 820, {}, [".card:has(.sum-note.cause) [data-details]", "[data-report]"]],
+  ["dialog-first-run", "index.html?first-run", 1200, 820, {}],
+  ["dialog-libraries", "settings.html?page=about", 640, 460, {}, "[data-libraries]"],
+  ["dialog-whats-new", "settings.html?page=about", 640, 460, {}, "[data-whats-new]"],
+  ["dialog-backup", "settings.html?page=files", 640, 460, {}, "[data-backup]"],
 ];
+// V-09: the reference themes (dark, light, a retro theme with a picture background, and a monochrome one), in en-US.
+const THEME_PAGES = [["dracula", "dark"], ["github", "light"], ["win98", "light"], ["crt", "dark"]].flatMap(([theme, mode]) => [
+  [`themed-main-${theme}-${mode}`, "index.html", 1200, 820, { "cuotai.theme": theme, "cuotai.themeMode": mode }],
+  [`themed-stats-${theme}-${mode}`, "index.html", 1200, 820, { "cuotai.theme": theme, "cuotai.themeMode": mode, "cuotai.openView": "stats" }],
+  [`themed-tray-${theme}-${mode}`, "tray.html", 380, 600, { "cuotai.theme": theme, "cuotai.themeMode": mode }],
+]);
 // DS-MSG-15: what may truncate (with its full text in a tooltip or the accessible name).
 export const ALLOWED = [".r1 .nm", ".r1 .ac", ".crow .nm", ".tile-name b", ".tile-st span", ".who h2", ".who p", ".stl.truncated .lbl",
   ".xline span", ".pop-notice span", ".sum-top .lt", ".set-path", ".lc-title", ".models-meta", ".access-line", ".win .reset", ".pop-head h1",
@@ -90,8 +106,8 @@ const PAGE_JS = `(() => {
   const sel = (e) => { const c = typeof e.className === "string" ? e.className.trim().split(/\\s+/).filter(Boolean).slice(0, 3).join(".") : ""; return e.tagName.toLowerCase() + (c ? "." + c : ""); };
   const ok = (e) => !!e.closest(allowed);
   const leaves = [];
-  // A modal dialog covers the page: only its own text can collide.
-  const modal = document.querySelector("dialog.details[open], dialog.dlg-catalog[open]");
+  // A modal dialog covers the page: only its own text can collide (the topmost one when a dialog opens another).
+  const modal = [...document.querySelectorAll("dialog[open]")].pop() ?? null;
   for (const e of document.querySelectorAll("body *")) {
     if (e.closest("svg, .sr-only, #prov-label, .wm-name, [hidden], dialog:not([open]), .set-pop, .menu, .lang-menu")) continue;
     if (modal && !modal.contains(e)) continue;
@@ -181,7 +197,7 @@ const PAGE_JS = `(() => {
     if (hit) out.push({ kind: "overlap", ok: false, sel: sel(a.e) + " x " + sel(b.e), text: a.text.slice(0, 30) + " | " + b.text.slice(0, 30) });
   }
   // The details dialog and the Add-account catalog scroll inside only, never around it and never sideways.
-  if (modal && (modal.scrollHeight > modal.clientHeight + 1 || modal.scrollWidth > modal.clientWidth + 1)) out.push({ kind: "nested-scroll", ok: false, sel: "dialog." + modal.className.replaceAll(" ", "."), text: modal.scrollWidth + "x" + modal.scrollHeight + " > " + modal.clientWidth + "x" + modal.clientHeight });
+  if (modal?.matches(".details, .dlg-catalog") && (modal.scrollHeight > modal.clientHeight + 1 || modal.scrollWidth > modal.clientWidth + 1)) out.push({ kind: "nested-scroll", ok: false, sel: "dialog." + modal.className.replaceAll(" ", "."), text: modal.scrollWidth + "x" + modal.scrollHeight + " > " + modal.clientWidth + "x" + modal.clientHeight });
   if (document.documentElement.scrollWidth > vw + 1) out.push({ kind: "horizontal-scroll", ok: false, sel: "html", text: document.documentElement.scrollWidth + " > " + vw });
   // The tray popover scrolls inside its list only: a scrolling document draws a second scroll bar beside the panel.
   // The live region (components.js) joins the body, after the full-height root, once a refresh announces a change.
@@ -217,6 +233,67 @@ const DANGER_JS = `(() => {
   return out;
 })()`;
 
+// V-09 probes on the rendered page: a stale figure's effective opacity, chip text on its tint, Stats text on the page.
+const PROBE_JS = `(() => {
+  const out = [];
+  const parse = (c) => {
+    let m = c.match(/^rgba?\\(([^)]+)\\)/);
+    if (m) { const p = m[1].split(/[ ,\\/]+/).filter(Boolean).map(Number); return [p[0], p[1], p[2], p.length > 3 ? p[3] : 1]; }
+    m = c.match(/^color\\(srgb ([^)]+)\\)/);
+    if (m) { const p = m[1].split(/[ \\/]+/).filter(Boolean).map(Number); return [p[0] * 255, p[1] * 255, p[2] * 255, p.length > 3 ? p[3] : 1]; }
+    return null;
+  };
+  const over = (top, base) => [0, 1, 2].map((i) => top[i] * top[3] + base[i] * (1 - top[3]));
+  // The color behind an element: its own and its ancestors' fills, composited from the first opaque one (a picture
+  // background counts as its first color stop).
+  const behind = (e) => {
+    const layers = [];
+    for (let p = e; p; p = p.parentElement) {
+      const cs = getComputedStyle(p);
+      const fill = parse(cs.backgroundColor);
+      if (fill && fill[3] > 0) layers.push(fill);
+      if (fill && fill[3] >= 1) break;
+      if (cs.backgroundImage !== "none") { const stop = cs.backgroundImage.match(/(rgba?\\([^)]+\\)|color\\(srgb [^)]+\\))/); const s = stop && parse(stop[1]); if (s && s[3] >= 1) { layers.push(s); break; } }
+    }
+    let base = [255, 255, 255];
+    for (const l of layers.reverse()) base = l[3] >= 1 ? l.slice(0, 3) : over(l, base);
+    return base;
+  };
+  const lum = (p) => { const f = p.map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * f[0] + 0.7152 * f[1] + 0.0722 * f[2]; };
+  const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)]; return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+  const seen = (e) => e.getClientRects().length && !e.closest("[hidden], dialog:not([open]), .menu, .lang-menu, .sr-only");
+  const name = (e) => e.tagName.toLowerCase() + "." + [...e.classList].slice(0, 3).join(".");
+  for (const f of document.querySelectorAll(".fig.stale")) {
+    if (!seen(f)) continue;
+    let o = 1;
+    for (let p = f.querySelector("b") ?? f; p; p = p.parentElement) o *= Number(getComputedStyle(p).opacity);
+    if (Math.abs(o - 0.5) > 0.01) out.push({ kind: "stale-opacity", ok: false, sel: name(f), text: o.toFixed(2) + " " + f.textContent.trim().slice(0, 20) });
+  }
+  const text = ".mini, .schip, .tchip, .btag, .badge, .age.stale, .stats-page h2, .stats-page h3, .stats-page .sub, .tl-name, .tl-time, .stats .link, .text-link";
+  for (const e of document.querySelectorAll(text)) {
+    if (!seen(e) || !e.textContent.trim()) continue;
+    const fg = parse(getComputedStyle(e).color);
+    if (!fg) continue;
+    const r = ratio(fg.slice(0, 3), behind(e));
+    if (r < 4.5) out.push({ kind: "low-contrast-text", ok: false, sel: name(e), text: r.toFixed(2) + ":1 " + e.textContent.trim().slice(0, 30) });
+  }
+  return out;
+})()`;
+
+async function themedPages() {
+  let bad = 0;
+  for (const [name, page, w, h, storage] of THEME_PAGES) {
+    await ui.open(page, { w, h, scale: 1, locale: "en-US", storage });
+    const found = [...((await ui.evaluate(PAGE_JS)) ?? []), ...((await ui.evaluate(PROBE_JS)) ?? [{ kind: "error", ok: false, sel: "page", text: "probe failed" }])];
+    const problems = found.filter((f) => !f.ok);
+    bad += problems.length;
+    report[`${name}.en-US`] = found;
+    if (!json) console.log(`${problems.length ? "FAIL" : "ok  "} ${name} en-US (${w}×${h}): ${problems.length} problem(s), ${found.length - problems.length} allowed`);
+    if (!json) for (const f of problems) console.log(`       ${f.kind}: ${f.sel} "${f.text}"`);
+  }
+  return bad;
+}
+
 async function dangerButtons() {
   let bad = 0;
   for (const theme of THEMES.filter((t) => !t.user)) {
@@ -239,7 +316,7 @@ try {
     for (const [name, page, w, h, storage, click, openModels] of PAGES) {
       const target = locale === "en-XA" ? `${page}${page.includes("?") ? "&" : "?"}pseudo` : page;
       await ui.open(target, { w, h, scale: 1, locale: locale === "en-XA" ? "en-US" : locale, storage });
-      if (click) await ui.click(click);
+      if (click) await ui.click(...[].concat(click));
       if (openModels) await ui.evaluate(OPEN_MODELS);
       if (selftest) {
         if (!page.startsWith("tray") || storage["cuotai.trayView"]) continue;
@@ -253,7 +330,7 @@ try {
       if (!json) for (const f of bad) console.log(`       ${f.kind}: ${f.sel} "${f.text}"`);
     }
   }
-  if (!zoom && !selftest) problems += await dangerButtons();
+  if (!zoom && !selftest) problems += await themedPages() + await dangerButtons();
 } finally {
   ui.close();
 }
