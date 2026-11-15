@@ -164,6 +164,19 @@ const PAGE_JS = `(() => {
   // DS-CMP-TAB-4: the topbar's filter tabs never clip: what does not fit is reachable through "More".
   const strip = document.querySelector(".tb-tabs .tabs");
   if (strip && strip.scrollWidth > strip.parentElement.clientWidth + 1) out.push({ kind: "tabs-clipped", ok: false, sel: "div.tabs", text: strip.scrollWidth + " > " + strip.parentElement.clientWidth });
+  // DS-CMP-HEAD-2: the tray overview header starts with the Cuotai mark button (opens the main window): named, a
+  // 24 px target at least, before the tabs without overlapping them, and the tabs stay inside the header.
+  const popHead = document.querySelector(".pop-head:not(.drill)"), popTabs = popHead?.querySelector(":scope > .tabs");
+  if (popTabs) {
+    const home = popHead.querySelector(":scope > button.pop-home[data-open-main]"), hd = popHead.getBoundingClientRect(), tb = popTabs.getBoundingClientRect();
+    if (!home || !home.getAttribute("aria-label") || !home.title) out.push({ kind: "open-window-control", ok: false, sel: "header.pop-head", text: home ? "no name or tooltip" : "missing" });
+    else {
+      const hr = home.getBoundingClientRect();
+      if (hr.width < 24 || hr.height < 24) out.push({ kind: "small-target", ok: false, sel: "button.pop-home", text: hr.width + "x" + hr.height });
+      if (hr.left < hd.left - 1 || hr.right > tb.left + 1) out.push({ kind: "open-window-overlaps-tabs", ok: false, sel: "button.pop-home", text: hr.right + " > " + tb.left });
+    }
+    if (tb.right > hd.right + 1) out.push({ kind: "tabs-clipped", ok: false, sel: "header.pop-head div.tabs", text: tb.right + " > " + hd.right });
+  }
   // A retro theme's control or title-bar rule must not take the text color away from a primary button, a plan badge or a button on the title bar.
   const rgb = (c) => [...c.matchAll(/rgba?\\(([^)]+)\\)/g)].map((m) => m[1].split(/[ ,\\/]+/).map(Number)).filter((p) => p.length < 4 || p[3] > 0).map((p) => p.slice(0, 3));
   const lum = (p) => { const f = p.map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * f[0] + 0.7152 * f[1] + 0.0722 * f[2]; };

@@ -1281,6 +1281,7 @@
   "timeline.left": "còn {pct}%",
   "timeline.stale": "lần đọc đã cũ",
   "tray.stats": "Thống kê",
+  "tray.openWindow": "Mở cửa sổ Cuotai",
   "tray.strip.title": "24 giờ qua · {name}",
   "settings.alerts.projected": "Cảnh báo trước khi hết",
   "settings.alerts.projectedHelp": "Thông báo của hệ thống ngay trước khi một hạn mức được dự báo sẽ hết trước khi đặt lại, một lần cho mỗi khung và chỉ dựa trên mức dùng gần đây ổn định. Hoạt động độc lập, kể cả khi tắt cảnh báo sử dụng. Mặc định tắt. Ước tính tuyến tính từ các lần đọc gần đây.",

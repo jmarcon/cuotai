@@ -1281,6 +1281,7 @@
   "timeline.left": "{pct}% 남음",
   "timeline.stale": "조회값이 오래됨",
   "tray.stats": "통계",
+  "tray.openWindow": "Cuotai 창 열기",
   "tray.strip.title": "최근 24시간 · {name}",
   "settings.alerts.projected": "소진 전 경고",
   "settings.alerts.projectedHelp": "한도가 초기화되기 전에 할당량이 소진될 것으로 예상되면 직전에 시스템 알림을 보냅니다. 구간마다 한 번, 최근 사용이 꾸준할 때만 보냅니다. 사용량 알림이 꺼져 있어도 단독으로 동작합니다. 기본값은 꺼짐입니다. 최근 조회값 기반의 선형 추정입니다.",

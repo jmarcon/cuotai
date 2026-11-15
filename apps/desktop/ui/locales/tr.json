@@ -1299,6 +1299,7 @@
   "timeline.left": "%{pct} kaldı",
   "timeline.stale": "okuma güncel değil",
   "tray.stats": "İstatistik",
+  "tray.openWindow": "Cuotai penceresini aç",
   "tray.strip.title": "Son 24 saat · {name}",
   "settings.alerts.projected": "Tükenmeden önce uyar",
   "settings.alerts.projectedHelp": "Bir kotanın sıfırlanmadan önce tükenmesi öngörüldüğünde, tükenmeden kısa süre önce bir sistem bildirimi; pencere başına bir kez ve yalnızca istikrarlı güncel kullanımdan. Kullanım uyarıları kapalı olsa bile tek başına çalışır. Varsayılan olarak kapalıdır. Son okumalardan doğrusal tahmin.",

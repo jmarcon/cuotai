@@ -228,10 +228,18 @@ function noticeHtml(view, error) {
   return "";
 }
 
+/** DS-CMP-HEAD-2: the Cuotai mark at the start of the overview header opens (shows and focuses) the main window, like
+ *  the tray menu's Open item (`show_main_window`, the same command; it hides the popover). Icon only, with the
+ *  accessible name and tooltip in every catalog; a native button, so it is in the Tab order before the filter tabs. */
+const openMainButton = () => {
+  const name = te("tray.openWindow");
+  return `<button class="icon pop-home" type="button" data-open-main aria-label="${name}" title="${name}"><span class="wm-c" aria-hidden="true"></span></button>`;
+};
+
 const isMac = () => /^Mac/.test(globalThis.navigator?.platform ?? "");
 /** DS-CMP-FOOT-1..3: Settings and Stats on the left; the last completed refresh's age and refresh on the right. The
  *  Settings keycap lives in the tooltip and `aria-keyshortcuts` (PRD 0022 RF7.2 amendment); the main window opens
- *  from the tray menu (mockup 01 has no footer icon for it). */
+ *  from the header's mark button and the tray menu, never from the footer (DS-CMP-HEAD-2). */
 function footerHtml(view, statsShown) {
   const busy = !!view && view.busy.length > 0;
   const age = view?.finished_at ? fmtAge(view.finished_at) : "";
@@ -300,22 +308,25 @@ function render() {
   else body = `${listOf(inBar)}${rest.length ? notInHtml() + listOf(rest) : ""}${reports.length ? `${stripHtml()}<div data-timeline-slot></div>` : ""}`;
   if (view && all.length) loadStrip();
   syncTrayMenu(view);
-  // DS-CMP-HEAD-2 and PRD 0022 RF7.3: the overview header holds only the filter tabs (no logotype); a drill-in
-  // header has the back control, the title, the logotype and the esc keycap.
+  // DS-CMP-HEAD-2 and PRD 0022 RF7.3: the overview header holds the Cuotai mark button that opens the main window,
+  // then the filter tabs (no logotype text); a drill-in header has the back control, the title, the logotype and the
+  // esc keycap.
   const drillTitle = drill ? (!isAggregator(cur) && ctx.repeated.has(cur.provider) ? accountLabel(cur) : brand(cur.provider).label)
     : showStats ? t("tray.stats") : "";
   const header = drill || showStats
     ? `<header class="pop-head drill"><button class="icon back" data-back aria-label="${te("common.back")}" title="${te("common.back")}">${icon("back")}</button>
         <h1>${esc(drillTitle)}</h1><span class="grow"></span>
         ${showStats ? `<span data-stats-scope-slot></span>` : `<span class="wordmark sm">${wordmark()}</span>`}<kbd aria-hidden="true">esc</kbd></header>`
-    : `<header class="pop-head">${all.length ? filterTabsHtml(all, { selected: filter, moreOpen, maxTabs: tabFit, aggregatorTabs: true }) : `<h1 class="wordmark">${wordmark()}</h1>`}</header>`;
+    : `<header class="pop-head">${all.length ? `${openMainButton()}${filterTabsHtml(all, { selected: filter, moreOpen, maxTabs: tabFit, aggregatorTabs: true })}` : `<h1 class="wordmark">${wordmark()}</h1>`}</header>`;
   // The popover's content is its main landmark, with one level-one heading (visible in a drill-in or the empty
   // state, hidden behind the tab list otherwise).
   root.innerHTML = `<div class="pop">${header}
     <main class="pop-body">${!drill && !showStats && all.length ? '<h1 class="sr-only">Cuotai</h1>' : ""}${body}</main>
     ${noticeHtml(view, error)}${footerHtml(view, showStats)}</div>`;
   const head = root.querySelector(".pop-head"), strip = head?.querySelector(".tabs");
-  if (strip && strip.scrollWidth > head.clientWidth - 24 && tabFit > 1) { tabFit--; return render(); }
+  // The tabs never wrap or scroll (DS-CMP-TAB-4): what sits before the strip (the mark button) narrows its room.
+  const lead = strip ? strip.getBoundingClientRect().left - head.getBoundingClientRect().left : 0;
+  if (strip && lead + strip.scrollWidth > head.clientWidth - 12 && tabFit > 1) { tabFit--; return render(); }
   models?.attach(root, focus);
   const statsSlot = showStats && view ? root.querySelector("[data-stats-slot]") : null;
   const timelineSlot = !drill && !showStats && reports.length && view ? root.querySelector("[data-timeline-slot]") : null;

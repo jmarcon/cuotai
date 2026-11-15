@@ -1310,6 +1310,7 @@
   "timeline.left": "{pct}% left",
   "timeline.stale": "reading is out of date",
   "tray.stats": "Stats",
+  "tray.openWindow": "Open the Cuotai window",
   "tray.strip.title": "Last 24 hours · {name}",
   "settings.alerts.projected": "Warn before running out",
   "settings.alerts.projectedHelp": "A system notice shortly before a quota is projected to run out before it resets, once per window and only from steady recent use. It works on its own, with the usage alerts off. Off by default. Linear estimate from recent readings.",

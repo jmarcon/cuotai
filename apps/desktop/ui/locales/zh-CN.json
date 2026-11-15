@@ -1281,6 +1281,7 @@
   "timeline.left": "剩余 {pct}%",
   "timeline.stale": "读数已过期",
   "tray.stats": "统计",
+  "tray.openWindow": "打开 Cuotai 窗口",
   "tray.strip.title": "最近 24 小时 · {name}",
   "settings.alerts.projected": "用尽前提醒",
   "settings.alerts.projectedHelp": "在预计某项额度会于重置前用尽之前不久发送系统通知，每个窗口一次，且仅基于近期稳定的用量。它独立工作，即使用量提醒关闭也会生效。默认关闭。基于近期读数的线性估算。",

@@ -1281,6 +1281,7 @@
   "timeline.left": "残り {pct}%",
   "timeline.stale": "読み取りが古くなっています",
   "tray.stats": "統計",
+  "tray.openWindow": "Cuotai のウィンドウを開く",
   "tray.strip.title": "直近 24 時間 · {name}",
   "settings.alerts.projected": "上限到達の前に警告",
   "settings.alerts.projectedHelp": "クォータがリセット前に上限に達すると予測される少し前に、ウィンドウごとに 1 回、最近の安定した使用量に基づいてシステム通知を表示します。使用量アラートがオフでも単独で動作します。既定ではオフです。最近の読み取りからの線形推定です。",
