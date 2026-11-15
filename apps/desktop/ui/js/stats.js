@@ -141,8 +141,11 @@ export function rhythmChartHtml(rhythm, id, kind) {
   }).join("");
   const known = buckets.filter((b) => b.consumption != null);
   const top = known.reduce((a, b) => (b.consumption > (a?.consumption ?? -1) ? b : a), null);
+  // DS-CHT-10 (PRD 0022 re-validation V-07): range, peak and the last bucket's value.
+  const last = buckets[buckets.length - 1];
   const alt = known.length
-    ? t(`stats.rhythm.alt.${kind}`, { peak: top ? labelOf(top) : "", value: top ? pts(top.consumption) : "" })
+    ? t(`stats.rhythm.alt.${kind}`, { peak: top ? labelOf(top) : "", value: top ? pts(top.consumption) : "",
+      lastAt: labelOf(last), last: last.consumption == null ? t("stats.chart.noData") : pts(last.consumption) })
     : t("stats.rhythm.empty");
   const rows = buckets.map((b) => `<tr><td>${esc(labelOf(b))}</td><td>${b.consumption == null ? te("stats.chart.noData") : esc(pts(b.consumption))}</td><td>${[b.reset ? te("stats.rhythm.reset") : "", b.day_off ? te("stats.rhythm.dayOff") : "", kind === "typical" && b.consumption != null ? te("stats.rhythm.samples", { count: b.samples }) : ""].filter(Boolean).join(" · ")}</td></tr>`).join("");
   return `<figure class="rhythm" data-rhythm="${kind}"><figcaption class="micro">${te(`stats.rhythm.${kind}`)}</figcaption>

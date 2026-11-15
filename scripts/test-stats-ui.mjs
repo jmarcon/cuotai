@@ -39,7 +39,7 @@ globalThis.fetch = async (relative) => {
 
 const i18n = await import("../apps/desktop/ui/js/i18n.js");
 const lib = await import("../apps/desktop/ui/js/lib.js");
-const { kpisHtml, barsHtml, statsBodyHtml } = await import("../apps/desktop/ui/js/stats.js");
+const { kpisHtml, barsHtml, statsBodyHtml, rhythmChartHtml } = await import("../apps/desktop/ui/js/stats.js");
 const { laneLabel } = await import("../apps/desktop/ui/js/timeline.js");
 await i18n.initI18n();
 
@@ -162,6 +162,21 @@ for (const { code } of i18n.LOCALES) {
     }
     assert.equal(catalog["trend.emptyHelp"], undefined, `${code}: the joined fragments are gone`);
   }
+}
+
+// PRD 0022 re-validation V-07 (DS-CHT-10): the rhythm chart's name gives the peak and the last bucket's value.
+await i18n.setLocale("en-US");
+{
+  const buckets = Array.from({ length: 24 }, (_, hour) => ({ hour, consumption: hour === 18 ? 10.2 : hour === 23 ? null : 1, samples: 1 }));
+  const html = rhythmChartHtml({ buckets }, "rh", "day");
+  assert.match(html, /aria-label="[^"]*busiest at [^"]*; last at [^"]*\(No data\)"/, "the last bucket without samples reads No data");
+  buckets[23].consumption = 2.5;
+  assert.match(rhythmChartHtml({ buckets }, "rh", "day"), /aria-label="[^"]*; last at [^"]*\(2\.5[^)]*\)"/, "the last value is named");
+  for (const code of ["pt-BR", "de", "ja"]) {
+    await i18n.setLocale(code);
+    assert.doesNotMatch(rhythmChartHtml({ buckets }, "rh", "week"), /\{last|\{lastAt/, `${code}: every placeholder is filled`);
+  }
+  await i18n.setLocale("en-US");
 }
 
 console.log("PASS: Stats view and reset timeline render honestly in pt-BR, en-US, es and it; catalog keys match");

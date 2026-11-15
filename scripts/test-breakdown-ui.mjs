@@ -55,6 +55,9 @@ const report = (breakdown) => ({
   ...(breakdown ? { breakdown } : {}),
 });
 
+// PRD 0022 re-validation V-06: each limit's hide button is named after it, not just "Hide".
+assert.match(detailHtml(report(null), { eye: true }), /data-hide="[^"]+" title="Hide" aria-label="Hide Spending in the month"/);
+
 // 0 rows: no section at all.
 assert.equal(breakdownHtml(report(null)), "");
 assert.ok(!detailHtml(report(null)).includes("data-breakdown"));
