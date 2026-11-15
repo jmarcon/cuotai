@@ -13,6 +13,15 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.85.8] - 2026-11-15
+
+### Fixed
+
+- The `cuotai --changelog` and `cuotai --help` commands end quietly when piped into a command that stops reading early (PRD 0019 RF7.7; 4b6c2d2).
+- The output of `cuotai --version` names the program `cuotai` (PRD 0019 RF7.7; 4b6c2d2).
+- The update banner shows the release notes as headings and lists, without internal references (PRD 0019 RF1.1, RF7.7; 335c7ab).
+- Settings > About shows the project licence as MIT OR Apache-2.0 (PRD 0019 RF1.1, RF7.7; 335c7ab).
+
 ## [0.85.7] - 2026-11-14
 
 ### Changed
@@ -802,7 +811,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.85.7...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.85.8...HEAD
+[0.85.8]: https://github.com/jmarcon/cuotai/compare/v0.85.7...v0.85.8
 [0.85.7]: https://github.com/jmarcon/cuotai/compare/v0.85.6...v0.85.7
 [0.85.6]: https://github.com/jmarcon/cuotai/compare/v0.85.5...v0.85.6
 [0.85.5]: https://github.com/jmarcon/cuotai/compare/v0.85.4...v0.85.5
