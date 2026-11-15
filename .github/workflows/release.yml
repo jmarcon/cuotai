@@ -67,17 +67,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
         with:
           toolchain: 1.99.1
-      # Every rust-cache step of this workflow restores only (`save-if:
-      # false`). A run on a tag can read caches of its own ref and of main,
-      # and a tag never runs twice, so a cache saved here would never be
-      # restored: the v0.80.0 release left ~8 GB of unreachable entries that
-      # evicted main's test caches (the 10 GB repository limit) and cost each
-      # desktop job 30-40 s of upload. The restore still finds main's entries
-      # when a key matches.
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: false
-          workspaces: . -> target
+      # No job of this workflow restores a cache (PRD 0019 re-validation,
+      # S-02/R-01). A tag run may read the caches main wrote, so a poisoned
+      # dependency artifact or a cached `cargo-tauri` binary from any main CI
+      # step would be linked into, or run inside, a job that builds shipped
+      # bytes or holds a release credential. Every job compiles from the
+      # locked sources and installs pinned tooling with `--locked`;
+      # `workflow-check` rejects `actions/cache*` and `Swatinem/rust-cache`
+      # anywhere in release.yml.
       - name: Release check (RF1)
         id: result
         env:
@@ -146,7 +143,7 @@ jobs:
     needs: check
     if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)
     runs-on: macos-latest
-    timeout-minutes: 90
+    timeout-minutes: 120 # cold build, no cache (S-02)
     # Tag pushes use the owner-configured `release` environment. Dispatch
     # rehearsals use the separate secretless `rehearsal` environment.
     environment: ${{ github.event_name == 'push' && 'release' || 'rehearsal' }}
@@ -179,12 +176,6 @@ jobs:
         with:
           toolchain: 1.99.1
           targets: aarch64-apple-darwin,x86_64-apple-darwin
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: false
-          workspaces: |
-            . -> target
-            apps/desktop/src-tauri -> target
       - name: Apple signing keychain (complete tag credentials only)
         env:
           APPLE_CERTIFICATE: ${{ github.event_name == 'push' && secrets.APPLE_CERTIFICATE || '' }}
@@ -195,18 +186,11 @@ jobs:
         run: scripts/release/macos-keychain.sh
       - name: Desktop lockfile is current
         run: cargo metadata --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --format-version 1 > /dev/null
-      - name: Restore tauri-cli (warmed by the CI run of main)
-        id: tauri-cli
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cargo/bin/cargo-tauri*
-          key: tauri-cli-${{ env.TAURI_CLI_VERSION }}-${{ runner.os }}-${{ runner.arch }}
-      - name: Install tauri-cli (cache miss)
-        if: steps.tauri-cli.outputs.cache-hit != 'true'
+      - name: Install the pinned tauri-cli
         run: cargo install tauri-cli --locked --version "$TAURI_CLI_VERSION"
       - name: Build universal app and DMG
         working-directory: apps/desktop
-        # No `tauri.updater.conf.json` overlay here (PRD 0018 RF1.1): the macOS
+        # No bundler updater artifacts here (PRD 0018 RF1.1): the macOS
         # updater artifact is the notarized app, which only exists after the
         # notarization below, so `collect-macos.sh` archives and updater-signs
         # it afterwards. Bundling-time signatures would cover the pre-notarized
@@ -261,7 +245,7 @@ jobs:
     needs: check
     if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)
     runs-on: windows-latest
-    timeout-minutes: 90
+    timeout-minutes: 120 # cold build, no cache (S-02)
     environment: ${{ github.event_name == 'push' && 'release' || 'rehearsal' }}
     env:
       VERSION: ${{ needs.check.outputs.version }}
@@ -293,23 +277,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
         with:
           toolchain: 1.99.1
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: false
-          workspaces: |
-            . -> target
-            apps/desktop/src-tauri -> target
       - name: Desktop lockfile is current
         shell: bash
         run: cargo metadata --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --format-version 1 > /dev/null
-      - name: Restore tauri-cli (warmed by the CI run of main)
-        id: tauri-cli
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cargo/bin/cargo-tauri*
-          key: tauri-cli-${{ env.TAURI_CLI_VERSION }}-${{ runner.os }}-${{ runner.arch }}
-      - name: Install tauri-cli (cache miss)
-        if: steps.tauri-cli.outputs.cache-hit != 'true'
+      - name: Install the pinned tauri-cli
         shell: bash
         run: cargo install tauri-cli --locked --version "$TAURI_CLI_VERSION"
       - name: Build desktop application
@@ -366,7 +337,7 @@ jobs:
     if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)
     runs-on: windows-11-arm
     continue-on-error: true
-    timeout-minutes: 90
+    timeout-minutes: 120 # cold build, no cache (S-02)
     environment: ${{ github.event_name == 'push' && 'release' || 'rehearsal' }}
     env:
       VERSION: ${{ needs.check.outputs.version }}
@@ -397,23 +368,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
         with:
           toolchain: 1.99.1
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: false
-          workspaces: |
-            . -> target
-            apps/desktop/src-tauri -> target
       - name: Desktop lockfile is current
         shell: bash
         run: cargo metadata --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --format-version 1 > /dev/null
-      - name: Restore tauri-cli (warmed by the CI run of main)
-        id: tauri-cli
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cargo/bin/cargo-tauri*
-          key: tauri-cli-${{ env.TAURI_CLI_VERSION }}-${{ runner.os }}-${{ runner.arch }}
-      - name: Install tauri-cli (cache miss)
-        if: steps.tauri-cli.outputs.cache-hit != 'true'
+      - name: Install the pinned tauri-cli
         shell: bash
         run: cargo install tauri-cli --locked --version "$TAURI_CLI_VERSION"
       - name: Build desktop application (ARM64)
@@ -478,10 +436,11 @@ jobs:
     needs: check
     if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)
     runs-on: ubuntu-22.04 # oldest supported glibc (RF2)
-    timeout-minutes: 90
-    # The Tauri updater key lives here (PRD 0018 RF4.1): the Linux packages
-    # are updater-signed while bundling, so tag jobs use the owner-configured
-    # environment while rehearsals use a secretless environment.
+    timeout-minutes: 120 # cold build, no cache (S-02)
+    # The Tauri updater key lives here (PRD 0018 RF4.1): the collected Linux
+    # packages are updater-signed in their own step after the build, so tag
+    # jobs use the owner-configured environment while rehearsals use a
+    # secretless environment.
     environment: ${{ github.event_name == 'push' && 'release' || 'rehearsal' }}
     env:
       VERSION: ${{ needs.check.outputs.version }}
@@ -511,12 +470,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
         with:
           toolchain: 1.99.1
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: false
-          workspaces: |
-            . -> target
-            apps/desktop/src-tauri -> target
       # Retries, a per-request stall timeout and the step timeout make a stuck
       # Ubuntu mirror fail fast instead of eating the job budget.
       - name: System dependencies (WebKitGTK, AppImage tooling)
@@ -528,39 +481,27 @@ jobs:
             libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf rpm
       - name: Desktop lockfile is current
         run: cargo metadata --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --format-version 1 > /dev/null
-      - name: Restore tauri-cli (warmed by the CI run of main)
-        id: tauri-cli
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cargo/bin/cargo-tauri*
-          key: tauri-cli-${{ env.TAURI_CLI_VERSION }}-${{ runner.os }}-${{ runner.arch }}
-      - name: Install tauri-cli (cache miss)
-        if: steps.tauri-cli.outputs.cache-hit != 'true'
+      - name: Install the pinned tauri-cli
         run: cargo install tauri-cli --locked --version "$TAURI_CLI_VERSION"
+      # No updater key while bundling (PRD 0019 re-validation, S-03): the
+      # build compiles every dependency and runs their build scripts, so the
+      # production key reaches only the signing step below, as on Windows.
       - name: Build AppImage, deb and rpm
         working-directory: apps/desktop
+        run: cargo tauri build --bundles "appimage,deb,rpm" -- --locked
+      - name: Collect artifacts and signing fragment
+        run: scripts/release/collect-linux.sh x64
+      # PRD 0018 RF1.1: updater-signs the collected packages, the exact bytes
+      # this job uploads. The key is only present on tag runs, and only here.
+      - name: Updater-sign the Linux packages
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
-        # PRD 0018 RF1.1: `createUpdaterArtifacts` is enabled through the
-        # release-time overlay, and only when the key exists — a build without
-        # it must still bundle during a secretless dispatch rehearsal.
-        # Nothing rewrites these package bytes afterwards, so the signatures
-        # the bundler writes here are the final ones.
         run: |
           set -euo pipefail
-          args=(build --bundles "appimage,deb,rpm")
-          if [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
-            args+=(--config src-tauri/tauri.updater.conf.json)
-          else
-            echo "no Tauri updater key: bundling without updater artifacts"
-          fi
-          cargo tauri "${args[@]}" -- --locked
-      # No updater key here: `collect-linux.sh` only copies the packages and the
-      # signatures the bundler already wrote, so the production key never
-      # reaches a step that does not sign (PRD 0018 RF4.1).
-      - name: Collect artifacts and signing fragment
-        run: scripts/release/collect-linux.sh x64
+          for ext in AppImage deb rpm; do
+            scripts/release/updater-sign.sh "dist/Cuotai_${VERSION}_amd64.${ext}" fragments/linux-x64.json
+          done
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dist-desktop-linux
@@ -580,7 +521,7 @@ jobs:
     if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)
     runs-on: ubuntu-24.04-arm
     continue-on-error: true
-    timeout-minutes: 90
+    timeout-minutes: 120 # cold build, no cache (S-02)
     environment: ${{ github.event_name == 'push' && 'release' || 'rehearsal' }}
     env:
       VERSION: ${{ needs.check.outputs.version }}
@@ -610,12 +551,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
         with:
           toolchain: 1.99.1
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: false
-          workspaces: |
-            . -> target
-            apps/desktop/src-tauri -> target
       # Retries, a per-request stall timeout and the step timeout make a stuck
       # Ubuntu mirror fail fast instead of eating the job budget.
       - name: System dependencies (WebKitGTK, AppImage tooling)
@@ -627,34 +562,29 @@ jobs:
             libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf rpm
       - name: Desktop lockfile is current
         run: cargo metadata --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --format-version 1 > /dev/null
-      - name: Restore tauri-cli (warmed by the CI run of main)
-        id: tauri-cli
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cargo/bin/cargo-tauri*
-          key: tauri-cli-${{ env.TAURI_CLI_VERSION }}-${{ runner.os }}-${{ runner.arch }}
-      - name: Install tauri-cli (cache miss)
-        if: steps.tauri-cli.outputs.cache-hit != 'true'
+      - name: Install the pinned tauri-cli
         run: cargo install tauri-cli --locked --version "$TAURI_CLI_VERSION"
       - name: Build AppImage, deb and rpm (ARM64)
         id: build
         working-directory: apps/desktop
+        run: cargo tauri build --target aarch64-unknown-linux-gnu --bundles "appimage,deb,rpm" -- --locked
+      - name: Collect artifacts and signing fragment
+        id: collect
+        if: steps.build.outcome == 'success'
+        run: scripts/release/collect-linux.sh arm64
+      - name: Updater-sign the Linux ARM64 packages
+        id: updater_sign
+        if: steps.collect.outcome == 'success'
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         run: |
           set -euo pipefail
-          args=(build --target aarch64-unknown-linux-gnu --bundles "appimage,deb,rpm")
-          if [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
-            args+=(--config src-tauri/tauri.updater.conf.json)
-          fi
-          cargo tauri "${args[@]}" -- --locked
-      - name: Collect artifacts and signing fragment
-        id: collect
-        if: steps.build.outcome == 'success'
-        run: scripts/release/collect-linux.sh arm64
+          for ext in AppImage deb rpm; do
+            scripts/release/updater-sign.sh "dist/Cuotai_${VERSION}_aarch64.${ext}" fragments/linux-arm64.json
+          done
       - name: Unavailable marker
-        if: ${{ always() && (steps.build.outcome != 'success' || steps.collect.outcome != 'success') }}
+        if: ${{ always() && (steps.build.outcome != 'success' || steps.collect.outcome != 'success' || steps.updater_sign.outcome != 'success') }}
         run: |
           rm -rf dist
           mkdir -p fragments
@@ -709,10 +639,6 @@ jobs:
         with:
           toolchain: 1.99.1
           targets: ${{ matrix.target }}
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: false
-          workspaces: . -> target
       - name: Cross-build packages
         if: matrix.packages != ''
         timeout-minutes: 10
@@ -812,12 +738,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
         with:
           toolchain: 1.99.1
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: false
-          workspaces: |
-            . -> target
-            apps/desktop/src-tauri -> target
       - name: Install cargo-cyclonedx
         run: cargo install cargo-cyclonedx --locked --version "$CARGO_CYCLONEDX_VERSION"
       - name: Build xtask
@@ -908,10 +828,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
         with:
           toolchain: 1.99.1
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: false
-          workspaces: . -> target
       - name: Build xtask
         run: cargo build -p xtask --locked
       - name: Download build artifacts
@@ -1275,10 +1191,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
         with:
           toolchain: 1.99.1
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: false
-          workspaces: . -> target
       - name: Build xtask
         run: cargo build -p xtask --locked
       - name: Download release assembly
@@ -1326,10 +1238,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
         with:
           toolchain: 1.99.1
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: false
-          workspaces: . -> target
       - name: Build xtask
         run: cargo build -p xtask --locked
       - name: Download release assembly (for the manifest)
@@ -1371,10 +1279,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
         with:
           toolchain: 1.99.1
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: false
-          workspaces: . -> target
       - name: Build xtask
         run: cargo build -p xtask --locked
       - name: Download release assembly (manifest + signing state)
@@ -1696,10 +1600,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
         with:
           toolchain: 1.99.1
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: false
-          workspaces: . -> target
       - name: Packaging check for cuotai-core
         run: cargo publish --dry-run --locked -p cuotai-core
       - name: Packaging check for cuotai-tui
@@ -1766,7 +1666,10 @@ jobs:
           }
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          # The key must exist for the clone and the push below, and is
+          # removed when the step ends, on failure too.
+          trap 'rm -f ~/.ssh/id_ed25519' EXIT
+          (umask 077 && printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519)
           chmod 600 ~/.ssh/id_ed25519
           # Host keys are pinned against the fingerprints aur.archlinux.org
           # publishes; a mismatch aborts the push.
@@ -1782,7 +1685,6 @@ jobs:
             }
           done
           mv "$HOME/.ssh/keyscan.tmp" "$HOME/.ssh/known_hosts"
-          rm -f ~/.ssh/id_ed25519
           work="$RUNNER_TEMP/aur"
           git clone "ssh://aur@aur.archlinux.org/cuotai-bin.git" "$work"
           cp rendered/aur/PKGBUILD rendered/aur/.SRCINFO "$work/"

@@ -294,22 +294,22 @@ const SECRET_OWNERS: &[(&str, &str, &str)] = &[
     (
         "TAURI_SIGNING_PRIVATE_KEY",
         "desktop-linux",
-        "Build AppImage, deb and rpm",
+        "Updater-sign the Linux packages",
     ),
     (
         "TAURI_SIGNING_PRIVATE_KEY_PASSWORD",
         "desktop-linux",
-        "Build AppImage, deb and rpm",
+        "Updater-sign the Linux packages",
     ),
     (
         "TAURI_SIGNING_PRIVATE_KEY",
         "desktop-linux-arm64",
-        "Build AppImage, deb and rpm (ARM64)",
+        "Updater-sign the Linux ARM64 packages",
     ),
     (
         "TAURI_SIGNING_PRIVATE_KEY_PASSWORD",
         "desktop-linux-arm64",
-        "Build AppImage, deb and rpm (ARM64)",
+        "Updater-sign the Linux ARM64 packages",
     ),
     (
         "GITHUB_TOKEN",
@@ -358,41 +358,7 @@ const SECRET_OWNERS: &[(&str, &str, &str)] = &[
 pub fn check_file(path: &Path) -> Res<()> {
     let text = std::fs::read_to_string(path)
         .map_err(|e| Error::Msg(format!("cannot read {}: {e}", path.display())))?;
-    check_text(path, &text)?;
-    // ci.yml warms the tauri-cli binary cache that release.yml restores, so
-    // the two workflows must name the same version or the release legs would
-    // silently compile it again on every tag.
-    if path.file_name().and_then(|name| name.to_str()) == Some("ci.yml") {
-        let release = path.with_file_name("release.yml");
-        if release.is_file() {
-            let release_text = std::fs::read_to_string(&release)
-                .map_err(|e| Error::Msg(format!("cannot read {}: {e}", release.display())))?;
-            check_tauri_cli_version(&text, &release_text)?;
-        }
-    }
-    Ok(())
-}
-
-/// The workflow-level `env.TAURI_CLI_VERSION` of a workflow.
-fn tauri_cli_version(text: &str) -> Res<String> {
-    let root: Value = serde_yaml::from_str(text)
-        .map_err(|e| Error::Msg(format!("invalid workflow YAML: {e}")))?;
-    let root = mapping(&root, "workflow root")?;
-    let env = mapping(need(root, "env", "workflow root")?, "workflow env")?;
-    scalar(env, "TAURI_CLI_VERSION")
-        .map(str::to_owned)
-        .map_or_else(|| err("workflow env has no TAURI_CLI_VERSION"), Ok)
-}
-
-fn check_tauri_cli_version(ci_text: &str, release_text: &str) -> Res<()> {
-    let ci = tauri_cli_version(ci_text)?;
-    let release = tauri_cli_version(release_text)?;
-    if ci != release {
-        return err(format!(
-            "ci.yml warms the tauri-cli {ci} cache but release.yml installs tauri-cli {release}; keep TAURI_CLI_VERSION equal in both"
-        ));
-    }
-    Ok(())
+    check_text(path, &text)
 }
 
 fn check_text(path: &Path, text: &str) -> Res<()> {
@@ -423,6 +389,7 @@ fn check_text(path: &Path, text: &str) -> Res<()> {
     }
 
     if name == "release.yml" {
+        check_release_cache_free(jobs)?;
         check_release_policy(jobs)?;
         check_smoke_policy(root, jobs)?;
     }
@@ -438,6 +405,32 @@ fn check_text(path: &Path, text: &str) -> Res<()> {
     }
     if name == "external-rules.yml" {
         check_external_rules_policy(jobs, text)?;
+    }
+    Ok(())
+}
+
+/// PRD 0019 re-validation (S-02/R-01): a tag run can read the caches main
+/// wrote, so a restored `target/`, `~/.cargo` or tool binary would let any
+/// compromised main CI step reach a job that builds shipped bytes or holds a
+/// release credential. No release job may restore or save a cache.
+fn check_release_cache_free(jobs: &Mapping) -> Res<()> {
+    for (job_key, job_value) in jobs {
+        let job_name = string(job_key, "job id")?;
+        let job = mapping(job_value, &format!("job {job_name}"))?;
+        for step in steps(job)? {
+            let Some(uses) = scalar(step, "uses") else {
+                continue;
+            };
+            let action = uses.split('@').next().unwrap_or_default();
+            if action == "actions/cache"
+                || action.starts_with("actions/cache/")
+                || action == "Swatinem/rust-cache"
+            {
+                return err(format!(
+                    "release job {job_name} uses {action}; release jobs build from the locked sources and never restore a cache"
+                ));
+            }
+        }
     }
     Ok(())
 }
@@ -1281,14 +1274,25 @@ mod tests {
     }
 
     #[test]
-    fn ci_and_release_install_the_same_tauri_cli() {
-        assert!(super::check_tauri_cli_version(CI_WORKFLOW, RELEASE_WORKFLOW).is_ok());
-        let drifted =
-            RELEASE_WORKFLOW.replacen("TAURI_CLI_VERSION: \"", "TAURI_CLI_VERSION: \"9", 1);
-        assert_ne!(drifted, RELEASE_WORKFLOW);
-        assert!(super::check_tauri_cli_version(CI_WORKFLOW, &drifted).is_err());
-        let missing = CI_WORKFLOW.replacen("TAURI_CLI_VERSION:", "UNRELATED_VERSION:", 1);
-        assert!(super::check_tauri_cli_version(&missing, RELEASE_WORKFLOW).is_err());
+    fn rejects_a_cache_in_any_release_job() {
+        let anchor = "      - name: Install the pinned tauri-cli\n";
+        assert_eq!(RELEASE_WORKFLOW.matches(anchor).count(), 5);
+        for cache in [
+            "Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3\n        with:\n          save-if: false",
+            "actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0\n        with:\n          path: ~/.cargo/bin/cargo-tauri*\n          key: tauri-cli",
+            "actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0\n        with:\n          path: target\n          key: target",
+        ] {
+            let poisoned =
+                RELEASE_WORKFLOW.replacen(anchor, &format!("      - uses: {cache}\n{anchor}"), 1);
+            let error = check_text(Path::new("release.yml"), &poisoned)
+                .expect_err("a release job restoring a cache must be rejected")
+                .to_string();
+            assert!(error.contains("never restore a cache"), "{error}");
+        }
+        // The same step outside release.yml is not this rule's concern.
+        let ci_cache =
+            "      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3\n";
+        assert!(CI_WORKFLOW.contains(ci_cache));
     }
 
     #[test]

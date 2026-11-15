@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 # Updater-signs a collected artifact and records it in the job's signing
-# fragment (PRD 0018 RF1.1/RF1.2, PRD 0021 RF3.4). Used where the bytes the
-# updater ships only exist after platform signing: the Windows installers,
-# whose Authenticode signature is applied after Tauri bundles them, so an
-# updater signature computed at bundle time would not verify.
+# fragment (PRD 0018 RF1.1/RF1.2, PRD 0021 RF3.4). It signs the exact bytes
+# a job uploads, in a step of its own after the build:
+#   * the Windows installers, whose Authenticode signature is applied after
+#     Tauri bundles them, so an updater signature computed at bundle time
+#     would not verify;
+#   * the Linux AppImage, `.deb` and `.rpm`, so the key never reaches the
+#     build, which compiles every dependency and runs their build scripts
+#     (PRD 0019 re-validation, S-03).
 #
 # The Tauri private key is read from the environment, never printed and never
 # written anywhere else; it is used for nothing but this signature.
@@ -13,8 +17,9 @@
 #   fragment    per-job signing fragment to extend with the updater proof
 #
 # The artifact keeps the signing record it already has (Authenticode on
-# Windows) and gains the detached `.sig` as `updater_signature`, so one
-# artifact carries two proofs without ever being listed twice.
+# Windows, the checksum record on Linux) and gains the detached `.sig` as
+# `updater_signature`, so one artifact carries two proofs without ever being
+# listed twice.
 #
 # A dry run or a run without the key skips honestly: the fragment then reports
 # the updater as unavailable with the reason, and no `.sig` is claimed.

@@ -257,9 +257,10 @@ updater_signed_scenario() {
   local v=0.67.0
   local bundle="$root/apps/desktop/src-tauri/target/release/bundle"
   write_pkg "$bundle/appimage/Cuotai_${v}_amd64.AppImage" "amd64 AppImage"
-  write_pkg "$bundle/appimage/Cuotai_${v}_amd64.AppImage.sig" "base64 updater signature"
+  # A stale bundler signature must never be collected: the bundle runs
+  # without the key, and only the separate signing step writes `.sig` files.
+  write_pkg "$bundle/appimage/Cuotai_${v}_amd64.AppImage.sig" "stale bundler signature"
   write_pkg "$bundle/deb/Cuotai_${v}_amd64.deb" "amd64 deb"
-  write_pkg "$bundle/deb/Cuotai_${v}_amd64.deb.sig" "base64 updater signature"
   write_pkg "$bundle/rpm/Cuotai_${v}_amd64.rpm" "amd64 rpm"
 
   (
@@ -268,20 +269,35 @@ updater_signed_scenario() {
     "$COLLECT" x64
   ) >/dev/null
 
-  # Every signature the bundler produced is collected next to its payload
-  # (PRD 0018 RF1.1); an unsigned package brings none.
-  cmp -s "$root/dist/Cuotai_${v}_amd64.AppImage.sig" \
-    "$bundle/appimage/Cuotai_${v}_amd64.AppImage.sig" \
-    || fail "collected AppImage signature differs from the bundle source"
-  cmp -s "$root/dist/Cuotai_${v}_amd64.deb.sig" \
-    "$bundle/deb/Cuotai_${v}_amd64.deb.sig" \
-    || fail "collected deb signature differs from the bundle source"
-  if [ -e "$root/dist/Cuotai_${v}_amd64.rpm.sig" ]; then
-    fail "an unsigned rpm must not produce a signature in dist/"
+  if compgen -G "$root/dist/*.sig" >/dev/null; then
+    fail "collect-linux.sh must not copy any signature; the signing step writes them"
   fi
+  jq -e '.updater.available == false' "$root/fragments/linux-x64.json" >/dev/null \
+    || fail "the collected fragment must start with the updater unavailable"
+
+  # The separate signing step (PRD 0019 re-validation, S-03): the real
+  # `updater-sign.sh` against a `cargo` stub that behaves like
+  # `cargo tauri signer sign`. No key exists anywhere.
+  mkdir -p "$root/fake-bin"
+  cat > "$root/fake-bin/cargo" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+for arg in "$@"; do last="$arg"; done
+printf 'dGVzdC1vbmx5LWJhc2U2NC1zaWduYXR1cmU=\n' > "${last}.sig"
+STUB
+  chmod +x "$root/fake-bin/cargo"
+  (
+    cd "$root"
+    export VERSION="$v" DRY_RUN=false
+    export PATH="$root/fake-bin:$PATH"
+    export TAURI_SIGNING_PRIVATE_KEY="test-only-key" TAURI_SIGNING_PRIVATE_KEY_PASSWORD="test-only"
+    for ext in AppImage deb rpm; do
+      "$UPDATER_SIGN" "dist/Cuotai_${v}_amd64.${ext}" fragments/linux-x64.json
+    done
+  ) >/dev/null
 
   # The signed run assembles: every artifact has exactly one record and the
-  # updater lists the two signed payloads plus their detached signatures.
+  # updater lists the three signed payloads plus their detached signatures.
   WITH_UPDATER_MANIFEST=1 write_required_dist "$root" "$v"
   other_jobs_fragments "$root" \
     "Cuotai_${v}_amd64.AppImage" "Cuotai_${v}_amd64.deb" "Cuotai_${v}_amd64.rpm"
@@ -292,15 +308,16 @@ updater_signed_scenario() {
   want="$(printf '%s\n' \
       "Cuotai_${v}_amd64.AppImage" "Cuotai_${v}_amd64.AppImage.sig" \
       "Cuotai_${v}_amd64.deb" "Cuotai_${v}_amd64.deb.sig" \
+      "Cuotai_${v}_amd64.rpm" "Cuotai_${v}_amd64.rpm.sig" \
     | jq -R -s -c 'split("\n")[:-1] | sort')"
   jq -e '.updater.available' "$state" >/dev/null \
     || fail "the assembled state does not report the updater as available"
-  jq -e --argjson want "$want" '.updater.artifacts == $want' "$state" >/dev/null \
+  jq -e --argjson want "$want" '(.updater.artifacts | sort) == $want' "$state" >/dev/null \
     || fail "assembled updater artifacts differ from the signed payloads and their signatures"
   # With the release key the checksum signature resolves too, and the two
   # proofs of each signed package coexist in one record.
   jq -e --arg a "Cuotai_${v}_amd64.AppImage" \
-    '.artifacts[] | select(.name == $a) | .signed == true and .method == "checksum-signature" and .updater_signature == "\($a).sig"' \
+    '.artifacts[] | select(.name == $a) | .method == "checksum-signature" and .updater_signature == "\($a).sig"' \
     "$state" >/dev/null \
     || fail "the signed AppImage does not carry both proofs in one record"
 }
@@ -440,7 +457,7 @@ main() {
   duplicate_scenario "$dup_dir"
   note "red: a symlink whose own name matches the expected extension must be rejected"
   symlink_scenario "$sym_dir"
-  note "green: bundler-produced updater signatures are collected and assembled"
+  note "green: packages updater-signed after collection assemble as one record each"
   updater_signed_scenario "$signed_dir"
   note "green: a run without the updater key stays honestly unsigned"
   updater_unsigned_scenario "$unsigned_dir"

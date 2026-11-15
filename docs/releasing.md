@@ -256,17 +256,18 @@ free-tier budget.
 - Desktop bundles, the seven-row CLI matrix and aggregate SBOM run only for a
   pushed tag or an explicit full rehearsal. Windows ARM64, Linux ARM64 and
   the two ARM64 CLI rows are optional; every other RF2 artifact is required.
-- `Swatinem/rust-cache` is enabled for Cargo builds. Jobs that compile the
-  desktop cache both `.` and `apps/desktop/src-tauri`; root-only Cargo jobs
-  cache `.`. Release jobs restore only (`save-if: false`): a tag run can read
-  the caches of its own ref and of `main`, and a tag never runs twice, so an
-  entry saved from a tag is never restored and only evicts `main`'s entries
-  from the 10 GB repository limit. For the same reason the `tooling-cache`
-  job of `ci.yml` warms, on pushes to `main`, the `tauri-cli` binary cache
-  (`tauri-cli-<version>-<os>-<arch>`, one entry per release runner image)
-  that each desktop leg restores before `cargo install tauri-cli`, which runs
-  only on a miss; `workflow-check` keeps `TAURI_CLI_VERSION` equal in both
-  workflows. Every job has `timeout-minutes`.
+- No release job restores or saves a cache. A tag run can read the caches
+  `main` wrote, so a restored `target/`, `~/.cargo` or `cargo-tauri` binary
+  would let any compromised step of a `main` CI run reach a job that builds
+  shipped bytes or holds a release credential (the Sigstore identity of
+  `assemble`, the write token of `publish`, the signing keys of the desktop
+  legs). Every release job compiles from the locked sources, and each
+  desktop leg installs the pinned `tauri-cli` with
+  `cargo install tauri-cli --locked --version "$TAURI_CLI_VERSION"`.
+  `workflow-check` rejects `actions/cache*` and `Swatinem/rust-cache`
+  anywhere in `release.yml`. The cost is a cold build on every tag; the
+  desktop legs have a 120-minute timeout for it. Every job has
+  `timeout-minutes`.
 - `cargo xtask workflow-check` enforces these invariants in CI and before a
   release build. Tests prove failures for broad permissions, missing timeouts,
   unpinned actions, dotted/bracketed/dynamic secret misuse, an unlisted job,
@@ -457,7 +458,7 @@ Per platform:
   |---|---|---|
   | macOS | `collect-macos.sh`, after notarization | the updater artifact is a tarball of the **notarized** app; a bundle-time archive would carry the pre-notarization app and fail Gatekeeper |
   | Windows | `scripts/release/updater-sign.sh`, after Authenticode | Authenticode rewrites the installer, so a bundle-time updater signature would not verify |
-  | Linux | the Tauri bundler, via `--config src-tauri/tauri.updater.conf.json` | nothing rewrites the AppImage/deb/rpm after bundling, so the bundler's signature is final |
+  | Linux | `scripts/release/updater-sign.sh`, in its own step after the build and collection | the build compiles every dependency and runs their build scripts, so the key reaches only the step that signs the collected AppImage/deb/rpm, the exact bytes the job uploads |
   A tag run without this key, or with only a partial required signature set,
   fails assembly before publication. The dispatch preflight never requests
   the key or builds updater payloads.
