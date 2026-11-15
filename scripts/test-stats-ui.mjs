@@ -118,7 +118,9 @@ for (const { code } of i18n.LOCALES) {
   assert.ok(body.includes(i18n.t("stats.footer.partial", { have: 5, total: 7 })), `${code}: partial coverage`);
 
   const at = new Date(Date.now() + 95 * 60_000 + 30_000).toISOString();
-  const name = laneLabel({ name: "Work", returns_at: at, exhausted: false, remaining_share: 0.4, stale: false }, "hours24");
+  // PRD 0024 re-validation (V-10): the duration is the core's `returns_in` text the lane carries.
+  const returnsIn = { id: "text.duration.hours_minutes", params: { h: "1", m: "35" }, fallback: "1h 35m" };
+  const name = laneLabel({ name: "Work", returns_at: at, returns_in: returnsIn, exhausted: false, remaining_share: 0.4, stale: false }, "hours24");
   assert.ok(name.includes("Work") && /\b1\D{1,12}35\D/.test(name) && name.includes("40"), `${code}: lane name "${name}"`);
   console.log(`${code}: ${name}`);
 }

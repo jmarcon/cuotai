@@ -655,8 +655,6 @@ export function resetsText(m) {
   const left = legacyCountdown(m.resets_at);
   return left ? t("quota.resetsIn", { time: left }) : null;
 }
-/** "1h 35m" until `iso` ("now" once past): the local countdown the reset timeline speaks in its accessible names. */
-export const fmtCountdown = (iso) => legacyCountdown(iso);
 // PRD 0035 RF10.3: durations are catalog patterns (the core's `text.duration.*`, with their English fallbacks), never
 // concatenated letters, so each language words them (`{h}時間{m}分`, `{h} ч {m} мин`).
 const DURATION_EN = {
@@ -677,6 +675,23 @@ export function durationText(secs) {
   const d = Math.floor(minutes / 1440), h = Math.floor(minutes / 60) % 24, m = minutes % 60;
   if (d === 0) return m === 0 ? durationPart("text.duration.hours", { h: String(h) }) : durationPart("text.duration.hours_minutes", { h: String(h), m: String(m) });
   return h === 0 ? durationPart("text.duration.days", { d: String(d) }) : durationPart("text.duration.days_hours", { d: String(d), h: String(h) });
+}
+/** The core's `text.duration.*` note of `secs` seconds, as the shell sends it (demo fixtures only). */
+function durationNote(secs) {
+  secs = Math.max(0, Math.floor(secs));
+  const note = (id, params) => ({ id, params, fallback: DURATION_EN[id].replace(/\{(\w+)\}/g, (m, n) => (n in params ? params[n] : m)) });
+  if (secs < 3600) return note("text.duration.minutes", { m: String(Math.min(59, Math.ceil(secs / 60))) });
+  const minutes = Math.floor(secs / 60);
+  const d = Math.floor(minutes / 1440), h = Math.floor(minutes / 60) % 24, m = minutes % 60;
+  if (d === 0) return m === 0 ? note("text.duration.hours", { h: String(h) }) : note("text.duration.hours_minutes", { h: String(h), m: String(m) });
+  return h === 0 ? note("text.duration.days", { d: String(d) }) : note("text.duration.days_hours", { d: String(d), h: String(h) });
+}
+/** The core's `text.countdown` note until `iso` (demo fixtures only). */
+function countdownNote(iso) {
+  const secs = (new Date(iso).getTime() - Date.now()) / 1000;
+  if (!(secs >= 1)) return { id: "text.countdown.now", params: {}, fallback: "now" };
+  const duration = durationNote(secs);
+  return { id: "text.countdown", params: { duration }, fallback: `in ${duration.fallback}` };
 }
 function legacyCountdown(iso) {
   if (!iso) return null;
@@ -1395,16 +1410,23 @@ const demoBinding = (r) => {
 };
 // ponytail: fixed core pace output per demo metric (one per stage), same shape as `MetricView.pace`; the browser
 // demo never estimates pace itself. Add a mocked backend when the demo needs paces that follow the clock.
-const hhmm = (iso) => fmtLocal(new Date(iso), HHMM);
-const dp = (stage, tone, expected, used, resetH, runsOutH = null) => {
+/** The core's "Resets {at} · {in}" pair (`resets::pair_label`), as the shell sends it (demo values). */
+const demoResetsLabel = (iso) => {
+  const at = demoAt(iso), left = countdownNote(iso);
+  return { id: "resets.pair", params: { at, in: left }, fallback: `Resets ${at.fallback} · ${left.fallback}` };
+};
+// `source` "recent" plays a projection the recent readings drove (the muted marker, RF1.5; the forecast needs it).
+const dp = (stage, tone, expected, used, resetH, runsOutH = null, source = runsOutH != null && used >= 0.25 ? "recent" : "average") => {
   const delta = (used - expected) * 100, points = String(Math.round(Math.abs(delta)));
   const label = { reserve: { id: "pace.reserve", params: { delta: points }, fallback: `${points} points in reserve` },
     on_pace: { id: "pace.on_pace", fallback: "On pace" }, ahead: { id: "pace.ahead", params: { delta: points }, fallback: `${points} points above the pace` },
     exhausted: { id: "pace.exhausted", fallback: "Limit reached until the reset" } }[stage];
   const at = runsOutH == null ? null : h(runsOutH);
-  const margin = runsOutH == null ? "" : legacyCountdown(h(resetH - runsOutH)).replace(/^(\d+d \d+h) \d+m$/, "$1");
+  // The core's margin is a duration note and its time a clock note, so both follow the UI language (V-10).
+  const margin = runsOutH == null ? null : durationNote((resetH - runsOutH) * 3600);
+  const when = at ? demoAt(at) : null;
   const outlook = stage === "exhausted" ? null : at
-    ? { id: "pace.runs_out_at", params: { at: hhmm(at), margin }, fallback: `runs out at ${hhmm(at)}, ${margin} before the reset` }
+    ? { id: "pace.runs_out_at", params: { at: when, margin }, fallback: `runs out at ${when.fallback}, ${margin.fallback} before the reset` }
     : { id: "pace.lasts_until_reset", fallback: "lasts until the reset" };
   // PRD 0024 RF1: the core's stage chip in both units, as `PaceView.chips` carries it (demo values).
   const pct = String(Math.min(999, Math.round((Math.abs(used - expected) / Math.max(expected, 0.01)) * 100)));
@@ -1412,26 +1434,50 @@ const dp = (stage, tone, expected, used, resetH, runsOutH = null) => {
   const chips = {
     exhausted: { points: chip("✕", "pace.chip.exhausted", {}, null), percent: chip("✕", "pace.chip.exhausted", {}, null) },
     on_pace: { points: chip("→", "pace.chip.on_pace", {}, null), percent: chip("→", "pace.chip.on_pace", {}, null) },
-    ahead: { points: chip("↑", "pace.chip.ahead", { d: points }, `${points} pts`), percent: chip("↑", "pace.chip.ahead_pct", { p: pct }, `${pct}%`) },
-    reserve: { points: chip("↓", "pace.chip.reserve", { d: points }, `${points} pts`), percent: chip("↓", "pace.chip.reserve_pct", { p: pct }, `${pct}%`) },
+    ahead: { points: chip("↑", "pace.chip.ahead", { d: points }, null), percent: chip("↑", "pace.chip.ahead_pct", { p: pct }, { id: "pace.chip.percent", params: { p: pct }, fallback: `${pct}%` }) },
+    reserve: { points: chip("↓", "pace.chip.reserve", { d: points }, null), percent: chip("↓", "pace.chip.reserve_pct", { p: pct }, { id: "pace.chip.percent", params: { p: pct }, fallback: `${pct}%` }) },
   }[stage];
-  return { elapsed_fraction: expected, expected_used_fraction: expected, used_fraction: used, delta_points: delta, stage, tone, source: "average",
-    resets_at: h(resetH), projected_exhaustion_at: at, lasts_until_reset: stage !== "exhausted" && !at, label, outlook, chips };
+  // The core's line texts (`Pace::stage_text`, `Pace::summary`, `Pace::shows_stage`, `Pace::glyph`), as `PaceView` sends them.
+  const ranked = stage === "ahead" || stage === "reserve";
+  const stage_text = { points: label, percent: ranked ? chips.percent.text : label };
+  const shows_stage = !(stage === "on_pace" && at);
+  const line = (u) => (!shows_stage
+    ? { id: "pace.runs_out_at_alone", params: { at: when, margin }, fallback: `Runs out at ${when.fallback}, ${margin.fallback} before the reset` }
+    : outlook ? { id: "pace.line", params: { stage: stage_text[u], outlook }, fallback: `${stage_text[u].fallback} · ${outlook.fallback}` } : stage_text[u]);
+  return { elapsed_fraction: expected, expected_used_fraction: expected, used_fraction: used, delta_points: delta, stage, tone, source,
+    resets_at: h(resetH), projected_exhaustion_at: at, lasts_until_reset: stage !== "exhausted" && !at, label, outlook, chips,
+    stage_text, summary: { points: line("points"), percent: line("percent") }, shows_stage, glyph: shows_stage ? chips.points.glyph : "↑",
+    ...(source === "recent" ? { marker: { id: "pace.source.recent", params: {}, fallback: "recent" } } : {}) };
 };
-/** The local time the shell sends with a projection ("18:53", or the weekday and time when not today). */
-const demoAt = (iso) => {
+/** PRD 0024 re-validation (V-01, V-10): the core clock the shell sends (`at.time`, `at.weekday`, `at.date` with
+ *  machine params); `short` is the chip form (the weekday or the date alone beyond today). */
+function demoAt(iso, short = false) {
   const d = new Date(iso);
-  const time = fmtLocal(d, HHMM);
-  return d.toDateString() === new Date().toDateString() ? time : `${fmtLocal(d, { weekday: "short" })} ${time}`;
-};
-/** PRD 0024 RF4.3: the forecast the shell adds to a metric whose pace runs out before the reset (demo values). */
+  const days = Math.round((new Date(d.toDateString()) - new Date(new Date().toDateString())) / 864e5);
+  const hm = { hour: String(d.getHours()), minute: String(d.getMinutes()) };
+  const time = { hour: "numeric", minute: "2-digit" };
+  const en = (shape) => new Intl.DateTimeFormat("en-US", shape).format(d);
+  if (days === 0) return { id: "at.time", params: hm, fallback: en(time) };
+  if (days >= 1 && days <= 6) {
+    const weekday = String(((d.getDay() + 6) % 7) + 1);
+    return short ? { id: "at.weekday", params: { weekday }, fallback: en({ weekday: "short" }) }
+      : { id: "at.weekday", params: { weekday, ...hm }, fallback: en({ weekday: "long", ...time }) };
+  }
+  const dm = { day: String(d.getDate()), month: String(d.getMonth() + 1) };
+  return short ? { id: "at.date", params: dm, fallback: en({ month: "2-digit", day: "2-digit" }) }
+    : { id: "at.date", params: { ...dm, ...hm }, fallback: en({ month: "2-digit", day: "2-digit", ...time }) };
+}
+/** PRD 0024 RF4.3: the forecast the shell adds to a metric the core's strict forecast says runs out before the reset
+ *  (RF2.2: a recent slope and at least 25% used; demo values). */
 const demoForecast = (m, pace) => {
-  if (!pace?.projected_exhaustion_at) return null;
+  if (!pace?.projected_exhaustion_at || pace.source !== "recent" || !(pace.used_fraction >= 0.25)) return null;
   const at = demoAt(pace.projected_exhaustion_at);
-  const margin = legacyCountdown(new Date(new Date(m.resets_at).getTime() - new Date(pace.projected_exhaustion_at).getTime() + Date.now()).toISOString())?.replace(/^(\d+d \d+h) \d+m$/, "$1") ?? "";
+  const short = demoAt(pace.projected_exhaustion_at, true);
+  const margin = durationNote((new Date(m.resets_at) - new Date(pace.projected_exhaustion_at)) / 1000);
   return { at,
-    callout: { id: "alerts.body.projected", params: { metric: m.label, at, margin }, fallback: `At this rate ${m.label} runs out ≈${at}, ${margin} before the reset` },
-    chip: { glyph: "↑", text: { id: "pace.chip.runs_out", params: { at }, fallback: `Runs out ≈${at}` }, compact: `≈${at}`, hint: null } };
+    callout: { id: "alerts.body.projected", params: { metric: m.label, at, margin }, fallback: `At this rate ${m.label} runs out ≈${at.fallback}, ${margin.fallback} before the reset` },
+    chip: { glyph: "↑", text: { id: "pace.chip.runs_out", params: { at: short }, fallback: `Runs out ≈${short.fallback}` },
+      compact: { id: "pace.chip.approx", params: { at: short }, fallback: `≈${short.fallback}` }, hint: null } };
 };
 // report index → [pace_index, { metric index: pace }]; windows that just opened (or not yet) have none, as in the core.
 const DEMO_PACES = new Map([
@@ -1455,7 +1501,7 @@ if (DEMO_QUERY.get("fixture") === "six") {
     summary: { id: "overage.limit_hit_on_extra", params: { amount: demoMoney(amount) }, fallback: `Limit hit · on extra $${amount.toFixed(2)}` }, caveat: null });
   const six = [
     [{ ...dr("work@example.com", "claude", [dm("session (5h)", 78, 100, 1.2, "quota", "window_5h", "%"), dm("weekly (7d)", 41, 100, 70, "quota", "weekly", "%")]), plan: "Max", model_count: 3 },
-      [0, 0], [0, { 0: dp("ahead", "warn", 0.62, 0.78, 1.2, 0.4), 1: dp("reserve", "good", 0.58, 0.41, 70) }], [0, 1]],
+      [0, 0], [0, { 0: dp("ahead", "warn", 0.62, 0.78, 1.2, 0.4), 1: dp("ahead", "warn", 0.3, 0.41, 70, 30) }], [0, 1]],
     [{ ...dr("side@example.com", "claude", [dm("session (5h)", 29, 100, 3.1, "quota", "window_5h", "%"), dm("weekly (7d)", 12, 100, 120, "quota", "weekly", "%")]), plan: "Pro" },
       [0, 3], [0, { 0: dp("on_pace", "good", 0.3, 0.29, 3.1) }], [0, 1]],
     [{ ...dr("me@example.com", "chat_gpt", [dm("5h", 37, 100, 2.4, "quota", "window_5h", "%"), dm("weekly", 20, 100, 90, "quota", "weekly", "%")]), plan: "Plus" }, [0, 2], [0, { 0: dp("reserve", "good", 0.5, 0.37, 2.4) }], [0, 1]],
@@ -1469,6 +1515,15 @@ if (DEMO_QUERY.get("fixture") === "six") {
     ...(DEMO_QUERY.has("bedrock") ? [[dr("billing@example.com", "aws_bedrock", [], ["Cost Explorer: no spend recorded this month (demo)."]), [null, 7], null]] : []),
   ];
   demoReports.splice(0, demoReports.length, ...six.map(([r]) => r));
+  // PRD 0024 re-validation (V-10): the core's best account of the Claude pair and the advice of the one that runs out,
+  // so `check.mjs` and the smokes render the Best now chip, the advice with its Show action and a projection on
+  // another day (Work's week, above).
+  const [work, side] = demoReports;
+  side.best_now = { id: "advice.best", params: {}, fallback: "Best now" };
+  side.group_label = "Coding";
+  const at = demoAt(h(0.4));
+  work.advice = { best_index: 1, best_name: side.account,
+    text: { id: "advice.switch", params: { from: work.account, at, to: side.account, pct: "71" }, fallback: `${work.account} runs out ≈${at.fallback} · ${side.account} has 71% left` } };
   for (const [r, binding, pace, windows] of six) {
     DEMO_BINDINGS.set(r, binding);
     if (pace) DEMO_PACES.set(r, pace);
@@ -1534,7 +1589,7 @@ const demoView = () => {
   const reports = demoReports.map((r, index) => {
     const [paceIndex = null, paces = {}] = r.status === "ready" ? DEMO_PACES.get(r) ?? [] : [];
     const notify = !demoSettings.notify.off_accounts.includes(demoKey(r));
-    const metrics = r.metrics.map((m, i) => ({ ...m, pace: paces[i] ?? null, forecast: demoForecast(m, paces[i]), resets_label: m.resets_at && legacyCountdown(m.resets_at) ? { id: "resets.pair", params: { at: demoAt(m.resets_at), in: t("quota.resetsIn", { time: legacyCountdown(m.resets_at) }) }, fallback: `Resets ${demoAt(m.resets_at)}` } : null, alert: demoMetricAlert(r, m, notify) }));
+    const metrics = r.metrics.map((m, i) => ({ ...m, pace: paces[i] ?? null, forecast: demoForecast(m, paces[i]), resets_label: m.resets_at && new Date(m.resets_at) > Date.now() ? demoResetsLabel(m.resets_at) : null, alert: demoMetricAlert(r, m, notify) }));
     const incident = demoIncident(r);
     // RF3 mirror: a failed query during an incident gains the core's note, its status unchanged.
     const note = incident && r.status !== "ready" && ["degraded", "partial_outage", "major_outage"].includes(incident.state) && DEMO_INCIDENT_NOTE;
@@ -1889,7 +1944,7 @@ const demoTimeline = async ({ range, generation }) => {
   const all = demoView().reports.filter((r) => r.binding && r.status === "ready").map((r) => {
     const at = r.binding.blocked_until ?? r.binding.resets_at;
     const share = Math.min(1, Math.max(0, 1 - r.binding.used_ratio));
-    return { account_index: r.index, name: r.account, provider: r.provider, label: r.binding.label ?? "", returns_at: at ?? null, remaining_share: share,
+    return { account_index: r.index, name: r.account, provider: r.provider, label: r.binding.label ?? "", returns_at: at ?? null, returns_in: at ? durationNote((new Date(at) - now) / 1000) : null, remaining_share: share,
       level: share >= 0.7 ? "good" : share >= 0.3 ? "warn" : "bad", exhausted: r.binding.reason === "exhausted", stale: r.freshness === "stale" };
   });
   const by = (a, b) => new Date(a.returns_at) - new Date(b.returns_at);
@@ -3026,7 +3081,8 @@ export function bestChipHtml(r) {
  *  the other card). `action` is false where there is no card to focus. */
 export function adviceHtml(r, { action = true } = {}) {
   if (!adviceNow || !r.advice) return "";
-  const show = action ? `<button type="button" class="btn sm ghost" data-show-account="${r.advice.best_index}">${te("advice.show", { name: esc(r.advice.best_name) })}</button>` : "";
+  // PRD 0024 re-validation (S-01): `te` escapes its values, so the name is passed raw (escaped once).
+  const show = action ? `<button type="button" class="btn sm ghost" data-show-account="${r.advice.best_index}" title="${te("advice.show", { name: r.advice.best_name })}">${te("advice.show", { name: r.advice.best_name })}</button>` : "";
   return `<p class="call" role="note">${icon("info")}<span>${esc(tl(r.advice.text))}</span>${show}</p>`;
 }
 export const setPaceUnit = async (unit) => { await call("set_pace_unit", { unit }); applyPaceUnit(unit); await emitSettingsChanged("pace_unit"); };
@@ -3046,9 +3102,12 @@ export const cardPace = (r) => {
  *  `label` prefixes the metric, `short` keeps only the outlook (the stage when exhausted). */
 export function paceText(p, { expected = false, label = "", short = false } = {}) {
   // PRD 0024 RF1.3/RF6.1: the stage reads from the core chip in the user's unit (the demo has no chips).
-  const stage = p.chips ? tl(p.chips[paceUnitNow].text) : tl(p.label);
-  const parts = short ? [p.outlook ? tl(p.outlook) : stage]
-    : [stage, expected ? t("metric.pace.expected", { pct: Math.round(p.expected_used_fraction * 100) }) : "", p.outlook ? tl(p.outlook) : ""];
+  // D-01 (re-validation): when "On pace" yields to a run-out projection, the core's summary is the projection alone.
+  const hidden = p.shows_stage === false && p.summary;
+  const stage = hidden ? tl(p.summary[paceUnitNow]) : p.chips ? tl(p.chips[paceUnitNow].text) : tl(p.label);
+  const outlook = hidden || !p.outlook ? "" : tl(p.outlook);
+  const parts = short ? [outlook || stage]
+    : [stage, expected ? t("metric.pace.expected", { pct: Math.round(p.expected_used_fraction * 100) }) : "", outlook];
   const text = parts.filter(Boolean).join(" · ");
   return label ? `${label}: ${text}` : text;
 }

@@ -12,7 +12,7 @@ import { bindUpdateBanner, initUpdates, onUpdateState, promptForUpdateConsent, u
 import { maybeShowFirstRun } from "./first-run.js";
 import { openRestoreDialog } from "./backup-dialog.js";
 import {
-  fmtNext, fmtAge, fmtShare, metricName, ALERTS, overageChipHtml, ageHtml, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, fmtAmount, fmtCountdown, getView, icon, initTheme, isBindingMetric, isBlocked, isDesktop, isStaleReading, level, logo, wordmark,
+  fmtNext, fmtAge, fmtShare, metricName, ALERTS, overageChipHtml, ageHtml, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, fmtAmount, getView, icon, initTheme, isBindingMetric, isBlocked, isDesktop, isStaleReading, level, logo, wordmark,
   moveAccount, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
   currentSort, initOrderSync, staleView, configChangedOnDisk, reloadConfig, configLabel, errText, updateErrText, otherConfigNotice, otherConfigBanner, dismissOtherConfig, returnText, splitRecharging,
   accountLabel, billingOverage, isRecharging, resetsText, bestChipHtml, cardPace, forecastChipHtml, renewedText, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, setPoolAlerts, setBreakdownAlerts, openAggregatorDashboard, incidentHtml, bindStatusLinks, costUsage, paceHtml, paceLineLabel, costPlans,

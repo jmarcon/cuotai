@@ -899,9 +899,17 @@
   font-size: var(--text-sm);
   --chip: var(--good);
 }
+/* PRD 0024 re-validation (V-06): the sentence keeps its room; a long "Show {name}" wraps under it and is cut with an
+   ellipsis (its title carries the whole name). */
+.call:has(> .btn) { flex-wrap: wrap; }
+.call:has(> .btn) > span { flex: 1 1 14em; min-width: 0; }
 .call .btn {
   margin-left: auto;
   flex: none;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 /* PRD 0032 RF8.2: the line of a level crossed while Cuotai was closed. */
 .resets.missed {
@@ -964,6 +972,8 @@
 .metric-meta .pace-line .pg.warn { color: var(--warn); }
 .metric-meta .pace-line .pg.bad { color: var(--bad); }
 .metric-meta .pace-line .pg.muted { color: var(--fg-muted); }
+/* PRD 0024 RF1.5: the muted "recent" marker after a pace the recent readings drove. */
+.metric-meta .pace-line .pace-src { color: var(--fg-muted); font-size: var(--text-xs, var(--text-sm)); }
 .metric-meta .resets {
   margin: 0 0 0 auto;
   color: var(--fg-muted);

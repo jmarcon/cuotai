@@ -2,8 +2,8 @@
 // by return time, from the core's `reset_timeline` (the held readings only: no query, no history). Lanes with a return
 // beyond the range, and accounts whose return is unknown, are listed as text below and never plotted at an edge.
 // This module only draws; the chart is hidden from assistive technology, which reads one named button per lane.
-import { currentLocale, t, te } from "./i18n.js";
-import { STALE, brand, errText, esc, fmtCountdown, getView, logo, reportKey, resetTimeline, setStatsPrefs, statsPrefs } from "./lib.js";
+import { currentLocale, t, te, tl } from "./i18n.js";
+import { STALE, brand, errText, esc, getView, logo, reportKey, resetTimeline, setStatsPrefs, statsPrefs } from "./lib.js";
 
 const RANGES = ["hours24", "days7"];
 const REFRESH_MS = 30_000;
@@ -17,7 +17,7 @@ const percentOf = (lane) => Math.round(lane.remaining_share * 100);
 export function laneLabel(lane, range) {
   const when = timeOf(lane.returns_at, range);
   const left = lane.exhausted ? t("timeline.exhausted") : t("timeline.left", { pct: percentOf(lane) });
-  return `${t("timeline.lane.aria", { name: lane.name, time: when, in: fmtCountdown(lane.returns_at) ?? "" })}. ${left}${lane.stale ? `. ${t("timeline.stale")}` : ""}`;
+  return `${t("timeline.lane.aria", { name: lane.name, time: when, in: lane.returns_in ? tl(lane.returns_in) : "" })}. ${left}${lane.stale ? `. ${t("timeline.stale")}` : ""}`;
 }
 
 /** Several accounts of one provider show the account name next to the tile; one shows only the provider. */

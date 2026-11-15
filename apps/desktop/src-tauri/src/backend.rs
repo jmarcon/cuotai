@@ -452,6 +452,26 @@ pub struct PaceView {
     /// PRD 0024 RF1.3: the stage chip in both units; the interface picks
     /// one by the user's "Show pace as" choice and never converts.
     chips: PaceChips,
+    /// PRD 0024 re-validation (V-02, V-03, V-09): the stage words of the
+    /// details line in each unit ([`Pace::stage_text`]).
+    stage_text: PaceTexts,
+    /// The whole line, "stage · outlook" or the projection alone
+    /// ([`Pace::summary`]), in each unit, for the tooltips.
+    summary: PaceTexts,
+    /// D-01: `false` when "On pace" yields to a run-out projection.
+    shows_stage: bool,
+    /// The glyph of the line ([`Pace::glyph`]).
+    glyph: &'static str,
+    /// RF1.5: the muted "recent" marker; `None` for an average.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    marker: Option<cuotai_core::text::Localized>,
+}
+
+/// One pace text in each [`cuotai_core::pace::PaceUnit`].
+#[derive(Serialize, Clone)]
+pub struct PaceTexts {
+    points: cuotai_core::text::Localized,
+    percent: cuotai_core::text::Localized,
 }
 
 /// The core's stage chip in each [`cuotai_core::pace::PaceUnit`].
@@ -472,6 +492,17 @@ fn pace_view(pace: Pace) -> PaceView {
             points: pace.chip(PaceUnit::Points),
             percent: pace.chip(PaceUnit::Percent),
         },
+        stage_text: PaceTexts {
+            points: pace.stage_text(PaceUnit::Points),
+            percent: pace.stage_text(PaceUnit::Percent),
+        },
+        summary: PaceTexts {
+            points: pace.summary(PaceUnit::Points, local_at, cuotai_core::text::duration),
+            percent: pace.summary(PaceUnit::Percent, local_at, cuotai_core::text::duration),
+        },
+        shows_stage: pace.shows_stage(),
+        glyph: pace.glyph(),
+        marker: pace.source_marker(),
         pace,
     }
 }
