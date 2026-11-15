@@ -63,7 +63,8 @@ export function costHtml(cv, prices, plans = null) {
 }
 
 /** PRD 0042 RF3.1/RF4.3: per source, the block length (1 to 24 hours, the core's default named) and the opt-in
- *  folder-name hint (off deletes the names kept). Saved together with the row's Apply. */
+ *  folder-name hint (off deletes the names kept). The hours are a draft saved with the row's Apply (a documented
+ *  save exception, DS-CMP-SW-2); the switch saves on its own at once, with the saved hours (DS-CMP-SW-1). */
 function sourceOptionsHtml(cv) {
   const rows = cv.sources.map((s) => row({ key: `cost-opt-${esc(s.source)}`, kw: "cost-opt", attrs: `data-cost-opt="${esc(s.source)}"`, msg: `cost-opt-${esc(s.source)}-msg`,
     label: esc(s.label), desc: te("settings.costBy.blockDefault", { hours: s.default_block_hours }), info: te("settings.costBy.hintHelp"),
@@ -176,6 +177,14 @@ async function bindCost(box, ctx) {
       const hours = Number(holder.querySelector("[data-cost-hours]").value);
       const hint = holder.querySelector("[data-cost-hint]").checked;
       run(() => costSetSourceOptions(source, hours, hint), `cost-opt-${source}-msg`);
+    };
+    // DS-CMP-SW-1 (PRD 0020 re-validation R-02): the folder-name switch applies at once and keeps the saved hours,
+    // so an unapplied hours draft is never saved by it.
+    for (const input of box.querySelectorAll("[data-cost-hint]")) input.onchange = () => {
+      const source = cv.sources.find((s) => s.source === input.closest("[data-cost-opt]").dataset.costOpt);
+      const hint = input.checked;
+      input.checked = source.folder_hint; // only the saved answer changes it
+      run(() => costSetSourceOptions(source.source, source.block_hours, hint), `cost-opt-${source.source}-msg`);
     };
     // RF4.1: a different list needs a new consent, so a source that is on turns off (erasing what was derived) first.
     const savePaths = async (source, paths) => {

@@ -90,6 +90,8 @@ assert.match(nav, /<select class="set-select set-nav-select" data-page-select ar
 assert.equal((nav.match(/<option /g) ?? []).length, PAGES.length);
 assert.match(nav, /data-page="general"[\s\S]*?title="/);
 assert.match(nav, /<option value="cost" selected>/);
+// PRD 0020 re-validation V-12: the Advanced toggle carries a tooltip too, since the rail hides its label.
+assert.match(nav, /data-advanced-toggle[^>]*title="[^"]+"/);
 const win = await readFile(ui("js/settings/window.js"), "utf8");
 assert.match(win, /role="search"/);
 assert.match(win, /aria-label="\$\{te\("settings\.search\.label"\)\}"/);
@@ -108,6 +110,17 @@ assert.ok(!/#[0-9a-fA-F]{3,8}\b/.test(css.replace(/\/\*[\s\S]*?\*\//g, "")), "se
 assert.ok(!/outline:\s*(none|0)\b/.test(css.replace(/(\.set-title|\.set-subhead h2):focus \{[^}]*\}/g, "")), "a focus ring was removed");
 for (const token of ["--motion-base", "--motion-fast"]) assert.ok(css.includes(token), `${token} unused`);
 assert.ok(!/animation[^;]*\b\d+m?s\b/.test(css.replace(/\/\*[\s\S]*?\*\//g, "")), "durations must come from the motion tokens");
+// PRD 0020 re-validation: descriptions wrap (V-01); every field and select uses the field tokens (V-02); a
+// disabled field dims (V-04); the membership check is a 20 px disc with a check glyph, not a dot (V-03).
+assert.match(css, /\.set-row-desc \{[^}]*overflow-wrap: anywhere/);
+assert.ok(!/\.set-row-desc \{[^}]*(nowrap|ellipsis)/.test(css), "row descriptions must wrap, never truncate (DS-MSG-15)");
+assert.match(css, /\.set-window :where\(textarea, select, input[^)]*\)\) \{[^}]*background: var\(--input-bg\);[^}]*color: var\(--fg\)/);
+assert.match(css, /\.set-window :where\([^{]*\):disabled \{[^}]*opacity: 0\.45/);
+assert.match(css, /\.chk \{[^}]*width: 20px;[^}]*height: 20px/);
+assert.match(css, /\.chk:checked::after \{[^}]*border: solid var\(--accent-fg\)/);
+assert.ok(!/radial-gradient/.test(css), "the check is a glyph, not a radio dot");
+const check = await readFile(new URL("../apps/desktop/tools/ui-shots/check.mjs", import.meta.url), "utf8");
+assert.ok(!check.includes('".set-row-desc"'), "row descriptions must not be on the overflow check's allowed list");
 
 console.log("PASS: every row is searchable in pt-BR, en-US, es and it; results group by page; the responsive shell and style rules hold");
 process.exit(0);
