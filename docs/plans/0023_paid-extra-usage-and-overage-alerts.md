@@ -3,13 +3,13 @@
 | Field | Value |
 |---|---|
 | ID | 0023 |
-| Status | Awaiting owner verification (RF1–RF10 delivered in 0.81.0; only the RF2.6 Claude USD scale smoke remains, `0000_control.md` §2.1) |
+| Status | Awaiting owner verification (RF1–RF10 delivered in 0.81.0; 2026-11-15 re-validation fixes in vNEXT; only the RF2.6 Claude USD scale smoke remains, `0000_control.md` §2.1) |
 | Owner | `cuotai-core` (model, adapters, alerts, events, export), desktop and TUI |
 | Consumers | `apps/desktop` (cards, details, tray, Settings → Alerts), `crates/cuotai-tui` (cards, details, `--once`, `--notify`), `export::v1` and `--watch` consumers, PRDs 0025 and 0026 |
 | Depends on | none for RF1–RF3; PRD 0008 (RF1, RF2: `alerts::evaluate`, `AlertState`, delivery) for RF4; PRD 0013 (RF1: `events::diff`) for RF5; PRD 0012 (RF1: `export::v1`) for RF6 |
 | Benefits from | PRD 0022 (UI refresh: card, badge and callout visuals), PRD 0009 (binding metric), PRD 0010 RF4 ("Recharging" group, for RF10) |
 | Extends | PRD 0008 RF1 (new alert kind), PRD 0009 RF1 (binding excludes overage and model-scoped metrics), PRD 0010 RF4 (scoped exhaustion never sends an account to "Recharging"), PRD 0012 RF1 (additive `overage` object, `billing` and `scope` on metrics), PRD 0013 RF1.2 (two new events) |
-| Date | 2026-10-22; amended 2026-10-23 (review item MET-01; owner decisions L and R) |
+| Date | 2026-10-22; amended 2026-10-23 (review item MET-01; owner decisions L and R); amended 2026-11-15 (re-validation) |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable. "Overage" (or "extra usage") means consumption that the provider bills **on top of** the plan's included allowance: Claude "extra usage", Cursor "on-demand", Grok "on-demand", Kiro "overage". A balance of pre-paid credits is not overage.
 
@@ -27,6 +27,7 @@
 | RF8 | 0.81.0 | TUI card line, details section, `--once` line and `--notify` banner. |
 | RF9 | 0.81.0 | `docs/providers.md` (Overage column, units caveat), `docs/events.md`, `docs/export-v1.md`, `docs/widgets.md`, `docs/tui.md`, `docs/gui-features.md` and `README.md`. The RF2.6 scale record waits for the owner smoke. |
 | RF10 | 0.81.0 | `Scope`, `metrics::limits_account`, scoped exhaustion in binding and class, Antigravity per-model and Claude Opus/Sonnet weekly scopes, extension `scope`, export schema. Consumers delivered: `metrics::scope_blocks`/`ScopeBlock::summary` (`metrics.scope_blocked`, "{model} at its limit until 19:30"), `Overage::summary_with_scope_hit` ("Opus limit hit · on extra $6.25") used by the TUI card, details (`MODELO` line) and `--once`, and by the desktop `overage.summary`; the history stores the scope (schema version 6) so PRD 0026 statistics skip model limits (`MetricHistory::scoped`) and restored readings stay scoped; the timeline, tray summary and widget use `metrics::binding`, which already ignores scoped limits. The PRD 0010 RF4 "Recharging" group follows the core's class and binding, which use `limits_account` (a test pins the signals), the PRD 0024 RF7 ranking ignores scoped and overage metrics, and the desktop card and details draw the `scope_blocked` line (`scopeBlocksHtml`). (Added 2026-10-23: `Metric::scope`, review item MET-01). |
+| Re-validation | vNEXT | 2026-11-15 re-validation (Visual, Security, Review, Delivery). A used-up extra budget reads "Extra budget used up" in the critical role on every surface (core summaries, TUI card and details, `--once`, desktop status line, card column, chips and tray), never "on extra" (V-03). Amounts travel as nested `Localized` notes (`amount.money` with value and currency, `amount.number`, `amount.units`; `export::v1` schema unchanged) formatted per locale by the core table `text::number` (TUI, `--once`, notifications, channels, digest, event summaries and the PRD 0041 budget rows) and by `Intl.NumberFormat` in the desktop (V-02). Claude's and Kiro's overage labels and unit are translated in every catalog (V-04, R-01). Currencies must be ISO 4217-shaped and control or bidi characters leave metric labels, units and periods at the query boundary (S-01). Kiro: a reported 0 with overage enabled is armed (S-02) and the overage `remaining` is clamped at 0 (R-02); Kiro and Grok gained the missing RF2 fixtures (R-03). Desktop: the card column puts the number in the figure and the unit below it (V-01), armed and unknown extra usage have chips (V-05), the extra-budget meter is named (V-06), the amount is not repeated under the figure or in the details sub line (V-07), and the UI smoke covers all 14 languages with a `?overage` demo rendered by `check.mjs` (V-09). |
 
 ## 1. Context
 
@@ -94,8 +95,8 @@ No alert kind (`AlertKind` has `Threshold`, `Exhausted`, `Recovered`, `SessionEx
 
 - **RF3.1** Pure `overage::assess(report: &Report) -> Option<Overage>` with `state` (`Disabled`, `Armed`, `Active`, `CapReached`, `Unknown`), `spent: Option<f64>`, `unit`, `currency: Option<String>` (ISO 4217 when the unit is money), `cap: Option<f64>`, `cycle_ends_at: Option<DateTime<Utc>>` and the source metric label. Several overage metrics of one account (Kiro per resource) are summed only when they share the currency; otherwise the state lists them separately (`items`).
 - **RF3.2** `Active` means `spent > 0`; `CapReached` means `spent ≥ cap` with a positive cap; `Unknown` means overage is enabled but the amount is missing. `None` when the provider exposes no overage data at all.
-- **RF3.3** Localized texts in the core (`overage.*`): "On extra · $6.25", "On extra · 12.5 provider units", "Extra usage on · nothing spent", "Extra budget used up", "Extra usage amount unknown"; and the combined card summary with the binding state, "Limit hit · on extra $6.25", from one key with placeholders (DS-MSG-12). Money is formatted by the caller with the currency (DS-MSG-7); catalogs in `en-US`, `es` and `it` with the Portuguese fallback.
-- **Acceptance criterion:** table tests for each state, mixed currencies, a missing amount, a zero cap, and the texts in the four languages.
+- **RF3.3** Localized texts in the core (`overage.*`): "On extra · $6.25", "On extra · 12.5 provider units", "Extra usage on · nothing spent", "Extra budget used up", "Extra usage amount unknown"; and the combined card summary with the binding state, "Limit hit · on extra $6.25", from one key with placeholders (DS-MSG-12); `CapReached` always reads "Extra budget used up", also when the plan limit is exhausted. Money is formatted in the reader's locale (DS-MSG-7): the amount is a nested `amount.*` note with machine params that each front end formats. Catalogs in all 14 languages with the English fallback (PRD 0034, 0035).
+- **Acceptance criterion:** table tests for each state, mixed currencies, a missing amount, a zero cap, and the texts in every language.
 
 ### RF4 — "Extra usage started" alert (high priority)
 
@@ -122,16 +123,17 @@ No alert kind (`AlertKind` has `Threshold`, `Exhausted`, `Recovered`, `SessionEx
 ### RF7 — Desktop presentation (medium priority)
 
 - **RF7.1** Card: when the overage state is `Active` or `CapReached`, the card's status chip reads the core summary ("Limit hit · on extra $6.25"); the overage metric is listed under the plan meters as a textual row (figure first, DS-MSG-4: "$6.25 extra of $50") and never drawn as a quota meter that implies "left" (DS-CMP-MTR-5); when a cap exists, a continuous bar of the spent share is allowed with its label (DS-CMP-MTR-3).
+  - *As shipped (2026-11-15 re-validation):* a card whose plan windows are drawn shows paid extra usage as its own column beside them (mockup 10, "Fa gap 4"): the amount as the figure (the number alone for provider units, the unit word on the small line), a named meter of the **remaining** extra budget when the cap is known (DS-CMP-EXTRA-1, warning role, critical at the cap) and the cap under it; the status line says "on extra balance" (or "Extra budget used up" at the cap) instead of a separate chip. Cards without that column, and tray rows, carry the DS-CMP-EXTRA-2 chip for every state but `Disabled`.
 - **RF7.2** Details: an "Extra usage" section with the state, amount, cap, cycle end and the provider-units caveat for Claude (RF2.6).
 - **RF7.3** Tray: the account row shows the "on extra" chip; the tray summary of PRD 0025 includes it.
 - **RF7.4** Settings → Alerts: "Notify when extra usage starts" under Usage alerts (PRD 0020 rows; DS-CMP-SW).
 - **RF7.5** Visual specifics (chip tone, placement) follow PRD 0022 and `docs/design-system.md` (DS-CMP-BADGE, DS-CMP-CALL, DS-MSG-4, DS-MSG-5).
-- **Acceptance criterion:** smoke in the four languages and the reference themes with an active, capped, unknown and disabled overage; Claude shows US dollars once the RF2.6 scale check is recorded (provider units before it); an unknown amount shows "—", never "$0".
+- **Acceptance criterion:** smoke in every language and the reference themes with an active, capped, unknown and disabled overage (`scripts/test-extra-usage-ui.mjs`, the `?overage` demo in `check.mjs`); Claude shows US dollars once the RF2.6 scale check is recorded (provider units before it); an unknown amount shows "—", never "$0".
 
 ### RF8 — TUI and CLI presentation (medium priority)
 
 - **RF8.1** TUI card: an "extra" line with the core summary when active; details: the RF7.2 section.
-- **RF8.2** `--once` prints `Uso extra: <summary>` under the account; `--json` gains only the RF1.1 `billing` field on overage metrics.
+- **RF8.2** `--once` prints the localized "Extra usage: <summary>" line under the account (`once.extra_usage`; it read `Uso extra:` before PRD 0034); `--json` gains only the RF1.1 `billing` field on overage metrics. The overage metric itself stays in the metric list (with its cap, period and reset), under its translated label.
 - **RF8.3** `--notify` delivers RF4 alerts in the header banner with the existing `BEL`/OSC 9 rules.
 - **Acceptance criterion:** `TestBackend` rendering tests and a `--once` text snapshot with an active overage.
 
@@ -156,7 +158,7 @@ No alert kind (`AlertKind` has `Threshold`, `Exhausted`, `Recovered`, `SessionEx
 - **Privacy:** no new data leaves the device; notification texts carry only provider, account name, amount and cycle date (lock-screen safe, as PRD 0008 §6).
 - **Cost:** no new provider query; every value comes from the responses already fetched.
 - **Compatibility:** `--json` and `export::v1` changes are additive (two omitted-by-default fields, `billing` and `scope`, and a new nullable object), so they raise only the minor version through the `feat` commits that deliver them, with no `BREAKING CHANGE` footer; third-party consumers that read `kind = "quota"` without `billing` are told in `docs/export-v1.md` to filter overage.
-- **i18n and accessibility:** every text in pt-BR, en-US, es and it; state conveyed by text and icon, never color alone (DS-PRI-6).
+- **i18n and accessibility:** every text in all 14 languages with the English fallback (PRD 0034, 0035); amounts in the reader's number format; state conveyed by text and icon, never color alone (DS-PRI-6).
 
 ## 7. Data and contract changes
 
@@ -212,3 +214,10 @@ At each step: `cargo fmt`, `clippy -D warnings`, workspace and desktop tests, an
 | ~~`billing` breaking or not~~ | **Decided on 2026-10-23 (decision L):** additive, minor bump, no `BREAKING CHANGE` footer. |
 | Should "extra usage started" be on by default once usage alerts are on | Yes (RF4.6); it is the most expensive surprise. |
 | Should `overage_ended` exist or only `overage_started` | Keep both: scripts that pause work need the end edge. |
+
+## 13. Open items (2026-11-15 re-validation)
+
+- **RF2.6 (owner):** the Claude dollars-versus-cents scale smoke against the owner's console; until it is recorded every Claude amount stays in provider units.
+- **TUI number format:** only amounts (overage, budgets, digest, events) follow the reader's locale; the TUI's other metric figures keep the plain `12.50 / 50.00` form. Routing them through `text::number` is a separate change.
+- **Extension `access.overage`:** the descriptor is static, so an extension always reports `not_reported` even when it emits overage metrics (re-validation R-04, documented in `docs/export-v1.md` and `docs/extensions.md`).
+- **Unverified:** OS notification rendering and the native widget with an overage; Claude's negative `used_credits` and `monthly_limit: 0` with `is_enabled: true` (both wait for the RF2.6 smoke).
