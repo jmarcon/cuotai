@@ -39,7 +39,7 @@ globalThis.fetch = async (relative) => {
 const i18n = await import("../apps/desktop/ui/js/i18n.js");
 const lib = await import("../apps/desktop/ui/js/lib.js");
 const registry = await import("../apps/desktop/ui/js/settings/registry.js");
-const { integrationHtml, widgetsHtml } = await import("../apps/desktop/ui/js/settings/integrations.js");
+const { dangerHtml, integrationHtml, widgetsHtml } = await import("../apps/desktop/ui/js/settings/integrations.js");
 const { hooksHtml } = await import("../apps/desktop/ui/js/settings/hooks.js");
 const { costHtml } = await import("../apps/desktop/ui/js/settings/cost.js");
 await i18n.initI18n();
@@ -185,6 +185,7 @@ const states = {
   serve: async () => integrationHtml(await lib.serveStatus()),
   hooks: async () => { const hv = await lib.hooksStatus(); return hooksHtml(hv, hv.rules ?? [], false); },
   widgets: async () => widgetsHtml(await lib.widgetsStatus()),
+  danger: async () => dangerHtml(await lib.serveStatus()),
 };
 for (const { code } of i18n.LOCALES) {
   await i18n.setLocale(code);
@@ -221,7 +222,7 @@ for (const { code } of i18n.LOCALES) {
   // RF2.2/RF3/RF5: each page drawn with its async parts as the window shows it at first (sub-pages closed,
   // disclosures closed, popovers hidden).
   const filled = new Map();
-  const fills = { cost: ["data-cost-body", "cost"], integrations: ["data-serve", "serve", "data-hooks", "hooks", "data-widgets", "widgets"] };
+  const fills = { cost: ["data-cost-body", "cost"], integrations: ["data-serve", "serve", "data-hooks", "hooks", "data-widgets", "widgets", "data-integrations-danger", "danger"] };
   let total = 0;
   for (const page of PAGES) {
     let out = rendered.get(page.id);
@@ -266,7 +267,9 @@ for (const { code } of i18n.LOCALES) {
   // postpositions) but short per word, so their page-text budget counts 10 % more words.
   const wordy = { "hi-IN": 1.1, "id-ID": 1.1 }[code] ?? 1;
   // Budget 505 -> 515: PRD 0046 adds the Backup and restore row (two buttons and the recipes link) to Files.
-  assert.ok(total <= Math.round(515 * wordy) * (SYLLABLE_FACTOR[code] ?? 1), `${code}: ${total} words shown across the pages`);
+  // Budget 515 -> 525: PRD 0020 re-validation R-10 moves Revoke token out of the closed Connection details into the
+  // danger group at the end of Integrations (its heading and the Revoke row).
+  assert.ok(total <= Math.round(525 * wordy) * (SYLLABLE_FACTOR[code] ?? 1), `${code}: ${total} words shown across the pages`);
   // PRD 0032 RF2.3/RF7.1: the quiet-hours row (with its search keywords) and its weekday editor, and the private
   // switch, render translated: seven weekday rows, labelled time fields, "Same every day", up to three intervals.
   const alertsPage = rendered.get("alerts");

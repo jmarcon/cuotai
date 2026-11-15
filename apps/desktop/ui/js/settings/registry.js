@@ -106,7 +106,8 @@ export const CONTROLS = [
   { section: "integration", page: "integrations", selector: 'id="widgets-on"', async: "widgets" },
   { section: "integration", page: "integrations", selector: 'id="widgets-identity"', async: "widgets" },
   { section: "integration", page: "integrations", selector: 'id="widgets-max"', async: "widgets" },
-  { section: "integration", page: "integrations", selector: "data-widgets-delete", async: "widgets" },
+  { section: "integration", page: "integrations", selector: "data-widgets-delete", async: "danger" },
+  { section: "integration", page: "integrations", selector: "data-serve-token-revoke", async: "danger" },
   // PRD 0020 RF2.5 parity with the main window's Extensions dialog: the page holds the same manager (list, state
   // chips, consent, secrets, overrides, folder and guide), drawn into `data-ext-body` once the page loads.
   { section: "extensions", page: "extensions", selector: 'data-row="extensions"' },

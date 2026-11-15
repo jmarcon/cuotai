@@ -9,19 +9,21 @@ import { buttons, commitField, disc, num, pathHtml, row, seg, sw, toast } from "
 export function html() {
   return group("serve", te("settings.serve.title"), `<div data-serve><p class="hint">${te("common.loading")}</p></div>`, "data-integration")
     + group("hooks", te("settings.hooks.title"), `<div data-hooks><p class="hint">${te("common.loading")}</p></div>`)
-    + group("widgets", te("settings.widgets.title"), `<div data-widgets><p class="hint">${te("common.loading")}</p></div>`);
+    + group("widgets", te("settings.widgets.title"), `<div data-widgets><p class="hint">${te("common.loading")}</p></div>`)
+    // RF3.4 (PRD 0020 re-validation R-10): the actions that break other programs, in one group at the end of the page.
+    + group("integrations-danger", te("settings.integrations.danger"), `<div data-integrations-danger><p class="hint">${te("common.loading")}</p></div>`);
 }
 
 /** RF6.3: what the search indexes for this page: the rows drawn from the state of each group, by the same functions. */
 export async function searchHtml() {
   const [sv, hv, wv] = await Promise.all([serveStatus(), hooksStatus(), widgetsStatus()]);
-  return integrationHtml(sv) + hooksHtml(hv, hv.rules ?? [], false) + widgetsHtml(wv);
+  return integrationHtml(sv) + hooksHtml(hv, hv.rules ?? [], false) + widgetsHtml(wv) + dangerHtml(sv);
 }
 
 /** Resolves once every group has its state drawn (the shell then lands on an anchor). */
 export function bind(root, ctx) {
   return Promise.all([
-    bindIntegration(root.querySelector("[data-serve]"), ctx),
+    bindIntegration(root.querySelector("[data-serve]"), ctx, root.querySelector("[data-integrations-danger]")),
     bindHooks(root.querySelector("[data-hooks]"), ctx),
     bindWidgets(root.querySelector("[data-widgets]"), ctx),
   ]);
@@ -49,16 +51,16 @@ export function integrationHtml(sv, message = []) {
   const notice = sv.token_notice ? `<p class="hint warn-txt" role="status" data-serve-token-notice>${icon("warn")} ${te("settings.serve.token.notice")}</p>` : "";
   const token = sv.token
     ? buttons(`<button class="btn sm" data-serve-token-copy>${icon("copy")} ${te("settings.serve.token.copy")}</button>`,
-      `<button class="btn sm" data-serve-token-new>${te("settings.serve.token.renew")}</button>`,
-      `<button class="btn sm danger-btn" data-serve-token-revoke>${te("settings.serve.token.revoke")}</button>`)
+      `<button class="btn sm" data-serve-token-new>${te("settings.serve.token.renew")}</button>`)
     : buttons(`<button class="btn sm" data-serve-token-new>${te("settings.serve.token.generate")}</button>`);
+  // RF3.4: Revoke lives in the danger group at the end of the page (`dangerHtml`).
   return withError(row({ key: "serve", label: te("settings.serve.on"), info: `${te("settings.serve.help")}<br />${te("settings.serve.privacy")}`, msg: "serve-msg",
     control: (a) => sw("serve-on", sv.enabled, a), body: state + notice })
     + disc("serve-connection", te("settings.serve.connection"),
       row({ key: "port", label: te("settings.serve.port"), info: te("settings.serve.portHelp", { port: sv.default_port, min: sv.port_min, max: sv.port_max }), msg: "serve-port-msg",
         control: (a) => num("serve-port", { value: sv.port, min: sv.port_min, max: sv.port_max, apply: "data-serve-port" }, a) })
       + row({ key: "token", label: te("settings.serve.token.title"), msg: "serve-token-msg", control: () => token,
-        info: `${te("settings.serve.token.on")}${sv.token ? `<br />${te("settings.serve.token.revokeHelp")}` : ""}` })
+        info: te("settings.serve.token.on") })
       // PRD 0031 RF11.2.5: /v1/stats is a separate opt-in that the server answers only with a token.
       + row({ key: "serve-stats", label: te("settings.serve.stats"), info: te("settings.serve.statsHelp"), msg: "serve-stats-msg",
         desc: sv.stats && !sv.token ? te("settings.serve.statsNeedsToken") : "",
@@ -90,12 +92,13 @@ export function integrationHtml(sv, message = []) {
 }
 
 /** Paints the server and binds it; a failed change keeps the previous state and shows why in its row. */
-async function bindIntegration(sec, ctx) {
+async function bindIntegration(sec, ctx, danger) {
   let sv;
   try { sv = await serveStatus(); } catch (e) { sec.querySelector(".hint").textContent = l10nError(e); return; }
   const paint = (next, message = []) => {
     sv = next;
     sec.innerHTML = integrationHtml(sv, message);
+    danger.innerHTML = dangerHtml(sv, message);
     const run = (work, line = "serve-msg") => work().then((answer) => { paint(answer); toast(); ctx.changed("serve"); }, (e) => paint(sv, [line, serveErrorText(e)]));
     // PRD 0050 RF4.2: the origins as typed (one per line); the core normalizes or refuses them.
     const originsField = sec.querySelector("#serve-origins");
@@ -121,8 +124,9 @@ async function bindIntegration(sec, ctx) {
       run(eraseServeAccessLog, "serve-access-log-msg");
     };
     sec.querySelector("[data-serve-token-new]").onclick = () => run(generateServeToken, "serve-token-msg");
-    const revoke = sec.querySelector("[data-serve-token-revoke]");
-    if (revoke) revoke.onclick = () => run(revokeServeToken, "serve-token-msg");
+    danger.querySelector("[data-serve-token-revoke]").onclick = () => run(revokeServeToken, "serve-revoke-msg");
+    danger.querySelector("[data-widgets-delete]").onclick = () => deleteWidgetData().then(
+      () => { paint(sv); toast(t("settings.widgets.deleted")); ctx.changed("widgets"); }, (e) => paint(sv, ["widgets-delete-msg", serveErrorText(e)]));
     const copied = (btn) => { const prev = btn.innerHTML; btn.textContent = t("settings.serve.copied"); setTimeout(() => { btn.innerHTML = prev; }, 1500); };
     const copyToken = sec.querySelector("[data-serve-token-copy]");
     if (copyToken) copyToken.onclick = () => copySecret(copyServeToken).then(() => { copied(copyToken); sec.querySelector("[data-serve-token-notice]")?.remove(); sv = { ...sv, token_notice: false }; }, (e) => { sec.querySelector("#serve-token-msg").textContent = serveErrorText(e); });
@@ -158,7 +162,16 @@ export function widgetsHtml(wv, message = []) {
       control: (a) => sw("widgets-identity", p.include_identity, a, off) })
     + row({ key: "max", label: te("settings.widgets.maxAccounts"), dep: true, info: te("settings.widgets.maxAccountsHelp", { min: wv.accounts_min, max: wv.accounts_max }),
       msg: "widgets-max-msg", control: (a) => num("widgets-max", { value: p.max_accounts, min: wv.accounts_min, max: wv.accounts_max }, `${a} ${off}`) })
-    + disc("widgets-path", te("settings.widgets.path.label"), `${pathHtml(wv.path)}<p class="hint">${where}</p>`)
+    + disc("widgets-path", te("settings.widgets.path.label"), `${pathHtml(wv.path)}<p class="hint">${where}</p>`), message);
+}
+
+/** RF3.4 (PRD 0020 re-validation R-10, S-02): revoke the server token and delete the widget data, at the end of the
+ *  page. Rust asks in a native dialog with the core's text and acts only on its answer; Cancel leaves the row's
+ *  `execution.declined` line. Revoke needs a token. */
+export function dangerHtml(sv, message = []) {
+  return withError(row({ key: "token-revoke", kw: "token", label: te("settings.serve.token.revoke"), danger: true, msg: "serve-revoke-msg",
+    info: te("settings.serve.token.revokeHelp"),
+    control: () => buttons(`<button class="btn sm danger-btn" data-serve-token-revoke aria-labelledby="token-revoke-label" ${sv.token ? "" : "disabled"}>${icon("trash")}</button>`) })
     + row({ key: "widgets-delete", label: te("settings.widgets.delete"), danger: true, msg: "widgets-delete-msg",
       control: () => buttons(`<button class="btn sm danger-btn" data-widgets-delete aria-labelledby="widgets-delete-label">${icon("trash")}</button>`) }), message);
 }
@@ -180,10 +193,6 @@ async function bindWidgets(sec, ctx) {
     on.onchange = () => run(save, "widgets-msg");
     identity.onchange = () => run(save, "widgets-identity-msg");
     commitField(max, (value) => save(value).then((answer) => { paint(answer); ctx.changed("widgets"); }, (e) => { throw serveErrorText(e); }));
-    sec.querySelector("[data-widgets-delete]").onclick = () => run(async () => {
-      await deleteWidgetData();
-      return widgetsStatus();
-    }, "widgets-delete-msg", t("settings.widgets.deleted"));
   };
   paint(wv);
 }

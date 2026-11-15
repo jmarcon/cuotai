@@ -21,6 +21,7 @@ mod updater;
 mod user_content;
 mod widgets;
 mod window_mode;
+mod window_scope;
 
 use backend::{
     AccountForm, AccountInput, Backend, FieldChoiceSchema, FormSchema, LoginStartInput,
@@ -249,7 +250,8 @@ async fn channel_set_enabled(b: Shared<'_>, id: String, on: bool) -> Result<(), 
 }
 
 #[tauri::command]
-async fn channel_remove(b: Shared<'_>, id: String) -> Result<(), String> {
+async fn channel_remove(window: WebviewWindow, b: Shared<'_>, id: String) -> Result<(), String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     b.channel_remove(id).await
 }
 
@@ -264,7 +266,12 @@ fn open_extensions_folder() -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn forget_extension_secrets(b: Shared<'_>, id: String) -> Result<usize, String> {
+async fn forget_extension_secrets(
+    window: WebviewWindow,
+    b: Shared<'_>,
+    id: String,
+) -> Result<usize, String> {
+    window_scope::require(&window, window_scope::MAIN_ONLY)?;
     b.forget_extension_secrets(&id).await
 }
 
@@ -366,9 +373,11 @@ async fn migrate_session(
 #[tauri::command]
 async fn forget_session(
     app: AppHandle,
+    window: WebviewWindow,
     b: Shared<'_>,
     index: usize,
 ) -> Result<AccountForm, String> {
+    window_scope::require(&window, window_scope::MAIN_ONLY)?;
     b.change_session(&app, index, backend::SessionChange::Forget)
         .await
 }
@@ -646,11 +655,13 @@ struct RestoreDone {
 #[tauri::command]
 async fn restore_apply(
     app: AppHandle,
+    window: WebviewWindow,
     b: Shared<'_>,
     pending: tauri::State<'_, file_dialog::PendingRestore>,
     token: u64,
     accept: Vec<String>,
 ) -> Result<RestoreDone, String> {
+    window_scope::require(&window, window_scope::MAIN_OR_SETTINGS)?;
     let (done, config) = restore_chosen(&pending, token, accept).await?;
     if config {
         // The accounts file changed under the app: read it again.
@@ -703,7 +714,8 @@ fn restart_app(app: AppHandle) {
 
 /// PRD 0029 RF6.2: delete the vault entries no account uses.
 #[tauri::command]
-async fn vault_prune(b: Shared<'_>) -> Result<usize, String> {
+async fn vault_prune(window: WebviewWindow, b: Shared<'_>) -> Result<usize, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     b.vault_prune().await
 }
 
@@ -743,7 +755,8 @@ fn cancel_session_capture(state: tauri::State<'_, session_capture::State>) {
 /// capture window. `true` when one was there; error `busy` while a capture
 /// runs in it.
 #[tauri::command]
-fn forget_shared_capture(app: AppHandle) -> Result<bool, String> {
+fn forget_shared_capture(app: AppHandle, window: WebviewWindow) -> Result<bool, String> {
+    window_scope::require(&window, window_scope::MAIN_ONLY)?;
     session_capture::forget_shared(&app)
 }
 
@@ -815,11 +828,13 @@ fn check_budgets(
 #[tauri::command]
 async fn delete_account(
     app: AppHandle,
+    window: WebviewWindow,
     b: Shared<'_>,
     index: usize,
     account_id: Option<String>,
     purge: bool,
 ) -> Result<backend::DeleteResult, String> {
+    window_scope::require(&window, window_scope::MAIN_ONLY)?;
     b.delete_account(&app, index, account_id, purge).await
 }
 
@@ -831,9 +846,11 @@ async fn delete_account(
 #[tauri::command]
 async fn retry_purge(
     app: AppHandle,
+    window: WebviewWindow,
     b: Shared<'_>,
     handle: String,
 ) -> Result<backend::DeleteResult, String> {
+    window_scope::require(&window, window_scope::MAIN_ONLY)?;
     b.retry_purge(&app, handle).await
 }
 
@@ -1163,7 +1180,8 @@ fn get_settings() -> settings::SettingsView {
 
 /// `path = None` goes back to the default folder. Errors are stable codes that the UI translates.
 #[tauri::command]
-fn set_user_dir(app: AppHandle, path: Option<String>) -> Result<(), String> {
+fn set_user_dir(app: AppHandle, window: WebviewWindow, path: Option<String>) -> Result<(), String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     if settings::env_user_dir().is_some() {
         return Err("env_locked".into());
     }
@@ -1176,7 +1194,8 @@ fn set_user_dir(app: AppHandle, path: Option<String>) -> Result<(), String> {
 /// PRD 0051 RF5.2: save the data folder (`None`: the OS default); it
 /// applies at the next start. Refused while `CUOTAI_DATA_DIR` is set.
 #[tauri::command]
-fn set_data_dir(path: Option<String>) -> Result<(), String> {
+fn set_data_dir(window: WebviewWindow, path: Option<String>) -> Result<(), String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     if std::env::var_os(cuotai_core::data_dir::ENV).is_some_and(|value| !value.is_empty()) {
         return Err("env_locked".into());
     }
@@ -1519,10 +1538,12 @@ async fn history_export(
 #[tauri::command]
 async fn history_erase(
     app: AppHandle,
+    window: WebviewWindow,
     b: Shared<'_>,
     index: Option<usize>,
     generation: Option<u64>,
 ) -> Result<usize, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     b.history_erase(&app, index, generation).await
 }
 
@@ -1543,11 +1564,13 @@ async fn erase_all_plan(b: Shared<'_>) -> Result<erase_data::PlanView, String> {
 #[tauri::command]
 async fn erase_all_data(
     app: AppHandle,
+    window: WebviewWindow,
     b: Shared<'_>,
     cost: Cost<'_>,
     include_config: bool,
     word: String,
 ) -> Result<erase_data::EraseResult, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     // Read before erasing: `desktop.json` holds the language.
     let locale = native_confirm::locale();
     let roots = erase_data::roots(b.accounts_path().await);
@@ -1640,32 +1663,82 @@ async fn set_serve_access_log(
 
 /// PRD 0050 RF6.3: erase `serve-access.log` and its rotated copy.
 #[tauri::command]
-async fn erase_serve_access_log(b: Shared<'_>) -> Result<local_server::ServeView, String> {
+async fn erase_serve_access_log(
+    window: WebviewWindow,
+    b: Shared<'_>,
+) -> Result<local_server::ServeView, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     b.erase_serve_access_log().await
 }
 
+/// PRD 0020 RF3.4: one Rust-owned native confirmation (PRD 0050 RF2) with
+/// the core's `review` text; only the OS answer lets the caller act.
+/// Errors as JSON: `execution.declined`, `execution.pending`.
+async fn confirm_natively(
+    app: &AppHandle,
+    b: &Shared<'_>,
+    review: cuotai_core::execution_review::Review,
+) -> Result<(), String> {
+    let _gate = b
+        .confirm_gate()
+        .enter()
+        .map_err(|e| backend::l10n_to_json(&e))?;
+    native_confirm::ask_action(
+        &native_confirm::DialogConfirmer::new(app),
+        &native_confirm::locale(),
+        review,
+    )
+    .await
+    .map_err(|e| backend::l10n_to_json(&e))
+}
+
 /// PRD 0012 RF5.1: generate the server's token into the OS vault (a new
-/// one invalidates the previous) and require it.
+/// one invalidates the previous) and require it. Replacing a token asks
+/// natively first (PRD 0020 RF3.4); the first one does not.
 #[tauri::command]
 async fn generate_serve_token(
     app: AppHandle,
+    window: WebviewWindow,
     b: Shared<'_>,
 ) -> Result<local_server::ServeView, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
+    if b.serve_view().await.prefs.token {
+        confirm_natively(
+            &app,
+            &b,
+            cuotai_core::execution_review::Review::RenewServeToken,
+        )
+        .await?;
+    }
     b.generate_serve_token(&app).await
 }
 
-/// PRD 0012 RF5.1: revoke the server's token (removed from the vault).
+/// PRD 0012 RF5.1: revoke the server's token (removed from the vault),
+/// after a native confirmation (PRD 0020 RF3.4). The refusal while
+/// browsers are allowed comes first and asks nothing.
 #[tauri::command]
 async fn revoke_serve_token(
     app: AppHandle,
+    window: WebviewWindow,
     b: Shared<'_>,
 ) -> Result<local_server::ServeView, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
+    if b.serve_view().await.prefs.allow_browsers {
+        return Err("browsers_need_token".into());
+    }
+    confirm_natively(
+        &app,
+        &b,
+        cuotai_core::execution_review::Review::RevokeServeToken,
+    )
+    .await?;
     b.revoke_serve_token(&app).await
 }
 
 /// PRD 0012 RF5.1: the token, only for the "Copy token" button.
 #[tauri::command]
-async fn copy_serve_token(b: Shared<'_>) -> Result<String, String> {
+async fn copy_serve_token(window: WebviewWindow, b: Shared<'_>) -> Result<String, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     b.copy_serve_token().await
 }
 
@@ -1701,9 +1774,21 @@ async fn set_widgets(
         .await
 }
 
-/// PRD 0014 RF4.1: "Delete widget data" — removes `widget.json` now.
+/// PRD 0014 RF4.1: "Delete widget data" — removes `widget.json` now,
+/// after a native confirmation (PRD 0020 RF3.4).
 #[tauri::command]
-async fn delete_widget_data(app: AppHandle, b: Shared<'_>) -> Result<(), String> {
+async fn delete_widget_data(
+    app: AppHandle,
+    window: WebviewWindow,
+    b: Shared<'_>,
+) -> Result<(), String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
+    confirm_natively(
+        &app,
+        &b,
+        cuotai_core::execution_review::Review::DeleteWidgetData,
+    )
+    .await?;
     b.delete_widget_data(&app).await
 }
 
@@ -2170,7 +2255,8 @@ async fn cost_prices(cost: Cost<'_>) -> Result<local_cost::PricesView, String> {
 /// PRD 0015 RF2.4: erase the whole cost index after the confirmation the
 /// UI asked for. Returns the rows removed.
 #[tauri::command]
-async fn cost_erase(cost: Cost<'_>) -> Result<usize, String> {
+async fn cost_erase(window: WebviewWindow, cost: Cost<'_>) -> Result<usize, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     cost.erase()
 }
 
@@ -2272,9 +2358,11 @@ async fn reset_timeline(
 #[tauri::command]
 async fn set_config_file(
     app: AppHandle,
+    window: WebviewWindow,
     b: Shared<'_>,
     path: Option<String>,
 ) -> Result<View, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     b.set_config_file(&app, path.map(std::path::PathBuf::from))
         .await
 }
@@ -3201,6 +3289,69 @@ pub fn run() -> std::process::ExitCode {
 
 #[cfg(test)]
 mod tests {
+    /// PRD 0020 re-validation S-01: every destructive command checks the
+    /// window that called it, first, with its scope; a new destructive
+    /// command added to these lists without the check fails here.
+    // security-invariant: SEC-WINDOW-SCOPE
+    #[test]
+    fn destructive_commands_check_their_window_first() {
+        let source = include_str!("lib.rs");
+        let scopes: &[(&str, &[&str])] = &[
+            (
+                "MAIN_ONLY",
+                &[
+                    "delete_account",
+                    "forget_extension_secrets",
+                    "forget_session",
+                    "forget_shared_capture",
+                    "retry_purge",
+                ],
+            ),
+            ("MAIN_OR_SETTINGS", &["restore_apply"]),
+            (
+                "SETTINGS_ONLY",
+                &[
+                    "history_erase",
+                    "cost_erase",
+                    "vault_prune",
+                    "erase_all_data",
+                    "erase_serve_access_log",
+                    "generate_serve_token",
+                    "revoke_serve_token",
+                    "copy_serve_token",
+                    "delete_widget_data",
+                    "channel_remove",
+                    "set_config_file",
+                    "set_data_dir",
+                    "set_user_dir",
+                ],
+            ),
+        ];
+        for (scope, commands) in scopes {
+            for command in *commands {
+                let start = source
+                    .find(&format!("async fn {command}("))
+                    .or_else(|| source.find(&format!("\nfn {command}(")))
+                    .unwrap_or_else(|| panic!("{command} not found"));
+                let body = &source[start..];
+                let body = &body[..body.find("\n}\n").expect("end of the command")];
+                let guard = format!("window_scope::require(&window, window_scope::{scope})?;");
+                let at = body
+                    .find(&guard)
+                    .unwrap_or_else(|| panic!("{command} lacks {guard}"));
+                // Nothing runs before the check: it is the first statement.
+                let opening = body
+                    .find(") -> ")
+                    .and_then(|i| body[i..].find('{').map(|j| i + j + 1))
+                    .unwrap();
+                assert!(
+                    body[opening..at].trim().is_empty(),
+                    "{command}: the window check is not first"
+                );
+            }
+        }
+    }
+
     /// PRD 0050 RF9: the backup and restore commands take their file only
     /// from the native dialog Rust opens. Cancel writes and reads nothing,
     /// a restore applies only the file its own preview picked, and a link

@@ -35,8 +35,11 @@ pub struct Question {
 impl Question {
     /// Render `review` with its `lines` in `locale`.
     pub fn new(review: Review, lines: &[Localized], locale: &str) -> Self {
-        let mut body = vec![review.intro().resolve(locale), String::new()];
-        body.extend(lines.iter().map(|line| line.resolve(locale)));
+        let mut body = vec![review.intro().resolve(locale)];
+        if !lines.is_empty() {
+            body.push(String::new());
+            body.extend(lines.iter().map(|line| line.resolve(locale)));
+        }
         Self {
             title: review.title().resolve(locale),
             body: body.join("\n"),
@@ -189,6 +192,16 @@ pub async fn ask_extension(
     lines: &[Localized],
 ) -> Result<(), Localized> {
     confirmed(confirmer, review, lines, locale).await
+}
+
+/// PRD 0020 RF3.4: a Settings action with no listing (renew or revoke the
+/// server token, delete the widget data): the review's intro alone.
+pub async fn ask_action(
+    confirmer: &dyn NativeConfirmer,
+    locale: &str,
+    review: Review,
+) -> Result<(), Localized> {
+    confirmed(confirmer, review, &[], locale).await
 }
 
 /// The rule to test is not among the approved ones.
@@ -497,6 +510,32 @@ mod tests {
             integration.test_checked(Some(&path), "a", "stale"),
             Err("hook_unknown")
         );
+    }
+
+    // security-invariant: SEC-NATIVE-CONFIRM
+    #[tokio::test]
+    async fn a_settings_action_asks_with_core_text_and_cancel_refuses_it() {
+        // PRD 0020 RF3.4: renew, revoke and delete widget data ask with the
+        // core's own words, translated, and act only on the accepting button.
+        for review in [
+            Review::RenewServeToken,
+            Review::RevokeServeToken,
+            Review::DeleteWidgetData,
+        ] {
+            let declined = Fake::new(false);
+            assert_eq!(
+                ask_action(&declined, "pt-BR", review).await,
+                Err(execution_review::declined())
+            );
+            let question = declined.asked.lock().unwrap()[0].clone();
+            assert_eq!(question.title, review.title().resolve("pt-BR"));
+            assert_eq!(question.body, review.intro().resolve("pt-BR"));
+            assert_eq!(question.accept, review.accept().resolve("pt-BR"));
+            assert_ne!(question.title, review.title().fallback, "untranslated");
+            let accepted = Fake::new(true);
+            assert_eq!(ask_action(&accepted, "en-US", review).await, Ok(()));
+            assert_eq!(accepted.questions(), 1);
+        }
     }
 
     #[tokio::test]
