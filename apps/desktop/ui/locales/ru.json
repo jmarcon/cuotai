@@ -338,7 +338,19 @@
   "settings.folder.env": "Задано переменной CUOTAI_USER_DIR; выбор здесь начнёт действовать после её удаления.",
   "settings.folder.custom": "Свой каталог",
   "settings.folder.default": "Каталог по умолчанию",
-  "settings.folder.loaded": "Загружено тем: {themes}, языков: {locales}",
+  "settings.folder.loaded": "Загружено: {themes}, {locales}",
+  "settings.folder.themes": {
+    "one": "{count} тема",
+    "few": "{count} темы",
+    "many": "{count} тем",
+    "other": "{count} темы"
+  },
+  "settings.folder.locales": {
+    "one": "{count} язык",
+    "few": "{count} языка",
+    "many": "{count} языков",
+    "other": "{count} языка"
+  },
   "settings.folder.choose": "Выбрать папку…",
   "settings.folder.reset": "Вернуть по умолчанию",
   "settings.folder.open": "Открыть папку",
@@ -868,7 +880,19 @@
   "settings.cost.since": "Включено с {at}.",
   "settings.cost.off": "Выкл.: ничего не читается.",
   "settings.cost.dirs": "Читает файлы {pattern} из:",
-  "settings.cost.indexed": "В индексе: логов: {files}, пропущено недопустимых строк: {invalid}.",
+  "settings.cost.indexed": "В индексе: {files}; {invalid}.",
+  "settings.cost.indexedFiles": {
+    "one": "{count} лог",
+    "few": "{count} лога",
+    "many": "{count} логов",
+    "other": "{count} лога"
+  },
+  "settings.cost.indexedInvalid": {
+    "one": "пропущена {count} недопустимая строка",
+    "few": "пропущены {count} недопустимые строки",
+    "many": "пропущено {count} недопустимых строк",
+    "other": "пропущено {count} недопустимой строки"
+  },
   "settings.cost.state.starting": "Чтение начинается…",
   "settings.cost.state.scanning": "Читается новое в логах…",
   "settings.cost.state.paused": "Пауза: компьютер экономит энергию; чтение продолжится, когда это закончится.",
@@ -879,7 +903,12 @@
   "settings.cost.erase": "Удалить индекс",
   "settings.cost.eraseText": "Удалить весь индекс локальных расходов? Включённые источники заново прочитают свои логи с самого начала.",
   "settings.cost.eraseConfirm": "Удалить индекс",
-  "settings.cost.erased": "Индекс удалён: записей: {count}.",
+  "settings.cost.erased": {
+    "one": "Индекс удалён: {count} запись.",
+    "few": "Индекс удалён: {count} записи.",
+    "many": "Индекс удалён: {count} записей.",
+    "other": "Индекс удалён: {count} записи."
+  },
   "settings.cost.plans": "Тарифы и вторая валюта",
   "settings.kw.cost-plans": "локальные расходы тарифы вторая валюта тариф цена курс обмена",
   "settings.kw.cost-plan": "локальные расходы тариф цена подписка платить ежемесячно стоимость",
@@ -947,7 +976,12 @@
   "settings.cost.prices": "Таблица цен",
   "settings.cost.pricesHelp": "USD за миллион токенов. Ничего не загружается: ваш pricing.json, отредактированный вручную в том же формате, по каждой модели приоритетнее встроенной таблицы; недопустимый файл игнорируется целиком.",
   "settings.cost.pricesEmbedded": "Встроенная таблица: цены на {date}; источник: {source}.",
-  "settings.cost.pricesUser": "Ваша таблица: цены на {date}; источник: {source}; моделей приоритетнее встроенной таблицы: {count}.",
+  "settings.cost.pricesUser": {
+    "one": "Ваша таблица: цены на {date}; источник: {source}; {count} модель приоритетнее встроенной таблицы.",
+    "few": "Ваша таблица: цены на {date}; источник: {source}; {count} модели приоритетнее встроенной таблицы.",
+    "many": "Ваша таблица: цены на {date}; источник: {source}; {count} моделей приоритетнее встроенной таблицы.",
+    "other": "Ваша таблица: цены на {date}; источник: {source}; {count} модели приоритетнее встроенной таблицы."
+  },
   "settings.cost.pricesMissing": "У вас нет pricing.json; создайте его в том же формате, чтобы проверить или изменить цены.",
   "settings.cost.pricesFile": "Ваша таблица:",
   "settings.cost.col.model": "Модель",
@@ -987,7 +1021,12 @@
   "settings.costBy.col.project": "Проект",
   "settings.costBy.minutes": "{m} мин",
   "settings.costBy.hours": "{h} ч {m} мин",
-  "settings.costBy.moreSessions": "Более старые сеансы не показаны: {count}.",
+  "settings.costBy.moreSessions": {
+    "one": "{count} более старый сеанс не показан.",
+    "few": "{count} более старых сеанса не показаны.",
+    "many": "{count} более старых сеансов не показаны.",
+    "other": "{count} более старого сеанса не показаны."
+  },
   "settings.costBy.providerWindow": "Окно провайдера: использовано {pct}%, сброс в {at}",
   "settings.costBy.providerReset": "Окно провайдера: сброс в {at}",
   "settings.costBy.liveTitle": "Активный блок · {source}",
@@ -999,7 +1038,12 @@
   "settings.costBy.hide": "Скрыть",
   "settings.costBy.show": "Учитывать",
   "settings.costBy.hidden": "Скрыт",
-  "settings.costBy.hiddenNote": "Скрытых проектов: {count} — они в списке, но не входят в итоги.",
+  "settings.costBy.hiddenNote": {
+    "one": "{count} скрытый проект: он в списке, но не входит в итоги.",
+    "few": "{count} скрытых проекта: они в списке, но не входят в итоги.",
+    "many": "{count} скрытых проектов: они в списке, но не входят в итоги.",
+    "other": "{count} скрытого проекта: они в списке, но не входят в итоги."
+  },
   "settings.costBy.blockDefault": "Длина блока; по умолчанию {hours} ч",
   "settings.costBy.blockHours": "Длина блока {source}, в часах",
   "settings.costBy.hoursUnit": "ч",

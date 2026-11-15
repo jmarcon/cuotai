@@ -329,7 +329,13 @@
   "settings.folder.env": "Ditetapkan oleh variabel CUOTAI_USER_DIR; pilihan di sini baru berlaku setelah variabel itu dihapus.",
   "settings.folder.custom": "Folder kustom",
   "settings.folder.default": "Folder bawaan",
-  "settings.folder.loaded": "{themes} tema dan {locales} bahasa dimuat",
+  "settings.folder.loaded": "{themes} dan {locales} dimuat",
+  "settings.folder.themes": {
+    "other": "{count} tema"
+  },
+  "settings.folder.locales": {
+    "other": "{count} bahasa"
+  },
   "settings.folder.choose": "Pilih folder…",
   "settings.folder.reset": "Pulihkan bawaan",
   "settings.folder.open": "Buka folder",
@@ -847,7 +853,13 @@
   "settings.cost.since": "Aktif sejak {at}.",
   "settings.cost.off": "Nonaktif: tidak ada yang dibaca.",
   "settings.cost.dirs": "Membaca file {pattern} dari:",
-  "settings.cost.indexed": "Dalam indeks: {files} log, {invalid} baris tidak valid diabaikan.",
+  "settings.cost.indexed": "Dalam indeks: {files}, {invalid}.",
+  "settings.cost.indexedFiles": {
+    "other": "{count} log"
+  },
+  "settings.cost.indexedInvalid": {
+    "other": "{count} baris tidak valid diabaikan"
+  },
   "settings.cost.state.starting": "Mulai membaca…",
   "settings.cost.state.scanning": "Membaca bagian log yang bertambah…",
   "settings.cost.state.paused": "Dijeda: komputer sedang menghemat daya; pembacaan dilanjutkan saat berhenti.",
@@ -858,7 +870,9 @@
   "settings.cost.erase": "Hapus indeks",
   "settings.cost.eraseText": "Hapus seluruh indeks biaya lokal? Sumber yang tetap aktif membaca lognya lagi dari awal.",
   "settings.cost.eraseConfirm": "Hapus indeks",
-  "settings.cost.erased": "Indeks dihapus: {count} catatan.",
+  "settings.cost.erased": {
+    "other": "Indeks dihapus: {count} catatan."
+  },
   "settings.cost.plans": "Paket dan mata uang",
   "settings.kw.cost-plans": "biaya lokal paket mata uang kedua harga paket kurs",
   "settings.kw.cost-plan": "biaya lokal paket harga langganan bayar bulanan sepadan",
@@ -926,7 +940,9 @@
   "settings.cost.prices": "Tabel harga",
   "settings.cost.pricesHelp": "USD per sejuta token. Tidak ada yang diunduh: pricing.json Anda, diedit manual dalam format yang sama, menggantikan tabel bawaan per model; file yang tidak valid diabaikan seluruhnya.",
   "settings.cost.pricesEmbedded": "Tabel bawaan: harga per {date}; sumber: {source}.",
-  "settings.cost.pricesUser": "Tabel Anda: harga per {date}; sumber: {source}; {count} model menggantikan tabel bawaan.",
+  "settings.cost.pricesUser": {
+    "other": "Tabel Anda: harga per {date}; sumber: {source}; {count} model menggantikan tabel bawaan."
+  },
   "settings.cost.pricesMissing": "Anda belum punya pricing.json; buat dalam format yang sama untuk meninjau atau mengubah harga.",
   "settings.cost.pricesFile": "Tabel Anda:",
   "settings.cost.col.model": "Model",
@@ -966,7 +982,9 @@
   "settings.costBy.col.project": "Proyek",
   "settings.costBy.minutes": "{m} mnt",
   "settings.costBy.hours": "{h} j {m} mnt",
-  "settings.costBy.moreSessions": "{count} sesi lama tidak ditampilkan.",
+  "settings.costBy.moreSessions": {
+    "other": "{count} sesi lama tidak ditampilkan."
+  },
   "settings.costBy.providerWindow": "Jendela penyedia: {pct}% terpakai, direset pukul {at}",
   "settings.costBy.providerReset": "Jendela penyedia: direset pukul {at}",
   "settings.costBy.liveTitle": "Blok aktif · {source}",
@@ -978,7 +996,9 @@
   "settings.costBy.hide": "Sembunyikan",
   "settings.costBy.show": "Hitung",
   "settings.costBy.hidden": "Disembunyikan",
-  "settings.costBy.hiddenNote": "{count} proyek disembunyikan: tetap tercantum, tetapi tidak dihitung dalam total.",
+  "settings.costBy.hiddenNote": {
+    "other": "{count} proyek disembunyikan: tetap tercantum, tetapi tidak dihitung dalam total."
+  },
   "settings.costBy.blockDefault": "Panjang blok; bawaan {hours} j",
   "settings.costBy.blockHours": "Panjang blok {source}, dalam jam",
   "settings.costBy.hoursUnit": "j",

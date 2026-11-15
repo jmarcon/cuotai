@@ -357,8 +357,17 @@
   "cost.scan.no_access": "{source}: tidak ada akses ke direktori ({paths}); tidak ada yang disiasati.",
   "cost.scan.no_logs": "{source}: tidak ada log di direktori.",
   "cost.scan.off": "{source}: nonaktif; tidak ada yang dibaca.",
-  "cost.scan.partial": "{source}: {files} log; {requests} permintaan baru; {invalid} baris tidak valid diabaikan; pembacaan dilanjutkan pada siklus berikutnya.",
-  "cost.scan.ready": "{source}: {files} log; {requests} permintaan baru; {invalid} baris tidak valid diabaikan.",
+  "cost.scan.partial": "{source}: {files}; {requests}; {invalid}; pembacaan dilanjutkan pada siklus berikutnya.",
+  "cost.scan.ready": "{source}: {files}; {requests}; {invalid}.",
+  "cost.scan.files": {
+    "other": "{count} log"
+  },
+  "cost.scan.requests": {
+    "other": "{count} permintaan baru"
+  },
+  "cost.scan.invalid": {
+    "other": "{count} baris tidak valid diabaikan"
+  },
   "cost.span.days": {
     "other": "{count} hari terakhir"
   },

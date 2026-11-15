@@ -357,8 +357,17 @@
   "cost.scan.no_access": "{source}: 디렉터리({paths})에 접근할 수 없습니다. 우회하지 않았습니다.",
   "cost.scan.no_logs": "{source}: 디렉터리에서 로그를 찾지 못했습니다.",
   "cost.scan.off": "{source}: 꺼짐. 아무것도 읽지 않습니다.",
-  "cost.scan.partial": "{source}: 로그 {files}개, 새 요청 {requests}개, 잘못된 줄 {invalid}개 무시됨. 읽기는 다음 주기에 계속됩니다.",
-  "cost.scan.ready": "{source}: 로그 {files}개, 새 요청 {requests}개, 잘못된 줄 {invalid}개 무시됨.",
+  "cost.scan.partial": "{source}: {files}, {requests}, {invalid}. 읽기는 다음 주기에 계속됩니다.",
+  "cost.scan.ready": "{source}: {files}, {requests}, {invalid}.",
+  "cost.scan.files": {
+    "other": "로그 {count}개"
+  },
+  "cost.scan.requests": {
+    "other": "새 요청 {count}개"
+  },
+  "cost.scan.invalid": {
+    "other": "잘못된 줄 {count}개 무시됨"
+  },
   "cost.span.days": {
     "other": "최근 {count}일"
   },

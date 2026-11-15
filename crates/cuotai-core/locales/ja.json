@@ -357,8 +357,17 @@
   "cost.scan.no_access": "{source}：ディレクトリ（{paths}）にアクセスできません。回避は試みていません。",
   "cost.scan.no_logs": "{source}：ディレクトリにログが見つかりませんでした。",
   "cost.scan.off": "{source}：オフです。何も読み取りません。",
-  "cost.scan.partial": "{source}：ログ {files} 件、新しいリクエスト {requests} 件、無効な行 {invalid} 行を無視。読み取りは次のサイクルで続きます。",
-  "cost.scan.ready": "{source}：ログ {files} 件、新しいリクエスト {requests} 件、無効な行 {invalid} 行を無視。",
+  "cost.scan.partial": "{source}：{files}、{requests}、{invalid}。読み取りは次のサイクルで続きます。",
+  "cost.scan.ready": "{source}：{files}、{requests}、{invalid}。",
+  "cost.scan.files": {
+    "other": "ログ {count} 件"
+  },
+  "cost.scan.requests": {
+    "other": "新しいリクエスト {count} 件"
+  },
+  "cost.scan.invalid": {
+    "other": "無効な行 {count} 行を無視"
+  },
   "cost.span.days": {
     "other": "過去 {count} 日間"
   },

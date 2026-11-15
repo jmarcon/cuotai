@@ -1552,8 +1552,20 @@
   "cost.scan.no_access": "{source}: sin acceso a los directorios ({paths}); no se intentó sortearlo.",
   "cost.scan.no_logs": "{source}: no se encontró ningún registro en los directorios.",
   "cost.scan.off": "{source}: desactivada; no se lee nada.",
-  "cost.scan.partial": "{source}: {files} registro(s); {requests} solicitud(es) nueva(s); {invalid} línea(s) inválida(s) ignorada(s); la lectura sigue en el próximo ciclo.",
-  "cost.scan.ready": "{source}: {files} registro(s); {requests} solicitud(es) nueva(s); {invalid} línea(s) inválida(s) ignorada(s).",
+  "cost.scan.partial": "{source}: {files}; {requests}; {invalid}; la lectura sigue en el próximo ciclo.",
+  "cost.scan.ready": "{source}: {files}; {requests}; {invalid}.",
+  "cost.scan.files": {
+    "one": "{count} registro",
+    "other": "{count} registros"
+  },
+  "cost.scan.requests": {
+    "one": "{count} solicitud nueva",
+    "other": "{count} solicitudes nuevas"
+  },
+  "cost.scan.invalid": {
+    "one": "{count} línea inválida ignorada",
+    "other": "{count} líneas inválidas ignoradas"
+  },
   "cost.disabled": "{source} desactivado; {removed} registro(s) derivado(s) borrado(s).",
   "cost.enabled": "{source} activado. Los registros se leen en segundo plano mientras la TUI o la app de escritorio están abiertas, o ahora con cuotai --cost-scan.",
   "cost.erased": "Índice de costo local borrado: {removed} registro(s).",

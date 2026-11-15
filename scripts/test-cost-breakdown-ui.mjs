@@ -64,6 +64,14 @@ assert.ok(full.split("data-session=").length > partial.split("data-session=").le
 const sessions = await lib.costBreakdown("session");
 await lib.costSetLabel("session", sessions.sessions[0].session, "Refactor");
 assert.match(breakdownPanelHtml("session", await lib.costBreakdown("session")), /value="Refactor"/);
+// PRD 0020 re-validation R-06: a name with "&", "<" or '"' is escaped once in the placeholder and the accessible name.
+{
+  const data = await lib.costBreakdown("session");
+  const named = { ...data, sessions: data.sessions.map((s, i) => (i ? s : { ...s, label: null, name: { id: "x.none", params: {}, fallback: 'R&D <"x">' } })) };
+  const html = breakdownPanelHtml("session", named);
+  assert.match(html, /placeholder="R&amp;D &lt;&quot;x&quot;&gt;"/, "the placeholder is escaped once");
+  assert.ok(!html.includes("&amp;amp;"), "a name is escaped twice");
+}
 await assert.rejects(lib.costSetLabel("session", sessions.sessions[0].session, "x".repeat(49)));
 let projects = await lib.costBreakdown("project");
 const first = projects.projects[0];

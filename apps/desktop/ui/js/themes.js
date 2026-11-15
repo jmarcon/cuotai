@@ -15,8 +15,8 @@ export const THEMES = [
   { id: "win98", label: "Windows 98", group: "systems", modes: ["dark", "light"] },
   { id: "winxp", label: "Windows XP", group: "systems", modes: ["dark", "light"] },
   { id: "ubuntu", label: "Ubuntu", group: "systems", modes: ["dark", "light"] },
-  { id: "crt", label: "CRT (monitor de tubo)", group: "retro", modes: ["dark", "light"] },
-  { id: "synthwave", label: "Old Terminal (synthwave)", group: "retro", modes: ["dark", "light"] },
+  { id: "crt", label: "CRT", group: "retro", modes: ["dark", "light"] },
+  { id: "synthwave", label: "Old Terminal", group: "retro", modes: ["dark", "light"] },
   { id: "tron", label: "TRON", group: "retro", modes: ["dark", "light"] },
 ];
 

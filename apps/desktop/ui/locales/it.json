@@ -329,7 +329,15 @@
   "settings.folder.env": "Impostata dalla variabile CUOTAI_USER_DIR; la scelta fatta qui si applica solo dopo averla rimossa.",
   "settings.folder.custom": "Cartella personalizzata",
   "settings.folder.default": "Cartella predefinita",
-  "settings.folder.loaded": "{themes} temi e {locales} lingue caricati",
+  "settings.folder.loaded": "{themes} e {locales} caricati",
+  "settings.folder.themes": {
+    "one": "{count} tema",
+    "other": "{count} temi"
+  },
+  "settings.folder.locales": {
+    "one": "{count} lingua",
+    "other": "{count} lingue"
+  },
   "settings.folder.choose": "Scegli cartella…",
   "settings.folder.reset": "Ripristina predefinita",
   "settings.folder.open": "Apri cartella",
@@ -851,7 +859,15 @@
   "settings.cost.since": "Attivo dal {at}.",
   "settings.cost.off": "Disattivato: non viene letto nulla.",
   "settings.cost.dirs": "Legge i file {pattern} di:",
-  "settings.cost.indexed": "Nell'indice: {files} log, {invalid} righe non valide ignorate.",
+  "settings.cost.indexed": "Nell'indice: {files}, {invalid}.",
+  "settings.cost.indexedFiles": {
+    "one": "{count} log",
+    "other": "{count} log"
+  },
+  "settings.cost.indexedInvalid": {
+    "one": "{count} riga non valida ignorata",
+    "other": "{count} righe non valide ignorate"
+  },
   "settings.cost.state.starting": "Avvio della lettura…",
   "settings.cost.state.scanning": "Lettura di ciò che è cresciuto nei log…",
   "settings.cost.state.paused": "In pausa: il computer sta risparmiando energia; la lettura riprende quando smette.",
@@ -862,7 +878,10 @@
   "settings.cost.erase": "Cancella l'indice",
   "settings.cost.eraseText": "Cancellare l'intero indice del costo locale? Le fonti che restano attive rileggono i loro log dall'inizio.",
   "settings.cost.eraseConfirm": "Cancella l'indice",
-  "settings.cost.erased": "Indice cancellato: {count} record.",
+  "settings.cost.erased": {
+    "one": "Indice cancellato: {count} record.",
+    "other": "Indice cancellato: {count} record."
+  },
   "settings.cost.plans": "Piani e seconda valuta",
   "settings.kw.cost-plans": "costo locale piani seconda valuta prezzo del piano cambio",
   "settings.kw.cost-plan": "costo locale piano prezzo abbonamento pagato mensile vale",
@@ -930,7 +949,10 @@
   "settings.cost.prices": "Tabella dei prezzi",
   "settings.cost.pricesHelp": "USD per milione di token. Non viene scaricato nulla: il tuo pricing.json, modificato a mano nello stesso formato, ha la precedenza sulla tabella integrata modello per modello; un file non valido viene ignorato per intero.",
   "settings.cost.pricesEmbedded": "Tabella integrata: prezzi del {date}; fonte: {source}.",
-  "settings.cost.pricesUser": "La tua tabella: prezzi del {date}; fonte: {source}; {count} modelli oltre alla tabella integrata.",
+  "settings.cost.pricesUser": {
+    "one": "La tua tabella: prezzi del {date}; fonte: {source}; {count} modello oltre alla tabella integrata.",
+    "other": "La tua tabella: prezzi del {date}; fonte: {source}; {count} modelli oltre alla tabella integrata."
+  },
   "settings.cost.pricesMissing": "Non hai un pricing.json; crealo nello stesso formato per rivedere o modificare i prezzi.",
   "settings.cost.pricesFile": "La tua tabella:",
   "settings.cost.col.model": "Modello",
@@ -970,7 +992,10 @@
   "settings.costBy.col.project": "Progetto",
   "settings.costBy.minutes": "{m} min",
   "settings.costBy.hours": "{h} h {m} min",
-  "settings.costBy.moreSessions": "{count} sessione/i più vecchia/e non elencata/e.",
+  "settings.costBy.moreSessions": {
+    "one": "{count} sessione più vecchia non elencata.",
+    "other": "{count} sessioni più vecchie non elencate."
+  },
   "settings.costBy.providerWindow": "Finestra del fornitore: {pct}% usato, si azzera alle {at}",
   "settings.costBy.providerReset": "Finestra del fornitore: si azzera alle {at}",
   "settings.costBy.liveTitle": "Blocco attivo · {source}",
@@ -982,7 +1007,10 @@
   "settings.costBy.hide": "Nascondi",
   "settings.costBy.show": "Conta",
   "settings.costBy.hidden": "Nascosto",
-  "settings.costBy.hiddenNote": "{count} progetto/i nascosto/i: elencato/i, ma escluso/i dai totali.",
+  "settings.costBy.hiddenNote": {
+    "one": "{count} progetto nascosto: elencato, ma escluso dai totali.",
+    "other": "{count} progetti nascosti: elencati, ma esclusi dai totali."
+  },
   "settings.costBy.blockDefault": "Durata del blocco; predefinita {hours} h",
   "settings.costBy.blockHours": "Durata del blocco di {source}, in ore",
   "settings.costBy.hoursUnit": "h",

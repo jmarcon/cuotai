@@ -2,13 +2,14 @@
 // stay in the main window, which owns them), the sort, the tray view, the row display, the "Recharging" group,
 // consumption pace and the refresh interval.
 import { t, te } from "../i18n.js";
-import { accountLabel, brand, claudeCodeSnippets, esc, getView, logo, moveAccount, requestAccountAction, adviceShown, currentSort, groupingRecharging, icon, liveSessionShown, setAdviceEnabled, setLiveSession, setGroupRecharging, setPaceUnit, setRefreshSeconds, setShowPace, setSort, setTrayView, TRAY_VIEWS, trayViewOf } from "../lib.js";
+import { accountLabel, brand, claudeCodeSnippets, durationText, esc, getView, logo, moveAccount, requestAccountAction, adviceShown, currentSort, groupingRecharging, icon, liveSessionShown, setAdviceEnabled, setLiveSession, setGroupRecharging, setPaceUnit, setRefreshSeconds, setShowPace, setSort, setTrayView, TRAY_VIEWS, trayViewOf } from "../lib.js";
 import { errorText, group, l10nError } from "./common.js";
 import { commitField, disc, num, row, rowError, select, seg, sw, toast } from "./rows.js";
 import { AGG_MODES, aggregatorsInAll, setAggregatorsInAll } from "../aggregator.js";
 import { bind as bindRows, rowsHtml } from "./rowdisplay.js";
 
-const PRESETS = [[60, "1 min"], [300, "5 min"], [900, "15 min"], [3600, "1 h"]];
+// PRD 0020 re-validation V-07: the labels come from the core duration patterns, in the interface language.
+const PRESETS = [60, 300, 900, 3600];
 
 export function html({ settings: s, view }) {
   const seconds = view()?.refresh_seconds || 300;
@@ -44,7 +45,7 @@ export function html({ settings: s, view }) {
     + group("refresh", te("settings.refresh.title"),
       row({ key: "refresh", label: te("settings.refresh.label"), desc: te("settings.refresh.min"), info: te("settings.refresh.help"), msg: "refresh-msg",
         control: (a) => num("refresh-seconds", { value: seconds, min: 30, unit: "s", apply: "data-apply-refresh" }, a),
-        body: seg("refresh-presets", PRESETS.map(([sec, label]) => [sec, label, `data-preset="${sec}"`]), seconds, `aria-label="${te("settings.refresh.presets")}"`) }));
+        body: seg("refresh-presets", PRESETS.map((sec) => [sec, esc(durationText(sec)), `data-preset="${sec}"`]), seconds, `aria-label="${te("settings.refresh.presets")}"`) }));
 }
 
 /** PRD 0040 RF2.4: Claude Code's status line feeds the Claude account; the snippet for ~/.claude/settings.json with

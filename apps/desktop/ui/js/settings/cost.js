@@ -26,7 +26,7 @@ export function costHtml(cv, prices, plans = null) {
   const dirs = (s) => `${te("settings.cost.dirs", { pattern: s.disclosure.pattern })} ${s.disclosure.directories.map((d) => `<code>${esc(d)}</code>`).join(", ")}${s.disclosure.custom ? ` (${te("settings.cost.pathsChosen")})` : ""}`;
   const sources = cv.sources.map((s) => row({ key: `cost-src-${esc(s.source)}`, kw: "cost-src", label: te("settings.cost.read", { source: s.label }), attrs: `data-cost-source="${esc(s.source)}"`,
     desc: `<span data-cost-state>${s.enabled ? te("settings.cost.since", { at: fmtReset(s.consented_at) ?? "—" }) : s.reconsent ? te("settings.cost.reconsent") : te("settings.cost.off")}</span>`,
-    info: `${te("settings.cost.help")}<br />${dirs(s)}${s.enabled ? `<br /><span data-cost-indexed>${te("settings.cost.indexed", { files: s.indexed.files, invalid: s.indexed.invalid_lines })}</span>` : ""}`,
+    info: `${te("settings.cost.help")}<br />${dirs(s)}${s.enabled ? `<br /><span data-cost-indexed>${te("settings.cost.indexed", { files: t("settings.cost.indexedFiles", { count: s.indexed.files }), invalid: t("settings.cost.indexedInvalid", { count: s.indexed.invalid_lines }) })}</span>` : ""}`,
     msg: `cost-src-${esc(s.source)}-msg`, control: (a) => sw(`cost-toggle-${esc(s.source)}`, s.enabled, a, `data-cost-toggle="${esc(s.source)}"`),
     body: s.enabled && s.summary ? `<p class="hint" data-cost-summary>${tle(s.summary)}</p>` : "" })).join("");
   const editors = cv.sources.map((s) => `<div class="cost-paths" data-cost-paths-box="${esc(s.source)}">

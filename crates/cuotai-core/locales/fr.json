@@ -359,8 +359,20 @@
   "cost.scan.no_access": "{source} : pas d’accès aux dossiers ({paths}) ; aucun contournement n’a été tenté.",
   "cost.scan.no_logs": "{source} : aucun journal trouvé dans les dossiers.",
   "cost.scan.off": "{source} : désactivée ; rien n’est lu.",
-  "cost.scan.partial": "{source} : {files} journal(aux) ; {requests} nouvelle(s) requête(s) ; {invalid} ligne(s) invalide(s) ignorée(s) ; la lecture reprend au prochain cycle.",
-  "cost.scan.ready": "{source} : {files} journal(aux) ; {requests} nouvelle(s) requête(s) ; {invalid} ligne(s) invalide(s) ignorée(s).",
+  "cost.scan.partial": "{source} : {files} ; {requests} ; {invalid} ; la lecture reprend au prochain cycle.",
+  "cost.scan.ready": "{source} : {files} ; {requests} ; {invalid}.",
+  "cost.scan.files": {
+    "one": "{count} journal",
+    "other": "{count} journaux"
+  },
+  "cost.scan.requests": {
+    "one": "{count} nouvelle requête",
+    "other": "{count} nouvelles requêtes"
+  },
+  "cost.scan.invalid": {
+    "one": "{count} ligne invalide ignorée",
+    "other": "{count} lignes invalides ignorées"
+  },
   "cost.span.days": {
     "one": "{count} dernier jour",
     "other": "{count} derniers jours"

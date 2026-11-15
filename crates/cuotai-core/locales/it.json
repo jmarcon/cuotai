@@ -1552,8 +1552,20 @@
   "cost.scan.no_access": "{source}: nessun accesso alle directory ({paths}); nulla è stato aggirato.",
   "cost.scan.no_logs": "{source}: nessun log trovato nelle directory.",
   "cost.scan.off": "{source}: disattivata; nulla viene letto.",
-  "cost.scan.partial": "{source}: {files} log; {requests} nuove richieste; {invalid} righe non valide ignorate; la lettura continua nel prossimo ciclo.",
-  "cost.scan.ready": "{source}: {files} log; {requests} nuove richieste; {invalid} righe non valide ignorate.",
+  "cost.scan.partial": "{source}: {files}; {requests}; {invalid}; la lettura continua nel prossimo ciclo.",
+  "cost.scan.ready": "{source}: {files}; {requests}; {invalid}.",
+  "cost.scan.files": {
+    "one": "{count} log",
+    "other": "{count} log"
+  },
+  "cost.scan.requests": {
+    "one": "{count} nuova richiesta",
+    "other": "{count} nuove richieste"
+  },
+  "cost.scan.invalid": {
+    "one": "{count} riga non valida ignorata",
+    "other": "{count} righe non valide ignorate"
+  },
   "cost.disabled": "{source} disattivata; {removed} record derivati cancellati.",
   "cost.enabled": "{source} attivata. I log vengono letti in background mentre la TUI o l'app desktop è aperta, oppure subito con cuotai --cost-scan.",
   "cost.erased": "Indice locale dei costi cancellato: {removed} record.",

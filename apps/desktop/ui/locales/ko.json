@@ -329,7 +329,13 @@
   "settings.folder.env": "CUOTAI_USER_DIR 변수로 지정되어 있습니다. 변수를 지워야 여기서 고른 폴더가 적용됩니다.",
   "settings.folder.custom": "사용자 지정 폴더",
   "settings.folder.default": "기본 폴더",
-  "settings.folder.loaded": "테마 {themes}개, 언어 {locales}개를 불러왔습니다",
+  "settings.folder.loaded": "{themes}, {locales}를 불러왔습니다",
+  "settings.folder.themes": {
+    "other": "테마 {count}개"
+  },
+  "settings.folder.locales": {
+    "other": "언어 {count}개"
+  },
   "settings.folder.choose": "폴더 선택…",
   "settings.folder.reset": "기본값 복원",
   "settings.folder.open": "폴더 열기",
@@ -847,7 +853,13 @@
   "settings.cost.since": "{at}부터 켜짐.",
   "settings.cost.off": "꺼짐: 아무것도 읽지 않습니다.",
   "settings.cost.dirs": "다음 위치의 {pattern} 파일을 읽습니다:",
-  "settings.cost.indexed": "색인에 있음: 로그 {files}개, 잘못된 줄 {invalid}개는 무시됨.",
+  "settings.cost.indexed": "색인에 있음: {files}, {invalid}.",
+  "settings.cost.indexedFiles": {
+    "other": "로그 {count}개"
+  },
+  "settings.cost.indexedInvalid": {
+    "other": "잘못된 줄 {count}개 무시됨"
+  },
   "settings.cost.state.starting": "읽기를 시작하는 중…",
   "settings.cost.state.scanning": "로그에서 늘어난 부분을 읽는 중…",
   "settings.cost.state.paused": "일시 중지: 컴퓨터가 절전 중입니다. 절전이 끝나면 다시 읽습니다.",
@@ -858,7 +870,9 @@
   "settings.cost.erase": "색인 삭제",
   "settings.cost.eraseText": "로컬 비용 색인 전체를 삭제할까요? 켜 둔 소스는 로그를 처음부터 다시 읽습니다.",
   "settings.cost.eraseConfirm": "색인 삭제",
-  "settings.cost.erased": "색인을 삭제했습니다: 기록 {count}개.",
+  "settings.cost.erased": {
+    "other": "색인을 삭제했습니다: 기록 {count}개."
+  },
   "settings.cost.plans": "요금제 및 보조 통화",
   "settings.kw.cost-plans": "로컬 비용 요금제 보조 통화 요금제 가격 환율",
   "settings.kw.cost-plan": "로컬 비용 요금제 가격 구독 결제 월간 가치",
@@ -926,7 +940,9 @@
   "settings.cost.prices": "가격표",
   "settings.cost.pricesHelp": "100만 토큰당 USD입니다. 아무것도 내려받지 않습니다. 같은 형식으로 직접 편집한 pricing.json이 모델별로 내장 표보다 우선하며, 잘못된 파일은 통째로 무시됩니다.",
   "settings.cost.pricesEmbedded": "내장 표: {date} 가격, 출처: {source}.",
-  "settings.cost.pricesUser": "내 표: {date} 가격, 출처: {source}, 내장 표보다 우선하는 모델 {count}개.",
+  "settings.cost.pricesUser": {
+    "other": "내 표: {date} 가격, 출처: {source}, 내장 표보다 우선하는 모델 {count}개."
+  },
   "settings.cost.pricesMissing": "pricing.json이 없습니다. 같은 형식으로 만들어 가격을 검토하거나 바꾸세요.",
   "settings.cost.pricesFile": "내 표:",
   "settings.cost.col.model": "모델",
@@ -966,7 +982,9 @@
   "settings.costBy.col.project": "프로젝트",
   "settings.costBy.minutes": "{m}분",
   "settings.costBy.hours": "{h}시간 {m}분",
-  "settings.costBy.moreSessions": "이전 세션 {count}개는 표시하지 않았습니다.",
+  "settings.costBy.moreSessions": {
+    "other": "이전 세션 {count}개는 표시하지 않았습니다."
+  },
   "settings.costBy.providerWindow": "제공자 창: {pct}% 사용, {at}에 초기화",
   "settings.costBy.providerReset": "제공자 창: {at}에 초기화",
   "settings.costBy.liveTitle": "진행 중인 블록 · {source}",
@@ -978,7 +996,9 @@
   "settings.costBy.hide": "숨기기",
   "settings.costBy.show": "합계에 포함",
   "settings.costBy.hidden": "숨김",
-  "settings.costBy.hiddenNote": "숨긴 프로젝트 {count}개: 목록에는 남지만 합계에서는 빠집니다.",
+  "settings.costBy.hiddenNote": {
+    "other": "숨긴 프로젝트 {count}개: 목록에는 남지만 합계에서는 빠집니다."
+  },
   "settings.costBy.blockDefault": "블록 길이, 기본 {hours}시간",
   "settings.costBy.blockHours": "{source}의 블록 길이(시간)",
   "settings.costBy.hoursUnit": "시간",

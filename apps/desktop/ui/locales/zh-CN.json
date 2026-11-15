@@ -329,7 +329,13 @@
   "settings.folder.env": "由 CUOTAI_USER_DIR 变量设置；移除该变量后此处的选择才会生效。",
   "settings.folder.custom": "自定义文件夹",
   "settings.folder.default": "默认文件夹",
-  "settings.folder.loaded": "已加载 {themes} 个主题和 {locales} 种语言",
+  "settings.folder.loaded": "已加载{themes}和{locales}",
+  "settings.folder.themes": {
+    "other": "{count} 个主题"
+  },
+  "settings.folder.locales": {
+    "other": "{count} 种语言"
+  },
   "settings.folder.choose": "选择文件夹…",
   "settings.folder.reset": "恢复默认",
   "settings.folder.open": "打开文件夹",
@@ -847,7 +853,13 @@
   "settings.cost.since": "自 {at} 起开启。",
   "settings.cost.off": "关闭：不读取任何内容。",
   "settings.cost.dirs": "读取以下位置的 {pattern} 文件：",
-  "settings.cost.indexed": "索引中：{files} 个日志，已忽略 {invalid} 行无效内容。",
+  "settings.cost.indexed": "索引中：{files}，{invalid}。",
+  "settings.cost.indexedFiles": {
+    "other": "{count} 个日志"
+  },
+  "settings.cost.indexedInvalid": {
+    "other": "已忽略 {count} 行无效内容"
+  },
   "settings.cost.state.starting": "正在开始读取…",
   "settings.cost.state.scanning": "正在读取日志的新增内容…",
   "settings.cost.state.paused": "已暂停：电脑正在节能；节能结束后继续读取。",
@@ -858,7 +870,9 @@
   "settings.cost.erase": "清除索引",
   "settings.cost.eraseText": "清除整个本地费用索引？保持开启的来源会从头重新读取日志。",
   "settings.cost.eraseConfirm": "清除索引",
-  "settings.cost.erased": "索引已清除：{count} 条记录。",
+  "settings.cost.erased": {
+    "other": "索引已清除：{count} 条记录。"
+  },
   "settings.cost.plans": "套餐与第二币种",
   "settings.kw.cost-plans": "本地 费用 套餐 第二币种 价格 汇率",
   "settings.kw.cost-plan": "本地 费用 套餐 价格 订阅 付费 每月 值得",
@@ -926,7 +940,9 @@
   "settings.cost.prices": "价格表",
   "settings.cost.pricesHelp": "USD / 百万 token。不会下载任何内容：按相同格式手动编辑的 pricing.json 会逐个模型优先于内置价格表；无效文件会被整体忽略。",
   "settings.cost.pricesEmbedded": "内置价格表：{date} 的价格；来源：{source}。",
-  "settings.cost.pricesUser": "自定价格表：{date} 的价格；来源：{source}；{count} 个模型优先于内置价格表。",
+  "settings.cost.pricesUser": {
+    "other": "自定价格表：{date} 的价格；来源：{source}；{count} 个模型优先于内置价格表。"
+  },
   "settings.cost.pricesMissing": "没有自定 pricing.json；按相同格式创建即可查看或修改价格。",
   "settings.cost.pricesFile": "自定价格表：",
   "settings.cost.col.model": "模型",
@@ -966,7 +982,9 @@
   "settings.costBy.col.project": "项目",
   "settings.costBy.minutes": "{m} 分钟",
   "settings.costBy.hours": "{h} 小时 {m} 分钟",
-  "settings.costBy.moreSessions": "另有 {count} 个较早的会话未列出。",
+  "settings.costBy.moreSessions": {
+    "other": "另有 {count} 个较早的会话未列出。"
+  },
   "settings.costBy.providerWindow": "服务商窗口：已用 {pct}%，{at} 重置",
   "settings.costBy.providerReset": "服务商窗口：{at} 重置",
   "settings.costBy.liveTitle": "进行中的时段块 · {source}",
@@ -978,7 +996,9 @@
   "settings.costBy.hide": "隐藏",
   "settings.costBy.show": "计入",
   "settings.costBy.hidden": "已隐藏",
-  "settings.costBy.hiddenNote": "{count} 个已隐藏项目：仍会列出，但不计入合计。",
+  "settings.costBy.hiddenNote": {
+    "other": "{count} 个已隐藏项目：仍会列出，但不计入合计。"
+  },
   "settings.costBy.blockDefault": "时段块长度；默认 {hours} 小时",
   "settings.costBy.blockHours": "{source} 的时段块长度（小时）",
   "settings.costBy.hoursUnit": "小时",

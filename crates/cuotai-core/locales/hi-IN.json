@@ -359,8 +359,20 @@
   "cost.scan.no_access": "{source}: डायरेक्टरी ({paths}) तक पहुँच नहीं; कुछ भी बायपास नहीं किया गया।",
   "cost.scan.no_logs": "{source}: डायरेक्टरी में कोई लॉग नहीं मिला।",
   "cost.scan.off": "{source}: बंद; कुछ नहीं पढ़ा जाता।",
-  "cost.scan.partial": "{source}: {files} लॉग; {requests} नए अनुरोध; {invalid} अमान्य पंक्तियाँ अनदेखी; पढ़ना अगले चक्र में जारी रहेगा।",
-  "cost.scan.ready": "{source}: {files} लॉग; {requests} नए अनुरोध; {invalid} अमान्य पंक्तियाँ अनदेखी।",
+  "cost.scan.partial": "{source}: {files}; {requests}; {invalid}; पढ़ना अगले चक्र में जारी रहेगा।",
+  "cost.scan.ready": "{source}: {files}; {requests}; {invalid}।",
+  "cost.scan.files": {
+    "one": "{count} लॉग",
+    "other": "{count} लॉग"
+  },
+  "cost.scan.requests": {
+    "one": "{count} नया अनुरोध",
+    "other": "{count} नए अनुरोध"
+  },
+  "cost.scan.invalid": {
+    "one": "{count} अमान्य पंक्ति अनदेखी",
+    "other": "{count} अमान्य पंक्तियाँ अनदेखी"
+  },
   "cost.span.days": {
     "one": "पिछला {count} दिन",
     "other": "पिछले {count} दिन"
