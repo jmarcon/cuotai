@@ -350,7 +350,12 @@ const SECRET_OWNERS: &[(&str, &str, &str)] = &[
     (
         "CARGO_REGISTRY_TOKEN",
         "channel-cargo",
-        "Publish cuotai-core, then cuotai-tui (tag runs only)",
+        "Publish cuotai-core (tag runs only)",
+    ),
+    (
+        "CARGO_REGISTRY_TOKEN",
+        "channel-cargo",
+        "Publish cuotai-tui (tag runs only)",
     ),
     (
         "AUR_SSH_PRIVATE_KEY",
@@ -390,6 +395,7 @@ fn check_text(path: &Path, text: &str) -> Res<()> {
         check_timeout(job_name, job)?;
         check_job_permissions(name, job_name, job)?;
         check_job_secrets(job_name, job)?;
+        check_registry_token_steps(job_name, job)?;
         check_action_pins(job_name, job)?;
     }
 
@@ -433,6 +439,51 @@ fn check_release_cache_free(jobs: &Mapping) -> Res<()> {
             {
                 return err(format!(
                     "release job {job_name} uses {action}; release jobs build from the locked sources and never restore a cache"
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// PRD 0021 re-validation S-02: a verifying `cargo publish` compiles the
+/// package, so every dependency build script and proc macro would run with
+/// the registry token. A step that holds `CARGO_REGISTRY_TOKEN` may only
+/// upload: each `cargo publish` carries `--no-verify`, and nothing builds,
+/// tests or dry-runs there. Verification happens in token-free steps.
+fn check_registry_token_steps(job_name: &str, job: &Mapping) -> Res<()> {
+    for step in steps(job)? {
+        let Some(env) = step.get(Value::String("env".into())) else {
+            continue;
+        };
+        if !secret_references(env).contains("CARGO_REGISTRY_TOKEN") {
+            continue;
+        }
+        let step_name = scalar(step, "name").unwrap_or("unnamed step");
+        let run = scalar(step, "run").unwrap_or_default();
+        for line in run.lines().map(str::trim) {
+            if line.starts_with('#') {
+                continue;
+            }
+            let builds = [
+                "--dry-run",
+                "cargo build",
+                "cargo test",
+                "cargo check",
+                "cargo clippy",
+                "cargo install",
+                "cargo package",
+            ]
+            .iter()
+            .find(|word| line.contains(*word));
+            if let Some(word) = builds {
+                return err(format!(
+                    "job {job_name}, step {step_name}: `{word}` builds with CARGO_REGISTRY_TOKEN in the environment; verify in a token-free step"
+                ));
+            }
+            if line.contains("cargo publish") && !line.contains("--no-verify") {
+                return err(format!(
+                    "job {job_name}, step {step_name}: cargo publish holds CARGO_REGISTRY_TOKEN and must pass --no-verify"
                 ));
             }
         }
@@ -1298,6 +1349,28 @@ mod tests {
         let ci_cache =
             "      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3\n";
         assert!(CI_WORKFLOW.contains(ci_cache));
+    }
+
+    #[test]
+    fn rejects_a_build_while_the_registry_token_is_present() {
+        let publish = "          cargo publish --no-verify --locked -p cuotai-core\n";
+        assert_eq!(RELEASE_WORKFLOW.matches(publish).count(), 1);
+        for poisoned in [
+            "          cargo publish --locked -p cuotai-core\n",
+            "          cargo publish --dry-run --locked -p cuotai-tui\n          cargo publish --no-verify --locked -p cuotai-core\n",
+            "          cargo build --locked -p cuotai-core\n          cargo publish --no-verify --locked -p cuotai-core\n",
+            "          cargo test --locked\n          cargo publish --no-verify --locked -p cuotai-core\n",
+        ] {
+            let unsafe_workflow = RELEASE_WORKFLOW.replacen(publish, poisoned, 1);
+            let error = check_text(Path::new("release.yml"), &unsafe_workflow)
+                .expect_err("a token step that builds must be rejected")
+                .to_string();
+            assert!(error.contains("CARGO_REGISTRY_TOKEN"), "{error}");
+        }
+        // The token-free wait step may dry-run.
+        assert!(RELEASE_WORKFLOW.contains(
+            "            if cargo publish --dry-run --locked -p cuotai-tui; then exit 0; fi\n"
+        ));
     }
 
     #[test]
