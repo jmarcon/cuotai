@@ -13,6 +13,21 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.85.9] - 2026-11-15
+
+### Fixed
+
+- Settings descriptions wrap instead of being cut off, every field follows the theme, and multi-choice checks show a check mark (PRD 0020 RF3, RF5, RF9; e92aca8).
+- Settings › About shows the update privacy note as one line with the full text a click away, and the update channel in your language (PRD 0020 RF2, RF3; PRD 0018 RF3.1; 67bfbeb).
+- Settings shows refresh presets, theme names and counts correctly in every language, and local cost names with symbols display as typed (PRD 0020 RF5; 2146339).
+- Settings search lists the closest match first, and keyboard focus follows the result you choose (PRD 0020 RF6, RF4.3; 4f3c6a6).
+- Erase all Cuotai data now names the saved sign-ins and the local server token in plain words, with the vault service name underneath (PRD 0020 RF3; c323d4b).
+
+### Security
+
+- Renewing or revoking the local server token and deleting widget data now ask for confirmation in a system dialog (PRD 0020 RF3.4; dbda9c7).
+- Destructive actions are refused when they come from a window that does not offer them, such as the menu bar popover (PRD 0020 RF3.4; dbda9c7).
+
 ## [0.85.8] - 2026-11-15
 
 ### Fixed
@@ -811,7 +826,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.85.8...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.85.9...HEAD
+[0.85.9]: https://github.com/jmarcon/cuotai/compare/v0.85.8...v0.85.9
 [0.85.8]: https://github.com/jmarcon/cuotai/compare/v0.85.7...v0.85.8
 [0.85.7]: https://github.com/jmarcon/cuotai/compare/v0.85.6...v0.85.7
 [0.85.6]: https://github.com/jmarcon/cuotai/compare/v0.85.5...v0.85.6
