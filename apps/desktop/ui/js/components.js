@@ -272,8 +272,9 @@ export const TONE_ROLE = { good: "good", warn: "warn", bad: "bad", neutral: "mut
  *  the tooltip and the accessible name. */
 export function timeChipHtml(chip, { compact = false, role = null } = {}) {
   if (!chip) return "";
-  const full = tl(chip.text);
-  const text = compact && chip.compact ? tl(chip.compact) : full;
+  // PRD 0024 re-validation (V-03): the hint (why percent fell back to points) joins the tooltip and the name.
+  const full = [tl(chip.text), chip.hint ? tl(chip.hint) : ""].filter(Boolean).join(" · ");
+  const text = compact && chip.compact ? tl(chip.compact) : tl(chip.text);
   return `<span class="tchip ${role ?? CHIP_ROLE[chip.glyph] ?? "muted"}" title="${esc(full)}" aria-label="${esc(full)}"><span class="tg" aria-hidden="true">${esc(chip.glyph)}</span><span>${esc(text)}</span></span>`;
 }
 /** The stage chip in the user's unit (points by default, DS-CMP-TIME-6). */
@@ -585,8 +586,13 @@ export function paceDelta(w) {
   const p = w?.pace;
   if (!p || p.stage === "exhausted" || !Number.isFinite(p.delta_points)) return null;
   const chip = stageChip(p);
-  const full = [chip ? tl(chip.text) : tl(p.label), p.outlook ? tl(p.outlook) : ""].filter(Boolean).join(" · ");
+  // PRD 0024 re-validation: the core's summary in the user's unit (D-01: the projection alone beside "On pace"), the
+  // hint (V-03) and the muted "recent" marker (RF1.5) join the tooltip.
+  const unit = paceUnit();
+  const line = p.summary ? tl(p.summary[unit]) : [chip ? tl(chip.text) : tl(p.label), p.outlook ? tl(p.outlook) : ""].filter(Boolean).join(" · ");
+  const full = [line, chip?.hint ? tl(chip.hint) : "", p.marker ? tl(p.marker) : ""].filter(Boolean).join(" · ");
   const role = TONE_ROLE[p.tone] ?? "muted";
+  if (p.shows_stage === false) return { glyph: p.glyph ?? "↑", text: "", role: "warn", full };
   if (p.stage === "on_pace") return { glyph: chip?.glyph ?? "→", text: "", role, full };
   const reserve = p.stage === "reserve";
   const points = `${reserve ? "+" : "−"}${Math.round(Math.abs(p.delta_points))}`;

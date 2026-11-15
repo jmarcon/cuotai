@@ -2,7 +2,7 @@
 // Single criterion: AVAILABLE percentage, bar = available, amount = used / limit; metrics without a limit become text.
 import { t, te, tl } from "./i18n.js";
 import {
-  STALE, accessHtml, ageHtml, bindingChipText, fmtShare, causeText, errText, esc, fmtAmount, fmtReset, getView, icon, incidentDetailHtml, isBindingMetric, isMetricHidden, isRenewedWaiting, isStaleReading, level, loadModels, metricAlertHtml, metricKey, modelState, noteText,
+  STALE, paceUnit, accessHtml, ageHtml, bindingChipText, fmtShare, causeText, errText, esc, fmtAmount, fmtReset, getView, icon, incidentDetailHtml, isBindingMetric, isMetricHidden, isRenewedWaiting, isStaleReading, level, loadModels, metricAlertHtml, metricKey, modelState, noteText,
   adviceHtml, fmtMetricExtra, forecastHtml, scopeBlocksHtml, isOverage, openExternal, overageDetailHtml, paceHtml, paceOf, remainingPct, renewedText, reportKey, restNotes, staleView, statusLabel, syncModels, textualMetric,
 } from "./lib.js";
 import { expectedLeft, fmtAt, meterHtml, stageChip, TONE_ROLE } from "./components.js";
@@ -31,11 +31,15 @@ export function metricCardHtml(r, m, { eye = false, stale = false } = {}) {
   const reset = fmtReset(m.resets_at);
   const hid = isMetricHidden(r, m);
   const pace = paceOf(m);
+  // PRD 0024 re-validation: the pace words follow "Show pace as" (V-02) and say why percent fell back (V-03); beside a
+  // run-out projection "On pace" yields to the projection alone (D-01).
+  const unit = paceUnit();
+  const paceWords = !pace ? "" : pace.shows_stage === false && pace.summary ? tl(pace.summary[unit]) : tl(pace.stage_text?.[unit] ?? pace.label);
   // PRD 0022 RF2 (DS-CMP-MTR): one continuous bar of the remaining share; the pace corridor sits at the expected
   // remaining share (PRD 0007 RF3.2) and is absent on stale, unknown and exhausted meters.
   const state = stale ? "stale" : m.state === "exhausted" ? "exhausted" : pct == null ? "unknown" : "fresh";
   const valueText = pct == null ? t("meter.noData")
-    : pace ? t("meter.valuetext", { pct: Math.round(pct), status: [tl(pace.label), t("metric.pace.expected", { pct: Math.round(pace.expected_used_fraction * 100) })].join(", ") })
+    : pace ? t("meter.valuetext", { pct: Math.round(pct), status: [paceWords, t("metric.pace.expected", { pct: Math.round(pace.expected_used_fraction * 100) })].join(", ") })
       : t("meter.left", { pct: Math.round(pct) });
   const renewed = isRenewedWaiting(m);
   const gauge = renewed
@@ -48,7 +52,11 @@ export function metricCardHtml(r, m, { eye = false, stale = false } = {}) {
   // DS-CMP-SUB-1 (mockup 03): label + tag, the figure with its unit inline; the meter; the pace stage on the left and
   // "Resets 20:32 · in 2h 11m" (mono, muted) on the right. Counts and the expected share live in the tooltips.
   // The parts are catalog phrases, not sentences: joined with " · " like every other compound text, never ". ".
-  const paceTip = pace ? [tl(pace.label), t("metric.pace.expected", { pct: Math.round(pace.expected_used_fraction * 100) }), pace.outlook ? tl(pace.outlook) : "", t("card.pace.estimate")].filter(Boolean).join(" · ") : "";
+  // The line's glyph is ↑ when only the projection shows (D-01); a recent slope adds the muted marker (RF1.5).
+  const paceGlyph = !pace ? "" : pace.glyph ?? stageChip(pace)?.glyph ?? "";
+  const paceRole = !pace ? "" : pace.shows_stage === false ? "warn" : TONE_ROLE[pace.tone] ?? "muted";
+  const paceMarker = pace?.marker ? tl(pace.marker) : "";
+  const paceTip = pace ? [pace.summary ? tl(pace.summary[unit]) : [tl(pace.label), pace.outlook ? tl(pace.outlook) : ""].filter(Boolean).join(" · "), paceMarker, t("metric.pace.expected", { pct: Math.round(pace.expected_used_fraction * 100) }), t("card.pace.estimate")].filter(Boolean).join(" · ") : "";
   const resetText = reset && !renewed ? (m.resets_label ? tl(m.resets_label) : t("metric.resetsAt", { when: reset })) : "";
   // PRD 0041 RF2: a budget quota is the person's number, labelled as such on every surface (never a provider limit).
   const budget = m.budget_badge ? tl(m.budget_badge) : "";
@@ -62,7 +70,7 @@ export function metricCardHtml(r, m, { eye = false, stale = false } = {}) {
       </div>
     </div>
     ${gauge}
-    ${pace || resetText ? `<div class="metric-meta">${pace ? `<span class="pace-line" data-pace="${esc(pace.stage)}" title="${esc(paceTip)}"><span class="pg ${TONE_ROLE[pace.tone] ?? "muted"}" aria-hidden="true">${esc(stageChip(pace)?.glyph ?? "")}</span><span>${esc(tl(pace.label))}</span></span>` : "<span></span>"}${resetText ? `<span class="resets">${esc(resetText)}</span>` : ""}</div>` : ""}
+    ${pace || resetText ? `<div class="metric-meta">${pace ? `<span class="pace-line" data-pace="${esc(pace.stage)}" title="${esc(paceTip)}"><span class="pg ${paceRole}" aria-hidden="true">${esc(paceGlyph)}</span><span>${esc(paceWords)}</span>${paceMarker ? `<span class="pace-src">${esc(paceMarker)}</span>` : ""}</span>` : "<span></span>"}${resetText ? `<span class="resets">${esc(resetText)}</span>` : ""}</div>` : ""}
     ${stale || !m.allowance ? "" : `<p class="sub allowance-line" data-allowance title="${te("card.pace.estimate")}">${icon("clock")}<span>${esc(tl(m.allowance))}</span></p>`}
     ${stale ? "" : floorLinesHtml(r, m)}
     ${stale ? "" : forecastHtml(m, r)}

@@ -79,6 +79,11 @@ pub struct Lane {
     pub label: String,
     /// When the tightest limit comes back; `None` only in `unknown`.
     pub returns_at: Option<DateTime<Utc>>,
+    /// PRD 0024 RF6.1 (re-validation V-10): the time until `returns_at` as
+    /// the core words it ("1h 35m", [`crate::text::duration`]), for the
+    /// lane's accessible name, whose catalog text adds "in"; `None` when the
+    /// return is unknown.
+    pub returns_in: Option<crate::text::Localized>,
     /// Share left of the binding metric, `0.0..=1.0`.
     pub remaining_share: f64,
     pub level: ShareLevel,
@@ -105,6 +110,7 @@ fn lane(
     view: &AccountView<'_>,
     binding: &Binding,
     returns_at: Option<DateTime<Utc>>,
+    now: DateTime<Utc>,
 ) -> Lane {
     let remaining_share = (1.0 - binding.used_ratio).clamp(0.0, 1.0);
     Lane {
@@ -113,6 +119,7 @@ fn lane(
         provider: view.provider,
         label: binding.label.clone(),
         returns_at,
+        returns_in: returns_at.map(|at| crate::text::duration(at - now)),
         remaining_share,
         level: ShareLevel::of(remaining_share),
         exhausted: binding.reason == BindingReason::Exhausted,
@@ -170,7 +177,7 @@ pub fn timeline(
         // Blocked accounts return when the exhausted limit does; others when
         // the tightest quota resets.
         let returns_at = binding.blocked_until.or(binding.resets_at);
-        let lane = lane(index, view, &binding, returns_at);
+        let lane = lane(index, view, &binding, returns_at, now);
         match returns_at {
             None => unknown.push(lane),
             Some(at) if at <= ends_at => lanes.push(lane),
@@ -374,6 +381,11 @@ mod tests {
         let t = timeline(&views, TimelineRange::Days7, now());
         assert_eq!(t.lanes[0].label, "weekly");
         assert_eq!(t.lanes[0].returns_at, Some(now() + TimeDelta::days(2)));
+        // V-10: the lane carries the core's countdown for its accessible name.
+        assert_eq!(
+            t.lanes[0].returns_in.as_ref().map(|c| c.resolve("en-US")),
+            Some("2d".to_owned())
+        );
         assert_eq!(
             timeline(&views, TimelineRange::Hours24, now()).later.len(),
             1

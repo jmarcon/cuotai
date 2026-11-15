@@ -57,8 +57,10 @@ await i18n.initI18n();
 const points = await import("../apps/desktop/ui/js/lib.js?points");
 storage.set("cuotai.pace.unit", "percent");
 const percent = await import("../apps/desktop/ui/js/lib.js?percent");
-storage.delete("cuotai.pace.unit");
+// The details module (and the plain `lib.js` it imports) starts on percent too, for the V-02 check below.
 const { metricCardHtml } = await import("../apps/desktop/ui/js/detail.js");
+const { timeChipHtml } = await import("../apps/desktop/ui/js/components.js");
+storage.delete("cuotai.pace.unit");
 
 const text = (id, params, fallback) => ({ id, params, fallback });
 const minutes = (m) => text("text.duration.minutes", { m: String(m) }, `${m} min`);
@@ -228,6 +230,26 @@ assert.doesNotMatch(meta, /\. /, "no sentence period between catalog phrases");
 const onPaceMetric = { ...metric, forecast: null, pace: { ...metric.pace, stage: "on_pace", tone: "neutral", label: text("pace.on_pace", {}, "On pace"),
   chips: { points: { glyph: "→", text: text("pace.chip.on_pace", {}, "On pace") }, percent: { glyph: "→", text: text("pace.chip.on_pace", {}, "On pace") } } } };
 assert.match(metricCardHtml(report, onPaceMetric), /<span class="pg muted" aria-hidden="true">→<\/span><span>On pace<\/span>/);
+
+// PRD 0024 re-validation, desktop part. V-02: the details line follows "Show pace as" (percent here) with the core's
+// stage text; D-01: beside a run-out projection "On pace" yields to the projection alone, with ↑; RF1.5: the muted
+// "recent" marker; V-03: the chip's hint joins its tooltip; S-01: the "Show {name}" action escapes the name once.
+await i18n.setLocale("en-US");
+const stageText = { points: text("pace.ahead", { delta: "10" }, "10 points above the pace"), percent: text("pace.chip.ahead_pct", { p: "20" }, "20% faster than pace") };
+const unitLine = metricCardHtml(report, { ...metric, forecast: null, pace: { ...metric.pace, stage_text: stageText } });
+assert.match(unitLine, /<span class="pg warn" aria-hidden="true">↑<\/span><span>20% faster than pace<\/span>/, unitLine);
+const alone = text("pace.runs_out_at_alone", { at: "6:00 PM", margin: "2h" }, "Runs out at 6:00 PM, 2h before the reset");
+const projected = { ...metric.pace, stage: "on_pace", tone: "neutral", label: text("pace.on_pace", {}, "On pace"), shows_stage: false, glyph: "↑",
+  stage_text: { points: text("pace.on_pace", {}, "On pace"), percent: text("pace.on_pace", {}, "On pace") }, summary: { points: alone, percent: alone },
+  marker: text("pace.source.recent", {}, "recent") };
+const d01 = metricCardHtml(report, { ...metric, forecast: null, pace: projected });
+assert.match(d01, /<span class="pg warn" aria-hidden="true">↑<\/span><span>Runs out at 6:00 PM, 2h before the reset<\/span><span class="pace-src">recent<\/span>/, d01);
+assert.doesNotMatch(d01, />On pace</, "D-01: no On pace beside the projection");
+const hinted = timeChipHtml({ glyph: "↑", text: text("pace.chip.ahead", { d: "13" }, "13 pts ahead"), compact: null,
+  hint: text("pace.chip.too_early", {}, "Too early in the window for a percentage") });
+assert.ok(hinted.includes('title="13 pts ahead · Too early in the window for a percentage"'), hinted);
+const amp = points.adviceHtml(account("Work", { advice: { text: text("advice.switch.exhausted", { from: "Work", to: "A&B's", pct: "64" }, "Work is exhausted · A&B's has 64% left"), best_index: 1, best_name: "A&B's" } }));
+assert.ok(amp.includes(">Show A&amp;B&#39;s<") && !amp.includes("&amp;amp;"), amp);
 
 // PRD 0024 re-validation (V-01): the core's clock ids render with Intl in every locale and its hour cycle, never as
 // an ISO date; without `hour` the chip form is the short weekday or the date alone.
