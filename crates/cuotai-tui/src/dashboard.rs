@@ -3378,8 +3378,11 @@ fn line_bar(
 ) -> Line<'static> {
     let ratio_color = metric_state_color(metric.state);
     let fill = |ratio: f64| motion.map_or(ratio, |(anim, name, i)| anim.bar(name, i, ratio));
+    // PRD 0033 re-validation V-11: a reset already past (a renewed window
+    // of a preserved reading) has no countdown, never "renews now".
     let reset_label = metric
         .resets_at
+        .filter(|reset| *reset >= now)
         .map(|reset| format!("  {}", format_reset_line(reset, now)))
         .unwrap_or_default();
     let width = usize::from(width)
