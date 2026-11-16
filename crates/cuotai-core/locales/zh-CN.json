@@ -535,7 +535,9 @@
   "doctor.fix.trust_store": "请安装或修复操作系统的根证书（Linux 上为 ca-certificates 软件包）。",
   "doctor.fix.update": "请更新 Cuotai。",
   "doctor.hooks.ok": "有效；规则数：{count}。",
-  "doctor.ledger.quarantined": "已将损坏的记录另存（{count} 个文件，最新为 {file}）；某条通知可能会重复一次。",
+  "doctor.ledger.quarantined": {
+    "other": "已将损坏的记录另存（{count} 个文件，最新为 {file}）；某条通知可能会重复一次。"
+  },
   "doctor.log.error": "一次写入失败。",
   "doctor.log.off": "已通过 CUOTAI_LOG 或 RUST_LOG 关闭。",
   "doctor.log.ok": "正在写入事件。",
@@ -671,7 +673,9 @@
   "events.summary.quota_threshold_crossed": "{metric}：已用 {threshold}%",
   "events.summary.refresh_failed": "查询失败：{category}",
   "events.summary.refresh_recovered": "查询已恢复正常",
-  "events.summary.session_expiring": "会话将在 {days} 天后过期",
+  "events.summary.session_expiring": {
+    "other": "会话将在 {count} 天后过期"
+  },
   "events.summary.usage_updated": "用量已更新：{usage}",
   "extensions.action.account_invalid": "无法创建扩展的账户。",
   "extensions.action.candidate_expired": "此确认已失效；请在批准前重新检查扩展。",
@@ -780,7 +784,9 @@
   "feed.banner.codex_cli": "Codex CLI 有限额读数；请添加一个由 Codex CLI 推送的 ChatGPT / Codex 账户。",
   "feed.error.malformed": "状态栏输入不是 JSON 对象。",
   "feed.error.too_large": "状态栏输入超过 64 KiB。",
-  "feed.health.unreadable": "已忽略 {n} 个无法读取的推送文件。",
+  "feed.health.unreadable": {
+    "other": "已忽略 {count} 个无法读取的推送文件。"
+  },
   "feed.line.five_hour": "5 小时 {pct}",
   "feed.line.left": "{name} 剩余 {pct}",
   "feed.line.reset": "↺ {time}",
@@ -2212,8 +2218,12 @@
   "metric.label.provider_budget": "提供商预算",
   "metric.label.budget_scope": "预算 — {scope}",
   "metric.label.budget_paren": "预算（{scope}）",
-  "metric.label.window_weeks": "{prefix} — {n} 周窗口（%）",
-  "metric.label.window_hours": "{prefix} — {n} 小时窗口（%）",
+  "metric.label.window_weeks": {
+    "other": "{prefix} — {count} 周窗口（%）"
+  },
+  "metric.label.window_hours": {
+    "other": "{prefix} — {count} 小时窗口（%）"
+  },
   "metric.label.window_seconds": "{prefix} — {n} 秒窗口（%）",
   "metric.label.rate_limit_of": "{label}（速率限制）",
   "metric.label.extra_usage_used": "额外用量 — 已用",

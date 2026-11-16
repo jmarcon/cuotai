@@ -183,8 +183,10 @@
     "one": " CUOTAI  |  {count} compte  |  {checked}  |  {refresh} ",
     "other": " CUOTAI  |  {count} comptes  |  {checked}  |  {refresh} "
   },
-  "dashboard.hint.more_many": "+{count} métriques • ",
-  "dashboard.hint.more_one": "+1 métrique • ",
+  "dashboard.hint.more": {
+    "one": "+{count} métrique • ",
+    "other": "+{count} métriques • "
+  },
   "dashboard.history.empty": "  historique {range} : aucune mesure enregistrée",
   "dashboard.history.no_measured": "  historique {range} : aucune valeur mesurée",
   "dashboard.history.heading": "HISTORIQUE",
@@ -418,7 +420,10 @@
   "ui.delete.result.title": " Résultat ",
   "ui.delete.save_failed": "Enregistrement impossible ; aucun changement appliqué.",
   "ui.delete.secrets.body": "L’extension « {extension} » conserve des secrets dans le coffre du système pour le compte {account}.\n\nSupprimer aussi ces secrets ?\n\n• s supprime le compte et les secrets\n• n conserve les secrets dans le coffre\n• Esc annule la suppression",
-  "ui.delete.secrets.done": "{count} secret(s) d’extension supprimé(s) du coffre du système.",
+  "ui.delete.secrets.done": {
+    "one": "{count} secret d’extension supprimé du coffre du système.",
+    "other": "{count} secrets d’extension supprimés du coffre du système."
+  },
   "ui.delete.secrets.failed": "Les secrets de l’extension n’ont PAS pu être supprimés : {error}",
   "ui.delete.secrets.footer": "s supprime les secrets • n les conserve • Esc annule",
   "ui.delete.secrets.title": " Supprimer les secrets de l’extension ? ",
@@ -469,7 +474,10 @@
   "vault.prune.no_index": "Aucun identifiant indexé ; rien à supprimer.",
   "vault.prune.none": "Aucun identifiant n’est inutilisé avec certitude ; rien à supprimer.",
   "vault.prune.skipped": "Conservé {key} : {reason}.",
-  "watch.hooks_active": " {count} hook(s) actif(s).",
+  "watch.hooks_active": {
+    "one": " {count} hook actif.",
+    "other": " {count} hooks actifs."
+  },
   "watch.started": {
     "one": "cuotai : surveillance de {count} compte ; le premier relevé de chacun sert de référence et n’émet aucun événement. Ctrl+C arrête.",
     "other": "cuotai : surveillance de {count} comptes ; le premier relevé de chacun sert de référence et n’émet aucun événement. Ctrl+C arrête."

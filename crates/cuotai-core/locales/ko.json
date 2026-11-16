@@ -535,7 +535,9 @@
   "doctor.fix.trust_store": "운영 체제의 루트 인증서를 설치하거나 복구하세요(Linux에서는 ca-certificates 패키지).",
   "doctor.fix.update": "Cuotai를 업데이트하세요.",
   "doctor.hooks.ok": "올바름. 규칙: {count}.",
-  "doctor.ledger.quarantined": "손상된 기록을 따로 보관했습니다(파일 {count}개, 최신 {file}). 알림이 한 번 반복될 수 있습니다.",
+  "doctor.ledger.quarantined": {
+    "other": "손상된 기록을 따로 보관했습니다(파일 {count}개, 최신 {file}). 알림이 한 번 반복될 수 있습니다."
+  },
   "doctor.log.error": "기록에 실패했습니다.",
   "doctor.log.off": "CUOTAI_LOG 또는 RUST_LOG로 꺼져 있습니다.",
   "doctor.log.ok": "이벤트를 기록하고 있습니다.",
@@ -671,7 +673,9 @@
   "events.summary.quota_threshold_crossed": "{metric}: {threshold}% 사용",
   "events.summary.refresh_failed": "조회 실패: {category}",
   "events.summary.refresh_recovered": "조회가 다시 동작함",
-  "events.summary.session_expiring": "세션이 {days}일 후 만료됩니다",
+  "events.summary.session_expiring": {
+    "other": "세션이 {count}일 후 만료됩니다"
+  },
   "events.summary.usage_updated": "사용량 업데이트: {usage}",
   "extensions.action.account_invalid": "확장 기능 계정을 만들지 못했습니다.",
   "extensions.action.candidate_expired": "이 확인은 더 이상 유효하지 않습니다. 승인하기 전에 확장 기능을 다시 검토하세요.",
@@ -780,7 +784,9 @@
   "feed.banner.codex_cli": "Codex CLI에 한도 측정값이 있습니다. Codex CLI가 공급하는 ChatGPT / Codex 계정을 추가하세요.",
   "feed.error.malformed": "상태 표시줄 입력이 JSON 객체가 아닙니다.",
   "feed.error.too_large": "상태 표시줄 입력이 64KiB보다 큽니다.",
-  "feed.health.unreadable": "읽을 수 없는 피드 파일 {n}개를 무시했습니다.",
+  "feed.health.unreadable": {
+    "other": "읽을 수 없는 피드 파일 {count}개를 무시했습니다."
+  },
   "feed.line.five_hour": "5시간 {pct}",
   "feed.line.left": "{name} {pct} 남음",
   "feed.line.reset": "↺ {time}",
@@ -2212,8 +2218,12 @@
   "metric.label.provider_budget": "제공업체 예산",
   "metric.label.budget_scope": "예산 — {scope}",
   "metric.label.budget_paren": "예산({scope})",
-  "metric.label.window_weeks": "{prefix} — {n}주 구간(%)",
-  "metric.label.window_hours": "{prefix} — {n}시간 구간(%)",
+  "metric.label.window_weeks": {
+    "other": "{prefix} — {count}주 구간(%)"
+  },
+  "metric.label.window_hours": {
+    "other": "{prefix} — {count}시간 구간(%)"
+  },
   "metric.label.window_seconds": "{prefix} — {n}초 구간(%)",
   "metric.label.rate_limit_of": "{label}(요청 제한)",
   "metric.label.extra_usage_used": "추가 사용량 — 사용됨",

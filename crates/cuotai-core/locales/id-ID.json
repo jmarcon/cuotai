@@ -535,7 +535,9 @@
   "doctor.fix.trust_store": "Pasang atau perbaiki sertifikat akar sistem operasi (paket ca-certificates di Linux).",
   "doctor.fix.update": "Perbarui Cuotai.",
   "doctor.hooks.ok": "Valid; aturan: {count}.",
-  "doctor.ledger.quarantined": "Catatan yang rusak disisihkan ({count} berkas, terbaru {file}); sebuah pemberitahuan mungkin terulang sekali.",
+  "doctor.ledger.quarantined": {
+    "other": "Catatan yang rusak disisihkan ({count} berkas, terbaru {file}); sebuah pemberitahuan mungkin terulang sekali."
+  },
   "doctor.log.error": "Sebuah penulisan gagal.",
   "doctor.log.off": "Dimatikan dengan CUOTAI_LOG atau RUST_LOG.",
   "doctor.log.ok": "Peristiwa sedang ditulis.",
@@ -671,7 +673,9 @@
   "events.summary.quota_threshold_crossed": "{metric}: {threshold}% terpakai",
   "events.summary.refresh_failed": "Kueri gagal: {category}",
   "events.summary.refresh_recovered": "Kueri berfungsi kembali",
-  "events.summary.session_expiring": "Sesi kedaluwarsa dalam {days} hari",
+  "events.summary.session_expiring": {
+    "other": "Sesi kedaluwarsa dalam {count} hari"
+  },
   "events.summary.usage_updated": "Penggunaan diperbarui: {usage}",
   "extensions.action.account_invalid": "Akun ekstensi tidak dapat dibuat.",
   "extensions.action.candidate_expired": "Konfirmasi ini sudah tidak berlaku; tinjau ekstensi lagi sebelum menyetujuinya.",
@@ -780,7 +784,9 @@
   "feed.banner.codex_cli": "Codex CLI memiliki pembacaan batas laju; tambahkan akun ChatGPT / Codex yang diumpan oleh Codex CLI.",
   "feed.error.malformed": "Input baris status bukan objek JSON.",
   "feed.error.too_large": "Input baris status lebih besar dari 64 KiB.",
-  "feed.health.unreadable": "{n} berkas umpan tak terbaca diabaikan.",
+  "feed.health.unreadable": {
+    "other": "{count} berkas umpan tak terbaca diabaikan."
+  },
   "feed.line.five_hour": "5 j {pct}",
   "feed.line.left": "{name} sisa {pct}",
   "feed.line.reset": "↺ {time}",
@@ -2212,8 +2218,12 @@
   "metric.label.provider_budget": "Anggaran penyedia",
   "metric.label.budget_scope": "Anggaran — {scope}",
   "metric.label.budget_paren": "Anggaran ({scope})",
-  "metric.label.window_weeks": "{prefix} — jendela {n} minggu (%)",
-  "metric.label.window_hours": "{prefix} — jendela {n} jam (%)",
+  "metric.label.window_weeks": {
+    "other": "{prefix} — jendela {count} minggu (%)"
+  },
+  "metric.label.window_hours": {
+    "other": "{prefix} — jendela {count} jam (%)"
+  },
   "metric.label.window_seconds": "{prefix} — jendela {n} dtk (%)",
   "metric.label.rate_limit_of": "{label} (rate limit)",
   "metric.label.extra_usage_used": "Penggunaan ekstra — terpakai",

@@ -186,8 +186,10 @@
     "one": " CUOTAI  |  {count} conta  |  {checked}  |  {refresh} ",
     "other": " CUOTAI  |  {count} contas  |  {checked}  |  {refresh} "
   },
-  "dashboard.hint.more_many": "+{count} métricas • ",
-  "dashboard.hint.more_one": "+1 métrica • ",
+  "dashboard.hint.more": {
+    "one": "+{count} métrica • ",
+    "other": "+{count} métricas • "
+  },
   "dashboard.history.empty": "  histórico {range}: sem medições registradas",
   "dashboard.history.no_measured": "  histórico {range}: sem valores medidos",
   "dashboard.history.heading": "HISTÓRICO",
@@ -421,7 +423,10 @@
   "ui.delete.result.title": " Resultado ",
   "ui.delete.save_failed": "Falha ao salvar; nenhuma alteração aplicada.",
   "ui.delete.secrets.body": "A extensão \"{extension}\" guarda segredos no cofre do sistema para a conta {account}.\n\nApagar também esses segredos?\n\n• s apaga a conta e os segredos\n• n mantém os segredos no cofre\n• Esc cancela a exclusão",
-  "ui.delete.secrets.done": "{count} segredo(s) da extensão apagado(s) do cofre do sistema.",
+  "ui.delete.secrets.done": {
+    "one": "{count} segredo da extensão apagado do cofre do sistema.",
+    "other": "{count} segredos da extensão apagados do cofre do sistema."
+  },
   "ui.delete.secrets.failed": "Os segredos da extensão NÃO puderam ser apagados: {error}",
   "ui.delete.secrets.footer": "s apaga segredos • n mantém • Esc cancela",
   "ui.delete.secrets.title": " Apagar segredos da extensão? ",
@@ -472,7 +477,10 @@
   "vault.prune.no_index": "Nenhuma credencial indexada; nada a apagar.",
   "vault.prune.none": "Nenhuma credencial comprovadamente sem uso; nada a apagar.",
   "vault.prune.skipped": "Mantida {key}: {reason}.",
-  "watch.hooks_active": " {count} hook(s) ativo(s).",
+  "watch.hooks_active": {
+    "one": " {count} hook ativo.",
+    "other": " {count} hooks ativos."
+  },
   "watch.started": {
     "one": "cuotai: acompanhando {count} conta; a primeira leitura de cada uma é a base e não gera eventos. Ctrl+C encerra.",
     "other": "cuotai: acompanhando {count} contas; a primeira leitura de cada uma é a base e não gera eventos. Ctrl+C encerra."

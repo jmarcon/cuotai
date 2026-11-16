@@ -101,10 +101,12 @@ impl Watch {
             &[],
         );
         if let Some(runner) = &self.hooks {
-            line.push_str(&crate::l10n::trf(
+            line.push_str(&crate::l10n::trp(
                 "watch.hooks_active",
-                " {count} hook(s) active.",
-                &[("count", &runner.rules().len())],
+                " {count} hook active.",
+                " {count} hooks active.",
+                runner.rules().len(),
+                &[],
             ));
         }
         line

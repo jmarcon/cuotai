@@ -1,4 +1,4 @@
-use crate::l10n::{tr, trf};
+use crate::l10n::{tr, trf, trp};
 use crate::palette;
 use crate::{
     about_view::{AboutView, Reply as AboutReply},
@@ -3414,10 +3414,12 @@ fn forget_extension_vault_note(monitor: &Monitor, session: &OAuthSession, id: &s
         .to_string();
     };
     match manager.forget_secrets(id, session.token_store().as_ref()) {
-        Ok(count) => trf(
+        Ok(count) => trp(
             "ui.delete.secrets.done",
-            "{count} extension secret(s) deleted from the system vault.",
-            &[("count", &count)],
+            "{count} extension secret deleted from the system vault.",
+            "{count} extension secrets deleted from the system vault.",
+            count,
+            &[],
         ),
         Err(error) => trf(
             "ui.delete.secrets.failed",
@@ -4288,7 +4290,7 @@ mod tests {
         .unwrap();
         let note = forget_extension_vault_note(&monitor, &session, "acme-usage");
         // Nothing was stored, so nothing is reported as deleted.
-        assert!(note.starts_with("0 segredo(s)"), "{note}");
+        assert!(note.starts_with("0 segredo "), "{note}");
         let _ = std::fs::remove_file(path);
     }
 

@@ -549,7 +549,10 @@
   "doctor.fix.trust_store": "ऑपरेटिंग सिस्टम के रूट प्रमाणपत्र इंस्टॉल या ठीक करें (Linux पर ca-certificates पैकेज)।",
   "doctor.fix.update": "Cuotai अपडेट करें।",
   "doctor.hooks.ok": "मान्य; नियम: {count}।",
-  "doctor.ledger.quarantined": "एक क्षतिग्रस्त लेजर अलग रखा गया ({count} फ़ाइल, नवीनतम {file}); कोई सूचना एक बार दोहराई जा सकती है।",
+  "doctor.ledger.quarantined": {
+    "one": "एक क्षतिग्रस्त लेजर अलग रखा गया ({count} फ़ाइल, नवीनतम {file}); कोई सूचना एक बार दोहराई जा सकती है।",
+    "other": "एक क्षतिग्रस्त लेजर अलग रखा गया ({count} फ़ाइलें, नवीनतम {file}); कोई सूचना एक बार दोहराई जा सकती है।"
+  },
   "doctor.log.error": "एक लेखन विफल हुआ।",
   "doctor.log.off": "CUOTAI_LOG या RUST_LOG से बंद है।",
   "doctor.log.ok": "इवेंट लिखे जा रहे हैं।",
@@ -685,7 +688,10 @@
   "events.summary.quota_threshold_crossed": "{metric}: {threshold}% उपयोग हुआ",
   "events.summary.refresh_failed": "जाँच विफल: {category}",
   "events.summary.refresh_recovered": "जाँच फिर काम करने लगी",
-  "events.summary.session_expiring": "सत्र {days} दिन में समाप्त होगा",
+  "events.summary.session_expiring": {
+    "one": "सत्र {count} दिन में समाप्त होगा",
+    "other": "सत्र {count} दिन में समाप्त होगा"
+  },
   "events.summary.usage_updated": "उपयोग अपडेट हुआ: {usage}",
   "extensions.action.account_invalid": "एक्सटेंशन का खाता नहीं बनाया जा सका।",
   "extensions.action.candidate_expired": "यह पुष्टि अब मान्य नहीं है; मंज़ूर करने से पहले एक्सटेंशन की फिर से समीक्षा करें।",
@@ -795,7 +801,10 @@
   "feed.banner.codex_cli": "Codex CLI के पास रेट-लिमिट रीडिंग हैं; Codex CLI से चलने वाला एक ChatGPT / Codex खाता जोड़ें।",
   "feed.error.malformed": "स्टेटस लाइन का इनपुट JSON ऑब्जेक्ट नहीं है।",
   "feed.error.too_large": "स्टेटस लाइन का इनपुट 64 KiB से बड़ा है।",
-  "feed.health.unreadable": "{n} अपठनीय फ़ीड फ़ाइल(ें) अनदेखी की गईं।",
+  "feed.health.unreadable": {
+    "one": "{count} अपठनीय फ़ीड फ़ाइल अनदेखी की गई।",
+    "other": "{count} अपठनीय फ़ीड फ़ाइलें अनदेखी की गईं।"
+  },
   "feed.line.five_hour": "5 घं {pct}",
   "feed.line.left": "{name} {pct} बाकी",
   "feed.line.reset": "↺ {time}",
@@ -2233,8 +2242,14 @@
   "metric.label.provider_budget": "प्रदाता का बजट",
   "metric.label.budget_scope": "बजट — {scope}",
   "metric.label.budget_paren": "बजट ({scope})",
-  "metric.label.window_weeks": "{prefix} — {n} सप्ताह की विंडो (%)",
-  "metric.label.window_hours": "{prefix} — {n} घंटे की विंडो (%)",
+  "metric.label.window_weeks": {
+    "one": "{prefix} — {count} सप्ताह की विंडो (%)",
+    "other": "{prefix} — {count} सप्ताह की विंडो (%)"
+  },
+  "metric.label.window_hours": {
+    "one": "{prefix} — {count} घंटे की विंडो (%)",
+    "other": "{prefix} — {count} घंटे की विंडो (%)"
+  },
   "metric.label.window_seconds": "{prefix} — {n} सेकंड की विंडो (%)",
   "metric.label.rate_limit_of": "{label} (रेट लिमिट)",
   "metric.label.extra_usage_used": "अतिरिक्त उपयोग — इस्तेमाल हुआ",

@@ -535,7 +535,9 @@
   "doctor.fix.trust_store": "オペレーティングシステムのルート証明書をインストールまたは修復してください（Linux では ca-certificates パッケージ）。",
   "doctor.fix.update": "Cuotai を更新してください。",
   "doctor.hooks.ok": "有効です。ルール数: {count}。",
-  "doctor.ledger.quarantined": "破損した記録を別名で保管しました（{count} 件、最新は {file}）。通知が一度だけ重複する場合があります。",
+  "doctor.ledger.quarantined": {
+    "other": "破損した記録を別名で保管しました（{count} 件、最新は {file}）。通知が一度だけ重複する場合があります。"
+  },
   "doctor.log.error": "書き込みに失敗しました。",
   "doctor.log.off": "CUOTAI_LOG または RUST_LOG でオフになっています。",
   "doctor.log.ok": "イベントは書き込まれています。",
@@ -671,7 +673,9 @@
   "events.summary.quota_threshold_crossed": "{metric}：{threshold}% を使用",
   "events.summary.refresh_failed": "照会に失敗しました：{category}",
   "events.summary.refresh_recovered": "照会が再び成功しました",
-  "events.summary.session_expiring": "セッションは {days} 日後に期限切れ",
+  "events.summary.session_expiring": {
+    "other": "セッションは {count} 日後に期限切れ"
+  },
   "events.summary.usage_updated": "使用量を更新：{usage}",
   "extensions.action.account_invalid": "拡張機能のアカウントを作成できませんでした。",
   "extensions.action.candidate_expired": "この確認は無効になりました。承認する前に拡張機能をもう一度確認してください。",
@@ -780,7 +784,9 @@
   "feed.banner.codex_cli": "Codex CLI にレート制限の測定値があります。Codex CLI からのフィードで動く ChatGPT / Codex アカウントを追加してください。",
   "feed.error.malformed": "ステータスラインの入力が JSON オブジェクトではありません。",
   "feed.error.too_large": "ステータスラインの入力が 64 KiB を超えています。",
-  "feed.health.unreadable": "読み取れないフィードファイル {n} 件を無視しました。",
+  "feed.health.unreadable": {
+    "other": "読み取れないフィードファイル {count} 件を無視しました。"
+  },
   "feed.line.five_hour": "5時間 {pct}",
   "feed.line.left": "{name} 残り {pct}",
   "feed.line.reset": "↺ {time}",
@@ -2212,8 +2218,12 @@
   "metric.label.provider_budget": "プロバイダーの予算",
   "metric.label.budget_scope": "予算 — {scope}",
   "metric.label.budget_paren": "予算（{scope}）",
-  "metric.label.window_weeks": "{prefix} — {n} 週間ウィンドウ（%）",
-  "metric.label.window_hours": "{prefix} — {n} 時間ウィンドウ（%）",
+  "metric.label.window_weeks": {
+    "other": "{prefix} — {count} 週間ウィンドウ（%）"
+  },
+  "metric.label.window_hours": {
+    "other": "{prefix} — {count} 時間ウィンドウ（%）"
+  },
   "metric.label.window_seconds": "{prefix} — {n} 秒ウィンドウ（%）",
   "metric.label.rate_limit_of": "{label}（レート制限）",
   "metric.label.extra_usage_used": "追加使用 — 使用済み",

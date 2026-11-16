@@ -546,7 +546,10 @@
   "doctor.fix.trust_store": "Instale ou repare os certificados raiz do sistema operacional (o pacote ca-certificates no Linux).",
   "doctor.fix.update": "Atualize o Cuotai.",
   "doctor.hooks.ok": "Válido; regras: {count}.",
-  "doctor.ledger.quarantined": "Um registro danificado foi separado ({count} arquivo(s), o mais recente {file}); um aviso pode se repetir uma vez.",
+  "doctor.ledger.quarantined": {
+    "one": "Um registro danificado foi separado ({count} arquivo, o mais recente {file}); um aviso pode se repetir uma vez.",
+    "other": "Um registro danificado foi separado ({count} arquivos, o mais recente {file}); um aviso pode se repetir uma vez."
+  },
   "doctor.log.error": "Uma gravação falhou.",
   "doctor.log.off": "Desligado por CUOTAI_LOG ou RUST_LOG.",
   "doctor.log.ok": "Os eventos estão sendo gravados.",
@@ -682,7 +685,10 @@
   "events.summary.quota_threshold_crossed": "{metric}: {threshold}% usado",
   "events.summary.refresh_failed": "Falha na consulta: {category}",
   "events.summary.refresh_recovered": "Consulta voltou a funcionar",
-  "events.summary.session_expiring": "Sessão expira em {days} dia(s)",
+  "events.summary.session_expiring": {
+    "one": "Sessão expira em {count} dia",
+    "other": "Sessão expira em {count} dias"
+  },
   "events.summary.usage_updated": "Uso atualizado: {usage}",
   "extensions.action.account_invalid": "Não foi possível criar a conta da extensão.",
   "extensions.action.candidate_expired": "Esta confirmação não vale mais; revise a extensão de novo antes de aprová-la.",
@@ -792,7 +798,10 @@
   "feed.banner.codex_cli": "O Codex CLI tem leituras de limite; adicione uma conta ChatGPT / Codex alimentada pelo Codex CLI.",
   "feed.error.malformed": "A entrada da linha de status não é um objeto JSON.",
   "feed.error.too_large": "A entrada da linha de status passa de 64 KiB.",
-  "feed.health.unreadable": "{n} arquivo(s) de feed ilegível(is) ignorado(s).",
+  "feed.health.unreadable": {
+    "one": "{count} arquivo de feed ilegível ignorado.",
+    "other": "{count} arquivos de feed ilegíveis ignorados."
+  },
   "feed.line.five_hour": "5 h {pct}",
   "feed.line.left": "{name} {pct} restante",
   "feed.line.reset": "↺ {time}",
@@ -2230,8 +2239,14 @@
   "metric.label.provider_budget": "Orçamento do provedor",
   "metric.label.budget_scope": "Orçamento — {scope}",
   "metric.label.budget_paren": "Orçamento ({scope})",
-  "metric.label.window_weeks": "{prefix} — janela de {n} semana(s) (%)",
-  "metric.label.window_hours": "{prefix} — janela de {n} hora(s) (%)",
+  "metric.label.window_weeks": {
+    "one": "{prefix} — janela de {count} semana (%)",
+    "other": "{prefix} — janela de {count} semanas (%)"
+  },
+  "metric.label.window_hours": {
+    "one": "{prefix} — janela de {count} hora (%)",
+    "other": "{prefix} — janela de {count} horas (%)"
+  },
   "metric.label.window_seconds": "{prefix} — janela de {n}s (%)",
   "metric.label.rate_limit_of": "{label} (rate limit)",
   "metric.label.extra_usage_used": "Uso extra — utilizado",

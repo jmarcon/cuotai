@@ -179,8 +179,9 @@
   "dashboard.header.title": {
     "other": " CUOTAI  |  {count} tài khoản  |  {checked}  |  {refresh} "
   },
-  "dashboard.hint.more_many": "+{count} chỉ số • ",
-  "dashboard.hint.more_one": "+1 chỉ số • ",
+  "dashboard.hint.more": {
+    "other": "+{count} chỉ số • "
+  },
   "dashboard.history.empty": "  lịch sử {range}: không có số đo nào được ghi",
   "dashboard.history.no_measured": "  lịch sử {range}: không có giá trị đo",
   "dashboard.history.heading": "LỊCH SỬ",
@@ -410,7 +411,9 @@
   "ui.delete.result.title": " Kết quả ",
   "ui.delete.save_failed": "Không lưu được; không áp dụng thay đổi nào.",
   "ui.delete.secrets.body": "Tiện ích mở rộng \"{extension}\" giữ các bí mật trong kho của hệ thống cho tài khoản {account}.\n\nXóa luôn các bí mật này?\n\n• s xóa tài khoản và các bí mật\n• n giữ các bí mật trong kho\n• Esc hủy việc xóa",
-  "ui.delete.secrets.done": "Đã xóa {count} bí mật của tiện ích mở rộng khỏi kho của hệ thống.",
+  "ui.delete.secrets.done": {
+    "other": "Đã xóa {count} bí mật của tiện ích mở rộng khỏi kho của hệ thống."
+  },
   "ui.delete.secrets.failed": "KHÔNG xóa được các bí mật của tiện ích mở rộng: {error}",
   "ui.delete.secrets.footer": "s xóa các bí mật • n giữ lại • Esc hủy",
   "ui.delete.secrets.title": " Xóa các bí mật của tiện ích mở rộng? ",
@@ -457,7 +460,9 @@
   "vault.prune.no_index": "Không có thông tin xác thực nào được lập chỉ mục; không có gì để xóa.",
   "vault.prune.none": "Không có thông tin xác thực nào được chứng minh là không dùng; không có gì để xóa.",
   "vault.prune.skipped": "Đã giữ {key}: {reason}.",
-  "watch.hooks_active": " {count} hook đang hoạt động.",
+  "watch.hooks_active": {
+    "other": " {count} hook đang hoạt động."
+  },
   "watch.started": {
     "other": "cuotai: đang theo dõi {count} tài khoản; lần đọc đầu của mỗi tài khoản là mốc gốc và không phát sự kiện. Ctrl+C để dừng."
   },

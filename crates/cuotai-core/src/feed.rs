@@ -29,7 +29,7 @@ use chrono::{DateTime, TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::text::Localized;
+use crate::text::{Localized, ParamValue};
 use crate::Provider;
 
 /// The feed file format this release writes and reads.
@@ -292,11 +292,11 @@ impl FeedHealth {
     /// "1 unreadable feed file", or `None` when every file was readable.
     pub fn note(&self) -> Option<Localized> {
         (self.unreadable > 0).then(|| {
-            Localized::with_param(
+            Localized::plural(
                 "feed.health.unreadable",
-                "n",
-                self.unreadable as u64,
-                "{n} unreadable feed file(s) ignored.",
+                crate::text::params([("count", ParamValue::from(self.unreadable))]),
+                "{count} unreadable feed file ignored.",
+                "{count} unreadable feed files ignored.",
             )
         })
     }
