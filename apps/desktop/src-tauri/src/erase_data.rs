@@ -263,6 +263,7 @@ mod tests {
             config: Some(dir.path().join("config")),
             accounts: Some(accounts.clone()),
             mac_home: None,
+            metered: None,
         };
         (dir, roots, history, accounts)
     }

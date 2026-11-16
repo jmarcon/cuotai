@@ -2444,5 +2444,9 @@
   "cost.plan.share_small": "kurang dari 1% harga paket",
   "cost.plan.share_small_rate": "kurang dari 1% harga paket, pada kurs Anda",
   "cost.plan.share_small_plans": "kurang dari 1% total harga paket",
-  "cost.plan.share_small_plans_rate": "kurang dari 1% total harga paket, pada kurs Anda"
+  "cost.plan.share_small_plans_rate": "kurang dari 1% total harga paket, pada kurs Anda",
+  "doctor.title.metered": "Catatan bersama kueri berbayar {path}",
+  "doctor.metered.unusable": "Ini bukan folder pribadi pengguna Anda, atau tidak dapat ditulisi; perintah sekali jalan tidak mengkueri AWS Bedrock sampai diperbaiki.",
+  "doctor.fix.metered": "Hapus apa pun yang ada di jalur ini (file, tautan, atau folder pengguna lain) atau jadikan folder yang hanya dapat dibaca dan ditulis oleh pengguna Anda; Cuotai membuatnya kembali.",
+  "doctor.metered.absent": "Belum dibuat; kueri berbayar pertama akan membuatnya."
 }

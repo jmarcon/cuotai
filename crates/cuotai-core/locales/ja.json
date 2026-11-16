@@ -2444,5 +2444,9 @@
   "cost.plan.share_small": "プラン価格の 1% 未満",
   "cost.plan.share_small_rate": "設定レートでプラン価格の 1% 未満",
   "cost.plan.share_small_plans": "プラン合計価格の 1% 未満",
-  "cost.plan.share_small_plans_rate": "設定レートでプラン合計価格の 1% 未満"
+  "cost.plan.share_small_plans_rate": "設定レートでプラン合計価格の 1% 未満",
+  "doctor.title.metered": "課金されるクエリの共有記録 {path}",
+  "doctor.metered.unusable": "ユーザー専用のフォルダーではないか、書き込めません。修正されるまで、単発のコマンドは AWS Bedrock を照会しません。",
+  "doctor.fix.metered": "このパスにあるもの（ファイル、リンク、他のユーザーのフォルダー）を削除するか、あなたのユーザーだけが読み書きできるフォルダーにしてください。Cuotai が作り直します。",
+  "doctor.metered.absent": "まだ作成されていません。最初の課金クエリで作成されます。"
 }

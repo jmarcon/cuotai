@@ -134,6 +134,8 @@ pub struct Inputs {
     pub data_override: Result<Option<PathBuf>, crate::data_dir::DataDirError>,
     /// [`crate::data_dir::root`].
     pub data_root: Option<PathBuf>,
+    /// PRD 0033 re-validation M-4: the metered records' fixed folder.
+    pub metered_dir: Option<PathBuf>,
     /// The desktop app's `desktop.json`.
     pub desktop_settings: Option<PathBuf>,
     /// The local server port to probe (bound and released at once).
@@ -177,6 +179,7 @@ impl Inputs {
             var: Box::new(|name| std::env::var(name).ok()),
             data_override: crate::data_dir::check_override(),
             data_root: crate::data_dir::root(),
+            metered_dir: crate::metered_record::Store::default_dir(),
             desktop_settings: dirs::config_dir().map(|dir| dir.join("cuotai").join("desktop.json")),
             port: 6738,
             version: crate::build_info::display_version(),
@@ -700,6 +703,52 @@ fn check_serve_token(root: Option<&Path>) -> Check {
     } else {
         Check::new("serve_token", CheckStatus::Ok, title)
             .detail(fixed("doctor.token.private", "It is private to your user."))
+    }
+}
+
+/// PRD 0033 re-validation M-1/M-4: the fixed folder of the shared record
+/// of billed queries (AWS Bedrock). One-shot commands do not query a
+/// metered account while it cannot be used, so the doctor names it.
+/// Nothing is created or written here.
+fn check_metered(dir: Option<&Path>) -> Check {
+    let title = Localized::with_param(
+        "doctor.title.metered",
+        "path",
+        dir.map_or(ParamValue::from("—"), path_param),
+        "Shared record of billed queries {path}",
+    );
+    let Some(dir) = dir else {
+        return Check::new("metered.records", CheckStatus::Skip, title).detail(absent());
+    };
+    let unusable = || {
+        Check::new("metered.records", CheckStatus::Fail, title.clone())
+            .detail(fixed(
+                "doctor.metered.unusable",
+                "It is not a private folder of your user, or it cannot be written; one-shot commands do not query AWS Bedrock until it is fixed.",
+            ))
+            .fix(fixed(
+                "doctor.fix.metered",
+                "Remove whatever is at this path (a file, a link or another user's folder) or make it a folder only your user can read and write; Cuotai recreates it.",
+            ))
+    };
+    match std::fs::symlink_metadata(dir) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            Check::new("metered.records", CheckStatus::Ok, title).detail(fixed(
+                "doctor.metered.absent",
+                "Not created yet; the first billed query creates it.",
+            ))
+        }
+        Err(_) => unusable(),
+        Ok(meta)
+            if !meta.is_dir()
+                || meta.permissions().readonly()
+                || crate::private_fs::foreign_owner(&meta)
+                || crate::private_fs::open_to_others(dir, &meta) =>
+        {
+            unusable()
+        }
+        Ok(_) => Check::new("metered.records", CheckStatus::Ok, title)
+            .detail(fixed("doctor.token.private", "It is private to your user.")),
     }
 }
 
@@ -1230,6 +1279,7 @@ pub fn run(inputs: &Inputs) -> Report {
     checks.push(check_desktop_settings(inputs.desktop_settings.as_deref()));
     checks.push(check_ledger(root));
     checks.push(check_serve_token(root));
+    checks.push(check_metered(inputs.metered_dir.as_deref()));
     checks.push(check_port(inputs.port));
     checks.extend(check_cost_sources(inputs));
     checks.extend(check_channels(inputs));
@@ -1252,6 +1302,7 @@ pub fn run(inputs: &Inputs) -> Report {
         accounts: Some(inputs.config.path.clone()),
         // The doctor reports the data root it was given, not the home.
         mac_home: None,
+        metered: inputs.metered_dir.clone(),
     });
     checks.push(check_artifacts(&artifacts));
     Report {

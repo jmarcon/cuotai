@@ -2475,5 +2475,9 @@
   "cost.plan.share_small": "weniger als 1% des Tarifpreises",
   "cost.plan.share_small_rate": "weniger als 1% des Tarifpreises, zu Ihrem Kurs",
   "cost.plan.share_small_plans": "weniger als 1% des Preises der Tarife",
-  "cost.plan.share_small_plans_rate": "weniger als 1% des Preises der Tarife, zu Ihrem Kurs"
+  "cost.plan.share_small_plans_rate": "weniger als 1% des Preises der Tarife, zu Ihrem Kurs",
+  "doctor.title.metered": "Gemeinsames Protokoll abgerechneter Abfragen {path}",
+  "doctor.metered.unusable": "Es ist kein privater Ordner Ihres Benutzers oder nicht beschreibbar; einmalige Befehle fragen AWS Bedrock erst nach der Behebung ab.",
+  "doctor.fix.metered": "Entfernen Sie, was unter diesem Pfad liegt (eine Datei, ein Link oder der Ordner eines anderen Benutzers), oder machen Sie daraus einen Ordner, den nur Ihr Benutzer lesen und schreiben kann; Cuotai legt ihn neu an.",
+  "doctor.metered.absent": "Noch nicht angelegt; die erste abgerechnete Abfrage legt ihn an."
 }

@@ -2475,5 +2475,9 @@
   "cost.plan.share_small": "moins de 1 % du prix du forfait",
   "cost.plan.share_small_rate": "moins de 1 % du prix du forfait, à votre taux de change",
   "cost.plan.share_small_plans": "moins de 1 % du prix des forfaits",
-  "cost.plan.share_small_plans_rate": "moins de 1 % du prix des forfaits, à votre taux de change"
+  "cost.plan.share_small_plans_rate": "moins de 1 % du prix des forfaits, à votre taux de change",
+  "doctor.title.metered": "Registre partagé des requêtes facturées {path}",
+  "doctor.metered.unusable": "Ce n'est pas un dossier privé de votre utilisateur, ou il n'est pas inscriptible ; les commandes ponctuelles n'interrogent pas AWS Bedrock tant que ce n'est pas corrigé.",
+  "doctor.fix.metered": "Supprimez ce qui se trouve à ce chemin (un fichier, un lien ou le dossier d'un autre utilisateur) ou faites-en un dossier que seul votre utilisateur peut lire et écrire ; Cuotai le recrée.",
+  "doctor.metered.absent": "Pas encore créé ; la première requête facturée le crée."
 }

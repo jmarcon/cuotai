@@ -16,6 +16,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Account, Report, Status};
 
+/// Debug builds only: the folder of the metered records instead of the
+/// fixed per-user one (tests and manual smokes never touch the real one).
+#[cfg_attr(not(debug_assertions), allow(dead_code))]
+pub(crate) const DEBUG_ENV: &str = "CUOTAI_METERED_DIR";
+
 /// How long another process's claim on the next query is respected.
 const CLAIM_TTL: TimeDelta = TimeDelta::minutes(2);
 
@@ -56,9 +61,17 @@ impl Store {
         Self { dir }
     }
 
-    #[cfg_attr(test, allow(dead_code))]
+    /// PRD 0033 re-validation M-4: one fixed per-user place,
+    /// `<OS local data dir>/cuotai/metered`, whatever `CUOTAI_DATA_DIR` or
+    /// the desktop's data folder says, so every front end shares one record
+    /// of billed queries. Debug builds honour [`DEBUG_ENV`] for manual
+    /// smokes and tests; release builds ignore it.
     pub(crate) fn default_dir() -> Option<PathBuf> {
-        crate::data_dir::root().map(|dir| dir.join("metered"))
+        #[cfg(debug_assertions)]
+        if let Some(dir) = std::env::var_os(DEBUG_ENV).filter(|dir| !dir.is_empty()) {
+            return Some(PathBuf::from(dir));
+        }
+        dirs::data_local_dir().map(|dir| dir.join("cuotai").join("metered"))
     }
 
     /// The record of `account`, named after a digest of its stable id

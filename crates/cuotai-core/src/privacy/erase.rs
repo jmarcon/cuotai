@@ -396,6 +396,10 @@ mod tests {
             // The macOS widget copies, in a home of their own (never the
             // real one).
             mac_home: Some(dir.path().join("home")),
+            // PRD 0033 re-validation M-4: the fixed metered folder, apart
+            // from the moved data folder, which keeps a legacy copy; an
+            // erase removes both.
+            metered: Some(dir.path().join("os-local").join("cuotai").join("metered")),
         };
         for artifact in artifacts() {
             let Some(path) = roots.path_of(artifact) else {
