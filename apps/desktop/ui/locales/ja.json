@@ -408,7 +408,7 @@
   "settings.notify.system": "システム設定 → 通知 を開き、Cuotai を許可してから、このオプションを再度オンにしてください。「テスト通知を送信」で確認できます。",
   "settings.notify.lead": "タイミング",
   "settings.notify.leadNow": "その時刻に",
-  "settings.notify.leadMin": "{min} 分前",
+  "settings.notify.leadMin": "{min} 分前",
   "settings.notify.when": "通知する条件",
   "settings.notify.whenHelp": "5 時間、1 日、1 週間、1 か月のウィンドウが対象です。レート制限と残高は通知しません。",
   "settings.notify.when.used": "使用した場合のみ",
@@ -484,8 +484,8 @@
   "settings.history.title": "履歴",
   "settings.history.help": "成功した読み取りはこのコンピューターにのみ記録されます（数値とウィンドウのみで、認証情報やプロバイダーのテキストは含みません）。7 日を過ぎた古いサンプルは 1 時間に 1 件に間引かれ、ファイルは 64 MiB 未満に保たれます。",
   "settings.history.days": "保持（日）",
-  "settings.history.range": "{min}〜{max} 日",
-  "settings.history.saved": "履歴を {days} 日間保持します。",
+  "settings.history.range": "{min}〜{max} 日",
+  "settings.history.saved": "履歴を {days} 日間保持します。",
   "settings.history.account": "アカウント",
   "settings.history.allAccounts": "すべてのアカウント",
   "settings.history.period": "期間",
@@ -673,7 +673,7 @@
   "card.nextRefresh": "{time}後に更新",
   "card.refreshing": "更新中…",
   "card.waiting": "待機中",
-  "filter.placeholder": "アカウントを絞り込む",
+  "filter.placeholder": "絞り込み",
   "filter.clear": "フィルターを解除",
   "filter.none": "フィルターに一致するアカウントはありません。",
   "dialog.deleteBodyVault": "{label} の認証情報がシステムの保管庫に保存されています。一緒に削除しますか？",
@@ -894,7 +894,7 @@
   "settings.cost.state.paused": "一時停止中：コンピューターが省電力中です。終わると読み取りを再開します。",
   "settings.cost.period": "表示期間",
   "settings.cost.retention": "インデックスの保持",
-  "settings.cost.retentionRange": "{min}〜{max} 日（既定 120）。",
+  "settings.cost.retentionRange": "{min}〜{max} 日（既定 120）。",
   "settings.cost.size": "ディスク上のインデックス：{size}。",
   "settings.cost.erase": "インデックスを消去",
   "settings.cost.eraseText": "ローカル費用のインデックスをすべて消去しますか？オンのままのソースは最初からログを読み直します。",
@@ -912,7 +912,7 @@
   "settings.cost.plan.help": "このアカウントの裏にあるサブスクリプションの支払額で、ユーザーが入力し、このコンピューターに保存されます。API 価格での見積もりと比較しますが、推奨ではありません。",
   "settings.cost.plan.none": "プラン価格はありません。",
   "settings.cost.plan.converted": "設定レートで ≈ {amount}",
-  "settings.cost.plan.current": "1 サイクル {price}、毎月 {day} 日開始。",
+  "settings.cost.plan.current": "1 サイクル {price}、毎月 {day} 日開始。",
   "settings.cost.plan.price": "プラン価格",
   "settings.cost.plan.priceFor": "プラン価格、{name}",
   "settings.cost.plan.currencyLabel": "通貨",
@@ -1031,7 +1031,7 @@
   "settings.costBy.hiddenNote": {
     "other": "非表示のプロジェクト {count} 件: 一覧には残りますが、合計には含まれません。"
   },
-  "settings.costBy.blockDefault": "ブロックの長さ（既定 {hours} 時間）",
+  "settings.costBy.blockDefault": "ブロックの長さ（既定 {hours} 時間）",
   "settings.costBy.blockHours": "{source} のブロックの長さ（時間）",
   "settings.costBy.hoursUnit": "時間",
   "settings.costBy.hint": "各プロジェクトの最後のフォルダー名を保存",
@@ -1265,7 +1265,7 @@
   "stats.range.days7": "7 日",
   "stats.range.days30": "30 日",
   "stats.kpi.hits": "制限到達",
-  "stats.kpi.hits.caption": "{days} 日間",
+  "stats.kpi.hits.caption": "{days} 日間",
   "stats.kpi.avg": "平均ピーク",
   "stats.kpi.avg.caption": "最も厳しい制限",
   "stats.kpi.extra": "追加支出",
@@ -1276,7 +1276,7 @@
   "stats.chart.today": "今日",
   "stats.chart.noData": "データなし",
   "stats.chart.empty": "読み取りが記録されるにつれてグラフが埋まります。",
-  "stats.chart.alt": "{days} 日間の 1 日ごとの使用量ピーク：最高 {peak}、今日 {today}",
+  "stats.chart.alt": "{days} 日間の 1 日ごとの使用量ピーク：最高 {peak}、今日 {today}",
   "stats.table.day": "日",
   "stats.table.peak": "ピーク",
   "stats.accounts.title": "アカウント別",
@@ -1293,7 +1293,7 @@
     "other": "読み取れなかった記録が {count} 件あります。"
   },
   "stats.recording.off": "履歴の記録はオフです。新しいイベントは保存されません。",
-  "stats.footer.partial": "{total} 日中 {have} 日分のデータ。",
+  "stats.footer.partial": "{total} 日中 {have} 日分のデータ。",
   "stats.footer.unknown": {
     "other": "上限が不明な {count} 件の制限は平均から除外されています。"
   },
@@ -1356,7 +1356,7 @@
     "other": "毎日 {count} 個の時間帯"
   },
   "settings.quiet.summary.days": {
-    "other": "時間帯のある日 {count} 日"
+    "other": "時間帯のある日 {count} 日"
   },
   "settings.quiet.same": "毎日同じ",
   "settings.quiet.sameHelp": "最初の日の時間帯を毎日にコピーします。",
@@ -1579,7 +1579,7 @@
   "stats.rhythm.day": "過去 24 時間",
   "stats.rhythm.week": "過去 7 日間",
   "stats.rhythm.typical": "典型的な 1 日（30 日間）",
-  "stats.rhythm.points": "{value} pt",
+  "stats.rhythm.points": "{value} pt",
   "stats.rhythm.reset": "リセット",
   "stats.rhythm.dayOff": "休日",
   "stats.rhythm.samples": "データのある日：{count}",
@@ -1682,7 +1682,7 @@
   "backup.included": "含まれるもの",
   "backup.excluded": "含まれないもの",
   "backup.withHistory": "直近 90 日分の履歴を含める",
-  "backup.historyLarge": "履歴で約 {size} MiB 増えます。ファイルのコピーに時間がかかる場合があります。",
+  "backup.historyLarge": "履歴で約 {size} MiB 増えます。ファイルのコピーに時間がかかる場合があります。",
   "backup.save": "保存…",
   "backup.done": "バックアップを {path} に保存しました（{count} 個のファイル）。",
   "backup.noSecret": "キー、トークン、サインイン情報はシステムの保管庫に残りました。",
@@ -1728,5 +1728,5 @@
   "detect.costOffer.codex_cli": "ローカルのログから API 価格での費用も見積もれます。Cuotai が読むのは Codex CLI のソースをオンにした後だけです。",
   "detect.costOffer.gemini_cli": "ローカルのログから API 価格での費用も見積もれます。Cuotai が読むのは Gemini CLI のソースをオンにした後だけです。",
   "coreText.sessionIncomplete": "保存されたウェブセッションに Cookie {names} がありません。新しいセッションを貼り付けてください。",
-  "dialog.intervalHintMetered": "空欄: {default} 分ごとに 1 回。最小 {effective} 分: {min}〜{effective} 分は {effective} 分に引き上げられます。"
+  "dialog.intervalHintMetered": "空欄: {default} 分ごとに 1 回。最小 {effective} 分: {min}〜{effective} 分は {effective} 分に引き上げられます。"
 }

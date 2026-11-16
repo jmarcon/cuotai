@@ -78,7 +78,7 @@ fn stage_chips_in_both_units() {
             .chip(PaceUnit::Percent)
             .compact
             .map(|c| c.resolve("fr")),
-        Some("20 %".to_owned())
+        Some("20\u{a0}%".to_owned())
     );
 }
 
@@ -159,11 +159,11 @@ fn outlook_chips() {
 #[test]
 fn durations_at_the_unit_boundaries() {
     let cases = [
-        (TimeDelta::seconds(0), "now", "0 min"),
-        (TimeDelta::seconds(59), "in 1 min", "1 min"),
-        (TimeDelta::minutes(4), "in 4 min", "4 min"),
-        (TimeDelta::minutes(59), "in 59 min", "59 min"),
-        (TimeDelta::seconds(3_599), "in 59 min", "59 min"),
+        (TimeDelta::seconds(0), "now", "0\u{a0}min"),
+        (TimeDelta::seconds(59), "in 1\u{a0}min", "1\u{a0}min"),
+        (TimeDelta::minutes(4), "in 4\u{a0}min", "4\u{a0}min"),
+        (TimeDelta::minutes(59), "in 59\u{a0}min", "59\u{a0}min"),
+        (TimeDelta::seconds(3_599), "in 59\u{a0}min", "59\u{a0}min"),
         (TimeDelta::minutes(60), "in 1h", "1h"),
         (TimeDelta::minutes(95), "in 1h 35m", "1h 35m"),
         (TimeDelta::minutes(23 * 60 + 59), "in 23h 59m", "23h 59m"),

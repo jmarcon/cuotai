@@ -106,7 +106,7 @@ for (const { code } of i18n.LOCALES) {
   const slot = card.match(/<div class="win none renewed"[^>]*>[\s\S]*?<\/div>\s*<p class="win-renewed">[\s\S]*?<\/p><\/div>/)?.[0];
   assert.ok(slot, `${code}: the renewed slot is missing from the mixed card`);
   assert.ok(slot.includes("data-renewed-waiting"), `${code}: renewed slot marker`);
-  assert.ok(unescape(stripTags(slot)).includes(text), `${code}: the renewed slot text drifted`);
+  assert.ok(unescape(stripTags(slot)).includes(text.replace(/\s+/g, " ")), `${code}: the renewed slot text drifted`);
   assert.ok(unescape(slot.match(/aria-label="([^"]*)"/)[1]).endsWith(text), `${code}: the slot's name carries the renewed text`);
   assert.ok(/<svg[^>]*>[\s\S]*?<\/svg> <span>/.test(slot), `${code}: one space between the clock icon and the text (V-08)`);
   assert.ok(!slot.includes(">—<"), `${code}: a renewed slot never reads "—"`);

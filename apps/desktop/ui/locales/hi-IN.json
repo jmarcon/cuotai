@@ -416,7 +416,7 @@
   "settings.notify.system": "सिस्टम सेटिंग → सूचनाएँ खोलें, Cuotai को अनुमति दें और विकल्प फिर चालू करें। जाँचने के लिए “परीक्षण सूचना भेजें” इस्तेमाल करें।",
   "settings.notify.lead": "कब",
   "settings.notify.leadNow": "उसी समय",
-  "settings.notify.leadMin": "{min} मिनट पहले",
+  "settings.notify.leadMin": "{min} मिनट पहले",
   "settings.notify.when": "सूचना कब दें",
   "settings.notify.whenHelp": "5 घंटे, एक दिन, एक सप्ताह या एक महीने की विंडो के लिए; रेट लिमिट और बैलेंस की सूचना कभी नहीं आती।",
   "settings.notify.when.used": "केवल उपयोग होने पर",
@@ -493,8 +493,8 @@
   "settings.history.title": "इतिहास",
   "settings.history.help": "हर सफल रीडिंग इसी कंप्यूटर पर दर्ज होती है (संख्याएँ और विंडो, कभी क्रेडेंशियल या प्रदाता का टेक्स्ट नहीं)। 7 दिन बाद पुराने नमूने घटकर प्रति घंटा एक रह जाते हैं और फ़ाइल 64 MiB से कम रहती है।",
   "settings.history.days": "रखें (दिन)",
-  "settings.history.range": "{min} से {max} दिन",
-  "settings.history.saved": "इतिहास {days} दिन रखा जाएगा।",
+  "settings.history.range": "{min} से {max} दिन",
+  "settings.history.saved": "इतिहास {days} दिन रखा जाएगा।",
   "settings.history.account": "खाता",
   "settings.history.allAccounts": "सभी खाते",
   "settings.history.period": "अवधि",
@@ -908,7 +908,7 @@
   "settings.cost.state.paused": "रुका हुआ: कंप्यूटर ऊर्जा बचा रहा है; रुकने पर पढ़ना फिर शुरू होगा।",
   "settings.cost.period": "दिखाई जाने वाली अवधि",
   "settings.cost.retention": "इंडेक्स रखने की अवधि",
-  "settings.cost.retentionRange": "{min} से {max} दिन (डिफ़ॉल्ट 120)।",
+  "settings.cost.retentionRange": "{min} से {max} दिन (डिफ़ॉल्ट 120)।",
   "settings.cost.size": "डिस्क पर इंडेक्स: {size}।",
   "settings.cost.erase": "इंडेक्स मिटाएँ",
   "settings.cost.eraseText": "पूरा स्थानीय लागत इंडेक्स मिटाएँ? जो स्रोत चालू रहते हैं वे लॉग को शुरू से फिर पढ़ते हैं।",
@@ -1380,7 +1380,7 @@
     "other": "हर दिन, {count} अंतराल"
   },
   "settings.quiet.summary.days": {
-    "one": "{count} दिन में अंतराल है",
+    "one": "{count} दिन में अंतराल है",
     "other": "{count} दिनों में अंतराल हैं"
   },
   "settings.quiet.same": "हर दिन एक जैसा",
@@ -1535,8 +1535,8 @@
   "settings.kw.rows-separate": "पंक्तियाँ डिस्प्ले मुख्य विंडो अलग लेआउट भिन्न",
   "settings.display.more": "और डिस्प्ले विकल्प",
   "lang.inProgress": "अनुवाद जारी है",
-  "time.duration.minutesSeconds": "{m} मिनट {s} सेकंड",
-  "time.duration.seconds": "{s} सेकंड",
+  "time.duration.minutesSeconds": "{m} मिनट {s} सेकंड",
+  "time.duration.seconds": "{s} सेकंड",
   "settings.page.extensions": "एक्सटेंशन",
   "settings.extensions.group": "इंस्टॉल किए गए एक्सटेंशन",
   "settings.kw.extensions": "एक्सटेंशन स्थानीय ऐड-ऑन प्लगइन प्रदाता कस्टम चलाएँ स्वीकृत फ़ोल्डर",
@@ -1710,7 +1710,7 @@
   "backup.included": "शामिल",
   "backup.excluded": "शामिल नहीं",
   "backup.withHistory": "पिछले 90 दिनों का इतिहास शामिल करें",
-  "backup.historyLarge": "इतिहास लगभग {size} MiB जोड़ता है; फ़ाइल कॉपी होने में समय लग सकता है।",
+  "backup.historyLarge": "इतिहास लगभग {size} MiB जोड़ता है; फ़ाइल कॉपी होने में समय लग सकता है।",
   "backup.save": "सहेजें…",
   "backup.done": "बैकअप {path} में सहेजा गया ({count} फ़ाइलें)।",
   "backup.noSecret": "कुंजियाँ, टोकन और साइन-इन सिस्टम वॉल्ट में ही रहे।",
@@ -1756,5 +1756,5 @@
   "detect.costOffer.codex_cli": "इसके स्थानीय लॉग API कीमतों पर लागत का अनुमान भी दे सकते हैं; Cuotai उन्हें तभी पढ़ता है जब आप Codex CLI स्रोत चालू करते हैं।",
   "detect.costOffer.gemini_cli": "इसके स्थानीय लॉग API कीमतों पर लागत का अनुमान भी दे सकते हैं; Cuotai उन्हें तभी पढ़ता है जब आप Gemini CLI स्रोत चालू करते हैं।",
   "coreText.sessionIncomplete": "सहेजे गए वेब सत्र में कुकीज़ {names} नहीं हैं। नया सत्र पेस्ट करें।",
-  "dialog.intervalHintMetered": "खाली: हर {default} मिनट में एक बार। न्यूनतम {effective} मिनट: {min} से {effective} मिनट को {effective} कर दिया जाता है।"
+  "dialog.intervalHintMetered": "खाली: हर {default} मिनट में एक बार। न्यूनतम {effective} मिनट: {min} से {effective} मिनट को {effective} कर दिया जाता है।"
 }

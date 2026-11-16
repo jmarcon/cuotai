@@ -118,12 +118,12 @@ const claude = dual([q("session (5h)", "window_5h", 100, 4, { pace: pace("reserv
 const cHtml = c.rowHtml(claude, { title: "Claude Code" });
 assert.match(cHtml, /<span class="fig dual"><span class="f1"><b class="">100%<\/b><span class="wl"[^>]*>5h<\/span>/, "the thick window's share and name");
 assert.match(cHtml, /<span class="f2 warn"><span class="fv">49%<\/span><span class="wl"[^>]*>Week<\/span>/, "the limiting thin window in the warning role");
-assert.match(cHtml, /<span class="pd good" aria-hidden="true" title="12 pts in reserve"><span class="pg">↓<\/span><span>\+12<\/span>/, "in reserve: the core's ↓ +12 in the success role");
-assert.match(cHtml, /<span class="pd bad" aria-hidden="true" title="50 pts ahead"><span class="pg">↑<\/span><span>−50<\/span>/, "running out before the reset: the core's ↑ −50 in the danger role");
+assert.match(cHtml, /<span class="pd good" aria-hidden="true" title="12\u00a0pts in reserve"><span class="pg">↓<\/span><span>\+12<\/span>/, "in reserve: the core's ↓ +12 in the success role");
+assert.match(cHtml, /<span class="pd bad" aria-hidden="true" title="50\u00a0pts ahead"><span class="pg">↑<\/span><span>−50<\/span>/, "running out before the reset: the core's ↑ −50 in the danger role");
 assert.equal(meters(cHtml), 2, "two meters");
-assert.match(cHtml, /<span class="rm dual"><div class="mtr good" role="meter" aria-label="5h"[^>]*aria-valuetext="100% left, 12 pts in reserve, Resets [^"]+">.*?<span class="pm tri" style="left:88%" aria-hidden="true"><\/span><\/div>/);
-assert.match(cHtml, /<div class="mtr warn thin" role="meter" aria-label="Week"[^>]*aria-valuetext="49% left, 50 pts ahead, Most restrictive limit right now, Resets [^"]+">.*?<span class="pm dot" style="left:99%" aria-hidden="true"><\/span><\/div>/);
-assert.match(cHtml, /aria-label="Claude, work@example.com, 49% left, [^"]*5h: 100% left, 12 pts in reserve; Week: 49% left, 50 pts ahead, Most restrictive limit right now"/, "the deltas are in the accessible name");
+assert.match(cHtml, /<span class="rm dual"><div class="mtr good" role="meter" aria-label="5h"[^>]*aria-valuetext="100% left, 12\u00a0pts in reserve, Resets [^"]+">.*?<span class="pm tri" style="left:88%" aria-hidden="true"><\/span><\/div>/);
+assert.match(cHtml, /<div class="mtr warn thin" role="meter" aria-label="Week"[^>]*aria-valuetext="49% left, 50\u00a0pts ahead, Most restrictive limit right now, Resets [^"]+">.*?<span class="pm dot" style="left:99%" aria-hidden="true"><\/span><\/div>/);
+assert.match(cHtml, /aria-label="Claude, work@example.com, 49% left, [^"]*5h: 100% left, 12\u00a0pts in reserve; Week: 49% left, 50\u00a0pts ahead, Most restrictive limit right now"/, "the deltas are in the accessible name");
 assert.doesNotMatch(cHtml, /class="pm"/, "no corridor band on the pair");
 // a good limiting thin window still reads as a warning; a non-limiting one stays muted
 assert.match(c.rowHtml(dual([q("5h", "window_5h", 100), q("week", "weekly", 80)], W(0, 1)), { title: "x" }), /<span class="f2 warn">[\s\S]*class="mtr warn thin"/);

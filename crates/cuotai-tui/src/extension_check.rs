@@ -370,7 +370,7 @@ mod tests {
         );
         assert_eq!(ready.checked.status, Status::Ready);
         let text = reading_text(&ready, "en-US");
-        assert!(text.contains("código 0 em 12 ms"), "{text}");
+        assert!(text.contains("código 0 em 12\u{a0}ms"), "{text}");
         assert!(text.contains("Fonte: extension:proxy"), "{text}");
         assert!(text.contains("Saldo"), "{text}");
         assert!(!text.contains("Violações"), "{text}");

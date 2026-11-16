@@ -299,7 +299,7 @@ for (const { code } of i18n.LOCALES) {
   // C-04: the summary and each interval's read-out use the language's clock; the read-out describes both fields.
   const nights = Object.fromEntries(["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map((day) => [day, [{ from: "22:00", to: "08:00" }]]));
   const everyNight = quietSummary({ enabled: true, digest: true, days: nights });
-  if (code === "en-US") assert.equal(everyNight, "Every day 10:00 PM–8:00 AM", "en-US: the summary follows the 12-hour clock");
+  if (code === "en-US") assert.equal(everyNight, "Every day 10:00\u00a0PM–8:00\u00a0AM", "en-US: the summary follows the 12-hour clock");
   if (code === "de") assert.equal(everyNight, "Täglich 22:00–8:00", "de: the summary follows the 24-hour clock");
   assert.match(editor, /<input type="time" data-q-from [^>]*aria-describedby="q-readout-mon-0"/, `${code}: the read-out describes the field`);
   assert.match(editor, /id="q-readout-mon-0" data-q-readout>[^<]+</, `${code}: the read-out is drawn`);

@@ -408,7 +408,7 @@
   "settings.notify.system": "打开系统设置 → 通知，允许 Cuotai，然后重新开启该选项。可用“发送测试通知”检查。",
   "settings.notify.lead": "时机",
   "settings.notify.leadNow": "准时",
-  "settings.notify.leadMin": "提前 {min} 分钟",
+  "settings.notify.leadMin": "提前 {min} 分钟",
   "settings.notify.when": "通知条件",
   "settings.notify.whenHelp": "适用于 5 小时、一天、一周或一个月的窗口；速率限制和余额从不通知。",
   "settings.notify.when.used": "仅在已使用时",
@@ -484,8 +484,8 @@
   "settings.history.title": "历史",
   "settings.history.help": "每次成功读数仅记录在此电脑上（数字和窗口，绝不包含凭据或提供商文本）。7 天后的旧样本会精简为每小时一条，文件保持在 64 MiB 以下。",
   "settings.history.days": "保留（天）",
-  "settings.history.range": "{min} 到 {max} 天",
-  "settings.history.saved": "历史保留 {days} 天。",
+  "settings.history.range": "{min} 到 {max} 天",
+  "settings.history.saved": "历史保留 {days} 天。",
   "settings.history.account": "账户",
   "settings.history.allAccounts": "所有账户",
   "settings.history.period": "周期",
@@ -894,7 +894,7 @@
   "settings.cost.state.paused": "已暂停：电脑正在节能；节能结束后继续读取。",
   "settings.cost.period": "显示的周期",
   "settings.cost.retention": "索引保留",
-  "settings.cost.retentionRange": "{min} 到 {max} 天（默认 120）。",
+  "settings.cost.retentionRange": "{min} 到 {max} 天（默认 120）。",
   "settings.cost.size": "磁盘上的索引：{size}。",
   "settings.cost.erase": "清除索引",
   "settings.cost.eraseText": "清除整个本地费用索引？保持开启的来源会从头重新读取日志。",
@@ -912,7 +912,7 @@
   "settings.cost.plan.help": "为此账户背后的订阅支付的费用，手动输入并保存在此电脑上。它会与按 API 价格的估算进行比较；这不是建议。",
   "settings.cost.plan.none": "没有套餐价格。",
   "settings.cost.plan.converted": "按自定汇率 ≈ {amount}",
-  "settings.cost.plan.current": "每个周期 {price}，从每月 {day} 日开始。",
+  "settings.cost.plan.current": "每个周期 {price}，从每月 {day} 日开始。",
   "settings.cost.plan.price": "套餐价格",
   "settings.cost.plan.priceFor": "套餐价格，{name}",
   "settings.cost.plan.currencyLabel": "币种",
@@ -1012,8 +1012,8 @@
   "settings.costBy.col.state": "状态",
   "settings.costBy.col.sessions": "会话",
   "settings.costBy.col.project": "项目",
-  "settings.costBy.minutes": "{m} 分钟",
-  "settings.costBy.hours": "{h} 小时 {m} 分钟",
+  "settings.costBy.minutes": "{m} 分钟",
+  "settings.costBy.hours": "{h} 小时 {m} 分钟",
   "settings.costBy.moreSessions": {
     "other": "另有 {count} 个较早的会话未列出。"
   },
@@ -1031,7 +1031,7 @@
   "settings.costBy.hiddenNote": {
     "other": "{count} 个已隐藏项目：仍会列出，但不计入合计。"
   },
-  "settings.costBy.blockDefault": "时段块长度；默认 {hours} 小时",
+  "settings.costBy.blockDefault": "时段块长度；默认 {hours} 小时",
   "settings.costBy.blockHours": "{source} 的时段块长度（小时）",
   "settings.costBy.hoursUnit": "小时",
   "settings.costBy.hint": "保留每个项目的最后一级文件夹名",
@@ -1265,7 +1265,7 @@
   "stats.range.days7": "7 天",
   "stats.range.days30": "30 天",
   "stats.kpi.hits": "触及限额",
-  "stats.kpi.hits.caption": "{days} 天内",
+  "stats.kpi.hits.caption": "{days} 天内",
   "stats.kpi.avg": "平均峰值",
   "stats.kpi.avg.caption": "最紧限额",
   "stats.kpi.extra": "额外支出",
@@ -1276,7 +1276,7 @@
   "stats.chart.today": "今天",
   "stats.chart.noData": "无数据",
   "stats.chart.empty": "图表会随着读数的记录逐步填充。",
-  "stats.chart.alt": "{days} 天内每日用量峰值：最高 {peak}，今天 {today}",
+  "stats.chart.alt": "{days} 天内每日用量峰值：最高 {peak}，今天 {today}",
   "stats.table.day": "日期",
   "stats.table.peak": "峰值",
   "stats.accounts.title": "按账户",
@@ -1293,7 +1293,7 @@
     "other": "有 {count} 条事件记录无法读取。"
   },
   "stats.recording.off": "历史记录已关闭；不会保存新事件。",
-  "stats.footer.partial": "数据来自 {total} 天中的 {have} 天。",
+  "stats.footer.partial": "数据来自 {total} 天中的 {have} 天。",
   "stats.footer.unknown": {
     "other": "{count} 个上限未知的限额未计入平均值。"
   },
@@ -1356,7 +1356,7 @@
     "other": "每天 {count} 个时段"
   },
   "settings.quiet.summary.days": {
-    "other": "{count} 天设有时段"
+    "other": "{count} 天设有时段"
   },
   "settings.quiet.same": "每天相同",
   "settings.quiet.sameHelp": "将第一天的时段复制到每一天。",
@@ -1728,5 +1728,5 @@
   "detect.costOffer.codex_cli": "它的本地日志也可以按 API 价格估算费用；只有在你开启 Codex CLI 来源后，Cuotai 才会读取。",
   "detect.costOffer.gemini_cli": "它的本地日志也可以按 API 价格估算费用；只有在你开启 Gemini CLI 来源后，Cuotai 才会读取。",
   "coreText.sessionIncomplete": "已保存的网页会话缺少 Cookie {names}。请粘贴新的会话。",
-  "dialog.intervalHintMetered": "留空：每 {default} 分钟一次。最少 {effective} 分钟：{min} 到 {effective} 分钟会提高到 {effective} 分钟。"
+  "dialog.intervalHintMetered": "留空：每 {default} 分钟一次。最少 {effective} 分钟：{min} 到 {effective} 分钟会提高到 {effective} 分钟。"
 }

@@ -365,7 +365,8 @@ function amountText(value) {
     }
     const number = new Intl.NumberFormat(intlLocale(), { maximumFractionDigits: 2 }).format(n);
     if (value.id === "amount.number") return number;
-    if (value.id === "amount.units" && typeof p.unit === "string") return `${number} ${p.unit}`;
+    // PRD 0034 re-validation V-10: a no-break space, so the number never wraps away from its unit.
+    if (value.id === "amount.units" && typeof p.unit === "string") return `${number}\u00a0${p.unit}`;
   } catch { /* an unknown code: the fallback */ }
   return null;
 }
@@ -403,7 +404,7 @@ function clockText(value) {
     const hour = int("hour", 0, 23);
     if (hour == null) return null;
     try {
-      return hour12() ? dateFormat({ hour: "numeric" }).format(new Date(2024, 0, 1, hour)) : String(hour).padStart(2, "0");
+      return hour12() ? holdMark(dateFormat({ hour: "numeric" }).format(new Date(2024, 0, 1, hour))) : String(hour).padStart(2, "0");
     } catch {
       return null;
     }
@@ -431,11 +432,15 @@ function clockText(value) {
     shape = { day: "2-digit", month: "2-digit", ...time };
   }
   try {
-    return dateFormat(shape).format(date);
+    return holdMark(dateFormat(shape).format(date));
   } catch {
     return null;
   }
 }
+
+/** PRD 0034 re-validation V-10: Chrome's `Intl` writes a plain space before the day-period mark ("2:03 PM"); the core
+ *  writes a no-break space, so the time never wraps away from its mark. */
+const holdMark = (text) => text.replace(/(\d) (?=\p{L})/gu, "$1\u00a0");
 
 /** HTML-safe variant of `tl`: the template (or the core fallback) and every param are escaped exactly once. */
 export function tle(value, vars = {}) {

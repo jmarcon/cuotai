@@ -102,69 +102,69 @@ const account = (name, extra) => ({ ...report, account: name, ...extra });
 
 const expected = {
   "pt-BR": {
-    points: "10 pts acima", percent: "20% acima do ritmo",
-    callout: "Neste ritmo Session (5h) acaba ≈18:53, 37 min antes da renovação", chip: "Acaba ≈18:53",
+    points: "10\u00a0pts acima", percent: "20% acima do ritmo",
+    callout: "Neste ritmo Session (5h) acaba ≈18:53, 37\u00a0min antes da renovação", chip: "Acaba ≈18:53",
     reset: "Renova 19:30 · em 1h 35m", best: "Melhor agora",
     advice: "Work esgotou · Personal tem 64% sobrando",
   },
   "en-US": {
-    points: "10 pts ahead", percent: "20% faster than pace",
+    points: "10\u00a0pts ahead", percent: "20% faster than pace",
     callout: "At this rate Session (5h) runs out ≈18:53, 37 min before the reset", chip: "Runs out ≈18:53",
     reset: "Resets 19:30 · in 1h 35m", best: "Best now",
     advice: "Work is exhausted · Personal has 64% left",
   },
   es: {
-    points: "10 pts por encima", percent: "20% sobre el ritmo",
-    callout: "A este ritmo Session (5h) se agota ≈18:53, 37 min antes del reinicio", chip: "Se agota ≈18:53",
+    points: "10\u00a0pts por encima", percent: "20% sobre el ritmo",
+    callout: "A este ritmo Session (5h) se agota ≈18:53, 37\u00a0min antes del reinicio", chip: "Se agota ≈18:53",
     reset: "Se reinicia 19:30 · en 1h 35m", best: "Mejor ahora",
     advice: "Work está agotada · Personal tiene 64% disponible",
   },
   it: {
-    points: "10 pt sopra", percent: "20% sopra il ritmo",
-    callout: "A questo ritmo Session (5h) finisce ≈18:53, 37 min prima del rinnovo", chip: "Finisce ≈18:53",
+    points: "10\u00a0pt sopra", percent: "20% sopra il ritmo",
+    callout: "A questo ritmo Session (5h) finisce ≈18:53, 37\u00a0min prima del rinnovo", chip: "Finisce ≈18:53",
     reset: "Si rinnova 19:30 · tra 1h 35m", best: "Migliore ora",
     advice: "Work è esaurito · Personal ha il 64% disponibile",
   },
   de: {
-    points: "10 Pkt. voraus", percent: "20% über dem Tempo",
-    callout: "In diesem Tempo ist Session (5h) ≈18:53 erschöpft, 37 Min. vor der Zurücksetzung", chip: "Leer ≈18:53",
-    reset: "Zurücksetzung 19:30 · in 1 Std. 35 Min.", best: "Jetzt am besten",
+    points: "10\u00a0Pkt. voraus", percent: "20% über dem Tempo",
+    callout: "In diesem Tempo ist Session (5h) ≈18:53 erschöpft, 37\u00a0Min. vor der Zurücksetzung", chip: "Leer ≈18:53",
+    reset: "Zurücksetzung 19:30 · in 1\u00a0Std. 35\u00a0Min.", best: "Jetzt am besten",
     advice: "Work ist erschöpft · Personal hat noch 64%",
   },
   ru: {
     points: "выше на 10 п. п.", percent: "на 20% выше темпа",
-    callout: "В этом темпе Session (5h) закончится ≈18:53, за 37 мин до сброса", chip: "Закончится ≈18:53",
-    reset: "Сброс 19:30 · через 1 ч 35 мин", best: "Лучшая сейчас",
+    callout: "В этом темпе Session (5h) закончится ≈18:53, за 37\u00a0мин до сброса", chip: "Закончится ≈18:53",
+    reset: "Сброс 19:30 · через 1\u00a0ч 35\u00a0мин", best: "Лучшая сейчас",
     advice: "Work исчерпан · у Personal осталось 64%",
   },
   ko: {
     points: "10pt 초과", percent: "페이스보다 20% 빠름",
     callout: "이 속도라면 초기화보다 37분 앞서 ≈18:53에 Session (5h)이(가) 소진됩니다", chip: "≈18:53 소진",
-    reset: "19:30에 초기화 · 1시간 35분 후", best: "지금 최적",
+    reset: "19:30에 초기화 · 1시간 35분\u00a0후", best: "지금 최적",
     advice: "Work은(는) 소진됨 · Personal은(는) 64% 남음",
   },
   "hi-IN": {
     points: "10 अंक आगे", percent: "गति से 20% तेज़",
-    callout: "इस गति से Session (5h) रीसेट से 37 मिनट पहले ≈18:53 पर खत्म हो जाएगा", chip: "≈18:53 पर खत्म",
-    reset: "19:30 को रीसेट · 1 घं 35 मि में", best: "अभी सर्वश्रेष्ठ",
+    callout: "इस गति से Session (5h) रीसेट से 37\u00a0मिनट पहले ≈18:53 पर खत्म हो जाएगा", chip: "≈18:53 पर खत्म",
+    reset: "19:30 को रीसेट · 1\u00a0घं 35\u00a0मि\u00a0में", best: "अभी सर्वश्रेष्ठ",
     advice: "Work खत्म हो गया · Personal में 64% बचा है",
   },
   "id-ID": {
     points: "10 poin di depan", percent: "20% lebih cepat",
-    callout: "Dengan laju ini Session (5h) habis ≈18:53, 37 mnt sebelum reset", chip: "Habis ≈18:53",
+    callout: "Dengan laju ini Session (5h) habis ≈18:53, 37\u00a0mnt sebelum reset", chip: "Habis ≈18:53",
     reset: "Reset 19:30 · dalam 1j 35mnt", best: "Terbaik sekarang",
     advice: "Work habis · Personal tersisa 64%",
   },
   tr: {
     points: "10 puan önde", percent: "Hızdan %20 daha hızlı",
-    callout: "Bu hızla Session (5h) ≈18:53 tükenir, sıfırlanmadan 37 dk önce", chip: "Tükenme ≈18:53",
-    reset: "Sıfırlanma 19:30 · 1sa 35dk sonra", best: "Şimdi en iyi",
+    callout: "Bu hızla Session (5h) ≈18:53 tükenir, sıfırlanmadan 37\u00a0dk önce", chip: "Tükenme ≈18:53",
+    reset: "Sıfırlanma 19:30 · 1sa 35dk\u00a0sonra", best: "Şimdi en iyi",
     advice: "Work tükendi · Personal için %64 kaldı",
   },
   vi: {
     points: "Vượt 10 điểm", percent: "Nhanh hơn nhịp độ 20%",
-    callout: "Với nhịp này Session (5h) sẽ hết khoảng 18:53, sớm hơn 37 phút so với lần đặt lại", chip: "Hết khoảng 18:53",
-    reset: "Đặt lại 19:30 · sau 1 giờ 35 phút", best: "Tốt nhất lúc này",
+    callout: "Với nhịp này Session (5h) sẽ hết khoảng 18:53, sớm hơn 37\u00a0phút so với lần đặt lại", chip: "Hết khoảng 18:53",
+    reset: "Đặt lại 19:30 · sau 1\u00a0giờ 35\u00a0phút", best: "Tốt nhất lúc này",
     advice: "Work đã hết · Personal còn 64%",
   },
   "zh-CN": {
@@ -174,13 +174,13 @@ const expected = {
     advice: "Work 已用尽 · Personal 剩余 64%",
   },
   fr: {
-    points: "10 pts d’avance", percent: "20 % plus rapide",
-    callout: "À ce rythme, Session (5h) s’épuise ≈18:53, 37 min avant la réinitialisation", chip: "Épuisé ≈18:53",
-    reset: "Réinitialisation 19:30 · dans 1 h 35 min", best: "Le meilleur maintenant",
-    advice: "Work est épuisé · Personal a 64 % disponible",
+    points: "10\u00a0pts d’avance", percent: "20\u00a0% plus rapide",
+    callout: "À ce rythme, Session (5h) s’épuise ≈18:53, 37\u00a0min avant la réinitialisation", chip: "Épuisé ≈18:53",
+    reset: "Réinitialisation 19:30 · dans 1\u00a0h 35\u00a0min", best: "Le meilleur maintenant",
+    advice: "Work est épuisé · Personal a 64\u00a0% disponible",
   },
   ja: {
-    points: "10 pt 超過", percent: "ペースより 20% 速い",
+    points: "10\u00a0pt 超過", percent: "ペースより 20% 速い",
     callout: "このペースでは Session (5h) は ≈18:53 に上限に達し、リセットの 37分前です", chip: "≈18:53 に上限",
     reset: "19:30 にリセット · 1時間35分後", best: "今のおすすめ",
     advice: "Work は上限到達 · Personal は残り 64%",
@@ -247,7 +247,7 @@ assert.match(d01, /<span class="pg warn" aria-hidden="true">↑<\/span><span>Run
 assert.doesNotMatch(d01, />On pace</, "D-01: no On pace beside the projection");
 const hinted = timeChipHtml({ glyph: "↑", text: text("pace.chip.ahead", { d: "13" }, "13 pts ahead"), compact: null,
   hint: text("pace.chip.too_early", {}, "Too early in the window for a percentage") });
-assert.ok(hinted.includes('title="13 pts ahead · Too early in the window for a percentage"'), hinted);
+assert.ok(hinted.includes('title="13\u00a0pts ahead · Too early in the window for a percentage"'), hinted);
 const amp = points.adviceHtml(account("Work", { advice: { text: text("advice.switch.exhausted", { from: "Work", to: "A&B's", pct: "64" }, "Work is exhausted · A&B's has 64% left"), best_index: 1, best_name: "A&B's" } }));
 assert.ok(amp.includes(">Show A&amp;B&#39;s<") && !amp.includes("&amp;amp;"), amp);
 
@@ -255,7 +255,8 @@ assert.ok(amp.includes(">Show A&amp;B&#39;s<") && !amp.includes("&amp;amp;"), am
 // an ISO date; without `hour` the chip form is the short weekday or the date alone.
 for (const { code } of i18n.LOCALES) {
   await i18n.setLocale(code);
-  const intl = (shape, date) => new Intl.DateTimeFormat(code, shape).format(date);
+  // PRD 0034 re-validation V-10: a no-break space holds a time to its day-period mark ("3:37\u00a0PM").
+  const intl = (shape, date) => new Intl.DateTimeFormat(code, shape).format(date).replace(/(\d) (?=\p{L})/gu, "$1\u00a0");
   const time = { hour: "numeric", minute: "2-digit" };
   const cases = [
     [text("at.time", { hour: "15", minute: "37" }, "3:37 PM"), intl(time, new Date(2024, 0, 1, 15, 37))],

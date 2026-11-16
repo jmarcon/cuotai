@@ -630,7 +630,10 @@ export function intlFormatter(kind, locale, options) {
 }
 /** `date.toLocaleTimeString(locale, options)` / `toLocaleDateString` with the formatter cached (same output when
  *  `options` names the fields, which every caller here does). */
-export const fmtLocal = (date, options, locale = currentLocale()) => intlFormatter("DateTimeFormat", locale, options).format(date);
+// PRD 0034 re-validation V-10: Chrome's `Intl` writes a plain space before the day-period mark ("2:03 PM"); a no-break
+// space keeps the time on one line with its mark, as the core writes it.
+export const fmtLocal = (date, options, locale = currentLocale()) =>
+  intlFormatter("DateTimeFormat", locale, options).format(date).replace(/(\d)[ \u202f](?=[AaPp]\.?[Mm]\.?(?!\p{L}))/gu, "$1\u00a0");
 const HHMM = { hour: "2-digit", minute: "2-digit" };
 export const fmtNumber = (n, max = 2) => (n == null ? "—" : intlFormatter("NumberFormat", currentLocale(), { maximumFractionDigits: max }).format(n));
 /** PRD 0030 L-13: `amount` in `currency` (an ISO code) in the current language ("R$ 550,50", "$20.00"); an unknown
@@ -670,7 +673,7 @@ export function resetsText(m) {
 // PRD 0035 RF10.3: durations are catalog patterns (the core's `text.duration.*`, with their English fallbacks), never
 // concatenated letters, so each language words them (`{h}時間{m}分`, `{h} ч {m} мин`).
 const DURATION_EN = {
-  "text.duration.minutes": "{m} min",
+  "text.duration.minutes": "{m}\u00a0min",
   "text.duration.hours": "{h}h",
   "text.duration.hours_minutes": "{h}h {m}m",
   "text.duration.days": "{d}d",

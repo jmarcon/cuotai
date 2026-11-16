@@ -40,6 +40,133 @@ fn message_placeholders(message: &Message) -> BTreeSet<&str> {
         .collect()
 }
 
+/// PRD 0034 re-validation V-10: the unit words a figure is written with in
+/// the catalogs (abbreviations, and the unit words of the languages that
+/// have none). A plain space between a `{placeholder}` and one of them lets
+/// the line wrap between the number and its unit ("in 3" / "T 17 Std.").
+const UNIT_WORDS: &[&str] = &[
+    "s",
+    "ms",
+    "min",
+    "h",
+    "d",
+    "j",
+    "g",
+    "T",
+    "Sek.",
+    "Min.",
+    "Std.",
+    "T.",
+    "sa",
+    "dk",
+    "sn",
+    "dtk",
+    "mnt",
+    "hr",
+    "KiB",
+    "MiB",
+    "GiB",
+    "KB",
+    "MB",
+    "GB",
+    "pt",
+    "pts",
+    "Pkt.",
+    "tok/min",
+    "Tok./Min.",
+    "%",
+    "с",
+    "мс",
+    "мин",
+    "ч",
+    "д",
+    "дн.",
+    "giây",
+    "phút",
+    "giờ",
+    "ngày",
+    "सेकंड",
+    "मिनट",
+    "घंटे",
+    "घं",
+    "मि",
+    "दिन",
+];
+
+/// The CJK units, which run on into the next word ("秒前", "日間"); they
+/// count only after a placeholder in [`FIGURE_PLACEHOLDERS`], since the same
+/// characters start ordinary words too ("{source} 日志").
+const CJK_UNITS: &[&str] = &["秒", "分", "時間", "日", "小时", "天"];
+
+/// The placeholder names that hold a number.
+const FIGURE_PLACEHOLDERS: &[&str] = &[
+    "count",
+    "n",
+    "m",
+    "h",
+    "d",
+    "s",
+    "ms",
+    "seconds",
+    "minutes",
+    "hours",
+    "days",
+    "day",
+    "max",
+    "min",
+    "pct",
+    "percent",
+    "p",
+    "used",
+    "threshold",
+    "value",
+    "size",
+    "mib",
+    "configured",
+    "effective",
+    "default",
+    "timeout",
+    "rate",
+    "total",
+    "heavy_percent",
+    "light_percent",
+    "start",
+    "have",
+];
+
+/// PRD 0034 re-validation V-10: the placeholders of `text` that a plain
+/// space separates from their unit (`{m} min` rather than `{m}\u{a0}min`),
+/// plus a `{duration}` a plain space separates from the word after it
+/// (`{duration} 후`), so a figure never wraps away from its unit. A unit
+/// followed by another placeholder (`{metric} %{percent}`) is not one.
+pub fn figure_breaks(text: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    for (at, _) in text.match_indices("} ") {
+        let Some(open) = text[..at].rfind('{') else {
+            continue;
+        };
+        let name = &text[open + 1..at];
+        if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+            continue;
+        }
+        let token = text[at + 2..].split_whitespace().next().unwrap_or("");
+        if token.is_empty() || token.contains('{') {
+            continue;
+        }
+        let bare = token.trim_end_matches([',', ';', ':', ')', '»', '"', '”', '!', '?', '…']);
+        let unit = [bare, bare.trim_end_matches('.')]
+            .iter()
+            .any(|word| UNIT_WORDS.contains(word))
+            || (FIGURE_PLACEHOLDERS.contains(&name)
+                && CJK_UNITS.iter().any(|cjk| bare.starts_with(cjk)));
+        let worded = name == "duration" && token.chars().next().is_some_and(char::is_alphabetic);
+        if unit || worded {
+            out.push(name);
+        }
+    }
+    out
+}
+
 /// The `_meta` keys a built-in catalog may carry (PRD 0035 RF11.5, RF11.6).
 pub const META_KEYS: &[&str] = &[
     "name",
@@ -306,6 +433,11 @@ pub fn problems(
             if text.chars().any(|c| c.is_control() && c != '\n') {
                 out.push(format!("{code}: {id} has a control character"));
             }
+            for name in figure_breaks(text) {
+                out.push(format!(
+                    "{code}: {id} breaks {{{name}}} from its unit with a plain space; use U+00A0"
+                ));
+            }
             if let Some(c) = text
                 .chars()
                 .find(|c| !c.is_control() && is_hidden_or_directional(*c))
@@ -383,6 +515,47 @@ mod tests {
         let bad = Catalog::parse(r#"{"_meta":{"name":"Deutsch"},"a":"<a href=x>y</a>"}"#).unwrap();
         let found = problems(row, &bad, &bad, Default::default());
         assert!(found.iter().any(|p| p.contains("markup")), "{found:?}");
+    }
+
+    /// PRD 0034 re-validation V-10: a figure is held to its unit by a
+    /// no-break space; a word or another placeholder after it is not a unit.
+    #[test]
+    fn a_plain_space_between_a_figure_and_its_unit_is_refused() {
+        for (text, want) in [
+            ("{m} min", vec!["m"]),
+            ("{h} Std. {m} Min.", vec!["h", "m"]),
+            ("vor {n} T.", vec!["n"]),
+            ("{n} дн. назад", vec!["n"]),
+            ("{seconds} с\"", vec!["seconds"]),
+            ("({heavy_percent} %)", vec!["heavy_percent"]),
+            ("{n} 秒前", vec!["n"]),
+            ("{days} 日間の履歴", vec!["days"]),
+            ("{duration} 후", vec!["duration"]),
+            ("{max} MiB:", vec!["max"]),
+        ] {
+            assert_eq!(figure_breaks(text), want, "{text}");
+        }
+        for text in [
+            "{m}\u{a0}min",
+            "{h}h {m}m",
+            "in {duration}",
+            "{metric} %{percent}",
+            "{source} 日志",
+            "{name} 分成了多个部分",
+            "{provider} hat {count} Nutzer",
+            "{count} days at the limit",
+            "{n} d'abord",
+        ] {
+            assert!(figure_breaks(text).is_empty(), "{text}");
+        }
+        let row = locale_row("de").unwrap();
+        let reference = Catalog::parse(r#"{"_meta":{"name":"English"},"a":"{m} min"}"#).unwrap();
+        let bad = Catalog::parse(r#"{"_meta":{"name":"Deutsch"},"a":"{m} Min."}"#).unwrap();
+        let found = problems(row, &bad, &reference, Default::default());
+        assert!(found.iter().any(|p| p.contains("U+00A0")), "{found:?}");
+        let good =
+            Catalog::parse("{\"_meta\":{\"name\":\"Deutsch\"},\"a\":\"{m}\u{a0}Min.\"}").unwrap();
+        assert!(problems(row, &good, &reference, Default::default()).is_empty());
     }
 
     #[test]

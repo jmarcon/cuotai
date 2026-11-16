@@ -545,7 +545,7 @@ pub fn duration(span: chrono::TimeDelta) -> Localized {
         // Rounded up; 59 min 30 s still reads "59 min", never "60 min".
         let minutes = ((secs + 59) / 60).min(59);
         let m = minutes.to_string();
-        return Localized::with_param("text.duration.minutes", "m", m.as_str(), "{m} min");
+        return Localized::with_param("text.duration.minutes", "m", m.as_str(), "{m}\u{a0}min");
     }
     let minutes = secs / 60;
     let (days, hours, mins) = (minutes / 1_440, minutes / 60 % 24, minutes % 60);

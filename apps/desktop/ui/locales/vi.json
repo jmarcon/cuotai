@@ -408,7 +408,7 @@
   "settings.notify.system": "Mở cài đặt hệ thống → Thông báo, cho phép Cuotai rồi bật lại tùy chọn. Dùng “Gửi thông báo thử” để kiểm tra.",
   "settings.notify.lead": "Khi nào",
   "settings.notify.leadNow": "Đúng thời điểm",
-  "settings.notify.leadMin": "Trước {min} phút",
+  "settings.notify.leadMin": "Trước {min} phút",
   "settings.notify.when": "Thông báo",
   "settings.notify.whenHelp": "Các khung 5 giờ, một ngày, một tuần hoặc một tháng; giới hạn tốc độ và số dư không bao giờ gửi thông báo.",
   "settings.notify.when.used": "Chỉ khi đã dùng",
@@ -484,8 +484,8 @@
   "settings.history.title": "Lịch sử",
   "settings.history.help": "Mỗi lần đọc thành công chỉ được ghi trên máy tính này (số liệu và khung, không bao giờ ghi thông tin xác thực hay văn bản của nhà cung cấp). Mẫu cũ được giảm còn một mẫu mỗi giờ sau 7 ngày và tệp luôn dưới 64 MiB.",
   "settings.history.days": "Giữ (ngày)",
-  "settings.history.range": "{min} đến {max} ngày",
-  "settings.history.saved": "Lịch sử được giữ {days} ngày.",
+  "settings.history.range": "{min} đến {max} ngày",
+  "settings.history.saved": "Lịch sử được giữ {days} ngày.",
   "settings.history.account": "Tài khoản",
   "settings.history.allAccounts": "Tất cả tài khoản",
   "settings.history.period": "Khoảng thời gian",
@@ -894,7 +894,7 @@
   "settings.cost.state.paused": "Đã tạm dừng: máy tính đang tiết kiệm điện; việc đọc sẽ tiếp tục khi nó ngừng.",
   "settings.cost.period": "Khoảng thời gian hiển thị",
   "settings.cost.retention": "Thời gian lưu chỉ mục",
-  "settings.cost.retentionRange": "Từ {min} đến {max} ngày (mặc định 120).",
+  "settings.cost.retentionRange": "Từ {min} đến {max} ngày (mặc định 120).",
   "settings.cost.size": "Chỉ mục trên đĩa: {size}.",
   "settings.cost.erase": "Xóa chỉ mục",
   "settings.cost.eraseText": "Xóa toàn bộ chỉ mục chi phí cục bộ? Các nguồn vẫn bật sẽ đọc lại nhật ký từ đầu.",
@@ -1012,8 +1012,8 @@
   "settings.costBy.col.state": "Trạng thái",
   "settings.costBy.col.sessions": "Phiên",
   "settings.costBy.col.project": "Dự án",
-  "settings.costBy.minutes": "{m} phút",
-  "settings.costBy.hours": "{h} giờ {m} phút",
+  "settings.costBy.minutes": "{m} phút",
+  "settings.costBy.hours": "{h} giờ {m} phút",
   "settings.costBy.moreSessions": {
     "other": "{count} phiên cũ hơn không được liệt kê."
   },
@@ -1031,7 +1031,7 @@
   "settings.costBy.hiddenNote": {
     "other": "{count} dự án đã ẩn: vẫn được liệt kê nhưng không tính vào tổng."
   },
-  "settings.costBy.blockDefault": "Độ dài khối; mặc định {hours} giờ",
+  "settings.costBy.blockDefault": "Độ dài khối; mặc định {hours} giờ",
   "settings.costBy.blockHours": "Độ dài khối của {source}, tính bằng giờ",
   "settings.costBy.hoursUnit": "giờ",
   "settings.costBy.hint": "Giữ tên thư mục cuối của mỗi dự án",
@@ -1265,7 +1265,7 @@
   "stats.range.days7": "7 ngày",
   "stats.range.days30": "30 ngày",
   "stats.kpi.hits": "Số lần chạm giới hạn",
-  "stats.kpi.hits.caption": "trong {days} ngày",
+  "stats.kpi.hits.caption": "trong {days} ngày",
   "stats.kpi.avg": "Đỉnh trung bình",
   "stats.kpi.avg.caption": "của giới hạn chặt nhất",
   "stats.kpi.extra": "Chi thêm",
@@ -1276,7 +1276,7 @@
   "stats.chart.today": "Hôm nay",
   "stats.chart.noData": "Không có dữ liệu",
   "stats.chart.empty": "Biểu đồ đầy dần khi các lần đọc được ghi lại.",
-  "stats.chart.alt": "Đỉnh sử dụng mỗi ngày trong {days} ngày: cao nhất {peak}, hôm nay {today}",
+  "stats.chart.alt": "Đỉnh sử dụng mỗi ngày trong {days} ngày: cao nhất {peak}, hôm nay {today}",
   "stats.table.day": "Ngày",
   "stats.table.peak": "Đỉnh",
   "stats.accounts.title": "Theo tài khoản",
@@ -1293,7 +1293,7 @@
     "other": "Không đọc được {count} mục nhật ký."
   },
   "stats.recording.off": "Việc ghi lịch sử đang tắt; sự kiện mới không được giữ lại.",
-  "stats.footer.partial": "Dữ liệu của {have} trên {total} ngày.",
+  "stats.footer.partial": "Dữ liệu của {have} trên {total} ngày.",
   "stats.footer.unknown": {
     "other": "{count} giới hạn không rõ mức trần bị loại khỏi các giá trị trung bình."
   },
@@ -1356,7 +1356,7 @@
     "other": "Mỗi ngày, {count} khoảng"
   },
   "settings.quiet.summary.days": {
-    "other": "{count} ngày có khoảng"
+    "other": "{count} ngày có khoảng"
   },
   "settings.quiet.same": "Giống nhau mỗi ngày",
   "settings.quiet.sameHelp": "Sao chép các khoảng của ngày đầu tiên sang mọi ngày.",
@@ -1507,8 +1507,8 @@
   "settings.kw.rows-separate": "hàng hiển thị cửa sổ chính riêng bố cục khác",
   "settings.display.more": "Thêm tùy chọn hiển thị",
   "lang.inProgress": "Đang dịch",
-  "time.duration.minutesSeconds": "{m} phút {s} giây",
-  "time.duration.seconds": "{s} giây",
+  "time.duration.minutesSeconds": "{m} phút {s} giây",
+  "time.duration.seconds": "{s} giây",
   "settings.page.extensions": "Tiện ích mở rộng",
   "settings.extensions.group": "Tiện ích mở rộng đã cài",
   "settings.kw.extensions": "tiện ích mở rộng cục bộ add-on plugin nhà cung cấp tùy chỉnh chạy phê duyệt thư mục",
@@ -1682,7 +1682,7 @@
   "backup.included": "Được đưa vào",
   "backup.excluded": "Không đưa vào",
   "backup.withHistory": "Bao gồm lịch sử 90 ngày gần nhất",
-  "backup.historyLarge": "Lịch sử thêm khoảng {size} MiB; việc sao chép tệp có thể chậm.",
+  "backup.historyLarge": "Lịch sử thêm khoảng {size} MiB; việc sao chép tệp có thể chậm.",
   "backup.save": "Lưu…",
   "backup.done": "Đã lưu bản sao lưu vào {path} ({count} tệp).",
   "backup.noSecret": "Khóa, token và thông tin đăng nhập vẫn nằm trong kho bảo mật hệ thống.",
@@ -1728,5 +1728,5 @@
   "detect.costOffer.codex_cli": "Nhật ký cục bộ của nó cũng có thể ước tính chi phí theo giá API; Cuotai chỉ đọc chúng sau khi bạn bật nguồn Codex CLI.",
   "detect.costOffer.gemini_cli": "Nhật ký cục bộ của nó cũng có thể ước tính chi phí theo giá API; Cuotai chỉ đọc chúng sau khi bạn bật nguồn Gemini CLI.",
   "coreText.sessionIncomplete": "Phiên web đã lưu thiếu cookie {names}. Hãy dán phiên mới.",
-  "dialog.intervalHintMetered": "Để trống: mỗi {default} phút một lần. Tối thiểu {effective} phút: từ {min} đến {effective} phút được nâng lên {effective}."
+  "dialog.intervalHintMetered": "Để trống: mỗi {default} phút một lần. Tối thiểu {effective} phút: từ {min} đến {effective} phút được nâng lên {effective}."
 }

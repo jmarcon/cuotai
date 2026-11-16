@@ -126,9 +126,9 @@ mod tests {
         assert_eq!(label(3_600).text(), "1 h ago");
         assert_eq!(label(86_399).text(), "23 h ago");
         assert_eq!(label(86_400).text(), "1 d ago");
-        assert_eq!(label(180).resolve("pt-BR"), "há 3 min");
-        assert_eq!(label(180).resolve("es"), "hace 3 min");
-        assert_eq!(label(180).resolve("it"), "3 min fa");
+        assert_eq!(label(180).resolve("pt-BR"), "há 3\u{a0}min");
+        assert_eq!(label(180).resolve("es"), "hace 3\u{a0}min");
+        assert_eq!(label(180).resolve("it"), "3\u{a0}min fa");
         assert_eq!(label(0).resolve("pt-BR"), "agora");
     }
 

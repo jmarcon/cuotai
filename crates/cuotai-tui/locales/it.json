@@ -226,7 +226,7 @@
   "extension_check.outcome.revoked": "approvazione revocata",
   "extension_check.outcome.terminated": "terminata senza codice di uscita",
   "extension_check.outcome.timed_out": "tempo scaduto",
-  "extension_check.run": "Esecuzione: {outcome} in {ms} ms",
+  "extension_check.run": "Esecuzione: {outcome} in {ms} ms",
   "extension_check.source": "Fonte: {source}",
   "extension_check.status": "Stato: {status}",
   "extension_check.violations": "Violazioni del contratto:",
@@ -674,7 +674,7 @@
   "channels.cli.test_ok": "Inviato: {host} ha risposto {status}.",
   "channels.cli.test_failed": "Non inviato: {host} ({reason}).",
   "channels.cli.log_empty": "Nessuna consegna negli ultimi 7 giorni.",
-  "cli.backup.history_large": "Il backup contiene {size} MiB di cronologia; potrebbe essere lento da copiare.",
+  "cli.backup.history_large": "Il backup contiene {size} MiB di cronologia; potrebbe essere lento da copiare.",
   "cli.restore.merge": "unisci",
   "cli.restore.rows": "righe: {rows}, nuove qui: {new}",
   "cli.list_providers.aggregator": " (aggregatore)",
@@ -682,6 +682,6 @@
   "status_line.unknown_account": "--account {value} non indica un solo account; usa un id (da --json-v1, /v1/limits o dalla riga id del TOML), una chiave o un nome unico. Id: {ids}.",
   "status_line.no_accounts": "nessuno",
   "headless.strict_exit_no_ready": "cuotai: codice di uscita 2 (--strict-exit): nessun account ha avuto una lettura valida prima che il server si fermasse.",
-  "wizard.interval.prompt_metered": "Intervallo proprio di questo account in secondi ({min}–{max}); vuoto = ogni {default} s:",
-  "wizard.interval.help_metered": "Vale solo per questo account. Il minimo reale è {effective} s: da {min} a {effective} s si sale a {effective} s."
+  "wizard.interval.prompt_metered": "Intervallo proprio di questo account in secondi ({min}–{max}); vuoto = ogni {default} s:",
+  "wizard.interval.help_metered": "Vale solo per questo account. Il minimo reale è {effective} s: da {min} a {effective} s si sale a {effective} s."
 }

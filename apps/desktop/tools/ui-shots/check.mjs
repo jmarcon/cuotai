@@ -3,7 +3,8 @@
 // the minimum sizes (tray 380×600, main 520 and 1200 wide, settings 640×460) in en-US, pt-BR, es, it and the en-XA
 // pseudo-locale. It reports (a) text wider than its box with ellipsis or hidden overflow, (b) text or controls
 // outside the window, (c) text clipped by an ancestor, (d) text spilling out of a chip, button, tab or card, (e)
-// overlapping text, and (f) a status line taller than one line. Elements that may truncate by design (account labels
+// overlapping text, (f) a status line taller than one line, (g) a placeholder wider than its field, and (h) a figure
+// wrapped away from its unit. Elements that may truncate by design (account labels
 // and names, the status label after its fitting, one-line notices) are reported as allowed.
 // Usage: node apps/desktop/tools/ui-shots/check.mjs [--json] [--selftest] [--zoom] [--shard i/n] [locale ...]
 //        node apps/desktop/tools/ui-shots/check.mjs --shard-selftest   Exit: 0 clean, 1 with problems, 2 bad --shard.
@@ -26,6 +27,7 @@ const selftest = args.includes("--selftest");
 const zoom = args.includes("--zoom");
 // `--pages a,b` (PRD 0025 re-validation) checks only the pages whose names start with one of these prefixes, and
 // skips the themed and danger passes: a quick local look at the surfaces a change touched. CI runs everything.
+// A name ending in `$` matches that page alone (`--pages 'main$'` is the main window, not every `main-*`).
 const pagesArg = args[args.indexOf("--pages") + 1];
 const only = args.includes("--pages") ? (pagesArg ?? "").split(",").filter(Boolean) : null;
 // `--shard i/n` and `--pages` take a value, which is not a locale.
@@ -169,6 +171,11 @@ export const ALLOWED = [".r1 .nm", ".r1 .ac", ".crow .nm", ".tile-name b", ".til
   ".xline span", ".pop-notice span", ".sum-top .lt", ".set-path", ".lc-title", ".models-meta", ".access-line", ".win .reset", ".pop-head h1",
   ".set-nav-item span", ".sum-note", ".tl-name", ".st-name", "option", "select", ".fig.dual .wl.model"].join(", ");
 
+// PRD 0034 re-validation V-10: the units a figure must stay on one line with (see the figure-split rule below).
+const FIGURE_UNITS = ["s", "ms", "min", "h", "d", "j", "g", "T", "Sek.", "Min.", "Std.", "T.", "sa", "dk", "sn", "dtk", "mnt", "hr",
+  "KiB", "MiB", "GiB", "KB", "MB", "GB", "pt", "pts", "Pkt.", "tok/min", "Tok./Min.", "%", "с", "мс", "мин", "ч", "д", "дн.", "giây",
+  "phút", "giờ", "ngày", "सेकंड", "मिनट", "घंटे", "घं", "मि", "दिन", "AM", "PM"];
+
 const PAGE_JS = `(() => {
   const allowed = ${JSON.stringify(ALLOWED)};
   const out = [];
@@ -295,6 +302,35 @@ const PAGE_JS = `(() => {
   }
   const doc = document.scrollingElement;
   if (document.querySelector(".pop") && doc.scrollHeight > innerHeight + 1) out.push({ kind: "document-scroll", ok: false, sel: "html", text: doc.scrollHeight + " > " + innerHeight });
+  // PRD 0034 re-validation V-11: a shown placeholder fits its field's content box (the checks above read text nodes,
+  // and a placeholder is none). A transparent placeholder (the filter collapsed to its icon) is not drawn.
+  const pen = document.createElement("canvas").getContext("2d");
+  for (const e of document.querySelectorAll("input[placeholder], textarea[placeholder]")) {
+    if (!e.placeholder || !e.matches(":placeholder-shown") || !e.checkVisibility() || e.closest("[hidden], dialog:not([open]), .set-pop, .menu")) continue;
+    if (modal && !modal.contains(e)) continue;
+    const ph = getComputedStyle(e, "::placeholder"), cs = getComputedStyle(e);
+    if (ph.visibility === "hidden" || /^rgba\\(.*,\\s*0\\)$|^transparent$/.test(ph.color)) continue;
+    pen.font = ph.font || cs.font;
+    const need = pen.measureText(e.placeholder).width, room = e.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    if (room > 0 && need > room + 1) out.push({ kind: "placeholder-clipped", ok: false, sel: sel(e) + (e.id ? "#" + e.id : ""), text: Math.round(need) + " > " + Math.round(room) + " " + e.placeholder.slice(0, 40) });
+  }
+  // PRD 0034 re-validation V-10 (DS-A11Y-7): a figure never wraps away from its unit. A number and the unit after it
+  // (the time, size and percent units of the catalogs' figure rule in \`text/parity.rs\`, the CJK time units, a clock's
+  // AM/PM), joined by nothing or by a space, sit on one line box. A count before an ordinary word may wrap.
+  const UNITS = new Set(${JSON.stringify(FIGURE_UNITS)});
+  const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+    const p = n.parentElement;
+    if (!p || p.closest("svg, .sr-only, option, select, [hidden], dialog:not([open]), .set-pop, .menu, .lang-menu") || (modal && !modal.contains(p))) continue;
+    if ((p.closest("details:not([open])") && !p.closest("summary")) || !p.getClientRects().length) continue;
+    for (const m of n.textContent.matchAll(/(\\d)[\\s\\u00a0\\u202f]?(?=([%\\p{L}\\p{M}][\\p{L}\\p{M}.\\/]{0,8}))/gu)) {
+      const word = m[2].replace(/[.,;:)]+$/, "");
+      if (!UNITS.has(word) && !UNITS.has(m[2].replace(/[,;:)]+$/, "")) && !/^(秒|分|時間|日|小时|天)/u.test(m[2])) continue;
+      const top = (from, to) => { const r = document.createRange(); r.setStart(n, from); r.setEnd(n, to); const x = [...r.getClientRects()].find((q) => q.width > 0); return x ? Math.round(x.top) : null; };
+      const a = top(m.index, m.index + 1), b = top(m.index + m[0].length, m.index + m[0].length + 1);
+      if (a != null && b != null && a !== b) out.push({ kind: "figure-split", ok: false, sel: sel(p), text: n.textContent.slice(Math.max(0, m.index - 12), m.index + m[0].length + m[2].length).replace(/\\s+/g, " ") });
+    }
+  }
   return out;
 })()`;
 
@@ -407,7 +443,7 @@ function tasks() {
     for (const [name, page, w, h, storage, click, openModels] of PAGES) {
       // The selftest forces its string into the plain tray views only.
       if (selftest && (!page.startsWith("tray") || storage["cuotai.trayView"])) continue;
-      if (only && !only.some((p) => name.startsWith(p))) continue;
+      if (only && !only.some((p) => (p.endsWith("$") ? name === p.slice(0, -1) : name.startsWith(p)))) continue;
       list.push({ id: `${name}.${locale}`, run: () => checkPage(name, page, w, h, storage, click, openModels, locale) });
     }
   }
@@ -439,6 +475,9 @@ async function checkPage(name, page, w, h, storage, click, openModels, locale) {
   if (selftest) await ui.evaluate(`(() => { const f = document.querySelector(".fig b"); if (f) f.textContent = "W".repeat(60); })()`);
   const found = (await ui.evaluate(PAGE_JS)) ?? [{ kind: "error", ok: false, sel: "page", text: "evaluation failed" }];
   if (name.includes("stats")) found.push(...((await ui.evaluate(STATS_JS)) ?? [{ kind: "error", ok: false, sel: "page", text: "stats probe failed" }]));
+  // PRD 0034 re-validation V-11: the pseudo-locale pads every text by design, so its placeholder ends in the field's
+  // ellipsis (allowed); a real language's placeholder must fit.
+  if (locale === "en-XA") for (const f of found) if (f.kind === "placeholder-clipped") f.ok = true;
   const bad = found.filter((f) => !f.ok);
   report[`${name}.${locale}`] = found;
   if (!json) console.log(`${bad.length ? "FAIL" : "ok  "} ${name} ${locale} (${w}×${h}): ${bad.length} problem(s), ${found.length - bad.length} allowed`);

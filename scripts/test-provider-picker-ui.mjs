@@ -175,7 +175,7 @@ for (const [provider, kind, tool] of lib.DEMO_NATIVE_DETECT) {
   }
   await i18n.setLocale("es");
   const line = i18n.tl({ id: "freshness.age.minutes", params: { n: 3 }, fallback: "{n} min ago" });
-  assert.equal(line, "hace 3 min", "core catalog ids resolve in the dialog's language");
+  assert.equal(line, "hace 3\u00a0min", "core catalog ids resolve in the dialog's language");
   await i18n.setLocale("en-US");
 }
 // PRD 0005/0027: the dialog keeps the core's provider order (no JS re-sort).

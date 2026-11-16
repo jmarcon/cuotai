@@ -1398,7 +1398,7 @@ mod tests {
         );
         assert_eq!(
             fake.titles(),
-            ["Claude: la cuota de 5 horas se renueva en 15 min"]
+            ["Claude: la cuota de 5 horas se renueva en 15\u{a0}min"]
         );
         // The reset itself is the same reset: no second notice.
         assert_eq!(tick(&mut notices, &cfg, &reports, t0(), &fake).delivered, 0);
