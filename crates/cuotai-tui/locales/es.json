@@ -226,7 +226,7 @@
   "extension_check.outcome.revoked": "aprobación revocada",
   "extension_check.outcome.terminated": "terminada sin código de salida",
   "extension_check.outcome.timed_out": "tiempo agotado",
-  "extension_check.run": "Ejecución: {outcome} en {ms} ms",
+  "extension_check.run": "Ejecución: {outcome} en {ms} ms",
   "extension_check.source": "Fuente: {source}",
   "extension_check.status": "Estado: {status}",
   "extension_check.violations": "Violaciones del contrato:",
@@ -674,7 +674,7 @@
   "channels.cli.test_ok": "Enviado: {host} respondió {status}.",
   "channels.cli.test_failed": "No enviado: {host} ({reason}).",
   "channels.cli.log_empty": "Ninguna entrega en los últimos 7 días.",
-  "cli.backup.history_large": "La copia guarda {size} MiB de historial; puede tardar en copiarse.",
+  "cli.backup.history_large": "La copia guarda {size} MiB de historial; puede tardar en copiarse.",
   "cli.restore.merge": "fusionar",
   "cli.restore.rows": "filas: {rows}, nuevas aquí: {new}",
   "cli.list_providers.aggregator": " (agregador)",
@@ -682,6 +682,6 @@
   "status_line.unknown_account": "--account {value} no corresponde a una sola cuenta; usa un id (de --json-v1, /v1/limits o la línea id del TOML), una clave o un nombre único. Ids: {ids}.",
   "status_line.no_accounts": "ninguna",
   "headless.strict_exit_no_ready": "cuotai: código de salida 2 (--strict-exit): ninguna cuenta tuvo una lectura correcta antes de que el servidor se detuviera.",
-  "wizard.interval.prompt_metered": "Intervalo propio de esta cuenta en segundos ({min}–{max}); vacío = cada {default} s:",
-  "wizard.interval.help_metered": "Solo se aplica a esta cuenta. El mínimo real es {effective} s: de {min} a {effective} s se eleva a {effective} s."
+  "wizard.interval.prompt_metered": "Intervalo propio de esta cuenta en segundos ({min}–{max}); vacío = cada {default} s:",
+  "wizard.interval.help_metered": "Solo se aplica a esta cuenta. El mínimo real es {effective} s: de {min} a {effective} s se eleva a {effective} s."
 }

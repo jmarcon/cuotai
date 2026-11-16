@@ -3795,13 +3795,16 @@ mod tests {
         let at = Utc.with_ymd_and_hms(2026, 1, 1, 12, 0, 0).unwrap();
         let line = |now| render_reset(at, now).to_string();
         // V-04: the core's duration, so under a minute reads "1 min".
-        assert_eq!(line(at - chrono::Duration::seconds(47)), "renova 1 min");
+        assert_eq!(
+            line(at - chrono::Duration::seconds(47)),
+            "renova 1\u{a0}min"
+        );
         assert_eq!(line(at), "renova agora");
         assert_eq!(line(at + chrono::Duration::minutes(5)), "renova agora");
         assert_eq!(format_reset_line(at, at), "renova agora");
         assert_eq!(
             format_reset_line(at, at - chrono::Duration::seconds(47)),
-            "1 min"
+            "1\u{a0}min"
         );
         // The core's duration in the TUI locale, as the desktop shows it.
         assert_eq!(
@@ -5885,7 +5888,7 @@ mod tests {
         // PRD 0024 RF6.2: the core's chip follows the label when the card is wide
         // enough, never at the narrow width.
         let wide = render_sized(&paced(), &[], &[], false, at_min(0), (200, 30)).join("\n");
-        assert!(wide.contains("20 pts de reserva"), "{wide}");
+        assert!(wide.contains("20\u{a0}pts de reserva"), "{wide}");
         assert!(!narrow.contains("pts de reserva"), "{narrow}");
         // A preserved reading is old: no pace for it.
         let (reports, mut good) = failed_after_success();
@@ -5906,7 +5909,7 @@ mod tests {
         long[0].as_mut().unwrap().metrics[0].label = LABEL.into();
         let wide = render_sized(&long, &[], &[], false, at_min(0), (220, 30)).join("\n");
         let row = wide.lines().find(|row| row.contains(LABEL)).unwrap();
-        let chip = "20 pts de reserva";
+        let chip = "20\u{a0}pts de reserva";
         let end = row.find(chip).expect("the full chip at 220 columns") - 2;
         let start = row.find(LABEL).unwrap();
         let prefix = row[start..end].to_owned();
@@ -6035,12 +6038,12 @@ mod tests {
             at_min(3),
         )
         .join("\n");
-        assert_eq!(rows.matches("há 3 min").count(), 3);
+        assert_eq!(rows.matches("há 3\u{a0}min").count(), 3);
         let first_card = rows
             .lines()
             .find(|line| line.contains("OpenAI API"))
             .expect("first card status line");
-        assert!(first_card.contains("Disponível · há 3 min"));
+        assert!(first_card.contains("Disponível · há 3\u{a0}min"));
         assert!(!rows.contains("desatualizada"));
     }
 
@@ -6051,9 +6054,9 @@ mod tests {
             render_at(&reports, &[Some(&good), None, None], &[], false, at_min(42)).join("\n");
         // The old metrics stay on screen with their own age (42 min), not
         // the failed query's (2 min), and the class is not claimed.
-        assert!(rows.contains("(desatualizada) há 42 min"));
+        assert!(rows.contains("(desatualizada) há 42\u{a0}min"));
         assert!(rows.contains("Antiga:"));
-        assert!(!rows.contains("há 2 min"));
+        assert!(!rows.contains("há 2\u{a0}min"));
         assert_eq!(rows.matches("desatualizada").count(), 1);
 
         // Without a preserved reading the failed card has no metrics and
@@ -6080,7 +6083,7 @@ mod tests {
             .find(|line| line.contains("desatualizada"))
             .expect("stale status line");
         assert!(
-            card.contains("Aguardando") && card.contains("(desatualizada) há 1 h"),
+            card.contains("Aguardando") && card.contains("(desatualizada) há 1\u{a0}h"),
             "{card}"
         );
         assert!(rows.contains("Antiga:"));
@@ -6094,11 +6097,11 @@ mod tests {
             render_at(&reports, &[Some(&good), None, None], &[], true, at_min(42)).join("\n");
         let local = |at: DateTime<Utc>| at.with_timezone(&Local).format("%H:%M:%S").to_string();
         assert!(text.contains(&format!(
-            "consultado há 2 min (00:40:00 UTC · {} local)",
+            "consultado há 2\u{a0}min (00:40:00 UTC · {} local)",
             local(at_min(40))
         )));
         assert!(text.contains(&format!(
-            "(desatualizada) última válida há 42 min (00:00:00 UTC · {} local)",
+            "(desatualizada) última válida há 42\u{a0}min (00:00:00 UTC · {} local)",
             local(at_min(0))
         )));
         assert!(text.contains("Antiga") && text.contains("Falha de rede"));
@@ -6564,7 +6567,7 @@ mod tests {
         stale[0].stale = true;
         let text = render_status(&three_accounts(), (false, 0), &stale, (100, 30)).join("\n");
         assert!(
-            text.contains("▲ Interrupção parcial · última leitura · lido há 2 min"),
+            text.contains("▲ Interrupção parcial · última leitura · lido há 2\u{a0}min"),
             "{text}"
         );
 
@@ -6577,7 +6580,7 @@ mod tests {
         expired[0].expired = true;
         let text = render_status(&three_accounts(), (false, 0), &expired, (100, 30)).join("\n");
         assert!(
-            text.contains("? Status desconhecido · lido há 31 min"),
+            text.contains("? Status desconhecido · lido há 31\u{a0}min"),
             "{text}"
         );
     }
@@ -6603,7 +6606,7 @@ mod tests {
             alpha.contains("PROVEDOR  ▲ Interrupção parcial · Elevated API errors"),
             "{alpha}"
         );
-        assert!(alpha.contains("lido há 2 min"), "{alpha}");
+        assert!(alpha.contains("lido há 2\u{a0}min"), "{alpha}");
         assert!(alpha.contains("https://status.example.com/incidents/x1"));
         // Operational and unknown are spelled out in the details.
         let beta = at(1);
@@ -6620,7 +6623,7 @@ mod tests {
         stale[0].stale = true;
         let alpha = render_status(&three_accounts(), (true, 0), &stale, (100, 40)).join("\n");
         assert!(
-            alpha.contains("lido há 2 min · a última consulta de status falhou"),
+            alpha.contains("lido há 2\u{a0}min · a última consulta de status falhou"),
             "{alpha}"
         );
         // Off: no status block at all.

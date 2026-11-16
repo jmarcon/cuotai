@@ -667,6 +667,6 @@ mod tests {
             panic!()
         };
         assert_eq!(note.id, "amount.units");
-        assert_eq!(note.fallback, "2 points");
+        assert_eq!(note.fallback, "2\u{a0}points");
     }
 }

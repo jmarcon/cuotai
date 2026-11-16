@@ -39,7 +39,7 @@ const alerts = (count) => ({ id: "alerts.title.accounts", params: { count: Strin
 assert.equal(i18n.tl(alerts(1)), "Cuotai: 1 alerta de uso");
 assert.equal(i18n.tl(alerts(3)), "Cuotai: 3 alertas de uso");
 // RF10.3: durations come from the catalog patterns.
-assert.equal(durationText(37 * 60), "37 min");
+assert.equal(durationText(37 * 60), "37\u00a0min");
 assert.equal(durationText(95 * 60), "1h 35m");
 assert.equal(durationText(3 * 86400 + 15 * 3600), "3d 15h");
 const now = Date.now();

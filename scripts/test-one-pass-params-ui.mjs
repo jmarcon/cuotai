@@ -41,6 +41,6 @@ console.log("PASS: a raw fallback template is substituted once");
 // The demo's durations pass the raw English pattern, so `tl` is their only substitution, in every language.
 assert.equal(durationText(2 * 3600 + 5 * 60), "2h 5m");
 await i18n.setLocale("de");
-assert.equal(durationText(2 * 3600 + 5 * 60), "2 Std. 5 Min.");
+assert.equal(durationText(2 * 3600 + 5 * 60), "2\u00a0Std. 5\u00a0Min.");
 await i18n.setLocale("en-US");
 console.log("PASS: durations read in one pass");

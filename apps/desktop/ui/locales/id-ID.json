@@ -408,7 +408,7 @@
   "settings.notify.system": "Buka pengaturan sistem → Notifikasi, izinkan Cuotai, lalu aktifkan opsi ini lagi. Gunakan “Kirim notifikasi uji” untuk memeriksa.",
   "settings.notify.lead": "Kapan",
   "settings.notify.leadNow": "Tepat waktu",
-  "settings.notify.leadMin": "{min} mnt sebelumnya",
+  "settings.notify.leadMin": "{min} mnt sebelumnya",
   "settings.notify.when": "Beri tahu",
   "settings.notify.whenHelp": "Jendela 5 jam, sehari, seminggu, atau sebulan; batas laju dan saldo tidak pernah memicu notifikasi.",
   "settings.notify.when.used": "Hanya jika terpakai",
@@ -1012,8 +1012,8 @@
   "settings.costBy.col.state": "Status",
   "settings.costBy.col.sessions": "Sesi",
   "settings.costBy.col.project": "Proyek",
-  "settings.costBy.minutes": "{m} mnt",
-  "settings.costBy.hours": "{h} j {m} mnt",
+  "settings.costBy.minutes": "{m} mnt",
+  "settings.costBy.hours": "{h} j {m} mnt",
   "settings.costBy.moreSessions": {
     "other": "{count} sesi lama tidak ditampilkan."
   },
@@ -1031,7 +1031,7 @@
   "settings.costBy.hiddenNote": {
     "other": "{count} proyek disembunyikan: tetap tercantum, tetapi tidak dihitung dalam total."
   },
-  "settings.costBy.blockDefault": "Panjang blok; bawaan {hours} j",
+  "settings.costBy.blockDefault": "Panjang blok; bawaan {hours} j",
   "settings.costBy.blockHours": "Panjang blok {source}, dalam jam",
   "settings.costBy.hoursUnit": "j",
   "settings.costBy.hint": "Simpan nama folder terakhir tiap proyek",
@@ -1507,8 +1507,8 @@
   "settings.kw.rows-separate": "baris tampilan jendela utama terpisah tata letak berbeda",
   "settings.display.more": "Opsi tampilan lainnya",
   "lang.inProgress": "Terjemahan sedang dikerjakan",
-  "time.duration.minutesSeconds": "{m} mnt {s} dtk",
-  "time.duration.seconds": "{s} dtk",
+  "time.duration.minutesSeconds": "{m} mnt {s} dtk",
+  "time.duration.seconds": "{s} dtk",
   "settings.page.extensions": "Ekstensi",
   "settings.extensions.group": "Ekstensi terpasang",
   "settings.kw.extensions": "ekstensi lokal add-on plugin penyedia kustom jalankan setujui folder",
@@ -1682,7 +1682,7 @@
   "backup.included": "Disertakan",
   "backup.excluded": "Tidak disertakan",
   "backup.withHistory": "Sertakan riwayat 90 hari terakhir",
-  "backup.historyLarge": "Riwayat menambah sekitar {size} MiB; file mungkin lambat disalin.",
+  "backup.historyLarge": "Riwayat menambah sekitar {size} MiB; file mungkin lambat disalin.",
   "backup.save": "Simpan…",
   "backup.done": "Cadangan disimpan ke {path} ({count} file).",
   "backup.noSecret": "Kunci, token, dan info masuk tetap di brankas sistem.",

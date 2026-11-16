@@ -182,11 +182,11 @@ const expected = {
   fr: {
     unit: "restant",
     levels: {
-      good: "75 % restant : il en reste largement (70 % ou plus).",
-      warn: "Attention : 50 % restant (entre 30 % et 70 %).",
-      bad: "Critique : seulement 20 % restant (moins de 30 %).",
+      good: "75\u00a0% restant : il en reste largement (70 % ou plus).",
+      warn: "Attention : 50\u00a0% restant (entre 30 % et 70 %).",
+      bad: "Critique : seulement 20\u00a0% restant (moins de 30 %).",
     },
-    rateLimit: "Limite de débit : 42 % restant",
+    rateLimit: "Limite de débit : 42\u00a0% restant",
     sortAsc: "Restant : le plus bas d’abord",
     sortDesc: "Restant : le plus haut d’abord",
   },

@@ -2815,7 +2815,7 @@ mod tests {
         let now = report.checked_at + chrono::Duration::seconds(125);
         assert_eq!(
             report_heading(&report, now),
-            "Work / Claude — Rate limit · consultado há 2 min"
+            "Work / Claude — Rate limit · consultado há 2\u{a0}min"
         );
         // PRD 0029 V-07: an unnamed account names its provider once.
         let unnamed = self::report("", Status::RateLimited, Vec::new());
@@ -3093,7 +3093,7 @@ mod tests {
         let recent = [vec![point(40, 10.0), point(20, 25.0), point(0, 40.0)]];
         assert!(
             report_text(&report, &recent, None, FIVE_MIN, now, "en-US", at).contains(
-                "Pace: 20 points in reserve · runs out at 01:20, 40 min before the reset"
+                "Pace: 20 points in reserve · runs out at 01:20, 40\u{a0}min before the reset"
             )
         );
     }
@@ -3309,7 +3309,7 @@ mod tests {
         };
         assert!(
             report_text(&ready, &[], Some(&expired), FIVE_MIN, now, "pt-BR", at)
-                .contains("Status do provedor: Status desconhecido · lido há 31 min")
+                .contains("Status do provedor: Status desconhecido · lido há 31\u{a0}min")
         );
         for state in [IncidentState::Operational, IncidentState::Unknown] {
             let quiet = ProviderStatus {

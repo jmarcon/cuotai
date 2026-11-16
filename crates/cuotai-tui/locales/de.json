@@ -223,7 +223,7 @@
   "extension_check.outcome.revoked": "Freigabe widerrufen",
   "extension_check.outcome.terminated": "ohne Exit-Code beendet",
   "extension_check.outcome.timed_out": "Zeit überschritten",
-  "extension_check.run": "Ausführung: {outcome} in {ms} ms",
+  "extension_check.run": "Ausführung: {outcome} in {ms} ms",
   "extension_check.source": "Quelle: {source}",
   "extension_check.status": "Status: {status}",
   "extension_check.violations": "Verstöße gegen den Vertrag:",
@@ -677,7 +677,7 @@
   "channels.cli.test_ok": "Gesendet: {host} antwortete {status}.",
   "channels.cli.test_failed": "Nicht gesendet: {host} ({reason}).",
   "channels.cli.log_empty": "Keine Zustellung in den letzten 7 Tagen.",
-  "cli.backup.history_large": "Die Sicherung enthält {size} MiB Verlauf; das Kopieren kann dauern.",
+  "cli.backup.history_large": "Die Sicherung enthält {size} MiB Verlauf; das Kopieren kann dauern.",
   "cli.restore.merge": "zusammenführen",
   "cli.restore.rows": "Zeilen: {rows}, hier neu: {new}",
   "cli.list_providers.aggregator": " (Aggregator)",
@@ -685,6 +685,6 @@
   "status_line.unknown_account": "--account {value} bezeichnet kein einzelnes Konto; verwenden Sie eine ID (aus --json-v1, /v1/limits oder der id-Zeile der TOML), einen Schlüssel oder einen eindeutigen Namen. IDs: {ids}.",
   "status_line.no_accounts": "keine",
   "headless.strict_exit_no_ready": "cuotai: Exit-Code 2 (--strict-exit): Kein Konto hatte vor dem Stopp des Servers eine fehlerfreie Messung.",
-  "wizard.interval.prompt_metered": "Eigenes Intervall dieses Kontos in Sekunden ({min}–{max}); leer = alle {default} s:",
-  "wizard.interval.help_metered": "Gilt nur für dieses Konto. Das tatsächliche Minimum beträgt {effective} s: {min} bis {effective} s werden auf {effective} s angehoben."
+  "wizard.interval.prompt_metered": "Eigenes Intervall dieses Kontos in Sekunden ({min}–{max}); leer = alle {default} s:",
+  "wizard.interval.help_metered": "Gilt nur für dieses Konto. Das tatsächliche Minimum beträgt {effective} s: {min} bis {effective} s werden auf {effective} s angehoben."
 }

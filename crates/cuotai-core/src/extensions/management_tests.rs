@@ -606,8 +606,9 @@ async fn enable_refresh_disable_and_remove_in_every_locale() {
             .collect();
         let joined = shown.join("\n");
         assert!(joined.contains("quota"), "{locale}: {joined}");
+        // A catalog holds the figure to its unit with a no-break space; the English source in code does not.
         assert!(
-            joined.contains("60 s"),
+            joined.replace('\u{a0}', " ").contains("60 s"),
             "{locale}: interval and timeout disclosed: {joined}"
         );
 

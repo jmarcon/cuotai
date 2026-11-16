@@ -7,7 +7,8 @@
 //!
 //! - `amount.money` `{value, currency}`: `$6.25`, `6,25 $`, `US$ 6,25`;
 //! - `amount.number` `{value}`: `1,234.5`, `1.234,5`;
-//! - `amount.units` `{value, unit}`: `12.5 credits`.
+//! - `amount.units` `{value, unit}`: `12.5 credits`, a no-break space between
+//!   the number and its unit (PRD 0034 re-validation V-10).
 //!
 //! [`Localized::resolve`] renders these ids here instead of through a
 //! catalog, and the desktop renders them with `Intl.NumberFormat`. The
@@ -241,7 +242,7 @@ pub fn number(value: f64) -> Localized {
 /// A number with its unit (`12.5 credits`), the number rendered per locale.
 pub fn units(value: f64, unit: &str) -> Localized {
     Localized {
-        fallback: format!("{} {unit}", format_number(value, source())).into(),
+        fallback: format!("{}{NBSP}{unit}", format_number(value, source())).into(),
         id: UNITS.into(),
         params: params([
             ("value", ParamValue::Text(machine(value))),
@@ -272,7 +273,7 @@ pub(super) fn render(note: &Localized, locale: &str) -> Option<String> {
         }
         NUMBER => Some(format_number(value, locale)),
         UNITS => Some(format!(
-            "{} {}",
+            "{}{NBSP}{}",
             format_number(value, locale),
             text_param(note, "unit")?
         )),
@@ -340,8 +341,8 @@ mod tests {
             })
         );
         let units = units(1234.5, "credits");
-        assert_eq!(units.fallback, "1,234.5 credits");
-        assert_eq!(units.resolve("de"), "1.234,5 credits");
+        assert_eq!(units.fallback, "1,234.5\u{a0}credits");
+        assert_eq!(units.resolve("de"), "1.234,5\u{a0}credits");
         assert_eq!(number(1234.5).resolve("fr"), "1\u{202f}234,5");
         // Nested inside another text, the amount follows the outer locale.
         let outer = Localized::with_param("x.y", "amount", money(6.25, "USD"), "Spent {amount}");

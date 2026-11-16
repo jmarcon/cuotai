@@ -49,6 +49,11 @@
   .topbar .tb-add { display: none; }
   .topbar .tb-add-icon { display: inline-grid; }
   .tb-age { display: none; }
+  /* PRD 0034 re-validation V-11: the one-row bar leaves the filter 33 to 50 px of text room, too little for its
+     placeholder in any language: as in the two-row bar, it reads as its icon until focused, then widens. */
+  .tb-search input::placeholder { color: transparent; }
+  .topbar .tb-search:focus-within input { width: 180px; }
+  .tb-search:focus-within input::placeholder { color: var(--fg-muted); }
 }
 /* DS-TOK-LAY-3, DS-CMP-TAB-4: narrow windows (520 px minimum) get two rows: the brand and the icon actions, then
    the filter tabs, the search (an icon until focused) and sort. Nothing is clipped. */
@@ -761,6 +766,11 @@
   font: inherit;
   user-select: text;
 }
+/* PRD 0034 re-validation V-11: a placeholder longer than the field (the pseudo-locale's) ends in an ellipsis. */
+.filter input,
+.filter input::placeholder {
+  text-overflow: ellipsis;
+}
 .filter input:focus {
   outline: 2px solid var(--focus);
   outline-offset: -1px;
@@ -956,9 +966,19 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 4;
 }
+/* PRD 0034 re-validation V-10 (DS-A11Y-7): the details' pace, forecast and reset texts wrap only at their spaces, so a
+   CJK figure never breaks from its unit ("比重置早 1天"). */
+.metric-meta .pace-line,
+.metric-meta .resets,
+.detail .call {
+  word-break: keep-all;
+}
+/* PRD 0034 re-validation V-10 (DS-A11Y-7): a reset line wraps only at its spaces, so a CJK figure never breaks from its
+   unit ("4時間29分後"); the catalogs hold the other languages' figures to their units with no-break spaces. */
 .win-reset {
   margin-top: calc(var(--space-1) + var(--space-0));
   overflow: hidden;
+  word-break: keep-all;
   color: var(--fg-muted);
   font: var(--text-sm) var(--font-mono), var(--font-script);
 }

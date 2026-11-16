@@ -4694,12 +4694,12 @@ mod tests {
         let age = |secs: i64| age_text(at, at + chrono::Duration::seconds(secs));
         assert_eq!(age(-30), "agora", "clock adjusted backwards");
         assert_eq!(age(0), "agora");
-        assert_eq!(age(59), "há 59 s");
-        assert_eq!(age(60), "há 1 min");
-        assert_eq!(age(3_599), "há 59 min");
-        assert_eq!(age(3_600), "há 1 h");
-        assert_eq!(age(86_399), "há 23 h");
-        assert_eq!(age(86_400), "há 1 d");
+        assert_eq!(age(59), "há 59\u{a0}s");
+        assert_eq!(age(60), "há 1\u{a0}min");
+        assert_eq!(age(3_599), "há 59\u{a0}min");
+        assert_eq!(age(3_600), "há 1\u{a0}h");
+        assert_eq!(age(86_399), "há 23\u{a0}h");
+        assert_eq!(age(86_400), "há 1\u{a0}d");
     }
 
     #[test]

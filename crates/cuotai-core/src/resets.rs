@@ -1306,7 +1306,7 @@ mod tests {
         let last_second = reset.notice(&account(), now() - TimeDelta::seconds(1));
         assert_eq!(
             last_second.title.resolve("es"),
-            "Claude: la cuota de 5 horas se renueva en 1 min"
+            "Claude: la cuota de 5 horas se renueva en 1\u{a0}min"
         );
     }
 
