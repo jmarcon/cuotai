@@ -24,7 +24,11 @@ const oceanCss = ':root[data-theme="ocean"][data-mode="dark"] {\n  color-scheme:
 const payload = {
   dir: "/tmp/cuotai",
   themes: [{ name: "ocean.css", id: "ocean", label: "Ocean", group: "custom", modes: ["dark", "light"], text: oceanCss }],
-  locales: [{ name: "fr.json", text: JSON.stringify({ _meta: { name: "Français" }, "tray.ok": "Tout fonctionne" }) }],
+  locales: [
+    { name: "fr.json", text: JSON.stringify({ _meta: { name: "Français" }, "tray.ok": "Tout fonctionne" }) },
+    // PRD 0034 re-validation S-05: names that fit the shape but not BCP 47, which would make every Intl call throw.
+    ...["en-US-US", "en-a1", "xx-ab-cd-ef"].map((code) => ({ name: `${code}.json`, text: JSON.stringify({ _meta: { name: code }, "tray.ok": "x" }) })),
+  ],
   errors: [
     { kind: "theme", name: "pixel.css", reason: "externalUrl" },
     { kind: "theme", name: "wide.css", reason: "property" },
@@ -61,7 +65,15 @@ assert.equal(i18n.t("tray.ok"), "Tout fonctionne");
 assert.equal(i18n.t("serve.banner"), builtinBanner);
 
 // Refusals carry the parser's reason, each with a translated message in every catalog.
-assert.deepEqual(content.errors.map((e) => e.reason), ["externalUrl", "property", "protected"]);
+assert.deepEqual(content.errors.map((e) => e.reason), ["externalUrl", "property", "protected", "invalidId", "invalidId", "invalidId"]);
+assert.deepEqual(content.errors.slice(3).map((e) => e.name), ["en-US-US.json", "en-a1.json", "xx-ab-cd-ef.json"]);
+assert.ok(!i18n.hasLocale("en-US-US"), "a pack Intl cannot read is not offered");
+// S-05: a tag Intl cannot read formats as en-US instead of throwing.
+for (const code of ["en-US", "pt-BR", "fr", "sr-Latn-RS", "zh-Hant-TW"]) assert.ok(i18n.isIntlTag(code), code);
+for (const code of ["en-US-US", "en-a1", "", "x"]) assert.ok(!i18n.isIntlTag(code), code);
+assert.equal(i18n.intlTag("en-US-US"), "en-US");
+const { intlFormatter } = await import("../apps/desktop/ui/js/lib.js");
+assert.equal(intlFormatter("NumberFormat", "en-US-US", { maximumFractionDigits: 1 }).format(1234.5), "1,234.5");
 await i18n.setLocale("en-US");
 assert.match(skippedMessage(content.errors[1]), /not a theme token/);
 const reasons = ["syntax", "atRule", "externalUrl", "function", "scope", "property", "value", "modes", "invalidMeta", "invalidId"];
