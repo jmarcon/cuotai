@@ -32,6 +32,12 @@ pub(crate) const DEBUG_ENV: &str = "CUOTAI_METERED_DIR";
 /// The record format: 2 binds the record to the account's settings.
 const SCHEMA: u32 = 2;
 
+/// A reader takes `now` before it waits for the lock, so a query another
+/// process recorded during that wait can carry a slightly later time; it
+/// still counts as this interval's query, never as a reason to pay again.
+/// A record further ahead (a clock set back) does not count.
+const RACE_MARGIN: TimeDelta = TimeDelta::seconds(60);
+
 /// How long a reader waits for another process's lock on a record.
 pub(crate) const LOCK_WAIT: std::time::Duration = crate::private_fs::UPDATE_LOCK_WAIT;
 
@@ -80,7 +86,7 @@ impl Record {
         self.ready_report().is_some()
             && self
                 .queried_at
-                .is_some_and(|at| at <= now && now - at < interval)
+                .is_some_and(|at| at <= now + RACE_MARGIN && now - at < interval)
     }
 
     fn claimed(&self, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
@@ -255,7 +261,7 @@ impl Store {
             let ready = record.ready_report().is_some();
             let queried_at = record.queried_at.filter(|_| ready);
             let claimed = record.claimed(now);
-            let recent = queried_at.filter(|at| *at <= now && now - *at < floor);
+            let recent = queried_at.filter(|at| *at <= now + RACE_MARGIN && now - *at < floor);
             match (claimed, queried_at, recent) {
                 (Some(until), Some(at), _) => {
                     let report = record.report.take().expect("a ready record has a report");
@@ -490,6 +496,35 @@ mod tests {
         let later = t0 + TimeDelta::minutes(61);
         assert!(matches!(
             begin(&second, &account, interval, later),
+            Decision::Query
+        ));
+    }
+
+    /// A reader that took `now` just before another process recorded its
+    /// query (while it waited for the lock) reuses that reading instead of
+    /// paying again (seen in CI as two billed calls for two monitors).
+    #[test]
+    fn a_query_recorded_while_waiting_for_the_lock_is_reused() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::new(dir.path().to_path_buf());
+        let account = account();
+        let hour = TimeDelta::hours(1);
+        let t0 = Utc::now();
+        assert!(matches!(begin(&store, &account, hour, t0), Decision::Query));
+        finish(
+            &store,
+            &account,
+            &report(Status::Ready),
+            t0 + TimeDelta::seconds(2),
+        );
+        assert!(matches!(
+            begin(&store, &account, hour, t0),
+            Decision::Reuse(_)
+        ));
+        // A record far ahead of the clock (set back) does not count.
+        let behind = t0 - TimeDelta::hours(2);
+        assert!(matches!(
+            begin(&store, &account, hour, behind),
             Decision::Query
         ));
     }
