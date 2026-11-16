@@ -252,6 +252,8 @@ fn route(path: &str) -> &'static [Area] {
         "deny.toml" => return &[DenyConfig, Xtask],
         // xtask compiles this core file with `#[path]`.
         "crates/cuotai-core/src/changelog.rs" => return &[Core, Xtask],
+        // The macOS extension decodes what this file writes.
+        "crates/cuotai-core/src/widget_snapshot.rs" => return &[Core, Widgets],
         "scripts/site-build.sh" => return &[Site],
         "scripts/codeql-local.sh" => return &[],
         ".github/workflows/pages.yml" => return &[Workflows, Site, Xtask],
@@ -263,6 +265,12 @@ fn route(path: &str) -> &'static [Area] {
     if path.starts_with("crates/cuotai-core/locales/") {
         // Several UI scripts read the core catalogs.
         return &[Core, Ui];
+    }
+    if path.starts_with("crates/cuotai-core/tests/fixtures/widget/")
+        || path.starts_with("crates/cuotai-core/tests/fixtures/compat/widget/")
+    {
+        // The widget render check decodes these fixtures.
+        return &[Core, Widgets];
     }
     if path.starts_with("crates/cuotai-core/") {
         return &[Core];
@@ -285,6 +293,9 @@ fn route(path: &str) -> &'static [Area] {
     if path.starts_with("apps/desktop/ui/locales/") {
         // `desk_text.rs` compiles these catalogs in.
         return &[Ui, Desktop];
+    }
+    if path.starts_with("apps/desktop/tools/widget-shots/") {
+        return &[Widgets];
     }
     if path.starts_with("apps/desktop/ui/") || path.starts_with("apps/desktop/tools/") {
         return &[Ui];
@@ -713,6 +724,18 @@ mod tests {
         assert!(!push(&["apps/desktop/src-tauri/src/widgets.rs"])
             .steps
             .contains(&Step::Widgets));
+        // The render check decodes what the core writes and draws it.
+        for path in [
+            "crates/cuotai-core/src/widget_snapshot.rs",
+            "crates/cuotai-core/tests/fixtures/widget/writer.json",
+            "crates/cuotai-core/tests/fixtures/compat/widget/major-2-revision-0/widget.json",
+            "apps/desktop/tools/widget-shots/macos/Render.swift",
+        ] {
+            assert!(push(&[path]).steps.contains(&Step::Widgets), "{path}");
+        }
+        assert!(push(&["crates/cuotai-core/src/widget_snapshot.rs"])
+            .steps
+            .contains(&Step::Test));
     }
 
     #[test]

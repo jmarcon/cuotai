@@ -109,6 +109,18 @@ func stateShots(_ snapshot: WidgetSnapshot, now: Date) -> [Shot] {
         Shot(name: "state-history-removed", family: .systemMedium,
              view: AnyView(HistoryWidgetEntryView(entry: HistoryEntry(date: now, snapshot: snapshot, pinnedKey: "claude:Removed")))),
     ]
+    // A file this extension cannot read (a newer schema, say): every widget
+    // says "Update Cuotai", in each of its sizes.
+    let unreadable = SummaryEntry(date: now, read: .unreadable, pinnedKey: nil)
+    for family in [WidgetFamily.systemSmall, .systemMedium] {
+        let size = family == .systemSmall ? "small" : "medium"
+        result.append(Shot(name: "state-summary-unreadable-\(size)", family: family,
+                           view: AnyView(SummaryWidgetEntryView(entry: unreadable))))
+        result.append(Shot(name: "state-account-unreadable-\(size)", family: family,
+                           view: AnyView(AccountWidgetEntryView(entry: unreadable))))
+    }
+    result.append(Shot(name: "state-history-unreadable", family: .systemMedium,
+                       view: AnyView(HistoryWidgetEntryView(entry: HistoryEntry(date: now, read: .unreadable, pinnedKey: nil)))))
     for (offset, account) in snapshot.accounts.enumerated() {
         let pinned = SummaryEntry(date: now, snapshot: snapshot, pinnedKey: account.id)
         result.append(Shot(name: "state-account-\(offset)-small", family: .systemSmall,
@@ -192,6 +204,80 @@ func loadFixture(_ path: String, now: Date) throws -> WidgetSnapshot {
     return snapshot
 }
 
+// MARK: - Check
+
+/// `--check`: the guard CI runs (PRD 0014 RF3). Each argument is
+/// `<expected>:<widget.json>`, where `expected` is what the shipped
+/// `WidgetSnapshot.read(from:)` must find: `ready` (and then every account
+/// of the file decoded) or `unreadable` (a newer schema). Every widget, in
+/// each size and both schemes, is then laid out under the widget's own size
+/// *and* under the unspecified and unbounded proposals macOS 27.2 measures
+/// with. A layout that SwiftUI rejects stops this process (the same fatal
+/// error that left the widgets on the system's placeholder), so the check
+/// fails with it; it writes no file.
+@MainActor
+func check(_ arguments: ArraySlice<String>) throws {
+    var failures: [String] = []
+    var renders = 0
+    for argument in arguments {
+        guard let colon = argument.firstIndex(of: ":") else {
+            failures.append("\(argument): expected <ready|unreadable>:<path>")
+            continue
+        }
+        let expected = String(argument[..<colon])
+        let path = String(argument[argument.index(after: colon)...])
+        let url = URL(fileURLWithPath: path)
+        let read = WidgetSnapshot.read(from: url)
+        switch (expected, read) {
+        case ("ready", .ready(let snapshot)):
+            let raw = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+            let published = (raw?["accounts"] as? [Any])?.count ?? -1
+            if snapshot.accounts.count != published {
+                failures.append("\(path): decoded \(snapshot.accounts.count) of \(published) accounts")
+            }
+        case ("unreadable", .unreadable):
+            break
+        default:
+            failures.append("\(path): expected \(expected), read \(read)")
+            continue
+        }
+        let now = Date()
+        let snapshot = read.snapshot.map { _ in try? loadFixture(path, now: now) } ?? nil
+        var all = snapshot.map { shots($0, now: now) + stateShots($0, now: now) } ?? []
+        all += stateShots(WidgetSnapshot(schema: 1, generatedAt: now, accounts: [], truncated: false), now: now)
+        for shot in all {
+            let size = Chrome.size(shot.family)
+            let proposals = [
+                ProposedViewSize(size),
+                .unspecified,
+                ProposedViewSize(width: .infinity, height: size.height),
+                ProposedViewSize(width: size.width, height: .infinity),
+                .infinity,
+            ]
+            for scheme in [ColorScheme.light, .dark] {
+                for proposal in proposals {
+                    let view = shot.view
+                        .environment(\.shotFamily, shot.family)
+                        .environment(\.colorScheme, scheme)
+                    let renderer = ImageRenderer(content: view)
+                    renderer.proposedSize = proposal
+                    renders += 1
+                    guard let image = renderer.cgImage, image.width > 0, image.height > 0 else {
+                        failures.append("\(path): \(shot.name) drew nothing under \(proposal)")
+                        continue
+                    }
+                }
+            }
+        }
+    }
+    if failures.isEmpty {
+        print("widget check: \(arguments.count) file(s), \(renders) layouts, all drawn")
+    } else {
+        FileHandle.standardError.write(Data(failures.map { "widget check: \($0)\n" }.joined().utf8))
+        exit(1)
+    }
+}
+
 // MARK: - Output
 
 @MainActor
@@ -210,8 +296,12 @@ struct RenderWidgetShots {
     @MainActor
     static func main() throws {
         let arguments = CommandLine.arguments
+        if arguments.count >= 3 && arguments[1] == "--check" {
+            try check(arguments.dropFirst(2))
+            return
+        }
         guard arguments.count == 3 || (arguments.count == 4 && arguments[3] == "--states") else {
-            FileHandle.standardError.write(Data("usage: render <widget.json> <out-dir> [--states]\n".utf8))
+            FileHandle.standardError.write(Data("usage: render <widget.json> <out-dir> [--states] | render --check <ready|unreadable>:<widget.json>...\n".utf8))
             exit(1)
         }
         let states = arguments.count == 4

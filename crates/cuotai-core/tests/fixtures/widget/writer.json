@@ -1,0 +1,174 @@
+{
+  "schema": 1,
+  "generated_at": "2026-10-20T12:00:00Z",
+  "accounts": [
+    {
+      "id": "acc_y0nx85xc4kt2",
+      "key": "copilot:Personal",
+      "name": "Personal",
+      "provider": "copilot",
+      "provider_name": "GitHub Copilot",
+      "email": null,
+      "state": "ready",
+      "checked_at": "2026-10-20T11:40:00Z",
+      "freshness": "stale",
+      "binding": {
+        "index": 0,
+        "label": "Premium requests",
+        "label_text": {
+          "id": "metric.verbatim",
+          "fallback": "Premium requests"
+        },
+        "window": "monthly",
+        "used_ratio": 1.0,
+        "remaining": 0.0,
+        "resets_at": "2026-11-02T00:00:00Z",
+        "reason": "exhausted",
+        "blocked_until": "2026-11-02T00:00:00Z"
+      },
+      "metrics": [
+        {
+          "label": "Premium requests",
+          "used_fraction": 1.0001428571428572,
+          "limit": 7000.0,
+          "unit": "%",
+          "window": "monthly",
+          "resets_at": "2026-11-02T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": "acc_nhwzwqmwfzz3",
+      "key": "claude:Work",
+      "name": "Work",
+      "provider": "claude",
+      "provider_name": "Claude",
+      "email": "ana@example.com",
+      "state": "ready",
+      "checked_at": "2026-10-20T11:57:00Z",
+      "freshness": "fresh",
+      "binding": {
+        "index": 0,
+        "label": "Week",
+        "label_text": {
+          "id": "metric.verbatim",
+          "fallback": "Week"
+        },
+        "window": "weekly",
+        "used_ratio": 0.39,
+        "remaining": 61.0,
+        "resets_at": "2026-10-23T20:00:00Z",
+        "reason": "tightest",
+        "blocked_until": null
+      },
+      "metrics": [
+        {
+          "label": "Week",
+          "used_fraction": 0.39,
+          "limit": 100.0,
+          "unit": "%",
+          "window": "weekly",
+          "resets_at": "2026-10-23T20:00:00Z",
+          "pace": {
+            "elapsed_fraction": 0.5235119047619048,
+            "expected_used_fraction": 0.5235119047619048,
+            "used_fraction": 0.39,
+            "delta_points": -13.351190476190474,
+            "delta_ratio": -0.255031267765776,
+            "stage": "reserve",
+            "tone": "good",
+            "source": "average",
+            "resets_at": "2026-10-23T20:00:00Z",
+            "projected_exhaustion_at": null,
+            "lasts_until_reset": true
+          }
+        },
+        {
+          "label": "Session (5h)",
+          "used_fraction": 0.12,
+          "limit": 100.0,
+          "unit": "%",
+          "window": "window_5h",
+          "resets_at": "2026-10-20T15:00:00Z",
+          "pace": {
+            "elapsed_fraction": 0.39,
+            "expected_used_fraction": 0.39,
+            "used_fraction": 0.12,
+            "delta_points": -27.0,
+            "delta_ratio": -0.6923076923076923,
+            "stage": "reserve",
+            "tone": "good",
+            "source": "average",
+            "resets_at": "2026-10-20T15:00:00Z",
+            "projected_exhaustion_at": null,
+            "lasts_until_reset": true
+          }
+        }
+      ],
+      "history": [
+        {
+          "taken_at": "2026-10-20T01:00:00Z",
+          "used_fraction": 0.2
+        },
+        {
+          "taken_at": "2026-10-20T02:00:00Z",
+          "used_fraction": 0.21750000000000003
+        },
+        {
+          "taken_at": "2026-10-20T03:00:00Z",
+          "used_fraction": 0.23500000000000001
+        },
+        {
+          "taken_at": "2026-10-20T04:00:00Z",
+          "used_fraction": 0.2525
+        },
+        {
+          "taken_at": "2026-10-20T05:00:00Z",
+          "used_fraction": 0.27
+        },
+        {
+          "taken_at": "2026-10-20T06:00:00Z",
+          "used_fraction": 0.28750000000000003
+        },
+        {
+          "taken_at": "2026-10-20T07:00:00Z",
+          "used_fraction": 0.30500000000000005
+        },
+        {
+          "taken_at": "2026-10-20T08:00:00Z",
+          "used_fraction": 0.3225
+        },
+        {
+          "taken_at": "2026-10-20T09:00:00Z",
+          "used_fraction": 0.34
+        },
+        {
+          "taken_at": "2026-10-20T10:00:00Z",
+          "used_fraction": 0.35750000000000004
+        },
+        {
+          "taken_at": "2026-10-20T11:00:00Z",
+          "used_fraction": 0.375
+        },
+        {
+          "taken_at": "2026-10-20T12:00:00Z",
+          "used_fraction": 0.3925
+        }
+      ]
+    },
+    {
+      "id": "acc_npcefbht0bsj",
+      "key": "groq:Spare",
+      "name": "Spare",
+      "provider": "groq",
+      "provider_name": "Groq",
+      "email": null,
+      "state": "unavailable",
+      "checked_at": null,
+      "freshness": null,
+      "binding": null,
+      "metrics": []
+    }
+  ],
+  "truncated": false
+}
