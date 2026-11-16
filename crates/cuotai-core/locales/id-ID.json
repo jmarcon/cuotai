@@ -12,7 +12,10 @@
       "models.unsupported.reason.eleven_labs",
       "models.unsupported.reason.jetbrains_ai",
       "models.unsupported.reason.litellm",
-      "models.unsupported.reason.nine_router"
+      "models.unsupported.reason.nine_router",
+      "text.duration.compact.days",
+      "text.duration.compact.hours",
+      "text.duration.compact.minutes"
     ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
@@ -2018,6 +2021,9 @@
   "test.nine_router.untrusted_certificate": "Komputer ini tidak memercayai sertifikat instans. Sidik jari SHA-256: {fingerprint}. Periksa di server sebelum memercayainya.",
   "text.countdown": "dalam {duration}",
   "text.countdown.now": "sekarang",
+  "text.duration.compact.days": "{d}hr",
+  "text.duration.compact.hours": "{h}j",
+  "text.duration.compact.minutes": "{m} mnt",
   "text.duration.days": "{d}hr",
   "text.duration.days_hours": "{d}hr {h}j",
   "text.duration.hours": "{h}j",

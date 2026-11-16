@@ -12,7 +12,10 @@
       "models.unsupported.reason.eleven_labs",
       "models.unsupported.reason.jetbrains_ai",
       "models.unsupported.reason.litellm",
-      "models.unsupported.reason.nine_router"
+      "models.unsupported.reason.nine_router",
+      "text.duration.compact.days",
+      "text.duration.compact.hours",
+      "text.duration.compact.minutes"
     ]
   },
   "access.confirm_unavailable": "{reason} खाता सहेजा जाएगा, पर संख्याओं की जगह यह कारण दिखाएगा।",
@@ -2042,6 +2045,9 @@
   "test.nine_router.untrusted_certificate": "इंस्टेंस का प्रमाणपत्र इस कंप्यूटर के लिए भरोसेमंद नहीं है। SHA-256 फ़िंगरप्रिंट: {fingerprint}। भरोसा करने से पहले उसे सर्वर पर जाँचें।",
   "text.countdown": "{duration} में",
   "text.countdown.now": "अभी",
+  "text.duration.compact.days": "{d} दिन",
+  "text.duration.compact.hours": "{h} घं",
+  "text.duration.compact.minutes": "{m} मिनट",
   "text.duration.days": "{d} दिन",
   "text.duration.days_hours": "{d} दिन {h} घं",
   "text.duration.hours": "{h} घंटे",

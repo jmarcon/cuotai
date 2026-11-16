@@ -184,15 +184,47 @@ fn reset_seconds(resets_at: DateTime<Utc>, now: DateTime<Utc>) -> Option<i64> {
     }
 }
 
+#[cfg(test)]
 fn render_reset(resets_at: DateTime<Utc>, now: DateTime<Utc>) -> Line<'static> {
-    let text = match reset_seconds(resets_at, now) {
-        Some(total) => format_reset_remaining(total),
-        None => reset_text(resets_at, now).to_string(),
+    reset_forms(resets_at, now).swap_remove(0)
+}
+
+/// PRD 0034 re-validation V-01: the forms a reset may take, longest first:
+/// "renews 19h 58m", "19h 58m", then the core's compact "20h" (a passed
+/// reset has only "renews now" and "now"). A narrow column takes the first
+/// that fits ([`fit_reset`]); a figure is never cut.
+fn reset_forms(resets_at: DateTime<Utc>, now: DateTime<Utc>) -> Vec<Line<'static>> {
+    let value = |text: String| Span::styled(text, Style::default().fg(CYAN));
+    let (text, compact) = match reset_seconds(resets_at, now) {
+        Some(total) => (
+            format_reset_remaining(total),
+            Some(resolve_l10n(&cuotai_core::text::duration_compact(
+                chrono::TimeDelta::seconds(total),
+            ))),
+        ),
+        None => (reset_text(resets_at, now).to_string(), None),
     };
-    Line::from(vec![
-        Span::styled(renews(), Style::default().fg(MUTED)),
-        Span::styled(text, Style::default().fg(CYAN)),
-    ])
+    let mut forms = vec![
+        Line::from(vec![
+            Span::styled(renews(), Style::default().fg(MUTED)),
+            value(text.clone()),
+        ]),
+        Line::from(value(text.clone())),
+    ];
+    forms.extend(
+        compact
+            .filter(|compact| *compact != text)
+            .map(|compact| Line::from(value(compact))),
+    );
+    forms
+}
+
+/// The first form of the reset within `room` cells, `None` when not even
+/// the compact one fits (the details pane carries the full reset).
+fn fit_reset(resets_at: DateTime<Utc>, now: DateTime<Utc>, room: usize) -> Option<Line<'static>> {
+    reset_forms(resets_at, now)
+        .into_iter()
+        .find(|line| line.width() <= room)
 }
 
 /// PRD 0024 RF6 (re-validation V-04): the time left as the core's duration
@@ -1954,13 +1986,29 @@ fn render_card(
     }
 
     let motion_key = account.state_key();
+    // V-01: one reset column for the card, as wide as its widest full
+    // reset phrase (at least 16 cells), so its bars line up while it fits.
+    let reset_column = rows
+        .iter()
+        .take(METRICS_VISIBLE_IN_CARD)
+        .filter_map(|(_, metric)| metric.resets_at)
+        .filter_map(|at| reset_forms(at, now).first().map(Line::width))
+        .max()
+        .map_or(16, |width| u16::try_from(width).unwrap_or(u16::MAX).max(16));
     for (index, metric) in rows.iter().take(METRICS_VISIBLE_IN_CARD) {
         // A preserved reading stays still: no bar transition.
         let motion = view
             .anim
             .filter(|_| stale.is_none())
             .map(|anim| (anim, motion_key.as_str(), *index));
-        render_metric_block(frame, &chunks, &mut chunk_index, metric, now, motion);
+        render_metric_block(
+            frame,
+            &chunks,
+            &mut chunk_index,
+            metric,
+            (now, reset_column),
+            motion,
+        );
     }
     if note_rows > 0 {
         if let Some(note) = first_note.as_deref() {
@@ -2061,17 +2109,20 @@ fn extra_usage_lines(report: &Report, locale: &str) -> Vec<Line<'static>> {
 }
 
 /// `text` wrapped to `width` in at most `rows` lines, the last one ending in
-/// "…" when the text did not fit.
+/// "…" after a whole word when the text did not fit (V-01: never inside a
+/// word or a figure).
 fn clipped_lines(text: &str, width: usize, rows: usize) -> Vec<String> {
     if rows == 0 || width == 0 {
         return Vec::new();
     }
     let mut lines = textwrap_simple(&safe(text), width);
     if lines.len() > rows {
+        let rest = lines[rows].clone();
         lines.truncate(rows);
         let last = &mut lines[rows - 1];
-        let (head, _) = split_at_cells(last, width.saturating_sub(1));
-        *last = format!("{head}…");
+        // The next line's text keeps the joined text wider than the room,
+        // so the cut always ends in "…".
+        *last = ellipsize_words(&format!("{last} {rest}"), width).unwrap_or_else(|| "…".into());
     }
     lines
 }
@@ -2527,13 +2578,10 @@ fn fit_status_line(
     }
 }
 
+/// `text` within `room` cells, cut after a whole word with "…" (V-01), or
+/// "…" alone when not even one word fits.
 fn ellipsize(text: &str, room: usize) -> String {
-    if cells(text) <= room {
-        return text.to_string();
-    }
-    let (head, _) = split_at_cells(text, room.saturating_sub(1));
-    let head = if room == 0 { "" } else { head.trim_end() };
-    format!("{head}…")
+    ellipsize_words(text, room).unwrap_or_else(|| "…".into())
 }
 
 /// `text` wrapped to `width` cells on spaces; Chinese and Japanese text,
@@ -2643,7 +2691,7 @@ fn render_metric_block(
     chunks: &[Rect],
     chunk_index: &mut usize,
     metric: &MetricRow,
-    now: DateTime<Utc>,
+    (now, reset_column): (DateTime<Utc>, u16),
     motion: Option<(&Anim, &str, usize)>,
 ) {
     let fill = |ratio: f64| motion.map_or(ratio, |(anim, name, i)| anim.bar(name, i, ratio));
@@ -2652,19 +2700,7 @@ fn render_metric_block(
     let gauge_area = chunks[*chunk_index + 1];
     *chunk_index += 2;
 
-    // PRD 0007 RF4: a discreet stage icon before the label on the dashboard.
-    let mut text_spans: Vec<Span> = metric.pace.iter().map(pace_icon).collect();
-    text_spans.push(Span::styled(
-        format!("{}: ", safe(&metric.label)),
-        Style::default().fg(FG).add_modifier(Modifier::BOLD),
-    ));
-    text_spans.push(Span::raw(safe(&metric.text)));
-    if let Some(period) = &metric.period {
-        text_spans.push(Span::styled(
-            format!("  · {}", safe(period)),
-            Style::default().fg(MUTED),
-        ));
-    }
+    let mut text_spans = metric_values_line(metric, text_area.width);
     // PRD 0024 RF6.2: the core's pace chip beside the stage icon when the
     // card is wide enough to keep the metric text readable, and only when
     // the whole chip fits on the line: a chip is dropped, never cut.
@@ -2687,10 +2723,7 @@ fn render_metric_block(
             text_spans.push(chip);
         }
     }
-    frame.render_widget(
-        Paragraph::new(Line::from(text_spans)).wrap(Wrap { trim: true }),
-        text_area,
-    );
+    frame.render_widget(Paragraph::new(Line::from(text_spans)), text_area);
 
     match metric.state {
         MetricState::Unmeasured => {
@@ -2717,7 +2750,7 @@ fn render_metric_block(
                     fill(0.0),
                     Some(RED),
                     metric,
-                    now,
+                    (now, reset_column),
                     unicode,
                 );
             }
@@ -2730,10 +2763,61 @@ fn render_metric_block(
                 let ratio = fill(ratio);
                 let color = metric_state_color(metric.state).unwrap_or(YELLOW);
                 let color = motion.map_or(color, |(anim, ..)| anim.color(ratio, color));
-                render_gauge(frame, gauge_area, ratio, Some(color), metric, now, unicode);
+                render_gauge(
+                    frame,
+                    gauge_area,
+                    ratio,
+                    Some(color),
+                    metric,
+                    (now, reset_column),
+                    unicode,
+                );
             }
         }
     }
+}
+
+/// The card's values line, "label: value / limit  · period" with the
+/// stage icon first, within `width` cells (V-01): the value is atomic, so
+/// the period is dropped whole first, then the label is shortened after a
+/// whole word or dropped; a value wider than the line leaves it empty (the
+/// details pane carries it).
+fn metric_values_line(metric: &MetricRow, width: u16) -> Vec<Span<'static>> {
+    let width = usize::from(width);
+    // PRD 0007 RF4: a discreet stage icon before the label on the dashboard.
+    let icon: Vec<Span<'static>> = metric.pace.iter().map(pace_icon).collect();
+    let label_style = Style::default().fg(FG).add_modifier(Modifier::BOLD);
+    let label = safe(&metric.label).into_owned();
+    let value = Span::raw(safe(&metric.text).into_owned());
+    let period = metric
+        .period
+        .as_ref()
+        .map(|period| Span::styled(format!("  · {}", safe(period)), Style::default().fg(MUTED)));
+    let line = |icon: &[Span<'static>], label: Option<String>, period: Option<&Span<'static>>| {
+        let mut spans = icon.to_vec();
+        spans.extend(label.map(|label| Span::styled(format!("{label}: "), label_style)));
+        spans.push(value.clone());
+        spans.extend(period.cloned());
+        spans
+    };
+    let fits = |spans: &[Span<'static>]| Line::from(spans.to_vec()).width() <= width;
+    let full = line(&icon, Some(label.clone()), period.as_ref());
+    if fits(&full) {
+        return full;
+    }
+    let bare = line(&icon, None, None);
+    let room = width.saturating_sub(Line::from(bare.clone()).width() + 2);
+    if let Some(short) = ellipsize_words(&label, room) {
+        return line(&icon, Some(short), None);
+    }
+    if fits(&bare) {
+        return bare;
+    }
+    let value_only = line(&[], None, None);
+    if fits(&value_only) {
+        return value_only;
+    }
+    Vec::new()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2743,20 +2827,28 @@ fn render_gauge(
     ratio: f64,
     color: Option<Color>,
     metric: &MetricRow,
-    now: DateTime<Utc>,
+    (now, reset_column): (DateTime<Utc>, u16),
     unicode: bool,
 ) {
     if area.height == 0 || area.width == 0 {
         return;
     }
     let bar_color = color.unwrap_or(MUTED);
-    let has_reset = metric.resets_at.is_some();
-    let reset_width = if has_reset { 16 } else { 0 };
     let bar_min = 8u16;
-    let chunks = if has_reset {
-        Layout::horizontal([Constraint::Min(bar_min), Constraint::Length(reset_width)]).split(area)
-    } else {
-        Layout::horizontal([Constraint::Min(bar_min)]).split(area)
+    // V-01: the reset shows the first of its forms that fits beside the
+    // bar, or nothing when not even the compact one does. Its column is the
+    // card's `reset_column` while that fits, so the card's bars line up.
+    let room = area.width.saturating_sub(bar_min);
+    let reset = metric
+        .resets_at
+        .and_then(|at| fit_reset(at, now, usize::from(room)));
+    let chunks = match &reset {
+        Some(line) => {
+            let width = u16::try_from(line.width()).unwrap_or(room);
+            let column = width.max(room.min(reset_column));
+            Layout::horizontal([Constraint::Min(bar_min), Constraint::Length(column)]).split(area)
+        }
+        None => Layout::horizontal([Constraint::Min(bar_min)]).split(area),
     };
     let label_text = match metric.state {
         MetricState::Unmeasured => "—".to_string(),
@@ -2777,11 +2869,8 @@ fn render_gauge(
             Style::default().bg(bar_color).fg(palette::ON_FILL),
         ));
     frame.render_widget(gauge, chunks[0]);
-    if has_reset {
-        frame.render_widget(
-            Paragraph::new(render_reset(metric.resets_at.unwrap(), now)),
-            chunks[1],
-        );
+    if let Some(line) = reset {
+        frame.render_widget(Paragraph::new(line), chunks[1]);
     }
 }
 
@@ -5539,7 +5628,7 @@ mod tests {
         }
     }
 
-    /// PRD 0035 RF13.2: a 120 x 40 `TestBackend` capture of the dashboard
+    /// PRD 0035 RF13.2: a 120 x 40 (or `..._WIDTH` x 40) `TestBackend` capture of the dashboard
     /// and the details view in every shipped language, written as SVG and
     /// plain text to `$CUOTAI_TUI_LOCALE_SNAPSHOTS/<code>/` (the plan keeps
     /// them under `docs/plans/assets/0035/`). The glyph pass of a real
@@ -5551,6 +5640,11 @@ mod tests {
         let dir = std::path::PathBuf::from(
             std::env::var_os("CUOTAI_TUI_LOCALE_SNAPSHOTS").expect("CUOTAI_TUI_LOCALE_SNAPSHOTS"),
         );
+        // `CUOTAI_TUI_LOCALE_SNAPSHOTS_WIDTH=80` captures a narrow terminal.
+        let width = std::env::var("CUOTAI_TUI_LOCALE_SNAPSHOTS_WIDTH")
+            .ok()
+            .and_then(|width| width.parse().ok())
+            .unwrap_or(120);
         let (accounts, reports) = screenshot_fixture();
         for row in cuotai_core::text::LOCALES
             .iter()
@@ -5567,7 +5661,7 @@ mod tests {
                         &[],
                         (details, 0),
                         at_min(0) + chrono::Duration::seconds(7),
-                        (120, 40),
+                        (width, 40),
                         None,
                         &[],
                         None,
@@ -5595,6 +5689,159 @@ mod tests {
                 .unwrap();
             }
         }
+    }
+
+    /// V-01: a narrow reset column takes the first whole form that fits:
+    /// the phrase, the duration, the compact duration, or nothing.
+    #[test]
+    fn a_narrow_reset_column_shows_a_shorter_form_never_a_cut_one() {
+        let now = at_min(0);
+        let at = at_min(19 * 60 + 58);
+        let fit = |room: usize| {
+            crate::l10n::with_locale("de", || {
+                fit_reset(at, now, room).map(|line| line.to_string())
+            })
+        };
+        assert_eq!(
+            fit(24).as_deref(),
+            Some("erneuert 19\u{a0}Std. 58\u{a0}Min.")
+        );
+        assert_eq!(fit(23).as_deref(), Some("19\u{a0}Std. 58\u{a0}Min."));
+        assert_eq!(fit(14).as_deref(), Some("20\u{a0}Std."));
+        assert_eq!(fit(6), None);
+    }
+
+    /// The rows of `buffer` as text, a wide character counted once.
+    fn buffer_rows(buffer: &ratatui::buffer::Buffer) -> Vec<String> {
+        (0..buffer.area.height)
+            .map(|y| {
+                let mut line = String::new();
+                let mut x = 0;
+                while x < buffer.area.width {
+                    let symbol = buffer[(x, y)].symbol();
+                    line.push_str(symbol);
+                    x += u16::try_from(cells(symbol).max(1)).unwrap_or(1);
+                }
+                line
+            })
+            .collect()
+    }
+
+    /// PRD 0034 re-validation V-01: in every language, at 80 and 120
+    /// columns, no figure of the dashboard is cut. A card's text that ends
+    /// at its border (or where a dropped tail would have started) must not
+    /// end with a piece of a figure: a strict prefix of a reset phrase, a
+    /// duration or a metric value, starting at a word, that is not itself
+    /// one of the allowed forms (full phrase, duration, compact duration).
+    /// Every reset of a visible card shows in one of those forms.
+    #[test]
+    fn no_figure_is_cut_in_any_language_at_80_and_120_columns() {
+        let (accounts, reports) = screenshot_fixture();
+        let now = at_min(0) + chrono::Duration::seconds(7);
+        let plain = |line: &Line| {
+            line.spans
+                .iter()
+                .map(|span| span.content.as_ref())
+                .collect::<String>()
+        };
+        let mut problems = Vec::new();
+        for row in cuotai_core::text::LOCALES
+            .iter()
+            .filter(|row| row.is_translated())
+        {
+            let code = row.code;
+            // Per reset: its allowed forms; and every figure that may sit
+            // at the end of a card's text.
+            let (resets, values) = crate::l10n::with_locale(code, || {
+                let metrics = reports.iter().flatten().flat_map(|r| r.metrics.iter());
+                let mut resets: Vec<Vec<String>> = Vec::new();
+                let mut values: Vec<String> = Vec::new();
+                for metric in metrics {
+                    values.push(metric_row(metric, None, &[]).text);
+                    if let Some(at) = metric.resets_at {
+                        resets.push(reset_forms(at, now).iter().map(plain).collect());
+                    }
+                }
+                (resets, values)
+            });
+            let allowed: Vec<&str> = resets.iter().flatten().map(String::as_str).collect();
+            let figures: Vec<&str> = allowed
+                .iter()
+                .copied()
+                .chain(values.iter().map(String::as_str))
+                .collect();
+            for (width, height) in [(80u16, 40u16), (120, 40)] {
+                let buffer = crate::l10n::with_locale(code, || {
+                    render_view_buffer(
+                        &accounts,
+                        &reports,
+                        &[],
+                        &[],
+                        (false, 0),
+                        now,
+                        (width, height),
+                        None,
+                        &[],
+                        None,
+                    )
+                });
+                let rows = buffer_rows(&buffer);
+                for (y, line) in rows.iter().enumerate() {
+                    for segment in line.split('│') {
+                        let segment = segment.trim_end();
+                        // A text that ends with a whole figure ends whole.
+                        if figures.iter().any(|figure| segment.ends_with(figure)) {
+                            continue;
+                        }
+                        let starts = segment.char_indices().filter(|(at, _)| {
+                            *at == 0
+                                || segment[..*at]
+                                    .chars()
+                                    .next_back()
+                                    .is_some_and(char::is_whitespace)
+                        });
+                        for (at, _) in starts {
+                            let tail = &segment[at..];
+                            let cut = figures.iter().find(|figure| {
+                                figure.len() > tail.len()
+                                    && figure.starts_with(tail)
+                                    && !allowed.contains(&tail)
+                                    && !values.iter().any(|value| value == tail)
+                            });
+                            if let Some(figure) = cut {
+                                problems.push(format!(
+                                    "{code} {width}x{height} row {y}: {tail:?} is a cut {figure:?}"
+                                ));
+                            }
+                        }
+                    }
+                }
+                // A card on screen shows each of its resets in one form.
+                for (forms, value) in resets.iter().zip(
+                    reports
+                        .iter()
+                        .flatten()
+                        .flat_map(|r| r.metrics.iter())
+                        .zip(&values)
+                        .filter(|(metric, _)| metric.resets_at.is_some())
+                        .map(|(_, value)| value),
+                ) {
+                    let visible = rows.iter().position(|line| line.contains(value.as_str()));
+                    let Some(y) = visible else { continue };
+                    let gauge = rows.get(y + 1).map_or("", String::as_str);
+                    if !forms.iter().any(|form| gauge.contains(form.as_str())) {
+                        problems.push(format!(
+                            "{code} {width}x{height} row {}: no form of {forms:?}",
+                            y + 1
+                        ));
+                    }
+                }
+                if problems.len() > 40 {
+                    break;
+                }
+            }
+        }
+        assert!(problems.is_empty(), "{}", problems.join("\n"));
     }
 
     /// The screenshot fixture renders in English, with placeholder names only.

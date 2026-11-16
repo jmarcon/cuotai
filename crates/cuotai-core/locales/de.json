@@ -12,7 +12,10 @@
       "models.unsupported.reason.eleven_labs",
       "models.unsupported.reason.jetbrains_ai",
       "models.unsupported.reason.litellm",
-      "models.unsupported.reason.nine_router"
+      "models.unsupported.reason.nine_router",
+      "text.duration.compact.days",
+      "text.duration.compact.hours",
+      "text.duration.compact.minutes"
     ]
   },
   "access.confirm_unavailable": "{reason} Das Konto wird gespeichert, zeigt aber diesen Grund statt Zahlen an.",
@@ -2042,6 +2045,9 @@
   "test.nine_router.untrusted_certificate": "Dem Zertifikat der Instanz vertraut dieser Computer nicht. SHA-256-Fingerabdruck: {fingerprint}. Prüfen Sie ihn auf dem Server, bevor Sie ihm vertrauen.",
   "text.countdown": "in {duration}",
   "text.countdown.now": "jetzt",
+  "text.duration.compact.days": "{d} T",
+  "text.duration.compact.hours": "{h} Std.",
+  "text.duration.compact.minutes": "{m} Min.",
   "text.duration.days": "{d} T",
   "text.duration.days_hours": "{d} T {h} Std.",
   "text.duration.hours": "{h} Std.",

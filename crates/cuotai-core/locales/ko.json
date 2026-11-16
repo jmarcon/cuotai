@@ -12,7 +12,10 @@
       "models.unsupported.reason.eleven_labs",
       "models.unsupported.reason.jetbrains_ai",
       "models.unsupported.reason.litellm",
-      "models.unsupported.reason.nine_router"
+      "models.unsupported.reason.nine_router",
+      "text.duration.compact.days",
+      "text.duration.compact.hours",
+      "text.duration.compact.minutes"
     ]
   },
   "access.confirm_unavailable": "{reason} 계정은 저장되지만 숫자 대신 이 사유가 표시됩니다.",
@@ -2018,6 +2021,9 @@
   "test.nine_router.untrusted_certificate": "이 컴퓨터가 인스턴스 인증서를 신뢰하지 않습니다. SHA-256 지문: {fingerprint}. 신뢰하기 전에 서버에서 확인하세요.",
   "text.countdown": "{duration} 후",
   "text.countdown.now": "지금",
+  "text.duration.compact.days": "{d}일",
+  "text.duration.compact.hours": "{h}시간",
+  "text.duration.compact.minutes": "{m}분",
   "text.duration.days": "{d}일",
   "text.duration.days_hours": "{d}일 {h}시간",
   "text.duration.hours": "{h}시간",

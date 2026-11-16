@@ -12,7 +12,10 @@
       "models.unsupported.reason.eleven_labs",
       "models.unsupported.reason.jetbrains_ai",
       "models.unsupported.reason.litellm",
-      "models.unsupported.reason.nine_router"
+      "models.unsupported.reason.nine_router",
+      "text.duration.compact.days",
+      "text.duration.compact.hours",
+      "text.duration.compact.minutes"
     ]
   },
   "access.confirm_unavailable": "{reason} Учётная запись будет сохранена, но вместо чисел покажет эту причину.",
@@ -2090,6 +2093,9 @@
   "test.nine_router.untrusted_certificate": "Этот компьютер не доверяет сертификату экземпляра. Отпечаток SHA-256: {fingerprint}. Сверьте его на сервере, прежде чем доверять.",
   "text.countdown": "через {duration}",
   "text.countdown.now": "сейчас",
+  "text.duration.compact.days": "{d} д",
+  "text.duration.compact.hours": "{h} ч",
+  "text.duration.compact.minutes": "{m} мин",
   "text.duration.days": "{d} д",
   "text.duration.days_hours": "{d} д {h} ч",
   "text.duration.hours": "{h} ч",

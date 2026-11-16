@@ -43,6 +43,63 @@ fn compact_age(age: std::time::Duration) -> String {
     }
 }
 
+/// Claude's part of the line: its windows ("5h 23%", "Wk 41%"), the reset
+/// of the tightest one ("↺ 19:30") and that window's used share.
+struct ClaudePart {
+    windows: Vec<String>,
+    reset: Option<String>,
+    used: f64,
+}
+
+impl ClaudePart {
+    /// "5h 23% · Wk 41% ↺ 19:30" with the first `windows` windows, and the
+    /// reset when `reset` (`compose` drops it before any window, as it
+    /// belongs to the tightest one).
+    fn text(&self, windows: usize, reset: bool) -> String {
+        let mut text = self.windows[..windows].join(" · ");
+        if let Some(at) = self.reset.as_ref().filter(|_| reset) {
+            text.push(' ');
+            text.push_str(at);
+        }
+        text
+    }
+}
+
+/// Display width in terminal cells: CJK and other wide characters take two,
+/// combining marks none (the same approximation as the catalog budget test;
+/// the core carries no width table).
+fn cells(text: &str) -> usize {
+    text.chars()
+        .map(|c| match u32::from(c) {
+            0x0300..=0x036F
+            | 0x0900..=0x0902
+            | 0x093A
+            | 0x093C
+            | 0x0941..=0x0948
+            | 0x094D
+            | 0x0951..=0x0957
+            | 0x0962..=0x0963
+            | 0x200B..=0x200D
+            | 0xFE00..=0xFE0F => 0,
+            0x1100..=0x115F
+            | 0x2E80..=0x303E
+            | 0x3041..=0x33FF
+            | 0x3400..=0x4DBF
+            | 0x4E00..=0x9FFF
+            | 0xA000..=0xA4CF
+            | 0xAC00..=0xD7A3
+            | 0xF900..=0xFAFF
+            | 0xFE30..=0xFE4F
+            | 0xFF00..=0xFF60
+            | 0xFFE0..=0xFFE6
+            | 0x1F300..=0x1F64F
+            | 0x1F900..=0x1F9FF
+            | 0x20000..=0x3FFFD => 2,
+            _ => 1,
+        })
+        .sum()
+}
+
 /// Claude's windows: "5h 23% · Wk 41% ↺ 19:30", the reset being the one of
 /// the tightest window that states one. `None` without a window.
 fn claude_part(
@@ -50,7 +107,7 @@ fn claude_part(
     now: DateTime<Utc>,
     at: &dyn Fn(DateTime<Utc>) -> String,
     locale: &str,
-) -> Option<(String, f64)> {
+) -> Option<ClaudePart> {
     let mut parts = Vec::new();
     let mut tightest: Option<f64> = None;
     let mut next_reset: Option<(f64, DateTime<Utc>)> = None;
@@ -99,15 +156,15 @@ fn claude_part(
         }
     }
     let used = tightest?;
-    let mut text = parts.join(" · ");
-    if let Some((_, when)) = next_reset {
-        text.push(' ');
-        text.push_str(
-            &Localized::with_param("feed.line.reset", "time", at(when).as_str(), "↺ {time}")
-                .resolve(locale),
-        );
-    }
-    Some((text, used))
+    let reset = next_reset.map(|(_, when)| {
+        Localized::with_param("feed.line.reset", "time", at(when).as_str(), "↺ {time}")
+            .resolve(locale)
+    });
+    Some(ClaudePart {
+        windows: parts,
+        reset,
+        used,
+    })
 }
 
 /// "Codex 64% left (3m)": the tightest of `others` with a known share.
@@ -153,9 +210,10 @@ fn other_part(others: &[OtherAccount], locale: &str) -> Option<String> {
     Some(text)
 }
 
-/// RF5.1/RF5.3: compose the line. `max_width` truncates by dropping the
-/// context share first, then the other account, and finally cutting
-/// Claude's windows with an ellipsis (they go last).
+/// RF5.1/RF5.3: compose the line. `max_width` (in terminal cells) drops
+/// whole parts, never a piece of one (PRD 0034 re-validation V-01): the
+/// context share first, then the other account, then Claude's reset time,
+/// then Claude's windows from the last; a line with no room is empty.
 pub fn compose(
     reading: Option<&FeedReading>,
     others: &[OtherAccount],
@@ -171,29 +229,34 @@ pub fn compose(
         .map(|used| super::live::context_chip(used).resolve(locale));
     let level = claude
         .as_ref()
-        .map(|(_, used)| Level::of((1.0 - used / 100.0).clamp(0.0, 1.0)));
-    let mut parts: Vec<String> = claude.map(|(text, _)| text).into_iter().collect();
-    parts.extend(other.clone());
-    parts.extend(ctx.clone());
-    let mut text = parts.join(" · ");
-    if let Some(width) = max_width {
-        let count = |s: &str| s.chars().count();
-        if count(&text) > width && ctx.is_some() {
-            parts.pop();
-            text = parts.join(" · ");
+        .map(|part| Level::of((1.0 - part.used / 100.0).clamp(0.0, 1.0)));
+    let windows = claude.as_ref().map_or(0, |part| part.windows.len());
+    // The candidates, longest first: (Claude's windows kept, its reset,
+    // the other account, the context share).
+    let mut candidates = vec![(windows, true, true, true), (windows, true, true, false)];
+    candidates.push((windows, true, false, false));
+    candidates.push((windows, false, false, false));
+    candidates.extend((0..windows).rev().map(|kept| (kept, false, false, false)));
+    let compose_with = |(kept, reset, with_other, with_ctx): (usize, bool, bool, bool)| {
+        let mut parts: Vec<String> = Vec::new();
+        if let Some(part) = claude.as_ref().filter(|_| kept > 0) {
+            parts.push(part.text(kept, reset));
         }
-        if count(&text) > width && other.is_some() && parts.len() > 1 {
-            parts.pop();
-            text = parts.join(" · ");
+        if with_other || claude.is_none() {
+            parts.extend(other.clone());
         }
-        if count(&text) > width {
-            text = if width == 0 {
-                String::new()
-            } else {
-                let kept: String = text.chars().take(width - 1).collect();
-                format!("{kept}…")
-            };
+        if with_ctx || (claude.is_none() && other.is_none()) {
+            parts.extend(ctx.clone());
         }
-    }
+        parts.join(" · ")
+    };
+    let text = match max_width {
+        None => compose_with(candidates[0]),
+        Some(width) => candidates
+            .into_iter()
+            .map(compose_with)
+            .find(|text| cells(text) <= width)
+            .unwrap_or_default(),
+    };
     Line { text, level }
 }

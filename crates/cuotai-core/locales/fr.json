@@ -12,7 +12,10 @@
       "models.unsupported.reason.eleven_labs",
       "models.unsupported.reason.jetbrains_ai",
       "models.unsupported.reason.litellm",
-      "models.unsupported.reason.nine_router"
+      "models.unsupported.reason.nine_router",
+      "text.duration.compact.days",
+      "text.duration.compact.hours",
+      "text.duration.compact.minutes"
     ]
   },
   "access.confirm_unavailable": "{reason} Le compte sera enregistré, mais affichera ce motif au lieu de chiffres.",
@@ -2042,6 +2045,9 @@
   "test.nine_router.untrusted_certificate": "Cet ordinateur ne fait pas confiance au certificat de l’instance. Empreinte SHA-256 : {fingerprint}. Vérifiez-la sur le serveur avant de lui faire confiance.",
   "text.countdown": "dans {duration}",
   "text.countdown.now": "maintenant",
+  "text.duration.compact.days": "{d} j",
+  "text.duration.compact.hours": "{h} h",
+  "text.duration.compact.minutes": "{m} min",
   "text.duration.days": "{d} j",
   "text.duration.days_hours": "{d} j {h} h",
   "text.duration.hours": "{h} h",

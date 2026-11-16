@@ -12,7 +12,10 @@
       "models.unsupported.reason.eleven_labs",
       "models.unsupported.reason.jetbrains_ai",
       "models.unsupported.reason.litellm",
-      "models.unsupported.reason.nine_router"
+      "models.unsupported.reason.nine_router",
+      "text.duration.compact.days",
+      "text.duration.compact.hours",
+      "text.duration.compact.minutes"
     ]
   },
   "access.confirm_unavailable": "{reason}アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
@@ -2018,6 +2021,9 @@
   "test.nine_router.untrusted_certificate": "このコンピューターはインスタンスの証明書を信頼していません。SHA-256 フィンガープリント：{fingerprint}。信頼する前にサーバーで確認してください。",
   "text.countdown": "{duration}後",
   "text.countdown.now": "今",
+  "text.duration.compact.days": "{d}日",
+  "text.duration.compact.hours": "{h}時間",
+  "text.duration.compact.minutes": "{m}分",
   "text.duration.days": "{d}日",
   "text.duration.days_hours": "{d}日{h}時間",
   "text.duration.hours": "{h}時間",
