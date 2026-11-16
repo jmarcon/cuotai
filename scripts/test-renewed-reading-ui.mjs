@@ -135,4 +135,17 @@ assert.equal(lib.paceLineLabel(report, live), "5h", "a pace on another metric th
 assert.equal(lib.paceLineLabel({ ...report, binding: { index: 1 } }, live), "", "same metric as the chip: label omitted");
 assert.equal(lib.paceLabelOf({ window: "other", label: "Custom" }), "Custom");
 
+// RF4.1 on the card (re-validation V-04): an exhausted binding week has no pace, so the card's pace line is the 5 h
+// window's and names it; a binding metric with its own pace keeps the status line's pace and no extra line.
+const { cardPaceLineHtml } = await import("../apps/desktop/ui/js/card-summary.js");
+const spentWeek = { ...week, state: "exhausted", ratio: 1, used: 100, pace: null };
+const acceptance = { ...base, metrics: [spentWeek, live], binding: { index: 0 }, pace_index: 1 };
+const line = cardPaceLineHtml(acceptance);
+assert.match(line, /class="pace-line"/, "the card draws the 5 h pace line");
+assert.equal(stripTags(line).trim(), "5h: 8 points in reserve", "the card's pace line names its window");
+assert.equal(cardPaceLineHtml({ ...acceptance, binding: { index: 1 } }), "", "the binding window's pace is the status line's");
+const pacedWeek = { ...week, pace: live.pace };
+assert.equal(cardPaceLineHtml({ ...acceptance, metrics: [pacedWeek, live] }), "", "a paced binding window keeps the one pace line");
+assert.equal(cardPaceLineHtml({ ...acceptance, pace_index: null }), "", "no core pace metric, no line");
+
 console.log("PASS: renewed text (details, mixed card, tray row), core clock, data-as-of and pace labels render in every language");

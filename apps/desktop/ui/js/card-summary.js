@@ -3,7 +3,8 @@
 // main.js so the card's summary renders (and is tested) without the window.
 import { t, te } from "./i18n.js";
 import {
-  billingOverage, causeText, esc, fmtAmount, fmtShare, icon, isBindingMetric, metricName, renewedText, renewedWindowsOf, resetsText, summaryOf, windowsOf,
+  billingOverage, cardPace, causeText, esc, fmtAmount, fmtShare, icon, isBindingMetric, metricName, paceHtml, paceLineLabel, paceOf, renewedText, renewedWindowsOf,
+  resetsText, summaryOf, windowsOf,
 } from "./lib.js";
 import { expectedLeft, extraColumnHtml, figureHtml, meterHtml } from "./components.js";
 
@@ -64,3 +65,13 @@ export function summaryHtml(r, stale = false) {
 /** Whether the summary draws the extra-usage column (then the foot leaves its chip out). */
 export const hasExtraColumn = (r) => !!billingOverage(r) && (!!(windowsOf(r).h5 || windowsOf(r).week) || summaryOf(r).kind === "bar");
 
+/** PRD 0033 RF4.1 (re-validation V-04): the card's pace line when the core's pace metric is not the binding one, which
+ *  the status line already paces (and tags "Binding"): the line names its window ("5h: 8 points in reserve"), so an
+ *  exhausted binding week beside a paced 5 h window still shows that pace and whose it is. Empty otherwise. */
+export function cardPaceLineHtml(r) {
+  const m = cardPace(r);
+  if (!m || isBindingMetric(r, m)) return "";
+  const binding = r.binding ? r.metrics[r.binding.index] : null;
+  if (binding && binding.state !== "exhausted" && paceOf(binding)) return "";
+  return paceHtml(paceOf(m), { label: paceLineLabel(r, m) });
+}
