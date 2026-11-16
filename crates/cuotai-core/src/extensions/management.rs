@@ -897,6 +897,15 @@ impl Manager {
         })
     }
 
+    /// The vault-index tag of a secret: owned by the approvals file that
+    /// keeps it alive (2026-11 re-validation F1).
+    fn secret_tag(&self) -> crate::oauth::vault_index::EntryTag {
+        crate::oauth::vault_index::EntryTag::owned_by(
+            crate::oauth::vault_index::Kind::ExtensionSecret,
+            self.consent.file(),
+        )
+    }
+
     /// RF7.4: [`Self::disable`] that also deletes the vault entries of the
     /// revoked approval's secrets. The values are deleted first and put back
     /// when the revocation cannot be saved, so a failed revocation leaves
@@ -914,7 +923,7 @@ impl Manager {
             let key = secret_key(id, &scope, name);
             let restore = |removed: &[(String, OAuthToken)]| {
                 for (key, token) in removed {
-                    let _ = store.save(key, token);
+                    let _ = store.save_tagged(key, token, &self.secret_tag());
                 }
             };
             match store.load(&key) {
@@ -936,7 +945,7 @@ impl Manager {
             Ok(result) => Ok(result),
             Err(error) => {
                 for (key, token) in &removed {
-                    let _ = store.save(key, token);
+                    let _ = store.save_tagged(key, token, &self.secret_tag());
                 }
                 Err(error)
             }
@@ -1032,7 +1041,11 @@ impl Manager {
             metadata: BTreeMap::new(),
         };
         store
-            .save(&secret_key(id, &approved.secret_scope(), name), &token)
+            .save_tagged(
+                &secret_key(id, &approved.secret_scope(), name),
+                &token,
+                &self.secret_tag(),
+            )
             .map_err(|_| secret_storage())?;
         // The value an older approved manifest kept under its own scope is
         // deleted now that the new one is stored (never before).
@@ -1277,7 +1290,7 @@ fn extension_account(manifest: &Manifest, config: &Config) -> Account {
 
 /// RF7.4: the vault key of one secret: `ext_<id>_<scope>_<name>`, within
 /// the store's identifier alphabet and length (64 + 16 + 32 + 7 < 128).
-fn secret_key(id: &str, scope: &str, name: &str) -> String {
+pub(crate) fn secret_key(id: &str, scope: &str, name: &str) -> String {
     format!("ext_{id}_{scope}_{name}")
 }
 

@@ -2382,5 +2382,7 @@
   "user_session.paste.too_long": "Teks yang ditempel terlalu panjang; salin hanya header Cookie, permintaan sebagai cURL, atau tabel cookie.",
   "user_session.paste.cookie_too_long": "Cookie sesi terlalu panjang untuk dikirim; salin lagi setelah masuk kembali.",
   "oauth_error.store.too_long": "Kredensial ini terlalu besar untuk brankas sistem.",
-  "edit_error.config_reserved_name": "Kolom {field} memakai nama yang dicadangkan untuk Cuotai (diawali __CUOTAI_); isi nama variabel lingkungan Anda sendiri, atau tempel rahasianya di asisten akun."
+  "edit_error.config_reserved_name": "Kolom {field} memakai nama yang dicadangkan untuk Cuotai (diawali __CUOTAI_); isi nama variabel lingkungan Anda sendiri, atau tempel rahasianya di asisten akun.",
+  "vault.remove.in_use": "Kredensial itu sedang digunakan; hapus akun atau salurannya saja.",
+  "vault.remove.not_indexed": "Kunci itu tidak ada dalam daftar kredensial tersimpan."
 }

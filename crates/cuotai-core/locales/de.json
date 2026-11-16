@@ -2401,5 +2401,7 @@
   "user_session.paste.too_long": "Der eingefügte Text ist zu lang; kopieren Sie nur den Cookie-Header, die Anfrage als cURL oder die Cookie-Tabelle.",
   "user_session.paste.cookie_too_long": "Die Cookies der Sitzung sind zu lang zum Senden; kopieren Sie sie nach einer neuen Anmeldung erneut.",
   "oauth_error.store.too_long": "Diese Zugangsdaten sind zu groß für den Systemtresor.",
-  "edit_error.config_reserved_name": "Das Feld {field} verwendet einen für Cuotai reservierten Namen (er beginnt mit __CUOTAI_); geben Sie den Namen Ihrer eigenen Umgebungsvariable an oder fügen Sie das Geheimnis im Kontoassistenten ein."
+  "edit_error.config_reserved_name": "Das Feld {field} verwendet einen für Cuotai reservierten Namen (er beginnt mit __CUOTAI_); geben Sie den Namen Ihrer eigenen Umgebungsvariable an oder fügen Sie das Geheimnis im Kontoassistenten ein.",
+  "vault.remove.in_use": "Diese Zugangsdaten werden verwendet; entfernen Sie stattdessen ihr Konto oder ihren Kanal.",
+  "vault.remove.not_indexed": "Dieser Schlüssel steht nicht in der Liste der gespeicherten Zugangsdaten."
 }

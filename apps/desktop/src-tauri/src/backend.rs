@@ -2206,6 +2206,11 @@ impl Inner {
                 s
             }
         };
+        // 2026-11 re-validation F2: this file owns the vault entries it
+        // references now, so "Remove unused" can later prove one unused.
+        if let Some(index) = session.vault_index_path() {
+            vault_index::claim_config(index, &file);
+        }
         // PRD 0044: the notification channels share the session's vault.
         if self.notices.channels().is_none() {
             let dispatcher = crate::settings::settings_path().and_then(|path| {
@@ -5647,44 +5652,66 @@ impl Backend {
     /// the saved account's `session_env`-style variables into the system
     /// vault, or forget its vault session. Returns the account's refreshed
     /// form.
-    /// PRD 0029 RF6.2: the vault entries Cuotai created, matched against the
-    /// configuration (orphans marked); never a value.
-    pub async fn vault_audit(&self) -> Result<Vec<vault_index::AuditEntry>, String> {
+    /// PRD 0029 RF6.2: the vault entries Cuotai created, each with its
+    /// status against the files loaded now (2026-11 re-validation F1, F2,
+    /// R-01); never a value.
+    pub async fn vault_audit(&self) -> Result<vault_index::Plan, String> {
         self.ensure_loaded().await;
-        let (session, config) = self.vault_inputs().await?;
+        let (session, paths) = self.vault_inputs().await?;
         Ok(match session.vault_index_path() {
-            Some(path) => vault_index::audit(&session, path, &config).await,
-            None => Vec::new(),
+            Some(index) => vault_index::audit(&session, index, &paths).await,
+            None => vault_index::Plan {
+                config_path: paths.config.path.clone(),
+                entries: Vec::new(),
+            },
         })
     }
 
-    /// PRD 0029 RF6.2: delete the orphans of [`Self::vault_audit`]; the
-    /// dialog confirmed first. Returns how many were deleted.
-    pub async fn vault_prune(&self) -> Result<usize, String> {
+    /// PRD 0029 RF6.2: delete exactly the `keys` the dialog showed and the
+    /// person confirmed, those the core still proves unused when it reads
+    /// the files from disk again; the rest are skipped and reported.
+    pub async fn vault_prune(
+        &self,
+        keys: Vec<String>,
+    ) -> Result<vault_index::PruneOutcome, String> {
         self.ensure_loaded().await;
-        let (session, config) = self.vault_inputs().await?;
+        let (session, paths) = self.vault_inputs().await?;
         match session.vault_index_path() {
-            Some(path) => vault_index::prune(&session, path, &config)
+            Some(index) => vault_index::prune_confirmed(&session, index, &paths, &keys)
                 .await
                 .map_err(|note| l10n_to_json(&note)),
-            None => Ok(0),
+            None => Ok(vault_index::PruneOutcome::default()),
         }
     }
 
-    async fn vault_inputs(&self) -> Result<(Arc<OAuthSession>, Config), String> {
+    /// Delete one entry the person chose, refused while it is in use.
+    pub async fn vault_remove(&self, key: String) -> Result<vault_index::Status, String> {
+        self.ensure_loaded().await;
+        let (session, paths) = self.vault_inputs().await?;
+        let index = session
+            .vault_index_path()
+            .ok_or_else(crate::desk_text::vault_unavailable)?;
+        vault_index::remove_one(&session, index, &paths, &key)
+            .await
+            .map_err(|note| l10n_to_json(&note))
+    }
+
+    /// The session and the owning files of the loaded configuration: the
+    /// core re-opens them from disk, never the in-memory copy.
+    async fn vault_inputs(&self) -> Result<(Arc<OAuthSession>, vault_index::SourcePaths), String> {
         let g = self.inner.lock().await;
         let session = g
             .session
             .clone()
             .ok_or_else(crate::desk_text::oauth_session_missing)?;
-        let config = g
+        let file = &g
             .loaded
             .as_ref()
             .ok_or_else(crate::desk_text::config_not_loaded)?
-            .file
-            .config
-            .clone();
-        Ok((session, config))
+            .file;
+        let mut paths = vault_index::SourcePaths::for_file(file);
+        paths.prefs = crate::settings::settings_path();
+        Ok((session, paths))
     }
 
     pub async fn change_session(

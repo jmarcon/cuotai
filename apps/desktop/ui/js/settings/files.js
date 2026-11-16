@@ -3,7 +3,7 @@
 import { t, te, tl } from "../i18n.js";
 import { THEMES } from "../themes.js";
 import { LOCALES, skippedMessage, userContent } from "../usercontent.js";
-import { BACKUP_GUIDE_URL, brand, configLabel, doctorReport, esc, icon, openExternal, openUserDir, otherConfigNotice, pickFolder, pickTomlFile, setConfigFile, setDataDir, setUserDir, vaultAudit, vaultPrune } from "../lib.js";
+import { BACKUP_GUIDE_URL, brand, configLabel, doctorReport, esc, icon, openExternal, openUserDir, otherConfigNotice, pickFolder, pickTomlFile, setConfigFile, setDataDir, setUserDir, vaultAudit, vaultPrune, vaultRemove } from "../lib.js";
 import { openBackupDialog, openRestoreDialog } from "../backup-dialog.js";
 import { configErrorText, errorText, group } from "./common.js";
 import { buttons, disc, pathHtml, row } from "./rows.js";
@@ -54,26 +54,50 @@ export function html({ settings: s, view }) {
     + group("maintenance", te("settings.files.group.maintenance"), backupRowHtml + doctorRowHtml);
 }
 
-/** One indexed entry: what uses it (or that nothing does) and since when. */
-function vaultRow(e) {
-  const owner = e.orphan
-    ? te("settings.vault.orphan")
-    : `${esc(e.account ?? "")} · ${esc(brand(e.provider).label)}`;
-  const kind = e.kind ? te(`settings.vault.kind.${e.kind}`) : te("settings.vault.kind.unused");
-  const date = new Date(e.created_at).toLocaleDateString(document.documentElement.lang || undefined);
-  return `<li><strong>${kind}</strong> — ${owner}${e.present ? "" : ` · ${te("settings.vault.gone")}`} <small>${te("settings.vault.created", { date })}</small></li>`;
+/** 2026-11 re-validation F1/F2/R-01: the core's status of each entry; only "unused" is removed in bulk. */
+const VAULT_OWNERS = { channel: "settings.vault.owner.channel", extension_secret: "settings.vault.owner.extension" };
+
+/** What uses an entry (an account, a channel, an extension) or, when not in use, why Cuotai keeps or lists it. */
+function vaultOwner(e) {
+  if (e.status !== "in_use") return te(`settings.vault.status.${e.status}`);
+  if (VAULT_OWNERS[e.kind]) return te(VAULT_OWNERS[e.kind]);
+  return `${esc(e.account ?? "")} · ${esc(brand(e.provider).label)}`;
 }
 
-export function vaultHtml(entries) {
+const vaultKind = (e) => te(e.kind ? `settings.vault.kind.${e.kind}` : "settings.vault.kind.unknown");
+
+/** One indexed entry: its kind, what uses it (or its status) and since when; never a value. */
+function vaultRow(e, i) {
+  const date = new Date(e.created_at).toLocaleDateString(document.documentElement.lang || undefined);
+  const remove = e.status === "in_use" ? "" : ` <button class="link" data-vault-remove="${i}">${te("settings.vault.remove")}</button>`;
+  return `<li><strong>${vaultKind(e)}</strong> — ${vaultOwner(e)}${e.present ? "" : ` · ${te("settings.vault.gone")}`} <small>${te("settings.vault.created", { date })}</small>${remove}</li>`;
+}
+
+export function vaultHtml(plan) {
+  const entries = plan?.entries ?? [];
+  const path = plan?.config_path ?? "";
   if (!entries.length) return `<p class="hint">${te("settings.vault.empty")}</p>`;
-  const orphans = entries.filter((e) => e.orphan).length;
-  return `<ul class="hook-runs">${entries.map(vaultRow).join("")}</ul>
-    ${orphans ? `<div class="dlg-actions left"><button class="btn danger-btn" data-vault-prune>${icon("trash")} ${te("settings.vault.prune", { count: orphans })}</button></div>
+  const unused = entries.filter((e) => e.status === "unused").length;
+  return `<p class="hint">${te("settings.vault.checked", { path })}</p>
+    <ul class="hook-runs">${entries.map(vaultRow).join("")}</ul>
+    ${unused ? `<div class="dlg-actions left"><button class="btn danger-btn" data-vault-prune>${icon("trash")} ${te("settings.vault.prune", { count: unused })}</button></div>
     <div class="confirm" data-vault-confirm role="alertdialog" aria-labelledby="vault-confirm-text" hidden>
-      <p id="vault-confirm-text">${te("settings.vault.confirm")}</p>
+      <p id="vault-confirm-text">${te("settings.vault.confirm", { count: unused, path })}</p>
       <div class="dlg-actions left"><button class="btn danger-btn" data-vault-prune-confirm>${te("settings.vault.pruneConfirm")}</button>
         <button class="btn" data-vault-prune-cancel>${te("common.cancel")}</button></div>
-    </div>` : ""}`;
+    </div>` : ""}
+    <div class="confirm" data-vault-one role="alertdialog" aria-labelledby="vault-one-text" hidden>
+      <p id="vault-one-text"></p>
+      <div class="dlg-actions left"><button class="btn danger-btn" data-vault-one-confirm>${te("settings.vault.pruneConfirm")}</button>
+        <button class="btn" data-vault-one-cancel>${te("common.cancel")}</button></div>
+    </div>`;
+}
+
+/** The line after a removal: how many went and how many were kept because they changed since the confirmation. */
+export function vaultOutcomeText(outcome) {
+  const deleted = outcome?.deleted?.length ?? 0;
+  const skipped = outcome?.skipped?.length ?? 0;
+  return [t("settings.vault.done", { count: deleted }), skipped ? t("settings.vault.skipped", { count: skipped }) : ""].filter(Boolean).join(" ");
 }
 
 const DOCTOR_ORDER = ["fail", "warn", "ok", "skip"];
@@ -147,15 +171,38 @@ export function bind(root, ctx) {
   };
   root.querySelector("[data-reset-config]").onclick = () => applyConfig(null);
   const vault = root.querySelector("[data-vault]");
-  const showVault = () => vaultAudit().then((entries) => {
-    vault.innerHTML = vaultHtml(entries);
+  const vaultMsg = root.querySelector("#vault-msg");
+  const showVault = () => vaultAudit().then((plan) => {
+    vault.innerHTML = vaultHtml(plan);
+    const entries = plan?.entries ?? [];
+    // One by one: the confirmation names the entry's kind and status.
+    const one = vault.querySelector("[data-vault-one]");
+    let pending = null;
+    for (const button of vault.querySelectorAll("[data-vault-remove]")) {
+      button.onclick = () => {
+        const e = entries[Number(button.dataset.vaultRemove)];
+        pending = { key: e.key, button };
+        one.querySelector("#vault-one-text").textContent = t("settings.vault.removeConfirm", { label: `${t(e.kind ? `settings.vault.kind.${e.kind}` : "settings.vault.kind.unknown")} (${t(`settings.vault.status.${e.status}`)})` });
+        one.hidden = false;
+        one.querySelector("[data-vault-one-cancel]").focus();
+      };
+    }
+    one.querySelector("[data-vault-one-cancel]").onclick = () => { one.hidden = true; pending?.button.focus(); pending = null; };
+    one.querySelector("[data-vault-one-confirm]").onclick = async () => {
+      const key = pending?.key;
+      if (!key) return;
+      try { await vaultRemove(key); vaultMsg.textContent = t("settings.vault.done", { count: 1 }); await showVault(); }
+      catch (e) { fail("credentials", errorText(e)); }
+    };
     const prune = vault.querySelector("[data-vault-prune]");
     if (!prune) return;
     const box = vault.querySelector("[data-vault-confirm]");
+    // Exactly the keys shown; the core skips any that changed since.
+    const shown = entries.filter((e) => e.status === "unused").map((e) => e.key);
     prune.onclick = () => { box.hidden = false; box.querySelector("[data-vault-prune-cancel]").focus(); };
     box.querySelector("[data-vault-prune-cancel]").onclick = () => { box.hidden = true; prune.focus(); };
     box.querySelector("[data-vault-prune-confirm]").onclick = async () => {
-      try { await vaultPrune(); await showVault(); }
+      try { const outcome = await vaultPrune(shown); vaultMsg.textContent = vaultOutcomeText(outcome); await showVault(); }
       catch (e) { fail("credentials", errorText(e)); }
     };
   }).catch((e) => { vault.innerHTML = `<p class="hint warn-txt">${esc(errorText(e))}</p>`; });

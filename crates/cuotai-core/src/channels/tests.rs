@@ -785,7 +785,9 @@ impl Fixture {
             created_at: t0(),
             signed: false,
         };
-        self.vault.put(&Vault::url_key(&channel.id), url).unwrap();
+        self.vault
+            .put(&Vault::url_key(&channel.id), url, &self.settings)
+            .unwrap();
         let stored = channel.clone();
         mutate(&self.settings, move |channels| {
             channels.push(stored);

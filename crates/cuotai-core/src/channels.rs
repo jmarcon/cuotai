@@ -588,14 +588,22 @@ impl Vault {
         format!("channel_{id}_secret")
     }
 
-    fn put(&self, key: &str, value: &str) -> Result<(), Localized> {
+    /// Store `value` under `key`, recorded in the vault index as a channel
+    /// owned by the preferences file at `prefs` (2026-11 re-validation R-01).
+    fn put(&self, key: &str, value: &str, prefs: &Path) -> Result<(), Localized> {
         let token = OAuthToken {
             access_token: value.to_owned(),
             refresh_token: None,
             expires_at: None,
             metadata: BTreeMap::new(),
         };
-        self.0.save(key, &token).map_err(|_| vault_error())
+        let tag = crate::oauth::vault_index::EntryTag::owned_by(
+            crate::oauth::vault_index::Kind::Channel,
+            prefs,
+        );
+        self.0
+            .save_tagged(key, &token, &tag)
+            .map_err(|_| vault_error())
     }
 
     fn get(&self, key: &str) -> Result<Option<String>, Localized> {
@@ -702,6 +710,41 @@ pub fn read(path: &Path) -> Vec<Channel> {
         .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
         .map(|document| from_document(&document))
         .unwrap_or_default()
+}
+
+/// What [`read_checked`] found in `desktop.json`.
+#[derive(Debug, Clone)]
+pub struct CheckedChannels {
+    pub channels: Vec<Channel>,
+    /// Every entry of the `channels` member was kept: none failed to read
+    /// or [`well_formed`], none came past [`MAX_CHANNELS`], and the schema
+    /// major is one this build knows.
+    pub complete: bool,
+}
+
+/// The channels of `desktop.json` at `path`, telling a complete read from
+/// one that dropped something (2026-11 re-validation R-01: the vault audit
+/// must not take a damaged file for "no channels"). `None` when the file
+/// is missing, unreadable or not a JSON object.
+pub fn read_checked(path: &Path) -> Option<CheckedChannels> {
+    let bytes = std::fs::read(path).ok()?;
+    let document = serde_json::from_slice::<serde_json::Value>(&bytes).ok()?;
+    if !document.is_object() {
+        return None;
+    }
+    let channels = from_document(&document);
+    let newer = document
+        .get("schema")
+        .and_then(serde_json::Value::as_u64)
+        .is_some_and(|major| major > SCHEMA_MAJOR);
+    let listed = match document.get(SETTINGS_KEY) {
+        None => Some(0),
+        Some(value) => value.as_array().map(Vec::len),
+    };
+    Some(CheckedChannels {
+        complete: !newer && listed == Some(channels.len()),
+        channels,
+    })
 }
 
 /// The `desktop.json` schema major this module writes (PRD 0051).
@@ -826,10 +869,10 @@ pub fn add(
     }
     let id = new_id();
     let sign = draft.sign && draft.kind == ChannelKind::Webhook;
-    vault.put(&Vault::url_key(&id), valid.expose().as_str())?;
+    vault.put(&Vault::url_key(&id), valid.expose().as_str(), path)?;
     let signing_secret = if sign {
         let secret = generate_secret();
-        if let Err(error) = vault.put(&Vault::secret_key(&id), &secret) {
+        if let Err(error) = vault.put(&Vault::secret_key(&id), &secret, path) {
             let _ = vault.delete(&id);
             return Err(error);
         }
@@ -896,7 +939,7 @@ pub fn edit(
         for (key, previous) in [(&url_key, &previous_url), (&secret_key, &previous_secret)] {
             match previous {
                 Some(Some(value)) => {
-                    let _ = vault.put(key, value);
+                    let _ = vault.put(key, value, path);
                 }
                 Some(None) => {
                     let _ = vault.0.delete(key);
@@ -906,11 +949,11 @@ pub fn edit(
         }
     };
     if let Some(valid) = &valid {
-        vault.put(&url_key, valid.expose().as_str())?;
+        vault.put(&url_key, valid.expose().as_str(), path)?;
     }
     let signing_secret = if new_secret {
         let secret = generate_secret();
-        if let Err(error) = vault.put(&secret_key, &secret) {
+        if let Err(error) = vault.put(&secret_key, &secret, path) {
             restore();
             return Err(error);
         }

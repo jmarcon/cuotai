@@ -2382,5 +2382,7 @@
   "user_session.paste.too_long": "붙여 넣은 텍스트가 너무 깁니다. Cookie 헤더, cURL 형식의 요청 또는 쿠키 표만 복사하세요.",
   "user_session.paste.cookie_too_long": "세션 쿠키가 너무 길어 보낼 수 없습니다. 다시 로그인한 뒤 다시 복사하세요.",
   "oauth_error.store.too_long": "이 자격 증명은 시스템 보관소에 넣기에 너무 큽니다.",
-  "edit_error.config_reserved_name": "필드 {field}에 Cuotai용으로 예약된 이름(__CUOTAI_로 시작)이 쓰였습니다. 직접 만든 환경 변수의 이름을 지정하거나 계정 마법사에서 비밀 값을 붙여 넣으세요."
+  "edit_error.config_reserved_name": "필드 {field}에 Cuotai용으로 예약된 이름(__CUOTAI_로 시작)이 쓰였습니다. 직접 만든 환경 변수의 이름을 지정하거나 계정 마법사에서 비밀 값을 붙여 넣으세요.",
+  "vault.remove.in_use": "이 자격 증명은 사용 중입니다. 대신 해당 계정이나 채널을 제거하세요.",
+  "vault.remove.not_indexed": "이 키는 저장된 자격 증명 목록에 없습니다."
 }

@@ -215,7 +215,7 @@ struct Args {
             "list_providers", "changelog", "extension_check", "once", "json_v1",
             "history", "notify", "serve", "watch", "install_source", "cost_action",
             "report_problem", "canary", "status_line", "stored_view", "completions",
-            "vault_audit", "vault_prune",
+            "vault_audit", "vault_prune", "vault_remove",
         ]
     )]
     check_config: bool,
@@ -442,16 +442,27 @@ struct Args {
     /// DEVELOPMENT ONLY: unencrypted tokens in SQLite (release builds refuse it).
     #[arg(long, value_name = "FILE")]
     dev_credentials_sqlite: Option<PathBuf>,
-    /// Lists the credentials Cuotai stored in the vault (OAuth and web
-    /// sessions), the account that uses each one and the orphans no account
-    /// uses; never shows a value. With --json, as JSON. Exit 0; 2 with
-    /// orphans.
+    /// Lists the credentials Cuotai stored in the vault (sign-ins, web
+    /// sessions, notification channels and extension secrets) with what
+    /// uses each one, judged against this configuration; only entries
+    /// proven unused are marked for removal. Never shows a value. With
+    /// --json, as JSON. Exit 0; 2 when some are proven unused.
     #[arg(long, conflicts_with_all = VAULT_CONFLICTS)]
     vault_audit: bool,
-    /// Deletes the orphan credentials of --vault-audit from the vault, after
-    /// a confirmation in the terminal (without a terminal: error).
+    /// Deletes the credentials --vault-audit proves unused, after a
+    /// confirmation in the terminal (without a terminal: error); exactly
+    /// the list shown, judged again from disk.
     #[arg(long, conflicts_with_all = VAULT_CONFLICTS, conflicts_with = "vault_audit")]
     vault_prune: bool,
+    /// Deletes one stored credential by its key (from --vault-audit), after
+    /// a confirmation in the terminal; refused while it is in use.
+    #[arg(
+        long,
+        value_name = "KEY",
+        conflicts_with_all = VAULT_CONFLICTS,
+        conflicts_with_all = ["vault_audit", "vault_prune"]
+    )]
+    vault_remove: Option<String>,
     /// Adds a notification channel of KIND (webhook, ntfy, slack or
     /// discord) that receives the notifications Cuotai shows. The address
     /// is read from standard input or a prompt, never from an argument, and
@@ -875,7 +886,7 @@ const FEED_CONFLICTS: [&str; 12] = [
 /// PRD 0029 RF6.2: the vault audit runs alone.
 /// PRD 0046: `--doctor`, `--backup` and `--restore` run alone (with
 /// `--config` and `--json`).
-const SETUP_CONFLICTS: [&str; 19] = [
+const SETUP_CONFLICTS: [&str; 20] = [
     "list_providers",
     "changelog",
     "extension_check",
@@ -894,6 +905,7 @@ const SETUP_CONFLICTS: [&str; 19] = [
     "completions",
     "vault_audit",
     "vault_prune",
+    "vault_remove",
     "check_config",
 ];
 
@@ -1423,16 +1435,18 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         println!("{line}");
         return Ok(code);
     }
-    if args.vault_audit || args.vault_prune {
+    if args.vault_audit || args.vault_prune || args.vault_remove.is_some() {
         let file = load_config(args.config, false)?;
         let session = match &args.dev_credentials_sqlite {
             Some(path) => OAuthSession::development_sqlite(path)?,
             None => OAuthSession::system()?,
         };
-        return if args.vault_prune {
-            vault::prune(&session, &file.config).await
+        return if let Some(key) = &args.vault_remove {
+            vault::remove(&session, &file, key).await
+        } else if args.vault_prune {
+            vault::prune(&session, &file).await
         } else {
-            vault::audit(&session, &file.config, args.json).await
+            vault::audit(&session, &file, args.json).await
         };
     }
     // PRD 0044 RF5.2: the notification channels.
