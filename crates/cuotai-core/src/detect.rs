@@ -680,6 +680,93 @@ mod tests {
         None
     }
 
+    const DEVICE_START: &str =
+        "<!-- device-check-table:start (generated from detect::TABLE; do not edit by hand) -->";
+    const DEVICE_END: &str = "<!-- device-check-table:end -->";
+
+    fn device_check_table() -> String {
+        let appdata = |name: &str| (name == "APPDATA").then(|| "%APPDATA%".to_string());
+        let home = Path::new("~");
+        let shown = |kind, os| {
+            let list: Vec<String> = paths(kind, home, os, &appdata)
+                .iter()
+                .map(|p| format!("`{}`", p.display().to_string().replace('\\', "/")))
+                .collect();
+            if list.is_empty() {
+                "—".to_string()
+            } else {
+                list.join("<br>")
+            }
+        };
+        let mut out = String::from(
+            "| Tool | Provider | macOS | Linux | Windows | The offer opens | Evidence |\n\
+             |---|---|---|---|---|---|---|\n",
+        );
+        // Only what `local_sources` checks: verified rows of offered providers.
+        for entry in TABLE
+            .iter()
+            .filter(|e| e.verified && crate::access::has_usage_query(e.provider))
+        {
+            let opens = match entry.flow {
+                Flow::CursorImport => {
+                    "the Cursor import: reads the sign-in token from Cursor's local database once, after you confirm"
+                }
+                Flow::NativeLogin => "the provider's own sign-in; nothing local is read",
+                Flow::AwsProfile => "the Bedrock profile step: you type the profile; nothing under `~/.aws` is read",
+                Flow::KeyStep => "the key step: you paste the key; nothing local is read",
+            };
+            let evidence = if entry.evidence.starts_with("https://") {
+                format!("[docs]({})", entry.evidence)
+            } else {
+                format!("`{}`", entry.evidence)
+            };
+            out.push_str(&format!(
+                "| {} | {} | {} | {} | {} | {} | {} |\n",
+                entry.kind.tool(),
+                entry.provider.label(),
+                shown(entry.kind, Os::MacOs),
+                shown(entry.kind, Os::Linux),
+                shown(entry.kind, Os::Windows),
+                opens,
+                evidence,
+            ));
+        }
+        out
+    }
+
+    /// PRD 0027 re-validation C-15: `docs/providers.md` lists what the
+    /// device check looks for, generated from [`TABLE`] and [`paths`].
+    #[test]
+    fn providers_doc_matrix_device_check_table_matches_detect() {
+        let _guard = crate::catalog::DOC_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/providers.md");
+        let doc = std::fs::read_to_string(&path)
+            .expect("providers doc")
+            .replace("\r\n", "\n");
+        let (head, rest) = doc
+            .split_once(DEVICE_START)
+            .expect("device-check start marker in docs/providers.md");
+        let (current, tail) = rest
+            .split_once(DEVICE_END)
+            .expect("device-check end marker in docs/providers.md");
+        let expected = format!("\n{}", device_check_table());
+        if std::env::var_os("CUOTAI_REGENERATE_DOCS").is_some() {
+            std::fs::write(
+                &path,
+                format!("{head}{DEVICE_START}{expected}{DEVICE_END}{tail}"),
+            )
+            .expect("write providers doc");
+            return;
+        }
+        assert_eq!(
+            current, expected,
+            "docs/providers.md is out of date with detect::TABLE. Regenerate it with \
+             `CUOTAI_REGENERATE_DOCS=1 cargo test -p cuotai-core providers_doc_matrix` and commit the result."
+        );
+    }
+
     fn touch(path: &Path) {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(path, b"secret").unwrap();
