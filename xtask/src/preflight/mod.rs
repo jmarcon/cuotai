@@ -891,17 +891,31 @@ pub fn run(args: &[String]) -> Res<()> {
     }
     // A `--push` that already passed for exactly these commits, this base
     // and a clean tree is not run again: `cargo xtask preflight --push`
-    // followed by `git push` keeps the hook instant.
-    let record = (mode == Mode::Push && skipped.is_empty())
+    // followed by `git push` keeps the hook instant. A pass with steps
+    // bypassed by `CUOTAI_SKIP` is recorded with them, and it counts only
+    // for a run that bypasses those steps too.
+    let bypassed = bypassed_steps(&plan, &skipped);
+    let record = (mode == Mode::Push)
         .then(|| pass_record(&context, &plan))
         .flatten();
     if let Some((path, key)) = &record {
-        if std::fs::read_to_string(path).is_ok_and(|saved| saved == *key) {
-            println!(
-                "preflight --push: these commits already passed against {} on a clean tree; \
-                 nothing to run again",
-                context.base
-            );
+        let saved = std::fs::read_to_string(path).unwrap_or_default();
+        if let Some(then) = accepted_record(&saved, key, &bypassed) {
+            if then.is_empty() {
+                println!(
+                    "preflight --push: these commits already passed against {} on a clean tree; \
+                     nothing to run again",
+                    context.base
+                );
+            } else {
+                println!(
+                    "preflight --push: these commits already passed against {} on a clean tree \
+                     with {} bypassed by {SKIP_VARIABLE}, as this run asks; nothing to run \
+                     again. Skipped checks still run in CI.",
+                    context.base,
+                    then.join(", ")
+                );
+            }
             return Ok(());
         }
     }
@@ -909,7 +923,7 @@ pub fn run(args: &[String]) -> Res<()> {
     execute(&context, &plan, &skipped)?;
     if let Some((path, key)) = &record {
         // Best effort: without the record the next push only runs again.
-        let _ = std::fs::write(path, key);
+        let _ = std::fs::write(path, record_line(key, &bypassed));
     }
     if stdin_refs {
         hook_window(hook_elapsed(started), record.is_some())?;
@@ -965,11 +979,52 @@ fn pass_record(context: &Context, plan: &Plan) -> Option<(PathBuf, String)> {
     Some((path, key))
 }
 
-/// The content of the pass record for `head` checked against `base` with
+/// What the pass record identifies: `head` checked against `base` with
 /// `steps`.
 pub fn record_key(head: &str, base: &str, steps: &[Step]) -> String {
     let steps: Vec<_> = steps.iter().map(|step| step.id()).collect();
-    format!("v1 {head} {base} {}\n", steps.join(","))
+    format!("v2 {head} {base} {}", steps.join(","))
+}
+
+/// The ids of the steps of `plan` that `CUOTAI_SKIP` (`names`) bypasses,
+/// sorted and without repeats, so `clippy` and `clippy,clippy-desktop` name
+/// the same set.
+pub fn bypassed_steps(plan: &Plan, names: &[String]) -> Vec<&'static str> {
+    let mut ids: Vec<_> = plan
+        .steps
+        .iter()
+        .filter(|step| select::is_skipped(**step, names))
+        .map(|step| step.id())
+        .collect();
+    ids.sort_unstable();
+    ids.dedup();
+    ids
+}
+
+/// The content of the pass record: `key` and the steps the passing run
+/// bypassed with `CUOTAI_SKIP`.
+pub fn record_line(key: &str, bypassed: &[&str]) -> String {
+    format!("{key} skipped={}\n", bypassed.join(","))
+}
+
+/// Whether the `saved` pass record lets a run with `key` that bypasses
+/// `bypassed` stop at once, and with which bypassed steps it passed: the
+/// same commits, base and steps, and no step bypassed then that this run
+/// does not bypass too. A run that bypasses nothing needs a pass that
+/// bypassed nothing.
+pub fn accepted_record(saved: &str, key: &str, bypassed: &[&str]) -> Option<Vec<String>> {
+    let (identity, then) = saved.strip_suffix('\n')?.rsplit_once(" skipped=")?;
+    if identity != key {
+        return None;
+    }
+    let then: Vec<String> = then
+        .split(',')
+        .filter(|id| !id.is_empty())
+        .map(str::to_string)
+        .collect();
+    then.iter()
+        .all(|id| bypassed.contains(&id.as_str()))
+        .then_some(then)
 }
 
 /// The pre-push hook's answer after its checks passed in `elapsed`: past
@@ -1052,7 +1107,7 @@ mod tests {
         let (path, key) = pass_record(&context, &plan).expect("clean tree");
         let sha = git::run(repo, &["rev-parse", "HEAD"]).unwrap();
         assert_eq!(key, record_key(sha.trim(), sha.trim(), &plan.steps));
-        assert!(key.ends_with(" fmt,test\n"), "{key}");
+        assert!(key.ends_with(" fmt,test"), "{key}");
         assert!(path.starts_with(repo.join(".git")), "{}", path.display());
         std::fs::write(repo.join("a.txt"), "changed\n").unwrap();
         assert_eq!(
@@ -1060,6 +1115,63 @@ mod tests {
             None,
             "a dirty tree is not recorded"
         );
+    }
+
+    /// A pass with steps bypassed by `CUOTAI_SKIP` is recorded with them;
+    /// it lets the hook skip a run that bypasses the same steps or more, and
+    /// never one that bypasses fewer, so a push without `CUOTAI_SKIP` still
+    /// needs a pass that bypassed nothing.
+    #[test]
+    fn a_pass_with_bypassed_steps_counts_only_for_a_run_that_bypasses_them_too() {
+        let plan = Plan {
+            steps: vec![Step::Fmt, Step::Clippy, Step::ClippyDesktop, Step::Test],
+            packages: Vec::new(),
+        };
+        let names = |value: &str| select::parse_skip(value);
+        assert_eq!(
+            bypassed_steps(&plan, &names("test,clippy")),
+            ["clippy", "clippy-desktop", "test"],
+            "ids, sorted; `clippy` covers `clippy-desktop`"
+        );
+        assert_eq!(
+            bypassed_steps(&plan, &names("clippy,clippy-desktop,codeql")),
+            ["clippy", "clippy-desktop"],
+            "a step outside the plan is not part of the record"
+        );
+        assert!(bypassed_steps(&plan, &[]).is_empty());
+
+        let key = record_key("h", "b", &plan.steps);
+        let full = record_line(&key, &[]);
+        assert_eq!(full, "v2 h b fmt,clippy,clippy-desktop,test skipped=\n");
+        let clippy = record_line(&key, &["clippy", "clippy-desktop"]);
+        assert_eq!(
+            clippy,
+            "v2 h b fmt,clippy,clippy-desktop,test skipped=clippy,clippy-desktop\n"
+        );
+
+        // A full pass counts for every run.
+        assert_eq!(accepted_record(&full, &key, &[]), Some(vec![]));
+        assert_eq!(accepted_record(&full, &key, &["test"]), Some(vec![]));
+        // A pass that bypassed Clippy counts for the same set or more...
+        let then = Some(vec!["clippy".to_string(), "clippy-desktop".to_string()]);
+        assert_eq!(
+            accepted_record(&clippy, &key, &["clippy", "clippy-desktop"]),
+            then
+        );
+        assert_eq!(
+            accepted_record(&clippy, &key, &["clippy", "clippy-desktop", "test"]),
+            then
+        );
+        // ...never for fewer, and never for a run that bypasses nothing.
+        assert_eq!(accepted_record(&clippy, &key, &["clippy"]), None);
+        assert_eq!(accepted_record(&clippy, &key, &["test"]), None);
+        assert_eq!(accepted_record(&clippy, &key, &[]), None);
+        // Other commits, base or steps, an old or broken record: run again.
+        let other = record_key("h2", "b", &plan.steps);
+        assert_eq!(accepted_record(&full, &other, &[]), None);
+        assert_eq!(accepted_record("v1 h b fmt,test\n", &key, &[]), None);
+        assert_eq!(accepted_record("", &key, &[]), None);
+        assert_eq!(accepted_record(&key, &key, &[]), None, "no skipped field");
     }
 
     fn args(list: &[&str]) -> Vec<String> {
