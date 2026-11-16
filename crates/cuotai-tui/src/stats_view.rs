@@ -85,7 +85,7 @@ pub(crate) fn timeline_of(
     range: TimelineRange,
     now: DateTime<Utc>,
 ) -> Timeline {
-    timeline_of_config(config, reports, range, now)
+    timeline_of_config(config, reports, range, now, &Local)
 }
 
 fn percent(share: f64) -> String {

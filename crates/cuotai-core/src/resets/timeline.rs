@@ -2,7 +2,8 @@
 //!
 //! [`timeline`] places one lane per account on a time axis from the
 //! readings the front end already holds. It is pure: no clock, no network,
-//! no history. The lane of an account is its binding metric (PRD 0009,
+//! no history; the caller gives `now` and the time zone the clock texts
+//! (`returns_clock`, `ends_clock`) are read in. The lane of an account is its binding metric (PRD 0009,
 //! `metrics::binding`): when the account is blocked, the time it is usable
 //! again; otherwise the reset of its tightest quota. Overage and
 //! model-scoped metrics never form a lane because the binding metric never
@@ -16,8 +17,9 @@
 
 use crate::metrics::{binding, Binding, BindingReason};
 use crate::{Provider, Report};
-use chrono::{DateTime, TimeDelta, Utc};
+use chrono::{DateTime, TimeDelta, TimeZone, Utc};
 use serde::Serialize;
+use std::fmt::Display;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -84,6 +86,11 @@ pub struct Lane {
     /// lane's accessible name, whose catalog text adds "in"; `None` when the
     /// return is unknown.
     pub returns_in: Option<crate::text::Localized>,
+    /// PRD 0026 re-validation (V-01): `returns_at` as a clock time
+    /// ([`crate::text::clock`]: the time today, the weekday within six days,
+    /// the date beyond), so the desktop, the TUI and the CLI agree; `None`
+    /// when the return is unknown.
+    pub returns_clock: Option<crate::text::Localized>,
     /// Share left of the binding metric, `0.0..=1.0`.
     pub remaining_share: f64,
     pub level: ShareLevel,
@@ -97,6 +104,9 @@ pub struct Timeline {
     pub now: DateTime<Utc>,
     /// `now` plus the range.
     pub ends_at: DateTime<Utc>,
+    /// PRD 0026 re-validation (V-01): `ends_at` as a clock time, the label of
+    /// the axis end (never read as "now").
+    pub ends_clock: crate::text::Localized,
     /// Returns within the range, earliest first, ties in configuration order.
     pub lanes: Vec<Lane>,
     /// Returns after the range, earliest first.
@@ -105,13 +115,18 @@ pub struct Timeline {
     pub unknown: Vec<Lane>,
 }
 
-fn lane(
+fn lane<Tz>(
     index: usize,
     view: &AccountView<'_>,
     binding: &Binding,
     returns_at: Option<DateTime<Utc>>,
     now: DateTime<Utc>,
-) -> Lane {
+    tz: &Tz,
+) -> Lane
+where
+    Tz: TimeZone,
+    Tz::Offset: Display,
+{
     let remaining_share = (1.0 - binding.used_ratio).clamp(0.0, 1.0);
     Lane {
         account_index: index,
@@ -120,6 +135,7 @@ fn lane(
         label: binding.label.clone(),
         returns_at,
         returns_in: returns_at.map(|at| crate::text::duration(at - now)),
+        returns_clock: returns_at.map(|at| crate::text::clock(at, now, tz)),
         remaining_share,
         level: ShareLevel::of(remaining_share),
         exhausted: binding.reason == BindingReason::Exhausted,
@@ -130,13 +146,19 @@ fn lane(
 /// [`timeline`] over the held readings of `config`'s accounts (`reports[i]`
 /// belongs to `config.accounts[i]`; a missing entry has no reading): each
 /// reading is stale when it is older than its account's refresh interval
-/// allows (PRD 0010). What the front ends call, so they agree.
-pub fn timeline_of_config(
+/// allows (PRD 0010). What the front ends call, so they agree; clock texts
+/// read in `tz`.
+pub fn timeline_of_config<Tz>(
     config: &crate::Config,
     reports: &[Option<Report>],
     range: TimelineRange,
     now: DateTime<Utc>,
-) -> Timeline {
+    tz: &Tz,
+) -> Timeline
+where
+    Tz: TimeZone,
+    Tz::Offset: Display,
+{
     use crate::freshness::{assess, Freshness};
     let views: Vec<AccountView<'_>> = config
         .accounts
@@ -157,15 +179,20 @@ pub fn timeline_of_config(
             }
         })
         .collect();
-    timeline(&views, range, now)
+    timeline(&views, range, now, tz)
 }
 
-/// The accounts' returns within `range` of `now`.
-pub fn timeline(
+/// The accounts' returns within `range` of `now`, clock texts read in `tz`.
+pub fn timeline<Tz>(
     accounts: &[AccountView<'_>],
     range: TimelineRange,
     now: DateTime<Utc>,
-) -> Timeline {
+    tz: &Tz,
+) -> Timeline
+where
+    Tz: TimeZone,
+    Tz::Offset: Display,
+{
     let ends_at = now + range.span();
     let mut lanes = Vec::new();
     let mut later = Vec::new();
@@ -177,7 +204,7 @@ pub fn timeline(
         // Blocked accounts return when the exhausted limit does; others when
         // the tightest quota resets.
         let returns_at = binding.blocked_until.or(binding.resets_at);
-        let lane = lane(index, view, &binding, returns_at, now);
+        let lane = lane(index, view, &binding, returns_at, now, tz);
         match returns_at {
             None => unknown.push(lane),
             Some(at) if at <= ends_at => lanes.push(lane),
@@ -191,6 +218,7 @@ pub fn timeline(
         range,
         now,
         ends_at,
+        ends_clock: crate::text::clock(ends_at, now, tz),
         lanes,
         later,
         unknown,
@@ -270,7 +298,7 @@ mod tests {
             view("tied a", Some(&tied_a), false),
             view("tied b", Some(&tied_b), false),
         ];
-        let t = timeline(&views, TimelineRange::Hours24, now());
+        let t = timeline(&views, TimelineRange::Hours24, now(), &Utc);
         assert_eq!(
             names(&t.lanes),
             ["resetting", "blocked", "tied a", "tied b"]
@@ -301,12 +329,12 @@ mod tests {
             view("none", Some(&none), false),
             view("edge", Some(&edge), false),
         ];
-        let day = timeline(&views, TimelineRange::Hours24, now());
+        let day = timeline(&views, TimelineRange::Hours24, now(), &Utc);
         assert_eq!(names(&day.lanes), ["edge"], "exactly at the end is inside");
         assert_eq!(names(&day.later), ["far"]);
         assert_eq!(names(&day.unknown), ["none"]);
         assert_eq!(day.unknown[0].returns_at, None);
-        let week = timeline(&views, TimelineRange::Days7, now());
+        let week = timeline(&views, TimelineRange::Days7, now(), &Utc);
         assert_eq!(names(&week.lanes), ["edge", "far"]);
         assert!(week.later.is_empty());
     }
@@ -333,7 +361,7 @@ mod tests {
             view("cost only", Some(&overage), false),
             view("never read", None, false),
         ];
-        let t = timeline(&views, TimelineRange::Days7, now());
+        let t = timeline(&views, TimelineRange::Days7, now(), &Utc);
         assert!(t.lanes.is_empty() && t.later.is_empty());
         assert_eq!(names(&t.unknown), ["blocked"]);
         assert!(t.unknown[0].exhausted);
@@ -353,7 +381,7 @@ mod tests {
             view("Claude Home", Some(&b), false),
             view("Claude Old", Some(&past), true),
         ];
-        let t = timeline(&views, TimelineRange::Hours24, now());
+        let t = timeline(&views, TimelineRange::Hours24, now(), &Utc);
         assert_eq!(
             names(&t.lanes),
             ["Claude Old", "Claude Home", "Claude Work"]
@@ -367,6 +395,40 @@ mod tests {
         assert_eq!(t.lanes[1].provider, Provider::Claude);
     }
 
+    /// Re-validation V-01: a return more than six days away reads with its
+    /// date, and the axis end is never worded as "now".
+    #[test]
+    fn returns_beyond_six_days_carry_their_date_and_the_axis_end_its_day() {
+        let soon = report(vec![quota(50.0, 100.0, Some(now() + TimeDelta::hours(3)))]);
+        let week = report(vec![quota(50.0, 100.0, Some(now() + TimeDelta::days(8)))]);
+        let views = [
+            view("soon", Some(&soon), false),
+            view("week", Some(&week), false),
+        ];
+        let day = timeline(&views, TimelineRange::Hours24, now(), &Utc);
+        let clock = |lane: &Lane| lane.returns_clock.clone().unwrap();
+        assert_eq!(clock(&day.lanes[0]).id, crate::text::clock::TIME);
+        assert_eq!(clock(&day.lanes[0]).fallback, "3:00\u{a0}PM");
+        let later = clock(&day.later[0]);
+        assert_eq!(later.id, crate::text::clock::DATE);
+        assert_eq!(later.fallback, "10/28 12:00\u{a0}PM");
+        assert_eq!(later.resolve("de"), "28.10., 12:00");
+        // Now is a Tuesday noon: the 24 h end is tomorrow, the 7 d end next
+        // Tuesday, each worded with its weekday.
+        assert_eq!(day.ends_clock.fallback, "Wednesday 12:00\u{a0}PM");
+        let seven = timeline(&views, TimelineRange::Days7, now(), &Utc);
+        assert_eq!(seven.ends_clock.id, crate::text::clock::DATE);
+        assert_eq!(seven.ends_clock.fallback, "10/27 12:00\u{a0}PM");
+        let unknown = report(vec![quota(30.0, 100.0, None)]);
+        let t = timeline(
+            &[view("u", Some(&unknown), false)],
+            TimelineRange::Days7,
+            now(),
+            &Utc,
+        );
+        assert_eq!(t.unknown[0].returns_clock, None);
+    }
+
     #[test]
     fn the_binding_metric_of_an_account_decides_its_lane() {
         // Two quotas: the weekly one is tighter, so the lane returns with it.
@@ -378,7 +440,7 @@ mod tests {
         };
         let r = report(vec![five_hours, weekly]);
         let views = [view("two", Some(&r), false)];
-        let t = timeline(&views, TimelineRange::Days7, now());
+        let t = timeline(&views, TimelineRange::Days7, now(), &Utc);
         assert_eq!(t.lanes[0].label, "weekly");
         assert_eq!(t.lanes[0].returns_at, Some(now() + TimeDelta::days(2)));
         // V-10: the lane carries the core's countdown for its accessible name.
@@ -387,7 +449,9 @@ mod tests {
             Some("2d".to_owned())
         );
         assert_eq!(
-            timeline(&views, TimelineRange::Hours24, now()).later.len(),
+            timeline(&views, TimelineRange::Hours24, now(), &Utc)
+                .later
+                .len(),
             1
         );
     }

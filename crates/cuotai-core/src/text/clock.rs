@@ -15,6 +15,13 @@
 //! (DS-CMP-TIME-1): the time today, otherwise only the short weekday or
 //! only the date, with no `hour`/`minute` params.
 //!
+//! PRD 0026 re-validation (V-01 to V-03, V-11): [`past`] reads an instant
+//! behind `now` (the event journal), [`day`] a day alone (the daily bars),
+//! [`day_heading`] a day as a list heading ("Today", "Yesterday", then the
+//! weekday or the date) and [`hour`] an hour of the day alone (`at.hour`
+//! `{hour}`: "6 PM", "18"), so the Stats view, the timeline, the TUI and
+//! the CLI agree.
+//!
 //! [`Localized::resolve`] renders these ids here instead of through a
 //! catalog, with the hour cycle of the table below (12 hours for en-US,
 //! hi-IN and ko, 24 otherwise), and the desktop renders them with
@@ -24,7 +31,7 @@
 
 use std::fmt::Display;
 
-use chrono::{DateTime, Datelike, TimeZone, Timelike, Utc};
+use chrono::{DateTime, Datelike, NaiveDate, TimeZone, Timelike, Utc};
 
 use super::{params, Localized, ParamValue};
 
@@ -34,6 +41,8 @@ pub const TIME: &str = "at.time";
 pub const WEEKDAY: &str = "at.weekday";
 /// The id of a time further away.
 pub const DATE: &str = "at.date";
+/// The id of an hour of the day alone (a chart axis).
+pub const HOUR: &str = "at.hour";
 /// The id of an instant whose local clock is out of range (read in UTC).
 pub const UTC: &str = "at.utc";
 /// The id of a time a caller already worded.
@@ -99,6 +108,26 @@ pub fn format_time(hour: u32, minute: u32, code: &str) -> String {
                 format!("{mark} {h}:{minute:02}")
             } else {
                 format!("{h}:{minute:02}\u{a0}{mark}")
+            }
+        }
+    }
+}
+
+/// Hour `hour` alone in the hour cycle of `code`: "6\u{a0}PM", "오후 6시",
+/// "18".
+pub fn format_hour(hour: u32, code: &str) -> String {
+    match cycle(code) {
+        Cycle::H23(_) => format!("{hour:02}"),
+        Cycle::H12 { am, pm, before } => {
+            let mark = if hour < 12 { am } else { pm };
+            let h = match hour % 12 {
+                0 => 12,
+                h => h,
+            };
+            if before {
+                format!("{mark} {h}시")
+            } else {
+                format!("{h}\u{a0}{mark}")
             }
         }
     }
@@ -219,6 +248,75 @@ where
     }
 }
 
+/// `at` in `tz` as a person reads a past instant at `now` (the event
+/// journal): the time today, the weekday and time within the last six days,
+/// the short date and time further back (or ahead).
+pub fn past<Tz>(at: DateTime<Utc>, now: DateTime<Utc>, tz: &Tz) -> Localized
+where
+    Tz: TimeZone,
+    Tz::Offset: Display,
+{
+    let (local, days) = match locals(at, now, tz) {
+        Ok(found) => found,
+        Err(utc) => return utc,
+    };
+    let (hour, minute) = (local.hour(), local.minute());
+    match -days {
+        0 => with_fallback(
+            TIME,
+            params([("hour", number(hour)), ("minute", number(minute))]),
+        ),
+        1..=6 => with_fallback(
+            WEEKDAY,
+            params([
+                ("weekday", number(local.weekday().number_from_monday())),
+                ("hour", number(hour)),
+                ("minute", number(minute)),
+            ]),
+        ),
+        _ => with_fallback(
+            DATE,
+            params([
+                ("day", number(local.day())),
+                ("month", number(local.month())),
+                ("hour", number(hour)),
+                ("minute", number(minute)),
+            ]),
+        ),
+    }
+}
+
+/// Local day `date` alone as read on `today`: the short weekday within the
+/// last six days (today included), otherwise the short date in the
+/// language's order ("11/09", "09.11.").
+pub fn day(date: NaiveDate, today: NaiveDate) -> Localized {
+    match (today - date).num_days() {
+        0..=6 => with_fallback(
+            WEEKDAY,
+            params([("weekday", number(date.weekday().number_from_monday()))]),
+        ),
+        _ => with_fallback(
+            DATE,
+            params([("day", number(date.day())), ("month", number(date.month()))]),
+        ),
+    }
+}
+
+/// Local day `date` as the heading of a list read on `today`: "Today",
+/// "Yesterday", then [`day`].
+pub fn day_heading(date: NaiveDate, today: NaiveDate) -> Localized {
+    match (today - date).num_days() {
+        0 => Localized::fixed("cost.period.today", "Today"),
+        1 => Localized::fixed("cost.view.yesterday", "Yesterday"),
+        _ => day(date, today),
+    }
+}
+
+/// Hour `hour` (0–23) of the day alone, for a chart axis or a caption.
+pub fn hour(hour: u32) -> Localized {
+    with_fallback(HOUR, params([("hour", number(hour.min(23)))]))
+}
+
 fn int_param(note: &Localized, key: &str, max: u32) -> Option<u32> {
     match note.params.get(key)? {
         ParamValue::Text(text) => text.parse().ok().filter(|value| *value <= max),
@@ -270,6 +368,9 @@ pub(super) fn render(note: &Localized, locale: &str) -> Option<String> {
     } else {
         code
     };
+    if id == HOUR {
+        return int_param(note, "hour", 23).map(|hour| format_hour(hour, code));
+    }
     let time = match (int_param(note, "hour", 23), int_param(note, "minute", 59)) {
         (Some(hour), Some(minute)) => Some(format_time(hour, minute, code)),
         (None, None) if !note.params.contains_key("hour") => None,
@@ -382,6 +483,41 @@ mod tests {
         // Nested inside another text, the time follows the outer locale.
         let outer = Localized::with_param("x.y", "at", today, "Runs out ≈{at}");
         assert_eq!(outer.fallback, "Runs out ≈3:37\u{a0}PM");
+    }
+
+    #[test]
+    fn past_days_headings_and_hours_follow_the_language() {
+        let tz = FixedOffset::east_opt(0).unwrap();
+        let now = utc("2026-11-16T10:00:00Z"); // a Monday
+        let at = |text| past(utc(text), now, &tz);
+        assert_eq!(at("2026-11-16T08:05:00Z").id, TIME);
+        let saturday = at("2026-11-14T23:36:00Z");
+        assert_eq!(saturday.fallback, "Saturday 11:36\u{a0}PM");
+        assert_eq!(saturday.resolve("de"), "Samstag, 23:36");
+        let older = at("2026-11-07T14:39:00Z");
+        assert_eq!(older.fallback, "11/07 2:39\u{a0}PM");
+        assert_eq!(older.resolve("pt-BR"), "07/11 14:39");
+
+        let today = NaiveDate::from_ymd_opt(2026, 11, 16).unwrap();
+        let back = |n| today - chrono::TimeDelta::days(n);
+        assert_eq!(day(back(0), today).fallback, "Mon");
+        assert_eq!(day(back(3), today).resolve("de"), "Fr.");
+        let nov9 = day(back(7), today);
+        assert_eq!(nov9.fallback, "11/09", "month first in en-US");
+        assert_eq!(nov9.resolve("de"), "09.11.");
+        assert_eq!(nov9.resolve("pt-BR"), "09/11");
+        assert_eq!(nov9.resolve("ja"), "11/09");
+        assert_eq!(day_heading(back(0), today).fallback, "Today");
+        assert_eq!(day_heading(back(1), today).resolve("pt-BR"), "Ontem");
+        assert_eq!(day_heading(back(2), today).fallback, "Sat");
+        assert_eq!(day_heading(back(9), today).fallback, "11/07");
+
+        assert_eq!(hour(18).fallback, "6\u{a0}PM");
+        assert_eq!(hour(0).fallback, "12\u{a0}AM");
+        assert_eq!(hour(18).resolve("de"), "18");
+        assert_eq!(hour(6).resolve("ja"), "06");
+        assert_eq!(hour(18).resolve("ko"), "오후 6시");
+        assert_eq!(hour(18).resolve("hi-IN"), "6\u{a0}pm");
     }
 
     #[test]

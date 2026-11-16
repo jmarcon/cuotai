@@ -52,12 +52,16 @@ impl StatsRange {
 }
 
 /// The highest share of the tightest plan limit used on one local day.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct DayPeak {
     pub day: NaiveDate,
     /// `0.0..=1.0`; `None` when no sample of a known limit fell on the day.
     pub share: Option<f64>,
     pub is_today: bool,
+    /// PRD 0026 re-validation (V-03): the day as the reader's language writes
+    /// it ([`crate::text::clock::day`]: the short weekday within six days,
+    /// the short date in the language's order beyond).
+    pub label: Localized,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -254,6 +258,7 @@ pub fn summarize<Tz: TimeZone>(
                 day: *day,
                 share: *share,
                 is_today: *day == today,
+                label: crate::text::clock::day(*day, today),
             })
             .collect();
         stats.push(AccountStats {
@@ -276,6 +281,7 @@ pub fn summarize<Tz: TimeZone>(
                 .filter_map(|account| account.days[index].share)
                 .reduce(f64::max),
             is_today: *day == today,
+            label: crate::text::clock::day(*day, today),
         })
         .collect();
     let days_with_data = daily.iter().filter(|d| d.share.is_some()).count() as u32;
