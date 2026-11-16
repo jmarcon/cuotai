@@ -106,11 +106,15 @@ fn owner_label(entry: &AuditEntry) -> String {
         (Some(Kind::ExtensionSecret), _, _) => {
             tr("vault.owner.extension", "an extension's secret").to_owned()
         }
-        (_, Some(account), Some(provider)) => format!(
-            "{} / {}",
-            crate::ui::safe(account),
-            crate::ui::provider_label(provider)
-        ),
+        (_, Some(account), Some(provider)) => {
+            // PRD 0029 RF3.4 (V-07): an unnamed account by its provider once.
+            let provider = crate::ui::provider_label(provider);
+            let name = if entry.named { account.as_str() } else { "" };
+            match cuotai_core::display_title(&provider, name) {
+                (name, Some(provider)) => format!("{} / {provider}", crate::ui::safe(name)),
+                (provider, None) => provider.to_owned(),
+            }
+        }
         _ => status_label(Status::InUse).to_owned(),
     }
 }
@@ -394,6 +398,7 @@ mod tests {
             provider: None,
             account_id: None,
             account: None,
+            named: false,
             status,
             orphan: status == Status::Unused,
             present: true,
@@ -405,6 +410,13 @@ mod tests {
         let mut used = entry("key-a", Status::InUse, Some(Kind::Oauth));
         used.provider = Some(cuotai_core::Provider::ChatGpt);
         used.account = Some("Work".into());
+        used.named = true;
+        // PRD 0029 V-07: an unnamed account names its provider once.
+        let mut unnamed = entry("key-u", Status::InUse, Some(Kind::Oauth));
+        unnamed.provider = Some(cuotai_core::Provider::Claude);
+        unnamed.account = Some("Claude".into());
+        let owner = crate::l10n::with_locale("en-US", || owner_label(&unnamed));
+        assert_eq!(owner, "Claude");
         let entries = [
             used,
             entry("key-b", Status::Unused, Some(Kind::Session)),

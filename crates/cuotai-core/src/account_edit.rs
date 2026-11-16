@@ -2089,10 +2089,7 @@ pub fn validate_name(
         ));
     }
     if trimmed.is_empty() {
-        let has_peer = config.accounts.iter().enumerate().any(|(i, a)| {
-            Some(i) != editing && a.provider == provider && provider != Provider::Extension
-        });
-        if has_peer {
+        if name_required(config, provider, editing) {
             return Err(crate::text::Localized::with_param(
                 "edit_error.name_required_same_provider",
                 "provider",
@@ -2122,6 +2119,19 @@ pub fn validate_name(
 /// [`Config::rename_account`] followed by [`Config::upsert_account`].
 /// An edit that keeps its provider asks for nothing: the pair is already
 /// configured.
+/// PRD 0029 RF3.1 (V-04): whether the account being added (`editing` is
+/// `None`) or edited needs a name: another account of `provider` exists.
+/// Forms label the field as optional only when this is false. Extension
+/// accounts get their per-extension rule from [`Config::validate`].
+pub fn name_required(config: &Config, provider: Provider, editing: Option<usize>) -> bool {
+    provider != Provider::Extension
+        && config
+            .accounts
+            .iter()
+            .enumerate()
+            .any(|(i, a)| Some(i) != editing && a.provider == provider)
+}
+
 pub fn unnamed_peer(config: &Config, provider: Provider, editing: Option<usize>) -> Option<usize> {
     if editing
         .and_then(|i| config.accounts.get(i))

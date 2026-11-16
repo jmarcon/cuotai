@@ -1917,8 +1917,13 @@ fn render_card(
         .copied()
         .flatten()
         .map(|count| Span::styled(model_count_label(count), Style::default().fg(MUTED)));
+    // PRD 0029 RF3.4 (V-07): the title already names an unnamed account's
+    // provider; the status line does not repeat it.
+    let provider = crate::ui::provider_label(account.provider);
     let line = fit_status_line(
-        &crate::ui::provider_label(account.provider),
+        cuotai_core::display_title(&provider, &account.name)
+            .1
+            .unwrap_or_default(),
         status,
         class_span,
         count,
@@ -2477,7 +2482,8 @@ fn fit_status_line(
         Some((full, short)) => (Some(full), Some(short)),
         None => (None, None),
     };
-    let whole = Some(provider.to_string());
+    // An empty `provider` (an unnamed account) shows no provider part.
+    let whole = (!provider.is_empty()).then(|| provider.to_string());
     for (count, suffix) in [(count.as_ref(), full), (None, full)] {
         let line = build(whole.clone(), &body, count, suffix);
         if line.width() <= width {
@@ -2486,8 +2492,9 @@ fn fit_status_line(
     }
     for suffix in [full, short] {
         let rest = build(None, &body, None, suffix).width() + 3;
-        if let Some(provider) = width
-            .checked_sub(rest)
+        if let Some(provider) = whole
+            .as_deref()
+            .and(width.checked_sub(rest))
             .and_then(|room| ellipsize_words(provider, room))
         {
             return build(Some(provider), &body, None, suffix);

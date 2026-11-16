@@ -362,6 +362,7 @@ struct Reference {
     provider: Option<crate::Provider>,
     account_id: Option<String>,
     account: Option<String>,
+    named: bool,
 }
 
 impl Reference {
@@ -371,6 +372,7 @@ impl Reference {
             provider: None,
             account_id: None,
             account: None,
+            named: false,
         }
     }
 }
@@ -448,6 +450,7 @@ fn references(config: &crate::Config) -> BTreeMap<String, Reference> {
             provider: Some(account.provider),
             account_id: Some(account.state_key()),
             account: Some(account.display_name().into_owned()),
+            named: account.named(),
         };
         if let Some(key) = crate::account_edit::account_storage_key(account) {
             keys.insert(key, reference(Kind::Oauth));
@@ -532,6 +535,10 @@ pub struct AuditEntry {
     pub account_id: Option<String>,
     /// The account's display name.
     pub account: Option<String>,
+    /// PRD 0029 RF3.4: whether that account has a name of its own (an
+    /// unnamed one is titled by its provider once, see
+    /// [`crate::display_title`]).
+    pub named: bool,
     pub status: Status,
     /// `status == Unused` (kept for the `--vault-audit --json` schema 1).
     pub orphan: bool,
@@ -656,6 +663,7 @@ async fn audit_sources(session: &OAuthSession, index: &Path, sources: &Sources) 
             provider: reference.provider,
             account_id: reference.account_id,
             account: reference.account,
+            named: reference.named,
             status,
             orphan: status == Status::Unused,
             present,

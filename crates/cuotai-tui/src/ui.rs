@@ -2746,12 +2746,20 @@ fn render_deletion(state_: &DeletionState, file: &ConfigFile) -> (&'static str, 
         file.config
             .accounts
             .get(index)
-            .map(|a| format!("\"{}\" ({})", safe(&a.name), provider_label(a.provider)))
+            .map(|a| {
+                // PRD 0029 RF3.4 (V-02): an unnamed account by its provider.
+                let provider = provider_label(a.provider);
+                match cuotai_core::display_title(&provider, &a.name) {
+                    (name, Some(provider)) => format!("\"{}\" ({provider})", safe(name)),
+                    (provider, None) => provider.to_owned(),
+                }
+            })
             .unwrap_or_else(|| {
+                // V-09: people count accounts from 1.
                 trf(
                     "ui.delete.account_n",
                     "account #{index}",
-                    &[("index", &index)],
+                    &[("index", &(index + 1))],
                 )
             })
     };
@@ -2835,7 +2843,8 @@ fn render_deletion_result(index: usize, outcome: &RemoveOutcome) -> (String, Str
         | RemoveOutcome::CredentialKept { account, .. }
         | RemoveOutcome::PartialFailure { account, .. } => account,
     };
-    let (body, footer) = deletion_result_text(index, outcome);
+    // V-09: the result numbers the account as people count, from 1.
+    let (body, footer) = deletion_result_text(index + 1, outcome);
     if account.sessions_removed {
         (
             format!(
