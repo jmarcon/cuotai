@@ -138,15 +138,19 @@ impl Localized {
         fallback: impl Into<String>,
     ) -> Self {
         let fallback: String = fallback.into();
+        let id = id.into();
         #[cfg(test)]
-        assert_english(&fallback);
+        {
+            assert_english(&fallback);
+            assert_catalog_params(&id, &params, &fallback);
+        }
         let fallback = if params.is_empty() {
             fallback
         } else {
             substitute(&fallback, &params, Locale(source_locale()))
         };
         Self {
-            id: id.into(),
+            id,
             params,
             fallback: Cow::Owned(fallback),
         }
@@ -1154,6 +1158,49 @@ fn assert_english(template: &str) {
     );
 }
 
+/// PRD 0034 re-validation V-09: in the core's own tests every text built
+/// with parameters must have, in every catalog template of its id, each
+/// parameter's `{name}` exactly as many times as the English source
+/// writes it. A brace whose name is not a parameter is literal text (a
+/// path such as `/accounts/{account}`) and is not counted, so a catalog
+/// cannot turn literal text into a parameter (or drop one) unnoticed. In
+/// a plural form `{count}` may be left out (`one` is often a word). A
+/// fallback formatted in code before the call names no parameter and is
+/// not compared.
+#[cfg(test)]
+#[track_caller]
+fn assert_catalog_params(id: &str, params: &BTreeMap<String, ParamValue>, english: &str) {
+    fn uses(template: &str, name: &str) -> usize {
+        template.matches(&format!("{{{name}}}")).count()
+    }
+    // A fallback already formatted in code (`format!("HTTP {code}")`
+    // passed as text) names no parameter: there is no template to compare.
+    if params.keys().all(|name| uses(english, name) == 0) {
+        return;
+    }
+    let mut problems = Vec::new();
+    for locale in catalog_locales() {
+        let Some(message) = core_catalog(locale).and_then(|catalog| catalog.get(id)) else {
+            continue;
+        };
+        let plural = matches!(message, Message::Plural(_));
+        for template in message.templates() {
+            for name in params.keys() {
+                if plural && name == "count" {
+                    continue;
+                }
+                let (want, have) = (uses(english, name), uses(template, name));
+                if want != have {
+                    problems.push(format!(
+                        "{locale}: {id} has {{{name}}} {have} time(s), the English source {want}"
+                    ));
+                }
+            }
+        }
+    }
+    assert!(problems.is_empty(), "{problems:#?}");
+}
+
 #[cfg(test)]
 #[path = "text/budget_tests.rs"]
 mod budget_tests;
@@ -1531,8 +1578,52 @@ mod tests {
         assert!(pt.contains("Anthropic API"), "got: {pt}");
     }
 
+    /// V-09: a catalog template whose parameter count differs from the
+    /// English source fails where the text is built. The real Azure
+    /// resource-ID error names `{name}` once in every catalog; an English
+    /// source that wrote it twice must be caught.
+    #[test]
+    #[should_panic(expected = "edit_error.param.resource_id has {name} 1 time(s)")]
+    fn a_parameter_count_that_differs_from_the_source_fails() {
+        let _ = Localized::with_params(
+            "edit_error.param.resource_id",
+            params([
+                ("name", ParamValue::from("resource_id")),
+                ("rg", ParamValue::from("{rg}")),
+                ("sub", ParamValue::from("{sub}")),
+            ]),
+            "{name} must be under /subscriptions/{sub}/resourceGroups/{rg}/accounts/{name}.",
+        );
+    }
+
+    /// Literal braces are not counted: the real source, with `{account}`
+    /// as literal text, passes in every catalog.
+    #[test]
+    fn literal_braces_beside_parameters_pass() {
+        let text = Localized::with_params(
+            "edit_error.param.resource_id",
+            params([
+                ("name", ParamValue::from("resource_id")),
+                ("rg", ParamValue::from("{rg}")),
+                ("sub", ParamValue::from("{sub}")),
+            ]),
+            "{name} must be the full ARM ID inside the supplied subscription: /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.CognitiveServices/accounts/{account}.",
+        );
+        for locale in catalog_locales() {
+            let shown = text.resolve(locale);
+            assert!(shown.starts_with("resource_id"), "{locale}: {shown}");
+            assert!(
+                shown.contains("{rg}") && shown.contains("{sub}"),
+                "{locale}"
+            );
+            assert_eq!(shown.matches("resource_id").count(), 1, "{locale}");
+        }
+    }
+
     /// Ids whose braces are literal text (a path or an example), not
-    /// parameters.
+    /// parameters. Only the literal braces are excused: the parameters of
+    /// a text built with some are still counted in every catalog when it
+    /// is built (`assert_catalog_params`, V-09).
     const LITERAL_BRACES: [&str; 4] = [
         "edit_error.param.resource_id",
         "field.azure_open_ai.resource_id.help",

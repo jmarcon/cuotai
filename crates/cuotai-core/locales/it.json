@@ -455,7 +455,7 @@
   "edit_notice.option_replaced_for_auth_mode": "{value} non è disponibile per {field} con {auth_mode}. Selezionato {replacement}. {reason}",
   "edit_error.param.product": "Usa computer per Computer Analytics, oppure lascia vuoto per Perplexity/Sonar.",
   "edit_error.param.profile_arn": "ARN non valido: deve iniziare con \"arn:\" e usare solo caratteri AWS.",
-  "edit_error.param.resource_id": "{name} deve essere l'ID ARM completo all'interno della sottoscrizione fornita: /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.CognitiveServices/accounts/{name}.",
+  "edit_error.param.resource_id": "{name} deve essere l'ID ARM completo all'interno della sottoscrizione fornita: /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.CognitiveServices/accounts/{account}.",
   "edit_error.param.resource_id_chars": "params.{key} contiene caratteri non validi per un identificatore di risorsa.",
   "edit_error.param.system_id": "System ID non valido: usa lettere, numeri, trattino o underscore.",
   "edit_error.refresh_cycle_diff": "Il nuovo layout degli account è stato rifiutato dal controllo di differenza del ciclo di aggiornamento: {detail}.",

@@ -455,7 +455,7 @@
   "edit_notice.option_replaced_for_auth_mode": "{value} no está disponible para {field} con {auth_mode}. Se seleccionó {replacement}. {reason}",
   "edit_error.param.product": "Use computer para Computer Analytics, o deje vacío para Perplexity/Sonar.",
   "edit_error.param.profile_arn": "ARN inválido: debe comenzar con \"arn:\" y usar solo caracteres de AWS.",
-  "edit_error.param.resource_id": "{name} debe ser el ID ARM completo dentro de la suscripción indicada: /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.CognitiveServices/accounts/{name}.",
+  "edit_error.param.resource_id": "{name} debe ser el ID ARM completo dentro de la suscripción indicada: /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.CognitiveServices/accounts/{account}.",
   "edit_error.param.resource_id_chars": "params.{key} contiene caracteres inválidos para un identificador de recurso.",
   "edit_error.param.system_id": "System ID inválido: use letras, números, guion o guion bajo.",
   "edit_error.refresh_cycle_diff": "El nuevo diseño de cuentas fue rechazado por la guardia de diff del ciclo de refresco: {detail}.",
