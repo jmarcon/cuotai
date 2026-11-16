@@ -2334,7 +2334,7 @@ fn stored_view(args: &Args) -> Result<u8, Box<dyn std::error::Error>> {
             serde_json::to_writer_pretty(&mut stdout, &view::events_json(&events, locale))?;
             writeln!(stdout)?;
         } else {
-            write!(stdout, "{}", view::events_text(&events, locale))?;
+            write!(stdout, "{}", view::events_text(&events, now, locale))?;
         }
     }
     Ok(0)

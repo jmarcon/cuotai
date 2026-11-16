@@ -331,7 +331,10 @@
   "serve.port.cuotai_holder": " Ein anderer lokaler Cuotai-Server nutzt ihn bereits.",
   "serve.port.hint": " Wählen Sie mit --port einen anderen Port.",
   "serve.started": "cuotai: lokaler Server nur lesend; Strg+C beendet.",
-  "stats.account_line": "Ø {average} · {hits} Limit(s) erreicht · {spark}",
+  "stats.account_line": {
+    "one": "Ø {average} · {hits} Limit erreicht · {spark}",
+    "other": "Ø {average} · {hits} Limits erreicht · {spark}"
+  },
   "stats.average_peak": "Durchschnittliche Spitze des engsten Limits: {peak} ({base})",
   "stats.average_peak.none": "Durchschnittliche Spitze des engsten Limits: —",
   "stats.daily": "Spitzenauslastung pro Tag",
@@ -339,6 +342,10 @@
   "stats.days_with_data": "{days} Tage mit Daten",
   "stats.events.empty": "Keine Ereignisse erfasst.",
   "stats.events.heading": "Letzte Ereignisse",
+  "stats.events.skipped": {
+    "one": "{count} Journal-Eintrag konnte nicht gelesen werden.",
+    "other": "{count} Journal-Einträge konnten nicht gelesen werden."
+  },
   "stats.extra_spent": "Zusatzausgaben: {amounts}",
   "stats.extra_spent.none": "Zusatzausgaben: —",
   "stats.flag.days": "--days akzeptiert 7 oder 30 mit --stats.",
@@ -366,15 +373,11 @@
   "stats.timeline.heading": "Limits kehren zurück · nächste {span}",
   "stats.timeline.later": "Später",
   "stats.title": " STATISTIK ",
-  "stats.unknown_limits": "{count} Limit(s) ohne bekannte Obergrenze blieben aus den Durchschnitten draußen.",
+  "stats.unknown_limits": {
+    "one": "{count} Limit ohne bekannte Obergrenze blieb aus den Durchschnitten draußen.",
+    "other": "{count} Limits ohne bekannte Obergrenze blieben aus den Durchschnitten draußen."
+  },
   "stats.unknown_return": "Rückkehr unbekannt",
-  "stats.weekday.fri": "Fr",
-  "stats.weekday.mon": "Mo",
-  "stats.weekday.sat": "Sa",
-  "stats.weekday.sun": "So",
-  "stats.weekday.thu": "Do",
-  "stats.weekday.tue": "Di",
-  "stats.weekday.wed": "Mi",
   "ui.account_changed": "Konto in der Datei geändert; öffnen Sie den Assistenten erneut.",
   "ui.data_as_of": " · Daten vom {at}",
   "ui.delete.account_n": "Konto #{index}",

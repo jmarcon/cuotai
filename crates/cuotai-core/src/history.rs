@@ -33,7 +33,7 @@ mod retention;
 mod transfer;
 mod trend;
 
-pub use journal::{removed_account, JournalEntry};
+pub use journal::{removed_account, JournalEntry, JournalRead};
 pub use recorder::{HistoryRecorder, HistoryStatus};
 pub use retention::{CeilingPrune, ExportFormat, PruneReport, Retention, RetentionError};
 pub use transfer::{csv_account, csv_is_valid, ImportCount};

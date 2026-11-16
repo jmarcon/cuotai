@@ -329,7 +329,9 @@
   "serve.port.cuotai_holder": " Server Cuotai lokal lain memakainya.",
   "serve.port.hint": " Gunakan --port untuk memilih port lain.",
   "serve.started": "cuotai: server lokal hanya-baca; Ctrl+C menghentikannya.",
-  "stats.account_line": "rata-rata {average} · {hits} batas tercapai · {spark}",
+  "stats.account_line": {
+    "other": "rata-rata {average} · {hits} batas tercapai · {spark}"
+  },
   "stats.average_peak": "Rata-rata puncak batas paling ketat: {peak} ({base})",
   "stats.average_peak.none": "Rata-rata puncak batas paling ketat: —",
   "stats.daily": "Puncak penggunaan per hari",
@@ -337,6 +339,9 @@
   "stats.days_with_data": "{days} hari dengan data",
   "stats.events.empty": "Tidak ada peristiwa yang tercatat.",
   "stats.events.heading": "Peristiwa terbaru",
+  "stats.events.skipped": {
+    "other": "{count} entri jurnal tidak dapat dibaca."
+  },
   "stats.extra_spent": "Pengeluaran ekstra: {amounts}",
   "stats.extra_spent.none": "Pengeluaran ekstra: —",
   "stats.flag.days": "--days menerima 7 atau 30 dengan --stats.",
@@ -364,15 +369,10 @@
   "stats.timeline.heading": "Batas kembali · {span} berikutnya",
   "stats.timeline.later": "Nanti",
   "stats.title": " STATISTIK ",
-  "stats.unknown_limits": "{count} batas tanpa plafon yang diketahui tidak dimasukkan dalam rata-rata.",
+  "stats.unknown_limits": {
+    "other": "{count} batas tanpa plafon yang diketahui tidak dimasukkan dalam rata-rata."
+  },
   "stats.unknown_return": "Waktu kembali tidak diketahui",
-  "stats.weekday.fri": "jum",
-  "stats.weekday.mon": "sen",
-  "stats.weekday.sat": "sab",
-  "stats.weekday.sun": "min",
-  "stats.weekday.thu": "kam",
-  "stats.weekday.tue": "sel",
-  "stats.weekday.wed": "rab",
   "ui.account_changed": "Akun berubah di file; buka wizard lagi.",
   "ui.data_as_of": " · data dari {at}",
   "ui.delete.account_n": "akun #{index}",
