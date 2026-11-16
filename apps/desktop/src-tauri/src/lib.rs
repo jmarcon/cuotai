@@ -1008,9 +1008,13 @@ struct TrayMenuPayload {
     best: Option<String>,
 }
 
-/// Strips control characters, trims and limits the size of a menu line.
+/// Strips control characters and bidi overrides (the core's
+/// `text::is_disguising` rule), trims and limits the size of a menu line.
 fn clean_menu_line(text: &str) -> String {
-    let cleaned: String = text.chars().filter(|c| !c.is_control()).collect();
+    let cleaned: String = text
+        .chars()
+        .filter(|c| !cuotai_core::text::is_disguising(*c))
+        .collect();
     let trimmed = cleaned.trim();
     if trimmed.chars().count() <= 80 {
         trimmed.to_owned()
@@ -1019,15 +1023,17 @@ fn clean_menu_line(text: &str) -> String {
     }
 }
 
+/// A cleaned line as a menu item's text: the native menu reads `&` as a
+/// mnemonic marker (PRD 0025 re-validation S-04), so "R&D" keeps its `&`
+/// only doubled. Tooltips take [`clean_menu_line`] alone.
+fn menu_text(text: &str) -> String {
+    clean_menu_line(text).replace('&', "&&")
+}
+
 fn build_tray_menu(app: &AppHandle, p: &TrayMenuPayload) -> tauri::Result<Menu<tauri::Wry>> {
     let menu = Menu::new(app)?;
     // PRD 0018 RF2.2: the update comes first; the rest of the menu is the usual one.
-    if let Some(update) = p
-        .update
-        .as_deref()
-        .map(clean_menu_line)
-        .filter(|u| !u.is_empty())
-    {
+    if let Some(update) = p.update.as_deref().map(menu_text).filter(|u| !u.is_empty()) {
         menu.append(&MenuItem::with_id(
             app,
             "update",
@@ -1037,12 +1043,7 @@ fn build_tray_menu(app: &AppHandle, p: &TrayMenuPayload) -> tauri::Result<Menu<t
         )?)?;
         menu.append(&PredefinedMenuItem::separator(app)?)?;
     }
-    if let Some(notice) = p
-        .notice
-        .as_deref()
-        .map(clean_menu_line)
-        .filter(|n| !n.is_empty())
-    {
+    if let Some(notice) = p.notice.as_deref().map(menu_text).filter(|n| !n.is_empty()) {
         menu.append(&MenuItem::with_id(
             app,
             "notice",
@@ -1055,7 +1056,7 @@ fn build_tray_menu(app: &AppHandle, p: &TrayMenuPayload) -> tauri::Result<Menu<t
     let lines: Vec<String> = p
         .lines
         .iter()
-        .map(|l| clean_menu_line(l))
+        .map(|l| menu_text(l))
         .filter(|l| !l.is_empty())
         .take(40)
         .collect();
@@ -1063,7 +1064,7 @@ fn build_tray_menu(app: &AppHandle, p: &TrayMenuPayload) -> tauri::Result<Menu<t
         menu.append(&MenuItem::with_id(
             app,
             "none",
-            clean_menu_line(&p.empty),
+            menu_text(&p.empty),
             false,
             None::<&str>,
         )?)?;
@@ -1082,14 +1083,14 @@ fn build_tray_menu(app: &AppHandle, p: &TrayMenuPayload) -> tauri::Result<Menu<t
     menu.append(&MenuItem::with_id(
         app,
         "open",
-        clean_menu_line(&p.open),
+        menu_text(&p.open),
         true,
         None::<&str>,
     )?)?;
     menu.append(&MenuItem::with_id(
         app,
         "settings",
-        clean_menu_line(&p.settings),
+        menu_text(&p.settings),
         true,
         None::<&str>,
     )?)?;
@@ -1097,7 +1098,7 @@ fn build_tray_menu(app: &AppHandle, p: &TrayMenuPayload) -> tauri::Result<Menu<t
     menu.append(&MenuItem::with_id(
         app,
         "quit",
-        clean_menu_line(&p.quit),
+        menu_text(&p.quit),
         true,
         None::<&str>,
     )?)?;
@@ -1115,7 +1116,7 @@ fn set_tray_menu(app: AppHandle, payload: TrayMenuPayload) -> Result<(), String>
     if let Some(item) = app.try_state::<AppMenuSettings>() {
         let _ = item
             .0
-            .set_text(format!("{}…", clean_menu_line(&payload.settings)));
+            .set_text(format!("{}…", menu_text(&payload.settings)));
     }
     let menu = build_tray_menu(&app, &payload).map_err(|e| e.to_string())?;
     if let Some(tray) = app.tray_by_id("cuotai") {
@@ -1259,19 +1260,25 @@ fn migrate_local_storage(
 }
 
 /// PRD 0025 RF4.1: the menu-bar summary `style` and `accounts` (`None` =
-/// automatic) would produce from the current readings, for the Settings
+/// automatic) would produce from the current readings, with the image the
+/// shell would draw (`colored`: the colored variant), for the Settings
 /// preview. Error: `invalid_tray_style`.
 #[tauri::command]
 fn tray_preview(
     style: String,
     accounts: Option<Vec<serde_json::Value>>,
-) -> Result<cuotai_core::tray::TraySummary, String> {
+    colored: Option<bool>,
+) -> Result<tray_bar::Preview, String> {
     let style = cuotai_core::tray::TrayStyle::parse(&style).ok_or("invalid_tray_style")?;
     let selection = match accounts {
         None => cuotai_core::tray::TraySelection::Auto,
         Some(ids) => cuotai_core::tray::TraySelection::Custom(settings::clean_ids(&ids)),
     };
-    Ok(tray_bar::preview(style, &selection))
+    Ok(tray_bar::preview(
+        style,
+        &selection,
+        colored.unwrap_or(false),
+    ))
 }
 
 /// PRD 0025 RF4.2: the accounts the Settings list offers, dashboard order.
@@ -3655,12 +3662,16 @@ mod tests {
         assert_eq!((x, y), (8.0, -1430.0 + 6.0));
     }
 
-    use super::clean_menu_line;
+    use super::{clean_menu_line, menu_text};
 
     #[test]
     fn menu_lines_are_trimmed_stripped_of_controls_and_capped() {
         assert_eq!(clean_menu_line("  Claude Code: 56%  "), "Claude Code: 56%");
         assert_eq!(clean_menu_line("Kiro\n\tAI: 94%"), "KiroAI: 94%");
+        // S-04: bidi overrides go too, and only menu items double `&`.
+        assert_eq!(clean_menu_line("Work\u{202e}moc.evil"), "Workmoc.evil");
+        assert_eq!(clean_menu_line("R&D: 40%"), "R&D: 40%");
+        assert_eq!(menu_text("R&D: 40%"), "R&&D: 40%");
         let long = "x".repeat(200);
         let cut = clean_menu_line(&long);
         assert_eq!(cut.chars().count(), 80);
