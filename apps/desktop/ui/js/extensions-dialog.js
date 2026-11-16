@@ -127,7 +127,7 @@ export async function mountExtensions(host, { onChanged = () => {}, onRemove = (
         let hasSecrets = false;
         try { hasSecrets = (await extensionSecrets(row.id)).some((item) => item.stored); } catch { /* removal still works */ }
         closeHost?.();
-        onRemove(row.account.index, row.account.name, hasSecrets ? row.id : null);
+        onRemove(row.account.index, row.account.name?.trim() || row.name, hasSecrets ? row.id : null);
       }));
     }
     if (actions.children.length > 2) actions.classList.add("many");

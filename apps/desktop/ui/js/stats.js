@@ -5,7 +5,7 @@
 // which reads its summary and an equivalent table (DS-CHT-10).
 import { currentLocale, t, te, tl, tle } from "./i18n.js";
 import { monograms, repeatedProviders, tileHtml } from "./components.js";
-import { STALE, brand, errText, esc, fmtNumber, getView, icon, openSettingsWindow, reportKey, setStatsPrefs, stats, statsPrefs } from "./lib.js";
+import { accountFullLabel, STALE, brand, errText, esc, fmtNumber, getView, icon, openSettingsWindow, reportKey, setStatsPrefs, stats, statsPrefs } from "./lib.js";
 
 const RANGES = ["days7", "days30"];
 const REFRESH_MS = 30_000;
@@ -256,7 +256,7 @@ export function mountStats({ tray = false, onOpenFull = null } = {}) {
     const accounts = view?.reports ?? [];
     if (scope !== "all" && !accounts.some((r) => reportKey(r) === scope)) scope = "all";
     select.innerHTML = `<option value="all">${te("stats.scope.all")}</option>${accounts.map((r) =>
-      `<option value="${esc(reportKey(r))}">${esc(`${brand(r.provider).label} · ${r.account}`)}</option>`).join("")}`;
+      `<option value="${esc(reportKey(r))}">${esc(accountFullLabel(r))}</option>`).join("")}`;
     select.value = scope;
   }
   function paint() {

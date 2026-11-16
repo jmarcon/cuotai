@@ -10,8 +10,8 @@ import { syncTrayMenu, trayUpdateLine } from "./tray-menu.js";
 import { mountStats, rhythmChartHtml } from "./stats.js";
 import { mountTimeline } from "./timeline.js";
 import { costLineHtml, sourceFor } from "./cost.js";
-import {
-  accountLabel, bestChipHtml, liveChipHtml, costUsage, bindStatusLinks, bindThemeSwitch, bindSettingsShortcut, brand, createStore, disabledAccounts, esc, fmtAge, icon,
+import { accountName,
+  accountTitle, bestChipHtml, liveChipHtml, costUsage, bindStatusLinks, bindThemeSwitch, bindSettingsShortcut, brand, createStore, disabledAccounts, esc, fmtAge, icon,
   initHiddenAccounts, splitByMenuBarKeys, initOrderSync, initTheme, initTrayView, level, nextNoticeParts, noteText, onDisabledChange, onHiddenChange, onSettingsChanged, onTrayViewChange,
   billingOverage, openAggregatorDashboard, openMainWindow, openSettingsWindow, overageChipHtml, reportKey, setMetricAlert, sortReports, statusLabel, trayViewPref, wordmark,
   errText, isDesktop, hourlyStrip,
@@ -98,8 +98,8 @@ const rowChips = (r, via = false) => `${isConnection(r) ? connectionChips(r, { v
 function row(r, ctx, open = null, { via = false } = {}) {
   const repeated = ctx.repeated.has(r.provider) && !isConnection(r);
   return rowHtml(r, {
-    title: repeated ? accountLabel(r) : brand(r.provider).label,
-    sub: repeated ? "" : accountLabel(r),
+    title: repeated ? accountTitle(r) : brand(r.provider).label,
+    sub: repeated ? "" : accountName(r),
     mono: ctx.monos.get(reportKey(r)) ?? "",
     open,
     chips: rowChips(r, via),
@@ -119,7 +119,7 @@ function ringTile(r, ctx) {
     : `<span class="${[...f.fig].length > 3 ? "long" : ""}${f.role ? ` ${f.role}` : ""}">${esc(f.fig)}</span>`;
   return `<button class="tile" data-open="${esc(reportKey(r))}" aria-label="${esc(name)}" title="${esc(name)}">
     <span class="donut${st.stale || (r.status === "ready" && r.freshness === "aging") ? " stale" : ""}">${ringHtml(st.kind === "status" ? "unknown" : st.kind === "exhausted" ? "pct" : st.kind, st.pct, 64)}<span class="center">${center}</span></span>
-    <span class="tile-name">${tileHtml(r.provider, 14)}<b>${esc(ctx.repeated.has(r.provider) ? accountLabel(r) : brand(r.provider).label)}</b></span>
+    <span class="tile-name">${tileHtml(r.provider, 14)}<b>${esc(ctx.repeated.has(r.provider) ? accountTitle(r) : brand(r.provider).label)}</b></span>
     <span class="tile-st lbl ${p.role}">${tileStateIcon(st, p)}<span>${esc(p.label)}</span></span></button>`;
 }
 /** Fa gap 10 (mockup 01c): the tile's status leads with a state icon (✓ ⚠ ✕ clock), never a second ring. */
@@ -139,7 +139,7 @@ function compactRow(r, ctx) {
   const name = rowName(r, st);
   return `<button class="crow" data-open="${esc(reportKey(r))}" aria-label="${esc(name)}" title="${esc(name)}">
     ${tileHtml(r.provider, 24, ctx.monos.get(reportKey(r)) ?? "")}
-    <span class="nm">${esc(ctx.repeated.has(r.provider) ? accountLabel(r) : brand(r.provider).label)}</span>
+    <span class="nm">${esc(ctx.repeated.has(r.provider) ? accountTitle(r) : brand(r.provider).label)}</span>
     <span class="cg">${stateGlyph(st)}</span><span class="cb">${accountMeterHtml(r, st, { thin: true })}</span>
     <span class="cf${f.dim ? " stale" : ""}"><b class="${f.role}">${esc(f.word && st.kind === "status" ? statusParts(r, st).label : f.fig)}</b>${f.unit ? `<small>${esc(f.unit)}</small>` : ""}</span>${icon("chev", "chev")}</button>`;
 }
@@ -307,7 +307,7 @@ function render() {
   // DS-CMP-HEAD-2 and PRD 0022 RF7.3: the overview header holds the Cuotai mark button that opens the main window,
   // then the filter tabs (no logotype text); a drill-in header has the back control, the title, the logotype and the
   // esc keycap.
-  const drillTitle = drill ? (!isAggregator(cur) && ctx.repeated.has(cur.provider) ? accountLabel(cur) : brand(cur.provider).label)
+  const drillTitle = drill ? (!isAggregator(cur) && ctx.repeated.has(cur.provider) ? accountTitle(cur) : brand(cur.provider).label)
     : showStats ? t("tray.stats") : "";
   const header = drill || showStats
     ? `<header class="pop-head drill"><button class="icon back" data-back aria-label="${te("common.back")}" title="${te("common.back")}">${icon("back")}</button>

@@ -1,13 +1,13 @@
 // Settings › Data & privacy (PRD 0020 RF2.5): the measurement history, the provider status pages and, last, erasing
 // all Cuotai data (PRD 0052 RF5.3).
 import { t, te } from "../i18n.js";
-import { STALE, brand, esc, historyErase, historyExport, historySize, icon, setDetectEnabled, setHistoryDays, setHistoryRecording, setStatusEnabled } from "../lib.js";
+import { accountFullLabel, STALE, esc, historyErase, historyExport, historySize, icon, setDetectEnabled, setHistoryDays, setHistoryRecording, setStatusEnabled } from "../lib.js";
 import { errorText, fmtBytes, group, l10nError } from "./common.js";
 import { buttons, commitField, disc, num, row, rowError, select, sw, toast } from "./rows.js";
 import { bindErase, eraseHtml } from "./erase.js";
 
 /** Accounts of the loaded configuration that have a report, as `[index, label]` for the history scope. */
-const historyAccounts = (view) => (view?.reports ?? []).map((r) => [r.index, `${brand(r.provider).label} · ${r.account}`]);
+const historyAccounts = (view) => (view?.reports ?? []).map((r) => [r.index, accountFullLabel(r)]);
 
 const PERIODS = [["1", "settings.history.period.day"], ["7", "settings.history.period.week"], ["30", "settings.history.period.month"], ["", "settings.history.period.all"]];
 

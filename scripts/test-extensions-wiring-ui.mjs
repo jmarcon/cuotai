@@ -47,7 +47,7 @@ for (const code of ["en-US", "pt-BR", "es", "it"]) {
 assert.match(page, /onRemove: \(index, _name, secretsOf = null\) => requestAccountAction\("remove", index, secretsOf \? \{ secretsOf \} : \{\}\)/,
   "the page forwards the extension whose secrets the removal may delete");
 assert.match(main, /onAccountAction\(\(\{ action, index, secretsOf = null \}\)/, "the main window reads it");
-assert.match(main, /action === "remove" && secretsOf\) return removeExtensionAccount\(index, accountLabel\(r\), String\(secretsOf\)\)/);
+assert.match(main, /action === "remove" && secretsOf\) return removeExtensionAccount\(index, accountTitle\(r\), String\(secretsOf\)\)/);
 assert.match(main, /const removeExtensionAccount = \(index, label, secretsOf = null\) =>\s*confirmDelete\(index, label, \{\s*usesOauth: false,\s*secretsOf,/);
 // PRD 0050 RF2.5: approving sends only the id; the shell discloses, asks natively and keeps the candidate.
 assert.match(lib, /export const enableExtension = \(id\) => call\("enable_extension", \{ id \}\)/);

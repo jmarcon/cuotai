@@ -60,7 +60,10 @@ assert.match(dialog, /notices\.push\(\{ key: resolved\.key, text: tl\(resolved\.
 assert.match(dialog, /dynFields\.querySelector\(`\[data-field="f:\$\{CSS\.escape\(key\)\}"\]`\)\s*\?\? dynAuth\.querySelector\(`\[name="o:\$\{CSS\.escape\(key\)\}"\]`\)\?\.closest\("\.f"\)\s*\?\? dynAuth\.querySelector\("fieldset\.auth"\) \?\? dynFields;/);
 assert.match(dialog, /note\.className = "hint choice-notice";\s*note\.setAttribute\("role", "status"\);/);
 // Peer: prefilled whenever the peer changes (never only on a visibility flip), with a placeholder and a hint.
-assert.match(dialog, /const key = peer \? `\$\{provider\}:\$\{peer\.index\}` : null;\s*if \(key !== peerKey\) peerInput\.value = peer \? label : "";/);
+// PRD 0029 re-validation (V-01): what was typed for a peer comes back with that peer, never silently dropped.
+assert.match(dialog, /const key = peer \? `\$\{provider\}:\$\{peer\.index\}` : null;\s*if \(key !== peerKey\) \{\s*if \(peerKey\) peerValues\.set\(peerKey, peerInput\.value\);\s*peerInput\.value = key \? peerValues\.get\(key\) \?\? label : "";/);
+// V-04: "(optional)" only while the name is.
+assert.match(dialog, /#name-label"\)\.textContent = nameNeeded \? t\("dialog\.name"\) : t\("dialog\.nameOptional"\)/);
 assert.doesNotMatch(dialog, /Boolean\(peer\) !== peerShown/);
 assert.match(dialog, /peerInput\.placeholder = label;/);
 assert.match(dialog, /#peer-hint"\)\.textContent = t\("dialog\.peerHint"\)/);

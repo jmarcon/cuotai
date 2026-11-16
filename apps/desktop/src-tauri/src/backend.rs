@@ -523,6 +523,12 @@ fn local_at_short(at: chrono::DateTime<chrono::Utc>) -> cuotai_core::text::Local
 pub struct ReportView {
     index: usize,
     account: String,
+    /// PRD 0029 RF3.4: whether the account has a name of its own, and the
+    /// name the core shows for it (the provider's for an unnamed account,
+    /// an extension's manifest name for an unnamed extension account). The
+    /// UI's `accountTitle` titles every surface from these two.
+    named: bool,
+    display_name: String,
     provider: Provider,
     checked_at: chrono::DateTime<chrono::Utc>,
     status: Status,
@@ -1389,6 +1395,8 @@ fn report_view(
     ReportView {
         index,
         account: report.account.clone(),
+        named: report.named(),
+        display_name: report.display_name().into_owned(),
         provider: report.provider,
         checked_at: report.checked_at,
         status: report.status,
@@ -1497,6 +1505,11 @@ fn aggregator_views(
                 };
                 view.provider = sub.provider.unwrap_or(parent.provider);
                 view.account = sub.label.clone();
+                view.named = !sub.label.trim().is_empty();
+                view.display_name = match sub.label.trim() {
+                    "" => view.provider.label().to_owned(),
+                    label => label.to_owned(),
+                };
                 view.connection = Some(ConnectionView {
                     label: sub.label.clone(),
                     upstream: sub.upstream.clone(),
@@ -4548,8 +4561,10 @@ impl Backend {
             // Saved: an edited identity (rename, credential, region) loses its entry.
             let _ = l.monitor.prune_models();
             l.monitor.mark_history_removed();
-            // PRD 0003 RF3.2: a renamed account loses its bell; best effort
-            // like the model cache (an unwritable file keeps a stale key).
+            // PRD 0003 RF3.2: a removed account's bell goes; bells are keyed
+            // by `state_key` (PRD 0029 RF2), so a renamed account keeps its
+            // own. Best effort like the model cache (an unwritable file
+            // keeps a stale key).
             let _ = notices.keep_accounts(&l.file.config);
             if l.tokens.len() < l.file.config.accounts.len() {
                 l.tokens

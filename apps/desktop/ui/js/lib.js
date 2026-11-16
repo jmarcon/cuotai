@@ -444,7 +444,7 @@ export function fmtNoticeTime(iso, now = new Date()) {
  *  it mutes both. `aria-pressed` is its state. */
 export function bellHtml(view, r) {
   if (!(view?.notify?.enabled || view?.notify?.alerts) || !r.account_key) return "";
-  const label = t("notify.bell", { account: accountLabel(r) });
+  const label = t("notify.bell", { account: accountTitle(r) });
   const state = t(r.notify ? "notify.bell.on" : "notify.bell.off");
   return `<button class="icon bell${r.notify ? " on" : ""}" aria-pressed="${r.notify}" aria-label="${esc(label)}" title="${esc(`${label}: ${state}`)}" data-bell="${esc(r.account_key)}" data-bell-on="${r.notify}">${icon(r.notify ? "bell" : "bellOff")}</button>`;
 }
@@ -1068,8 +1068,24 @@ export async function loadProviderLabels() {
 /** The provider's display name: the core catalog's `provider.<slug>` in the current language, else the core's English. */
 export const providerName = (p) => tl({ id: `provider.${p}`, params: {}, fallback: coreLabels.get(p) ?? p });
 export const brand = (p) => ({ ...(brandStyles[p] ?? S("#888888", String(p ?? "?")[0].toUpperCase())), label: providerName(p) });
-/** PRD 0029 RF3.4: the account's display name, its configured name or else its provider's. */
-export const accountLabel = (r) => (r.account ?? "").trim() || brand(r.provider).label;
+/** PRD 0029 RF3.4 (V-02, V-03, V-07): the core's `display_title` rule: `[title, provider label shown beside it or null]`.
+ * An account without a name of its own, or named exactly like its provider, is titled by its provider once, never "Groq · Groq". */
+export function titleParts(provider, name) {
+  const label = brand(provider).label;
+  const own = String(name ?? "").trim();
+  return !own || own === label ? [label, null] : [own, label];
+}
+/** The account's own name from the core's `named`/`display_name` (an unnamed extension account: its manifest name); "" when it has none. */
+const ownName = (r) => r.named === false ? (r.provider === "extension" ? r.display_name ?? "" : "") : (r.display_name ?? r.account ?? "");
+/** The account's display name: its own name, else its provider's. Every surface that names an account uses this or the two below. */
+export const accountTitle = (r) => titleParts(r.provider, ownName(r))[0];
+/** The account's own name, or "" for an account titled by its provider (a subtitle under the provider). */
+export const accountName = (r) => (titleParts(r.provider, ownName(r))[1] ? titleParts(r.provider, ownName(r))[0] : "");
+/** "Provider · name", or the provider alone for an account without a name of its own. */
+export const accountFullLabel = (r, sep = " · ") => {
+  const [title, provider] = titleParts(r.provider, ownName(r));
+  return provider ? `${provider}${sep}${title}` : title;
+};
 // Provider logos: monochrome SVG glyphs (lobehub/icons, MIT; zed: simple-icons, CC0; see img/providers/NOTICE.md)
 // painted by CSS mask over a tile in the brand color — sharp at any size and with no white background.
 // [file, tile background, glyph color]; an omitted background uses the brand color and the glyph, white.
