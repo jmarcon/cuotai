@@ -198,3 +198,10 @@ At each step: `cargo fmt`, `clippy -D warnings`, workspace and desktop tests, an
 | New fields | Additive `label_text`, `unit_text` and `period_text` (a `Localized`: `metric.*` id, English `fallback`; `period_text` is `null` with `period`) on every metric of `--json`, `export::v1` (`report.metrics`, `last_good.metrics`), `/v1/*`; `label_text` on `binding`; `label_text` on the events' `metric` and `metrics[]`, `unit_text` on `metrics[]` and `current`/`previous`. Pattern: the existing `Localized` sidecars (`notes_l10n`). `--fallback-locale`/`CUOTAI_FALLBACK_LOCALE` render their `fallback`, like every other `Localized`. |
 | Schema | `docs/export-v1.schema.json` describes them (not required); `schema` stays 1; the reference example is regenerated. `Metric` deserialization ignores them. |
 | Tests | Every label, unit and period of the adapter fixtures (`label_snapshot`) maps to a `metric.*` id and renders without Portuguese in English; model, event and export tests cover the shape and the pt-BR rendering. |
+
+### Decisions of the re-validation (2026-11-16)
+
+| Topic | Decision |
+|---|---|
+| clap's argument errors | The errors clap itself writes (an unknown flag, an invalid or missing value, a conflict) stay **English**, beside `--help` (RF3.1); Cuotai's own argument errors keep following the interface language (RF3.2). `docs/tui.md` says so. |
+| Fallback languages | The `--fallback-locale` help is built from the core's locale registry, and `docs/tui.md` and `docs/advanced.md` list the same languages, guarded by a test. |

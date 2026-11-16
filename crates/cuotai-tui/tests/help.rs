@@ -11,9 +11,13 @@ fn run(lang: &str, args: &[&str]) -> std::process::Output {
         .expect("run cuotai")
 }
 
+/// Every language of the core registry (PRD 0034 re-validation V-14), so a
+/// new language cannot localize `--help` unnoticed. clap's own argument
+/// errors stay English too, by decision (PRD 0034 §13).
 #[test]
 fn help_is_english_in_every_locale() {
-    for lang in ["pt-BR", "en-US", "es", "it"] {
+    assert!(cuotai_core::text::LOCALES.len() >= 14);
+    for lang in cuotai_core::text::LOCALES.iter().map(|row| row.code) {
         let output = run(lang, &["--help"]);
         assert!(output.status.success(), "{lang}: {output:?}");
         let help = String::from_utf8(output.stdout).expect("UTF-8");
