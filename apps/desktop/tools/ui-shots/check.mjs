@@ -42,6 +42,8 @@ const ZOOM_PAGES = [
   ["zoom200-settings-general", "settings.html?page=general", 640, 360, {}],
   ["zoom200-settings-dashboard", "settings.html?page=dashboard", 640, 360, {}],
   ["zoom200-settings-alerts", "settings.html?page=alerts", 640, 360, {}],
+  // PRD 0032 re-validation R-03: the quiet-hours sub-page with the demo's schedule on (`?quiet`).
+  ["zoom200-settings-quiet", "settings.html?page=alerts&sub=quiet&quiet", 640, 360, {}],
   ["zoom200-settings-menubar", "settings.html?page=menubar", 640, 360, {}],
   // PRD 0020 re-validation V-15: every Settings page at the 200 % viewport.
   ["zoom200-settings-data", "settings.html?page=data", 640, 360, {}],
@@ -77,6 +79,10 @@ const PAGES = zoom ? ZOOM_PAGES : [
   ["settings-general", "settings.html?page=general", 640, 460, {}],
   ["settings-dashboard", "settings.html?page=dashboard", 640, 460, {}],
   ["settings-alerts", "settings.html?page=alerts", 640, 460, {}],
+  // PRD 0032 re-validation R-03: the quiet-hours sub-page with the demo's schedule on (weekday rows, two intervals on
+  // Monday, the clock read-outs), and the "crossed while closed" chips on the cards (`?missed`).
+  ["settings-quiet", "settings.html?page=alerts&sub=quiet&quiet", 640, 460, {}],
+  ["main-missed", "index.html?missed", 1200, 820, {}],
   ["settings-menubar", "settings.html?page=menubar", 640, 460, {}],
   // PRD 0025 re-validation V-15/V-19: the Row display sub-page, a custom menu-bar selection (Settings and the popover's
   // "Not in menu bar" group) and the non-Standard row layouts.

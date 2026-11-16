@@ -216,6 +216,34 @@ try {
   await until(`document.activeElement?.id === "set-page-title"`, "the second Esc moves focus to the page title");
   await expectFocus("#set-page-title", "second Esc in the search");
   ok("a search result reveals its row and focus follows");
+
+  // 13. PRD 0032 re-validation C-06: a typed duplicate interval is refused by the core, the field that holds it is
+  //     marked (`aria-invalid`, described by the row's error line, which names the interval it repeats in the
+  //     language's clock), nothing is saved, and leaving the interval puts the saved times back and clears the mark.
+  //     "Add interval" then proposes the next free hour, and the fourth is unavailable.
+  await browser.open("settings.html?page=alerts&sub=quiet&quiet", { w: 900, h: 760, scale: 1 });
+  await until(`!!document.querySelector('[data-q-day="mon"][data-q-index="1"] [data-q-from]')?.offsetParent`, "the quiet-hours sub-page opens on the demo schedule");
+  const second = `document.querySelector('[data-q-day="mon"][data-q-index="1"] [data-q-from]')`;
+  const monMsg = `document.querySelector('#quiet-mon-msg').textContent`;
+  await browser.evaluate(`(() => { const row = document.querySelector('[data-q-day="mon"][data-q-index="1"]'); row.querySelector('[data-q-from]').focus();
+    row.querySelector('[data-q-from]').value = "22:00"; row.querySelector('[data-q-to]').value = "07:00";
+    row.querySelector('[data-q-from]').dispatchEvent(new Event("change", { bubbles: true })); })()`);
+  await until(`${second}.getAttribute('aria-invalid') === "true"`, "the duplicate's field is marked invalid");
+  await eq(`${second}.getAttribute('aria-describedby').split(' ')`, ["quiet-mon-msg", "q-readout-mon-1"], "the field is described by the row's error, then its read-out");
+  await eq(`${monMsg}`, "Already set: 10:00 PM–7:00 AM (Monday).", "the message names the repeated interval in the language's clock");
+  await eq(`document.querySelector('#quiet-mon-msg').getAttribute('role')`, "alert", "the error line is announced");
+  await eq(`import("./js/lib.js").then((m) => m.getSettings()).then((s) => s.quiet.days.mon[1])`, { from: "12:00", to: "13:00" }, "nothing is saved");
+  await expectFocus("[data-q-from]@mon#1", "a refused time keeps the focus");
+  for (let i = 0; i < 8 && (await focused()) !== "[data-q-remove]@mon#1"; i++) await browser.press("Tab");
+  await expectFocus("[data-q-remove]@mon#1", "Tab leaves the refused interval");
+  await until(`${second}.value === "12:00" && ${second}.getAttribute('aria-invalid') === null && ${monMsg} === ""`, "leaving the interval restores it and clears the error");
+  await eq(`${second}.getAttribute('aria-describedby')`, "q-readout-mon-1", "the read-out alone describes the field again");
+  await browser.evaluate(`document.querySelector('[data-quiet-add="mon"]').focus()`);
+  await browser.press("Enter");
+  await until(`document.querySelectorAll('[data-q-day="mon"]').length === 3`, "Enter adds a third interval");
+  await eq(`import("./js/lib.js").then((m) => m.getSettings()).then((s) => s.quiet.days.mon[2])`, { from: "13:00", to: "14:00" }, "the next free hour is proposed");
+  await eq(`document.querySelector('[data-quiet-add="mon"]').disabled`, true, "no fourth interval");
+  ok("a typed duplicate is refused, tied to its field, and put back on leaving it");
   console.log("PASS: the quiet-hours weekday editor, the loading dialogs, a refused value and a search result work from the keyboard");
 } catch (error) {
   console.error(error.message ?? error);

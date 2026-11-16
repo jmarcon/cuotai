@@ -119,6 +119,21 @@ export function rowError(el, text) {
   if (line) line.textContent = text;
 }
 
+/** RF4.3 with RF8.2 (PRD 0032 re-validation C-06): `rowError` tied to its field: `aria-invalid`, and the row's error
+ *  line (the live region) first in its `aria-describedby`. An empty text clears the line and every marked field. */
+export function fieldError(field, text) {
+  rowError(field, text);
+  const line = field?.closest?.(".set-row")?.querySelector(".set-row-err");
+  if (!line) return;
+  const others = (el) => (el.getAttribute("aria-describedby") ?? "").split(/\s+/).filter((id) => id && id !== line.id);
+  for (const el of line.parentElement.querySelectorAll('[aria-invalid="true"]')) {
+    el.removeAttribute("aria-invalid");
+    el.setAttribute("aria-describedby", others(el).join(" "));
+  }
+  if (text) field.setAttribute("aria-describedby", [line.id, ...others(field)].join(" "));
+  if (text) field.setAttribute("aria-invalid", "true");
+}
+
 /** RF4.2: a field that saves on Enter, on leaving it or with its row's Apply; Revert (or Esc) restores the saved
  *  value. `save(value)` resolves when saved and rejects with the text to show; a failure restores the saved
  *  value, shows the text in the row and keeps the focus there. `onSaved` runs after a success. */

@@ -383,14 +383,168 @@ fn the_strict_reading_refuses_what_the_interface_must_not_send() {
         serde_json::json!({"enabled": true}),
         serde_json::json!({"enabled": 1, "digest": true}),
         serde_json::json!({"enabled": true, "digest": true, "days": {"xyz": []}}),
-        serde_json::json!({"enabled": true, "digest": true,
-            "days": {"mon": [{"from": "7:00", "to": "08:00"}]}}),
         serde_json::json!({"enabled": true, "digest": true, "days": {"mon": four}}),
     ] {
         assert_eq!(
-            QuietSchedule::from_value_strict(&bad),
-            Err("invalid_quiet"),
+            QuietSchedule::from_value_strict(&bad).map_err(|e| e.code),
+            Err(QuietErrorCode::Invalid),
             "{bad}"
         );
     }
+    let bad_time = serde_json::json!({"enabled": true, "digest": true,
+        "days": {"mon": [{"from": "7:00", "to": "08:00"}]}});
+    let error = QuietSchedule::from_value_strict(&bad_time).unwrap_err();
+    assert_eq!(
+        (error.code, error.day, error.index, error.field),
+        (QuietErrorCode::Time, Some("mon"), Some(0), Some("from"))
+    );
+}
+
+fn strict_day(list: serde_json::Value) -> Result<QuietSchedule, QuietError> {
+    QuietSchedule::from_value_strict(
+        &serde_json::json!({"enabled": true, "digest": true, "days": {"wed": list}}),
+    )
+}
+
+/// PRD 0032 re-validation C-06: an exact duplicate of a day is refused on
+/// the later interval, with the earlier one named.
+#[test]
+fn the_strict_reading_refuses_a_duplicate() {
+    let error = strict_day(serde_json::json!([
+        {"from": "22:00", "to": "08:00"},
+        {"from": "22:00", "to": "08:00"}
+    ]))
+    .unwrap_err();
+    assert_eq!(
+        error,
+        QuietError {
+            code: QuietErrorCode::Duplicate,
+            day: Some("wed"),
+            index: Some(1),
+            field: Some("from"),
+            with: Some(0),
+        }
+    );
+    assert_eq!(
+        error.to_json(),
+        r#"{"code":"invalid_quiet_duplicate","day":"wed","index":1,"field":"from","with":0}"#
+    );
+}
+
+/// Overlaps among intervals of one start day are refused, touching ones
+/// are not; an overnight interval only covers its own day's evening.
+#[test]
+fn the_strict_reading_refuses_an_overlap_on_the_same_day() {
+    for (list, with) in [
+        (
+            serde_json::json!([{"from": "22:00", "to": "08:00"}, {"from": "23:00", "to": "01:00"}]),
+            0,
+        ),
+        (
+            serde_json::json!([{"from": "09:00", "to": "12:00"}, {"from": "13:00", "to": "14:00"}, {"from": "11:00", "to": "13:30"}]),
+            0,
+        ),
+        (
+            serde_json::json!([{"from": "00:00", "to": "00:00"}, {"from": "10:00", "to": "11:00"}]),
+            0,
+        ),
+    ] {
+        let error = strict_day(list.clone()).unwrap_err();
+        assert_eq!(error.code, QuietErrorCode::Overlap, "{list}");
+        assert_eq!(error.with, Some(with), "{list}");
+        assert_eq!(error.field, Some("from"), "{list}");
+    }
+    // Touching intervals and the morning before an overnight one are fine.
+    let schedule = strict_day(serde_json::json!([
+        {"from": "22:00", "to": "08:00"},
+        {"from": "08:00", "to": "09:00"},
+        {"from": "09:00", "to": "10:00"}
+    ]))
+    .unwrap();
+    assert_eq!(schedule.days[2].len(), 3);
+}
+
+/// Monday's overnight interval running into Tuesday's morning is one
+/// window, not an error.
+#[test]
+fn the_strict_reading_accepts_an_overlap_across_days() {
+    let value = serde_json::json!({"enabled": true, "digest": true, "days": {
+        "mon": [{"from": "22:00", "to": "08:00"}],
+        "tue": [{"from": "06:00", "to": "09:00"}]
+    }});
+    let schedule = QuietSchedule::from_value_strict(&value).unwrap();
+    assert_eq!(schedule.days[1], vec![interval("06:00", "09:00")]);
+}
+
+/// `from == to` is refused (zero or 24 hours?), except `00:00`-`00:00`,
+/// the whole day; the lenient reading keeps it as 24 hours.
+#[test]
+fn the_strict_reading_refuses_equal_ends_but_the_whole_day() {
+    let error = strict_day(serde_json::json!([{"from": "08:00", "to": "08:00"}])).unwrap_err();
+    assert_eq!(
+        (error.code, error.index, error.field),
+        (QuietErrorCode::Empty, Some(0), Some("to"))
+    );
+    let schedule = strict_day(serde_json::json!([{"from": "00:00", "to": "00:00"}])).unwrap();
+    assert!(schedule.days[2][0].is_all_day());
+    let lenient = QuietSchedule::from_value(&serde_json::json!({
+        "enabled": true, "days": {"wed": [{"from": "08:00", "to": "08:00"}]}
+    }));
+    assert_eq!(lenient.days[2], vec![interval("08:00", "08:00")]);
+}
+
+/// The lenient reading keeps the first of exact duplicates and drops the
+/// later ones before it counts the day's limit; overlaps stay.
+#[test]
+fn the_lenient_reading_drops_later_duplicates() {
+    let schedule = QuietSchedule::from_value(&serde_json::json!({
+        "enabled": true,
+        "days": {"mon": [
+            {"from": "22:00", "to": "08:00"},
+            {"from": "22:00", "to": "08:00"},
+            {"from": "23:00", "to": "01:00"},
+            {"from": "22:00", "to": "08:00"},
+            {"from": "12:00", "to": "13:00"}
+        ]}
+    }));
+    assert_eq!(
+        schedule.days[0],
+        vec![
+            interval("22:00", "08:00"),
+            interval("23:00", "01:00"),
+            interval("12:00", "13:00")
+        ]
+    );
+}
+
+/// PRD 0032 re-validation C-12: a week with no gap, counting the intervals
+/// that cross midnight into the next day (and Sunday's into Monday's).
+#[test]
+fn always_on_needs_a_week_without_gap() {
+    let week = |list: serde_json::Value| {
+        let days: serde_json::Map<String, serde_json::Value> = DAY_KEYS
+            .iter()
+            .map(|day| ((*day).to_owned(), list.clone()))
+            .collect();
+        QuietSchedule::from_value(&serde_json::json!({"enabled": true, "days": days}))
+    };
+    assert!(week(serde_json::json!([{"from": "00:00", "to": "00:00"}])).always_on());
+    assert!(week(serde_json::json!([{"from": "12:00", "to": "12:00"}])).always_on());
+    assert!(week(
+        serde_json::json!([{"from": "20:00", "to": "08:00"}, {"from": "08:00", "to": "20:00"}])
+    )
+    .always_on());
+    assert!(!week(serde_json::json!([{"from": "22:00", "to": "08:00"}])).always_on());
+    assert!(!QuietSchedule::default().always_on());
+    // Six whole days and Sunday's 24 hours from 06:00 reaching into
+    // Monday: Sunday morning is still a gap.
+    let mut schedule = week(serde_json::json!([{"from": "00:00", "to": "00:00"}]));
+    schedule.days[6] = vec![interval("06:00", "06:00")];
+    assert!(!schedule.always_on(), "Sunday 00:00-06:00 is open");
+    schedule.days[6].insert(0, interval("00:00", "06:00"));
+    assert!(schedule.always_on(), "touching intervals leave no gap");
+    // A day missing breaks it.
+    let mut schedule = week(serde_json::json!([{"from": "00:00", "to": "00:00"}]));
+    schedule.days[3].clear();
+    assert!(!schedule.always_on());
 }
