@@ -796,7 +796,7 @@
   "feed.live.caveat": "Perkiraan agen dengan harga daftar, bukan tagihan.",
   "feed.live.cost": "≈ ${usd} sesi ini",
   "feed.live.cost_short": "≈${usd}",
-  "feed.live.ctx": "ctx {pct}%",
+  "feed.live.ctx": "konteks {pct}%",
   "feed.live.join": "{first} · {rest}",
   "feed.live.line": "Sesi langsung: {parts}",
   "feed.live.model": "{model}",
@@ -2464,5 +2464,6 @@
   "note.metered.pending": "Tidak dikueri: program Cuotai lain sedang mengkueri akun ini sekarang. Coba lagi sebentar lagi untuk melihat hasil bacaannya.",
   "note.metered.record_unavailable_shared": "Catatan bersama kueri berbayar tidak tersedia, jadi program Cuotai lain mungkin juga mengkueri akun ini.",
   "note.metered.refused": "Tidak dikueri: kueri AWS Cost Explorer berbayar terakhir pada {queried}; kueri berikutnya dapat dilakukan pada {next}.",
-  "note.metered.shared_reading": "Dari hasil bacaan bersama pukul {time}; tidak ada kueri berbayar baru."
+  "note.metered.shared_reading": "Dari hasil bacaan bersama pukul {time}; tidak ada kueri berbayar baru.",
+  "number.percent": "{p}%"
 }

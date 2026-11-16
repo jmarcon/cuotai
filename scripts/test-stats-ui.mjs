@@ -106,7 +106,10 @@ for (const { code } of i18n.LOCALES) {
   assert.ok(!emptyBody.includes('class="bars'), `${code}: no empty axes`);
 
   const cards = kpisHtml(week);
-  assert.ok(cards.includes('<b class="kpi-figure">1</b>') && cards.includes("58%"), `${code}: hits and average`);
+  assert.ok(cards.includes('<b class="kpi-figure">1</b>') && cards.includes(lib.fmtPercent(58)), `${code}: hits and average`);
+  // PRD 0034 re-validation V-17: the percent sign sits where the language puts it.
+  const share = { de: "58\u00a0%", tr: "%58", "en-US": "58%" }[code];
+  if (share) assert.ok(cards.includes(share) && lib.fmtShare(58) === share, `${code}: the percent follows the language`);
   assert.ok(/6[.,]25/.test(cards) && /\$|USD/.test(cards) && cards.includes("créditos"), `${code}: one figure per unit`);
   assert.equal((cards.match(/data-kpi="extra"[\s\S]*/)[0].match(/<b class="kpi-figure[^"]*">≈/g) ?? []).length, 2, `${code}: every extra-spent amount is marked as an estimate`);
   const bars = barsHtml(week.summary.daily);

@@ -2464,5 +2464,6 @@
   "note.metered.pending": "未查询：另一个 Cuotai 程序正在查询此账户。请稍后重试以查看其读数。",
   "note.metered.record_unavailable_shared": "计费查询的共享记录不可用，因此其他 Cuotai 程序也可能查询此账户。",
   "note.metered.refused": "未查询：上一次计费的 AWS Cost Explorer 查询在 {queried}；下一次最早可在 {next} 进行。",
-  "note.metered.shared_reading": "来自 {time} 的共享读数；未进行新的计费查询。"
+  "note.metered.shared_reading": "来自 {time} 的共享读数；未进行新的计费查询。",
+  "number.percent": "{p}%"
 }

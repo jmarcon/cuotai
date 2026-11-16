@@ -796,7 +796,7 @@
   "feed.live.caveat": "정가 기준 에이전트 추정치이며 청구 금액이 아닙니다.",
   "feed.live.cost": "이 세션 ≈ ${usd}",
   "feed.live.cost_short": "≈${usd}",
-  "feed.live.ctx": "ctx {pct}%",
+  "feed.live.ctx": "컨텍스트 {pct}%",
   "feed.live.join": "{first} · {rest}",
   "feed.live.line": "실시간 세션: {parts}",
   "feed.live.model": "{model}",
@@ -2464,5 +2464,6 @@
   "note.metered.pending": "조회하지 않음: 다른 Cuotai 프로그램이 지금 이 계정을 조회하고 있습니다. 잠시 후 다시 시도하면 그 결과를 볼 수 있습니다.",
   "note.metered.record_unavailable_shared": "과금되는 조회의 공유 기록을 사용할 수 없어 다른 Cuotai 프로그램도 이 계정을 조회할 수 있습니다.",
   "note.metered.refused": "조회하지 않음: 마지막 과금 AWS Cost Explorer 조회는 {queried}였습니다. 다음 조회는 {next}부터 가능합니다.",
-  "note.metered.shared_reading": "{time}의 공유된 결과입니다. 새로운 과금 조회는 하지 않았습니다."
+  "note.metered.shared_reading": "{time}의 공유된 결과입니다. 새로운 과금 조회는 하지 않았습니다.",
+  "number.percent": "{p}%"
 }

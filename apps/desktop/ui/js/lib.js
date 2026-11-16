@@ -636,6 +636,10 @@ export const fmtLocal = (date, options, locale = currentLocale()) =>
   intlFormatter("DateTimeFormat", locale, options).format(date).replace(/(\d)[ \u202f](?=[AaPp]\.?[Mm]\.?(?!\p{L}))/gu, "$1\u00a0");
 const HHMM = { hour: "2-digit", minute: "2-digit" };
 export const fmtNumber = (n, max = 2) => (n == null ? "—" : intlFormatter("NumberFormat", currentLocale(), { maximumFractionDigits: max }).format(n));
+/** PRD 0034 re-validation V-17: a share already in percent (`64` for 64 %) in the current language: "64%", "64 %"
+ *  (de, fr), "%64" (tr). Up to `max` decimals. */
+export const fmtPercent = (p, max = 0) =>
+  p == null ? "—" : intlFormatter("NumberFormat", currentLocale(), { style: "percent", maximumFractionDigits: max }).format(p / 100);
 /** PRD 0030 L-13: `amount` in `currency` (an ISO code) in the current language ("R$ 550,50", "$20.00"); an unknown
  *  code reads "ZZZ 550.50". */
 export const fmtMoney = (amount, currency) => {
@@ -652,7 +656,7 @@ export function fmtAmount(m) {
   return `${fmtNumber(m.used)} / ${fmtNumber(m.limit)}${unitSuffix(m)}`;
 }
 /** One recorded value of a metric with `unit` (history): "60%", "12.5 USD", or a bare count. */
-export const fmtValue = (v, unit) => (unit === "%" ? `${fmtNumber(v)}%` : `${fmtNumber(v)}${unitSuffix({ unit })}`);
+export const fmtValue = (v, unit) => (unit === "%" ? fmtPercent(v, 2) : `${fmtNumber(v)}${unitSuffix({ unit })}`);
 /** Metric without a usable limit: text in place of the bar (never invents "100% free"). */
 export function textualMetric(m) {
   if (m.state === "exhausted" && m.no_cap) return t("metric.exhausted");
@@ -877,7 +881,7 @@ export const bindingLabel = (r) => {
 /** A metric's display name: its translated label (`label_text`) when the core sent one, else the raw label. */
 export const metricName = (m) => (m?.label_text ? tl(m.label_text) : m?.label ?? "");
 /** DS-CMP-MTR-4: a share in % rounded honestly: above 0 and below 1 reads "< 1%", below 100 never reads "100%". */
-export const fmtShare = (p) => (p > 0 && p < 1 ? "< 1%" : `${p < 100 ? Math.min(99, Math.round(p)) : Math.round(p)}%`);
+export const fmtShare = (p) => (p > 0 && p < 1 ? `< ${fmtPercent(1)}` : fmtPercent(p < 100 ? Math.min(99, Math.round(p)) : Math.round(p)));
 export const isBlocked = (r) => r.status === "ready" && r.binding?.reason === "exhausted";
 /** "Blocked until Today 14:30" (unknown return stays unknown, never "now"); null when not blocked. */
 export const blockedText = (r) => {
@@ -1824,7 +1828,7 @@ function demoTraySelection(style = demoSettings.tray.style, accounts = demoSetti
 }
 function demoTrayPreview({ style, accounts }) {
   const picked = demoTraySelection(style, accounts);
-  const pct = (a) => (a.remaining == null ? "—" : `${Math.round(a.remaining * 100)}%`);
+  const pct = (a) => (a.remaining == null ? "—" : fmtPercent(Math.round(a.remaining * 100)));
   const items = picked.map((a) => ({ ...a, level: a.remaining == null ? null : level(a.remaining * 100), figure: pct(a) }));
   const tight = [...items].filter((a) => a.remaining != null).sort((a, b) => a.remaining - b.remaining)[0];
   const title = style === "tightest_percent" ? (tight ? `${tight.figure} · ${tight.name}`.slice(0, 24) : items.length ? "—" : null)

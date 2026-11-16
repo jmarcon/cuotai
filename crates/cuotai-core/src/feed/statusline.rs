@@ -27,8 +27,9 @@ pub struct Line {
     pub level: Option<Level>,
 }
 
-fn pct(value: f64) -> String {
-    format!("{:.0}%", value.round())
+/// "23%", the sign placed as the reader's language places it (V-17).
+fn pct(value: f64) -> ParamValue {
+    ParamValue::l10n(crate::text::number::percent(value.round()))
 }
 
 /// "3m", "2h", "1d": the compact age of a history reading.
@@ -63,15 +64,12 @@ fn claude_part(
             WindowId::FiveHour => Localized::with_param(
                 "feed.line.five_hour",
                 "pct",
-                pct(window.used_pct).as_str(),
+                pct(window.used_pct),
                 "5h {pct}",
             ),
-            WindowId::SevenDay => Localized::with_param(
-                "feed.line.week",
-                "pct",
-                pct(window.used_pct).as_str(),
-                "Wk {pct}",
-            ),
+            WindowId::SevenDay => {
+                Localized::with_param("feed.line.week", "pct", pct(window.used_pct), "Wk {pct}")
+            }
             WindowId::SpendLimit => match (window.used_usd, window.limit_usd) {
                 (Some(used), Some(limit)) => Localized::with_params(
                     "feed.line.spend_usd",
@@ -84,7 +82,7 @@ fn claude_part(
                 _ => Localized::with_param(
                     "feed.line.spend",
                     "pct",
-                    pct(window.used_pct).as_str(),
+                    pct(window.used_pct),
                     "spend {pct}",
                 ),
             },
@@ -141,7 +139,7 @@ fn other_part(others: &[OtherAccount], locale: &str) -> Option<String> {
         "feed.line.left",
         crate::text::params([
             ("name", ParamValue::from(name)),
-            ("pct", ParamValue::from(tray::percent(remaining))),
+            ("pct", ParamValue::l10n(tray::percent_l10n(remaining))),
         ]),
         "{name} {pct} left",
     )

@@ -26,7 +26,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::freshness::Freshness;
 use crate::metrics;
-use crate::text::{clock, params, Localized, ParamValue};
+use crate::text::{clock, number, params, Localized, ParamValue};
 use crate::{Account, Report};
 
 /// RF1.5: the title never exceeds this many characters.
@@ -265,16 +265,22 @@ pub struct TraySummary {
 }
 
 /// The rounded figure of a remaining share: "<1%" for a positive share below
-/// 1 % and never "100%" below 100 % (DS-CMP-MTR-4).
-pub fn percent(remaining: f64) -> String {
+/// 1 % and never "100%" below 100 % (DS-CMP-MTR-4), with the percent sign
+/// placed as the reader's language places it (V-17: "64\u{a0}%", "%64").
+pub fn percent_l10n(remaining: f64) -> Localized {
     let p = remaining.clamp(0.0, 1.0) * 100.0;
     if p > 0.0 && p < 1.0 {
-        "<1%".to_owned()
+        number::percent_of("<1")
     } else if p < 100.0 && p.round() >= 100.0 {
-        "99%".to_owned()
+        number::percent(99.0)
     } else {
-        format!("{:.0}%", p.round())
+        number::percent(p.round())
     }
+}
+
+/// [`percent_l10n`] in `locale`.
+pub fn percent(remaining: f64, locale: &str) -> String {
+    percent_l10n(remaining).resolve(locale)
 }
 
 /// The clock the summary writes times with: the short form for the title
@@ -282,15 +288,17 @@ pub fn percent(remaining: f64) -> String {
 struct Clock<'a> {
     short: &'a dyn Fn(DateTime<Utc>) -> String,
     full: &'a dyn Fn(DateTime<Utc>) -> Localized,
+    /// The title's language, for its percents.
+    locale: &'a str,
 }
 
 fn figure(view: &AccountView, clock: &Clock<'_>) -> String {
     let base = match (view.exhausted, view.remaining) {
         (true, _) => match view.resets_at {
-            Some(when) => format!("0% → {}", (clock.short)(when)),
-            None => "0%".to_owned(),
+            Some(when) => format!("{} → {}", percent(0.0, clock.locale), (clock.short)(when)),
+            None => percent(0.0, clock.locale),
         },
-        (false, Some(r)) => percent(r),
+        (false, Some(r)) => percent(r, clock.locale),
         (false, None) => UNKNOWN.to_owned(),
     };
     if view.stale && view.remaining.is_some() {
@@ -443,26 +451,23 @@ fn item_label(view: &AccountView, clock: &Clock<'_>) -> Localized {
         (true, _, None) => {
             Localized::with_param("tray.item.exhausted", "name", name, "{name} exhausted")
         }
-        (false, Some(r), Some(when)) => {
-            let pct = percent(r);
-            Localized::with_params(
-                "tray.item.left_resets",
-                params([
-                    ("name", name.into()),
-                    ("pct", pct.as_str().into()),
-                    ("at", ParamValue::l10n((clock.full)(when))),
-                ]),
-                "{name} {pct} left, resets {at}",
-            )
-        }
-        (false, Some(r), None) => {
-            let pct = percent(r);
-            Localized::with_params(
-                "tray.item.left",
-                params([("name", name.into()), ("pct", pct.as_str().into())]),
-                "{name} {pct} left",
-            )
-        }
+        (false, Some(r), Some(when)) => Localized::with_params(
+            "tray.item.left_resets",
+            params([
+                ("name", name.into()),
+                ("pct", ParamValue::l10n(percent_l10n(r))),
+                ("at", ParamValue::l10n((clock.full)(when))),
+            ]),
+            "{name} {pct} left, resets {at}",
+        ),
+        (false, Some(r), None) => Localized::with_params(
+            "tray.item.left",
+            params([
+                ("name", name.into()),
+                ("pct", ParamValue::l10n(percent_l10n(r))),
+            ]),
+            "{name} {pct} left",
+        ),
         (false, None, _) => {
             Localized::with_param("tray.item.unknown", "name", name, "{name}: no data")
         }
@@ -543,6 +548,7 @@ where
     let clock = Clock {
         short: &short,
         full: &full,
+        locale,
     };
     let clock = &clock;
     let views: Vec<AccountView> = selection

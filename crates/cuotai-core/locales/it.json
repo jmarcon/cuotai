@@ -344,7 +344,7 @@
   "feed.live.caveat": "Stima dell’agente a prezzo di listino, non un addebito.",
   "feed.live.cost": "≈ ${usd} in questa sessione",
   "feed.live.cost_short": "≈${usd}",
-  "feed.live.ctx": "ctx {pct}%",
+  "feed.live.ctx": "contesto {pct}%",
   "feed.live.join": "{first} · {rest}",
   "feed.live.line": "Sessione in corso: {parts}",
   "feed.live.model": "{model}",
@@ -2497,5 +2497,6 @@
   "note.metered.pending": "Non interrogato: un altro programma Cuotai sta interrogando questo account ora. Riprova tra un momento per vedere la sua lettura.",
   "note.metered.record_unavailable_shared": "Il registro condiviso delle query fatturate non è disponibile, quindi anche altri programmi Cuotai potrebbero interrogare questo account.",
   "note.metered.refused": "Non interrogato: l'ultima query fatturata di AWS Cost Explorer è stata alle {queried}; la prossima è possibile alle {next}.",
-  "note.metered.shared_reading": "Dalla lettura condivisa delle {time}; non è stata fatta nessuna nuova query fatturata."
+  "note.metered.shared_reading": "Dalla lettura condivisa delle {time}; non è stata fatta nessuna nuova query fatturata.",
+  "number.percent": "{p}%"
 }

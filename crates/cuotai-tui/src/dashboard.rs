@@ -451,15 +451,19 @@ pub(crate) fn range_label(range: HistoryRange) -> &'static str {
     }
 }
 
-/// A value with at most two decimals and no trailing zeros (`40`, `12.5`).
+/// A value with at most two decimals and no trailing zeros, in the TUI
+/// language's separators (`40`, `12.5`, `1.234,5`; V-07).
 pub(crate) fn compact(value: f64) -> String {
-    let text = format!("{value:.2}");
-    let text = text.trim_end_matches('0').trim_end_matches('.');
-    if text == "-0" {
-        "0".into()
-    } else {
-        text.into()
-    }
+    cuotai_core::text::number::format_number(value, tui_locale())
+}
+
+/// V-17: a whole percent in the TUI language, right-aligned to the width
+/// of "100 %" in that language so the rows of a column line up.
+fn padded_percent(value: f64) -> String {
+    use cuotai_core::text::number::format_percent;
+    let locale = tui_locale();
+    let width = format_percent(100.0, locale).chars().count();
+    format!("{:>width$}", format_percent(value, locale))
 }
 
 /// "renews " before a reset countdown.
@@ -1634,7 +1638,10 @@ fn live_lines(
     let mut lines = vec![Line::from(Span::styled(
         format!(
             "  {}",
-            resolve_l10n(&cuotai_core::feed::live::title()).to_uppercase()
+            cuotai_core::text::uppercase(
+                tui_locale(),
+                &resolve_l10n(&cuotai_core::feed::live::title())
+            )
         ),
         Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
     ))];
@@ -2756,7 +2763,8 @@ fn render_gauge(
         MetricState::Exhausted { .. } => tr("dashboard.metric.exhausted", "exhausted").to_string(),
         MetricState::Available { uncapped: true, .. } => no_limit().to_string(),
         MetricState::Available { .. } => {
-            format!("{:>3.0}%", (ratio * 100.0).round())
+            // V-17: the sign placed as the language places it ("64 %", "%64").
+            padded_percent((ratio * 100.0).round())
         }
     };
     let style = Style::default().fg(bar_color).add_modifier(Modifier::BOLD);
@@ -3131,10 +3139,13 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
                     Span::styled(
                         trf(
                             "dashboard.detail.pace_expected",
-                            "   ·   expected {percent}% used · linear estimate",
+                            "   ·   expected {percent} used · linear estimate",
                             &[(
                                 "percent",
-                                &format!("{:.0}", pace.expected_used_fraction * 100.0),
+                                &cuotai_core::text::number::format_percent(
+                                    (pace.expected_used_fraction * 100.0).round(),
+                                    tui_locale(),
+                                ),
                             )],
                         ),
                         Style::default().fg(MUTED),
@@ -3420,8 +3431,8 @@ fn line_bar(
                 let ratio = fill(ratio);
                 let suffix = trf(
                     "dashboard.metric.remaining",
-                    " {percent}% left",
-                    &[("percent", &format!("{:>3.0}", (ratio * 100.0).round()))],
+                    " {percent} left",
+                    &[("percent", &padded_percent((ratio * 100.0).round()))],
                 );
                 (bar_of(ratio), suffix)
             }

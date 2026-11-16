@@ -253,10 +253,23 @@ fn empty_selection_has_no_title() {
 
 #[test]
 fn rounding_never_lies() {
-    assert_eq!(percent(0.004), "<1%");
-    assert_eq!(percent(0.0), "0%");
-    assert_eq!(percent(0.998), "99%");
-    assert_eq!(percent(1.0), "100%");
+    assert_eq!(percent(0.004, "en-US"), "<1%");
+    assert_eq!(percent(0.0, "en-US"), "0%");
+    assert_eq!(percent(0.998, "en-US"), "99%");
+    assert_eq!(percent(1.0, "en-US"), "100%");
+}
+
+/// V-17: the figure places its percent sign as the language does.
+#[test]
+fn the_percent_sign_follows_the_language() {
+    assert_eq!(percent(0.64, "de"), "64\u{a0}%");
+    assert_eq!(percent(0.64, "tr"), "%64");
+    assert_eq!(percent(0.004, "fr"), "<1\u{a0}%");
+    assert_eq!(
+        percent_l10n(0.64).resolve("de"),
+        "64\u{a0}%",
+        "the accessible label resolves in the reader's language"
+    );
 }
 
 #[test]
@@ -273,7 +286,7 @@ fn labels_render_in_the_four_languages() {
     for locale in crate::text::catalog_locales() {
         let text = s.accessible_label.resolve(locale);
         assert!(
-            text.contains("22%") && text.contains("Home"),
+            text.contains(&percent(0.22, locale)) && text.contains("Home"),
             "{locale}: {text}"
         );
         assert!(!text.contains('{'), "{locale}: {text}");

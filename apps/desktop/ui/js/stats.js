@@ -5,13 +5,13 @@
 // which reads its summary and an equivalent table (DS-CHT-10).
 import { currentLocale, t, te, tl, tle } from "./i18n.js";
 import { monograms, repeatedProviders, tileHtml } from "./components.js";
-import { accountFullLabel, STALE, brand, errText, esc, fmtNumber, getView, icon, openSettingsWindow, reportKey, setStatsPrefs, stats, statsPrefs } from "./lib.js";
+import { accountFullLabel, STALE, brand, errText, esc, fmtNumber, fmtPercent, getView, icon, openSettingsWindow, reportKey, setStatsPrefs, stats, statsPrefs } from "./lib.js";
 
 const RANGES = ["days7", "days30"];
 const REFRESH_MS = 30_000;
 let uid = 0;
 
-const pct = (share) => `${Math.round(share * 100)}%`;
+const pct = (share) => fmtPercent(Math.round(share * 100));
 // PRD 0026 re-validation (V-02, V-03, V-11): every day and time comes from the core (`text::clock`: `label` of a day
 // or a rhythm bucket, `when`/`time`/`day` of a journal entry), rendered by `tl` with `Intl.DateTimeFormat`, so the
 // desktop, the TUI and the CLI agree. The day of the month of a 30-day tick is the only figure read here.

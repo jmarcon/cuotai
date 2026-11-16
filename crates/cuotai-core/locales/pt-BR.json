@@ -811,7 +811,7 @@
   "feed.live.caveat": "Estimativa do agente a preço de tabela, não uma cobrança.",
   "feed.live.cost": "≈ ${usd} nesta sessão",
   "feed.live.cost_short": "≈${usd}",
-  "feed.live.ctx": "ctx {pct}%",
+  "feed.live.ctx": "contexto {pct}%",
   "feed.live.join": "{first} · {rest}",
   "feed.live.line": "Sessão ao vivo: {parts}",
   "feed.live.model": "{model}",
@@ -2497,5 +2497,6 @@
   "note.metered.pending": "Não consultado: outro programa do Cuotai está consultando esta conta agora. Tente de novo em instantes para ver a leitura dele.",
   "note.metered.record_unavailable_shared": "O registro compartilhado de consultas cobradas não está disponível, então outros programas do Cuotai também podem consultar esta conta.",
   "note.metered.refused": "Não consultado: a última consulta cobrada ao AWS Cost Explorer foi às {queried}; a próxima é possível às {next}.",
-  "note.metered.shared_reading": "Da leitura compartilhada das {time}; nenhuma nova consulta cobrada foi feita."
+  "note.metered.shared_reading": "Da leitura compartilhada das {time}; nenhuma nova consulta cobrada foi feita.",
+  "number.percent": "{p}%"
 }
