@@ -54,7 +54,7 @@ export function summaryHtml(r, stale = false) {
   if (s.kind === "bar") return `<div class="wins">${limitColumn(r, metricName(s.m), s.m, s.pct, stale)}${extra}</div>`;
   if (s.kind === "text") {
     return `<div class="sum-text">
-      <div class="win-top"><span class="win-name">${esc(s.m.label)}</span></div>
+      <div class="win-top"><span class="win-name">${esc(metricName(s.m))}</span></div>
       <div class="balance ${s.m.state === "exhausted" ? "bad" : ""}">${esc(s.text)}</div>${resetsText(s.m) ? `<div class="win-reset">${esc(resetsText(s.m))}</div>` : ""}</div>`;
   }
   if (s.kind === "hidden") return `<p class="sum-note dim">${te("card.allHidden")}</p>`;

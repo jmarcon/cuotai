@@ -394,7 +394,7 @@
   },
   "stats.unknown_return": "Retour inconnu",
   "ui.account_changed": "Compte modifié dans le fichier ; rouvrez l’assistant.",
-  "ui.data_as_of": " · données du {at}",
+  "ui.data_as_of": " · données de {at}",
   "ui.delete.account_n": "compte n° {index}",
   "ui.delete.already_removed": "Compte déjà retiré.",
   "ui.delete.confirm.body": "Supprimer le compte {account} ?\n\nIl sera retiré de {path}.\n\nLes variables d’environnement, les identifiants du trousseau et l’accès chez le fournisseur ne sont ni supprimés ni révoqués à cette étape.",

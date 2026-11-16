@@ -332,9 +332,8 @@ fn advice_groups(view: &View<'_>) -> Vec<cuotai_core::advice::GroupBest> {
                 group: account.group.as_deref(),
                 enabled: true,
                 report,
-                freshness: report.map(|report| {
-                    cuotai_core::freshness::assess(report.checked_at, interval, view.now)
-                }),
+                freshness: report
+                    .map(|report| cuotai_core::freshness::presented(report, interval, view.now)),
             }
         })
         .collect();

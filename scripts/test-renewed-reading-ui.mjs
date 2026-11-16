@@ -40,7 +40,7 @@ const i18n = await import("../apps/desktop/ui/js/i18n.js");
 const lib = await import("../apps/desktop/ui/js/lib.js");
 const { metricCardHtml } = await import("../apps/desktop/ui/js/detail.js");
 const { summaryHtml } = await import("../apps/desktop/ui/js/card-summary.js");
-const { rowHtml } = await import("../apps/desktop/ui/js/components.js");
+const { rowHtml, statusLineHtml } = await import("../apps/desktop/ui/js/components.js");
 await i18n.initI18n();
 
 const resetsAt = new Date(Date.now() - 3 * 3600 * 1000).toISOString();
@@ -84,7 +84,7 @@ const stripTags = (html) => {
 };
 const ENTITIES = { amp: "&", quot: '"', "#39": "'", lt: "<", gt: ">" };
 const unescape = (s) => s.replace(/&(amp|quot|#39|lt|gt);/g, (_, name) => ENTITIES[name]);
-const asOfWording = { "pt-BR": "dados de", "en-US": "data as of", es: "datos de", it: "dati delle", de: "Daten vom", ru: "данные от", ko: "기준 데이터", "hi-IN": "तक का डेटा", "id-ID": "data per", tr: "veriler", vi: "dữ liệu tại", "zh-CN": "数据截至", fr: "données du", ja: "時点のデータ" };
+const asOfWording = { "pt-BR": "dados de", "en-US": "data as of", es: "datos de", it: "dati delle", de: "Datenstand", ru: "данные от", ko: "기준 데이터", "hi-IN": "तक का डेटा", "id-ID": "data per", tr: "veriler", vi: "dữ liệu tại", "zh-CN": "数据截至", fr: "données de", ja: "時点のデータ" };
 
 for (const { code } of i18n.LOCALES) {
   await i18n.setLocale(code);
@@ -117,12 +117,30 @@ for (const { code } of i18n.LOCALES) {
   const row = rowHtml(stale, { title: "Kimi" });
   const xline = row.match(/<span class="xline muted" data-renewed-waiting title="([^"]*)">[\s\S]*?<span>([^<]*)<\/span><\/span>/);
   assert.ok(xline && unescape(xline[2]) === text && unescape(xline[1]) === text, `${code}: the tray row's renewed line drifted`);
+  // A mixed preserved reading (renewed 5 h, current week): the row's figure is the week's, its extra line names the 5 h.
+  const mixedRow = rowHtml({ ...stale, last_good: { ...stale.last_good, metrics: [collapsed5h, liveWeek] } }, { title: "Claude" });
+  const mixedLine = mixedRow.match(/data-renewed-waiting title="([^"]*)"/)?.[1];
+  assert.equal(unescape(mixedLine ?? ""), `${lib.paceLabelOf(collapsed5h)}: ${text}`, `${code}: the mixed row's renewed window is named`);
   assert.match(row, /<span class="lbl warn">[^<]+<\/span><span class="det">· [^<]+<\/span>/, `${code}: the status line keeps "Stale · age"`);
   assert.ok(unescape(row.match(/aria-label="([^"]*)"/)[1]).includes(text), `${code}: the tray row's name lacks the renewed text`);
 
   const lagging = { ...base, metrics: [live], data_as_of: new Date(Date.now() - 6 * 3600 * 1000).toISOString() };
   assert.ok(lib.ageText(lagging).includes(asOfWording[code]), `${code}: data-as-of text missing`);
   assert.ok(!lib.ageText({ ...base, metrics: [live] }).includes(asOfWording[code]), `${code}: no as-of without data_as_of`);
+  // V-03: a fresh reading whose provider data lags the query names the data time on the card's status line and the
+  // tray row (and in the row's name), and an uncapped figure's line never says "No data".
+  const usage = { label: "Costs (month)", used: 12.4, limit: null, remaining: null, unit: "USD", kind: "spend", window: "monthly", resets_at: null, state: "available", ratio: null, uncapped: true, no_cap: false };
+  const lagFresh = { ...base, binding: null, metrics: [usage], data_as_of: early.toISOString() };
+  const asOfText = i18n.t("freshness.data_as_of", { time: lib.coreClock(early.toISOString()) });
+  assert.ok(asOfText.includes(asOfWording[code]), `${code}: data-as-of wording drifted`);
+  const cardLine = statusLineHtml(lagFresh, undefined, { compact: false, reset: false });
+  const cardDet = unescape(cardLine.match(/<span class="det" data-as-of>([^<]*)<\/span>/)?.[1] ?? "");
+  assert.equal(cardDet.toLocaleLowerCase(), asOfText.toLocaleLowerCase(), `${code}: the card's status line lacks the data time`);
+  assert.ok(!cardLine.includes(i18n.t("meter.noData")), `${code}: an uncapped figure is not "No data"`);
+  const lagRow = rowHtml(lagFresh, { title: "OpenAI" });
+  assert.ok(/data-as-of/.test(lagRow), `${code}: the tray row's status line lacks the data time`);
+  assert.ok(unescape(lagRow.match(/aria-label="([^"]*)"/)[1]).includes(asOfText), `${code}: the tray row's name lacks the data time`);
+  assert.ok(!/data-as-of/.test(rowHtml({ ...lagFresh, data_as_of: null }, { title: "OpenAI" })), `${code}: no data time without data_as_of`);
   console.log(`${code}: ${text}`);
 }
 

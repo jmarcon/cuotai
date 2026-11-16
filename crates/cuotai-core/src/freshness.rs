@@ -69,6 +69,15 @@ pub fn reading_time(report: &crate::Report) -> DateTime<Utc> {
     }
 }
 
+/// PRD 0033 re-validation V-03: the freshness every surface shows for
+/// `report`: [`assess`] of its [`reading_time`]. An agent feed written 2 h
+/// ago is aging or stale even right after Cuotai read the file, never "up
+/// to date"; every other adapter stays query-based, and its lagging data
+/// time is said beside it ([`lagging_as_of`]).
+pub fn presented(report: &crate::Report, interval: Duration, now: DateTime<Utc>) -> Freshness {
+    assess(reading_time(report), interval, now)
+}
+
 /// PRD 0033 RF3.2: gap after which a card names the data time.
 pub const AS_OF_LAG: Duration = Duration::from_secs(15 * 60);
 
@@ -245,5 +254,35 @@ mod tests {
             report.as_of = None;
             assert_eq!(reading_time(&report), at(10_000), "{source}: no as_of");
         }
+    }
+
+    /// PRD 0033 re-validation V-03: a feed written 2 h ago reads stale
+    /// even right after Cuotai read it; a query-based reading with a
+    /// lagging data time stays fresh and names the time instead.
+    #[test]
+    fn presented_freshness_follows_the_measurement_time() {
+        let mut report = crate::Report {
+            overage_hint: Default::default(),
+            account_id: None,
+            diagnostic: None,
+            sub_reports: Vec::new(),
+            account: "a".into(),
+            provider: crate::Provider::Claude,
+            checked_at: at(10_000),
+            status: crate::Status::Ready,
+            metrics: Vec::new(),
+            notes: Vec::new(),
+            notes_l10n: Vec::new(),
+            source: "feed:claude_code".into(),
+            session_expires_at: None,
+            as_of: Some(at(10_000 - 7_200)),
+            breakdown: Vec::new(),
+        };
+        let interval = Duration::from_secs(300);
+        assert_eq!(presented(&report, interval, at(10_000)), Freshness::Stale);
+        assert_eq!(lagging_as_of(&report), Some(at(10_000 - 7_200)));
+        report.source = "api".into();
+        assert_eq!(presented(&report, interval, at(10_000)), Freshness::Fresh);
+        assert_eq!(lagging_as_of(&report), Some(at(10_000 - 7_200)));
     }
 }

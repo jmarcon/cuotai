@@ -4032,14 +4032,14 @@ pub(crate) fn age_text(
     ))
 }
 
-/// PRD 0033 RF3.2: " · dados de 06:00" when the provider states that its
+/// PRD 0033 RF3.2: " · data as of 06:00" when the provider states that its
 /// data lags the query by more than 15 minutes; empty otherwise.
 pub(crate) fn data_as_of_suffix(report: &cuotai_core::Report) -> String {
     cuotai_core::freshness::lagging_as_of(report)
         .map(|at| {
             crate::l10n::trf(
                 "ui.data_as_of",
-                " · data from {at}",
+                " · data as of {at}",
                 &[("at", &local_time(at))],
             )
         })

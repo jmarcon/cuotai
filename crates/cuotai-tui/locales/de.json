@@ -394,7 +394,7 @@
   },
   "stats.unknown_return": "Rückkehr unbekannt",
   "ui.account_changed": "Konto in der Datei geändert; öffnen Sie den Assistenten erneut.",
-  "ui.data_as_of": " · Daten vom {at}",
+  "ui.data_as_of": " · Datenstand {at}",
   "ui.delete.account_n": "Konto #{index}",
   "ui.delete.already_removed": "Konto bereits entfernt.",
   "ui.delete.confirm.body": "Konto {account} löschen?\n\nEs wird aus {path} entfernt.\n\nUmgebungsvariablen, Zugangsdaten im Schlüsselbund und der Zugriff beim Anbieter werden in diesem Schritt weder gelöscht noch widerrufen.",

@@ -6,7 +6,7 @@
 import { t, te, tl } from "./i18n.js";
 import { accountFullLabel,
   ALERTS, billingOverage, bindingLabel, causeText, bindingPct, brand, extraFigure, fmtShare, fmtExtra, fmtLocal, fmtReset, paceUnit, esc, fmtAge, icon, incidentBadge, isBlocked, isMetricHidden, isStaleReading, level, logo,
-  paceLabelOf, paceOf, remainingPct, renewedText, reportKey, shownAt, staleView, statusLabel, summaryOf, windowsOf,
+  coreClock, paceLabelOf, paceOf, remainingPct, renewedText, renewedWindowsOf, reportKey, shownAt, staleView, statusLabel, summaryOf, windowsOf,
   planBadgeHtml,
 } from "./lib.js";
 import { currentLocale } from "./i18n.js";
@@ -228,8 +228,13 @@ export function statusParts(r, st = accountState(r)) {
     detail = fmtAge(shownAt(r));
     // PRD 0033 re-validation (V-02): a preserved reading whose quota renewed says when ("Renewed at …"), on the row's
     // extra line and in its accessible name, so its "—" never reads as "no data".
-    const s = summaryOf(staleView(r));
+    const view = staleView(r), s = summaryOf(view);
     if (s.kind === "renewed") renewed = renewedText(s.m);
+    else {
+      // A window that renewed beside a current one (the row's figure is the current one's) is named: "5h: Renewed at …".
+      const w = renewedWindowsOf(view), wins = windowsOf(view), m = (!wins.h5 && w.h5) || (!wins.week && w.week) || null;
+      if (m) renewed = `${paceLabelOf(m)}: ${renewedText(m)}`;
+    }
     // PRD 0010 RF3.3 (re-validation V-04, DS-CMP-ROW-4): why the reading is old; none while the first query runs.
     if (!r.pending) cause = causeText(r);
   } else if (st.kind === "status") {
@@ -258,15 +263,19 @@ export function statusParts(r, st = accountState(r)) {
     if (lv) detail = bindingLabel(r) || binding.label || "";
     reset = binding.resets_at;
   } else if (st.kind === "unknown") {
-    label = t("meter.noData");
-    role = "muted";
     const s = summaryOf(r);
+    // PRD 0033 re-validation (V-03): an uncapped figure ("Usage: 12.4 USD") is data, so its line never says "No data".
+    label = s.kind === "text" ? "" : t("meter.noData");
+    role = "muted";
     if (s.kind === "renewed") renewed = renewedText(s.m);
   }
+  // PRD 0033 RF3.2 (re-validation V-03): the provider's data is older than the query ("data as of 6:00 AM"), on a fresh
+  // reading too; the backend sends `data_as_of` only when it lags the query by more than 15 minutes.
+  const asOf = st.kind !== "stale" && r.status === "ready" && r.data_as_of ? t("freshness.data_as_of", { time: coreClock(r.data_as_of) ?? "—" }) : "";
   const at = fmtAt(reset);
   if (at) resetFull = t("stl.resets", { time: at });
-  const full = [label, detail, renewed, resetFull, cause].filter(Boolean).join(" · ");
-  return { label, role, detail, renewed, reset: at, resetFull, full, pace, binding, cause };
+  const full = [label, detail, renewed, asOf, resetFull, cause].filter(Boolean).join(" · ");
+  return { label, role, detail, renewed, asOf, reset: at, resetFull, full, pace, binding, cause };
 }
 
 // ---------- DS-CMP-TIME: time chips (core texts, TUI shapes) ----------
@@ -307,10 +316,13 @@ export function paceChipsHtml(m, pace) {
  *  its label has no leading separator). */
 export function statusLineHtml(r, st = accountState(r), { glyph = true, compact = true, reset = true, label = true, chips: withChips = true } = {}) {
   const p = statusParts(r, st);
-  if (!p.label && !p.reset) return "";
+  if (!p.label && !p.reset && !p.asOf) return "";
   const lbl = label && p.label ? `<span class="lbl ${p.role}">${esc(p.label)}</span>` : "";
   const chips = !withChips || !p.pace ? "" : compact ? timeChipHtml(p.binding?.forecast?.chip, { compact: true }) : paceChipsHtml(p.binding, p.pace);
-  const det = (st.kind === "stale" || st.kind === "exhausted") && p.detail ? `<span class="det">${lbl ? "· " : ""}${esc(p.detail)}</span>` : "";
+  const detail = [(st.kind === "stale" || st.kind === "exhausted") ? p.detail : "", p.asOf].filter(Boolean).join(" · ");
+  // Without a label before it, the detail starts the line: "Data as of 6:00 AM".
+  const lead = lbl ? `· ${detail}` : chips ? detail : detail.charAt(0).toLocaleUpperCase(currentLocale()) + detail.slice(1);
+  const det = detail ? `<span class="det"${p.asOf ? " data-as-of" : ""}>${esc(lead)}</span>` : "";
   const rst = reset && p.reset ? `<span class="rst" title="${esc(p.resetFull)}">${icon("returns")}<span>${esc(p.reset)}</span></span>` : "";
   const g = glyph ? stateGlyph(st) : "";
   if (!g && !lbl && !chips && !det && !rst) return "";
@@ -544,7 +556,7 @@ export function rowName(r, st = accountState(r)) {
   const value = f.unit ? t("meter.left", { pct: Math.round(st.pct) }) : f.fig;
   // PRD 0008 RF3.4: an active usage alert is part of the name, since the row's label overrides its content.
   const usage = r.usage_alerts?.length ? ALERTS.find((c) => c.id === "usage").label(r) : "";
-  return [brand(r.provider).label, r.account, value, p.label !== f.fig ? p.label : "", p.detail, p.renewed, p.resetFull, p.cause, usage].filter(Boolean).join(", ");
+  return [brand(r.provider).label, r.account, value, p.label !== f.fig ? p.label : "", p.detail, p.renewed, p.asOf, p.resetFull, p.cause, usage].filter(Boolean).join(", ");
 }
 /** Fa gap 9 (mockup 06): an aging reading is drawn like a stale one: dimmed figure, dotted meter, no pace mark. */
 const isAging = (r) => r.status === "ready" && r.freshness === "aging";

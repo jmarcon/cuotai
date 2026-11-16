@@ -70,7 +70,7 @@ pub fn views<'a>(
                 group: config.group_of(account),
                 enabled: enabled(index),
                 report,
-                freshness: report.map(|report| freshness::assess(report.checked_at, interval, now)),
+                freshness: report.map(|report| freshness::presented(report, interval, now)),
             }
         })
         .collect()

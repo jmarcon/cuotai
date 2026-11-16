@@ -97,7 +97,7 @@ function card(r, ctx, recharging = false, { connection = false } = {}) {
     rate != null && level(rate) !== "good" ? `<span class="mini ${level(rate)}" title="${te("card.rateLimit", { pct: Math.round(rate) })}">${icon("gauge")}${Math.round(rate)}%</span>` : "",
     // PRD 0010 re-validation V-02: a stale card's status line already carries "Stale · age".
     // PRD 0025 re-validation V-10: the row display's "age" on shows it on a fresh card too.
-    !stale && r.status === "ready" && (r.freshness !== "fresh" || rowLayout().elements.age) ? ageHtml(r) : "",
+    !stale && r.status === "ready" && (r.freshness !== "fresh" || rowLayout().elements.age) ? ageHtml(r, { asOf: false }) : "",
     isBusy ? `<span class="next"><span class="nt">${te("card.refreshing")}</span></span>` : "",
   ].filter(Boolean);
   const counts = [n ? te("card.limits", { count: n }) : "", r.model_count != null ? (r.model_count ? te("card.modelCount", { count: r.model_count }) : te("card.noModels")) : ""].filter(Boolean);
