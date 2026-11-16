@@ -26,7 +26,7 @@ With the server unreachable the segment reads `cuotai offline` in grey.
 
 ## Without a server: `--status-line`
 
-`cuotai --status-line` runs one refresh and prints the same line the desktop menu bar shows, so no server and no `jq` are needed. It costs one query cycle per call, so keep `status-interval` generous (60 seconds or more), or use the server recipe above to avoid a second query cycle.
+`cuotai --status-line` runs one refresh and prints the same line the desktop menu bar shows, so no server and no `jq` are needed. It costs one query cycle per call, so keep `status-interval` generous (60 seconds or more), or use the server recipe above to avoid a second query cycle. Each call queries the selected accounts (all of them without `--account`), so pick only the ones the bar needs. An AWS Bedrock account is spared: Cost Explorer bills each request, so within its refresh interval (one hour by default, never under 15 minutes) a call reuses the reading an earlier call recorded, from any process. Other providers are queried on every call.
 
 ```tmux
 set -g status-interval 120

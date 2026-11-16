@@ -19,4 +19,4 @@ The colour is `#50fa7b` (ok), `#ffb86c` (warning), `#ff5555` (critical or outage
 
 ## Without a server: `--status-line`
 
-A block that runs `cuotai --status-line` and wraps the text in the i3bar JSON line needs no server, at the price of one query cycle per call (use 120 seconds or more). See the [tmux page](tmux.md#without-a-server---status-line) for the options and exit codes.
+A block that runs `cuotai --status-line` and wraps the text in the i3bar JSON line needs no server, at the price of one query cycle per call (use 120 seconds or more). Each call queries the selected accounts (all of them without `--account`), so pick only the ones the bar needs. An AWS Bedrock account is spared: Cost Explorer bills each request, so within its refresh interval (one hour by default, never under 15 minutes) a call reuses the reading an earlier call recorded, from any process. Other providers are queried on every call. See the [tmux page](tmux.md#without-a-server---status-line) for the options and exit codes.

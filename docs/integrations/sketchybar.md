@@ -26,4 +26,4 @@ sketchybar --add item cuotai right \
   --set cuotai update_freq=120 script='sketchybar --set cuotai label="$(cuotai --status-line)"'
 ```
 
-It queries once per call; see the [tmux page](tmux.md#without-a-server---status-line) for the options and exit codes.
+It queries once per call. Each call queries the selected accounts (all of them without `--account`), so pick only the ones the bar needs. An AWS Bedrock account is spared: Cost Explorer bills each request, so within its refresh interval (one hour by default, never under 15 minutes) a call reuses the reading an earlier call recorded, from any process. Other providers are queried on every call. See the [tmux page](tmux.md#without-a-server---status-line) for the options and exit codes.

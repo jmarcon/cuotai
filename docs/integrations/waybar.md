@@ -37,7 +37,7 @@ With the server unreachable the module shows `Cuotai offline` with the `offline`
 
 ## Without a server: `--status-line`
 
-A `custom` module can run `cuotai --status-line` directly. It queries once per call, so use a long `interval`:
+A `custom` module can run `cuotai --status-line` directly. It queries once per call, so use a long `interval`. Each call queries the selected accounts (all of them without `--account`), so pick only the ones the bar needs. An AWS Bedrock account is spared: Cost Explorer bills each request, so within its refresh interval (one hour by default, never under 15 minutes) a call reuses the reading an earlier call recorded, from any process. Other providers are queried on every call.
 
 ```json
 "custom/cuotai": { "exec": "cuotai --status-line", "interval": 120 }

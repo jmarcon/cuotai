@@ -377,3 +377,21 @@ fn account_accepts_ids_keys_and_names_and_queries_only_those() {
     );
     assert!(output.stdout.is_empty());
 }
+
+/// R-02: a metered account (AWS Cost Explorer bills each request) is
+/// queried once per interval across separate `--status-line` runs; the
+/// next run reuses the recorded reading.
+#[test]
+fn a_metered_account_is_not_queried_again_within_its_interval() {
+    let sandbox = Sandbox::new("metered");
+    assert_eq!(sandbox.run("dev", &[]).status.code(), Some(0));
+    let first = sandbox.aws_calls().len();
+    assert!(first > 0);
+    assert_eq!(sandbox.run("dev", &[]).status.code(), Some(0));
+    assert_eq!(
+        sandbox.aws_calls().len(),
+        first,
+        "{:?}",
+        sandbox.aws_calls()
+    );
+}
