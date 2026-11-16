@@ -1973,6 +1973,7 @@
   "serve.client.not_loopback": "ローカルサーバーはループバック（127.0.0.1、::1）でのみ読み取れます。localhost は 127.0.0.1 として扱います。",
   "serve.client.not_ready": "ローカルサーバーにはまだ読み取りがありません。しばらくしてからもう一度お試しください。",
   "serve.client.unauthorized": "ローカルサーバーがトークンを拒否しました（--token-file には --serve と同じファイルを使用してください）。",
+  "serve.client.unproven": "ポート {port} のプログラムは、あなたの Cuotai サーバーであることを証明しませんでした。サーバー側の Cuotai を更新するか、ポートを使っているものを確認してください。",
   "serve.client.unreachable": "ローカルサーバーが応答しませんでした。実行中ですか（cuotai --serve）？",
   "serve.error.bind": "ローカルサーバーのポート {port} を開けませんでした。",
   "serve.error.bounds": "ローカルサーバーの制限値の一つが許容範囲外です。",

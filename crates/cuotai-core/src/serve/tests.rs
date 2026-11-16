@@ -1190,6 +1190,297 @@ async fn a_configured_token_is_required_on_every_route() {
     assert!(twice.starts_with("HTTP/1.1 401 "), "{twice}");
 }
 
+/// A fresh challenge nonce, as a client sends it.
+fn fresh_nonce() -> String {
+    super::token::new_challenge().unwrap()
+}
+
+/// Re-validation S-03: `/health` with a challenge and no credentials proves
+/// the token over the nonce and the bound port; everything else keeps
+/// needing the token, and a malformed challenge is refused.
+#[tokio::test]
+async fn a_health_challenge_is_answered_with_a_proof_of_the_token() {
+    let nonce = fresh_nonce();
+    let token = Token::generate().unwrap();
+    let server = start(
+        ServeConfig {
+            token: Some(token.clone()),
+            ..ServeConfig::default()
+        },
+        fixture_source(),
+    )
+    .await;
+    let port = server.addr().port();
+    let response = request(&server, Method::GET, "/health")
+        .header(CHALLENGE_HEADER, &nonce)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = json(response).await;
+    assert_eq!(body["status"], "ok");
+    assert_eq!(body["auth"], "token");
+    let proof = body["proof"].as_str().unwrap();
+    assert_eq!(proof.len(), 64);
+    assert_eq!(proof, token.proof(&nonce, port));
+    assert!(token.proof_matches(&nonce, port, proof));
+    assert!(!token.proof_matches(&nonce, port.wrapping_add(1), proof));
+    assert!(!Token::generate()
+        .unwrap()
+        .proof_matches(&nonce, port, proof));
+    // The challenge opens /health only.
+    for path in ["/v1/limits", "/v1/snapshot", "/v1/stats"] {
+        let response = request(&server, Method::GET, path)
+            .header(CHALLENGE_HEADER, &nonce)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED, "{path}");
+    }
+    // A challenge with a wrong token is still a wrong token.
+    let response = request(&server, Method::GET, "/health")
+        .header(CHALLENGE_HEADER, &nonce)
+        .bearer_auth("cuotai_wrong_wrong_wrong_wrong")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    // Without the challenge /health still needs the token.
+    assert_eq!(
+        get(&server, "/health").await.status(),
+        StatusCode::UNAUTHORIZED
+    );
+    for bad in [
+        "",
+        "xyz",
+        &nonce.to_uppercase(),
+        &nonce[1..],
+        &format!("{nonce}0"),
+    ] {
+        let response = request(&server, Method::GET, "/health")
+            .header(CHALLENGE_HEADER, bad)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{bad:?}");
+        assert_eq!(
+            response.text().await.unwrap(),
+            r#"{"error":"bad_challenge"}"#
+        );
+    }
+    let twice = raw(
+        server.addr(),
+        format!(
+            "GET /health HTTP/1.1\r\nHost: localhost\r\nCuotai-Challenge: {nonce}\r\n\
+             Cuotai-Challenge: {nonce}\r\n\r\n"
+        )
+        .as_bytes(),
+    )
+    .await;
+    assert!(twice.starts_with("HTTP/1.1 400 "), "{twice}");
+    // A plain authenticated /health carries no auth fields.
+    let response = request(&server, Method::GET, "/health")
+        .bearer_auth(token.expose())
+        .send()
+        .await
+        .unwrap();
+    let body = json(response).await;
+    assert!(
+        body.get("auth").is_none() && body.get("proof").is_none(),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn a_server_without_a_token_answers_the_challenge_with_auth_none() {
+    let nonce = fresh_nonce();
+    let server = start(ServeConfig::default(), fixture_source()).await;
+    let response = request(&server, Method::GET, "/health")
+        .header(CHALLENGE_HEADER, &nonce)
+        .send()
+        .await
+        .unwrap();
+    let body = json(response).await;
+    assert_eq!(body["auth"], "none");
+    assert!(body.get("proof").is_none());
+    let body = json(get(&server, "/health").await).await;
+    assert!(body.get("auth").is_none(), "{body}");
+}
+
+/// S-03: the client reads a real server with its token, refuses to send
+/// the token to one that holds another, and reads a tokenless one without
+/// sending it.
+#[tokio::test]
+async fn the_client_sends_the_token_only_after_a_valid_proof() {
+    let token = Token::generate().unwrap();
+    let server = start(
+        ServeConfig {
+            token: Some(token.clone()),
+            ..ServeConfig::default()
+        },
+        fixture_source(),
+    )
+    .await;
+    let views = client::limits_views(&server.url(), Some(&token))
+        .await
+        .unwrap();
+    assert!(!views.is_empty());
+    let other = Token::generate().unwrap();
+    assert_eq!(
+        client::limits_views(&server.url(), Some(&other)).await,
+        Err(client::ClientError::Unproven {
+            port: server.addr().port()
+        })
+    );
+    let open = start(ServeConfig::default(), fixture_source()).await;
+    assert!(!client::limits_views(&open.url(), Some(&token))
+        .await
+        .unwrap()
+        .is_empty());
+}
+
+/// A listener that answers each connection with `answer(head)` and records
+/// every head it received.
+async fn fake_listener(
+    answer: impl Fn(&str, u16) -> String + Send + Sync + 'static,
+) -> (u16, Arc<Mutex<Vec<String>>>) {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let heads = Arc::new(Mutex::new(Vec::new()));
+    let seen = Arc::clone(&heads);
+    tokio::spawn(async move {
+        while let Ok((mut stream, _)) = listener.accept().await {
+            let mut buf = vec![0u8; 8192];
+            let mut len = 0;
+            while !buf[..len].windows(4).any(|w| w == b"\r\n\r\n") && len < buf.len() {
+                match stream.read(&mut buf[len..]).await {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => len += n,
+                }
+            }
+            let head = String::from_utf8_lossy(&buf[..len]).into_owned();
+            seen.lock().push(head.clone());
+            let (status, body) = answer(&head, port)
+                .split_once('\n')
+                .map_or(("200 OK".to_owned(), String::new()), |(s, b)| {
+                    (s.to_owned(), b.to_owned())
+                });
+            let reply = format!(
+                "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\
+                 Connection: close\r\n\r\n{body}",
+                body.len()
+            );
+            let _ = stream.write_all(reply.as_bytes()).await;
+        }
+    });
+    (port, heads)
+}
+
+fn nonce_of(head: &str) -> String {
+    head.lines()
+        .find_map(|line| {
+            let (name, value) = line.split_once(':')?;
+            name.eq_ignore_ascii_case("cuotai-challenge")
+                .then(|| value.trim().to_owned())
+        })
+        .unwrap_or_default()
+}
+
+#[tokio::test]
+async fn a_program_that_cannot_prove_the_token_never_receives_it() {
+    let token = Token::generate().unwrap();
+    let other = Token::generate().unwrap();
+    let limits = r#"{"schema":1,"accounts":[]}"#;
+    type Answer = Box<dyn Fn(&str, u16) -> String + Send + Sync>;
+    let health = |auth: String| {
+        format!(
+            r#"200 OK
+{{"status":"ok","version":"0","schema":1,"schemas":[1]{auth}}}"#
+        )
+    };
+    let cases: Vec<(&str, Answer)> = vec![
+        (
+            "ignores the challenge",
+            Box::new(move |_, _| health(String::new())),
+        ),
+        (
+            "asks for the token",
+            Box::new(|_, _| "401 Unauthorized\n{\"error\":\"unauthorized\"}".into()),
+        ),
+        ("not json", Box::new(|_, _| "200 OK\nhello".into())),
+        (
+            "wrong proof",
+            Box::new(move |_, _| {
+                health(format!(r#","auth":"token","proof":"{}""#, "0".repeat(64)))
+            }),
+        ),
+        ("another port", {
+            let token = token.clone();
+            Box::new(move |head, port| {
+                health(format!(
+                    r#","auth":"token","proof":"{}""#,
+                    token.proof(&nonce_of(head), port + 1)
+                ))
+            })
+        }),
+        ("another token", {
+            let other = other.clone();
+            Box::new(move |head, port| {
+                health(format!(
+                    r#","auth":"token","proof":"{}""#,
+                    other.proof(&nonce_of(head), port)
+                ))
+            })
+        }),
+    ];
+    for (name, answer) in cases {
+        let (port, heads) = fake_listener(move |head, port| {
+            if head.starts_with("GET /v1/limits") {
+                format!("200 OK\n{limits}")
+            } else {
+                answer(head, port)
+            }
+        })
+        .await;
+        let result = client::limits_views(&format!("http://127.0.0.1:{port}"), Some(&token)).await;
+        assert_eq!(
+            result,
+            Err(client::ClientError::Unproven { port }),
+            "{name}"
+        );
+        let heads = heads.lock().clone();
+        assert_eq!(heads.len(), 1, "{name}: {heads:?}");
+        assert!(heads[0].starts_with("GET /health "), "{name}");
+        assert_eq!(nonce_of(&heads[0]).len(), 64, "{name}");
+        for head in &heads {
+            assert!(
+                !head.to_ascii_lowercase().contains("authorization"),
+                "{name}: {head}"
+            );
+            assert!(!head.contains(token.expose()), "{name}");
+        }
+    }
+    // A program that claims "none" gets no token either; it can only feed data.
+    let (port, heads) = fake_listener(move |head, _| {
+        if head.starts_with("GET /v1/limits") {
+            format!("200 OK\n{limits}")
+        } else {
+            health(r#","auth":"none""#.into())
+        }
+    })
+    .await;
+    assert!(
+        client::limits_views(&format!("http://127.0.0.1:{port}"), Some(&token))
+            .await
+            .is_ok()
+    );
+    let heads = heads.lock().clone();
+    assert_eq!(heads.len(), 2);
+    assert!(heads
+        .iter()
+        .all(|h| !h.to_ascii_lowercase().contains("authorization")));
+}
+
 #[tokio::test]
 async fn a_non_loopback_bind_needs_the_explicit_flag_and_a_token() {
     for bind in ["192.0.2.10", "0.0.0.0", "::"] {

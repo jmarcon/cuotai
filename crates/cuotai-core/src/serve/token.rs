@@ -63,6 +63,73 @@ impl Token {
     }
 }
 
+/// Re-validation S-03: what a `GET /health` with `Cuotai-Challenge` binds the
+/// proof to. Versioned so a later scheme can never be confused with this one.
+const PROOF_LABEL: &[u8] = b"cuotai-serve-proof/1";
+
+/// The bytes of a `Cuotai-Challenge` nonce: 32 random bytes as 64
+/// lowercase hex characters.
+pub const CHALLENGE_LEN: usize = 64;
+
+/// Whether `nonce` is a well-formed challenge (64 lowercase hex characters).
+pub fn challenge_is_valid(nonce: &[u8]) -> bool {
+    nonce.len() == CHALLENGE_LEN && nonce.iter().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+}
+
+/// A fresh challenge nonce from the OS random generator.
+pub fn new_challenge() -> Result<String, ServeError> {
+    use rand::RngCore;
+    let mut bytes = [0u8; 32];
+    rand::rngs::OsRng
+        .try_fill_bytes(&mut bytes)
+        .map_err(|_| ServeError::Random)?;
+    Ok(bytes.iter().map(|b| format!("{b:02x}")).collect())
+}
+
+impl Token {
+    /// HMAC-SHA256 under this token over the label, `nonce` and the server's
+    /// bound `port`, each separated by a zero byte.
+    fn proof_mac(&self, nonce: &str, port: u16) -> hmac::Hmac<sha2::Sha256> {
+        use hmac::Mac;
+        let mut mac = <hmac::Hmac<sha2::Sha256> as Mac>::new_from_slice(self.0.as_bytes())
+            .expect("HMAC takes a key of any length");
+        mac.update(PROOF_LABEL);
+        mac.update(&[0]);
+        mac.update(nonce.as_bytes());
+        mac.update(&[0]);
+        mac.update(port.to_string().as_bytes());
+        mac
+    }
+
+    /// The proof a server answers a challenge with: 64 lowercase hex characters.
+    pub fn proof(&self, nonce: &str, port: u16) -> String {
+        use hmac::Mac;
+        let digest = self.proof_mac(nonce, port).finalize().into_bytes();
+        digest.iter().map(|b| format!("{b:02x}")).collect()
+    }
+
+    /// Whether `proof` (hex) is the proof for `nonce` and `port`, compared in
+    /// constant time.
+    pub(super) fn proof_matches(&self, nonce: &str, port: u16, proof: &str) -> bool {
+        use hmac::Mac;
+        let Some(bytes) = decode_hex(proof) else {
+            return false;
+        };
+        self.proof_mac(nonce, port).verify_slice(&bytes).is_ok()
+    }
+}
+
+/// Lowercase or uppercase hex to bytes; `None` for anything else.
+fn decode_hex(text: &str) -> Option<Vec<u8>> {
+    if !text.len().is_multiple_of(2) {
+        return None;
+    }
+    (0..text.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(text.get(i..i + 2)?, 16).ok())
+        .collect()
+}
+
 impl fmt::Debug for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("Token([redacted])")

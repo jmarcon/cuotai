@@ -103,48 +103,90 @@ fn style_must_be_supported_and_modes_do_not_combine() {
     assert_eq!(sandbox.run("dev", &["--once"]).status.code(), Some(1));
 }
 
-/// A one-shot HTTP server that answers `/v1/limits` with `body` when the
-/// request carries `token`, `401` otherwise, and returns the request line.
+/// How the fake server answers a `/health` challenge (re-validation S-03).
+#[derive(Clone, Copy)]
+enum Proof {
+    /// Like `cuotai --serve` with this token: a valid proof.
+    Valid,
+    /// Like an older server or another program: `401` to the challenge.
+    Missing,
+}
+
+/// A fake local server: `/health` with a challenge answers per `proof`,
+/// `/v1/limits` answers `body` when the request carries `token` (`401`
+/// otherwise). Returns its address and every request head it received
+/// (request line first), read after the client process exits.
 fn fake_server(
     token: &'static str,
     body: &'static str,
-) -> (String, std::thread::JoinHandle<String>) {
+    proof: Proof,
+) -> (String, std::sync::Arc<std::sync::Mutex<Vec<Vec<String>>>>) {
     use std::io::{BufRead, BufReader, Write};
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
     let addr = format!("http://{}", listener.local_addr().unwrap());
-    let job = std::thread::spawn(move || {
-        let (stream, _) = listener.accept().unwrap();
-        let mut reader = BufReader::new(stream.try_clone().unwrap());
-        let mut head = Vec::new();
-        loop {
-            let mut line = String::new();
-            reader.read_line(&mut line).unwrap();
-            if line.trim().is_empty() {
-                break;
+    let heads = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let seen = std::sync::Arc::clone(&heads);
+    let secret = cuotai_core::serve::Token::parse(token).unwrap();
+    std::thread::spawn(move || {
+        for stream in listener.incoming() {
+            let Ok(mut stream) = stream else { return };
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let mut head = Vec::new();
+            loop {
+                let mut line = String::new();
+                if reader.read_line(&mut line).unwrap_or(0) == 0 || line.trim().is_empty() {
+                    break;
+                }
+                head.push(line.trim().to_owned());
             }
-            head.push(line.trim().to_owned());
-        }
-        let authorized = head
-            .iter()
-            .any(|line| line.eq_ignore_ascii_case(&format!("authorization: Bearer {token}")));
-        let mut stream = stream;
-        if authorized {
+            let header = |name: &str| {
+                head.iter().find_map(|line| {
+                    let (key, value) = line.split_once(':')?;
+                    key.eq_ignore_ascii_case(name)
+                        .then(|| value.trim().to_owned())
+                })
+            };
+            let authorized = header("authorization").as_deref() == Some(&format!("Bearer {token}"));
+            let (status, answer) = match (
+                head.first().map(String::as_str),
+                header("cuotai-challenge"),
+            ) {
+                (Some(line), Some(nonce)) if line.starts_with("GET /health ") => match proof {
+                    Proof::Valid => (
+                        "200 OK",
+                        format!(
+                            r#"{{"status":"ok","version":"0","schema":1,"schemas":[1],"auth":"token","proof":"{}"}}"#,
+                            secret.proof(&nonce, port)
+                        ),
+                    ),
+                    Proof::Missing => ("401 Unauthorized", String::new()),
+                },
+                (Some(line), _) if line.starts_with("GET /v1/limits ") && authorized => {
+                    ("200 OK", body.to_owned())
+                }
+                _ => ("401 Unauthorized", String::new()),
+            };
             write!(
                 stream,
-                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-                body.len()
+                "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{answer}",
+                answer.len()
             )
             .unwrap();
-        } else {
-            write!(
-                stream,
-                "HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
-            )
-            .unwrap();
+            seen.lock().unwrap().push(head);
         }
-        head[0].clone()
     });
-    (addr, job)
+    (addr, heads)
+}
+
+/// The request lines `heads` received, in order.
+fn request_lines(heads: &std::sync::Mutex<Vec<Vec<String>>>) -> Vec<String> {
+    heads
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|head| head[0].clone())
+        .collect()
 }
 
 const LIMITS: &str = r#"{"schema":1,"generated_at":"2026-10-25T12:00:00Z","accounts":[{"index":0,"id":"acc_one","key":"claude:Main","name":"Main","provider":"claude","class":"available","stale":false,"binding":{"used_ratio":0.78}}],"summary":{}}"#;
@@ -157,7 +199,7 @@ fn from_server_reads_the_running_servers_limits() {
     let sandbox = Sandbox::new("from-server");
     let token = sandbox.0.join("token");
     fs::write(&token, format!("{TOKEN}\n")).unwrap();
-    let (addr, job) = fake_server(TOKEN, LIMITS);
+    let (addr, heads) = fake_server(TOKEN, LIMITS, Proof::Valid);
     let output = sandbox.run(
         "broken",
         &[
@@ -173,7 +215,44 @@ fn from_server_reads_the_running_servers_limits() {
         // Automatic names the provider (PRD 0025 re-validation V-07).
         "22% · Claude"
     );
-    assert_eq!(job.join().unwrap(), "GET /v1/limits HTTP/1.1");
+    // S-03: the challenge first, then the token.
+    assert_eq!(
+        request_lines(&heads),
+        ["GET /health HTTP/1.1", "GET /v1/limits HTTP/1.1"]
+    );
+    let heads = heads.lock().unwrap();
+    assert!(!heads[0]
+        .iter()
+        .any(|line| line.to_ascii_lowercase().starts_with("authorization")));
+}
+
+/// S-03: a program on the port that cannot prove it holds the token (an
+/// older server, or anything else) never receives it, and the line is a
+/// local error that says to update the server.
+#[test]
+fn from_server_never_sends_the_token_to_an_unproven_program() {
+    let sandbox = Sandbox::new("from-server-unproven");
+    let token = sandbox.0.join("token");
+    fs::write(&token, format!("{TOKEN}\n")).unwrap();
+    let (addr, heads) = fake_server(TOKEN, LIMITS, Proof::Missing);
+    let output = sandbox.run(
+        "dev",
+        &[
+            "--from-server",
+            &addr,
+            "--token-file",
+            token.to_str().unwrap(),
+        ],
+    );
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("did not prove") && stderr.contains("update Cuotai"),
+        "{stderr}"
+    );
+    assert_eq!(request_lines(&heads), ["GET /health HTTP/1.1"]);
+    let heads = heads.lock().unwrap();
+    assert!(heads.iter().flatten().all(|line| !line.contains(TOKEN)));
 }
 
 #[test]
@@ -182,9 +261,8 @@ fn from_server_refuses_other_hosts_and_a_missing_token() {
     let output = sandbox.run("dev", &["--from-server", "http://192.0.2.1:7878"]);
     assert_eq!(output.status.code(), Some(1), "{output:?}");
     assert!(String::from_utf8_lossy(&output.stderr).contains("loopback"));
-    let (addr, job) = fake_server(TOKEN, LIMITS);
+    let (addr, _heads) = fake_server(TOKEN, LIMITS, Proof::Valid);
     let output = sandbox.run("dev", &["--from-server", &addr]);
     assert_eq!(output.status.code(), Some(1), "{output:?}");
     assert!(String::from_utf8_lossy(&output.stderr).contains("token"));
-    job.join().unwrap();
 }

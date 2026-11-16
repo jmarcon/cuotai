@@ -1991,6 +1991,7 @@
   "serve.client.not_loopback": "O servidor local só é lido em loopback (127.0.0.1 ou ::1; localhost é lido como 127.0.0.1).",
   "serve.client.not_ready": "O servidor local ainda não tem leituras; tente de novo em instantes.",
   "serve.client.unauthorized": "O servidor local recusou o token (use --token-file com o mesmo arquivo do --serve).",
+  "serve.client.unproven": "O programa na porta {port} não provou que é o seu servidor do Cuotai; atualize o Cuotai no lado do servidor ou verifique o que ocupa a porta.",
   "serve.client.unreachable": "O servidor local não respondeu; ele está rodando (cuotai --serve)?",
   "serve.error.bind": "Não foi possível abrir a porta {port} do servidor local.",
   "serve.error.bounds": "Um limite do servidor local está fora do intervalo permitido.",

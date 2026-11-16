@@ -9,7 +9,7 @@ Recipes that show Cuotai's tightest quota in a status bar. Each reads `GET /v1/l
 | tmux | [tmux.md](tmux.md) | `tmux.sh` |
 | i3bar / sway | [i3status.md](i3status.md) | `i3status.sh` |
 
-**Prefer `cuotai --status-line --from-server`** for a one-line bar: it reads the same running server, takes the token from its file, and never puts the token on a command line or sends it through a proxy. Its options and exit codes are on the [tmux page](tmux.md#without-a-server---status-line). The scripts below are for bars that want the colour classes or the reset time.
+**Prefer `cuotai --status-line --from-server`** for a one-line bar: it reads the same running server, takes the token from its file, never puts the token on a command line or sends it through a proxy, and sends it only after the server proved it holds it. The scripts' `curl` helper cannot make that check: if another program holds the port while your server is down, it receives the token ([details](../local-server.md#who-receives-the-token)). Its options and exit codes are on the [tmux page](tmux.md#without-a-server---status-line). The scripts below are for bars that want the colour classes or the reset time.
 
 Claude Code's own status line is a different integration: Claude Code feeds Cuotai, and `cuotai --statusline-claude` prints Claude's windows plus the tightest other account in its footer. See [claude-code.md](claude-code.md).
 

@@ -5,6 +5,14 @@
 //! leaves the computer, and the server never listens elsewhere by default.
 //! Answers are read with the core's HTTP client settings (no redirects, a
 //! short timeout) and bounded; errors name neither the token nor the body.
+//!
+//! Re-validation S-03: before a token is sent, the program on the port must
+//! prove it holds it. The client sends `GET /health` with a fresh
+//! `Cuotai-Challenge` nonce and no `Authorization`; only an answer with
+//! `"auth":"token"` and a valid proof (HMAC-SHA256 under the token over the
+//! label, the nonce and the port dialled) gets the token. `"auth":"none"`
+//! (a `--no-token` server) is read without sending it. Anything else stops
+//! with [`ClientError::Unproven`]: there is no fallback.
 
 use std::net::{IpAddr, Ipv4Addr};
 use std::time::Duration;
@@ -12,7 +20,7 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
 
-use super::{Token, DEFAULT_PORT};
+use super::{Token, CHALLENGE_HEADER, DEFAULT_PORT};
 use crate::text::Localized;
 use crate::tray::AccountView;
 use crate::Provider;
@@ -22,6 +30,9 @@ pub const TIMEOUT: Duration = Duration::from_secs(5);
 
 /// The most `/v1/limits` may weigh.
 const MAX_BYTES: usize = 4 * 1024 * 1024;
+
+/// The most a `/health` answer may weigh.
+const HEALTH_MAX_BYTES: usize = 16 * 1024;
 
 /// `http://127.0.0.1:<DEFAULT_PORT>`, where `cuotai --serve` listens by default.
 pub fn default_url() -> String {
@@ -46,6 +57,10 @@ pub enum ClientError {
     NotReady,
     #[error("The local server's answer is not a compatible /v1/limits.")]
     Incompatible,
+    /// Re-validation S-03: the program on the port did not prove it holds
+    /// the token, so the token was not sent.
+    #[error("The program on port {port} did not prove it is your Cuotai server; update Cuotai on the server side, or check what holds the port.")]
+    Unproven { port: u16 },
 }
 
 impl ClientError {
@@ -57,6 +72,14 @@ impl ClientError {
             Self::Unauthorized => "serve.client.unauthorized",
             Self::NotReady => "serve.client.not_ready",
             Self::Incompatible => "serve.client.incompatible",
+            Self::Unproven { port } => {
+                return Localized::with_param(
+                    "serve.client.unproven",
+                    "port",
+                    port.to_string(),
+                    "The program on port {port} did not prove it is your Cuotai server; update Cuotai on the server side, or check what holds the port.",
+                );
+            }
         };
         Localized::fixed(key, self.to_string())
     }
@@ -107,6 +130,11 @@ pub async fn limits_views(
         crate::network::builder_with_own_roots(crate::network::ClientPurpose::LocalServer, TIMEOUT)
             .build()
             .map_err(|_| ClientError::Unreachable)?;
+    // S-03: a token goes only to a server that proved it holds it.
+    let token = match token {
+        Some(token) => prove(&client, &url, token).await?.then_some(token),
+        None => None,
+    };
     let mut request = client.get(url).header("Accept", "application/json");
     if let Some(token) = token {
         request = request.bearer_auth(token.expose());
@@ -118,19 +146,71 @@ pub async fn limits_views(
         503 => return Err(ClientError::NotReady),
         _ => return Err(ClientError::Incompatible),
     }
+    let body = read_bounded(&mut response, MAX_BYTES).await?;
+    let value: Value = serde_json::from_slice(&body).map_err(|_| ClientError::Incompatible)?;
+    views_from_limits(&value)
+}
+
+/// S-03: challenge the server at `limits` (its `/health`) without sending
+/// `token`. `Ok(true)`: it proved it holds `token`, send it. `Ok(false)`:
+/// it serves without a token, read without sending it. Anything else is
+/// [`ClientError::Unproven`] (or [`ClientError::Unreachable`]).
+async fn prove(
+    client: &reqwest::Client,
+    limits: &url::Url,
+    token: &Token,
+) -> Result<bool, ClientError> {
+    let port = limits.port_or_known_default().unwrap_or(80);
+    let unproven = ClientError::Unproven { port };
+    let health = limits
+        .join("/health")
+        .map_err(|_| ClientError::InvalidUrl)?;
+    let nonce = super::token::new_challenge().map_err(|_| unproven.clone())?;
+    let mut response = client
+        .get(health)
+        .header("Accept", "application/json")
+        .header(CHALLENGE_HEADER, &nonce)
+        .send()
+        .await
+        .map_err(|_| ClientError::Unreachable)?;
+    if response.status().as_u16() != 200 {
+        return Err(unproven);
+    }
+    let body = read_bounded(&mut response, HEALTH_MAX_BYTES)
+        .await
+        .map_err(|_| unproven.clone())?;
+    let value: Value = serde_json::from_slice(&body).map_err(|_| unproven.clone())?;
+    match value.get("auth").and_then(Value::as_str) {
+        Some("none") => Ok(false),
+        Some("token")
+            if value
+                .get("proof")
+                .and_then(Value::as_str)
+                .is_some_and(|proof| token.proof_matches(&nonce, port, proof)) =>
+        {
+            Ok(true)
+        }
+        _ => Err(unproven),
+    }
+}
+
+/// The body of `response`, refused past `max` bytes.
+async fn read_bounded(
+    response: &mut reqwest::Response,
+    max: usize,
+) -> Result<Vec<u8>, ClientError> {
     let mut body = Vec::new();
     while let Some(chunk) = response
         .chunk()
         .await
         .map_err(|_| ClientError::Unreachable)?
     {
-        if body.len() + chunk.len() > MAX_BYTES {
+        if body.len() + chunk.len() > max {
             return Err(ClientError::Incompatible);
         }
         body.extend_from_slice(&chunk);
     }
-    let value: Value = serde_json::from_slice(&body).map_err(|_| ClientError::Incompatible)?;
-    views_from_limits(&value)
+    Ok(body)
 }
 
 /// The views of a `/v1/limits` body (schema 1), in its order. Unknown

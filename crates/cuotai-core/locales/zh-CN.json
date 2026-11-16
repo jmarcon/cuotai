@@ -1973,6 +1973,7 @@
   "serve.client.not_loopback": "本地服务器只能通过回环地址读取（127.0.0.1 或 ::1；localhost 按 127.0.0.1 读取）。",
   "serve.client.not_ready": "本地服务器还没有读数；请稍后重试。",
   "serve.client.unauthorized": "本地服务器拒绝了该令牌（请对 --token-file 使用与 --serve 相同的文件）。",
+  "serve.client.unproven": "端口 {port} 上的程序未能证明它是你的 Cuotai 服务器；请更新服务器端的 Cuotai，或检查是什么占用了该端口。",
   "serve.client.unreachable": "本地服务器没有响应；它是否正在运行（cuotai --serve）？",
   "serve.error.bind": "无法打开本地服务器的端口 {port}。",
   "serve.error.bounds": "本地服务器的某个限制超出了允许范围。",
