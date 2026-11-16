@@ -551,24 +551,43 @@ credential_env = "GROQ_KEY_HOME"
 
     #[test]
     fn the_export_prompt_shows_scope_format_and_path() {
+        // The default path lives in the current directory, which can be deep
+        // (a worktree under `.claude/worktrees/...`) and would wrap in the
+        // prompt: the default is checked on `view.path`, and the prompt is
+        // rendered with a fixed short path.
+        const SHORT: &str = "/x/cuotai-history-work-20260101.csv";
+        let cwd = std::env::current_dir().unwrap();
         crate::l10n::with_locale("en-US", || {
             let mut view = HistoryActions::new(Mode::Export, Some((0, "Work".into())), None);
-            let text = render(&view);
+            let default = PathBuf::from(&view.path);
+            assert_eq!(default.parent(), Some(cwd.as_path()), "{}", view.path);
+            let name = default.file_name().unwrap().to_string_lossy();
+            assert!(name.starts_with("cuotai-history-work-"), "{name}");
+            assert!(name.ends_with(".csv"), "{name}");
+
+            let mut shown = HistoryActions::new(Mode::Export, Some((0, "Work".into())), None);
+            shown.path = SHORT.into();
+            let text = render(&shown);
             assert!(text.contains("EXPORT HISTORY"), "{text}");
             assert!(text.contains("Scope: This account: Work"), "{text}");
             assert!(text.contains("Format: CSV"), "{text}");
-            assert!(text.contains("cuotai-history-work-"), "{text}");
+            assert!(text.contains(SHORT), "{text}");
             assert!(text.contains("Enter export"), "{text}");
+
             // Scope and format toggle; the default path follows both.
             view.key(KeyCode::Tab, None, &accounts());
             view.key(KeyCode::Right, None, &accounts());
             view.key(KeyCode::Tab, None, &accounts());
             view.key(KeyCode::Right, None, &accounts());
+            let toggled = PathBuf::from(&view.path);
+            assert_eq!(toggled.parent(), Some(cwd.as_path()), "{}", view.path);
+            assert!(view.path.contains("cuotai-history-all-"), "{}", view.path);
+            assert!(view.path.ends_with(".json"), "{}", view.path);
+            view.path = SHORT.replace("work", "all").replace(".csv", ".json");
             let text = render(&view);
             assert!(text.contains("Scope: Every account"), "{text}");
             assert!(text.contains("Format: JSON"), "{text}");
-            assert!(view.path.contains("cuotai-history-all-"), "{}", view.path);
-            assert!(view.path.ends_with(".json"), "{}", view.path);
+            assert!(text.contains(&view.path), "{text}");
         });
     }
 
