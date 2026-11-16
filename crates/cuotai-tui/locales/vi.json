@@ -504,7 +504,7 @@
   "wizard.params.none": "Nhà cung cấp này không có tham số bổ sung.",
   "wizard.params.none.keys": "Enter để tiếp tục; Shift+Tab để quay lại.",
   "wizard.params.required": " (bắt buộc)",
-  "wizard.provider.detect_prompt": "[F6] Kiểm tra  [F7] Để sau · Tìm trên thiết bị này các công cụ AI bạn đã dùng? Cuotai chỉ kiểm tra thư mục có tồn tại không, biến môi trường có được đặt không (không bao giờ đọc giá trị) và 9router cục bộ có trả lời ở 127.0.0.1 không; không đọc gì khác.",
+  "wizard.provider.detect_prompt": "[F6] Kiểm tra  [F7] Để sau",
   "wizard.provider.detected": "  · tìm thấy trên thiết bị này",
   "wizard.provider.detected_hint": "{hint} · {found} ([F8] đừng gợi ý nữa)",
   "wizard.provider.help": "Gõ để tìm; phím mũi tên để di chuyển; Enter chọn nhà cung cấp của tài khoản.",
@@ -617,5 +617,6 @@
   "channels.cli.log_empty": "Không có lần gửi nào trong 7 ngày qua.",
   "cli.backup.history_large": "Bản sao lưu chứa {size} MiB lịch sử; việc sao chép có thể chậm.",
   "cli.restore.merge": "gộp",
-  "cli.restore.rows": "dòng: {rows}, mới ở đây: {new}"
+  "cli.restore.rows": "dòng: {rows}, mới ở đây: {new}",
+  "cli.list_providers.aggregator": " (bộ tổng hợp)"
 }

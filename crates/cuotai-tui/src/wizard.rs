@@ -315,7 +315,9 @@ pub(crate) struct Wizard {
     /// and the consent line of the offer the person chose (shown on the
     /// credential step before the existing flow reads anything).
     detected: Vec<detect::Detected>,
-    offer_consent: Option<String>,
+    /// RF7.2: what the offered flow reads, with the `auth_mode` it
+    /// describes; shown only while that mode is the open one (C-05).
+    offer_consent: Option<(String, String)>,
     /// RF6.5: `None` until the person answers the check prompt.
     detect_consent: Option<bool>,
     /// RF7.3: source kinds whose badge was dismissed this session.
@@ -849,10 +851,47 @@ impl Wizard {
         rows
     }
 
-    /// Header lines of the picker (instructions, optional check prompt,
-    /// search field); `handle_mouse` skips the same count.
-    fn picker_header_len(&self) -> u16 {
-        2 + u16::from(self.detect_prompt_pending())
+    /// Header of the picker: instructions, the check prompt with the
+    /// core's consent text (RF6.5) while it is pending, and the search
+    /// field. Drawn wrapped.
+    fn picker_header(&self) -> Vec<Line<'static>> {
+        let muted = Style::default().fg(DRACULA_COMMENT);
+        let mut lines = vec![Line::from(Span::styled(
+            tr(
+                "wizard.provider.help",
+                "Type to search; the arrows move; Enter selects the account's provider.",
+            ),
+            muted,
+        ))];
+        if self.detect_prompt_pending() {
+            // C-02: the keys, then the core's consent, which names only the
+            // checks this terminal makes.
+            lines.push(Line::from(Span::styled(
+                format!(
+                    "{} · {}",
+                    tr("wizard.provider.detect_prompt", "[F6] Check  [F7] Not now"),
+                    crate::ui::resolve_l10n(&detect::consent_prompt())
+                ),
+                Style::default().fg(DRACULA_YELLOW),
+            )));
+        }
+        lines.push(Line::from(vec![
+            Span::raw(tr("wizard.provider.search", "Search: ")),
+            Span::styled(
+                format!("{}_", crate::ui::safe(&self.filter)),
+                Style::default().fg(DRACULA_CYAN),
+            ),
+        ]));
+        lines
+    }
+
+    /// Rows the wrapped header takes at `width`; `handle_mouse` skips the
+    /// same count.
+    fn picker_header_len(&self, width: u16) -> u16 {
+        let rows = Paragraph::new(self.picker_header())
+            .wrap(Wrap { trim: false })
+            .line_count(width);
+        u16::try_from(rows).unwrap_or(u16::MAX)
     }
 
     /// RF4.1/RF6.5/RF7.3: keys of the provider step's filter and offers.
@@ -870,9 +909,12 @@ impl Wizard {
                 crate::dashboard::pop_grapheme(&mut self.filter);
                 self.refilter();
             }
+            // C-09: the core reads at most MAX_QUERY_CHARS characters.
             KeyCode::Char(c) if plain => {
-                self.filter.push(c);
-                self.refilter();
+                if self.filter.chars().count() < edit::MAX_QUERY_CHARS {
+                    self.filter.push(c);
+                    self.refilter();
+                }
             }
             KeyCode::F(6) if self.detect_prompt_pending() => {
                 self.detect_consent = Some(true);
@@ -972,7 +1014,6 @@ impl Wizard {
                     .is_none()
                     .then(|| self.detected_for(selected).cloned())
                     .flatten();
-                self.offer_consent = offer.as_ref().map(|d| crate::ui::resolve_l10n(&d.consent));
                 if selected != self.provider {
                     // Provider switch: incompatible parameters are discarded and the
                     // credential goes back to the new provider's default (never reuses the previous one).
@@ -1020,6 +1061,12 @@ impl Wizard {
                     // PRD 0041 RF1.3: a provider switch drops the budgets.
                     self.budget_step = budgets::BudgetStep::default();
                 }
+                // RF7.2 (C-05): the consent describes the detected source's
+                // mode; when this wizard opened another one, it says nothing.
+                self.offer_consent = offer
+                    .as_ref()
+                    .filter(|d| d.mode.is_none_or(|mode| mode == self.auth_mode))
+                    .map(|d| (self.auth_mode.clone(), crate::ui::resolve_l10n(&d.consent)));
                 self.step = Step::Name;
                 self.peer_focus = false;
             }
@@ -1813,7 +1860,7 @@ impl Wizard {
             // draw_provider: line 0 is the header; providers start on line 1
             // from `provider_offset`, at most `visible` (minimum 1).
             Step::Provider => {
-                let header = self.picker_header_len();
+                let header = self.picker_header_len(inner.width);
                 if row < header {
                     return Action::Continue;
                 }
@@ -3142,9 +3189,22 @@ impl Wizard {
     }
 
     fn draw_provider(&mut self, frame: &mut Frame, area: ratatui::layout::Rect) {
-        let header = self.picker_header_len();
-        // Header, rows, then the hint of the highlighted entry (RF4.1).
-        let visible = area.height.saturating_sub(header + 2).max(1) as usize;
+        // Header (wrapped, C-02), rows, then the hint of the highlighted
+        // entry (RF4.1).
+        let header = self.picker_header_len(area.width).min(area.height);
+        frame.render_widget(
+            Paragraph::new(self.picker_header()).wrap(Wrap { trim: false }),
+            Rect {
+                height: header,
+                ..area
+            },
+        );
+        let area = Rect {
+            y: area.y + header,
+            height: area.height - header,
+            ..area
+        };
+        let visible = area.height.saturating_sub(2).max(1) as usize;
         let rows = self.picker_rows();
         let sel_row = rows
             .iter()
@@ -3163,29 +3223,7 @@ impl Wizard {
             self.provider_offset = (sel_row + 1 - visible) as u16;
         }
         let muted = Style::default().fg(DRACULA_COMMENT);
-        let mut lines = vec![Line::from(Span::styled(
-            tr(
-                "wizard.provider.help",
-                "Type to search; the arrows move; Enter selects the account's provider.",
-            ),
-            muted,
-        ))];
-        if self.detect_prompt_pending() {
-            lines.push(Line::from(Span::styled(
-                tr(
-                    "wizard.provider.detect_prompt",
-                    "[F6] Check  [F7] Not now · Look on this device for AI tools you already use? Cuotai only checks whether the folders exist, whether the environment variables are set (never their values) and whether a local 9router answers on 127.0.0.1; it reads nothing else.",
-                ),
-                Style::default().fg(DRACULA_YELLOW),
-            )));
-        }
-        lines.push(Line::from(vec![
-            Span::raw(tr("wizard.provider.search", "Search: ")),
-            Span::styled(
-                format!("{}_", crate::ui::safe(&self.filter)),
-                Style::default().fg(DRACULA_CYAN),
-            ),
-        ]));
+        let mut lines: Vec<Line> = Vec::new();
         // V-02 (PRD 0005 review): a provider left out for lacking any usage
         // query says why, instead of suggesting a new-provider request.
         let hidden = rows
@@ -3283,7 +3321,11 @@ impl Wizard {
         let mut lines: Vec<Line> = Vec::new();
         // RF7.2: what the offered flow reads, before anything is read; Esc
         // cancels and reads nothing.
-        if let Some(consent) = &self.offer_consent {
+        let consent = self
+            .offer_consent
+            .as_ref()
+            .filter(|(mode, _)| *mode == self.auth_mode);
+        if let Some((_, consent)) = consent {
             lines.push(Line::from(Span::styled(
                 consent.clone(),
                 Style::default().fg(DRACULA_YELLOW),
@@ -4171,6 +4213,93 @@ mod tests {
         let mut wiz = Wizard::new(&Config::default(), None);
         let screen = screen_of(&mut wiz, 60, 20);
         assert!(screen.contains("Buscar"), "{screen}");
+    }
+
+    /// C-02: the check prompt wraps instead of being cut, shows the core's
+    /// consent word for word (folders and environment variables, never the
+    /// desktop-only 9router probe), and the list still starts below it.
+    #[test]
+    fn the_check_prompt_wraps_at_every_width_and_language() {
+        for locale in ["en-US", "de", "pt-BR"] {
+            crate::l10n::with_locale(locale, || {
+                let consent = crate::ui::resolve_l10n(&detect::consent_prompt());
+                assert!(!consent.contains("9router"), "{locale}");
+                let search = tr("wizard.provider.search", "Search: ").trim();
+                for width in [60u16, 80, 100, 160] {
+                    let mut wiz = Wizard::new(&Config::default(), None);
+                    let screen = screen_of(&mut wiz, width, 40);
+                    let flat: String = screen.split_whitespace().collect::<Vec<_>>().join(" ");
+                    for word in consent.split_whitespace() {
+                        assert!(
+                            flat.contains(word),
+                            "{locale} {width}: {word:?} missing\n{screen}"
+                        );
+                    }
+                    // The search field follows the whole prompt, and the
+                    // list's first row follows the search field.
+                    let lines: Vec<&str> = screen.lines().collect();
+                    let consent_row = lines.iter().position(|l| l.contains("[F6]")).unwrap();
+                    let search_row = lines.iter().position(|l| l.contains(search)).unwrap();
+                    assert!(search_row > consent_row, "{locale} {width}\n{screen}");
+                    let first =
+                        lines[search_row + 1].trim_matches(|c: char| c == '│' || c.is_whitespace());
+                    assert!(!first.is_empty(), "{locale} {width}: no list row\n{screen}");
+                }
+            });
+        }
+    }
+
+    /// C-05: the offer's consent shows only while its mode is the open one:
+    /// switching modes hides it, and an offer whose mode this wizard did
+    /// not open never shows it.
+    #[test]
+    fn the_offer_consent_follows_the_open_mode() {
+        let press = |w: &mut Wizard, code| w.handle(KeyEvent::new(code, KeyModifiers::NONE));
+        let offer = |mode: &'static str| detect::Detected {
+            provider: Provider::Claude,
+            kind: detect::SourceKind::ClaudeCode,
+            mode: Some(mode),
+            hint: cuotai_core::text::Localized::fixed("detect.hint", "found"),
+            consent: cuotai_core::text::Localized::fixed("x.consent", "CONSENT-LINE"),
+            configured: false,
+            local_cost: None,
+        };
+        let mut wiz = Wizard::new(&Config::default(), None);
+        press(&mut wiz, KeyCode::F(6));
+        wiz.detected = vec![offer("oauth")];
+        for c in "claude".chars() {
+            press(&mut wiz, KeyCode::Char(c));
+        }
+        press(&mut wiz, KeyCode::Enter);
+        assert_eq!(wiz.auth_mode, "oauth");
+        wiz.step = Step::Credential;
+        assert!(screen_of(&mut wiz, 120, 40).contains("CONSENT-LINE"));
+        wiz.select_auth_choice(0);
+        assert_eq!(wiz.auth_mode, "credential");
+        assert!(!screen_of(&mut wiz, 120, 40).contains("CONSENT-LINE"));
+        // Back to the offered mode: the line returns.
+        wiz.select_auth_choice(1);
+        assert_eq!(wiz.auth_mode, "oauth");
+        assert!(screen_of(&mut wiz, 120, 40).contains("CONSENT-LINE"));
+        // A mode the wizard does not offer: it falls back and says nothing.
+        let mut wiz = Wizard::new(&Config::default(), None);
+        press(&mut wiz, KeyCode::F(6));
+        wiz.detected = vec![offer("no_such_mode")];
+        for c in "claude".chars() {
+            press(&mut wiz, KeyCode::Char(c));
+        }
+        press(&mut wiz, KeyCode::Enter);
+        assert!(wiz.offer_consent.is_none());
+    }
+
+    /// C-09: the filter stops growing at the core's query bound.
+    #[test]
+    fn the_filter_is_bounded() {
+        let mut wiz = Wizard::new(&Config::default(), None);
+        for _ in 0..edit::MAX_QUERY_CHARS + 10 {
+            wiz.handle(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE));
+        }
+        assert_eq!(wiz.filter.chars().count(), edit::MAX_QUERY_CHARS);
     }
 
     /// The provider picker offers clean names only, grouped by sign-in method, and

@@ -504,7 +504,7 @@
   "wizard.params.none": "Penyedia ini tidak memiliki parameter tambahan.",
   "wizard.params.none.keys": "Enter melanjutkan; Shift+Tab kembali.",
   "wizard.params.required": " (wajib)",
-  "wizard.provider.detect_prompt": "[F6] Periksa  [F7] Nanti saja · Cari di perangkat ini alat AI yang sudah Anda pakai? Cuotai hanya memeriksa apakah folder ada, apakah variabel lingkungan diatur (tidak pernah nilainya), dan apakah 9router lokal menjawab di 127.0.0.1; tidak membaca hal lain.",
+  "wizard.provider.detect_prompt": "[F6] Periksa  [F7] Nanti saja",
   "wizard.provider.detected": "  · ditemukan di perangkat ini",
   "wizard.provider.detected_hint": "{hint} · {found} ([F8] jangan sarankan lagi)",
   "wizard.provider.help": "Ketik untuk mencari; panah untuk berpindah; Enter memilih penyedia akun.",
@@ -617,5 +617,6 @@
   "channels.cli.log_empty": "Tidak ada pengiriman dalam 7 hari terakhir.",
   "cli.backup.history_large": "Cadangan memuat {size} MiB riwayat; menyalinnya bisa lambat.",
   "cli.restore.merge": "gabungkan",
-  "cli.restore.rows": "baris: {rows}, baru di sini: {new}"
+  "cli.restore.rows": "baris: {rows}, baru di sini: {new}",
+  "cli.list_providers.aggregator": " (agregator)"
 }

@@ -512,7 +512,7 @@
   "wizard.params.none": "Questo provider non ha parametri aggiuntivi.",
   "wizard.params.none.keys": "Invio prosegue; Shift+Tab torna indietro.",
   "wizard.params.required": " (obbligatorio)",
-  "wizard.provider.detect_prompt": "[F6] Verifica  [F7] Non ora · Cercare su questo dispositivo gli strumenti di IA che usi già? Cuotai controlla solo se le cartelle esistono, se le variabili d'ambiente sono definite (non ne legge mai i valori) e se c'è un 9router locale su 127.0.0.1; non legge nient'altro.",
+  "wizard.provider.detect_prompt": "[F6] Verifica  [F7] Non ora",
   "wizard.provider.detected": "  · trovato su questo dispositivo",
   "wizard.provider.detected_hint": "{hint} · {found} ([F8] non suggerire più)",
   "wizard.provider.help": "Digita per cercare; le frecce navigano; Invio seleziona il provider dell'account.",
@@ -620,5 +620,6 @@
   "channels.cli.log_empty": "Nessuna consegna negli ultimi 7 giorni.",
   "cli.backup.history_large": "Il backup contiene {size} MiB di cronologia; potrebbe essere lento da copiare.",
   "cli.restore.merge": "unisci",
-  "cli.restore.rows": "righe: {rows}, nuove qui: {new}"
+  "cli.restore.rows": "righe: {rows}, nuove qui: {new}",
+  "cli.list_providers.aggregator": " (aggregatore)"
 }

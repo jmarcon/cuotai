@@ -1255,9 +1255,10 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
                 "{:<20} {}{}",
                 serde_json::to_value(provider)?.as_str().unwrap_or_default(),
                 ui::provider_label(provider),
-                // PRD 0036 RF9.2: an aggregator relays several upstreams.
+                // PRD 0036 RF9.2: an aggregator relays several upstreams
+                // (C-17: in the label's language).
                 if provider.is_aggregator() {
-                    " (aggregator)"
+                    l10n::tr("cli.list_providers.aggregator", " (aggregator)")
                 } else {
                     ""
                 }

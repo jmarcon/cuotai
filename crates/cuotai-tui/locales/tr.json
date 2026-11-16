@@ -509,7 +509,7 @@
   "wizard.params.none": "Bu sağlayıcının ek parametresi yok.",
   "wizard.params.none.keys": "Enter devam eder; Shift+Tab geri döner.",
   "wizard.params.required": " (zorunlu)",
-  "wizard.provider.detect_prompt": "[F6] Denetle  [F7] Şimdi değil · Bu cihazda zaten kullandığınız yapay zekâ araçları aransın mı? Cuotai yalnızca klasörlerin var olup olmadığını, ortam değişkenlerinin ayarlı olup olmadığını (değerlerini asla) ve yerel bir 9router'ın 127.0.0.1 üzerinde yanıt verip vermediğini denetler; başka hiçbir şey okumaz.",
+  "wizard.provider.detect_prompt": "[F6] Denetle  [F7] Şimdi değil",
   "wizard.provider.detected": "  · bu cihazda bulundu",
   "wizard.provider.detected_hint": "{hint} · {found} ([F8] bir daha önerme)",
   "wizard.provider.help": "Aramak için yazın; oklar gezinir; Enter hesabın sağlayıcısını seçer.",
@@ -623,5 +623,6 @@
   "channels.cli.log_empty": "Son 7 günde teslimat yok.",
   "cli.backup.history_large": "Yedek {size} MiB geçmiş içeriyor; kopyalanması yavaş olabilir.",
   "cli.restore.merge": "birleştir",
-  "cli.restore.rows": "satır: {rows}, burada yeni: {new}"
+  "cli.restore.rows": "satır: {rows}, burada yeni: {new}",
+  "cli.list_providers.aggregator": " (toplayıcı)"
 }

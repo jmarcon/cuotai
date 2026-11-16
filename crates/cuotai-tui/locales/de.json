@@ -509,7 +509,7 @@
   "wizard.params.none": "Dieser Anbieter hat keine zusätzlichen Parameter.",
   "wizard.params.none.keys": "Enter geht weiter; Shift+Tab zurück.",
   "wizard.params.required": " (erforderlich)",
-  "wizard.provider.detect_prompt": "[F6] Prüfen  [F7] Nicht jetzt · Dieses Gerät nach bereits genutzten KI-Werkzeugen durchsuchen? Cuotai prüft nur, ob die Ordner existieren, ob Umgebungsvariablen gesetzt sind (Werte werden nie gelesen) und ob ein lokaler 9router auf 127.0.0.1 läuft; sonst liest es nichts.",
+  "wizard.provider.detect_prompt": "[F6] Prüfen  [F7] Nicht jetzt",
   "wizard.provider.detected": "  · auf diesem Gerät gefunden",
   "wizard.provider.detected_hint": "{hint} · {found} ([F8] nicht mehr vorschlagen)",
   "wizard.provider.help": "Tippen zum Suchen; Pfeiltasten navigieren; Enter wählt den Anbieter des Kontos.",
@@ -623,5 +623,6 @@
   "channels.cli.log_empty": "Keine Zustellung in den letzten 7 Tagen.",
   "cli.backup.history_large": "Die Sicherung enthält {size} MiB Verlauf; das Kopieren kann dauern.",
   "cli.restore.merge": "zusammenführen",
-  "cli.restore.rows": "Zeilen: {rows}, hier neu: {new}"
+  "cli.restore.rows": "Zeilen: {rows}, hier neu: {new}",
+  "cli.list_providers.aggregator": " (Aggregator)"
 }

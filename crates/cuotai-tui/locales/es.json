@@ -512,7 +512,7 @@
   "wizard.params.none": "Este proveedor no tiene parámetros adicionales.",
   "wizard.params.none.keys": "Enter avanza; Shift+Tab vuelve.",
   "wizard.params.required": " (obligatorio)",
-  "wizard.provider.detect_prompt": "[F6] Comprobar  [F7] Ahora no · ¿Buscar en este dispositivo herramientas de IA que ya usas? Cuotai solo comprueba si existen las carpetas, si las variables de entorno están definidas (nunca lee sus valores) y si hay un 9router local en 127.0.0.1; no lee nada más.",
+  "wizard.provider.detect_prompt": "[F6] Comprobar  [F7] Ahora no",
   "wizard.provider.detected": "  · encontrado en este dispositivo",
   "wizard.provider.detected_hint": "{hint} · {found} ([F8] no sugerir de nuevo)",
   "wizard.provider.help": "Escribe para buscar; las flechas navegan; Enter selecciona el proveedor de la cuenta.",
@@ -620,5 +620,6 @@
   "channels.cli.log_empty": "Ninguna entrega en los últimos 7 días.",
   "cli.backup.history_large": "La copia guarda {size} MiB de historial; puede tardar en copiarse.",
   "cli.restore.merge": "fusionar",
-  "cli.restore.rows": "filas: {rows}, nuevas aquí: {new}"
+  "cli.restore.rows": "filas: {rows}, nuevas aquí: {new}",
+  "cli.list_providers.aggregator": " (agregador)"
 }

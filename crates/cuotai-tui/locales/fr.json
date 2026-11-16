@@ -509,7 +509,7 @@
   "wizard.params.none": "Ce fournisseur n’a pas de paramètres supplémentaires.",
   "wizard.params.none.keys": "Enter continue ; Shift+Tab revient en arrière.",
   "wizard.params.required": " (obligatoire)",
-  "wizard.provider.detect_prompt": "[F6] Vérifier  [F7] Pas maintenant · Rechercher sur cet appareil les outils d’IA que vous utilisez déjà ? Cuotai vérifie seulement si les dossiers existent, si les variables d’environnement sont définies (jamais leurs valeurs) et si un 9router local répond sur 127.0.0.1 ; il ne lit rien d’autre.",
+  "wizard.provider.detect_prompt": "[F6] Vérifier  [F7] Pas maintenant",
   "wizard.provider.detected": "  · trouvé sur cet appareil",
   "wizard.provider.detected_hint": "{hint} · {found} ([F8] ne plus suggérer)",
   "wizard.provider.help": "Tapez pour rechercher ; les flèches déplacent ; Enter choisit le fournisseur du compte.",
@@ -623,5 +623,6 @@
   "channels.cli.log_empty": "Aucune livraison ces 7 derniers jours.",
   "cli.backup.history_large": "La sauvegarde contient {size} Mio d'historique ; sa copie peut être lente.",
   "cli.restore.merge": "fusionner",
-  "cli.restore.rows": "lignes : {rows}, nouvelles ici : {new}"
+  "cli.restore.rows": "lignes : {rows}, nouvelles ici : {new}",
+  "cli.list_providers.aggregator": " (agrégateur)"
 }
