@@ -1277,7 +1277,7 @@
   "stats.title": "Статистика",
   "stats.back": "Назад к учётным записям",
   "stats.scope.label": "Область",
-  "stats.scope.all": "Все записи",
+  "stats.scope.all": "Все аккаунты",
   "stats.range.label": "Диапазон",
   "stats.range.days7": "7 дн.",
   "stats.range.days30": "30 дн.",
@@ -1309,8 +1309,12 @@
   "stats.accounts.legend": "среднее · достижения",
   "stats.events.title": "Последние события",
   "stats.events.empty": "События пока не записаны.",
-  "stats.events.today": "Сегодня",
-  "stats.events.yesterday": "Вчера",
+  "stats.events.skipped": {
+    "one": "Не удалось прочитать {count} запись журнала.",
+    "few": "Не удалось прочитать {count} записи журнала.",
+    "many": "Не удалось прочитать {count} записей журнала.",
+    "other": "Не удалось прочитать {count} записи журнала."
+  },
   "stats.recording.off": "Запись истории выключена; новые события не сохраняются.",
   "stats.footer.partial": "Данные за {have} из {total} дн.",
   "stats.footer.unknown": {
@@ -1331,7 +1335,8 @@
   "timeline.empty": "В этом периоде ни один лимит не возвращается.",
   "timeline.later": "Позже",
   "timeline.unknown": "Возврат неизвестен",
-  "timeline.lane.aria": "{name} вернётся в {time}, через {in}",
+  "timeline.lane.aria": "{name}: вернётся {time}, через {in}; {state}",
+  "timeline.lane.staleState": "{state}, {stale}",
   "timeline.exhausted": "исчерпано",
   "timeline.left": "осталось {pct}%",
   "timeline.stale": "показание устарело",

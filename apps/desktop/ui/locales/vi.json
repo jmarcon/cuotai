@@ -1258,8 +1258,9 @@
   "stats.accounts.legend": "TB · số lần chạm",
   "stats.events.title": "Sự kiện gần đây",
   "stats.events.empty": "Chưa ghi nhận sự kiện nào.",
-  "stats.events.today": "Hôm nay",
-  "stats.events.yesterday": "Hôm qua",
+  "stats.events.skipped": {
+    "other": "Không đọc được {count} mục nhật ký."
+  },
   "stats.recording.off": "Việc ghi lịch sử đang tắt; sự kiện mới không được giữ lại.",
   "stats.footer.partial": "Dữ liệu của {have} trên {total} ngày.",
   "stats.footer.unknown": {
@@ -1277,7 +1278,8 @@
   "timeline.empty": "Không có giới hạn nào hoạt động trở lại trong khoảng thời gian này.",
   "timeline.later": "Sau đó",
   "timeline.unknown": "Chưa rõ khi nào hoạt động lại",
-  "timeline.lane.aria": "{name} hoạt động lại lúc {time}, sau {in}",
+  "timeline.lane.aria": "{name}: hoạt động lại {time}, sau {in}; {state}",
+  "timeline.lane.staleState": "{state}, {stale}",
   "timeline.exhausted": "đã hết",
   "timeline.left": "còn {pct}%",
   "timeline.stale": "lần đọc đã cũ",

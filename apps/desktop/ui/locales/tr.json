@@ -1275,8 +1275,10 @@
   "stats.accounts.legend": "ort. · ulaşma",
   "stats.events.title": "Son olaylar",
   "stats.events.empty": "Henüz kayıtlı olay yok.",
-  "stats.events.today": "Bugün",
-  "stats.events.yesterday": "Dün",
+  "stats.events.skipped": {
+    "one": "{count} günlük kaydı okunamadı.",
+    "other": "{count} günlük kaydı okunamadı."
+  },
   "stats.recording.off": "Geçmiş kaydı kapalı; yeni olaylar saklanmaz.",
   "stats.footer.partial": "{total} günün {have} gününe ait veriler.",
   "stats.footer.unknown": {
@@ -1295,7 +1297,8 @@
   "timeline.empty": "Bu dönemde geri gelen sınır yok.",
   "timeline.later": "Daha sonra",
   "timeline.unknown": "Dönüş zamanı bilinmiyor",
-  "timeline.lane.aria": "{name} {time} saatinde geri geliyor, {in} sonra",
+  "timeline.lane.aria": "{name}: {time} geri geliyor, {in} sonra; {state}",
+  "timeline.lane.staleState": "{state}, {stale}",
   "timeline.exhausted": "tükendi",
   "timeline.left": "%{pct} kaldı",
   "timeline.stale": "okuma güncel değil",

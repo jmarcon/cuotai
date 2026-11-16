@@ -1258,8 +1258,9 @@
   "stats.accounts.legend": "平均 · 到達",
   "stats.events.title": "最近のイベント",
   "stats.events.empty": "記録されたイベントはまだありません。",
-  "stats.events.today": "今日",
-  "stats.events.yesterday": "昨日",
+  "stats.events.skipped": {
+    "other": "読み取れなかった記録が {count} 件あります。"
+  },
   "stats.recording.off": "履歴の記録はオフです。新しいイベントは保存されません。",
   "stats.footer.partial": "{total} 日中 {have} 日分のデータ。",
   "stats.footer.unknown": {
@@ -1277,7 +1278,8 @@
   "timeline.empty": "この期間に回復する制限はありません。",
   "timeline.later": "それ以降",
   "timeline.unknown": "回復時期不明",
-  "timeline.lane.aria": "{name} は {time} に回復（{in}後）",
+  "timeline.lane.aria": "{name}：{time}に回復（{in}後）、{state}",
+  "timeline.lane.staleState": "{state}、{stale}",
   "timeline.exhausted": "上限到達",
   "timeline.left": "残り {pct}%",
   "timeline.stale": "読み取りが古くなっています",

@@ -1275,8 +1275,10 @@
   "stats.accounts.legend": "moy. · atteintes",
   "stats.events.title": "Événements récents",
   "stats.events.empty": "Aucun événement enregistré pour l’instant.",
-  "stats.events.today": "Aujourd’hui",
-  "stats.events.yesterday": "Hier",
+  "stats.events.skipped": {
+    "one": "{count} entrée du journal n’a pas pu être lue.",
+    "other": "{count} entrées du journal n’ont pas pu être lues."
+  },
   "stats.recording.off": "L’enregistrement de l’historique est désactivé ; les nouveaux événements ne sont pas conservés.",
   "stats.footer.partial": "Données de {have} jours sur {total}.",
   "stats.footer.unknown": {
@@ -1295,7 +1297,8 @@
   "timeline.empty": "Aucune limite ne revient sur cette période.",
   "timeline.later": "Plus tard",
   "timeline.unknown": "Retour inconnu",
-  "timeline.lane.aria": "{name} revient à {time}, dans {in}",
+  "timeline.lane.aria": "{name} : retour {time}, dans {in} ; {state}",
+  "timeline.lane.staleState": "{state}, {stale}",
   "timeline.exhausted": "épuisé",
   "timeline.left": "{pct} % restant",
   "timeline.stale": "le relevé n’est plus à jour",

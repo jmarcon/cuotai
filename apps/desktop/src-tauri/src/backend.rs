@@ -5267,7 +5267,7 @@ impl Backend {
             let summary =
                 cuotai_core::stats::summarize(&store, &accounts, range, now, &chrono::Local)?;
             let since = now - chrono::TimeDelta::days(i64::from(range.days()));
-            let entries = store.journal(since..=now, &accounts, JOURNAL_LIMIT * 4)?;
+            let entries = store.journal_read(since..=now, &accounts, JOURNAL_LIMIT * 4)?;
             // `accounts` is already the scope (one account or all of them).
             let chart = |range| {
                 cuotai_core::insights::rhythm(
@@ -5289,7 +5289,7 @@ impl Backend {
                 last_7d: chart(RhythmRange::Last7d)?,
                 typical: chart(RhythmRange::Typical30d)?,
             };
-            Ok::<_, HistoryError>((summary, entries, recording, account.is_some(), rhythm))
+            Ok::<_, HistoryError>((summary, entries, recording, account.is_some(), rhythm, now))
         })
         .await
         .map_err(|_| storage())?;
@@ -5303,14 +5303,25 @@ impl Backend {
         if live != Some(generation) {
             return Err(STALE.into());
         }
-        let (summary, entries, recording, scoped, rhythm) =
+        let (summary, read, recording, scoped, rhythm, now) =
             read.map_err(|error| l10n_to_json(&error.l10n()))?;
-        let events = entries
+        let skipped = read.skipped;
+        let events = read
+            .entries
             .into_iter()
             // A scoped view lists that account only, never entries of removed ones.
             .filter(|entry| !scoped || entry.account_index.is_some())
             .take(JOURNAL_LIMIT)
             .map(|entry| JournalView {
+                // PRD 0026 re-validation (V-02, V-09): the core's clock texts.
+                when: serde_json::to_value(entry.when(now, &chrono::Local)).unwrap_or_default(),
+                time: serde_json::to_value(cuotai_core::text::clock(
+                    entry.occurred_at,
+                    entry.occurred_at,
+                    &chrono::Local,
+                ))
+                .unwrap_or_default(),
+                day: serde_json::to_value(entry.day(now, &chrono::Local)).unwrap_or_default(),
                 occurred_at: entry.occurred_at,
                 kind: entry.kind.name(),
                 account: entry.account,
@@ -5327,6 +5338,7 @@ impl Backend {
                 .unwrap_or_default(),
             summary,
             events,
+            skipped,
             recording,
             rhythm,
         })
@@ -6109,6 +6121,9 @@ pub struct StatsView {
     removed_account: serde_json::Value,
     /// The newest journal events, newest first.
     events: Vec<JournalView>,
+    /// PRD 0026 re-validation S-03: stored journal rows that could not be
+    /// read (skipped, never guessed).
+    skipped: usize,
     /// New readings enter the history (and the journal).
     recording: bool,
     /// PRD 0043 RF4.1: the rhythm of the same scope: the last 24 hours, the
@@ -6149,6 +6164,12 @@ pub struct JournalView {
     is_connection: bool,
     /// The core's `Event::summary`.
     summary: serde_json::Value,
+    /// PRD 0026 re-validation (V-02, V-09): when it happened as a past clock
+    /// time (`text::clock::past`), the time alone (`at.time`) for a row under
+    /// its day heading, and that heading (`text::clock::day_heading`).
+    when: serde_json::Value,
+    time: serde_json::Value,
+    day: serde_json::Value,
 }
 
 /// The recorded history of one account over a span, as the details draw

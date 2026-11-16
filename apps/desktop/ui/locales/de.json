@@ -1275,8 +1275,10 @@
   "stats.accounts.legend": "Ø · Treffer",
   "stats.events.title": "Letzte Ereignisse",
   "stats.events.empty": "Noch keine Ereignisse erfasst.",
-  "stats.events.today": "Heute",
-  "stats.events.yesterday": "Gestern",
+  "stats.events.skipped": {
+    "one": "{count} Journal-Eintrag konnte nicht gelesen werden.",
+    "other": "{count} Journal-Einträge konnten nicht gelesen werden."
+  },
   "stats.recording.off": "Die Verlaufsaufzeichnung ist aus; neue Ereignisse werden nicht gespeichert.",
   "stats.footer.partial": "Daten von {have} von {total} Tagen.",
   "stats.footer.unknown": {
@@ -1295,7 +1297,8 @@
   "timeline.empty": "In diesem Zeitraum kehrt kein Limit zurück.",
   "timeline.later": "Später",
   "timeline.unknown": "Rückkehr unbekannt",
-  "timeline.lane.aria": "{name} zurück um {time}, in {in}",
+  "timeline.lane.aria": "{name}: zurück {time}, in {in}; {state}",
+  "timeline.lane.staleState": "{state}, {stale}",
   "timeline.exhausted": "erschöpft",
   "timeline.left": "{pct}% übrig",
   "timeline.stale": "Messwert ist veraltet",

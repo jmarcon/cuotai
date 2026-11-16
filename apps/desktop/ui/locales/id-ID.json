@@ -1258,8 +1258,9 @@
   "stats.accounts.legend": "rata-rata · tercapai",
   "stats.events.title": "Peristiwa terbaru",
   "stats.events.empty": "Belum ada peristiwa yang tercatat.",
-  "stats.events.today": "Hari ini",
-  "stats.events.yesterday": "Kemarin",
+  "stats.events.skipped": {
+    "other": "{count} entri jurnal tidak dapat dibaca."
+  },
   "stats.recording.off": "Perekaman riwayat nonaktif; peristiwa baru tidak disimpan.",
   "stats.footer.partial": "Data dari {have} dari {total} hari.",
   "stats.footer.unknown": {
@@ -1277,7 +1278,8 @@
   "timeline.empty": "Tidak ada batas yang kembali dalam periode ini.",
   "timeline.later": "Nanti",
   "timeline.unknown": "Waktu kembali tidak diketahui",
-  "timeline.lane.aria": "{name} kembali pada {time}, dalam {in}",
+  "timeline.lane.aria": "{name}: kembali {time}, dalam {in}; {state}",
+  "timeline.lane.staleState": "{state}, {stale}",
   "timeline.exhausted": "habis",
   "timeline.left": "sisa {pct}%",
   "timeline.stale": "pembacaan sudah usang",

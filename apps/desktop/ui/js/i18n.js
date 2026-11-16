@@ -330,17 +330,39 @@ function amountText(value) {
   return null;
 }
 
+/** One `Intl.DateTimeFormat` per locale and shape: a Stats view renders a hundred clock texts, and building a formatter
+ *  is the costly part (PRD 0026 re-validation: the tray drill-in's open time). */
+const dateFormats = new Map();
+function dateFormat(shape) {
+  const key = `${intlLocale()}|${JSON.stringify(shape)}`;
+  let fmt = dateFormats.get(key);
+  if (!fmt) { fmt = new Intl.DateTimeFormat(intlLocale(), shape); dateFormats.set(key, fmt); }
+  return fmt;
+}
+const hour12 = () => /h1[12]/.test(dateFormat({ hour: "numeric" }).resolvedOptions().hourCycle ?? "");
+
 /** PRD 0024 re-validation (V-01): the text of a core clock (`at.time` `{hour, minute}`, `at.weekday` `{weekday,
- *  hour?, minute?}` with an ISO weekday, `at.date` `{day, month, hour?, minute?}`) in the UI locale and its hour
+ *  hour?, minute?}` with an ISO weekday, `at.date` `{day, month, hour?, minute?}`, `at.hour` `{hour}`) in the UI locale and its hour
  *  cycle, never an ISO date (DS-MSG-8). Without `hour` it is the chip form: the short weekday or the date alone.
  *  Null for any other note or a malformed param (the caller then shows the core's en-US fallback). */
 function clockText(value) {
-  if (!["at.time", "at.weekday", "at.date"].includes(value.id)) return null;
+  if (!["at.time", "at.weekday", "at.date", "at.hour"].includes(value.id)) return null;
   const p = value.params ?? {};
   const int = (key, lo, hi) => {
     const n = typeof p[key] === "string" && /^\d{1,2}$/.test(p[key]) ? Number(p[key]) : NaN;
     return n >= lo && n <= hi ? n : null;
   };
+  // PRD 0026 re-validation (V-11): `at.hour` `{hour}` is an hour alone (a chart axis): "6 PM" on a 12-hour clock, the
+  // two-digit hour ("18") on a 24-hour one, as the core renders it.
+  if (value.id === "at.hour") {
+    const hour = int("hour", 0, 23);
+    if (hour == null) return null;
+    try {
+      return hour12() ? dateFormat({ hour: "numeric" }).format(new Date(2024, 0, 1, hour)) : String(hour).padStart(2, "0");
+    } catch {
+      return null;
+    }
+  }
   const timed = p.hour != null || p.minute != null;
   const [hour, minute] = [int("hour", 0, 23), int("minute", 0, 59)];
   if ((timed || value.id === "at.time") && (hour == null || minute == null)) return null;
@@ -364,7 +386,7 @@ function clockText(value) {
     shape = { day: "2-digit", month: "2-digit", ...time };
   }
   try {
-    return new Intl.DateTimeFormat(intlLocale(), shape).format(date);
+    return dateFormat(shape).format(date);
   } catch {
     return null;
   }
