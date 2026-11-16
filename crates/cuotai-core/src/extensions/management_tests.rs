@@ -921,7 +921,7 @@ async fn an_override_never_sees_the_account_credential_and_revocation_restores_t
         &crate::support::AccountView {
             account: &config.accounts[0],
             report: &report,
-            last_good_age: None,
+            last_good: crate::support::LastGood::Unknown,
             incident_active: None,
         },
         &crate::support::AppInfo::current("unknown"),

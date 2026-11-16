@@ -5,8 +5,8 @@
 use cuotai_core::{
     install_source::detect_install_source,
     oauth::OAuthSession,
-    support::{issue_draft, AccountView, AppInfo, IssueDraft},
-    Config, EnvironmentCredentials, Monitor, Report, Status,
+    support::{issue_draft, AccountView, AppInfo, Interface, IssueDraft, LastGood},
+    Account, Config, EnvironmentCredentials, Monitor, Report, Status,
 };
 use std::sync::Arc;
 
@@ -44,6 +44,33 @@ pub fn render(draft: &IssueDraft, healthy: bool) -> String {
     out
 }
 
+/// The draft of account `index` (RF2.2), with the setup check's problems
+/// of that account and the global ones (PRD 0046 RF4.4), by id only. Shared
+/// by the TUI's `b` and `--report-problem`.
+pub(crate) fn draft_for(
+    account: &Account,
+    index: usize,
+    report: &Report,
+    last_good: LastGood,
+    incident_active: Option<bool>,
+    interface: Interface,
+    config_path: Option<std::path::PathBuf>,
+) -> IssueDraft {
+    issue_draft(
+        &AccountView {
+            account,
+            report,
+            last_good,
+            incident_active,
+        },
+        &app_info().with_interface(interface),
+    )
+    .with_setup_check(
+        &crate::doctor::report_for(config_path, "en-US"),
+        Some(index),
+    )
+}
+
 pub(crate) fn app_info() -> AppInfo {
     let channel = std::env::current_exe()
         .map(|executable| {
@@ -70,25 +97,24 @@ pub async fn run(
     let monitor =
         Monitor::with_login_session(config.clone(), Arc::new(EnvironmentCredentials), session)?;
     let report: Report = monitor.refresh_account(index).await;
-    let draft = issue_draft(
-        &AccountView {
-            account: &config.accounts[index],
-            report: &report,
-            last_good_age: None,
-            // Status queries are off in this one-shot path unless enabled
-            // elsewhere; the helper then reports "unknown".
-            incident_active: cuotai_core::incidents::incident_active(
-                &monitor.incident_statuses(),
-                config.accounts[index].provider,
-            ),
-        },
-        &app_info(),
-    )
-    // PRD 0046 RF4.4: the setup check's problems, by id only.
-    .with_setup_check(&crate::doctor::report_for(
+    // C-01: one query and no running cycle: the last recorded good reading
+    // when history has one, else "unknown" (never "none").
+    let recorded = monitor.restored_readings().into_iter().nth(index).flatten();
+    let last_good = LastGood::one_shot(&report, recorded.as_ref(), chrono::Utc::now());
+    let draft = draft_for(
+        &config.accounts[index],
+        index,
+        &report,
+        last_good,
+        // Status queries are off in this one-shot path unless enabled
+        // elsewhere; the helper then reports "unknown".
+        cuotai_core::incidents::incident_active(
+            &monitor.incident_statuses(),
+            config.accounts[index].provider,
+        ),
+        Interface::Cli,
         Some(config_path.to_path_buf()),
-        "en-US",
-    ));
+    );
     print!("{}", render(&draft, report.status == Status::Ready));
     Ok(0)
 }
@@ -124,6 +150,7 @@ mod tests {
             body: "- Provider: `claude`\n".into(),
             url: "https://github.com/jmarcon/cuotai/issues/new?x=1".into(),
             copy_only: false,
+            form: cuotai_core::support::FORM_URL,
         };
         let text = render(&draft, false);
         assert!(text.starts_with("Title: [Provider] claude: schema_changed"));
@@ -136,5 +163,43 @@ mod tests {
             true,
         );
         assert!(long.starts_with("Note:") && !long.contains("x=1"));
+    }
+
+    /// C-01: a failing account that read well before says how long ago.
+    #[test]
+    fn the_draft_names_the_last_good_reading() {
+        let config = config();
+        let report = Report {
+            account: "Work".into(),
+            account_id: None,
+            provider: config.accounts[0].provider,
+            checked_at: chrono::Utc::now(),
+            status: Status::Error,
+            metrics: Vec::new(),
+            notes: Vec::new(),
+            notes_l10n: Vec::new(),
+            source: String::new(),
+            session_expires_at: None,
+            diagnostic: None,
+            sub_reports: Vec::new(),
+            as_of: None,
+            overage_hint: None,
+            breakdown: Vec::new(),
+        };
+        let draft = draft_for(
+            &config.accounts[0],
+            0,
+            &report,
+            LastGood::seen(Some(std::time::Duration::from_secs(180))),
+            None,
+            Interface::Tui,
+            None,
+        );
+        assert!(
+            draft.body.contains("Last good reading: 3 min ago"),
+            "{}",
+            draft.body
+        );
+        assert!(draft.url.contains("interface=TUI"));
     }
 }

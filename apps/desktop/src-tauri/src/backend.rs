@@ -6027,8 +6027,11 @@ impl Backend {
         index: Option<usize>,
         generation: u64,
     ) -> Result<ProblemDraft, String> {
-        use cuotai_core::support::{app_draft, issue_draft, AccountView, AppInfo};
-        let app = AppInfo::current(crate::updater::detect().as_str());
+        use cuotai_core::support::{
+            app_draft, issue_draft, AccountView, AppInfo, Interface, LastGood,
+        };
+        let app =
+            AppInfo::current(crate::updater::detect().as_str()).with_interface(Interface::Desktop);
         let draft = match index {
             None => app_draft(&app),
             Some(index) => {
@@ -6046,15 +6049,13 @@ impl Backend {
                     None => l.cycle.account_report(index).cloned(),
                 }
                 .ok_or(STALE)?;
-                let last_good_age = l
-                    .cycle
-                    .last_good_report(index)
-                    .and_then(|good| (chrono::Utc::now() - good.checked_at).to_std().ok());
+                // C-01: the same core helper as the TUI.
+                let last_good = LastGood::seen(l.cycle.last_good_age(index, chrono::Utc::now()));
                 issue_draft(
                     &AccountView {
                         account,
                         report: &report,
-                        last_good_age,
+                        last_good,
                         incident_active: cuotai_core::incidents::incident_active(
                             &l.monitor.incident_statuses(),
                             account.provider,
@@ -6071,7 +6072,7 @@ impl Backend {
         .await
         .ok();
         let draft = match setup {
-            Some(report) => draft.with_setup_check(&report),
+            Some(report) => draft.with_setup_check(&report, index),
             None => draft,
         };
         Ok(ProblemDraft {
