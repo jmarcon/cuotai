@@ -546,7 +546,7 @@
   "freshness.stale": "Veraltet",
   "age.measuredAt": "Gemessen: {time}",
   "age.clockAdjusted": "die Systemuhr wurde angepasst",
-  "metric.renewedWaiting": "Erneuert um {time}; wartet auf einen Messwert",
+  "metric.renewedWaiting": "Erneuert um {time}; wartet auf den nächsten Messwert",
   "freshness.data_as_of": "Daten vom {time}",
   "tray.tooltip": "Ältester Messwert: {account}, {age}",
   "settings.order.title": "Reihenfolge der Konten",

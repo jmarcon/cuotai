@@ -536,7 +536,7 @@
   "freshness.stale": "Cũ",
   "age.measuredAt": "Đo lúc: {time}",
   "age.clockAdjusted": "đồng hồ hệ thống đã được điều chỉnh",
-  "metric.renewedWaiting": "Đã làm mới lúc {time}; đang chờ lần đọc",
+  "metric.renewedWaiting": "Đã làm mới lúc {time}; đang chờ lần đọc tiếp theo",
   "freshness.data_as_of": "dữ liệu tại {time}",
   "tray.tooltip": "Lần đọc cũ nhất: {account}, {age}",
   "settings.order.title": "Thứ tự tài khoản",

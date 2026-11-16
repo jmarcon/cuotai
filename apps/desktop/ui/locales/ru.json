@@ -566,7 +566,7 @@
   "freshness.stale": "Устарело",
   "age.measuredAt": "Измерено: {time}",
   "age.clockAdjusted": "системные часы были изменены",
-  "metric.renewedWaiting": "Обновлено в {time}; ожидается показание",
+  "metric.renewedWaiting": "Обновлено в {time}; ожидается следующее показание",
   "freshness.data_as_of": "данные от {time}",
   "tray.tooltip": "Самое старое показание: {account}, {age}",
   "settings.order.title": "Порядок учётных записей",

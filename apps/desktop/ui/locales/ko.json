@@ -536,7 +536,7 @@
   "freshness.stale": "오래됨",
   "age.measuredAt": "측정: {time}",
   "age.clockAdjusted": "시스템 시계가 조정되었습니다",
-  "metric.renewedWaiting": "{time}에 초기화됨, 조회값을 기다리는 중",
+  "metric.renewedWaiting": "{time}에 초기화됨, 다음 조회값을 기다리는 중",
   "freshness.data_as_of": "{time} 기준 데이터",
   "tray.tooltip": "가장 오래된 조회값: {account}, {age}",
   "settings.order.title": "계정 순서",

@@ -6,7 +6,7 @@
 import { t, te, tl } from "./i18n.js";
 import { accountFullLabel,
   ALERTS, billingOverage, bindingLabel, causeText, bindingPct, brand, extraFigure, fmtShare, fmtExtra, fmtLocal, fmtReset, paceUnit, esc, fmtAge, icon, incidentBadge, isBlocked, isMetricHidden, isStaleReading, level, logo,
-  paceLabelOf, paceOf, remainingPct, reportKey, shownAt, staleView, statusLabel, summaryOf, windowsOf,
+  paceLabelOf, paceOf, remainingPct, renewedText, reportKey, shownAt, staleView, statusLabel, summaryOf, windowsOf,
   planBadgeHtml,
 } from "./lib.js";
 import { currentLocale } from "./i18n.js";
@@ -221,11 +221,15 @@ export function fmtAt(iso, now = Date.now()) {
 export function statusParts(r, st = accountState(r)) {
   const binding = r.status === "ready" && r.binding ? r.metrics[r.binding.index] : null;
   const pace = binding ? paceOf(binding) : null;
-  let label = "", role = st.role, detail = "", reset = null, resetFull = null, cause = "";
+  let label = "", role = st.role, detail = "", reset = null, resetFull = null, cause = "", renewed = "";
   if (st.kind === "stale") {
     label = t("freshness.stale");
     role = "warn";
     detail = fmtAge(shownAt(r));
+    // PRD 0033 re-validation (V-02): a preserved reading whose quota renewed says when ("Renewed at …"), on the row's
+    // extra line and in its accessible name, so its "—" never reads as "no data".
+    const s = summaryOf(staleView(r));
+    if (s.kind === "renewed") renewed = renewedText(s.m);
     // PRD 0010 RF3.3 (re-validation V-04, DS-CMP-ROW-4): why the reading is old; none while the first query runs.
     if (!r.pending) cause = causeText(r);
   } else if (st.kind === "status") {
@@ -256,11 +260,13 @@ export function statusParts(r, st = accountState(r)) {
   } else if (st.kind === "unknown") {
     label = t("meter.noData");
     role = "muted";
+    const s = summaryOf(r);
+    if (s.kind === "renewed") renewed = renewedText(s.m);
   }
   const at = fmtAt(reset);
   if (at) resetFull = t("stl.resets", { time: at });
-  const full = [label, detail, resetFull, cause].filter(Boolean).join(" · ");
-  return { label, role, detail, reset: at, resetFull, full, pace, binding, cause };
+  const full = [label, detail, renewed, resetFull, cause].filter(Boolean).join(" · ");
+  return { label, role, detail, renewed, reset: at, resetFull, full, pace, binding, cause };
 }
 
 // ---------- DS-CMP-TIME: time chips (core texts, TUI shapes) ----------
@@ -487,11 +493,14 @@ export function figureOf(r, st = accountState(r)) {
   return { fig: "—", unit: "", role: "" };
 }
 const INCIDENT_ROLE = { bad: "bad", warn: "warn", info: "info", muted: "muted" };
-/** DS-CMP-ROW-4: at most one extra line: provider incident > aging age > active usage alert (a stale reading
- *  already says "Stale · age" on its status line). A fresh age is never repeated per row. */
+/** DS-CMP-ROW-4: at most one extra line: provider incident > renewed window > aging age > active usage alert (a stale
+ *  reading already says "Stale · age" on its status line). A fresh age is never repeated per row. */
 export function extraLineHtml(r, st = accountState(r)) {
   const inc = incidentBadge(r);
   if (inc) return `<span class="xline ${INCIDENT_ROLE[inc.tone] ?? "muted"}" data-incident title="${esc(inc.text)}">${icon(inc.glyph)}<span>${esc(inc.text)}</span></span>`;
+  // PRD 0033 re-validation (V-02): "Renewed at …" where the figure reads "—"; cut lines keep the full text as tooltip.
+  const renewed = statusParts(r, st).renewed;
+  if (renewed) return `<span class="xline muted" data-renewed-waiting title="${esc(renewed)}">${icon("clock")}<span>${esc(renewed)}</span></span>`;
   if (!st.stale && r.status === "ready" && r.freshness === "aging") {
     const text = `${t("freshness.aging")} · ${fmtAge(shownAt(r))}`;
     return `<span class="xline warn" data-age>${icon("clock")}<span>${esc(text)}</span></span>`;
@@ -535,7 +544,7 @@ export function rowName(r, st = accountState(r)) {
   const value = f.unit ? t("meter.left", { pct: Math.round(st.pct) }) : f.fig;
   // PRD 0008 RF3.4: an active usage alert is part of the name, since the row's label overrides its content.
   const usage = r.usage_alerts?.length ? ALERTS.find((c) => c.id === "usage").label(r) : "";
-  return [brand(r.provider).label, r.account, value, p.label !== f.fig ? p.label : "", p.detail, p.resetFull, p.cause, usage].filter(Boolean).join(", ");
+  return [brand(r.provider).label, r.account, value, p.label !== f.fig ? p.label : "", p.detail, p.renewed, p.resetFull, p.cause, usage].filter(Boolean).join(", ");
 }
 /** Fa gap 9 (mockup 06): an aging reading is drawn like a stale one: dimmed figure, dotted meter, no pace mark. */
 const isAging = (r) => r.status === "ready" && r.freshness === "aging";
