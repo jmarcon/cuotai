@@ -778,6 +778,7 @@
   "settings.serve.stats": "Chia sẻ thống kê sử dụng",
   "settings.serve.statsHelp": "Cũng phục vụ GET /v1/stats: các đỉnh và tần suất chạm giới hạn, từ lịch sử cục bộ của thiết bị này (không có mẫu thô, e-mail hay URL). Mặc định tắt; cần token truy cập, chỉ trả lời loopback và tối đa 6 yêu cầu mỗi phút.",
   "settings.serve.statsNeedsToken": "Hãy tạo token: không có token thì máy chủ không trả lời /v1/stats.",
+  "settings.serve.statsNeedsServer": "Máy chủ đang tắt: máy chủ sẽ trả lời /v1/stats khi bạn bật nó ở trên.",
   "settings.serve.accessLog.title": "Nhật ký truy cập",
   "settings.serve.accessLog.help": "Ghi mỗi yêu cầu tới máy chủ cục bộ vào một tệp riêng tư trên máy tính này: thời gian, máy khách có phải máy tính này không, phương thức, mẫu đường dẫn và trạng thái. Không bao giờ ghi địa chỉ, tiêu đề, token, truy vấn hay tên tài khoản. Mỗi bản sao luôn dưới 1 MiB.",
   "settings.serve.accessLog.off": "Tắt",

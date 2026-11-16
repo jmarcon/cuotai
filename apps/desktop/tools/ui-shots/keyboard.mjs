@@ -157,6 +157,37 @@ try {
   await expectFocus("#serve-port", "refused port");
   ok("a refused value keeps its row's error and the focus");
 
+  // 11b. PRD 0031 re-validation V-06: without a token, "Share usage statistics" stays in the tab order with
+  //      `aria-disabled`, is described by a visible reason, and Space changes nothing. V-02: every server change
+  //      repaints the group, and the focus stays on the control that made it.
+  await tabTo("#serve-stats", "Tab reaches the blocked stats switch", { max: 10 });
+  await eq(`(() => { const s = document.querySelector('#serve-stats'); const d = document.getElementById(s.getAttribute('aria-describedby') ?? '');
+    return [s.disabled, s.getAttribute('aria-disabled'), !!d && d.offsetParent !== null && d.textContent.trim().length > 0]; })()`,
+  [false, "true", true], "the blocked switch is focusable and described by a visible reason");
+  await browser.press(" ");
+  await until(`document.querySelector('#serve-stats-msg').textContent.trim().length > 0`, "the refusal says why in the row");
+  await eq(`document.querySelector('#serve-stats').checked`, false, "Space leaves the blocked switch off");
+  await eq(`import("./js/lib.js").then((m) => m.serveStatus()).then((s) => s.stats)`, false, "nothing is saved");
+  await expectFocus("#serve-stats", "Space on the blocked switch");
+  ok("a blocked switch stays focusable, explains itself and refuses Space");
+  await browser.evaluate(`document.querySelector('#serve-on').focus()`);
+  await browser.press(" ");
+  await until(`document.querySelector('[data-serve-state] code')?.textContent.includes('127.0.0.1')`, "Space turns the server on");
+  await expectFocus("#serve-on", "after the server switch repaints the group");
+  await eq(`document.querySelector('#serve-stats').hasAttribute('aria-disabled')`, false, "the token unblocks the stats switch");
+  await browser.evaluate(`document.querySelector('#serve-stats').focus()`);
+  await browser.press(" ");
+  await until(`document.querySelector('#serve-stats').checked`, "Space turns the statistics on");
+  await expectFocus("#serve-stats", "after the stats switch repaints the group");
+  await browser.evaluate(`document.querySelector('#serve-access-log [data-value="errors"]').focus()`);
+  await browser.press(" ");
+  await until(`import("./js/lib.js").then((m) => m.serveStatus()).then((s) => s.access_log === "errors")`, "Space picks the access-log mode");
+  await until(`document.activeElement?.matches('#serve-access-log [data-value="errors"]')`, "focus stays on the chosen access-log mode");
+  await browser.evaluate(`document.querySelector('[data-serve-token-new]').focus()`);
+  await browser.press("Enter");
+  await until(`document.activeElement?.hasAttribute('data-serve-token-new')`, "focus stays on Renew token after the repaint");
+  ok("server changes keep the focus on their control");
+
   // 12. RF6.2 (re-validation R-04, V-05): a search result inside a closed disclosure opens it, highlights the row and
   //     moves focus into the row; a second Esc in the empty field moves focus to the page title.
   await browser.open("settings.html?page=general", { w: 900, h: 760, scale: 1 });

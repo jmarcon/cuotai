@@ -789,6 +789,7 @@
   "settings.serve.stats": "Kullanım istatistiklerini paylaş",
   "settings.serve.statsHelp": "Ayrıca GET /v1/stats sunar: bu cihazın yerel geçmişinden zirveler ve bir sınıra ne sıklıkla ulaşıldığı (ham örnek, e-posta veya URL yok). Varsayılan olarak kapalıdır; erişim jetonu gerektirir, yalnızca loopback'e yanıt verir ve dakikada en fazla 6 istek kabul eder.",
   "settings.serve.statsNeedsToken": "Bir jeton oluşturun: jeton olmadan sunucu /v1/stats isteğine yanıt vermez.",
+  "settings.serve.statsNeedsServer": "Sunucu kapalı: yukarıdan açtığınızda /v1/stats isteğine yanıt verir.",
   "settings.serve.accessLog.title": "Erişim günlüğü",
   "settings.serve.accessLog.help": "Yerel sunucuya yapılan her isteği bu bilgisayardaki özel bir dosyaya kaydeder: zaman, istemcinin bu bilgisayar olup olmadığı, yöntem, rota şablonu ve durum. Adresler, başlıklar, jetonlar, sorgular veya hesap adları asla kaydedilmez. Her kopya 1 MiB'ın altında kalır.",
   "settings.serve.accessLog.off": "Kapalı",

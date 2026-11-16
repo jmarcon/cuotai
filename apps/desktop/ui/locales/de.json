@@ -789,6 +789,7 @@
   "settings.serve.stats": "Nutzungsstatistik teilen",
   "settings.serve.statsHelp": "Liefert zusätzlich GET /v1/stats: Spitzen und wie oft ein Limit erreicht wurde, aus dem lokalen Verlauf dieses Geräts (keine Rohproben, E-Mails oder URLs). Standardmäßig aus; erfordert das Zugriffstoken, antwortet nur über Loopback und höchstens 6 Anfragen pro Minute.",
   "settings.serve.statsNeedsToken": "Erzeugen Sie ein Token: Ohne eines antwortet der Server nicht auf /v1/stats.",
+  "settings.serve.statsNeedsServer": "Der Server ist aus: Er antwortet auf /v1/stats, sobald Sie ihn oben einschalten.",
   "settings.serve.accessLog.title": "Zugriffsprotokoll",
   "settings.serve.accessLog.help": "Protokolliert jede Anfrage an den lokalen Server in einer privaten Datei auf diesem Computer: Zeit, ob der Client dieser Computer war, Methode, Routenvorlage und Status. Niemals Adressen, Header, Tokens, Abfragen oder Kontonamen. Jede Kopie bleibt unter 1 MiB.",
   "settings.serve.accessLog.off": "Aus",

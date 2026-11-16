@@ -61,10 +61,11 @@ export function integrationHtml(sv, message = []) {
         control: (a) => num("serve-port", { value: sv.port, min: sv.port_min, max: sv.port_max, apply: "data-serve-port" }, a) })
       + row({ key: "token", label: te("settings.serve.token.title"), msg: "serve-token-msg", control: () => token,
         info: te("settings.serve.token.on") })
-      // PRD 0031 RF11.2.5: /v1/stats is a separate opt-in that the server answers only with a token.
+      // PRD 0031 RF11.2.5: /v1/stats is a separate opt-in that the server answers only with a token. Without one the
+      // switch cannot be turned on; it stays focusable with `aria-disabled` and says why (DS-CMP-BTN-5, re-validation V-06).
       + row({ key: "serve-stats", label: te("settings.serve.stats"), info: te("settings.serve.statsHelp"), msg: "serve-stats-msg",
-        desc: sv.stats && !sv.token ? te("settings.serve.statsNeedsToken") : "",
-        control: (a) => sw("serve-stats", sv.stats, a, sv.token || sv.stats ? "" : "disabled") })
+        desc: statsReason(sv),
+        control: (a) => sw("serve-stats", sv.stats, a, statsBlocked(sv) ? 'aria-disabled="true"' : "") })
       // PRD 0050 RF6.1/RF6.3: the private access log, off by default; route templates only, erasable from the row.
       + row({ key: "serve-access-log", label: te("settings.serve.accessLog.title"), info: te("settings.serve.accessLog.help"), msg: "serve-access-log-msg",
         desc: sv.access_log_bytes > 0 ? te("settings.serve.accessLog.size", { size: fmtBytes(sv.access_log_bytes) }) : te("settings.serve.accessLog.empty"),
@@ -91,14 +92,49 @@ export function integrationHtml(sv, message = []) {
         </div>` })), message);
 }
 
+/** "Share usage statistics" cannot be turned on without a token (turning it off always works). */
+const statsBlocked = (sv) => !sv.token && !sv.stats;
+/** Why the stats switch is blocked or not served yet: no token, or (saved on) a server that is off. */
+const statsReason = (sv) => (!sv.token ? te("settings.serve.statsNeedsToken")
+  : sv.stats && !sv.enabled ? te("settings.serve.statsNeedsServer") : "");
+
+/** Re-validation V-02: the hook of the focused control inside `roots` (its id, its seg value, or its data-* hook) and
+ *  its row, so a repaint that replaces the markup can put the focus back on its counterpart. */
+function focusHook(roots) {
+  const el = document.activeElement;
+  if (!el || el === document.body || !roots.some((root) => root.contains(el))) return null;
+  const row = el.closest("[data-row]")?.dataset.row ?? null;
+  const box = el.parentElement?.id;
+  const hook = [...el.attributes].find((a) => a.name.startsWith("data-"));
+  const sel = el.id ? `#${CSS.escape(el.id)}`
+    : el.dataset.value != null && box ? `#${CSS.escape(box)} [data-value="${CSS.escape(el.dataset.value)}"]`
+      : hook ? `[${hook.name}]` : null;
+  return { sel, row };
+}
+
+/** Focuses the counterpart of `hook`, or the first usable control of its row when it is gone, hidden or disabled,
+ *  or the server switch as the last resort. */
+function restoreFocus(hook, roots) {
+  if (!hook) return;
+  const usable = (el) => el && !el.disabled && !el.closest("[hidden], details:not([open]) > :not(summary)") && el.getClientRects().length > 0;
+  const all = (sel) => roots.flatMap((root) => [...root.querySelectorAll(sel)]);
+  const controls = 'input, select, textarea, button, [tabindex="0"]';
+  const target = (hook.sel ? all(hook.sel) : []).find(usable)
+    ?? (hook.row ? all(`[data-row="${CSS.escape(hook.row)}"] .set-row-ctl :is(${controls})`) : []).find(usable)
+    ?? all("#serve-on").find(usable);
+  target?.focus({ preventScroll: true });
+}
+
 /** Paints the server and binds it; a failed change keeps the previous state and shows why in its row. */
 async function bindIntegration(sec, ctx, danger) {
   let sv;
   try { sv = await serveStatus(); } catch (e) { sec.querySelector(".hint").textContent = l10nError(e); return; }
   const paint = (next, message = []) => {
     sv = next;
+    const hook = focusHook([sec, danger]);
     sec.innerHTML = integrationHtml(sv, message);
     danger.innerHTML = dangerHtml(sv, message);
+    restoreFocus(hook, [sec, danger]);
     const run = (work, line = "serve-msg") => work().then((answer) => { paint(answer); toast(); ctx.changed("serve"); }, (e) => paint(sv, [line, serveErrorText(e)]));
     // PRD 0050 RF4.2: the origins as typed (one per line); the core normalizes or refuses them.
     const originsField = sec.querySelector("#serve-origins");
@@ -116,7 +152,17 @@ async function bindIntegration(sec, ctx, danger) {
     // RF4.2: the port saves on Enter, on leaving the field or with the row's Apply; a refusal stays in its row.
     commitField(sec.querySelector("#serve-port"), (value) => setServe(sv.enabled, Number(value), sv.allow_browsers, sv.allowed_origins).then(
       (answer) => { paint(answer); ctx.changed("serve"); }, (e) => { throw serveErrorText(e); }));
-    sec.querySelector("#serve-stats").onchange = (e) => run(() => setServeStats(e.target.checked), "serve-stats-msg");
+    // V-06: a blocked switch refuses the change (Space or click leave it as it is) and says why in its row.
+    const stats = sec.querySelector("#serve-stats");
+    const refuse = (e) => {
+      if (stats.getAttribute("aria-disabled") !== "true") return false;
+      e.preventDefault();
+      stats.checked = sv.stats;
+      sec.querySelector("#serve-stats-msg").textContent = t("settings.serve.statsNeedsToken");
+      return true;
+    };
+    stats.onclick = (e) => { refuse(e); }; // an `on…` handler that returns false would cancel every click
+    stats.onchange = (e) => { if (!refuse(e)) run(() => setServeStats(e.target.checked), "serve-stats-msg"); };
     sec.querySelector("#serve-access-log").onchange = (e) => run(() => setServeAccessLog(e.currentTarget.value), "serve-access-log-msg");
     sec.querySelector("[data-serve-access-log-erase]").onclick = async () => {
       if (!(await askDialog("serve-access-log-erase", te("settings.serve.accessLog.eraseTitle"), `<p>${te("settings.serve.accessLog.eraseBody")}</p>`,

@@ -793,6 +793,7 @@
   "settings.serve.stats": "Compartilhar estatísticas de uso",
   "settings.serve.statsHelp": "Serve também GET /v1/stats: picos e quantas vezes um limite foi atingido, do histórico local deste dispositivo (sem amostras brutas, e-mails nem URLs). Desligado por padrão; exige o token de acesso, responde só em loopback e a no máximo 6 requisições por minuto.",
   "settings.serve.statsNeedsToken": "Gere um token: sem ele o servidor não responde /v1/stats.",
+  "settings.serve.statsNeedsServer": "O servidor está desligado: ele responde /v1/stats quando você o ligar acima.",
   "settings.serve.accessLog.title": "Registro de acesso",
   "settings.serve.accessLog.help": "Registra cada pedido ao servidor local em um arquivo privado neste computador: horário, se o cliente era este computador, método, modelo de rota e status. Nunca endereços, cabeçalhos, tokens, consultas ou nomes de contas. Cada cópia fica abaixo de 1 MiB.",
   "settings.serve.accessLog.off": "Desligado",

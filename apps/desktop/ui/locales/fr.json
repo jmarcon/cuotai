@@ -789,6 +789,7 @@
   "settings.serve.stats": "Partager les statistiques d’utilisation",
   "settings.serve.statsHelp": "Sert aussi GET /v1/stats : les pics et la fréquence à laquelle une limite a été atteinte, d’après l’historique local de cet appareil (sans échantillons bruts, adresses e-mail ni URL). Désactivé par défaut ; nécessite le token d’accès, ne répond qu’en boucle locale et à 6 requêtes par minute au plus.",
   "settings.serve.statsNeedsToken": "Générez un token : sans token, le serveur ne répond pas à /v1/stats.",
+  "settings.serve.statsNeedsServer": "Le serveur est désactivé : il répond à /v1/stats dès que vous l’activez ci-dessus.",
   "settings.serve.accessLog.title": "Journal d'accès",
   "settings.serve.accessLog.help": "Enregistre chaque requête au serveur local dans un fichier privé sur cet ordinateur : heure, si le client était cet ordinateur, méthode, modèle de route et statut. Jamais d'adresses, d'en-têtes, de tokens, de requêtes ni de noms de comptes. Chaque copie reste sous 1 Mio.",
   "settings.serve.accessLog.off": "Désactivé",

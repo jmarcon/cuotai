@@ -786,6 +786,7 @@
   "settings.serve.stats": "Condividi le statistiche di utilizzo",
   "settings.serve.statsHelp": "Serve anche GET /v1/stats: picchi e quante volte è stato raggiunto un limite, dalla cronologia locale di questo dispositivo (senza campioni grezzi, e-mail né URL). Disattivato per impostazione predefinita; richiede il token di accesso, risponde solo in loopback e al massimo a 6 richieste al minuto.",
   "settings.serve.statsNeedsToken": "Genera un token: senza di esso il server non risponde a /v1/stats.",
+  "settings.serve.statsNeedsServer": "Il server è disattivato: risponde a /v1/stats quando lo attivi qui sopra.",
   "settings.serve.accessLog.title": "Registro degli accessi",
   "settings.serve.accessLog.help": "Registra ogni richiesta al server locale in un file privato su questo computer: ora, se il client era questo computer, metodo, modello di percorso e stato. Mai indirizzi, intestazioni, token, query o nomi di account. Ogni copia resta sotto 1 MiB.",
   "settings.serve.accessLog.off": "Disattivato",

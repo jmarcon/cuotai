@@ -778,6 +778,7 @@
   "settings.serve.stats": "使用統計を共有",
   "settings.serve.statsHelp": "GET /v1/stats も提供します。このデバイスのローカル履歴に基づくピークと制限に達した頻度です（生のサンプル、メールアドレス、URL は含みません）。既定ではオフで、アクセストークンが必要です。ループバックのみに応答し、1 分あたり最大 6 リクエストです。",
   "settings.serve.statsNeedsToken": "トークンを生成してください。トークンがないとサーバーは /v1/stats に応答しません。",
+  "settings.serve.statsNeedsServer": "サーバーはオフです。上でオンにすると /v1/stats に応答します。",
   "settings.serve.accessLog.title": "アクセスログ",
   "settings.serve.accessLog.help": "ローカルサーバーへの各リクエストを、このコンピューター上の非公開ファイルに記録します：時刻、クライアントがこのコンピューターかどうか、メソッド、ルートのテンプレート、ステータス。アドレス、ヘッダー、トークン、クエリ、アカウント名は記録しません。各コピーは 1 MiB 未満に保たれます。",
   "settings.serve.accessLog.off": "オフ",

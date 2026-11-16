@@ -786,6 +786,7 @@
   "settings.serve.stats": "Share usage statistics",
   "settings.serve.statsHelp": "Also serves GET /v1/stats: peaks and how often a limit was hit, from this device's local history (no raw samples, e-mails or URLs). Off by default; it needs the access token, answers only loopback and at most 6 requests per minute.",
   "settings.serve.statsNeedsToken": "Generate a token: without one the server does not answer /v1/stats.",
+  "settings.serve.statsNeedsServer": "The server is off: it answers /v1/stats once you turn it on above.",
   "settings.serve.accessLog.title": "Access log",
   "settings.serve.accessLog.help": "Records each request to the local server in a private file on this computer: time, whether the client was this computer, method, route template and status. Never addresses, headers, tokens, queries or account names. Each copy stays under 1 MiB.",
   "settings.serve.accessLog.off": "Off",

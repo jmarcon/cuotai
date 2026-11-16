@@ -778,6 +778,7 @@
   "settings.serve.stats": "Bagikan statistik penggunaan",
   "settings.serve.statsHelp": "Juga menyajikan GET /v1/stats: puncak dan seberapa sering batas tercapai, dari riwayat lokal perangkat ini (tanpa sampel mentah, e-mail, atau URL). Nonaktif secara bawaan; memerlukan token akses, hanya menjawab loopback dan paling banyak 6 permintaan per menit.",
   "settings.serve.statsNeedsToken": "Buat token: tanpa token server tidak menjawab /v1/stats.",
+  "settings.serve.statsNeedsServer": "Server nonaktif: server menjawab /v1/stats setelah Anda mengaktifkannya di atas.",
   "settings.serve.accessLog.title": "Log akses",
   "settings.serve.accessLog.help": "Mencatat setiap permintaan ke server lokal dalam berkas pribadi di komputer ini: waktu, apakah klien adalah komputer ini, metode, templat rute, dan status. Tidak pernah alamat, header, token, kueri, atau nama akun. Setiap salinan tetap di bawah 1 MiB.",
   "settings.serve.accessLog.off": "Mati",
