@@ -94,7 +94,8 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       <div class="prov-head" id="prov-head" ${editing ? "" : "hidden"}></div>
       <small class="field-err" hidden></small></div>
     <div class="form-rest" id="form-rest" ${editing ? "" : "hidden"}>
-    <p class="cost-advisory offer-consent" id="offer-consent" role="note" hidden></p>
+    <p class="cost-advisory offer-consent" id="offer-consent" role="note" hidden><span id="offer-consent-text"></span>
+      <button type="button" class="link" data-offer-dismiss>${te("dialog.detect.dismiss")}</button></p>
     <p class="hint offer-cost" id="offer-cost" hidden><span id="offer-cost-text"></span> <button type="button" class="link" data-offer-cost>${te("detect.costOffer.open")}</button></p>
     <label class="f" data-field="name"><span>${te("dialog.nameOptional")}</span><input name="name" value="${esc(existing?.name ?? "")}" aria-describedby="name-hint" /><small class="hint" id="name-hint"></small><small class="field-err" id="name-err" role="alert" hidden></small></label>
     <label class="f" data-field="peer_name" id="peer-row" hidden><span id="peer-label"></span><input name="peer_name" autocomplete="off" aria-describedby="peer-hint" /><small class="hint" id="peer-hint"></small><small class="field-err" role="alert" hidden></small></label>
@@ -1147,6 +1148,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       syncModeChoicesToFields(selectedMode());
       await resetLogin();
       authMode = e.target.value;
+      syncConsent();
       await renderDynamic();
     } else if (e.target.name?.startsWith("o:") || e.target.name?.startsWith("r:")) {
       syncModeChoicesToFields(selectedMode());
@@ -1384,6 +1386,27 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   const costOffer = dlg.querySelector("#offer-cost");
   costOffer.querySelector("[data-offer-cost]").addEventListener("click", () => openSettingsWindow({ page: "cost", anchor: "cost-sources" }));
   let detected = [];
+  // RF7.2 (C-05): the chosen entry and its detected source; the consent line shows only while the source's mode is the
+  // open one, and "Don't suggest this again" sits beside it, where the keyboard reaches it (C-01).
+  let chosenEntry = null;
+  let offer = null;
+  function syncConsent() {
+    const shown = Boolean(offer) && (offer.mode == null || offer.mode === authMode);
+    consentLine.querySelector("#offer-consent-text").textContent = shown ? tl(offer.consent) : "";
+    consentLine.hidden = !shown;
+  }
+  consentLine.querySelector("[data-offer-dismiss]").addEventListener("click", async () => {
+    if (!offer) return;
+    const { kind } = offer;
+    try { await dismissDetected(kind); } catch { /* the suggestion goes away for this dialog anyway */ }
+    detected = detected.filter((d) => d.kind !== kind);
+    offer = null;
+    syncConsent();
+    costOffer.hidden = true;
+    if (chosenEntry) paintHead(chosenEntry, null);
+    pickerApi?.refresh();
+    nameInput.focus();
+  });
   const paintHead = (entry, found) => {
     head.innerHTML = `${logo(entry.provider, 32)}<span class="pick-text"><b>${esc(entry.label)}</b>
         <small class="pick-method">${esc(tl(entry.method_label))}</small>
@@ -1425,8 +1448,9 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     authMode = offered(wanted) ? wanted : (schema.credential_kind === "none" ? (modes()[0]?.id ?? "credential") : "credential");
     paintHead(entry, found);
     // RF7.2: what the offered flow will read, before anything is read; Change provider (or Cancel) reads nothing.
-    consentLine.textContent = found ? tl(found.consent) : "";
-    consentLine.hidden = !found;
+    chosenEntry = entry;
+    offer = found;
+    syncConsent();
     costOffer.querySelector("#offer-cost-text").textContent = found?.local_cost ? t(`detect.costOffer.${found.local_cost}`) : "";
     costOffer.hidden = !found?.local_cost;
     picker?.closest(".picker").setAttribute("hidden", "");
@@ -1459,11 +1483,6 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     pickerApi = mountPicker(dlg.querySelector("#picker"), {
       onChoose: (entry, found) => choose(entry, found),
       detected: () => detected,
-      onDismiss: async (kind) => {
-        try { await dismissDetected(kind); } catch { /* the badge goes away for this dialog anyway */ }
-        detected = detected.filter((d) => d.kind !== kind);
-        pickerApi.refresh();
-      },
       onRequest: () => openExternal(NEW_PROVIDER_URL).catch(() => {}),
       onExtensions: () => { dlg.close(); onExtension?.(null); },
     });

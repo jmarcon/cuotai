@@ -664,8 +664,8 @@
   "filter.none": "Nenhuma conta corresponde ao filtro.",
   "dialog.deleteBodyVault": "{label} tem uma credencial salva no cofre do sistema. Quer apagá-la também?",
   "dialog.deleteExtensionSecrets": "Apagar também os segredos salvos desta extensão do cofre.",
-  "dialog.picker.addExtension": "adicione um provedor com uma extensão",
-  "dialog.picker.notListed": "Não está na lista?",
+  "dialog.picker.addExtension": "Adicione um provedor com uma extensão",
+  "dialog.picker.notListed": "Não está na lista? {link}",
   "dialog.deleteVaultKeep": "Remover e manter no cofre",
   "dialog.deleteVaultPurge": "Remover e apagar do cofre",
   "delete.purged": "Conta removida e credencial apagada do cofre.",
@@ -1193,8 +1193,11 @@
   "report.open": "Abrir no GitHub",
   "dialog.picker.search": "Buscar provedores",
   "dialog.picker.clear": "Limpar busca",
-  "dialog.picker.count": "{count} provedores",
-  "dialog.picker.hint.browser": "Conecta localmente",
+  "dialog.picker.count": {
+    "one": "{count} provedor",
+    "other": "{count} provedores"
+  },
+  "dialog.picker.hint.browser": "Abre seu navegador",
   "dialog.picker.hint.apiKey": "Precisa de uma chave",
   "dialog.picker.connect": "Conectar",
   "dialog.picker.metered": "Cobrado por consulta",
@@ -1431,7 +1434,10 @@
   "settings.lang.machine": "Tradução automática; ainda sem revisão de um falante nativo.",
   "settings.lang.machine.link": "Ajude a revisar",
   "settings.mode.label": "Modo",
-  "dialog.picker.searchCount": "Buscar entre {count} provedores",
+  "dialog.picker.searchCount": {
+    "one": "Buscar em {count} provedor",
+    "other": "Buscar entre {count} provedores"
+  },
   "settings.menubar.appearance": "Aparência",
   "settings.menubar.colored.desc": "Cores de nível legíveis em barras claras e escuras; o número fica na cor da barra.",
   "settings.menubar.count": "{n} de {total}",

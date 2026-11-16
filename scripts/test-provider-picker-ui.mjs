@@ -118,7 +118,8 @@ assert.deepEqual(await lib.searchProviders("zzzz-none", "en-US"), [], "no match 
 for (const { code } of i18n.LOCALES) {
   await i18n.setLocale(code);
   const catalog = JSON.parse(await readFile(fileURLToPath(new URL(`apps/desktop/ui/locales/${code}.json`, root)), "utf8"));
-  for (const key of KEYS) assert.ok(typeof catalog[key] === "string" && catalog[key], `${code}: ${key} missing`);
+  // `dialog.picker.count` is a plural object (C-10).
+  for (const key of KEYS) assert.ok((typeof catalog[key] === "string" && catalog[key]) || catalog[key]?.other, `${code}: ${key} missing`);
   const html = picker.pickerHtml("prov-label") + picker.entryChips({ metered: true }, { kind: "cursor_app" });
   assert.ok(html.includes('role="listbox"') && html.includes('role="combobox"'), `${code}: listbox semantics`);
   assert.ok(html.includes(catalog["dialog.picker.metered"]) && html.includes(catalog["dialog.picker.found"]), `${code}: chips`);
@@ -247,5 +248,61 @@ assert.equal(lib.brand("alibaba_cloud").label, "Alibaba Cloud — billing");
     const catalog = JSON.parse(await readFile(fileURLToPath(new URL(`apps/desktop/ui/locales/${code}.json`, root)), "utf8"));
     assert.ok(catalog["dialog.saveAnyway"], `${code}: dialog.saveAnyway`);
   }
+}
+// PRD 0027 re-validation C-01, C-10, C-11, C-12: a search result row reads "method · hint" (and the found source's
+// hint), holds no control (focus stays in the search field), the count is plural-aware, the footer is one sentence,
+// and Enter with nothing highlighted picks nothing.
+{
+  const pickerSrc = await readFile(fileURLToPath(new URL("apps/desktop/ui/js/provider-picker.js", root)), "utf8");
+  assert.doesNotMatch(pickerSrc, /\.map\(option\)/, "Array.map's third argument must not reach `grouped`");
+  assert.match(pickerSrc, /maxlength="256"/, "the field stops at the core's query bound (C-09)");
+  assert.match(pickerSrc, /id="picker-list" role="listbox" tabindex="-1"/, "the list is not a Tab stop");
+  const found = { provider: "cursor", kind: "cursor_app", mode: "oauth",
+    hint: { id: "detect.hint", params: { tool: "Cursor" }, fallback: "Cursor is installed on this device" },
+    consent: { id: "detect.consent.cursor_import", params: {}, fallback: "x" } };
+  const fake = () => {
+    const el = { hidden: false, value: "", textContent: "", innerHTML: "", placeholder: "", dataset: {}, listeners: {},
+      classList: { toggle: () => {} }, addEventListener: (type, fn) => { el.listeners[type] = fn; },
+      setAttribute: () => {}, removeAttribute: () => {}, querySelectorAll: () => [], querySelector: () => null, focus: () => {} };
+    return el;
+  };
+  const els = new Map();
+  const host = { addEventListener: () => {}, querySelector: (sel) => { if (!els.has(sel)) els.set(sel, fake()); return els.get(sel); } };
+  const chosen = [];
+  const handle = picker.mountPicker(host, { onChoose: (entry) => chosen.push(entry.provider), detected: () => [found] });
+  // Empty query: nothing highlighted, so Enter picks nothing.
+  await handle.reload();
+  host.querySelector("#picker-q").listeners.keydown({ key: "Enter", preventDefault: () => {} });
+  assert.deepEqual(chosen, [], "Enter with nothing highlighted picks nothing");
+  host.querySelector("#picker-q").value = "cursor";
+  await handle.reload();
+  const html = host.querySelector("#picker-list").innerHTML;
+  const row = html.slice(html.indexOf('id="pick-0"'));
+  const subtitle = row.slice(row.indexOf('class="pick-method"'), row.indexOf("</small>"));
+  assert.ok(subtitle.includes(" · "), `a search result reads "method · hint": ${subtitle}`);
+  assert.ok(subtitle.includes("Cursor is installed on this device"), "the found source's hint is visible, not a tooltip only");
+  assert.ok(row.includes(i18n.t("dialog.picker.found")), "the found chip shows");
+  assert.doesNotMatch(row.slice(0, row.indexOf("</div>")), /<button/, "the option row holds no control");
+  host.querySelector("#picker-q").listeners.keydown({ key: "Enter", preventDefault: () => {} });
+  assert.deepEqual(chosen, ["cursor"], "Enter picks the highlighted result");
+  assert.equal(i18n.t("dialog.picker.count", { count: 1 }), "1 provider");
+  assert.equal(i18n.t("dialog.picker.count", { count: 3 }), "3 providers");
+  const foot = picker.pickerFoot();
+  assert.match(foot, /^Not listed\? <a [^>]*data-extensions>Add a provider with an extension<\/a>$/, foot);
+  for (const { code } of i18n.LOCALES) {
+    const catalog = JSON.parse(await readFile(fileURLToPath(new URL(`apps/desktop/ui/locales/${code}.json`, root)), "utf8"));
+    assert.ok(catalog["dialog.picker.notListed"].includes("{link}"), `${code}: notListed has {link}`);
+    assert.equal(typeof catalog["dialog.picker.count"], "object", `${code}: the count is a plural object`);
+    assert.ok(catalog["dialog.picker.count"].other, `${code}: count.other`);
+  }
+  // C-05 / C-01: the form's consent line shows only while the detected source's mode is open, is re-evaluated on
+  // every mode switch, and carries the keyboard-reachable "Don't suggest this again".
+  const dialogSrc = await readFile(fileURLToPath(new URL("apps/desktop/ui/js/account-dialog.js", root)), "utf8");
+  assert.match(dialogSrc, /const shown = Boolean\(offer\) && \(offer\.mode == null \|\| offer\.mode === authMode\);/);
+  assert.match(dialogSrc, /authMode = e\.target\.value;\s*syncConsent\(\);/, "a mode switch re-evaluates the consent");
+  assert.match(dialogSrc, /id="offer-consent"[^]*?data-offer-dismiss/, "the dismiss sits beside the consent line");
+  // C-04: one clear button: the native search cancel is hidden in the picker only.
+  const css = await readFile(fileURLToPath(new URL("apps/desktop/ui/css/dialog.css", root)), "utf8");
+  assert.match(css, /\.picker-search input::-webkit-search-cancel-button \{[^}]*display: none;/);
 }
 console.log("provider picker UI smoke: ok");

@@ -658,8 +658,8 @@
   "filter.none": "Nessun account corrisponde al filtro.",
   "dialog.deleteBodyVault": "{label} ha una credenziale salvata nel vault di sistema. Eliminare anche quella?",
   "dialog.deleteExtensionSecrets": "Elimina anche dal vault i segreti salvati di questa estensione.",
-  "dialog.picker.addExtension": "aggiungi un provider con un'estensione",
-  "dialog.picker.notListed": "Non in elenco?",
+  "dialog.picker.addExtension": "Aggiungi un provider con un'estensione",
+  "dialog.picker.notListed": "Non in elenco? {link}",
   "dialog.deleteVaultKeep": "Rimuovi e mantieni nel vault",
   "dialog.deleteVaultPurge": "Rimuovi ed elimina dal vault",
   "delete.purged": "Account rimosso e credenziale eliminata dal vault.",
@@ -1186,8 +1186,11 @@
   "report.open": "Apri su GitHub",
   "dialog.picker.search": "Cerca provider",
   "dialog.picker.clear": "Cancella ricerca",
-  "dialog.picker.count": "{count} provider",
-  "dialog.picker.hint.browser": "Si connette in locale",
+  "dialog.picker.count": {
+    "one": "{count} provider",
+    "other": "{count} provider"
+  },
+  "dialog.picker.hint.browser": "Apre il browser",
   "dialog.picker.hint.apiKey": "Richiede una chiave",
   "dialog.picker.connect": "Connetti",
   "dialog.picker.metered": "Addebitato per query",
@@ -1424,7 +1427,10 @@
   "settings.lang.machine": "Traduzione automatica; non ancora rivista da un madrelingua.",
   "settings.lang.machine.link": "Aiuta a rivederla",
   "settings.mode.label": "Modalità",
-  "dialog.picker.searchCount": "Cerca tra {count} provider",
+  "dialog.picker.searchCount": {
+    "one": "Cerca tra {count} provider",
+    "other": "Cerca tra {count} provider"
+  },
   "settings.menubar.appearance": "Aspetto",
   "settings.menubar.colored.desc": "Colori di livello leggibili su barre chiare e scure; la cifra non cambia colore.",
   "settings.menubar.count": "{n} di {total}",

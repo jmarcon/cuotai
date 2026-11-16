@@ -12,17 +12,17 @@ const GROUP_HINTS = { browser_sign_in: "dialog.picker.hint.browser", api_key: "d
 export const pickerHtml = (labelledBy) => `<div class="picker" id="picker">
     <div class="filter picker-search"><span class="filter-ico">${icon("search")}</span>
       <input type="search" id="picker-q" role="combobox" aria-expanded="true" aria-controls="picker-list" aria-autocomplete="list"
-        autocomplete="off" spellcheck="false" placeholder="${te("dialog.picker.search")}" aria-label="${te("dialog.picker.search")}" />
+        autocomplete="off" spellcheck="false" maxlength="256" placeholder="${te("dialog.picker.search")}" aria-label="${te("dialog.picker.search")}" />
       <button type="button" class="icon" id="picker-clear" aria-label="${te("dialog.picker.clear")}" hidden>${icon("x")}</button></div>
-    <p class="sr-only" id="picker-count" role="status" aria-live="polite"></p>
-    <div class="picker-list" id="picker-list" role="listbox" aria-labelledby="${labelledBy}"></div>
-    <div class="picker-empty" id="picker-empty" hidden><p class="hint" id="picker-empty-text"></p>
-      <button type="button" class="btn outline sm" id="picker-request">${te("dialog.picker.request")}</button></div>
     <div class="detect-ask" id="detect-ask" hidden>
       <p>${te("dialog.detect.ask")}</p>
       <div class="dlg-actions left"><button type="button" class="btn sm" data-detect="1">${te("dialog.detect.check")}</button>
         <button type="button" class="btn sm" data-detect="0">${te("dialog.detect.notNow")}</button></div>
     </div>
+    <p class="sr-only" id="picker-count" role="status" aria-live="polite"></p>
+    <div class="picker-list" id="picker-list" role="listbox" tabindex="-1" aria-labelledby="${labelledBy}"></div>
+    <div class="picker-empty" id="picker-empty" hidden><p class="hint" id="picker-empty-text"></p>
+      <button type="button" class="btn outline sm" id="picker-request">${te("dialog.picker.request")}</button></div>
     <p class="picker-foot" id="picker-foot"></p>
   </div>`;
 
@@ -32,13 +32,37 @@ export const entryChips = (entry, found) =>
   + (found ? `<span class="mini info"${found.hint ? ` title="${esc(tl(found.hint))}"` : ""}>${icon("check")}${te("dialog.picker.found")}</span>` : "");
 
 /**
+ * One result row (`role="option"`). `grouped`: the empty-query catalog, whose group header already names the method,
+ * so the subtitle is the hint only; a search result reads "method · hint". A found source adds its hint (C-12). The row
+ * holds no control: focus stays in the search field (`aria-activedescendant`), so "Don't suggest this again" lives next
+ * to the consent line of the chosen form instead (PRD 0027 re-validation C-01).
+ */
+export function pickOption(entry, i, { active = -1, found = null, grouped = false } = {}) {
+  const method = tl(entry.method_label);
+  const hint = tl(entry.hint);
+  const parts = grouped ? [hint] : [method, ...(hint !== method ? [hint] : [])];
+  if (found?.hint) parts.push(tl(found.hint));
+  const subtitle = parts.map((p, k) => (k === 0 && !grouped ? esc(p) : `<span class="pick-hint">${esc(p)}</span>`)).join(" · ");
+  return `<div role="option" class="pick" id="pick-${i}" data-i="${i}" aria-selected="${i === active}">
+      ${logo(entry.provider, 32)}
+      <span class="pick-text"><span class="pick-name"><b>${esc(entry.label)}</b><span class="pick-chips">${entryChips(entry, found)}</span></span>
+        <small class="pick-method">${subtitle}</small></span>
+      <span class="btn outline sm pick-connect" aria-hidden="true">${te("dialog.picker.connect")}</span>
+    </div>`;
+}
+
+/** The footer: "Not listed? {link}" as one sentence (C-11), the link opening the extensions. */
+export const pickerFoot = () => te("dialog.picker.notListed").split("{link}")
+  .join(`<a href="#" class="text-link" data-extensions>${te("dialog.picker.addExtension")}</a>`);
+
+/**
  * Wires the picker inside `root`.
  * - `onChoose(entry, detected | null)` runs on click or Enter.
- * - `detected()` returns the current detected sources (core `Detected`), `onDismiss(kind)` forgets one.
+ * - `detected()` returns the current detected sources (core `Detected`).
  * - `onRequest()` opens the new-provider issue template.
  * Returns `{ refresh, focus }`.
  */
-export function mountPicker(root, { onChoose, detected = () => [], onDismiss = () => {}, onRequest = () => {}, onExtensions = () => {} }) {
+export function mountPicker(root, { onChoose, detected = () => [], onRequest = () => {}, onExtensions = () => {} }) {
   const input = root.querySelector("#picker-q");
   const clear = root.querySelector("#picker-clear");
   const list = root.querySelector("#picker-list");
@@ -51,24 +75,14 @@ export function mountPicker(root, { onChoose, detected = () => [], onDismiss = (
   let active = -1; // no row is highlighted on open (mockup 31); the first arrow key or a query selects one
   const foundFor = (provider) => detected().find((d) => d.provider === provider) ?? null;
 
-  const option = (entry, i, grouped = false) => {
-    const found = foundFor(entry.provider);
-    const method = tl(entry.method_label);
-    const hint = tl(entry.hint);
-    return `<div role="option" class="pick" id="pick-${i}" data-i="${i}" aria-selected="${i === active}">
-      ${logo(entry.provider, 32)}
-      <span class="pick-text"><span class="pick-name"><b>${esc(entry.label)}</b><span class="pick-chips">${entryChips(entry, found)}${found && !grouped
-          ? `<button type="button" class="link-btn" data-dismiss="${esc(found.kind)}">${te("dialog.detect.dismiss")}</button>` : ""}</span></span>
-        <small class="pick-method">${grouped ? `<span class="pick-hint">${esc(hint)}</span>` : `${esc(method)}${hint !== method ? ` · <span class="pick-hint">${esc(hint)}</span>` : ""}`}</small></span>
-      <span class="btn outline sm pick-connect" aria-hidden="true">${te("dialog.picker.connect")}</span>
-    </div>`;
-  };
+  // C-01: always map with an arrow; passing `option` itself would hand it the array as `grouped`.
+  const option = (entry, i, grouped = false) => pickOption(entry, i, { active, found: foundFor(entry.provider), grouped });
 
   function paint() {
     const query = input.value;
     const grouped = query.trim() === "";
     clear.hidden = grouped;
-    // DS-CMP-CAT-1: search results are always a list; the grouped catalog is a grid when wide enough.
+    // DS-CMP-CAT-1: a list, grouped by sign-in method while the search is empty.
     list.classList.toggle("is-grouped", grouped);
     empty.hidden = entries.length > 0;
     const emptyText = hidden ? tl(hidden) : t("dialog.picker.empty", { query });
@@ -77,7 +91,7 @@ export function mountPicker(root, { onChoose, detected = () => [], onDismiss = (
     root.querySelector("#picker-request").hidden = Boolean(hidden);
     count.textContent = entries.length ? t("dialog.picker.count", { count: entries.length }) : emptyText;
     if (!grouped) {
-      list.innerHTML = entries.map(option).join("");
+      list.innerHTML = entries.map((entry, i) => option(entry, i)).join("");
     } else {
       // DS-CMP-LIST-6: one group per sign-in method, in the core's order.
       const groups = [];
@@ -92,8 +106,7 @@ export function mountPicker(root, { onChoose, detected = () => [], onDismiss = (
           <div class="pick-items">${g.items.map(([entry, i]) => option(entry, i, true)).join("")}</div></div>`).join("");
     }
     // Mockup 31b: the footer always offers an extension.
-    const link = `<a href="#" class="text-link" data-extensions>${te("dialog.picker.addExtension")}</a>`;
-    foot.innerHTML = entries.length ? `${te("dialog.picker.notListed")} ${link}` : "";
+    foot.innerHTML = entries.length ? pickerFoot() : "";
     syncActive(false);
   }
 
@@ -134,8 +147,9 @@ export function mountPicker(root, { onChoose, detected = () => [], onDismiss = (
       active = active < 0 ? (e.key === "ArrowDown" ? 0 : entries.length - 1) : (active + (e.key === "ArrowDown" ? 1 : -1) + entries.length) % entries.length;
       syncActive();
     } else if (e.key === "Enter") {
+      // C-12: with nothing highlighted, Enter picks nothing.
       e.preventDefault();
-      choose(Math.max(active, 0));
+      if (active >= 0) choose(active);
     } else if (e.key === "Escape" && input.value) {
       // RF3.2: Esc clears first; the next Esc closes the dialog.
       e.preventDefault();
@@ -145,8 +159,6 @@ export function mountPicker(root, { onChoose, detected = () => [], onDismiss = (
     }
   });
   list.addEventListener("click", (e) => {
-    const dismiss = e.target.closest("[data-dismiss]");
-    if (dismiss) { e.stopPropagation(); onDismiss(dismiss.dataset.dismiss); return; }
     const el = e.target.closest(".pick");
     if (el) choose(Number(el.dataset.i));
   });

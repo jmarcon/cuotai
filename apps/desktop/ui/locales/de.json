@@ -661,8 +661,8 @@
   "filter.none": "Kein Konto entspricht dem Filter.",
   "dialog.deleteBodyVault": "{label} hat Zugangsdaten im Systemtresor gespeichert. Diese ebenfalls löschen?",
   "dialog.deleteExtensionSecrets": "Auch die gespeicherten Geheimnisse dieser Erweiterung aus dem Tresor löschen.",
-  "dialog.picker.addExtension": "einen Anbieter über eine Erweiterung hinzufügen",
-  "dialog.picker.notListed": "Nicht aufgeführt?",
+  "dialog.picker.addExtension": "Einen Anbieter über eine Erweiterung hinzufügen",
+  "dialog.picker.notListed": "Nicht aufgeführt? {link}",
   "dialog.deleteVaultKeep": "Entfernen und im Tresor behalten",
   "dialog.deleteVaultPurge": "Entfernen und aus dem Tresor löschen",
   "delete.purged": "Konto entfernt und seine Zugangsdaten aus dem Tresor gelöscht.",
@@ -1189,8 +1189,11 @@
   "report.open": "Auf GitHub öffnen",
   "dialog.picker.search": "Anbieter suchen",
   "dialog.picker.clear": "Suche leeren",
-  "dialog.picker.count": "{count} Anbieter",
-  "dialog.picker.hint.browser": "Verbindet lokal",
+  "dialog.picker.count": {
+    "one": "{count} Anbieter",
+    "other": "{count} Anbieter"
+  },
+  "dialog.picker.hint.browser": "Öffnet Ihren Browser",
   "dialog.picker.hint.apiKey": "Benötigt einen Schlüssel",
   "dialog.picker.connect": "Verbinden",
   "dialog.picker.metered": "Pro Abfrage abgerechnet",
@@ -1427,7 +1430,10 @@
   "settings.lang.machine": "Maschinell übersetzt; noch nicht von Muttersprachlern geprüft.",
   "settings.lang.machine.link": "Hilf beim Prüfen",
   "settings.mode.label": "Modus",
-  "dialog.picker.searchCount": "{count} Anbieter durchsuchen",
+  "dialog.picker.searchCount": {
+    "one": "{count} Anbieter durchsuchen",
+    "other": "{count} Anbieter durchsuchen"
+  },
   "settings.menubar.appearance": "Darstellung",
   "settings.menubar.colored.desc": "Stufenfarben, lesbar auf hellen und dunklen Leisten; die Zahl behält die Leistenfarbe.",
   "settings.menubar.count": "{n} von {total}",

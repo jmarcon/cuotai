@@ -662,7 +662,7 @@
   "dialog.deleteBodyVault": "{label} का एक क्रेडेंशियल सिस्टम वॉल्ट में सहेजा है। उसे भी मिटाएँ?",
   "dialog.deleteExtensionSecrets": "इस एक्सटेंशन के वॉल्ट में सहेजे गोपनीय मान भी मिटाएँ।",
   "dialog.picker.addExtension": "एक्सटेंशन से प्रदाता जोड़ें",
-  "dialog.picker.notListed": "सूची में नहीं है?",
+  "dialog.picker.notListed": "सूची में नहीं है? {link}",
   "dialog.deleteVaultKeep": "हटाएँ और वॉल्ट में रखें",
   "dialog.deleteVaultPurge": "हटाएँ और वॉल्ट से भी मिटाएँ",
   "delete.purged": "खाता हटाया गया और उसका क्रेडेंशियल वॉल्ट से मिटा दिया गया।",
@@ -1189,8 +1189,11 @@
   "report.open": "GitHub पर खोलें",
   "dialog.picker.search": "प्रदाता खोजें",
   "dialog.picker.clear": "खोज साफ़ करें",
-  "dialog.picker.count": "{count} प्रदाता",
-  "dialog.picker.hint.browser": "स्थानीय रूप से जुड़ता है",
+  "dialog.picker.count": {
+    "one": "{count} प्रदाता",
+    "other": "{count} प्रदाता"
+  },
+  "dialog.picker.hint.browser": "आपका ब्राउज़र खोलता है",
   "dialog.picker.hint.apiKey": "कुंजी चाहिए",
   "dialog.picker.connect": "जोड़ें",
   "dialog.picker.metered": "प्रति जाँच बिल होता है",
@@ -1427,7 +1430,10 @@
   "settings.lang.machine": "मशीन अनुवाद; किसी मूल भाषी ने अभी इसकी समीक्षा नहीं की है।",
   "settings.lang.machine.link": "समीक्षा में मदद करें",
   "settings.mode.label": "मोड",
-  "dialog.picker.searchCount": "{count} प्रदाता खोजें",
+  "dialog.picker.searchCount": {
+    "one": "{count} प्रदाता खोजें",
+    "other": "{count} प्रदाता खोजें"
+  },
   "settings.menubar.appearance": "रूप",
   "settings.menubar.colored.desc": "हल्के और गहरे मेन्यू बार पर पढ़ने योग्य स्तर-रंग; आँकड़ा बार के रंग में रहता है।",
   "settings.menubar.count": "{total} में से {n}",
