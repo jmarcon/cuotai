@@ -26,6 +26,22 @@ messages, settings and themes.
   user language packs: a built-in catalog may not miss a key (the parity
   tests fail).
 - Text is escaped before it is rendered; do not add HTML.
+- **Untrusted text (PRD 0034 re-validation S-06).** A `{placeholder}` is
+  filled with plain text that can come from outside: an account name, a
+  provider's message, a model id, a path. Substitution is one pass: a value
+  that itself contains `{name}` is shown as written, never expanded again.
+  Each front end escapes the result for where it goes (HTML in the desktop,
+  terminal text in the TUI, notices) and strips direction and control
+  characters from it. So a catalog value holds no markup (no tag such as
+  `<b>`, no character reference such as `&amp;`, and no `<`, `>` or `&`
+  beyond what the source text has), no link or address a UI could act on
+  (a URL in a help text is shown as text only), and no direction or
+  zero-width characters (U+200B to U+200F, U+202A to U+202E, U+2060 to
+  U+2064, U+2066 to U+2069, U+061C, U+FEFF), which can reorder or hide what
+  is shown.
+- A user language pack is named by a language tag the browser's `Intl`
+  reads (`fr.json`, `sr-Latn-RS.json`); a name such as `en-US-US.json` is
+  refused and listed as an invalid file.
 - Frontends resolve stable core message IDs (`{ id, params, fallback }`) rather
   than matching translated text. `js/i18n.js` resolves IDs against the merged
   UI and core catalogs, with user language packs taking precedence.
@@ -63,8 +79,10 @@ of the language's rule (`other` for ja, zh-CN, ko, id-ID and vi; `one` and
 and `other` for ru). The parity tests (`core_catalogs_are_in_parity`,
 `desktop_ui_catalogs_are_in_parity` and the TUI's
 `the_registry_matches_the_tui_catalogs`) fail on a missing or extra id, a
-renamed placeholder, markup, a wrong plural shape, an empty value, a control
-character, a decomposed (non-NFC) Latin or Cyrillic text, a `_meta.name`
+renamed placeholder, markup (an HTML tag, comment or character reference
+in any value, or a `<`, `>` or `&` the reference value lacks), a wrong
+plural shape, an empty value, a control, direction or zero-width character,
+a decomposed (non-NFC) Latin or Cyrillic text, a `_meta.name`
 that is not the endonym, and a file the registry does not list (or the
 reverse). A row whose script is not Latin or Cyrillic also needs its
 `--font-script` stack in `css/themes.css`, and every row needs drawn flag

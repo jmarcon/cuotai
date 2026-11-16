@@ -136,11 +136,100 @@ pub fn pending_review(catalog: &Catalog) -> Vec<&str> {
         .unwrap_or_default()
 }
 
-fn has_markup(message: &Message) -> bool {
-    message
-        .templates()
-        .iter()
-        .any(|text| text.contains('<') || text.contains('>'))
+/// Whether `c` has no business in a catalog text (PRD 0034 re-validation
+/// S-04): a control character other than a line break, a bidi override or
+/// isolate ([`super::is_disguising`]), a bidi mark (U+200E, U+200F, U+061C)
+/// or a zero-width or invisible character (U+200B–U+200D, U+2060–U+2064,
+/// U+FEFF). Each can reorder or hide what a terminal, a notice or a page
+/// shows. `char::is_control` alone sees only category Cc, not these Cf ones.
+pub fn is_hidden_or_directional(c: char) -> bool {
+    c != '\n'
+        && (super::is_disguising(c)
+            || matches!(
+                c,
+                '\u{200B}'..='\u{200F}' | '\u{2060}'..='\u{2064}' | '\u{FEFF}' | '\u{061C}'
+            ))
+}
+
+/// HTML element names a catalog text never carries. A bare `<word>` that is
+/// not one of these stays allowed: catalogs write example values that way
+/// (`<token>`, `<user_id>`, `<区域>`).
+const HTML_ELEMENTS: &[&str] = &[
+    "a", "abbr", "audio", "b", "body", "br", "button", "div", "em", "embed", "font", "form", "hr",
+    "html", "i", "iframe", "img", "input", "li", "link", "math", "meta", "object", "ol", "p",
+    "pre", "s", "script", "small", "span", "strong", "style", "sub", "sup", "svg", "table", "td",
+    "textarea", "tr", "u", "ul", "video",
+];
+
+/// Whether `text` holds markup in absolute terms, whatever its source holds:
+/// a closing tag, a comment or declaration (`</`, `<!`, `<?`), an HTML
+/// element (`<b>`, `<img …>`), any tag with an attribute (`<x y=…>`), or a
+/// character reference (`&amp;`, `&#…`).
+pub fn has_markup(text: &str) -> bool {
+    let chars: Vec<char> = text.chars().collect();
+    for (i, &c) in chars.iter().enumerate() {
+        let next = chars.get(i + 1).copied();
+        match c {
+            '<' => {
+                if matches!(next, Some('/' | '!' | '?')) {
+                    return true;
+                }
+                let name: String = chars[i + 1..]
+                    .iter()
+                    .take_while(|c| c.is_ascii_alphanumeric())
+                    .collect();
+                if name.is_empty() || !name.starts_with(|c: char| c.is_ascii_alphabetic()) {
+                    continue;
+                }
+                let after = &chars[i + 1 + name.len()..];
+                let ends_tag = matches!(after.first(), None | Some('>' | '/'))
+                    || after.first().is_some_and(|c| c.is_whitespace());
+                if ends_tag && HTML_ELEMENTS.contains(&name.to_ascii_lowercase().as_str()) {
+                    return true;
+                }
+                // `<x attr=` (an attribute), whatever the element.
+                if after.first().is_some_and(|c| c.is_whitespace()) {
+                    let rest: String = after.iter().skip_while(|c| c.is_whitespace()).collect();
+                    let attr: String = rest
+                        .chars()
+                        .take_while(|c| c.is_ascii_alphanumeric() || *c == '-')
+                        .collect();
+                    if !attr.is_empty() && rest[attr.len()..].trim_start().starts_with('=') {
+                        return true;
+                    }
+                }
+            }
+            '&' => {
+                if next == Some('#') {
+                    return true;
+                }
+                let name: String = chars[i + 1..]
+                    .iter()
+                    .take_while(|c| c.is_ascii_alphanumeric())
+                    .collect();
+                if !name.is_empty() && chars.get(i + 1 + name.len()) == Some(&';') {
+                    return true;
+                }
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
+/// How many of the markup characters `<`, `>` and `&` `text` holds, each
+/// counted on its own.
+fn markup_counts(text: &str) -> [usize; 3] {
+    let mut counts = [0; 3];
+    for c in text.chars() {
+        match c {
+            '<' => counts[0] += 1,
+            '>' => counts[1] += 1,
+            '&' => counts[2] += 1,
+            _ => {}
+        }
+    }
+    counts
 }
 
 /// Every problem of `catalog` (the language of `row`) against `reference`
@@ -179,8 +268,21 @@ pub fn problems(
         {
             out.push(format!("{code}: placeholders of {id} differ"));
         }
-        if has_markup(message) && !has_markup(source) {
-            out.push(format!("{code}: {id} carries markup"));
+        // S-04: a translation adds no `<`, `>` or `&` beyond the most any
+        // template of its source holds, counted per character, so an id
+        // whose source shows `<token>` cannot smuggle `<img src=x>`.
+        let source_counts = source
+            .templates()
+            .iter()
+            .map(|text| markup_counts(text))
+            .fold([0; 3], |a, b| {
+                [a[0].max(b[0]), a[1].max(b[1]), a[2].max(b[2])]
+            });
+        if message.templates().iter().any(|text| {
+            let counts = markup_counts(text);
+            (0..3).any(|i| counts[i] > source_counts[i])
+        }) {
+            out.push(format!("{code}: {id} carries markup its source lacks"));
         }
         match (message, source) {
             (Message::Plural(forms), Message::Plural(_)) => {
@@ -204,6 +306,18 @@ pub fn problems(
             if text.chars().any(|c| c.is_control() && c != '\n') {
                 out.push(format!("{code}: {id} has a control character"));
             }
+            if let Some(c) = text
+                .chars()
+                .find(|c| !c.is_control() && is_hidden_or_directional(*c))
+            {
+                out.push(format!(
+                    "{code}: {id} has the direction or zero-width character U+{:04X}",
+                    c as u32
+                ));
+            }
+            if has_markup(text) {
+                out.push(format!("{code}: {id} carries markup"));
+            }
             // A cheap NFC proxy (no normalization crate in the tree): a
             // Latin or Cyrillic text stores precomposed letters, so a
             // combining diacritic (U+0300..U+036F) means a decomposed form.
@@ -215,4 +329,87 @@ pub fn problems(
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::text::locale_row;
+
+    /// PRD 0034 re-validation S-04: direction, zero-width and markup
+    /// characters are refused in every catalog text, the reference too.
+    #[test]
+    fn hidden_characters_and_markup_are_refused_in_absolute_terms() {
+        let row = locale_row("de").unwrap();
+        let reference = Catalog::parse(
+            r#"{"_meta":{"name":"English"},"a":"Use <token>","b":"Data & privacy","c":"x"}"#,
+        )
+        .unwrap();
+        let check = |a: &str, b: &str, c: &str| {
+            let raw = serde_json::json!({"_meta": {"name": "Deutsch"}, "a": a, "b": b, "c": c});
+            let catalog = Catalog::parse(&raw.to_string()).unwrap();
+            problems(row, &catalog, &reference, Default::default())
+        };
+        let fine = check("Nutze <Token>", "Daten & Datenschutz", "x\ny");
+        assert!(fine.is_empty(), "{fine:?}");
+        for (c, why) in [
+            ('\u{202E}', "U+202E"),
+            ('\u{2066}', "U+2066"),
+            ('\u{200B}', "U+200B"),
+            ('\u{200F}', "U+200F"),
+            ('\u{2060}', "U+2060"),
+            ('\u{FEFF}', "U+FEFF"),
+            ('\u{061C}', "U+061C"),
+        ] {
+            let found = check("Nutze <Token>", "Daten & Datenschutz", &format!("x{c}y"));
+            assert!(found.iter().any(|p| p.contains(why)), "{why}: {found:?}");
+        }
+        // The source shows `<token>`, yet a tag is refused, and so is any
+        // `<`, `>` or `&` beyond the source's own.
+        for (a, b, c) in [
+            ("<img src=x> <Token>", "Daten & Datenschutz", "x"),
+            ("Nutze <b>", "Daten & Datenschutz", "x"),
+            ("Nutze <Token>", "Daten &amp; Datenschutz", "x"),
+            ("Nutze <Token>", "Daten & Datenschutz", "<x>"),
+            ("Nutze <Token> <x>", "Daten & Datenschutz", "x"),
+        ] {
+            let found = check(a, b, c);
+            assert!(
+                found.iter().any(|p| p.contains("markup")),
+                "{a} / {b} / {c}: {found:?}"
+            );
+        }
+        // The reference checked against itself is held to the same rules.
+        let bad = Catalog::parse(r#"{"_meta":{"name":"Deutsch"},"a":"<a href=x>y</a>"}"#).unwrap();
+        let found = problems(row, &bad, &bad, Default::default());
+        assert!(found.iter().any(|p| p.contains("markup")), "{found:?}");
+    }
+
+    #[test]
+    fn has_markup_tells_tags_from_example_values() {
+        for text in [
+            "<token>",
+            "<user_id>",
+            "<区域>",
+            "< {amount}",
+            "a > b",
+            "R&D",
+            "x & y;",
+        ] {
+            assert!(!has_markup(text), "{text}");
+        }
+        for text in [
+            "<b>x",
+            "</x>",
+            "<!-- x -->",
+            "<?x?>",
+            "<IMG SRC=x>",
+            "<x onclick=y>",
+            "<br/>",
+            "&lt;",
+            "&#60;",
+        ] {
+            assert!(has_markup(text), "{text}");
+        }
+    }
 }

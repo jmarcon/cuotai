@@ -626,14 +626,13 @@ impl Notices {
     }
 
     /// Remember the language chosen in the app for the next notices: a
-    /// BCP 47-like code (`pt-BR`, `es`, a user pack's code). Errors:
-    /// `invalid_locale`, `unwritable`.
+    /// built-in code in any spelling (`PT-br`) or a language tag the UI's
+    /// `Intl` reads (`es`, `sr-Latn-RS`, a user pack's code; PRD 0034
+    /// re-validation S-05 refuses `en-US-US`). Errors: `invalid_locale`,
+    /// `unwritable`.
     pub fn set_locale(&mut self, locale: &str) -> Result<(), &'static str> {
-        let valid = !locale.is_empty()
-            && locale.len() <= 35
-            && locale
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+        let valid = locale.len() <= 35
+            && (cuotai_core::text::locale_row(locale).is_some() || is_language_tag(locale));
         if !valid {
             return Err("invalid_locale");
         }
@@ -1071,6 +1070,43 @@ fn min_of(a: Option<DateTime<Utc>>, b: Option<DateTime<Utc>>) -> Option<DateTime
     }
 }
 
+/// Whether `code` is a BCP 47 language tag of the shape a language pack
+/// name may take (`usercontent.js` `LOCALE_RE` plus `Intl`'s grammar): a
+/// 2-3 letter language, then an optional 4-letter script, an optional
+/// region (2 letters or 3 digits) and distinct variants (5-8 alphanumerics,
+/// or 4 starting with a digit). `en-US-US` and `en-a1` are refused, as
+/// `Intl.getCanonicalLocales` refuses them.
+fn is_language_tag(code: &str) -> bool {
+    let mut parts = code.split('-').peekable();
+    let alpha = |s: &str, n: std::ops::RangeInclusive<usize>| {
+        n.contains(&s.len()) && s.bytes().all(|b| b.is_ascii_alphabetic())
+    };
+    if !parts.next().is_some_and(|lang| alpha(lang, 2..=3)) {
+        return false;
+    }
+    if parts.peek().is_some_and(|s| alpha(s, 4..=4)) {
+        parts.next();
+    }
+    if parts
+        .peek()
+        .is_some_and(|s| alpha(s, 2..=2) || (s.len() == 3 && s.bytes().all(|b| b.is_ascii_digit())))
+    {
+        parts.next();
+    }
+    let mut variants = Vec::new();
+    for variant in parts {
+        let alnum = variant.bytes().all(|b| b.is_ascii_alphanumeric());
+        let shaped = (5..=8).contains(&variant.len())
+            || (variant.len() == 4 && variant.as_bytes()[0].is_ascii_digit());
+        let lower = variant.to_ascii_lowercase();
+        if !alnum || !shaped || variants.contains(&lower) {
+            return false;
+        }
+        variants.push(lower);
+    }
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1367,6 +1403,21 @@ mod tests {
         // The reset itself is the same reset: no second notice.
         assert_eq!(tick(&mut notices, &cfg, &reports, t0(), &fake).delivered, 0);
         assert_eq!(notices.set_locale("pt BR; rm"), Err("invalid_locale"));
+        // S-05: the tags `Intl` refuses are refused here too.
+        for bad in [
+            "en-US-US",
+            "en-a1",
+            "xx-ab-cd-ef",
+            "",
+            "e",
+            "en--US",
+            "de-1996-1996",
+        ] {
+            assert_eq!(notices.set_locale(bad), Err("invalid_locale"), "{bad}");
+        }
+        for fine in ["sr-Latn-RS", "es-419", "de-CH-1996", "ca-valencia"] {
+            assert!(is_language_tag(fine), "{fine}");
+        }
         notices.set_locale("PT-br").unwrap();
         assert_eq!(notices.locale(), "pt-BR", "a built-in code is canonical");
         notices.set_locale("nl").unwrap();

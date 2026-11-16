@@ -5,12 +5,14 @@
 //
 // Theme:    themes/<id>.css  — optional header  /*! cuotai-theme {"label":"Name","group":"custom","modes":["dark","light"]} */
 // Language: locales/<code>.json — { "_meta": { "name": "Name" }, "key": "text" }
-import { LOCALES, registerLocale, t } from "./i18n.js";
+import { LOCALES, isIntlTag, registerLocale, t } from "./i18n.js";
 import { isBuiltinTheme, registerTheme, THEMES } from "./themes.js";
 
 const T = window.__TAURI__;
 export const userContent = { dir: null, errors: [] };
 
+// The shape of a pack name; `isIntlTag` then refuses what `Intl` cannot read (`en-US-US`, `en-a1`), PRD 0034
+// re-validation S-05.
 const LOCALE_RE = /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/;
 const MAX_BYTES = 256 * 1024;
 
@@ -29,7 +31,7 @@ function addTheme(file) {
 
 function addLocale(file) {
   const code = file.name.replace(/\.json$/i, "");
-  if (!LOCALE_RE.test(code)) throw new Skip("invalidId");
+  if (!LOCALE_RE.test(code) || !isIntlTag(code)) throw new Skip("invalidId");
   if (file.text.length > MAX_BYTES) throw new Skip("tooLarge");
   let data;
   try { data = JSON.parse(file.text); } catch { throw new Skip("invalidJson"); }

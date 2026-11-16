@@ -108,14 +108,30 @@ Structured texts emitted by the core carry `Localized { id, params, fallback }`:
   with the categories of the language's rule (`Localized::plural`).
   Resolution (`Localized::resolve`, `cuotai_core::text::core_catalog`)
   follows the order exact locale → same language → `fallback`.
-- The core tests enforce the catalogs (`text::parity`): equal key sets,
-  equal placeholder names, plural shapes, no markup, NFC text, the `_meta`
-  shape, the length budgets of `docs/i18n-length-budgets.md`, every plural
+- The core tests enforce the catalogs (`text::parity`, which the TUI's
+  catalog test calls too): equal key sets, equal placeholder names, plural
+  shapes, no markup (no HTML tag, comment or character reference in any
+  value, and no `<`, `>` or `&` beyond the reference value's, counted per
+  character), no control, direction or zero-width character
+  (`parity::is_hidden_or_directional`), NFC text, the `_meta` shape, the length budgets of `docs/i18n-length-budgets.md`, every plural
   rendering the counts 0, 1, 2, 5, 11, 21, 22 and 1.5, and no Portuguese
   marker in an English fallback (every `Localized` built in the core tests
   passes `text::portuguese_markers`). The process for translators (glossary,
   register, review checklist, status table) is in
   `apps/desktop/ui/locales/README.md`.
+- **Params are untrusted (PRD 0034 re-validation S-06).** A param value
+  is plain text that can come from outside (an account name, a provider's
+  message, a path). Every renderer substitutes in one pass (core
+  `text::substitute`, TUI `l10n::trf`, desktop `i18n.js`): a value that
+  contains `{name}` is never expanded again. Each front end escapes the
+  rendered text for its sink (HTML escaping in the desktop,
+  `text::strip_disguising` for terminals, status bars and notices).
+  Catalog values hold no markup, no URL a UI acts on (URLs in help texts
+  are text only; actionable links come from descriptors) and no direction
+  or zero-width characters; the parity tests above enforce the first and
+  the last. A desktop language pack's code must be a tag `Intl` reads
+  (`usercontent.js`, mirrored by `notify.rs` `set_locale`), and every
+  `Intl` constructor falls back to en-US on a tag it cannot read.
 - The desktop app receives the core catalog through the Tauri command
   `core_catalog(locale)`, and `js/i18n.js` merges it under the UI catalog
   (`apps/desktop/ui/locales/*.json`); user packs (in

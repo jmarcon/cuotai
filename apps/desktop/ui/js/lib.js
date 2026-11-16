@@ -1,5 +1,5 @@
 import { DEFAULT_THEME, GROUP_ORDER, THEMES, effectiveMode, themeById } from "./themes.js";
-import { LOCALES, currentLocale, pendingLocales, setLocale, t, te, tl } from "./i18n.js";
+import { LOCALES, currentLocale, intlTag, pendingLocales, setLocale, t, te, tl } from "./i18n.js";
 import { esc, uiPath } from "./util.js";
 import { desktopAction } from "./desktop-wording.js";
 import { flagCountry, flagSvg } from "./flags.js";
@@ -625,7 +625,7 @@ const formatters = new Map();
 export function intlFormatter(kind, locale, options) {
   const key = `${kind}|${locale}|${JSON.stringify(options)}`;
   let f = formatters.get(key);
-  if (!f) { f = new Intl[kind](locale, options); formatters.set(key, f); }
+  if (!f) { f = new Intl[kind](intlTag(locale), options); formatters.set(key, f); } // a bad tag formats as en-US (S-05)
   return f;
 }
 /** `date.toLocaleTimeString(locale, options)` / `toLocaleDateString` with the formatter cached (same output when

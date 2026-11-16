@@ -51,8 +51,21 @@ export const machineTranslated = () => uiCatalogs.get(current)?._meta?.reviewed 
 // One Intl.PluralRules per locale: building one on every plural lookup showed in the render profile.
 let plural = null;
 function pluralRules() {
-  if (!plural || plural.locale !== current) plural = { locale: current, rules: new Intl.PluralRules(current) };
+  if (!plural || plural.locale !== current) plural = { locale: current, rules: new Intl.PluralRules(intlTag(current)) };
   return plural.rules;
+}
+/** PRD 0034 re-validation S-05: whether `code` is a language tag `Intl` reads (`en-US-US` matches a loose shape but
+ *  makes every `Intl` constructor throw). */
+export function isIntlTag(code) {
+  if (typeof code !== "string" || code === "") return false;
+  try { return Intl.getCanonicalLocales(code).length === 1 && Boolean(new Intl.PluralRules(code)); } catch { return false; }
+}
+/** `code` when `Intl` reads it, else en-US: a bad tag formats in English instead of breaking every render. */
+const intlTags = new Map();
+export function intlTag(code) {
+  if (code === undefined) return code;
+  if (!intlTags.has(code)) intlTags.set(code, isIntlTag(code) ? code : FALLBACK);
+  return intlTags.get(code);
 }
 /** Whether `code` can be chosen: a built-in language with catalogs, or a user pack. */
 export const hasLocale = (code) => LOCALES.some((l) => l.code === code);
@@ -338,7 +351,7 @@ function englishText(note) {
 }
 
 /** Intl locale of the UI: the pseudo-locale formats like en-US. */
-const intlLocale = () => (current === PSEUDO ? FALLBACK : current);
+const intlLocale = () => (current === PSEUDO ? FALLBACK : intlTag(current));
 /** The text of a core `amount.*` note in the UI locale; null for any other note or a malformed value (the caller
  *  then shows the core's en-US fallback). */
 function amountText(value) {
