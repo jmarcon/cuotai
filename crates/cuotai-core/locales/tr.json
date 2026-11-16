@@ -696,6 +696,10 @@
     "other": "Oturumun süresi {count} gün içinde dolacak"
   },
   "events.summary.usage_updated": "Kullanım güncellendi: {usage}",
+  "events.usage.amount": "{amount} {unit}",
+  "events.usage.item_amount": "{metric} {amount} {unit}",
+  "events.usage.item_number": "{metric} {amount}",
+  "events.usage.item_percent": "{metric} {pct}",
   "extensions.action.account_invalid": "Uzantı hesabı oluşturulamadı.",
   "extensions.action.candidate_expired": "Bu onay artık geçerli değil; onaylamadan önce uzantıyı yeniden gözden geçirin.",
   "extensions.action.changed": "{id} uzantısı onaydan sonra değişti; hiçbir program çalıştırılmadı.",
@@ -2053,6 +2057,7 @@
   "text.duration.hours": "{h}sa",
   "text.duration.hours_minutes": "{h}sa {m}dk",
   "text.duration.minutes": "{m} dk",
+  "text.list.join": "{first}, {rest}",
   "text.weekday.short.friday": "Cum",
   "text.weekday.short.monday": "Pzt",
   "text.weekday.short.saturday": "Cmt",

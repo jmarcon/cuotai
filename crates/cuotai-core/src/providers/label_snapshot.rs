@@ -105,3 +105,205 @@ fn every_fixture_text_has_an_english_display_text() {
     }
     assert!(problems.is_empty(), "{problems:#?}");
 }
+
+/// The surfaces' guard (PRD 0034 re-validation, G9): the adapters' raw
+/// labels and units are ids, and no surface shows one. The sentinels are
+/// the adapters' own Portuguese texts (every fixture's, plus the Claude,
+/// Codex and Copilot ones) wherever a language words them differently;
+/// they are rendered through the widget file (every field but the `label`
+/// and `unit` ids), the export's display texts, and every event summary,
+/// in English and German, and none may appear in what a person reads.
+#[test]
+fn raw_metric_texts_never_reach_a_surface() {
+    use crate::events::{Event, EventKind, MetricReading, MetricRef, Values};
+    use crate::metric_text::metric_text;
+    use crate::{Account, Config, MetricKind, Provider, Report, Status};
+    use chrono::TimeZone;
+
+    let now = chrono::Utc
+        .with_ymd_and_hms(2026, 10, 20, 12, 0, 0)
+        .unwrap();
+    let mut metrics: Vec<Metric> = fixtures()
+        .into_iter()
+        .flat_map(|(_, metrics)| metrics)
+        .collect();
+    for (label, unit) in [
+        ("Sessão (5 horas) (%)", "%"),
+        ("Semana (7 dias) (%)", "%"),
+        ("Codex — janela de 5 hora(s) (%)", "%"),
+        (
+            "Solicitações premium utilizadas (mês corrente)",
+            "solicitações",
+        ),
+        ("Requisições", "requisições"),
+    ] {
+        metrics.push(Metric::usage(label, 1.0, unit, MetricKind::Quota, None));
+    }
+    // Every metric gets a fraction, so the widget file publishes it.
+    for metric in &mut metrics {
+        metric.kind = MetricKind::Quota;
+        metric.billing = crate::Billing::Included;
+        metric.used = Some(1.0);
+        metric.limit = Some(10.0);
+        metric.remaining = None;
+    }
+    let sentinels = |locale: &str| -> Vec<String> {
+        let mut raw: Vec<String> = metrics
+            .iter()
+            .flat_map(|m| [Some(&m.label), Some(&m.unit), m.period.as_ref()])
+            .flatten()
+            .filter(|raw| !raw.trim().is_empty() && metric_text(raw).resolve(locale) != **raw)
+            .cloned()
+            .collect();
+        raw.sort();
+        raw.dedup();
+        raw
+    };
+    let leaks = |surface: &str, locale: &str, texts: &[String]| -> Vec<String> {
+        let mut out = Vec::new();
+        for raw in sentinels(locale) {
+            for text in texts {
+                if text.contains(&raw) {
+                    out.push(format!("{surface} {locale}: {raw:?} in {text:?}"));
+                }
+            }
+        }
+        out
+    };
+    // The string values of a JSON document outside the raw-id members.
+    fn shown(value: &serde_json::Value, out: &mut Vec<String>) {
+        match value {
+            serde_json::Value::String(text) => out.push(text.clone()),
+            serde_json::Value::Array(items) => items.iter().for_each(|v| shown(v, out)),
+            serde_json::Value::Object(members) => {
+                for (key, v) in members {
+                    // The ids themselves, and a `Localized`'s params (its
+                    // rendered text is the `fallback` beside them).
+                    if !matches!(key.as_str(), "label" | "unit" | "period" | "params") {
+                        shown(v, out);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // One account per metric: the widget file keeps four per account.
+    let accounts: Vec<Account> = (0..metrics.len())
+        .map(|i| Account {
+            id: None,
+            name: format!("Probe {i}"),
+            provider: Provider::Groq,
+            ..Account::default()
+        })
+        .collect();
+    let config = Config {
+        accounts: accounts.clone(),
+        ..Config::default()
+    };
+    let mut cycle = crate::refresh::RefreshCycle::new(&config, std::time::Instant::now());
+    for (index, metric) in metrics.iter().enumerate() {
+        let report = Report {
+            account_id: None,
+            diagnostic: None,
+            account: accounts[index].name.clone(),
+            provider: Provider::Groq,
+            checked_at: now,
+            status: Status::Ready,
+            metrics: vec![metric.clone()],
+            notes: Vec::new(),
+            notes_l10n: Vec::new(),
+            source: String::new(),
+            session_expires_at: None,
+            sub_reports: Vec::new(),
+            as_of: None,
+            overage_hint: None,
+            breakdown: Vec::new(),
+        };
+        let token = cycle.begin(index).unwrap();
+        cycle.finish_account(index, Some(report), token, std::time::Instant::now());
+    }
+    let export = crate::export::v1::Export::from_cycle(
+        &config,
+        &crate::config_file::ConfigIdentity::Explicit("guard".into()),
+        &cycle,
+        &[],
+        now,
+        crate::export::v1::Options::default(),
+    );
+    let mut problems = Vec::new();
+
+    // The export (`--json`): every display text (English fallbacks).
+    let mut texts = Vec::new();
+    shown(&serde_json::to_value(&export).unwrap(), &mut texts);
+    problems.extend(leaks("export", "en-US", &texts));
+
+    // The widget file, written without a language and in German.
+    let widgets = crate::widget_snapshot::WidgetSnapshot::from_export(&export, metrics.len());
+    assert_eq!(
+        widgets.accounts.len(),
+        metrics.len(),
+        "every probe published"
+    );
+    for (locale, snapshot) in [
+        ("en-US", widgets.clone()),
+        ("de", widgets.clone().in_language("de")),
+    ] {
+        let mut texts = Vec::new();
+        shown(&serde_json::to_value(&snapshot).unwrap(), &mut texts);
+        problems.extend(leaks("widget", locale, &texts));
+    }
+
+    // Every event summary, about each metric, with every reading.
+    let readings: Vec<MetricReading> = metrics
+        .iter()
+        .map(|m| MetricReading {
+            label: m.label.clone(),
+            label_text: metric_text(&m.label),
+            window: m.window,
+            used: m.used,
+            limit: m.limit,
+            remaining: None,
+            unit: m.unit.clone(),
+            unit_text: metric_text(&m.unit),
+            used_ratio: None,
+            resets_at: None,
+        })
+        .collect();
+    for metric in &metrics {
+        for kind in EventKind::ALL {
+            let event = Event {
+                schema: crate::events::SCHEMA,
+                event: kind,
+                occurred_at: now,
+                account_key: "groq:Probe".into(),
+                account_id: "acc_probe".into(),
+                account_name: "Probe".into(),
+                provider: Some(Provider::Groq),
+                accounts: Vec::new(),
+                parent: None,
+                metric: Some(MetricRef::new(metric.label.clone(), metric.window)),
+                current: Values {
+                    used: Some(2.0),
+                    limit: Some(10.0),
+                    unit: Some(metric.unit.clone()),
+                    unit_text: Some(metric_text(&metric.unit)),
+                    spent: Some(2.0),
+                    metrics: readings.clone(),
+                    ..Values::default()
+                },
+                previous: Some(Values {
+                    limit: Some(5.0),
+                    ..Values::default()
+                }),
+                sample: false,
+                row: None,
+            };
+            for locale in ["en-US", "de"] {
+                let line = event.summary().resolve(locale);
+                problems.extend(leaks(kind.name(), locale, &[line]));
+            }
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}

@@ -259,8 +259,13 @@ pub(crate) mod n_minus_1 {
         let export = empty_export();
         crate::widget_snapshot::write(&export, &path, 6).unwrap();
         let bak = crate::private_fs::backup_path(&path);
-        if m.expected == "current" {
-            assert!(!bak.exists());
+        // A shipped manifest keeps the `expected` of the release that wrote
+        // it; what decides the backup is whether the file's version is the
+        // one this release writes.
+        let ours = m.major == crate::widget_snapshot::SCHEMA
+            && m.revision == crate::widget_snapshot::SCHEMA_REVISION;
+        if ours {
+            assert!(!bak.exists(), "{}", dir.display());
         } else {
             assert_eq!(std::fs::read(&bak).unwrap(), bytes, "kept as .bak");
         }

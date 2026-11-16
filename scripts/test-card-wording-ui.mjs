@@ -382,3 +382,44 @@ console.log("PASS: remaining-share wording renders in pt-BR, en-US, es and it; U
   assert.ok(privacy.indexOf('"status-domains"') < privacy.indexOf('key: "detect"'), "the domains follow the status switch");
   console.log("PASS: status wording distinguishes an unread page, keeps the age lowercase and lists the domains once");
 }
+
+// PRD 0034 re-validation (G9): the raw label and unit are ids; the History panel, amounts, the pace label fallback and
+// a core amount with a unit of its own read their display texts (`label_text`, `unit_text`), never the Portuguese ids.
+{
+  const lib = await import("../apps/desktop/ui/js/lib.js");
+  const { metricHtml } = await import("../apps/desktop/ui/js/history.js");
+  const text = (id, fallback, params = {}) => ({ id, params, fallback });
+  const raw = { label: "Solicitações premium utilizadas (mês corrente)", unit: "créditos" };
+  const shown = {
+    ...raw,
+    label_text: text("metric.label.premium_requests_month", "Premium requests used (current month)"),
+    unit_text: text("metric.unit.credits", "credits"),
+  };
+  const history = {
+    ...shown, key: "k", kind: "quota", window: "other", limit: 300, samples: 2,
+    trend: { min: 1200, max: 1300, last: { taken_at: "2026-01-01T00:00:00Z", used: 1300 } },
+    chart: { heights: [0.1, 0.2], last: { x: 1, y: 0.2 }, resets: [] },
+    windows: [{ started_at: "2026-01-01T00:00:00Z", ended_at: "2026-01-02T00:00:00Z", initial_used: 1200, final_used: 1300, peak_used: 1300, peak_at: "2026-01-02T00:00:00Z" }],
+  };
+  for (const code of ["en-US", "de", "ja"]) {
+    await i18n.setLocale(code);
+    const outputs = [
+      metricHtml(history, { range: "day" }),
+      lib.fmtAmount({ ...shown, used: 1234.5, limit: null }),
+      lib.fmtValue(1234.5, shown),
+      lib.paceLabelOf({ ...shown, window: "other" }),
+      lib.unitName(shown),
+      i18n.tl({ id: "amount.units", params: { value: "12.5", unit: shown.unit_text }, fallback: "12.5 credits" }),
+    ];
+    for (const out of outputs) {
+      assert.ok(!out.includes("Solicitações") && !out.includes("créditos"), `${code}: a raw id shown: ${out}`);
+    }
+    assert.ok(outputs[0].includes(esc(i18n.tl(shown.label_text))), `${code}: the History label: ${outputs[0]}`);
+    assert.ok(outputs[1].endsWith(` ${i18n.tl(shown.unit_text)}`), `${code}: the unit: ${outputs[1]}`);
+  }
+  // A "request count" unit stays implicit, whatever the language of its id.
+  await i18n.setLocale("en-US");
+  const requests = { label: "x", unit: "solicitações", unit_text: text("metric.unit.requests", "requests"), used: 3, limit: 10 };
+  assert.equal(lib.fmtAmount(requests), "3 / 10");
+  console.log("PASS: the History panel, amounts and pace fallback show display texts, never raw labels or units");
+}

@@ -5474,6 +5474,9 @@ mod tests {
 
     /// The README and `docs/tui.md` screenshots: six placeholder accounts
     /// (no real names, e-mails or tokens) in English, 120 x 34 cells.
+    /// The adapters' own raw labels and units (Portuguese ids, each with a
+    /// `metric.*` text), so a raw label on screen shows as Portuguese in
+    /// every other language (PRD 0034 re-validation, G9).
     fn screenshot_fixture() -> (Vec<Account>, Vec<Option<Report>>) {
         let account = |name: &str, provider: Provider| Account {
             id: None,
@@ -5513,7 +5516,7 @@ mod tests {
                 Provider::Claude,
                 vec![
                     quota(
-                        "Session (5h)",
+                        "Sessão (5 horas) (%)",
                         31.0,
                         100.0,
                         "%",
@@ -5521,7 +5524,7 @@ mod tests {
                         185,
                     ),
                     quota(
-                        "Weekly",
+                        "Semana (7 dias) (%)",
                         64.0,
                         100.0,
                         "%",
@@ -5534,7 +5537,7 @@ mod tests {
                 Provider::ChatGpt,
                 vec![
                     quota(
-                        "Session (5h)",
+                        "Codex — janela de 5 hora(s) (%)",
                         12.0,
                         100.0,
                         "%",
@@ -5542,7 +5545,7 @@ mod tests {
                         240,
                     ),
                     quota(
-                        "Weekly",
+                        "Codex — janela de 1 semana(s) (%)",
                         41.0,
                         100.0,
                         "%",
@@ -5554,10 +5557,10 @@ mod tests {
             Some(ready(
                 Provider::Cursor,
                 vec![quota(
-                    "Requests",
+                    "Cursor plano baseado em requisições",
                     500.0,
                     500.0,
-                    "req",
+                    "requisições",
                     MetricWindow::Monthly,
                     19 * 60 + 59,
                 )],
@@ -5565,10 +5568,10 @@ mod tests {
             Some(ready(
                 Provider::Copilot,
                 vec![quota(
-                    "Premium requests",
+                    "Solicitações premium utilizadas (mês corrente)",
                     120.0,
                     300.0,
-                    "req",
+                    "solicitações",
                     MetricWindow::Monthly,
                     12 * 1440,
                 )],
@@ -5578,16 +5581,16 @@ mod tests {
                 vec![Metric {
                     kind: MetricKind::Spend,
                     unit: "USD".into(),
-                    ..metric("Spend this month", Some(42.7), None, None)
+                    ..metric("Custo no mês corrente (USD)", Some(42.7), None, None)
                 }],
             )),
             Some(ready(
                 Provider::Groq,
                 vec![quota(
-                    "Daily requests",
+                    "Requisições",
                     9650.0,
                     10000.0,
-                    "req",
+                    "requisições",
                     MetricWindow::Daily,
                     329,
                 )],
@@ -5868,6 +5871,70 @@ mod tests {
             assert!(!text.contains(portuguese), "{portuguese}:\n{text}");
         }
         assert!(!text.contains('@'), "no e-mail in a screenshot");
+    }
+
+    /// PRD 0034 re-validation (G9): the dashboard and every account's
+    /// details name metrics and units by their display texts; the
+    /// adapters' raw (Portuguese) labels and units of the screenshot
+    /// fixture never show in English or German.
+    #[test]
+    fn raw_metric_labels_and_units_never_show() {
+        let (accounts, reports) = screenshot_fixture();
+        let now = at_min(0) + chrono::Duration::seconds(7);
+        let raw = [
+            "Sessão",
+            "Semana",
+            "janela",
+            "hora(s)",
+            "semana(s)",
+            "plano baseado",
+            "requisições",
+            "Requisições",
+            "Solicitações",
+            "solicitações",
+            "mês corrente",
+            "Custo",
+        ];
+        for code in ["en-US", "de"] {
+            for view in std::iter::once((false, 0)).chain((0..accounts.len()).map(|i| (true, i))) {
+                let buffer = crate::l10n::with_locale(code, || {
+                    render_view_buffer(
+                        &accounts,
+                        &reports,
+                        &[],
+                        &[],
+                        view,
+                        now,
+                        (120, 40),
+                        None,
+                        &[],
+                        None,
+                    )
+                });
+                let text = buffer_rows(&buffer).join("\n");
+                for word in raw {
+                    assert!(!text.contains(word), "{code} {view:?}: {word}\n{text}");
+                }
+            }
+        }
+        // The control: pt-BR shows the same labels, in its own words, so
+        // the check above reads the labels the screen draws.
+        let portuguese = crate::l10n::with_locale("pt-BR", || {
+            render_view_buffer(
+                &accounts,
+                &reports,
+                &[],
+                &[],
+                (true, 0),
+                now,
+                (120, 40),
+                None,
+                &[],
+                None,
+            )
+        });
+        let text = buffer_rows(&portuguese).join("\n");
+        assert!(text.contains("Sessão") && text.contains("Semana"), "{text}");
     }
 
     #[test]

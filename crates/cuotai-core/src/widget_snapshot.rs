@@ -29,6 +29,7 @@ use serde::Serialize;
 
 use crate::export::v1::{AccountExport, Export};
 use crate::freshness::Freshness;
+use crate::metric_text::metric_text;
 use crate::metrics::{self, Binding};
 use crate::overage::OverageExport;
 use crate::pace::Pace;
@@ -39,9 +40,10 @@ use crate::{Metric, MetricWindow, Provider, Report, Status};
 pub const SCHEMA: u32 = 1;
 
 /// PRD 0051 RF3.1: the additive revision of [`SCHEMA`] this release writes.
-/// Revision 0 writes no `schema_revision` member, as every release before
-/// the envelope did.
-pub const SCHEMA_REVISION: u32 = 0;
+/// Revision 0 wrote no `schema_revision` member, as every release before
+/// the envelope did. Revision 1 (PRD 0034) adds the snapshot's `locale` and
+/// each metric's `label_text` and `unit_text`.
+pub const SCHEMA_REVISION: u32 = 1;
 
 /// PRD 0014 RF2.1: on macOS the file always lives here, below the home
 /// directory, whatever the data folder is: the widget extension's sandbox
@@ -92,6 +94,9 @@ pub enum WidgetState {
 pub struct WidgetSnapshot {
     /// Always [`SCHEMA`].
     pub schema: u32,
+    /// [`SCHEMA_REVISION`] (PRD 0051 RF3.1); absent while it is 0.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub schema_revision: u32,
     pub generated_at: DateTime<Utc>,
     /// In the binding order (the most restrictive account first).
     pub accounts: Vec<WidgetAccount>,
@@ -167,13 +172,21 @@ pub struct WidgetAccount {
 /// capacity is known.
 #[derive(Debug, Clone, Serialize)]
 pub struct WidgetMetric {
+    /// The adapter's label: an identifier (often Portuguese), never drawn.
     pub label: String,
+    /// PRD 0034: the label as a person reads it, a plain text in the app's
+    /// language ([`WidgetSnapshot::in_language`]; English without one).
+    pub label_text: String,
     /// `used / limit` in `0..=`[`MAX_USED_FRACTION`] (overuse reads above 1).
     pub used_fraction: f64,
     /// The capacity the fraction came from, so a panel can also draw the
     /// amount. Always present here: the metric has no fraction without it.
     pub limit: f64,
+    /// The adapter's unit: an identifier, never drawn.
     pub unit: String,
+    /// PRD 0034: the unit as a person reads it, in the same language as
+    /// [`Self::label_text`].
+    pub unit_text: String,
     pub window: Option<MetricWindow>,
     pub resets_at: Option<DateTime<Utc>>,
     /// The pace (PRD 0007) when the metric has one; only current readings
@@ -217,6 +230,7 @@ impl WidgetSnapshot {
         accounts.truncate(max_accounts);
         Self {
             schema: SCHEMA,
+            schema_revision: SCHEMA_REVISION,
             generated_at: export.generated_at,
             accounts,
             truncated,
@@ -226,9 +240,24 @@ impl WidgetSnapshot {
 
     /// The same snapshot in the app's language `code`, normalized to its
     /// registry code; a code the registry does not know writes no
-    /// `locale` (the widget then keeps the system's language).
+    /// `locale` (the widget then keeps the system's language). The
+    /// metrics' `label_text`/`unit_text`, and the binding's display text,
+    /// are rendered in that language (PRD 0034 re-validation V-02); with an
+    /// unknown code they stay in English.
     pub fn in_language(mut self, code: &str) -> Self {
         self.locale = crate::text::locale_row(code).map(|row| row.code);
+        let Some(locale) = self.locale else {
+            return self;
+        };
+        for account in &mut self.accounts {
+            for metric in &mut account.metrics {
+                metric.label_text = metric_text(&metric.label).resolve(locale);
+                metric.unit_text = metric_text(&metric.unit).resolve(locale);
+            }
+            if let Some(binding) = account.binding.as_mut() {
+                binding.label_text = binding.label_text.with_fallback_locale(locale);
+            }
+        }
         self
     }
 
@@ -297,6 +326,10 @@ fn keep_other_version(path: &Path) -> std::io::Result<()> {
         Some(version) if version != ours => crate::private_fs::backup_file(path),
         _ => Ok(()),
     }
+}
+
+fn is_zero(value: &u32) -> bool {
+    *value == 0
 }
 
 /// Atomic write of `bytes` at `path`: a temporary file in the same
@@ -542,9 +575,11 @@ fn widget_metrics(
             let metric = &metrics[index];
             WidgetMetric {
                 label: metric.label.clone(),
+                label_text: metric_text(&metric.label).text().to_owned(),
                 used_fraction: fraction(metric).unwrap_or(0.0),
                 limit: metric.limit.unwrap_or_default(),
                 unit: metric.unit.clone(),
+                unit_text: metric_text(&metric.unit).text().to_owned(),
                 window: metric.window,
                 resets_at: metric.resets_at,
                 pace: pace.get(index).cloned().flatten().map(bounded_pace),
@@ -984,10 +1019,7 @@ mod tests {
         let json: serde_json::Value =
             serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
         assert_eq!(json["schema"], SCHEMA);
-        assert!(
-            json.get("schema_revision").is_none(),
-            "revision 0 writes none"
-        );
+        assert_eq!(json["schema_revision"], SCHEMA_REVISION);
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -1049,6 +1081,55 @@ mod tests {
         }
     }
 
+    /// PRD 0034 re-validation V-02: the raw label and unit stay ids; the
+    /// file carries their texts in the app's language beside them, plain
+    /// strings a widget draws as they are (English without a language).
+    #[test]
+    fn metrics_carry_their_texts_in_the_app_language() {
+        let config = Config {
+            accounts: vec![account("Work", Provider::Claude)],
+            ..Config::default()
+        };
+        let mut cycle = RefreshCycle::new(&config, Instant::now());
+        let credits = Metric {
+            unit: "créditos".into(),
+            ..quota("Semana (7 dias) (%)", 30.0, 100.0, 24)
+        };
+        finish(
+            &mut cycle,
+            0,
+            report(&config.accounts[0], Status::Ready, vec![credits], 3),
+        );
+        let export = build(&config, &cycle, Options::default());
+        let english = WidgetSnapshot::from_export(&export, 6);
+        let metric = &english.accounts[0].metrics[0];
+        assert_eq!(metric.label, "Semana (7 dias) (%)");
+        assert_eq!(metric.label_text, "Week (7 days) (%)");
+        assert_eq!(metric.unit, "créditos");
+        assert_eq!(metric.unit_text, "credits");
+        let german = WidgetSnapshot::from_export(&export, 6).in_language("de");
+        let metric = &german.accounts[0].metrics[0];
+        assert_eq!(metric.label, "Semana (7 dias) (%)", "the id is kept");
+        assert_eq!(
+            metric.label_text,
+            metric_text("Semana (7 dias) (%)").resolve("de")
+        );
+        assert_eq!(metric.unit_text, metric_text("créditos").resolve("de"));
+        assert!(!metric.label_text.contains("Semana"));
+        let binding = german.accounts[0].binding.as_ref().unwrap();
+        assert_eq!(binding.label_text.text(), metric.label_text);
+        // An unknown language keeps the English texts.
+        let unknown = WidgetSnapshot::from_export(&export, 6).in_language("xx");
+        assert_eq!(
+            unknown.accounts[0].metrics[0].label_text,
+            "Week (7 days) (%)"
+        );
+        let json = serde_json::to_value(&german).unwrap();
+        assert_eq!(json["schema_revision"], SCHEMA_REVISION);
+        assert!(json["accounts"][0]["metrics"][0]["label_text"].is_string());
+        assert!(json["accounts"][0]["metrics"][0]["unit_text"].is_string());
+    }
+
     /// The writer's output for a representative set of accounts, committed
     /// so the macOS extension's decoder and render check read exactly what
     /// this core writes (`apps/desktop/tools/widget-shots/macos/render.sh
@@ -1068,9 +1149,11 @@ mod tests {
             ..Config::default()
         };
         let mut cycle = RefreshCycle::new(&config, Instant::now());
+        // The adapters' own (Portuguese) labels and unit: the file carries
+        // them as ids and their German texts beside them (PRD 0034).
         let session = Metric {
             window: Some(MetricWindow::Window5h),
-            ..quota("Session (5h)", 12.0, 100.0, 3)
+            ..quota("Sessão (5 horas) (%)", 12.0, 100.0, 3)
         };
         finish(
             &mut cycle,
@@ -1078,19 +1161,32 @@ mod tests {
             report(
                 &work,
                 Status::Ready,
-                vec![quota("Week", 39.0, 100.0, 80), session],
+                vec![quota("Semana (7 dias) (%)", 39.0, 100.0, 80), session],
                 3,
             ),
         );
         // Over its limit, as an exhausted plan reads: the share passes 1.
         let premium = Metric {
             window: Some(MetricWindow::Monthly),
-            ..quota("Premium requests", 7001.0, 7000.0, 300)
+            unit: "solicitações".into(),
+            ..quota(
+                "Solicitações premium utilizadas (mês corrente)",
+                7001.0,
+                7000.0,
+                300,
+            )
+        };
+        // A second quota, so the exhausted account (whose hero says
+        // "Exhausted" instead of a name) still draws a label it is given.
+        let requests = Metric {
+            window: Some(MetricWindow::Monthly),
+            unit: "requisições".into(),
+            ..quota("Requisições", 120.0, 300.0, 300)
         };
         finish(
             &mut cycle,
             1,
-            report(&personal, Status::Ready, vec![premium], 20),
+            report(&personal, Status::Ready, vec![premium, requests], 20),
         );
         finish(
             &mut cycle,

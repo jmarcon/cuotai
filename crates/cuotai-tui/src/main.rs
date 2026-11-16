@@ -3081,6 +3081,48 @@ mod tests {
         assert!(!en.contains(".00"), "{en}");
     }
 
+    /// PRD 0034 re-validation (G9): `--once` names each metric and unit by
+    /// its display text; the adapters' raw (Portuguese) label and unit never
+    /// reach the output in English or German, and pt-BR keeps its words.
+    #[test]
+    fn once_never_prints_a_raw_label_or_unit() {
+        let now = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+        let mut week = quota(MetricWindow::Weekly, 64.0, None);
+        week.label = "Semana (7 dias) (%)".into();
+        let mut requests = quota(MetricWindow::Monthly, 120.0, None);
+        requests.label = "Solicitações premium utilizadas (mês corrente)".into();
+        requests.unit = "solicitações".into();
+        requests.limit = Some(300.0);
+        let mut credits = quota(MetricWindow::Monthly, 12.5, None);
+        credits.label = "Saldo de créditos".into();
+        credits.unit = "créditos".into();
+        credits.limit = None;
+        let report = report("Work", Status::Ready, vec![week, requests, credits]);
+        let at = |t: DateTime<Utc>| t.format("%H:%M").to_string();
+        for code in ["en-US", "de"] {
+            let text = crate::l10n::with_locale(code, || {
+                report_text(&report, &[], None, FIVE_MIN, now, code, at)
+            });
+            for raw in [
+                "Semana",
+                "Solicitações",
+                "solicitações",
+                "créditos",
+                "mês corrente",
+            ] {
+                assert!(!text.contains(raw), "{code}: {raw}\n{text}");
+            }
+        }
+        let en = crate::l10n::with_locale("en-US", || {
+            report_text(&report, &[], None, FIVE_MIN, now, "en-US", at)
+        });
+        assert!(en.contains("Week (7 days) (%)"), "{en}");
+        let pt = crate::l10n::with_locale("pt-BR", || {
+            report_text(&report, &[], None, FIVE_MIN, now, "pt-BR", at)
+        });
+        assert!(pt.contains("Semana (7 dias) (%)"), "{pt}");
+    }
+
     #[test]
     fn once_prints_the_pace_line_under_each_eligible_metric() {
         let now = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();

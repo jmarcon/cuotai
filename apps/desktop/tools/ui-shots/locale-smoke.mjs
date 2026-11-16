@@ -34,7 +34,7 @@ const WORDS = new Set(["não", "você", "voce", "conta", "contas", "cota", "cota
   "autorização", "pendente", "refaça", "sucesso", "cole", "este", "esta", "fluxo", "aceita", "aguarde", "encerrada", "ligado"]);
 // Words that are also valid Spanish or Italian: they only count on the English pages.
 const SHARED = new Set(["conta", "contas", "cota", "cotas", "pendente", "dias", "navegador", "cole", "este", "esta", "fonte", "mes",
-  "semana", "salvar", "informe", "disponible", "aguarde", "fluxo", "ligado", "sucesso", "carregada"]);
+  "semana", "salvar", "informe", "disponible", "aguarde", "fluxo", "ligado", "sucesso", "carregada", "créditos"]);
 
 const COLLECT = `(() => {
   const out = [];

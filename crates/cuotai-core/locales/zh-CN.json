@@ -680,6 +680,10 @@
     "other": "会话将在 {count} 天后过期"
   },
   "events.summary.usage_updated": "用量已更新：{usage}",
+  "events.usage.amount": "{amount} {unit}",
+  "events.usage.item_amount": "{metric} {amount} {unit}",
+  "events.usage.item_number": "{metric} {amount}",
+  "events.usage.item_percent": "{metric} {pct}",
   "extensions.action.account_invalid": "无法创建扩展的账户。",
   "extensions.action.candidate_expired": "此确认已失效；请在批准前重新检查扩展。",
   "extensions.action.changed": "扩展 {id} 在批准后已更改；未运行任何程序。",
@@ -2029,6 +2033,7 @@
   "text.duration.hours": "{h}小时",
   "text.duration.hours_minutes": "{h}小时{m}分",
   "text.duration.minutes": "{m}分钟",
+  "text.list.join": "{first}，{rest}",
   "text.weekday.short.friday": "周五",
   "text.weekday.short.monday": "周一",
   "text.weekday.short.saturday": "周六",

@@ -680,6 +680,10 @@
     "other": "Phiên hết hạn sau {count} ngày"
   },
   "events.summary.usage_updated": "Mức sử dụng đã cập nhật: {usage}",
+  "events.usage.amount": "{amount} {unit}",
+  "events.usage.item_amount": "{metric} {amount} {unit}",
+  "events.usage.item_number": "{metric} {amount}",
+  "events.usage.item_percent": "{metric} {pct}",
   "extensions.action.account_invalid": "Không tạo được tài khoản tiện ích mở rộng.",
   "extensions.action.candidate_expired": "Xác nhận này không còn hiệu lực; hãy xem lại tiện ích mở rộng trước khi phê duyệt.",
   "extensions.action.changed": "Tiện ích mở rộng {id} đã thay đổi kể từ khi phê duyệt; không chạy chương trình nào.",
@@ -2029,6 +2033,7 @@
   "text.duration.hours": "{h} giờ",
   "text.duration.hours_minutes": "{h} giờ {m} phút",
   "text.duration.minutes": "{m} phút",
+  "text.list.join": "{first}, {rest}",
   "text.weekday.short.friday": "T6",
   "text.weekday.short.monday": "T2",
   "text.weekday.short.saturday": "T7",

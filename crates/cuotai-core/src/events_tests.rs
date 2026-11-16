@@ -1193,3 +1193,55 @@ fn breakdown_rows_report_through_the_gate_with_their_scope() {
     let json = serde_json::to_value(&own[0]).unwrap();
     assert!(json.get("scope").is_none());
 }
+
+/// PRD 0034 re-validation V-08: the `usage_updated` line names each metric
+/// by its display text, writes the percent and the amount in the reader's
+/// number format and the unit's display text; the adapters' raw label and
+/// unit (Portuguese) never reach it, in any language but pt-BR.
+#[test]
+fn the_usage_line_is_localized_and_never_shows_raw_texts() {
+    let reading = |label: &str, used: f64, ratio: Option<f64>, unit: &str| MetricReading {
+        label: label.into(),
+        label_text: metric_text(label),
+        window: None,
+        used: Some(used),
+        limit: None,
+        remaining: None,
+        unit: unit.into(),
+        unit_text: metric_text(unit),
+        used_ratio: ratio,
+        resets_at: None,
+    };
+    let metrics = [
+        reading("Semana (7 dias) (%)", 42.0, Some(0.424), "%"),
+        reading("Saldo de créditos", 1234.5, None, "créditos"),
+        reading("Uso extra — utilizado", 3.25, None, ""),
+    ];
+    let ParamValue::L10n(line) = usage_text(&metrics) else {
+        panic!("a list of texts");
+    };
+    assert_eq!(
+        line.resolve("en-US"),
+        "Week (7 days) (%) 42%, Credit balance 1,234.5\u{a0}credits, Extra usage — used 3.25"
+    );
+    let german = line.resolve("de");
+    assert!(german.contains("42\u{a0}%"), "{german}");
+    assert!(german.contains("1.234,5"), "{german}");
+    assert!(line.resolve("ja").contains('、'));
+    // Wherever a language words a raw text differently (pt-BR keeps the
+    // adapters' own), the raw text never appears.
+    for locale in crate::text::catalog_locales() {
+        let shown = line.resolve(locale);
+        for raw in [
+            "Semana (7 dias) (%)",
+            "Saldo de créditos",
+            "Uso extra — utilizado",
+            "créditos",
+        ] {
+            if metric_text(raw).resolve(locale) != raw {
+                assert!(!shown.contains(raw), "{locale}: {shown}");
+            }
+        }
+    }
+    assert!(matches!(usage_text(&[]), ParamValue::Text(text) if text == "-"));
+}
