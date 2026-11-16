@@ -249,8 +249,11 @@
   "headless.hooks_reloaded": "cuotai : hooks rechargés.",
   "headless.hooks_suspended": "cuotai : hooks suspendus.",
   "headless.hooks_suspended_error": "cuotai : hooks suspendus : {error}",
-  "headless.reload_failed": "cuotai : configuration non rechargée ; la précédente reste en service : {error}",
-  "headless.reloaded": "cuotai : configuration rechargée ({count} compte(s)).",
+  "headless.reload_failed": "cuotai : configuration non rechargée ; la précédente reste en service. {error}",
+  "headless.reloaded": {
+    "one": "cuotai : configuration rechargée ({count} compte).",
+    "other": "cuotai : configuration rechargée ({count} comptes)."
+  },
   "headless.server_at": "cuotai : serveur local sur {url}",
   "headless.server_stopped": "cuotai : serveur local arrêté.",
   "headless.watch_stopped": "cuotai : surveillance arrêtée.",
@@ -340,8 +343,8 @@
   "report.no_account": "Aucun compte de ce nom dans la configuration.",
   "report.open_link": "Ouvrez ce lien pour créer l'issue (Cuotai n'envoie rien) :",
   "report.title": " SIGNALER UN PROBLÈME ",
-  "serve.port.cuotai_holder": " Un autre serveur Cuotai local l’utilise.",
-  "serve.port.hint": " Utilisez --port pour choisir un autre port.",
+  "serve.port.cuotai_holder": "Un autre serveur Cuotai local l’utilise.",
+  "serve.port.hint": "Utilisez --port pour choisir un autre port.",
   "serve.started": "cuotai : serveur local en lecture seule ; Ctrl+C l’arrête.",
   "stats.account_line": {
     "one": "moyenne {average} · {hits} limite atteinte · {spark}",
@@ -467,7 +470,10 @@
   "vault.prune.none": "Aucun identifiant n’est inutilisé avec certitude ; rien à supprimer.",
   "vault.prune.skipped": "Conservé {key} : {reason}.",
   "watch.hooks_active": " {count} hook(s) actif(s).",
-  "watch.started": "cuotai : surveillance de {count} compte(s) ; le premier relevé de chacun sert de référence et n’émet aucun événement. Ctrl+C arrête.",
+  "watch.started": {
+    "one": "cuotai : surveillance de {count} compte ; le premier relevé de chacun sert de référence et n’émet aucun événement. Ctrl+C arrête.",
+    "other": "cuotai : surveillance de {count} comptes ; le premier relevé de chacun sert de référence et n’émet aucun événement. Ctrl+C arrête."
+  },
   "wizard.aggregator.fix_and_retest": " Corrigez et testez à nouveau avant d’enregistrer.",
   "wizard.aggregator.test_line": "Test de connexion : ",
   "wizard.aggregator.testing": "Test de la connexion…",
@@ -669,5 +675,6 @@
   "cli.list_providers.aggregator": " (agrégateur)",
   "cost.plan.no_account": "Aucun compte configuré ne s’appelle {account} ; utilisez son identifiant ou provider:name.",
   "status_line.unknown_account": "--account {value} ne désigne aucun compte unique ; utilisez un id (de --json-v1, /v1/limits ou la ligne id du TOML), une clé ou un nom unique. Ids : {ids}.",
-  "status_line.no_accounts": "aucun"
+  "status_line.no_accounts": "aucun",
+  "headless.strict_exit_no_ready": "cuotai : code de sortie 2 (--strict-exit) : aucun compte n’a eu de relevé correct avant l’arrêt du serveur."
 }

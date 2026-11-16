@@ -176,10 +176,16 @@ fn auto_caps_meters_and_logos() {
     assert_eq!(s.items.len(), AUTO_METERS);
     assert_eq!(s.hidden, 4);
     assert_eq!(s.title, None);
-    assert_eq!(
-        auto(&accounts, TrayStyle::LogosPercent).items.len(),
-        AUTO_LOGOS
+    let logos = auto(&accounts, TrayStyle::LogosPercent);
+    assert_eq!(logos.items.len(), AUTO_LOGOS);
+    // Re-validation V-09: the "+N" counts the accounts beyond the cap too.
+    let title = logos.title.unwrap();
+    let shown = title.matches('%').count();
+    assert!(
+        title.ends_with(&format!(" +{}", accounts.len() - shown)),
+        "{title}"
     );
+    assert_eq!(logos.hidden, accounts.len() - shown);
     assert_eq!(auto(&accounts, TrayStyle::IconOnly).title, None);
 }
 

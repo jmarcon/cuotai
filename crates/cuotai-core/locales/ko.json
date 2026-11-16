@@ -1972,6 +1972,7 @@
   "serve.client.invalid_url": "로컬 서버 주소가 올바르지 않습니다. http://127.0.0.1:PORT 형식을 사용하세요.",
   "serve.client.not_loopback": "로컬 서버는 루프백(127.0.0.1 또는 ::1)에서만 읽습니다. localhost는 127.0.0.1로 읽습니다.",
   "serve.client.not_ready": "로컬 서버에 아직 조회값이 없습니다. 잠시 후 다시 시도하세요.",
+  "serve.client.token_file": "로컬 서버의 토큰 파일을 읽을 수 없습니다(토큰 하나만 담긴 본인 소유의 일반 파일이어야 합니다).",
   "serve.client.unauthorized": "로컬 서버가 토큰을 거부했습니다(--serve와 같은 파일로 --token-file을 사용하세요).",
   "serve.client.unproven": "포트 {port}의 프로그램이 사용자의 Cuotai 서버임을 증명하지 못했습니다. 서버 쪽 Cuotai를 업데이트하거나 포트를 사용 중인 프로그램을 확인하세요.",
   "serve.client.unreachable": "로컬 서버가 응답하지 않았습니다. 실행 중인가요(cuotai --serve)?",

@@ -1972,6 +1972,7 @@
   "serve.client.invalid_url": "本地服务器地址无效：请使用 http://127.0.0.1:端口。",
   "serve.client.not_loopback": "本地服务器只能通过回环地址读取（127.0.0.1 或 ::1；localhost 按 127.0.0.1 读取）。",
   "serve.client.not_ready": "本地服务器还没有读数；请稍后重试。",
+  "serve.client.token_file": "无法读取本地服务器的令牌文件（它必须是你自己的普通文件，且只包含一个令牌）。",
   "serve.client.unauthorized": "本地服务器拒绝了该令牌（请对 --token-file 使用与 --serve 相同的文件）。",
   "serve.client.unproven": "端口 {port} 上的程序未能证明它是你的 Cuotai 服务器；请更新服务器端的 Cuotai，或检查是什么占用了该端口。",
   "serve.client.unreachable": "本地服务器没有响应；它是否正在运行（cuotai --serve）？",

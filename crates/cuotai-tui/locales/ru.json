@@ -257,8 +257,13 @@
   "headless.hooks_reloaded": "cuotai: хуки перезагружены.",
   "headless.hooks_suspended": "cuotai: хуки приостановлены.",
   "headless.hooks_suspended_error": "cuotai: хуки приостановлены: {error}",
-  "headless.reload_failed": "cuotai: конфигурация не перезагружена; продолжает действовать прежняя: {error}",
-  "headless.reloaded": "cuotai: конфигурация перезагружена (учётных записей: {count}).",
+  "headless.reload_failed": "cuotai: конфигурация не перезагружена; продолжает действовать прежняя. {error}",
+  "headless.reloaded": {
+    "one": "cuotai: конфигурация перезагружена (учётных записей: {count}).",
+    "few": "cuotai: конфигурация перезагружена (учётных записей: {count}).",
+    "many": "cuotai: конфигурация перезагружена (учётных записей: {count}).",
+    "other": "cuotai: конфигурация перезагружена (учётных записей: {count})."
+  },
   "headless.server_at": "cuotai: локальный сервер по адресу {url}",
   "headless.server_stopped": "cuotai: локальный сервер остановлен.",
   "headless.watch_stopped": "cuotai: наблюдение завершено.",
@@ -348,8 +353,8 @@
   "report.no_account": "В конфигурации нет аккаунта с таким именем.",
   "report.open_link": "Откройте эту ссылку, чтобы создать issue (Cuotai ничего не отправляет):",
   "report.title": " СООБЩИТЬ О ПРОБЛЕМЕ ",
-  "serve.port.cuotai_holder": " Его уже использует другой локальный сервер Cuotai.",
-  "serve.port.hint": " Выберите другой порт с помощью --port.",
+  "serve.port.cuotai_holder": "Его уже использует другой локальный сервер Cuotai.",
+  "serve.port.hint": "Выберите другой порт с помощью --port.",
   "serve.started": "cuotai: локальный сервер только для чтения; Ctrl+C — завершение.",
   "stats.account_line": {
     "one": "среднее {average} · достигнуто лимитов: {hits} · {spark}",
@@ -489,7 +494,12 @@
   "vault.prune.none": "Нет учётных данных, которые точно не используются; удалять нечего.",
   "vault.prune.skipped": "Сохранено {key}: {reason}.",
   "watch.hooks_active": " активных хуков: {count}.",
-  "watch.started": "cuotai: наблюдение за учётными записями: {count}; первое показание каждой служит основой и событий не вызывает. Ctrl+C — завершение.",
+  "watch.started": {
+    "one": "cuotai: наблюдение за учётными записями: {count}; первое показание каждой служит основой и событий не вызывает. Ctrl+C — завершение.",
+    "few": "cuotai: наблюдение за учётными записями: {count}; первое показание каждой служит основой и событий не вызывает. Ctrl+C — завершение.",
+    "many": "cuotai: наблюдение за учётными записями: {count}; первое показание каждой служит основой и событий не вызывает. Ctrl+C — завершение.",
+    "other": "cuotai: наблюдение за учётными записями: {count}; первое показание каждой служит основой и событий не вызывает. Ctrl+C — завершение."
+  },
   "wizard.aggregator.fix_and_retest": " Исправьте и повторите проверку перед сохранением.",
   "wizard.aggregator.test_line": "Проверка подключения: ",
   "wizard.aggregator.testing": "Проверка подключения…",
@@ -693,5 +703,6 @@
   "cli.list_providers.aggregator": " (агрегатор)",
   "cost.plan.no_account": "Нет настроенного аккаунта с именем {account}; используйте его id или provider:name.",
   "status_line.unknown_account": "--account {value} не указывает ровно одну учётную запись; используйте id (из --json-v1, /v1/limits или строки id в TOML), ключ или уникальное имя. Id: {ids}.",
-  "status_line.no_accounts": "нет"
+  "status_line.no_accounts": "нет",
+  "headless.strict_exit_no_ready": "cuotai: код выхода 2 (--strict-exit): ни одна учётная запись не получила исправного показания до остановки сервера."
 }

@@ -245,8 +245,10 @@
   "headless.hooks_reloaded": "cuotai: 훅을 다시 불러왔습니다.",
   "headless.hooks_suspended": "cuotai: 훅이 중지되었습니다.",
   "headless.hooks_suspended_error": "cuotai: 훅이 중지되었습니다: {error}",
-  "headless.reload_failed": "cuotai: 설정을 다시 불러오지 못했습니다. 이전 설정을 계속 사용합니다: {error}",
-  "headless.reloaded": "cuotai: 설정을 다시 불러왔습니다(계정 {count}개).",
+  "headless.reload_failed": "cuotai: 설정을 다시 불러오지 못했습니다. 이전 설정을 계속 사용합니다. {error}",
+  "headless.reloaded": {
+    "other": "cuotai: 설정을 다시 불러왔습니다(계정 {count}개)."
+  },
   "headless.server_at": "cuotai: 로컬 서버 {url}",
   "headless.server_stopped": "cuotai: 로컬 서버가 중지되었습니다.",
   "headless.watch_stopped": "cuotai: 감시가 중지되었습니다.",
@@ -336,8 +338,8 @@
   "report.no_account": "구성에 그 이름의 계정이 없습니다.",
   "report.open_link": "이 링크를 열어 issue를 작성하세요(Cuotai는 아무것도 보내지 않습니다):",
   "report.title": " 문제 신고 ",
-  "serve.port.cuotai_holder": " 다른 로컬 Cuotai 서버가 사용 중입니다.",
-  "serve.port.hint": " --port로 다른 포트를 선택하세요.",
+  "serve.port.cuotai_holder": "다른 로컬 Cuotai 서버가 사용 중입니다.",
+  "serve.port.hint": "--port로 다른 포트를 선택하세요.",
   "serve.started": "cuotai: 읽기 전용 로컬 서버입니다. Ctrl+C로 중지합니다.",
   "stats.account_line": {
     "other": "평균 {average} · 한도 {hits}회 도달 · {spark}"
@@ -456,7 +458,9 @@
   "vault.prune.none": "미사용으로 확인된 자격 증명이 없습니다. 삭제할 것이 없습니다.",
   "vault.prune.skipped": "보관함 {key}: {reason}.",
   "watch.hooks_active": " 훅 {count}개 활성.",
-  "watch.started": "cuotai: 계정 {count}개를 감시하는 중입니다. 각 계정의 첫 조회값은 기준이 되며 이벤트를 만들지 않습니다. Ctrl+C로 종료합니다.",
+  "watch.started": {
+    "other": "cuotai: 계정 {count}개를 감시하는 중입니다. 각 계정의 첫 조회값은 기준이 되며 이벤트를 만들지 않습니다. Ctrl+C로 종료합니다."
+  },
   "wizard.aggregator.fix_and_retest": " 고친 뒤 저장하기 전에 다시 테스트하세요.",
   "wizard.aggregator.test_line": "연결 테스트: ",
   "wizard.aggregator.testing": "연결을 테스트하는 중…",
@@ -657,5 +661,6 @@
   "cli.list_providers.aggregator": " (애그리게이터)",
   "cost.plan.no_account": "{account}(이)라는 이름의 설정된 계정이 없습니다. ID 또는 provider:name을 사용하세요.",
   "status_line.unknown_account": "--account {value}에 해당하는 계정이 하나로 정해지지 않습니다. id(--json-v1, /v1/limits 또는 TOML의 id 줄), 키 또는 고유한 이름을 사용하세요. Id: {ids}.",
-  "status_line.no_accounts": "없음"
+  "status_line.no_accounts": "없음",
+  "headless.strict_exit_no_ready": "cuotai: 종료 코드 2(--strict-exit): 서버가 멈추기 전까지 정상 조회값을 얻은 계정이 없습니다."
 }

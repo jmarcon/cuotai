@@ -249,8 +249,11 @@
   "headless.hooks_reloaded": "cuotai: हुक दोबारा लोड हुए।",
   "headless.hooks_suspended": "cuotai: हुक रोके गए।",
   "headless.hooks_suspended_error": "cuotai: हुक रोके गए: {error}",
-  "headless.reload_failed": "cuotai: कॉन्फ़िगरेशन दोबारा लोड नहीं हुआ; पिछला ही इस्तेमाल में रहेगा: {error}",
-  "headless.reloaded": "cuotai: कॉन्फ़िगरेशन दोबारा लोड हुआ ({count} खाते)।",
+  "headless.reload_failed": "cuotai: कॉन्फ़िगरेशन दोबारा लोड नहीं हुआ; पिछला ही इस्तेमाल में रहेगा। {error}",
+  "headless.reloaded": {
+    "one": "cuotai: कॉन्फ़िगरेशन दोबारा लोड हुआ ({count} खाता)।",
+    "other": "cuotai: कॉन्फ़िगरेशन दोबारा लोड हुआ ({count} खाते)।"
+  },
   "headless.server_at": "cuotai: स्थानीय सर्वर {url} पर",
   "headless.server_stopped": "cuotai: स्थानीय सर्वर रुक गया।",
   "headless.watch_stopped": "cuotai: निगरानी रुक गई।",
@@ -340,8 +343,8 @@
   "report.no_account": "कॉन्फ़िगरेशन में इस नाम का कोई खाता नहीं है।",
   "report.open_link": "issue दर्ज करने के लिए यह लिंक खोलें (Cuotai कुछ नहीं भेजता):",
   "report.title": " समस्या बताएँ ",
-  "serve.port.cuotai_holder": " कोई और स्थानीय Cuotai सर्वर इसे इस्तेमाल कर रहा है।",
-  "serve.port.hint": " दूसरा पोर्ट चुनने के लिए --port इस्तेमाल करें।",
+  "serve.port.cuotai_holder": "कोई और स्थानीय Cuotai सर्वर इसे इस्तेमाल कर रहा है।",
+  "serve.port.hint": "दूसरा पोर्ट चुनने के लिए --port इस्तेमाल करें।",
   "serve.started": "cuotai: रीड-ओनली स्थानीय सर्वर; Ctrl+C उसे रोकता है।",
   "stats.account_line": {
     "one": "औसत {average} · {hits} सीमा छुई गई · {spark}",
@@ -467,7 +470,10 @@
   "vault.prune.none": "कोई क्रेडेंशियल अप्रयुक्त साबित नहीं हुआ; मिटाने को कुछ नहीं।",
   "vault.prune.skipped": "रखा गया {key}: {reason}।",
   "watch.hooks_active": " {count} हुक सक्रिय।",
-  "watch.started": "cuotai: {count} खातों की निगरानी हो रही है; हर खाते की पहली रीडिंग आधार होती है और कोई इवेंट नहीं बनाती। Ctrl+C रोकता है।",
+  "watch.started": {
+    "one": "cuotai: {count} खाते की निगरानी हो रही है; उसकी पहली रीडिंग आधार होती है और कोई इवेंट नहीं बनाती। Ctrl+C रोकता है।",
+    "other": "cuotai: {count} खातों की निगरानी हो रही है; हर खाते की पहली रीडिंग आधार होती है और कोई इवेंट नहीं बनाती। Ctrl+C रोकता है।"
+  },
   "wizard.aggregator.fix_and_retest": " ठीक करें और सहेजने से पहले दोबारा परीक्षण करें।",
   "wizard.aggregator.test_line": "कनेक्शन का परीक्षण: ",
   "wizard.aggregator.testing": "कनेक्शन जाँचा जा रहा है…",
@@ -669,5 +675,6 @@
   "cli.list_providers.aggregator": " (एग्रीगेटर)",
   "cost.plan.no_account": "किसी भी कॉन्फ़िगर किए गए खाते का नाम {account} नहीं है; उसकी id या provider:name इस्तेमाल करें।",
   "status_line.unknown_account": "--account {value} किसी एक खाते की पहचान नहीं करता; एक id (--json-v1, /v1/limits या TOML की id पंक्ति से), एक कुंजी या एक अद्वितीय नाम इस्तेमाल करें। Ids: {ids}।",
-  "status_line.no_accounts": "कोई नहीं"
+  "status_line.no_accounts": "कोई नहीं",
+  "headless.strict_exit_no_ready": "cuotai: निकास कोड 2 (--strict-exit): सर्वर रुकने से पहले किसी भी खाते की सही रीडिंग नहीं मिली।"
 }

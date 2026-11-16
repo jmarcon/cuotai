@@ -195,16 +195,28 @@ async fn taken_port_message(error: &ServeError, port: u16, text: &str) -> String
     if !matches!(error, ServeError::PortInUse { .. }) {
         return text.to_owned();
     }
-    let holder = if is_cuotai_server(port).await {
-        crate::l10n::tr(
-            "serve.port.cuotai_holder",
-            " Another local Cuotai server uses it.",
-        )
-    } else {
+    // Re-validation V-13: sentences join with a space, except in Japanese
+    // and Chinese, whose full stop needs none.
+    let locale = crate::ui::tui_locale();
+    let gap = if locale.starts_with("ja") || locale.starts_with("zh") {
         ""
+    } else {
+        " "
     };
-    let hint = crate::l10n::tr("serve.port.hint", " Use --port to choose another port.");
-    format!("{text}{holder}{hint}")
+    let mut out = text.to_owned();
+    if is_cuotai_server(port).await {
+        out.push_str(gap);
+        out.push_str(crate::l10n::tr(
+            "serve.port.cuotai_holder",
+            "Another local Cuotai server uses it.",
+        ));
+    }
+    out.push_str(gap);
+    out.push_str(crate::l10n::tr(
+        "serve.port.hint",
+        "Use --port to choose another port.",
+    ));
+    out
 }
 
 /// Loopback on exactly the chosen port (PRD 0031 RF9.1): a taken port is an

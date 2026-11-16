@@ -252,8 +252,11 @@
   "headless.hooks_reloaded": "cuotai: hook ricaricati.",
   "headless.hooks_suspended": "cuotai: hook sospesi.",
   "headless.hooks_suspended_error": "cuotai: hook sospesi: {error}",
-  "headless.reload_failed": "cuotai: configurazione non ricaricata; resta in uso quella precedente: {error}",
-  "headless.reloaded": "cuotai: configurazione ricaricata ({count} account).",
+  "headless.reload_failed": "cuotai: configurazione non ricaricata; resta in uso quella precedente. {error}",
+  "headless.reloaded": {
+    "one": "cuotai: configurazione ricaricata ({count} account).",
+    "other": "cuotai: configurazione ricaricata ({count} account)."
+  },
   "headless.server_at": "cuotai: server locale su {url}",
   "headless.server_stopped": "cuotai: server locale arrestato.",
   "headless.watch_stopped": "cuotai: monitoraggio terminato.",
@@ -343,8 +346,8 @@
   "report.no_account": "Nessun account con quel nome nella configurazione.",
   "report.open_link": "Apri questo link per creare la issue (Cuotai non invia nulla):",
   "report.title": " SEGNALA UN PROBLEMA ",
-  "serve.port.cuotai_holder": " Un altro server locale di Cuotai la usa già.",
-  "serve.port.hint": " Usa --port per scegliere un'altra porta.",
+  "serve.port.cuotai_holder": "Un altro server locale di Cuotai la usa già.",
+  "serve.port.hint": "Usa --port per scegliere un'altra porta.",
   "serve.started": "cuotai: server locale in sola lettura; Ctrl+C lo arresta.",
   "stats.account_line": {
     "one": "media {average} · {hits} limite raggiunto · {spark}",
@@ -470,7 +473,10 @@
   "vault.prune.none": "Nessuna credenziale è sicuramente inutilizzata; niente da eliminare.",
   "vault.prune.skipped": "Mantenuta {key}: {reason}.",
   "watch.hooks_active": " {count} hook attivi.",
-  "watch.started": "cuotai: monitoraggio di {count} account; la prima lettura di ciascuno è la base e non genera eventi. Ctrl+C lo arresta.",
+  "watch.started": {
+    "one": "cuotai: monitoraggio di {count} account; la prima lettura di ciascuno è la base e non genera eventi. Ctrl+C lo arresta.",
+    "other": "cuotai: monitoraggio di {count} account; la prima lettura di ciascuno è la base e non genera eventi. Ctrl+C lo arresta."
+  },
   "wizard.aggregator.fix_and_retest": " Correggi e ripeti il test prima di salvare.",
   "wizard.aggregator.test_line": "Test della connessione: ",
   "wizard.aggregator.testing": "Test della connessione…",
@@ -666,5 +672,6 @@
   "cli.list_providers.aggregator": " (aggregatore)",
   "cost.plan.no_account": "Nessun account configurato si chiama {account}; usa il suo id o provider:name.",
   "status_line.unknown_account": "--account {value} non indica un solo account; usa un id (da --json-v1, /v1/limits o dalla riga id del TOML), una chiave o un nome unico. Id: {ids}.",
-  "status_line.no_accounts": "nessuno"
+  "status_line.no_accounts": "nessuno",
+  "headless.strict_exit_no_ready": "cuotai: codice di uscita 2 (--strict-exit): nessun account ha avuto una lettura valida prima che il server si fermasse."
 }

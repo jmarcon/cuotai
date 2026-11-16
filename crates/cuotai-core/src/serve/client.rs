@@ -34,6 +34,12 @@ const MAX_BYTES: usize = 4 * 1024 * 1024;
 /// The most a `/health` answer may weigh.
 const HEALTH_MAX_BYTES: usize = 16 * 1024;
 
+/// The token in `path` for a client: [`super::read_token_file`] with a
+/// client's error (the file is only read, never created).
+pub fn read_token(path: &std::path::Path) -> Result<Token, ClientError> {
+    super::read_token_file(path).map_err(|_| ClientError::TokenFile)
+}
+
 /// `http://127.0.0.1:<DEFAULT_PORT>`, where `cuotai --serve` listens by default.
 pub fn default_url() -> String {
     format!("http://{}:{DEFAULT_PORT}", Ipv4Addr::LOCALHOST)
@@ -57,6 +63,10 @@ pub enum ClientError {
     NotReady,
     #[error("The local server's answer is not a compatible /v1/limits.")]
     Incompatible,
+    /// Re-validation V-13: the token file to send could not be read (a
+    /// client never creates one, unlike `--serve`).
+    #[error("The local server's token file could not be read (it must be a regular file of yours holding a single token).")]
+    TokenFile,
     /// Re-validation S-03: the program on the port did not prove it holds
     /// the token, so the token was not sent.
     #[error("The program on port {port} did not prove it is your Cuotai server; update Cuotai on the server side, or check what holds the port.")]
@@ -72,6 +82,7 @@ impl ClientError {
             Self::Unauthorized => "serve.client.unauthorized",
             Self::NotReady => "serve.client.not_ready",
             Self::Incompatible => "serve.client.incompatible",
+            Self::TokenFile => "serve.client.token_file",
             Self::Unproven { port } => {
                 return Localized::with_param(
                     "serve.client.unproven",

@@ -245,8 +245,10 @@
   "headless.hooks_reloaded": "cuotai: đã tải lại hook.",
   "headless.hooks_suspended": "cuotai: hook đã bị tạm ngưng.",
   "headless.hooks_suspended_error": "cuotai: hook đã bị tạm ngưng: {error}",
-  "headless.reload_failed": "cuotai: cấu hình chưa được tải lại; vẫn dùng cấu hình trước: {error}",
-  "headless.reloaded": "cuotai: đã tải lại cấu hình ({count} tài khoản).",
+  "headless.reload_failed": "cuotai: cấu hình chưa được tải lại; vẫn dùng cấu hình trước. {error}",
+  "headless.reloaded": {
+    "other": "cuotai: đã tải lại cấu hình ({count} tài khoản)."
+  },
   "headless.server_at": "cuotai: máy chủ cục bộ tại {url}",
   "headless.server_stopped": "cuotai: máy chủ cục bộ đã dừng.",
   "headless.watch_stopped": "cuotai: đã dừng theo dõi.",
@@ -336,8 +338,8 @@
   "report.no_account": "Không có tài khoản nào có tên đó trong cấu hình.",
   "report.open_link": "Mở liên kết này để tạo issue (Cuotai không gửi gì cả):",
   "report.title": " BÁO CÁO SỰ CỐ ",
-  "serve.port.cuotai_holder": " Một máy chủ Cuotai cục bộ khác đang dùng nó.",
-  "serve.port.hint": " Dùng --port để chọn cổng khác.",
+  "serve.port.cuotai_holder": "Một máy chủ Cuotai cục bộ khác đang dùng nó.",
+  "serve.port.hint": "Dùng --port để chọn cổng khác.",
   "serve.started": "cuotai: máy chủ cục bộ chỉ-đọc; Ctrl+C để dừng.",
   "stats.account_line": {
     "other": "trung bình {average} · chạm {hits} giới hạn · {spark}"
@@ -456,7 +458,9 @@
   "vault.prune.none": "Không có thông tin xác thực nào được chứng minh là không dùng; không có gì để xóa.",
   "vault.prune.skipped": "Đã giữ {key}: {reason}.",
   "watch.hooks_active": " {count} hook đang hoạt động.",
-  "watch.started": "cuotai: đang theo dõi {count} tài khoản; lần đọc đầu của mỗi tài khoản là mốc gốc và không phát sự kiện. Ctrl+C để dừng.",
+  "watch.started": {
+    "other": "cuotai: đang theo dõi {count} tài khoản; lần đọc đầu của mỗi tài khoản là mốc gốc và không phát sự kiện. Ctrl+C để dừng."
+  },
   "wizard.aggregator.fix_and_retest": " Hãy sửa và kiểm tra lại trước khi lưu.",
   "wizard.aggregator.test_line": "Kiểm tra kết nối: ",
   "wizard.aggregator.testing": "Đang kiểm tra kết nối…",
@@ -657,5 +661,6 @@
   "cli.list_providers.aggregator": " (bộ tổng hợp)",
   "cost.plan.no_account": "Không có tài khoản đã cấu hình nào tên là {account}; hãy dùng id của nó hoặc provider:name.",
   "status_line.unknown_account": "--account {value} không chỉ đúng một tài khoản; hãy dùng id (từ --json-v1, /v1/limits hoặc dòng id trong TOML), khóa hoặc tên duy nhất. Id: {ids}.",
-  "status_line.no_accounts": "không có"
+  "status_line.no_accounts": "không có",
+  "headless.strict_exit_no_ready": "cuotai: mã thoát 2 (--strict-exit): không tài khoản nào có lần đọc hợp lệ trước khi máy chủ dừng."
 }

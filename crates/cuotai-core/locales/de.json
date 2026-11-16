@@ -1993,6 +1993,7 @@
   "serve.client.invalid_url": "Ungültige Adresse des lokalen Servers: Verwenden Sie http://127.0.0.1:PORT.",
   "serve.client.not_loopback": "Der lokale Server wird nur über Loopback gelesen (127.0.0.1 oder ::1; localhost wird als 127.0.0.1 gelesen).",
   "serve.client.not_ready": "Der lokale Server hat noch keine Messwerte; versuchen Sie es gleich noch einmal.",
+  "serve.client.token_file": "Die Token-Datei des lokalen Servers konnte nicht gelesen werden (sie muss eine reguläre Datei von Ihnen mit genau einem Token sein).",
   "serve.client.unauthorized": "Der lokale Server hat das Token abgelehnt (verwenden Sie --token-file mit derselben Datei wie bei --serve).",
   "serve.client.unproven": "Das Programm auf Port {port} hat nicht nachgewiesen, dass es Ihr Cuotai-Server ist; aktualisieren Sie Cuotai auf der Serverseite oder prüfen Sie, was den Port belegt.",
   "serve.client.unreachable": "Der lokale Server hat nicht geantwortet; läuft er (cuotai --serve)?",

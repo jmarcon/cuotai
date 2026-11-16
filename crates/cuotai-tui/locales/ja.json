@@ -245,8 +245,10 @@
   "headless.hooks_reloaded": "cuotai：フックを再読み込みしました。",
   "headless.hooks_suspended": "cuotai：フックを停止しました。",
   "headless.hooks_suspended_error": "cuotai：フックを停止しました：{error}",
-  "headless.reload_failed": "cuotai：設定を再読み込みできませんでした。以前の設定を使い続けます：{error}",
-  "headless.reloaded": "cuotai：設定を再読み込みしました（{count} アカウント）。",
+  "headless.reload_failed": "cuotai：設定を再読み込みできませんでした。以前の設定を使い続けます。{error}",
+  "headless.reloaded": {
+    "other": "cuotai：設定を再読み込みしました（{count} アカウント）。"
+  },
   "headless.server_at": "cuotai：ローカルサーバー {url}",
   "headless.server_stopped": "cuotai：ローカルサーバーを停止しました。",
   "headless.watch_stopped": "cuotai：監視を停止しました。",
@@ -336,8 +338,8 @@
   "report.no_account": "その名前のアカウントは設定にありません。",
   "report.open_link": "このリンクを開いて issue を作成してください（Cuotai は何も送信しません）:",
   "report.title": " 問題を報告 ",
-  "serve.port.cuotai_holder": " 別のローカル Cuotai サーバーが使用中です。",
-  "serve.port.hint": " --port で別のポートを選択してください。",
+  "serve.port.cuotai_holder": "別のローカル Cuotai サーバーが使用中です。",
+  "serve.port.hint": "--port で別のポートを選択してください。",
   "serve.started": "cuotai：読み取り専用のローカルサーバー。Ctrl+C で停止します。",
   "stats.account_line": {
     "other": "平均 {average} · 制限到達 {hits} 回 · {spark}"
@@ -456,7 +458,9 @@
   "vault.prune.none": "未使用と確認された認証情報はありません。削除するものはありません。",
   "vault.prune.skipped": "保持しました {key}：{reason}。",
   "watch.hooks_active": " {count} 件のフックが有効です。",
-  "watch.started": "cuotai：{count} アカウントを監視しています。各アカウントの最初の読み取りは基準となり、イベントは発生しません。Ctrl+C で停止します。",
+  "watch.started": {
+    "other": "cuotai：{count} アカウントを監視しています。各アカウントの最初の読み取りは基準となり、イベントは発生しません。Ctrl+C で停止します。"
+  },
   "wizard.aggregator.fix_and_retest": " 修正してから再度テストし、保存してください。",
   "wizard.aggregator.test_line": "接続テスト：",
   "wizard.aggregator.testing": "接続をテストしています…",
@@ -657,5 +661,6 @@
   "cli.list_providers.aggregator": " (アグリゲーター)",
   "cost.plan.no_account": "{account} という名前の設定済みアカウントはありません。ID または provider:name を使ってください。",
   "status_line.unknown_account": "--account {value} は 1 つのアカウントを指していません。id（--json-v1、/v1/limits、または TOML の id 行）、キー、または一意の名前を使ってください。id: {ids}。",
-  "status_line.no_accounts": "なし"
+  "status_line.no_accounts": "なし",
+  "headless.strict_exit_no_ready": "cuotai：終了コード 2（--strict-exit）：サーバーが停止するまでに正常な読み取りを得たアカウントがありませんでした。"
 }

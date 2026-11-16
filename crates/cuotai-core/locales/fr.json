@@ -1993,6 +1993,7 @@
   "serve.client.invalid_url": "Adresse du serveur local invalide : utilisez http://127.0.0.1:PORT.",
   "serve.client.not_loopback": "Le serveur local ne se lit qu’en boucle locale (127.0.0.1 ou ::1 ; localhost est lu comme 127.0.0.1).",
   "serve.client.not_ready": "Le serveur local n’a pas encore de relevés ; réessayez dans quelques instants.",
+  "serve.client.token_file": "Le fichier de jeton du serveur local n’a pas pu être lu (il doit s’agir d’un fichier ordinaire à vous contenant un seul jeton).",
   "serve.client.unauthorized": "Le serveur local a refusé le token (utilisez --token-file avec le même fichier que --serve).",
   "serve.client.unproven": "Le programme sur le port {port} n’a pas prouvé qu’il est votre serveur Cuotai ; mettez Cuotai à jour côté serveur ou vérifiez ce qui occupe le port.",
   "serve.client.unreachable": "Le serveur local n’a pas répondu ; est-il en cours d’exécution (cuotai --serve) ?",
