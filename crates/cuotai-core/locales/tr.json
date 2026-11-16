@@ -1234,7 +1234,7 @@
   "login.zed.oauth.completion_notice": "Oturum açıldı; hesap parametreleri otomatik dolduruldu.",
   "login.zed.oauth.help": "DENEYSEL akış, sağlayıcının yerel istemcisine dayanır (dahili arayüz, resmî destek yok; her an başarısız olabilir veya kısıtlanabilir). İzin tarayıcıda/cihaz kodunda verilir; Cuotai'ye hiçbir parola veya jeton yazılmaz.",
   "login.zed.oauth.label": "Tarayıcıda yerel oturum açma",
-  "metric.renewed_waiting": "{time} saatinde yenilendi; okuma bekleniyor.",
+  "metric.renewed_waiting": "{time} saatinde yenilendi; sonraki okuma bekleniyor.",
   "metric_window.daily": "günlük",
   "metric_window.monthly": "aylık",
   "metric_window.weekly": "haftalık",

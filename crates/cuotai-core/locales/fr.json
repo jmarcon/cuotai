@@ -1234,7 +1234,7 @@
   "login.zed.oauth.completion_notice": "Connexion autorisée ; les paramètres du compte sont remplis automatiquement.",
   "login.zed.oauth.help": "Flux EXPÉRIMENTAL basé sur le client natif du fournisseur (interface interne, sans prise en charge officielle ; peut échouer ou être restreint à tout moment). Le consentement se fait dans le navigateur ou par code d’appareil ; aucun mot de passe ni token n’est saisi dans Cuotai.",
   "login.zed.oauth.label": "Connexion native dans le navigateur",
-  "metric.renewed_waiting": "Réinitialisé à {time} ; en attente d’un relevé.",
+  "metric.renewed_waiting": "Réinitialisé à {time} ; en attente du prochain relevé.",
   "metric_window.daily": "quotidienne",
   "metric_window.monthly": "mensuelle",
   "metric_window.weekly": "hebdomadaire",

@@ -1217,7 +1217,7 @@
   "login.zed.oauth.completion_notice": "サインインが承認されました。アカウントのパラメーターは自動入力されます。",
   "login.zed.oauth.help": "プロバイダーのネイティブクライアントに基づく実験的なフローです（内部インターフェース、公式サポートなし。いつでも失敗したり制限されたりする可能性があります）。同意はブラウザーまたはデバイスコードで行い、Cuotai にパスワードやトークンを入力することはありません。",
   "login.zed.oauth.label": "ブラウザーでネイティブサインイン",
-  "metric.renewed_waiting": "{time} にリセット。読み取りを待っています。",
+  "metric.renewed_waiting": "{time} にリセット。次の読み取り待ち。",
   "metric_window.daily": "日次",
   "metric_window.monthly": "月次",
   "metric_window.weekly": "週次",

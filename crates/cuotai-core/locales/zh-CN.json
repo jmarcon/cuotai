@@ -1217,7 +1217,7 @@
   "login.zed.oauth.completion_notice": "登录已授权；账户参数已自动填写。",
   "login.zed.oauth.help": "基于提供商原生客户端的实验性流程（内部接口，无官方支持；随时可能失败或受到限制）。授权在浏览器或设备代码中完成；不会在 Cuotai 中输入任何密码或令牌。",
   "login.zed.oauth.label": "在浏览器中原生登录",
-  "metric.renewed_waiting": "已于 {time} 重置；等待读数。",
+  "metric.renewed_waiting": "已于 {time} 重置；等待下一次读数。",
   "metric_window.daily": "每日",
   "metric_window.monthly": "每月",
   "metric_window.weekly": "每周",

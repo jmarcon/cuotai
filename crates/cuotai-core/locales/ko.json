@@ -1217,7 +1217,7 @@
   "login.zed.oauth.completion_notice": "로그인했습니다. 계정 매개변수가 자동으로 채워졌습니다.",
   "login.zed.oauth.help": "제공업체 기본 클라이언트를 기반으로 한 실험적 흐름입니다(내부 인터페이스이며 공식 지원이 없어 언제든 실패하거나 제한될 수 있음). 동의는 브라우저/기기 코드에서 이루어지며 비밀번호나 토큰을 Cuotai에 입력하지 않습니다.",
   "login.zed.oauth.label": "브라우저 기본 로그인",
-  "metric.renewed_waiting": "{time}에 초기화됨, 조회값을 기다리는 중.",
+  "metric.renewed_waiting": "{time}에 초기화됨, 다음 조회값을 기다리는 중.",
   "metric_window.daily": "일간",
   "metric_window.monthly": "월간",
   "metric_window.weekly": "주간",

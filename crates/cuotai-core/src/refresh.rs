@@ -375,6 +375,15 @@ impl RefreshCycle {
         }
     }
 
+    /// PRD 0033 re-validation V-16/R-3: [`Self::last_good_report`] as every
+    /// front end must show it at `now`: windows whose reset has passed
+    /// (an aggregator's connections included) collapse to "renewed",
+    /// never exhausted or 0 %. Alerts keep the raw reading as their `prev`.
+    pub fn shown_last_good(&self, index: usize, now: chrono::DateTime<Utc>) -> Option<Report> {
+        self.last_good_report(index)
+            .map(|report| report.collapse_expired(now))
+    }
+
     /// PRD 0028 RF2.2: how long ago account `index` last read well: the
     /// current report when it is `Ready`, else the kept last good reading;
     /// `None` when this cycle saw none. Both front ends' problem reports
@@ -3491,6 +3500,38 @@ mod prd0033_rf2_tests {
         finish_one(&mut cycle, next, after);
         let wait = cycle.next_refresh_in(0, after);
         assert!(after + wait >= ran + Duration::from_secs(300), "{wait:?}");
+    }
+
+    /// PRD 0033 re-validation V-16/R-3: a preserved reading whose
+    /// exhausted window (and connection window) reset since is shown
+    /// renewed, never exhausted, through the one accessor every front end
+    /// uses; the raw reading stays for alerts.
+    #[test]
+    fn a_shown_preserved_reading_collapses_renewed_windows_and_connections() {
+        let (mut cycle, now) = cycle_with(Provider::Claude, 3600);
+        let mut good = reading(TimeDelta::hours(2), -TimeDelta::minutes(5));
+        let sub: crate::SubReport = serde_json::from_value(serde_json::json!({
+            "id": "c1", "upstream": "claude", "label": "c", "status": "ready",
+            "metrics": [serde_json::to_value(&good.metrics[0]).unwrap()],
+            "checked_at": good.checked_at,
+        }))
+        .unwrap();
+        good.sub_reports.push(sub);
+        finish_one(&mut cycle, good, now);
+        let mut failed = reading(TimeDelta::zero(), TimeDelta::hours(1));
+        failed.status = Status::Error;
+        failed.metrics.clear();
+        finish_one(&mut cycle, failed, now);
+        let raw = cycle.last_good_report(0).unwrap();
+        assert_eq!(
+            crate::metrics::binding(raw).unwrap().reason,
+            crate::metrics::BindingReason::Exhausted
+        );
+        let shown = cycle.shown_last_good(0, Utc::now()).unwrap();
+        assert!(shown.metrics[0].used.is_none());
+        assert!(shown.sub_reports[0].metrics[0].used.is_none());
+        assert!(crate::metrics::binding(&shown)
+            .is_none_or(|b| b.reason != crate::metrics::BindingReason::Exhausted));
     }
 
     #[test]
