@@ -2792,10 +2792,13 @@ impl Backend {
                     include_identity: prefs.include_identity,
                 },
             );
+            // PRD 0034: the widget speaks the app's language, not the
+            // system's (the notices hold the language the interface set).
             let mut snapshot = cuotai_core::widget_snapshot::WidgetSnapshot::from_export(
                 &export,
                 prefs.max_accounts,
-            );
+            )
+            .in_language(g.notices.language());
             // PRD 0014 RF3.2: the binding metric's recent series, only while
             // this device records history.
             if let Some(store) = l.monitor.history() {

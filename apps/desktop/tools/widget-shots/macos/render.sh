@@ -11,9 +11,10 @@
 # `@Environment(\.widgetFamily)` read becomes `@Environment(\.shotFamily)`,
 # because `widgetFamily` cannot be set outside a widget extension.
 #
-# Usage: apps/desktop/tools/widget-shots/macos/render.sh [widget.json] [out-dir] [--states]
+# Usage: apps/desktop/tools/widget-shots/macos/render.sh [widget.json] [out-dir] [--states] [--locale=<code>]
 # (`--states` adds review shots of the empty, removed and per-account states;
-# pair it with `fixtures/widget-edge.json`.)
+# pair it with `fixtures/widget-edge.json`. `--locale=de` draws the file as
+# the app writes it in that language, PRD 0034.)
 #
 #        apps/desktop/tools/widget-shots/macos/render.sh --check [<ready|unreadable>:<widget.json>...]
 # The CI guard: the shipped decoder must read what the core writes
@@ -22,7 +23,10 @@
 # sources must not use a view that grows to whatever it is offered (see
 # below); and every widget, drawn under its own size and under unspecified
 # and unbounded proposals, must be the same picture each time, inside its
-# margins and, with data, spread over the widget. Writes no PNG.
+# margins and, with data, spread over the widget, in the file's language and
+# in the longest translations (de, ru, hi-IN, vi). A file in a language must
+# draw that language, and a file whose metrics carry `label_text` must never
+# draw their raw labels (PRD 0034). Writes no PNG.
 #
 #        apps/desktop/tools/widget-shots/macos/render.sh --proposals [widget.json] <out-dir>
 # For review: every widget drawn under each of those proposals, on a card.
@@ -51,6 +55,7 @@ elif [ "${1:-}" = --check ]; then
             "ready:$root/crates/cuotai-core/tests/fixtures/widget/writer.json" \
             "ready:$here/../fixtures/widget.json" \
             "ready:$here/../fixtures/widget-edge.json" \
+            "ready:$here/../fixtures/widget-localized.json" \
             "ready:$compat/major-1-revision-0/widget.json" \
             "ready:$compat/major-1-revision-1/widget.json" \
             "unreadable:$compat/major-2-revision-0/widget.json"
@@ -94,6 +99,12 @@ if grep -q 'widgetFamily)' "$build"/src/*.swift; then
 fi
 cp "$here/Render.swift" "$build/src/Render.swift"
 
+# PRD 0034: the widget's strings, compiled next to the executable, whose
+# bundle they then are: a file in a language draws that language's texts
+# (and `--check` fails when one does not).
+rm -rf "$build"/*.lproj
+xcrun xcstringstool compile -o "$build" "$root/apps/desktop/widgets/macos/Localizable.xcstrings"
+
 swiftc -O -parse-as-library -sdk "$sdk" \
     -target "$(uname -m)-apple-macosx14.0" \
     "$build"/src/*.swift -o "$build/render"
@@ -108,4 +119,5 @@ if [ "$mode" = proposals ]; then
 fi
 
 mkdir -p "$out"
-"$build/render" "$fixture" "$out" ${3:+"$3"}
+shift $(( $# < 2 ? $# : 2 ))
+"$build/render" "$fixture" "$out" "$@"

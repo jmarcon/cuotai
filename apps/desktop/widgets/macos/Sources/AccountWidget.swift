@@ -89,7 +89,7 @@ struct AccountWidgetEntryView: View {
     let entry: SummaryEntry
 
     var body: some View {
-        WidgetCanvas(displaySize: entry.displaySize) { size in
+        WidgetCanvas(displaySize: entry.displaySize, language: entry.snapshot?.language) { size in
             content(size)
         }
     }
@@ -157,7 +157,7 @@ struct OtherMetrics: View {
             ForEach(Array(others.enumerated()), id: \.offset) { _, metric in
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        Text(verbatim: metric.shortLabel)
+                        Text(verbatim: metric.displayLabel)
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
