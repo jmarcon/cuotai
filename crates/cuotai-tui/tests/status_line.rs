@@ -298,3 +298,24 @@ fn from_server_strips_control_and_direction_characters() {
     );
     assert!(line.contains("22%"), "{line:?}");
 }
+
+/// Re-validation V-04: a selected account that failed (no preserved
+/// reading, so not `stale`) exits 2 from a server too, like without one.
+#[test]
+fn from_server_exits_2_for_a_failed_account() {
+    const FAILED: &str = r#"{"schema":1,"generated_at":"2026-10-25T12:00:00Z","accounts":[{"index":0,"id":"acc_one","key":"claude:Main","name":"Main","provider":"claude","class":"unmeasured","stale":false,"binding":null,"failure":{"category":"auth_required"}}],"summary":{}}"#;
+    let sandbox = Sandbox::new("from-server-failed");
+    let token = sandbox.0.join("token");
+    fs::write(&token, format!("{TOKEN}\n")).unwrap();
+    let (addr, _heads) = fake_server(TOKEN, FAILED, Proof::Valid);
+    let output = sandbox.run(
+        "dev",
+        &[
+            "--from-server",
+            &addr,
+            "--token-file",
+            token.to_str().unwrap(),
+        ],
+    );
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+}

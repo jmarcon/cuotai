@@ -836,6 +836,17 @@ pub struct AccountLimit {
     /// PRD 0036 RF7.2: the aggregator account's key, for a connection.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent: Option<String>,
+    /// PRD 0031 re-validation V-04: why the current reading failed, as
+    /// [`AccountExport::failure`] reduced to its category; absent for a
+    /// ready account. Additive.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub failure: Option<LimitFailure>,
+}
+
+/// The subset of [`Failure`] kept by [`AccountLimit`].
+#[derive(Debug, Clone, Serialize)]
+pub struct LimitFailure {
+    pub category: crate::events::FailureCategory,
 }
 
 /// The subset of [`IncidentExport`] kept by [`AccountLimit`].
@@ -1066,6 +1077,9 @@ impl Limits {
                     incident: account.incident.as_ref().map(|incident| AccountIncident {
                         state: incident.state,
                         stale: incident.stale,
+                    }),
+                    failure: account.failure.as_ref().map(|failure| LimitFailure {
+                        category: failure.category,
                     }),
                     parent,
                 })
@@ -2600,6 +2614,10 @@ mod tests {
         assert!(accounts[1]["binding"].is_null());
         assert_eq!(accounts[1]["stale"], true);
         assert_eq!(accounts[1]["age_seconds"], 60);
+        // Re-validation V-04: the failure is marked, by its category only.
+        assert!(accounts[1]["failure"]["category"].is_string());
+        assert_eq!(accounts[1]["failure"].as_object().unwrap().len(), 1);
+        assert!(accounts[0].get("failure").is_none());
         // Still pending: nothing to summarize, never zero.
         assert!(accounts[3]["age_seconds"].is_null() && accounts[3]["binding"].is_null());
 

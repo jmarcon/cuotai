@@ -326,7 +326,15 @@
           ],
           "description": "PRD 0031 RF4.1: the provider status, reduced to state and stale."
         },
-        "parent": { "type": "string", "description": "The aggregator account's key, for one of its connections." }
+        "parent": { "type": "string", "description": "The aggregator account's key, for one of its connections." },
+        "failure": {
+          "type": "object",
+          "required": ["category"],
+          "properties": {
+            "category": { "anyOf": [{ "enum": ["timeout", "offline", "auth_required", "rate_limited", "schema_changed", "invalid_output", "provider_error"] }, { "type": "string" }] }
+          },
+          "description": "PRD 0031 re-validation V-04 (additive): present only when the account's current reading failed, with the category of AccountExport.failure; a failed account may still show a preserved reading (stale)."
+        }
       }
     },
     "Provider": { "type": "string", "description": "Provider slug (docs/providers.md); new providers add values." },
