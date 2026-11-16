@@ -11,6 +11,11 @@ talks to a provider or reads a credential: every image is drawn from
 Run both from the repository root; each takes an optional fixture path and
 output directory.
 
+`render.sh --proposals [<fixture>] <out-dir>` draws every widget under its own
+size and under the unspecified and unbounded proposals macOS 27.2 lays widgets
+out with, each on a card of the widget's size, to review what a proposal does
+to a widget (`--check` asks for the same picture under all of them).
+
 For review rather than the docs, `render.sh <fixture> <out-dir> --states`
 adds `macos-state-*` shots: the Account and History widgets with no file and
 with a pinned account that went away, and every account of the fixture
@@ -46,8 +51,10 @@ What differs from a live widget, and why:
   the rewrite stops matching).
 - **Background and size.** `.containerBackground(.fill.tertiary, for: .widget)`
   is not drawn outside an extension; the harness draws a solid rounded card
-  at the macOS widget point sizes (small 170x170, medium 364x170, large
-  364x382) with the system's 16 pt margin.
+  behind the entry view. The view brings its own size and margins, as in the
+  extension: without a timeline context it takes the family's size (small
+  164x164, medium 344x164, large 344x344, the sizes macOS 26 and 27 give a
+  live widget) and, outside an extension, the 16 pt default margin.
 - **Ages.** Every timestamp of the fixture is shifted so `generated_at` is
   "now", so the ages read like the fixture ("2 min") on any day. The system's
   relative text is frozen at render time ("2 min, 0 secs"); a live widget
