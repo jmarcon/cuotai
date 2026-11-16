@@ -13,16 +13,22 @@ struct HistoryEntry: TimelineEntry {
     let pinnedKey: String?
     /// The file exists but could not be read (`SnapshotRead.unreadable`).
     var unreadable = false
+    /// The widget's size, from the timeline context (`.zero`: the family's
+    /// own size, see `WidgetMetrics`).
+    var displaySize: CGSize = .zero
 
-    init(date: Date, snapshot: WidgetSnapshot?, pinnedKey: String?, unreadable: Bool = false) {
+    init(date: Date, snapshot: WidgetSnapshot?, pinnedKey: String?, unreadable: Bool = false,
+         displaySize: CGSize = .zero) {
         self.date = date
         self.snapshot = snapshot
         self.pinnedKey = pinnedKey
         self.unreadable = unreadable
+        self.displaySize = displaySize
     }
 
-    init(date: Date, read: SnapshotRead, pinnedKey: String?) {
-        self.init(date: date, snapshot: read.snapshot, pinnedKey: pinnedKey, unreadable: read.isUnreadable)
+    init(date: Date, read: SnapshotRead, pinnedKey: String?, displaySize: CGSize = .zero) {
+        self.init(date: date, snapshot: read.snapshot, pinnedKey: pinnedKey, unreadable: read.isUnreadable,
+                  displaySize: displaySize)
     }
 
     /// The account to chart: the pinned one, else the first published
@@ -40,22 +46,23 @@ struct HistoryEntry: TimelineEntry {
 
 struct HistoryProvider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> HistoryEntry {
-        HistoryEntry(date: Date(), snapshot: nil, pinnedKey: nil)
+        HistoryEntry(date: Date(), snapshot: nil, pinnedKey: nil, displaySize: context.displaySize)
     }
 
     func snapshot(for configuration: AccountIntent, in context: Context) async -> HistoryEntry {
-        entry(for: configuration)
+        entry(for: configuration, in: context)
     }
 
     func timeline(for configuration: AccountIntent, in context: Context) async -> Timeline<HistoryEntry> {
         let next = Calendar.current.date(byAdding: .minute, value: 15, to: Date()) ?? Date()
-        return Timeline(entries: [entry(for: configuration)], policy: .after(next))
+        return Timeline(entries: [entry(for: configuration, in: context)], policy: .after(next))
     }
 
-    private func entry(for configuration: AccountIntent) -> HistoryEntry {
+    private func entry(for configuration: AccountIntent, in context: Context) -> HistoryEntry {
         HistoryEntry(date: Date(),
                      read: WidgetSnapshot.read(),
-                     pinnedKey: configuration.account?.id)
+                     pinnedKey: configuration.account?.id,
+                     displaySize: context.displaySize)
     }
 }
 
@@ -63,34 +70,49 @@ struct HistoryWidgetEntryView: View {
     let entry: HistoryEntry
 
     var body: some View {
+        WidgetCanvas(displaySize: entry.displaySize) { size in
+            content(size)
+        }
+    }
+
+    private func content(_ size: CGSize) -> some View {
+        // A state or the chart takes what the header leaves (`box`).
         VStack(alignment: .leading, spacing: 6) {
-            WidgetHeader(title: entry.account.map { Text(verbatim: $0.name) } ?? Text("History"))
+            WidgetHeader(title: entry.account.map { Text(verbatim: $0.name) } ?? Text("History"),
+                         width: size.width)
             if entry.unreadable {
-                SnapshotUnreadableView()
+                SnapshotUnreadableView(size: size)
             } else if entry.snapshot == nil {
                 // No file: widgets are off or the app never published one.
-                EmptyStateView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                EmptyStateView(size: size)
             } else if entry.pinnedKey != nil && entry.account == nil {
                 // The pinned account went away: say it, never chart another
                 // account and never blame the history setting (RF3.2).
-                AccountUnavailableView()
+                AccountUnavailableView(size: size)
             } else if let account = entry.account, !entry.points.isEmpty {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text("\(Int(((account.binding?.usedRatio ?? entry.points.last?.usedFraction ?? 0).safeFraction * 100).rounded()))%")
                         .font(.system(.title2, design: .rounded).weight(.semibold))
                         .monospacedDigit()
+                        .fixedSize()
                     Text("\(account.binding?.shortLabel ?? account.name) · last \(spanLabel)")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .layoutPriority(-1)
-                    Spacer(minLength: 4)
+                    Gap.horizontal(size.width, min: 4)
                     MeasurementAge(checkedAt: account.checkedAt,
                                    freshness: account.freshness,
                                    stale: account.isStale)
                 }
+                .frame(width: size.width, alignment: .leading)
                 chart(points: entry.points)
+                    // The 0% label is centred on the bottom line: room for
+                    // its lower half inside the margin.
+                    .padding(.bottom, 4)
+                    // As wide as the widget; as tall as the lines above
+                    // leave, never taller than the widget.
+                    .box(size)
                     .opacity(account.isStale ? 0.6 : 1)
             } else {
                 // No series: the app has no history for this account. Say it
@@ -105,10 +127,10 @@ struct HistoryWidgetEntryView: View {
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .box(size)
             }
         }
-        .boundedProposal()
+        .frame(width: size.width, height: size.height, alignment: .topLeading)
     }
 
     /// The span the series covers, as the file published it.
@@ -179,6 +201,8 @@ struct HistoryWidget: Widget {
             HistoryWidgetEntryView(entry: entry)
                 .containerBackground(.fill.tertiary, for: .widget)
         }
+        // The views apply the system's margins themselves (`WidgetCanvas`).
+        .contentMarginsDisabled()
         .configurationDisplayName("Cuotai history")
         .description("The consumption of one account over the last hours or days.")
         .supportedFamilies([.systemMedium])

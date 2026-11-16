@@ -62,23 +62,25 @@ struct AccountIntent: WidgetConfigurationIntent {
 
 struct AccountProvider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> SummaryEntry {
-        SummaryEntry(date: Date(), snapshot: nil, pinnedKey: AccountEntity.all.first?.id)
+        SummaryEntry(date: Date(), snapshot: nil, pinnedKey: AccountEntity.all.first?.id,
+                     displaySize: context.displaySize)
     }
 
     func snapshot(for configuration: AccountIntent, in context: Context) async -> SummaryEntry {
-        entry(for: configuration)
+        entry(for: configuration, in: context)
     }
 
     func timeline(for configuration: AccountIntent, in context: Context) async -> Timeline<SummaryEntry> {
-        let entry = self.entry(for: configuration)
+        let entry = self.entry(for: configuration, in: context)
         let next = Calendar.current.date(byAdding: .minute, value: 15, to: Date()) ?? Date()
         return Timeline(entries: [entry], policy: .after(next))
     }
 
-    private func entry(for configuration: AccountIntent) -> SummaryEntry {
+    private func entry(for configuration: AccountIntent, in context: Context) -> SummaryEntry {
         SummaryEntry(date: Date(),
                      read: WidgetSnapshot.read(),
-                     pinnedKey: configuration.account?.id)
+                     pinnedKey: configuration.account?.id,
+                     displaySize: context.displaySize)
     }
 }
 
@@ -87,44 +89,48 @@ struct AccountWidgetEntryView: View {
     let entry: SummaryEntry
 
     var body: some View {
-        content.boundedProposal()
+        WidgetCanvas(displaySize: entry.displaySize) { size in
+            content(size)
+        }
     }
 
     @ViewBuilder
-    private var content: some View {
+    private func content(_ size: CGSize) -> some View {
         if entry.unreadable {
-            SnapshotUnreadableView()
+            SnapshotUnreadableView(size: size)
         } else if entry.snapshot == nil {
             // No file: widgets are off or the app never published one
             // (RF3.5). Not the same as an account that went away.
-            EmptyStateView()
+            EmptyStateView(size: size)
         } else if let account = entry.accounts.first {
             if family == .systemSmall {
                 VStack(alignment: .leading, spacing: 6) {
-                    WidgetHeader(title: Text("Account"))
-                    AccountRowView(account: account, style: .hero)
+                    WidgetHeader(title: Text("Account"), width: size.width)
+                    AccountRowView(account: account, style: .hero, width: size.width, height: size.height)
                 }
             } else {
+                // Without a plan limit every metric is "other".
+                let others = account.metrics.count > (account.hasPlanLimit ? 1 : 0)
+                let spacing: CGFloat = 16
+                let column = others ? max((size.width - spacing) / 2, 0) : size.width
                 VStack(alignment: .leading, spacing: 8) {
-                    WidgetHeader(title: Text("Account"))
-                    HStack(alignment: .top, spacing: 16) {
-                        AccountRowView(account: account, style: .hero)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        // Without a plan limit every metric is "other".
-                        if account.metrics.count > (account.hasPlanLimit ? 1 : 0) {
-                            OtherMetrics(account: account)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                    WidgetHeader(title: Text("Account"), width: size.width)
+                    HStack(alignment: .top, spacing: spacing) {
+                        AccountRowView(account: account, style: .hero, width: column, height: size.height)
+                        if others {
+                            OtherMetrics(account: account, width: column)
                         }
                     }
+                    .frame(width: size.width, alignment: .topLeading)
                     if account.hasPlanLimit, let pace = account.metrics.first?.pace {
-                        PaceLine(pace: pace)
+                        PaceLine(pace: pace, width: size.width)
                     }
                 }
             }
         } else {
             // The pinned account is not in the file: say it, never draw
             // someone else's numbers (RF3.2).
-            AccountUnavailableView()
+            AccountUnavailableView(size: size)
         }
     }
 }
@@ -133,6 +139,7 @@ struct AccountWidgetEntryView: View {
 /// each with its own share, so the widget shows what else is close.
 struct OtherMetrics: View {
     let account: WidgetAccount
+    let width: CGFloat
 
     /// `binding.index` points into the file's `metrics` (the binding one
     /// goes first); without a binding every metric is listed.
@@ -155,16 +162,19 @@ struct OtherMetrics: View {
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                             .layoutPriority(-1)
-                        Spacer(minLength: 4)
+                        Gap.horizontal(width, min: 4)
                         Text("\(Int((metric.usedFraction.safeFraction * 100).rounded()))%")
                             .font(.system(.caption, design: .rounded).weight(.semibold))
                             .monospacedDigit()
+                            .fixedSize()
                     }
-                    UsageBar(usedFraction: metric.usedFraction, stale: account.isStale, height: 4)
+                    .frame(width: width, alignment: .leading)
+                    UsageBar(usedFraction: metric.usedFraction, width: width, stale: account.isStale, height: 4)
                 }
                 .accessibilityElement(children: .combine)
             }
         }
+        .frame(width: width, alignment: .topLeading)
         .opacity(account.isStale ? 0.6 : 1)
     }
 }
@@ -173,6 +183,7 @@ struct OtherMetrics: View {
 /// the uniform consumption, never colour alone.
 struct PaceLine: View {
     let pace: WidgetAccount.Metric.Pace
+    let width: CGFloat
 
     private var stage: Text {
         switch pace.stage {
@@ -200,6 +211,7 @@ struct PaceLine: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
         }
+        .frame(width: width, alignment: .leading)
         .accessibilityElement(children: .combine)
     }
 }
@@ -212,6 +224,8 @@ struct AccountWidget: Widget {
             AccountWidgetEntryView(entry: entry)
                 .containerBackground(.fill.tertiary, for: .widget)
         }
+        // The views apply the system's margins themselves (`WidgetCanvas`).
+        .contentMarginsDisabled()
         .configurationDisplayName("Cuotai account")
         .description("One account you pin, with its binding quota and the age of the measurement.")
         .supportedFamilies([.systemSmall, .systemMedium])
