@@ -197,21 +197,34 @@ pub enum ConfigError {
         account: String,
         minimum: u64,
     },
+    /// PRD 0029 RF3.2 (V-05): the account at `field` has no name while
+    /// another account of its provider (of its extension, for an
+    /// extension account) exists.
     #[error(
-        "Configured account names must be unique; an unnamed account is valid only when it is the provider's only account."
+        "The account at {field} needs a name because you have another {} account; add a name line to it.",
+        .provider.label()
     )]
-    AccountNames,
+    AccountNameRequired { field: String, provider: Provider },
+    /// PRD 0029 RF3.1 (V-05): the name at `field` repeats the one at
+    /// `other_field` (compared without case).
+    #[error(
+        "The name at {field} repeats the name at {other_field} (case does not count); change one of them."
+    )]
+    AccountNameRepeated { field: String, other_field: String },
     /// PRD 0013 S-04: an account name holds a control or text-direction
     /// character (it would break hook variables and disguise listings).
     #[error(
         "An account name holds a control or text-direction character; remove it from the name."
     )]
     AccountNameCharacters,
-    /// PRD 0029 RF1.2: two accounts share an `id`.
-    #[error(
-        "The field {field} repeats another account's id (a copied [[accounts]] block is the usual cause); delete the duplicated id line."
-    )]
-    AccountIds { field: String },
+    /// PRD 0029 RF1.2: two accounts share an `id`. `field` is always an
+    /// `id` line the file holds; `computed_for` names the account without
+    /// an id line whose computed id it equals (F3), when that is the clash.
+    #[error("{}", account_ids_text(.field, .computed_for.as_deref()))]
+    AccountIds {
+        field: String,
+        computed_for: Option<String>,
+    },
     #[error("Invalid configuration; could not initialise the HTTPS client.")]
     Client,
     #[error(
@@ -253,6 +266,18 @@ pub enum ConfigError {
     /// two accounts bound to the same agent feed.
     #[error("An account's params.feed must name its provider's agent (claude_code for claude, codex_cli for chat_gpt), and only one account may read each agent feed (its feed mode or its feed binding).")]
     Feed,
+}
+
+/// The English text of [`ConfigError::AccountIds`].
+fn account_ids_text(field: &str, computed_for: Option<&str>) -> String {
+    match computed_for {
+        Some(other) => format!(
+            "The field {field} equals the id Cuotai computes for {other}, an account without an id line; change or delete this id line."
+        ),
+        None => format!(
+            "The field {field} repeats another account's id (a copied [[accounts]] block is the usual cause); delete the duplicated id line."
+        ),
+    }
 }
 
 /// PRD 0045 RF1.4: the path of the first `breakdown` value of `account`
@@ -335,6 +360,51 @@ impl Config {
         }
     }
 
+    /// PRD 0029 RF1.2 (F3): every account's effective id, its `id` line or
+    /// the one [`Self::resolve_ids`] would compute from `identity`, names
+    /// exactly one account. Call it before `resolve_ids`, which forgets
+    /// which ids the file holds: the error always names an `id` line the
+    /// file holds, and says when the clash is with a computed id. Two
+    /// computed ids clash only for a repeated name, which
+    /// [`Self::validate`] reports as such.
+    pub fn check_ids(
+        &self,
+        identity: Option<&config_file::ConfigIdentity>,
+    ) -> Result<(), ConfigError> {
+        let effective: Vec<(AccountId, bool)> = self
+            .accounts
+            .iter()
+            .map(|account| match &account.id {
+                Some(id) => (id.clone(), true),
+                None => (AccountId::derive(&account.key(), identity), false),
+            })
+            .collect();
+        for (index, (id, explicit)) in effective.iter().enumerate() {
+            if !explicit {
+                continue;
+            }
+            if let Some(other) = effective
+                .iter()
+                .position(|(other, other_explicit)| !other_explicit && other == id)
+            {
+                return Err(ConfigError::AccountIds {
+                    field: format!("accounts[{index}].id"),
+                    computed_for: Some(format!("accounts[{other}]")),
+                });
+            }
+            if effective[..index]
+                .iter()
+                .any(|(other, other_explicit)| *other_explicit && other == id)
+            {
+                return Err(ConfigError::AccountIds {
+                    field: format!("accounts[{index}].id"),
+                    computed_for: None,
+                });
+            }
+        }
+        Ok(())
+    }
+
     pub fn validate(&self) -> Result<(), ConfigError> {
         if self.refresh_seconds < 30
             || !(1..=32).contains(&self.concurrency)
@@ -353,10 +423,11 @@ impl Config {
         {
             return Err(ConfigError::AccountNameCharacters);
         }
-        let invalid_names = self.accounts.iter().enumerate().any(|(index, account)| {
+        for (index, account) in self.accounts.iter().enumerate() {
             let name = account.name.trim();
             if name.is_empty() {
-                self.accounts
+                let has_peer = self
+                    .accounts
                     .iter()
                     .enumerate()
                     .any(|(other_index, other)| {
@@ -364,16 +435,22 @@ impl Config {
                             && account.provider == other.provider
                             && (account.provider != Provider::Extension
                                 || account.extension_id() == other.extension_id())
-                    })
-            } else {
-                self.accounts[..index].iter().any(|other| {
-                    let other_name = other.name.trim();
-                    !other_name.is_empty() && other_name.eq_ignore_ascii_case(name)
-                })
+                    });
+                if has_peer {
+                    return Err(ConfigError::AccountNameRequired {
+                        field: format!("accounts[{index}]"),
+                        provider: account.provider,
+                    });
+                }
+            } else if let Some(other_index) = self.accounts[..index].iter().position(|other| {
+                let other_name = other.name.trim();
+                !other_name.is_empty() && other_name.eq_ignore_ascii_case(name)
+            }) {
+                return Err(ConfigError::AccountNameRepeated {
+                    field: format!("accounts[{index}].name"),
+                    other_field: format!("accounts[{other_index}].name"),
+                });
             }
-        });
-        if invalid_names {
-            return Err(ConfigError::AccountNames);
         }
         // PRD 0024 RF7.1: group values are slugs; the named groups are unique.
         let mut group_ids = HashSet::new();
@@ -519,16 +596,7 @@ impl Config {
             }
         }
         // PRD 0029 RF1.2: an id names exactly one account.
-        let mut ids = HashSet::new();
-        for (index, account) in self.accounts.iter().enumerate() {
-            if let Some(id) = &account.id {
-                if !ids.insert(id.as_str()) {
-                    return Err(ConfigError::AccountIds {
-                        field: format!("accounts[{index}].id"),
-                    });
-                }
-            }
-        }
+        self.check_ids(None)?;
         // A vault session belongs to exactly one account.
         let mut references = HashSet::new();
         if self
@@ -1813,7 +1881,12 @@ mod tests {
     fn rejects_duplicate_account_identity_and_unbounded_queries() {
         let mut config = Config::default();
         config.accounts.push(config.accounts[0].clone());
-        assert!(matches!(config.validate(), Err(ConfigError::AccountNames)));
+        let last = config.accounts.len() - 1;
+        assert!(matches!(
+            config.validate(),
+            Err(ConfigError::AccountNameRepeated { field, other_field })
+                if field == format!("accounts[{last}].name") && other_field == "accounts[0].name"
+        ));
         config.accounts.pop();
         config.concurrency = 0;
         assert!(matches!(config.validate(), Err(ConfigError::Bounds)));
@@ -1865,9 +1938,23 @@ credential_en = "GROQ_API_KEY"
         assert!(config.validate().is_ok());
 
         config.accounts[1].provider = Provider::Groq;
-        assert!(matches!(config.validate(), Err(ConfigError::AccountNames)));
+        // V-05: the error names the first unnamed table and its provider.
+        assert!(matches!(
+            config.validate(),
+            Err(ConfigError::AccountNameRequired { field, provider: Provider::Groq })
+                if field == "accounts[0]"
+        ));
         config.accounts[1].name = "Other".into();
-        assert!(matches!(config.validate(), Err(ConfigError::AccountNames)));
+        assert!(matches!(
+            config.validate(),
+            Err(ConfigError::AccountNameRequired { field, .. }) if field == "accounts[0]"
+        ));
+        assert!(ConfigError::AccountNameRequired {
+            field: "accounts[0]".into(),
+            provider: Provider::Groq
+        }
+        .to_string()
+        .contains("another Groq account"));
     }
 
     #[test]
@@ -1879,7 +1966,11 @@ credential_en = "GROQ_API_KEY"
         config.accounts[0].name = "work".into();
         config.accounts[1].name = "Work".into();
 
-        assert!(matches!(config.validate(), Err(ConfigError::AccountNames)));
+        assert!(matches!(
+            config.validate(),
+            Err(ConfigError::AccountNameRepeated { field, other_field })
+                if field == "accounts[1].name" && other_field == "accounts[0].name"
+        ));
     }
     #[tokio::test]
     async fn refresh_account_targets_only_the_named_index() {

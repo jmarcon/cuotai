@@ -526,7 +526,8 @@ impl Account {
     }
 
     /// PRD 0029 RF3.4: the name shown for this account: the configured
-    /// name, else the provider's name (for an extension account, its
+    /// name, else the provider's name (for an extension account, the
+    /// manifest name of its extension once it ran in this process, else its
     /// extension id). Front ends that localize provider names use
     /// [`Account::named`] and their catalog instead of the fallback.
     pub fn display_name(&self) -> std::borrow::Cow<'_, str> {
@@ -579,6 +580,21 @@ impl Account {
     }
 }
 
+/// PRD 0029 RF3.4 (V-02, V-03, V-07): the title of an account next to its
+/// provider: the display name and, only when the account has a name of its
+/// own, the provider label to show beside it. An unnamed account, or one
+/// named exactly like its provider (RF3.6), is titled by the provider once,
+/// never "Groq / Groq". `provider_label` is the front end's (localized)
+/// provider name; every surface that pairs a name with its provider uses
+/// this rule.
+pub fn display_title<'a>(provider_label: &'a str, name: &'a str) -> (&'a str, Option<&'a str>) {
+    match name.trim() {
+        "" => (provider_label, None),
+        name if name == provider_label.trim() => (provider_label, None),
+        name => (name, Some(provider_label)),
+    }
+}
+
 fn display_name<'a>(
     name: &'a str,
     provider: Provider,
@@ -586,7 +602,9 @@ fn display_name<'a>(
 ) -> std::borrow::Cow<'a, str> {
     match name.trim() {
         "" => match extension_id {
-            Some(id) if provider == Provider::Extension => id.into(),
+            // R-02: the manifest name of an extension this process ran.
+            Some(id) if provider == Provider::Extension => crate::extensions::manifest_name(id)
+                .map_or_else(|| id.into(), std::borrow::Cow::Owned),
             _ => provider.label().into(),
         },
         name => name.into(),
@@ -684,6 +702,11 @@ impl Report {
         )
     }
 
+    /// [`Account::named`] of the account this report belongs to.
+    pub fn named(&self) -> bool {
+        !self.account.trim().is_empty()
+    }
+
     /// [`Account::state_key`] of the account this report belongs to: its
     /// `account_id`, or the id derived from the legacy key for a report
     /// built without one (as [`Account::id`] does for such an account).
@@ -756,13 +779,13 @@ impl Config {
     }
 }
 
-fn default_refresh() -> u64 {
+pub(crate) fn default_refresh() -> u64 {
     300
 }
-fn default_concurrency() -> usize {
+pub(crate) fn default_concurrency() -> usize {
     4
 }
-fn default_timeout() -> u64 {
+pub(crate) fn default_timeout() -> u64 {
     30
 }
 

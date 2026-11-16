@@ -302,10 +302,7 @@ fn figure(view: &AccountView, clock: &Clock<'_>) -> String {
 
 /// The display name: the configured name, else the provider's.
 fn display_name(view: &AccountView) -> &str {
-    match view.name.trim() {
-        "" => view.provider_label.as_str(),
-        name => name,
-    }
+    crate::model::display_title(&view.provider_label, &view.name).0
 }
 
 /// Whether `text` looks like an e-mail address (it carries an `@`).
@@ -329,11 +326,9 @@ fn title_name<'a>(view: &'a AccountView, selection: &TraySelection) -> &'a str {
 /// Work"), or the provider alone for an unnamed account; cut with "…"
 /// past [`LABEL_NAME`] characters (S-03).
 fn label_name(view: &AccountView) -> String {
-    let name = display_name(view);
-    let full = if name == view.provider_label || view.provider_label.is_empty() {
-        name.to_owned()
-    } else {
-        format!("{} {name}", view.provider_label)
+    let full = match crate::model::display_title(&view.provider_label, &view.name) {
+        (name, Some(provider)) if !provider.is_empty() => format!("{provider} {name}"),
+        (name, _) => name.to_owned(),
     };
     cut(&full, LABEL_NAME)
 }

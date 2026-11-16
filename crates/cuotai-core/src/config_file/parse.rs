@@ -64,6 +64,15 @@ impl ConfigPath {
         self
     }
 
+    /// Whether the path is an account's `id` (`accounts[N].id`).
+    fn is_account_id(&self) -> bool {
+        matches!(
+            self.0.as_slice(),
+            [Segment::Key(accounts), Segment::Index(_), Segment::Key(id)]
+                if accounts == "accounts" && id == "id"
+        )
+    }
+
     /// Build a path from its keys and indices, for tests and callers that
     /// already know the location.
     pub fn of(parts: &[&str]) -> Self {
@@ -419,6 +428,16 @@ pub fn parse(text: &str, mode: ConfigParseMode) -> Result<ParsedConfig, ConfigEr
 /// The redacted note of a [`ConfigError::Parse`] (PRD 0051 RF2.2).
 pub(crate) fn parse_note(line: usize, column: usize, path: Option<&ConfigPath>) -> Localized {
     match path {
+        // PRD 0029 (V-10): a malformed id says what an id looks like.
+        Some(path) if path.is_account_id() => Localized::with_params(
+            "config.error.parse_account_id",
+            params([
+                ("line", ParamValue::from(line)),
+                ("column", ParamValue::from(column)),
+                ("path", ParamValue::from(path.to_string())),
+            ]),
+            "The configuration has an invalid {path} at line {line}, column {column}: an id is 4 to 40 lowercase letters, digits, _ or - (Cuotai writes acc_ followed by 12 characters).",
+        ),
         Some(path) => Localized::with_params(
             "config.error.parse_key",
             params([
@@ -450,6 +469,25 @@ mod tests {
             }
             other => panic!("expected a parse error, got {other:?}"),
         }
+    }
+
+    /// PRD 0029 (V-10): a malformed id names the accepted form.
+    #[test]
+    fn a_malformed_id_says_what_an_id_looks_like() {
+        let text = "[[accounts]]\nid = \"Bad ID!\"\nprovider = \"groq\"\ncredential_env = \"K\"\n";
+        let Err(ConfigError::Parse { line, column, path }) = parse(text, ConfigParseMode::Tolerant)
+        else {
+            panic!("a malformed id must not parse");
+        };
+        let note = parse_note(line, column, path.as_ref());
+        assert_eq!(note.id, "config.error.parse_account_id");
+        assert!(note.text().contains("accounts[0].id"), "{}", note.text());
+        assert!(note.text().contains("4 to 40"), "{}", note.text());
+        assert!(!note.text().contains("Bad ID"), "never the value");
+        assert_eq!(
+            parse_note(1, 1, Some(&ConfigPath::of(&["accounts", "0", "name"]))).id,
+            "config.error.parse_key"
+        );
     }
 
     const FOUR: &str = r#"
