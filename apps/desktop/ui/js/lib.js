@@ -1,5 +1,5 @@
 import { DEFAULT_THEME, GROUP_ORDER, THEMES, effectiveMode, themeById } from "./themes.js";
-import { LOCALES, currentLocale, intlTag, pendingLocales, setLocale, t, te, tl } from "./i18n.js";
+import { FALLBACK, LOCALES, PSEUDO, currentLocale, intlTag, pendingLocales, setLocale, t, te, tl } from "./i18n.js";
 import { esc, uiPath } from "./util.js";
 import { desktopAction } from "./desktop-wording.js";
 import { flagCountry, flagSvg } from "./flags.js";
@@ -2325,7 +2325,7 @@ const demoCostUsage = () => {
     unpriced_models: unpriced, unpriced: demoUnpriced(unpriced),
     ...(demoPlan.notes.length ? { settings_notes: demoPlan.notes } : {}), ...(Object.keys(display).length ? { display_text: display } : {}) };
 };
-const demoUnpriced = (models) => (models.length ? demoL10n("cost.prices.unpriced", { models: models.join(", ") }, `No price for: ${models.join(", ")}`) : null);
+const demoUnpriced = (models) => (models.length ? demoL10n("cost.prices.unpriced", { models: listText(models) }, `No price for: ${models.join(", ")}`) : null);
 // PRD 0042 demo: sessions, 5-hour blocks and projects built from the same synthetic days; the active block started
 // 80 minutes ago. Digests are fixed placeholders; labels and hidden projects live for the page's life.
 const demoOn = () => Object.keys(DEMO_COST).filter((id) => id in demoCost.on && !demoCost.erased.has(id));
@@ -3513,7 +3513,7 @@ export function forecastHtml(m, r = null) {
   return `<p class="call warn" role="note">${icon("warn")}<span>${esc(tl(m.forecast.callout))}</span>${alertMe}</p>`;
 }
 /** DS-CMP-BADGE-1: the plan the core reports ("Max", "Pro"), outlined and neutral; nothing when it states none. */
-export const planBadgeHtml = (r) => (r?.plan ? `<span class="plan-badge" data-plan title="${esc(t("agg.plan"))}: ${esc(r.plan)}">${esc(r.plan)}</span>` : "");
+export const planBadgeHtml = (r) => (r?.plan ? `<span class="plan-badge" data-plan title="${te("common.label_value", { label: t("agg.plan"), value: r.plan })}">${esc(r.plan)}</span>` : "");
 /** PRD 0023 RF10.3: each model at its limit with its return ("Opus at its limit until 19:30"), from the core. */
 export const scopeBlocksHtml = (r) => (r?.scope_blocks ?? []).map((b) =>
   `<p class="scope-block" data-scope-block="${esc(b.label)}">${icon("clock")}<span>${esc(tl(b.text))}</span></p>`).join("");
@@ -3672,12 +3672,19 @@ export const ALERTS = [
 ];
 export const alertOf = (r) => ALERTS.find((c) => c.match(r)) ?? null;
 /** PRD 0008 RF3.4: the metrics with an active usage alert, localized and joined with the locale's list format. */
-export function usageAlertList(r) {
-  const names = (r?.usage_alerts ?? []).map((x) => tl(x));
+export const usageAlertList = (r) => listText((r?.usage_alerts ?? []).map((x) => tl(x)));
+/** PRD 0034 V-18: translated items listed the UI language's way (en "A, B, C", de "A, B und C", ja "A、B、C"); raw
+ *  text, the caller escapes it. A tag `Intl` cannot read, and the pseudo-locale, list like en-US. */
+const listFormats = new Map();
+export function listText(items) {
+  const list = (items ?? []).map((x) => String(x ?? ""));
+  const code = currentLocale();
+  const tag = code === PSEUDO ? FALLBACK : intlTag(code);
   try {
-    return new Intl.ListFormat(currentLocale(), { style: "narrow", type: "conjunction" }).format(names);
+    if (!listFormats.has(tag)) listFormats.set(tag, new Intl.ListFormat(tag, { style: "narrow", type: "conjunction" }));
+    return listFormats.get(tag).format(list);
   } catch {
-    return names.join(", ");
+    return list.join(", ");
   }
 }
 

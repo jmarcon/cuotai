@@ -55,7 +55,7 @@ export function trayTooltip(reports) {
 export function trayBest(reports) {
   if (!adviceShown()) return null;
   const best = shownReports(reports).find((r) => r.best_now);
-  return best ? `${tl(best.best_now)}: ${brand(best.provider).label} (${best.account})` : null;
+  return best ? t("common.label_value", { label: tl(best.best_now), value: `${brand(best.provider).label} (${best.account})` }) : null;
 }
 
 /** Sends the menu to the shell when something changed (data, order, language, disabled accounts or hidden quotas). */

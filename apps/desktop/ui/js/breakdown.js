@@ -31,7 +31,7 @@ function rowHtml(row, so, po, i) {
     ? `<div class="gauge">${meterHtml(pct, { state, expected: expectedLeft(m), text: t("meter.left", { pct: Math.round(pct) }), name: label })}</div>`
     : "";
   const reset = m && fmtReset(m.resets_at) ? (m.resets_label ? tl(m.resets_label) : t("metric.resetsAt", { when: fmtReset(m.resets_at) })) : "";
-  const tip = row.metrics.map((x) => `${tl(x.label_text ?? x.label)}: ${fmtAmount(x)}`).join("\n");
+  const tip = row.metrics.map((x) => t("common.label_value", { label: tl(x.label_text ?? x.label), value: fmtAmount(x) })).join("\n");
   const notes = row.notes.map((n) => `<span class="brk-note">${esc(tl(n))}</span>`).join("");
   // PRD 0045 RF5.2: a budget on this row, in the account editor (details dialog only).
   const budget = row.budget_draft ? `<div class="metric-actions"><button type="button" class="btn sm" data-set-row-budget="${i}">${te("budget.action.set_budget")}</button></div>` : "";

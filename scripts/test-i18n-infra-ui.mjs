@@ -164,3 +164,39 @@ console.log("PASS: the pace margin reads in the UI language");
   assert.equal(i18n.tl(clash), "inner/outer", "an outer parameter never overrides the nested note's own");
 }
 console.log("PASS: nested notes keep their own parameters and one escape");
+
+// PRD 0034 re-validation V-18: lists and "label: value" pairs follow the UI language instead of an English ", " or ": ".
+{
+  const { listText, planBadgeHtml } = await import("../apps/desktop/ui/js/lib.js");
+  const { filterWords } = await import("../apps/desktop/ui/js/settings/channels.js");
+  const pair = { label: "A", value: "B" };
+  const expected = {
+    "en-US": ["A, B, C", "A: B"], de: ["A, B und C", "A: B"], fr: ["A, B, C", "A : B"], ja: ["A、B、C", "A：B"],
+    "zh-CN": ["A、B、C", "A：B"], "pt-BR": ["A, B, C", "A: B"],
+  };
+  for (const { code } of i18n.LOCALES) {
+    await i18n.setLocale(code);
+    const value = i18n.t("common.label_value", pair);
+    assert.ok(value.startsWith("A") && value.endsWith("B") && value.length <= 5 && value.includes(":") !== value.includes("："), `${code}: common.label_value is ${JSON.stringify(value)}`);
+    assert.equal(listText(["A"]), "A", `${code}: one item is the item`);
+    if (expected[code]) {
+      assert.equal(listText(["A", "B", "C"]), expected[code][0], `${code}: list`);
+      assert.equal(value, expected[code][1], `${code}: label and value`);
+    }
+  }
+  await i18n.setLocale("ja");
+  assert.equal(filterWords({ kinds: ["x<1>", "y"], accounts: "z", severity: null, names: "w" }), "x&lt;1&gt;、y · z · w", "kinds listed, then escaped");
+  assert.ok(planBadgeHtml({ plan: "Pro \"Max\"" }).includes(`title="${i18n.te("agg.plan")}：Pro &quot;Max&quot;"`), planBadgeHtml({ plan: "Pro" }));
+  // A user pack whose code `Intl` cannot read lists like en-US instead of throwing.
+  i18n.registerLocale("en-US-US", "Broken", { "common.label_value": "{label}: {value}" });
+  await i18n.setLocale("en-US-US");
+  assert.equal(i18n.currentLocale(), "en-US-US");
+  assert.equal(listText(["A", "B", "C"]), "A, B, C", "a bad tag lists like en-US");
+  i18n.registerLocale(i18n.PSEUDO, "Pseudo", { "common.label_value": "{label}: {value}" });
+  await i18n.setLocale(i18n.PSEUDO);
+  assert.equal(i18n.currentLocale(), i18n.PSEUDO);
+  assert.equal(listText(["A", "B", "C"]), "A, B, C", "the pseudo-locale lists like en-US");
+  await i18n.setLocale("en-US");
+  assert.equal(listText([]), "");
+}
+console.log("PASS: lists and label-value pairs follow the UI language");

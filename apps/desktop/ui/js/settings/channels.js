@@ -2,8 +2,8 @@
 // with its consent step (DS-CMP-DLG), Send test and the delivery log. Every rule lives in the core: the shell
 // validates the address, renders the example payload and stores the address in the system vault; the page never
 // receives an address back, only the host, the filters in words and the last delivery.
-import { currentLocale, t, te, tle } from "../i18n.js";
-import { channelAdd, channelConsent, channelEdit, channelRemove, channelSetEnabled, channelTest, channelsView, esc, icon } from "../lib.js";
+import { currentLocale, t, te, tl, tle } from "../i18n.js";
+import { channelAdd, channelConsent, channelEdit, channelRemove, channelSetEnabled, channelTest, channelsView, esc, icon, listText } from "../lib.js";
 import { showDialog } from "../motion.js";
 import { askDialog, l10nError } from "./common.js";
 import { buttons, disc, row, rowError, subpage, subRow, sw, toast } from "./rows.js";
@@ -20,8 +20,8 @@ export const channelsRowHtml = () => subRow({ key: "channels", label: te("settin
 export const channelsHtml = () => subpage("channels", te("settings.channels.title"),
   `<section class="set-sec" data-channels><div data-channels-body><p class="hint">${te("settings.channels.loading")}</p></div></section>`);
 
-/** "Thresholds, Exhaustion · of every account · names hidden": the core's words, joined. */
-export const filterWords = (w) => [w.kinds.map((k) => tle(k)).join(", "), tle(w.accounts), w.severity ? tle(w.severity) : "", tle(w.names)].filter(Boolean).join(" · ");
+/** "Thresholds, Exhaustion · of every account · names hidden": the core's words, the kinds listed the language's way. */
+export const filterWords = (w) => [esc(listText(w.kinds.map((k) => tl(k)))), tle(w.accounts), w.severity ? tle(w.severity) : "", tle(w.names)].filter(Boolean).join(" · ");
 
 /** The local date and time of `at`, raw: `te` escapes it as a value, HTML gets `esc(when(…))`. */
 const when = (at) => new Date(at).toLocaleString(currentLocale());
@@ -38,7 +38,7 @@ function lastHtml(c) {
 export function listHtml(view) {
   const failing = view.channels.filter((c) => c.failing_long);
   const banner = failing.length
-    ? `<p class="hint warn-txt" role="alert" data-channels-failing>${icon("warn")} ${te("settings.channels.failingBanner", { labels: failing.map((c) => c.label).join(", ") })}</p>` : "";
+    ? `<p class="hint warn-txt" role="alert" data-channels-failing>${icon("warn")} ${te("settings.channels.failingBanner", { labels: listText(failing.map((c) => c.label)) })}</p>` : "";
   const rows = view.channels.length
     ? view.channels.map((c) => row({ key: `channel-${c.id}`, kw: "channels", label: `${icon(KIND_ICONS[c.kind])} ${esc(c.label)}`,
       desc: `${esc(KIND_NAMES[c.kind])} · ${esc(c.host)} · ${filterWords(c.filters_text)}`,
