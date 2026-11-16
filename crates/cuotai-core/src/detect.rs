@@ -118,7 +118,8 @@ enum Flow {
     CursorImport,
     /// The provider's own browser or device sign-in; nothing local is read.
     NativeLogin,
-    /// The AWS Bedrock profile step: reads profile names, never keys.
+    /// The AWS Bedrock profile step: the person types the profile name;
+    /// nothing under `~/.aws` is read by Cuotai.
     AwsProfile,
     /// A key the person pastes; nothing local is read.
     KeyStep,
@@ -168,7 +169,9 @@ pub const TABLE: &[DetectEntry] = &[
         "https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference", true),
     row(SourceKind::OpenCode, Provider::OpenCodeGo, Flow::KeyStep,
         "https://opencode.ai/docs/troubleshooting", true),
-    row(SourceKind::CursorCli, Provider::Cursor, Flow::NativeLogin,
+    // C-05: Cursor's sign-in mode imports the app's local token, so the CLI
+    // gets the same consent as the app.
+    row(SourceKind::CursorCli, Provider::Cursor, Flow::CursorImport,
         "https://docs.cursor.com/en/cli/reference/configuration", true),
     // Verified 2026-10-25: user settings at `~/.qwen/settings.json`.
     row(SourceKind::QwenCode, Provider::Qwen, Flow::NativeLogin,
@@ -331,13 +334,15 @@ fn exists(path: &Path) -> bool {
     std::fs::symlink_metadata(path).is_ok()
 }
 
-/// PRD 0027 RF6.5: the one "Check this device" consent. It names every
-/// check the scan makes: tool folders, environment variables (presence
-/// only, never values) and the local 9router health probe on 127.0.0.1.
+/// PRD 0027 RF6.5: the terminal's "Check this device" consent. It names
+/// every check [`local_sources`] makes: tool folders and environment
+/// variables (presence only, never values). The terminal never runs the
+/// 9router probe; the desktop names that probe in its own text
+/// (`dialog.detect.ask`).
 pub fn consent_prompt() -> Localized {
     Localized::fixed(
         "detect.ask",
-        "Check this device for AI tools you already use? Cuotai checks whether their folders exist, whether certain environment variables are set (presence only, never their values) and whether 9router answers locally on 127.0.0.1; it reads nothing.",
+        "Check this device for AI tools you already use? Cuotai checks whether their folders exist and whether certain environment variables are set (presence only, never their values); it reads nothing.",
     )
 }
 
@@ -362,7 +367,7 @@ fn texts(entry: &DetectEntry) -> (Localized, Localized) {
         ),
         Flow::AwsProfile => Localized::fixed(
             "detect.consent.aws_profile",
-            "Cuotai will read only the profile names in ~/.aws/config when you choose the profile; no key is read.",
+            "Type the AWS CLI profile to use; Cuotai reads nothing from ~/.aws. The AWS CLI uses that profile when Cuotai queries Bedrock.",
         ),
         Flow::KeyStep => Localized::with_param(
             "detect.consent.key_step",
@@ -597,33 +602,78 @@ mod tests {
         }
     }
 
-    /// RF6.5 (owner decision 2026-10-25): the consent names folders,
-    /// environment variables (presence only) and the 127.0.0.1 9router check
-    /// in every catalog.
+    /// RF6.5: the terminal's consent names only the checks the terminal
+    /// makes (folders and environment variables), in every catalog: never
+    /// the 9router probe, which only the desktop runs (C-02).
     #[test]
     fn the_consent_names_every_check_in_every_catalog() {
-        let english = consent_prompt();
-        assert_eq!(english.id, "detect.ask");
-        let catalogs = [
-            ("en", english.text().to_string()),
-            ("pt-BR", include_str!("../locales/pt-BR.json").to_string()),
-            ("es", include_str!("../locales/es.json").to_string()),
-            ("it", include_str!("../locales/it.json").to_string()),
-        ];
-        for (locale, text) in catalogs {
-            let text = if locale == "en" {
-                text
-            } else {
-                let map: serde_json::Value = serde_json::from_str(&text).unwrap();
-                map["detect.ask"].as_str().unwrap().to_string()
-            };
-            assert!(text.contains("127.0.0.1"), "{locale}");
-            assert!(text.contains("9router"), "{locale}");
+        let prompt = consent_prompt();
+        assert_eq!(prompt.id, "detect.ask");
+        for locale in std::iter::once("en-US").chain(crate::text::catalog_locales()) {
+            let text = prompt.resolve(locale);
+            assert!(!text.contains("127.0.0.1"), "{locale}: {text}");
+            assert!(!text.contains("9router"), "{locale}: {text}");
             assert!(
-                text.contains("env") || text.contains("ambient") || text.contains("entorno"),
+                crate::text::core_catalog(locale).is_none_or(|map| map.contains_key("detect.ask")),
                 "{locale}"
             );
         }
+        let english = prompt.resolve("en-US");
+        assert!(english.contains("folders") && english.contains("environment variables"));
+    }
+
+    /// RF7.2 (C-05): each source's consent describes the mode its offer
+    /// opens. A Cursor import consent goes with the mode served by the
+    /// local database; a native-login consent with a native mode that reads
+    /// nothing local; the profile and key steps with a credential mode.
+    #[test]
+    fn each_consent_matches_the_mode_its_offer_opens() {
+        let catalog = crate::catalog::catalog();
+        for entry in TABLE
+            .iter()
+            .filter(|e| e.verified && crate::access::has_usage_query(e.provider))
+        {
+            let login = matches!(entry.flow, Flow::NativeLogin | Flow::CursorImport);
+            let mode = catalog
+                .iter()
+                .find(|e| e.provider == entry.provider && e.native_login == login)
+                .unwrap_or_else(|| panic!("{:?}: no mode for its flow", entry.kind));
+            match entry.flow {
+                Flow::CursorImport => assert_eq!(
+                    mode.local_import,
+                    Some(crate::catalog::LocalSource::CursorDatabase),
+                    "{:?}",
+                    entry.kind
+                ),
+                Flow::NativeLogin => assert!(
+                    mode.native_login && mode.local_import.is_none(),
+                    "{:?}",
+                    entry.kind
+                ),
+                Flow::AwsProfile | Flow::KeyStep => {
+                    assert!(
+                        !mode.native_login && mode.local_import.is_none(),
+                        "{:?}",
+                        entry.kind
+                    )
+                }
+            }
+        }
+        // The Cursor CLI offers the same import as the app.
+        let home = tempfile::tempdir().unwrap();
+        touch(&home.path().join(".cursor/cli-config.json"));
+        let found = local_sources(home.path(), Os::Linux, &no_env, &[]);
+        assert_eq!(found[0].kind, SourceKind::CursorCli);
+        assert_eq!(found[0].consent.id, "detect.consent.cursor_import");
+        assert_eq!(found[0].mode, Some("oauth"));
+        // Gemini CLI's consent names Gemini CLI.
+        let home = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(home.path().join(".gemini")).unwrap();
+        let gemini = local_sources(home.path(), Os::Linux, &no_env, &[]);
+        assert_eq!(
+            gemini[0].consent.resolve("en-US"),
+            "Cuotai will open the Gemini CLI sign-in; nothing is read from Gemini CLI's folder."
+        );
     }
 
     fn no_env(_: &str) -> Option<String> {

@@ -172,7 +172,7 @@ The account pickers (desktop and TUI) list providers from `cuotai_core::account_
 | Vertex AI | `vertex_ai` | — | Cloud profile | Cloud | google, gcp, vertex | Cloud credentials |
 | AWS Bedrock | `aws_bedrock` | — | Cloud profile | Cloud | aws, amazon, bedrock | Cloud credentials · billed per query |
 | Azure OpenAI | `azure_open_ai` | — | Cloud profile | Cloud | microsoft, azure, openai | Cloud credentials |
-| Cursor | `cursor` | `oauth` | Browser sign-in | Coding tool | cursor ai | Sign in with your browser |
+| Cursor | `cursor` | `oauth` | Local credentials | Coding tool | cursor ai | Imports the Cursor app's sign-in |
 | Cursor | `cursor` | `credential` | API key | Coding tool | cursor ai | Admin API key |
 | GitHub Copilot | `copilot` | `oauth` | Browser sign-in | Coding tool | github, gh, github copilot | Sign in with your browser |
 | GitHub Copilot | `copilot` | `credential` | API key | Coding tool | github, gh, github copilot | Admin API key |
@@ -192,8 +192,8 @@ The account pickers (desktop and TUI) list providers from `cuotai_core::account_
 | Opencode Go | `open_code_go` | — | API key | Coding tool | opencode, open code | API key |
 | Qoder | `qoder` | `oauth` | Browser sign-in | Coding tool | — | Sign in with your browser |
 | Qoder | `qoder` | `credential` | API key | Coding tool | — | Account access token |
-| Gemini AI (API key) | `gemini_ai` | `oauth` | Browser sign-in | API platform | gemini cli, google, ai studio | Sign in with your browser |
-| Gemini AI (API key) | `gemini_ai` | `credential` | API key | API platform | gemini cli, google, ai studio | API key |
+| Gemini CLI | `gemini_ai` | `oauth` | Browser sign-in | Coding tool | gemini cli, google, ai studio | Sign in with your browser |
+| Gemini CLI | `gemini_ai` | `credential` | API key | Coding tool | gemini cli, google, ai studio | API key |
 | Grok (xAI) | `grok` | `oauth` | Browser sign-in | API platform | xai, x.ai, grok cli | Sign in with your browser |
 | Grok (xAI) | `grok` | `credential` | API key | API platform | xai, x.ai, grok cli | Admin API key |
 | NVIDIA NIM | `nvidia_nim` | — | API key | API platform | nvidia, nim | API key |
@@ -295,7 +295,7 @@ The names below are the defaults configured in the wizard. `credential_env` can 
 | Xiaomi MiMo / `xiaomi_mimo` | Web session pasted in the account wizard (system vault) or named by a variable | `platform_session_env`: console balance and monthly Token Plan; `session_env`/`region`: Desktop weekly quota. The native code generates an inference key and does not replace those sessions |
 | OpenCode Go / `open_code_go` | `OPENCODE_GO_API_KEY` | GET `https://opencode.ai/zen/go/v1/usage`: rolling, weekly and monthly percentage, with renewal |
 | Qoder / `qoder` | `QODER_API_KEY` | `pt-` PAT exchanged for a job token and GET `/api/v2/quota/usage`; `params.region=intl\|cn`, `params.credential_type=auto\|pat\|bearer` |
-| Gemini AI / `gemini_ai` | `GEMINI_API_KEY` | An AI Studio API key still has no quota in this interface. `params.product=cli` (or native login) uses the Gemini CLI session and `retrieveUserQuota`; it does not confuse products |
+| Gemini CLI / `gemini_ai` | `GEMINI_API_KEY` | An AI Studio API key still has no quota in this interface. `params.product=cli` (or native login) uses the Gemini CLI session and `retrieveUserQuota`; it does not confuse products |
 | Grok (xAI) / `grok` | `X_GROK_API_KEY` | Management API by default. `params.product=cli` (or native login) uses the Grok CLI session for on-demand credits, prepaid credits and the SuperGrok pool through REST/gRPC |
 | NVIDIA NIM / `nvidia_nim` | `NVIDIA_NIM_API_KEY` | No public per-key balance query confirmed; it does not use inference to extract rate-limit headers |
 | Poolside / `poolside` | `POOLSIDE_API_KEY` | No public account balance/quota query confirmed; infrastructure metrics are not a balance |
@@ -417,7 +417,7 @@ Endpoints marked **undocumented** come from open-source clients (the vendors' ow
 Details that do not fit in the table:
 
 - **AWS Bedrock:** `aws bedrock list-foundation-models --profile <params.profile>`, with `--region <params.region>` when set; without `params.region`, the profile's default region in the AWS CLI applies. Requires `bedrock:ListFoundationModels`; it is not Cost Explorer and never runs on refresh.
-- **Gemini AI:** with the AI Studio key (default `product`), paginated `models.list`; the ID is the returned `name` (`models/...`). With `product = "cli"` or native login, nothing is listed (no evidence for the session).
+- **Gemini CLI (`gemini_ai`):** with the AI Studio key (default `product`), paginated `models.list`; the ID is the returned `name` (`models/...`). With `product = "cli"` or native login, nothing is listed (no evidence for the session).
 - **Claude (subscription):** `GET https://api.anthropic.com/v1/models?limit=1000` with the OAuth token and the `anthropic-beta: oauth-2025-04-20` and `anthropic-version` headers, paginated by `after_id` while `has_more`; `has_more` without `last_id` rejects the listing.
 - **ChatGPT / Codex (subscription):** `GET https://chatgpt.com/backend-api/codex/models?client_version=<Codex CLI version>` with the session token (and `chatgpt-account-id` if `params.account_id`). Entries whose `visibility` is not `list` are left out, as in Codex's selector.
 - **Antigravity:** same session and `fetchAvailableModels` request as the quota; a free plan or a response without `models` is `Unsupported`.

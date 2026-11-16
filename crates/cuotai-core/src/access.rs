@@ -1155,7 +1155,7 @@ mod tests {
     }
 
     /// Only providers that are `Unavailable` in every mode lack a query; a
-    /// provider with one working mode (Gemini AI, Perplexity) keeps it.
+    /// provider with one working mode (Gemini CLI, Perplexity) keeps it.
     #[test]
     fn has_usage_query_is_false_only_without_any_queried_mode() {
         use Provider::*;

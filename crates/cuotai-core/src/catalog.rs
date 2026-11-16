@@ -242,7 +242,6 @@ fn category(provider: Provider) -> Category {
         | Provider::CloudflareAi
         | Provider::OllamaCloud
         | Provider::XiaomiMimo
-        | Provider::GeminiAi
         | Provider::Grok
         | Provider::NvidiaNim
         | Provider::Poolside
@@ -267,7 +266,9 @@ fn category(provider: Provider) -> Category {
         | Provider::Zed
         | Provider::AlibabaCodingPlan
         | Provider::AlibabaTokenPlan
-        | Provider::Antigravity => Category::CodingTool,
+        | Provider::Antigravity
+        // PRD 0027 re-validation C-03: only a Gemini CLI sign-in queries.
+        | Provider::GeminiAi => Category::CodingTool,
         Provider::NineRouter | Provider::OpenRouter | Provider::LiteLlm => Category::Router,
         Provider::Extension => Category::Extension,
     }
@@ -316,8 +317,9 @@ fn cli_name(provider: Provider) -> &'static str {
 }
 
 /// RF1.2 and RF1.5: the (method, hint) of a mode, from its credential class
-/// and whether it is the native-login mode. The only table of overrides is
-/// [`cli_name`]; nothing is written per provider.
+/// and whether it is the native-login mode. The only overrides are
+/// [`cli_name`] and a mode served by a [`LocalSource`] import, which reads
+/// the app's local sign-in instead of opening a browser.
 fn method_and_hint(
     provider: Provider,
     credential: Credential,
@@ -325,6 +327,17 @@ fn method_and_hint(
     metered: bool,
     native_login: bool,
 ) -> (SignInMethod, Localized) {
+    // PRD 0027 re-validation C-05: Cursor's native mode imports the token
+    // from the app's local database; it is not a browser sign-in.
+    if local_import(provider, native_login) == Some(LocalSource::CursorDatabase) {
+        return (
+            SignInMethod::LocalCredentials,
+            Localized::fixed(
+                "catalog.hint.cursor_import",
+                "Imports the Cursor app's sign-in",
+            ),
+        );
+    }
     let (method, hint) = credential_method(provider, credential, level, metered, native_login);
     // PRD 0036 RF10: aggregators (9router, LiteLLM proxy) form their own
     // "Self-hosted gateway" group whatever their credential class.
@@ -420,12 +433,16 @@ fn entry_for(provider: Provider, native_login: bool, multi: bool) -> CatalogEntr
         level: access.level,
         metered: access.metered,
         native_login,
-        local_import: (provider == Provider::Cursor && native_login)
-            .then_some(LocalSource::CursorDatabase),
+        local_import: local_import(provider, native_login),
         // RF5.1: native login first; otherwise the only (credential) mode.
         recommended: native_login || !native_login_available(provider),
         extension: None,
     }
+}
+
+/// The local source whose import serves a mode, if any.
+fn local_import(provider: Provider, native_login: bool) -> Option<LocalSource> {
+    (provider == Provider::Cursor && native_login).then_some(LocalSource::CursorDatabase)
 }
 
 /// Native login applies when the provider supports it without registering
@@ -1040,9 +1057,10 @@ mod tests {
                 .unwrap()
         };
         let hint = |e: &CatalogEntry| e.hint.resolve("en-US");
+        // C-05: Cursor's native mode imports the app's local sign-in.
         let cursor_login = find(Provider::Cursor, true);
-        assert_eq!(cursor_login.method, SignInMethod::BrowserSignIn);
-        assert_eq!(hint(&cursor_login), "Sign in with your browser");
+        assert_eq!(cursor_login.method, SignInMethod::LocalCredentials);
+        assert_eq!(hint(&cursor_login), "Imports the Cursor app's sign-in");
         assert_eq!(cursor_login.local_import, Some(LocalSource::CursorDatabase));
         let cursor_admin = find(Provider::Cursor, false);
         assert_eq!(cursor_admin.method, SignInMethod::ApiKey);
@@ -1070,6 +1088,15 @@ mod tests {
         assert_eq!(hint(&claude_token), "Account access token");
         // The English fallback is the embedded text.
         assert_eq!(groq.hint.resolve("pt-BR"), "Chave de API");
+        // C-03: Gemini CLI is named for the sign-in that queries, in every
+        // language, and is a coding tool.
+        let gemini = find(Provider::GeminiAi, true);
+        assert_eq!(gemini.category, Category::CodingTool);
+        for locale in std::iter::once("en-US").chain(crate::text::catalog_locales()) {
+            let name = gemini.display_name.resolve(locale);
+            assert_eq!(name, "Gemini CLI", "{locale}");
+            assert!(!name.contains("API"), "{locale}");
+        }
     }
 
     #[test]
