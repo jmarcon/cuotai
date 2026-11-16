@@ -285,7 +285,7 @@ fn write_events(
     Ok(())
 }
 
-/// `2026-10-20 14:02:11  Work (Claude): Sessão (5h): 90% usado`, in local
+/// `2026-10-20 14:02:11  Work (Claude): Session (5h): 90% used`, in local
 /// time and `locale`, without terminal controls.
 fn summary_line(event: &Event, locale: &str) -> String {
     let at =

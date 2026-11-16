@@ -1021,19 +1021,93 @@ pub fn localize_json_fallbacks(value: &mut serde_json::Value, locale: &str) {
     }
 }
 
-/// PRD 0034 RF4.2: the Portuguese markers found in `text` (characters
-/// `ã`, `õ`, `ç` and a short list of stop words), so a test can prove an
-/// English text carries none. Proper names that contain a marker belong in
+/// PRD 0034 RF4.2: the Portuguese markers found in `text` that neither
+/// English, Spanish nor Italian ever writes: the letters `ã õ ç â ê ô`,
+/// Portuguese-only words (`não`, `você`, `falha`, ...) and the endings
+/// `-ível`/`-ário`/`-ório` (Spanish writes `-ible`/`-ario`/`-orio`). It is
+/// safe on Spanish and Italian texts too; for a text that must be English,
+/// [`portuguese_markers_in_english`] also flags the accents those languages
+/// share with Portuguese. Proper names that contain a marker belong in
 /// [`PORTUGUESE_MARKER_ALLOWED`].
 pub fn portuguese_markers(text: &str) -> Vec<&'static str> {
-    const CHARS: [(&str, [char; 2]); 3] = [("ã", ['ã', 'Ã']), ("õ", ['õ', 'Õ']), ("ç", ['ç', 'Ç'])];
-    const WORDS: [&str; 5] = ["não", "já", "está", "conta", "cota"];
+    markers(text, false)
+}
+
+/// PRD 0034 RF4.2: [`portuguese_markers`] plus what Portuguese shares with
+/// Spanish or Italian but English never writes: the accents `á à é í ó ú`
+/// and words such as `usados` or `limite`. Apply it to English text only:
+/// it flags `Créditos extras usados`, which is also valid Spanish.
+pub fn portuguese_markers_in_english(text: &str) -> Vec<&'static str> {
+    markers(text, true)
+}
+
+/// Letters Portuguese writes and English, Spanish and Italian do not.
+const PORTUGUESE_ONLY_LETTERS: [(&str, [char; 2]); 6] = [
+    ("ã", ['ã', 'Ã']),
+    ("õ", ['õ', 'Õ']),
+    ("ç", ['ç', 'Ç']),
+    ("â", ['â', 'Â']),
+    ("ê", ['ê', 'Ê']),
+    ("ô", ['ô', 'Ô']),
+];
+/// Accented letters Portuguese shares with Spanish or Italian.
+const PORTUGUESE_SHARED_LETTERS: [(&str, [char; 2]); 6] = [
+    ("á", ['á', 'Á']),
+    ("à", ['à', 'À']),
+    ("é", ['é', 'É']),
+    ("í", ['í', 'Í']),
+    ("ó", ['ó', 'Ó']),
+    ("ú", ['ú', 'Ú']),
+];
+/// Frequent words only Portuguese writes (lowercase).
+const PORTUGUESE_ONLY_WORDS: [&str; 24] = [
+    "não",
+    "já",
+    "está",
+    "conta",
+    "cota",
+    "você",
+    "também",
+    "sessão",
+    "falha",
+    "falhou",
+    "nenhum",
+    "nenhuma",
+    "então",
+    "ainda",
+    "janela",
+    "senha",
+    "arquivo",
+    "atingido",
+    "atingida",
+    "até",
+    "após",
+    "foi",
+    "isso",
+    "orçamento",
+];
+/// Frequent Portuguese words that Spanish or Italian also write.
+const PORTUGUESE_SHARED_WORDS: [&str; 13] = [
+    "usado", "usados", "usada", "usadas", "uso", "limite", "limites", "saldo", "gasto", "semanal",
+    "horas", "dias", "mensal",
+];
+/// Word endings only Portuguese writes.
+const PORTUGUESE_ONLY_ENDINGS: [&str; 10] = [
+    "ível", "íveis", "ário", "ária", "ários", "árias", "ório", "ória", "órios", "órias",
+];
+
+fn markers(text: &str, english: bool) -> Vec<&'static str> {
     let mut cleaned = text.to_string();
     for allowed in PORTUGUESE_MARKER_ALLOWED {
         cleaned = cleaned.replace(allowed, "");
     }
+    let shared_letters: &[(&str, [char; 2])] = if english {
+        &PORTUGUESE_SHARED_LETTERS
+    } else {
+        &[]
+    };
     let mut found: Vec<(usize, &'static str)> = Vec::new();
-    for (name, chars) in CHARS {
+    for (name, chars) in PORTUGUESE_ONLY_LETTERS.iter().chain(shared_letters) {
         if let Some(at) = cleaned.find(|c| chars.contains(&c)) {
             found.push((at, name));
         }
@@ -1043,9 +1117,19 @@ pub fn portuguese_markers(text: &str) -> Vec<&'static str> {
         .split(|c: char| !(c.is_alphanumeric()))
         .filter(|word| !word.is_empty())
         .collect();
-    for word in WORDS {
-        if let Some(at) = words.iter().position(|w| *w == word) {
+    let shared_words: &[&str] = if english {
+        &PORTUGUESE_SHARED_WORDS
+    } else {
+        &[]
+    };
+    for word in PORTUGUESE_ONLY_WORDS.iter().chain(shared_words) {
+        if let Some(at) = words.iter().position(|w| w == word) {
             found.push((usize::MAX / 2 + at, word));
+        }
+    }
+    for ending in PORTUGUESE_ONLY_ENDINGS {
+        if let Some(at) = words.iter().position(|w| w.ends_with(ending)) {
+            found.push((usize::MAX / 2 + at, ending));
         }
     }
     found.sort_by_key(|(at, _)| *at);
@@ -1063,7 +1147,7 @@ fn assert_english(template: &str) {
     // The count and the caller's location (`track_caller`) identify the
     // text; texts can describe logins, so their contents stay out of the
     // message.
-    let found = portuguese_markers(template).len();
+    let found = portuguese_markers_in_english(template).len();
     assert!(
         found == 0,
         "{found} Portuguese marker(s) in the English fallback built here"
@@ -1073,6 +1157,9 @@ fn assert_english(template: &str) {
 #[cfg(test)]
 #[path = "text/budget_tests.rs"]
 mod budget_tests;
+#[cfg(test)]
+#[path = "text/emitted_ids_tests.rs"]
+mod emitted_ids_tests;
 #[cfg(test)]
 pub(crate) use budget_tests::display_width as budget_width;
 
@@ -1420,10 +1507,10 @@ mod tests {
 
     #[test]
     fn resolve_unknown_key_falls_back_to_default() {
-        let note = Localized::fixed("note.no.such.id", "Texto em português.");
-        assert_eq!(note.resolve("en-US"), "Texto em português.");
-        assert_eq!(note.resolve("es"), "Texto em português.");
-        assert_eq!(note.resolve("pt-BR"), "Texto em português.");
+        let note = Localized::fixed("note.no.such.id", "English default text.");
+        assert_eq!(note.resolve("en-US"), "English default text.");
+        assert_eq!(note.resolve("es"), "English default text.");
+        assert_eq!(note.resolve("pt-BR"), "English default text.");
     }
 
     #[test]
@@ -2054,13 +2141,42 @@ mod tests {
     fn the_portuguese_detector_catches_a_seeded_fallback() {
         assert_eq!(
             portuguese_markers("Não foi possível ler a cota da conta."),
-            ["ã", "não", "cota", "conta"]
+            ["ã", "não", "foi", "ível", "cota", "conta"]
         );
         assert_eq!(
             portuguese_markers("A sessão já está ativa."),
-            ["ã", "já", "está"]
+            ["ã", "sessão", "já", "está"]
         );
         assert_eq!(portuguese_markers("Configuração"), ["ç", "ã"]);
+        // Only acute accents: the shared letters and words flag it as
+        // English, the Spanish-safe detector does not (it is valid Spanish).
+        assert_eq!(
+            portuguese_markers_in_english("Créditos extras usados"),
+            ["é", "usados"]
+        );
+        assert!(portuguese_markers("Créditos extras usados").is_empty());
+        assert_eq!(
+            portuguese_markers_in_english("Keychain indisponível no teste"),
+            ["í", "ível"]
+        );
+        assert_eq!(portuguese_markers("Falha no histórico"), ["falha"]);
+        assert_eq!(
+            portuguese_markers_in_english("Falha no histórico"),
+            ["ó", "falha"]
+        );
+        assert_eq!(portuguese_markers("Você também"), ["ê", "você", "também"]);
+        assert_eq!(portuguese_markers("Usuário"), ["ário"]);
+        // Spanish and Italian words the Spanish-safe detector lets through.
+        for text in [
+            "Créditos usados en el período",
+            "Límite de sesión también",
+            "La modalità è già attiva, perché",
+            "Configuración disponible",
+        ] {
+            assert!(portuguese_markers(text).is_empty(), "{text}");
+        }
+        assert!(portuguese_markers_in_english("Could not read the account quota.").is_empty());
+        assert!(portuguese_markers_in_english("{provider}: {count} usage alerts").is_empty());
         assert!(portuguese_markers("Could not read the account quota.").is_empty());
         assert!(portuguese_markers("{provider}: {count} usage alerts").is_empty());
         let seeded = std::panic::catch_unwind(|| {

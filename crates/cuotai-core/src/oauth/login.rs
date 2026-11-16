@@ -1635,7 +1635,7 @@ mod tests {
             if self.fail_deletes.lock().contains(id) {
                 return Err(OAuthError::Storage(crate::text::Localized::fixed(
                     "oauth_error.login.storage_failure",
-                    "falha",
+                    "failure",
                 )));
             }
             self.tokens.lock().remove(id);
@@ -1958,7 +1958,7 @@ mod tests {
             fn save(&self, _: &str, _: &OAuthToken) -> Result<(), OAuthError> {
                 Err(OAuthError::Storage(crate::text::Localized::fixed(
                     "oauth_error.login.storage_failure",
-                    "falha",
+                    "failure",
                 )))
             }
             fn delete(&self, _: &str) -> Result<(), OAuthError> {
@@ -1977,7 +1977,7 @@ mod tests {
         )
         .await;
         let LoginCommitOutcome::PartialFailure(failure) = outcome else {
-            panic!("esperava falha parcial");
+            panic!("expected a partial failure");
         };
         assert_eq!(failure.stage, CommitStage::Vault);
         assert!(!failure.config_saved);
@@ -2167,7 +2167,7 @@ mod tests {
         )
         .await;
         let LoginCommitOutcome::PartialFailure(failure) = outcome else {
-            panic!("esperava falha parcial");
+            panic!("expected a partial failure");
         };
         assert_eq!(failure.compensation, Compensation::NewRemoved);
         assert!(store.load(&old_key).unwrap().is_some());
@@ -2189,7 +2189,7 @@ mod tests {
 
         let outcome = commit_login(&mut file, &session, &completed, empty_config()).await;
         let LoginCommitOutcome::PartialFailure(failure) = outcome else {
-            panic!("esperava falha parcial");
+            panic!("expected a partial failure");
         };
         assert_eq!(failure.stage, CommitStage::Config);
         assert!(!failure.config_saved);
@@ -2223,7 +2223,7 @@ mod tests {
 
         let outcome = commit_login(&mut file, &session, &completed, empty_config()).await;
         let LoginCommitOutcome::PartialFailure(failure) = outcome else {
-            panic!("esperava falha parcial");
+            panic!("expected a partial failure");
         };
         assert_eq!(failure.compensation, Compensation::NewRemoved);
         assert!(!failure.credential_saved);
