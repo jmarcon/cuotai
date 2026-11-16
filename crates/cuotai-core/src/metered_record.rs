@@ -19,8 +19,19 @@ use crate::{Account, Report, Status};
 /// How long another process's claim on the next query is respected.
 const CLAIM_TTL: TimeDelta = TimeDelta::minutes(2);
 
+/// The record format: 2 binds the record to the account's settings.
+const SCHEMA: u32 = 2;
+
 #[derive(Debug, Default, Serialize, Deserialize)]
 struct Record {
+    #[serde(default)]
+    schema: u32,
+    /// [`crate::models::restore_fingerprint`] of the account that wrote the
+    /// record: provider, credential reference and every non-display param
+    /// (for AWS Bedrock the profile, region, CLI path and override). No
+    /// secret and no name. A record of other settings counts as absent.
+    #[serde(default)]
+    settings: Option<String>,
     queried_at: Option<DateTime<Utc>>,
     claimed_at: Option<DateTime<Utc>>,
     report: Option<Report>,
@@ -107,7 +118,19 @@ impl Store {
         let Ok(lock) = self.lock(&path) else {
             return Decision::Query;
         };
+        let settings = crate::models::restore_fingerprint(account);
         let mut record = Self::read(&path);
+        // PRD 0033 re-validation H-1: a record written for other settings
+        // (an edited profile, another config sharing the id, a schema-1
+        // record without a digest) is never reused nor its claim honoured;
+        // the next query overwrites it.
+        if record.schema != SCHEMA || record.settings.as_deref() != Some(settings.as_str()) {
+            record = Record {
+                schema: SCHEMA,
+                settings: Some(settings),
+                ..Record::default()
+            };
+        }
         let fresh = record
             .queried_at
             .is_some_and(|at| at <= now && now - at < interval);
@@ -134,7 +157,15 @@ impl Store {
         let Ok(lock) = self.lock(&path) else {
             return;
         };
+        let settings = crate::models::restore_fingerprint(account);
         let mut record = Self::read(&path);
+        if record.schema != SCHEMA || record.settings.as_deref() != Some(settings.as_str()) {
+            record = Record {
+                schema: SCHEMA,
+                settings: Some(settings),
+                ..Record::default()
+            };
+        }
         record.claimed_at = None;
         if report.status == Status::Ready {
             record.queried_at = Some(now);
@@ -142,6 +173,31 @@ impl Store {
         }
         Self::write(&path, &record);
         drop(lock);
+    }
+}
+
+/// PRD 0033 re-validation H-1 (R-2): a reused report belongs to the
+/// account reading it, not to the process that wrote it: its name and id,
+/// and its own interval note instead of the writer's.
+pub(crate) fn rebind(report: &mut Report, account: &Account) {
+    report.account = account.name.clone();
+    report.account_id = Some(account.id());
+    report.strip_disguising_text();
+    let keep: Vec<bool> = report
+        .notes_l10n
+        .iter()
+        .map(|note| !note.id.starts_with("note.metered."))
+        .collect();
+    if keep.len() == report.notes.len() {
+        let mut flags = keep.iter();
+        report.notes.retain(|_| *flags.next().unwrap_or(&true));
+    }
+    report
+        .notes_l10n
+        .retain(|note| !note.id.starts_with("note.metered."));
+    if let Some(note) = account.metered_interval_note() {
+        report.notes.push(note.text().to_owned());
+        report.notes_l10n.push(note);
     }
 }
 
@@ -217,7 +273,9 @@ mod tests {
     }
 
     /// PRD 0029 RF2: the record follows the stable id across a rename, and
-    /// a record an earlier build wrote under the name key is adopted.
+    /// a record an earlier build wrote under the name key is adopted. It
+    /// carries no settings digest (schema 1), so it counts as absent once
+    /// (PRD 0033 re-validation H-1): one query, then reuse.
     #[test]
     fn the_record_is_keyed_by_the_id_and_adopts_the_legacy_file() {
         let dir = tempfile::tempdir().unwrap();
@@ -234,23 +292,88 @@ mod tests {
             &legacy,
             &Record {
                 queried_at: Some(t0),
-                claimed_at: None,
                 report: Some(report(Status::Ready)),
+                ..Record::default()
             },
         );
         let soon = t0 + TimeDelta::minutes(5);
-        assert!(matches!(
-            store.begin(&account, hour, soon),
-            Decision::Reuse(_)
-        ));
+        assert!(matches!(store.begin(&account, hour, soon), Decision::Query));
         assert!(!legacy.exists());
+        store.finish(&account, &report(Status::Ready), soon);
         let renamed = Account {
             name: "renamed".into(),
             ..account.clone()
         };
+        let later = soon + TimeDelta::minutes(1);
+        let Decision::Reuse(mut reused) = store.begin(&renamed, hour, later) else {
+            panic!("same settings under a new name must reuse");
+        };
+        rebind(&mut reused, &renamed);
+        assert_eq!(reused.account, "renamed");
+        assert_eq!(reused.account_id, Some(renamed.id()));
+    }
+
+    /// PRD 0033 re-validation H-1: an edited profile never reuses the
+    /// figures of the previous one; it queries once and is then reused.
+    #[test]
+    fn a_changed_profile_queries_once_and_never_shows_the_old_figures() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::new(dir.path().to_path_buf());
+        let mut account = account();
+        account.params.insert("profile".into(), "first".into());
+        let t0 = Utc::now();
+        let hour = TimeDelta::hours(1);
+        assert!(matches!(store.begin(&account, hour, t0), Decision::Query));
+        store.finish(&account, &report(Status::Ready), t0);
+        account.params.insert("profile".into(), "second".into());
+        let soon = t0 + TimeDelta::minutes(1);
+        assert!(matches!(store.begin(&account, hour, soon), Decision::Query));
+        store.finish(&account, &report(Status::Ready), soon);
+        let later = soon + TimeDelta::minutes(1);
         assert!(matches!(
-            store.begin(&renamed, hour, soon),
+            store.begin(&account, hour, later),
             Decision::Reuse(_)
         ));
+        // The first profile's record was overwritten: going back queries.
+        account.params.insert("profile".into(), "first".into());
+        assert!(matches!(
+            store.begin(&account, hour, later),
+            Decision::Query
+        ));
+    }
+
+    /// Two ids with the same settings keep separate records.
+    #[test]
+    fn two_ids_with_the_same_settings_have_separate_records() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::new(dir.path().to_path_buf());
+        let first = Account {
+            id: Some(crate::AccountId::parse("acc_0123456789ab").unwrap()),
+            ..account()
+        };
+        let second = Account {
+            id: Some(crate::AccountId::parse("acc_ba9876543210").unwrap()),
+            ..account()
+        };
+        let t0 = Utc::now();
+        let hour = TimeDelta::hours(1);
+        assert!(matches!(store.begin(&first, hour, t0), Decision::Query));
+        store.finish(&first, &report(Status::Ready), t0);
+        assert!(matches!(store.begin(&second, hour, t0), Decision::Query));
+    }
+
+    /// The reused report drops the writer's interval note for the reader's.
+    #[test]
+    fn rebind_replaces_the_writers_interval_note() {
+        let mut writer = account();
+        writer.refresh_seconds = Some(600);
+        let mut report = report(Status::Ready);
+        let note = writer.metered_interval_note().unwrap();
+        report.notes.push(note.text().to_owned());
+        report.notes_l10n.push(note);
+        let reader = account();
+        rebind(&mut report, &reader);
+        assert!(report.notes_l10n.is_empty());
+        assert!(report.notes.is_empty());
     }
 }
