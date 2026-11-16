@@ -24,7 +24,7 @@
 | RF5 | 0.83.0 | `--stats --rhythm [ACCOUNT] [--range 24h\|7d\|typical] [--json]`, TUI Stats `r` key, `--digest`, `rhythm`/`limit_changes` in `--stats --json` and `/v1/stats` (additive). |
 | RF6 | 0.83.0, 0.84.0 | `docs/gui-features.md`, `docs/tui.md`, `docs/advanced.md`, `docs/events.md`, `docs/local-server.md`, `docs/export-v1.schema.json`; 0.84.0: the strip style and the popover strip (`docs/gui-features.md`, `docs/platforms.md`) and the digest's action. |
 | Deviation | 0.84.0 | RF4.3 asks for "an action that opens the Stats view" on the notification. `tauri-plugin-notification` 2.7 has no click callback or action buttons on the desktop, so the action is the focus rule above (decision of 2026-11-07, the most conservative way without a new native dependency). |
-| Fix | vNEXT | The weekly digest notification keeps its short lines as separate lines: the desktop delivers them through `text::notice_lines` (each line cleaned on its own, whole lines within 400 characters, "and N more" kept), as the quiet-hours digest does (PRD 0032 re-validation C-01). |
+| Fix | 0.86.5 | The weekly digest notification keeps its short lines as separate lines: the desktop delivers them through `text::notice_lines` (each line cleaned on its own, whole lines within 400 characters, "and N more" kept), as the quiet-hours digest does (PRD 0032 re-validation C-01). |
 | Owner verification | — | The strip style on the macOS menu bar in light and dark (and colored), the popover strip on Windows and Linux, a weekly digest clicked on each system opening Stats, and the §11 smoke after a week of readings (§2.1 of `0000_control.md`). |
 
 ## 1. Context
