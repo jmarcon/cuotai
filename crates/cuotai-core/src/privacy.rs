@@ -219,10 +219,10 @@ static ARTIFACTS: &[Artifact] = &[
         "history.db",
         LocalData,
         "history/history.sqlite3",
-        "readings per account and metric (digests of names, numbers, times), plus a settings digest per account that decides whether its last reading may be shown after a restart (no secret)",
+        "readings per account and metric (digests of names, numbers, times), plus a settings digest per account that decides whether its last reading may be shown after a restart (no secret), and an event journal: event name, metric label, threshold, share, reset and projection times, failure category, incident state, extra-usage amount and currency (no message, URL, e-mail or token)",
         SqliteUserVersion,
-        "90 days by default (7 to 365), 64 MiB cap; its pre-upgrade copy `history.sqlite3.bak` is kept 7 days within the cap",
-        "0006",
+        "90 days by default (7 to 365), 64 MiB cap that trims the oldest readings and journal rows together; its pre-upgrade copy `history.sqlite3.bak` is kept 7 days within the cap",
+        "0006, 0026",
     ),
     file(
         "models.db",
