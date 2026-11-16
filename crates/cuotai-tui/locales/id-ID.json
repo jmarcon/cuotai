@@ -84,7 +84,9 @@
   "cost.prices.heading": "Harga untuk perkiraan biaya lokal (USD per sejuta token)",
   "cost.prices.origin.embedded": "bawaan",
   "cost.prices.origin.user": "tabel Anda",
-  "cost.prices.user": "Tabel Anda ({path}): harga per {date}; sumber: {source}; {count} model, yang diutamakan atas tabel bawaan",
+  "cost.prices.user": {
+    "other": "Tabel Anda ({path}): harga per {date}; sumber: {source}; {count} model, yang diutamakan atas tabel bawaan"
+  },
   "cost.prices.user_ignored": "Tabel Anda ({path}): diabaikan. {reason}",
   "cost.prices.user_missing": "Tabel Anda ({path}): tidak ada; buat dalam format yang sama untuk meninjau atau mengubah harga",
   "cost.sources.dirs": "  Direktori ({origin}), file {pattern}:",
@@ -92,14 +94,16 @@
   "cost.sources.dirs.default": "bawaan",
   "cost.sources.footer": "Periode: {period} ({slug}); retensi indeks: {days} hari\nIndeks: {index}\nPreferensi: {settings}",
   "cost.sources.heading": "Biaya lokal (perkiraan hanya di komputer ini; nonaktif secara bawaan)",
-  "cost.sources.indexed": "  Dalam indeks: {files} log, {invalid} baris tidak valid diabaikan",
+  "cost.sources.indexed": "  Dalam indeks: {files}, {invalid}",
   "cost.sources.off": "nonaktif",
   "cost.sources.on_since": "aktif sejak {at}",
   "cost.live.interval_bounds": "--watch-interval antara 2 dan 3600 detik.",
   "cost.live.quit": "q untuk keluar",
   "cost.label.target": "Target label tidak dikenal: {name}. Target: session, project.",
   "cost.folder_hint.state": "Gunakan on atau off.",
-  "cost.project.sessions": "{count} sesi",
+  "cost.project.sessions": {
+    "other": "{count} sesi"
+  },
   "dashboard.aggregator.available": "{available}/{total} tersedia",
   "dashboard.card.stale": "(usang) {age}",
   "dashboard.card.waiting": "Menunggu",
@@ -650,5 +654,6 @@
   "cli.backup.history_large": "Cadangan memuat {size} MiB riwayat; menyalinnya bisa lambat.",
   "cli.restore.merge": "gabungkan",
   "cli.restore.rows": "baris: {rows}, baru di sini: {new}",
-  "cli.list_providers.aggregator": " (agregator)"
+  "cli.list_providers.aggregator": " (agregator)",
+  "cost.plan.no_account": "Tidak ada akun terkonfigurasi bernama {account}; gunakan id-nya atau provider:name."
 }

@@ -84,7 +84,9 @@
   "cost.prices.heading": "ローカル費用見積もりの価格（100 万 token あたりの USD）",
   "cost.prices.origin.embedded": "組み込み",
   "cost.prices.origin.user": "独自の価格表",
-  "cost.prices.user": "独自の価格表（{path}）：{date} 時点の価格。出典：{source}。{count} モデル、組み込みより優先",
+  "cost.prices.user": {
+    "other": "独自の価格表（{path}）：{date} 時点の価格。出典：{source}。{count} モデル、組み込みより優先"
+  },
   "cost.prices.user_ignored": "独自の価格表（{path}）：無視されました。{reason}",
   "cost.prices.user_missing": "独自の価格表（{path}）：存在しません。同じ形式で作成すると価格を確認・変更できます",
   "cost.sources.dirs": "  ディレクトリ（{origin}）、ファイル {pattern}：",
@@ -92,14 +94,16 @@
   "cost.sources.dirs.default": "既定",
   "cost.sources.footer": "期間：{period}（{slug}）。インデックス保持：{days} 日\nインデックス：{index}\n設定：{settings}",
   "cost.sources.heading": "ローカル費用（このコンピューター上の見積もりのみ。既定ではオフ）",
-  "cost.sources.indexed": "  インデックス内：ログ {files} 件、無効な行 {invalid} 行を無視",
+  "cost.sources.indexed": "  インデックス内：{files}、{invalid}",
   "cost.sources.off": "オフ",
   "cost.sources.on_since": "{at} からオン",
   "cost.live.interval_bounds": "--watch-interval は 2〜3600 秒です。",
   "cost.live.quit": "q で終了",
   "cost.label.target": "不明なラベル対象: {name}。対象: session、project。",
   "cost.folder_hint.state": "on または off を指定してください。",
-  "cost.project.sessions": "セッション {count} 件",
+  "cost.project.sessions": {
+    "other": "セッション {count} 件"
+  },
   "dashboard.aggregator.available": "{available}/{total} 利用可能",
   "dashboard.card.stale": "（古い）{age}",
   "dashboard.card.waiting": "待機中",
@@ -650,5 +654,6 @@
   "cli.backup.history_large": "バックアップには {size} MiB の履歴が含まれます。コピーに時間がかかる場合があります。",
   "cli.restore.merge": "統合",
   "cli.restore.rows": "行: {rows}、ここでの新規: {new}",
-  "cli.list_providers.aggregator": " (アグリゲーター)"
+  "cli.list_providers.aggregator": " (アグリゲーター)",
+  "cost.plan.no_account": "{account} という名前の設定済みアカウントはありません。ID または provider:name を使ってください。"
 }

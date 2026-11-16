@@ -81,7 +81,10 @@
   "cost.prices.heading": "Preços da estimativa de custo local (USD por milhão de tokens)",
   "cost.prices.origin.embedded": "embutida",
   "cost.prices.origin.user": "sua tabela",
-  "cost.prices.user": "Sua tabela ({path}): preços de {date}; fonte: {source}; {count} modelo(s), que valem sobre a embutida",
+  "cost.prices.user": {
+    "one": "Sua tabela ({path}): preços de {date}; fonte: {source}; {count} modelo, que vale sobre a embutida",
+    "other": "Sua tabela ({path}): preços de {date}; fonte: {source}; {count} modelos, que valem sobre a embutida"
+  },
   "cost.prices.user_ignored": "Sua tabela ({path}): ignorada. {reason}",
   "cost.prices.user_missing": "Sua tabela ({path}): não existe; crie-a no mesmo formato para revisar ou trocar preços",
   "cost.sources.dirs": "  Diretórios ({origin}), arquivos {pattern}:",
@@ -89,14 +92,17 @@
   "cost.sources.dirs.default": "padrão",
   "cost.sources.footer": "Período: {period} ({slug}); retenção do índice: {days} dias\nÍndice: {index}\nPreferências: {settings}",
   "cost.sources.heading": "Custo local (estimativa só neste computador; desligado por padrão)",
-  "cost.sources.indexed": "  No índice: {files} log(s), {invalid} linha(s) inválida(s) ignorada(s)",
+  "cost.sources.indexed": "  No índice: {files}, {invalid}",
   "cost.sources.off": "desligado",
   "cost.sources.on_since": "ligado desde {at}",
   "cost.live.interval_bounds": "--watch-interval vai de 2 a 3600 segundos.",
   "cost.live.quit": "q sai",
   "cost.label.target": "Alvo de rótulo desconhecido: {name}. Alvos: session, project.",
   "cost.folder_hint.state": "Use on ou off.",
-  "cost.project.sessions": "{count} sessão(ões)",
+  "cost.project.sessions": {
+    "one": "{count} sessão",
+    "other": "{count} sessões"
+  },
   "dashboard.aggregator.available": "{available}/{total} disponíveis",
   "dashboard.card.stale": "(desatualizada) {age}",
   "dashboard.card.waiting": "Aguardando",
@@ -657,5 +663,6 @@
   "cli.backup.history_large": "O backup guarda {size} MiB de histórico; pode demorar para copiar.",
   "cli.restore.merge": "mesclar",
   "cli.restore.rows": "linhas: {rows}, novas aqui: {new}",
-  "cli.list_providers.aggregator": " (agregador)"
+  "cli.list_providers.aggregator": " (agregador)",
+  "cost.plan.no_account": "Nenhuma conta configurada se chama {account}; use o id dela ou provider:name."
 }

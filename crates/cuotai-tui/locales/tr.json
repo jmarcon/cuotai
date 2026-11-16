@@ -84,7 +84,10 @@
   "cost.prices.heading": "Yerel maliyet tahmininin fiyatları (milyon token başına USD)",
   "cost.prices.origin.embedded": "yerleşik",
   "cost.prices.origin.user": "sizin tablonuz",
-  "cost.prices.user": "Sizin tablonuz ({path}): {date} tarihli fiyatlar; kaynak: {source}; yerleşik tablonun önüne geçen {count} model",
+  "cost.prices.user": {
+    "one": "Sizin tablonuz ({path}): {date} tarihli fiyatlar; kaynak: {source}; yerleşik tablonun önüne geçen {count} model",
+    "other": "Sizin tablonuz ({path}): {date} tarihli fiyatlar; kaynak: {source}; yerleşik tablonun önüne geçen {count} model"
+  },
   "cost.prices.user_ignored": "Sizin tablonuz ({path}): yok sayıldı. {reason}",
   "cost.prices.user_missing": "Sizin tablonuz ({path}): yok; fiyatları gözden geçirmek veya değiştirmek için aynı biçimde oluşturun",
   "cost.sources.dirs": "  Dizinler ({origin}), dosyalar {pattern}:",
@@ -92,14 +95,17 @@
   "cost.sources.dirs.default": "varsayılan",
   "cost.sources.footer": "Dönem: {period} ({slug}); dizin saklama süresi: {days} gün\nDizin: {index}\nTercihler: {settings}",
   "cost.sources.heading": "Yerel maliyet (yalnızca bu bilgisayarda bir tahmin; varsayılan olarak kapalı)",
-  "cost.sources.indexed": "  Dizinde: {files} günlük, {invalid} geçersiz satır yok sayıldı",
+  "cost.sources.indexed": "  Dizinde: {files}, {invalid}",
   "cost.sources.off": "kapalı",
   "cost.sources.on_since": "{at} tarihinden beri açık",
   "cost.live.interval_bounds": "--watch-interval 2 ile 3600 saniye arasındadır.",
   "cost.live.quit": "q ile çık",
   "cost.label.target": "Bilinmeyen etiket hedefi: {name}. Hedefler: session, project.",
   "cost.folder_hint.state": "on veya off kullanın.",
-  "cost.project.sessions": "{count} oturum",
+  "cost.project.sessions": {
+    "one": "{count} oturum",
+    "other": "{count} oturum"
+  },
   "dashboard.aggregator.available": "{available}/{total} kullanılabilir",
   "dashboard.card.stale": "(eski) {age}",
   "dashboard.card.waiting": "Bekliyor",
@@ -660,5 +666,6 @@
   "cli.backup.history_large": "Yedek {size} MiB geçmiş içeriyor; kopyalanması yavaş olabilir.",
   "cli.restore.merge": "birleştir",
   "cli.restore.rows": "satır: {rows}, burada yeni: {new}",
-  "cli.list_providers.aggregator": " (toplayıcı)"
+  "cli.list_providers.aggregator": " (toplayıcı)",
+  "cost.plan.no_account": "{account} adında yapılandırılmış bir hesap yok; kimliğini veya provider:name kullanın."
 }

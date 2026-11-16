@@ -3243,7 +3243,7 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
     // used through, the same section on every account of that tool.
     if let Some(panel) = view.local_cost {
         if let Some(tool) = panel.summary.for_provider(account.provider) {
-            lines.extend(local_cost_lines(panel, tool));
+            lines.extend(local_cost_lines(panel, tool, &account.state_key()));
         }
     }
     let source = (!report.source.is_empty()).then_some(safe(&report.source));
@@ -3312,7 +3312,13 @@ fn source_prefix() -> &'static str {
 /// rows (why there are no complete numbers, today, yesterday and the
 /// span, by model and by day), the notice that it is an estimate and an
 /// ignored `pricing.json`; a source that is off explains how to turn it on.
-fn local_cost_lines(panel: &crate::cost::CostPanel, tool: &SourceCost) -> Vec<Line<'static>> {
+/// C-05: the plan line shows only on `account_id` when it has a plan;
+/// C-06: the price age and "No price for" are this source's own.
+fn local_cost_lines(
+    panel: &crate::cost::CostPanel,
+    tool: &SourceCost,
+    account_id: &str,
+) -> Vec<Line<'static>> {
     let summary = &panel.summary;
     let text = |l10n: &cuotai_core::text::Localized| safe(&resolve_l10n(l10n)).into_owned();
     let mut lines = vec![
@@ -3328,40 +3334,32 @@ fn local_cost_lines(panel: &crate::cost::CostPanel, tool: &SourceCost) -> Vec<Li
             Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
         ),
     ];
-    for (row, line) in crate::cost::source_rows(summary, tool) {
+    // PRD 0030 RF1: the plan price next to the estimate, only on an account
+    // that has a plan; nothing without one.
+    let plans: Vec<&cost::PlanValue> = panel
+        .plans
+        .iter()
+        .filter(|v| v.source == tool.source && v.planned_ids.iter().any(|id| id == account_id))
+        .collect();
+    for (row, line) in crate::cost::source_rows(summary, tool, panel.display.as_ref(), &plans) {
         use crate::cost::Row;
         let (indent, style) = match row {
             Row::Note => ("  ", Style::default().fg(YELLOW)),
             Row::Amount => ("  ", Style::default().fg(FG)),
+            Row::Aside => ("  ", Style::default().fg(MUTED)),
             Row::Heading => ("  ", Style::default().fg(CYAN).add_modifier(Modifier::BOLD)),
             Row::Item => ("    ", Style::default().fg(MUTED)),
         };
         lines.push(Line::styled(format!("{indent}{}", text(&line)), style));
     }
-    if let Some(usage) = &tool.usage {
-        // PRD 0030 RF6.2: the period's total at the typed rate, under it.
-        if let (Some(display), Some(total)) = (&panel.display, usage.period.total) {
-            lines.push(Line::styled(
-                format!("  {}", text(&display.text(total, summary.span.last_day))),
-                Style::default().fg(MUTED),
-            ));
-        }
-        // PRD 0030 RF1: the plan price next to the estimate; nothing
-        // without a plan.
-        for value in panel.plans.iter().filter(|v| v.source == tool.source) {
-            lines.push(Line::styled(
-                format!("  {}", text(&value.text)),
-                Style::default().fg(FG),
-            ));
-        }
-    }
     let tail = match &tool.usage {
         None => vec![cost::enable_hint()],
-        Some(_) => summary
+        Some(usage) => summary
             .pricing_error
             .iter()
-            .chain(&summary.prices_age)
-            .chain(&summary.unpriced)
+            .chain(usage.prices_age())
+            .chain(&usage.unpriced)
+            .chain(&summary.settings_notes)
             .cloned()
             .chain([summary.notice.clone()])
             .collect(),
@@ -6799,15 +6797,28 @@ mod tests {
             display: Some(display),
         };
         let tool = panel.summary.for_provider(Provider::Claude).unwrap();
-        let shown: String = local_cost_lines(&panel, tool)
+        let id = account.state_key();
+        let shown: Vec<String> = local_cost_lines(&panel, tool, &id)
+            .iter()
+            .map(|line| line.to_string())
+            .collect();
+        let joined = shown.join("\n");
+        assert!(joined.contains("no seu câmbio"), "{joined}");
+        assert!(joined.contains("plano US$\u{a0}20,00"), "{joined}");
+        // C-07: the rate line comes right under the period row.
+        let period = shown
+            .iter()
+            .position(|line| line.contains("Últimos 7 dias"))
+            .expect("period row");
+        assert!(shown[period + 1].contains("no seu câmbio"), "{joined}");
+        // C-05: an account without a plan never shows the plan line.
+        let other: String = local_cost_lines(&panel, tool, "someone-else")
             .iter()
             .map(|line| line.to_string() + "\n")
             .collect();
-        assert!(shown.contains("BRL 20.00"), "{shown}");
-        assert!(shown.contains("no seu câmbio"), "{shown}");
-        assert!(shown.contains("plano USD 20.00"), "{shown}");
+        assert!(!other.contains("plano"), "{other}");
         let plain = crate::cost::CostPanel::of(panel.summary.clone());
-        let plain: String = local_cost_lines(&plain, tool)
+        let plain: String = local_cost_lines(&plain, tool, &id)
             .iter()
             .map(|line| line.to_string() + "\n")
             .collect();

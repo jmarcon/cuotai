@@ -84,7 +84,10 @@
   "cost.prices.heading": "Preise der lokalen Kostenschätzung (USD pro Million Tokens)",
   "cost.prices.origin.embedded": "eingebaut",
   "cost.prices.origin.user": "Ihre Tabelle",
-  "cost.prices.user": "Ihre Tabelle ({path}): Preise vom {date}; Quelle: {source}; {count} Modell(e), die der eingebauten vorgehen",
+  "cost.prices.user": {
+    "one": "Ihre Tabelle ({path}): Preise vom {date}; Quelle: {source}; {count} Modell, das der eingebauten vorgeht",
+    "other": "Ihre Tabelle ({path}): Preise vom {date}; Quelle: {source}; {count} Modelle, die der eingebauten vorgehen"
+  },
   "cost.prices.user_ignored": "Ihre Tabelle ({path}): ignoriert. {reason}",
   "cost.prices.user_missing": "Ihre Tabelle ({path}): nicht vorhanden; legen Sie sie im selben Format an, um Preise zu prüfen oder zu ersetzen",
   "cost.sources.dirs": "  Verzeichnisse ({origin}), Dateien {pattern}:",
@@ -92,14 +95,17 @@
   "cost.sources.dirs.default": "Standard",
   "cost.sources.footer": "Zeitraum: {period} ({slug}); Index-Aufbewahrung: {days} Tage\nIndex: {index}\nEinstellungen: {settings}",
   "cost.sources.heading": "Lokale Kosten (nur auf diesem Computer geschätzt; standardmäßig aus)",
-  "cost.sources.indexed": "  Im Index: {files} Log(s), {invalid} ungültige Zeile(n) ignoriert",
+  "cost.sources.indexed": "  Im Index: {files}, {invalid}",
   "cost.sources.off": "aus",
   "cost.sources.on_since": "an seit {at}",
   "cost.live.interval_bounds": "--watch-interval liegt zwischen 2 und 3600 Sekunden.",
   "cost.live.quit": "q beendet",
   "cost.label.target": "Unbekanntes Ziel für die Bezeichnung: {name}. Ziele: session, project.",
   "cost.folder_hint.state": "Verwenden Sie on oder off.",
-  "cost.project.sessions": "{count} Sitzung(en)",
+  "cost.project.sessions": {
+    "one": "{count} Sitzung",
+    "other": "{count} Sitzungen"
+  },
   "dashboard.aggregator.available": "{available}/{total} verfügbar",
   "dashboard.card.stale": "(veraltet) {age}",
   "dashboard.card.waiting": "Warten",
@@ -660,5 +666,6 @@
   "cli.backup.history_large": "Die Sicherung enthält {size} MiB Verlauf; das Kopieren kann dauern.",
   "cli.restore.merge": "zusammenführen",
   "cli.restore.rows": "Zeilen: {rows}, hier neu: {new}",
-  "cli.list_providers.aggregator": " (Aggregator)"
+  "cli.list_providers.aggregator": " (Aggregator)",
+  "cost.plan.no_account": "Kein konfiguriertes Konto heißt {account}; verwenden Sie seine ID oder provider:name."
 }

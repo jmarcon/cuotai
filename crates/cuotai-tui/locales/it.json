@@ -81,7 +81,10 @@
   "cost.prices.heading": "Prezzi della stima del costo locale (USD per milione di token)",
   "cost.prices.origin.embedded": "integrata",
   "cost.prices.origin.user": "la tua tabella",
-  "cost.prices.user": "La tua tabella ({path}): prezzi del {date}; fonte: {source}; {count} modello/i, che prevalgono su quella integrata",
+  "cost.prices.user": {
+    "one": "La tua tabella ({path}): prezzi del {date}; fonte: {source}; {count} modello, che prevale su quella integrata",
+    "other": "La tua tabella ({path}): prezzi del {date}; fonte: {source}; {count} modelli, che prevalgono su quella integrata"
+  },
   "cost.prices.user_ignored": "La tua tabella ({path}): ignorata. {reason}",
   "cost.prices.user_missing": "La tua tabella ({path}): non esiste; creala nello stesso formato per rivedere o cambiare i prezzi",
   "cost.sources.dirs": "  Directory ({origin}), file {pattern}:",
@@ -89,14 +92,17 @@
   "cost.sources.dirs.default": "predefinite",
   "cost.sources.footer": "Periodo: {period} ({slug}); conservazione dell'indice: {days} giorni\nIndice: {index}\nPreferenze: {settings}",
   "cost.sources.heading": "Costo locale (stima solo su questo computer; disattivato per impostazione predefinita)",
-  "cost.sources.indexed": "  Nell'indice: {files} log, {invalid} riga/he non valida/e ignorata/e",
+  "cost.sources.indexed": "  Nell'indice: {files}, {invalid}",
   "cost.sources.off": "disattivato",
   "cost.sources.on_since": "attivo dal {at}",
   "cost.live.interval_bounds": "--watch-interval va da 2 a 3600 secondi.",
   "cost.live.quit": "q per uscire",
   "cost.label.target": "Destinazione dell’etichetta sconosciuta: {name}. Destinazioni: session, project.",
   "cost.folder_hint.state": "Usa on oppure off.",
-  "cost.project.sessions": "{count} sessione/i",
+  "cost.project.sessions": {
+    "one": "{count} sessione",
+    "other": "{count} sessioni"
+  },
   "dashboard.aggregator.available": "{available}/{total} disponibili",
   "dashboard.card.stale": "(non aggiornata) {age}",
   "dashboard.card.waiting": "In attesa",
@@ -657,5 +663,6 @@
   "cli.backup.history_large": "Il backup contiene {size} MiB di cronologia; potrebbe essere lento da copiare.",
   "cli.restore.merge": "unisci",
   "cli.restore.rows": "righe: {rows}, nuove qui: {new}",
-  "cli.list_providers.aggregator": " (aggregatore)"
+  "cli.list_providers.aggregator": " (aggregatore)",
+  "cost.plan.no_account": "Nessun account configurato si chiama {account}; usa il suo id o provider:name."
 }

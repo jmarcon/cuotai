@@ -84,7 +84,12 @@
   "cost.prices.heading": "Цены локальной оценки расходов (USD за миллион токенов)",
   "cost.prices.origin.embedded": "встроенная",
   "cost.prices.origin.user": "ваша таблица",
-  "cost.prices.user": "Ваша таблица ({path}): цены на {date}; источник: {source}; моделей: {count}, они приоритетнее встроенной",
+  "cost.prices.user": {
+    "one": "Ваша таблица ({path}): цены на {date}; источник: {source}; {count} модель, она приоритетнее встроенной",
+    "few": "Ваша таблица ({path}): цены на {date}; источник: {source}; {count} модели, они приоритетнее встроенной",
+    "many": "Ваша таблица ({path}): цены на {date}; источник: {source}; {count} моделей, они приоритетнее встроенной",
+    "other": "Ваша таблица ({path}): цены на {date}; источник: {source}; {count} модели, они приоритетнее встроенной"
+  },
   "cost.prices.user_ignored": "Ваша таблица ({path}): игнорируется. {reason}",
   "cost.prices.user_missing": "Ваша таблица ({path}): не найдена; создайте её в том же формате, чтобы проверить или заменить цены",
   "cost.sources.dirs": "  Каталоги ({origin}), файлы {pattern}:",
@@ -92,14 +97,19 @@
   "cost.sources.dirs.default": "по умолчанию",
   "cost.sources.footer": "Период: {period} ({slug}); хранение индекса: {days} дн.\nИндекс: {index}\nНастройки: {settings}",
   "cost.sources.heading": "Локальные расходы (оценка только на этом компьютере; по умолчанию выключено)",
-  "cost.sources.indexed": "  В индексе: логов: {files}, пропущено недопустимых строк: {invalid}",
+  "cost.sources.indexed": "  В индексе: {files}, {invalid}",
   "cost.sources.off": "выкл.",
   "cost.sources.on_since": "включено с {at}",
   "cost.live.interval_bounds": "--watch-interval — от 2 до 3600 секунд.",
   "cost.live.quit": "q — выход",
   "cost.label.target": "Неизвестная цель метки: {name}. Цели: session, project.",
   "cost.folder_hint.state": "Укажите on или off.",
-  "cost.project.sessions": "сеансов: {count}",
+  "cost.project.sessions": {
+    "one": "{count} сеанс",
+    "few": "{count} сеанса",
+    "many": "{count} сеансов",
+    "other": "{count} сеанса"
+  },
   "dashboard.aggregator.available": "доступно {available}/{total}",
   "dashboard.card.stale": "(устарело) {age}",
   "dashboard.card.waiting": "Ожидание",
@@ -680,5 +690,6 @@
   "cli.backup.history_large": "Резервная копия содержит {size} МиБ истории; копирование может занять время.",
   "cli.restore.merge": "объединить",
   "cli.restore.rows": "строк: {rows}, новых здесь: {new}",
-  "cli.list_providers.aggregator": " (агрегатор)"
+  "cli.list_providers.aggregator": " (агрегатор)",
+  "cost.plan.no_account": "Нет настроенного аккаунта с именем {account}; используйте его id или provider:name."
 }
