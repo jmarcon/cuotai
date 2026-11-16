@@ -162,7 +162,7 @@
 }
 
 /* Progress bars in "blocks" style */
-:root[data-theme="winxp"][data-mode="light"] .bar {
+:root[data-theme="winxp"][data-mode="light"] .bar:not(.bars .bar) {
   border: 1px solid #7f9db9;
 }
 :root[data-theme="winxp"][data-mode="light"] .switch.on {
@@ -201,7 +201,7 @@
 :root[data-theme="winxp"][data-mode="dark"] .theme-switch select {
   background: #2e3648;
 }
-:root[data-theme="winxp"][data-mode="dark"] .bar {
+:root[data-theme="winxp"][data-mode="dark"] .bar:not(.bars .bar) {
   border: 1px solid #3d5a99;
 }
 :root[data-theme="winxp"][data-mode="dark"] .switch.on {

@@ -95,6 +95,10 @@ const PAGES = zoom ? ZOOM_PAGES : [
   ["main-cost", "index.html?cost", 1200, 820, {}],
   ["main-stats", "index.html", 1200, 820, { "cuotai.openView": "stats" }],
   ["tray-stats", "tray.html", 380, 600, {}, "[data-open-stats]"],
+  // PRD 0026 re-validation (V-07, V-08): the 30-day range in the tray and in the narrow window, where day labels are
+  // densest. Every `*stats*` page also runs STATS_JS (words split mid-word, chart labels outside their card).
+  ["tray-stats-30", "tray.html", 380, 600, {}, ["[data-open-stats]", '[data-stats-range="days30"]']],
+  ["main-stats-30", "index.html", 520, 820, { "cuotai.openView": "stats" }, '[data-stats-range="days30"]'],
   // PRD 0002 V-01: an account expanded with Models open (the demo's failed-sync fixture), so the sync bar is checked.
   ["tray-models", "tray.html?models=failed", 380, 600, {}, "[data-open]", true],
   ["details-short", "index.html", 1200, 500, {}, "[data-details]"],
@@ -316,6 +320,37 @@ const PROBE_JS = `(() => {
   return out;
 })()`;
 
+// PRD 0026 re-validation (V-07, V-08) on every Stats page: (a) a word of the visible Stats or timeline text that the
+// layout split across two lines (a word without a hyphen of its own: the global `overflow-wrap` breaks it mid-word when
+// it does not fit, which no overflow check sees); (b) a chart day label, hidden from assistive technology but on
+// screen, that ends outside its card.
+const STATS_JS = `(() => {
+  const out = [];
+  const name = (e) => e.tagName.toLowerCase() + "." + [...e.classList].slice(0, 3).join(".");
+  for (const root of document.querySelectorAll(".stats, .timeline")) {
+    if (!root.getClientRects().length) continue;
+    const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+      const p = n.parentElement;
+      // Text that opted into hyphenation breaks with a hyphen the browser draws; CJK wraps between any two characters.
+      if (!p || p.closest(".sr-only, option, select, [hidden]") || !p.getClientRects().length || getComputedStyle(p).hyphens === "auto") continue;
+      for (const m of n.textContent.matchAll(/[^\\s\\-‐–—\\/·]{3,}/g)) {
+        const r = document.createRange();
+        r.setStart(n, m.index); r.setEnd(n, m.index + m[0].length);
+        const tops = new Set([...r.getClientRects()].filter((x) => x.width > 0).map((x) => Math.round(x.top)));
+        if (tops.size > 1 && !/[\\u3000-\\u9fff\\uac00-\\ud7af\\uff00-\\uffef]/.test(m[0])) out.push({ kind: "word-split", ok: false, sel: name(p), text: m[0].slice(0, 30) });
+      }
+    }
+  }
+  for (const label of document.querySelectorAll(".bars .x-label")) {
+    const card = label.closest(".st-card, .rhythm, .pop-strip");
+    if (!card || !label.textContent.trim() || !label.getClientRects().length) continue;
+    const a = label.getBoundingClientRect(), b = card.getBoundingClientRect();
+    if (a.left < b.left - 0.5 || a.right > b.right + 0.5) out.push({ kind: "label-outside-card", ok: false, sel: name(label), text: label.textContent.trim() + " " + Math.round(Math.max(b.left - a.left, a.right - b.right)) + "px" });
+  }
+  return out;
+})()`;
+
 // Every unit of work of this run, in a fixed order: each page in each locale, then (full run) the themed pages and
 // the danger button of every built-in theme and mode. `--shard i/n` keeps every n-th item from the i-th, so the n
 // shards of CI cover the whole list exactly once whatever is added to it; `--shard-selftest` proves that.
@@ -356,6 +391,7 @@ async function checkPage(name, page, w, h, storage, click, openModels, locale) {
   if (openModels) await ui.evaluate(OPEN_MODELS);
   if (selftest) await ui.evaluate(`(() => { const f = document.querySelector(".fig b"); if (f) f.textContent = "W".repeat(60); })()`);
   const found = (await ui.evaluate(PAGE_JS)) ?? [{ kind: "error", ok: false, sel: "page", text: "evaluation failed" }];
+  if (name.includes("stats")) found.push(...((await ui.evaluate(STATS_JS)) ?? [{ kind: "error", ok: false, sel: "page", text: "stats probe failed" }]));
   const bad = found.filter((f) => !f.ok);
   report[`${name}.${locale}`] = found;
   if (!json) console.log(`${bad.length ? "FAIL" : "ok  "} ${name} ${locale} (${w}×${h}): ${bad.length} problem(s), ${found.length - bad.length} allowed`);

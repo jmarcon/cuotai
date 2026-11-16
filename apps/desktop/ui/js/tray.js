@@ -349,11 +349,14 @@ function select(next) {
 }
 function back() {
   const key = expanded;
+  const fromStats = statsOpen;
   expanded = null;
   if (filterBeforeOpen) { filter = filterBeforeOpen; filterBeforeOpen = null; }
   statsOpen = false;
   render();
   if (key) root.querySelector(`[data-open="${CSS.escape(key)}"], [data-agg-toggle="${CSS.escape(key)}"]`)?.focus();
+  // PRD 0026 re-validation (V-05): closing the Stats drill-in returns focus to the footer button that opened it.
+  else if (fromStats) root.querySelector("[data-open-stats]")?.focus();
 }
 
 root.addEventListener("click", (e) => {
@@ -403,7 +406,12 @@ root.addEventListener("click", (e) => {
     if (target) { expanded = reportKey(target); return render(); }
   }
   if (el.closest("[data-back]")) return back();
-  if (el.closest("[data-open-stats]")) { expanded = null; statsOpen = !statsOpen; return render(); }
+  if (el.closest("[data-open-stats]")) {
+    expanded = null; statsOpen = !statsOpen; render();
+    // V-05: opening the drill-in moves focus to its Back control; closing it keeps focus on the button.
+    (statsOpen ? root.querySelector(".pop-head [data-back]") : root.querySelector("[data-open-stats]"))?.focus();
+    return;
+  }
   const one = el.closest("[data-refresh-one]");
   if (one) return store.refreshOne(Number(one.dataset.refreshOne));
   if (el.closest("[data-refresh-all]")) return store.refresh();

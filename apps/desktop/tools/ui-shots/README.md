@@ -55,7 +55,10 @@ app never registers it.
 The checker reports, per page and language: (a) text wider than its box with an ellipsis or hidden
 overflow, (b) text or controls outside the window, (c) text clipped by an ancestor, (d) text
 spilling out of a chip, button, tab, option card or figure, (e) overlapping text, (f) a status line
-taller than one line, a horizontal scroll, and a tray document that scrolls (the popover scrolls inside its list only). What may truncate by design (DS-MSG-15: account
+taller than one line, a horizontal scroll, and a tray document that scrolls (the popover scrolls inside its list only). On every
+Stats page (`main-stats`, `tray-stats` and their 30-day variants) it also reports (g) a word the layout split across two lines
+without a hyphen (the global `overflow-wrap` breaks it when it does not fit; CJK text and text with `hyphens: auto` are left out)
+and (h) a chart day label that ends outside its card. What may truncate by design (DS-MSG-15: account
 labels and names, the status label after its fitting, account names in the Stats rows, one-line notices and access lines, the
 Settings sidebar labels in its icon-rail width) is listed as allowed in `ALLOWED`.
 

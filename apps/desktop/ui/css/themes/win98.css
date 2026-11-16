@@ -120,12 +120,12 @@
   color: var(--fg);
 }
 
-/* Trilhos afundados */
-:root[data-theme="win98"][data-mode="light"] .bar {
+/* Sunken tracks of the meters; the Stats chart bars (`.bars .bar`) keep their own fill and hatch (PRD 0026 V-06). */
+:root[data-theme="win98"][data-mode="light"] .bar:not(.bars .bar) {
   border: 1px solid #808080;
   box-shadow: inset 1px 1px #0a0a0a, inset -1px -1px #ffffff;
 }
-:root[data-theme="win98"][data-mode="dark"] .bar {
+:root[data-theme="win98"][data-mode="dark"] .bar:not(.bars .bar) {
   border: 1px solid #000000;
   box-shadow: inset 1px 1px #000000, inset -1px -1px #5a5a5a;
 }

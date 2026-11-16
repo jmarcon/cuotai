@@ -33,6 +33,7 @@
 }
 .seg button {
   height: 24px;
+  white-space: nowrap; /* V-07: "7 T." stays on one line */
   padding: 0 var(--space-3);
   border: 0;
   border-radius: max(0px, calc(var(--radius-sm) - 2px));
@@ -115,11 +116,18 @@
   border-radius: var(--radius-md);
 }
 
-/* KPI stat cards (DS-CMP-KPI-1/2): never a 0 for missing data. */
+/* KPI stat cards (DS-CMP-KPI-1/2): never a 0 for missing data. PRD 0026 re-validation (V-07): a card is never
+   narrower than its longest word (de "Durchschnittliche", fr "supplémentaires"), so no word breaks mid-word; the
+   cards wrap to a new row instead and share it. */
 .kpis {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--sp-2);
+}
+.kpi {
+  flex: 1 1 110px;
+  min-width: min-content;
+  overflow-wrap: normal;
 }
 .kpi {
   display: flex;
@@ -241,6 +249,21 @@
 .bars .today .x-label {
   color: var(--fg);
   font-weight: 700;
+}
+/* V-08: in the popover the 7-day plot keeps a little room on its right for a long centred "Today" (en-XA). */
+.stats.tray .bars ul:not(.dense) {
+  margin-right: var(--space-2);
+}
+/* V-08: on a dense axis (30 days, 24 hours) the first and last labels align to the plot's edges, so a long word
+   ("Сегодня", "오전 12시") never leaves its card. */
+.bars ul.dense li:first-child .x-label {
+  left: 0;
+  transform: none;
+}
+.bars ul.dense li:last-child .x-label {
+  left: auto;
+  right: 0;
+  transform: none;
 }
 
 /* PRD 0043 RF4.1: the Rhythm card: three compact charts on the same bars (relative scale, no 0-100 axis). */
