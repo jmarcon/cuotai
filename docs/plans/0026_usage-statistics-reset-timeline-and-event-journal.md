@@ -9,7 +9,7 @@
 | Depends on | PRD 0006 (RF1–RF4: `HistoryStore`, `windows`, retention, erase); PRD 0013 (RF1: `events::diff`) and PRD 0029 (stable account identity) for RF3 |
 | Benefits from | PRD 0009 (binding metric), PRD 0023 (RF3: overage amounts for "extra spent"), PRD 0024 (RF5: projected events in the journal), PRD 0028 (RF11: label aliases keep series continuous), PRD 0031 (`/v1/stats` serves RF1), PRD 0022 (UI refresh: KPI cards, charts and timeline visuals) |
 | Extends | PRD 0006 RF3 (aggregates over stored windows; journal table in the same store), PRD 0009 RF1 (binding return per account on a timeline), PRD 0013 RF1 (events persisted for display) |
-| Date | 2026-10-22; amended 2026-10-23 (owner decision P: `/v1/stats` lives in PRD 0031; journal keyed by PRD 0029 ids; Stats placement per DS-CMP-STATS-1) |
+| Date | 2026-10-22; amended 2026-10-23 (owner decision P: `/v1/stats` lives in PRD 0031; journal keyed by PRD 0029 ids; Stats placement per DS-CMP-STATS-1); amended 2026-11-16 (re-validation: the ceiling covers the journal, times from the core clock, the RF4.2 neutral-bars deviation) |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable. A **limit hit** is a window instance of a plan limit whose recorded peak reached its limit. The **tightest limit** of an account is its binding metric (PRD 0009).
 
@@ -24,6 +24,7 @@
 | RF5 | 0.81.0 | Reset timeline in the Stats view and under the popover accounts; a lane opens its account. The popover timeline follows the PRD 0025 menu-bar selection (every account in Auto). 0.84.0: the 24 h / 7 d toggle is remembered beside it in `desktop.json` `stats.timeline` (decision 2 below). |
 | RF6 | 0.81.0 | TUI screen (`S`) and `--stats`, `--timeline`, `--events-log`. |
 | RF7 | 0.81.0 | `docs/tui.md`, `docs/events.md`, `docs/gui-features.md` and the README. |
+| Re-validation | vNEXT | 2026-11-16 re-validation (Visual, Security, Review, Delivery; validated on `656e72aa`/`a9aa0df0`). **Core:** the 64 MiB ceiling deletes the oldest rows of the readings and the journal together, oldest first, and `CeilingPrune` reports `journal_removed` (S-01); journal events more than five minutes ahead of the clock are refused and stored ones pruned (S-02); an unreadable journal row is skipped and counted (`HistoryStore::journal_read`, `JournalRead::skipped`), an incident state of a newer release reads as "Status unknown" and `projected_at` passes `instant::plausible` (S-03); a negative or non-finite overage amount is absent in "Extra spent" (S-04). `text::clock` gains `past`, `day`, `day_heading` and `hour` (`at.hour`); the timeline takes the time zone and carries `returns_clock` and `ends_clock`; `DayPeak` and `RhythmBucket` carry a `label`; `JournalEntry` gives `when` and `day`; `Rhythm::text_chart` prints the language's hour and date (V-01, high; V-02, V-03, V-11). **TUI and CLI:** day rows, lane returns and journal times from the core, journal rows under day headings (V-03, V-09); `—` for limit hits without enough history (R-01); plural forms and display-width padding (V-13); extra spending in the language's money format (R-02); `--events-log --json` adds `projected_at`, `spent`, `currency` and `skipped` (V-10, S-03). **Desktop:** Stats and the timeline render the core clock texts, so a return 8 days away shows its date and the axis end its day (V-01, V-02, V-11); today's bar keeps its accent at the limit (V-04); the range toggle keeps focus, leaving Stats returns focus to its button, and the tray drill-in moves focus in and back out (V-05); journal day headers and the unreadable count (V-09, S-03); a lane's accessible name is one catalog template (V-12); ru "Все аккаунты" (V-15); Win98/XP meter bevels no longer reach chart bars (V-06); KPI cards never break a word and the toggle never wraps (V-07); dense-axis labels stay inside their card (V-08); `check.mjs` probes words split mid-word and chart labels outside their card on every Stats page, plus the 30-day range in the tray and at 520 px. **Docs:** `docs/privacy.md` names the journal and the shared cap (S-05), `docs/events.md` and `docs/tui.md` (R-03), DS-CMP-STATS-1 amended to the shipped drill-in (V-14), §10 and the RF4.2 deviation below. Open items: §12. |
 
 ### Completion review (2026-11-07)
 
@@ -101,6 +102,7 @@ The binding metric (PRD 0009) knows each account's return time (`resets_at` or `
 
 - **RF4.1** A Stats view in the main window (DS-CMP-STATS-1: a topbar entry next to the account grid, `Esc` returns; the popover's "Stats" opens a compact drill-in with "Open full stats"), with the DS-CMP-STATS-2 scope picker and a 7 d / 30 d toggle (DS-CMP-SEG): KPI cards (DS-CMP-KPI) "Limit hits", "Average peak" (of the tightest limit) and "Extra spent" (after PRD 0023), each with "—" and a reason when there is not enough data (DS-CMP-KPI-2).
 - **RF4.2** "Peak usage per day": a daily bar chart with today highlighted and labelled "Today" (DS-CHT-5), percent axis 0–100, gaps for days without data (DS-CHT-3), `--bad` only for days at the limit.
+  - **Deviation (recorded 2026-11-16, re-validation; orchestrator decision):** since `0abc52f5` the desktop draws days at the limit in the neutral chart color, not `--bad` (DS-CHT-5 allows the bad role but does not require it); the limit hits are in the KPI card and the "by account" rows, and the TUI keeps the bad tone on such rows. Today keeps its accent and bold label even at the limit (V-04).
 - **RF4.3** "By account": rows with tile, name, sparkline mini-bars (DS-CHT-7), average and hits.
 - **RF4.4** "Recent events": the last 20 journal entries (DS-CMP-LIST) with time and summary.
 - **RF4.5** Footer note "History kept {days} days on this device" with a link to the history settings; every chart has its text alternative and table (DS-CHT-10).
@@ -158,7 +160,7 @@ RF1 and RF2 depend only on delivered PRDs (0006, 0009). RF3 needs PRD 0013 RF1 (
 | Risk | Mitigation |
 |---|---|
 | Misleading averages with sparse history | coverage state and explicit base in captions |
-| Journal grows with noisy failures | edge events only, no `usage_updated`, history retention and the 64 MiB ceiling |
+| Journal grows with noisy failures | edge events only, no `usage_updated`, history retention and the 64 MiB ceiling, which trims the oldest readings and journal rows together (re-validation S-01; tested at a 1 MiB ceiling) |
 | Two writers on one profile | unique index and WAL (PRD 0006) |
 | Time-zone and DST errors in daily buckets | caller time zone injected; DST table tests |
 
@@ -179,3 +181,6 @@ At each step: `cargo fmt`, `clippy -D warnings`, workspace and desktop tests, an
 | ~~Serve statistics over the local server (`/v1/stats`)~~ | **Decided on 2026-10-23 (decision P): yes, in PRD 0031**, token required, loopback only, redacted, rate-limited. |
 | Count a hit per window or per metric when two metrics of one account hit at once | Per metric window; "by account" shows the sum. |
 | Journal on by default | Yes, it follows the history switch, which is on by default. |
+| **Open (re-validation V-09):** the main window's journal is not paged; it shows the newest 20 entries, as the drill-in | Paging needs a backend offset and a "Show more" control; DS-CMP-JRNL-1 still asks for it. `--events-log` lists every entry. |
+| **Open (re-validation, Unverified):** en-GB readers get the en-US date order ("11/09") | No en-GB catalog exists among the 14 languages (PRD 0034); not a PRD 0026 defect. |
+| **Open (re-validation):** the ceiling warning counts only the readings it deleted ("its N oldest measurements") | `CeilingPrune::journal_removed` is reported but not worded; a new string in 14 catalogs, for a rare case. |
