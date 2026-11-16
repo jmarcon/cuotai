@@ -98,6 +98,12 @@ pub struct Checked {
     /// Every contract violation, naming the field (such as
     /// `metrics[2].kind`) and never the printed value; empty when valid.
     pub violations: Vec<Localized>,
+    /// PRD 0028 RF1.4: the contract fields the violations name, as a
+    /// value-free drift (indices read `[]`), so `failure.paths` and the
+    /// problem report carry them. `None` when the output is valid or no
+    /// violation names a field.
+    #[serde(skip)]
+    pub diagnostic: Option<crate::diagnostic::Diagnostic>,
 }
 
 impl Checked {
@@ -111,7 +117,7 @@ impl Checked {
         let (notes, notes_l10n) = self.notes.into_iter().collect::<Notes>().finish();
         Report {
             account_id: None,
-            diagnostic: None,
+            diagnostic: self.diagnostic,
             account: account.into(),
             provider,
             checked_at,
@@ -140,15 +146,121 @@ pub fn check(id: &str, stdout: &[u8]) -> Checked {
             metrics,
             notes,
             violations: Vec::new(),
+            diagnostic: None,
         },
         Err(violations) => Checked {
             source,
             status: Status::Error,
             metrics: Vec::new(),
             notes: vec![invalid(violations.len())],
+            diagnostic: drift_of(stdout, &violations),
             violations,
         },
     }
+}
+
+/// The contract type a violation id stands for, as a drift's `expected`.
+fn expected_of(id: &str) -> &'static str {
+    match id.rsplit('.').next().unwrap_or_default() {
+        "missing" => "present",
+        "list" | "too_many" => "array",
+        "object" => "object",
+        "number" | "schema" => "number",
+        "date" => "date",
+        "text" | "empty_text" | "unit" | "choice" => "string",
+        _ => "other",
+    }
+}
+
+/// RF1.4: the violations that name a field, as a [`SchemaDrift`]. Only
+/// the contract's own field names and normalized indices are kept; the
+/// printed values never are.
+///
+/// [`SchemaDrift`]: crate::diagnostic::SchemaDrift
+fn drift_of(stdout: &[u8], violations: &[Localized]) -> Option<crate::diagnostic::Diagnostic> {
+    use crate::diagnostic::{digest, fingerprint, type_name, DriftPath, SchemaDrift, MAX_PATHS};
+    let value: Option<Value> = (stdout.len() <= MAX_BYTES)
+        .then(|| serde_json::from_slice(stdout).ok())
+        .flatten();
+    let mut paths: Vec<DriftPath> = Vec::new();
+    for violation in violations {
+        let Some(crate::text::ParamValue::Text(raw)) = violation.params.get("field") else {
+            continue;
+        };
+        let Some(path) = contract_path(raw) else {
+            continue;
+        };
+        let found = value.as_ref().map_or("unknown", |root| {
+            lookup(root, raw).map_or("missing", type_name)
+        });
+        let entry = DriftPath {
+            path,
+            expected: expected_of(&violation.id).to_string(),
+            found: found.to_string(),
+        };
+        if !paths.contains(&entry) {
+            paths.push(entry);
+        }
+        if paths.len() == MAX_PATHS {
+            break;
+        }
+    }
+    if paths.is_empty() {
+        return None;
+    }
+    let fingerprint = value.as_ref().map(fingerprint).unwrap_or_default();
+    let digest = digest(&fingerprint);
+    Some(crate::diagnostic::Diagnostic::SchemaDrift(SchemaDrift {
+        paths,
+        fingerprint,
+        digest,
+    }))
+}
+
+/// `metrics[2].kind` as `metrics[].kind`; `None` for anything that is not
+/// made of identifier segments and indices (it never names data).
+fn contract_path(raw: &str) -> Option<String> {
+    let mut out = String::new();
+    for segment in raw.split('.') {
+        let (name, rest) = segment.split_once('[').unwrap_or((segment, ""));
+        let identifier = name
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+            && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+        if !identifier {
+            return None;
+        }
+        if !out.is_empty() {
+            out.push('.');
+        }
+        out.push_str(name);
+        if !rest.is_empty() {
+            for index in rest.split('[') {
+                let digits = index.strip_suffix(']')?;
+                if digits.is_empty() || !digits.chars().all(|c| c.is_ascii_digit()) {
+                    return None;
+                }
+                out.push_str("[]");
+            }
+        }
+    }
+    Some(out)
+}
+
+/// The value at `metrics[2].kind` in `root`, if any.
+fn lookup<'a>(root: &'a Value, raw: &str) -> Option<&'a Value> {
+    let mut current = root;
+    for segment in raw.split('.') {
+        let (name, rest) = segment.split_once('[').unwrap_or((segment, ""));
+        current = current.get(name)?;
+        if !rest.is_empty() {
+            for index in rest.split('[') {
+                current = current.get(index.strip_suffix(']')?.parse::<usize>().ok()?)?;
+            }
+        }
+    }
+    Some(current)
 }
 
 type Reading = (Status, Vec<Metric>, Vec<Localized>);

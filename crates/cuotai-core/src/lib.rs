@@ -1344,6 +1344,7 @@ impl Monitor {
                         metrics: Vec::new(),
                         notes: vec![note],
                         violations: Vec::new(),
+                        diagnostic: None,
                     },
                 };
                 return checked.into_report(account.name.clone(), account.provider, checked_at);

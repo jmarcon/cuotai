@@ -46,6 +46,32 @@ fn is_identifier(key: &str) -> bool {
         && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
+/// PRD 0028 RF1.2: an identifier-shaped key that still looks like data (an
+/// account or user id, a hash): a run of 5 or more digits, a `_`-separated
+/// part of 8 or more characters that mixes letters and digits, or of 6
+/// or more that mixes digits with both cases (`user_2NfXk9QpZacme`,
+/// `sk_live_51HxQpZ`), or a part of 16 or more hex
+/// digits (a UUID or digest without hyphens). Such keys collapse like
+/// non-identifiers.
+fn looks_like_id(key: &str) -> bool {
+    let mut run = 0;
+    for byte in key.bytes() {
+        run = if byte.is_ascii_digit() { run + 1 } else { 0 };
+        if run >= 5 {
+            return true;
+        }
+    }
+    key.split('_').any(|part| {
+        let digits = part.bytes().any(|b| b.is_ascii_digit());
+        let letters = part.bytes().any(|b| b.is_ascii_alphabetic());
+        let upper = part.bytes().any(|b| b.is_ascii_uppercase());
+        let lower = part.bytes().any(|b| b.is_ascii_lowercase());
+        (part.len() >= 8 && digits && letters)
+            || (part.len() >= 6 && digits && upper && lower)
+            || (part.len() >= 16 && part.bytes().all(|b| b.is_ascii_hexdigit()))
+    })
+}
+
 fn all_digits(s: &str) -> bool {
     !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit())
 }
@@ -152,7 +178,7 @@ impl State {
                 let map_like = object.len() > MAX_KEYS;
                 let mut out = Map::new();
                 for (k, v) in object {
-                    let new_key = if map_like || !is_identifier(k) {
+                    let new_key = if map_like || !is_identifier(k) || looks_like_id(k) {
                         Self::fake(&mut self.keys, k, "key_")
                     } else {
                         k.clone()
@@ -350,6 +376,25 @@ mod tests {
             .unwrap()
             .starts_with("text-"));
         assert!(out.get("key_0001").is_some());
+    }
+
+    /// PRD 0028 RF1.2 (S-02): id-like keys get a placeholder, field names stay.
+    #[test]
+    fn id_like_keys_are_replaced() {
+        let input = json!({
+            "user_2NfXk9QpZacme": 1, "acct_12345678": 2,
+            "a3f09c1d2b4e5f60718293a4b5c6d7e8": 3,
+            "five_hour": 4, "seven_day_opus": 5
+        });
+        let out = anonymize(&input, Options::default()).to_string();
+        for key in [
+            "user_2NfXk9QpZacme",
+            "acct_12345678",
+            "a3f09c1d2b4e5f60718293a4b5c6d7e8",
+        ] {
+            assert!(!out.contains(key), "{key} leaked: {out}");
+        }
+        assert!(out.contains("five_hour") && out.contains("seven_day_opus"));
     }
 
     #[test]

@@ -241,11 +241,13 @@ pub(crate) async fn cursor_models(
     let items = body
         .get("models")
         .and_then(Value::as_array)
-        .ok_or_else(QueryError::schema)?;
+        .ok_or_else(|| QueryError::schema_at(&body, &["models"], "array"))?;
     items
         .iter()
         .map(|m| {
-            let id = text(m, &["modelId"]).ok_or_else(QueryError::schema)?;
+            let id = text(m, &["modelId"]).ok_or_else(|| {
+                QueryError::schema_in(&body, "models[]", m, &["modelId"], "string")
+            })?;
             let name = text(m, &["displayName", "displayNameShort"]).filter(|n| *n != id);
             Ok(ModelInfo {
                 id,
@@ -301,11 +303,13 @@ pub(crate) async fn kiro_models(
     let items = body
         .get("models")
         .and_then(Value::as_array)
-        .ok_or_else(QueryError::schema)?;
+        .ok_or_else(|| QueryError::schema_at(&body, &["models"], "array"))?;
     items
         .iter()
         .map(|m| {
-            let id = text(m, &["modelId"]).ok_or_else(QueryError::schema)?;
+            let id = text(m, &["modelId"]).ok_or_else(|| {
+                QueryError::schema_in(&body, "models[]", m, &["modelId"], "string")
+            })?;
             Ok(ModelInfo {
                 name: text(m, &["modelName"]).filter(|n| *n != id),
                 id,
@@ -359,7 +363,7 @@ pub(crate) async fn zed_models(
                 .or_else(|| orgs.first())?;
             pick.get("id").and_then(id_of)
         })
-        .ok_or_else(QueryError::schema)?;
+        .ok_or_else(|| QueryError::schema_at(&me, &["default_organization_id"], "string"))?;
     let llm: Value = json(
         with_system(ctx.http.post(format!("{base}/client/llm_tokens")))
             .header("Accept", "application/json")
@@ -373,7 +377,7 @@ pub(crate) async fn zed_models(
         .and_then(|t| {
             id_of(t).or_else(|| t.get("value").and_then(Value::as_str).map(str::to_owned))
         })
-        .ok_or_else(QueryError::schema)?;
+        .ok_or_else(|| QueryError::schema_at(&llm, &["token"], "string"))?;
     let body: Value = json(
         ctx.http
             .get(format!("{base}/models"))
@@ -386,7 +390,7 @@ pub(crate) async fn zed_models(
     let items = body
         .get("models")
         .and_then(Value::as_array)
-        .ok_or_else(QueryError::schema)?;
+        .ok_or_else(|| QueryError::schema_at(&body, &["models"], "array"))?;
     let mut models = Vec::new();
     for item in items {
         if item.get("is_disabled").and_then(Value::as_bool) == Some(true) {
@@ -395,7 +399,7 @@ pub(crate) async fn zed_models(
         let id = item
             .get("id")
             .and_then(id_of)
-            .ok_or_else(QueryError::schema)?;
+            .ok_or_else(|| QueryError::schema_in(&body, "models[]", item, &["id"], "string"))?;
         models.push(ModelInfo {
             name: text(item, &["display_name", "displayName"]).filter(|n| *n != id),
             id,
@@ -421,11 +425,12 @@ pub(crate) async fn gemini_api_models(
     let items = body
         .get("models")
         .and_then(Value::as_array)
-        .ok_or_else(QueryError::schema)?;
+        .ok_or_else(|| QueryError::schema_at(&body, &["models"], "array"))?;
     items
         .iter()
         .map(|m| {
-            let id = text(m, &["name"]).ok_or_else(QueryError::schema)?;
+            let id = text(m, &["name"])
+                .ok_or_else(|| QueryError::schema_in(&body, "models[]", m, &["name"], "string"))?;
             Ok(ModelInfo {
                 name: text(m, &["displayName"]),
                 id,
@@ -454,11 +459,13 @@ pub(crate) async fn vertex_models(
     let items = body
         .get("publisherModels")
         .and_then(Value::as_array)
-        .ok_or_else(QueryError::schema)?;
+        .ok_or_else(|| QueryError::schema_at(&body, &["publisherModels"], "array"))?;
     items
         .iter()
         .map(|m| {
-            let name = text(m, &["name"]).ok_or_else(QueryError::schema)?;
+            let name = text(m, &["name"]).ok_or_else(|| {
+                QueryError::schema_in(&body, "publisherModels[]", m, &["name"], "string")
+            })?;
             let id = name.rsplit('/').next().unwrap_or(&name).to_owned();
             Ok(ModelInfo {
                 id,
@@ -548,11 +555,12 @@ pub(crate) async fn cloudflare_models(
     let items = body
         .get("result")
         .and_then(Value::as_array)
-        .ok_or_else(QueryError::schema)?;
+        .ok_or_else(|| QueryError::schema_at(&body, &["result"], "array"))?;
     items
         .iter()
         .map(|m| {
-            let id = text(m, &["name", "id"]).ok_or_else(QueryError::schema)?;
+            let id = text(m, &["name", "id"])
+                .ok_or_else(|| QueryError::schema_in(&body, "result[]", m, &["name"], "string"))?;
             Ok(ModelInfo {
                 id,
                 name: None,
@@ -682,6 +690,38 @@ mod tests {
         .unwrap_err();
         assert_eq!(err.status, crate::Status::AuthenticationError);
         assert!(!err.note.fallback.contains("token-in-body"));
+    }
+
+    /// PRD 0028 RF1.1: a model list that lost its array or its ids names
+    /// the field.
+    #[tokio::test]
+    async fn a_model_list_drift_names_the_field() {
+        let http = reqwest::Client::new();
+        let acc = account(crate::Provider::GeminiAi, &[]);
+        for (body, want, found) in [
+            (
+                serde_json::json!({"models": [{"displayName": "Model 4417"}]}),
+                "models[].name",
+                "missing",
+            ),
+            (serde_json::json!({"items": []}), "models", "missing"),
+        ] {
+            let server = MockServer::start().await;
+            Mock::given(method("GET"))
+                .and(path("/v1beta/models"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(body))
+                .mount(&server)
+                .await;
+            let err = gemini_api_models(&acc, &ctx(&http), &server.uri())
+                .await
+                .unwrap_err();
+            let drift = err.diagnostic.expect("drift").drift().clone();
+            assert_eq!(
+                (drift.paths[0].path.as_str(), drift.paths[0].found.as_str()),
+                (want, found)
+            );
+            assert!(!format!("{drift:?}").contains("4417"));
+        }
     }
 
     #[tokio::test]

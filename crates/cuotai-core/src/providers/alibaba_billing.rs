@@ -457,12 +457,15 @@ async fn fetch_balance(
         .timeout(ctx.timeout)
         .form(&params);
 
-    let resp: BalanceEnvelope = json(request).await?;
+    let raw: serde_json::Value = json(request).await?;
+    let resp: BalanceEnvelope = super::decode_value(&raw)?;
 
     if resp.success != Some(true) || resp.code.as_deref() != Some("200") {
         return Err(business_error(resp.code.as_deref().unwrap_or("Unknown")));
     }
-    let data = resp.data.ok_or_else(QueryError::schema)?;
+    let data = resp
+        .data
+        .ok_or_else(|| QueryError::schema_at(&raw, &["Data"], "object"))?;
     let available = decimal_to_f64(
         data.available_amount.as_deref().unwrap_or(""),
         "AvailableAmount",
@@ -721,16 +724,27 @@ async fn fetch_bill(
             .timeout(ctx.timeout)
             .form(&params);
 
-        let resp: BillEnvelope = json(request).await?;
+        let raw: serde_json::Value = json(request).await?;
+        let resp: BillEnvelope = super::decode_value(&raw)?;
 
         if resp.success != Some(true) || resp.code.as_deref() != Some("200") {
             return Err(business_error(resp.code.as_deref().unwrap_or("Unknown")));
         }
-        let data = resp.data.ok_or_else(QueryError::schema)?;
+        let data = resp
+            .data
+            .ok_or_else(|| QueryError::schema_at(&raw, &["Data"], "object"))?;
 
         let page_items = data.items.unwrap_or_default().item;
-        for item in &page_items {
-            let amount = item.pretax_amount.ok_or_else(QueryError::schema)?;
+        for (index, item) in page_items.iter().enumerate() {
+            let amount = item.pretax_amount.ok_or_else(|| {
+                QueryError::schema_in(
+                    &raw,
+                    "Data.Items.Item[]",
+                    &raw["Data"]["Items"]["Item"][index],
+                    &["PretaxAmount"],
+                    "number",
+                )
+            })?;
             if !amount.is_finite() {
                 return Err(QueryError::schema());
             }
@@ -748,8 +762,12 @@ async fn fetch_bill(
             items_seen += 1;
         }
 
-        let page_total = data.total_count.ok_or_else(QueryError::schema)?;
-        let this_page_size = data.page_size.ok_or_else(QueryError::schema)?;
+        let page_total = data
+            .total_count
+            .ok_or_else(|| QueryError::schema_at(&raw, &["Data", "TotalCount"], "number"))?;
+        let this_page_size = data
+            .page_size
+            .ok_or_else(|| QueryError::schema_at(&raw, &["Data", "PageSize"], "number"))?;
         if this_page_size > 0 {
             last_page_size = this_page_size;
         }
@@ -1278,6 +1296,28 @@ mod tests {
             .await
             .unwrap_err();
         assert_eq!(err.status, Status::Error);
+    }
+
+    /// PRD 0028 RF1.1: a missing `Data` envelope names its path.
+    #[tokio::test]
+    async fn balance_without_data_names_the_field() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "Code": "200", "Success": true, "Result": {"AvailableAmount": "4417.00"}
+            })))
+            .mount(&server)
+            .await;
+        let http = reqwest::Client::new();
+        let creds = creds("AK", "sk", None);
+        let err = fetch_balance(&ctx(&http, &creds), &server.uri(), "AK", "sk", None)
+            .await
+            .unwrap_err();
+        let drift = err.diagnostic.expect("drift").drift().clone();
+        assert_eq!(drift.paths[0].path, "Data");
+        assert_eq!(drift.paths[0].found, "missing");
+        assert!(!format!("{drift:?}").contains("4417"));
     }
 
     #[tokio::test]

@@ -212,9 +212,11 @@ async fn key_rows(
         let items = value
             .get("data")
             .and_then(Value::as_array)
-            .ok_or_else(QueryError::schema)?;
-        for item in items {
-            let item = item.as_object().ok_or_else(QueryError::schema)?;
+            .ok_or_else(|| QueryError::schema_at(&value, &["data"], "array"))?;
+        for raw in items {
+            let item = raw
+                .as_object()
+                .ok_or_else(|| QueryError::schema_in(&value, "data[]", raw, &[], "object"))?;
             if let Some(row) = parse_key_row(item, now)? {
                 if seen.insert(row.id.clone()) {
                     rows.push(row);
@@ -247,7 +249,10 @@ fn parse_key_row(
         .get("hash")
         .and_then(Value::as_str)
         .filter(|hash| !hash.trim().is_empty())
-        .ok_or_else(QueryError::schema)?;
+        .ok_or_else(|| {
+            let raw = Value::Object(item.clone());
+            QueryError::schema_in(&raw, "data[]", &raw, &["hash"], "string")
+        })?;
     let id = digest_id(hash);
     let name = item.get("name").and_then(Value::as_str).unwrap_or_default();
     let label = if name.trim().is_empty() {
@@ -261,9 +266,10 @@ fn parse_key_row(
         redact_label(name, crate::ScopeKind::Key, &id)
     };
     let mut metrics = Vec::new();
-    if let (Some(limit), Some(remaining)) =
-        (nonneg(item, "limit")?, finite(item, "limit_remaining")?)
-    {
+    if let (Some(limit), Some(remaining)) = (
+        nonneg("data[]", item, "limit")?,
+        finite("data[]", item, "limit_remaining")?,
+    ) {
         let (window, resets_at) = window_of(item.get("limit_reset"), now);
         metrics.push(Metric {
             used: Some(limit - remaining),
@@ -295,7 +301,7 @@ fn parse_key_row(
         ),
         ("usage", "Gasto total da chave", None, None),
     ] {
-        if let Some(used) = nonneg(item, field)? {
+        if let Some(used) = nonneg("data[]", item, field)? {
             metrics.push(spend(label, used, window, resets_at));
         }
     }
@@ -442,26 +448,34 @@ async fn get(
 
 /// Absent or `null` is `Ok(None)`; a non-number or a non-finite or negative
 /// figure is a schema error (RF7.1).
-fn nonneg(object: &Map<String, Value>, key: &str) -> Result<Option<f64>, QueryError> {
+/// `prefix` is where `object` sits in the response (`data`, `data[]`): a
+/// field of the wrong type names `prefix.key` (PRD 0028 RF1.1).
+fn nonneg(prefix: &str, object: &Map<String, Value>, key: &str) -> Result<Option<f64>, QueryError> {
     match object.get(key) {
         None | Some(Value::Null) => Ok(None),
         Some(Value::Number(n)) => match n.as_f64() {
             Some(v) if v.is_finite() && v >= 0.0 => Ok(Some(v)),
             _ => Err(QueryError::schema()),
         },
-        Some(_) => Err(QueryError::schema()),
+        Some(_) => Err(wrong_type(prefix, object, key)),
     }
 }
 
+/// The drift of `prefix.key`, a figure that is no longer a number.
+fn wrong_type(prefix: &str, object: &Map<String, Value>, key: &str) -> QueryError {
+    let item = Value::Object(object.clone());
+    QueryError::schema_in(&item, prefix, &item, &[key], "number")
+}
+
 /// Like [`nonneg`] but a negative value is kept verbatim (remaining amounts).
-fn finite(object: &Map<String, Value>, key: &str) -> Result<Option<f64>, QueryError> {
+fn finite(prefix: &str, object: &Map<String, Value>, key: &str) -> Result<Option<f64>, QueryError> {
     match object.get(key) {
         None | Some(Value::Null) => Ok(None),
         Some(Value::Number(n)) => match n.as_f64() {
             Some(v) if v.is_finite() => Ok(Some(v)),
             _ => Err(QueryError::schema()),
         },
-        Some(_) => Err(QueryError::schema()),
+        Some(_) => Err(wrong_type(prefix, object, key)),
     }
 }
 
@@ -578,9 +592,10 @@ fn parse_key(value: &Value, now: DateTime<Utc>, source: &'static str) -> Result<
     let data = value
         .get("data")
         .and_then(Value::as_object)
-        .ok_or_else(QueryError::schema)?;
+        .ok_or_else(|| QueryError::schema_at(value, &["data"], "object"))?;
     if !KEY_GROUPS.iter().any(|group| data.contains_key(*group)) {
-        return Err(QueryError::schema());
+        // None of the documented groups is left: name the main one.
+        return Err(QueryError::schema_at(value, &["data", "usage"], "number"));
     }
     let mut metrics = Vec::new();
     let mut notes = Notes::new();
@@ -607,9 +622,10 @@ fn parse_key(value: &Value, now: DateTime<Utc>, source: &'static str) -> Result<
         .and_then(|b| instant(b.get("resets_at")));
 
     // RF2.1: the key cap.
-    if let (Some(limit), Some(remaining)) =
-        (nonneg(data, "limit")?, finite(data, "limit_remaining")?)
-    {
+    if let (Some(limit), Some(remaining)) = (
+        nonneg("data", data, "limit")?,
+        finite("data", data, "limit_remaining")?,
+    ) {
         let (window, computed) = window_of(data.get("limit_reset"), now);
         metrics.push(Metric {
             used: Some(limit - remaining),
@@ -631,12 +647,12 @@ fn parse_key(value: &Value, now: DateTime<Utc>, source: &'static str) -> Result<
             continue;
         }
         let (Some(limit), Some(remaining)) = (
-            nonneg(budget, "limit_usd")?,
-            finite(budget, "remaining_usd")?,
+            nonneg("data.budgets[]", budget, "limit_usd")?,
+            finite("data.budgets[]", budget, "remaining_usd")?,
         ) else {
             continue;
         };
-        let used = nonneg(budget, "spend_usd")?.unwrap_or(limit - remaining);
+        let used = nonneg("data.budgets[]", budget, "spend_usd")?.unwrap_or(limit - remaining);
         let (window, computed) = window_of(budget.get("reset_interval"), now);
         metrics.push(Metric {
             used: Some(used),
@@ -687,7 +703,7 @@ fn parse_key(value: &Value, now: DateTime<Utc>, source: &'static str) -> Result<
         ),
         ("usage", "Gasto total da chave", None, None),
     ] {
-        if let Some(used) = nonneg(data, field)? {
+        if let Some(used) = nonneg("data", data, field)? {
             metrics.push(spend(label, used, window, resets_at));
         }
     }
@@ -703,7 +719,7 @@ fn parse_key(value: &Value, now: DateTime<Utc>, source: &'static str) -> Result<
         ),
         ("byok_usage", "BYOK total", None, None),
     ] {
-        if let Some(used) = nonneg(data, field)? {
+        if let Some(used) = nonneg("data", data, field)? {
             byok = true;
             metrics.push(spend(label, used, window, resets_at));
         }
@@ -798,10 +814,17 @@ fn parse_credits(value: &Value, source: &'static str) -> Result<Data, QueryError
     let data = value
         .get("data")
         .and_then(Value::as_object)
-        .ok_or_else(QueryError::schema)?;
-    let (Some(total), Some(used)) = (nonneg(data, "total_credits")?, nonneg(data, "total_usage")?)
-    else {
-        return Err(QueryError::schema());
+        .ok_or_else(|| QueryError::schema_at(value, &["data"], "object"))?;
+    let (Some(total), Some(used)) = (
+        nonneg("data", data, "total_credits")?,
+        nonneg("data", data, "total_usage")?,
+    ) else {
+        let missing = if data.get("total_credits").is_none_or(Value::is_null) {
+            "total_credits"
+        } else {
+            "total_usage"
+        };
+        return Err(QueryError::schema_at(value, &["data", missing], "number"));
     };
     let mut notes = Notes::new();
     notes.push(
@@ -884,7 +907,7 @@ fn parse_activity(value: &Value, breakdown: Breakdown) -> Result<Vec<Metric>, Qu
     let rows = value
         .get("data")
         .and_then(Value::as_array)
-        .ok_or_else(QueryError::schema)?;
+        .ok_or_else(|| QueryError::schema_at(value, &["data"], "array"))?;
     if rows.len() > ACTIVITY_ROW_LIMIT {
         return Err(QueryError::schema());
     }
@@ -898,13 +921,16 @@ fn parse_activity(value: &Value, breakdown: Breakdown) -> Result<Vec<Metric>, Qu
     // breakdown unavailable, and one without `byok_usage_inference` leaves
     // the BYOK total unknown (not shown) rather than understated.
     let mut byok = Some(0.0);
-    for row in rows {
-        let row = row.as_object().ok_or_else(QueryError::schema)?;
-        match nonneg(row, "byok_usage_inference")? {
+    for raw in rows {
+        let row = raw
+            .as_object()
+            .ok_or_else(|| QueryError::schema_in(value, "data[]", raw, &[], "object"))?;
+        match nonneg("data[]", row, "byok_usage_inference")? {
             Some(amount) => byok = byok.map(|sum| sum + amount),
             None => byok = None,
         }
-        let usage = nonneg(row, "usage")?.ok_or_else(QueryError::schema)?;
+        let usage = nonneg("data[]", row, "usage")?
+            .ok_or_else(|| QueryError::schema_in(value, "data[]", raw, &["usage"], "number"))?;
         if usage == 0.0 {
             continue;
         }
@@ -972,13 +998,13 @@ pub(crate) async fn models(
         let page = value
             .get("data")
             .and_then(Value::as_array)
-            .ok_or_else(QueryError::schema)?;
+            .ok_or_else(|| QueryError::schema_at(&value, &["data"], "array"))?;
         for item in page {
             let id = item
                 .get("id")
                 .and_then(Value::as_str)
                 .filter(|id| !id.is_empty())
-                .ok_or_else(QueryError::schema)?;
+                .ok_or_else(|| QueryError::schema_in(&value, "data[]", item, &["id"], "string"))?;
             raw += 1;
             if seen.insert(id.to_string()) {
                 out.push(crate::models::ModelInfo {
@@ -1042,6 +1068,44 @@ pub(super) fn label_fixtures() -> Vec<(&'static str, Vec<Metric>)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// PRD 0028 RF1.1: the main key reading and the credits name the field
+    /// that drifted.
+    #[test]
+    fn key_and_credit_drift_name_the_field() {
+        let now = Utc::now();
+        let cases = [
+            (serde_json::json!({"data": ["4417"]}), "data", "array"),
+            (
+                serde_json::json!({"data": {"label": "x"}}),
+                "data.usage",
+                "missing",
+            ),
+            (
+                serde_json::json!({"data": {"usage": "44.17"}}),
+                "data.usage",
+                "string",
+            ),
+        ];
+        for (body, path, found) in cases {
+            let error = parse_key(&body, now, KEY_SOURCE).unwrap_err();
+            let drift = error.diagnostic.expect("drift").drift().clone();
+            assert_eq!(
+                (drift.paths[0].path.as_str(), drift.paths[0].found.as_str()),
+                (path, found)
+            );
+            assert!(
+                !format!("{drift:?}").contains("4417") && !format!("{drift:?}").contains("44.17")
+            );
+        }
+        let error = parse_credits(
+            &serde_json::json!({"data": {"total_credits": 5.0}}),
+            CREDITS_SOURCE,
+        )
+        .unwrap_err();
+        let drift = error.diagnostic.expect("drift").drift().clone();
+        assert_eq!(drift.paths[0].path, "data.total_usage");
+    }
     use crate::providers::Context;
     use crate::Provider;
     use serde_json::json;

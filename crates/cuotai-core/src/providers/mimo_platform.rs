@@ -139,8 +139,10 @@ async fn get(
                 "Xiaomi MiMo (platform): web session expired or invalid. Re-export the cookie.",
             ),
         }),
+        // No numeric envelope code: the shape changed (PRD 0028 RF1.1).
+        None => Err(QueryError::schema_at(&body, &["code"], "number")),
         // Complementary endpoint without subscription/permission: degrades to a note.
-        _ => Ok(None),
+        Some(_) => Ok(None),
     }
 }
 

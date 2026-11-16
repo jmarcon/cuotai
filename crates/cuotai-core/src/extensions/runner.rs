@@ -163,6 +163,7 @@ impl Run {
             metrics: Vec::new(),
             notes: vec![note],
             violations: Vec::new(),
+            diagnostic: None,
         }
     }
 }

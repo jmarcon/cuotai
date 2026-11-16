@@ -232,6 +232,19 @@ impl QueryError {
     pub fn schema_at(root: &serde_json::Value, path: &[&str], expected: &str) -> Self {
         Self::schema_drift(crate::diagnostic::field_drift(root, path, expected))
     }
+    /// [`QueryError::schema_at`] for a field of one list or map element (see
+    /// [`crate::diagnostic::element_drift`]).
+    pub fn schema_in(
+        root: &serde_json::Value,
+        prefix: &str,
+        item: &serde_json::Value,
+        path: &[&str],
+        expected: &str,
+    ) -> Self {
+        Self::schema_drift(crate::diagnostic::element_drift(
+            root, prefix, item, path, expected,
+        ))
+    }
     /// [`QueryError::schema_at`] for a field found by name anywhere in the
     /// response (see [`crate::diagnostic::named_drift`]).
     pub fn schema_named(

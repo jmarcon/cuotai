@@ -121,6 +121,37 @@ fn is_identifier(key: &str) -> bool {
         && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
+/// PRD 0028 RF1.2: an identifier-shaped key that still looks like data (an
+/// account or user id, a hash): a run of 5 or more digits, a `_`-separated
+/// part of 8 or more characters that mixes letters and digits, or of 6
+/// or more that mixes digits with both cases (`user_2NfXk9QpZacme`,
+/// `sk_live_51HxQpZ`), or a part of 16 or more hex
+/// digits (a UUID or digest without hyphens). Such keys collapse like
+/// non-identifiers.
+fn looks_like_id(key: &str) -> bool {
+    let mut run = 0;
+    for byte in key.bytes() {
+        run = if byte.is_ascii_digit() { run + 1 } else { 0 };
+        if run >= 5 {
+            return true;
+        }
+    }
+    key.split('_').any(|part| {
+        let digits = part.bytes().any(|b| b.is_ascii_digit());
+        let letters = part.bytes().any(|b| b.is_ascii_alphabetic());
+        let upper = part.bytes().any(|b| b.is_ascii_uppercase());
+        let lower = part.bytes().any(|b| b.is_ascii_lowercase());
+        (part.len() >= 8 && digits && letters)
+            || (part.len() >= 6 && digits && upper && lower)
+            || (part.len() >= 16 && part.bytes().all(|b| b.is_ascii_hexdigit()))
+    })
+}
+
+/// A key that may appear in a path as itself.
+fn is_shown_key(key: &str) -> bool {
+    is_identifier(key) && !looks_like_id(key)
+}
+
 /// The JSON type name of `value`.
 pub fn type_name(value: &Value) -> &'static str {
     match value {
@@ -135,7 +166,7 @@ pub fn type_name(value: &Value) -> &'static str {
 
 /// Key as it may appear in a path: itself, or `{*}` when collapsed.
 fn safe_key<'a>(parent: &serde_json::Map<String, Value>, key: &'a str) -> &'a str {
-    if parent.len() > MAX_KEYS || !is_identifier(key) {
+    if parent.len() > MAX_KEYS || !is_shown_key(key) {
         COLLAPSED
     } else {
         key
@@ -190,7 +221,7 @@ pub fn capture(value: &Value, segments: &[Result<String, ()>], message: &str) ->
             Ok(key) => {
                 let shown = match current.and_then(Value::as_object) {
                     Some(object) => safe_key(object, key).to_string(),
-                    None if is_identifier(key) => key.clone(),
+                    None if is_shown_key(key) => key.clone(),
                     None => COLLAPSED.to_string(),
                 };
                 if !path.is_empty() {
@@ -298,7 +329,7 @@ pub fn field_drift(root: &Value, path: &[&str], expected: &str) -> SchemaDrift {
         } else {
             let key = match current.and_then(Value::as_object) {
                 Some(object) => safe_key(object, step),
-                None if is_identifier(step) => step,
+                None if is_shown_key(step) => step,
                 None => COLLAPSED,
             };
             if !shown.is_empty() {
@@ -325,6 +356,32 @@ pub fn field_drift(root: &Value, path: &[&str], expected: &str) -> SchemaDrift {
     }
 }
 
+/// [`field_drift`] for a field of one element (`item`) of a list or map in
+/// `root`: `prefix` is the fixed path of that element as the adapter names
+/// it (`keys[]`, `providers.{*}`), never data. The fingerprint is the whole
+/// response's.
+pub fn element_drift(
+    root: &Value,
+    prefix: &str,
+    item: &Value,
+    path: &[&str],
+    expected: &str,
+) -> SchemaDrift {
+    let mut drift = field_drift(item, path, expected);
+    for entry in &mut drift.paths {
+        entry.path = if entry.path == "." {
+            prefix.to_string()
+        } else if entry.path.starts_with('[') {
+            format!("{prefix}{}", entry.path)
+        } else {
+            format!("{prefix}.{}", entry.path)
+        };
+    }
+    drift.fingerprint = fingerprint(root);
+    drift.digest = digest(&drift.fingerprint);
+    drift
+}
+
 /// Drift of a field an adapter finds by name anywhere in the response (no
 /// fixed path): `name` is reported as the path, `found` is the type of what
 /// the search returned, `missing` when nothing matched.
@@ -333,7 +390,7 @@ pub fn named_drift(root: &Value, name: &str, found: Option<&Value>, expected: &s
     let digest = digest(&fingerprint);
     SchemaDrift {
         paths: vec![DriftPath {
-            path: if is_identifier(name) {
+            path: if is_shown_key(name) {
                 name.to_string()
             } else {
                 COLLAPSED.to_string()
@@ -475,6 +532,53 @@ mod tests {
         let drift = decode::<ByUser>(&value).unwrap_err();
         assert_eq!(drift.paths[0].path, "users.{*}");
         assert!(drift.fingerprint.iter().all(|(p, _)| !p.contains("model_")));
+    }
+
+    /// PRD 0028 RF1.2 (S-02): identifier-shaped keys that look like ids
+    /// collapse too; ordinary field names stay.
+    #[test]
+    fn id_like_keys_collapse_and_field_names_stay() {
+        let seeded = [
+            "user_2NfXk9QpZacme",
+            "acct_12345678",
+            "a3f09c1d2b4e5f60718293a4b5c6d7e8",
+            "deadbeefdeadbeefdeadbeef",
+            "sk_live_51HxQpZ",
+            "jane@example.com",
+        ];
+        let mut object = serde_json::Map::new();
+        for key in seeded {
+            object.insert(key.to_string(), json!({"used": "x"}));
+        }
+        for key in [
+            "five_hour",
+            "utilization",
+            "seven_day_opus",
+            "displayNameShort",
+            "gpt4o",
+        ] {
+            object.insert(key.to_string(), json!(1));
+        }
+        let value = Value::Object(object);
+        let shape = format!("{:?}", fingerprint(&value));
+        let drift = format!(
+            "{:?}",
+            field_drift(&value, &["user_2NfXk9QpZacme", "used"], "number")
+        );
+        for key in seeded {
+            assert!(!shape.contains(key), "{key} in {shape}");
+            assert!(!drift.contains(key), "{key} in {drift}");
+        }
+        for key in [
+            "five_hour",
+            "utilization",
+            "seven_day_opus",
+            "displayNameShort",
+            "gpt4o",
+        ] {
+            assert!(shape.contains(key), "{key} missing from {shape}");
+        }
+        assert!(drift.contains("{*}.used"), "{drift}");
     }
 
     #[test]
