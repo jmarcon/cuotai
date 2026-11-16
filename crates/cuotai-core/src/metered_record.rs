@@ -105,6 +105,24 @@ pub(crate) enum Decision {
     Pending { until: DateTime<Utc> },
 }
 
+/// What [`Store::begin_explicit`] decided for a manual refresh
+/// (PRD 0033 re-validation V-06).
+#[derive(Debug)]
+pub(crate) enum Explicit {
+    /// Query now; the claim is taken.
+    Query,
+    /// Too soon after the last billed query, or another process is
+    /// querying: show the recorded reading; the next query is possible at
+    /// `next_at`.
+    Refused {
+        report: Box<Report>,
+        queried_at: DateTime<Utc>,
+        next_at: DateTime<Utc>,
+    },
+    /// Another process is querying and no reading exists yet.
+    Wait,
+}
+
 /// Why the record cannot be used (PRD 0033 re-validation M-1).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Unavailable {
@@ -223,6 +241,72 @@ impl Store {
         })
     }
 
+    /// [`Store::begin`] for a manual refresh: it queries once `floor` has
+    /// passed since the last billed query of these settings and no claim
+    /// is live, whatever the account's interval.
+    pub(crate) fn begin_explicit(
+        &self,
+        account: &Account,
+        floor: TimeDelta,
+        claim_for: TimeDelta,
+        now: DateTime<Utc>,
+    ) -> Result<Explicit, Unavailable> {
+        self.decide(account, |mut record| {
+            let ready = record.ready_report().is_some();
+            let queried_at = record.queried_at.filter(|_| ready);
+            let claimed = record.claimed(now);
+            let recent = queried_at.filter(|at| *at <= now && now - *at < floor);
+            match (claimed, queried_at, recent) {
+                (Some(until), Some(at), _) => {
+                    let report = record.report.take().expect("a ready record has a report");
+                    let next_at = until.max(at + floor);
+                    (
+                        Explicit::Refused {
+                            report: Box::new(report),
+                            queried_at: at,
+                            next_at,
+                        },
+                        None,
+                    )
+                }
+                (Some(_), None, _) => (Explicit::Wait, None),
+                (None, _, Some(at)) => {
+                    let report = record.report.take().expect("a ready record has a report");
+                    (
+                        Explicit::Refused {
+                            report: Box::new(report),
+                            queried_at: at,
+                            next_at: at + floor,
+                        },
+                        None,
+                    )
+                }
+                (None, _, None) => {
+                    record.claim_until = Some(now + claim_for);
+                    (Explicit::Query, Some(record))
+                }
+            }
+        })
+    }
+
+    /// The fresh ready reading of `account` (these settings), if any,
+    /// without claiming anything: "Test connection" reuses it instead of
+    /// paying again (PRD 0033 re-validation L-2).
+    pub(crate) fn fresh_reading(
+        &self,
+        account: &Account,
+        interval: TimeDelta,
+        now: DateTime<Utc>,
+    ) -> Result<Option<(DateTime<Utc>, Report)>, Unavailable> {
+        self.decide(account, |mut record| {
+            if !record.fresh(interval, now) {
+                return (None, None);
+            }
+            let at = record.queried_at.expect("a fresh record has a time");
+            (record.report.take().map(|report| (at, report)), None)
+        })
+    }
+
     /// Record the outcome of the query `begin` allowed, and drop the claim.
     pub(crate) fn finish(
         &self,
@@ -261,6 +345,37 @@ pub(crate) fn note_unavailable(reason: Unavailable) -> crate::text::Localized {
             "Not queried: Cuotai could not use its shared record of billed AWS Cost Explorer queries. Run `cuotai --doctor` to see the folder and how to fix it.",
         ),
     }
+}
+
+/// `note.metered.refused`: a manual refresh of a metered account inside
+/// the 15-minute floor; no query was made (PRD 0033 re-validation V-06).
+pub(crate) fn note_refused(
+    queried_at: DateTime<Utc>,
+    next_at: DateTime<Utc>,
+    now: DateTime<Utc>,
+) -> crate::text::Localized {
+    let clock = |at| crate::text::ParamValue::l10n(crate::text::clock(at, now, &chrono::Local));
+    crate::text::Localized::with_params(
+        "note.metered.refused",
+        crate::text::params([("queried", clock(queried_at)), ("next", clock(next_at))]),
+        "Not queried: the last billed AWS Cost Explorer query was at {queried}; the next one is possible at {next}.",
+    )
+}
+
+/// `note.metered.shared_reading`: "Test connection" answered with the
+/// shared reading instead of a new billed query.
+pub(crate) fn note_shared_reading(
+    queried_at: DateTime<Utc>,
+    now: DateTime<Utc>,
+) -> crate::text::Localized {
+    crate::text::Localized::with_params(
+        "note.metered.shared_reading",
+        crate::text::params([(
+            "time",
+            crate::text::ParamValue::l10n(crate::text::clock(queried_at, now, &chrono::Local)),
+        )]),
+        "From the shared reading of {time}; no new billed query was made.",
+    )
 }
 
 /// `note.metered.pending`: another process kept its claim past this

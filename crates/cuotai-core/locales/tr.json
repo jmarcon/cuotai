@@ -16,7 +16,7 @@
     ]
   },
   "access.confirm_unavailable": "{reason} Hesap kaydedilecek, ancak sayılar yerine bu nedeni gösterecek.",
-  "access.cost_advisory": "Sağlayıcı sorgu başına ücretlendirilir: sorgu başına yaklaşık bir Cost Explorer isteği. Aralık yoksa Cuotai saatte bir sorgular; etkin alt sınır 15 dakikadır (5 ile 14 dakika arasındaki aralıklar 15'e çıkarılır, daha düşük değerler reddedilir). Birden çok pencere veya komut, aralık başına tek bir isteği paylaşır. Elle yenilemeler açık kalır.",
+  "access.cost_advisory": "Sağlayıcı sorgu başına ücretlendirir: sorgu başına yaklaşık bir Cost Explorer isteği. Aralık yoksa Cuotai saatte bir sorgular; etkin alt sınır 15 dakikadır (5 ila 14 dakikalık aralıklar 15'e yükseltilir, daha küçük değerler reddedilir). Birden çok pencere veya komut aralık başına bir isteği paylaşır. Bu hesabı elle yenilemek ücretli bir sorgudur ve en fazla 15 dakikada bir çalışır; Bağlantıyı test et de ücretlidir.",
   "access.credential.admin_key": "Yönetici anahtarı",
   "access.credential.agent_feed": "Ajan beslemesi",
   "access.credential.aggregator_login": "Toplayıcı oturum açma",
@@ -1344,7 +1344,7 @@
   "note.claude_code.window_absent": "Claude Code sıfırlanan pencereyi çıkarır ve bir sonraki istemden sonra yeniden gönderir; o zamana kadar değeri sıfır değil, bilinmiyor.",
   "note.cloud.aws_cost_scope": "Cost Explorer \"Amazon Bedrock\" hizmetine göre filtrelendi, aylık ayrıntı düzeyi, geçerli ay. AWS maliyet verileri günde ~1 kez güncellenir ve 24 saate kadar gecikebilir.",
   "note.cloud.aws_estimated": "Geçerli dönemin değerleri Cost Explorer tarafından tahmini olarak işaretlenir.",
-  "note.cloud.aws_query_cost": "Cost Explorer'a yapılan her get-cost-and-usage çağrısı AWS tarafından ücretlendirilir (istek başına 0,01 ABD doları), üretim çağrılarının aksine: panoyu her yenileme bir sorgu ücreti doğurur.",
+  "note.cloud.aws_query_cost": "Her Cost Explorer isteği AWS tarafından ücretlendirilir (yaklaşık 0,01 ABD doları); Cuotai tüm pencereleri ve komutları için aralık başına en fazla bir istek yapar.",
   "note.cloud.azure_no_cost_rows": "Sorgu satır döndürmedi: bu kapsamda kaynağın bu ayki maliyeti doğrulanamadı.",
   "note.cloud.azure_query_cost": "Cost Management Query API istek başına ücretlendirilmez, ancak kapsamda maliyet okuma izni olan bir jeton gerektirir (ör. Cost Management Reader).",
   "note.cloud.azure_resource_attribution": "Kaynak bazında atama: params.resource_id değerini Azure OpenAI kaynağının tam kimliğiyle ayarlayın (/subscriptions/.../providers/Microsoft.CognitiveServices/accounts/...). Paylaşılan bir Foundry kaynağı OpenAI olmayan ürünleri de içerir; model başına yalıtılmış bir maliyet veya harcama kotası değildir.",
@@ -2483,5 +2483,7 @@
   "note.metered.record_unavailable": "Sorgulanmadı: Cuotai, ücretli AWS Cost Explorer sorgularının ortak kaydını kullanamadı. Klasörü ve nasıl düzeltileceğini görmek için `cuotai --doctor` çalıştırın.",
   "note.metered.record_busy": "Sorgulanmadı: başka bir Cuotai programı ücretli AWS Cost Explorer sorgularının ortak kaydını çok uzun süre tuttu. Birazdan yeniden deneyin.",
   "note.metered.pending": "Sorgulanmadı: başka bir Cuotai programı şu anda bu hesabı sorguluyor. Okumasını görmek için birazdan yeniden deneyin.",
-  "note.metered.record_unavailable_shared": "Ücretli sorguların ortak kaydı kullanılamıyor, bu yüzden diğer Cuotai programları da bu hesabı sorgulayabilir."
+  "note.metered.record_unavailable_shared": "Ücretli sorguların ortak kaydı kullanılamıyor, bu yüzden diğer Cuotai programları da bu hesabı sorgulayabilir.",
+  "note.metered.refused": "Sorgulanmadı: son ücretli AWS Cost Explorer sorgusu {queried} saatindeydi; bir sonraki {next} saatinde mümkün.",
+  "note.metered.shared_reading": "{time} tarihli ortak okumadan; yeni ücretli sorgu yapılmadı."
 }

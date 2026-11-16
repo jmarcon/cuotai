@@ -760,7 +760,7 @@ async fn fetch_bedrock(account: &Account, ctx: &Context<'_>) -> Result<Data, Que
     );
     notes.push(
         "note.cloud.aws_query_cost",
-        "Each get-cost-and-usage call to Cost Explorer is billed by AWS (US$ 0.01 per request), unlike generation calls: every dashboard refresh incurs a query charge.",
+        "Each Cost Explorer request is billed by AWS (about US$ 0.01); Cuotai makes at most one per interval for all its windows and commands.",
     );
     if parsed.estimated {
         notes.push(

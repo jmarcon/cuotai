@@ -367,6 +367,7 @@ jobs:
       # densities (PRD 0022 RF8).
       - run: node scripts/test-language-first-paint-ui.mjs
       - run: node scripts/test-renewed-reading-ui.mjs
+      - run: node scripts/test-metered-refresh-ui.mjs
       - run: node scripts/test-menu-bar-ui.mjs
       - run: node scripts/test-density-ui.mjs
       # The meter level thresholds (70/30) agree across the desktop and the TUI.

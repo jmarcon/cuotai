@@ -16,7 +16,7 @@
     ]
   },
   "access.confirm_unavailable": "{reason} 계정은 저장되지만 숫자 대신 이 사유가 표시됩니다.",
-  "access.cost_advisory": "조회당 과금되는 제공업체입니다. 조회 한 번에 Cost Explorer 요청이 약 한 번 발생합니다. 간격을 지정하지 않으면 Cuotai는 한 시간에 한 번 조회하며, 실제 최소값은 15분입니다(5~14분 간격은 15분으로 올라가고 그보다 짧은 값은 거부됩니다). 여러 창이나 명령은 간격당 요청 하나를 공유합니다. 수동 새로 고침은 계속 명시적으로 실행됩니다.",
+  "access.cost_advisory": "조회마다 과금되는 공급자입니다: 조회 한 번에 Cost Explorer 요청 약 1건. 간격이 없으면 Cuotai는 한 시간에 한 번 조회하며, 실제 최소 간격은 15분입니다(5~14분 간격은 15분으로 올리고, 더 작은 값은 거부합니다). 여러 창이나 명령이 간격마다 요청 하나를 공유합니다. 이 계정을 수동으로 새로 고치면 과금되는 조회이며 최대 15분마다 한 번만 실행됩니다. 연결 테스트도 과금됩니다.",
   "access.credential.admin_key": "관리자 키",
   "access.credential.agent_feed": "에이전트 피드",
   "access.credential.aggregator_login": "어그리게이터 로그인",
@@ -1327,7 +1327,7 @@
   "note.claude_code.window_absent": "Claude Code는 창이 재설정되면 빼고 다음 프롬프트 후 다시 보냅니다. 그때까지는 0이 아니라 알 수 없음입니다.",
   "note.cloud.aws_cost_scope": "\"Amazon Bedrock\" 서비스로 필터링한 Cost Explorer이며 월 단위, 이번 달 기준입니다. AWS 비용 데이터는 하루 한 번 정도 갱신되며 최대 24시간 지연될 수 있습니다.",
   "note.cloud.aws_estimated": "이번 기간의 값은 Cost Explorer가 추정치로 표시한 것입니다.",
-  "note.cloud.aws_query_cost": "Cost Explorer에 대한 get-cost-and-usage 조회마다 AWS가 요금을 부과합니다(요청당 US$ 0.01). 생성 호출과 달리 대시보드를 새로 고칠 때마다 조회 요금이 발생합니다.",
+  "note.cloud.aws_query_cost": "Cost Explorer 요청마다 AWS가 과금합니다(약 US$ 0.01). Cuotai는 모든 창과 명령을 합쳐 간격마다 최대 한 번만 요청합니다.",
   "note.cloud.azure_no_cost_rows": "조회 결과에 행이 없어 이번 달 이 범위에서 리소스 비용을 확인할 수 없습니다.",
   "note.cloud.azure_query_cost": "Cost Management Query API는 요청당 과금되지 않지만, 해당 범위에서 비용 읽기 권한이 있는 토큰이 필요합니다(예: Cost Management Reader).",
   "note.cloud.azure_resource_attribution": "리소스별 귀속: params.resource_id에 Azure OpenAI 리소스의 전체 ID(/subscriptions/.../providers/Microsoft.CognitiveServices/accounts/...)를 설정하세요. 공유 Foundry 리소스에는 OpenAI가 아닌 제품도 포함되므로 모델별로 분리된 비용도, 지출 할당량도 아닙니다.",
@@ -2452,5 +2452,7 @@
   "note.metered.record_unavailable": "조회하지 않음: Cuotai가 과금되는 AWS Cost Explorer 조회의 공유 기록을 사용할 수 없었습니다. 폴더와 해결 방법은 `cuotai --doctor`를 실행해 확인하세요.",
   "note.metered.record_busy": "조회하지 않음: 다른 Cuotai 프로그램이 과금되는 AWS Cost Explorer 조회의 공유 기록을 너무 오래 잡고 있었습니다. 잠시 후 다시 시도하세요.",
   "note.metered.pending": "조회하지 않음: 다른 Cuotai 프로그램이 지금 이 계정을 조회하고 있습니다. 잠시 후 다시 시도하면 그 결과를 볼 수 있습니다.",
-  "note.metered.record_unavailable_shared": "과금되는 조회의 공유 기록을 사용할 수 없어 다른 Cuotai 프로그램도 이 계정을 조회할 수 있습니다."
+  "note.metered.record_unavailable_shared": "과금되는 조회의 공유 기록을 사용할 수 없어 다른 Cuotai 프로그램도 이 계정을 조회할 수 있습니다.",
+  "note.metered.refused": "조회하지 않음: 마지막 과금 AWS Cost Explorer 조회는 {queried}였습니다. 다음 조회는 {next}부터 가능합니다.",
+  "note.metered.shared_reading": "{time}의 공유된 결과입니다. 새로운 과금 조회는 하지 않았습니다."
 }

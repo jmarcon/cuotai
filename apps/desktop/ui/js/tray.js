@@ -26,6 +26,7 @@ import {
 } from "./aggregator.js";
 import { initUpdates, onUpdateState } from "./updater.js";
 import { initRowLayout } from "./density.js";
+import { manualRefresh } from "./metered-refresh.js";
 
 await boot();
 
@@ -33,6 +34,9 @@ const root = document.getElementById("root");
 const disabled = disabledAccounts;
 onDisabledChange(() => render());
 const store = createStore(() => render());
+// PRD 0033 re-validation V-06: a per-account refresh the user asks for; a metered account confirms the billed query
+// first and the core's refusal shows as a toast ("Refresh all" and the schedule never ask).
+const refreshOne = (index) => manualRefresh(store.view?.reports?.find((r) => r.index === index), () => store.refreshOne(index));
 let expanded = null; // the one expanded row (DS-CMP-ROW-5), or the opened drill-in (Rings, Compact, 9router, connection)
 let filter = "all"; // the selected filter tab: "all" or a provider id (remembered for this window, DS-CMP-TAB-5)
 let moreOpen = false;
@@ -413,7 +417,7 @@ root.addEventListener("click", (e) => {
     return;
   }
   const one = el.closest("[data-refresh-one]");
-  if (one) return store.refreshOne(Number(one.dataset.refreshOne));
+  if (one) return refreshOne(Number(one.dataset.refreshOne));
   if (el.closest("[data-refresh-all]")) return store.refresh();
   if (el.closest("[data-open-main]")) return openMainWindow();
   if (el.closest("[data-open-settings]")) return openSettingsWindow();

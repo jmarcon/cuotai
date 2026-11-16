@@ -1128,7 +1128,9 @@ pub async fn run(
                                     Some((sub_id, previous)) => {
                                         start_connection_refresh(&monitor, index, sub_id, previous)
                                     }
-                                    None => start_account_refresh(&monitor, index),
+                                    // PRD 0033 re-validation V-06: `r` asks for
+                                    // this account; a billed one is bounded.
+                                    None => start_explicit_refresh(&monitor, index),
                                 };
                                 account_refresh.install(index, job, token);
                             }
@@ -1522,6 +1524,14 @@ pub async fn run(
             if let Some((job, token)) = account_refresh.take(index) {
                 match job.await {
                     Ok(report) => {
+                        // PRD 0033 re-validation V-06: a manual refresh of a
+                        // billed account inside its floor says when the
+                        // next query is possible.
+                        let refused = report
+                            .notes_l10n
+                            .iter()
+                            .find(|note| note.id == "note.metered.refused")
+                            .map(resolve_l10n);
                         notify::finish_account(
                             &mut refresh_cycle,
                             state.notices.as_mut(),
@@ -1531,7 +1541,7 @@ pub async fn run(
                             chrono::Utc::now(),
                             &|index, report| pace_input(&monitor, &file.config, index, report),
                         );
-                        state.error = None;
+                        state.error = refused;
                     }
                     Err(_) => {
                         refresh_cycle.finish_account(index, None, token, Instant::now());
@@ -3420,6 +3430,12 @@ fn forget_extension_vault_note(monitor: &Monitor, session: &OAuthSession, id: &s
 fn start_account_refresh(monitor: &Arc<Monitor>, index: usize) -> JoinHandle<cuotai_core::Report> {
     let monitor = Arc::clone(monitor);
     tokio::spawn(async move { monitor.refresh_account(index).await })
+}
+
+/// PRD 0033 re-validation V-06: a refresh the user asked for (`r`).
+fn start_explicit_refresh(monitor: &Arc<Monitor>, index: usize) -> JoinHandle<cuotai_core::Report> {
+    let monitor = Arc::clone(monitor);
+    tokio::spawn(async move { monitor.refresh_account_explicit(index).await })
 }
 
 /// PRD 0036 RF4.4: one connection of an aggregator, merged into `previous`.

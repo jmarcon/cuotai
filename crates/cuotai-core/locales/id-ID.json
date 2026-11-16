@@ -16,7 +16,7 @@
     ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
-  "access.cost_advisory": "Penyedia ditagih per kueri: sekitar satu permintaan Cost Explorer per kueri. Tanpa interval, Cuotai mengueri sekali per jam; minimum efektif adalah 15 menit (interval 5 hingga 14 menit dinaikkan menjadi 15, nilai yang lebih rendah ditolak). Beberapa jendela atau perintah berbagi satu permintaan per interval. Penyegaran manual tetap eksplisit.",
+  "access.cost_advisory": "Penyedia ditagih per kueri: sekitar satu permintaan Cost Explorer per kueri. Tanpa interval, Cuotai mengkueri sekali per jam; minimum efektifnya 15 menit (interval 5 sampai 14 menit dinaikkan menjadi 15, nilai yang lebih kecil ditolak). Beberapa jendela atau perintah berbagi satu permintaan per interval. Penyegaran manual akun ini adalah kueri berbayar dan berjalan paling sering setiap 15 menit; Uji koneksi juga ditagih.",
   "access.credential.admin_key": "Kunci admin",
   "access.credential.agent_feed": "Umpan agen",
   "access.credential.aggregator_login": "Login agregator",
@@ -1327,7 +1327,7 @@
   "note.claude_code.window_absent": "Claude Code membuang jendela saat direset dan mengirimnya lagi setelah prompt berikutnya; sampai saat itu nilainya tidak diketahui, bukan nol.",
   "note.cloud.aws_cost_scope": "Cost Explorer difilter berdasarkan layanan \"Amazon Bedrock\", granularitas bulanan, bulan ini. Data biaya AWS diperbarui ~1x/hari dan dapat tertunda hingga 24 jam.",
   "note.cloud.aws_estimated": "Nilai periode berjalan ditandai sebagai perkiraan oleh Cost Explorer.",
-  "note.cloud.aws_query_cost": "Setiap panggilan get-cost-and-usage ke Cost Explorer ditagih oleh AWS (US$ 0,01 per permintaan), tidak seperti panggilan pembuatan: setiap penyegaran dasbor menimbulkan biaya kueri.",
+  "note.cloud.aws_query_cost": "Setiap permintaan Cost Explorer ditagih oleh AWS (sekitar US$ 0,01); Cuotai membuat paling banyak satu per interval untuk semua jendela dan perintahnya.",
   "note.cloud.azure_no_cost_rows": "Kueri tidak mengembalikan baris: biaya sumber daya di cakupan ini untuk bulan ini tidak dapat dikonfirmasi.",
   "note.cloud.azure_query_cost": "Cost Management Query API tidak ditagih per permintaan, tetapi memerlukan token dengan izin baca biaya di cakupan (mis. Cost Management Reader).",
   "note.cloud.azure_resource_attribution": "Atribusi per sumber daya: atur params.resource_id dengan ID lengkap sumber daya Azure OpenAI (/subscriptions/.../providers/Microsoft.CognitiveServices/accounts/...). Sumber daya Foundry bersama mencakup produk selain OpenAI; ini bukan biaya terisolasi per model maupun kuota pengeluaran.",
@@ -2452,5 +2452,7 @@
   "note.metered.record_unavailable": "Tidak dikueri: Cuotai tidak dapat memakai catatan bersama kueri AWS Cost Explorer berbayar miliknya. Jalankan `cuotai --doctor` untuk melihat foldernya dan cara memperbaikinya.",
   "note.metered.record_busy": "Tidak dikueri: program Cuotai lain menahan catatan bersama kueri AWS Cost Explorer berbayar terlalu lama. Coba lagi sebentar lagi.",
   "note.metered.pending": "Tidak dikueri: program Cuotai lain sedang mengkueri akun ini sekarang. Coba lagi sebentar lagi untuk melihat hasil bacaannya.",
-  "note.metered.record_unavailable_shared": "Catatan bersama kueri berbayar tidak tersedia, jadi program Cuotai lain mungkin juga mengkueri akun ini."
+  "note.metered.record_unavailable_shared": "Catatan bersama kueri berbayar tidak tersedia, jadi program Cuotai lain mungkin juga mengkueri akun ini.",
+  "note.metered.refused": "Tidak dikueri: kueri AWS Cost Explorer berbayar terakhir pada {queried}; kueri berikutnya dapat dilakukan pada {next}.",
+  "note.metered.shared_reading": "Dari hasil bacaan bersama pukul {time}; tidak ada kueri berbayar baru."
 }

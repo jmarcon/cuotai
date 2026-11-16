@@ -16,7 +16,7 @@
     ]
   },
   "access.confirm_unavailable": "{reason}账户会被保存，但会显示此原因而不是数字。",
-  "access.cost_advisory": "按查询计费的提供商：每次查询约产生一次 Cost Explorer 请求。未设置间隔时，Cuotai 每小时查询一次；实际最小间隔为 15 分钟（5 到 14 分钟的间隔会提高到 15 分钟，更短的会被拒绝）。多个窗口或命令在每个间隔内共享一次请求。手动刷新仍需明确操作。",
+  "access.cost_advisory": "该服务商按查询计费：每次查询约一次 Cost Explorer 请求。未设置间隔时，Cuotai 每小时查询一次；实际最短间隔为 15 分钟（5 到 14 分钟的间隔会提高到 15 分钟，更小的值会被拒绝）。多个窗口或命令在每个间隔内共用一次请求。手动刷新此账户是一次计费查询，最多每 15 分钟执行一次；测试连接同样计费。",
   "access.credential.admin_key": "管理员密钥",
   "access.credential.agent_feed": "代理推送",
   "access.credential.aggregator_login": "聚合器登录",
@@ -1327,7 +1327,7 @@
   "note.claude_code.window_absent": "窗口重置后 Claude Code 会暂时不发送它，下一次提示后再发送；在此之前它是未知，而不是 0。",
   "note.cloud.aws_cost_scope": "Cost Explorer 按服务“Amazon Bedrock”筛选，按月粒度，当月。AWS 费用数据约每天更新一次，可能延迟最多 24 小时。",
   "note.cloud.aws_estimated": "当前周期的数值被 Cost Explorer 标记为估算值。",
-  "note.cloud.aws_query_cost": "与生成调用不同，每次对 Cost Explorer 的 get-cost-and-usage 调用都会被 AWS 计费（每次请求 US$ 0.01）：仪表板每次刷新都会产生一次查询费用。",
+  "note.cloud.aws_query_cost": "每次 Cost Explorer 请求都由 AWS 计费（约 0.01 美元）；Cuotai 的所有窗口和命令在每个间隔内最多只发出一次请求。",
   "note.cloud.azure_no_cost_rows": "查询未返回任何行：无法确认该资源在此范围内当月的费用。",
   "note.cloud.azure_query_cost": "Cost Management Query API 不按请求计费，但需要在该范围内具有费用读取权限的令牌（例如 Cost Management Reader）。",
   "note.cloud.azure_resource_attribution": "按资源归因：将 params.resource_id 设置为 Azure OpenAI 资源的完整 ID（/subscriptions/.../providers/Microsoft.CognitiveServices/accounts/...）。共享的 Foundry 资源包括非 OpenAI 产品；这不是按模型隔离的费用，也不是支出额度。",
@@ -2452,5 +2452,7 @@
   "note.metered.record_unavailable": "未查询：Cuotai 无法使用其计费 AWS Cost Explorer 查询的共享记录。运行 `cuotai --doctor` 查看该文件夹及修复方法。",
   "note.metered.record_busy": "未查询：另一个 Cuotai 程序占用计费 AWS Cost Explorer 查询的共享记录过久。请稍后重试。",
   "note.metered.pending": "未查询：另一个 Cuotai 程序正在查询此账户。请稍后重试以查看其读数。",
-  "note.metered.record_unavailable_shared": "计费查询的共享记录不可用，因此其他 Cuotai 程序也可能查询此账户。"
+  "note.metered.record_unavailable_shared": "计费查询的共享记录不可用，因此其他 Cuotai 程序也可能查询此账户。",
+  "note.metered.refused": "未查询：上一次计费的 AWS Cost Explorer 查询在 {queried}；下一次最早可在 {next} 进行。",
+  "note.metered.shared_reading": "来自 {time} 的共享读数；未进行新的计费查询。"
 }

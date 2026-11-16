@@ -1346,7 +1346,9 @@ export function createStore(render) {
   const set = (v) => { s.view = v; s.error = v?.error ?? null; render(); };
   s.refresh = () => refreshAll().catch((e) => { s.error = String(e); render(); });
   // The browser demo has no "snapshot" event: re-read the view after a refresh so its recovery shows.
-  s.refreshOne = (i) => refreshAccount(i).then(() => isDesktop || getView().then(set)).catch((e) => { s.error = String(e); render(); });
+  // PRD 0033 re-validation V-06: resolves with the core's note when it refused a billed query (else null).
+  s.refreshOne = (i) => refreshAccount(i).then(async (note) => { if (!isDesktop) await getView().then(set); return note ?? null; })
+    .catch((e) => { s.error = String(e); render(); return null; });
   /** Re-read the view now: the browser demo's stand-in for the "snapshot" event after a local change. */
   s.reload = () => getView().then(set).catch((e) => { s.error = String(e); render(); });
   if (isDesktop) T.event.listen("snapshot", (e) => set(e.payload));
@@ -1636,7 +1638,7 @@ const demoBedrock = () => {
     state: "available", ratio: null, uncapped: true, no_cap: false };
   const notes = [
     { id: "note.cloud.aws_cost_scope", params: {}, fallback: "Cost Explorer filtered by service \"Amazon Bedrock\", monthly granularity, current month. AWS cost data updates ~1x/day and may lag by up to 24h." },
-    { id: "note.cloud.aws_query_cost", params: {}, fallback: "Each get-cost-and-usage call to Cost Explorer is billed by AWS (US$ 0.01 per request), unlike generation calls: every dashboard refresh incurs a query charge." },
+    { id: "note.cloud.aws_query_cost", params: {}, fallback: "Each Cost Explorer request is billed by AWS (about US$ 0.01); Cuotai makes at most one per interval for all its windows and commands." },
   ];
   return { ...dr("billing@example.com", "aws_bedrock", [cost], notes.map((n) => n.fallback)), notes_l10n: notes, refresh_seconds: 3600,
     source: "https://docs.aws.amazon.com/cli/latest/reference/ce/get-cost-and-usage.html" };
@@ -2635,6 +2637,15 @@ const demoBedrockSchema = () => {
       help: dl("field.aws_bedrock.cli_path.help", "Empty = Cuotai looks for aws in PATH and in the usual install folders. Set the full path of the aws program only when it is installed elsewhere."),
       required: false, options: null }] };
 };
+// PRD 0033 re-validation V-06: when the demo's metered account last made a billed query (per account name), and the
+// core's `note.metered.refused` with its two clocks as nested core texts (`at.time`).
+const demoMeteredAt = new Map();
+const demoClock = (ms) => {
+  const d = new Date(ms), hh = String(d.getHours()).padStart(2, "0"), mm = String(d.getMinutes()).padStart(2, "0");
+  return { id: "at.time", params: { hour: hh, minute: mm }, fallback: `${hh}:${mm}` };
+};
+const demoMeteredRefused = (queried, next) => ({ id: "note.metered.refused", params: { queried: demoClock(queried), next: demoClock(next) },
+  fallback: `Not queried: the last billed AWS Cost Explorer query was at ${demoClock(queried).fallback}; the next one is possible at ${demoClock(next).fallback}.` });
 const demo = {
   get_view: async () => demoView(),
   refresh_all: async () => {},
@@ -2646,7 +2657,17 @@ const demo = {
   },
   refresh_account: async ({ index }) => {
     const r = demoReports[index];
+    // PRD 0033 re-validation V-06: the core's 15-minute floor of an explicit refresh of the metered demo account
+    // (`?metered`): the first refresh is a (demo) billed query, a second within 15 minutes is refused with the note.
+    if (r?.provider === "aws_bedrock") {
+      const now = Date.now(), last = demoMeteredAt.get(r.account);
+      if (last != null && now - last < 15 * 60e3) return demoMeteredRefused(last, last + 15 * 60e3);
+      demoMeteredAt.set(r.account, now);
+      demoReports[index] = { ...r, checked_at: ago(0) };
+      return null;
+    }
     if (r?.last_good) demoReports[index] = { ...r, status: "ready", pending: false, checked_at: ago(0), metrics: r.last_good.metrics, notes: [], last_good: null };
+    return null;
   },
   // Same key as the core's `picker_providers` (lowercased label), pickable first.
   list_providers: async () => Object.entries(DEMO_CORE_LABELS).map(([id, label]) => ({ id, label, pickable: !DEMO_NO_QUERY.includes(id) }))

@@ -12,6 +12,7 @@ import { mountBudgets } from "./budgets-editor.js";
 import { entryChips, mountPicker, pickerHtml } from "./provider-picker.js";
 import { t, te, tl } from "./i18n.js";
 import { showDialog } from "./motion.js";
+import { billedTestHint, draftIsMetered } from "./metered-refresh.js";
 
 function open(html) {
   const dlg = document.createElement("dialog");
@@ -430,6 +431,17 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     if (text == null) { err.textContent = ""; return; }
     err.innerHTML = `${icon("warn")}<span>${esc(text)}</span>`;
   }
+  let draftMetered = false;
+  /** L-2: the billed hint under "Test connection", linked to the button, follows the draft's access descriptor. */
+  function syncBilledTestHint() {
+    const btn = dlg.querySelector("#session-test");
+    if (!btn) return;
+    dlg.querySelector("#session-test-billed")?.remove();
+    if (draftMetered) {
+      btn.closest(".dlg-actions").insertAdjacentHTML("afterend", billedTestHint("session-test-billed"));
+      btn.setAttribute("aria-describedby", "session-test-billed");
+    } else btn.removeAttribute("aria-describedby");
+  }
   async function renderAccess() {
     const seq = ++accessSeq;
     const access = await draftAccess(provider, authMode, draftFields(), sessionSlots());
@@ -441,6 +453,9 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     dlg.querySelector("#ok").textContent = t("common.save");
     costWarn.textContent = tl(access.cost_advisory);
     costWarn.hidden = !access.cost_advisory;
+    // PRD 0033 re-validation L-2: a metered draft's "Test connection" says it is a billed query before it runs.
+    const metered = draftIsMetered(access);
+    if (draftMetered !== metered) { draftMetered = metered; syncBilledTestHint(); }
     const notes = dyn.querySelector("#access-notes");
     if (notes) notes.innerHTML = access.notes.map((n) => `<small>${esc(tl(n))}</small>`).join("");
     renderBreakdown(access.breakdown);
@@ -599,7 +614,8 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
             ${stored.includes(s.slot) ? `<small class="hint">${te("dialog.session.replace")}</small>` : ""}
             <small class="hint" data-preview="${esc(s.slot)}" role="status" aria-live="polite"></small></label>
         </div>`).join("")
-      + (slots.length ? `<div class="dlg-actions"><button type="button" class="btn" id="session-test">${te("dialog.session.test")}</button></div>
+      + (slots.length ? `<div class="dlg-actions"><button type="button" class="btn" id="session-test"${draftMetered ? ' aria-describedby="session-test-billed"' : ""}>${te("dialog.session.test")}</button></div>
+          ${draftMetered ? billedTestHint("session-test-billed") : ""}
           <p class="hint" id="session-test-status" role="status" aria-live="polite"></p>` : "")
       + (stored.length ? `<p class="hint">${te("dialog.session.stored")}</p>` : "")
       + (forgettable ? `<div class="dlg-actions"><button type="button" class="btn danger-btn" id="session-forget">${te("dialog.session.forget")}</button></div>` : "")
