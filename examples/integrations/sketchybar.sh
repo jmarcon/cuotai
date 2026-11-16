@@ -4,7 +4,7 @@
 . "$(dirname "$0")/common.sh"
 
 if ! cuotai_read; then
-  "${SKETCHYBAR:-sketchybar}" --set "${NAME:-cuotai}" label="offline" label.color=0xff888888
+  "${SKETCHYBAR:-sketchybar}" --set "${NAME:-cuotai}" label="Cuotai offline" label.color=0xff888888
   exit 0
 fi
 case $cuotai_severity in

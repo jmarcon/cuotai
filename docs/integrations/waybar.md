@@ -2,6 +2,8 @@
 
 A custom module that runs [`waybar.sh`](../../examples/integrations/waybar.sh) every 30 seconds. See the [index](README.md) for requirements and the environment variables.
 
+**Versions.** The script needs Cuotai vNEXT or later on the server side (it reads `summary.tightest.level` and `label`). `cuotai --status-line` needs 0.81.0 or later, and `--from-server` needs vNEXT on both sides (the server proves itself before the token is sent). Copy [`common.sh`](../../examples/integrations/common.sh) next to the script: the script sources it from its own folder.
+
 **Prefer `cuotai --status-line --from-server`** for a one-line bar: it reads the same running server, takes the token from its file, and never puts the token on a command line or sends it through a proxy, and sends it only after the server proved it holds it. The script below keeps the token off command lines and proxies too, but cannot check the server first: if another program holds the port while your server is down, it receives the token ([details](../local-server.md#who-receives-the-token)).
 
 ```jsonc
@@ -21,19 +23,19 @@ A custom module that runs [`waybar.sh`](../../examples/integrations/waybar.sh) e
 #custom-cuotai.offline  { color: #888888; }
 ```
 
-Output with a Claude week at 78% (the fixture `limits-busy.json`):
+Output with 45% of a Claude week left (the fixture `limits-busy.json`):
 
 ```json
-{"text":"Cuotai 78% Personal","class":"warning","tooltip":"Resets at 2026-10-24T09:00:00Z"}
+{"text":"Cuotai 45% left · Personal","class":"warning","tooltip":"Resets at 2026-10-24T09:00:00Z"}
 ```
 
 Output when the account is exhausted (`limits-blocked.json`):
 
 ```json
-{"text":"Cuotai 100% Personal","class":"critical","tooltip":"Resets at 2026-10-20T14:00:00Z"}
+{"text":"Cuotai 0% left · Personal","class":"critical","tooltip":"Resets at 2026-10-20T14:00:00Z"}
 ```
 
-With the server unreachable the module shows `Cuotai offline` with the `offline` class.
+With the server unreachable the module shows `Cuotai offline` with the `offline` class. Waybar reads `text` as Pango markup, so the script escapes `&`, `<` and `>` in the name itself: leave `"escape"` off in the module, or the name shows `&amp;`.
 
 ## Without a server: `--status-line`
 

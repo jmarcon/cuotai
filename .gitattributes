@@ -1,1 +1,2 @@
 crates/cuotai-core/tests/fixtures/compat/** -text
+examples/integrations/*.sh text eol=lf

@@ -5,7 +5,7 @@
 . "$(dirname "$0")/common.sh"
 
 if ! cuotai_read; then
-  printf '#[fg=colour244]cuotai offline#[default]\n'
+  printf '#[fg=colour244]Cuotai offline#[default]\n'
   exit 0
 fi
 case $cuotai_severity in

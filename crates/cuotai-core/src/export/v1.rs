@@ -813,6 +813,16 @@ pub struct TightestAccount {
     pub name: String,
     pub used_ratio: f64,
     pub resets_at: Option<DateTime<Utc>>,
+    /// PRD 0031 re-validation V-03 (additive): the share **left**,
+    /// `1 - used_ratio` within `0..=1`, which every Cuotai surface shows.
+    pub remaining_ratio: f64,
+    /// The menu bar's level of `remaining_ratio` ([`crate::tray::Level`]:
+    /// `good` from 70 % left, `warn` from 30 %, `bad` below or exhausted).
+    pub level: crate::tray::Level,
+    /// The name to print: `name`, or the provider's name when the account
+    /// has no name of its own or its name looks like an e-mail address (the
+    /// menu bar's privacy rule).
+    pub label: String,
 }
 
 /// One account of [`Limits`]; every field means what it means in
@@ -1101,12 +1111,28 @@ impl LimitsSummary {
                     _ => Some(candidate),
                 },
             )
-            .map(|(account, binding)| TightestAccount {
-                id: account.id.clone(),
-                key: account.key.clone(),
-                name: account.name.clone(),
-                used_ratio: binding.used_ratio,
-                resets_at: binding.resets_at,
+            .map(|(account, binding)| {
+                // Rounded to 6 decimals so 1 - 0.55 reads 0.45, not 0.4499….
+                let remaining_ratio =
+                    ((1.0 - binding.used_ratio).clamp(0.0, 1.0) * 1e6).round() / 1e6;
+                TightestAccount {
+                    id: account.id.clone(),
+                    key: account.key.clone(),
+                    name: account.name.clone(),
+                    used_ratio: binding.used_ratio,
+                    resets_at: binding.resets_at,
+                    remaining_ratio,
+                    level: if account.class == AccountClass::Exhausted {
+                        crate::tray::Level::Bad
+                    } else {
+                        crate::tray::Level::of(remaining_ratio)
+                    },
+                    label: if !account.named || account.name.contains('@') {
+                        account.provider.label().to_owned()
+                    } else {
+                        account.name.clone()
+                    },
+                }
             });
         Self {
             worst_class: export
@@ -1971,6 +1997,95 @@ mod tests {
         assert_eq!(with.accounts[0].pace[0], app);
         // Other accounts and metrics without points are unchanged.
         assert_eq!(with.accounts[1].pace, without.accounts[1].pace);
+    }
+
+    /// PRD 0031 re-validation V-10: the recipe fixtures are what the core
+    /// emits for two fixed cycles, so they cannot drift from the contract
+    /// (regenerate them with `CUOTAI_REGENERATE_DOCS=1`).
+    #[test]
+    fn recipe_fixtures_are_what_the_core_emits() {
+        let named = |id: &str, name: &str, provider: Provider| Account {
+            id: crate::account_id::AccountId::parse(id),
+            ..account(name, provider)
+        };
+        let render = |config: &Config, cycle: &RefreshCycle, incidents: &[ProviderStatus]| {
+            let identity = ConfigIdentity::Explicit("recipes".into());
+            let export = Export::from_cycle(
+                config,
+                &identity,
+                cycle,
+                incidents,
+                now(),
+                Options::default(),
+            );
+            format!(
+                "{}\n",
+                serde_json::to_string_pretty(&Limits::from_export(&export)).unwrap()
+            )
+        };
+        let operational = |provider| ProviderStatus {
+            provider,
+            state: IncidentState::Operational,
+            incident: None,
+            page_url: "https://status.example.com/".into(),
+            read_at: Some(minutes_ago(1)),
+            stale: false,
+            expired: false,
+        };
+        // Busy: the tightest account has 45 % of its week left (warn).
+        let busy = Config {
+            accounts: vec![
+                named("acc_000000000001", "Personal", Provider::Claude),
+                named("acc_000000000002", "Work", Provider::ChatGpt),
+            ],
+            ..Config::default()
+        };
+        let mut cycle = RefreshCycle::new(&busy, Instant::now());
+        for (index, label, used, window, hours, age) in [
+            (0usize, "Week", 55.0, MetricWindow::Weekly, 93, 2),
+            (1, "Session (5h)", 31.0, MetricWindow::Window5h, 2, 1),
+        ] {
+            let mut ready = report(&busy.accounts[index], Status::Ready, minutes_ago(age));
+            ready.metrics = vec![quota(label, used, window, hours)];
+            finish(&mut cycle, index, ready);
+        }
+        let busy_body = render(&busy, &cycle, &[operational(Provider::Claude)]);
+        // Blocked: the session is used up during a partial outage.
+        let blocked = Config {
+            accounts: vec![named("acc_000000000001", "Personal", Provider::Claude)],
+            ..Config::default()
+        };
+        let mut cycle = RefreshCycle::new(&blocked, Instant::now());
+        let mut ready = report(
+            &blocked.accounts[0],
+            Status::Ready,
+            now() - chrono::TimeDelta::seconds(30),
+        );
+        ready.metrics = vec![quota("Session (5h)", 100.0, MetricWindow::Window5h, 2)];
+        finish(&mut cycle, 0, ready);
+        let outage = ProviderStatus {
+            state: IncidentState::PartialOutage,
+            ..operational(Provider::Claude)
+        };
+        let blocked_body = render(&blocked, &cycle, &[outage]);
+        for (name, body) in [
+            ("limits-busy.json", busy_body),
+            ("limits-blocked.json", blocked_body),
+        ] {
+            let path = doc_path(&format!("examples/integrations/fixtures/{name}"));
+            if std::env::var_os(REGENERATE).is_some() {
+                std::fs::write(&path, &body).unwrap();
+                continue;
+            }
+            let current = std::fs::read_to_string(&path)
+                .unwrap()
+                .replace("\r\n", "\n");
+            assert!(
+                current == body,
+                "{name} differs from what Limits::from_export emits; regenerate it with \
+                 CUOTAI_REGENERATE_DOCS=1 cargo test -p cuotai-core recipe_fixtures"
+            );
+        }
     }
 
     /// PRD 0031 RF1.2: the `/v1/limits` bodies the status-bar recipes run

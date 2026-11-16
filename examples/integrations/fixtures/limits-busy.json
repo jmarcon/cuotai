@@ -7,14 +7,19 @@
       "id": "acc_000000000001",
       "key": "claude:Personal",
       "name": "Personal",
+      "named": true,
       "provider": "claude",
       "class": "available",
       "binding": {
         "index": 0,
-        "label": "Semana",
+        "label": "Week",
+        "label_text": {
+          "id": "metric.verbatim",
+          "fallback": "Week"
+        },
         "window": "weekly",
-        "used_ratio": 0.78,
-        "remaining": 22.0,
+        "used_ratio": 0.55,
+        "remaining": 45.0,
         "resets_at": "2026-10-24T09:00:00Z",
         "reason": "tightest",
         "blocked_until": null
@@ -22,20 +27,28 @@
       "age_seconds": 120,
       "freshness": "fresh",
       "stale": false,
-      "incident": { "state": "operational", "stale": false }
+      "incident": {
+        "state": "operational",
+        "stale": false
+      }
     },
     {
       "index": 1,
       "id": "acc_000000000002",
-      "key": "codex:Work",
+      "key": "chat_gpt:Work",
       "name": "Work",
-      "provider": "codex",
+      "named": true,
+      "provider": "chat_gpt",
       "class": "available",
       "binding": {
         "index": 0,
-        "label": "Sessão (5h)",
+        "label": "Session (5h)",
+        "label_text": {
+          "id": "metric.verbatim",
+          "fallback": "Session (5h)"
+        },
         "window": "window_5h",
-        "used_ratio": 0.31,
+        "used_ratio": 0.31000000000000005,
         "remaining": 69.0,
         "resets_at": "2026-10-20T14:00:00Z",
         "reason": "tightest",
@@ -53,10 +66,14 @@
       "id": "acc_000000000001",
       "key": "claude:Personal",
       "name": "Personal",
-      "used_ratio": 0.78,
-      "resets_at": "2026-10-24T09:00:00Z"
+      "used_ratio": 0.55,
+      "resets_at": "2026-10-24T09:00:00Z",
+      "remaining_ratio": 0.45,
+      "level": "warn",
+      "label": "Personal"
     },
     "next_reset_at": "2026-10-20T14:00:00Z",
     "worst_incident": "operational"
-  }
+  },
+  "best": []
 }
