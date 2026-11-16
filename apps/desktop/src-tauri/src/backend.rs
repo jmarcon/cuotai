@@ -3626,18 +3626,27 @@ impl Backend {
     }
 
     pub async fn refresh_account(&self, app: &AppHandle, index: usize) -> Result<(), String> {
-        self.refresh_account_or_connection(app, index, None).await
+        self.refresh_account_or_connection(app, index, None, false)
+            .await
+            .map(|_| ())
     }
 
     /// PRD 0036 RF4.4: [`Self::refresh_account`], or only the connection
     /// `sub` of an aggregator account when one is named and the account
     /// has a current reading (one usage request instead of the instance).
+    ///
+    /// PRD 0033 re-validation V-06: `explicit` is a refresh the user asked
+    /// for ([`Monitor::refresh_account_explicit`]): for a metered account
+    /// inside the 15-minute floor nothing is queried, and the returned
+    /// note says when the next billed query is possible (the UI shows it
+    /// as a toast).
     pub async fn refresh_account_or_connection(
         &self,
         app: &AppHandle,
         index: usize,
         sub: Option<String>,
-    ) -> Result<(), String> {
+        explicit: bool,
+    ) -> Result<Option<cuotai_core::text::Localized>, String> {
         // Claim the per-slot token before spawn so an edit that lands
         // mid-flight rejects the eventual result via the generation
         // guard. `begin` returns `None` when the slot is already busy;
@@ -3658,7 +3667,7 @@ impl Backend {
             // already has a snapshot — never bail out just because the
             // public snapshot is hidden by a partial edit.
             let Some(token) = l.cycle.begin(index) else {
-                return Ok(());
+                return Ok(None);
             };
             l.tokens[index] = Some(token);
             (Arc::clone(&l.monitor), token, previous, l.cycle_epoch)
@@ -3666,11 +3675,17 @@ impl Backend {
         self.emit(app).await;
         let report = match (sub.as_deref(), previous.as_ref()) {
             (Some(sub), Some(previous)) => monitor.refresh_connection(index, sub, previous).await,
+            _ if explicit => monitor.refresh_account_explicit(index).await,
             _ => monitor.refresh_account(index).await,
         };
+        let refused = report
+            .notes_l10n
+            .iter()
+            .find(|note| note.id == "note.metered.refused")
+            .cloned();
         self.land_account(index, report, token, epoch).await;
         self.emit(app).await;
-        Ok(())
+        Ok(refused)
     }
 
     /// Testable half of [`Self::refresh_account_or_connection`]: applies one

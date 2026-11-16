@@ -548,7 +548,7 @@ impl UsageAccess {
         self.metered.then(|| {
             Localized::fixed(
                 "access.cost_advisory",
-                "Provider is billed per query: about one Cost Explorer request per query. Without an interval Cuotai queries once an hour; the effective minimum is 15 minutes (intervals of 5 to 14 minutes are raised to 15, lower values are rejected). Several windows or commands share one request per interval. Manual refreshes remain explicit.",
+                "Provider is billed per query: about one Cost Explorer request per query. Without an interval Cuotai queries once an hour; the effective minimum is 15 minutes (intervals of 5 to 14 minutes are raised to 15, lower values are rejected). Several windows or commands share one request per interval. A manual refresh of this account is a billed query and runs at most every 15 minutes; Test connection is billed too.",
             )
         })
     }

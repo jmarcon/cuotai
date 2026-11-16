@@ -16,7 +16,7 @@
     ]
   },
   "access.confirm_unavailable": "{reason} Le compte sera enregistré, mais affichera ce motif au lieu de chiffres.",
-  "access.cost_advisory": "Fournisseur facturé à la requête : environ une demande à Cost Explorer par requête. Sans intervalle, Cuotai interroge une fois par heure ; le minimum effectif est de 15 minutes (les intervalles de 5 à 14 minutes sont portés à 15 et les plus courts sont refusés). Plusieurs fenêtres ou commandes partagent une demande par intervalle. Les actualisations manuelles restent explicites.",
+  "access.cost_advisory": "Fournisseur facturé à la requête : environ une requête Cost Explorer par interrogation. Sans intervalle, Cuotai interroge une fois par heure ; le minimum effectif est de 15 minutes (les intervalles de 5 à 14 minutes sont portés à 15, les valeurs inférieures sont refusées). Plusieurs fenêtres ou commandes partagent une requête par intervalle. Une actualisation manuelle de ce compte est une requête facturée et a lieu au plus toutes les 15 minutes ; Tester la connexion est aussi facturé.",
   "access.credential.admin_key": "Clé d’administration",
   "access.credential.agent_feed": "Flux de l’agent",
   "access.credential.aggregator_login": "Connexion à l’agrégateur",
@@ -1344,7 +1344,7 @@
   "note.claude_code.window_absent": "Claude Code retire une fenêtre à sa réinitialisation et la renvoie après la requête suivante ; d’ici là elle est inconnue, pas nulle.",
   "note.cloud.aws_cost_scope": "Cost Explorer filtré par service « Amazon Bedrock », granularité mensuelle, mois en cours. Les données de coût d’AWS sont mises à jour environ une fois par jour et peuvent tarder jusqu’à 24 h.",
   "note.cloud.aws_estimated": "Les valeurs de la période en cours sont marquées comme estimées par Cost Explorer.",
-  "note.cloud.aws_query_cost": "Chaque appel get-cost-and-usage à Cost Explorer est facturé par AWS (0,01 US$ par requête), contrairement aux appels de génération : chaque actualisation du tableau de bord génère des frais de requête.",
+  "note.cloud.aws_query_cost": "Chaque requête Cost Explorer est facturée par AWS (environ 0,01 $ US) ; Cuotai en fait au plus une par intervalle pour toutes ses fenêtres et commandes.",
   "note.cloud.azure_no_cost_rows": "La requête n’a renvoyé aucune ligne : impossible de confirmer le coût de la ressource dans cette portée pour le mois en cours.",
   "note.cloud.azure_query_cost": "L’API Cost Management Query n’est pas facturée à la requête, mais nécessite un token avec un droit de lecture des coûts dans la portée (par ex. Cost Management Reader).",
   "note.cloud.azure_resource_attribution": "Attribution par ressource : configurez params.resource_id avec l’ID complet de la ressource Azure OpenAI (/subscriptions/.../providers/Microsoft.CognitiveServices/accounts/...). Une ressource Foundry partagée inclut des produits qui ne sont pas OpenAI ; ce n’est ni un coût isolé par modèle ni un quota de dépenses.",
@@ -2483,5 +2483,7 @@
   "note.metered.record_unavailable": "Non interrogé : Cuotai n'a pas pu utiliser son registre partagé des requêtes AWS Cost Explorer facturées. Lancez `cuotai --doctor` pour voir le dossier et comment le corriger.",
   "note.metered.record_busy": "Non interrogé : un autre programme Cuotai a gardé trop longtemps le registre partagé des requêtes AWS Cost Explorer facturées. Réessayez dans un instant.",
   "note.metered.pending": "Non interrogé : un autre programme Cuotai interroge ce compte en ce moment. Réessayez dans un instant pour voir sa lecture.",
-  "note.metered.record_unavailable_shared": "Le registre partagé des requêtes facturées est indisponible : d'autres programmes Cuotai peuvent aussi interroger ce compte."
+  "note.metered.record_unavailable_shared": "Le registre partagé des requêtes facturées est indisponible : d'autres programmes Cuotai peuvent aussi interroger ce compte.",
+  "note.metered.refused": "Non interrogé : la dernière requête AWS Cost Explorer facturée date de {queried} ; la suivante est possible à {next}.",
+  "note.metered.shared_reading": "D'après la lecture partagée de {time} ; aucune nouvelle requête facturée n'a été faite."
 }

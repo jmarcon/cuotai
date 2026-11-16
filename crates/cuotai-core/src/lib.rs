@@ -1222,6 +1222,85 @@ impl Monitor {
         } else {
             self.query_report(account, &[]).await
         };
+        self.complete_report(index, account, report)
+    }
+
+    /// PRD 0033 re-validation V-06: a refresh the user asked for. For a
+    /// metered account of a long-lived process it is a billed choice: it
+    /// queries once 15 minutes have passed since the last billed query of
+    /// the account's settings (from any process) and none is running;
+    /// otherwise it shows the recorded reading with a note saying when the
+    /// next billed query is possible (`note.metered.refused`). Every other
+    /// account, and every one-shot process, refreshes as
+    /// [`Monitor::refresh_account`] does.
+    pub async fn refresh_account_explicit(&self, index: usize) -> Report {
+        let account = &self.config.accounts[index];
+        if !account.provider.is_metered() || self.metered_policy == MeteredPolicy::OneShot {
+            return self.refresh_account(index).await;
+        }
+        let floor = chrono::TimeDelta::seconds(Provider::METERED_MIN_REFRESH_SECONDS as i64);
+        let claim_for = chrono::TimeDelta::seconds(self.config.timeout_seconds as i64 + 60);
+        let Some(store) = self.metered.clone() else {
+            return match self
+                .metered_unavailable(account, metered_record::Unavailable::Io, floor)
+                .await
+            {
+                Ok(report) => self.complete_report(index, account, report),
+                Err(shown) => shown,
+            };
+        };
+        let permit = self
+            .query_slots
+            .acquire()
+            .await
+            .expect("monitor query semaphore stays open");
+        let now = self.now();
+        let decision = {
+            let (store, owned) = (store.clone(), account.clone());
+            tokio::task::spawn_blocking(move || store.begin_explicit(&owned, floor, claim_for, now))
+                .await
+                .unwrap_or(Err(metered_record::Unavailable::Io))
+        };
+        match decision {
+            Ok(metered_record::Explicit::Query) => {
+                let report = HOLDS_QUERY_SLOT
+                    .scope((), self.query_report(account, &[]))
+                    .await;
+                drop(permit);
+                let (owned, saved, now) = (account.clone(), report.clone(), self.now());
+                let _ =
+                    tokio::task::spawn_blocking(move || store.finish(&owned, &saved, now)).await;
+                self.complete_report(index, account, report)
+            }
+            Ok(metered_record::Explicit::Refused {
+                report,
+                queried_at,
+                next_at,
+            }) => {
+                drop(permit);
+                let mut report = self.reused_metered(account, *report);
+                let note = metered_record::note_refused(queried_at, next_at, self.now());
+                report.notes.push(note.text().to_owned());
+                report.notes_l10n.push(note);
+                report
+            }
+            Ok(metered_record::Explicit::Wait) => {
+                drop(permit);
+                self.refresh_account(index).await
+            }
+            Err(reason) => {
+                drop(permit);
+                match self.metered_unavailable(account, reason, floor).await {
+                    Ok(report) => self.complete_report(index, account, report),
+                    Err(shown) => shown,
+                }
+            }
+        }
+    }
+
+    /// The bookkeeping of a report this process just queried: duplicates,
+    /// budgets and the history.
+    fn complete_report(&self, index: usize, account: &Account, report: Report) -> Report {
         let mut report = report;
         // PRD 0036 RF5.3: a connection that duplicates a direct account is
         // marked before history, alerts or the ranking see it.
@@ -1533,6 +1612,31 @@ impl Monitor {
                 overage_hint: None,
                 breakdown: Vec::new(),
             };
+        }
+        // PRD 0033 re-validation L-2: "Test connection" of a metered
+        // account is a billed query too; a fresh reading of the same
+        // settings answers it instead, and a new reading is shared.
+        if let (true, Some(store)) = (account.provider.is_metered(), self.metered.clone()) {
+            let interval = chrono::TimeDelta::seconds(
+                account.effective_refresh_seconds(self.config.refresh_seconds) as i64,
+            );
+            let (owned, now) = (account.clone(), self.now());
+            let lookup = store.clone();
+            let fresh =
+                tokio::task::spawn_blocking(move || lookup.fresh_reading(&owned, interval, now))
+                    .await;
+            if let Ok(Ok(Some((queried_at, report)))) = fresh {
+                let mut report = report;
+                metered_record::rebind(&mut report, account);
+                let note = metered_record::note_shared_reading(queried_at, self.now());
+                report.notes.push(note.text().to_owned());
+                report.notes_l10n.push(note);
+                return report;
+            }
+            let report = self.query_report(account, sessions).await;
+            let (owned, saved, now) = (account.clone(), report.clone(), self.now());
+            let _ = tokio::task::spawn_blocking(move || store.finish(&owned, &saved, now)).await;
+            return report;
         }
         self.query_report(account, sessions).await
     }
@@ -2939,6 +3043,52 @@ echo '{{"ResultsByTime":[{{"Total":{{"UnblendedCost":{{"Amount":"12.34","Unit":"
                 .any(|note| note.id == "note.metered.record_unavailable_shared"));
         }
         assert_eq!(calls(&log), 1, "one billed call per interval");
+    }
+
+    /// PRD 0033 re-validation V-06: a manual refresh of a metered account
+    /// queries once 15 minutes have passed, never sooner; inside the floor
+    /// it shows the shared reading and says when the next query is
+    /// possible. "Test connection" reuses a fresh reading (L-2).
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_manual_refresh_of_a_metered_account_is_bounded_by_fifteen_minutes() {
+        let dir = tempfile::tempdir().unwrap();
+        let (account, log) = counting_aws(dir.path());
+        let records = dir.path().join("metered");
+        let clock = Arc::new(parking_lot::Mutex::new(Utc::now()));
+        let mut monitor =
+            metered_monitor(&account, &records).with_metered_policy(MeteredPolicy::LongLived);
+        monitor.clock = Some(Arc::clone(&clock));
+        assert_eq!(
+            monitor.refresh_account_explicit(0).await.status,
+            Status::Ready
+        );
+        assert_eq!(calls(&log), 1);
+        *clock.lock() += chrono::TimeDelta::minutes(5);
+        let refused = monitor.refresh_account_explicit(0).await;
+        assert_eq!(refused.status, Status::Ready);
+        assert!(refused
+            .notes_l10n
+            .iter()
+            .any(|note| note.id == "note.metered.refused"));
+        assert_eq!(calls(&log), 1, "no billed call inside the floor");
+        let tested = monitor.test_session(&account, &[]).await;
+        assert!(tested
+            .notes_l10n
+            .iter()
+            .any(|note| note.id == "note.metered.shared_reading"));
+        assert_eq!(calls(&log), 1, "Test connection reused the reading");
+        *clock.lock() += chrono::TimeDelta::minutes(11);
+        let again = monitor.refresh_account_explicit(0).await;
+        assert!(!again
+            .notes_l10n
+            .iter()
+            .any(|note| note.id == "note.metered.refused"));
+        assert_eq!(calls(&log), 2, "a billed query after 15 minutes");
+        // The scheduled refresh keeps the hourly interval.
+        *clock.lock() += chrono::TimeDelta::minutes(20);
+        monitor.refresh_account(0).await;
+        assert_eq!(calls(&log), 2);
     }
 
     fn metered_floor_error(

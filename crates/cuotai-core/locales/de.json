@@ -16,7 +16,7 @@
     ]
   },
   "access.confirm_unavailable": "{reason} Das Konto wird gespeichert, zeigt aber diesen Grund statt Zahlen an.",
-  "access.cost_advisory": "Pro Abfrage abgerechneter Anbieter: etwa eine Anfrage an Cost Explorer pro Abfrage. Ohne Intervall fragt Cuotai einmal pro Stunde ab; das wirksame Minimum beträgt 15 Minuten (Intervalle von 5 bis 14 Minuten werden auf 15 angehoben, kleinere werden abgelehnt). Mehrere Fenster oder Befehle teilen sich eine Anfrage pro Intervall. Manuelle Aktualisierungen bleiben ausdrücklich möglich.",
+  "access.cost_advisory": "Anbieter wird pro Abfrage abgerechnet: etwa eine Cost-Explorer-Anfrage pro Abfrage. Ohne Intervall fragt Cuotai einmal pro Stunde ab; das effektive Minimum beträgt 15 Minuten (Intervalle von 5 bis 14 Minuten werden auf 15 angehoben, kleinere Werte abgelehnt). Mehrere Fenster oder Befehle teilen sich eine Anfrage pro Intervall. Eine manuelle Aktualisierung dieses Kontos ist eine abgerechnete Abfrage und läuft höchstens alle 15 Minuten; auch „Verbindung testen“ wird abgerechnet.",
   "access.credential.admin_key": "Administratorschlüssel",
   "access.credential.agent_feed": "Agent-Feed",
   "access.credential.aggregator_login": "Aggregator-Anmeldung",
@@ -1344,7 +1344,7 @@
   "note.claude_code.window_absent": "Claude Code lässt ein Fenster nach seinem Zurücksetzen weg und sendet es nach der nächsten Eingabe erneut; bis dahin ist es unbekannt, nicht null.",
   "note.cloud.aws_cost_scope": "Cost Explorer gefiltert nach dem Dienst „Amazon Bedrock“, monatliche Granularität, laufender Monat. AWS-Kostendaten werden ca. 1× täglich aktualisiert und können bis zu 24 Std. verzögert sein.",
   "note.cloud.aws_estimated": "Werte des laufenden Zeitraums sind von Cost Explorer als geschätzt markiert.",
-  "note.cloud.aws_query_cost": "Jede get-cost-and-usage-Abfrage an Cost Explorer wird von AWS berechnet (0,01 US$ pro Anfrage), anders als Generierungsaufrufe: Jede Aktualisierung des Dashboards verursacht Abfragekosten.",
+  "note.cloud.aws_query_cost": "Jede Cost-Explorer-Anfrage wird von AWS abgerechnet (etwa 0,01 US$); Cuotai stellt höchstens eine pro Intervall für alle seine Fenster und Befehle.",
   "note.cloud.azure_no_cost_rows": "Die Abfrage lieferte keine Zeilen: Die Kosten der Ressource in diesem Bereich im laufenden Monat konnten nicht bestätigt werden.",
   "note.cloud.azure_query_cost": "Die Cost-Management-Query-API berechnet nichts pro Anfrage, erfordert aber ein Token mit Leseberechtigung für Kosten im Bereich (z. B. Cost Management Reader).",
   "note.cloud.azure_resource_attribution": "Zuordnung pro Ressource: Konfigurieren Sie params.resource_id mit der vollständigen ID der Azure-OpenAI-Ressource (/subscriptions/.../providers/Microsoft.CognitiveServices/accounts/...). Eine gemeinsam genutzte Foundry-Ressource enthält Produkte, die nicht OpenAI sind; es sind weder isolierte Kosten pro Modell noch ein Ausgabenkontingent.",
@@ -2483,5 +2483,7 @@
   "note.metered.record_unavailable": "Nicht abgefragt: Cuotai konnte sein gemeinsames Protokoll abgerechneter AWS-Cost-Explorer-Abfragen nicht verwenden. Führen Sie `cuotai --doctor` aus, um den Ordner und die Behebung zu sehen.",
   "note.metered.record_busy": "Nicht abgefragt: Ein anderes Cuotai-Programm hat das gemeinsame Protokoll abgerechneter AWS-Cost-Explorer-Abfragen zu lange belegt. Versuchen Sie es gleich noch einmal.",
   "note.metered.pending": "Nicht abgefragt: Ein anderes Cuotai-Programm fragt dieses Konto gerade ab. Versuchen Sie es gleich noch einmal, um sein Ergebnis zu sehen.",
-  "note.metered.record_unavailable_shared": "Das gemeinsame Protokoll abgerechneter Abfragen ist nicht verfügbar, daher fragen andere Cuotai-Programme dieses Konto möglicherweise ebenfalls ab."
+  "note.metered.record_unavailable_shared": "Das gemeinsame Protokoll abgerechneter Abfragen ist nicht verfügbar, daher fragen andere Cuotai-Programme dieses Konto möglicherweise ebenfalls ab.",
+  "note.metered.refused": "Nicht abgefragt: Die letzte abgerechnete AWS-Cost-Explorer-Abfrage war um {queried}; die nächste ist um {next} möglich.",
+  "note.metered.shared_reading": "Aus dem gemeinsamen Ergebnis von {time}; es wurde keine neue abgerechnete Abfrage gestellt."
 }

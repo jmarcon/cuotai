@@ -72,9 +72,13 @@ async fn refresh_account(
     b: Shared<'_>,
     index: usize,
     sub: Option<String>,
-) -> Result<(), String> {
+) -> Result<Option<cuotai_core::text::Localized>, String> {
     // PRD 0036 RF4.4: `sub` names one connection of an aggregator.
-    b.refresh_account_or_connection(&app, index, sub).await
+    // PRD 0033 re-validation V-06: a refresh the user asked for; for a
+    // metered account inside the 15-minute floor the answer is the note
+    // that says when the next billed query is possible.
+    b.refresh_account_or_connection(&app, index, sub, true)
+        .await
 }
 
 #[tauri::command]

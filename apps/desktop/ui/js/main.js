@@ -28,6 +28,7 @@ import {
   repeatedProviders, statusLineHtml, oneStatusHtml, tileHtml, trackChanges,
 } from "./components.js";
 import * as motion from "./motion.js";
+import { manualRefresh } from "./metered-refresh.js";
 import { cardPaceLineHtml, hasExtraColumn, summaryHtml } from "./card-summary.js";
 
 await boot();
@@ -36,6 +37,9 @@ const root = document.getElementById("root");
 const disabled = disabledAccounts;
 onDisabledChange(() => render());
 const store = createStore(() => render());
+// PRD 0033 re-validation V-06: a per-account refresh the user asks for; a metered account confirms the billed query
+// first and the core's refusal shows as a toast ("Refresh all" and the schedule never ask).
+const refreshOne = (index) => manualRefresh(store.view?.reports?.find((r) => r.index === index), () => store.refreshOne(index));
 const busy = (i) => store.view?.busy.includes(i);
 
 
@@ -558,7 +562,7 @@ root.addEventListener("click", (e) => {
   const move = t.closest("[data-move-from]");
   if (move) return reorderAccounts(Number(move.dataset.moveFrom), Number(move.dataset.moveTo));
   const one = t.closest("[data-refresh]");
-  if (one) return store.refreshOne(Number(one.dataset.refresh));
+  if (one) return refreshOne(Number(one.dataset.refresh));
   const all = t.closest("[data-refresh-all]");
   if (all) return store.refresh();
   if (t.closest("[data-stats-toggle]")) return setPage(page === "stats" ? "grid" : "stats");

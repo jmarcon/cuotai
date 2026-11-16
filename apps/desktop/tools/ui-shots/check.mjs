@@ -141,6 +141,10 @@ const PAGES = zoom ? ZOOM_PAGES : [
   ["dialog-add-peer", "index.html?unnamed", 1200, 820, {}, ["[data-add]", '.pick[data-provider="groq"]']],
   // PRD 0033 re-validation (V-15): the AWS Bedrock form (profile, CLI path, SSO login, interval and cost advisory).
   ["dialog-add-bedrock", "index.html", 1200, 820, {}, ["[data-add]", '.pick[data-provider="aws_bedrock"]']],
+  // PRD 0033 re-validation (V-06): the confirmation before a billed refresh of the AWS Bedrock account, in the main
+  // window and in the popover.
+  ["dialog-billed-refresh", "index.html?metered", 1200, 820, {}, '.card[data-card="aws_bedrock::billing@example.com"] [data-refresh]'],
+  ["tray-billed-refresh", "tray.html?metered", 380, 600, {}, ['[data-open="aws_bedrock::billing@example.com"]', '[data-refresh-one]']],
   // V-03, V-07: unnamed accounts (a plain one and the 9router instance) on the cards, the tray and Stats.
   ["main-unnamed", "index.html?unnamed", 1200, 820, {}],
   ["tray-unnamed", "tray.html?unnamed", 380, 600, {}],

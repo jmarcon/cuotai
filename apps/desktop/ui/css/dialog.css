@@ -1,31 +1,4 @@
-dialog.dlg {
-  width: min(var(--dialog-md), calc(100vw - 32px));
-  max-height: calc(100dvh - 32px);
-  overflow-y: auto;
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  color: var(--fg);
-  box-shadow: var(--shadow-dialog);
-}
-dialog.dlg::backdrop {
-  background: var(--scrim); /* DS-TOK-ELV-3: no component blur */
-}
-/* Exit (motion.js `showDialog`): the already closed dialog returns to the top layer as an inert popover. */
-dialog.dlg:popover-open {
-  display: block;
-}
-.dlg-body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-5);
-  user-select: text;
-}
-.dlg-body h2 {
-  font-size: var(--text-xl);
-}
+/* dialog.dlg, its body and its action row live in components.css (shared with the menu-bar popover). */
 .f {
   display: flex;
   flex-direction: column;
@@ -90,11 +63,6 @@ dialog.dlg:popover-open {
    style, never in the advisory box at the end of the form. */
 .choice-notice {
   display: block;
-}
-.dlg-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-2);
 }
 .btn.primary {
   background: var(--accent);

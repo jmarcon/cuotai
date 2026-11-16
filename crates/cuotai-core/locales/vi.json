@@ -16,7 +16,7 @@
     ]
   },
   "access.confirm_unavailable": "{reason} Tài khoản sẽ được lưu, nhưng sẽ hiện lý do này thay cho số liệu.",
-  "access.cost_advisory": "Nhà cung cấp tính phí theo truy vấn: khoảng một yêu cầu Cost Explorer cho mỗi truy vấn. Không đặt chu kỳ thì Cuotai truy vấn mỗi giờ một lần; mức tối thiểu hiệu lực là 15 phút (chu kỳ từ 5 đến 14 phút được nâng lên 15, giá trị thấp hơn bị từ chối). Nhiều khung hoặc lệnh dùng chung một yêu cầu cho mỗi chu kỳ. Làm mới thủ công vẫn là thao tác rõ ràng.",
+  "access.cost_advisory": "Nhà cung cấp tính phí theo truy vấn: khoảng một yêu cầu Cost Explorer cho mỗi truy vấn. Không có khoảng thời gian thì Cuotai truy vấn mỗi giờ một lần; mức tối thiểu thực tế là 15 phút (khoảng 5 đến 14 phút được nâng lên 15, giá trị nhỏ hơn bị từ chối). Nhiều cửa sổ hoặc lệnh dùng chung một yêu cầu cho mỗi khoảng. Làm mới tài khoản này thủ công là một truy vấn tính phí và chạy tối đa 15 phút một lần; Kiểm tra kết nối cũng bị tính phí.",
   "access.credential.admin_key": "Khóa quản trị",
   "access.credential.agent_feed": "Nguồn từ tác tử",
   "access.credential.aggregator_login": "Đăng nhập bộ tổng hợp",
@@ -1327,7 +1327,7 @@
   "note.claude_code.window_absent": "Claude Code bỏ một cửa sổ khi nó đặt lại và gửi lại sau lời nhắc kế tiếp; đến lúc đó giá trị là chưa biết, không phải 0.",
   "note.cloud.aws_cost_scope": "Cost Explorer được lọc theo dịch vụ \"Amazon Bedrock\", độ chi tiết theo tháng, tháng hiện tại. Dữ liệu chi phí AWS cập nhật ~1 lần/ngày và có thể trễ đến 24 giờ.",
   "note.cloud.aws_estimated": "Giá trị của kỳ hiện tại được Cost Explorer đánh dấu là ước tính.",
-  "note.cloud.aws_query_cost": "Mỗi lệnh gọi get-cost-and-usage tới Cost Explorer bị AWS tính phí (0,01 USD mỗi yêu cầu), khác với các lệnh gọi tạo nội dung: mỗi lần làm mới bảng điều khiển phát sinh phí truy vấn.",
+  "note.cloud.aws_query_cost": "Mỗi yêu cầu Cost Explorer đều bị AWS tính phí (khoảng 0,01 USD); Cuotai chỉ gửi tối đa một yêu cầu mỗi khoảng cho tất cả cửa sổ và lệnh của nó.",
   "note.cloud.azure_no_cost_rows": "Truy vấn không trả về dòng nào: không xác nhận được chi phí tài nguyên trong phạm vi này cho tháng hiện tại.",
   "note.cloud.azure_query_cost": "Cost Management Query API không tính phí theo yêu cầu, nhưng cần token có quyền đọc chi phí trong phạm vi (ví dụ Cost Management Reader).",
   "note.cloud.azure_resource_attribution": "Phân bổ theo tài nguyên: hãy đặt params.resource_id bằng ID đầy đủ của tài nguyên Azure OpenAI (/subscriptions/.../providers/Microsoft.CognitiveServices/accounts/...). Tài nguyên Foundry dùng chung bao gồm cả sản phẩm không phải OpenAI; đây không phải chi phí tách riêng theo mô hình hay hạn mức chi tiêu.",
@@ -2452,5 +2452,7 @@
   "note.metered.record_unavailable": "Chưa truy vấn: Cuotai không dùng được bản ghi dùng chung các truy vấn AWS Cost Explorer tính phí. Chạy `cuotai --doctor` để xem thư mục và cách sửa.",
   "note.metered.record_busy": "Chưa truy vấn: một chương trình Cuotai khác giữ bản ghi dùng chung các truy vấn AWS Cost Explorer tính phí quá lâu. Hãy thử lại sau giây lát.",
   "note.metered.pending": "Chưa truy vấn: một chương trình Cuotai khác đang truy vấn tài khoản này. Hãy thử lại sau giây lát để xem kết quả của nó.",
-  "note.metered.record_unavailable_shared": "Bản ghi dùng chung các truy vấn tính phí không khả dụng, nên các chương trình Cuotai khác cũng có thể truy vấn tài khoản này."
+  "note.metered.record_unavailable_shared": "Bản ghi dùng chung các truy vấn tính phí không khả dụng, nên các chương trình Cuotai khác cũng có thể truy vấn tài khoản này.",
+  "note.metered.refused": "Chưa truy vấn: truy vấn AWS Cost Explorer tính phí gần nhất lúc {queried}; truy vấn tiếp theo có thể thực hiện lúc {next}.",
+  "note.metered.shared_reading": "Từ kết quả dùng chung lúc {time}; không có truy vấn tính phí mới."
 }

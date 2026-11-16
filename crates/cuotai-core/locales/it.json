@@ -13,7 +13,7 @@
     ]
   },
   "access.confirm_unavailable": "{reason} L'account verrà salvato, ma mostrerà questo motivo invece dei numeri.",
-  "access.cost_advisory": "Il provider fattura per query: circa una richiesta a Cost Explorer per query. Senza intervallo Cuotai interroga una volta all'ora; il minimo effettivo è 15 minuti (gli intervalli da 5 a 14 minuti vengono portati a 15, quelli inferiori vengono rifiutati). Più finestre o comandi condividono una richiesta per intervallo. Gli aggiornamenti manuali restano espliciti.",
+  "access.cost_advisory": "Provider fatturato per query: circa una richiesta a Cost Explorer per query. Senza intervallo Cuotai interroga una volta all'ora; il minimo effettivo è 15 minuti (gli intervalli da 5 a 14 minuti salgono a 15, i valori inferiori vengono rifiutati). Più finestre o comandi condividono una richiesta per intervallo. Un aggiornamento manuale di questo account è una query fatturata e avviene al massimo ogni 15 minuti; anche Prova connessione è fatturato.",
   "access.credential.admin_key": "Chiave admin",
   "access.credential.agent_feed": "Feed dell’agente",
   "access.credential.cloud_identity": "Identità cloud",
@@ -899,7 +899,7 @@
   "note.claude_code.window_absent": "Claude Code omette una finestra quando si azzera e la rimanda dopo il prompt successivo; fino ad allora è sconosciuta, non zero.",
   "note.cloud.aws_cost_scope": "Cost Explorer filtrato per il servizio \"Amazon Bedrock\", granularità mensile, mese corrente. I dati di costo AWS si aggiornano ~1 volta al giorno e possono essere in ritardo fino a 24h.",
   "note.cloud.aws_estimated": "I valori del periodo corrente sono contrassegnati come stimati da Cost Explorer.",
-  "note.cloud.aws_query_cost": "Ogni chiamata get-cost-and-usage a Cost Explorer è fatturata da AWS (US$ 0,01 per richiesta), a differenza delle chiamate di generazione: ogni aggiornamento della dashboard comporta un addebito di query.",
+  "note.cloud.aws_query_cost": "Ogni richiesta a Cost Explorer è fatturata da AWS (circa 0,01 US$); Cuotai ne fa al massimo una per intervallo per tutte le sue finestre e comandi.",
   "note.cloud.azure_no_cost_rows": "La query non ha restituito righe: non è stato possibile confermare il costo della risorsa in questo ambito per il mese corrente.",
   "note.cloud.azure_query_cost": "La Query API di Cost Management non è fatturata per richiesta, ma richiede un token con permesso di lettura dei costi nell'ambito (es. Cost Management Reader).",
   "note.cloud.azure_resource_attribution": "Attribuzione della risorsa: configura params.resource_id con l'ID completo della risorsa Azure OpenAI (/subscriptions/.../providers/Microsoft.CognitiveServices/accounts/...). Una risorsa Foundry condivisa include prodotti che non sono OpenAI; non è isolata per modello né è una quota di spesa.",
@@ -2480,5 +2480,7 @@
   "note.metered.record_unavailable": "Non interrogato: Cuotai non ha potuto usare il suo registro condiviso delle query fatturate di AWS Cost Explorer. Esegui `cuotai --doctor` per vedere la cartella e come correggerla.",
   "note.metered.record_busy": "Non interrogato: un altro programma Cuotai ha tenuto troppo a lungo il registro condiviso delle query fatturate di AWS Cost Explorer. Riprova tra un momento.",
   "note.metered.pending": "Non interrogato: un altro programma Cuotai sta interrogando questo account ora. Riprova tra un momento per vedere la sua lettura.",
-  "note.metered.record_unavailable_shared": "Il registro condiviso delle query fatturate non è disponibile, quindi anche altri programmi Cuotai potrebbero interrogare questo account."
+  "note.metered.record_unavailable_shared": "Il registro condiviso delle query fatturate non è disponibile, quindi anche altri programmi Cuotai potrebbero interrogare questo account.",
+  "note.metered.refused": "Non interrogato: l'ultima query fatturata di AWS Cost Explorer è stata alle {queried}; la prossima è possibile alle {next}.",
+  "note.metered.shared_reading": "Dalla lettura condivisa delle {time}; non è stata fatta nessuna nuova query fatturata."
 }

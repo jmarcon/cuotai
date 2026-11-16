@@ -13,7 +13,7 @@
     ]
   },
   "access.confirm_unavailable": "{reason} A conta será gravada, mas mostrará este motivo em vez de números.",
-  "access.cost_advisory": "Provedor cobrado por consulta: cerca de uma requisição ao Cost Explorer por consulta. Sem intervalo, o Cuotai consulta uma vez por hora; o mínimo efetivo é de 15 minutos (intervalos de 5 a 14 minutos sobem para 15 e valores menores são rejeitados). Várias janelas ou comandos compartilham uma requisição por intervalo. Atualizações manuais continuam explícitas.",
+  "access.cost_advisory": "Provedor cobrado por consulta: cerca de uma requisição ao Cost Explorer por consulta. Sem intervalo, o Cuotai consulta uma vez por hora; o mínimo efetivo é de 15 minutos (intervalos de 5 a 14 minutos sobem para 15 e valores menores são rejeitados). Várias janelas ou comandos compartilham uma requisição por intervalo. Atualizar esta conta manualmente é uma consulta cobrada e acontece no máximo a cada 15 minutos; Testar conexão também é cobrado.",
   "access.credential.admin_key": "Chave de administrador",
   "access.credential.agent_feed": "Feed do agente",
   "access.credential.aggregator_login": "Login do agregador",
@@ -1341,7 +1341,7 @@
   "note.claude_code.window_absent": "O Claude Code omite uma janela quando ela é zerada e a envia de novo após o próximo prompt; até lá ela é desconhecida, não zero.",
   "note.cloud.aws_cost_scope": "Cost Explorer filtrado por serviço \"Amazon Bedrock\", granularidade mensal, mês corrente. Dados de custo AWS atualizam ~1x ao dia e podem atrasar até 24 h.",
   "note.cloud.aws_estimated": "Valores do período corrente marcados como estimados pelo Cost Explorer.",
-  "note.cloud.aws_query_cost": "Cada consulta get-cost-and-usage ao Cost Explorer é tarifada pela AWS (US$ 0,01 por requisição), ao contrário das chamadas de geração: cada atualização do painel gera cobrança de consulta.",
+  "note.cloud.aws_query_cost": "Cada requisição ao Cost Explorer é cobrada pela AWS (cerca de US$ 0,01); o Cuotai faz no máximo uma por intervalo para todas as suas janelas e comandos.",
   "note.cloud.azure_no_cost_rows": "A consulta não retornou linhas: não foi possível confirmar custo do recurso neste escopo no mês corrente.",
   "note.cloud.azure_query_cost": "A API Cost Management Query não tem cobrança por requisição, mas exige token com permissão de leitura de custos no escopo (ex.: Cost Management Reader).",
   "note.cloud.azure_resource_attribution": "Atribuição por recurso: configure params.resource_id com o ID completo do recurso Azure OpenAI (/subscriptions/.../providers/Microsoft.CognitiveServices/accounts/...). Um recurso Foundry compartilhado inclui produtos que não são OpenAI; não é custo isolado por modelo nem cota de gasto.",
@@ -2480,5 +2480,7 @@
   "note.metered.record_unavailable": "Não consultado: o Cuotai não conseguiu usar seu registro compartilhado de consultas cobradas do AWS Cost Explorer. Execute `cuotai --doctor` para ver a pasta e como corrigi-la.",
   "note.metered.record_busy": "Não consultado: outro programa do Cuotai segurou por tempo demais o registro compartilhado de consultas cobradas do AWS Cost Explorer. Tente de novo em instantes.",
   "note.metered.pending": "Não consultado: outro programa do Cuotai está consultando esta conta agora. Tente de novo em instantes para ver a leitura dele.",
-  "note.metered.record_unavailable_shared": "O registro compartilhado de consultas cobradas não está disponível, então outros programas do Cuotai também podem consultar esta conta."
+  "note.metered.record_unavailable_shared": "O registro compartilhado de consultas cobradas não está disponível, então outros programas do Cuotai também podem consultar esta conta.",
+  "note.metered.refused": "Não consultado: a última consulta cobrada ao AWS Cost Explorer foi às {queried}; a próxima é possível às {next}.",
+  "note.metered.shared_reading": "Da leitura compartilhada das {time}; nenhuma nova consulta cobrada foi feita."
 }
