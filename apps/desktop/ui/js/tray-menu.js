@@ -1,12 +1,12 @@
 // Right-click menu on the tray icon: plain text, one line per account ("name: % available").
 // The lines follow the same order and filters as the popover; the shell only builds the native menu.
 import { t, tl } from "./i18n.js";
-import { adviceShown, ageText, bindingPct, blockedText, brand, disabledAccounts, fmtShare, nextNoticeText, reportKey, setTrayMenu, shownAt, sortReports, statusLabel } from "./lib.js";
+import { adviceShown, ageText, bindingPct, blockedText, brand, disabledAccounts, fmtShare, nextNoticeText, setTrayMenu, shownAt, sortReports, statusLabel } from "./lib.js";
 import { updateState } from "./updater.js";
 
 let last = "";
 
-const shownReports = (reports) => sortReports(reports).filter((r) => !disabledAccounts.has(reportKey(r)));
+const shownReports = (reports) => sortReports(reports).filter((r) => !disabledAccounts.has(r));
 
 export function trayMenuLines(reports) {
   const shown = shownReports(reports);

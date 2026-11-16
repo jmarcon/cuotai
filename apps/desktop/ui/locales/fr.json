@@ -1430,6 +1430,7 @@
   "settings.menubar.count": "{n} sur {total}",
   "settings.menubar.showing": "{n} comptes affichés sur {total}. L’anneau est l’icône de Cuotai : il montre votre limite la plus serrée.",
   "settings.menubar.onExtra": "Sur le solde supplémentaire",
+  "settings.menubar.hidden": "Masqué dans le tableau de bord",
   "settings.accounts.title": "Comptes",
   "settings.accounts.add": "Ajouter un compte",
   "settings.accounts.none": "Aucun compte pour l’instant.",

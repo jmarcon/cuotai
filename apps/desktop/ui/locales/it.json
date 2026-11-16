@@ -1427,6 +1427,7 @@
   "settings.menubar.count": "{n} di {total}",
   "settings.menubar.showing": "Mostrati {n} di {total} account. L'anello è l'icona di Cuotai: indica il limite più stretto.",
   "settings.menubar.onExtra": "Sul saldo extra",
+  "settings.menubar.hidden": "Nascosto nel pannello",
   "settings.accounts.title": "Account",
   "settings.accounts.add": "Aggiungi account",
   "settings.accounts.none": "Ancora nessun account.",

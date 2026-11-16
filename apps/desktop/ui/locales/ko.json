@@ -1410,6 +1410,7 @@
   "settings.menubar.count": "{total}개 중 {n}개",
   "settings.menubar.showing": "계정 {total}개 중 {n}개를 표시합니다. 링은 Cuotai 아이콘이며 가장 빠듯한 한도를 보여 줍니다.",
   "settings.menubar.onExtra": "추가 잔액 사용 중",
+  "settings.menubar.hidden": "대시보드에서 숨김",
   "settings.accounts.title": "계정",
   "settings.accounts.add": "계정 추가",
   "settings.accounts.none": "아직 계정이 없습니다.",

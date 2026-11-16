@@ -1410,6 +1410,7 @@
   "settings.menubar.count": "{n}/{total}",
   "settings.menubar.showing": "正在显示 {total} 个账户中的 {n} 个。圆环即 Cuotai 图标：它显示最紧的限额。",
   "settings.menubar.onExtra": "使用额外余额",
+  "settings.menubar.hidden": "已在面板中隐藏",
   "settings.accounts.title": "账户",
   "settings.accounts.add": "添加账户",
   "settings.accounts.none": "暂无账户。",

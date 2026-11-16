@@ -177,6 +177,11 @@ struct Stored {
     /// ([`StatsPrefs::from_value`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     stats: Option<serde_json::Value>,
+    /// PRD 0025 re-validation V-08/S-01: `hidden_accounts`, the accounts
+    /// switched off in the dashboard (account ids, or a 9router
+    /// connection's key); absent = none. Read leniently ([`hidden_of`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    dashboard: Option<serde_json::Value>,
     /// PRD 0051 RF3.4/RF4.2: members a newer release wrote (its `schema`
     /// and `schema_revision` included) are kept through every write.
     #[serde(flatten)]
@@ -314,19 +319,6 @@ impl TrayPrefs {
             None => TraySelection::Auto,
             Some(ids) => TraySelection::Custom(ids.clone()),
         }
-    }
-
-    /// RF2.2: a custom selection without the ids of removed accounts;
-    /// `None` when nothing changes.
-    pub fn pruned(&self, existing: &[String]) -> Option<Self> {
-        let ids = self.accounts.as_ref()?;
-        let TraySelection::Custom(kept) = self.selection().pruned(existing) else {
-            return None;
-        };
-        (kept != *ids).then(|| Self {
-            accounts: Some(kept),
-            ..self.clone()
-        })
     }
 }
 
@@ -1569,6 +1561,124 @@ fn write_monogram(file: &Path, account_id: &str, monogram: &str) -> Result<(), &
     })
 }
 
+/// V-08: at most this many hidden accounts are kept.
+const MAX_HIDDEN: usize = 512;
+
+/// V-08: whether `key` names an account the dashboard can hide: a stable
+/// account id (PRD 0029) or a 9router connection's key
+/// (`nine_router:<instance>/<id>`, PRD 0036 RF8), bounded and with no
+/// control, bidi or space character.
+pub fn valid_hidden_key(key: &str) -> bool {
+    if cuotai_core::AccountId::parse(key).is_some() {
+        return true;
+    }
+    key.strip_prefix("nine_router:").is_some_and(|rest| {
+        !rest.is_empty()
+            && key.len() <= 200
+            && key
+                .chars()
+                .all(|c| !cuotai_core::text::is_disguising(c) && !c.is_whitespace())
+    })
+}
+
+/// V-08: `keys` kept only when valid, without repeats, at most
+/// [`MAX_HIDDEN`].
+fn clean_hidden<'a>(keys: impl IntoIterator<Item = &'a str>) -> Vec<String> {
+    let mut kept: Vec<String> = Vec::new();
+    for key in keys {
+        if valid_hidden_key(key) && !kept.iter().any(|k| k == key) {
+            kept.push(key.to_owned());
+        }
+        if kept.len() == MAX_HIDDEN {
+            break;
+        }
+    }
+    kept
+}
+
+fn hidden_of(stored: &Stored) -> Vec<String> {
+    stored
+        .dashboard
+        .as_ref()
+        .and_then(|d| d["hidden_accounts"].as_array())
+        .map(|items| clean_hidden(items.iter().filter_map(serde_json::Value::as_str)))
+        .unwrap_or_default()
+}
+
+fn write_hidden(s: &mut Stored, keys: Vec<String>) {
+    let mut dashboard = match s.dashboard.take() {
+        Some(serde_json::Value::Object(m)) => m,
+        _ => serde_json::Map::new(),
+    };
+    if keys.is_empty() {
+        dashboard.remove("hidden_accounts");
+    } else {
+        dashboard.insert("hidden_accounts".into(), serde_json::json!(keys));
+    }
+    s.dashboard = (!dashboard.is_empty()).then_some(serde_json::Value::Object(dashboard));
+}
+
+/// V-08: the accounts switched off in the dashboard, on this device.
+pub fn hidden_accounts() -> Vec<String> {
+    settings_file()
+        .map(|f| hidden_of(&read(&f)))
+        .unwrap_or_default()
+}
+
+/// V-08: replaces the hidden accounts with `keys` (invalid keys and
+/// repeats dropped). Error: `unwritable`.
+pub fn save_hidden_accounts(keys: &[String]) -> Result<(), &'static str> {
+    let file = settings_file().ok_or("unwritable")?;
+    write_hidden_accounts(&file, keys)
+}
+
+fn write_hidden_accounts(file: &Path, keys: &[String]) -> Result<(), &'static str> {
+    let keys = clean_hidden(keys.iter().map(String::as_str));
+    update(file, |s| write_hidden(s, keys))
+}
+
+/// RF2.2 (re-validation R-01): forget the account `id` that was just
+/// removed: it leaves a custom menu-bar selection and the hidden set. The
+/// only path that prunes the selection, so switching accounts files or a
+/// partial load never loses it. Writes only when something changes.
+pub fn forget_account(id: &str) -> Result<(), &'static str> {
+    let file = settings_file().ok_or("unwritable")?;
+    forget_account_in(&file, id)
+}
+
+fn forget_account_in(file: &Path, id: &str) -> Result<(), &'static str> {
+    let stored = read(file);
+    let tray = stored
+        .tray
+        .as_ref()
+        .map(TrayPrefs::from_value)
+        .unwrap_or_default();
+    let hidden = hidden_of(&stored);
+    let in_tray = tray
+        .accounts
+        .as_ref()
+        .is_some_and(|ids| ids.iter().any(|k| k == id));
+    if !in_tray && !hidden.iter().any(|k| k == id) {
+        return Ok(());
+    }
+    update(file, |s| {
+        let mut tray = s
+            .tray
+            .as_ref()
+            .map(TrayPrefs::from_value)
+            .unwrap_or_default();
+        if let Some(ids) = tray.accounts.as_mut() {
+            ids.retain(|k| k != id);
+            s.tray = (tray != TrayPrefs::default())
+                .then(|| serde_json::to_value(&tray).ok())
+                .flatten();
+        }
+        let mut hidden = hidden_of(s);
+        hidden.retain(|k| k != id);
+        write_hidden(s, hidden);
+    })
+}
+
 /// PRD 0022 RF15.1: records, once, whether a profile existed before this
 /// build's first launch. Call it before anything else writes `desktop.json`.
 pub fn note_profile_origin() {
@@ -1897,6 +2007,9 @@ pub struct SettingsView {
     whats_new_due: bool,
     /// PRD 0022 MONO-4: account id → monogram override.
     monograms: BTreeMap<String, String>,
+    /// V-08: the accounts switched off in the dashboard (ids or 9router
+    /// connection keys).
+    hidden_accounts: Vec<String>,
 }
 
 impl SettingsView {
@@ -1995,6 +2108,7 @@ pub fn view() -> SettingsView {
         whats_new_auto: stored.whats_new_auto != Some(false),
         whats_new_due: whats_new_due_of(&stored, env!("CARGO_PKG_VERSION")),
         monograms: monograms_of(&stored),
+        hidden_accounts: hidden_of(&stored),
     }
 }
 
@@ -2345,19 +2459,74 @@ mod tests {
         assert_eq!(serde_json::to_value(PopoverView::Rings).unwrap(), "rings");
     }
 
+    /// R-01: only a removed account leaves the custom selection (and the
+    /// hidden set); other accounts, Auto and an unrelated file stay as they
+    /// are, and nothing is written when the id is not there.
     #[test]
-    fn tray_selection_prunes_removed_accounts_and_keeps_renamed_ones() {
-        // A rename keeps the stable id, so the account stays selected.
-        let prefs = TrayPrefs {
-            accounts: Some(vec!["acc_keep".into(), "acc_gone".into()]),
-            ..TrayPrefs::default()
-        };
-        let existing = vec!["acc_new".to_owned(), "acc_keep".to_owned()];
-        let pruned = prefs.pruned(&existing).unwrap();
-        assert_eq!(pruned.accounts, Some(vec!["acc_keep".to_owned()]));
-        assert_eq!(pruned.pruned(&existing), None);
-        // Auto never changes (new accounts appear only there).
-        assert_eq!(TrayPrefs::default().pruned(&existing), None);
+    fn a_removed_account_leaves_the_selection_and_the_hidden_set() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        forget_account_in(&file, "acc_gone").unwrap();
+        assert!(!file.exists(), "nothing to forget: nothing written");
+        write_tray(
+            &file,
+            &TrayPrefs {
+                accounts: Some(vec!["acc_keep".into(), "acc_gone".into()]),
+                ..TrayPrefs::default()
+            },
+        )
+        .unwrap();
+        write_hidden_accounts(&file, &["acc_gone".into(), "acc_other".into()]).unwrap();
+        forget_account_in(&file, "acc_gone").unwrap();
+        assert_eq!(read_tray(&file).accounts, Some(vec!["acc_keep".to_owned()]));
+        assert_eq!(hidden_of(&read(&file)), vec!["acc_other".to_owned()]);
+        // Auto stays Auto (new accounts appear only there).
+        write_tray(&file, &TrayPrefs::default()).unwrap();
+        forget_account_in(&file, "acc_keep").unwrap();
+        assert_eq!(read_tray(&file).accounts, None);
+    }
+
+    /// V-08/S-01: the hidden accounts live in `desktop.json`, validated
+    /// (account ids or 9router connection keys), without repeats, and read
+    /// leniently.
+    #[test]
+    fn hidden_accounts_round_trip_validated() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        assert!(hidden_of(&read(&file)).is_empty());
+        write_hidden_accounts(
+            &file,
+            &[
+                "acc_work".into(),
+                "acc_work".into(),
+                "BAD ID".into(),
+                "nine_router:local/abc".into(),
+                "nine_router:".into(),
+                "nine_router:a\u{202e}b".into(),
+                "claude::Work".into(),
+            ],
+        )
+        .unwrap();
+        assert_eq!(
+            hidden_of(&read(&file)),
+            vec!["acc_work".to_owned(), "nine_router:local/abc".to_owned()]
+        );
+        let raw: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&file).unwrap()).unwrap();
+        assert_eq!(
+            raw["dashboard"]["hidden_accounts"],
+            serde_json::json!(["acc_work", "nine_router:local/abc"])
+        );
+        // A mistyped file reads as none; emptying removes the key.
+        fs::write(&file, r#"{"dashboard":{"hidden_accounts":"acc_work"}}"#).unwrap();
+        assert!(hidden_of(&read(&file)).is_empty());
+        write_hidden_accounts(&file, &[]).unwrap();
+        assert!(!fs::read_to_string(&file).unwrap().contains("dashboard"));
+        let many: Vec<String> = (0..MAX_HIDDEN + 10)
+            .map(|i| format!("acc_{i:04}"))
+            .collect();
+        write_hidden_accounts(&file, &many).unwrap();
+        assert_eq!(hidden_of(&read(&file)).len(), MAX_HIDDEN);
     }
 
     #[test]

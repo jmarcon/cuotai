@@ -1430,6 +1430,7 @@
   "settings.menubar.count": "{total} içinden {n}",
   "settings.menubar.showing": "{total} hesabın {n} tanesi gösteriliyor. Halka Cuotai simgesidir: en sıkı sınırınızı gösterir.",
   "settings.menubar.onExtra": "Ek bakiyede",
+  "settings.menubar.hidden": "Panoda gizli",
   "settings.accounts.title": "Hesaplar",
   "settings.accounts.add": "Hesap ekle",
   "settings.accounts.none": "Henüz hesap yok.",

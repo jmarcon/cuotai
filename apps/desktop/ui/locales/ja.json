@@ -1410,6 +1410,7 @@
   "settings.menubar.count": "{total} 中 {n}",
   "settings.menubar.showing": "{total} アカウント中 {n} を表示中。リングは Cuotai のアイコンで、最も厳しい制限を示します。",
   "settings.menubar.onExtra": "追加残高を使用中",
+  "settings.menubar.hidden": "ダッシュボードで非表示",
   "settings.accounts.title": "アカウント",
   "settings.accounts.add": "アカウントを追加",
   "settings.accounts.none": "アカウントはまだありません。",

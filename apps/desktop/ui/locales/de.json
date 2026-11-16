@@ -1430,6 +1430,7 @@
   "settings.menubar.count": "{n} von {total}",
   "settings.menubar.showing": "Zeigt {n} von {total} Konten. Der Ring ist das Cuotai-Symbol: Er zeigt Ihr engstes Limit.",
   "settings.menubar.onExtra": "Mit Zusatzguthaben",
+  "settings.menubar.hidden": "Im Dashboard ausgeblendet",
   "settings.accounts.title": "Konten",
   "settings.accounts.add": "Konto hinzufügen",
   "settings.accounts.none": "Noch keine Konten.",

@@ -4610,6 +4610,7 @@ impl Backend {
             // C1: never remove (nor purge the secrets of) another account
             // that took the slot after a reload.
             check_target(&prev, Some(index), account_id)?;
+            let removed_id = prev.accounts[index].state_key();
             // Pre-compute the new config + cycle + monitor so a
             // failure (cycle refusal, monitor refusal, save failure)
             // short-circuits without ever touching the vault.
@@ -4652,6 +4653,12 @@ impl Backend {
             l.generation += 1;
             g.generation = l.generation;
             let _ = g.notices.keep_accounts(&post_save_config);
+            // PRD 0025 RF2.2 (re-validation R-01): the removed account
+            // leaves the menu-bar selection and the hidden set here, and
+            // only here. Tests never touch this device's `desktop.json`.
+            if !cfg!(test) {
+                let _ = crate::settings::forget_account(&removed_id);
+            }
             (staged, session, post_save_config)
         };
         // We are OUT of the inner mutex from here. The vault purge,
@@ -5098,7 +5105,7 @@ impl Backend {
     /// account. Reads only.
     pub async fn hourly_strip(&self) -> Option<StripView> {
         let prefs = crate::settings::tray_prefs();
-        let views = crate::tray_bar::accounts();
+        let views = crate::tray_bar::visible_accounts();
         let key = cuotai_core::tray::strip_account(&views, &prefs.selection())?;
         let view = views.iter().find(|view| view.key == key)?;
         let (monitor, accounts, index, days_off) = {
@@ -7439,7 +7446,7 @@ pub fn visible_keys(
 /// accounts.
 pub fn tray_view() -> TrayView {
     let prefs = crate::settings::tray_prefs();
-    let accounts = crate::tray_bar::accounts();
+    let accounts = crate::tray_bar::visible_accounts();
     let picked = prefs.selection().pick(&accounts);
     let cap = match (prefs.accounts.is_none(), prefs.style) {
         (_, tray::TrayStyle::Meters) => tray::AUTO_METERS,

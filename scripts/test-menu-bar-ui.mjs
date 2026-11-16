@@ -70,6 +70,11 @@ assert.ok(custom.indexOf('data-key="b"') < custom.indexOf('data-key="a"'), "the 
 assert.match(custom, /Not in menu bar/);
 assert.match(custom, /data-grip/);
 assert.ok(!menubar.accountsHtml(accounts, ["a", "b"], true).includes("data-grip"), "Automatic has no handles");
+// PRD 0025 re-validation V-08: an account switched off in the dashboard cannot be picked and says why.
+const off = menubar.accountsHtml(accounts, ["a", "b"], true, new Set(["b"]));
+assert.match(off, /data-tray-pick="b"[^>]*disabled/, "a hidden account's check is disabled");
+assert.match(off, /Hidden from the dashboard/);
+assert.ok(!/data-tray-pick="a"[^>]*disabled/.test(off), "the others stay enabled");
 
 // RF4.1 / DS-CMP-MTR-5: an unknown share draws no fill; an exhausted one is an outline; the title is escaped text.
 const meters = menubar.previewHtml({ style: "meters", items: [{ remaining: null }, { remaining: 0, exhausted: true }, { remaining: 0.004, level: "bad" }] }, false);
