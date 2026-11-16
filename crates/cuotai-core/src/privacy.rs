@@ -282,6 +282,19 @@ static ARTIFACTS: &[Artifact] = &[
         "8 days",
         "0003",
     ),
+    Artifact {
+        // Created with the default mode: it holds no personal data.
+        mode: None,
+        ..file(
+            "notifications.lock",
+            LocalData,
+            "notified.lock",
+            "a process id and a counter for a moment while a notice is claimed",
+            Unversioned,
+            "deleted on release, milliseconds after it is taken; a lock left by a crash is broken after 10 seconds",
+            "0032",
+        )
+    },
     file(
         "widgets.snapshot",
         LocalData,
@@ -572,18 +585,26 @@ pub fn companions(artifact: &Artifact, path: &Path) -> Vec<PathBuf> {
     }
     // PRD 0051 RF3.3/RF4.2 and PRD 0003 COMP-02: the copies Cuotai keeps of
     // the file (`<file>.bak`, the numbered `desktop.json.bak.N`, the
-    // `notified.json.corrupt-<time>` set-asides) hold the same data.
+    // `notified.json.corrupt-<time>` set-asides) hold the same data, and
+    // so does a `notified.lock.stale-<pid>-<n>` a crash left while breaking
+    // a stale lock (PRD 0032 RF4.2).
     out.push(with(".bak"));
     if let (Some(dir), Some(name)) = (path.parent(), path.file_name()) {
         let name = name.to_string_lossy();
-        let (bak, corrupt) = (format!("{name}.bak."), format!("{name}.corrupt"));
+        let (bak, corrupt, stale) = (
+            format!("{name}.bak."),
+            format!("{name}.corrupt"),
+            format!("{name}.stale-"),
+        );
         if let Ok(entries) = std::fs::read_dir(dir) {
             let mut copies: Vec<PathBuf> = entries
                 .filter_map(Result::ok)
                 .filter(|entry| {
                     let entry = entry.file_name();
                     let entry = entry.to_string_lossy();
-                    entry.starts_with(&bak) || entry.starts_with(&corrupt)
+                    entry.starts_with(&bak)
+                        || entry.starts_with(&corrupt)
+                        || entry.starts_with(&stale)
                 })
                 .map(|entry| entry.path())
                 .collect();
@@ -1040,6 +1061,7 @@ mod tests {
             "cost.settings",
             "cost.pricing",
             "notifications.ledger",
+            "notifications.lock",
             "widgets.snapshot",
             "last_config.tui",
             "last_config.desktop",
@@ -1205,5 +1227,29 @@ mod tests {
             "{PRIVACY_DOC} is out of date with privacy::artifacts/network. Regenerate it with \
              `{REGENERATE}=1 cargo test -p cuotai-core privacy_doc_matrix` and commit the result."
         );
+    }
+
+    /// PRD 0032 RF4.2: `notified.lock` sits beside the ledger, and a
+    /// `notified.lock.stale-<pid>-<n>` left by a crash belongs to it.
+    #[test]
+    fn the_ledger_lock_and_its_stale_leftovers_are_companions() {
+        let roots = Roots {
+            local_data: Some(PathBuf::from("/data/cuotai")),
+            ..Roots::default()
+        };
+        let lock = artifact("notifications.lock").unwrap();
+        let ledger = roots.path_of(artifact("notifications.ledger").unwrap());
+        assert_eq!(
+            roots.path_of(lock),
+            ledger.as_deref().map(crate::resets::lock_path)
+        );
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("notified.lock");
+        let leftover = dir.path().join("notified.lock.stale-1-0");
+        std::fs::write(&path, "1:0").unwrap();
+        std::fs::write(&leftover, "1:0").unwrap();
+        let found = companions(lock, &path);
+        assert!(found.contains(&path));
+        assert!(found.contains(&leftover));
     }
 }

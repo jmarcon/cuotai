@@ -517,6 +517,30 @@ mod tests {
         }
     }
 
+    /// PRD 0032 RF4.2: a ledger lock held at the moment of the erase and a
+    /// `.stale-` leftover of a crash go too, and the data folder with them.
+    #[test]
+    fn the_ledger_lock_and_its_stale_leftover_are_erased() {
+        let dir = tempfile::tempdir().unwrap();
+        let data = dir.path().join("local");
+        let options = EraseOptions {
+            roots: Roots {
+                local_data: Some(data.clone()),
+                ..Roots::default()
+            },
+            include_config: false,
+        };
+        std::fs::create_dir_all(&data).unwrap();
+        let lock = data.join("notified.lock");
+        let leftover = data.join("notified.lock.stale-1-0");
+        std::fs::write(&lock, "1:0").unwrap();
+        std::fs::write(&leftover, "1:0").unwrap();
+        let report = erase_all(&options, &vault()).unwrap();
+        assert!(report.complete(), "{report:?}");
+        assert!(!lock.exists() && !leftover.exists());
+        assert!(!data.exists(), "the emptied data folder goes");
+    }
+
     #[test]
     fn include_config_also_removes_the_toml_and_hooks_file() {
         let (dir, mut options) = tree();
