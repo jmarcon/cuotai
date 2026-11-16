@@ -1410,6 +1410,7 @@
   "settings.menubar.count": "{n} dari {total}",
   "settings.menubar.showing": "Menampilkan {n} dari {total} akun. Cincin adalah ikon Cuotai: menunjukkan batas paling ketat Anda.",
   "settings.menubar.onExtra": "Pada saldo ekstra",
+  "settings.menubar.hidden": "Disembunyikan di dasbor",
   "settings.accounts.title": "Akun",
   "settings.accounts.add": "Tambah akun",
   "settings.accounts.none": "Belum ada akun.",

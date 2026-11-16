@@ -1175,6 +1175,21 @@ fn set_account_monogram(
     Ok(())
 }
 
+/// PRD 0025 re-validation V-08/S-01: the accounts switched off in the
+/// dashboard (account ids or 9router connection keys; invalid ones and
+/// repeats are dropped), stored in `desktop.json`. Every window follows,
+/// and the menu bar leaves them out. Error: `unwritable`.
+#[tauri::command]
+fn set_hidden_accounts(app: AppHandle, keys: Vec<String>) -> Result<(), String> {
+    settings::save_hidden_accounts(&keys).map_err(str::to_owned)?;
+    tray_bar::redraw(&app, &settings::tray_prefs());
+    let _ = app.emit(
+        "settings-changed",
+        serde_json::json!({ "key": "hidden_accounts" }),
+    );
+    Ok(())
+}
+
 #[tauri::command]
 fn get_settings() -> settings::SettingsView {
     settings::view()
@@ -1424,7 +1439,12 @@ fn set_rows(rows: serde_json::Value) -> Result<(), String> {
 /// local cost, server, hooks, widgets or update checks). Records the step as
 /// seen either way. Returns the permission. Error: `unwritable`.
 #[tauri::command]
-async fn first_run_turn_on(app: AppHandle, b: Shared<'_>) -> Result<String, String> {
+async fn first_run_turn_on(
+    app: AppHandle,
+    window: WebviewWindow,
+    b: Shared<'_>,
+) -> Result<String, String> {
+    window_scope::require(&window, window_scope::MAIN_ONLY)?;
     let permission = notify::request_permission(&app);
     let recommended = cuotai_core::alerts::AlertPrefs::recommended();
     let thresholds: Vec<u8> = recommended.thresholds().collect();
@@ -1453,7 +1473,8 @@ async fn first_run_turn_on(app: AppHandle, b: Shared<'_>) -> Result<String, Stri
 /// › General, "Show the recommended setup again") clears the record.
 /// Error: `unwritable`.
 #[tauri::command]
-fn first_run_record(again: bool) -> Result<(), String> {
+fn first_run_record(window: WebviewWindow, again: bool) -> Result<(), String> {
+    window_scope::require(&window, window_scope::MAIN_OR_SETTINGS)?;
     record_first_run((!again).then_some(settings::ONBOARDING_VERSION))
 }
 
@@ -3097,6 +3118,7 @@ pub fn run() -> std::process::ExitCode {
             set_whats_new_auto,
             whats_new_seen,
             set_account_monogram,
+            set_hidden_accounts,
             set_tray_menu,
             set_user_dir,
             set_data_dir,
@@ -3325,7 +3347,12 @@ mod tests {
                     "retry_purge",
                 ],
             ),
-            ("MAIN_OR_SETTINGS", &["restore_apply"]),
+            (
+                "MAIN_ONLY",
+                // PRD 0025 re-validation S-05: the first-run consent.
+                &["first_run_turn_on"],
+            ),
+            ("MAIN_OR_SETTINGS", &["restore_apply", "first_run_record"]),
             (
                 "SETTINGS_ONLY",
                 &[

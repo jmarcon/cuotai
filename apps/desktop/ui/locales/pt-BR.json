@@ -1434,6 +1434,7 @@
   "settings.menubar.count": "{n} de {total}",
   "settings.menubar.showing": "Mostrando {n} de {total} contas. O anel é o ícone do Cuotai: mostra seu limite mais apertado.",
   "settings.menubar.onExtra": "No saldo extra",
+  "settings.menubar.hidden": "Oculta no painel",
   "settings.accounts.title": "Contas",
   "settings.accounts.add": "Adicionar conta",
   "settings.accounts.none": "Nenhuma conta ainda.",

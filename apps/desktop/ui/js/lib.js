@@ -1249,10 +1249,53 @@ export const hiddenMetrics = persistentSet("cuotai.hiddenMetrics", () => hiddenL
 export const onHiddenChange = (f) => hiddenListeners.add(f);
 export const isMetricHidden = (r, m) => hiddenMetrics.has(metricKey(r, m));
 
-// Accounts turned off in the panel (card switch): shared between windows and with the tray menu.
+// Accounts turned off in the panel (card switch). PRD 0025 re-validation V-08/S-01: the set lives in `desktop.json`
+// (`set_hidden_accounts`, validated in Rust), keyed by the stable account id (a 9router connection by its own key), so
+// every window and the menu bar leave them out, and a rename keeps an account hidden.
+export const hideKey = (r) => (r.connection ? r.account_key : r.account_id ?? reportKey(r));
+const LEGACY_DISABLED = "cuotai.disabledAccounts";
 const disabledListeners = new Set();
-export const disabledAccounts = persistentSet("cuotai.disabledAccounts", () => disabledListeners.forEach((f) => f()));
+let hiddenKeys = new Set();
+const followHidden = (keys) => {
+  const next = new Set(Array.isArray(keys) ? keys : []);
+  if (next.size === hiddenKeys.size && [...next].every((k) => hiddenKeys.has(k))) return;
+  hiddenKeys = next;
+  disabledListeners.forEach((f) => f());
+};
+export const setHiddenAccounts = (keys) => call("set_hidden_accounts", { keys });
+export const disabledAccounts = {
+  has: (r) => hiddenKeys.has(hideKey(r)),
+  toggle(r) {
+    const next = new Set(hiddenKeys);
+    const k = hideKey(r);
+    if (next.has(k)) next.delete(k); else next.add(k);
+    followHidden([...next]);
+    return setHiddenAccounts([...next]).catch(() => getSettings().then((s) => followHidden(s.hidden_accounts), () => {}));
+  },
+};
 export const onDisabledChange = (f) => disabledListeners.add(f);
+/** Reads the stored set and follows later changes from any window. */
+export async function initHiddenAccounts() {
+  try { followHidden((await getSettings()).hidden_accounts); } catch {}
+  onSettingsChanged((key) => { if (key === "hidden_accounts" || !key) getSettings().then((s) => followHidden(s.hidden_accounts), () => {}); });
+}
+/** The one-time move of the old web-storage set (`provider::name`, or a connection's key) to `desktop.json`, mapped to
+ *  ids through the current `reports`; entries that match no account are dropped. Runs once the reports are known. */
+export async function migrateHiddenAccounts(reports) {
+  let legacy = null;
+  try { legacy = localStorage.getItem(LEGACY_DISABLED); } catch {}
+  if (legacy == null || !reports?.length) return;
+  let old = [];
+  try { old = JSON.parse(legacy) ?? []; } catch {}
+  const moved = (Array.isArray(old) ? old : []).map((k) => reports.find((r) => reportKey(r) === k)).filter(Boolean).map(hideKey);
+  try {
+    const s = await getSettings();
+    const keys = [...new Set([...(s.hidden_accounts ?? []), ...moved])];
+    if (moved.length) await setHiddenAccounts(keys);
+    followHidden(keys);
+    localStorage.removeItem(LEGACY_DISABLED);
+  } catch {}
+}
 
 // ---------- data state ----------
 // The backend is the only source: per-account schedule (RefreshCycle) and emits "snapshot".
@@ -1789,6 +1832,9 @@ const demoSessionNotice = (state) => state && { level: dl("access.credential.use
   warning: state === "vault"
     ? dl("user_session.warning", "This is a full login session. Cuotai stores it in the system vault and uses it only to query this service.")
     : dl("user_session.warning_env", "This is a full login session. Cuotai reads it from an environment variable and uses it only to query this service; move it to the system vault in the account wizard.") };
+// The demo's stand-in for `desktop.json` `dashboard.hidden_accounts`, shared by the demo's windows.
+const DEMO_HIDDEN = "cuotai.demo.hiddenAccounts";
+const demoHidden = () => { try { const v = JSON.parse(localStorage.getItem(DEMO_HIDDEN) || "[]"); return Array.isArray(v) ? v : []; } catch { return []; } };
 const demoSettings = { monograms: {}, profileExisted: new URLSearchParams(location.search).has("profile-existed"), whatsNewDue: new URLSearchParams(location.search).has("whats-new"), tray: { style: "tightest_percent", colored: false, accounts: null, popover_view: null }, advancedOpen: false, stats: {},
   // `?first-run` shows the first-run step (PRD 0025 RF6) in the demo.
   onboarding: new URLSearchParams(location.search).has("first-run") ? 0 : 1,
@@ -2554,7 +2600,7 @@ const demo = {
     notify: { ...demoSettings.notify }, notify_leads: [0, 5, 15, 60], notify_whens: ["used", "exhausted", "always"],
     alerts: structuredClone(demoSettings.alerts), quiet: structuredClone(demoSettings.quiet), alert_min: 10, alert_max: 99, detect: structuredClone(demoSettings.detect), 
     tray: { ...demoSettings.tray }, advanced_open: !!demoSettings.advancedOpen, stats: { ...demoSettings.stats },
-    profile_existed: !!demoSettings.profileExisted, whats_new_auto: demoSettings.whatsNewAuto !== false, whats_new_due: demoSettings.whatsNewDue === true, monograms: { ...demoSettings.monograms }, rows: structuredClone(demoSettings.rows ?? {}), onboarding: demoSettings.onboarding, onboarding_version: 1, version: "demo", license: "MIT OR Apache-2.0" }),
+    profile_existed: !!demoSettings.profileExisted, whats_new_auto: demoSettings.whatsNewAuto !== false, whats_new_due: demoSettings.whatsNewDue === true, monograms: { ...demoSettings.monograms }, hidden_accounts: demoHidden(), rows: structuredClone(demoSettings.rows ?? {}), onboarding: demoSettings.onboarding, onboarding_version: 1, version: "demo", license: "MIT OR Apache-2.0" }),
   set_user_dir: async ({ path }) => { demoSettings.custom = path ?? null; },
   set_motion: async ({ motion }) => { if (!MOTIONS.includes(motion)) throw "invalid_motion"; },
   set_show_pace: async () => {},
@@ -2584,6 +2630,10 @@ const demo = {
   },
   set_whats_new_auto: async ({ on }) => { demoSettings.whatsNewAuto = !!on; },
   whats_new_seen: async () => { demoSettings.whatsNewDue = false; },
+  set_hidden_accounts: async ({ keys }) => {
+    put(DEMO_HIDDEN, JSON.stringify([...new Set(keys ?? [])].filter((k) => typeof k === "string")));
+    await emitSettingsChanged("hidden_accounts");
+  },
   set_account_monogram: async ({ accountId, monogram }) => {
     if (!validMonogram(monogram)) throw "invalid_monogram";
     const text = String(monogram).trim();

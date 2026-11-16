@@ -1441,6 +1441,7 @@
   "settings.menubar.count": "{n} of {total}",
   "settings.menubar.showing": "Showing {n} of {total} accounts. The ring is the Cuotai icon: it shows your tightest limit.",
   "settings.menubar.onExtra": "On extra balance",
+  "settings.menubar.hidden": "Hidden from the dashboard",
   "settings.accounts.title": "Accounts",
   "settings.accounts.add": "Add account",
   "settings.accounts.none": "No accounts yet.",

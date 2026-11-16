@@ -74,17 +74,22 @@ export function previewHtml(summary, colored, strip = null) {
 }
 
 /** RF4.2: the account list: the menu-bar accounts in their order (with handles), then "Not in menu bar"; each with
- *  its tile, name, provider and state, and the membership check on the right (DS-CMP-CHK-1). */
-export function accountsHtml(accounts, selected, auto) {
+ *  its tile, name, provider and state, and the membership check on the right (DS-CMP-CHK-1). An account switched off
+ *  in the dashboard (`hidden`, ids) never reaches the menu bar (PRD 0025 re-validation V-08): its check is disabled
+ *  and its state says why. */
+export function accountsHtml(accounts, selected, auto, hidden = new Set()) {
   if (!accounts.length) return `<p class="hint">${te("settings.menubar.none")}</p>`;
   const inBar = selected.map((k) => accounts.find((a) => a.key === k)).filter(Boolean);
   const rest = accounts.filter((a) => !selected.includes(a.key));
-  const item = (a, on) => `<li class="mb-acc" data-key="${esc(a.key)}" ${on && !auto ? 'draggable="true"' : ""}>
+  const item = (a, on) => {
+    const off = hidden.has(a.key);
+    return `<li class="mb-acc${off ? " off" : ""}" data-key="${esc(a.key)}" ${on && !auto ? 'draggable="true"' : ""}>
     ${on && !auto ? `<button type="button" class="icon mb-grip" data-grip aria-label="${te("settings.menubar.move", { name: a.name })}" title="${te("settings.menubar.move.hint")}">${icon("grip")}</button>` : '<span class="mb-grip-gap"></span>'}
     ${logo(a.provider, 28)}
     <span class="mb-acc-text"><span class="mb-acc-l1"><span class="mb-acc-name">${esc(a.name)}</span> <span class="mb-acc-provider">${esc(a.provider_label)}</span></span>
-      <span class="mb-acc-st">${esc(accountStatus(a))}</span></span>
-    ${check(`data-tray-pick="${esc(a.key)}" aria-label="${te("settings.menubar.pick", { name: a.name })}"`, on)}</li>`;
+      <span class="mb-acc-st">${esc(off ? t("settings.menubar.hidden") : accountStatus(a))}</span></span>
+    ${check(`data-tray-pick="${esc(a.key)}" aria-label="${te("settings.menubar.pick", { name: a.name })}"${off ? ` disabled title="${te("settings.menubar.hidden")}"` : ""}`, on && !off)}</li>`;
+  };
   return `<ul class="mb-list" aria-label="${te("settings.menubar.accounts")}">${inBar.map((a) => item(a, true)).join("")}
     ${rest.length ? `<li class="mb-sub" role="presentation">${te("settings.menubar.not_in")}</li>${rest.map((a) => item(a, false)).join("")}` : ""}</ul>
     ${inBar.length > 1 && !auto ? `<p class="hint mb-drag">${te("settings.menubar.drag")}</p>` : ""}`;
@@ -112,8 +117,9 @@ export function bind(root, ctx) {
   let all = [];
   const box = root.querySelector("[data-tray-accounts]");
   const styleEl = root.querySelector("#tray-style");
+  const hidden = new Set(ctx.settings.hidden_accounts ?? []);
   const selected = () => state.accounts ?? autoSelection();
-  const autoSelection = () => all.map((a) => a.key).slice(0, state.style === "meters" ? 4 : state.style === "logos_percent" ? 6 : Infinity);
+  const autoSelection = () => all.filter((a) => !hidden.has(a.key)).map((a) => a.key).slice(0, state.style === "meters" ? 4 : state.style === "logos_percent" ? 6 : Infinity);
 
   const paintPreviews = async () => {
     const accounts = state.accounts;
@@ -131,8 +137,8 @@ export function bind(root, ctx) {
     }
   };
   const paintAccounts = (focusKey = null, focusSel = "[data-grip]") => {
-    box.innerHTML = accountsHtml(all, selected(), state.accounts == null);
-    const shown = selected().filter((k) => all.some((a) => a.key === k)).length;
+    box.innerHTML = accountsHtml(all, selected(), state.accounts == null, hidden);
+    const shown = selected().filter((k) => !hidden.has(k) && all.some((a) => a.key === k)).length;
     const count = root.querySelector("[data-tray-count]");
     if (count) count.textContent = all.length ? t("settings.menubar.count", { n: shown, total: all.length }) : "";
     const showing = root.querySelector("[data-tray-showing]");

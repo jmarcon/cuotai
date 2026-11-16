@@ -1427,6 +1427,7 @@
   "settings.menubar.count": "{n} de {total}",
   "settings.menubar.showing": "Se muestran {n} de {total} cuentas. El anillo es el icono de Cuotai: muestra tu límite más ajustado.",
   "settings.menubar.onExtra": "Con saldo extra",
+  "settings.menubar.hidden": "Oculta en el panel",
   "settings.accounts.title": "Cuentas",
   "settings.accounts.add": "Añadir cuenta",
   "settings.accounts.none": "Aún no hay cuentas.",

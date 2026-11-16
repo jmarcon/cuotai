@@ -1410,6 +1410,7 @@
   "settings.menubar.count": "{n} trên {total}",
   "settings.menubar.showing": "Đang hiện {n} trên {total} tài khoản. Vòng tròn là biểu tượng Cuotai: nó cho thấy giới hạn chặt nhất của bạn.",
   "settings.menubar.onExtra": "Đang dùng số dư thêm",
+  "settings.menubar.hidden": "Đã ẩn khỏi bảng điều khiển",
   "settings.accounts.title": "Tài khoản",
   "settings.accounts.add": "Thêm tài khoản",
   "settings.accounts.none": "Chưa có tài khoản nào.",

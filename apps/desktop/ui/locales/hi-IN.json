@@ -1430,6 +1430,7 @@
   "settings.menubar.count": "{total} में से {n}",
   "settings.menubar.showing": "{total} में से {n} खाते दिख रहे हैं। रिंग Cuotai आइकन है: वह आपकी सबसे कसी सीमा दिखाता है।",
   "settings.menubar.onExtra": "अतिरिक्त बैलेंस पर",
+  "settings.menubar.hidden": "डैशबोर्ड में छिपा",
   "settings.accounts.title": "खाते",
   "settings.accounts.add": "खाता जोड़ें",
   "settings.accounts.none": "अभी कोई खाता नहीं।",

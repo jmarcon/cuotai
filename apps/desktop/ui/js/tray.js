@@ -12,7 +12,7 @@ import { mountTimeline } from "./timeline.js";
 import { costLineHtml, sourceFor } from "./cost.js";
 import {
   accountLabel, bestChipHtml, liveChipHtml, costUsage, bindStatusLinks, bindThemeSwitch, bindSettingsShortcut, brand, createStore, disabledAccounts, esc, fmtAge, icon,
-  initOrderSync, initTheme, initTrayView, level, nextNoticeParts, noteText, onDisabledChange, onHiddenChange, onSettingsChanged, onTrayViewChange,
+  initHiddenAccounts, initOrderSync, initTheme, initTrayView, level, nextNoticeParts, noteText, onDisabledChange, onHiddenChange, onSettingsChanged, onTrayViewChange,
   billingOverage, openAggregatorDashboard, openMainWindow, openSettingsWindow, overageChipHtml, reportKey, setMetricAlert, sortReports, statusLabel, trayViewPref, wordmark,
   errText, isDesktop, hourlyStrip,
 } from "./lib.js";
@@ -211,7 +211,7 @@ function allItems(reports) {
 }
 
 function context(view) {
-  const all = (view?.reports ?? []).filter((r) => !disabled.has(reportKey(r)));
+  const all = (view?.reports ?? []).filter((r) => !disabled.has(r));
   return { repeated: repeatedProviders(all.filter((r) => !isAggregator(r))), monos: monograms(view?.reports ?? []) };
 }
 
@@ -268,7 +268,7 @@ const openBody = (r) => isConnection(r)
 
 function render() {
   const { view, error } = store;
-  const all = sortReports(view?.reports ?? []).filter((r) => !disabled.has(reportKey(r)));
+  const all = sortReports(view?.reports ?? []).filter((r) => !disabled.has(r));
   // PRD 0036 RF8.1: each aggregator has its own tab (`agg:<key>`); a provider tab never lists an aggregator.
   if (filter !== "all" && !all.some((r) => inTabFilter(r, filter, true))) filter = "all";
   const reports = all.filter((r) => inTabFilter(r, filter, true));
@@ -444,6 +444,7 @@ bindThemeSwitch(root, render);
 initTheme(render);
 render();
 initTrayView();
+initHiddenAccounts().then(render);
 // PRD 0025 RF9.5: the row display of the menu bar.
 initRowLayout("tray", render).then(render);
 loadLocalCost();

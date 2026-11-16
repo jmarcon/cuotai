@@ -13,7 +13,7 @@ import { maybeShowFirstRun } from "./first-run.js";
 import { openRestoreDialog } from "./backup-dialog.js";
 import {
   fmtNext, fmtAge, fmtShare, metricName, ALERTS, overageChipHtml, ageHtml, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, fmtAmount, getView, icon, initTheme, isBindingMetric, isBlocked, isDesktop, isStaleReading, level, logo, wordmark,
-  moveAccount, onHiddenChange, disabledAccounts, onDisabledChange, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
+  moveAccount, onHiddenChange, disabledAccounts, onDisabledChange, initHiddenAccounts, migrateHiddenAccounts, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
   currentSort, initOrderSync, staleView, configChangedOnDisk, reloadConfig, configLabel, errText, updateErrText, otherConfigNotice, otherConfigBanner, dismissOtherConfig, returnText, splitRecharging,
   accountLabel, billingOverage, isRecharging, resetsText, bestChipHtml, cardPace, forecastChipHtml, renewedText, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, setPoolAlerts, setBreakdownAlerts, openAggregatorDashboard, incidentHtml, bindStatusLinks, costUsage, paceHtml, paceLineLabel, costPlans,
   openSettingsWindow, bindSettingsShortcut, onSettingsChanged, onAccountAction, listExtensions, extensionSecrets,
@@ -113,7 +113,7 @@ function card(r, ctx, recharging = false, { connection = false } = {}) {
   const key = reportKey(r);
   // PRD 0036 RF8.4: a 9router connection has no switch of its own (it belongs to 9router), no reordering, and is
   // drawn at 55 % opacity while it is off in 9router.
-  const on = connection ? r.connection.enabled_upstream !== false : !disabled.has(key);
+  const on = connection ? r.connection.enabled_upstream !== false : !disabled.has(r);
   const isBusy = busy(index);
   // PRD 0010 RF3.2: a failure with a preserved reading draws the old metrics, dimmed and still, plus the cause.
   const stale = isStaleReading(r);
@@ -215,7 +215,7 @@ function aggregatorSection(r, ctx) {
     .filter((g) => g.items.length);
   const failed = r.status !== "ready";
   const refreshName = isBusy ? te("tray.refreshing") : te("common.refresh");
-  return `<section class="agg-section${disabled.has(key) ? " off" : ""}" data-card="${esc(key)}" aria-label="${esc(`${brand(r.provider).label} · ${r.account}`)}">
+  return `<section class="agg-section${disabled.has(r) ? " off" : ""}" data-card="${esc(key)}" aria-label="${esc(`${brand(r.provider).label} · ${r.account}`)}">
     <header class="agg-head">${instanceHeadHtml(r)}
       <div class="actions">
         <button class="icon" title="${refreshName}" aria-label="${refreshName}" data-refresh="${r.index}" ${isBusy ? 'disabled aria-busy="true"' : ""}>${icon("refresh", isBusy ? "spin" : "")}</button>
@@ -470,14 +470,19 @@ if (window.__TAURI__) window.__TAURI__.event.listen("open-view", (e) => { if (e.
 let dragKey = null;
 let renderPending = false;
 let reorderPending = false;
+let hiddenMigrated = false;
 function render() {
+  if (!hiddenMigrated && store.view?.reports?.length) {
+    hiddenMigrated = true;
+    migrateHiddenAccounts(store.view.reports).then(render);
+  }
   refreshDetails();
   syncTrayMenu(store.view);
   if (dragKey) { renderPending = true; return; } // does not rebuild the screen in the middle of a drag
   const { view, error } = store;
   const reports = view?.reports ?? [];
   // PRD 0022 RF7.4: the provider tabs filter the grid; the text filter narrows it further.
-  const shown = sortReports(reports).filter((r) => !disabled.has(reportKey(r)));
+  const shown = sortReports(reports).filter((r) => !disabled.has(r));
   if (providerFilter !== "all" && !reports.some((r) => r.provider === providerFilter)) providerFilter = "all";
   const sorted = sortReports(reports).filter(matchesFilter).filter((r) => providerFilter === "all" || r.provider === providerFilter);
   // PRD 0036 RF8.4: aggregators get sections of their own below the direct accounts.
@@ -489,7 +494,7 @@ function render() {
   const have = new Set(reports.map((r) => r.index));
   const waiting = view && !filterText.trim() ? [...Array(view.account_count).keys()].filter((i) => !have.has(i)) : [];
   trackChanges(view);
-  const ctx = { repeated: repeatedProviders(reports.filter((r) => !disabled.has(reportKey(r)) && !isAggregator(r))), monos: monograms(reports) };
+  const ctx = { repeated: repeatedProviders(reports.filter((r) => !disabled.has(r) && !isAggregator(r))), monos: monograms(reports) };
   const statsPage = page === "stats" && !!view?.loaded;
   const hostFocus = statsPage ? [statsMount?.focused(), timelineMount?.focused()] : [];
   if (statsPage) {
@@ -614,7 +619,11 @@ root.addEventListener("click", (e) => {
   if (dashboard) return detailsContext.onDashboard(Number(dashboard.dataset.aggDashboard));
   if (handleConnectionAction(t, () => isDesktop || store.reload(), (x) => setNotice("bad", errText(x)))) return;
   const tog = t.closest("[data-toggle]");
-  if (tog) { disabled.toggle(tog.dataset.toggle); return render(); }
+  if (tog) {
+    const r = store.view?.reports.find((x) => reportKey(x) === tog.dataset.toggle);
+    if (r) disabled.toggle(r);
+    return render();
+  }
 });
 // PRD 0011 RF4.1: "Open status page" on cards and in the details dialog (appended to the body).
 bindStatusLinks(document);
@@ -745,6 +754,8 @@ setInterval(() => {
   }
 }, 1000);
 initOrderSync(render);
+// PRD 0025 re-validation V-08: the hidden accounts come from desktop.json (the old web-storage set moves once).
+initHiddenAccounts().then(render);
 bindThemeSwitch(root, render);
 initTheme(render);
 consumeOpenView();

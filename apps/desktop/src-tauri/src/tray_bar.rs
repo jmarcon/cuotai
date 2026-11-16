@@ -125,19 +125,56 @@ pub fn summarize(
     tray::summary(
         accounts,
         style,
-        selection,
+        &effective(selection, accounts),
         chrono::Utc::now(),
         &chrono::Local,
         locale,
     )
 }
 
+/// R-01: a custom selection none of whose accounts is in this state (another
+/// accounts file, a partial load) draws as `Auto` instead of empty; the
+/// stored selection is kept for when they come back. An empty custom
+/// selection stays empty: the user chose it.
+fn effective(selection: &TraySelection, accounts: &[AccountView]) -> TraySelection {
+    match selection {
+        TraySelection::Custom(ids)
+            if !ids.is_empty() && !ids.iter().any(|id| accounts.iter().any(|a| &a.key == id)) =>
+        {
+            TraySelection::Auto
+        }
+        other => other.clone(),
+    }
+}
+
+/// V-08/S-01: `accounts` without those switched off in the dashboard
+/// (`hidden`): the title, meters, figure, tooltip and label never show them.
+fn without_hidden(accounts: &[AccountView], hidden: &[String]) -> Vec<AccountView> {
+    accounts
+        .iter()
+        .filter(|a| !hidden.contains(&a.key))
+        .cloned()
+        .collect()
+}
+
+/// V-08: the current accounts the menu bar may show (dashboard order),
+/// hidden ones left out.
+pub fn visible_accounts() -> Vec<AccountView> {
+    without_hidden(&lock().accounts, &settings::hidden_accounts())
+}
+
 /// RF4.1 (V-05): the preview the Settings page shows, from the current
 /// readings: the summary and the image the shell would draw for it.
 pub fn preview(style: TrayStyle, selection: &TraySelection, colored: bool) -> Preview {
     let locale = current_locale();
+    let hidden = settings::hidden_accounts();
     let state = lock();
-    let summary = summarize(&state.accounts, style, selection, &locale);
+    let summary = summarize(
+        &without_hidden(&state.accounts, &hidden),
+        style,
+        selection,
+        &locale,
+    );
     let applied = render(
         &summary,
         colored,
@@ -189,20 +226,13 @@ pub fn accounts() -> Vec<AccountView> {
     lock().accounts.clone()
 }
 
-/// A new state from the backend: remember the accounts and redraw.
+/// A new state from the backend: remember the accounts and redraw. The
+/// stored selection is never pruned here (R-01): a state can lack accounts
+/// that still exist (another accounts file, a partial load); a removed
+/// account leaves it in `settings::forget_account`.
 pub fn update(app: &AppHandle, accounts: Vec<AccountView>) {
-    let mut prefs = settings::tray_prefs();
-    let keys: Vec<String> = accounts.iter().map(|a| a.key.clone()).collect();
-    // RF2.2: removed accounts leave the selection when the state shows them gone.
-    if !keys.is_empty() {
-        if let Some(pruned) = prefs.pruned(&keys) {
-            if settings::save_tray(&pruned).is_ok() {
-                prefs = pruned;
-            }
-        }
-    }
     lock().accounts = accounts;
-    redraw(app, &prefs);
+    redraw(app, &settings::tray_prefs());
 }
 
 /// The interface's tooltip lines changed (language, freshness, next notice).
@@ -214,8 +244,14 @@ pub fn set_menu_tooltip(app: &AppHandle, text: String) {
 /// Redraw with `prefs` (after a change in Settings).
 pub fn redraw(app: &AppHandle, prefs: &TrayPrefs) {
     let locale = current_locale();
+    let hidden = settings::hidden_accounts();
     let mut state = lock();
-    let summary = summarize(&state.accounts, prefs.style, &prefs.selection(), &locale);
+    let summary = summarize(
+        &without_hidden(&state.accounts, &hidden),
+        prefs.style,
+        &prefs.selection(),
+        &locale,
+    );
     let next = render(
         &summary,
         prefs.colored,
@@ -1295,6 +1331,54 @@ mod tests {
             let other = render(&s, false, "en-US", "", p, &bars);
             assert_eq!(image_size(&other.image), (44, 44), "{p:?}");
         }
+    }
+
+    /// V-08/S-01: a hidden account is absent from the summary, the image and
+    /// the tooltip, in every selection mode.
+    #[test]
+    fn hidden_accounts_never_reach_the_menu_bar() {
+        let mut accounts = work(Some(0.8));
+        accounts.push(AccountView {
+            key: "acc_old".into(),
+            provider: "codex".into(),
+            provider_label: "Codex".into(),
+            name: "Old".into(),
+            remaining: Some(0.05),
+            alert: true,
+            ..AccountView::default()
+        });
+        let hidden = vec!["acc_old".to_owned()];
+        let shown = without_hidden(&accounts, &hidden);
+        for selection in [
+            TraySelection::Auto,
+            TraySelection::Custom(vec!["acc_old".into(), "acc_a".into()]),
+        ] {
+            for style in TrayStyle::ALL {
+                let s = summarize(&shown, style, &selection, "en-US");
+                assert!(s.items.iter().all(|i| i.key != "acc_old"), "{style:?}");
+                assert_eq!(s.badge, Badge::None, "the hidden alert is gone");
+                let a = render(&s, false, "en-US", "", Platform::WINDOWS, &[]);
+                assert!(!a.tooltip.contains("Old"), "{}", a.tooltip);
+                assert!(!a.label.contains("Old"));
+                assert_ne!(icon_figure(&s).as_deref(), Some("5"));
+            }
+        }
+    }
+
+    /// R-01: a custom selection that matches nothing in this state draws as
+    /// Auto; an empty one stays empty.
+    #[test]
+    fn a_custom_selection_of_absent_accounts_draws_as_auto() {
+        let accounts = work(Some(0.4));
+        let gone = TraySelection::Custom(vec!["acc_elsewhere".into()]);
+        let s = summarize(&accounts, TrayStyle::TightestPercent, &gone, "en-US");
+        assert_eq!(s.items.len(), 1);
+        let empty = TraySelection::Custom(Vec::new());
+        assert!(
+            summarize(&accounts, TrayStyle::TightestPercent, &empty, "en-US")
+                .items
+                .is_empty()
+        );
     }
 
     /// RF3.5: at most one change per second.
