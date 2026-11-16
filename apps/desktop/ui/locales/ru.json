@@ -198,7 +198,7 @@
   "dialog.peerHint": "У вас уже есть безымянный аккаунт этого провайдера; дайте ему имя, чтобы отличать от нового. Пустое поле сохранит имя провайдера.",
   "dialog.interval": "Интервал обновления (с)",
   "dialog.intervalPlaceholder": "общий по умолчанию (мин. 30)",
-  "dialog.intervalPlaceholderMetered": "по умолчанию у провайдера {default} (мин. {min})",
+  "dialog.intervalPlaceholderMetered": "пусто = {default} (мин. {min})",
   "dialog.credProfile": "Профиль AWS",
   "dialog.credNone": "Этот тариф использует выделенный профиль; вводить учётные данные не нужно.",
   "dialog.credOauth": "Учётная запись аутентифицируется через OAuth; вход выполняется самим приложением.",
@@ -1810,5 +1810,6 @@
   "detect.costOffer.claude_code": "Его локальные журналы также могут оценить стоимость по ценам API; Cuotai читает их только после того, как вы включите источник Claude Code.",
   "detect.costOffer.codex_cli": "Его локальные журналы также могут оценить стоимость по ценам API; Cuotai читает их только после того, как вы включите источник Codex CLI.",
   "detect.costOffer.gemini_cli": "Его локальные журналы также могут оценить стоимость по ценам API; Cuotai читает их только после того, как вы включите источник Gemini CLI.",
-  "coreText.sessionIncomplete": "В сохранённом веб-сеансе нет файлов cookie {names}. Вставьте новый."
+  "coreText.sessionIncomplete": "В сохранённом веб-сеансе нет файлов cookie {names}. Вставьте новый.",
+  "dialog.intervalHintMetered": "Пусто: раз в {default} минут. Минимум {effective} минут: от {min} до {effective} минут повышается до {effective}."
 }

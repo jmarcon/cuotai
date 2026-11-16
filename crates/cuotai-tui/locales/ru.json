@@ -704,5 +704,7 @@
   "cost.plan.no_account": "Нет настроенного аккаунта с именем {account}; используйте его id или provider:name.",
   "status_line.unknown_account": "--account {value} не указывает ровно одну учётную запись; используйте id (из --json-v1, /v1/limits или строки id в TOML), ключ или уникальное имя. Id: {ids}.",
   "status_line.no_accounts": "нет",
-  "headless.strict_exit_no_ready": "cuotai: код выхода 2 (--strict-exit): ни одна учётная запись не получила исправного показания до остановки сервера."
+  "headless.strict_exit_no_ready": "cuotai: код выхода 2 (--strict-exit): ни одна учётная запись не получила исправного показания до остановки сервера.",
+  "wizard.interval.prompt_metered": "Собственный интервал этого аккаунта в секундах ({min}–{max}); пусто = каждые {default} с:",
+  "wizard.interval.help_metered": "Действует только для этого аккаунта. Реальный минимум — {effective} с: от {min} до {effective} с повышается до {effective} с."
 }

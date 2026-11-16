@@ -673,5 +673,7 @@
   "cost.plan.no_account": "Ninguna cuenta configurada se llama {account}; use su id o provider:name.",
   "status_line.unknown_account": "--account {value} no corresponde a una sola cuenta; usa un id (de --json-v1, /v1/limits o la línea id del TOML), una clave o un nombre único. Ids: {ids}.",
   "status_line.no_accounts": "ninguna",
-  "headless.strict_exit_no_ready": "cuotai: código de salida 2 (--strict-exit): ninguna cuenta tuvo una lectura correcta antes de que el servidor se detuviera."
+  "headless.strict_exit_no_ready": "cuotai: código de salida 2 (--strict-exit): ninguna cuenta tuvo una lectura correcta antes de que el servidor se detuviera.",
+  "wizard.interval.prompt_metered": "Intervalo propio de esta cuenta en segundos ({min}–{max}); vacío = cada {default} s:",
+  "wizard.interval.help_metered": "Solo se aplica a esta cuenta. El mínimo real es {effective} s: de {min} a {effective} s se eleva a {effective} s."
 }

@@ -621,6 +621,9 @@ pub struct IntervalBounds {
     pub min: u64,
     pub max: u64,
     pub default_seconds: Option<u64>,
+    /// PRD 0033 re-validation V-05: the shortest interval that really
+    /// applies; a metered override between `min` and this is raised to it.
+    pub effective_min: u64,
 }
 
 /// [`IntervalBounds`] of `provider`, the single source for the editors'
@@ -632,12 +635,14 @@ pub fn interval_bounds(provider: Provider) -> IntervalBounds {
             min: Provider::METERED_MIN_CONFIGURED_REFRESH_SECONDS,
             max: MAX_REFRESH_SECONDS,
             default_seconds: Some(Provider::METERED_DEFAULT_REFRESH_SECONDS),
+            effective_min: Provider::METERED_MIN_REFRESH_SECONDS,
         }
     } else {
         IntervalBounds {
             min: MIN_REFRESH_SECONDS,
             max: MAX_REFRESH_SECONDS,
             default_seconds: None,
+            effective_min: MIN_REFRESH_SECONDS,
         }
     }
 }

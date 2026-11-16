@@ -191,7 +191,7 @@
   "dialog.peerHint": "Hai già un account senza nome di questo provider; dagli un nome per distinguerlo dal nuovo. Vuoto, resta il nome del provider.",
   "dialog.interval": "Intervallo di aggiornamento (s)",
   "dialog.intervalPlaceholder": "predefinito globale (min. 30)",
-  "dialog.intervalPlaceholderMetered": "predefinito del provider {default} (min. {min})",
+  "dialog.intervalPlaceholderMetered": "vuoto = {default} (min. {min})",
   "dialog.credProfile": "Profilo AWS",
   "dialog.credNone": "Questo piano usa il profilo dedicato; non c'è nessuna credenziale da inserire.",
   "dialog.credOauth": "Account autenticato tramite OAuth; l'accesso è gestito dal flusso dell'app.",
@@ -1751,5 +1751,6 @@
   "detect.costOffer.claude_code": "I suoi log locali possono anche stimare il costo a prezzi API; Cuotai li legge solo dopo che attivi la fonte Claude Code.",
   "detect.costOffer.codex_cli": "I suoi log locali possono anche stimare il costo a prezzi API; Cuotai li legge solo dopo che attivi la fonte Codex CLI.",
   "detect.costOffer.gemini_cli": "I suoi log locali possono anche stimare il costo a prezzi API; Cuotai li legge solo dopo che attivi la fonte Gemini CLI.",
-  "coreText.sessionIncomplete": "Alla sessione web salvata mancano i cookie {names}. Incollane una nuova."
+  "coreText.sessionIncomplete": "Alla sessione web salvata mancano i cookie {names}. Incollane una nuova.",
+  "dialog.intervalHintMetered": "Vuoto: una volta ogni {default} minuti. Minimo {effective} minuti: da {min} a {effective} minuti si sale a {effective}."
 }

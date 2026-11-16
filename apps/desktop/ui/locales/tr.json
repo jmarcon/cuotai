@@ -194,7 +194,7 @@
   "dialog.peerHint": "Bu sağlayıcının adsız bir hesabı zaten var; yenisinden ayırmak için ona bir ad verin. Boş bırakılırsa sağlayıcının adı kalır.",
   "dialog.interval": "Yenileme aralığı (sn)",
   "dialog.intervalPlaceholder": "genel varsayılan (en az 30)",
-  "dialog.intervalPlaceholderMetered": "sağlayıcı varsayılanı {default} (en az {min})",
+  "dialog.intervalPlaceholderMetered": "boş = {default} (en az {min})",
   "dialog.credProfile": "AWS profili",
   "dialog.credNone": "Bu plan özel profili kullanır; girilecek bir kimlik bilgisi yok.",
   "dialog.credOauth": "Hesap OAuth ile doğrulandı; oturum açma uygulamanın akışıyla yürütülür.",
@@ -1754,5 +1754,6 @@
   "detect.costOffer.claude_code": "Yerel günlükleri maliyeti API fiyatlarıyla da tahmin edebilir; Cuotai bunları yalnızca Claude Code kaynağını açtıktan sonra okur.",
   "detect.costOffer.codex_cli": "Yerel günlükleri maliyeti API fiyatlarıyla da tahmin edebilir; Cuotai bunları yalnızca Codex CLI kaynağını açtıktan sonra okur.",
   "detect.costOffer.gemini_cli": "Yerel günlükleri maliyeti API fiyatlarıyla da tahmin edebilir; Cuotai bunları yalnızca Gemini CLI kaynağını açtıktan sonra okur.",
-  "coreText.sessionIncomplete": "Kaydedilen web oturumunda {names} çerezleri eksik. Yeni bir oturum yapıştırın."
+  "coreText.sessionIncomplete": "Kaydedilen web oturumunda {names} çerezleri eksik. Yeni bir oturum yapıştırın.",
+  "dialog.intervalHintMetered": "Boş: {default} dakikada bir. En az {effective} dakika: {min} ile {effective} dakika arası {effective} dakikaya yükseltilir."
 }

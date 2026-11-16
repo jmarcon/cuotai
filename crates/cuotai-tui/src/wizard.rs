@@ -3762,18 +3762,30 @@ impl Wizard {
         let prompt = Style::default().fg(DRACULA_CYAN);
         let accent = Style::default().fg(DRACULA_GREEN);
         let dim = Style::default().fg(DRACULA_COMMENT);
+        // PRD 0033 re-validation V-05: a metered provider states its own
+        // default and real floor, not "empty inherits the global one".
+        let bounds = edit::interval_bounds(self.provider);
+        let prompt_text = match bounds.default_seconds {
+            Some(default) => trf(
+                "wizard.interval.prompt_metered",
+                "This account's own interval in seconds ({min}–{max}); empty = every {default} s:",
+                &[
+                    ("min", &bounds.min),
+                    ("max", &MAX_INTERVAL),
+                    ("default", &default),
+                ],
+            ),
+            None => trf(
+                "wizard.interval.prompt",
+                "This account's own interval in seconds ({min}–{max}); empty inherits the global one:",
+                &[
+                    ("min", &min_interval_for(self.provider)),
+                    ("max", &MAX_INTERVAL),
+                ],
+            ),
+        };
         let mut lines = vec![
-            Line::from(Span::styled(
-                trf(
-                    "wizard.interval.prompt",
-                    "This account's own interval in seconds ({min}–{max}); empty inherits the global one:",
-                    &[
-                        ("min", &min_interval_for(self.provider)),
-                        ("max", &MAX_INTERVAL),
-                    ],
-                ),
-                prompt,
-            )),
+            Line::from(Span::styled(prompt_text, prompt)),
             Line::default(),
             Line::from(Span::styled(format!("> {}", self.interval), accent)),
         ];
@@ -3785,13 +3797,20 @@ impl Wizard {
             )));
         }
         lines.push(Line::default());
-        lines.push(Line::from(Span::styled(
+        let help = if bounds.effective_min > bounds.min {
+            trf(
+                "wizard.interval.help_metered",
+                "Applies only to this account. The real minimum is {effective} s: {min} to {effective} s are raised to {effective} s.",
+                &[("effective", &bounds.effective_min), ("min", &bounds.min)],
+            )
+        } else {
             tr(
                 "wizard.interval.help",
                 "Applies only to this account; empty = global.",
-            ),
-            dim,
-        )));
+            )
+            .to_string()
+        };
+        lines.push(Line::from(Span::styled(help, dim)));
         frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), area);
     }
 }

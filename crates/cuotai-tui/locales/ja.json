@@ -662,5 +662,7 @@
   "cost.plan.no_account": "{account} という名前の設定済みアカウントはありません。ID または provider:name を使ってください。",
   "status_line.unknown_account": "--account {value} は 1 つのアカウントを指していません。id（--json-v1、/v1/limits、または TOML の id 行）、キー、または一意の名前を使ってください。id: {ids}。",
   "status_line.no_accounts": "なし",
-  "headless.strict_exit_no_ready": "cuotai：終了コード 2（--strict-exit）：サーバーが停止するまでに正常な読み取りを得たアカウントがありませんでした。"
+  "headless.strict_exit_no_ready": "cuotai：終了コード 2（--strict-exit）：サーバーが停止するまでに正常な読み取りを得たアカウントがありませんでした。",
+  "wizard.interval.prompt_metered": "このアカウント独自の間隔（秒、{min}–{max}）。空欄 = {default} 秒ごと:",
+  "wizard.interval.help_metered": "このアカウントだけに適用されます。実際の最小値は {effective} 秒です: {min}〜{effective} 秒は {effective} 秒に引き上げられます。"
 }

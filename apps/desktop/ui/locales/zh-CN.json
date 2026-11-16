@@ -192,7 +192,7 @@
   "dialog.peerHint": "你已有一个该提供商的未命名账户；请为其命名以区别于新账户。留空则保留提供商名称。",
   "dialog.interval": "刷新间隔（秒）",
   "dialog.intervalPlaceholder": "全局默认值（最少 30）",
-  "dialog.intervalPlaceholderMetered": "提供商默认值 {default}（最少 {min}）",
+  "dialog.intervalPlaceholderMetered": "留空 = {default}（最少 {min}）",
   "dialog.credProfile": "AWS 配置文件",
   "dialog.credNone": "此套餐使用专用配置文件；无需输入凭据。",
   "dialog.credOauth": "账户通过 OAuth 认证；登录由应用流程处理。",
@@ -1726,5 +1726,6 @@
   "detect.costOffer.claude_code": "它的本地日志也可以按 API 价格估算费用；只有在你开启 Claude Code 来源后，Cuotai 才会读取。",
   "detect.costOffer.codex_cli": "它的本地日志也可以按 API 价格估算费用；只有在你开启 Codex CLI 来源后，Cuotai 才会读取。",
   "detect.costOffer.gemini_cli": "它的本地日志也可以按 API 价格估算费用；只有在你开启 Gemini CLI 来源后，Cuotai 才会读取。",
-  "coreText.sessionIncomplete": "已保存的网页会话缺少 Cookie {names}。请粘贴新的会话。"
+  "coreText.sessionIncomplete": "已保存的网页会话缺少 Cookie {names}。请粘贴新的会话。",
+  "dialog.intervalHintMetered": "留空：每 {default} 分钟一次。最少 {effective} 分钟：{min} 到 {effective} 分钟会提高到 {effective} 分钟。"
 }

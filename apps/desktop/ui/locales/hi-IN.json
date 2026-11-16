@@ -194,7 +194,7 @@
   "dialog.peerHint": "इस प्रदाता का एक बिना नाम वाला खाता पहले से है; नए से अलग पहचानने के लिए उसे नाम दें। खाली छोड़ने पर प्रदाता का नाम रहेगा।",
   "dialog.interval": "रीफ़्रेश अंतराल (सेकंड)",
   "dialog.intervalPlaceholder": "वैश्विक डिफ़ॉल्ट (न्यूनतम 30)",
-  "dialog.intervalPlaceholderMetered": "प्रदाता डिफ़ॉल्ट {default} (न्यूनतम {min})",
+  "dialog.intervalPlaceholderMetered": "खाली = {default} (न्यूनतम {min})",
   "dialog.credProfile": "AWS प्रोफ़ाइल",
   "dialog.credNone": "यह प्लान समर्पित प्रोफ़ाइल इस्तेमाल करता है; दर्ज करने के लिए कोई क्रेडेंशियल नहीं है।",
   "dialog.credOauth": "यह खाता OAuth से प्रमाणित है; साइन-इन ऐप की प्रक्रिया से होता है।",
@@ -1754,5 +1754,6 @@
   "detect.costOffer.claude_code": "इसके स्थानीय लॉग API कीमतों पर लागत का अनुमान भी दे सकते हैं; Cuotai उन्हें तभी पढ़ता है जब आप Claude Code स्रोत चालू करते हैं।",
   "detect.costOffer.codex_cli": "इसके स्थानीय लॉग API कीमतों पर लागत का अनुमान भी दे सकते हैं; Cuotai उन्हें तभी पढ़ता है जब आप Codex CLI स्रोत चालू करते हैं।",
   "detect.costOffer.gemini_cli": "इसके स्थानीय लॉग API कीमतों पर लागत का अनुमान भी दे सकते हैं; Cuotai उन्हें तभी पढ़ता है जब आप Gemini CLI स्रोत चालू करते हैं।",
-  "coreText.sessionIncomplete": "सहेजे गए वेब सत्र में कुकीज़ {names} नहीं हैं। नया सत्र पेस्ट करें।"
+  "coreText.sessionIncomplete": "सहेजे गए वेब सत्र में कुकीज़ {names} नहीं हैं। नया सत्र पेस्ट करें।",
+  "dialog.intervalHintMetered": "खाली: हर {default} मिनट में एक बार। न्यूनतम {effective} मिनट: {min} से {effective} मिनट को {effective} कर दिया जाता है।"
 }

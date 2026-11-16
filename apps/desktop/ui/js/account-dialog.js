@@ -79,7 +79,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   const intervalPlaceholder = () => {
     const bounds = schema?.interval;
     return bounds?.default_seconds != null
-      ? t("dialog.intervalPlaceholderMetered", { default: bounds.default_seconds, min: bounds.min })
+      ? t("dialog.intervalPlaceholderMetered", { default: bounds.default_seconds, min: bounds.effective_min ?? bounds.min })
       : t("dialog.intervalPlaceholder");
   };
   // RF2 login state: null or { phase, lines, url, userCode, params, codeError, attempt }.
@@ -129,12 +129,12 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       <div class="dlg-actions"><button type="button" class="btn" id="aggregator-test">${te("dialog.aggregator.test")}</button></div>
       <p class="hint" id="aggregator-status" role="status" aria-live="polite"></p>
     </div>
-    <label class="f" data-field="interval"><span>${te("dialog.interval")}</span><input name="interval" inputmode="numeric" placeholder="${esc(intervalPlaceholder())}" value="${esc(existing?.interval ?? "")}" /><small class="field-err" hidden></small></label>
+    <label class="f" data-field="interval"><span>${te("dialog.interval")}</span><input name="interval" inputmode="numeric" placeholder="${esc(intervalPlaceholder())}" value="${esc(existing?.interval ?? "")}" aria-describedby="interval-hint cost-warn" /><small class="field-hint" id="interval-hint" hidden></small><small class="field-err" hidden></small></label>
+    <p class="cost-advisory" id="cost-warn" hidden></p>
     <label class="f" data-field="group"><span>${te("dialog.group")}</span><input name="group" autocomplete="off" maxlength="32" spellcheck="false" placeholder="${te("dialog.groupPlaceholder")}" value="${esc(existing?.group ?? "")}" /><small class="field-hint">${te("dialog.groupHint")}</small><small class="field-err" hidden></small></label>
     <fieldset class="f brk-field" data-field="breakdown" id="breakdown-box" hidden><legend>${te("dialog.breakdown")}</legend><div id="breakdown-options"></div><small class="field-hint" id="breakdown-hint"></small><small class="field-err" hidden></small></fieldset>
     <label class="f" data-field="monogram"><span>${te("dialog.monogram")}</span><input name="monogram" autocomplete="off" spellcheck="false" size="4" placeholder="${te("dialog.monogramPlaceholder")}" value="${esc(existing?.monogram ?? "")}" aria-describedby="monogram-hint" /><small class="field-hint" id="monogram-hint">${te("dialog.monogramHint")}</small><small class="field-err" hidden></small></label>
     <div id="budgets-host"></div>
-    <p class="cost-advisory" id="cost-warn" hidden></p>
     <div id="models-host"></div>
     </div>
     <p class="err" id="err" role="alert"></p>
@@ -1031,6 +1031,14 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
 
   async function renderDynamic() {
     form.querySelector("[name=interval]").placeholder = intervalPlaceholder();
+    // PRD 0033 re-validation V-05: a metered provider states its real default and floor next to the field.
+    const intervalHint = form.querySelector("#interval-hint");
+    const bounds = schema?.interval;
+    const metered = bounds?.default_seconds != null && (bounds.effective_min ?? bounds.min) > bounds.min;
+    intervalHint.textContent = metered
+      ? t("dialog.intervalHintMetered", { default: Math.round(bounds.default_seconds / 60), effective: Math.round(bounds.effective_min / 60), min: Math.round(bounds.min / 60) })
+      : "";
+    intervalHint.hidden = !metered;
     const optSnapshot = new Map();
     for (const el of dyn.querySelectorAll("[name^='o:'],[name^='r:']")) {
       optSnapshot.set(el.name, el.value);

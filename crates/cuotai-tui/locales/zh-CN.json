@@ -662,5 +662,7 @@
   "cost.plan.no_account": "没有名为 {account} 的已配置账户；请使用其 id 或 provider:name。",
   "status_line.unknown_account": "--account {value} 没有对应唯一的账户；请使用 id（来自 --json-v1、/v1/limits 或 TOML 的 id 行）、键或唯一的名称。Id：{ids}。",
   "status_line.no_accounts": "无",
-  "headless.strict_exit_no_ready": "cuotai：退出代码 2（--strict-exit）：服务器停止前没有任何账户获得正常读数。"
+  "headless.strict_exit_no_ready": "cuotai：退出代码 2（--strict-exit）：服务器停止前没有任何账户获得正常读数。",
+  "wizard.interval.prompt_metered": "此账户自己的间隔（秒，{min}–{max}）；留空 = 每 {default} 秒：",
+  "wizard.interval.help_metered": "仅适用于此账户。实际最短间隔为 {effective} 秒：{min} 到 {effective} 秒会提高到 {effective} 秒。"
 }

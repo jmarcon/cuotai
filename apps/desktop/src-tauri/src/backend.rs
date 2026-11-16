@@ -9521,7 +9521,7 @@ mod tests {
         let bedrock = serde_json::to_value(form_schema(Provider::AwsBedrock)).unwrap();
         assert_eq!(
             bedrock["interval"],
-            serde_json::json!({ "min": 300, "max": 86400, "default_seconds": 3600 })
+            serde_json::json!({ "min": 300, "max": 86400, "default_seconds": 3600, "effective_min": 900 })
         );
         let groq = serde_json::to_value(form_schema(Provider::Groq)).unwrap();
         assert_eq!(groq["interval"]["min"], 30);

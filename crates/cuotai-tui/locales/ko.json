@@ -662,5 +662,7 @@
   "cost.plan.no_account": "{account}(이)라는 이름의 설정된 계정이 없습니다. ID 또는 provider:name을 사용하세요.",
   "status_line.unknown_account": "--account {value}에 해당하는 계정이 하나로 정해지지 않습니다. id(--json-v1, /v1/limits 또는 TOML의 id 줄), 키 또는 고유한 이름을 사용하세요. Id: {ids}.",
   "status_line.no_accounts": "없음",
-  "headless.strict_exit_no_ready": "cuotai: 종료 코드 2(--strict-exit): 서버가 멈추기 전까지 정상 조회값을 얻은 계정이 없습니다."
+  "headless.strict_exit_no_ready": "cuotai: 종료 코드 2(--strict-exit): 서버가 멈추기 전까지 정상 조회값을 얻은 계정이 없습니다.",
+  "wizard.interval.prompt_metered": "이 계정만의 간격(초, {min}–{max}). 비우면 {default}초마다:",
+  "wizard.interval.help_metered": "이 계정에만 적용됩니다. 실제 최소값은 {effective}초입니다: {min}~{effective}초는 {effective}초로 올립니다."
 }
