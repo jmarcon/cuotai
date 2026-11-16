@@ -13,17 +13,23 @@ struct SummaryEntry: TimelineEntry {
     let pinnedKey: String?
     /// The file exists but could not be read (`SnapshotRead.unreadable`).
     var unreadable = false
+    /// The widget's size, from the timeline context (`.zero`: the family's
+    /// own size, see `WidgetMetrics`).
+    var displaySize: CGSize = .zero
 
     /// An entry for what `WidgetSnapshot.read()` found.
-    init(date: Date, snapshot: WidgetSnapshot?, pinnedKey: String?, unreadable: Bool = false) {
+    init(date: Date, snapshot: WidgetSnapshot?, pinnedKey: String?, unreadable: Bool = false,
+         displaySize: CGSize = .zero) {
         self.date = date
         self.snapshot = snapshot
         self.pinnedKey = pinnedKey
         self.unreadable = unreadable
+        self.displaySize = displaySize
     }
 
-    init(date: Date, read: SnapshotRead, pinnedKey: String?) {
-        self.init(date: date, snapshot: read.snapshot, pinnedKey: pinnedKey, unreadable: read.isUnreadable)
+    init(date: Date, read: SnapshotRead, pinnedKey: String?, displaySize: CGSize = .zero) {
+        self.init(date: date, snapshot: read.snapshot, pinnedKey: pinnedKey, unreadable: read.isUnreadable,
+                  displaySize: displaySize)
     }
 
     var accounts: [WidgetAccount] {
@@ -36,15 +42,17 @@ struct SummaryEntry: TimelineEntry {
 
 struct SummaryProvider: TimelineProvider {
     func placeholder(in context: Context) -> SummaryEntry {
-        SummaryEntry(date: Date(), snapshot: nil, pinnedKey: nil)
+        SummaryEntry(date: Date(), snapshot: nil, pinnedKey: nil, displaySize: context.displaySize)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (SummaryEntry) -> Void) {
-        completion(SummaryEntry(date: Date(), read: WidgetSnapshot.read(), pinnedKey: nil))
+        completion(SummaryEntry(date: Date(), read: WidgetSnapshot.read(), pinnedKey: nil,
+                                displaySize: context.displaySize))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<SummaryEntry>) -> Void) {
-        let entry = SummaryEntry(date: Date(), read: WidgetSnapshot.read(), pinnedKey: nil)
+        let entry = SummaryEntry(date: Date(), read: WidgetSnapshot.read(), pinnedKey: nil,
+                                 displaySize: context.displaySize)
         // The app writes at most once every 15 seconds (RF1.4) and the
         // system decides when to redraw (RF4.2): ask again after a quarter
         // of an hour, which is also the age the snapshot itself carries.
@@ -58,65 +66,64 @@ struct SummaryWidgetEntryView: View {
     let entry: SummaryEntry
 
     var body: some View {
-        Group {
+        WidgetCanvas(displaySize: entry.displaySize) { size in
             if entry.unreadable {
-                SnapshotUnreadableView()
+                SnapshotUnreadableView(size: size)
             } else if entry.accounts.isEmpty {
-                EmptyStateView()
+                EmptyStateView(size: size)
             } else {
-                content
+                content(size)
             }
         }
-        .boundedProposal()
     }
 
     @ViewBuilder
-    private var content: some View {
+    private func content(_ size: CGSize) -> some View {
         switch family {
         case .systemSmall:
             VStack(alignment: .leading, spacing: 6) {
-                WidgetHeader(title: Text("Summary"))
+                WidgetHeader(title: Text("Summary"), width: size.width)
                 if let account = entry.accounts.first {
-                    AccountRowView(account: account, style: .hero)
+                    AccountRowView(account: account, style: .hero, width: size.width, height: size.height)
                 }
                 SummaryFooter(shown: 1, accounts: entry.accounts.count,
                               truncated: entry.snapshot?.truncated ?? false)
+                    .frame(width: size.width, alignment: .leading)
             }
         case .systemMedium:
             // Two columns, two rows: the four most restrictive accounts.
-            list(columns: 2, limit: 4)
+            list(size, columns: 2, limit: 4)
         default:
-            list(columns: 1, limit: 6)
+            list(size, columns: 1, limit: 6)
         }
     }
 
-    private func list(columns: Int, limit: Int) -> some View {
+    private func list(_ size: CGSize, columns: Int, limit: Int) -> some View {
         let shown = Array(entry.accounts.prefix(limit))
         // Two columns leave no room for an age per row: the header carries
         // the oldest current one, so every fresh row is at most that old.
         let ageInHeader = columns > 1
         let oldest = shown.filter { !$0.isStale && $0.freshness != "aging" }.compactMap(\.checkedAt).min()
+        let spacing: CGFloat = 14
+        let column = max((size.width - spacing * CGFloat(columns - 1)) / CGFloat(columns), 0)
         return VStack(alignment: .leading, spacing: 8) {
-            WidgetHeader(title: Text("Summary"), checkedAt: ageInHeader ? oldest : nil)
-            Grid(alignment: .topLeading, horizontalSpacing: 14, verticalSpacing: columns == 1 ? 9 : 8) {
+            WidgetHeader(title: Text("Summary"), width: size.width, checkedAt: ageInHeader ? oldest : nil)
+            VStack(alignment: .leading, spacing: columns == 1 ? 9 : 8) {
                 ForEach(Array(stride(from: 0, to: shown.count, by: columns)), id: \.self) { start in
-                    GridRow {
+                    HStack(alignment: .top, spacing: spacing) {
                         ForEach(start..<min(start + columns, shown.count), id: \.self) { index in
-                            AccountRowView(account: shown[index], ageInHeader: ageInHeader)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        // An odd last row keeps its column the same width.
-                        if start + columns > shown.count {
-                            Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                            AccountRowView(account: shown[index], ageInHeader: ageInHeader, width: column)
                         }
                     }
+                    .frame(width: size.width, alignment: .leading)
                 }
             }
-            Spacer(minLength: 0)
+            Gap.vertical(size.height)
             SummaryFooter(shown: shown.count, accounts: entry.accounts.count,
                           truncated: entry.snapshot?.truncated ?? false)
+                .frame(width: size.width, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(width: size.width, height: size.height, alignment: .topLeading)
     }
 }
 
@@ -164,6 +171,8 @@ struct SummaryWidget: Widget {
             SummaryWidgetEntryView(entry: entry)
                 .containerBackground(.fill.tertiary, for: .widget)
         }
+        // The views apply the system's margins themselves (`WidgetCanvas`).
+        .contentMarginsDisabled()
         .configurationDisplayName("Cuotai summary")
         .description("Each account's binding quota, with the age of the measurement.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])

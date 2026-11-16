@@ -1,15 +1,142 @@
 import SwiftUI
+import WidgetKit
 
 // PRD 0014 RF3.3/RF3.4/RF3.5: how an account is drawn — the measurement age
 // in the system's own relative text (which the system advances by itself),
 // dimmed bars for preserved readings, no animation, and the empty state when
 // the file is absent. Colours never carry meaning alone: the tone has a label.
 
+// MARK: - Size
+
+/// The widget's size, from WidgetKit, and everything inside laid out from it.
+///
+/// macOS 27.2 lays widget content out under proposals that are not the
+/// widget's size, an unbounded width among them. A view that grows to what
+/// it is offered (a bar's track, a chart, a flexible frame, a spacer) then
+/// takes an infinite width and SwiftUI stops the extension ("view origin is
+/// invalid"), and the system keeps its grey placeholder; or the content is
+/// measured at its natural size and drawn as a thin column. So no widget
+/// view depends on the proposal: the root has the size WidgetKit gives the
+/// timeline (`TimelineProviderContext.displaySize`), the content margins are
+/// applied here, and every bar, column and chart inside gets a width
+/// computed from that size. `render.sh --check` refuses views that grow to
+/// the proposal and compares the drawing under every proposal.
+enum WidgetMetrics {
+    /// The point sizes macOS 26 and 27 give the desktop families (logged by
+    /// `chronod` for a live widget); used when the context has no size.
+    static func size(for family: WidgetFamily) -> CGSize {
+        switch family {
+        case .systemMedium: return CGSize(width: 344, height: 164)
+        case .systemLarge: return CGSize(width: 344, height: 344)
+        default: return CGSize(width: 164, height: 164)
+        }
+    }
+
+    /// The content margin when the system reports none.
+    static let margin: CGFloat = 16
+
+    /// The context's size when it is a real one, else the family's.
+    static func resolve(_ size: CGSize, family: WidgetFamily) -> CGSize {
+        let valid = size.width.isFinite && size.height.isFinite && size.width >= 60 && size.height >= 60
+            && size.width <= 2000 && size.height <= 2000
+        return valid ? size : self.size(for: family)
+    }
+
+    /// The system's content margins (the widgets turn the automatic ones
+    /// off and apply these themselves), each finite and at most a quarter
+    /// of the widget; all zero, as outside an extension, means the default.
+    static func margins(_ insets: EdgeInsets, in size: CGSize) -> EdgeInsets {
+        let limit = min(size.width, size.height) / 4
+        func edge(_ value: CGFloat) -> CGFloat {
+            value.isFinite && value >= 0 ? min(value, limit) : margin
+        }
+        let edges = EdgeInsets(top: edge(insets.top), leading: edge(insets.leading),
+                               bottom: edge(insets.bottom), trailing: edge(insets.trailing))
+        if edges.top + edges.leading + edges.bottom + edges.trailing == 0 {
+            return EdgeInsets(top: margin, leading: margin, bottom: margin, trailing: margin)
+        }
+        return edges
+    }
+
+    /// A length a frame accepts: finite and not negative, else zero.
+    static func finite(_ length: CGFloat) -> CGFloat {
+        length.isFinite && length >= 0 ? length : 0
+    }
+}
+
+/// The root of every widget: exactly the widget's size whatever the system
+/// proposes, with the content margins inside, and the content laid out in
+/// the inner size it is handed.
+struct WidgetCanvas<Content: View>: View {
+    @Environment(\.widgetFamily) private var family
+    @Environment(\.widgetContentMargins) private var systemMargins
+    /// `TimelineProviderContext.displaySize`, carried by the entry.
+    let displaySize: CGSize
+    @ViewBuilder let content: (CGSize) -> Content
+
+    var body: some View {
+        let size = WidgetMetrics.resolve(displaySize, family: family)
+        let margins = WidgetMetrics.margins(systemMargins, in: size)
+        let inner = CGSize(width: max(size.width - margins.leading - margins.trailing, 0),
+                           height: max(size.height - margins.top - margins.bottom, 0))
+        content(inner)
+            .frame(width: inner.width, height: inner.height, alignment: .topLeading)
+            .padding(margins)
+            .frame(width: size.width, height: size.height)
+    }
+}
+
+/// Room that grows with what is left, up to a finite `limit`: what a
+/// spacer does, without a spacer's unbounded size. The lowest layout
+/// priority, so the texts beside it are sized first.
+struct Gap: View {
+    enum Axis { case horizontal, vertical }
+
+    let axis: Axis
+    let limit: CGFloat
+    var minLength: CGFloat = 0
+
+    static func horizontal(_ limit: CGFloat, min: CGFloat = 0) -> Gap {
+        Gap(axis: .horizontal, limit: limit, minLength: min)
+    }
+
+    static func vertical(_ limit: CGFloat, min: CGFloat = 0) -> Gap {
+        Gap(axis: .vertical, limit: limit, minLength: min)
+    }
+
+    var body: some View {
+        let low = WidgetMetrics.finite(minLength)
+        let high = max(WidgetMetrics.finite(limit), low)
+        Group {
+            switch axis {
+            case .horizontal:
+                Color.clear.frame(minWidth: low, maxWidth: high, minHeight: 0, maxHeight: 0)
+            case .vertical:
+                Color.clear.frame(minWidth: 0, maxWidth: 0, minHeight: low, maxHeight: high)
+            }
+        }
+        .layoutPriority(-100)
+        .accessibilityHidden(true)
+    }
+}
+
+extension View {
+    /// Exactly `size.width` wide, and as tall as the parent leaves up to
+    /// `size.height`, centred: the frame of a state or a chart below a
+    /// header, finite under any proposal.
+    func box(_ size: CGSize) -> some View {
+        frame(width: WidgetMetrics.finite(size.width))
+            .frame(minHeight: 0, maxHeight: WidgetMetrics.finite(size.height))
+    }
+}
+
 // MARK: - Empty state
 
 /// RF3.5: "Open Cuotai to get started" when there is no file. Never sample
 /// data disguised as real.
 struct EmptyStateView: View {
+    let size: CGSize
+
     var body: some View {
         VStack(spacing: 6) {
             Image(systemName: "gauge.with.dots.needle.33percent")
@@ -21,6 +148,7 @@ struct EmptyStateView: View {
                 .multilineTextAlignment(.center)
         }
         .foregroundStyle(.secondary)
+        .box(size)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text("Cuotai. Open Cuotai to get started."))
     }
@@ -29,6 +157,8 @@ struct EmptyStateView: View {
 /// RF3.2: the pinned account is not in the file. Said plainly, never
 /// replaced by another account's numbers.
 struct AccountUnavailableView: View {
+    let size: CGSize
+
     var body: some View {
         VStack(spacing: 4) {
             Image(systemName: "exclamationmark.triangle")
@@ -40,7 +170,7 @@ struct AccountUnavailableView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .box(size)
         .accessibilityElement(children: .combine)
     }
 }
@@ -50,6 +180,8 @@ struct AccountUnavailableView: View {
 /// plainly, with the way out, instead of the "get started" text of a
 /// missing file (and never the system's blank placeholder).
 struct SnapshotUnreadableView: View {
+    let size: CGSize
+
     var body: some View {
         VStack(spacing: 4) {
             Image(systemName: "arrow.triangle.2.circlepath")
@@ -61,57 +193,8 @@ struct SnapshotUnreadableView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .box(size)
         .accessibilityElement(children: .combine)
-    }
-}
-
-// MARK: - Layout guard
-
-/// Hands the widget content a finite proposal, whatever the system asks.
-///
-/// macOS 27.2 measures widget content with an unbounded width as well as
-/// the widget's real size. A flexible view (a bar's track, a chart, a
-/// `maxWidth: .infinity` column) then takes an infinite width, a leading
-/// alignment inside it computes `inf - inf`, and SwiftUI stops the process
-/// with "view origin is invalid": the extension dies before it returns a
-/// timeline and the system shows its redacted placeholder for good. An
-/// unbounded axis becomes "unspecified" here (the content's ideal size),
-/// and the content is placed inside finite bounds only.
-struct BoundedProposalLayout: Layout {
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        guard let content = subviews.first else { return .zero }
-        let size = content.sizeThatFits(Self.bounded(proposal))
-        return CGSize(width: Self.finite(size.width), height: Self.finite(size.height))
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        guard let content = subviews.first else { return }
-        let ideal = content.sizeThatFits(.unspecified)
-        let width = bounds.width.isFinite ? bounds.width : Self.finite(ideal.width)
-        let height = bounds.height.isFinite ? bounds.height : Self.finite(ideal.height)
-        let origin = CGPoint(x: bounds.minX.isFinite ? bounds.minX : 0,
-                             y: bounds.minY.isFinite ? bounds.minY : 0)
-        content.place(at: origin, anchor: .topLeading,
-                      proposal: ProposedViewSize(width: width, height: height))
-    }
-
-    /// A proposal with every unbounded or invalid axis left unspecified.
-    static func bounded(_ proposal: ProposedViewSize) -> ProposedViewSize {
-        ProposedViewSize(width: proposal.width.flatMap { $0.isFinite && $0 >= 0 ? $0 : nil },
-                         height: proposal.height.flatMap { $0.isFinite && $0 >= 0 ? $0 : nil })
-    }
-
-    /// A length SwiftUI accepts: finite and not negative, else zero.
-    static func finite(_ length: CGFloat) -> CGFloat {
-        length.isFinite && length >= 0 ? length : 0
-    }
-}
-
-extension View {
-    /// The root of every widget's content: see [BoundedProposalLayout].
-    func boundedProposal() -> some View {
-        BoundedProposalLayout { self }
     }
 }
 
@@ -127,13 +210,19 @@ enum AccountStyle {
 
 /// An account as the widgets draw it: the binding metric with its
 /// percentage, the account name (and the e-mail when the user asked for it)
-/// and the age of the reading.
+/// and the age of the reading. It is exactly `width` wide; a hero fills the
+/// height it is given, up to `height`, with the bar and the age at its
+/// bottom.
 struct AccountRowView: View {
     let account: WidgetAccount
     var style: AccountStyle = .row
     /// The medium Summary prints one age in its header; a row then shows
     /// its own only when the reading is old (stale or aging).
     var ageInHeader = false
+    let width: CGFloat
+    /// The most a hero may grow to: it takes what its neighbours leave, up
+    /// to this (a row is as tall as its lines).
+    var height: CGFloat = 0
 
     /// The binding metric's share. Only an account with a plan or rate
     /// limit has one: another metric's share is not the account's quota.
@@ -155,6 +244,7 @@ struct AccountRowView: View {
     /// layout instead of an empty bar beside a figure.
     private var bar: some View {
         UsageBar(usedFraction: account.binding?.usedRatio ?? 0,
+                 width: width,
                  stale: account.isStale,
                  tone: tone)
             .opacity(account.hasPlanLimit ? 1 : 0)
@@ -177,38 +267,48 @@ struct AccountRowView: View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 name
-                Spacer(minLength: 4)
+                Gap.horizontal(width, min: 4)
                 headline
                     .font(.system(showsPercent ? .callout : .caption, design: .rounded).weight(.semibold))
+                    .fixedSize()
             }
+            .frame(width: width, alignment: .leading)
             bar
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 metricLabel
                     .layoutPriority(-1)
-                Spacer(minLength: 4)
+                Gap.horizontal(width, min: 4)
                 // RF3.3: the system's own relative text, so the age advances
                 // without the app; the absolute instant stays in VoiceOver.
                 if !ageInHeader || account.isStale || account.freshness == "aging" {
                     MeasurementAge(checkedAt: account.checkedAt, freshness: account.freshness, stale: account.isStale)
                 }
             }
+            .frame(width: width, alignment: .leading)
         }
+        .frame(width: width, alignment: .leading)
     }
 
     private var hero: some View {
         VStack(alignment: .leading, spacing: 2) {
             name
+                .frame(width: width, alignment: .leading)
             headline
                 .font(.system(size: showsPercent ? 32 : 17, weight: .semibold, design: .rounded))
                 .minimumScaleFactor(0.6)
                 .lineLimit(1)
+                .frame(width: width, alignment: .leading)
             metricLabel
                 .lineLimit(2)
-            Spacer(minLength: 4)
+                .frame(width: width, alignment: .leading)
+            Gap.vertical(height, min: 4)
             bar
                 .padding(.bottom, 2)
             MeasurementAge(checkedAt: account.checkedAt, freshness: account.freshness, stale: account.isStale)
+                .frame(width: width, alignment: .leading)
         }
+        .frame(width: width)
+        .frame(minHeight: 0, maxHeight: WidgetMetrics.finite(height), alignment: .topLeading)
     }
 
     private var name: some View {
@@ -303,8 +403,11 @@ enum UsageTone {
 
 /// The consumed share of the binding metric. A bar only, so it reads in the
 /// light and dark themes; the colour is a hint, the label is the truth.
+/// Both capsules have a fixed size computed from `width`: neither takes its
+/// width from the proposal (RF3.3: widgets do not animate either).
 struct UsageBar: View {
     let usedFraction: Double
+    let width: CGFloat
     var stale = false
     /// The same tone as the percentage beside it.
     var tone: UsageTone? = nil
@@ -313,26 +416,19 @@ struct UsageBar: View {
     private var clamped: Double { min(usedFraction.safeFraction, 1) }
 
     var body: some View {
-        // The fill is a share of the bar's own track, never of the widget:
-        // a fill sized from the container overflows a column and pushes the
-        // whole layout past the widget's edges. Widgets do not animate, so
-        // the GeometryReader is inert (RF3.3).
-        Capsule()
-            .fill(.quaternary)
-            .overlay(alignment: .leading) {
-                GeometryReader { proxy in
-                    // A track measured without a finite width draws no
-                    // fill rather than handing SwiftUI an infinite or NaN
-                    // frame, which stops the extension.
-                    let track = BoundedProposalLayout.finite(proxy.size.width)
-                    Capsule()
-                        .fill((tone ?? UsageTone(usedFraction: usedFraction)).barColor)
-                        .frame(width: min(track, max(track * clamped, clamped > 0 ? height : 0)))
-                }
-            }
-            .frame(height: height)
-            .opacity(stale ? 0.5 : 1)
-            .accessibilityHidden(true)
+        let track = WidgetMetrics.finite(width)
+        let fill = clamped > 0 ? min(track, max(track * clamped, height)) : 0
+        ZStack(alignment: .leading) {
+            Capsule()
+                .fill(.quaternary)
+                .frame(width: track, height: height)
+            Capsule()
+                .fill((tone ?? UsageTone(usedFraction: usedFraction)).barColor)
+                .frame(width: fill, height: height)
+        }
+        .frame(width: track, height: height, alignment: .leading)
+        .opacity(stale ? 0.5 : 1)
+        .accessibilityHidden(true)
     }
 }
 
@@ -381,6 +477,7 @@ struct MeasurementAge: View {
 /// The headline of a widget family, for VoiceOver and for the lock screen.
 struct WidgetHeader: View {
     let title: Text
+    let width: CGFloat
     /// The age of the oldest current reading, when the rows leave it out.
     var checkedAt: Date? = nil
 
@@ -389,16 +486,20 @@ struct WidgetHeader: View {
             Text("Cuotai")
                 .font(.caption2)
                 .bold()
+                .fixedSize()
             Text("·")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
+                .fixedSize()
             title
                 .font(.caption2)
                 .foregroundStyle(.secondary)
-            Spacer(minLength: 0)
+                .lineLimit(1)
+            Gap.horizontal(width)
             if let checkedAt {
                 MeasurementAge(checkedAt: checkedAt, freshness: nil)
             }
         }
+        .frame(width: width, alignment: .leading)
     }
 }
