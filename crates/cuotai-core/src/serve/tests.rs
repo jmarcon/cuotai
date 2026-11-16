@@ -2435,6 +2435,78 @@ async fn stats_without_history_is_503_and_a_peer_gets_six_a_minute() {
     );
 }
 
+/// Re-validation S-07: `127.0.0.1` and `::1` share one stats budget.
+#[tokio::test]
+async fn both_loopback_addresses_share_one_stats_budget() {
+    if !ipv6_loopback() {
+        return;
+    }
+    let token = Token::generate().unwrap();
+    let server = start(stats_config(Some(token.clone())), stats_source(leaky_stats)).await;
+    let port = server.addr().port();
+    let ask = |host: &'static str| {
+        client()
+            .get(format!("http://{host}:{port}/v1/stats"))
+            .header(header::AUTHORIZATION, format!("Bearer {}", token.expose()))
+            .send()
+    };
+    for i in 0..STATS_PER_MINUTE {
+        let host = if i % 2 == 0 { "127.0.0.1" } else { "[::1]" };
+        assert_eq!(ask(host).await.unwrap().status(), StatusCode::OK, "{i}");
+    }
+    for host in ["127.0.0.1", "[::1]"] {
+        assert_eq!(
+            ask(host).await.unwrap().status(),
+            StatusCode::TOO_MANY_REQUESTS,
+            "{host}"
+        );
+    }
+}
+
+/// Re-validation S-06: an `ETag` never repeats after a reconfigure or a
+/// restart, although the build counter starts over.
+#[tokio::test]
+async fn etags_change_across_reconfigure_and_restart() {
+    let (config, cycle) = fixture();
+    let source = move || {
+        let (config, cycle) = (config.clone(), cycle.clone());
+        crate::serve::with_generation(
+            move || {
+                Some(Export::from_cycle(
+                    &config,
+                    &ConfigIdentity::Explicit("serve".into()),
+                    &cycle,
+                    &[],
+                    Utc::now(),
+                    Options::default(),
+                ))
+            },
+            || 1,
+        )
+    };
+    let tag = |response: reqwest::Response| {
+        response.headers()[header::ETAG]
+            .to_str()
+            .unwrap()
+            .to_owned()
+    };
+    let server = start(ServeConfig::default(), source()).await;
+    let first = tag(get(&server, "/v1/limits").await);
+    assert_eq!(tag(get(&server, "/v1/limits").await), first);
+    let changed = ServeConfig {
+        port: 0,
+        ..ServeConfig::default()
+    };
+    assert_eq!(
+        server.reconfigure(changed, source()).await.unwrap(),
+        Reconfigure::Replaced
+    );
+    let after = tag(get(&server, "/v1/limits").await);
+    assert_ne!(after, first, "a reconfigure starts a new tag space");
+    let restarted = start(ServeConfig::default(), source()).await;
+    assert_ne!(tag(get(&restarted, "/v1/limits").await), first);
+}
+
 /// PRD 0031 RF2.1: `client::limits_views` reads a running server back, with
 /// and without its token, and reports a closed port as unreachable.
 #[tokio::test]
