@@ -223,6 +223,27 @@ The account pickers (desktop and TUI) list providers from `cuotai_core::account_
 | LiteLLM proxy | `litellm` | — | Self-hosted gateway | Router | litellm, lite llm, proxy, gateway, aggregator | Admin API key |
 <!-- catalog-table:end -->
 
+## Device check (presence only)
+
+When you agree to **Check this device** in the Add-account picker (PRD 0027 RF6), Cuotai asks only whether each path below exists (`symlink_metadata`). It never opens, reads or lists them, and it keeps no path, size or time. A found tool only suggests the provider; nothing is read until you choose it and confirm the offer named in the table. `~` is your home folder; `CODEX_HOME`, `XDG_DATA_HOME`, `XDG_CONFIG_HOME`, `GROK_HOME` and an absolute `KIRO_HOME` move the paths they name, as the tools themselves do. Two more checks share the same consent: the terminal also checks whether `OPENROUTER_API_KEY` is set (presence only, never its value), and the desktop asks a local 9router for its public health route on `127.0.0.1:20128` (`local_probe` in [Privacy](privacy.md)). Antigravity stays "to verify" and is never checked.
+
+<!-- device-check-table:start (generated from detect::TABLE; do not edit by hand) -->
+| Tool | Provider | macOS | Linux | Windows | The offer opens | Evidence |
+|---|---|---|---|---|---|---|
+| Cursor | Cursor | `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb`<br>`~/Library/Application Support/Cursor - Insiders/User/globalStorage/state.vscdb` | `~/.config/Cursor/User/globalStorage/state.vscdb`<br>`~/.config/Cursor - Insiders/User/globalStorage/state.vscdb` | `%APPDATA%/Cursor/User/globalStorage/state.vscdb`<br>`%APPDATA%/Cursor - Insiders/User/globalStorage/state.vscdb` | the Cursor import: reads the sign-in token from Cursor's local database once, after you confirm | `oauth::cursor_import::candidates (Cursor state.vscdb)` |
+| Claude Code | Claude | `~/.claude` | `~/.claude` | `~/.claude` | the provider's own sign-in; nothing local is read | [docs](https://docs.anthropic.com/en/docs/claude-code/settings) |
+| Codex CLI | ChatGPT / Codex | `~/.codex` | `~/.codex` | `~/.codex` | the provider's own sign-in; nothing local is read | [docs](https://developers.openai.com/codex/auth) |
+| AWS CLI | AWS Bedrock | `~/.aws/config` | `~/.aws/config` | `~/.aws/config` | the Bedrock profile step: you type the profile; nothing under `~/.aws` is read | [docs](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html) |
+| Gemini CLI | Gemini CLI | `~/.gemini` | `~/.gemini` | `~/.gemini` | the provider's own sign-in; nothing local is read | [docs](https://github.com/google-gemini/gemini-cli/blob/main/docs/get-started/authentication.md) |
+| GitHub Copilot CLI | GitHub Copilot | `~/.copilot` | `~/.copilot` | `~/.copilot` | the provider's own sign-in; nothing local is read | [docs](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference) |
+| OpenCode | Opencode Go | `~/.local/share/opencode` | `~/.local/share/opencode` | `~/.local/share/opencode` | the key step: you paste the key; nothing local is read | [docs](https://opencode.ai/docs/troubleshooting) |
+| Cursor CLI | Cursor | `~/.cursor/cli-config.json` | `~/.cursor/cli-config.json` | `~/.cursor/cli-config.json` | the Cursor import: reads the sign-in token from Cursor's local database once, after you confirm | [docs](https://docs.cursor.com/en/cli/reference/configuration) |
+| Kiro | Kiro (AWS) | `~/.kiro` | `~/.kiro` | `~/.kiro` | the provider's own sign-in; nothing local is read | [docs](https://kiro.dev/docs/configuration/) |
+| Kimi Code CLI | Kimi | `~/.kimi/config.toml` | `~/.kimi/config.toml` | `~/.kimi/config.toml` | the provider's own sign-in; nothing local is read | [docs](https://moonshotai.github.io/kimi-cli/en/configuration/config-files.html) |
+| Grok CLI | Grok (xAI) | `~/.grok/config.toml` | `~/.grok/config.toml` | `~/.grok/config.toml` | the provider's own sign-in; nothing local is read | [docs](https://docs.x.ai/build/settings/reference) |
+| Zed | Zed | `~/.config/zed/settings.json` | `~/.config/zed/settings.json` | — | the provider's own sign-in; nothing local is read | [docs](https://zed.dev/docs/configuring-zed) |
+<!-- device-check-table:end -->
+
 ## Option applicability by authentication
 
 The identifiers below are machine values. `credential` means the provider's manual/variable credential; `oauth` means native login. An option with no restriction proven by the adapter stays available for every type the provider offers. The core is the source of this table: the TUI and the desktop app receive the filtered list and the option's full index, with no provider-specific rules.
