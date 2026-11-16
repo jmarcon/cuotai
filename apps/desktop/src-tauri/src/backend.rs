@@ -3533,7 +3533,7 @@ impl Backend {
         let mut g = self.inner.lock().await;
         if g.loaded.is_none() {
             // Nothing to reload yet: behave like the first boot so the
-            // dialog draft survives (no "Configuração não carregada"
+            // dialog draft survives (no "Configuration not loaded."
             // bounce back to the user). The view is rebuilt below.
             drop(g);
             self.ensure_loaded().await;
@@ -9885,7 +9885,7 @@ mod tests {
         report.status = Status::AuthenticationError;
         report.notes_l10n = vec![cuotai_core::text::Localized::fixed(
             "user_session.rejected",
-            "Sessão expirada ou revogada; cole uma nova no assistente da conta.",
+            "Session expired or revoked; paste a new one in the account wizard.",
         )];
         report.notes = vec![report.notes_l10n[0].fallback.to_string()];
         assert!(offered(&report));

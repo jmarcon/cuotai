@@ -3217,9 +3217,9 @@ pub enum RemoveOutcome {
 }
 
 /// Why `remove_account` left the OAuth credential in the vault. The two
-/// cases produce very different copy in the UI: "conforme solicitado" is
-/// honest when the user declined the purge; "outra conta usa esta
-/// credencial" is the only honest reason when the user *did* ask.
+/// cases produce very different copy in the UI: "you opted to keep it" is
+/// honest when the user declined the purge; "another account still uses
+/// it" is the only honest reason when the user *did* ask.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum KeptReason {
     /// `purge_credentials = false`. The user (or the frontend's default)
@@ -5629,7 +5629,7 @@ mod tests {
                 return Err(crate::oauth::OAuthError::Storage(
                     crate::text::Localized::fixed(
                         "oauth_error.test.keychain_unavailable",
-                        "Keychain indisponível no teste",
+                        "Keychain unavailable in the test",
                     ),
                 ));
             }

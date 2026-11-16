@@ -2091,7 +2091,7 @@ fn session_title(session: &cuotai_core::text::Localized, width: u16) -> Line<'st
     ))
 }
 
-/// "Sessão expira em 12 dias", yellow under three days.
+/// "Session expires in 12 days.", yellow under three days.
 fn session_expiry_title(expiry: &cuotai_core::user_session::SessionExpiry) -> Line<'static> {
     let text = resolve_l10n(&expiry.label);
     let color = if expiry.soon { YELLOW } else { MUTED };
@@ -6181,8 +6181,9 @@ mod tests {
     #[test]
     fn dashboard_renders_no_access_label_in_any_locale() {
         let (accounts, mut reports) = access_fixture();
-        // `Unsupported` reads "Indisponível" as a report status; an error
-        // keeps the access reason without that unrelated word.
+        // `Unsupported` reads "Unavailable" as a report status, the same
+        // word as an access level; an error keeps the access reason without
+        // that unrelated word.
         if let Some(report) = reports[0].as_mut() {
             report.status = Status::Error;
         }

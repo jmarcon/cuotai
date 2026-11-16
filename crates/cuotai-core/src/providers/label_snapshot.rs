@@ -83,7 +83,7 @@ fn metric_identities_match_the_snapshot() {
 #[test]
 fn every_fixture_text_has_an_english_display_text() {
     use crate::metric_text::metric_text;
-    use crate::text::portuguese_markers;
+    use crate::text::portuguese_markers_in_english as portuguese_markers;
     let mut problems = Vec::new();
     for (adapter, metrics) in fixtures() {
         for metric in metrics {

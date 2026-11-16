@@ -2085,7 +2085,8 @@ pub struct SessionExpiry {
     pub days: i64,
     /// Under [`EXPIRY_WARNING`] (or expired).
     pub soon: bool,
-    /// "Expira em N dias", "Expira em menos de um dia", "Sessão expirada".
+    /// "Session expires in N days", "Session expires in less than a day",
+    /// "Session expired."
     pub label: Localized,
 }
 
@@ -2129,7 +2130,7 @@ pub fn report_expiry(report: &crate::Report, now: DateTime<Utc>) -> Option<Sessi
 /// paste step show them.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct SessionNotice {
-    /// `access.credential.user_session`: "Sessão do usuário".
+    /// `access.credential.user_session`: "User session".
     pub level: Localized,
     /// What a full login session means and where Cuotai keeps it.
     pub warning: Localized,
