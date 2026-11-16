@@ -2039,6 +2039,7 @@
   "tray.item.stale": "{item} (eski okuma)",
   "tray.item.unknown": "{name}: veri yok",
   "tray.join": "{first}; {rest}",
+  "tray.more": "{item}; +{count} tane daha",
   "tray.outage": "{item}; sağlayıcı olayı",
   "tray.strip": "{item}; son 24 saat saatlik çubuklarla",
   "tray.tooltip": "Cuotai — {label}",

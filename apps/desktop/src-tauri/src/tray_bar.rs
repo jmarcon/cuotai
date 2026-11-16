@@ -99,23 +99,35 @@ fn lock() -> std::sync::MutexGuard<'static, State> {
     STATE.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-/// Local `HH:MM` (the title is narrow; the date is never needed there).
-pub(crate) fn local_hhmm(at: chrono::DateTime<chrono::Utc>) -> String {
-    cuotai_core::instant::format_local(at, &chrono::Local, "%H:%M")
+/// The interface language stored in `desktop.json` (en-US by default).
+fn current_locale() -> String {
+    settings::settings_path()
+        .and_then(|f| settings::read_locale(&f))
+        .unwrap_or_else(|| "en-US".to_owned())
 }
 
-/// The summary of `accounts` for `style` and `selection`, now.
+/// The summary of `accounts` for `style` and `selection`, now, with times
+/// in the local zone and `locale` (the core owns the clock, V-02).
 pub fn summarize(
     accounts: &[AccountView],
     style: TrayStyle,
     selection: &TraySelection,
+    locale: &str,
 ) -> TraySummary {
-    tray::summary(accounts, style, selection, chrono::Utc::now(), local_hhmm)
+    tray::summary(
+        accounts,
+        style,
+        selection,
+        chrono::Utc::now(),
+        &chrono::Local,
+        locale,
+    )
 }
 
 /// RF4.1: the preview the Settings page shows, from the current readings.
 pub fn preview(style: TrayStyle, selection: &TraySelection) -> TraySummary {
-    summarize(&lock().accounts, style, selection)
+    let locale = current_locale();
+    summarize(&lock().accounts, style, selection, &locale)
 }
 
 /// The current accounts' ids, dashboard order (for pruning and the account list).
@@ -152,11 +164,9 @@ pub fn set_menu_tooltip(app: &AppHandle, text: String) {
 
 /// Redraw with `prefs` (after a change in Settings).
 pub fn redraw(app: &AppHandle, prefs: &TrayPrefs) {
-    let locale = settings::settings_path()
-        .and_then(|f| settings::read_locale(&f))
-        .unwrap_or_else(|| "en-US".to_owned());
+    let locale = current_locale();
     let mut state = lock();
-    let summary = summarize(&state.accounts, prefs.style, &prefs.selection());
+    let summary = summarize(&state.accounts, prefs.style, &prefs.selection(), &locale);
     let next = render(
         &summary,
         prefs.colored,
@@ -689,23 +699,28 @@ mod tests {
             remaining: Some(0.22),
             ..AccountView::default()
         }];
-        let s = summarize(&accounts, TrayStyle::TightestPercent, &TraySelection::Auto);
+        let s = summarize(
+            &accounts,
+            TrayStyle::TightestPercent,
+            &TraySelection::Auto,
+            "en-US",
+        );
         let p = Platform::current();
         let a = render(&s, false, "en-US", "oldest reading: 2 min ago", p, &[]);
         assert_eq!(a.template, cfg!(target_os = "macos"));
         if cfg!(target_os = "windows") {
             assert_eq!(a.title, None);
         } else {
-            assert_eq!(a.title.as_deref(), Some("22% · Work"));
+            assert_eq!(a.title.as_deref(), Some("22% · Claude"));
         }
         assert_eq!(
             a.tooltip,
-            "Cuotai — Work 22% left\noldest reading: 2 min ago"
+            "Cuotai — Claude Work 22% left\noldest reading: 2 min ago"
         );
         let colored = render(&s, true, "en-US", "", p, &[]);
         assert!(!colored.template);
         let m = render(
-            &summarize(&accounts, TrayStyle::Meters, &TraySelection::Auto),
+            &summarize(&accounts, TrayStyle::Meters, &TraySelection::Auto, "en-US"),
             false,
             "en-US",
             "",
@@ -736,19 +751,25 @@ mod tests {
             &work(Some(0.22)),
             TrayStyle::TightestPercent,
             &TraySelection::Auto,
+            "en-US",
         );
         let mac = render(&s, false, "en-US", "", Platform::MACOS, &[]);
         assert!(mac.template);
-        assert_eq!(mac.title.as_deref(), Some("22% · Work"));
+        assert_eq!(mac.title.as_deref(), Some("22% · Claude"));
         let linux = render(&s, false, "en-US", "", Platform::LINUX, &[]);
         assert!(!linux.template);
-        assert_eq!(linux.title.as_deref(), Some("22% · Work"));
+        assert_eq!(linux.title.as_deref(), Some("22% · Claude"));
         let win = render(&s, false, "en-US", "", Platform::WINDOWS, &[]);
         assert_eq!(win.title, None);
         assert!(!win.template);
         assert_ne!(win.image, linux.image, "the figure is drawn into the icon");
-        assert_eq!(win.tooltip, "Cuotai — Work 22% left");
-        let meters = summarize(&work(Some(0.22)), TrayStyle::Meters, &TraySelection::Auto);
+        assert_eq!(win.tooltip, "Cuotai — Claude Work 22% left");
+        let meters = summarize(
+            &work(Some(0.22)),
+            TrayStyle::Meters,
+            &TraySelection::Auto,
+            "en-US",
+        );
         assert_eq!(
             render(&meters, false, "en-US", "", Platform::WINDOWS, &[]).image,
             render(&meters, false, "en-US", "", Platform::LINUX, &[]).image,
@@ -763,7 +784,7 @@ mod tests {
     #[test]
     fn icon_figure_is_two_digits_an_alert_or_a_dash() {
         let fig = |accounts: Vec<AccountView>, style| {
-            icon_figure(&summarize(&accounts, style, &TraySelection::Auto))
+            icon_figure(&summarize(&accounts, style, &TraySelection::Auto, "en-US"))
         };
         assert_eq!(
             fig(work(Some(0.224)), TrayStyle::TightestPercent).as_deref(),
@@ -835,6 +856,7 @@ mod tests {
             &work(Some(0.4)),
             TrayStyle::HourlyStrip,
             &TraySelection::Auto,
+            "en-US",
         );
         let bars = vec![bar(Some(1.0), false); 24];
         let mac = render(&s, false, "en-US", "", Platform::MACOS, &bars);
@@ -843,7 +865,7 @@ mod tests {
         assert_eq!(mac.title, None);
         assert_eq!(
             mac.tooltip,
-            "Cuotai — Work 40% left; the last 24 hours as hourly bars"
+            "Cuotai — Claude Work 40% left; the last 24 hours as hourly bars"
         );
         for p in [Platform::LINUX, Platform::WINDOWS] {
             let other = render(&s, false, "en-US", "", p, &bars);
@@ -890,7 +912,12 @@ mod tests {
             "no new color"
         );
         assert_eq!((w, h), (44, 44));
-        let s = summarize(&work(Some(0.5)), TrayStyle::IconOnly, &TraySelection::Auto);
+        let s = summarize(
+            &work(Some(0.5)),
+            TrayStyle::IconOnly,
+            &TraySelection::Auto,
+            "en-US",
+        );
         assert!(render(&s, false, "en-US", "", Platform::MACOS, &[]).template);
     }
 }

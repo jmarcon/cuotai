@@ -1655,7 +1655,8 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
                     &args.status_accounts,
                     color,
                     Utc::now(),
-                    ui::local_time,
+                    &chrono::Local,
+                    ui::tui_locale(),
                 )
             );
             return Ok(code);

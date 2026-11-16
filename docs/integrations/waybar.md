@@ -41,4 +41,4 @@ A `custom` module can run `cuotai --status-line` directly. It queries once per c
 "custom/cuotai": { "exec": "cuotai --status-line", "interval": 120 }
 ```
 
-The line is plain text such as `22% · Personal`, and it prints `—` while no share is known. See the [tmux page](tmux.md#without-a-server---status-line) for the options.
+The line is plain text such as `22% · Claude` (the provider; with `--account` the account's name), and it prints `—` while no share is known. See the [tmux page](tmux.md#without-a-server---status-line) for the options.

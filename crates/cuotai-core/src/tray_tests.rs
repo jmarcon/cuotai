@@ -11,8 +11,14 @@ fn later(minutes: i64) -> DateTime<Utc> {
     now() + chrono::TimeDelta::minutes(minutes)
 }
 
+/// A time today as the title writes it in pt-BR (24 hours, UTC here).
 fn hhmm(t: DateTime<Utc>) -> String {
     t.format("%H:%M").to_string()
+}
+
+/// A time today as the en-US label reads it ("9:30 AM").
+fn ampm(t: DateTime<Utc>) -> String {
+    t.format("%-I:%M\u{a0}%p").to_string()
 }
 
 fn acc(key: &str, provider: &str, name: &str, remaining: Option<f64>) -> AccountView {
@@ -27,7 +33,13 @@ fn acc(key: &str, provider: &str, name: &str, remaining: Option<f64>) -> Account
 }
 
 fn run(accounts: &[AccountView], style: TrayStyle, selection: &TraySelection) -> TraySummary {
-    summary(accounts, style, selection, now(), hhmm)
+    summary(accounts, style, selection, now(), &Utc, "pt-BR")
+}
+
+/// Every account selected, in order: the title names the account.
+fn custom(accounts: &[AccountView], style: TrayStyle) -> TraySummary {
+    let keys = accounts.iter().map(|a| a.key.clone()).collect();
+    run(accounts, style, &TraySelection::Custom(keys))
 }
 
 fn auto(accounts: &[AccountView], style: TrayStyle) -> TraySummary {
@@ -42,7 +54,14 @@ fn tightest_is_the_default_and_picks_the_lowest_fresh_share() {
         acc("b", "Gemini", "Home", Some(0.64)),
     ];
     let s = auto(&accounts, TrayStyle::TightestPercent);
-    assert_eq!(s.title.as_deref(), Some("22% · Work"));
+    // Automatic names the provider, never the account (V-07).
+    assert_eq!(s.title.as_deref(), Some("22% · Claude"));
+    assert_eq!(
+        custom(&accounts, TrayStyle::TightestPercent)
+            .title
+            .as_deref(),
+        Some("22% · Work")
+    );
     assert_eq!(s.items.len(), 2);
     assert_eq!(s.items[0].level, Some(Level::Bad));
     assert_eq!(s.items[1].level, Some(Level::Warn));
@@ -54,14 +73,14 @@ fn stale_readings_are_marked_and_left_out_of_tightest() {
     let mut old = acc("a", "Claude", "Old", Some(0.05));
     old.stale = true;
     let accounts = [old.clone(), acc("b", "Gemini", "Home", Some(0.64))];
-    let s = auto(&accounts, TrayStyle::TightestPercent);
+    let s = custom(&accounts, TrayStyle::TightestPercent);
     assert_eq!(s.title.as_deref(), Some("64% · Home"));
     // Every reading stale: the stale one counts, with its mark.
-    let s = auto(&[old], TrayStyle::TightestPercent);
+    let s = custom(&[old], TrayStyle::TightestPercent);
     assert_eq!(s.title.as_deref(), Some("5%· · Old"));
     assert_eq!(
         s.accessible_label.resolve("en-US"),
-        "Old 5% left (old reading)"
+        "Claude Old 5% left (old reading)"
     );
 }
 
@@ -73,7 +92,7 @@ fn unmeasured_shows_a_dash_never_zero() {
     let s = auto(&accounts, TrayStyle::LogosPercent);
     assert_eq!(s.title.as_deref(), Some("C —"));
     assert_eq!(s.items[0].level, None);
-    assert_eq!(s.accessible_label.resolve("en-US"), "Work: no data");
+    assert_eq!(s.accessible_label.resolve("en-US"), "Claude Work: no data");
 }
 
 #[test]
@@ -81,21 +100,21 @@ fn exhausted_shows_the_return_time() {
     let mut out = acc("a", "Claude", "Work", Some(0.0));
     out.exhausted = true;
     out.resets_at = Some(later(90));
-    let s = auto(
+    let s = custom(
         &[out.clone(), acc("b", "Gemini", "G", Some(0.5))],
         TrayStyle::TightestPercent,
     );
     let at = hhmm(later(90));
     assert_eq!(s.title, Some(format!("0% → {at} · Work")));
     assert_eq!(s.items[0].level, Some(Level::Bad));
-    assert!(s
-        .accessible_label
-        .resolve("en-US")
-        .starts_with(&format!("Work exhausted, returns {at}")));
+    assert!(s.accessible_label.resolve("en-US").starts_with(&format!(
+        "Claude Work exhausted, returns {}",
+        ampm(later(90))
+    )));
     // A return time already past is dropped.
     out.resets_at = Some(later(-5));
     assert_eq!(
-        auto(&[out], TrayStyle::TightestPercent).title.as_deref(),
+        custom(&[out], TrayStyle::TightestPercent).title.as_deref(),
         Some("0% · Work")
     );
 }
@@ -142,9 +161,10 @@ fn width_budget_drops_items_with_a_count() {
         "A very long account name here",
         Some(0.3),
     )];
-    let title = auto(&long, TrayStyle::TightestPercent).title.unwrap();
+    let title = custom(&long, TrayStyle::TightestPercent).title.unwrap();
     assert!(title.chars().count() <= TITLE_BUDGET);
     assert!(title.starts_with("30%"));
+    assert_eq!(title, "30% · A very long…", "cut at a word, marked");
 }
 
 #[test]
@@ -193,13 +213,13 @@ fn alerts_outages_and_extra_usage_reach_title_badge_and_label() {
     let mut a = acc("a", "Claude", "Work", Some(0.2));
     a.alert = true;
     a.on_extra = true;
-    let s = auto(std::slice::from_ref(&a), TrayStyle::TightestPercent);
+    let s = custom(std::slice::from_ref(&a), TrayStyle::TightestPercent);
     assert_eq!(s.title.as_deref(), Some("! 20% · Work"));
     assert_eq!(s.badge, Badge::Alert);
     assert!(s.items[0].on_extra);
     assert_eq!(
         s.accessible_label.resolve("en-US"),
-        "Work 20% left, alert active, using extra usage"
+        "Claude Work 20% left, alert active, using extra usage"
     );
     a.incident = true;
     let s = auto(&[a], TrayStyle::IconOnly);
@@ -239,10 +259,10 @@ fn labels_render_in_the_four_languages() {
     a.resets_at = Some(later(60));
     let b = acc("b", "Gemini", "Home", Some(0.64));
     let s = auto(&[a, b], TrayStyle::TightestPercent);
-    let at = hhmm(later(60));
+    let at = ampm(later(60));
     assert_eq!(
         s.accessible_label.resolve("en-US"),
-        format!("Work 22% left, resets {at}; Home 64% left")
+        format!("Claude Work 22% left, resets {at}; Gemini Home 64% left")
     );
     for locale in crate::text::catalog_locales() {
         let text = s.accessible_label.resolve(locale);
@@ -351,7 +371,7 @@ fn the_hourly_strip_shows_the_tightest_account_without_a_title() {
     assert_eq!(s.hidden, 2);
     assert_eq!(
         s.accessible_label.resolve("en-US"),
-        "Home 20% left; the last 24 hours as hourly bars"
+        "Codex Home 20% left; the last 24 hours as hourly bars"
     );
     assert_eq!(
         strip_account(&accounts, &TraySelection::Auto).as_deref(),
@@ -393,4 +413,190 @@ fn strip_bars_keep_gaps_and_resets() {
     assert_eq!(bars[0].consumption, Some(2.5));
     assert_eq!(bars[1].consumption, None, "a gap stays a gap");
     assert!(bars[2].reset);
+}
+
+/// A time `days` days after `now()`, at 21:31 UTC.
+fn on_day(days: i64) -> DateTime<Utc> {
+    let day = now().date_naive() + chrono::TimeDelta::days(days);
+    Utc.from_utc_datetime(&day.and_hms_opt(21, 31, 0).unwrap())
+}
+
+fn exhausted_until(name: &str, at: DateTime<Utc>) -> AccountView {
+    let mut a = acc("a", "Claude", name, Some(0.0));
+    a.exhausted = true;
+    a.resets_at = Some(at);
+    a
+}
+
+fn summary_in(accounts: &[AccountView], locale: &str) -> TraySummary {
+    let keys = accounts.iter().map(|a| a.key.clone()).collect();
+    summary(
+        accounts,
+        TrayStyle::TightestPercent,
+        &TraySelection::Custom(keys),
+        now(),
+        &Utc,
+        locale,
+    )
+}
+
+/// PRD 0025 re-validation V-02: the core owns the clock. A return today is
+/// the time in the locale's hour cycle; within six days the short weekday;
+/// further away the date. With an alert and a long name the title stays
+/// within the budget and the time is never cut.
+#[test]
+fn return_times_read_today_weekday_or_date_and_are_never_cut() {
+    // now() is Friday 2027-01-15, 08:00 UTC.
+    let cases = [
+        (0, "en-US", "0% → 9:31\u{a0}PM", "returns 9:31\u{a0}PM"),
+        (3, "en-US", "0% → Mon", "returns Monday 9:31\u{a0}PM"),
+        (10, "en-US", "0% → 01/25", "returns 01/25 9:31\u{a0}PM"),
+        (0, "pt-BR", "0% → 21:31", "volta 21:31"),
+        (3, "pt-BR", "0% → seg", "volta segunda-feira 21:31"),
+        (10, "pt-BR", "0% → 25/01", "volta 25/01 21:31"),
+    ];
+    for (days, locale, figure, label) in cases {
+        for alert in [false, true] {
+            for name in ["Work", "Engineering-Production"] {
+                let mut a = exhausted_until(name, on_day(days));
+                a.alert = alert;
+                let s = summary_in(&[a], locale);
+                let title = s.title.unwrap();
+                assert!(
+                    title.chars().count() <= TITLE_BUDGET,
+                    "{days} {locale} {alert} {name}: {title}"
+                );
+                let head = if alert {
+                    format!("! {figure}")
+                } else {
+                    figure.to_owned()
+                };
+                assert!(title.starts_with(&head), "{days} {locale}: {title}");
+                let text = s.accessible_label.resolve(locale);
+                assert!(text.contains(label), "{days} {locale}: {text}");
+            }
+        }
+    }
+}
+
+/// V-02: the projected-exhaustion chip writes its time with the core's
+/// short clock too.
+#[test]
+fn the_outlook_chip_uses_the_core_clock() {
+    let mut a = acc("a", "Claude", "Personal account", Some(0.4));
+    a.runs_out_at = Some(on_day(2));
+    let s = summary_in(&[a], "en-US");
+    assert_eq!(s.title.as_deref(), Some("↑ ≈Sun"));
+}
+
+/// V-01/S-02: an unnamed account reads as its provider in the title, the
+/// items and the label, with no dangling separator; two unnamed accounts
+/// of different providers, and one name under two providers, stay apart in
+/// the label.
+#[test]
+fn unnamed_and_same_named_accounts_are_told_apart() {
+    let unnamed = acc("a", "Claude", "", Some(0.22));
+    let s = custom(std::slice::from_ref(&unnamed), TrayStyle::TightestPercent);
+    assert_eq!(s.title.as_deref(), Some("22% · Claude"));
+    assert_eq!(s.items[0].name, "Claude");
+    assert_eq!(s.accessible_label.resolve("en-US"), "Claude 22% left");
+    let two = [unnamed.clone(), acc("b", "Gemini", " ", Some(0.64))];
+    assert_eq!(
+        auto(&two, TrayStyle::TightestPercent)
+            .accessible_label
+            .resolve("en-US"),
+        "Claude 22% left; Gemini 64% left"
+    );
+    let same = [
+        acc("a", "Claude", "Personal", Some(0.22)),
+        acc("b", "Gemini", "Personal", Some(0.64)),
+    ];
+    assert_eq!(
+        auto(&same, TrayStyle::TightestPercent)
+            .accessible_label
+            .resolve("en-US"),
+        "Claude Personal 22% left; Gemini Personal 64% left"
+    );
+    let mut stale = unnamed;
+    stale.stale = true;
+    let s = custom(&[stale], TrayStyle::TightestPercent);
+    assert_eq!(s.title.as_deref(), Some("22%· · Claude"));
+    assert_eq!(
+        s.accessible_label.resolve("en-US"),
+        "Claude 22% left (old reading)"
+    );
+}
+
+/// V-07: an e-mail-shaped name never reaches the title, under any
+/// selection; it stays in the label.
+#[test]
+fn an_email_shaped_name_shows_as_the_provider() {
+    let a = acc("a", "Claude", "someone@example.com", Some(0.31));
+    let s = custom(std::slice::from_ref(&a), TrayStyle::TightestPercent);
+    assert_eq!(s.title.as_deref(), Some("31% · Claude"));
+    assert!(s
+        .accessible_label
+        .resolve("en-US")
+        .starts_with("Claude someone@example.com"));
+}
+
+/// V-07: a cut name ends with "…" inside the budget; the figure stays.
+#[test]
+fn a_long_name_is_cut_with_an_ellipsis() {
+    let mut a = acc("a", "Claude", "Engineering-Production", Some(0.12));
+    let s = custom(std::slice::from_ref(&a), TrayStyle::TightestPercent);
+    assert_eq!(s.title.as_deref(), Some("12% · Engineering-Produ…"));
+    a.alert = true;
+    let s = custom(&[a], TrayStyle::TightestPercent);
+    assert_eq!(s.title.as_deref(), Some("! 12% · Engineering-Pro…"));
+    assert_eq!(cut("abc", 3), "abc");
+    assert_eq!(cut("abcd", 3), "ab…");
+    assert_eq!(cut("日本語の名前", 4), "日本語…");
+}
+
+/// S-03: the label names at most six accounts, then "+N more", and cuts a
+/// long name.
+#[test]
+fn the_label_is_bounded() {
+    let accounts: Vec<AccountView> = (0..9)
+        .map(|i| {
+            acc(
+                &format!("k{i}"),
+                "Claude",
+                &format!("Account {i}"),
+                Some(0.5),
+            )
+        })
+        .collect();
+    let s = auto(&accounts, TrayStyle::IconOnly);
+    let text = s.accessible_label.resolve("en-US");
+    assert!(text.ends_with("; +3 more"), "{text}");
+    assert!(
+        text.contains("Account 5") && !text.contains("Account 6"),
+        "{text}"
+    );
+    for locale in crate::text::catalog_locales() {
+        let text = s.accessible_label.resolve(locale);
+        assert!(
+            text.contains('3') && !text.contains('{'),
+            "{locale}: {text}"
+        );
+    }
+    let long = acc("a", "Claude", &"x".repeat(5000), Some(0.5));
+    let text = auto(&[long], TrayStyle::IconOnly)
+        .accessible_label
+        .resolve("en-US");
+    assert!(text.chars().count() < 60, "{text}");
+}
+
+/// V-01: `from_report` takes the display name, so an unnamed account
+/// reads as its provider.
+#[test]
+fn from_report_uses_the_display_name() {
+    let account = crate::Account {
+        provider: crate::Provider::Claude,
+        ..crate::Account::default()
+    };
+    let view = AccountView::from_report(&account, None, crate::freshness::Freshness::Fresh);
+    assert_eq!(view.name, "Claude");
 }

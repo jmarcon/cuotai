@@ -2023,6 +2023,7 @@
   "tray.item.stale": "{item}(오래된 조회값)",
   "tray.item.unknown": "{name} 데이터 없음",
   "tray.join": "{first}, {rest}",
+  "tray.more": "{item}; 외 {count}개",
   "tray.outage": "{item}, 제공업체 장애",
   "tray.strip": "{item}, 최근 24시간 시간별 막대",
   "tray.tooltip": "Cuotai — {label}",
