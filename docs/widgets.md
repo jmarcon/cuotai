@@ -149,7 +149,7 @@ Sources live in [`apps/desktop/widgets/macos`](../apps/desktop/widgets/macos):
 | File | What it holds |
 |---|---|
 | `Sources/CuotaiSnapshot.swift` | The file's model and its location, the per-user data directory. |
-| `Sources/WidgetViews.swift` | Shared drawing: the age in the system's relative text, dimmed bars for stale data, the empty state. |
+| `Sources/WidgetViews.swift` | Shared drawing: the age in the system's relative text, dimmed bars for stale data, the empty state, the "Update Cuotai" state for a file the extension cannot read, and the layout guard every widget's root goes through. |
 | `Sources/SummaryWidget.swift` | Summary: each account's binding metric (small, medium, large). |
 | `Sources/AccountWidget.swift` | One account pinned by an App Intent, by its stable id; never falls back to another account. |
 | `Sources/HistoryWidget.swift` | An area chart of the binding metric's series, only when the file carries one. |
@@ -166,6 +166,17 @@ apps/desktop/widgets/macos/typecheck.sh x86_64-apple-macosx14.0
 ```
 
 Type-checking proves the code compiles; it does not prove the bundle is packaged or signed.
+
+### Checking the decoder and the layout
+
+```sh
+apps/desktop/tools/widget-shots/macos/render.sh --check
+```
+
+The `widgets` job of CI runs this on macOS. It compiles the shipped sources with the render harness and checks two things the type-check cannot:
+
+- **The decoder reads what the core writes.** `crates/cuotai-core/tests/fixtures/widget/writer.json` is the writer's output for a representative set of accounts, and a core test fails when the writer's output stops matching it (regenerate with `CUOTAI_REGENERATE_FIXTURES=1 cargo test -p cuotai-core widget_snapshot`). The check decodes it, the harness fixtures and the compatibility fixtures (`crates/cuotai-core/tests/fixtures/compat/widget/`) with the shipped `WidgetSnapshot.read(from:)`: schema 1 must decode with every account, and the schema 2 file must read as unreadable, which the widgets show as "Update Cuotai" instead of the "get started" text of a missing file.
+- **Every widget lays out under any proposal.** macOS 27.2 also measures widget content with an unbounded width. A view that SwiftUI cannot place then stops the extension with "view origin is invalid" before it returns a timeline, and the system keeps its redacted placeholder (grey bars) for good. The check draws every widget, in each size and both schemes, under the widget's own size and under unspecified and unbounded proposals; a fault stops the check the same way. Every widget's root goes through `boundedProposal()`, which turns an unbounded axis into the content's ideal size.
 
 ### Building and packaging
 

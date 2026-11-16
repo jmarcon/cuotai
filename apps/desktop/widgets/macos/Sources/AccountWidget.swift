@@ -77,7 +77,7 @@ struct AccountProvider: AppIntentTimelineProvider {
 
     private func entry(for configuration: AccountIntent) -> SummaryEntry {
         SummaryEntry(date: Date(),
-                     snapshot: WidgetSnapshot.load(),
+                     read: WidgetSnapshot.read(),
                      pinnedKey: configuration.account?.id)
     }
 }
@@ -87,7 +87,14 @@ struct AccountWidgetEntryView: View {
     let entry: SummaryEntry
 
     var body: some View {
-        if entry.snapshot == nil {
+        content.boundedProposal()
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if entry.unreadable {
+            SnapshotUnreadableView()
+        } else if entry.snapshot == nil {
             // No file: widgets are off or the app never published one
             // (RF3.5). Not the same as an account that went away.
             EmptyStateView()

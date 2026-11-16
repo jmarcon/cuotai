@@ -45,6 +45,76 @@ struct AccountUnavailableView: View {
     }
 }
 
+/// The file is there but this extension cannot read it: a newer schema
+/// than it knows, a file it cannot decode, or one it may not open. Said
+/// plainly, with the way out, instead of the "get started" text of a
+/// missing file (and never the system's blank placeholder).
+struct SnapshotUnreadableView: View {
+    var body: some View {
+        VStack(spacing: 4) {
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .font(.title3)
+            Text("Update Cuotai")
+                .font(.caption)
+            Text("This widget cannot read the data Cuotai published. Update Cuotai and open it again.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - Layout guard
+
+/// Hands the widget content a finite proposal, whatever the system asks.
+///
+/// macOS 27.2 measures widget content with an unbounded width as well as
+/// the widget's real size. A flexible view (a bar's track, a chart, a
+/// `maxWidth: .infinity` column) then takes an infinite width, a leading
+/// alignment inside it computes `inf - inf`, and SwiftUI stops the process
+/// with "view origin is invalid": the extension dies before it returns a
+/// timeline and the system shows its redacted placeholder for good. An
+/// unbounded axis becomes "unspecified" here (the content's ideal size),
+/// and the content is placed inside finite bounds only.
+struct BoundedProposalLayout: Layout {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let content = subviews.first else { return .zero }
+        let size = content.sizeThatFits(Self.bounded(proposal))
+        return CGSize(width: Self.finite(size.width), height: Self.finite(size.height))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard let content = subviews.first else { return }
+        let ideal = content.sizeThatFits(.unspecified)
+        let width = bounds.width.isFinite ? bounds.width : Self.finite(ideal.width)
+        let height = bounds.height.isFinite ? bounds.height : Self.finite(ideal.height)
+        let origin = CGPoint(x: bounds.minX.isFinite ? bounds.minX : 0,
+                             y: bounds.minY.isFinite ? bounds.minY : 0)
+        content.place(at: origin, anchor: .topLeading,
+                      proposal: ProposedViewSize(width: width, height: height))
+    }
+
+    /// A proposal with every unbounded or invalid axis left unspecified.
+    static func bounded(_ proposal: ProposedViewSize) -> ProposedViewSize {
+        ProposedViewSize(width: proposal.width.flatMap { $0.isFinite && $0 >= 0 ? $0 : nil },
+                         height: proposal.height.flatMap { $0.isFinite && $0 >= 0 ? $0 : nil })
+    }
+
+    /// A length SwiftUI accepts: finite and not negative, else zero.
+    static func finite(_ length: CGFloat) -> CGFloat {
+        length.isFinite && length >= 0 ? length : 0
+    }
+}
+
+extension View {
+    /// The root of every widget's content: see [BoundedProposalLayout].
+    func boundedProposal() -> some View {
+        BoundedProposalLayout { self }
+    }
+}
+
 // MARK: - One account
 
 /// How much room an account gets. `row` is one line of the Summary list
@@ -251,9 +321,13 @@ struct UsageBar: View {
             .fill(.quaternary)
             .overlay(alignment: .leading) {
                 GeometryReader { proxy in
+                    // A track measured without a finite width draws no
+                    // fill rather than handing SwiftUI an infinite or NaN
+                    // frame, which stops the extension.
+                    let track = BoundedProposalLayout.finite(proxy.size.width)
                     Capsule()
                         .fill((tone ?? UsageTone(usedFraction: usedFraction)).barColor)
-                        .frame(width: max(proxy.size.width * clamped, clamped > 0 ? height : 0))
+                        .frame(width: min(track, max(track * clamped, clamped > 0 ? height : 0)))
                 }
             }
             .frame(height: height)
