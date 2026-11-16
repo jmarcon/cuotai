@@ -2476,5 +2476,9 @@
   "doctor.title.metered": "Registro condiviso delle query fatturate {path}",
   "doctor.metered.unusable": "Non è una cartella privata del tuo utente o non è scrivibile; i comandi singoli non interrogano AWS Bedrock finché non viene corretta.",
   "doctor.fix.metered": "Rimuovi ciò che si trova in questo percorso (un file, un collegamento o la cartella di un altro utente) oppure rendilo una cartella che solo il tuo utente può leggere e scrivere; Cuotai la ricrea.",
-  "doctor.metered.absent": "Non ancora creata; la prima query fatturata la crea."
+  "doctor.metered.absent": "Non ancora creata; la prima query fatturata la crea.",
+  "note.metered.record_unavailable": "Non interrogato: Cuotai non ha potuto usare il suo registro condiviso delle query fatturate di AWS Cost Explorer. Esegui `cuotai --doctor` per vedere la cartella e come correggerla.",
+  "note.metered.record_busy": "Non interrogato: un altro programma Cuotai ha tenuto troppo a lungo il registro condiviso delle query fatturate di AWS Cost Explorer. Riprova tra un momento.",
+  "note.metered.pending": "Non interrogato: un altro programma Cuotai sta interrogando questo account ora. Riprova tra un momento per vedere la sua lettura.",
+  "note.metered.record_unavailable_shared": "Il registro condiviso delle query fatturate non è disponibile, quindi anche altri programmi Cuotai potrebbero interrogare questo account."
 }

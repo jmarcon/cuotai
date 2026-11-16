@@ -2479,5 +2479,9 @@
   "doctor.title.metered": "Gemeinsames Protokoll abgerechneter Abfragen {path}",
   "doctor.metered.unusable": "Es ist kein privater Ordner Ihres Benutzers oder nicht beschreibbar; einmalige Befehle fragen AWS Bedrock erst nach der Behebung ab.",
   "doctor.fix.metered": "Entfernen Sie, was unter diesem Pfad liegt (eine Datei, ein Link oder der Ordner eines anderen Benutzers), oder machen Sie daraus einen Ordner, den nur Ihr Benutzer lesen und schreiben kann; Cuotai legt ihn neu an.",
-  "doctor.metered.absent": "Noch nicht angelegt; die erste abgerechnete Abfrage legt ihn an."
+  "doctor.metered.absent": "Noch nicht angelegt; die erste abgerechnete Abfrage legt ihn an.",
+  "note.metered.record_unavailable": "Nicht abgefragt: Cuotai konnte sein gemeinsames Protokoll abgerechneter AWS-Cost-Explorer-Abfragen nicht verwenden. Führen Sie `cuotai --doctor` aus, um den Ordner und die Behebung zu sehen.",
+  "note.metered.record_busy": "Nicht abgefragt: Ein anderes Cuotai-Programm hat das gemeinsame Protokoll abgerechneter AWS-Cost-Explorer-Abfragen zu lange belegt. Versuchen Sie es gleich noch einmal.",
+  "note.metered.pending": "Nicht abgefragt: Ein anderes Cuotai-Programm fragt dieses Konto gerade ab. Versuchen Sie es gleich noch einmal, um sein Ergebnis zu sehen.",
+  "note.metered.record_unavailable_shared": "Das gemeinsame Protokoll abgerechneter Abfragen ist nicht verfügbar, daher fragen andere Cuotai-Programme dieses Konto möglicherweise ebenfalls ab."
 }

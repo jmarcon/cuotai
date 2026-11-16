@@ -2448,5 +2448,9 @@
   "doctor.title.metered": "課金されるクエリの共有記録 {path}",
   "doctor.metered.unusable": "ユーザー専用のフォルダーではないか、書き込めません。修正されるまで、単発のコマンドは AWS Bedrock を照会しません。",
   "doctor.fix.metered": "このパスにあるもの（ファイル、リンク、他のユーザーのフォルダー）を削除するか、あなたのユーザーだけが読み書きできるフォルダーにしてください。Cuotai が作り直します。",
-  "doctor.metered.absent": "まだ作成されていません。最初の課金クエリで作成されます。"
+  "doctor.metered.absent": "まだ作成されていません。最初の課金クエリで作成されます。",
+  "note.metered.record_unavailable": "照会していません: Cuotai は課金される AWS Cost Explorer クエリの共有記録を使用できませんでした。フォルダーと修正方法は `cuotai --doctor` で確認してください。",
+  "note.metered.record_busy": "照会していません: 別の Cuotai プログラムが課金される AWS Cost Explorer クエリの共有記録を長く使用しすぎました。少ししてからもう一度お試しください。",
+  "note.metered.pending": "照会していません: 別の Cuotai プログラムが今このアカウントを照会しています。少ししてからもう一度試すと、その結果が表示されます。",
+  "note.metered.record_unavailable_shared": "課金されるクエリの共有記録を使用できないため、他の Cuotai プログラムもこのアカウントを照会する可能性があります。"
 }

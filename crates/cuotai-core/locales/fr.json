@@ -2479,5 +2479,9 @@
   "doctor.title.metered": "Registre partagé des requêtes facturées {path}",
   "doctor.metered.unusable": "Ce n'est pas un dossier privé de votre utilisateur, ou il n'est pas inscriptible ; les commandes ponctuelles n'interrogent pas AWS Bedrock tant que ce n'est pas corrigé.",
   "doctor.fix.metered": "Supprimez ce qui se trouve à ce chemin (un fichier, un lien ou le dossier d'un autre utilisateur) ou faites-en un dossier que seul votre utilisateur peut lire et écrire ; Cuotai le recrée.",
-  "doctor.metered.absent": "Pas encore créé ; la première requête facturée le crée."
+  "doctor.metered.absent": "Pas encore créé ; la première requête facturée le crée.",
+  "note.metered.record_unavailable": "Non interrogé : Cuotai n'a pas pu utiliser son registre partagé des requêtes AWS Cost Explorer facturées. Lancez `cuotai --doctor` pour voir le dossier et comment le corriger.",
+  "note.metered.record_busy": "Non interrogé : un autre programme Cuotai a gardé trop longtemps le registre partagé des requêtes AWS Cost Explorer facturées. Réessayez dans un instant.",
+  "note.metered.pending": "Non interrogé : un autre programme Cuotai interroge ce compte en ce moment. Réessayez dans un instant pour voir sa lecture.",
+  "note.metered.record_unavailable_shared": "Le registre partagé des requêtes facturées est indisponible : d'autres programmes Cuotai peuvent aussi interroger ce compte."
 }

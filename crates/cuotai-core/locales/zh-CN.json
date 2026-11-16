@@ -2448,5 +2448,9 @@
   "doctor.title.metered": "计费查询的共享记录 {path}",
   "doctor.metered.unusable": "它不是你的用户专属的文件夹，或无法写入；修复之前，一次性命令不会查询 AWS Bedrock。",
   "doctor.fix.metered": "删除此路径上的内容（文件、链接或其他用户的文件夹），或将其改为只有你的用户可以读写的文件夹；Cuotai 会重新创建它。",
-  "doctor.metered.absent": "尚未创建；第一次计费查询会创建它。"
+  "doctor.metered.absent": "尚未创建；第一次计费查询会创建它。",
+  "note.metered.record_unavailable": "未查询：Cuotai 无法使用其计费 AWS Cost Explorer 查询的共享记录。运行 `cuotai --doctor` 查看该文件夹及修复方法。",
+  "note.metered.record_busy": "未查询：另一个 Cuotai 程序占用计费 AWS Cost Explorer 查询的共享记录过久。请稍后重试。",
+  "note.metered.pending": "未查询：另一个 Cuotai 程序正在查询此账户。请稍后重试以查看其读数。",
+  "note.metered.record_unavailable_shared": "计费查询的共享记录不可用，因此其他 Cuotai 程序也可能查询此账户。"
 }

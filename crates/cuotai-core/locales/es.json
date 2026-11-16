@@ -2476,5 +2476,9 @@
   "doctor.title.metered": "Registro compartido de consultas facturadas {path}",
   "doctor.metered.unusable": "No es una carpeta privada de tu usuario o no se puede escribir; los comandos de una sola ejecución no consultan AWS Bedrock hasta que se corrija.",
   "doctor.fix.metered": "Elimina lo que haya en esta ruta (un archivo, un enlace o la carpeta de otro usuario) o conviértela en una carpeta que solo tu usuario pueda leer y escribir; Cuotai la vuelve a crear.",
-  "doctor.metered.absent": "Aún no se ha creado; la primera consulta facturada la crea."
+  "doctor.metered.absent": "Aún no se ha creado; la primera consulta facturada la crea.",
+  "note.metered.record_unavailable": "No consultado: Cuotai no pudo usar su registro compartido de consultas facturadas de AWS Cost Explorer. Ejecuta `cuotai --doctor` para ver la carpeta y cómo corregirlo.",
+  "note.metered.record_busy": "No consultado: otro programa de Cuotai retuvo demasiado tiempo el registro compartido de consultas facturadas de AWS Cost Explorer. Inténtalo de nuevo en un momento.",
+  "note.metered.pending": "No consultado: otro programa de Cuotai está consultando esta cuenta ahora. Inténtalo de nuevo en un momento para ver su lectura.",
+  "note.metered.record_unavailable_shared": "El registro compartido de consultas facturadas no está disponible, así que otros programas de Cuotai también podrían consultar esta cuenta."
 }

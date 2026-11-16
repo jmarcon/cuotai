@@ -611,6 +611,38 @@ impl Config {
     }
 }
 
+/// PRD 0033 re-validation M-1: what a process does with a metered account
+/// (AWS Bedrock, billed per query) when the shared record of billed queries
+/// cannot be used.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MeteredPolicy {
+    /// One-shot commands (`--once`, `--json`, `--json-v1`, `--status-line`,
+    /// the doctor, the problem report, the canary): no query; the account
+    /// is reported as not read with the reason.
+    #[default]
+    OneShot,
+    /// The desktop app, the TUI, `--watch`, `--serve` and `--notify`: at
+    /// most one query per interval from this process, kept across
+    /// [`Monitor::with_config`], with a note that other programs may query
+    /// too.
+    LongLived,
+}
+
+/// The in-process record of a long-lived process: per account id and
+/// settings digest, the time and report of its last metered query. One per
+/// process, so neither [`Monitor::with_config`] nor a monitor rebuilt from
+/// scratch after a reload can pay twice in one interval.
+type LocalMetered = std::collections::HashMap<(String, String), (chrono::DateTime<Utc>, Report)>;
+static LOCAL_METERED: std::sync::LazyLock<tokio::sync::Mutex<LocalMetered>> =
+    std::sync::LazyLock::new(Default::default);
+
+tokio::task_local! {
+    /// Set while a metered query runs under the provider slot its caller
+    /// already took (the claim is taken after the slot, PRD 0033
+    /// re-validation L-1), so the query does not wait for a second one.
+    static HOLDS_QUERY_SLOT: ();
+}
+
 /// A shared HTTP connection pool and bounded concurrent queries.
 /// OAuth tokens are refreshed and persisted before queries when necessary.
 /// Dropping the refresh future cancels network work. Each account has one
@@ -640,8 +672,11 @@ pub struct Monitor {
     /// extension Runner used by recurring refreshes and explicit tests.
     extensions: Option<Arc<extensions::management::Manager>>,
     /// PRD 0033 RF5.3: the last-query record shared by processes for
-    /// metered accounts; `None` queries every time.
+    /// metered accounts; `None` when the OS gives no local data folder,
+    /// which [`MeteredPolicy`] treats as an unusable record.
     metered: Option<metered_record::Store>,
+    /// PRD 0033 re-validation M-1.
+    metered_policy: MeteredPolicy,
     /// Test-only fixed clock for `checked_at`, so recording tests control
     /// the time between readings.
     #[cfg(test)]
@@ -695,6 +730,7 @@ impl Monitor {
             metered: None,
             #[cfg(not(test))]
             metered: metered_record::Store::default_dir().map(metered_record::Store::new),
+            metered_policy: MeteredPolicy::default(),
             #[cfg(test)]
             clock: None,
         })
@@ -741,6 +777,7 @@ impl Monitor {
             incidents: self.incidents.clone(),
             extensions: self.extensions.clone(),
             metered: self.metered.clone(),
+            metered_policy: self.metered_policy,
             #[cfg(test)]
             clock: self.clock.clone(),
         })
@@ -750,6 +787,14 @@ impl Monitor {
     /// instead of the OS local data directory.
     pub fn with_metered_dir(mut self, dir: std::path::PathBuf) -> Self {
         self.metered = Some(metered_record::Store::new(dir));
+        self
+    }
+
+    /// PRD 0033 re-validation M-1: how this process treats a metered
+    /// account whose shared record cannot be used; kept by
+    /// [`Monitor::with_config`].
+    pub fn with_metered_policy(mut self, policy: MeteredPolicy) -> Self {
+        self.metered_policy = policy;
         self
     }
 
@@ -1167,32 +1212,15 @@ impl Monitor {
             "refresh_account index is out of bounds"
         );
         let account = &self.config.accounts[index];
-        let report = match self
-            .metered
-            .as_ref()
-            .filter(|_| account.provider.is_metered())
-        {
-            Some(store) => {
-                let interval = chrono::TimeDelta::seconds(
-                    account.effective_refresh_seconds(self.config.refresh_seconds) as i64,
-                );
-                match store.begin(account, interval, self.now()) {
-                    // Another process paid for this interval's query.
-                    metered_record::Decision::Reuse(report) => {
-                        let mut report = *report;
-                        metered_record::rebind(&mut report, account);
-                        report.drop_implausible_instants();
-                        self.apply_budgets(account, &mut report);
-                        return report;
-                    }
-                    metered_record::Decision::Query => {
-                        let report = self.query_report(account, &[]).await;
-                        store.finish(account, &report, self.now());
-                        report
-                    }
-                }
+        let report = if account.provider.is_metered() {
+            match self.metered_report(account).await {
+                Ok(queried) => queried,
+                // Not queried by this process: a shared or kept reading,
+                // or a report of why it was not read.
+                Err(shown) => return shown,
             }
-            None => self.query_report(account, &[]).await,
+        } else {
+            self.query_report(account, &[]).await
         };
         let mut report = report;
         // PRD 0036 RF5.3: a connection that duplicates a direct account is
@@ -1214,6 +1242,141 @@ impl Monitor {
             }
         }
         report
+    }
+
+    /// PRD 0033 RF5.3 and its re-validation (H-1, M-1, M-2, L-1): the
+    /// report of a metered account. `Ok` when this process queried it,
+    /// `Err` with the report to show when it did not (a reading another
+    /// process or an earlier refresh paid for, or why it was not read).
+    // Both arms carry a report to show; boxing one would only move it.
+    #[allow(clippy::result_large_err)]
+    async fn metered_report(&self, account: &Account) -> Result<Report, Report> {
+        let interval = chrono::TimeDelta::seconds(
+            account.effective_refresh_seconds(self.config.refresh_seconds) as i64,
+        );
+        // The claim outlives the longest query this process can make.
+        let claim_for = chrono::TimeDelta::seconds(self.config.timeout_seconds as i64 + 60);
+        let deadline =
+            tokio::time::Instant::now() + Duration::from_secs(self.config.timeout_seconds);
+        let Some(store) = self.metered.clone() else {
+            return self
+                .metered_unavailable(account, metered_record::Unavailable::Io, interval)
+                .await;
+        };
+        loop {
+            let permit = self
+                .query_slots
+                .acquire()
+                .await
+                .expect("monitor query semaphore stays open");
+            let now = self.now();
+            let decision = {
+                let (store, owned) = (store.clone(), account.clone());
+                // The lock wait is bounded and off the async executor.
+                tokio::task::spawn_blocking(move || store.begin(&owned, interval, claim_for, now))
+                    .await
+                    .unwrap_or(Err(metered_record::Unavailable::Io))
+            };
+            match decision {
+                Ok(metered_record::Decision::Reuse(report)) => {
+                    return Err(self.reused_metered(account, *report));
+                }
+                Ok(metered_record::Decision::Query) => {
+                    let report = HOLDS_QUERY_SLOT
+                        .scope((), self.query_report(account, &[]))
+                        .await;
+                    drop(permit);
+                    let (owned, saved, now) = (account.clone(), report.clone(), self.now());
+                    // A failed write leaves the claim to expire on its own.
+                    let _ = tokio::task::spawn_blocking(move || store.finish(&owned, &saved, now))
+                        .await;
+                    return Ok(report);
+                }
+                Ok(metered_record::Decision::Pending { until })
+                    if tokio::time::Instant::now() < deadline && self.now() < until =>
+                {
+                    drop(permit);
+                    tokio::time::sleep(Duration::from_millis(500)).await;
+                }
+                Ok(metered_record::Decision::Pending { .. }) => {
+                    return Err(self.metered_not_read(account, metered_record::note_pending()));
+                }
+                Err(reason) => {
+                    drop(permit);
+                    return self.metered_unavailable(account, reason, interval).await;
+                }
+            }
+        }
+    }
+
+    /// The record of billed queries cannot be used: a one-shot process
+    /// does not query; a long-lived one queries at most once per interval
+    /// on its own record and says so.
+    // Both arms carry a report to show; boxing one would only move it.
+    #[allow(clippy::result_large_err)]
+    async fn metered_unavailable(
+        &self,
+        account: &Account,
+        reason: metered_record::Unavailable,
+        interval: chrono::TimeDelta,
+    ) -> Result<Report, Report> {
+        if self.metered_policy == MeteredPolicy::OneShot {
+            return Err(self.metered_not_read(account, metered_record::note_unavailable(reason)));
+        }
+        let key = (account.state_key(), models::restore_fingerprint(account));
+        // Held across the query: two refreshes of this process never pay
+        // twice for one interval.
+        let mut local = LOCAL_METERED.lock().await;
+        let now = self.now();
+        let kept = local
+            .get(&key)
+            .filter(|(at, _)| *at <= now && now - *at < interval)
+            .map(|(_, report)| report.clone());
+        let shared = metered_record::note_unavailable_shared();
+        let with_note = |mut report: Report| {
+            report.notes.push(shared.text().to_owned());
+            report.notes_l10n.push(shared.clone());
+            report
+        };
+        if let Some(report) = kept {
+            return Err(with_note(self.reused_metered(account, report)));
+        }
+        let report = self.query_report(account, &[]).await;
+        if report.status == Status::Ready {
+            local.insert(key, (self.now(), report.clone()));
+        }
+        Ok(with_note(report))
+    }
+
+    /// A metered reading this process did not pay for, shown as the
+    /// account's own (PRD 0033 re-validation H-1).
+    fn reused_metered(&self, account: &Account, mut report: Report) -> Report {
+        metered_record::rebind(&mut report, account);
+        report.drop_implausible_instants();
+        self.apply_budgets(account, &mut report);
+        report
+    }
+
+    /// The account was not read: no query was made, for `note`'s reason.
+    fn metered_not_read(&self, account: &Account, note: crate::text::Localized) -> Report {
+        let (notes, notes_l10n) = crate::text::Notes::one(note).finish();
+        Report {
+            account_id: Some(account.id()),
+            diagnostic: None,
+            account: account.name.clone(),
+            provider: account.provider,
+            checked_at: self.now(),
+            status: Status::Error,
+            metrics: Vec::new(),
+            notes,
+            notes_l10n,
+            source: String::new(),
+            session_expires_at: None,
+            sub_reports: Vec::new(),
+            as_of: None,
+            overage_hint: None,
+            breakdown: Vec::new(),
+        }
     }
 
     /// PRD 0041 RF2.1: add the budget metrics of `account` to `report`, with
@@ -1565,11 +1728,15 @@ impl Monitor {
         Result<T, providers::QueryError>,
         Option<chrono::DateTime<Utc>>,
     ) {
-        let _permit = self
-            .query_slots
-            .acquire()
-            .await
-            .expect("monitor query semaphore stays open");
+        let _permit = match HOLDS_QUERY_SLOT.try_with(|_| ()) {
+            Ok(()) => None,
+            Err(_) => Some(
+                self.query_slots
+                    .acquire()
+                    .await
+                    .expect("monitor query semaphore stays open"),
+            ),
+        };
         let mut timeout = Duration::from_secs(self.config.timeout_seconds);
         if account.provider.is_aggregator() {
             // PRD 0036 RF4.1: one deadline for the whole instance (discovery
@@ -2645,11 +2812,13 @@ credential_env = "OPENAI_ADMIN_KEY"
             breakdown: Vec::new(),
         };
         let store = metered_record::Store::new(dir.path().to_path_buf());
-        store.finish(
-            &account,
-            &cached,
-            Utc::now() - chrono::TimeDelta::minutes(5),
-        );
+        store
+            .finish(
+                &account,
+                &cached,
+                Utc::now() - chrono::TimeDelta::minutes(5),
+            )
+            .unwrap();
         let monitor = Monitor::new(config)
             .unwrap()
             .with_metered_dir(dir.path().to_path_buf());
@@ -2672,6 +2841,104 @@ credential_env = "OPENAI_ADMIN_KEY"
             let mode = std::fs::metadata(&file).unwrap().permissions().mode();
             assert_eq!(mode & 0o777, 0o600);
         }
+    }
+
+    /// A fake `aws` (the account's `cli_path`) that logs each call and
+    /// answers with a Cost Explorer total. Never the real CLI.
+    #[cfg(unix)]
+    fn counting_aws(dir: &std::path::Path) -> (Account, std::path::PathBuf) {
+        let bin = dir.join("aws");
+        let log = dir.join("calls.log");
+        crate::write_executable(
+            &bin,
+            format!(
+                r#"#!/bin/sh
+echo "$@" >> '{log}'
+echo '{{"ResultsByTime":[{{"Total":{{"UnblendedCost":{{"Amount":"12.34","Unit":"USD"}}}},"Estimated":false}}]}}'
+"#,
+                log = log.display()
+            ),
+        );
+        let mut account = aws_account(None);
+        account
+            .params
+            .insert("cli_path".into(), bin.to_string_lossy().into_owned());
+        (account, log)
+    }
+
+    #[cfg(unix)]
+    fn calls(log: &std::path::Path) -> usize {
+        std::fs::read_to_string(log)
+            .map(|text| text.lines().count())
+            .unwrap_or(0)
+    }
+
+    #[cfg(unix)]
+    fn metered_monitor(account: &Account, dir: &std::path::Path) -> Monitor {
+        let config = Config {
+            accounts: vec![account.clone()],
+            ..Config::default()
+        };
+        Monitor::new(config)
+            .unwrap()
+            .with_metered_dir(dir.to_path_buf())
+    }
+
+    /// PRD 0033 RF5.3 acceptance, as written: two monitors (two programs)
+    /// on one record make one billed call per interval, also when they
+    /// start together on an empty record.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn two_monitors_make_one_billed_call_per_interval() {
+        let dir = tempfile::tempdir().unwrap();
+        let (account, log) = counting_aws(dir.path());
+        let records = dir.path().join("metered");
+        let first = metered_monitor(&account, &records);
+        let second = metered_monitor(&account, &records);
+        let (a, b) = tokio::join!(first.refresh_account(0), second.refresh_account(0));
+        assert_eq!(a.status, Status::Ready);
+        assert_eq!(b.status, Status::Ready);
+        assert_eq!(calls(&log), 1, "one billed call for both programs");
+        for monitor in [&first, &second] {
+            assert_eq!(monitor.refresh_account(0).await.status, Status::Ready);
+        }
+        assert_eq!(calls(&log), 1, "the interval is shared");
+    }
+
+    /// PRD 0033 re-validation M-1: a one-shot command never queries a
+    /// metered account it cannot record; a long-lived process queries once
+    /// per interval on its own and says so.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn an_unusable_record_fails_closed_for_one_shot_and_once_per_interval_otherwise() {
+        let dir = tempfile::tempdir().unwrap();
+        let (account, log) = counting_aws(dir.path());
+        // A file where the records' folder should be.
+        let records = dir.path().join("metered");
+        std::fs::write(&records, b"not a folder").unwrap();
+        let one_shot = metered_monitor(&account, &records);
+        for _ in 0..5 {
+            let report = one_shot.refresh_account(0).await;
+            assert_eq!(report.status, Status::Error);
+            assert!(report
+                .notes_l10n
+                .iter()
+                .any(|note| note.id == "note.metered.record_unavailable"));
+        }
+        assert_eq!(calls(&log), 0, "no billed call without the record");
+        let long_lived =
+            metered_monitor(&account, &records).with_metered_policy(MeteredPolicy::LongLived);
+        // A config reload keeps this process's own record.
+        let reloaded = long_lived.with_config(long_lived.config.clone()).unwrap();
+        for monitor in [&long_lived, &reloaded, &long_lived] {
+            let report = monitor.refresh_account(0).await;
+            assert_eq!(report.status, Status::Ready);
+            assert!(report
+                .notes_l10n
+                .iter()
+                .any(|note| note.id == "note.metered.record_unavailable_shared"));
+        }
+        assert_eq!(calls(&log), 1, "one billed call per interval");
     }
 
     fn metered_floor_error(
@@ -2810,7 +3077,10 @@ credential_env = "OPENAI_ADMIN_KEY"
         let store: Arc<dyn oauth::TokenStore> = EmptyStore::new();
         let session =
             Arc::new(oauth::OAuthSession::new(Arc::clone(&store), Arc::clone(&creds)).unwrap());
-        let monitor = Monitor::with_login_session(config, creds, session).unwrap();
+        let records = tempfile::tempdir().unwrap();
+        let monitor = Monitor::with_login_session(config, creds, session)
+            .unwrap()
+            .with_metered_dir(records.path().to_path_buf());
 
         let report = monitor.refresh_account(0).await;
         let position = report

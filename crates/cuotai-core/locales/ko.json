@@ -2448,5 +2448,9 @@
   "doctor.title.metered": "과금되는 조회의 공유 기록 {path}",
   "doctor.metered.unusable": "사용자 전용 폴더가 아니거나 쓸 수 없습니다. 고칠 때까지 1회성 명령은 AWS Bedrock을 조회하지 않습니다.",
   "doctor.fix.metered": "이 경로에 있는 것(파일, 링크, 다른 사용자의 폴더)을 제거하거나 사용자만 읽고 쓸 수 있는 폴더로 만드세요. Cuotai가 다시 만듭니다.",
-  "doctor.metered.absent": "아직 만들어지지 않았습니다. 첫 과금 조회 때 만들어집니다."
+  "doctor.metered.absent": "아직 만들어지지 않았습니다. 첫 과금 조회 때 만들어집니다.",
+  "note.metered.record_unavailable": "조회하지 않음: Cuotai가 과금되는 AWS Cost Explorer 조회의 공유 기록을 사용할 수 없었습니다. 폴더와 해결 방법은 `cuotai --doctor`를 실행해 확인하세요.",
+  "note.metered.record_busy": "조회하지 않음: 다른 Cuotai 프로그램이 과금되는 AWS Cost Explorer 조회의 공유 기록을 너무 오래 잡고 있었습니다. 잠시 후 다시 시도하세요.",
+  "note.metered.pending": "조회하지 않음: 다른 Cuotai 프로그램이 지금 이 계정을 조회하고 있습니다. 잠시 후 다시 시도하면 그 결과를 볼 수 있습니다.",
+  "note.metered.record_unavailable_shared": "과금되는 조회의 공유 기록을 사용할 수 없어 다른 Cuotai 프로그램도 이 계정을 조회할 수 있습니다."
 }

@@ -2430,7 +2430,9 @@ fn new_monitor(
         Arc::clone(session),
     )
     .map_err(io::Error::other)?
-    .with_incidents(incidents.clone());
+    .with_incidents(incidents.clone())
+    // PRD 0033 re-validation M-1: a long-lived process.
+    .with_metered_policy(cuotai_core::MeteredPolicy::LongLived);
     if let Ok(cache) = ModelCache::in_data_dir(file) {
         monitor = monitor.with_model_cache(cache);
     }

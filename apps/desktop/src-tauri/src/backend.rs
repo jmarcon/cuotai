@@ -2261,7 +2261,9 @@ impl Inner {
         })?
         // PRD 0011 RF4.3: the device's status preference and cached readings
         // survive a reload or a switch to another file.
-        .with_incidents(self.incidents.clone());
+        .with_incidents(self.incidents.clone())
+        // PRD 0033 re-validation M-1: the desktop app is long-lived.
+        .with_metered_policy(cuotai_core::MeteredPolicy::LongLived);
         // Keyed by `ConfigFile::identity()` in the OS data dir; no data dir
         // leaves model operations as `NoCache` while quotas keep working.
         let mut monitor = match cuotai_core::models::ModelCache::in_data_dir(&file) {
