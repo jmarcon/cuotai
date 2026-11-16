@@ -1941,8 +1941,8 @@
     "other": "und {count} weitere"
   },
   "quiet.digest.title": {
-    "one": "Cuotai: {count} Nutzungswarnung in der Ruhezeit zurückgehalten",
-    "other": "Cuotai: {count} Nutzungswarnungen in der Ruhezeit zurückgehalten"
+    "one": "Cuotai: {count} Warnung in der Ruhezeit gehalten",
+    "other": "Cuotai: {count} Warnungen in der Ruhezeit gehalten"
   },
   "remove.kept.declined": "Sie haben die Anmeldung im Systemtresor behalten.",
   "remove.kept.shared": "Die Zugangsdaten blieben erhalten, weil das Konto „{name}“ sie noch nutzt; ein Löschen würde dieses Konto beschädigen.",

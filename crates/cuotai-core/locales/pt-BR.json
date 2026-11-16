@@ -1938,8 +1938,8 @@
     "other": "e mais {count}"
   },
   "quiet.digest.title": {
-    "one": "Cuotai: {count} alerta de uso retido no horário de silêncio",
-    "other": "Cuotai: {count} alertas de uso retidos no horário de silêncio"
+    "one": "Cuotai: {count} alerta retido (horário de silêncio)",
+    "other": "Cuotai: {count} alertas retidos (horário de silêncio)"
   },
   "remove.kept.declined": "Você optou por manter a credencial no cofre do sistema.",
   "remove.kept.shared": "A credencial foi mantida porque a conta \"{name}\" ainda a usa; apagá-la quebraria a sobrevivente.",

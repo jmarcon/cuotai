@@ -1941,8 +1941,8 @@
     "other": "ve {count} tane daha"
   },
   "quiet.digest.title": {
-    "one": "Cuotai: sessiz saatlerde bekletilen {count} kullanım uyarısı",
-    "other": "Cuotai: sessiz saatlerde bekletilen {count} kullanım uyarısı"
+    "one": "Cuotai: sessiz saatlerde {count} uyarı bekletildi",
+    "other": "Cuotai: sessiz saatlerde {count} uyarı bekletildi"
   },
   "remove.kept.declined": "Kimlik bilgisini sistem kasasında tutmayı seçtiniz.",
   "remove.kept.shared": "\"{name}\" hesabı hâlâ kullandığı için kimlik bilgisi korundu; silmek kalan hesabı bozardı.",

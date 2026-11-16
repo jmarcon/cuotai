@@ -565,3 +565,42 @@ fn always_on_needs_a_week_without_gap() {
     schedule.days[3].clear();
     assert!(!schedule.always_on());
 }
+
+/// PRD 0032 re-validation C-02 (DS-CMP-NOTIF-1): the digest title fits 50
+/// characters in every catalog for one, two, nine and 99 held alerts, and
+/// a private digest's first line fits the 110-character body budget.
+#[test]
+fn the_digest_title_fits_the_notification_budget() {
+    let work = account("Work");
+    for count in [1, 2, 9, 99] {
+        let events: Vec<AlertEvent> = (0..count)
+            .map(|i| {
+                let mut e = event(AlertKind::Threshold, 90);
+                e.label = format!("Metric {i}");
+                e
+            })
+            .collect();
+        for private in [true, false] {
+            let digest = digest(
+                &[(&work, events.clone())],
+                utc(2026, 2, 16, 8, 0),
+                &chrono::Utc,
+                private,
+            )
+            .unwrap();
+            for locale in crate::text::LOCALES.iter().map(|row| row.code) {
+                let title = digest.title.resolve(locale);
+                assert!(
+                    title.chars().count() <= 50,
+                    "{locale} {count}: {title} ({})",
+                    title.chars().count()
+                );
+                assert!(!title.contains('{'), "{locale}: {title}");
+                if private {
+                    let first = digest.lines[0].resolve(locale);
+                    assert!(first.chars().count() <= 110, "{locale}: {first}");
+                }
+            }
+        }
+    }
+}
