@@ -13,6 +13,32 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.86.5] - 2026-11-16
+
+### Fixed
+
+- In Settings › Integrations, keyboard focus stays on the control you changed, and "Share usage statistics" stays reachable and says why it cannot be turned on yet (PRD 0031 RF11; d01e030).
+- The local server's `ETag` never repeats after a restart or a settings change, and `127.0.0.1` and `::1` share the six `/v1/stats` requests a minute (PRD 0031 RF6, RF11; 4b9d145).
+- The local server's `/v1/limits` marks an account whose reading failed with `failure`, and `cuotai --status-line --from-server` then exits 2 like the line without a server (PRD 0031 RF2, RF4; 0f7eb40).
+- The status line's `--account` accepts an account's id, key or unique name, queries only the chosen accounts, and stops with a list of ids when a value matches none (PRD 0031 RF2; d6234d5).
+- The status-bar recipes show the share left, such as `45% left · Personal`, with the menu bar's colours, and `/v1/limits` adds `remaining_ratio`, `level` and `label` to `summary.tightest` (PRD 0031 RF1, RF4; d6b14b6).
+- The status line counts every account it leaves out, the help and the server's messages read correctly in every language, `--reset-lead` refuses values above 1440 or without `--watch`, and `--serve --strict-exit` says why it exits 2 (PRD 0031 RF2, RF10, RF12; 50dda44).
+- The quiet-hours editor counts days in the right plural, shows times in your language's clock and starts the week on your language's first day (PRD 0032 RF2.3; 667d8b5).
+- The quiet-hours editor refuses duplicate, overlapping and empty intervals on the field itself, and says when the schedule never ends (PRD 0032 RF2.3; 667d8b5).
+- Notifications that list several held alerts or the weekly summary show one item per line again, ending with "and N more" when some are left out (PRD 0032 RF3.3; PRD 0043 RF4.3; 8ba23d6).
+- The notification that sums up alerts held during quiet hours keeps its whole title in every language (PRD 0032 RF3.3; 16b73d6).
+- Erasing all data also removes the notification lock file and any copy of it a crash left behind, so the data folder is removed too (PRD 0032 RF4.2; 7e8e08b).
+- The summary sent when quiet hours end no longer repeats a quota whose exhaustion was already notified (PRD 0032 RF3.3; 247c6e5).
+- The cuotai --notify banner that closes quiet hours lists the held alerts, and its clock follows the language's 12- or 24-hour format (PRD 0032 RF6; 93f57a8).
+- Quiet-hours times with a sign or non-ASCII digits are refused, and a schedule with no gap ends at most a week ahead (PRD 0032 RF2.1; c73eb5e).
+- The macOS widgets draw their content again on macOS 27.2 instead of a grey placeholder, an empty card or a squeezed chart (PRD 0014 RF3.2, RF3.3; 2ea1a27).
+
+### Security
+
+- The status line and the Claude Code status line read with `--from-server` send the server token only after the server proves it holds it, so a program squatting on the port no longer receives it; update the server first, since an older one is refused (PRD 0031 RF2; 51488c0).
+- The status lines read from a local server drop control and text-direction characters from account names, so a program on the port cannot change the terminal's title, write the clipboard or reorder the line (PRD 0031 RF2; 7c9e682).
+- A broken or planted notification lock file no longer slows down every refresh, and its link target is never touched (PRD 0032 RF4.2; 382183e).
+
 ## [0.86.4] - 2026-11-16
 
 ### Fixed
@@ -947,7 +973,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.86.4...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.86.5...HEAD
+[0.86.5]: https://github.com/jmarcon/cuotai/compare/v0.86.4...v0.86.5
 [0.86.4]: https://github.com/jmarcon/cuotai/compare/v0.86.3...v0.86.4
 [0.86.3]: https://github.com/jmarcon/cuotai/compare/v0.86.2...v0.86.3
 [0.86.2]: https://github.com/jmarcon/cuotai/compare/v0.86.1...v0.86.2

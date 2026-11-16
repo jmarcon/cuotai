@@ -2,7 +2,7 @@
 
 [`i3status.sh`](../../examples/integrations/i3status.sh) prints one block object of the [i3bar protocol](https://i3wm.org/docs/i3bar-protocol.html). Add it to the block array your `status_command` wrapper already emits (for example the wrapper around `i3status`, `i3blocks` or `bumblebee-status`), or run it from a small loop of your own. See the [index](README.md) for requirements and the environment variables.
 
-**Versions.** The script needs Cuotai vNEXT or later on the server side (it reads `summary.tightest.level` and `label`). `cuotai --status-line` needs 0.81.0 or later, and `--from-server` needs vNEXT on both sides (the server proves itself before the token is sent). Copy [`common.sh`](../../examples/integrations/common.sh) next to the script: the script sources it from its own folder.
+**Versions.** The script needs Cuotai 0.86.5 or later on the server side (it reads `summary.tightest.level` and `label`). `cuotai --status-line` needs 0.81.0 or later, and `--from-server` needs 0.86.5 on both sides (the server proves itself before the token is sent). Copy [`common.sh`](../../examples/integrations/common.sh) next to the script: the script sources it from its own folder.
 
 **Prefer `cuotai --status-line --from-server`** for a one-line bar: it reads the same running server, takes the token from its file, and never puts the token on a command line or sends it through a proxy, and sends it only after the server proved it holds it. The script below keeps the token off command lines and proxies too, but cannot check the server first: if another program holds the port while your server is down, it receives the token ([details](../local-server.md#who-receives-the-token)).
 

@@ -115,7 +115,7 @@ Until some account has a reading (current or preserved), the data routes answer 
 
 ### Who receives the token
 
-A program that holds the port while your server is stopped could collect the token of every client that sends it blindly. So, since vNEXT, `cuotai --status-line --from-server` and `cuotai --statusline-claude --from-server` make the server prove it holds the token before they send it (re-validation S-03):
+A program that holds the port while your server is stopped could collect the token of every client that sends it blindly. So, since 0.86.5, `cuotai --status-line --from-server` and `cuotai --statusline-claude --from-server` make the server prove it holds the token before they send it (re-validation S-03):
 
 1. The client sends `GET /health` with `Cuotai-Challenge: <nonce>` and **no** `Authorization`. The nonce is 32 fresh random bytes written as 64 lowercase hex characters.
 2. The server admits that one request without the token. Every other check still applies (`Host`, `Origin`, `Sec-Fetch-Site`, loopback, the rate buckets), and the access log records it as a `200`. A repeated header or a nonce that is not 64 lowercase hex characters gets `400 bad_challenge`; any other route keeps needing the token.

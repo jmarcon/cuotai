@@ -15,7 +15,7 @@ Claude Code's own status line is a different integration: Claude Code feeds Cuot
 
 ## What they read
 
-All of them need Cuotai vNEXT or later on the server side, whose `/v1/limits` carries `summary.tightest.remaining_ratio`, `level` and `label` (see [`CHANGELOG.md`](../../CHANGELOG.md)); an older server reads as "no data". `cuotai --status-line` needs 0.81.0 or later, and `--from-server` needs vNEXT on both sides. The scripts use only `summary.tightest` (`label`, `remaining_ratio`, `level`, `resets_at`), `summary.worst_class` and `summary.worst_incident`, all documented in [`export-v1.md`](../export-v1.md#limits-summary-limits). Treat an unknown `worst_class` or incident state as "other", as the contract policy says.
+All of them need Cuotai 0.86.5 or later on the server side, whose `/v1/limits` carries `summary.tightest.remaining_ratio`, `level` and `label` (see [`CHANGELOG.md`](../../CHANGELOG.md)); an older server reads as "no data". `cuotai --status-line` needs 0.81.0 or later, and `--from-server` needs 0.86.5 on both sides. The scripts use only `summary.tightest` (`label`, `remaining_ratio`, `level`, `resets_at`), `summary.worst_class` and `summary.worst_incident`, all documented in [`export-v1.md`](../export-v1.md#limits-summary-limits). Treat an unknown `worst_class` or incident state as "other", as the contract policy says.
 
 ## Configuration
 
