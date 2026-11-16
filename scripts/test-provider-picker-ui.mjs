@@ -305,4 +305,31 @@ assert.equal(lib.brand("alibaba_cloud").label, "Alibaba Cloud — billing");
   const css = await readFile(fileURLToPath(new URL("apps/desktop/ui/css/dialog.css", root)), "utf8");
   assert.match(css, /\.picker-search input::-webkit-search-cancel-button \{[^}]*display: none;/);
 }
+// PRD 0027 re-validation C-07: the browser demo's search is a port of the core's. For every query of the core-generated
+// table, in its language, the port returns the core's `(provider, mode)` list in the same order.
+{
+  const search = await import("../apps/desktop/ui/js/demo-search.js");
+  const read = async (path) => JSON.parse(await readFile(fileURLToPath(new URL(path, root)), "utf8"));
+  const catalog = await read("apps/desktop/ui/js/demo-catalog.json");
+  const { cases } = await read("apps/desktop/tools/catalog-parity.json");
+  const core = new Map();
+  for (const { locale } of cases) {
+    if (locale !== "en-US" && !core.has(locale)) core.set(locale, await read(`crates/cuotai-core/locales/${locale}.json`));
+  }
+  const resolve = (text, locale) => (locale === "en-US" ? text.fallback : search.resolveWith(core.get(locale), text));
+  assert.ok(cases.length > 90, "the parity table covers the RF2 queries in several languages");
+  for (const { query, locale, results } of cases) {
+    const got = search.searchCatalog(catalog, query, locale, resolve).map((e) => [e.provider, e.mode]);
+    assert.deepEqual(got, results, `${locale} ${JSON.stringify(query)}`);
+  }
+  assert.equal(search.fold("ｃｏｄｅｘ"), "codex");
+  assert.equal(search.fold("KİMİ"), "kimi");
+  assert.equal(search.fold("APIキー"), "api キー");
+  // The demo answers through the port: "api key" lists every key mode, not a name filter's single hit.
+  const demoKeys = await lib.searchProviders("api key", "en-US");
+  assert.deepEqual(demoKeys.map((e) => [e.provider, e.mode]),
+    cases.find((c) => c.query === "api key" && c.locale === "en-US").results);
+  assert.ok(demoKeys.length > 10);
+  assert.equal((await lib.searchProviders("gemini cli", "en-US"))[0]?.label, "Gemini CLI");
+}
 console.log("provider picker UI smoke: ok");
