@@ -131,7 +131,7 @@ impl Provider {
             Self::XiaomiMimo => "Xiaomi MIMO",
             Self::OpenCodeGo => "Opencode Go",
             Self::Qoder => "Qoder",
-            Self::GeminiAi => "Gemini AI (API key)",
+            Self::GeminiAi => "Gemini CLI",
             Self::Grok => "Grok (xAI)",
             Self::NvidiaNim => "NVIDIA NIM",
             Self::Poolside => "Poolside",

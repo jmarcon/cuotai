@@ -276,10 +276,11 @@ credential_env = "QODER_API_KEY"
 # example-end
 
 [[accounts]]
-name = "Gemini AI (API key)"
+name = "Gemini CLI"
 provider = "gemini_ai"
 credential_env = "GEMINI_API_KEY"
-# Gemini CLI is another product: a Code Assist OAuth session, not GEMINI_API_KEY.
+# An AI Studio key (GEMINI_API_KEY) has no usage query. The numbers come from the
+# Gemini CLI sign-in: the native login, or the CLI's session token below.
 # example: gemini-cli
 # params = { product = "cli", session_env = "GEMINI_CLI_ACCESS_TOKEN" }
 # example-end

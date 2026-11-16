@@ -1,4 +1,5 @@
-//! Single-key AI providers: Cloudflare Workers AI, Ollama Cloud and Gemini AI.
+//! Single-key AI providers: Cloudflare Workers AI, Ollama Cloud and the AI
+//! Studio key of Gemini CLI (`gemini_ai`).
 //!
 //! Each adapter is transparently registered as unsupported when
 //! the provider's public API does not expose quota/usage reading for the key
@@ -22,7 +23,7 @@
 //!   invocations of any Worker (`requests`, `errors`, `cpuTime`); it is not a
 //!   Workers AI metric nor does it expose Neurons per call, so it does not serve
 //!   as a Workers AI quota basis.
-//! - Gemini AI: [Gemini API rate limits](https://ai.google.dev/gemini-api/docs/rate-limits)
+//! - Gemini CLI (`gemini_ai`) with an AI Studio key: [Gemini API rate limits](https://ai.google.dev/gemini-api/docs/rate-limits)
 //!   and [All methods](https://ai.google.dev/api/all-methods). The AI Studio
 //!   API key (`AIza...`) has no public usage/remaining-quota endpoint; the
 //!   [AI Studio](https://aistudio.google.com/rate-limit) dashboard is the only
@@ -40,7 +41,7 @@ use crate::{Account, Provider};
 pub(crate) const GEMINI_MODELS_URL: &str =
     "https://generativelanguage.googleapis.com/v1beta/models";
 
-/// Gemini AI catalog with the AI Studio key (never the CLI/OAuth session).
+/// The `gemini_ai` model catalog with the AI Studio key (never the CLI/OAuth session).
 /// `name` (`models/...`) is the resource id the API returns, kept verbatim.
 pub(crate) async fn gemini_models(
     account: &Account,
