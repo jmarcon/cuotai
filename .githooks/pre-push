@@ -7,6 +7,8 @@
 # SIGPIPE (exit 141) without pushing. The preflight records a pass, stops a
 # run that outlived the window with "run git push again", and skips commits
 # that already passed, so `cargo xtask preflight --push && git push` stays fast.
+# A pass with steps bypassed by CUOTAI_SKIP counts only for a push that
+# bypasses the same steps or more (CUOTAI_SKIP=clippy git push).
 CUOTAI_HOOK_STARTED=$(date +%s)
 export CUOTAI_HOOK_STARTED
 . "$(dirname "$0")/lib.sh"
