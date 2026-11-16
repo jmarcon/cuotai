@@ -662,5 +662,7 @@
   "cost.plan.no_account": "Không có tài khoản đã cấu hình nào tên là {account}; hãy dùng id của nó hoặc provider:name.",
   "status_line.unknown_account": "--account {value} không chỉ đúng một tài khoản; hãy dùng id (từ --json-v1, /v1/limits hoặc dòng id trong TOML), khóa hoặc tên duy nhất. Id: {ids}.",
   "status_line.no_accounts": "không có",
-  "headless.strict_exit_no_ready": "cuotai: mã thoát 2 (--strict-exit): không tài khoản nào có lần đọc hợp lệ trước khi máy chủ dừng."
+  "headless.strict_exit_no_ready": "cuotai: mã thoát 2 (--strict-exit): không tài khoản nào có lần đọc hợp lệ trước khi máy chủ dừng.",
+  "wizard.interval.prompt_metered": "Khoảng thời gian riêng của tài khoản này, tính bằng giây ({min}–{max}); để trống = mỗi {default} giây:",
+  "wizard.interval.help_metered": "Chỉ áp dụng cho tài khoản này. Mức tối thiểu thực tế là {effective} giây: từ {min} đến {effective} giây được nâng lên {effective} giây."
 }

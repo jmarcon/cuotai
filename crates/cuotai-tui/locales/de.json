@@ -676,5 +676,7 @@
   "cost.plan.no_account": "Kein konfiguriertes Konto heißt {account}; verwenden Sie seine ID oder provider:name.",
   "status_line.unknown_account": "--account {value} bezeichnet kein einzelnes Konto; verwenden Sie eine ID (aus --json-v1, /v1/limits oder der id-Zeile der TOML), einen Schlüssel oder einen eindeutigen Namen. IDs: {ids}.",
   "status_line.no_accounts": "keine",
-  "headless.strict_exit_no_ready": "cuotai: Exit-Code 2 (--strict-exit): Kein Konto hatte vor dem Stopp des Servers eine fehlerfreie Messung."
+  "headless.strict_exit_no_ready": "cuotai: Exit-Code 2 (--strict-exit): Kein Konto hatte vor dem Stopp des Servers eine fehlerfreie Messung.",
+  "wizard.interval.prompt_metered": "Eigenes Intervall dieses Kontos in Sekunden ({min}–{max}); leer = alle {default} s:",
+  "wizard.interval.help_metered": "Gilt nur für dieses Konto. Das tatsächliche Minimum beträgt {effective} s: {min} bis {effective} s werden auf {effective} s angehoben."
 }

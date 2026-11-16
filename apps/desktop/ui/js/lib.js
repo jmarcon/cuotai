@@ -2625,7 +2625,7 @@ const demoBackup = (withHistory) => ({
 const demoBedrockSchema = () => {
   const sso = "login.aws_bedrock.aws_sso";
   return { credential_kind: "profile", default_env: "", credential_help: dl("credential_help.aws_bedrock", ""), aggregator: false,
-    interval: { min: 300, max: 86400, default_seconds: 3600 }, secret_inputs: [], terminal_only_fields: [], preselect: [], sessions: [], session_notice: null,
+    interval: { min: 300, max: 86400, default_seconds: 3600, effective_min: 900 }, secret_inputs: [], terminal_only_fields: [], preselect: [], sessions: [], session_notice: null,
     login: { modes: [{ id: "aws_sso", label: dl(`${sso}.label`, "AWS SSO (AWS CLI)"),
       help: dl(`${sso}.help`, "Runs \"aws sso login --use-device-code\" using the supplied profile; the token is cached by the AWS CLI itself, outside the Cuotai vault. Configure the profile beforehand with \"aws configure sso\"; Cost Explorer charges per query."),
       completion_notice: dl(`${sso}.completion_notice`, "AWS CLI SSO login completed."), credential_store: "external", account_binding: { type: "credential", option: "profile" },
@@ -2718,7 +2718,7 @@ const demo = {
   },
   // PRD 0047: the desktop types the key (`secret_inputs`); the variable-name fields are terminal-only.
   form_schema: async ({ provider }) => provider === "kiro" ? demoKiroSchema() : provider === "aws_bedrock" ? demoBedrockSchema() : ({ credential_kind: "env",
-    interval: provider === "aws_bedrock" ? { min: 300, max: 86400, default_seconds: 3600 } : { min: 30, max: 86400, default_seconds: null },
+    interval: provider === "aws_bedrock" ? { min: 300, max: 86400, default_seconds: 3600, effective_min: 900 } : { min: 30, max: 86400, default_seconds: null, effective_min: 30 },
     secret_inputs: [DEMO_KEY_INPUT, ...(provider === "xiaomi_mimo" ? [{ slot: DEMO_SESSION_SLOT.slot, label: DEMO_SESSION_SLOT.label,
       help: DEMO_SESSION_SLOT.instructions, required: false, cookie: true, field: null }] : [])],
     terminal_only_fields: [],

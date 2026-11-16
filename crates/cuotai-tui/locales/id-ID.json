@@ -662,5 +662,7 @@
   "cost.plan.no_account": "Tidak ada akun terkonfigurasi bernama {account}; gunakan id-nya atau provider:name.",
   "status_line.unknown_account": "--account {value} tidak menunjuk satu akun pun secara tunggal; gunakan id (dari --json-v1, /v1/limits, atau baris id di TOML), kunci, atau nama yang unik. Id: {ids}.",
   "status_line.no_accounts": "tidak ada",
-  "headless.strict_exit_no_ready": "cuotai: kode keluar 2 (--strict-exit): tidak ada akun yang mendapat pembacaan sehat sebelum server berhenti."
+  "headless.strict_exit_no_ready": "cuotai: kode keluar 2 (--strict-exit): tidak ada akun yang mendapat pembacaan sehat sebelum server berhenti.",
+  "wizard.interval.prompt_metered": "Interval akun ini sendiri dalam detik ({min}–{max}); kosong = setiap {default} dtk:",
+  "wizard.interval.help_metered": "Hanya berlaku untuk akun ini. Minimum sebenarnya {effective} dtk: {min} sampai {effective} dtk dinaikkan menjadi {effective} dtk."
 }

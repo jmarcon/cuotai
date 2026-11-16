@@ -191,7 +191,7 @@
   "dialog.peerHint": "You already have an unnamed account of this provider; give it a name to tell it apart from the new one. Leave blank to keep the provider's name.",
   "dialog.interval": "Refresh interval (s)",
   "dialog.intervalPlaceholder": "global default (min. 30)",
-  "dialog.intervalPlaceholderMetered": "provider default {default} (min. {min})",
+  "dialog.intervalPlaceholderMetered": "empty = {default} (min. {min})",
   "dialog.credProfile": "AWS profile",
   "dialog.credNone": "This plan uses the dedicated profile; there is no credential to enter.",
   "dialog.credOauth": "Account authenticated via OAuth; sign-in is handled by the app's flow.",
@@ -1765,5 +1765,6 @@
   "detect.costOffer.claude_code": "Its local logs can also estimate the cost at API prices; Cuotai reads them only after you turn the Claude Code source on.",
   "detect.costOffer.codex_cli": "Its local logs can also estimate the cost at API prices; Cuotai reads them only after you turn the Codex CLI source on.",
   "detect.costOffer.gemini_cli": "Its local logs can also estimate the cost at API prices; Cuotai reads them only after you turn the Gemini CLI source on.",
-  "coreText.sessionIncomplete": "The saved web session lacks the cookies {names}. Paste a new one."
+  "coreText.sessionIncomplete": "The saved web session lacks the cookies {names}. Paste a new one.",
+  "dialog.intervalHintMetered": "Empty: once every {default} minutes. Minimum {effective} minutes: {min} to {effective} minutes are raised to {effective}."
 }

@@ -194,7 +194,7 @@
   "dialog.peerHint": "Vous avez déjà un compte sans nom de ce fournisseur ; nommez-le pour le distinguer du nouveau. Vide, il garde le nom du fournisseur.",
   "dialog.interval": "Intervalle d’actualisation (s)",
   "dialog.intervalPlaceholder": "valeur globale (min. 30)",
-  "dialog.intervalPlaceholderMetered": "valeur du fournisseur {default} (min. {min})",
+  "dialog.intervalPlaceholderMetered": "vide = {default} (min. {min})",
   "dialog.credProfile": "Profil AWS",
   "dialog.credNone": "Ce forfait utilise le profil dédié ; aucun identifiant à saisir.",
   "dialog.credOauth": "Compte authentifié via OAuth ; la connexion est gérée par le flux de l’application.",
@@ -1754,5 +1754,6 @@
   "detect.costOffer.claude_code": "Ses journaux locaux peuvent aussi estimer le coût aux prix de l'API ; Cuotai ne les lit qu'après que vous avez activé la source Claude Code.",
   "detect.costOffer.codex_cli": "Ses journaux locaux peuvent aussi estimer le coût aux prix de l'API ; Cuotai ne les lit qu'après que vous avez activé la source Codex CLI.",
   "detect.costOffer.gemini_cli": "Ses journaux locaux peuvent aussi estimer le coût aux prix de l'API ; Cuotai ne les lit qu'après que vous avez activé la source Gemini CLI.",
-  "coreText.sessionIncomplete": "Il manque à la session web enregistrée les cookies {names}. Collez-en une nouvelle."
+  "coreText.sessionIncomplete": "Il manque à la session web enregistrée les cookies {names}. Collez-en une nouvelle.",
+  "dialog.intervalHintMetered": "Vide : une fois toutes les {default} minutes. Minimum {effective} minutes : de {min} à {effective} minutes, l'intervalle est porté à {effective}."
 }

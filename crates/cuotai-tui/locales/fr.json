@@ -676,5 +676,7 @@
   "cost.plan.no_account": "Aucun compte configuré ne s’appelle {account} ; utilisez son identifiant ou provider:name.",
   "status_line.unknown_account": "--account {value} ne désigne aucun compte unique ; utilisez un id (de --json-v1, /v1/limits ou la ligne id du TOML), une clé ou un nom unique. Ids : {ids}.",
   "status_line.no_accounts": "aucun",
-  "headless.strict_exit_no_ready": "cuotai : code de sortie 2 (--strict-exit) : aucun compte n’a eu de relevé correct avant l’arrêt du serveur."
+  "headless.strict_exit_no_ready": "cuotai : code de sortie 2 (--strict-exit) : aucun compte n’a eu de relevé correct avant l’arrêt du serveur.",
+  "wizard.interval.prompt_metered": "Intervalle propre à ce compte en secondes ({min}–{max}) ; vide = toutes les {default} s :",
+  "wizard.interval.help_metered": "S'applique à ce compte seulement. Le minimum réel est de {effective} s : de {min} à {effective} s, l'intervalle est porté à {effective} s."
 }

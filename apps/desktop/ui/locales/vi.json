@@ -192,7 +192,7 @@
   "dialog.peerHint": "Bạn đã có một tài khoản chưa đặt tên của nhà cung cấp này; hãy đặt tên để phân biệt với tài khoản mới. Để trống sẽ giữ tên nhà cung cấp.",
   "dialog.interval": "Chu kỳ làm mới (giây)",
   "dialog.intervalPlaceholder": "mặc định chung (tối thiểu 30)",
-  "dialog.intervalPlaceholderMetered": "mặc định của nhà cung cấp {default} (tối thiểu {min})",
+  "dialog.intervalPlaceholderMetered": "để trống = {default} (tối thiểu {min})",
   "dialog.credProfile": "Hồ sơ AWS",
   "dialog.credNone": "Gói này dùng hồ sơ riêng; không có thông tin xác thực để nhập.",
   "dialog.credOauth": "Tài khoản được xác thực qua OAuth; việc đăng nhập do luồng của ứng dụng xử lý.",
@@ -1726,5 +1726,6 @@
   "detect.costOffer.claude_code": "Nhật ký cục bộ của nó cũng có thể ước tính chi phí theo giá API; Cuotai chỉ đọc chúng sau khi bạn bật nguồn Claude Code.",
   "detect.costOffer.codex_cli": "Nhật ký cục bộ của nó cũng có thể ước tính chi phí theo giá API; Cuotai chỉ đọc chúng sau khi bạn bật nguồn Codex CLI.",
   "detect.costOffer.gemini_cli": "Nhật ký cục bộ của nó cũng có thể ước tính chi phí theo giá API; Cuotai chỉ đọc chúng sau khi bạn bật nguồn Gemini CLI.",
-  "coreText.sessionIncomplete": "Phiên web đã lưu thiếu cookie {names}. Hãy dán phiên mới."
+  "coreText.sessionIncomplete": "Phiên web đã lưu thiếu cookie {names}. Hãy dán phiên mới.",
+  "dialog.intervalHintMetered": "Để trống: mỗi {default} phút một lần. Tối thiểu {effective} phút: từ {min} đến {effective} phút được nâng lên {effective}."
 }

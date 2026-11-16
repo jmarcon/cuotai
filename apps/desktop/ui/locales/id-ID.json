@@ -192,7 +192,7 @@
   "dialog.peerHint": "Anda sudah punya akun tanpa nama dari penyedia ini; beri nama agar berbeda dari yang baru. Kosongkan untuk memakai nama penyedia.",
   "dialog.interval": "Interval penyegaran (dtk)",
   "dialog.intervalPlaceholder": "bawaan global (min. 30)",
-  "dialog.intervalPlaceholderMetered": "bawaan penyedia {default} (min. {min})",
+  "dialog.intervalPlaceholderMetered": "kosong = {default} (min. {min})",
   "dialog.credProfile": "Profil AWS",
   "dialog.credNone": "Paket ini memakai profil khusus; tidak ada kredensial yang perlu dimasukkan.",
   "dialog.credOauth": "Akun diautentikasi melalui OAuth; proses masuk ditangani oleh alur aplikasi.",
@@ -1726,5 +1726,6 @@
   "detect.costOffer.claude_code": "Log lokalnya juga dapat memperkirakan biaya dengan harga API; Cuotai hanya membacanya setelah Anda menyalakan sumber Claude Code.",
   "detect.costOffer.codex_cli": "Log lokalnya juga dapat memperkirakan biaya dengan harga API; Cuotai hanya membacanya setelah Anda menyalakan sumber Codex CLI.",
   "detect.costOffer.gemini_cli": "Log lokalnya juga dapat memperkirakan biaya dengan harga API; Cuotai hanya membacanya setelah Anda menyalakan sumber Gemini CLI.",
-  "coreText.sessionIncomplete": "Sesi web yang disimpan tidak memiliki cookie {names}. Tempelkan sesi baru."
+  "coreText.sessionIncomplete": "Sesi web yang disimpan tidak memiliki cookie {names}. Tempelkan sesi baru.",
+  "dialog.intervalHintMetered": "Kosong: sekali setiap {default} menit. Minimum {effective} menit: {min} sampai {effective} menit dinaikkan menjadi {effective}."
 }

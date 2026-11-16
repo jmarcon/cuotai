@@ -676,5 +676,7 @@
   "cost.plan.no_account": "{account} adında yapılandırılmış bir hesap yok; kimliğini veya provider:name kullanın.",
   "status_line.unknown_account": "--account {value} tek bir hesabı göstermiyor; bir id (--json-v1, /v1/limits veya TOML'daki id satırından), bir anahtar ya da benzersiz bir ad kullanın. Id'ler: {ids}.",
   "status_line.no_accounts": "yok",
-  "headless.strict_exit_no_ready": "cuotai: çıkış kodu 2 (--strict-exit): sunucu durmadan önce hiçbir hesabın sağlıklı bir okuması olmadı."
+  "headless.strict_exit_no_ready": "cuotai: çıkış kodu 2 (--strict-exit): sunucu durmadan önce hiçbir hesabın sağlıklı bir okuması olmadı.",
+  "wizard.interval.prompt_metered": "Bu hesabın kendi aralığı, saniye ({min}–{max}); boş = her {default} sn:",
+  "wizard.interval.help_metered": "Yalnızca bu hesaba uygulanır. Gerçek alt sınır {effective} sn: {min} ile {effective} sn arası {effective} sn'ye yükseltilir."
 }

@@ -676,5 +676,7 @@
   "cost.plan.no_account": "किसी भी कॉन्फ़िगर किए गए खाते का नाम {account} नहीं है; उसकी id या provider:name इस्तेमाल करें।",
   "status_line.unknown_account": "--account {value} किसी एक खाते की पहचान नहीं करता; एक id (--json-v1, /v1/limits या TOML की id पंक्ति से), एक कुंजी या एक अद्वितीय नाम इस्तेमाल करें। Ids: {ids}।",
   "status_line.no_accounts": "कोई नहीं",
-  "headless.strict_exit_no_ready": "cuotai: निकास कोड 2 (--strict-exit): सर्वर रुकने से पहले किसी भी खाते की सही रीडिंग नहीं मिली।"
+  "headless.strict_exit_no_ready": "cuotai: निकास कोड 2 (--strict-exit): सर्वर रुकने से पहले किसी भी खाते की सही रीडिंग नहीं मिली।",
+  "wizard.interval.prompt_metered": "इस खाते का अपना अंतराल सेकंड में ({min}–{max}); खाली = हर {default} s:",
+  "wizard.interval.help_metered": "केवल इस खाते पर लागू। वास्तविक न्यूनतम {effective} s है: {min} से {effective} s को {effective} s कर दिया जाता है।"
 }

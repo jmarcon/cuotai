@@ -194,7 +194,7 @@
   "dialog.peerHint": "Sie haben bereits ein unbenanntes Konto dieses Anbieters; geben Sie ihm einen Namen, um es vom neuen zu unterscheiden. Leer lassen behält den Anbieternamen.",
   "dialog.interval": "Aktualisierungsintervall (s)",
   "dialog.intervalPlaceholder": "Standard global (min. 30)",
-  "dialog.intervalPlaceholderMetered": "Standard des Anbieters {default} (min. {min})",
+  "dialog.intervalPlaceholderMetered": "leer = {default} (min. {min})",
   "dialog.credProfile": "AWS-Profil",
   "dialog.credNone": "Dieser Tarif nutzt das dedizierte Profil; es sind keine Zugangsdaten einzugeben.",
   "dialog.credOauth": "Das Konto wird per OAuth authentifiziert; die Anmeldung übernimmt der Ablauf der App.",
@@ -1754,5 +1754,6 @@
   "detect.costOffer.claude_code": "Seine lokalen Protokolle können auch die Kosten zu API-Preisen schätzen; Cuotai liest sie erst, wenn du die Quelle Claude Code einschaltest.",
   "detect.costOffer.codex_cli": "Seine lokalen Protokolle können auch die Kosten zu API-Preisen schätzen; Cuotai liest sie erst, wenn du die Quelle Codex CLI einschaltest.",
   "detect.costOffer.gemini_cli": "Seine lokalen Protokolle können auch die Kosten zu API-Preisen schätzen; Cuotai liest sie erst, wenn du die Quelle Gemini CLI einschaltest.",
-  "coreText.sessionIncomplete": "Der gespeicherten Websitzung fehlen die Cookies {names}. Fügen Sie eine neue ein."
+  "coreText.sessionIncomplete": "Der gespeicherten Websitzung fehlen die Cookies {names}. Fügen Sie eine neue ein.",
+  "dialog.intervalHintMetered": "Leer: einmal alle {default} Minuten. Mindestens {effective} Minuten: {min} bis {effective} Minuten werden auf {effective} angehoben."
 }

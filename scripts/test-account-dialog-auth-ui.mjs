@@ -108,8 +108,16 @@ for (const file of locales) {
 }
 assert.match(dialog, /placeholder="\$\{esc\(intervalPlaceholder\(\)\)\}"/);
 assert.match(dialog, /async function renderDynamic\(\) \{\s*form\.querySelector\("\[name=interval\]"\)\.placeholder = intervalPlaceholder\(\);/);
-assert.match(dialog, /t\("dialog\.intervalPlaceholderMetered", \{ default: bounds\.default_seconds, min: bounds\.min \}\)/);
+assert.match(dialog, /t\("dialog\.intervalPlaceholderMetered", \{ default: bounds\.default_seconds, min: bounds\.effective_min \?\? bounds\.min \}\)/);
 const bedrockSchema = await lib.formSchema("aws_bedrock");
-assert.deepEqual(bedrockSchema.interval, { min: 300, max: 86400, default_seconds: 3600 });
-assert.equal(i18n.t("dialog.intervalPlaceholderMetered", { default: 3600, min: 300 }), "provider default 3600 (min. 300)");
+assert.deepEqual(bedrockSchema.interval, { min: 300, max: 86400, default_seconds: 3600, effective_min: 900 });
+assert.equal(i18n.t("dialog.intervalPlaceholderMetered", { default: 3600, min: 900 }), "empty = 3600 (min. 900)");
+// PRD 0033 re-validation V-05: the real default and floor sit next to the field, and the advisory is linked to it.
+assert.match(dialog, /aria-describedby="interval-hint cost-warn"/);
+for (const file of locales) {
+  const catalog = JSON.parse(await readFile(ui(`locales/${file}`), "utf8"));
+  const text = catalog["dialog.intervalHintMetered"];
+  assert.ok(typeof text === "string" && ["{default}", "{effective}", "{min}"].every((p) => text.includes(p)), `${file}: dialog.intervalHintMetered`);
+  if (file !== "en-US.json") assert.notEqual(text, en["dialog.intervalHintMetered"], `${file}: untranslated`);
+}
 console.log("account dialog auth UI: ok");

@@ -192,7 +192,7 @@
   "dialog.peerHint": "이 공급자의 이름 없는 계정이 이미 있습니다. 새 계정과 구분하도록 이름을 지정하세요. 비워 두면 공급자 이름이 유지됩니다.",
   "dialog.interval": "새로 고침 간격(초)",
   "dialog.intervalPlaceholder": "전역 기본값(최소 30)",
-  "dialog.intervalPlaceholderMetered": "공급자 기본값 {default}(최소 {min})",
+  "dialog.intervalPlaceholderMetered": "비우면 {default} (최소 {min})",
   "dialog.credProfile": "AWS 프로필",
   "dialog.credNone": "이 요금제는 전용 프로필을 사용하므로 입력할 자격 증명이 없습니다.",
   "dialog.credOauth": "OAuth로 인증된 계정입니다. 로그인은 앱의 흐름에서 처리됩니다.",
@@ -1726,5 +1726,6 @@
   "detect.costOffer.claude_code": "로컬 로그로 API 가격 기준 비용도 추정할 수 있습니다. Cuotai는 Claude Code 소스를 켠 뒤에만 읽습니다.",
   "detect.costOffer.codex_cli": "로컬 로그로 API 가격 기준 비용도 추정할 수 있습니다. Cuotai는 Codex CLI 소스를 켠 뒤에만 읽습니다.",
   "detect.costOffer.gemini_cli": "로컬 로그로 API 가격 기준 비용도 추정할 수 있습니다. Cuotai는 Gemini CLI 소스를 켠 뒤에만 읽습니다.",
-  "coreText.sessionIncomplete": "저장된 웹 세션에 쿠키 {names}이(가) 없습니다. 새 세션을 붙여 넣으세요."
+  "coreText.sessionIncomplete": "저장된 웹 세션에 쿠키 {names}이(가) 없습니다. 새 세션을 붙여 넣으세요.",
+  "dialog.intervalHintMetered": "비우면 {default}분마다 한 번. 최소 {effective}분: {min}~{effective}분은 {effective}분으로 올립니다."
 }
