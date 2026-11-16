@@ -1448,11 +1448,22 @@ if (new URLSearchParams(location.search).get("aggregator") !== "off") {
       ],
       alert_each: false, dashboard: true } });
 }
+// PRD 0029 re-validation (V-01, V-03): `?unnamed` leaves a plain account (Groq, the only one of its provider) and the
+// 9router instance without a name, as a configuration may; the core then shows them by their provider.
+if (new URLSearchParams(location.search).has("unnamed")) {
+  for (const r of demoReports) if (r.provider === "groq" || r.provider === "nine_router") r.account = "";
+}
 // PRD 0016 RF2.1 demo: the platform session slot the core declares for Xiaomi MiMo.
 // PRD 0027 RF6.4: the native-login detections of the core table (Kimi CLI, Grok CLI, Zed) for the demo picker.
 export const DEMO_NATIVE_DETECT = [["claude", "claude_cli", "Claude Code", "Claude Code"], ["chat_gpt", "codex_cli", "Codex CLI", "OpenAI Codex"], ["kimi", "kimi_cli", "Kimi Code CLI", "Kimi"], ["grok", "grok_cli", "Grok CLI", "Grok (xAI)"], ["zed", "zed", "Zed", "Zed"]];
-/** The demo's stable account id (PRD 0029) of the account at `index`. */
-const demoAccountId = (index) => `acc_demo${String(index).padStart(8, "0")}`;
+/** The demo's stable account id (PRD 0029) of the account at `index`: kept by the account itself, never by its position
+ * (PRD 0029 re-validation V-12), so a removal or a move never shifts another account's hidden or menu-bar selection. */
+const demoIds = new WeakMap();
+let demoNextId = 0;
+const demoAccountId = (index) => {
+  for (const r of demoReports) if (!demoIds.has(r)) demoIds.set(r, `acc_demo${String(demoNextId++).padStart(8, "0")}`);
+  return demoIds.get(demoReports[index]);
+};
 const DEMO_KEY_INPUT = { slot: "credential_env", label: { id: "secret_input.credential.label", params: {}, fallback: "API key or access token" },
   help: { id: "secret_input.help", params: {}, fallback: "Paste the value. Cuotai keeps it in the system vault and sends it only to this provider; the configuration file keeps just a reference." },
   required: true, cookie: false, field: null };
@@ -1707,7 +1718,9 @@ const demoView = () => {
       .map((c) => ({ ...c, index, binding: demoConnectionBinding(c), binding_rank: 0, pace_index: null,
       metrics: c.metrics.map((m) => ({ ...m, pace: null, alert: null })), next_refresh_at_ms: Date.now() + 90e3, access: demoAccess(r),
       account_key: `nine_router:${r.account}/${c.demo_id}`, notify: true, usage_alerts: [], incident: null }));
-    return { ...r, account: demoName(r.account), connections, index, binding: demoBinding(r), binding_rank: DEMO_BINDINGS.get(r)?.[1] ?? DEMO_BINDINGS.size + index,
+    // PRD 0029 RF3.4: the backend's `named` and `display_name`.
+    const named = Boolean((r.account ?? "").trim());
+    return { ...r, account: demoName(r.account), named, display_name: named ? demoName(r.account).trim() : providerName(r.provider), connections, index, binding: demoBinding(r), binding_rank: DEMO_BINDINGS.get(r)?.[1] ?? DEMO_BINDINGS.size + index,
       metrics, pace_index: paceIndex, windows: r.status === "ready" ? demoTrayPair(r) : null,
       next_refresh_at_ms: Date.now() + (40 + index * 37) * 1000, uses_oauth: r.provider === "kiro" || r.uses_oauth, access: demoAccess(r),
       // PRD 0025 re-validation V-19: the stable id the real backend sends (the popover's menu-bar split reads it).
@@ -1747,7 +1760,8 @@ function demoTrayPreview({ style, accounts }) {
   const tight = [...items].filter((a) => a.remaining != null).sort((a, b) => a.remaining - b.remaining)[0];
   const title = style === "tightest_percent" ? (tight ? `${tight.figure} · ${tight.name}`.slice(0, 24) : items.length ? "—" : null)
     : style === "logos_percent" ? items.slice(0, 3).map((a) => `${a.provider_label[0].toUpperCase()} ${a.figure}`).join(" · ") : null;
-  const label = items.map((a) => `${a.name} ${a.figure}`).join("; ");
+  // V-12: the core's `tray::summary` reads each account's display name (its provider's when unnamed).
+  const label = items.map((a) => `${titleParts(a.provider, a.name)[0]} ${a.figure}`).join("; ");
   return { style, items: style === "meters" ? items.slice(0, 4) : items, hidden: 0, title, badge: "none",
     accessible_label: { id: "demo", params: {}, fallback: label }, tooltip: { id: "demo", params: {}, fallback: `Cuotai — ${label}` } };
 }
@@ -2605,7 +2619,8 @@ const demo = {
     window.__lastSaveRequest = input;
     // PRD 0029 RF3: the core rule — a name is needed only beside another account of the provider.
     const others = demoReports.filter((x, i) => i !== input.index && x.provider === input.provider);
-    if (!input.name.trim() && others.length) throw JSON.stringify({ id: "edit_error.name_required_same_provider", params: { provider: { id: `provider.${input.provider}`, params: {}, fallback: input.provider } }, fallback: "Name this account: you have another account of the provider." });
+    // V-12: as the core sends it, on the name field, with the provider's name in the English text.
+    if (!input.name.trim() && others.length && input.provider !== "extension") throw JSON.stringify({ id: "edit_error.name_required_same_provider", field: "name", params: { provider: { id: `provider.${input.provider}`, params: {}, fallback: providerName(input.provider) } }, fallback: `Name this account: you have another ${providerName(input.provider)} account.` });
     const peer = input.index == null ? others.find((x) => !x.account.trim()) : null;
     if (peer) {
       if (!input.peerName?.trim()) throw JSON.stringify({ id: "edit_error.name_required", field: "peer_name", params: {}, fallback: "Set a name for the account." });
@@ -2622,6 +2637,7 @@ const demo = {
     const prev = input.index == null ? null : demoReports[input.index];
     if (input.sessions?.some((p) => p.paste.trim())) demoSettings.sessionMigrated.add(r);
     else for (const set of [demoSettings.sessionMigrated, demoSettings.sessionForgotten]) if (set.has(prev)) set.add(r);
+    if (input.index != null) demoIds.set(r, demoAccountId(input.index)); // an edit keeps the account's id
     input.index == null ? demoReports.push(r) : (demoReports[input.index] = r);
     demoSettings.generation++;
     return { cleanup_warning: null };
