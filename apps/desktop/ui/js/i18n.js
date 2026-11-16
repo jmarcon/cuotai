@@ -339,7 +339,12 @@ function dateFormat(shape) {
   if (!fmt) { fmt = new Intl.DateTimeFormat(intlLocale(), shape); dateFormats.set(key, fmt); }
   return fmt;
 }
-const hour12 = () => /h1[12]/.test(dateFormat({ hour: "numeric" }).resolvedOptions().hourCycle ?? "");
+const hourCycles = new Map();
+const hour12 = () => {
+  const locale = intlLocale();
+  if (!hourCycles.has(locale)) hourCycles.set(locale, /h1[12]/.test(dateFormat({ hour: "numeric" }).resolvedOptions().hourCycle ?? ""));
+  return hourCycles.get(locale);
+};
 
 /** PRD 0024 re-validation (V-01): the text of a core clock (`at.time` `{hour, minute}`, `at.weekday` `{weekday,
  *  hour?, minute?}` with an ISO weekday, `at.date` `{day, month, hour?, minute?}`, `at.hour` `{hour}`) in the UI locale and its hour
