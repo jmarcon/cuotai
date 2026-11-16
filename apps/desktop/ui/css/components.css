@@ -179,7 +179,6 @@ svg.i.sg { width: 12px; height: 12px; }
   flex: none;
   color: var(--fg-muted);
 }
-.stl .det[hidden] { display: none; }
 .stl .rst {
   display: inline-flex;
   flex: none;
@@ -440,9 +439,6 @@ kbd {
   background: var(--surface);
   box-shadow: var(--shadow);
 }
-.tab-more .menu[hidden] {
-  display: none;
-}
 .tab-more .menu button {
   display: flex;
   align-items: center;
@@ -490,7 +486,6 @@ dialog:focus-visible {
   font: 600 var(--text-sm) var(--font-ui), var(--font-script);
   white-space: nowrap;
 }
-.tchip[hidden] { display: none; }
 .fig b.warn { color: var(--warn); }
 
 /* ---- PRD 0025 RF9 / PRD 0022 RF8.2 (DS-CMP-DENS-1..5): the row display ----

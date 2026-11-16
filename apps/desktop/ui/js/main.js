@@ -11,11 +11,11 @@ import { mountTimeline } from "./timeline.js";
 import { bindUpdateBanner, initUpdates, onUpdateState, promptForUpdateConsent, updateBannerHtml, updateState } from "./updater.js";
 import { maybeShowFirstRun } from "./first-run.js";
 import { openRestoreDialog } from "./backup-dialog.js";
-import {
+import { accountName, accountFullLabel,
   fmtNext, fmtAge, fmtShare, metricName, ALERTS, overageChipHtml, ageHtml, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, fmtAmount, getView, icon, initTheme, isBindingMetric, isBlocked, isDesktop, isStaleReading, level, logo, wordmark,
   moveAccount, onHiddenChange, disabledAccounts, onDisabledChange, initHiddenAccounts, migrateHiddenAccounts, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
   currentSort, initOrderSync, staleView, configChangedOnDisk, reloadConfig, configLabel, errText, updateErrText, otherConfigNotice, otherConfigBanner, dismissOtherConfig, returnText, splitRecharging,
-  accountLabel, billingOverage, isRecharging, resetsText, bestChipHtml, cardPace, forecastChipHtml, renewedText, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, setPoolAlerts, setBreakdownAlerts, openAggregatorDashboard, incidentHtml, bindStatusLinks, costUsage, paceHtml, paceLineLabel, costPlans,
+  accountTitle, billingOverage, isRecharging, resetsText, bestChipHtml, cardPace, forecastChipHtml, renewedText, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, setPoolAlerts, setBreakdownAlerts, openAggregatorDashboard, incidentHtml, bindStatusLinks, costUsage, paceHtml, paceLineLabel, costPlans,
   openSettingsWindow, bindSettingsShortcut, onSettingsChanged, onAccountAction, listExtensions, extensionSecrets,
   planBadgeHtml, scopeBlocksHtml, budgetSuggestion,
   sessionAction, liveSessionHtml, dismissFeedBanner, historyRelocation, relocationBannerHtml, clockSkewBannerHtml,
@@ -147,8 +147,8 @@ function card(r, ctx, recharging = false, { connection = false } = {}) {
   const foot = (counts.length ? `<span class="count">${counts.join(" · ")}</span>` : "") + chips.slice(0, 4).join("");
   // DS-CMP-ROW-1/CARD-1: with several accounts of a provider the account label is the title, the provider below.
   const repeated = ctx.repeated.has(r.provider);
-  const title = repeated ? accountLabel(r) : brand(r.provider).label;
-  const sub = repeated ? brand(r.provider).label : accountLabel(r);
+  const title = repeated ? accountTitle(r) : brand(r.provider).label;
+  const sub = repeated ? brand(r.provider).label : accountName(r);
   const st = accountState(r);
   // PRD 0025 RF9.5 (re-validation V-10): the card follows the window's row display where it has the element: Minimal's
   // one status, the status parts, the age (here) and, through the root's CSS hook, the plan, label, monogram, unit,
@@ -223,7 +223,7 @@ function aggregatorSection(r, ctx) {
     .filter((g) => g.items.length);
   const failed = r.status !== "ready";
   const refreshName = isBusy ? te("tray.refreshing") : te("common.refresh");
-  return `<section class="agg-section${disabled.has(r) ? " off" : ""}" data-card="${esc(key)}" aria-label="${esc(`${brand(r.provider).label} · ${r.account}`)}">
+  return `<section class="agg-section${disabled.has(r) ? " off" : ""}" data-card="${esc(key)}" aria-label="${esc(accountFullLabel(r))}">
     <header class="agg-head">${instanceHeadHtml(r)}
       <div class="actions">
         <button class="icon" title="${refreshName}" aria-label="${refreshName}" data-refresh="${r.index}" ${isBusy ? 'disabled aria-busy="true"' : ""}>${icon("refresh", isBusy ? "spin" : "")}</button>
@@ -790,8 +790,8 @@ onAccountAction(({ action, index, secretsOf = null }) => {
   if (action === "add") return openAccountDialog(null, { onSaved, onExtension: (id) => openExtensionManager(id) });
   if (!r) return;
   if (action === "edit") return editAccount(index);
-  if (action === "remove" && secretsOf) return removeExtensionAccount(index, accountLabel(r), String(secretsOf));
-  if (action === "remove") return detailsContext.onRemove(index, accountLabel(r));
+  if (action === "remove" && secretsOf) return removeExtensionAccount(index, accountTitle(r), String(secretsOf));
+  if (action === "remove") return detailsContext.onRemove(index, accountTitle(r));
 });
 // PRD 0018 RF2.2/RF2.6: the backend state repaints update notices, while the main
 // window alone hosts the one-time consent dialog. Its native modal layer does not

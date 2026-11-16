@@ -983,9 +983,6 @@
   background: var(--surface);
   box-shadow: var(--shadow);
 }
-.card-more .menu[hidden] {
-  display: none;
-}
 .card-more .menu > button {
   display: flex;
   align-items: center;

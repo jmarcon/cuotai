@@ -554,9 +554,6 @@
   display: inline-flex;
   gap: calc(var(--space-1) + var(--space-0));
 }
-.set-commit[hidden] {
-  display: none;
-}
 .set-btns {
   display: inline-flex;
   flex-wrap: wrap;
@@ -609,9 +606,6 @@
   color: var(--fg);
   font-size: var(--text-sm, 12px);
   line-height: 1.45;
-}
-.set-pop[hidden] {
-  display: none;
 }
 
 /* RF5.2: a disclosure inside a group. */
@@ -711,9 +705,6 @@
   box-shadow: var(--shadow-dialog);
   font-size: var(--text-sm, 12px);
   transition: opacity var(--motion-base) var(--ease-out);
-}
-.set-toast[hidden] {
-  display: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

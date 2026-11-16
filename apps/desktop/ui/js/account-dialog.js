@@ -2,7 +2,7 @@
 // RF2: the login is orchestrated by the core; this dialog only renders typed
 // events (LoginEvent, no secrets) and sends user input.
 import {
-  accountIndex, accountLabel, configChangedOnDisk, deleteAccount, detectSources, forgetExtensionSecrets, dismissDetected, draftAccess, errText, esc, fieldChoices, formSchema, getAccount,
+  accountIndex, accountTitle, configChangedOnDisk, deleteAccount, detectSources, forgetExtensionSecrets, dismissDetected, draftAccess, errText, esc, fieldChoices, formSchema, getAccount,
   getSettings, getView, icon, listProviders, logo, NEW_PROVIDER_URL, openExternal, openSettingsWindow, sessionOpenLinkHtml, keyPageLinkHtml, installLinkHtml, providerModes, setDetectEnabled,
   loginCancel, loginStart, loginSubmitCode, forgetSession, migrateSession, modelSupport, onLogin, previewSession, reloadConfig,
   reportKey, saveAccount, captureSession, cancelSessionCapture, forgetSharedCapture, sessionCaptureHintHtml, sessionNoticeHtml, testAggregator, testSession, validMonogram, visibleFields,
@@ -97,7 +97,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     <p class="cost-advisory offer-consent" id="offer-consent" role="note" hidden><span id="offer-consent-text"></span>
       <button type="button" class="link" data-offer-dismiss>${te("dialog.detect.dismiss")}</button></p>
     <p class="hint offer-cost" id="offer-cost" hidden><span id="offer-cost-text"></span> <button type="button" class="link" data-offer-cost>${te("detect.costOffer.open")}</button></p>
-    <label class="f" data-field="name"><span>${te("dialog.nameOptional")}</span><input name="name" value="${esc(existing?.name ?? "")}" aria-describedby="name-hint" /><small class="hint" id="name-hint"></small><small class="field-err" id="name-err" role="alert" hidden></small></label>
+    <label class="f" data-field="name"><span id="name-label">${te("dialog.nameOptional")}</span><input name="name" value="${esc(existing?.name ?? "")}" aria-describedby="name-hint" /><small class="hint" id="name-hint"></small><small class="field-err" id="name-err" role="alert" hidden></small></label>
     <label class="f" data-field="peer_name" id="peer-row" hidden><span id="peer-label"></span><input name="peer_name" autocomplete="off" aria-describedby="peer-hint" /><small class="hint" id="peer-hint"></small><small class="field-err" role="alert" hidden></small></label>
     <div id="dyn"><div id="dyn-auth"></div>
     <div class="login-panel" id="login-panel" hidden>
@@ -159,19 +159,28 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   let peerShown = false;
   // The peer the field currently describes (`provider:index`): its value is prefilled whenever that changes.
   let peerKey = null;
+  // V-01: what was typed for each peer, so text is never dropped silently: a peer that goes away and comes back
+  // (switching providers in the picker) shows it again.
+  const peerValues = new Map();
   const providerLabel = () => providers.find((p) => p.id === provider)?.label ?? provider;
   async function syncNameRule() {
     const view = await getView().catch(() => null);
     const same = (view?.reports ?? []).filter((r) => r.provider === provider && r.index !== index);
-    nameNeeded = same.length > 0;
+    // The core's `name_required`: extension accounts follow their own per-extension rule on save.
+    nameNeeded = provider !== "extension" && same.length > 0;
     const peer = editing ? null : same.find((r) => !(r.account ?? "").trim());
     const label = providerLabel();
-    nameInput.placeholder = label;
+    // V-04: "(optional)" only while the name is.
+    dlg.querySelector("#name-label").textContent = nameNeeded ? t("dialog.name") : t("dialog.nameOptional");
+    nameInput.placeholder = nameNeeded ? "" : label;
     dlg.querySelector("#name-hint").textContent = nameNeeded ? t("dialog.nameNeeded", { provider: label }) : t("dialog.nameHint", { provider: label });
     // The prefill follows the peer itself, not the row's visibility: switching providers in the picker never
     // leaves another provider's value (or a blank) behind. Blank stays allowed: the core then keeps the default.
     const key = peer ? `${provider}:${peer.index}` : null;
-    if (key !== peerKey) peerInput.value = peer ? label : "";
+    if (key !== peerKey) {
+      if (peerKey) peerValues.set(peerKey, peerInput.value);
+      peerInput.value = key ? peerValues.get(key) ?? label : "";
+    }
     peerKey = key;
     peerShown = Boolean(peer);
     peerRow.hidden = !peerShown;
@@ -1367,7 +1376,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     models = null;
     modelsHost.innerHTML = editing || !same.length
       ? `<div data-models-slot></div>${support ? `<p class="hint">${te("models.title")}: ${tl(support.text, {}, true)}${support.supported ? ` ${te("models.saveFirst")}` : ""}</p>` : ""}`
-      : `<label class="f"><span>${te("models.pick")}</span><select id="models-pick"><option value="">${te("models.pickNone")}</option>${same.map((r) => `<option value="${esc(reportKey(r))}">${esc(accountLabel(r))}</option>`).join("")}</select></label><div data-models-slot></div>`;
+      : `<label class="f"><span>${te("models.pick")}</span><select id="models-pick"><option value="">${te("models.pickNone")}</option>${same.map((r) => `<option value="${esc(reportKey(r))}">${esc(accountTitle(r))}</option>`).join("")}</select></label><div data-models-slot></div>`;
     if (editing) return mountIn(`${existing.provider}::${existing.name}`, index, generation);
     modelsHost.querySelector("#models-pick")?.addEventListener("change", (e) => {
       const r = same.find((x) => reportKey(x) === e.target.value);

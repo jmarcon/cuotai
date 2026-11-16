@@ -2,7 +2,7 @@
 // stay in the main window, which owns them), the sort, the tray view, the row display, the "Recharging" group,
 // consumption pace and the refresh interval.
 import { t, te } from "../i18n.js";
-import { accountLabel, brand, claudeCodeSnippets, durationText, esc, getView, logo, moveAccount, requestAccountAction, adviceShown, currentSort, groupingRecharging, icon, liveSessionShown, setAdviceEnabled, setLiveSession, setGroupRecharging, setPaceUnit, setRefreshSeconds, setShowPace, setSort, setTrayView, TRAY_VIEWS, trayViewOf } from "../lib.js";
+import { accountTitle, brand, claudeCodeSnippets, durationText, esc, getView, logo, moveAccount, requestAccountAction, adviceShown, currentSort, groupingRecharging, icon, liveSessionShown, setAdviceEnabled, setLiveSession, setGroupRecharging, setPaceUnit, setRefreshSeconds, setShowPace, setSort, setTrayView, TRAY_VIEWS, trayViewOf } from "../lib.js";
 import { errorText, group, l10nError } from "./common.js";
 import { commitField, disc, num, row, rowError, select, seg, sw, toast } from "./rows.js";
 import { AGG_MODES, aggregatorsInAll, setAggregatorsInAll } from "../aggregator.js";
@@ -80,7 +80,7 @@ export function accountsHtml(reports) {
   const list = reports.filter((r) => Number.isInteger(r.index) && r.index >= 0 && !r.connection).sort((a, b) => a.index - b.index);
   if (!list.length) return `<p class="hint">${te("settings.accounts.none")}</p>`;
   return `<ul class="mb-list acc-list" aria-label="${te("settings.accounts.title")}">${list.map((r, i) => {
-    const name = accountLabel(r);
+    const name = accountTitle(r);
     return `<li class="mb-acc" data-index="${r.index}">
       <button type="button" class="icon mb-grip" data-acc-grip aria-label="${te("settings.menubar.move", { name })}" title="${te("settings.menubar.move.hint")}" aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown" data-pos="${i}">${icon("grip")}</button>
       ${logo(r.provider, 28)}

@@ -198,7 +198,7 @@ assert.ok(bedrockAccess.every((m) => m === false), "no demo account is metered b
 // catalog's `provider.<slug>` in other languages); its own map keeps only the color and the mark.
 await lib.loadProviderLabels();
 const unnamedKiro = { provider: "kiro", account: "" };
-assert.equal(lib.accountLabel(unnamedKiro), "Kiro (AWS)");
+assert.equal(lib.accountTitle(unnamedKiro), "Kiro (AWS)");
 assert.equal(lib.brand("nvidia_nim").label, "NVIDIA NIM");
 assert.equal(lib.brand("chat_gpt").label, "ChatGPT / Codex");
 const libSrc = await readFile(fileURLToPath(new URL("apps/desktop/ui/js/lib.js", root)), "utf8");

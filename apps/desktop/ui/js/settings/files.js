@@ -3,7 +3,7 @@
 import { t, te, tl } from "../i18n.js";
 import { THEMES } from "../themes.js";
 import { LOCALES, skippedMessage, userContent } from "../usercontent.js";
-import { BACKUP_GUIDE_URL, brand, configLabel, doctorReport, esc, icon, openExternal, openUserDir, otherConfigNotice, pickFolder, pickTomlFile, setConfigFile, setDataDir, setUserDir, vaultAudit, vaultPrune, vaultRemove } from "../lib.js";
+import { accountFullLabel, BACKUP_GUIDE_URL, configLabel, doctorReport, esc, icon, openExternal, openUserDir, otherConfigNotice, pickFolder, pickTomlFile, setConfigFile, setDataDir, setUserDir, vaultAudit, vaultPrune, vaultRemove } from "../lib.js";
 import { openBackupDialog, openRestoreDialog } from "../backup-dialog.js";
 import { configErrorText, errorText, group } from "./common.js";
 import { buttons, disc, pathHtml, row } from "./rows.js";
@@ -61,7 +61,8 @@ const VAULT_OWNERS = { channel: "settings.vault.owner.channel", extension_secret
 function vaultOwner(e) {
   if (e.status !== "in_use") return te(`settings.vault.status.${e.status}`);
   if (VAULT_OWNERS[e.kind]) return te(VAULT_OWNERS[e.kind]);
-  return `${esc(e.account ?? "")} · ${esc(brand(e.provider).label)}`;
+  // PRD 0029 RF3.4 (V-07): an unnamed account by its provider once.
+  return esc(accountFullLabel({ provider: e.provider, named: e.named, display_name: e.account }));
 }
 
 const vaultKind = (e) => te(e.kind ? `settings.vault.kind.${e.kind}` : "settings.vault.kind.unknown");

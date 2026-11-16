@@ -4,7 +4,7 @@
 // Tray rows, main-window cards and the details dialog draw the same markup; every interpretive text comes from
 // the core (`tl`) or from the UI catalogs.
 import { t, te, tl } from "./i18n.js";
-import {
+import { accountFullLabel,
   ALERTS, billingOverage, bindingLabel, causeText, bindingPct, brand, extraFigure, fmtShare, fmtExtra, fmtLocal, fmtReset, paceUnit, esc, fmtAge, icon, incidentBadge, isBlocked, isMetricHidden, isStaleReading, level, logo,
   paceLabelOf, paceOf, remainingPct, reportKey, shownAt, staleView, statusLabel, summaryOf, windowsOf,
   planBadgeHtml,
@@ -372,7 +372,7 @@ export function trackChanges(view) {
       const r = view.reports.find((x) => reportKey(x) === key);
       const was = old.pct != null ? `${old.pct}%` : old.name;
       const value = cur.pct != null ? t("meter.left", { pct: cur.pct }) : cur.name;
-      lines.push(t("live.changed", { account: `${brand(r.provider).label} · ${r.account}`, value, was }));
+      lines.push(t("live.changed", { account: accountFullLabel(r), value, was }));
     }
   }
   pendingAnnouncement = lines.join(". ");
@@ -453,11 +453,11 @@ export function filterTabsHtml(reports, { selected: filter = "all", moreOpen = f
   const aggTab = (r) => {
     const a = r.aggregator;
     const pct = r.status === "ready" && a.total ? (a.available / a.total) * 100 : null;
-    const name = [brand(r.provider).label, r.account, t("agg.connections", { count: a.connections }), ...(a.pools ?? []).map((p) => tl(p.summary))].join(", ");
+    const name = [accountFullLabel(r, ", "), t("agg.connections", { count: a.connections }), ...(a.pools ?? []).map((p) => tl(p.summary))].join(", ");
     return tab(aggregatorTabId(r), `<span class="tw">${tileHtml(r.provider, 20)}<i class="tst" aria-hidden="true">${ringHtml(pct == null ? "unknown" : "pct", pct, 10)}</i></span><span class="cnt">${a.connections}</span>`, name, " badged agg");
   };
   const entries = [...providers.map((p) => ({ id: p, provider: p, label: brand(p).label, html: () => providerTab(p) })),
-    ...aggs.map((r) => ({ id: aggregatorTabId(r), provider: r.provider, label: `${brand(r.provider).label} · ${r.account}`, html: () => aggTab(r) }))];
+    ...aggs.map((r) => ({ id: aggregatorTabId(r), provider: r.provider, label: accountFullLabel(r), html: () => aggTab(r) }))];
   const overflow = entries.length > maxTabs + 1;
   const shown = overflow ? entries.slice(0, maxTabs) : entries;
   const rest = overflow ? entries.slice(maxTabs) : [];

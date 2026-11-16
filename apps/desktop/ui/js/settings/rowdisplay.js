@@ -4,7 +4,7 @@
 // Choosing a preset sets the switches; changing a switch selects Custom. One layout serves the menu bar and the main
 // window unless "Use a different layout in the main window" is on, which adds a choice of which one to edit.
 import { t, te } from "../i18n.js";
-import { accountLabel, brand, esc, getSettings, setRows } from "../lib.js";
+import { accountName, accountTitle, brand, esc, getSettings, setRows } from "../lib.js";
 import { applyRowLayout, choosePreset, ELEMENTS, PRESETS, resolve, toggled } from "../density.js";
 
 /** PRD 0025 re-validation V-10: the elements a main-window card does not have (a card always shows its windows).
@@ -64,7 +64,7 @@ export function previewHtml(view, layout) {
   const r = real ?? SAMPLE;
   // The row component reads this window's layout: the preview is the only row drawn here.
   applyRowLayout(layout);
-  const html = rowHtml(r, { title: brand(r.provider).label, sub: accountLabel(r), mono: "" });
+  const html = rowHtml(r, { title: brand(r.provider).label, sub: accountName(r), mono: "" });
   return real ? html : `${html}<p class="hint">${te("settings.rows.example")}</p>`;
 }
 

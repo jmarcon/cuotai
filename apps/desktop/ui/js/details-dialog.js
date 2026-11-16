@@ -1,6 +1,6 @@
 // Account details dialog (opened by the card's magnifier): full quotas, history, notes, badges and actions.
 import { te, tl } from "./i18n.js";
-import { acknowledgeMissed, bellHtml, brand, esc, hiddenMetrics, icon, logo, openSettingsWindow, reportKey, sessionAction, statusLabel } from "./lib.js";
+import { accountName, accountFullLabel, acknowledgeMissed, bellHtml, brand, esc, hiddenMetrics, icon, logo, openSettingsWindow, reportKey, sessionAction, statusLabel } from "./lib.js";
 import { detailHtml, mountModels, openReference } from "./detail.js";
 import { costDetailHtml, sourceFor } from "./cost.js";
 import { mountHistory } from "./history.js";
@@ -41,7 +41,7 @@ function render() {
   dlg.innerHTML = `<div class="dlg-body">
     <div class="det-head">
       ${logo(r.provider, 44)}
-      <div class="who"><h2>${esc(brand(r.provider).label)}</h2><p>${esc(r.account)}</p>${id.email && id.email !== r.account ? `<p class="sub2">${esc(id.email)}</p>` : ""}${badges(id.badges)}</div>
+      <div class="who"><h2>${esc(brand(r.provider).label)}</h2>${accountName(r) ? `<p>${esc(accountName(r))}</p>` : ""}${id.email && id.email !== r.account ? `<p class="sub2">${esc(id.email)}</p>` : ""}${badges(id.badges)}</div>
       ${r.status !== "ready" ? `<span class="pill st-${r.status}">${esc(statusLabel(r.status))}</span>` : ""}
       <div class="actions">
         ${bellHtml(ctx.view(), r)}
@@ -62,7 +62,7 @@ function renderConnection(r) {
   dlg.innerHTML = `<div class="dlg-body">
     <div class="det-head">
       ${logo(r.provider, 44)}
-      <div class="who"><h2>${esc(brand(r.provider).label)}</h2><p>${esc(r.account)}</p></div>
+      <div class="who"><h2>${esc(brand(r.provider).label)}</h2>${accountName(r) ? `<p>${esc(accountName(r))}</p>` : ""}</div>
       ${r.status !== "ready" ? `<span class="pill st-${r.status}">${esc(statusLabel(r.status))}</span>` : ""}
       <div class="actions">${bellHtml(ctx.view(), r)}</div>
     </div>
@@ -149,7 +149,7 @@ export function openDetails(key, context, from = null) {
       else if (t.closest("[data-paste-session]")) { const rep = r(); dlg.close(); if (rep) ctx.onPasteSession(rep.index); }
       else if (t.closest("[data-remove]")) {
         const rep = r(); dlg.close();
-        if (rep) ctx.onRemove(rep.index, `${brand(rep.provider).label} — ${rep.account}`);
+        if (rep) ctx.onRemove(rep.index, accountFullLabel(rep, " — "));
       }
     });
     showDialog(dlg, from);
