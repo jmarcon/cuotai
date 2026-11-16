@@ -25,9 +25,9 @@ use std::collections::BTreeMap;
 // PRD 0027 RF1/RF2: the provider catalog and its search live in `catalog.rs`
 // and are exposed here with the other account-editing descriptors.
 pub use crate::catalog::{
-    catalog, detect_env_keys, process_env_is_set, provider_catalog, search, CatalogEntry,
-    CatalogMatch, CatalogMode, Category, EnvDetection, LocalSource, ProviderCatalog, ProviderRow,
-    SignInMethod,
+    bounded_query, catalog, detect_env_keys, process_env_is_set, provider_catalog, search,
+    CatalogEntry, CatalogMatch, CatalogMode, Category, EnvDetection, LocalSource, ProviderCatalog,
+    ProviderRow, SignInMethod, MAX_QUERY_CHARS,
 };
 
 /// Minimum interval accepted for an individual account override. Matches the
