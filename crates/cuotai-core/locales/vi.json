@@ -12,7 +12,10 @@
       "models.unsupported.reason.eleven_labs",
       "models.unsupported.reason.jetbrains_ai",
       "models.unsupported.reason.litellm",
-      "models.unsupported.reason.nine_router"
+      "models.unsupported.reason.nine_router",
+      "text.duration.compact.days",
+      "text.duration.compact.hours",
+      "text.duration.compact.minutes"
     ]
   },
   "access.confirm_unavailable": "{reason} Tài khoản sẽ được lưu, nhưng sẽ hiện lý do này thay cho số liệu.",
@@ -2018,6 +2021,9 @@
   "test.nine_router.untrusted_certificate": "Máy tính này không tin cậy chứng chỉ của phiên bản. Dấu vân tay SHA-256: {fingerprint}. Hãy kiểm tra trên máy chủ trước khi tin cậy.",
   "text.countdown": "sau {duration}",
   "text.countdown.now": "bây giờ",
+  "text.duration.compact.days": "{d} ngày",
+  "text.duration.compact.hours": "{h} giờ",
+  "text.duration.compact.minutes": "{m} phút",
   "text.duration.days": "{d} ngày",
   "text.duration.days_hours": "{d} ngày {h} giờ",
   "text.duration.hours": "{h} giờ",

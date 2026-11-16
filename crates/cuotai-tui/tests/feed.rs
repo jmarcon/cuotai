@@ -111,8 +111,8 @@ fn the_status_line_prints_claude_windows_and_context() {
         &input(),
     );
     let line = String::from_utf8(output.stdout).unwrap();
-    assert_eq!(line.trim_end().chars().count(), 14, "{line}");
-    assert!(line.trim_end().ends_with('…'), "{line}");
+    // PRD 0034 re-validation V-01: whole parts only, never a cut figure.
+    assert_eq!(line.trim_end(), "5h 23%", "{line}");
     let (output, _) = run(&data, &["--feed", "claude-statusline", "--print"], &input());
     let line = String::from_utf8(output.stdout).unwrap();
     assert!(line.starts_with("5h 23%"), "{line}");

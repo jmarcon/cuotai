@@ -12,7 +12,10 @@
       "models.unsupported.reason.eleven_labs",
       "models.unsupported.reason.jetbrains_ai",
       "models.unsupported.reason.litellm",
-      "models.unsupported.reason.nine_router"
+      "models.unsupported.reason.nine_router",
+      "text.duration.compact.days",
+      "text.duration.compact.hours",
+      "text.duration.compact.minutes"
     ]
   },
   "access.confirm_unavailable": "{reason} Hesap kaydedilecek, ancak sayılar yerine bu nedeni gösterecek.",
@@ -2042,6 +2045,9 @@
   "test.nine_router.untrusted_certificate": "Bu bilgisayar örneğin sertifikasına güvenmiyor. SHA-256 parmak izi: {fingerprint}. Güvenmeden önce sunucuda kontrol edin.",
   "text.countdown": "{duration} sonra",
   "text.countdown.now": "şimdi",
+  "text.duration.compact.days": "{d}g",
+  "text.duration.compact.hours": "{h}sa",
+  "text.duration.compact.minutes": "{m} dk",
   "text.duration.days": "{d}g",
   "text.duration.days_hours": "{d}g {h}sa",
   "text.duration.hours": "{h}sa",

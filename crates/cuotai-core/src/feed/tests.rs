@@ -875,7 +875,7 @@ fn the_status_line_golden_fixtures() {
 }
 
 #[test]
-fn the_status_line_drops_ctx_then_the_other_account_then_cuts_claude() {
+fn the_status_line_drops_ctx_then_the_other_account_then_claude_parts() {
     let others = [other("Codex", 0.64)];
     let input = format!(
         r#"{{"session_id":"t","context_window":{{"used_percentage":8}},"rate_limits":{{"five_hour":{{"used_percentage":23,"resets_at":{}}}}}}}"#,
@@ -890,7 +890,57 @@ fn the_status_line_drops_ctx_then_the_other_account_then_cuts_claude() {
         "5h 23% ↺ 15:00 · Codex 64% left"
     );
     assert_eq!(line(&input, &others, Some(16)).text, "5h 23% ↺ 15:00");
-    assert_eq!(line(&input, &others, Some(8)).text, "5h 23% …");
+    // V-01: whole parts only: the reset goes before Claude's windows.
+    assert_eq!(line(&input, &others, Some(8)).text, "5h 23%");
+    assert_eq!(line(&input, &others, Some(5)).text, "");
+}
+
+/// PRD 0034 re-validation V-01: the width is counted in terminal cells (a
+/// Japanese character takes two) and no figure is ever cut.
+#[test]
+fn the_status_line_counts_cells_and_never_cuts_a_figure() {
+    let others = [other("Codex", 0.64)];
+    let input = format!(
+        r#"{{"session_id":"t","context_window":{{"used_percentage":8}},"rate_limits":{{"five_hour":{{"used_percentage":23,"resets_at":{}}}}}}}"#,
+        now().timestamp() + 3_600
+    );
+    let reading = claude::parse(input.as_bytes(), now()).unwrap();
+    let ja = |width: Option<usize>| {
+        statusline::compose(
+            Some(&reading),
+            &others,
+            now(),
+            |t| t.format("%H:%M").to_string(),
+            width,
+            "ja",
+        )
+        .text
+    };
+    let reset = format!("↺ {}", (now() + TimeDelta::hours(1)).format("%H:%M"));
+    // "5時間 23% ↺ 15:00" is 15 characters but 17 cells.
+    assert_eq!(ja(Some(20)), format!("5時間 23% {reset}"));
+    assert_eq!(ja(Some(16)), "5時間 23%");
+    // Every part shown is one of the whole parts of the full line.
+    let full = ja(None);
+    let mut whole: Vec<String> = full.split(" · ").map(str::to_owned).collect();
+    whole.push("5時間 23%".into());
+    for width in 0..=60 {
+        let text = ja(Some(width));
+        let cells: usize = text
+            .chars()
+            .map(|c| {
+                if ('\u{3000}'..='\u{9fff}').contains(&c) {
+                    2
+                } else {
+                    1
+                }
+            })
+            .sum();
+        assert!(cells <= width, "{width}: {text}");
+        for part in text.split(" · ").filter(|part| !part.is_empty()) {
+            assert!(whole.iter().any(|w| w == part), "{width}: {part} in {full}");
+        }
+    }
 }
 
 #[test]

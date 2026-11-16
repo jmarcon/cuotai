@@ -12,7 +12,10 @@
       "models.unsupported.reason.eleven_labs",
       "models.unsupported.reason.jetbrains_ai",
       "models.unsupported.reason.litellm",
-      "models.unsupported.reason.nine_router"
+      "models.unsupported.reason.nine_router",
+      "text.duration.compact.days",
+      "text.duration.compact.hours",
+      "text.duration.compact.minutes"
     ]
   },
   "access.confirm_unavailable": "{reason}账户会被保存，但会显示此原因而不是数字。",
@@ -2018,6 +2021,9 @@
   "test.nine_router.untrusted_certificate": "此电脑不信任实例的证书。SHA-256 指纹：{fingerprint}。信任前请在服务器上核对。",
   "text.countdown": "{duration}后",
   "text.countdown.now": "现在",
+  "text.duration.compact.days": "{d}天",
+  "text.duration.compact.hours": "{h}小时",
+  "text.duration.compact.minutes": "{m}分钟",
   "text.duration.days": "{d}天",
   "text.duration.days_hours": "{d}天{h}小时",
   "text.duration.hours": "{h}小时",

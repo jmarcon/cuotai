@@ -566,6 +566,65 @@ pub fn duration(span: chrono::TimeDelta) -> Localized {
     }
 }
 
+/// PRD 0034 re-validation V-01: a span in its largest unit only, rounded to
+/// the nearest one ("20h" for 19 h 58 min, "4d" for 3 d 23 h), for a column
+/// too narrow for [`duration`]. Under an hour it is [`duration`]'s minutes
+/// (rounded up, at least 1, never "60 min"); a span that rounds to 24 hours
+/// reads in days. The figure and its unit never part (a no-break space
+/// where the language spaces them).
+pub fn duration_compact(span: chrono::TimeDelta) -> Localized {
+    let secs = span.num_seconds().max(0);
+    if secs < 3_600 {
+        let minutes = ((secs + 59) / 60).clamp(1, 59).to_string();
+        return Localized::with_param(
+            "text.duration.compact.minutes",
+            "m",
+            minutes.as_str(),
+            "{m}\u{a0}min",
+        );
+    }
+    let hours = (secs + 1_800) / 3_600;
+    if hours < 24 {
+        let h = hours.to_string();
+        return Localized::with_param("text.duration.compact.hours", "h", h.as_str(), "{h}h");
+    }
+    let days = ((secs + 43_200) / 86_400).max(1).to_string();
+    Localized::with_param("text.duration.compact.days", "d", days.as_str(), "{d}d")
+}
+
+#[cfg(test)]
+#[test]
+fn compact_durations_round_to_the_nearest_largest_unit() {
+    let compact = |secs: i64, locale: &str| {
+        duration_compact(chrono::TimeDelta::seconds(secs)).resolve(locale)
+    };
+    let (min, hour, day) = (60, 3_600, 86_400);
+    assert_eq!(compact(0, "en-US"), "1\u{a0}min");
+    assert_eq!(compact(59 * min + 30, "en-US"), "59\u{a0}min");
+    assert_eq!(compact(hour, "en-US"), "1h");
+    assert_eq!(compact(19 * hour + 58 * min, "en-US"), "20h");
+    assert_eq!(compact(5 * hour + 29 * min, "en-US"), "5h");
+    assert_eq!(compact(23 * hour + 40 * min, "en-US"), "1d");
+    assert_eq!(compact(3 * day + 3 * hour, "en-US"), "3d");
+    assert_eq!(compact(3 * day + 23 * hour, "en-US"), "4d");
+    assert_eq!(compact(11 * day + 23 * hour, "en-US"), "12d");
+    assert_eq!(compact(19 * hour + 58 * min, "de"), "20\u{a0}Std.");
+    assert_eq!(compact(3 * day + 23 * hour, "ru"), "4\u{a0}д");
+    assert_eq!(compact(11 * day + 23 * hour, "zh-CN"), "12天");
+    assert_eq!(compact(3 * hour + 59 * min, "ko"), "4시간");
+    // Every catalog words all three units, the figure kept whole.
+    for row in LOCALES.iter().filter(|row| row.is_translated()) {
+        for secs in [5 * min, 3 * hour, 4 * day] {
+            let text = compact(secs, row.code);
+            assert!(
+                !text.contains('{') && !text.contains(' '),
+                "{}: {text}",
+                row.code
+            );
+        }
+    }
+}
+
 /// PRD 0024 RF1.4: time until something happens, "in 1h 35m" (see
 /// [`duration`]), or "now" for a span under one second.
 pub fn countdown(span: chrono::TimeDelta) -> Localized {
