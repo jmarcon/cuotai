@@ -2472,5 +2472,9 @@
   "cost.plan.share_small": "menos de 1% do preço do plano",
   "cost.plan.share_small_rate": "menos de 1% do preço do plano, no seu câmbio",
   "cost.plan.share_small_plans": "menos de 1% do preço dos planos",
-  "cost.plan.share_small_plans_rate": "menos de 1% do preço dos planos, no seu câmbio"
+  "cost.plan.share_small_plans_rate": "menos de 1% do preço dos planos, no seu câmbio",
+  "doctor.title.metered": "Registro compartilhado de consultas cobradas {path}",
+  "doctor.metered.unusable": "Não é uma pasta privada do seu usuário, ou não pode ser gravada; comandos de execução única não consultam o AWS Bedrock até que seja corrigida.",
+  "doctor.fix.metered": "Remova o que estiver neste caminho (um arquivo, um link ou a pasta de outro usuário) ou transforme-o em uma pasta que só o seu usuário possa ler e gravar; o Cuotai a recria.",
+  "doctor.metered.absent": "Ainda não foi criado; a primeira consulta cobrada o cria."
 }

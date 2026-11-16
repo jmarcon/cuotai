@@ -81,6 +81,8 @@ esac
             .args(extra)
             .env("HOME", &home)
             .env("XDG_DATA_HOME", home.join("data"))
+            // PRD 0033 re-validation M-4: never the real metered records.
+            .env("CUOTAI_METERED_DIR", home.join("metered"))
             .env("XDG_CONFIG_HOME", home.join("config"))
             .env("PATH", path)
             .env("CUOTAI_LANG", "en-US")

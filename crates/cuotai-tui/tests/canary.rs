@@ -47,6 +47,7 @@ impl Sandbox {
         // (`data` is XDG_DATA_HOME on Linux, `Library` is macOS's data dir.)
         let _ = fs::remove_dir_all(home.join("data"));
         let _ = fs::remove_dir_all(home.join("Library"));
+        let _ = fs::remove_dir_all(home.join("metered"));
         let path = format!(
             "{}:{}",
             self.0.join("bin").display(),
@@ -62,6 +63,8 @@ impl Sandbox {
             .args(extra)
             .env("HOME", &home)
             .env("XDG_DATA_HOME", home.join("data"))
+            // PRD 0033 re-validation M-4: never the real metered records.
+            .env("CUOTAI_METERED_DIR", home.join("metered"))
             .env("XDG_CONFIG_HOME", home.join("config"))
             .env("PATH", path)
             .env("CUOTAI_LANG", "en-US")

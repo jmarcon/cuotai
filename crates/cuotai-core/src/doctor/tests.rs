@@ -28,6 +28,7 @@ impl Fixture {
             var: Box::new(move |name| vars.get(name).cloned()),
             data_override: Ok(None),
             data_root: Some(self.dir.path().join("data")),
+            metered_dir: Some(self.dir.path().join("os-local").join("metered")),
             desktop_settings: Some(self.dir.path().join("desktop.json")),
             port,
             version: "9.9.9".into(),

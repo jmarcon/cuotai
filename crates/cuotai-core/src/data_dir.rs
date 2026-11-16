@@ -9,7 +9,8 @@
 //! (the stores are then unavailable and [`check_override`] says why).
 //! The history, model cache, reset marks, cost index and settings, prices,
 //! hook consent/log/work folders, extensions, serve token, last-config
-//! records, vault index, metered records, canary records, update-check
+//! records, vault index, canary records, update-check (the metered records
+//! stay in one fixed per-user place: `metered_record::Store::default_dir`)
 //! cache and the desktop widget file (on Windows and Linux; on macOS it
 //! stays at `widget_snapshot::MACOS_PATH`) all live under it.
 

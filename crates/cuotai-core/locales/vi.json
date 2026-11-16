@@ -2444,5 +2444,9 @@
   "cost.plan.share_small": "dưới 1% giá gói",
   "cost.plan.share_small_rate": "dưới 1% giá gói, theo tỷ giá của bạn",
   "cost.plan.share_small_plans": "dưới 1% tổng giá các gói",
-  "cost.plan.share_small_plans_rate": "dưới 1% tổng giá các gói, theo tỷ giá của bạn"
+  "cost.plan.share_small_plans_rate": "dưới 1% tổng giá các gói, theo tỷ giá của bạn",
+  "doctor.title.metered": "Bản ghi dùng chung các truy vấn tính phí {path}",
+  "doctor.metered.unusable": "Đây không phải thư mục riêng của người dùng của bạn, hoặc không ghi được; các lệnh chạy một lần sẽ không truy vấn AWS Bedrock cho đến khi được sửa.",
+  "doctor.fix.metered": "Xóa thứ đang nằm ở đường dẫn này (một tệp, một liên kết hoặc thư mục của người dùng khác) hoặc biến nó thành thư mục chỉ người dùng của bạn đọc và ghi được; Cuotai sẽ tạo lại.",
+  "doctor.metered.absent": "Chưa được tạo; truy vấn tính phí đầu tiên sẽ tạo nó."
 }

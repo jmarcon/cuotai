@@ -26,6 +26,10 @@ use crate::diagnostics::redact::home_abbreviated;
 pub enum Root {
     /// `<OS local data dir>/cuotai`.
     LocalData,
+    /// `<OS local data dir>/cuotai`, never moved by `CUOTAI_DATA_DIR` or
+    /// the desktop's data-folder setting: machine-local billing state that
+    /// every front end must share (PRD 0033 re-validation M-4).
+    OsLocalData,
     /// `<OS config dir>/cuotai`.
     Config,
     /// The directory of the accounts TOML in use.
@@ -42,6 +46,7 @@ impl Root {
     fn template(self) -> &'static str {
         match self {
             Self::LocalData => "<local data>/cuotai/",
+            Self::OsLocalData => "<OS local data>/cuotai/",
             Self::Config => "<config>/cuotai/",
             Self::AccountsDir => "<accounts dir>/",
             Self::Vault => "vault service ",
@@ -451,10 +456,20 @@ static ARTIFACTS: &[Artifact] = &[
         "24 hours",
         "0028",
     ),
+    Artifact {
+        root: Root::OsLocalData,
+        ..dir(
+            "metered.records",
+            "metered",
+            "time of the last query of each metered account and its redacted reading (account name, figures, notes, source), with a digest of the account's settings; digest-named; not moved by the data-folder setting",
+            UNTIL_ERASED,
+            "0033",
+        )
+    },
     dir(
-        "metered.records",
+        "metered.records_legacy",
         "metered",
-        "time of the last query of each metered account (digest-named)",
+        "metered records left in a moved data folder by builds before PRD 0033's re-validation; no longer read",
         UNTIL_ERASED,
         "0033",
     ),
@@ -516,6 +531,9 @@ pub struct Roots {
     /// The home directory, on macOS only ([`Root::MacHome`]); `None`
     /// elsewhere, where those artifacts do not exist.
     pub mac_home: Option<PathBuf>,
+    /// The metered records' fixed folder ([`Root::OsLocalData`]):
+    /// `<OS local data dir>/cuotai/metered`.
+    pub metered: Option<PathBuf>,
 }
 
 impl Roots {
@@ -530,6 +548,7 @@ impl Roots {
             } else {
                 None
             },
+            metered: crate::metered_record::Store::default_dir(),
         }
     }
 
@@ -541,7 +560,15 @@ impl Roots {
                 .fold(base.to_path_buf(), |path, part| path.join(part))
         };
         match artifact.root {
+            // The records left in a moved data folder; none when the data
+            // folder is the OS default (the same folder, listed once).
+            Root::LocalData if artifact.id == "metered.records_legacy" => self
+                .local_data
+                .as_deref()
+                .map(|d| join(d, artifact.path))
+                .filter(|path| self.metered.as_deref() != Some(path.as_path())),
             Root::LocalData => self.local_data.as_deref().map(|d| join(d, artifact.path)),
+            Root::OsLocalData => self.metered.clone(),
             Root::Config => self
                 .config
                 .as_deref()
@@ -653,7 +680,10 @@ pub fn inspect(roots: &Roots) -> Vec<ArtifactState> {
         .iter()
         // macOS-only paths: absent from the report elsewhere, and while
         // they are the data root's own files.
-        .filter(|a| a.root != Root::MacHome || roots.path_of(a).is_some())
+        .filter(|a| {
+            (a.root != Root::MacHome && a.id != "metered.records_legacy")
+                || roots.path_of(a).is_some()
+        })
         .map(|a| inspect_one(a, roots))
         .collect()
 }
@@ -1090,6 +1120,7 @@ mod tests {
             config: Some(PathBuf::from("/conf")),
             accounts: Some(PathBuf::from("/acc/cuotai.toml")),
             mac_home: None,
+            metered: None,
         };
         let path = |id: &str| roots.path_of(artifact(id).unwrap()).unwrap();
         let local = |rel: &str| Path::new("/data").join("cuotai").join(rel);
@@ -1121,6 +1152,33 @@ mod tests {
         }
     }
 
+    /// PRD 0033 re-validation M-4: the metered records live in one fixed
+    /// place; a moved data folder's old copy is listed (and erased) as a
+    /// leftover, and only when it is a different folder.
+    #[test]
+    fn metered_records_stay_put_and_a_moved_copy_is_a_leftover() {
+        let fixed = PathBuf::from("/os/cuotai/metered");
+        let moved = Roots {
+            local_data: Some(PathBuf::from("/moved/cuotai")),
+            metered: Some(fixed.clone()),
+            ..Roots::default()
+        };
+        let path = |roots: &Roots, id: &str| roots.path_of(artifact(id).unwrap());
+        assert_eq!(path(&moved, "metered.records"), Some(fixed.clone()));
+        assert_eq!(
+            path(&moved, "metered.records_legacy"),
+            Some(PathBuf::from("/moved/cuotai/metered"))
+        );
+        let default = Roots {
+            local_data: Some(PathBuf::from("/os/cuotai")),
+            ..moved
+        };
+        assert_eq!(path(&default, "metered.records_legacy"), None);
+        assert!(!inspect(&default)
+            .iter()
+            .any(|state| state.id == "metered.records_legacy"));
+    }
+
     #[test]
     fn macos_widget_copies_live_below_the_home_unless_the_data_root_holds_them() {
         let moved = Roots {
@@ -1128,6 +1186,7 @@ mod tests {
             config: None,
             accounts: None,
             mac_home: Some(PathBuf::from("/home/ana")),
+            metered: None,
         };
         let path = |roots: &Roots, id: &str| roots.path_of(artifact(id).unwrap());
         let fixed = Path::new("/home/ana/Library/Application Support/cuotai/widget.json");
@@ -1172,6 +1231,7 @@ mod tests {
             config: Some(dir.path().join("conf")),
             accounts: None,
             mac_home: None,
+            metered: None,
         };
         let base = dir.path().join("cuotai");
         std::fs::create_dir_all(base.join("history")).unwrap();

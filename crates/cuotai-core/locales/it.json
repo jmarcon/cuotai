@@ -2472,5 +2472,9 @@
   "cost.plan.share_small": "meno dell'1% del prezzo del piano",
   "cost.plan.share_small_rate": "meno dell'1% del prezzo del piano, al tuo cambio",
   "cost.plan.share_small_plans": "meno dell'1% del prezzo dei piani",
-  "cost.plan.share_small_plans_rate": "meno dell'1% del prezzo dei piani, al tuo cambio"
+  "cost.plan.share_small_plans_rate": "meno dell'1% del prezzo dei piani, al tuo cambio",
+  "doctor.title.metered": "Registro condiviso delle query fatturate {path}",
+  "doctor.metered.unusable": "Non è una cartella privata del tuo utente o non è scrivibile; i comandi singoli non interrogano AWS Bedrock finché non viene corretta.",
+  "doctor.fix.metered": "Rimuovi ciò che si trova in questo percorso (un file, un collegamento o la cartella di un altro utente) oppure rendilo una cartella che solo il tuo utente può leggere e scrivere; Cuotai la ricrea.",
+  "doctor.metered.absent": "Non ancora creata; la prima query fatturata la crea."
 }

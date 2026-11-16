@@ -2475,5 +2475,9 @@
   "cost.plan.share_small": "plan fiyatının %1'inden az",
   "cost.plan.share_small_rate": "kurunuzla plan fiyatının %1'inden az",
   "cost.plan.share_small_plans": "planların fiyatının %1'inden az",
-  "cost.plan.share_small_plans_rate": "kurunuzla planların fiyatının %1'inden az"
+  "cost.plan.share_small_plans_rate": "kurunuzla planların fiyatının %1'inden az",
+  "doctor.title.metered": "Ücretli sorguların ortak kaydı {path}",
+  "doctor.metered.unusable": "Kullanıcınıza özel bir klasör değil veya yazılamıyor; düzeltilene kadar tek seferlik komutlar AWS Bedrock'u sorgulamaz.",
+  "doctor.fix.metered": "Bu yoldaki şeyi (bir dosya, bağlantı veya başka bir kullanıcının klasörü) kaldırın ya da yalnızca kullanıcınızın okuyup yazabildiği bir klasör yapın; Cuotai onu yeniden oluşturur.",
+  "doctor.metered.absent": "Henüz oluşturulmadı; ilk ücretli sorgu oluşturur."
 }

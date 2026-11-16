@@ -49,6 +49,10 @@ impl Tree {
         );
         tree.write("data/serve/token", "SEEDED-SERVER-TOKEN-0123456789abcdef");
         tree.write("data/history/history.sqlite3", "not copied");
+        // PRD 0033 re-validation M-4: the metered records are this
+        // computer's billing state; a backup never carries them.
+        tree.write("data/metered/0123abcd.json", r#"{"schema":2}"#);
+        tree.write("os-local/cuotai/metered/0123abcd.json", r#"{"schema":2}"#);
         tree.write("user/themes/night.css", ":root{}");
         tree.write("user/locales/xx.json", "{}");
         tree.write("user/themes/notes.txt", "ignored");
