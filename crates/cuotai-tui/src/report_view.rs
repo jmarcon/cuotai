@@ -20,21 +20,36 @@ const CYAN: Color = palette::ACCENT;
 pub(crate) enum Reply {
     Stay,
     Close,
+    /// `o`: open [`ReportView::link`] in the browser.
+    Open,
 }
 
 pub(crate) struct ReportView {
     text: String,
+    /// The draft's link (`IssueDraft::link`): the prefilled form, or the
+    /// bare form when the URL is too long. Always the core's, never typed.
+    link: String,
     scroll: u16,
 }
 
 impl ReportView {
-    pub(crate) fn new(text: String) -> Self {
-        Self { text, scroll: 0 }
+    pub(crate) fn new(text: String, link: String) -> Self {
+        Self {
+            text,
+            link,
+            scroll: 0,
+        }
+    }
+
+    /// What `o` opens.
+    pub(crate) fn link(&self) -> &str {
+        &self.link
     }
 
     pub(crate) fn key(&mut self, code: KeyCode) -> Reply {
         match code {
             KeyCode::Esc | KeyCode::Char('q' | 'b') | KeyCode::Enter => return Reply::Close,
+            KeyCode::Char('o') => return Reply::Open,
             KeyCode::Down | KeyCode::Char('j' | ']') => self.scroll = self.scroll.saturating_add(1),
             KeyCode::Up | KeyCode::Char('k' | '[') => self.scroll = self.scroll.saturating_sub(1),
             KeyCode::PageDown => self.scroll = self.scroll.saturating_add(10),
@@ -72,7 +87,7 @@ impl ReportView {
         frame.render_widget(
             Paragraph::new(crate::l10n::tr(
                 "report.footer",
-                "Cuotai sends nothing · ↑↓ scroll · Esc back",
+                "Cuotai sends nothing · o open in browser · ↑↓ scroll · Esc back",
             ))
             .style(Style::default().fg(MUTED)),
             areas[1],
@@ -86,7 +101,9 @@ mod tests {
 
     #[test]
     fn keys_scroll_and_close() {
-        let mut view = ReportView::new("x".into());
+        let mut view = ReportView::new("x".into(), cuotai_core::support::FORM_URL.into());
+        assert_eq!(view.key(KeyCode::Char('o')), Reply::Open);
+        assert_eq!(view.link(), cuotai_core::support::FORM_URL);
         assert_eq!(view.key(KeyCode::Down), Reply::Stay);
         assert_eq!(view.scroll, 1);
         assert_eq!(view.key(KeyCode::Up), Reply::Stay);

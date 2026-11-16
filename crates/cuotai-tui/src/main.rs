@@ -316,7 +316,8 @@ struct Args {
         ]
     )]
     report_problem: Option<String>,
-    /// PRD 0028 RF4: the local contract canary. Queries the configured
+    // PRD 0028 RF4 (kept out of the help text).
+    /// The local contract canary. Queries the configured
     /// accounts once (those billed per query are left out), writes a record
     /// without values to `<data>/cuotai/canary/`, compares it with the
     /// previous run and prints the Markdown report and one issue draft per
@@ -343,8 +344,9 @@ struct Args {
     /// With --canary, also includes the accounts billed per query.
     #[arg(long, requires = "canary")]
     canary_include_metered: bool,
-    /// PRD 0031 RF3: prints the completion script of the given shell
-    /// (generated from the command-line definition) and exits with 0. It is
+    // PRD 0031 RF3 (kept out of the help text).
+    /// Prints the completion script of the given shell, generated from the
+    /// command-line definition, and exits with 0. It is
     /// local: it reads no configuration and queries no network.
     #[arg(
         long,
@@ -1919,7 +1921,19 @@ fn report_text(
     }
     out += &sub_reports_text(report, interval, now, locale, &at);
     out += &breakdown_view::once_text(report, locale);
+    // DS-CMP-DIAG-1: what drifted, one field per line, no value.
+    if let Some(drift) = report_problem::drift_texts(report, locale) {
+        out += &format!("  {}:\n", drift.heading);
+        out += &format!("    {}\n", ui::safe(&drift.sentence));
+        for path in &drift.paths {
+            out += &format!("    {path}\n");
+        }
+        out += &format!("    {}\n", drift.privacy);
+    }
     for (idx, fallback_text) in report.notes.iter().enumerate() {
+        if report_problem::is_drift_note(report, idx) {
+            continue;
+        }
         let text = report
             .notes_l10n
             .get(idx)
@@ -2850,6 +2864,35 @@ mod tests {
             report_text(&plain, &[], None, FIVE_MIN, now, "en-US", at),
             "\nWork / Claude — Atualizado · consultado agora\n"
         );
+    }
+
+    /// DS-CMP-DIAG-1 (PRD 0028 re-validation C-02): a drifted account prints
+    /// "What changed:", its sentence, one path per line and the privacy note,
+    /// without backticks, and the drift note is not repeated.
+    #[test]
+    fn once_prints_the_drift_block() {
+        let now = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+        let mut failing = report("home", Status::Error, Vec::new());
+        let drift = cuotai_core::diagnostic::field_drift(
+            &serde_json::json!({"five_hour": {"utilization": "x"}}),
+            &["five_hour", "utilization"],
+            "number",
+        );
+        let diagnostic = cuotai_core::diagnostic::Diagnostic::SchemaDrift(drift);
+        let note = diagnostic.text();
+        failing.notes = vec![note.fallback.to_string()];
+        failing.notes_l10n = vec![note];
+        failing.diagnostic = Some(diagnostic);
+        let at = |t: DateTime<Utc>| t.format("%H:%M").to_string();
+        let text = report_text(&failing, &[], None, FIVE_MIN, now, "en-US", at);
+        assert!(
+            text.contains(
+                "  What changed:\n    The provider changed five_hour.utilization (number → string).\n    five_hour.utilization (number → string)\n    Values are never recorded.\n"
+            ),
+            "{text}"
+        );
+        assert!(!text.contains('`'), "{text}");
+        assert_eq!(text.matches("The provider changed").count(), 1, "{text}");
     }
 
     /// PRD 0007 RF4.2 (re-validation V-01): a connection's eligible metric

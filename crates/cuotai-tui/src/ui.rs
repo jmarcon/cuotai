@@ -1193,10 +1193,13 @@ pub async fn run(
                                 cuotai_core::support::Interface::Tui,
                                 Some(file.path.clone()),
                             );
-                            report_view = Some(ReportView::new(crate::report_problem::render(
-                                &draft,
-                                report.status == cuotai_core::Status::Ready,
-                            )));
+                            report_view = Some(ReportView::new(
+                                crate::report_problem::render(
+                                    &draft,
+                                    report.status == cuotai_core::Status::Ready,
+                                ),
+                                draft.link().to_string(),
+                            ));
                         }
                     }
                 }
@@ -2000,8 +2003,16 @@ pub async fn run(
                     continue;
                 }
                 if let Some(view) = &mut report_view {
-                    if view.key(key.code) == ReportReply::Close {
-                        report_view = None;
+                    match view.key(key.code) {
+                        ReportReply::Close => report_view = None,
+                        // C-13: the core's link, opened whole (the box wraps it).
+                        ReportReply::Open => {
+                            let url = view.link().to_owned();
+                            tokio::spawn(async move {
+                                let _ = cuotai_core::login::open_browser(&url).await;
+                            });
+                        }
+                        ReportReply::Stay => {}
                     }
                     continue;
                 }
