@@ -1116,7 +1116,7 @@
   "about.updateState": "更新：{state}",
   "report.action": "报告问题",
   "report.title": "报告问题",
-  "report.intro": "此文本将作为 GitHub issue 打开",
+  "report.intro": "此文本将作为 GitHub issue 打开。",
   "demo.account.personal": "个人",
   "demo.account.work": "工作",
   "demo.account.dev": "开发",
@@ -1171,6 +1171,7 @@
   "report.copied": "已复制",
   "report.copyFailed": "无法复制文本。",
   "report.open": "在 GitHub 上打开",
+  "report.openForm": "打开表单",
   "dialog.picker.search": "搜索提供商",
   "dialog.picker.clear": "清除搜索",
   "dialog.picker.count": {

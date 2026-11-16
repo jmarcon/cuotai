@@ -109,26 +109,38 @@ export function openReference(target) {
   return true;
 }
 
+/** The core's drift sentence ids: the "What changed" block shows that sentence, so the notes leave it out. */
+const DRIFT_NOTE_IDS = ["diagnostic.schema_drift", "diagnostic.schema_drift_unknown"];
+const isDriftNote = (r, index) => !!r.drift && DRIFT_NOTE_IDS.includes(r.notes_l10n?.[index]?.id);
+/** PRD 0028 RF1.3 (DS-CMP-DIAG-1): a neutral callout "What changed" with the core's sentence, up to eight field paths
+ *  in mono (plain text, never backticks) and "Values are never recorded". Selectable text; never a raw body. */
+export const driftHtml = (r) => r.drift
+  ? `<div class="call det-drift" data-drift>${icon("info")}<div><p class="det-drift-title">${esc(tl(r.drift.heading))}</p><p>${esc(tl(r.drift.sentence))}</p>
+    <ul class="det-drift-paths">${(r.drift.paths ?? []).slice(0, 8).map((p) => `<li><code class="det-drift-path">${esc(p.path)}</code> <span class="det-drift-types">(${esc(p.expected)} → ${esc(p.found)})</span></li>`).join("")}</ul>
+    <p class="hint det-drift-privacy">${esc(tl(r.drift.privacy))}</p></div></div>`
+  : "";
+
 /** Quota list + notes. Without `eye` (popover), hidden ones do not appear. PRD 0010 RF3: the age leads; a failure
  *  with a preserved reading lists the old metrics dimmed under the cause of the failure. PRD 0005 RF4: the core's
  *  access level and summary follow the age, and its explanation, when there is one, is the cause. PRD 0011 RF4.1:
  *  the provider's public status follows, while status queries are on. */
 export function detailHtml(r, { eye = false, action = eye } = {}) {
-  const notes = r.notes.map((_, index) => noteText(r, index));
+  const notes = r.notes.map((_, index) => index).filter((index) => !isDriftNote(r, index)).map((index) => noteText(r, index));
   // PRD 0022 RF10.1 (DS-CMP-DLG-1): the incident first, the best-account advice, then the limits, then the reading
   // (age and access level).
   const incident = `${incidentDetailHtml(r)}${adviceHtml(r, { action })}`;
   const reading = `<div class="det-reading"><div class="det-age">${ageHtml(r)}</div>${accessHtml(r)}</div>`;
-  const rest = restNotes(r).map((n) => `<p class="note">${esc(n)}</p>`).join("");
+  const drift = new Set(r.notes.map((_, index) => index).filter((index) => isDriftNote(r, index)).map((index) => noteText(r, index)));
+  const rest = restNotes(r).filter((n) => !drift.has(n)).map((n) => `<p class="note">${esc(n)}</p>`).join("");
   if (isStaleReading(r)) {
     const s = staleView(r);
     const metrics = eye ? s.metrics : s.metrics.filter((m) => !isMetricHidden(s, m));
     return `<div class="detail">${incident}<div class="call warning cause">${icon("clock")}<div>${esc(causeText(r))}</div></div>${referenceHtml(r)}
-      <div class="detail stale-reading">${metrics.map((m) => metricCardHtml(s, m, { eye, stale: true })).join("")}</div>${reading}${rest}</div>`;
+      ${driftHtml(r)}<div class="detail stale-reading">${metrics.map((m) => metricCardHtml(s, m, { eye, stale: true })).join("")}</div>${reading}${rest}</div>`;
   }
   if (!r.metrics.length) {
     const tone = r.status === "authentication_error" ? "accent" : r.status === "ready" ? "neutral" : "critical";
-    return `<div class="detail">${incident}<div class="call ${tone}">${icon(r.status === "authentication_error" ? "key" : r.status === "ready" ? "info" : "alert")}<div>${esc(causeText(r))}</div></div>${referenceHtml(r)}${reading}${rest}</div>`;
+    return `<div class="detail">${incident}<div class="call ${tone}">${icon(r.status === "authentication_error" ? "key" : r.status === "ready" ? "info" : "alert")}<div>${esc(causeText(r))}</div></div>${referenceHtml(r)}${driftHtml(r)}${reading}${rest}</div>`;
   }
   const metrics = eye ? r.metrics : r.metrics.filter((m) => !isMetricHidden(r, m));
   // PRD 0043 RF2.2: the limit changes of the last 48 h, as silent notes.

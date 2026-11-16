@@ -1116,7 +1116,7 @@
   "about.updateState": "cập nhật: {state}",
   "report.action": "Báo cáo sự cố",
   "report.title": "Báo cáo sự cố",
-  "report.intro": "Văn bản này sẽ được mở thành một issue trên GitHub",
+  "report.intro": "Văn bản này sẽ được mở thành một issue trên GitHub.",
   "demo.account.personal": "Cá nhân",
   "demo.account.work": "Công việc",
   "demo.account.dev": "Dev",
@@ -1171,6 +1171,7 @@
   "report.copied": "Đã sao chép",
   "report.copyFailed": "Không sao chép được văn bản.",
   "report.open": "Mở trên GitHub",
+  "report.openForm": "Mở biểu mẫu",
   "dialog.picker.search": "Tìm nhà cung cấp",
   "dialog.picker.clear": "Xóa tìm kiếm",
   "dialog.picker.count": {

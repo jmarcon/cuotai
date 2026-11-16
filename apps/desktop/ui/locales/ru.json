@@ -1164,7 +1164,7 @@
   "about.updateState": "обновление: {state}",
   "report.action": "Сообщить о проблеме",
   "report.title": "Сообщение о проблеме",
-  "report.intro": "Этот текст будет открыт как issue на GitHub",
+  "report.intro": "Этот текст будет открыт как issue на GitHub.",
   "demo.account.personal": "Личный",
   "demo.account.work": "Рабочий",
   "demo.account.dev": "Разработка",
@@ -1219,6 +1219,7 @@
   "report.copied": "Скопировано",
   "report.copyFailed": "Не удалось скопировать текст.",
   "report.open": "Открыть на GitHub",
+  "report.openForm": "Открыть форму",
   "dialog.picker.search": "Поиск провайдеров",
   "dialog.picker.clear": "Очистить поиск",
   "dialog.picker.count": {

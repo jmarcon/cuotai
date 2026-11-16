@@ -1,8 +1,9 @@
 // PRD 0028 RF2.3 (DS-CMP-RPT-1): "Report a problem". The core builds the secret-free issue text; this dialog only
-// previews it exactly as it is, offers Copy and Open on GitHub (through the allow-listed `open_external`) and says
-// that nothing is sent by Cuotai. A link too long to open leaves only Copy.
+// previews it exactly as it is, offers Copy and Open on GitHub and says that nothing is sent by Cuotai. Open asks the
+// shell (`open_problem_report`) to rebuild the same draft and open it: the page never hands a URL to the browser
+// (re-validation S-01). A link too long to open prefilled opens the bare form instead ("Open the form", V-09).
 import { t, te } from "./i18n.js";
-import { errText, esc, icon, openExternal, reportProblem } from "./lib.js";
+import { errText, esc, icon, openProblemReport, reportProblem } from "./lib.js";
 import { showDialog } from "./motion.js";
 import { bindShell, focusFirst, shellHtml } from "./dialog-shell.js";
 
@@ -32,7 +33,7 @@ export async function openReportProblem(index, generation, from = null) {
       : `<p class="err" role="alert">${esc(failure ?? t("common.unexpected"))}</p>`,
     foot: `<p class="err" id="report-err" role="alert"></p>
       ${draft ? `<button class="btn" data-copy>${icon("copy")} ${te("report.copy")}</button>` : `<button class="btn" data-shell-close>${te("common.close")}</button>`}
-      ${draft && !draft.copy_only ? `<button class="btn primary" data-open>${te("report.open")} ${icon("ext")}</button>` : ""}`,
+      ${draft ? `<button class="btn primary" data-open>${te(draft.copy_only ? "report.openForm" : "report.open")} ${icon("ext")}</button>` : ""}`,
   });
   bindShell(dlg);
   focusFirst(dlg);
@@ -44,6 +45,6 @@ export async function openReportProblem(index, generation, from = null) {
   };
   const open = dlg.querySelector("[data-open]");
   if (open) open.onclick = async () => {
-    try { await openExternal(draft.url); err.textContent = ""; } catch { err.textContent = t("about.openFailed"); }
+    try { await openProblemReport(index, generation); err.textContent = ""; } catch { err.textContent = t("about.openFailed"); }
   };
 }

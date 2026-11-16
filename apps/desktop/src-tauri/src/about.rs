@@ -136,7 +136,7 @@ pub fn is_listed(url: &str) -> bool {
         || url == crate::updater::MANUAL_URL
         || about::libraries().iter().any(|l| l.repository == url)
         || cuotai_core::incidents::is_status_link(url)
-        || cuotai_core::support::is_issue_url(url)
+        || cuotai_core::support::is_bare_form_url(url)
         || cuotai_core::user_session::is_open_url(url)
         || cuotai_core::secret_input::is_key_page_url(url)
         || cuotai_core::oauth::bailian::is_install_url(url)
@@ -168,6 +168,17 @@ pub fn open_extensions_folder() -> Result<(), &'static str> {
     let dir = cuotai_core::extensions::default_dir().ok_or("unavailable")?;
     std::fs::create_dir_all(&dir).map_err(|_| "unavailable")?;
     launch(&dir.to_string_lossy())
+}
+
+/// PRD 0028 RF2.3: opens a problem-report link the shell built itself
+/// (`open_problem_report`): only this project's issue form, prefilled by
+/// the core's draft, never a URL from the webview.
+pub fn open_problem_link(url: &str) -> Result<(), &'static str> {
+    let form = format!("{}/issues/new?", cuotai_core::support::REPOSITORY);
+    if !url.starts_with(&form) || url.chars().any(|c| c.is_control() || c.is_whitespace()) {
+        return Err("not_listed");
+    }
+    launch(url)
 }
 
 /// Opens `url` in the system default browser, if it is on the list.
@@ -283,6 +294,29 @@ mod tests {
             "https://platform.claude.com/settings/admin-keys?next=https://example.com",
         ] {
             assert_eq!(open_external(url), Err("not_listed"), "{url}");
+        }
+    }
+
+    /// PRD 0028 re-validation (S-01): the webview may open only the two bare
+    /// issue forms; a prefilled URL with any text it chose is refused, and
+    /// the shell's own opener takes only this project's issue form.
+    #[test]
+    fn prefilled_issue_urls_from_the_webview_are_refused() {
+        assert!(is_listed(cuotai_core::support::FORM_URL));
+        assert!(is_listed(cuotai_core::support::BUG_FORM_URL));
+        for url in [
+            "https://github.com/jmarcon/cuotai/issues/new?template=provider-problem.yml&title=x&body=run+this",
+            "https://github.com/jmarcon/cuotai/issues/new?title=Phish",
+        ] {
+            assert_eq!(open_external(url), Err("not_listed"), "{url}");
+        }
+        for url in [
+            "https://github.com/other/repo/issues/new?x=1",
+            "https://github.com/jmarcon/cuotai/pulls",
+            "https://github.com/jmarcon/cuotai/issues/new?x=1 y",
+            "javascript:alert(1)",
+        ] {
+            assert_eq!(open_problem_link(url), Err("not_listed"), "{url}");
         }
     }
 

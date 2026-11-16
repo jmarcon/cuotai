@@ -1116,7 +1116,7 @@
   "about.updateState": "업데이트: {state}",
   "report.action": "문제 신고",
   "report.title": "문제 신고",
-  "report.intro": "이 내용은 GitHub 이슈로 열립니다",
+  "report.intro": "이 내용은 GitHub 이슈로 열립니다.",
   "demo.account.personal": "개인",
   "demo.account.work": "업무",
   "demo.account.dev": "개발",
@@ -1171,6 +1171,7 @@
   "report.copied": "복사됨",
   "report.copyFailed": "텍스트를 복사하지 못했습니다.",
   "report.open": "GitHub에서 열기",
+  "report.openForm": "양식 열기",
   "dialog.picker.search": "제공업체 검색",
   "dialog.picker.clear": "검색어 지우기",
   "dialog.picker.count": {

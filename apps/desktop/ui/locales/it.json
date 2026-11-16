@@ -1129,7 +1129,7 @@
   "update.retry": "Riprova",
   "report.action": "Segnala un problema",
   "report.title": "Segnala un problema",
-  "report.intro": "Questo testo verrà aperto come issue su GitHub",
+  "report.intro": "Questo testo verrà aperto come issue su GitHub.",
   "demo.account.personal": "Personale",
   "demo.account.work": "Lavoro",
   "demo.account.dev": "Dev",
@@ -1184,6 +1184,7 @@
   "report.copied": "Copiato",
   "report.copyFailed": "Impossibile copiare il testo.",
   "report.open": "Apri su GitHub",
+  "report.openForm": "Apri il modulo",
   "dialog.picker.search": "Cerca provider",
   "dialog.picker.clear": "Cancella ricerca",
   "dialog.picker.count": {

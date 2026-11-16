@@ -1132,7 +1132,7 @@
   "about.updateState": "güncelleme: {state}",
   "report.action": "Sorun bildir",
   "report.title": "Sorun bildir",
-  "report.intro": "Bu metin bir GitHub sorunu olarak açılacak",
+  "report.intro": "Bu metin bir GitHub sorunu olarak açılacak.",
   "demo.account.personal": "Kişisel",
   "demo.account.work": "İş",
   "demo.account.dev": "Geliştirme",
@@ -1187,6 +1187,7 @@
   "report.copied": "Kopyalandı",
   "report.copyFailed": "Metin kopyalanamadı.",
   "report.open": "GitHub'da aç",
+  "report.openForm": "Formu aç",
   "dialog.picker.search": "Sağlayıcı ara",
   "dialog.picker.clear": "Aramayı temizle",
   "dialog.picker.count": {
