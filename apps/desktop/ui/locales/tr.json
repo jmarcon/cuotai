@@ -661,8 +661,8 @@
   "filter.none": "Filtreyle eşleşen hesap yok.",
   "dialog.deleteBodyVault": "{label} hesabının sistem kasasında kayıtlı bir kimlik bilgisi var. O da silinsin mi?",
   "dialog.deleteExtensionSecrets": "Bu uzantının kasada kayıtlı gizli bilgilerini de sil.",
-  "dialog.picker.addExtension": "bir uzantıyla sağlayıcı ekleyin",
-  "dialog.picker.notListed": "Listede yok mu?",
+  "dialog.picker.addExtension": "Bir uzantıyla sağlayıcı ekleyin",
+  "dialog.picker.notListed": "Listede yok mu? {link}",
   "dialog.deleteVaultKeep": "Kaldır ve kasada tut",
   "dialog.deleteVaultPurge": "Kaldır ve kasadan sil",
   "delete.purged": "Hesap kaldırıldı ve kimlik bilgisi kasadan silindi.",
@@ -1189,8 +1189,11 @@
   "report.open": "GitHub'da aç",
   "dialog.picker.search": "Sağlayıcı ara",
   "dialog.picker.clear": "Aramayı temizle",
-  "dialog.picker.count": "{count} sağlayıcı",
-  "dialog.picker.hint.browser": "Yerel olarak bağlanır",
+  "dialog.picker.count": {
+    "one": "{count} sağlayıcı",
+    "other": "{count} sağlayıcı"
+  },
+  "dialog.picker.hint.browser": "Tarayıcınızı açar",
   "dialog.picker.hint.apiKey": "Anahtar gerekir",
   "dialog.picker.connect": "Bağlan",
   "dialog.picker.metered": "Sorgu başına ücretlendirilir",
@@ -1427,7 +1430,10 @@
   "settings.lang.machine": "Makine çevirisi; henüz anadili konuşan biri tarafından gözden geçirilmedi.",
   "settings.lang.machine.link": "İncelemeye yardım edin",
   "settings.mode.label": "Mod",
-  "dialog.picker.searchCount": "{count} sağlayıcıda ara",
+  "dialog.picker.searchCount": {
+    "one": "{count} sağlayıcıda ara",
+    "other": "{count} sağlayıcıda ara"
+  },
   "settings.menubar.appearance": "Görünüm",
   "settings.menubar.colored.desc": "Açık ve koyu çubuklarda okunabilir seviye renkleri; rakam çubuğun renginde kalır.",
   "settings.menubar.count": "{total} içinden {n}",

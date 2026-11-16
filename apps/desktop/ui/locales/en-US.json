@@ -658,8 +658,8 @@
   "filter.none": "No account matches the filter.",
   "dialog.deleteBodyVault": "{label} has a credential saved in the system vault. Delete it as well?",
   "dialog.deleteExtensionSecrets": "Also delete this extension's saved secrets from the vault.",
-  "dialog.picker.addExtension": "add a provider with an extension",
-  "dialog.picker.notListed": "Not listed?",
+  "dialog.picker.addExtension": "Add a provider with an extension",
+  "dialog.picker.notListed": "Not listed? {link}",
   "dialog.deleteVaultKeep": "Remove and keep in vault",
   "dialog.deleteVaultPurge": "Remove and delete from vault",
   "delete.purged": "Account removed and its credential deleted from the vault.",
@@ -1200,8 +1200,11 @@
   "report.open": "Open on GitHub",
   "dialog.picker.search": "Search providers",
   "dialog.picker.clear": "Clear search",
-  "dialog.picker.count": "{count} providers",
-  "dialog.picker.hint.browser": "Connects locally",
+  "dialog.picker.count": {
+    "one": "{count} provider",
+    "other": "{count} providers"
+  },
+  "dialog.picker.hint.browser": "Opens your browser",
   "dialog.picker.hint.apiKey": "Needs a key",
   "dialog.picker.connect": "Connect",
   "dialog.picker.metered": "Billed per query",
@@ -1438,7 +1441,10 @@
   "settings.lang.machine": "Machine-translated; a native speaker has not reviewed it yet.",
   "settings.lang.machine.link": "Help review it",
   "settings.mode.label": "Mode",
-  "dialog.picker.searchCount": "Search {count} providers",
+  "dialog.picker.searchCount": {
+    "one": "Search {count} provider",
+    "other": "Search {count} providers"
+  },
   "settings.menubar.appearance": "Appearance",
   "settings.menubar.colored.desc": "Level colors readable on light and dark menu bars; the figure keeps the bar's color.",
   "settings.menubar.count": "{n} of {total}",

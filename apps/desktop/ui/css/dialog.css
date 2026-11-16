@@ -857,6 +857,13 @@ dialog.dlg.dlg-catalog:has(#picker:not([hidden])) {
   width: 100%;
   height: 32px;
 }
+/* PRD 0027 re-validation C-04: the field has its own clear button (#picker-clear); WebKit's native one would be a
+   second ✕. Scoped to the picker: the Settings and models searches keep the native one. */
+.picker-search input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
 .picker-list {
   container-type: inline-size;
   display: flex;

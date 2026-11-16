@@ -654,8 +654,8 @@
   "filter.none": "Tidak ada akun yang cocok dengan filter.",
   "dialog.deleteBodyVault": "{label} memiliki kredensial yang tersimpan di brankas sistem. Hapus juga?",
   "dialog.deleteExtensionSecrets": "Hapus juga rahasia tersimpan ekstensi ini dari brankas.",
-  "dialog.picker.addExtension": "tambahkan penyedia dengan ekstensi",
-  "dialog.picker.notListed": "Tidak terdaftar?",
+  "dialog.picker.addExtension": "Tambahkan penyedia dengan ekstensi",
+  "dialog.picker.notListed": "Tidak terdaftar? {link}",
   "dialog.deleteVaultKeep": "Keluarkan dan simpan di brankas",
   "dialog.deleteVaultPurge": "Keluarkan dan hapus dari brankas",
   "delete.purged": "Akun dikeluarkan dan kredensialnya dihapus dari brankas.",
@@ -1173,8 +1173,10 @@
   "report.open": "Buka di GitHub",
   "dialog.picker.search": "Cari penyedia",
   "dialog.picker.clear": "Hapus pencarian",
-  "dialog.picker.count": "{count} penyedia",
-  "dialog.picker.hint.browser": "Terhubung secara lokal",
+  "dialog.picker.count": {
+    "other": "{count} penyedia"
+  },
+  "dialog.picker.hint.browser": "Membuka peramban Anda",
   "dialog.picker.hint.apiKey": "Memerlukan kunci",
   "dialog.picker.connect": "Hubungkan",
   "dialog.picker.metered": "Ditagih per kueri",
@@ -1406,7 +1408,9 @@
   "settings.lang.machine": "Terjemahan mesin; belum ditinjau penutur asli.",
   "settings.lang.machine.link": "Bantu meninjau",
   "settings.mode.label": "Mode",
-  "dialog.picker.searchCount": "Cari {count} penyedia",
+  "dialog.picker.searchCount": {
+    "other": "Cari {count} penyedia"
+  },
   "settings.menubar.appearance": "Tampilan",
   "settings.menubar.colored.desc": "Warna tingkat yang terbaca di bilah terang dan gelap; angka tetap warna bilah.",
   "settings.menubar.count": "{n} dari {total}",

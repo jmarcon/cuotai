@@ -655,7 +655,7 @@
   "dialog.deleteBodyVault": "{label} の認証情報がシステムの保管庫に保存されています。一緒に削除しますか？",
   "dialog.deleteExtensionSecrets": "この拡張機能の保存済みシークレットも保管庫から削除します。",
   "dialog.picker.addExtension": "拡張機能でプロバイダーを追加",
-  "dialog.picker.notListed": "一覧にない場合",
+  "dialog.picker.notListed": "一覧にない場合 {link}",
   "dialog.deleteVaultKeep": "外して保管庫に残す",
   "dialog.deleteVaultPurge": "外して保管庫からも削除",
   "delete.purged": "アカウントを削除し、その認証情報を保管庫から削除しました。",
@@ -1173,8 +1173,10 @@
   "report.open": "GitHub で開く",
   "dialog.picker.search": "プロバイダーを検索",
   "dialog.picker.clear": "検索を消去",
-  "dialog.picker.count": "{count} プロバイダー",
-  "dialog.picker.hint.browser": "ローカルで接続",
+  "dialog.picker.count": {
+    "other": "{count} プロバイダー"
+  },
+  "dialog.picker.hint.browser": "ブラウザーを開きます",
   "dialog.picker.hint.apiKey": "キーが必要",
   "dialog.picker.connect": "接続",
   "dialog.picker.metered": "照会ごとに課金",
@@ -1406,7 +1408,9 @@
   "settings.lang.machine": "機械翻訳です。ネイティブ話者のレビューはまだです。",
   "settings.lang.machine.link": "レビューに協力する",
   "settings.mode.label": "モード",
-  "dialog.picker.searchCount": "{count} プロバイダーを検索",
+  "dialog.picker.searchCount": {
+    "other": "{count} プロバイダーを検索"
+  },
   "settings.menubar.appearance": "外観",
   "settings.menubar.colored.desc": "明暗どちらのメニューバーでも読みやすいレベル色。数値はメニューバーの色のままです。",
   "settings.menubar.count": "{total} 中 {n}",

@@ -661,8 +661,8 @@
   "filter.none": "Aucun compte ne correspond au filtre.",
   "dialog.deleteBodyVault": "{label} a un identifiant enregistré dans le coffre du système. Le supprimer aussi ?",
   "dialog.deleteExtensionSecrets": "Supprimer aussi du coffre les secrets enregistrés de cette extension.",
-  "dialog.picker.addExtension": "ajoutez un fournisseur avec une extension",
-  "dialog.picker.notListed": "Absent de la liste ?",
+  "dialog.picker.addExtension": "Ajoutez un fournisseur avec une extension",
+  "dialog.picker.notListed": "Absent de la liste ? {link}",
   "dialog.deleteVaultKeep": "Retirer et garder dans le coffre",
   "dialog.deleteVaultPurge": "Retirer et supprimer du coffre",
   "delete.purged": "Compte retiré et son identifiant supprimé du coffre.",
@@ -1189,8 +1189,11 @@
   "report.open": "Ouvrir sur GitHub",
   "dialog.picker.search": "Rechercher des fournisseurs",
   "dialog.picker.clear": "Effacer la recherche",
-  "dialog.picker.count": "{count} fournisseurs",
-  "dialog.picker.hint.browser": "Se connecte en local",
+  "dialog.picker.count": {
+    "one": "{count} fournisseur",
+    "other": "{count} fournisseurs"
+  },
+  "dialog.picker.hint.browser": "Ouvre votre navigateur",
   "dialog.picker.hint.apiKey": "Nécessite une clé",
   "dialog.picker.connect": "Connecter",
   "dialog.picker.metered": "Facturé à la requête",
@@ -1427,7 +1430,10 @@
   "settings.lang.machine": "Traduction automatique, pas encore relue par une personne de langue maternelle.",
   "settings.lang.machine.link": "Aidez à la relire",
   "settings.mode.label": "Mode",
-  "dialog.picker.searchCount": "Rechercher parmi {count} fournisseurs",
+  "dialog.picker.searchCount": {
+    "one": "Rechercher parmi {count} fournisseur",
+    "other": "Rechercher parmi {count} fournisseurs"
+  },
   "settings.menubar.appearance": "Apparence",
   "settings.menubar.colored.desc": "Couleurs de niveau lisibles sur barres claires et sombres ; le chiffre garde sa couleur.",
   "settings.menubar.count": "{n} sur {total}",

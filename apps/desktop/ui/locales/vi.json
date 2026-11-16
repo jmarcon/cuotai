@@ -654,8 +654,8 @@
   "filter.none": "Không có tài khoản nào khớp với bộ lọc.",
   "dialog.deleteBodyVault": "{label} có một thông tin xác thực lưu trong kho của hệ thống. Xóa luôn?",
   "dialog.deleteExtensionSecrets": "Xóa luôn các bí mật đã lưu của tiện ích mở rộng này khỏi kho.",
-  "dialog.picker.addExtension": "thêm nhà cung cấp bằng tiện ích mở rộng",
-  "dialog.picker.notListed": "Không có trong danh sách?",
+  "dialog.picker.addExtension": "Thêm nhà cung cấp bằng tiện ích mở rộng",
+  "dialog.picker.notListed": "Không có trong danh sách? {link}",
   "dialog.deleteVaultKeep": "Gỡ và giữ trong kho",
   "dialog.deleteVaultPurge": "Gỡ và xóa khỏi kho",
   "delete.purged": "Đã gỡ tài khoản và xóa thông tin xác thực của nó khỏi kho.",
@@ -1173,8 +1173,10 @@
   "report.open": "Mở trên GitHub",
   "dialog.picker.search": "Tìm nhà cung cấp",
   "dialog.picker.clear": "Xóa tìm kiếm",
-  "dialog.picker.count": "{count} nhà cung cấp",
-  "dialog.picker.hint.browser": "Kết nối cục bộ",
+  "dialog.picker.count": {
+    "other": "{count} nhà cung cấp"
+  },
+  "dialog.picker.hint.browser": "Mở trình duyệt của bạn",
   "dialog.picker.hint.apiKey": "Cần khóa",
   "dialog.picker.connect": "Kết nối",
   "dialog.picker.metered": "Tính phí theo truy vấn",
@@ -1406,7 +1408,9 @@
   "settings.lang.machine": "Bản dịch máy; chưa được người bản ngữ rà soát.",
   "settings.lang.machine.link": "Giúp rà soát",
   "settings.mode.label": "Chế độ",
-  "dialog.picker.searchCount": "Tìm trong {count} nhà cung cấp",
+  "dialog.picker.searchCount": {
+    "other": "Tìm trong {count} nhà cung cấp"
+  },
   "settings.menubar.appearance": "Giao diện",
   "settings.menubar.colored.desc": "Màu mức độ dễ đọc trên thanh sáng và tối; số liệu giữ màu của thanh menu.",
   "settings.menubar.count": "{n} trên {total}",

@@ -655,7 +655,7 @@
   "dialog.deleteBodyVault": "{label} 在系统保险库中保存了凭据。是否一并删除？",
   "dialog.deleteExtensionSecrets": "同时从保险库中删除此扩展已保存的密钥。",
   "dialog.picker.addExtension": "通过扩展添加提供商",
-  "dialog.picker.notListed": "没有列出？",
+  "dialog.picker.notListed": "没有列出？ {link}",
   "dialog.deleteVaultKeep": "移除并保留在保险库中",
   "dialog.deleteVaultPurge": "移除并从保险库中删除",
   "delete.purged": "账户已移除，其凭据已从保险库中删除。",
@@ -1173,8 +1173,10 @@
   "report.open": "在 GitHub 上打开",
   "dialog.picker.search": "搜索提供商",
   "dialog.picker.clear": "清除搜索",
-  "dialog.picker.count": "{count} 个提供商",
-  "dialog.picker.hint.browser": "本地连接",
+  "dialog.picker.count": {
+    "other": "{count} 个提供商"
+  },
+  "dialog.picker.hint.browser": "打开您的浏览器",
   "dialog.picker.hint.apiKey": "需要密钥",
   "dialog.picker.connect": "连接",
   "dialog.picker.metered": "按查询计费",
@@ -1406,7 +1408,9 @@
   "settings.lang.machine": "机器翻译，尚未经过母语人士审校。",
   "settings.lang.machine.link": "帮助审校",
   "settings.mode.label": "模式",
-  "dialog.picker.searchCount": "搜索 {count} 个提供商",
+  "dialog.picker.searchCount": {
+    "other": "搜索 {count} 个提供商"
+  },
   "settings.menubar.appearance": "外观",
   "settings.menubar.colored.desc": "在浅色和深色菜单栏上都清晰的等级颜色；数字保持菜单栏的颜色。",
   "settings.menubar.count": "{n}/{total}",

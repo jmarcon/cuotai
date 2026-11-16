@@ -655,7 +655,7 @@
   "dialog.deleteBodyVault": "{label}에는 시스템 보관소에 저장된 자격 증명이 있습니다. 함께 삭제할까요?",
   "dialog.deleteExtensionSecrets": "이 확장 기능이 보관소에 저장한 비밀도 함께 삭제합니다.",
   "dialog.picker.addExtension": "확장 기능으로 제공업체 추가",
-  "dialog.picker.notListed": "목록에 없나요?",
+  "dialog.picker.notListed": "목록에 없나요? {link}",
   "dialog.deleteVaultKeep": "제거하고 보관소에 유지",
   "dialog.deleteVaultPurge": "제거하고 보관소에서도 삭제",
   "delete.purged": "계정을 제거하고 자격 증명을 보관소에서 삭제했습니다.",
@@ -1173,8 +1173,10 @@
   "report.open": "GitHub에서 열기",
   "dialog.picker.search": "제공업체 검색",
   "dialog.picker.clear": "검색어 지우기",
-  "dialog.picker.count": "제공업체 {count}개",
-  "dialog.picker.hint.browser": "로컬로 연결",
+  "dialog.picker.count": {
+    "other": "제공업체 {count}개"
+  },
+  "dialog.picker.hint.browser": "브라우저를 엽니다",
   "dialog.picker.hint.apiKey": "키 필요",
   "dialog.picker.connect": "연결",
   "dialog.picker.metered": "조회당 과금",
@@ -1406,7 +1408,9 @@
   "settings.lang.machine": "기계 번역이며 아직 원어민 검토를 거치지 않았습니다.",
   "settings.lang.machine.link": "검토 돕기",
   "settings.mode.label": "모드",
-  "dialog.picker.searchCount": "제공업체 {count}개 검색",
+  "dialog.picker.searchCount": {
+    "other": "제공업체 {count}개 검색"
+  },
   "settings.menubar.appearance": "화면 모양",
   "settings.menubar.colored.desc": "밝거나 어두운 메뉴 막대에서 모두 읽기 쉬운 수준 색. 수치는 메뉴 막대 색을 유지합니다.",
   "settings.menubar.count": "{total}개 중 {n}개",

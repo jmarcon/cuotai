@@ -658,8 +658,8 @@
   "filter.none": "Ninguna cuenta coincide con el filtro.",
   "dialog.deleteBodyVault": "{label} tiene una credencial guardada en el almacén del sistema. ¿Quieres borrarla también?",
   "dialog.deleteExtensionSecrets": "Borrar también del almacén los secretos guardados de esta extensión.",
-  "dialog.picker.addExtension": "añade un proveedor con una extensión",
-  "dialog.picker.notListed": "¿No aparece?",
+  "dialog.picker.addExtension": "Añade un proveedor con una extensión",
+  "dialog.picker.notListed": "¿No aparece? {link}",
   "dialog.deleteVaultKeep": "Eliminar y conservar en el almacén",
   "dialog.deleteVaultPurge": "Eliminar y borrar del almacén",
   "delete.purged": "Cuenta eliminada y credencial borrada del almacén.",
@@ -1186,8 +1186,11 @@
   "report.open": "Abrir en GitHub",
   "dialog.picker.search": "Buscar proveedores",
   "dialog.picker.clear": "Borrar búsqueda",
-  "dialog.picker.count": "{count} proveedores",
-  "dialog.picker.hint.browser": "Se conecta localmente",
+  "dialog.picker.count": {
+    "one": "{count} proveedor",
+    "other": "{count} proveedores"
+  },
+  "dialog.picker.hint.browser": "Abre tu navegador",
   "dialog.picker.hint.apiKey": "Requiere una clave",
   "dialog.picker.connect": "Conectar",
   "dialog.picker.metered": "Se cobra por consulta",
@@ -1424,7 +1427,10 @@
   "settings.lang.machine": "Traducción automática; aún sin revisión de un hablante nativo.",
   "settings.lang.machine.link": "Ayuda a revisarla",
   "settings.mode.label": "Modo",
-  "dialog.picker.searchCount": "Buscar entre {count} proveedores",
+  "dialog.picker.searchCount": {
+    "one": "Buscar en {count} proveedor",
+    "other": "Buscar entre {count} proveedores"
+  },
   "settings.menubar.appearance": "Apariencia",
   "settings.menubar.colored.desc": "Colores de nivel legibles en barras claras y oscuras; la cifra no cambia de color.",
   "settings.menubar.count": "{n} de {total}",
