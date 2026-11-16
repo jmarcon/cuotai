@@ -228,16 +228,29 @@ pub fn views_from_limits(limits: &Value) -> Result<Vec<AccountView>, ClientError
 }
 
 fn view(account: &Value) -> AccountView {
+    // S-04: the server's text never carries control or direction
+    // characters to the terminal.
     let text = |key: &str| {
-        account
-            .get(key)
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_owned()
+        crate::text::strip_disguising(account.get(key).and_then(Value::as_str).unwrap_or_default())
+            .into_owned()
     };
     let provider = text("provider");
-    let label =
-        Provider::from_slug(&provider).map_or_else(|| provider.clone(), |p| p.label().to_owned());
+    // An unknown slug shows only when it looks like one; anything else is "?".
+    let label = Provider::from_slug(&provider).map_or_else(
+        || {
+            let slug = !provider.is_empty()
+                && provider.len() <= 32
+                && provider
+                    .bytes()
+                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_');
+            if slug {
+                provider.clone()
+            } else {
+                "?".to_owned()
+            }
+        },
+        |p| p.label().to_owned(),
+    );
     let binding = account.get("binding").filter(|b| b.is_object());
     let time = |key: &str| {
         binding
@@ -352,6 +365,36 @@ mod tests {
         assert_eq!(views[1].remaining, None);
         assert!(views[1].exhausted && views[1].stale);
         assert_eq!(views[1].provider_label, "some_future_provider");
+    }
+
+    /// S-04: OSC 0 (window title), OSC 52 (clipboard), CSI and bidi
+    /// characters from the server never reach the line.
+    #[test]
+    fn server_text_loses_control_and_direction_characters() {
+        let body = json!({
+            "schema": 1,
+            "accounts": [
+                {"id": "a\u{1b}[2Jb", "key": "k\u{7}", "name": "\u{1b}]0;pwned\u{7}Ma\u{202e}in\u{200f}",
+                 "provider": "claude", "class": "available", "stale": false, "binding": null},
+                {"id": "b", "key": "b", "name": "x\u{1b}]52;c;aGk=\u{7}",
+                 "provider": "Evil\u{1b}[31m", "class": "available", "stale": false, "binding": null}
+            ]
+        });
+        let views = views_from_limits(&body).unwrap();
+        assert_eq!(views[0].name, "]0;pwnedMain");
+        assert_eq!(views[0].key, "a[2Jb");
+        assert_eq!(views[1].name, "x]52;c;aGk=");
+        assert_eq!(views[1].provider_label, "?");
+        for view in &views {
+            for text in [&view.name, &view.key, &view.provider, &view.provider_label] {
+                assert!(
+                    !text
+                        .chars()
+                        .any(|c| c.is_control() || matches!(c, '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')),
+                    "{text:?}"
+                );
+            }
+        }
     }
 
     #[test]

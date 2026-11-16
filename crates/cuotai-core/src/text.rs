@@ -279,6 +279,32 @@ pub fn is_disguising(c: char) -> bool {
     c.is_control() || matches!(c, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}')
 }
 
+/// `text` without its [`is_disguising`] characters and bidi marks (U+200E,
+/// U+200F, U+061C) (PRD 0031 re-validation S-04): for text that goes to a
+/// terminal or a status bar, where an escape sequence could set the window
+/// title, write the clipboard or reorder what is shown.
+pub fn strip_disguising(text: &str) -> std::borrow::Cow<'_, str> {
+    let hidden = |c: char| is_disguising(c) || matches!(c, '\u{200E}' | '\u{200F}' | '\u{061C}');
+    if text.chars().any(hidden) {
+        std::borrow::Cow::Owned(text.chars().filter(|c| !hidden(*c)).collect())
+    } else {
+        std::borrow::Cow::Borrowed(text)
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn strip_disguising_drops_controls_overrides_and_marks() {
+    assert!(matches!(
+        strip_disguising("Main"),
+        std::borrow::Cow::Borrowed("Main")
+    ));
+    assert_eq!(
+        strip_disguising("a\u{1b}]0;t\u{7}b\u{202e}c\u{2066}d\u{200e}e\u{200f}f\u{61c}g\n"),
+        "a]0;tbcdefg"
+    );
+}
+
 /// `text` with every [`is_disguising`] character written visibly as
 /// `\u{…}` (its code point in hex) instead of stripped, so a listing shows
 /// exactly what a name, a path or a value holds and no line can be forged
