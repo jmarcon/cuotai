@@ -69,6 +69,39 @@ pub(crate) fn assert_within_budget(
         "{what}: {best:?} over the budget of {budget:?}"
     );
 }
+
+/// Writes `contents` to `path` as an executable (mode 0755) for a test to run
+/// as a fake CLI. On Linux, `exec` of a file that any process still holds
+/// open for writing fails with `ETXTBSY` ("text file busy"). Writing the file
+/// from the test process leaves that window open: another test thread that
+/// spawns a child in the meantime gives the child a copy of the write handle
+/// until the child's own `exec` closes it (`O_CLOEXEC` closes it at `exec`,
+/// not at `fork`), so the fake CLI cannot start and the code under test
+/// reports a start failure. No `sync` or close in this thread helps, and
+/// neither does a rename (the inode is the same). A short-lived `/bin/sh`
+/// child writes the file instead: the write handle exists only in that
+/// child, which has exited before this returns.
+#[cfg(test)]
+pub(crate) fn write_executable(path: &std::path::Path, contents: impl AsRef<[u8]>) {
+    #[cfg(unix)]
+    {
+        use std::io::Write;
+        use std::process::{Command, Stdio};
+        let mut child = Command::new("/bin/sh")
+            .args(["-c", "cat > \"$1\" && chmod 755 \"$1\"", "sh"])
+            .arg(path)
+            .stdin(Stdio::piped())
+            .spawn()
+            .expect("start /bin/sh to write a fake CLI");
+        let mut stdin = child.stdin.take().unwrap();
+        stdin.write_all(contents.as_ref()).unwrap();
+        drop(stdin);
+        let status = child.wait().unwrap();
+        assert!(status.success(), "could not write {}", path.display());
+    }
+    #[cfg(not(unix))]
+    std::fs::write(path, contents).unwrap();
+}
 #[cfg(test)]
 mod compat_tests;
 pub mod install_source;

@@ -3125,22 +3125,14 @@ mod tests {
             "per1WeekResetTime": 1788001180000i64
         }))
         .unwrap();
-        std::fs::write(
+        crate::write_executable(
             &bin,
             format!(
                 "#!/bin/sh\n\
                  echo '{body}'\n\
                  exit 0\n"
             ),
-        )
-        .unwrap();
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mut perms = std::fs::metadata(&bin).unwrap().permissions();
-            perms.set_mode(0o755);
-            std::fs::set_permissions(&bin, perms).unwrap();
-        }
+        );
         let http = reqwest::Client::new();
         let creds = MapCredentials(BTreeMap::new());
         let ctx = ctx_with(&http, &creds);
@@ -3162,19 +3154,9 @@ mod tests {
     async fn cli_monthly_only_output_of_bl_2_8_yields_the_monthly_quota() {
         let dir = tempfile::tempdir().unwrap();
         let bin = dir.path().join("bl");
-        std::fs::write(
-            &bin,
-            "#!/bin/sh\n\
+        crate::write_executable(&bin, "#!/bin/sh\n\
              echo '{\"per1MonthPercentage\":0.12,\"per1MonthResetTime\":1767225600000,\"hasQuotaData\":true}'\n\
-             exit 0\n",
-        )
-        .unwrap();
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mut perms = std::fs::metadata(&bin).unwrap().permissions();
-            perms.set_mode(0o755);
-            std::fs::set_permissions(&bin, perms).unwrap();
-        }
+             exit 0\n");
         let http = reqwest::Client::new();
         let creds = MapCredentials(BTreeMap::new());
         let ctx = ctx_with(&http, &creds);
@@ -3188,15 +3170,13 @@ mod tests {
         assert_eq!(ids, ["note.alibaba_plans.cli_query"]);
     }
 
-    /// Writes an executable fake `bl` with `script` as its body.
+    /// Writes an executable fake `bl` with `script` as its body, through
+    /// [`crate::write_executable`] so a concurrent spawn cannot leave it
+    /// "text file busy".
     #[cfg(unix)]
     fn fake_bl(dir: &std::path::Path, script: &str) -> String {
-        use std::os::unix::fs::PermissionsExt;
         let bin = dir.join("bl");
-        std::fs::write(&bin, format!("#!/bin/sh\n{script}\n")).unwrap();
-        let mut perms = std::fs::metadata(&bin).unwrap().permissions();
-        perms.set_mode(0o755);
-        std::fs::set_permissions(&bin, perms).unwrap();
+        crate::write_executable(&bin, format!("#!/bin/sh\n{script}\n"));
         bin.to_string_lossy().into_owned()
     }
 
@@ -3249,14 +3229,7 @@ mod tests {
     async fn cli_objeto_vazio_retorna_quota_desconhecida() {
         let dir = tempfile::tempdir().unwrap();
         let bin = dir.path().join("bl");
-        std::fs::write(&bin, "#!/bin/sh\necho '{}'\nexit 0\n").unwrap();
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mut perms = std::fs::metadata(&bin).unwrap().permissions();
-            perms.set_mode(0o755);
-            std::fs::set_permissions(&bin, perms).unwrap();
-        }
+        crate::write_executable(&bin, "#!/bin/sh\necho '{}'\nexit 0\n");
         let http = reqwest::Client::new();
         let creds = MapCredentials(BTreeMap::new());
         let ctx = ctx_with(&http, &creds);
@@ -3280,14 +3253,7 @@ mod tests {
         for body in ["", "[]", "\"ok\""] {
             let dir = tempfile::tempdir().unwrap();
             let bin = dir.path().join("bl");
-            std::fs::write(&bin, format!("#!/bin/sh\nprintf '%s' '{body}'\nexit 0\n")).unwrap();
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                let mut perms = std::fs::metadata(&bin).unwrap().permissions();
-                perms.set_mode(0o755);
-                std::fs::set_permissions(&bin, perms).unwrap();
-            }
+            crate::write_executable(&bin, format!("#!/bin/sh\nprintf '%s' '{body}'\nexit 0\n"));
             let http = reqwest::Client::new();
             let creds = MapCredentials(BTreeMap::new());
             let ctx = ctx_with(&http, &creds);
@@ -3306,18 +3272,7 @@ mod tests {
     async fn cli_login_required_classifica_autenticacao_sem_vazar_stderr() {
         let dir = tempfile::tempdir().unwrap();
         let bin = dir.path().join("bl");
-        std::fs::write(
-            &bin,
-            "#!/bin/sh\necho 'Error: please login first (token leaked XYZ_NEVER_LEAK)' >&2\nexit 1\n",
-        )
-        .unwrap();
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mut perms = std::fs::metadata(&bin).unwrap().permissions();
-            perms.set_mode(0o755);
-            std::fs::set_permissions(&bin, perms).unwrap();
-        }
+        crate::write_executable(&bin, "#!/bin/sh\necho 'Error: please login first (token leaked XYZ_NEVER_LEAK)' >&2\nexit 1\n");
         let http = reqwest::Client::new();
         let creds = MapCredentials(BTreeMap::new());
         let ctx = ctx_with(&http, &creds);
@@ -3336,18 +3291,7 @@ mod tests {
     async fn cli_login_required_on_stdout_classifies_auth_without_leaking_payload() {
         let dir = tempfile::tempdir().unwrap();
         let bin = dir.path().join("bl");
-        std::fs::write(
-            &bin,
-            "#!/bin/sh\nprintf '%s\\n' '{\"error\":{\"code\":3,\"message\":\"No console access token found.\",\"hint\":\"Run `bl auth login --console`.\"}}'\nexit 3\n",
-        )
-        .unwrap();
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mut perms = std::fs::metadata(&bin).unwrap().permissions();
-            perms.set_mode(0o755);
-            std::fs::set_permissions(&bin, perms).unwrap();
-        }
+        crate::write_executable(&bin, "#!/bin/sh\nprintf '%s\\n' '{\"error\":{\"code\":3,\"message\":\"No console access token found.\",\"hint\":\"Run `bl auth login --console`.\"}}'\nexit 3\n");
         let http = reqwest::Client::new();
         let creds = MapCredentials(BTreeMap::new());
         let ctx = ctx_with(&http, &creds);
