@@ -55,6 +55,20 @@ pub trait TokenStore: Send + Sync {
     fn load(&self, id: &str) -> Result<Option<OAuthToken>, OAuthError>;
     /// Persist `token` under `id`, replacing any existing entry.
     fn save(&self, id: &str, token: &OAuthToken) -> Result<(), OAuthError>;
+    /// [`Self::save`] that also tells the vault index what the entry is and
+    /// which file owns it (2026-11 re-validation F1/F2). Only
+    /// [`super::vault_index::IndexedStore`] records the tag; a wrapper that
+    /// does not forward it leaves the entry untagged, which is never pruned
+    /// in bulk.
+    fn save_tagged(
+        &self,
+        id: &str,
+        token: &OAuthToken,
+        tag: &super::vault_index::EntryTag,
+    ) -> Result<(), OAuthError> {
+        let _ = tag;
+        self.save(id, token)
+    }
     /// Remove the entry for `id`. Deleting a missing entry succeeds.
     fn delete(&self, id: &str) -> Result<(), OAuthError>;
 }

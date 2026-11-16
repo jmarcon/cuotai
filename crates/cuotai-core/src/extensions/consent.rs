@@ -602,6 +602,32 @@ impl Consent {
         found
     }
 
+    /// 2026-11 re-validation F1: the vault keys of every secret the record
+    /// keeps alive: those of each stored approval (approved, or waiting for
+    /// a re-approval) and those of the retired scopes, kept until the new
+    /// value is stored. Whole keys are built here, never parsed back (ids
+    /// may contain `_`). `Err` when the record is missing, unreadable or
+    /// does not parse: the vault audit then cannot tell what is in use.
+    pub(crate) fn live_secret_keys(&self) -> Result<std::collections::BTreeSet<String>, ()> {
+        let bytes = std::fs::read(&self.file).map_err(|_| ())?;
+        let record: Record = serde_json::from_slice(&bytes).map_err(|_| ())?;
+        let mut keys = std::collections::BTreeSet::new();
+        for (id, approval) in &record.approved {
+            let scope = approval.secret_scope();
+            for name in &approval.secrets {
+                keys.insert(super::management::secret_key(id, &scope, name));
+            }
+        }
+        for (id, scopes) in &record.retired {
+            for (scope, names) in scopes {
+                for name in names {
+                    keys.insert(super::management::secret_key(id, scope, name));
+                }
+            }
+        }
+        Ok(keys)
+    }
+
     fn read(&self) -> Record {
         std::fs::read(&self.file)
             .ok()

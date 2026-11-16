@@ -1,4 +1,5 @@
 use super::process_lock::ProcessLock;
+use super::vault_index::{EntryTag, Kind};
 use super::{
     flows, reference, requires_client_registration, LoginPrompt, OAuthConfig, OAuthError,
     OAuthToken, SystemTokenStore, TokenStore,
@@ -214,7 +215,8 @@ impl OAuthSession {
 
     pub async fn save_login(&self, login: &AuthorizedLogin) -> Result<(), OAuthError> {
         let _locks = self.exclusive(&login.key).await?;
-        self.write(&login.key, &login.token).await
+        self.write_tagged(&login.key, &login.token, Kind::Oauth)
+            .await
     }
 
     /// Save a new login and return the token it replaced, read under the
@@ -236,7 +238,8 @@ impl OAuthSession {
                 Err(error) => return Err(error),
             },
         };
-        self.write(&login.key, &login.token).await?;
+        self.write_tagged(&login.key, &login.token, Kind::Oauth)
+            .await?;
         Ok(prior)
     }
 
@@ -263,6 +266,33 @@ impl OAuthSession {
         persist(&self.store, key, token).await?;
         self.forget_unsaved(key);
         Ok(())
+    }
+
+    /// [`Self::write`] that records `kind` in the vault index
+    /// ([`super::vault_index`]); the owner is proven later by an audit.
+    async fn write_tagged(
+        &self,
+        key: &str,
+        token: &OAuthToken,
+        kind: Kind,
+    ) -> Result<(), OAuthError> {
+        let store = Arc::clone(&self.store);
+        let (id, token) = (key.to_string(), token.clone());
+        tokio::task::spawn_blocking(move || store.save_tagged(&id, &token, &EntryTag::kind(kind)))
+            .await
+            .map_err(|_| storage_error())??;
+        self.forget_unsaved(key);
+        Ok(())
+    }
+
+    /// PRD 0016: write a pasted web session under `key`, tagged as one.
+    pub(crate) async fn save_session_by_key(
+        &self,
+        key: String,
+        token: OAuthToken,
+    ) -> Result<(), OAuthError> {
+        let _locks = self.exclusive(&key).await?;
+        self.write_tagged(&key, &token, Kind::Session).await
     }
 
     /// Delete the entry under `key`; the caller holds the refresh lock.

@@ -2382,5 +2382,7 @@
   "user_session.paste.too_long": "Văn bản đã dán quá dài; chỉ sao chép tiêu đề Cookie, yêu cầu dạng cURL hoặc bảng cookie.",
   "user_session.paste.cookie_too_long": "Cookie của phiên quá dài để gửi; hãy sao chép lại sau khi đăng nhập lại.",
   "oauth_error.store.too_long": "Thông tin xác thực này quá lớn đối với kho của hệ thống.",
-  "edit_error.config_reserved_name": "Trường {field} dùng một tên dành riêng cho Cuotai (bắt đầu bằng __CUOTAI_); hãy đặt tên biến môi trường của riêng bạn, hoặc dán bí mật trong trình hướng dẫn tài khoản."
+  "edit_error.config_reserved_name": "Trường {field} dùng một tên dành riêng cho Cuotai (bắt đầu bằng __CUOTAI_); hãy đặt tên biến môi trường của riêng bạn, hoặc dán bí mật trong trình hướng dẫn tài khoản.",
+  "vault.remove.in_use": "Thông tin xác thực này đang được dùng; hãy xóa tài khoản hoặc kênh của nó thay vào đó.",
+  "vault.remove.not_indexed": "Khóa đó không có trong danh sách thông tin xác thực đã lưu."
 }

@@ -79,7 +79,7 @@ Bodies are capped (4 KiB for webhook and ntfy, 3 KiB for Slack, 1,900 characters
 
 ## What never leaves this computer
 
-Only the notification texts described above go to the addresses you added. The definitions in `desktop.json` (`channels`) keep the kind, the name, the **host only**, the filters and the switch. The full address (which usually embeds a token) and the signing secret live in the system vault as `channel_<id>` and `channel_<id>_secret`. In debug builds, `--dev-credentials-sqlite` keeps them in the development store, as with OAuth tokens; release builds need the system vault. `cuotai --vault-audit` lists these entries as channels and never as orphans.
+Only the notification texts described above go to the addresses you added. The definitions in `desktop.json` (`channels`) keep the kind, the name, the **host only**, the filters and the switch. The full address (which usually embeds a token) and the signing secret live in the system vault as `channel_<id>` and `channel_<id>_secret`. In debug builds, `--dev-credentials-sqlite` keeps them in the development store, as with OAuth tokens; release builds need the system vault. `cuotai --vault-audit` lists these entries as channels while `desktop.json` defines them. When `desktop.json` is missing, damaged, unreadable or holds a channel row Cuotai would not have written, they are listed as **unverifiable** and `--vault-prune` keeps them (a signed webhook's secret is shown only once); only an entry of a channel that a cleanly read `desktop.json` no longer defines counts as unused.
 
 ## Self-hosted ntfy
 

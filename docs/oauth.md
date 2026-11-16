@@ -112,11 +112,25 @@ Prepare once with `aws configure sso`. When configuring AWS Bedrock, enter the p
 
 ## Stored credentials index (PRD 0029 RF6)
 
-The vault cannot list what it holds, so Cuotai keeps its own index of the entries it writes: `<OS local data dir>/cuotai/vault-index.json` (`0600`; the development SQLite store keeps a separate `<database>.vault-index.json` beside it). Each entry is the opaque storage key and the time it was first written, never a value. A save adds the key and a delete removes it; a missing or corrupt index reads as empty and never blocks a login, a refresh or a removal. Entries written before this index existed are not listed.
+The vault cannot list what it holds, so Cuotai keeps its own index of the entries it writes: `<OS local data dir>/cuotai/vault-index.json` (`0600`; the development SQLite store keeps a separate `<database>.vault-index.json` beside it). One index serves every configuration of your OS user. Each entry is the opaque storage key, the time it was first written, its **kind** (OAuth sign-in, web session, notification channel or extension secret) and the **owners** proven so far: the `ConfigIdentity` digest of the file that uses it (the TOML for sign-ins and sessions, `desktop.json` for channels, the extensions' approvals file for extension secrets), never a path and never a value. A save adds the key and a delete removes it; every change is one locked, atomic rewrite, so the terminal and the desktop can run at once; a missing or corrupt index reads as empty and never blocks a login, a refresh or a removal. Entries written before this index existed are not listed. Rows written by an older release (schema 1) read as "owner unknown"; a row gains an owner only when a file loaded now references it (each start of the TUI or the desktop records that).
 
-- **`cuotai --vault-audit [--json]`** lists the indexed entries with the account that uses each one (OAuth sign-in or web session, provider, account id and display name), resolved against the configuration, and marks **orphans** no configured account references (exit `2` when there is one). It checks that each entry is still in the vault with a load whose value is dropped unread; nothing from an entry is printed.
-- **`cuotai --vault-prune`** lists the orphans on stderr and deletes them after you type the confirmation word in a terminal; without a terminal it is an error and nothing is deleted.
-- **Desktop:** Settings › Advanced › Files › **Stored credentials** shows the same list and a **Remove unused** action with an inline confirmation.
+**Delete only on proof (2026-11 re-validation).** Each entry gets a status, judged against the files **as they are on disk now**:
+
+| Status | Meaning | Removed by `--vault-prune` / Remove unused |
+|---|---|---|
+| in use | the owning file references it | never |
+| unused | known kind, its only owner is the file loaded now, which was read cleanly and does not reference it | yes |
+| other owner | another configuration, preferences or approvals file owns it | no; one by one |
+| owner unknown | stored by an older version, and nothing references it now | no; one by one |
+| unverifiable | its file is missing (the empty fallback when no configuration exists), damaged, unreadable, of a newer schema, or has accounts set aside (PRD 0051) | no; one by one |
+| unclassified | its kind is unknown (an untagged write, or a kind of a newer Cuotai) | no; one by one |
+
+An extension secret is in use while a stored approval (approved, or waiting for a re-approval) or a retired scope kept until the new value is stored names it. A signed webhook's secret is shown only once, so a damaged `desktop.json` makes its channel entries unverifiable rather than unused.
+
+- **`cuotai --vault-audit [--json]`** names the configuration it judged against, lists the indexed entries with what uses each one (provider, account id and display name for sign-ins and sessions) or their status, and counts what is proven unused and what is kept (exit `2` when something is proven unused). In JSON each entry has `status`, and `orphan` stays as `status == "unused"`. It checks that each entry is still in the vault with a load whose value is dropped unread; nothing from an entry is printed.
+- **`cuotai --vault-prune`** lists the entries proven unused on stderr and, after you type the confirmation word in a terminal, deletes **exactly that list**: the core reads the files from disk again and deletes only the confirmed keys that are still unused, and names each one it kept. Without a terminal it is an error and nothing is deleted.
+- **`cuotai --vault-remove KEY`** deletes one indexed entry of any status except in use, after a typed confirmation naming its kind and status.
+- **Desktop:** Settings › Advanced › Files › **Stored credentials** shows the same list and the configuration it was judged against, **Remove unused** (exactly the keys shown, with an inline confirmation naming their count and the file) and a **Remove** action on each entry that is not in use.
 - **Provider switch:** since PRD 0029 RF5.2, switching an account to another provider in the TUI wizard deletes its old OAuth token after the save (the summary says so first), unless another account still uses it.
 
 ## Web sessions (PRD 0016)

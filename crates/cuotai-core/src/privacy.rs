@@ -420,7 +420,7 @@ static ARTIFACTS: &[Artifact] = &[
         "vault.index",
         LocalData,
         "vault-index.json",
-        "opaque keys of the vault entries Cuotai created, with dates; never a value",
+        "opaque keys of the vault entries Cuotai created, with dates, kinds and owning-file digests (`ConfigIdentity`, never a path); never a value",
         JsonSchema,
         "until the entry is deleted",
         "0029",

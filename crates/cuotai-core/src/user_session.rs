@@ -1203,7 +1203,7 @@ async fn write_sessions(
             }
         };
         if let Err(error) = oauth
-            .restore_by_key(key.clone(), token(value, expires_at))
+            .save_session_by_key(key.clone(), token(value, expires_at))
             .await
         {
             let _ = undo_writes(oauth, written).await;

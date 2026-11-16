@@ -2401,5 +2401,7 @@
   "user_session.paste.too_long": "Le texte collé est trop long ; copiez seulement l’en-tête Cookie, la requête en cURL ou le tableau des cookies.",
   "user_session.paste.cookie_too_long": "Les cookies de la session sont trop longs pour être envoyés ; copiez-les à nouveau après une nouvelle connexion.",
   "oauth_error.store.too_long": "Cet identifiant est trop volumineux pour le coffre du système.",
-  "edit_error.config_reserved_name": "Le champ {field} utilise un nom réservé à Cuotai (il commence par __CUOTAI_) ; indiquez le nom de votre propre variable d’environnement ou collez le secret dans l’assistant du compte."
+  "edit_error.config_reserved_name": "Le champ {field} utilise un nom réservé à Cuotai (il commence par __CUOTAI_) ; indiquez le nom de votre propre variable d’environnement ou collez le secret dans l’assistant du compte.",
+  "vault.remove.in_use": "Cet identifiant est utilisé ; supprimez plutôt son compte ou son canal.",
+  "vault.remove.not_indexed": "Cette clé ne figure pas dans la liste des identifiants enregistrés."
 }

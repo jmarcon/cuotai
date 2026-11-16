@@ -151,9 +151,10 @@ export const accountIndex = (accountId) => call("account_index", { accountId });
 export const migrateSession = (index) => call("migrate_session", { index });
 /** PRD 0016 RF4.2: forget the account's web session, deleting its vault entry (after an explicit confirmation). */
 export const forgetSession = (index) => call("forget_session", { index });
-/** PRD 0029 RF6.2: the vault entries Cuotai created (orphans marked), and the removal of the orphans. */
+/** PRD 0029 RF6.2: the vault entries Cuotai created, each with the core's status; the removal of exactly the confirmed unused keys; one entry by its key. */
 export const vaultAudit = () => call("vault_audit");
-export const vaultPrune = () => call("vault_prune");
+export const vaultPrune = (keys) => call("vault_prune", { keys });
+export const vaultRemove = (key) => call("vault_remove", { key });
 /** PRD 0046 RF4.4: the core's read-only, offline self-check (statuses, details and fixes, never a value). */
 export const doctorReport = () => call("doctor_report");
 /** PRD 0046 RF2.1: what Back up… would write (files in, what stays out and why), then the write itself. */
@@ -2506,10 +2507,12 @@ const demo = {
     demoSettings.sessionMigrated.add(demoReports[index]);
     return demo.get_account({ index });
   },
-  vault_audit: async () => [
-    { key: "00000000-0000-4000-8000-000000000001", created_at: "2026-10-01T12:00:00Z", kind: "oauth", provider: "claude", account_id: "acc_demo00000001", account: "Claude", orphan: false, present: true },
-    ...(demoSettings.vaultPruned ? [] : [{ key: "00000000-0000-4000-8000-000000000002", created_at: "2026-09-01T12:00:00Z", kind: null, provider: null, account_id: null, account: null, orphan: true, present: true }]),
-  ],
+  vault_audit: async () => ({ config_path: "~/.config/cuotai/config.toml", entries: [
+    { key: "00000000-0000-4000-8000-000000000001", created_at: "2026-10-01T12:00:00Z", kind: "oauth", provider: "claude", account_id: "acc_demo00000001", account: "Claude", status: "in_use", orphan: false, present: true },
+    { key: "channel_0123456789abcdef", created_at: "2026-10-02T12:00:00Z", kind: "channel", provider: null, account_id: null, account: null, status: "in_use", orphan: false, present: true },
+    ...(demoSettings.vaultPruned ? [] : [{ key: "00000000-0000-4000-8000-000000000002", created_at: "2026-09-01T12:00:00Z", kind: "oauth", provider: null, account_id: null, account: null, status: "unused", orphan: true, present: true }]),
+    ...(demoSettings.vaultRemoved ? [] : [{ key: "00000000-0000-4000-8000-000000000003", created_at: "2026-08-01T12:00:00Z", kind: null, provider: null, account_id: null, account: null, status: "owner_unknown", orphan: false, present: true }]),
+  ] }),
   doctor_report: async () => ({ schema: 1, checks: [
     { id: "version", status: "ok", title: { id: "doctor.title.version", params: { version: "demo", os: "macos", arch: "aarch64", source: "direct" }, fallback: "Cuotai {version} on {os} {arch} ({source})" } },
     { id: "config", status: "ok", title: { id: "doctor.title.config", params: { path: "~/.config/cuotai/config.toml", source: "default" }, fallback: "Configuration file {path} ({source})" },
@@ -2550,7 +2553,8 @@ const demo = {
   } }),
   restore_apply: async ({ accept }) => ({ written: 2 + accept.length, restart: accept.includes("prefs/desktop.json") }),
   restart_app: async () => location.reload(),
-  vault_prune: async () => { const n = demoSettings.vaultPruned ? 0 : 1; demoSettings.vaultPruned = true; return n; },
+  vault_prune: async ({ keys }) => { const deleted = demoSettings.vaultPruned ? [] : keys.slice(0, 1); demoSettings.vaultPruned = true; return { deleted, skipped: [] }; },
+  vault_remove: async () => { demoSettings.vaultRemoved = true; return "owner_unknown"; },
   forget_session: async ({ index }) => {
     demoSettings.sessionForgotten.add(demoReports[index]);
     return demo.get_account({ index });

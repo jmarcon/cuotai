@@ -385,9 +385,7 @@ async fn forget_session(
 
 /// PRD 0029 RF6.2: the vault entries Cuotai created; never a value.
 #[tauri::command]
-async fn vault_audit(
-    b: Shared<'_>,
-) -> Result<Vec<cuotai_core::oauth::vault_index::AuditEntry>, String> {
+async fn vault_audit(b: Shared<'_>) -> Result<cuotai_core::oauth::vault_index::Plan, String> {
     b.vault_audit().await
 }
 
@@ -713,11 +711,27 @@ fn restart_app(app: AppHandle) {
     updater::restart_on_main_thread(&app);
 }
 
-/// PRD 0029 RF6.2: delete the vault entries no account uses.
+/// PRD 0029 RF6.2: delete the confirmed vault entries the core still
+/// proves unused (2026-11 re-validation F2).
 #[tauri::command]
-async fn vault_prune(window: WebviewWindow, b: Shared<'_>) -> Result<usize, String> {
+async fn vault_prune(
+    window: WebviewWindow,
+    b: Shared<'_>,
+    keys: Vec<String>,
+) -> Result<cuotai_core::oauth::vault_index::PruneOutcome, String> {
     window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
-    b.vault_prune().await
+    b.vault_prune(keys).await
+}
+
+/// Delete one vault entry the person chose; refused while it is in use.
+#[tauri::command]
+async fn vault_remove(
+    window: WebviewWindow,
+    b: Shared<'_>,
+    key: String,
+) -> Result<cuotai_core::oauth::vault_index::Status, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
+    b.vault_remove(key).await
 }
 
 /// PRD 0016 RF2.2: what a paste keeps (names, counts, expiry), before it is
@@ -3080,6 +3094,7 @@ pub fn run() -> std::process::ExitCode {
             forget_session,
             vault_audit,
             vault_prune,
+            vault_remove,
             doctor_report,
             backup_preview,
             backup_write,
@@ -3373,6 +3388,7 @@ mod tests {
                     "history_erase",
                     "cost_erase",
                     "vault_prune",
+                    "vault_remove",
                     "erase_all_data",
                     "erase_serve_access_log",
                     "generate_serve_token",

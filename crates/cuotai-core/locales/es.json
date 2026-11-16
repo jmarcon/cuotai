@@ -2398,5 +2398,7 @@
   "user_session.paste.too_long": "El texto pegado es demasiado largo; copia solo el encabezado Cookie, la solicitud como cURL o la tabla de cookies.",
   "user_session.paste.cookie_too_long": "Las cookies de la sesión son demasiado largas para enviarlas; cópialas de nuevo tras iniciar sesión otra vez.",
   "oauth_error.store.too_long": "Esta credencial es demasiado grande para la bóveda del sistema.",
-  "edit_error.config_reserved_name": "El campo {field} usa un nombre reservado para Cuotai (empieza por __CUOTAI_); indica el nombre de tu propia variable de entorno o pega el secreto en el asistente de la cuenta."
+  "edit_error.config_reserved_name": "El campo {field} usa un nombre reservado para Cuotai (empieza por __CUOTAI_); indica el nombre de tu propia variable de entorno o pega el secreto en el asistente de la cuenta.",
+  "vault.remove.in_use": "Esa credencial está en uso; elimina su cuenta o su canal en su lugar.",
+  "vault.remove.not_indexed": "Esa clave no está en la lista de credenciales guardadas."
 }
