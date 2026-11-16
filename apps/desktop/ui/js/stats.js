@@ -77,7 +77,8 @@ export function barsHtml(daily) {
     const tip = d.share == null ? `${name}: ${t("stats.chart.noData")}` : `${name}: ${pct(d.share)}`;
     const label = d.is_today ? t("stats.chart.today")
       : n <= 7 ? name
-      : i % every === 0 || i === n - 1 ? dayOfMonth(d.day) : "";
+      // V-08: no tick in the last few columns, where the right-aligned "Today" sits.
+      : (i % every === 0 && n - 1 - i >= every) || i === n - 1 ? dayOfMonth(d.day) : "";
     // V-04: today keeps its accent and bold label even at the limit.
     const cls = [d.share == null ? "gap" : d.share >= 1 ? "full" : "", d.is_today ? "today" : ""].filter(Boolean).join(" ");
     const bar = d.share == null ? `<i class="bar ghost"></i>` : `<i class="bar" style="height:${(d.share * 100).toFixed(1)}%"></i>`;
@@ -87,7 +88,7 @@ export function barsHtml(daily) {
     return `<li class="${cls}" title="${esc(tip)}">${bar}${value}<span class="x-label">${esc(label)}</span></li>`;
   }).join("");
   return `<div class="bars" aria-hidden="true"><span class="grid-line g100"><em>100</em></span><span class="grid-line g50"><em>50</em></span><span class="grid-line g0"><em>0</em></span>
-    <ul style="--n:${n}">${cols}</ul></div>`;
+    <ul${n > 7 ? ' class="dense"' : ""} style="--n:${n}">${cols}</ul></div>`;
 }
 
 const rangeToggle = (range) => `<div class="seg" role="group" aria-label="${te("stats.range.label")}">${
@@ -139,7 +140,7 @@ export function rhythmChartHtml(rhythm, id, kind) {
     : t("stats.rhythm.empty");
   const rows = buckets.map((b) => `<tr><td>${esc(labelOf(b))}</td><td>${b.consumption == null ? te("stats.chart.noData") : esc(pts(b.consumption))}</td><td>${[b.reset ? te("stats.rhythm.reset") : "", b.day_off ? te("stats.rhythm.dayOff") : "", kind === "typical" && b.consumption != null ? te("stats.rhythm.samples", { count: b.samples }) : ""].filter(Boolean).join(" · ")}</td></tr>`).join("");
   return `<figure class="rhythm" data-rhythm="${kind}"><figcaption class="micro">${te(`stats.rhythm.${kind}`)}</figcaption>
-    <div role="img" aria-label="${esc(alt)}" aria-describedby="${id}-${kind}-table">${known.length ? `<div class="bars rhythm-bars" aria-hidden="true"><ul style="--n:${buckets.length}">${cols}</ul></div>` : `<p class="sub st-empty">${esc(alt)}</p>`}</div>
+    <div role="img" aria-label="${esc(alt)}" aria-describedby="${id}-${kind}-table">${known.length ? `<div class="bars rhythm-bars" aria-hidden="true"><ul${buckets.length > 7 ? ' class="dense"' : ""} style="--n:${buckets.length}">${cols}</ul></div>` : `<p class="sub st-empty">${esc(alt)}</p>`}</div>
     <div class="sr-only"><table id="${id}-${kind}-table"><caption>${esc(alt)}</caption>
       <thead><tr><th scope="col">${te(kind === "week" ? "stats.table.day" : "stats.rhythm.hour")}</th><th scope="col">${te("stats.rhythm.use")}</th><th scope="col">${te("stats.rhythm.marks")}</th></tr></thead><tbody>${rows}</tbody></table></div></figure>`;
 }
