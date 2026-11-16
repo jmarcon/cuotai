@@ -5,6 +5,8 @@
 
 #![cfg(unix)]
 
+mod common;
+
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -20,12 +22,11 @@ impl Sandbox {
         fs::create_dir_all(dir.join("bin")).unwrap();
         fs::create_dir_all(dir.join("home")).unwrap();
         let aws = dir.join("bin/aws");
-        fs::write(
+        common::write_executable(
             &aws,
             format!("#!/bin/sh\ncat '{}'\n", dir.join("answer.json").display()),
         )
         .unwrap();
-        fs::set_permissions(&aws, fs::Permissions::from_mode(0o755)).unwrap();
         fs::write(
             dir.join("cuotai.toml"),
             "[[accounts]]\nname = \"Finance Team\"\nprovider = \"aws_bedrock\"\nparams = { profile = \"dev\" }\n",

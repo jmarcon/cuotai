@@ -3,6 +3,8 @@
 
 #![cfg(unix)]
 
+mod common;
+
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -14,12 +16,11 @@ fn sandbox(name: &str) -> PathBuf {
     fs::create_dir_all(dir.join("bin")).unwrap();
     fs::create_dir_all(dir.join("home")).unwrap();
     let bl = dir.join("bin/bl");
-    fs::write(
+    common::write_executable(
         &bl,
         "#!/bin/sh\nprintf '{\"per5HourPercentage\":0.4,\"per5HourResetTime\":%s000}\\n' $(( $(date +%s) + 10800 ))\n",
     )
     .unwrap();
-    fs::set_permissions(&bl, fs::Permissions::from_mode(0o755)).unwrap();
     fs::write(
         dir.join("cuotai.toml"),
         "[[accounts]]\nname = \"Qwen\"\nprovider = \"alibaba_token_plan\"\nparams = { cli_profile = \"default\" }\n",

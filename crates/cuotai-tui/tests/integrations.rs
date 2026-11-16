@@ -10,6 +10,8 @@
 
 #![cfg(unix)]
 
+mod common;
+
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -67,8 +69,7 @@ impl Bin {
             ("sketchybar", "#!/bin/sh\necho \"$@\"\n"),
         ] {
             let path = dir.join(program);
-            fs::write(&path, body).unwrap();
-            fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+            common::write_executable(&path, body).unwrap();
         }
         Self(dir)
     }

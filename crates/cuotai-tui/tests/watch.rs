@@ -7,6 +7,8 @@
 
 #![cfg(unix)]
 
+mod common;
+
 use std::fs;
 use std::io::{BufReader, Read, Write};
 use std::net::TcpStream;
@@ -27,7 +29,7 @@ impl Sandbox {
         fs::create_dir_all(dir.join("home")).unwrap();
         fs::write(dir.join("usage"), usage).unwrap();
         let bl = dir.join("bin/bl");
-        fs::write(
+        common::write_executable(
             &bl,
             format!(
                 r#"#!/bin/sh
@@ -41,7 +43,6 @@ printf '{{"per5HourPercentage":%s,"per5HourResetTime":%s000}}\n' "$usage" $(( $(
             ),
         )
         .unwrap();
-        fs::set_permissions(&bl, fs::Permissions::from_mode(0o755)).unwrap();
         fs::write(
             dir.join("cuotai.toml"),
             "[[accounts]]\nname = \"Qwen\"\nprovider = \"alibaba_token_plan\"\nparams = { cli_profile = \"default\" }\n",
@@ -371,7 +372,7 @@ fn watch_jsonl_prints_overage_started_and_ended() {
     )
     .unwrap();
     let script = folder.join("run.sh");
-    fs::write(
+    common::write_executable(
         &script,
         format!(
             r#"#!/bin/sh
@@ -388,7 +389,6 @@ printf '{{"schema":1,"status":"ready","metrics":[{{"label":"Extra usage","used":
         ),
     )
     .unwrap();
-    fs::set_permissions(&script, fs::Permissions::from_mode(0o755)).unwrap();
     fs::set_permissions(&folder, fs::Permissions::from_mode(0o755)).unwrap();
     // The approval a person gives with `--extension-check`, made here
     // because that command needs a terminal.

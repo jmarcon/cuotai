@@ -1,3 +1,5 @@
+mod common;
+
 use std::{
     collections::BTreeMap,
     fs,
@@ -20,7 +22,8 @@ fn install_source_reports_the_running_binary_offline() {
     let _ = fs::remove_dir_all(&directory);
     fs::create_dir(&directory).expect("create smoke directory");
     let executable = directory.join(format!("cuotai{}", std::env::consts::EXE_SUFFIX));
-    fs::copy(env!("CARGO_BIN_EXE_cuotai"), &executable).expect("copy smoke binary");
+    common::copy_executable(Path::new(env!("CARGO_BIN_EXE_cuotai")), &executable)
+        .expect("copy smoke binary");
     let output = run(&executable, &["--install-source"]);
     fs::remove_dir_all(directory).expect("remove smoke directory");
     assert!(output.status.success(), "{output:?}");
@@ -46,7 +49,8 @@ fn a_cargo_copy_never_gets_a_crates_io_command_offline() {
     let executable = root
         .join("bin")
         .join(format!("cuotai{}", std::env::consts::EXE_SUFFIX));
-    fs::copy(env!("CARGO_BIN_EXE_cuotai"), &executable).expect("copy smoke binary");
+    common::copy_executable(Path::new(env!("CARGO_BIN_EXE_cuotai")), &executable)
+        .expect("copy smoke binary");
     let output = Command::new(&executable)
         .arg("--install-source")
         .env_remove("APPIMAGE")

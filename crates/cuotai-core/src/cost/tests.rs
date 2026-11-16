@@ -11,6 +11,11 @@ use std::time::{Duration, Instant};
 /// Marks every content field of the synthetic logs; it must never reach
 /// the index, a report, a debug rendering or a text.
 const SECRET: &str = "SENSITIVE-CONTENT-7f3a";
+/// The Codex session id and file-name suffix. Leak probes look for it in the
+/// index, whose rows hold lowercase hex digests: it carries letters outside
+/// `0-9a-f` (and a `-`), so it can never turn up there by chance, as an
+/// all-hex id such as `0199a` once did on Windows.
+const CODEX_SESSION: &str = "codex-SESSION-qzw";
 
 struct Fixture {
     dir: tempfile::TempDir,
@@ -77,7 +82,7 @@ impl Fixture {
     fn codex_log(&self, folder: &str) -> PathBuf {
         let dir = self.home().join(".codex").join(folder).join("2025/10/02");
         std::fs::create_dir_all(&dir).unwrap();
-        dir.join("rollout-2025-10-02T09-00-00-0199a.jsonl")
+        dir.join(format!("rollout-2025-10-02T09-00-00-{CODEX_SESSION}.jsonl"))
     }
 
     fn scan(&self) -> ScanReport {
@@ -138,7 +143,7 @@ fn append(path: &Path, text: &str) {
 
 fn codex_rollout() -> String {
     let lines = [
-        format!(r#"{{"timestamp":"2025-10-02T09:00:00.000Z","type":"session_meta","payload":{{"id":"0199a","cwd":"/Users/ana/{SECRET}","instructions":"{SECRET}"}}}}"#),
+        format!(r#"{{"timestamp":"2025-10-02T09:00:00.000Z","type":"session_meta","payload":{{"id":"{CODEX_SESSION}","cwd":"/Users/ana/{SECRET}","instructions":"{SECRET}"}}}}"#),
         r#"{"timestamp":"2025-10-02T09:00:01.000Z","type":"turn_context","payload":{"cwd":"/x","model":"gpt-5-codex"}}"#.to_owned(),
         format!(r#"{{"timestamp":"2025-10-02T09:00:02.000Z","type":"response_item","payload":{{"type":"message","role":"user","content":[{{"type":"input_text","text":"{SECRET}"}}]}}}}"#),
         r#"{"timestamp":"2025-10-02T09:01:00.000Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":120,"cached_input_tokens":20,"output_tokens":30,"total_tokens":150},"last_token_usage":{"input_tokens":120,"cached_input_tokens":20,"output_tokens":30,"total_tokens":150}}}}"#.to_owned(),
@@ -509,7 +514,16 @@ fn sensitive_content_never_reaches_the_index_reports_or_texts() {
         .unwrap()
         .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(()))
         .unwrap();
-    let leaks = [SECRET, "session-", "msg_1", "req_1", "0199a", "/Users/ana"];
+    // Every probe has a byte outside lowercase hex, the only text encoding the
+    // index stores, so a match is a leak and never a digest by chance.
+    let leaks = [
+        SECRET,
+        "session-",
+        "msg_1",
+        "req_1",
+        CODEX_SESSION,
+        "/Users/ana",
+    ];
     for path in [
         index.path().to_path_buf(),
         f.scanner.settings().path().to_path_buf(),
