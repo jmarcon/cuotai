@@ -2,6 +2,8 @@
 //! diagnostics, and a runtime mode keeps the healthy accounts of a file that
 //! also names a provider from a newer release.
 
+mod common;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
@@ -99,15 +101,13 @@ fn check_config_exits_0_for_a_valid_file_and_1_with_a_redacted_diagnostic() {
 #[cfg(unix)]
 #[test]
 fn a_provider_from_a_newer_release_fails_only_its_account() {
-    use std::os::unix::fs::PermissionsExt;
     let dir = sandbox("tolerant");
     let bl = dir.join("bin/bl");
-    fs::write(
+    common::write_executable(
         &bl,
         "#!/bin/sh\nprintf '{\"per5HourPercentage\":0.4,\"per5HourResetTime\":%s000}\\n' $(( $(date +%s) + 10800 ))\n",
     )
     .unwrap();
-    fs::set_permissions(&bl, fs::Permissions::from_mode(0o755)).unwrap();
     let config = "[[accounts]]\nname = \"Next\"\nprovider = \"a_provider_from_2030\"\n\n[[accounts]]\nname = \"Qwen\"\nprovider = \"alibaba_token_plan\"\nparams = { cli_profile = \"default\" }\n";
     let out = run(&dir, config, &["--json"]);
     assert_eq!(

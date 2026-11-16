@@ -4,8 +4,9 @@
 
 #![cfg(unix)]
 
+mod common;
+
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::process::{Command, Output, Stdio};
 
@@ -19,7 +20,7 @@ impl Sandbox {
         fs::create_dir_all(dir.join("bin")).unwrap();
         fs::create_dir_all(dir.join("home")).unwrap();
         let aws = dir.join("bin/aws");
-        fs::write(
+        common::write_executable(
             &aws,
             r#"#!/bin/sh
 echo "$*" >> "$(dirname "$0")/../aws.log"
@@ -30,7 +31,6 @@ esac
 "#,
         )
         .unwrap();
-        fs::set_permissions(&aws, fs::Permissions::from_mode(0o755)).unwrap();
         Self(dir)
     }
 
