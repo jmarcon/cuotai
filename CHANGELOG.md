@@ -13,6 +13,20 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.86.1] - 2026-11-16
+
+### Fixed
+
+- The menu bar writes return and reset times on another day as the weekday or date, in your clock format, and shows the provider instead of an account name unless you chose the accounts (PRD 0025 RF1, RF7.1; 8fe3c96).
+- The menu bar's Icon only style shows a ring of your tightest limit, Meters is visible on Windows and Linux, the outage and alert badge shows in every style, the colored variant stays readable on light and dark bars, and account names with "&" show correctly in the right-click menu (PRD 0025 RF3, RF7.1; 6e53633).
+- An account you switch off in the dashboard no longer shows in the menu bar, and your menu-bar account selection survives switching accounts files (PRD 0025 RF2.2, RF2.3, RF6.6; 41212c7).
+- The row display no longer leaves empty lines, applies to the main window's cards, and Settings › Menu bar previews exactly what the menu bar draws; the popover's More menu works with the keyboard (PRD 0025 RF2.3, RF4, RF6, RF9; eb57a16).
+- When the history file reaches its size cap, the oldest event-journal entries are trimmed together with the oldest readings, and one unreadable journal entry no longer hides the others (PRD 0026 RF3.3, RF1; 38e0fcd).
+- The --stats --rhythm chart shows hours in your language's 12- or 24-hour clock and dates in its order (PRD 0026 RF2, RF4; 94aca14).
+- The stats screen, --stats, --timeline and --events-log show dates in your language's order and group events by day, show "—" for limit hits without enough history, and --events-log --json adds projected_at, spent, currency and skipped (PRD 0026 RF6; 21d3388).
+- Returns more than six days away show their date in the reset timeline, Stats shows times in your language's clock, today's bar keeps its highlight at the limit, recent events are grouped by day, and the Stats view keeps keyboard focus (PRD 0026 RF4, RF5; 825ff2a).
+- The menu-bar Stats panel no longer breaks words or wraps its range toggle, its day labels stay inside the chart, keyboard focus moves into and back out of it, and the Windows 98/XP themes no longer draw chart bars as meters (PRD 0026 RF4; 6b8996f).
+
 ## [0.86.0] - 2026-11-15
 
 ### Added
@@ -873,7 +887,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.86.0...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.86.1...HEAD
+[0.86.1]: https://github.com/jmarcon/cuotai/compare/v0.86.0...v0.86.1
 [0.86.0]: https://github.com/jmarcon/cuotai/compare/v0.85.12...v0.86.0
 [0.85.12]: https://github.com/jmarcon/cuotai/compare/v0.85.11...v0.85.12
 [0.85.11]: https://github.com/jmarcon/cuotai/compare/v0.85.10...v0.85.11
