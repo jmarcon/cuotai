@@ -313,6 +313,13 @@ fn the_osc9_digest_keeps_its_items_apart() {
     assert_eq!(osc.matches(" | ").count(), 1, "{osc}");
     assert!(!osc.contains('\n'), "{osc}");
     assert!(!osc.contains("Secret Corp"), "{osc}");
+    // PRD 0032 re-validation C-07: the banner (the terminal's own screen)
+    // lists the held items with their account and metric.
+    let banner = notices.banner(at(3, 8, 0)).unwrap();
+    assert!(banner.contains("held during quiet hours — "), "{banner}");
+    // Whole items within the one-line cap, and "and N more" for the rest.
+    assert!(banner.contains("Secret Corp: 5h"), "{banner}");
+    assert!(banner.ends_with(" | and 1 more"), "{banner}");
 }
 
 /// PRD 0032 re-validation C-08: 92% held at 23:00, exhaustion told at

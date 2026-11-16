@@ -358,11 +358,11 @@ impl Notices {
         }
         out.push(BEL);
         // The header's clock is in UTC: the banner's time too, labelled
-        // (PRD 0003 re-validation V-07).
-        self.banner = Some((
-            now,
-            format!("{} · {}", now.format("%H:%M UTC"), lines.join(" · ")),
-        ));
+        // (PRD 0003 re-validation V-07), in the language's hour cycle like
+        // the core text beside it (PRD 0032 re-validation C-09).
+        use chrono::Timelike;
+        let clock = cuotai_core::text::clock::format_time(now.hour(), now.minute(), locale);
+        self.banner = Some((now, format!("{clock} UTC · {}", lines.join(" · "))));
         out
     }
 
@@ -410,8 +410,29 @@ impl Notices {
             now,
             locale,
         );
-        let title = notice.title.resolve(locale);
-        lines.push(safe(&title).into_owned());
+        // PRD 0032 re-validation C-07: the banner is the terminal's own
+        // screen and keeps the account names: it lists the held items.
+        let public = if private {
+            match &self.zone {
+                Some(zone) => quiet::digest(&groups, now, zone, false),
+                None => quiet::digest(&groups, now, &chrono::Local, false),
+            }
+        } else {
+            Some(notice.clone())
+        };
+        let title = safe(&notice.title.resolve(locale)).into_owned();
+        lines.push(match public {
+            Some(public) => format!(
+                "{title} — {}",
+                public.body(
+                    locale,
+                    cuotai_core::text::NOTICE_BODY_MAX,
+                    cuotai_core::text::NoticeMarkup::Plain,
+                    cuotai_core::text::LineJoin::Separator,
+                )
+            ),
+            None => title,
+        });
         if self.osc9 {
             osc9(out, &osc9_digest(&notice, locale));
         }
@@ -927,7 +948,9 @@ mod tests {
         );
         // PRD 0008 re-validation V-04: the reset time shares the banner's
         // labelled UTC clock, whatever the machine's zone.
-        assert!(banner.starts_with("12:02 UTC · "), "{banner}");
+        assert!(banner.starts_with("12:02\u{a0}PM UTC · "), "{banner}");
+        // PRD 0032 re-validation C-09: the hour cycle follows the language.
+        assert_eq!(cuotai_core::text::clock::format_time(12, 2, "de"), "12:02");
         assert!(banner.ends_with("resets 3:00\u{a0}PM"), "{banner}");
 
         // Oscillating around 90% in the same window stays silent.
