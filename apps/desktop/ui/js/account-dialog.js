@@ -1399,7 +1399,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     models?.dispose();
     models = null;
     modelsHost.innerHTML = editing || !same.length
-      ? `<div data-models-slot></div>${support ? `<p class="hint">${te("models.title")}: ${tl(support.text, {}, true)}${support.supported ? ` ${te("models.saveFirst")}` : ""}</p>` : ""}`
+      ? `<div data-models-slot></div>${support ? `<p class="hint">${te("common.label_value", { label: t("models.title"), value: tl(support.text) })}${support.supported ? ` ${te("models.saveFirst")}` : ""}</p>` : ""}`
       : `<label class="f"><span>${te("models.pick")}</span><select id="models-pick"><option value="">${te("models.pickNone")}</option>${same.map((r) => `<option value="${esc(reportKey(r))}">${esc(accountTitle(r))}</option>`).join("")}</select></label><div data-models-slot></div>`;
     if (editing) return mountIn(`${existing.provider}::${existing.name}`, index, generation);
     modelsHost.querySelector("#models-pick")?.addEventListener("change", (e) => {

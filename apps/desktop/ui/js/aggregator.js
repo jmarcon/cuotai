@@ -3,7 +3,7 @@
 // its own `account_key`, with `index` pointing at the aggregator so every action acts on it). Nothing here classifies
 // or counts on its own: figures and pool sentences come from the core.
 import { t, te, tl } from "./i18n.js";
-import { accountTitle, accountFullLabel, bindingPct, brand, esc, icon, level, logo, refreshAccount, setConnectionFlag } from "./lib.js";
+import { accountTitle, accountFullLabel, bindingPct, brand, esc, icon, level, listText, logo, refreshAccount, setConnectionFlag } from "./lib.js";
 
 export const isAggregator = (r) => !!r?.aggregator;
 export const isConnection = (r) => !!r?.connection;
@@ -69,8 +69,8 @@ export function statusLine(r) {
 }
 
 /** Accessible name of the grouped row and the 9router view: "9router, 7 connections, Claude: all exhausted". */
-export const accessibleName = (r) => [accountFullLabel(r, ", "), t("agg.connections", { count: r.aggregator.connections }),
-  ...r.aggregator.pools.map((p) => tl(p.summary))].join(", ");
+export const accessibleName = (r) => listText([accountFullLabel(r, ", "), t("agg.connections", { count: r.aggregator.connections }),
+  ...r.aggregator.pools.map((p) => tl(p.summary))]);
 
 /** Chips of a connection (text and icon, never color alone): off in the aggregator, also monitored directly. */
 export function connectionChips(c, { via = false } = {}) {

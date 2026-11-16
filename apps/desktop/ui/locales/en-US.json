@@ -49,6 +49,7 @@
   "common.showHidden": "Show hidden",
   "common.copyLabel": "Copy {label}",
   "common.unexpected": "Unexpected failure.",
+  "common.label_value": "{label}: {value}",
   "coreText.toolMissing": "The command-line tool this account uses was not found. Install it, or set its path in Edit.",
   "desktop.error.config_not_loaded": "Configuration not loaded.",
   "desktop.error.oauth_session_missing": "OAuth session not initialized.",
