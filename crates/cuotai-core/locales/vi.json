@@ -1973,6 +1973,7 @@
   "serve.client.not_loopback": "Máy chủ cục bộ chỉ được đọc qua loopback (127.0.0.1 hoặc ::1; localhost được đọc là 127.0.0.1).",
   "serve.client.not_ready": "Máy chủ cục bộ chưa có lần đọc nào; hãy thử lại sau giây lát.",
   "serve.client.unauthorized": "Máy chủ cục bộ đã từ chối token (hãy dùng --token-file với cùng tệp như --serve).",
+  "serve.client.unproven": "Chương trình trên cổng {port} không chứng minh được đó là máy chủ Cuotai của bạn; hãy cập nhật Cuotai ở phía máy chủ, hoặc kiểm tra thứ gì đang giữ cổng.",
   "serve.client.unreachable": "Máy chủ cục bộ không phản hồi; nó có đang chạy không (cuotai --serve)?",
   "serve.error.bind": "Không mở được cổng {port} của máy chủ cục bộ.",
   "serve.error.bounds": "Một giới hạn của máy chủ cục bộ nằm ngoài phạm vi cho phép.",

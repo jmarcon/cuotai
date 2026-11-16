@@ -1994,6 +1994,7 @@
   "serve.client.not_loopback": "Le serveur local ne se lit qu’en boucle locale (127.0.0.1 ou ::1 ; localhost est lu comme 127.0.0.1).",
   "serve.client.not_ready": "Le serveur local n’a pas encore de relevés ; réessayez dans quelques instants.",
   "serve.client.unauthorized": "Le serveur local a refusé le token (utilisez --token-file avec le même fichier que --serve).",
+  "serve.client.unproven": "Le programme sur le port {port} n’a pas prouvé qu’il est votre serveur Cuotai ; mettez Cuotai à jour côté serveur ou vérifiez ce qui occupe le port.",
   "serve.client.unreachable": "Le serveur local n’a pas répondu ; est-il en cours d’exécution (cuotai --serve) ?",
   "serve.error.bind": "Impossible d’ouvrir le port {port} du serveur local.",
   "serve.error.bounds": "Une limite du serveur local est hors de sa plage autorisée.",

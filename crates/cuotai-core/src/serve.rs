@@ -43,8 +43,8 @@ pub use origin::{
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
 pub use token::SystemTokenVault;
 pub use token::{
-    default_token_file, ensure_token, ensure_token_file, read_token_file, token_file_exposed,
-    Token, TokenVault,
+    challenge_is_valid, default_token_file, ensure_token, ensure_token_file, read_token_file,
+    token_file_exposed, Token, TokenVault,
 };
 
 use std::fmt;
@@ -89,6 +89,32 @@ const SCHEMAS: &[u32] = &[SCHEMA];
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// What a head says about a `Cuotai-Challenge` (re-validation S-03).
+enum Challenge<'a> {
+    /// Not a challenge: no header, or not a `GET`/`HEAD` of `/health`.
+    Absent,
+    /// A `/health` challenge with one well-formed nonce.
+    Valid(&'a str),
+    /// A `/health` challenge whose header is repeated or not a nonce.
+    Malformed,
+}
+
+fn challenge(head: &Head) -> Challenge<'_> {
+    let path = head.target.split('?').next().unwrap_or_default();
+    if path != "/health" || !matches!(head.method.as_str(), "GET" | "HEAD") {
+        return Challenge::Absent;
+    }
+    let mut values = head.values("cuotai-challenge");
+    match (values.next(), values.next()) {
+        (None, _) => Challenge::Absent,
+        (Some(nonce), None) if challenge_is_valid(nonce) => {
+            // Lowercase hex is ASCII, so this never fails.
+            std::str::from_utf8(nonce).map_or(Challenge::Malformed, Challenge::Valid)
+        }
+        _ => Challenge::Malformed,
+    }
+}
+
 /// The body of `/health`, in its documented field order.
 #[derive(serde::Serialize)]
 struct Health {
@@ -98,7 +124,21 @@ struct Health {
     /// PRD 0031 RF5.3: every `export::v1`-style schema number served, so a
     /// client can tell that a newer one is available next to `schema`.
     schemas: &'static [u32],
+    /// Re-validation S-03: only in the answer to a `Cuotai-Challenge`.
+    /// `"token"` (with `proof`) when the server needs a token, `"none"`
+    /// when it runs without one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    auth: Option<&'static str>,
+    /// HMAC-SHA256 under the token over the label, the nonce and the bound
+    /// port ([`CHALLENGE_HEADER`]), as 64 lowercase hex characters.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    proof: Option<String>,
 }
+
+/// Re-validation S-03: the request header a client sends to `/health`,
+/// without `Authorization`, so the server proves it holds the token before
+/// the client sends it.
+pub const CHALLENGE_HEADER: &str = "Cuotai-Challenge";
 
 /// Where the server reads the last known state. Building the export must
 /// only read what the refresh cycle already holds (see
@@ -790,6 +830,7 @@ impl LocalServer {
     ) -> Self {
         let (stop, stopped) = watch::channel(false);
         let state = Arc::new(State {
+            port: addr.port(),
             serving: Arc::new(Semaphore::new(initial.config.bounds.max_connections)),
             snapshot: RwLock::new(initial),
             stats_asked: std::sync::Mutex::new(std::collections::HashMap::new()),
@@ -991,6 +1032,9 @@ async fn probe(port: u16) -> bool {
 /// owns the semaphore that gates acceptance; only a restart can change it.
 struct State {
     snapshot: RwLock<Arc<Snapshot>>,
+    /// The port the server bound: what a challenge proof is bound to (never
+    /// the `Host` header), so a program on another port cannot relay it.
+    port: u16,
     /// PRD 0031 RF11.2.3: when each peer last asked for `/v1/stats`; it
     /// outlives a [`LocalServer::reconfigure`], so changing a setting does
     /// not reset the limit.
@@ -1313,6 +1357,15 @@ impl State {
                 .header("Access-Control-Allow-Headers", "Authorization")
                 .header("Access-Control-Max-Age", "600"));
         }
+        // Re-validation S-03: a `/health` challenge without credentials is
+        // admitted so the server can prove it holds the token; every check
+        // above still applied. A malformed challenge is refused outright.
+        match challenge(head) {
+            Challenge::Absent => {}
+            Challenge::Malformed => return Err(Response::error(400, "bad_challenge")),
+            Challenge::Valid(_) if head.values("authorization").next().is_none() => return Ok(()),
+            Challenge::Valid(_) => {}
+        }
         if let Some(token) = &config.token {
             if !head
                 .bearer()
@@ -1336,15 +1389,26 @@ impl State {
             return Response::error(400, "bad_request");
         };
         match path {
-            "/health" => Response::json(
-                200,
-                &Health {
-                    status: "ok",
-                    version: VERSION,
-                    schema: SCHEMA,
-                    schemas: SCHEMAS,
-                },
-            ),
+            "/health" => {
+                let (auth, proof) = match challenge(head) {
+                    Challenge::Valid(nonce) => match &snapshot.config.token {
+                        Some(token) => (Some("token"), Some(token.proof(nonce, self.port))),
+                        None => (Some("none"), None),
+                    },
+                    _ => (None, None),
+                };
+                Response::json(
+                    200,
+                    &Health {
+                        status: "ok",
+                        version: VERSION,
+                        schema: SCHEMA,
+                        schemas: SCHEMAS,
+                        auth,
+                        proof,
+                    },
+                )
+            }
             "/v1/snapshot" => self.with_export(
                 head,
                 "snapshot",

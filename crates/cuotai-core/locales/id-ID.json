@@ -1973,6 +1973,7 @@
   "serve.client.not_loopback": "Server lokal hanya dibaca lewat loopback (127.0.0.1 atau ::1; localhost dibaca sebagai 127.0.0.1).",
   "serve.client.not_ready": "Server lokal belum memiliki pembacaan; coba lagi sebentar lagi.",
   "serve.client.unauthorized": "Server lokal menolak token (gunakan --token-file dengan file yang sama seperti --serve).",
+  "serve.client.unproven": "Program di port {port} tidak membuktikan bahwa ia server Cuotai Anda; perbarui Cuotai di sisi server, atau periksa apa yang memakai port itu.",
   "serve.client.unreachable": "Server lokal tidak menjawab; apakah sedang berjalan (cuotai --serve)?",
   "serve.error.bind": "Tidak dapat membuka port {port} server lokal.",
   "serve.error.bounds": "Salah satu batas server lokal berada di luar rentang yang diizinkan.",

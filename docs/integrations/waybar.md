@@ -2,7 +2,7 @@
 
 A custom module that runs [`waybar.sh`](../../examples/integrations/waybar.sh) every 30 seconds. See the [index](README.md) for requirements and the environment variables.
 
-**Prefer `cuotai --status-line --from-server`** for a one-line bar: it reads the same running server, takes the token from its file, and never puts the token on a command line or sends it through a proxy. The script below keeps the token off command lines and proxies too.
+**Prefer `cuotai --status-line --from-server`** for a one-line bar: it reads the same running server, takes the token from its file, and never puts the token on a command line or sends it through a proxy, and sends it only after the server proved it holds it. The script below keeps the token off command lines and proxies too, but cannot check the server first: if another program holds the port while your server is down, it receives the token ([details](../local-server.md#who-receives-the-token)).
 
 ```jsonc
 // ~/.config/waybar/config
