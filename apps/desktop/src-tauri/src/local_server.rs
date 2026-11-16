@@ -535,12 +535,46 @@ mod tests {
         }
     }
 
-    fn free_port() -> u16 {
-        TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
-            .unwrap()
-            .local_addr()
-            .unwrap()
-            .port()
+    /// Moves the running server to a new port nobody else holds, and
+    /// returns that port. Probing a free port and binding it are two steps
+    /// another process can slip between, so a `port_taken` answer is retried
+    /// with another port. A failed bind starts nothing and leaves
+    /// `cold_starts()` alone (pinned by
+    /// `apply_reports_a_failed_binding_change_and_does_not_advance_cold_starts`),
+    /// so the counter still counts exactly the one bind that succeeded.
+    /// Every other test binds port 0 and reads the bound port back.
+    async fn apply_on_a_new_port(
+        integration: &mut Integration,
+        prefs: ServePrefs,
+        slot: &FeedSlot,
+    ) -> u16 {
+        for _ in 0..8 {
+            let port = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+                .unwrap()
+                .local_addr()
+                .unwrap()
+                .port();
+            integration
+                .apply(
+                    ServePrefs {
+                        port,
+                        ..prefs.clone()
+                    },
+                    slot,
+                )
+                .await;
+            let view = integration.view();
+            if view.state == "on" {
+                assert_eq!(bound_port(integration), port);
+                return port;
+            }
+            assert_eq!(
+                view.error.map(|e| e.id.into_owned()).as_deref(),
+                Some("serve.error.port_taken"),
+                "only a port another process took is retried"
+            );
+        }
+        panic!("eight probed ports were all taken before the bind");
     }
 
     fn bound_port(integration: &Integration) -> u16 {
@@ -653,20 +687,21 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn off_by_default_and_turning_it_off_closes_the_port() {
-        let port = free_port();
         let slot = FeedSlot::default();
         let mut integration = Integration::new(
             ServePrefs {
-                port,
+                port: 0,
                 ..ServePrefs::default()
             },
             Arc::new(MemoryVault::default()),
         );
         integration.apply(integration.prefs(), &slot).await;
         assert_eq!(integration.view().state, "off");
-        assert_eq!(status(port, "/health", &[]).await, None, "nothing listens");
+        assert!(!integration.is_on(), "nothing listens");
+        assert_eq!(integration.view().url, None);
 
-        integration.apply(on(port), &slot).await;
+        integration.apply(on(0), &slot).await;
+        let port = bound_port(&integration);
         let view = integration.view();
         assert_eq!(view.state, "on");
         assert_eq!(
@@ -686,12 +721,13 @@ mod tests {
             .apply(
                 ServePrefs {
                     enabled: false,
-                    ..on(port)
+                    ..on(0)
                 },
                 &slot,
             )
             .await;
         assert_eq!(integration.view().state, "off");
+        assert!(!integration.is_on());
         assert_eq!(status(port, "/health", &[]).await, None, "port closed");
     }
 
@@ -701,15 +737,15 @@ mod tests {
     /// `off`, a failing request recreates nothing.
     #[tokio::test(flavor = "multi_thread")]
     async fn the_access_log_is_off_by_default_records_errors_hot_and_erases() {
-        let port = free_port();
         let slot = FeedSlot::default();
         slot.publish(Some(feed()));
         let dir = tempfile::tempdir().unwrap();
         let path = serve::access_log_path(dir.path());
-        let mut integration = Integration::new(on(port), Arc::new(MemoryVault::default()))
+        let mut integration = Integration::new(on(0), Arc::new(MemoryVault::default()))
             .with_access_log_path(path.clone());
         assert_eq!(integration.prefs().access_log, "off");
-        integration.apply(on(port), &slot).await;
+        integration.apply(on(0), &slot).await;
+        let port = bound_port(&integration);
         let bearer = bearer_of(&integration).await;
         let auth = [("Authorization", bearer.as_str())];
         assert_eq!(
@@ -721,7 +757,7 @@ mod tests {
             "off creates nothing"
         );
 
-        let errors = on(port).with_access_log("errors").unwrap();
+        let errors = on(0).with_access_log("errors").unwrap();
         integration.apply(errors.clone(), &slot).await;
         assert_eq!(integration.cold_starts(), 1, "the mode changes in place");
         assert_eq!(status(port, "/health", &auth).await, Some(200));
@@ -748,7 +784,7 @@ mod tests {
         assert_eq!(status(port, "/nope", &auth).await, Some(404));
         assert!(!path.exists(), "off recreates nothing");
         assert_eq!(
-            on(port).with_access_log("verbose"),
+            on(0).with_access_log("verbose"),
             Err("invalid_access_log".into())
         );
     }
@@ -765,10 +801,10 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn serves_what_the_app_published_and_refuses_pages_unless_allowed() {
-        let port = free_port();
         let slot = FeedSlot::default();
-        let mut integration = Integration::new(on(port), Arc::new(MemoryVault::default()));
-        integration.apply(on(port), &slot).await;
+        let mut integration = Integration::new(on(0), Arc::new(MemoryVault::default()));
+        integration.apply(on(0), &slot).await;
+        let port = bound_port(&integration);
         let bearer = bearer_of(&integration).await;
         let auth = [("Authorization", bearer.as_str())];
         // Nothing published yet (no configuration loaded): 503, no query.
@@ -788,7 +824,12 @@ mod tests {
         integration.store_new_token().await.unwrap();
         let token = integration.stored_token().await.unwrap();
         let bearer = format!("Bearer {}", token.expose());
-        integration.apply(browsers(port), &slot).await;
+        integration.apply(browsers(0), &slot).await;
+        assert_eq!(
+            bound_port(&integration),
+            port,
+            "a policy change keeps the port"
+        );
         let page = [
             ("Origin", "https://example.com"),
             ("Authorization", bearer.as_str()),
@@ -912,14 +953,13 @@ mod tests {
         assert!(!integration.view().prefs.token_notice);
         integration.apply(ServePrefs::default(), &slot).await;
 
-        let port = free_port();
-        let legacy = ServePrefs { port, ..legacy };
         let mut broken = Integration::new(legacy.clone(), Arc::new(BrokenVault));
         broken.apply(legacy, &slot).await;
         let view = broken.view();
         assert_eq!(view.state, "error");
         assert_eq!(view.error.unwrap().id, "serve.error.vault");
-        assert_eq!(status(port, "/health", &[]).await, None, "never tokenless");
+        assert!(!broken.is_on(), "never tokenless: no listener at all");
+        assert_eq!(view.url, None);
     }
 
     /// PRD 0031 RF11.2.5: "Share usage statistics" turns `/v1/stats` on,
@@ -959,11 +999,10 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn a_required_token_the_vault_lacks_keeps_the_server_off() {
-        let port = free_port();
         let slot = FeedSlot::default();
         let guarded = ServePrefs {
             token: true,
-            ..on(port)
+            ..on(0)
         };
         for (vault, error) in [
             (
@@ -980,7 +1019,8 @@ mod tests {
                 view.error.map(|e| e.id.into_owned()).as_deref(),
                 Some(error)
             );
-            assert_eq!(status(port, "/health", &[]).await, None, "never tokenless");
+            assert!(!integration.is_on(), "never tokenless: no listener at all");
+            assert_eq!(integration.view().url, None);
         }
     }
 
@@ -1051,9 +1091,8 @@ mod tests {
     /// cold path runs exactly when reconfigure says it must.
     #[tokio::test(flavor = "multi_thread")]
     async fn apply_hot_swaps_same_port_policy_and_source_and_cold_restarts_only_on_bind_change() {
-        let port = free_port();
         let slot = FeedSlot::default();
-        let mut integration = Integration::new(on(port), Arc::new(MemoryVault::default()));
+        let mut integration = Integration::new(on(0), Arc::new(MemoryVault::default()));
         integration.store_new_token().await.unwrap();
         let bearer = format!(
             "Bearer {}",
@@ -1061,25 +1100,27 @@ mod tests {
         );
         let tokened = ServePrefs {
             token: true,
-            ..on(port)
+            ..on(0)
         };
         slot.publish(Some(feed_named("Personal Max")));
 
-        // First cold start: account "Personal Max".
+        // First cold start: account "Personal Max", on a port the OS picks.
         integration.apply(tokened.clone(), &slot).await;
         assert_eq!(integration.view().state, "on");
         assert_eq!(integration.cold_starts(), 1, "first apply binds once");
+        let port = bound_port(&integration);
         let auth = [("Authorization", bearer.as_str())];
         let (_, body) = get(port, "/v1/snapshot", &auth).await.unwrap();
         assert!(body.contains("Personal Max"), "{body}");
 
         // Same-port CORS on: hot swap. Counter stays at 1.
-        integration.apply(browsers(port), &slot).await;
+        integration.apply(browsers(0), &slot).await;
         assert_eq!(
             integration.cold_starts(),
             1,
             "CORS flip must not bind a new socket"
         );
+        assert_eq!(bound_port(&integration), port);
         let browser = [
             ("Origin", "https://example.com"),
             ("Authorization", bearer.as_str()),
@@ -1118,16 +1159,8 @@ mod tests {
         assert_eq!(code, 403, "browser origin refused when allow_browsers off");
 
         // Binding-identity change: counter must move to 2 (close + reopen).
-        let other_port = free_port();
-        integration
-            .apply(
-                ServePrefs {
-                    port: other_port,
-                    ..tokened.clone()
-                },
-                &slot,
-            )
-            .await;
+        let other_port = apply_on_a_new_port(&mut integration, tokened.clone(), &slot).await;
+        assert_ne!(other_port, port);
         assert_eq!(integration.view().state, "on");
         assert_eq!(
             integration.cold_starts(),
@@ -1147,11 +1180,10 @@ mod tests {
     /// the count that existed before the failed apply.
     #[tokio::test(flavor = "multi_thread")]
     async fn apply_reports_a_failed_binding_change_and_does_not_advance_cold_starts() {
-        let port = free_port();
         let slot = FeedSlot::default();
-        let mut integration = Integration::new(on(port), Arc::new(MemoryVault::default()));
+        let mut integration = Integration::new(on(0), Arc::new(MemoryVault::default()));
         slot.publish(Some(feed_named("Personal Max")));
-        integration.apply(on(port), &slot).await;
+        integration.apply(on(0), &slot).await;
         assert_eq!(integration.cold_starts(), 1);
 
         // External listener holds the requested new port: the cold restart
