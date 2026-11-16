@@ -266,3 +266,35 @@ fn from_server_refuses_other_hosts_and_a_missing_token() {
     assert_eq!(output.status.code(), Some(1), "{output:?}");
     assert!(String::from_utf8_lossy(&output.stderr).contains("token"));
 }
+
+/// S-04: text a server sends (here an OSC 0 title, an OSC 52 clipboard
+/// write, CSI and a bidi override in the name) never reaches the terminal.
+#[test]
+fn from_server_strips_control_and_direction_characters() {
+    const EVIL: &str = r#"{"schema":1,"generated_at":"2026-10-25T12:00:00Z","accounts":[{"index":0,"id":"acc_one","key":"claude:Main","name":"\u001b]0;pwned\u0007Ma\u202ein\u001b]52;c;aGk=\u0007\u001b[2J","provider":"claude","class":"available","stale":false,"binding":{"used_ratio":0.78}}],"summary":{}}"#;
+    let sandbox = Sandbox::new("from-server-evil");
+    let token = sandbox.0.join("token");
+    fs::write(&token, format!("{TOKEN}\n")).unwrap();
+    let (addr, _heads) = fake_server(TOKEN, EVIL, Proof::Valid);
+    let output = sandbox.run(
+        "dev",
+        &[
+            "--from-server",
+            &addr,
+            "--token-file",
+            token.to_str().unwrap(),
+            "--account",
+            "acc_one",
+        ],
+    );
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let line = String::from_utf8(output.stdout).unwrap();
+    assert!(
+        !line
+            .trim_end()
+            .chars()
+            .any(|c| c.is_control() || matches!(c, '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')),
+        "{line:?}"
+    );
+    assert!(line.contains("22%"), "{line:?}");
+}

@@ -544,6 +544,19 @@ where
         .into_iter()
         .map(|v| {
             let mut v = v.clone();
+            // PRD 0031 re-validation S-04: names from any source (a local
+            // server's answer included) reach a title or a terminal line
+            // without control or direction characters.
+            for text in [
+                &mut v.name,
+                &mut v.provider_label,
+                &mut v.provider,
+                &mut v.key,
+            ] {
+                if let std::borrow::Cow::Owned(clean) = crate::text::strip_disguising(text) {
+                    *text = clean;
+                }
+            }
             v.resets_at = v.resets_at.filter(|t| *t > now);
             v.runs_out_at = v.runs_out_at.filter(|t| *t > now);
             v
