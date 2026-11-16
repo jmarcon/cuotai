@@ -13,6 +13,34 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.86.4] - 2026-11-16
+
+### Fixed
+
+- The macOS widgets show your usage again on macOS 27.2 instead of staying as grey placeholders (PRD 0014 RF3.2, RF3.5; 0ac8beb).
+- A hand-edited configuration error now names the account table and says whether a name is missing or repeated, and an id line that copies another account's computed id is refused at load instead of merging the two accounts (PRD 0029 RF1.2, RF1.3, RF3.2, RF3.4; 6ffda6a).
+- Saving the configuration no longer writes default refresh, concurrency and timeout settings you never set (PRD 0029 RF1.2, RF1.3, RF3.2, RF3.4; 6ffda6a).
+- An unnamed extension account shows its extension's name instead of its id (PRD 0029 RF1.2, RF1.3, RF3.2, RF3.4; 6ffda6a).
+- The terminal wizard says a name is optional only when it is, and unnamed accounts are no longer shown as an empty name or with their provider twice in the removal prompt, the cards, --once and --vault-audit (PRD 0029 RF3.4, RF3.5; 09d986c).
+- The Add account form no longer shows the field for naming your existing account, or an empty Breakdown box, when they do not apply, and keeps what you typed in that field when you switch providers (PRD 0029 RF3.3, RF3.4, RF3.5; f8a4ad8).
+- The account name field says it is optional only when it is (PRD 0029 RF3.3, RF3.4, RF3.5; f8a4ad8).
+- Unnamed accounts are shown by their provider once everywhere, instead of an empty name or the provider twice (PRD 0029 RF3.3, RF3.4, RF3.5; f8a4ad8).
+- Invalid saved plan prices or second currency are ignored with a note instead of showing infinite or negative amounts (PRD 0030 RF1, RF6; PRD 0046 RF3; 67e7f8e).
+- A model repeated in pricing.json is now an error, and --doctor checks pricing.json (PRD 0030 RF1, RF6; PRD 0046 RF3; 67e7f8e).
+- When several accounts share one local cost source, the plan line is combined, shown only on accounts with a plan, and gives no ratio unless every account has a plan in one currency and on one cycle day (PRD 0030 RF1, RF3, RF4, RF6; 8aee5f2).
+- Local cost amounts, plan prices and converted amounts follow your language's number and currency format (PRD 0030 RF1, RF3, RF4, RF6; 8aee5f2).
+- A small estimate reads as a share of the plan price instead of 0.0×, and a converted amount keeps its unknown part (PRD 0030 RF1, RF3, RF4, RF6; 8aee5f2).
+- Local cost texts with counts use real plurals, and the exchange rate says when it was set (PRD 0030 RF1, RF3, RF4, RF6; 8aee5f2).
+- The terminal shows a plan line only on the account that has the plan, puts the rate line under the period, and lists missing prices and price age per source (PRD 0030 RF1, RF2, RF4, RF6; 4c5daaf).
+- The --cost-plan option refuses a name that matches no configured account instead of saving a plan nobody sees (PRD 0030 RF1, RF2, RF4, RF6; 4c5daaf).
+- The desktop shows a plan line only on the account that has the plan, keeps the unknown part in converted amounts, and puts each price table's age on its own line (PRD 0030 RF1, RF3, RF4, RF6; f4ef857).
+- The Plans form in Settings has visible labels and shows prices in your language's money format (PRD 0030 RF1, RF3, RF4, RF6; f4ef857).
+
+### Security
+
+- The status-bar recipes and the local-server examples no longer show the server token in the process list or send it through a proxy (PRD 0031 RF1; be150db).
+- A restore no longer turns local cost sources or folder names on; it leaves them off and says to turn each source on on this computer (PRD 0030 RF1, RF6; PRD 0046 RF3; 67e7f8e).
+
 ## [0.86.3] - 2026-11-16
 
 ### Security
@@ -919,7 +947,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.86.3...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.86.4...HEAD
+[0.86.4]: https://github.com/jmarcon/cuotai/compare/v0.86.3...v0.86.4
 [0.86.3]: https://github.com/jmarcon/cuotai/compare/v0.86.2...v0.86.3
 [0.86.2]: https://github.com/jmarcon/cuotai/compare/v0.86.1...v0.86.2
 [0.86.1]: https://github.com/jmarcon/cuotai/compare/v0.86.0...v0.86.1
