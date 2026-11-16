@@ -14,11 +14,18 @@ here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 target=${1:-arm64-apple-macosx14.0}
 sdk=$(xcrun --sdk macosx --show-sdk-path)
 
-# RF3.4: the string catalog must compile for the four languages.
+# RF3.4 / PRD 0034: the string catalog must compile for every language the
+# extension declares in `CFBundleLocalizations` (the 14 desktop languages,
+# under their Apple codes); English is the source and has no table of its
+# own. `crates/cuotai-core/tests/widget_strings.rs` checks that this list
+# matches the desktop languages and that every string has every language.
 cat_out=$(mktemp -d)
 trap 'rm -rf "$cat_out"' EXIT
 xcrun xcstringstool compile -o "$cat_out" "$here/Localizable.xcstrings"
-for l in pt-BR es it; do
+languages=$(plutil -extract CFBundleLocalizations json -o - "$here/Info.plist" | tr -d '[]"' | tr ',' ' ')
+[ -n "$languages" ] || { echo "Info.plist lists no CFBundleLocalizations" >&2; exit 1; }
+for l in $languages; do
+    [ "$l" = en ] && continue
     [ -f "$cat_out/$l.lproj/Localizable.strings" ] || { echo "missing $l strings" >&2; exit 1; }
 done
 

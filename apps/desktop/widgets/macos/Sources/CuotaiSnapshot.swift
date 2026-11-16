@@ -57,6 +57,16 @@ struct WidgetAccount: Codable, Identifiable {
     /// names this account.
     func isPinned(_ pinned: String) -> Bool { pinned == id || pinned == key }
 
+    /// The binding metric's name to draw: the text in the app's language
+    /// (the metric's, else the binding's), else the English default the
+    /// file carries, else the raw label of an older file.
+    var bindingLabel: String? {
+        guard let binding else { return nil }
+        let metric = metrics.indices.contains(binding.index) ? metrics[binding.index] : nil
+        return WidgetText.choose([metric?.labelText, binding.labelText], raw: binding.rawLabel)
+            .strippingPercentHint
+    }
+
     enum State {
         static let ready = "ready"
         static let stale = "stale"
@@ -82,7 +92,11 @@ struct WidgetAccount: Codable, Identifiable {
 
     struct Binding: Codable {
         let index: Int
-        let label: String
+        /// The adapter's raw label: an id, often in Portuguese. Private so
+        /// no view can draw it; views use [displayLabel].
+        private let label: String
+        /// PRD 0034: the label's text (see [PublishedText]).
+        fileprivate let labelText: PublishedText?
         let window: String?
         /// Consumed fraction in `0...1` (`1` when exhausted).
         let usedRatio: Double
@@ -93,6 +107,7 @@ struct WidgetAccount: Codable, Identifiable {
 
         enum CodingKeys: String, CodingKey {
             case index, label, window, remaining, reason
+            case labelText = "label_text"
             case usedRatio = "used_ratio"
             case resetsAt = "resets_at"
             case blockedUntil = "blocked_until"
@@ -100,16 +115,22 @@ struct WidgetAccount: Codable, Identifiable {
 
         var isExhausted: Bool { reason == "exhausted" }
 
-        /// The label without the trailing unit hint `(%)`: the widgets
-        /// already print the percentage next to it.
-        var shortLabel: String { label.strippingPercentHint }
+        /// For [WidgetAccount.bindingLabel], the last resort only.
+        fileprivate var rawLabel: String { label }
     }
 
     struct Metric: Codable {
-        let label: String
+        /// The adapter's raw label and unit: ids, often in Portuguese.
+        /// Private so no view can draw them; views use [displayLabel] and
+        /// [displayUnit].
+        private let label: String
         let usedFraction: Double
         let limit: Double
-        let unit: String
+        private let unit: String
+        /// PRD 0034: the label's and the unit's texts (see
+        /// [PublishedText]); absent in a file written by an older app.
+        fileprivate let labelText: PublishedText?
+        private let unitText: PublishedText?
         let window: String?
         let resetsAt: Date?
         /// The consumption pace (PRD 0007) when the app could assess it.
@@ -117,13 +138,21 @@ struct WidgetAccount: Codable, Identifiable {
 
         enum CodingKeys: String, CodingKey {
             case label, limit, unit, window, pace
+            case labelText = "label_text"
+            case unitText = "unit_text"
             case usedFraction = "used_fraction"
             case resetsAt = "resets_at"
         }
 
         var isOverused: Bool { usedFraction > 1 }
 
-        var shortLabel: String { label.strippingPercentHint }
+        /// The name to draw, without the trailing unit hint `(%)` (the
+        /// widgets print the percentage next to it): the text in the app's
+        /// language, else the English default, else the raw label.
+        var displayLabel: String { WidgetText.choose([labelText], raw: label).strippingPercentHint }
+
+        /// The unit to draw, by the same rule.
+        var displayUnit: String { WidgetText.choose([unitText], raw: unit) }
 
         struct Pace: Codable {
             let elapsedFraction: Double
@@ -178,6 +207,85 @@ extension Double {
     }
 }
 
+/// PRD 0034: a `label_text` or `unit_text` of the file. The app writes the
+/// text already in its language (a string); a core `Localized` object
+/// (`{"id", "params", "fallback"}`, as the binding carries) is read for its
+/// English `fallback`, which is never worse than the raw label. Anything
+/// else is ignored rather than making the whole file unreadable.
+enum PublishedText: Decodable {
+    case resolved(String)
+    case fallback(String)
+    case none
+
+    private struct Object: Decodable {
+        let fallback: String?
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let text = try? container.decode(String.self), !text.isEmpty {
+            self = .resolved(text)
+        } else if let text = (try? container.decode(Object.self))?.fallback, !text.isEmpty {
+            self = .fallback(text)
+        } else {
+            self = .none
+        }
+    }
+
+    var resolved: String? {
+        if case .resolved(let text) = self { return text }
+        return nil
+    }
+
+    var fallback: String? {
+        if case .fallback(let text) = self { return text }
+        return nil
+    }
+}
+
+extension PublishedText: Encodable {
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .resolved(let text), .fallback(let text): try container.encode(text)
+        case .none: try container.encodeNil()
+        }
+    }
+}
+
+/// PRD 0034: the texts the widgets draw from the file.
+enum WidgetText {
+    /// The first text in the app's language among `texts`, else the first
+    /// English default, else `raw` (the adapter's label, often Portuguese,
+    /// only for a file written by an older app).
+    static func choose(_ texts: [PublishedText?], raw: String) -> String {
+        texts.lazy.compactMap { $0?.resolved }.first
+            ?? texts.lazy.compactMap { $0?.fallback }.first
+            ?? raw
+    }
+}
+
+/// PRD 0034: the language the app runs in, carried by the file, so the
+/// widgets speak it (their own strings and their number and date formats)
+/// instead of the system's.
+enum WidgetLanguage {
+    /// The locale for the file's `locale` (a registry code such as `de`,
+    /// `pt-BR` or `zh-CN`), or `nil` when the file has none (an older app)
+    /// or names a language this extension has no strings for: the widgets
+    /// then follow the system's language.
+    static func locale(for code: String?, bundle: Bundle = .main) -> Locale? {
+        guard let code, (1...35).contains(code.count),
+              code.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") })
+        else { return nil }
+        let locale = Locale(identifier: code)
+        guard let language = locale.language.languageCode?.identifier else { return nil }
+        let known = bundle.localizations.contains {
+            Locale(identifier: $0).language.languageCode?.identifier == language
+        }
+        return known ? locale : nil
+    }
+}
+
 extension String {
     /// `Week (7 days) (%)` → `Week (7 days)`; any other label is unchanged.
     var strippingPercentHint: String {
@@ -193,11 +301,17 @@ struct WidgetSnapshot: Codable {
     let generatedAt: Date
     let accounts: [WidgetAccount]
     let truncated: Bool?
+    /// PRD 0034: the app's interface language (a registry code); absent in
+    /// a file written by an older app. See [WidgetLanguage].
+    var locale: String? = nil
 
     enum CodingKeys: String, CodingKey {
-        case schema, accounts, truncated
+        case schema, accounts, truncated, locale
         case generatedAt = "generated_at"
     }
+
+    /// The locale the widgets lay out in, `nil` for the system's.
+    var language: Locale? { WidgetLanguage.locale(for: locale) }
 
     /// The schema this extension understands; a newer file is read as
     /// unknown rather than half-interpreted.

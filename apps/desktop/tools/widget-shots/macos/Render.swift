@@ -64,7 +64,9 @@ struct WidgetCard<Content: View>: View {
             )
             .environment(\.shotFamily, family)
             .environment(\.colorScheme, scheme)
-            // The docs are in English, whatever the machine's language.
+            // The docs are in English, whatever the machine's language; a
+            // file that names the app's language (PRD 0034) is drawn in it,
+            // as the widget does (`WidgetCanvas`).
             .environment(\.locale, Locale(identifier: "en"))
     }
 }
@@ -219,8 +221,11 @@ struct Gallery: View {
 /// Loads the fixture through the shipped `WidgetSnapshot.load(from:)`,
 /// after moving every timestamp forward by the same amount so that
 /// `generated_at` is "now": the relative ages the widgets print ("2 min")
-/// then match the fixture instead of growing with the calendar.
-func loadFixture(_ path: String, now: Date) throws -> WidgetSnapshot {
+/// then match the fixture instead of growing with the calendar. `locale`
+/// replaces the file's language (PRD 0034); `edit` changes the file before
+/// it is decoded.
+func loadFixture(_ path: String, now: Date, locale: String? = nil,
+                 edit: (inout [String: Any]) -> Void = { _ in }) throws -> WidgetSnapshot {
     let data = try Data(contentsOf: URL(fileURLWithPath: path))
     guard var root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
           let generatedRaw = root["generated_at"] as? String
@@ -238,6 +243,8 @@ func loadFixture(_ path: String, now: Date) throws -> WidgetSnapshot {
         return value
     }
     root = root.mapValues(move)
+    if let locale { root["locale"] = locale }
+    edit(&root)
 
     let shifted = FileManager.default.temporaryDirectory
         .appendingPathComponent("cuotai-widget-shots-\(ProcessInfo.processInfo.processIdentifier).json")
@@ -322,10 +329,17 @@ struct Bitmap {
 ///   width, the content reaches down most of its height) instead of a
 ///   thin column or a corner.
 /// A layout SwiftUI rejects still stops this process, which fails the check.
+/// PRD 0034: the languages `--check` also lays every widget out in, besides
+/// the file's own: the longest translations of the widget's strings. A
+/// widget draws in the app's language the file names, so each is a file
+/// with that `locale`.
+let checkLanguages = ["de", "ru", "hi-IN", "vi"]
+
 @MainActor
 func check(_ arguments: ArraySlice<String>) throws {
     var failures: [String] = []
     var renders = 0
+    var labelProbes = 0
     for argument in arguments {
         guard let colon = argument.firstIndex(of: ":") else {
             failures.append("\(argument): expected <ready|unreadable>:<path>")
@@ -354,59 +368,81 @@ func check(_ arguments: ArraySlice<String>) throws {
         all += stateShots(WidgetSnapshot(schema: 1, generatedAt: now, accounts: [], truncated: false), now: now)
         let file = URL(fileURLWithPath: path).deletingLastPathComponent().lastPathComponent
             + "/" + URL(fileURLWithPath: path).lastPathComponent
-        for shot in all {
-            let size = Chrome.size(shot.family)
-            let proposals: [(String, ProposedViewSize)] = [
-                ("unspecified", .unspecified),
-                ("unbounded width", ProposedViewSize(width: .infinity, height: size.height)),
-                ("unbounded height", ProposedViewSize(width: size.width, height: .infinity)),
-                ("unbounded", .infinity),
-            ]
-            for scheme in [ColorScheme.light, .dark] {
-                let label = "\(file): \(shot.name) (\(scheme == .dark ? "dark" : "light"))"
-                func draw(_ proposal: ProposedViewSize) -> Bitmap? {
-                    let renderer = ImageRenderer(content: shot.view
-                        .environment(\.shotFamily, shot.family)
-                        .environment(\.colorScheme, scheme)
-                        .environment(\.locale, Locale(identifier: "en")))
-                    renderer.proposedSize = proposal
-                    renderer.scale = 1
-                    renders += 1
-                    return renderer.cgImage.flatMap(Bitmap.init)
-                }
-                guard let reference = draw(ProposedViewSize(size)) else {
-                    failures.append("\(label): drew nothing at its own size")
+        // The file's own language in both schemes, then each long language
+        // (the layout does not depend on the scheme, so light only).
+        var cases: [(language: String?, shots: [Shot], schemes: [ColorScheme])] = [(nil, all, [.light, .dark])]
+        if read.snapshot != nil {
+            for code in checkLanguages {
+                guard let translated = try? loadFixture(path, now: now, locale: code) else {
+                    failures.append("\(file) in \(code): not decoded")
                     continue
                 }
-                if reference.width != Int(size.width) || reference.height != Int(size.height) {
-                    failures.append("\(label): drawn \(reference.width)x\(reference.height), not the widget's \(Int(size.width))x\(Int(size.height))")
-                }
-                for (name, proposal) in proposals {
-                    guard let other = draw(proposal) else {
-                        failures.append("\(label): drew nothing under the \(name) proposal")
+                var translatedShots = shots(translated, now: now) + stateShots(translated, now: now)
+                translatedShots += stateShots(WidgetSnapshot(schema: 1, generatedAt: now, accounts: [], truncated: false,
+                                                             locale: code), now: now)
+                cases.append((code, translatedShots, [.light]))
+            }
+            if let probes = checkPublishedLabels(path, now: now, failures: &failures) {
+                labelProbes += probes
+                renders += probes * 3
+            }
+        }
+        for (language, caseShots, schemes) in cases {
+            for shot in caseShots {
+                let size = Chrome.size(shot.family)
+                let proposals: [(String, ProposedViewSize)] = [
+                    ("unspecified", .unspecified),
+                    ("unbounded width", ProposedViewSize(width: .infinity, height: size.height)),
+                    ("unbounded height", ProposedViewSize(width: size.width, height: .infinity)),
+                    ("unbounded", .infinity),
+                ]
+                for scheme in schemes {
+                    let label = "\(file): \(shot.name) (\(scheme == .dark ? "dark" : "light")\(language.map { ", \($0)" } ?? ""))"
+                    func draw(_ proposal: ProposedViewSize) -> Bitmap? {
+                        let renderer = ImageRenderer(content: shot.view
+                            .environment(\.shotFamily, shot.family)
+                            .environment(\.colorScheme, scheme)
+                            .environment(\.locale, Locale(identifier: "en")))
+                        renderer.proposedSize = proposal
+                        renderer.scale = 1
+                        renders += 1
+                        return renderer.cgImage.flatMap(Bitmap.init)
+                    }
+                    guard let reference = draw(ProposedViewSize(size)) else {
+                        failures.append("\(label): drew nothing at its own size")
                         continue
                     }
-                    let difference = other.difference(from: reference)
-                    if difference > 0.002 {
-                        failures.append("\(label): under the \(name) proposal drawn \(other.width)x\(other.height), \(Int((difference * 100).rounded()))% of it unlike the widget's own size")
+                    if reference.width != Int(size.width) || reference.height != Int(size.height) {
+                        failures.append("\(label): drawn \(reference.width)x\(reference.height), not the widget's \(Int(size.width))x\(Int(size.height))")
                     }
-                }
-                guard let box = reference.drawnBox else {
-                    failures.append("\(label): blank")
-                    continue
-                }
-                let content = CGRect(origin: .zero, size: size).insetBy(dx: Chrome.margin, dy: Chrome.margin)
-                if !content.insetBy(dx: -1.5, dy: -1.5).contains(box) {
-                    failures.append("\(label): drawing \(box) leaves the content area \(content)")
-                }
-                let narrow = shot.fills != .none && box.width < content.width * 0.9
-                let short = shot.fills == .area && box.height < content.height * 0.75
-                if narrow || short {
-                    failures.append("\(label): collapsed, drawing \(box) covers too little of the content area \(content)")
+                    for (name, proposal) in proposals {
+                        guard let other = draw(proposal) else {
+                            failures.append("\(label): drew nothing under the \(name) proposal")
+                            continue
+                        }
+                        let difference = other.difference(from: reference)
+                        if difference > 0.002 {
+                            failures.append("\(label): under the \(name) proposal drawn \(other.width)x\(other.height), \(Int((difference * 100).rounded()))% of it unlike the widget's own size")
+                        }
+                    }
+                    guard let box = reference.drawnBox else {
+                        failures.append("\(label): blank")
+                        continue
+                    }
+                    let content = CGRect(origin: .zero, size: size).insetBy(dx: Chrome.margin, dy: Chrome.margin)
+                    if !content.insetBy(dx: -1.5, dy: -1.5).contains(box) {
+                        failures.append("\(label): drawing \(box) leaves the content area \(content)")
+                    }
+                    let narrow = shot.fills != .none && box.width < content.width * 0.9
+                    let short = shot.fills == .area && box.height < content.height * 0.75
+                    if narrow || short {
+                        failures.append("\(label): collapsed, drawing \(box) covers too little of the content area \(content)")
+                    }
                 }
             }
         }
     }
+    renders += checkLanguagesFollowTheFile(failures: &failures)
     // The size comes from the timeline context, not from the family table:
     // a context size the table does not know (another macOS) is honoured
     // under every proposal, and a zero or absurd one falls back to the table.
@@ -431,12 +467,119 @@ func check(_ arguments: ArraySlice<String>) throws {
         }
     }
     if failures.isEmpty {
-        print("widget check: \(arguments.count) file(s), \(renders) renders, every widget drawn at its size, the same under every proposal")
+        print("widget check: \(arguments.count) file(s), \(renders) renders, every widget drawn at its size, the same under every proposal, also in \(checkLanguages.joined(separator: ", ")); \(labelProbes) published-label probe(s)")
     } else {
         FileHandle.standardError.write(Data(failures.map { "widget check: \($0)\n" }.joined().utf8))
         FileHandle.standardError.write(Data("widget check: \(failures.count) failure(s) in \(renders) renders\n".utf8))
         exit(1)
     }
+}
+
+/// PRD 0034: a widget speaks the language the file names, not the
+/// process's (the check sets English around it), and only through the
+/// string catalog `render.sh` compiles next to the executable. The empty
+/// Summary of a file in each language must not be the English picture;
+/// returns the renders made.
+@MainActor
+func checkLanguagesFollowTheFile(failures: inout [String]) -> Int {
+    let known = Set(Bundle.main.localizations)
+    let now = Date()
+    func draw(_ code: String?) -> Bitmap? {
+        let file = WidgetSnapshot(schema: 1, generatedAt: now, accounts: [], truncated: false, locale: code)
+        let renderer = ImageRenderer(content: SummaryWidgetEntryView(entry: SummaryEntry(date: now, snapshot: file, pinnedKey: nil))
+            .environment(\.shotFamily, .systemMedium)
+            .environment(\.locale, Locale(identifier: "en")))
+        renderer.proposedSize = ProposedViewSize(Chrome.size(.systemMedium))
+        renderer.scale = 1
+        return renderer.cgImage.flatMap(Bitmap.init)
+    }
+    guard let english = draw(nil) else {
+        failures.append("languages: the English empty state drew nothing")
+        return 1
+    }
+    var renders = 1
+    for code in checkLanguages {
+        if WidgetLanguage.locale(for: code) == nil {
+            failures.append("languages: \(code) has no compiled strings next to the harness (found \(known.sorted()))")
+            continue
+        }
+        renders += 1
+        guard let translated = draw(code) else {
+            failures.append("languages: the \(code) empty state drew nothing")
+            continue
+        }
+        if translated.difference(from: english) < 0.002 {
+            failures.append("languages: a file in \(code) drew the English empty state (the widget does not follow the file's language)")
+        }
+    }
+    return renders
+}
+
+/// PRD 0034: when every metric of the file carries its text in the app's
+/// language (`label_text`), the raw labels (ids, often in Portuguese) are
+/// never drawn: the same file with other raw labels draws the same picture,
+/// and with other texts a different one. Returns how many widgets were
+/// probed, or nil when the file has a metric without such a text.
+@MainActor
+func checkPublishedLabels(_ path: String, now: Date, failures: inout [String]) -> Int? {
+    guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+          let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let accounts = root["accounts"] as? [[String: Any]]
+    else { return nil }
+    let metrics = accounts.flatMap { ($0["metrics"] as? [[String: Any]]) ?? [] }
+    guard !metrics.isEmpty, metrics.allSatisfy({ ($0["label_text"] as? String)?.isEmpty == false }) else { return nil }
+
+    /// Every metric's (and binding's) `field` passed through `change`.
+    func editing(_ field: String, _ change: @escaping (String) -> String) -> (inout [String: Any]) -> Void {
+        { root in
+            guard var accounts = root["accounts"] as? [[String: Any]] else { return }
+            for index in accounts.indices {
+                if var metrics = accounts[index]["metrics"] as? [[String: Any]] {
+                    for m in metrics.indices {
+                        if let value = metrics[m][field] as? String { metrics[m][field] = change(value) }
+                    }
+                    accounts[index]["metrics"] = metrics
+                }
+                if var binding = accounts[index]["binding"] as? [String: Any],
+                   let value = binding[field] as? String {
+                    binding[field] = change(value)
+                    accounts[index]["binding"] = binding
+                }
+            }
+            root["accounts"] = accounts
+        }
+    }
+    guard let base = try? loadFixture(path, now: now),
+          let otherRaw = try? loadFixture(path, now: now, edit: editing("label") { _ in "WWWW MMMM WWWW MMMM" }),
+          let otherText = try? loadFixture(path, now: now, edit: editing("label_text") { _ in "WWWW MMMM WWWW MMMM" })
+    else {
+        failures.append("\(path): the label probes did not decode")
+        return 0
+    }
+    var probes = 0
+    for (index, account) in base.accounts.enumerated() where !account.isUnavailable && account.hasPlanLimit {
+        func draw(_ snapshot: WidgetSnapshot) -> Bitmap? {
+            let entry = SummaryEntry(date: now, snapshot: snapshot, pinnedKey: account.id)
+            let renderer = ImageRenderer(content: AccountWidgetEntryView(entry: entry)
+                .environment(\.shotFamily, .systemMedium)
+                .environment(\.locale, Locale(identifier: "en")))
+            renderer.proposedSize = ProposedViewSize(Chrome.size(.systemMedium))
+            renderer.scale = 1
+            return renderer.cgImage.flatMap(Bitmap.init)
+        }
+        guard let a = draw(base), let b = draw(otherRaw), let c = draw(otherText) else {
+            failures.append("\(path): account \(index) drew nothing in the label probe")
+            continue
+        }
+        probes += 1
+        if b.difference(from: a) > 0.002 {
+            failures.append("\(path): account \(index) draws a raw label although the file gives its text")
+        }
+        if c.difference(from: a) < 0.002 {
+            failures.append("\(path): account \(index) does not draw the label text the file gives")
+        }
+    }
+    return probes
 }
 
 // MARK: - Proposals
@@ -513,13 +656,19 @@ struct RenderWidgetShots {
             try writeProposals(try loadFixture(arguments[2], now: Date()), now: Date(), to: out)
             return
         }
-        guard arguments.count == 3 || (arguments.count == 4 && arguments[3] == "--states") else {
-            FileHandle.standardError.write(Data("usage: render <widget.json> <out-dir> [--states] | render --check <ready|unreadable>:<widget.json>... | render --proposals <widget.json> <out-dir>\n".utf8))
+        // PRD 0034: `--locale=<code>` draws the fixture in that language,
+        // as the widget does for a file the app wrote in it.
+        let options = arguments.dropFirst(3)
+        let locale = options.first { $0.hasPrefix("--locale=") }.map { String($0.dropFirst("--locale=".count)) }
+        guard arguments.count >= 3,
+              options.allSatisfy({ $0 == "--states" || $0.hasPrefix("--locale=") })
+        else {
+            FileHandle.standardError.write(Data("usage: render <widget.json> <out-dir> [--states] [--locale=<code>] | render --check <ready|unreadable>:<widget.json>... | render --proposals <widget.json> <out-dir>\n".utf8))
             exit(1)
         }
-        let states = arguments.count == 4
+        let states = options.contains("--states")
         let now = Date()
-        let snapshot = try loadFixture(arguments[1], now: now)
+        let snapshot = try loadFixture(arguments[1], now: now, locale: locale)
         let out = URL(fileURLWithPath: arguments[2], isDirectory: true)
         try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
 

@@ -24,6 +24,18 @@ pinned in turn. Pair it with
 a plan limit, and readings far over the limit that a foreign or hand-edited
 file could carry) and write it outside `docs/`.
 
+Languages (PRD 0034): the widget draws in the app's language, which the app
+writes into the file (`locale`), and draws each metric's `label_text` (its
+name in that language) instead of the raw label. `render.sh` compiles the
+widget's `Localizable.xcstrings` next to its executable, so a fixture with a
+`locale` renders in that language; `--locale=<code>` overrides the fixture's
+(`render.sh fixtures/widget-edge.json out --states --locale=vi`).
+[`fixtures/widget-localized.json`](fixtures/widget-localized.json) is a German
+file with Portuguese raw labels. `--check` also lays every widget out in de,
+ru, hi-IN and vi (the longest translations), fails when a file in a language
+draws English, and, for a file whose metrics all carry `label_text`, fails
+when a raw label is drawn.
+
 | Platform | Command | What it produces | Real or rendered |
 |---|---|---|---|
 | macOS | `sh apps/desktop/tools/widget-shots/macos/render.sh` | `macos-<widget>-<family>-<light\|dark>.png` and `macos-gallery-<light\|dark>.png` | The shipped SwiftUI views, drawn off-screen (see below) |

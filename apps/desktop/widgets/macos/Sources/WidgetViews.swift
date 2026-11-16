@@ -66,12 +66,17 @@ enum WidgetMetrics {
 
 /// The root of every widget: exactly the widget's size whatever the system
 /// proposes, with the content margins inside, and the content laid out in
-/// the inner size it is handed.
+/// the inner size it is handed, in the app's language when the file names
+/// it (PRD 0034: the strings, numbers and dates follow it), else the
+/// system's.
 struct WidgetCanvas<Content: View>: View {
     @Environment(\.widgetFamily) private var family
     @Environment(\.widgetContentMargins) private var systemMargins
+    @Environment(\.locale) private var systemLocale
     /// `TimelineProviderContext.displaySize`, carried by the entry.
     let displaySize: CGSize
+    /// The app's language, from the file (`WidgetSnapshot.language`).
+    var language: Locale? = nil
     @ViewBuilder let content: (CGSize) -> Content
 
     var body: some View {
@@ -83,6 +88,7 @@ struct WidgetCanvas<Content: View>: View {
             .frame(width: inner.width, height: inner.height, alignment: .topLeading)
             .padding(margins)
             .frame(width: size.width, height: size.height)
+            .environment(\.locale, language ?? systemLocale)
     }
 }
 
@@ -260,7 +266,7 @@ struct AccountRowView: View {
         // Old data is dimmed, never hidden and never presented as current.
         .opacity(account.isStale ? 0.6 : 1)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(Text(accessibilityLabel))
+        .accessibilityLabel(accessibilityLabel)
     }
 
     private var row: some View {
@@ -344,24 +350,26 @@ struct AccountRowView: View {
     @ViewBuilder
     private var metricLabel: some View {
         if let binding = account.binding {
-            Group { if binding.isExhausted { Text("Exhausted") } else { Text(verbatim: binding.shortLabel) } }
+            Group { if binding.isExhausted { Text("Exhausted") } else { Text(verbatim: account.bindingLabel ?? "") } }
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
         }
     }
 
-    /// VoiceOver (RF3.4): the same facts, said, never colour alone.
-    private var accessibilityLabel: String {
+    /// VoiceOver (RF3.4): the same facts, said, never colour alone. A
+    /// `Text`, so it is looked up in the widget's language (PRD 0034), not
+    /// the process's.
+    private var accessibilityLabel: Text {
         if account.isUnavailable {
-            return String(localized: "\(account.name). Unavailable")
+            return Text("\(account.name). Unavailable")
         }
         if !account.hasPlanLimit {
-            return String(localized: "\(account.name). No plan limit")
+            return Text("\(account.name). No plan limit")
         }
         return account.isStale
-            ? String(localized: "\(account.name). \(percent) percent used. Stale.")
-            : String(localized: "\(account.name). \(percent) percent used. Current.")
+            ? Text("\(account.name). \(percent) percent used. Stale.")
+            : Text("\(account.name). \(percent) percent used. Current.")
     }
 }
 
@@ -436,6 +444,7 @@ struct UsageBar: View {
 /// by itself, plus the `Stale` state when the data is preserved; the exact
 /// instant is the VoiceOver label.
 struct MeasurementAge: View {
+    @Environment(\.locale) private var locale
     let checkedAt: Date?
     let freshness: String?
     var stale = false
@@ -451,7 +460,7 @@ struct MeasurementAge: View {
             }
             if let checkedAt {
                 relative(checkedAt)
-                    .accessibilityLabel(Text("Updated \(checkedAt.formatted(date: .abbreviated, time: .shortened))"))
+                    .accessibilityLabel(Text("Updated \(checkedAt.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: locale)))"))
             } else {
                 Text("No reading yet")
             }

@@ -67,10 +67,15 @@ struct HistoryProvider: AppIntentTimelineProvider {
 }
 
 struct HistoryWidgetEntryView: View {
+    @Environment(\.locale) private var systemLocale
     let entry: HistoryEntry
 
+    /// The language the widget lays out in (`WidgetCanvas` sets it for the
+    /// views inside; the span below is formatted here, outside them).
+    private var locale: Locale { entry.snapshot?.language ?? systemLocale }
+
     var body: some View {
-        WidgetCanvas(displaySize: entry.displaySize) { size in
+        WidgetCanvas(displaySize: entry.displaySize, language: entry.snapshot?.language) { size in
             content(size)
         }
     }
@@ -95,7 +100,7 @@ struct HistoryWidgetEntryView: View {
                         .font(.system(.title2, design: .rounded).weight(.semibold))
                         .monospacedDigit()
                         .fixedSize()
-                    Text("\(account.binding?.shortLabel ?? account.name) · last \(spanLabel)")
+                    Text("\(account.bindingLabel ?? account.name) · last \(spanLabel)")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -140,6 +145,9 @@ struct HistoryWidgetEntryView: View {
         let hours = entry.points.first
             .map { Int(entry.date.timeIntervalSince($0.takenAt) / 3600) } ?? 24
         let formatter = DateComponentsFormatter()
+        var calendar = Calendar.current
+        calendar.locale = locale
+        formatter.calendar = calendar
         formatter.unitsStyle = .abbreviated
         formatter.maximumUnitCount = 1
         var span = DateComponents()

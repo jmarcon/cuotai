@@ -66,7 +66,7 @@ struct SummaryWidgetEntryView: View {
     let entry: SummaryEntry
 
     var body: some View {
-        WidgetCanvas(displaySize: entry.displaySize) { size in
+        WidgetCanvas(displaySize: entry.displaySize, language: entry.snapshot?.language) { size in
             if entry.unreadable {
                 SnapshotUnreadableView(size: size)
             } else if entry.accounts.isEmpty {

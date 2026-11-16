@@ -98,6 +98,13 @@ pub struct WidgetSnapshot {
     /// `true` when accounts were dropped by the caller's limit or by
     /// [`MAX_BYTES`]. Metrics capped at [`MAX_METRICS`] are not truncation.
     pub truncated: bool,
+    /// PRD 0034: the app's interface language, a registry code
+    /// ([`crate::text::LOCALES`]: `de`, `pt-BR`, `zh-CN`, ...), so a widget
+    /// draws its own texts and formats in the app's language rather than
+    /// the system's. Absent when the writer did not say (additive: a reader
+    /// that does not know it ignores it and keeps the system's language).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub locale: Option<&'static str>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -213,7 +220,16 @@ impl WidgetSnapshot {
             generated_at: export.generated_at,
             accounts,
             truncated,
+            locale: None,
         }
+    }
+
+    /// The same snapshot in the app's language `code`, normalized to its
+    /// registry code; a code the registry does not know writes no
+    /// `locale` (the widget then keeps the system's language).
+    pub fn in_language(mut self, code: &str) -> Self {
+        self.locale = crate::text::locale_row(code).map(|row| row.code);
+        self
     }
 
     /// The account whose id (or, failing that, legacy key) is `key`, for
@@ -1004,6 +1020,35 @@ mod tests {
         assert!(snapshot.account_mut("groq:Other").is_none());
     }
 
+    /// PRD 0034: the widget follows the app's language, so the file names
+    /// it, as a registry code; an unknown code writes nothing rather than
+    /// a language the widget may not have.
+    #[test]
+    fn the_snapshot_names_the_app_language() {
+        let export = build(
+            &Config::default(),
+            &RefreshCycle::new(&Config::default(), Instant::now()),
+            Options::default(),
+        );
+        let plain = serde_json::to_value(WidgetSnapshot::from_export(&export, 6)).unwrap();
+        assert!(plain.get("locale").is_none(), "no language, no member");
+        for (given, written) in [
+            ("de", "de"),
+            ("PT-br", "pt-BR"),
+            ("hi-IN", "hi-IN"),
+            ("zh-cn", "zh-CN"),
+        ] {
+            let json =
+                serde_json::to_value(WidgetSnapshot::from_export(&export, 6).in_language(given))
+                    .unwrap();
+            assert_eq!(json["locale"], written, "{given}");
+        }
+        for unknown in ["", "xx", "pt", "de\u{202e}"] {
+            let snapshot = WidgetSnapshot::from_export(&export, 6).in_language(unknown);
+            assert_eq!(snapshot.locale, None, "{unknown:?}");
+        }
+    }
+
     /// The writer's output for a representative set of accounts, committed
     /// so the macOS extension's decoder and render check read exactly what
     /// this core writes (`apps/desktop/tools/widget-shots/macos/render.sh
@@ -1059,7 +1104,7 @@ mod tests {
                 include_identity: true,
             },
         );
-        let mut snapshot = WidgetSnapshot::from_export(&export, 6);
+        let mut snapshot = WidgetSnapshot::from_export(&export, 6).in_language("de");
         let key = snapshot
             .accounts
             .iter()

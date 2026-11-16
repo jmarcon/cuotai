@@ -11,6 +11,16 @@
 		<string>pt-BR</string>
 		<string>es</string>
 		<string>it</string>
+		<string>zh-Hans</string>
+		<string>fr</string>
+		<string>de</string>
+		<string>ja</string>
+		<string>ru</string>
+		<string>ko</string>
+		<string>hi</string>
+		<string>id</string>
+		<string>tr</string>
+		<string>vi</string>
 	</array>
 	<key>CFBundleDisplayName</key>
 	<string>Cuotai</string>

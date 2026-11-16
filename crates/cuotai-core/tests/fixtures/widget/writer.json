@@ -170,5 +170,6 @@
       "metrics": []
     }
   ],
-  "truncated": false
+  "truncated": false,
+  "locale": "de"
 }
