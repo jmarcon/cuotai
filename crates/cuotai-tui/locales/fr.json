@@ -331,7 +331,10 @@
   "serve.port.cuotai_holder": " Un autre serveur Cuotai local l’utilise.",
   "serve.port.hint": " Utilisez --port pour choisir un autre port.",
   "serve.started": "cuotai : serveur local en lecture seule ; Ctrl+C l’arrête.",
-  "stats.account_line": "moyenne {average} · {hits} limite(s) atteinte(s) · {spark}",
+  "stats.account_line": {
+    "one": "moyenne {average} · {hits} limite atteinte · {spark}",
+    "other": "moyenne {average} · {hits} limites atteintes · {spark}"
+  },
   "stats.average_peak": "Pic moyen de la limite la plus serrée : {peak} ({base})",
   "stats.average_peak.none": "Pic moyen de la limite la plus serrée : —",
   "stats.daily": "Pic d’utilisation par jour",
@@ -339,6 +342,10 @@
   "stats.days_with_data": "{days} jours avec données",
   "stats.events.empty": "Aucun événement enregistré.",
   "stats.events.heading": "Événements récents",
+  "stats.events.skipped": {
+    "one": "{count} entrée du journal n’a pas pu être lue.",
+    "other": "{count} entrées du journal n’ont pas pu être lues."
+  },
   "stats.extra_spent": "Dépenses supplémentaires : {amounts}",
   "stats.extra_spent.none": "Dépenses supplémentaires : —",
   "stats.flag.days": "--days accepte 7 ou 30 avec --stats.",
@@ -366,15 +373,11 @@
   "stats.timeline.heading": "Retour des limites · prochains {span}",
   "stats.timeline.later": "Plus tard",
   "stats.title": " STATISTIQUES ",
-  "stats.unknown_limits": "{count} limite(s) sans plafond connu ont été exclues des moyennes.",
+  "stats.unknown_limits": {
+    "one": "{count} limite sans plafond connu a été exclue des moyennes.",
+    "other": "{count} limites sans plafond connu ont été exclues des moyennes."
+  },
   "stats.unknown_return": "Retour inconnu",
-  "stats.weekday.fri": "Ven",
-  "stats.weekday.mon": "Lun",
-  "stats.weekday.sat": "Sam",
-  "stats.weekday.sun": "Dim",
-  "stats.weekday.thu": "Jeu",
-  "stats.weekday.tue": "Mar",
-  "stats.weekday.wed": "Mer",
   "ui.account_changed": "Compte modifié dans le fichier ; rouvrez l’assistant.",
   "ui.data_as_of": " · données du {at}",
   "ui.delete.account_n": "compte n° {index}",

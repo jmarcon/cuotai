@@ -157,12 +157,18 @@ fn stats_text_has_the_figures_gaps_and_the_base() {
     assert!(text.contains("Gasto extra: —"), "{text}");
     // Today is labelled, the 100% day is full, a day without data is a gap
     // with a word, never an empty bar.
-    assert!(text.contains("ter 20/10 hoje"), "{text}");
+    // V-03: the core's day text (the weekday within six days).
+    assert!(text.contains("ter. hoje"), "{text}");
     assert!(
         text.contains(&format!("{} 100%", "█".repeat(BAR_CELLS))),
         "{text}"
     );
-    let gap = text.lines().find(|l| l.contains("dom 18/10")).unwrap();
+    let gap = text.lines().find(|l| l.starts_with("dom.")).unwrap();
+    // Beyond six days the date, in each language's order.
+    let thirty = summary(&fixture, StatsRange::Days30);
+    assert!(stats_text(&thirty, "de").contains("\n13.10. "));
+    assert!(stats_text(&thirty, "en-US").contains("\n10/13 "));
+    assert!(stats_text(&thirty, "pt-BR").contains("\n13/10 "));
     assert!(gap.ends_with("sem dados"), "{gap}");
     let kept = summary(&fixture, StatsRange::Days7)
         .history_kept()
@@ -204,6 +210,8 @@ fn not_enough_history_says_so_instead_of_showing_zeros() {
         text.contains("Pico médio do limite mais apertado: —"),
         "{text}"
     );
+    // R-01: the hits are unknown too, never 0.
+    assert!(text.contains("Limites atingidos: —"), "{text}");
     assert!(!dir.0.join("history.sqlite3").exists());
 }
 
@@ -243,17 +251,98 @@ fn events_text_and_json_follow_the_journal() {
     let fixture = fixture();
     let entries = fixture
         .store
-        .journal(.., &fixture.config.accounts, 20)
+        .journal_read(.., &fixture.config.accounts, 20)
         .unwrap();
-    let text = events_text(&entries, "en-US");
+    let now = Utc::now();
+    let text = events_text(&entries, now, "en-US");
     assert!(text.contains("alpha · 5h: quota exhausted"), "{text}");
     let json = events_json(&entries, "en-US");
     assert_eq!(json["events"][0]["event"], "quota_exhausted");
     assert_eq!(json["events"][0]["account"], "alpha");
-    assert_eq!(events_text(&[], "en-US").lines().count(), 2);
+    // V-10/S-03: the projection, the amount and the skipped count travel.
+    assert!(json["events"][0]
+        .as_object()
+        .unwrap()
+        .contains_key("projected_at"));
+    assert!(json["events"][0].as_object().unwrap().contains_key("spent"));
+    assert!(json["events"][0]
+        .as_object()
+        .unwrap()
+        .contains_key("currency"));
+    assert_eq!(json["skipped"], 0);
+    assert_eq!(
+        events_text(&JournalRead::default(), now, "en-US")
+            .lines()
+            .count(),
+        2
+    );
     // An account left the configuration.
-    let entries = fixture.store.journal(.., &[], 20).unwrap();
-    assert!(events_text(&entries, "en-US").contains("Removed account"));
+    let entries = fixture.store.journal_read(.., &[], 20).unwrap();
+    assert!(events_text(&entries, now, "en-US").contains("Removed account"));
+}
+
+/// V-09/S-03: rows group under the core's day headings, and unreadable
+/// entries are counted in the reader's plural.
+#[test]
+fn events_group_under_day_headings_and_count_unreadable_entries() {
+    let fixture = fixture();
+    let mut read = fixture
+        .store
+        .journal_read(.., &fixture.config.accounts, 20)
+        .unwrap();
+    let entry = read.entries[0].clone();
+    let now = entry.occurred_at;
+    let mut yesterday = entry.clone();
+    yesterday.occurred_at -= TimeDelta::days(1);
+    let mut old = entry.clone();
+    old.occurred_at -= TimeDelta::days(9);
+    read.entries = vec![entry, yesterday, old];
+    read.skipped = 2;
+    let text = events_text(&read, now, "en-US");
+    let lines: Vec<&str> = text.lines().collect();
+    assert_eq!(lines[1], "Today", "{text}");
+    assert!(lines[2].starts_with("  "), "{text}");
+    assert_eq!(lines[3], "Yesterday", "{text}");
+    assert!(
+        lines.iter().any(|l| l.contains('/') && !l.contains('·')),
+        "a date heading beyond six days: {text}"
+    );
+    assert!(
+        text.ends_with("2 journal entries could not be read.\n"),
+        "{text}"
+    );
+    let ru = events_text(&read, now, "ru");
+    assert!(ru.contains("Вчера"), "{ru}");
+    assert!(
+        ru.contains("Не удалось прочитать 2 записи журнала."),
+        "{ru}"
+    );
+    assert_eq!(events_json(&read, "en-US")["skipped"], 2);
+}
+
+/// V-13/R-02: plural forms and the language's money format.
+#[test]
+fn account_lines_take_plurals_and_amounts_the_language_format() {
+    let fixture = fixture();
+    let mut summary = summary(&fixture, StatsRange::Days7);
+    summary.unknown_limits = 1;
+    summary.extra_spent = Some(vec![cuotai_core::stats::ExtraSpent {
+        unit: "USD".into(),
+        amount: 6.25,
+    }]);
+    let english = stats_text(&summary, "en-US");
+    assert!(english.contains("· 1 limit reached ·"), "{english}");
+    assert!(
+        english.contains("1 limit without a known ceiling was left out"),
+        "{english}"
+    );
+    assert!(english.contains("Extra spending: $6.25"), "{english}");
+    assert!(!english.contains("(s)"), "{english}");
+    let german = stats_text(&summary, "de");
+    assert!(german.contains("6,25"), "{german}");
+    assert!(!german.contains("6.25 USD"), "{german}");
+    summary.unknown_limits = 3;
+    assert!(stats_text(&summary, "pt-BR").contains("3 limites sem teto conhecido ficaram"));
 }
 
 #[test]

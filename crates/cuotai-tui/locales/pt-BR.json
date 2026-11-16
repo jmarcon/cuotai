@@ -334,7 +334,10 @@
   "serve.port.cuotai_holder": " Outro servidor local do Cuotai já a usa.",
   "serve.port.hint": " Use --port para escolher outra porta.",
   "serve.started": "cuotai: servidor local somente leitura; Ctrl+C encerra.",
-  "stats.account_line": "média {average} · {hits} limite(s) atingido(s) · {spark}",
+  "stats.account_line": {
+    "one": "média {average} · {hits} limite atingido · {spark}",
+    "other": "média {average} · {hits} limites atingidos · {spark}"
+  },
   "stats.average_peak": "Pico médio do limite mais apertado: {peak} ({base})",
   "stats.average_peak.none": "Pico médio do limite mais apertado: —",
   "stats.daily": "Pico de uso por dia",
@@ -342,6 +345,10 @@
   "stats.days_with_data": "{days} dias com dados",
   "stats.events.empty": "Nenhum evento registrado.",
   "stats.events.heading": "Eventos recentes",
+  "stats.events.skipped": {
+    "one": "{count} entrada do registro não pôde ser lida.",
+    "other": "{count} entradas do registro não puderam ser lidas."
+  },
   "stats.extra_spent": "Gasto extra: {amounts}",
   "stats.extra_spent.none": "Gasto extra: —",
   "stats.flag.days": "--days aceita 7 ou 30 com --stats.",
@@ -369,15 +376,11 @@
   "stats.timeline.heading": "Limites voltam · próximas {span}",
   "stats.timeline.later": "Depois",
   "stats.title": " ESTATÍSTICAS ",
-  "stats.unknown_limits": "{count} limite(s) sem teto conhecido ficaram de fora das médias.",
+  "stats.unknown_limits": {
+    "one": "{count} limite sem teto conhecido ficou de fora das médias.",
+    "other": "{count} limites sem teto conhecido ficaram de fora das médias."
+  },
   "stats.unknown_return": "Retorno desconhecido",
-  "stats.weekday.fri": "sex",
-  "stats.weekday.mon": "seg",
-  "stats.weekday.sat": "sáb",
-  "stats.weekday.sun": "dom",
-  "stats.weekday.thu": "qui",
-  "stats.weekday.tue": "ter",
-  "stats.weekday.wed": "qua",
   "ui.account_changed": "Conta alterada no arquivo; reabra o assistente.",
   "ui.data_as_of": " · dados de {at}",
   "ui.delete.account_n": "conta #{index}",

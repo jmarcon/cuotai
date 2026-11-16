@@ -331,7 +331,10 @@
   "serve.port.cuotai_holder": " Başka bir yerel Cuotai sunucusu kullanıyor.",
   "serve.port.hint": " Başka bir bağlantı noktası seçmek için --port kullanın.",
   "serve.started": "cuotai: salt okunur yerel sunucu; Ctrl+C durdurur.",
-  "stats.account_line": "ortalama {average} · {hits} sınıra ulaşıldı · {spark}",
+  "stats.account_line": {
+    "one": "ortalama {average} · {hits} sınıra ulaşıldı · {spark}",
+    "other": "ortalama {average} · {hits} sınıra ulaşıldı · {spark}"
+  },
   "stats.average_peak": "En sıkı sınırın ortalama zirvesi: {peak} ({base})",
   "stats.average_peak.none": "En sıkı sınırın ortalama zirvesi: —",
   "stats.daily": "Günlük kullanım zirvesi",
@@ -339,6 +342,10 @@
   "stats.days_with_data": "Verisi olan {days} gün",
   "stats.events.empty": "Kayıtlı olay yok.",
   "stats.events.heading": "Son olaylar",
+  "stats.events.skipped": {
+    "one": "{count} günlük kaydı okunamadı.",
+    "other": "{count} günlük kaydı okunamadı."
+  },
   "stats.extra_spent": "Ek harcama: {amounts}",
   "stats.extra_spent.none": "Ek harcama: —",
   "stats.flag.days": "--days, --stats ile 7 veya 30 kabul eder.",
@@ -366,15 +373,11 @@
   "stats.timeline.heading": "Sınırlar geri geliyor · sonraki {span}",
   "stats.timeline.later": "Daha sonra",
   "stats.title": " İSTATİSTİKLER ",
-  "stats.unknown_limits": "Üst sınırı bilinmeyen {count} sınır ortalamalara dahil edilmedi.",
+  "stats.unknown_limits": {
+    "one": "Üst sınırı bilinmeyen {count} sınır ortalamalara dahil edilmedi.",
+    "other": "Üst sınırı bilinmeyen {count} sınır ortalamalara dahil edilmedi."
+  },
   "stats.unknown_return": "Dönüş zamanı bilinmiyor",
-  "stats.weekday.fri": "cum",
-  "stats.weekday.mon": "pzt",
-  "stats.weekday.sat": "cmt",
-  "stats.weekday.sun": "paz",
-  "stats.weekday.thu": "per",
-  "stats.weekday.tue": "sal",
-  "stats.weekday.wed": "çar",
   "ui.account_changed": "Hesap dosyada değişti; sihirbazı yeniden açın.",
   "ui.data_as_of": " · veriler {at} itibarıyla",
   "ui.delete.account_n": "#{index} numaralı hesap",

@@ -7,13 +7,14 @@
 //! `cuotai_core::resets::timeline` and the history's journal; this module
 //! only words and lays them out.
 
-use crate::l10n::{tr, tr_in, trf_in};
+use crate::dashboard::pad_end;
+use crate::l10n::{tr, tr_in, trf_in, trp_in};
 use crate::palette;
-use crate::ui::{local_time, safe};
-use chrono::{DateTime, Datelike, Local, NaiveDate, TimeDelta, Utc};
+use crate::ui::safe;
+use chrono::{DateTime, Local, TimeDelta, Utc};
 use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
 use cuotai_core::{
-    history::{HistoryError, HistoryStore, JournalEntry},
+    history::{HistoryError, HistoryStore, JournalRead},
     resets::{timeline_of_config, Lane, ShareLevel, Timeline, TimelineRange},
     stats::{self, Coverage, StatsRange, StatsSummary},
     text, Config, Report,
@@ -53,7 +54,9 @@ pub(crate) type Row = (Tone, String);
 pub(crate) struct Data {
     pub stats: StatsSummary,
     pub timeline: Timeline,
-    pub events: Vec<JournalEntry>,
+    pub events: JournalRead,
+    /// When the data was read: the day headings of the journal.
+    pub now: DateTime<Utc>,
 }
 
 /// Read the statistics, timeline and journal of `config` from `store` and
@@ -69,11 +72,12 @@ pub(crate) fn load(
     let stats = stats::summarize(store, &config.accounts, days, now, &Local)?;
     let timeline = timeline_of(config, reports, range, now);
     let since = now - TimeDelta::days(i64::from(days.days()));
-    let events = store.journal(since..=now, &config.accounts, EVENT_LIMIT)?;
+    let events = store.journal_read(since..=now, &config.accounts, EVENT_LIMIT)?;
     Ok(Data {
         stats,
         timeline,
         events,
+        now,
     })
 }
 
@@ -97,21 +101,11 @@ fn bar(share: f64) -> String {
     format!("{}{}", "█".repeat(filled), "░".repeat(BAR_CELLS - filled))
 }
 
-fn weekday(date: NaiveDate, locale: &str) -> &'static str {
-    match date.weekday().num_days_from_monday() {
-        0 => tr_in(locale, "stats.weekday.mon", "Mon"),
-        1 => tr_in(locale, "stats.weekday.tue", "Tue"),
-        2 => tr_in(locale, "stats.weekday.wed", "Wed"),
-        3 => tr_in(locale, "stats.weekday.thu", "Thu"),
-        4 => tr_in(locale, "stats.weekday.fri", "Fri"),
-        5 => tr_in(locale, "stats.weekday.sat", "Sat"),
-        _ => tr_in(locale, "stats.weekday.sun", "Sun"),
-    }
-}
-
-fn day_label(date: NaiveDate, today: bool, locale: &str) -> String {
-    let label = format!("{} {}", weekday(date, locale), date.format("%d/%m"));
-    if today {
+/// PRD 0026 re-validation (V-03): the core's day text (the weekday within
+/// six days, the date in the language's order beyond), marked today.
+fn day_label(day: &stats::DayPeak, locale: &str) -> String {
+    let label = day.label.resolve(locale);
+    if day.is_today {
         trf_in(
             locale,
             "stats.day.today",
@@ -121,6 +115,18 @@ fn day_label(date: NaiveDate, today: bool, locale: &str) -> String {
     } else {
         label
     }
+}
+
+/// An amount in its unit, in the language's number format: money for a
+/// currency code, the number and the unit otherwise (re-validation R-02).
+fn amount_text(amount: f64, unit: &str, locale: &str) -> String {
+    let unit = crate::ui::unit_text(unit);
+    let note = if unit.len() == 3 && unit.bytes().all(|b| b.is_ascii_uppercase()) {
+        text::number::money(amount, &unit)
+    } else {
+        text::number::units(amount, &safe(&unit))
+    };
+    note.resolve(locale)
 }
 
 /// Mini bars of the daily peaks of one account; a day without data is a
@@ -159,13 +165,19 @@ pub(crate) fn stats_rows(summary: &StatsSummary, locale: &str) -> Vec<Row> {
         } => days_with_data(days, locale),
         Coverage::NotEnough => String::new(),
     };
+    // R-01: without enough history the count is unknown, never 0.
+    let hits = if summary.coverage == Coverage::NotEnough {
+        "—".to_owned()
+    } else {
+        summary.hits.to_string()
+    };
     rows.push((
         Tone::Normal,
         trf_in(
             locale,
             "stats.hits",
             "Limits reached: {hits}",
-            &[("hits", &summary.hits)],
+            &[("hits", &hits)],
         ),
     ));
     rows.push((
@@ -196,9 +208,7 @@ pub(crate) fn stats_rows(summary: &StatsSummary, locale: &str) -> Vec<Row> {
                     "amounts",
                     &spent
                         .iter()
-                        .map(|e| {
-                            format!("{:.2} {}", e.amount, safe(&crate::ui::unit_text(&e.unit)))
-                        })
+                        .map(|e| amount_text(e.amount, &e.unit, locale))
                         .collect::<Vec<_>>()
                         .join(" · "),
                 )],
@@ -209,11 +219,13 @@ pub(crate) fn stats_rows(summary: &StatsSummary, locale: &str) -> Vec<Row> {
     if summary.unknown_limits > 0 {
         rows.push((
             Tone::Muted,
-            trf_in(
+            trp_in(
                 locale,
                 "stats.unknown_limits",
-                "{count} limit(s) without a known ceiling were left out of the averages.",
-                &[("count", &summary.unknown_limits)],
+                "{count} limit without a known ceiling was left out of the averages.",
+                "{count} limits without a known ceiling were left out of the averages.",
+                summary.unknown_limits as usize,
+                &[],
             ),
         ));
     }
@@ -223,7 +235,7 @@ pub(crate) fn stats_rows(summary: &StatsSummary, locale: &str) -> Vec<Row> {
         tr_in(locale, "stats.daily", "Usage peak per day").to_owned(),
     ));
     for day in &summary.daily {
-        let label = day_label(day.day, day.is_today, locale);
+        let label = pad_end(&day_label(day, locale), 16);
         let (tone, text) = match day.share {
             Some(share) => (
                 if share >= 1.0 {
@@ -231,11 +243,11 @@ pub(crate) fn stats_rows(summary: &StatsSummary, locale: &str) -> Vec<Row> {
                 } else {
                     Tone::Normal
                 },
-                format!("{label:<16} {} {}", bar(share), percent(share)),
+                format!("{label} {} {}", bar(share), percent(share)),
             ),
             None => (
                 Tone::Muted,
-                format!("{label:<16} {}", tr_in(locale, "stats.no_data", "no data")),
+                format!("{label} {}", tr_in(locale, "stats.no_data", "no data")),
             ),
         };
         rows.push((tone, text));
@@ -266,11 +278,13 @@ pub(crate) fn stats_rows(summary: &StatsSummary, locale: &str) -> Vec<Row> {
             },
             format!(
                 "{} {}",
-                crate::dashboard::pad_end(&safe(&account.name), 24),
-                trf_in(
+                pad_end(&safe(&account.name), 24),
+                trp_in(
                     locale,
                     "stats.account_line",
-                    "average {average} · {hits} limit(s) reached · {spark}",
+                    "average {average} · {hits} limit reached · {spark}",
+                    "average {average} · {hits} limits reached · {spark}",
+                    account.hits as usize,
                     &[
                         ("average", &format!("{average:>4}")),
                         ("hits", &account.hits),
@@ -286,6 +300,8 @@ pub(crate) fn stats_rows(summary: &StatsSummary, locale: &str) -> Vec<Row> {
 }
 
 fn lane_text(lane: &Lane, now: DateTime<Utc>, locale: &str) -> String {
+    // V-01/V-03: the core's clock (the date beyond six days), as the
+    // desktop shows it.
     let left = if lane.exhausted {
         tr_in(locale, "stats.lane.exhausted", "exhausted").to_owned()
     } else {
@@ -301,15 +317,15 @@ fn lane_text(lane: &Lane, now: DateTime<Utc>, locale: &str) -> String {
     } else {
         ""
     };
-    match lane.returns_at {
-        Some(at) => format!(
+    match (lane.returns_at, &lane.returns_clock) {
+        (Some(at), Some(clock)) => format!(
             "{} {} · {} · {} · {left}{stale}",
-            local_time(at),
+            clock.resolve(locale),
             text::countdown(at - now).resolve(locale),
             safe(&lane.name),
             safe(&crate::ui::metric_label_text(&lane.label)),
         ),
-        None => format!(
+        _ => format!(
             "{} · {} · {} · {left}{stale}",
             unknown_return(locale),
             safe(&lane.name),
@@ -377,19 +393,28 @@ pub(crate) fn timeline_rows(timeline: &Timeline, locale: &str) -> Vec<Row> {
     rows
 }
 
-/// "Recent events": `HH:MM` or date and time, account, summary.
-pub(crate) fn event_rows(events: &[JournalEntry], locale: &str) -> Vec<Row> {
+/// "Recent events" (DS-CMP-JRNL-1): rows under day headings ("Today",
+/// "Yesterday", then the weekday or the date, from the core), each with its
+/// time, account and summary; then how many entries could not be read
+/// (S-03).
+pub(crate) fn event_rows(events: &JournalRead, now: DateTime<Utc>, locale: &str) -> Vec<Row> {
     let mut rows = vec![(
         Tone::Heading,
         tr_in(locale, "stats.events.heading", "Recent events").to_owned(),
     )];
-    if events.is_empty() {
+    if events.entries.is_empty() {
         rows.push((
             Tone::Muted,
             tr_in(locale, "stats.events.empty", "No event recorded.").to_owned(),
         ));
     }
-    for entry in events {
+    let mut heading = String::new();
+    for entry in &events.entries {
+        let day = entry.day(now, &Local).resolve(locale);
+        if day != heading {
+            rows.push((Tone::Muted, day.clone()));
+            heading = day;
+        }
         let who = match (entry.account.as_deref(), entry.parent.as_deref()) {
             (Some(name), _) => safe(name).into_owned(),
             // PRD 0036 RF7.3: a connection is named by its aggregator.
@@ -403,16 +428,33 @@ pub(crate) fn event_rows(events: &[JournalEntry], locale: &str) -> Vec<Row> {
             | cuotai_core::events::EventKind::AuthRequired => Tone::Bad,
             _ => Tone::Normal,
         };
+        // Under its day heading, the time alone (the core clock read on the
+        // entry's own day).
+        let time = text::clock(entry.occurred_at, entry.occurred_at, &Local).resolve(locale);
         rows.push((
             tone,
             format!(
-                "{} · {who} · {}",
-                local_time(entry.occurred_at),
+                "  {time} · {who} · {}",
                 safe(&entry.summary.resolve(locale))
             ),
         ));
     }
+    if events.skipped > 0 {
+        rows.push((Tone::Muted, skipped_text(events.skipped, locale)));
+    }
     rows
+}
+
+/// "2 journal entries could not be read." (S-03).
+fn skipped_text(count: usize, locale: &str) -> String {
+    trp_in(
+        locale,
+        "stats.events.skipped",
+        "{count} journal entry could not be read.",
+        "{count} journal entries could not be read.",
+        count,
+        &[],
+    )
 }
 
 fn plain(rows: &[Row]) -> String {
@@ -429,13 +471,16 @@ pub(crate) fn timeline_text(timeline: &Timeline, locale: &str) -> String {
     plain(&timeline_rows(timeline, locale))
 }
 
-pub(crate) fn events_text(events: &[JournalEntry], locale: &str) -> String {
-    plain(&event_rows(events, locale))
+pub(crate) fn events_text(events: &JournalRead, now: DateTime<Utc>, locale: &str) -> String {
+    plain(&event_rows(events, now, locale))
 }
 
-pub(crate) fn events_json(events: &[JournalEntry], locale: &str) -> serde_json::Value {
+/// `--events-log --json`. V-10 and S-03 add `projected_at`, `spent`,
+/// `currency` and `skipped` (additive).
+pub(crate) fn events_json(events: &JournalRead, locale: &str) -> serde_json::Value {
     serde_json::json!({
-        "events": events.iter().map(|entry| serde_json::json!({
+        "skipped": events.skipped,
+        "events": events.entries.iter().map(|entry| serde_json::json!({
             "occurred_at": entry.occurred_at,
             "event": entry.kind.name(),
             "account": entry.account,
@@ -445,6 +490,9 @@ pub(crate) fn events_json(events: &[JournalEntry], locale: &str) -> serde_json::
             "used_ratio": entry.used_ratio,
             "resets_at": entry.resets_at,
             "category": entry.category.map(|category| category.name()),
+            "projected_at": entry.projected_at,
+            "spent": entry.spent,
+            "currency": entry.currency,
             "summary": entry.summary.resolve(locale),
         })).collect::<Vec<_>>(),
     })
@@ -487,8 +535,8 @@ pub(crate) fn read_events(
     config: &Config,
     days: u32,
     now: DateTime<Utc>,
-) -> Result<Vec<JournalEntry>, HistoryError> {
-    store.journal(
+) -> Result<JournalRead, HistoryError> {
+    store.journal_read(
         now - TimeDelta::days(i64::from(days))..=now,
         &config.accounts,
         usize::MAX,
@@ -636,7 +684,7 @@ impl StatsView {
                 rows.push((Tone::Normal, String::new()));
                 rows.extend(timeline_rows(&data.timeline, locale));
                 rows.push((Tone::Normal, String::new()));
-                rows.extend(event_rows(&data.events, locale));
+                rows.extend(event_rows(&data.events, data.now, locale));
                 rows
             }
             Err(error) => vec![(Tone::Bad, error.l10n().resolve(locale))],

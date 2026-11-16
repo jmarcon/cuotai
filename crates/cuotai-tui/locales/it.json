@@ -334,7 +334,10 @@
   "serve.port.cuotai_holder": " Un altro server locale di Cuotai la usa già.",
   "serve.port.hint": " Usa --port per scegliere un'altra porta.",
   "serve.started": "cuotai: server locale in sola lettura; Ctrl+C lo arresta.",
-  "stats.account_line": "media {average} · {hits} limite/i raggiunto/i · {spark}",
+  "stats.account_line": {
+    "one": "media {average} · {hits} limite raggiunto · {spark}",
+    "other": "media {average} · {hits} limiti raggiunti · {spark}"
+  },
   "stats.average_peak": "Picco medio del limite più stretto: {peak} ({base})",
   "stats.average_peak.none": "Picco medio del limite più stretto: —",
   "stats.daily": "Picco di utilizzo per giorno",
@@ -342,6 +345,10 @@
   "stats.days_with_data": "{days} giorni con dati",
   "stats.events.empty": "Nessun evento registrato.",
   "stats.events.heading": "Eventi recenti",
+  "stats.events.skipped": {
+    "one": "Impossibile leggere {count} voce del registro.",
+    "other": "Impossibile leggere {count} voci del registro."
+  },
   "stats.extra_spent": "Spesa extra: {amounts}",
   "stats.extra_spent.none": "Spesa extra: —",
   "stats.flag.days": "--days accetta 7 o 30 con --stats.",
@@ -369,15 +376,11 @@
   "stats.timeline.heading": "I limiti tornano · prossime {span}",
   "stats.timeline.later": "Dopo",
   "stats.title": " STATISTICHE ",
-  "stats.unknown_limits": "{count} limite/i senza tetto noto esclusi dalle medie.",
+  "stats.unknown_limits": {
+    "one": "{count} limite senza tetto noto escluso dalle medie.",
+    "other": "{count} limiti senza tetto noto esclusi dalle medie."
+  },
   "stats.unknown_return": "Ritorno sconosciuto",
-  "stats.weekday.fri": "ven",
-  "stats.weekday.mon": "lun",
-  "stats.weekday.sat": "sab",
-  "stats.weekday.sun": "dom",
-  "stats.weekday.thu": "gio",
-  "stats.weekday.tue": "mar",
-  "stats.weekday.wed": "mer",
   "ui.account_changed": "Account modificato nel file; riapri la procedura guidata.",
   "ui.data_as_of": " · dati delle {at}",
   "ui.delete.account_n": "account #{index}",

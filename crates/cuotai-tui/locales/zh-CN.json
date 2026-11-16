@@ -329,7 +329,9 @@
   "serve.port.cuotai_holder": " 另一个本地 Cuotai 服务器正在使用它。",
   "serve.port.hint": " 使用 --port 选择其他端口。",
   "serve.started": "cuotai：只读本地服务器；Ctrl+C 停止。",
-  "stats.account_line": "平均 {average} · 达到限额 {hits} 次 · {spark}",
+  "stats.account_line": {
+    "other": "平均 {average} · 达到限额 {hits} 次 · {spark}"
+  },
   "stats.average_peak": "最紧限额的平均峰值：{peak}（{base}）",
   "stats.average_peak.none": "最紧限额的平均峰值：—",
   "stats.daily": "每日用量峰值",
@@ -337,6 +339,9 @@
   "stats.days_with_data": "{days} 天有数据",
   "stats.events.empty": "没有记录的事件。",
   "stats.events.heading": "最近事件",
+  "stats.events.skipped": {
+    "other": "有 {count} 条事件记录无法读取。"
+  },
   "stats.extra_spent": "额外支出：{amounts}",
   "stats.extra_spent.none": "额外支出：—",
   "stats.flag.days": "与 --stats 一起使用时，--days 接受 7 或 30。",
@@ -364,15 +369,10 @@
   "stats.timeline.heading": "限额恢复 · 未来 {span}",
   "stats.timeline.later": "之后",
   "stats.title": " 统计 ",
-  "stats.unknown_limits": "{count} 个上限未知的限额未计入平均值。",
+  "stats.unknown_limits": {
+    "other": "{count} 个上限未知的限额未计入平均值。"
+  },
   "stats.unknown_return": "恢复时间未知",
-  "stats.weekday.fri": "周五",
-  "stats.weekday.mon": "周一",
-  "stats.weekday.sat": "周六",
-  "stats.weekday.sun": "周日",
-  "stats.weekday.thu": "周四",
-  "stats.weekday.tue": "周二",
-  "stats.weekday.wed": "周三",
   "ui.account_changed": "文件中的账户已更改；请重新打开向导。",
   "ui.data_as_of": " · 数据来自 {at}",
   "ui.delete.account_n": "账户 #{index}",

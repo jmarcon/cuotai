@@ -329,7 +329,9 @@
   "serve.port.cuotai_holder": " Một máy chủ Cuotai cục bộ khác đang dùng nó.",
   "serve.port.hint": " Dùng --port để chọn cổng khác.",
   "serve.started": "cuotai: máy chủ cục bộ chỉ-đọc; Ctrl+C để dừng.",
-  "stats.account_line": "trung bình {average} · chạm {hits} giới hạn · {spark}",
+  "stats.account_line": {
+    "other": "trung bình {average} · chạm {hits} giới hạn · {spark}"
+  },
   "stats.average_peak": "Đỉnh trung bình của giới hạn chặt nhất: {peak} ({base})",
   "stats.average_peak.none": "Đỉnh trung bình của giới hạn chặt nhất: —",
   "stats.daily": "Đỉnh sử dụng mỗi ngày",
@@ -337,6 +339,9 @@
   "stats.days_with_data": "{days} ngày có dữ liệu",
   "stats.events.empty": "Chưa ghi nhận sự kiện nào.",
   "stats.events.heading": "Sự kiện gần đây",
+  "stats.events.skipped": {
+    "other": "Không đọc được {count} mục nhật ký."
+  },
   "stats.extra_spent": "Chi tiêu thêm: {amounts}",
   "stats.extra_spent.none": "Chi tiêu thêm: —",
   "stats.flag.days": "--days nhận 7 hoặc 30 khi dùng với --stats.",
@@ -364,15 +369,10 @@
   "stats.timeline.heading": "Giới hạn hoạt động lại · {span} tới",
   "stats.timeline.later": "Sau đó",
   "stats.title": " THỐNG KÊ ",
-  "stats.unknown_limits": "{count} giới hạn không rõ mức trần đã bị loại khỏi các giá trị trung bình.",
+  "stats.unknown_limits": {
+    "other": "{count} giới hạn không rõ mức trần đã bị loại khỏi các giá trị trung bình."
+  },
   "stats.unknown_return": "Chưa rõ khi nào hoạt động lại",
-  "stats.weekday.fri": "T6",
-  "stats.weekday.mon": "T2",
-  "stats.weekday.sat": "T7",
-  "stats.weekday.sun": "CN",
-  "stats.weekday.thu": "T5",
-  "stats.weekday.tue": "T3",
-  "stats.weekday.wed": "T4",
   "ui.account_changed": "Tài khoản đã thay đổi trong tệp; hãy mở lại trình hướng dẫn.",
   "ui.data_as_of": " · dữ liệu từ {at}",
   "ui.delete.account_n": "tài khoản #{index}",

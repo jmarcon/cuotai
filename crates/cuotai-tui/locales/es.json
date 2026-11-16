@@ -334,7 +334,10 @@
   "serve.port.cuotai_holder": " Otro servidor local de Cuotai ya lo usa.",
   "serve.port.hint": " Usa --port para elegir otro puerto.",
   "serve.started": "cuotai: servidor local de solo lectura; Ctrl+C lo detiene.",
-  "stats.account_line": "promedio {average} · {hits} límite(s) alcanzado(s) · {spark}",
+  "stats.account_line": {
+    "one": "promedio {average} · {hits} límite alcanzado · {spark}",
+    "other": "promedio {average} · {hits} límites alcanzados · {spark}"
+  },
   "stats.average_peak": "Pico medio del límite más ajustado: {peak} ({base})",
   "stats.average_peak.none": "Pico medio del límite más ajustado: —",
   "stats.daily": "Pico de uso por día",
@@ -342,6 +345,10 @@
   "stats.days_with_data": "{days} días con datos",
   "stats.events.empty": "Ningún evento registrado.",
   "stats.events.heading": "Eventos recientes",
+  "stats.events.skipped": {
+    "one": "No se pudo leer {count} entrada del registro.",
+    "other": "No se pudieron leer {count} entradas del registro."
+  },
   "stats.extra_spent": "Gasto extra: {amounts}",
   "stats.extra_spent.none": "Gasto extra: —",
   "stats.flag.days": "--days acepta 7 o 30 con --stats.",
@@ -369,15 +376,11 @@
   "stats.timeline.heading": "Los límites vuelven · próximas {span}",
   "stats.timeline.later": "Después",
   "stats.title": " ESTADÍSTICAS ",
-  "stats.unknown_limits": "{count} límite(s) sin tope conocido quedaron fuera de los promedios.",
+  "stats.unknown_limits": {
+    "one": "{count} límite sin tope conocido quedó fuera de los promedios.",
+    "other": "{count} límites sin tope conocido quedaron fuera de los promedios."
+  },
   "stats.unknown_return": "Regreso desconocido",
-  "stats.weekday.fri": "vie",
-  "stats.weekday.mon": "lun",
-  "stats.weekday.sat": "sáb",
-  "stats.weekday.sun": "dom",
-  "stats.weekday.thu": "jue",
-  "stats.weekday.tue": "mar",
-  "stats.weekday.wed": "mié",
   "ui.account_changed": "Cuenta modificada en el archivo; vuelve a abrir el asistente.",
   "ui.data_as_of": " · datos de {at}",
   "ui.delete.account_n": "cuenta #{index}",

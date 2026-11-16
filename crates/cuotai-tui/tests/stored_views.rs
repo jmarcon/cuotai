@@ -94,6 +94,8 @@ fn nothing_recorded_yet_is_not_enough_history_and_creates_no_store() {
         out.contains("Pico médio do limite mais apertado: —"),
         "{out}"
     );
+    // PRD 0026 re-validation R-01: no count without enough history.
+    assert!(out.contains("Limites atingidos: —"), "{out}");
     let timeline = sandbox.run(&["--timeline"]);
     assert_eq!(code(&timeline), 0);
     assert!(text(&timeline).contains("Nenhum retorno neste período."));
@@ -138,6 +140,7 @@ fn flags_read_what_a_once_recorded() {
     assert_eq!(code(&events), 0);
     let json: serde_json::Value = serde_json::from_slice(&events.stdout).unwrap();
     assert_eq!(json["events"].as_array().unwrap().len(), 0);
+    assert_eq!(json["skipped"], 0, "S-03: the unreadable count travels");
 }
 
 #[test]

@@ -335,7 +335,12 @@
   "serve.port.cuotai_holder": " Его уже использует другой локальный сервер Cuotai.",
   "serve.port.hint": " Выберите другой порт с помощью --port.",
   "serve.started": "cuotai: локальный сервер только для чтения; Ctrl+C — завершение.",
-  "stats.account_line": "среднее {average} · достигнуто лимитов: {hits} · {spark}",
+  "stats.account_line": {
+    "one": "среднее {average} · достигнуто лимитов: {hits} · {spark}",
+    "few": "среднее {average} · достигнуто лимитов: {hits} · {spark}",
+    "many": "среднее {average} · достигнуто лимитов: {hits} · {spark}",
+    "other": "среднее {average} · достигнуто лимитов: {hits} · {spark}"
+  },
   "stats.average_peak": "Средний пик самого жёсткого лимита: {peak} ({base})",
   "stats.average_peak.none": "Средний пик самого жёсткого лимита: —",
   "stats.daily": "Пиковое использование по дням",
@@ -343,6 +348,12 @@
   "stats.days_with_data": "дней с данными: {days}",
   "stats.events.empty": "События не записаны.",
   "stats.events.heading": "Последние события",
+  "stats.events.skipped": {
+    "one": "Не удалось прочитать {count} запись журнала.",
+    "few": "Не удалось прочитать {count} записи журнала.",
+    "many": "Не удалось прочитать {count} записей журнала.",
+    "other": "Не удалось прочитать {count} записи журнала."
+  },
   "stats.extra_spent": "Дополнительные расходы: {amounts}",
   "stats.extra_spent.none": "Дополнительные расходы: —",
   "stats.flag.days": "--days принимает 7 или 30 вместе с --stats.",
@@ -370,15 +381,13 @@
   "stats.timeline.heading": "Лимиты возвращаются · ближайшие {span}",
   "stats.timeline.later": "Позже",
   "stats.title": " СТАТИСТИКА ",
-  "stats.unknown_limits": "Лимиты без известного максимума (всего {count}) не учтены в средних значениях.",
+  "stats.unknown_limits": {
+    "one": "Лимиты без известного максимума (всего {count}) не учтены в средних значениях.",
+    "few": "Лимиты без известного максимума (всего {count}) не учтены в средних значениях.",
+    "many": "Лимиты без известного максимума (всего {count}) не учтены в средних значениях.",
+    "other": "Лимиты без известного максимума (всего {count}) не учтены в средних значениях."
+  },
   "stats.unknown_return": "Возврат неизвестен",
-  "stats.weekday.fri": "пт",
-  "stats.weekday.mon": "пн",
-  "stats.weekday.sat": "сб",
-  "stats.weekday.sun": "вс",
-  "stats.weekday.thu": "чт",
-  "stats.weekday.tue": "вт",
-  "stats.weekday.wed": "ср",
   "ui.account_changed": "Запись изменена в файле; откройте мастер заново.",
   "ui.data_as_of": " · данные от {at}",
   "ui.delete.account_n": "запись №{index}",
