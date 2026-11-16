@@ -1075,3 +1075,15 @@
   color: var(--warn);
   font-size: var(--text-sm);
 }
+
+/* PRD 0028 RF1.3 (DS-CMP-DIAG-1): "What changed", a neutral callout; field paths in mono, selectable. */
+.det-drift { user-select: text; }
+.det-drift > div { min-width: 0; display: grid; gap: var(--space-1); }
+.det-drift p { margin: 0; }
+.det-drift-title { font-weight: 600; }
+.det-drift-paths { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+.det-drift-path {
+  font: var(--text-sm) var(--font-mono), var(--font-script);
+  overflow-wrap: anywhere;
+}
+.det-drift-types { color: var(--fg-muted); font-size: var(--text-sm); }

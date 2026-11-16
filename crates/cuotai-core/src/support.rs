@@ -320,15 +320,6 @@ pub fn is_bare_form_url(url: &str) -> bool {
     url == FORM_URL || url == BUG_FORM_URL
 }
 
-/// Whether `url` opens this project's issue form with any query. Kept only
-/// until the desktop opens drafts itself; use [`is_bare_form_url`].
-pub fn is_issue_url(url: &str) -> bool {
-    let prefix = format!("{REPOSITORY}/issues/new?");
-    url.len() <= MAX_URL_CHARS * 4
-        && url.starts_with(&prefix)
-        && !url.chars().any(|c| c.is_control() || c.is_whitespace())
-}
-
 /// The draft of a problem that is not tied to an account (About): only the
 /// application facts, with the issue form opened for the rest.
 pub fn app_draft(app: &AppInfo) -> IssueDraft {

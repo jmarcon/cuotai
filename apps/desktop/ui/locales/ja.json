@@ -1116,7 +1116,7 @@
   "about.updateState": "アップデート：{state}",
   "report.action": "問題を報告",
   "report.title": "問題を報告",
-  "report.intro": "このテキストは GitHub の issue として開かれます",
+  "report.intro": "このテキストは GitHub の issue として開かれます。",
   "demo.account.personal": "個人",
   "demo.account.work": "仕事",
   "demo.account.dev": "開発",
@@ -1171,6 +1171,7 @@
   "report.copied": "コピーしました",
   "report.copyFailed": "テキストをコピーできませんでした。",
   "report.open": "GitHub で開く",
+  "report.openForm": "フォームを開く",
   "dialog.picker.search": "プロバイダーを検索",
   "dialog.picker.clear": "検索を消去",
   "dialog.picker.count": {

@@ -1136,7 +1136,7 @@
   "about.updateState": "atualização: {state}",
   "report.action": "Relatar um problema",
   "report.title": "Relatar um problema",
-  "report.intro": "Este texto será aberto como uma issue no GitHub",
+  "report.intro": "Este texto será aberto como uma issue no GitHub.",
   "demo.account.personal": "Pessoal",
   "demo.account.work": "Trabalho",
   "demo.account.dev": "Dev",
@@ -1191,6 +1191,7 @@
   "report.copied": "Copiado",
   "report.copyFailed": "Não foi possível copiar o texto.",
   "report.open": "Abrir no GitHub",
+  "report.openForm": "Abrir o formulário",
   "dialog.picker.search": "Buscar provedores",
   "dialog.picker.clear": "Limpar busca",
   "dialog.picker.count": {

@@ -103,6 +103,8 @@ const PAGES = zoom ? ZOOM_PAGES : [
   ["tray-models", "tray.html?models=failed", 380, 600, {}, "[data-open]", true],
   ["details-short", "index.html", 1200, 500, {}, "[data-details]"],
   ["details-narrow", "index.html", 520, 600, {}, "[data-details]"],
+  // PRD 0028 RF1.3: the demo's Zed account, whose response changed, with its "What changed" block.
+  ["details-drift", "index.html", 1200, 820, {}, '.card[data-card*="zed"] [data-details]'],
   ["catalog-short", "index.html", 1200, 500, {}, "[data-add]"],
   ["catalog-minimum", "index.html", 520, 480, {}, "[data-add]"],
   // PRD 0022 re-validation V-09: every other dialog, each over its own window (an array of clicks runs in order).

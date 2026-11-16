@@ -1129,7 +1129,7 @@
   "about.updateState": "update: {state}",
   "report.action": "Report a problem",
   "report.title": "Report a problem",
-  "report.intro": "This text will be opened as a GitHub issue",
+  "report.intro": "This text will be opened as a GitHub issue.",
   "status.needs_configuration": "Needs setup",
   "status.unsupported": "Unavailable",
   "status.authentication_error": "Authentication",
@@ -1198,6 +1198,7 @@
   "report.copied": "Copied",
   "report.copyFailed": "Could not copy the text.",
   "report.open": "Open on GitHub",
+  "report.openForm": "Open the form",
   "dialog.picker.search": "Search providers",
   "dialog.picker.clear": "Clear search",
   "dialog.picker.count": {

@@ -533,6 +533,11 @@ pub struct ReportView {
     /// fallback. `skip_serializing_if = "Vec::is_empty"` keeps the CLI/Snapshot
     /// JSON identical to pre-RF8 when there are no notes.
     notes_l10n: Vec<cuotai_core::text::Localized>,
+    /// PRD 0028 RF1.3 (DS-CMP-DIAG-1): the "What changed" block of a query
+    /// whose response changed: heading, sentence, field paths and the
+    /// privacy note. Value-free; absent otherwise.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    drift: Option<cuotai_core::diagnostic::DriftView>,
     source: String,
     class: AccountClass,
     refresh_seconds: u64,
@@ -1390,6 +1395,7 @@ fn report_view(
         metrics,
         notes: report.notes.clone(),
         notes_l10n: report.notes_l10n.clone(),
+        drift: report.diagnostic.as_ref().map(|d| d.view()),
         source: report.source.clone(),
         class: classify_report(Some(report)),
         refresh_seconds,
@@ -6027,6 +6033,34 @@ impl Backend {
         index: Option<usize>,
         generation: u64,
     ) -> Result<ProblemDraft, String> {
+        let draft = self.problem_draft(index, generation).await?;
+        Ok(ProblemDraft {
+            title: draft.title,
+            body: draft.body,
+            copy_only: draft.copy_only,
+        })
+    }
+
+    /// PRD 0028 RF2.3 (re-validation S-01, V-09): open the problem report of
+    /// `index` on GitHub. The shell rebuilds the draft exactly as
+    /// [`Backend::report_problem`] showed it and opens its link (the bare
+    /// form when the prefilled URL is too long), so the webview never
+    /// chooses the text GitHub is opened with.
+    pub async fn open_problem_report(
+        &self,
+        index: Option<usize>,
+        generation: u64,
+    ) -> Result<(), String> {
+        let draft = self.problem_draft(index, generation).await?;
+        crate::about::open_problem_link(draft.link()).map_err(str::to_owned)
+    }
+
+    /// The core's draft behind both commands above.
+    async fn problem_draft(
+        &self,
+        index: Option<usize>,
+        generation: u64,
+    ) -> Result<cuotai_core::support::IssueDraft, String> {
         use cuotai_core::support::{
             app_draft, issue_draft, AccountView, AppInfo, Interface, LastGood,
         };
@@ -6071,15 +6105,9 @@ impl Backend {
         })
         .await
         .ok();
-        let draft = match setup {
+        Ok(match setup {
             Some(report) => draft.with_setup_check(&report, index),
             None => draft,
-        };
-        Ok(ProblemDraft {
-            title: draft.title,
-            body: draft.body,
-            url: draft.url,
-            copy_only: draft.copy_only,
         })
     }
 }
@@ -6089,7 +6117,8 @@ impl Backend {
 pub struct ProblemDraft {
     title: String,
     body: String,
-    url: String,
+    /// The link is too long to open prefilled: Open shows the bare form.
+    /// The link itself never crosses the IPC (`open_problem_report`).
     copy_only: bool,
 }
 

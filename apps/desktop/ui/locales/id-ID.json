@@ -1116,7 +1116,7 @@
   "about.updateState": "pembaruan: {state}",
   "report.action": "Laporkan masalah",
   "report.title": "Laporkan masalah",
-  "report.intro": "Teks ini akan dibuka sebagai isu GitHub",
+  "report.intro": "Teks ini akan dibuka sebagai isu GitHub.",
   "demo.account.personal": "Pribadi",
   "demo.account.work": "Kerja",
   "demo.account.dev": "Dev",
@@ -1171,6 +1171,7 @@
   "report.copied": "Tersalin",
   "report.copyFailed": "Tidak dapat menyalin teks.",
   "report.open": "Buka di GitHub",
+  "report.openForm": "Buka formulir",
   "dialog.picker.search": "Cari penyedia",
   "dialog.picker.clear": "Hapus pencarian",
   "dialog.picker.count": {

@@ -914,6 +914,18 @@ async fn report_problem(
     b.report_problem(index, generation).await
 }
 
+/// PRD 0028 RF2.3 (re-validation S-01): opens the problem report of account
+/// `index` (or About's, when absent) on GitHub. The shell rebuilds the draft
+/// and opens its link; the webview never passes a URL.
+#[tauri::command]
+async fn open_problem_report(
+    b: Shared<'_>,
+    index: Option<usize>,
+    generation: u64,
+) -> Result<(), String> {
+    b.open_problem_report(index, generation).await
+}
+
 /// First explicit opening: queries only when nothing is recorded.
 #[tauri::command]
 async fn load_models(b: Shared<'_>, index: usize, generation: u64) -> Result<ModelState, String> {
@@ -3104,6 +3116,7 @@ pub fn run() -> std::process::ExitCode {
             whats_new,
             open_external,
             report_problem,
+            open_problem_report,
             config_changed_on_disk,
             login_start,
             login_submit_code,

@@ -463,6 +463,8 @@ export const aboutInfo = () => call("about_info");
 export const whatsNew = () => call("whats_new");
 /** Opens in the browser a repository from the "About" list (the shell refuses any other address). */
 export const reportProblem = (index, generation) => call("report_problem", { index: index ?? null, generation });
+/** PRD 0028 RF2.3 (re-validation S-01): the shell rebuilds the draft and opens it; no URL leaves the page. */
+export const openProblemReport = (index, generation) => call("open_problem_report", { index: index ?? null, generation });
 export const openExternal = (url) => (isDesktop ? call("open_external", { url }) : Promise.resolve(window.open(url, "_blank", "noopener,noreferrer")));
 /** PRD 0020 RF1.3: every entry point opens (or focuses) the one Settings window, optionally on a page of its
  *  sidebar and an anchor inside it (`{ page: "cost", anchor: "cost-sources" }`). The browser demo opens
@@ -1374,8 +1376,16 @@ const demoReports = [
   dr("Personal", "deepseek_demo", [{ label: "Balance", used: null, limit: null, remaining: 0, unit: "USD", kind: "balance", window: null, period: null, resets_at: null, state: "available", ratio: null, uncapped: true, no_cap: false }]),
   // PRD 0005 RF4.2 fixtures: an Unavailable provider (no query) and an Undocumented one whose response broke the schema.
   drn("Work", "poolside", [], demoNote("poolside", "Poolside publishes no usage or balance endpoint per key."), "unsupported"),
-  { ...dr("Personal", "zed", [], ["Response is incompatible with the query interface; no value was estimated."], "error"),
-    notes_l10n: [{ id: "query.schema", params: {}, fallback: "Response is incompatible with the query interface; no value was estimated." }] },
+  // PRD 0028 RF1.3 fixture (DS-CMP-DIAG-1): the response changed, so the details show "What changed".
+  { ...dr("Personal", "zed", [], ["Response is incompatible with the query interface; no value was estimated.", "The provider changed models[].id (string → number)."], "error"),
+    notes_l10n: [{ id: "query.schema", params: {}, fallback: "Response is incompatible with the query interface; no value was estimated." },
+      { id: "diagnostic.schema_drift", params: { path: "models[].id", expected: "string", found: "number" }, fallback: "The provider changed models[].id (string → number)." }],
+    drift: {
+      heading: { id: "diagnostic.what_changed", params: {}, fallback: "What changed" },
+      sentence: { id: "diagnostic.schema_drift", params: { path: "models[].id", expected: "string", found: "number" }, fallback: "The provider changed models[].id (string → number)." },
+      paths: [{ path: "models[].id", expected: "string", found: "number" }, { path: "models[].display_name", expected: "string", found: "missing" }],
+      privacy: { id: "diagnostic.values_never_recorded", params: {}, fallback: "Values are never recorded." },
+    } },
   // PRD 0010 RF2.3 fixture: just opened, no answer yet; the reading recorded 3 h ago shows as stale.
   { ...dr("Restored", "chat_gpt", []), pending: true, class: "unmeasured", checked_at: ago(180),
     last_good: { checked_at: ago(180), metrics: [dm("5h", 30, 100, 2, "quota", "window_5h", "%")] } },
@@ -3051,12 +3061,17 @@ const demo = {
   }),
   // Demo: sample of the real list (in the app, the full list comes from the core).
   // Demo: the report text is the core's; here, an example with no data at all.
-  report_problem: async ({ index }) => ({
-    title: "[Provider] claude: schema_changed",
-    body: `## Provider problem report\n\n- Cuotai version: demo\n- Provider: \`claude\`${index == null ? "" : "\n- Failure category: \`schema_changed\`"}\n`,
-    url: "https://github.com/jmarcon/cuotai/issues/new?template=provider-problem.yml",
-    copy_only: false,
-  }),
+  report_problem: async ({ index }) => (index == null
+    ? { title: "[Bug] ", body: "## Problem report\n\n- Cuotai version: demo\n- OS and architecture: macos aarch64\n- Install channel: unknown\n\nNo account name, e-mail, organization, credential, URL or response value is included.\n", copy_only: false }
+    : {
+      title: "[Provider] zed: schema_changed",
+      body: "## Provider problem report\n\n- Cuotai version: demo\n- OS and architecture: macos aarch64\n- Install channel: unknown\n- Provider: `zed`\n- Connection mode: `native_login`\n- Access level: undocumented (verified on 2026-10-25)\n- Failure category: `schema_changed`\n- Drifted fields: `models[].id` (string -> number)\n- Response fingerprint (SHA-256): `3f1c0d2a9b8e7f6a5d4c3b2a1908f7e6d5c4b3a291807f6e5d4c3b2a1908f7e6`\n- Last good reading: 2 h ago\n- Provider incident active: unknown\n\nNo account name, e-mail, organization, credential, URL or response value is included.\n",
+      copy_only: false,
+    }),
+  // Demo: the shell opens the draft itself; here, the bare form.
+  open_problem_report: async ({ index }) => {
+    window.open(`https://github.com/jmarcon/cuotai/issues/new?template=${index == null ? "bug" : "provider-problem"}.yml`, "_blank", "noopener,noreferrer");
+  },
   about_info: async () => ({
     name: "Cuotai", version: "demo", license: "MIT OR Apache-2.0", repository: "https://github.com/jmarcon/cuotai",
     libraries: [

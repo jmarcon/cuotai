@@ -1132,7 +1132,7 @@
   "about.updateState": "अपडेट: {state}",
   "report.action": "समस्या बताएँ",
   "report.title": "समस्या बताएँ",
-  "report.intro": "यह टेक्स्ट GitHub इश्यू के रूप में खुलेगा",
+  "report.intro": "यह टेक्स्ट GitHub इश्यू के रूप में खुलेगा।",
   "demo.account.personal": "निजी",
   "demo.account.work": "काम",
   "demo.account.dev": "डेव",
@@ -1187,6 +1187,7 @@
   "report.copied": "कॉपी हो गया",
   "report.copyFailed": "टेक्स्ट कॉपी नहीं हो सका।",
   "report.open": "GitHub पर खोलें",
+  "report.openForm": "फ़ॉर्म खोलें",
   "dialog.picker.search": "प्रदाता खोजें",
   "dialog.picker.clear": "खोज साफ़ करें",
   "dialog.picker.count": {
