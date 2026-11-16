@@ -9,7 +9,7 @@
 | Depends on | PRD 0015 (RF1–RF4: sources and consent, incremental index, price table, display); PRD 0029 (RF1: account `id`) for RF1 |
 | Benefits from | PRD 0027 (local CLI detection, presence only), PRD 0023 (provider overage amounts, never summed with estimates) |
 | Extends | PRD 0015 RF1 (new sources), RF2 (index schema), RF3 (1-hour cache writes, price age, templates), RF4 (plan value, unpriced models, display currency) |
-| Date | 2026-10-23 |
+| Date | 2026-10-23 (amended 2026-11-16: re-validation) |
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable. The **estimate** is PRD 0015's cost at published API prices of this computer's local CLI logs; it is never a charge. The **plan price** is what the person says they pay for a subscription. Code references are to `origin/main` at `0ba9c9b`.
 
@@ -24,8 +24,9 @@
 | RF5 | 0.81.0 | RF5.1–RF5.3 delivered: the Claude parser splits `cache_creation.ephemeral_5m/1h_input_tokens` (`Tokens::cache_write_1h`), migration 2 adds `usage.cache_write_1h` and forgets Claude files so the next scan corrects history once, price tables accept an optional `cache_write_1h` (built-in Claude rows at 2x input) and a model without it has an unknown cost for 1-hour tokens. Desktop (tooltip and totals) and TUI (`--cost-prices` column) show the new field. |
 | RF6 | 0.81.0 | Delivered. Core and CLI: `display_currency` in the settings, `DisplayCurrency::text` ("at your rate", age, update after 30 days), `--cost-currency CODE RATE` / `off`. Desktop: the rate row in Settings → Local cost → Plans and second currency, a converted amount under each tile and the "at your rate" line on the card and details (display only; the export stays USD-only). TUI: the same line under the period in the account details. |
 | RF7 | 0.81.0 | RF7.1 evidence (fixture `tests/fixtures/cost/claude_streamed_numbers.jsonl`, finding in the `claude.rs` module doc): in 19,918 local assistant lines, 507 of 9,525 `message.id`+`requestId` keys repeat with differing `output_tokens` (for example 3, 3, 1880): first-wins kept partial counts. RF7.2 delivered: `seen` keeps the accepted line's counts and a later line applies only the growth. |
-| RF8 | 0.81.0 | README, `docs/advanced.md`, `docs/tui.md`, `docs/export-v1.md` and `docs/architecture.md` updated for what is delivered. |
+| RF8 | 0.81.0 | README, `docs/advanced.md`, `docs/tui.md` and `docs/architecture.md` updated for what is delivered; `docs/export-v1.md` gained the RF3/RF4 fields only in the re-validation (vNEXT); the schema and example carried them from 0.81.0. |
 | RF2.3 | 0.84.0 | Delivered (it was optional; the owner asked to finish every open item). `detect::Detected::local_cost` names the local cost source of a detected Claude Code, Codex CLI or Gemini CLI (`detect::local_cost_source`), and the desktop's `detect_sources` clears it once that source is on (`detect::without_enabled_cost`, `LocalCost::enabled_sources`). The account dialog then adds one line under the offered flow's consent, "Its local logs can also estimate the cost at API prices; Cuotai reads them only after you turn the Gemini CLI source on", with **Open Local cost** (Settings → Local cost, sources anchor). It never enables a source: the source's own disclosure and consent stay the only way on (RF2.2). 14 locales. The TUI wizard shows no offer (decision: it has no Local cost page; `cuotai --cost-sources` stays the way there). OpenCode and Qwen Code re-checked on 2026-11-07 against official documentation: OpenCode's troubleshooting page still names only the database location (`~/.local/share/opencode/opencode.db`, `OPENCODE_DB`) with no schema or token fields; Qwen Code's settings reference still documents `general.chatRecording` and `model.enableOpenAILogging` (JSON files under `logs/openai`) with no layout, schema or token fields. Under the owner rule of 2026-10-25 they are not RF2 gaps but future sources, added when a format is published. |
+| Re-validation 2026-11 | vNEXT | C-01: a restore drops `sources` and `folder_hints` whatever the backup holds and keeps this computer's own; the backup drops `folder_hints` too; the restore lists a `cost_sources` step. C-02: plans and the second currency go through the write path's checks on every load and update; refused values are counted in `settings_notes` (never echoing the file), shown in `--cost`, the TUI, the desktop and `--doctor`; the `--cost` rate line is filtered. C-03: amounts, plan prices, converted amounts and ratios are locale-aware `amount.*` texts, and so are the CLI/TUI usage rows (R-04). C-04: below 0.1× the ratio reads "≈ N% of the plan price" or "less than 1% of the plan price". C-05: the plan-value rule per source counts every account the source shows (`account_ids`, `planned_ids`, `combined`, `complete`); several accounts all with a plan give one combined line with a ratio only for one currency and one cycle day; some without a plan give a combined line with no ratio; the line shows only on planned accounts; `PlanValue` is not part of `export::v1` (plans are never exported). C-06: per-source `usage.unpriced*` and per-table `age_days`/`age`. C-07: `DisplayCurrency::text_for` keeps "+ unknown" and gives nothing without usage; the TUI rate line sits under the period row. C-08: real plurals for the cost counts and the rate age ("set today", "set yesterday", "set N days ago"). Lows fixed: L-01, L-02, L-03, L-04, L-05, L-06, L-07, L-08, L-09, L-11, L-13, L-16, L-17, L-18. |
 
 ## 1. Context
 
@@ -181,6 +182,18 @@ At each step: `cargo fmt`, `clippy -D warnings`, workspace and desktop tests, an
 
 - **RF2.3 is built as an offer that links, never a switch.** The account dialog sends the person to Settings → Local cost, where the source's existing disclosure is accepted; the offer disappears once the source is on. The TUI keeps `cuotai --cost-sources` (most conservative: no new consent path).
 - **OpenCode and Qwen Code are closed as out of scope until a documented format exists** (owner rule of 2026-10-25); this plan is Implemented, and a later source gets its own delivery.
+- **RF3.1 narrowed to the details (2026-11-16, re-validation L-10).** The price age is shown in the TUI and desktop details, beside the price table it belongs to, not on the compact card (design system: the card stays compact). RF3.1's "card and panel" reads as "details".
+
+## 12.2 Open items (re-validation 2026-11-16)
+
+| Item | Severity | Why it stays open / where it goes |
+|---|---|---|
+| L-12 Focus order of the Settings rows (Apply, Remove, then the inputs) | low | The shared `row()` pattern of every Settings row; a design-system change, routed to the PRD 0034/0036 owner. |
+| L-14 An unknown three-letter code ("ZZZ") is accepted | low | The rule is "ISO 4217 shaped" (RF1.1); keeping the ISO list is out of scope, and `Intl` falls back safely. |
+| L-15 en-XA pseudo-localizes ids and codes inside interpolated fallbacks | low | Development-only locale; routed to PRD 0035. Amounts are now `amount.money` texts and are not pseudo-transformed. |
+| Restore of `serve.enabled`/`allow_browsers` | medium (candidate) | Needs the owner (PRD 0046 with 0012/0050): whether a restore may turn the desktop's local server on. Behaviour unchanged. |
+| Restore of `updater.consent_answered`/`automatic` | medium | Routed to PRD 0018/0046: keep this computer's answer. Behaviour unchanged. |
+| Restore of `detect.enabled` and `widget.enabled`/`include_identity` | low | Routed to PRD 0027/0046 and 0014/0046. Behaviour unchanged. |
 
 ## 13. Decisions (owner, 2026-10-23)
 
