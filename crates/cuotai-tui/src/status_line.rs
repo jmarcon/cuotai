@@ -108,7 +108,7 @@ pub(crate) async fn from_server(
         Some(path) => Some(path.to_path_buf()),
         None => serve::default_token_file().filter(|path| path.is_file()),
     }
-    .map(|path| serve::read_token_file(&path))
+    .map(|path| client::read_token(&path))
     .transpose()
     .map_err(|error| error.l10n().resolve(locale))?;
     let url = if url.is_empty() {

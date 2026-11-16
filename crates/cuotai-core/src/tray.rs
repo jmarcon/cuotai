@@ -380,13 +380,19 @@ fn tightest<'a>(views: &[&'a AccountView]) -> Option<&'a AccountView> {
 /// the end with "+N" before any part is cut. Returns the title and how many
 /// parts were dropped.
 fn fit(parts: &[String], alert: bool) -> (String, usize) {
+    fit_more(parts, alert, 0)
+}
+
+/// [`fit`] where `beyond` more accounts were left out before (the `Auto`
+/// cap): the "+N" counts them too (re-validation V-09).
+fn fit_more(parts: &[String], alert: bool, beyond: usize) -> (String, usize) {
     let prefix = if alert { "! " } else { "" };
     let len = |s: &str| s.chars().count();
     for keep in (1..=parts.len()).rev() {
         let mut text = format!("{prefix}{}", parts[..keep].join(SEPARATOR));
         let dropped = parts.len() - keep;
-        if dropped > 0 {
-            text.push_str(&format!(" +{dropped}"));
+        if dropped + beyond > 0 {
+            text.push_str(&format!(" +{}", dropped + beyond));
         }
         if len(&text) <= TITLE_BUDGET {
             return (text, dropped);
@@ -606,7 +612,7 @@ where
                 .iter()
                 .map(|v| format!("{} {}", initial(v), figure(v, clock)))
                 .collect();
-            let (text, dropped) = fit(&parts, alert);
+            let (text, dropped) = fit_more(&parts, alert, hidden);
             hidden += dropped;
             (Some(text), shown[..shown.len() - dropped].to_vec())
         }

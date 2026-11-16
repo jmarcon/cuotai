@@ -249,8 +249,11 @@
   "headless.hooks_reloaded": "cuotai: kancalar yeniden yüklendi.",
   "headless.hooks_suspended": "cuotai: kancalar askıya alındı.",
   "headless.hooks_suspended_error": "cuotai: kancalar askıya alındı: {error}",
-  "headless.reload_failed": "cuotai: yapılandırma yeniden yüklenmedi; öncekisi kullanılmaya devam ediyor: {error}",
-  "headless.reloaded": "cuotai: yapılandırma yeniden yüklendi ({count} hesap).",
+  "headless.reload_failed": "cuotai: yapılandırma yeniden yüklenmedi; öncekisi kullanılmaya devam ediyor. {error}",
+  "headless.reloaded": {
+    "one": "cuotai: yapılandırma yeniden yüklendi ({count} hesap).",
+    "other": "cuotai: yapılandırma yeniden yüklendi ({count} hesap)."
+  },
   "headless.server_at": "cuotai: yerel sunucu {url} adresinde",
   "headless.server_stopped": "cuotai: yerel sunucu durduruldu.",
   "headless.watch_stopped": "cuotai: izleme durduruldu.",
@@ -340,8 +343,8 @@
   "report.no_account": "Yapılandırmada bu adda bir hesap yok.",
   "report.open_link": "Issue açmak için bu bağlantıyı açın (Cuotai hiçbir şey göndermez):",
   "report.title": " SORUN BİLDİR ",
-  "serve.port.cuotai_holder": " Başka bir yerel Cuotai sunucusu kullanıyor.",
-  "serve.port.hint": " Başka bir bağlantı noktası seçmek için --port kullanın.",
+  "serve.port.cuotai_holder": "Başka bir yerel Cuotai sunucusu kullanıyor.",
+  "serve.port.hint": "Başka bir bağlantı noktası seçmek için --port kullanın.",
   "serve.started": "cuotai: salt okunur yerel sunucu; Ctrl+C durdurur.",
   "stats.account_line": {
     "one": "ortalama {average} · {hits} sınıra ulaşıldı · {spark}",
@@ -467,7 +470,10 @@
   "vault.prune.none": "Kullanılmadığı kanıtlanan kimlik bilgisi yok; silinecek bir şey yok.",
   "vault.prune.skipped": "Tutuldu {key}: {reason}.",
   "watch.hooks_active": " {count} kanca etkin.",
-  "watch.started": "cuotai: {count} hesap izleniyor; her birinin ilk okuması temel alınır ve olay üretmez. Ctrl+C durdurur.",
+  "watch.started": {
+    "one": "cuotai: {count} hesap izleniyor; her birinin ilk okuması temel alınır ve olay üretmez. Ctrl+C durdurur.",
+    "other": "cuotai: {count} hesap izleniyor; her birinin ilk okuması temel alınır ve olay üretmez. Ctrl+C durdurur."
+  },
   "wizard.aggregator.fix_and_retest": " Düzeltin ve kaydetmeden önce yeniden test edin.",
   "wizard.aggregator.test_line": "Bağlantı testi: ",
   "wizard.aggregator.testing": "Bağlantı test ediliyor…",
@@ -669,5 +675,6 @@
   "cli.list_providers.aggregator": " (toplayıcı)",
   "cost.plan.no_account": "{account} adında yapılandırılmış bir hesap yok; kimliğini veya provider:name kullanın.",
   "status_line.unknown_account": "--account {value} tek bir hesabı göstermiyor; bir id (--json-v1, /v1/limits veya TOML'daki id satırından), bir anahtar ya da benzersiz bir ad kullanın. Id'ler: {ids}.",
-  "status_line.no_accounts": "yok"
+  "status_line.no_accounts": "yok",
+  "headless.strict_exit_no_ready": "cuotai: çıkış kodu 2 (--strict-exit): sunucu durmadan önce hiçbir hesabın sağlıklı bir okuması olmadı."
 }

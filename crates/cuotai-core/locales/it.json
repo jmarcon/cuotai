@@ -1476,6 +1476,7 @@
   "serve.client.invalid_url": "Indirizzo del server locale non valido: usa http://127.0.0.1:PORTA.",
   "serve.client.not_loopback": "Il server locale si legge solo in loopback (127.0.0.1 o ::1; localhost è letto come 127.0.0.1).",
   "serve.client.not_ready": "Il server locale non ha ancora letture; riprova tra qualche istante.",
+  "serve.client.token_file": "Impossibile leggere il file del token del server locale (deve essere un file normale tuo che contiene un solo token).",
   "serve.client.unauthorized": "Il server locale ha rifiutato il token (usa --token-file con lo stesso file di --serve).",
   "serve.client.unproven": "Il programma sulla porta {port} non ha dimostrato di essere il tuo server Cuotai; aggiorna Cuotai sul lato server o controlla cosa occupa la porta.",
   "serve.client.unreachable": "Il server locale non ha risposto; è in esecuzione (cuotai --serve)?",

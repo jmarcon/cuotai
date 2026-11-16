@@ -249,8 +249,11 @@
   "headless.hooks_reloaded": "cuotai: Hooks neu geladen.",
   "headless.hooks_suspended": "cuotai: Hooks ausgesetzt.",
   "headless.hooks_suspended_error": "cuotai: Hooks ausgesetzt: {error}",
-  "headless.reload_failed": "cuotai: Konfiguration nicht neu geladen; die vorherige bleibt aktiv: {error}",
-  "headless.reloaded": "cuotai: Konfiguration neu geladen ({count} Konto/Konten).",
+  "headless.reload_failed": "cuotai: Konfiguration nicht neu geladen; die vorherige bleibt aktiv. {error}",
+  "headless.reloaded": {
+    "one": "cuotai: Konfiguration neu geladen ({count} Konto).",
+    "other": "cuotai: Konfiguration neu geladen ({count} Konten)."
+  },
   "headless.server_at": "cuotai: lokaler Server unter {url}",
   "headless.server_stopped": "cuotai: lokaler Server beendet.",
   "headless.watch_stopped": "cuotai: Überwachung beendet.",
@@ -340,8 +343,8 @@
   "report.no_account": "Kein Konto mit diesem Namen in der Konfiguration.",
   "report.open_link": "Öffne diesen Link, um das Issue anzulegen (Cuotai sendet nichts):",
   "report.title": " PROBLEM MELDEN ",
-  "serve.port.cuotai_holder": " Ein anderer lokaler Cuotai-Server nutzt ihn bereits.",
-  "serve.port.hint": " Wählen Sie mit --port einen anderen Port.",
+  "serve.port.cuotai_holder": "Ein anderer lokaler Cuotai-Server nutzt ihn bereits.",
+  "serve.port.hint": "Wählen Sie mit --port einen anderen Port.",
   "serve.started": "cuotai: lokaler Server nur lesend; Strg+C beendet.",
   "stats.account_line": {
     "one": "Ø {average} · {hits} Limit erreicht · {spark}",
@@ -467,7 +470,10 @@
   "vault.prune.none": "Keine Zugangsdaten sind nachweislich unbenutzt; nichts zu löschen.",
   "vault.prune.skipped": "Behalten: {key}: {reason}.",
   "watch.hooks_active": " {count} Hook(s) aktiv.",
-  "watch.started": "cuotai: {count} Konto/Konten werden überwacht; die erste Messung jedes Kontos ist die Basis und löst keine Ereignisse aus. Strg+C beendet.",
+  "watch.started": {
+    "one": "cuotai: {count} Konto wird überwacht; die erste Messung jedes Kontos ist die Basis und löst keine Ereignisse aus. Strg+C beendet.",
+    "other": "cuotai: {count} Konten werden überwacht; die erste Messung jedes Kontos ist die Basis und löst keine Ereignisse aus. Strg+C beendet."
+  },
   "wizard.aggregator.fix_and_retest": " Korrigieren und vor dem Speichern erneut testen.",
   "wizard.aggregator.test_line": "Verbindungstest: ",
   "wizard.aggregator.testing": "Verbindung wird getestet…",
@@ -669,5 +675,6 @@
   "cli.list_providers.aggregator": " (Aggregator)",
   "cost.plan.no_account": "Kein konfiguriertes Konto heißt {account}; verwenden Sie seine ID oder provider:name.",
   "status_line.unknown_account": "--account {value} bezeichnet kein einzelnes Konto; verwenden Sie eine ID (aus --json-v1, /v1/limits oder der id-Zeile der TOML), einen Schlüssel oder einen eindeutigen Namen. IDs: {ids}.",
-  "status_line.no_accounts": "keine"
+  "status_line.no_accounts": "keine",
+  "headless.strict_exit_no_ready": "cuotai: Exit-Code 2 (--strict-exit): Kein Konto hatte vor dem Stopp des Servers eine fehlerfreie Messung."
 }

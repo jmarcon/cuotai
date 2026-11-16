@@ -1993,6 +1993,7 @@
   "serve.client.invalid_url": "Geçersiz yerel sunucu adresi: http://127.0.0.1:PORT kullanın.",
   "serve.client.not_loopback": "Yerel sunucu yalnızca loopback üzerinden okunur (127.0.0.1 veya ::1; localhost 127.0.0.1 olarak okunur).",
   "serve.client.not_ready": "Yerel sunucuda henüz okuma yok; birazdan yeniden deneyin.",
+  "serve.client.token_file": "Yerel sunucunun belirteç dosyası okunamadı (tek bir belirteç içeren, size ait normal bir dosya olmalı).",
   "serve.client.unauthorized": "Yerel sunucu jetonu reddetti (--serve ile aynı dosyayla --token-file kullanın).",
   "serve.client.unproven": "{port} numaralı bağlantı noktasındaki program Cuotai sunucunuz olduğunu kanıtlamadı; sunucu tarafında Cuotai'yi güncelleyin veya bağlantı noktasını neyin kullandığını kontrol edin.",
   "serve.client.unreachable": "Yerel sunucu yanıt vermedi; çalışıyor mu (cuotai --serve)?",

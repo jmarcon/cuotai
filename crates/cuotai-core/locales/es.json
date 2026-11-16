@@ -1476,6 +1476,7 @@
   "serve.client.invalid_url": "Dirección del servidor local no válida: use http://127.0.0.1:PUERTO.",
   "serve.client.not_loopback": "El servidor local solo se lee por loopback (127.0.0.1 o ::1; localhost se lee como 127.0.0.1).",
   "serve.client.not_ready": "El servidor local aún no tiene lecturas; inténtelo de nuevo en unos instantes.",
+  "serve.client.token_file": "No se pudo leer el archivo de token del servidor local (debe ser un archivo normal tuyo con un solo token).",
   "serve.client.unauthorized": "El servidor local rechazó el token (use --token-file con el mismo archivo que --serve).",
   "serve.client.unproven": "El programa del puerto {port} no demostró ser tu servidor de Cuotai; actualiza Cuotai en el lado del servidor o comprueba qué ocupa el puerto.",
   "serve.client.unreachable": "El servidor local no respondió; ¿está en ejecución (cuotai --serve)?",

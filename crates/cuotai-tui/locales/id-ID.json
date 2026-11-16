@@ -245,8 +245,10 @@
   "headless.hooks_reloaded": "cuotai: hook dimuat ulang.",
   "headless.hooks_suspended": "cuotai: hook ditangguhkan.",
   "headless.hooks_suspended_error": "cuotai: hook ditangguhkan: {error}",
-  "headless.reload_failed": "cuotai: konfigurasi tidak dimuat ulang; yang sebelumnya tetap dipakai: {error}",
-  "headless.reloaded": "cuotai: konfigurasi dimuat ulang ({count} akun).",
+  "headless.reload_failed": "cuotai: konfigurasi tidak dimuat ulang; yang sebelumnya tetap dipakai. {error}",
+  "headless.reloaded": {
+    "other": "cuotai: konfigurasi dimuat ulang ({count} akun)."
+  },
   "headless.server_at": "cuotai: server lokal di {url}",
   "headless.server_stopped": "cuotai: server lokal dihentikan.",
   "headless.watch_stopped": "cuotai: pemantauan dihentikan.",
@@ -336,8 +338,8 @@
   "report.no_account": "Tidak ada akun dengan nama itu di konfigurasi.",
   "report.open_link": "Buka tautan ini untuk membuat issue (Cuotai tidak mengirim apa pun):",
   "report.title": " LAPORKAN MASALAH ",
-  "serve.port.cuotai_holder": " Server Cuotai lokal lain memakainya.",
-  "serve.port.hint": " Gunakan --port untuk memilih port lain.",
+  "serve.port.cuotai_holder": "Server Cuotai lokal lain memakainya.",
+  "serve.port.hint": "Gunakan --port untuk memilih port lain.",
   "serve.started": "cuotai: server lokal hanya-baca; Ctrl+C menghentikannya.",
   "stats.account_line": {
     "other": "rata-rata {average} · {hits} batas tercapai · {spark}"
@@ -456,7 +458,9 @@
   "vault.prune.none": "Tidak ada kredensial yang terbukti tidak dipakai; tidak ada yang dihapus.",
   "vault.prune.skipped": "Disimpan {key}: {reason}.",
   "watch.hooks_active": " {count} hook aktif.",
-  "watch.started": "cuotai: memantau {count} akun; pembacaan pertama tiap akun menjadi acuan dan tidak memancarkan peristiwa. Ctrl+C menghentikan.",
+  "watch.started": {
+    "other": "cuotai: memantau {count} akun; pembacaan pertama tiap akun menjadi acuan dan tidak memancarkan peristiwa. Ctrl+C menghentikan."
+  },
   "wizard.aggregator.fix_and_retest": " Perbaiki dan uji lagi sebelum menyimpan.",
   "wizard.aggregator.test_line": "Uji koneksi: ",
   "wizard.aggregator.testing": "Menguji koneksi…",
@@ -657,5 +661,6 @@
   "cli.list_providers.aggregator": " (agregator)",
   "cost.plan.no_account": "Tidak ada akun terkonfigurasi bernama {account}; gunakan id-nya atau provider:name.",
   "status_line.unknown_account": "--account {value} tidak menunjuk satu akun pun secara tunggal; gunakan id (dari --json-v1, /v1/limits, atau baris id di TOML), kunci, atau nama yang unik. Id: {ids}.",
-  "status_line.no_accounts": "tidak ada"
+  "status_line.no_accounts": "tidak ada",
+  "headless.strict_exit_no_ready": "cuotai: kode keluar 2 (--strict-exit): tidak ada akun yang mendapat pembacaan sehat sebelum server berhenti."
 }

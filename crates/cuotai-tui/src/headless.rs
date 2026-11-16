@@ -191,6 +191,15 @@ pub(crate) async fn run(
             tr("headless.server_stopped", "cuotai: local server stopped."),
         );
         if strict_exit && !ready_seen {
+            // Re-validation V-13: say why the exit code is 2.
+            crate::cli::message(
+                crate::cli::Level::Warn,
+                "serve.strict_exit",
+                tr(
+                    "headless.strict_exit_no_ready",
+                    "cuotai: exit code 2 (--strict-exit): no account had a healthy reading before the server stopped.",
+                ),
+            );
             code = 2;
         }
     }
@@ -250,7 +259,7 @@ async fn reload_config(
                 "config.reload_failed",
                 trf(
                     "headless.reload_failed",
-                    "cuotai: configuration not reloaded; the previous one stays in use: {error}",
+                    "cuotai: configuration not reloaded; the previous one stays in use. {error}",
                     &[("error", &crate::ui::safe(&error))],
                 ),
             );
@@ -275,10 +284,12 @@ async fn reload_config(
                 "accounts",
                 crate::cli::Field::Count(live.config.accounts.len() as u64),
             )],
-            trf(
+            crate::l10n::trp(
                 "headless.reloaded",
-                "cuotai: configuration reloaded ({count} account(s)).",
-                &[("count", &live.config.accounts.len())],
+                "cuotai: configuration reloaded ({count} account).",
+                "cuotai: configuration reloaded ({count} accounts).",
+                live.config.accounts.len(),
+                &[],
             ),
         );
     }

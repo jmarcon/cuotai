@@ -118,9 +118,10 @@ struct Args {
     /// Queries once, without opening the TUI.
     #[arg(long)]
     once: bool,
-    /// PRD 0031 RF2: queries once and prints one line for status bars (tmux,
-    /// Waybar, SketchyBar) with the same summary as the menu bar. Exit 0 when
-    /// every account is ready, 2 when one failed, 1 on a local error.
+    /// Queries once and prints one line for status bars (tmux, Waybar,
+    /// SketchyBar) with the same summary as the menu bar (PRD 0031 RF2).
+    /// Exit 0 when every selected account is ready, 2 when one failed, 1 on
+    /// a local error.
     #[arg(
         long,
         conflicts_with_all = [
@@ -555,9 +556,10 @@ struct Args {
     /// Read-only local HTTP server on 127.0.0.1, without opening the TUI and
     /// without needing a terminal: keeps the refresh cycle and serves the v1
     /// export (/health, /v1/snapshot, /v1/accounts/{id_or_key}, /v1/limits)
-    /// without querying the providers per request. SIGINT/SIGTERM stop it,
-    /// with exit 0 (with --strict-exit: 2 when no account was healthy until
-    /// the shutdown); 1 on a local error (port taken, configuration, token).
+    /// without querying the providers per request. SIGHUP rereads the TOML
+    /// (Unix). SIGINT/SIGTERM stop it, with exit 0 (with --strict-exit: 2
+    /// when no account was healthy until the shutdown); 1 on a local error
+    /// (port taken, configuration, token).
     #[arg(long, conflicts_with_all = ["once", "json", "json_v1", "history", "notify"])]
     serve: bool,
     /// The --serve port, and only that one (taken: error, exit 1). Without
@@ -642,10 +644,16 @@ struct Args {
     /// empty.
     #[arg(long, requires = "watch")]
     hooks: bool,
-    /// With --watch, how many minutes (MIN) before a quota window renews the
-    /// quota_reset_soon event fires (default 15; 0 turns the event off).
-    #[arg(long, value_name = "MIN", requires = "watch", default_value_t = 15)]
-    reset_lead: u32,
+    /// With --watch, how many minutes (MIN, 0 to 1440) before a quota window
+    /// renews the quota_reset_soon event fires (default 15; 0 turns the
+    /// event off).
+    #[arg(
+        long,
+        value_name = "MIN",
+        requires = "watch",
+        value_parser = clap::value_parser!(u32).range(0..=1440)
+    )]
+    reset_lead: Option<u32>,
     /// Renders the `fallback` texts (and the plain `notes`) of --json,
     /// --json-v1, --serve and --watch --jsonl in this language (pt-BR, es or
     /// it) for consumers that show them verbatim; also
@@ -1640,7 +1648,7 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
                 jsonl: args.jsonl,
                 hooks,
                 projected_lead: lead(args.projected_lead.as_deref()),
-                reset_lead: args.reset_lead,
+                reset_lead: args.reset_lead.unwrap_or(15),
                 fallback_locale: fallback_locale.clone(),
             });
             // PRD 0015 RF4.3: the server publishes `local_cost`, kept

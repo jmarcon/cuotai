@@ -245,8 +245,10 @@
   "headless.hooks_reloaded": "cuotai：已重新加载钩子。",
   "headless.hooks_suspended": "cuotai：已暂停钩子。",
   "headless.hooks_suspended_error": "cuotai：已暂停钩子：{error}",
-  "headless.reload_failed": "cuotai：未重新加载配置；继续使用之前的配置：{error}",
-  "headless.reloaded": "cuotai：已重新加载配置（{count} 个账户）。",
+  "headless.reload_failed": "cuotai：未重新加载配置；继续使用之前的配置。{error}",
+  "headless.reloaded": {
+    "other": "cuotai：已重新加载配置（{count} 个账户）。"
+  },
   "headless.server_at": "cuotai：本地服务器位于 {url}",
   "headless.server_stopped": "cuotai：本地服务器已停止。",
   "headless.watch_stopped": "cuotai：已停止监视。",
@@ -336,8 +338,8 @@
   "report.no_account": "配置中没有该名称的账户。",
   "report.open_link": "打开此链接以提交 issue（Cuotai 不发送任何内容）：",
   "report.title": " 报告问题 ",
-  "serve.port.cuotai_holder": " 另一个本地 Cuotai 服务器正在使用它。",
-  "serve.port.hint": " 使用 --port 选择其他端口。",
+  "serve.port.cuotai_holder": "另一个本地 Cuotai 服务器正在使用它。",
+  "serve.port.hint": "使用 --port 选择其他端口。",
   "serve.started": "cuotai：只读本地服务器；Ctrl+C 停止。",
   "stats.account_line": {
     "other": "平均 {average} · 达到限额 {hits} 次 · {spark}"
@@ -456,7 +458,9 @@
   "vault.prune.none": "没有经证实未使用的凭据；无需删除。",
   "vault.prune.skipped": "已保留 {key}：{reason}。",
   "watch.hooks_active": " {count} 个钩子已启用。",
-  "watch.started": "cuotai：正在监视 {count} 个账户；每个账户的首次读数作为基准，不产生事件。Ctrl+C 停止。",
+  "watch.started": {
+    "other": "cuotai：正在监视 {count} 个账户；每个账户的首次读数作为基准，不产生事件。Ctrl+C 停止。"
+  },
   "wizard.aggregator.fix_and_retest": " 请修复后再次测试，然后保存。",
   "wizard.aggregator.test_line": "连接测试：",
   "wizard.aggregator.testing": "正在测试连接…",
@@ -657,5 +661,6 @@
   "cli.list_providers.aggregator": " (聚合器)",
   "cost.plan.no_account": "没有名为 {account} 的已配置账户；请使用其 id 或 provider:name。",
   "status_line.unknown_account": "--account {value} 没有对应唯一的账户；请使用 id（来自 --json-v1、/v1/limits 或 TOML 的 id 行）、键或唯一的名称。Id：{ids}。",
-  "status_line.no_accounts": "无"
+  "status_line.no_accounts": "无",
+  "headless.strict_exit_no_ready": "cuotai：退出代码 2（--strict-exit）：服务器停止前没有任何账户获得正常读数。"
 }

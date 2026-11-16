@@ -57,3 +57,26 @@ fn argument_errors_follow_the_language() {
     let stderr = String::from_utf8_lossy(&italian.stderr);
     assert!(stderr.contains("--days vale solo con"), "{stderr}");
 }
+
+/// PRD 0031 re-validation V-11: the help carries no PRD prefix, `--serve`
+/// names SIGHUP, and `--reset-lead` is bounded and needs `--watch`.
+#[test]
+fn the_status_line_serve_and_reset_lead_help_match_the_behavior() {
+    let output = run("en-US", &["--help"]);
+    let help = String::from_utf8(output.stdout).expect("UTF-8");
+    let flat = help.split_whitespace().collect::<Vec<_>>().join(" ");
+    assert!(!flat.contains("PRD 0031 RF2:"), "{flat}");
+    assert!(flat.contains("SIGHUP rereads the TOML"), "{flat}");
+    assert!(flat.contains("MIN, 0 to 1440"), "{flat}");
+    assert!(!flat.contains("[default: 15]"), "{flat}");
+    // A missing config: were the arguments accepted, nothing is queried.
+    let config = std::env::temp_dir().join("cuotai-help-no-such-dir/none.toml");
+    let config = config.to_str().unwrap();
+    for args in [
+        &["--config", config, "--once", "--reset-lead", "5"][..],
+        &["--config", config, "--watch", "--reset-lead", "1441"][..],
+    ] {
+        let output = run("en-US", args);
+        assert_ne!(output.status.code(), Some(0), "{args:?}: {output:?}");
+    }
+}
