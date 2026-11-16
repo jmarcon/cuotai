@@ -77,10 +77,24 @@ fn window_of(period: &str) -> MetricWindow {
     }
 }
 
-fn number(value: Option<&Value>) -> Option<f64> {
-    value
-        .and_then(Value::as_f64)
-        .filter(|value| value.is_finite())
+/// A figure of `item` (an element of `root` at `prefix`): absent or `null`
+/// is unknown, a number is read, anything else (a string, say) is a drift
+/// with its path, never "unknown usage" (PRD 0028 RF1.1). LiteLLM documents
+/// these fields as numbers, so strings are not parsed.
+fn number(
+    root: &Value,
+    prefix: &str,
+    item: &Value,
+    field: &str,
+) -> Result<Option<f64>, QueryError> {
+    match item.get(field) {
+        None | Some(Value::Null) => Ok(None),
+        Some(value) => value
+            .as_f64()
+            .filter(|value| value.is_finite())
+            .map(Some)
+            .ok_or_else(|| QueryError::schema_in(root, prefix, item, &[field], "number")),
+    }
 }
 
 fn clean(raw: &str) -> String {
@@ -97,18 +111,21 @@ fn parse_budgets(value: &Value, now: DateTime<Utc>) -> Result<Vec<SubReport>, Qu
     let providers = value
         .get("providers")
         .and_then(Value::as_object)
-        .ok_or_else(QueryError::schema)?;
+        .ok_or_else(|| QueryError::schema_at(value, &["providers"], "object"))?;
     let mut subs = Vec::new();
-    for (name, entry) in providers.iter().take(MAX_PROVIDERS) {
+    for (name, raw) in providers.iter().take(MAX_PROVIDERS) {
         let name = clean(name);
         if name.is_empty() {
             continue;
         }
-        let entry = entry.as_object().ok_or_else(QueryError::schema)?;
-        let limit = number(entry.get("budget_limit")) // The docs use 1e-12 to block a provider: a cap that small (or zero)
-            // is shown as "no cap", never as a full meter.
-            .filter(|limit| *limit >= 0.01);
-        let spend = number(entry.get("spend"));
+        let prefix = "providers.{*}";
+        let entry = raw
+            .as_object()
+            .ok_or_else(|| QueryError::schema_in(value, prefix, raw, &[], "object"))?;
+        // The docs use 1e-12 to block a provider: a cap that small (or zero)
+        // is shown as "no cap", never as a full meter.
+        let limit = number(value, prefix, raw, "budget_limit")?.filter(|limit| *limit >= 0.01);
+        let spend = number(value, prefix, raw, "spend")?;
         let period = entry
             .get("time_period")
             .and_then(Value::as_str)
@@ -283,11 +300,16 @@ async fn key_rows(
         let keys = value
             .get("keys")
             .and_then(Value::as_array)
-            .ok_or_else(QueryError::schema)?;
+            .ok_or_else(|| QueryError::schema_at(&value, &["keys"], "array"))?;
         for item in keys {
             // A key listed as a bare token string carries no figure.
-            if let Some(item) = item.as_object() {
-                rows.extend(budget_row(item, crate::ScopeKind::VirtualKey)?);
+            if item.is_object() {
+                rows.extend(budget_row(
+                    &value,
+                    "keys[]",
+                    item,
+                    crate::ScopeKind::VirtualKey,
+                )?);
             }
         }
         let total_pages = value.get("total_pages").and_then(Value::as_u64);
@@ -315,11 +337,15 @@ async fn team_rows(
             .timeout(ctx.timeout),
     )
     .await?;
-    let teams = value.as_array().ok_or_else(QueryError::schema)?;
+    let teams = value
+        .as_array()
+        .ok_or_else(|| QueryError::schema_at(&value, &[], "array"))?;
     let mut rows = Vec::new();
     for item in teams {
-        let item = item.as_object().ok_or_else(QueryError::schema)?;
-        rows.extend(budget_row(item, crate::ScopeKind::Team)?);
+        if !item.is_object() {
+            return Err(QueryError::schema_in(&value, "[]", item, &[], "object"));
+        }
+        rows.extend(budget_row(&value, "[]", item, crate::ScopeKind::Team)?);
     }
     Ok((rows, false))
 }
@@ -331,10 +357,15 @@ async fn team_rows(
 /// masked key name, the figures and `blocked` are read: never `user_id`,
 /// members or e-mails.
 fn budget_row(
-    item: &serde_json::Map<String, Value>,
+    root: &Value,
+    prefix: &str,
+    raw: &Value,
     scope: crate::ScopeKind,
 ) -> Result<Option<crate::BreakdownRow>, QueryError> {
     use crate::breakdown::{digest_id, fallback_label, opaque_id, redact_label};
+    let Some(item) = raw.as_object() else {
+        return Ok(None);
+    };
     let team = scope == crate::ScopeKind::Team;
     let (id_field, alias_field) = if team {
         ("team_id", "team_alias")
@@ -370,8 +401,8 @@ fn budget_row(
     } else {
         redact_label(alias, scope, &id)
     };
-    let spend = number(item.get("spend"));
-    let budget = number(item.get("max_budget")).filter(|limit| *limit > 0.0);
+    let spend = number(root, prefix, raw, "spend")?;
+    let budget = number(root, prefix, raw, "max_budget")?.filter(|limit| *limit > 0.0);
     let resets_at = item
         .get("budget_reset_at")
         .and_then(Value::as_str)
@@ -597,6 +628,61 @@ mod tests {
             .unwrap_err();
         assert_eq!(error.status, Status::Error);
         assert_eq!(error.note.id, QueryError::schema().note.id);
+    }
+
+    /// PRD 0028 RF1.1: a figure sent as a string, or an entry that is no
+    /// longer an object, names its path and is never "up to date".
+    #[tokio::test]
+    async fn drift_names_the_field_and_keeps_no_value() {
+        let http = reqwest::Client::new();
+        for (body, path, found) in [
+            (
+                json!({"providers": {"openai": {"budget_limit": 100.0, "spend": "2.5731"}}}),
+                "providers.{*}.spend",
+                "string",
+            ),
+            (
+                json!({"providers": {"openai": {"budget_limit": "100.4417", "spend": 1.0}}}),
+                "providers.{*}.budget_limit",
+                "string",
+            ),
+            (
+                json!({"providers": {"openai": ["2.5731"]}}),
+                "providers.{*}",
+                "array",
+            ),
+            (json!({"providers": ["openai"]}), "providers", "array"),
+        ] {
+            let server = MockServer::start().await;
+            mount(&server, 200, body).await;
+            let error = fetch_at(&account(&server, &[]), &context(&http), Utc::now())
+                .await
+                .unwrap_err();
+            assert_eq!(error.status, Status::Error);
+            let drift = error.diagnostic.expect("drift").drift().clone();
+            assert_eq!(drift.paths[0].path, path);
+            assert_eq!(drift.paths[0].found, found);
+            let shown = format!("{drift:?}");
+            assert!(
+                !shown.contains("2.5731") && !shown.contains("100.4417"),
+                "{shown}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_breakdown_figure_sent_as_a_string_is_a_drift() {
+        let root = json!({"keys": [{"token": "abc123", "spend": "9.4417"}]});
+        let error = budget_row(
+            &root,
+            "keys[]",
+            &root["keys"][0],
+            crate::ScopeKind::VirtualKey,
+        )
+        .unwrap_err();
+        let drift = error.diagnostic.expect("drift").drift().clone();
+        assert_eq!(drift.paths[0].path, "keys[].spend");
+        assert!(!format!("{drift:?}").contains("9.4417"));
     }
 
     #[tokio::test]

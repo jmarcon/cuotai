@@ -564,3 +564,49 @@ fn every_output_text_is_translated() {
         }
     }
 }
+
+/// PRD 0028 RF1.4: an invalid output names the contract fields it broke as
+/// a drift (indices normalized), without any printed value.
+#[test]
+fn an_invalid_output_names_the_drifted_contract_fields() {
+    let stdout = edited(|value| {
+        value["metrics"][1]["kind"] = json!("secret-kind-4417");
+        value["metrics"][0]["remaining"] = json!("12.5-4417");
+        value["status"] = Value::Null;
+    });
+    let checked = check("demo", &stdout);
+    let drift = checked.diagnostic.clone().expect("drift");
+    let paths: Vec<(String, String, String)> = drift
+        .drift()
+        .paths
+        .iter()
+        .map(|p| (p.path.clone(), p.expected.clone(), p.found.clone()))
+        .collect();
+    assert!(paths.contains(&("status".into(), "present".into(), "null".into())));
+    assert!(paths.contains(&("metrics[].kind".into(), "string".into(), "string".into())));
+    assert!(paths.contains(&(
+        "metrics[].remaining".into(),
+        "number".into(),
+        "string".into()
+    )));
+    assert!(!format!("{drift:?}").contains("4417"));
+    let report = report(checked);
+    assert!(report.diagnostic.is_some());
+    // A valid output carries none.
+    assert!(check("demo", valid().to_string().as_bytes())
+        .diagnostic
+        .is_none());
+    // Field-less violations (not JSON) carry none either.
+    assert!(check("demo", b"not json").diagnostic.is_none());
+}
+
+#[test]
+fn contract_paths_keep_only_identifiers_and_indices() {
+    assert_eq!(
+        contract_path("metrics[12].kind").as_deref(),
+        Some("metrics[].kind")
+    );
+    assert_eq!(contract_path("notes[0]").as_deref(), Some("notes[]"));
+    assert_eq!(contract_path("metrics[a].kind"), None);
+    assert_eq!(contract_path("na me"), None);
+}

@@ -634,7 +634,7 @@ async fn codebuddy(
     let code = envelope
         .get("code")
         .and_then(Value::as_i64)
-        .ok_or_else(QueryError::schema)?;
+        .ok_or_else(|| QueryError::schema_at(&envelope, &["code"], "number"))?;
     if code != 0 {
         // The server msg field is deliberately not propagated (response body).
         return Err(QueryError {

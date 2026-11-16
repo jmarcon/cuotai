@@ -329,33 +329,38 @@ struct AzureTotals {
     rows: usize,
 }
 
+/// Add one page (`raw`) to the totals; the page's `nextLink`. A missing
+/// column or a cell of the wrong type names the column (PRD 0028 RF1.1).
 fn azure_accumulate(
-    page: &QueryResult,
+    raw: &serde_json::Value,
     totals: &mut Option<AzureTotals>,
-) -> Result<(), QueryError> {
-    let cost_idx = page
-        .properties
-        .columns
-        .iter()
-        .position(|c| c.name == "PreTaxCost")
-        .ok_or_else(QueryError::schema)?;
-    let currency_idx = page
-        .properties
-        .columns
-        .iter()
-        .position(|c| c.name == "Currency")
-        .ok_or_else(QueryError::schema)?;
+) -> Result<Option<String>, QueryError> {
+    let page: QueryResult = super::decode_value(raw)?;
+    let column = |name: &str| {
+        page.properties
+            .columns
+            .iter()
+            .position(|c| c.name == name)
+            .ok_or_else(|| QueryError::schema_named(raw, name, None, "number"))
+    };
+    let cost_idx = column("PreTaxCost")?;
+    let currency_idx = column("Currency")
+        .map_err(|_| QueryError::schema_named(raw, "Currency", None, "string"))?;
     for row in &page.properties.rows {
         let value = row
             .get(cost_idx)
             .and_then(|v| v.as_f64())
             .filter(|v| v.is_finite())
-            .ok_or_else(QueryError::schema)?;
+            .ok_or_else(|| {
+                QueryError::schema_named(raw, "PreTaxCost", row.get(cost_idx), "number")
+            })?;
         let currency = row
             .get(currency_idx)
             .and_then(|v| v.as_str())
             .filter(|s| !s.is_empty())
-            .ok_or_else(QueryError::schema)?;
+            .ok_or_else(|| {
+                QueryError::schema_named(raw, "Currency", row.get(currency_idx), "string")
+            })?;
         match totals {
             None => {
                 *totals = Some(AzureTotals {
@@ -373,7 +378,7 @@ fn azure_accumulate(
             }
         }
     }
-    Ok(())
+    Ok(page.properties.next_link)
 }
 
 async fn fetch_azure(base: &str, account: &Account, ctx: &Context<'_>) -> Result<Data, QueryError> {
@@ -397,9 +402,10 @@ async fn fetch_azure(base: &str, account: &Account, ctx: &Context<'_>) -> Result
     let mut totals: Option<AzureTotals> = None;
     let mut seen_links: HashSet<String> = HashSet::new();
     loop {
-        let page: QueryResult = json(ctx.http.post(&url).bearer_auth(&token).json(&body)).await?;
-        azure_accumulate(&page, &mut totals)?;
-        match page.properties.next_link.filter(|l| !l.is_empty()) {
+        let page: serde_json::Value =
+            json(ctx.http.post(&url).bearer_auth(&token).json(&body)).await?;
+        let next_link = azure_accumulate(&page, &mut totals)?;
+        match next_link.filter(|l| !l.is_empty()) {
             Some(next) if next.starts_with(&prefix) && seen_links.insert(next.clone()) => {
                 url = next
             }
@@ -906,12 +912,12 @@ mod tests {
 
     #[test]
     fn azure_acumula_custo_e_moeda() {
-        let page: QueryResult = serde_json::from_value(serde_json::json!({
+        let page = serde_json::json!({
             "properties": {
                 "columns": [{"name": "PreTaxCost", "type": "Number"}, {"name": "Currency", "type": "String"}],
                 "rows": [[1.5, "USD"], [2.25, "USD"]]
             }
-        })).unwrap();
+        });
         let mut totals = None;
         azure_accumulate(&page, &mut totals).unwrap();
         let t = totals.unwrap();
@@ -921,32 +927,51 @@ mod tests {
 
     #[test]
     fn azure_rejeita_moedas_mistas_ou_ausentes() {
-        let mixed: QueryResult = serde_json::from_value(serde_json::json!({
+        let mixed = serde_json::json!({
             "properties": {
                 "columns": [{"name": "PreTaxCost"}, {"name": "Currency"}],
                 "rows": [[1.0, "USD"]]
             }
-        }))
-        .unwrap();
-        let second: QueryResult = serde_json::from_value(serde_json::json!({
+        });
+        let second = serde_json::json!({
             "properties": {
                 "columns": [{"name": "PreTaxCost"}, {"name": "Currency"}],
                 "rows": [[1.0, "BRL"]]
             }
-        }))
-        .unwrap();
+        });
         let mut totals = None;
         azure_accumulate(&mixed, &mut totals).unwrap();
         assert!(azure_accumulate(&second, &mut totals).is_err());
 
-        let missing: QueryResult = serde_json::from_value(serde_json::json!({
+        let missing = serde_json::json!({
             "properties": {
                 "columns": [{"name": "PreTaxCost"}, {"name": "Currency"}],
                 "rows": [[1.0, null]]
             }
-        }))
-        .unwrap();
+        });
         assert!(azure_accumulate(&missing, &mut None).is_err());
+    }
+
+    /// PRD 0028 RF1.1: a renamed column or a cell of another type names the
+    /// column, never a value.
+    #[test]
+    fn azure_drift_names_the_column() {
+        let renamed = serde_json::json!({"properties": {
+            "columns": [{"name": "CostUSD"}, {"name": "Currency"}],
+            "rows": [[1.4417, "USD"]]
+        }});
+        let error = azure_accumulate(&renamed, &mut None).unwrap_err();
+        let drift = error.diagnostic.expect("drift").drift().clone();
+        assert_eq!(drift.paths[0].path, "PreTaxCost");
+        assert_eq!(drift.paths[0].found, "missing");
+        let text = serde_json::json!({"properties": {
+            "columns": [{"name": "PreTaxCost"}, {"name": "Currency"}],
+            "rows": [["1.4417", "USD"]]
+        }});
+        let error = azure_accumulate(&text, &mut None).unwrap_err();
+        let drift = error.diagnostic.expect("drift").drift().clone();
+        assert_eq!(drift.paths[0].found, "string");
+        assert!(!format!("{drift:?}").contains("1.4417"));
     }
 
     const RID: &str = "/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.CognitiveServices/accounts/openai-1";
