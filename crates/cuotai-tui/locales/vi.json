@@ -25,6 +25,7 @@
   "about.section.theme.note": "Bảng màu mở mà các giao diện tích hợp tuân theo.",
   "about.thanks": "Cuotai được xây dựng trên các dự án mã nguồn mở do cộng đồng của chúng duy trì. Cảm ơn tất cả những ai phát triển chúng. Logo là nhãn hiệu của chủ sở hữu tương ứng.",
   "about.title": " GIỚI THIỆU ",
+  "canary.foreign_folder": "Thư mục đó đã có tệp khác: hãy chọn một thư mục trống hoặc thư mục do canary tạo. Chưa ghi gì.",
   "canary.no_data_dir": "Không có thư mục dữ liệu cục bộ cho canary.",
   "changelog.this_version": "  (phiên bản này)",
   "cli.account_not_found": "Không tìm thấy tài khoản trong cấu hình: {name}",

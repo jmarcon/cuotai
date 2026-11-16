@@ -22,6 +22,7 @@
   "about.section.theme.note": "Paletas abertas seguidas pelos temas embutidos.",
   "about.thanks": "O Cuotai é construído sobre projetos de código aberto mantidos por suas comunidades. Obrigado a quem os desenvolve. Os logotipos são marcas dos respectivos titulares.",
   "about.title": " SOBRE ",
+  "canary.foreign_folder": "Essa pasta já tem outros arquivos: escolha uma pasta vazia ou uma criada pelo canary. Nada foi gravado.",
   "canary.no_data_dir": "Sem diretório de dados local para o canary.",
   "changelog.this_version": "  (esta versão)",
   "cli.account_not_found": "Conta não encontrada na configuração: {name}",

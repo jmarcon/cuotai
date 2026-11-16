@@ -166,3 +166,21 @@ fn drift_report_draft_and_evidence_follow_the_mutated_fixture() {
         );
     }
 }
+
+/// PRD 0028 re-validation (S-03): `--out` to a folder of other files is a
+/// local error that writes nothing and leaves the folder as it was.
+#[test]
+fn a_folder_of_other_files_is_refused_untouched() {
+    let sandbox = Sandbox::new("foreign");
+    let out = sandbox.out();
+    fs::create_dir_all(&out).unwrap();
+    fs::write(out.join("report.md"), "my own notes").unwrap();
+    fs::set_permissions(&out, fs::Permissions::from_mode(0o755)).unwrap();
+    sandbox.answer(r#"{"ResultsByTime":[]}"#);
+    let refused = sandbox.canary(&[]);
+    assert_eq!(refused.status.code(), Some(1), "{refused:?}");
+    assert_eq!(read(&out.join("report.md")), "my own notes");
+    assert_eq!(fs::read_dir(&out).unwrap().count(), 1);
+    let mode = fs::metadata(&out).unwrap().permissions().mode();
+    assert_eq!(mode & 0o777, 0o755);
+}

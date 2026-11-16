@@ -25,6 +25,7 @@
   "about.section.theme.note": "Palettes ouvertes suivies par les thèmes intégrés.",
   "about.thanks": "Cuotai repose sur des projets open source maintenus par leurs communautés. Merci à toutes celles et ceux qui les développent. Les logos sont des marques de leurs propriétaires respectifs.",
   "about.title": " À PROPOS ",
+  "canary.foreign_folder": "Ce dossier contient déjà d'autres fichiers : choisissez un dossier vide ou un dossier créé par le canary. Rien n'a été écrit.",
   "canary.no_data_dir": "Aucun dossier de données local pour le canari.",
   "changelog.this_version": "  (cette version)",
   "cli.account_not_found": "Compte introuvable dans la configuration : {name}",

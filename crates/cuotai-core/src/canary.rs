@@ -521,20 +521,68 @@ pub fn analyze_with(
     }
 }
 
+/// The file that marks a folder as the canary's own (PRD 0028
+/// re-validation, S-03): the canary writes, prunes or narrows only a folder
+/// that holds it, is empty, or that it creates.
+pub const MARKER: &str = ".cuotai-canary";
+
+/// The files a canary folder holds: what an older canary left in the
+/// default folder before the marker existed.
+fn is_canary_file(name: &str) -> bool {
+    (name.starts_with("run-") && name.ends_with(".json"))
+        || matches!(name, "report.md" | "verified_on.json" | MARKER)
+        // Temporaries of an interrupted atomic write.
+        || (name.starts_with(".tmp") || name.ends_with(".tmp"))
+}
+
 /// The canary directory: records, report and evidence list.
 #[derive(Debug, Clone)]
 pub struct Store {
     dir: PathBuf,
+    /// The default `<data dir>/cuotai/canary`: an unmarked folder that holds
+    /// only canary files is adopted (written before the marker existed).
+    default: bool,
 }
 
 impl Store {
+    /// A store in `dir` (`--canary --out DIR`).
     pub fn new(dir: PathBuf) -> Self {
-        Self { dir }
+        Self {
+            dir,
+            default: false,
+        }
     }
 
     /// `<data dir>/cuotai/canary`.
     pub fn in_data_dir() -> Option<Self> {
-        crate::data_dir::root().map(|dir| Self::new(dir.join("canary")))
+        crate::data_dir::root().map(|dir| Self {
+            dir: dir.join("canary"),
+            default: true,
+        })
+    }
+
+    /// Whether the canary may write in its folder: it does not exist yet, is
+    /// an empty directory, holds the [`MARKER`], or is the default folder
+    /// with only canary files in it. Anything else (a folder of other
+    /// files, a file, a symbolic link) is refused, untouched.
+    pub fn usable(&self) -> bool {
+        let meta = match std::fs::symlink_metadata(&self.dir) {
+            Ok(meta) => meta,
+            Err(error) => return error.kind() == std::io::ErrorKind::NotFound,
+        };
+        if !meta.is_dir() {
+            return false;
+        }
+        let Ok(entries) = std::fs::read_dir(&self.dir) else {
+            return false;
+        };
+        let names: Vec<String> = entries
+            .flatten()
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .collect();
+        names.is_empty()
+            || names.iter().any(|name| name == MARKER)
+            || (self.default && names.iter().all(|name| is_canary_file(name)))
     }
 
     pub fn dir(&self) -> &Path {
@@ -557,16 +605,20 @@ impl Store {
         files
     }
 
-    /// The most recent stored run, if readable.
+    /// The most recent stored run, if readable, re-checked: a stored file
+    /// may have been edited, so every text it brings back is held to what
+    /// the canary itself writes (PRD 0028 re-validation, S-04).
     pub fn latest(&self) -> Option<Run> {
         let path = self.runs().pop()?;
         let run: Run = serde_json::from_slice(&std::fs::read(path).ok()?).ok()?;
-        (run.format == FORMAT).then_some(run)
+        (run.format == FORMAT).then(|| sanitized(run))
     }
 
-    /// Write the run (`0600`), the report and the evidence list, and keep
-    /// only the last [`KEEP_RUNS`] runs. `stamp` orders the files
-    /// (`YYYYMMDDTHHMMSSZ`).
+    /// Write the run, the report and the evidence list (each `0600`), and
+    /// keep only the last [`KEEP_RUNS`] runs. `stamp` orders the files
+    /// (`YYYYMMDDTHHMMSSZ`). Only in a [`Store::usable`] folder: a folder
+    /// the canary creates is private (`0700`) and marked; an existing one
+    /// keeps its mode and gets the marker.
     pub fn save(
         &self,
         stamp: &str,
@@ -574,18 +626,116 @@ impl Store {
         report: &str,
         evidence: &[Evidence],
     ) -> std::io::Result<()> {
+        if !self.usable() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::AlreadyExists,
+                "not a canary folder",
+            ));
+        }
+        if !self.dir.exists() {
+            crate::private_fs::ensure_dir(&self.dir)?;
+        }
+        let write =
+            |name: &str, bytes: &[u8]| crate::hooks::write_atomically(&self.dir.join(name), bytes);
+        write(MARKER, b"Cuotai canary records (PRD 0028 RF4.1).\n")?;
         let stamp = plain(stamp, |c| c.is_ascii_alphanumeric(), 20);
         let json = serde_json::to_vec_pretty(run).map_err(std::io::Error::other)?;
-        crate::private_fs::write_file(&self.dir.join(format!("run-{stamp}.json")), &json)?;
-        crate::private_fs::write_file(&self.dir.join("report.md"), report.as_bytes())?;
+        write(&format!("run-{stamp}.json"), &json)?;
+        write("report.md", report.as_bytes())?;
         let list = serde_json::to_vec_pretty(evidence).map_err(std::io::Error::other)?;
-        crate::private_fs::write_file(&self.dir.join("verified_on.json"), &list)?;
+        write("verified_on.json", &list)?;
         let runs = self.runs();
         for old in runs.iter().take(runs.len().saturating_sub(KEEP_RUNS)) {
             let _ = std::fs::remove_file(old);
         }
         Ok(())
     }
+}
+
+/// A stored path as the redaction grammar writes it: identifier segments,
+/// `.`, `[]` and `{*}`; anything else collapses to `{*}`.
+fn stored_path(path: &str) -> String {
+    let segment_ok = |segment: &str| {
+        let name = segment.trim_end_matches("[]");
+        (name.is_empty() && !segment.is_empty())
+            || name == crate::diagnostic::COLLAPSED
+            || (name
+                .chars()
+                .next()
+                .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+                && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'))
+    };
+    if path == "." {
+        return path.into();
+    }
+    path.split('.')
+        .map(|segment| {
+            if segment_ok(segment) {
+                segment.to_string()
+            } else {
+                crate::diagnostic::COLLAPSED.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(".")
+}
+
+/// A stored short word (provider slug, mode, level, status, type, digest).
+fn stored_word(value: &str) -> String {
+    plain(
+        value,
+        |c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'),
+        64,
+    )
+}
+
+/// A stored `path (expected -> found)` drift line.
+fn stored_drift_line(line: &str) -> String {
+    match line.split_once(" (") {
+        Some((path, rest)) => {
+            let types = rest.trim_end_matches(')');
+            let (expected, found) = types.split_once(" -> ").unwrap_or((types, ""));
+            format!(
+                "{} ({} -> {})",
+                stored_path(path),
+                stored_word(expected),
+                stored_word(found)
+            )
+        }
+        None => stored_path(line),
+    }
+}
+
+/// The run with every stored text re-checked against the canary's own
+/// grammar: paths, label keys and words.
+fn sanitized(mut run: Run) -> Run {
+    run.date = plain(&run.date, |c| c.is_ascii_digit() || c == '-', 10);
+    for shape in &mut run.shapes {
+        shape.provider = stored_word(&shape.provider);
+        shape.mode = stored_word(&shape.mode);
+        shape.level = stored_word(&shape.level);
+        shape.status = stored_word(&shape.status);
+        shape.failure = shape.failure.as_deref().map(stored_word);
+        shape.digest = shape.digest.as_deref().map(stored_word);
+        shape.response_digest = shape.response_digest.as_deref().map(stored_word);
+        shape.paths = shape
+            .paths
+            .iter()
+            .map(|line| stored_drift_line(line))
+            .collect();
+        shape.response = shape
+            .response
+            .iter()
+            .map(|(path, kind)| (stored_path(path), stored_word(kind)))
+            .collect();
+        for metric in &mut shape.metrics {
+            metric.label = label_key(&metric.label);
+            metric.kind = stored_word(&metric.kind);
+            metric.window = stored_word(&metric.window);
+            metric.unit = plain(&metric.unit, |c| c.is_ascii_alphanumeric() || c == '_', 12);
+        }
+    }
+    run
 }
 
 #[cfg(test)]
@@ -891,5 +1041,131 @@ mod tests {
                 .mode();
             assert_eq!(mode & 0o077, 0);
         }
+    }
+
+    fn sample_run() -> Run {
+        let accounts = [account(Provider::Claude)];
+        observe(
+            &accounts,
+            &[report(&accounts[0], Status::Ready, &["5h"])],
+            "2026-10-25",
+        )
+        .0
+    }
+
+    /// S-03: a folder of other files is refused and left as it was; a new
+    /// folder is created private and marked.
+    #[test]
+    fn the_canary_keeps_to_its_own_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        let foreign = dir.path().join("documents");
+        std::fs::create_dir(&foreign).unwrap();
+        std::fs::write(foreign.join("report.md"), "mine").unwrap();
+        std::fs::write(foreign.join("notes.txt"), "mine").unwrap();
+        #[cfg(unix)]
+        let before = {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&foreign, std::fs::Permissions::from_mode(0o755)).unwrap();
+            std::fs::metadata(&foreign).unwrap().permissions().mode()
+        };
+        let store = Store::new(foreign.clone());
+        assert!(!store.usable());
+        assert!(store
+            .save("20261025T000000Z", &sample_run(), "r", &[])
+            .is_err());
+        assert_eq!(
+            std::fs::read_to_string(foreign.join("report.md")).unwrap(),
+            "mine"
+        );
+        assert!(!foreign.join(MARKER).exists());
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let after = std::fs::metadata(&foreign).unwrap().permissions().mode();
+            assert_eq!(before, after);
+        }
+
+        // A folder the canary creates is private and marked.
+        let fresh = Store::new(dir.path().join("fresh"));
+        fresh
+            .save("20261025T000000Z", &sample_run(), "r", &[])
+            .unwrap();
+        assert!(fresh.dir().join(MARKER).exists());
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(fresh.dir()).unwrap().permissions().mode();
+            assert_eq!(mode & 0o777, 0o700);
+        }
+
+        // An existing marked folder is reused and keeps its mode.
+        let marked = dir.path().join("marked");
+        std::fs::create_dir(&marked).unwrap();
+        std::fs::write(marked.join(MARKER), "").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&marked, std::fs::Permissions::from_mode(0o750)).unwrap();
+        }
+        Store::new(marked.clone())
+            .save("20261025T000000Z", &sample_run(), "r", &[])
+            .unwrap();
+        assert!(marked.join("report.md").exists());
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&marked).unwrap().permissions().mode();
+            assert_eq!(mode & 0o777, 0o750);
+        }
+
+        // A file is refused.
+        let file = dir.path().join("file");
+        std::fs::write(&file, "x").unwrap();
+        assert!(!Store::new(file).usable());
+    }
+
+    /// The default folder an older canary filled is adopted, not refused.
+    #[test]
+    fn the_legacy_default_folder_is_adopted() {
+        let dir = tempfile::tempdir().unwrap();
+        let legacy = dir.path().join("canary");
+        std::fs::create_dir(&legacy).unwrap();
+        for name in ["run-20261001T000000Z.json", "report.md", "verified_on.json"] {
+            std::fs::write(legacy.join(name), "{}").unwrap();
+        }
+        let explicit = Store::new(legacy.clone());
+        assert!(!explicit.usable(), "only the default folder is adopted");
+        let default = Store {
+            dir: legacy.clone(),
+            default: true,
+        };
+        assert!(default.usable());
+        default
+            .save("20261025T000000Z", &sample_run(), "r", &[])
+            .unwrap();
+        assert!(legacy.join(MARKER).exists());
+        std::fs::write(legacy.join("other.txt"), "x").unwrap();
+        assert!(Store::new(legacy).usable(), "marked now");
+    }
+
+    /// S-04: a tampered stored run brings back no control or bidi
+    /// character, in the report or in the drafts.
+    #[test]
+    fn a_tampered_stored_run_is_rechecked() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::new(dir.path().join("canary"));
+        let mut run = sample_run();
+        run.shapes[0].paths = vec!["a\u{202e}b (number -> \u{1b}[31mstring)".into()];
+        run.shapes[0].response = vec![("five_hour\u{2066}.x".into(), "number".into())];
+        run.shapes[0].metrics[0].label = "5h\u{202e}".into();
+        run.shapes[0].provider = "claude\u{1b}[31m".into();
+        store.save("20261025T000000Z", &run, "r", &[]).unwrap();
+        let back = store.latest().unwrap();
+        let all = serde_json::to_string(&back).unwrap();
+        for bad in ["\u{202e}", "\u{1b}", "\u{2066}"] {
+            assert!(!all.contains(bad), "{bad:?} in {all}");
+        }
+        assert_eq!(back.shapes[0].paths[0], "{*} (number -> 31mstring)");
+        assert_eq!(back.shapes[0].response[0].0, "{*}.x");
     }
 }

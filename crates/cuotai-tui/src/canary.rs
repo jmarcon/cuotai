@@ -54,6 +54,14 @@ pub async fn run(
             "No local data directory for the canary.",
         ))?,
     };
+    // S-03: never write into, prune or narrow a folder of other files.
+    if !store.usable() {
+        return Err(crate::l10n::tr(
+            "canary.foreign_folder",
+            "That folder already holds other files: choose an empty folder or one the canary created. Nothing was written.",
+        )
+        .into());
+    }
     let (config, skipped) = without_metered(config, args.include_metered);
     if config.accounts.is_empty() {
         crate::cli::message(
