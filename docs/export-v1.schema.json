@@ -286,7 +286,10 @@
                 "key": { "type": "string" },
                 "name": { "type": "string" },
                 "used_ratio": { "type": "number", "minimum": 0 },
-                "resets_at": { "type": ["string", "null"], "format": "date-time" }
+                "resets_at": { "type": ["string", "null"], "format": "date-time" },
+                "remaining_ratio": { "type": "number", "minimum": 0, "description": "PRD 0031 re-validation V-03 (additive): the share left, 1 - used_ratio within 0..1, as every Cuotai surface shows it." },
+                "level": { "anyOf": [{ "enum": ["good", "warn", "bad"] }, { "type": "string" }], "description": "The menu bar's level of remaining_ratio: good from 70% left, warn from 30%, bad below (or exhausted)." },
+                "label": { "type": "string", "description": "The name to print: name, or the provider's name when the account has none of its own or its name looks like an e-mail address." }
               }
             }
           ],

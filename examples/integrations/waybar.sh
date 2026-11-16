@@ -8,5 +8,8 @@ if ! cuotai_read; then
   exit 0
 fi
 label=$(cuotai_label)
+# Waybar reads `text` and `tooltip` as Pango markup: escape the name, so an
+# account called "<b>x</b>" or "A & B" shows as typed (leave "escape" off).
 jq -nc --arg text "Cuotai $label" --arg class "$cuotai_severity" --arg reset "$cuotai_reset" \
-  '{text: $text, class: $class, tooltip: (if $reset == "" then "No reset time known" else "Resets at " + $reset end)}'
+  'def markup: gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;");
+   {text: ($text | markup), class: $class, tooltip: (if $reset == "" then "No reset time known" else "Resets at " + $reset end)}'

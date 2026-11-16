@@ -5,7 +5,7 @@
 . "$(dirname "$0")/common.sh"
 
 if ! cuotai_read; then
-  printf '{"name":"cuotai","full_text":"cuotai offline","color":"#888888"}\n'
+  printf '{"name":"cuotai","full_text":"Cuotai offline","color":"#888888"}\n'
   exit 0
 fi
 case $cuotai_severity in

@@ -84,9 +84,9 @@ impl Bin {
             self.0.display(),
             std::env::var("PATH").unwrap_or_default()
         );
-        let mut command = Command::new("sh");
+        // V-05: the pages run the scripts directly, so the test does too.
+        let mut command = Command::new(examples().join(script));
         command
-            .arg(examples().join(script))
             .env("PATH", path)
             .env("SKETCHYBAR", self.0.join("sketchybar"))
             .env("CALLS", self.calls())
@@ -142,32 +142,32 @@ fn every_recipe_prints_what_its_page_shows() {
         (
             "waybar.sh",
             "limits-busy.json",
-            r#"{"text":"Cuotai 78% Personal","class":"warning","tooltip":"Resets at 2026-10-24T09:00:00Z"}"#,
+            r#"{"text":"Cuotai 45% left · Personal","class":"warning","tooltip":"Resets at 2026-10-24T09:00:00Z"}"#,
         ),
         (
             "waybar.sh",
             "limits-blocked.json",
-            r#"{"text":"Cuotai 100% Personal","class":"critical","tooltip":"Resets at 2026-10-20T14:00:00Z"}"#,
+            r#"{"text":"Cuotai 0% left · Personal","class":"critical","tooltip":"Resets at 2026-10-20T14:00:00Z"}"#,
         ),
         (
             "sketchybar.sh",
             "limits-busy.json",
-            "--set cuotai label=78% Personal label.color=0xffffb86c",
+            "--set cuotai label=45% left · Personal label.color=0xffffb86c",
         ),
         (
             "tmux.sh",
             "limits-busy.json",
-            "#[fg=yellow]78% Personal#[default]",
+            "#[fg=yellow]45% left · Personal#[default]",
         ),
         (
             "tmux.sh",
             "limits-blocked.json",
-            "#[fg=red]100% Personal#[default]",
+            "#[fg=red]0% left · Personal#[default]",
         ),
         (
             "i3status.sh",
             "limits-busy.json",
-            r##"{"name":"cuotai","full_text":"Cuotai 78% Personal","color":"#ffb86c"}"##,
+            r##"{"name":"cuotai","full_text":"Cuotai 45% left · Personal","color":"#ffb86c"}"##,
         ),
     ];
     for (script, fixture, expected) in cases {
@@ -176,7 +176,48 @@ fn every_recipe_prints_what_its_page_shows() {
             expected,
             "{script} {fixture}"
         );
+        // The page shows exactly this output.
+        let page = format!(
+            "../../docs/integrations/{}.md",
+            script.trim_end_matches(".sh")
+        );
+        let page = fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join(page)).unwrap();
+        assert!(
+            page.contains(expected),
+            "{script}: the page does not show {expected}"
+        );
     }
+}
+
+/// V-05: the four scripts are committed executable (the pages run them
+/// directly); `common.sh` is sourced and stays plain.
+#[test]
+fn the_recipes_are_executable() {
+    for script in ["waybar.sh", "tmux.sh", "sketchybar.sh", "i3status.sh"] {
+        let mode = fs::metadata(examples().join(script))
+            .unwrap()
+            .permissions()
+            .mode();
+        assert_eq!(mode & 0o111, 0o111, "{script} is not executable");
+    }
+}
+
+/// S-08: Waybar reads `text` as Pango markup, so the name is escaped.
+#[test]
+fn waybar_escapes_markup_in_the_name() {
+    if !has_jq() {
+        return;
+    }
+    let bin = Bin::new("markup");
+    let body = fs::read_to_string(examples().join("fixtures/limits-busy.json"))
+        .unwrap()
+        .replace("\"label\": \"Personal\"", "\"label\": \"<b>A & B</b>\"");
+    let fixture = bin.0.join("limits-markup.json");
+    fs::write(&fixture, body).unwrap();
+    assert_eq!(
+        bin.run("waybar.sh", fixture.to_str()),
+        r#"{"text":"Cuotai 45% left · &lt;b&gt;A &amp; B&lt;/b&gt;","class":"warning","tooltip":"Resets at 2026-10-24T09:00:00Z"}"#
+    );
 }
 
 #[test]
@@ -191,11 +232,11 @@ fn an_unreachable_server_shows_offline_and_exits_zero() {
     );
     assert_eq!(
         bin.run("tmux.sh", None),
-        "#[fg=colour244]cuotai offline#[default]"
+        "#[fg=colour244]Cuotai offline#[default]"
     );
     assert_eq!(
         bin.run("sketchybar.sh", None),
-        "--set cuotai label=offline label.color=0xff888888"
+        "--set cuotai label=Cuotai offline label.color=0xff888888"
     );
 }
 
@@ -208,14 +249,14 @@ fn separators_in_an_account_name_do_not_shift_the_fields() {
     let body = fs::read_to_string(examples().join("fixtures/limits-busy.json"))
         .unwrap()
         .replace(
-            "\"name\": \"Personal\"",
-            "\"name\": \"Work\\tTeam\\nNight\"",
+            "\"label\": \"Personal\"",
+            "\"label\": \"Work\\tTeam\\nNight\"",
         );
     let fixture = bin.0.join("limits-tabbed.json");
     fs::write(&fixture, body).unwrap();
     assert_eq!(
         bin.run("waybar.sh", fixture.to_str()),
-        r#"{"text":"Cuotai 78% Work Team Night","class":"warning","tooltip":"Resets at 2026-10-24T09:00:00Z"}"#
+        r#"{"text":"Cuotai 45% left · Work Team Night","class":"warning","tooltip":"Resets at 2026-10-24T09:00:00Z"}"#
     );
 }
 
@@ -237,18 +278,18 @@ fn the_token_reaches_curl_only_on_stdin() {
         ("ALL_PROXY", "http://127.0.0.1:9"),
     ];
     for (script, expected) in [
-        ("tmux.sh", "#[fg=yellow]78% Personal#[default]"),
+        ("tmux.sh", "#[fg=yellow]45% left · Personal#[default]"),
         (
             "waybar.sh",
-            r#"{"text":"Cuotai 78% Personal","class":"warning","tooltip":"Resets at 2026-10-24T09:00:00Z"}"#,
+            r#"{"text":"Cuotai 45% left · Personal","class":"warning","tooltip":"Resets at 2026-10-24T09:00:00Z"}"#,
         ),
         (
             "sketchybar.sh",
-            "--set cuotai label=78% Personal label.color=0xffffb86c",
+            "--set cuotai label=45% left · Personal label.color=0xffffb86c",
         ),
         (
             "i3status.sh",
-            r##"{"name":"cuotai","full_text":"Cuotai 78% Personal","color":"#ffb86c"}"##,
+            r##"{"name":"cuotai","full_text":"Cuotai 45% left · Personal","color":"#ffb86c"}"##,
         ),
     ] {
         assert_eq!(
@@ -266,7 +307,7 @@ fn only_a_loopback_http_address_is_read() {
         return;
     }
     let bin = Bin::new("loopback");
-    let offline = "#[fg=colour244]cuotai offline#[default]";
+    let offline = "#[fg=colour244]Cuotai offline#[default]";
     for url in [
         "https://127.0.0.1:6738",
         "http://example.com:6738",
@@ -290,7 +331,7 @@ fn only_a_loopback_http_address_is_read() {
         let env = [("CUOTAI_URL", url)];
         assert_eq!(
             bin.run_with("tmux.sh", Some("limits-busy.json"), &env),
-            "#[fg=yellow]78% Personal#[default]",
+            "#[fg=yellow]45% left · Personal#[default]",
             "{url}"
         );
     }

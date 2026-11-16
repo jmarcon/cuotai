@@ -2,11 +2,18 @@
 # curl and jq. Source it; it reads GET /v1/limits of `cuotai --serve` (or the
 # desktop app's local server) and sets:
 #
-#   cuotai_pct       percent consumed of the tightest account's binding metric
-#   cuotai_name      that account's name (tabs and line breaks become spaces,
-#                    so they cannot shift the fields below)
-#   cuotai_severity  ok | warning | critical | outage
+#   cuotai_pct       percent LEFT of the tightest account's binding metric,
+#                    as every Cuotai surface shows it
+#   cuotai_name      that account's label: its name, or the provider's when
+#                    it has none or an e-mail-like one (tabs and line breaks
+#                    become spaces, so they cannot shift the fields below)
+#   cuotai_severity  ok | warning | critical | outage, from the menu bar's
+#                    levels: warning under 70 % left, critical under 30 %
+#                    or exhausted, outage for a provider outage
 #   cuotai_reset     its reset time (RFC 3339) or empty
+#
+# Needs a server recent enough to send summary.tightest.level; the minimum
+# version is in docs/integrations/README.md.
 #
 # Environment: CUOTAI_URL (default http://127.0.0.1:6738; only a loopback
 # http://127.0.0.1:PORT, http://[::1]:PORT or http://localhost:PORT, read as
@@ -53,12 +60,13 @@ cuotai_read() {
   fi
   cuotai_fields=$(printf '%s' "$cuotai_body" | jq -r '
     (.summary.tightest // {}) as $t
-    | [ (if $t.used_ratio then ($t.used_ratio * 100 | round | tostring) else "" end),
-        (($t.name // "") | gsub("[\\t\\n\\r]+"; " ")),
+    | ($t.remaining_ratio // null) as $left
+    | [ (if $left == null then "" else ($left * 100 | round | tostring) end),
+        (($t.label // $t.name // "") | gsub("[\\t\\n\\r]+"; " ")),
         (if .summary.worst_class == "exhausted" then "critical"
          elif (.summary.worst_incident // "") | test("^(partial_outage|major_outage)$") then "outage"
-         elif ($t.used_ratio // 0) >= 0.9 then "critical"
-         elif ($t.used_ratio // 0) >= 0.75 or ((.summary.worst_incident // "") == "degraded") then "warning"
+         elif $t.level == "bad" then "critical"
+         elif $t.level == "warn" or ((.summary.worst_incident // "") == "degraded") then "warning"
          else "ok" end),
         ($t.resets_at // "") ] | join("\t")') || return 1
   cuotai_pct=$(printf '%s' "$cuotai_fields" | cut -f1)
@@ -67,10 +75,10 @@ cuotai_read() {
   cuotai_reset=$(printf '%s' "$cuotai_fields" | cut -f4)
 }
 
-# "78% Personal", or "no data" while nothing has a reading yet.
+# "45% left · Personal", or "no data" while nothing has a reading yet.
 cuotai_label() {
   if [ -n "$cuotai_pct" ]; then
-    printf '%s%% %s' "$cuotai_pct" "$cuotai_name"
+    printf '%s%% left · %s' "$cuotai_pct" "$cuotai_name"
   else
     printf 'no data'
   fi

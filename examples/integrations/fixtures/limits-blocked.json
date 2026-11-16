@@ -7,11 +7,16 @@
       "id": "acc_000000000001",
       "key": "claude:Personal",
       "name": "Personal",
+      "named": true,
       "provider": "claude",
       "class": "exhausted",
       "binding": {
         "index": 0,
-        "label": "Sessão (5h)",
+        "label": "Session (5h)",
+        "label_text": {
+          "id": "metric.verbatim",
+          "fallback": "Session (5h)"
+        },
         "window": "window_5h",
         "used_ratio": 1.0,
         "remaining": 0.0,
@@ -22,7 +27,10 @@
       "age_seconds": 30,
       "freshness": "fresh",
       "stale": false,
-      "incident": { "state": "partial_outage", "stale": false }
+      "incident": {
+        "state": "partial_outage",
+        "stale": false
+      }
     }
   ],
   "summary": {
@@ -32,9 +40,13 @@
       "key": "claude:Personal",
       "name": "Personal",
       "used_ratio": 1.0,
-      "resets_at": "2026-10-20T14:00:00Z"
+      "resets_at": "2026-10-20T14:00:00Z",
+      "remaining_ratio": 0.0,
+      "level": "bad",
+      "label": "Personal"
     },
     "next_reset_at": "2026-10-20T14:00:00Z",
     "worst_incident": "partial_outage"
-  }
+  },
+  "best": []
 }
