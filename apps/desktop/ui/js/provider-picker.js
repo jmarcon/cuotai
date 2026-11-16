@@ -43,7 +43,7 @@ export function pickOption(entry, i, { active = -1, found = null, grouped = fals
   const parts = grouped ? [hint] : [method, ...(hint !== method ? [hint] : [])];
   if (found?.hint) parts.push(tl(found.hint));
   const subtitle = parts.map((p, k) => (k === 0 && !grouped ? esc(p) : `<span class="pick-hint">${esc(p)}</span>`)).join(" · ");
-  return `<div role="option" class="pick" id="pick-${i}" data-i="${i}" aria-selected="${i === active}">
+  return `<div role="option" class="pick" id="pick-${i}" data-i="${i}" data-provider="${esc(entry.provider)}" aria-selected="${i === active}">
       ${logo(entry.provider, 32)}
       <span class="pick-text"><span class="pick-name"><b>${esc(entry.label)}</b><span class="pick-chips">${entryChips(entry, found)}</span></span>
         <small class="pick-method">${subtitle}</small></span>

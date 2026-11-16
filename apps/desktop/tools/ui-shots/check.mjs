@@ -114,6 +114,13 @@ const PAGES = zoom ? ZOOM_PAGES : [
   ["dialog-libraries", "settings.html?page=about", 640, 460, {}, "[data-libraries]"],
   ["dialog-whats-new", "settings.html?page=about", 640, 460, {}, "[data-whats-new]"],
   ["dialog-backup", "settings.html?page=files", 640, 460, {}, "[data-backup]"],
+  // PRD 0029 re-validation (V-01, V-04): the Add account form, beside a named Groq account (the name is required, no
+  // peer field) and, with `?unnamed`, beside an unnamed one (the peer field shows); every `hidden` part stays hidden.
+  ["dialog-add", "index.html", 1200, 820, {}, ["[data-add]", '.pick[data-provider="groq"]']],
+  ["dialog-add-peer", "index.html?unnamed", 1200, 820, {}, ["[data-add]", '.pick[data-provider="groq"]']],
+  // V-03, V-07: unnamed accounts (a plain one and the 9router instance) on the cards, the tray and Stats.
+  ["main-unnamed", "index.html?unnamed", 1200, 820, {}],
+  ["tray-unnamed", "tray.html?unnamed", 380, 600, {}],
 ];
 // V-09: the reference themes (dark, light, a retro theme with a picture background, and a monochrome one), in en-US.
 const THEME_PAGES = [["dracula", "dark"], ["github", "light"], ["win98", "light"], ["crt", "dark"]].flatMap(([theme, mode]) => [
@@ -172,6 +179,8 @@ const PAGE_JS = `(() => {
     const box = e.closest(".schip, .mini, .btn, .tab, .opt-card, .seg [role=radio], .fig, .kbd, kbd");
     if (box && box !== e && !ok(e)) { const br = box.getBoundingClientRect(); if (own.some((x) => x.right > br.right + 1 || x.left < br.left - 1)) out.push({ kind: "spills-container", ok: false, sel: sel(e) + " in " + sel(box), text: text.slice(0, 40) }); }
   }
+  // PRD 0029 re-validation (V-01): an element carrying \`hidden\` is never drawn, whatever its class's \`display\` says.
+  for (const e of document.querySelectorAll("[hidden]")) if (e.checkVisibility()) out.push({ kind: "hidden-shown", ok: false, sel: sel(e) + (e.id ? "#" + e.id : ""), text: (e.textContent || "").trim().slice(0, 40) });
   for (const s of document.querySelectorAll(".rc > .stl")) if (s.getBoundingClientRect().height > 22) out.push({ kind: "status-line-taller-than-one-line", ok: false, sel: sel(s), text: s.textContent.trim().slice(0, 50) });
   // The local-cost row's title and its "estimate" mark stay on one line each; only the values may wrap.
   for (const s of document.querySelectorAll(".cost-fold .cf-t, .cost-fold .cf-e")) { const rg = document.createRange(); rg.selectNodeContents(s); if (new Set([...rg.getClientRects()].map((x) => Math.round(x.top))).size > 1) out.push({ kind: "title-wraps", ok: false, sel: sel(s), text: s.textContent.trim().slice(0, 50) }); }
