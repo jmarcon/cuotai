@@ -676,8 +676,8 @@ const DURATION_EN = {
   "text.duration.days": "{d}d",
   "text.duration.days_hours": "{d}d {h}h",
 };
-const durationPart = (id, params) =>
-  tl({ id, params, fallback: DURATION_EN[id].replace(/\{(\w+)\}/g, (m, n) => (n in params ? String(params[n]) : m)) });
+// PRD 0034 re-validation (S-02): the raw English pattern is the fallback, so `tl` substitutes the params once.
+const durationPart = (id, params) => tl({ id, params, fallback: DURATION_EN[id] });
 /** A span of `secs` seconds in the core's words (the twin of `cuotai_core::text::duration`): under an hour in whole
  *  minutes rounded up, under a day in hours and minutes, otherwise in days and hours. */
 export function durationText(secs) {
@@ -691,7 +691,8 @@ export function durationText(secs) {
 /** The core's `text.duration.*` note of `secs` seconds, as the shell sends it (demo fixtures only). */
 function durationNote(secs) {
   secs = Math.max(0, Math.floor(secs));
-  const note = (id, params) => ({ id, params, fallback: DURATION_EN[id].replace(/\{(\w+)\}/g, (m, n) => (n in params ? params[n] : m)) });
+  // Interpolated once here, as the core does (its values are digits, so no placeholder can come from them).
+  const note = (id, params) => ({ id, params, fallback: DURATION_EN[id].replace(/\{(\w+)\}/g, (m, n) => (n in params ? String(params[n]) : m)) });
   if (secs < 3600) return note("text.duration.minutes", { m: String(Math.min(59, Math.ceil(secs / 60))) });
   const minutes = Math.floor(secs / 60);
   const d = Math.floor(minutes / 1440), h = Math.floor(minutes / 60) % 24, m = minutes % 60;

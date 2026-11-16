@@ -212,13 +212,14 @@ fn unknown(candidates: &[Candidate<'_>], value: &str, locale: &str) -> String {
     } else {
         list.join(", ")
     };
-    crate::l10n::tr_in(
+    // PRD 0034 re-validation (S-03): one pass, so a `{ids}` inside the value stays literal.
+    let value = cuotai_core::text::strip_disguising(value);
+    crate::l10n::trf_in(
         locale,
         "status_line.unknown_account",
         "--account {value} names no single account; use an id (from --json-v1, /v1/limits or the TOML's id line), a key or a unique name. Ids: {ids}.",
+        &[("value", &value), ("ids", &list)],
     )
-    .replace("{value}", &cuotai_core::text::strip_disguising(value))
-    .replace("{ids}", &list)
 }
 
 /// ANSI foreground of a level: the theme roles good, warn and bad.
@@ -371,5 +372,21 @@ mod tests {
         assert!(!use_color(true, true, Some("1")));
         assert!(!use_color(true, false, None));
         assert!(!use_color(false, true, None));
+    }
+
+    /// PRD 0034 re-validation (S-03): the value is substituted in one pass, so
+    /// a `{ids}` it carries stays literal, in English and from a catalog.
+    #[test]
+    fn unknown_value_placeholders_stay_literal() {
+        let candidates = [Candidate {
+            id: "id-one",
+            key: "k1",
+            name: "one",
+        }];
+        for locale in ["en-US", "pt-BR"] {
+            let error = resolve(&candidates, &["{ids}".to_owned()], locale).unwrap_err();
+            assert!(error.starts_with("--account {ids} "), "{locale}: {error}");
+            assert_eq!(error.matches("id-one (one)").count(), 1, "{locale}");
+        }
     }
 }
