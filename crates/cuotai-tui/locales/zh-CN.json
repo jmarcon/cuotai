@@ -179,8 +179,9 @@
   "dashboard.header.title": {
     "other": " CUOTAI  |  {count} 个账户  |  {checked}  |  {refresh} "
   },
-  "dashboard.hint.more_many": "+{count} 项指标 • ",
-  "dashboard.hint.more_one": "+1 项指标 • ",
+  "dashboard.hint.more": {
+    "other": "+{count} 项指标 • "
+  },
   "dashboard.history.empty": "  历史 {range}：没有记录的测量值",
   "dashboard.history.no_measured": "  历史 {range}：无测量值",
   "dashboard.history.heading": "历史",
@@ -410,7 +411,9 @@
   "ui.delete.result.title": " 结果 ",
   "ui.delete.save_failed": "无法保存；未应用任何更改。",
   "ui.delete.secrets.body": "扩展“{extension}”在系统保险库中为账户 {account} 保存了密钥。\n\n是否也删除这些密钥？\n\n• s 删除账户和密钥\n• n 在保险库中保留密钥\n• Esc 取消删除",
-  "ui.delete.secrets.done": "已从系统保险库删除 {count} 个扩展密钥。",
+  "ui.delete.secrets.done": {
+    "other": "已从系统保险库删除 {count} 个扩展密钥。"
+  },
   "ui.delete.secrets.failed": "无法删除扩展的密钥：{error}",
   "ui.delete.secrets.footer": "s 删除密钥 • n 保留 • Esc 取消",
   "ui.delete.secrets.title": " 删除扩展的密钥？ ",
@@ -457,7 +460,9 @@
   "vault.prune.no_index": "没有已索引的凭据；无需删除。",
   "vault.prune.none": "没有经证实未使用的凭据；无需删除。",
   "vault.prune.skipped": "已保留 {key}：{reason}。",
-  "watch.hooks_active": " {count} 个钩子已启用。",
+  "watch.hooks_active": {
+    "other": " {count} 个钩子已启用。"
+  },
   "watch.started": {
     "other": "cuotai：正在监视 {count} 个账户；每个账户的首次读数作为基准，不产生事件。Ctrl+C 停止。"
   },

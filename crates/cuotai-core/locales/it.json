@@ -277,7 +277,10 @@
   "doctor.fix.trust_store": "Installa o ripara i certificati radice del sistema operativo (il pacchetto ca-certificates su Linux).",
   "doctor.fix.update": "Aggiorna Cuotai.",
   "doctor.hooks.ok": "Valido; regole: {count}.",
-  "doctor.ledger.quarantined": "Un registro danneggiato è stato messo da parte ({count} file, l'ultimo {file}); un avviso potrebbe ripetersi una volta.",
+  "doctor.ledger.quarantined": {
+    "one": "Un registro danneggiato è stato messo da parte ({count} file, l'ultimo {file}); un avviso potrebbe ripetersi una volta.",
+    "other": "Un registro danneggiato è stato messo da parte ({count} file, l'ultimo {file}); un avviso potrebbe ripetersi una volta."
+  },
   "doctor.log.error": "Una scrittura non è riuscita.",
   "doctor.log.off": "Disattivato con CUOTAI_LOG o RUST_LOG.",
   "doctor.log.ok": "Gli eventi vengono scritti.",
@@ -328,7 +331,10 @@
   "feed.banner.codex_cli": "Codex CLI ha letture dei limiti; aggiungi un account ChatGPT / Codex alimentato da Codex CLI.",
   "feed.error.malformed": "L’input della riga di stato non è un oggetto JSON.",
   "feed.error.too_large": "L’input della riga di stato supera 64 KiB.",
-  "feed.health.unreadable": "{n} file di feed illeggibili ignorati.",
+  "feed.health.unreadable": {
+    "one": "{count} file di feed illeggibile ignorato.",
+    "other": "{count} file di feed illeggibili ignorati."
+  },
   "feed.line.five_hour": "5 h {pct}",
   "feed.line.left": "{name} {pct} rimasto",
   "feed.line.reset": "↺ {time}",
@@ -1526,7 +1532,10 @@
   "events.summary.limit_changed_unknown": "{metric}: limite cambiato",
   "events.summary.provider_incident": "Stato del provider: {state}",
   "events.summary.usage_updated": "Utilizzo aggiornato: {usage}",
-  "events.summary.session_expiring": "La sessione scade tra {days} giorno/i",
+  "events.summary.session_expiring": {
+    "one": "La sessione scade tra {count} giorno",
+    "other": "La sessione scade tra {count} giorni"
+  },
   "events.summary.quota_reset_soon": "{metric}: la quota si rinnova a breve",
   "watch.error.interval_range": "L'intervallo di watch deve essere compreso tra {min} e {max} secondi; i valori fuori da questo intervallo vengono rifiutati, non adattati.",
   "watch.error.unknown_event": "Evento sconosciuto: \"{name}\". Eventi validi: {known}.",
@@ -2230,8 +2239,14 @@
   "metric.label.provider_budget": "Budget del provider",
   "metric.label.budget_scope": "Budget — {scope}",
   "metric.label.budget_paren": "Budget ({scope})",
-  "metric.label.window_weeks": "{prefix} — finestra di {n} settimana/e (%)",
-  "metric.label.window_hours": "{prefix} — finestra di {n} ora/e (%)",
+  "metric.label.window_weeks": {
+    "one": "{prefix} — finestra di {count} settimana (%)",
+    "other": "{prefix} — finestra di {count} settimane (%)"
+  },
+  "metric.label.window_hours": {
+    "one": "{prefix} — finestra di {count} ora (%)",
+    "other": "{prefix} — finestra di {count} ore (%)"
+  },
   "metric.label.window_seconds": "{prefix} — finestra di {n}s (%)",
   "metric.label.rate_limit_of": "{label} (rate limit)",
   "metric.label.extra_usage_used": "Uso extra — utilizzato",

@@ -183,8 +183,10 @@
     "one": " CUOTAI  |  {count} Konto  |  {checked}  |  {refresh} ",
     "other": " CUOTAI  |  {count} Konten  |  {checked}  |  {refresh} "
   },
-  "dashboard.hint.more_many": "+{count} Messwerte • ",
-  "dashboard.hint.more_one": "+1 Messwert • ",
+  "dashboard.hint.more": {
+    "one": "+{count} Messwert • ",
+    "other": "+{count} Messwerte • "
+  },
   "dashboard.history.empty": "  Verlauf {range}: keine Messungen erfasst",
   "dashboard.history.no_measured": "  Verlauf {range}: keine gemessenen Werte",
   "dashboard.history.heading": "VERLAUF",
@@ -418,7 +420,10 @@
   "ui.delete.result.title": " Ergebnis ",
   "ui.delete.save_failed": "Speichern fehlgeschlagen; keine Änderung angewendet.",
   "ui.delete.secrets.body": "Die Erweiterung „{extension}“ speichert Geheimnisse im Systemtresor für das Konto {account}.\n\nAuch diese Geheimnisse löschen?\n\n• s löscht das Konto und die Geheimnisse\n• n behält die Geheimnisse im Tresor\n• Esc bricht das Löschen ab",
-  "ui.delete.secrets.done": "{count} Geheimnis(se) der Erweiterung aus dem Systemtresor gelöscht.",
+  "ui.delete.secrets.done": {
+    "one": "{count} Geheimnis der Erweiterung aus dem Systemtresor gelöscht.",
+    "other": "{count} Geheimnisse der Erweiterung aus dem Systemtresor gelöscht."
+  },
   "ui.delete.secrets.failed": "Die Geheimnisse der Erweiterung konnten NICHT gelöscht werden: {error}",
   "ui.delete.secrets.footer": "s löscht Geheimnisse • n behält sie • Esc bricht ab",
   "ui.delete.secrets.title": " Geheimnisse der Erweiterung löschen? ",
@@ -469,7 +474,10 @@
   "vault.prune.no_index": "Keine Zugangsdaten indiziert; nichts zu löschen.",
   "vault.prune.none": "Keine Zugangsdaten sind nachweislich unbenutzt; nichts zu löschen.",
   "vault.prune.skipped": "Behalten: {key}: {reason}.",
-  "watch.hooks_active": " {count} Hook(s) aktiv.",
+  "watch.hooks_active": {
+    "one": " {count} Hook aktiv.",
+    "other": " {count} Hooks aktiv."
+  },
   "watch.started": {
     "one": "cuotai: {count} Konto wird überwacht; die erste Messung jedes Kontos ist die Basis und löst keine Ereignisse aus. Strg+C beendet.",
     "other": "cuotai: {count} Konten werden überwacht; die erste Messung jedes Kontos ist die Basis und löst keine Ereignisse aus. Strg+C beendet."

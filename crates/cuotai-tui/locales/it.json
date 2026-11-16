@@ -186,8 +186,10 @@
     "one": " CUOTAI  |  {count} account  |  {checked}  |  {refresh} ",
     "other": " CUOTAI  |  {count} account  |  {checked}  |  {refresh} "
   },
-  "dashboard.hint.more_many": "+{count} metriche • ",
-  "dashboard.hint.more_one": "+1 metrica • ",
+  "dashboard.hint.more": {
+    "one": "+{count} metrica • ",
+    "other": "+{count} metriche • "
+  },
   "dashboard.history.empty": "  cronologia {range}: nessuna misurazione registrata",
   "dashboard.history.no_measured": "  cronologia {range}: nessun valore misurato",
   "dashboard.history.heading": "CRONOLOGIA",
@@ -421,7 +423,10 @@
   "ui.delete.result.title": " Risultato ",
   "ui.delete.save_failed": "Salvataggio non riuscito; nessuna modifica applicata.",
   "ui.delete.secrets.body": "L'estensione \"{extension}\" conserva segreti nel portachiavi di sistema per l'account {account}.\n\nEliminare anche questi segreti?\n\n• s elimina l'account e i segreti\n• n mantiene i segreti nel portachiavi\n• Esc annulla l'eliminazione",
-  "ui.delete.secrets.done": "{count} segreto/i dell'estensione eliminato/i dal portachiavi di sistema.",
+  "ui.delete.secrets.done": {
+    "one": "{count} segreto dell'estensione eliminato dal portachiavi di sistema.",
+    "other": "{count} segreti dell'estensione eliminati dal portachiavi di sistema."
+  },
   "ui.delete.secrets.failed": "I segreti dell'estensione NON sono stati eliminati: {error}",
   "ui.delete.secrets.footer": "s elimina i segreti • n li mantiene • Esc annulla",
   "ui.delete.secrets.title": " Eliminare i segreti dell'estensione? ",
@@ -472,7 +477,10 @@
   "vault.prune.no_index": "Nessuna credenziale indicizzata; niente da eliminare.",
   "vault.prune.none": "Nessuna credenziale è sicuramente inutilizzata; niente da eliminare.",
   "vault.prune.skipped": "Mantenuta {key}: {reason}.",
-  "watch.hooks_active": " {count} hook attivi.",
+  "watch.hooks_active": {
+    "one": " {count} hook attivo.",
+    "other": " {count} hook attivi."
+  },
   "watch.started": {
     "one": "cuotai: monitoraggio di {count} account; la prima lettura di ciascuno è la base e non genera eventi. Ctrl+C lo arresta.",
     "other": "cuotai: monitoraggio di {count} account; la prima lettura di ciascuno è la base e non genera eventi. Ctrl+C lo arresta."

@@ -535,7 +535,9 @@
   "doctor.fix.trust_store": "Hãy cài hoặc sửa chứng chỉ gốc của hệ điều hành (gói ca-certificates trên Linux).",
   "doctor.fix.update": "Hãy cập nhật Cuotai.",
   "doctor.hooks.ok": "Hợp lệ; số quy tắc: {count}.",
-  "doctor.ledger.quarantined": "Một sổ ghi bị hỏng đã được để riêng ({count} tệp, mới nhất là {file}); một thông báo có thể lặp lại một lần.",
+  "doctor.ledger.quarantined": {
+    "other": "Một sổ ghi bị hỏng đã được để riêng ({count} tệp, mới nhất là {file}); một thông báo có thể lặp lại một lần."
+  },
   "doctor.log.error": "Một lần ghi đã thất bại.",
   "doctor.log.off": "Đã tắt bằng CUOTAI_LOG hoặc RUST_LOG.",
   "doctor.log.ok": "Sự kiện đang được ghi.",
@@ -671,7 +673,9 @@
   "events.summary.quota_threshold_crossed": "{metric}: đã dùng {threshold}%",
   "events.summary.refresh_failed": "Truy vấn không thành công: {category}",
   "events.summary.refresh_recovered": "Truy vấn đã hoạt động trở lại",
-  "events.summary.session_expiring": "Phiên hết hạn sau {days} ngày",
+  "events.summary.session_expiring": {
+    "other": "Phiên hết hạn sau {count} ngày"
+  },
   "events.summary.usage_updated": "Mức sử dụng đã cập nhật: {usage}",
   "extensions.action.account_invalid": "Không tạo được tài khoản tiện ích mở rộng.",
   "extensions.action.candidate_expired": "Xác nhận này không còn hiệu lực; hãy xem lại tiện ích mở rộng trước khi phê duyệt.",
@@ -780,7 +784,9 @@
   "feed.banner.codex_cli": "Codex CLI có số liệu giới hạn; hãy thêm một tài khoản ChatGPT / Codex lấy dữ liệu từ Codex CLI.",
   "feed.error.malformed": "Dữ liệu vào của dòng trạng thái không phải đối tượng JSON.",
   "feed.error.too_large": "Dữ liệu vào của dòng trạng thái lớn hơn 64 KiB.",
-  "feed.health.unreadable": "Đã bỏ qua {n} tệp nguồn không đọc được.",
+  "feed.health.unreadable": {
+    "other": "Đã bỏ qua {count} tệp nguồn không đọc được."
+  },
   "feed.line.five_hour": "5 giờ {pct}",
   "feed.line.left": "{name} còn {pct}",
   "feed.line.reset": "↺ {time}",
@@ -2212,8 +2218,12 @@
   "metric.label.provider_budget": "Ngân sách nhà cung cấp",
   "metric.label.budget_scope": "Ngân sách — {scope}",
   "metric.label.budget_paren": "Ngân sách ({scope})",
-  "metric.label.window_weeks": "{prefix} — khung {n} tuần (%)",
-  "metric.label.window_hours": "{prefix} — khung {n} giờ (%)",
+  "metric.label.window_weeks": {
+    "other": "{prefix} — khung {count} tuần (%)"
+  },
+  "metric.label.window_hours": {
+    "other": "{prefix} — khung {count} giờ (%)"
+  },
   "metric.label.window_seconds": "{prefix} — khung {n} giây (%)",
   "metric.label.rate_limit_of": "{label} (rate limit)",
   "metric.label.extra_usage_used": "Sử dụng thêm — đã dùng",

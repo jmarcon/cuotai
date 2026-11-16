@@ -179,8 +179,9 @@
   "dashboard.header.title": {
     "other": " CUOTAI  |  계정 {count}개  |  {checked}  |  {refresh} "
   },
-  "dashboard.hint.more_many": "+지표 {count}개 • ",
-  "dashboard.hint.more_one": "+지표 1개 • ",
+  "dashboard.hint.more": {
+    "other": "+지표 {count}개 • "
+  },
   "dashboard.history.empty": "  기록 {range}: 기록된 측정값 없음",
   "dashboard.history.no_measured": "  기록 {range}: 측정값 없음",
   "dashboard.history.heading": "기록",
@@ -410,7 +411,9 @@
   "ui.delete.result.title": " 결과 ",
   "ui.delete.save_failed": "저장하지 못했습니다. 변경 사항이 적용되지 않았습니다.",
   "ui.delete.secrets.body": "확장 기능 \"{extension}\"이(가) {account} 계정의 비밀을 시스템 보관소에 보관하고 있습니다.\n\n이 비밀도 삭제할까요?\n\n• s 계정과 비밀 삭제\n• n 비밀은 보관소에 유지\n• Esc 삭제 취소",
-  "ui.delete.secrets.done": "확장 기능 비밀 {count}개를 시스템 보관소에서 삭제했습니다.",
+  "ui.delete.secrets.done": {
+    "other": "확장 기능 비밀 {count}개를 시스템 보관소에서 삭제했습니다."
+  },
   "ui.delete.secrets.failed": "확장 기능의 비밀을 삭제하지 못했습니다: {error}",
   "ui.delete.secrets.footer": "s 비밀 삭제 • n 유지 • Esc 취소",
   "ui.delete.secrets.title": " 확장 기능의 비밀을 삭제할까요? ",
@@ -457,7 +460,9 @@
   "vault.prune.no_index": "색인된 자격 증명이 없어 삭제할 것이 없습니다.",
   "vault.prune.none": "미사용으로 확인된 자격 증명이 없습니다. 삭제할 것이 없습니다.",
   "vault.prune.skipped": "보관함 {key}: {reason}.",
-  "watch.hooks_active": " 훅 {count}개 활성.",
+  "watch.hooks_active": {
+    "other": " 훅 {count}개 활성."
+  },
   "watch.started": {
     "other": "cuotai: 계정 {count}개를 감시하는 중입니다. 각 계정의 첫 조회값은 기준이 되며 이벤트를 만들지 않습니다. Ctrl+C로 종료합니다."
   },

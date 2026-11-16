@@ -549,7 +549,10 @@
   "doctor.fix.trust_store": "Installiere oder repariere die Stammzertifikate des Betriebssystems (unter Linux das Paket ca-certificates).",
   "doctor.fix.update": "Aktualisiere Cuotai.",
   "doctor.hooks.ok": "Gültig; Regeln: {count}.",
-  "doctor.ledger.quarantined": "Ein beschädigtes Protokoll wurde beiseitegelegt ({count} Datei(en), zuletzt {file}); ein Hinweis kann sich einmal wiederholen.",
+  "doctor.ledger.quarantined": {
+    "one": "Ein beschädigtes Protokoll wurde beiseitegelegt ({count} Datei, zuletzt {file}); ein Hinweis kann sich einmal wiederholen.",
+    "other": "Ein beschädigtes Protokoll wurde beiseitegelegt ({count} Dateien, zuletzt {file}); ein Hinweis kann sich einmal wiederholen."
+  },
   "doctor.log.error": "Ein Schreibvorgang ist fehlgeschlagen.",
   "doctor.log.off": "Mit CUOTAI_LOG oder RUST_LOG ausgeschaltet.",
   "doctor.log.ok": "Ereignisse werden geschrieben.",
@@ -685,7 +688,10 @@
   "events.summary.quota_threshold_crossed": "{metric}: {threshold}% genutzt",
   "events.summary.refresh_failed": "Abfrage fehlgeschlagen: {category}",
   "events.summary.refresh_recovered": "Abfrage funktioniert wieder",
-  "events.summary.session_expiring": "Sitzung läuft in {days} Tag(en) ab",
+  "events.summary.session_expiring": {
+    "one": "Sitzung läuft in {count} Tag ab",
+    "other": "Sitzung läuft in {count} Tagen ab"
+  },
   "events.summary.usage_updated": "Nutzung aktualisiert: {usage}",
   "extensions.action.account_invalid": "Das Konto der Erweiterung konnte nicht erstellt werden.",
   "extensions.action.candidate_expired": "Diese Bestätigung gilt nicht mehr; prüfen Sie die Erweiterung erneut, bevor Sie sie freigeben.",
@@ -795,7 +801,10 @@
   "feed.banner.codex_cli": "Codex CLI hat Messwerte zu Ratenlimits; füge ein ChatGPT-/Codex-Konto hinzu, das von Codex CLI gespeist wird.",
   "feed.error.malformed": "Die Eingabe der Statuszeile ist kein JSON-Objekt.",
   "feed.error.too_large": "Die Eingabe der Statuszeile ist größer als 64 KiB.",
-  "feed.health.unreadable": "{n} unlesbare Feed-Datei(en) ignoriert.",
+  "feed.health.unreadable": {
+    "one": "{count} unlesbare Feed-Datei ignoriert.",
+    "other": "{count} unlesbare Feed-Dateien ignoriert."
+  },
   "feed.line.five_hour": "5 h {pct}",
   "feed.line.left": "{name} {pct} übrig",
   "feed.line.reset": "↺ {time}",
@@ -2233,8 +2242,14 @@
   "metric.label.provider_budget": "Budget des Anbieters",
   "metric.label.budget_scope": "Budget — {scope}",
   "metric.label.budget_paren": "Budget ({scope})",
-  "metric.label.window_weeks": "{prefix} — Fenster von {n} Woche(n) (%)",
-  "metric.label.window_hours": "{prefix} — Fenster von {n} Stunde(n) (%)",
+  "metric.label.window_weeks": {
+    "one": "{prefix} — Fenster von {count} Woche (%)",
+    "other": "{prefix} — Fenster von {count} Wochen (%)"
+  },
+  "metric.label.window_hours": {
+    "one": "{prefix} — Fenster von {count} Stunde (%)",
+    "other": "{prefix} — Fenster von {count} Stunden (%)"
+  },
   "metric.label.window_seconds": "{prefix} — Fenster von {n} s (%)",
   "metric.label.rate_limit_of": "{label} (Ratenlimit)",
   "metric.label.extra_usage_used": "Zusatznutzung — verbraucht",

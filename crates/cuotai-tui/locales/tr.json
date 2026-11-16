@@ -183,8 +183,10 @@
     "one": " CUOTAI  |  {count} hesap  |  {checked}  |  {refresh} ",
     "other": " CUOTAI  |  {count} hesap  |  {checked}  |  {refresh} "
   },
-  "dashboard.hint.more_many": "+{count} metrik • ",
-  "dashboard.hint.more_one": "+1 metrik • ",
+  "dashboard.hint.more": {
+    "one": "+{count} metrik • ",
+    "other": "+{count} metrik • "
+  },
   "dashboard.history.empty": "  geçmiş {range}: kayıtlı ölçüm yok",
   "dashboard.history.no_measured": "  geçmiş {range}: ölçülen değer yok",
   "dashboard.history.heading": "GEÇMİŞ",
@@ -418,7 +420,10 @@
   "ui.delete.result.title": " Sonuç ",
   "ui.delete.save_failed": "Kaydedilemedi; hiçbir değişiklik uygulanmadı.",
   "ui.delete.secrets.body": "\"{extension}\" uzantısı, {account} hesabı için sistem kasasında gizli bilgiler saklıyor.\n\nBu gizli bilgiler de silinsin mi?\n\n• s hesabı ve gizli bilgileri siler\n• n gizli bilgileri kasada tutar\n• Esc silmeyi iptal eder",
-  "ui.delete.secrets.done": "{count} uzantı gizli bilgisi sistem kasasından silindi.",
+  "ui.delete.secrets.done": {
+    "one": "{count} uzantı gizli bilgisi sistem kasasından silindi.",
+    "other": "{count} uzantı gizli bilgisi sistem kasasından silindi."
+  },
   "ui.delete.secrets.failed": "Uzantının gizli bilgileri SİLİNEMEDİ: {error}",
   "ui.delete.secrets.footer": "s gizli bilgileri siler • n tutar • Esc iptal eder",
   "ui.delete.secrets.title": " Uzantının gizli bilgileri silinsin mi? ",
@@ -469,7 +474,10 @@
   "vault.prune.no_index": "Dizinlenmiş kimlik bilgisi yok; silinecek bir şey yok.",
   "vault.prune.none": "Kullanılmadığı kanıtlanan kimlik bilgisi yok; silinecek bir şey yok.",
   "vault.prune.skipped": "Tutuldu {key}: {reason}.",
-  "watch.hooks_active": " {count} kanca etkin.",
+  "watch.hooks_active": {
+    "one": " {count} kanca etkin.",
+    "other": " {count} kanca etkin."
+  },
   "watch.started": {
     "one": "cuotai: {count} hesap izleniyor; her birinin ilk okuması temel alınır ve olay üretmez. Ctrl+C durdurur.",
     "other": "cuotai: {count} hesap izleniyor; her birinin ilk okuması temel alınır ve olay üretmez. Ctrl+C durdurur."

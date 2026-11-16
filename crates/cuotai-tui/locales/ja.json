@@ -179,8 +179,9 @@
   "dashboard.header.title": {
     "other": " CUOTAI  |  {count} アカウント  |  {checked}  |  {refresh} "
   },
-  "dashboard.hint.more_many": "+{count} 指標 • ",
-  "dashboard.hint.more_one": "+1 指標 • ",
+  "dashboard.hint.more": {
+    "other": "+{count} 指標 • "
+  },
   "dashboard.history.empty": "  履歴 {range}：記録された測定値はありません",
   "dashboard.history.no_measured": "  履歴 {range}：測定値はありません",
   "dashboard.history.heading": "履歴",
@@ -410,7 +411,9 @@
   "ui.delete.result.title": " 結果 ",
   "ui.delete.save_failed": "保存できませんでした。変更は適用されていません。",
   "ui.delete.secrets.body": "拡張機能「{extension}」は、アカウント {account} のシークレットをシステムの保管庫に保存しています。\n\nこれらのシークレットも削除しますか？\n\n• s アカウントとシークレットを削除\n• n シークレットを保管庫に残す\n• Esc 削除をキャンセル",
-  "ui.delete.secrets.done": "拡張機能のシークレット {count} 件をシステムの保管庫から削除しました。",
+  "ui.delete.secrets.done": {
+    "other": "拡張機能のシークレット {count} 件をシステムの保管庫から削除しました。"
+  },
   "ui.delete.secrets.failed": "拡張機能のシークレットを削除できませんでした：{error}",
   "ui.delete.secrets.footer": "s シークレットを削除 • n 残す • Esc キャンセル",
   "ui.delete.secrets.title": " 拡張機能のシークレットを削除しますか？ ",
@@ -457,7 +460,9 @@
   "vault.prune.no_index": "インデックス化された認証情報はありません。削除するものはありません。",
   "vault.prune.none": "未使用と確認された認証情報はありません。削除するものはありません。",
   "vault.prune.skipped": "保持しました {key}：{reason}。",
-  "watch.hooks_active": " {count} 件のフックが有効です。",
+  "watch.hooks_active": {
+    "other": " {count} 件のフックが有効です。"
+  },
   "watch.started": {
     "other": "cuotai：{count} アカウントを監視しています。各アカウントの最初の読み取りは基準となり、イベントは発生しません。Ctrl+C で停止します。"
   },

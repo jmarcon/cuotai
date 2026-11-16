@@ -183,8 +183,10 @@
     "one": " CUOTAI  |  {count} खाता  |  {checked}  |  {refresh} ",
     "other": " CUOTAI  |  {count} खाते  |  {checked}  |  {refresh} "
   },
-  "dashboard.hint.more_many": "+{count} मीट्रिक • ",
-  "dashboard.hint.more_one": "+1 मीट्रिक • ",
+  "dashboard.hint.more": {
+    "one": "+{count} मीट्रिक • ",
+    "other": "+{count} मीट्रिक • "
+  },
   "dashboard.history.empty": "  इतिहास {range}: कोई दर्ज माप नहीं",
   "dashboard.history.no_measured": "  इतिहास {range}: कोई मापा गया मान नहीं",
   "dashboard.history.heading": "इतिहास",
@@ -418,7 +420,10 @@
   "ui.delete.result.title": " नतीजा ",
   "ui.delete.save_failed": "सहेजा नहीं जा सका; कोई बदलाव लागू नहीं हुआ।",
   "ui.delete.secrets.body": "एक्सटेंशन \"{extension}\" खाते {account} के गोपनीय मान सिस्टम वॉल्ट में रखता है।\n\nये गोपनीय मान भी मिटाएँ?\n\n• s खाता और गोपनीय मान मिटाता है\n• n गोपनीय मान वॉल्ट में रखता है\n• Esc हटाना रद्द करता है",
-  "ui.delete.secrets.done": "{count} एक्सटेंशन गोपनीय मान सिस्टम वॉल्ट से मिटाए गए।",
+  "ui.delete.secrets.done": {
+    "one": "{count} एक्सटेंशन गोपनीय मान सिस्टम वॉल्ट से मिटाया गया।",
+    "other": "{count} एक्सटेंशन गोपनीय मान सिस्टम वॉल्ट से मिटाए गए।"
+  },
   "ui.delete.secrets.failed": "एक्सटेंशन के गोपनीय मान मिटाए नहीं जा सके: {error}",
   "ui.delete.secrets.footer": "s गोपनीय मान मिटाता है • n रखता है • Esc रद्द करता है",
   "ui.delete.secrets.title": " एक्सटेंशन के गोपनीय मान मिटाएँ? ",
@@ -469,7 +474,10 @@
   "vault.prune.no_index": "कोई इंडेक्स किया क्रेडेंशियल नहीं; मिटाने को कुछ नहीं।",
   "vault.prune.none": "कोई क्रेडेंशियल अप्रयुक्त साबित नहीं हुआ; मिटाने को कुछ नहीं।",
   "vault.prune.skipped": "रखा गया {key}: {reason}।",
-  "watch.hooks_active": " {count} हुक सक्रिय।",
+  "watch.hooks_active": {
+    "one": " {count} हुक सक्रिय।",
+    "other": " {count} हुक सक्रिय।"
+  },
   "watch.started": {
     "one": "cuotai: {count} खाते की निगरानी हो रही है; उसकी पहली रीडिंग आधार होती है और कोई इवेंट नहीं बनाती। Ctrl+C रोकता है।",
     "other": "cuotai: {count} खातों की निगरानी हो रही है; हर खाते की पहली रीडिंग आधार होती है और कोई इवेंट नहीं बनाती। Ctrl+C रोकता है।"

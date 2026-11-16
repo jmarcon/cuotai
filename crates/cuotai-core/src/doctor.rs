@@ -644,13 +644,14 @@ fn check_ledger(root: Option<&Path>) -> Check {
     aside.sort();
     if let Some(latest) = aside.last() {
         return Check::new("ledger", CheckStatus::Warn, title)
-            .detail(Localized::with_params(
+            .detail(Localized::plural(
                 "doctor.ledger.quarantined",
                 params([
                     ("count", ParamValue::from(aside.len())),
                     ("file", ParamValue::from(latest.clone())),
                 ]),
-                "A damaged ledger was set aside ({count} file(s), the latest {file}); a notice may repeat once.",
+                "A damaged ledger was set aside ({count} file, the latest {file}); a notice may repeat once.",
+                "A damaged ledger was set aside ({count} files, the latest {file}); a notice may repeat once.",
             ))
             .fix(fixed(
                 "doctor.fix.ledger",

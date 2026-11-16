@@ -577,7 +577,12 @@
   "doctor.fix.trust_store": "Установите или восстановите корневые сертификаты операционной системы (пакет ca-certificates в Linux).",
   "doctor.fix.update": "Обновите Cuotai.",
   "doctor.hooks.ok": "Корректно; правил: {count}.",
-  "doctor.ledger.quarantined": "Повреждённый журнал отложен ({count} файл(ов), последний — {file}); уведомление может повториться один раз.",
+  "doctor.ledger.quarantined": {
+    "one": "Повреждённый журнал отложен ({count} файл, последний — {file}); уведомление может повториться один раз.",
+    "few": "Повреждённый журнал отложен ({count} файла, последний — {file}); уведомление может повториться один раз.",
+    "many": "Повреждённый журнал отложен ({count} файлов, последний — {file}); уведомление может повториться один раз.",
+    "other": "Повреждённый журнал отложен ({count} файла, последний — {file}); уведомление может повториться один раз."
+  },
   "doctor.log.error": "Запись не удалась.",
   "doctor.log.off": "Выключен через CUOTAI_LOG или RUST_LOG.",
   "doctor.log.ok": "События записываются.",
@@ -713,7 +718,12 @@
   "events.summary.quota_threshold_crossed": "{metric}: использовано {threshold}%",
   "events.summary.refresh_failed": "Запрос не удался: {category}",
   "events.summary.refresh_recovered": "Запросы снова работают",
-  "events.summary.session_expiring": "Сеанс истекает через дней: {days}",
+  "events.summary.session_expiring": {
+    "one": "Сеанс истекает через {count} день",
+    "few": "Сеанс истекает через {count} дня",
+    "many": "Сеанс истекает через {count} дней",
+    "other": "Сеанс истекает через {count} дня"
+  },
   "events.summary.usage_updated": "Использование обновлено: {usage}",
   "extensions.action.account_invalid": "Не удалось создать запись расширения.",
   "extensions.action.candidate_expired": "Это подтверждение больше недействительно; проверьте расширение ещё раз, прежде чем одобрять.",
@@ -825,7 +835,12 @@
   "feed.banner.codex_cli": "У Codex CLI есть показания лимитов; добавьте аккаунт ChatGPT / Codex, получающий данные от Codex CLI.",
   "feed.error.malformed": "Входные данные строки состояния не являются объектом JSON.",
   "feed.error.too_large": "Входные данные строки состояния больше 64 КиБ.",
-  "feed.health.unreadable": "Пропущено нечитаемых файлов потока: {n}.",
+  "feed.health.unreadable": {
+    "one": "Пропущен {count} нечитаемый файл потока.",
+    "few": "Пропущено {count} нечитаемых файла потока.",
+    "many": "Пропущено {count} нечитаемых файлов потока.",
+    "other": "Пропущено {count} нечитаемого файла потока."
+  },
   "feed.line.five_hour": "5 ч {pct}",
   "feed.line.left": "{name} осталось {pct}",
   "feed.line.reset": "↺ {time}",
@@ -2275,8 +2290,18 @@
   "metric.label.provider_budget": "Бюджет провайдера",
   "metric.label.budget_scope": "Бюджет — {scope}",
   "metric.label.budget_paren": "Бюджет ({scope})",
-  "metric.label.window_weeks": "{prefix} — окно: недель: {n} (%)",
-  "metric.label.window_hours": "{prefix} — окно: часов: {n} (%)",
+  "metric.label.window_weeks": {
+    "one": "{prefix} — окно в {count} неделю (%)",
+    "few": "{prefix} — окно в {count} недели (%)",
+    "many": "{prefix} — окно в {count} недель (%)",
+    "other": "{prefix} — окно в {count} недели (%)"
+  },
+  "metric.label.window_hours": {
+    "one": "{prefix} — окно в {count} час (%)",
+    "few": "{prefix} — окно в {count} часа (%)",
+    "many": "{prefix} — окно в {count} часов (%)",
+    "other": "{prefix} — окно в {count} часа (%)"
+  },
   "metric.label.window_seconds": "{prefix} — окно: {n} с (%)",
   "metric.label.rate_limit_of": "{label} (лимит частоты)",
   "metric.label.extra_usage_used": "Дополнительное использование — израсходовано",

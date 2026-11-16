@@ -549,7 +549,10 @@
   "doctor.fix.trust_store": "Installez ou réparez les certificats racine du système d'exploitation (le paquet ca-certificates sous Linux).",
   "doctor.fix.update": "Mettez Cuotai à jour.",
   "doctor.hooks.ok": "Valide ; règles : {count}.",
-  "doctor.ledger.quarantined": "Un registre endommagé a été mis de côté ({count} fichier(s), le dernier {file}) ; une notification peut se répéter une fois.",
+  "doctor.ledger.quarantined": {
+    "one": "Un registre endommagé a été mis de côté ({count} fichier, le dernier {file}) ; une notification peut se répéter une fois.",
+    "other": "Un registre endommagé a été mis de côté ({count} fichiers, le dernier {file}) ; une notification peut se répéter une fois."
+  },
   "doctor.log.error": "Une écriture a échoué.",
   "doctor.log.off": "Désactivé par CUOTAI_LOG ou RUST_LOG.",
   "doctor.log.ok": "Les événements sont écrits.",
@@ -685,7 +688,10 @@
   "events.summary.quota_threshold_crossed": "{metric} : {threshold} % utilisé",
   "events.summary.refresh_failed": "La requête a échoué : {category}",
   "events.summary.refresh_recovered": "La requête fonctionne de nouveau",
-  "events.summary.session_expiring": "La session expire dans {days} jour(s)",
+  "events.summary.session_expiring": {
+    "one": "La session expire dans {count} jour",
+    "other": "La session expire dans {count} jours"
+  },
   "events.summary.usage_updated": "Utilisation mise à jour : {usage}",
   "extensions.action.account_invalid": "Impossible de créer le compte de l’extension.",
   "extensions.action.candidate_expired": "Cette confirmation n’est plus valide ; vérifiez à nouveau l’extension avant de l’approuver.",
@@ -795,7 +801,10 @@
   "feed.banner.codex_cli": "Codex CLI a des mesures de limites ; ajoutez un compte ChatGPT / Codex alimenté par Codex CLI.",
   "feed.error.malformed": "L’entrée de la ligne d’état n’est pas un objet JSON.",
   "feed.error.too_large": "L’entrée de la ligne d’état dépasse 64 Kio.",
-  "feed.health.unreadable": "{n} fichier(s) de flux illisible(s) ignoré(s).",
+  "feed.health.unreadable": {
+    "one": "{count} fichier de flux illisible ignoré.",
+    "other": "{count} fichiers de flux illisibles ignorés."
+  },
   "feed.line.five_hour": "5 h {pct}",
   "feed.line.left": "{name} {pct} restant",
   "feed.line.reset": "↺ {time}",
@@ -2233,8 +2242,14 @@
   "metric.label.provider_budget": "Budget du fournisseur",
   "metric.label.budget_scope": "Budget — {scope}",
   "metric.label.budget_paren": "Budget ({scope})",
-  "metric.label.window_weeks": "{prefix} — fenêtre de {n} semaine(s) (%)",
-  "metric.label.window_hours": "{prefix} — fenêtre de {n} heure(s) (%)",
+  "metric.label.window_weeks": {
+    "one": "{prefix} — fenêtre de {count} semaine (%)",
+    "other": "{prefix} — fenêtre de {count} semaines (%)"
+  },
+  "metric.label.window_hours": {
+    "one": "{prefix} — fenêtre de {count} heure (%)",
+    "other": "{prefix} — fenêtre de {count} heures (%)"
+  },
   "metric.label.window_seconds": "{prefix} — fenêtre de {n} s (%)",
   "metric.label.rate_limit_of": "{label} (limite de débit)",
   "metric.label.extra_usage_used": "Utilisation supplémentaire — consommée",

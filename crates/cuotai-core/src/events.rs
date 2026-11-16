@@ -376,7 +376,12 @@ impl Event {
             EventKind::OverageEnded => Localized::fixed(id, "Extra usage ended"),
             EventKind::SessionExpiring => {
                 let days = u64::from(self.current.days_left.unwrap_or_default());
-                Localized::with_param(id, "days", days, "Session expires in {days} day(s)")
+                Localized::plural(
+                    id,
+                    params([("count", ParamValue::from(days))]),
+                    "Session expires in {count} day",
+                    "Session expires in {count} days",
+                )
             }
             EventKind::QuotaResetSoon => with_metric("{metric}: quota resets soon"),
             EventKind::UsageUpdated => {

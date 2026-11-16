@@ -8,8 +8,10 @@
 //! [`metric_text`] instead, which recognizes the adapters' texts (exact or
 //! with `{param}` slots) and returns a [`Localized`] with an English
 //! `fallback`; the pt-BR catalog holds the adapter's text, so the
-//! Portuguese rendering is unchanged. A text it does not recognize (a
-//! provider-supplied name, a model id) comes back verbatim.
+//! Portuguese rendering is unchanged, except for a slot named `count`: that
+//! entry is a plural object in the catalogs (PRD 0035 RF4), so pt-BR reads
+//! "1 hora" and "5 horas" where the adapter wrote "hora(s)". A text it does
+//! not recognize (a provider-supplied name, a model id) comes back verbatim.
 
 use crate::text::{Localized, ParamValue};
 use std::borrow::Cow;
@@ -17,7 +19,7 @@ use std::collections::BTreeMap;
 
 /// `(adapter text, id, English)`. `{name}` slots match any non-empty text
 /// and become params; a slot named `label` is itself rendered through
-/// [`metric_text`].
+/// [`metric_text`], and a slot named `count` selects the plural form.
 pub(crate) const TABLE: &[(&str, &str, &str)] = &[
     ("créditos", "metric.unit.credits", "credits"),
     ("solicitações", "metric.unit.requests", "requests"),
@@ -524,14 +526,14 @@ pub(crate) const TABLE: &[(&str, &str, &str)] = &[
         "Budget ({scope})",
     ),
     (
-        "{prefix} — janela de {n} semana(s) (%)",
+        "{prefix} — janela de {count} semana(s) (%)",
         "metric.label.window_weeks",
-        "{prefix} — {n}-week window (%)",
+        "{prefix} — {count}-week window (%)",
     ),
     (
-        "{prefix} — janela de {n} hora(s) (%)",
+        "{prefix} — janela de {count} hora(s) (%)",
         "metric.label.window_hours",
-        "{prefix} — {n}-hour window (%)",
+        "{prefix} — {count}-hour window (%)",
     ),
     (
         "{prefix} — janela de {n}s (%)",
@@ -723,6 +725,45 @@ mod tests {
         );
     }
 
+    /// PRD 0034 re-validation V-12: counted texts are real plurals, so
+    /// Russian picks one, few or many by the count instead of a faked
+    /// "(s)" form or a "label: number" workaround.
+    #[test]
+    fn counted_texts_take_the_plural_form_of_their_count() {
+        let window = |hours: u32| metric_text(&format!("Codex — janela de {hours} hora(s) (%)"));
+        assert_eq!(window(1).resolve("en-US"), "Codex — 1-hour window (%)");
+        assert_eq!(window(1).resolve("pt-BR"), "Codex — janela de 1 hora (%)");
+        assert_eq!(window(5).resolve("pt-BR"), "Codex — janela de 5 horas (%)");
+        assert_eq!(window(2).resolve("ru"), "Codex — окно в 2 часа (%)");
+        assert_eq!(window(5).resolve("ru"), "Codex — окно в 5 часов (%)");
+        assert_eq!(window(21).resolve("ru"), "Codex — окно в 21 час (%)");
+        let weeks = metric_text("Codex — janela de 2 semana(s) (%)");
+        assert_eq!(weeks.resolve("de"), "Codex — Fenster von 2 Wochen (%)");
+
+        let feed = |unreadable: usize| {
+            crate::feed::FeedHealth {
+                readable: 0,
+                unreadable,
+            }
+            .note()
+            .unwrap()
+        };
+        assert_eq!(feed(1).resolve("en-US"), "1 unreadable feed file ignored.");
+        assert_eq!(feed(3).resolve("en-US"), "3 unreadable feed files ignored.");
+        assert_eq!(
+            feed(2).resolve("ru"),
+            "Пропущено 2 нечитаемых файла потока."
+        );
+        assert_eq!(
+            feed(5).resolve("ru"),
+            "Пропущено 5 нечитаемых файлов потока."
+        );
+        assert_eq!(
+            feed(21).resolve("ru"),
+            "Пропущен 21 нечитаемый файл потока."
+        );
+    }
+
     /// PRD 0023 re-validation (V-04, R-01): Claude's and Kiro's extra
     /// usage labels and unit are translated, never left in Portuguese.
     #[test]
@@ -760,14 +801,25 @@ mod tests {
             assert!(id.starts_with("metric."), "{id}");
             let markers = crate::text::portuguese_markers(english);
             assert!(markers.is_empty(), "{id}: {markers:?} in {english:?}");
+            let counted = slots(template).contains(&"count");
             for locale in crate::text::catalog_locales() {
                 let catalog = crate::text::core_catalog(locale).unwrap();
-                let Some(text) = catalog.get(*id).and_then(crate::text::Message::as_text) else {
+                let Some(message) = catalog.get(*id) else {
                     panic!("{locale}: {id} missing");
                 };
-                assert_eq!(slots(text), slots(template), "{locale}: slots of {id}");
-                if locale == "pt-BR" {
-                    assert_eq!(text, *template, "pt-BR of {id}");
+                // A `{count}` slot makes the entry a plural object; any
+                // other entry is a plain text.
+                assert_eq!(
+                    matches!(message, crate::text::Message::Plural(_)),
+                    counted,
+                    "{locale}: {id} plural shape"
+                );
+                for text in message.templates() {
+                    assert_eq!(slots(text), slots(template), "{locale}: slots of {id}");
+                    if locale == "pt-BR" && !counted {
+                        assert_eq!(text, *template, "pt-BR of {id}");
+                    }
+                    assert!(!text.contains("(s)"), "{locale}: {id} fakes a plural");
                 }
             }
             assert_eq!(slots(english), slots(template), "English slots of {id}");

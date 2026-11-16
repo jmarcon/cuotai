@@ -2323,15 +2323,13 @@ fn details_hint() -> &'static str {
 
 fn build_hint(hidden_metrics: usize) -> Line<'static> {
     if hidden_metrics > 0 {
-        let more = if hidden_metrics == 1 {
-            tr("dashboard.hint.more_one", "+1 metric • ").to_string()
-        } else {
-            trf(
-                "dashboard.hint.more_many",
-                "+{count} metrics • ",
-                &[("count", &hidden_metrics)],
-            )
-        };
+        let more = trp(
+            "dashboard.hint.more",
+            "+{count} metric • ",
+            "+{count} metrics • ",
+            hidden_metrics,
+            &[],
+        );
         let mut spans = vec![Span::raw(more)];
         spans.push(Span::styled(
             details_hint(),
@@ -7421,5 +7419,27 @@ mod tests {
             std::hint::black_box(cloned);
         }
         println!("clone of fifty reports: {:?}", started.elapsed() / rounds);
+    }
+
+    /// PRD 0034 re-validation V-13: the hidden-metrics hint is one plural
+    /// id, so Russian picks the form of the count (2 and 21 are not `many`).
+    #[test]
+    fn hidden_metrics_hint_uses_the_plural_of_its_count() {
+        fn hint(locale: &'static str, count: usize) -> String {
+            crate::l10n::with_locale(locale, || {
+                build_hint(count)
+                    .spans
+                    .iter()
+                    .map(|span| span.content.to_string())
+                    .collect()
+            })
+        }
+        assert!(hint("en-US", 1).starts_with("+1 metric • "));
+        assert!(hint("en-US", 2).starts_with("+2 metrics • "));
+        assert!(hint("ru", 2).starts_with("+2 метрики • "));
+        assert!(hint("ru", 5).starts_with("+5 метрик • "));
+        assert!(hint("ru", 21).starts_with("+21 метрика • "));
+        assert!(hint("fr", 1).starts_with("+1 métrique • "));
+        assert!(hint("fr", 3).starts_with("+3 métriques • "));
     }
 }
