@@ -413,7 +413,7 @@ impl Notices {
         let title = notice.title.resolve(locale);
         lines.push(safe(&title).into_owned());
         if self.osc9 {
-            osc9(out, &format!("{title} — {}", notice.body.resolve(locale)));
+            osc9(out, &osc9_digest(&notice, locale));
         }
         self.last_alert = Some(now);
     }
@@ -557,6 +557,25 @@ fn osc9(out: &mut Vec<u8>, text: &str) {
     out.extend_from_slice(b"\x1b]9;");
     out.extend_from_slice(shown.as_bytes());
     out.extend_from_slice(b"\x1b\\");
+}
+
+/// The OSC 9 text of a quiet-hours digest: "{title} — " and its lines on
+/// one line, separated by " | ", whole lines within the one-line cap and
+/// "and N more" kept (PRD 0032 re-validation C-01).
+fn osc9_digest(digest: &quiet::Digest, locale: &str) -> String {
+    use cuotai_core::text::{
+        notice_safe, LineJoin, NoticeMarkup, NOTICE_BODY_MAX, NOTICE_TITLE_MAX,
+    };
+    let title = notice_safe(
+        &digest.title.resolve(locale),
+        NOTICE_TITLE_MAX,
+        NoticeMarkup::Plain,
+    );
+    let room = (NOTICE_TITLE_MAX + NOTICE_BODY_MAX).saturating_sub(title.chars().count() + 3);
+    format!(
+        "{title} — {}",
+        digest.body(locale, room, NoticeMarkup::Plain, LineJoin::Separator)
+    )
 }
 
 /// What notices read, like the desktop: the account's current report or,

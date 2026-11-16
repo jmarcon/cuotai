@@ -1935,8 +1935,7 @@
   "query.subscriptions.unsupported_provider": "{provider} wird von einem anderen Adapter abgefragt.",
   "query.timeout": "Zeitlimit der Abfrage überschritten.",
   "query.transport": "Netzwerkfehler oder Zeitüberschreitung bei der Abfrage.",
-  "quiet.digest.join": "{first}\n{rest}",
-  "quiet.digest.line": "{title}: {body}",
+  "quiet.digest.line": "{title} — {body}",
   "quiet.digest.more": {
     "one": "und {count} weitere",
     "other": "und {count} weitere"

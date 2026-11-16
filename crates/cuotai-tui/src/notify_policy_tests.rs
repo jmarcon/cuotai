@@ -270,3 +270,47 @@ fn osc9_texts_follow_the_private_switch() {
             .contains("Secret Corp"));
     }
 }
+
+/// `reading` with a second quota (the weekly window) at `weekly`%.
+fn two_quotas(
+    checked_at: DateTime<Utc>,
+    used: f64,
+    weekly: f64,
+    resets_at: DateTime<Utc>,
+) -> Report {
+    let mut report = reading(checked_at, used, resets_at);
+    let mut second = report.metrics[0].clone();
+    second.label = "Weekly".into();
+    second.used = Some(weekly);
+    second.window = Some(MetricWindow::Weekly);
+    report.metrics.push(second);
+    report
+}
+
+/// PRD 0032 re-validation C-01: the OSC 9 digest keeps one item per part,
+/// " | " between them, and never a line break.
+#[test]
+fn the_osc9_digest_keeps_its_items_apart() {
+    let dir = Dir::new();
+    std::fs::write(dir.path().join("desktop.json"), NIGHTS).unwrap();
+    let mut notices = session(dir.path(), at(2, 22, 0), true);
+    let resets = at(4, 12, 0);
+    let before = two_quotas(at(2, 22, 55), 70.0, 70.0, resets);
+    let crossed = two_quotas(at(2, 23, 0), 92.0, 91.0, resets);
+    assert!(observe(&mut notices, Some(&before), &crossed, at(2, 23, 0)).is_empty());
+    let late = two_quotas(at(3, 8, 0), 94.0, 93.0, resets);
+    let out = notices.tick(&config(), &[Some(&late)], at(3, 8, 0), "en-US");
+    let text = String::from_utf8(out).unwrap();
+    let osc = text
+        .split("\x1b]9;")
+        .nth(1)
+        .and_then(|rest| rest.split("\x1b\\").next())
+        .expect("an OSC 9 notice");
+    assert!(
+        osc.starts_with("Cuotai: 2 usage alerts held during quiet hours — "),
+        "{osc}"
+    );
+    assert_eq!(osc.matches(" | ").count(), 1, "{osc}");
+    assert!(!osc.contains('\n'), "{osc}");
+    assert!(!osc.contains("Secret Corp"), "{osc}");
+}

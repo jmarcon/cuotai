@@ -271,8 +271,6 @@ impl From<Localized> for String {
     }
 }
 
-/// `status.<snake_case>` — the same ids the desktop catalog already uses
-/// for the serialized [`crate::Status`] enum.
 /// Whether `c` can disguise text on screen: a control character or a bidi
 /// override/isolate (U+202A–U+202E, U+2066–U+2069).
 pub fn is_disguising(c: char) -> bool {
@@ -364,6 +362,104 @@ pub fn notice_safe(text: &str, max: usize, markup: NoticeMarkup) -> String {
     cut
 }
 
+/// How [`notice_lines`] joins its lines.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LineJoin {
+    /// Real line breaks: a native notification body (macOS, Windows and
+    /// Linux daemons all show them).
+    Breaks,
+    /// [`NOTICE_LINE_SEPARATOR`] on one line: OSC 9 and the terminal
+    /// banner, which cannot show a line break.
+    Separator,
+}
+
+impl LineJoin {
+    fn as_str(self) -> &'static str {
+        match self {
+            LineJoin::Breaks => "\n",
+            LineJoin::Separator => NOTICE_LINE_SEPARATOR,
+        }
+    }
+}
+
+/// What separates the lines of a digest on a one-line surface. " · "
+/// already separates parts inside a line, " — " a title from its body and
+/// " / " appears in names such as "ChatGPT / Codex".
+pub const NOTICE_LINE_SEPARATOR: &str = " | ";
+/// Longest multi-line notification body kept, in characters
+/// (DS-CMP-NOTIF-1: a digest shows at most 5 short lines plus "and N
+/// more").
+pub const NOTICE_LINES_BODY_MAX: usize = 400;
+
+/// A notification body made of `lines` (PRD 0032 re-validation C-01):
+/// each line is cleaned on its own ([`strip_disguising`], so a newline
+/// inside an account name can never forge a line) and capped at
+/// [`NOTICE_BODY_MAX`], then the lines are joined by `join`. The body
+/// keeps whole lines within `max` characters: lines that do not fit are
+/// counted with `hidden` (already left out by the caller) into the last
+/// line, `more(n)` ("and N more"), which is never cut away. The first line
+/// is always kept, cut with "…" when it alone is too long. `markup` is
+/// applied to each line.
+pub fn notice_lines(
+    lines: &[String],
+    hidden: usize,
+    more: impl Fn(usize) -> String,
+    max: usize,
+    markup: NoticeMarkup,
+    join: LineJoin,
+) -> String {
+    let clean =
+        |line: &str, cap: usize| notice_safe(&strip_disguising(line), cap, NoticeMarkup::Plain);
+    let lines: Vec<String> = lines
+        .iter()
+        .map(|line| clean(line, NOTICE_BODY_MAX))
+        .collect();
+    let sep = join.as_str().chars().count();
+    let width = |text: &str| text.chars().count();
+    let more_line = |n: usize| (n > 0).then(|| clean(&more(n), NOTICE_BODY_MAX));
+    let mut kept: Vec<String> = Vec::new();
+    let tail = if lines.is_empty() {
+        more_line(hidden)
+    } else {
+        // The largest number of whole lines that fits with its "more" line.
+        let mut fits = 0;
+        for k in 1..=lines.len() {
+            let used: usize = lines[..k].iter().map(|l| width(l)).sum::<usize>() + sep * (k - 1);
+            let rest = more_line(hidden + lines.len() - k).map_or(0, |line| sep + width(&line));
+            if used + rest <= max {
+                fits = k;
+            } else {
+                break;
+            }
+        }
+        if fits == 0 {
+            let tail = more_line(hidden + lines.len() - 1);
+            let room = max
+                .saturating_sub(tail.as_deref().map_or(0, |line| sep + width(line)))
+                .max(1);
+            kept.push(clean(&lines[0], room));
+            tail
+        } else {
+            kept.extend(lines[..fits].iter().cloned());
+            more_line(hidden + lines.len() - fits)
+        }
+    };
+    kept.extend(tail);
+    let escape = |line: String| match markup {
+        NoticeMarkup::Plain => line,
+        NoticeMarkup::Escape => line
+            .replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('>', "&gt;"),
+    };
+    kept.into_iter()
+        .map(escape)
+        .collect::<Vec<_>>()
+        .join(join.as_str())
+}
+
+/// `status.<snake_case>` — the same ids the desktop catalog already uses
+/// for the serialized [`crate::Status`] enum.
 pub fn status_l10n(status: crate::Status) -> Localized {
     use crate::Status::*;
     let slug = match status {
@@ -1020,6 +1116,67 @@ mod tests {
         assert_eq!(
             notice_safe("short", NOTICE_BODY_MAX, NoticeMarkup::Plain),
             "short"
+        );
+    }
+
+    /// PRD 0032 re-validation C-01: each line is cleaned on its own, so a
+    /// newline or an override inside one line never forges another, and
+    /// the lines keep their structure in each channel.
+    #[test]
+    fn notice_lines_keep_one_line_per_item() {
+        let more = |n: usize| format!("and {n} more");
+        let lines = vec![
+            "Claude: 90% used — Work\nFake: Session".to_string(),
+            "Codex\u{202E}: 75% <b> & co\u{200E}".to_string(),
+        ];
+        let body = notice_lines(&lines, 0, more, 400, NoticeMarkup::Plain, LineJoin::Breaks);
+        assert_eq!(body.lines().count(), 2);
+        assert_eq!(
+            body,
+            "Claude: 90% used — WorkFake: Session\nCodex: 75% <b> & co"
+        );
+        let one = notice_lines(
+            &lines,
+            0,
+            more,
+            400,
+            NoticeMarkup::Plain,
+            LineJoin::Separator,
+        );
+        assert!(!one.contains('\n'));
+        assert!(one.contains(" | Codex"));
+        let escaped = notice_lines(&lines, 0, more, 400, NoticeMarkup::Escape, LineJoin::Breaks);
+        assert!(escaped.ends_with("&lt;b&gt; &amp; co"));
+        let hidden = notice_lines(&lines, 3, more, 400, NoticeMarkup::Plain, LineJoin::Breaks);
+        assert_eq!(hidden.lines().last(), Some("and 3 more"));
+    }
+
+    /// The cut keeps whole lines and the "more" line, with the count of
+    /// the lines it dropped added.
+    #[test]
+    fn notice_lines_cut_on_whole_lines() {
+        let more = |n: usize| format!("and {n} more");
+        let lines: Vec<String> = (1..=5)
+            .map(|i| format!("line {i} {}", "x".repeat(30)))
+            .collect();
+        let body = notice_lines(&lines, 2, more, 100, NoticeMarkup::Plain, LineJoin::Breaks);
+        assert!(body.chars().count() <= 100);
+        let shown: Vec<&str> = body.lines().collect();
+        assert_eq!(shown.len(), 3);
+        assert!(shown[0].starts_with("line 1") && shown[1].starts_with("line 2"));
+        assert_eq!(shown[2], "and 5 more");
+        // A first line that alone is too long is cut, and "more" stays.
+        let long = vec!["y".repeat(150), "z".to_string()];
+        let body = notice_lines(&long, 0, more, 40, NoticeMarkup::Plain, LineJoin::Separator);
+        assert!(body.chars().count() <= 40);
+        assert!(body.ends_with("… | and 1 more"));
+        assert_eq!(
+            notice_lines(&[], 0, more, 40, NoticeMarkup::Plain, LineJoin::Breaks),
+            ""
+        );
+        assert_eq!(
+            notice_lines(&[], 4, more, 40, NoticeMarkup::Plain, LineJoin::Breaks),
+            "and 4 more"
         );
     }
 

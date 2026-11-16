@@ -338,10 +338,31 @@ fn the_digest_lists_five_lines_and_counts_the_rest() {
         notice.title.resolve("en-US"),
         "Cuotai: 7 usage alerts held during quiet hours"
     );
-    let body = notice.body.resolve("en-US");
+    assert_eq!(notice.lines.len(), DIGEST_LINES);
+    assert_eq!(notice.hidden, 2);
+    let body = notice.text("en-US");
     assert_eq!(body.lines().count(), DIGEST_LINES + 1, "{body}");
     assert!(body.ends_with("and 2 more"), "{body}");
     assert!(body.contains("Work"), "the public digest names the account");
+    assert!(!body.contains("used:"), "{body}");
+    // PRD 0032 re-validation C-01: the notification body keeps one line
+    // per item within its cap, and "and N more" survives the cut.
+    use crate::text::{LineJoin, NoticeMarkup, NOTICE_LINES_BODY_MAX};
+    let native = notice.body(
+        "en-US",
+        NOTICE_LINES_BODY_MAX,
+        NoticeMarkup::Plain,
+        LineJoin::Breaks,
+    );
+    assert!(native.chars().count() <= NOTICE_LINES_BODY_MAX);
+    assert!(native.lines().count() >= 2, "{native}");
+    assert!(
+        native.lines().last().unwrap().starts_with("and "),
+        "{native}"
+    );
+    let one = notice.body("en-US", 200, NoticeMarkup::Plain, LineJoin::Separator);
+    assert!(!one.contains('\n') && one.contains(" | "), "{one}");
+    assert!(one.ends_with(" more"), "{one}");
     assert!(digest(&[(&work, Vec::new())], now, &chrono::Utc, false).is_none());
 }
 
@@ -357,11 +378,7 @@ fn the_private_digest_names_no_account() {
     )
     .unwrap();
     for locale in ["en-US", "es", "it", "pt-BR"] {
-        let text = format!(
-            "{} {}",
-            notice.title.resolve(locale),
-            notice.body.resolve(locale)
-        );
+        let text = format!("{} {}", notice.title.resolve(locale), notice.text(locale));
         assert!(!text.contains("Secret"), "{locale}: {text}");
         assert!(text.contains("90"), "{locale}: {text}");
     }

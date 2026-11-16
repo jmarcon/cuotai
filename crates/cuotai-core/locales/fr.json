@@ -1935,8 +1935,7 @@
   "query.subscriptions.unsupported_provider": "{provider} relève d’un autre adaptateur.",
   "query.timeout": "Le délai de la requête est dépassé.",
   "query.transport": "Erreur réseau ou délai dépassé pendant la requête.",
-  "quiet.digest.join": "{first}\n{rest}",
-  "quiet.digest.line": "{title} : {body}",
+  "quiet.digest.line": "{title} — {body}",
   "quiet.digest.more": {
     "one": "et {count} de plus",
     "other": "et {count} de plus"

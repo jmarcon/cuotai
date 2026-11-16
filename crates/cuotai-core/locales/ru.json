@@ -1969,8 +1969,7 @@
   "query.subscriptions.unsupported_provider": "{provider} опрашивается другим адаптером.",
   "query.timeout": "Время ожидания запроса истекло.",
   "query.transport": "Сбой сети или тайм-аут при запросе.",
-  "quiet.digest.join": "{first}\n{rest}",
-  "quiet.digest.line": "{title}: {body}",
+  "quiet.digest.line": "{title} — {body}",
   "quiet.digest.more": {
     "one": "и ещё {count}",
     "few": "и ещё {count}",

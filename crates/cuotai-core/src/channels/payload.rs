@@ -250,7 +250,7 @@ where
                 kind.slug(),
                 kind.severity(),
                 notice.title.resolve(locale),
-                notice.body.resolve(locale),
+                notice.text(locale),
                 now,
             );
             Some(match kept.as_slice() {

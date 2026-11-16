@@ -10,7 +10,6 @@
 
 use crate::alerts::{AlertEvent, AlertKind};
 use crate::model::Account;
-use crate::resets::Notice;
 use crate::text::{params, Localized};
 use chrono::{
     DateTime, Datelike, Duration, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Timelike, Utc,
@@ -499,17 +498,71 @@ pub fn reset_shown_at<Tz: TimeZone>(
     }
 }
 
-/// RF3.3: the one notification that lists the `groups` of alerts that still
-/// hold when quiet hours end: at most [`DIGEST_LINES`] lines (one per
-/// event, in account order) plus "and N more". With `private` on the lines
-/// are the lock-screen-safe titles (provider, window and percentage); off,
-/// they name the account and the metric. `None` without events.
+/// RF3.3: the notification that closes quiet hours, as data: its title,
+/// at most [`DIGEST_LINES`] lines (one per event, in account order) and the
+/// count of the events beyond them. Each channel joins the lines its own
+/// way ([`Digest::body`]), so they never run together (PRD 0032
+/// re-validation C-01).
+#[derive(Debug, Clone)]
+pub struct Digest {
+    pub title: Localized,
+    pub lines: Vec<Localized>,
+    pub hidden: usize,
+}
+
+impl Digest {
+    /// "and N more".
+    pub fn more(count: usize) -> Localized {
+        Localized::plural(
+            "quiet.digest.more",
+            params([("count", count.into())]),
+            "and {count} more",
+            "and {count} more",
+        )
+    }
+
+    /// The body for a notification: whole lines within `max` characters,
+    /// each cleaned, joined by `join`, ending with "and N more" when lines
+    /// are left out ([`crate::text::notice_lines`]).
+    pub fn body(
+        &self,
+        locale: &str,
+        max: usize,
+        markup: crate::text::NoticeMarkup,
+        join: crate::text::LineJoin,
+    ) -> String {
+        let lines: Vec<String> = self.lines.iter().map(|line| line.resolve(locale)).collect();
+        crate::text::notice_lines(
+            &lines,
+            self.hidden,
+            |count| Self::more(count).resolve(locale),
+            max,
+            markup,
+            join,
+        )
+    }
+
+    /// The whole text, one line per item and "and N more", for the
+    /// channels' JSON (no length cap).
+    pub fn text(&self, locale: &str) -> String {
+        let mut lines: Vec<String> = self.lines.iter().map(|line| line.resolve(locale)).collect();
+        if self.hidden > 0 {
+            lines.push(Self::more(self.hidden).resolve(locale));
+        }
+        lines.join("\n")
+    }
+}
+
+/// RF3.3: the [`Digest`] of the `groups` of alerts that still hold when
+/// quiet hours end. With `private` on the lines are the lock-screen-safe
+/// titles (provider, window and percentage); off, they name the account
+/// and the metric ("{title} — {body}"). `None` without events.
 pub fn digest<Tz>(
     groups: &[(&Account, Vec<AlertEvent>)],
     now: DateTime<Utc>,
     tz: &Tz,
     private: bool,
-) -> Option<Notice>
+) -> Option<Digest>
 where
     Tz: TimeZone,
     Tz::Offset: Display,
@@ -526,7 +579,7 @@ where
             Some(Localized::with_params(
                 "quiet.digest.line",
                 params([("title", single.title.into()), ("body", single.body.into())]),
-                "{title}: {body}",
+                "{title} — {body}",
             ))
         })
         .collect::<Option<Vec<_>>>()?;
@@ -534,41 +587,18 @@ where
     if count == 0 {
         return None;
     }
-    let mut shown = lines.into_iter();
-    let first = shown.next()?;
-    let mut body = first;
-    for line in shown.by_ref().take(DIGEST_LINES - 1) {
-        body = join(body, line);
-    }
-    let more = shown.count();
-    if more > 0 {
-        body = join(
-            body,
-            Localized::plural(
-                "quiet.digest.more",
-                params([("count", more.into())]),
-                "and {count} more",
-                "and {count} more",
-            ),
-        );
-    }
-    Some(Notice {
+    let hidden = count.saturating_sub(DIGEST_LINES);
+    let lines: Vec<Localized> = lines.into_iter().take(DIGEST_LINES).collect();
+    Some(Digest {
         title: Localized::plural(
             "quiet.digest.title",
             params([("count", count.into())]),
             "Cuotai: {count} usage alert held during quiet hours",
             "Cuotai: {count} usage alerts held during quiet hours",
         ),
-        body,
+        lines,
+        hidden,
     })
-}
-
-fn join(first: Localized, rest: Localized) -> Localized {
-    Localized::with_params(
-        "quiet.digest.join",
-        params([("first", first.into()), ("rest", rest.into())]),
-        "{first}\n{rest}",
-    )
 }
 
 #[cfg(test)]

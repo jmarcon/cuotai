@@ -1918,8 +1918,7 @@
   "query.subscriptions.unsupported_provider": "{provider} は別のアダプターが対応します。",
   "query.timeout": "照会がタイムアウトしました。",
   "query.transport": "照会中にネットワークエラーまたはタイムアウトが発生しました。",
-  "quiet.digest.join": "{first}\n{rest}",
-  "quiet.digest.line": "{title}：{body}",
+  "quiet.digest.line": "{title} — {body}",
   "quiet.digest.more": {
     "other": "ほか {count} 件"
   },

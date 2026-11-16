@@ -2156,7 +2156,10 @@ async fn send_test_notification(
     if !b.notices_enabled().await {
         return Err("notify_off".into());
     }
-    notify::SystemNotifier(app).deliver(&clean_menu_line(&title), &clean_menu_line(&body))
+    notify::SystemNotifier(app).deliver(&notify::Shown::single(
+        &clean_menu_line(&title),
+        &clean_menu_line(&body),
+    ))
 }
 
 /// PRD 0043 RF2.3/RF1.3/RF3.2: Settings › Alerts: notify when a limit
