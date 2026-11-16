@@ -1,7 +1,7 @@
 // Settings › Advanced › Local cost (PRD 0015), as rows (PRD 0020 RF3): one switch per source, the period and
 // retention, then the directories and the price table as sub-pages (RF2.3) and the index erasure at the end (RF3.4).
-import { t, te, tle } from "../i18n.js";
-import { costDisable, costEnable, costErase, costPlans, costPrices, costSetDisplay, costSetOptions, costSetPaths, costSetPlan, costSetSourceOptions, costStatus, esc, fmtDate, fmtNumber, fmtReset, icon } from "../lib.js";
+import { t, te, tl, tle } from "../i18n.js";
+import { costDisable, costEnable, costErase, costPlans, costPrices, costSetDisplay, costSetOptions, costSetPaths, costSetPlan, costSetSourceOptions, costStatus, esc, fmtDate, fmtMoney, fmtNumber, fmtRate, fmtReset, icon } from "../lib.js";
 import { askDialog, fmtBytes, group, l10nError } from "./common.js";
 import { bindBreakdown, breakdownHtml } from "./cost-breakdown.js";
 import { buttons, commitField, disc, num, row, select, subpage, subRow, sw, toast } from "./rows.js";
@@ -75,35 +75,41 @@ function sourceOptionsHtml(cv) {
   return `<section class="set-sec" data-cost-options>${rows}</section>`;
 }
 
+/** PRD 0030 C-02: the core's notes that saved plans or the second currency were invalid and are ignored. */
+const settingsNotesHtml = (notes) => (notes ?? []).map((n) => `<p class="hint warn-txt" data-cost-settings-note>${esc(tl(n))}</p>`).join("");
+
 /** PRD 0030 RF1/RF6: one plan price per account whose tool a source reads, and the second currency. Typed by the
  *  person, kept on this computer, never in the TOML and never exported. Each row saves with its own button, so a
- *  price, a currency and a cycle day are validated together by the core. */
+ *  price, a currency and a cycle day are validated together by the core. L-11: every field has a visible label, and
+ *  the accessible name of a plan field names its account. */
 function plansHtml(plans) {
   if (!plans) return "";
   const d = plans.display;
   // The second currency is a rate typed by the person: an amount converted with it is an estimate (honest-data mark ≈).
   const converted = (p) => (d && p?.currency === "USD" && p.price > 0
-    ? ` · ${te("settings.cost.plan.converted", { amount: fmtNumber(p.price * d.rate, 2), code: d.code })}` : "");
-  const field = (id, label, attrs, unit = "") => `<span class="set-num"><input id="${esc(id)}" aria-label="${esc(label)}" ${attrs} />${unit ? `<span class="set-unit">${unit}</span>` : ""}</span>`;
+    ? ` · ${te("settings.cost.plan.converted", { amount: fmtMoney(Math.round(p.price * d.rate * 100) / 100, d.code) })}` : "");
+  const field = (id, label, attrs, { name = "", unit = "" } = {}) => `<label class="f"><span>${esc(label)}</span><span class="set-num"><input id="${esc(id)}" ${name ? `aria-label="${esc(name)}" ` : ""}${attrs} />${unit ? `<span class="set-unit">${unit}</span>` : ""}</span></label>`;
   const accounts = plans.accounts.map((a) => {
     const p = a.plan;
     return row({ key: `cost-plan-${esc(a.id)}`, kw: "cost-plan", attrs: `data-cost-plan-row="${esc(a.id)}"`, msg: `cost-plan-${esc(a.id)}-msg`,
       label: te("settings.cost.plan.label", { name: a.name, source: a.label }),
-      desc: p ? `${te("settings.cost.plan.current", { price: fmtNumber(p.price, 2), currency: p.currency, day: p.cycle_day ?? 1 })}${converted(p)}` : te("settings.cost.plan.none"),
+      desc: p ? `${te("settings.cost.plan.current", { price: fmtMoney(p.price, p.currency), day: p.cycle_day ?? 1 })}${converted(p)}` : te("settings.cost.plan.none"),
       info: te("settings.cost.plan.help"),
       control: () => buttons(`<button class="btn sm primary" data-cost-plan-save="${esc(a.id)}">${te("settings.apply")}</button>${p ? `<button class="btn sm" data-cost-plan-clear="${esc(a.id)}">${te("settings.cost.plan.clear")}</button>` : ""}`),
-      body: `<div class="set-fields">${field(`cost-plan-price-${a.id}`, t("settings.cost.plan.price"), `type="number" inputmode="decimal" min="0" step="0.01" value="${p ? esc(p.price) : ""}" data-cost-plan-price`)}
-        ${field(`cost-plan-cur-${a.id}`, t("settings.cost.plan.currency"), `type="text" maxlength="3" autocomplete="off" spellcheck="false" placeholder="USD" value="${p ? esc(p.currency) : ""}" data-cost-plan-currency`)}
-        ${field(`cost-plan-day-${a.id}`, t("settings.cost.plan.day"), `type="number" inputmode="numeric" min="1" max="28" step="1" placeholder="1" value="${p?.cycle_day ? esc(p.cycle_day) : ""}" data-cost-plan-day`, te("settings.cost.plan.dayUnit"))}</div>` });
+      body: `<div class="set-fields">${field(`cost-plan-price-${a.id}`, t("settings.cost.plan.price"), `type="number" inputmode="decimal" min="0" step="0.01" value="${p ? esc(p.price) : ""}" data-cost-plan-price`, { name: t("settings.cost.plan.priceFor", { name: a.name }) })}
+        ${field(`cost-plan-cur-${a.id}`, t("settings.cost.plan.currencyLabel"), `type="text" maxlength="3" autocomplete="off" spellcheck="false" placeholder="USD" value="${p ? esc(p.currency) : ""}" data-cost-plan-currency`, { name: t("settings.cost.plan.currencyFor", { name: a.name }) })}
+        ${field(`cost-plan-day-${a.id}`, t("settings.cost.plan.dayLabel"), `type="number" inputmode="numeric" min="1" max="28" step="1" placeholder="1" value="${p?.cycle_day ? esc(p.cycle_day) : ""}" data-cost-plan-day`, { name: t("settings.cost.plan.dayFor", { name: a.name }) })}</div>` });
   }).join("");
+  // C-08: "1 USD = 5.4321 BRL, set 12 days ago." with the core's age; L-01: the rate with up to six significant digits.
   const display = row({ key: "cost-display", kw: "cost-display", msg: "cost-display-msg", label: te("settings.cost.display.label"),
-    desc: d ? `${te("settings.cost.display.current", { rate: fmtNumber(d.rate, 4), code: d.code, days: d.age_days })}${d.stale ? ` ${te("settings.cost.display.stale")}` : ""}` : te("settings.cost.display.none"),
+    desc: d ? `${te("settings.cost.display.current", { rate: fmtRate(d.rate), code: d.code, age: tl(d.age) })}${d.stale ? ` ${te("settings.cost.display.stale")}` : ""}` : te("settings.cost.display.none"),
     info: te("settings.cost.display.help"),
     control: () => buttons(`<button class="btn sm primary" data-cost-display-save>${te("settings.apply")}</button>${d ? `<button class="btn sm" data-cost-display-clear>${te("settings.cost.plan.clear")}</button>` : ""}`),
     body: `<div class="set-fields">${field("cost-display-code", t("settings.cost.display.code"), `type="text" maxlength="3" autocomplete="off" spellcheck="false" placeholder="BRL" value="${d ? esc(d.code) : ""}" data-cost-display-code`)}
-      ${field("cost-display-rate", t("settings.cost.display.rate"), `type="number" inputmode="decimal" min="0" step="any" value="${d ? esc(d.rate) : ""}" data-cost-display-rate`, "USD = 1")}</div>` });
+      ${field("cost-display-rate", t("settings.cost.display.rate"), `type="number" inputmode="decimal" min="0" step="any" value="${d ? esc(d.rate) : ""}" data-cost-display-rate`, { unit: "USD = 1" })}</div>` });
   return `${subRow({ key: "cost-plans", label: te("settings.cost.plans") })}
     ${subpage("cost-plans", te("settings.cost.plans"), `<p class="hint">${te("settings.cost.plan.help")}</p>
+      ${settingsNotesHtml(plans.settings_notes)}
       <section class="set-sec">${accounts || `<p class="hint">${te("settings.cost.plan.none")}</p>`}</section>
       <section class="set-sec">${display}</section>`)}`;
 }

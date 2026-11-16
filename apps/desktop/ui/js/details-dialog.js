@@ -23,7 +23,7 @@ const historyStamp = (r) => `${r.checked_at}|${ctx.historyEpoch()}`;
 function localCostHtml(r) {
   const summary = ctx.localCost?.();
   const sc = sourceFor(summary, r.provider);
-  return sc ? costDetailHtml(sc, summary) : "";
+  return sc ? costDetailHtml(sc, summary, r.account_id) : "";
 }
 
 function render() {
