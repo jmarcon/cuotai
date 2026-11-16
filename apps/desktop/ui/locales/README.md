@@ -205,9 +205,9 @@ review" counts the `pending_review` ids of the three catalogs.
 | `vi` | Tiếng Việt | vn | complete | complete | complete | machine-translated, needs native review | pending | pending | 8 |
 <!-- status-table:end -->
 
-Native reviewers volunteer through GitHub Discussions ("Looking for
-reviewers", one thread per language) and are credited by their GitHub
-handle in the `reviewed` entries, and so in this table.
+Native reviewers volunteer through a [Question issue](https://github.com/jmarcon/cuotai/issues/new?template=question.yml) ("Looking for
+reviewers", one per language) and are credited by their GitHub handle in the
+`reviewed` entries, and so in this table.
 
 ## User-provided languages
 

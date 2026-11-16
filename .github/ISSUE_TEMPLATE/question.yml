@@ -1,0 +1,23 @@
+name: Question
+description: Ask how something works, how to set up an account or share a setup.
+title: "[Question] "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Do not include credentials.** No tokens, cookies, API keys, e-mails, organization names or the contents of your `cuotai.toml`. Read `SUPPORT.md` and the [provider matrix](https://github.com/jmarcon/cuotai/blob/main/docs/providers.md) first; for a bug or a broken provider, use those forms instead.
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+      description: What you want to do, what you tried, and the Cuotai version and interface (desktop, TUI or CLI) when they matter. Use fictitious data.
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Confirmations
+      options:
+        - label: I did not include credentials, e-mails or real account data.
+          required: true

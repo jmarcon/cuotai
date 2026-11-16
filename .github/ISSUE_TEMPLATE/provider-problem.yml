@@ -70,7 +70,7 @@ body:
     id: mode
     attributes:
       label: Connection mode
-      description: Prefilled by "Report a problem" (for example native_login or environment_variable).
+      description: Prefilled by "Report a problem" (native_login, session_in_vault, environment_variable, local_cli, cloud_identity, aggregator_password, agent_feed, extension or none).
   - type: input
     id: category
     attributes:
@@ -90,6 +90,7 @@ body:
     id: interface
     attributes:
       label: Interface
+      description: Prefilled by "Report a problem".
       options:
         - Desktop
         - TUI
@@ -100,10 +101,18 @@ body:
     id: auth
     attributes:
       label: How the account authenticates
+      description: The same as the connection mode above, when "Report a problem" filled it.
       options:
         - Native login (OAuth, Device Code or SSO)
+        - Web session saved in the vault
         - Environment variable (key, token or cookie)
         - Local session import (Cursor)
+        - Local CLI already signed in
+        - Cloud identity (AWS profile, gcloud or Azure CLI)
+        - Aggregator password (9router, LiteLLM or another instance)
+        - Agent feed on this computer
+        - Extension
+        - No credential
         - I don't know
     validations:
       required: true
