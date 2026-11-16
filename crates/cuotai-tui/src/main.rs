@@ -139,8 +139,11 @@ struct Args {
         requires = "status_line"
     )]
     style: String,
-    /// With --status-line, only this account (id); repeat it to pick several,
-    /// in the given order. Without it: all of them, in the TOML's order.
+    /// With --status-line, only this account: its id (from --json-v1,
+    /// /v1/limits or the TOML's id line), its key or a name only it has;
+    /// repeat it to pick several, in the given order. Only these are queried
+    /// and counted in the exit code. Without it: all of them, in the TOML's
+    /// order.
     #[arg(long = "account", value_name = "ID", requires = "line_modes")]
     status_accounts: Vec<String>,
     /// With --status-line, colors the line (ANSI) when the output is a
@@ -1585,11 +1588,32 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
             args.json || args.json_v1 || args.serve || args.watch,
         )?;
         // PRD 0013 RF2.1: `--interval` holds for this run only.
-        let config = match args.interval {
+        let mut config = match args.interval {
             Some(seconds) => cuotai_core::watch::with_interval(&file.config, seconds)
                 .map_err(|error| error.resolve(locale))?,
             None => file.config.clone(),
         };
+        // PRD 0031 re-validation V-01/R-02: `--status-line --account` names
+        // accounts by id, key or unique name, and only those are queried.
+        let mut line_ids = Vec::new();
+        if args.status_line && !args.status_accounts.is_empty() {
+            let keys: Vec<String> = config.accounts.iter().map(|a| a.key()).collect();
+            let ids: Vec<String> = config.accounts.iter().map(|a| a.state_key()).collect();
+            let candidates: Vec<status_line::Candidate<'_>> = config
+                .accounts
+                .iter()
+                .zip(keys.iter().zip(&ids))
+                .map(|(account, (key, id))| status_line::Candidate {
+                    id,
+                    key,
+                    name: &account.name,
+                })
+                .collect();
+            let picked =
+                status_line::resolve(&candidates, &args.status_accounts, ui::tui_locale())?;
+            line_ids = picked.iter().map(|&i| ids[i].clone()).collect();
+            config.accounts = picked.iter().map(|&i| config.accounts[i].clone()).collect();
+        }
         let history = history_store(&file, retention);
         let mut monitor =
             Monitor::with_login_session(config.clone(), Arc::new(EnvironmentCredentials), session)?;
@@ -1668,10 +1692,10 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
             println!(
                 "{}",
                 status_line::render(
-                    &file.config,
+                    &config,
                     &snapshot,
                     style,
-                    &args.status_accounts,
+                    &line_ids,
                     color,
                     Utc::now(),
                     &chrono::Local,

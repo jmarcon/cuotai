@@ -655,5 +655,7 @@
   "cli.restore.merge": "gabungkan",
   "cli.restore.rows": "baris: {rows}, baru di sini: {new}",
   "cli.list_providers.aggregator": " (agregator)",
-  "cost.plan.no_account": "Tidak ada akun terkonfigurasi bernama {account}; gunakan id-nya atau provider:name."
+  "cost.plan.no_account": "Tidak ada akun terkonfigurasi bernama {account}; gunakan id-nya atau provider:name.",
+  "status_line.unknown_account": "--account {value} tidak menunjuk satu akun pun secara tunggal; gunakan id (dari --json-v1, /v1/limits, atau baris id di TOML), kunci, atau nama yang unik. Id: {ids}.",
+  "status_line.no_accounts": "tidak ada"
 }

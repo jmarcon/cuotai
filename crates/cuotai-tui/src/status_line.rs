@@ -116,13 +116,26 @@ pub(crate) async fn from_server(
     } else {
         url.to_owned()
     };
-    let views = client::limits_views(&url, token.as_ref())
+    let accounts = client::limits_accounts(&url, token.as_ref())
         .await
         .map_err(|error| error.l10n().resolve(locale))?;
+    // V-01: an id, a key or a unique name; the line and the exit code then
+    // cover the selected accounts only (R-01).
+    let candidates: Vec<Candidate<'_>> = accounts
+        .iter()
+        .map(|account| Candidate {
+            id: &account.view.key,
+            key: &account.key,
+            name: &account.view.name,
+        })
+        .collect();
+    let picked = resolve(&candidates, ids, locale)?;
+    let views: Vec<AccountView> = accounts.into_iter().map(|account| account.view).collect();
+    let ids: Vec<String> = picked.iter().map(|&i| views[i].key.clone()).collect();
     let line = render_views(
         &views,
         style,
-        ids,
+        &ids,
         color,
         Utc::now(),
         &chrono::Local,
@@ -133,6 +146,79 @@ pub(crate) async fn from_server(
         .filter(|view| ids.is_empty() || ids.contains(&view.key))
         .any(|view| view.stale);
     Ok((line, if failing { 2 } else { 0 }))
+}
+
+/// One account `--account` may name: its stable id, its legacy key and its
+/// name as written in the TOML (or shown by the server).
+pub(crate) struct Candidate<'a> {
+    pub id: &'a str,
+    pub key: &'a str,
+    pub name: &'a str,
+}
+
+/// PRD 0031 re-validation V-01: each `--account` value, resolved in this
+/// order to the stable id, then the key, then a name that only one account
+/// has (case-sensitive). The positions of the matches, in the order given;
+/// a value that matches nothing, or a name several accounts share, is a
+/// local error that lists the ids (at most 10).
+pub(crate) fn resolve(
+    candidates: &[Candidate<'_>],
+    wanted: &[String],
+    locale: &str,
+) -> Result<Vec<usize>, String> {
+    let mut picked = Vec::with_capacity(wanted.len());
+    for value in wanted {
+        let by = |field: usize| -> Vec<usize> {
+            candidates
+                .iter()
+                .enumerate()
+                .filter(|(_, c)| [c.id, c.key, c.name][field] == value)
+                .map(|(i, _)| i)
+                .collect()
+        };
+        let found = (0..3)
+            .map(by)
+            .find(|hits| !hits.is_empty())
+            .filter(|hits| hits.len() == 1)
+            .map(|hits| hits[0]);
+        match found {
+            Some(index) if !picked.contains(&index) => picked.push(index),
+            Some(_) => {}
+            None => return Err(unknown(candidates, value, locale)),
+        }
+    }
+    Ok(picked)
+}
+
+/// The error of a `--account` value that names no single account.
+fn unknown(candidates: &[Candidate<'_>], value: &str, locale: &str) -> String {
+    const SHOWN: usize = 10;
+    let mut list: Vec<String> = candidates
+        .iter()
+        .take(SHOWN)
+        .map(|c| {
+            format!(
+                "{} ({})",
+                cuotai_core::text::strip_disguising(c.id),
+                cuotai_core::text::strip_disguising(c.name)
+            )
+        })
+        .collect();
+    if candidates.len() > SHOWN {
+        list.push("…".to_owned());
+    }
+    let list = if list.is_empty() {
+        crate::l10n::tr_in(locale, "status_line.no_accounts", "none").to_owned()
+    } else {
+        list.join(", ")
+    };
+    crate::l10n::tr_in(
+        locale,
+        "status_line.unknown_account",
+        "--account {value} names no single account; use an id (from --json-v1, /v1/limits or the TOML's id line), a key or a unique name. Ids: {ids}.",
+    )
+    .replace("{value}", &cuotai_core::text::strip_disguising(value))
+    .replace("{ids}", &list)
 }
 
 /// ANSI foreground of a level: the theme roles good, warn and bad.

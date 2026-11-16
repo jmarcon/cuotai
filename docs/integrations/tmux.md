@@ -35,4 +35,4 @@ set -g status-right '#(cuotai --status-line) %H:%M'
 
 With a server running, `#(cuotai --status-line --from-server)` prints the same line from it instead, without a query cycle, so a short `status-interval` is fine.
 
-`--style logos_percent` lists every account (`C 22% · O 80%`), `--account ID` (repeatable) picks accounts and `--color` adds ANSI colour only on a terminal with `NO_COLOR` unset. Exit codes: 0 all accounts ready, 2 an account failed, 1 a local error.
+`--style logos_percent` lists every account (`C 22% · O 80%`), `--account ID` (repeatable) picks accounts by id (from `--json-v1`, `/v1/limits` or the TOML's `id` line), key or a name only one account has, and only those are queried; a value that names no single account exits 1 and lists the ids; `--color` adds ANSI colour only on a terminal with `NO_COLOR` unset. Exit codes: 0 all selected accounts ready, 2 a selected account failed, 1 a local error.

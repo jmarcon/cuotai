@@ -664,5 +664,7 @@
   "cli.restore.merge": "fusionar",
   "cli.restore.rows": "filas: {rows}, nuevas aquí: {new}",
   "cli.list_providers.aggregator": " (agregador)",
-  "cost.plan.no_account": "Ninguna cuenta configurada se llama {account}; use su id o provider:name."
+  "cost.plan.no_account": "Ninguna cuenta configurada se llama {account}; use su id o provider:name.",
+  "status_line.unknown_account": "--account {value} no corresponde a una sola cuenta; usa un id (de --json-v1, /v1/limits o la línea id del TOML), una clave o un nombre único. Ids: {ids}.",
+  "status_line.no_accounts": "ninguna"
 }

@@ -667,5 +667,7 @@
   "cli.restore.merge": "मिलाएँ",
   "cli.restore.rows": "पंक्तियाँ: {rows}, यहाँ नई: {new}",
   "cli.list_providers.aggregator": " (एग्रीगेटर)",
-  "cost.plan.no_account": "किसी भी कॉन्फ़िगर किए गए खाते का नाम {account} नहीं है; उसकी id या provider:name इस्तेमाल करें।"
+  "cost.plan.no_account": "किसी भी कॉन्फ़िगर किए गए खाते का नाम {account} नहीं है; उसकी id या provider:name इस्तेमाल करें।",
+  "status_line.unknown_account": "--account {value} किसी एक खाते की पहचान नहीं करता; एक id (--json-v1, /v1/limits या TOML की id पंक्ति से), एक कुंजी या एक अद्वितीय नाम इस्तेमाल करें। Ids: {ids}।",
+  "status_line.no_accounts": "कोई नहीं"
 }
