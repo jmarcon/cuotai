@@ -28,7 +28,7 @@ import {
   repeatedProviders, statusLineHtml, oneStatusHtml, tileHtml, trackChanges,
 } from "./components.js";
 import * as motion from "./motion.js";
-import { hasExtraColumn, summaryHtml } from "./card-summary.js";
+import { cardPaceLineHtml, hasExtraColumn, summaryHtml } from "./card-summary.js";
 
 await boot();
 
@@ -135,7 +135,7 @@ function card(r, ctx, recharging = false, { connection = false } = {}) {
     </div>
     <div class="summary">${stale
       ? `<div class="stale-reading">${summaryHtml(staleView(r), true)}</div>${r.pending ? "" : `<p class="sum-note cause">${icon("warn")}<span>${esc(causeText(r))}</span></p>`}`
-      : summaryHtml(r)}${pasteSessionHtml(r)}${checkSetupHtml(r)}${st.kind === "exhausted" && !billingOverage(r) ? "" : status}${stale ? "" : scopeBlocksHtml(r)}${liveSessionHtml(r)}${bestChipHtml(r) ? `<div class="card-chips">${bestChipHtml(r)}</div>` : ""}${incidentHtml(r)}${accessHtml(r)}${costFoldHtml(r)}</div>
+      : summaryHtml(r)}${pasteSessionHtml(r)}${checkSetupHtml(r)}${st.kind === "exhausted" && !billingOverage(r) ? "" : status}${stale ? "" : cardPaceLineHtml(r)}${stale ? "" : scopeBlocksHtml(r)}${liveSessionHtml(r)}${bestChipHtml(r) ? `<div class="card-chips">${bestChipHtml(r)}</div>` : ""}${incidentHtml(r)}${accessHtml(r)}${costFoldHtml(r)}</div>
     <div class="card-foot">${foot}<span class="grow"></span>
       ${changeMarkHtml(key)}<button class="btn ghost sm details-link" data-details="${esc(key)}">${te("card.details")}${icon("chev")}</button>
     </div>
