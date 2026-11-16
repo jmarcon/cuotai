@@ -13,6 +13,32 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.86.2] - 2026-11-16
+
+### Fixed
+
+- Gemini AI is now named Gemini CLI, after the sign-in that shows its numbers (PRD 0027 RF1.2, RF6.5, RF7.2; b2310be).
+- The device check says exactly what each found tool's sign-in reads, including Cursor's local import and the AWS profile step (PRD 0027 RF1.2, RF6.5, RF7.2; b2310be).
+- Provider search finds names typed in full-width characters, in Japanese, Chinese or Korean without spaces, and with Turkish capitals (PRD 0027 RF2.1; 9af2709).
+- In the terminal, the device-check question wraps instead of being cut off and names only the checks the terminal makes (PRD 0027 RF4.1, RF6.5, RF7.2; c83b314).
+- The terminal shows what a found tool's sign-in reads only while that sign-in is the chosen mode (PRD 0027 RF4.1, RF6.5, RF7.2; c83b314).
+- The --list-providers aggregator mark follows the interface language (PRD 0027 RF4.1, RF6.5, RF7.2; c83b314).
+- The Add-account search results show each sign-in method and hint again, and a found tool's note is visible in its row (PRD 0027 RF3.1, RF3.2, RF7.2, RF7.3; 6f7e0d6).
+- The note about what a found tool's sign-in reads shows only while that sign-in is the chosen mode, with "Don't suggest this again" next to it (PRD 0027 RF3.1, RF3.2, RF7.2, RF7.3; 6f7e0d6).
+- The Add-account search field has a single clear button, counts results in the right plural, and Enter no longer picks a provider when none is highlighted (PRD 0027 RF3.1, RF3.2, RF7.2, RF7.3; 6f7e0d6).
+- When a provider changes its answer, LiteLLM, OpenRouter, Azure, Alibaba billing, model lists and extensions now name the field that changed, and LiteLLM no longer shows such an answer as up to date (PRD 0028 RF1.1, RF1.2, RF1.4; ef0df2f).
+- Problem reports and drift details no longer show object keys that look like account or user ids (PRD 0028 RF1.1, RF1.2, RF1.4; ef0df2f).
+- Problem reports now show how long ago the account last read well in the terminal too, and say "unknown" instead of "none" when the command line cannot tell (PRD 0028 RF1.3, RF2.2, RF2.3; cd3a402).
+- Problem reports name the real connection mode, list only the reported account's setup problems, and the About report opens the bug form (PRD 0028 RF1.3, RF2.2, RF2.3; cd3a402).
+- In the terminal, a provider that changed its answer shows a "What changed" block in the details and in --once, and the problem report opens in the browser with o (PRD 0028 RF1.3, RF2.4; 80db6ea).
+- The text around the terminal's problem report now follows the interface language (PRD 0028 RF1.3, RF2.4; 80db6ea).
+- The desktop details show a "What changed" block with the changed fields when a provider changes its answer, and a report too long for a link can still open the issue form (PRD 0028 RF1.3, RF2.3; 4a3ca9c).
+- The desktop opens a problem report on GitHub only with the text Cuotai built, never with text from the page (PRD 0028 RF1.3, RF2.3; 4a3ca9c).
+
+### Security
+
+- The local canary no longer writes into, prunes or changes the permissions of a folder of other files, and an edited record can no longer put hidden characters into its report (PRD 0028 RF4.1; d4b8bef).
+
 ## [0.86.1] - 2026-11-16
 
 ### Fixed
@@ -887,7 +913,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.86.1...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.86.2...HEAD
+[0.86.2]: https://github.com/jmarcon/cuotai/compare/v0.86.1...v0.86.2
 [0.86.1]: https://github.com/jmarcon/cuotai/compare/v0.86.0...v0.86.1
 [0.86.0]: https://github.com/jmarcon/cuotai/compare/v0.85.12...v0.86.0
 [0.85.12]: https://github.com/jmarcon/cuotai/compare/v0.85.11...v0.85.12
