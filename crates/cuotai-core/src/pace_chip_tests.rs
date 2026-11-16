@@ -40,9 +40,9 @@ fn stage_chips_in_both_units() {
     use PaceUnit::*;
     let cases = [
         // (used, expected, unit, glyph, text)
-        (0.6, 0.5, Points, "↑", "10 pts ahead"),
+        (0.6, 0.5, Points, "↑", "10\u{a0}pts ahead"),
         (0.6, 0.5, Percent, "↑", "20% faster than pace"),
-        (0.3, 0.5, Points, "↓", "20 pts in reserve"),
+        (0.3, 0.5, Points, "↓", "20\u{a0}pts in reserve"),
         (0.3, 0.5, Percent, "↓", "40% slower than pace"),
         (0.502, 0.5, Points, "→", "On pace"),
         (0.501, 0.5, Percent, "→", "On pace"),
@@ -58,7 +58,7 @@ fn stage_chips_in_both_units() {
         (0.0, 0.1, Percent, "↓", "100% slower than pace"),
         // Capped at 999%.
         (0.99, 0.1, Percent, "↑", "890% faster than pace"),
-        (0.9, 0.0, Points, "↑", "90 pts ahead"),
+        (0.9, 0.0, Points, "↑", "90\u{a0}pts ahead"),
     ];
     for (used, expected, unit, glyph, text) in cases {
         assert_eq!(
@@ -308,13 +308,13 @@ fn the_pace_line_follows_the_stage_and_the_unit() {
         pace(0.18, 0.05)
             .stage_text(PaceUnit::Percent)
             .resolve("en-US"),
-        "13 points above the pace (too early for a percentage)"
+        "13\u{a0}points above the pace (too early for a percentage)"
     );
     assert_eq!(
         pace(0.18, 0.05)
             .stage_text(PaceUnit::Points)
             .resolve("en-US"),
-        "13 points above the pace"
+        "13\u{a0}points above the pace"
     );
     // The muted marker only for a recent-slope projection.
     assert_eq!(pace(0.6, 0.5).source_marker(), None);

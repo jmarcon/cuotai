@@ -2500,5 +2500,6 @@
   "note.metered.pending": "क्वेरी नहीं की गई: कोई दूसरा Cuotai प्रोग्राम अभी इस खाते से क्वेरी कर रहा है। उसकी रीडिंग देखने के लिए थोड़ी देर में फिर कोशिश करें।",
   "note.metered.record_unavailable_shared": "बिल की गई क्वेरी का साझा रिकॉर्ड उपलब्ध नहीं है, इसलिए दूसरे Cuotai प्रोग्राम भी इस खाते से क्वेरी कर सकते हैं।",
   "note.metered.refused": "क्वेरी नहीं की गई: पिछली बिल की गई AWS Cost Explorer क्वेरी {queried} पर हुई थी; अगली {next} पर संभव है।",
-  "note.metered.shared_reading": "{time} की साझा रीडिंग से; कोई नई बिल की गई क्वेरी नहीं की गई।"
+  "note.metered.shared_reading": "{time} की साझा रीडिंग से; कोई नई बिल की गई क्वेरी नहीं की गई।",
+  "number.percent": "{p}%"
 }

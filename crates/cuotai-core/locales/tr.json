@@ -2500,5 +2500,6 @@
   "note.metered.pending": "Sorgulanmadı: başka bir Cuotai programı şu anda bu hesabı sorguluyor. Okumasını görmek için birazdan yeniden deneyin.",
   "note.metered.record_unavailable_shared": "Ücretli sorguların ortak kaydı kullanılamıyor, bu yüzden diğer Cuotai programları da bu hesabı sorgulayabilir.",
   "note.metered.refused": "Sorgulanmadı: son ücretli AWS Cost Explorer sorgusu {queried} saatindeydi; bir sonraki {next} saatinde mümkün.",
-  "note.metered.shared_reading": "{time} tarihli ortak okumadan; yeni ücretli sorgu yapılmadı."
+  "note.metered.shared_reading": "{time} tarihli ortak okumadan; yeni ücretli sorgu yapılmadı.",
+  "number.percent": "%{p}"
 }

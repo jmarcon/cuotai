@@ -5,7 +5,7 @@
 // the core (`tl`) or from the UI catalogs.
 import { t, te, tl } from "./i18n.js";
 import { accountFullLabel,
-  ALERTS, billingOverage, bindingLabel, causeText, bindingPct, brand, extraFigure, fmtShare, fmtExtra, fmtLocal, fmtReset, paceUnit, esc, fmtAge, icon, incidentBadge, isBlocked, isMetricHidden, isStaleReading, level, logo,
+  ALERTS, billingOverage, bindingLabel, causeText, bindingPct, brand, extraFigure, fmtShare, fmtExtra, fmtPercent, fmtLocal, fmtReset, paceUnit, esc, fmtAge, icon, incidentBadge, isBlocked, isMetricHidden, isStaleReading, level, logo,
   coreClock, paceLabelOf, paceOf, remainingPct, renewedText, renewedWindowsOf, reportKey, shownAt, staleView, statusLabel, summaryOf, windowsOf,
   planBadgeHtml,
 } from "./lib.js";
@@ -390,7 +390,7 @@ export function trackChanges(view) {
       if (!old || (old.pct === cur.pct && old.role === cur.role && old.name === cur.name)) continue;
       changes.set(key, old);
       const r = view.reports.find((x) => reportKey(x) === key);
-      const was = old.pct != null ? `${old.pct}%` : old.name;
+      const was = old.pct != null ? fmtPercent(old.pct) : old.name;
       const value = cur.pct != null ? t("meter.left", { pct: cur.pct }) : cur.name;
       lines.push(t("live.changed", { account: accountFullLabel(r), value, was }));
     }
@@ -406,7 +406,7 @@ export const clearChange = (key) => changes.delete(key);
 export const changeMarkHtml = (key) => {
   const old = changeOf(key);
   if (!old) return "";
-  const was = old.pct != null ? `${old.pct}%` : old.name;
+  const was = old.pct != null ? fmtPercent(old.pct) : old.name;
   return `<i class="chg" aria-hidden="true" title="${esc(t("live.was", { value: was }))}"></i>`;
 };
 /** The window's one polite live region, outside the re-rendered root so assistive technology keeps it. */
@@ -501,7 +501,7 @@ export function figureOf(r, st = accountState(r)) {
     // DS-CMP-ROW-1a (PRD 0022 re-validation V-04): the word "Exhausted" replaces the figure, as on the card.
     return { fig: t("metric.exhausted"), unit: "", role: "bad", word: true };
   }
-  if (st.pct != null) return { fig: `${Math.round(st.pct)}%`, unit: t("card.available"), role: "", dim: st.kind === "stale" || isAging(r) };
+  if (st.pct != null) return { fig: fmtPercent(Math.round(st.pct)), unit: t("card.available"), role: "", dim: st.kind === "stale" || isAging(r) };
   const s = summaryOf(r);
   if (s.kind === "text") return { fig: s.text, unit: "", role: "", word: true };
   return { fig: "—", unit: "", role: "" };
@@ -534,7 +534,7 @@ export function extraLineHtml(r, st = accountState(r)) {
 export function subLimitsText(r) {
   if (r.status !== "ready") return "";
   const w = windowsOf(r);
-  return [["window_5h", w.h5], ["weekly", w.week]].filter(([, x]) => x).map(([k, x]) => `${t(`card.binding.${k}`)} ${Math.round(x.pct)}%`).join(" · ");
+  return [["window_5h", w.h5], ["weekly", w.week]].filter(([, x]) => x).map(([k, x]) => `${t(`card.binding.${k}`)} ${fmtPercent(Math.round(x.pct))}`).join(" · ");
 }
 export const subLimitsHtml = (r) => { const s = subLimitsText(r); return s ? `<span class="subl">${esc(s)}</span>` : ""; };
 /** PRD 0025 RF9.4 (DS-CMP-DENS-3): Minimal's single status item, by priority; the full status stays in the row's

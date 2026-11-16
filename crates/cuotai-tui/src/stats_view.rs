@@ -92,8 +92,9 @@ pub(crate) fn timeline_of(
     timeline_of_config(config, reports, range, now, &Local)
 }
 
-fn percent(share: f64) -> String {
-    format!("{:.0}%", share * 100.0)
+/// A share as a whole percent in `locale` ("64%", "64\u{a0}%", "%64").
+fn percent(share: f64, locale: &str) -> String {
+    cuotai_core::text::number::format_percent((share * 100.0).round(), locale)
 }
 
 fn bar(share: f64) -> String {
@@ -187,7 +188,7 @@ pub(crate) fn stats_rows(summary: &StatsSummary, locale: &str) -> Vec<Row> {
                 locale,
                 "stats.average_peak",
                 "Average peak of the tightest limit: {peak} ({base})",
-                &[("peak", &percent(average)), ("base", &base)],
+                &[("peak", &percent(average, locale)), ("base", &base)],
             ),
             _ => tr_in(
                 locale,
@@ -243,7 +244,7 @@ pub(crate) fn stats_rows(summary: &StatsSummary, locale: &str) -> Vec<Row> {
                 } else {
                     Tone::Normal
                 },
-                format!("{label} {} {}", bar(share), percent(share)),
+                format!("{label} {} {}", bar(share), percent(share, locale)),
             ),
             None => (
                 Tone::Muted,
@@ -269,7 +270,9 @@ pub(crate) fn stats_rows(summary: &StatsSummary, locale: &str) -> Vec<Row> {
         ));
     }
     for account in &summary.accounts {
-        let average = account.average_peak.map_or("—".to_owned(), percent);
+        let average = account
+            .average_peak
+            .map_or("—".to_owned(), |share| percent(share, locale));
         rows.push((
             if account.hits > 0 {
                 Tone::Bad
@@ -309,7 +312,7 @@ fn lane_text(lane: &Lane, now: DateTime<Utc>, locale: &str) -> String {
             locale,
             "stats.lane.remaining",
             "{share} left",
-            &[("share", &percent(lane.remaining_share))],
+            &[("share", &percent(lane.remaining_share, locale))],
         )
     };
     let stale = if lane.stale {

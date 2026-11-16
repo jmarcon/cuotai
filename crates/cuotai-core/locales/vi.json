@@ -796,7 +796,7 @@
   "feed.live.caveat": "Ước tính của tác tử theo giá niêm yết, không phải khoản phí.",
   "feed.live.cost": "≈ ${usd} trong phiên này",
   "feed.live.cost_short": "≈${usd}",
-  "feed.live.ctx": "ctx {pct}%",
+  "feed.live.ctx": "ngữ cảnh {pct}%",
   "feed.live.join": "{first} · {rest}",
   "feed.live.line": "Phiên trực tiếp: {parts}",
   "feed.live.model": "{model}",
@@ -2464,5 +2464,6 @@
   "note.metered.pending": "Chưa truy vấn: một chương trình Cuotai khác đang truy vấn tài khoản này. Hãy thử lại sau giây lát để xem kết quả của nó.",
   "note.metered.record_unavailable_shared": "Bản ghi dùng chung các truy vấn tính phí không khả dụng, nên các chương trình Cuotai khác cũng có thể truy vấn tài khoản này.",
   "note.metered.refused": "Chưa truy vấn: truy vấn AWS Cost Explorer tính phí gần nhất lúc {queried}; truy vấn tiếp theo có thể thực hiện lúc {next}.",
-  "note.metered.shared_reading": "Từ kết quả dùng chung lúc {time}; không có truy vấn tính phí mới."
+  "note.metered.shared_reading": "Từ kết quả dùng chung lúc {time}; không có truy vấn tính phí mới.",
+  "number.percent": "{p}%"
 }

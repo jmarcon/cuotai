@@ -830,6 +830,29 @@ fn the_status_line_puts_claude_first_then_the_tightest_other() {
     );
 }
 
+/// PRD 0034 re-validation V-17: every percent of the line places its sign
+/// as the reader's language does.
+#[test]
+fn the_status_line_percents_follow_the_language() {
+    let reading = claude::parse(NO_RATE_LIMITS.as_bytes(), now()).unwrap();
+    let others = [other("Codex", 0.64)];
+    let compose = |locale: &str| {
+        statusline::compose(
+            Some(&reading),
+            &others,
+            now(),
+            |t| t.format("%H:%M").to_string(),
+            None,
+            locale,
+        )
+        .text
+    };
+    let de = compose("de");
+    assert!(de.contains("64\u{a0}%") && de.contains("3\u{a0}%"), "{de}");
+    let tr = compose("tr");
+    assert!(tr.contains("%64") && tr.contains("%3"), "{tr}");
+}
+
 #[test]
 fn the_status_line_golden_fixtures() {
     let others = [other("Codex", 0.64)];

@@ -1847,7 +1847,9 @@ fn print_snapshot(
     incidents: &[ProviderStatus],
     now: DateTime<Utc>,
 ) {
-    println!("CUOTAI • {}", snapshot.finished_at.to_rfc3339());
+    // V-20: the refresh time in the reader's clock, like the rest of the
+    // human output (`--json` keeps the RFC 3339 instant).
+    println!("CUOTAI • {}", ui::local_time(snapshot.finished_at));
     print!(
         "\n{}",
         summary_lines(snapshot, ui::tui_locale(), |at| ui::clock(at).into())
@@ -1948,7 +1950,7 @@ fn report_text(
         out += &format!(
             "  {}: {}\n",
             ui::safe(&ui::metric_label_text(&metric.label)),
-            ui::metric_text(metric)
+            ui::metric_text_in(metric, locale)
         );
         if let Some(period) = &metric.period {
             out += &l10n::trf_in(
@@ -2118,7 +2120,7 @@ fn sub_reports_text(
             out += &format!(
                 "      {}: {}\n",
                 ui::safe(&ui::metric_label_text(&metric.label)),
-                ui::metric_text(metric)
+                ui::metric_text_in(metric, locale)
             );
             if let Some(reset) = metric.resets_at {
                 out += &renews_line(locale, "        ", &at(reset));
@@ -2961,7 +2963,7 @@ mod tests {
             text.contains("  • Claude · conn-a — Atualizado\n"),
             "{text}"
         );
-        assert!(text.contains("      Weekly: 40.00 % / 100.00\n"), "{text}");
+        assert!(text.contains("      Weekly: 40% / 100\n"), "{text}");
         // An upstream Cuotai does not know shows its slug.
         assert!(text.contains("  • glm · conn-b — Indisponível\n"), "{text}");
         // Other accounts are unchanged.
@@ -3033,9 +3035,9 @@ mod tests {
         let text = report_text(&router, &[], None, FIVE_MIN, now, "en-US", at);
         assert!(
             text.contains(
-                "      Window5h: 40.00 % / 100.00\n\
+                "      Window5h: 40% / 100\n\
                  \x20       Renews: 02:00\n\
-                 \x20       Pace: 20 points in reserve · lasts until the reset (linear estimate)\n"
+                 \x20       Pace: 20\u{a0}points in reserve · lasts until the reset (linear estimate)\n"
             ),
             "{text}"
         );
@@ -3043,6 +3045,40 @@ mod tests {
         let late = now + chrono::Duration::minutes(20);
         let text = report_text(&router, &[], None, FIVE_MIN, late, "en-US", at);
         assert!(!text.contains("Pace:"), "{text}");
+    }
+
+    /// PRD 0034 re-validation V-07, V-17: `--once` writes its figures in the
+    /// reader's language: grouping, decimal separator, the percent sign and
+    /// money, never `64.00 % / 100.00`.
+    #[test]
+    fn once_figures_follow_the_language() {
+        let now = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+        let mut requests = quota(MetricWindow::Daily, 9650.0, None);
+        requests.label = "Requests".into();
+        requests.unit = "req".into();
+        requests.limit = Some(10000.0);
+        let mut spend = quota(MetricWindow::Monthly, 42.7, None);
+        spend.label = "Spend".into();
+        spend.unit = "USD".into();
+        spend.limit = None;
+        let report = report(
+            "Work",
+            Status::Ready,
+            vec![quota(MetricWindow::Weekly, 64.0, None), requests, spend],
+        );
+        let at = |t: DateTime<Utc>| t.format("%H:%M").to_string();
+        let de = report_text(&report, &[], None, FIVE_MIN, now, "de", at);
+        assert!(de.contains(": 64\u{a0}% / 100\n"), "{de}");
+        assert!(de.contains(": 9.650\u{a0}"), "{de}");
+        assert!(de.contains(" / 10.000\n"), "{de}");
+        assert!(de.contains(": 42,70\u{a0}$\n"), "{de}");
+        let tr = report_text(&report, &[], None, FIVE_MIN, now, "tr", at);
+        assert!(tr.contains(": %64 / 100\n"), "{tr}");
+        let en = report_text(&report, &[], None, FIVE_MIN, now, "en-US", at);
+        assert!(en.contains(": 64% / 100\n"), "{en}");
+        assert!(en.contains(": 9,650\u{a0}"), "{en}");
+        assert!(en.contains(": $42.70\n"), "{en}");
+        assert!(!en.contains(".00"), "{en}");
     }
 
     #[test]
@@ -3064,17 +3100,17 @@ mod tests {
         assert_eq!(
             report_text(&report, &[], None, FIVE_MIN, now, "en-US", at),
             "\nWork / Claude — Atualizado · consultado agora\n\
-             \x20 Window5h: 40.00 % / 100.00\n\
+             \x20 Window5h: 40% / 100\n\
              \x20   Renews: 02:00\n\
-             \x20   Pace: 20 points in reserve · lasts until the reset (linear estimate)\n\
-             \x20 Weekly: 88.00 % / 100.00\n\
+             \x20   Pace: 20\u{a0}points in reserve · lasts until the reset (linear estimate)\n\
+             \x20 Weekly: 88% / 100\n\
              \x20   Renews: 06:00\n\
-             \x20   Pace: 6 points above the pace · runs out at 18:49, 11h 10m before the reset (linear estimate)\n\
+             \x20   Pace: 6\u{a0}points above the pace · runs out at 18:49, 11h 10m before the reset (linear estimate)\n\
              \x20   Allowance: ≈ 0.4%/h to the reset\n\
-             \x20 Daily: 1.00 % / 100.00\n\
+             \x20 Daily: 1% / 100\n\
              \x20   Renews: 23:55\n\
              \x20   Allowance: ≈ 4.1%/h to the reset\n\
-             \x20 Monthly: 10.00 % / 100.00\n"
+             \x20 Monthly: 10% / 100\n"
         );
         // PRD 0041 RF4.3: the allowance line follows the pace's freshness.
         let late = now + chrono::Duration::minutes(20);
@@ -3093,7 +3129,7 @@ mod tests {
         let recent = [vec![point(40, 10.0), point(20, 25.0), point(0, 40.0)]];
         assert!(
             report_text(&report, &recent, None, FIVE_MIN, now, "en-US", at).contains(
-                "Pace: 20 points in reserve · runs out at 01:20, 40\u{a0}min before the reset"
+                "Pace: 20\u{a0}points in reserve · runs out at 01:20, 40\u{a0}min before the reset"
             )
         );
     }
@@ -3121,12 +3157,15 @@ mod tests {
         };
         let at = |t: DateTime<Utc>| t.format("%H:%M").to_string();
         let aged = report_text(&fed(40), &[], None, FIVE_MIN, now, "en-US", at);
-        assert!(aged.contains("Window5h: 40.00 % / 100.00"), "{aged}");
+        assert!(aged.contains("Window5h: 40% / 100"), "{aged}");
         assert!(!aged.contains("Pace:"), "{aged}");
         assert!(!aged.contains("Allowance:"), "{aged}");
         let recent = report_text(&fed(2), &[], None, FIVE_MIN, now, "en-US", at);
         // At 23:58 the window had 2 h 2 min left of 5 h: 59.3% elapsed.
-        assert!(recent.contains("Pace: 19 points in reserve"), "{recent}");
+        assert!(
+            recent.contains("Pace: 19\u{a0}points in reserve"),
+            "{recent}"
+        );
     }
 
     /// PRD 0023 RF8.2: `--once` prints `Extra usage: <summary>` under the
@@ -3190,7 +3229,7 @@ mod tests {
         // elapsed, so 40% used is 10 points above the pace (the wall clock
         // would say 20 points in reserve).
         assert!(report_text(&report, &[], None, hour, now, "en-US", at)
-            .contains("Pace: 10 points above the pace"));
+            .contains("Pace: 10\u{a0}points above the pace"));
         // Stale at a 5-minute interval: the age only, no pace.
         let text = report_text(&report, &[], None, FIVE_MIN, now, "en-US", at);
         assert!(text.contains("consultado há"), "{text}");

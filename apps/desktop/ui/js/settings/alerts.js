@@ -3,7 +3,7 @@
 // PRD 0008 RF3.1: usage alerts in the same group (off by default), sharing its permission guidance and test.
 // PRD 0024 RF4.1: "Warn before running out", its own switch (off by default) with the lead as a dependent control.
 import { t, te } from "../i18n.js";
-import { esc, icon, sendTestNotification, setAlertOptions, setAlertsEnabled, setNotifyEnabled, setNotifyOptions, setNotifyPrivate, setProjectedAlert } from "../lib.js";
+import { esc, fmtPercent, icon, sendTestNotification, setAlertOptions, setAlertsEnabled, setNotifyEnabled, setNotifyOptions, setNotifyPrivate, setProjectedAlert } from "../lib.js";
 import { errorText, group } from "./common.js";
 import { uiPath } from "../util.js";
 import { buttons, disc, row, rowError, select, seg, sw, toast } from "./rows.js";
@@ -168,7 +168,7 @@ function bindAlertOptions(root, ctx, s, deps) {
   const draw = () => {
     chips.innerHTML = saved.thresholds.map((v) => {
       const label = t("settings.alerts.remove", { pct: v });
-      return `<button class="chip" type="button" data-alert-remove="${v}" title="${esc(label)}" aria-label="${esc(label)}">${v}% ×</button>`;
+      return `<button class="chip" type="button" data-alert-remove="${v}" title="${esc(label)}" aria-label="${esc(label)}">${esc(fmtPercent(v))} ×</button>`;
     }).join("");
     deps();
   };

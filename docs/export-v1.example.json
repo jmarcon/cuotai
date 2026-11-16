@@ -215,7 +215,19 @@
           "text": {
             "id": "pace.allowance.day",
             "params": {
-              "value": "10%"
+              "value": {
+                "id": "number.percent",
+                "params": {
+                  "p": {
+                    "id": "amount.number",
+                    "params": {
+                      "value": "10"
+                    },
+                    "fallback": "10"
+                  }
+                },
+                "fallback": "10%"
+              }
             },
             "fallback": "≈ 10%/day to the reset"
           }

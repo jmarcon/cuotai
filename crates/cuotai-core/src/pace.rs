@@ -336,7 +336,7 @@ impl Pace {
                     "pace.reserve",
                     "delta",
                     delta.as_str(),
-                    "{delta} points in reserve",
+                    "{delta}\u{a0}points in reserve",
                 )
             }
             PaceStage::OnPace => Localized::fixed("pace.on_pace", "On pace"),
@@ -346,7 +346,7 @@ impl Pace {
                     "pace.ahead",
                     "delta",
                     delta.as_str(),
-                    "{delta} points above the pace",
+                    "{delta}\u{a0}points above the pace",
                 )
             }
             PaceStage::Exhausted => {
@@ -599,9 +599,13 @@ impl Pace {
         }
         let d = format!("{points:.0}");
         let (glyph, id, fallback) = if self.delta_points > 0.0 {
-            (GLYPH_AHEAD, "pace.chip.ahead", "{d} pts ahead")
+            (GLYPH_AHEAD, "pace.chip.ahead", "{d}\u{a0}pts ahead")
         } else {
-            (GLYPH_RESERVE, "pace.chip.reserve", "{d} pts in reserve")
+            (
+                GLYPH_RESERVE,
+                "pace.chip.reserve",
+                "{d}\u{a0}pts in reserve",
+            )
         };
         Chip {
             glyph,
@@ -745,12 +749,12 @@ pub fn allowance(
 
 /// A percent for the allowance sentence: whole above 10, one decimal
 /// below (`12`, `0.4`, `1`), so a small allowance never reads `0`.
-fn short_percent(value: f64) -> String {
+/// A percent as the allowance shows it: whole from 10, one decimal below.
+fn short_percent(value: f64) -> f64 {
     if value >= 9.95 {
-        format!("{:.0}", value.round())
+        value.round()
     } else {
-        let text = format!("{value:.1}");
-        text.strip_suffix(".0").map_or(text.clone(), str::to_owned)
+        (value * 10.0).round() / 10.0
     }
 }
 
@@ -764,7 +768,8 @@ impl Allowance {
         let value = if money {
             crate::overage::format_amount(self.amount, &self.unit, Some(&self.unit))
         } else {
-            crate::text::ParamValue::Text(format!("{}%", short_percent(self.percent)))
+            // V-17: the sign and the decimal separator follow the language.
+            crate::text::ParamValue::l10n(crate::text::number::percent(short_percent(self.percent)))
         };
         let (id, fallback) = match (money, per_hour, self.recent_percent.is_some()) {
             (true, false, false) => (
@@ -798,7 +803,7 @@ impl Allowance {
         if let Some(recent) = self.recent_percent {
             values.insert(
                 "recent".into(),
-                crate::text::ParamValue::Text(short_percent(recent)),
+                crate::text::ParamValue::l10n(crate::text::number::number(short_percent(recent))),
             );
         }
         Localized::with_params(id, values, fallback)
@@ -1183,7 +1188,7 @@ mod tests {
             (pace.stage_label(), pace.outlook_label(hhmm, hours))
         };
         let runs_out = label(40.0, now() + mins(18 * 60));
-        assert_eq!(runs_out.0.resolve("en-US"), "15 points above the pace");
+        assert_eq!(runs_out.0.resolve("en-US"), "15\u{a0}points above the pace");
         assert_eq!(
             runs_out.1.as_ref().unwrap().resolve("en-US"),
             "runs out at 09:00, 9 h before the reset"
@@ -1193,7 +1198,7 @@ mod tests {
             "acaba às 09:00, 9 h antes da renovação"
         );
         let reserve = label(17.0, now() + mins(18 * 60));
-        assert_eq!(reserve.0.resolve("en-US"), "8 points in reserve");
+        assert_eq!(reserve.0.resolve("en-US"), "8\u{a0}points in reserve");
         assert_eq!(reserve.0.resolve("pt-BR"), "8 pontos de reserva");
         let on_pace = label(50.0, now() + mins(12 * 60));
         assert_eq!(

@@ -4049,24 +4049,47 @@ pub(crate) fn data_as_of_suffix(report: &cuotai_core::Report) -> String {
 }
 
 pub(crate) fn metric_text(metric: &Metric) -> String {
+    metric_text_in(metric, tui_locale())
+}
+
+/// [`metric_text`] in `locale` (`--once` passes its own).
+pub(crate) fn metric_text_in(metric: &Metric, locale: &str) -> String {
     // PRD 0033 RF2.1: a window that renewed carries no value; say so in the
     // viewer's local time.
     if metric.is_collapsed(chrono::Utc::now()) {
         if let Some(text) = metric.renewed_waiting_at(local_time) {
-            return text.resolve(tui_locale());
+            return text.resolve(locale);
         }
     }
-    let number = |value: Option<f64>| {
-        value
-            .map(|n| format!("{n:.2}"))
-            .unwrap_or_else(|| "—".into())
+    // V-07: grouped, up to two decimals, in the language's separators; a
+    // percent places its sign as the language does ("64 %", "%64") and an
+    // amount in an ISO 4217 currency reads as money ("42,70 $").
+    use cuotai_core::text::number::{format_money, format_number, format_percent};
+    let currency = metric.unit.len() == 3 && metric.unit.chars().all(|c| c.is_ascii_uppercase());
+    let number = |value: Option<f64>| match value {
+        Some(n) if currency => format_money(n, &metric.unit, locale),
+        Some(n) => format_number(n, locale),
+        None => "—".into(),
     };
-    let mut text = format!("{} {}", number(metric.used), safe(&unit_text(&metric.unit)));
+    let mut text = match metric.used {
+        Some(used) if metric.unit == "%" => format_percent(used, locale),
+        Some(_) if currency => number(metric.used),
+        _ => {
+            let unit = unit_text(&metric.unit);
+            let unit = safe(&unit);
+            if unit.is_empty() {
+                number(metric.used)
+            } else {
+                format!("{}\u{a0}{unit}", number(metric.used))
+            }
+        }
+    };
     if metric.limit.is_some() {
         text.push_str(&format!(" / {}", number(metric.limit)));
     }
     if metric.remaining.is_some() {
-        text.push_str(&crate::l10n::trf(
+        text.push_str(&crate::l10n::trf_in(
+            locale,
             "metric.remaining",
             " ({value} left)",
             &[("value", &number(metric.remaining))],
@@ -4444,7 +4467,11 @@ mod tests {
             used: Some(10.0),
             ..metric
         };
-        assert!(metric_text(&live).starts_with("10.00 %"));
+        assert!(
+            metric_text(&live).starts_with("10%"),
+            "{}",
+            metric_text(&live)
+        );
     }
 
     #[test]

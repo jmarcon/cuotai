@@ -114,7 +114,7 @@ const expected = {
     advice: "Work is exhausted · Personal has 64% left",
   },
   es: {
-    points: "10\u00a0pts por encima", percent: "20% sobre el ritmo",
+    points: "10\u00a0pts por encima", percent: "20\u00a0% sobre el ritmo",
     callout: "A este ritmo Session (5h) se agota ≈18:53, 37\u00a0min antes del reinicio", chip: "Se agota ≈18:53",
     reset: "Se reinicia 19:30 · en 1h 35m", best: "Mejor ahora",
     advice: "Work está agotada · Personal tiene 64% disponible",
@@ -126,13 +126,13 @@ const expected = {
     advice: "Work è esaurito · Personal ha il 64% disponibile",
   },
   de: {
-    points: "10\u00a0Pkt. voraus", percent: "20% über dem Tempo",
+    points: "10\u00a0Pkt. voraus", percent: "20\u00a0% über dem Tempo",
     callout: "In diesem Tempo ist Session (5h) ≈18:53 erschöpft, 37\u00a0Min. vor der Zurücksetzung", chip: "Leer ≈18:53",
     reset: "Zurücksetzung 19:30 · in 1\u00a0Std. 35\u00a0Min.", best: "Jetzt am besten",
     advice: "Work ist erschöpft · Personal hat noch 64%",
   },
   ru: {
-    points: "выше на 10 п. п.", percent: "на 20% выше темпа",
+    points: "выше на 10 п. п.", percent: "на 20\u00a0% выше темпа",
     callout: "В этом темпе Session (5h) закончится ≈18:53, за 37\u00a0мин до сброса", chip: "Закончится ≈18:53",
     reset: "Сброс 19:30 · через 1\u00a0ч 35\u00a0мин", best: "Лучшая сейчас",
     advice: "Work исчерпан · у Personal осталось 64%",

@@ -10,13 +10,17 @@
 //! - `amount.units` `{value, unit}`: `12.5 credits`, a no-break space between
 //!   the number and its unit (PRD 0034 re-validation V-10).
 //!
+//! A share in percent (PRD 0034 re-validation V-17) is a catalog text,
+//! `number.percent` `{p}`, whose `p` is an `amount.number`: each language
+//! places the sign its own way (`64%`, `64 %` in German, `%64` in Turkish).
+//!
 //! [`Localized::resolve`] renders these ids here instead of through a
 //! catalog, and the desktop renders them with `Intl.NumberFormat`. The
 //! table below is a small hand-written subset of CLDR for the 14 built-in
 //! languages (no ICU dependency): decimal and group separators, Indian
 //! grouping, the Spanish minimum grouping, and where the currency sign
-//! goes. It formats amounts only; the other metric numbers of the TUI keep
-//! their plain `12.50` form (PRD 0023 open item).
+//! goes. The TUI and `--once` write every metric figure with
+//! [`format_number`] too (PRD 0034 re-validation V-07).
 
 use super::{params, Localized, ParamValue};
 
@@ -251,6 +255,29 @@ pub fn units(value: f64, unit: &str) -> Localized {
     }
 }
 
+/// A share already in percent (`64.0` for 64 %), rendered per locale:
+/// `64%`, `64\u{a0}%` (de), `%64` (tr). The figure keeps up to two decimals;
+/// callers round it first when they show whole percents.
+pub fn percent(value: f64) -> Localized {
+    Localized::with_param(
+        "number.percent",
+        "p",
+        ParamValue::l10n(number(value)),
+        "{p}%",
+    )
+}
+
+/// A percent sign around a figure the caller already wrote (`<1`), placed
+/// as `locale`'s [`percent`] places it.
+pub fn percent_of(figure: &str) -> Localized {
+    Localized::with_param("number.percent", "p", figure, "{p}%")
+}
+
+/// [`percent`] in `locale`.
+pub fn format_percent(value: f64, locale: &str) -> String {
+    percent(value).resolve(locale)
+}
+
 fn text_param<'a>(note: &'a Localized, key: &str) -> Option<&'a str> {
     match note.params.get(key)? {
         ParamValue::Text(text) => Some(text),
@@ -322,6 +349,27 @@ mod tests {
         assert_eq!(format_number(12.0, "pt-BR"), "12");
         assert_eq!(format_number(0.126, "ja"), "0.13");
         assert_eq!(format_number(1234.0, "es"), "1234");
+    }
+
+    #[test]
+    fn percents_place_the_sign_per_language() {
+        let cases = [
+            ("en-US", "64%"),
+            ("de", "64\u{a0}%"),
+            ("fr", "64\u{a0}%"),
+            ("tr", "%64"),
+            ("ru", "64\u{a0}%"),
+            ("ja", "64%"),
+        ];
+        for (locale, expected) in cases {
+            assert_eq!(format_percent(64.0, locale), expected, "{locale}");
+        }
+        assert_eq!(format_percent(12.5, "de"), "12,5\u{a0}%");
+        assert_eq!(format_percent(1234.0, "en-US"), "1,234%");
+        assert_eq!(percent_of("<1").resolve("tr"), "%<1");
+        assert_eq!(percent(64.0).fallback, "64%");
+        // An unknown language reads the English form.
+        assert_eq!(format_percent(64.0, "xx"), "64%");
     }
 
     #[test]

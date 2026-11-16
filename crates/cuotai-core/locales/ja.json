@@ -796,7 +796,7 @@
   "feed.live.caveat": "定価でのエージェントの見積もりで、請求額ではありません。",
   "feed.live.cost": "このセッションで ≈ ${usd}",
   "feed.live.cost_short": "≈${usd}",
-  "feed.live.ctx": "ctx {pct}%",
+  "feed.live.ctx": "コンテキスト {pct}%",
   "feed.live.join": "{first} · {rest}",
   "feed.live.line": "ライブセッション: {parts}",
   "feed.live.model": "{model}",
@@ -2464,5 +2464,6 @@
   "note.metered.pending": "照会していません: 別の Cuotai プログラムが今このアカウントを照会しています。少ししてからもう一度試すと、その結果が表示されます。",
   "note.metered.record_unavailable_shared": "課金されるクエリの共有記録を使用できないため、他の Cuotai プログラムもこのアカウントを照会する可能性があります。",
   "note.metered.refused": "照会していません: 最後の課金 AWS Cost Explorer クエリは {queried} でした。次は {next} から可能です。",
-  "note.metered.shared_reading": "{time} の共有された結果です。新しい課金クエリは行っていません。"
+  "note.metered.shared_reading": "{time} の共有された結果です。新しい課金クエリは行っていません。",
+  "number.percent": "{p}%"
 }
