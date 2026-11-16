@@ -276,7 +276,10 @@ fn view(account: &Value) -> AccountView {
         provider_label: label,
         name: text("name"),
         remaining,
-        stale: account.get("stale").and_then(Value::as_bool) == Some(true),
+        // V-04: a failed account counts as stale, like a failed query in
+        // `cuotai --status-line` without a server (marked, exit 2).
+        stale: account.get("stale").and_then(Value::as_bool) == Some(true)
+            || account.get("failure").is_some_and(Value::is_object),
         exhausted: text("class") == "exhausted",
         resets_at: time("blocked_until").or_else(|| time("resets_at")),
         incident,
@@ -395,6 +398,20 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// V-04: a failed account without a preserved reading counts as stale.
+    #[test]
+    fn a_failed_account_counts_as_stale() {
+        let body = json!({"schema": 1, "accounts": [
+            {"id": "a", "key": "a", "name": "A", "provider": "claude", "class": "unmeasured",
+             "stale": false, "binding": null, "failure": {"category": "auth_required"}},
+            {"id": "b", "key": "b", "name": "B", "provider": "claude", "class": "unmeasured",
+             "stale": false, "binding": null}
+        ]});
+        let views = views_from_limits(&body).unwrap();
+        assert!(views[0].stale);
+        assert!(!views[1].stale);
     }
 
     #[test]
