@@ -398,6 +398,7 @@ fn strip_bars_keep_gaps_and_resets() {
         samples: usize::from(consumption.is_some()),
         reset,
         day_off: false,
+        label: crate::text::Localized::fixed("x", "x"),
     };
     let rhythm = Rhythm {
         range: RhythmRange::Last24h,

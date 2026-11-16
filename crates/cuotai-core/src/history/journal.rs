@@ -89,6 +89,39 @@ pub struct JournalEntry {
     pub summary: Localized,
 }
 
+impl JournalEntry {
+    /// PRD 0026 re-validation (V-02, V-09): when the event happened, as the
+    /// reader's language writes a past time ([`crate::text::clock::past`]):
+    /// the time today, the weekday and time within six days, the date and
+    /// time beyond.
+    pub fn when<Tz>(&self, now: DateTime<Utc>, tz: &Tz) -> Localized
+    where
+        Tz: chrono::TimeZone,
+        Tz::Offset: std::fmt::Display,
+    {
+        crate::text::clock::past(self.occurred_at, now, tz)
+    }
+
+    /// The heading of the entry's day in a list read at `now`: "Today",
+    /// "Yesterday", then the weekday or the date
+    /// ([`crate::text::clock::day_heading`], DS-CMP-JRNL-1).
+    pub fn day<Tz>(&self, now: DateTime<Utc>, tz: &Tz) -> Localized
+    where
+        Tz: chrono::TimeZone,
+        Tz::Offset: std::fmt::Display,
+    {
+        match (
+            crate::instant::checked_local(self.occurred_at, tz),
+            crate::instant::checked_local(now, tz),
+        ) {
+            (Some(at), Some(today)) => {
+                crate::text::clock::day_heading(at.date_naive(), today.date_naive())
+            }
+            _ => self.when(now, tz),
+        }
+    }
+}
+
 /// A journal read: the entries that could be read, and how many stored rows
 /// could not (a damaged row, or a value a newer release wrote in a form this
 /// one cannot read). Skipped rows are counted, never guessed and never fail

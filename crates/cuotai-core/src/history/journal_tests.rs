@@ -400,3 +400,34 @@ fn an_unreadable_row_is_skipped_and_counted() {
     let parsed: serde_json::Value = serde_json::from_slice(&json).unwrap();
     assert_eq!(parsed["journal"].as_array().unwrap().len(), 5);
 }
+
+/// Re-validation V-02/V-09: an entry's time and day heading come from the
+/// core clock, in the reader's language.
+#[test]
+fn an_entry_reads_its_time_and_day_heading_in_the_language() {
+    let dir = tempfile::tempdir().unwrap();
+    let history = store(&dir.path().join("history.sqlite3"), "one");
+    let accounts = config(CONFIG).accounts;
+    let alpha = &accounts[0];
+    let events: Vec<Event> = [0, 1, 3, 9]
+        .into_iter()
+        .map(|days_back| {
+            let mut e = event(alpha, EventKind::QuotaExhausted, 0);
+            e.occurred_at = t0() - TimeDelta::days(days_back) - TimeDelta::hours(1);
+            e
+        })
+        .collect();
+    assert_eq!(history.journal_record(&events), Ok(4));
+    let entries = history.journal(.., &accounts, 20).unwrap();
+    let now = t0();
+    let heads: Vec<String> = entries
+        .iter()
+        .map(|e| e.day(now, &Utc).fallback.to_string())
+        .collect();
+    // t0 is Thursday 2026-10-01 12:00 UTC.
+    assert_eq!(heads, ["Today", "Yesterday", "Mon", "09/22"]);
+    assert_eq!(entries[0].when(now, &Utc).fallback, "11:00\u{a0}AM");
+    assert_eq!(entries[2].when(now, &Utc).resolve("de"), "Montag, 11:00");
+    assert_eq!(entries[3].when(now, &Utc).resolve("pt-BR"), "22/09 11:00");
+    assert_eq!(entries[1].day(now, &Utc).resolve("de"), "Gestern");
+}

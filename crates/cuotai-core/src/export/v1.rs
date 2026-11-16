@@ -2449,6 +2449,7 @@ mod tests {
             day: chrono::NaiveDate::from_ymd_opt(2026, 10, n).unwrap(),
             share,
             is_today: n == 24,
+            label: crate::text::Localized::fixed("x", "x"),
         };
         let days = vec![day(23, None), day(24, Some(0.4))];
         let summary = StatsSummary {

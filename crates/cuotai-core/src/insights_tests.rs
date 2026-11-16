@@ -284,8 +284,12 @@ fn rhythm_24h_buckets_consumption_marks_resets_and_leaves_gaps() {
     assert_eq!(rhythm.buckets.last().unwrap().hour, Some(15));
     assert_eq!(rhythm.metrics, ["Semanal"]);
     let text = rhythm.text_chart("en", 10);
-    assert!(text.contains("13               ·"), "{text}");
+    // V-11: the hour in the language's hour cycle.
+    assert!(text.contains("1\u{a0}PM             ·"), "{text}");
     assert!(text.contains("↺"));
+    let de = rhythm.text_chart("de", 10);
+    assert!(de.contains("13               ·"), "{de}");
+    assert_eq!(hour(13).label.resolve("de"), "13");
 }
 
 #[test]

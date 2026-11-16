@@ -173,7 +173,7 @@ pub fn weekly<Tz: TimeZone>(
     let mut recorded = false;
     for (index, (account, stats)) in accounts.iter().zip(&summary.accounts).enumerate() {
         let days: Vec<crate::stats::DayPeak> =
-            stats.days.iter().filter(|d| in_week(d)).copied().collect();
+            stats.days.iter().filter(|d| in_week(d)).cloned().collect();
         recorded |= days.iter().any(|d| d.share.is_some());
         let (heaviest, lightest) = extremes(&days);
         let query = RhythmQuery {
@@ -240,7 +240,7 @@ pub fn weekly<Tz: TimeZone>(
         .daily
         .iter()
         .filter(|d| in_week(d))
-        .copied()
+        .cloned()
         .collect();
     let (heaviest, lightest) = extremes(&overall);
     let query = RhythmQuery {

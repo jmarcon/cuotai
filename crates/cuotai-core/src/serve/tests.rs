@@ -1954,6 +1954,7 @@ fn leaky_stats() -> StatsAnswer {
         day,
         share: Some(0.5),
         is_today: true,
+        label: crate::text::Localized::fixed("x", "x"),
     };
     let summary = StatsSummary {
         extra_spent: Default::default(),
@@ -1969,7 +1970,7 @@ fn leaky_stats() -> StatsAnswer {
                 hits: 1,
                 average_peak: Some(0.5),
                 days_with_data: 1,
-                days: vec![peak],
+                days: vec![peak.clone()],
             })
             .collect(),
         daily: vec![peak],

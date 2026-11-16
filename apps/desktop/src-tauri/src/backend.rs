@@ -5362,6 +5362,7 @@ impl Backend {
             &readings,
             range,
             chrono::Utc::now(),
+            &chrono::Local,
         ))
     }
 

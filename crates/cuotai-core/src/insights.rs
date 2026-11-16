@@ -163,6 +163,10 @@ pub struct RhythmBucket {
     pub reset: bool,
     /// A daily bucket on one of the person's days off.
     pub day_off: bool,
+    /// PRD 0026 re-validation (V-11): the bucket as the reader's language
+    /// writes it: the hour alone in its hour cycle (`at.hour`, "6 PM",
+    /// "18") or the day ([`crate::text::clock::day`]).
+    pub label: crate::text::Localized,
 }
 
 /// RF1.1: how use spread over hours or days, from the local history only.
@@ -366,6 +370,11 @@ pub fn rhythm<Tz: chrono::TimeZone>(
                 samples: counts[i],
                 reset: resets[i],
                 day_off: daily && days_off.contains(local.weekday()),
+                label: if daily {
+                    crate::text::clock::day(local.date_naive(), today)
+                } else {
+                    crate::text::clock::hour(local.hour())
+                },
             }
         })
         .collect();
@@ -422,14 +431,24 @@ impl Rhythm {
             .fold(0.0_f64, f64::max);
         let mut out = String::new();
         for bucket in &self.buckets {
+            // PRD 0026 re-validation (V-03, V-11): the core's day and hour
+            // texts, in the language's date order and hour cycle.
             let head = match (bucket.hour, bucket.day) {
                 (_, Some(day)) => {
                     use chrono::Datelike;
                     let name =
                         crate::budget::weekday_text(weekday_name(day.weekday())).resolve(locale);
-                    format!("{name:<10} {}", day.format("%m-%d"))
+                    let date = crate::text::Localized {
+                        id: crate::text::clock::DATE.into(),
+                        params: crate::text::params([
+                            ("day", day.day().to_string().into()),
+                            ("month", day.month().to_string().into()),
+                        ]),
+                        fallback: day.format("%m/%d").to_string().into(),
+                    };
+                    format!("{name:<10} {}", date.resolve(locale))
                 }
-                (Some(hour), None) => format!("{hour:02}"),
+                (Some(_), None) => bucket.label.resolve(locale),
                 _ => String::new(),
             };
             let line = match bucket.consumption {
