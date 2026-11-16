@@ -285,6 +285,31 @@ for (const { code } of i18n.LOCALES) {
   assert.match(editor, /data-quiet-add="mon"[^>]*disabled/, `${code}: the fourth interval is refused`);
   assert.ok(editor.includes("data-quiet-same") && !/settings\.quiet\./.test(editor), `${code}: same-every-day shortcut or untranslated key`);
   assert.ok(quietSummary({ enabled: false, digest: true, days: {} }) !== quietSummary({ enabled: true, digest: true, days: {} }), `${code}: off and unset read differently`);
+  // PRD 0032 re-validation C-03: a real plural for one day (and for the same intervals every day).
+  const oneDay = quietSummary({ enabled: true, digest: true, days: { wed: [{ from: "22:00", to: "08:00" }] } });
+  const expectedOne = { "en-US": "1 day with intervals", "pt-BR": "1 dia com intervalos" }[code];
+  if (expectedOne) assert.equal(oneDay, expectedOne, `${code}: one day reads in the singular`);
+  assert.ok(!/settings\.quiet\./.test(oneDay), `${code}: untranslated day count`);
+  // C-05: the weekday rows start on the language's first weekday (CLDR, from the core registry).
+  const firstDay = editor.match(/data-row="quiet-(mon|tue|wed|thu|fri|sat|sun)"/)?.[1];
+  const expectedFirst = i18n.currentRow()?.first_weekday === 1 ? "mon" : "sun";
+  assert.equal(firstDay, expectedFirst, `${code}: the week starts on ${expectedFirst}`);
+  if (code === "en-US") assert.equal(firstDay, "sun", "en-US: the week starts on Sunday");
+  if (code === "de") assert.equal(firstDay, "mon", "de: the week starts on Monday");
+  // C-04: the summary and each interval's read-out use the language's clock; the read-out describes both fields.
+  const nights = Object.fromEntries(["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map((day) => [day, [{ from: "22:00", to: "08:00" }]]));
+  const everyNight = quietSummary({ enabled: true, digest: true, days: nights });
+  if (code === "en-US") assert.equal(everyNight, "Every day 10:00 PM–8:00 AM", "en-US: the summary follows the 12-hour clock");
+  if (code === "de") assert.equal(everyNight, "Täglich 22:00–8:00", "de: the summary follows the 24-hour clock");
+  assert.match(editor, /<input type="time" data-q-from [^>]*aria-describedby="q-readout-mon-0"/, `${code}: the read-out describes the field`);
+  assert.match(editor, /id="q-readout-mon-0" data-q-readout>[^<]+</, `${code}: the read-out is drawn`);
+  // C-12: a week with no gap says that only exhausted quotas notify, in the summary and on the sub-page.
+  const always = { enabled: true, digest: true, days: Object.fromEntries(Object.keys(nights).map((day) => [day, [{ from: "00:00", to: "00:00" }]])) };
+  const alwaysText = i18n.te("settings.quiet.summary.always");
+  assert.equal(quietSummary(always), alwaysText, `${code}: the always-on summary`);
+  assert.ok(quietDaysHtml(always).includes(`id="quiet-same-row-desc">${alwaysText}<`), `${code}: the always-on note on the sub-page`);
+  assert.ok(!quietDaysHtml({ ...always, enabled: false }).includes(alwaysText), `${code}: no always-on note while off`);
+  assert.ok(!quietDaysHtml({ enabled: true, digest: true, days: nights }).includes(alwaysText), `${code}: no always-on note with a gap`);
   console.log(`${code}: ${PAGES.length} pages, ${CONTROLS.length} controls rendered, ${total} words shown`);
 }
 

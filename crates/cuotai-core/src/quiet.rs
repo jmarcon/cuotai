@@ -12,7 +12,10 @@ use crate::alerts::{AlertEvent, AlertKind};
 use crate::model::Account;
 use crate::resets::Notice;
 use crate::text::{params, Localized};
-use chrono::{DateTime, Datelike, Duration, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc};
+use chrono::{
+    DateTime, Datelike, Duration, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Timelike, Utc,
+};
+use serde::Serialize;
 use serde_json::{json, Map, Value};
 use std::fmt::Display;
 
@@ -78,22 +81,155 @@ impl Default for QuietSchedule {
     }
 }
 
+/// Why [`QuietSchedule::from_value_strict`] refused a schedule (PRD 0032
+/// RF2.3). The interface names the field from `day`, `index` and `field`
+/// and words the reason from `code`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum QuietErrorCode {
+    /// A flag that is not a boolean, an unknown weekday, a list that is not
+    /// one or holds more than [`MAX_INTERVALS_PER_DAY`] intervals.
+    #[serde(rename = "invalid_quiet")]
+    Invalid,
+    /// A time that is not `HH:MM` (`field` names which).
+    #[serde(rename = "invalid_quiet_time")]
+    Time,
+    /// The same `from` and `to` as an earlier interval of the day (`with`).
+    #[serde(rename = "invalid_quiet_duplicate")]
+    Duplicate,
+    /// Overlaps an earlier interval of the same start day (`with`).
+    /// Intervals of different days that run into each other are accepted
+    /// and count as one window.
+    #[serde(rename = "invalid_quiet_overlap")]
+    Overlap,
+    /// `from` equals `to` (zero or 24 hours?), except `00:00`–`00:00`,
+    /// which is the whole day.
+    #[serde(rename = "invalid_quiet_empty")]
+    Empty,
+}
+
+/// A refused schedule: the reason and, when it is one interval's, where.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct QuietError {
+    pub code: QuietErrorCode,
+    /// The weekday key ([`DAY_KEYS`]).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub day: Option<&'static str>,
+    /// The interval's position in its day, from 0.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub index: Option<usize>,
+    /// `from` or `to`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub field: Option<&'static str>,
+    /// For a duplicate or an overlap: the earlier interval of the same day.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub with: Option<usize>,
+}
+
+impl QuietError {
+    const fn invalid() -> Self {
+        Self {
+            code: QuietErrorCode::Invalid,
+            day: None,
+            index: None,
+            field: None,
+            with: None,
+        }
+    }
+
+    const fn at(
+        code: QuietErrorCode,
+        day: &'static str,
+        index: usize,
+        field: &'static str,
+    ) -> Self {
+        Self {
+            code,
+            day: Some(day),
+            index: Some(index),
+            field: Some(field),
+            with: None,
+        }
+    }
+
+    /// The JSON object the desktop command returns as its error.
+    pub fn to_json(&self) -> String {
+        serde_json::to_string(self).unwrap_or_else(|_| "invalid_quiet".to_owned())
+    }
+}
+
+impl Display for QuietError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.to_json())
+    }
+}
+
+impl std::error::Error for QuietError {}
+
+const DAY_MINUTES: u32 = 24 * 60;
+
+impl Interval {
+    /// Minutes from its start day's midnight to its start and its end: an
+    /// end at or before the start is on the next day, so `from == to` reads
+    /// as 24 hours, as [`window_at`] reads it.
+    fn span(&self) -> (u32, u32) {
+        let minutes = |t: NaiveTime| t.num_seconds_from_midnight() / 60;
+        let (from, to) = (minutes(self.from), minutes(self.to));
+        (from, if to > from { to } else { to + DAY_MINUTES })
+    }
+
+    /// `00:00`–`00:00`: the whole day.
+    pub fn is_all_day(&self) -> bool {
+        self.from == NaiveTime::MIN && self.to == NaiveTime::MIN
+    }
+}
+
+/// Why the interval at `index` of a day cannot join the ones before it, in
+/// the strict reading's order: equal ends, a duplicate, an overlap.
+fn day_conflict(
+    list: &[Interval],
+    index: usize,
+) -> Option<(QuietErrorCode, &'static str, Option<usize>)> {
+    let interval = list[index];
+    if interval.from == interval.to && !interval.is_all_day() {
+        return Some((QuietErrorCode::Empty, "to", None));
+    }
+    let (start, end) = interval.span();
+    list[..index]
+        .iter()
+        .enumerate()
+        .find_map(|(other, earlier)| {
+            if *earlier == interval {
+                return Some((QuietErrorCode::Duplicate, "from", Some(other)));
+            }
+            let (s, e) = earlier.span();
+            (start < e && s < end).then_some((QuietErrorCode::Overlap, "from", Some(other)))
+        })
+}
+
 impl QuietSchedule {
     /// Each field on its own: a mistyped value is its default, an invalid
-    /// interval is skipped and a day keeps at most
-    /// [`MAX_INTERVALS_PER_DAY`] valid ones.
+    /// interval is skipped, a later exact duplicate of a day is dropped and
+    /// a day keeps at most [`MAX_INTERVALS_PER_DAY`] valid ones. Overlaps
+    /// and equal ends are kept (an older file keeps its behaviour:
+    /// [`window_at`] merges overlaps and reads `from == to` as 24 hours).
     pub fn from_value(value: &Value) -> Self {
         let default = Self::default();
         let mut days: [Vec<Interval>; 7] = Default::default();
         for (index, key) in DAY_KEYS.iter().enumerate() {
             if let Some(list) = value["days"][key].as_array() {
-                days[index] = list
-                    .iter()
-                    .filter_map(|item| {
-                        Interval::parse(item["from"].as_str()?, item["to"].as_str()?)
-                    })
-                    .take(MAX_INTERVALS_PER_DAY)
-                    .collect();
+                let mut kept: Vec<Interval> = Vec::new();
+                for interval in list.iter().filter_map(|item| {
+                    Interval::parse(item["from"].as_str()?, item["to"].as_str()?)
+                }) {
+                    if kept.len() == MAX_INTERVALS_PER_DAY {
+                        break;
+                    }
+                    if !kept.contains(&interval) {
+                        kept.push(interval);
+                    }
+                }
+                days[index] = kept;
             }
         }
         Self {
@@ -106,36 +242,55 @@ impl QuietSchedule {
     /// The strict reading of what the interface submits: `enabled` and
     /// `digest` must be booleans, `days` an object of known weekday keys
     /// with at most [`MAX_INTERVALS_PER_DAY`] `{from, to}` intervals in
-    /// `HH:MM` each. Error: `invalid_quiet`.
-    pub fn from_value_strict(value: &Value) -> Result<Self, &'static str> {
+    /// `HH:MM` each. Within a day, an interval may not repeat or overlap an
+    /// earlier one, nor start where it ends (unless it is `00:00`–`00:00`,
+    /// the whole day); intervals of different days may run into each other.
+    pub fn from_value_strict(value: &Value) -> Result<Self, QuietError> {
         let flag = |key: &str| {
             value
                 .get(key)
                 .and_then(Value::as_bool)
-                .ok_or("invalid_quiet")
+                .ok_or(QuietError::invalid())
         };
         let mut days: [Vec<Interval>; 7] = Default::default();
         if let Some(object) = value.get("days") {
-            let object = object.as_object().ok_or("invalid_quiet")?;
+            let object = object.as_object().ok_or(QuietError::invalid())?;
             for (key, list) in object {
                 let index = DAY_KEYS
                     .iter()
                     .position(|day| day == key)
-                    .ok_or("invalid_quiet")?;
-                let list = list.as_array().ok_or("invalid_quiet")?;
+                    .ok_or(QuietError::invalid())?;
+                let day = DAY_KEYS[index];
+                let list = list.as_array().ok_or(QuietError {
+                    day: Some(day),
+                    ..QuietError::invalid()
+                })?;
                 if list.len() > MAX_INTERVALS_PER_DAY {
-                    return Err("invalid_quiet");
+                    return Err(QuietError {
+                        day: Some(day),
+                        ..QuietError::invalid()
+                    });
                 }
-                days[index] = list
-                    .iter()
-                    .map(|item| {
-                        Interval::parse(
-                            item["from"].as_str().ok_or("invalid_quiet")?,
-                            item["to"].as_str().ok_or("invalid_quiet")?,
-                        )
-                        .ok_or("invalid_quiet")
-                    })
-                    .collect::<Result<_, _>>()?;
+                let mut parsed = Vec::with_capacity(list.len());
+                for (position, item) in list.iter().enumerate() {
+                    let time = |field: &'static str| {
+                        item[field]
+                            .as_str()
+                            .and_then(parse_time)
+                            .ok_or(QuietError::at(QuietErrorCode::Time, day, position, field))
+                    };
+                    parsed.push(Interval {
+                        from: time("from")?,
+                        to: time("to")?,
+                    });
+                    if let Some((code, field, with)) = day_conflict(&parsed, position) {
+                        return Err(QuietError {
+                            with,
+                            ..QuietError::at(code, day, position, field)
+                        });
+                    }
+                }
+                days[index] = parsed;
             }
         }
         Ok(Self {
@@ -143,6 +298,37 @@ impl QuietSchedule {
             days,
             digest: flag("digest")?,
         })
+    }
+
+    /// Whether the intervals leave no gap in the week, with the ones that
+    /// cross midnight running into the next day (Sunday's into Monday's).
+    /// Such a schedule, once enabled, holds everything but exhaustion and
+    /// never ends, so no digest is sent (PRD 0032 re-validation C-12).
+    /// `enabled` is not looked at.
+    pub fn always_on(&self) -> bool {
+        const WEEK: u32 = 7 * DAY_MINUTES;
+        let mut spans: Vec<(u32, u32)> = Vec::new();
+        for (day, list) in (0u32..).zip(&self.days) {
+            for interval in list {
+                let (start, end) = interval.span();
+                let (start, end) = (day * DAY_MINUTES + start, day * DAY_MINUTES + end);
+                if end > WEEK {
+                    spans.push((start, WEEK));
+                    spans.push((0, end - WEEK));
+                } else {
+                    spans.push((start, end));
+                }
+            }
+        }
+        spans.sort_unstable();
+        let mut covered = 0;
+        for (start, end) in spans {
+            if start > covered {
+                return false;
+            }
+            covered = covered.max(end);
+        }
+        covered >= WEEK
     }
 
     /// The JSON form stored in `desktop.json`: only the days that have

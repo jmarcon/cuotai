@@ -95,6 +95,10 @@ pub struct LocaleRow {
     /// Rollout phase (PRD 0035 §9): 0 for the four languages that shipped
     /// before, then 1 or 2.
     pub phase: u8,
+    /// The first day of the week in the language's territory, as an ISO
+    /// weekday (1 = Monday, 7 = Sunday), from CLDR `weekData` `firstDay`
+    /// (PRD 0032 RF2.3: the quiet-hours editor lists the days from it).
+    pub first_weekday: u8,
 }
 
 impl LocaleRow {
@@ -119,6 +123,7 @@ const fn row(
     plural_rule: PluralRule,
     status: LocaleStatus,
     phase: u8,
+    first_weekday: u8,
 ) -> LocaleRow {
     LocaleRow {
         code,
@@ -133,6 +138,7 @@ const fn row(
         status,
         critical_reviewed: false,
         phase,
+        first_weekday,
     }
 }
 
@@ -142,7 +148,10 @@ use LocaleStatus::{InProgress, Shipped, Source};
 
 /// The built-in languages, in the fixed order of the language list
 /// (PRD 0035 RF3.3): the four that shipped first, then phase 1, then
-/// phase 2. No alphabetization across scripts.
+/// phase 2. No alphabetization across scripts. The last number of a row is
+/// its first weekday from CLDR `weekData` (Sunday for BR, US, JP, KR, IN
+/// and ID; Monday for the others, CN included, as ICU's
+/// `Intl.Locale("zh-CN").getWeekInfo().firstDay` also answers).
 pub const LOCALES: &[LocaleRow] = &[
     row(
         "pt-BR",
@@ -153,6 +162,7 @@ pub const LOCALES: &[LocaleRow] = &[
         PluralRule::ZeroOne,
         Shipped,
         0,
+        7,
     ),
     row(
         "en-US",
@@ -163,6 +173,7 @@ pub const LOCALES: &[LocaleRow] = &[
         PluralRule::One,
         Source,
         0,
+        7,
     ),
     row(
         "es",
@@ -173,6 +184,7 @@ pub const LOCALES: &[LocaleRow] = &[
         PluralRule::One,
         Shipped,
         0,
+        1,
     ),
     row(
         "it",
@@ -183,6 +195,7 @@ pub const LOCALES: &[LocaleRow] = &[
         PluralRule::One,
         Shipped,
         0,
+        1,
     ),
     LocaleRow {
         excluded_scripts: &["hant"],
@@ -196,6 +209,7 @@ pub const LOCALES: &[LocaleRow] = &[
             PluralRule::Other,
             Shipped,
             1,
+            1,
         )
     },
     row(
@@ -207,6 +221,7 @@ pub const LOCALES: &[LocaleRow] = &[
         PluralRule::ZeroOne,
         Shipped,
         1,
+        1,
     ),
     row(
         "de",
@@ -216,6 +231,7 @@ pub const LOCALES: &[LocaleRow] = &[
         &["de"],
         PluralRule::One,
         Shipped,
+        1,
         1,
     ),
     row(
@@ -227,6 +243,7 @@ pub const LOCALES: &[LocaleRow] = &[
         PluralRule::Other,
         Shipped,
         1,
+        7,
     ),
     row(
         "ru",
@@ -236,6 +253,7 @@ pub const LOCALES: &[LocaleRow] = &[
         &["ru"],
         PluralRule::EastSlavic,
         Shipped,
+        1,
         1,
     ),
     row(
@@ -247,6 +265,7 @@ pub const LOCALES: &[LocaleRow] = &[
         PluralRule::Other,
         Shipped,
         2,
+        7,
     ),
     row(
         "hi-IN",
@@ -257,6 +276,7 @@ pub const LOCALES: &[LocaleRow] = &[
         PluralRule::Hindi,
         Shipped,
         2,
+        7,
     ),
     row(
         "id-ID",
@@ -267,6 +287,7 @@ pub const LOCALES: &[LocaleRow] = &[
         PluralRule::Other,
         Shipped,
         2,
+        7,
     ),
     row(
         "tr",
@@ -277,6 +298,7 @@ pub const LOCALES: &[LocaleRow] = &[
         PluralRule::One,
         Shipped,
         2,
+        1,
     ),
     row(
         "vi",
@@ -287,6 +309,7 @@ pub const LOCALES: &[LocaleRow] = &[
         PluralRule::Other,
         Shipped,
         2,
+        1,
     ),
 ];
 
@@ -534,6 +557,27 @@ mod tests {
         // Fixed order: shipped, then phase 1, then phase 2.
         let phases: Vec<u8> = LOCALES.iter().map(|row| row.phase).collect();
         assert!(phases.windows(2).all(|w| w[0] <= w[1]), "{phases:?}");
+    }
+
+    /// PRD 0032 RF2.3 (re-validation C-05): every row names its week's
+    /// first day as an ISO weekday, as CLDR `weekData` gives it.
+    #[test]
+    fn every_row_has_a_first_weekday() {
+        for row in LOCALES {
+            assert!(
+                (1..=7).contains(&row.first_weekday),
+                "{}: first weekday {}",
+                row.code,
+                row.first_weekday
+            );
+        }
+        let first = |code| locale_row(code).unwrap().first_weekday;
+        for code in ["en-US", "pt-BR", "ja", "ko", "hi-IN", "id-ID"] {
+            assert_eq!(first(code), 7, "{code} starts on Sunday");
+        }
+        for code in ["de", "es", "fr", "it", "ru", "tr", "vi", "zh-CN"] {
+            assert_eq!(first(code), 1, "{code} starts on Monday");
+        }
     }
 
     /// PRD 0035 RF4.4: the hard-coded rules agree with what the WebView's

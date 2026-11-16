@@ -3,20 +3,20 @@
 // `CUOTAI_REGENERATE_LOCALES=1 cargo test -p cuotai-core locale_registry_copies`; a plain run fails on drift.
 // registry:begin
 export const REGISTRY = [
-  {"code":"pt-BR","endonym":"Português","flag":"br","script":"Latn","dir":"ltr","languages":["pt"],"excluded_scripts":[],"excluded_regions":[],"plural_rule":"zero_one","status":"shipped","critical_reviewed":false,"phase":0},
-  {"code":"en-US","endonym":"English","flag":"us","script":"Latn","dir":"ltr","languages":["en"],"excluded_scripts":[],"excluded_regions":[],"plural_rule":"one","status":"source","critical_reviewed":false,"phase":0},
-  {"code":"es","endonym":"Español","flag":"es","script":"Latn","dir":"ltr","languages":["es"],"excluded_scripts":[],"excluded_regions":[],"plural_rule":"one","status":"shipped","critical_reviewed":false,"phase":0},
-  {"code":"it","endonym":"Italiano","flag":"it","script":"Latn","dir":"ltr","languages":["it"],"excluded_scripts":[],"excluded_regions":[],"plural_rule":"one","status":"shipped","critical_reviewed":false,"phase":0},
-  {"code":"zh-CN","endonym":"中文（简体）","flag":"cn","script":"Hans","dir":"ltr","languages":["zh","cmn"],"excluded_scripts":["hant"],"excluded_regions":["tw","hk","mo"],"plural_rule":"other","status":"shipped","critical_reviewed":false,"phase":1},
-  {"code":"fr","endonym":"Français","flag":"fr","script":"Latn","dir":"ltr","languages":["fr"],"excluded_scripts":[],"excluded_regions":[],"plural_rule":"zero_one","status":"shipped","critical_reviewed":false,"phase":1},
-  {"code":"de","endonym":"Deutsch","flag":"de","script":"Latn","dir":"ltr","languages":["de"],"excluded_scripts":[],"excluded_regions":[],"plural_rule":"one","status":"shipped","critical_reviewed":false,"phase":1},
-  {"code":"ja","endonym":"日本語","flag":"jp","script":"Jpan","dir":"ltr","languages":["ja"],"excluded_scripts":[],"excluded_regions":[],"plural_rule":"other","status":"shipped","critical_reviewed":false,"phase":1},
-  {"code":"ru","endonym":"Русский","flag":"ru","script":"Cyrl","dir":"ltr","languages":["ru"],"excluded_scripts":[],"excluded_regions":[],"plural_rule":"east_slavic","status":"shipped","critical_reviewed":false,"phase":1},
-  {"code":"ko","endonym":"한국어","flag":"kr","script":"Kore","dir":"ltr","languages":["ko"],"excluded_scripts":[],"excluded_regions":[],"plural_rule":"other","status":"shipped","critical_reviewed":false,"phase":2},
-  {"code":"hi-IN","endonym":"हिन्दी","flag":"in","script":"Deva","dir":"ltr","languages":["hi"],"excluded_scripts":[],"excluded_regions":[],"plural_rule":"hindi","status":"shipped","critical_reviewed":false,"phase":2},
-  {"code":"id-ID","endonym":"Bahasa Indonesia","flag":"id","script":"Latn","dir":"ltr","languages":["id","in"],"excluded_scripts":[],"excluded_regions":[],"plural_rule":"other","status":"shipped","critical_reviewed":false,"phase":2},
-  {"code":"tr","endonym":"Türkçe","flag":"tr","script":"Latn","dir":"ltr","languages":["tr"],"excluded_scripts":[],"excluded_regions":[],"plural_rule":"one","status":"shipped","critical_reviewed":false,"phase":2},
-  {"code":"vi","endonym":"Tiếng Việt","flag":"vn","script":"Latn","dir":"ltr","languages":["vi"],"excluded_scripts":[],"excluded_regions":[],"plural_rule":"other","status":"shipped","critical_reviewed":false,"phase":2},
+  {"code":"pt-BR","endonym":"Português","flag":"br","script":"Latn","dir":"ltr","languages":["pt"],"excluded_scripts":[],"excluded_regions":[],"plural_rule":"zero_one","status":"shipped","critical_reviewed":false,"phase":0,"first_weekday":7},
+  {"code":"en-US","endonym":"English","flag":"us","script":"Latn","dir":"ltr","languages":["en"],"excluded_scripts":[],"excluded_regions":[],"plural_rule":"one","status":"source","critical_reviewed":false,"phase":0,"first_weekday":7},
+  {"code":"es","endonym":"Español","flag":"es","script":"Latn","dir":"ltr","languages":["es"],"excluded_scripts":[],"excluded_regions":[],"plural_rule":"one","status":"shipped","critical_reviewed":false,"phase":0,"first_weekday":1},
+  {"code":"it","endonym":"Italiano","flag":"it","script":"Latn","dir":"ltr","languages":["it"],"excluded_scripts":[],"excluded_regions":[],"plural_rule":"one","status":"shipped","critical_reviewed":false,"phase":0,"first_weekday":1},
+  {"code":"zh-CN","endonym":"中文（简体）","flag":"cn","script":"Hans","dir":"ltr","languages":["zh","cmn"],"excluded_scripts":["hant"],"excluded_regions":["tw","hk","mo"],"plural_rule":"other","status":"shipped","critical_reviewed":false,"phase":1,"first_weekday":1},
+  {"code":"fr","endonym":"Français","flag":"fr","script":"Latn","dir":"ltr","languages":["fr"],"excluded_scripts":[],"excluded_regions":[],"plural_rule":"zero_one","status":"shipped","critical_reviewed":false,"phase":1,"first_weekday":1},
+  {"code":"de","endonym":"Deutsch","flag":"de","script":"Latn","dir":"ltr","languages":["de"],"excluded_scripts":[],"excluded_regions":[],"plural_rule":"one","status":"shipped","critical_reviewed":false,"phase":1,"first_weekday":1},
+  {"code":"ja","endonym":"日本語","flag":"jp","script":"Jpan","dir":"ltr","languages":["ja"],"excluded_scripts":[],"excluded_regions":[],"plural_rule":"other","status":"shipped","critical_reviewed":false,"phase":1,"first_weekday":7},
+  {"code":"ru","endonym":"Русский","flag":"ru","script":"Cyrl","dir":"ltr","languages":["ru"],"excluded_scripts":[],"excluded_regions":[],"plural_rule":"east_slavic","status":"shipped","critical_reviewed":false,"phase":1,"first_weekday":1},
+  {"code":"ko","endonym":"한국어","flag":"kr","script":"Kore","dir":"ltr","languages":["ko"],"excluded_scripts":[],"excluded_regions":[],"plural_rule":"other","status":"shipped","critical_reviewed":false,"phase":2,"first_weekday":7},
+  {"code":"hi-IN","endonym":"हिन्दी","flag":"in","script":"Deva","dir":"ltr","languages":["hi"],"excluded_scripts":[],"excluded_regions":[],"plural_rule":"hindi","status":"shipped","critical_reviewed":false,"phase":2,"first_weekday":7},
+  {"code":"id-ID","endonym":"Bahasa Indonesia","flag":"id","script":"Latn","dir":"ltr","languages":["id","in"],"excluded_scripts":[],"excluded_regions":[],"plural_rule":"other","status":"shipped","critical_reviewed":false,"phase":2,"first_weekday":7},
+  {"code":"tr","endonym":"Türkçe","flag":"tr","script":"Latn","dir":"ltr","languages":["tr"],"excluded_scripts":[],"excluded_regions":[],"plural_rule":"one","status":"shipped","critical_reviewed":false,"phase":2,"first_weekday":1},
+  {"code":"vi","endonym":"Tiếng Việt","flag":"vn","script":"Latn","dir":"ltr","languages":["vi"],"excluded_scripts":[],"excluded_regions":[],"plural_rule":"other","status":"shipped","critical_reviewed":false,"phase":2,"first_weekday":1},
 ];
 // registry:end
 

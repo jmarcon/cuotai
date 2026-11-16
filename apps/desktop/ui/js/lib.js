@@ -1929,6 +1929,44 @@ function demoTraySel() {
   if (!Number.isInteger(n) || n <= 0) return null;
   return demoReports.map((_, index) => demoAccountId(index)).slice(-n).reverse();
 }
+/** PRD 0032 re-validation R-03: `?quiet` starts with quiet hours on (weeknights, longer weekend nights and a Monday
+ *  lunch break), `?quiet=always` with every day whole (the always-on note), so the harness can draw the sub-page. */
+function demoQuiet() {
+  const mode = new URLSearchParams(location.search).get("quiet");
+  if (mode == null) return { enabled: false, days: {}, digest: true };
+  const days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+  if (mode === "always") return { enabled: true, digest: true, days: Object.fromEntries(days.map((d) => [d, [{ from: "00:00", to: "00:00" }]])) };
+  const night = (d) => (d === "sat" || d === "sun" ? { from: "23:00", to: "09:00" } : { from: "22:00", to: "07:00" });
+  const out = Object.fromEntries(days.map((d) => [d, [night(d)]]));
+  out.mon.push({ from: "12:00", to: "13:00" });
+  return { enabled: true, digest: true, days: out };
+}
+/** The demo's twin of the core's strict quiet-hours reading (`QuietSchedule::from_value_strict`, PRD 0032
+ *  re-validation C-06): the refusal as the JSON object `set_quiet_hours` sends, or null. */
+function demoQuietRefusal(quiet) {
+  const keys = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+  const time = /^([01]\d|2[0-3]):[0-5]\d$/;
+  if (typeof quiet?.enabled !== "boolean" || typeof quiet?.digest !== "boolean") return { code: "invalid_quiet" };
+  const span = (iv) => {
+    const m = (x) => Number(x.slice(0, 2)) * 60 + Number(x.slice(3));
+    return [m(iv.from), m(iv.to) > m(iv.from) ? m(iv.to) : m(iv.to) + 1440];
+  };
+  for (const [day, list] of Object.entries(quiet.days ?? {})) {
+    if (!keys.includes(day)) return { code: "invalid_quiet" };
+    if (!Array.isArray(list) || list.length > 3) return { code: "invalid_quiet", day };
+    for (const [index, iv] of list.entries()) {
+      for (const field of ["from", "to"]) if (!time.test(iv?.[field])) return { code: "invalid_quiet_time", day, index, field };
+      if (iv.from === iv.to && iv.from !== "00:00") return { code: "invalid_quiet_empty", day, index, field: "to" };
+      const [a, b] = span(iv);
+      for (const [other, earlier] of list.slice(0, index).entries()) {
+        if (earlier.from === iv.from && earlier.to === iv.to) return { code: "invalid_quiet_duplicate", day, index, field: "from", with: other };
+        const [c, d] = span(earlier);
+        if (a < d && c < b) return { code: "invalid_quiet_overlap", day, index, field: "from", with: other };
+      }
+    }
+  }
+  return null;
+}
 const demoSettings = { monograms: {}, profileExisted: new URLSearchParams(location.search).has("profile-existed"), whatsNewDue: new URLSearchParams(location.search).has("whats-new"), // Re-validation V-19: `?traysel=N` starts with a custom menu-bar selection of the last N accounts (reversed), and
   // `?rows=minimal|detailed` with that row display, so the harness can draw them.
   tray: { style: "tightest_percent", colored: false, accounts: demoTraySel(), popover_view: null }, advancedOpen: false,
@@ -1937,7 +1975,7 @@ const demoSettings = { monograms: {}, profileExisted: new URLSearchParams(locati
   onboarding: new URLSearchParams(location.search).has("first-run") ? 0 : 1,
   custom: null, config: null, generation: 1, historyRecording: true, historyEpoch: 0, historyErased: new Set(), sessionMigrated: new Set(), sessionForgotten: new Set(),
   notify: { enabled: false, lead_minutes: 0, when: "used", include_other: false, off_accounts: [], private: true, days_off: ["sat", "sun"], limit_changes: false, digest: { enabled: false, weekday: 0, hour: 9 } },
-  quiet: { enabled: false, days: {}, digest: true }, missedSeen: new Set(),
+  quiet: demoQuiet(), missedSeen: new Set(),
   alerts: { enabled: false, thresholds: [75, 90], exhaustion: true, recovery: true, overage: true, muted: {} }, statusQueries: DEMO_STATUS != null, detect: { enabled: new URLSearchParams(location.search).get("detect") === "ask" ? null : true, dismissed: [] },
   serve: { enabled: DEMO_SERVE_TAKEN, port: 6738, allow_browsers: false, secret: DEMO_SERVE_TAKEN ? "cuotai_demo_taken" : null },
   widgets: { enabled: DEMO_WIDGETS, include_identity: false, max_accounts: 6, written: false } };
@@ -3115,13 +3153,9 @@ const demo = {
   },
   set_notify_private: async ({ on }) => { demoSettings.notify.private = on; },
   set_quiet_hours: async ({ quiet }) => {
-    const days = quiet?.days ?? {};
-    const time = /^([01]\d|2[0-3]):[0-5]\d$/;
-    const valid = typeof quiet?.enabled === "boolean" && typeof quiet?.digest === "boolean"
-      && Object.entries(days).every(([k, list]) => ["mon", "tue", "wed", "thu", "fri", "sat", "sun"].includes(k) && Array.isArray(list) && list.length <= 3
-        && list.every((i) => time.test(i?.from) && time.test(i?.to)));
-    if (!valid) throw "invalid_quiet";
-    demoSettings.quiet = { enabled: quiet.enabled, digest: quiet.digest, days: structuredClone(days) };
+    const refused = demoQuietRefusal(quiet);
+    if (refused) throw JSON.stringify(refused);
+    demoSettings.quiet = { enabled: quiet.enabled, digest: quiet.digest, days: structuredClone(quiet.days ?? {}) };
   },
   acknowledge_missed: async ({ accountKey }) => { demoSettings.missedSeen.add(accountKey); },
   set_account_notify: async ({ accountKey, on }) => {

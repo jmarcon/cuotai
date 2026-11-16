@@ -30,6 +30,8 @@ static PSEUDO_ROW: LocaleRow = LocaleRow {
     status: LocaleStatus::InProgress,
     critical_reviewed: false,
     phase: 0,
+    // Formats like en-US.
+    first_weekday: 7,
 };
 
 /// Whether `locale` selects the pseudo-locale; always `false` in release

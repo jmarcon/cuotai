@@ -2051,17 +2051,22 @@ async fn set_notify_private(app: AppHandle, b: Shared<'_>, on: bool) -> Result<(
 }
 
 /// PRD 0032 RF2: the quiet hours (`enabled`, `days` of `{from, to}` in
-/// `HH:MM`, `digest`), saved in `desktop.json`. Errors: `invalid_quiet`,
+/// `HH:MM`, `digest`), saved in `desktop.json`. Answers whether the saved
+/// schedule leaves no gap in the week (`always_on`, re-validation C-12).
+/// Errors: the core's refusal as a JSON object (`code`, and `day`, `index`,
+/// `field`, `with` when it is one interval's; re-validation C-06), or
 /// `unwritable`.
 #[tauri::command]
 async fn set_quiet_hours(
     app: AppHandle,
     b: Shared<'_>,
     quiet: serde_json::Value,
-) -> Result<(), String> {
-    let quiet =
-        cuotai_core::quiet::QuietSchedule::from_value_strict(&quiet).map_err(str::to_owned)?;
-    b.update_notices(&app, |n| n.set_quiet(quiet)).await
+) -> Result<serde_json::Value, String> {
+    let quiet = cuotai_core::quiet::QuietSchedule::from_value_strict(&quiet)
+        .map_err(|refusal| refusal.to_json())?;
+    let always_on = quiet.always_on();
+    b.update_notices(&app, |n| n.set_quiet(quiet)).await?;
+    Ok(serde_json::json!({ "always_on": always_on }))
 }
 
 /// PRD 0032 RF8.2: the person opened the details of the account with the
