@@ -26,13 +26,21 @@ const RESET_QUERY_SPACING: Duration = Duration::from_secs(300);
 /// drift (or a nap too short to matter), not a suspension.
 const SUSPEND_SLACK: Duration = Duration::from_secs(60);
 
-/// What the cycle remembers of an account's reset-driven query (RF1.2).
-#[derive(Clone, Debug)]
+/// PRD 0033 re-validation M-3: at most this many reset-driven queries per
+/// account in any rolling hour.
+const RESET_QUERIES_PER_HOUR: usize = 2;
+/// How many served window instances an account remembers.
+const RESET_INSTANCES_KEPT: usize = 8;
+
+/// What the cycle remembers of an account's reset-driven queries (RF1.2).
+#[derive(Clone, Debug, Default)]
 struct ResetQuery {
-    /// Earliest `resets_at` of the window instance that was served.
-    instance: chrono::DateTime<Utc>,
-    /// When the extra query was armed.
-    armed_at: Instant,
+    /// Earliest `resets_at` of each window instance served lately, so an
+    /// instance seen again (alternating windows) never arms twice.
+    served: std::collections::VecDeque<chrono::DateTime<Utc>>,
+    /// When each extra query of the last hour was due to run: the spacing
+    /// counts from there, never from when it was armed (M-3).
+    runs: std::collections::VecDeque<Instant>,
 }
 
 /// Refresh state for one validated [`Config`].
@@ -285,10 +293,20 @@ impl RefreshCycle {
             return;
         };
         let key = report.state_key();
-        if let Some(done) = self.reset_queries.get(&key) {
-            if (done.instance - first).abs() < crate::resets::DRIFT_TOLERANCE {
-                return;
-            }
+        let hour = Duration::from_secs(3600);
+        let mut done = self.reset_queries.get(&key).cloned().unwrap_or_default();
+        if done
+            .served
+            .iter()
+            .any(|instance| (*instance - first).abs() < crate::resets::DRIFT_TOLERANCE)
+        {
+            return;
+        }
+        done.runs
+            .retain(|run| run.checked_add(hour).is_some_and(|end| end > now));
+        // PRD 0033 re-validation M-3: a hard ceiling per rolling hour.
+        if done.runs.len() >= RESET_QUERIES_PER_HOUR {
+            return;
         }
         // Resets within two minutes of the first share one query, after
         // the last of them.
@@ -310,8 +328,8 @@ impl RefreshCycle {
             },
             Err(_) => now,
         };
-        let target = match self.reset_queries.get(&key) {
-            Some(done) => target.max(done.armed_at + RESET_QUERY_SPACING),
+        let target = match done.runs.back() {
+            Some(last) => target.max(*last + RESET_QUERY_SPACING),
             None => target,
         };
         let deadline = self.deadlines[index];
@@ -321,13 +339,12 @@ impl RefreshCycle {
         let covered = self.bring_forward(index, target)
             || (target + BRING_FORWARD_SLACK > deadline && target < deadline + BRING_FORWARD_SLACK);
         if covered {
-            self.reset_queries.insert(
-                key,
-                ResetQuery {
-                    instance: first,
-                    armed_at: now,
-                },
-            );
+            if done.served.len() >= RESET_INSTANCES_KEPT {
+                done.served.pop_front();
+            }
+            done.served.push_back(first);
+            done.runs.push_back(target);
+            self.reset_queries.insert(key, done);
         }
     }
 
@@ -3424,6 +3441,56 @@ mod prd0033_rf2_tests {
             reloaded.next_refresh_in(0, later),
             Duration::from_secs(3600)
         );
+    }
+
+    /// PRD 0033 re-validation M-3: alternating `resets_at` values for one
+    /// simulated hour arm at most two extra queries, at least 5 minutes
+    /// apart, counted from when they ran.
+    #[test]
+    fn alternating_resets_arm_at_most_two_extra_queries_an_hour() {
+        let (mut cycle, start) = cycle_with(Provider::Claude, 3600);
+        let mut now = start;
+        let mut extra = Vec::new();
+        let mut round = 0;
+        while now < start + Duration::from_secs(3600) {
+            let offset = if round % 2 == 0 { 1 } else { 5 };
+            round += 1;
+            let report = quota_report(Provider::Claude, &[TimeDelta::minutes(offset)]);
+            finish_one(&mut cycle, report, now);
+            let wait = cycle.next_refresh_in(0, now);
+            if wait < Duration::from_secs(3600) {
+                extra.push(now + wait);
+            }
+            // Each answer comes back at once: as many chances to re-arm as
+            // the cycle allows.
+            now += wait.min(Duration::from_secs(40));
+            assert!(round < 1000);
+        }
+        let distinct: std::collections::BTreeSet<_> = extra.iter().collect();
+        assert!(distinct.len() <= 2, "{} extra queries", distinct.len());
+        assert!(!distinct.is_empty(), "a reset still brings a query forward");
+        let runs: Vec<_> = distinct.into_iter().collect();
+        for pair in runs.windows(2) {
+            assert!(*pair[1] - *pair[0] >= Duration::from_secs(300));
+        }
+    }
+
+    /// A failed extra query arms nothing; the next ready reading keeps the
+    /// spacing from when the failed one ran.
+    #[test]
+    fn a_failed_extra_query_does_not_re_arm_at_once() {
+        let (mut cycle, now) = cycle_with(Provider::Claude, 3600);
+        let report = quota_report(Provider::Claude, &[TimeDelta::minutes(1)]);
+        finish_one(&mut cycle, report, now);
+        let ran = now + cycle.next_refresh_in(0, now);
+        let mut failed = quota_report(Provider::Claude, &[]);
+        failed.status = Status::Error;
+        finish_one(&mut cycle, failed, ran);
+        let after = ran + Duration::from_secs(1);
+        let next = quota_report(Provider::Claude, &[TimeDelta::seconds(10)]);
+        finish_one(&mut cycle, next, after);
+        let wait = cycle.next_refresh_in(0, after);
+        assert!(after + wait >= ran + Duration::from_secs(300), "{wait:?}");
     }
 
     #[test]
