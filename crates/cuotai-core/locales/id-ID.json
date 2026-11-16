@@ -1923,7 +1923,7 @@
     "other": "dan {count} lainnya"
   },
   "quiet.digest.title": {
-    "other": "Cuotai: {count} peringatan penggunaan ditahan selama jam tenang"
+    "other": "Cuotai: {count} peringatan ditahan selama jam tenang"
   },
   "remove.kept.declined": "Anda memilih menyimpan kredensial di brankas sistem.",
   "remove.kept.shared": "Kredensial dipertahankan karena akun \"{name}\" masih memakainya; menghapusnya akan merusak akun yang tersisa.",

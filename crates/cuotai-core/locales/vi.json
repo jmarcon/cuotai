@@ -1923,7 +1923,7 @@
     "other": "và {count} mục nữa"
   },
   "quiet.digest.title": {
-    "other": "Cuotai: {count} cảnh báo sử dụng bị giữ trong giờ yên tĩnh"
+    "other": "Cuotai: {count} cảnh báo bị giữ trong giờ yên tĩnh"
   },
   "remove.kept.declined": "Bạn đã chọn giữ thông tin xác thực trong kho của hệ thống.",
   "remove.kept.shared": "Thông tin xác thực được giữ lại vì tài khoản \"{name}\" vẫn dùng nó; xóa sẽ làm hỏng tài khoản còn lại.",

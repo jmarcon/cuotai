@@ -1941,8 +1941,8 @@
     "other": "et {count} de plus"
   },
   "quiet.digest.title": {
-    "one": "Cuotai : {count} alerte d’utilisation retenue pendant les heures calmes",
-    "other": "Cuotai : {count} alertes d’utilisation retenues pendant les heures calmes"
+    "one": "Cuotai : {count} alerte retenue (heures calmes)",
+    "other": "Cuotai : {count} alertes retenues (heures calmes)"
   },
   "remove.kept.declined": "Vous avez choisi de conserver l’identifiant dans le coffre du système.",
   "remove.kept.shared": "L’identifiant a été conservé car le compte « {name} » l’utilise encore ; le supprimer casserait ce compte.",

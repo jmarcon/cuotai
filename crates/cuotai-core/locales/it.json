@@ -2075,8 +2075,8 @@
   "resets.title.reset_other": "{provider}: quota azzerata",
   "resets.title.soon_other": "{provider}: quota si azzera tra {minutes} min",
   "quiet.digest.title": {
-    "one": "Cuotai: {count} avviso di utilizzo trattenuto durante le ore di silenzio",
-    "other": "Cuotai: {count} avvisi di utilizzo trattenuti durante le ore di silenzio"
+    "one": "Cuotai: {count} avviso trattenuto (ore di silenzio)",
+    "other": "Cuotai: {count} avvisi trattenuti (ore di silenzio)"
   },
   "quiet.digest.more": {
     "one": "e un altro",

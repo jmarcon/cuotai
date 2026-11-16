@@ -2075,8 +2075,8 @@
   "resets.title.reset_other": "{provider}: cuota renovada",
   "resets.title.soon_other": "{provider}: cuota se renueva en {minutes} min",
   "quiet.digest.title": {
-    "one": "Cuotai: {count} alerta de uso retenida durante las horas de silencio",
-    "other": "Cuotai: {count} alertas de uso retenidas durante las horas de silencio"
+    "one": "Cuotai: {count} alerta retenida (horas de silencio)",
+    "other": "Cuotai: {count} alertas retenidas (horas de silencio)"
   },
   "quiet.digest.more": {
     "one": "y {count} más",
