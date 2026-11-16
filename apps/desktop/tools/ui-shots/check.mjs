@@ -39,6 +39,8 @@ const ZOOM_PAGES = [
   ["zoom200-main-stats", "index.html", 640, 410, { "cuotai.openView": "stats" }],
   // PRD 0023 re-validation (V-01, V-09): the extra-usage states (provider units, capped, unknown, armed) at 200 %.
   ["zoom200-main-overage", "index.html?overage", 640, 410, {}],
+  // PRD 0033 re-validation (V-15): the renewed slot and the labelled pace line at 200 %.
+  ["zoom200-main-renewed", "index.html?renewed", 640, 410, {}],
   ["zoom200-settings-general", "settings.html?page=general", 640, 360, {}],
   ["zoom200-settings-dashboard", "settings.html?page=dashboard", 640, 360, {}],
   ["zoom200-settings-alerts", "settings.html?page=alerts", 640, 360, {}],
@@ -72,6 +74,13 @@ const PAGES = zoom ? ZOOM_PAGES : [
   ["main-overage", "index.html?overage", 1200, 820, {}],
   ["main-overage-narrow", "index.html?overage", 520, 820, {}],
   ["tray-overage", "tray.html?overage", 380, 600, {}],
+  // PRD 0033 re-validation (V-15): a renewed window beside a current one, a restored reading whose only quota renewed,
+  // a labelled pace line on another window than the binding one, readings whose data lags the query, and the AWS
+  // Bedrock account as the core reports it.
+  ["main-renewed", "index.html?renewed", 1200, 820, {}],
+  ["main-renewed-narrow", "index.html?renewed", 520, 820, {}],
+  ["main-lagging", "index.html?lagging&metered", 1200, 820, {}],
+  ["tray-renewed", "tray.html?renewed&lagging", 380, 600, {}],
   ["main-win98-light", "index.html?fixture=six", 1200, 820, { "cuotai.theme": "win98", "cuotai.themeMode": "light" }],
   ["main-win98-dark", "index.html?fixture=six", 1200, 820, { "cuotai.theme": "win98", "cuotai.themeMode": "dark" }],
   ["main-winxp-light", "index.html?fixture=six", 1200, 820, { "cuotai.theme": "winxp", "cuotai.themeMode": "light" }],
@@ -112,6 +121,8 @@ const PAGES = zoom ? ZOOM_PAGES : [
   // PRD 0002 V-01: an account expanded with Models open (the demo's failed-sync fixture), so the sync bar is checked.
   ["tray-models", "tray.html?models=failed", 380, 600, {}, "[data-open]", true],
   ["details-short", "index.html", 1200, 500, {}, "[data-details]"],
+  // PRD 0033 re-validation (V-15): the details of the preserved reading whose 5 h window renewed.
+  ["details-renewed", "index.html?renewed", 1200, 820, {}, '.card[data-card="claude::mixed@example.com"] [data-details]'],
   ["details-narrow", "index.html", 520, 600, {}, "[data-details]"],
   // PRD 0028 RF1.3: the demo's Zed account, whose response changed, with its "What changed" block.
   ["details-drift", "index.html", 1200, 820, {}, '.card[data-card*="zed"] [data-details]'],
@@ -128,6 +139,8 @@ const PAGES = zoom ? ZOOM_PAGES : [
   // peer field) and, with `?unnamed`, beside an unnamed one (the peer field shows); every `hidden` part stays hidden.
   ["dialog-add", "index.html", 1200, 820, {}, ["[data-add]", '.pick[data-provider="groq"]']],
   ["dialog-add-peer", "index.html?unnamed", 1200, 820, {}, ["[data-add]", '.pick[data-provider="groq"]']],
+  // PRD 0033 re-validation (V-15): the AWS Bedrock form (profile, CLI path, SSO login, interval and cost advisory).
+  ["dialog-add-bedrock", "index.html", 1200, 820, {}, ["[data-add]", '.pick[data-provider="aws_bedrock"]']],
   // V-03, V-07: unnamed accounts (a plain one and the 9router instance) on the cards, the tray and Stats.
   ["main-unnamed", "index.html?unnamed", 1200, 820, {}],
   ["tray-unnamed", "tray.html?unnamed", 380, 600, {}],

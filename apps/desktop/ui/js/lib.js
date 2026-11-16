@@ -1624,6 +1624,23 @@ const DEMO_PACES = new Map([
   [20, [null, { 0: dp("reserve", "good", 0.6, 0.35, 9), 1: dp("ahead", "warn", 0.6, 0.82, 9, 4.5) }]],
   [21, [1, { 0: dp("reserve", "good", 0.62, 0.4, 9), 1: dp("ahead", "warn", 0.45, 0.7, 300, 150) }]],
 ].map(([index, pace]) => [demoReports[index], pace]));
+// PRD 0033 re-validation (V-15): an AWS Bedrock account as the core reports it (`providers::cloud::fetch_bedrock`): the
+// month's Cost Explorer spend with its raw label and the translated `label_text`/`period_text`, the two Cost Explorer
+// notes and the hourly metered interval (example.com only, demo figures).
+const demoBedrock = () => {
+  const now = new Date();
+  const monthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString();
+  const cost = { label: "Custo AWS Bedrock (mês corrente)", label_text: { id: "metric.label.bedrock_cost", params: {}, fallback: "AWS Bedrock cost (current month)" },
+    used: 18.42, limit: null, remaining: null, unit: "USD", unit_text: { id: "metric.verbatim", params: {}, fallback: "USD" }, kind: "spend", window: "monthly",
+    period: "mês corrente", period_text: { id: "metric.period.current_month", params: {}, fallback: "current month" }, resets_at: monthEnd,
+    state: "available", ratio: null, uncapped: true, no_cap: false };
+  const notes = [
+    { id: "note.cloud.aws_cost_scope", params: {}, fallback: "Cost Explorer filtered by service \"Amazon Bedrock\", monthly granularity, current month. AWS cost data updates ~1x/day and may lag by up to 24h." },
+    { id: "note.cloud.aws_query_cost", params: {}, fallback: "Each get-cost-and-usage call to Cost Explorer is billed by AWS (US$ 0.01 per request), unlike generation calls: every dashboard refresh incurs a query charge." },
+  ];
+  return { ...dr("billing@example.com", "aws_bedrock", [cost], notes.map((n) => n.fallback)), notes_l10n: notes, refresh_seconds: 3600,
+    source: "https://docs.aws.amazon.com/cli/latest/reference/ce/get-cost-and-usage.html" };
+};
 // PRD 0022 RF18.2: `?fixture=six` swaps the demo accounts for the mockups' set (the six accounts plus a second Claude
 // account, example.com identities only), so the captures compare with `assets/0022/after/` (01, 03, 10, 11). With
 // `&bedrock` it adds an AWS Bedrock account (PRD 0027 RF3.1 "Billed per query" chip). `?mono=XY` (any demo) gives the
@@ -1646,7 +1663,7 @@ if (DEMO_QUERY.get("fixture") === "six") {
     [{ ...drn("team@example.com", "groq", [], demoNote("down", "Service unavailable right now."), "error"), checked_at: ago(2),
       last_good: { checked_at: ago(38), metrics: [dm("Requests (day)", 26, 100, 9, "quota", "daily")] } }, [null, 5], null],
     [drn("api@example.com", "anthropic_api", [], demoNote("auth", "Credential missing or expired."), "authentication_error"), [null, 6], null],
-    ...(DEMO_QUERY.has("bedrock") ? [[dr("billing@example.com", "aws_bedrock", [], ["Cost Explorer: no spend recorded this month (demo)."]), [null, 7], null]] : []),
+    ...(DEMO_QUERY.has("bedrock") ? [[demoBedrock(), [null, 7], null]] : []),
   ];
   demoReports.splice(0, demoReports.length, ...six.map(([r]) => r));
   // PRD 0024 re-validation (V-10): the core's best account of the Claude pair and the advice of the one that runs out,
@@ -1701,6 +1718,35 @@ if (DEMO_QUERY.has("overage")) {
 if (DEMO_QUERY.get("mono") && demoReports[0]) demoReports[0].monogram = DEMO_QUERY.get("mono");
 // `?paste-session`: the core offers the MiMo account a new paste, so the card and the details show Paste session.
 if (DEMO_QUERY.has("paste-session")) for (const r of demoReports) if (r.provider === "xiaomi_mimo") r.paste_session = true;
+// PRD 0033 re-validation (V-15): the states of PRD 0033 the default demo lacks, first in the list so the captures show
+// them (example.com only). `?renewed`: a preserved reading whose 5 h window renewed beside a current week (the card's
+// renewed slot, RF2.1), a restored reading whose only quota renewed (the tray's "Renewed at …") and an exhausted binding
+// week beside a paced 5 h window (the card's labelled pace line, RF4.1). `?lagging`: a fresh and an aging reading whose
+// provider data is older than the query by more than 15 minutes (`data_as_of`, RF3). `?metered`: the AWS Bedrock
+// account (`demoBedrock`). They combine with each other and with the default set.
+const demoRenewed = (label, window, renewedMin) => ({ label, used: null, limit: null, remaining: null, unit: "%", kind: "quota", window, period: null,
+  resets_at: ago(renewedMin), state: "unmeasured", ratio: null, uncapped: false, no_cap: false, expired: true });
+const demoSpend = (label, used) => ({ label, used, limit: null, remaining: null, unit: "USD", kind: "spend", window: "monthly", period: null,
+  resets_at: h(300), state: "available", ratio: null, uncapped: true, no_cap: false });
+const demoFirst = [];
+if (DEMO_QUERY.has("renewed")) {
+  const mixed = { ...drn("mixed@example.com", "claude", [], demoNote("down", "Service unavailable right now."), "error"), checked_at: ago(1), plan: "Max",
+    last_good: { checked_at: ago(50), metrics: [demoRenewed("session (5h)", "window_5h", 20), dm("weekly (7d)", 40, 100, 70, "quota", "weekly", "%")] } };
+  const restored = { ...dr("renewed@example.com", "kimi", []), pending: true, class: "unmeasured", checked_at: ago(300),
+    last_good: { checked_at: ago(300), metrics: [demoRenewed("Weekly", "weekly", 45)] } };
+  const paceOther = { ...dr("pace@example.com", "claude", [dm("session (5h)", 50, 100, 2.5, "quota", "window_5h", "%"), dm("weekly (7d)", 100, 100, 30, "quota", "weekly", "%")]),
+    class: "exhausted", plan: "Pro" };
+  demoFirst.push(mixed, restored, paceOther);
+  DEMO_BINDINGS.set(paceOther, [1, 0]);
+  DEMO_WINDOWS.set(paceOther, [0, 1]);
+  DEMO_PACES.set(paceOther, [0, { 0: dp("reserve", "good", 0.58, 0.5, 2.5) }]);
+}
+if (DEMO_QUERY.has("lagging")) {
+  demoFirst.push({ ...dr("lagging@example.com", "open_ai_api", [demoSpend("Costs (month)", 12.4)]), data_as_of: ago(6 * 60 + 10) },
+    { ...dr("aging@example.com", "open_ai_api", [demoSpend("Costs (month)", 3.1)]), checked_at: ago(25), freshness: "aging", data_as_of: ago(9 * 60) });
+}
+if (DEMO_QUERY.has("metered")) demoFirst.push(demoBedrock());
+demoReports.unshift(...demoFirst);
 // The core's binding of a demo connection: its most consumed quota (demo only; the app gets it from the core).
 const demoConnectionBinding = (c) => {
   const ratio = (m) => (m.limit ? m.used / m.limit : 0);
@@ -2572,6 +2618,23 @@ const demoBackup = (withHistory) => ({
   default_name: "cuotai-backup-2026-11-07.cuotai-backup.zip",
 });
 
+// PRD 0033 re-validation (V-15): the AWS Bedrock form as the backend's `form_schema` builds it: an AWS profile (no
+// typed key), the optional CLI path, the AWS SSO login of `oauth::login` and the metered interval bounds.
+const demoBedrockSchema = () => {
+  const sso = "login.aws_bedrock.aws_sso";
+  return { credential_kind: "profile", default_env: "", credential_help: dl("credential_help.aws_bedrock", ""), aggregator: false,
+    interval: { min: 300, max: 86400, default_seconds: 3600 }, secret_inputs: [], terminal_only_fields: [], preselect: [], sessions: [], session_notice: null,
+    login: { modes: [{ id: "aws_sso", label: dl(`${sso}.label`, "AWS SSO (AWS CLI)"),
+      help: dl(`${sso}.help`, "Runs \"aws sso login --use-device-code\" using the supplied profile; the token is cached by the AWS CLI itself, outside the Cuotai vault. Configure the profile beforehand with \"aws configure sso\"; Cost Explorer charges per query."),
+      completion_notice: dl(`${sso}.completion_notice`, "AWS CLI SSO login completed."), credential_store: "external", account_binding: { type: "credential", option: "profile" },
+      registration: [], unavailable_reason: null, install: null,
+      options: [{ id: "native.aws_bedrock.profile", key: "profile", label: dl(`${sso}.option.profile.label`, "AWS profile"),
+        help: dl(`${sso}.option.profile.help`, "Profile configured previously via \"aws configure sso\"."), choices: null, required: true, validation: null }] }],
+    unsupported_reason: null },
+    fields: [{ id: "field.aws_bedrock.cli_path", key: "cli_path", label: dl("field.aws_bedrock.cli_path.label", "AWS CLI path (optional)"),
+      help: dl("field.aws_bedrock.cli_path.help", "Empty = Cuotai looks for aws in PATH and in the usual install folders. Set the full path of the aws program only when it is installed elsewhere."),
+      required: false, options: null }] };
+};
 const demo = {
   get_view: async () => demoView(),
   refresh_all: async () => {},
@@ -2633,7 +2696,7 @@ const demo = {
     };
   },
   // PRD 0047: the desktop types the key (`secret_inputs`); the variable-name fields are terminal-only.
-  form_schema: async ({ provider }) => provider === "kiro" ? demoKiroSchema() : ({ credential_kind: "env",
+  form_schema: async ({ provider }) => provider === "kiro" ? demoKiroSchema() : provider === "aws_bedrock" ? demoBedrockSchema() : ({ credential_kind: "env",
     interval: provider === "aws_bedrock" ? { min: 300, max: 86400, default_seconds: 3600 } : { min: 30, max: 86400, default_seconds: null },
     secret_inputs: [DEMO_KEY_INPUT, ...(provider === "xiaomi_mimo" ? [{ slot: DEMO_SESSION_SLOT.slot, label: DEMO_SESSION_SLOT.label,
       help: DEMO_SESSION_SLOT.instructions, required: false, cookie: true, field: null }] : [])],
@@ -2645,7 +2708,7 @@ const demo = {
              { id: "demo.field.mode", key: "mode", label: { id: "demo.field.mode.label", params: {}, fallback: "Mode" }, help: { id: "demo.field.mode.help", params: {}, fallback: "" }, required: false, options: [{ id: "demo.field.mode.option.personal", index: 0, value: "personal", label: { id: "demo.field.mode.option.personal", params: {}, fallback: "Personal" } }, { id: "demo.field.mode.option.org", index: 1, value: "org", label: { id: "demo.field.mode.option.org", params: {}, fallback: "Organization" } }] }] }),
   visible_fields: async ({ provider, authMode }) => provider === "kiro"
     ? ["auth_method", "profile_arn"].filter((k) => !(authMode === "oauth" && k === "auth_method"))
-    : ["project_id", "mode"],
+    : provider === "aws_bedrock" ? ["cli_path"] : ["project_id", "mode"],
   field_choices: async ({ provider, choices, authMode }) => {
     const schema = provider === "kiro" ? demoKiroSchema() : await demo.form_schema({ provider });
     return schema.fields.filter((field) => field.options).map((field) => {
