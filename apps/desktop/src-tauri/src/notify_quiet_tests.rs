@@ -391,7 +391,13 @@ fn the_digest_is_delivered_one_line_per_item() {
     assert_eq!(fake.count(), 1);
     let (title, body) = fake.0.borrow()[0].clone();
     assert_eq!(title, "Cuotai: 7 usage alerts held during quiet hours");
-    assert!(body.chars().count() <= cuotai_core::text::NOTICE_LINES_BODY_MAX);
+    // The cap counts the text as shown; Linux escapes markup afterwards,
+    // as `notice_safe` does.
+    let shown = body
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">");
+    assert!(shown.chars().count() <= cuotai_core::text::NOTICE_LINES_BODY_MAX);
     let lines: Vec<&str> = body.lines().collect();
     assert!(lines.len() >= 2 && lines.len() <= 6, "{body}");
     assert!(lines.last().unwrap().starts_with("and "), "{body}");
