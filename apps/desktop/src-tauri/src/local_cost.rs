@@ -21,6 +21,7 @@ use cuotai_core::execution_review;
 use cuotai_core::text::Localized;
 use cuotai_core::Account;
 use serde::Serialize;
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
@@ -115,7 +116,20 @@ pub struct DisplayView {
     rate: f64,
     set_on: chrono::NaiveDate,
     age_days: u32,
+    /// C-08: the core's "set today", "set yesterday" or "set N days ago".
+    age: Localized,
     stale: bool,
+}
+
+/// RF4.1 with PRD 0030 C-07: the cards' and details' summary, plus per
+/// source the core's "≈ {amount} at your rate ({age})" of its period
+/// (absent without a typed rate, without usage or with nothing priced).
+#[derive(Serialize)]
+pub struct UsageView {
+    #[serde(flatten)]
+    summary: CostSummary,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    display_text: BTreeMap<SourceId, Localized>,
 }
 
 /// PRD 0030 RF1/RF6: the plan prices, the display currency and the plan
@@ -128,6 +142,10 @@ pub struct PlansView {
     display: Option<DisplayView>,
     /// One line per source with a plan (RF1.2/RF1.3).
     values: Vec<cost::PlanValue>,
+    /// C-02: saved plans or a second currency that were invalid and are
+    /// ignored (the core's notes; they repeat nothing of the file).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    settings_notes: Vec<Localized>,
 }
 
 /// RF1.1: the disclosure as a native question: its header as the title,
@@ -378,6 +396,35 @@ impl LocalCost {
             .map_err(l10n)
     }
 
+    /// RF4.1 with PRD 0030 C-07: [`Self::usage`] plus, per source with
+    /// usage, the core's line of its period in the typed second currency
+    /// (`DisplayCurrency::text_for`: "+ unknown" when part has no price,
+    /// nothing without usage or price).
+    pub fn usage_view(&self) -> Result<UsageView, String> {
+        let summary = self.usage()?;
+        let stores = self.stores()?;
+        let display = stores.settings.load().map_err(l10n)?.display_currency;
+        let today = Self::scanner(stores, &self.env)
+            .zone()
+            .day(chrono::Utc::now());
+        let display_text = display
+            .map(|display| {
+                summary
+                    .sources
+                    .iter()
+                    .filter_map(|source| {
+                        let usage = source.usage.as_ref()?;
+                        Some((source.source, display.text_for(&usage.period, today)?))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        Ok(UsageView {
+            summary,
+            display_text,
+        })
+    }
+
     /// PRD 0030 RF1/RF6: the plan accounts, the display currency and the
     /// plan values of `accounts` (the configured ones). Plans still saved
     /// under a legacy `provider:name` key move to the account id first.
@@ -399,9 +446,11 @@ impl LocalCost {
                 rate: d.rate,
                 set_on: d.set_on,
                 age_days: d.age_days(today),
+                age: d.age_text(today),
                 stale: d.stale(today),
             }),
             values,
+            settings_notes: saved.notes(),
         })
     }
 
@@ -621,6 +670,7 @@ mod tests {
         assert_eq!((saved.price, saved.currency.as_str()), (20.0, "BRL"));
         let view = cost.set_plan(&accounts, &id, None).unwrap();
         assert!(view.accounts[0].plan.is_none());
+        assert!(view.settings_notes.is_empty());
     }
 
     /// PRD 0042 RF6.1: every tab answers while the sources are off (empty
@@ -666,7 +716,13 @@ mod tests {
         let display = view.display.unwrap();
         assert_eq!((display.code.as_str(), display.rate), ("BRL", 5.42));
         assert_eq!(display.age_days, 0);
+        assert_eq!(display.age.id, "cost.rate.age.today");
         assert!(!display.stale);
+        // C-07: no usage, so no period line in the second currency.
+        assert!(cost.usage_view().unwrap().display_text.is_empty());
+        let json = serde_json::to_value(cost.usage_view().unwrap()).unwrap();
+        assert!(json.get("sources").is_some(), "the summary is flattened");
+        assert!(json.get("display_text").is_none());
         assert!(cost.set_display(&[], None).unwrap().display.is_none());
     }
 

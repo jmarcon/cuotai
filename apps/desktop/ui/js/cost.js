@@ -5,7 +5,7 @@
 // model without a price reads "cost unknown", never zero. A source that is off shows nothing on the cards and, in
 // the details, why and where to turn it on.
 import { currentLocale, t, te, tl, tle } from "./i18n.js";
-import { esc, fmtDate, fmtNumber, icon, logo } from "./lib.js";
+import { esc, fmtDate, fmtMoney, fmtNumber, icon, logo } from "./lib.js";
 import { showDialog } from "./motion.js";
 
 const sum = (tokens) => tokens.input + tokens.output + tokens.cache_read + tokens.cache_write + (tokens.cache_write_1h ?? 0);
@@ -22,25 +22,25 @@ export const fmtTokens = (count) => new Intl.NumberFormat(currentLocale(), { not
  *  only: totals stay in USD and nothing converted is stored or exported. */
 export function convertedText(amount, display) {
   if (!display || amount == null) return null;
-  const value = Math.round(amount * display.rate * 100) / 100;
-  try { return new Intl.NumberFormat(currentLocale(), { style: "currency", currency: display.code }).format(value); } catch { return `${display.code} ${value.toFixed(2)}`; }
+  return fmtMoney(Math.round(amount * display.rate * 100) / 100, display.code);
 }
 
-/** RF6.2: "≈ R$ 1.149,00 at your rate (set 12 days ago)", plus "update your rate" from 30 days (the core's text). */
-function displayLine(amount, display) {
-  const shown = convertedText(amount, display);
-  if (shown == null) return "";
-  const stale = display.stale;
-  return `<p class="lc-fx" data-cost-display>${tle({ id: stale ? "cost.display.line_stale" : "cost.display.line", params: { amount: shown, days: display.age_days },
-    fallback: `≈ ${shown} at your rate (set ${display.age_days} days ago)${stale ? "; update your rate" : ""}` })}</p>`;
+/** RF6.2 with C-07: the core's "≈ R$ 1.149,00 at your rate (set 12 days ago)" of the source's period (plus "update
+ *  your rate" from 30 days, "+ unknown" when part has no price); nothing without a rate, usage or a priced amount. */
+function displayLine(sc, summary) {
+  const text = summary.display_text?.[sc.source];
+  return text ? `<p class="lc-fx" data-cost-display>${tle(text)}</p>` : "";
 }
 
-/** RF1: the plan lines of a source's accounts (the core's text: always "estimate at API prices"); nothing without a plan. */
-const planHtml = (sc, summary) => (summary.plans ?? []).filter((v) => v.source === sc.source)
+/** RF1 with C-05: the plan line of the source (the core's text: always "estimate at API prices"), only on an account
+ *  that has a plan; never on an account without one, nor on the card of a source without accounts. */
+const planHtml = (sc, summary, accountId) => (accountId ? (summary.plans ?? []) : [])
+  .filter((v) => v.source === sc.source && (v.planned_ids ?? []).includes(accountId))
   .map((v) => `<p class="lc-plan" data-cost-plan>${tle(v.text)}</p>`).join("");
 
-/** RF1.4: no plan price yet for an account of this tool: a link to where it is typed, nothing more. */
-const planAddHtml = (sc, summary) => ((summary.planAccounts ?? []).some((a) => a.source === sc.source) && !(summary.planAccounts ?? []).some((a) => a.source === sc.source && a.plan)
+/** RF1.4: this account has no plan price yet (whatever the other accounts of the tool have): a link to where it is
+ *  typed, nothing more. */
+const planAddHtml = (summary, accountId) => (accountId && (summary.planAccounts ?? []).some((a) => a.id === accountId && !a.plan)
   ? `<div class="dlg-actions left"><button class="btn" data-cost-settings data-cost-plan-add>${icon("gear")} ${te("cost.plan.add")}</button></div>` : "");
 
 /** The cost of `e` (an estimate or a day): the priced part, what has no price, or that there was no usage. */
@@ -69,11 +69,19 @@ export const sourceFor = (summary, provider) => summary?.sources.find((s) => s.p
 const TONES = { partial: "warn", no_logs: "warn", no_access: "bad", unreadable: "bad" };
 const noteHtml = (sc) => (sc.note ? `<p class="lc-note ${TONES[sc.state] ?? ""}" data-cost-note>${esc(tl(sc.note))}</p>` : "");
 
+/** C-07: the tile's amount in the second currency: none without usage or a priced amount; "+ unknown" when part of
+ *  the usage has no price, like the USD amount above it. */
+function convertedTile(e, display) {
+  if (!display || !sum(e.tokens) || e.total == null) return "";
+  const converted = convertedText(e.total, display);
+  return `<span class="lc-fx-amount">≈ ${esc(sum(e.unknown_tokens) ? t("cost.partial", { cost: converted }) : converted)}</span>`;
+}
+
 const tile = (label, e, display) => `<div class="lc-tile"><span class="lc-label">${esc(label)}</span>
-  <b class="lc-cost${e.total == null && sum(e.tokens) ? " dim" : ""}">${esc(approxText(e))}</b>${display && e.total != null ? `<span class="lc-fx-amount">≈ ${esc(convertedText(e.total, display))}</span>` : ""}
+  <b class="lc-cost${e.total == null && sum(e.tokens) ? " dim" : ""}">${esc(approxText(e))}</b>${convertedTile(e, display)}
   <span class="lc-tokens">${te("cost.tokens", { amount: fmtTokens(sum(e.tokens)) })}</span></div>`;
 
-const tilesHtml = (sc, summary) => `<div class="lc-tiles">${tile(t("cost.today"), sc.usage.today, summary.display)}${tile(t("cost.yesterday"), sc.usage.yesterday, summary.display)}${tile(tl(summary.span.label), sc.usage.period, summary.display)}</div>${displayLine(sc.usage.period.total, summary.display)}${planHtml(sc, summary)}`;
+const tilesHtml = (sc, summary, accountId) => `<div class="lc-tiles">${tile(t("cost.today"), sc.usage.today, summary.display)}${tile(t("cost.yesterday"), sc.usage.yesterday, summary.display)}${tile(tl(summary.span.label), sc.usage.period, summary.display)}</div>${displayLine(sc, summary)}${planHtml(sc, summary, accountId)}`;
 
 /** PRD 0022 (mockups 03, 10): the values of the folded local-cost row: today and the period, with "≈" only before a
  *  priced amount (DS-CMP-HON-2: never before "no usage", "cost unknown" or "< $0.01"); null while the source is off. */
@@ -100,9 +108,9 @@ export function liveLineHtml(sc, summary) {
   return `<p class="lc-live-line" data-cost-live="${esc(sc.source)}" title="${esc(tip)}">${esc(tl(live.line))}</p>`;
 }
 
-/** The block inside an account card; nothing while the source is off, only the note while the index cannot be
- *  read (S-02). */
-export function costCardHtml(sc, summary) {
+/** The block inside an account card (`accountId`: the card's account id; none on a source's own card); nothing while
+ *  the source is off, only the note while the index cannot be read (S-02). */
+export function costCardHtml(sc, summary, accountId = null) {
   if (!sc?.usage) {
     if (sc?.state !== "unreadable") return "";
     return `<div class="local-cost" data-local-cost="${esc(sc.source)}">
@@ -112,7 +120,7 @@ export function costCardHtml(sc, summary) {
   return `<div class="local-cost" data-local-cost="${esc(sc.source)}">
     <div class="lc-head">${icon("monitor")}<span class="lc-title">${te("cost.card.title", { source: sc.label })}</span>
       <button class="icon" data-cost-details="${esc(sc.source)}" title="${te("cost.card.details")}" aria-label="${te("cost.card.details")}">${icon("search")}</button></div>
-    ${noteHtml(sc)}${tilesHtml(sc, summary)}${liveLineHtml(sc, summary)}
+    ${noteHtml(sc)}${tilesHtml(sc, summary, accountId)}${liveLineHtml(sc, summary)}
     <p class="lc-foot">${te("cost.card.estimate")}</p></div>`;
 }
 
@@ -177,24 +185,33 @@ function modelsHtml(sc, summary) {
       <th scope="col">${te("cost.col.cost")}</th><th scope="col">${te("cost.col.price")}</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
-/** RF4.1: the details' section of `sc`: why there are no numbers, today, yesterday and the period, by day and by
- *  model, the prices' date and source; while off, why nothing is shown and where to turn it on. */
-export function costDetailHtml(sc, summary) {
+/** C-02: the core's notes that saved plans or the second currency were invalid and are ignored. */
+export const settingsNotesHtml = (notes) => (notes ?? []).map((n) => `<p class="lc-note warn" data-cost-settings-note>${esc(tl(n))}</p>`).join("");
+
+/** RF4.1: the details' section of `sc` (`accountId` as in `costCardHtml`): why there are no numbers, today, yesterday
+ *  and the period, by day and by model, the prices' date, source and (C-06) age, and the source's models without a
+ *  price; while off, why nothing is shown and where to turn it on. */
+export function costDetailHtml(sc, summary, accountId = null) {
   const head = `<h3>${icon("monitor")} ${te("cost.detail.title", { source: sc.label })}</h3>`;
   if (!sc.usage) {
     return `<section class="lc-detail" data-cost-detail="${esc(sc.source)}">${head}
       <p class="sub">${te("cost.detail.off", { source: sc.label })}</p>
       <div class="dlg-actions left"><button class="btn" data-cost-settings>${icon("gear")} ${te("cost.detail.openSettings")}</button></div></section>`;
   }
-  const tables = sc.usage.period.tables.map((p) => te("cost.detail.prices", { date: fmtDate(p.effective) ?? "", origin: t(`cost.origin.${p.origin}`) }) + (p.source ? ` <span class="sub">${esc(p.source)}</span>` : "")).join("<br/>");
+  // C-06: a table's age ("Prices from 319 days ago", from 60 days) sits on the line of that table.
+  const tables = sc.usage.period.tables.map((p) => {
+    const vars = { date: fmtDate(p.effective) ?? "", origin: t(`cost.origin.${p.origin}`) };
+    const line = p.age ? `<span data-cost-prices-age>${te("cost.detail.pricesAge", { ...vars, age: tl(p.age) })}</span>` : te("cost.detail.prices", vars);
+    return line + (p.source ? ` <span class="sub">${esc(p.source)}</span>` : "");
+  }).join("<br/>");
   return `<section class="lc-detail" data-cost-detail="${esc(sc.source)}">${head}
     <p class="sub">${te("cost.detail.help", { source: sc.label })}</p>
-    ${noteHtml(sc)}${tilesHtml(sc, summary)}
-    ${planAddHtml(sc, summary)}
+    ${noteHtml(sc)}${settingsNotesHtml(summary.settings_notes)}${tilesHtml(sc, summary, accountId)}
+    ${planAddHtml(summary, accountId)}
     ${sc.usage.days.length ? chartHtml(sc, summary) : ""}${modelsHtml(sc, summary)}
     ${summary.pricing_error ? `<p class="lc-note warn">${esc(tl(summary.pricing_error))}</p>` : ""}
-    ${summary.unpriced ? `<p class="lc-note warn" data-cost-unpriced>${esc(tl(summary.unpriced))}</p>` : ""}
-    <p class="lc-foot">${esc(tl(summary.notice))}${summary.prices_age ? `<br/><span data-cost-prices-age>${esc(tl(summary.prices_age))}</span>` : ""}${tables ? `<br/>${tables}` : ""}</p></section>`;
+    ${sc.usage.unpriced ? `<p class="lc-note warn" data-cost-unpriced>${esc(tl(sc.usage.unpriced))}</p>` : ""}
+    <p class="lc-foot">${esc(tl(summary.notice))}${tables ? `<br/>${tables}` : ""}</p></section>`;
 }
 
 let dlg = null;

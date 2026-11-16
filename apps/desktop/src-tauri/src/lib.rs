@@ -2205,10 +2205,11 @@ async fn cost_status(cost: Cost<'_>) -> Result<local_cost::CostView, String> {
 
 /// PRD 0015 RF4.1: the cards' and details' estimate (the core's
 /// `CostSummary`): per source today, yesterday and the saved period, by day
-/// and by model, and why a source has no numbers. Reads no log.
+/// and by model, and why a source has no numbers, plus (PRD 0030 C-07)
+/// each period in the typed second currency. Reads no log.
 #[tauri::command]
-async fn cost_usage(cost: Cost<'_>) -> Result<cuotai_core::cost::CostSummary, String> {
-    cost.usage()
+async fn cost_usage(cost: Cost<'_>) -> Result<local_cost::UsageView, String> {
+    cost.usage_view()
 }
 
 /// PRD 0030 RF1/RF6: the plan prices of the configured accounts, the display

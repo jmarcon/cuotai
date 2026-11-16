@@ -31,6 +31,9 @@ const only = args.includes("--pages") ? (pagesArg ?? "").split(",").filter(Boole
 // `--shard i/n` and `--pages` take a value, which is not a locale.
 const locales = args.filter((a, k) => !a.startsWith("--") && args[k - 1] !== "--shard" && args[k - 1] !== "--pages");
 const LOCALES = locales.length ? locales : selftest ? ["en-US"] : ["en-US", "pt-BR", "es", "it", "de", "ru", "ko", "hi-IN", "id-ID", "tr", "vi", "zh-CN", "fr", "ja", "en-XA"];
+// PRD 0030 re-validation (L-16): the demo's plan, second-currency, price-age and settings-note fixtures.
+const COST_PLANS = "fixture=six&cost&cost-plans&cost-age";
+const COST_FOLDS = ['.card[data-card="claude::work@example.com"] .cost-fold summary', '.card[data-card="claude::side@example.com"] .cost-fold summary'];
 const ZOOM_PAGES = [
   ["zoom200-main", "index.html", 640, 410, {}],
   ["zoom200-main-stats", "index.html", 640, 410, { "cuotai.openView": "stats" }],
@@ -44,6 +47,7 @@ const ZOOM_PAGES = [
   ["zoom200-settings-data", "settings.html?page=data", 640, 360, {}],
   ["zoom200-settings-integrations", "settings.html?page=integrations", 640, 360, {}],
   ["zoom200-settings-cost", "settings.html?page=cost&cost", 640, 360, {}],
+  ["zoom200-settings-cost-plans", `settings.html?page=cost&sub=cost-plans&${COST_PLANS}`, 640, 360, {}],
   ["zoom200-settings-extensions", "settings.html?page=extensions", 640, 360, {}],
   ["zoom200-settings-files", "settings.html?page=files", 640, 360, {}],
   ["zoom200-settings-about", "settings.html?page=about", 640, 360, {}],
@@ -121,6 +125,15 @@ const PAGES = zoom ? ZOOM_PAGES : [
   // V-03, V-07: unnamed accounts (a plain one and the 9router instance) on the cards, the tray and Stats.
   ["main-unnamed", "index.html?unnamed", 1200, 820, {}],
   ["tray-unnamed", "tray.html?unnamed", 380, 600, {}],
+  // PRD 0030 re-validation (C-05..C-08, L-16): two Claude accounts with only the first planned, a second currency, a
+  // 319-day user price table and an unpriced model. The cards with their local usage open, the details of the planned
+  // account (plan line, period in the second currency, the table's age on its line, "No price for", the settings
+  // note) and of the unplanned one ("Add plan price", no plan line), and Settings › Plans.
+  ["main-cost-plans", `index.html?${COST_PLANS}`, 1200, 820, {}, COST_FOLDS],
+  ["main-narrow-cost-plans", `index.html?${COST_PLANS}`, 520, 820, {}, COST_FOLDS],
+  ["details-cost-plans", `index.html?${COST_PLANS}`, 1200, 820, {}, '.card[data-card="claude::work@example.com"] [data-details]'],
+  ["details-cost-unplanned", `index.html?${COST_PLANS}`, 520, 600, {}, '.card[data-card="claude::side@example.com"] [data-details]'],
+  ["settings-cost-plans", `settings.html?page=cost&sub=cost-plans&${COST_PLANS}`, 640, 460, {}],
 ];
 // V-09: the reference themes (dark, light, a retro theme with a picture background, and a monochrome one), in en-US.
 const THEME_PAGES = [["dracula", "dark"], ["github", "light"], ["win98", "light"], ["crt", "dark"]].flatMap(([theme, mode]) => [

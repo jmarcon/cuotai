@@ -633,6 +633,14 @@ export function intlFormatter(kind, locale, options) {
 export const fmtLocal = (date, options, locale = currentLocale()) => intlFormatter("DateTimeFormat", locale, options).format(date);
 const HHMM = { hour: "2-digit", minute: "2-digit" };
 export const fmtNumber = (n, max = 2) => (n == null ? "—" : intlFormatter("NumberFormat", currentLocale(), { maximumFractionDigits: max }).format(n));
+/** PRD 0030 L-13: `amount` in `currency` (an ISO code) in the current language ("R$ 550,50", "$20.00"); an unknown
+ *  code reads "ZZZ 550.50". */
+export const fmtMoney = (amount, currency) => {
+  if (amount == null) return "—";
+  try { return intlFormatter("NumberFormat", currentLocale(), { style: "currency", currency }).format(amount); } catch { return `${currency} ${Number(amount).toFixed(2)}`; }
+};
+/** PRD 0030 L-01: a typed rate with up to six significant digits ("0.0000099", "5.4321"), never rounded to zero. */
+export const fmtRate = (n) => (n == null ? "—" : intlFormatter("NumberFormat", currentLocale(), { maximumSignificantDigits: 6 }).format(n));
 // Units that describe "request count": left implicit. Others (USD, credits, tokens) are shown.
 const QUIET_UNITS = new Set(["", "%", "—", "solicitações", "requisições", "consultas", "unidades", "requests"]);
 const unitSuffix = (m) => (QUIET_UNITS.has(m.unit) ? "" : ` ${m.unit}`);
@@ -1359,7 +1367,8 @@ const dr = (account, provider, metrics, notes = [], status = "ready") => ({
 const demoNote = (id, fallback) => ({ id: `demo.note.${id}`, params: {}, fallback });
 const drn = (account, provider, metrics, note, status) => ({ ...dr(account, provider, metrics, [note.fallback], status), notes_l10n: [note] });
 // The core's amount (PRD 0023 re-validation V-02): machine params, formatted by `tl` in the UI locale.
-const demoMoney = (value, currency = "USD") => ({ id: "amount.money", params: { value: String(value), currency }, fallback: `$${value.toFixed(2)}` });
+// Its English fallback is the en-US currency format, like the core's.
+const demoMoney = (value, currency = "USD") => ({ id: "amount.money", params: { value: String(value), currency }, fallback: new Intl.NumberFormat("en-US", { style: "currency", currency }).format(value) });
 const demoReports = [
   dr("alex@example.com", "antigravity", [dm("Gemini (5h)", 15, 1000, 0.37, "quota", "window_5h"), dm("Claude & GPT (5h)", 0, 1000, 5, "quota", "window_5h"), dm("Gemini (Weekly)", 120, 1000, 151, "quota", "weekly"), dm("Claude & GPT (Weekly)", 0, 1000, 151.9, "quota", "weekly")]),
   // PRD 0023: the exhausted week is also paying for extra usage ("Limit hit · on extra $6.25").
@@ -2090,8 +2099,11 @@ const demoTimeline = async ({ range, generation }) => {
 // ponytail: the browser demo has no logs; two fixed sources play the core's disclosure, the consent by digest, turning
 // off (erasing what was derived), the chosen directories, the period, the retention, the background scan's last
 // summary and the RF4 summary (synthetic days and models; one model without a price). `?cost-paused` plays a computer
-// in energy-saving mode and `?cost-noaccess` a Claude Code directory the system refuses. Core texts keep their
-// English fallback here (the core's source language).
+// in energy-saving mode and `?cost-noaccess` a Claude Code directory the system refuses. PRD 0030 (L-16): `?cost-age`
+// prices the Claude Sonnet model from a user `pricing.json` dated 319 days ago (its age on its table line), and
+// `?cost-plans` gives the first Claude account a plan, types a second currency 12 days ago and says one saved plan was
+// invalid (with `?fixture=six`: two Claude accounts, one planned). Core texts keep their English fallback here (the
+// core's source language, with the core's ids and wording).
 const DEMO_COST = {
   claude_code: { label: "Claude Code", pattern: "**/*.jsonl", dirs: ["/Users/demo/.config/claude/projects", "/Users/demo/.claude/projects"], files: 12,
     providers: ["claude"], models: { "claude-sonnet-4-5-20250929": { entry: "claude-sonnet-4-5", input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }, "claude-haiku-5-5": null } },
@@ -2112,7 +2124,7 @@ const demoDisclosure = (id) => {
     purpose: demoL10n("cost.disclosure.purpose", { source: label }, `To estimate, on this computer only, the tokens and the cost at API prices of your ${label} usage per day and per model.`),
     extracted: demoL10n("cost.disclosure.extracted_v2", {}, "Only numbers are extracted: the time, the model, the token counts (input, output, cache read and cache write), an anonymous digest of the session and a one-way fingerprint of the project folder, so you can label it."),
     never: demoL10n("cost.disclosure.never_v2", {}, "Conversation content, prompts, answers, file names and project paths are never read into the index, stored or shown; the last folder name of a project is kept only if you turn that on. Nothing leaves this computer."),
-    off: demoL10n("cost.disclosure.off", {}, "Desligar a fonte interrompe qualquer leitura e apaga tudo o que foi derivado dela.") };
+    off: demoL10n("cost.disclosure.off", {}, "Turning the source off stops every read and erases everything derived from it.") };
 };
 const demoCostView = () => {
   const sources = Object.entries(DEMO_COST).map(([id, s]) => {
@@ -2135,8 +2147,21 @@ const demoNotice = () => demoL10n("cost.estimate.notice", {}, "Estimate at API p
 const tokenSum = (t) => t.input + t.output + t.cache_read + t.cache_write + (t.cache_write_1h ?? 0);
 const addTokens = (a, b) => ({ input: a.input + b.input, output: a.output + b.output, cache_read: a.cache_read + b.cache_read, cache_write: a.cache_write + b.cache_write, cache_write_1h: (a.cache_write_1h ?? 0) + (b.cache_write_1h ?? 0) });
 const ZERO_TOKENS = { input: 0, output: 0, cache_read: 0, cache_write: 0, cache_write_1h: 0 };
+const dayKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 /** The demo price of `model` (model names are unique across the demo sources); `null`: cost unknown. */
 const demoPrice = (model) => Object.values(DEMO_COST).map((s) => s.models[model]).find((p) => p !== undefined) ?? null;
+const demoDaysAgo = (days) => { const d = new Date(); d.setDate(d.getDate() - days); return dayKey(d); };
+const demoAge = (effective) => Math.max(0, Math.round((new Date(`${dayKey(new Date())}T00:00:00`) - new Date(`${effective}T00:00:00`)) / 864e5));
+// `?cost-age`: the user's pricing.json, 319 days old, prices the Claude Sonnet model over the embedded table.
+const DEMO_USER_TABLE = DEMO_QUERY.has("cost-age") ? { effective: demoDaysAgo(319), source: null, models: ["claude-sonnet-4-5-20250929"] } : null;
+const demoOrigin = (model) => (DEMO_USER_TABLE?.models.includes(model) ? "user" : "embedded");
+/** The core's `TableInfo` of one table, with its age and (from 60 days, C-06) "Prices from N days ago". */
+const demoTable = (origin) => {
+  const effective = origin === "user" ? DEMO_USER_TABLE.effective : DEMO_EFFECTIVE;
+  const days = demoAge(effective);
+  return { origin, effective, source: origin === "user" ? DEMO_USER_TABLE.source : "https://claude.com/pricing#api", age_days: days,
+    age: days >= 60 ? demoL10n("cost.prices.age", { days: String(days) }, `Prices from ${days} days ago`) : null };
+};
 /** The core's `cost::estimate` of demo rows `{ model, tokens, requests }` at the demo prices. */
 const demoEstimate = (rows) => {
   const by = new Map();
@@ -2152,13 +2177,13 @@ const demoEstimate = (rows) => {
     tokens = addTokens(tokens, mt);
     requests += mr;
     if (cost == null) unknown = addTokens(unknown, mt); else { total += cost; priced = true; }
-    return { model, tokens: mt, requests: mr, cost, price: p ? { entry: p.entry, origin: "embedded", rates: { input: p.input, output: p.output, cache_read: p.cache_read, cache_write: p.cache_write } } : null };
+    return { model, tokens: mt, requests: mr, cost, price: p ? { entry: p.entry, origin: demoOrigin(model), rates: { input: p.input, output: p.output, cache_read: p.cache_read, cache_write: p.cache_write } } : null };
   });
+  const origins = ["embedded", "user"].filter((o) => models.some((m) => m.price?.origin === o));
   return { currency: "USD", total: priced || !models.length ? total : null, tokens, requests, unknown_tokens: unknown,
     unknown_share: tokenSum(tokens) ? tokenSum(unknown) / tokenSum(tokens) : 0, models,
-    tables: priced ? [{ origin: "embedded", effective: DEMO_EFFECTIVE, source: "https://claude.com/pricing#api" }] : [], notice: demoNotice() };
+    tables: origins.map(demoTable), notice: demoNotice() };
 };
-const dayKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 /** Synthetic usage of `id` on the day `back` days ago (some days without any). */
 const demoDayRows = (id, back) => Object.keys(DEMO_COST[id].models).flatMap((model, i) => {
   const k = (back * 7 + i * 5 + id.length) % 9;
@@ -2187,14 +2212,25 @@ const demoCostUsage = () => {
     const note = state === "no_access"
       ? demoL10n("cost.view.no_access", { source: s.label }, `${s.label}: no access to the log directories; nothing was worked around. The numbers are what the index already held.`)
       : period.models.length ? null : demoL10n("cost.view.empty", { source: s.label, period: periodLabel }, `${s.label}: no usage in the logs read (${periodLabel.fallback}).`);
-    return { ...base, state, note, usage: { today: demoEstimate(rowsOf(0)), yesterday: demoEstimate(rowsOf(1)), period, days: period.models.length ? days : [] } };
+    // C-06: this source's own models without a price.
+    const unpriced = period.models.filter((m) => m.cost == null).map((m) => m.model);
+    return { ...base, state, note, usage: { today: demoEstimate(rowsOf(0)), yesterday: demoEstimate(rowsOf(1)), period, days: period.models.length ? days : [],
+      unpriced_models: unpriced, unpriced: demoUnpriced(unpriced) } };
   });
   const label = demoL10n(`cost.period.${demoCost.period}`, {}, DEMO_PERIODS[demoCost.period]);
   const all = Object.keys(DEMO_COST).filter((id) => id in demoCost.on && !demoCost.erased.has(id))
     .flatMap((id) => Array.from({ length: span + 1 }, (_, back) => demoDayRows(id, back)).flat());
+  const total = demoEstimate(all);
+  const unpriced = total.models.filter((m) => m.cost == null).map((m) => m.model);
+  const oldest = total.tables.reduce((a, b) => (a && a.age_days >= b.age_days ? a : b), null);
+  // C-07: the desktop's `display_text`, the core's `DisplayCurrency::text_for` of each source's period.
+  const display = demoPlan.display ? Object.fromEntries(sources.filter((s) => s.usage).map((s) => [s.source, demoDisplayText(s.usage.period)]).filter(([, v]) => v)) : {};
   return { currency: "USD", notice: demoNotice(), span: { period: demoCost.period, days: null, label, first_day: demoCost.period === "all" ? null : at(span), last_day: at(0) }, sources,
-    total: demoEstimate(all), pricing_error: null, live: demoLive() };
+    total, pricing_error: null, live: demoLive(), prices_effective: oldest?.effective ?? null, prices_age_days: oldest?.age_days ?? null, prices_age: oldest?.age ?? null,
+    unpriced_models: unpriced, unpriced: demoUnpriced(unpriced),
+    ...(demoPlan.notes.length ? { settings_notes: demoPlan.notes } : {}), ...(Object.keys(display).length ? { display_text: display } : {}) };
 };
+const demoUnpriced = (models) => (models.length ? demoL10n("cost.prices.unpriced", { models: models.join(", ") }, `No price for: ${models.join(", ")}`) : null);
 // PRD 0042 demo: sessions, 5-hour blocks and projects built from the same synthetic days; the active block started
 // 80 minutes ago. Digests are fixed placeholders; labels and hidden projects live for the page's life.
 const demoOn = () => Object.keys(DEMO_COST).filter((id) => id in demoCost.on && !demoCost.erased.has(id));
@@ -2212,8 +2248,8 @@ function demoLive() {
     const block = demoBlock(id, 0, true);
     const cost = block.estimate.total;
     return { block, elapsed_minutes: 80, left_minutes: (demoCost.hours[id] ?? DEMO_BLOCK_HOURS[id]) * 60 - 80, burn_rate_tokens_per_min: 38000, projected_block_cost: cost == null ? null : cost * 3.1,
-      line: cost == null ? null : demoL10n("cost.live.line", { cost: fmtMoney(cost), rate: "38K" }, `This block ≈ ${fmtMoney(cost)} · 38K tok/min`),
-      projection: cost == null ? null : demoL10n("cost.live.projection", { cost: fmtMoney(cost * 3.1), at: "18:00" }, `At this rate ≈ ${fmtMoney(cost * 3.1)} by 18:00`) };
+      line: cost == null ? null : demoL10n("cost.live.line", { cost: demoUsd(cost), rate: "38K" }, `This block ≈ ${demoUsd(cost)} · 38K tok/min`),
+      projection: cost == null ? null : demoL10n("cost.live.projection", { cost: demoUsd(cost * 3.1), at: "18:00" }, `At this rate ≈ ${demoUsd(cost * 3.1)} by 18:00`) };
   });
 }
 const DEMO_PROJECTS = ["3f9a1c2e7b4d5a60", "a81d0c44e2f97b13"];
@@ -2247,37 +2283,103 @@ function demoBreakdown(by) {
   const visible = DEMO_PROJECTS.filter((d) => !demoCost.hidden.has(d)).flatMap((_, i) => demoOn().flatMap((id) => [i, i + 2].flatMap((back) => demoDayRows(id, back))));
   return { ...base, total: demoEstimate(visible), hidden: demoCost.hidden.size, projects };
 }
-// PRD 0030 RF1/RF6 demo: plan prices by account key and one typed rate, kept for the page's life like the core's
-// settings. The value line mirrors `cost::plan_values` for a plan in one currency (a ratio when it is USD or the
-// display currency); the amounts are the demo period totals.
-const demoPlan = { plans: {}, display: null };
+// PRD 0030 RF1/RF6 demo: plan prices by account id and one typed rate, kept for the page's life like the core's
+// settings. The value line mirrors `cost::plan_values` (C-05: one account, a single line; several, one combined line
+// with a ratio only when every account has a plan in one currency and on one cycle day; the front ends show it only on
+// the planned ids) and its texts use the core's ids and English wording with `amount.money` / `amount.number` params.
+const demoPlan = { plans: {}, display: null, notes: [] };
+const demoUsd = (amount) => `$${amount.toFixed(2)}`;
+const demoNumber = (value) => ({ id: "amount.number", params: { value: String(value) }, fallback: String(value) });
+/** The core's `DisplayCurrency::age_text`. */
+const demoRateAge = (days) => (days === 0 ? demoL10n("cost.rate.age.today", {}, "set today") : days === 1 ? demoL10n("cost.rate.age.yesterday", {}, "set yesterday")
+  : demoL10n("cost.rate.age.days", { count: String(days) }, `set ${days} days ago`));
+/** The core's `DisplayCurrency::text_for`: null without usage or a priced amount; "+ unknown" for a partial one. */
+const demoDisplayText = (e) => {
+  const d = demoPlan.display;
+  if (!d || e.total == null || !tokenSum(e.tokens)) return null;
+  const money = demoMoney(Math.round(e.total * d.rate * 100) / 100, d.code);
+  const amount = tokenSum(e.unknown_tokens) ? demoL10n("cost.display.partial", { amount: money }, `${money.fallback} + unknown`) : money;
+  const days = demoAge(d.set_on);
+  const age = demoRateAge(days);
+  return days >= 30 ? demoL10n("cost.display.line_stale", { amount, age, days: String(days) }, `≈ ${amount.fallback} at your rate (${age.fallback}); update your rate`)
+    : demoL10n("cost.display.line", { amount, age, days: String(days) }, `≈ ${amount.fallback} at your rate (${age.fallback})`);
+};
+/** The core's `ratio_text` (C-04). */
+const demoRatioText = (ratio, rate, plural) => {
+  const suffix = `${plural ? "_plans" : ""}${rate ? "_rate" : ""}`;
+  const what = plural ? "the plans' price" : "the plan price";
+  const tail = rate ? ", at your rate" : "";
+  if (ratio >= 0.1) { const r = Math.round(ratio * 10) / 10; return demoL10n(`cost.plan.times${suffix}`, { ratio: demoNumber(r) }, `≈ ${r}× ${what}${tail}`); }
+  if (ratio >= 0.01) { const pc = Math.max(1, Math.round(ratio * 100)); return demoL10n(`cost.plan.share${suffix}`, { percent: demoNumber(pc) }, `≈ ${pc}% of ${what}${tail}`); }
+  return demoL10n(`cost.plan.share_small${suffix}`, {}, `less than 1% of ${what}${tail}`);
+};
+/** The core's `plan_text`. */
+const demoPlanText = ({ label, count, planned, estimate, partial, plans, ratio, atYourRate }) => {
+  const combined = count > 1;
+  const many = (n) => (n === 1 ? "account" : "accounts");
+  if (estimate == null) {
+    const source = combined ? demoL10n("cost.plan.combined_label", { source: label, count: String(count) }, `${label}, ${count} ${many(count)} combined`) : label;
+    return demoL10n("cost.plan.unknown", { source, plans }, `${typeof source === "string" ? source : source.fallback}: cost at API prices unknown (models without a price) · plan ${plans.fallback}`);
+  }
+  const amount = demoMoney(estimate);
+  const est = partial ? demoL10n("cost.plan.estimate_partial", { amount }, `≈ ${amount.fallback} at API prices for the models with a price (estimate)`)
+    : demoL10n("cost.plan.estimate", { amount }, `≈ ${amount.fallback} at API prices (estimate)`);
+  if (combined && planned < count) {
+    return demoL10n("cost.plan.combined_some", { source: label, count: String(count), planned: String(planned), estimate: est, plans },
+      `${label}, ${count} accounts combined: ${est.fallback} · plans of ${planned} of them: ${plans.fallback}; the logs cannot be split, so there is no ratio`);
+  }
+  const value = ratio == null ? null : demoRatioText(ratio, atYourRate, combined);
+  if (combined) {
+    return value ? demoL10n("cost.plan.combined", { source: label, count: String(count), estimate: est, plans, value }, `${label}, ${count} accounts combined: ${est.fallback} · plans ${plans.fallback} · ${value.fallback}`)
+      : demoL10n("cost.plan.combined_side", { source: label, count: String(count), estimate: est, plans }, `${label}, ${count} accounts combined: ${est.fallback} · plans ${plans.fallback}`);
+  }
+  return value ? demoL10n("cost.plan.single", { source: label, estimate: est, plans, value }, `${label}: ${est.fallback} · plan ${plans.fallback} · ${value.fallback}`)
+    : demoL10n("cost.plan.single_side", { source: label, estimate: est, plans }, `${label}: ${est.fallback} · plan ${plans.fallback}`);
+};
+/** The core's `plans_text`: one `amount.money` per currency, joined by `cost.plan.list`. */
+const demoPlansText = (plans) => plans.map((p) => demoMoney(p.price, p.currency)).reduceRight((rest, first) => (rest ? demoL10n("cost.plan.list", { first, rest }, `${first.fallback} · ${rest.fallback}`) : first), null);
 const demoPlansView = () => {
   const today = new Date();
-  const accounts = demoReports.flatMap((r) => {
+  const accounts = demoReports.flatMap((r, index) => {
     const [source, s] = Object.entries(DEMO_COST).find(([, c]) => c.providers.includes(r.provider)) ?? [];
-    return source ? [{ id: demoKey(r), name: r.account, provider: r.provider, source, label: s.label, plan: demoPlan.plans[demoKey(r)] ?? null }] : [];
+    const id = demoAccountId(index);
+    return source ? [{ id, name: r.account || brand(r.provider).label, provider: r.provider, source, label: s.label, plan: demoPlan.plans[id] ?? null }] : [];
   });
   const usage = demoCostUsage();
   const values = Object.keys(DEMO_COST).flatMap((source) => {
-    const planned = accounts.filter((a) => a.source === source && a.plan);
-    const total = usage.sources.find((s) => s.source === source)?.usage?.period.total;
-    if (!planned.length || total === undefined) return [];
+    const of = accounts.filter((a) => a.source === source);
+    const planned = of.filter((a) => a.plan);
+    const period = usage.sources.find((s) => s.source === source)?.usage?.period;
+    if (!planned.length || !period) return [];
     const label = DEMO_COST[source].label;
-    const currencies = [...new Set(planned.map((a) => a.plan.currency))];
-    const price = planned.reduce((sum, a) => sum + a.plan.price, 0);
-    const plans = currencies.length === 1 ? `${currencies[0]} ${price.toFixed(2)}` : planned.map((a) => `${a.plan.currency} ${a.plan.price.toFixed(2)}`).join(" · ");
-    const rate = currencies.length === 1 && currencies[0] === "USD" ? 1 : currencies.length === 1 && demoPlan.display?.code === currencies[0] ? demoPlan.display.rate : null;
-    const params = { source: planned.length > 1 ? demoL10n("cost.plan.combined", { source: label }, `Contas do ${label}`) : label, estimate: total == null ? "—" : fmtMoney(total), plans };
-    const text = total == null ? demoL10n("cost.plan.unknown", params, `${label}: cost at API prices unknown (models without a price) · plan ${plans}`)
-      : rate ? demoL10n(rate === 1 ? "cost.plan.ratio" : "cost.plan.ratio_rate", { ...params, ratio: ((total * rate) / price).toFixed(1) }, `${label}: ≈ ${params.estimate} at API prices (estimate) · plan ${plans}`)
-        : demoL10n("cost.plan.side", params, `${label}: ≈ ${params.estimate} at API prices (estimate) · plan ${plans}`);
-    return [{ source, label, accounts: planned.map((a) => a.name), cycle_start: dayKey(new Date(today.getFullYear(), today.getMonth(), 1)), estimate: total, partial: false,
-      plans: currencies.map((currency) => ({ currency, price: planned.filter((a) => a.plan.currency === currency).reduce((n, a) => n + a.plan.price, 0) })), ratio: rate && total != null ? (total * rate) / price : null, at_your_rate: rate != null && rate !== 1, text }];
+    const sums = {};
+    for (const a of planned) sums[a.plan.currency] = Math.round(((sums[a.plan.currency] ?? 0) + a.plan.price) * 100) / 100;
+    const plans = Object.keys(sums).sort().map((currency) => ({ currency, price: sums[currency] }));
+    const complete = planned.length === of.length;
+    const oneDay = planned.every((a) => (a.plan.cycle_day ?? 1) === (planned[0].plan.cycle_day ?? 1));
+    const total = period.total;
+    let ratio = null, atYourRate = false;
+    if (total != null && complete && oneDay && plans.length === 1) {
+      if (plans[0].currency === "USD") ratio = total / plans[0].price;
+      else if (demoPlan.display?.code === plans[0].currency) { ratio = (total * demoPlan.display.rate) / plans[0].price; atYourRate = true; }
+    }
+    const partial = tokenSum(period.unknown_tokens) > 0;
+    const text = demoPlanText({ label, count: of.length, planned: planned.length, estimate: total, partial, plans: demoPlansText(plans), ratio, atYourRate });
+    return [{ source, label, accounts: planned.map((a) => a.name), account_ids: of.map((a) => a.id), planned_ids: planned.map((a) => a.id), combined: of.length > 1, complete,
+      cycle_start: dayKey(new Date(today.getFullYear(), today.getMonth(), 1)), estimate: total, partial, plans, ratio, at_your_rate: atYourRate, text }];
   });
   const d = demoPlan.display;
-  return { accounts, values, display: d && { code: d.code, rate: d.rate, set_on: d.set_on, age_days: Math.floor((today - new Date(d.set_on)) / 864e5), stale: Math.floor((today - new Date(d.set_on)) / 864e5) >= 30 } };
+  const days = d ? demoAge(d.set_on) : 0;
+  return { accounts, values, display: d && { code: d.code, rate: d.rate, set_on: d.set_on, age_days: days, age: demoRateAge(days), stale: days >= 30 },
+    ...(demoPlan.notes.length ? { settings_notes: demoPlan.notes } : {}) };
 };
-const fmtMoney = (amount) => `$${amount.toFixed(2)}`;
+// `?cost-plans`: the first Claude account has a USD plan, BRL was typed 12 days ago, and one saved plan was invalid.
+if (DEMO_QUERY.has("cost-plans")) {
+  const index = demoReports.findIndex((r) => r.provider === "claude");
+  if (index >= 0) demoPlan.plans[demoAccountId(index)] = { price: 100, currency: "USD", cycle_day: null };
+  demoPlan.display = { code: "BRL", rate: 5.4321, set_on: demoDaysAgo(12) };
+  demoPlan.notes = [demoL10n("cost.settings.plans_ignored", { count: "1" }, "1 saved plan price is invalid and ignored; type it again.")];
+}
 const demoPrices = () => {
   const models = Object.values(DEMO_COST).flatMap((s) => Object.values(s.models).filter(Boolean))
     .map((p) => ({ model: p.entry, origin: "embedded", rates: { input: p.input, output: p.output, cache_read: p.cache_read, cache_write: p.cache_write } }))
@@ -2869,7 +2971,10 @@ const demo = {
     if (!/^[A-Za-z]{3}$/.test(code) || code.toUpperCase() === "USD" || !(rate > 0)) {
       throw JSON.stringify(demoL10n("cost.error.invalid_rate", {}, "Invalid rate: a three-letter currency other than USD and a rate above zero."));
     }
-    demoPlan.display = { code: code.toUpperCase(), rate, set_on: dayKey(new Date()) };
+    // L-01: six significant digits are kept; a rate under 0.000001 has its own refusal.
+    const kept = Number(rate.toPrecision(6));
+    if (kept < 0.000001) throw JSON.stringify(demoL10n("cost.error.rate_too_small", {}, "The rate is too small: use at least 0.000001."));
+    demoPlan.display = { code: code.toUpperCase(), rate: kept, set_on: dayKey(new Date()) };
     return demoPlansView();
   },
   cost_erase: async () => { for (const id of Object.keys(DEMO_COST)) demoCost.erased.add(id); return 57; },

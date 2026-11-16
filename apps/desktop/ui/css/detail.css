@@ -734,6 +734,11 @@
   color: var(--fg-muted);
   font-size: var(--text-micro);
 }
+/* PRD 0030 re-validation: the price origin ("your pricing.json") may break anywhere, so the table fits a narrow
+   details dialog in long languages instead of being clipped. */
+.lc-models td:last-child {
+  overflow-wrap: anywhere;
+}
 .lc-models code,
 .cost-price-table code {
   font: var(--text-sm) var(--font-mono), var(--font-script);

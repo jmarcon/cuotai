@@ -202,7 +202,7 @@ function feedBannersHtml(view) {
 /** PRD 0022 RF3.5: the account's local cost folded into one disclosure row marked as an estimate. */
 const costOpen = new Set();
 function costFoldHtml(r) {
-  const html = costCardHtml(sourceFor(localCost, r.provider), localCost);
+  const html = costCardHtml(sourceFor(localCost, r.provider), localCost, r.account_id); // C-05: the plan line only on its account
   if (!html) return "";
   const key = reportKey(r);
   const v = costSummary(sourceFor(localCost, r.provider), localCost);
