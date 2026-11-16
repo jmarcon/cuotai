@@ -680,6 +680,10 @@
     "other": "セッションは {count} 日後に期限切れ"
   },
   "events.summary.usage_updated": "使用量を更新：{usage}",
+  "events.usage.amount": "{amount} {unit}",
+  "events.usage.item_amount": "{metric} {amount} {unit}",
+  "events.usage.item_number": "{metric} {amount}",
+  "events.usage.item_percent": "{metric} {pct}",
   "extensions.action.account_invalid": "拡張機能のアカウントを作成できませんでした。",
   "extensions.action.candidate_expired": "この確認は無効になりました。承認する前に拡張機能をもう一度確認してください。",
   "extensions.action.changed": "拡張機能 {id} は承認後に変更されました。プログラムは実行されていません。",
@@ -2029,6 +2033,7 @@
   "text.duration.hours": "{h}時間",
   "text.duration.hours_minutes": "{h}時間{m}分",
   "text.duration.minutes": "{m}分",
+  "text.list.join": "{first}、{rest}",
   "text.weekday.short.friday": "金",
   "text.weekday.short.monday": "月",
   "text.weekday.short.saturday": "土",

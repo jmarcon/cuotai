@@ -680,6 +680,10 @@
     "other": "세션이 {count}일 후 만료됩니다"
   },
   "events.summary.usage_updated": "사용량 업데이트: {usage}",
+  "events.usage.amount": "{amount} {unit}",
+  "events.usage.item_amount": "{metric} {amount} {unit}",
+  "events.usage.item_number": "{metric} {amount}",
+  "events.usage.item_percent": "{metric} {pct}",
   "extensions.action.account_invalid": "확장 기능 계정을 만들지 못했습니다.",
   "extensions.action.candidate_expired": "이 확인은 더 이상 유효하지 않습니다. 승인하기 전에 확장 기능을 다시 검토하세요.",
   "extensions.action.changed": "확장 기능 {id}이(가) 승인 이후 바뀌었습니다. 실행된 프로그램은 없습니다.",
@@ -2029,6 +2033,7 @@
   "text.duration.hours": "{h}시간",
   "text.duration.hours_minutes": "{h}시간 {m}분",
   "text.duration.minutes": "{m}분",
+  "text.list.join": "{first}, {rest}",
   "text.weekday.short.friday": "금",
   "text.weekday.short.monday": "월",
   "text.weekday.short.saturday": "토",

@@ -696,6 +696,10 @@
     "other": "Sitzung läuft in {count} Tagen ab"
   },
   "events.summary.usage_updated": "Nutzung aktualisiert: {usage}",
+  "events.usage.amount": "{amount} {unit}",
+  "events.usage.item_amount": "{metric} {amount} {unit}",
+  "events.usage.item_number": "{metric} {amount}",
+  "events.usage.item_percent": "{metric} {pct}",
   "extensions.action.account_invalid": "Das Konto der Erweiterung konnte nicht erstellt werden.",
   "extensions.action.candidate_expired": "Diese Bestätigung gilt nicht mehr; prüfen Sie die Erweiterung erneut, bevor Sie sie freigeben.",
   "extensions.action.changed": "Die Erweiterung {id} hat sich seit der Freigabe geändert; es wurde kein Programm ausgeführt.",
@@ -2053,6 +2057,7 @@
   "text.duration.hours": "{h} Std.",
   "text.duration.hours_minutes": "{h} Std. {m} Min.",
   "text.duration.minutes": "{m} Min.",
+  "text.list.join": "{first}, {rest}",
   "text.weekday.short.friday": "Fr.",
   "text.weekday.short.monday": "Mo.",
   "text.weekday.short.saturday": "Sa.",

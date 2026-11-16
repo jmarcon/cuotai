@@ -359,7 +359,7 @@ impl Event {
                 Localized::with_param(id, "state", state, "Provider status: {state}")
             }
             EventKind::OverageStarted => match self.current.spent.map(|spent| {
-                overage::format_amount(
+                overage_amount(
                     spent,
                     self.current.unit.as_deref().unwrap_or(""),
                     self.current.currency.as_deref(),
@@ -422,29 +422,83 @@ impl Event {
     }
 }
 
+/// [`overage::format_amount`], except that an adapter's own unit (an id,
+/// often Portuguese: `créditos`) reads as its display text in the reader's
+/// language (PRD 0034 re-validation, G9).
+fn overage_amount(value: f64, unit: &str, currency: Option<&str>) -> ParamValue {
+    let money = currency.is_some_and(crate::budget::is_currency);
+    if money || unit.trim().is_empty() || unit == overage::PROVIDER_UNIT {
+        return overage::format_amount(value, unit, currency);
+    }
+    ParamValue::l10n(Localized::with_params(
+        "events.usage.amount",
+        params([
+            (
+                "amount",
+                ParamValue::l10n(crate::text::number::number(value)),
+            ),
+            ("unit", ParamValue::l10n(metric_text(unit))),
+        ]),
+        "{amount}\u{a0}{unit}",
+    ))
+}
+
 /// `Label 42%` per metric with a cap (`Label 3.5 USD` without one), joined
-/// by commas; `-` when no metric has a known value.
-fn usage_text(metrics: &[MetricReading]) -> String {
-    let parts: Vec<String> = metrics
-        .iter()
-        .filter_map(|metric| match (metric.used_ratio, metric.used) {
-            (Some(ratio), _) => Some(format!("{} {:.0}%", metric.label, ratio * 100.0)),
-            (None, Some(used)) => {
-                let value = format!("{used:.2}");
-                let value = value.trim_end_matches('0').trim_end_matches('.');
-                Some(
-                    format!("{} {value} {}", metric.label, metric.unit)
-                        .trim_end()
-                        .to_owned(),
-                )
-            }
+/// as a list; `-` when no metric has a known value. PRD 0034 re-validation
+/// V-08: every part is a [`Localized`] (the metric's display text, the
+/// percent and the amount in the reader's number format, the unit's display
+/// text), so the raw adapter label and unit never reach the line.
+fn usage_text(metrics: &[MetricReading]) -> ParamValue {
+    let parts = metrics.iter().filter_map(|metric| {
+        let name = ParamValue::l10n(metric.label_text.clone());
+        match (metric.used_ratio, metric.used) {
+            (Some(ratio), _) => Some(Localized::with_params(
+                "events.usage.item_percent",
+                params([
+                    ("metric", name),
+                    (
+                        "pct",
+                        ParamValue::l10n(crate::text::number::percent((ratio * 100.0).round())),
+                    ),
+                ]),
+                "{metric} {pct}",
+            )),
+            (None, Some(used)) if metric.unit.trim().is_empty() => Some(Localized::with_params(
+                "events.usage.item_number",
+                params([
+                    ("metric", name),
+                    (
+                        "amount",
+                        ParamValue::l10n(crate::text::number::number(used)),
+                    ),
+                ]),
+                "{metric} {amount}",
+            )),
+            (None, Some(used)) => Some(Localized::with_params(
+                "events.usage.item_amount",
+                params([
+                    ("metric", name),
+                    (
+                        "amount",
+                        ParamValue::l10n(crate::text::number::number(used)),
+                    ),
+                    ("unit", ParamValue::l10n(metric.unit_text.clone())),
+                ]),
+                "{metric} {amount}\u{a0}{unit}",
+            )),
             (None, None) => None,
-        })
-        .collect();
-    if parts.is_empty() {
-        "-".to_owned()
-    } else {
-        parts.join(", ")
+        }
+    });
+    let joined = parts.reduce(|first, rest| {
+        Localized::with_params(
+            "text.list.join",
+            params([("first", first.into()), ("rest", rest.into())]),
+            "{first}, {rest}",
+        )
+    });
+    match joined {
+        Some(list) => ParamValue::l10n(list),
+        None => ParamValue::from("-"),
     }
 }
 

@@ -6293,8 +6293,13 @@ pub struct HistoryView {
 #[derive(Serialize, Debug)]
 pub struct MetricHistoryView {
     key: String,
+    /// The adapter's label and unit: ids, never shown (PRD 0034).
     label: String,
     unit: String,
+    /// PRD 0034 re-validation V-04: their display texts, which the History
+    /// panel shows.
+    label_text: cuotai_core::text::Localized,
+    unit_text: cuotai_core::text::Localized,
     kind: MetricKind,
     window: Option<MetricWindow>,
     limit: Option<f64>,
@@ -6324,6 +6329,8 @@ fn history_view(
             trend: metric.trend(),
             chart: metric.chart(from, to, HISTORY_CHART_CELLS),
             key: metric.key,
+            label_text: cuotai_core::metric_text::metric_text(&metric.label),
+            unit_text: cuotai_core::metric_text::metric_text(&metric.unit),
             label: metric.label,
             unit: metric.unit,
             kind: metric.kind,

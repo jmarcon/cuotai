@@ -3,7 +3,7 @@
 // (`account_history`): this module only draws. The chart is hidden from assistive technology, which reads the
 // equivalent table (window by window: start, end, initial, final and peak use) instead.
 import { t, te } from "./i18n.js";
-import { STALE, accountHistory, errText, esc, fmtDateTime, fmtValue, getView, reportKey } from "./lib.js";
+import { STALE, accountHistory, errText, esc, fmtDateTime, fmtValue, getView, metricName, reportKey } from "./lib.js";
 
 const RANGES = ["day", "week", "month"];
 // viewBox of the chart; the SVG stretches to the width, so only the paths live in it (markers are HTML).
@@ -37,15 +37,15 @@ function chartPaths(heights) {
 }
 
 const summary = (m) => m.trend
-  ? t("trend.summary", { min: fmtValue(m.trend.min, m.unit), max: fmtValue(m.trend.max, m.unit), last: fmtValue(m.trend.last.used, m.unit) })
+  ? t("trend.summary", { min: fmtValue(m.trend.min, m), max: fmtValue(m.trend.max, m), last: fmtValue(m.trend.last.used, m) })
   : t("trend.noUsed");
 
 function tableHtml(m) {
   const head = ["start", "end", "initial", "final", "peak", "peakAt"].map((c) => `<th scope="col">${te(`trend.table.${c}`)}</th>`).join("");
   const rows = m.windows.map((w) => `<tr><td>${esc(when(w.started_at))}</td><td>${esc(when(w.ended_at))}</td>
-    <td>${esc(fmtValue(w.initial_used, m.unit))}</td><td>${esc(fmtValue(w.final_used, m.unit))}</td>
-    <td>${esc(fmtValue(w.peak_used, m.unit))}</td><td>${esc(when(w.peak_at))}</td></tr>`).join("");
-  return `<div class="sr-only"><table><caption>${esc(m.label)}: ${esc(summary(m))} ${te("trend.table.resets", { count: m.chart.resets.length })}</caption>
+    <td>${esc(fmtValue(w.initial_used, m))}</td><td>${esc(fmtValue(w.final_used, m))}</td>
+    <td>${esc(fmtValue(w.peak_used, m))}</td><td>${esc(when(w.peak_at))}</td></tr>`).join("");
+  return `<div class="sr-only"><table><caption>${esc(metricName(m))}: ${esc(summary(m))} ${te("trend.table.resets", { count: m.chart.resets.length })}</caption>
     <thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
@@ -54,14 +54,14 @@ export function metricHtml(m, view) {
   // empty axes that could read as zero.
   if (!m.trend || m.samples < 2) {
     return `<figure class="hist-metric">
-    <figcaption><span class="hist-label">${esc(m.label)}</span><span class="sub">${esc(summary(m))}</span></figcaption>
+    <figcaption><span class="hist-label">${esc(metricName(m))}</span><span class="sub">${esc(summary(m))}</span></figcaption>
     ${tableHtml(m)}
   </figure>`;
   }
   const { area, line } = chartPaths(m.chart.heights);
   const end = m.chart.last;
   return `<figure class="hist-metric">
-    <figcaption><span class="hist-label">${esc(m.label)}</span><span class="sub">${esc(summary(m))}</span></figcaption>
+    <figcaption><span class="hist-label">${esc(metricName(m))}</span><span class="sub">${esc(summary(m))}</span></figcaption>
     <div class="hist-chart" aria-hidden="true">
       <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" focusable="false">${m.unit === "%" ? `<path class="hist-grid" d="M0,0H${W}M0,${H / 2}H${W}"/>` : ""}<path class="hist-area" d="${area}"/><path class="hist-line" d="${line}"/></svg>
       ${m.chart.resets.map((r) => `<i class="hist-reset" style="left:${pct(r.x)}" title="${te("trend.reset", { when: when(r.at) })}"></i>`).join("")}

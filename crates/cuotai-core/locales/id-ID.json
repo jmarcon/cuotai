@@ -680,6 +680,10 @@
     "other": "Sesi kedaluwarsa dalam {count} hari"
   },
   "events.summary.usage_updated": "Penggunaan diperbarui: {usage}",
+  "events.usage.amount": "{amount} {unit}",
+  "events.usage.item_amount": "{metric} {amount} {unit}",
+  "events.usage.item_number": "{metric} {amount}",
+  "events.usage.item_percent": "{metric} {pct}",
   "extensions.action.account_invalid": "Akun ekstensi tidak dapat dibuat.",
   "extensions.action.candidate_expired": "Konfirmasi ini sudah tidak berlaku; tinjau ekstensi lagi sebelum menyetujuinya.",
   "extensions.action.changed": "Ekstensi {id} berubah sejak persetujuan; tidak ada program yang dijalankan.",
@@ -2029,6 +2033,7 @@
   "text.duration.hours": "{h}j",
   "text.duration.hours_minutes": "{h}j {m}mnt",
   "text.duration.minutes": "{m} mnt",
+  "text.list.join": "{first}, {rest}",
   "text.weekday.short.friday": "Jum",
   "text.weekday.short.monday": "Sen",
   "text.weekday.short.saturday": "Sab",

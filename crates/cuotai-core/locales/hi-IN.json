@@ -696,6 +696,10 @@
     "other": "सत्र {count} दिन में समाप्त होगा"
   },
   "events.summary.usage_updated": "उपयोग अपडेट हुआ: {usage}",
+  "events.usage.amount": "{amount} {unit}",
+  "events.usage.item_amount": "{metric} {amount} {unit}",
+  "events.usage.item_number": "{metric} {amount}",
+  "events.usage.item_percent": "{metric} {pct}",
   "extensions.action.account_invalid": "एक्सटेंशन का खाता नहीं बनाया जा सका।",
   "extensions.action.candidate_expired": "यह पुष्टि अब मान्य नहीं है; मंज़ूर करने से पहले एक्सटेंशन की फिर से समीक्षा करें।",
   "extensions.action.changed": "एक्सटेंशन {id} मंज़ूरी के बाद बदल गया है; कोई प्रोग्राम नहीं चला।",
@@ -2053,6 +2057,7 @@
   "text.duration.hours": "{h} घंटे",
   "text.duration.hours_minutes": "{h} घं {m} मि",
   "text.duration.minutes": "{m} मिनट",
+  "text.list.join": "{first}, {rest}",
   "text.weekday.short.friday": "शुक्र",
   "text.weekday.short.monday": "सोम",
   "text.weekday.short.saturday": "शनि",

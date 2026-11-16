@@ -690,6 +690,10 @@
     "other": "Sessão expira em {count} dias"
   },
   "events.summary.usage_updated": "Uso atualizado: {usage}",
+  "events.usage.amount": "{amount} {unit}",
+  "events.usage.item_amount": "{metric} {amount} {unit}",
+  "events.usage.item_number": "{metric} {amount}",
+  "events.usage.item_percent": "{metric} {pct}",
   "extensions.action.account_invalid": "Não foi possível criar a conta da extensão.",
   "extensions.action.candidate_expired": "Esta confirmação não vale mais; revise a extensão de novo antes de aprová-la.",
   "extensions.action.changed": "A extensão {id} mudou desde a aprovação; nenhum programa foi executado.",
@@ -2047,6 +2051,7 @@
   "text.duration.hours": "{h}h",
   "text.duration.hours_minutes": "{h}h {m}m",
   "text.duration.minutes": "{m} min",
+  "text.list.join": "{first}, {rest}",
   "text.weekday.short.friday": "sex.",
   "text.weekday.short.monday": "seg.",
   "text.weekday.short.saturday": "sáb.",

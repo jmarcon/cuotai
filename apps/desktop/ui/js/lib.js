@@ -648,15 +648,22 @@ export const fmtMoney = (amount, currency) => {
 };
 /** PRD 0030 L-01: a typed rate with up to six significant digits ("0.0000099", "5.4321"), never rounded to zero. */
 export const fmtRate = (n) => (n == null ? "—" : intlFormatter("NumberFormat", currentLocale(), { maximumSignificantDigits: 6 }).format(n));
-// Units that describe "request count": left implicit. Others (USD, credits, tokens) are shown.
-const QUIET_UNITS = new Set(["", "%", "—", "solicitações", "requisições", "consultas", "unidades", "requests"]);
-const unitSuffix = (m) => (QUIET_UNITS.has(m.unit) ? "" : ` ${m.unit}`);
+/** PRD 0034 re-validation V-05: the metric's unit as a person reads it (`unit_text`, the core's display text); the raw
+ *  `unit` is an id (often Portuguese) and is shown only when the core sent no text. */
+export const unitName = (m) => (m?.unit_text ? tl(m.unit_text) : m?.unit ?? "");
+// Units that describe "request count": left implicit. Others (USD, credits, tokens) are shown. The test keys on ids
+// (the raw unit's symbols or the core's `metric.unit.*` id of `unit_text`), never on a word of some language.
+const QUIET_UNITS = new Set(["", "%", "—", "requests"]);
+const QUIET_UNIT_IDS = new Set(["metric.unit.requests", "metric.unit.requisitions", "metric.unit.queries", "metric.unit.units"]);
+const isQuietUnit = (m) => QUIET_UNITS.has(m.unit ?? "") || QUIET_UNIT_IDS.has(m.unit_text?.id);
+// A no-break space: the figure never wraps away from its unit (PRD 0034 re-validation V-10).
+const unitSuffix = (m) => (isQuietUnit(m) ? "" : `\u00a0${unitName(m)}`);
 export function fmtAmount(m) {
   if (m.limit == null) return m.used == null ? "—" : `${fmtNumber(m.used)}${unitSuffix(m)}`;
   return `${fmtNumber(m.used)} / ${fmtNumber(m.limit)}${unitSuffix(m)}`;
 }
-/** One recorded value of a metric with `unit` (history): "60%", "12.5 USD", or a bare count. */
-export const fmtValue = (v, unit) => (unit === "%" ? fmtPercent(v, 2) : `${fmtNumber(v)}${unitSuffix({ unit })}`);
+/** One recorded value of metric `m` (history; its `unit` and `unit_text`): "60%", "12.5 USD", or a bare count. */
+export const fmtValue = (v, m) => (m.unit === "%" ? fmtPercent(v, 2) : `${fmtNumber(v)}${unitSuffix(m)}`);
 /** Metric without a usable limit: text in place of the bar (never invents "100% free"). */
 export function textualMetric(m) {
   if (m.state === "exhausted" && m.no_cap) return t("metric.exhausted");
@@ -793,7 +800,8 @@ export const billingOverage = (r) => {
 };
 /** One amount: money with the locale's currency format, provider units as the core words them, anything else with
  *  its unit. A missing amount is "—", never zero (DS-MSG-5). */
-export function fmtExtra(value, unit, currency) {
+/** `shown` is the unit as a person reads it (a metric's `unitName`); `unit` stays the id the provider-units test reads. */
+export function fmtExtra(value, unit, currency, shown = unit) {
   if (value == null) return "—";
   if (currency) {
     try { return new Intl.NumberFormat(currentLocale(), { style: "currency", currency }).format(value); } catch { /* unknown code */ }
@@ -802,7 +810,7 @@ export function fmtExtra(value, unit, currency) {
     const n = fmtNumber(value);
     return tl({ id: "overage.amount.provider_units", params: { value: n }, fallback: `${n} provider units` });
   }
-  return `${fmtNumber(value)}${unit ? ` ${unit}` : ""}`;
+  return `${fmtNumber(value)}${shown ? `\u00a0${shown}` : ""}`;
 }
 /** PRD 0023 re-validation (V-01): the card figure of an extra amount: the number alone in the figure, its unit word
  *  on the small line (money: "extra"; provider units: the core's translated word; other units: the unit), so the
@@ -818,8 +826,8 @@ export function extraFigure(o) {
 /** Figure first (DS-MSG-4): "$6.25 extra of $50" for one overage metric. */
 export function fmtMetricExtra(m) {
   if (m.used == null) return "—";
-  const amount = fmtExtra(m.used, m.unit, m.kind === "spend" ? m.unit : null);
-  return m.limit > 0 ? t("metric.overageCap", { amount, cap: fmtExtra(m.limit, m.unit, m.kind === "spend" ? m.unit : null) })
+  const amount = fmtExtra(m.used, m.unit, m.kind === "spend" ? m.unit : null, unitName(m));
+  return m.limit > 0 ? t("metric.overageCap", { amount, cap: fmtExtra(m.limit, m.unit, m.kind === "spend" ? m.unit : null, unitName(m)) })
     : t("metric.overage", { amount });
 }
 /** The account-level line: the figure while billing, the core's words for the other states. */
@@ -1370,10 +1378,30 @@ export function createStore(render) {
 
 // ---------- demo (browser only; same shape as the Tauri commands) ----------
 const h = (n) => new Date(Date.now() + n * 3600e3).toISOString();
+// PRD 0034 re-validation (G9): the demo's metrics carry what the backend sends: the adapters' own raw label and unit
+// (Portuguese ids, as `Sessão (5 horas) (%)` and `solicitações`) beside their `label_text`/`unit_text`, so a screen
+// that shows a raw id reads Portuguese in every other language (locale-smoke and the en-XA scan then catch it).
+const demoText = (id, fallback, params = {}) => ({ id, params, fallback });
+const demoPercentOf = (id, english) => demoText("metric.label.percent_of", `${english} (%)`, { label: demoText(id, english) });
+const DEMO_RAW_LABELS = {
+  "session (5h)": ["Sessão (5 horas) (%)", demoPercentOf("metric.label.session_5h", "Session (5 hours)")],
+  "weekly (7d)": ["Semana (7 dias) (%)", demoPercentOf("metric.label.week_7d", "Week (7 days)")],
+  credit: ["Crédito", demoText("metric.label.credit", "Credit")],
+};
+const DEMO_RAW_UNITS = {
+  requests: ["solicitações", demoText("metric.unit.requests", "requests")],
+  credits: ["créditos", demoText("metric.unit.credits", "credits")],
+};
+/** The raw `label`/`unit` and their display texts for a demo metric named `label` in `unit` (English demo names). */
+const demoTexts = (label, unit) => {
+  const [rawLabel, labelText] = DEMO_RAW_LABELS[label] ?? [label, demoText("metric.verbatim", label)];
+  const [rawUnit, unitText] = DEMO_RAW_UNITS[unit] ?? [unit, demoText("metric.verbatim", unit)];
+  return { label: rawLabel, label_text: labelText, unit: rawUnit, unit_text: unitText };
+};
 const dm = (label, used, limit, resetH, kind, window, unit = "requests") => {
   const unmeasured = used === 0 && limit === 0;
   const exhausted = !unmeasured && limit > 0 && used >= limit;
-  return { label, used, limit, remaining: limit - used, unit, kind, window, period: null, resets_at: h(resetH),
+  return { ...demoTexts(label, unit), used, limit, remaining: limit - used, kind, window, period: null, resets_at: h(resetH),
     state: unmeasured ? "unmeasured" : exhausted ? "exhausted" : "available",
     ratio: unmeasured || exhausted ? (exhausted ? 0 : null) : (limit - used) / limit, uncapped: false, no_cap: false };
 };
@@ -1521,7 +1549,7 @@ const demoBinding = (r) => {
   const m = r.metrics[metricIndex];
   const exhausted = m.state === "exhausted";
   const usedRatio = exhausted ? 1 : 1 - m.ratio;
-  return { index: metricIndex, label: m.label, window: m.window, used_ratio: usedRatio, remaining: m.limit * (1 - usedRatio),
+  return { index: metricIndex, label: m.label, label_text: m.label_text, window: m.window, used_ratio: usedRatio, remaining: m.limit * (1 - usedRatio),
     resets_at: m.resets_at, reason: exhausted ? "exhausted" : "tightest", blocked_until: exhausted ? m.resets_at : null };
 };
 // ponytail: fixed core pace output per demo metric (one per stage), same shape as `MetricView.pace`; the browser
@@ -1620,7 +1648,7 @@ const demoForecast = (m, pace) => {
   const short = demoAt(pace.projected_exhaustion_at, true);
   const margin = durationNote((new Date(m.resets_at) - new Date(pace.projected_exhaustion_at)) / 1000);
   return { at,
-    callout: { id: "alerts.body.projected", params: { metric: m.label, at, margin }, fallback: `At this rate ${m.label} runs out ≈${at.fallback}, ${margin.fallback} before the reset` },
+    callout: { id: "alerts.body.projected", params: { metric: m.label_text ?? m.label, at, margin }, fallback: `At this rate ${m.label_text?.fallback ?? m.label} runs out ≈${at.fallback}, ${margin.fallback} before the reset` },
     chip: { glyph: "↑", text: { id: "pace.chip.runs_out", params: { at: short }, fallback: `Runs out ≈${short.fallback}` },
       compact: { id: "pace.chip.approx", params: { at: short }, fallback: `≈${short.fallback}` }, hint: null } };
 };
@@ -1735,7 +1763,7 @@ if (DEMO_QUERY.has("paste-session")) for (const r of demoReports) if (r.provider
 // week beside a paced 5 h window (the card's labelled pace line, RF4.1). `?lagging`: a fresh and an aging reading whose
 // provider data is older than the query by more than 15 minutes (`data_as_of`, RF3). `?metered`: the AWS Bedrock
 // account (`demoBedrock`). They combine with each other and with the default set.
-const demoRenewed = (label, window, renewedMin) => ({ label, used: null, limit: null, remaining: null, unit: "%", kind: "quota", window, period: null,
+const demoRenewed = (label, window, renewedMin) => ({ ...demoTexts(label, "%"), used: null, limit: null, remaining: null, kind: "quota", window, period: null,
   resets_at: ago(renewedMin), state: "unmeasured", ratio: null, uncapped: false, no_cap: false, expired: true });
 const demoSpend = (label, used) => ({ label, used, limit: null, remaining: null, unit: "USD", kind: "spend", window: "monthly", period: null,
   resets_at: h(300), state: "available", ratio: null, uncapped: true, no_cap: false });
@@ -1764,7 +1792,7 @@ const demoConnectionBinding = (c) => {
   const index = c.metrics.reduce((best, m, i) => (best < 0 || ratio(m) > ratio(c.metrics[best]) ? i : best), -1);
   if (index < 0) return null;
   const m = c.metrics[index], used = Math.min(1, ratio(m));
-  return { index, label: m.label, window: m.window, used_ratio: used, remaining: m.limit * (1 - used), resets_at: m.resets_at,
+  return { index, label: m.label, label_text: m.label_text, window: m.window, used_ratio: used, remaining: m.limit * (1 - used), resets_at: m.resets_at,
     reason: used >= 1 ? "exhausted" : "tightest", blocked_until: used >= 1 ? m.resets_at : null };
 };
 // Demo account names are catalog texts (`demo.account.*`), so every language shows its own; the report keeps the raw
@@ -1956,7 +1984,7 @@ function demoNextNotice(reports) {
   const lead = n.lead_minutes * 60000;
   const next = reports.filter((r) => r.status === "ready" && r.notify)
     .flatMap((r) => r.metrics.filter((m) => m.kind === "quota" && m.window && (m.window !== "other" || n.include_other) && m.resets_at)
-      .map((m) => ({ index: r.index, provider: r.provider, account: r.account, window: m.window, label: m.label, resets_at: m.resets_at, at: new Date(new Date(m.resets_at).getTime() - lead).toISOString() })))
+      .map((m) => ({ index: r.index, provider: r.provider, account: r.account, window: m.window, label: m.label, label_text: m.label_text, resets_at: m.resets_at, at: new Date(new Date(m.resets_at).getTime() - lead).toISOString() })))
     .filter((e) => new Date(e.at).getTime() > Date.now())
     .sort((a, b) => a.at.localeCompare(b.at, "en")); // ISO instants: a fixed, language-free order
   return next[0] ?? null;
@@ -2118,7 +2146,7 @@ const demoHistory = async ({ index, generation, range, metricKey }) => {
     const points = demoSamples(m, i, to).filter((p) => p.taken_at >= from);
     const limit = m.limit ?? null, windows = demoWindows(points, limit);
     const used = points.map((p) => p.used);
-    return { key: `${r.provider}-${i}`, label: m.label, unit: m.unit, kind: m.kind, window: m.window, limit, samples: points.length,
+    return { key: `${r.provider}-${i}`, label: m.label, unit: m.unit, label_text: m.label_text, unit_text: m.unit_text, kind: m.kind, window: m.window, limit, samples: points.length,
       trend: points.length ? { min: Math.min(...used), max: Math.max(...used), last: { taken_at: new Date(points.at(-1).taken_at).toISOString(), used: points.at(-1).used } } : null,
       chart: demoChart(points, limit, from, to, windows), windows };
   });
@@ -2153,9 +2181,9 @@ const demoStats = async ({ range, account, generation }) => {
   const now = Date.now(), at = (hoursAgo) => new Date(now - hoursAgo * 36e5).toISOString();
   const events = erased ? [] : [
     { occurred_at: at(2), kind: "quota_threshold_crossed", account: demoReports[0].account, summary: { id: "events.summary.quota_threshold_crossed", params: { metric: "Gemini (5h)", threshold: 90 }, fallback: "Gemini (5h): 90% used" } },
-    { occurred_at: at(4), kind: "quota_threshold_crossed", account: "work@example.com", parent: demoReports[0].account, is_connection: true, summary: { id: "events.summary.quota_threshold_crossed", params: { metric: "weekly (7d)", threshold: 80 }, fallback: "weekly (7d): 80% used" } },
-    { occurred_at: at(7), kind: "quota_reset", account: demoReports[1].account, summary: { id: "events.summary.quota_reset", params: { metric: "session (5h)" }, fallback: "session (5h): window reset" } },
-    { occurred_at: at(30), kind: "quota_exhausted", account: demoReports[1].account, summary: { id: "events.summary.quota_exhausted", params: { metric: "weekly (7d)" }, fallback: "weekly (7d): quota exhausted" } },
+    { occurred_at: at(4), kind: "quota_threshold_crossed", account: "work@example.com", parent: demoReports[0].account, is_connection: true, summary: { id: "events.summary.quota_threshold_crossed", params: { metric: DEMO_RAW_LABELS["weekly (7d)"][1], threshold: 80 }, fallback: "Week (7 days) (%): 80% used" } },
+    { occurred_at: at(7), kind: "quota_reset", account: demoReports[1].account, summary: { id: "events.summary.quota_reset", params: { metric: DEMO_RAW_LABELS["session (5h)"][1] }, fallback: "Session (5 hours) (%): window reset" } },
+    { occurred_at: at(30), kind: "quota_exhausted", account: demoReports[1].account, summary: { id: "events.summary.quota_exhausted", params: { metric: DEMO_RAW_LABELS["weekly (7d)"][1] }, fallback: "Week (7 days) (%): quota exhausted" } },
     { occurred_at: at(55), kind: "refresh_failed", account: null, summary: { id: "events.summary.refresh_failed", params: { category: { id: "events.category.provider_error", params: {}, fallback: "provider error" } }, fallback: "Refresh failed: provider error" } },
   ].filter((e) => account == null || e.account === demoReports[account].account).map((e) => ({ ...e, account: demoName(e.account), parent: e.parent ? demoName(e.parent) : e.parent,
     when: demoPast(e.occurred_at), time: demoTime(e.occurred_at), day: demoHeading(e.occurred_at) }));
@@ -3480,7 +3508,7 @@ export const setShowPace = async (on) => { await call("set_show_pace", { show: o
 /** The core's pace of `m` (never estimated here); null when the core has none or the user hid pace. */
 export const paceOf = (m) => (showPace ? m.pace ?? null : null);
 /** PRD 0033 RF4.1: the name of `m`'s window, for the pace line ("Week", "5h"); windows the UI does not name use the metric label. */
-export const paceLabelOf = (m) => (m.window && m.window !== "other" ? t(`card.binding.${m.window}`) : m.label);
+export const paceLabelOf = (m) => (m.window && m.window !== "other" ? t(`card.binding.${m.window}`) : metricName(m));
 /** PRD 0033 RF4.1: the pace line names its metric unless the binding chip next to it already says the same. */
 export const paceLineLabel = (r, m) => (r.status === "ready" && r.binding && isBindingMetric(r, m) ? "" : paceLabelOf(m));
 /** PRD 0007 RF3.2: the card's metric — the core's most restrictive metric with a pace, unless the user hid it. */

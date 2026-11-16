@@ -1532,6 +1532,10 @@
   "events.summary.limit_changed_unknown": "{metric}: limite cambiato",
   "events.summary.provider_incident": "Stato del provider: {state}",
   "events.summary.usage_updated": "Utilizzo aggiornato: {usage}",
+  "events.usage.amount": "{amount} {unit}",
+  "events.usage.item_amount": "{metric} {amount} {unit}",
+  "events.usage.item_number": "{metric} {amount}",
+  "events.usage.item_percent": "{metric} {pct}",
   "events.summary.session_expiring": {
     "one": "La sessione scade tra {count} giorno",
     "other": "La sessione scade tra {count} giorni"
@@ -1891,6 +1895,7 @@
   "oauth.page.failed.title": "Impossibile completare",
   "oauth.page.failed.body": "Chiudi questa finestra e avvia di nuovo l'accesso in Cuotai.",
   "text.duration.minutes": "{m} min",
+  "text.list.join": "{first}, {rest}",
   "text.weekday.short.friday": "ven",
   "text.weekday.short.monday": "lun",
   "text.weekday.short.saturday": "sab",

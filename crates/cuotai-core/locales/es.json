@@ -1532,6 +1532,10 @@
   "events.summary.limit_changed_unknown": "{metric}: el límite cambió",
   "events.summary.provider_incident": "Estado del proveedor: {state}",
   "events.summary.usage_updated": "Uso actualizado: {usage}",
+  "events.usage.amount": "{amount} {unit}",
+  "events.usage.item_amount": "{metric} {amount} {unit}",
+  "events.usage.item_number": "{metric} {amount}",
+  "events.usage.item_percent": "{metric} {pct}",
   "events.summary.session_expiring": {
     "one": "La sesión caduca en {count} día",
     "other": "La sesión caduca en {count} días"
@@ -1891,6 +1895,7 @@
   "oauth.page.failed.title": "No se pudo completar",
   "oauth.page.failed.body": "Cierra esta ventana e inicia sesión de nuevo en Cuotai.",
   "text.duration.minutes": "{m} min",
+  "text.list.join": "{first}, {rest}",
   "text.weekday.short.friday": "vie",
   "text.weekday.short.monday": "lun",
   "text.weekday.short.saturday": "sáb",

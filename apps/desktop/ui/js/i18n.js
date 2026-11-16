@@ -366,6 +366,9 @@ function amountText(value) {
     const number = new Intl.NumberFormat(intlLocale(), { maximumFractionDigits: 2 }).format(n);
     if (value.id === "amount.number") return number;
     // PRD 0034 re-validation V-10: a no-break space, so the number never wraps away from its unit.
+    // PRD 0034 re-validation V-05: a unit the core sends as a text of its own (`metric.unit.*`) reads in the UI
+    // language; a plain string is already a display text (a currency code, a provider's own unit).
+    if (value.id === "amount.units" && isL10n(p.unit)) return `${number}\u00a0${tl(p.unit)}`;
     if (value.id === "amount.units" && typeof p.unit === "string") return `${number}\u00a0${p.unit}`;
   } catch { /* an unknown code: the fallback */ }
   return null;

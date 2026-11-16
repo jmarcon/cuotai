@@ -1,5 +1,6 @@
 {
   "schema": 1,
+  "schema_revision": 1,
   "generated_at": "2026-10-20T12:00:00Z",
   "accounts": [
     {
@@ -14,10 +15,10 @@
       "freshness": "stale",
       "binding": {
         "index": 0,
-        "label": "Premium requests",
+        "label": "Solicitações premium utilizadas (mês corrente)",
         "label_text": {
-          "id": "metric.verbatim",
-          "fallback": "Premium requests"
+          "id": "metric.label.premium_requests_month",
+          "fallback": "Genutzte Premium-Anfragen (laufender Monat)"
         },
         "window": "monthly",
         "used_ratio": 1.0,
@@ -28,10 +29,22 @@
       },
       "metrics": [
         {
-          "label": "Premium requests",
+          "label": "Solicitações premium utilizadas (mês corrente)",
+          "label_text": "Genutzte Premium-Anfragen (laufender Monat)",
           "used_fraction": 1.0001428571428572,
           "limit": 7000.0,
-          "unit": "%",
+          "unit": "solicitações",
+          "unit_text": "Anfragen",
+          "window": "monthly",
+          "resets_at": "2026-11-02T00:00:00Z"
+        },
+        {
+          "label": "Requisições",
+          "label_text": "Anfragen",
+          "used_fraction": 0.4,
+          "limit": 300.0,
+          "unit": "requisições",
+          "unit_text": "Anfragen",
           "window": "monthly",
           "resets_at": "2026-11-02T00:00:00Z"
         }
@@ -49,10 +62,16 @@
       "freshness": "fresh",
       "binding": {
         "index": 0,
-        "label": "Week",
+        "label": "Semana (7 dias) (%)",
         "label_text": {
-          "id": "metric.verbatim",
-          "fallback": "Week"
+          "id": "metric.label.percent_of",
+          "params": {
+            "label": {
+              "id": "metric.label.week_7d",
+              "fallback": "Woche (7 Tage)"
+            }
+          },
+          "fallback": "Woche (7 Tage) (%)"
         },
         "window": "weekly",
         "used_ratio": 0.39,
@@ -63,10 +82,12 @@
       },
       "metrics": [
         {
-          "label": "Week",
+          "label": "Semana (7 dias) (%)",
+          "label_text": "Woche (7 Tage) (%)",
           "used_fraction": 0.39,
           "limit": 100.0,
           "unit": "%",
+          "unit_text": "%",
           "window": "weekly",
           "resets_at": "2026-10-23T20:00:00Z",
           "pace": {
@@ -84,10 +105,12 @@
           }
         },
         {
-          "label": "Session (5h)",
+          "label": "Sessão (5 horas) (%)",
+          "label_text": "Sitzung (5 Stunden) (%)",
           "used_fraction": 0.12,
           "limit": 100.0,
           "unit": "%",
+          "unit_text": "%",
           "window": "window_5h",
           "resets_at": "2026-10-20T15:00:00Z",
           "pace": {
