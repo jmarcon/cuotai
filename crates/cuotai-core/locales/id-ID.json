@@ -1217,7 +1217,7 @@
   "login.zed.oauth.completion_notice": "Berhasil masuk; parameter akun terisi otomatis.",
   "login.zed.oauth.help": "Alur EKSPERIMENTAL berbasis klien bawaan penyedia (antarmuka internal, tanpa dukungan resmi; bisa gagal atau dibatasi kapan saja). Persetujuan dilakukan di peramban/kode perangkat; tidak ada kata sandi atau token yang diketik di Cuotai.",
   "login.zed.oauth.label": "Login bawaan di peramban",
-  "metric.renewed_waiting": "Diperbarui pada {time}; menunggu pembacaan.",
+  "metric.renewed_waiting": "Diperbarui pada {time}; menunggu pembacaan berikutnya.",
   "metric_window.daily": "harian",
   "metric_window.monthly": "bulanan",
   "metric_window.weekly": "mingguan",

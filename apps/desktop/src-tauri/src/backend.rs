@@ -383,7 +383,7 @@ pub struct MetricView {
     alert: Option<MetricAlertView>,
     /// PRD 0033 RF2.1: the window of this preserved or restored metric
     /// renewed after the reading, so it carries no value; the UI says
-    /// "Renewed at 14:30; waiting for a reading" in the viewer's local time.
+    /// "Renewed at 14:30; waiting for the next reading" in the viewer's local time.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     expired: bool,
     /// PRD 0041 RF4.3: the core's allowance sentence ("≈ 12%/day to the
@@ -1672,7 +1672,9 @@ fn notice_readings(cycle: &RefreshCycle) -> Vec<Option<&Report>> {
 
 /// The account's latest valid reading: the current report or, while it
 /// failed or nothing answered yet, the preserved or restored one (PRD 0006;
-/// the `prev` of a usage alert's first reading, PRD 0008 RF1.7).
+/// the `prev` of a usage alert's first reading, PRD 0008 RF1.7). Raw by
+/// design: alerts compare against what was read, not the collapsed copy
+/// the screens show (`RefreshCycle::shown_last_good`).
 fn last_reading(cycle: &RefreshCycle, index: usize) -> Option<&Report> {
     cycle
         .last_good_report(index)
@@ -1965,7 +1967,11 @@ impl Inner {
                 let next = (!l.cycle.is_busy(i))
                     .then(|| unix_ms + l.cycle.next_refresh_in(i, now).as_millis() as u64);
                 let models = l.monitor.model_count(i);
-                let last_good = l.cycle.last_good_report(i);
+                // PRD 0033 RF2.1 and re-validation V-16/R-3: one collapsed
+                // copy for the card, the connections and the menu bar.
+                let now_utc = chrono::Utc::now();
+                let shown = l.cycle.shown_last_good(i, now_utc);
+                let last_good = shown.as_ref();
                 let mut view = match (slot, last_good) {
                     (Some(report), _) => {
                         // PRD 0024 FIX-11: the lookback ends at the reading, like its pace.
@@ -1983,10 +1989,7 @@ impl Inner {
                     (None, None) => return None,
                 };
                 // PRD 0033 RF2.1: windows renewed since the reading collapse.
-                let now_utc = chrono::Utc::now();
-                view.last_good = last_good
-                    .map(|report| report.collapse_expired(now_utc))
-                    .map(|report| last_good_view(&report, now_utc));
+                view.last_good = last_good.map(|report| last_good_view(report, now_utc));
                 view.notify = self.notices.account_on(&view.account_key);
                 view.monogram = desk.monogram_of(&view.account_id);
                 view.incident = incident_view(&statuses, view.provider);
@@ -2008,7 +2011,10 @@ impl Inner {
                         |id| {
                             let good = l.cycle.last_good_sub(i, id)?;
                             let source = l.cycle.last_good_report(i).or(slot.as_ref())?;
-                            Some(cuotai_core::aggregators::sub_as_report(source, good))
+                            Some(
+                                cuotai_core::aggregators::sub_as_report(source, good)
+                                    .collapse_expired(now_utc),
+                            )
                         },
                         next,
                         self.notices.alerts().pool_mode(&view.account_key)
@@ -2043,7 +2049,10 @@ impl Inner {
         mark_best(&mut reports, &l.file.config, &slot_reports, clock);
         let tray_accounts = reports
             .iter()
-            .map(|v| tray_account(v, l.cycle.last_good_report(v.index)))
+            .map(|v| {
+                let shown = l.cycle.shown_last_good(v.index, chrono::Utc::now());
+                tray_account(v, shown.as_ref())
+            })
             .collect();
         let next = self
             .notices
@@ -5403,13 +5412,16 @@ impl Backend {
         if l.generation != generation {
             return Err(STALE.into());
         }
+        // PRD 0033 re-validation R-3: a preserved reading's renewed
+        // windows are not drawn as exhausted on the timeline.
+        let shown_at = chrono::Utc::now();
         let readings: Vec<Option<Report>> = (0..l.file.config.accounts.len())
             .map(|index| {
                 l.cycle
                     .account_report(index)
                     .filter(|report| report.status == Status::Ready)
-                    .or_else(|| l.cycle.last_good_report(index))
                     .cloned()
+                    .or_else(|| l.cycle.shown_last_good(index, shown_at))
             })
             .collect();
         Ok(cuotai_core::resets::timeline_of_config(
@@ -9516,6 +9528,59 @@ mod tests {
 
     // PRD 0001 re-validation (L2): the dialog's interval placeholder reads the
     // core's per-provider bounds from the form schema.
+    /// PRD 0033 re-validation V-16: the menu bar shows a preserved
+    /// reading through `RefreshCycle::shown_last_good`, so an exhausted
+    /// week whose reset passed reads renewed: not exhausted, no past reset.
+    #[test]
+    fn the_menu_bar_never_shows_a_renewed_preserved_window_as_exhausted() {
+        use cuotai_core::{Metric, MetricKind, MetricWindow};
+        let now = chrono::Utc::now();
+        let report = Report {
+            overage_hint: Default::default(),
+            sub_reports: Vec::new(),
+            diagnostic: Default::default(),
+            account_id: None,
+            account: "a".into(),
+            provider: Provider::Claude,
+            checked_at: now - chrono::TimeDelta::hours(2),
+            status: Status::Ready,
+            metrics: vec![Metric {
+                label: "Week".into(),
+                used: Some(100.0),
+                limit: Some(100.0),
+                remaining: Some(0.0),
+                unit: "%".into(),
+                kind: MetricKind::Quota,
+                window: Some(MetricWindow::Weekly),
+                period: None,
+                resets_at: Some(now - chrono::TimeDelta::minutes(5)),
+                billing: Default::default(),
+                scope: None,
+                derived_from: None,
+            }],
+            notes: Vec::new(),
+            notes_l10n: Vec::new(),
+            source: String::new(),
+            session_expires_at: None,
+            as_of: None,
+            breakdown: Vec::new(),
+        };
+        let config = Config {
+            accounts: vec![cuotai_core::Account {
+                name: "a".into(),
+                provider: Provider::Claude,
+                ..Default::default()
+            }],
+            ..Config::default()
+        };
+        let view = pending_view(0, &report, &config, None, None, 0);
+        let raw = tray_account(&view, Some(&report));
+        assert!(raw.exhausted, "the raw reading is what alerts compare");
+        let shown = tray_account(&view, Some(&report.collapse_expired(now)));
+        assert!(!shown.exhausted);
+        assert!(shown.resets_at.is_none_or(|at| at > now));
+    }
+
     #[test]
     fn form_schema_carries_the_core_interval_bounds() {
         let bedrock = serde_json::to_value(form_schema(Provider::AwsBedrock)).unwrap();

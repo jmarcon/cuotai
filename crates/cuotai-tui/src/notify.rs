@@ -601,7 +601,8 @@ fn osc9_digest(digest: &quiet::Digest, locale: &str) -> String {
 
 /// What notices read, like the desktop: the account's current report or,
 /// while it failed or nothing answered yet, its last valid reading (also
-/// the `prev` of a usage alert's first reading, PRD 0008 RF1.7).
+/// the `prev` of a usage alert's first reading, PRD 0008 RF1.7). Raw by
+/// design, unlike `RefreshCycle::shown_last_good` that screens use.
 fn reading(cycle: &RefreshCycle, index: usize) -> Option<&Report> {
     cycle
         .last_good_report(index)

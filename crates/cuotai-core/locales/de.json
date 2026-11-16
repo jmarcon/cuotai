@@ -1234,7 +1234,7 @@
   "login.zed.oauth.completion_notice": "Anmeldung autorisiert; Kontoparameter automatisch ausgefüllt.",
   "login.zed.oauth.help": "EXPERIMENTELLER Ablauf auf Basis des nativen Clients des Anbieters (interne Schnittstelle ohne offiziellen Support; kann jederzeit fehlschlagen oder eingeschränkt werden). Die Zustimmung erfolgt im Browser bzw. per Gerätecode; in Cuotai wird kein Passwort und kein Token eingegeben.",
   "login.zed.oauth.label": "Native Anmeldung im Browser",
-  "metric.renewed_waiting": "Erneuert um {time}; wartet auf einen Messwert.",
+  "metric.renewed_waiting": "Erneuert um {time}; wartet auf den nächsten Messwert.",
   "metric_window.daily": "täglich",
   "metric_window.monthly": "monatlich",
   "metric_window.weekly": "wöchentlich",

@@ -1217,7 +1217,7 @@
   "login.zed.oauth.completion_notice": "Đã đăng nhập; các tham số tài khoản đã được điền tự động.",
   "login.zed.oauth.help": "Luồng THỬ NGHIỆM dựa trên ứng dụng gốc của nhà cung cấp (giao diện nội bộ, không hỗ trợ chính thức; có thể lỗi hoặc bị hạn chế bất cứ lúc nào). Việc đồng ý diễn ra trong trình duyệt/mã thiết bị; không có mật khẩu hay token nào được gõ vào Cuotai.",
   "login.zed.oauth.label": "Đăng nhập gốc trong trình duyệt",
-  "metric.renewed_waiting": "Đã làm mới lúc {time}; đang chờ lần đọc.",
+  "metric.renewed_waiting": "Đã làm mới lúc {time}; đang chờ lần đọc tiếp theo.",
   "metric_window.daily": "hằng ngày",
   "metric_window.monthly": "hằng tháng",
   "metric_window.weekly": "hằng tuần",

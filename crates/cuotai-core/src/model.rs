@@ -672,10 +672,15 @@ impl Report {
     }
 
     /// PRD 0033 RF2.1: a copy for showing as a preserved or restored
-    /// reading at `now`, with every expired metric collapsed.
+    /// reading at `now`, with every expired metric collapsed, an
+    /// aggregator's connections included (re-validation R-3).
     pub fn collapse_expired(&self, now: DateTime<Utc>) -> Self {
         let mut copy = self.clone();
-        for metric in &mut copy.metrics {
+        let subs = copy
+            .sub_reports
+            .iter_mut()
+            .flat_map(|sub| sub.metrics.iter_mut());
+        for metric in copy.metrics.iter_mut().chain(subs) {
             if metric.is_expired(now) {
                 *metric = metric.collapsed();
             }
@@ -1083,7 +1088,7 @@ impl Metric {
         Some(crate::text::Localized::with_params(
             "metric.renewed_waiting",
             crate::text::params([("time", crate::text::ParamValue::from(time.clone()))]),
-            "Renewed at {time}; waiting for a reading.",
+            "Renewed at {time}; waiting for the next reading.",
         ))
     }
 

@@ -3724,7 +3724,8 @@ impl State {
         dashboard::sub_cards_of(
             &self.accounts[index],
             reports.get(index).and_then(Option::as_ref),
-            cycle.last_good_report(index),
+            // PRD 0033 re-validation R-3: renewed connection windows collapse.
+            cycle.shown_last_good(index, chrono::Utc::now()).as_ref(),
             |_| None,
         )
     }
@@ -4435,7 +4436,7 @@ mod tests {
         };
         let text = metric_text(&metric);
         assert!(text.contains(&local_time(resets_at)), "{text}");
-        assert!(text.contains("aguardando leitura"), "{text}");
+        assert!(text.contains("aguardando a próxima leitura"), "{text}");
         // A metric with a value keeps its figures.
         let live = Metric {
             used: Some(10.0),
