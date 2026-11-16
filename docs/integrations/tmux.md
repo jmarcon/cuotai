@@ -2,6 +2,8 @@
 
 A status segment from [`tmux.sh`](../../examples/integrations/tmux.sh), coloured with tmux style codes. See the [index](README.md) for requirements and the environment variables.
 
+**Prefer `cuotai --status-line --from-server`** for a one-line bar: it reads the same running server, takes the token from its file, and never puts the token on a command line or sends it through a proxy. The script below keeps the token off command lines and proxies too.
+
 ```tmux
 # ~/.tmux.conf
 set -g status-interval 30
@@ -30,5 +32,7 @@ With the server unreachable the segment reads `cuotai offline` in grey.
 set -g status-interval 120
 set -g status-right '#(cuotai --status-line) %H:%M'
 ```
+
+With a server running, `#(cuotai --status-line --from-server)` prints the same line from it instead, without a query cycle, so a short `status-interval` is fine.
 
 `--style logos_percent` lists every account (`C 22% · O 80%`), `--account ID` (repeatable) picks accounts and `--color` adds ANSI colour only on a terminal with `NO_COLOR` unset. Exit codes: 0 all accounts ready, 2 an account failed, 1 a local error.
