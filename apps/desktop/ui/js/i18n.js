@@ -307,7 +307,34 @@ export function tl(value, vars = {}, escape = false) {
   // PRD 0022 re-validation (S-01): the HTML-safe path escapes the whole resolved text, not only the params. The
   // template comes from a catalog (a user pack included), and the core fallback is already interpolated, so its
   // params are inside it. Escaping first and substituting escaped params after keeps a single escape.
-  return substitute(escape ? esc(resolved) : resolved, allVars, escape);
+  const shown = escape ? esc(resolved) : resolved;
+  // PRD 0034 re-validation (S-02): params are substituted in one pass. A fallback the core already interpolated is
+  // shown as it is: substituting it again would expand a `{name}` that a param value carries.
+  if (template == null && interpolated(value)) return shown;
+  return substitute(shown, allVars, escape);
+}
+
+/** True when the note's fallback already holds a param value (a nested note: its English text) that carries a
+ *  `{name}` placeholder, so the core interpolated it rather than a fixture writing it as a raw template. Only such a
+ *  value can make a second pass differ from the first, so any other fallback is substituted once, as a template. */
+function interpolated(note) {
+  if (typeof note.fallback !== "string") return false;
+  return Object.values(note.params ?? {}).some((v) => {
+    const text = isL10n(v) ? englishText(v) : v;
+    return typeof text === "string" && /\{\w+\}/.test(text) && note.fallback.includes(text);
+  });
+}
+
+/** A note's English text as the core interpolates it: its fallback, substituted once when it is a raw template. */
+function englishText(note) {
+  if (typeof note.fallback !== "string") return "";
+  if (interpolated(note)) return note.fallback;
+  const params = note.params ?? {};
+  return note.fallback.replace(/\{(\w+)\}/g, (m, n) => {
+    if (!(n in params)) return m;
+    const v = params[n];
+    return v == null ? "" : isL10n(v) ? englishText(v) : String(v);
+  });
 }
 
 /** Intl locale of the UI: the pseudo-locale formats like en-US. */
