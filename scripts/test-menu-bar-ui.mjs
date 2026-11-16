@@ -76,6 +76,19 @@ assert.match(off, /data-tray-pick="b"[^>]*disabled/, "a hidden account's check i
 assert.match(off, /Hidden from the dashboard/);
 assert.ok(!/data-tray-pick="a"[^>]*disabled/.test(off), "the others stay enabled");
 
+// RF2.3 (re-validation V-19): the popover lists the menu-bar accounts first, in its order; the rest apart; the demo
+// view carries the account ids the split reads.
+const reps = [{ account_id: "acc_a" }, { account_id: "acc_b" }, { account_id: "acc_c" }];
+const split = lib.splitByMenuBarKeys(reps, ["acc_c", "acc_gone", "acc_a"]);
+assert.deepEqual(split.inBar.map((r) => r.account_id), ["acc_c", "acc_a"]);
+assert.deepEqual(split.rest.map((r) => r.account_id), ["acc_b"]);
+assert.equal(lib.splitByMenuBarKeys(reps, []).rest.length, 0, "nothing selected: one list");
+assert.equal(lib.splitByMenuBarKeys(reps, ["acc_a", "acc_b", "acc_c"]).rest.length, 0, "all in the bar: one list");
+assert.ok((await lib.getView()).reports.every((r) => /^acc_demo\d{8}$/.test(r.account_id)), "the demo sends account ids");
+// Re-validation V-05: with the shell's image the preview draws that image (a canvas), with the title beside it.
+const drawn = menubar.previewHtml({ style: "icon_only", items: [], title: "22% · Claude", image: { width: 44, height: 44, template: true, rgba: "AAAA" } }, false);
+assert.match(drawn, /<canvas class="mb-img"[^>]*data-template="1"/);
+assert.match(drawn, /22% · Claude/);
 // RF4.1 / DS-CMP-MTR-5: an unknown share draws no fill; an exhausted one is an outline; the title is escaped text.
 const meters = menubar.previewHtml({ style: "meters", items: [{ remaining: null }, { remaining: 0, exhausted: true }, { remaining: 0.004, level: "bad" }] }, false);
 assert.match(meters, /mb-bar unknown"><span style="width:0%"/);
@@ -102,7 +115,8 @@ assert.equal(firstRun.due({ onboarding: 0, onboarding_version: 1 }, { account_co
 
 // RF2.3/RF4.3: the popover reads the selection by stable id and keeps its view in desktop.json.
 const tray = await readFile(ui("js/tray.js"), "utf8");
-assert.match(tray, /r\.account_id === k/);
+assert.match(tray, /splitByMenuBarKeys\(/, "the popover splits through lib.js, which reads the stable id");
+assert.match(await readFile(ui("js/lib.js"), "utf8"), /r\.account_id === k/);
 assert.ok(!tray.includes("localStorage.setItem(VIEW_KEY"), "the popover view no longer lives in localStorage");
 
 // PRD 0043 RF4.2: the 24-hour strip is a macOS style only; its preview scales each hour to the busiest one, keeps a

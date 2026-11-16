@@ -208,7 +208,7 @@ export const moveAccount = (from, to) => call("move_account", { from, to });
 export const getSettings = () => call("get_settings");
 // PRD 0025: the menu bar (style, colored variant, selection, popover view), the Advanced group's state and the first
 // run. Figures and texts of the preview come from the core's `tray::summary`.
-export const trayPreview = (style, accounts) => call("tray_preview", { style, accounts });
+export const trayPreview = (style, accounts, colored = false) => call("tray_preview", { style, accounts, colored });
 export const trayAccounts = () => call("tray_accounts");
 /** Tauri maps command arguments from camelCase; `popover_view` (as `get_settings` names it) is accepted too. */
 export const setTrayPrefs = ({ style, colored, accounts = null, popover_view = null, popoverView = popover_view }) =>
@@ -1274,6 +1274,13 @@ export const disabledAccounts = {
   },
 };
 export const onDisabledChange = (f) => disabledListeners.add(f);
+/** PRD 0025 RF2.3: the menu-bar accounts (`keys`, account ids) first, in the menu bar's order; the others apart.
+ *  Everything in the bar (or nothing matching) keeps one list. */
+export function splitByMenuBarKeys(reports, keys) {
+  const inBar = (keys ?? []).map((k) => reports.find((r) => r.account_id === k)).filter(Boolean);
+  if (!inBar.length || inBar.length === reports.length) return { inBar: reports, rest: [] };
+  return { inBar, rest: reports.filter((r) => !inBar.includes(r)) };
+}
 /** Reads the stored set and follows later changes from any window. */
 export async function initHiddenAccounts() {
   try { followHidden((await getSettings()).hidden_accounts); } catch {}
@@ -1646,7 +1653,8 @@ const demoView = () => {
     return { ...r, account: demoName(r.account), connections, index, binding: demoBinding(r), binding_rank: DEMO_BINDINGS.get(r)?.[1] ?? DEMO_BINDINGS.size + index,
       metrics, pace_index: paceIndex, windows: r.status === "ready" ? demoTrayPair(r) : null,
       next_refresh_at_ms: Date.now() + (40 + index * 37) * 1000, uses_oauth: r.provider === "kiro" || r.uses_oauth, access: demoAccess(r),
-      account_key: demoKey(r), notify, usage_alerts: metrics.filter((m) => m.alert?.active).map((m) => m.label_text ?? m.label), incident,
+      // PRD 0025 re-validation V-19: the stable id the real backend sends (the popover's menu-bar split reads it).
+      account_id: demoAccountId(index), account_key: demoKey(r), notify, usage_alerts: metrics.filter((m) => m.alert?.active).map((m) => m.label_text ?? m.label), incident,
       // PRD 0022 MONO-4: the shell adds the override kept by account id in desktop.json.
       ...(demoSettings.monograms[demoAccountId(index)] ? { monogram: demoSettings.monograms[demoAccountId(index)] } : {}),
       ...(note ? { notes: [...r.notes, note.fallback], notes_l10n: [...r.notes.map((n, i) => r.notes_l10n?.[i] ?? null), note] } : {}) };
@@ -1665,9 +1673,9 @@ const demoView = () => {
     tray: { style: demoSettings.tray.style, selected: demoTraySelection().map((a) => a.key), popover_view: demoSettings.tray.popover_view ?? "list" } };
 };
 // ponytail: a rough demo of the core's `tray::summary` (PRD 0025 RF1); the app always asks the core.
-const demoTrayAccounts = () => demoReports.map((r) => {
+const demoTrayAccounts = () => demoReports.map((r, index) => {
   const b = demoBinding(r);
-  return { key: demoKey(r), provider: r.provider, provider_label: brand(r.provider).label, name: demoName(r.account),
+  return { key: demoAccountId(index), provider: r.provider, provider_label: brand(r.provider).label, name: demoName(r.account),
     remaining: b ? Math.max(0, 1 - b.used_ratio) : null, exhausted: b?.reason === "exhausted" };
 });
 function demoTraySelection(style = demoSettings.tray.style, accounts = demoSettings.tray.accounts) {
@@ -1835,7 +1843,16 @@ const demoSessionNotice = (state) => state && { level: dl("access.credential.use
 // The demo's stand-in for `desktop.json` `dashboard.hidden_accounts`, shared by the demo's windows.
 const DEMO_HIDDEN = "cuotai.demo.hiddenAccounts";
 const demoHidden = () => { try { const v = JSON.parse(localStorage.getItem(DEMO_HIDDEN) || "[]"); return Array.isArray(v) ? v : []; } catch { return []; } };
-const demoSettings = { monograms: {}, profileExisted: new URLSearchParams(location.search).has("profile-existed"), whatsNewDue: new URLSearchParams(location.search).has("whats-new"), tray: { style: "tightest_percent", colored: false, accounts: null, popover_view: null }, advancedOpen: false, stats: {},
+const DEMO_ROWS = ["minimal", "detailed"].find((p) => new URLSearchParams(location.search).get("rows") === p) ?? null;
+function demoTraySel() {
+  const n = Number(new URLSearchParams(location.search).get("traysel"));
+  if (!Number.isInteger(n) || n <= 0) return null;
+  return demoReports.map((_, index) => demoAccountId(index)).slice(-n).reverse();
+}
+const demoSettings = { monograms: {}, profileExisted: new URLSearchParams(location.search).has("profile-existed"), whatsNewDue: new URLSearchParams(location.search).has("whats-new"), // Re-validation V-19: `?traysel=N` starts with a custom menu-bar selection of the last N accounts (reversed), and
+  // `?rows=minimal|detailed` with that row display, so the harness can draw them.
+  tray: { style: "tightest_percent", colored: false, accounts: demoTraySel(), popover_view: null }, advancedOpen: false,
+  rows: DEMO_ROWS ? { tray: { preset: DEMO_ROWS } } : undefined, stats: {},
   // `?first-run` shows the first-run step (PRD 0025 RF6) in the demo.
   onboarding: new URLSearchParams(location.search).has("first-run") ? 0 : 1,
   custom: null, config: null, generation: 1, historyRecording: true, historyEpoch: 0, historyErased: new Set(), sessionMigrated: new Set(), sessionForgotten: new Set(),
@@ -2645,7 +2662,13 @@ const demo = {
   autostart_set: async ({ enabled }) => { demoSettings.autostart = !!enabled; return demoSettings.autostart; },
   autostart_stale: async () => !!demoSettings.autostart && !!demoSettings.autostartStale,
   autostart_repair: async () => { demoSettings.autostartStale = false; return !!demoSettings.autostart; },
-  first_run_turn_on: async () => { demoSettings.alerts.enabled = true; demoSettings.alerts.overage = true; demoSettings.alerts.projected_lead_minutes = 60; demoSettings.onboarding = 1; return "granted"; },
+  // Re-validation V-19: `?notify-denied` plays the refused permission (RF6.2): nothing is turned on.
+  first_run_turn_on: async () => {
+    demoSettings.onboarding = 1;
+    if (demoPermission(true) === "denied") return "denied";
+    demoSettings.alerts.enabled = true; demoSettings.alerts.overage = true; demoSettings.alerts.projected_lead_minutes = 60;
+    return "granted";
+  },
   first_run_record: async ({ again }) => { demoSettings.onboarding = again ? 0 : 1; },
   set_advice_enabled: async () => {},
   set_live_session: async () => {},

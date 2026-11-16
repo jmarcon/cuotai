@@ -296,15 +296,19 @@ export function paceChipsHtml(m, pace) {
 
 /** One-line status line (DS-CMP-STL-1): glyph, label, chips, detail and the right-aligned reset; `fitStatusLines`
  *  applies the overflow order after layout. `compact`: the tray row form (the projected run-out as a compact chip);
- *  `reset: false` leaves the reset to the card's windows. */
-export function statusLineHtml(r, st = accountState(r), { glyph = true, compact = true, reset = true } = {}) {
+ *  `reset: false` leaves the reset to the card's windows. `label`/`chips`/`glyph` false leave that part out of the
+ *  markup (PRD 0025 re-validation V-09: a row layout that hides every part leaves no empty line, and a detail without
+ *  its label has no leading separator). */
+export function statusLineHtml(r, st = accountState(r), { glyph = true, compact = true, reset = true, label = true, chips: withChips = true } = {}) {
   const p = statusParts(r, st);
   if (!p.label && !p.reset) return "";
-  const lbl = p.label ? `<span class="lbl ${p.role}">${esc(p.label)}</span>` : "";
-  const chips = !p.pace ? "" : compact ? timeChipHtml(p.binding?.forecast?.chip, { compact: true }) : paceChipsHtml(p.binding, p.pace);
-  const det = (st.kind === "stale" || st.kind === "exhausted") && p.detail ? `<span class="det">· ${esc(p.detail)}</span>` : "";
+  const lbl = label && p.label ? `<span class="lbl ${p.role}">${esc(p.label)}</span>` : "";
+  const chips = !withChips || !p.pace ? "" : compact ? timeChipHtml(p.binding?.forecast?.chip, { compact: true }) : paceChipsHtml(p.binding, p.pace);
+  const det = (st.kind === "stale" || st.kind === "exhausted") && p.detail ? `<span class="det">${lbl ? "· " : ""}${esc(p.detail)}</span>` : "";
   const rst = reset && p.reset ? `<span class="rst" title="${esc(p.resetFull)}">${icon("returns")}<span>${esc(p.reset)}</span></span>` : "";
-  return `<span class="stl" title="${esc(p.full)}"><span class="stl-l">${glyph ? stateGlyph(st) : ""}${lbl}${chips}${det}</span>${rst}</span>`;
+  const g = glyph ? stateGlyph(st) : "";
+  if (!g && !lbl && !chips && !det && !rst) return "";
+  return `<span class="stl" title="${esc(p.full)}"><span class="stl-l">${g}${lbl}${chips}${det}</span>${rst}</span>`;
 }
 
 /**
@@ -658,7 +662,9 @@ export function rowHtml(r, { title, sub = "", mono = "", open = null, key = repo
   const plan = r.plan ?? r.connection?.plan ?? "";
   const dup = r.connection?.duplicate_of ? " dup" : "";
   const name = [rowName(r, st), plan, bars ? windowsText(bars) : subLimitsText(r)].filter(Boolean).join(", ");
-  const status = lay.one ? oneStatusHtml(r, st) : `${statusLineHtml(r, st)}${extraLineHtml(r, st)}`;
+  const el = lay.elements;
+  const status = lay.one ? oneStatusHtml(r, st)
+    : `${statusLineHtml(r, st, { glyph: el.ring, label: el.status, chips: el.runs_out, reset: el.returns })}${extraLineHtml(r, st)}`;
   return `<article class="row${open != null ? " open" : ""}${dup}" data-row="${esc(key)}">
     <button class="rh" data-open="${esc(key)}" aria-expanded="${open != null}" aria-label="${esc(name)}" title="${esc(name)}">
       ${tileHtml(r.provider, 32, mono)}

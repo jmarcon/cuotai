@@ -6,6 +6,10 @@
 import { t, te } from "../i18n.js";
 import { accountLabel, brand, esc, getSettings, setRows } from "../lib.js";
 import { applyRowLayout, choosePreset, ELEMENTS, PRESETS, resolve, toggled } from "../density.js";
+
+/** PRD 0025 re-validation V-10: the elements a main-window card does not have (a card always shows its windows).
+ *  Their switches are disabled, with the reason, while the window's own layout is edited; no switch is a no-op. */
+export const NOT_IN_CARDS = ["sublimits"];
 import { rowHtml } from "../components.js";
 import { errorText } from "./common.js";
 import { row, rowError, seg, subpage, subRow, sw, toast } from "./rows.js";
@@ -32,8 +36,11 @@ export function bodyHtml(rows, scope) {
     <div class="prev-card rows-prev" role="img" aria-label="" data-rows-preview><span class="prev-label">${te("settings.menubar.preview")}</span><div class="rows-prev-out" data-rows-preview-out></div></div>
     ${row({ key: "rows-separate", label: te("settings.rows.separate"), kw: "rows-separate", control: (a) => sw("rows-separate", rows.separate, a), body: scopes })}
     <div class="rows-el-head"><h3>${te("settings.rows.elements")}</h3><span class="hint">${te("settings.rows.live")}</span></div>
-    <div class="rows-els">${ELEMENTS.map((k) => row({ key: `rows-el-${k}`, kw: "rows", label: te(`settings.rows.el.${k}`), desc: te(`settings.rows.el.${k}.desc`),
-      control: (a) => sw(`rows-el-${k}`, layout.elements[k], a, `data-rows-el="${k}"`) })).join("")}</div>`;
+    <div class="rows-els">${ELEMENTS.map((k) => {
+      const off = scope === "window" && NOT_IN_CARDS.includes(k);
+      return row({ key: `rows-el-${k}`, kw: "rows", label: te(`settings.rows.el.${k}`), desc: off ? te("settings.rows.notInCards") : te(`settings.rows.el.${k}.desc`),
+        control: (a) => sw(`rows-el-${k}`, layout.elements[k] && !off, a, `data-rows-el="${k}"${off ? " disabled" : ""}`) });
+    }).join("")}</div>`;
 }
 
 /** DS-CMP-DENS-5: the preview account: the first one with a pace, else the first, else a fixed sample labelled as an

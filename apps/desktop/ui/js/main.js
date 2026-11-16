@@ -21,11 +21,11 @@ import {
   sessionAction, liveSessionHtml, dismissFeedBanner, historyRelocation, relocationBannerHtml, clockSkewBannerHtml,
 } from "./lib.js";
 import { fold, patch } from "./util.js";
-import { initRowLayout } from "./density.js";
+import { initRowLayout, rowLayout } from "./density.js";
 import { connectionChips, groupsOf, handleConnectionAction, instanceHeadHtml, isAggregator, poolLineHtml, warningChipsHtml, withConnections } from "./aggregator.js";
 import {
   accountState, announceChanges, extraColumnHtml, filterTabsHtml, changeMarkHtml, clearChange, expectedLeft, figureHtml, fitStatusLines, fmtAt, meterHtml, monograms,
-  repeatedProviders, statusLineHtml, tileHtml, trackChanges,
+  repeatedProviders, statusLineHtml, oneStatusHtml, tileHtml, trackChanges,
 } from "./components.js";
 import * as motion from "./motion.js";
 
@@ -139,7 +139,8 @@ function card(r, ctx, recharging = false, { connection = false } = {}) {
     r.session_expiry ? `<span class="mini ${r.session_expiry.soon ? "warn" : ""}" data-session-expiry title="${esc(tl(r.session_expiry.label))}">${icon("clock")}<span class="mini-t">${esc(tl(r.session_expiry.label))}</span></span>` : "",
     rate != null && level(rate) !== "good" ? `<span class="mini ${level(rate)}" title="${te("card.rateLimit", { pct: Math.round(rate) })}">${icon("gauge")}${Math.round(rate)}%</span>` : "",
     // PRD 0010 re-validation V-02: a stale card's status line already carries "Stale · age".
-    !stale && r.status === "ready" && r.freshness !== "fresh" ? ageHtml(r) : "",
+    // PRD 0025 re-validation V-10: the row display's "age" on shows it on a fresh card too.
+    !stale && r.status === "ready" && (r.freshness !== "fresh" || rowLayout().elements.age) ? ageHtml(r) : "",
     isBusy ? `<span class="next"><span class="nt">${te("card.refreshing")}</span></span>` : "",
   ].filter(Boolean);
   const counts = [n ? te("card.limits", { count: n }) : "", r.model_count != null ? (r.model_count ? te("card.modelCount", { count: r.model_count }) : te("card.noModels")) : ""].filter(Boolean);
@@ -149,6 +150,13 @@ function card(r, ctx, recharging = false, { connection = false } = {}) {
   const title = repeated ? accountLabel(r) : brand(r.provider).label;
   const sub = repeated ? brand(r.provider).label : accountLabel(r);
   const st = accountState(r);
+  // PRD 0025 RF9.5 (re-validation V-10): the card follows the window's row display where it has the element: Minimal's
+  // one status, the status parts, the age (here) and, through the root's CSS hook, the plan, label, monogram, unit,
+  // corridor, returns time, incident and extra usage. A card always shows its windows, so the sub-limit preview has
+  // no counterpart (Settings disables that switch for the window).
+  const lay = rowLayout();
+  const status = lay.one ? oneStatusHtml(r, st)
+    : statusLineHtml(r, st, { compact: false, reset: false, glyph: lay.elements.ring, label: lay.elements.status, chips: lay.elements.runs_out });
   const refreshName = isBusy ? te("tray.refreshing") : te("common.refresh");
   // RF12.4 / DS-MOT-7: under reduced motion the spin stops, so the busy name and aria-busy say "Refreshing…".
   const connName = isBusy ? te("tray.refreshing") : te("agg.refreshConnection");
@@ -158,7 +166,7 @@ function card(r, ctx, recharging = false, { connection = false } = {}) {
     <div class="card-head">
       ${custom ? `<button class="icon grip" draggable="${!reorderPending}" data-grip="${esc(key)}" title="${te("account.reorderKeys")}" aria-label="${te("account.reorder")}" aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown">${icon("grip")}</button>` : ""}
       ${tileHtml(r.provider, 40, ctx.monos.get(key) ?? "")}
-      <div class="who"><div class="who-t"><h2 title="${esc(title)}">${esc(title)}</h2>${planBadgeHtml(r)}</div>${sub ? `<p title="${esc(sub)}">${esc(sub)}</p>` : ""}</div>
+      <div class="who"><div class="who-t"><h2 title="${esc(title)}">${esc(title)}</h2>${planBadgeHtml(r)}</div>${sub ? `<p${repeated ? "" : ' class="ac"'} title="${esc(sub)}">${esc(sub)}</p>` : ""}</div>
       <div class="actions">
         ${connection && r.connection.sub ? `<button class="icon" title="${connName}" aria-label="${connName}" data-conn-refresh data-index="${index}" data-sub="${esc(r.connection.sub)}" ${isBusy ? 'disabled aria-busy="true"' : ""}>${icon("refresh", isBusy ? "spin" : "")}</button>` : ""}
         ${connection ? "" : `<button class="icon" title="${refreshName}" aria-label="${refreshName}" data-refresh="${index}" ${!on || isBusy ? "disabled" : ""} ${isBusy ? 'aria-busy="true"' : ""}>${icon("refresh", isBusy ? "spin" : "")}</button>`}
@@ -174,7 +182,7 @@ function card(r, ctx, recharging = false, { connection = false } = {}) {
     </div>
     <div class="summary">${stale
       ? `<div class="stale-reading">${summaryHtml(staleView(r), true)}</div>${r.pending ? "" : `<p class="sum-note cause">${icon("warn")}<span>${esc(causeText(r))}</span></p>`}`
-      : summaryHtml(r)}${pasteSessionHtml(r)}${checkSetupHtml(r)}${st.kind === "exhausted" && !billingOverage(r) ? "" : statusLineHtml(r, st, { compact: false, reset: false })}${stale ? "" : scopeBlocksHtml(r)}${liveSessionHtml(r)}${bestChipHtml(r) ? `<div class="card-chips">${bestChipHtml(r)}</div>` : ""}${incidentHtml(r)}${accessHtml(r)}${costFoldHtml(r)}</div>
+      : summaryHtml(r)}${pasteSessionHtml(r)}${checkSetupHtml(r)}${st.kind === "exhausted" && !billingOverage(r) ? "" : status}${stale ? "" : scopeBlocksHtml(r)}${liveSessionHtml(r)}${bestChipHtml(r) ? `<div class="card-chips">${bestChipHtml(r)}</div>` : ""}${incidentHtml(r)}${accessHtml(r)}${costFoldHtml(r)}</div>
     <div class="card-foot">${foot}<span class="grow"></span>
       ${changeMarkHtml(key)}<button class="btn ghost sm details-link" data-details="${esc(key)}">${te("card.details")}${icon("chev")}</button>
     </div>

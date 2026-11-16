@@ -34,9 +34,10 @@ export function html({ settings: s }) {
       row({ key: "tray-colored", label: te("settings.menubar.colored"), desc: te("settings.menubar.colored.desc"), info: te("settings.menubar.colored.help"),
         control: (a) => sw("tray-colored", !!tray.colored, a) }))
     + group("menubar-accounts", `${te("settings.menubar.accounts")}<span class="sec-count" data-tray-count></span>`,
-      `<div data-tray-accounts><p class="hint">${te("common.loading")}</p></div>`
-      + row({ key: "tray-auto", label: te("settings.menubar.auto"), info: te("settings.menubar.auto.help"),
-        control: (a) => sw("tray-auto", tray.accounts == null, a) }));
+      // Re-validation V-14: Automatic decides how the list behaves, so it comes first.
+      row({ key: "tray-auto", label: te("settings.menubar.auto"), info: te("settings.menubar.auto.help"),
+        control: (a) => sw("tray-auto", tray.accounts == null, a) })
+      + `<div data-tray-accounts><p class="hint">${te("common.loading")}</p></div>`);
 }
 
 /** The account's state on its second line ("22% left", "Stale · 74% left", "On extra balance"). */
@@ -47,10 +48,38 @@ export function accountStatus(a) {
   return a.stale ? `${t("freshness.stale")} · ${left}` : left;
 }
 
-/** RF4.1: the preview of one style: the title as system text beside the mark, continuous meters, or (PRD 0043
- *  RF4.2) the 24-hour strip from `strip`'s hourly buckets (faint columns while there is no history). */
+/** RF4.1 (re-validation V-05): the image the shell draws, as a canvas painted by `paintShellImages` once in the
+ *  page (no data URL, which the CSP's `img-src 'self'` refuses). `image`: RGBA in base64, its size and whether the
+ *  system tints it (a template); drawn at half size (the images are 2×). */
+const shellImageHtml = (image) =>
+  `<canvas class="mb-img" width="${image.width}" height="${image.height}" style="width:${Math.round(image.width / 2)}px;height:${Math.round(image.height / 2)}px" data-shell-image="${esc(image.rgba)}" data-template="${image.template ? "1" : ""}" aria-hidden="true"></canvas>`;
+
+/** Paints every shell image under `root`; a template takes the text color (`currentColor`), as the system tints it. */
+export function paintShellImages(root) {
+  for (const canvas of root?.querySelectorAll?.("canvas[data-shell-image]") ?? []) {
+    try {
+      const { width, height } = canvas;
+      const bytes = Uint8ClampedArray.from(atob(canvas.dataset.shellImage), (c) => c.charCodeAt(0));
+      if (bytes.length !== width * height * 4) continue;
+      const ctx = canvas.getContext("2d");
+      ctx.putImageData(new ImageData(bytes, width, height), 0, 0);
+      if (canvas.dataset.template) {
+        ctx.globalCompositeOperation = "source-in";
+        ctx.fillStyle = getComputedStyle(canvas).color;
+        ctx.fillRect(0, 0, width, height);
+      }
+    } catch { /* the fallback stays empty */ }
+  }
+}
+
+/** RF4.1: the preview of one style: the image the shell draws (re-validation V-05) with the title as system text,
+ *  or, without it (the browser demo), the title beside the mark, continuous meters, or (PRD 0043 RF4.2) the 24-hour
+ *  strip from `strip`'s hourly buckets (faint columns while there is no history). */
 export function previewHtml(summary, colored, strip = null) {
   if (!summary) return "";
+  if (summary.image?.rgba && summary.image.width && summary.image.height) {
+    return `<span class="mb-item">${shellImageHtml(summary.image)}${summary.title ? `<span class="mb-title">${esc(summary.title)}</span>` : ""}</span>`;
+  }
   if (summary.style === "hourly_strip") {
     const buckets = strip?.rhythm?.buckets?.length ? strip.rhythm.buckets : Array.from({ length: 24 }, () => ({ consumption: null }));
     const top = Math.max(0, ...buckets.map((b) => b.consumption ?? 0));
@@ -123,16 +152,21 @@ export function bind(root, ctx) {
 
   const paintPreviews = async () => {
     const accounts = state.accounts;
-    const out = await Promise.all(styles.map((style) => trayPreview(style, accounts).catch(() => null)));
+    const out = await Promise.all(styles.map((style) => trayPreview(style, accounts, state.colored).catch(() => null)));
     const strip = styles.includes("hourly_strip") ? await hourlyStrip().catch(() => null) : null;
     styles.forEach((style, i) => {
       const el = root.querySelector(`[data-tray-preview="${style}"]`);
-      if (el) el.innerHTML = previewHtml(out[i], state.colored, strip);
+      if (el) { el.innerHTML = previewHtml(out[i], state.colored, strip); paintShellImages(el); }
     });
     const live = out[styles.indexOf(state.style)];
+    // Re-validation V-14: "Showing N" counts what the item shows (the core's items after its cap and width budget).
+    const showing = root.querySelector("[data-tray-showing]");
+    if (showing && live && all.length) showing.textContent = t("settings.menubar.showing", { n: live.items?.length ?? 0, total: all.length });
     const card = root.querySelector("[data-tray-live]");
     if (card) {
-      card.querySelector("[data-tray-live-out]").innerHTML = previewHtml(live, state.colored, strip);
+      const liveOut = card.querySelector("[data-tray-live-out]");
+      liveOut.innerHTML = previewHtml(live, state.colored, strip);
+      paintShellImages(liveOut);
       card.setAttribute("aria-label", `${t("settings.menubar.preview")}: ${live ? tl(live.accessible_label) : ""}`);
     }
   };
@@ -142,7 +176,7 @@ export function bind(root, ctx) {
     const count = root.querySelector("[data-tray-count]");
     if (count) count.textContent = all.length ? t("settings.menubar.count", { n: shown, total: all.length }) : "";
     const showing = root.querySelector("[data-tray-showing]");
-    if (showing) showing.textContent = all.length ? t("settings.menubar.showing", { n: shown, total: all.length }) : "";
+    if (showing && !all.length) showing.textContent = "";
     if (focusKey) box.querySelector(`[data-key="${CSS.escape(focusKey)}"] ${focusSel}`)?.focus();
   };
   // PRD 0022 RF8.1: the tray view shares this preference (Settings › Dashboard sets it); keep the stored one.

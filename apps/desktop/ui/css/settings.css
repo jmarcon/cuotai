@@ -931,6 +931,11 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+/* Re-validation V-05: the image the shell draws; a template takes the text color, as the system tints it. */
+.mb-img {
+  display: inline-block;
+  flex: none;
+}
 .mb-mark {
   position: relative;
   display: inline-flex;
@@ -1385,7 +1390,18 @@ li.mb-sub + .mb-acc {
 .acc-list .mb-acc > .icon:not(.mb-grip) {
   flex: none;
 }
-/* PRD 0025 RF9 (mockup `50-settings-display-custom`): the row display sub-page. */
+/* PRD 0025 RF9 (mockup `50-settings-display-custom`): the row display sub-page; its blocks keep the sub-page's gap
+   and the separate-layout switch sits in a card like the element list (re-validation V-15). */
+[data-rows-body] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+[data-rows-body] > .set-row {
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
 .rows-head {
   display: flex;
   flex-wrap: wrap;
