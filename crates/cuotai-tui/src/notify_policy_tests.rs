@@ -314,3 +314,24 @@ fn the_osc9_digest_keeps_its_items_apart() {
     assert!(!osc.contains('\n'), "{osc}");
     assert!(!osc.contains("Secret Corp"), "{osc}");
 }
+
+/// PRD 0032 re-validation C-08: 92% held at 23:00, exhaustion told at
+/// 01:00, and the 08:00 digest does not repeat that quota.
+#[test]
+fn the_digest_skips_a_quota_whose_exhaustion_was_told() {
+    let dir = Dir::new();
+    std::fs::write(dir.path().join("desktop.json"), NIGHTS).unwrap();
+    let mut notices = session(dir.path(), at(2, 22, 0), false);
+    let resets = at(4, 12, 0);
+    let before = reading(at(2, 22, 55), 70.0, resets);
+    let crossed = reading(at(2, 23, 0), 92.0, resets);
+    assert!(observe(&mut notices, Some(&before), &crossed, at(2, 23, 0)).is_empty());
+    let out = reading(at(3, 1, 0), 100.0, resets);
+    assert_eq!(
+        bells(&observe(&mut notices, Some(&crossed), &out, at(3, 1, 0))),
+        1
+    );
+    let late = reading(at(3, 8, 0), 100.0, resets);
+    let digest = notices.tick(&config(), &[Some(&late)], at(3, 8, 0), "en-US");
+    assert!(digest.is_empty(), "{}", String::from_utf8_lossy(&digest));
+}

@@ -1813,6 +1813,21 @@ impl AlertState {
         now: DateTime<Utc>,
     ) -> Vec<AlertEvent> {
         let reports: Vec<&Report> = reports.into_iter().collect();
+        // PRD 0032 re-validation C-08: the exhaustions already told (they
+        // break through quiet hours). A held level of the same metric and
+        // window instance adds nothing to the digest: the person already
+        // knows the quota ran out.
+        let told: Vec<(String, String, Option<DateTime<Utc>>)> = self
+            .marks
+            .iter()
+            .filter(|mark| {
+                mark.kind == AlertKind::Exhausted
+                    && mark.notified
+                    && !mark.lapsed
+                    && mark.deferred_until.is_none()
+            })
+            .map(|mark| (mark.account.clone(), mark.metric.clone(), mark.resets_at))
+            .collect();
         let mut events: Vec<AlertEvent> = Vec::new();
         for mark in &mut self.marks {
             if mark.deferred_until.is_none_or(|until| until > now) {
@@ -1941,6 +1956,14 @@ impl AlertState {
                     .iter()
                     .filter(|metric| key_digest(&account_key, &metric.label) == mark.metric)
                     .filter(|metric| same_instance(metric.window, mark.resets_at, metric.resets_at))
+                    .filter(|metric| {
+                        kind != AlertKind::Threshold
+                            || !told.iter().any(|(account, key, resets_at)| {
+                                *account == mark.account
+                                    && *key == mark.metric
+                                    && same_instance(metric.window, *resets_at, metric.resets_at)
+                            })
+                    })
                     .find_map(|metric| {
                         let consumption = consumption(metric)?;
                         let holds = match kind {

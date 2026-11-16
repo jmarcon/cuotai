@@ -291,6 +291,34 @@ fn a_crossing_that_no_longer_holds_or_with_the_digest_off_is_dropped() {
     assert!(!state.has_deferred());
 }
 
+/// PRD 0032 re-validation C-08: an exhaustion breaks through quiet hours,
+/// so the digest does not repeat the 90% of the same quota and window.
+#[test]
+fn the_digest_skips_a_level_whose_exhaustion_was_told() {
+    let prefs = on();
+    let until = t0() + TimeDelta::hours(9);
+    let reading = report(t0(), quota(92.0, Some(window())));
+    let mut state = AlertState::default();
+    state.update_with(
+        &reading,
+        &prefs,
+        &[],
+        &[(event_of(&reading, AlertKind::Threshold, 90), until)],
+        t0(),
+    );
+    let out = report(t0() + TimeDelta::hours(2), quota(100.0, Some(window())));
+    state.update_with(
+        &out,
+        &prefs,
+        &[event_of(&out, AlertKind::Exhausted, 100)],
+        &[],
+        out.checked_at,
+    );
+    let late = report(until, quota(100.0, Some(window())));
+    assert!(state.take_deferred([&late], &prefs, true, until).is_empty());
+    assert!(!state.has_deferred());
+}
+
 #[test]
 fn the_digest_keeps_the_newest_state_of_each_metric() {
     let prefs = on();
